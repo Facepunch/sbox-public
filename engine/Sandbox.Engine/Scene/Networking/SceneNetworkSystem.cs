@@ -1,4 +1,5 @@
-﻿using Sandbox.Network;
+﻿using Sandbox.Engine;
+using Sandbox.Network;
 using Sandbox.Utility;
 using System.IO;
 using System.Text.Json.Nodes;
@@ -159,7 +160,14 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			var networkObject = BatchSpawnList.FirstOrDefault();
 
 			if ( !(networkObject.GameObject?.IsDestroyed ?? true) )
+			{
 				Broadcast( networkObject.GetCreateMessage() );
+
+				foreach ( var recipient in GetFilteredConnections() )
+				{
+					networkObject.MarkCreateMessageSent( recipient );
+				}
+			}
 
 			BatchSpawnList.Clear();
 			return;
@@ -177,9 +185,23 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		}
 
 		msg.CreateMsgs = list.ToArray();
-		BatchSpawnList.Clear();
 
 		Broadcast( msg );
+
+		var recipients = GetFilteredConnections().ToList();
+
+		foreach ( var networkObject in BatchSpawnList )
+		{
+			if ( networkObject.GameObject?.IsDestroyed ?? true )
+				continue;
+
+			foreach ( var recipient in recipients )
+			{
+				networkObject.MarkCreateMessageSent( recipient );
+			}
+		}
+
+		BatchSpawnList.Clear();
 	}
 
 	/// <summary>
@@ -201,6 +223,11 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		}
 
 		Broadcast( networkObject.GetCreateMessage() );
+
+		foreach ( var recipient in GetFilteredConnections() )
+		{
+			networkObject.MarkCreateMessageSent( recipient );
+		}
 	}
 
 	/// <summary>
@@ -244,6 +271,11 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		// Let them know we have now loaded this scene.
 		var loadedMsg = new SceneLoadedMsg { SceneId = msg.SceneId, Id = msg.Id };
 		connection.SendMessage( loadedMsg, NetFlags.Reliable );
+
+		if ( Application.IsEditor )
+		{
+			IToolsDll.Current?.SetPlaying();
+		}
 
 		LoadingScreen.IsVisible = false;
 	}
@@ -290,15 +322,23 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			NetworkObjects = new List<object>( 64 )
 		};
 
-		GetSnapshot( default, ref snapshot );
+		GetSnapshot( connection, ref snapshot );
 		output.Snapshot = snapshot;
+
+		foreach ( var networkObjectData in snapshot.NetworkObjects )
+		{
+			if ( networkObjectData is not ObjectCreateMsg createMessage )
+				continue;
+
+			var networkGameObject = activeScene.Directory.FindByGuid( createMessage.Guid );
+			networkGameObject?._net?.MarkCreateMessageSent( connection );
+		}
 
 		var bs = ByteStream.Create( 256 );
 		bs.Write( InternalMessageType.Packed );
 
 		Networking.System.Serialize( output, ref bs );
 		connection.SendStream( bs );
-
 		bs.Dispose();
 	}
 
@@ -395,7 +435,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		using ( analytic.ScopeTimer( "NetworkObjectTime" ) )
 		{
-			Game.ActiveScene.SerializeNetworkObjects( msg.NetworkObjects );
+			Game.ActiveScene.SerializeNetworkObjects( source, msg.NetworkObjects );
 		}
 
 		var systems = Game.ActiveScene.GetSystems();
@@ -567,6 +607,10 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			{
 				if ( nwo is not ObjectCreateMsg oc )
 					continue;
+
+				// Fold blobs into the shared scope - Deserialize is deferred to the batch flush,
+				// so a per-object scope would be gone before its blob data (eg. mesh) is read.
+				blobs.Load( oc.BlobData );
 
 				var go = new GameObject();
 				go.Deserialize( JsonNode.Parse( oc.JsonData ).AsObject(), networkDeserializeOptionsCreate );

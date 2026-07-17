@@ -37,7 +37,7 @@ public partial class Terrain
 
 			if ( _so.IsValid() )
 			{
-				_so.SetMaterialOverride( value );
+				CreateClipmapSceneObject();
 			}
 		}
 	}
@@ -131,71 +131,52 @@ public partial class Terrain
 	private int _clipMapLodExtentTexelsProperty = 256;
 	private int _subdivisionFactorProperty = 1;
 
+	// Clamp before comparing, so out-of-range assignments compare against the stored value and don't
+	// rebuild the clipmap twice.
+	void SetClipmapProperty( ref int field, int value, int min, int max )
+	{
+		value = value.Clamp( min, max );
+		if ( field == value )
+			return;
+
+		field = value;
+		CreateClipmapSceneObject();
+	}
+
 	[Property, Category( "Clipmap" ), Range( 1, 8 )]
 	public int ClipMapLodLevels
 	{
 		get => _clipMapLodLevelsProperty;
-		set
-		{
-			if ( _clipMapLodLevelsProperty == value )
-				return;
-
-			_clipMapLodLevelsProperty = value.Clamp( 1, 8 );
-
-			// Rebuild clipmap mesh when LOD levels change
-			CreateClipmapSceneObject();
-		}
+		set => SetClipmapProperty( ref _clipMapLodLevelsProperty, value, 1, 8 );
 	}
 
 	[Property, Category( "Clipmap" ), Range( 16, 2048 )]
 	public int ClipMapLodExtentTexels
 	{
 		get => _clipMapLodExtentTexelsProperty;
-		set
-		{
-			if ( _clipMapLodExtentTexelsProperty == value )
-				return;
-
-			_clipMapLodExtentTexelsProperty = value.Clamp( 16, 2048 );
-
-			// Rebuild clipmap mesh when extent changes
-			CreateClipmapSceneObject();
-		}
+		set => SetClipmapProperty( ref _clipMapLodExtentTexelsProperty, value, 16, 2048 );
 	}
 
+	/// <summary>
+	/// How many times to subdivide each block mesh (1 = one vertex per heightmap texel). Higher adds displacement
+	/// detail at the cost of more vertices.
+	/// </summary>
 	[Property, Category( "Clipmap" ), Range( 1, 4 ), Title( "Subdivision Factor" )]
 	public int SubdivisionFactor
 	{
 		get => _subdivisionFactorProperty;
-		set
-		{
-			if ( _subdivisionFactorProperty == value )
-				return;
-
-			_subdivisionFactorProperty = value.Clamp( 1, 4 );
-
-			// Rebuild clipmap mesh when subdivision changes
-			CreateClipmapSceneObject();
-		}
+		set => SetClipmapProperty( ref _subdivisionFactorProperty, value, 1, 4 );
 	}
 
-	private int _subdivisionLodCountProperty = 3;
+	/// <summary>
+	/// Size (in finest-level texels) of one instanced meshlet block.
+	/// </summary>
+	internal const int BlockSize = 4;
 
-	[Property, Category( "Clipmap" ), Range( 1, 6 ), Title( "Subdivision LOD Count" )]
-	public int SubdivisionLodCount
-	{
-		get => _subdivisionLodCountProperty;
-		set
-		{
-			if ( _subdivisionLodCountProperty == value )
-				return;
-
-			_subdivisionLodCountProperty = value;
-
-			// Rebuild clipmap mesh when subdivision LOD count changes
-			CreateClipmapSceneObject();
-		}
-	}
+	/// <summary>
+	/// How many of the finest LOD levels get the subdivided mesh when SubdivisionFactor > 1.
+	/// </summary>
+	internal const int SubdivisionLodCount = 4;
 
 	private ModelRenderer.ShadowRenderType _renderType = ModelRenderer.ShadowRenderType.Off;
 

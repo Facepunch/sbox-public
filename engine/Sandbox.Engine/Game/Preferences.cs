@@ -53,6 +53,13 @@ public static class Preferences
 
 	[ConVar( "platform.chat.enabled", ConVarFlags.Saved, Help = "Do we want to enable the platform level chat system? The game also has to have it enabled." )]
 	public static bool ChatEnabled { get; set; } = true;
+
+	/// <summary>
+	/// Whether the user wants to see subtitles for sounds that have them. Off by
+	/// default - turned on in the audio settings.
+	/// </summary>
+	[ConVar( "snd_subtitles", ConVarFlags.Saved, Help = "Show subtitles for sounds that have them" )]
+	public static bool Subtitles { get; set; } = false;
 }
 
 /// <summary>

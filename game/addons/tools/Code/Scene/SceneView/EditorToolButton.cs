@@ -83,9 +83,6 @@ internal class EditorToolButton : Widget
 
 	public void UpdateState()
 	{
-		if ( IsActive is null )
-			return;
-
-		SetContentHash( HashCode.Combine( IsActive() ), 0.1f );
+		SetContentHash( HashCode.Combine( IsActive?.Invoke() ?? false, Color ), 0.1f );
 	}
 }

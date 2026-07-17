@@ -5,13 +5,12 @@ namespace Editor.MovieMaker.BlockDisplays;
 
 #nullable enable
 
-public interface ICurveBlockItem : IBlockItem
+public interface ICurveBlockItem : IPropertyBlockItem
 {
 	IPropertyBlock Block { get; }
 	IReadOnlyList<Element> Elements { get; }
 	IReadOnlyList<(float Min, float Max)> Ranges { get; }
 
-	IEnumerable<MovieTimeRange> GetPaintHints( MovieTimeRange timeRange );
 	void Read( MovieTime time, Span<float> result );
 }
 

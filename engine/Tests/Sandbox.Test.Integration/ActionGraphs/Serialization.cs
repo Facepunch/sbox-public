@@ -75,5 +75,26 @@ namespace ActionGraphTests
 
 			await resource.DoSomething!();
 		}
+
+		/// <summary>
+		/// Control case to complement <see cref="ScriptDeserialization_Disabled"/>.
+		/// </summary>
+		[TestMethod]
+		public void ScriptDeserialization_Enabled()
+		{
+			Json.Deserialize<Action>( "{}" );
+		}
+
+		/// <summary>
+		/// ActionGraph deserialization is rejected when inside a <see cref="Json.DisableScriptDeserialization"/> block.
+		/// </summary>
+		[TestMethod]
+		public void ScriptDeserialization_Disabled()
+		{
+			using ( Json.DisableScriptDeserialization() )
+			{
+				Assert.ThrowsException<Exception>( () => Json.Deserialize<Action>( "{}" ) );
+			}
+		}
 	}
 }

@@ -399,20 +399,31 @@ public partial class Timeline : GraphicsView, ISnapSource
 			{
 				// Ctrl multi-selects, if possible
 
-				foreach ( var selected in SelectedItems.ToArray() )
-				{
-					if ( selected is not IMovieItem { MultiSelectable: true } )
-					{
-						selected.Selected = false;
-					}
-				}
+				var singleSelect = !movieItem.MultiSelectable || !e.HasCtrl;
 
-				if ( !movieItem.MultiSelectable || !e.HasCtrl )
+				if ( singleSelect )
 				{
 					DeselectAll();
 				}
+				else
+				{
+					// Might have a current selection that can't multi-select
+
+					foreach ( var selected in SelectedItems.ToArray() )
+					{
+						if ( selected is not IMovieItem { MultiSelectable: true } )
+						{
+							selected.Selected = false;
+						}
+					}
+				}
 
 				item.Selected = true;
+
+				if ( singleSelect )
+				{
+					movieItem.SingleSelected();
+				}
 
 				if ( item is ITrackItem trackItem )
 				{
@@ -518,18 +529,22 @@ public partial class Timeline : GraphicsView, ISnapSource
 		var timelineTrack = Tracks.FirstOrDefault( x => x.SceneRect.IsInside( scenePos ) );
 		var titleLabel = menu.AddHeading( time.ToString() );
 
-		Session.CreateImportMenu( menu, time );
-
 		var ev = new EditMode.ContextMenuEvent( scenePos, time, timelineTrack, menu, titleLabel );
 
 		if ( GetItemAt( scenePos ) is { } item and IMovieContextMenu ctxMenuItem )
 		{
+			ev.Title = "Selection";
+
 			if ( !item.Selected )
 			{
 				item.Selected = true;
 			}
 
 			ctxMenuItem.ShowContextMenu( ev );
+		}
+		else
+		{
+			Session.CreateImportMenu( menu, time );
 		}
 
 		if ( !ev.Accepted )

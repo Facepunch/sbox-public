@@ -408,19 +408,6 @@
 			]
 		},
 		{
-			"Name": "mikktspace",
-			"Comment": "Tangent space generation for normal mapping.",
-			"UsedBy": [
-				"resourcecompiler"
-			],
-			"License": "MIT",
-			"ProjectUrl": "https://github.com/mmikk/MikkTSpace/",
-			"Linkage": "header-only",
-			"Copyright": [
-				"2011 Morten S. Mikkelsen"
-			]
-		},
-		{
 			"Name": "Oculus LipSync",
 			"Comment": "Real-time phoneme / lip sync solution.",
 			"UsedBy": [
@@ -876,16 +863,16 @@
 			]
 		},
 		{
-			"Name": "ToolWindowManager",
-			"Comment": "ToolWindowManager is a Qt based tool window manager. This allows Qt projects to use docking functionality similar to QDockWidget, but since it's a separate component it's easier to customise and extend and so has a number of improvements over the built-in docking system.",
+			"Name": "Qt Advanced Docking System",
+			"Comment": "Qt Advanced Docking System lets you create customizable layouts using a full featured window docking system similar to what is found in many popular integrated development environments (IDEs) such as Visual Studio.",
 			"UsedBy": [
 				"toolframework2"
 			],
-			"License": "MIT",
-			"ProjectUrl": "https://github.com/baldurk/toolwindowmanager",
-			"Linkage": "static",
+			"License": "LGPL-2.1",
+			"ProjectUrl": "https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System",
+			"Linkage": "dynamic",
 			"Copyright": [
-				"2014 Pavel Strakhov"
+				"2017 Uwe Kindler"
 			]
 		},
 		{
@@ -1060,6 +1047,20 @@
 			"Linkage": "static",
 			"Copyright": [
 				"2024 Advanced Micro Devices, Inc."
+			]
+		},
+		{
+			"Name": "Bend Studio Screen Space Shadows",
+			"Comment": "Bend Studio's wavefront screen-space contact shadow technique (SIGGRAPH 2023). The GPU projection code is included in shaders/common/thirdparty/bend_sss_gpu.hlsl and the CPU dispatch list builder is ported in the ScreenSpaceShadows component.",
+			"UsedBy": [
+				"sbox",
+				"sbox-dev"
+			],
+			"License": "Apache-2.0",
+			"ProjectUrl": "https://www.bendstudio.com/blog/inside-bend-screen-space-shadows/",
+			"Linkage": "static",
+			"Copyright": [
+				"2023 Sony Interactive Entertainment"
 			]
 		}
 	]

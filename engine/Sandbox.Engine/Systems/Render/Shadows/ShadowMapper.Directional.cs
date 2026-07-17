@@ -16,7 +16,7 @@ unsafe struct GPUDirectionalLight
 	public fixed int ShadowMapIndex[4];
 	public uint CascadeCount;
 	public float InverseShadowMapSize;
-	public float Padding;
+	public uint ShadowMaskTextureIndex;
 	public bool Enabled;
 	public fixed float CascadeHardness[4];
 	public Vector4 CascadeSphere0;
@@ -376,6 +376,9 @@ internal partial class ShadowMapper
 
 		gpuShadowData.CascadeCount = (uint)numCascades;
 		gpuShadowData.InverseShadowMapSize = 1.0f / shadowmapSize;
+
+		// Masks are generated per camera - pick the one published for the camera this view renders.
+		gpuShadowData.ShadowMaskTextureIndex = light.ShadowMaskTextureIndices.GetValueOrDefault( view.m_ManagedCameraId );
 		GPUDirectionalLightData = gpuShadowData;
 	}
 

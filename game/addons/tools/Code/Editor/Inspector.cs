@@ -1,6 +1,6 @@
 ﻿namespace Editor;
 
-[Dock( "Editor", "Inspector", "manage_search" )]
+[Dock( "Editor", "Inspector", "manage_search", DockArea.Right )]
 public class Inspector : Widget
 {
 	Layout Editor;

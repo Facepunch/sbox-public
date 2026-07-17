@@ -30,8 +30,8 @@ native class IRenderContext as NativeEngine.IRenderContext
 	void DrawInstanced( RenderPrimitiveType type, int nFirstVertex, int nVertexCountPerInstance, int nInstanceCount );
 	void DrawIndexed( RenderPrimitiveType type, int nFirstIndex, int nIndexCount, int nMaxVertexCount, int nBaseVertex );
 	void DrawIndexedInstanced( RenderPrimitiveType type, int nFirstIndex, int nIndexCountPerInstance, int nInstanceCount, int nMaxVertexCount, int nBaseVertex );
-	void DrawInstancedIndirect( RenderPrimitiveType type, RenderBufferHandle_t hDrawArgBuffer, uint nBufferOffset );
-	void DrawIndexedInstancedIndirect( RenderPrimitiveType type, RenderBufferHandle_t hDrawArgBuffer, uint nBufferOffset );
+	void DrawInstancedIndirect( RenderPrimitiveType type, RenderBufferHandle_t hDrawArgBuffer, uint nBufferOffset, uint nDrawCount, uint nStride );
+	void DrawIndexedInstancedIndirect( RenderPrimitiveType type, RenderBufferHandle_t hDrawArgBuffer, uint nBufferOffset, uint nDrawCount, uint nStride );
 
 	inline void TextureBarrierTransition( ITexture hSrc, int mips, RenderBarrierPipelineStageFlags_t srcStage, RenderBarrierPipelineStageFlags_t dstStage, RenderImageLayout_t layout, RenderBarrierAccessFlags_t srcFlags, RenderBarrierAccessFlags_t dstFlags )
 	{

@@ -63,12 +63,17 @@ static class StartupLoadProject
 		}
 
 		//
-		// Add to project list if not already there
+		// Add to project list if not already there, and mark it just-opened so it's top of recent.
+		// Matters when we're launched straight from the taskbar jump list instead of the launcher.
 		//
 		{
 			var projectList = new ProjectList();
-			projectList.TryAddFromFile( path );
+			var entry = projectList.TryAddFromFile( path );
+			if ( entry != null )
+				entry.LastOpened = DateTime.Now;
 			projectList.SaveList();
+
+			TaskbarJumpList.Refresh();
 		}
 
 		//

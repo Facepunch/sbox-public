@@ -24,6 +24,9 @@ public static partial class Networking
 	[ConVar( "net_max_incoming", ConVarFlags.Protected, Help = "Maximum incoming messages to receive per tick. 0 = unlimited." )]
 	internal static int ReceiveBatchSizePerTick { get; set; } = 1024;
 
+	[ConVar( "net_allow_local", ConVarFlags.Protected, Help = "Allow loopback connections for multi-instance testing on one machine (P2P-like)." )]
+	internal static bool AllowLocal { get; set; } = false;
+
 	internal static Dictionary<string, string> ServerData { get; set; } = new();
 
 	/// <summary>
@@ -531,6 +534,11 @@ public static partial class Networking
 		{
 			System.AddSocket( DedicatedServer.IpSocket );
 			System.AddSocket( DedicatedServer.IdSocket );
+
+			if ( AllowLocal )
+			{
+				System.AddSocket( new TcpSocket( "127.0.0.1", 55333 ) );
+			}
 
 			return !token.IsCancellationRequested;
 		}

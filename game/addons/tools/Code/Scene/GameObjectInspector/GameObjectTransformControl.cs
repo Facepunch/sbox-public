@@ -17,7 +17,7 @@ partial class TransformComponentWidget : ComponentEditorWidget
 	public TransformComponentWidget( SerializedObject obj ) : base( obj )
 	{
 		Layout = Layout.Column();
-		Layout.Margin = new Margin( 0, 5, 0, 4 );
+		Layout.Margin = new Margin( 0, 5, 12, 4 );
 
 		Rebuild();
 	}

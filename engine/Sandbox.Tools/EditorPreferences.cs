@@ -35,6 +35,33 @@ public static class EditorPreferences
 		set => ConVarSystem.SetValue( "hotload_fast", value.ToString(), true );
 	}
 
+	/// <summary>
+	/// Serve the Model Context Protocol from inside the editor, letting AI agents like Claude Code
+	/// read and drive the open project. Only ever reachable from this machine.
+	/// </summary>
+	public static bool McpServerEnabled
+	{
+		get => EditorCookie.Get<bool>( "McpServerEnabled", true );
+		set
+		{
+			EditorCookie.Set( "McpServerEnabled", value );
+			Mcp.McpServer.Restart();
+		}
+	}
+
+	/// <summary>
+	/// The local port the MCP server listens on.
+	/// </summary>
+	public static int McpServerPort
+	{
+		get => EditorCookie.Get<int>( "McpServerPort", 7269 );
+		set
+		{
+			EditorCookie.Set( "McpServerPort", value );
+			Mcp.McpServer.Restart();
+		}
+	}
+
 	public enum NotificationLevel
 	{
 		ShowAlways,

@@ -445,53 +445,18 @@ public sealed partial class ProjectPropertyTrack<T>( MovieProject project, Guid 
 
 		_blocksChanged = false;
 
-		SortBlocks();
-		MergeBlocks();
+		_blocks.Sort( ( a, b ) => a.TimeRange.Start.CompareTo( b.TimeRange.Start ) );
+
+		if ( CanMergeAnyBlocks )
+		{
+			_blocks.Merge();
+		}
+
 		UpdateDuration();
 	}
 
-	/// <summary>
-	/// Sort blocks by time.
-	/// </summary>
-	private void SortBlocks()
-	{
-		_blocks.Sort( ( a, b ) => a.TimeRange.Start.CompareTo( b.TimeRange.Start ) );
-	}
-
-	/// <summary>
-	/// Merge touching blocks that have identical values at their interface.
-	/// </summary>
-	private void MergeBlocks()
-	{
-		if ( !CanMergeBlocks ) return;
-
-		var comparer = EqualityComparer<T>.Default;
-
-		for ( var i = _blocks.Count - 2; i >= 0; --i )
-		{
-			var prev = _blocks[i];
-			var next = _blocks[i + 1];
-
-			if ( prev.TimeRange.End != next.TimeRange.Start ) continue;
-
-			var prevValue = prev.GetValue( prev.TimeRange.End );
-			var nextValue = next.GetValue( next.TimeRange.Start );
-
-			if ( !comparer.Equals( prevValue, nextValue ) )
-			{
-				continue;
-			}
-
-			var combinedTimeRange = prev.TimeRange.Union( next.TimeRange );
-			var combinedSignal = prev.Signal.HardCut( next.Signal, prev.TimeRange.End ).Reduce( combinedTimeRange );
-
-			_blocks[i] = new PropertyBlock<T>( combinedSignal, combinedTimeRange );
-			_blocks.RemoveAt( i + 1 );
-		}
-	}
-
 	// TODO: This reeks, we can't deserialize Resource off the main thread
-	private static bool CanMergeBlocks =>
+	private static bool CanMergeAnyBlocks =>
 		ThreadSafe.IsMainThread || !typeof( T ).IsAssignableTo( typeof( Resource ) );
 
 	private void UpdateDuration()

@@ -497,6 +497,11 @@ internal partial class NetworkSystem
 		if ( msg.HandshakeId != Connection.Local.HandshakeId )
 			return Task.CompletedTask;
 
+		if ( Application.IsEditor )
+		{
+			IToolsDll.Current?.SetPlaying();
+		}
+
 		Log.Trace( $"[{this}] I am spawning into the game!" );
 		LoadingScreen.IsVisible = false;
 

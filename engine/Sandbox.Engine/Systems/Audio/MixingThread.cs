@@ -141,6 +141,8 @@ static class MixingThread
 	{
 		snapshot.Reset();
 
+		Sandbox.SoundSimulationSystem.BeginPrimeFrame();
+
 		foreach ( var listener in Listener.ActiveList )
 		{
 			listener.MixTransform = listener.Transform;

@@ -98,6 +98,11 @@ public static partial class EditorUtility
 				compiler.AddReference( baseCompiler );
 			}
 
+			//
+			// If we have a parent package, add it as a reference so we can resolve the parent's types.
+			//
+			AddParentPackageReference( project, compiler, logOutput );
+
 			logOutput?.Invoke( $"Creating package.{project.Config.Org}.{project.Config.Ident} compiler" );
 			logOutput?.Invoke( $"Compile path is {project.GetCodePath()}" );
 
@@ -144,6 +149,43 @@ public static partial class EditorUtility
 
 			return compileGroup.BuildResult.Output.ToArray();
 
+		}
+
+		/// <summary>
+		/// If the project (or the current project) specifies a parent package, add it as a
+		/// compile-time reference so the compiler can resolve the parent's types.
+		/// </summary>
+		private static void AddParentPackageReference( Project project, Compiler compiler, Action<string> logOutput )
+		{
+			var parentPackage = project.Config.GetMetaOrDefault<string>( "ParentPackage", null )
+				?? Project.Current?.Config.GetMetaOrDefault<string>( "ParentPackage", null );
+
+			if ( string.IsNullOrWhiteSpace( parentPackage ) )
+				return;
+
+			if ( !Package.TryParseIdent( parentPackage, out var parentParts ) )
+				return;
+
+			var currentAp = Project.Current is not null
+				? PackageManager.Find( Project.Current.Config.FullIdent, true, false )
+				: null;
+
+			if ( currentAp is null )
+			{
+				logOutput?.Invoke( $"Warning: Could not find ActivePackage to resolve parent package '{parentPackage}'" );
+				return;
+			}
+
+			var referenceName = $"package.{parentParts.org}.{parentParts.package}";
+			if ( currentAp.Lookup( referenceName ) is null )
+			{
+				logOutput?.Invoke( $"Warning: Could not resolve parent package reference '{parentPackage}', skipping" );
+				return;
+			}
+
+			compiler.Group.ReferenceProvider = currentAp;
+			compiler.AddReference( referenceName );
+			logOutput?.Invoke( $"Added parent package reference: {parentPackage}" );
 		}
 
 		/// <summary>

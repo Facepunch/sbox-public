@@ -211,8 +211,7 @@ public class GameObjectControlWidget : ControlWidget
 
 			if ( picker is GenericPicker genericPicker )
 			{
-				genericPicker.DockManager.AddDock( null, sceneBrowser, DockArea.Inside, DockManager.DockProperty.HideCloseButton
-					| DockManager.DockProperty.DisallowUserDocking | DockManager.DockProperty.DisableDraggableTab );
+				genericPicker.DockManager.AddDock( "Scene Browser", null, sceneBrowser, DockArea.Center );
 				sceneBrowser.ConfirmButton = genericPicker.ConfirmButton;
 				sceneBrowser.OnConfirm = () => picker.Close();
 				if ( go.IsValid() && go is not PrefabScene )

@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json.Nodes;
 using Sandbox.Internal;
+using Sandbox.Mapping;
 using Sandbox.Network;
 using SceneTests;
 
@@ -747,6 +750,189 @@ public class NetworkTest
 		go._net.OnRefreshMessage( clientAndHost.Client, refreshMsg );
 
 		Assert.AreEqual( 3, comp.RegularInt, "Regular property should be overwritten by network refresh on the host" );
+	}
+
+	[TestMethod]
+	[DataRow( false, DisplayName = "Sent from Server" )]
+	[DataRow( true, DisplayName = "Sent from Client" )]
+	public void DontDeserializeScriptFromClient( bool sentFromClient )
+	{
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+
+		var senderScene = new Scene();
+		var receiverScene = new Scene();
+
+		var sender = sentFromClient ? clientAndHost.Client : clientAndHost.Host;
+		var receiver = sentFromClient ? clientAndHost.Host : clientAndHost.Client;
+
+		//
+		// SENDER
+		//
+
+		using ( senderScene.Push() )
+		{
+			clientAndHost.Become( sender );
+
+			var go = new GameObject( "Button" );
+			var btn = go.AddComponent<Button>();
+
+			btn.OnTurnedOn = new Doo
+			{
+				Body =
+				[
+					new Doo.InvokeBlock
+					{
+						InvokeType = Doo.InvokeType.Static,
+						Member = "Sandbox.Doo+Methods.LogInfo",
+						Arguments =
+						[
+							new Doo.LiteralExpression { LiteralValue = "Hello, World!" }
+						]
+					}
+				]
+			};
+
+			go.NetworkSpawn();
+			btn.TurnOn();
+		}
+
+		//
+		// RECEIVER
+		//
+
+		using ( receiverScene.Push() )
+		{
+			Assert.IsNull( receiverScene.GetComponentInChildren<Button>() );
+
+			clientAndHost.Become( receiver );
+			clientAndHost.ProcessMessages();
+
+			var btn = receiverScene.GetComponentInChildren<Button>();
+
+			Assert.IsNotNull( btn );
+			Assert.AreEqual( sentFromClient, btn.OnTurnedOn is null );
+		}
+	}
+
+	[TestMethod]
+	public async Task NetworkedMeshSurvivesLateJoinSnapshot()
+	{
+		Assert.IsNotNull( TypeLibrary.GetType<MeshComponent>(), "TypeLibrary hasn't been given the game assembly" );
+
+		using var scope = new Scene().Push();
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+
+		clientAndHost.BecomeHost();
+
+		var block = new GameObject();
+		var meshComponent = block.Components.Create<MeshComponent>();
+
+		var mesh = new PolygonMesh();
+		var a = mesh.AddVertex( new Vector3( 0, 0, 0 ) );
+		var b = mesh.AddVertex( new Vector3( 64, 0, 0 ) );
+		var c = mesh.AddVertex( new Vector3( 64, 64, 0 ) );
+		var d = mesh.AddVertex( new Vector3( 0, 64, 0 ) );
+		mesh.AddFace( a, b, c, d );
+		meshComponent.Mesh = mesh;
+
+		var expectedFaces = mesh.FaceHandles.Count();
+		Assert.AreNotEqual( 0, expectedFaces, "Test mesh should have geometry to begin with" );
+
+		block.NetworkSpawn();
+
+		// Build the snapshot a late-joining client would receive.
+		var snapshot = new SnapshotMsg { GameObjectSystems = [], NetworkObjects = new List<object>() };
+		SceneNetworkSystem.Instance.GetSnapshot( default, ref snapshot );
+
+		// The mesh geometry rides in the object's own blob buffer - the exact data the client dropped.
+		var createMsg = snapshot.NetworkObjects.OfType<ObjectCreateMsg>().Single( x => x.Guid == block.Id );
+		Assert.IsNotNull( createMsg.BlobData, "Mesh blob data should be in the create message" );
+
+		// Client applies the snapshot into a fresh scene, like a late-joiner.
+		clientAndHost.BecomeClient();
+		await SceneNetworkSystem.Instance.SetSnapshotAsync( snapshot );
+
+		var clientMesh = Game.ActiveScene.GetAllComponents<MeshComponent>().FirstOrDefault();
+		Assert.IsNotNull( clientMesh, "MeshComponent missing on client" );
+		Assert.IsNotNull( clientMesh.Mesh, "Mesh data missing on client" );
+		Assert.AreEqual( expectedFaces, clientMesh.Mesh.FaceHandles.Count(), "Mesh geometry did not survive the snapshot" );
+	}
+
+	[DataRow( false, false, false, DisplayName = "Cullable + hidden -> excluded" )]
+	[DataRow( false, true, true, DisplayName = "Cullable + visible -> included" )]
+	[DataRow( true, false, true, DisplayName = "AlwaysTransmit -> included when hidden" )]
+	public void JoinSnapshotFiltersByVisibility( bool alwaysTransmit, bool visible, bool included )
+	{
+		using var scope = new Scene().Push();
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+		clientAndHost.BecomeHost();
+
+		var go = SpawnNetworked( visible );
+		go.Network.AlwaysTransmit = alwaysTransmit;
+
+		var collection = new List<object>();
+		Game.ActiveScene.SerializeNetworkObjects( clientAndHost.Client, collection );
+
+		Assert.AreEqual( included, collection.OfType<ObjectCreateMsg>().Any( m => m.Guid == go.Id ) );
+	}
+
+	[TestMethod]
+	public void EnsureCreateMessageSentIsIdempotent()
+	{
+		using var scope = new Scene().Push();
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+		clientAndHost.BecomeHost();
+
+		// Suppress the spawn broadcast so the client isn't already marked as having the create.
+		NetworkObject net;
+		using ( SceneNetworkSystem.SuppressSpawnMessages() )
+			net = SpawnNetworked( visible: false )._net;
+
+		net.EnsureCreateMessageSent( clientAndHost.Client );
+		net.EnsureCreateMessageSent( clientAndHost.Client );
+
+		Assert.AreEqual( 1, CreateMsgCount( clientAndHost.Client ) );
+	}
+
+	[TestMethod]
+	public void EnsureCreateMessageSentSkipsDestroyedObject()
+	{
+		using var scope = new Scene().Push();
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+		clientAndHost.BecomeHost();
+
+		NetworkObject net;
+		GameObject go;
+		using ( SceneNetworkSystem.SuppressSpawnMessages() )
+		{
+			go = SpawnNetworked( visible: false );
+			net = go._net;
+		}
+
+		go.DestroyImmediate();
+		net.EnsureCreateMessageSent( clientAndHost.Client );
+
+		Assert.AreEqual( 0, CreateMsgCount( clientAndHost.Client ) );
+	}
+
+	// Spawns a cullable (not AlwaysTransmit) networked object with controllable visibility.
+	private static GameObject SpawnNetworked( bool visible )
+	{
+		var go = new GameObject();
+		go.Components.Create<VisibilityController>().Visible = visible;
+		go.NetworkSpawn();
+		go.Network.AlwaysTransmit = false;
+		return go;
+	}
+
+	private static int CreateMsgCount( TestConnection connection )
+		=> connection.Messages.Count( m => m.Payload is ObjectCreateMsg );
+
+	private class VisibilityController : Component, Component.INetworkVisible
+	{
+		public bool Visible;
+
+		public bool IsVisibleToConnection( Connection connection, in BBox worldBounds ) => Visible;
 	}
 
 	private class NetworkTestComponent : Component

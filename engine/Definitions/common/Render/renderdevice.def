@@ -67,8 +67,10 @@ native accessor g_pRenderDevice
 
 	bool Present( SwapChainHandle_t chain );
 	void Flush();
+	void FlushPipelineCache();
 	void ForceFlushGPU( SwapChainHandle_t hSwapChain );
 	bool CanRenderToSwapChain( SwapChainHandle_t chain );
+	void SetSwapChainIsMainWindow( SwapChainHandle_t chain, bool bIsMainWindow );
 
 	bool IsUsing32BitDepthBuffer();
 

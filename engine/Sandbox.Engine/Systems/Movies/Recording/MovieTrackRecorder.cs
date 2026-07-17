@@ -351,6 +351,8 @@ internal sealed class MovieGameObjectTrackRecorder : MovieTrackRecorder<Compiled
 		Property( nameof( GameObject.LocalPosition ) ).Capture();
 		Property( nameof( GameObject.LocalRotation ) ).Capture();
 		Property( nameof( GameObject.LocalScale ) ).Capture();
+		Property( nameof( GameObject.Tags ) ).Capture( gameObject.Tags );
+		Property( nameof( GameObject.Flags ) ).Property( nameof( GameObjectFlags.Absolute ) ).Capture();
 	}
 
 	private void FindPrefabSource( GameObject gameObject )

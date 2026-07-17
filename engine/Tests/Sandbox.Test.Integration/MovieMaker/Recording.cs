@@ -1,10 +1,8 @@
-﻿using Sandbox;
-using Sandbox.MovieMaker;
+﻿using Sandbox.MovieMaker;
 using Sandbox.MovieMaker.Compiled;
-using SceneTests;
 using System;
+using System.Collections.Generic;
 using System.Text.Json.Nodes;
-using Sandbox.Internal;
 using Sandbox.MovieMaker.Properties;
 
 namespace MovieMakerTests;
@@ -22,7 +20,7 @@ public sealed class RecorderTest : SceneTestBase
 		options ??= MovieRecorderOptions.Default;
 
 		var recorder = new MovieRecorder( Game.ActiveScene, options );
-		var dt = MovieTime.FromFrames( 1, options.SampleRate );
+		var dt = MovieTime.FromFrames( 1, options.SampleRate * 4 );
 
 		while ( true )
 		{
@@ -38,6 +36,24 @@ public sealed class RecorderTest : SceneTestBase
 		}
 
 		return recorder.ToClip();
+	}
+
+	public static MovieClip Record( MovieRecorderOptions? options, MovieTime duration,
+		params IEnumerable<(MovieTime Time, Action Action)> events )
+	{
+		using var eventEnumerator = events.GetEnumerator();
+
+		var hasEvent = eventEnumerator.MoveNext();
+
+		// ReSharper disable AccessToDisposedClosure
+		return Record( options, duration, t =>
+		{
+			if ( !hasEvent || eventEnumerator.Current.Time > t ) return;
+
+			eventEnumerator.Current.Action();
+			hasEvent = eventEnumerator.MoveNext();
+		} );
+		// ReSharper restore AccessToDisposedClosure
 	}
 
 	/// <summary>
@@ -83,6 +99,60 @@ public sealed class RecorderTest : SceneTestBase
 	}
 
 	/// <summary>
+	/// Make sure two objects moving along the exact same path are still
+	/// at the same positions, even if one starts recording later.
+	/// </summary>
+	[TestMethod]
+	public void RecordPositionAligned()
+	{
+		var foo = new GameObject( "Foo" );
+		var bar = new GameObject( "Bar" ) { Enabled = false };
+
+		var startPos = new Vector3( 100f, 0f, 0f );
+		var endPos = new Vector3( 200f, 0f, 0f );
+
+		foo.LocalPosition = bar.LocalPosition = startPos;
+
+		var options = new MovieRecorderOptions()
+			.WithCaptureGameObject( foo )
+			.WithCaptureGameObject( bar );
+
+		var clip = Record( options, 1d, t =>
+		{
+			// Enable bar half a sample period after the start of the movie
+
+			bar.Enabled = t >= 0.5 / options.SampleRate;
+
+			// Both objects are always at the same position as each other during recording
+
+			foo.LocalPosition = bar.LocalPosition = Vector3.Lerp( startPos, endPos, (float)t.TotalSeconds );
+		} );
+
+		Console.WriteLine( Json.Serialize( clip ) );
+
+		var fooPosTrack = clip.GetProperty<Vector3>( foo.Name, nameof( GameObject.LocalPosition ) );
+		var barPosTrack = clip.GetProperty<Vector3>( bar.Name, nameof( GameObject.LocalPosition ) );
+
+		Assert.IsNotNull( fooPosTrack );
+		Assert.IsNotNull( barPosTrack );
+
+		Assert.IsTrue( fooPosTrack.TryGetValue( 0.0, out var fooStartPos ) );
+		Assert.AreEqual( startPos, fooStartPos );
+
+		// Bar track only starts recording a short time after 0.0
+
+		Assert.IsFalse( barPosTrack.TryGetValue( 0.0, out _ ) );
+
+		// Nevertheless, both tracks should be approximately the same at 0.5 seconds
+
+		Assert.IsTrue( fooPosTrack.TryGetValue( 0.5, out var fooMidPos ) );
+		Assert.IsTrue( barPosTrack.TryGetValue( 0.5, out var barMidPos ) );
+
+		Assert.IsTrue( fooMidPos.AlmostEqual( (startPos + endPos) * 0.5f, 0.01f ) );
+		Assert.IsTrue( barMidPos.AlmostEqual( (startPos + endPos) * 0.5f, 0.01f ) );
+	}
+
+	/// <summary>
 	/// Capture a game object, but choose a custom name for the track.
 	/// </summary>
 	[TestMethod]
@@ -101,6 +171,104 @@ public sealed class RecorderTest : SceneTestBase
 
 		Assert.IsNull( clip.GetReference<GameObject>( "Foo" ) );
 		Assert.IsNotNull( clip.GetReference<GameObject>( "Bar" ) );
+	}
+
+	/// <summary>
+	/// Capture a game object's tags.
+	/// </summary>
+	[TestMethod]
+	public void RecordTags()
+	{
+		var go = new GameObject( "Example" );
+
+		go.Tags.Add( "player" );
+		go.Tags.Add( "test" );
+
+		var options = new MovieRecorderOptions()
+			.WithCaptureGameObject( go );
+
+		var clip = Record( options, 4.0,
+			(1.0, () => go.Tags.Remove( "test" )),
+			(2.0, () => go.Tags.Add( "test" )),
+			(3.0, () => go.Tags.RemoveAll()) );
+
+		Console.WriteLine( Json.Serialize( clip ) );
+
+		var playerTagTrack = clip.GetProperty<bool>( go.Name, nameof( GameObject.Tags ), "player" );
+		var testTagTrack = clip.GetProperty<bool>( go.Name, nameof( GameObject.Tags ), "test" );
+		var unknownTagTrack = clip.GetProperty<bool>( go.Name, nameof( GameObject.Tags ), "unknown" );
+
+		Assert.IsNotNull( playerTagTrack );
+		Assert.IsNotNull( testTagTrack );
+		Assert.IsNull( unknownTagTrack );
+
+		bool tag;
+
+		Assert.IsTrue( playerTagTrack.TryGetValue( 0.5, out tag ) && tag );
+		Assert.IsTrue( testTagTrack.TryGetValue( 0.5, out tag ) && tag );
+
+		Assert.IsTrue( playerTagTrack.TryGetValue( 1.5, out tag ) && tag );
+		Assert.IsTrue( testTagTrack.TryGetValue( 1.5, out tag ) && !tag );
+
+		Assert.IsTrue( playerTagTrack.TryGetValue( 2.5, out tag ) && tag );
+		Assert.IsTrue( testTagTrack.TryGetValue( 2.5, out tag ) && tag );
+
+		Assert.IsTrue( playerTagTrack.TryGetValue( 3.5, out tag ) && !tag );
+		Assert.IsTrue( testTagTrack.TryGetValue( 3.5, out tag ) && !tag );
+	}
+
+	/// <summary>
+	/// Don't capture tags inherited from a parent object.
+	/// </summary>
+	[TestMethod]
+	public void DontRecordInheritedTags()
+	{
+		var parent = new GameObject( "Parent" );
+
+		parent.Tags.Add( "foo" );
+
+		var child = new GameObject( parent, name: "Child" );
+
+		child.Tags.Add( "bar" );
+
+		var options = new MovieRecorderOptions()
+			.WithCaptureGameObject( child );
+
+		var clip = Record( options, 1.0 );
+
+		Console.WriteLine( Json.Serialize( clip ) );
+
+		Assert.IsNotNull( clip.GetProperty<bool>( parent.Name, nameof( GameObject.Tags ), "foo" ) );
+		Assert.IsNotNull( clip.GetProperty<bool>( parent.Name, child.Name, nameof( GameObject.Tags ), "bar" ) );
+		Assert.IsNull( clip.GetProperty<bool>( parent.Name, child.Name, nameof( GameObject.Tags ), "foo" ) );
+	}
+
+	/// <summary>
+	/// Capture a game object's <see cref="GameObjectFlags.Absolute"/>.
+	/// </summary>
+	[TestMethod]
+	public void RecordAbsoluteFlag()
+	{
+		var go = new GameObject( "Example" );
+
+		var options = new MovieRecorderOptions()
+			.WithCaptureGameObject( go );
+
+		var clip = Record( options, 3.0,
+			(1.0, () => go.Flags |= GameObjectFlags.Absolute),
+			(2.0, () => go.Flags &= ~GameObjectFlags.Absolute) );
+
+		Console.WriteLine( Json.Serialize( clip ) );
+
+		var flagTrack = clip.GetProperty<bool>( go.Name, nameof( GameObject.Flags ), nameof( GameObjectFlags.Absolute ) );
+
+		Assert.IsNotNull( flagTrack );
+
+		bool flag;
+
+		Assert.IsTrue( flagTrack.TryGetValue( 0.5, out flag ) && !flag );
+		Assert.IsTrue( flagTrack.TryGetValue( 1.5, out flag ) && flag );
+		Assert.IsTrue( flagTrack.TryGetValue( 2.5, out flag ) && !flag );
 	}
 
 	[TestMethod]

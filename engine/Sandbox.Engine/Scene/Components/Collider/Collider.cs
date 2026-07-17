@@ -12,7 +12,7 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 	[Property, HideIf( nameof( IsConcave ), true )]
 	public bool Static
 	{
-		get => _static || IsConcave;
+		get => _static || IsConcave || GameObject.IsStatic;
 		set
 		{
 			if ( IsConcave )

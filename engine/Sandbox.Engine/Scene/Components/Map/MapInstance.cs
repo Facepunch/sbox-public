@@ -675,6 +675,72 @@ file class MapComponentMapLoader : SceneMapLoader
 		prop.GameObject.NetworkSpawn();
 	}
 
+	//
+	// Create a real Light component on the GameObject instead of a raw SceneLight. Exposed settings
+	// map to the component properties; everything else rides along in the internal LegacyData backend.
+	//
+	void CreateLightComponent( GameObject go, ObjectEntry kv, LightType type )
+	{
+		// Never network these — LegacyData is internal (not serialized), so a snapshot copy would
+		// arrive half-configured. Every client builds an identical light from the map VPK anyway.
+		go.NetworkMode = NetworkMode.Never;
+
+		var data = LightData.Parse( kv, type );
+		if ( !data.Enabled )
+			return;
+
+		var legacy = data.ToLegacyData();
+
+		Light light;
+
+		if ( type == LightType.Spot )
+		{
+			var spot = go.Components.Create<SpotLight>();
+			spot.Radius = data.Range;
+			spot.ConeInner = data.InnerConeAngle;
+			spot.ConeOuter = data.OuterConeAngle;
+			spot.Cookie = data.LightCookie;
+
+			// Hammer lights have attenuation and cone mask from the lightmap itself
+			// We can take advantage of that and tighten the cone for sharper shadows
+			spot.ConeInner = MathF.Min( data.InnerConeAngle, 80.0f );
+			spot.ConeOuter = MathF.Min( data.OuterConeAngle, 80.0f );
+
+			// Native quadratic is the Hammer coefficient; SceneLight.QuadraticAttenuation scales by 10000.
+			legacy.ConstantAttenuation = data.Attenuation0;
+			legacy.LinearAttenuation = data.Attenuation1;
+			legacy.QuadraticAttenuation = data.Attenuation2;
+			legacy.FallOff = data.FallOff;
+
+			light = spot;
+		}
+		else if ( type == LightType.Omni )
+		{
+			var point = go.Components.Create<PointLight>();
+			point.Radius = data.Range;
+
+			legacy.ConstantAttenuation = data.Attenuation0;
+			legacy.LinearAttenuation = data.Attenuation1;
+			legacy.QuadraticAttenuation = data.Attenuation2;
+			legacy.Cookie = data.LightCookie; // PointLight doesn't expose a cookie property
+
+			light = point;
+		}
+		else
+		{
+			light = go.Components.Create<DirectionalLight>();
+		}
+
+		// Hammer lights have no concept of "hardness" — let's make them reasonably sharp by default.
+		light.ShadowHardness = 0.5f;
+
+		light.LightColor = data.FinalColor;
+		light.Shadows = data.CastShadows;
+		// Fog mode / render diffuse-specular / attenuation ride in LegacyData — applied when the
+		// scene light is created (OnEnabled). Component FogMode can't express Hammer's "Baked" fog.
+		light.LegacyData = legacy;
+	}
+
 	protected override void CreateObject( ObjectEntry kv )
 	{
 		var parent = Map.GameObject;
@@ -710,6 +776,25 @@ file class MapComponentMapLoader : SceneMapLoader
 			case "info_player_start":
 				{
 					go.Components.Create<SpawnPoint>();
+					break;
+				}
+
+			// Lights that have a matching component become a GameObject + Light component.
+			// Rect/Capsule/Ortho have no component yet, so they fall through to the raw path.
+			case "light_environment":
+			case "light_directional":
+				{
+					CreateLightComponent( go, kv, LightType.Directional );
+					break;
+				}
+			case "light_spot":
+				{
+					CreateLightComponent( go, kv, LightType.Spot );
+					break;
+				}
+			case "light_omni":
+				{
+					CreateLightComponent( go, kv, LightType.Omni );
 					break;
 				}
 

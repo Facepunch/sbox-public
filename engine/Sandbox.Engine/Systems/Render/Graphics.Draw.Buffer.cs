@@ -41,6 +41,24 @@ partial class Graphics
 			throw new ArgumentException( $"Buffer must have the required usage flag '{GpuBuffer.UsageFlags.IndirectDrawArguments}'", nameof( indirectBuffer ) );
 	}
 
+	/// <summary>
+	/// Validates an indirect draw stride and converts an element offset into a byte offset.
+	/// A stride of 0 means the draw arguments are tightly packed at their natural size.
+	/// </summary>
+	private static uint GetIndirectBufferOffset( uint elementOffset, uint stride, int naturalSize )
+	{
+		if ( stride != 0 )
+		{
+			if ( stride % 4 != 0 )
+				throw new ArgumentException( $"Indirect draw stride ({stride}) must be a multiple of 4.", nameof( stride ) );
+
+			if ( stride < (uint)naturalSize )
+				throw new ArgumentException( $"Indirect draw stride ({stride}) must be at least the size of the draw argument struct ({naturalSize}).", nameof( stride ) );
+		}
+
+		return elementOffset * (stride != 0 ? stride : (uint)naturalSize);
+	}
+
 	private static NativeEngine.VertexLayout GetVertexLayout<T>() where T : unmanaged
 	{
 		var vertexType = VertexLayout.Get<T>();
@@ -139,33 +157,33 @@ partial class Graphics
 		Context.DrawIndexed( (RenderPrimitiveType)primitiveType, startIndex, indexCount, 0, 0 );
 	}
 
-	internal static void DrawInstancedIndirect<T>( GpuBuffer<T> vertexBuffer, Material material, GpuBuffer indirectBuffer, uint indirectElementOffset = 0, RenderAttributes attributes = null, PrimitiveType primitiveType = PrimitiveType.Triangles ) where T : unmanaged
+	internal static void DrawInstancedIndirect<T>( GpuBuffer<T> vertexBuffer, Material material, GpuBuffer indirectBuffer, uint indirectElementOffset = 0, RenderAttributes attributes = null, PrimitiveType primitiveType = PrimitiveType.Triangles, uint drawCount = 1, uint stride = 0 ) where T : unmanaged
 	{
 		AssertRenderBlock();
 
 		ValidateIndirectBuffer( indirectBuffer );
+
+		var bufferOffset = GetIndirectBufferOffset( indirectElementOffset, stride, Marshal.SizeOf<GpuBuffer.IndirectDrawArguments>() );
 
 		if ( !SetRenderState( vertexBuffer, material, attributes ) )
 			return;
 
-		var bufferOffset = indirectElementOffset * Marshal.SizeOf<GpuBuffer.IndirectDrawArguments>();
-
 		Context.BindVertexBuffer( 0, vertexBuffer.native, 0 );
-		Context.DrawInstancedIndirect( (RenderPrimitiveType)primitiveType, indirectBuffer.native, (uint)bufferOffset );
+		Context.DrawInstancedIndirect( (RenderPrimitiveType)primitiveType, indirectBuffer.native, bufferOffset, drawCount, stride );
 	}
 
-	internal static void DrawInstancedIndirect( Material material, GpuBuffer indirectBuffer, uint indirectElementOffset = 0, RenderAttributes attributes = null, PrimitiveType primitiveType = PrimitiveType.Triangles )
+	internal static void DrawInstancedIndirect( Material material, GpuBuffer indirectBuffer, uint indirectElementOffset = 0, RenderAttributes attributes = null, PrimitiveType primitiveType = PrimitiveType.Triangles, uint drawCount = 1, uint stride = 0 )
 	{
 		AssertRenderBlock();
 
 		ValidateIndirectBuffer( indirectBuffer );
 
+		var bufferOffset = GetIndirectBufferOffset( indirectElementOffset, stride, Marshal.SizeOf<GpuBuffer.IndirectDrawArguments>() );
+
 		if ( !SetRenderState( material, attributes ) )
 			return;
 
-		var bufferOffset = indirectElementOffset * Marshal.SizeOf<GpuBuffer.IndirectDrawArguments>();
-
-		Context.DrawInstancedIndirect( (RenderPrimitiveType)primitiveType, indirectBuffer.native, (uint)bufferOffset );
+		Context.DrawInstancedIndirect( (RenderPrimitiveType)primitiveType, indirectBuffer.native, bufferOffset, drawCount, stride );
 	}
 
 	internal static void DrawIndexedInstanced( GpuBuffer indexBuffer, Material material, int instanceCount, RenderAttributes attributes = null, PrimitiveType primitiveType = PrimitiveType.Triangles )
@@ -181,36 +199,36 @@ partial class Graphics
 		Context.DrawIndexedInstanced( (RenderPrimitiveType)primitiveType, 0, indexBuffer.ElementCount, instanceCount, 0, 0 );
 	}
 
-	internal static void DrawIndexedInstancedIndirect<T>( GpuBuffer<T> vertexBuffer, GpuBuffer indexBuffer, Material material, GpuBuffer indirectBuffer, uint indirectElementOffset = 0, RenderAttributes attributes = null, PrimitiveType primitiveType = PrimitiveType.Triangles ) where T : unmanaged
+	internal static void DrawIndexedInstancedIndirect<T>( GpuBuffer<T> vertexBuffer, GpuBuffer indexBuffer, Material material, GpuBuffer indirectBuffer, uint indirectElementOffset = 0, RenderAttributes attributes = null, PrimitiveType primitiveType = PrimitiveType.Triangles, uint drawCount = 1, uint stride = 0 ) where T : unmanaged
 	{
 		AssertRenderBlock();
 
 		ValidateIndirectBuffer( indirectBuffer );
 		ValidateIndexBuffer( indexBuffer );
+
+		var bufferOffset = GetIndirectBufferOffset( indirectElementOffset, stride, Marshal.SizeOf<GpuBuffer.IndirectDrawIndexedArguments>() );
 
 		if ( !SetRenderState( vertexBuffer, material, attributes ) )
 			return;
 
-		var bufferOffset = indirectElementOffset * Marshal.SizeOf<GpuBuffer.IndirectDrawIndexedArguments>();
-
 		Context.BindVertexBuffer( 0, vertexBuffer.native, 0 );
 		Context.BindIndexBuffer( indexBuffer.native, indexBuffer.ElementSize, 0 );
-		Context.DrawIndexedInstancedIndirect( (RenderPrimitiveType)primitiveType, indirectBuffer.native, (uint)bufferOffset );
+		Context.DrawIndexedInstancedIndirect( (RenderPrimitiveType)primitiveType, indirectBuffer.native, bufferOffset, drawCount, stride );
 	}
 
-	internal static void DrawIndexedInstancedIndirect( GpuBuffer indexBuffer, Material material, GpuBuffer indirectBuffer, uint indirectElementOffset = 0, RenderAttributes attributes = null, PrimitiveType primitiveType = PrimitiveType.Triangles )
+	internal static void DrawIndexedInstancedIndirect( GpuBuffer indexBuffer, Material material, GpuBuffer indirectBuffer, uint indirectElementOffset = 0, RenderAttributes attributes = null, PrimitiveType primitiveType = PrimitiveType.Triangles, uint drawCount = 1, uint stride = 0 )
 	{
 		AssertRenderBlock();
 
 		ValidateIndirectBuffer( indirectBuffer );
 		ValidateIndexBuffer( indexBuffer );
 
+		var bufferOffset = GetIndirectBufferOffset( indirectElementOffset, stride, Marshal.SizeOf<GpuBuffer.IndirectDrawIndexedArguments>() );
+
 		if ( !SetRenderState( material, attributes ) )
 			return;
 
-		var bufferOffset = indirectElementOffset * Marshal.SizeOf<GpuBuffer.IndirectDrawIndexedArguments>();
-
 		Context.BindIndexBuffer( indexBuffer.native, indexBuffer.ElementSize, 0 );
-		Context.DrawIndexedInstancedIndirect( (RenderPrimitiveType)primitiveType, indirectBuffer.native, (uint)bufferOffset );
+		Context.DrawIndexedInstancedIndirect( (RenderPrimitiveType)primitiveType, indirectBuffer.native, bufferOffset, drawCount, stride );
 	}
 }

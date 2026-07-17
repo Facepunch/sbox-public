@@ -321,32 +321,40 @@ namespace Sandbox.UI
 				sizeFinalized = false;
 			}
 		}
+
 		private Styles HtmlStyleLookup( INode node )
 		{
-			if ( node.GetAttribute( "style", null ) is string styles )
-			{
-				Log.Warning( "TODO: Apply Html Styles" );
-			}
+			// Seed with the label's own computed styles so inherited properties are present.
+			// ComputedStyle is already in screen units, so it should never be rescaled.
+			var s = new Styles();
+			s.Add( ComputedStyle );
+
+			// Accumulate stylesheet + inline styles in logical units, scale once, then merge
+			var local = new Styles();
 
 			var blocks = AllStyleSheets
-							.SelectMany( x => x.Nodes )
-							.Select( x => x.Test( node ) )
-							.Where( x => x is not null )
-							.ToList();
+				.SelectMany( x => x.Nodes )
+				.Select( x => x.Test( node ) )
+				.Where( x => x is not null )
+				.ToList();
 
-			if ( blocks.Count == 0 )
-				return null;
-
-			blocks.Sort( StyleOrderer.Instance );
-
-			var s = new Styles();
-
-			foreach ( var entry in blocks )
+			if ( blocks.Count > 0 )
 			{
-				s.Add( entry.Block.Styles );
+				blocks.Sort( StyleOrderer.Instance );
+
+				foreach ( var entry in blocks )
+					local.Add( entry.Block.Styles );
 			}
 
-			s.ApplyScale( FindRootPanel().ScaleToScreen );
+			// Inline styles applied last, highest specificity wins
+			if ( node.GetAttribute( "style", null ) is string styles )
+			{
+				var p = new Parse( styles );
+				StyleParser.ParseStyles( ref p, local );
+			}
+
+			local.ApplyScale( FindRootPanel().ScaleToScreen );
+			s.Add( local );
 
 			return s;
 		}

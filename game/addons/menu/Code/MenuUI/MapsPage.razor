@@ -47,7 +47,7 @@
         </Left>
 
 		<Body>
-            <PackageList @ref=PackageList ShowFilters="@false" Query=@($"type:map sort:{filterOrder} {GetQuery()}") OnSelected="@OnPackageSelected" Take=@(200)></PackageList>
+            <PackageList @ref=PackageList ShowFilters="@false" Query=@($"type:map sort:{filterOrder} {GetQuery()}") OnSelected="@OnPackageSelected" OnMenu=@OnMenu Take=@(200)></PackageList>
 		</Body>
 	</Page>
 </root>

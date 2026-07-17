@@ -5,7 +5,7 @@ namespace Editor.MeshEditor;
 /// Resize everything in the selection using box resize handles.
 /// </summary>
 [Title( "Resize" )]
-[Icon( "device_hub" )]
+[Icon( "meshtools/move_modes/resize.png" )]
 [Alias( "mesh.resize.mode" )]
 [Order( 4 )]
 public sealed class ResizeMode : MoveMode

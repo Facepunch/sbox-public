@@ -13,7 +13,7 @@ public enum BuildConfiguration
 	Developer,
 
 	/// <summary>
-	/// Developer build with memory debugging enabled
+	/// Developer build with memory debugging enabled (AddressSanitizer + allocation tracking; ~2.5x slower).
 	/// </summary>
 	DeveloperMemoryDebug,
 

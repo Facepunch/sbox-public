@@ -66,6 +66,15 @@ public partial class SceneViewWidget : Widget
 	public override void OnDestroyed()
 	{
 		SaveState();
+
+		if ( Current == this )
+			Current = null;
+
+		_externalChangesDialog?.Destroy();
+		_externalChangesDialog = null;
+
+		Tools.DisposeAll();
+
 		base.OnDestroyed();
 	}
 

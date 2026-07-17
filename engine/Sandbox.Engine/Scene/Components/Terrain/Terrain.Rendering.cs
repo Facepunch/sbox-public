@@ -1,5 +1,4 @@
-﻿using ExCSS;
-using Sandbox.Rendering;
+﻿using Sandbox.Rendering;
 using System.Runtime.InteropServices;
 using static Sandbox.ModelRenderer;
 
@@ -11,13 +10,15 @@ public partial class Terrain
 	public Texture HeightMap { get; private set; }
 	public Texture ControlMap { get; private set; }
 
-	Model _clipmapModel;
-	int _clipMapLodLevels;
-	int _clipMapLodExtentTexels;
-	int _subdivisionFactor;
-	int _subdivisionLodCount;
+	// Baked geometric normal map, updated by a compute pass whenever the heightmap changes
+	internal Texture NormalMap { get; private set; }
+	ComputeShader _normalBakeCs;
+	bool _normalBakeDirty;
 
-	private SceneObject _so { get; set; }
+	private TerrainClipmapSceneObject _so { get; set; }
+
+	// World units between heightmap texels
+	float UnitsPerTexel => Storage.TerrainSize / Storage.Resolution;
 
 	/// <summary>
 	/// Create buffers needed for terrain rendering, set sane empties, always bound
@@ -30,13 +31,17 @@ public partial class Terrain
 		TerrainBuffer = new( 1 );
 		MaterialsBuffer = new( 64 );
 
+		// GPU allocation can fail (e.g. test runners without a render device)
+		if ( !TerrainBuffer.IsValid || !MaterialsBuffer.IsValid )
+			return;
+
 		var gpuTerrain = new GPUTerrain()
 		{
 			Transform = Matrix.Identity,
 			TransformInv = Matrix.Identity,
 			HeightMapTextureID = 0,
 			ControlMapTextureID = 0,
-			Resolution = 1024,
+			UnitsPerTexel = 1024,
 			HeightScale = 1024,
 			HeightBlending = false,
 			HeightBlendSharpness = 0
@@ -58,7 +63,7 @@ public partial class Terrain
 			};
 		}
 
-		TerrainBuffer.SetData( new List<GPUTerrain>() { gpuTerrain } );
+		TerrainBuffer.SetData( MemoryMarshal.CreateReadOnlySpan( ref gpuTerrain, 1 ) );
 		MaterialsBuffer.SetData( gpuMaterials );
 	}
 
@@ -78,10 +83,22 @@ public partial class Terrain
 
 		var material = MaterialOverride ?? Material.Load( "materials/core/terrain.vmat" );
 
-		var clipmapMesh = TerrainClipmap.GenerateMesh_DiamondSquare( ClipMapLodLevels, ClipMapLodExtentTexels, material, SubdivisionFactor, SubdivisionLodCount );
-		_clipmapModel = Model.Builder.AddMesh( clipmapMesh ).Create();
+		// Extent must be a whole number of blocks per side; snap it down if it isn't.
+		int blocksPerSide = Math.Max( 1, ClipMapLodExtentTexels / BlockSize );
+		int extentCells = blocksPerSide * BlockSize;
 
-		_so = new SceneObject( Scene.SceneWorld, _clipmapModel, WorldTransform );
+		var meshlets = TerrainClipmap.BuildLayout( ClipMapLodLevels, extentCells, BlockSize );
+
+		_so = new TerrainClipmapSceneObject( Scene.SceneWorld )
+		{
+			UnitsPerTexel = UnitsPerTexel,
+			HeightScale = Storage.TerrainHeight,
+		};
+
+		// How many of the finest LOD levels carry the subdivided (displaceable) mesh
+		int displacedLevels = SubdivisionFactor > 1 ? Math.Min( SubdivisionLodCount, ClipMapLodLevels ) : 0;
+		_so.Build( meshlets, BlockSize, SubdivisionFactor, displacedLevels, material );
+
 		_so.Tags.SetFrom( GameObject.Tags );
 		_so.Transform = WorldTransform;
 		_so.Component = this;
@@ -99,18 +116,22 @@ public partial class Terrain
 		// If we have no textures, push a grid texture (SUCKS)
 		_so.Attributes.SetCombo( "D_GRID", Storage?.Materials.Count == 0 );
 
+		_so.Attributes.Set( "TerrainHasHoles", _hasHoles );
+
 		_so.Attributes.Set( "Terrain", TerrainBuffer );
 		_so.Attributes.Set( "TerrainMaterials", MaterialsBuffer );
+		TerrainClipmap.GetMorphBand( extentCells, BlockSize, out float morphStartCells, out float morphEndCells );
+		_so.Attributes.Set( "ClipMorphStartCells", morphStartCells );
+		_so.Attributes.Set( "ClipMorphEndCells", morphEndCells );
+
+		// Displacement fades to zero by the outer edge of the subdivided region, so the flat far tier never abuts displaced terrain
+		float fadeDist = (extentCells / 2.0f) * UnitsPerTexel * (1 << (Math.Max( displacedLevels, 1 ) - 1));
+		_so.Attributes.Set( "DisplacementFadeDist", fadeDist );
 
 		// We want these accessible globally too, probably
 		Scene.RenderAttributes.Set( "Terrain", TerrainBuffer );
 		Scene.RenderAttributes.Set( "TerrainMaterials", MaterialsBuffer );
 		Scene.RenderAttributes.Set( "TerrainCount", 1 );
-
-		_clipMapLodLevels = ClipMapLodLevels;
-		_clipMapLodExtentTexels = ClipMapLodExtentTexels;
-		_subdivisionFactor = SubdivisionFactor;
-		_subdivisionLodCount = SubdivisionLodCount;
 	}
 
 	[StructLayout( LayoutKind.Sequential, Pack = 0 )]
@@ -122,12 +143,13 @@ public partial class Terrain
 		public int HeightMapTextureID;
 		public int ControlMapTextureID;
 
-		public float Resolution;
+		public float UnitsPerTexel;
 		public float HeightScale;
 
 		public bool HeightBlending;
 		public float HeightBlendSharpness;
 		public int SamplerIndex;
+		public int NormalMapTextureID;
 	}
 
 	[StructLayout( LayoutKind.Sequential )]
@@ -158,8 +180,8 @@ public partial class Terrain
 		if ( Storage is null )
 			return;
 
-		// Buffer not yet created (e.g. during deserialization before OnEnabled)
-		if ( TerrainBuffer is null )
+		// Buffer not created yet, or its GPU allocation failed
+		if ( TerrainBuffer is not { IsValid: true } )
 			return;
 
 		var transform = Matrix.FromTransform( WorldTransform );
@@ -170,15 +192,67 @@ public partial class Terrain
 			TransformInv = transform.Inverted,
 			HeightMapTextureID = HeightMap?.Index ?? 0,
 			ControlMapTextureID = ControlMap?.Index ?? 0,
-			Resolution = Storage.TerrainSize / Storage.Resolution,
+			UnitsPerTexel = UnitsPerTexel,
 			HeightScale = Storage.TerrainHeight,
 			HeightBlending = Storage.MaterialSettings.HeightBlendEnabled,
 			HeightBlendSharpness = Storage.MaterialSettings.HeightBlendSharpness,
-			SamplerIndex = SamplerState.GetBindlessIndex( Storage.MaterialSettings.Sampler )
+			SamplerIndex = SamplerState.GetBindlessIndex( Storage.MaterialSettings.Sampler ),
+			NormalMapTextureID = NormalMap?.Index ?? 0,
 		};
 
 		// Upload to the GPU buffer
-		TerrainBuffer.SetData( new List<GPUTerrain>() { gpuTerrain } );
+		TerrainBuffer.SetData( MemoryMarshal.CreateReadOnlySpan( ref gpuTerrain, 1 ) );
+
+		if ( _so.IsValid() )
+		{
+			_so.UnitsPerTexel = UnitsPerTexel;
+			_so.HeightScale = Storage.TerrainHeight;
+		}
+	}
+
+	/// <summary>
+	/// Rebuild the baked normal map after height edits.
+	/// </summary>
+	void RebakeNormalMap()
+	{
+		if ( Application.IsHeadless || Storage is null )
+			return;
+
+		// Persistent UAV target, reused across bakes so the bindless index stays stable
+		int res = Storage.Resolution;
+		if ( NormalMap is null || NormalMap.Width != res )
+		{
+			NormalMap?.Dispose();
+
+			NormalMap = Texture.Create( res, res, ImageFormat.RG1616 )
+				.WithUAVBinding()
+				.WithName( "terrain_normalmap" )
+				.Finish();
+		}
+
+		// OnPreRender records the bake and the scene object runs it on the render thread.
+		// The dirty flag coalesces rapid edits into one bake per frame.
+		_normalBakeCs ??= new ComputeShader( "terrain/cs_terrain_normal" );
+		_normalBakeDirty = true;
+
+		// Resync the buffer's texture index (only changes if the texture was recreated)
+		UpdateTerrainBuffer();
+	}
+
+	CommandList RecordNormalBake()
+	{
+		var cmd = new CommandList( "TerrainNormalBake" );
+		cmd.Attributes.Set( "Heightmap", HeightMap );
+		cmd.Attributes.Set( "OutputMap", NormalMap );
+		cmd.Attributes.Set( "HeightScale", Storage.TerrainHeight );
+		cmd.Attributes.Set( "UnitsPerTexel", UnitsPerTexel );
+
+		cmd.DispatchCompute( _normalBakeCs, Storage.Resolution, Storage.Resolution, 1 );
+
+		// Make the compute writes visible to the terrain shader sampling the texture
+		cmd.UavBarrier( NormalMap );
+
+		return cmd;
 	}
 
 	/// <summary>
@@ -193,8 +267,8 @@ public partial class Terrain
 		if ( Storage is null )
 			return;
 
-		// Buffer not yet created (e.g. during deserialization before OnEnabled)
-		if ( MaterialsBuffer is null )
+		// Buffer not created yet, or its GPU allocation failed
+		if ( MaterialsBuffer is not { IsValid: true } )
 			return;
 
 		var gpuMaterials = new GPUTerrainMaterial[64];

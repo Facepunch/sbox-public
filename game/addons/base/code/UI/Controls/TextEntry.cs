@@ -213,9 +213,16 @@ public partial class TextEntry : BaseControl
 		var pasteResult = new string( text.Where( CanEnterCharacter ).ToArray() );
 		ReplaceEmojisInText( ref pasteResult );
 
-		if ( MaxLength.HasValue && TextLength > MaxLength )
+		if ( MaxLength.HasValue )
 		{
-			pasteResult = pasteResult.Substring( 0, MaxLength.Value - CaretPosition );
+			// MaxLength and TextLength count text elements, not chars - truncate the
+			// same way so we don't cut a surrogate pair or combining sequence in half
+			var remaining = Math.Max( MaxLength.Value - TextLength, 0 );
+			var info = new StringInfo( pasteResult );
+			if ( info.LengthInTextElements > remaining )
+			{
+				pasteResult = remaining > 0 ? info.SubstringByTextElements( 0, remaining ) : "";
+			}
 		}
 
 		Text ??= "";

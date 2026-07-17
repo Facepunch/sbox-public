@@ -1,4 +1,5 @@
-﻿using System.Threading;
+﻿using Sandbox.Resources;
+using System.Threading;
 
 namespace Editor;
 
@@ -21,22 +22,21 @@ partial class TextureDropObject : BaseDropObject
 		PackageStatus = "Loading Texture";
 		if ( asset.Path.EndsWith( "vtex" ) || asset.Path.EndsWith( "vtex_c" ) )
 		{
-			// Load texture asset
-			var texturePath = System.IO.Path.ChangeExtension( dragData, "vtex_c" );
-			var textureAsset = AssetSystem.FindByPath( texturePath );
-			if ( textureAsset is not null )
-			{
-				asset = textureAsset;
-				texture = asset.LoadResource<Texture>();
-			}
+			texture = asset.LoadResource<Texture>();
 		}
 		else
 		{
-			// Load image file
-			var imageAsset = AssetSystem.FindByPath( dragData );
-			texture = Texture.Load( imageAsset.RelativePath );
+			var generator = new ImageFileGenerator
+			{
+				FilePath = asset.RelativePath
+			};
+
+			texture = await generator.CreateAsync( ResourceGenerator.Options.Default, token );
 		}
 		PackageStatus = null;
+
+		if ( !texture.IsValid() || texture == Texture.Invalid )
+			throw new System.Exception( $"Failed to load texture from asset '{asset.Path}'" );
 
 		aspect = (float)texture.Height / texture.Width;
 		if ( texture.HasAnimatedSequences ) aspect = 0f;

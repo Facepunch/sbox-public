@@ -149,6 +149,68 @@ public class SceneLoadSaveTest : SceneTest
 	}
 
 	/// <summary>
+	/// When both parent and child are flagged DontDestroyOnLoad, the hierarchy is
+	/// preserved across a non-additive scene load instead of flattening both objects
+	/// to the scene root.
+	/// </summary>
+	[TestMethod]
+	public void NonAdditiveLoadPreservesSurvivorHierarchy()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var survivorParent = scene.CreateObject();
+		survivorParent.Name = "Survivor Parent";
+		survivorParent.Flags |= GameObjectFlags.DontDestroyOnLoad;
+
+		var survivorChild = new GameObject( survivorParent, name: "Survivor Child" );
+		survivorChild.Flags |= GameObjectFlags.DontDestroyOnLoad;
+
+		var sceneFile = MakeSceneFile( "loadsave_survivor_hierarchy.scene", "Loaded Object" );
+
+		Assert.IsTrue( scene.Load( MakeOptions( sceneFile ) ) );
+
+		Assert.IsTrue( survivorParent.IsValid );
+		Assert.IsTrue( survivorChild.IsValid );
+		Assert.AreEqual( scene, survivorParent.Parent );
+		Assert.AreEqual( survivorParent, survivorChild.Parent );
+		Assert.AreEqual( 1, scene.Directory.FindByName( "Loaded Object" ).Count() );
+
+		scene.Destroy();
+	}
+
+	/// <summary>
+	/// A DontDestroyOnLoad object that already has a DontDestroyOnLoad ancestor keeps its hierarchy intact.
+	/// </summary>
+	[TestMethod]
+	public void NonAdditiveLoadPreservesNestedSurvivorHierarchy()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var survivorParent = scene.CreateObject();
+		survivorParent.Name = "Survivor Parent";
+		survivorParent.Flags |= GameObjectFlags.DontDestroyOnLoad;
+
+		var middle = new GameObject( survivorParent, name: "Middle" );
+		var survivorChild = new GameObject( middle, name: "Survivor Child" );
+		survivorChild.Flags |= GameObjectFlags.DontDestroyOnLoad;
+
+		var sceneFile = MakeSceneFile( "loadsave_nested_survivor_hierarchy.scene", "Loaded Object" );
+
+		Assert.IsTrue( scene.Load( MakeOptions( sceneFile ) ) );
+
+		Assert.IsTrue( survivorParent.IsValid );
+		Assert.IsTrue( survivorChild.IsValid );
+		Assert.AreEqual( scene, survivorParent.Parent );
+		Assert.AreEqual( survivorParent, middle.Parent );
+		Assert.AreEqual( middle, survivorChild.Parent );
+		Assert.AreEqual( 1, scene.Directory.FindByName( "Loaded Object" ).Count() );
+
+		scene.Destroy();
+	}
+
+	/// <summary>
 	/// DeleteEverything overrides DontDestroyOnLoad - nothing survives the load.
 	/// </summary>
 	[TestMethod]

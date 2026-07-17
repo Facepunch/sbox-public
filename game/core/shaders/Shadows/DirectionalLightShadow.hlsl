@@ -7,6 +7,8 @@
 // I don't know
 ;
 
+#include "common/utils/MSAAUtils.hlsl"
+
 // don't have more than this for fucks sake
 #define MAX_CASCADE_COUNT 4
 
@@ -19,7 +21,8 @@ cbuffer DirectionalLightCB
 	uint4 g_DirectionalLightShadowMapTextureIndex;
 	uint g_DirectionalLightCascadeCount;
     float g_DirectionalLightInverseShadowMapSize;
-	float g_DirectionalLightPadding;
+	// Bindless index of the screen-space (contact) shadow mask, 0 if none.
+	uint g_DirectionalLightScreenSpaceShadowIndex;
 	bool g_DirectionalLightEnabled;
     float4 g_DirectionalLightCascadeHardness;
     float4 g_DirectionalLightCascadeSpheres[MAX_CASCADE_COUNT]; // xyz = world center, w = radius squared
@@ -72,6 +75,24 @@ class DirectionalLightShadow
         return SampleShadowPCF( pcfInput );
     }
 
+	// Screen-space (contact) shadows precomputed into a full-screen mask by the ScreenSpaceShadows
+	// component. 1 = lit, 0 = shadowed. Returns 1 (no occlusion) when no mask is bound (index 0).
+	// The mask is a non-MSAA full-res texture, so composite it with MSAAUtils::GetSampleIndex to pick
+	// the depth-matching gather lane - this keeps the mask pixel-perfect under MSAA.
+	static float SampleScreenSpaceShadow( float4 vPositionSs )
+	{
+		#if ( S_TRANSLUCENT == 1 || PROGRAM != VFX_PROGRAM_PS )
+        	return 1.0f;
+		#endif
+		
+		if ( g_DirectionalLightScreenSpaceShadowIndex == 0 )
+			return 1.0f;
+
+        Texture2D tMask = Bindless::GetTexture2D(g_DirectionalLightScreenSpaceShadowIndex);
+        vPositionSs.xy -= g_vViewportOffset.xy;
+		return MSAAUtils::SampleRed( tMask, vPositionSs );
+	}
+
 	static float3 GetOccludedPosition( float3 fragPos )
     {
         if ( g_DirectionalLightCascadeCount == 0 )
@@ -94,19 +115,23 @@ class DirectionalLightShadow
         return fragPos + zGrad * max( s - posLs.z, 0.0f ) / dot( zGrad, zGrad );
     }
 
-    static float GetVisibility( float3 worldPosition, float2 screenPos )
+    static float GetVisibility( float3 worldPosition, float4 vPositionSs )
     {
+        float ssShadow = SampleScreenSpaceShadow( vPositionSs );
+
         if ( g_DirectionalLightCascadeCount == 0 )
-            return 1.0f;
+            return ssShadow;
 
 		float3 posLs;
 		int cascade = FindCascade( worldPosition, posLs );
 
 		if ( cascade < 0 )
-			return 1.0f;
+			return ssShadow;
 
-		return SampleCascade( cascade, worldPosition, screenPos );
+		return SampleCascade( cascade, worldPosition, vPositionSs.xy ) * ssShadow;
     }
+
+
 
     static float3 GetDebugColor( float3 worldPosition )
     {

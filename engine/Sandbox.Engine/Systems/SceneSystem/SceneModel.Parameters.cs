@@ -58,36 +58,62 @@ public sealed partial class SceneModel : SceneObject
 	/// </summary>
 	public void SetAnimParameter( string name, float value )
 	{
-		if ( FindAnimParam( name, out var p ) )
+		if ( !FindAnimParam( name, out var p ) )
+			return;
+
+		var t = p.GetParameterType();
+
+		if ( t == AnimParamType.Bool )
 		{
-			var t = p.GetParameterType();
-
-			if ( t == AnimParamType.Bool )
-			{
-				p.SetValue( value.AlmostEqual( 0.0f ) );
-				return;
-			}
-
-			if ( t == AnimParamType.Float )
-			{
-				p.SetValue( value );
-				return;
-			}
-
-			if ( t == AnimParamType.Int )
-			{
-				p.SetValue( (int)value );
-				return;
-			}
-
-			if ( t == AnimParamType.Enum )
-			{
-				p.SetEnumValue( (int)value );
-				return;
-			}
-
-			Log.Warning( $"SetBool: {t}" );
+			p.SetValue( !value.AlmostEqual( 0.0f ) );
+			return;
 		}
+
+		if ( t == AnimParamType.Float )
+		{
+			p.SetValue( value );
+			return;
+		}
+
+		if ( t == AnimParamType.Int )
+		{
+			p.SetValue( (int)value );
+			return;
+		}
+
+		if ( t == AnimParamType.Enum )
+		{
+			p.SetEnumValue( (int)value );
+			return;
+		}
+
+		Log.Warning( $"SetFloat: {t}" );
+
+	}
+
+	/// <summary>
+	/// Sets an enum animation graph parameter by option name (e.g. "pistol" on "holdtype").
+	/// </summary>
+	public bool SetAnimParameter( string name, string option )
+	{
+		if ( !FindAnimParam( name, out var p ) )
+			return false;
+
+		var t = p.GetParameterType();
+
+		if ( t == AnimParamType.Enum )
+		{
+			if ( AnimationGraph.TryGetEnumOptionIndex( name, option, out var index ) )
+			{
+				p.SetEnumValue( index );
+				return true;
+			}
+
+			Log.Warning( $"SetAnimParameter: enum \"{name}\" has no option \"{option}\"" );
+			return false;
+		}
+
+		return false;
 	}
 
 	/// <summary>
@@ -105,7 +131,7 @@ public sealed partial class SceneModel : SceneObject
 				return;
 			}
 
-			Log.Warning( $"SetBool: {t}" );
+			Log.Warning( $"SetVector: {t}" );
 		}
 	}
 
@@ -120,7 +146,7 @@ public sealed partial class SceneModel : SceneObject
 
 			if ( t == AnimParamType.Bool )
 			{
-				p.SetValue( value == 0 );
+				p.SetValue( value != 0 );
 				return;
 			}
 

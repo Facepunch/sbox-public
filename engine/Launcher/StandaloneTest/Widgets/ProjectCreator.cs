@@ -23,6 +23,11 @@ public class ProjectCreator : Dialog
 
 	private bool identEdited;
 
+	private Widget ParentGameRow;
+
+	[Editor( "package:game" ), Title( "Target Game" )]
+	public string ParentGame { get; set; }
+
 	public ProjectCreator( Widget parent = null ) : base( null )
 	{
 		Window.Size = new Vector2( 800, 500 );
@@ -95,6 +100,31 @@ public class ProjectCreator : Dialog
 
 			body.AddSpacingCell( 8 );
 
+			// Parent Game picker (shown for addon/map templates)
+			{
+				ParentGameRow = new Widget( this )
+				{
+					Visible = false,
+					MinimumHeight = 80
+				};
+
+				var parentLayout = ParentGameRow.Layout = Layout.Column();
+				parentLayout.Spacing = 4;
+				parentLayout.Add( new FieldTitle( "Target Game" ) );
+				parentLayout.Add( new FieldSubtitle( "This lets you use features from a specific game" ) );
+
+				var so = this.GetSerialized();
+				var prop = so.GetProperty( nameof( ParentGame ) );
+				var control = ControlWidget.Create( prop );
+				control.HorizontalSizeMode = SizeMode.Default;
+				control.MinimumHeight = 32;
+				parentLayout.Add( control );
+
+				body.Add( ParentGameRow );
+			}
+
+			body.AddSpacingCell( 8 );
+
 			body.Add( new FieldTitle( "Other" ) );
 			CreateGitIgnore = body.Add( new Checkbox() );
 			CreateGitIgnore.Value = true;
@@ -115,8 +145,13 @@ public class ProjectCreator : Dialog
 			OkayButton = footer.Add( new Button.Primary( "Create", "add_box" ) { Clicked = CreateProject } );
 		}
 
-		Templates.ListView.ItemSelected += ( object item ) => { ActiveTemplate = item as ProjectTemplate; };
+		Templates.ListView.ItemSelected += ( object item ) =>
+		{
+			ActiveTemplate = item as ProjectTemplate;
+			UpdateParentGameVisibility();
+		};
 		ActiveTemplate = Templates.ListView.SelectedItems.First() as ProjectTemplate;
+		UpdateParentGameVisibility();
 
 		Validate();
 	}
@@ -169,6 +204,20 @@ public class ProjectCreator : Dialog
 		OkayButton.Enabled = enabled;
 	}
 
+	void UpdateParentGameVisibility()
+	{
+		var type = ActiveTemplate?.AddonType;
+		var templateHasParent = !string.IsNullOrEmpty( ActiveTemplate?.ParentPackage );
+
+		ParentGameRow.Visible = type is "addon" or "map" && !templateHasParent;
+
+		// Pre-populate from template if it has a ParentPackage set
+		if ( ParentGameRow.Visible && string.IsNullOrEmpty( ParentGame ) )
+		{
+			ParentGame = ActiveTemplate?.ParentPackage;
+		}
+	}
+
 	void CreateProject()
 	{
 		var addonPath = Path.Combine( FolderEdit.Text, IdentEdit.Text );
@@ -185,6 +234,9 @@ public class ProjectCreator : Dialog
 		var pt = Templates.ListView.ChosenTemplate;
 		if ( pt != null )
 			pt.Apply( addonPath, ref config );
+
+		if ( !string.IsNullOrWhiteSpace( ParentGame ) )
+			config.SetMeta( "ParentPackage", ParentGame );
 
 		var configPath = System.IO.Path.Combine( addonPath, $"{config.Ident}.sbproj" );
 		var txt = config.ToJson();

@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Threading;
 using static Sandbox.Diagnostics.PerformanceStats;
 
@@ -10,21 +10,65 @@ internal static partial class Api
 	{
 		static FastTimer time = FastTimer.StartNew();
 
-		static float lastFrame;
+		static double lastFrame;
 		static float startTime;
 
 		static int FrameCount;
 
 		static int[] FrameBucket = new int[10];
-		static Dictionary<string, PeriodMetric> Stages = new Dictionary<string, PeriodMetric>( 16 );
-		static Dictionary<string, List<double>> statDict = new( 16 );
+		static Dictionary<string, Accum> Stages = new Dictionary<string, Accum>( 16 );
+		static Dictionary<string, Accum> statDict = new( 16 );
 
 		static Lock Lock = new Lock();
 
+		struct Accum
+		{
+			public int Cnt;
+			public double Min;
+			public double Max;
+			public double Sum;
+			public double Mean;
+			public double M2;
+			public long Calls;
+
+			public void Add( double value, long calls = 1 )
+			{
+				if ( Cnt == 0 )
+				{
+					Min = value;
+					Max = value;
+				}
+				else
+				{
+					if ( value < Min ) Min = value;
+					if ( value > Max ) Max = value;
+				}
+
+				Cnt++;
+				Sum += value;
+				Calls += calls;
+
+				var d = value - Mean;
+				Mean += d / Cnt;
+				M2 += d * (value - Mean);
+			}
+
+			public object ToMetric() => new
+			{
+				Cnt,
+				Min,
+				Max,
+				Sum,
+				Avg = Mean,
+				Dev = Cnt > 1 ? Math.Sqrt( M2 / (Cnt - 1) ) : 0.0,
+				Calls,
+			};
+		}
+
 		public static void Frame()
 		{
-			var t = time.Elapsed.Milliseconds;
-			var delta = (t - lastFrame);
+			var t = time.ElapsedMilliSeconds;
+			float delta = (float)(t - lastFrame);
 			if ( delta < 0 ) delta = 0;
 
 			// new, bucketed frames
@@ -73,32 +117,18 @@ internal static partial class Api
 		/// </summary>
 		internal static void CollectStat( string name, double value )
 		{
-			if ( !statDict.TryGetValue( name, out var list ) )
-			{
-				list = new List<double>();
-				statDict[name] = list;
-			}
-
-			list.Add( value );
+			statDict.TryGetValue( name, out var a );
+			a.Add( value, 0 );
+			statDict[name] = a;
 		}
 
 		private static void FlipStat( Timings stat )
 		{
-			var timings = stat.GetMetric( 1 );
+			var m = stat.GetMetric( 1 );
 
-			// I think this is a good way to get the metrics, maybe?
-
-			if ( Stages.TryGetValue( stat.Name, out var existing ) )
-			{
-				Stages[stat.Name] = new PeriodMetric( MathF.Min( existing.Min, timings.Min ),
-											MathF.Max( existing.Max, timings.Max ),
-											(existing.Avg + timings.Avg) / 2.0f,
-											existing.Calls + timings.Calls );
-			}
-			else
-			{
-				Stages[stat.Name] = timings;
-			}
+			Stages.TryGetValue( stat.Name, out var a );
+			a.Add( m.Avg, m.Calls );
+			Stages[stat.Name] = a;
 		}
 
 		public static object Flip()
@@ -121,19 +151,14 @@ internal static partial class Api
 					Avg = msPerFrame,
 					Memory = (int)(currentProc.WorkingSet64 / (1024 * 1024)),
 					FrameBucket = FrameBucket.ToArray(), // need to copy
-					Stages = Stages.Where( x => x.Value.Calls > 0 ).ToDictionary( x => x.Key, x => x.Value ), // need to copy
+					Stages = Stages.Where( x => x.Value.Calls > 0 ).ToDictionary( x => x.Key, x => x.Value.ToMetric() ), // need to copy
 					Stats = BuildStats(),
 				};
 
 				FrameCount = 0;
 				startTime = time;
 				Stages.Clear();
-
-				foreach ( var e in statDict )
-				{
-					e.Value.Clear();
-				}
-
+				statDict.Clear();
 
 				for ( int i = 0; i < FrameBucket.Length; i++ )
 				{
@@ -149,32 +174,7 @@ internal static partial class Api
 		/// </summary>
 		static object BuildStats()
 		{
-			return statDict.ToDictionary( x => x.Key, x => ArrayToMetric( x.Value ) );
-		}
-
-		/// <summary>
-		///  Here we take the array of values and convert them into an object with a bunch of statistics about them.
-		///  Basically trying to cover our bases as much as possible, in case we need to show this data later on.
-		/// </summary>
-		private static object ArrayToMetric( List<double> data )
-		{
-			var count = data.Count;
-			var min = data.Min();
-			var max = data.Max();
-			var sum = data.Sum();
-			var mean = data.Average();
-			double variance = data.Select( val => (val - mean) * (val - mean) ).Sum() / (count - 1);
-			double stdDeviation = Math.Sqrt( variance );
-
-			return new
-			{
-				Cnt = data.Count,
-				Min = min,
-				Max = max,
-				Sum = sum,
-				Avg = mean,
-				Dev = stdDeviation,
-			};
+			return statDict.ToDictionary( x => x.Key, x => x.Value.ToMetric() );
 		}
 	}
 }
