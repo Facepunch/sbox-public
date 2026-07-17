@@ -1,4 +1,5 @@
-﻿using Editor.MapDoc;
+﻿using System;
+using Editor.MapDoc;
 
 namespace Editor.MapEditor;
 
@@ -20,6 +21,19 @@ public static partial class Hammer
 		var mapAsset = AssetSystem.Get( (uint)assetIndex );
 		Assert.NotNull( mapAsset );
 
+		var referencedAssets = mapAsset.GetReferences( false )
+			.Where( a => a.Package != null )
+			.ToArray();
+		var referencedPackageVersions = referencedAssets
+			.Where( a => a.Package.Revision != null )
+			.Select( a => $"{a.Package.FullIdent}#{a.Package.Revision.VersionId}" );
+		var referencedRuntimePackages = mapAsset.GetReferences( true )
+			.Where( a => a.Package != null )
+			.Where( a => !string.Equals( a.Package.TypeName, "game", StringComparison.OrdinalIgnoreCase ) )
+			.Select( a => a.Package.Revision != null
+				? $"{a.Package.FullIdent}#{a.Package.Revision.VersionId}"
+				: a.Package.FullIdent );
+
 		var usedPackages = GetUsedPackages( map );
 
 		//
@@ -28,23 +42,16 @@ public static partial class Hammer
 		// if it doesn't already have them downloaded.
 		//
 		{
-			mapAsset.Publishing.ProjectConfig.EditorReferences = new();
-
 			//
-			// Collect all packages our assets use and save them as metadata, so we can make sure we have them downloaded before opening
+			// Collect all packages our assets use and save them as metadata, so we can make sure we have them downloaded before opening.
+			// Keep any manual references the user already added and merge in the automatic ones.
 			//
-			var packages = mapAsset.GetReferences( false ).Where( a => a.Package != null ).Select( a => $"{a.Package.FullIdent}#{a.Package.Revision.VersionId}" ).Distinct();
-			mapAsset.Publishing.ProjectConfig.EditorReferences.AddRange( packages.ToList() );
-
-			//
-			// Add any games we're referencing. We'll want to re-reference them when opening the map
-			//
-			mapAsset.Publishing.ProjectConfig.EditorReferences.AddRange( usedPackages.Where( x => x.TypeName == "game" ).Select( x => x.FullIdent ) );
-
-			//
-			// Lowercase and remove duplicates
-			//
-			mapAsset.Publishing.ProjectConfig.EditorReferences = mapAsset.Publishing.ProjectConfig.EditorReferences.Select( x => x.ToLowerInvariant() ).Distinct().OrderBy( x => x ).ToList();
+			var editorReferences = mapAsset.Publishing.ProjectConfig.EditorReferences ?? [];
+			mapAsset.Publishing.ProjectConfig.EditorReferences = MergePackageReferences(
+				editorReferences,
+				referencedPackageVersions,
+				usedPackages.Where( x => x.TypeName == "game" ).Select( x => x.FullIdent )
+			).ToList();
 		}
 
 		//
@@ -53,18 +60,22 @@ public static partial class Hammer
 		// that if they're referencing a specific game then the map will always be run with that game.
 		//
 		{
-			mapAsset.Publishing.ProjectConfig.PackageReferences = new(); // maybe we shouldn't clear this? No reason why not right now.
-			mapAsset.Publishing.ProjectConfig.PackageReferences.AddRange( usedPackages.Where( x => x.TypeName == "addon" ).Select( x => x.FullIdent ) );
-
-			//
-			// Lowercase and remove duplicates
-			//
-			mapAsset.Publishing.ProjectConfig.PackageReferences = mapAsset.Publishing.ProjectConfig.PackageReferences.Select( x => x.ToLowerInvariant() ).Distinct().OrderBy( x => x ).ToList();
+			var packageReferences = mapAsset.Publishing.ProjectConfig.PackageReferences ?? [];
+			mapAsset.Publishing.ProjectConfig.PackageReferences = MergePackageReferences(
+				packageReferences,
+				referencedRuntimePackages,
+				usedPackages.Where( x => x.TypeName == "addon" ).Select( x => x.FullIdent )
+			).ToList();
 		}
 
 
 		// Save the updated publish config
 		mapAsset.MetaData.Set( "publish", mapAsset.Publishing );
+	}
+
+	internal static string[] MergePackageReferences( params IEnumerable<string>[] referenceSets )
+	{
+		return CloudAsset.DeduplicateReferences( referenceSets.Where( x => x != null ).SelectMany( x => x ) );
 	}
 
 	/// <summary>

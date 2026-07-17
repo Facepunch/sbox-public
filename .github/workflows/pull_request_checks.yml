@@ -27,3 +27,23 @@ jobs:
 
       - name: Test
         run: dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- test --filter "TestCategory!=LiveBackend"
+
+  tests-linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Full Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: true
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build
+        run: dotnet run --project ./engine/Tools/SboxBuild/SboxBuild.csproj -- build --config Developer
+
+      - name: Test
+        run: dotnet run --project ./engine/Tools/SboxBuild/SboxBuild.csproj -- test --filter "TestCategory!=LiveBackend"
