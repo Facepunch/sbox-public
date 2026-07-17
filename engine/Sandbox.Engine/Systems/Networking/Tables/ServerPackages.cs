@@ -68,7 +68,7 @@ internal class ServerPackages
 					await ServerPackages._resourceLoadSem.WaitAsync( token );
 					try
 					{
-						await ResourceLoader.LoadAllGameResourceAsync( activePackage.FileSystem, token );
+						await ResourceLoader.LoadAllGameResourceAsync( activePackage.FileSystem, token, sourcePackage: activePackage.Package );
 						FontManager.Instance.LoadAll( activePackage.FileSystem );
 					}
 					finally

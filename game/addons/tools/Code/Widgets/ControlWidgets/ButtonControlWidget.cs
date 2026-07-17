@@ -52,6 +52,8 @@ public class ButtonControlWidget : ControlWidget
 			button.ToolTip = property.Description;
 			button.FixedHeight = Theme.RowHeight;
 			button.HorizontalSizeMode = SizeMode.CanGrow;
+			if ( !ReadOnly )
+				button.Enabled = !ReadOnly;
 			Layout.Add( button );
 		}
 

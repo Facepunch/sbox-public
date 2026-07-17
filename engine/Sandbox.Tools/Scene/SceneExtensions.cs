@@ -14,8 +14,10 @@ public static partial class SceneExtensions
 	{
 		var menu = new Editor.Menu( parent );
 
+		var isMounted = Sandbox.Mounting.MountUtility.IsMountPath( scene.Source?.ResourcePath );
+
 		menu.AddOption( "Save", "save", action: () => scene.Editor?.Save( false ) ).Enabled = (scene.Editor?.HasUnsavedChanges ?? false) && scene.Source is not null;
-		menu.AddOption( "Save Scene As..", action: () => scene.Editor?.Save( true ) );
+		menu.AddOption( "Save Scene As..", action: () => scene.Editor?.Save( true ) ).Enabled = !isMounted;
 
 		return menu;
 
@@ -31,8 +33,12 @@ public static partial class SceneExtensions
 		var session = SceneEditorSession.Resolve( component );
 		using var scene = session.Scene.Push();
 
+		using var blobs = BlobDataSerializer.Capture();
+
 		var result = component.Serialize();
 		if ( result is null ) return;
+
+		blobs.SaveTo( result );
 		EditorUtility.Clipboard.Copy( result.ToString() );
 	}
 
@@ -52,6 +58,8 @@ public static partial class SceneExtensions
 
 			var session = SceneEditorSession.Resolve( target );
 			using var scene = session.Scene.Push();
+			using var blobs = BlobDataSerializer.LoadFrom( pastedJso );
+
 			using ( session.UndoScope( "Paste Component Values" ).WithComponentChanges( target ).Push() )
 			{
 				pastedJso.AsObject().Remove( "__guid" );
@@ -96,6 +104,8 @@ public static partial class SceneExtensions
 				Log.Warning( $"TypeLibrary couldn't find {nameof( Component )} type {pastedJso["__type"]}" );
 				return;
 			}
+
+			using var blobs = BlobDataSerializer.LoadFrom( pastedJso );
 
 			using ( session.UndoScope( $"Paste {componentType.Name} As New" ).WithComponentCreations().Push() )
 			{

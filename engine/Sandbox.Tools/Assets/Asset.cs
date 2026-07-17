@@ -192,6 +192,12 @@ public abstract partial class Asset
 	public abstract void OpenInEditor( string nativeEditor = null );
 
 	/// <summary>
+	/// Whether <see cref="OpenInEditor"/> can do anything useful for this asset. Used to decide
+	/// whether to offer an "Open" action for assets that have no file on disk (e.g. mounted resources).
+	/// </summary>
+	public virtual bool CanOpenInEditor => true;
+
+	/// <summary>
 	/// Returns assets that this asset references/uses.
 	/// </summary>
 	/// <param name="deep">Whether to recurse. For example, will also include textures referenced by the materials used by this model asset, as opposed to returning just the materials.</param>

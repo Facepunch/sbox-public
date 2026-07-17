@@ -75,7 +75,7 @@ class CollisionEventSystem : IDisposable
 
 		_rigidbody?.HandleImpactDamage( o );
 
-		_gameObject.Components.ExecuteEnabledInSelfAndDescendants<ICollisionListener>( x => x.OnCollisionStart( o ) );
+		_gameObject.Components.ExecuteEnabledInSelfAndDescendants<ICollisionListener, Collision>( o, static ( x, c ) => x.OnCollisionStart( c ) );
 	}
 
 	private bool IsTouching( Component other )
@@ -89,7 +89,7 @@ class CollisionEventSystem : IDisposable
 		var other = new CollisionSource( c.Other );
 		var o = new CollisionStop( self, other );
 
-		_gameObject.Components.ExecuteEnabledInSelfAndDescendants<ICollisionListener>( x => x.OnCollisionStop( o ) );
+		_gameObject.Components.ExecuteEnabledInSelfAndDescendants<ICollisionListener, CollisionStop>( o, static ( x, c ) => x.OnCollisionStop( c ) );
 	}
 
 	internal void OnIntersectionUpdate( PhysicsIntersection c )
@@ -98,7 +98,7 @@ class CollisionEventSystem : IDisposable
 		var other = new CollisionSource( c.Other );
 		var o = new Collision( self, other, c.Contact );
 
-		_gameObject.Components.ExecuteEnabledInSelfAndDescendants<ICollisionListener>( x => x.OnCollisionUpdate( o ) );
+		_gameObject.Components.ExecuteEnabledInSelfAndDescendants<ICollisionListener, Collision>( o, static ( x, c ) => x.OnCollisionUpdate( c ) );
 	}
 
 	private void OnColliderTriggerStart( Collider self, Collider other, GameObject go )
@@ -130,7 +130,7 @@ class CollisionEventSystem : IDisposable
 
 		self.OnTriggerEnter?.InvokeWithWarning( other );
 
-		_gameObject.Components.ExecuteEnabledInSelfAndDescendants<ITriggerListener>( x => x.OnTriggerEnter( self, other ) );
+		_gameObject.Components.ExecuteEnabledInSelfAndDescendants<ITriggerListener, (Collider self, Collider other)>( (self, other), static ( x, s ) => x.OnTriggerEnter( s.self, s.other ) );
 	}
 
 	private void OnColliderTriggerStop( Collider self, Collider other, GameObject go )
@@ -168,7 +168,7 @@ class CollisionEventSystem : IDisposable
 
 		self.OnTriggerExit?.InvokeWithWarning( other );
 
-		_gameObject.Components.ExecuteEnabledInSelfAndDescendants<ITriggerListener>( x => x.OnTriggerExit( self, other ) );
+		_gameObject.Components.ExecuteEnabledInSelfAndDescendants<ITriggerListener, (Collider self, Collider other)>( (self, other), static ( x, s ) => x.OnTriggerExit( s.self, s.other ) );
 	}
 
 	private void OnObjectTriggerStart( Collider self, GameObject other )
@@ -193,7 +193,7 @@ class CollisionEventSystem : IDisposable
 
 		self.OnObjectTriggerEnter?.InvokeWithWarning( other );
 
-		_gameObject.Components.ExecuteEnabledInSelfAndDescendants<ITriggerListener>( x => x.OnTriggerEnter( self, other ) );
+		_gameObject.Components.ExecuteEnabledInSelfAndDescendants<ITriggerListener, (Collider self, GameObject other)>( (self, other), static ( x, s ) => x.OnTriggerEnter( s.self, s.other ) );
 	}
 
 	private void OnObjectTriggerStop( Collider self, GameObject other )
@@ -221,7 +221,7 @@ class CollisionEventSystem : IDisposable
 
 		self.OnObjectTriggerExit?.InvokeWithWarning( other );
 
-		_gameObject.Components.ExecuteEnabledInSelfAndDescendants<ITriggerListener>( x => x.OnTriggerExit( self, other ) );
+		_gameObject.Components.ExecuteEnabledInSelfAndDescendants<ITriggerListener, (Collider self, GameObject other)>( (self, other), static ( x, s ) => x.OnTriggerExit( s.self, s.other ) );
 	}
 
 	private void RemoveDeactivated()

@@ -12,4 +12,18 @@
     justify-content: center;
     background-position: center;
     background-size: cover;
+
+	videocontrols
+	{
+		opacity: 0;
+		transition: opacity 0.1s;
+	}
+
+	&::hover
+	{
+		videocontrols
+		{
+			opacity: 1;
+		}
+	}
 }

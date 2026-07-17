@@ -1,7 +1,7 @@
-﻿namespace Editor;
+namespace Editor;
 
 /// <summary>
-/// Scale selected GameObjects.<br/> <br/> 
+/// Scale selected GameObjects.<br/> <br/>
 /// <b>Ctrl</b> - toggle snap to grid<br/>
 /// <b>Shift</b> - scale all 3 axis
 /// </summary>
@@ -12,46 +12,66 @@
 [Order( 2 )]
 public class ScaleEditorTool : EditorTool
 {
+	readonly Dictionary<GameObject, (Vector3 StartScale, Vector3 StartSize)> startState = [];
+	Vector3 scaleDelta;
 	IDisposable undoScope;
 
 	public override void OnUpdate()
 	{
 		var nonSceneGos = Selection.OfType<GameObject>().Where( go => go.GetType() != typeof( Sandbox.Scene ) );
-		if ( nonSceneGos.Count() == 0 ) return;
+		if ( !nonSceneGos.Any() ) return;
 
-		var handleScale = Selection.OfType<GameObject>().FirstOrDefault().WorldScale;
-		var handlePosition = Selection.OfType<GameObject>().FirstOrDefault().WorldPosition;
-		var handleRotation = Selection.OfType<GameObject>().FirstOrDefault().WorldRotation;
+		var handlePosition = nonSceneGos.First().WorldPosition;
+		var handleRotation = nonSceneGos.First().WorldRotation;
+
+		if ( !Gizmo.Pressed.Any && Gizmo.HasMouseFocus )
+		{
+			startState.Clear();
+			scaleDelta = default;
+			undoScope?.Dispose();
+			undoScope = null;
+		}
 
 		using ( Gizmo.Scope( "Tool", new Transform( handlePosition ) ) )
 		{
 			Gizmo.Hitbox.DepthBias = 0.01f;
 
-			if ( Gizmo.Control.Scale( "scale", handleScale, out var newScale, handleRotation ) )
+			if ( Gizmo.Control.Scale( "scale", Vector3.Zero, out var delta, handleRotation ) )
 			{
-				var delta = newScale - handleScale;
+				scaleDelta += delta / 0.01f;
 
-				undoScope ??= SceneEditorSession.Active.UndoScope( "Transform Object(s)" ).WithGameObjectChanges( Selection.OfType<GameObject>(), GameObjectUndoFlags.All ).Push();
-
-				foreach ( var go in nonSceneGos )
+				if ( startState.Count == 0 )
 				{
-					go.DispatchPreEdited( nameof( GameObject.LocalScale ) );
+					undoScope ??= SceneEditorSession.Active.UndoScope( "Transform Object(s)" ).WithGameObjectChanges( nonSceneGos, GameObjectUndoFlags.All ).Push();
 
-					go.BreakProceduralBone();
-					go.WorldScale += delta;
+					foreach ( var go in nonSceneGos )
+					{
+						go.DispatchPreEdited( nameof( GameObject.LocalScale ) );
+						go.BreakProceduralBone();
+						startState[go] = (go.WorldScale, go.GetBounds().Size);
+					}
+				}
+
+				foreach ( var (go, (startScale, startSize)) in startState )
+				{
+					if ( !go.IsValid() ) continue;
+
+					var newSize = MathF.Max( startSize.x, MathF.Max( startSize.y, startSize.z ) );
+					if ( newSize < 0.001f ) newSize = 1.0f;
+
+					var snap = Gizmo.Snap( scaleDelta, scaleDelta ) * 2.0f;
+
+					go.WorldScale = new Vector3(
+						startScale.x * (1.0f + snap.x / newSize),
+						startScale.y * (1.0f + snap.y / newSize),
+						startScale.z * (1.0f + snap.z / newSize)
+					);
 
 					go.DispatchEdited( nameof( GameObject.LocalScale ) );
 				}
 			}
-
-			if ( !Gizmo.Pressed.Any && Gizmo.HasMouseFocus )
-			{
-				undoScope?.Dispose();
-				undoScope = null;
-			}
 		}
 	}
-
 
 	[Shortcut( "tools.scale-tool", "r", typeof( SceneViewWidget ) )]
 	public static void ActivateSubTool()
@@ -60,4 +80,3 @@ public class ScaleEditorTool : EditorTool
 		EditorToolManager.SetSubTool( nameof( ScaleEditorTool ) );
 	}
 }
-

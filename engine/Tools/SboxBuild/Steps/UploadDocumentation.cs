@@ -6,9 +6,9 @@ using static Facepunch.Constants;
 
 namespace Facepunch.Steps;
 
-internal class UploadDocumentation( string name ) : Step( name )
+internal class UploadDocumentation
 {
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		try
 		{

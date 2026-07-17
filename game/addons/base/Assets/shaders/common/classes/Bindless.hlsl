@@ -17,6 +17,19 @@ RWTexture3D<float4> g_bindless_RWTexture3D[] EXTERNAL_DESC_SET( u, g_globalLateB
 RWTexture2DArray<float4> g_bindless_RWTexture2DArray[] EXTERNAL_DESC_SET( u, g_globalLateBoundBindlessSet, 16 );
 #endif
 
+// Stable, pipeline-level texture slots. These are full-screen resources produced once per frame
+// by procedural layers (AO, SSR). Rather than route a dynamic bindless index through the racy
+// per-view render attributes, the scene system publishes the indices in a single small structured
+// buffer at a fixed binding. The buffer persists frame-to-frame, so consumers automatically read
+// last frame's result if a producer is skipped. Binding MUST match RENDER_GLOBAL_BINDING_PIPELINE_TEX_INDICES
+// in renderdevicetypes.h
+StructuredBuffer<int> g_PipelineTextureIndices EXTERNAL_DESC_SET(t, g_globalLateBoundBindlessSet, 14);
+
+enum PipelineTextureSlot
+{
+    PipelineTextureSlotAO = 0,
+    PipelineTextureSlotSSR = 1
+};
 class Bindless
 {
 
@@ -45,6 +58,8 @@ class Bindless
     static inline SamplerState GetSampler( int nIndex ) { return g_bindless_Sampler[ nIndex ]; }
     static inline SamplerComparisonState GetSamplerComparison( int nIndex ) { return g_bindless_SamplerComparison[ nIndex ]; }
 #endif
+
+    static inline int GetPipelineTextureIndex( PipelineTextureSlot slot ) { return g_PipelineTextureIndices[slot]; }
 
 #if PROGRAM == VFX_PROGRAM_CS
     static inline RWTexture2D<float4> GetRWTexture2D( int nIndex ) { return g_bindless_RWTexture2D[ NonUniformResourceIndex(nIndex) ]; }

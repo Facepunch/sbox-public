@@ -19,6 +19,16 @@ partial class EdgeCutTool
 			AddTitle( "Edge Cut Tool", "polyline" );
 
 			{
+				var group = AddGroup( "Loop Mode" );
+				var row = group.AddRow();
+				row.Spacing = 4;
+				row.Add( ControlSheetRow.Create( tool.GetSerialized().GetProperty( nameof( tool.LoopMode ) ) ) ).FixedHeight = Theme.ControlHeight;
+				row.AddStretchCell();
+			}
+
+			Layout.AddSpacingCell( 8 );
+
+			{
 				var row = Layout.AddRow();
 				row.Spacing = 4;
 
@@ -34,6 +44,12 @@ partial class EdgeCutTool
 			}
 
 			Layout.AddStretchCell();
+
+			AddShortcuts(
+				("Apply Cut", "Enter"),
+				("Cancel Cut", "Esc"),
+				("Toggle Loop Mode", "V")
+			);
 		}
 
 		[Shortcut( "mesh.edge-cut-apply", "enter", typeof( SceneViewWidget ) )]
@@ -41,5 +57,8 @@ partial class EdgeCutTool
 
 		[Shortcut( "mesh.edge-cut-cancel", "ESC", typeof( SceneViewWidget ) )]
 		void Cancel() => _tool.Cancel();
+
+		[Shortcut( "mesh.edge-cut-loop", "V", typeof( SceneViewWidget ) )]
+		void ToggleLoopMode() => _tool.LoopMode = !_tool.LoopMode;
 	}
 }

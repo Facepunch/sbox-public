@@ -8,6 +8,7 @@ class QuakeSound( string pakDir, string fileName ) : ResourceLoader<QuakeMount>
 	protected override object Load()
 	{
 		var data = Host.GetFileBytes( PakDir, FileName );
-		return SoundFile.FromWav( Path, data );
+		var loop = FileName.Contains( "ambience/", System.StringComparison.OrdinalIgnoreCase );
+		return SoundFile.FromWav( Path, data, new SoundFile.LoadOptions { Loop = loop } );
 	}
 }

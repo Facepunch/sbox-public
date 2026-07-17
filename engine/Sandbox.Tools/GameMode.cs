@@ -23,6 +23,10 @@ public static class GameMode
 	{
 		if ( _inPlay == widget ) return;
 
+		// Blur before registering so SDL's fresh wrapper can't snapshot this widget as its
+		// keyboard focus window - relative mouse mode is driven from the main editor window
+		widget.Blur();
+
 		widget.Focused += WidgetFocused;
 		widget.Blurred += WidgetBlurred;
 		widget.MouseTracking = true;
@@ -31,10 +35,12 @@ public static class GameMode
 		NativeEngine.InputSystem.RegisterWindowWithSDL( widget._widget.winId() );
 		g_pEngineServiceMgr.SetEngineState( widget._widget.winId(), widget.SwapChain );
 
+		// The play widget is where the game renders, so make it the main window: flip the existing
+		// m_bIsMainWindow flag so GetGPUFrameTimeMS reports the running game's GPU frame time.
+		g_pRenderDevice.SetSwapChainIsMainWindow( widget.SwapChain, true );
+
 		_inPlay = widget;
 
-		// Force a full refocus by blurring first
-		widget.Blur();
 		widget.Focus();
 	}
 
@@ -51,6 +57,9 @@ public static class GameMode
 		_inPlay.MouseTracking = false;
 
 		NativeEngine.InputSystem.UnregisterWindowFromSDL( _inPlay._widget.winId() );
+
+		if ( _inPlay is SceneRenderingWidget playWidget )
+			g_pRenderDevice.SetSwapChainIsMainWindow( playWidget.SwapChain, false );
 
 		_inPlay = null;
 	}

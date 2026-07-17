@@ -105,6 +105,7 @@ public partial class Timeline : GraphicsView, ISnapSource
 
 		Session.PlayheadChanged += UpdatePlayheadTime;
 		Session.PreviewChanged += UpdatePreviewTime;
+		Session.TrackList.Changed += UpdateTracks;
 
 		FocusMode = FocusMode.TabOrClickOrWheel;
 
@@ -124,9 +125,15 @@ public partial class Timeline : GraphicsView, ISnapSource
 
 		Session.PlayheadChanged -= UpdatePlayheadTime;
 		Session.PreviewChanged -= UpdatePreviewTime;
+		Session.TrackList.Changed -= UpdateTracks;
 	}
 
 	private int _lastState;
+
+	private int CalculateStateHash()
+	{
+		return HashCode.Combine( PixelsPerSecond, VisibleTimeRange, Session.FrameRate, Session.TrackList.StateHash );
+	}
 
 	[EditorEvent.Frame]
 	public void Frame()
@@ -138,26 +145,20 @@ public partial class Timeline : GraphicsView, ISnapSource
 		ScrubBarTop.Frame();
 		ScrubBarBottom.Frame();
 
-		UpdateTracksIfNeeded();
-
 		if ( Session.PreviewTime is not null
 			&& (Application.KeyboardModifiers & KeyboardModifiers.Shift) == 0
 			&& (Application.MouseButtons & MouseButtons.Left) == 0 )
 		{
 			Session.PreviewTime = null;
 		}
-	}
 
-	private void UpdateTracksIfNeeded()
-	{
-		var state = HashCode.Combine( PixelsPerSecond, VisibleTimeRange, Session.FrameRate, Session.TrackList.StateHash );
+		var state = CalculateStateHash();
 
-		if ( state == _lastState ) return;
-
-		_lastState = state;
-
-		UpdateTracks();
-		Update();
+		if ( state != _lastState )
+		{
+			_lastState = state;
+			UpdateTracks( Session.TrackList );
+		}
 	}
 
 	private void UpdatePlayheadTime( MovieTime time )
@@ -180,11 +181,12 @@ public partial class Timeline : GraphicsView, ISnapSource
 		}
 	}
 
-	public void UpdateTracks()
+	public void UpdateTracks( TrackListView trackList )
 	{
-		_tracks.Update( Session.TrackList.VisibleTracks );
-
-		Update();
+		if ( _tracks.Update( trackList.VisibleTracks ) )
+		{
+			Update();
+		}
 	}
 
 	private TimelineTrack AddTrack( TrackView source )
@@ -352,7 +354,7 @@ public partial class Timeline : GraphicsView, ISnapSource
 		_snapTargets.Update( targets );
 	}
 
-	private MovieTime? _contextMenuTime;
+	private Vector2? _contextMenuScenePos;
 	private TimeSince _sinceClick;
 	private IMovieItem? _lastClickedItem;
 
@@ -363,7 +365,7 @@ public partial class Timeline : GraphicsView, ISnapSource
 		base.OnMousePress( e );
 
 		DragType = DragTypes.None;
-		_contextMenuTime = null;
+		_contextMenuScenePos = null;
 
 		if ( e.ButtonState == MouseButtons.Middle )
 		{
@@ -397,20 +399,31 @@ public partial class Timeline : GraphicsView, ISnapSource
 			{
 				// Ctrl multi-selects, if possible
 
-				foreach ( var selected in SelectedItems.ToArray() )
-				{
-					if ( selected is not IMovieItem { MultiSelectable: true } )
-					{
-						selected.Selected = false;
-					}
-				}
+				var singleSelect = !movieItem.MultiSelectable || !e.HasCtrl;
 
-				if ( !movieItem.MultiSelectable || !e.HasCtrl )
+				if ( singleSelect )
 				{
 					DeselectAll();
 				}
+				else
+				{
+					// Might have a current selection that can't multi-select
+
+					foreach ( var selected in SelectedItems.ToArray() )
+					{
+						if ( selected is not IMovieItem { MultiSelectable: true } )
+						{
+							selected.Selected = false;
+						}
+					}
+				}
 
 				item.Selected = true;
+
+				if ( singleSelect )
+				{
+					movieItem.SingleSelected();
+				}
 
 				if ( item is ITrackItem trackItem )
 				{
@@ -420,9 +433,9 @@ public partial class Timeline : GraphicsView, ISnapSource
 
 			// Move the playhead to be within whatever we clicked on
 
-			if ( movieItem.MovePlayheadOnSelect || e.RightMouseButton )
+			if ( movieItem.SelectionTime is not null || e.RightMouseButton )
 			{
-				time = time.Clamp( movieItem.TimeRange );
+				time = movieItem.SelectionTime ?? time.Clamp( movieItem.TimeRange );
 				Session.PlayheadTime = time;
 			}
 
@@ -449,7 +462,7 @@ public partial class Timeline : GraphicsView, ISnapSource
 
 		if ( e.RightMouseButton )
 		{
-			_contextMenuTime = time;
+			_contextMenuScenePos = scenePos;
 
 			if ( accepted ) return;
 
@@ -491,7 +504,7 @@ public partial class Timeline : GraphicsView, ISnapSource
 
 		// Don't open context menu if we right-click + drag
 
-		if ( e.RightMouseButton && time == _contextMenuTime )
+		if ( e.RightMouseButton && Equals( scenePos, _contextMenuScenePos ) )
 		{
 			e.Accepted = true;
 
@@ -516,18 +529,22 @@ public partial class Timeline : GraphicsView, ISnapSource
 		var timelineTrack = Tracks.FirstOrDefault( x => x.SceneRect.IsInside( scenePos ) );
 		var titleLabel = menu.AddHeading( time.ToString() );
 
-		Session.CreateImportMenu( menu, time );
-
 		var ev = new EditMode.ContextMenuEvent( scenePos, time, timelineTrack, menu, titleLabel );
 
 		if ( GetItemAt( scenePos ) is { } item and IMovieContextMenu ctxMenuItem )
 		{
+			ev.Title = "Selection";
+
 			if ( !item.Selected )
 			{
 				item.Selected = true;
 			}
 
 			ctxMenuItem.ShowContextMenu( ev );
+		}
+		else
+		{
+			Session.CreateImportMenu( menu, time );
 		}
 
 		if ( !ev.Accepted )
@@ -609,7 +626,6 @@ public partial class Timeline : GraphicsView, ISnapSource
 			_draggedBlock = _draggedTrack.AddBlock( (0d, clip.Duration), default, resource );
 
 			Session.TrackList.Update();
-			UpdateTracksIfNeeded();
 		}
 
 		_draggedBlocks.Clear();

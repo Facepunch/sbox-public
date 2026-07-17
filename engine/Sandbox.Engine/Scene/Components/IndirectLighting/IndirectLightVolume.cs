@@ -190,10 +190,18 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 	//
 	// Editor Actions
 	//
+	[Expose, Hide]
+	internal bool IsSceneSaved => Scene?.Editor?.GetSceneFolder() is not null;
+
+	[ShowIf( nameof( IsSceneSaved ), false )]
+	[InfoBox( "Save the scene before baking indirect light volumes.", "warning", EditorTint.Yellow )]
+	[Button( "Bake", "lightbulb" ), ReadOnly]
+	public void BakeProbesUnavailableMessage() { }
 
 	/// <summary>
 	/// Starts the probe baking process to capture lighting into the volume textures.
 	/// </summary>
+	[ShowIf( nameof( IsSceneSaved ), true )]
 	[Button( "Bake", "lightbulb" )]
 	public async Task BakeProbes( CancellationToken ct = default )
 	{
@@ -230,7 +238,7 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 			Graphics.FlushGPU();
 
 			IrradianceTexture = SaveTexture( updater.GeneratedIrradianceTexture, "Irradiance" );
-			DistanceTexture = SaveTexture( updater.GeneratedDistanceTexture, "Distance", ImageFormat.RG1616F ); // BC6H ideally, but block compression fucks precision too much
+			DistanceTexture = SaveTexture( updater.GeneratedDistanceTexture, "Distance", ImageFormat.BC6H ); // Previously RGBA16F, we're using softer depth so we can take advantage of BC6H compression now like Overwatch does.
 			RelocationTexture = SaveTexture( GeneratedRelocationTexture, "Relocation", ImageFormat.RGBA16161616F );
 		}
 

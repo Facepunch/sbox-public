@@ -97,8 +97,8 @@
       "__version": 2,
       "Flags": 0,
       "Name": "Camera",
-      "Position": "-992,703.999878,41.9999504",
-      "Rotation": "-0.000677586126,-0.00252878596,0.258818209,-0.965922415",
+      "Position": "-1063.72327,659.186584,34.0063744",
+      "Rotation": "-0.000789546059,-0.00249609724,0.215539098,-0.97649157",
       "Scale": "1,1,1",
       "Tags": "maincamera",
       "Enabled": true,
@@ -233,6 +233,25 @@
           "OnComponentUpdate": null,
           "Scale": 2,
           "TexelSize": 1
+        },
+        {
+          "__type": "Sandbox.Bloom",
+          "__guid": "cebca3ec-944a-4a54-91ee-cb3d641b9c2c",
+          "__enabled": true,
+          "Flags": 0,
+          "__version": 1,
+          "Filter": "Bilinear",
+          "Gamma": 2.2,
+          "Mode": "Additive",
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null,
+          "Strength": 4,
+          "Threshold": 2,
+          "Tint": "1,1,1,1"
         }
       ],
       "Children": []
@@ -298,6 +317,7 @@
           "Attenuation": 2.0701754,
           "ConeInner": 12.947369,
           "ConeOuter": 40.736843,
+          "Contribution": "Diffuse, Specular, Transmissive",
           "Cookie": null,
           "FogMode": "Enabled",
           "FogStrength": 1,
@@ -340,6 +360,7 @@
           "Attenuation": 2.0701754,
           "ConeInner": 12.947369,
           "ConeOuter": 40.736843,
+          "Contribution": "Diffuse, Specular, Transmissive",
           "Cookie": null,
           "FogMode": "Enabled",
           "FogStrength": 1,
@@ -381,7 +402,7 @@
           "Flags": 0,
           "Name": "Player",
           "Position": "-180.913193,140.057495,-9.13227844",
-          "Rotation": "0,0,0.99712491,0.0757758617",
+          "Rotation": "0,0,0.988222718,-0.153021544",
           "Scale": "1,1,1",
           "Tags": "",
           "Enabled": true,
@@ -459,7 +480,7 @@
                       "__enabled": true,
                       "Flags": 0,
                       "AnimationGraph": null,
-                      "BodyGroups": 130,
+                      "BodyGroups": 3748,
                       "BoneMergeTarget": null,
                       "CreateAttachments": false,
                       "CreateBoneObjects": true,
@@ -467,7 +488,7 @@
                       "MaterialGroup": "skin_light",
                       "MaterialOverride": null,
                       "Materials": null,
-                      "Model": "models/citizen_human/citizen_human_female.vmdl",
+                      "Model": "models/citizen_human/citizen_human_male.vmdl",
                       "Morphs": {},
                       "OnComponentDestroy": null,
                       "OnComponentDisabled": null,
@@ -2600,7 +2621,7 @@
                       ]
                     },
                     {
-                      "__guid": "9e97cf97-2ea3-4f90-b609-d4f03639bf8c",
+                      "__guid": "0cac44cb-bf6f-4455-88e5-6bb76d45af0c",
                       "__version": 2,
                       "Flags": 0,
                       "Name": "Clothing - hair_shortscruffy_brown",
@@ -2617,7 +2638,7 @@
                       "Components": [
                         {
                           "__type": "Sandbox.SkinnedModelRenderer",
-                          "__guid": "90bae973-9ac5-4e69-8cfa-eff4c499c770",
+                          "__guid": "380e0ec9-dba6-4be4-8b9c-16cdf3386180",
                           "__enabled": true,
                           "Flags": 0,
                           "AnimationGraph": null,
@@ -2669,7 +2690,7 @@
                       "Children": []
                     },
                     {
-                      "__guid": "bdec5aa4-83c3-4189-a91b-4bbc1ed1f04b",
+                      "__guid": "082028f9-a034-4b76-add9-4449c674f5a5",
                       "__version": 2,
                       "Flags": 0,
                       "Name": "Clothing - moustache",
@@ -2686,7 +2707,7 @@
                       "Components": [
                         {
                           "__type": "Sandbox.SkinnedModelRenderer",
-                          "__guid": "3857202d-47c9-4d49-ab6a-0fad92267818",
+                          "__guid": "729282fa-4fa7-4f72-8007-a8cd8942272e",
                           "__enabled": true,
                           "Flags": 0,
                           "AnimationGraph": null,
@@ -2738,7 +2759,7 @@
                       "Children": []
                     },
                     {
-                      "__guid": "157cd128-6252-4f61-b147-4b3f991ac10d",
+                      "__guid": "79960ebe-d95e-484a-88a4-04fc64a5fc42",
                       "__version": 2,
                       "Flags": 0,
                       "Name": "Clothing - blue_jumpsuit",
@@ -2755,7 +2776,7 @@
                       "Components": [
                         {
                           "__type": "Sandbox.SkinnedModelRenderer",
-                          "__guid": "672fabd8-bca7-472f-8ea9-f1d32af7cf2c",
+                          "__guid": "75753ab8-e369-4e1c-91eb-49cdc0cede7d",
                           "__enabled": true,
                           "Flags": 0,
                           "AnimationGraph": null,
@@ -2807,7 +2828,7 @@
                       "Children": []
                     },
                     {
-                      "__guid": "0187c445-a5a0-4ea4-8796-529603ceff41",
+                      "__guid": "c9a82c9b-4e52-4ae1-9db4-dde406757f7c",
                       "__version": 2,
                       "Flags": 0,
                       "Name": "Clothing - trainers",
@@ -2824,7 +2845,7 @@
                       "Components": [
                         {
                           "__type": "Sandbox.SkinnedModelRenderer",
-                          "__guid": "66e42175-16d9-4570-a7ae-5ce416624fd4",
+                          "__guid": "d14e7e2f-7b4b-465e-8d97-b7c45719dbcb",
                           "__enabled": true,
                           "Flags": 0,
                           "AnimationGraph": null,
@@ -4771,7 +4792,7 @@
                       ]
                     },
                     {
-                      "__guid": "1cd9b37c-7a05-4cfc-a100-77065e08e47d",
+                      "__guid": "1e32e028-3f76-458a-bafb-9eab7f86dd89",
                       "__version": 2,
                       "Flags": 0,
                       "Name": "Clothing - eyebrows",
@@ -4788,7 +4809,7 @@
                       "Components": [
                         {
                           "__type": "Sandbox.SkinnedModelRenderer",
-                          "__guid": "43ef8735-f5b4-4d0b-ad97-d7059889e882",
+                          "__guid": "7db17b63-df3d-4861-a18b-d43633b2ef18",
                           "__enabled": true,
                           "Flags": 0,
                           "AnimationGraph": null,
@@ -4840,7 +4861,7 @@
                       "Children": []
                     },
                     {
-                      "__guid": "c680b650-d034-4995-b551-899e21e0b178",
+                      "__guid": "8a43afb6-2e98-4e4e-a258-3dc4feed8c34",
                       "__version": 2,
                       "Flags": 0,
                       "Name": "Clothing - hair_shortscruffy_brown",
@@ -4857,7 +4878,7 @@
                       "Components": [
                         {
                           "__type": "Sandbox.SkinnedModelRenderer",
-                          "__guid": "f7cb6fee-a83f-4b32-a79a-60e552e8eeaa",
+                          "__guid": "d5943cd2-1e6b-4730-8c78-1e0740804241",
                           "__enabled": true,
                           "Flags": 0,
                           "AnimationGraph": null,
@@ -4909,7 +4930,7 @@
                       "Children": []
                     },
                     {
-                      "__guid": "85f42b47-4615-4c33-9a65-4ff896a6f956",
+                      "__guid": "9f3d6801-c2ad-47dc-9d3e-36182ff21422",
                       "__version": 2,
                       "Flags": 0,
                       "Name": "Clothing - moustache",
@@ -4926,7 +4947,7 @@
                       "Components": [
                         {
                           "__type": "Sandbox.SkinnedModelRenderer",
-                          "__guid": "02271365-c829-4422-8aba-be6c5a7db14d",
+                          "__guid": "8954e628-9767-426b-b16d-fc6eb2fafa47",
                           "__enabled": true,
                           "Flags": 0,
                           "AnimationGraph": null,
@@ -4978,7 +4999,7 @@
                       "Children": []
                     },
                     {
-                      "__guid": "40321b71-7e6a-47a3-b05b-94818c79c074",
+                      "__guid": "bbaed794-bf74-4cae-84c1-18d6fc94fbc7",
                       "__version": 2,
                       "Flags": 0,
                       "Name": "Clothing - blue_jumpsuit",
@@ -4995,7 +5016,7 @@
                       "Components": [
                         {
                           "__type": "Sandbox.SkinnedModelRenderer",
-                          "__guid": "40771fb0-bbc5-4441-9d6c-808d85e04a3a",
+                          "__guid": "59f57ae1-0383-423b-a94e-8abc782c9063",
                           "__enabled": true,
                           "Flags": 0,
                           "AnimationGraph": null,
@@ -5047,7 +5068,7 @@
                       "Children": []
                     },
                     {
-                      "__guid": "d58e094a-f002-48c8-be01-3838667b29d9",
+                      "__guid": "5aee0d76-ba8e-4b01-b3fe-c1ee6b6eea6d",
                       "__version": 2,
                       "Flags": 0,
                       "Name": "Clothing - trainers",
@@ -5064,7 +5085,7 @@
                       "Components": [
                         {
                           "__type": "Sandbox.SkinnedModelRenderer",
-                          "__guid": "dcd44597-82b1-411f-b6c0-9380c6acf3d5",
+                          "__guid": "ee7db6d6-8e28-4b6c-bb19-9c9718097386",
                           "__enabled": true,
                           "Flags": 0,
                           "AnimationGraph": null,
@@ -5158,7 +5179,8 @@
               "OnComponentStart": null,
               "OnComponentUpdate": null,
               "ProbeDensity": 8,
-              "RelocationTexture": "scenes/menu-main_scene_data/ddgi/indirect light_relocation_19ba681a-294a-4712-906d-41949ddeed96.vtex"
+              "RelocationTexture": "scenes/menu-main_scene_data/ddgi/indirect light_relocation_19ba681a-294a-4712-906d-41949ddeed96.vtex",
+              "RenderExcludeTags": ""
             },
             {
               "__type": "Sandbox.EnvmapProbe",
@@ -5185,6 +5207,7 @@
               "OnComponentUpdate": null,
               "Priority": 0,
               "Projection": "Sphere",
+              "RenderExcludeTags": "",
               "Resolution": "Large",
               "Texture": null,
               "TintColor": "1,1,1,1",
@@ -5706,6 +5729,7 @@
                       "__guid": "8fb81e9c-fc6b-4873-98a8-26b230e7ebd5",
                       "__enabled": true,
                       "Flags": 0,
+                      "Contribution": "Diffuse, Specular, Transmissive",
                       "FogMode": "Enabled",
                       "FogStrength": 1,
                       "LightColor": "0.94419,0.87763,0.80805,1",
@@ -33620,6 +33644,7 @@
                       "Attenuation": 1,
                       "ConeInner": 70,
                       "ConeOuter": 85,
+                      "Contribution": "Diffuse, Specular, Transmissive",
                       "Cookie": null,
                       "FogMode": "Enabled",
                       "FogStrength": 1,
@@ -33755,6 +33780,7 @@
                       "Attenuation": 1.9137931,
                       "ConeInner": 70,
                       "ConeOuter": 85,
+                      "Contribution": "Diffuse, Specular, Transmissive",
                       "Cookie": null,
                       "FogMode": "Enabled",
                       "FogStrength": 1,
@@ -33890,6 +33916,7 @@
                       "Attenuation": 1.9137931,
                       "ConeInner": 70,
                       "ConeOuter": 85,
+                      "Contribution": "Diffuse, Specular, Transmissive",
                       "Cookie": null,
                       "FogMode": "Enabled",
                       "FogStrength": 1,
@@ -34025,6 +34052,7 @@
                       "Attenuation": 1,
                       "ConeInner": 70,
                       "ConeOuter": 85,
+                      "Contribution": "Diffuse, Specular, Transmissive",
                       "Cookie": null,
                       "FogMode": "Enabled",
                       "FogStrength": 1,
@@ -111235,6 +111263,7 @@
                   "Attenuation": 0.3448276,
                   "ConeInner": 50.12069,
                   "ConeOuter": 61.448277,
+                  "Contribution": "Diffuse, Specular, Transmissive",
                   "Cookie": null,
                   "FogMode": "Enabled",
                   "FogStrength": 1,
@@ -192128,9 +192157,6 @@
         "Storage": {
           "$blob": "ca83da42-aff7-4cf0-bb9d-146562beb3a9"
         }
-      },
-      "Sandbox.MovieMaker.MovieRecorderSystem": {
-        "DisableClientRecording": false
       },
       "Sandbox.SelectionSetsSystem": {
         "Data": {

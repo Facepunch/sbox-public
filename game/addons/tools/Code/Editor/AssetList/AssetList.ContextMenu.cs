@@ -257,14 +257,14 @@ public partial class AssetList
 
 		if ( count > 0 )
 		{
-			if ( !asset?.IsProcedural ?? true )
+			if ( e.SelectedList.All( x => x.Asset is { CanOpenInEditor: true } ) )
 			{
-				if ( e.SelectedList.All( x => x.Asset is not null ) )
-				{
-					e.Menu.AddOption( count == 1 ? "Open in Editor" : $"Open {count} in Editor(s)", "edit",
-						() => e.SelectedList.ForEach( x => x.Asset.OpenInEditor() ) );
-				}
-				else if ( e.SelectedList.All( x => EditorUtility.IsCodeFile( x.FileInfo.FullName ) ) )
+				e.Menu.AddOption( count == 1 ? "Open in Editor" : $"Open {count} in Editor(s)", "edit",
+					() => e.SelectedList.ForEach( x => x.Asset.OpenInEditor() ) );
+			}
+			else if ( !asset?.IsProcedural ?? true )
+			{
+				if ( e.SelectedList.All( x => EditorUtility.IsCodeFile( x.FileInfo.FullName ) ) )
 				{
 					string editorName = CodeEditor.Title;
 					e.Menu.AddOption( count == 1 ? $"Open in {editorName}" : $"Open {count} in {editorName}", "edit",
@@ -596,7 +596,7 @@ public partial class AssetList
 
 			if ( count > 1 )
 			{
-				var assets = e.SelectedList.Select( x => x.Asset ).ToArray();
+				var assets = e.SelectedList.Select( x => x.Asset ).Where( x => x != null ).Distinct().ToArray();
 				var o = e.Menu.AddOption( $"Batch Publish ({assets.Length})..", "cloud_upload", () => BatchPublisher.FromAssetsWithEnablePublish( assets ) );
 			}
 		}

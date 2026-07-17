@@ -43,10 +43,40 @@ internal sealed partial class SoundSimulationSystem : GameObjectSystem<SoundSimu
 	int GatherListenerEscapeBodies( Vector3 pos, Span<PhysicsBody> result ) => Scene.FindBodiesInPhysics( pos, 4f, result );
 	int GatherSourceEscapeBodies( Vector3 pos, Span<PhysicsBody> result ) => Scene.FindBodiesInPhysics( pos, 12f, result );
 
-	static bool IgnoredBody( PhysicsBody body, ReadOnlySpan<PhysicsBody> ignoreNear )
+	// Native trace filter that skips escape bodies, so a single Run() returns the closest real surface.
+	// Thread-static ignore set + cached static delegate => allocation-free and safe under parallel traces.
+	[ThreadStatic] static PhysicsBody[] _tlIgnore;
+	[ThreadStatic] static int _tlIgnoreCount;
+
+	internal static readonly Func<PhysicsShape, bool> EscapeFilter = ShouldHitEscape;
+
+	static bool ShouldHitEscape( PhysicsShape shape )
 	{
-		foreach ( var b in ignoreNear ) if ( b == body ) return true;
-		return false;
+		if ( shape.Tags.Has( "world" ) ) return true; // never escape through world
+
+		// SelfOrParent to match PhysicsTraceResult.Body / what the ignore set holds.
+		var body = shape.Body?.SelfOrParent;
+		for ( int i = 0; i < _tlIgnoreCount; i++ )
+			if ( _tlIgnore[i] == body ) return false;
+
+		return true;
+	}
+
+	// Stage the bodies to skip for this thread's next trace (one or two sets). Pair with ClearTraceIgnore.
+	static void SetTraceIgnore( ReadOnlySpan<PhysicsBody> a, ReadOnlySpan<PhysicsBody> b = default )
+	{
+		_tlIgnore ??= new PhysicsBody[MaxEscapeBodies * 2];
+		int n = 0;
+		for ( int i = 0; i < a.Length && n < _tlIgnore.Length; i++ ) _tlIgnore[n++] = a[i];
+		for ( int i = 0; i < b.Length && n < _tlIgnore.Length; i++ ) _tlIgnore[n++] = b[i];
+		_tlIgnoreCount = n;
+	}
+
+	static void ClearTraceIgnore()
+	{
+		if ( _tlIgnore is null ) return;
+		Array.Clear( _tlIgnore, 0, _tlIgnoreCount );
+		_tlIgnoreCount = 0;
 	}
 
 	internal static float LastSimUpdateMs { get; private set; }
@@ -56,8 +86,9 @@ internal sealed partial class SoundSimulationSystem : GameObjectSystem<SoundSimu
 		using var _ = PerformanceStats.Timings.Audio.Scope();
 		var sw = DebugOverlay.overlay_audio != 0 ? System.Diagnostics.Stopwatch.StartNew() : null;
 
+		// only trace against a physics world that already exists - don't create one
+		if ( !Scene.HasPhysicsWorld ) return;
 		var world = Scene.PhysicsWorld;
-		if ( !world.IsValid() ) return;
 
 		_sceneListeners.Clear();
 		foreach ( var l in Audio.Listener.ActiveList )

@@ -1,5 +1,7 @@
 using System.IO;
 using System.IO.Compression;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 
 namespace Sandbox;
@@ -34,10 +36,23 @@ public partial class PolygonMesh
 				var propertyName = reader.GetString();
 				reader.Read();
 
+				if ( propertyName == "Data" )
+				{
+					var blob = reader.TokenType == JsonTokenType.String
+						? MeshBlob.FromBytes( reader.GetBytesFromBase64() )
+						: Json.Deserialize<MeshBlob>( ref reader );
+
+					if ( blob is not null )
+					{
+						blob.ApplyTo( mesh );
+						hasTextureCoords = blob.TextureCoord.Length > 0;
+					}
+				}
+
 				// Legacy: Position/Rotation are no longer written. They were world-space values
 				// that got overwritten by MeshComponent on enable. Kept for backward compat with
 				// old data that may not have TextureCoord and needs these to reconstruct UVs.
-				if ( propertyName == "Position" )
+				else if ( propertyName == "Position" )
 					mesh._transform = mesh.Transform.WithPosition( JsonSerializer.Deserialize<Vector3>( ref reader ) );
 
 				else if ( propertyName == "Rotation" )
@@ -150,40 +165,19 @@ public partial class PolygonMesh
 
 		mesh.CleanupUnusedMaterials();
 
-		using var ms = new MemoryStream();
-		using ( var zs = new GZipStream( ms, CompressionMode.Compress ) )
-		{
-			var data = mesh.Topology.Serialize();
-			zs.Write( data, 0, data.Length );
-		}
-
 		writer.WriteStartObject();
-
-		writer.WritePropertyName( nameof( mesh.Topology ) );
-		writer.WriteBase64StringValue( ms.ToArray() );
 
 		// Position, Rotation, TextureUAxis, TextureVAxis, TextureScale, TextureOffset are not
 		// serialized because they are world-space dependent and derived at runtime.
 		// MeshComponent sets Mesh.Transform = WorldTransform on enable/transform change, which
 		// triggers ComputeFaceTextureParametersFromCoordinates() to recompute them from TextureCoord.
+		var blob = MeshBlob.FromMesh( mesh );
+		writer.WritePropertyName( "Data" );
 
-		writer.WritePropertyName( nameof( mesh.Positions ) );
-		JsonSerializer.Serialize( writer, mesh.Positions );
-
-		writer.WritePropertyName( nameof( mesh.Blends ) );
-		JsonSerializer.Serialize( writer, mesh.Blends );
-
-		writer.WritePropertyName( nameof( mesh.Colors ) );
-		JsonSerializer.Serialize( writer, mesh.Colors );
-
-		writer.WritePropertyName( nameof( mesh.TextureCoord ) );
-		JsonSerializer.Serialize( writer, mesh.TextureCoord );
-
-		writer.WritePropertyName( nameof( mesh.MaterialIndex ) );
-		JsonSerializer.Serialize( writer, mesh.MaterialIndex );
-
-		writer.WritePropertyName( nameof( mesh.EdgeFlags ) );
-		JsonSerializer.Serialize( writer, mesh.EdgeFlags );
+		if ( BlobDataSerializer.IsActive )
+			Json.Serialize( writer, blob );
+		else
+			writer.WriteBase64StringValue( blob.ToBytes() );
 
 		if ( mesh._materialsById.Count > 0 )
 		{
@@ -194,5 +188,169 @@ public partial class PolygonMesh
 		}
 
 		writer.WriteEndObject();
+	}
+
+	/// <summary>
+	/// Heavy <see cref="PolygonMesh"/> data (topology + per-element streams) serialized as a
+	/// single binary blob instead of verbose JSON arrays. The payload is a self describing list
+	/// of named sections, so individual streams can be added or removed in future versions
+	/// without breaking existing files: unknown sections are skipped on read and missing ones
+	/// keep their default (empty) value.
+	/// </summary>
+	private sealed class MeshBlob : BlobData
+	{
+		public override int Version => 1;
+
+		public byte[] Topology { get; set; } = Array.Empty<byte>();
+		public Vector3[] Positions { get; set; } = Array.Empty<Vector3>();
+		public Color32[] Blends { get; set; } = Array.Empty<Color32>();
+		public Color32[] Colors { get; set; } = Array.Empty<Color32>();
+		public Vector2[] TextureCoord { get; set; } = Array.Empty<Vector2>();
+		public int[] MaterialIndex { get; set; } = Array.Empty<int>();
+		public int[] EdgeFlags { get; set; } = Array.Empty<int>();
+
+		const string SectionTopology = "topology";
+		const string SectionPositions = "positions";
+		const string SectionBlends = "blends";
+		const string SectionColors = "colors";
+		const string SectionTextureCoord = "texcoord";
+		const string SectionMaterialIndex = "materialindex";
+		const string SectionEdgeFlags = "edgeflags";
+
+		const int SectionCount = 7;
+
+		public static MeshBlob FromMesh( PolygonMesh mesh ) => new()
+		{
+			Topology = mesh.Topology.Serialize(),
+			Positions = mesh.Positions.ToArray(),
+			Blends = mesh.Blends.ToArray(),
+			Colors = mesh.Colors.ToArray(),
+			TextureCoord = mesh.TextureCoord.ToArray(),
+			MaterialIndex = mesh.MaterialIndex.ToArray(),
+			EdgeFlags = mesh.EdgeFlags.ToArray(),
+		};
+
+		public void ApplyTo( PolygonMesh mesh )
+		{
+			using ( var ms = new MemoryStream( Topology ) )
+			using ( var br = new BinaryReader( ms ) )
+			{
+				mesh.Topology.Deserialize( br );
+			}
+
+			mesh.Positions.CopyFrom( Positions );
+			mesh.Blends.CopyFrom( Blends );
+			mesh.Colors.CopyFrom( Colors );
+			mesh.TextureCoord.CopyFrom( TextureCoord );
+			mesh.MaterialIndex.CopyFrom( MaterialIndex );
+			mesh.EdgeFlags.CopyFrom( EdgeFlags );
+		}
+
+		public override void Serialize( ref Writer writer )
+		{
+			ref var stream = ref writer.Stream;
+
+			stream.Write( SectionCount );
+
+			WriteSection( ref stream, SectionTopology, Topology );
+			WriteSection( ref stream, SectionPositions, Positions );
+			WriteSection( ref stream, SectionBlends, Blends );
+			WriteSection( ref stream, SectionColors, Colors );
+			WriteSection( ref stream, SectionTextureCoord, TextureCoord );
+			WriteSection( ref stream, SectionMaterialIndex, MaterialIndex );
+			WriteSection( ref stream, SectionEdgeFlags, EdgeFlags );
+		}
+
+		public override void Deserialize( ref Reader reader )
+		{
+			ref var stream = ref reader.Stream;
+
+			int sectionCount = stream.Read<int>();
+
+			for ( int i = 0; i < sectionCount; i++ )
+			{
+				var name = stream.Read<string>();
+				int byteLength = stream.Read<int>();
+
+				switch ( name )
+				{
+					case SectionTopology: Topology = ReadBytes( ref stream, byteLength ); break;
+					case SectionPositions: Positions = ReadSection<Vector3>( ref stream, byteLength ); break;
+					case SectionBlends: Blends = ReadSection<Color32>( ref stream, byteLength ); break;
+					case SectionColors: Colors = ReadSection<Color32>( ref stream, byteLength ); break;
+					case SectionTextureCoord: TextureCoord = ReadSection<Vector2>( ref stream, byteLength ); break;
+					case SectionMaterialIndex: MaterialIndex = ReadSection<int>( ref stream, byteLength ); break;
+					case SectionEdgeFlags: EdgeFlags = ReadSection<int>( ref stream, byteLength ); break;
+					default: stream.Position += byteLength; break;
+				}
+			}
+		}
+
+		static void WriteSection<T>( ref ByteStream stream, string name, ReadOnlySpan<T> data ) where T : unmanaged
+		{
+			stream.Write( name );
+			stream.WriteArray( MemoryMarshal.AsBytes( data ) );
+		}
+
+		static byte[] ReadBytes( ref ByteStream stream, int byteLength )
+		{
+			if ( byteLength <= 0 ) return Array.Empty<byte>();
+
+			var bytes = new byte[byteLength];
+			stream.Read( bytes, 0, byteLength );
+			return bytes;
+		}
+
+		static T[] ReadSection<T>( ref ByteStream stream, int byteLength ) where T : unmanaged
+		{
+			if ( byteLength <= 0 ) return Array.Empty<T>();
+
+			int size = Unsafe.SizeOf<T>();
+			if ( byteLength % size != 0 )
+				throw new JsonException( $"Mesh blob section is {byteLength} bytes, not a multiple of {typeof( T ).Name} ({size} bytes)" );
+
+			var result = new T[byteLength / size];
+			stream.Read( MemoryMarshal.AsBytes( result.AsSpan() ) );
+			return result;
+		}
+
+		public byte[] ToBytes()
+		{
+			var stream = ByteStream.Create( 4096 );
+			try
+			{
+				stream.Write( Version );
+				var writer = new Writer { Stream = stream };
+				Serialize( ref writer );
+				stream = writer.Stream;
+				return stream.ToArray();
+			}
+			finally
+			{
+				stream.Dispose();
+			}
+		}
+
+		public static MeshBlob FromBytes( byte[] data )
+		{
+			var blob = new MeshBlob();
+			var stream = ByteStream.CreateReader( data );
+			try
+			{
+				int dataVersion = stream.Read<int>();
+				var reader = new Reader { Stream = stream, DataVersion = dataVersion };
+
+				if ( dataVersion < blob.Version )
+					blob.Upgrade( ref reader, dataVersion );
+				else
+					blob.Deserialize( ref reader );
+			}
+			finally
+			{
+				stream.Dispose();
+			}
+
+			return blob;
+		}
 	}
 }

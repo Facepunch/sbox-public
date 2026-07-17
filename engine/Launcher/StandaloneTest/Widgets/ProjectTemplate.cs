@@ -10,6 +10,7 @@ internal class ProjectTemplate
 
 	public string AddonType => Config.Type.ToLower();
 	public string Title => Config.Title;
+	public string ParentPackage => Config.TryGetMeta<string>( "ParentPackage", out var v ) ? v : null;
 
 	public string Icon { get; set; } = "question_mark";
 	public int Order { get; set; } = 0;

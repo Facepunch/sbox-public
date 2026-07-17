@@ -1,4 +1,5 @@
 ﻿using Sandbox.Engine;
+using Sandbox.Modals;
 using System.Threading;
 
 namespace Sandbox.Services;
@@ -17,6 +18,8 @@ public partial class BenchmarkSystem
 
 	string testName;
 	FastTimer timer;
+	double accumulatedDuration;
+	bool sampling;
 
 	public BenchmarkSystem()
 	{
@@ -28,12 +31,30 @@ public partial class BenchmarkSystem
 	/// </summary>
 	public void Start( string name )
 	{
+		BenchmarkOrchestrator.EnsureTracyCaptureStarted();
+
+		// A repeat of the same test keeps the existing samplers/allocations so every repeat
+		// accumulates into one result, instead of each Finish overwriting the previous in `results`.
+		bool newTest = samplers is null || testName != name;
 		testName = name;
 
-		metrics.Clear();
-		allocations.Clear();
+		if ( newTest )
+		{
+			metrics.Clear();
+			allocations.Clear();
+			accumulatedDuration = 0;
+			samplers = CreateSamplers();
+		}
 
-		samplers = new()
+		timer.Start();
+		allocations.Start();
+		sampling = true;
+		IGameInstanceDll.Current.ResetSceneListenerMetrics();
+	}
+
+	private List<Sampler> CreateSamplers()
+	{
+		var list = new List<Sampler>()
 		{
 			new ("Fps", () => 1.0f / Time.Delta ),
 
@@ -45,7 +66,7 @@ public partial class BenchmarkSystem
 			new ("Gen0Collections",                     () => PerformanceStats.Gen0Collections ),
 			new ("Gen1Collections",                     () => PerformanceStats.Gen1Collections ),
 			new ("Gen2Collections",                     () => PerformanceStats.Gen2Collections ),
-			new ("GcPauseMs",                           () => TimeSpan.FromTicks( PerformanceStats.GcPause ).Milliseconds ), // Convert to ms so it matches the other timings
+			new ("GcPauseMs",                           () => TimeSpan.FromTicks( PerformanceStats.GcPause ).TotalMilliseconds ), // Convert to ms so it matches the other timings
 			new ("Exceptions",                          () => PerformanceStats.Exceptions ),
 
 			// SceneStats
@@ -67,12 +88,10 @@ public partial class BenchmarkSystem
 
 		foreach ( var e in Sandbox.Diagnostics.PerformanceStats.Timings.GetMain() )
 		{
-			samplers.Add( new( e.Name, () => e.AverageMs( 1 ) ) );
+			list.Add( new( e.Name, () => e.AverageMs( 1 ) ) );
 		}
 
-		timer.Start();
-		allocations.Start();
-		IGameInstanceDll.Current.ResetSceneListenerMetrics();
+		return list;
 	}
 
 	/// <summary>
@@ -90,12 +109,13 @@ public partial class BenchmarkSystem
 	/// </summary>
 	public void Finish()
 	{
-		var elapsedSeconds = timer.ElapsedSeconds;
+		sampling = false;
+		accumulatedDuration += timer.ElapsedSeconds;
 		allocations.Stop();
 
 		var benchmarkResult = new BenchmarkRecord();
 		benchmarkResult.Name = testName;
-		benchmarkResult.Duration = elapsedSeconds;
+		benchmarkResult.Duration = accumulatedDuration;
 		benchmarkResult.Data = samplers.ToDictionary( x => x.Name, x => (object)x.GetResults() );
 
 		benchmarkResult.Data["Alloc"] = allocations.Entries.OrderByDescending( x => x.TotalBytes ).Take( 100 ).ToDictionary( x => x.Name, x => new { x.Count, Size = x.TotalBytes } );
@@ -107,6 +127,12 @@ public partial class BenchmarkSystem
 		}
 
 		results[testName] = benchmarkResult;
+
+		// Settle the heap now that sampling has stopped, so the collection stall never
+		// lands in a sampled frame and the next run starts from a clean baseline
+		GC.Collect( 2, GCCollectionMode.Forced, blocking: true );
+		GC.WaitForPendingFinalizers();
+		GC.Collect( 2, GCCollectionMode.Forced, blocking: true );
 	}
 
 	/// <summary>
@@ -114,7 +140,7 @@ public partial class BenchmarkSystem
 	/// </summary>
 	public void Sample()
 	{
-		if ( samplers is null )
+		if ( samplers is null || !sampling )
 			return;
 
 		foreach ( var sampler in samplers )
@@ -126,13 +152,34 @@ public partial class BenchmarkSystem
 	/// <summary>
 	/// Finish this benchmark session and send it off to the backend
 	/// </summary>
-	public Task<Guid> SendAsync( CancellationToken token = default )
+	public async Task<Guid> SendAsync( CancellationToken token = default )
 	{
 		var value = results.Values.ToArray();
+		var summaries = value.Select( BuildSummary ).ToArray();
 		results.Clear();
 		allocations?.Stop();
 
-		return Api.Benchmarks.Post( value, token );
+		var batchId = await Api.Benchmarks.Post( value, token );
+		BenchmarkOrchestrator.LastBatchId = batchId;
+		BenchmarkOrchestrator.Summaries.AddRange( summaries );
+		return batchId;
+	}
+
+	private static BenchmarkTestSummary BuildSummary( BenchmarkRecord r )
+	{
+		static double Get( BenchmarkRecord rec, string key, Func<Sampler.Result, double> sel )
+			=> rec.Data.TryGetValue( key, out var v ) && v is Sampler.Result sr ? sel( sr ) : 0;
+
+		return new BenchmarkTestSummary
+		{
+			Name = r.Name,
+			DurationSeconds = r.Duration,
+			AvgFps = Get( r, "Fps", x => x.Avg ),
+			AvgFrameTimeMs = Get( r, "FrameTimeMs", x => x.Avg ),
+			OnePercentLowMs = Get( r, "FrameTimeMs", x => x.P99 ),
+			AvgGpuFrametimeMs = Get( r, "GpuFrametime", x => x.Avg ),
+			Stuttering = Get( r, "FrameTimeMs", x => x.Stuttering ),
+		};
 	}
 }
 

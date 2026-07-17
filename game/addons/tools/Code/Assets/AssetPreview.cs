@@ -11,6 +11,21 @@ public class AssetPreview : IDisposable
 
 	public CameraComponent Camera => Scene.Camera;
 
+	/// <summary>
+	/// Background color for the preview camera. Persisted between previews via a cookie.
+	/// </summary>
+	public Color BackgroundColor
+	{
+		get => EditorCookie.Get( "AssetPreview.BackgroundColor", Theme.ControlBackground );
+		set
+		{
+			EditorCookie.Set( "AssetPreview.BackgroundColor", value );
+
+			if ( Scene.IsValid() && Camera.IsValid() )
+				Camera.BackgroundColor = value;
+		}
+	}
+
 	public Vector3 SceneCenter;
 	public Vector3 SceneSize;
 	public Vector2Int ScreenSize = 100;
@@ -29,7 +44,7 @@ public class AssetPreview : IDisposable
 	/// <summary>
 	/// Is this preview animated? If it's not animated then it's a waste of time rendering a video.
 	/// </summary>
-	public virtual bool IsAnimatedPreview => true;
+	public virtual bool IsAnimatedPreview => false;
 
 	/// <summary>
 	/// How long should the video be
@@ -118,7 +133,13 @@ public class AssetPreview : IDisposable
 	}
 
 	/// <summary>
-	/// Create a widget to show only when hovering over the asset preview
+	/// Preferred height of the preview panel. Scene-based previews want to be tall; flat previews like
+	/// the sound waveform can override this to take up less vertical space. Width is unaffected.
+	/// </summary>
+	public virtual float PreferredHeight => 400;
+
+	/// <summary>
+	/// Create a toolbar docked above the preview's content
 	/// </summary>
 	public virtual Widget CreateToolbar()
 	{

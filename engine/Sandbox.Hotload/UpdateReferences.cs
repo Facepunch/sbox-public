@@ -313,7 +313,7 @@ namespace Sandbox
 					if ( matchingSwap.Value != null && references.Any( x => IsMatchingName( x, matchingSwap.Value.GetName() ) ) )
 					{
 						// Both the old and new versions of a swapped assembly are referenced by asm.
-						// This will probably only happen in Sandbox.Hotload.Test, and it's intentional.
+						// This will probably only happen in Sandbox.Test.Unit's hotload tests, and it's intentional.
 
 						Log( HotloadEntryType.Information, $"Both old and new versions of an assembly are referenced by a non-swapped assembly. ({FormatAssemblyName( asm )} references {FormatAssemblyName( matchingSwap.Key )} and {FormatAssemblyName( matchingSwap.Value )})" );
 						continue;

@@ -34,10 +34,11 @@ public partial class CloudAssetBrowser : Widget, IBrowser
 	ToolButton ViewMode;
 	ToolButton OrderMode;
 	ListHeader ListHeader;
+	FilterBreadcrumb Breadcrumb;
+	Button _updateAllBtn;
+	bool _updatingAll;
 	string lastSortColumn = "";
 	bool lastSortAscending = true;
-
-	Layout FacetLayout;
 
 	/// <summary>
 	/// Package has been clicked
@@ -50,9 +51,15 @@ public partial class CloudAssetBrowser : Widget, IBrowser
 	public Action<Package> OnPackageSelected;
 
 	/// <summary>
-	/// Internal left side panel
+	/// Internal left side panel — navigation tree
 	/// </summary>
 	protected CloudLocations CloudLocations;
+
+	/// <summary>
+	/// Compact filter bar above the asset list — pill buttons for each available facet dimension.
+	/// Populated from the facets returned by FetchPackages, no extra API calls required.
+	/// </summary>
+	CloudFilterBar FilterBar;
 
 	public Action OnFolderOpened;
 
@@ -106,7 +113,7 @@ public partial class CloudAssetBrowser : Widget, IBrowser
 		set => EditorCookie.SetString( "CloudBrowser.DefaultView", value );
 	}
 
-	string CurrentOrderMode = "popular";
+	string CurrentOrderMode = "rankweek";
 
 	Task ResultsTask;
 
@@ -132,13 +139,6 @@ public partial class CloudAssetBrowser : Widget, IBrowser
 		Layout.Spacing = 4;
 
 		FilterAssetTypes = assetTypeFilters;
-
-		Search = new SearchWidget( this, false );
-		Search.MinimumHeight = Theme.RowHeight;
-		Search.ValueChanged = () =>
-		{
-			UpdateAssetList();
-		};
 
 		ListHeader = new ListHeader( this, ["Name", "Author", "Date", "Type"] );
 		ListHeader.OnColumnSelect += SortAssetList;
@@ -176,33 +176,73 @@ public partial class CloudAssetBrowser : Widget, IBrowser
 			return false;
 		};
 
+		CloudLocations = new CloudLocations( this );
+		CloudLocations.ActiveFilters.OnChanged = () =>
+		{
+			FilterBar?.RefreshPills();
+			UpdateAssetList();
+		};
+		CloudLocations.OnFilterSelected = ( node ) =>
+		{
+			NavigateTo( node.Filter );
+			Breadcrumb.SetPath( node );
+			Search.PlaceholderText = string.IsNullOrEmpty( node.Filter )
+				? "⌕  Search"
+				: $"⌕  Search in {node.Label}";
+		};
+
+		// Left sidebar: collection search (seamlessly above) + nav tree
+		var leftPanel = new Widget( this );
+		leftPanel.Layout = Layout.Column();
+		leftPanel.Layout.Spacing = 0;
+		leftPanel.Layout.Margin = new Margin( 0, 0, 0, 0 );
+		leftPanel.Layout.Add( CloudLocations, 1 );
+
 		var body = new Widget( this );
 		body.Layout = Layout.Column();
 
-		var toolbar = body.Layout.AddRow();
-		body.Layout.AddSpacingCell( 4 );
+		// Nav bar: breadcrumb (left, stretch) + search (right)
+		var navBar = new Widget( body );
+		navBar.FixedHeight = 34;
+		navBar.Layout = Layout.Row();
+		navBar.Layout.Spacing = 6;
+		navBar.Layout.Margin = new Margin( 6, 4, 8, 4 );
+
+		Breadcrumb = new FilterBreadcrumb( NavigateTo, navBar );
+		navBar.Layout.Add( Breadcrumb, 1 );
+
+		_updateAllBtn = new Button.Clear( "Update All", "download" );
+		_updateAllBtn.Visible = false;
+		_updateAllBtn.MouseClick = () => _ = UpdateAllReferencedAsync();
+		navBar.Layout.Add( _updateAllBtn );
+
+		Search = new SearchWidget( navBar, false );
+		Search.FixedHeight = Theme.ControlHeight;
+		Search.FixedWidth = 200;
+		Search.ValueChanged = () => UpdateAssetList();
+		navBar.Layout.Add( Search );
+
+		body.Layout.Add( navBar );
+
+		// Filter bar: facet pills + order/view buttons
+		FilterBar = new CloudFilterBar( CloudLocations.ActiveFilters, UpdateAssetList, body );
+		ViewMode = FilterBar.ViewMode;
+		OrderMode = FilterBar.OrderMode;
+		body.Layout.Add( FilterBar );
+
 		body.Layout.Add( ListHeader );
 		body.Layout.Add( AssetList, 1 );
 
-		CloudLocations = new CloudLocations( this );
-		CloudLocations.OnFilterSelected = ( filter ) =>
-		{
-			BaseQuery = filter;
-			ClearFacets();
-			UpdateAssetList();
-		};
-
 		var splitter = new Splitter( this );
 		splitter.IsHorizontal = true;
-		splitter.AddWidget( CloudLocations );
+		splitter.AddWidget( leftPanel );
 		splitter.SetStretch( 0, 1 );
 		splitter.AddWidget( body );
 		splitter.SetStretch( 1, 5 );
 
 		Layout.Add( splitter );
 
-		BuildToolbar( toolbar );
-
+		ConfigureViewMode();
 		RefreshCookies();
 	}
 
@@ -326,7 +366,6 @@ public partial class CloudAssetBrowser : Widget, IBrowser
 		var packages = AssetSystem.GetReferencedPackages();
 
 		AssetList.Clear();
-		FacetLayout.Clear( true );
 
 		foreach ( var package in packages.Where( x => FuzzyContains( x.Title, query ) ) )
 		{
@@ -352,26 +391,16 @@ public partial class CloudAssetBrowser : Widget, IBrowser
 			q += $" type:{GetAssetType( FilterAssetTypes.First().FileExtension )}";
 		}
 
-		foreach ( var dropdown in FacetDropDowns )
+		var activeFilters = CloudLocations?.ActiveFilters;
+		if ( activeFilters is { IsEmpty: false } )
 		{
-			if ( dropdown.Selected != null && !q.Contains( $"{dropdown.Facet.Name}:" ) )
-				q += $" {dropdown.GetFilter()}";
+			q += $" {activeFilters.ToQueryString()}";
 		}
 
 		q += $" sort:{CurrentOrderMode}";
 		q = q.Trim();
 
 		await FetchPackages( q, 400, 0 );
-	}
-
-	List<FacetDropdown> FacetDropDowns = new();
-
-	void ClearFacets()
-	{
-		foreach ( var dropdown in FacetDropDowns )
-		{
-			dropdown.Selected = null;
-		}
 	}
 
 	string GetAssetType( string extension )
@@ -408,71 +437,20 @@ public partial class CloudAssetBrowser : Widget, IBrowser
 			var token = tokenSource.Token;
 			var found = await Package.FindAsync( q, take, skip, token );
 
+			if ( !IsValid || token.IsCancellationRequested || found == null )
+				return;
+
 			_lastQuery = q;
 			_lastTake = take;
 			_lastSkip = skip;
 			_lastQueryReachedEnd = found.Packages.Length < take;
 
-			if ( !IsValid || token.IsCancellationRequested || found == null )
-				return;
+			// Populate the filter bar from the first page's facet data (no extra API call needed)
+			if ( skip == 0 )
+				FilterBar?.SetFacets( found.Facets );
 
 			if ( found.Packages.Length == 0 )
 				return;
-
-			// build the sidebar facets
-			FacetLayout.Clear( true );
-
-			var facets = found.Facets;
-
-			{
-				// Add a type facet for the Browse tab
-				Dictionary<string, int> typeDict = new();
-				foreach ( var package in found.Packages )
-				{
-					if ( !typeDict.ContainsKey( package.TypeName ) )
-						typeDict[package.TypeName] = 0;
-					typeDict[package.TypeName]++;
-				}
-				var entries = new List<Package.Facet.Entry>();
-				foreach ( var facet in typeDict )
-				{
-					var entry = new Package.Facet.Entry( facet.Key, facet.Key, "category", facet.Value, new() );
-					entries.Add( entry );
-				}
-				var realFacet = new Package.Facet( "type", "Type", entries.ToArray() );
-				var newFacets = new List<Package.Facet> { realFacet };
-				newFacets.AddRange( facets );
-				facets = newFacets.ToArray();
-			}
-
-			if ( facets.Length > 0 )
-			{
-				var parts = q.Split( ' ' ).Select( x => x.Split( ':' ) );
-				Dictionary<string, string> facetTags = parts.Where( x => x.Length > 1 )
-					.GroupBy( x => x[0] ) // avoid duplicates
-					.ToDictionary( g => g.Key, g => g.First()[1] );
-
-				var newDropdowns = new List<FacetDropdown>();
-
-				foreach ( var facet in facets )
-				{
-					if ( BaseQuery?.Contains( $"{facet.Name}:" ) ?? false )
-						continue;
-
-					string selection = null;
-					facetTags.TryGetValue( facet.Name, out selection );
-
-					var dd = FacetLayout.Add( new FacetDropdown( facet, selection, this ) );
-					dd.OnChanged += UpdateAssetList;
-
-					if ( facet.Name == "type" && FilterAssetTypes is not null )
-						dd.Enabled = false;
-
-					newDropdowns.Add( dd );
-				}
-
-				FacetDropDowns = newDropdowns;
-			}
 
 			//
 			// Add them all to the list
@@ -516,6 +494,77 @@ public partial class CloudAssetBrowser : Widget, IBrowser
 		{
 			IsLoading = false;
 		}
+	}
+
+	/// <summary>
+	/// Navigate to a filter query — used by both tree selection and breadcrumb clicks.
+	/// Breadcrumb clicks truncate the path, so we reset the breadcrumb and let the next
+	/// tree selection rebuild it.
+	/// </summary>
+	void NavigateTo( string filter )
+	{
+		BaseQuery = filter;
+
+		// Show "Update All" only on the Referenced tab
+		if ( _updateAllBtn.IsValid() )
+		{
+			_updateAllBtn.Visible = filter == "@referenced";
+			_updateAllBtn.Text = "Update All";
+			_updateAllBtn.Enabled = true;
+			_updatingAll = false;
+		}
+
+		CloudLocations?.ActiveFilters.Clear(); // facet selections don't carry over on context change
+		FilterBar?.ClearFacets();             // hide stale pills; repopulated by next FetchPackages
+		UpdateAssetList();
+	}
+
+	async Task UpdateAllReferencedAsync()
+	{
+		if ( _updatingAll || !_updateAllBtn.IsValid() ) return;
+		_updatingAll = true;
+		_updateAllBtn.Enabled = false;
+		_updateAllBtn.Text = "Checking...";
+
+		var packages = AssetSystem.GetReferencedPackages();
+		var toUpdate = new List<string>();
+
+		foreach ( var pkg in packages )
+		{
+			var local = AssetSystem.GetInstalledRevision( pkg.FullIdent );
+			if ( local is null ) continue;
+
+			var versions = await Package.FetchVersions( pkg.FullIdent );
+			var latest = versions?.FirstOrDefault();
+
+			if ( latest is not null && latest.VersionId != local.VersionId )
+				toUpdate.Add( pkg.FullIdent );
+		}
+
+		if ( !IsValid ) return;
+
+		if ( toUpdate.Count == 0 )
+		{
+			_updateAllBtn.Text = "Up to Date";
+			_updateAllBtn.Enabled = true;
+			_updatingAll = false;
+			return;
+		}
+
+		int done = 0;
+		foreach ( var ident in toUpdate )
+		{
+			if ( !IsValid ) return;
+			_updateAllBtn.Text = $"Updating {++done}/{toUpdate.Count}...";
+			await AssetSystem.InstallAsync( ident, false );
+		}
+
+		if ( !IsValid ) return;
+
+		_updatingAll = false;
+		_updateAllBtn.Text = "Update All";
+		_updateAllBtn.Enabled = true;
+		UpdateAssetList();
 	}
 
 	public void LoadMore()
@@ -598,147 +647,3 @@ public partial class CloudAssetBrowser : Widget, IBrowser
 	}
 }
 
-public class FacetDropdown : Widget
-{
-	public Package.Facet Facet;
-	public bool IncludeChildren = false;
-	public bool ShowCount = true;
-
-	public Package.Facet.Entry Selected = null;
-	public Action OnChanged;
-
-	public FacetDropdown( Package.Facet facet, string selection, Widget parent = null ) : base( parent )
-	{
-		Facet = facet;
-		Cursor = CursorShape.Finger;
-
-		Layout = Layout.Row();
-		Layout.Spacing = 2;
-
-		Selected = selection is null ? null : Facet.Entries.FirstOrDefault( x => x.Name == selection );
-	}
-
-	public string GetFilter()
-	{
-		if ( Selected == null )
-			return "";
-
-		var stringBuilder = new StringBuilder();
-
-		if ( Selected != null )
-		{
-			stringBuilder.Append( $"{Facet.Name}:{Selected.Name} " );
-		}
-
-		return stringBuilder.ToString();
-	}
-
-	protected override Vector2 SizeHint()
-	{
-		return new Vector2( 128, 24 );
-	}
-
-	protected override void OnPaint()
-	{
-		var color = Enabled && Paint.HasMouseOver ? Theme.Blue : Theme.TextControl;
-
-		if ( !Enabled )
-			color = color.WithAlpha( 0.5f );
-
-		var rect = LocalRect;
-
-		Paint.ClearBrush();
-		Paint.ClearPen();
-
-		Paint.SetBrush( Theme.ControlBackground );
-		Paint.DrawRect( rect, Theme.ControlRadius );
-
-		Paint.ClearBrush();
-		Paint.ClearPen();
-
-		rect = rect.Shrink( 8, 0 );
-
-		Paint.SetPen( color );
-
-		if ( Selected == null )
-		{
-			Paint.DrawText( rect, Facet.Title, TextFlag.LeftCenter );
-		}
-		else
-		{
-			Paint.DrawIcon( rect, Selected.Icon, 16, TextFlag.LeftCenter );
-
-			rect.Left += 20;
-			Paint.DrawText( rect, $"{Facet.Title}: {Selected.Title}", TextFlag.LeftCenter );
-		}
-
-		Paint.SetPen( color );
-		Paint.DrawIcon( rect, "Arrow_Drop_Down", 17, TextFlag.RightCenter );
-	}
-
-	protected override void OnMouseReleased( MouseEvent e )
-	{
-		if ( !Enabled ) return;
-
-		OpenMenu();
-	}
-
-	void OpenMenu()
-	{
-		var menu = new ContextMenu( null )
-		{
-			Layout = Layout.Column(),
-			MinimumWidth = ScreenRect.Width,
-			MaximumWidth = ScreenRect.Width
-		};
-
-		foreach ( var entry in Facet.Entries )
-		{
-			if ( entry.Name == "game" || entry.Name == "library" )
-				continue;
-
-			AddEntry( menu, entry );
-		}
-
-		menu.Position = ScreenRect.BottomLeft;
-		menu.Visible = true;
-		menu.AdjustSize();
-		menu.ConstrainToScreen();
-		menu.OnPaintOverride = PaintMenuBackground;
-	}
-
-	void AddEntry( ContextMenu menu, Package.Facet.Entry entry, int level = 0 )
-	{
-		var title = entry.Title;
-		if ( ShowCount ) title += $" ({entry.Count})";
-		var op = menu.AddOption( title, entry.Icon );
-		op.Checkable = true;
-		op.Checked = Selected == entry;
-
-		op.Toggled = ( b ) =>
-		{
-			if ( b )
-				Selected = entry;
-			else
-				Selected = null;
-
-			menu.Update();
-
-			OnChanged?.Invoke();
-		};
-
-		if ( IncludeChildren )
-		{
-			foreach ( var child in entry.Children )
-			{
-				AddEntry( menu, child, level + 1 );
-			}
-		}
-	}
-	bool PaintMenuBackground()
-	{
-		Paint.SetBrushAndPen( Theme.ControlBackground );
-		Paint.DrawRect( Paint.LocalRect, 0 );
-		return true;
-	}
-}

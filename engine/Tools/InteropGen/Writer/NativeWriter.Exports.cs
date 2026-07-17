@@ -5,6 +5,29 @@ namespace Facepunch.InteropGen;
 
 internal partial class NativeWriter
 {
+	/// <summary>
+	/// How a member is reached on the native side: instance pointer, static scope, global scope or accessor.
+	/// </summary>
+	private static string AccessPrefix( Class c, bool memberStatic )
+	{
+		if ( c.Accessor )
+		{
+			return $"{c.NativeNameWithNamespace}->";
+		}
+
+		if ( c.Static && c.NativeName.StartsWith( "global" ) )
+		{
+			return "::";
+		}
+
+		if ( c.Static || memberStatic )
+		{
+			return $"{c.NativeNameWithNamespace}::";
+		}
+
+		return $"(({c.NativeNameWithNamespace}*)self)->";
+	}
+
 	private void Exports()
 	{
 		WriteLine( "//" );
@@ -14,189 +37,152 @@ internal partial class NativeWriter
 		WriteLine( "//" );
 		StartBlock( "namespace Exports" );
 		{
-			foreach ( Class c in definitions.Classes.Where( x => x.Native == true ) )
+			foreach ( Class c in definitions.NativeClasses )
 			{
-				if ( ShouldSkip( c ) )
+				if ( Skip.ShouldSkip( c ) )
 				{
 					continue;
 				}
 
-				if ( c.BaseClass != null )
-				{
-					Class bc = c.BaseClass;
-
-					while ( bc != null )
-					{
-						Class subclass = bc;
-						WriteCast( subclass, c );
-						bc = bc.BaseClass;
-					}
-
-					WriteLine();
-				}
+				WriteCasts( c );
 
 				foreach ( Function f in c.Functions )
 				{
-					// We prepend __ to argument names for inline functions.
-					// That way the body can use the right named vars after converting to the proper type.
-					string varNamePrepend = "";
-					if ( f.Body != null )
-					{
-						varNamePrepend = "__";
-					}
-
-					IEnumerable<string> nativeArgs = c.SelfArg( true, f.Static ).Concat( f.Parameters ).Where( x => x.IsRealArgument ).Select( x => $"{x.GetNativeDelegateType( true )} {varNamePrepend}{x.Name}" );
-					string nativeArgS = string.Join( ", ", nativeArgs );
-
-					StartBlock( $"{f.Return.GetNativeDelegateType( false )} {f.MangledName}( {nativeArgS} )" );
-					{
-						WriteLine( $"CALL_FROM_MANAGED_START();" );
-
-						// Generate stub implementation for platform-specific functions
-						if ( ShouldStubFunction( c, f ) )
-						{
-							WriteLine( $"// Stubbed implementation for {c.ManagedName}::{f.Name}" );
-							if ( !f.Return.IsVoid )
-							{
-								WriteLine( $"return {f.Return.DefaultValue};" );
-							}
-						}
-						else if ( !HandleSpecial( c, f ) )
-						{
-							if ( c.Accessor )
-							{
-								WriteLine( $"// Make sure this isn't null" );
-								WriteLine( $"Assert( {c.NativeNameWithNamespace} );" );
-								WriteLine();
-							}
-
-							string pre = "";
-							string post = "";
-							IEnumerable<string> args = f.Parameters.Select( x => x.FromInterop( true ) ).Where( x => x != null );
-							string argsS = string.Join( ", ", args );
-
-							pre = $"(({c.NativeNameWithNamespace}*)self)->";
-
-							argsS = argsS.Replace( "__selftype__", $"{c.NativeNameWithNamespace}*" );
-
-							if ( c.Static || f.Static )
-							{
-								pre = $"{c.NativeNameWithNamespace}::";
-							}
-
-							if ( c.Static && c.NativeName.StartsWith( "global" ) )
-							{
-								pre = "::";
-							}
-
-							if ( c.Accessor )
-							{
-								pre = $"{c.NativeNameWithNamespace}->";
-							}
-
-							if ( c.IsResourceHandle )
-							{
-								string strongHandle = $"{c.ResourceHandleName}Strong";
-								WriteLine( $"{strongHandle}* __handle = ({strongHandle}*)self;" );
-								WriteLine( $"if ( __handle == nullptr || !__handle->HasData() ) return {f.Return.DefaultValue};" );
-								WriteLine( $"{c.NativeNameWithNamespace}* __self = const_cast<{c.NativeNameWithNamespace}*>( __handle->GetData() );" );
-								WriteLine( $"if ( __self == nullptr ) return {f.Return.DefaultValue};" );
-
-								pre = $"__self->";
-							}
-
-							string functionCall = $"{pre}{f.Name}( {argsS} ){post}";
-
-							if ( !f.Return.IsVoid )
-							{
-								functionCall = f.Return.ToInterop( true, functionCall );
-								functionCall = f.Return.ReturnWrapCall( functionCall, true );
-								WriteLine( $"{functionCall}" );
-							}
-							else
-							{
-								WriteLine( $"{functionCall};" );
-							}
-						}
-
-						WriteLine( $"CALL_FROM_MANAGED_END();" );
-					}
-					EndBlock();
+					WriteExportFunction( c, f );
 				}
 
-				foreach ( Variable f in c.Variables )
+				foreach ( Variable v in c.Variables )
 				{
-					IEnumerable<string> nativeArgs = c.SelfArg( true, f.Static ).Select( x => $"{x.NativeType} {x.Name}" );
-					string nativeArgS = string.Join( ", ", nativeArgs );
-
-					StartBlock( $"{f.Return.GetNativeDelegateType( false )} _Get__{f.MangledName}( {nativeArgS} )" );
-					{
-						string pre = "";
-						string post = "";
-
-						pre = $"(({c.NativeNameWithNamespace}*)self)->";
-
-						if ( c.Static || f.Static )
-						{
-							pre = $"{c.NativeNameWithNamespace}::";
-						}
-
-						if ( c.Static && c.NativeName.StartsWith( "global" ) )
-						{
-							pre = "::";
-						}
-
-						if ( c.Accessor )
-						{
-							pre = $"{c.NativeNameWithNamespace}->";
-						}
-
-						string functionCall = $"{pre}{f.Name}{post}";
-
-						functionCall = f.Return.ToInterop( true, functionCall );
-						functionCall = f.Return.ReturnWrapCall( functionCall, true );
-						WriteLine( $"{functionCall}" );
-					}
-					EndBlock();
-
-					if ( !string.IsNullOrEmpty( nativeArgS ) )
-					{
-						nativeArgS += ", ";
-					}
-
-					StartBlock( $"void _Set__{f.MangledName}( {nativeArgS}{f.Return.GetNativeDelegateType( true )} value )" );
-					{
-						string pre = "";
-						string post = "";
-
-						pre = $"(({c.NativeNameWithNamespace}*)self)->";
-
-						if ( c.Static || f.Static )
-						{
-							pre = $"{c.NativeNameWithNamespace}::";
-						}
-
-						if ( c.Static && c.NativeName.StartsWith( "global" ) )
-						{
-							pre = "::";
-						}
-
-						if ( c.Accessor )
-						{
-							pre = $"{c.NativeNameWithNamespace}->";
-						}
-
-						string functionCall = $"{pre}{f.Name}{post} = {f.Return.FromInterop( true, "value" )}";
-
-						WriteLine( $"{functionCall};" );
-					}
-					EndBlock();
+					WriteExportVariable( c, v );
 				}
 			}
 		}
 		EndBlock();
 
 		WriteLine();
+	}
+
+	/// <summary>
+	/// dynamic_cast helpers to and from every base class, used by the managed conversion operators.
+	/// </summary>
+	private void WriteCasts( Class c )
+	{
+		if ( c.BaseClass == null )
+		{
+			return;
+		}
+
+		Class bc = c.BaseClass;
+
+		while ( bc != null )
+		{
+			WriteCast( bc, c );
+			bc = bc.BaseClass;
+		}
+
+		WriteLine();
+	}
+
+	/// <summary>
+	/// One exported thunk: unmarshal the arguments, call the native member (or its special/inline/stub
+	/// replacement) and marshal the return value back.
+	/// </summary>
+	private void WriteExportFunction( Class c, Function f )
+	{
+		// We prepend __ to argument names for inline functions.
+		// That way the body can use the right named vars after converting to the proper type.
+		string varNamePrepend = f.Body != null ? "__" : "";
+
+		IEnumerable<string> nativeArgs = c.SelfArg( true, f.Static ).Concat( f.Parameters ).Where( x => x.IsRealArgument ).Select( x => $"{x.DelegateType( Side.Native, Dir.Incoming )} {varNamePrepend}{x.Name}" );
+		string nativeArgS = string.Join( ", ", nativeArgs );
+
+		StartBlock( $"{f.Return.DelegateType( Side.Native, Dir.Outgoing )} {f.MangledName}( {nativeArgS} )" );
+		{
+			WriteLine( $"CALL_FROM_MANAGED_START();" );
+
+			// Generate stub implementation for platform-specific functions
+			if ( Skip.ShouldStubFunction( c ) )
+			{
+				WriteLine( $"// Stubbed implementation for {c.ManagedName}::{f.Name}" );
+				if ( !f.Return.IsVoid )
+				{
+					WriteLine( $"return {f.Return.DefaultValue};" );
+				}
+			}
+			else if ( !HandleSpecial( c, f ) )
+			{
+				if ( c.Accessor )
+				{
+					WriteLine( $"// Make sure this isn't null" );
+					WriteLine( $"Assert( {c.NativeNameWithNamespace} );" );
+					WriteLine();
+				}
+
+				IEnumerable<string> args = f.Parameters.Select( x => x.FromInterop( Side.Native ) ).Where( x => x != null );
+				string argsS = string.Join( ", ", args ).Replace( "__selftype__", $"{c.NativeNameWithNamespace}*" );
+
+				string pre = AccessPrefix( c, f.Static );
+
+				if ( c.IsResourceHandle )
+				{
+					string strongHandle = $"{c.ResourceHandleName}Strong";
+					WriteLine( $"{strongHandle}* __handle = ({strongHandle}*)self;" );
+					WriteLine( $"if ( __handle == nullptr || !__handle->HasData() ) return {f.Return.DefaultValue};" );
+					WriteLine( $"{c.NativeNameWithNamespace}* __self = const_cast<{c.NativeNameWithNamespace}*>( __handle->GetData() );" );
+					WriteLine( $"if ( __self == nullptr ) return {f.Return.DefaultValue};" );
+
+					pre = $"__self->";
+				}
+
+				string functionCall = $"{pre}{f.Name}( {argsS} )";
+
+				if ( !f.Return.IsVoid )
+				{
+					functionCall = f.Return.ToInterop( Side.Native, functionCall );
+					functionCall = f.Return.ReturnWrapCall( functionCall, Side.Native );
+					WriteLine( $"{functionCall}" );
+				}
+				else
+				{
+					WriteLine( $"{functionCall};" );
+				}
+			}
+
+			WriteLine( $"CALL_FROM_MANAGED_END();" );
+		}
+		EndBlock();
+	}
+
+	/// <summary>
+	/// The exported get/set pair for one native variable.
+	/// </summary>
+	private void WriteExportVariable( Class c, Variable f )
+	{
+		IEnumerable<string> nativeArgs = c.SelfArg( true, f.Static ).Select( x => $"{x.NativeType} {x.Name}" );
+		string nativeArgS = string.Join( ", ", nativeArgs );
+
+		StartBlock( $"{f.Return.DelegateType( Side.Native, Dir.Outgoing )} _Get__{f.MangledName}( {nativeArgS} )" );
+		{
+			string functionCall = $"{AccessPrefix( c, f.Static )}{f.Name}";
+
+			functionCall = f.Return.ToInterop( Side.Native, functionCall );
+			functionCall = f.Return.ReturnWrapCall( functionCall, Side.Native );
+			WriteLine( $"{functionCall}" );
+		}
+		EndBlock();
+
+		if ( !string.IsNullOrEmpty( nativeArgS ) )
+		{
+			nativeArgS += ", ";
+		}
+
+		StartBlock( $"void _Set__{f.MangledName}( {nativeArgS}{f.Return.DelegateType( Side.Native, Dir.Incoming )} value )" );
+		{
+			string functionCall = $"{AccessPrefix( c, f.Static )}{f.Name} = {f.Return.FromInterop( Side.Native, "value" )}";
+
+			WriteLine( $"{functionCall};" );
+		}
+		EndBlock();
 	}
 
 	private void WriteCast( Class subclass, Class c )
@@ -246,8 +232,6 @@ internal partial class NativeWriter
 
 			WriteLine( $"// Convert parameters" );
 
-
-
 			foreach ( Arg arg in args )
 			{
 				if ( arg.IsSelf )
@@ -256,7 +240,7 @@ internal partial class NativeWriter
 					continue;
 				}
 
-				WriteLine( $"auto {arg.Name} = {arg.FromInterop( true, $"__{arg.Name}" )};" );
+				WriteLine( $"auto {arg.Name} = {arg.FromInterop( Side.Native, $"__{arg.Name}" )};" );
 			}
 
 			string body = f.Body.ToString();
@@ -279,8 +263,8 @@ internal partial class NativeWriter
 
 					lines[i] = lines[i].Trim().Replace( "return ", "" ).TrimEnd( ';', '\r', '\n' );
 
-					lines[i] = f.Return.ToInterop( true, lines[i] );
-					lines[i] = f.Return.ReturnWrapCall( lines[i], true );
+					lines[i] = f.Return.ToInterop( Side.Native, lines[i] );
+					lines[i] = f.Return.ReturnWrapCall( lines[i], Side.Native );
 				}
 
 				body = string.Join( "\n", lines );
@@ -303,7 +287,7 @@ internal partial class NativeWriter
 
 		if ( f.Special.Contains( "new" ) )
 		{
-			IEnumerable<string> args = f.Parameters.Select( x => x.FromInterop( true ) );
+			IEnumerable<string> args = f.Parameters.Select( x => x.FromInterop( Side.Native ) );
 			string argsS = string.Join( ", ", args );
 
 			WriteLine( $"return new {c.NativeNameWithNamespace}( {argsS} );" );

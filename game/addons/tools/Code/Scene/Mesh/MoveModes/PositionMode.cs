@@ -6,7 +6,7 @@
 /// <b>Shift</b> - extrude selection
 /// </summary>
 [Title( "Move/Position" )]
-[Icon( "control_camera" )]
+[Icon( "meshtools/move_modes/move-position.png" )]
 [Alias( "mesh.position.mode" )]
 [Order( 0 )]
 public sealed class PositionMode : MoveMode
@@ -99,9 +99,7 @@ public sealed class PositionMode : MoveMode
 
 				_moveDelta += delta;
 
-				var moveDelta = (_moveDelta + _origin) * _basis.Inverse;
-				moveDelta = Gizmo.Snap( moveDelta, _moveDelta * _basis.Inverse );
-				moveDelta *= _basis;
+				var moveDelta = Gizmo.Snap( _origin, _moveDelta, _basis );
 
 				if ( snapTarget.HasValue )
 				{

@@ -171,6 +171,8 @@ public sealed class ScenePasteSpecialDialog : Dialog
 					{
 						var go = session.Scene.CreateObject();
 						SceneUtility.MakeIdGuidsUnique( jso );
+
+						using var blobs = BlobDataSerializer.LoadFrom( jso );
 						go.Deserialize( jso );
 
 						var (pos, rot) = GetCopyTransform( i, go.WorldPosition, go.WorldRotation, allPasted.LastOrDefault(), options );

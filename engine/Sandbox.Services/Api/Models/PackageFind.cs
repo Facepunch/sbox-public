@@ -157,6 +157,12 @@ public struct FindPackageQuery
 
 		/// <summary>"Because you played X" — packages co-played by users with similar history.</summary>
 		Recommended,
+
+		/// <summary>
+		/// Games/maps the user has played that have been published since they last played,
+		/// ranked by likely interest (playtime × recency). Needs SteamId.
+		/// </summary>
+		UpdatedSincePlayed,
 	}
 
 	public static FindPackageQuery Parse( string query, long steamid )
@@ -309,6 +315,7 @@ public struct FindPackageQuery
 		return sort switch
 		{
 			"live" or "referenced" or "referencing" or "user" or "used" or "played" => SortMode.Used,
+			"revisit" or "updatedsinceplayed" => SortMode.UpdatedSincePlayed,
 			"oldest" => SortMode.Created, // TODO: might need reverse order flag
 			"newest" => SortMode.Created,
 			"upvotes" => SortMode.ThumbsUp,

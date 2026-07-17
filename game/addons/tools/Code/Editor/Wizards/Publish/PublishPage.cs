@@ -32,6 +32,13 @@ partial class PublishWizard : BaseWizard
 			CanUploadSourceFiles = context?.CanIncludeSourceFiles ?? true
 		} );
 
+		// Show license warnings for games/maps/scenes that reference cloud assets
+		var projectType = Project.Config.Type;
+		if ( projectType is "game" or "map" && CloudAsset.GetAssetReferences( true ).Count > 0 )
+		{
+			AddStep( new LicenseCheckWizardPage() { Project = Project, PublishConfig = Config } );
+		}
+
 		if ( Project.HasCodePath() )
 		{
 			AddStep( new CompileWizardPage() { Project = Project, PublishConfig = Config } );  // compile everything
@@ -71,6 +78,11 @@ partial class PublishWizard : BaseWizard
 			// we'll allow them to define which code to include and whatever.
 			//
 			Project.RootDirectory = Project.Current.RootDirectory;
+		}
+		else
+		{
+			// Don't drag in code from whatever project happens to be open right now.
+			Project.RootDirectory = null;
 		}
 	}
 }

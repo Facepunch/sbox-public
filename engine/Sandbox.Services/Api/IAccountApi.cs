@@ -34,6 +34,28 @@ public partial class ServiceApi
 		/// </summary>
 		[Post( "/account/services/list" )]
 		Task<List<ServiceLinkInfo>> ListServices();
+
+		/// <summary>
+		/// Get the player's reward state — their windows (requirements + progress) and any
+		/// pending unclaimed offer to resume. Poll after a session and after claiming.
+		/// </summary>
+		[Get( "/account/rewards/1" )]
+		Task<RewardState> GetRewards();
+
+		/// <summary>
+		/// Open a reward claim: returns the items on offer to choose from (or the existing
+		/// unclaimed offer to resume), or null if there's nothing to claim right now.
+		/// Note: claiming creates the drop, which resets the player's "since last reward" progress.
+		/// </summary>
+		[Post( "/account/rewards/claim/1" )]
+		Task<RewardOffer> ClaimReward();
+
+		/// <summary>
+		/// Commit the player's pick(s) from an open offer. Grants the chosen item(s) to
+		/// their inventory and closes the offer.
+		/// </summary>
+		[Post( "/account/rewards/choose/1" )]
+		Task<RewardResult> ChooseReward( [Body] RewardChoice choice );
 	}
 }
 

@@ -96,6 +96,48 @@ public class SceneLight : SceneObject
 		}
 	}
 
+	/// <summary>
+	/// Should this light contribute diffuse lighting?
+	/// </summary>
+	public bool RenderDiffuse
+	{
+		get => _renderDiffuse;
+		set
+		{
+			_renderDiffuse = value;
+			lightNative.SetRenderDiffuse( value );
+		}
+	}
+	private bool _renderDiffuse = true;
+
+	/// <summary>
+	/// Should this light contribute specular highlights?
+	/// </summary>
+	public bool RenderSpecular
+	{
+		get => _renderSpecular;
+		set
+		{
+			_renderSpecular = value;
+			lightNative.SetRenderSpecular( value );
+		}
+	}
+	private bool _renderSpecular = true;
+
+	/// <summary>
+	/// Should this light contribute transmissive lighting (light passing through surfaces)?
+	/// </summary>
+	public bool RenderTransmissive
+	{
+		get => _renderTransmissive;
+		set
+		{
+			_renderTransmissive = value;
+			lightNative.SetRenderTransmissive( value );
+		}
+	}
+	private bool _renderTransmissive = true;
+
 	public enum FogLightingMode
 	{
 		None,
@@ -146,6 +188,13 @@ public class SceneLight : SceneObject
 	public float ShadowBias { get; set; } = 0.0005f;
 
 	public float ShadowHardness { get; set; } = 0.0f;
+
+	/// <summary>
+	/// Bindless indices of the screen-space shadow masks for this light, keyed by managed camera id
+	/// (masks are generated per rendering view). Written from threaded procedural-layer jobs while
+	/// other views' light binning reads it, hence the concurrent dictionary.
+	/// </summary>
+	internal readonly System.Collections.Concurrent.ConcurrentDictionary<int, uint> ShadowMaskTextureIndices = new();
 
 	internal override void OnTransformChanged( in Transform tx )
 	{

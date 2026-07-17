@@ -7,7 +7,7 @@ namespace Sandbox;
 /// <summary>
 /// A physics surface. This is applied to each <see cref="PhysicsShape">PhysicsShape</see> and controls its physical properties and physics related sounds.
 /// </summary>
-[AssetType( Name = "Surface Description", Extension = "surface", Category = "Physics", Flags = AssetTypeFlags.NoEmbedding )]
+[AssetType( Name = "Surface Description", Extension = "surface", Category = "Physics", Flags = AssetTypeFlags.NoEmbedding, IconColor = "#4596ec" )]
 public partial class Surface : GameResource
 {
 	/// <summary>
@@ -144,6 +144,8 @@ public partial class Surface : GameResource
 		All[Index] = this;
 	}
 
+	static readonly Surface _defaultSurface = new();
+
 	/// <summary>
 	/// Find a surface by its index in the array. This is the fastest way to lookup, so it's
 	/// passed from things like Traces since the index is going to be the same. It's important to
@@ -160,7 +162,7 @@ public partial class Surface : GameResource
 			return v.Value;
 		}
 
-		throw new System.Exception( "Default Surface not found!" );
+		return _defaultSurface;
 	}
 
 	/// <summary>

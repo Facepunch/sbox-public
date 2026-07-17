@@ -96,7 +96,7 @@ public abstract class ResourceLoader
 
 		_lock.Enter();
 
-		if ( _cachedResult is not null )
+		if ( _cachedResult is not null && (_cachedResult is not IValid v || v.IsValid) )
 		{
 			_lock.Exit();
 			return _cachedResult;

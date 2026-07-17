@@ -14,7 +14,17 @@ public sealed partial class KeyframeEditMode : EditMode
 	public bool AutoCreateTracks { get; set; }
 	public bool CreateKeyframeOnClick { get; set; }
 
-	public KeyframeInterpolation DefaultInterpolation { get; set; } = KeyframeInterpolation.Cubic;
+	private KeyframeInterpolation _defaultInterpolation;
+
+	public KeyframeInterpolation DefaultInterpolation
+	{
+		get => _defaultInterpolation;
+		set
+		{
+			_defaultInterpolation = value;
+			Session.Cookies.KeyframeInterpolation = value;
+		}
+	}
 
 	public IEnumerable<KeyframeHandle> SelectedKeyframes => Timeline.SelectedItems.OfType<KeyframeHandle>();
 
@@ -24,6 +34,8 @@ public sealed partial class KeyframeEditMode : EditMode
 
 	protected override void OnEnable()
 	{
+		_defaultInterpolation = Session.Cookies.KeyframeInterpolation;
+
 		var changesGroup = ToolBar.AddGroup();
 
 		var button = changesGroup.AddToggle( new( "Automatic Track Creation", "playlist_add",
@@ -101,14 +113,14 @@ public sealed partial class KeyframeEditMode : EditMode
 	{
 		// Touching a property should create a keyframe
 
-		return CreateOrUpdateKeyframeHandle( view, new Keyframe( Session.PlayheadTime, view.Target.Value, DefaultInterpolation ) );
+		return CreateOrUpdateKeyframeHandle( view, new Keyframe( Session.PlayheadTime, view.Target.Value, DefaultInterpolation, default ) );
 	}
 
 	protected override bool OnPostChange( TrackView view )
 	{
 		// We've finished changing a property, update the keyframe we created in OnPreChange
 
-		return CreateOrUpdateKeyframeHandle( view, new Keyframe( Session.PlayheadTime, view.Target.Value, DefaultInterpolation ) );
+		return CreateOrUpdateKeyframeHandle( view, new Keyframe( Session.PlayheadTime, view.Target.Value, DefaultInterpolation, default ) );
 	}
 
 	private void OnSelectionChanged()
@@ -142,10 +154,39 @@ public sealed partial class KeyframeEditMode : EditMode
 	/// </summary>
 	private bool CreateOrUpdateKeyframeHandle( TrackView view, Keyframe keyframe )
 	{
+		view.ExpandAncestors();
+
 		if ( GetTimelineTrack( view ) is not { } timelineTrack ) return false;
 		if ( GetHandles( timelineTrack ) is not { } handles ) return false;
 
 		return handles.AddOrUpdate( keyframe );
+	}
+
+	internal void SplitKeyframe( KeyframeHandle handle )
+	{
+		GetHandles( handle.Parent )?.SplitHandle( handle );
+	}
+
+	internal void RemoveKeyframes( IEnumerable<KeyframeHandle> handles )
+	{
+		var set = handles.ToImmutableHashSet();
+
+		var tracks = set
+			.Select( x => x.Parent )
+			.Distinct()
+			.ToArray();
+
+		foreach ( var timelineTrack in tracks )
+		{
+			if ( GetHandles( timelineTrack ) is not { } trackHandles ) continue;
+
+			trackHandles.RemoveAll( set.Contains );
+		}
+
+		foreach ( var handle in set )
+		{
+			handle.Destroy();
+		}
 	}
 
 	protected override void OnPreRestore()
@@ -295,10 +336,22 @@ public sealed partial class KeyframeEditMode : EditMode
 
 			var value = propertyTrack.TryGetValue( time, out var val ) ? val : target.Value;
 
-			handles.AddOrUpdate( new Keyframe( time, value, DefaultInterpolation ) );
+			handles.AddOrUpdate( new Keyframe( time, value, DefaultInterpolation, default ) );
 		}
 
 		Session.PlayheadTime = time;
+	}
+
+	private void SelectKeyframe( TrackView trackView, Keyframe keyframe )
+	{
+		var timelineTrack = Timeline.Tracks.FirstOrDefault( x => x.View == trackView );
+
+		if ( timelineTrack is null ) return;
+		if ( !_trackKeyframeHandles.TryGetValue( timelineTrack, out var handles ) ) return;
+		if ( handles.FirstOrDefault( x => x.Time == keyframe.Time ) is not { } handle ) return;
+
+		Timeline.DeselectAll();
+		handle.Selected = true;
 	}
 
 	private IEnumerable<TrackView> GetWritableDescendantTrackViews( TrackView parentView )
@@ -350,7 +403,7 @@ public sealed partial class KeyframeEditMode : EditMode
 
 	protected override void OnSelectAll()
 	{
-		foreach ( var handle in _trackKeyframeHandles.SelectMany( x => x.Value ) )
+		foreach ( var handle in _trackKeyframeHandles.SelectMany( x => x.Value ).ToArray() )
 		{
 			handle.Selected = true;
 		}
@@ -358,25 +411,7 @@ public sealed partial class KeyframeEditMode : EditMode
 
 	protected override void OnDelete()
 	{
-		var selected = SelectedKeyframes
-			.ToImmutableHashSet();
-
-		var tracks = SelectedKeyframes
-			.Select( x => x.Parent )
-			.Distinct()
-			.ToArray();
-
-		foreach ( var timelineTrack in tracks )
-		{
-			if ( GetHandles( timelineTrack ) is not { } handles ) continue;
-
-			handles.RemoveAll( selected.Contains );
-		}
-
-		foreach ( var keyframe in SelectedKeyframes )
-		{
-			keyframe.Destroy();
-		}
+		RemoveKeyframes( SelectedKeyframes );
 	}
 
 	protected override void OnDrawGizmos( TrackView trackView, MovieTimeRange timeRange )
@@ -405,10 +440,13 @@ public sealed partial class KeyframeEditMode : EditMode
 			Gizmo.Draw.Color = Color.White.Darken( Gizmo.IsHovered ? 0f : 0.125f );
 			Gizmo.Draw.SolidSphere( Vector3.Zero, radius );
 
-			if ( Gizmo.HasClicked && Gizmo.Pressed.This )
-			{
-				Session.PlayheadTime = keyframe.Time;
-			}
+			if ( !Gizmo.HasClicked || !Gizmo.Pressed.This ) continue;
+
+			Session.PlayheadTime = keyframe.Time;
+			Timeline.PanToPlayheadTime();
+
+			SelectKeyframe( trackView, keyframe );
+			trackView.InspectProperty();
 		}
 	}
 
@@ -435,7 +473,7 @@ public sealed partial class KeyframeEditMode : EditMode
 		{
 			foreach ( var keyframe in keyframes )
 			{
-				var kf = new Keyframe( keyframe.Time + timeOffset, keyframe.Value, keyframe.Interpolation );
+				var kf = new Keyframe( keyframe.Time + timeOffset, keyframe.Value, keyframe.Interpolation, keyframe.Connection );
 
 				var handle = new KeyframeHandle( _timelineTrack, kf );
 
@@ -464,8 +502,25 @@ public sealed partial class KeyframeEditMode : EditMode
 				}
 			}
 
-			if ( _handles.FirstOrDefault( x => x.Time == keyframe.Time ) is { } handle )
+			// Hack: see KeyframeSignal<T>.GetValue for why we check for one tick later than this keyframe.
+			// We use LastOrDefault because we can have two keyframes at the same time, one ends a block
+			// and the next starts a new block. We want the one that starts a block.
+
+			var handleOrNull = _handles.LastOrDefault( x => x.Time == keyframe.Time )
+				?? _handles.FirstOrDefault( x => x.Time == keyframe.Time + MovieTime.Epsilon );
+
+			if ( handleOrNull is { } handle )
 			{
+				// Don't change the keyframe time if we've found a match on the next tick
+
+				keyframe = keyframe with { Time = handle.Time };
+
+				// Don't change the connection state of the existing keyframe
+
+				keyframe = keyframe with { Connection = handle.Keyframe.Connection };
+
+				// Return false if nothing has changed
+
 				if ( handle.Keyframe.Equals( keyframe ) ) return false;
 
 				handle.Keyframe = keyframe;
@@ -475,6 +530,19 @@ public sealed partial class KeyframeEditMode : EditMode
 				_handles.Add( new KeyframeHandle( _timelineTrack, keyframe ) );
 				_handles.Sort();
 			}
+
+			WriteToTrack();
+			return true;
+		}
+
+		public bool SplitHandle( KeyframeHandle handle )
+		{
+			if ( handle.Keyframe.Connection is not KeyframeConnection.Connect ) return false;
+
+			handle.Keyframe = handle.Keyframe with { Connection = KeyframeConnection.StartBlock };
+
+			_handles.Add( new KeyframeHandle( _timelineTrack, handle.Keyframe with { Connection = KeyframeConnection.EndBlock } ) );
+			_handles.Sort();
 
 			WriteToTrack();
 			return true;
@@ -498,17 +566,36 @@ public sealed partial class KeyframeEditMode : EditMode
 
 		/// <summary>
 		/// Remove overlapping unselected keyframes.
-		/// We keep selected ones in case they're being dragged.
 		/// </summary>
 		public void CleanUpKeyframes()
 		{
+			_handles.Sort();
+
+			foreach ( var handle in _handles )
+			{
+				handle.IsOverlappingNextBlock = false;
+			}
+
 			for ( var i = _handles.Count - 1; i >= 1; --i )
 			{
 				var prev = _handles[i - 1];
 				var next = _handles[i];
 
-				if ( prev.Selected || next.Selected ) continue;
-				if ( prev.Time != next.Time ) continue;
+				// We're looking for keyframes overlapping in time...
+
+				if ( prev.Keyframe.Time != next.Keyframe.Time ) continue;
+
+				// ...and with identical Connection modes, otherwise this is a block boundary.
+
+				if ( prev.Keyframe.Connection != next.Keyframe.Connection )
+				{
+					prev.IsOverlappingNextBlock = true;
+					continue;
+				}
+
+				// We keep dragged keyframes so we don't nuke stuff that temporarily overlaps
+
+				if ( prev.IsDragging || next.IsDragging ) continue;
 
 				_handles.RemoveAt( i );
 
@@ -557,9 +644,9 @@ public sealed partial class KeyframeEditMode : EditMode
 
 		public void WriteToTrack()
 		{
-			// Handles might have moved, re-sort them
+			// Handles might have moved, re-sort them and remove overlaps
 
-			_handles.Sort();
+			CleanUpKeyframes();
 
 			// Keyframes inside a source block will be an additive operation on that block,
 			// otherwise they'll produce a new keyframe-only block
@@ -576,15 +663,29 @@ public sealed partial class KeyframeEditMode : EditMode
 			{
 				var cutTime = _cutTimes.LastOrDefault( x => x <= handle.Time );
 
+				// Start a new block if the next keyframe is a StartBlock...
+
+				var endPrevBlock = handle.Keyframe.Connection is KeyframeConnection.StartBlock;
+
+				// ...or the prev keyframe was an EndBlock...
+
+				if ( block.Count > 0 && block[^1].Connection is KeyframeConnection.EndBlock )
+				{
+					endPrevBlock = true;
+				}
+
+				// ...or if we're in a different source block when additive editing
+
 				if ( cutTime != prevCutTime )
 				{
-					if ( block.Count > 0 )
-					{
-						blocks.Add( FinishBlock( block ) );
-						block.Clear();
-					}
-
+					endPrevBlock = true;
 					prevCutTime = cutTime;
+				}
+
+				if ( endPrevBlock && block.Count > 0 )
+				{
+					blocks.Add( FinishBlock( block ) );
+					block.Clear();
 				}
 
 				if ( block.Count > 0 && block[^1].Time == handle.Time )

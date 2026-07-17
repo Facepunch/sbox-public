@@ -257,7 +257,7 @@ void ToolsVis::HandleLightingComplexity(inout float4 vColor, float3 WorldPositio
     {
         uint lightIndex = Cluster::LoadItem( lightRange, index );
         Light light;
-        light.Init( WorldPosition, DynamicLightConstantByIndex( lightIndex ), PositionSs.xy );
+        light.Init( WorldPosition, DynamicLightConstantByIndex( lightIndex ), PositionSs );
         
         if (light.Visibility > 0.0f && light.Attenuation > 0.0f && dot(light.Direction, Normal) > 0.0f)
             nNumLights++;

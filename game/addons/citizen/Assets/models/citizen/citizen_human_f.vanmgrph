@@ -42045,7 +42045,7 @@
 												{
 													_class = "CAddAnimNode"
 													m_sName = "Add Idle breathing layer"
-													m_vecPosition = [ 64.0, -160.0 ]
+													m_vecPosition = [ 416.0, -160.0 ]
 													m_nNodeID = 
 													{
 														m_id = 350620979
@@ -42066,7 +42066,7 @@
 													{
 														m_nodeID = 
 														{
-															m_id = 53390399
+															m_id = 1705100635
 														}
 														m_outputID = 
 														{
@@ -42085,13 +42085,110 @@
 											{
 												key = 
 												{
+													m_id = 553885534
+												}
+												value = 
+												{
+													_class = "CChoiceAnimNode"
+													m_sName = "Unnamed"
+													m_vecPosition = [ -112.0, 224.0 ]
+													m_nNodeID = 
+													{
+														m_id = 553885534
+													}
+													m_sNote = ""
+													m_children = 
+													[
+														{
+															m_inputConnection = 
+															{
+																m_nodeID = 
+																{
+																	m_id = 1932891475
+																}
+																m_outputID = 
+																{
+																	m_id = 4294967295
+																}
+															}
+															m_name = "0.91"
+															m_weight = 0.0
+															m_blendTime = 0.2
+														},
+														{
+															m_inputConnection = 
+															{
+																m_nodeID = 
+																{
+																	m_id = 639126853
+																}
+																m_outputID = 
+																{
+																	m_id = 4294967295
+																}
+															}
+															m_name = "0.96"
+															m_weight = 0.0
+															m_blendTime = 0.2
+														},
+														{
+															m_inputConnection = 
+															{
+																m_nodeID = 
+																{
+																	m_id = 758669353
+																}
+																m_outputID = 
+																{
+																	m_id = 4294967295
+																}
+															}
+															m_name = "1.0"
+															m_weight = 0.0
+															m_blendTime = 0.2
+														},
+													]
+													m_seed = 111478760
+													m_choiceMethod = "WeightedRandom"
+													m_choiceChangeMethod = "OnReset"
+													m_blendMethod = "SingleBlendTime"
+													m_blendTime = 0.2
+													m_bCrossFade = false
+													m_bResetChosen = true
+													m_bDontResetSameSelection = true
+												}
+											},
+											{
+												key = 
+												{
+													m_id = 639126853
+												}
+												value = 
+												{
+													_class = "CSequenceAnimNode"
+													m_sName = "Unnamed"
+													m_vecPosition = [ -416.0, 240.0 ]
+													m_nNodeID = 
+													{
+														m_id = 639126853
+													}
+													m_sNote = ""
+													m_tagSpans = [  ]
+													m_sequenceName = "IdleLayer_Breathe_Third_delta"
+													m_playbackSpeed = 0.96
+													m_bLoop = true
+												}
+											},
+											{
+												key = 
+												{
 													m_id = 732892453
 												}
 												value = 
 												{
 													_class = "CSequenceAnimNode"
 													m_sName = "Unnamed"
-													m_vecPosition = [ -384.0, 80.0 ]
+													m_vecPosition = [ -416.0, 80.0 ]
 													m_nNodeID = 
 													{
 														m_id = 732892453
@@ -42106,13 +42203,34 @@
 											{
 												key = 
 												{
+													m_id = 758669353
+												}
+												value = 
+												{
+													_class = "CSequenceAnimNode"
+													m_sName = "Unnamed"
+													m_vecPosition = [ -416.0, 288.0 ]
+													m_nNodeID = 
+													{
+														m_id = 758669353
+													}
+													m_sNote = ""
+													m_tagSpans = [  ]
+													m_sequenceName = "IdleLayer_Breathe_Third_delta"
+													m_playbackSpeed = 1.0
+													m_bLoop = true
+												}
+											},
+											{
+												key = 
+												{
 													m_id = 945283043
 												}
 												value = 
 												{
 													_class = "CGroupOutputAnimNode"
 													m_sName = "Unnamed"
-													m_vecPosition = [ 256.0, -160.0 ]
+													m_vecPosition = [ 688.0, -160.0 ]
 													m_nNodeID = 
 													{
 														m_id = 945283043
@@ -42150,7 +42268,7 @@
 												{
 													_class = "CSequenceAnimNode"
 													m_sName = "Unnamed"
-													m_vecPosition = [ -384.0, -16.0 ]
+													m_vecPosition = [ -416.0, -16.0 ]
 													m_nNodeID = 
 													{
 														m_id = 950191400
@@ -42171,7 +42289,7 @@
 												{
 													_class = "CSequenceAnimNode"
 													m_sName = "Unnamed"
-													m_vecPosition = [ -384.0, -64.0 ]
+													m_vecPosition = [ -416.0, -64.0 ]
 													m_nNodeID = 
 													{
 														m_id = 1179797376
@@ -42186,13 +42304,100 @@
 											{
 												key = 
 												{
+													m_id = 1705100635
+												}
+												value = 
+												{
+													_class = "CSelectorAnimNode"
+													m_sName = "Unnamed"
+													m_vecPosition = [ 128.0, -96.0 ]
+													m_nNodeID = 
+													{
+														m_id = 1705100635
+													}
+													m_sNote = ""
+													m_children = 
+													[
+														{
+															m_nodeID = 
+															{
+																m_id = 53390399
+															}
+															m_outputID = 
+															{
+																m_id = 4294967295
+															}
+														},
+														{
+															m_nodeID = 
+															{
+																m_id = 553885534
+															}
+															m_outputID = 
+															{
+																m_id = 4294967295
+															}
+														},
+														{
+															m_nodeID = 
+															{
+																m_id = 553885534
+															}
+															m_outputID = 
+															{
+																m_id = 4294967295
+															}
+														},
+													]
+													m_tags = 
+													[
+														{
+															m_id = 4294967295
+														},
+														{
+															m_id = 4294967295
+														},
+														{
+															m_id = 4294967295
+														},
+													]
+													m_selectionSource = "SelectionSource_Enum"
+													m_boolParamID = 
+													{
+														m_id = 4294967295
+													}
+													m_enumParamID = 
+													{
+														m_id = 736115688
+													}
+													m_intParamID = 
+													{
+														m_id = 4294967295
+													}
+													m_intParamMinValue = 0
+													m_intParamMaxValue = 2
+													m_blendDuration = 0.0
+													m_tagBehavior = "SelectorTagBehavior_OffWhenFinished"
+													m_bResetOnChange = true
+													m_bSyncCyclesOnChange = false
+													m_blendCurve = 
+													{
+														m_vControlPoint1 = [ 0.5, 0.0 ]
+														m_vControlPoint2 = [ 0.5, 1.0 ]
+													}
+													m_intParamNames = [  ]
+												}
+											},
+											{
+												key = 
+												{
 													m_id = 1799112381
 												}
 												value = 
 												{
 													_class = "CSequenceAnimNode"
 													m_sName = "Unnamed"
-													m_vecPosition = [ -384.0, 32.0 ]
+													m_vecPosition = [ -416.0, 32.0 ]
 													m_nNodeID = 
 													{
 														m_id = 1799112381
@@ -42213,7 +42418,7 @@
 												{
 													_class = "CSequenceAnimNode"
 													m_sName = "Unnamed"
-													m_vecPosition = [ -384.0, 128.0 ]
+													m_vecPosition = [ -416.0, 128.0 ]
 													m_nNodeID = 
 													{
 														m_id = 1875520605
@@ -42222,6 +42427,27 @@
 													m_tagSpans = [  ]
 													m_sequenceName = "IdleLayer_Breathe_delta"
 													m_playbackSpeed = 1.09
+													m_bLoop = true
+												}
+											},
+											{
+												key = 
+												{
+													m_id = 1932891475
+												}
+												value = 
+												{
+													_class = "CSequenceAnimNode"
+													m_sName = "Unnamed"
+													m_vecPosition = [ -416.0, 192.0 ]
+													m_nNodeID = 
+													{
+														m_id = 1932891475
+													}
+													m_sNote = ""
+													m_tagSpans = [  ]
+													m_sequenceName = "IdleLayer_Breathe_Third_delta"
+													m_playbackSpeed = 0.91
 													m_bLoop = true
 												}
 											},
@@ -89754,7 +89980,7 @@
 		},
 		{
 			m_name = "models/citizen_clothes/shirt/jumpsuit/models/jumpsuit.vmdl"
-			m_bEnabled = true
+			m_bEnabled = false
 		},
 		{
 			m_name = "models/weapons/sbox_physgun/w_physgun.vmdl"

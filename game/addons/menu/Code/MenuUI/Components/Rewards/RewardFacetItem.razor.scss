@@ -1,0 +1,94 @@
+@import "/styles/_theme.scss";
+
+RewardFacetItem
+{
+	flex-direction: column;
+	gap: 1rem;
+	border-radius: 10px;
+
+	.facet-top
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 6px;
+
+		.status
+		{
+			color: $default-400;
+			font-size: $text-medium;
+		}
+
+		.title
+		{
+			color: $default-text;
+		}
+
+		.count
+		{
+			color: $default-300;
+			font-family: $font-heading;
+			font-weight: 600;
+			font-size: $text-small;
+		}
+	}
+
+	.track
+	{
+		flex-direction: row;
+		align-items: center;
+
+		.node
+		{
+			width: 32px;
+			height: 32px;
+			min-width: 26px;
+			flex-shrink: 0;
+			border-radius: 100px;
+			align-items: center;
+			justify-content: center;
+			background-color: $default-700;
+			color: $default-500;
+			font-family: $font-heading;
+			font-weight: 700;
+			font-size: 15px;
+			transition: all 150ms $easing;
+
+			icon
+			{
+				font-size: 20px;
+				color: #afa;
+				text-shadow: 0px 0px 20px #fff;
+			}
+
+			&.filled
+			{
+				background-color: $primary-green;
+				border-color: $primary-green;
+			}
+		}
+
+		.connector
+		{
+			flex-grow: 1;
+			height: 16px;
+			margin: 0 -16px;
+			background-color: $default-700;
+			transition: all 150ms $easing;
+			z-index: -10;
+
+			&.filled
+			{
+				height: 24px;
+				background-color: rgba( $primary-green, 0.6 );
+			}
+		}
+	}
+
+	&.met
+	{
+		.facet-top .status
+		{
+			color: $primary-green;
+		}
+	}
+}

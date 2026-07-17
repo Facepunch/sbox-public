@@ -142,8 +142,8 @@ PS
 			}
 		}
 		
-		// Output to screen
-		color /= (Directions * Quality) - (FilterBlur / 4);
+		// Normalize by actual sample count: Directions * Quality blur samples plus the incoming centre sample
+		color /= (Directions * Quality) + 1.0;
 
 		return color;
 	}

@@ -12,15 +12,28 @@ public class StyleSheet
 	/// </summary>
 	internal static void ResetStyleSheets()
 	{
-		foreach ( var sheet in Loaded )
-		{
-			sheet?.Release();
-		}
+		// Only reset sheets belonging to the current context, so we don't stomp another context (eg the menu)
+		var context = GlobalContext.Current;
 
-		Loaded.Clear();
+		for ( int i = Loaded.Count - 1; i >= 0; i-- )
+		{
+			var sheet = Loaded[i];
+			if ( sheet == null || !ReferenceEquals( sheet.Context, context ) )
+				continue;
+
+			sheet.Release();
+			Loaded.RemoveAt( i );
+		}
 	}
 
 	public List<StyleBlock> Nodes { get; set; } = new List<StyleBlock>();
+
+	// Rules bucketed by the class their subject needs, so a panel only tests rules for its own classes
+	// instead of every rule. Rules without a class subject (element/id/*) go in _other. Built once when
+	// parsing finishes (main thread); only read during the threaded style build.
+	Dictionary<string, List<StyleBlock>> _byClass;
+	List<StyleBlock> _other;
+
 	public string FileName { get; internal set; }
 	internal FileWatch Watcher { get; private set; }
 	public List<string> IncludedFiles { get; set; } = new List<string>();
@@ -71,7 +84,7 @@ public class StyleSheet
 	{
 		try
 		{
-			return StyleParser.ParseSheet( styles, filename, variables );
+			return StyleParser.ParseSheet( styles, filename, variables, recover: true );
 		}
 		catch ( Exception e )
 		{
@@ -122,12 +135,18 @@ public class StyleSheet
 	{
 		try
 		{
-			var sheet = FromString( text, filename, null );
+			// Keep any variables that were injected from outside (eg inherited from a parent) so a
+			// reparse doesn't lose them
+			var injected = Variables?.Select( x => (x.Key, x.Value) ).ToArray();
+
+			var sheet = FromString( text, filename, injected );
 
 			Nodes = sheet.Nodes;
 			Variables = sheet.Variables;
 			KeyFrames = sheet.KeyFrames;
 			Mixins = sheet.Mixins;
+			_byClass = sheet._byClass;
+			_other = sheet._other;
 
 			// Don't overwrite the included files if the stylesheet
 			// failed to load, because it won't be able to hotload
@@ -171,6 +190,11 @@ public class StyleSheet
 		Watcher.OnChanges += x =>
 		{
 			UpdateFromFile( name, true, context );
+
+			// Watch any files that got @import'd during this reparse so editing them hotloads too
+			foreach ( var file in IncludedFiles )
+				Watcher?.AddFile( file );
+
 			context.UISystem.DirtyAllStyles();
 		};
 
@@ -196,31 +220,21 @@ public class StyleSheet
 	{
 		if ( Variables == null ) return defaultValue;
 		if ( Variables.TryGetValue( name, out var val ) ) return val;
-		return null;
+		return defaultValue;
 	}
 
 	public string ReplaceVariables( string str )
 	{
 		if ( !str.Contains( '$' ) ) return str; // fast exit
 
-		if ( Variables == null )
-			throw new Exception( "Couldn't replace variables -- none set?" );
-
-		var pairs = Variables.Where( x => str.Contains( x.Key ) ).ToArray();
-
-		bool replaced = false;
-		foreach ( var var in pairs.OrderByDescending( x => x.Key.Length ) ) // replace the longest first so $button won't stomp $button-bright
+		// Match whole $variable tokens only, so $col doesn't stomp $color and a literal $ (eg $5.00) is left alone
+		return System.Text.RegularExpressions.Regex.Replace( str, @"\$[A-Za-z_][A-Za-z0-9_-]*", m =>
 		{
-			str = str.Replace( var.Key, var.Value );
-			replaced = true;
-		}
+			if ( Variables != null && Variables.TryGetValue( m.Value, out var value ) )
+				return value;
 
-		if ( !replaced )
-		{
-			throw new Exception( $"Unknown variable '{str}'" );
-		}
-
-		return str;
+			throw new Exception( $"Unknown variable '{m.Value}'" );
+		} );
 	}
 
 	internal void AddVariables( IEnumerable<(string key, string value)> variables )
@@ -261,5 +275,71 @@ public class StyleSheet
 	{
 		Mixins.TryGetValue( name, out var mixin );
 		return mixin;
+	}
+
+	/// <summary>
+	/// Build the class index from Nodes. Call after Nodes is finalised (parse/hotload).
+	/// </summary>
+	internal void BuildIndex()
+	{
+		_byClass = new Dictionary<string, List<StyleBlock>>( StringComparer.OrdinalIgnoreCase );
+		_other = new List<StyleBlock>();
+
+		foreach ( var block in Nodes )
+		{
+			if ( block.Selectors == null )
+				continue;
+
+			foreach ( var sel in block.Selectors )
+			{
+				// Bucket by the subject's first class. A panel must have that class to match, so this is
+				// a safe narrowing - rules without a class subject always get tested.
+				if ( sel.Classes != null && sel.Classes.Length > 0 )
+				{
+					var key = sel.Classes[0];
+					if ( !_byClass.TryGetValue( key, out var list ) )
+						_byClass[key] = list = new List<StyleBlock>();
+
+					list.Add( block );
+				}
+				else
+				{
+					_other.Add( block );
+				}
+			}
+		}
+	}
+
+	/// <summary>
+	/// Add the rules that could match a target with these classes to <paramref name="output"/>. The exact
+	/// TestBroadphase still runs, so the result is the same as testing every rule - just cheaper.
+	/// </summary>
+	internal void GatherCandidates( HashSet<string> classes, IStyleTarget target, HashSet<StyleBlock> seen, List<StyleBlock> output )
+	{
+		if ( _byClass == null )
+		{
+			Take( Nodes, target, seen, output ); // not indexed - test everything
+			return;
+		}
+
+		Take( _other, target, seen, output );
+
+		if ( classes == null )
+			return;
+
+		foreach ( var c in classes )
+		{
+			if ( _byClass.TryGetValue( c, out var list ) )
+				Take( list, target, seen, output );
+		}
+	}
+
+	static void Take( List<StyleBlock> blocks, IStyleTarget target, HashSet<StyleBlock> seen, List<StyleBlock> output )
+	{
+		foreach ( var block in blocks )
+		{
+			if ( seen.Add( block ) && block.TestBroadphase( target ) )
+				output.Add( block );
+		}
 	}
 }

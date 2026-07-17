@@ -5,7 +5,7 @@
 /// <br/><b>Space (Hold)</b> - Snap pivot to scene/vertices
 /// </summary>
 [Title( "Pivot Tool" )]
-[Icon( "adjust" )]
+[Icon( "meshtools/move_modes/pivot_tool.png" )]
 [Alias( "mesh.pivot.mode" )]
 [Order( 3 )]
 public sealed class PivotMode : MoveMode

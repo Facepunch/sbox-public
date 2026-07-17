@@ -150,6 +150,7 @@ internal class TitleBar : Widget
 	}
 
 	[Event( "refresh" )]
+	[Event( "project.settings.saved" )]
 	public void OnHotload()
 	{
 		if ( Window is EditorMainWindow mw )

@@ -44,14 +44,14 @@ internal static partial class Logging
 #pragma warning restore CA2000 // Dispose objects before losing scope
 		{
 			FileName = System.IO.Path.Combine( gamePath, $"logs/{appName}.log" ),
-			ArchiveFileName = System.IO.Path.Combine( gamePath, "logs/" + appName + "-${date:format=yyyy-MM-dd}.zip" ),
+			ArchiveFileName = System.IO.Path.Combine( gamePath, "logs/" + appName + "-${date:format=yyyy-MM-dd}.log" ),
 			ArchiveOldFileOnStartup = true,
 			ArchiveAboveSize = 512 * 1024 * 1024,
 			ArchiveEvery = FileArchivePeriod.Day,
 			OpenFileCacheSize = 10,
 			MaxArchiveFiles = 10,
 			KeepFileOpen = true,
-			EnableArchiveFileCompression = true,
+			EnableArchiveFileCompression = false,
 
 
 			//DeleteOldFileOnStartup = true,

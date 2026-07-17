@@ -1,199 +1,132 @@
-﻿using System.Collections.Generic;
+namespace Sandbox.Twitch;
 
-namespace Sandbox.Twitch
+/// <summary>
+/// Parses raw Twitch IRC lines into an <see cref="IrcMessage"/>. The line format is IRCv3:
+/// <c>[@tags] [:prefix] COMMAND [params] [:trailing]</c> - each section optional and space
+/// separated. Scanning is done with <see cref="Parse"/>, our shared cursor-based text reader.
+/// </summary>
+internal static class IrcParser
 {
-	internal static class IRCParser
+	/// <summary>
+	/// Parse a single IRC line (without its trailing CRLF).
+	/// </summary>
+	public static IrcMessage Parse( string raw )
 	{
-		private enum State
+		var cursor = new Parse( raw );
+
+		// @tag1=value1;tag2=value2 ...
+		Dictionary<string, string> tags = null;
+		if ( cursor.Is( '@' ) )
 		{
-			None,
-			V3,
-			Prefix,
-			Command,
-			Param,
-			Trailing
-		};
-
-		/// <summary>
-		/// Parses a raw IRC message into a IRCMessage.
-		/// </summary>
-		public static IRCMessage Parse( string raw )
-		{
-			Dictionary<string, string> tagDict = new Dictionary<string, string>();
-
-			State state = State.None;
-			int[] starts = new[] { 0, 0, 0, 0, 0, 0 };
-			int[] lens = new[] { 0, 0, 0, 0, 0, 0 };
-			for ( int i = 0; i < raw.Length; ++i )
-			{
-				lens[(int)state] = i - starts[(int)state] - 1;
-				if ( state == State.None && raw[i] == '@' )
-				{
-					state = State.V3;
-					starts[(int)state] = ++i;
-
-					int start = i;
-					string key = null;
-					for ( ; i < raw.Length; ++i )
-					{
-						if ( raw[i] == '=' )
-						{
-							key = raw.Substring( start, i - start );
-							start = i + 1;
-						}
-						else if ( raw[i] == ';' )
-						{
-							if ( key == null )
-								tagDict[raw.Substring( start, i - start )] = "1";
-							else
-								tagDict[key] = raw.Substring( start, i - start );
-							start = i + 1;
-						}
-						else if ( raw[i] == ' ' )
-						{
-							if ( key == null )
-								tagDict[raw.Substring( start, i - start )] = "1";
-							else
-								tagDict[key] = raw.Substring( start, i - start );
-							break;
-						}
-					}
-				}
-				else if ( state < State.Prefix && raw[i] == ':' )
-				{
-					state = State.Prefix;
-					starts[(int)state] = ++i;
-				}
-				else if ( state < State.Command )
-				{
-					state = State.Command;
-					starts[(int)state] = i;
-				}
-				else if ( state < State.Trailing && raw[i] == ':' )
-				{
-					state = State.Trailing;
-					starts[(int)state] = ++i;
-					break;
-				}
-				else if ( state < State.Trailing && raw[i] == '+' || state < State.Trailing && raw[i] == '-' )
-				{
-					state = State.Trailing;
-					starts[(int)state] = i;
-					break;
-				}
-				else if ( state == State.Command )
-				{
-					state = State.Param;
-					starts[(int)state] = i;
-				}
-
-				while ( i < raw.Length && raw[i] != ' ' )
-					++i;
-			}
-
-			lens[(int)state] = raw.Length - starts[(int)state];
-			string cmd = raw.Substring( starts[(int)State.Command],
-				lens[(int)State.Command] );
-
-			IRCCommand command = IRCCommand.Unknown;
-			switch ( cmd )
-			{
-				case "PRIVMSG":
-					command = IRCCommand.PrivMsg;
-					break;
-				case "NOTICE":
-					command = IRCCommand.Notice;
-					break;
-				case "PING":
-					command = IRCCommand.Ping;
-					break;
-				case "PONG":
-					command = IRCCommand.Pong;
-					break;
-				case "HOSTTARGET":
-					command = IRCCommand.HostTarget;
-					break;
-				case "CLEARCHAT":
-					command = IRCCommand.ClearChat;
-					break;
-				case "CLEARMSG":
-					command = IRCCommand.ClearMsg;
-					break;
-				case "USERSTATE":
-					command = IRCCommand.UserState;
-					break;
-				case "GLOBALUSERSTATE":
-					command = IRCCommand.GlobalUserState;
-					break;
-				case "NICK":
-					command = IRCCommand.Nick;
-					break;
-				case "JOIN":
-					command = IRCCommand.Join;
-					break;
-				case "PART":
-					command = IRCCommand.Part;
-					break;
-				case "PASS":
-					command = IRCCommand.Pass;
-					break;
-				case "CAP":
-					command = IRCCommand.Cap;
-					break;
-				case "001":
-					command = IRCCommand.RPL_001;
-					break;
-				case "002":
-					command = IRCCommand.RPL_002;
-					break;
-				case "003":
-					command = IRCCommand.RPL_003;
-					break;
-				case "004":
-					command = IRCCommand.RPL_004;
-					break;
-				case "353":
-					command = IRCCommand.RPL_353;
-					break;
-				case "366":
-					command = IRCCommand.RPL_366;
-					break;
-				case "372":
-					command = IRCCommand.RPL_372;
-					break;
-				case "375":
-					command = IRCCommand.RPL_375;
-					break;
-				case "376":
-					command = IRCCommand.RPL_376;
-					break;
-				case "WHISPER":
-					command = IRCCommand.Whisper;
-					break;
-				case "SERVERCHANGE":
-					command = IRCCommand.ServerChange;
-					break;
-				case "RECONNECT":
-					command = IRCCommand.Reconnect;
-					break;
-				case "ROOMSTATE":
-					command = IRCCommand.RoomState;
-					break;
-				case "USERNOTICE":
-					command = IRCCommand.UserNotice;
-					break;
-				case "MODE":
-					command = IRCCommand.Mode;
-					break;
-			}
-
-			string parameters = raw.Substring( starts[(int)State.Param],
-				lens[(int)State.Param] );
-			string message = raw.Substring( starts[(int)State.Trailing],
-				lens[(int)State.Trailing] );
-			string hostmask = raw.Substring( starts[(int)State.Prefix],
-				lens[(int)State.Prefix] );
-			return new IRCMessage( command, new[] { parameters, message }, hostmask, tagDict );
+			cursor.Pointer++;
+			tags = ParseTags( cursor.ReadUntilOrEnd( " ", acceptNone: true ) );
+			cursor.SkipWhitespaceAndNewlines();
 		}
+
+		// :nick!user@host
+		string user = null;
+		if ( cursor.Is( ':' ) )
+		{
+			cursor.Pointer++;
+			user = ExtractNick( cursor.ReadUntilOrEnd( " ", acceptNone: true ) );
+			cursor.SkipWhitespaceAndNewlines();
+		}
+
+		var command = ParseCommand( cursor.ReadUntilOrEnd( " ", acceptNone: true ) );
+		cursor.SkipWhitespaceAndNewlines();
+
+		// What's left is "[params] [:trailing]". The trailing text begins at the first ':', which
+		// in Twitch's dialect can only ever be the trailing marker.
+		var channel = ExtractChannel( cursor.ReadUntilOrEnd( ":", acceptNone: true ) );
+
+		string message = null;
+		if ( cursor.Current == ':' )
+		{
+			cursor.Pointer++;
+			message = cursor.ReadRemaining( acceptNone: true );
+		}
+
+		return new IrcMessage( command, user, channel, message, tags );
 	}
+
+	/// <summary>
+	/// Extract the nick from a "nick!user@host" prefix - everything before the '!', or the whole
+	/// thing if there's no '!' (server-originated lines).
+	/// </summary>
+	static string ExtractNick( string prefix )
+	{
+		var cursor = new Parse( prefix );
+		return cursor.ReadUntilOrEnd( "!", acceptNone: true );
+	}
+
+	/// <summary>
+	/// Pull the channel out of the param list - the token starting with '#', minus the '#'.
+	/// Returns null when there isn't one (e.g. PING, NOTICE).
+	/// </summary>
+	static string ExtractChannel( string parameters )
+	{
+		if ( string.IsNullOrEmpty( parameters ) )
+			return null;
+
+		var cursor = new Parse( parameters );
+		if ( cursor.ReadUntil( "#" ) is null )
+			return null;
+
+		cursor.Pointer++; // skip '#'
+		return cursor.ReadUntilWhitespaceOrNewlineOrEnd();
+	}
+
+	/// <summary>
+	/// Parse the "key1=value1;key2=value2" tag block. Valueless tags map to "1" per IRCv3.
+	/// Returns null if the block is empty.
+	/// </summary>
+	static Dictionary<string, string> ParseTags( string block )
+	{
+		if ( string.IsNullOrEmpty( block ) )
+			return null;
+
+		var tags = new Dictionary<string, string>();
+
+		var cursor = new Parse( block );
+		while ( !cursor.IsEnd )
+		{
+			var pair = cursor.ReadUntilOrEnd( ";", acceptNone: true );
+			if ( cursor.Current == ';' )
+				cursor.Pointer++;
+
+			if ( string.IsNullOrEmpty( pair ) )
+				continue;
+
+			var kv = new Parse( pair );
+			var key = kv.ReadUntilOrEnd( "=", acceptNone: true );
+			if ( string.IsNullOrEmpty( key ) )
+				continue;
+
+			// A bare key with no '=' is a valueless tag.
+			var value = "1";
+			if ( kv.Current == '=' )
+			{
+				kv.Pointer++;
+				value = kv.ReadRemaining( acceptNone: true );
+			}
+
+			tags[key] = value;
+		}
+
+		return tags;
+	}
+
+	static IrcCommand ParseCommand( string command ) => command switch
+	{
+		"PRIVMSG" => IrcCommand.PrivMsg,
+		"PING" => IrcCommand.Ping,
+		"NOTICE" => IrcCommand.Notice,
+		"USERNOTICE" => IrcCommand.UserNotice,
+		"RECONNECT" => IrcCommand.Reconnect,
+		"JOIN" => IrcCommand.Join,
+		"PART" => IrcCommand.Part,
+		"004" => IrcCommand.RPL_004,
+		"353" => IrcCommand.RPL_353,
+		_ => IrcCommand.Unknown,
+	};
 }

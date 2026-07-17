@@ -1,0 +1,86 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using System;
+@namespace Sandbox.UI
+@inherits Panel
+
+@if ( Facet is null )
+{
+	return;
+}
+
+<root class="@( Facet.Met ? "met" : "" )" tooltip="@HoverText">
+
+	<div class="facet-top">
+		<label class="small title">@Facet.Title</label>
+	</div>
+
+	<div class="track">
+
+		@for ( int i = 0; i < DotCount; i++ )
+		{
+			@if ( i > 0 )
+			{
+				<div class="connector @( i < FilledDots ? "filled" : "" )" />
+			}
+
+			<div class="node @( i < FilledDots ? "filled" : "" )">
+				@if ( i < FilledDots )
+				{
+					<icon>check</icon>
+				}
+				else
+				{
+					<label>@( i + 1 )</label>
+				}
+			</div>
+		}
+
+	</div>
+
+</root>
+
+@code
+{
+	/// <summary>
+	/// The requirement this row shows progress for.
+	/// </summary>
+	[Parameter] public RewardFacet Facet { get; set; }
+
+	/// <summary>
+	/// The hover description, or null when the API didn't give us one (so no empty tooltip shows).
+	/// </summary>
+	string HoverText => string.IsNullOrWhiteSpace( Facet.Description ) ? null : Facet.Description;
+
+	/// <summary>
+	/// One segment per unit required, matching the dot progress on the website's rewards page.
+	/// </summary>
+	int DotCount
+	{
+		get
+		{
+			var count = (int)Math.Ceiling( Facet.Required );
+			if ( count < 1 )
+				count = 1;
+
+			return count;
+		}
+	}
+
+	int FilledDots
+	{
+		get
+		{
+			var filled = (int)Math.Floor( Facet.Current );
+			if ( filled < 0 )
+				filled = 0;
+
+			if ( filled > DotCount )
+				filled = DotCount;
+
+			return filled;
+		}
+	}
+
+	protected override int BuildHash() => HashCode.Combine( Facet?.Current, Facet?.Required, Facet?.Met );
+}

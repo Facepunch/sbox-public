@@ -5,9 +5,9 @@ namespace Facepunch.Steps;
 /// <summary>
 /// Step to build the VPC tool from source. Only needed on non-Windows platforms.
 /// </summary>
-internal class BuildVpc( string name ) : Step( name )
+internal class BuildVpc
 {
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		if ( OperatingSystem.IsWindows() )
 		{

@@ -6,11 +6,31 @@ public partial class GameObject
 	{
 		public Texture Texture { get; set; }
 		public string Icon { get; set; }
+
+		/// <summary>Base color from the <see cref="EditorHandleAttribute"/>, used when there's no color provider.</summary>
 		public Color Color { get; set; }
+
+		/// <summary>Color provider (usually a light), read live each frame so its color stays current.</summary>
+		public Component.IColorProvider ColorProvider { get; set; }
+
+		/// <summary>The color to draw the handle with this frame.</summary>
+		public Color EffectiveColor
+		{
+			get
+			{
+				if ( ColorProvider is null )
+					return Color;
+
+				// this is mainly for lights, we don't want any black bulbs, but we do want to indicate light color
+				// so if anything else starts using this we should probably move this logic into the light component implementation
+				return ((Vector3)ColorProvider.ComponentColor).Normal * 2;
+			}
+		}
 	}
 
 	GameObjectHandle _handle;
 	bool handleBuilt;
+	int _handleGen = -1;
 
 	[Obsolete( "Use HasGizmoHandle" )]
 	public bool HasGimzoHandle { get => HasGizmoHandle; private set => HasGizmoHandle = value; }
@@ -18,18 +38,37 @@ public partial class GameObject
 
 	void BuildGizmoDetails()
 	{
-		if ( handleBuilt )
+		// Rebuilt only when the component list changes (ClearInternalCache) or a gizmo type is toggled.
+		if ( handleBuilt && _handleGen == Gizmo.GizmoTypeGeneration )
 			return;
 
-		_handle = default;
+		handleBuilt = true;
+		_handleGen = Gizmo.GizmoTypeGeneration;
+		_handle = null;
 
-		var handles = Components.GetAll()
-			.Where( x => x is not null )
-			.Select( x => Game.TypeLibrary.GetType( x.GetType() ) )
-			.Where( x => x is not null )
-			.Where( x => Gizmo.Settings.IsGizmoEnabled( x.TargetType ) )
-			.SelectMany( x => x.GetAttributes<EditorHandleAttribute>( true ) )
-			.FirstOrDefault();
+		EditorHandleAttribute handles = null;
+
+		foreach ( var c in Components.GetAll() )
+		{
+			if ( c is null )
+				continue;
+
+			var typeDesc = Game.TypeLibrary.GetType( c.GetType() );
+			if ( typeDesc is null )
+				continue;
+
+			if ( !Gizmo.Settings.IsGizmoEnabled( typeDesc.TargetType ) )
+				continue;
+
+			foreach ( var attr in typeDesc.GetAttributes<EditorHandleAttribute>( true ) )
+			{
+				handles = attr;
+				break;
+			}
+
+			if ( handles is not null )
+				break;
+		}
 
 		if ( handles is null )
 			return;
@@ -37,16 +76,7 @@ public partial class GameObject
 		_handle = new GameObjectHandle();
 		_handle.Icon = handles.Icon;
 		_handle.Color = handles.Color;
-
-		var colorProvider = Components.GetAll<Component.IColorProvider>().FirstOrDefault();
-		if ( colorProvider is not null )
-		{
-			_handle.Color = colorProvider.ComponentColor;
-
-			// this is mainly for lights, we don't want any black bulbs, but we do want to indicate light color
-			// so if anything else starts using this we should probably move this logic into the light component implementation
-			_handle.Color = ((Vector3)_handle.Color).Normal * 2;
-		}
+		_handle.ColorProvider = Components.GetAll<Component.IColorProvider>().FirstOrDefault();
 
 		if ( !string.IsNullOrWhiteSpace( handles.Texture ) )
 		{
@@ -106,7 +136,7 @@ public partial class GameObject
 				// Texture mode
 				//
 
-				Gizmo.Draw.Color = isSelected ? Color.Yellow : _handle.Color;
+				Gizmo.Draw.Color = isSelected ? Color.Yellow : _handle.EffectiveColor;
 				Gizmo.Draw.Sprite( Vector3.Zero, size * Gizmo.Settings.GizmoScale, _handle.Texture, worldSpace );
 			}
 			else if ( _handle.Icon is not null )
@@ -115,7 +145,7 @@ public partial class GameObject
 				// Icon mode
 				//
 
-				var text = new TextRendering.Scope( _handle.Icon, _handle.Color, 64, "Material Icons", 400 );
+				var text = new TextRendering.Scope( _handle.Icon, _handle.EffectiveColor, 64, "Material Icons", 400 );
 				text.Shadow = new TextRendering.Shadow { Enabled = true, Color = Color.Black, Offset = 2, Size = 8 };
 				var tex = TextRendering.GetOrCreateTexture( text, flag: TextFlag.Center );
 				if ( tex is not null )
@@ -152,7 +182,7 @@ public partial class GameObject
 
 				Components.ForEach( "DrawGizmos", false, c =>
 				{
-					if ( !c.Flags.Contains( ComponentFlags.Hidden ) )
+					if ( c.OverridesDrawGizmos && !c.Flags.Contains( ComponentFlags.Hidden ) )
 					{
 						using var scope = Gizmo.Scope();
 						c.DrawGizmosInternal();

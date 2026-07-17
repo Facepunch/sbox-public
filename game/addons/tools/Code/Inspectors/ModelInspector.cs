@@ -757,6 +757,8 @@ file class GraphParamsObject : SerializedObject
 	public AnimationGraph Graph { get; }
 	public AnimationParameterList.IAccessor Accessor { get; }
 
+	public override IEnumerable<object> Targets => [Accessor];
+
 	public GraphParamsObject( AnimationGraph graph, AnimationParameterList.IAccessor accessor )
 	{
 		Graph = graph;

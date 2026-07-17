@@ -64,7 +64,7 @@ internal sealed class LocalPackage : Package
 		return true;
 	}
 
-	internal override IEnumerable<string> EnumeratePackageReferences()
+	internal override IEnumerable<string> EnumerateInstallDependencies()
 	{
 		if ( (Project.Config.Type == "game" || Project.Config.Type == "addon") && !Project.IsBuiltIn )
 		{
@@ -74,7 +74,7 @@ internal sealed class LocalPackage : Package
 			}
 		}
 
-		foreach ( var package in base.EnumeratePackageReferences() )
+		foreach ( var package in base.EnumerateInstallDependencies() )
 		{
 			yield return package;
 		}

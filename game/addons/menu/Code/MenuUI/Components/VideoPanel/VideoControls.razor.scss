@@ -1,108 +1,100 @@
 ﻿
 .videocontrols
 {
-    background-color: #0005;
-    backdrop-filter: blur( 10px );
-    min-width: 200px;
-    max-width: 800px;
-    flex-grow: 1;
-    border-radius: 10px;
-    pointer-events: all;
-    flex-direction: row;
+	background-color: rgba( black, 0.6 );
+	backdrop-filter: blur( 10px );
+	min-width: 200px;
+	max-width: 700px;
+	flex-grow: 1;
+	border-radius: 10px;
+	pointer-events: all;
+	flex-direction: row;
+	padding: 16px;
+	gap: 16px;
 
+	> .left
+	{
+		.playbutton
+		{
+			font-size: 40px;
+			pointer-events: all;
+			justify-content: center;
+			align-items: center;
+		}
+	}
 
-    > .left
-    {
-        .playbutton
-        {
-            font-size: 60px;
-            padding: 20px;
-            pointer-events: all;
-            justify-content: center;
-            align-items: center;
-        }
-    }
+	> .right
+	{
+		flex-grow: 1;
+		flex-direction: column;
+		padding-left: 0px;
+		gap: 16px;
+	}
 
-    > .right
-    {
-        flex-grow: 1;
-        flex-direction: column;
-        padding: 16px 32px;
-        padding-left: 0px;
-        gap: 5px;
-    }
+	.meta
+	{
+		align-items: center;
 
-    .meta
-    {
-        align-items: center;
+		.left
+		{
+			flex-grow: 1;
+			gap: 16px;
 
-        .left
-        {
-            flex-grow: 1;
+			i
+			{
+				position: relative;
+				font-size: 18px;
+			}
 
-            i
-            {
-                position: relative;
-                top: 3px;
-                font-size: 25px;
-            }
+			SliderControl
+			{
+				max-width: 100px;
+			}
+		}
 
-            SliderControl
-            {
-                max-width: 200px;
+		.right
+		{
+			font-size: 11px;
+			opacity: 0.8;
+			gap: 5px;
+		}
+	}
 
-                .inner
-                {
-                    .track
-                    {
-                        background-color: rgba(white, 0.2);
-                    }
+	.video-control-button
+	{
+		opacity: 0.8;
+		cursor: pointer;
 
-                    .track-active
-                    {
-                        background-color: white;
-                    }
-                }
-            }
-        }
+		&:hover
+		{
+			opacity: 1;
+		}
 
-        .right
-        {
-            font-size: 15px;
-            opacity: 0.8;
-            gap: 5px;
-        }
-    }
+		&.disabled
+		{
+			pointer-events: none;
+			opacity: 0.2;
+		}
+	}
 
-    .video-control-button
-    {
-        opacity: 0.8;
-        cursor: pointer;
+	.slidercontrol
+	{
+		.inner
+		{
+			min-height: 8px;
+		}
 
-        &:hover
-        {
-            opacity: 1;
-        }
+		.thumb
+		{
+			display: none;
+		}
 
-        &.disabled
-        {
-            pointer-events: none;
-            opacity: 0.2;
-        }
-    }
-
-    .slidercontrol 
-    {
-        .thumb
-        {
-            display: none;
-        }
-
-        .track
-        {
-            margin: 0;
-            height: 10px;
-            overflow: hidden;
-        }
-    }
+		.track
+		{
+			margin: 0;
+			height: 8px;
+			overflow: hidden;
+			background-color: rgba( white, 0.05 );
+		}
+	}
 }

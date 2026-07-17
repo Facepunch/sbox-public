@@ -34,6 +34,15 @@ public class PackageFlair
 	/// </summary>
 	public string Tooltip { get; set; }
 
+	/// <summary>Freshly published and not yet played — a discovery nudge for brand-new content.</summary>
+	public static PackageFlair New() => new()
+	{
+		Kind = "new",
+		Icon = "new_releases",
+		Style = "background-color: #ffd008; color: #ec712c; border-radius: 100px;",
+		Tooltip = "New — just published",
+	};
+
 	/// <summary>An ItemDef points at this package — it's an approved Workshop item (clothing etc).</summary>
 	public static PackageFlair WorkshopApproved() => new()
 	{
@@ -67,7 +76,7 @@ public class PackageFlair
 	public static PackageFlair ContestWinner( string categoryTitle, string contestTitle, DateTimeOffset date ) => new()
 	{
 		Kind = "contest-winner",
-		Icon = "trophy",
+		Icon = "emoji_events",
 		Style = "background-color: #f5a623; color: #fff;",
 		Tooltip = $"Won {categoryTitle} in {contestTitle}, {date:MMMM yyyy}",
 	};
@@ -82,6 +91,13 @@ public class PackageFlair
 	/// </summary>
 	public static void ForPlayer( List<PackageFlair> flair, DateTimeOffset updated, PackageInteraction interaction, string typeName )
 	{
+		// "New" is an intrinsic "nobody's played this yet" nudge — but if this viewer has played it, it's
+		// not new to them. Strip it here (the global TotalPlayerCount that sets it lags real plays anyway).
+		if ( interaction.Used )
+		{
+			flair.RemoveAll( f => f.Kind == "new" );
+		}
+
 		if ( typeName == "map" || typeName == "game" )
 		{
 			if ( interaction.Used && interaction.LastUsed is { } lastPlayed && updated > lastPlayed )

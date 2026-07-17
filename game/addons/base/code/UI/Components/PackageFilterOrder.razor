@@ -10,12 +10,9 @@
     var classes = current.Name == null ? "" : "is-active";
 }
 
-<root class="packagefilterfacet @classes" onmousedown="@OpenMenu">
-
+<root class="packagefilterfacet @classes" onmousedown="@OpenMenu" Tooltip="Sort">
     <i>@current.Icon</i>
     <div>@current.Title</div>
-    <div class="addon-button"><i>sort</i></div>
-
 </root>
 
 @code

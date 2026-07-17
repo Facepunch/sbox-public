@@ -7,25 +7,12 @@
 public class ArgStringToken : Arg
 {
 	public override string ManagedType => "Sandbox.StringToken";
-	public override string ManagedDelegateType => "Sandbox.StringToken";
 	public override string NativeType => "uint32";
 
-	public override string ToInterop( bool native, string code = null )
-	{
-		//	if ( code == null ) code = Name;
-
-		//	if ( !native )
-		//	{
-		//		return $"Sandbox.StringToken.FindOrCreate( {code} )";
-		//	}
-
-		return base.ToInterop( native, code );
-	}
-
-	public override string FromInterop( bool native, string code = null )
+	public override string FromInterop( Side side, string code = null )
 	{
 		code ??= Name;
 
-		return native ? $"StringTokenFromHashCode( {code} )" : base.ToInterop( native, code );
+		return side == Side.Native ? $"StringTokenFromHashCode( {code} )" : base.ToInterop( side, code );
 	}
 }

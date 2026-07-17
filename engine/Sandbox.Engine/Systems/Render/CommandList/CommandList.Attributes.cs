@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 
 namespace Sandbox.Rendering;
@@ -7,6 +6,9 @@ public sealed partial class CommandList
 {
 	public unsafe class AttributeAccess
 	{
+		// Writes (Grab*Texture) and the clear (Reset) happen under the owning CommandList's _lock,
+		// so they're already serialized. GetRenderTarget is the only access not already under that
+		// lock, so it takes it explicitly - see below.
 		private readonly Dictionary<string, RenderTarget> _renderTargets = new();
 
 		internal Func<RenderAttributes> _get;
@@ -364,13 +366,18 @@ public sealed partial class CommandList
 		/// </summary>
 		public RenderTarget GetRenderTarget( string name )
 		{
-			if ( _renderTargets.TryGetValue( name, out var rt ) )
-				return rt;
-			return null;
+			// Serialize against execute-thread writes / Reset clears, which hold the CommandList's _lock.
+			lock ( list._lock )
+			{
+				if ( _renderTargets.TryGetValue( name, out var rt ) )
+					return rt;
+				return null;
+			}
 		}
 
 		internal void ClearRenderTargets()
 		{
+			// Caller (Reset) already holds the CommandList's _lock.
 			_renderTargets.Clear();
 		}
 	}
@@ -379,7 +386,8 @@ public sealed partial class CommandList
 	/// These are the attributes for the current view. Setting a variable here will let you pass it down to
 	/// other places in the render pipeline.
 	/// </summary>
-	public AttributeAccess GlobalAttributes { get; private set; }
+	[Obsolete( "Global/frame attributes are deprecated. Use a local Attributes set or pipeline texture slots instead." )]
+	public AttributeAccess GlobalAttributes => Attributes;
 
 	/// <summary>
 	/// Access to the local attributes. What these are depends on where the command list is being called.
@@ -387,7 +395,8 @@ public sealed partial class CommandList
 	/// </summary>
 	public AttributeAccess Attributes { get; private set; }
 
-	RenderAttributes GetFrameAttributes() => Graphics.FrameAttributes;
+	[Obsolete( "Frame attributes are deprecated. Use a local Attributes set or pipeline texture slots instead." )]
+	RenderAttributes GetFrameAttributes() => GetLocalAttributes();
 	RenderAttributes GetLocalAttributes() => Graphics.Attributes;
 
 }
@@ -409,6 +418,31 @@ public enum RenderValue
 	/// Will set the named combo to 1 if MSAA is active, otherwise 0.
 	/// </summary>
 	MsaaCombo,
+}
+
+/// <summary>
+/// Stable, pipeline-level bindless texture slots. Full-screen resources produced once per frame
+/// (by AO/SSR procedural layers) and consumed by the rest of the pipeline through a fixed
+/// descriptor binding instead of a per-view render attribute. Slots are reset to index 0 at the
+/// start of each frame, so a slot whose producer is skipped reads as "none" (index 0) - they do
+/// not carry over from the previous frame. Values must match the <c>PipelineTextureSlot</c> enum
+/// in common/classes/Bindless.hlsl.
+/// </summary>
+internal enum PipelineTextureSlot
+{
+	/// <summary>
+	/// Screen-space ambient occlusion. When no AO is produced this frame the slot stays at index 0,
+	/// which consumers treat as disabled (no occlusion).
+	/// </summary>
+	AmbientOcclusion = 0,
+
+	/// <summary>
+	/// Dynamic reflections / screen-space reflections. When none is produced this frame the slot stays
+	/// at index 0, which consumers treat as disabled (no reflections).
+	/// </summary>
+	Reflections = 1,
+
+	Count
 }
 
 

@@ -67,7 +67,3 @@ QTabWidget::pane {
 	margin: 0px;
 	padding: 0px;
 }
-
-ToolWindowManagerTabBar > QToolButton {
-	background-color: $WindowBackground;
-}

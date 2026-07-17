@@ -36,6 +36,12 @@ public class ScrubBar : BackgroundItem, ISnapSource, IMovieItem
 
 	private MovieTime _dragStartTime;
 	private float _panSpeed;
+	private int _stateHash;
+
+	private int CalculateStateHash()
+	{
+		return HashCode.Combine( Session.EditMode?.ScrubBarOverrideColor );
+	}
 
 	public override void Frame()
 	{
@@ -57,6 +63,14 @@ public class ScrubBar : BackgroundItem, ISnapSource, IMovieItem
 			{
 				PostScrub( modifiers, _lastScrub.ScenePos );
 			}
+		}
+
+		var stateHash = CalculateStateHash();
+
+		if ( stateHash != _stateHash )
+		{
+			_stateHash = stateHash;
+			Update();
 		}
 
 		base.Frame();

@@ -1,0 +1,107 @@
+@using System
+@using System.Collections.Generic
+@using MenuProject.MenuUI.Components
+@using MenuProject.MenuUI.Layout
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.UI;
+@page "/games"
+@inherits Panel
+
+<root class="root">
+    <Page>
+        <Body>
+            @if (_isLoading)
+            {
+                <LoadingPanel></LoadingPanel>
+            }
+            else if (Result?.Groupings is not null)
+            {
+                <h2>Browse Games</h2>
+
+                <div class="categories">
+                    @foreach (var grouping in Result.Groupings)
+                    {
+                        if (string.IsNullOrEmpty(grouping.Title) || string.IsNullOrEmpty(grouping.QueryString))
+                            continue;
+
+                        var firstImage = grouping.Packages.Select( x => x.VideoThumb ).Where( x => x != null ).FirstOrDefault();
+
+                        firstImage ??= grouping.Packages.Select(x => x.ThumbWide).Where(x => x != null).FirstOrDefault();
+                        firstImage = firstImage?.Replace("thumb.webm", "low.webm");
+                        firstImage = firstImage?.Replace("thumb.mp4", "low.mp4");
+
+                        <a class="category clicky" href=@Url(grouping)>
+                            <div class="media" style="background-image: url( @firstImage )"></div>
+                            <div class="inner">
+                                <div class="top">
+                                    <i class="icon">@grouping.Icon</i>
+                                    <label class="title">@grouping.Title</label>
+                                </div>
+                                <div class="description">
+                                    <label class="Description">@grouping.Description</label>
+                                </div>
+                            </div>
+                        </a>
+                    }
+                </div>
+            }
+        </Body>
+    </Page>
+</root>
+
+@code
+{
+    private bool _isLoading = false;
+
+    Package.ListResult Result;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await UpdateList();
+    }
+
+    async Task UpdateList()
+    {
+        if (_isLoading) return;
+
+        try
+        {
+            _isLoading = true;
+            Result = await Package.ListAsync("f03919ad-2c0a-4c88-a1e3-fc6d438356ea");
+            Result.Groupings = Result.Groupings.OrderBy( x => new Guid() ).ToArray();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+
+        StateHasChanged();
+    }
+
+    string Url(Package.ListResult.Grouping grouping)
+    {
+        // Split the category's query into a sort order and the remaining filter
+        // tokens so the full games list (with its filter sidebar) can open
+        // pre-applied and still be refined further.
+        string sort = "";
+        var rest = new List<string>();
+
+        foreach (var token in (grouping.QueryString ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (token.StartsWith("sort:"))
+                sort = token["sort:".Length..];
+            else if (token == "type:game")
+                continue;
+            else
+                rest.Add(token);
+        }
+
+        return $"/games/all?Sort={sort}&Filter={string.Join(" ", rest)}";
+    }
+
+    protected override int BuildHash()
+    {
+        return System.HashCode.Combine(Result, _isLoading);
+    }
+}

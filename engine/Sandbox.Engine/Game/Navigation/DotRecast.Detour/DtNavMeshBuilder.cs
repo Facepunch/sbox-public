@@ -28,7 +28,7 @@ namespace DotRecast.Detour
 		const int MESH_NULL_IDX = 0xffff;
 
 
-		private static void CalcExtends( BVItem[] items, int nitems, int imin, int imax, ref Vector3Int bmin, ref Vector3Int bmax )
+		private static void CalcExtends( ReadOnlySpan<BVItem> items, int imin, int imax, ref Vector3Int bmin, ref Vector3Int bmax )
 		{
 			bmin = items[imin].bmin;
 			bmax = items[imin].bmax;
@@ -71,7 +71,7 @@ namespace DotRecast.Detour
 			return axis;
 		}
 
-		public static int Subdivide( BVItem[] items, int nitems, int imin, int imax, int curNode, DtBVNode[] nodes )
+		public static int Subdivide( Span<BVItem> items, int imin, int imax, int curNode, DtBVNode[] nodes )
 		{
 			int inum = imax - imin;
 			int icur = curNode;
@@ -90,7 +90,7 @@ namespace DotRecast.Detour
 			else
 			{
 				// Split
-				CalcExtends( items, nitems, imin, imax, ref node.bmin, ref node.bmax );
+				CalcExtends( items, imin, imax, ref node.bmin, ref node.bmax );
 
 				int axis = LongestAxis(
 					node.bmax.x - node.bmin.x,
@@ -101,25 +101,25 @@ namespace DotRecast.Detour
 				if ( axis == 0 )
 				{
 					// Sort along x-axis
-					Array.Sort( items, imin, inum, BVItemXComparer.Shared );
+					items.Slice( imin, inum ).Sort( BVItemXComparer.Shared );
 				}
 				else if ( axis == 1 )
 				{
 					// Sort along y-axis
-					Array.Sort( items, imin, inum, BVItemYComparer.Shared );
+					items.Slice( imin, inum ).Sort( BVItemYComparer.Shared );
 				}
 				else
 				{
 					// Sort along z-axis
-					Array.Sort( items, imin, inum, BVItemZComparer.Shared );
+					items.Slice( imin, inum ).Sort( BVItemZComparer.Shared );
 				}
 
 				int isplit = imin + inum / 2;
 
 				// Left
-				curNode = Subdivide( items, nitems, imin, isplit, curNode, nodes );
+				curNode = Subdivide( items, imin, isplit, curNode, nodes );
 				// Right
-				curNode = Subdivide( items, nitems, isplit, imax, curNode, nodes );
+				curNode = Subdivide( items, isplit, imax, curNode, nodes );
 
 				int iescape = curNode - icur;
 				// Negative index means escape.
@@ -133,11 +133,16 @@ namespace DotRecast.Detour
 		{
 			// Build tree
 			float quantFactor = 1 / option.cs;
-			BVItem[] items = new BVItem[option.pmesh.PolyCount];
-			for ( int i = 0; i < option.pmesh.PolyCount; i++ )
+			int polyCount = option.pmesh.PolyCount;
+
+			// Pooled scratch, returned when this scope exits.
+			using var itemsPooled = new PooledSpan<BVItem>( polyCount );
+			Span<BVItem> items = itemsPooled.Span;
+
+			for ( int i = 0; i < polyCount; i++ )
 			{
-				BVItem it = new BVItem();
-				items[i] = it;
+				// BVItem is a struct, so mutate the span slot directly.
+				ref BVItem it = ref items[i];
 				it.i = i;
 
 				int p = i * option.pmesh.MaxVertsPerPoly * 2;
@@ -173,7 +178,7 @@ namespace DotRecast.Detour
 				it.bmax.y = (int)MathF.Ceiling( it.bmax.y * option.ch * quantFactor );
 			}
 
-			return Subdivide( items, option.pmesh.PolyCount, 0, option.pmesh.PolyCount, 0, nodes );
+			return Subdivide( items, 0, polyCount, 0, nodes );
 		}
 
 		const int XP = 1 << 0;
@@ -233,15 +238,14 @@ namespace DotRecast.Detour
 			int nvp = option.pmesh.MaxVertsPerPoly;
 
 			// Classify off-mesh connection points. We store only the connections
-			// whose start point is inside the tile.
-			int[] offMeshConClass = null;
+			// whose start point is inside the tile. Pooled scratch, empty when there are none.
+			using var offMeshConClassPooled = new PooledSpan<int>( option.offMeshConCount * 2 );
+			Span<int> offMeshConClass = offMeshConClassPooled.Span;
 			int storedOffMeshConCount = 0;
 			int offMeshConLinkCount = 0;
 
 			if ( option.offMeshConCount > 0 )
 			{
-				offMeshConClass = new int[option.offMeshConCount * 2];
-
 				// Find tight heigh bounds, used for culling out off-mesh start
 				// locations.
 				float hmin = float.MaxValue;

@@ -104,12 +104,12 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 	{
 		var counts = _volume.ProbeCounts;
 
-		// Irradiance: 6x6 octahedral map + 2 pixel border per probe
+		// Irradiance: 8x8 octahedral map per probe (borderless)
 		const int irradianceOctSize = 8;
 		var irradianceSize = new Vector3Int( counts.x * irradianceOctSize, counts.y * irradianceOctSize, counts.z );
 		GeneratedIrradianceTexture = CreateVolumeTexture( irradianceSize, ImageFormat.RGBA16161616F, $"Irradiance" );
 
-		// Distance: 14x14 octahedral map + 2 pixel border per probe
+		// Distance: 16x16 octahedral map per probe (borderless)
 		const int distanceOctSize = 16;
 		var distanceSize = new Vector3Int( counts.x * distanceOctSize, counts.y * distanceOctSize, counts.z );
 		GeneratedDistanceTexture = CreateVolumeTexture( distanceSize, ImageFormat.RGBA16161616F, $"Distance" );
@@ -285,11 +285,11 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 		attrs.Set( "ProbeCounts", _volume.ProbeCounts );
 		attrs.Set( "EnergyLoss", _volume.Contrast );
 
-		// Irradiance pass (6x6 interior + 2 border = 8x8 tile)
+		// Irradiance pass (8x8 borderless tile)
 		attrs.SetCombo( "D_PASS", 0 );
 		IntegrateShader.DispatchWithAttributes( attrs, 1, 1, 1 );
 
-		// Distance pass (14x14 interior + 2 border = 16x16 tile)
+		// Distance pass (16x16 borderless tile)
 		attrs.SetCombo( "D_PASS", 1 );
 		IntegrateShader.DispatchWithAttributes( attrs, 1, 1, 1 );
 

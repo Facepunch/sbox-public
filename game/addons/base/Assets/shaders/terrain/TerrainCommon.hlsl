@@ -24,12 +24,16 @@ struct TerrainStruct
     int HeightMapTexture;
     int ControlMapTexture;
 
-    float Resolution; // should be inv?
+    float UnitsPerTexel;
     float HeightScale;
 
     // Height Blending
     bool HeightBlending;
     float HeightBlendSharpness;
+
+    int samplerindex;
+
+    int NormalMapTexture;
 };
 
 enum TerrainFlags
@@ -62,6 +66,25 @@ int g_nTerrainCount < Attribute( "TerrainCount" ); Default( 0 ); >;
 StructuredBuffer<TerrainStruct> g_Terrains < Attribute( "Terrain" ); >;
 StructuredBuffer<TerrainMaterial> g_TerrainMaterials < Attribute( "TerrainMaterials" ); >;
 
+float2 Terrain_SampleSeamlessUV( float2 uv );
+float2 Terrain_SampleSeamlessUV( float2 uv, out float2x2 uvAngle );
+
+float Terrain_HeightBlendWeight( float t, float baseHeight, float overlayHeight, float sharpness )
+{
+    // Normalize so splat coverage governs the extremes regardless of heightstrength scale
+    float hmax = max( max( baseHeight, overlayHeight ), 1e-4 );
+    baseHeight /= hmax;
+    overlayHeight /= hmax;
+
+    float depth = lerp( 0.3, 0.02, saturate( sharpness ) );
+    float a = baseHeight + ( 1.0 - t );
+    float b = overlayHeight + t;
+    float ma = max( a, b ) - depth;
+    float wb = max( a - ma, 0.0 );
+    float wo = max( b - ma, 0.0 );
+    return wo / ( wb + wo + 1e-6 );
+}
+
 // This will get more complex with regions as we grow.. Regions means multiple heightmaps
 // So lets have a nice helper class for most things
 // This should just be for accessing data, rendering related methods shouldn't be crammed in here
@@ -72,6 +95,28 @@ class Terrain
 
     static Texture2D GetHeightMap() { return Bindless::GetTexture2D( Get().HeightMapTexture ); }
     static Texture2D GetControlMap() { return Bindless::GetTexture2D( Get().ControlMapTexture ); }
+    static Texture2D GetNormalMap() { return Bindless::GetTexture2D( Get().NormalMapTexture ); }
+
+    // Baked terrain-local geometric normal. Falls back to a flat up-normal if not built.
+    static float3 SampleNormal( float2 uv )
+    {
+        if ( Get().NormalMapTexture == 0 )
+            return float3( 0, 0, 1 );
+
+        float3 n;
+        n.xy = GetNormalMap().SampleLevel( g_sBilinearClamp, uv, 0 ).xy * 2.0 - 1.0;
+        n.z = sqrt( saturate( 1.0 - dot( n.xy, n.xy ) ) );
+        return n;
+    }
+
+    // Terrain-local geometric normal and tangent basis from the baked map
+    static float3 NormalBasis( float2 uv, out float3 tangentU, out float3 tangentV )
+    {
+        float3 normal = SampleNormal( uv );
+        tangentU = normalize( cross( normal, float3( 0, -1, 0 ) ) );
+        tangentV = normalize( cross( normal, -tangentU ) );
+        return normal;
+    }
 
     static float3 WorldToLocal( float3 worldPos )
     {
@@ -83,7 +128,7 @@ class Terrain
         float3 localPos = WorldToLocal( worldPos );
         Texture2D tHeightMap = GetHeightMap();
         float2 texSize = TextureDimensions2D( tHeightMap, 0 );
-        return localPos.xy / ( texSize * Get().Resolution );
+        return localPos.xy / ( texSize * Get().UnitsPerTexel );
     }
 
     static bool IsInBounds( float3 worldPos )
@@ -100,7 +145,7 @@ class Terrain
         Texture2D tHeightMap = GetHeightMap();
         float2 texSize = TextureDimensions2D( tHeightMap, 0 );
 
-        float2 heightUv = localPos.xy / ( texSize * Get().Resolution );
+        float2 heightUv = localPos.xy / ( texSize * Get().UnitsPerTexel );
         return tHeightMap.SampleLevel( g_sBilinearBorder, heightUv, 0 ).r * Get().HeightScale;
     }
 
@@ -124,42 +169,186 @@ class Terrain
         return 1.0 - saturate( dist / max( blendLength, 0.001 ) );
     }
 
-    // Sample the terrain surface color at a world position
-    // Blends base and overlay material colors from the control map
-    static float3 SampleColor( float3 worldPos, float mipLevel = 6.0 )
+    static float3 SampleMaterialColor( float2 texUV, CompactTerrainMaterial material )
     {
-        if ( Get().ControlMapTexture <= 0 )
+        texUV /= 32.0;
+
+        TerrainMaterial baseMat = g_TerrainMaterials[material.BaseTextureId];
+        if ( baseMat.bcr_texid <= 0 )
             return float3( 1, 1, 1 );
+
+        SamplerState baseSampler = Bindless::GetSampler( Get().samplerindex );
+
+        float2 baseUV = texUV * baseMat.uvscale;
+        if ( baseMat.HasFlag( TerrainFlags::NoTile ) )
+            baseUV = Terrain_SampleSeamlessUV( baseUV );
+
+        float4 baseBcr = Bindless::GetTexture2D( baseMat.bcr_texid ).Sample( baseSampler, baseUV );
+        float3 baseColor = SrgbGammaToLinear( baseBcr.rgb );
+
+        float blend = material.GetNormalizedBlend();
+        TerrainMaterial overlayMat = g_TerrainMaterials[material.OverlayTextureId];
+        if ( blend <= 0.01 || overlayMat.bcr_texid <= 0 )
+            return baseColor;
+
+        SamplerState overlaySampler = Bindless::GetSampler( Get().samplerindex );
+
+        float2 overlayUV = texUV * overlayMat.uvscale;
+        if ( overlayMat.HasFlag( TerrainFlags::NoTile ) )
+            overlayUV = Terrain_SampleSeamlessUV( overlayUV );
+
+        float4 overlayBcr = Bindless::GetTexture2D( overlayMat.bcr_texid ).Sample( overlaySampler, overlayUV );
+
+        if ( Get().HeightBlending && baseMat.nho_texid > 0 && overlayMat.nho_texid > 0 )
+        {
+            float baseHeight = Bindless::GetTexture2D( baseMat.nho_texid ).Sample( baseSampler, baseUV ).b * baseMat.heightstrength;
+            float overlayHeight = Bindless::GetTexture2D( overlayMat.nho_texid ).Sample( overlaySampler, overlayUV ).b * overlayMat.heightstrength;
+            blend = Terrain_HeightBlendWeight( blend, baseHeight, overlayHeight, Get().HeightBlendSharpness );
+        }
+
+        return lerp( baseColor, SrgbGammaToLinear( overlayBcr.rgb ), blend );
+    }
+
+    static float3 SampleMaterialColor( float2 texUV, CompactTerrainMaterial material, float mipLevel )
+    {
+        texUV /= 32.0;
+
+        TerrainMaterial baseMat = g_TerrainMaterials[material.BaseTextureId];
+        if ( baseMat.bcr_texid <= 0 )
+            return float3( 1, 1, 1 );
+
+        SamplerState baseSampler = Bindless::GetSampler( Get().samplerindex );
+
+        float2 baseUV = texUV * baseMat.uvscale;
+        if ( baseMat.HasFlag( TerrainFlags::NoTile ) )
+            baseUV = Terrain_SampleSeamlessUV( baseUV );
+
+        float4 baseBcr = Bindless::GetTexture2D( baseMat.bcr_texid ).SampleLevel( baseSampler, baseUV, mipLevel );
+        float3 baseColor = SrgbGammaToLinear( baseBcr.rgb );
+
+        float blend = material.GetNormalizedBlend();
+        TerrainMaterial overlayMat = g_TerrainMaterials[material.OverlayTextureId];
+        if ( blend <= 0.01 || overlayMat.bcr_texid <= 0 )
+            return baseColor;
+
+        SamplerState overlaySampler = Bindless::GetSampler( Get().samplerindex );
+
+        float2 overlayUV = texUV * overlayMat.uvscale;
+        if ( overlayMat.HasFlag( TerrainFlags::NoTile ) )
+            overlayUV = Terrain_SampleSeamlessUV( overlayUV );
+
+        float4 overlayBcr = Bindless::GetTexture2D( overlayMat.bcr_texid ).SampleLevel( overlaySampler, overlayUV, mipLevel );
+
+        if ( Get().HeightBlending && baseMat.nho_texid > 0 && overlayMat.nho_texid > 0 )
+        {
+            float baseHeight = Bindless::GetTexture2D( baseMat.nho_texid ).SampleLevel( baseSampler, baseUV, mipLevel ).b * baseMat.heightstrength;
+            float overlayHeight = Bindless::GetTexture2D( overlayMat.nho_texid ).SampleLevel( overlaySampler, overlayUV, mipLevel ).b * overlayMat.heightstrength;
+            blend = Terrain_HeightBlendWeight( blend, baseHeight, overlayHeight, Get().HeightBlendSharpness );
+        }
+
+        return lerp( baseColor, SrgbGammaToLinear( overlayBcr.rgb ), blend );
+    }
+
+    // Fetch the 2x2 control quad bilinear filtering would use at uv, plus matching weights, in
+    // (0,0) (1,0) (0,1) (1,1) order. Gathers at the quad's shared corner, derived from the same floor
+    // as the weights, so the texture unit's fixed-point rounding can't pick a different quad. Returns
+    // raw bits: the packed values are denormal floats and a flush-to-zero float compare calls them all
+    // equal - compare and decode the uints.
+    static uint4 GatherControlQuad( float2 uv, out float4 weights )
+    {
+        Texture2D tControlMap = GetControlMap();
+        float2 texSize = TextureDimensions2D( tControlMap, 0 );
+
+        float2 pixelUV = uv * texSize - 0.5;
+        float2 fracUV = frac( pixelUV );
+
+        weights = float4(
+            (1.0 - fracUV.x) * (1.0 - fracUV.y),
+            fracUV.x * (1.0 - fracUV.y),
+            (1.0 - fracUV.x) * fracUV.y,
+            fracUV.x * fracUV.y
+        );
+
+        // Gather returns w=(0,0) z=(1,0) x=(0,1) y=(1,1); reorder to match the weights
+        float2 gatherUV = ( floor( pixelUV ) + 1.0 ) / texSize;
+        return asuint( tControlMap.GatherRed( g_sPointClamp, gatherUV ).wzxy );
+    }
+
+    static bool FetchTerrainMaterials( float3 worldPos, out float2 texUV,
+        out CompactTerrainMaterial mat00, out CompactTerrainMaterial mat10, out CompactTerrainMaterial mat01, out CompactTerrainMaterial mat11,
+        out float4 weights )
+    {
+        texUV = 0.0;
+        mat00 = CompactTerrainMaterial::Decode( 0 );
+        mat10 = CompactTerrainMaterial::Decode( 0 );
+        mat01 = CompactTerrainMaterial::Decode( 0 );
+        mat11 = CompactTerrainMaterial::Decode( 0 );
+        weights = 0.0;
+
+        if ( Get().ControlMapTexture <= 0 )
+            return false;
 
         float3 localPos = WorldToLocal( worldPos );
         Texture2D tControlMap = GetControlMap();
         float2 texSize = TextureDimensions2D( tControlMap, 0 );
-        float2 uv = localPos.xy / ( texSize * Get().Resolution );
+        float2 uv = localPos.xy / ( texSize * Get().UnitsPerTexel );
 
-        CompactTerrainMaterial material = CompactTerrainMaterial::DecodeFromFloat( tControlMap.SampleLevel( g_sPointClamp, uv, 0 ).r  );
+        if ( any( uv < 0.0 ) || any( uv > 1.0 ) )
+            return false;
 
-        if ( g_TerrainMaterials[material.BaseTextureId].bcr_texid <= 0 )
+        uint4 controlBits = GatherControlQuad( uv, weights );
+        mat00 = CompactTerrainMaterial::Decode( controlBits.x );
+        mat10 = CompactTerrainMaterial::Decode( controlBits.y );
+        mat01 = CompactTerrainMaterial::Decode( controlBits.z );
+        mat11 = CompactTerrainMaterial::Decode( controlBits.w );
+
+        texUV = localPos.xy;
+        return true;
+    }
+
+    // Sample the terrain surface color at a world position.
+    // Matches terrain rendering by bilinearly blending neighboring compact control-map materials.
+    static float3 SampleColor( float3 worldPos )
+    {
+        float2 texUV;
+        float4 weights;
+        CompactTerrainMaterial mat00 = CompactTerrainMaterial::Decode( 0 ), mat10 = CompactTerrainMaterial::Decode( 0 ), mat01 = CompactTerrainMaterial::Decode( 0 ), mat11 = CompactTerrainMaterial::Decode( 0 );
+
+        if ( !FetchTerrainMaterials( worldPos, texUV, mat00, mat10, mat01, mat11, weights ) )
             return float3( 1, 1, 1 );
 
-        float2 texUV = localPos.xy / 32.0;
+        return
+            SampleMaterialColor( texUV, mat00 ) * weights.x +
+            SampleMaterialColor( texUV, mat10 ) * weights.y +
+            SampleMaterialColor( texUV, mat01 ) * weights.z +
+            SampleMaterialColor( texUV, mat11 ) * weights.w;
+    }
 
-        TerrainMaterial baseMat = g_TerrainMaterials[material.BaseTextureId];
-        float3 color = Bindless::GetTexture2D( baseMat.bcr_texid )
-            .SampleLevel( g_sBilinearClamp, texUV * baseMat.uvscale, mipLevel ).rgb;
+    static float3 SampleColor( float3 worldPos, float mipLevel )
+    {
+        float2 texUV;
+        float4 weights;
+        CompactTerrainMaterial mat00 = CompactTerrainMaterial::Decode( 0 ), mat10 = CompactTerrainMaterial::Decode( 0 ), mat01 = CompactTerrainMaterial::Decode( 0 ), mat11 = CompactTerrainMaterial::Decode( 0 );
 
-        float materialBlend = material.GetNormalizedBlend();
-        
-        TerrainMaterial overlayMat = g_TerrainMaterials[material.OverlayTextureId];
-        if ( materialBlend > 0.01 && overlayMat.bcr_texid > 0 )
-        {
-            float3 overlayColor = Bindless::GetTexture2D( overlayMat.bcr_texid )
-                .SampleLevel( g_sBilinearClamp, texUV * overlayMat.uvscale, mipLevel ).rgb;
-            color = lerp( color, overlayColor, materialBlend );
-        }
+        if ( !FetchTerrainMaterials( worldPos, texUV, mat00, mat10, mat01, mat11, weights ) )
+            return float3( 1, 1, 1 );
 
-        return color;
+        return
+            SampleMaterialColor( texUV, mat00, mipLevel ) * weights.x +
+            SampleMaterialColor( texUV, mat10, mipLevel ) * weights.y +
+            SampleMaterialColor( texUV, mat01, mipLevel ) * weights.z +
+            SampleMaterialColor( texUV, mat11, mipLevel ) * weights.w;
     }
 };
+
+//
+// Compatibility shim for custom terrain shaders. HeightMap/maxheight are unused - the baked map
+// already encodes them.
+//
+float3 Terrain_Normal( Texture2D HeightMap, float2 uv, float maxheight, out float3 TangentU, out float3 TangentV )
+{
+    return Terrain::NormalBasis( uv, TangentU, TangentV );
+}
 
 // Get UV with per-tile UV offset to reduce visible tiling
 // Works by offsetting UVs within each tile using a hash of the tile coordinate
@@ -193,38 +382,6 @@ float2 Terrain_SampleSeamlessUV( float2 uv )
 {
     float2x2 dummy;
     return Terrain_SampleSeamlessUV( uv, dummy ); 
-}
-
-//
-// Takes 4 samples
-// This is easy for now, an optimization would be to generate this once in a compute shader
-// Less texture sampling but higher memory requirements
-// This is between -1 and 1;
-//
-float3 Terrain_Normal( Texture2D HeightMap, float2 uv, float maxheight, out float3 TangentU, out float3 TangentV )
-{
-    float2 texelSize = 1.0f / ( float2 )TextureDimensions2D( HeightMap, 0 );
-
-    float l = abs( HeightMap.SampleLevel( g_sBilinearBorder, uv + texelSize * float2( -1, 0 ), 0 ).r );
-    float r = abs( HeightMap.SampleLevel( g_sBilinearBorder, uv + texelSize * float2( 1, 0 ), 0 ).r );
-    float t = abs( HeightMap.SampleLevel( g_sBilinearBorder, uv + texelSize * float2( 0, -1 ), 0 ).r );
-    float b = abs( HeightMap.SampleLevel( g_sBilinearBorder, uv + texelSize * float2( 0, 1 ), 0 ).r );
-
-    // Compute dx using central differences
-    float dX = l - r;
-
-    // Compute dy using central differences
-    float dY = b - t;
-
-    // Normal strength needs to take in account terrain dimensions rather than just texel scale
-    float normalStrength = maxheight / Terrain::Get(  ).Resolution;
-
-    float3 normal = normalize( float3( dX, dY * -1, 1.0f / normalStrength ) );
-
-    TangentU = normalize( cross( normal, float3( 0, -1, 0 ) ) );
-    TangentV = normalize( cross( normal, -TangentU ) );
-
-    return normal;
 }
 
 //

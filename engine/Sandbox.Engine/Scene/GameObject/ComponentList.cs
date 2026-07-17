@@ -349,6 +349,39 @@ public class ComponentList
 		}
 	}
 
+	// State-passing variant, to avoid closure/delegate allocations
+	internal void ExecuteEnabledInSelfAndDescendants<T, TState>( TState state, Action<T, TState> action )
+	{
+		if ( !go.IsValid() || !go.Enabled ) return;
+
+		if ( _internalList is not null )
+		{
+			// Check components on this GameObject
+			for ( int i = 0; i < _list.Count; i++ )
+			{
+				var component = _list[i];
+				if ( component is null ) continue;
+
+				if ( component is T target && component.Active )
+				{
+					action.Invoke( target, state );
+				}
+			}
+		}
+
+		// Recurse to children
+		for ( int i = go.Children.Count - 1; i >= 0; i-- )
+		{
+			if ( i >= go.Children.Count )
+				continue;
+
+			var child = go.Children[i];
+			if ( !child.IsValid() ) continue;
+
+			child.Components.ExecuteEnabledInSelfAndDescendants( state, action );
+		}
+	}
+
 	private void ExecuteGeneric<T>( Action<T> action, FindMode find = FindMode.EnabledInSelfAndDescendants )
 	{
 		bool enabledOnly = find.Contains( FindMode.Enabled );

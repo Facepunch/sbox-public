@@ -20,7 +20,19 @@ native class CSfxTable
 		if ( !self->pSource ) return false;
 		CUtlVector<short> outputSamples;
 		bool bResult = self->pSource->CopySamples16( outputSamples );
-		memcpy( samples, outputSamples.Base(), numSamples * sizeof( short ) );
+		memcpy( samples, outputSamples.Base(), MIN( numSamples, (uint)outputSamples.Count() ) * sizeof( short ) );
+		return bResult;
+	}
+
+	// Like GetSamples, but stereo sounds keep both channels, interleaved (L,R,L,R..) instead of
+	// being downmixed to mono. Sounds with more than two channels are still downmixed, so
+	// numSamples should be SampleCount * 2 for stereo and SampleCount otherwise.
+	inline bool GetSamplesInterleaved( CastTo[short*] void* samples, uint numSamples )
+	{
+		if ( !self->pSource ) return false;
+		CUtlVector<short> outputSamples;
+		bool bResult = self->pSource->CopySamples16( outputSamples, true );
+		memcpy( samples, outputSamples.Base(), MIN( numSamples, (uint)outputSamples.Count() ) * sizeof( short ) );
 		return bResult;
 	}
 

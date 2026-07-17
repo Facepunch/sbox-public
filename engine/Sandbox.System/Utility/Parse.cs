@@ -22,7 +22,7 @@ namespace Sandbox
 		public Parse( string value, string filename = "nofile", int lineOffset = 0 ) : this()
 		{
 			FileName = filename;
-			Text = value;
+			Text = value ?? string.Empty;
 
 			this.lineOffset = lineOffset;
 		}
@@ -67,7 +67,8 @@ namespace Sandbox
 
 		public string Read( int chars )
 		{
-			if ( chars <= 0 ) throw new System.Exception( $"Tried to read {chars} chars" );
+			if ( chars < 0 ) throw new System.Exception( $"Tried to read {chars} chars" );
+			if ( chars == 0 ) return string.Empty;
 
 			var result = Text.Substring( Pointer, chars );
 			Pointer += chars;
@@ -375,8 +376,15 @@ namespace Sandbox
 
 			var numStart = p.Pointer;
 
-			var w = p.ReadWord( ")", true );
-			if ( w == null ) return false;
+			// A math function (calc/min/max/clamp/var) can contain spaces and slashes, so read its whole
+			// balanced (...) as one token. Anything else stops at whitespace, a top-level ')' or '/' - so a
+			// space-less "<position>/<size>" slash isn't swallowed, while an enclosing parser's ')' is left
+			// for it to consume.
+			bool isFunction = p.Is( "calc(", 0, true ) || p.Is( "min(", 0, true ) || p.Is( "max(", 0, true )
+				|| p.Is( "clamp(", 0, true ) || p.Is( "var(", 0, true );
+
+			var w = isFunction ? p.ReadWord( null, true, true ) : p.ReadWord( ")/", true );
+			if ( string.IsNullOrEmpty( w ) ) return false;
 
 			var v = Sandbox.UI.Length.Parse( w );
 			if ( !v.HasValue ) return false;
@@ -455,14 +463,14 @@ namespace Sandbox
 			{
 				case "none":
 				case "solid":
-					// case "double":
-					// case "dotted":
-					// case "dashed":
-					// case "inset":
-					// case "outset":
-					// case "ridge":
-					// case "groove":
-					// case "hidden":
+				case "double":
+				case "dotted":
+				case "dashed":
+				case "inset":
+				case "outset":
+				case "ridge":
+				case "groove":
+				case "hidden":
 					outval = w;
 					break;
 				default:

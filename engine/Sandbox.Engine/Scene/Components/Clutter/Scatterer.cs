@@ -138,10 +138,8 @@ public abstract class Scatterer
 	/// <summary>
 	/// Helper to perform a ground trace at a position.
 	/// </summary>
-	protected static SceneTraceResult TraceGround( Scene scene, Vector3 position )
+	protected static SceneTraceResult TraceGround( Scene scene, Vector3 position, BBox sceneBounds )
 	{
-		// Use scene bounds to determine trace extent
-		var sceneBounds = scene.GetBounds();
 		var traceStart = position.WithZ( sceneBounds.Maxs.z );
 		var traceEnd = position.WithZ( sceneBounds.Mins.z );
 
@@ -149,6 +147,33 @@ public abstract class Scatterer
 			.Ray( traceStart, traceEnd )
 			.WithoutTags( "player", "trigger", "clutter" )
 			.Run();
+	}
+
+	/// <summary>
+	/// Traces the ground at multiple positions at once.
+	/// </summary>
+	protected static SceneTraceResult[] BatchTraceGround( Scene scene, IReadOnlyList<Vector3> positions, BBox sceneBounds )
+	{
+		var results = new SceneTraceResult[positions.Count];
+		var physicsWorld = scene.PhysicsWorld;
+
+		// even though this is on the main thread, it's safe to do since nothing will change 
+		// the physics world between now and when this completes
+		Parallel.For( 0, positions.Count, i =>
+		{
+			var position = positions[i];
+			var traceStart = position.WithZ( sceneBounds.Maxs.z );
+			var traceEnd = position.WithZ( sceneBounds.Mins.z );
+
+			var physicsResult = physicsWorld.Trace
+				.Ray( traceStart, traceEnd )
+				.WithoutTags( "player", "trigger", "clutter" )
+				.Run();
+
+			results[i] = SceneTraceResult.From( scene, physicsResult );
+		} );
+
+		return results;
 	}
 
 	/// <summary>
@@ -161,6 +186,53 @@ public abstract class Scatterer
 		seed = (seed * 397) ^ x;
 		seed = (seed * 397) ^ y;
 		return seed;
+	}
+
+	/// <summary>
+	/// Grid dimensions for roughly pointCount jittered points across bounds. Use JitteredGridPoints
+	/// unless you need the raw cell counts.
+	/// </summary>
+	protected static void GetJitteredGridSize( BBox bounds, int pointCount, out int cellsX, out int cellsY )
+	{
+		if ( pointCount <= 0 )
+		{
+			cellsX = 0;
+			cellsY = 0;
+			return;
+		}
+
+		var aspect = MathF.Max( bounds.Size.x, 0.0001f ) / MathF.Max( bounds.Size.y, 0.0001f );
+		cellsY = Math.Max( 1, (int)MathF.Round( MathF.Sqrt( pointCount / aspect ) ) );
+		cellsX = Math.Max( 1, (int)MathF.Round( pointCount / (float)cellsY ) );
+	}
+
+	/// <summary>
+	/// One jittered point per grid cell across bounds, roughly pointCount total. Even coverage,
+	/// no clumping or gaps. Z is always 0.
+	/// </summary>
+	protected Vector3[] JitteredGridPoints( BBox bounds, int pointCount )
+	{
+		GetJitteredGridSize( bounds, pointCount, out int cellsX, out int cellsY );
+		if ( cellsX <= 0 || cellsY <= 0 )
+			return [];
+
+		var cellWidth = bounds.Size.x / cellsX;
+		var cellHeight = bounds.Size.y / cellsY;
+
+		var points = new Vector3[cellsX * cellsY];
+		var index = 0;
+
+		for ( int cy = 0; cy < cellsY; cy++ )
+			for ( int cx = 0; cx < cellsX; cx++ )
+			{
+				points[index++] = new Vector3(
+					bounds.Mins.x + cx * cellWidth + Random.Float( cellWidth ),
+					bounds.Mins.y + cy * cellHeight + Random.Float( cellHeight ),
+					0f
+				);
+			}
+
+		return points;
 	}
 
 	/// <summary>

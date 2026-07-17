@@ -21,6 +21,12 @@ public class SearchWidget : Widget
 	public string BaseQuery { get; set; } = string.Empty;
 	public string Query => $"{BaseQuery} {Value}".TrimStart();
 
+	public string PlaceholderText
+	{
+		get => LineEdit.PlaceholderText;
+		set { LineEdit.PlaceholderText = value; LineEdit.Update(); }
+	}
+
 	public Action ValueChanged;
 
 	public TagPicker AssetTypes;
@@ -66,6 +72,33 @@ public class SearchWidget : Widget
 
 			Layout.Add( AssetTypes );
 		}
+	}
+
+	/// <summary>
+	/// Clears the search text and any active type/tag filters. Does nothing if no filter is active.
+	/// </summary>
+	public void Clear()
+	{
+		bool hadTags = AssetTypes is { Enabled: true } && (AssetTypes.ActiveTags.Count > 0 || AssetTypes.ExcludedTags.Count > 0);
+
+		if ( hadTags )
+		{
+			AssetTypes.ActiveTags.Clear();
+			AssetTypes.ExcludedTags.Clear();
+			AssetTypes.Rebuild();
+		}
+
+		if ( !string.IsNullOrEmpty( LineEdit.Text ) )
+		{
+			LineEdit.Text = string.Empty;
+			return;
+		}
+
+		if ( !hadTags )
+			return;
+
+		ValueChanged?.Invoke();
+		Update();
 	}
 
 	private void OnTextChanged( string value )

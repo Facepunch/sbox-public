@@ -1,0 +1,82 @@
+@import "/styles/_theme.scss";
+
+MapTile
+{
+	width: 100%;
+	height: 100%;
+	padding: 1px;
+
+	&:hover
+	{
+		sound-in: "ui.button.over";
+	}
+
+	&:active
+	{
+		sound-in: "ui.button.press";
+	}
+
+	flex-direction: column;
+	cursor: pointer;
+	gap: 8px;
+
+	.image
+	{
+		flex-shrink: 0;
+		transition: all 150ms ease;
+		width: 100%;
+		aspect-ratio: 16 / 9;
+		background-position: center;
+		background-size: cover;
+		border-radius: $rounding-small;
+		position: relative;
+		justify-content: center;
+		background-color: $default-950;
+		position: relative;
+
+		i
+		{
+			font-size: 32px;
+			opacity: 0.02;
+			align-items: center;
+		}
+
+		outline: 1px solid $default-border;
+
+		&:hover
+		{
+			outline: 1px solid $default-50;
+		}
+	}
+
+	.title
+	{
+		text-overflow: ellipsis;
+		text-align: center;
+		font-size: 14px;
+		width: 100%;
+	}
+
+	.overlay
+	{
+		position: absolute;
+		padding: 2px;
+		top: 0;
+		left: 0;
+
+		row
+		{
+			background-color: rgba( $default-950, 0.95 );
+			color: white;
+			padding: 4px 8px;
+			border-radius: 4px;
+			gap: 8px;
+
+			.label, iconpanel
+			{
+				color: white;
+				font-size: $text-eyebrow;
+			}
+		}
+	}
+}

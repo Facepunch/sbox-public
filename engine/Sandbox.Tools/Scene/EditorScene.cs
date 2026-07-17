@@ -252,9 +252,12 @@ public static class EditorScene
 
 		if ( playMode )
 		{
-			LoadingScreen.IsVisible = true;
-			LoadingScreen.Title = "Loading Game..";
-			IGameInstanceDll.Current.EditorPlay();
+			if ( IGameInstance.Current is not null )
+			{
+				LoadingScreen.IsVisible = true;
+				LoadingScreen.Title = "Loading Game..";
+				IGameInstanceDll.Current.EditorPlay();
+			}
 		}
 		else
 		{
@@ -292,7 +295,6 @@ public static class EditorScene
 		}
 
 		SceneEditorSession.Active.SetPlaying( Game.ActiveScene );
-
 		EditorEvent.Run( "scene.play" );
 	}
 
@@ -303,7 +305,7 @@ public static class EditorScene
 
 		Game.IsClosing = true;
 
-		SceneEditorSession.Active.StopPlaying();
+		SceneEditorSession.Playing?.StopPlaying();
 
 		Game.IsPlaying = false;
 		Game.IsPaused = false;
@@ -487,11 +489,15 @@ public static class EditorScene
 
 		var serialized = selection.Select( x =>
 		{
+			using var blobs = BlobDataSerializer.Capture();
+
 			var s = x.Serialize( options );
 			// When we copy we keep the world transform.
 			s["Position"] = JsonValue.Create( x.WorldPosition );
 			s["Rotation"] = JsonValue.Create( x.WorldRotation );
 			s["Scale"] = JsonValue.Create( x.WorldScale );
+
+			blobs.SaveTo( s );
 			return s;
 		} );
 
@@ -588,6 +594,8 @@ public static class EditorScene
 							var go = SceneEditorSession.Active.Scene.CreateObject();
 							// avoids some warnings
 							SceneUtility.MakeIdGuidsUnique( jso );
+
+							using var blobs = BlobDataSerializer.LoadFrom( jso );
 							go.Deserialize( jso );
 
 							if ( target.IsValid() )

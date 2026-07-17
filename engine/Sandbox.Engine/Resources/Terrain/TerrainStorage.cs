@@ -123,14 +123,14 @@ public partial class TerrainStorage : GameResource
 {
 	[JsonInclude, JsonPropertyName( "Maps" )] private TerrainMapBlob Maps { get; set; } = new();
 
-	[JsonIgnore]
+	[JsonIgnore, Hide]
 	public ushort[] HeightMap
 	{
 		get => Maps.HeightMap;
 		set => Maps.HeightMap = value;
 	}
 
-	[JsonIgnore]
+	[JsonIgnore, Hide]
 	public UInt32[] ControlMap
 	{
 		get => Maps.SplatMap;
@@ -179,6 +179,21 @@ public partial class TerrainStorage : GameResource
 				OnChanged?.Invoke();
 			}
 		} = 0.87f;
+
+		/// <summary>
+		/// Texture sampling state used for rendering the terrain.
+		/// </summary>
+		[Property, Advanced]
+		public Rendering.SamplerState Sampler
+		{
+			get => field;
+			set
+			{
+				if ( field == value ) return;
+				field = value;
+				OnChanged?.Invoke();
+			}
+		} = new() { Filter = Rendering.FilterMode.Anisotropic, MaxAnisotropy = 8 };
 	}
 
 	public TerrainMaterialSettings MaterialSettings { get; set; } = new();

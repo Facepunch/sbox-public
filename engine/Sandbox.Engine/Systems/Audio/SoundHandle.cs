@@ -194,6 +194,7 @@ public partial class SoundHandle : IValid, IDisposable
 	/// <summary>
 	/// Legacy transmission toggle. Transmission is now derived from occlusion and material response.
 	/// </summary>
+	[Obsolete( "Transmission is derived from occlusion and material response." ), Hide]
 	public bool Transmission { get; set; } = true;
 
 	/// <summary>

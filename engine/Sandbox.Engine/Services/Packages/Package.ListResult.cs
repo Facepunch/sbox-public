@@ -27,6 +27,11 @@ public partial class Package
 			public string Title { get; set; }
 
 			/// <summary>
+			/// The description of this group
+			/// </summary>
+			public string Description { get; set; }
+
+			/// <summary>
 			/// The icon of this group
 			/// </summary>
 			public string Icon { get; set; }
@@ -55,6 +60,7 @@ public partial class Package
 			result.Groupings = groups.Groupings?.Select( x => new Grouping
 			{
 				Title = x.Title,
+				Description = x.Description,
 				Icon = x.Icon,
 				Style = x.Style,
 				QueryString = x.QueryString,

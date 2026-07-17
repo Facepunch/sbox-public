@@ -79,8 +79,8 @@ public class ModelMetaData : BaseMetaData
 		}
 
 		// Physical size bucket from the largest bounding-box dimension (units).
-		var min = MetaVector.Parse( BoundsMin );
-		var max = MetaVector.Parse( BoundsMax );
+		var min = BoundsMin.ToMetaVector();
+		var max = BoundsMax.ToMetaVector();
 		var size = MathF.Max( MathF.Max( max.X - min.X, max.Y - min.Y ), max.Z - min.Z );
 		int? sizeBucket = size switch
 		{

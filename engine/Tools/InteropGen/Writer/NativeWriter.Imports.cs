@@ -15,19 +15,19 @@ internal partial class NativeWriter
 		WriteLine( "//" );
 		StartBlock( "namespace Imports" );
 		{
-			foreach ( Class c in definitions.Classes.Where( x => x.Native == false ) )
+			foreach ( Class c in definitions.ManagedClasses )
 			{
-				if ( ShouldSkip( c ) )
+				if ( Skip.ShouldSkip( c ) )
 				{
 					continue;
 				}
 
 				foreach ( Function f in c.Functions )
 				{
-					IEnumerable<string> nativeArgs = c.SelfArg( true, f.Static ).Concat( f.Parameters ).Where( x => x.IsRealArgument ).Select( x => $"{x.GetNativeDelegateType( false )} {x.Name}" );
+					IEnumerable<string> nativeArgs = c.SelfArg( true, f.Static ).Concat( f.Parameters ).Where( x => x.IsRealArgument ).Select( x => $"{x.DelegateType( Side.Native, Dir.Outgoing )} {x.Name}" );
 					string nativeArgS = string.Join( ", ", nativeArgs );
 
-					WriteLine( $"{f.Return.GetNativeDelegateType( false )} (CC *{f.MangledName})( {nativeArgS.Trim( ',', ' ' )} ) = nullptr;" );
+					WriteLine( $"{f.Return.DelegateType( Side.Native, Dir.Outgoing )} (CC *{f.MangledName})( {nativeArgS.Trim( ',', ' ' )} ) = nullptr;" );
 				}
 			}
 		}
@@ -44,9 +44,9 @@ internal partial class NativeWriter
 		WriteLine( "//" );
 		WriteLine( "// IMPORT IMPLEMENTATIONS" );
 		WriteLine( "//" );
-		foreach ( Class c in definitions.Classes.Where( x => x.Native == false ).OrderByDescending( x => x.ClassDepth ) )
+		foreach ( Class c in definitions.ManagedClasses.OrderByDescending( x => x.ClassDepth ) )
 		{
-			if ( ShouldSkip( c ) )
+			if ( Skip.ShouldSkip( c ) )
 			{
 				continue;
 			}
@@ -67,24 +67,19 @@ internal partial class NativeWriter
 			{
 				IEnumerable<string> nativeArgs = f.Parameters.Select( x => $"{x.NativeType} {x.Name}" );
 				string nativeArgS = string.Join( ", ", nativeArgs );
-				string conststr = " const";
-
-				if ( c.Static || f.Static )
-				{
-					conststr = "";
-				}
+				string conststr = (c.Static || f.Static) ? "" : " const";
 
 				Write( $"{f.Return.NativeType} {c.NativeNameWithNamespace}::{f.Name}( {nativeArgS} ){conststr}{{ ", true );
 				{
-					IEnumerable<string> interopArgs = c.SelfArg( true, f.Static ).Concat( f.Parameters ).Select( x => x.ToInterop( true ) );
+					IEnumerable<string> interopArgs = c.SelfArg( true, f.Static ).Concat( f.Parameters ).Select( x => x.ToInterop( Side.Native ) );
 					string interopArgsS = string.Join( ", ", interopArgs );
 
 					string func = $"Imports::{f.MangledName}( {interopArgsS} ) ";
 
 					if ( f.HasReturn )
 					{
-						func = f.Return.FromInterop( true, func );
-						func = f.Return.ReturnWrapCall( func, true );
+						func = f.Return.FromInterop( Side.Native, func );
+						func = f.Return.ReturnWrapCall( func, Side.Native );
 					}
 					else
 					{

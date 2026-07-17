@@ -20,13 +20,11 @@ public static class MenuHelpers
 		Assert.True( HasAuthority, "You do not have authority to start a game, only the party owner can do that." );
 
 		// VR-only game but not in VR
-		var isVrOnly = package.GetMeta<ControlModeSettings>( "ControlModes" )?.IsVROnly ?? false;
-		if ( isVrOnly && !Application.IsVR )
+		if ( package.Info.IsVrOnly && !Application.IsVR )
 			return;
 
 		// QuickPlay: try to join an existing lobby first
-		var launchMode = package.GetMeta( "LaunchMode", "default" ).ToLower();
-		if ( launchMode == "quickplay" )
+		if ( package.Info.IsQuickPlay )
 		{
 			LoadingScreen.IsVisible = true;
 			LoadingScreen.Title = "Finding Game..";
@@ -38,7 +36,7 @@ public static class MenuHelpers
 			Log.Info( $"Couldn't join a lobby - making a game" );
 			LoadingScreen.IsVisible = false;
 		}
-		else if ( launchMode == "dedicatedserveronly" )
+		else if ( package.Info.IsDedicatedServerOnly )
 		{
 			// Dedicated server only: show server list
 			Game.Overlay.ShowServerList( new ServerListConfig( package.FullIdent ) );
@@ -57,8 +55,8 @@ public static class MenuHelpers
 
 				LaunchArguments.Privacy = x.Privacy;
 
-				if ( !string.IsNullOrEmpty( x.MapIdent ) )
-					MenuUtility.OpenGameWithMap( package.FullIdent, x.MapIdent, x.GameSettings );
+				if ( !string.IsNullOrEmpty( x.Map ) )
+					MenuUtility.OpenGameWithMap( package.FullIdent, x.Map, x.GameSettings );
 				else
 					MenuUtility.OpenGame( package.FullIdent, true, x.GameSettings );
 			} ) );
@@ -74,7 +72,7 @@ public static class MenuHelpers
 		if ( mapPackage is null )
 		{
 			// Fetch the default map if one is configured
-			var defaultMap = package.GetValue( "DefaultMap", "" );
+			var defaultMap = package.Info.DefaultMap;
 			if ( !string.IsNullOrWhiteSpace( defaultMap ) )
 			{
 				Log.Info( $"DefaultMap configured, launching game with map: {defaultMap}" );
@@ -94,11 +92,10 @@ public static class MenuHelpers
 
 	static bool ShouldUseCreateGameModal( Package package )
 	{
-		if ( package.GetValue( "UseCreateGameModal", false ) )
+		if ( package.Info.UsesCreateGameModal )
 			return true;
 
-		var settings = package.GetMeta<List<GameSetting>>( "GameSettings", null );
-		if ( settings is not null && settings.Count > 0 )
+		if ( package.Info.HasGameSettings )
 			return true;
 
 		return false;
@@ -165,9 +162,7 @@ public static class MenuHelpers
 			} );
 		}
 
-		var maxPlayers = package.GetMeta<int>( "MaxPlayers", 1 );
-
-		if ( multiplayerOverride || package.Tags.Contains( "multiplayer" ) || maxPlayers > 1 )
+		if ( multiplayerOverride || package.Tags.Contains( "multiplayer" ) || package.Info.MaxPlayers > 1 )
 		{
 			menu.AddSpacer();
 			menu.AddOption( "list", "View servers", () =>

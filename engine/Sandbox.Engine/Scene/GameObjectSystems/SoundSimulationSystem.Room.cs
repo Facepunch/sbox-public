@@ -142,38 +142,42 @@ partial class SoundSimulationSystem
 
 		var escapeIgnore = ((Span<PhysicsBody>)escape)[..escapeCount];
 
-		for ( int r = 0; r < u.RayCount; r++ )
+		// Sim tags + escape filter resolved once for this source; the escape set is constant too.
+		var trace = ApplySimulationTags( world.Trace, u.Handle );
+		trace.filterCallback = EscapeFilter;
+		SetTraceIgnore( escapeIgnore );
+
+		try
 		{
-			var pos = u.Origin;
-			var dir = Vector3.Random.Normal;
-			int rayBounces = 0;
-
-			for ( int b = 0; b < SourceRayBounces; b++ )
+			for ( int r = 0; r < u.RayCount; r++ )
 			{
-				var start = pos;
-				PhysicsTraceResult tr;
-				while ( true )
+				var pos = u.Origin;
+				var dir = Vector3.Random.Normal;
+				int rayBounces = 0;
+
+				for ( int b = 0; b < SourceRayBounces; b++ )
 				{
-					tr = ApplySimulationTags( world.Trace.FromTo( start, pos + dir * RoomMaxBounceLen ), u.Handle ).Run();
-					if ( !tr.Hit || tr.HasTag( "world" ) || !IgnoredBody( tr.Body, escapeIgnore ) ) break;
-					start = tr.HitPosition + dir * 0.1f;
+					var tr = trace.FromTo( pos, pos + dir * RoomMaxBounceLen ).Run();
+					if ( !tr.Hit )
+					{
+						u.EscapedWeight += EscapeWeight( rayBounces );
+						break;
+					}
+
+					u.TotalDist += pos.Distance( tr.HitPosition );
+					u.SegmentCount++;
+					u.TotalRefl += AcousticMaterial.GetReflectivity( tr.Surface?.AudioSurface ?? AudioSurface.Generic ).Log();
+					u.BounceCount++;
+					rayBounces++;
+
+					dir = (tr.Normal + Vector3.Random.Normal).Normal;
+					pos = tr.HitPosition + tr.Normal * 4f;
 				}
-
-				if ( !tr.Hit )
-				{
-					u.EscapedWeight += EscapeWeight( rayBounces );
-					break;
-				}
-
-				u.TotalDist += pos.Distance( tr.HitPosition );
-				u.SegmentCount++;
-				u.TotalRefl += AcousticMaterial.GetReflectivity( tr.Surface?.AudioSurface ?? AudioSurface.Generic ).Log();
-				u.BounceCount++;
-				rayBounces++;
-
-				dir = (tr.Normal + Vector3.Random.Normal).Normal;
-				pos = tr.HitPosition + tr.Normal * 4f;
 			}
+		}
+		finally
+		{
+			ClearTraceIgnore();
 		}
 	}
 

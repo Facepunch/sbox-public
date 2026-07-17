@@ -26,10 +26,34 @@ namespace DotRecast.Detour.Crowd
 		private readonly DtCrowdConfig m_config;
 		private readonly LinkedList<DtPathQuery> m_queue;
 
+		// Finished queries are reusable — InitSlicedFindPath fully resets their state.
+		private readonly Stack<DtNavMeshQuery> m_queryPool = new();
+		private DtNavMesh m_queryPoolNavMesh;
+
 		public DtPathQueue( DtCrowdConfig config )
 		{
 			m_config = config;
 			m_queue = new LinkedList<DtPathQuery>();
+		}
+
+		private DtNavMeshQuery RentQuery( DtNavMesh navMesh )
+		{
+			if ( m_queryPoolNavMesh != navMesh )
+			{
+				m_queryPool.Clear();
+				m_queryPoolNavMesh = navMesh;
+			}
+
+			return m_queryPool.Count > 0 ? m_queryPool.Pop() : new DtNavMeshQuery( navMesh );
+		}
+
+		private void ReturnQuery( DtPathQuery q, DtNavMesh navMesh )
+		{
+			if ( q.navQuery is null || m_queryPoolNavMesh != navMesh )
+				return;
+
+			m_queryPool.Push( q.navQuery );
+			q.navQuery = null;
 		}
 
 		public void Update( DtNavMesh navMesh )
@@ -50,7 +74,7 @@ namespace DotRecast.Detour.Crowd
 				// Handle query start.
 				if ( q.result.status.IsEmpty() )
 				{
-					q.navQuery = new DtNavMeshQuery( navMesh );
+					q.navQuery = RentQuery( navMesh );
 					q.result.status = q.navQuery.InitSlicedFindPath( q.startRef, q.endRef, q.startPos, q.endPos, q.filter, 0 );
 				}
 
@@ -69,6 +93,10 @@ namespace DotRecast.Detour.Crowd
 				if ( !(q.result.status.Failed() || q.result.status.Succeeded()) )
 				{
 					m_queue.AddFirst( q );
+				}
+				else
+				{
+					ReturnQuery( q, navMesh );
 				}
 			}
 		}

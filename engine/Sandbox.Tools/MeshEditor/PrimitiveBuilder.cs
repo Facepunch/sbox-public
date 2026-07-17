@@ -89,8 +89,13 @@ public abstract class PrimitiveBuilder
 	public virtual bool Is2D { get => false; }
 
 	/// <summary>
-	/// The material to use for this whole primitive.
+	/// The material to use for this whole primitive. Loaded on demand so builders can be
+	/// created without the render system.
 	/// </summary>
 	[Hide]
-	public Material Material { get; set; } = Material.Load( "materials/dev/reflectivity_30.vmat" );
+	public Material Material
+	{
+		get => field ??= Material.Load( "materials/dev/reflectivity_30.vmat" );
+		set;
+	}
 }

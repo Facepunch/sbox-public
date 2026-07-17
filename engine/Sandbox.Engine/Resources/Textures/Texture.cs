@@ -28,7 +28,7 @@ public partial class Texture : Resource, IDisposable
 	/// <summary>
 	/// Whether this texture is an error or invalid or not.
 	/// </summary>
-	public bool IsError => native.IsNull || !native.IsStrongHandleValid() || native.IsError();
+	public override bool IsError => native.IsNull || !native.IsStrongHandleValid() || native.IsError();
 
 	public override bool IsValid => native.IsValid;
 
@@ -86,6 +86,8 @@ public partial class Texture : Resource, IDisposable
 		// they release it, it'll be a hanging pointer!
 		native = texture.native.CopyStrongHandle();
 
+		IsAnimated = texture.IsAnimated;
+
 		UpdateSheetInfo();
 
 		gotdesc = false;
@@ -135,6 +137,11 @@ public partial class Texture : Resource, IDisposable
 	/// Whether this texture has finished loading or not.
 	/// </summary>
 	public bool IsLoaded { get; internal set; } = true;
+
+	/// <summary>
+	/// True if this is a multi-frame animated image (GIF, animated WebP) driven by <see cref="Tick"/>.
+	/// </summary>
+	public bool IsAnimated { get; internal set; }
 
 	/// <summary>
 	/// Image format of this texture.
@@ -192,14 +199,24 @@ public partial class Texture : Resource, IDisposable
 		//
 		// Try to load the texture again, make a new texture
 		//
-		using var newTex = TryToLoad( filesystem, filename, false );
+		var newTex = TryToLoad( filesystem, filename, false );
 
 		//
-		// If success, copy from this texture
+		// FromNative can return this same cached wrapper - nothing to copy.
 		//
-		if ( newTex != null )
+		if ( newTex is null || ReferenceEquals( newTex, this ) )
+			return;
+
+		//
+		// If success, copy from this texture, always releasing the temporary handle.
+		//
+		try
 		{
 			CopyFrom( newTex );
+		}
+		finally
+		{
+			newTex.Dispose();
 		}
 	}
 

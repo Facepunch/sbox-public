@@ -42,6 +42,7 @@ internal sealed partial class PackageLoader : IDisposable
 	{
 		log = new Logger( $"PackageLoader/{name}" );
 		LoadContext = new LoadContext( parentAssembly );
+		LoadContext.OnDemandResolver = ResolveAssemblyOnDemand;
 		// ILHotload only makes sense for the editor
 		if ( Application.IsEditor || Application.IsUnitTest )
 		{
@@ -128,16 +129,17 @@ internal sealed partial class PackageLoader : IDisposable
 	{
 		log.Trace( "Loading Pending Changes" );
 
-		var changedPackageDlls = this.changedPackageDlls
-										.Where( x => x.ap is not null )
-										.ToArray();
+		var allChangedDlls = this.changedPackageDlls.ToArray();
 		this.changedPackageDlls.Clear();
 
-		//
-		// This can happen when recieving assemblies from a server
-		//
-		if ( !changedPackageDlls.Any() )
+		if ( !allChangedDlls.Any() )
 			return;
+
+		// Entries without a package come from a stream (e.g. assemblies sent by a server)
+		// and were already swapped in by AddAssembly when they arrived.
+		var changedPackageDlls = allChangedDlls
+										.Where( x => x.ap is not null )
+										.ToArray();
 
 		var changedPackages = changedPackageDlls
 									.Select( x => x.ap )
@@ -149,6 +151,23 @@ internal sealed partial class PackageLoader : IDisposable
 		//
 
 		var hotloadedPackages = new HashSet<PackageManager.ActivePackage>();
+
+		//
+		// Resolve stream-swapped assemblies back to their loaded package, so packages that
+		// depend on them (e.g. targeted addons referencing their parent game) reload below.
+		//
+		foreach ( var e in allChangedDlls.Where( x => x.ap is null ) )
+		{
+			// only full swaps matter - a fast hotload keeps the same assembly instance
+			if ( !IncomingThisHotload.Any( x => e.filename.Equals( x.Name, StringComparison.OrdinalIgnoreCase ) ) )
+				continue;
+
+			var owner = FindLoadedPackageForAssembly( e.filename );
+			if ( owner is not null )
+			{
+				hotloadedPackages.Add( owner );
+			}
+		}
 
 		foreach ( var e in Package.SortByReferences( changedPackageDlls, x => x.ap.Package ) )
 		{
@@ -181,7 +200,9 @@ internal sealed partial class PackageLoader : IDisposable
 					break;
 
 				default:
-					return false;
+					// addon code can exist with a resource package
+					if ( baseHotloaded && !string.IsNullOrWhiteSpace( package.Info.ParentPackage ) ) return true;
+					break;
 			}
 
 			return package.EnumeratePackageReferences()
@@ -190,7 +211,7 @@ internal sealed partial class PackageLoader : IDisposable
 		}
 
 		var dependentPackages = loadedPackages
-			.Where( x => !changedPackages.Contains( x ) )
+			.Where( x => !changedPackages.Contains( x ) && !hotloadedPackages.Contains( x ) )
 			.Where( x => ReferencesHotloadedPackage( x.Package ) )
 			.ToArray();
 
@@ -198,6 +219,27 @@ internal sealed partial class PackageLoader : IDisposable
 		{
 			LoadAllAssembliesFromPackage( package );
 		}
+	}
+
+	/// <summary>
+	/// Find the loaded package an assembly belongs to, given its name (without extension).
+	/// Used for assemblies that arrived without a package, e.g. streamed from a server.
+	/// </summary>
+	private PackageManager.ActivePackage FindLoadedPackageForAssembly( string assemblyName )
+	{
+		var owner = loadedPackages.FirstOrDefault( x => x.AssemblyFileSystem?.FileExists( $"{assemblyName}.dll" ) == true );
+		if ( owner is not null )
+			return owner;
+
+		// Package assemblies are named "package.{org}.{ident}" - fall back to matching by ident,
+		// for packages whose assemblies don't exist on disk (e.g. compiled from a code archive).
+		if ( assemblyName.StartsWith( "package.", StringComparison.OrdinalIgnoreCase ) )
+		{
+			var ident = assemblyName["package.".Length..];
+			return loadedPackages.FirstOrDefault( x => x.Package.IsNamed( ident ) );
+		}
+
+		return null;
 	}
 
 	private bool LoadAssemblyFromStream( string assmName, Stream stream, out LoadedAssembly assembly )
@@ -387,19 +429,6 @@ internal sealed partial class PackageLoader : IDisposable
 			LoadPackage( child );
 		}
 
-		var parent = ap.Package.GetMeta<string>( "ParentPackage", null );
-		if ( !string.IsNullOrWhiteSpace( parent ) && Package.TryParseIdent( parent, out var _ ) )
-		{
-			if ( PackageManager.Find( parent, true, false ) != null )
-			{
-				LoadPackage( parent );
-			}
-			else
-			{
-				log.Warning( $"LoadPackage: skipping missing parent '{parent}'" );
-			}
-		}
-
 		try
 		{
 			using var gr = new HeavyGarbageRegion();
@@ -421,28 +450,37 @@ internal sealed partial class PackageLoader : IDisposable
 	{
 		ArgumentNullException.ThrowIfNull( package );
 
-		var ordered = new AssemblyOrderer();
-
 		var assemblyList = package.AssemblyFileSystem.FindFile( "", "*.dll", true ).ToArray();
 
-		foreach ( var assemblyName in assemblyList.OrderBy( x => x.Length ) ) // TODO - we'll have to deal with this at some point
+		foreach ( var assemblyName in assemblyList )
 		{
-			// don't load editor dlls here unless we're in tools mode
 			if ( assemblyName.EndsWith( ".editor.dll", StringComparison.OrdinalIgnoreCase ) && !ToolsMode )
 				continue;
 
-			var fileName = assemblyName;
-			var bytes = package.AssemblyFileSystem.ReadAllBytes( fileName ).ToArray();
-			ordered.Add( fileName, bytes );
-		}
-
-		foreach ( (var name, var bytes) in ordered.GetDependencyOrdered() )
-		{
-			var result = LoadAssemblyFromPackage( package, name, bytes );
+			var result = LoadAssemblyFromPackage( package, assemblyName );
 
 			if ( result?.Assembly == null )
-				throw new System.Exception( $"Error loading {name}" );
+				throw new System.Exception( $"Error loading {assemblyName}" );
 		}
+	}
+
+	/// <summary>
+	/// Called by <see cref="LoadContext"/> when a dependency assembly can't be resolved through
+	/// normal means. Searches all active packages' assembly filesystems so imports are satisfied
+	/// on demand rather than requiring every dep to be pre-loaded upfront.
+	/// </summary>
+	private Assembly ResolveAssemblyOnDemand( string assemblyName )
+	{
+		foreach ( var ap in PackageManager.ActivePackages )
+		{
+			var filename = $"{assemblyName}.dll";
+			if ( ap.AssemblyFileSystem?.FileExists( filename ) != true ) continue;
+
+			var result = LoadAssemblyFromPackage( ap, filename );
+			return result?.Assembly;
+		}
+
+		return null;
 	}
 
 	LoadedAssembly AddAssembly( Package package, string assemblyName, TrustedBinaryStream dllStream, byte[] codeArchive )
@@ -570,7 +608,7 @@ internal sealed partial class PackageLoader : IDisposable
 
 		var sw = Stopwatch.StartNew();
 
-		if ( ILHotload.Replace( outgoing?.Assembly, outgoing?.ModifiedAssembly ?? outgoing?.Assembly, incoming?.Assembly ) == false )
+		if ( !ILHotload.Replace( outgoing?.Assembly, outgoing?.ModifiedAssembly ?? outgoing?.Assembly, incoming?.Assembly ) )
 			return false;
 
 		sw.Stop();

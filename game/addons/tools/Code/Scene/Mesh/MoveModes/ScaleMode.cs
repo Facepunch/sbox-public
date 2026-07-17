@@ -7,7 +7,7 @@ namespace Editor.MeshEditor;
 /// <b>Shift</b> - extrude selection
 /// </summary>
 [Title( "Scale" )]
-[Icon( "zoom_out_map" )]
+[Icon( "meshtools/move_modes/scale.png" )]
 [Alias( "mesh.scale.mode" )]
 [Order( 2 )]
 public sealed class ScaleMode : MoveMode
@@ -43,9 +43,9 @@ public sealed class ScaleMode : MoveMode
 
 				var size = _size + Gizmo.Snap( _moveDelta, _moveDelta ) * 2.0f;
 				var scale = new Vector3(
-						_size.x != 0 ? MathF.Max( size.x / _size.x, 0 ) : 1,
-						_size.y != 0 ? MathF.Max( size.y / _size.y, 0 ) : 1,
-						_size.z != 0 ? MathF.Max( size.z / _size.z, 0 ) : 1
+						_size.x != 0 ? size.x / _size.x : 1,
+						_size.y != 0 ? size.y / _size.y : 1,
+						_size.z != 0 ? size.z / _size.z : 1
 					);
 
 				tool.StartDrag();

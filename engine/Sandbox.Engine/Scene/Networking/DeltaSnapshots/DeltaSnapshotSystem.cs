@@ -598,7 +598,7 @@ internal class DeltaSnapshotSystem
 			}
 			else
 			{
-				connectionData.ReceivedSnapshotStates[objectId] = RemoteSnapshotState.From( connectionId, snapshot );
+				state = connectionData.ReceivedSnapshotStates[objectId] = RemoteSnapshotState.From( connectionId, snapshot );
 			}
 
 			snapshotter.OnSnapshotAck( source, snapshot, state );

@@ -3874,6 +3874,99 @@ public sealed partial class PolygonMesh : IJsonConvert
 	}
 
 	/// <summary>
+	/// Continue the texture mapping of an adjacent source face onto a destination face across
+	/// their shared edge, keeping the texture continuous over the edge. Returns false if the
+	/// faces don't share an edge or the source parameters are unusable.
+	/// </summary>
+	public bool TextureWrapFromFace( FaceHandle hSourceFace, FaceHandle hDestFace )
+	{
+		if ( !hSourceFace.IsValid || !hDestFace.IsValid || hSourceFace == hDestFace )
+			return false;
+
+		var hSharedEdge = FindEdgeConnectingFaces( hSourceFace, hDestFace );
+		if ( !hSharedEdge.IsValid )
+			return false;
+
+		var uAxis = TextureUAxis[hSourceFace];
+		var vAxis = TextureVAxis[hSourceFace];
+		var scale = TextureScale[hSourceFace];
+		var offset = TextureOffset[hSourceFace];
+
+		if ( float.IsNaN( scale.x ) || float.IsNaN( scale.y ) || scale.x.AlmostEqual( 0.0f ) || scale.y.AlmostEqual( 0.0f ) )
+			return false;
+
+		if ( uAxis.LengthSquared.AlmostEqual( 0.0f ) || vAxis.LengthSquared.AlmostEqual( 0.0f ) )
+			return false;
+
+		GetEdgeVertexPositions( hSharedEdge, Transform, out var edgeA, out var edgeB );
+
+		var edgeDir = edgeB - edgeA;
+		if ( edgeDir.LengthSquared.AlmostEqual( 0.0f ) )
+			return false;
+
+		edgeDir = edgeDir.Normal;
+
+		GetFacePlane( hSourceFace, Transform, out var sourcePlane );
+		GetFacePlane( hDestFace, Transform, out var destPlane );
+
+		var sinAngle = sourcePlane.Normal.Cross( destPlane.Normal ).Dot( edgeDir );
+		var cosAngle = sourcePlane.Normal.Dot( destPlane.Normal );
+		var angle = MathF.Atan2( sinAngle, cosAngle ).RadianToDegree();
+
+		if ( !angle.AlmostEqual( 0.0f ) )
+		{
+			var rotation = Rotation.FromAxis( edgeDir, angle );
+			var wrappedU = rotation * uAxis;
+			var wrappedV = rotation * vAxis;
+
+			// Solve the offsets so the UVs are unchanged at a point on the shared edge. Combined
+			// with rotating about the edge itself this keeps the texture continuous across it.
+			offset.x += (edgeA.Dot( uAxis ) - edgeA.Dot( wrappedU )) / scale.x;
+			offset.y += (edgeA.Dot( vAxis ) - edgeA.Dot( wrappedV )) / scale.y;
+
+			uAxis = wrappedU;
+			vAxis = wrappedV;
+		}
+
+		TextureUAxis[hDestFace] = uAxis;
+		TextureVAxis[hDestFace] = vAxis;
+		TextureScale[hDestFace] = scale;
+		TextureOffset[hDestFace] = offset;
+
+		ComputeFaceTextureCoordinatesFromParameters( [hDestFace] );
+
+		IsDirty = true;
+
+		return true;
+	}
+
+	/// <summary>
+	/// Wrap the texture of a face from the first adjacent face that isn't excluded.
+	/// Returns false if no suitable neighbour was found.
+	/// </summary>
+	public bool TextureWrapFromNeighbour( FaceHandle hFace, IReadOnlySet<FaceHandle> excludeFaces = null )
+	{
+		GetEdgesConnectedToFace( hFace, out var edges );
+
+		foreach ( var hEdge in edges )
+		{
+			GetFacesConnectedToEdge( hEdge, out var hFaceA, out var hFaceB );
+
+			var hNeighbour = hFaceA == hFace ? hFaceB : hFaceA;
+			if ( !hNeighbour.IsValid || hNeighbour == hFace )
+				continue;
+
+			if ( excludeFaces is not null && excludeFaces.Contains( hNeighbour ) )
+				continue;
+
+			if ( TextureWrapFromFace( hNeighbour, hFace ) )
+				return true;
+		}
+
+		return false;
+	}
+
+	/// <summary>
 	/// Set face vertex texture coord
 	/// </summary>
 	public void SetTextureCoord( HalfEdgeHandle faceVertex, Vector2 texcoord )

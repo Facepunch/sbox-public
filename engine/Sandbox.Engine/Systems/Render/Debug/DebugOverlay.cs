@@ -33,6 +33,9 @@ internal static partial class DebugOverlay
 	[ConVar( "overlay_network_graph", Help = "Draws an overlay showing a network usage summary" )]
 	internal static int overlay_network_graph { get; set; } = 0;
 
+	[ConVar( "overlay_fps", Help = "Draws an overlay graphing frame-time pacing: a live frametime strip and a distribution histogram" )]
+	internal static int overlay_fps { get; set; } = 0;
+
 	[ConVar( "overlay_network_calls", Help = "Draws an overlay showing most received network calls" )]
 	internal static int overlay_network_calls { get; set; } = 0;
 
@@ -66,6 +69,12 @@ internal static partial class DebugOverlay
 		if ( overlay_network_graph == 1 )
 		{
 			DebugOverlay.NetworkGraph.Draw( ref pos );
+			pos.y += OverlaySpacing;
+		}
+
+		if ( overlay_fps == 1 )
+		{
+			DebugOverlay.FrameTimeGraph.Draw( ref pos );
 			pos.y += OverlaySpacing;
 		}
 

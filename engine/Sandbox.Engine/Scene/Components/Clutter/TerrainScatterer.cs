@@ -81,18 +81,17 @@ public class SlopeScatterer : Scatterer
 			return [];
 
 		var pointCount = CalculatePointCount( bounds, Density );
-		var instances = new List<ClutterInstance>( pointCount );
+		var points = JitteredGridPoints( bounds, pointCount );
+		var instances = new List<ClutterInstance>( points.Length );
 
-		for ( int i = 0; i < pointCount; i++ )
+		if ( points.Length == 0 )
+			return instances;
+
+		var sceneBounds = scene.GetBounds();
+		var traces = BatchTraceGround( scene, points, sceneBounds );
+
+		foreach ( var trace in traces )
 		{
-			var point = new Vector3(
-				bounds.Mins.x + Random.Float( bounds.Size.x ),
-				bounds.Mins.y + Random.Float( bounds.Size.y ),
-				0f
-			);
-
-			// Trace to ground
-			var trace = TraceGround( scene, point );
 			if ( !trace.Hit )
 				continue;
 
@@ -272,18 +271,17 @@ public class TerrainMaterialScatterer : Scatterer
 		_cachedTerrainObject = null;
 
 		var pointCount = CalculatePointCount( bounds, Density );
-		var instances = new List<ClutterInstance>( pointCount );
+		var points = JitteredGridPoints( bounds, pointCount );
+		var instances = new List<ClutterInstance>( points.Length );
 
-		for ( int i = 0; i < pointCount; i++ )
+		if ( points.Length == 0 )
+			return instances;
+
+		var sceneBounds = scene.GetBounds();
+		var traces = BatchTraceGround( scene, points, sceneBounds );
+
+		foreach ( var trace in traces )
 		{
-			var point = new Vector3(
-				bounds.Mins.x + Random.Float( bounds.Size.x ),
-				bounds.Mins.y + Random.Float( bounds.Size.y ),
-				0f
-			);
-
-			// Trace to ground
-			var trace = TraceGround( scene, point );
 			if ( !trace.Hit )
 				continue;
 
@@ -383,7 +381,16 @@ public class TerrainMaterialScatterer : Scatterer
 			return null;
 
 		// Find mapping for this material
-		var mapping = Mappings.FirstOrDefault( m => m.Material == dominantMaterial );
+		TerrainMaterialMapping mapping = null;
+		foreach ( var m in Mappings )
+		{
+			if ( m.Material == dominantMaterial )
+			{
+				mapping = m;
+				break;
+			}
+		}
+
 		if ( mapping is null || mapping.EntryIndices is null or { Count: 0 } )
 			return null;
 
