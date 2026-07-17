@@ -2,7 +2,9 @@ using Facepunch.ActionGraphs;
 using NativeEngine;
 using Sentry;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using System.Threading;
+using static Sandbox.Model;
 
 namespace Sandbox;
 
@@ -654,6 +656,7 @@ file class MapComponentMapLoader : SceneMapLoader
 			prop.Model = model;
 			prop.Tint = kv.GetValue( "rendercolor", Color.White );
 			prop.WorldScale = kv.GetValue( "scales", Vector3.One );
+			prop.MaterialGroup = kv.GetValue( "skin", "default" );
 		}
 
 		if ( model.Physics is null || model.Physics.Parts.Count == 0 )
