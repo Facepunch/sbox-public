@@ -192,6 +192,32 @@ public partial class SceneViewportWidget : Widget
 	private static float SizeFromDistanceAndFieldOfView( float distance, float fov )
 		=> 2.0f * distance * MathF.Tan( 0.5f * MathX.DegreeToRadian( fov ) );
 
+	private void EnterPerspectiveView()
+	{
+		_gizmoOrthoActive = false;
+		State.GridAxis = Gizmo.GridAxis.XY;
+
+		if ( State.Is2D )
+			State.View = ViewMode.Perspective;
+
+		cameraTargetPosition = null;
+	}
+
+	private void EnterOrthoView( Vector3 axisDir, Vector3 up, Vector3 pivot, float distance )
+	{
+		State.CameraRotation = Rotation.LookAt( -axisDir, up );
+		State.CameraPosition = pivot + axisDir * distance;
+		State.CameraOrthoHeight = SizeFromDistanceAndFieldOfView( distance, EditorPreferences.CameraFieldOfView );
+		State.GridAxis = ViewportState.GridAxisForDirection( axisDir );
+
+		_activeCamera.WorldRotation = State.CameraRotation;
+		_activeCamera.WorldPosition = State.CameraPosition;
+
+		_gizmoOrthoActive = true;
+		_gizmoOrthoSnap = true;
+		cameraTargetPosition = null;
+	}
+
 	/// <summary>
 	/// Returns the distance the camera needs to be from the target to fit the ortho height in the view at the given FOV.
 	/// </summary>
