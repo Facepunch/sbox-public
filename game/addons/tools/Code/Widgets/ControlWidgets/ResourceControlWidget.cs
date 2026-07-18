@@ -212,9 +212,9 @@ public class ResourceControlWidget : ControlWidget
 			resource = asset.LoadResource( SerializedProperty.PropertyType );
 		}
 
-		SerializedProperty.Parent.NoteStartEdit( SerializedProperty );
+		SerializedProperty.Parent?.NoteStartEdit( SerializedProperty );
 		SerializedProperty.SetValue( resource );
-		SerializedProperty.Parent.NoteFinishEdit( SerializedProperty );
+		SerializedProperty.Parent?.NoteFinishEdit( SerializedProperty );
 	}
 
 	private void UpdateFromAssets( Asset[] assets )
@@ -227,6 +227,8 @@ public class ResourceControlWidget : ControlWidget
 			SerializedProperty.SetValue( resource );
 		}
 
+		if ( !IsValid ) return;
+
 		if ( IsInList )
 		{
 			var list = Parent.Parent as ListControlWidget;
@@ -234,7 +236,7 @@ public class ResourceControlWidget : ControlWidget
 			{
 				if ( !CanAssignAssetType( assets[i] ) ) continue;
 				var newResource = assets[i].LoadResource( SerializedProperty.PropertyType );
-				list.Collection.Add( newResource );
+				list?.Collection.Add( newResource );
 			}
 		}
 	}

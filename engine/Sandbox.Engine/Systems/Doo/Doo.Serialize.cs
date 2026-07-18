@@ -13,6 +13,11 @@ public partial class Doo : IJsonConvert
 		if ( reader.TokenType != JsonTokenType.StartObject )
 			throw new JsonException( "Expected StartObject" );
 
+		// Check if we're allowed to deserialize scripts, this is
+		// forbidden when reading JSON from untrusted sources (non-hosts)
+
+		Json.AssertCanDeserializeScripts();
+
 		var doo = new Doo();
 
 		while ( reader.Read() )

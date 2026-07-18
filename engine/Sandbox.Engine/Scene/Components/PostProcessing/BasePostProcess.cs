@@ -101,7 +101,7 @@ public abstract class BasePostProcess : Component, Component.ExecuteInEditor, Co
 	{
 		if ( !blit.Material.IsValid() ) return;
 
-		CommandList cl = new CommandList( blit.Material.Name );
+		CommandList cl = new CommandList( debugName );
 
 		if ( blit.WantsBackbuffer )
 		{

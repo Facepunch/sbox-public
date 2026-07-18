@@ -261,6 +261,12 @@ public abstract class ParticleEmitter : Component, Component.ExecuteInEditor, Co
 
 	void ITemporaryEffect.DisableLooping()
 	{
+		// Only a looping emitter would live forever - a one-shot still gets to fire its burst and
+		// die on its own. It may not even have started yet: an impact orphaned by its parent's
+		// death (BecomeOrphan) is disabled before its first step, and suspending it there would
+		// swallow the whole effect.
+		if ( !Loop ) return;
+
 		suspended = true;
 	}
 }

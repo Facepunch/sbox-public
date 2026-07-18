@@ -86,4 +86,67 @@ public sealed partial record PropertyBlock<T>( [property: JsonPropertyOrder( 100
 
 		return compiled;
 	}
+
+	/// <summary>
+	/// Tries to reduce this block's <see cref="Signal"/> based on its <see cref="TimeRange"/>.
+	/// Returns a new block with the reduced signal if any reduction was possible, otherwise returns this block.
+	/// </summary>
+	public PropertyBlock<T> Reduce()
+	{
+		var reducedSignal = Signal.Reduce( TimeRange );
+
+		return !reducedSignal.Equals( Signal )
+			? this with { Signal = reducedSignal }
+			: this;
+	}
+
+	/// <summary>
+	/// We can merge adjacent blocks with identical values at the interface,
+	/// or that both have keyframes at the interface.
+	/// </summary>
+	public bool CanMerge( PropertyBlock<T> next )
+	{
+		if ( TimeRange.End != next.TimeRange.Start ) return false;
+
+		var connectionTime = TimeRange.End;
+
+		var prevValue = GetValue( connectionTime );
+		var nextValue = next.GetValue( connectionTime );
+
+		if ( EqualityComparer<T>.Default.Equals( prevValue, nextValue ) ) return true;
+
+		if ( Signal is not KeyframeSignal<T> prevKeyframeSignal ) return false;
+		if ( next.Signal is not KeyframeSignal<T> nextKeyframeSignal ) return false;
+
+		if ( prevKeyframeSignal.Keyframes.All( x => x.Time != connectionTime ) ) return false;
+		if ( nextKeyframeSignal.Keyframes.All( x => x.Time != connectionTime ) ) return false;
+
+		return true;
+	}
+}
+
+public static class BlockExtensions
+{
+	extension<T>( List<PropertyBlock<T>> blocks )
+	{
+		/// <summary>
+		/// Merge all adjacent blocks that satisfy <see cref="PropertyBlock{T}.CanMerge"/>.
+		/// </summary>
+		public void Merge()
+		{
+			for ( var i = blocks.Count - 2; i >= 0; --i )
+			{
+				var prev = blocks[i];
+				var next = blocks[i + 1];
+
+				if ( !prev.CanMerge( next ) ) continue;
+
+				var combinedTimeRange = prev.TimeRange.Union( next.TimeRange );
+				var combinedSignal = prev.Signal.HardCut( next.Signal, prev.TimeRange.End ).Reduce( combinedTimeRange );
+
+				blocks[i] = new PropertyBlock<T>( combinedSignal, combinedTimeRange );
+				blocks.RemoveAt( i + 1 );
+			}
+		}
+	}
 }

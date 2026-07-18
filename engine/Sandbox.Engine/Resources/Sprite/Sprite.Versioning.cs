@@ -5,7 +5,7 @@ namespace Sandbox;
 
 public partial class Sprite
 {
-	[Hide, JsonIgnore] public override int ResourceVersion => 1;
+	[Hide, JsonIgnore] public override int ResourceVersion => 2;
 
 	/// <summary>
 	/// v1
@@ -61,6 +61,36 @@ public partial class Sprite
 					},
 					["compiled"] = null
 				};
+			}
+		}
+	}
+
+	/// <summary>
+	/// v2
+	/// - Convert legacy null loop bounds to the proper -1 value
+	/// </summary>
+	[Expose, JsonUpgrader( typeof( Sprite ), 2 )]
+	static void Upgrader_v2( JsonObject json )
+	{
+		if ( !json.TryGetPropertyValue( "Animations", out var animationsNode ) )
+			return;
+
+		if ( animationsNode is not JsonArray animations )
+			return;
+
+		foreach ( var animNode in animations )
+		{
+			if ( animNode is not JsonObject animation )
+				continue;
+
+			if ( animation.TryGetPropertyValue( "LoopStart", out var loopStart ) && loopStart is null )
+			{
+				animation["LoopStart"] = -1;
+			}
+
+			if ( animation.TryGetPropertyValue( "LoopEnd", out var loopEnd ) && loopEnd is null )
+			{
+				animation["LoopEnd"] = -1;
 			}
 		}
 	}

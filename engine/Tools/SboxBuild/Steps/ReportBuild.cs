@@ -8,9 +8,10 @@ namespace Facepunch.Steps;
 /// <summary>
 /// Reports this build to the backend - where the backend can then do whatever it wants.
 /// </summary>
-internal class ReportBuild
+internal class ReportBuild( BuildTarget target = BuildTarget.Staging )
 {
 	private const string BuildUrl = "https://public.facepunch.com/sbox/builds/1";
+	private readonly BuildTarget _target = target;
 
 	internal ExitCode Run()
 	{
@@ -41,6 +42,10 @@ internal class ReportBuild
 			return ExitCode.Failure;
 		}
 
+		// Only a build actually pushed to Steam is the channel's current build; PRs report a row but never repoint.
+		var steamClientBuildId = LongEnv( "STEAM_CLIENT_BUILD_ID" );
+		var channel = steamClientBuildId.HasValue ? BuildTargetToSteamBranch( _target ) : null;
+
 		var payload = new
 		{
 			Commit = commit,
@@ -55,8 +60,11 @@ internal class ReportBuild
 			BuiltAt = DateTimeOffset.UtcNow.ToString( "o" ),
 			ArtifactUrl = $"{R2.PublicBaseUrl}/builds/{commit}.zip",
 			ArtifactBytes = LongEnv( "BUILD_ARTIFACT_BYTES" ),
-			// Set by the upload-steam step earlier in this job (null on PRs, which don't push to Steam).
-			SteamClientBuildId = LongEnv( "STEAM_CLIENT_BUILD_ID" ),
+			// The engine's Protocol.Api - the compile/wire version the compile worker tags output with.
+			Protocol = ReadProtocolApi(),
+			// When set, marks this commit as the channel's current build (the compile worker resolves builds by it).
+			Channel = channel,
+			SteamClientBuildId = steamClientBuildId,
 			SteamServerBuildId = LongEnv( "STEAM_SERVER_BUILD_ID" ),
 		};
 
@@ -116,6 +124,26 @@ internal class ReportBuild
 			return null;
 
 		return $"{server}/{repo}/actions/runs/{runId}";
+	}
+
+	// Reads Protocol.Api out of the engine source (the packaged DLLs are refasmed, so it can't be read from them).
+	// Mirrors UploadReferenceAssemblies.TryReadProtocolApi; returns null (not fatal) so a report still goes through.
+	private static int? ReadProtocolApi()
+	{
+		const string source = "engine/Sandbox.Engine/Protocol.cs";
+
+		if ( !File.Exists( source ) )
+		{
+			Log.Warning( $"Cannot determine Protocol.Api: {source} not found; reporting build without it." );
+			return null;
+		}
+
+		var match = Regex.Match( File.ReadAllText( source ), @"public\s+static\s+int\s+Api\s*=>\s*(\d+)" );
+		if ( match.Success && int.TryParse( match.Groups[1].Value, out var api ) )
+			return api;
+
+		Log.Warning( $"Cannot determine Protocol.Api: no 'public static int Api => N' match in {source}; reporting build without it." );
+		return null;
 	}
 
 	// Reads an env var as a long (null if unset or unparseable). Used for values handed over by earlier

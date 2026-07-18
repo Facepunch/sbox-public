@@ -15,6 +15,7 @@ public sealed partial class PlayerController : Component
 		/// <summary>
 		/// Called after we've set the camera up
 		/// </summary>
+		[Obsolete( "Implement ICameraModifier instead - it runs in the camera's ordered modifier chain, after the player's view (order 0)." )]
 		void PostCameraSetup( CameraComponent cam ) { }
 
 		/// <summary>

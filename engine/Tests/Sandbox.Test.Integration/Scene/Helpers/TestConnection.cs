@@ -9,7 +9,7 @@ namespace SceneTests;
 
 internal sealed class TestConnection : Connection
 {
-	public record struct Message( InternalMessageType Type, object? Payload = null );
+	public record struct Message( byte[] Raw, InternalMessageType Type, object? Payload = null );
 
 	public List<Message> Messages { get; } = new();
 
@@ -49,11 +49,11 @@ internal sealed class TestConnection : Connection
 		switch ( type )
 		{
 			case InternalMessageType.Packed:
-				Messages.Add( new Message( type, GlobalGameNamespace.TypeLibrary.FromBytes<object>( ref reader ) ) );
+				Messages.Add( new Message( decoded.ToArray(), type, GlobalGameNamespace.TypeLibrary.FromBytes<object>( ref reader ) ) );
 				break;
 
 			default:
-				Messages.Add( new Message( type, reader.GetRemainingBytes().ToArray() ) );
+				Messages.Add( new Message( decoded.ToArray(), type, reader.GetRemainingBytes().ToArray() ) );
 				break;
 		}
 

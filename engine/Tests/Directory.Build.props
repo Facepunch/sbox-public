@@ -15,6 +15,9 @@
 		<IsPackable>false</IsPackable>
 		<SentryDisableSourceGenerator>true</SentryDisableSourceGenerator>
 		<IsTestProject Condition="'$(IsTestProject)' == ''">true</IsTestProject>
+		<!-- Matches Sbox.csproj: the portable pool's slow injection rate compounds badly
+		     under MSTest's MethodLevel parallelism nested with engine-side Parallel.For calls. -->
+		<UseWindowsThreadPool>true</UseWindowsThreadPool>
 	</PropertyGroup>
 
 	<ItemGroup Condition="'$(IsTestProject)' == 'true'">

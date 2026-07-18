@@ -97,6 +97,12 @@ partial class Session
 			get => session.GetCookie( nameof( ImageSequencePath ), System.IO.Path.Combine( Sandbox.Project.Current.GetRootPath(), $"{session.FileName}.png" ) );
 			set => session.SetCookie( nameof( ImageSequencePath ), value );
 		}
+
+		public KeyframeInterpolation KeyframeInterpolation
+		{
+			get => session.GetCookie( nameof( KeyframeInterpolation ), KeyframeInterpolation.Cubic );
+			set => session.SetCookie( nameof( KeyframeInterpolation ), value );
+		}
 	}
 
 	private CookieHelper? _cookieHelper;

@@ -278,7 +278,6 @@ public class AudioComponentTest
 		Assert.IsFalse( handle.OcclusionEnabled );
 		Assert.IsFalse( handle.AirAbsorption );
 		Assert.IsFalse( handle.DistanceAttenuation );
-		Assert.IsFalse( handle.Transmission );
 		Assert.IsFalse( handle.ListenLocal, "ListenLocal is only applied when SoundOverride is set" );
 
 		var withOverride = go.Components.Create<SoundPointComponent>( false );

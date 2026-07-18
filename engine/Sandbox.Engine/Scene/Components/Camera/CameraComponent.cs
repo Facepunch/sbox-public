@@ -259,21 +259,119 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		Gizmo.Draw.LineFrustum( frustum );
 	}
 
+	/// <summary>
+	/// The view this camera composed this frame - the base transform reshaped by every
+	/// <see cref="ICameraModifier"/>, before transient render effects. Query
+	/// <see cref="CameraView.FieldOfView"/> from here for zoom-aware logic like scaling look
+	/// sensitivity while scoped. Final from the camera stage of the tick (after Update, before
+	/// PreRender) - reading it during Update gives the previous frame's composition.
+	/// </summary>
+	public CameraView View { get; private set; }
+
+	bool _composed;
+	CameraView _composedBase;
+	CameraView _renderView;
+
+	/// <summary>
+	/// Compose this camera's view - the base transform reshaped by every <see cref="ICameraModifier"/>
+	/// (published on <see cref="View"/>), then transient effects baked on top for the render. The
+	/// scene composes every camera once per tick, after Update and bone merging and before PreRender,
+	/// so anything in PreRender positions against a settled camera. Call it yourself only when you're rendering
+	/// without ticking the scene and want the composition - otherwise a camera moved after composing
+	/// just renders from its raw transform.
+	/// </summary>
+	public void ComposeView()
+	{
+		ComposeView( Scene.IsEditor ? null : GatherModifiers( Scene ) );
+	}
+
+	// The scene-wide modifier set, sorted - gathered once per tick and shared by every camera
+	// composing that tick (see Scene.UpdateCameraViews). Null when modifiers don't apply (editor).
+	internal static ICameraModifier[] GatherModifiers( Scene scene )
+		=> scene.GetAll<ICameraModifier>().OrderBy( x => x.CameraOrder ).ToArray();
+
+	internal void ComposeView( ICameraModifier[] modifiers )
+	{
+		var view = RawView;
+
+		// The modifier chain reshapes the view in order (scope zoom, vehicle roll), then gets the
+		// final view to place things against (view models).
+		if ( modifiers is not null )
+		{
+			foreach ( var modifier in modifiers )
+			{
+				modifier.ModifyCamera( this, ref view );
+			}
+
+			View = view;
+
+			foreach ( var modifier in modifiers )
+			{
+				modifier.PostCameraSetup( this, view );
+			}
+		}
+		else
+		{
+			View = view;
+		}
+
+		_renderView = view;
+
+		// Transient camera effects (screen shake, punches) bake into the render view only - the
+		// composed view and component transform are never touched, so they can't accumulate or move
+		// the player's aim.
+		if ( CameraEffectSystem.Get( Scene ) is { } effects )
+		{
+			effects.QueryOffsets( this, out var shakeOffset, out var shakeAngles, out var shakeFov );
+
+			_renderView.Position += _renderView.Rotation * shakeOffset;
+			_renderView.Rotation *= shakeAngles;
+			_renderView.FieldOfView = (_renderView.FieldOfView + shakeFov).Clamp( 1f, 179f );
+		}
+
+		// What the component looked like when composition finished. A camera changed after this
+		// stomps the composition (see UpdateSceneCameraTransform).
+		_composedBase = RawView;
+
+		_composed = true;
+	}
+
+	// The camera's own values, untouched by modifiers or effects.
+	CameraView RawView => new()
+	{
+		Position = WorldPosition,
+		Rotation = WorldRotation,
+		FieldOfView = FieldOfView,
+		ZNear = ZNear,
+		ZFar = ZFar
+	};
+
 	internal void UpdateSceneCameraTransform( SceneCamera camera )
 	{
-		camera.Position = WorldPosition;
-		camera.Rotation = WorldRotation;
-		camera.ZNear = ZNear;
-		camera.ZFar = ZFar;
+		// The view composes once, at the camera stage of the tick - that's the only time modifiers
+		// and effects apply. A camera that never composed, or was changed since composing (tools,
+		// paused scenes, moviemakers - place a camera, render, done), stomps the composition and
+		// renders from its raw values.
+		var raw = RawView;
+
+		if ( !_composed || raw != _composedBase )
+		{
+			_renderView = raw;
+		}
+
+		camera.Position = _renderView.Position;
+		camera.Rotation = _renderView.Rotation;
+		camera.ZNear = _renderView.ZNear;
+		camera.ZFar = _renderView.ZFar;
 		camera.Rect = new Rect( Viewport.x, Viewport.y, Viewport.z, Viewport.w );
 		camera.Size = ScreenRect.Size;
 		camera.Ortho = Orthographic;
 		camera.OrthoHeight = OrthographicHeight;
 
 		if ( FovAxis == Axis.Vertical )
-			camera.FieldOfView = Screen.CreateVerticalFieldOfView( FieldOfView );
+			camera.FieldOfView = Screen.CreateVerticalFieldOfView( _renderView.FieldOfView );
 		else
-			camera.FieldOfView = FieldOfView;
+			camera.FieldOfView = _renderView.FieldOfView;
 	}
 
 	internal void UpdateSceneCameraStereo( SceneCamera camera )
@@ -351,10 +449,6 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 			camera.VolumetricFog.BakedIndirectTexture = Scene.GetAllComponents<VolumetricFogController>().FirstOrDefault()?.BakedFogTexture;
 		}
 
-#pragma warning disable CS0612
-		GameObject.RunEvent<ISceneCameraSetup>( x => x.SetupCamera( this, camera ) );
-#pragma warning restore CS0612
-
 		//
 		// Child camera executes command lists from this camera
 		//
@@ -419,15 +513,6 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 
 			c.Render();
 		}
-	}
-
-	/// <summary>
-	/// Obsolete 02/10/2025
-	/// </summary>
-	[Obsolete]
-	public interface ISceneCameraSetup
-	{
-		void SetupCamera( CameraComponent camera, SceneCamera sceneCamera );
 	}
 
 	internal bool IsSceneEditorCamera;

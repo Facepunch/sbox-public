@@ -395,7 +395,7 @@ partial class ProjectPropertyTrack<T>
 				{
 					if ( propertyModel.Blocks?.Deserialize<ImmutableArray<PropertyBlock<T>>>( options ) is { } blocks )
 					{
-						_blocks.AddRange( blocks );
+						_blocks.AddRange( blocks.Select( x => x.Reduce() ) );
 					}
 
 					break;

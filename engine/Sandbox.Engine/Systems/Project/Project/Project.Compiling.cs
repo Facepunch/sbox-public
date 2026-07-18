@@ -12,9 +12,17 @@ public partial class Project
 	[JsonIgnore]
 	public bool HasCompiler => Compiler is not null || EditorCompiler is not null;
 
+	/// <summary>
+	/// The compiler for this project's game code, null when it has none. Internal so game code
+	/// can't see it - editor code reaches it through the Sandbox.Tools Project extensions.
+	/// </summary>
 	[JsonIgnore]
 	internal Compiler Compiler { get; private set; }
 
+	/// <summary>
+	/// The compiler for this project's editor code, null when it has none. Internal so game code
+	/// can't see it - editor code reaches it through the Sandbox.Tools Project extensions.
+	/// </summary>
 	[JsonIgnore]
 	internal Compiler EditorCompiler { get; private set; }
 
@@ -143,6 +151,25 @@ public partial class Project
 			foreach ( var reference in compilerSettings.DistinctAssemblyReferences )
 			{
 				Compiler.AddReference( reference );
+			}
+
+			//
+			// If we have a parent package, set up the reference provider so the
+			// compiler can resolve the parent package's types. The addon's own
+			// ActivePackage Lookup() will find the parent in the other active packages.
+			//
+			if ( Config.Type == "addon" )
+			{
+				var parentPackage = Config.GetMetaOrDefault<string>( "ParentPackage", null );
+				if ( !string.IsNullOrWhiteSpace( parentPackage ) && Package.TryParseIdent( parentPackage, out var parentParts ) )
+				{
+					var currentAp = PackageManager.Find( Config.FullIdent, true, false );
+					if ( currentAp is not null )
+					{
+						CompileGroup.ReferenceProvider = currentAp;
+						Compiler.AddReference( $"package.{parentParts.org}.{parentParts.package}" );
+					}
+				}
 			}
 
 			Compiler.WatchForChanges();

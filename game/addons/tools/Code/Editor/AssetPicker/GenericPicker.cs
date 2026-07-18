@@ -47,8 +47,6 @@ public class GenericPicker : AssetPicker
 	void CreateUI( List<AssetType> assetTypes )
 	{
 		DockManager = new DockManager( this );
-		DockManager.DockProperty properties = DockManager.DockProperty.HideCloseButton
-			| DockManager.DockProperty.DisallowUserDocking | DockManager.DockProperty.DisableDraggableTab;
 
 		AssetBrowser = new LocalAssetBrowser( DockManager, assetTypes );
 		AssetBrowser.WindowTitle = "Asset Browser";
@@ -59,7 +57,7 @@ public class GenericPicker : AssetPicker
 		AssetBrowser.OnAssetSelected += ( a ) => Select();
 		AssetBrowser.OnHighlight += Highlight;
 		AssetBrowser.MultiSelect = Options.EnableMultiselect;
-		DockManager.AddDock( null, AssetBrowser, DockArea.Inside, properties );
+		DockManager.AddDock( "Asset Browser", "folder", AssetBrowser, DockArea.Center ).Locked = true;
 
 		if ( Options.EnableCloud )
 		{
@@ -70,7 +68,7 @@ public class GenericPicker : AssetPicker
 			CloudBrowser.OnPackageHighlight = HighlightPackage;
 			CloudBrowser.OnPackageSelected = ( a ) => Select();
 			CloudBrowser.MultiSelect = Options.EnableMultiselect;
-			DockManager.AddDock( null, CloudBrowser, DockArea.Inside, properties );
+			DockManager.AddDock( "Cloud Browser", "cloud_download", CloudBrowser, DockArea.Center ).Locked = true;
 		}
 
 		Layout.Add( DockManager, 1 );
@@ -94,7 +92,7 @@ public class GenericPicker : AssetPicker
 	{
 		if ( asset is null )
 		{
-			DockManager.RaiseDock( AssetBrowser );
+			DockManager.RaiseDock( "Asset Browser" );
 			AssetBrowser.NavigateTo( Project.Current.GetAssetsPath() );
 			return;
 		}
@@ -106,7 +104,7 @@ public class GenericPicker : AssetPicker
 		}
 		else
 		{
-			DockManager.RaiseDock( AssetBrowser );
+			DockManager.RaiseDock( "Asset Browser" );
 			AssetBrowser.FocusOnAsset( asset );
 		}
 	}
@@ -116,7 +114,7 @@ public class GenericPicker : AssetPicker
 		if ( package is null )
 			return;
 
-		DockManager.RaiseDock( CloudBrowser );
+		DockManager.RaiseDock( "Cloud Browser" );
 		CloudBrowser.Search.Value += $" {package.FullIdent}";
 		CloudBrowser.FocusOnPackage( package );
 	}

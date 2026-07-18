@@ -3,7 +3,7 @@
 /// <summary>
 /// Create stuff as long as it fits in a box, woah crazy.
 /// </summary>
-[Title( "Block" ), Icon( "view_in_ar" )]
+[Title( "Block" ), Icon( "meshtools/primitve_tools/block.png" )]
 public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 {
 	PrimitiveBuilder _primitive = EditorTypeLibrary.Create<PrimitiveBuilder>( nameof( BlockPrimitive ) );

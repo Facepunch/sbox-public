@@ -15,6 +15,7 @@ partial class StandaloneExporter
 		"rendersystemdx11.dll",
 		"steamdatagram_gamecoordinator.dll",
 		"toolframework2.dll",
+		"qtadvanceddocking.dll",
 		"toolscenenodes.dll",
 		"steamclient64.dll",
 		"propertyeditor.dll",

@@ -27,9 +27,9 @@ partial class BooleanTool
 				var row = group.AddRow();
 				row.Spacing = 4;
 
-				_unionButton = CreateButton( "Union", "join_full", null, () => SetMode( BooleanMode.Union ), true, row );
-				_subtractButton = CreateButton( "Subtract", "remove_circle_outline", null, () => SetMode( BooleanMode.Subtract ), true, row );
-				_intersectButton = CreateButton( "Intersect", "filter_none", null, () => SetMode( BooleanMode.Intersect ), true, row );
+				_unionButton = CreateButton( "Union", "meshtools/boolean/union.png", null, () => SetMode( BooleanMode.Union ), true, row );
+				_subtractButton = CreateButton( "Subtract", "meshtools/boolean/subtract.png", null, () => SetMode( BooleanMode.Subtract ), true, row );
+				_intersectButton = CreateButton( "Intersect", "meshtools/boolean/intersect.png", null, () => SetMode( BooleanMode.Intersect ), true, row );
 			}
 
 			{

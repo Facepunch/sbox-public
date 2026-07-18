@@ -151,7 +151,7 @@ public sealed partial class MotionEditMode : EditMode
 
 	internal void AddTimeSelectionContextMenu( ContextMenuEvent ev, TimeSelection selection )
 	{
-		ev.Menu.AddHeading( "Time Selection" );
+		ev.Title = "Time Selection";
 		ev.Menu.AddOption( "Insert", "keyboard_tab", Insert );
 		ev.Menu.AddOption( "Remove", "backspace", () => Delete( true ) );
 		ev.Menu.AddOption( "Clear", "delete", () => Delete( false ) );

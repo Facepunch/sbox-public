@@ -54,11 +54,46 @@ public sealed partial class AnimationGraph : Resource
 	private void UpdateNameToIndexMapping()
 	{
 		_nameToIndex.Clear();
+		_enumOptions?.Clear();
 
 		for ( var i = 0; i < ParamCount; i++ )
 		{
 			_nameToIndex[GetParameterFromList( i ).GetName()] = i;
 		}
+	}
+
+	private Dictionary<string, Dictionary<string, int>> _enumOptions;
+
+	/// <summary>
+	/// Find the index of a named option on an enum parameter, case insensitive. False when the
+	/// parameter doesn't exist, isn't an enum, or has no option with that name.
+	/// </summary>
+	internal bool TryGetEnumOptionIndex( string parameterName, string option, out int index )
+	{
+		index = default;
+
+		if ( string.IsNullOrEmpty( parameterName ) || string.IsNullOrEmpty( option ) )
+			return false;
+
+		_enumOptions ??= new( StringComparer.OrdinalIgnoreCase );
+
+		if ( _enumOptions.TryGetValue( parameterName, out var options ) )
+			return options.TryGetValue( option, out index );
+
+		var param = GetParameterFromList( parameterName );
+		if ( !param.IsValid || param.GetParameterType() != AnimParamType.Enum )
+			return false;
+
+		options = new( StringComparer.OrdinalIgnoreCase );
+
+		for ( var i = 0; i < param.GetNumOptionNames(); i++ )
+		{
+			options[param.GetOptionName( i )] = i;
+		}
+
+		_enumOptions[parameterName] = options;
+
+		return options.TryGetValue( option, out index );
 	}
 
 	internal override void Destroy()

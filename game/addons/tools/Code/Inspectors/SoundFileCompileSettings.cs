@@ -18,13 +18,29 @@ public class SoundFileCompileSettings : Widget, IAssetInspector
 		[Description( "End Time, 0 is end of sound" )]
 		public float End { get; set; }
 
+		[Title( "Force Mono" ), Header( "Processing" )]
+		[Description( "Downmix every channel into a single mono channel" )]
+		public bool ForceMono { get; set; }
+
+		[Title( "Trim Silence" )]
+		[Description( "Remove silence from the start and end of the sound" )]
+		public bool TrimSilence { get; set; }
+
+		[Title( "Normalize Loudness" )]
+		[Description( "Normalize the sound to a standard loudness level" )]
+		public bool Normalize { get; set; }
+
+		[Title( "Gain (dB)" ), Range( -24, 24 )]
+		[Description( "Fixed volume adjustment applied to the whole sound" )]
+		public float Gain { get; set; } = 0.0f;
+
 		[Title( "Sample Rate" ), Header( "Resampling" )]
 		public SamplingRate Rate { get; set; } = SamplingRate.Rate44100;
 
 		[Title( "Enabled" ), Header( "Compression" )]
 		public bool Compress { get; set; }
 
-		[Title( "Bitrate" ), MinMax( 128, 256 )]
+		[Title( "Bitrate" ), Range( 128, 256, true, true )]
 		public int Bitrate { get; set; } = 256;
 
 		public enum SamplingRate
@@ -109,6 +125,10 @@ public class SoundFileCompileSettings : Widget, IAssetInspector
 			Loop = meta.Get( "loop", false ),
 			Start = meta.Get( "start", 0.0f ),
 			End = meta.Get( "end", 0.0f ),
+			ForceMono = meta.Get( "forceMono", false ),
+			TrimSilence = meta.Get( "trimSilence", false ),
+			Normalize = meta.Get( "normalize", false ),
+			Gain = meta.Get( "gain", 0.0f ),
 			Rate = meta.Get( "rate", Settings.SamplingRate.Rate44100 ),
 			Compress = meta.Get( "compress", false ),
 			Bitrate = meta.Get( "bitrate", 256 ),
@@ -127,6 +147,10 @@ public class SoundFileCompileSettings : Widget, IAssetInspector
 		meta.Set( "loop", settings.Loop );
 		meta.Set( "start", settings.Start );
 		meta.Set( "end", settings.End );
+		meta.Set( "forceMono", settings.ForceMono );
+		meta.Set( "trimSilence", settings.TrimSilence );
+		meta.Set( "normalize", settings.Normalize );
+		meta.Set( "gain", settings.Gain );
 		meta.Set( "rate", settings.Rate );
 		meta.Set( "compress", settings.Compress );
 		meta.Set( "bitrate", settings.Bitrate );
@@ -139,9 +163,57 @@ public class SoundFileCompileSettings : Widget, IAssetInspector
 	/// </summary>
 	private void ValuesChanged( SerializedProperty property )
 	{
+		// Don't save/compile here directly. For multi-select the MultiSerializedObject fires this
+		// once per selected asset as the edit propagates, and sliders fire it every drag tick -
+		// acting immediately means compiling assets whose meta is about to change again, and a
+		// recompile requested while that stale compile is still in flight can get dropped. Mark
+		// dirty and act once things settle.
+		_timeSinceChange = 0;
+		_dirty = true;
+	}
+
+	private bool _dirty;
+	private RealTimeSince _timeSinceChange;
+
+	[EditorEvent.Frame]
+	private void SaveAndRecompile()
+	{
+		if ( !_dirty )
+			return;
+
+		// let slider drags and multi-select propagation settle first
+		if ( _timeSinceChange < 0.2f )
+			return;
+
+		Flush();
+	}
+
+	public override void OnDestroyed()
+	{
+		base.OnDestroyed();
+
+		// don't lose an edit that was still inside the settle window
+		if ( _dirty )
+		{
+			Flush();
+		}
+	}
+
+	private void Flush()
+	{
+		_dirty = false;
+
+		// write every asset's meta first, then compile - a vsnd isn't in the game-resource
+		// auto-compile path, so the explicit compile is what rebuilds it (same path as the
+		// "Full Recompile" button), which fires the reload that refreshes previews
 		foreach ( var (asset, settings) in _targets )
 		{
 			Save( asset, settings );
+		}
+
+		foreach ( var (asset, _) in _targets )
+		{
+			asset.Compile( false );
 		}
 	}
 }

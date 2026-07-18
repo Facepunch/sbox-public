@@ -15,8 +15,13 @@ public partial class SoundHandle
 		/// <summary>
 		/// A list of 15 lipsync viseme weights. Requires <see cref="Enabled"/> to be true.
 		/// </summary>
-		public IReadOnlyList<float> Visemes => _visemes is null ?
-			Array.Empty<float>() : Array.AsReadOnly( _visemes );
+		public IReadOnlyList<float> Visemes => _visemesReadOnly ?? (IReadOnlyList<float>)Array.Empty<float>();
+
+		/// <summary>
+		/// The viseme weights as a raw array for the engine's per-frame readers - no
+		/// allocation, no interface dispatch. Null until <see cref="Enabled"/> is set.
+		/// </summary>
+		internal float[] VisemeWeights => _visemes;
 
 		/// <summary>
 		/// Count from start of recognition.
@@ -59,6 +64,7 @@ public partial class SoundHandle
 		volatile bool _enabled;
 		private uint _context;
 		private float[] _visemes;
+		private System.Collections.ObjectModel.ReadOnlyCollection<float> _visemesReadOnly;
 
 		// Contexts waiting to be destroyed at the start of the next MixOneBuffer().
 		static readonly ConcurrentQueue<uint> _destructionQueue = new();
@@ -90,6 +96,7 @@ public partial class SoundHandle
 				true );
 
 			_visemes = new float[(int)OVRLipSync.Viseme.Count];
+			_visemesReadOnly = Array.AsReadOnly( _visemes );
 			_enabled = true; // volatile write
 		}
 

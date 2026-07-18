@@ -1,3 +1,4 @@
+using NativeEngine;
 using static Sandbox.Component;
 
 namespace Sandbox;
@@ -6,6 +7,73 @@ namespace Sandbox;
 public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITintable
 {
 	SceneLight _sceneObject;
+
+	internal SceneLight SceneObject => _sceneObject;
+
+	/// <summary>
+	/// Advanced settings imported from legacy map data that don't have public properties yet
+	/// (baking, bounce, shadow texture size, raw attenuation). Applied to the native light when it's
+	/// created. Internal for now - we may expose some of these as proper properties later.
+	/// </summary>
+	internal LegacyLightData? LegacyData { get; set; }
+
+	/// <summary>
+	/// Backend carrier for map light settings that aren't exposed as component properties yet.
+	/// </summary>
+	internal struct LegacyLightData
+	{
+		public int DirectLight;
+		public bool CastShadows;
+		public int BakeLightIndex;
+		public float BakeLightIndexScale;
+		public bool BakedLightIndexing;
+		public float FogContributionStrength;
+		public bool RenderDiffuse;
+		public bool RenderSpecular;
+		public int FogLighting;
+
+		// Only set by light types whose components don't expose these (falloff, constant attn, point cookie).
+		public float? ConstantAttenuation;
+		public float? LinearAttenuation;
+		public float? QuadraticAttenuation;
+		public float? FallOff;
+		public Texture Cookie;
+
+		public readonly void ApplyTo( CSceneLightObject light )
+		{
+			// Lightbinner only allocates realtime shadow maps for BAKED lights when MIXED_SHADOWS
+			// is set (Stationary, or Baked with castshadows enabled). Without it, indexed/baked
+			// lights light the scene but never cast shadows.
+			switch ( DirectLight )
+			{
+				case 3: // HAMMER_DIRECT_LIGHT_STATIONARY — always mixed
+					light.SetLightFlags( light.GetLightFlags() | 16 ); // LIGHTTYPE_FLAGS_MIXED_SHADOWS
+					light.SetLightFlags( light.GetLightFlags() | 32 ); // LIGHTTYPE_FLAGS_BAKED
+					break;
+				case 1: // HAMMER_DIRECT_LIGHT_BAKED
+					light.SetLightFlags( light.GetLightFlags() | 32 ); // LIGHTTYPE_FLAGS_BAKED
+																	   // Hammer default is castshadows=Yes on baked lights; treat that as mixed so
+																	   // indexed map lights keep realtime dynamic shadows (static comes from lightmaps).
+					if ( CastShadows )
+						light.SetLightFlags( light.GetLightFlags() | 16 ); // LIGHTTYPE_FLAGS_MIXED_SHADOWS
+					break;
+			}
+
+			light.SetBakeLightIndex( BakeLightIndex );
+			light.SetBakeLightIndexScale( BakeLightIndexScale );
+			light.SetUsesIndexedBakedLighting( BakedLightIndexing );
+			light.SetFogContributionStength( FogContributionStrength );
+			light.SetRenderDiffuse( RenderDiffuse );
+			light.SetRenderSpecular( RenderSpecular );
+			light.SetFogLightingMode( FogLighting );
+
+			if ( ConstantAttenuation is { } constant ) light.SetConstantAttn( constant );
+			if ( LinearAttenuation is { } linear ) light.SetLinearAttn( linear );
+			if ( QuadraticAttenuation is { } quadratic ) light.SetQuadraticAttn( quadratic );
+			if ( FallOff is { } fallOff ) light.SetFallOff( fallOff );
+			if ( Cookie is not null ) light.SetLightCookie( Cookie.native );
+		}
+	}
 
 	/// <summary>
 	/// The main color of the light
@@ -187,6 +255,10 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 			_sceneObject.ShadowBias = ShadowBias;
 			_sceneObject.ShadowHardness = ShadowHardness;
 			ApplyContribution();
+
+			// Advanced map settings not covered by properties - overrides native state set above.
+			if ( LegacyData is { } legacy )
+				legacy.ApplyTo( _sceneObject.lightNative );
 
 			OnTransformChanged();
 			OnTagsChanged();

@@ -1,6 +1,6 @@
 ﻿namespace Editor;
 
-[Dock( "Editor", "Allocations", "timer" )]
+[Dock( "Editor", "Allocations", "timer", DockArea.Bottom )]
 public class Allocations : Widget
 {
 	Sandbox.Diagnostics.Allocations.Scope scope;

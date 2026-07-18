@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace DooTests;
@@ -215,5 +216,26 @@ public class DooTest
 
 		Assert.IsTrue( args.Contains( "target" ) );
 		Assert.IsTrue( args.Contains( "source" ) );
+	}
+
+	/// <summary>
+	/// Control case to complement <see cref="ScriptDeserialization_Disabled"/>.
+	/// </summary>
+	[TestMethod]
+	public void ScriptDeserialization_Enabled()
+	{
+		Json.Deserialize<Doo>( "{}" );
+	}
+
+	/// <summary>
+	/// Doo deserialization is rejected when inside a <see cref="Json.DisableScriptDeserialization"/> block.
+	/// </summary>
+	[TestMethod]
+	public void ScriptDeserialization_Disabled()
+	{
+		using ( Json.DisableScriptDeserialization() )
+		{
+			Assert.ThrowsException<Exception>( () => Json.Deserialize<Doo>( "{}" ) );
+		}
 	}
 }

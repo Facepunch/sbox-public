@@ -1,58 +1,56 @@
-﻿using System.Buffers;
 using System.Runtime.InteropServices;
 
 namespace Sandbox;
 
+/// <summary>
+/// Geometry for the terrain clipmap. One small square block mesh is instanced as "meshlets" sitting in
+/// nested square LOD rings around the camera; each ring outward uses cells twice as large, and outer rings
+/// are hollow where the finer ring already sits. Placing and camera-snapping the meshlets happens in the
+/// vertex shader (TerrainClipmap.hlsl); this file is all integer cell math.
+/// </summary>
 internal static class TerrainClipmap
 {
 	[StructLayout( LayoutKind.Sequential )]
-	public struct PosAndLodVertex
+	public struct PosVertex
 	{
-		public PosAndLodVertex( Vector3 position )
-		{
-			this.position = position;
-		}
-
 		[VertexLayout.Position]
-		public Vector3 position;
+		public Vector3 position; // xy = block-local coord in [0, BlockSize]
+
+		public PosVertex( Vector3 position ) => this.position = position;
 	}
 
-	public static Mesh GenerateMesh( int LodLevels, int LodExtentTexels, Material material )
+	[StructLayout( LayoutKind.Sequential )]
+	public struct Meshlet
 	{
-		var vertices = new List<PosAndLodVertex>( 32 );
-		var indices = new List<int>();
+		public Vector2 BlockOffset;
+		public int Level;
+		public uint Pad;
+	}
 
-		// Loop through each LOD level
-		for ( int level = 0; level < LodLevels; level++ )
+	// The one mesh every meshlet instances: a blockSize x blockSize grid of quads over [0, blockSize].
+	// density subdivides each cell further.
+	public static Mesh BuildBlockMesh( int blockSize, int density, Material material )
+	{
+		density = Math.Max( 1, density );
+		int quads = blockSize * density;
+		int side = quads + 1;
+		float step = 1.0f / density;
+
+		var vertices = new List<PosVertex>( side * side );
+		for ( int y = 0; y <= quads; y++ )
+			for ( int x = 0; x <= quads; x++ )
+				vertices.Add( new PosVertex( new Vector3( x * step, y * step, 0 ) ) );
+
+		var indices = new List<int>( quads * quads * 6 );
+		int Idx( int x, int y ) => y * side + x;
+
+		for ( int y = 0; y < quads; y++ )
 		{
-			int step = 1 << level;
-			int prevStep = Math.Max( 0, 1 << (level - 1) );
-
-			int g = LodExtentTexels / 2;
-
-			int pad = 1;
-			int radius = step * (g + pad);
-			int innerRadius = (g * prevStep) - prevStep; // Overlap by one step
-
-			for ( int y = -radius; y < radius; y += step )
+			for ( int x = 0; x < quads; x++ )
 			{
-				for ( int x = -radius; x < radius; x += step )
-				{
-					if ( Math.Max( Math.Abs( x + prevStep ), Math.Abs( y + prevStep ) ) < innerRadius )
-						continue;
-
-					vertices.Add( new PosAndLodVertex( new Vector3( x, y, level ) ) );
-					vertices.Add( new PosAndLodVertex( new Vector3( x + step, y, level ) ) );
-					vertices.Add( new PosAndLodVertex( new Vector3( x + step, y + step, level ) ) );
-					vertices.Add( new PosAndLodVertex( new Vector3( x, y + step, level ) ) );
-
-					indices.Add( vertices.Count - 4 );
-					indices.Add( vertices.Count - 3 );
-					indices.Add( vertices.Count - 2 );
-					indices.Add( vertices.Count - 2 );
-					indices.Add( vertices.Count - 1 );
-					indices.Add( vertices.Count - 4 );
-				}
+				int a = Idx( x, y ), b = Idx( x + 1, y ), c = Idx( x + 1, y + 1 ), d = Idx( x, y + 1 );
+				indices.Add( a ); indices.Add( b ); indices.Add( c );
+				indices.Add( c ); indices.Add( d ); indices.Add( a );
 			}
 		}
 
@@ -62,155 +60,47 @@ internal static class TerrainClipmap
 		return mesh;
 	}
 
-	/// <summary>
-	/// Diamond-square implementation trying to reduce duplicate vertices.
-	/// </summary>
-	public static Mesh GenerateMesh_DiamondSquare( int LodLevels, int LodExtentTexels, Material material, int subdivisionFactor = 1, int subdivisionLodCount = 3 )
+	public static void GetMorphBand( int extentCells, int blockSize, out float startCells, out float endCells )
 	{
-		var total = LodLevels * 36 * (LodExtentTexels / 2 + 1) * (LodExtentTexels / 2 + 1) * subdivisionFactor * subdivisionFactor;
+		float halfExtent = extentCells / 2.0f;
+		endCells = Math.Clamp( halfExtent - 3.0f * blockSize, 1.0f, halfExtent );
+		startCells = Math.Clamp( halfExtent - 4.0f * blockSize, 0.0f, endCells - 1.0f );
+	}
 
-		var vertexMap = new Dictionary<(float x, float y, int lod), int>( total );
-		var vertices = new List<PosAndLodVertex>( total );
-		var indices = new List<int>( total * 3 );
+	// One meshlet per block, for every LOD ring. Each ring is the same blocksPerSide x blocksPerSide grid of
+	// blocks centred on the origin; outer rings skip the middle that the finer ring covers.
+	public static Meshlet[] BuildLayout( int levels, int extentCells, int blockSize )
+	{
+		int blocksPerSide = extentCells / blockSize;
+		int halfExtent = extentCells / 2;
 
-		int GetOrAddVertex( float x, float y, int level )
+		// The finer ring covers the central quarter; we keep one block of that overlapping so neighbouring
+		// rings share a seam the shader can blend.
+		int holeRadius = Math.Max( 0, extentCells / 4 - blockSize );
+
+		var meshlets = new List<Meshlet>( levels * blocksPerSide * blocksPerSide );
+
+		for ( int level = 0; level < levels; level++ )
 		{
-			var key = (x, y, level);
-			if ( !vertexMap.TryGetValue( key, out int index ) )
+			for ( int by = 0; by < blocksPerSide; by++ )
 			{
-				index = vertices.Count;
-				vertices.Add( new PosAndLodVertex( new Vector3( x, y, level ) ) );
-				vertexMap[key] = index;
-			}
-			return index;
-		}
-
-		// Loop through each LOD level
-		for ( int level = 0; level < LodLevels; level++ )
-		{
-			int lodBaseStep = 1 << level;
-
-			// We only subdivise LOD levels athat are < than subDivisionLodCount
-			int currentSubdivision = level < subdivisionLodCount ? subdivisionFactor : 1;
-			float step = (float)lodBaseStep / currentSubdivision;
-
-			int g = LodExtentTexels / 2;
-			int pad = 1;
-
-			int radius = lodBaseStep * (g + pad);
-			int prevLodBaseStep = level > 0 ? (1 << (level - 1)) : 0;
-			int innerRadius = (prevLodBaseStep * g) - prevLodBaseStep; // Overlap by one step
-
-			for ( float y = -radius; y < radius; y += step )
-			{
-				for ( float x = -radius; x < radius; x += step )
+				for ( int bx = 0; bx < blocksPerSide; bx++ )
 				{
-					if ( Math.Max( Math.Abs( x ), Math.Abs( y ) ) < innerRadius )
+					int cellX = bx * blockSize - halfExtent; // block's lower corner, in cells from the centre
+					int cellY = by * blockSize - halfExtent;
+
+					bool coveredByFinerRing =
+						cellX >= -holeRadius && cellX + blockSize <= holeRadius &&
+						cellY >= -holeRadius && cellY + blockSize <= holeRadius;
+
+					if ( level > 0 && coveredByFinerRing )
 						continue;
 
-					//   A-----B-----C
-					//   | \   |   / |
-					//   |   \ | /   |
-					//   D-----E-----F
-					//   |   / | \   |
-					//   | /   |   \ |
-					//   G-----H-----I
-
-					float halfStep = step * 0.5f;
-					int idxA = GetOrAddVertex( x, y, level );
-					int idxB = GetOrAddVertex( x + halfStep, y, level );
-					int idxC = GetOrAddVertex( x + step, y, level );
-					int idxD = GetOrAddVertex( x, y + halfStep, level );
-					int idxE = GetOrAddVertex( x + halfStep, y + halfStep, level );
-					int idxF = GetOrAddVertex( x + step, y + halfStep, level );
-					int idxG = GetOrAddVertex( x, y + step, level );
-					int idxH = GetOrAddVertex( x + halfStep, y + step, level );
-					int idxI = GetOrAddVertex( x + step, y + step, level );
-
-					// Stitch the border into the next level
-					if ( x == -radius )
-					{
-						// E G A
-						indices.Add( idxE );
-						indices.Add( idxG );
-						indices.Add( idxA );
-					}
-					else
-					{
-						// E D A
-						indices.Add( idxE );
-						indices.Add( idxD );
-						indices.Add( idxA );
-						// E G D
-						indices.Add( idxE );
-						indices.Add( idxG );
-						indices.Add( idxD );
-					}
-
-					if ( y == radius - step )
-					{
-						// E I G
-						indices.Add( idxE );
-						indices.Add( idxI );
-						indices.Add( idxG );
-					}
-					else
-					{
-						// E H G
-						indices.Add( idxE );
-						indices.Add( idxH );
-						indices.Add( idxG );
-						// E I H
-						indices.Add( idxE );
-						indices.Add( idxI );
-						indices.Add( idxH );
-					}
-
-					if ( x == radius - step )
-					{
-						// E C I
-						indices.Add( idxE );
-						indices.Add( idxC );
-						indices.Add( idxI );
-					}
-					else
-					{
-						// E F I
-						indices.Add( idxE );
-						indices.Add( idxF );
-						indices.Add( idxI );
-						// E C F
-						indices.Add( idxE );
-						indices.Add( idxC );
-						indices.Add( idxF );
-					}
-
-					if ( y == -radius )
-					{
-						// E A C
-						indices.Add( idxE );
-						indices.Add( idxA );
-						indices.Add( idxC );
-					}
-					else
-					{
-						// E B C
-						indices.Add( idxE );
-						indices.Add( idxB );
-						indices.Add( idxC );
-						// E A B
-						indices.Add( idxE );
-						indices.Add( idxA );
-						indices.Add( idxB );
-					}
+					meshlets.Add( new Meshlet { BlockOffset = new Vector2( cellX, cellY ), Level = level } );
 				}
 			}
 		}
 
-		var mesh = new Mesh( material );
-		mesh.CreateVertexBuffer( vertices.Count, vertices );
-		mesh.CreateIndexBuffer( indices.Count, indices );
-
-		return mesh;
+		return [.. meshlets];
 	}
 }

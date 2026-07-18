@@ -31,7 +31,7 @@ CS
 
     // Params
     float Strength                  < Attribute("Strength"); Default(0.0f); >;
-    float Threshold                 < Attribute("Threshold"); Default(0.0f); >;
+    float Threshold                 < Attribute("Threshold"); Default(1.0f); >;
     float Gamma                     < Attribute("Gamma"); Default(2.2f); >;
     float3 Tint                     < Attribute("Tint"); Default3(1.0f, 1.0f, 1.0f); >;
     float2 InvDimensions            < Attribute("InvDimensions"); >;
@@ -91,7 +91,18 @@ CS
         #endif
     }
 
-    float3 SampleBloom(Texture2D tex, float2 uv, float gammaCorrection, float falloffScale)
+    float3 ApplyThreshold(float3 color)
+    {
+        float threshold = max( Threshold, 0.0 );
+        float exposure = g_flToneMapScalarLinear > 0.0 ? g_flToneMapScalarLinear : 1.0;
+        float luma = dot(color, float3(0.2126, 0.7152, 0.0722)) * exposure;
+        float knee = max( threshold * 0.5, 1e-4 );
+        float soft = clamp(luma - threshold + knee, 0.0, 2.0 * knee);
+        soft = soft * soft / (4.0 * knee);
+        return color * (max(soft, luma - threshold) / max(luma, 1e-4));
+    }
+
+    float3 SampleBloom(Texture2D tex, float2 uv, float gammaCorrection)
     {
         uint width, height, mipLevels;
         tex.GetDimensions(0, width, height, mipLevels);
@@ -101,8 +112,8 @@ CS
         [unroll]
         for (int i = 0; i < (int)mipLevels - 1; i++)
         {
-            float3 sample = SampleLevelMode(tex, uv, i + 1);
-            bloom += max(pow(sample, gammaCorrection), 0) * exp2(-falloffScale * i);
+            float3 sample = ApplyThreshold(max(SampleLevelMode(tex, uv, i + 1), 0));
+            bloom += pow(sample, gammaCorrection) * exp2(-0.5 * i);
         }
 
         return bloom;
@@ -119,16 +130,12 @@ CS
         float2 uv = (DTid.xy ) / float2(bloomWidth, bloomHeight);
 
         // Bloom parameters
-        const float bloomIntensity = pow(Strength * 0.1, 2);
-        const float falloffScale = ( Threshold - 2 );
-        const float gammaCorrection = Gamma;
+        const float bloomIntensity = Strength * 0.1;
 
-        float3 bloomColor = 0;
-        bloomColor += SampleBloom(Color, uv, gammaCorrection, falloffScale) * bloomIntensity;
+        float3 bloomColor = SampleBloom(Color, uv, Gamma) * bloomIntensity;
 
         // Add quarter-res bloom-only effects
-        float3 qsample = SampleBloom( QuarterResEffectsBloomInputTexture, uv, gammaCorrection, falloffScale);
-        bloomColor += qsample;
+        bloomColor += SampleBloom(QuarterResEffectsBloomInputTexture, uv, Gamma);
 
         bloomColor *= Tint;
 

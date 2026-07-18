@@ -415,7 +415,7 @@ public class ResourceSystem
 		return null;
 	}
 
-	internal T LoadGameResource<T>( string file, BaseFileSystem fs, bool deferPostload = false ) where T : GameResource
+	internal T LoadGameResource<T>( string file, BaseFileSystem fs, bool deferPostload = false, Package sourcePackage = null ) where T : GameResource
 	{
 		var attr = typeof( T ).GetCustomAttribute<AssetTypeAttribute>();
 		if ( attr == null ) return default;
@@ -424,13 +424,13 @@ public class ResourceSystem
 		// but this ain't TypeLibrary kiddo
 		attr.TargetType = typeof( T );
 
-		return LoadGameResource( attr, file, fs, deferPostload ) as T;
+		return LoadGameResource( attr, file, fs, deferPostload, sourcePackage ) as T;
 	}
 
 	/// <summary>
 	/// Loads a Gameresource from disk. Doesn't look at cache. Registers the resource if successful.
 	/// </summary>
-	internal GameResource LoadGameResource( AssetTypeAttribute type, string file, BaseFileSystem fs, bool deferPostload = false )
+	internal GameResource LoadGameResource( AssetTypeAttribute type, string file, BaseFileSystem fs, bool deferPostload = false, Package sourcePackage = null )
 	{
 		Assert.NotNull( type );
 		Assert.NotNull( file );
@@ -454,6 +454,12 @@ public class ResourceSystem
 
 			var se = GameResource.GetPromise( type.TargetType, file );
 			if ( se is null ) return null;
+
+			// Attribute the resource to the package it was loaded from (null = local project).
+			// Only overwrite when a package is supplied so aggregate reloads don't clobber a
+			// previously attributed cloud package.
+			if ( sourcePackage is not null )
+				se.Package = sourcePackage;
 
 			se.TryLoadFromData( data );
 

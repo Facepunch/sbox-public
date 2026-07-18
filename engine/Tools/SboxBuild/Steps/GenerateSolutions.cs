@@ -56,7 +56,7 @@ internal class GenerateSolutions( BuildConfiguration configuration = BuildConfig
 		string extraDefines = "";
 		if ( configuration == BuildConfiguration.DeveloperMemoryDebug )
 		{
-			Log.Info( "Using Memory Debug macros" );
+			Log.Info( "Using Memory Debug macros (ASAN + allocation tracking)" );
 			extraDefines = "/define:MEMDEBUG_TRACKING";
 		}
 

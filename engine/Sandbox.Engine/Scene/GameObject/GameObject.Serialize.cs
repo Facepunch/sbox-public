@@ -18,6 +18,7 @@ public partial class GameObject
 					GameObjectFlags.NotNetworked |
 					GameObjectFlags.Absolute |
 					GameObjectFlags.PhysicsBone |
+					GameObjectFlags.Static |
 					GameObjectFlags.Hidden;
 
 	/// <summary>
@@ -218,7 +219,10 @@ public partial class GameObject
 		if ( (!options.SceneForNetwork && !options.SingleNetworkObject)
 				&& (IsNestedPrefabInstanceRoot || (IsOutermostPrefabInstanceRoot && options.SerializePrefabForDiff)) )
 		{
-			if ( options.SerializeForPrefabInstanceToPrefabUpdate && Parent is not null && Parent.IsOutermostPrefabInstanceRoot )
+			// For prefab updates all existing nested roots keep their instance data, regardless of depth.
+			// Marking them as nested source instead would wipe their mappings in the prefab cache scene,
+			// where InitMappingsForNestedInstance has no outer instance lookup to rebuild them from.
+			if ( options.SerializeForPrefabInstanceToPrefabUpdate )
 			{
 				json[JsonKeys.EditorSkipPrefabBreakOnRefresh] = true;
 			}
@@ -321,9 +325,6 @@ public partial class GameObject
 			JsonUpgrader.Upgrade( serializedVersion, node, GetType() );
 		}
 
-		DeserializeFlags( node, options );
-		Flags |= GameObjectFlags.Deserializing;
-
 		if ( node[JsonKeys.EditorSkipPrefabBreakOnRefresh] is null )
 		{
 			_prefabInstanceData = null;
@@ -416,6 +417,9 @@ public partial class GameObject
 			PrefabInstance.InitPatch( instancePatch );
 			PrefabInstance.RemapPrefabIdsToInstanceIds( ref node );
 		}
+
+		DeserializeFlags( node, options );
+		Flags |= GameObjectFlags.Deserializing;
 
 		// Handle networked prefab instances, we just init the path
 		if ( node[JsonKeys.NetworkedPrefabInstance] is JsonValue _prefab && _prefab.TryGetValue( out prefabSource ) )

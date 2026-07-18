@@ -169,7 +169,8 @@ class Decals
 
 				float colorMix = 1.0f;
 				float4 decal_albedo = float4( 0, 0, 0, 0 );
-				
+				float flHeightCoverageMask = 1;
+
 				Texture2D texture = Bindless::GetTexture2D( color );
 
 				if ( decal.ExtraDataOffset >= 0 )
@@ -186,7 +187,10 @@ class Decals
 					if ( heightIdx > 0 )
 					{
 						float strength = asfloat( DecalsExtraDataBuffer.Load( decal.ExtraDataOffset + 32 ) );
-
+						
+						// get the heightmap texture 2D from bindless and sample it 
+						Texture2D tHeightmap = Bindless::GetTexture2D( heightIdx );
+	
 						// maybe there's a way to do it wih the quat directly, but i don't fucking know
 						float3x3 rot = QuaternionToMatrix(decal.Quat);
 
@@ -196,12 +200,22 @@ class Decals
 							float3x3(-rot[1], -rot[2], -rot[0]),
 							strength,
 							decalUV.xy, gradUV.xy, gradUV.zw,
-							Bindless::GetTexture2D( heightIdx ),
+							tHeightmap,
 							textureSampler
 						);
 
 						// Sanity
 						decalUV = saturate( decalUV );
+
+						// Unpack height coverage settings, just amount & range for now 
+						uint heightCoverageSettings = DecalsExtraDataBuffer.Load( decal.ExtraDataOffset + 48 );
+						float flCoverageAmount = 1.0f - (( heightCoverageSettings & 0xFF ) / 255.0);
+						float flCoverageRange = ( ( heightCoverageSettings >> 8 ) & 0xFF ) / 255.0;
+						
+						// Compute the height coverage mask 
+						float flHeightmap = tHeightmap.SampleGrad( textureSampler, decalUV.xy, gradUV.xy, gradUV.zw ).r;
+						float flCoverageRangeClamped = min( flCoverageRange, min( flCoverageAmount, 1.0 - flCoverageAmount ) );
+						flHeightCoverageMask = smoothstep( flCoverageAmount - flCoverageRangeClamped, flCoverageAmount + 0.001, flHeightmap );
 					}
 
 					if ( sequence != 0xFFFFFF )
@@ -238,6 +252,7 @@ class Decals
 
 				decal_albedo *= colorTint;
 				decal_albedo *= decalAttenuation;
+				decal_albedo.a *= flHeightCoverageMask;
 
 				material.Albedo = lerp( material.Albedo, decal_albedo.rgb, colorMix * decal_albedo.a );
 
@@ -247,11 +262,10 @@ class Decals
 					SamplerState textureSampler = Bindless::GetSampler( samplerIndex );
 					float3 normalts = DecodeNormal( Bindless::GetTexture2D( normal ).SampleGrad( textureSampler, decalUV.xy, gradUV.xy, gradUV.zw ).xyz );
 
-					// maybe there's a way to do it wih the quat directly, but i don't fucking know
 					float3x3 rot = QuaternionToMatrix(decal.Quat);
 					float3 normal = TransformNormal( normalts, -rot[0], -rot[1], -rot[2] );
 
-                    material.Normal = normalize( lerp( material.Normal, normal, decal_albedo.a ) );
+					material.Normal = normalize( lerp( material.Normal, normal, decal_albedo.a ) );
 				}
 
 				if ( rma > 0 )

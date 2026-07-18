@@ -49,6 +49,14 @@ public sealed partial class PlayerController : Component
 	}
 
 	/// <summary>
+	/// Restores grounding, meant to be called during PreventGrounding( float seconds )
+	/// </summary>
+	public void RestoreGrounding()
+	{
+		_timeUntilAllowedGround = 0;
+	}
+
+	/// <summary>
 	/// Lift player up and place a skin level above the ground
 	/// </summary>
 	internal void Reground( float stepSize )

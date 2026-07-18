@@ -71,9 +71,10 @@ public partial class GameTransform
 
 		var isEnabled = GameObject?.Enabled ?? false;
 		var isFixedUpdate = GameObject?.Scene?.IsFixedUpdate ?? false;
+		var isStatic = GameObject?.IsStatic ?? false;
 		var isInterpolationDisabled = GameObject?.Flags.Contains( GameObjectFlags.NoInterpolation ) ?? false;
 
-		return FixedUpdateInterpolation && isFixedUpdate && isEnabled && !isInterpolationDisabled;
+		return FixedUpdateInterpolation && isFixedUpdate && isEnabled && !isInterpolationDisabled && !isStatic;
 	}
 
 	void UpdateInterpolatedLocal( in Transform value )

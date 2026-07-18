@@ -169,6 +169,11 @@ public abstract partial class Connection
 		}
 	}
 
+	/// <summary>
+	/// Can this connection send ActionGraph / Doo scripts?
+	/// </summary>
+	internal bool CanSendScripts => IsHost;
+
 	public virtual float Latency => 0;
 
 	/// <summary>

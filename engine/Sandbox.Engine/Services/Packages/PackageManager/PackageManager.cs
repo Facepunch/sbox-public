@@ -90,9 +90,24 @@ internal static partial class PackageManager
 		var ap = await ActivePackage.Create( package, options.CancellationToken, options );
 		options.CancellationToken.ThrowIfCancellationRequested();
 
-		if ( package.IsRemote && package.TypeName == "game" && !ap.HasPrecompiledDlls() )
+		//
+		// Prefer precompiled dlls (backend-compiled, downloaded from the manifest). If a
+		// remote package doesn't ship any, fall back to compiling its code archives locally.
+		//
+		if ( package.IsRemote && !ap.HasPrecompiledDlls() )
 		{
-			throw new System.Exception( "This game has no precompiled assemblies!" );
+			if ( ap.HasCodeArchives() )
+			{
+				options.Loading?.LoadingProgress( LoadingProgress.Create( $"Compiling {package.Title}" ) );
+
+				if ( !await ap.CompileCodeArchive() )
+					Log.Warning( $"There were errors when compiling {package.FullIdent}!" );
+			}
+			else if ( package.TypeName == "game" )
+			{
+				// A game can't run without any code
+				throw new System.Exception( "This game has no precompiled assemblies or code archives!" );
+			}
 		}
 
 		ap.AddContextTag( options.ContextTag );
@@ -141,7 +156,7 @@ internal static partial class PackageManager
 		// This is the right way to reference packages. We should move everything else
 		// to use this.
 		//
-		foreach ( var i in package.EnumeratePackageReferences() )
+		foreach ( var i in package.EnumerateInstallDependencies() )
 		{
 			dependancies.Add( i );
 
@@ -236,4 +251,3 @@ internal static partial class PackageManager
 			&& (allowLocalPackages || x.Package is not LocalPackage) );
 	}
 }
-
