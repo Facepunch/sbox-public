@@ -63,13 +63,29 @@ CS
 		float3 Velocity;
 		float4 BlendSheetUV;
 		float2 Offset;
+		uint SortKey;
+		float3 SortOriginOffset;
+		uint SortRank;
 	};
 	StructuredBuffer<SpriteData> SpriteBuffer < Attribute( "Sprites" ); >;
 	RWStructuredBuffer<SpriteData> SpriteBufferOut < Attribute( "SpriteBufferOut" ); >;
 
 	// Sorting related
-	RWStructuredBuffer<float> DistanceBuffer < Attribute( "DistanceBuffer" ); >;
+	RWStructuredBuffer<uint2> SortKeyBuffer < Attribute( "SortKeyBuffer" ); >;
 	float3 CameraPosition < Attribute ("CameraPosition"); >;
+
+	// How the fine half of the sort key is measured. Matches TransparencySortMode on the camera.
+	// Defaults to 0 (Default) when unset, which is the behaviour from before sort modes existed.
+	int SpriteSortMode < Attribute( "SpriteSortMode" ); >;
+
+	// Only set in CustomAxis mode, and always normalized. Left at zero otherwise, which every
+	// path below treats as "no axis given, sort by camera depth".
+	float3 SpriteSortAxis < Attribute( "SpriteSortAxis" ); >;
+
+	#define SPRITE_SORT_DEFAULT 0
+	#define SPRITE_SORT_PERSPECTIVE 1
+	#define SPRITE_SORT_ORTHOGRAPHIC 2
+	#define SPRITE_SORT_CUSTOM_AXIS 3
 
 	int SpriteCount < Attribute( "SpriteCount"); >;
 	RWStructuredBuffer<int> AtomicCounter < Attribute( "AtomicCounter" ); >;
@@ -130,6 +146,7 @@ CS
 	}
 
 	#define FLT_MAX 3.402823466e+38f
+	#define SORTKEY_MAX uint2( 0xFFFFFFFFu, 0xFFFFFFFFu )
 
 	groupshared int groupWriteSize[64];
     groupshared int groupWriteOffset[64];
@@ -141,13 +158,71 @@ CS
 	{
 		float3 delta = (worldPosition - CameraPosition);
 
-		// Check if orthographic
-		if ( g_matViewToProjection[3].w != 0.0f )
+		bool isOrthographic = g_matViewToProjection[3].w != 0.0f;
+
+		// The projection decides only in Default mode; the other two modes name a measure outright.
+		bool useViewDepth = ( SpriteSortMode == SPRITE_SORT_ORTHOGRAPHIC ) ||
+			( SpriteSortMode == SPRITE_SORT_DEFAULT && isOrthographic );
+
+		if ( useViewDepth )
 		{
 			return dot( delta, g_vCameraDirWs.xyz );
 		}
 
 		return dot(delta, delta);
+	}
+
+	// The value the fine half of the sort key is built from. Larger means further back.
+	float CalculateSortDepth(float3 worldPosition)
+	{
+		// A zero axis means the mode never supplied one, so there is nothing to sort along and
+		// camera depth is the only sensible answer. This is also what keeps a camera that has
+		// never been told about sort modes rendering exactly as it always did.
+		if ( SpriteSortMode == SPRITE_SORT_CUSTOM_AXIS && any( SpriteSortAxis != 0.0f ) )
+		{
+			// Position along the axis, with no reference to the camera at all - that is the whole
+			// point. Further along the axis sorts larger, so it draws first and ends up behind.
+			return dot( worldPosition, SpriteSortAxis );
+		}
+
+		return CalculateDistance( worldPosition );
+	}
+
+	// Maps a float onto a uint whose unsigned ordering matches the float's signed ordering,
+	// so distances can be compared alongside the integer part of the key.
+	uint FloatToSortableUint( float value )
+	{
+		uint bits = asuint( value );
+
+		// Negative floats compare in reverse as raw bits, so flip them entirely.
+		// Positive floats only need their sign bit set to sort above every negative.
+		return ( bits & 0x80000000u ) ? ~bits : ( bits | 0x80000000u );
+	}
+
+	// The bottom of the fine key is given over to a sorting group member's rank. 8 bits leaves
+	// 15 bits of float mantissa for the depth, which is finer than a sprite's own size at any
+	// sane world scale. Must match SortingGroup.MaxRank on the CPU.
+	#define SPRITE_SORT_RANK_MASK 0xFFu
+
+	// Sprites are drawn back-to-front - the pixel shader walks the sort LUT in reverse - so a
+	// LARGER key is drawn EARLIER, further back. The coarse key is therefore inverted: a higher
+	// sort layer or order has to draw LATER, which means it has to sort SMALLER.
+	uint2 CalculateSortKey( uint packedSortKey, float3 worldPosition, float3 sortOriginOffset, uint sortRank )
+	{
+		// Zero offset means the sprite sorts where it is; a sorting group moves every one of its
+		// members onto the group's own origin so they resolve to a single depth.
+		float depth = CalculateSortDepth( worldPosition + sortOriginOffset );
+
+		// Trading the low bits of the depth away for the rank is a monotonic quantization: it can
+		// only make two near-equal depths tie, never reorder them. And a tie is precisely where
+		// the group's own ordering should be taking over anyway.
+		uint quantized = FloatToSortableUint( depth ) & ~SPRITE_SORT_RANK_MASK;
+
+		// Inverted for the same reason as the coarse key - a higher rank draws later, so it has
+		// to sort smaller. Ungrouped sprites are rank 0 and all land on the same bottom rung.
+		uint rank = SPRITE_SORT_RANK_MASK - min( sortRank, SPRITE_SORT_RANK_MASK );
+
+		return uint2( ~packedSortKey, quantized | rank );
 	}
 
 	[numthreads( 64, 1, 1 ) ]
@@ -173,12 +248,12 @@ CS
 			}
 
 
-			DistanceBuffer[i] = CalculateDistance(sprite.Position);
+			SortKeyBuffer[i] = CalculateSortKey(sprite.SortKey, sprite.Position, sprite.SortOriginOffset, sprite.SortRank);
 			SpriteBufferOut[i] = sprite;
 		}
 		else
 		{
-			DistanceBuffer[i] = FLT_MAX;
+			SortKeyBuffer[i] = SORTKEY_MAX;
 		}
 
 		int writeSize = 0;
@@ -252,8 +327,8 @@ CS
 					pos += moveStep;
 
 					b.Position = pos;
-					// We fill distance buffer for sorting
-					DistanceBuffer[writeLocation] = CalculateDistance(b.Position);
+					// We fill the sort key buffer for sorting
+					SortKeyBuffer[writeLocation] = CalculateSortKey(b.SortKey, b.Position, b.SortOriginOffset, b.SortRank);
 					SpriteBufferOut[writeLocation] = b;
 
 					index++;
@@ -263,9 +338,9 @@ CS
 				spritePosition -= moveStep;
 				b.Position = spritePosition;
 
-				// Fil distance buffer for sorting
+				// Fill the sort key buffer for sorting
 				writeLocation = writeOffset + index;
-				DistanceBuffer[writeLocation] = CalculateDistance(b.Position);
+				SortKeyBuffer[writeLocation] = CalculateSortKey(b.SortKey, b.Position, b.SortOriginOffset, b.SortRank);
 
 				SpriteBufferOut[writeLocation] = b;
 

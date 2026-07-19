@@ -1,4 +1,4 @@
-﻿namespace Sandbox.Rendering;
+namespace Sandbox.Rendering;
 
 using NativeEngine;
 using System.Buffers;
@@ -33,6 +33,21 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		AddressModeU = TextureAddressMode.Clamp,
 		AddressModeV = TextureAddressMode.Clamp,
 	};
+
+	/// <summary>
+	/// A sprite's place in the draw order, compared lexicographically on the GPU. Splitting this
+	/// across two integers keeps the comparison exact - a single float could not hold the full
+	/// layer/order range alongside a distance without silently losing precision.
+	/// </summary>
+	[StructLayout( LayoutKind.Sequential, Pack = 4 )]
+	internal struct SpriteSortKey
+	{
+		/// <summary>Sort layer and order in layer, inverted on the GPU so higher draws in front.</summary>
+		public uint Coarse;
+
+		/// <summary>Distance along the transparency sort axis, made unsigned-comparable.</summary>
+		public uint Fine;
+	}
 
 	/// <summary>
 	/// Flags for sprite rendering, must match SpriteFlags in sprite_ps.shader
@@ -71,6 +86,30 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		public Vector3 Velocity = Vector3.Zero;
 		public Vector4 BlendSheetUV;
 		public Vector2 Offset;
+
+		/// <summary>
+		/// Coarse draw order, packed by <see cref="PackSortKey"/>. Compared before the sort axis
+		/// distance, so it wins over any positional ordering.
+		/// </summary>
+		public uint SortKey = 0;
+
+		/// <summary>
+		/// Moves the point this sprite sorts at, relative to <see cref="Position"/>. Set to a
+		/// sorting group's origin so every member of the group resolves to one depth and nothing
+		/// outside it can be drawn in between them.
+		///
+		/// Deliberately an offset rather than an absolute position: zero means "sort where I am",
+		/// so every sprite built without knowing about sorting groups - particles especially -
+		/// keeps sorting exactly as it did.
+		/// </summary>
+		public Vector3 SortOriginOffset = Vector3.Zero;
+
+		/// <summary>
+		/// Order within the sorting group, densely ranked from 0. Occupies the low bits of the
+		/// sort key's distance term, so it only ever decides between sprites at the same depth.
+		/// </summary>
+		public uint SortRank = 0;
+
 		public SpriteData()
 		{
 
@@ -84,6 +123,29 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 			byte b = (byte)(color.b * 255f);
 			byte a = (byte)(color.a * 255f);
 			return (uint)(r | (g << 8) | (b << 16) | (a << 24));
+		}
+
+		/// <summary>Bits of the sort key given over to the layer index. 16k layers is far past useful.</summary>
+		internal const int SortKeyLayerBits = 14;
+
+		/// <summary>
+		/// Packs a sprite's layer, blend state and order within the layer into a single value that
+		/// orders correctly under plain unsigned comparison.
+		///
+		/// Layer is the most significant term, so it beats everything. Blend comes next, above
+		/// order: sprites needing different blend states cannot share a draw call, so grouping
+		/// them is what lets a layer be drawn as a small run of draws instead of being broken up.
+		/// The cost is that order-in-layer only ranks a sprite against others of the same blend
+		/// state - which is the same trade the renderer is already forced into.
+		/// </summary>
+		internal static uint PackSortKey( int layerIndex, SpriteBlendMode blend, int sortOrder )
+		{
+			var layer = (uint)Math.Clamp( layerIndex, 0, (1 << SortKeyLayerBits) - 1 );
+
+			// Bias the signed order so that negative orders still compare below positive ones.
+			var order = (uint)(Math.Clamp( sortOrder, short.MinValue, short.MaxValue ) - short.MinValue);
+
+			return (layer << 18) | ((uint)blend << 16) | order;
 		}
 
 		// Pack fog strength and alpha cutout into a single uint
@@ -175,7 +237,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 	GpuBuffer<SpriteVertex> VertexBuffer;
 	GpuBuffer<int> IndexBuffer;
 	GpuBuffer<uint> GPUSortingBuffer;
-	GpuBuffer<float> GPUDistanceBuffer;
+	GpuBuffer<SpriteSortKey> GPUSortKeyBuffer;
 
 	SpriteData[] SpriteDataBuffer = null!;
 	bool SpriteDataBufferRented = false;
@@ -195,7 +257,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		SpriteBuffer = new( CurrentBufferSize );
 		SpriteBufferOut = new( CurrentBufferSize );
 		GPUSortingBuffer = new( CurrentBufferSize );
-		GPUDistanceBuffer = new( CurrentBufferSize );
+		GPUSortKeyBuffer = new( CurrentBufferSize );
 		SpriteAtomicCounter = new( 1 );
 	}
 
@@ -255,18 +317,111 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		SpriteBuffer?.Dispose();
 		SpriteBufferOut?.Dispose();
 		GPUSortingBuffer?.Dispose();
-		GPUDistanceBuffer?.Dispose();
+		GPUSortKeyBuffer?.Dispose();
 
 		SpriteBuffer = new( CurrentBufferSize );
 		SpriteBufferOut = new( CurrentBufferSize );
 		GPUSortingBuffer = new( CurrentBufferSize );
-		GPUDistanceBuffer = new( CurrentBufferSize );
+		GPUSortKeyBuffer = new( CurrentBufferSize );
 	}
 
 	private readonly Dictionary<Guid, int> _precomputedSplotCounts = [];
 
 	// Pre-allocated buffer to avoid GC allocations in hot path
 	private SpriteRenderer[] _componentBuffer = new SpriteRenderer[16];
+	private SortingGroup[] _spriteGroupBuffer = new SortingGroup[16];
+	private int[] _bucketLayers = new int[16];
+	private SpriteBlendMode[] _bucketBlends = new SpriteBlendMode[16];
+	private int[] _bucketCounts = [];
+	private readonly HashSet<SortingGroup> _rankedGroups = new();
+
+	/// <summary>
+	/// The runs being built by the current upload, on the main thread.
+	///
+	/// Double buffered against <see cref="_renderBuckets"/> because RenderSceneObject runs on the
+	/// render thread: handing it the list being rebuilt lets it walk half-written offsets and draw
+	/// sprites from the wrong part of the buffer. Same reason the counts below are snapshotted.
+	/// </summary>
+	private List<SpriteDrawBucket> _drawBuckets = new();
+
+	/// <summary>
+	/// The finished runs, swapped in at the end of an upload and only read by the render thread.
+	/// Empty when this batch holds a single blend state, which draws in one call as before.
+	/// </summary>
+	private List<SpriteDrawBucket> _renderBuckets = new();
+
+	/// <summary>
+	/// True when this batch mixes blend states so that sort layers can order across them. Set from
+	/// the render group's flags - see <see cref="SceneSpriteSystem"/>.
+	/// </summary>
+	public bool MixedBlend { get; set; } = false;
+
+	/// <summary>
+	/// Works out the runs this batch has to draw, when it holds more than one blend state.
+	///
+	/// The GPU sort orders by layer first and blend second, so sprites sharing a layer and a blend
+	/// state end up next to each other - which means a run's position is just how many sprites
+	/// sort ahead of it. Counting that on the CPU is what avoids reading the sort result back.
+	///
+	/// Leaves the list empty for every other case, and the batch then draws in one call as before.
+	/// </summary>
+	private void BuildDrawBuckets( int componentCount, int spriteCount, int splotCount, bool sorted )
+	{
+		_drawBuckets.Clear();
+
+		// Unsorted batches have no meaningful order to divide up, and the runs are only in step
+		// with the buffer if every sprite in it came through the component path - particles set no
+		// sort key, and motion blur adds instances the count above never saw.
+		if ( !MixedBlend || !sorted ) return;
+		if ( spriteCount != componentCount || splotCount != 0 ) return;
+
+		var layerCount = ProjectSettings.Sorting.Layers.Count;
+		var requiredCounts = Math.Max( layerCount, 1 ) * SpriteDrawPlan.BlendModeCount;
+
+		if ( _bucketCounts.Length < requiredCounts )
+		{
+			_bucketCounts = new int[requiredCounts];
+		}
+
+		SpriteDrawPlan.BuildBuckets(
+			_bucketLayers.AsSpan( 0, componentCount ),
+			_bucketBlends.AsSpan( 0, componentCount ),
+			layerCount,
+			_drawBuckets,
+			_bucketCounts );
+	}
+
+	/// <summary>
+	/// Works out which sorting group each sprite belongs to and gets every one of those groups to
+	/// rebuild its member ordering.
+	///
+	/// This has to happen before the parallel upload pass rather than inside it: ranking reads a
+	/// whole group's members at once, and walking a sprite's ancestors is not safe to do from
+	/// several threads at the same time. Scenes with no sorting groups pay a single null check
+	/// per sprite for it.
+	/// </summary>
+	private void ResolveSortingGroups( int componentCount )
+	{
+		if ( _spriteGroupBuffer.Length < componentCount )
+		{
+			_spriteGroupBuffer = new SortingGroup[componentCount * 2];
+		}
+
+		_rankedGroups.Clear();
+
+		for ( var i = 0; i < componentCount; i++ )
+		{
+			var group = SortingGroup.FindFor( _componentBuffer[i] );
+
+			_spriteGroupBuffer[i] = group;
+
+			// Rebuild each group once, however many of its members are in this batch.
+			if ( group is not null && _rankedGroups.Add( group ) )
+			{
+				group.RefreshRanks();
+			}
+		}
+	}
 	private readonly object _boundsLock = new();
 
 	public void RegisterSprite( Guid ownerId, SpriteData[] sharedSprites, int offset, int count, int splotCount, BBox bounds )
@@ -366,6 +521,8 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 			if ( _componentBuffer.Length < componentCount )
 			{
 				_componentBuffer = new SpriteRenderer[componentCount * 2];
+				_bucketLayers = new int[componentCount * 2];
+				_bucketBlends = new SpriteBlendMode[componentCount * 2];
 			}
 
 			int index = 0;
@@ -373,6 +530,12 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 			{
 				_componentBuffer[index++] = component;
 			}
+
+			// Hoisted out of the loop - resolving a layer id to its position in the draw order is a
+			// lookup into this, and it must not change underneath the parallel pass.
+			var sorting = ProjectSettings.Sorting;
+
+			ResolveSortingGroups( componentCount );
 
 			object boundsLock = _boundsLock;
 			Parallel.For<(Vector3 mins, Vector3 maxs)>(
@@ -425,6 +588,14 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 					uint packedFogAndAlpha = SpriteData.PackFogAndAlphaCutout( c.FogStrength, c.AlphaCutoff );
 
+					// Ranks were built in the sequential pass above, so this only reads them.
+					var (sortLayer, sortOrder, sortOrigin, sortRank) = c.ResolveSorting( _spriteGroupBuffer[i] );
+
+					// Recorded per sprite so the draw runs can be counted once the loop is done.
+					// Each iteration owns its own slot, so this is safe to write from here.
+					_bucketLayers[i] = sorting.GetLayerIndex( sortLayer.Id );
+					_bucketBlends[i] = SpriteDrawPlan.GetBlendMode( c.Opaque, c.Additive );
+
 					var spritePos = transform.Position;
 					var spriteScale = new Vector2( transform.Scale.x, transform.Scale.z );
 
@@ -442,7 +613,10 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 						Lighting = packedExponent,
 						DepthFeather = c.DepthFeather,
 						SamplerIndex = SamplerState.GetBindlessIndex( sampler with { Filter = c.TextureFilter } ),
-						Offset = c.Pivot
+						Offset = c.Pivot,
+						SortKey = SpriteData.PackSortKey( sorting.GetLayerIndex( sortLayer.Id ), SpriteDrawPlan.GetBlendMode( c.Opaque, c.Additive ), sortOrder ),
+						SortOriginOffset = sortOrigin - spritePos,
+						SortRank = (uint)sortRank
 					};
 
 					var pivot = c.Pivot;
@@ -508,6 +682,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		}
 
 		bool sorted = Sorted;
+		BuildDrawBuckets( componentCount, SpriteCount, SplotCount, sorted );
 		bool filtered = Filtered;
 		bool additive = Additive;
 		bool opaque = Opaque;
@@ -519,25 +694,25 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		if ( sorted && totalInstances >= 2 )
 		{
 			_commandList.Attributes.Set( "SortBuffer", (GpuBuffer)GPUSortingBuffer );
-			_commandList.Attributes.Set( "DistanceBuffer", (GpuBuffer)GPUDistanceBuffer );
+			_commandList.Attributes.Set( "SortKeyBuffer", (GpuBuffer)GPUSortKeyBuffer );
 			_commandList.Attributes.Set( "Count", bufferSize );
 			_commandList.Attributes.SetCombo( "D_CLEAR", 1 );
 			_commandList.DispatchCompute( SortComputeShader, bufferSize, 1, 1 );
 
 			_commandList.ResourceBarrierTransition( (GpuBuffer)GPUSortingBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
-			_commandList.ResourceBarrierTransition( (GpuBuffer)GPUDistanceBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
+			_commandList.ResourceBarrierTransition( (GpuBuffer)GPUSortKeyBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
 		}
 
 		_commandList.ResourceBarrierTransition( SpriteAtomicCounter, ResourceState.Common );
 		_commandList.ResourceBarrierTransition( (GpuBuffer)SpriteBuffer, ResourceState.Common );
 		_commandList.ResourceBarrierTransition( (GpuBuffer)SpriteBufferOut, ResourceState.Common );
-		_commandList.ResourceBarrierTransition( (GpuBuffer)GPUDistanceBuffer, ResourceState.Common );
+		_commandList.ResourceBarrierTransition( (GpuBuffer)GPUSortKeyBuffer, ResourceState.Common );
 
 		_commandList.Attributes.Set( "Sprites", (GpuBuffer)SpriteBuffer );
 		_commandList.Attributes.Set( "SpriteBufferOut", (GpuBuffer)SpriteBufferOut );
 		_commandList.Attributes.Set( "SpriteCount", spriteCount );
 		_commandList.Attributes.Set( "AtomicCounter", SpriteAtomicCounter );
-		_commandList.Attributes.Set( "DistanceBuffer", (GpuBuffer)GPUDistanceBuffer );
+		_commandList.Attributes.Set( "SortKeyBuffer", (GpuBuffer)GPUSortKeyBuffer );
 		_commandList.DispatchCompute( SpriteComputeShader, spriteCount, 1, 1 );
 
 		_commandList.ResourceBarrierTransition( SpriteAtomicCounter, ResourceState.Common );
@@ -545,7 +720,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 		if ( sorted && totalInstances >= 2 )
 		{
-			_commandList.ResourceBarrierTransition( (GpuBuffer)GPUDistanceBuffer, ResourceState.Common );
+			_commandList.ResourceBarrierTransition( (GpuBuffer)GPUSortKeyBuffer, ResourceState.Common );
 			_commandList.Attributes.SetCombo( "D_CLEAR", 0 );
 
 			var x = Math.Min( bufferSize, MaxDimThreads );
@@ -561,7 +736,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 					_commandList.DispatchCompute( SortComputeShader, x, y, 1 );
 
 					_commandList.ResourceBarrierTransition( (GpuBuffer)GPUSortingBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
-					_commandList.ResourceBarrierTransition( (GpuBuffer)GPUDistanceBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
+					_commandList.ResourceBarrierTransition( (GpuBuffer)GPUSortKeyBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
 				}
 			}
 		}
@@ -573,6 +748,11 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		_renderFiltered = filtered;
 		_renderAdditive = additive;
 		_renderOpaque = opaque;
+
+		// Publish the runs alongside the counts they were built against. Swapping the reference
+		// hands the render thread a finished list, and gives us the old one back to build into
+		// next frame without allocating.
+		(_renderBuckets, _drawBuckets) = (_drawBuckets, _renderBuckets);
 	}
 
 	public override void RenderSceneObject()
@@ -588,7 +768,6 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		var attributes = RenderAttributes.Pool.Get();
 		try
 		{
-			attributes.SetCombo( "D_BLEND", _renderAdditive ? 1 : 0 );
 			attributes.SetCombo( "D_OPAQUE", _renderOpaque ? 1 : 0 );
 			attributes.Set( "IsSorted", _renderIsSorted ? 1 : 0 );
 			attributes.Set( "SpriteCount", _renderInstanceCount );
@@ -598,7 +777,32 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 			attributes.Set( "Vertices", (GpuBuffer)VertexBuffer );
 			attributes.Set( "g_bNonDirectionalDiffuseLighting", true );
 
-			Graphics.DrawIndexedInstanced( (GpuBuffer)IndexBuffer, SpriteMaterial, _renderInstanceCount, attributes );
+			// Read once - the main thread may swap this reference between uploads.
+			var buckets = _renderBuckets;
+
+			if ( buckets.Count == 0 )
+			{
+				attributes.SetCombo( "D_BLEND", _renderAdditive ? 1 : 0 );
+				attributes.Set( "SortLUTOffset", 0 );
+
+				Graphics.DrawIndexedInstanced( (GpuBuffer)IndexBuffer, SpriteMaterial, _renderInstanceCount, attributes );
+			}
+			else
+			{
+				// One draw per run, walked in order, so a lower sort layer is finished before a
+				// higher one starts. This is the whole reason the batch holds mixed blend states:
+				// ordering between scene objects is not ours to control, ordering within one is.
+				foreach ( var bucket in buckets )
+				{
+					attributes.SetCombo( "D_BLEND", bucket.Blend == SpriteBlendMode.Additive ? 1 : 0 );
+
+					// The shader walks the sort table backwards from the end, so a run starting
+					// this far into the draw order starts this far back from the end.
+					attributes.Set( "SortLUTOffset", bucket.Offset );
+
+					Graphics.DrawIndexedInstanced( (GpuBuffer)IndexBuffer, SpriteMaterial, bucket.Count, attributes );
+				}
+			}
 		}
 		finally
 		{

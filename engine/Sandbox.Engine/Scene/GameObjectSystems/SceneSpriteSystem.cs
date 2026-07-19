@@ -15,7 +15,9 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 	/// <summary>Carries the data needed to configure a new <see cref="SpriteBatchSceneObject"/> from the original component state.</summary>
 	private readonly record struct RenderGroupConfig( InstanceGroupFlags Flags, RenderOptions RenderOptions, IReadOnlySet<uint> Tags );
 
-	Dictionary<ulong, SpriteBatchSceneObject> RenderGroups = [];
+	// Internal rather than private so tests can check how sprites got divided into batches - which
+	// batch a sprite lands in is what decides whether its sort layer can be honoured at all.
+	internal Dictionary<ulong, SpriteBatchSceneObject> RenderGroups = [];
 
 	public SceneSpriteSystem( Scene scene ) : base( scene )
 	{
@@ -126,7 +128,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 			var particleSystemID = particleRenderer.Id;
 			_activeParticleEmitters[i] = particleSystemID;
 
-			var rendergroup = GetRenderGroupKey( systemInfo.System, (GameTags)particleRenderer.Tags, particleRenderer.RenderOptions );
+			var rendergroup = GetRenderGroupKey( systemInfo.System, (GameTags)particleRenderer.Tags, particleRenderer.RenderOptions, allowBlendMerge: false );
 
 			// This is a very hot codepath, beware!
 			// Create span from the managed array starting at the correct offset with the correct length
@@ -168,7 +170,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 			if ( !RenderGroups.ContainsKey( rendergroup ) )
 			{
 				var particleRenderer = (ParticleRenderer)system;
-				CreateRenderGroup( rendergroup, BuildConfig( system, (GameTags)particleRenderer.Tags, particleRenderer.RenderOptions ) );
+				CreateRenderGroup( rendergroup, BuildConfig( system, (GameTags)particleRenderer.Tags, particleRenderer.RenderOptions, allowBlendMerge: false ) );
 			}
 
 			// Register in correct render group using shared block with offset and precomputed splot count
@@ -261,7 +263,22 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		}
 	}
 
-	private static ulong GetRenderGroupKey( ISpriteRenderGroup component, GameTags tags, RenderOptions renderOptions )
+	/// <summary>
+	/// Whether this sprite can share a batch with sprites of a different blend state.
+	///
+	/// It has to, for sort layers to mean anything: the engine offers no way to order one scene
+	/// object against another, so two sprites in separate batches have no defined order however
+	/// their layers are set. Sprites that share a batch are ordered by the GPU sort, which leads
+	/// with the layer - so merging is what makes the layer win.
+	///
+	/// Only within the translucent pass. Opaque sprites belong to a different render pass
+	/// entirely, and a shadow caster carries a scene-object flag that additive sprites never set,
+	/// so neither can be folded in without changing what it does.
+	/// </summary>
+	private static bool CanMergeBlendModes( ISpriteRenderGroup component, bool castsShadow )
+		=> component.IsSorted && !component.Opaque && !castsShadow;
+
+	internal static ulong GetRenderGroupKey( ISpriteRenderGroup component, GameTags tags, RenderOptions renderOptions, bool allowBlendMerge )
 	{
 		var flags = InstanceGroupFlags.None;
 
@@ -272,14 +289,25 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		}
 
 		// Shadows
-		if ( component.Shadows && !component.Additive )
+		var castsShadow = component.Shadows && !component.Additive;
+		if ( castsShadow )
 		{
 			flags |= InstanceGroupFlags.CastShadow;
 		}
 
-		if ( component.Additive )
+		// Leaving Additive out of the key is what lets additive and ordinary sprites land in the
+		// same batch, and so be ordered against each other by their sort layers. The batch then
+		// draws each blend state as its own run - see SpriteDrawPlan.
+		var merged = allowBlendMerge && CanMergeBlendModes( component, castsShadow );
+
+		if ( component.Additive && !merged )
 		{
 			flags |= InstanceGroupFlags.Additive;
+		}
+
+		if ( merged )
+		{
+			flags |= InstanceGroupFlags.MixedBlend;
 		}
 
 		if ( component.Opaque )
@@ -307,12 +335,20 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		return XxHash3.HashToUInt64( buf );
 	}
 
-	private static RenderGroupConfig BuildConfig( ISpriteRenderGroup component, GameTags tags, RenderOptions renderOptions )
+	private static RenderGroupConfig BuildConfig( ISpriteRenderGroup component, GameTags tags, RenderOptions renderOptions, bool allowBlendMerge )
 	{
 		var flags = InstanceGroupFlags.None;
 		if ( !component.Opaque && component.IsSorted ) flags |= InstanceGroupFlags.Transparent;
-		if ( component.Shadows && !component.Additive ) flags |= InstanceGroupFlags.CastShadow;
-		if ( component.Additive ) flags |= InstanceGroupFlags.Additive;
+
+		var castsShadow = component.Shadows && !component.Additive;
+		if ( castsShadow ) flags |= InstanceGroupFlags.CastShadow;
+
+		// Must stay in step with GetRenderGroupKey, or a batch gets configured for flags its key
+		// was never built from.
+		var merged = allowBlendMerge && CanMergeBlendModes( component, castsShadow );
+		if ( component.Additive && !merged ) flags |= InstanceGroupFlags.Additive;
+		if ( merged ) flags |= InstanceGroupFlags.MixedBlend;
+
 		if ( component.Opaque ) flags |= InstanceGroupFlags.Opaque;
 
 		return new RenderGroupConfig( flags, renderOptions.Clone(), tags.GetTokens().ToFrozenSet() );
@@ -360,6 +396,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		renderGroupObject.Sorted = (config.Flags & InstanceGroupFlags.Transparent) != 0;
 		renderGroupObject.Additive = (config.Flags & InstanceGroupFlags.Additive) != 0;
 		renderGroupObject.Opaque = (config.Flags & InstanceGroupFlags.Opaque) != 0;
+		renderGroupObject.MixedBlend = (config.Flags & InstanceGroupFlags.MixedBlend) != 0;
 		renderGroupObject.Tags.SetFrom( new TagSet( config.Tags.Select( StringToken.GetValue ) ) );
 		config.RenderOptions.Apply( renderGroupObject );
 
@@ -369,9 +406,9 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 
 	internal void RegisterSprite( Guid componentId, SpriteRenderer component )
 	{
-		var key = GetRenderGroupKey( component, component.Tags as GameTags, component.RenderOptions );
+		var key = GetRenderGroupKey( component, component.Tags as GameTags, component.RenderOptions, allowBlendMerge: true );
 		if ( !RenderGroups.ContainsKey( key ) )
-			CreateRenderGroup( key, BuildConfig( component, component.Tags as GameTags, component.RenderOptions ) );
+			CreateRenderGroup( key, BuildConfig( component, component.Tags as GameTags, component.RenderOptions, allowBlendMerge: true ) );
 
 		InsertInRenderGroup( componentId, component, key );
 	}
@@ -381,7 +418,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		// If found in old renderGroup, we unregister it and register it in the new one
 		if ( FindCurrentRenderGroup( componentId ) is ulong oldRenderGroup )
 		{
-			var newRenderGroup = GetRenderGroupKey( component, (GameTags)component.Tags, component.RenderOptions );
+			var newRenderGroup = GetRenderGroupKey( component, (GameTags)component.Tags, component.RenderOptions, allowBlendMerge: true );
 			if ( !oldRenderGroup.Equals( newRenderGroup ) )
 			{
 				RemoveFromRenderGroup( componentId, oldRenderGroup );
@@ -416,6 +453,9 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		CastOnlyShadow = 1 << 1,
 		Transparent = 1 << 2,
 		Additive = 1 << 3,
-		Opaque = 1 << 4
+		Opaque = 1 << 4,
+
+		/// <summary>Holds more than one blend state, drawn as one run per state in layer order.</summary>
+		MixedBlend = 1 << 5
 	}
 }

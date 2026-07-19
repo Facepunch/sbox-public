@@ -175,6 +175,8 @@ internal sealed class ProjectSettingsWindow : Window
 
 			AddCategoryToList( typeof( PhysicsCategory ), "Physics" );
 
+			AddCategoryToList( typeof( SortingCategory ), "Rendering" );
+
 			AddCategoryToList( typeof( InputCategory ), "Input" );
 
 			AddCategoryToList( typeof( MultiplayerCategory ), "Networking" );

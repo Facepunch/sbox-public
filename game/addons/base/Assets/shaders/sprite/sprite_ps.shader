@@ -54,6 +54,9 @@ COMMON
 		float3 Velocity;
 		float4 BlendSheetUV;
 		float2 Offset;
+		uint SortKey;
+		float3 SortOriginOffset;
+		uint SortRank;
 	};
 
 	StructuredBuffer<SpriteData> Sprites < Attribute( "Sprites" ); >;
@@ -61,12 +64,19 @@ COMMON
 	int IsSorted < Attribute( "IsSorted" ); >;
 	int CurrentBufferSize < Attribute( "SpriteCount" ); >;
 
+	// Where in the draw order this call starts. A batch holding more than one blend state is drawn
+	// as several calls, each covering one run of the sorted order, so the instance id is relative
+	// to the run rather than to the whole batch.
+	int SortLUTOffset < Attribute( "SortLUTOffset" ); >;
+
 	SpriteData GetSprite( uint index )
 	{
 		int spriteIndex = index;
 		if ( IsSorted == 1 )
 		{
-			spriteIndex = SortLUT[CurrentBufferSize - 1 - index];
+			// The table is walked from the end because sprites are drawn back to front, and the
+			// furthest away sorts largest.
+			spriteIndex = SortLUT[CurrentBufferSize - 1 - index - SortLUTOffset];
 		}
 		return Sprites[spriteIndex];
 	}

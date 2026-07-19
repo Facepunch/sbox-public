@@ -1,4 +1,4 @@
-﻿using Sandbox.Rendering;
+using Sandbox.Rendering;
 
 namespace Sandbox;
 
@@ -148,6 +148,43 @@ public sealed partial class SpriteRenderer : Renderer, Component.ExecuteInEditor
 	/// </summary>
 	[Property, Category( "Visuals" ), Order( -200 )]
 	public bool IsSorted { get; set; }
+
+	/// <summary>
+	/// Which sort layer this sprite belongs to. Sprites in a later layer always draw in front of
+	/// sprites in an earlier one. Layers are defined in the project's sorting settings.
+	/// Requires <see cref="IsSorted"/> to have any effect.
+	/// </summary>
+	[Property, Category( "Sorting" ), Order( -150 )]
+	[Editor( "sortlayer" )]
+	public SortLayerHandle SortLayer { get; set; }
+
+	/// <summary>
+	/// Draw order within the sort layer. Higher values draw on top. Sprites with an equal order
+	/// fall back to sorting by depth. Requires <see cref="IsSorted"/> to have any effect.
+	/// </summary>
+	[Property, Category( "Sorting" ), Order( -149 )]
+	public int SortOrder { get; set; }
+
+	/// <summary>
+	/// The <see cref="SortingGroup"/> this sprite belongs to, if any. While it has one, the
+	/// group's layer and order decide where it sits against the rest of the world, and this
+	/// sprite's own <see cref="SortOrder"/> only orders it against the group's other members.
+	/// </summary>
+	public SortingGroup SortingGroup => SortingGroup.FindFor( this );
+
+	/// <summary>
+	/// Where this sprite actually lands in the draw order, once its sorting group has had its say.
+	/// This is what gets uploaded, and what the editor reports.
+	/// </summary>
+	internal (SortLayerHandle Layer, int Order, Vector3 Origin, int Rank) ResolveSorting( SortingGroup group )
+	{
+		// The group's origin, not the sprite's, is what the whole group sorts at - that is what
+		// stops anything outside the group from being drawn in between its members.
+		if ( group is not null )
+			return (group.SortLayer, group.SortOrder, group.WorldPosition, group.GetRank( this ));
+
+		return (SortLayer, SortOrder, WorldPosition, 0);
+	}
 
 	/// <summary>
 	/// This action is invoked when an animation starts playing. The string parameter is the name of the animation that started.

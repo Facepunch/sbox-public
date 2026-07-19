@@ -1,4 +1,4 @@
-﻿
+
 using Sandbox.Rendering;
 using Sandbox.UI;
 using System.Drawing;
@@ -257,6 +257,8 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 
 		Gizmo.Draw.Color = Color.White.WithAlpha( 0.4f );
 		Gizmo.Draw.LineFrustum( frustum );
+
+		DrawSortAxisGizmo();
 	}
 
 	/// <summary>
@@ -414,6 +416,9 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 
 		// Merge our global Scene attributes into the camera
 		Scene.RenderAttributes.MergeTo( camera.Attributes );
+
+		// After the merge, so the camera's own sorting settings win over any scene-wide value
+		UpdateSortingAttributes( camera );
 
 		camera.DebugMode = DebugMode;
 		camera.WireframeMode = WireframeMode;

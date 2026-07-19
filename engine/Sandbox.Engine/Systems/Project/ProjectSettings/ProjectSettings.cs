@@ -1,4 +1,4 @@
-﻿using Sandbox.Audio;
+using Sandbox.Audio;
 
 namespace Sandbox;
 
@@ -59,6 +59,11 @@ public class ProjectSettings
 	/// and it will return the same object. The cache is cleared automatically when the project changes, 
 	/// or when it's hotloaded.
 	/// </summary>
+	/// <summary>
+	/// Get the <see cref="SortingSettings"/> from the active project settings.
+	/// </summary>
+	public static SortingSettings Sorting => Get<SortingSettings>( "Sorting.config" );
+
 	public static T Get<T>( string filename ) where T : ConfigData, new()
 	{
 		if ( _cache.TryGetValue( filename, out var result ) && result is T t )
