@@ -1,4 +1,5 @@
 ﻿using System;
+using Microsoft.CodeAnalysis.Formatting;
 
 namespace Sandbox.CodeUpgrader;
 
@@ -163,14 +164,35 @@ public sealed class HotloadUnsupportedFixer : Fixer<HotloadUnsupportedAnalyzer>
 	{
 		var attribute = SyntaxFactory.Attribute( SyntaxFactory.ParseName( "SkipHotload" ) );
 		var attributes = new SeparatedSyntaxList<AttributeSyntax>().Add( attribute );
-		var list = SyntaxFactory.AttributeList( attributes ).WithTrailingTrivia( SyntaxFactory.EndOfLine( "\r\n" ) );
+		var list = SyntaxFactory.AttributeList( attributes )
+			.WithTrailingTrivia( SyntaxFactory.EndOfLine( GetLineEnding( memberDeclNode ) ) );
 
 		var replaced = memberDeclNode.AddAttributeLists( list );
 
 		var root = await document.GetSyntaxRootAsync();
-		var newRoot = root!.ReplaceNode( memberDeclNode, replaced );
+		var formattedRoot = Formatter.Format(
+			root!.ReplaceNode( memberDeclNode, replaced ),
+			document.Project.Solution.Workspace );
+		var newline = GetLineEnding( memberDeclNode );
+		var normalizedText = formattedRoot.ToFullString()
+			.Replace( "\r\n", "\n" )
+			.Replace( "\n", newline );
+		var newRoot = CSharpSyntaxTree.ParseText( normalizedText ).GetRoot();
 
 		return document.WithSyntaxRoot( newRoot );
+	}
+
+	private static string GetLineEnding( MemberDeclarationSyntax memberDeclNode )
+	{
+		var sourceText = memberDeclNode.SyntaxTree.GetText().ToString();
+
+		if ( sourceText.Contains( "\r\n" ) )
+			return "\r\n";
+
+		if ( sourceText.Contains( "\n" ) )
+			return "\n";
+
+		return "\n";
 	}
 
 	public override async Task RunTests( IFixerTest tester )
