@@ -98,15 +98,19 @@ internal class Program
 		var noBuildOption = new Option<bool>( "--no-build",
 			description: "Skip building before running tests (assumes projects are already built)",
 			getDefaultValue: () => false );
+		var skipIntegrationOption = new Option<bool>( "--skip-integration",
+			description: "Skip Sandbox.Test.Integration (Linux CI only)",
+			getDefaultValue: () => false );
 		var filterOption = new Option<string>( "--filter",
 			description: "dotnet test filter expression, e.g. TestCategory!=LiveBackend",
 			getDefaultValue: () => null );
 		cmd.AddOption( noBuildOption );
+		cmd.AddOption( skipIntegrationOption );
 		cmd.AddOption( filterOption );
-		cmd.SetHandler( ( bool noBuild, string filter ) =>
+		cmd.SetHandler( ( bool noBuild, bool skipIntegration, string filter ) =>
 		{
-			Environment.ExitCode = (int)new Test( noBuild, filter ).Run();
-		}, noBuildOption, filterOption );
+			Environment.ExitCode = (int)new Test( noBuild, filter, skipIntegration ).Run();
+		}, noBuildOption, skipIntegrationOption, filterOption );
 		rootCommand.Add( cmd );
 	}
 
@@ -308,4 +312,3 @@ internal class Program
 	}
 
 }
-

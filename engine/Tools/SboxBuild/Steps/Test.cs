@@ -3,7 +3,7 @@ using static Facepunch.Constants;
 
 namespace Facepunch.Steps;
 
-internal class Test( bool noBuild = true, string filter = null )
+internal class Test( bool noBuild = true, string filter = null, bool skipIntegration = false )
 {
 	/// <summary>
 	/// Filter for pull request runs: everything except tests that talk to the live backend,
@@ -37,6 +37,13 @@ internal class Test( bool noBuild = true, string filter = null )
 
 			foreach ( var project in Projects )
 			{
+				if ( skipIntegration && project.Name == "Sandbox.Test.Integration" )
+				{
+					Log.Info( "" );
+					Log.Info( "Skipping Sandbox.Test.Integration on this run..." );
+					continue;
+				}
+
 				if ( !RunTestProject( project, engineDir, gameDir ) )
 				{
 					Log.Error( $"{project.Name} tests failed!" );
