@@ -214,15 +214,11 @@ public class ComponentList
 	{
 		if ( go.IsDestroyed ) return Enumerable.Empty<T>();
 
-		var results = new List<T>( 16 );
-
-		CollectAll( results, find );
-
-		return results;
+		return CollectAll<T>( find );
 	}
 
 	// This is an incredibly hot code path, even the slightest change should be verified with benchmarks.
-	private void CollectAll<T>( List<T> results, FindMode find )
+	private IEnumerable<T> CollectAll<T>( FindMode find )
 	{
 		bool enabledOnly = find.Contains( FindMode.Enabled );
 		bool disabledOnly = find.Contains( FindMode.Disabled );
@@ -233,7 +229,7 @@ public class ComponentList
 			disabledOnly = false;
 		}
 
-		if ( enabledOnly && !go.Enabled ) return;
+		if ( enabledOnly && !go.Enabled ) yield break;
 
 		//
 		// Find in self
@@ -250,7 +246,7 @@ public class ComponentList
 
 				if ( component is T c )
 				{
-					results.Add( c );
+					yield return c;
 				}
 			}
 		}
@@ -275,7 +271,10 @@ public class ComponentList
 				var child = go.Children[i];
 				if ( child.IsValid() )
 				{
-					child.Components.CollectAll( results, childFlags );
+					foreach ( var childComponent in child.Components.CollectAll<T>( childFlags ) )
+					{
+						yield return childComponent;
+					}
 				}
 			}
 		}
@@ -297,7 +296,10 @@ public class ComponentList
 
 			if ( go.Parent is not null && go.Parent is PrefabScene or not Scene )
 			{
-				go.Parent.Components.CollectAll( results, parentFlags );
+				foreach ( var parentComponent in go.Parent.Components.CollectAll<T>( parentFlags ) )
+				{
+					yield return parentComponent;
+				}
 			}
 		}
 	}
