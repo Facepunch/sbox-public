@@ -138,4 +138,103 @@ public class SpriteMultiEditTests
 		Assert.AreEqual( Color.Red, first.Tint );
 		Assert.AreEqual( Color.Blue, second.Tint );
 	}
+
+	/// <summary>
+	/// Sort layers have to survive a multi-selection like anything else. This is what
+	/// <c>SortLayerControlWidget</c> reads to decide between showing a layer and showing
+	/// "Multiple Values" - showing the first sprite's layer while the others disagree would claim
+	/// they all share it.
+	/// </summary>
+	[TestMethod]
+	public void SortLayersThatDifferAreReportedAsMultipleValues()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+
+		var settings = ProjectSettings.Sorting;
+		var background = settings.AddLayer( "MultiEditBackground" );
+		var foreground = settings.AddLayer( "MultiEditForeground" );
+
+		var (first, second, _, _) = TwoDistinctSprites( scene );
+
+		first.SortLayer = new SortLayerHandle( background );
+		second.SortLayer = new SortLayerHandle( foreground );
+
+		var mso = SelectBoth( first, second );
+
+		Assert.IsTrue( mso.TryGetProperty( nameof( SpriteRenderer.SortLayer ), out var property ) );
+		Assert.IsTrue( property.IsMultipleDifferentValues );
+
+		// Selecting them must not have merged the layers.
+		Assert.AreEqual( background.Id, first.SortLayer.Id );
+		Assert.AreEqual( foreground.Id, second.SortLayer.Id );
+	}
+
+	/// <summary>
+	/// Picking a layer with several sprites selected applies it to all of them. Unlike the sprite
+	/// texture, fanning out here is the whole point - the value written is the one that was picked,
+	/// not one read back off the first selection.
+	/// </summary>
+	[TestMethod]
+	public void PickingASortLayerAppliesItToEverySelectedSprite()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+
+		var settings = ProjectSettings.Sorting;
+		var target = settings.AddLayer( "MultiEditTarget" );
+
+		var (first, second, firstSprite, secondSprite) = TwoDistinctSprites( scene );
+
+		var mso = SelectBoth( first, second );
+
+		Assert.IsTrue( mso.TryGetProperty( nameof( SpriteRenderer.SortLayer ), out var property ) );
+
+		property.SetValue( new SortLayerHandle( target ) );
+
+		Assert.AreEqual( target.Id, first.SortLayer.Id );
+		Assert.AreEqual( target.Id, second.SortLayer.Id );
+
+		// The two features have to coexist: setting a sort layer across the selection must leave
+		// each sprite holding its own Sprite, which is exactly what the embedded sprite widget was
+		// getting wrong.
+		Assert.AreSame( firstSprite, first.Sprite );
+		Assert.AreSame( secondSprite, second.Sprite );
+		Assert.AreNotSame( first.Sprite, second.Sprite );
+	}
+
+	/// <summary>
+	/// The other direction of the same requirement: editing the sprites must not flatten sorting
+	/// state that was deliberately different between them.
+	/// </summary>
+	[TestMethod]
+	public void EditingSpritesLeavesDifferingSortOrdersAlone()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+
+		var (first, second, _, _) = TwoDistinctSprites( scene );
+
+		first.SortOrder = 3;
+		second.SortOrder = 9;
+
+		var mso = SelectBoth( first, second );
+
+		// Whatever the inspector reads while building rows must not disturb anything.
+		foreach ( var property in mso )
+		{
+			_ = property.GetValue<object>();
+		}
+
+		Assert.IsTrue( mso.TryGetProperty( nameof( SpriteRenderer.Sprite ), out var spriteProperty ) );
+
+		// Write each sprite through its own property, the way the fixed widget does.
+		foreach ( var target in spriteProperty.MultipleProperties )
+		{
+			target.SetValue( target.GetValue<Sprite>( null ) ?? new Sprite() );
+		}
+
+		Assert.AreEqual( 3, first.SortOrder );
+		Assert.AreEqual( 9, second.SortOrder );
+	}
 }

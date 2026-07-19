@@ -27,7 +27,7 @@ public class ResourceGeneratorControlWidget : ControlWidget
 		var generatorObject = generator.GetSerialized();
 		Generator = generator;
 
-		LoadFromResource( property.GetValue<Resource>() );
+		var loadedFromProperty = LoadFromResource( property.GetValue<Resource>() );
 
 		var prop = EditorTypeLibrary.CreateProperty<ResourceGenerator>( "Generator", generatorObject );
 
@@ -36,7 +36,7 @@ public class ResourceGeneratorControlWidget : ControlWidget
 
 		BuildContent();
 
-		_ = UpdateGenerator();
+		_ = UpdateGenerator( writeBack: !loadedFromProperty );
 	}
 
 	protected virtual void BuildContent()
@@ -51,22 +51,24 @@ public class ResourceGeneratorControlWidget : ControlWidget
 	/// We might want existing data from an embedded resource - in that case, deserialize it
 	/// </summary>
 	/// <param name="resource"></param>
-	void LoadFromResource( Resource resource )
+	/// <returns>True if our config came from the resource the property is already holding.</returns>
+	bool LoadFromResource( Resource resource )
 	{
 		var embeddedResource = resource?.EmbeddedResource;
 
 		if ( embeddedResource is null )
 		{
-			return;
+			return false;
 		}
 
 		// Not a matching compiler
 		if ( embeddedResource.Value.ResourceGenerator != EditorTypeLibrary.GetType( Generator.GetType() ).ClassName )
 		{
-			return;
+			return false;
 		}
 
 		Generator.Deserialize( embeddedResource.Value.Data );
+		return true;
 	}
 
 	void MakeDirty()
@@ -74,14 +76,29 @@ public class ResourceGeneratorControlWidget : ControlWidget
 		_isDirty = true;
 	}
 
-	async Task UpdateGenerator()
+	/// <param name="writeBack">
+	/// Whether the generated resource should be written back to the property. False when we only
+	/// materialised what the property was already describing.
+	/// </param>
+	async Task UpdateGenerator( bool writeBack = true )
 	{
 		_isGenerating = true;
 
 		try
 		{
 			var resource = await Generator.FindOrCreateObjectAsync( ResourceGenerator.Options.Default, default );
-			SerializedProperty.SetValue( resource );
+
+			//
+			// Only write when this is actually a change. On a multi-selection SerializedProperty.SetValue
+			// writes to every selected object, so writing back a resource we just loaded out of the
+			// property would copy the first selection's resource on to all of the others - just from
+			// opening the inspector, with nothing edited.
+			//
+			if ( writeBack )
+			{
+				SerializedProperty.SetValue( resource );
+			}
+
 			OnResourceChanged( resource );
 			Update();
 		}

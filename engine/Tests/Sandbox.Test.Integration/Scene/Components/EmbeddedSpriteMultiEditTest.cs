@@ -119,4 +119,95 @@ public class EmbeddedSpriteMultiEditTest
 		Assert.AreNotEqual( jsonA, jsonB,
 			$"two embedded sprites serialized identically, so nothing can tell them apart: {jsonA}" );
 	}
+
+	/// <summary>
+	/// Control widgets reach each selected object's own property through <c>MultipleProperties</c>.
+	/// Pin that it enumerates every target, and collapses to just itself for a single selection -
+	/// widgets use one loop for both cases.
+	/// </summary>
+	[TestMethod]
+	public void MultiplePropertiesEnumeratesEveryTarget()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+
+		var (a, b, _, _) = TwoEmbedded( scene );
+
+		var mso = new MultiSerializedObject();
+		mso.Add( a.GetSerialized() );
+		mso.Add( b.GetSerialized() );
+		mso.Rebuild();
+
+		var multi = mso.GetProperty( nameof( SpriteRenderer.Sprite ) );
+		Assert.AreEqual( 2, multi.MultipleProperties.Count() );
+
+		var single = a.GetSerialized().GetProperty( nameof( SpriteRenderer.Sprite ) );
+		Assert.AreEqual( 1, single.MultipleProperties.Count() );
+		Assert.AreSame( single, single.MultipleProperties.Single() );
+	}
+
+	/// <summary>
+	/// The trap behind the multi-select merge: GetValue returns only the first selection, while
+	/// SetValue writes that one instance to every selected object. So a control widget that reads a
+	/// value and writes it back - even completely unchanged - permanently aliases the whole selection
+	/// on to the first object's sprite. This pins the engine behaviour widgets have to work around.
+	/// </summary>
+	[TestMethod]
+	public void SetValueOnAMultiSelectionAliasesEveryTarget()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+
+		var (a, b, sa, _) = TwoEmbedded( scene );
+
+		var mso = new MultiSerializedObject();
+		mso.Add( a.GetSerialized() );
+		mso.Add( b.GetSerialized() );
+		mso.Rebuild();
+
+		var property = mso.GetProperty( nameof( SpriteRenderer.Sprite ) );
+
+		Assert.AreSame( sa, property.GetValue<Sprite>( null ), "GetValue should return the first selection" );
+
+		property.SetValue( property.GetValue<Sprite>( null ) );
+
+		Assert.AreSame( sa, a.Sprite );
+		Assert.AreSame( sa, b.Sprite,
+			"SetValue is expected to fan out - this is why widgets must write to each target instead" );
+	}
+
+	/// <summary>
+	/// What <c>EmbeddedSpriteControlWidget</c>'s Texture setter does now: update each selected
+	/// object's own sprite instead of broadcasting one instance. Both keep their own Sprite, and both
+	/// receive the new texture.
+	/// </summary>
+	[TestMethod]
+	public void PerTargetWriteKeepsSpritesDistinct()
+	{
+		var scene = new Scene();
+		using var scope = scene.Push();
+
+		var (a, b, sa, sb) = TwoEmbedded( scene );
+
+		var mso = new MultiSerializedObject();
+		mso.Add( a.GetSerialized() );
+		mso.Add( b.GetSerialized() );
+		mso.Rebuild();
+
+		var property = mso.GetProperty( nameof( SpriteRenderer.Sprite ) );
+		var newTexture = Texture.Transparent;
+
+		foreach ( var target in property.MultipleProperties )
+		{
+			var sprite = target.GetValue<Sprite>( null ) ?? new Sprite();
+			sprite.Animations[0].Frames[0].Texture = newTexture;
+			target.SetValue( sprite );
+		}
+
+		Assert.AreSame( sa, a.Sprite );
+		Assert.AreSame( sb, b.Sprite );
+		Assert.AreNotSame( a.Sprite, b.Sprite );
+		Assert.AreSame( newTexture, a.Sprite.Animations[0].Frames[0].Texture );
+		Assert.AreSame( newTexture, b.Sprite.Animations[0].Frames[0].Texture );
+	}
 }

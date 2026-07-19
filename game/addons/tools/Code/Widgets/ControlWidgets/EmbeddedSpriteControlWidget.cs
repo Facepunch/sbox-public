@@ -8,8 +8,10 @@ public class EmbeddedSpriteControlWidget : EmbeddedResourceControlWidget
 	/// <summary>
 	/// Whether or not we are displaying an advanced version of the control
 	/// </summary>
-	public bool AdvancedMode => (Sprite?.Animations?.Count ?? 0) > 1
-							 || (Sprite?.Animations?.FirstOrDefault()?.Frames?.Count ?? 0) > 1;
+	public bool AdvancedMode => IsAdvanced( Sprite );
+
+	static bool IsAdvanced( Sprite sprite ) => (sprite?.Animations?.Count ?? 0) > 1
+										   || (sprite?.Animations?.FirstOrDefault()?.Frames?.Count ?? 0) > 1;
 
 	/// <summary>
 	/// An easy accessor for the first texture in the sprite, great for embedded sprites
@@ -18,22 +20,38 @@ public class EmbeddedSpriteControlWidget : EmbeddedResourceControlWidget
 	{
 		get
 		{
-			var sprite = Sprite;
-			CheckForSpriteTexture( sprite ); // Ensure frame/animation exists
-			return sprite.Animations[0].Frames[0].Texture;
+			//
+			// Never write from here. This is read while the inspector is being built, and again on a
+			// timer for as long as it stays open. On a multi-selection SerializedProperty.SetValue
+			// writes to every selected object, so a write here would copy the first selection's
+			// sprite on to all of the others without anyone touching anything.
+			//
+			return Sprite?.Animations?.FirstOrDefault()?.Frames?.FirstOrDefault()?.Texture;
 		}
 		set
 		{
 			PropertyStartEdit();
-			var sprite = Sprite;
-			if ( sprite == null || AdvancedMode )
+
+			//
+			// Update each selected object's own sprite. SerializedProperty.SetValue would write one
+			// instance to all of them, permanently aliasing every selected SpriteRenderer on to
+			// whichever sprite happened to be first in the selection.
+			//
+			foreach ( var property in SerializedProperty.MultipleProperties )
 			{
-				// Create a new sprite if we don't have one, or if we're in advanced mode to avoid setting texture of pre-existing sprite
-				sprite = new Sprite();
+				var sprite = property.GetValue<Sprite>( null );
+
+				if ( sprite is null || IsAdvanced( sprite ) )
+				{
+					// Create a new sprite if we don't have one, or if we're in advanced mode to avoid setting texture of pre-existing sprite
+					sprite = new Sprite();
+				}
+
+				EnsureFirstFrame( sprite ); // Ensure frame/animation exists
+				sprite.Animations[0].Frames[0].Texture = value;
+				property.SetValue( sprite );
 			}
-			CheckForSpriteTexture( sprite ); // Ensure frame/animation exists
-			sprite.Animations[0].Frames[0].Texture = value;
-			SerializedProperty.SetValue( sprite );
+
 			PropertyFinishEdit();
 		}
 	}
@@ -92,8 +110,6 @@ public class EmbeddedSpriteControlWidget : EmbeddedResourceControlWidget
 			OpenPopupEditor();
 		};
 		ContentWidget.Layout.Add( btnAdvanced );
-
-		System.HashCode.Combine( Texture, AdvancedMode );
 	}
 
 	public override void OnDragHover( DragEvent ev )
@@ -180,14 +196,12 @@ public class EmbeddedSpriteControlWidget : EmbeddedResourceControlWidget
 		base.OnMouseReleased( e );
 	}
 
-	private void CheckForSpriteTexture( Sprite sprite )
+	/// <summary>
+	/// Make sure the sprite has an animation and a frame for us to put a texture in. Mutates the
+	/// sprite in place - the caller is responsible for writing it back to its own property.
+	/// </summary>
+	private static void EnsureFirstFrame( Sprite sprite )
 	{
-		if ( sprite is null )
-		{
-			sprite = new();
-			SerializedProperty.SetValue( sprite );
-		}
-
 		// Ensure first animation exists
 		if ( (sprite.Animations?.Count ?? 0) == 0 )
 		{
@@ -198,7 +212,6 @@ public class EmbeddedSpriteControlWidget : EmbeddedResourceControlWidget
 		if ( (anim.Frames?.Count ?? 0) == 0 )
 		{
 			anim.Frames = [new Sprite.Frame()];
-			SerializedProperty.SetValue( sprite );
 		}
 	}
 

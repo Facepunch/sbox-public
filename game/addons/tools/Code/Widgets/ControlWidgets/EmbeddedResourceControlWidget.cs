@@ -35,16 +35,34 @@ public class EmbeddedResourceControlWidget : StickyPopupControlWidget
 		// If we're opening the popup editor, we need to ensure that the resource is valid
 		//
 
-		var resource = Resource;
-		if ( resource is null && !SerializedProperty.PropertyType.IsAbstract )
+		if ( !SerializedProperty.PropertyType.IsAbstract )
 		{
-			resource = EditorTypeLibrary.Create<Resource>( SerializedProperty.PropertyType.Name );
-			SerializedProperty.SetValue( resource );
+			//
+			// One resource per selected object. SerializedProperty.SetValue writes a single instance
+			// to every selected object, which would both alias them together and wipe out any
+			// selection that already had a resource of its own.
+			//
+			foreach ( var target in SerializedProperty.MultipleProperties )
+			{
+				if ( target.GetValue<Resource>( null ) is not null )
+					continue;
+
+				target.SetValue( EditorTypeLibrary.Create<Resource>( SerializedProperty.PropertyType.Name ) );
+			}
 		}
 
 		SerializedProperty.OnChanged = OnChanged;
 
-		Reset( resource, SerializedProperty );
+		Reset( Resource, SerializedProperty );
+
+		//
+		// Reset only stamps the first selection's resource - the others hold their own instances
+		//
+		foreach ( var target in SerializedProperty.MultipleProperties )
+		{
+			MarkAsEmbedded( target.GetValue<Resource>( null ), target );
+		}
+
 		InitializeInlineEditor();
 	}
 
@@ -58,25 +76,34 @@ public class EmbeddedResourceControlWidget : StickyPopupControlWidget
 		//
 		// This can be null if the resource's type is abstract
 		//
-		if ( resource.IsValid() )
-		{
-			var type = Game.TypeLibrary.GetType( resource.GetType() );
-			string typeName = null;
-
-			if ( !property.PropertyType.Equals( type.TargetType ) )
-			{
-				typeName = type.Name;
-			}
-
-			resource.EmbeddedResource = new()
-			{
-				ResourceCompiler = "embed",
-				TypeName = typeName
-			};
-		}
+		MarkAsEmbedded( resource, property );
 
 		_typeDescription = Game.TypeLibrary.GetType( resource.IsValid() ? resource.GetType() : property.PropertyType );
 		_assetType = AssetType.FromType( _typeDescription?.TargetType ?? property.PropertyType );
+	}
+
+	/// <summary>
+	/// Stamp embed info on to a resource. Every selected object holds its own resource instance, so
+	/// this has to be done for each of them individually.
+	/// </summary>
+	private static void MarkAsEmbedded( Resource resource, SerializedProperty property )
+	{
+		if ( !resource.IsValid() )
+			return;
+
+		var type = Game.TypeLibrary.GetType( resource.GetType() );
+		string typeName = null;
+
+		if ( !property.PropertyType.Equals( type.TargetType ) )
+		{
+			typeName = type.Name;
+		}
+
+		resource.EmbeddedResource = new()
+		{
+			ResourceCompiler = "embed",
+			TypeName = typeName
+		};
 	}
 
 	void OnChanged( SerializedProperty prop )
@@ -124,12 +151,18 @@ public class EmbeddedResourceControlWidget : StickyPopupControlWidget
 		PropertyStartEdit();
 
 		//
-		// Clean slate
+		// Clean slate - a fresh resource each, so clearing a multi-selection doesn't leave every
+		// selected object sharing one instance
 		//
-		var newResource = EditorTypeLibrary.Create<Resource>( SerializedProperty.PropertyType.Name );
-		Reset( newResource, SerializedProperty );
+		foreach ( var property in SerializedProperty.MultipleProperties )
+		{
+			var newResource = EditorTypeLibrary.Create<Resource>( SerializedProperty.PropertyType.Name );
+			MarkAsEmbedded( newResource, property );
 
-		SerializedProperty.SetValue( newResource );
+			property.SetValue( newResource );
+		}
+
+		Reset( Resource, SerializedProperty );
 
 		SignalValuesChanged();
 		PropertyFinishEdit();
@@ -141,9 +174,18 @@ public class EmbeddedResourceControlWidget : StickyPopupControlWidget
 	{
 		PropertyStartEdit();
 
-		var resource = EditorTypeLibrary.Create<Resource>( type.Name );
-		Reset( resource, SerializedProperty );
-		SerializedProperty.SetValue( resource );
+		//
+		// One instance per selected object, otherwise they all end up sharing this one
+		//
+		foreach ( var property in SerializedProperty.MultipleProperties )
+		{
+			var resource = EditorTypeLibrary.Create<Resource>( type.Name );
+			MarkAsEmbedded( resource, property );
+
+			property.SetValue( resource );
+		}
+
+		Reset( Resource, SerializedProperty );
 
 		RebuildEditor();
 		SignalValuesChanged();
@@ -277,23 +319,30 @@ public class EmbeddedResourceControlWidget : StickyPopupControlWidget
 	{
 		if ( target.PropertyType.IsAbstract ) return null;
 
-		var data = source.Serialize();
+		GameResource first = null;
 
 		//
-		// Create a fresh resource when switching to embedded
+		// Create a fresh resource when switching to embedded - one per selected object, with its own
+		// copy of the data. Sharing a single instance between them means editing any one of them
+		// silently edits all of the others.
 		//
-		var resource = EditorTypeLibrary.Create<GameResource>( target.PropertyType.Name );
-		resource.CopyFrom( source );
-
-		resource.EmbeddedResource = new()
+		foreach ( var property in target.MultipleProperties )
 		{
-			ResourceCompiler = "embed",
-			Data = data
-		};
+			var resource = EditorTypeLibrary.Create<GameResource>( target.PropertyType.Name );
+			resource.CopyFrom( source );
 
-		target.SetValue( resource );
+			resource.EmbeddedResource = new()
+			{
+				ResourceCompiler = "embed",
+				Data = source.Serialize()
+			};
 
-		return resource;
+			property.SetValue( resource );
+
+			first ??= resource;
+		}
+
+		return first;
 	}
 
 	void OpenInEditor()

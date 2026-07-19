@@ -88,6 +88,13 @@ CS
 	#define SPRITE_SORT_CUSTOM_AXIS 3
 
 	int SpriteCount < Attribute( "SpriteCount"); >;
+
+	// How many entries SpriteBufferOut and SortKeyBuffer actually hold. Larger than SpriteCount -
+	// the batch is sized for the motion blur trails too, and rounded up to a power of two. Needed
+	// because the splot writes below are placed by a running atomic counter rather than by thread
+	// index, so nothing else bounds them.
+	int BufferCapacity < Attribute( "BufferCapacity" ); >;
+
 	RWStructuredBuffer<int> AtomicCounter < Attribute( "AtomicCounter" ); >;
 
 	// Motion blur
@@ -251,10 +258,15 @@ CS
 			SortKeyBuffer[i] = CalculateSortKey(sprite.SortKey, sprite.Position, sprite.SortOriginOffset, sprite.SortRank);
 			SpriteBufferOut[i] = sprite;
 		}
-		else
-		{
-			SortKeyBuffer[i] = SORTKEY_MAX;
-		}
+
+		// Nothing is written for the idle threads. The dispatch is rounded up to a whole group, so
+		// a scene with two sprites still starts 64 threads, while the key buffer only holds as many
+		// entries as the batch was sized for - 16 at the smallest. Padding the tail from here ran
+		// off the end of the buffer, and the stray writes landed on whatever followed it.
+		//
+		// The padding still happens, just where the buffer's size is actually known: sort_cs fills
+		// the whole thing with SORTKEY_MAX in its D_CLEAR pass, which is dispatched just before this
+		// shader and under the same condition that makes these keys get read at all.
 
 		int writeSize = 0;
 		int splotCount = 0;
@@ -327,9 +339,16 @@ CS
 					pos += moveStep;
 
 					b.Position = pos;
-					// We fill the sort key buffer for sorting
-					SortKeyBuffer[writeLocation] = CalculateSortKey(b.SortKey, b.Position, b.SortOriginOffset, b.SortRank);
-					SpriteBufferOut[writeLocation] = b;
+
+					// Placed by the atomic counter, so the only thing keeping this inside the
+					// buffer is the counter agreeing with how the batch was sized. Checked rather
+					// than assumed - overrunning a UAV here hangs the GPU rather than failing.
+					if ( writeLocation < (uint)BufferCapacity )
+					{
+						// We fill the sort key buffer for sorting
+						SortKeyBuffer[writeLocation] = CalculateSortKey(b.SortKey, b.Position, b.SortOriginOffset, b.SortRank);
+						SpriteBufferOut[writeLocation] = b;
+					}
 
 					index++;
 				}
@@ -338,11 +357,14 @@ CS
 				spritePosition -= moveStep;
 				b.Position = spritePosition;
 
-				// Fill the sort key buffer for sorting
 				writeLocation = writeOffset + index;
-				SortKeyBuffer[writeLocation] = CalculateSortKey(b.SortKey, b.Position, b.SortOriginOffset, b.SortRank);
 
-				SpriteBufferOut[writeLocation] = b;
+				if ( writeLocation < (uint)BufferCapacity )
+				{
+					// Fill the sort key buffer for sorting
+					SortKeyBuffer[writeLocation] = CalculateSortKey(b.SortKey, b.Position, b.SortOriginOffset, b.SortRank);
+					SpriteBufferOut[writeLocation] = b;
+				}
 
 				index++;
 			}

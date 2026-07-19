@@ -711,6 +711,11 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		_commandList.Attributes.Set( "Sprites", (GpuBuffer)SpriteBuffer );
 		_commandList.Attributes.Set( "SpriteBufferOut", (GpuBuffer)SpriteBufferOut );
 		_commandList.Attributes.Set( "SpriteCount", spriteCount );
+
+		// The motion blur trails are placed by an atomic counter rather than by thread index, so the
+		// shader has no other way to tell where the buffers end.
+		_commandList.Attributes.Set( "BufferCapacity", bufferSize );
+
 		_commandList.Attributes.Set( "AtomicCounter", SpriteAtomicCounter );
 		_commandList.Attributes.Set( "SortKeyBuffer", (GpuBuffer)GPUSortKeyBuffer );
 		_commandList.DispatchCompute( SpriteComputeShader, spriteCount, 1, 1 );
