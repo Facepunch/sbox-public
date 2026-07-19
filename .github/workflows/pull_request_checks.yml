@@ -45,5 +45,12 @@ jobs:
       - name: Build
         run: dotnet run --project ./engine/Tools/SboxBuild/SboxBuild.csproj -- build --config Developer
 
-      - name: Test
-        run: dotnet run --project ./engine/Tools/SboxBuild/SboxBuild.csproj -- test --filter "TestCategory!=LiveBackend&FullyQualifiedName!~CompilingTests&FullyQualifiedName!~UITests"
+      - name: Test (unit)
+        working-directory: ./engine
+        run: dotnet test Tests/Sandbox.Test.Unit/Sandbox.Test.Unit.csproj --no-build --logger "console;verbosity=normal;consoleLoggerParameters=ErrorsOnly" -c Release --filter "TestCategory!=LiveBackend"
+
+      - name: Test (engine)
+        working-directory: ./engine
+        env:
+          FACEPUNCH_ENGINE: ${{ github.workspace }}/game
+        run: dotnet test Tests/Sandbox.Test.Engine/Sandbox.Test.Engine.csproj --no-build --logger "console;verbosity=normal;consoleLoggerParameters=ErrorsOnly" -c Release --filter "TestCategory!=LiveBackend"
