@@ -57,6 +57,25 @@ public class AssetTypeAttribute : System.Attribute, ITypeAttribute, IUninheritab
 	void ITypeAttribute.TypeRegister()
 	{
 		Name ??= TargetType.Name;
+
+		// The same rules GameResourceAttribute's constructor enforces, applied here too so setting
+		// Extension through an object initializer cannot skip them.
+		//
+		// Worth being loud about: an over-long extension still registers as a managed type, so the
+		// asset browser will happily create the file, and only the native compiler quietly declines
+		// to produce anything. All you see is "couldn't get compiled file" somewhere else entirely.
+		if ( string.IsNullOrEmpty( Extension ) )
+			return;
+
+		if ( Extension.Length > 8 )
+		{
+			Log.Error( $"Resource extensions should be under 8 characters ({TargetType}: \"{Extension}\")" );
+		}
+
+		if ( !Extension.All( char.IsLetter ) )
+		{
+			Log.Error( $"Resource extensions can only contain letters ({TargetType}: \"{Extension}\")" );
+		}
 	}
 }
 
