@@ -97,6 +97,14 @@ public sealed partial class ParticleSpriteRenderer : ParticleRenderer, Component
 	[Property] public ParticleSortMode SortMode { get; set; }
 
 	/// <summary>
+	/// Depth sort bias; each Z index is 1 inch. Higher ZIndex layers on top when sprites are close. Used when sorting is enabled.
+	/// </summary>
+	[Group( "Rendering" )]
+	[Property]
+	[ShowIf( nameof( IsSorted ), true )]
+	public int ZIndex { get; set; }
+
+	/// <summary>
 	/// Amount of feathering applied to the depth, softening its intersection with geometry.
 	/// </summary>
 	[Group( "Rendering" )]
