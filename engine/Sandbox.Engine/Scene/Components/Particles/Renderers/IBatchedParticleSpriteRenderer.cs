@@ -33,6 +33,7 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 	float DepthFeather { get; }
 	float FogStrength { get; }
 	FilterMode TextureFilter { get; }
+	int ZIndex => 0;
 
 	// Implemented by derived classes
 	Texture RenderTexture { get; }
@@ -84,6 +85,7 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 
 		var packedFogAndAlpha = SpriteData.PackFogAndAlphaCutout( this.FogStrength, 0.001f );
 		var depthFeather = DepthFeather;
+		var zIndex = ZIndex;
 		var blurOpacity = BlurOpacity;
 		var origin = Pivot;
 		var renderFlags = SpriteFlags.None;
@@ -178,6 +180,7 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 				spritePtr->SequenceTime = sequenceTime;
 				spritePtr->BlendSheetUV = sequenceData;
 				spritePtr->Offset = origin;
+				spritePtr->ZIndex = zIndex;
 
 				validCount++;
 			}

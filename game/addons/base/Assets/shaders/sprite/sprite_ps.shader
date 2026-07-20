@@ -54,6 +54,7 @@ COMMON
 		float3 Velocity;
 		float4 BlendSheetUV;
 		float2 Offset;
+		int ZIndex;
 	};
 
 	StructuredBuffer<SpriteData> Sprites < Attribute( "Sprites" ); >;

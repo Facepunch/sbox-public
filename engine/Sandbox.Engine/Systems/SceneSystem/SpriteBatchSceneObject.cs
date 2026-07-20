@@ -71,6 +71,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		public Vector3 Velocity = Vector3.Zero;
 		public Vector4 BlendSheetUV;
 		public Vector2 Offset;
+		public int ZIndex = 0;
 		public SpriteData()
 		{
 
@@ -175,7 +176,8 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 	GpuBuffer<SpriteVertex> VertexBuffer;
 	GpuBuffer<int> IndexBuffer;
 	GpuBuffer<uint> GPUSortingBuffer;
-	GpuBuffer<float> GPUDistanceBuffer;
+	// Holds sort keys built by sprite_cs: camera distance biased by Z index, in order-preserving float bits
+	GpuBuffer<uint> GPUDistanceBuffer;
 
 	SpriteData[] SpriteDataBuffer = null!;
 	bool SpriteDataBufferRented = false;
@@ -442,7 +444,8 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 						Lighting = packedExponent,
 						DepthFeather = c.DepthFeather,
 						SamplerIndex = SamplerState.GetBindlessIndex( sampler with { Filter = c.TextureFilter } ),
-						Offset = c.Pivot
+						Offset = c.Pivot,
+						ZIndex = c.ZIndex
 					};
 
 					var pivot = c.Pivot;
