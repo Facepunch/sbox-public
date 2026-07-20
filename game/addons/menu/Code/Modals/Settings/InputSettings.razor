@@ -9,32 +9,32 @@
 
     <div class="page-content">
 
-        <h2><i>mouse</i>Mouse</h2>
+        <h2><i>mouse</i>#settings.input.mouse</h2>
 
         <row>
-            <div class="is-label">Mouse Sensitivity</div>
+            <div class="is-label">#settings.input.mouse_sensitivity</div>
             <SliderControl Min=@(0) Max=@(20) Step=@(0.1f) Value:bind=@MouseSensitivity ShowTextEntry="@true"></SliderControl>
         </row>
 
         <row>
-            <div class="is-label">Invert Mouse Pitch</div>
+            <div class="is-label">#settings.input.invert_mouse_pitch</div>
             <ButtonGroup ButtonClass="glass with-grow with-click" Options=@InvertMousePitchOptions Value:bind=@InvertMousePitch></ButtonGroup>
         </row>
 
         <row>
-            <div class="is-label">Invert Mouse Yaw</div>
+            <div class="is-label">#settings.input.invert_mouse_yaw</div>
             <ButtonGroup ButtonClass="glass with-grow with-click" Options=@InvertMouseYawOptions Value:bind=@InvertMouseYaw></ButtonGroup>
         </row>
 
-        <h2><i>sports_esports</i>Controller</h2>
+        <h2><i>sports_esports</i>#settings.input.controller</h2>
 
         <row>
-            <div class="is-label">Look Yaw Speed</div>
+            <div class="is-label">#settings.input.look_yaw_speed</div>
             <SliderControl Min=@(0) Max=@(360) Value:bind=@ControllerLookSpeedYaw ShowTextEntry="@true"></SliderControl>
         </row>
 
         <row>
-            <div class="is-label">Look Pitch Speed</div>
+            <div class="is-label">#settings.input.look_pitch_speed</div>
             <SliderControl Min=@(0) Max=@(360) Value:bind=@ControllerLookSpeedPitch ShowTextEntry="@true"></SliderControl>
         </row>
 	</div>
@@ -56,14 +56,14 @@
 
 	List<Option> InvertMousePitchOptions = new List<Option>()
 	{
-		new Option("Off", false),
-		new Option("On", true),
+		new Option("#settings.off", false),
+		new Option("#settings.on", true),
 	};
 
 	List<Option> InvertMouseYawOptions = new List<Option>()
 	{
-		new Option("Off", false),
-		new Option("On", true),
+		new Option("#settings.off", false),
+		new Option("#settings.on", true),
 	};
 
 	protected override void OnAfterTreeRender(bool firstTime)

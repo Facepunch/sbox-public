@@ -4,7 +4,7 @@
 
 <root>
 
-    <PackageTabHeader Title="News" Subtitle="@($"The latest news from the creators of {Package?.Title}.")" />
+    <PackageTabHeader Title="#packagenews.title" Subtitle="@( MenuHelpers.Localize("packagenews", "subtitle", new() { { "title", Package?.Title } } ) )" />
 
     @foreach (var entry in News)
     {

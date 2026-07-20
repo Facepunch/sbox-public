@@ -11,8 +11,8 @@
 @namespace Sandbox.UI.Mounts
 <root>
 	<div class="header">
-        <h2>Mounted Games</h2>
-		<i Tooltip="Access content from supported games in your Steam library">info</i>
+        <h2>#mountlist.title</h2>
+		<i Tooltip="#tooltip.mountlist.desc">info</i>
 	</div>
 
     <div class="inner">
@@ -64,10 +64,13 @@
 
 	private async Task SetState( BaseGameMount mount, bool enabled )
 	{
-		string job = mount.IsMounted ? "Unmounting" : "Mounting";
+		string job = mount.IsMounted ? MenuHelpers.Localize( "mountlist", "unmounting" ) : MenuHelpers.Localize( "mountlist", "mounting" );
+
+		var data = new Dictionary<string, object>() { { "job", job }, { "title", mount.Title } };
+
 		var toast = new Toast()
 		{
-			Title = $"{job} {mount.Title}",
+			Title = MenuHelpers.Localize( "mountlist", "task_progress", data ),
 			Icon = "album",
 			ExtraClasses = "loading"
 		};
@@ -80,7 +83,7 @@
 
 		MenuOverlay.Instance?.BottomRight?.Queue(new MenuProject.Toast()
 		{
-			Title = $"{job} {mount.Title} complete!",
+			Title = MenuHelpers.Localize( "mountlist", "task_complete", data ),
 			Icon = "download_done",
 		} );
 	}

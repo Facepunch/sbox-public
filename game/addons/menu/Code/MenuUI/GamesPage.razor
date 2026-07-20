@@ -20,7 +20,7 @@
                     <GamePackageSortOrder Value:bind="@filterOrder"></GamePackageSortOrder>
                 </div>
 
-                <TextEntry @ref="SearchEntry" placeholder="Search games..." OnTextEdited=@OnSearchEdited></TextEntry>
+                <TextEntry @ref="SearchEntry" placeholder="#gamepage.placeholder" OnTextEdited=@OnSearchEdited></TextEntry>
 
                 @if (Result?.Properties is not null && Result.Properties.Length > 0)
                 {
@@ -35,14 +35,14 @@
                     foreach (var facet in Result.Facets)
                     {
                         <div class="flex-column flex-gap-16">
-                            <h2><WithIcon Icon="@facet.Entries.FirstOrDefault()?.Icon" Text="@facet.Title"></WithIcon></h2>
+                            <h2><WithIcon Icon="@facet.Entries.FirstOrDefault()?.Icon" Text="@( MenuHelpers.Localize( "category", facet.Title ) )"></WithIcon></h2>
                             <PackageCategoryFilter Result=@Result Selected="@SelectedCategory" Facet="@facet"></PackageCategoryFilter>
                         </div>
                     }
                 }
 
                 <div class="flex-column flex-gap-16">
-                    <h2><WithIcon Icon="tag" Text="Tags"></WithIcon></h2>
+                    <h2><WithIcon Icon="tag" Text="#gamepage.tags"></WithIcon></h2>
                     <PackageTagFilter Result=@Result Selected="@SelectedTags"></PackageTagFilter>
                 </div>
 

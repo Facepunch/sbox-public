@@ -14,10 +14,10 @@
 
     var (verdict, sentiment, icon) = positivePct switch
     {
-        >= 80 => ("Very Positive", "recommended", "☺️"),
-        >= 60 => ("Positive", "recommended", "☺️"),
-        >= 40 => ("Mixed", "mixed", "😐"),
-        _ => ("Negative", "negative", "☹️")
+        >= 80 => ("#packagereviewsheader.very_positive", "recommended", "☺️"),
+        >= 60 => ("#packagereviewsheader.positive", "recommended", "☺️"),
+        >= 40 => ("#packagereviewsheader.mixed", "mixed", "😐"),
+        _ => ("#packagereviewsheader.negative", "negative", "☹️")
     };
 }
 
@@ -28,11 +28,11 @@
 
             <div>
                 <div class="title">@verdict</div>
-                <div class="count">@total reviews</div>
+                <div class="count">@MenuHelpers.Localize("packagereviewsheader", "reviews", new(){ { "num", total } } )</div>
             </div>
         </div>
 
-        <div class="bar" title="@($"{positivePct}% recommended, {promisePct}% shows promise, {negativePct}% needs work")">
+        <div class="bar" title="@MenuHelpers.Localize("packagereviewsheader", "title", new(){ { "positive", positivePct }, { "promise", promisePct }, { "negative", negativePct } } )">
             <div class="segment recommended" style="width:@positivePct%"></div>
             <div class="segment promise" style="width:@promisePct%"></div>
             <div class="segment negative" style="width:@negativePct%"></div>

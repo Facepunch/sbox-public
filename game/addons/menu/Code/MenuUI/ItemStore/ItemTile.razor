@@ -15,11 +15,11 @@
 		@if ( Item.SellEnd != null )
 		{
 			var days = (Item.SellEnd.Value-DateTime.UtcNow).TotalDays;
-			var text = $"Leaving in {Math.Floor(days)} days";
+			var text = MenuHelpers.Localize( "itemtile", "leaving_days", new() { { "day", Math.Floor(days) } } );
 
 			if ( days <= 1.5 )
 			{
-				text = "Leaving Soon!";
+				text = MenuHelpers.Localize( "itemtile", "leaving_soon" );
 			}
 
 			<div class="enddate">@text</div>
@@ -27,7 +27,7 @@
 
         @if ( Owned > 0 )
         {
-            <div class="owned">You already own this item</div>
+            <div class="owned">@MenuHelpers.Localize( "itemtile", "owned" )</div>
         }
 
         <div class="spacer"></div>

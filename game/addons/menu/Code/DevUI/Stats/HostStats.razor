@@ -6,11 +6,11 @@
 		var hostStats = Networking.HostStats;
 	}
 	
-	<title>Host Stats</title>
+	<title>@MenuHelpers.Localize( "developermode", "hoststats.host_stats" )</title>
 	
-	<StatValue Value="@hostStats.Fps.ToString()" Title="FPS"></StatValue>
-	<StatValue Value="@( (hostStats.InBytesPerSecond / 1024f).ToString( "0.00" ) )" Title="KB In Per Second"></StatValue>
-	<StatValue Value="@( (hostStats.OutBytesPerSecond / 1024f).ToString( "0.00" ) )" Title="KB Out Per Second"></StatValue>
+	<StatValue Value="@hostStats.Fps.ToString()" Title=@MenuHelpers.Localize( "developermode", "hoststats.fps" )></StatValue>
+	<StatValue Value="@( (hostStats.InBytesPerSecond / 1024f).ToString( "0.00" ) )" Title=@MenuHelpers.Localize( "developermode", "hoststats.bytesin" )></StatValue>
+	<StatValue Value="@( (hostStats.OutBytesPerSecond / 1024f).ToString( "0.00" ) )" Title=@MenuHelpers.Localize( "developermode", "hoststats.bytesout" )></StatValue>
 </root>
 
 

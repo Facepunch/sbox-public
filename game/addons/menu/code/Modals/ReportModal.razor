@@ -18,30 +18,30 @@
 
 <root>
 
-    <h1>Reporting @(Package.Title)?</h1>
+    <h1>@MenuHelpers.Localize( "reportmodal", "title", new() { { "title", Package.Title } } )</h1>
 
     <div class="inner">
 
         <div class="container">
 
-            <p>Tell us why you think this violates the s&amp;box Terms of Service</p>
-            <p>We're fine with most things — please only report content that is genuinely against our rules. Reports made because you simply don't like it will be rejected.</p>
+            <p>#reportmodal.text_1</p>
+            <p>#reportmodal.text_2</p>
 
             <div class="tag-entry">
 
                 <div class="tagcolumn positive-tags">
-                    <label>What is the problem? Select all that apply.</label>
+                    <label>#reportmodal.text_3</label>
                     <TagSelector Value:bind=@Reasons />
                 </div>
 
             </div>
 
             <div>
-                <TextEntry @ref=_textEntry Value:bind=@Message Multiline="@true" Placeholder="Give details about your report.."></TextEntry>
+                <TextEntry @ref=_textEntry Value:bind=@Message Multiline="@true" Placeholder="#reportmodal.placeholder"></TextEntry>
             </div>
 
             <div class="footer">
-                <Button @onclick="@Post" Disabled="@(string.IsNullOrWhiteSpace(Message))" Icon="send" Text="Submit Report"></Button>
+                <Button @onclick="@Post" Disabled="@(string.IsNullOrWhiteSpace(Message))" Icon="send" Text="#reportmodal.submit_report"></Button>
             </div>
 
         </div>

@@ -11,18 +11,15 @@
 	<div class="window">
 		<div class="header">
 			<icon class="heading">cast</icon>
-			<label class="heading">Services</label>
+			<label class="heading">#servicesmodal.title</label>
 		</div>
 
-        <div class="description">
-            If you have a twitch account you can link it here. Games will be able to access your viewer's names and read the chat, 
-            so you can have interactive streams!
-        </div>
+        <div class="description">#servicesmodal.description</div>
 
 		<div class="body">
 			@if ( Loading )
 			{
-				<div class="loading">Loading…</div>
+				<div class="loading">#servicesmodal.loading</div>
 			}
 			else
 			{
@@ -40,16 +37,16 @@
 							<label class="name">@def.Name</label>
 							@if ( linked is { } l )
 							{
-								<label class="status connected">Linked to @l.Name</label>
+								<label class="status connected">@MenuHelpers.Localize( "servicesmodal", "linked_to", new(){ {"name", l.Name} } )</label>
 							}
 							else
 							{
-								<label class="status">Not linked</label>
+								<label class="status">#servicesmodal.not_linked</label>
 							}
 
                             @if ( Streamer.IsActive )
                             {
-                                <label class="status">Active - @Streamer.ViewerCount Viewers</label>
+                                <label class="status">@MenuHelpers.Localize( "servicesmodal", "active_viewers", new(){ {"count", Streamer.ViewerCount} } )</label>
                             }
 
 						</div>
@@ -68,18 +65,18 @@
 
                                 @if (MenuUtility.Streaming.IsActive)
                                 {
-                                    <Button class="clicky primary" @onclick=@( () => MenuUtility.Streaming.Disconnect( def.Type ) )>End Stream</Button>
+                                    <Button class="clicky primary" @onclick=@( () => MenuUtility.Streaming.Disconnect( def.Type ) )>#servicesmodal.end_stream</Button>
                                 }
                                 else
                                 {
-                                    <Button class="clicky primary" @onclick=@( () => MenuUtility.Streaming.Connect( def.Type ) )>Start Stream</Button>
+                                    <Button class="clicky primary" @onclick=@( () => MenuUtility.Streaming.Connect( def.Type ) )>#servicesmodal.start_stream</Button>
                                 }
 
                             </div>
 						}
 						else
 						{
-							<Button class="clicky primary" @onclick=@( () => Connect( def.Type ) )>Link</Button>
+							<Button class="clicky primary" @onclick=@( () => Connect( def.Type ) )>#servicesmodal.link</Button>
 						}
 					</div>
 				}

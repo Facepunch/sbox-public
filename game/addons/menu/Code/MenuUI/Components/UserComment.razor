@@ -21,7 +21,7 @@
             @if (Date != null)
             {
                 <label>
-                    @($"Posted {Date?.Humanize()}")
+                   @MenuHelpers.Localize( "usercomment", "post_date", new() { { "time", Date?.Humanize() } })
                 </label>
             }
 

@@ -6,12 +6,12 @@
 @inherits Panel
 
 <root class="root">
-	<Page title="Item Store" subtitle="Here you can buy items for your avatar" icon="local_mall" variant="green">
+	<Page title="#itemstore.title" subtitle="#itemstore.subtitle" icon="local_mall" variant="green">
 
 		<Left>
-            <h2><WithIcon Text="Item Store" Icon="info"></WithIcon></h2>
+            <h2><WithIcon Text="#itemstore.icontitle" Icon="info"></WithIcon></h2>
             
-            <p>Here you can buy cosmetic items. These items will be added to your Steam Inventory and you will be able to choose them in the avatar editor.</p>
+            <p>#itemstore.tip</p>
 
             
 		</Left>
@@ -31,7 +31,7 @@
                 @if (OwnedItems.Any())
                 {
                     <div class="owned-header">
-                        <h2>Already Owned</h2>
+                        <h2>#itemstore.already_owned</h2>
                     </div>
                     @foreach (var item in OwnedItems)
                     {

@@ -11,26 +11,26 @@
 
         <div class="header">
             <i>speed</i>
-            <label class="title">Benchmark Results</label>
+            <label class="title">#benchmarkresultmodal.title</label>
             <Button class="close-btn" onclick=@(() => CloseModal( true ))><i>close</i></Button>
         </div>
 
         <div class="summary-cards">
-            <StatCard Icon="emoji_events" Value=@OverallScoreText Subtitle="Overall Score" />
-            <StatCard Icon="speed"        Value=@AvgFpsText        Subtitle="Avg FPS" />
-            <StatCard Icon="checklist"    Value=@TestCountText     Subtitle="Tests" />
-            <StatCard Icon="timer"        Value=@DurationText      Subtitle="Duration" />
+            <StatCard Icon="emoji_events" Value=@OverallScoreText Subtitle="#benchmarkresultmodal.overall_score" />
+            <StatCard Icon="speed"        Value=@AvgFpsText        Subtitle="#benchmarkresultmodal.avg_fps" />
+            <StatCard Icon="checklist"    Value=@TestCountText     Subtitle="#benchmarkresultmodal.tests" />
+            <StatCard Icon="timer"        Value=@DurationText      Subtitle="#benchmarkresultmodal.duration" />
         </div>
 
         <div class="test-table">
 
             <div class="test-row header-row">
-                <label class="col-name">Test</label>
-                <label class="col-num">Avg FPS</label>
-                <label class="col-num">Frame ms</label>
-                <label class="col-num">1% Low ms</label>
-                <label class="col-num">GPU ms</label>
-                <label class="col-num">Stutter</label>
+                <label class="col-name">#benchmarkresultmodal.test</label>
+                <label class="col-num">#benchmarkresultmodal.avg_fps</label>
+                <label class="col-num">#benchmarkresultmodal.frame_ms</label>
+                <label class="col-num">#benchmarkresultmodal.low_ms</label>
+                <label class="col-num">#benchmarkresultmodal.gpu_ms</label>
+                <label class="col-num">#benchmarkresultmodal.stutter</label>
             </div>
 
             @foreach ( var t in Summaries )
@@ -48,7 +48,7 @@
         </div>
 
         <div class="footer">
-            <Button class="primary" Icon="open_in_new" onclick=@ViewOnline>View Online</Button>
+            <Button class="primary" Icon="open_in_new" onclick=@ViewOnline>#benchmarkresultmodal.view_online</Button>
         </div>
 
     </div>

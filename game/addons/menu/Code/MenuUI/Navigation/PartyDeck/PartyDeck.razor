@@ -7,7 +7,7 @@
 
 <root>
 	<div class="members">
-		<Button class="party" onmousedown="@OpenMenu" Icon="celebration" Tooltip="Party" />
+		<Button class="party" onmousedown="@OpenMenu" Icon="celebration" Tooltip="#tooltip.menu.party" />
 		<separator class="vertical" />
 		<PartyMember Friend="@(new Friend(Connection.Local.SteamId))" />
 		@foreach (var member in Members.Where( x => !x.IsMe ) )
@@ -16,7 +16,7 @@
 		}
 		@if ( Party is null || Party.MemberCount < Party.MaxMembers )
 		{
-			<Button class="empty-slot" onmouseup="@InviteSomeone" Tooltip="Invite a friend" Icon="add"/>
+			<Button class="empty-slot" onmouseup="@InviteSomeone" Tooltip="#tooltip.menu.invite_friend" Icon="add"/>
 		}
     </div>
 </root>
@@ -51,12 +51,12 @@
 		if ( PartyRoom.Current is not null )
 			return;
 
-		var party = await PartyRoom.Create( MAX_MEMBERS, $"{Connection.Local.Name}'s Party", false );
+		var party = await PartyRoom.Create( MAX_MEMBERS, MenuHelpers.Localize( "partydeck", "room_name", new() { { "owner", Connection.Local.Name } } ), false );
 		if ( party is null )
 		{
 			MenuOverlay.Instance?.BottomRight?.Queue( new Toast()
 			{
-				Title = "Failed to create party",
+				Title = MenuHelpers.Localize( "partydeck", "create_failed" ),
 				Icon = "cancel",
 			});
 		}
@@ -90,7 +90,7 @@
 		if (_toast is not null)
 			return;
 
-		var gameTitle = party?.PackageIdent ?? "unknown";
+		var gameTitle = party?.PackageIdent ?? MenuHelpers.Localize( "partydeck", "unknown" );
 
 		if (Package.TryGetCached(party?.PackageIdent ?? default, out var pkg))
 		{
@@ -99,8 +99,8 @@
 
 		_toast = new Toast()
 		{
-			Title = "Party leader is joining a game",
-			Message = $"Downloading {gameTitle}",
+			Title = MenuHelpers.Localize( "partydeck", "leader_joining" ),
+			Message = MenuHelpers.Localize( "partydeck", "downloading", new() { { "title", gameTitle } } ),
 			Icon = "hourglass_top",
 			ExtraClasses = "loading"
 		};

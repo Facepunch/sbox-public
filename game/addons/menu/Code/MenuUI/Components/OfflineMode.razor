@@ -8,14 +8,14 @@
 
 <root>
 	<div class="offline-popup">
-		<Label>You are offline</Label>
+		<Label>#offline.tip</Label>
 
 		<div class="right">
 
 			<Button class="clicky primary"
 				Disabled=@IsReconnecting
 				Icon ="cached"
-				Text=@(IsReconnecting ? "Reconnecting.." : "Reconnect")
+				Text=@(IsReconnecting ? "#offline.reconnecting" : "#offline.reconnect")
 				onclick=@Reconnect />
 
 		</div>

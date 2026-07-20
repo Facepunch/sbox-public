@@ -9,30 +9,26 @@
 
     <div class="page-content">
         
-        <h2>Localization</h2>
+        <h2>#settings.game.localization</h2>
 
         <row class="with-gaps">
-            <cell class="glass with-padding is-label">
-                Game Language
-            </cell>
+            <cell class="glass with-padding is-label">#settings.game.game_language</cell>
 			<DropDown class="glass with-grow" Value:bind=@Language Options=@LanguageOptions></DropDown>
         </row>
 
-        <h2>Game Preferences</h2>
+        <h2>#settings.game.game_preferences</h2>
 
         <row class="with-gaps">
-            <cell class="glass with-padding is-label">
-                Field Of View
-            </cell>
+            <cell class="glass with-padding is-label">#settings.game.field_of_view</cell>
             <SliderControl Min="@(45)" Max="@(120)" Step="@(1f)" Value:bind=@FieldOfView />
 
             <TextEntry Numeric=@true class="glass" Value:bind=@FieldOfView style="min-width: 50px;"></TextEntry>
         </row>
 
-        <h2>Platform</h2>
+        <h2>#settings.game.platform</h2>
 
         <row class="with-gaps">
-            <div class="is-label">Chat Enabled</div>
+            <div class="is-label">#settings.game.chat_enabled</div>
             <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@ChatEnabledOptions Value:bind=@ChatEnabled></ButtonGroup>
         </row>
         
@@ -49,7 +45,7 @@
     public float FieldOfView { get; set; }
     public bool ChatEnabled { get; set; }
 
-    List<Option> ChatEnabledOptions = [new("Off", false), new("On", true)];
+    List<Option> ChatEnabledOptions = [new("#settings.off", false), new("#settings.on", true)];
 
     List<Option> _languageOptions;
     List<Option> LanguageOptions

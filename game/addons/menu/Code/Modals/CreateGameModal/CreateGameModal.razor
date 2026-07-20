@@ -13,7 +13,7 @@
         <PackageHero Package="@Package" class="header">
             <Actions>
                 <column class="header-title">
-                    <label class="medium">Create Game</label>
+                    <label class="medium">#creategamemodal.title</label>
                 </column>
             </Actions>
         </PackageHero>
@@ -45,20 +45,20 @@
                     @if ( IsMultiplayerGame )
                     {
 						<div class="row">
-                            <div class="is-label">Server Name</div>
+                            <div class="is-label">#creategamemodal.server_name</div>
                             <div class="control">
                                  <TextEntry Value:bind=@ServerName />
                             </div>
                         </div>
 
 						<div class="row">
-                            <div class="is-label">Privacy</div>
+                            <div class="is-label">#creategamemodal.privacy</div>
                             <div class="control">
 								<ButtonGroup class="bg-round" Value:bind=@Privacy >
 									<ChildContent>
 										@{foreach (var item in TypeLibrary.GetEnumDescription(typeof(Sandbox.Network.LobbyPrivacy)))
 										{
-											<Button class="clicky" Text=@item.Title Icon=@item.Icon Value=@item.ObjectValue />
+											<Button class="clicky" Text=@( MenuHelpers.Localize( "creategamemodal", item.Title ) ) Icon=@item.Icon Value=@item.ObjectValue />
 										}}
 									</ChildContent>
 								</ButtonGroup>
@@ -68,7 +68,7 @@
                         @if ( MinPlayers != MaxPlayers )
                         {
 							<div class="row">
-                                <div class="is-label">Max Players</div>
+                                <div class="is-label">#creategamemodal.max_players</div>
                                 <div class="control">
                                     <SliderControl class="glass with-grow" Value:bind=@Players Min=@MinPlayers Max=@MaxPlayers Step=@(1) ShowTextEntry=@true />
                                 </div>
@@ -79,7 +79,7 @@
                     if ( NeedsMap() )
                     {
 						<div class="row">
-                            <div class="is-label">Map</div>
+                            <div class="is-label">#creategamemodal.map</div>
                             <div class="control">
 								<MapSelector Map=@Map OnValueChanged=@OnMapSelected />
                             </div>
@@ -100,8 +100,8 @@
                             {
 								<ButtonGroup class="bg-round" Value=@(Output.GameSettings[e.Name].ToBool()) ValueChanged=@((object x) => { Output.GameSettings[e.Name] = x.ToString(); })>
 									<ChildContent>
-										<Button class="clicky" Text="Off" Value="@false"></Button>
-										<Button class="clicky" Text="On" Value="@true"></Button>
+										<Button class="clicky" Text="#creategamemodal.off" Value="@false"></Button>
+										<Button class="clicky" Text="#creategamemodal.on" Value="@true"></Button>
 									</ChildContent>
 								</ButtonGroup>
                             }
@@ -124,7 +124,7 @@
         </div>
 
         <div class="footer">
-            <Button class="primary" Icon="play_arrow" onclick=@OnSave>Start Game</Button>
+            <Button class="primary" Icon="play_arrow" onclick=@OnSave>#creategamemodal.start_game</Button>
         </div>
     </div>
 </root>
@@ -164,7 +164,7 @@
 		Output = Game.Cookies.Get<CreateGameResults>( CookieName, new()
         {
             MaxPlayers = MinPlayers,
-            ServerName = $"{Sandbox.Utility.Steam.PersonaName}'s game"
+            ServerName = MenuHelpers.Localize( "creategamemodal", "server_default_name", new() { { "name", Sandbox.Utility.Steam.PersonaName } } )
         } );
 
 		//
@@ -183,7 +183,7 @@
 		}
 		if ( string.IsNullOrEmpty( ServerName ) )
 		{
-			ServerName = $"{Sandbox.Utility.Steam.PersonaName}'s game";
+			ServerName = MenuHelpers.Localize( "creategamemodal", "server_default_name", new() { { "name", Sandbox.Utility.Steam.PersonaName } } );
 		}
 
 		//

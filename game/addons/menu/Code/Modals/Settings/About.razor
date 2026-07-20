@@ -9,7 +9,7 @@
 <root class="page-inner">
 
 	<div class="page-content">
-		<h2>Third-Party Components</h2>
+		<h2>#settings.about.third_party_components</h2>
 		<div class="statement">@IndexData?.Statement</div>
 
 		@if (Components != null)
@@ -29,19 +29,17 @@
 						<span class="content">@string.Join("; ", component.Copyright ?? new List<string>())</span>
 					</div>
 					<div class="info-row">
-						<span class="info-label">License</span>
+						<span class="info-label">#settings.about.license</span>
 						<span class="content">@component.License</span>
 					</div>
 					<div class="info-row">
-                        <span class="info-label">Homepage</span>
+                        <span class="info-label">#settings.about.homepage</span>
                         <span class="content">@component.ProjectUrl</span>
 					</div>
 
                     @if (component.License != "Public-Domain")
                     {
-                        <Button class="license-button" onclick=@(() => ToggleLicense(component.Name)) Icon=@(LicenseTextChunks.ContainsKey(component.Name) ? "expand_more" : "navigate_next")>
-						    Full License Text
-					    </Button>
+                        <Button class="license-button" onclick=@(() => ToggleLicense(component.Name)) Icon=@(LicenseTextChunks.ContainsKey(component.Name) ? "expand_more" : "navigate_next")>#settings.about.full_license_text</Button>
                     }
 
 					@if (LicenseTextChunks.ContainsKey(component.Name))
@@ -58,7 +56,7 @@
 		}
 		else
 		{
-			<div>Loading third-party component data...</div>
+			<div>#settings.about.loading_third_party_component_data</div>
 		}
 	</div>
 </root>

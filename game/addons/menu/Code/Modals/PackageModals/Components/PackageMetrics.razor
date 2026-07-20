@@ -11,35 +11,35 @@
     <MetricButton Interactive 
         Active="@Package.Interaction.Favourite"
         @onclick="@ToggleFavourite"
-        Tooltip="Favourited" 
+        Tooltip="#tooltip.packagemetrics.favourited" 
         Icon="favorite" 
         Value="@Package.Favourited.ToMetric()" />
 
     <MetricButton Interactive 
         Active="@( Package.Interaction.Rating == 0 )"
         @onclick="@VoteUp"
-        Tooltip="Thumbs Up"
+        Tooltip="#tooltip.packagemetrics.thumbs_up"
         Icon="thumb_up" 
         Value="@Package.VotesUp.ToMetric()" />
 
     <MetricButton Interactive 
         Active="@( Package.Interaction.Rating == 1 )" 
          @onclick="@VoteDown"
-        Tooltip="Thumbs Down" 
+        Tooltip="#tooltip.packagemetrics.thumbs_down" 
         Icon="thumb_down" 
         Value="@Package.VotesDown.ToMetric()" />
 
     <MetricButton 
-        Tooltip="@($"{Package.Reviews.Score.ToString( "N0" )}% from {Package.Reviews.Total} Reviews")" 
+        Tooltip="@MenuHelpers.Localize( "tooltip.packagemetrics", "reviews", new() { { "score", Package.Reviews.Score.ToString("N0") }, { "total", Package.Reviews.Total } } )" 
         Icon="reviews" 
         Value="@Package.Reviews.Score.ToString( "0\\%" )" />
 
-    <MetricButton Tooltip="Total Players" Icon="sports_kabaddi" Value="@Package.Usage.Total.Users.ToMetric()" />
-    <MetricButton Tooltip="Total Sessions" Icon="calendar_month" Value="@Package.Usage.Total.Sessions.ToMetric()" />
+    <MetricButton Tooltip="#tooltip.packagemetrics.total_players" Icon="sports_kabaddi" Value="@Package.Usage.Total.Users.ToMetric()" />
+    <MetricButton Tooltip="#tooltip.packagemetrics.total_sessions" Icon="calendar_month" Value="@Package.Usage.Total.Sessions.ToMetric()" />
 
-    <MetricButton Tooltip="Last Updated" Icon="update" Value="@((DateTime.UtcNow - Package.Updated ).Humanize( 1 ))" />
+    <MetricButton Tooltip="#tooltip.packagemetrics.last_updated" Icon="update" Value="@((DateTime.UtcNow - Package.Updated ).Humanize( 1 ))" />
 
-    <MetricButton Interactive style="margin-top: 30px;" Tooltip="Report Abuse" Icon="flag" Value="report" @onclick="@( () => Game.Overlay.ShowReportModal( Package.FullIdent ) )" />
+    <MetricButton Interactive style="margin-top: 30px;" Tooltip="#tooltip.packagemetrics.report_abuse" Icon="flag" Value="#packagemetrics.report" @onclick="@( () => Game.Overlay.ShowReportModal( Package.FullIdent ) )" />
 
 </root>
 

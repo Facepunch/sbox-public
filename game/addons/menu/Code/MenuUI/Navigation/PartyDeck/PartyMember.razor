@@ -6,7 +6,7 @@
 @implements PartyRoom.IEventListener
 @namespace MenuProject
 
-<root tooltip=@(Friend.IsMe ? "You" : Friend.Name)>
+<root tooltip=@(Friend.IsMe ? "#tooltip.menu.you" : Friend.Name)>
 
 	@if (IsOwner)
 	{

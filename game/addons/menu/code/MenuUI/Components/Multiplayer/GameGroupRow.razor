@@ -22,7 +22,7 @@
 	<div class="game-info">
 		<div class="game-title">@(GamePackage?.Title ?? GameIdent)</div>
 		<div class="game-summary">
-			<span class="players">@TotalPlayers players on @(ServerCount == 1 ? "1 server" : $"{ServerCount} servers")</span>
+			<span class="players">@( Localize( TotalPlayers, ServerCount )</span>
 		</div>
 	</div>
 
@@ -42,6 +42,14 @@
 	[Parameter] public RenderFragment Left { get; set; }
 
 	Package GamePackage;
+
+	private string Localize( int totalPlayers, int serverCount )
+	{
+		string suffix = ServerCount == 1 ? "desc" : "desc_multi";
+		string localizedText = MenuHelpers.Localize( "gamegrouprow", suffix, new() { { "totalplayers", totalPlayers }, { "servercount", serverCount } } );
+		
+		return localizedText;
+	}
 
 	protected override void OnAfterTreeRender( bool firstTime )
 	{

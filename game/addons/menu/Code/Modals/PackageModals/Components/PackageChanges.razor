@@ -10,7 +10,7 @@
    sticky meta column (title / version / date) on the left and the categorised entries on the right. *@
 
 <root>
-    <PackageTabHeader Title="Changes" Subtitle="@($"What's changed in {Package?.Title} with each update.")" />
+    <PackageTabHeader Title="#packagechanges.title" Subtitle="@( MenuHelpers.Localize("packagechanges", "subtitle", new() { { "title", Package?.Title } } ) )" />
 
     @if (!_loaded)
     {
@@ -18,7 +18,7 @@
     }
     else if (_changeLists.Length == 0)
     {
-        <div class="state">This package hasn't published any changelists.</div>
+        <div class="state">#packagechanges.no_content</div>
     }
     else
     {
@@ -43,11 +43,11 @@
                 </div>
 
                 <div class="changes">
-                    <PackageChangeSection ClassName="add" Entries="@change.Added" Icon="🎁" Title="Added" />
-                    <PackageChangeSection ClassName="improve" Entries="@change.Improved" Icon="🧼" Title="Improved" />
-                    <PackageChangeSection ClassName="fix" Entries="@change.Fixed" Icon="🪛" Title="Fixed" />
-                    <PackageChangeSection ClassName="remove" Entries="@change.Removed" Icon="🚯" Title="Removed" />
-                    <PackageChangeSection ClassName="knownissue" Entries="@change.KnownIssues" Icon="⚠️" Title="Known Issues" />
+                    <PackageChangeSection ClassName="add" Entries="@change.Added" Icon="🎁" Title="#packagechanges.added" />
+                    <PackageChangeSection ClassName="improve" Entries="@change.Improved" Icon="🧼" Title="#packagechanges.improved" />
+                    <PackageChangeSection ClassName="fix" Entries="@change.Fixed" Icon="🪛" Title="#packagechanges.fixed" />
+                    <PackageChangeSection ClassName="remove" Entries="@change.Removed" Icon="🚯" Title="#packagechanges.removed" />
+                    <PackageChangeSection ClassName="knownissue" Entries="@change.KnownIssues" Icon="⚠️" Title="#packagechanges.known_issues" />
                 </div>
 
             </div>

@@ -57,13 +57,13 @@
     {
         var menu = MenuPanel.Open(this);
 
-        menu.AddOption("open_in_browser", "View Webpage", () => MenuUtility.OpenUrl(Package.Url));
-        menu.AddOption("content_copy", "Copy Url", () => Clipboard.SetText(Package.Url));
-        menu.AddOption("content_copy", "Copy Ident", () => Clipboard.SetText(Package.FullIdent));
+        menu.AddOption("open_in_browser", "#workshopclothingicon.view_webpage", () => MenuUtility.OpenUrl(Package.Url));
+        menu.AddOption("content_copy", "#workshopclothingicon.copy_url", () => Clipboard.SetText(Package.Url));
+        menu.AddOption("content_copy", "#workshopclothingicon.copy_ident", () => Clipboard.SetText(Package.FullIdent));
 
         menu.AddSpacer();
-        menu.AddOption("corporate_fare", $"View Creator", () => Game.Overlay.ShowOrganizationModal(Package.Org));
-        menu.AddOption("star", "Review", () => Game.Overlay.ShowReviewModal(Package));
-        menu.AddOption("flag", "Report", () => Game.Overlay.ShowReportModal(Package.FullIdent));
+        menu.AddOption("corporate_fare", $"#workshopclothingicon.view_creator", () => Game.Overlay.ShowOrganizationModal(Package.Org));
+        menu.AddOption("star", "#workshopclothingicon.review", () => Game.Overlay.ShowReviewModal(Package));
+        menu.AddOption("flag", "#workshopclothingicon.report", () => Game.Overlay.ShowReportModal(Package.FullIdent));
     }
 }

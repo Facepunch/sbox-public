@@ -31,25 +31,25 @@
 
         <Card>
             <ChildContent>
-                <label class="section-label">Package</label>
-                <div class="info-row"><i>videogame_asset</i><label>Game</label></div>
+                <label class="section-label">#packageinfopanel.package</label>
+                <div class="info-row"><i>videogame_asset</i><label>#packageinfopanel.game</label></div>
                 @if (Package.Created != default)
                 {
-                    <div class="info-row"><i>calendar_today</i><label>Created @((DateTime.UtcNow - Package.Created).Humanize(1)) ago</label></div>
+                    <div class="info-row"><i>calendar_today</i><label>@MenuHelpers.Localize( "packageinfopanel", "created", new() { { "time", (DateTime.UtcNow - Package.Created).Humanize(1) } } )</label></div>
                 }
-                <div class="info-row"><i>update</i><label>Updated @((DateTime.UtcNow - Package.Updated).Humanize(1)) ago</label></div>
+                <div class="info-row"><i>update</i><label>@MenuHelpers.Localize( "packageinfopanel", "updated", new() { { "time", (DateTime.UtcNow - Package.Updated).Humanize(1) } } )</label></div>
                 @if (Package.Reviews.Total > 0)
                 {
-                    <div class="info-row clickable" @onclick="@(() => OnReviewsClicked?.Invoke())"><i>reviews</i><label>@Package.Reviews.Score.ToString("0\\%") from @Package.Reviews.Total reviews</label></div>
+                    <div class="info-row clickable" @onclick="@(() => OnReviewsClicked?.Invoke())"><i>reviews</i><label>@MenuHelpers.Localize( "packageinfopanel", "reviews_summary", new() { { "score", Package.Reviews.Score.ToString("0\\%") }, { "total", Package.Reviews.Total } } )</label></div>
                 }
             </ChildContent>
         </Card>
 
         <Card>
             <ChildContent>
-                <label class="section-label">Usage Stats</label>
-                <div class="info-row"><i>group</i><label>@Package.Usage.Total.Users.ToMetric() players</label></div>
-                <div class="info-row"><i>calendar_month</i><label>@Package.Usage.Total.Sessions.ToMetric() sessions</label></div>
+                <label class="section-label">#packageinfopanel.usage_stats</label>
+                <div class="info-row"><i>group</i><label>@MenuHelpers.Localize( "packageinfopanel", "players_count", new() { { "count", Package.Usage.Total.Users.ToMetric() } } )</label></div>
+                <div class="info-row"><i>calendar_month</i><label>@MenuHelpers.Localize( "packageinfopanel", "sessions_count", new() { { "count", Package.Usage.Total.Sessions.ToMetric() } } )</label></div>
             </ChildContent>
         </Card>
 
@@ -57,7 +57,7 @@
         {
             <Card>
                 <ChildContent>
-                    <label class="section-label">Tags</label>
+                    <label class="section-label">#packageinfopanel.tags</label>
                     <div class="tag-list">
                         @foreach (var tag in Package.Tags)
                         {
@@ -75,7 +75,7 @@
                 <Button>
                     <Card class="achievements-card">
                         <ChildContent>
-                            <Label class="section-label">Achievements</Label>
+                            <Label class="section-label">#packageinfopanel.achievements</Label>
                             <PackageAchievementSummary Package="@Package" />
                         </ChildContent>
                     </Card>

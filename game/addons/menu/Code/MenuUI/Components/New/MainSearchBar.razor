@@ -15,7 +15,7 @@
             <div class="inner-empty">
                 <div class="section-header">
                     <icon class="eyebrow">history</icon>
-                    <label class="eyebrow">Recently Played</label>
+                    <label class="eyebrow">#mainsearchbar.recently_played</label>
                 </div>
 
                 <div class="recent-grid">
@@ -29,14 +29,14 @@
                     else
                     {
                         <div class="empty-recent">
-                            <label>No recently visited games yet.</label>
+                            <label>#mainsearchbar.no_games</label>
                         </div>
                     }
                 </div>
 
                 <div class="section-header">
                     <icon class="eyebrow">search</icon>
-                    <label class="eyebrow">Recommended Tags</label>
+                    <label class="eyebrow">#mainsearchbar.recommended_tags</label>
                 </div>
 
                 <div class="suggestion-list">
@@ -53,14 +53,14 @@
                 @if (awaitingAutocomplete)
                 {
                     <div class="search-status">
-                        <label>Searching...</label>
+                        <label>#mainsearchbar.searching</label>
                     </div>
                 }
                 else if (AutocompleteResult != null && !AutocompleteResult.Packages.Any())
                 {
                     <div class="search-status">
                         <icon>search_off</icon>
-                        <label>No results for "@SearchText?.Value"</label>
+                        <label>@MenuHelpers.Localize("mainsearchbar", "no_results", new() { { "search", SearchText?.Value } } )</label>
                     </div>
                 }
                 else if (AutocompleteResult != null)
@@ -73,7 +73,7 @@
                     {
                         <div class="section-header">
                             <icon class="eyebrow">auto_awesome</icon>
-                            <label class="eyebrow">Top Match</label>
+                            <label class="eyebrow">#mainsearchbar.top_match</label>
                         </div>
 
                         <div class="top-result">
@@ -106,7 +106,7 @@
                     {
                         <div class="section-header">
                             <icon class="eyebrow">sports_esports</icon>
-                            <label class="eyebrow">More Matches</label>
+                            <label class="eyebrow">#mainsearchbar.more_matches</label>
                         </div>
 
                         <div class="more-results">
@@ -128,7 +128,7 @@
 
                     <separator class="horizontal"></separator>
                     <div class="section-footer" onclick=@Submit>
-                        <label class="small">View all results for "@SearchText?.Value"</label>
+                        <label class="small">@MenuHelpers.Localize("mainsearchbar", "view_results", new() { { "result", SearchText?.Value } } )</label>
                         <div class="grow"></div>
                         <icon>arrow_forward</icon>
                     </div>
@@ -138,7 +138,7 @@
         </div>
 
         <TextEntry @ref="SearchText" onfocus=@SearchTextFocus onblur=@SearchTextBlur
-            OnTextEdited=@SearchTextEdited Placeholder="Search for games..." onsubmit=@Submit Icon="search" />
+            OnTextEdited=@SearchTextEdited Placeholder="#mainsearchbar.placeholder" onsubmit=@Submit Icon="search" />
 
     </div>
 </root>
@@ -256,13 +256,13 @@
 
 	string VotePercentage(Package p)
 	{
-		if (p.VotesUp == 0 && p.VotesDown == 0) return "Unrated";
+		if (p.VotesUp == 0 && p.VotesDown == 0) return MenuHelpers.Localize("mainsearchbar", "unrated");
 		return $"{(int)(p.VotesUp * 100f / (p.VotesUp + p.VotesDown))}%";
 	}
 
 	string PlayersNowText(Package p)
 	{
-		return $"{p.Usage.UsersNow.KiloFormat()} Playing";
+		return MenuHelpers.Localize("mainsearchbar", "playing_now", new() { { "count", p.Usage.UsersNow.KiloFormat() } } );
 	}
 
 	void UseSuggestion(string suggestion)

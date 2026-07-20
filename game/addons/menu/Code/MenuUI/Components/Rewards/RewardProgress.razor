@@ -12,7 +12,7 @@
 				<label class="eyebrow">@HeaderTitle</label>
 				@if ( ShowRefresh )
 				{
-					<div class="refresh clicky @( IsRefreshing ? "busy" : "" )" tooltip="Refresh" @onclick="@Refresh">
+					<div class="refresh clicky @( IsRefreshing ? "busy" : "" )" tooltip="#tooltip.rewardprogress.refresh" @onclick="@Refresh">
 						<icon>refresh</icon>
 					</div>
 				}
@@ -20,7 +20,7 @@
 
 			@if ( Window is null )
 			{
-				<label class="small loading">Loading…</label>
+				<label class="small loading">#rewardprogress.loading</label>
 			}
 			else
 			{
@@ -31,7 +31,7 @@
 					}
 				</div>
 
-				<Button class="clicky primary open-reward" Icon="@( CanOpen ? "redeem" : "lock" )" Text="Open Reward" Disabled="@( !CanOpen )" @onclick="@OpenReward" />
+				<Button class="clicky primary open-reward" Icon="@( CanOpen ? "redeem" : "lock" )" Text="#rewardprogress.open_reward" Disabled="@( !CanOpen )" @onclick="@OpenReward" />
 			}
 
 		</ChildContent>
@@ -79,7 +79,7 @@
 		}
 	}
 
-	string HeaderTitle => Window?.Title ?? "Rewards";
+	string HeaderTitle => Window?.Title ?? MenuHelpers.Localize( "rewardprogress", "rewards" );
 
 	/// <summary>True while a GetRewards call is in flight, so the refresh icon can spin.</summary>
 	bool IsRefreshing { get; set; }

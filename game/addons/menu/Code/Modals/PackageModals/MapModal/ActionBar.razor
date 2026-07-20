@@ -12,7 +12,9 @@
 
         @if ( LobbyCount > 0 )
         {
-			<Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>@LobbyCount Lobbies</Button>
+			<Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>
+				@MenuHelpers.Localize( "actionbar", "lobbies", new() { { "lobbycount", LobbyCount } } )
+			</Button>
         }
 
     </div>
@@ -23,18 +25,18 @@
 		{
 			@if(GamePackage is null)
 			{
-                <Button icon="sports_esports" onclick=@SelectGame>Select Game</Button>
+                <Button icon="sports_esports" onclick=@SelectGame>#actionbar.select_game</Button>
 			}
 			else
 			{
                 <Button icon="sports_esports" onclick=@SelectGame>@GamePackage.Title</Button>
 			}
 
-			<Button icon="play_arrow" class="play" Disabled=@(GamePackage is null || !MenuHelpers.HasAuthority) onclick=@OnPlay>Launch Map</Button>
+			<Button icon="play_arrow" class="play" Disabled=@(GamePackage is null || !MenuHelpers.HasAuthority) onclick=@OnPlay>#actionbar.launch_map</Button>
 		}
 		else
 		{
-            <Button icon="play_arrow" class="play disabled" onclick=@OnPlay>Launch Map</Button>
+            <Button icon="play_arrow" class="play disabled" onclick=@OnPlay>#actionbar.launch_map</Button>
 		}
 
 

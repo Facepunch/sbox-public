@@ -8,19 +8,19 @@
 
     @if ( Cart.Items.Count() == 0 )
     {
-        <span class="empty">Empty</span>
+        <span class="empty">#cartbutton.empty</span>
     }
     else if ( Cart.CheckingOut )
     {
         <div class="info">
-            <span class="items">Checking Out..</span>
+            <span class="items">#cartbutton.checking_out</span>
         </div>
     }
     else
     {
         <div class="info">
-            <span class="items">@Cart.Items.Count Items</span>
-            <span class="CheckOut">Check Out</span>
+            <span class="items">@MenuHelpers.Localize( "cartbutton", "items", new() { { "count", Cart.Items.Count } } )</span>
+            <span class="CheckOut">#cartbutton.check_out</span>
         </div>
     }
 

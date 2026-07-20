@@ -10,7 +10,7 @@
     }
     else
     {
-        <div class="title">loading</div>
+        <div class="title">#loadingoverlay.loading</div>
     }
 
     <div class="loading-panel">       
@@ -22,7 +22,8 @@
                 <div class="status">@LoadingScreen.Tasks.FirstOrDefault()?.Title</div>
                 @if (LoadingScreen.Tasks.Count > 1)
                 {
-                    var str = $"and {LoadingScreen.Tasks.Count-1} other tasks..";
+                    var count = LoadingScreen.Tasks.Count - 1;
+                    var str = MenuHelpers.Localize( "loadingoverlay", "tasks_count", new() { { "num", count } } );
                     <div class="eta">@str</div>
                 }
             }
@@ -37,7 +38,7 @@
 
         </div>
 
-        <div class="cancel-button" onclick=@MenuUtility.CancelLoading>Cancel</div>
+        <div class="cancel-button" onclick=@MenuUtility.CancelLoading>#loadingoverlay.cancel</div>
     </div>
 
 </root>

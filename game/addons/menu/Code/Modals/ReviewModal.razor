@@ -18,7 +18,7 @@
 
 <root>
 
-    <h1>What did you think of @(Package.Title)?</h1>
+    <h1>@MenuHelpers.Localize( "review", "title", new() { { "title", Package.Title } } )</h1>
 
     <div class="inner">
 
@@ -29,17 +29,17 @@
                 <div class="ratings-outline">
                     <div class="rating @( Score == Review.ReviewScore.Negative ? "active" : "" )" @onclick="@( () => SetRating( Review.ReviewScore.Negative ) )">
                         <div class="icon">💩</div>
-                        <div class="text">Needs Work</div>
+                        <div class="text">#review.needs_work</div>
                     </div>
 
                     <div class="rating @( Score == Review.ReviewScore.Promise ? "active" : "" )" @onclick="@( () => SetRating( Review.ReviewScore.Promise ) )">
                         <div class="icon">😐</div>
-                        <div class="text">Promising</div>
+                        <div class="text">#review.promising</div>
                     </div>
 
                     <div class="rating @( Score == Review.ReviewScore.Positive ? "active" : "" )" @onclick="@( () => SetRating( Review.ReviewScore.Positive ) )">
                         <div class="icon">😍</div>
-                        <div class="text">Recommended</div>
+                        <div class="text">#review.recommended</div>
                     </div>
                 </div>
 
@@ -48,12 +48,12 @@
             <div class="tag-entry">
 
                 <div class="tagcolumn positive-tags">
-                    <label>What did you like?</label>
+                    <label>#review.like</label>
                     <TagSelector Value:bind=@PositiveTags/>
                 </div>
 
                 <div class="tagcolumn negative-tags">
-                    <label>What did you dislike?</label>
+                    <label>#review.unlike</label>
                     <TagSelector Value:bind=@NegativeTags />
                 </div>
 
@@ -61,12 +61,12 @@
 
             <UserComment Player="@Sandbox.Services.Players.Profile.Local">
                 <Content>
-                    <TextEntry @ref=_textEntry Value:bind=@ReviewText Multiline="@true" Placeholder="Enter Your Review.."></TextEntry>
+                    <TextEntry @ref=_textEntry Value:bind=@ReviewText Multiline="@true" Placeholder="#review.placeholder"></TextEntry>
                 </Content>
             </UserComment>
 
             <div class="footer">
-                <Button @onclick="@PostReview" Disabled="@( Score == Review.ReviewScore.None || string.IsNullOrWhiteSpace(ReviewText) )" Icon="send" Text="Post Review"></Button>
+                <Button @onclick="@PostReview" Disabled="@( Score == Review.ReviewScore.None || string.IsNullOrWhiteSpace(ReviewText) )" Icon="send" Text="#review.post_review"></Button>
             </div>
 
         </div>

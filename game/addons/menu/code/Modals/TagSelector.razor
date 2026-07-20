@@ -16,7 +16,7 @@
         {
             var active = (((int)Value) & entry.IntegerValue) != 0;
 
-            <div @onclick=@( () => Clicked( (int) entry.IntegerValue ) ) class="tag @(active ? "active" : "")">@entry.Title</div>
+            <div @onclick=@( () => Clicked( (int) entry.IntegerValue ) ) class="tag @(active ? "active" : "")">@( MenuHelpers.Localize( "tagselector.tags", entry.Title, null, true ) )</div>
         }
 
     }    

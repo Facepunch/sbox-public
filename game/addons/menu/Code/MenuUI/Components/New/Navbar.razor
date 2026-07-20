@@ -19,8 +19,8 @@
             <Button Href="/hub" Icon="hub">#menu.hub</Button>
             *@
 
-            <Button Tooltip="Find Games" Href="/games/dash" Icon="diamond">Discover</Button>
-            <Button Href="/games" Icon="sports_esports">Games</Button>
+            <Button Tooltip="#tooltip.menu.find_games" Href="/games/dash" Icon="diamond">#menu.discover</Button>
+            <Button Href="/games" Icon="sports_esports">#menu.games</Button>
             <Button Href="/maps/all" Icon="map">#menu.maps</Button>
             <Button Href="/multiplayer" Icon="view_list">#menu.multiplayer</Button>
         </div>
@@ -35,12 +35,12 @@
 
             <separator class="vertical" />
 
-            <NotificationButton Tooltip="Notifications" />
-            <Button Tooltip="Favourited Games" Href="/games/group?Query=type:game sort:favourite&title=Favourite Games&Icon=💖" icon="favorite"></Button>
-			<Sandbox.UI.Mounts.MountButton Tooltip="Mounted Games" />
-			<Button @onmouseup=@Settings Tooltip="Settings" Icon="settings"/>
+            <NotificationButton Tooltip="#tooltip.menu.notifications" />
+            <Button Tooltip="#tooltip.menu.favourited_games" Href="/games/group?Query=type:game sort:favourite&title=Favourite Games&Icon=💖" icon="favorite"></Button>
+			<Sandbox.UI.Mounts.MountButton Tooltip="#tooltip.menu.mounted_games" />
+			<Button @onmouseup=@Settings Tooltip="#tooltip.menu.settings" Icon="settings"/>
 
-			<Button onmouseup="@Quit" class="close" Tooltip="Quit" Icon="power_settings_new" />
+			<Button onmouseup="@Quit" class="close" Tooltip="#tooltip.menu.quit" Icon="power_settings_new" />
         </div>
 
     </div>

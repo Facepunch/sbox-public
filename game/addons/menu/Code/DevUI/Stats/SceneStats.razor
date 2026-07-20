@@ -3,15 +3,15 @@
 
 <root class="statbox"> 
 
-    <title>Scene Stats</title>
+    <title>@MenuHelpers.Localize( "developermode", "scenestats.scene_stats" )</title>
 
-    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.Timings.Animation.AverageMs( 200 ).ToString( "0.00 ms" )" Title="Animation"></StatValue>
-    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.Timings.Audio.AverageMs( 200 ).ToString( "0.00 ms" )" Title="Audio"></StatValue>
-    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.Timings.Physics.AverageMs( 200 ).ToString( "0.00 ms" )" Title="Physics"></StatValue>
-    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.Timings.Particles.AverageMs( 200 ).ToString( "0.00 ms" )" Title="Particles"></StatValue>
-    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.Timings.Render.AverageMs( 200 ).ToString( "0.00 ms" )" Title="Render"></StatValue>
-    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.Timings.Update.AverageMs( 200 ).ToString( "0.00 ms" )" Title="Update"></StatValue>
-    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.Timings.GcPause.AverageMs( 200 ).ToString( "0.00 ms" )" Title="GcPause"></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.Timings.Animation.AverageMs( 200 ).ToString( "0.00 ms" )" Title=@MenuHelpers.Localize( "developermode", "scenestats.animation" )></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.Timings.Audio.AverageMs( 200 ).ToString( "0.00 ms" )" Title=@MenuHelpers.Localize( "developermode", "scenestats.audio" )></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.Timings.Physics.AverageMs( 200 ).ToString( "0.00 ms" )" Title=@MenuHelpers.Localize( "developermode", "scenestats.physics" )></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.Timings.Particles.AverageMs( 200 ).ToString( "0.00 ms" )" Title=@MenuHelpers.Localize( "developermode", "scenestats.particles" )></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.Timings.Render.AverageMs( 200 ).ToString( "0.00 ms" )" Title=@MenuHelpers.Localize( "developermode", "scenestats.render" )></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.Timings.Update.AverageMs( 200 ).ToString( "0.00 ms" )" Title=@MenuHelpers.Localize( "developermode", "scenestats.update" )></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.Timings.GcPause.AverageMs( 200 ).ToString( "0.00 ms" )" Title=@MenuHelpers.Localize( "developermode", "scenestats.gcpause" )></StatValue>
 
 </root>
 

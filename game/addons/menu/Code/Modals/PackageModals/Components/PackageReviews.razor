@@ -10,19 +10,19 @@
 
     <div class="tag-filters">
 
-        <label class="eyebrow">Reviews</label>
+        <label class="eyebrow">#packagereviews.reviews</label>
 
         <div class="tag-filter-group">
-            <Badge Type="positive" Number=@Package.Reviews.PositiveRatings Text="Recommended"></Badge>
-            <Badge Type="positive" Number=@Package.Reviews.PromiseRatings Text="Shows Promise"></Badge>
-            <Badge Type="positive" Number=@Package.Reviews.NegativeRatings Text="Needs Work"></Badge>
+            <Badge Type="positive" Number=@Package.Reviews.PositiveRatings Text="#packagereviews.recommended"></Badge>
+            <Badge Type="positive" Number=@Package.Reviews.PromiseRatings Text="#packagereviews.shows_promise"></Badge>
+            <Badge Type="positive" Number=@Package.Reviews.NegativeRatings Text="#packagereviews.needs_work"></Badge>
         </div>
 
         @if (Package.Reviews.PositiveTags.Sum(x => x.Value) > 0)
         {
             
 
-            <label class="eyebrow">Positives</label>
+            <label class="eyebrow">#packagereviews.positives</label>
 
             <div class="tag-filter-group">
 
@@ -30,21 +30,21 @@
                 {                    
                     var di = Game.TypeLibrary.GetEnumDescription( tag.Key );
 
-                    <Badge Type="positive" Number=@tag.Value Icon="@di.Icon" Text="@di.Title"></Badge>
+                    <Badge Type="positive" Number=@tag.Value Icon="@di.Icon" Text="@( MenuHelpers.Localize("tagselector.tags", di.Title, null, true) )"></Badge>
                 }
             </div>
         }
 
         @if (Package.Reviews.NegativeTags.Sum(x => x.Value) > 0)
         {
-            <label class="eyebrow">Negatives</label>
+            <label class="eyebrow">#packagereviews.negatives</label>
 
             <div class="tag-filter-group">
                 @foreach (var tag in Package.Reviews.NegativeTags.Where(x => x.Value > 0).OrderByDescending(x => x.Value))
                 {
                     var di = Game.TypeLibrary.GetEnumDescription(tag.Key);
 
-                    <Badge Type="negative" Number=@tag.Value Icon="@di.Icon" Text="@di.Title"></Badge>
+                    <Badge Type="negative" Number=@tag.Value Icon="@di.Icon" Text="@( MenuHelpers.Localize("tagselector.tags", di.Title, null, true) )"></Badge>
                 }
             </div>
         }
@@ -53,7 +53,7 @@
     <div class="review-list">
         @if (Reviews.Count == 0 && TotalCount == 0)
         {
-            <div class="no-reviews">No reviews yet. Be the first to write one!</div>
+            <div class="no-reviews">#packagereviews.no_reviews</div>
         }
         else
         {
@@ -71,19 +71,19 @@
 
             @foreach (var review in Reviews)
             {
-                <UserComment Player="@review.Player" Date="@review.Updated" TimePlayed="@( $"Played for {review.PlayTime.Humanize(1)}" )" class="@GetReviewClass(review.Score)">
+                <UserComment Player="@review.Player" Date="@review.Updated" TimePlayed="@MenuHelpers.Localize("packagereviews", "time_played", new() { { "time", review.PlayTime.Humanize(1) } } )">
                     <TopBar>
                         @if (review.Score == ReviewScore.Positive)
                         {
-                            <Badge Type="positive" class="clear" Icon="thumb_up" Text="Recommended"></Badge>
+                            <Badge Type="positive" class="clear" Icon="thumb_up" Text="#packagereviews.recommended"></Badge>
                         }
                         else if (review.Score == ReviewScore.Negative)
                         {
-                            <Badge Type="negative" class="clear" Icon="thumb_down" Text="Needs Work"></Badge>
+                            <Badge Type="negative" class="clear" Icon="thumb_down" Text="#packagereviews.needs_work"></Badge>
                         }
                         else if (review.Score == ReviewScore.Promise)
                         {
-                            <Badge Type="promise" class="clear" Icon="thumbs_up_down" Text="Promise"></Badge>
+                            <Badge Type="promise" class="clear" Icon="thumbs_up_down" Text="#packagereviews.promise"></Badge>
                         }
                     </TopBar>
                     <Content>
@@ -95,11 +95,11 @@
 
                                 @foreach (var flag in GetPositiveFlags(review.Positives))
                                 {
-                                    <Badge Type="positive" Text="@flag"></Badge>
+                                    <Badge Type="positive" Text="@( MenuHelpers.Localize("tagselector.tags", flag, null, true) )"></Badge>
                                 }
                                 @foreach (var flag in GetNegativeFlags(review.Negatives))
                                 {
-                                    <Badge Type="negative" Text="@flag"></Badge>
+                                    <Badge Type="negative" Text="@( MenuHelpers.Localize("tagselector.tags", flag, null, true) )"></Badge>
                                 }
                             </div>
                         }

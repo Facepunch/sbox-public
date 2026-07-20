@@ -8,7 +8,7 @@
 <root>
 
 	<div class="topbar">
-		<Button class="clicky back" Icon="west" Text="Back" @onclick="@Back" />
+		<Button class="clicky back" Icon="west" Text="#rewardunboxui.back" @onclick="@Back" />
 	</div>
 
 	@if ( IsLoading )
@@ -22,17 +22,17 @@
 	else if ( Offer is null )
 	{
 		<div class="center">
-			<label class="title">Nothing to open right now.</label>
-			<label class="sub">Jump into a game to receive your reward drop.</label>
-			<Button class="clicky" Text="Back" Icon="west" @onclick="@Back" />
+			<label class="title">#rewardunboxui.title</label>
+			<label class="sub">#rewardunboxui.sub_title</label>
+			<Button class="clicky" Text="#rewardunboxui.back" Icon="west" @onclick="@Back" />
 		</div>
 	}
 	else if ( Result is not null && Result.Success )
 	{
 		<div class="result-bar">
 			<icon class="result-icon">celebration</icon>
-			<label class="result-text">You claimed your reward!</label>
-			<Button class="clicky primary" Text="Done" Icon="check" @onclick="@Back" />
+			<label class="result-text">#rewardunboxui.claimed</label>
+			<Button class="clicky primary" Text="#rewardunboxui.done" Icon="check" @onclick="@Back" />
 		</div>
 	}
 	else if ( ShowClaimBar )
@@ -40,9 +40,9 @@
 		<div class="claim-bar">
 			<div class="claim-info">
 				<div class="select-banner">
-					<label>Select @Offer.PickCount @( Offer.PickCount == 1 ? "Reward" : "Rewards" )</label>
+					<label>@MenuHelpers.Localize( "rewardunboxui", Offer.PickCount == 1 ? "select_reward" : "select_rewards", new() { { "count", Offer.PickCount } } )</label>
 				</div>
-				<label class="blurb">Pick your item — it's yours to keep, free.</label>
+				<label class="blurb">#rewardunboxui.pick_blurb</label>
 			</div>
 
 			<Button class="clicky claim" Text="@ClaimText" Icon="redeem" Disabled="@( !CanConfirm )" @onclick="@Confirm" />
@@ -131,7 +131,7 @@
 		StateHasChanged();
 	}
 
-	string ClaimText => IsChoosing ? "Claiming…" : "Claim";
+	string ClaimText => MenuHelpers.Localize( "rewardunboxui", IsChoosing ? "claiming" : "claim" );
 
 	/// <summary>You can confirm once you've picked exactly the number of items the offer allows.</summary>
 	bool CanConfirm

@@ -33,7 +33,7 @@
 					}
 				</div>
 				<div class="info">
-					<label class="eyebrow">Game</label>
+					<label class="eyebrow">#servermodal.game</label>
 					<label class="title">@(GamePackage?.Title ?? Server.Game)</label>
 				</div>
 			</div>
@@ -50,7 +50,7 @@
 					}
 				</div>
 				<div class="info">
-					<label class="eyebrow">Map</label>
+					<label class="eyebrow">#servermodal.map</label>
 					<label class="title">@(MapPackage?.Title ?? (MapUnavailable ? "Unknown" : Server.Map))</label>
 				</div>
 			</div>
@@ -58,8 +58,8 @@
 		</div>
 
 		<div class="footer">
-			<Button class="clicky" @onclick=@(() => CloseModal( false ))>Cancel</Button>
-			<Button class="clicky primary" Disabled=@(!MenuHelpers.HasAuthority) Icon="play_circle_filled" onclick=@JoinServer>Join Server</Button>
+			<Button class="clicky" @onclick=@(() => CloseModal( false ))>#servermodal.cancel</Button>
+			<Button class="clicky primary" Disabled=@(!MenuHelpers.HasAuthority) Icon="play_circle_filled" onclick=@JoinServer>#servermodal.join_server</Button>
 		</div>
 
 	</div>

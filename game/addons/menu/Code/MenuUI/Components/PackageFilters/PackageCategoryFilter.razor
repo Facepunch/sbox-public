@@ -13,7 +13,7 @@
         var clss = IsSelected(entry.Name) ? "active" : "";
 
         <div class="option @clss" @onmousedown=@( () => ToggleTag( entry.Name ) )>
-            <WithIcon Icon="@entry.Icon" Text="@entry.Title"></WithIcon>
+            <WithIcon Icon="@entry.Icon" Text="@( Localize( Facet.Name, entry.Title, entry.Name ) )"></WithIcon>
             <div class="count">@entry.Count</div>
         </div>
 
@@ -24,7 +24,7 @@
                 {
                     clss = IsSelected(c.Name) ? "active" : "";
                     <div class="option @clss" @onmousedown=@( () => ToggleTag( c.Name ) )>
-                        <WithIcon Icon="@c.Icon" Text="@c.Title"></WithIcon>
+                        <WithIcon Icon="@c.Icon" Text="@( Localize( Facet.Name, c.Title, c.Name, entry.Name ) )"></WithIcon>
                         <div class="count">@c.Count</div>
                     </div>
                 }
@@ -38,6 +38,24 @@
     public Package.FindResult Result { get; set; }
     public Package.Facet Facet { get; set; }
     public Dictionary<string, string> Selected { get; set; } = new();
+
+    private string Localize( string facetText, string title, string name, string parentText = null )
+    {
+        if ( string.IsNullOrEmpty( name ) )
+            return title;
+
+        string localizedText;
+        
+        if( parentText is null )
+                localizedText = Game.Language.GetPhrase( "category." + facetText + "." + name.ToLower().Replace( " ", "" ).Replace( "#", "" ) );
+        else
+                localizedText = Game.Language.GetPhrase( "category." + facetText + "." + parentText + "." + name.ToLower().Replace( " ", "" ).Replace( "#", "" ) );
+
+        if ( string.IsNullOrEmpty( localizedText ) || localizedText.StartsWith( "category" ) )
+            return title;
+
+        return localizedText;
+    }
 
     protected override void OnParametersSet()
     {

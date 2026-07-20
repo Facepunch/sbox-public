@@ -5,16 +5,16 @@
 <root>
 
     <div>
-        <TextEntry placeholder="Avatar Name" Value:bind="@Manager.DisplayName"></TextEntry>
+        <TextEntry placeholder="#avatar.edit.placeholder" Value:bind="@Manager.DisplayName"></TextEntry>
     </div>
 
-    <FormRow Label="Model">
+    <FormRow Label="#avatar.edit.model">
         <Content>
 
             <ButtonGroup Value:bind="@Manager.CitizenActive" class="bg-round">
                 <ChildContent>
-                    <Button Text="Human" Value="@false"></Button>
-                    <Button Text="Citizen" Value="@true"></Button>
+                    <Button Text="#avatar.human" Value="@false"></Button>
+                    <Button Text="#avatar.citizen" Value="@true"></Button>
                 </ChildContent>
             </ButtonGroup>
 
@@ -23,7 +23,7 @@
 
 
 
-    <FormRow Label="Height">
+    <FormRow Label="#avatar.edit.height">
         <Content>
             <SliderControl class="simple" Value:bind=@Manager.Height Min="@(0.0f)" Max="@(1.0f)" Step="@(0.01f)"></SliderControl>
         </Content>
@@ -32,7 +32,7 @@
 
     @if (Manager.CitizenActive )
     {
-        <FormRow Label="Age">
+        <FormRow Label="#avatar.edit.age">
             <Content>
                 <SliderControl class="simple" Value:bind=@Manager.Age Min="@(0.0f)" Max="@(1.0f)" Step="@(0.01f)"></SliderControl>
             </Content>
@@ -43,7 +43,7 @@
 
         */
 
-        <FormRow Label="Skin">
+        <FormRow Label="#avatar.edit.skin">
             <Content>
 
                 <ColorSwatchPicker Value:bind="@Manager.Tint" Swatches="@GetLoadSkinSwatches()"></ColorSwatchPicker>
@@ -53,7 +53,7 @@
     }
     else
     {
-        <FormRow Label="Skin">
+        <FormRow Label="#avatar.edit.skin">
             <Content>
                 <div class="skin-items">
                     @foreach( var item in Manager.GetAllClothing().Where( x => x.HasHumanSkin ) )

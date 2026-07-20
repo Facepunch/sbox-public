@@ -15,11 +15,15 @@
 
 	    @if ( IsDedicatedServerOnly )
 	    {
-		    <Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>@LobbyCount Servers</Button>
+		    <Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>
+			@MenuHelpers.Localize( "actionbar", "servers", new() { { "servercount", LobbyCount } } )
+		</Button>
 	    }
 	    else if ( IsMultiplayerGame )
         {
-			<Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>@LobbyCount Lobbies</Button>
+			<Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>
+				@MenuHelpers.Localize( "actionbar", "lobbies", new() { { "lobbycount", LobbyCount } } )
+			</Button>
         }
 
     </div>
@@ -32,7 +36,7 @@
             {
                 @if (MapPackage is null)
                 {
-                    <Button icon="map" onclick=@SelectMap>Select Map</Button>
+                    <Button icon="map" onclick=@SelectMap>#actionbar.select_map</Button>
                 }
                 else
                 {
@@ -42,37 +46,37 @@
 
             @if ( Package.Info.IsStreamerGame )
             {
-                var text = Streamer.IsActive ? $"{Streamer.ViewerCount} Viewers" : "Stream Setup";
+                var text = Streamer.IsActive ? MenuHelpers.Localize( "actionbar", "stream_viewers", new() { { "count", Streamer.ViewerCount } } ) : MenuHelpers.Localize( "actionbar", "stream_setup" );
 
                 <Button Active=@Streamer.IsActive Text="@text" Icon="settings_input_antenna" class="streaming" @onclick="@(() => Game.Overlay.ShowServiceConnector())"></Button>
             }
 
             @if (IsVrOnly && !Application.IsVR)
             {
-                <Button icon="panorama_photosphere" class="play disabled">VR Only</Button>
+                <Button icon="panorama_photosphere" class="play disabled">#actionbar.vr_only</Button>
             }
             else
             {
 	            @if ( IsDedicatedServerOnly )
 	            {
-					<Button icon="auto_awesome" class="play" Disabled=@(!MenuHelpers.HasAuthority) onclick=@ShowServerList>View Servers</Button>
+					<Button icon="auto_awesome" class="play" Disabled=@(!MenuHelpers.HasAuthority) onclick=@ShowServerList>#actionbar.view_servers</Button>
 	            }
 	            else
 	            {
-		            var text = ((!IsMultiplayerGame || IsQuickPlayGame) ? "Play Game" : "New Game");
+		            var text = ((!IsMultiplayerGame || IsQuickPlayGame) ? "#actionbar.play_game" : "#actionbar.new_game");
 
                     <Button Icon="play_arrow" class="play" Text=@text Disabled=@(!MenuHelpers.HasAuthority || !IsReady()) onclick=@OnPlay />
 
 		            @if (IsMultiplayerGame && !IsQuickPlayGame)
 		            {
-                        <Button icon="auto_awesome" class="play" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OnJoinGame Text="Join Game"></Button>
+                        <Button icon="auto_awesome" class="play" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OnJoinGame Text="#actionbar.join_game"></Button>
 		            }
 	            }
             }
         }
         else
         {
-            <Button Icon="play_arrow" class="play disabled">Play Game</Button>
+            <Button Icon="play_arrow" class="play disabled">#actionbar.play_game</Button>
         }
     </div>
 
@@ -116,15 +120,15 @@
     async Task<bool> OnJoinGame()
     {
         LoadingScreen.IsVisible = true;
-        LoadingScreen.Title = "Finding Game..";
-        LoadingScreen.Subtitle = "Please wait while we find a game for you to join.";
+        LoadingScreen.Title = "#actionbar.loadingscreen.title";
+        LoadingScreen.Subtitle = "#actionbar.loadingscreen.subtitle";
 
         bool success = await MenuUtility.TryJoinLobby(Package.FullIdent);
         if (success)
             return true;
             
         LoadingScreen.IsVisible = false;
-        ModalSystem.Instance.Notice( "Join Game Failed", "Couldn't join any available games", "search_off" );
+        ModalSystem.Instance.Notice( "#actionbar.loadingscreen.failed_title", "#actionbar.loadingscreen.failed_tip", "search_off" );
         return false;
     }
 

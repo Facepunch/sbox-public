@@ -16,8 +16,8 @@
 				<div class="column" style="gap: 8px;">
 					<div class="title">@Org.Title</div>
 					<div class="pages" style="gap: 16px;">
-						<HeaderTab class=@(type == "game" ? "active" : "") href="/org/games" onclick=@(() => SetType("game")) title="Games" icon="sports_esports" />
-						<HeaderTab class=@(type == "map" ? "active" : "") href="/org/maps" onclick=@(() => SetType("map")) title="Maps" icon="map" />
+						<HeaderTab class=@(type == "game" ? "active" : "") href="/org/games" onclick=@(() => SetType("game")) title="#organizationmodal.game" icon="sports_esports" />
+						<HeaderTab class=@(type == "map" ? "active" : "") href="/org/maps" onclick=@(() => SetType("map")) title="#organizationmodal.map" icon="map" />
 					</div>
 				</div>
 			</div>
@@ -27,7 +27,7 @@
 					<i>search</i>
 
                     @{
-                        var placeholderText = $"Search {type}s";
+                        var placeholderText = MenuHelpers.Localize( "organizationmodal", "placeholder", new() { { "type", MenuHelpers.Localize( "organizationmodal", type ) } } );
                         <TextEntry @ref="SearchEntry" Placeholder="@placeholderText" />
                     }
 				</div>

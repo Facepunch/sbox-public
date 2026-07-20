@@ -24,7 +24,7 @@
             }
             else
             {
-                <h3>Main Menu</h3>
+                <h3>#friend.main_menu</h3>
             }
         }
         else
@@ -40,7 +40,7 @@
         <row class="clicky" @onclick=@TryAddFriend>
             <cell><i>person_add</i></cell>
             <column>
-                <cell class="text-title">Send Friend Request</cell>
+                <cell class="text-title">#friend.friend_request</cell>
             </column>
         </row>
     }
@@ -48,21 +48,21 @@
     <row class="clicky" @onclick=@ShowProfile>
         <cell><i>person</i></cell>
         <column>
-            <cell class="text-title">Profile</cell>
+            <cell class="text-title">#friend.profile</cell>
         </column>
     </row>
 
     <row class="clicky" @onclick=@ShowAchievements>
         <cell><i>military_tech</i></cell>
         <column>
-            <cell class="text-title">Achievements</cell>
+            <cell class="text-title">#friend.achievements</cell>
         </column>
     </row>
 
     <row class="clicky" @onclick=@ShowProfile>
         <cell><i>launch</i></cell>
         <column>
-            <cell class="text-title">Steam Profile</cell>
+            <cell class="text-title">#friend.steam_profile</cell>
         </column>
     </row>
 
@@ -73,7 +73,7 @@
             <row class="clicky join" @onclick=@Join>
                 <cell><i>sports_esports</i></cell>
                 <column>
-                    <cell class="text-title">Join Game</cell>
+                    <cell class="text-title">#friend.join_game</cell>
                 </column>
             </row>
         }
@@ -84,7 +84,7 @@
         <row class="clicky" @onclick=@InviteToGame>
             <cell><i>group_add</i></cell>
             <column>
-                <cell class="text-title">Invite to Game</cell>
+                <cell class="text-title">#friend.invite_game</cell>
             </column>
         </row>
     }    
@@ -94,7 +94,7 @@
         <row class="clicky is-party" @onclick=@InviteToParty>
             <cell><i>group_add</i></cell>
             <column>
-                <cell class="text-title">Invite to Party</cell>
+                <cell class="text-title">#friend.invite_party</cell>
             </column>
         </row>
     }
@@ -104,7 +104,7 @@
         <row class="clicky is-party" @onclick=@MakePartyOwner>
             <cell><i>shield</i></cell>
             <column>
-                <cell class="text-title">Make Party Owner</cell>
+                <cell class="text-title">#friend.make_owner</cell>
             </column>
         </row>
 	}
@@ -114,7 +114,7 @@
 		<row class="clicky is-party" @onclick=@Kick>
 			<cell><i>sports_martial_arts</i></cell>
 			<column>
-				<cell class="text-title">Kick</cell>
+				<cell class="text-title">#friend.kick</cell>
 			</column>
 		</row>
 	}
@@ -124,7 +124,7 @@
         <row class="clicky is-party" @onclick=@LeaveToParty>
             <cell><i>exit_to_app</i></cell>
             <column>
-                <cell class="text-title">Leave Party</cell>
+                <cell class="text-title">#friend.leave_party</cell>
             </column>
         </row>
     }
@@ -181,11 +181,11 @@
     string StateText()
     {
         var friend = Friend;
-        if (friend.IsMe) return "Reading this text";
-        if (friend.IsPlayingThisGame) return "Playing s&box";
-        if (friend.IsAway || friend.IsBusy || friend.IsSnoozing) return "Is AFK";
-        if (!friend.IsOnline) return "Is Offline";
-        return "Is Online";
+        if (friend.IsMe) return "#friend.reading_text";
+        if (friend.IsPlayingThisGame) return "#friend.playing_sbox";
+        if (friend.IsAway || friend.IsBusy || friend.IsSnoozing) return "#friend.is_afk";
+        if (!friend.IsOnline) return "#friend.is_offline";
+        return "#friend.is_online";
     }
 
     void ShowProfile()

@@ -8,69 +8,53 @@
 
     <div class="page-content">
 
-        <h2>Audio Devices</h2>
+        <h2>#settings.sound.audio_devices</h2>
 
         <row class="with-gaps">
-            <cell class="glass with-padding is-label">
-                Audio Output
-            </cell>
+            <cell class="glass with-padding is-label">#settings.sound.audio_output</cell>
             <DropDown class="glass with-grow" Value:bind=@AudioDevice BuildOptions=@GetAudioDevices></DropDown>
         </row>
 
-        <h2>Volume</h2>
+        <h2>#settings.sound.volume</h2>
 
         <row class="with-gaps">
-            <cell class="glass with-padding is-label">
-                Master
-            </cell>
+            <cell class="glass with-padding is-label">#settings.sound.master</cell>
             <SliderControl Value:bind=@GlobalVolume class="glass with-grow" Min="@(0)" Max="@(1)" Step="@(0.01f)" NumberFormat="0.##%"></SliderControl>
         </row>
 
         <row class="with-gaps">
-            <cell class="glass with-padding is-label">
-                Music
-            </cell>
+            <cell class="glass with-padding is-label">#settings.sound.music</cell>
             <SliderControl Value:bind=@MusicVolume class="glass with-grow" Min="@(0)" Max="@(1)" Step="@(0.01f)" NumberFormat="0.##%"></SliderControl>
         </row>
 
         <row class="with-gaps">
-            <cell class="glass with-padding is-label">
-                Voice
-            </cell>
+            <cell class="glass with-padding is-label">#settings.sound.voice</cell>
             <SliderControl Value:bind=@VoiceVolume class="glass with-grow" Min="@(0)" Max="@(1)" Step="@(0.01f)" NumberFormat="0.##%"></SliderControl>
         </row>
 
-        <h2>Voice Input</h2>
+        <h2>#settings.sound.voice_input</h2>
 
         <row class="with-gaps">
-            <cell class="glass with-padding is-label">
-                Voice Mode
-            </cell>
+            <cell class="glass with-padding is-label">#settings.sound.voice_mode</cell>
             <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@VoiceModeOptions Value:bind=@SelectedVoiceMode></ButtonGroup>
         </row>
 
-        <h2>Simulation</h2>
+        <h2>#settings.sound.simulation</h2>
 
         <row class="with-gaps">
-            <cell class="glass with-padding is-label">
-                Acoustic Simulation
-            </cell>
+            <cell class="glass with-padding is-label">#settings.sound.acoustic_simulation</cell>
             <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@OffOnOptions Value:bind=@AcousticSimulation></ButtonGroup>
         </row>
 
-        <h2>Misc</h2>
+        <h2>#settings.sound.Misc</h2>
 
         <row class="with-gaps">
-            <cell class="glass with-padding is-label">
-                Background Audio
-            </cell>
+            <cell class="glass with-padding is-label">#settings.sound.background_audio</cell>
             <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@OffOnOptions Value:bind=@BackgroundAudio></ButtonGroup>
         </row>
 
         <row class="with-gaps">
-            <cell class="glass with-padding is-label">
-                Subtitles
-            </cell>
+            <cell class="glass with-padding is-label">#settings.sound.subtitles</cell>
             <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@OffOnOptions Value:bind=@Subtitles></ButtonGroup>
         </row>
 
@@ -105,15 +89,15 @@
 
 	List<Option> VoiceModeOptions = new List<Option>()
     {
-        new Option("Push-to-Talk", VoiceMode.PushToTalk),
-        new Option("Open Microphone", VoiceMode.OpenMicrophone),
-        new Option("Disabled", VoiceMode.Disabled),
+        new Option("#settings.sound.push_to_talk", VoiceMode.PushToTalk),
+        new Option("#settings.sound.open_microphone", VoiceMode.OpenMicrophone),
+        new Option("#settings.sound.disabled", VoiceMode.Disabled),
     };
 
 	List<Option> OffOnOptions = new List<Option>()
     {
-        new Option("Off", false),
-        new Option("On", true),
+        new Option("#settings.off", false),
+        new Option("#settings.on", true),
     };
 
     List<Option> GetAudioDevices()

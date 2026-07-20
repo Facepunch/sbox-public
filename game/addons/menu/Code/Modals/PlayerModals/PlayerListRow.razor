@@ -80,7 +80,7 @@
 		// Options
 		//
 
-		menu.AddOption("View Profile", () => friend.OpenInOverlay());
+		menu.AddOption("#playerlistrow.view_profile", () => friend.OpenInOverlay());
 
 		//
 		// Anything below is for non-local players
@@ -93,7 +93,7 @@
 
 		if (!friend.IsFriend)
 		{
-			menu.AddOption("Send Friend Request", () => friend.OpenAddFriendOverlay());
+			menu.AddOption("#playerlistrow.send_friend_request", () => friend.OpenAddFriendOverlay());
 		}
 
 		//
@@ -105,7 +105,7 @@
 			return;
 		}
 
-		menu.AddOption("Kick", "", () => User.Kick("Kicked"));
+		menu.AddOption("#playerlistrow.kick", "", () => User.Kick("Kicked"));
 	}
 
 	protected override void OnClick(MousePanelEvent e)

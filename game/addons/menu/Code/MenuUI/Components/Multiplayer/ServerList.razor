@@ -14,7 +14,7 @@
     {
         @if ( gameGroups.Count == 0 )
         {
-            <div class="notice">Sorry - no servers were found 😔</div>
+            <div class="notice">#serverlist.empty</div>
         }
         else
         {
@@ -55,11 +55,11 @@
         else
         {
             <div class="header row">
-                <h2 class="title" onclick="@(() => SetSort( "name" ))">Name</h2>
-                <h2 class="map" onclick="@(() => SetSort( "map" ))">Map</h2>
-                <h2 class="members" onclick="@(() => SetSort( "members" ))">Players</h2>
+                <h2 class="title" onclick="@(() => SetSort( "name" ))">#serverlist.name</h2>
+                <h2 class="map" onclick="@(() => SetSort( "map" ))">#serverlist.map</h2>
+                <h2 class="members" onclick="@(() => SetSort( "members" ))">#serverlist.players</h2>
                 <h2 class="ping-icon" />
-                <h2 class="ping-value" onclick="@(() => SetSort("ping"))">Ping</h2>
+                <h2 class="ping-value" onclick="@(() => SetSort("ping"))">#serverlist.ping</h2>
             </div>
             <VirtualList Items=@GetServerData() ItemHeight=@(48)>
                 <Item Context="item">

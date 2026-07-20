@@ -15,7 +15,7 @@
     <Page>
 
         <Left>
-	        <TextEntry Icon="search" @ref="SearchEntry" placeholder="Search.." onchange="@OnSearchChanged"></TextEntry>
+	        <TextEntry Icon="search" @ref="SearchEntry" placeholder="#multiplayerpage.placeholder" onchange="@OnSearchChanged"></TextEntry>
 
 	        @if ( GamePackage is not null )
 	        {
@@ -30,17 +30,17 @@
 
             <row>
                 <icon class="eyebrow">filter_altt</icon>
-                <Label class="eyebrow">Filters</Label>
+                <Label class="eyebrow">#multiplayerpage.filters</Label>
             </row>
 
 	        <span>
-		        <Button class="is-icon" Active="@(showEmpty)" Text="Show Empty" Icon="no_accounts" onclick=@ToggleShowEmpty />
-		        <Button class="is-icon" Active="@(showFull)" Text="Show Full" Icon="join_full" onclick=@ToggleShowFull />
+		        <Button class="is-icon" Active="@(showEmpty)" Text="#multiplayerpage.show_empty" Icon="no_accounts" onclick=@ToggleShowEmpty />
+		        <Button class="is-icon" Active="@(showFull)" Text="#multiplayerpage.show_full" Icon="join_full" onclick=@ToggleShowFull />
 	        </span>
 
             <div class="grow" />
 
-            <Button Icon="cached" onclick="@(() => ServerList.RefreshLobbies())">Refresh</Button>
+            <Button Icon="cached" onclick="@(() => ServerList.RefreshLobbies())">#multiplayerpage.refresh</Button>
         </Left>
 
         <Body>

@@ -21,7 +21,7 @@
 				}
 				@if ( entry.Channel == "party" && ShowChannelLabel )
 				{
-					<span class="channel-label">PARTY</span>
+					<span class="channel-label">#chat.channel_party</span>
 				}
 				<span class="text">@entry.Message</span>
 			</div>
@@ -33,9 +33,9 @@
 		{
 			@if ( !string.IsNullOrEmpty( InputPrefix ) )
 			{
-				<span class="channel-label">@InputPrefix</span>
+				<span class="channel-label">@MenuHelpers.Localize( "chat", "channel_" + InputPrefix )</span>
 			}
-			<TextEntry @ref="InputBox" MaxLength="@(Sandbox.Platform.Chat.MaxMessageLength)" Placeholder="Type a message..." onsubmit="@OnInputSubmit" />
+			<TextEntry @ref="InputBox" MaxLength="@(Sandbox.Platform.Chat.MaxMessageLength)" Placeholder=@MenuHelpers.Localize( "chat", "placeholder" ) onsubmit="@OnInputSubmit" />
 		}
 	</div>
 
@@ -197,7 +197,7 @@
 			}
 
 			EntryMenu = new Popup( this, Popup.PositionMode.UnderMouse, 0 );
-			EntryMenu.AddOption( "View Profile", () => friend.OpenInOverlay() );
+			EntryMenu.AddOption( MenuHelpers.Localize( "chat", "view_profile" ), () => friend.OpenInOverlay() );
 			return;
 		}
 

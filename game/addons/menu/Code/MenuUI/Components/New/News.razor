@@ -7,7 +7,7 @@
 <root>
     <Card class="news" style="@( $"background-image: url({NewsImage})" )" onclick=@(OpenNewsUrl)>
         <ChildContent>
-            <label class="eyebrow">Latest Update</label>
+            <label class="eyebrow">#news.eyebrow</label>
 
             <label class="large">
                 @NewsTitle
@@ -21,9 +21,9 @@
 </root>
 
 @code {
-    public string NewsTitle { get; set; } = "Loading...";
-    public string NewsDescription { get; set; } = "Loading...";
-    public string NewsDate { get; set; } = "Loading...";
+    public string NewsTitle { get; set; } = "#news.loading";
+    public string NewsDescription { get; set; } = "#news.loading";
+    public string NewsDate { get; set; } = "#news.loading";
     public string NewsUrl { get; set; } = "#";
 
     public string NewsImage { get; set; } = "/ui/placeholder.png";

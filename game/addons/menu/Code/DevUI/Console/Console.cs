@@ -61,7 +61,7 @@ public class Console : Panel
 			Filter = toolbar.AddChild<TextEntry>();
 			Filter.AddClass( "filter" );
 			Filter.AddEventListener( "onchange", OnFilter );
-			Filter.Placeholder = "Filter..";
+			Filter.Placeholder = "#console.filter_placeholder";
 
 			Error.Button = toolbar.AddChild( new Button( "0", null, "type err", null ) );
 			Error.Button.AddEventListener( "onclick", () => { Error.Toggle(); OnFilter(); } );
@@ -72,8 +72,8 @@ public class Console : Panel
 			Message.Button = toolbar.AddChild( new Button( "0", null, "type msg", null ) );
 			Message.Button.AddEventListener( "onclick", () => { Message.Toggle(); OnFilter(); } );
 
-			toolbar.AddChild( new Button( "logs", "folder", () => OpenLogsFolder() ) );
-			var clear = toolbar.AddChild( new Button( "clear", "clear", () => OnClear() ) );
+			toolbar.AddChild( new Button( "#console.logs", "folder", () => OpenLogsFolder() ) );
+			var clear = toolbar.AddChild( new Button( "#console.clear", "clear", () => OnClear() ) );
 			ScrollConsole = toolbar.AddChild( new Button( null, "last_page", () => Output?.TryScrollToBottom() ) );
 		}
 

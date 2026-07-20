@@ -9,16 +9,14 @@
 
     <div class="page-content">
 
-        <h2>Console</h2>
+        <h2>#settings.developer.console</h2>
 
         <row class="with-gaps">
-            <cell class="glass with-padding is-label">
-                Console Overlay
-            </cell>
+            <cell class="glass with-padding is-label">#settings.developer.console_overlay</cell>
             <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@ConsoleOverlayOptions Value:bind=@ShowConsoleOverlay></ButtonGroup>
         </row>
 
-        <h2>Benchmark</h2>
+        <h2>#settings.developer.benchmark</h2>
 
         <row class="with-gaps">
             <cell class="glass with-padding is-label">facepunch.benchmark</cell>
@@ -31,7 +29,7 @@
         </row>
 
         <row class="with-gaps">
-            <Button class="clicky primary with-grow" onclick=@OnRunBenchmarks disabled=@BenchmarkRunning>Run Benchmarks</Button>
+            <Button class="clicky primary with-grow" onclick=@OnRunBenchmarks disabled=@BenchmarkRunning>#settings.developer.run_benchmarks</Button>
         </row>
 
     </div>
@@ -48,11 +46,11 @@
 
     List<Option> ConsoleOverlayOptions = new List<Option>()
     {
-        new Option("Off", false),
-        new Option("On", true),
+        new Option("#settings.off", false),
+        new Option("#settings.on", true),
     };
 
-    List<Option> YesNo = [new Option( "Off", false ), new Option( "On", true )];
+    List<Option> YesNo = [new Option( "#settings.off", false ), new Option( "#settings.on", true )];
 
     bool ShowConsoleOverlay = false;
     bool RunMain = true;

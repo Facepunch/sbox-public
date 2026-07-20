@@ -21,7 +21,7 @@
                     {
                         <div class="info">
                             <h2>@Game.Ident</h2>
-                            <h3>Unpublished Game -- no info to show</h3>
+                            <h3>#pausemodal.no_info</h3>
                         </div>
                     }
                </div>
@@ -38,34 +38,34 @@
         <div class="bottom-bar">
 
             <div class="left">
-                <Button class="exit" Tooltip="Return to s&box main menu" Icon="west" @onclick="@(() => Game.Close())" Text="Leave"></Button>
+                <Button class="exit" Tooltip="#tooltip.pausemodal.return_main" Icon="west" @onclick="@(() => Game.Close())" Text="#pausemodal.leave"></Button>
             </div>
 
             <div class="center">
 
                 @if (CanChangeMap)
                 {
-                    <Button class="circle" Tooltip="Change Map" Icon="map" onclick=@ChangeMap></Button>
+                    <Button class="circle" Tooltip="#tooltip.pausemodal.change_map" Icon="map" onclick=@ChangeMap></Button>
                 }
 
                 @if (Networking.IsActive && (game?.Info.ShowsPlayerList ?? true))
                 {
-                    <Button class="circle" Icon="groups" Tooltip="Player List" @onclick="@(() => Game.Overlay.ShowPlayerList())"></Button>
+                    <Button class="circle" Icon="groups" Tooltip="#tooltip.pausemodal.player_list" @onclick="@(() => Game.Overlay.ShowPlayerList())"></Button>
                 }
 
-                <Button class="circle" Tooltip="Reconfigure Controls" Icon="gamepad" @onclick="@(() => Game.Overlay.ShowBinds())"></Button>
-				<Sandbox.UI.Mounts.MountButton class="circle" Tooltip="Mounted Games" PositionMode=@Popup.PositionMode.AboveCenter />
-				<Button class="circle" Tooltip="Open Settings" Icon="settings" @onclick="@(() => Game.Overlay.ShowSettingsModal())"></Button>
+                <Button class="circle" Tooltip="#tooltip.pausemodal.reconfigure_controls" Icon="gamepad" @onclick="@(() => Game.Overlay.ShowBinds())"></Button>
+				<Sandbox.UI.Mounts.MountButton class="circle" Tooltip="#tooltip.pausemodal.mounted_games" PositionMode=@Popup.PositionMode.AboveCenter />
+				<Button class="circle" Tooltip="#tooltip.pausemodal.open_settings" Icon="settings" @onclick="@(() => Game.Overlay.ShowSettingsModal())"></Button>
 
                 @if ( (game?.Info.IsStreamerGame ?? false) )
                 {
-                    <Button class="circle" Active=@Streamer.IsActive Tooltip="Stream Connection" Icon="settings_input_antenna" @onclick="@(() => Game.Overlay.ShowServiceConnector())"></Button>
+                    <Button class="circle" Active=@Streamer.IsActive Tooltip="#tooltip.pausemodal.stream_connection" Icon="settings_input_antenna" @onclick="@(() => Game.Overlay.ShowServiceConnector())"></Button>
                 }
 
             </div>
 
             <div class="right">
-                <Button class="resume" Icon="play_arrow" @onclick="@(() => this.Delete())" Text="Resume"></Button>
+                <Button class="resume" Icon="play_arrow" @onclick="@(() => this.Delete())" Text="#pausemodal.resume"></Button>
             </div>
 
         </div>
