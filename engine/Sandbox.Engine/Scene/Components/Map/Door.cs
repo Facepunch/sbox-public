@@ -53,6 +53,8 @@ public sealed class Door : Component, Component.IPressable
 
 	/// <summary>
 	/// Optional pivot point, origin will be used if not specified.
+	/// The pivot's rotation defines the hinge axis - the door rotates around the pivot's up axis.
+	/// Orient the pivot so its up axis points sideways to make a trapdoor.
 	/// </summary>
 	[Property, ShowIf( "Mode", DoorMode.Rotating )] public GameObject Pivot { get; set; }
 
@@ -109,8 +111,15 @@ public sealed class Door : Component, Component.IPressable
 
 	Transform _startTransform;
 	Vector3 _pivotPosition;
+	Rotation _pivotRotation;
 	bool _reverseDirection;
 	GameObject _lastPresser;
+
+	/// <summary>
+	/// Builds the rotation applied to the door when opened by <paramref name="angle"/> degrees,
+	/// hinging around the pivot's up axis (defaults to world up when no pivot is set).
+	/// </summary>
+	Rotation GetOpenRotation( float angle ) => Rotation.FromAxis( _pivotRotation.Up, angle );
 
 	/// <summary>
 	/// Is this door locked?
@@ -166,6 +175,7 @@ public sealed class Door : Component, Component.IPressable
 	{
 		_startTransform = Transform.Local;
 		_pivotPosition = Pivot is not null ? Pivot.WorldPosition : _startTransform.Position;
+		_pivotRotation = Pivot is not null ? Pivot.WorldRotation : Rotation.Identity;
 
 		if ( StartOpen )
 		{
@@ -175,7 +185,7 @@ public sealed class Door : Component, Component.IPressable
 			}
 			else
 			{
-				Transform.Local = _startTransform.RotateAround( _pivotPosition, Rotation.FromYaw( TargetAngle ) );
+				Transform.Local = _startTransform.RotateAround( _pivotPosition, GetOpenRotation( TargetAngle ) );
 			}
 
 			_state = DoorState.Open;
@@ -249,7 +259,8 @@ public sealed class Door : Component, Component.IPressable
 	void DrawAt( float f )
 	{
 		var pivotWorld = Pivot is not null ? Pivot.WorldPosition : WorldTransform.Position;
-		Gizmo.Transform = WorldTransform.RotateAround( pivotWorld, Rotation.FromYaw( TargetAngle * f ) );
+		var pivotAxis = (Pivot is not null ? Pivot.WorldRotation : Rotation.Identity).Up;
+		Gizmo.Transform = WorldTransform.RotateAround( pivotWorld, Rotation.FromAxis( pivotAxis, TargetAngle * f ) );
 
 		var bbox = GameObject.GetLocalBounds();
 
@@ -399,7 +410,7 @@ public sealed class Door : Component, Component.IPressable
 		var targetAngle = TargetAngle;
 		if ( _reverseDirection ) targetAngle *= -1.0f;
 
-		Transform.Local = _startTransform.RotateAround( _pivotPosition, Rotation.FromYaw( curve * targetAngle ) );
+		Transform.Local = _startTransform.RotateAround( _pivotPosition, GetOpenRotation( curve * targetAngle ) );
 
 		if ( time < 1f ) return;
 
