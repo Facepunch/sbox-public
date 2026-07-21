@@ -1,4 +1,4 @@
-﻿using Refit;
+using Refit;
 using Sandbox.Internal;
 using Sandbox.Protobuf;
 using System.Collections.Concurrent;
@@ -11,6 +11,7 @@ public partial class Package
 {
 	static ConcurrentDictionary<string, Package> Packages = new( StringComparer.OrdinalIgnoreCase );
 	static ConcurrentDictionary<string, Package> PartialPackages = new( StringComparer.OrdinalIgnoreCase );
+	static ConcurrentDictionary<string, DateTime> LastFetchTimes = new( StringComparer.OrdinalIgnoreCase );
 
 	static Package()
 	{
@@ -21,6 +22,7 @@ public partial class Package
 	{
 		Packages.Clear();
 		PartialPackages.Clear();
+		LastFetchTimes.Clear();
 	}
 
 	/// <summary>
@@ -30,6 +32,7 @@ public partial class Package
 	{
 		Packages.Remove( packageIdent, out _ );
 		PartialPackages.Remove( packageIdent, out _ );
+		LastFetchTimes.Remove( packageIdent, out _ );
 	}
 
 	/// <summary>
@@ -148,7 +151,19 @@ public partial class Package
 		Package package = default;
 
 		if ( useCache && TryGetCached( identString, out package, partial ) )
+		{
+			if ( package.IsRemote && ident.version == null )
+			{
+				var fullIdent = FormatIdent( ident.org, ident.package );
+				if ( !LastFetchTimes.TryGetValue( fullIdent, out var lastFetch ) || (DateTime.UtcNow - lastFetch).TotalSeconds > 5 )
+				{
+					var latest = await FetchAsync( identString, partial, useCache: false );
+					if ( latest != null )
+						return latest;
+				}
+			}
 			return package;
+		}
 
 		// GetCached should have returned the local mock package
 		if ( ident.local || string.Compare( "local", ident.org, StringComparison.OrdinalIgnoreCase ) == 0 )
@@ -168,6 +183,12 @@ public partial class Package
 			if ( ident.version is not null ) packageIdent += $"#{ident.version}";
 			var result = await Backend.Package.Get( packageIdent );
 			if ( result is null ) return null;
+
+			if ( !ident.local && ident.version == null )
+			{
+				var fullIdent = FormatIdent( ident.org, ident.package );
+				LastFetchTimes[fullIdent] = DateTime.UtcNow;
+			}
 
 
 			if ( package is not RemotePackage )

@@ -1,4 +1,4 @@
-﻿namespace Sandbox;
+namespace Sandbox;
 
 public partial class Package
 {
@@ -11,7 +11,14 @@ public partial class Package
 
 		// fully good
 		if ( download != null && download.IsMounted )
+		{
+			if ( IsRemote && download.activePackage != null && Revision != null )
+			{
+				if ( download.activePackage.Package.Revision?.VersionId != Revision.VersionId )
+					return false;
+			}
 			return true;
+		}
 
 		// fully in progress
 		if ( download != null && download.IsDownloading )

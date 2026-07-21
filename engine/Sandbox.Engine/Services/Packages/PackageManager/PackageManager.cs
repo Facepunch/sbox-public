@@ -1,4 +1,4 @@
-﻿using Sandbox.Menu;
+using Sandbox.Menu;
 using System.IO;
 using System.Threading;
 
@@ -63,6 +63,52 @@ internal static partial class PackageManager
 		// If this package exists then mark it with our tag and move on
 		//
 		var existingPackage = Find( options.PackageIdent, options.AllowLocalPackages );
+		if ( existingPackage != null )
+		{
+			if ( existingPackage.Package.IsRemote && Package.TryParseIdent( options.PackageIdent, out var parsedIdent ) )
+			{
+				if ( parsedIdent.version != null )
+				{
+					if ( parsedIdent.version != existingPackage.Package.Revision?.VersionId )
+					{
+						log.Info( $"Replacing mounted package {options.PackageIdent} (mounted version: {existingPackage.Package.Revision?.VersionId}, requested version: {parsedIdent.version})" );
+						
+						existingPackage.Delete();
+						ActivePackages.Remove( existingPackage );
+						ServerPackages.Remove( options.PackageIdent );
+						
+						int? currentVersion = existingPackage.Package.Revision != null ? (int)existingPackage.Package.Revision.VersionId : null;
+						var oldVersionIdent = Package.FormatIdent( existingPackage.Package.Org.Ident, existingPackage.Package.Ident, currentVersion );
+						ServerPackages.Remove( oldVersionIdent );
+						
+						existingPackage = null;
+					}
+				}
+				else
+				{
+					// If no specific version was requested, check the server for updates
+					var latestPackage = await Package.FetchAsync( options.PackageIdent, false, useCache: false );
+					if ( latestPackage != null && latestPackage.Revision != null && existingPackage.Package.Revision != null )
+					{
+						if ( latestPackage.Revision.VersionId > existingPackage.Package.Revision.VersionId )
+						{
+							log.Info( $"Replacing mounted package {options.PackageIdent} with newer version (mounted version: {existingPackage.Package.Revision.VersionId}, latest version: {latestPackage.Revision.VersionId})" );
+							
+							existingPackage.Delete();
+							ActivePackages.Remove( existingPackage );
+							ServerPackages.Remove( options.PackageIdent );
+							
+							int? currentVersion = existingPackage.Package.Revision != null ? (int)existingPackage.Package.Revision.VersionId : null;
+							var oldVersionIdent = Package.FormatIdent( existingPackage.Package.Org.Ident, existingPackage.Package.Ident, currentVersion );
+							ServerPackages.Remove( oldVersionIdent );
+							
+							existingPackage = null;
+						}
+					}
+				}
+			}
+		}
+
 		if ( existingPackage != null )
 		{
 			existingPackage.AddContextTag( options.ContextTag );
