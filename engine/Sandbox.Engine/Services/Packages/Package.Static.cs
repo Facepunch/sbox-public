@@ -152,7 +152,7 @@ public partial class Package
 
 		if ( useCache && TryGetCached( identString, out package, partial ) )
 		{
-			if ( package.IsRemote && ident.version == null )
+			if ( package != null && package.IsRemote && ident.version == null )
 			{
 				var fullIdent = FormatIdent( ident.org, ident.package );
 				if ( !LastFetchTimes.TryGetValue( fullIdent, out var lastFetch ) || (DateTime.UtcNow - lastFetch).TotalSeconds > 5 )

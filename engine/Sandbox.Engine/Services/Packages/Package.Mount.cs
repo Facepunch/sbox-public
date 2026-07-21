@@ -12,7 +12,7 @@ public partial class Package
 		// fully good
 		if ( download != null && download.IsMounted )
 		{
-			if ( IsRemote && download.activePackage != null && Revision != null )
+			if ( IsRemote && download.activePackage != null && download.activePackage.Package != null && Revision != null )
 			{
 				if ( download.activePackage.Package.Revision?.VersionId != Revision.VersionId )
 					return false;

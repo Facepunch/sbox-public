@@ -65,7 +65,7 @@ internal static partial class PackageManager
 		var existingPackage = Find( options.PackageIdent, options.AllowLocalPackages );
 		if ( existingPackage != null )
 		{
-			if ( existingPackage.Package.IsRemote && Package.TryParseIdent( options.PackageIdent, out var parsedIdent ) )
+			if ( existingPackage.Package != null && existingPackage.Package.IsRemote && Package.TryParseIdent( options.PackageIdent, out var parsedIdent ) )
 			{
 				if ( parsedIdent.version != null )
 				{
