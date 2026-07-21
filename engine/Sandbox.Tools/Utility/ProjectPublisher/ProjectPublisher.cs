@@ -36,6 +36,11 @@ public partial class ProjectPublisher
 
 		var fakeProject = asset.Publishing.CreateTemporaryProject();
 
+		if ( asset.Publishing.BuildPublishContext().IncludeCode )
+		{
+			fakeProject.RootDirectory = Project.Current?.RootDirectory;
+		}
+
 		var p = new ProjectPublisher( fakeProject );
 		// p.Manifest.IncludeSourceFiles = asset.Publishing.ProjectConfig.IncludeSourceFiles;
 		p.Manifest.IncludeSourceFiles = false; // tony: Disabled this until we implement it in a better way

@@ -132,6 +132,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 	public bool StartAsleep { get; set; }
 
 	[Property] public Action OnPropBreak { get; set; }
+	[Property] public Action<List<Gib>> OnGibsCreated { get; set; }
 	[Property] public Action<DamageInfo> OnPropTakeDamage { get; set; }
 
 	[Property, Hide]
@@ -528,7 +529,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		if ( Model is null )
 			return gibs;
 
-		var spawnServerGibs = !Network.IsProxy;
+		var spawnServerGibs = Networking.IsHost;
 		var spawnClientGibs = !Application.IsDedicatedServer;
 
 		var breaklist = Model.GetData<ModelBreakPiece[]>();
@@ -582,7 +583,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 				{
 					gib.Tags.Add( "debris", "clientside" ); // no physics interactions
 				}
-				else if ( !IsProxy )
+				else if ( Networking.IsHost )
 				{
 					// Spawn on the network
 					gib.NetworkSpawn( true, null );
@@ -628,6 +629,8 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 				gib.Ignite();
 			}
 		}
+
+		OnGibsCreated?.Invoke( gibs );
 
 		return gibs;
 	}

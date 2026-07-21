@@ -52,7 +52,7 @@ public class ProjectConfig
 	[Display( GroupName = "Setup", Order = -100, Name = "Package Ident", Description = "The ident of this addon. A short name with no special characters." )]
 	[MaxLength( 64 )]
 	[MinLength( 2 )]
-	[RegularExpression( @"^[a-z0-9_\-]+$", ErrorMessage = "Lower case letters and underscores, no spaces or other special characters" )]
+	[RegularExpression( @"^[a-z0-9_\-]+$", ErrorMessage = "Lower case letters, numbers, dashes and underscores, no spaces or other special characters" )]
 	public string Ident { get; set; }
 
 	/// <summary>

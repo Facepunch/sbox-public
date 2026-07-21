@@ -319,9 +319,23 @@ public partial class Asset
 			lp.IsTransient = true;
 			lp.OnSaveProject = () => asset.Publishing.Save();
 			lp.Config = asset.Publishing.ProjectConfig;
-			lp.RootDirectory = Project.Current?.RootDirectory;
 
 			return lp;
+		}
+
+		/// <summary>
+		/// Ask the resource how it wants to be published (eg. whether its code should be bundled).
+		/// </summary>
+		public ResourcePublishContext BuildPublishContext()
+		{
+			var context = new ResourcePublishContext();
+
+			var resource = asset.LoadResource();
+			if ( resource is null )
+				return context;
+
+			resource.ConfigurePublishing( context );
+			return context;
 		}
 	}
 

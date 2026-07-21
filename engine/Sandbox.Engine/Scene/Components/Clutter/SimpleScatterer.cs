@@ -31,23 +31,38 @@ public class SimpleScatterer : Scatterer
 			return [];
 
 		var pointCount = CalculatePointCount( bounds, Density );
-		var instances = new List<ClutterInstance>( pointCount );
+		var points = JitteredGridPoints( bounds, pointCount );
+		var totalPoints = points.Length;
+		var instances = new List<ClutterInstance>( totalPoints );
 
-		for ( int i = 0; i < pointCount; i++ )
+		if ( totalPoints == 0 )
+			return instances;
+
+		var scales = new float[totalPoints];
+		var yaws = new float[totalPoints];
+
+		for ( int i = 0; i < totalPoints; i++ )
 		{
-			var point = new Vector3(
-				bounds.Mins.x + Random.Float( bounds.Size.x ),
-				bounds.Mins.y + Random.Float( bounds.Size.y ),
-				0f
-			);
+			scales[i] = Random.Float( Scale.Min, Scale.Max );
+			yaws[i] = Random.Float( 0f, 360f );
+		}
 
-			var scale = Random.Float( Scale.Min, Scale.Max );
-			var yaw = Random.Float( 0f, 360f );
+		SceneTraceResult[] traces = null;
+		if ( PlaceOnGround )
+		{
+			var sceneBounds = scene.GetBounds();
+			traces = BatchTraceGround( scene, points, sceneBounds );
+		}
+
+		for ( int i = 0; i < totalPoints; i++ )
+		{
+			var point = points[i];
+			var yaw = yaws[i];
 			var rotation = Rotation.FromYaw( yaw );
 
 			if ( PlaceOnGround )
 			{
-				var trace = TraceGround( scene, point );
+				var trace = traces[i];
 				if ( !trace.Hit )
 					continue;
 
@@ -63,7 +78,7 @@ public class SimpleScatterer : Scatterer
 
 			instances.Add( new ClutterInstance
 			{
-				Transform = new Transform( point, rotation, scale ),
+				Transform = new Transform( point, rotation, scales[i] ),
 				Entry = entry
 			} );
 		}

@@ -470,6 +470,18 @@ namespace Editor
 			{
 				OnVisibilityChanged( false );
 			}
+
+			if ( e == Native.EventType.WinIdChange )
+			{
+				OnWinIdChanged();
+			}
+		}
+
+		/// <summary>
+		/// Called when Qt destroys and recreates this widget's native window handle, e.g. on reparenting.
+		/// </summary>
+		internal virtual void OnWinIdChanged()
+		{
 		}
 
 		internal bool InternalFocusNextPrevChild( bool next )

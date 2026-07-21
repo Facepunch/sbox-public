@@ -158,12 +158,16 @@ public partial class ProjectPublisher
 		{
 			Assets.Clear();
 
-			var assetList = new List<Asset>();
-			assetList.Add( singleAsset );
+			var assetList = new List<Asset>
+			{
+				singleAsset
+			};
 
 			await CollectAssets( assetList, cancel );
 
-			if ( project is not null )
+			var includeCode = singleAsset.Publishing.BuildPublishContext().IncludeCode;
+
+			if ( project is not null && includeCode )
 			{
 				foreach ( var path in AllCodePaths( project ) )
 				{

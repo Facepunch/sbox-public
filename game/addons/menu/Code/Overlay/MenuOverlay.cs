@@ -33,6 +33,7 @@ public partial class MenuOverlay : RootPanel
 
 		AddChild<LoadingOverlay>();
 		AddChild<MicOverlay>();
+		AddChild<SubtitleOverlay>();
 		AddChild<ChatOverlay>();
 	}
 

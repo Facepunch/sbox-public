@@ -156,7 +156,7 @@ internal static partial class PackageManager
 		// This is the right way to reference packages. We should move everything else
 		// to use this.
 		//
-		foreach ( var i in package.EnumeratePackageReferences() )
+		foreach ( var i in package.EnumerateInstallDependencies() )
 		{
 			dependancies.Add( i );
 
@@ -251,4 +251,3 @@ internal static partial class PackageManager
 			&& (allowLocalPackages || x.Package is not LocalPackage) );
 	}
 }
-

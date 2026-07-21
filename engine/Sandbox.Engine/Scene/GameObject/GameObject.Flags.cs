@@ -1,6 +1,6 @@
 ﻿namespace Sandbox;
 
-[Flags]
+[Flags, Expose]
 public enum GameObjectFlags
 {
 	None = 0,

@@ -152,12 +152,11 @@
     {
         get
         {
-            //if ( string.IsNullOrEmpty( Game.Server.SteamId ) ) return false;
-            // if ( GameSteamId == Game.Server.SteamId ) return false;
-            // TODO - Server capacity?
-            return false;
+            if (IsMe || InSameGame) return false;
+
+            return !string.IsNullOrWhiteSpace(Me.GetRichPresence("connect"));
         }
-    }   
+    }
 
     public bool IsInParty
     {
@@ -218,7 +217,7 @@
 
     public void InviteToGame()
     {
-        // TODO - Implement
+        MenuUtility.InviteFriendGame(Friend);
         Delete();
     }
 

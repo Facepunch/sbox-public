@@ -71,9 +71,9 @@ public partial class SoundPlayer : Widget
 		Play();
 	}
 
-	public void SetSamples( short[] samples, float duration, string sound )
+	public void SetSamples( short[] samples, float duration, string sound, int channels = 1 )
 	{
-		Timeline.SetSamples( samples, duration, sound );
+		Timeline.SetSamples( samples, duration, sound, channels );
 	}
 
 	protected override void OnPaint()
@@ -252,11 +252,11 @@ public partial class SoundPlayer : Widget
 			return (position / (Width * ZoomLevel)).Clamp( 0, 1 ) * Duration;
 		}
 
-		public void SetSamples( short[] samples, float duration, string sound )
+		public void SetSamples( short[] samples, float duration, string sound, int channels = 1 )
 		{
 			Sound = sound;
 			Duration = duration;
-			WaveForm.SetSamples( samples, duration );
+			WaveForm.SetSamples( samples, duration, channels );
 		}
 
 		public void MoveScrubber( float position, bool centreOn = true )

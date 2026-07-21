@@ -287,6 +287,18 @@ internal static class BlobDataSerializer
 		public byte[] ToByteArray() => GetBlobData( Blobs );
 
 		/// <summary>
+		/// Merge extra serialized blob data into this open context, so separately-captured blobs
+		/// stay readable through one deferred deserialize pass.
+		/// </summary>
+		internal void Load( ReadOnlySpan<byte> data )
+		{
+			if ( data.Length == 0 ) return;
+
+			foreach ( var kvp in ParseFile( data ) )
+				BinaryData[kvp.Key] = kvp.Value;
+		}
+
+		/// <summary>
 		/// Store the captured blob data on a json object, so it travels with it.
 		/// </summary>
 		internal bool SaveTo( JsonNode json )

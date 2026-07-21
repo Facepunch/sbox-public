@@ -251,20 +251,20 @@ internal partial class ShadowMapper
 	}
 
 	/// <summary>
-	/// Computes a per-light bias scale factor based on the shadow frustum's texel size.
-	/// Wider cones and larger ranges produce bigger shadow map texels in world space,
-	/// requiring proportionally more bias to prevent acne. Matches Unity URP's approach
-	/// of scaling bias by <c>frustumSize / resolution</c>.
+	/// Scale for rasterizer depth bias. Uses texel-to-depth ratio (tanθ / res),
+	/// same idea as CSM Width/Far — not world-space texel size.
+	/// Normalized so a 45° half-angle map at BiasScaleReferenceResolution is 1.0.
 	/// </summary>
+
 	static float ComputeBiasScale( float halfAngleDegrees, float range, int resolution )
 	{
-		float frustumSize = MathF.Tan( halfAngleDegrees * MathF.PI / 180f ) * range;
-		float texelSize = frustumSize / resolution;
+		const int BiasScaleReferenceResolution = 1024;
 
-		// Normalize against a reference texel size so that a typical mid-range spotlight
-		// (e.g. 45° half-angle, 200 range, 1024 res) gets a scale of ~1.0.
-		const float ReferenceTexelSize = 0.2f;
-		return MathF.Max( 1f, texelSize / ReferenceTexelSize );
+		// (tanθ / resolution) / (tan45° / referenceRes) — range is unused (cancels for depth-unit bias).
+		// Cap at 1: scaling *up* for low-res/wide cones only detaches shadows (peter-panning).
+		return Math.Min( 1f, MathF.Tan( halfAngleDegrees * MathF.PI / 180f )
+			* BiasScaleReferenceResolution
+			/ Math.Max( resolution, 1 ) );
 	}
 
 	internal static int GetDesiredResolution( float screenSizePercent, int viewportSize )

@@ -131,6 +131,18 @@ public sealed partial class VertexTool( MeshTool tool ) : SelectionTool<MeshVert
 			foreach ( var vertex in Selection.OfType<MeshVertex>() )
 				Gizmo.Draw.Sprite( vertex.PositionWorld, 8, null, false );
 		}
+
+		if ( ShowSelectionBounds )
+			DrawBounds();
+	}
+
+	private void DrawBounds()
+	{
+		using ( Gizmo.Scope( "Vertex Size" ) )
+		{
+			var box = CalculateSelectionBounds();
+			DimensionDisplay.DrawBounds( box );
+		}
 	}
 
 	protected override IEnumerable<MeshVertex> ConvertSelectionToCurrentType()

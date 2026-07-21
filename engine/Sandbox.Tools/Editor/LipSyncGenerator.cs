@@ -1,34 +1,10 @@
 ﻿using NativeEngine;
+using Sandbox;
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using System.Text.Json.Serialization;
 
 namespace Editor;
-
-/// <summary>
-/// A viseme (mouth shape) active over a span of time.
-/// </summary>
-public struct VisemeFrame
-{
-	/// <summary>
-	/// Viseme index, 0-14. See <see cref="LipSyncGenerator.Label"/>.
-	/// </summary>
-	[JsonPropertyName( "viseme" )]
-	public int Viseme { get; set; }
-
-	/// <summary>
-	/// Start time in seconds.
-	/// </summary>
-	[JsonPropertyName( "start" )]
-	public float StartTime { get; set; }
-
-	/// <summary>
-	/// End time in seconds.
-	/// </summary>
-	[JsonPropertyName( "end" )]
-	public float EndTime { get; set; }
-}
 
 /// <summary>
 /// Generates face lipsync visemes from audio.

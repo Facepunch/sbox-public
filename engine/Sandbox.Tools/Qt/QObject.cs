@@ -143,6 +143,11 @@ namespace Editor
 			}
 
 			{
+				Native.CDockWidget ptr = (Native.CDockWidget)obj;
+				if ( ptr.IsValid ) return new DockWidget( ptr );
+			}
+
+			{
 				Native.QWidget ptr = (Native.QWidget)obj;
 				if ( ptr.IsValid ) return new Widget( ptr );
 			}

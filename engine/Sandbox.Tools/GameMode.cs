@@ -23,6 +23,10 @@ public static class GameMode
 	{
 		if ( _inPlay == widget ) return;
 
+		// Blur before registering so SDL's fresh wrapper can't snapshot this widget as its
+		// keyboard focus window - relative mouse mode is driven from the main editor window
+		widget.Blur();
+
 		widget.Focused += WidgetFocused;
 		widget.Blurred += WidgetBlurred;
 		widget.MouseTracking = true;
@@ -37,8 +41,6 @@ public static class GameMode
 
 		_inPlay = widget;
 
-		// Force a full refocus by blurring first
-		widget.Blur();
 		widget.Focus();
 	}
 

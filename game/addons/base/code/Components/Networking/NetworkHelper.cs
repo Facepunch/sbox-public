@@ -43,8 +43,6 @@ public sealed class NetworkHelper : Component, Component.INetworkListener
 	/// </summary>
 	public void OnActive( Connection channel )
 	{
-		Log.Info( $"Player '{channel.Name}' has joined the game" );
-
 		if ( !PlayerPrefab.IsValid() )
 			return;
 

@@ -223,19 +223,6 @@ public sealed class CurveTile : GraphicsItem
 
 		times.Add( timeRange.Start );
 
-		void TryAddTime( MovieTime time )
-		{
-			time += BlockItem.Offset;
-
-			if ( time < timeRange.Start ) return;
-			if ( time > timeRange.End ) return;
-
-			if ( times[^1] < time )
-			{
-				times.Add( time );
-			}
-		}
-
 		var sampleRate = Math.Max( (int)Math.Round( TileWidth / (TimeRange.Duration.TotalSeconds * PixelsPerSample) ), 1 );
 
 		foreach ( var hintRange in BlockItem.GetPaintHints( timeRange ) )
@@ -256,5 +243,19 @@ public sealed class CurveTile : GraphicsItem
 		}
 
 		TryAddTime( timeRange.End );
+		return;
+
+		void TryAddTime( MovieTime time )
+		{
+			time += BlockItem.Offset;
+
+			if ( time < timeRange.Start ) return;
+			if ( time > timeRange.End ) return;
+
+			if ( times[^1] < time )
+			{
+				times.Add( time );
+			}
+		}
 	}
 }

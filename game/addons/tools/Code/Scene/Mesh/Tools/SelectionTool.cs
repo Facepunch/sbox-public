@@ -180,6 +180,14 @@ public abstract class SelectionTool( MeshTool tool ) : EditorTool
 			Selection.Add( element );
 		}
 	}
+
+	protected virtual bool ShowSelectionBoundsDefault => false;
+
+	public bool ShowSelectionBounds
+	{
+		get => EditorCookie.Get( $"mesh.{GetType().Name}.show-selection-bounds", ShowSelectionBoundsDefault );
+		set => EditorCookie.Set( $"mesh.{GetType().Name}.show-selection-bounds", value );
+	}
 }
 
 file class SelectionToolShortcutsWidget( SelectionTool tool ) : Widget
@@ -204,6 +212,8 @@ file class SelectionToolShortcutsWidget( SelectionTool tool ) : Widget
 
 	[Shortcut( "mesh.align-to-closest-normal", "CTRL+KP_3", typeof( SceneViewWidget ) )]
 	public void AlignToClosestNormal() => tool.AlignToClosestNormal();
+	[Shortcut( "mesh.toggle-selection-bounds", "/", typeof( SceneViewWidget ) )]
+	public void ToggleSelectionBounds() => tool.ShowSelectionBounds = !tool.ShowSelectionBounds;
 }
 
 public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) where T : IMeshElement
@@ -920,15 +930,23 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 		var sideFaces = new Dictionary<MeshComponent, HashSet<FaceHandle>>();
 		if ( _transformFaces is not null )
 		{
+			var extrudedFaces = Selection.OfType<MeshFace>()
+				.GroupBy( x => x.Component )
+				.ToDictionary( g => g.Key, g => g.Select( x => x.Handle ).ToHashSet() );
+
 			foreach ( var group in _transformFaces.GroupBy( x => x.Component ) )
 			{
 				var mesh = group.Key.Mesh;
-				var handles = new HashSet<FaceHandle>();
+				var handles = group.Select( x => x.Handle ).ToHashSet();
+
+				var exclude = new HashSet<FaceHandle>( handles );
+				if ( extrudedFaces.TryGetValue( group.Key, out var newFaces ) )
+					exclude.UnionWith( newFaces );
 
 				foreach ( var face in group )
 				{
-					mesh.TextureAlignToGrid( mesh.Transform, face.Handle );
-					handles.Add( face.Handle );
+					if ( !mesh.TextureWrapFromNeighbour( face.Handle, exclude ) )
+						mesh.TextureAlignToGrid( mesh.Transform, face.Handle );
 				}
 
 				sideFaces[group.Key] = handles;
@@ -1219,6 +1237,8 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 				}
 			}
 		}
+
+		using var undoScope = SceneEditorSession.Active.UndoScope( "Lasso Selection" ).Push();
 
 		if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
 		{

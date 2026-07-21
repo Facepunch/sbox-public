@@ -61,17 +61,18 @@ public class Window : DockWindow, IAssetEditor
 		OnSpriteModified += UpdateCurrentAnimation;
 		OnAnimationSelected += () => _lastAnimationName = SelectedAnimation?.Name;
 
-		StateCookie = "SpriteEditor";
-
 		SetWindowIcon( "emoji_emotions" );
-		RestoreDefaultDockLayout();
+
+		CreateDocks();
+		RebuildUI();
+		Show();
+		StateCookie = "SpriteEditor";
 	}
 
 	public void AssetOpen( Asset asset )
 	{
 		Raise();
 		Open( null, asset );
-		Show();
 	}
 
 	public void SelectMember( string memberName )
@@ -79,32 +80,26 @@ public class Window : DockWindow, IAssetEditor
 		throw new NotImplementedException();
 	}
 
-	protected override void RestoreDefaultDockLayout()
+	private void CreateDocks()
 	{
-		var inspector = new Inspector( this );
-		var timeline = new Timeline( this );
-		var animationList = new AnimationList( this );
 		_preview = new Preview( this );
 
-		DockManager.Clear();
-		DockManager.RegisterDockType( "Preview", "emoji_emotions", () =>
-		{
-			_preview = new Preview( this );
-			return _preview;
-		} );
-		DockManager.RegisterDockType( "Inspector", "edit", () => new Inspector( this ) );
-		DockManager.RegisterDockType( "Timeline", "view_column", () => new Timeline( this ) );
-		DockManager.RegisterDockType( "Animations", "directions_walk", () => new AnimationList( this ) );
+		var preview = DockManager.AddDock( "Preview", "emoji_emotions", _preview, DockArea.Right );
+		var inspector = DockManager.AddDock( "Inspector", "edit", new Inspector( this ), DockArea.Left );
+		DockManager.AddDock( "Animations", "directions_walk", new AnimationList( this ), DockArea.Bottom, relativeTo: inspector );
+		DockManager.AddDock( "Timeline", "view_column", new Timeline( this ), DockArea.Bottom, relativeTo: preview );
+	}
 
-		DockManager.AddDock( null, inspector, DockArea.Left, DockManager.DockProperty.HideOnClose );
-		DockManager.AddDock( null, _preview, DockArea.Right, DockManager.DockProperty.HideOnClose, split: 0.8f );
+	protected override void BuildDefaultLayout()
+	{
+		var preview = DockManager.OpenDock( "Preview", DockArea.Right );
+		var inspector = DockManager.OpenDock( "Inspector", DockArea.Left );
+		var animations = DockManager.OpenDock( "Animations", DockArea.Bottom, inspector );
+		var timeline = DockManager.OpenDock( "Timeline", DockArea.Bottom, preview );
 
-		DockManager.AddDock( _preview, timeline, DockArea.Bottom, DockManager.DockProperty.HideOnClose, split: 0.2f );
-		DockManager.AddDock( inspector, animationList, DockArea.Bottom, DockManager.DockProperty.HideOnClose, split: 0.45f );
-
-		DockManager.Update();
-
-		RebuildUI();
+		DockManager.SetSplitterProportions( preview, 0.25f, 0.75f );
+		DockManager.SetSplitterProportions( animations, 0.68f, 0.32f );
+		DockManager.SetSplitterProportions( timeline, 0.75f, 0.25f );
 	}
 
 	private void RebuildUI()
@@ -192,7 +187,7 @@ public class Window : DockWindow, IAssetEditor
 
 		SetAA( Antialiasing );
 
-		view.AddOption( "Restore To Default", "settings_backup_restore", RestoreDefaultDockLayout );
+		view.AddOption( "Restore To Default", "settings_backup_restore", ResetLayout );
 		view.AddSeparator();
 
 		foreach ( var dock in DockManager.DockTypes )

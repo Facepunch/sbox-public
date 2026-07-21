@@ -328,6 +328,55 @@ public sealed class BinderTest : SceneTestBase
 		Assert.AreEqual( new Vector3( 10f, 20f, 30f ), component.List[0] );
 	}
 
+	private static ITrackProperty<GameObjectFlags> CreateFlagsTarget()
+	{
+		return TrackBinder.Default.Get( MovieClip.RootGameObject( "Example" ).Property<GameObjectFlags>( nameof( GameObject.Flags ) ) );
+	}
+
+	[TestMethod]
+	public void FlagsEnumExisting()
+	{
+		var flagsTarget = CreateFlagsTarget();
+		var absoluteTarget = TrackProperty.Create( flagsTarget, nameof( GameObjectFlags.Absolute ) );
+
+		Assert.IsNotNull( absoluteTarget );
+		Assert.AreEqual( typeof( bool ), absoluteTarget.TargetType );
+	}
+
+	[TestMethod]
+	public void FlagsEnumNonExisting()
+	{
+		var flagsTarget = CreateFlagsTarget();
+
+		Assert.IsNull( TrackProperty.Create( flagsTarget, "DefinitelyNotReal" ) );
+	}
+
+	/// <summary>
+	/// Edge case: don't create properties for 0-valued enum members.
+	/// </summary>
+	[TestMethod]
+	public void FlagsEnumForbidNone()
+	{
+		var flagsTarget = CreateFlagsTarget();
+
+		Assert.IsNull( TrackProperty.Create( flagsTarget, nameof( GameObjectFlags.None ) ) );
+	}
+
+	[TestMethod]
+	public void FlagsEnumGetAll()
+	{
+		var flagsTarget = CreateFlagsTarget();
+		var names = TrackProperty.GetAll( flagsTarget ).Select( x => x.Name ).ToArray();
+
+		foreach ( var name in names )
+		{
+			Console.WriteLine( name );
+		}
+
+		Assert.IsTrue( names.Contains( nameof( GameObjectFlags.Absolute ) ) );
+		Assert.IsFalse( names.Contains( nameof( GameObjectFlags.None ) ) );
+	}
+
 	[TestMethod]
 	public void LineRendererVectorPointsProperty()
 	{
@@ -646,7 +695,6 @@ public sealed class BinderTest : SceneTestBase
 
 		Assert.IsTrue( target.IsBound );
 	}
-
 }
 
 public class ExampleComponent : Component

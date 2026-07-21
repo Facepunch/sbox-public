@@ -153,7 +153,8 @@ public class SceneMapLoader : MapLoader
 			Attenuation0 = kv.GetValue( "attenuation0", 0.0f ),
 			Attenuation1 = kv.GetValue( "attenuation1", 0.0f ),
 			Attenuation2 = kv.GetValue( "attenuation2", 1.0f ),
-			CastShadows = kv.GetValue<int>( "castshadows" ) == 1,
+			// Default 1 matches Hammer ShadowType.Yes. 0 = none, 1 = realtime (+ baked), 2 = baked-only.
+			CastShadows = kv.GetValue( "castshadows", 1 ) == 1,
 			LightCookie = kv.GetResource<Texture>( "lightcookie" ),
 			BakeLightIndex = kv.GetValue( "bakelightindex", -1 ),
 			BakeLightIndexScale = kv.GetValue( "bakelightindexscale", 1.0f ),
@@ -173,6 +174,7 @@ public class SceneMapLoader : MapLoader
 		public readonly Light.LegacyLightData ToLegacyData() => new()
 		{
 			DirectLight = DirectLight,
+			CastShadows = CastShadows,
 			BakeLightIndex = BakeLightIndex,
 			BakeLightIndexScale = BakeLightIndexScale,
 			BakedLightIndexing = BakedLightIndexing,

@@ -18,12 +18,14 @@ public partial class ViewportOptions : Widget
 	{
 		Layout.Clear( true );
 
+		var hitBackground = Color.Black.WithAlpha( 1f / 255f );
+
 		Layout.Add( new IconButton( "tune", OpenViewSettings )
 		{
 			ToolTip = "View Settings",
 			IconSize = 16,
-			Background = Color.Transparent,
-			BackgroundActive = Color.Transparent,
+			Background = hitBackground,
+			BackgroundActive = hitBackground,
 			FixedWidth = 16,
 			FixedHeight = 16,
 		} );

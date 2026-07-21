@@ -79,6 +79,11 @@ partial class PublishWizard : BaseWizard
 			//
 			Project.RootDirectory = Project.Current.RootDirectory;
 		}
+		else
+		{
+			// Don't drag in code from whatever project happens to be open right now.
+			Project.RootDirectory = null;
+		}
 	}
 }
 

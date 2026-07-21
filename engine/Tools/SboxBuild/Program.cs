@@ -38,7 +38,6 @@ internal class Program
 		AddUploadBuildArtifactsCommand( rootCommand );
 		AddCheckNativeTouchedCommand( rootCommand );
 		AddNotifySlackCommand( rootCommand );
-		AddUploadReferenceAssembliesCommand( rootCommand );
 		AddReportBuildCommand( rootCommand );
 
 		rootCommand.Invoke( args );
@@ -293,27 +292,20 @@ internal class Program
 	private static void AddReportBuildCommand( RootCommand rootCommand )
 	{
 		var cmd = new Command( "report-build", "Report this build to the backend Test Lab (idempotent by commit)" );
-		cmd.SetHandler( () => { Environment.ExitCode = (int)new ReportBuild().Run(); } );
-		rootCommand.Add( cmd );
-	}
 
-	private static void AddUploadReferenceAssembliesCommand( RootCommand rootCommand )
-	{
-		var cmd = new Command( "upload-reference-assemblies", "Package the managed reference assemblies and upload them to the backend" );
-
-		var targetOption = new Option<BuildTarget>(
-			"--target",
-			description: "Target environment / channel (Staging or Release)",
+		var targetOption = new Option<BuildTarget>( "--target",
+			description: "Channel this build targets (Staging/Release); only marks the channel's current build when pushed to Steam",
 			getDefaultValue: () => BuildTarget.Staging );
 
 		cmd.AddOption( targetOption );
 
 		cmd.SetHandler( ( BuildTarget target ) =>
 		{
-			Environment.ExitCode = (int)new UploadReferenceAssemblies( target ).Run();
+			Environment.ExitCode = (int)new ReportBuild( target ).Run();
 		}, targetOption );
 
 		rootCommand.Add( cmd );
 	}
+
 }
 

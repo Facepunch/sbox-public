@@ -14,6 +14,7 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 {
 	MeshFace _hoverFace;
 	SceneDynamicObject _faceObject;
+	protected override bool ShowSelectionBoundsDefault => true;
 
 	//Selection
 	public bool SelectByMaterial { get; set; } = false;
@@ -129,13 +130,17 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 			}
 		}
 
-		DrawBounds();
+		if ( ShowSelectionBounds )
+			DrawBounds();
+
 		RenderSubdivisionPreview();
 	}
 
 	public override void BuildSceneContextMenu( Menu menu, Ray ray, SceneTraceResult? trace )
 	{
 		base.BuildSceneContextMenu( menu, ray, trace );
+
+		AddMenuOption( menu, "Find / Replace Material", "find_replace", "mesh.find-replace-material-tool", true );
 
 		bool any = Selection.OfType<MeshFace>().Any( x => x.IsValid() );
 		if ( !any ) return;

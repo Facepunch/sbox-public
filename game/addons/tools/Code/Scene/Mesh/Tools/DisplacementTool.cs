@@ -87,6 +87,11 @@ public partial class DisplacementTool( MeshTool tool ) : EditorTool
 	[WideMode, Range( 0, 1 )] float Strength { get; set; } = 0.5f;
 	[WideMode, Range( 0, 1 )] float Hardness { get; set; } = 0.5f;
 
+	[Description( "When enabled the brush radius scales with camera distance so the brush covers a constant screen size." )]
+	bool ScaleWithDistance { get; set; } = false;
+
+	const float BrushReferenceDistance = 500f;
+
 	bool PaintBackfacing { get; set; } = false;
 	bool ShowVerts { get; set; } = true;
 
@@ -117,6 +122,18 @@ public partial class DisplacementTool( MeshTool tool ) : EditorTool
 	const float DisplaceAmplitude = 16f;
 	IDisposable _undoScope;
 
+	/// <summary>
+	/// Brush radius in world units. When <see cref="ScaleWithDistance"/> is enabled the
+	/// radius scales with camera distance so the brush covers a constant screen size.
+	/// </summary>
+	float GetWorldRadius( Vector3 position )
+	{
+		if ( !ScaleWithDistance )
+			return Radius;
+
+		var distance = MathF.Max( Gizmo.Camera.Position.Distance( position ), 1f );
+		return Radius * (distance / BrushReferenceDistance);
+	}
 
 	public override void OnEnabled()
 	{
@@ -384,7 +401,8 @@ public partial class DisplacementTool( MeshTool tool ) : EditorTool
 			return;
 
 		var mesh = _activeMesh;
-		var radiusSq = Radius * Radius;
+		var worldRadius = GetWorldRadius( hitWorldPos );
+		var radiusSq = worldRadius * worldRadius;
 
 		var effectiveMode = Mode;
 
@@ -433,7 +451,7 @@ public partial class DisplacementTool( MeshTool tool ) : EditorTool
 				if ( hitLocalNormal.Dot( vertNormal ) < 0f ) continue;
 			}
 
-			var t = MathF.Sqrt( distSq ) / Radius;
+			var t = MathF.Sqrt( distSq ) / worldRadius;
 			var falloff = Hardness >= 1f ? 1f : (1f - ((t - Hardness) / (1f - Hardness)).Clamp( 0f, 1f ));
 
 			var prevLocal = _prevPositions[vertex.Index];
@@ -517,7 +535,8 @@ public partial class DisplacementTool( MeshTool tool ) : EditorTool
 	Vector3 ComputeAverageNormalInRadius( PolygonMesh mesh, Vector3 hitWorldPos )
 	{
 		var sum = Vector3.Zero;
-		var radiusSq = Radius * Radius;
+		var worldRadius = GetWorldRadius( hitWorldPos );
+		var radiusSq = worldRadius * worldRadius;
 
 		foreach ( var vertex in mesh.VertexHandles )
 		{
@@ -611,7 +630,8 @@ public partial class DisplacementTool( MeshTool tool ) : EditorTool
 	void DrawBrush( Vector3 position, Vector3 normal, PolygonMesh mesh = null )
 	{
 		var brushColor = GetBrushColor();
-		var sections = (int)(MathF.Sqrt( Radius ) * 5.0f).Clamp( 16, 64 );
+		var worldRadius = GetWorldRadius( position );
+		var sections = (int)(MathF.Sqrt( worldRadius ) * 5.0f).Clamp( 16, 64 );
 
 		var scopeRot = Rotation.LookAt( normal );
 		var dispNormal = _lastDisplaceNormal.LengthSquared > 0.001f ? _lastDisplaceNormal : normal;
@@ -625,11 +645,11 @@ public partial class DisplacementTool( MeshTool tool ) : EditorTool
 			Gizmo.Draw.LineThickness = 4;
 			Gizmo.Draw.Line( Vector3.Zero, arrowDir * length );
 			Gizmo.Draw.SolidSphere( arrowDir * length, 2 );
-			Gizmo.Draw.LineCircle( Vector3.Zero, Radius, 32, sections: sections );
+			Gizmo.Draw.LineCircle( Vector3.Zero, worldRadius, 32, sections: sections );
 
 			Gizmo.Draw.LineThickness = 1;
 			Gizmo.Draw.Color = brushColor.WithAlpha( 0.4f );
-			Gizmo.Draw.LineCircle( Vector3.Zero, Radius * Hardness, 32, sections: sections );
+			Gizmo.Draw.LineCircle( Vector3.Zero, worldRadius * Hardness, 32, sections: sections );
 		}
 
 		if ( ShowVerts && mesh is not null )
@@ -688,7 +708,7 @@ public partial class DisplacementTool( MeshTool tool ) : EditorTool
 
 	void DrawVertexIndicators( Vector3 brushWorldPos, PolygonMesh mesh )
 	{
-		var indicatorRadius = Radius * 2f;
+		var indicatorRadius = GetWorldRadius( brushWorldPos ) * 2f;
 		var radiusSq = indicatorRadius * indicatorRadius;
 
 		using ( Gizmo.Scope( "VertexIndicators" ) )

@@ -6,6 +6,9 @@ namespace Editor.MeshEditor;
 public partial class EdgeCutTool( string tool ) : EditorTool
 {
 	static int SelectionSampleRadius => 8;
+	public bool LoopMode { get; set; }
+
+	List<MeshCutPoint> _loopPreview;
 
 	MeshComponent _hoveredMesh;
 	MeshCutPoint _previewCutPoint;
@@ -108,6 +111,13 @@ public partial class EdgeCutTool( string tool ) : EditorTool
 		var escape = Application.IsKeyDown( KeyCode.Escape );
 		if ( escape && !_cancel ) Cancel();
 		_cancel = escape;
+
+		if ( LoopMode && _cutPoints.Count == 0 )
+		{
+			UpdateLoopCut();
+			DrawMesh( _hoveredMesh );
+			return;
+		}
 
 		_previewCutPoint = ShouldSnap() ? FindSnappedCutPoint() : FindCutPoint();
 

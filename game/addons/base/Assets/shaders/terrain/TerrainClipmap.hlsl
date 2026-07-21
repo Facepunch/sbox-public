@@ -1,48 +1,98 @@
 //
-// Geometry clipmap
+// Geometry clipmap - instanced meshlets
+//
+// The clipmap is decomposed (on the CPU) into uniform BlockSize x BlockSize quad blocks. A single
+// canonical block mesh is instanced for every meshlet; this file places each instance in world
+// space and applies the per-vertex LOD morph that keeps ring seams crack-free.
+//
+// References:
+//   GPU Gems 2, ch. 2 - "Terrain Rendering Using GPU-Based Geometry Clipmaps"
+//   http://casual-effects.blogspot.com/2014/04/fast-terrain-rendering-with-continuous.html
 //
 
-float2 roundToIncrement( float2 value, float increment ) {
+float2 roundToIncrement( float2 value, float increment )
+{
     return round( value * ( 1.0f / increment ) ) * increment;
 }
 
-//
-// Single mesh geometry clipmap approach to terrain rendering
-// 1. Translates the mesh to always keep it centered around the camera
-// 2. Alters the elevation to conform to the terrain height
-//
-// positionAndLod comes in increments of 1.0f on x/y and the grid lod on z
-//
-// Almost everything is from:
-// http://casual-effects.blogspot.com/2014/04/fast-terrain-rendering-with-continuous.html
-//
-float3 Terrain_ClipmapSingleMesh(
-    float3 positionAndLod,
-    Texture2D tHeightMap,
-    float terrainResolution,
-    float4x4 invTransform )
+// Per-instance data. Must match TerrainClipmap.Meshlet (C#).
+struct TerrainMeshlet
 {
-    float2 texSize = TextureDimensions2D( tHeightMap, 0 );
+    float2 BlockOffset; // lower-corner offset of the block, in level-cells, from the level center
+    int    Level;       // LOD level (0 = one vertex per texel, coarser outward)
+    uint   Pad;
+};
 
-    // Based on the grid, used for snapping the grid
-    float mipUnitsPerHeightmapTexel = terrainResolution * exp2( positionAndLod.z );
+StructuredBuffer<TerrainMeshlet> g_TerrainMeshlets < Attribute( "TerrainMeshlets" ); >;
 
-    // g_vCameraPositionWs gets the camera position of the camera that's being rendered, this causes some issues
-    // generating clipmaps for shadows since the clipmaps are generated from the shadow maps's perspective then.
-    // So we use the high precision lighting offset which takes the view's camera position instead
-    const float3 worldCameraPos = g_vHighPrecisionLightingOffsetWs.xyz;
-    
-    float3 localCameraPos = mul( invTransform, float4( worldCameraPos, 1.0 ) ).xyz;
+// LOD morph band, in level-cells. Precomputed and clamped on the CPU (see CreateClipmapSceneObject).
+float g_flClipMorphStartCells < Attribute( "ClipMorphStartCells" ); >;
+float g_flClipMorphEndCells   < Attribute( "ClipMorphEndCells" ); >;
 
-    // Translation of the grid at this vertex
-    float2 objectToWorld = roundToIncrement( localCameraPos.xy, mipUnitsPerHeightmapTexel );
+// Unsnapped camera in terrain-local space. GPU geometry and CPU cull both snap this per-level with the
+// same math, so they stay aligned.
+float2 g_vClipCameraLocal < Attribute( "ClipCameraLocal" ); >;
 
-    float3 worldPosition = float3( positionAndLod.xy * terrainResolution + objectToWorld, 0.0f );
+// Reconstruct height on a coarser lattice by bilinearly interpolating the four surrounding
+// lattice samples. Used to obtain the next-coarser level's height for the LOD morph.
+float Terrain_SampleHeightLattice( Texture2D tHeightMap, float2 localXY, float latticeStep, float texSizeUnits )
+{
+    float2 c = floor( localXY / latticeStep ) * latticeStep;
+    float2 f = saturate( ( localXY - c ) / latticeStep );
 
-    float2 heightUv = ( worldPosition.xy ) / ( texSize * terrainResolution );
+    float inv = 1.0f / texSizeUnits;
+    float h00 = tHeightMap.SampleLevel( g_sBilinearClamp, ( c                                  ) * inv, 0 ).r;
+    float h10 = tHeightMap.SampleLevel( g_sBilinearClamp, ( c + float2( latticeStep, 0 )       ) * inv, 0 ).r;
+    float h01 = tHeightMap.SampleLevel( g_sBilinearClamp, ( c + float2( 0, latticeStep )       ) * inv, 0 ).r;
+    float h11 = tHeightMap.SampleLevel( g_sBilinearClamp, ( c + float2( latticeStep, latticeStep ) ) * inv, 0 ).r;
 
-    float flHeight = tHeightMap.SampleLevel( g_sBilinearClamp, heightUv, 0 ).r;
-    worldPosition.z = flHeight;
+    return lerp( lerp( h00, h10, f.x ), lerp( h01, h11, f.x ), f.y );
+}
 
-    return worldPosition;
+//
+// Place an instanced meshlet vertex.
+//   blockLocal : block-local grid coordinate in [0, BlockSize]
+// Returns terrain-local position (xy, normalized height in z). Caller scales z by HeightScale
+// and transforms by Terrain::Get().Transform to get world space.
+//
+float3 Terrain_ClipmapMeshlet(
+    float2 blockLocal,
+    TerrainMeshlet meshlet,
+    Texture2D tHeightMap,
+    float unitsPerTexel,
+    out float outLod )
+{
+    int level = meshlet.Level;
+
+    // World units per vertex step at this level.
+    float vertexStep = unitsPerTexel * exp2( (float)level );
+
+    // Per-level snap: each level snaps to its own 2-cell increment so its vertices stay on a fixed lattice
+    // as the camera moves (a shared finer increment would make coarse levels jitter).
+    float increment = vertexStep * 2.0f;
+    float2 center = roundToIncrement( g_vClipCameraLocal, increment );
+
+    float2 localXY = center + ( meshlet.BlockOffset + blockLocal ) * vertexStep;
+
+    float texSizeUnits = TextureDimensions2D( tHeightMap, 0 ).x * unitsPerTexel;
+
+    // Fine height (this level's lattice).
+    float zFine = tHeightMap.SampleLevel( g_sBilinearClamp, localXY / texSizeUnits, 0 ).r;
+
+    // LOD morph: the outer blocks collapse onto the next-coarser lattice so ring seams stay crack-free.
+    float morphEnd = g_flClipMorphEndCells * vertexStep;
+    float morphStart = g_flClipMorphStartCells * vertexStep;
+
+    // Measure from the continuous camera, not the snapped center, so the morph band doesn't jump (swim)
+    // when the level snaps.
+    float dist = max( abs( localXY.x - g_vClipCameraLocal.x ), abs( localXY.y - g_vClipCameraLocal.y ) );
+    float alpha = saturate( ( dist - morphStart ) / max( morphEnd - morphStart, 1e-5f ) );
+
+    // Interior vertices (alpha == 0, the vast majority) skip the 4-tap coarse sample entirely.
+    float z = zFine;
+    if ( alpha > 0.0f )
+        z = lerp( zFine, Terrain_SampleHeightLattice( tHeightMap, localXY, vertexStep * 2.0f, texSizeUnits ), alpha );
+
+    outLod = (float)level;
+    return float3( localXY, z );
 }

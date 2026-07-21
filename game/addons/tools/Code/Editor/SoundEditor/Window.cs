@@ -2,11 +2,10 @@
 namespace Editor.SoundEditor;
 
 [EditorForAssetType( "vsnd" )]
-public class Window : DockWindow, IAssetEditor
+public class Window : DockWindow, IAssetEditor, AssetSystem.IEventListener
 {
 	public bool CanOpenMultipleAssets => true;
 
-	private string DefaultDockState;
 	private Preview Preview;
 	private Timeline Timeline;
 	private Properties Properties;
@@ -26,6 +25,7 @@ public class Window : DockWindow, IAssetEditor
 		CreateToolBar();
 		CreateUI();
 		Show();
+		StateCookie = "SoundEditor";
 	}
 
 	public void AssetOpen( Asset asset )
@@ -42,18 +42,25 @@ public class Window : DockWindow, IAssetEditor
 		Timeline.SetAsset( Asset );
 		Properties.SetAsset( Asset );
 
-		OnAssetChanged();
+		ReloadSound();
 	}
 
-	private async void OnAssetChanged()
+	// Generic multicast editor event - fires whenever any asset recompiles. Refresh when it's ours.
+	void AssetSystem.IEventListener.OnAssetChanged( Asset asset )
+	{
+		if ( asset != Asset )
+			return;
+
+		ReloadSound();
+	}
+
+	private async void ReloadSound()
 	{
 		if ( !IsValid )
 			return;
 
 		if ( !SoundFile.IsValid() )
 			return;
-
-		SoundFile.OnSoundReloaded = OnAssetChanged;
 
 		if ( !await SoundFile.LoadAsync() )
 			return;
@@ -80,51 +87,33 @@ public class Window : DockWindow, IAssetEditor
 
 		BuildMenuBar();
 
-		DockManager.RegisterDockType( "Preview", "photo", null, false );
 		Preview = new Preview( this );
-		DockManager.AddDock( null, Preview, DockArea.Left, DockManager.DockProperty.HideOnClose );
-
-		DockManager.RegisterDockType( "Properties", "edit", null, false );
 		Properties = new Properties( this );
 		Properties.SetAsset( Asset );
-		DockManager.AddDock( null, Properties, DockArea.Left, DockManager.DockProperty.HideOnClose, 0.0f );
-
-		DockManager.RegisterDockType( "Timeline", "timeline", null, false );
 		Timeline = new Timeline( this );
 		Timeline.SetSamples( Samples, Duration, Sound );
 		Timeline.SetAsset( Asset );
-		DockManager.AddDock( null, Timeline, DockArea.BottomOuter, DockManager.DockProperty.HideOnClose, 0.3f );
 
-		DockManager.Update();
-
-		DefaultDockState = DockManager.State;
-
-		if ( StateCookie != "SoundEditor" )
-		{
-			StateCookie = "SoundEditor";
-		}
-		else
-		{
-			RestoreFromStateCookie();
-		}
+		DockManager.AddDock( "Preview", "photo", Preview, DockArea.Center );
+		DockManager.AddDock( "Properties", "edit", Properties, DockArea.Right );
+		DockManager.AddDock( "Timeline", "timeline", Timeline, DockArea.Bottom );
 	}
 
-	protected override void RestoreDefaultDockLayout()
+	protected override void BuildDefaultLayout()
 	{
-		DockManager.State = DefaultDockState;
+		var preview = DockManager.OpenDock( "Preview", DockArea.Center );
+		DockManager.OpenDock( "Properties", DockArea.Right );
+		DockManager.SetSplitterProportions( preview, 0.72f, 0.28f );
 
-		SaveToStateCookie();
+		var timeline = DockManager.OpenDock( "Timeline", DockArea.Bottom, preview );
+		DockManager.SetSplitterProportions( timeline, 0.72f, 0.28f );
 	}
 
 	[EditorEvent.Hotload]
 	public void OnHotload()
 	{
-		SaveToStateCookie();
-
-		DockManager.Clear();
 		MenuBar.Clear();
-
-		CreateUI();
+		BuildMenuBar();
 	}
 
 	private void Save()
@@ -132,9 +121,18 @@ public class Window : DockWindow, IAssetEditor
 		if ( Asset == null )
 			return;
 
-		if ( Timeline.Frames != null && Timeline.Frames.Count > 0 )
+		// Setting null removes the key, so deleting every item on a track and
+		// saving clears it from the .meta - otherwise stale data would keep
+		// compiling into the sound forever. Null lists mean "never loaded", so
+		// leave whatever is there alone.
+		if ( Timeline.Frames != null )
 		{
-			Asset.MetaData.Set( "visemes", Timeline.Frames );
+			Asset.MetaData.Set( "visemes", Timeline.Frames.Count > 0 ? Timeline.Frames : null );
+		}
+
+		if ( Timeline.Words != null )
+		{
+			Asset.MetaData.Set( "subtitles", Timeline.Words.Count > 0 ? Timeline.Words : null );
 		}
 	}
 
@@ -154,6 +152,7 @@ public class Window : DockWindow, IAssetEditor
 
 		toolBar.AddOption( "Save", "common/save.png", Save ).StatusTip = "Save";
 		toolBar.AddOption( "Generate Lip Sync", "record_voice_over", GenerateLipSync ).StatusTip = "Generate visemes from the audio";
+		toolBar.AddOption( "Set Subtitles", "subtitles", () => Timeline.EditTranscript() ).StatusTip = "Type the sound's transcript to lay out subtitle words on the timeline";
 		toolBar.AddOption( "Full Recompile", "refresh", () => Asset.Compile( true ) ).StatusTip = "Full Recompile";
 	}
 
@@ -174,7 +173,7 @@ public class Window : DockWindow, IAssetEditor
 	private void OnViewMenu( Menu view )
 	{
 		view.Clear();
-		view.AddOption( "Restore To Default", "settings_backup_restore", RestoreDefaultDockLayout );
+		view.AddOption( "Restore To Default", "settings_backup_restore", ResetLayout );
 		view.AddSeparator();
 
 		foreach ( var dock in DockManager.DockTypes )

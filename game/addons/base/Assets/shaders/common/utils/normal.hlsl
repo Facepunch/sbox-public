@@ -30,4 +30,13 @@ float3 NormalWorldToTangent( float3 vNormalWs, float3 vTangentUWs, float3 vTange
 	#endif
 }
 
+//-----------------------------------------------------------------------------
+// Scales and shifts the value range from [0, 1] to [-1, 1] and normalizes it
+//-----------------------------------------------------------------------------
+
+float3 DecodeNormal( float3 vEncodedNormal )
+{
+    return normalize( 2.0f * vEncodedNormal - 1.0f );
+}
+
 #endif

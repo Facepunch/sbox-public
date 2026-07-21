@@ -529,18 +529,22 @@ public partial class Timeline : GraphicsView, ISnapSource
 		var timelineTrack = Tracks.FirstOrDefault( x => x.SceneRect.IsInside( scenePos ) );
 		var titleLabel = menu.AddHeading( time.ToString() );
 
-		Session.CreateImportMenu( menu, time );
-
 		var ev = new EditMode.ContextMenuEvent( scenePos, time, timelineTrack, menu, titleLabel );
 
 		if ( GetItemAt( scenePos ) is { } item and IMovieContextMenu ctxMenuItem )
 		{
+			ev.Title = "Selection";
+
 			if ( !item.Selected )
 			{
 				item.Selected = true;
 			}
 
 			ctxMenuItem.ShowContextMenu( ev );
+		}
+		else
+		{
+			Session.CreateImportMenu( menu, time );
 		}
 
 		if ( !ev.Accepted )

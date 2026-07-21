@@ -18,13 +18,23 @@ public static unsafe partial class Sound
 
 	public static SoundHandle Play( SoundEvent soundEvent, float fadeInTime = 0.0f )
 	{
+		return Play( soundEvent, out _, fadeInTime );
+	}
+
+	/// <summary>
+	/// Play a sound event, telling the caller which sound file got picked.
+	/// </summary>
+	internal static SoundHandle Play( SoundEvent soundEvent, out SoundFile soundFile, float fadeInTime = 0.0f )
+	{
+		soundFile = null;
+
 		if ( Application.IsHeadless )
 			return SoundHandle.Empty;
 
 		if ( soundEvent is null )
 			return default;
 
-		var soundFile = soundEvent.GetNextSound();
+		soundFile = soundEvent.GetNextSound();
 		if ( !soundFile.IsValid() )
 			return null;
 
@@ -119,13 +129,19 @@ public static unsafe partial class Sound
 	[Obsolete( "Decibels are obsolete" )]
 	public static SoundHandle PlayFile( SoundFile soundFile, float volume, float pitch, float decibels, float delay, float fadeInTime = 0.0f )
 	{
-		return PlayFile( soundFile.native.self, volume, pitch, delay, fadeInTime, soundFile.ResourceName );
+		return PlayFile( soundFile, volume, pitch, delay, fadeInTime );
 	}
 
 	[ActionGraphNode( "sound.playfile" ), Title( "Play Sound File" ), Group( "Audio" ), Icon( "volume_up" )]
 	public static SoundHandle PlayFile( SoundFile soundFile, float volume = 1.0f, float pitch = 1.0f, float delay = 0.0f, float fadeInTime = 0.0f )
 	{
-		return PlayFile( soundFile.native.self, volume, pitch, delay, fadeInTime, soundFile.ResourceName );
+		var handle = PlayFile( soundFile.native.self, volume, pitch, delay, fadeInTime, soundFile.ResourceName );
+		if ( handle.IsValid() )
+		{
+			handle.SoundFile = soundFile;
+		}
+
+		return handle;
 	}
 
 	internal static SoundHandle PlayFile( CSfxTable soundFile, float volume = 1.0f, float pitch = 1.0f, float delay = 0.0f, float fadeInTime = 0.0f, string debugName = "" )
