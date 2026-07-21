@@ -126,6 +126,17 @@ public partial class SceneViewportWidget
 					break;
 			}
 		}
+
+		internal static Gizmo.GridAxis GridAxisForDirection( Vector3 axisDir )
+		{
+			float[] a = [MathF.Abs( axisDir.x ), MathF.Abs( axisDir.y ), MathF.Abs( axisDir.z )];
+			return Array.IndexOf( a, a.Max() ) switch
+			{
+				0 => Gizmo.GridAxis.YZ,
+				1 => Gizmo.GridAxis.ZX,
+				_ => Gizmo.GridAxis.XY
+			};
+		}
 	}
 	public ViewportState State { get; init; }
 

@@ -113,6 +113,8 @@ internal sealed class ScreenSpaceShadows
 	void GenerateMask()
 	{
 		var sceneLight = Light.SceneObject;
+		if ( !sceneLight.IsValid() )
+			return;
 
 		// Masks are per view. Key everything on the view actually being rendered (its size, frustum
 		// and managed camera id) - the editor viewport renders through its own SceneCamera, not the

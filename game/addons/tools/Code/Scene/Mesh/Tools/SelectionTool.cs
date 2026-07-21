@@ -1238,6 +1238,8 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 			}
 		}
 
+		using var undoScope = SceneEditorSession.Active.UndoScope( "Lasso Selection" ).Push();
+
 		if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
 		{
 			foreach ( var element in selection )
