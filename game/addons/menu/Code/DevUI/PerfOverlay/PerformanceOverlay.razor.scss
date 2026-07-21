@@ -1,0 +1,19 @@
+PerformanceOverlay
+{
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    flex-direction: column;
+    padding: 10px 14px;
+    background-color: #000000aa;
+    border-radius: 8px;
+    font-family: Poppins;
+    font-size: 12px;
+    pointer-events: none;
+    display: none;
+
+    &.visible
+    {
+        display: flex;
+    }
+}

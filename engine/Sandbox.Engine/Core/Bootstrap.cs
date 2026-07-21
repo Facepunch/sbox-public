@@ -175,6 +175,13 @@ internal static class Bootstrap
 
 			InitEngineConVars();
 
+			// RenderSettings may be constructed before these convars exist, silently dropping
+			// its writes - re-apply the quality groups and advanced overrides now. The upscaler
+			// settings also need pushing here so the cookies win over machine_convars.vcfg.
+			Settings.RenderSettings.Instance.Config.SetDefaults( Settings.RenderSettings.Instance );
+			Settings.RenderSettings.Instance.ApplyAdvancedOverrides();
+			Settings.RenderSettings.Instance.ApplyUpscalerSettings();
+
 			if ( IToolsDll.Current is not null )
 			{
 				using var x = StartupTiming?.ScopeTimer( $"IToolsDll Bootstrap Init" );

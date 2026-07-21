@@ -19,6 +19,10 @@ public partial class RenderSettings
 	internal RenderSettings()
 	{
 		Config.SetDefaults( this );
+
+		// Explicit advanced choices apply on top of the quality group fan-out
+		ApplyAdvancedOverrides();
+		ApplyUpscalerSettings();
 	}
 
 	public int MaxFrameRate
@@ -72,6 +76,9 @@ public partial class RenderSettings
 		{
 			VideoSettings.Set<PostProcessQuality>( "postprocess.quality", value );
 			Config.SetGroupConVars( "PostProcessQuality", value.ToString() );
+
+			// Explicit advanced choices win over the group fan-out
+			ApplyAdvancedOverrides();
 		}
 	}
 
@@ -82,6 +89,9 @@ public partial class RenderSettings
 		{
 			VideoSettings.Set<ShadowQuality>( "shadow.quality", value );
 			Config.SetGroupConVars( "ShadowQuality", value.ToString() );
+
+			// Explicit advanced choices win over the group fan-out
+			ApplyAdvancedOverrides();
 		}
 	}
 
@@ -102,18 +112,28 @@ public partial class RenderSettings
 		{
 			VideoSettings.Set<UpscalerMode>( "upscaler.mode", value );
 			ConVarSystem.SetInt( "r_upscaling", (int)value, true );
+
+			// Re-clamp the render scale for the new mode - FSR1 has a higher minimum
+			UpscalerRenderScale = UpscalerRenderScale;
 		}
 	}
 
 	/// <summary>
-	/// Render-resolution scale used by Stretch (40-100%) and FSR1 (50-100%) modes.
+	/// FSR1 (EASU) is only specified for upscale factors up to 2x per axis. Below 50%
+	/// render scale it produces blocky smearing, and RCAS sharpening amplifies the
+	/// undersampling into speckle artifacts. Stretch has no such constraint.
+	/// </summary>
+	static float MinRenderScale( UpscalerMode mode ) => mode == UpscalerMode.FSR1 ? 0.5f : 0.25f;
+
+	/// <summary>
+	/// Render-resolution scale used by Stretch (25-100%) and FSR1 (50-100%) modes.
 	/// </summary>
 	public float UpscalerRenderScale
 	{
 		get => VideoSettings.Get<float>( "upscaler.render_scale", 0.75f );
 		set
 		{
-			float v = Math.Clamp( value, 0.4f, 1.0f );
+			float v = Math.Clamp( value, MinRenderScale( UpscalerMode ), 1.0f );
 			VideoSettings.Set<float>( "upscaler.render_scale", v );
 			ConVarSystem.SetFloat( "r_upscaler_render_scale", v, true );
 		}
@@ -157,6 +177,161 @@ public partial class RenderSettings
 			VideoSettings.Set<float>( "upscaler.fsr3_sharpness", v );
 			ConVarSystem.SetFloat( "r_fsr3_sharpness", v, true );
 		}
+	}
+
+	//
+	// Advanced settings. Getters read the live convar so the UI reflects reality,
+	// setters store a cookie so explicit choices survive restarts and group changes.
+	//
+
+	/// <summary>
+	/// Cascaded shadow maps for the directional (sun) light.
+	/// </summary>
+	public bool SunShadows
+	{
+		get => ConVarSystem.GetInt( "r.shadows.csm.enabled", 1, true ) != 0;
+		set
+		{
+			VideoSettings.Set<bool>( "shadow.csm.enabled", value );
+			ConVarSystem.SetValue( "r.shadows.csm.enabled", value.ToString(), true );
+		}
+	}
+
+	/// <summary>
+	/// Shadow maps for local (spot/point) lights.
+	/// </summary>
+	public bool DynamicShadows
+	{
+		get => ConVarSystem.GetInt( "r.shadows.local.enabled", 1, true ) != 0;
+		set
+		{
+			VideoSettings.Set<bool>( "shadow.local.enabled", value );
+			ConVarSystem.SetValue( "r.shadows.local.enabled", value.ToString(), true );
+		}
+	}
+
+	/// <summary>
+	/// Screen-space contact shadows for directional lights.
+	/// </summary>
+	public bool ContactShadows
+	{
+		get => ConVarSystem.GetInt( "r.shadows.contact.enabled", 1, true ) != 0;
+		set
+		{
+			VideoSettings.Set<bool>( "shadow.contact.enabled", value );
+			ConVarSystem.SetValue( "r.shadows.contact.enabled", value.ToString(), true );
+		}
+	}
+
+	/// <summary>
+	/// Maximum distance from the camera that sun shadows are rendered.
+	/// <see cref="ShadowQuality"/> also drives this, an explicit value set here wins.
+	/// </summary>
+	public float ShadowDistance
+	{
+		get => ConVarSystem.GetFloat( "r.shadows.csm.distance", 15000, true );
+		set
+		{
+			VideoSettings.Set<float>( "shadow.csm.distance", value );
+			ConVarSystem.SetFloat( "r.shadows.csm.distance", value, true );
+		}
+	}
+
+	/// <summary>
+	/// Ambient occlusion quality (0 off, 1 low, 2 medium, 3 high).
+	/// <see cref="PostProcessQuality"/> also drives this, an explicit value set here wins.
+	/// </summary>
+	public int AmbientOcclusionQuality
+	{
+		get => ConVarSystem.GetInt( "r_ao_quality", 3, true );
+		set
+		{
+			VideoSettings.Set<int>( "ao.quality", value );
+			ConVarSystem.SetInt( "r_ao_quality", value, true );
+		}
+	}
+
+	/// <summary>
+	/// Screen-space reflection resolution divisor (0 disabled, 4 quarter res, 2 half res, 1 full res).
+	/// <see cref="PostProcessQuality"/> also drives this, an explicit value set here wins.
+	/// </summary>
+	public int ReflectionQuality
+	{
+		get => ConVarSystem.GetInt( "r_ssr_downsample_ratio", 2, true );
+		set
+		{
+			VideoSettings.Set<int>( "ssr.downsample", value );
+			ConVarSystem.SetInt( "r_ssr_downsample_ratio", value, true );
+		}
+	}
+
+	/// <summary>
+	/// Bloom post-processing effect.
+	/// </summary>
+	public bool BloomEnabled
+	{
+		get => ConVarSystem.GetInt( "r_bloom", 1, true ) != 0;
+		set => ConVarSystem.SetValue( "r_bloom", value.ToString(), true );
+	}
+
+	/// <summary>
+	/// Maximum number of temporary decals (bullet holes etc) kept in the world.
+	/// </summary>
+	public int MaxDecals
+	{
+		get => ConVarSystem.GetInt( "maxdecals", 1000, true );
+		set => ConVarSystem.SetInt( "maxdecals", value, true );
+	}
+
+	/// <summary>
+	/// Push the cookie-backed upscaler choices to their convars. The native engine
+	/// restores machine_convars.vcfg at startup, which can disagree with what the
+	/// settings UI shows - the cookies are the source of truth, so they win.
+	/// Settings the user never touched have no cookie and keep the engine's value.
+	/// </summary>
+	internal void ApplyUpscalerSettings()
+	{
+		if ( !VideoSettings.TryGet<UpscalerMode>( "upscaler.mode", out var mode ) )
+			mode = UpscalerMode;
+		else
+			ConVarSystem.SetInt( "r_upscaling", (int)mode, true );
+
+		if ( VideoSettings.TryGet<float>( "upscaler.render_scale", out var scale ) )
+			ConVarSystem.SetFloat( "r_upscaler_render_scale", Math.Clamp( scale, MinRenderScale( mode ), 1.0f ), true );
+
+		if ( VideoSettings.TryGet<float>( "upscaler.fsr1_sharpness", out var fsr1Sharpness ) )
+			ConVarSystem.SetFloat( "r_fsr_rcas_sharpness", fsr1Sharpness, true );
+
+		if ( VideoSettings.TryGet<Fsr3UpscalerQuality>( "upscaler.quality", out var fsr3Quality ) && fsr3Quality != Fsr3UpscalerQuality.Off )
+			ConVarSystem.SetInt( "r_fsr3_quality", (int)fsr3Quality, true );
+
+		if ( VideoSettings.TryGet<float>( "upscaler.fsr3_sharpness", out var fsr3Sharpness ) )
+			ConVarSystem.SetFloat( "r_fsr3_sharpness", fsr3Sharpness, true );
+	}
+
+	/// <summary>
+	/// Re-apply explicitly chosen advanced settings on top of what the quality groups
+	/// wrote. Settings the user never touched have no cookie and follow their group.
+	/// </summary>
+	internal void ApplyAdvancedOverrides()
+	{
+		if ( VideoSettings.TryGet<bool>( "shadow.csm.enabled", out var csm ) )
+			ConVarSystem.SetValue( "r.shadows.csm.enabled", csm.ToString(), true );
+
+		if ( VideoSettings.TryGet<bool>( "shadow.local.enabled", out var local ) )
+			ConVarSystem.SetValue( "r.shadows.local.enabled", local.ToString(), true );
+
+		if ( VideoSettings.TryGet<bool>( "shadow.contact.enabled", out var contact ) )
+			ConVarSystem.SetValue( "r.shadows.contact.enabled", contact.ToString(), true );
+
+		if ( VideoSettings.TryGet<float>( "shadow.csm.distance", out var distance ) )
+			ConVarSystem.SetFloat( "r.shadows.csm.distance", distance, true );
+
+		if ( VideoSettings.TryGet<int>( "ao.quality", out var ao ) )
+			ConVarSystem.SetInt( "r_ao_quality", ao, true );
+
+		if ( VideoSettings.TryGet<int>( "ssr.downsample", out var ssr ) )
+			ConVarSystem.SetInt( "r_ssr_downsample_ratio", ssr, true );
 	}
 
 	public void ResetVideoConfig()

@@ -24,9 +24,9 @@
     {
         "Low":
         {
-            "r_dof_quality": "1",
+            "r_dof_quality": "0",
             "r_motionblur_quality": "0",
-            "r_ao_quality": "1",
+            "r_ao_quality": "0",
             "r_ao_resolution": "4",
             "r_ao_denoise_passes": "2",
             "r_ssr_downsample_ratio": "0"
@@ -78,6 +78,8 @@
             "r.shadows.maxresolution": "512",
             "r.shadows.csm.maxresolution": "1024",
             "r.shadows.csm.maxcascades": "2",
+            "r.shadows.csm.distance": "4000",
+            "r.shadows.max": "16",
             "r.shadows.quality": "1"
         },
         "Medium":
@@ -85,6 +87,8 @@
             "r.shadows.maxresolution": "1024",
             "r.shadows.csm.maxresolution": "2048",
             "r.shadows.csm.maxcascades": "3",
+            "r.shadows.csm.distance": "9000",
+            "r.shadows.max": "64",
             "r.shadows.quality": "2"
         },
         "High":
@@ -92,6 +96,8 @@
             "r.shadows.maxresolution": "2048",
             "r.shadows.csm.maxresolution": "4096",
             "r.shadows.csm.maxcascades": "4",
+            "r.shadows.csm.distance": "15000",
+            "r.shadows.max": "256",
             "r.shadows.quality": "3"
         }
     }

@@ -1,0 +1,47 @@
+@namespace Sandbox.UI.Dev
+@using Sandbox.UI.Dev.Stats
+@inherits Panel
+
+<root class="perf-overlay">
+
+    <StatValue Value="@Fps" Title="FPS"></StatValue>
+    <StatValue Value="@FrameAvg" Title="Frame Avg"></StatValue>
+    <StatValue Value="@FrameWorst" Title="Frame Worst"></StatValue>
+    <StatValue Value="@GpuMs" Title="GPU"></StatValue>
+    <StatValue Value="@DrawCalls" Title="Draw Calls"></StatValue>
+    <StatValue Value="@Vram" Title="VRAM"></StatValue>
+
+</root>
+
+
+@code
+{
+    [MenuConVar( "perf_overlay", Help = "Show a compact performance overlay in the corner of the screen", Saved = true )]
+    public static bool ShowPerfOverlay { get; set; }
+
+    static float AvgFrameMs => Sandbox.Diagnostics.PerformanceStats.LastSecond.FrameAvg;
+
+    string Fps => AvgFrameMs > 0 ? (1000f / AvgFrameMs).ToString( "0" ) : "-";
+    string FrameAvg => AvgFrameMs.ToString( "0.0 ms" );
+    string FrameWorst => Sandbox.Diagnostics.PerformanceStats.LastSecond.FrameMax.ToString( "0.0 ms" );
+    string GpuMs => Sandbox.Diagnostics.PerformanceStats.GpuFrametime.ToString( "0.0 ms" );
+    string DrawCalls => Sandbox.Diagnostics.FrameStats.Current.DrawCalls.ToMetric();
+    string Vram => $"{Graphics.VideoMemoryUsed / (1024.0 * 1024.0):0}/{Graphics.VideoMemoryBudget / (1024.0 * 1024.0):0} MB";
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        SetClass( "visible", ShowPerfOverlay );
+
+        PerfDump.Tick();
+    }
+
+    protected override int BuildHash()
+    {
+        if ( !ShowPerfOverlay )
+            return 0;
+
+        return HashCode.Combine( Sandbox.Diagnostics.PerformanceStats.LastSecond );
+    }
+}
