@@ -1,4 +1,4 @@
-using Sandbox.Internal;
+﻿using Sandbox.Internal;
 using Sandbox.Menu;
 using Sandbox.Network;
 using System.Threading;
@@ -243,41 +243,10 @@ internal class ServerPackages
 
 	internal static PackageDownload Get( string packageIdent )
 	{
-		if ( Downloads.TryGetValue( packageIdent, out var dl ) )
-			return dl;
+		if ( !Downloads.TryGetValue( packageIdent, out var dl ) )
+			return null;
 
-		if ( !packageIdent.Contains( '#' ) )
-		{
-			foreach ( var kvp in Downloads )
-			{
-				if ( kvp.Key.StartsWith( packageIdent + "#", StringComparison.OrdinalIgnoreCase ) )
-					return kvp.Value;
-			}
-		}
-
-		return null;
-	}
-
-	internal static void Remove( string packageIdent )
-	{
-		Downloads.Remove( packageIdent, out _ );
-
-		// Also remove versioned downloads for this ident
-		if ( !packageIdent.Contains( '#' ) )
-		{
-			var keysToRemove = new System.Collections.Generic.List<string>();
-			foreach ( var key in Downloads.Keys )
-			{
-				if ( key.StartsWith( packageIdent + "#", StringComparison.OrdinalIgnoreCase ) )
-				{
-					keysToRemove.Add( key );
-				}
-			}
-			foreach ( var key in keysToRemove )
-			{
-				Downloads.Remove( key, out _ );
-			}
-		}
+		return dl;
 	}
 }
 

@@ -1,4 +1,4 @@
-﻿using Sandbox.Engine;
+using Sandbox.Engine;
 using System;
 using System.Text.Json.Nodes;
 using System.Threading;
@@ -35,7 +35,7 @@ public static partial class AssetSystem
 		if ( !CanCloudInstall( package ) )
 			return null;
 
-		if ( !skipIfInstalled || !IsCloudInstalled( package ) )
+		if ( !skipIfInstalled || !IsCloudInstalled( package, exactVersion: true ) )
 		{
 			// download the manifest
 			await package.Revision.DownloadManifestAsync( token );

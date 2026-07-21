@@ -1,4 +1,4 @@
-﻿using Sandbox.Audio;
+using Sandbox.Audio;
 using Sandbox.Engine;
 using Sandbox.Internal;
 using Sentry;
@@ -14,6 +14,9 @@ namespace Sandbox;
 internal sealed partial class PackageLoader : IDisposable
 {
 	bool FastHotloadEnabled => HotloadManager.hotload_fast;
+
+	private static readonly object loadersLock = new();
+	private static List<PackageLoader> ActiveLoaders = new();
 
 	private List<LoadedAssembly> Loaded { get; set; } = new();
 	private LoadContext LoadContext { get; set; }
@@ -55,10 +58,20 @@ internal sealed partial class PackageLoader : IDisposable
 
 		loadedPackages.Clear();
 		changedPackageDlls.Clear();
+
+		lock ( loadersLock )
+		{
+			ActiveLoaders.Add( this );
+		}
 	}
 
 	public void Dispose()
 	{
+		lock ( loadersLock )
+		{
+			ActiveLoaders.Remove( this );
+		}
+
 		foreach ( var dllWatcher in dllWatchers )
 		{
 			dllWatcher.Dispose();
@@ -132,7 +145,7 @@ internal sealed partial class PackageLoader : IDisposable
 		var allChangedDlls = this.changedPackageDlls.ToArray();
 		this.changedPackageDlls.Clear();
 
-		if ( !allChangedDlls.Any() )
+		if ( !allChangedDlls.Any() && !IncomingThisHotload.Any() )
 			return;
 
 		// Entries without a package come from a stream (e.g. assemblies sent by a server)
@@ -151,6 +164,18 @@ internal sealed partial class PackageLoader : IDisposable
 		//
 
 		var hotloadedPackages = new HashSet<PackageManager.ActivePackage>();
+
+		foreach ( var la in IncomingThisHotload )
+		{
+			if ( la.Package != null )
+			{
+				var ap = loadedPackages.FirstOrDefault( x => x.Package == la.Package );
+				if ( ap != null && !la.FastHotload )
+				{
+					hotloadedPackages.Add( ap );
+				}
+			}
+		}
 
 		//
 		// Resolve stream-swapped assemblies back to their loaded package, so packages that
@@ -268,6 +293,21 @@ internal sealed partial class PackageLoader : IDisposable
 		bool isEditorAssembly = filename.EndsWith( ".editor.dll", StringComparison.OrdinalIgnoreCase ) && !ap.Package.IsRemote;
 		bool isToolAssembly = ap.Package.TypeName == "tool" || isEditorAssembly;
 		var assmName = System.IO.Path.GetFileNameWithoutExtension( filename );
+
+		if ( ap.Package.IsRemote )
+		{
+			var existing = Loaded.FirstOrDefault( x => x.Name == assmName );
+			if ( existing != null && existing.Assembly != null && existing.Package != null )
+			{
+				if ( existing.Package.Revision?.VersionId == ap.Package.Revision?.VersionId )
+				{
+					log.Info( $"[PackageLoader] Assembly {assmName} is already loaded with the same version ({ap.Package.Revision?.VersionId}) - Reusing memory assembly." );
+					return existing;
+				}
+			}
+		}
+
+		log.Info( $"[PackageLoader] Loading assembly {assmName} from package {ap.Package.FullIdent} (version: {ap.Package.Revision?.VersionId})..." );
 
 		// if this is an editor dll, it shouldn't have loaded anywhere but the tools!
 		Assert.False( isToolAssembly && !ToolsMode );
@@ -837,4 +877,24 @@ internal sealed partial class PackageLoader : IDisposable
 	}
 
 	public Action OnAfterHotload { get; set; }
+
+	internal static void OnPackageUnmounted( PackageManager.ActivePackage ap )
+	{
+		PackageLoader[] loaders;
+		lock ( loadersLock )
+		{
+			loaders = ActiveLoaders.ToArray();
+		}
+		foreach ( var loader in loaders )
+		{
+			loader.UnloadPackage( ap );
+		}
+	}
+
+	internal void UnloadPackage( PackageManager.ActivePackage ap )
+	{
+		if ( ap == null ) return;
+
+		loadedPackages.Remove( ap );
+	}
 }

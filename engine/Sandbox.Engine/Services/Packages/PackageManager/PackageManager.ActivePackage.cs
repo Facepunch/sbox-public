@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Net;
 using System.Threading;
 
@@ -333,6 +333,8 @@ internal static partial class PackageManager
 		/// </summary>
 		public void Delete()
 		{
+			PackageLoader.OnPackageUnmounted( this );
+
 			MountedFileSystem.UnMount( FileSystem );
 
 			FileSystem.Dispose();

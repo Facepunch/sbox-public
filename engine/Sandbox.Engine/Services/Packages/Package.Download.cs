@@ -1,4 +1,4 @@
-﻿using Sandbox.Engine;
+using Sandbox.Engine;
 using Sandbox.Menu;
 using Sentry;
 using System.Collections.Concurrent;
@@ -274,13 +274,30 @@ public partial class Package
 	{
 		SentrySdk.AddBreadcrumb( $"Mounting {this.FullIdent}", "package.mount" );
 
-		int? version = Revision?.VersionId > 0 ? (int)Revision.VersionId : null;
-		var fs = await ServerPackages.DownloadAndMount( FormatIdent( Org.Ident, Ident, version, !IsRemote ) );
+		var packageToMount = this;
+
+		if ( IsRemote )
+		{
+			var versionlessIdent = FormatIdent( Org.Ident, Ident );
+			Log.Info( $"[Package.Mount] Checking server for updates on remote package: {versionlessIdent}..." );
+			var latest = await FetchAsync( versionlessIdent, false, useCache: false );
+			if ( latest != null && latest.Revision != null )
+			{
+				packageToMount = latest;
+			}
+			else
+			{
+				Log.Warning( $"[Package.Mount] Couldn't verify the latest revision for {versionlessIdent}; mounting the current revision." );
+			}
+		}
+
+		int? version = packageToMount.Revision?.VersionId > 0 ? (int)packageToMount.Revision.VersionId : null;
+		var fs = await ServerPackages.DownloadAndMount( FormatIdent( packageToMount.Org.Ident, packageToMount.Ident, version, !packageToMount.IsRemote ) );
 		if ( fs is null ) return default;
 
 		if ( withCode )
 		{
-			await IGameInstanceDll.Current?.LoadPackageAssembliesAsync( this );
+			await IGameInstanceDll.Current?.LoadPackageAssembliesAsync( packageToMount );
 		}
 
 		return fs;

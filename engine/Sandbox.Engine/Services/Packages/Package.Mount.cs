@@ -7,16 +7,16 @@ public partial class Package
 	/// </summary>
 	public bool IsMounted()
 	{
+		// A remote package must be resolved again when its owner asks to mount it.
+		// The published revision may have changed since its last mount.
+		if ( IsRemote )
+			return false;
+
 		var download = ServerPackages.Get( FullIdent );
 
 		// fully good
 		if ( download != null && download.IsMounted )
 		{
-			if ( IsRemote && download.activePackage != null && download.activePackage.Package != null && Revision != null )
-			{
-				if ( download.activePackage.Package.Revision?.VersionId != Revision.VersionId )
-					return false;
-			}
 			return true;
 		}
 

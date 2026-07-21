@@ -1,4 +1,4 @@
-﻿using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp;
 using Sandbox.Audio;
 using Sandbox.Diagnostics;
 using Sandbox.Internal;
@@ -684,6 +684,8 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 				throw new Exception( "GameInstance load failed" );
 			}
+
+			FinishLoadingAssemblies();
 
 			Json.PopulateReflectionCache( Game.TypeLibrary );
 

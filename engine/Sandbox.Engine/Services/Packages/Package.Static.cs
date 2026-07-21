@@ -261,7 +261,7 @@ public partial class Package
 			// if this is a local package we need to say this is it
 			// whether we found it or not. We don't want it to look up
 			// the real package because that gets confusing.
-			return true;
+			return package != null;
 		}
 
 		if ( Packages.TryGetValue( fullIdent, out package ) )
