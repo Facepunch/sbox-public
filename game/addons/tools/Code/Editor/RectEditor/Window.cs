@@ -18,7 +18,7 @@ public class HotspotEditorWindow : Window
 		StateCookie = Name;
 	}
 
-	protected override void CreateDefaultDockLayout()
+	protected override void BuildDefaultLayout()
 	{
 		var properties = DockManager.OpenDock( "Properties", DockArea.Left );
 		var rectView = DockManager.OpenDock( "Rect View", DockArea.Right );
@@ -268,7 +268,7 @@ public partial class Window : DockWindow, IAssetEditor
 		}
 
 		if ( Visible )
-			RestoreFromStateCookie();
+			RestoreLayout();
 	}
 
 	protected void OnDocumentModified()
@@ -345,7 +345,7 @@ public partial class Window : DockWindow, IAssetEditor
 	private void OnViewMenu( Menu view )
 	{
 		view.Clear();
-		view.AddOption( "Restore To Default", "settings_backup_restore", RestoreDefaultDockLayout );
+		view.AddOption( "Restore To Default", "settings_backup_restore", ResetLayout );
 		view.AddSeparator();
 
 		foreach ( var dock in DockManager.DockTypes )
@@ -517,7 +517,7 @@ public partial class Window : DockWindow, IAssetEditor
 	[EditorEvent.Hotload]
 	public void OnHotload()
 	{
-		SaveToStateCookie();
+		SaveLayout();
 
 		RemoveToolBar( ToolBar );
 		ToolBar.Destroy();

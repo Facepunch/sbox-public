@@ -99,7 +99,7 @@ public class Window : DockWindow, IAssetEditor, AssetSystem.IEventListener
 		DockManager.AddDock( "Timeline", "timeline", Timeline, DockArea.Bottom );
 	}
 
-	protected override void CreateDefaultDockLayout()
+	protected override void BuildDefaultLayout()
 	{
 		var preview = DockManager.OpenDock( "Preview", DockArea.Center );
 		DockManager.OpenDock( "Properties", DockArea.Right );
@@ -173,7 +173,7 @@ public class Window : DockWindow, IAssetEditor, AssetSystem.IEventListener
 	private void OnViewMenu( Menu view )
 	{
 		view.Clear();
-		view.AddOption( "Restore To Default", "settings_backup_restore", RestoreDefaultDockLayout );
+		view.AddOption( "Restore To Default", "settings_backup_restore", ResetLayout );
 		view.AddSeparator();
 
 		foreach ( var dock in DockManager.DockTypes )

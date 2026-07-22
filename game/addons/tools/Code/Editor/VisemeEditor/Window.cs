@@ -109,7 +109,7 @@ public class Window : DockWindow
 
 	}
 
-	protected override void CreateDefaultDockLayout()
+	protected override void BuildDefaultLayout()
 	{
 		var preview = DockManager.OpenDock( "Preview", DockArea.Left );
 		DockManager.OpenDock( "Morphs", DockArea.Right );
@@ -174,13 +174,13 @@ public class Window : DockWindow
 	[EditorEvent.Hotload]
 	public void OnHotload()
 	{
-		SaveToStateCookie();
+		SaveLayout();
 
 		DockManager.Clear();
 		MenuBar.Clear();
 
 		CreateUI();
-		RestoreFromStateCookie();
+		RestoreLayout();
 	}
 
 	protected override void OnClosed()

@@ -405,6 +405,15 @@ partial class FaceTool
 			ComputeHotspotUVsForFaces( mesh, transform, faces, data, (int)size.x, (int)size.y, perFace, HotspotTiling, HotspotConforming, HotspotAllowMirrorHorizontal, HotspotAllowMirrorVertical );
 		}
 
+
+		[Shortcut( "mesh.find-replace-material-tool", "SHIFT+R", typeof( SceneViewWidget ) )]
+		void OpenFindReplaceMaterialTool()
+		{
+			var tool = new FindReplaceMaterialTool( _meshTool, nameof( FaceTool ) );
+			tool.Manager = _meshTool.Manager;
+			_meshTool.CurrentTool = tool;
+		}
+
 		private void AlignToGrid()
 		{
 			using var scope = SceneEditorSession.Scope();

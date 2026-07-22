@@ -307,6 +307,14 @@ sealed class SceneTab : Widget
 	protected override void OnMousePress( MouseEvent e )
 	{
 		base.OnMousePress( e );
+
+		if ( e.MiddleMouseButton )
+		{
+			e.Accepted = true;
+			CloseSession();
+			return;
+		}
+
 		if ( e.LeftMouseButton ) Session.MakeActive();
 	}
 

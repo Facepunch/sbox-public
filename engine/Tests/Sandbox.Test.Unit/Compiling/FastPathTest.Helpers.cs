@@ -31,7 +31,7 @@ internal record BuildResult(
 
 internal class FastPathTestCompiler : IDisposable
 {
-	public string Name { get; }
+	public IReadOnlyList<string> SourceNames { get; }
 
 	public ILHotload Hotload { get; }
 	public CompileGroup Group { get; }
@@ -45,13 +45,13 @@ internal class FastPathTestCompiler : IDisposable
 		set => Compiler.SetConfiguration( value );
 	}
 
-	public FastPathTestCompiler( string sourceName )
+	public FastPathTestCompiler( params IEnumerable<string> sourceNames )
 	{
-		Name = Path.GetFileNameWithoutExtension( sourceName );
+		SourceNames = [.. sourceNames.Select( Path.GetFileNameWithoutExtension )!];
 
 		Hotload = new ILHotload( "Test" );
 		Group = new CompileGroup( "Test" ) { AllowFastHotload = true };
-		Compiler = new Compiler( Group, Name );
+		Compiler = new Compiler( Group, SourceNames[0] );
 		Config = new Compiler.Configuration();
 		FileSystem = new MemoryFileSystem();
 
@@ -66,12 +66,23 @@ internal class FastPathTestCompiler : IDisposable
 
 		Group.OnCompileSuccess = () => compileSuccessCallback = true;
 
-		var srcFile = new FileInfo( Path.Combine( "data", "code", "fastpath", $"{Name}.{version}.cs" ) );
-
-		await using ( var dstStream = FileSystem.OpenWrite( $"{Name}.cs" ) )
-		await using ( var srcStream = srcFile.OpenRead() )
+		foreach ( string sourceName in SourceNames )
 		{
-			await srcStream.CopyToAsync( dstStream );
+			// Look for the most recent version of the file before or including the specified one
+
+			for ( var fileVersion = version; fileVersion >= 1; fileVersion-- )
+			{
+				var srcFile = new FileInfo( Path.Combine( "data", "code", "fastpath", $"{sourceName}.{fileVersion}.cs" ) );
+
+				if ( !srcFile.Exists ) continue;
+
+				await using var dstStream = FileSystem.OpenWrite( $"{sourceName}.cs" );
+				await using var srcStream = srcFile.OpenRead();
+
+				await srcStream.CopyToAsync( dstStream );
+
+				break;
+			}
 		}
 
 		Compiler.MarkForRecompile();

@@ -116,6 +116,11 @@ partial class VertexTool
 
 			Layout.AddStretchCell();
 
+			{
+				var group = AddGroup( "Visualization" );
+				group.Add( ControlSheetRow.Create( tool.GetSerialized().GetProperty( nameof( ShowSelectionBounds ) ) ) );
+			}
+
 			AddShortcuts(
 				("Lasso Select", "Alt+Shift+Drag"),
 				("Lasso Deselect", "Alt+Ctrl+Drag"),

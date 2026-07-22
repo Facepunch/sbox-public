@@ -22,7 +22,7 @@ public class Preview : Widget
 
 		CreateScene();
 
-		SetSizeMode( SizeMode.Default, SizeMode.CanShrink );
+		SetSizeMode( SizeMode.Default, SizeMode.Flexible );
 
 		SpriteEditor.OnAssetLoaded += UpdateRenderer;
 		SpriteEditor.OnAnimationSelected += UpdateRenderer;

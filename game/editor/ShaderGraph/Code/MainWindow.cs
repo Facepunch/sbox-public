@@ -722,7 +722,7 @@ public class MainWindow : DockWindow
 	private void OnViewMenu( Menu view )
 	{
 		view.Clear();
-		view.AddOption( "Restore To Default", "settings_backup_restore", RestoreDefaultDockLayout );
+		view.AddOption( "Restore To Default", "settings_backup_restore", ResetLayout );
 		view.AddSeparator();
 
 		foreach ( var dock in DockManager.DockTypes )
@@ -1188,7 +1188,7 @@ public class MainWindow : DockWindow
 		Compile();
 	}
 
-	protected override void CreateDefaultDockLayout()
+	protected override void BuildDefaultLayout()
 	{
 		var graph = DockManager.OpenDock( "Graph", DockArea.Center );
 		var preview = DockManager.OpenDock( "Preview", DockArea.Left );

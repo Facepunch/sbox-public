@@ -1,4 +1,4 @@
-namespace Editor;
+﻿namespace Editor;
 
 public partial class SceneViewportWidget
 {
@@ -26,7 +26,6 @@ public partial class SceneViewportWidget
 	private bool _gizmoLeftWasDown;
 	private Vector2 _gizmoPressPos;
 	private Vector2 _gizmoLockCursor;
-	private Vector3 _gizmoPivot;
 
 	private float GizmoRadius => 30f * Renderer.DpiScale;
 	private float GizmoBallRadius => 7f * Renderer.DpiScale;
@@ -100,7 +99,6 @@ public partial class SceneViewportWidget
 			_gizmoDragging = false;
 			_gizmoPressPos = MousePosition;
 			_gizmoLockCursor = Application.UnscaledCursorPosition;
-			_gizmoPivot = ComputeOrbitPivot();
 		}
 
 		_gizmoLeftWasDown = leftDown;
@@ -148,47 +146,13 @@ public partial class SceneViewportWidget
 
 	private void OrbitAroundPivot()
 	{
-		_gizmoOrthoActive = false;
+		EnterPerspectiveView();
 
-		if ( State.Is2D )
-			State.View = ViewMode.Perspective;
+		var delta = Application.CursorDelta * 0.1f;
+		GizmoInstance.OrbitCameraAroundPivot( _activeCamera, delta, ref cameraOrbitDistance );
 
-		cameraTargetPosition = null;
-
-		var pivot = _gizmoPivot;
-		var offset = State.CameraPosition - pivot;
-		var distance = MathF.Max( 1f, offset.Length );
-
-		var delta = Application.CursorDelta * 0.4f;
-
-		float yaw;
-		var horizLen = MathF.Sqrt( offset.x * offset.x + offset.y * offset.y );
-		if ( horizLen < 1e-4f * distance )
-		{
-			var up = State.CameraRotation.Up;
-			var sign = offset.z > 0f ? -1f : 1f;
-			yaw = MathX.RadianToDegree( MathF.Atan2( sign * up.y, sign * up.x ) );
-		}
-		else
-		{
-			yaw = MathX.RadianToDegree( MathF.Atan2( offset.y, offset.x ) );
-		}
-
-		var pitch = MathX.RadianToDegree( MathF.Asin( Math.Clamp( offset.z / distance, -1f, 1f ) ) );
-
-		yaw -= delta.x;
-		pitch = Math.Clamp( pitch + delta.y, -88f, 88f );
-
-		var yawRad = MathX.DegreeToRadian( yaw );
-		var pitchRad = MathX.DegreeToRadian( pitch );
-		var cosPitch = MathF.Cos( pitchRad );
-		var direction = new Vector3( cosPitch * MathF.Cos( yawRad ), cosPitch * MathF.Sin( yawRad ), MathF.Sin( pitchRad ) );
-
-		State.CameraPosition = pivot + direction * distance;
-		State.CameraRotation = Rotation.LookAt( -direction, Vector3.Up );
-
-		_activeCamera.WorldRotation = State.CameraRotation;
-		_activeCamera.WorldPosition = State.CameraPosition;
+		State.CameraRotation = _activeCamera.WorldRotation;
+		State.CameraPosition = _activeCamera.WorldPosition;
 
 		Renderer.Focus();
 	}
@@ -196,9 +160,18 @@ public partial class SceneViewportWidget
 	private void SnapToAxis( int axis )
 	{
 		var axisDir = GizmoAxes[axis];
-		_gizmoPivot = ComputeOrbitPivot();
+		var gizmoPivot = ComputeOrbitPivot();
 
-		var distance = (State.CameraPosition - _gizmoPivot).Length;
+		// If we're already looking down this axis, toggle between ortho/perspective
+		var alreadyAligned = Vector3.Dot( State.CameraRotation.Forward, -axisDir ) > 0.999f;
+		var currentlyOrtho = _gizmoOrthoActive || State.Is2D;
+		if ( alreadyAligned && currentlyOrtho )
+		{
+			EnterPerspectiveView();
+			return;
+		}
+
+		var distance = (State.CameraPosition - gizmoPivot).Length;
 		if ( distance < 1f )
 			distance = 400f;
 
@@ -208,16 +181,7 @@ public partial class SceneViewportWidget
 		else if ( axisDir.z < -0.5f ) up = Vector3.Right;
 		else up = Vector3.Up;
 
-		State.CameraRotation = Rotation.LookAt( -axisDir, up );
-		State.CameraPosition = _gizmoPivot + axisDir * distance;
-		State.CameraOrthoHeight = SizeFromDistanceAndFieldOfView( distance, EditorPreferences.CameraFieldOfView );
-
-		_activeCamera.WorldRotation = State.CameraRotation;
-		_activeCamera.WorldPosition = State.CameraPosition;
-
-		_gizmoOrthoActive = true;
-		_gizmoOrthoSnap = true;
-		cameraTargetPosition = null;
+		EnterOrthoView( axisDir, up, gizmoPivot, distance );
 	}
 
 	internal void PaintOrientationGizmo()

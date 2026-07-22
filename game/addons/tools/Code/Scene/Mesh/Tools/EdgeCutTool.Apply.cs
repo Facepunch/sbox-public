@@ -27,7 +27,11 @@ partial class EdgeCutTool
 
 	void Apply()
 	{
-		if ( _cutPoints.Count <= 1 ) return;
+		if ( _cutPoints.Count <= 1 )
+		{
+			EditorToolManager.SetSubTool( _tool );
+			return;
+		}
 
 		var components = new HashSet<MeshComponent>( _cutPoints.Count );
 		foreach ( var cutPoint in _cutPoints )
@@ -61,7 +65,8 @@ partial class EdgeCutTool
 			}
 		}
 
-		EditorToolManager.SetSubTool( _tool );
+		if ( !LoopMode )
+			EditorToolManager.SetSubTool( _tool );
 	}
 
 	bool ApplyCut( List<MeshVertex> outCutPathVertices, List<MeshEdge> outCutPathEdges )

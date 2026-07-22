@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using Sandbox.Rendering;
 
 namespace Sandbox.Clutter;
@@ -24,10 +25,15 @@ internal class ClutterBatchSceneObject : SceneCustomObject
 
 	internal static LodParams Lod { get; set; } = new() { TanHalfFov = 1.0f, ViewportWidth = 1920.0f };
 
+	private static readonly int ArgsStride = Marshal.SizeOf<GpuBuffer.IndirectDrawIndexedArguments>();
+	private static readonly int ArgsInstanceCountOffset = Marshal.OffsetOf<GpuBuffer.IndirectDrawIndexedArguments>( nameof( GpuBuffer.IndirectDrawIndexedArguments.InstanceCount ) ).ToInt32();
+
 	private readonly Model _model;
 	private readonly int _lodCount;
 	private readonly float _modelRadius;
 	private readonly GpuBuffer<float> _lodDistances;
+
+	private readonly int[] _drawCallCounts;
 
 	private readonly CommandList _commandList = new( "ClutterBatch" );
 
@@ -51,8 +57,12 @@ internal class ClutterBatchSceneObject : SceneCustomObject
 		_lodCount = Math.Clamp( switches.Length, 1, MaxLods );
 
 		var distances = new float[_lodCount];
+		_drawCallCounts = new int[_lodCount];
 		for ( int i = 0; i < _lodCount; i++ )
+		{
 			distances[i] = i < switches.Length ? switches[i] : 0f;
+			_drawCallCounts[i] = Math.Max( 1, model.GetLodDrawCallCount( i ) );
+		}
 
 		_lodDistances = new GpuBuffer<float>( _lodCount, GpuBuffer.UsageFlags.Structured );
 		_lodDistances.SetData( distances );
@@ -118,11 +128,22 @@ internal class ClutterBatchSceneObject : SceneCustomObject
 		for ( int lod = 0; lod < _lodCount; lod++ )
 		{
 			_visible[lod] = new GpuBuffer<GpuInstanceTransform>( count, GpuBuffer.UsageFlags.Structured | GpuBuffer.UsageFlags.Append );
-			_args[lod] = new GpuBuffer<GpuBuffer.IndirectDrawIndexedArguments>( 1, GpuBuffer.UsageFlags.IndirectDrawArguments );
-			_args[lod].SetData(
-			[
-				new GpuBuffer.IndirectDrawIndexedArguments { IndexCount = (uint)_model.GetIndexCountForLod( lod ) }
-			] );
+
+			var drawCallCount = _drawCallCounts[lod];
+			var args = new GpuBuffer.IndirectDrawIndexedArguments[drawCallCount];
+			for ( int d = 0; d < drawCallCount; d++ )
+			{
+				_model.GetLodDrawCallRange( lod, d, out int startIndex, out int indexCount, out int baseVertex );
+				args[d] = new GpuBuffer.IndirectDrawIndexedArguments
+				{
+					IndexCount = (uint)indexCount,
+					FirstIndex = (uint)startIndex,
+					BaseVertex = baseVertex
+				};
+			}
+
+			_args[lod] = new GpuBuffer<GpuBuffer.IndirectDrawIndexedArguments>( drawCallCount, GpuBuffer.UsageFlags.IndirectDrawArguments );
+			_args[lod].SetData( args );
 		}
 	}
 
@@ -162,7 +183,11 @@ internal class ClutterBatchSceneObject : SceneCustomObject
 		for ( int lod = 0; lod < _lodCount; lod++ )
 		{
 			_commandList.ResourceBarrierTransition( _args[lod], ResourceState.CopyDestination );
-			_commandList.CopyStructureCount( _visible[lod], _args[lod], 4 ); // -> args.InstanceCount
+
+			// Every draw call at this LOD draws the same visible-instance set, just a different
+			// material's index range, so the same counter is replicated into each entry's InstanceCount.
+			for ( int d = 0; d < _drawCallCounts[lod]; d++ )
+				_commandList.CopyStructureCount( _visible[lod], _args[lod], d * ArgsStride + ArgsInstanceCountOffset );
 		}
 
 		for ( int lod = 0; lod < _lodCount; lod++ )

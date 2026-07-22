@@ -247,6 +247,9 @@ class ClutterLayer
 
 	public void RebuildBatches()
 	{
+		// Don't build batch list on headless. We only care about collisions.
+		if ( Application.IsHeadless ) { _dirty = false; return; }
+
 		var scene = ParentObject?.Scene ?? GridSystem?.Scene;
 		if ( scene?.SceneWorld == null ) { _dirty = false; return; }
 

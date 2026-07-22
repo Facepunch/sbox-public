@@ -24,57 +24,70 @@ public partial class DockWindow : Window
 		Canvas = DockManager;
 	}
 
-	string _defaultDockState;
+	string DockCookie => $"Window.{StateCookie}.Dock";
 
 	/// <summary>
-	/// Override to create this window's default dock layout.
+	/// Open and arrange this window's default docks. Override this to define your default layout.
 	/// </summary>
-	protected virtual void CreateDefaultDockLayout()
+	protected virtual void BuildDefaultLayout()
 	{
 	}
 
 	/// <summary>
-	/// Override to apply a default layout to your window. The layout that exists when the
-	/// state cookie is first restored is captured automatically, so the default implementation
-	/// restores that snapshot.
+	/// Restores window geometry and, on top of the base window, the saved dock layout.
 	/// </summary>
-	protected virtual void RestoreDefaultDockLayout()
-	{
-		if ( string.IsNullOrEmpty( _defaultDockState ) )
-			return;
-
-		DockManager.State = _defaultDockState;
-	}
-
 	public override void RestoreFromStateCookie()
 	{
-		if ( string.IsNullOrWhiteSpace( StateCookie ) )
-			return;
-
 		base.RestoreFromStateCookie();
 
-		if ( _defaultDockState is null )
-		{
-			CreateDefaultDockLayout();
-			_defaultDockState = DockManager.State;
-		}
-
-		var state = ProjectCookie.GetString( $"Window.{StateCookie}.Dock", null );
-		if ( string.IsNullOrWhiteSpace( state ) || !DockManager.RestoreState( state ) )
-		{
-			RestoreDefaultDockLayout();
-		}
-	}
-
-	public override void SaveToStateCookie()
-	{
 		if ( string.IsNullOrWhiteSpace( StateCookie ) )
 			return;
 
-		base.SaveToStateCookie();
-
-		ProjectCookie.SetString( $"Window.{StateCookie}.Dock", DockManager.State );
+		RestoreLayout();
 	}
+
+	/// <summary>
+	/// Restore the saved dock layout, or the default layout if there's nothing to restore.
+	/// </summary>
+	public void RestoreLayout()
+	{
+		var saved = string.IsNullOrWhiteSpace( StateCookie ) ? null : ProjectCookie.GetString( DockCookie, null );
+		if ( !string.IsNullOrWhiteSpace( saved ) && DockManager.RestoreState( saved ) )
+			return;
+
+		ResetLayout();
+	}
+
+	/// <summary>
+	/// Reset the window back to its default dock layout.
+	/// </summary>
+	public void ResetLayout()
+	{
+		foreach ( var dock in DockManager.DockTypes )
+			DockManager.SetDockState( dock.Title, false );
+
+		BuildDefaultLayout();
+	}
+
+	/// <summary>
+	/// Persist the current dock layout. Happens automatically when the window closes or the app exits.
+	/// </summary>
+	public void SaveLayout()
+	{
+		if ( string.IsNullOrWhiteSpace( StateCookie ) || !DockManager.IsValid() )
+			return;
+
+		ProjectCookie.SetString( DockCookie, DockManager.State );
+	}
+
+	protected override void OnClosed()
+	{
+		SaveLayout();
+		base.OnClosed();
+	}
+
+	[Event( "app.exit" )]
+	void SaveLayoutOnExit() => SaveLayout();
 
 	/// <summary>
 	/// Populate a view menu with dock toggle options and a reset layout action.
@@ -85,7 +98,7 @@ public partial class DockWindow : Window
 
 		IToolsDll.Current?.RunEvent( "tools.editorwindow.createview", menu );
 
-		menu.AddOption( "Reset Layout", "restart_alt", RestoreDefaultDockLayout );
+		menu.AddOption( "Reset Layout", "restart_alt", ResetLayout );
 		menu.AddSeparator();
 
 		foreach ( var dock in DockManager.DockTypes.OrderBy( x => x.Title ) )

@@ -93,6 +93,49 @@ public class NetworkTest
 	}
 
 	[TestMethod]
+	[DataRow( NetworkFlags.None )]
+	[DataRow( NetworkFlags.NoPositionSync )]
+	[DataRow( NetworkFlags.NoRotationSync )]
+	[DataRow( NetworkFlags.NoScaleSync )]
+	public void ProxyKeepsUnsyncedComponentLocal( NetworkFlags flags )
+	{
+		Assert.IsNotNull( TypeLibrary.GetType<ModelRenderer>(), "TypeLibrary hasn't been given the game assembly" );
+
+		using var scope = new Scene().Push();
+
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+
+		clientAndHost.BecomeClient();
+
+		var go = new GameObject();
+		go.Network.Flags |= flags;
+
+		go.NetworkSpawn( clientAndHost.Host );
+		Assert.IsTrue( go.IsProxy );
+
+		var localTransform = new Transform( new Vector3( 100f, 0f, 0f ), Rotation.From( 0f, 45f, 0f ), Vector3.One * 2f );
+		var networkTransform = new Transform( new Vector3( -100f, 0f, 0f ), Rotation.From( 0f, 90f, 0f ), Vector3.One * 4f );
+
+		go.Transform.Local = localTransform;
+
+		var time = Time.NowDouble;
+		go.Transform.FromNetwork( networkTransform, false );
+
+		go.Transform.Update( time + Networking.InterpolationTime * 2f, time );
+
+		var expected = new Transform(
+			(flags & NetworkFlags.NoPositionSync) != 0 ? localTransform.Position : networkTransform.Position,
+			(flags & NetworkFlags.NoRotationSync) != 0 ? localTransform.Rotation : networkTransform.Rotation,
+			(flags & NetworkFlags.NoScaleSync) != 0 ? localTransform.Scale : networkTransform.Scale );
+
+		var local = go.Transform.InterpolatedLocal;
+
+		Assert.IsTrue( local.Position.AlmostEqual( expected.Position ), $"Position was {local.Position}" );
+		Assert.IsTrue( local.Rotation.Distance( expected.Rotation ) < 0.01f, $"Rotation was {local.Rotation}" );
+		Assert.IsTrue( local.Scale.AlmostEqual( expected.Scale ), $"Scale was {local.Scale}" );
+	}
+
+	[TestMethod]
 	public void NetworkedInput()
 	{
 		Assert.IsNotNull( TypeLibrary.GetType<ModelRenderer>(), "TypeLibrary hasn't been given the game assembly" );
@@ -815,6 +858,49 @@ public class NetworkTest
 	}
 
 	[TestMethod]
+	public async Task NetworkedMeshSurvivesLateJoinSnapshot()
+	{
+		Assert.IsNotNull( TypeLibrary.GetType<MeshComponent>(), "TypeLibrary hasn't been given the game assembly" );
+
+		using var scope = new Scene().Push();
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+
+		clientAndHost.BecomeHost();
+
+		var block = new GameObject();
+		var meshComponent = block.Components.Create<MeshComponent>();
+
+		var mesh = new PolygonMesh();
+		var a = mesh.AddVertex( new Vector3( 0, 0, 0 ) );
+		var b = mesh.AddVertex( new Vector3( 64, 0, 0 ) );
+		var c = mesh.AddVertex( new Vector3( 64, 64, 0 ) );
+		var d = mesh.AddVertex( new Vector3( 0, 64, 0 ) );
+		mesh.AddFace( a, b, c, d );
+		meshComponent.Mesh = mesh;
+
+		var expectedFaces = mesh.FaceHandles.Count();
+		Assert.AreNotEqual( 0, expectedFaces, "Test mesh should have geometry to begin with" );
+
+		block.NetworkSpawn();
+
+		// Build the snapshot a late-joining client would receive.
+		var snapshot = new SnapshotMsg { GameObjectSystems = [], NetworkObjects = new List<object>() };
+		SceneNetworkSystem.Instance.GetSnapshot( default, ref snapshot );
+
+		// The mesh geometry rides in the object's own blob buffer - the exact data the client dropped.
+		var createMsg = snapshot.NetworkObjects.OfType<ObjectCreateMsg>().Single( x => x.Guid == block.Id );
+		Assert.IsNotNull( createMsg.BlobData, "Mesh blob data should be in the create message" );
+
+		// Client applies the snapshot into a fresh scene, like a late-joiner.
+		clientAndHost.BecomeClient();
+		await SceneNetworkSystem.Instance.SetSnapshotAsync( snapshot );
+
+		var clientMesh = Game.ActiveScene.GetAllComponents<MeshComponent>().FirstOrDefault();
+		Assert.IsNotNull( clientMesh, "MeshComponent missing on client" );
+		Assert.IsNotNull( clientMesh.Mesh, "Mesh data missing on client" );
+		Assert.AreEqual( expectedFaces, clientMesh.Mesh.FaceHandles.Count(), "Mesh geometry did not survive the snapshot" );
+	}
+
 	[DataRow( false, false, false, DisplayName = "Cullable + hidden -> excluded" )]
 	[DataRow( false, true, true, DisplayName = "Cullable + visible -> included" )]
 	[DataRow( true, false, true, DisplayName = "AlwaysTransmit -> included when hidden" )]
