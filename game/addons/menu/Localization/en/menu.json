@@ -622,6 +622,7 @@
     "settings.input.controller": "Controller",
     "settings.input.look_yaw_speed": "Look Yaw Speed",
     "settings.input.look_pitch_speed": "Look Pitch Speed",
+    "settings.input.joystick_deadzone": "Joystick Deadzone (%)",
     "settings.keybinds": "Key Binds",
     "settings.keybinds.movement": "Movement",
     "settings.keybinds.actions": "Actions",

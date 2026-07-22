@@ -622,6 +622,7 @@
     "settings.input.controller": "控制器",
     "settings.input.look_yaw_speed": "水平灵敏度",
     "settings.input.look_pitch_speed": "垂直灵敏度",
+    "settings.input.joystick_deadzone": "手柄死区 (%)",
     "settings.keybinds": "按键",
     "settings.keybinds.movement": "移动",
     "settings.keybinds.actions": "动作",
