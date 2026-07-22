@@ -503,7 +503,7 @@ internal partial class NetworkSystem
 
 		Connection.Local.State = Connection.ChannelState.Connected;
 		source.State = Connection.ChannelState.Connected;
-		
+
 		return Task.CompletedTask;
 	}
 }
