@@ -80,6 +80,8 @@ public partial class Scene : GameObject
 
 	internal void SerializeNetworkObjects( Connection source, List<object> collection )
 	{
+		var included = new HashSet<NetworkObject>();
+
 		foreach ( var target in networkedObjects )
 		{
 			if ( target.GameObject?.IsDestroyed ?? true )
@@ -90,8 +92,32 @@ public partial class Scene : GameObject
 			if ( source is null || target.ShouldIncludeInSnapshot( source )
 				|| (root != target && (root?.ShouldIncludeInSnapshot( source ) ?? false)) )
 			{
-				collection.Add( target.GetCreateMessage() );
+				AddWithAncestors( source, target, included, collection );
 			}
+		}
+	}
+
+	/// <summary>
+	/// Emit the create message for <paramref name="target"/> and every networked ancestor above it,
+	/// each at most once. A networked child must never be sent without its parent chain.
+	/// </summary>
+	internal void AddWithAncestors( Connection source, NetworkObject target, HashSet<NetworkObject> included, List<object> collection )
+	{
+		var current = target;
+		while ( current is not null )
+		{
+			if ( current.GameObject?.IsDestroyed ?? true )
+				break;
+
+			if ( !included.Add( current ) )
+				break;
+
+			collection.Add( current.GetCreateMessage() );
+
+			if ( source is not null )
+				current.MarkCreateMessageSent( source );
+
+			current = current.GameObject.Parent?._net;
 		}
 	}
 
