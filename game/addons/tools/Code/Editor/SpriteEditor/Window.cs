@@ -84,21 +84,21 @@ public class Window : DockWindow, IAssetEditor
 	{
 		_preview = new Preview( this );
 
-		DockManager.AddDock( "Preview", "emoji_emotions", _preview, DockArea.Center );
-		DockManager.AddDock( "Inspector", "edit", new Inspector( this ), DockArea.Left );
-		DockManager.AddDock( "Animations", "directions_walk", new AnimationList( this ), DockArea.Bottom );
-		DockManager.AddDock( "Timeline", "view_column", new Timeline( this ), DockArea.Bottom );
+		var preview = DockManager.AddDock( "Preview", "emoji_emotions", _preview, DockArea.Right );
+		var inspector = DockManager.AddDock( "Inspector", "edit", new Inspector( this ), DockArea.Left );
+		DockManager.AddDock( "Animations", "directions_walk", new AnimationList( this ), DockArea.Bottom, relativeTo: inspector );
+		DockManager.AddDock( "Timeline", "view_column", new Timeline( this ), DockArea.Bottom, relativeTo: preview );
 	}
 
 	protected override void BuildDefaultLayout()
 	{
-		var preview = DockManager.OpenDock( "Preview", DockArea.Center );
+		var preview = DockManager.OpenDock( "Preview", DockArea.Right );
 		var inspector = DockManager.OpenDock( "Inspector", DockArea.Left );
 		var animations = DockManager.OpenDock( "Animations", DockArea.Bottom, inspector );
-		var timeline = DockManager.OpenDock( "Timeline", DockArea.Bottom );
+		var timeline = DockManager.OpenDock( "Timeline", DockArea.Bottom, preview );
 
-		DockManager.SetSplitterProportions( animations, 0.68f, 0.32f );
 		DockManager.SetSplitterProportions( preview, 0.25f, 0.75f );
+		DockManager.SetSplitterProportions( animations, 0.68f, 0.32f );
 		DockManager.SetSplitterProportions( timeline, 0.75f, 0.25f );
 	}
 

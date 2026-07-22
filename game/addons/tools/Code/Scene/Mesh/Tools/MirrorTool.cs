@@ -238,6 +238,27 @@ public partial class MirrorTool( string tool ) : EditorTool
 				Gizmo.Draw.LineThickness = Gizmo.IsHovered ? 5 : 4;
 				Gizmo.Draw.Line( _point1, _point2 );
 			}
+
+			var right = _point2 - _point1;
+			if ( !right.LengthSquared.AlmostEqual( 0.0f ) )
+			{
+				var length = right.Length;
+				var height = length * 0.5f;
+
+				var rotation = Rotation.LookAt( right.Normal, normal );
+				var center = (_point1 + _point2) * 0.5f;
+
+				using ( Gizmo.Scope( "mirror_plane", new Transform( center, rotation ) ) )
+				{
+					var box = new BBox( new Vector3( -length * 0.5f, 0, -height ), new Vector3( length * 0.5f, 0, height ) );
+
+					Gizmo.Draw.Color = Color.White.WithAlpha( 0.2f );
+					Gizmo.Draw.LineBBox( box );
+
+					Gizmo.Draw.Color = Color.White.WithAlpha( 0.01f );
+					Gizmo.Draw.SolidBox( box );
+				}
+			}
 		}
 
 		var tr = TracePlane();
@@ -265,38 +286,50 @@ public partial class MirrorTool( string tool ) : EditorTool
 		}
 	}
 
+	bool CanApply => _plane.HasValue;
+
 	SceneTraceResult TracePlane()
 	{
 		if ( Gizmo.Pressed.Any ) return default;
 
-		SceneTraceResult tr = default;
-
-		if ( _hitPlane.HasValue )
+		static Vector3 SnapNormalToAxis( Vector3 n )
 		{
-			var plane = _hitPlane.Value;
+			var abs = n.Abs();
+
+			if ( abs.x >= abs.y && abs.x >= abs.z ) return new Vector3( MathF.Sign( n.x ), 0, 0 );
+			if ( abs.y >= abs.z ) return new Vector3( 0, MathF.Sign( n.y ), 0 );
+
+			return new Vector3( 0, 0, MathF.Sign( n.z ) );
+		}
+
+		static SceneTraceResult PlaneTrace( Plane plane )
+		{
+			SceneTraceResult tr = default;
+
 			if ( plane.TryTrace( Gizmo.CurrentRay, out var hit, true ) )
 			{
 				tr.Hit = true;
 				tr.Normal = plane.Normal;
 				tr.HitPosition = hit;
 			}
+
+			return tr;
 		}
-		else
+
+		if ( Gizmo.IsLeftMouseDown && !Gizmo.WasLeftMousePressed && _hitPlane is { } locked )
+			return PlaneTrace( locked );
+
+		var tr = MeshTrace.Run();
+		if ( tr.Hit )
 		{
-			tr = MeshTrace.Run();
-
-			if ( !tr.Hit )
-			{
-				var plane = new Plane( Vector3.Up, 0 );
-				if ( plane.TryTrace( Gizmo.CurrentRay, out var hit ) )
-				{
-					tr.Hit = true;
-					tr.Normal = plane.Normal;
-					tr.HitPosition = hit;
-				}
-			}
+			tr.Normal = SnapNormalToAxis( tr.Normal );
+			return tr;
 		}
 
-		return tr;
+		tr = PlaneTrace( _hitPlane ?? new Plane( Vector3.Up, 0 ) );
+		if ( tr.Hit ) return tr;
+
+		var normal = SnapNormalToAxis( -Gizmo.Camera.Rotation.Forward );
+		return PlaneTrace( new Plane( Gizmo.CurrentRay.Project( 512f ), normal ) );
 	}
 }
