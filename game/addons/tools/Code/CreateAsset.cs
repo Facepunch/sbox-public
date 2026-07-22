@@ -96,10 +96,28 @@ public static class CreateAsset
 
 		parent.AddSeparator();
 
-		var grouped = entries.OrderBy( x => x.Name ).GroupBy( x => x.Category ).OrderBy( x => x.Key );
-		foreach ( var group in grouped.Where( x => x.Key is not null ) )
+		static string NormalizeCategory( string category )
 		{
-			var menu = parent.FindOrCreateMenu( group.Key );
+			if ( string.IsNullOrWhiteSpace( category ) )
+				return null;
+
+			var segments = category.Split( '/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries );
+			return segments.Length == 0 ? null : string.Join( '/', segments );
+		}
+
+		var groups = entries
+			.OrderBy( x => x.Name )
+			.GroupBy( x => NormalizeCategory( x.Category ), StringComparer.OrdinalIgnoreCase )
+			.Where( x => x.Key is not null )
+			.OrderBy( x => x.Key, StringComparer.OrdinalIgnoreCase );
+
+		foreach ( var group in groups )
+		{
+			var menu = parent;
+			foreach ( var segment in group.Key.Split( '/' ) )
+			{
+				menu = menu.FindOrCreateMenu( segment );
+			}
 
 			foreach ( var entry in group )
 			{

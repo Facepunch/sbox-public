@@ -41,7 +41,7 @@ public class AnimationList : Widget
 		scrollArea.Canvas.Layout.AddStretchCell();
 		Layout.Add( scrollArea );
 
-		SetSizeMode( SizeMode.Default, SizeMode.CanShrink );
+		SetSizeMode( SizeMode.Default, SizeMode.Flexible );
 
 		UpdateAnimationList();
 		SpriteEditor.OnAssetLoaded += UpdateAnimationList;

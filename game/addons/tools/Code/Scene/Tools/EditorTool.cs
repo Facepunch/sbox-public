@@ -380,7 +380,7 @@ public class EditorTool : IDisposable
 
 	private void UpdateLassoSelection()
 	{
-		if ( Gizmo.WasLeftMousePressed && !IsLassoSelecting )
+		if ( Gizmo.IsLeftMouseDown && !IsLassoSelecting )
 		{
 			_lassoPoints.Clear();
 			IsLassoSelecting = true;

@@ -82,6 +82,7 @@ public partial class GradientEditorWidget : Widget
 			_value = value;
 			Update();
 			UpdatePoints();
+			ValueChanged?.Invoke( _value );
 		}
 	}
 
@@ -234,13 +235,7 @@ public partial class GradientEditorWidget : Widget
 	void OnEdited()
 	{
 		Update();
-	}
-
-	public override void OnDestroyed()
-	{
 		ValueChanged?.Invoke( _value );
-
-		base.OnDestroyed();
 	}
 
 	[Shortcut( "editor.delete", "DEL" )]

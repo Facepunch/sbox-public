@@ -30,7 +30,7 @@ public class Inspector : Widget
 
 		Layout.Add( scroller );
 
-		SetSizeMode( SizeMode.Default, SizeMode.CanShrink );
+		SetSizeMode( SizeMode.Default, SizeMode.Flexible );
 
 		UpdateControlSheet();
 		SpriteEditor.OnAssetLoaded += UpdateControlSheet;

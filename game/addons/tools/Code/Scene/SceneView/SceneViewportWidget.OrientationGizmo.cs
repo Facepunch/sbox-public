@@ -1,4 +1,4 @@
-namespace Editor;
+﻿namespace Editor;
 
 public partial class SceneViewportWidget
 {
@@ -146,12 +146,7 @@ public partial class SceneViewportWidget
 
 	private void OrbitAroundPivot()
 	{
-		_gizmoOrthoActive = false;
-
-		if ( State.Is2D )
-			State.View = ViewMode.Perspective;
-
-		cameraTargetPosition = null;
+		EnterPerspectiveView();
 
 		var delta = Application.CursorDelta * 0.1f;
 		GizmoInstance.OrbitCameraAroundPivot( _activeCamera, delta, ref cameraOrbitDistance );
@@ -172,11 +167,7 @@ public partial class SceneViewportWidget
 		var currentlyOrtho = _gizmoOrthoActive || State.Is2D;
 		if ( alreadyAligned && currentlyOrtho )
 		{
-			_gizmoOrthoActive = false;
-			if ( State.Is2D )
-				State.View = ViewMode.Perspective;
-
-			cameraTargetPosition = null;
+			EnterPerspectiveView();
 			return;
 		}
 
@@ -190,16 +181,7 @@ public partial class SceneViewportWidget
 		else if ( axisDir.z < -0.5f ) up = Vector3.Right;
 		else up = Vector3.Up;
 
-		State.CameraRotation = Rotation.LookAt( -axisDir, up );
-		State.CameraPosition = gizmoPivot + axisDir * distance;
-		State.CameraOrthoHeight = SizeFromDistanceAndFieldOfView( distance, EditorPreferences.CameraFieldOfView );
-
-		_activeCamera.WorldRotation = State.CameraRotation;
-		_activeCamera.WorldPosition = State.CameraPosition;
-
-		_gizmoOrthoActive = true;
-		_gizmoOrthoSnap = true;
-		cameraTargetPosition = null;
+		EnterOrthoView( axisDir, up, gizmoPivot, distance );
 	}
 
 	internal void PaintOrientationGizmo()
