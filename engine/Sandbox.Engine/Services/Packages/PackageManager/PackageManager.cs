@@ -1,4 +1,4 @@
-﻿using Sandbox.Menu;
+using Sandbox.Menu;
 using System.IO;
 using System.Threading;
 
@@ -63,6 +63,25 @@ internal static partial class PackageManager
 		// If this package exists then mark it with our tag and move on
 		//
 		var existingPackage = Find( options.PackageIdent, options.AllowLocalPackages );
+		if ( existingPackage != null )
+		{
+			if ( existingPackage.Package != null && existingPackage.Package.IsRemote && Package.TryParseIdent( options.PackageIdent, out var parsedIdent ) )
+			{
+				if ( parsedIdent.version != null && parsedIdent.version != existingPackage.Package.Revision?.VersionId )
+				{
+					log.Info( $"Version mismatch: replacing mounted package {existingPackage.Package.FullIdent} (version {existingPackage.Package.Revision?.VersionId}) with requested version {parsedIdent.version}." );
+
+					var mountedIdent = Package.FormatIdent( existingPackage.Package.Org.Ident, existingPackage.Package.Ident, (int?)existingPackage.Package.Revision?.VersionId );
+					existingPackage.Delete();
+					ActivePackages.Remove( existingPackage );
+					ServerPackages.Remove( options.PackageIdent );
+					ServerPackages.Remove( mountedIdent );
+
+					existingPackage = null;
+				}
+			}
+		}
+
 		if ( existingPackage != null )
 		{
 			existingPackage.AddContextTag( options.ContextTag );

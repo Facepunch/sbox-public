@@ -279,7 +279,7 @@ public partial class Package
 		if ( IsRemote )
 		{
 			var versionlessIdent = FormatIdent( Org.Ident, Ident );
-			Log.Info( $"[Package.Mount] Checking server for updates on remote package: {versionlessIdent}..." );
+			Log.Info( $"Checking server for updates on remote package: {versionlessIdent}..." );
 			var latest = await FetchAsync( versionlessIdent, false, useCache: false );
 			if ( latest != null && latest.Revision != null )
 			{
@@ -287,7 +287,7 @@ public partial class Package
 			}
 			else
 			{
-				Log.Warning( $"[Package.Mount] Couldn't verify the latest revision for {versionlessIdent}; mounting the current revision." );
+				Log.Warning( $"Couldn't verify the latest revision for {versionlessIdent}; mounting the current revision." );
 			}
 		}
 

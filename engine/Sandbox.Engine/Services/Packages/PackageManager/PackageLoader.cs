@@ -301,13 +301,13 @@ internal sealed partial class PackageLoader : IDisposable
 			{
 				if ( existing.Package.Revision?.VersionId == ap.Package.Revision?.VersionId )
 				{
-					log.Info( $"[PackageLoader] Assembly {assmName} is already loaded with the same version ({ap.Package.Revision?.VersionId}) - Reusing memory assembly." );
+					log.Info( $"Assembly {assmName} is already loaded with the same version ({ap.Package.Revision?.VersionId}) - Reusing memory assembly." );
 					return existing;
 				}
 			}
 		}
 
-		log.Info( $"[PackageLoader] Loading assembly {assmName} from package {ap.Package.FullIdent} (version: {ap.Package.Revision?.VersionId})..." );
+		log.Info( $"Loading assembly {assmName} from package {ap.Package.FullIdent} (version: {ap.Package.Revision?.VersionId})..." );
 
 		// if this is an editor dll, it shouldn't have loaded anywhere but the tools!
 		Assert.False( isToolAssembly && !ToolsMode );
