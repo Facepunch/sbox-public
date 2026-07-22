@@ -303,8 +303,7 @@ public static class EditorScene
 	/// </summary>
 	public static void PlayAsClient()
 	{
-		var sceneEditorSession = SceneEditorSession.All.FirstOrDefault( x => x.IsPlaying );
-		sceneEditorSession?.StopPlaying();
+		SceneEditorSession.Playing?.StopPlaying();
 
 		var scene = Game.ActiveScene;
 		if ( scene is null || !scene.IsValid() )
