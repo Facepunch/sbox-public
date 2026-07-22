@@ -298,6 +298,26 @@ public static class EditorScene
 		EditorEvent.Run( "scene.play" );
 	}
 
+	/// <summary>
+	/// Starts the scene once loading is complete when using Connect command in the editor.
+	/// </summary>
+	public static void PlayAsClient()
+	{
+		var scene = Game.ActiveScene;
+		if ( scene is null || !scene.IsValid() )
+			return;
+
+		var session = FindPlayableSession();
+		if ( session is null )
+			return;
+
+		if ( session.IsPlaying )
+			return;
+
+		session.SetPlaying( scene );
+		EditorEvent.Run( "scene.play" );
+	}
+
 	public static void Stop()
 	{
 		// Close any open overlay modals so they don't persist in the next play session

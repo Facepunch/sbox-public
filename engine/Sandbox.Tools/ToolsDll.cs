@@ -80,19 +80,12 @@ internal class ToolsDll : IToolsDll
 		EditorScene.Stop();
 	}
 
-	public void SetPlaying()
+	/// <summary>
+	/// Displays the scene after a connection is established from the editor.
+	/// </summary>
+	public void PlayAsClient()
 	{
-		if ( Game.ActiveScene is null || !Game.ActiveScene.IsValid() )
-		{
-			return;
-		}
-
-		// Just incase we are ingame currently using the "connect" command we just stop the current session and start a new one, 
-		// so we dont end up with dupe GameSession
-		var sceneEditorSession = SceneEditorSession.All.FirstOrDefault( x => x.IsPlaying );
-		sceneEditorSession?.StopPlaying();
-
-		EditorScene.Play( true );
+		EditorScene.PlayAsClient();
 	}
 
 	/// <summary>

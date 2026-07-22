@@ -429,10 +429,6 @@ internal partial class NetworkSystem
 
 		source.SendMessage( output );
 
-		if ( Application.IsEditor )
-		{
-			IToolsDll.Current?.SetPlaying();
-		}
 	}
 
 	Task On_Handshake_ClientReady( ClientReady msg, Connection source, Guid msgId )
@@ -507,7 +503,7 @@ internal partial class NetworkSystem
 
 		Connection.Local.State = Connection.ChannelState.Connected;
 		source.State = Connection.ChannelState.Connected;
-
+		
 		return Task.CompletedTask;
 	}
 }
