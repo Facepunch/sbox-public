@@ -26,6 +26,8 @@ public class ObjectEditorTool : EditorTool
 		UpdateSelectionMode();
 	}
 
+	public override Widget CreateShortcutsWidget() => new ObjectEditorToolShortcutsWidget();
+
 	protected override void OnBoxSelect( Frustum frustum, Rect screenRect, bool isFinal )
 	{
 		var selection = new HashSet<GameObject>();
@@ -115,6 +117,19 @@ public class ObjectEditorTool : EditorTool
 	}
 
 	public override bool HasBoxSelectionMode() => true;
+}
 
+file class ObjectEditorToolShortcutsWidget : Widget
+{
+	[Shortcut( "gameObject.duplicate-nudge-up", "SHIFT+UP", typeof( SceneViewWidget ) )]
+	public void DuplicateNudgeUp() => SceneEditorMenus.DuplicateNudge( Vector2.Up );
 
+	[Shortcut( "gameObject.duplicate-nudge-down", "SHIFT+DOWN", typeof( SceneViewWidget ) )]
+	public void DuplicateNudgeDown() => SceneEditorMenus.DuplicateNudge( Vector2.Down );
+
+	[Shortcut( "gameObject.duplicate-nudge-left", "SHIFT+LEFT", typeof( SceneViewWidget ) )]
+	public void DuplicateNudgeLeft() => SceneEditorMenus.DuplicateNudge( Vector2.Left );
+
+	[Shortcut( "gameObject.duplicate-nudge-right", "SHIFT+RIGHT", typeof( SceneViewWidget ) )]
+	public void DuplicateNudgeRight() => SceneEditorMenus.DuplicateNudge( Vector2.Right );
 }

@@ -6,11 +6,11 @@ public class Program : CompilingTests.IProgram
 {
 	public int Testing()
 	{
-		return 100;
+		return 200;
 	}
 
 	public int Main( StringWriter output )
 	{
-		return Testing() + 1;
+		return Testing() + 2;
 	}
 }

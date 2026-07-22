@@ -17,7 +17,8 @@ internal class EditorPreferencesWindow : BaseWindow
 	public EditorPreferencesWindow()
 	{
 		SetModal( true, true );
-		Size = new Vector2( 740, 440 );
+		Size = new Vector2( 1024, 768 );
+		MinimumSize = new Vector2( 1024, 768 );
 		MinimumSize = Size;
 		TranslucentBackground = true;
 		NoSystemBackground = true;

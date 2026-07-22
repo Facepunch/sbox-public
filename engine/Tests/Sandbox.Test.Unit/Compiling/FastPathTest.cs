@@ -1,4 +1,7 @@
-﻿namespace CompilingTests;
+﻿using System.Collections.Generic;
+using System.Reflection;
+
+namespace CompilingTests;
 
 /// <summary>
 /// <para>
@@ -96,30 +99,52 @@ public partial class FastPathTest
 		Assert.AreEqual( 0, TestProgram( program ) );
 	}
 
-	/// <summary>
-	/// Tests multiple changed methods in the same file.
-	/// </summary>
-	[TestMethod]
-	public async Task MultipleChanges()
+	private async Task MultipleChangesCore( bool sequential, params IEnumerable<string> sourceNames )
 	{
-		using var compiler = new FastPathTestCompiler( "MultipleChanges.cs" );
+		using var compiler = new FastPathTestCompiler( sourceNames );
 
 		var result = await compiler.BuildAsync( version: 1 );
+
+		var program = result.CreateProgram();
+
+		Assert.AreEqual( 101, TestProgram( program ) );
 
 		Assert.IsFalse( result.ILHotloadSupported );
 		Assert.AreEqual( 0, result.ChangedMethods.Length );
 
-		var program = result.CreateProgram();
+		if ( sequential )
+		{
+			result = await compiler.BuildAsync( version: 2 );
 
-		Assert.AreEqual( 0, TestProgram( program, "Hello World!" ) );
+			Assert.AreEqual( 102, TestProgram( program ) );
 
-		result = await compiler.BuildAsync( version: 2 );
+			Assert.IsTrue( result.ILHotloadSupported );
+			Assert.AreEqual( 1, result.ChangedMethods.Length );
+		}
+
+		result = await compiler.BuildAsync( version: 3 );
+
+		Assert.AreEqual( 202, TestProgram( program ) );
 
 		Assert.IsTrue( result.ILHotloadSupported );
-		Assert.AreEqual( 2, result.ChangedMethods.Length );
-
-		Assert.AreEqual( 1, TestProgram( program ) );
+		Assert.AreEqual( sequential ? 1 : 2, result.ChangedMethods.Length );
 	}
+
+	/// <summary>
+	/// Tests multiple changed methods in the same file.
+	/// </summary>
+	[TestMethod]
+	[DataRow( true, DisplayName = "Sequential" )]
+	[DataRow( false, DisplayName = "Simultaneous" )]
+	public Task MultipleChanges( bool sequential ) => MultipleChangesCore( sequential, "MultipleChanges.cs" );
+
+	/// <summary>
+	/// Tests multiple changed methods in separate files.
+	/// </summary>
+	[TestMethod]
+	[DataRow( true, DisplayName = "Sequential" )]
+	[DataRow( false, DisplayName = "Simultaneous" )]
+	public Task MultipleFileChanges( bool sequential ) => MultipleChangesCore( sequential, "MultipleFilesA.cs", "MultipleFilesB.cs" );
 
 	/// <summary>
 	/// Tests only a string changing in a method body, which doesn't cause any IL to change but

@@ -132,6 +132,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 	public bool StartAsleep { get; set; }
 
 	[Property] public Action OnPropBreak { get; set; }
+	[Property] public Action<List<Gib>> OnGibsCreated { get; set; }
 	[Property] public Action<DamageInfo> OnPropTakeDamage { get; set; }
 
 	[Property, Hide]
@@ -628,6 +629,8 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 				gib.Ignite();
 			}
 		}
+
+		OnGibsCreated?.Invoke( gibs );
 
 		return gibs;
 	}

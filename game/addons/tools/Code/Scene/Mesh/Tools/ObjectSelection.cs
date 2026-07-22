@@ -48,7 +48,7 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 		{
 			var transform = menu.AddMenu( "Transform", "straighten" );
 			AddMenuOption( transform, "Bake Scale", "meshtools/object_selection_buttons/bake_scale.png", "mesh.bake-scale", true );
-			AddMenuOption( transform, "Set Origin To Pivot", "meshtools/object_selection_buttons/set_origin_to_pivot.png", "mesh.set-origin-to-pivot", true );
+			AddMenuOption( transform, "Set Origin To Pivot", "meshtools/object_selection_buttons/set_origin_to_pivot.png", "mesh.set-origin-to-pivot", hasObjects );
 			AddMenuOption( transform, "Center Origin", "meshtools/object_selection_buttons/center_origin.png", "mesh.center-origin", true );
 			AddMenuOption( transform, "Align To View", "visibility", "gameObject.align-to-view", true );
 			transform.AddSeparator();
@@ -252,9 +252,21 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 		if ( Gizmo.Pressed.Any ) return;
 
 		using var scope = SceneEditorSession.Scope();
-		using var undoScope = SceneEditorSession.Active.UndoScope( "Nudge Mesh(s)" )
-			.WithGameObjectChanges( _objects, GameObjectUndoFlags.Properties )
-			.Push();
+		var duplicate = Gizmo.IsShiftPressed;
+		using var undoScope = duplicate
+			? SceneEditorSession.Active.UndoScope( "Duplicate Object(s)" )
+				.WithGameObjectCreations()
+				.WithComponentChanges( _meshes )
+				.Push()
+			: SceneEditorSession.Active.UndoScope( "Nudge Mesh(s)" )
+				.WithGameObjectChanges( _objects, GameObjectUndoFlags.Properties )
+				.Push();
+
+		if ( duplicate )
+		{
+			DuplicateSelection();
+			OnSelectionChanged();
+		}
 
 		var rotation = CalculateSelectionBasis();
 		var delta = Gizmo.Nudge( rotation, direction );
