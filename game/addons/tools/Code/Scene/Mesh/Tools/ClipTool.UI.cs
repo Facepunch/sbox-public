@@ -57,6 +57,16 @@ partial class ClipTool
 				row.Add( _cancelButton );
 			}
 
+			Layout.AddSpacingCell( 8 );
+
+			AddShortcuts(
+				("Draw Clip Line", "LMB Drag"),
+				("Cycle Keep Mode", EditorShortcuts.GetKeys( "mesh.clip-cycle-mode" )),
+				("Apply", EditorShortcuts.GetKeys( "mesh.clip-apply" )),
+				("Apply & Continue", EditorShortcuts.GetKeys( "mesh.clip-apply-stay" )),
+				("Cancel", EditorShortcuts.GetKeys( "mesh.clip-cancel" ))
+			);
+
 			Layout.AddStretchCell();
 		}
 
@@ -78,7 +88,7 @@ partial class ClipTool
 		public void Frame()
 		{
 			_applyButton?.Enabled = _tool.CanApply;
-			_cancelButton?.Enabled = _tool.CanApply;
+			_cancelButton?.Enabled = true;
 			_keepFront?.IsActive = _tool.KeepMode == ClipKeepMode.Front;
 			_keepBack?.IsActive = _tool.KeepMode == ClipKeepMode.Back;
 			_keepBoth?.IsActive = _tool.KeepMode == ClipKeepMode.Both;

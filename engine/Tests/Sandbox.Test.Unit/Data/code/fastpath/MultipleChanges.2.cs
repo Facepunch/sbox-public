@@ -4,12 +4,13 @@ namespace TestPackage;
 
 public class Program : CompilingTests.IProgram
 {
-	public void Testing( StringWriter output )
+	public int Testing()
 	{
+		return 100;
 	}
 
 	public int Main( StringWriter output )
 	{
-		return 1;
+		return Testing() + 2;
 	}
 }
