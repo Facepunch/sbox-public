@@ -139,10 +139,21 @@ internal static class TopLevelTools
 	}
 
 	[McpTool.ReadOnly( "editor_status" ), McpListed]
-	[Description( "Get the current state of the editor - engine version, which project is open, the active scene and whether it has unsaved changes, whether play mode is running or paused, how many tools are registered, and the directory paths that matter (logs, project code and assets)." )]
+	[Description( "Get the current state of the editor - engine version, which project is open, the active scene and whether it has unsaved changes, whether play mode is running or paused, whether code is compiling and how the last compile went, how many tools are registered, and the directory paths that matter (logs, project code and assets)." )]
 	public static EditorStatus GetEditorStatus()
 	{
 		var scene = Game.ActiveScene;
+		var compileGroup = Project.CompileGroup;
+
+		// Diagnostics is only allocated once a build has actually run, so a null one means nothing
+		// has compiled yet. Without that check a fresh editor would report the default Results,
+		// whose Success is true, and claim a compile succeeded that never happened.
+		bool? lastBuildSucceeded = null;
+
+		if ( compileGroup is not null && compileGroup.BuildResult.Diagnostics is not null )
+		{
+			lastBuildSucceeded = compileGroup.BuildResult.Success;
+		}
 
 		return new EditorStatus
 		{
@@ -154,6 +165,8 @@ internal static class TopLevelTools
 			SceneHasUnsavedChanges = SceneEditorSession.Active?.HasUnsavedChanges ?? false,
 			IsPlaying = Game.IsPlaying,
 			IsPaused = Game.IsPaused,
+			IsCompiling = compileGroup?.IsBuilding ?? false,
+			LastBuildSucceeded = lastBuildSucceeded,
 			ToolCount = ToolRegistry.All().Count(),
 			Paths = new EditorPaths
 			{
@@ -238,6 +251,19 @@ internal class EditorStatus
 	public bool SceneHasUnsavedChanges { get; set; }
 	public bool IsPlaying { get; set; }
 	public bool IsPaused { get; set; }
+
+	/// <summary>
+	/// True while code is being compiled - anything read right now may be about to change.
+	/// </summary>
+	public bool IsCompiling { get; set; }
+
+	/// <summary>
+	/// Whether the last code compile succeeded, or null when nothing has compiled yet this
+	/// session. Read this instead of inferring the result from console history, which only
+	/// records failures.
+	/// </summary>
+	public bool? LastBuildSucceeded { get; set; }
+
 	public int ToolCount { get; set; }
 	public EditorPaths Paths { get; set; }
 }
