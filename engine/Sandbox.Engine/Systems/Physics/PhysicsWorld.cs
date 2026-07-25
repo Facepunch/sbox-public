@@ -210,6 +210,12 @@ public sealed partial class PhysicsWorld : IHandle
 	internal Action<PhysicsBody> OnBodyOutOfBounds { get; set; }
 	internal Action<PhysicsBody> OnBodyFellAsleep { get; set; }
 
+	/// <summary>
+	/// Fired for each body that the solver reports as active (moved) this step. Used to drive
+	/// per-step transform sync without scanning every body. See <see cref="PhysicsBody.OnActive"/>.
+	/// </summary>
+	internal Action<PhysicsBody> OnBodyActive { get; set; }
+
 	unsafe void OnIntersection( VPhysIntersectionNotification_t* ptr )
 	{
 		try

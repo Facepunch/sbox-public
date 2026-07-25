@@ -1237,6 +1237,8 @@ public sealed partial class PhysicsBody : IHandle
 
 		Dirty();
 
+		World?.OnBodyActive?.Invoke( this );
+
 		if ( wentOutOfBounds )
 		{
 			World?.OnBodyOutOfBounds?.Invoke( this );
