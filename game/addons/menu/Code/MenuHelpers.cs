@@ -110,7 +110,7 @@ public static class MenuHelpers
 	{
 		var days = (int)System.Math.Floor( (System.DateTimeOffset.UtcNow - time).TotalDays );
 		if ( days < 0 ) days = 0;
-		return Game.Language.GetPhrase("menuhelpers.time.days", new() { { "num", days } });
+		return Game.Language.GetPhrase( "menuhelpers.time.days", new() { { "num", days } } );
 	}
 
 	public static MenuPanel OpenFriendMenu( Panel source, Friend friend )
@@ -306,7 +306,7 @@ public static class MenuHelpers
 		if ( !prefix.EndsWith( "." ) )
 			prefix += ".";
 
-		var normalized = ( prefix + key ).Trim().ToLower().Replace( " ", "" ).Replace( "#", "" ).Replace( "-", "" );
+		var normalized = (prefix + key).Trim().ToLower().Replace( " ", "" ).Replace( "#", "" ).Replace( "-", "" );
 		var result = Game.Language.GetPhrase( normalized, data );
 		return returnOriginKey && result == normalized ? key : result;
 	}
