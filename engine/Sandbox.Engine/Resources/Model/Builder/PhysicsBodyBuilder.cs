@@ -1,13 +1,12 @@
 namespace Sandbox;
 
 /// <summary>
-/// Provides ability to generate a physics body for a <see cref="Model"/> at runtime.
-/// See <see cref="ModelBuilder.AddBody"/>
+/// Builds a physics body for a <see cref="Model"/>.
 /// </summary>
 public sealed class PhysicsBodyBuilder
 {
 	/// <summary>
-	/// The mass of the body in kilograms.  
+	/// The mass of the body in kilograms.
 	/// Set to <c>0</c> to calculate automatically from its shapes and density.
 	/// </summary>
 	public float Mass { get; set; }
@@ -27,11 +26,13 @@ public sealed class PhysicsBodyBuilder
 	/// </summary>
 	public string BoneName { get; set; }
 
+	internal struct BoxShape { public Vector3 Extents; public Transform Transform; }
 	internal struct SphereShape { public Sphere Sphere; }
 	internal struct CapsuleShape { public Capsule Capsule; }
 	internal struct HullShape { public Vector3[] Points; public Transform Transform; public HullSimplify? Simplify; }
 	internal struct MeshShape { public Vector3[] Vertices; public uint[] Indices; public byte[] Materials; }
 
+	internal List<BoxShape> Boxes = [];
 	internal List<SphereShape> Spheres = [];
 	internal List<CapsuleShape> Capsules = [];
 	internal List<HullShape> Hulls = [];
@@ -42,6 +43,7 @@ public sealed class PhysicsBodyBuilder
 	}
 
 	/// <inheritdoc cref="Mass"/>
+	/// <param name="mass">The body mass in kilograms.</param>
 	public PhysicsBodyBuilder SetMass( float mass )
 	{
 		Mass = mass;
@@ -49,6 +51,7 @@ public sealed class PhysicsBodyBuilder
 	}
 
 	/// <inheritdoc cref="Surface"/>
+	/// <param name="surface">The surface properties applied to the body.</param>
 	public PhysicsBodyBuilder SetSurface( Surface surface )
 	{
 		Surface = surface;
@@ -56,6 +59,7 @@ public sealed class PhysicsBodyBuilder
 	}
 
 	/// <inheritdoc cref="BindPose"/>
+	/// <param name="bindPose">The bind pose transform.</param>
 	public PhysicsBodyBuilder SetBindPose( Transform bindPose )
 	{
 		BindPose = bindPose;
@@ -63,6 +67,7 @@ public sealed class PhysicsBodyBuilder
 	}
 
 	/// <inheritdoc cref="BoneName"/>
+	/// <param name="boneName">The attached bone name, or null to detach it.</param>
 	public PhysicsBodyBuilder SetBoneName( string boneName )
 	{
 		BoneName = boneName;
@@ -70,8 +75,21 @@ public sealed class PhysicsBodyBuilder
 	}
 
 	/// <summary>
-	/// Add a sphere shape.
+	/// Adds a box shape.
 	/// </summary>
+	/// <param name="extents">The distance from the center to each side of the box.</param>
+	/// <param name="transform">Optional local transform of the box relative to the body.</param>
+	public PhysicsBodyBuilder AddBox( Vector3 extents, Transform? transform = default )
+	{
+		Boxes.Add( new BoxShape { Extents = extents, Transform = transform ?? Transform.Zero } );
+		return this;
+	}
+
+	/// <summary>
+	/// Adds a sphere shape.
+	/// </summary>
+	/// <param name="sphere">The sphere to add.</param>
+	/// <param name="transform">Optional position and uniform scale applied to the sphere.</param>
 	public PhysicsBodyBuilder AddSphere( Sphere sphere, Transform? transform = default )
 	{
 		if ( transform.HasValue )
@@ -84,8 +102,10 @@ public sealed class PhysicsBodyBuilder
 	}
 
 	/// <summary>
-	/// Add a capsule shape.
+	/// Adds a capsule shape.
 	/// </summary>
+	/// <param name="capsule">The capsule to add.</param>
+	/// <param name="transform">Optional transform applied to the capsule.</param>
 	public PhysicsBodyBuilder AddCapsule( Capsule capsule, Transform? transform = default )
 	{
 		if ( transform.HasValue )
@@ -145,8 +165,8 @@ public sealed class PhysicsBodyBuilder
 	/// </summary>
 	/// <param name="points">The points making up the hull.</param>
 	/// <param name="transform">Optional local transform of the hull relative to the body.</param>
-	/// <param name="simplify">Optional settings to reduce the complexity of the hull.</param>
-	/// <exception cref="ArgumentException">Thrown if less than 3 points are provided.</exception>
+	/// <param name="simplify">Optional settings to reduce the hull complexity. By default, the points are used without simplification.</param>
+	/// <exception cref="ArgumentException">Fewer than three points were provided.</exception>
 	public PhysicsBodyBuilder AddHull( Span<Vector3> points, Transform? transform = default, HullSimplify? simplify = default )
 	{
 		if ( points.Length < 3 )
@@ -161,21 +181,19 @@ public sealed class PhysicsBodyBuilder
 	/// </summary>
 	/// <param name="vertices">The mesh vertex positions.</param>
 	/// <param name="indices">
-	/// The mesh indices, grouped in triples to form triangles.  
+	/// The mesh indices, grouped in triples to form triangles.
 	/// Must be a multiple of 3.
 	/// </param>
 	/// <param name="materials">
-	/// Optional per-vertex material IDs.  
-	/// Length must match <paramref name="vertices"/> count or be empty.
+	/// Optional per-triangle material indices.
+	/// Length must match the number of triangles or be empty.
 	/// </param>
 	/// <exception cref="ArgumentException">
-	/// Thrown if the mesh has fewer than 3 vertices,  
-	/// if indices are not a multiple of 3,  
-	/// or if material count does not match vertex count.
+	/// The mesh has fewer than three vertices,
+	/// the indices do not form triangles,
+	/// or the material count does not match the triangle count.
 	/// </exception>
-	/// <exception cref="ArgumentOutOfRangeException">
-	/// Thrown if any index refers to a vertex that does not exist.
-	/// </exception>
+	/// <exception cref="ArgumentOutOfRangeException">An index refers to a vertex outside <paramref name="vertices"/>.</exception>
 	public PhysicsBodyBuilder AddMesh( Span<Vector3> vertices, Span<uint> indices, Span<byte> materials )
 	{
 		if ( vertices.Length < 3 )
@@ -184,8 +202,9 @@ public sealed class PhysicsBodyBuilder
 		if ( indices.Length < 3 || indices.Length % 3 != 0 )
 			throw new ArgumentException( "Mesh indices length must be at least 3 and a multiple of 3 (triangles).", nameof( indices ) );
 
-		if ( materials.Length > 0 && materials.Length != vertices.Length )
-			throw new ArgumentException( "Materials array length must match vertex count, or be empty.", nameof( materials ) );
+		var triangleCount = indices.Length / 3;
+		if ( materials.Length > 0 && materials.Length != triangleCount )
+			throw new ArgumentException( "Materials array length must match triangle count, or be empty.", nameof( materials ) );
 
 		for ( int i = 0; i < indices.Length; i++ )
 		{
@@ -195,35 +214,5 @@ public sealed class PhysicsBodyBuilder
 
 		Meshes.Add( new MeshShape { Vertices = vertices.ToArray(), Indices = indices.ToArray(), Materials = materials.ToArray() } );
 		return this;
-	}
-}
-
-partial class ModelBuilder
-{
-	private readonly List<PhysicsBodyBuilder> _bodies = [];
-
-	/// <summary>
-	/// Adds a new physics body to this object.
-	/// </summary>
-	/// <param name="mass">The mass of the body. Default is <c>0</c>.</param>
-	/// <param name="surface">The surface properties to apply. Default is <c>default</c>.</param>
-	/// <param name="boneName">
-	/// Optional name of the bone this body is attached to.  
-	/// Leave empty for non-skeletal bodies.
-	/// </param>
-	/// <returns>
-	/// A new <see cref="PhysicsBodyBuilder"/> for configuring the body.
-	/// </returns>
-	public PhysicsBodyBuilder AddBody( float mass = default, Surface surface = default, string boneName = default )
-	{
-		var builder = new PhysicsBodyBuilder
-		{
-			Mass = mass,
-			Surface = surface,
-			BoneName = boneName,
-			BindPose = Transform.Zero
-		};
-		_bodies.Add( builder );
-		return builder;
 	}
 }

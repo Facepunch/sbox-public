@@ -392,10 +392,6 @@ public static class EditorScene
 
 		var allSessions = SceneEditorSession.All;
 
-		// If only the edited prefab session is open, there's nothing else to update
-		if ( allSessions.Count <= 1 )
-			return;
-
 		// First pass: update other open prefab sessions that may contain instances
 		// of this prefab, then write their changes so dependent prefabs stay current
 		foreach ( var session in allSessions )

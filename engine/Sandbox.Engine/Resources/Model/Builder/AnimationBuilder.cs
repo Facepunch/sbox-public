@@ -3,8 +3,7 @@ using System.Runtime.InteropServices;
 namespace Sandbox;
 
 /// <summary>
-/// Provides ability to generate animations for a <see cref="Model"/> at runtime.
-/// See <see cref="ModelBuilder.AddAnimation(string, float)"/>
+/// Builds an animation for a <see cref="Model"/>.
 /// </summary>
 public sealed class AnimationBuilder
 {
@@ -19,17 +18,17 @@ public sealed class AnimationBuilder
 	public float FrameRate { get; set; }
 
 	/// <summary>
-	/// This animation loops.
+	/// Whether the animation loops.
 	/// </summary>
 	public bool Looping { get; set; }
 
 	/// <summary>
-	/// This animation "adds" to the base result.
+	/// Whether the animation is applied additively on top of the base pose.
 	/// </summary>
 	public bool Delta { get; set; }
 
 	/// <summary>
-	/// This animation disables interpolation between frames.
+	/// Whether interpolation between frames is disabled.
 	/// </summary>
 	public bool DisableInterpolation { get; set; }
 
@@ -54,6 +53,7 @@ public sealed class AnimationBuilder
 	/// <summary>
 	/// Sets the name of the animation.
 	/// </summary>
+	/// <param name="name">The animation name.</param>
 	public AnimationBuilder WithName( string name )
 	{
 		Name = name;
@@ -63,6 +63,7 @@ public sealed class AnimationBuilder
 	/// <summary>
 	/// Sets the frames per second of the animation.
 	/// </summary>
+	/// <param name="frameRate">The playback frame rate.</param>
 	public AnimationBuilder WithFrameRate( float frameRate )
 	{
 		FrameRate = frameRate;
@@ -72,6 +73,7 @@ public sealed class AnimationBuilder
 	/// <summary>
 	/// Sets whether the animation loops.
 	/// </summary>
+	/// <param name="looping">Whether the animation should loop.</param>
 	public AnimationBuilder WithLooping( bool looping = true )
 	{
 		Looping = looping;
@@ -79,8 +81,9 @@ public sealed class AnimationBuilder
 	}
 
 	/// <summary>
-	/// Sets whether the animation adds to the base result.
+	/// Sets whether the animation is applied additively on top of the base pose.
 	/// </summary>
+	/// <param name="delta">Whether the animation should be additive.</param>
 	public AnimationBuilder WithDelta( bool delta = true )
 	{
 		Delta = delta;
@@ -90,6 +93,7 @@ public sealed class AnimationBuilder
 	/// <summary>
 	/// Sets whether interpolation between frames is disabled.
 	/// </summary>
+	/// <param name="disableInterpolation">Whether frame interpolation should be disabled.</param>
 	public AnimationBuilder WithInterpolationDisabled( bool disableInterpolation = true )
 	{
 		DisableInterpolation = disableInterpolation;
@@ -97,8 +101,9 @@ public sealed class AnimationBuilder
 	}
 
 	/// <summary>
-	/// Add bone transforms for a frame of animation.
+	/// Adds a frame using transforms in skeleton bone order.
 	/// </summary>
+	/// <param name="boneTransforms">One transform for each animated bone. Empty frames are ignored.</param>
 	public AnimationBuilder AddFrame( Span<Transform> boneTransforms )
 	{
 		if ( boneTransforms.IsEmpty )
@@ -111,8 +116,9 @@ public sealed class AnimationBuilder
 	}
 
 	/// <summary>
-	/// Add bone transforms for a frame of animation.
+	/// Adds a frame using transforms in skeleton bone order.
 	/// </summary>
+	/// <param name="boneTransforms">One transform for each animated bone. Null or empty frames are ignored.</param>
 	public AnimationBuilder AddFrame( List<Transform> boneTransforms )
 	{
 		if ( boneTransforms is null || boneTransforms.Count == 0 )
@@ -130,66 +136,5 @@ public sealed class AnimationBuilder
 
 		var frame = _frames[frameIndex];
 		return CollectionsMarshal.AsSpan( _boneTransforms ).Slice( frame.Offset, frame.Length );
-	}
-}
-
-partial class ModelBuilder
-{
-	private readonly List<AnimationBuilder> _animations = [];
-
-	/// <summary>
-	/// Adds an animation to this model and returns a builder to construct the animation.
-	/// </summary>
-	/// <param name="name">The name of the animation.</param>
-	/// <param name="frameRate">The frames per second of the animation.</param>
-	/// <returns>An <see cref="AnimationBuilder"/> instance to construct the animation.</returns>
-	public AnimationBuilder AddAnimation( string name, float frameRate )
-	{
-		var uniqueName = name;
-		var suffix = 1;
-
-		while ( _animations.Any( b => b.Name == uniqueName ) )
-		{
-			uniqueName = $"{name}_{suffix++}";
-		}
-
-		var builder = new AnimationBuilder { Name = uniqueName, FrameRate = frameRate };
-		_animations.Add( builder );
-		return builder;
-	}
-
-	private unsafe CAnimationGroupBuilder CreateAnimationGroup()
-	{
-		if ( _animations.Count == 0 )
-			return default;
-
-		if ( _animations.Sum( x => x.FrameCount ) == 0 )
-			return default;
-
-		var builder = CAnimationGroupBuilder.Create();
-
-		foreach ( var anim in _animations )
-		{
-			if ( anim.FrameCount == 0 )
-				continue;
-
-			var i = builder.AddAnimation();
-			builder.SetName( i, anim.Name );
-			builder.SetFrameRate( i, anim.FrameRate );
-			builder.SetLooping( i, anim.Looping );
-			builder.SetDelta( i, anim.Delta );
-			builder.SetDisableInterpolation( i, anim.DisableInterpolation );
-
-			for ( var frame = 0; frame < anim.FrameCount; frame++ )
-			{
-				var boneTransforms = anim.GetFrame( frame );
-				fixed ( Transform* pFrame = boneTransforms )
-				{
-					builder.AddFrame( i, (IntPtr)pFrame, boneTransforms.Length );
-				}
-			}
-		}
-
-		return builder;
 	}
 }

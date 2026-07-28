@@ -715,4 +715,42 @@ public class LightComponentTest
 		clone.Destroy();
 		scene.ProcessDeletes();
 	}
+
+	const int LightFlagsMixedShadows = 16; // LIGHTTYPE_FLAGS_MIXED_SHADOWS
+	const int LightFlagsBaked = 32;        // LIGHTTYPE_FLAGS_BAKED
+
+	static int MapLightFlags( Scene scene, int directLight )
+	{
+		var go = scene.CreateObject();
+		var light = go.Components.Create<PointLight>( false );
+		light.Shadows = true;
+		light.LegacyData = new Light.LegacyLightData { DirectLight = directLight };
+		light.Enabled = true;
+
+		return (int)FindSceneObjectFor<ScenePointLight>( scene, light ).lightNative.GetLightFlags();
+	}
+
+	/// <summary>
+	/// Hammer's direct light modes map onto the native light flags. Baked must not get MIXED_SHADOWS
+	/// - that's what makes the lightbinner allocate each baked map light a realtime shadow map.
+	/// </summary>
+	[TestMethod]
+	public void MapLightDirectLightModeFlags()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var dynamic = MapLightFlags( scene, 2 );  // HAMMER_DIRECT_LIGHT_DYNAMIC
+		var baked = MapLightFlags( scene, 1 );    // HAMMER_DIRECT_LIGHT_BAKED
+		var stationary = MapLightFlags( scene, 3 ); // HAMMER_DIRECT_LIGHT_STATIONARY
+
+		Assert.AreEqual( 0, dynamic & LightFlagsBaked, "Dynamic lights aren't baked" );
+		Assert.AreEqual( 0, dynamic & LightFlagsMixedShadows, "Dynamic lights shadow everything, not mixed" );
+
+		Assert.AreNotEqual( 0, baked & LightFlagsBaked, "Baked lights should be flagged baked" );
+		Assert.AreEqual( 0, baked & LightFlagsMixedShadows, "Baked lights must not get a realtime shadow map" );
+
+		Assert.AreNotEqual( 0, stationary & LightFlagsBaked, "Stationary lights should be flagged baked" );
+		Assert.AreNotEqual( 0, stationary & LightFlagsMixedShadows, "Stationary lights shadow dynamic objects in realtime" );
+	}
 }

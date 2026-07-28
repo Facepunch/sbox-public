@@ -13,7 +13,8 @@ public abstract partial class Component
 		void OnCollisionStart( Collision collision ) { }
 
 		/// <summary>
-		/// Called once per physics step for every collider being touched.
+		/// Called once per physics step for every collider being touched, while the collision is awake.
+		/// Sleeping contacts don't send updates, use <see cref="Collider.Touching"/> to track resting contacts.
 		/// </summary>
 		void OnCollisionUpdate( Collision collision ) { }
 

@@ -11,8 +11,6 @@ public abstract class BlobData
 	/// </summary>
 	public virtual int Version => 1;
 
-	internal Guid BlobId;
-
 	/// <summary>
 	/// Serialize this object to binary format.
 	/// </summary>

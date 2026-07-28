@@ -72,7 +72,7 @@ public static partial class ConsoleSystem
 		//
 		// We have a replicated value in the string table, use it
 		//
-		if ( IGameInstanceDll.Current.TryGetReplicatedVarValue( convarName, out var replicatedValue ) )
+		if ( IGameInstanceDll.Current is { } dll && dll.TryGetReplicatedVarValue( convarName, out var replicatedValue ) )
 		{
 			return (T)replicatedValue.ToType( typeof( T ) );
 		}

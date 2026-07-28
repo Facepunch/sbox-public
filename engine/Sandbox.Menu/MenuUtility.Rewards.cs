@@ -59,6 +59,19 @@ public static partial class MenuUtility
 	/// </summary>
 	public static class Rewards
 	{
+		static int GetOwnedCount( long itemDefId )
+		{
+			if ( itemDefId <= 0 )
+				return 0;
+
+			return Services.Inventory.Items.Count( x => x.DefinitionId == (int)itemDefId );
+		}
+
+		/// <summary>
+		/// Whether the current offer is a simulated editor-only offer (no real items are granted)
+		/// </summary>
+		internal static bool IsSimulated { get; set; }
+
 		/// <summary>
 		/// Get the player's reward state — their windows (requirements + progress) and any
 		/// pending unclaimed offer to resume. Poll after a session and after claiming.
@@ -66,7 +79,24 @@ public static partial class MenuUtility
 		public static async Task<RewardState> GetRewards()
 		{
 			var state = await Backend.Account.GetRewards();
-			return new RewardState( state );
+			var result = new RewardState( state );
+
+			// In the editor, if the backend didn't return anything claimable, we simulate a fake one
+			if ( Application.IsEditor && result.Windows.Length == 0 )
+			{
+				result.Windows = new[]
+				{
+					new RewardWindow
+					{
+						Key = "simulated",
+						Title = "Simulated Reward",
+						IsEligible = true,
+						Facets = Array.Empty<RewardFacet>()
+					}
+				};
+			}
+
+			return result;
 		}
 
 		/// <summary>
@@ -75,11 +105,19 @@ public static partial class MenuUtility
 		/// </summary>
 		public static async Task<RewardOffer> ClaimReward()
 		{
-			var offer = await Backend.Account.ClaimReward();
-			if ( offer is null )
-				return null;
+			IsSimulated = false;
 
-			return new RewardOffer( offer );
+			var offer = await Backend.Account.ClaimReward();
+			if ( offer is not null )
+				return new RewardOffer( offer );
+
+			if ( Application.IsEditor )
+			{
+				IsSimulated = true;
+				return CreateSimulatedOffer();
+			}
+
+			return null;
 		}
 
 		/// <summary>
@@ -88,6 +126,12 @@ public static partial class MenuUtility
 		/// </summary>
 		public static async Task<RewardResult> ChooseReward( RewardChoice choice )
 		{
+			// For simulated editor offers, skip the backend and return success immediately
+			if ( IsSimulated )
+			{
+				IsSimulated = false;
+				return CreateSimulatedResult( choice );
+			}
 
 			var serviceChoice = new Services.RewardChoice();
 			serviceChoice.DropId = choice.DropId;
@@ -96,6 +140,65 @@ public static partial class MenuUtility
 			var result = await Backend.Account.ChooseReward( serviceChoice );
 			return new RewardResult( result );
 		}
+
+		/// <summary>
+		/// Item definition IDs to use for the simulated editor offer.
+		/// </summary>
+		public static long[] SimulatedItemDefIds { get; set; } = new long[] { 545937, 218193, 115629 };
+
+		static RewardOffer CreateSimulatedOffer()
+		{
+			var simulatedIds = SimulatedItemDefIds ?? Array.Empty<long>();
+			var items = new RewardItem[simulatedIds.Length];
+
+			for ( int i = 0; i < simulatedIds.Length; i++ )
+			{
+				var defId = simulatedIds[i];
+				var def = new Services.Inventory.ItemDefinition( (int)defId );
+
+				items[i] = new RewardItem
+				{
+					ItemDefId = defId,
+					Name = def.Name ?? $"Item {defId}",
+					Icon = def.IconUrl ?? "",
+					Rarity = ItemRarityExtensions.ParseRarity( def.Rarity ),
+					OwnedCount = GetOwnedCount( defId )
+				};
+			}
+
+			return new RewardOffer
+			{
+				DropId = -1,
+				PickCount = 1,
+				Items = items
+			};
+		}
+
+		static RewardResult CreateSimulatedResult( RewardChoice choice )
+		{
+			var items = new RewardItem[choice.ItemDefIds.Length];
+			for ( int i = 0; i < choice.ItemDefIds.Length; i++ )
+			{
+				var itemDefId = choice.ItemDefIds[i];
+				var def = new Services.Inventory.ItemDefinition( (int)itemDefId );
+
+				items[i] = new RewardItem
+				{
+					ItemDefId = itemDefId,
+					Name = def.Name ?? "Simulated Reward",
+					Icon = def.IconUrl ?? "",
+					Rarity = ItemRarityExtensions.ParseRarity( def.Rarity ),
+					OwnedCount = GetOwnedCount( itemDefId )
+				};
+			}
+
+			return new RewardResult
+			{
+				Success = true,
+				Items = items
+			};
+		}
+
 	}
 }
 
@@ -220,6 +323,10 @@ public class RewardItem
 	public string Name { get; set; }
 	public string Icon { get; set; }
 	public ItemRarity Rarity { get; set; }
+	public int OwnedCount { get; set; }
+
+	/// <summary>True when the player already owns one or more copies of this item.</summary>
+	public bool IsOwned => OwnedCount > 0;
 
 	/// <summary>The hex colour for this item's rarity (e.g. "#8847ff"), or null if no rarity.</summary>
 	public string RarityColor => Rarity.GetColor();
@@ -231,6 +338,7 @@ public class RewardItem
 		ItemDefId = item.ItemDefId;
 		Name = item.Name;
 		Icon = item.Icon;
+		OwnedCount = Services.Inventory.Items.Count( x => x.DefinitionId == (int)item.ItemDefId );
 
 		// Resolve rarity from the Steam inventory definition
 		var def = Services.Inventory.FindDefinition( (int)item.ItemDefId );

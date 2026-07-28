@@ -737,9 +737,42 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 				position = transform.PointToWorld( position ) - delta;
 				vertex.Component.Mesh.SetVertexPosition( vertex.Handle, transform.PointToLocal( position ) );
 			}
+
+			UpdateTexturesAfterNudge();
 		}
 
 		Pivot -= delta;
+	}
+
+	private void UpdateTexturesAfterNudge()
+	{
+		if ( !ShouldLockTexture() )
+		{
+			foreach ( var mesh in _vertexSelection.Select( x => x.Component.Mesh ).Distinct() )
+			{
+				mesh.ComputeFaceTextureCoordinatesFromParameters();
+			}
+
+			return;
+		}
+
+		foreach ( var group in _vertexSelection.GroupBy( x => x.Component ) )
+		{
+			var mesh = group.Key.Mesh;
+			var faces = new HashSet<FaceHandle>();
+
+			foreach ( var vertex in group )
+			{
+				if ( mesh.GetFacesConnectedToVertex( vertex.Handle, out var connected ) )
+				{
+					foreach ( var face in connected )
+						faces.Add( face );
+				}
+			}
+
+			if ( faces.Count > 0 )
+				mesh.ComputeFaceTextureParametersFromCoordinates( faces );
+		}
 	}
 
 	public override BBox CalculateSelectionBounds()
@@ -1196,6 +1229,9 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 			{
 				foreach ( var h in mesh.FaceHandles )
 				{
+					if ( mesh.IsFaceHidden( h ) )
+						continue;
+
 					mesh.GetVerticesConnectedToFace( h, out var vertices );
 					var face = (T)(object)new MeshFace( component, h );
 

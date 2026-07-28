@@ -325,7 +325,7 @@ internal sealed class SceneUndoSnapshot : IDisposable
 			}
 		}
 
-		public void PostRestore( Scene scene )
+		public void PostRestore( Scene scene, BlobDataSerializer.BlobContext blobs )
 		{
 			// second pass fully desiarizes and restores hierachy
 			for ( int i = 0; i < State.Count; i++ )
@@ -337,7 +337,9 @@ internal sealed class SceneUndoSnapshot : IDisposable
 					continue;
 				}
 
-				using var blobs = BlobDataSerializer.LoadFrom( State[i] );
+				// Merge blobs into the shared context - component PostDeserialize is deferred to the
+				// batch flush, so a per-object context would be gone before its blob data (eg. mesh) is read.
+				blobs.LoadFrom( State[i] );
 				go.Deserialize( State[i], new GameObject.DeserializeOptions { IsRefreshing = true } );
 			}
 
@@ -747,13 +749,15 @@ internal sealed class SceneUndoSnapshot : IDisposable
 				}
 				else
 				{
+					// Must outlive the callback batch: deferred PostDeserialize reads blob data on flush
+					using var blobs = BlobDataSerializer.LoadFromMemory( default );
 					using var batch = CallbackBatch.Batch();
 
 					preChangeStateCopy.GameObjectSnapshot?.Restore( _session.Scene );
 					preChangeStateCopy.ComponentSnapshot?.Restore( _session.Scene );
 
 					preChangeStateCopy.ComponentSnapshot?.PostRestore( _session.Scene );
-					preChangeStateCopy.GameObjectSnapshot?.PostRestore( _session.Scene );
+					preChangeStateCopy.GameObjectSnapshot?.PostRestore( _session.Scene, blobs );
 
 					// delete created components
 					foreach ( var compRef in createdComponentRefs )
@@ -780,6 +784,8 @@ internal sealed class SceneUndoSnapshot : IDisposable
 
 				using var sceneScope = _session.Scene.Push();
 
+				// Must outlive the callback batch: deferred PostDeserialize reads blob data on flush
+				using var blobs = BlobDataSerializer.LoadFromMemory( default );
 				using var batch = CallbackBatch.Batch();
 
 				// delete destroyed components
@@ -799,7 +805,7 @@ internal sealed class SceneUndoSnapshot : IDisposable
 				disposeState.ComponentSnapshot?.Restore( _session.Scene );
 
 				// Do actual deserialization
-				disposeState.GameObjectSnapshot?.PostRestore( _session.Scene );
+				disposeState.GameObjectSnapshot?.PostRestore( _session.Scene, blobs );
 				disposeState.ComponentSnapshot?.PostRestore( _session.Scene );
 
 				// restore selection

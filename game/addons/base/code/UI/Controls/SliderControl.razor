@@ -25,7 +25,7 @@
             <div class="track-active" style="width: @(SliderPosition)%;"></div>
             <div @ref="ThumbPanel" style="left: @(SliderPosition)%;" class="thumb">
 
-                @if (this.HasActive)
+                @if (this.HasActive && ShowValueTooltip)
                 {
                     <div class="value-tooltip">
                         <label>@Value.ToString( NumberFormat )</label>

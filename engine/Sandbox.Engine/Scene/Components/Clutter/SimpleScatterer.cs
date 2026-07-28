@@ -47,12 +47,10 @@ public class SimpleScatterer : Scatterer
 			yaws[i] = Random.Float( 0f, 360f );
 		}
 
-		SceneTraceResult[] traces = null;
-		if ( PlaceOnGround )
-		{
-			var sceneBounds = scene.GetBounds();
-			traces = BatchTraceGround( scene, points, sceneBounds );
-		}
+		using var pooledTraces = PlaceOnGround
+			? RentGroundTraces( scene, points, scene.GetBounds() )
+			: default;
+		var traces = pooledTraces.Span;
 
 		for ( int i = 0; i < totalPoints; i++ )
 		{

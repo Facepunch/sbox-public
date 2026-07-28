@@ -312,34 +312,29 @@ partial class EdgeTool
 			if ( !CanBevel() )
 				return;
 
-			using ( SceneEditorSession.Active.UndoScope( "Bevel Edges" )
-				.WithComponentChanges( _components )
-				.Push() )
+			var bevelEdges = new List<BevelEdges>();
+
+			foreach ( var group in _edgeGroups )
 			{
-				var bevelEdges = new List<BevelEdges>();
+				var component = group.Key;
+				var mesh = component.Mesh;
 
-				foreach ( var group in _edgeGroups )
+				var newMesh = new PolygonMesh();
+				newMesh.Transform = mesh.Transform;
+				newMesh.MergeMesh( mesh, Transform.Zero, out _, out var newEdges, out _ );
+				var edges = group.Select( x => newEdges[x.Handle].Index ).ToList();
+
+				bevelEdges.Add( new BevelEdges()
 				{
-					var component = group.Key;
-					var mesh = component.Mesh;
-
-					var newMesh = new PolygonMesh();
-					newMesh.Transform = mesh.Transform;
-					newMesh.MergeMesh( mesh, Transform.Zero, out _, out var newEdges, out _ );
-					var edges = group.Select( x => newEdges[x.Handle].Index ).ToList();
-
-					bevelEdges.Add( new BevelEdges()
-					{
-						Component = component,
-						Mesh = newMesh,
-						Edges = edges,
-					} );
-				}
-
-				var tool = new BevelTool( [.. bevelEdges] );
-				tool.Manager = _tool.Manager;
-				_tool.CurrentTool = tool;
+					Component = component,
+					Mesh = newMesh,
+					Edges = edges,
+				} );
 			}
+
+			var tool = new BevelTool( [.. bevelEdges] );
+			tool.Manager = _tool.Manager;
+			_tool.CurrentTool = tool;
 		}
 
 		private bool CanMerge()

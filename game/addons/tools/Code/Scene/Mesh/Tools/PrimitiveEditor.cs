@@ -1,5 +1,3 @@
-using Sandbox.Helpers;
-
 namespace Editor.MeshEditor;
 
 public abstract class PrimitiveEditor
@@ -30,39 +28,15 @@ public abstract class PrimitiveEditor
 
 	public virtual Widget CreateWidget() => null;
 
-	readonly HashSet<UndoSystem.Entry> _undoActions = [];
-
-	void CleanUndoStack( Stack<UndoSystem.Entry> stack )
-	{
-		var kept = new Stack<UndoSystem.Entry>();
-
-		while ( stack.Count > 0 )
-		{
-			var entry = stack.Pop();
-
-			if ( !_undoActions.Remove( entry ) )
-				kept.Push( entry );
-		}
-
-		while ( kept.Count > 0 )
-			stack.Push( kept.Pop() );
-	}
+	readonly ToolUndoStack _undo = new();
 
 	protected void PushUndo( string title, Action undo, Action redo = null )
 	{
-		_undoActions.Add( SceneEditorSession.Active.UndoSystem.Insert( title, undo, redo ) );
+		_undo.Push( title, undo, redo );
 	}
 
 	protected void PopUndo()
 	{
-		if ( _undoActions.Count == 0 )
-			return;
-
-		var undo = SceneEditorSession.Active.UndoSystem;
-
-		CleanUndoStack( undo.Back );
-		CleanUndoStack( undo.Forward );
-
-		_undoActions.Clear();
+		_undo.Clear();
 	}
 }

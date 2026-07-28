@@ -81,8 +81,6 @@ native accessor g_pRenderDevice
 		return Vector2D( (float)nBBWidth, (float)nBBHeight );
 	}
 
-	RenderShaderHandle_t CompileAndCreateShader( RenderShaderType nType, string pProgram, uint nBufLen, string pShaderVersion, string pDebugName );
-
 	int GetTextureLastUsed( ITexture hTexture );
 
 	void UnThrottleTextureStreamingForNFrames( uint nNumberOfFramesForUnthrottledTextureLoading );
