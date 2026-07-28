@@ -536,6 +536,8 @@
     "reportmodal.placeholder": "请填写详细的举报说明...",
     "reportmodal.submit_report": "提交举报",
 
+    "rewardcardpanel.owned": "已拥有 {count} 件",
+
     "review": "评测",
     "review.title": "你认为 {title} 怎么样?",
     "review.needs_work": "有待改进",
@@ -608,7 +610,8 @@
     "settings.video.render_quality": "渲染质量",
     "settings.video.sharpness": "锐化度",
     "settings.video.quality_preset": "质量预设",
-    "settings.video.fsr3_warning": "FSR3 是一种时序超分辨率技术。它会在运动物体和游戏内UI元素上产生残影。启用时MSAA将会被禁用。",
+    "settings.video.dlss_warning": "DLSS 是一种时域AI超分辨率技术。它可能会导致运动物体和游戏内UI元素上产生残影。启用该功能时，MSAA 将会被禁用。",
+    "settings.video.fsr3_warning": "FSR3 是一种时域超分辨率技术。它可能会导致运动物体和游戏内UI元素上产生残影。启用该功能时，MSAA将会被禁用。",
     "settings.video.option_native": "原生",
     "settings.video.option_quality": "质量",
     "settings.video.option_balanced": "平衡",

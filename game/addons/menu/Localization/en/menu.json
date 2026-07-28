@@ -546,6 +546,8 @@
     "review.placeholder": "Enter Your Review..",
     "review.post_review": "Post Review",
 
+    "rewardcardpanel.owned": "{count} OWNED",
+
     "rewardprogress.loading": "Loading…",
     "rewardprogress.open_reward": "Open Reward",
     "rewardprogress.rewards": "Rewards",
@@ -608,6 +610,7 @@
     "settings.video.render_quality": "Render Quality",
     "settings.video.sharpness": "Sharpness",
     "settings.video.quality_preset": "Quality Preset",
+    "settings.video.dlss_warning": "DLSS is a temporal AI upscaler. It can cause ghosting on moving objects and in-world UI elements. MSAA is disabled while active.",
     "settings.video.fsr3_warning": "FSR3 is a temporal upscaler. It can cause ghosting on moving objects and in-world UI elements. MSAA is disabled while active.",
     "settings.video.option_quality": "Quality",
     "settings.video.option_native": "Native",

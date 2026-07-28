@@ -127,12 +127,10 @@
         {
             <row class="upscaler-warning">
                 <i>warning</i>
-                <span>DLSS is a temporal AI upscaler. It can cause ghosting on moving objects and in-world UI elements. MSAA is disabled while active.</span>
+                <span>#settings.video.dlss_warning</span>
             </row>
             <row class="with-gaps">
-                <cell class="glass with-padding is-label">
-                    Quality Preset
-                </cell>
+                <cell class="glass with-padding is-label">#settings.video.quality_preset</cell>
                 <DropDown class="glass with-grow" Value:bind=@DlssQuality Options=@DlssQualityOptions></DropDown>
             </row>
         }
@@ -196,10 +194,10 @@
     List<Option> DlssQualityOptions = new List<Option>()
     {
         new Option("DLAA",                Sandbox.Engine.Settings.DlssQuality.DLAA),
-        new Option("Quality",             Sandbox.Engine.Settings.DlssQuality.Quality),
-        new Option("Balanced",            Sandbox.Engine.Settings.DlssQuality.Balanced),
-        new Option("Performance",         Sandbox.Engine.Settings.DlssQuality.Performance),
-        new Option("Ultra Performance",   Sandbox.Engine.Settings.DlssQuality.UltraPerformance),
+        new Option("#settings.video.option_quality",             Sandbox.Engine.Settings.DlssQuality.Quality),
+        new Option("#settings.video.option_balanced",            Sandbox.Engine.Settings.DlssQuality.Balanced),
+        new Option("#settings.video.option_performance",         Sandbox.Engine.Settings.DlssQuality.Performance),
+        new Option("#settings.video.option_ultra_performance",   Sandbox.Engine.Settings.DlssQuality.UltraPerformance),
     };
 
     List<Option> VideoModeOptions = new List<Option>()
