@@ -390,6 +390,10 @@ internal sealed partial class PackageLoader : IDisposable
 
 	LoadedAssembly AddAssembly( Package package, string assemblyName, byte[] dllBytes, byte[] codeArchive )
 	{
+		// A remote or streamed assembly picks its own name, it can't take the place of one the access check never ran on
+		if ( package is not LocalPackage && PackageManager.ActivePackages.Any( x => PackageManager.ActivePackage.IsUncheckedLocalAssembly( x, assemblyName ) ) )
+			throw new InvalidDataException( $"'{assemblyName}' from {package?.FullIdent ?? "the network"} has the name of a local assembly" );
+
 		LoadedAssembly loaded = new LoadedAssembly();
 		loaded.Name = assemblyName;
 		loaded.Package = package;

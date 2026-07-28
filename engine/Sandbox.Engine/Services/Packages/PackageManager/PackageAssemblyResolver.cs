@@ -14,6 +14,9 @@ sealed class PackageAssemblyResolver : IAssemblyResolver
 	ConcurrentDictionary<AssemblyNameReference, AssemblyDefinition> Assemblies = new( AssemblyNameComparer.Instance );
 	readonly object packageResolveLock = new();
 
+	// Added assemblies are only read by hotload, so they're parsed when it first asks rather than on load
+	readonly ConcurrentDictionary<string, byte[]> Unparsed = new( StringComparer.OrdinalIgnoreCase );
+
 	public Func<string, byte[]> PackageBytes { get; init; }
 
 	public void Dispose()
@@ -34,17 +37,30 @@ sealed class PackageAssemblyResolver : IAssemblyResolver
 	{
 		ObjectDisposedException.ThrowIf( Assemblies is null, this );
 
-		using var stream = new MemoryStream( bytes );
-		var options = new ReaderParameters { ReadingMode = ReadingMode.Immediate, InMemory = true, AssemblyResolver = this };
-		var assembly = AssemblyDefinition.ReadAssembly( stream, options );
-
-		if ( !assembly.Name.Name.StartsWith( "package.", StringComparison.OrdinalIgnoreCase ) ||
-			 !assembly.Name.Name.Equals( expectedName, StringComparison.OrdinalIgnoreCase ) )
+		string name;
+		using ( var pe = new System.Reflection.PortableExecutable.PEReader( new MemoryStream( bytes ) ) )
 		{
-			var name = assembly.Name.Name;
-			assembly.Dispose();
+			var metadata = System.Reflection.Metadata.PEReaderExtensions.GetMetadataReader( pe );
+			name = metadata.GetString( metadata.GetAssemblyDefinition().Name );
+		}
+
+		if ( !name.StartsWith( "package.", StringComparison.OrdinalIgnoreCase ) ||
+			 !name.Equals( expectedName, StringComparison.OrdinalIgnoreCase ) )
+		{
 			throw new InvalidDataException( $"Assembly '{name}' does not match package '{expectedName}'" );
 		}
+
+		Unparsed[name] = bytes;
+	}
+
+	void ParseUnparsed( string name )
+	{
+		if ( !Unparsed.TryRemove( name, out var bytes ) )
+			return;
+
+		var stream = new MemoryStream( bytes );
+		var options = new ReaderParameters { ReadingMode = ReadingMode.Immediate, InMemory = true, AssemblyResolver = this };
+		var assembly = AssemblyDefinition.ReadAssembly( stream, options );
 
 		var older = Assemblies
 			.Where( x => x.Key.Name.Equals( assembly.Name.Name, StringComparison.OrdinalIgnoreCase ) )
@@ -65,6 +81,12 @@ sealed class PackageAssemblyResolver : IAssemblyResolver
 
 	public AssemblyDefinition Resolve( AssemblyNameReference name )
 	{
+		if ( Unparsed.ContainsKey( name.Name ) )
+		{
+			lock ( packageResolveLock )
+				ParseUnparsed( name.Name );
+		}
+
 		if ( TryResolveFromCache( name, out var cached ) )
 			return cached;
 

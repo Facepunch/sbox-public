@@ -125,6 +125,13 @@ internal static partial class Rules
 		"System.Private.CoreLib/System.Runtime.CompilerServices.CallerFilePathAttribute",
 		"System.Private.CoreLib/System.Runtime.CompilerServices.CallerLineNumberAttribute",
 		"System.Private.CoreLib/System.Runtime.InteropServices.InAttribute",
+		// Pseudo-attributes compile to metadata flags, so the IL check never saw them as attributes
+		"System.Private.CoreLib/System.Runtime.InteropServices.OutAttribute",
+		"System.Private.CoreLib/System.Runtime.InteropServices.OptionalAttribute",
+		"System.Private.CoreLib/System.SerializableAttribute",
+		"System.Private.CoreLib/System.NonSerializedAttribute",
+		"System.Private.CoreLib/System.Runtime.CompilerServices.MethodImplAttribute*",
+		"System.Private.CoreLib/System.Runtime.CompilerServices.MethodImplOptions",
 		"System.Private.CoreLib/System.Runtime.CompilerServices.DefaultInterpolatedStringHandler*",
 		"System.Private.CoreLib/System.ComponentModel.EditorBrowsableAttribute*",
 		"System.Private.CoreLib/System.ObsoleteAttribute*",
@@ -134,9 +141,8 @@ internal static partial class Rules
 		"System.Private.CoreLib/System.ThreadStaticAttribute*",
 
 		// System.Span<T> - expanded explicitly with WhitelistGen (no wildcards). The void* ctor and
-		// GetPinnableReference() are scary, but compiler generated. So we block them at a compiler level.
+		// GetPinnableReference() are hard blocked in Rules, so they're deliberately absent here.
 		"System.Private.CoreLib/System.Span`1",
-		"System.Private.CoreLib/System.Span`1..ctor( System.Void*, System.Int32 )",
 		"System.Private.CoreLib/System.Span`1..ctor( T& )",
 		"System.Private.CoreLib/System.Span`1..ctor( T[] )",
 		"System.Private.CoreLib/System.Span`1..ctor( T[], System.Int32, System.Int32 )",
@@ -166,7 +172,6 @@ internal static partial class Rules
 		"System.Private.CoreLib/System.Span`1/Enumerator.get_Current()",
 
 		"System.Private.CoreLib/System.ReadOnlySpan`1",
-		"System.Private.CoreLib/System.ReadOnlySpan`1..ctor( System.Void*, System.Int32 )",
 		"System.Private.CoreLib/System.ReadOnlySpan`1..ctor( T& )",
 		"System.Private.CoreLib/System.ReadOnlySpan`1..ctor( T[] )",
 		"System.Private.CoreLib/System.ReadOnlySpan`1..ctor( T[], System.Int32, System.Int32 )",
@@ -314,6 +319,13 @@ internal static partial class Rules
 		"System.ComponentModel.Annotations/System.ComponentModel.DataAnnotations.RegularExpressionAttribute",
 		"System.ComponentModel.Annotations/System.ComponentModel.DataAnnotations.RangeAttribute",
 		"System.ComponentModel.Annotations/System.ComponentModel.DataAnnotations.MaxLengthAttribute",
+		// Named arguments; the resource setters make validation read a static property by name
+		"System.ComponentModel.Annotations/System.ComponentModel.DataAnnotations.ValidationAttribute.set_ErrorMessage( System.String )",
+		"System.ComponentModel.Annotations/System.ComponentModel.DataAnnotations.DisplayAttribute.set_*",
+		"!System.ComponentModel.Annotations/System.ComponentModel.DataAnnotations.DisplayAttribute.set_ResourceType(*",
+		"System.ComponentModel.Annotations/System.ComponentModel.DataAnnotations.RequiredAttribute.set_AllowEmptyStrings( System.Boolean )",
+		"System.ComponentModel.Annotations/System.ComponentModel.DataAnnotations.RangeAttribute.set_*",
+		"System.ComponentModel.Annotations/System.ComponentModel.DataAnnotations.RegularExpressionAttribute.set_MatchTimeoutInMilliseconds( System.Int32 )",
 
 		"System.Private.CoreLib/System.EventArgs*",
 		"System.Private.CoreLib/System.EventHandler*",
@@ -384,13 +396,15 @@ internal static partial class Rules
 		"System.ObjectModel/System.ComponentModel.PropertyChangedEventArgs*",
 		"System.ObjectModel/System.ComponentModel.PropertyChangedEventHandler*",
 
-		// These are metadata attributes that get automatically added by the compiler
-		// They do nothing at runtime
-		"System.Private.CoreLib/System.Reflection.AssemblyFileVersionAttribute",
-		"System.Private.CoreLib/System.Reflection.AssemblyMetadataAttribute",
+		// Metadata attributes added by the compiler, or emitted into the compiler-extra tree by
+		// Compiler.GetGeneratedCode. They do nothing at runtime. Must cover everything that tree
+		// emits - it gets the same gate as user code.
+		"System.Private.CoreLib/System.Reflection.AssemblyFileVersionAttribute*",
+		"System.Private.CoreLib/System.Reflection.AssemblyVersionAttribute*",
+		"System.Private.CoreLib/System.Reflection.AssemblyMetadataAttribute*",
 		"System.Private.CoreLib/System.Runtime.CompilerServices.RuntimeCompatibilityAttribute",
 		"System.Private.CoreLib/System.Runtime.CompilerServices.CompilationRelaxationsAttribute",
-		"System.Private.CoreLib/System.Runtime.Versioning.TargetFrameworkAttribute",
+		"System.Private.CoreLib/System.Runtime.Versioning.TargetFrameworkAttribute*",
 		"System.Private.CoreLib/System.Diagnostics.DebuggableAttribute",
 		"System.Private.CoreLib/System.Diagnostics.DebuggableAttribute/DebuggingModes*",
 
@@ -413,9 +427,9 @@ internal static partial class Rules
 
 		"System.Private.CoreLib/System.ParamArrayAttribute",
 
-		"System.Private.CoreLib/System.Base64FormattingOptions*",
+		"System.Private.CoreLib/System.Base64FormattingOptions*"
 
-		"System.Private.CoreLib/System.Runtime.CompilerServices.ExtensionMarkerAttribute",
-		"System.Private.CoreLib/System.Runtime.CompilerServices.ParamCollectionAttribute"
+		// ExtensionMarkerAttribute / ParamCollectionAttribute are hard blocked in Rules - an allow
+		// entry here would have no effect.
 	};
 }

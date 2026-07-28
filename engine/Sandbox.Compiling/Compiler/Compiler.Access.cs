@@ -1,4 +1,4 @@
-﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using System.Collections.Concurrent;
 
@@ -6,17 +6,27 @@ namespace Sandbox;
 
 partial class Compiler
 {
-	private void RunAccessWalker( CSharpCompilation compiler, IReadOnlyCollection<SyntaxTree> syntaxTrees, CompilerOutput output )
+	/// <summary>
+	/// Runs the code-access analyzer over every tree, including unchanged ones. Editing one tree can
+	/// change what another binds to - dropping a type that shadowed a BCL type re-points calls to it -
+	/// so analyzing only changed trees would let a prohibited API through on an incremental build.
+	/// </summary>
+	private void RunAccessWalker( CSharpCompilation compiler, CompilerOutput output )
 	{
-		if ( syntaxTrees.Count == 0 )
+		var syntaxTrees = compiler.SyntaxTrees;
+		if ( syntaxTrees.Length == 0 )
 			return;
 
 		ConcurrentBag<Diagnostic> diagnostics = [];
+		var cache = new AccessCheckCache();
 
-		System.Threading.Tasks.Parallel.ForEach( syntaxTrees, tree =>
+		// Largest first, so one big file isn't left running alone at the end
+		var ordered = syntaxTrees.OrderByDescending( x => x.Length ).ToArray();
+
+		// Handed out one at a time rather than in fixed ranges per thread
+		System.Threading.Tasks.Parallel.ForEach( Partitioner.Create( ordered, loadBalance: true ), tree =>
 		{
-			var semanticModel = compiler.GetSemanticModel( tree );
-			var walker = new AccessWalker( semanticModel, checkAllowList: tree.FilePath != Generator.Processor.CompilerExtraPath );
+			var walker = new AccessWalker( compiler.GetSemanticModel( tree ), cache: cache );
 			walker.Visit( tree.GetRoot() );
 
 			foreach ( var diagnostic in walker.Diagnostics )

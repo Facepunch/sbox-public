@@ -203,13 +203,17 @@ public class CodeAccessCorpusTest
 	public void ArrayPoolShared_RedirectOrDeny()
 	{
 		var source = M( "var pool = System.Buffers.ArrayPool<byte>.Shared;" );
+		var aliasSource = D( "using Pool = System.Buffers.ArrayPool<byte>; public static class Probe { public static object Run() => Pool.Shared; }" );
+
 		var generated = CodeAccessGate.Verify( source );
+		var aliased = CodeAccessGate.Verify( aliasSource );
 		var raw = CodeAccessGate.Verify( source, runGenerator: false );
-		var aliased = CodeAccessGate.Verify( D( "using Pool = System.Buffers.ArrayPool<byte>; public static class Probe { public static object Run() => Pool.Shared; }" ) );
+		var rawAliased = CodeAccessGate.Verify( aliasSource, runGenerator: false );
 
 		Assert.AreEqual( 0, generated.Denied.Count, $"generated access should use PublicArrayPool: {generated}" );
+		Assert.AreEqual( 0, aliased.Denied.Count, $"aliased access should use PublicArrayPool: {aliased}" );
 		Assert.IsTrue( raw.Denied.Any( x => x.Contains( "get_Shared" ) ), $"raw access must be denied: {raw}" );
-		Assert.IsTrue( aliased.Denied.Any( x => x.Contains( "get_Shared" ) ), $"unrewritten alias must be denied: {aliased}" );
+		Assert.IsTrue( rawAliased.Denied.Any( x => x.Contains( "get_Shared" ) ), $"raw aliased access must be denied: {rawAliased}" );
 	}
 
 	[TestMethod]

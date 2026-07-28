@@ -481,6 +481,30 @@ internal static partial class PackageManager
 			NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();
 		}
 
+		/// <summary>
+		/// Is this one of a local project's assemblies built without the access check: tools, editor code,
+		/// standalone-only games, or anything loaded precompiled? Code from remote packages is checked on
+		/// the assumption that every package.* assembly it can reach was too.
+		/// </summary>
+		internal static bool IsUncheckedLocalAssembly( ActivePackage package, string assemblyName )
+		{
+			if ( package.Package is not LocalPackage local )
+				return false;
+
+			return IsUncheckedAssembly( package.AssemblyFileSystem, local.Compiler, assemblyName );
+		}
+
+		internal static bool IsUncheckedAssembly( BaseFileSystem assemblies, Compiler compiler, string assemblyName )
+		{
+			// Projects keep their assemblies under /.bin, so look anywhere like Lookup does
+			if ( assemblies?.FindFile( "/", $"{assemblyName}.dll", true ).Any() != true )
+				return false;
+
+			return compiler is null
+				|| !string.Equals( compiler.AssemblyName, assemblyName, StringComparison.OrdinalIgnoreCase )
+				|| !compiler.GetConfiguration().Whitelist;
+		}
+
 		public Microsoft.CodeAnalysis.PortableExecutableReference Lookup( string reference )
 		{
 			// we can't do anything unless it's in a package
@@ -499,6 +523,10 @@ internal static partial class PackageManager
 					continue;
 
 				// TODO - maybe we should filter to make sure the package has the same tag as us?
+
+				// The access check trusts every package.* assembly, so none of them can be one it never ran on
+				if ( IsUncheckedLocalAssembly( package, reference ) )
+					continue;
 
 				var found = package.AssemblyFileSystem.FindFile( "/", targetAssemblyName, true ).FirstOrDefault();
 				if ( found == null ) continue;

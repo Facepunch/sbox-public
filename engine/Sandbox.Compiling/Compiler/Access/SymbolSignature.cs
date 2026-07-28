@@ -42,10 +42,14 @@ static class SymbolSignature
 
 	public static string Method( IMethodSymbol m )
 	{
-		m = m.OriginalDefinition;
+		// Extension calls bind to the reduced form, which drops the receiver parameter the rules spell out
+		m = (m.ReducedFrom ?? m).OriginalDefinition;
 
 		var sb = new StringBuilder();
-		sb.Append( Type( m.ContainingType.OriginalDefinition ) ).Append( '.' ).Append( m.Name );
+		// Built-in operators on pointers and other non-named types have no containing type
+		if ( m.ContainingType is { } containing )
+			sb.Append( Type( containing.OriginalDefinition ) ).Append( '.' );
+		sb.Append( m.Name );
 
 		if ( m.TypeParameters.Length > 0 )
 			sb.Append( '<' ).Append( string.Join( ",", m.TypeParameters.Select( p => p.Name ) ) ).Append( '>' );

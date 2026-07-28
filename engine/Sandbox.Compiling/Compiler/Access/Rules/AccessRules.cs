@@ -10,18 +10,29 @@ sealed class AccessRules
 	static readonly AccessRules _instance = new();
 	public static AccessRules Instance => _instance;
 
+	/// <summary>
+	/// Hard blocks with no member allow-list, for tests that assert hard-block behaviour against a
+	/// minimal reference set. Never use this to compile untrusted code.
+	/// </summary>
+	internal static AccessRules HardBlocksOnly { get; } = new( Rules.All, skipAllowList: true );
+
 	readonly HashSet<string> _wholesale = new( StringComparer.OrdinalIgnoreCase );
 	readonly List<Regex> _allow = [];
 	readonly List<Regex> _deny = [];
 	readonly List<Regex> _block = [];
 	readonly List<Regex> _unblock = [];
+	readonly bool _skipAllowList;
+	readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _allowedCache = new();
+	readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _blockedCache = new();
 
 	AccessRules() : this( Rules.All )
 	{
 	}
 
-	internal AccessRules( IEnumerable<string> rules )
+	internal AccessRules( IEnumerable<string> rules, bool skipAllowList = false )
 	{
+		_skipAllowList = skipAllowList;
+
 		foreach ( var line in rules )
 			Add( line );
 	}
@@ -49,23 +60,21 @@ sealed class AccessRules
 		return line[1..];
 	}
 
-	// Assembly is retained only for whole-assembly rules; member matching is assembly-agnostic
-	// so facade and implementation symbols resolve to the same rule.
+	// Gated rules match the full "<Assembly>/<signature>", with the assembly being the runtime
+	// assembly that defines the type (see ImplementationAssembly).
 	void AddGated( string line, bool deny )
 	{
 		var slash = line.IndexOf( '/' );
 		if ( slash <= 0 || slash == line.Length - 1 )
 			throw new InvalidOperationException( $"Gated code-access rule must be '<Assembly>/<signature>': '{line}'" );
 
-		var rest = line[(slash + 1)..];
-
-		if ( !deny && rest == "*" )
+		if ( !deny && line[(slash + 1)..] == "*" )
 		{
 			_wholesale.Add( line[..slash] );
 			return;
 		}
 
-		(deny ? _deny : _allow).Add( Compile( rest ) );
+		(deny ? _deny : _allow).Add( Compile( line ) );
 	}
 
 	static Regex Compile( string wildcard ) =>
@@ -84,19 +93,15 @@ sealed class AccessRules
 
 	public bool WholesaleAssembly( string assembly ) => assembly is not null && _wholesale.Contains( assembly );
 
+	// Every symbol reference asks, and there are about a thousand patterns to try
 	public bool IsAllowed( string signature )
 	{
-		if ( Matches( _deny, signature ) )
-			return false;
+		if ( _skipAllowList )
+			return true;
 
-		return Matches( _allow, signature );
+		return _allowedCache.GetOrAdd( signature, s => !Matches( _deny, s ) && Matches( _allow, s ) );
 	}
 
-	public bool IsBlocked( string signature )
-	{
-		if ( !Matches( _block, signature ) )
-			return false;
-
-		return !Matches( _unblock, signature );
-	}
+	public bool IsBlocked( string signature ) =>
+		_blockedCache.GetOrAdd( signature, s => Matches( _block, s ) && !Matches( _unblock, s ) );
 }

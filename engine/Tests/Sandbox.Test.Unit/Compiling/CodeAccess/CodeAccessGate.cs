@@ -86,11 +86,11 @@ static class CodeAccessGate
 		if ( generatorErrors.Count > 0 )
 			return new Result { EmitFailed = true, EmitErrors = generatorErrors };
 
-		// A first production build walks all rewritten input and generator-added trees. IL-hotload lowering
-		// happens afterward and is intentionally excluded because it may introduce trusted compiler calls.
-		IEnumerable<SyntaxTree> walkTrees = runGenerator ? processor.BeforeILHotloadProcessingTrees : compilation.SyntaxTrees;
+		// Production walks every tree in the final compilation, with no exemptions.
 		if ( runGenerator )
 			compilation = processor.Compilation;
+
+		IEnumerable<SyntaxTree> walkTrees = compilation.SyntaxTrees;
 
 		// A snippet that doesn't compile can't be analyzed meaningfully; surface it like production would.
 		var compileErrors = compilation.GetDiagnostics()
@@ -126,7 +126,7 @@ static class CodeAccessGate
 		var found = new List<string>();
 		foreach ( var tree in trees )
 		{
-			var walker = new AccessWalker( compilation.GetSemanticModel( tree ), rules: rules );
+			var walker = new AccessWalker( compilation.GetSemanticModel( tree ), rules );
 			walker.Visit( tree.GetRoot() );
 			foreach ( var d in walker.Diagnostics )
 				found.Add( d.GetMessage() );

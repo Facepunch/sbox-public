@@ -110,23 +110,17 @@ partial class Compiler
 
 		foreach ( var reference in a.References.ToArray() )
 		{
-			if ( !IsPermittedArchiveReference( reference ) )
+			// Archives are untrusted - they arrive from a server or a downloaded package. Don't let one
+			// name a reference a project couldn't; FrameworkReferences will Assembly.Load anything.
+			if ( !_config.IsPermittedArchiveReference( reference ) )
 			{
-				log.Warning( $"Ignoring invalid assembly reference '{reference}' in code archive" );
+				log.Warning( $"Ignoring reference '{reference}' from code archive - not permitted" );
 				a.References.Remove( reference );
 				continue;
 			}
 
 			_references.Add( reference );
 		}
-	}
-
-	bool IsPermittedArchiveReference( string reference )
-	{
-		if ( reference.StartsWith( "package.", StringComparison.OrdinalIgnoreCase ) )
-			return Configuration.IsSimpleAssemblyName( reference );
-
-		return _config.IsPermittedAssemblyReference( reference );
 	}
 
 	CodeArchive BuildArchive( CompilerOutput output )
@@ -250,18 +244,11 @@ partial class Compiler
 			}
 		}
 
-		// Validate rewritten source plus trees added by generators. Compiler optimizations happen later,
-		// so compiler-emitted Unsafe calls aren't mistaken for user code.
+		// Runs after generators but before emit, so compiler-emitted Unsafe calls aren't mistaken for
+		// user code. No tree is exempt, including the compiler-extra one.
 		if ( _config.Whitelist )
 		{
-			// An archive update from a host can rebind unchanged trees, so those rescan every source tree
-			var inputPaths = inputSyntaxTrees.Select( x => x.FilePath ).ToHashSet( StringComparer.OrdinalIgnoreCase );
-			var accessSyntaxTrees = _currentArchive is null
-				? new List<SyntaxTree>( modifiedSyntaxTrees )
-				: compiler.SyntaxTrees.Where( x => inputPaths.Contains( x.FilePath ) ).ToList();
-			accessSyntaxTrees.AddRange( compiler.SyntaxTrees.Where( x => !inputPaths.Contains( x.FilePath ) ) );
-
-			RunAccessWalker( compiler, accessSyntaxTrees, output );
+			RunAccessWalker( compiler, output );
 
 			// Errors, fail
 			if ( output.Diagnostics.Any( x => x.Severity == DiagnosticSeverity.Error ) )

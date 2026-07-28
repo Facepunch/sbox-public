@@ -12,6 +12,39 @@ namespace CompilingTests.CodeAccess;
 [DoNotParallelize]
 public class CodeAccessRulesTest
 {
+	/// <summary>
+	/// <see cref="AccessRules.IsBlocked"/> is consulted before the allow-list, so an allow entry for a
+	/// hard-blocked signature is dead and reads as permission. These signatures deliberately have no
+	/// allow entry; if a hard block is ever narrowed, restore one rather than leaving a silent hole.
+	/// </summary>
+	[TestMethod]
+	public void HardBlocks_MakeAllowEntriesRedundant()
+	{
+		string[] signatures =
+		[
+			"System.Runtime.CompilerServices.Unsafe.As<T>( System.Object )",
+			"System.Runtime.CompilerServices.Unsafe.As<TFrom,TTo>( TFrom& )",
+			"System.Runtime.CompilerServices.Unsafe.AsRef<T>( T& )",
+			"System.Runtime.CompilerServices.Unsafe.Add<T>( T&, System.Int32 )",
+			"System.Runtime.CompilerServices.Unsafe.AddByteOffset<T>( T&, System.IntPtr )",
+			"System.Runtime.CompilerServices.InlineArray4`1",
+			"System.Runtime.CompilerServices.InlineArrayAttribute",
+			"System.Runtime.CompilerServices.InlineArrayAttribute..ctor( System.Int32 )",
+			"System.Runtime.CompilerServices.ExtensionMarkerAttribute",
+			"System.Runtime.CompilerServices.ParamCollectionAttribute",
+			"System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan<T>( T&, System.Int32 )",
+			"System.Span`1..ctor( System.Void*, System.Int32 )",
+			"System.ReadOnlySpan`1..ctor( System.Void*, System.Int32 )",
+		];
+
+		foreach ( var signature in signatures )
+			Assert.IsTrue( AccessRules.Instance.IsBlocked( signature ), $"'{signature}' must be hard blocked" );
+
+		// The one Unsafe member with a `+` carve-out, so its allow entry is live.
+		Assert.IsFalse( AccessRules.Instance.IsBlocked( "System.Runtime.CompilerServices.Unsafe.SizeOf<T>()" ) );
+		Assert.IsTrue( AccessRules.Instance.IsAllowed( "System.Private.CoreLib/System.Runtime.CompilerServices.Unsafe.SizeOf<T>()" ) );
+	}
+
 	[TestMethod]
 	public void RuleEffects_AreUnambiguous()
 	{
@@ -29,8 +62,8 @@ public class CodeAccessRulesTest
 		Assert.IsFalse( rules.WholesaleAssembly( null ) );
 
 		Assert.IsTrue( rules.WholesaleAssembly( "Trusted" ) );
-		Assert.IsTrue( rules.IsAllowed( "Allowed.Safe()" ) );
-		Assert.IsFalse( rules.IsAllowed( "Allowed.Denied()" ) );
+		Assert.IsTrue( rules.IsAllowed( "Runtime/Allowed.Safe()" ) );
+		Assert.IsFalse( rules.IsAllowed( "Runtime/Allowed.Denied()" ) );
 		Assert.IsTrue( rules.IsBlocked( "Blocked.Dangerous()" ) );
 		Assert.IsFalse( rules.IsBlocked( "Blocked.Safe()" ) );
 	}
@@ -45,8 +78,9 @@ public class CodeAccessRulesTest
 	{
 		var rules = new AccessRules(
 		[
-			"Runtime/System.Int32*",
-			"Runtime/System.Void*",
+			"System.Private.CoreLib/System.Int32*",
+			"System.Private.CoreLib/System.Void*",
+			"System.Private.CoreLib/System.Object..ctor()",
 			"external/Target",
 			$"external/{allowedAccessor}",
 		] );
@@ -80,6 +114,88 @@ public class CodeAccessRulesTest
 	}
 
 	[DataTestMethod]
+	[DataRow( "target.Inner.Field = 1;", "get_Inner" )]
+	[DataRow( "(target.Inner).Field = 1;", "get_Inner" )]
+	[DataRow( "target.Inner.Field++;", "get_Inner" )]
+	[DataRow( "_ = new Target { Inner = { Field = 1 } };", "get_Inner" )]
+	[DataRow( "(target.Value, _) = (1, 2);", "set_Value" )]
+	[DataRow( "((target.Value), _) = (1, 2);", "set_Value" )]
+	public void PropertyAccess_ReceiversAreReadsAndDeconstructionTargetsAreWrites( string statement, string executedAccessor )
+	{
+		var source = $$"""
+			public sealed class Inner
+			{
+				public int Field;
+			}
+
+			public sealed class Target
+			{
+				public Inner Inner { get; } = new();
+				public int Value { get; set; }
+			}
+
+			public static class Probe
+			{
+				public static void Run( Target target )
+				{
+					{{statement}}
+				}
+			}
+			""";
+
+		var allowedRules = new AccessRules( [.. Rules.All, "external/Target*", "external/Inner*"] );
+		var allowed = CodeAccessGate.Verify( source, runGenerator: false, assemblyName: "external", rules: allowedRules );
+		Assert.IsFalse( allowed.EmitFailed, $"fixture must compile: {allowed}" );
+		Assert.AreEqual( 0, allowed.Denied.Count, $"fixture must be clean before denying an accessor: {allowed}" );
+
+		var deniedRules = new AccessRules( [.. Rules.All, "external/Target*", "external/Inner*", $"!external/Target.{executedAccessor}*"] );
+		var denied = CodeAccessGate.Verify( source, runGenerator: false, assemblyName: "external", rules: deniedRules );
+		Assert.IsTrue( denied.Denied.Any( x => x.Contains( executedAccessor ) ),
+			$"{executedAccessor} must be checked for '{statement}': {denied}" );
+	}
+
+	[DataTestMethod]
+	[DataRow( "public sealed class Probe( int size ) : System.IO.MemoryStream { }", "System.IO.MemoryStream..ctor()", true )]
+	[DataRow( "public sealed partial class Probe : System.IO.MemoryStream { } public sealed partial class Probe { }", "System.IO.MemoryStream..ctor()", true )]
+	[DataRow( "public sealed class Probe( int size ) : System.IO.MemoryStream( size ) { }", "System.IO.MemoryStream..ctor()", false )]
+	[DataRow( "public sealed class Probe( int size ) : System.IO.MemoryStream( size ) { }", "System.IO.MemoryStream..ctor( System.Int32 )", true )]
+	[DataRow( "public sealed class Probe : System.IO.MemoryStream { public Probe( int size ) : base( size ) { } }", "System.IO.MemoryStream..ctor()", false )]
+	[DataRow( "public sealed class Probe : System.IO.MemoryStream { public Probe( int size ) : this() { } public Probe() : base( 1 ) { } }", "System.IO.MemoryStream..ctor()", false )]
+	public void ImplicitBaseConstructor_IsCheckedOnlyWhenCalled( string source, string blocked, bool expectDenied )
+	{
+		var rules = new AccessRules( [.. Rules.All, "-" + blocked] );
+		var result = CodeAccessGate.Verify( source, rules: rules );
+		Assert.IsFalse( result.EmitFailed, $"fixture must compile: {result}" );
+		Assert.AreEqual( expectDenied, result.Denied.Any( x => x.Contains( blocked ) ), result.ToString() );
+	}
+
+	[DataTestMethod]
+	[DataRow( "await using var scope = disposable;", "System.Runtime.CompilerServices.ValueTaskAwaiter.GetResult()" )]
+	[DataRow( "await using ( disposable ) { }", "System.Runtime.CompilerServices.ValueTaskAwaiter.get_IsCompleted()" )]
+	[DataRow( "await foreach ( var item in items ) { }", "System.Runtime.CompilerServices.ValueTaskAwaiter`1.GetResult()" )]
+	[DataRow( "await foreach ( var item in items ) { }", "System.Threading.Tasks.ValueTask.GetAwaiter()" )]
+	[DataRow( "await disposable.DisposeAsync();", "System.Threading.Tasks.ValueTask.GetAwaiter()" )]
+	public void LoweredAwaits_CheckTheAwaiterPattern( string statement, string blocked )
+	{
+		var source = $$"""
+			public static class Probe
+			{
+				public static async System.Threading.Tasks.Task Run( System.IAsyncDisposable disposable, System.Collections.Generic.IAsyncEnumerable<int> items )
+				{
+					{{statement}}
+				}
+			}
+			""";
+
+		var clean = CodeAccessGate.Verify( source );
+		Assert.IsFalse( clean.EmitFailed, $"fixture must compile: {clean}" );
+		Assert.IsFalse( clean.Denied.Any( x => x.Contains( blocked ) ), $"'{blocked}' must be allowed by default: {clean}" );
+
+		var result = CodeAccessGate.Verify( source, rules: new AccessRules( [.. Rules.All, "-" + blocked] ) );
+		Assert.IsTrue( result.Denied.Any( x => x.Contains( blocked ) ), $"'{blocked}' must be checked for '{statement}': {result}" );
+	}
+
+	[DataTestMethod]
 	[DataRow( "+=", "add_Changed", "remove_Changed" )]
 	[DataRow( "-=", "remove_Changed", "add_Changed" )]
 	public void EventAccess_ChecksExactlyTheExecutedAccessor( string operation, string executedAccessor, string otherAccessor )
@@ -99,12 +215,12 @@ public class CodeAccessRulesTest
 			}
 			""";
 
-		var allowedRules = new AccessRules( [.. Rules.All, "external/Target*", $"!external/Target.{otherAccessor}*" ] );
+		var allowedRules = new AccessRules( [.. Rules.All, "external/Target*", $"!external/Target.{otherAccessor}*"] );
 		var allowed = CodeAccessGate.Verify( source, runGenerator: false, assemblyName: "external", rules: allowedRules );
 		Assert.IsFalse( allowed.EmitFailed, $"fixture must compile: {allowed}" );
 		Assert.AreEqual( 0, allowed.Denied.Count, $"{otherAccessor} must not be checked for '{operation}': {allowed}" );
 
-		var deniedRules = new AccessRules( [.. Rules.All, "external/Target*", $"!external/Target.{executedAccessor}*" ] );
+		var deniedRules = new AccessRules( [.. Rules.All, "external/Target*", $"!external/Target.{executedAccessor}*"] );
 		var denied = CodeAccessGate.Verify( source, runGenerator: false, assemblyName: "external", rules: deniedRules );
 		Assert.IsTrue( denied.Denied.Any( x => x.Contains( executedAccessor ) ),
 			$"{executedAccessor} must be checked for '{operation}': {denied}" );
@@ -162,14 +278,22 @@ public class CodeAccessRulesTest
 		{
 			foreach ( var type in AllTypes( assembly.GlobalNamespace ) )
 			{
-				signatures.Add( SymbolSignature.Type( type ) );
+				var prefix = ImplementationAssembly.Of( type ) + "/";
+				signatures.Add( prefix + SymbolSignature.Type( type ) );
 				foreach ( var method in type.GetMembers().OfType<IMethodSymbol>() )
-					signatures.Add( SymbolSignature.Method( method ) );
+					signatures.Add( prefix + SymbolSignature.Method( method ) );
 			}
 		}
 
+		// Honoured by name from any assembly but not in the reference pack, these only ever match a self-defined copy
+		string[] nameOnly =
+		[
+			"-System.Runtime.CompilerServices.IgnoresAccessChecksToAttribute*",
+			"-System.Runtime.CompilerServices.InterceptsLocationAttribute*",
+		];
+
 		var unmatched = new List<string>();
-		foreach ( var raw in Rules.All )
+		foreach ( var raw in Rules.All.Except( nameOnly ) )
 		{
 			var rule = raw[0] is '!' or '-' or '+' ? raw[1..] : raw;
 			if ( raw[0] is not '-' and not '+' )
@@ -181,11 +305,11 @@ public class CodeAccessRulesTest
 						unmatched.Add( raw );
 					continue;
 				}
-
-				rule = gated.Pattern;
 			}
 
-			if ( !signatures.Any( signature => FileSystemName.MatchesSimpleExpression( rule, signature ) ) )
+			// Hard blocks are assembly-agnostic, so match them against the bare signature.
+			var qualified = raw[0] is not '-' and not '+';
+			if ( !signatures.Any( signature => FileSystemName.MatchesSimpleExpression( rule, qualified ? signature : signature[(signature.IndexOf( '/' ) + 1)..] ) ) )
 				unmatched.Add( raw );
 		}
 

@@ -61,14 +61,14 @@ public class PackageAssemblyResolverTest
 		var version1Name = new AssemblyNameReference( "package.resolver.versioned", new System.Version( 1, 0, 0, 0 ) );
 
 		using var resolver = new PackageAssemblyResolver();
-		resolver.AddAssembly( version1 );
+		resolver.AddAssembly( version1, "package.resolver.versioned" );
 		var original = resolver.Resolve( version1Name );
 
-		resolver.AddAssembly( version1 );
+		resolver.AddAssembly( version1, "package.resolver.versioned" );
 		var replacement = resolver.Resolve( version1Name );
 		Assert.AreNotSame( original, replacement );
 
-		resolver.AddAssembly( version2 );
+		resolver.AddAssembly( version2, "package.resolver.versioned" );
 		var newest = resolver.Resolve( version1Name );
 		Assert.AreEqual( new System.Version( 2, 0, 0, 0 ), newest.Name.Version );
 	}

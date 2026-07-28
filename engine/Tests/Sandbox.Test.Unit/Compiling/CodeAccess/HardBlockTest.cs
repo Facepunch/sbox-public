@@ -132,7 +132,9 @@ public partial class HardBlockTest
 
 		var semanticModel = compilation.GetSemanticModel( syntaxTree );
 
-		var walker = new Sandbox.AccessWalker( semanticModel, checkAllowList: false );
+		// These snippets use a minimal reference set and assert on hard blocks, so the member
+		// allow-list is off - it would otherwise bury the assertion in unrelated denials.
+		var walker = new Sandbox.AccessWalker( semanticModel, AccessRules.HardBlocksOnly );
 		walker.Visit( syntaxTree.GetRoot() );
 
 		diagnostics = walker.Diagnostics;
