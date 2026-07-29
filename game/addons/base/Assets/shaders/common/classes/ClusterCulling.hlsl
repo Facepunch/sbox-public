@@ -35,16 +35,16 @@ enum ClusterItemType
 
 struct ClusterRange
 {
-    uint Type;
+    ClusterItemType Type;
     uint Count;
     uint BaseOffset;
 };
 
-class Cluster
+struct Cluster
 {
     static float SliceToDepth( float slice ) { return exp( ( slice - ClusterZParams.y ) / ClusterZParams.x ); }
     static float DepthToSlice( float depth ) { return ClusterZParams.x * log( depth ) + ClusterZParams.y; }
-    static uint Capacity( ClusterItemType type ) { return uint( ClusterCapacitiesVec[type] ); }
+    static uint Capacity( ClusterItemType type ) { return uint( ClusterCapacitiesVec[uint( type )] ); }
     static uint BaseOffset( ClusterItemType type, uint flatIndex ) { return flatIndex * Capacity( type ); }
 
     static uint Flatten( uint3 coord )
@@ -83,7 +83,7 @@ class Cluster
         uint flatIndex = coord.x + d.x * ( coord.y + d.y * coord.z );
 
         // Build range
-        uint capacity = uint( ClusterCapacitiesVec[type] );
+        uint capacity = uint( ClusterCapacitiesVec[uint( type )] );
         uint count = 0;
         switch ( type )
         {

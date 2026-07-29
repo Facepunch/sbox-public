@@ -10,7 +10,7 @@ struct TraceResult
     bool ValidHit;       // Was the hit valid?
 };
 
-class ScreenSpace
+struct ScreenSpace
 {
     static TraceResult Trace(const float3 Position, const float3 Direction, uint nMaxSteps = 64 )
     {

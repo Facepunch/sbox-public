@@ -22,7 +22,7 @@
 	public Action<string> OnValueChanged { get; set; }
 
 
-	public string Thumb
+	public Texture Thumb
 	{
 		get => field;
 		set
@@ -62,7 +62,7 @@
 	{ 	
 		if ( string.IsNullOrWhiteSpace( map ) )
 		{
-			Thumb = "";
+			Thumb = null;
 			Title = "Default Map";
 			StateHasChanged();
 			return;
@@ -70,7 +70,7 @@
 
 		if ( Sandbox.Mounting.Directory.GetMetadata( map ) is { } meta )
 		{
-			Thumb = null;
+			Thumb = meta.Thumbnail;
 			Title = meta.Name;
 
 			StateHasChanged();
@@ -80,14 +80,14 @@
 		var package = await Package.Fetch( map, true );
 		if ( package is not null )
 		{
-			Thumb = package.ThumbWide;
+			Thumb = Texture.Load( package.ThumbWide );
 			Title = package.Title;
 
 			StateHasChanged();
 			return;
 		}
 
-		Thumb = "";
+		Thumb = null;
 		Title = "Default Map";
 
 		StateHasChanged();

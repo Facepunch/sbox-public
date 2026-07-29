@@ -14,7 +14,7 @@ Texture2D g_SheetTexture < Attribute( "SheetTexture" ); SrgbRead( false ); >;
 //
 // Public Sheet Api.
 //
-class Sheet
+struct Sheet
 {
 
 	static bool Blended( in float4 data, in float sequence, in float time, in float2 uv, out float2 a, out float2 b, out float blend )

@@ -80,16 +80,16 @@ PS
         float3 finalColor = 0;
         if (CompositeMode == 0)
         {
-            finalColor = baseColor + bloom.rgb; // Additive
+            finalColor = baseColor.rgb + bloom.rgb; // Additive
         }
         else if (CompositeMode == 1)
         {
-            finalColor = ScreenHDR(baseColor, bloom.rgb); // Screen
+            finalColor = ScreenHDR(baseColor.rgb, bloom.rgb); // Screen
         }
         else // 2: Lerp by bloom luminance
         {
             float bloomLuminance = Luminance(bloom.rgb);
-            finalColor = lerp(baseColor, bloom.rgb, saturate(bloomLuminance));
+            finalColor = lerp(baseColor.rgb, bloom.rgb, saturate(bloomLuminance));
         }
         
         // Approximate bloom alpha with brightness so it bleeds fine on translucent backgrounds

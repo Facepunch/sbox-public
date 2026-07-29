@@ -1,12 +1,16 @@
 ﻿
 namespace Editor.MeshEditor;
 
+/// <summary>
+/// Creates a flat rectangular surface.
+/// </summary>
 [Title( "Quad" ), Icon( "rectangle" )]
 public class QuadPrimitive : PrimitiveBuilder
 {
 	[Hide] public override bool Is2D => true;
 	[Hide] private BBox _box;
 
+	[WideMode, Description( "Create a second face pointing in the opposite direction." )]
 	public bool HasBackface { get; set; } = false;
 
 	public override void SetFromBox( BBox box ) => _box = box;

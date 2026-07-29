@@ -1,3 +1,5 @@
+using Sandbox.Engine;
+
 namespace Sandbox.Mounting;
 
 /// <summary>
@@ -5,9 +7,28 @@ namespace Sandbox.Mounting;
 /// Override <see cref="BuildScene"/> and create GameObjects - they become part of the
 /// mounted scene. Registration and teardown are handled for you.
 /// </summary>
-public abstract class SceneLoader<T> : ResourceLoader<T> where T : BaseGameMount
+public abstract class SceneLoader<T> : ResourceLoader<T>, IThumbnailProvider where T : BaseGameMount
 {
+	public Texture Thumbnail
+	{
+		get
+		{
+			if ( !_thumbnail.IsValid() )
+			{
+				_thumbnail = GetThumbnail()
+					?? Texture.LoadFromFileSystem( $"/thumbs/{Host.Ident}/{RelativePath.WithExtension( ".png" )}", GlobalContext.Menu.FileMount, false )
+					?? Texture.Invalid;
+			}
+
+			if ( ReferenceEquals( _thumbnail, Texture.Invalid ) )
+				return null;
+
+			return _thumbnail;
+		}
+	}
+
 	SceneFile _scene;
+	Texture _thumbnail;
 
 	protected sealed override object Load()
 	{
@@ -33,10 +54,19 @@ public abstract class SceneLoader<T> : ResourceLoader<T> where T : BaseGameMount
 	/// </summary>
 	protected abstract void BuildScene();
 
+	/// <summary>
+	/// Load or create the thumbnail image for this scene, the result is cached.
+	/// </summary>
+	protected virtual Texture GetThumbnail() { return null; }
+
 	protected sealed override void Shutdown()
 	{
 		_scene?.DestroyInternal();
 		_scene = null;
+
+		if ( !ReferenceEquals( _thumbnail, Texture.Invalid ) )
+			_thumbnail?.Destroy();
+		_thumbnail = null;
 	}
 
 	static SceneFile GetOrRegister( string path )

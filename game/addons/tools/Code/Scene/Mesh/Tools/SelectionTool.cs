@@ -337,6 +337,8 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 		Selection.OnItemAdded -= OnMeshSelectionChanged;
 		Selection.OnItemRemoved -= OnMeshSelectionChanged;
 
+		EndBoxSelectUndoScope();
+
 		var undo = SceneEditorSession.Active.UndoSystem;
 		undo.OnUndo -= OnUndoRedo;
 		undo.OnRedo -= OnUndoRedo;
@@ -468,6 +470,11 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 		GlobalSpace = Gizmo.Settings.GlobalSpace;
 
 		UpdateMoveMode();
+
+		if ( !IsBoxSelecting )
+		{
+			EndBoxSelectUndoScope();
+		}
 
 		if ( IsAllowedToSelect && Gizmo.WasLeftMouseReleased && !Gizmo.Pressed.Any && Gizmo.Pressed.CursorDelta.Length < 1 )
 		{
@@ -878,6 +885,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 	}
 
 	IDisposable _selectionUndoScope;
+	IMeshElement _pressedElement;
 
 	public void UpdateSelection( IMeshElement element )
 	{
@@ -886,6 +894,8 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 		if ( Gizmo.WasLeftMousePressed )
 		{
+			_pressedElement = element;
+
 			if ( element.IsValid() )
 			{
 				Select( element );
@@ -903,7 +913,8 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 		if ( Gizmo.IsLeftMouseDown )
 		{
-			if ( element.IsValid() )
+			// The press already selected this one, painting over it again would just undo that
+			if ( element.IsValid() && !Equals( element, _pressedElement ) )
 			{
 				if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
 				{
@@ -932,6 +943,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 		_selectionUndoScope?.Dispose();
 		_selectionUndoScope = null;
+		_pressedElement = null;
 	}
 
 	protected override void OnStartDrag()
@@ -1060,11 +1072,32 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 	//All the meshtools want the lasso selection mode
 	public override bool HasLassoSelectionMode() => true;
 
+	public override bool HasBoxSelectionMode() => true;
+
 	protected override void OnLassoSelect( List<Vector2> lassoPoints, bool isFinal )
 	{
 		if ( !isFinal ) return;
 
+		using var undoScope = SceneEditorSession.Active.UndoScope( "Lasso Selection" ).Push();
+
 		LassoSelection( lassoPoints );
+	}
+
+	IDisposable _boxSelectUndoScope;
+
+	void EndBoxSelectUndoScope()
+	{
+		_boxSelectUndoScope?.Dispose();
+		_boxSelectUndoScope = null;
+	}
+
+	// A box is just a four point lasso, so vertices, edges and faces all select the same way. This
+	// runs every frame of the drag, so hold a single undo scope open for the whole thing
+	protected override void OnBoxSelect( Frustum frustum, Rect screenRect, bool isFinal )
+	{
+		_boxSelectUndoScope ??= SceneEditorSession.Active.UndoScope( "Box Selection" ).Push();
+
+		LassoSelection( [screenRect.TopLeft, screenRect.TopRight, screenRect.BottomRight, screenRect.BottomLeft] );
 	}
 
 	/// <summary>
@@ -1109,6 +1142,10 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 		HashSet<T> selection = [];
 		HashSet<T> previous = [];
 
+		// previous only exists to drop things that are already selected, so meshes the lasso can't
+		// reach don't need their topology walked at all
+		var selectedElements = Selection.OfType<T>().ToLookup( x => x.Component );
+
 		foreach ( var component in Scene.GetAllComponents<MeshComponent>() )
 		{
 			var mesh = component.Mesh;
@@ -1121,25 +1158,9 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 			if ( !lassoBounds.IsInside( meshScreenBounds ) )
 			{
-				if ( typeof( T ) == typeof( MeshVertex ) )
-				{
-					foreach ( var h in mesh.VertexHandles )
-						previous.Add( (T)(object)new MeshVertex( component, h ) );
-				}
-				else if ( typeof( T ) == typeof( MeshEdge ) )
-				{
-					foreach ( var h in mesh.HalfEdgeHandles )
-					{
-						if ( h.Index > mesh.GetOppositeHalfEdge( h ).Index )
-							continue;
-						previous.Add( (T)(object)new MeshEdge( component, h ) );
-					}
-				}
-				else if ( typeof( T ) == typeof( MeshFace ) )
-				{
-					foreach ( var h in mesh.FaceHandles )
-						previous.Add( (T)(object)new MeshFace( component, h ) );
-				}
+				foreach ( var element in selectedElements[component] )
+					previous.Add( element );
+
 				continue;
 			}
 
@@ -1159,18 +1180,19 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 						continue;
 					}
 
-					if ( !Tool.SelectionThrough && IsVertexOccluded( worldPos, cameraPos ) )
+					var screenPos = Gizmo.Camera.ToScreen( worldPos );
+
+					if ( !lassoBounds.IsInside( screenPos ) || !IsPointInLasso( screenPos, lassoPoints ) )
 					{
 						previous.Add( vertex );
 						continue;
 					}
 
-					var screenPos = Gizmo.Camera.ToScreen( worldPos );
-
-					if ( lassoBounds.IsInside( screenPos ) && IsPointInLasso( screenPos, lassoPoints ) )
-						selection.Add( vertex );
-					else
+					// An occlusion trace is expensive, only pay for it once we know it's a candidate
+					if ( !Tool.SelectionThrough && IsVertexOccluded( worldPos, cameraPos ) )
 						previous.Add( vertex );
+					else
+						selection.Add( vertex );
 				}
 			}
 			else if ( typeof( T ) == typeof( MeshEdge ) )
@@ -1196,26 +1218,21 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 						continue;
 					}
 
-					if ( !Tool.SelectionThrough )
-					{
-						if ( aInFront && IsVertexOccluded( worldPosA, cameraPos ) )
-							aInFront = false;
-
-						if ( bInFront && IsVertexOccluded( worldPosB, cameraPos ) )
-							bInFront = false;
-
-						if ( !aInFront && !bInFront )
-						{
-							previous.Add( edge );
-							continue;
-						}
-					}
-
 					var screenPosA = Gizmo.Camera.ToScreen( worldPosA );
 					var screenPosB = Gizmo.Camera.ToScreen( worldPosB );
 
 					bool aInLasso = aInFront && lassoBounds.IsInside( screenPosA ) && IsPointInLasso( screenPosA, lassoPoints );
 					bool bInLasso = bInFront && lassoBounds.IsInside( screenPosB ) && IsPointInLasso( screenPosB, lassoPoints );
+
+					// Occlusion traces are expensive, only pay for them once we know it's a candidate
+					if ( !Tool.SelectionThrough )
+					{
+						if ( aInLasso && IsVertexOccluded( worldPosA, cameraPos ) )
+							aInLasso = false;
+
+						if ( bInLasso && IsVertexOccluded( worldPosB, cameraPos ) )
+							bInLasso = false;
+					}
 
 					bool isSelected = Tool.LassoPartialSelection ? (aInLasso || bInLasso) : (aInLasso && bInLasso);
 
@@ -1234,6 +1251,24 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 					mesh.GetVerticesConnectedToFace( h, out var vertices );
 					var face = (T)(object)new MeshFace( component, h );
+
+					// A face with nothing in the lasso is never selected, whatever the occlusion
+					// traces below would say, so skip them entirely
+					var anyInLasso = false;
+
+					foreach ( var v in vertices )
+					{
+						if ( !IsInLasso( transform.PointToWorld( mesh.GetVertexPosition( v ) ) ) ) continue;
+
+						anyInLasso = true;
+						break;
+					}
+
+					if ( !anyInLasso )
+					{
+						previous.Add( face );
+						continue;
+					}
 
 					int inFrontCount = 0;
 					int inLassoCount = 0;
@@ -1274,42 +1309,24 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 			}
 		}
 
-		using var undoScope = SceneEditorSession.Active.UndoScope( "Lasso Selection" ).Push();
+		ApplyDragSelection( selection, previous );
 
-		if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
+		bool IsInLasso( Vector3 worldPos )
 		{
-			foreach ( var element in selection )
-			{
-				if ( Selection.Contains( element ) )
-					Selection.Remove( element );
-			}
-		}
-		else
-		{
-			foreach ( var element in selection )
-			{
-				if ( !Selection.Contains( element ) )
-					Selection.Add( element );
-			}
+			if ( Vector3.Dot( worldPos - cameraPos, cameraForward ) <= 0 )
+				return false;
 
-			if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) )
-			{
-				foreach ( var element in previous )
-				{
-					if ( Selection.Contains( element ) )
-						Selection.Remove( element );
-				}
-			}
+			var screenPos = Gizmo.Camera.ToScreen( worldPos );
+			return lassoBounds.IsInside( screenPos ) && IsPointInLasso( screenPos, lassoPoints );
 		}
 	}
 
 	private Rect GetScreenRectFromBounds( BBox bounds )
 	{
-		var corners = bounds.Corners.ToArray();
 		var min = new Vector2( float.MaxValue, float.MaxValue );
 		var max = new Vector2( float.MinValue, float.MinValue );
 
-		foreach ( var corner in corners )
+		foreach ( var corner in bounds.Corners )
 		{
 			var screenPos = Gizmo.Camera.ToScreen( corner );
 			min = Vector2.Min( min, screenPos );

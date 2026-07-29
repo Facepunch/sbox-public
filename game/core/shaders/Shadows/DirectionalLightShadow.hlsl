@@ -57,7 +57,7 @@ int FindCascade( float3 worldPosition, out float3 posLs )
 	return -1;
 }
 
-class DirectionalLightShadow
+struct DirectionalLightShadow
 {
 	static float SampleCascade( int cascadeIndex, float3 worldPosition, float2 screenPos )
     {

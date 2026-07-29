@@ -3,7 +3,7 @@
 
 #include "common/utils/MSAAUtils.hlsl"
 
-class ScreenSpaceAmbientOcclusion
+struct ScreenSpaceAmbientOcclusion
 {
     // Samples ambient occlusion texture at the given screen position
     // Does depth comparison to find the best sample in MSAA

@@ -19,7 +19,7 @@ struct ProjectedShadowStruct
 
 StructuredBuffer<ProjectedShadowStruct> ProjectedShadows < Attribute( "ProjectedShadows" ); >;
 
-class ProjectedShadow
+struct ProjectedShadow
 {
     static float3 GetOccludedPosition( uint shadowIndex, float3 fragPos, float3 lightPos, float lightRadius )
     {

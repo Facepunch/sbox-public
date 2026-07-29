@@ -255,8 +255,8 @@ CS
 			baseVertexIndex = (PointCount - 1) * (TessellationLevel + 1);
 		}
 		
-		Vertex left = (Vertex)0;
-		Vertex right = (Vertex)0;
+		Vertex left = {};
+		Vertex right = {};
 		float width = capPoint.Width;
 		
 		if (isStartCap)

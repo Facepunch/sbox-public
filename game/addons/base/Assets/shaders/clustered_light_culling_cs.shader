@@ -68,9 +68,11 @@ CS
         [unroll]
         for ( uint type = 0; type < ClusterItemType_Count; type++ )
         {
+            const ClusterItemType itemType = ClusterItemType( type );
+
             uint itemCount, capacity, baseOffset;
 
-            switch ( type )
+            switch ( itemType )
             {
                 case ClusterItemType_Light:  itemCount = NumDynamicLights;   break;
                 case ClusterItemType_EnvMap: itemCount = NumEnvironmentMaps; break;
@@ -78,14 +80,14 @@ CS
                 default:                    itemCount = 0;                   return;
             }
 
-            capacity = Cluster::Capacity( (ClusterItemType)type );
-            baseOffset = Cluster::BaseOffset( (ClusterItemType)type, flatIndex );
+            capacity = Cluster::Capacity( itemType );
+            baseOffset = Cluster::BaseOffset( itemType, flatIndex );
 
             uint count = 0;
             for ( uint i = 0; i < itemCount && count < capacity; i++ )
             {
                 bool visible = false;
-                switch ( type )
+                switch ( itemType )
                 {
                     case ClusterItemType_Light:  visible = IsLightVisible( i, frustum );  break;
                     case ClusterItemType_EnvMap: visible = IsEnvMapVisible( i, frustum ); break;
@@ -94,7 +96,7 @@ CS
 
                 if ( visible )
                 {
-                    switch ( type )
+                    switch ( itemType )
                     {
                         case ClusterItemType_Light:  ClusterLightIndices[baseOffset + count]  = i; break;
                         case ClusterItemType_EnvMap: ClusterEnvMapIndices[baseOffset + count] = i; break;
@@ -104,7 +106,7 @@ CS
                 }
             }
 
-            switch ( type )
+            switch ( itemType )
             {
                 case ClusterItemType_Light:  ClusterLightCounts[flatIndex]  = count; break;
                 case ClusterItemType_EnvMap: ClusterEnvMapCounts[flatIndex] = count; break;

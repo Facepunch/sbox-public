@@ -84,7 +84,7 @@ void AdjustAlphaToCoverage( inout Material m )
 // explicit.
 //
 //-----------------------------------------------------------------------------
-class ShadingModelStandard
+struct ShadingModelStandard
 {
     //
     // Converts our Material struct to the CombinerInput structure used by Valve's lighting model.
