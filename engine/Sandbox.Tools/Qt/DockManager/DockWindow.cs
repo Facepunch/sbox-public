@@ -63,6 +63,8 @@ public partial class DockWindow : Window
 	/// </summary>
 	public void ResetLayout()
 	{
+		DockManager.CloseDockInstances();
+
 		foreach ( var dock in DockManager.DockTypes )
 			DockManager.SetDockState( dock.Title, false );
 
