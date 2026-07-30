@@ -335,6 +335,9 @@ internal static partial class PackageManager
 		{
 			MountedFileSystem.UnMount( FileSystem );
 
+			// Make sure we unmount the package from the global filesystem, so that any other packages that might have been mounted on top of it don't get broken.
+			Sandbox.FileSystem.Mounted?.UnMount( FileSystem );
+
 			FileSystem.Dispose();
 			FileSystem = default;
 

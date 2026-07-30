@@ -123,6 +123,42 @@ public class CollisionEventTest
 	}
 
 	/// <summary>
+	/// OnCollisionUpdate only fires while the collision is awake: updates stop when
+	/// the body falls asleep, resume on wake, and the sleep transition raises
+	/// neither a stop nor a new start.
+	/// </summary>
+	[TestMethod]
+	public void CollisionUpdatesStopWhileSleeping()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		CreateFloor( scene );
+		var (go, rb, _) = CreateBody( scene, new Vector3( 0, 0, 20 ) );
+		rb.CollisionUpdateEventsEnabled = true;
+		var probe = go.Components.Create<CollisionProbe>();
+
+		for ( int i = 0; i < 300 && !rb.Sleeping; i++ ) scene.GameTick();
+		Assert.IsTrue( rb.Sleeping, "the body should have fallen asleep" );
+
+		var startsAtSleep = probe.Starts;
+		var updatesAtSleep = probe.Updates;
+		Assert.IsTrue( updatesAtSleep >= 1, "updates should have fired while settling" );
+
+		for ( int i = 0; i < 30; i++ ) scene.GameTick();
+
+		Assert.AreEqual( updatesAtSleep, probe.Updates, "a sleeping contact should not send updates" );
+		Assert.AreEqual( 0, probe.Stops, "falling asleep should not end the touch" );
+
+		rb.Sleeping = false;
+		for ( int i = 0; i < 10; i++ ) scene.GameTick();
+
+		Assert.IsTrue( probe.Updates > updatesAtSleep, "updates should resume after waking" );
+		Assert.AreEqual( startsAtSleep, probe.Starts, "waking should not re-fire start" );
+		Assert.AreEqual( 0, probe.Stops, "the contact should still be alive" );
+	}
+
+	/// <summary>
 	/// Touch events are pair-level: as long as the other collider has them enabled
 	/// the listener still hears the contact, so silencing a collision needs
 	/// CollisionEventsEnabled off on both bodies before their shapes are built.

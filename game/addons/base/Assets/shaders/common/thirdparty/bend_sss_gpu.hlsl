@@ -65,14 +65,6 @@
 #endif
 
 
-// Forward declare:
-// Generate the shadow
-//	Call this function from a compute shader with thread dimensions: numthreads[WAVE_SIZE, 1, 1]
-// 
-//	(int3)	inGroupID:			Compute shader group id register (SV_GroupID)
-//	(int)	inGroupThreadId:	Compute shader group thread id register (SV_GroupThreadID)
-void WriteScreenSpaceShadow(struct DispatchParameters inParameters, int3 inGroupID, int inGroupThreadID);
-
 
 
 // This is the list of runtime properties to pass to the shader
@@ -124,6 +116,7 @@ struct DispatchParameters
 
 
 	// Set sensible starting tuning values
+	[mutating]
 	void SetDefaults()
 	{
 		SurfaceThickness			= 0.005;
@@ -159,12 +152,21 @@ struct DispatchParameters
 										// If you have issues where invalid shadows are appearing from off-screen, it is likely that this sampler is not correctly setup
 };
 
+// Forward declare:
+// Generate the shadow
+//	Call this function from a compute shader with thread dimensions: numthreads[WAVE_SIZE, 1, 1]
+// 
+//	(int3)	inGroupID:			Compute shader group id register (SV_GroupID)
+//	(int)	inGroupThreadId:	Compute shader group thread id register (SV_GroupThreadID)
+void WriteScreenSpaceShadow(DispatchParameters inParameters, int3 inGroupID, int inGroupThreadID);
+
+
 
 #if !defined(WAVE_SIZE) || !defined(SAMPLE_COUNT) || !defined(HARD_SHADOW_SAMPLES) || !defined(FADE_OUT_SAMPLES)
 	#error Before including bend_sss_gpu.h, four macros must be defined to configure the shader compile: WAVE_SIZE, SAMPLE_COUNT, HARD_SHADOW_SAMPLES, and FADE_OUT_SAMPLES. See the top of this file for details.
 #else
 
-	static bool EarlyOutPixel(struct DispatchParameters inParameters, int2 pixel_xy, float depth)
+	static bool EarlyOutPixel(DispatchParameters inParameters, int2 pixel_xy, float depth)
 	{
 		//OPTIONAL TODO; customize this function to return true if the pixel should early-out for custom reasons. E.g., A shadow map pass already found the pixel was in shadow / backfaced, etc.
 		// Recommended to keep this code very simple!

@@ -196,11 +196,14 @@ public static class Application
 		GamePackage = default;
 		ExceptionCount = default;
 		MapPackage = default;
+
+		// Cheats, and anything they allowed, shouldn't carry over into the next game
+		ConVarSystem.ResetCheats();
 	}
 
 	public static bool CheatsEnabled
 	{
-		get => ConVarSystem.GetValue( "sv_cheats", "false", true ).ToBool();
+		get => ConVarSystem.GetValue( ConVarSystem.CheatsVariableName, "false", true ).ToBool();
 	}
 
 	/// <summary>

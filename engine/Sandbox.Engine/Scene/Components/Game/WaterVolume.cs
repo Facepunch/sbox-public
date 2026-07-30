@@ -87,8 +87,9 @@ public sealed class WaterVolume : Component
 
 		var plane = GetWaterSurface();
 
-		foreach ( var body in collider.Touching.Select( x => x.GetComponentInParent<Rigidbody>() ).Where( x => x.IsValid() ).Distinct() )
+		foreach ( var body in collider.Touching.Where( x => x.IsValid() ).Select( x => x.GetComponentInParent<Rigidbody>() ).Distinct() )
 		{
+			if ( !body.IsValid() ) continue;
 			if ( body.IsProxy ) continue;
 			if ( !body.PhysicsBody.IsValid() ) continue;
 			if ( body.PhysicsBody.BodyType != PhysicsBodyType.Dynamic ) continue;

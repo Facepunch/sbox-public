@@ -247,12 +247,72 @@ partial class FaceTool
 
 			foreach ( var faceGroup in _faceGroups )
 			{
-				var faces = faceGroup.Key.Mesh.FaceHandles;
+				var mesh = faceGroup.Key.Mesh;
 
-				foreach ( var face in faces )
+				foreach ( var face in mesh.FaceHandles )
 				{
+					if ( mesh.IsFaceHidden( face ) )
+						continue;
+
 					selection.Add( new MeshFace( faceGroup.Key, face ) );
 				}
+			}
+		}
+
+		[Shortcut( "mesh.hide-faces", "H", typeof( SceneViewWidget ) )]
+		private void HideFaces()
+		{
+			using var scope = SceneEditorSession.Scope();
+
+			var faces = _faces.Where( x => x.IsValid() ).ToArray();
+			if ( faces.Length == 0 )
+				return;
+
+			HideFaces( faces );
+
+			SceneEditorSession.Active.UndoSystem.Insert( "Hide Faces",
+				() => UnhideFaces( faces ),
+				() => HideFaces( faces ) );
+		}
+
+		[Shortcut( "mesh.unhide-faces", "U", typeof( SceneViewWidget ) )]
+		private void UnhideFaces()
+		{
+			using var scope = SceneEditorSession.Scope();
+
+			var faces = SceneEditorSession.Active.Scene.GetAllComponents<MeshComponent>()
+				.Where( x => x.Mesh?.HasHiddenFaces is true )
+				.SelectMany( x => x.Mesh.FaceHandles
+					.Where( h => x.Mesh.IsFaceHidden( h ) )
+					.Select( h => new MeshFace( x, h ) ) )
+				.ToArray();
+
+			if ( faces.Length == 0 )
+				return;
+
+			UnhideFaces( faces );
+
+			SceneEditorSession.Active.UndoSystem.Insert( "Unhide All Faces",
+				() => HideFaces( faces ),
+				() => UnhideFaces( faces ) );
+		}
+
+		private static void HideFaces( MeshFace[] faces )
+		{
+			var selection = SceneEditorSession.Active.Selection;
+
+			foreach ( var face in faces.Where( x => x.IsValid() ) )
+			{
+				face.Component.Mesh.SetFaceHidden( face.Handle, true );
+				selection.Remove( face );
+			}
+		}
+
+		private static void UnhideFaces( MeshFace[] faces )
+		{
+			foreach ( var face in faces.Where( x => x.IsValid() ) )
+			{
+				face.Component.Mesh.SetFaceHidden( face.Handle, false );
 			}
 		}
 

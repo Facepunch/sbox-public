@@ -2,6 +2,7 @@ using System;
 using System.Reflection;
 using System.Text;
 using System.Text.Json.Nodes;
+using DiagnosticSeverity = Microsoft.CodeAnalysis.DiagnosticSeverity;
 
 namespace Editor.Mcp;
 
@@ -139,10 +140,12 @@ internal static class TopLevelTools
 	}
 
 	[McpTool.ReadOnly( "editor_status" ), McpListed]
-	[Description( "Get the current state of the editor - engine version, which project is open, the active scene and whether it has unsaved changes, whether play mode is running or paused, how many tools are registered, and the directory paths that matter (logs, project code and assets)." )]
+	[Description( "Get the current state of the editor - engine version, which project is open, the active scene and whether it has unsaved changes, whether play mode is running or paused, how many tools are registered, the directory paths that matter (logs, project code and assets), and the state of the code compiler. Check IsCompiling/LastCompileSucceeded here after editing code instead of relying on read_console - a successful compile can scroll out of view or be mistaken for the last failure you saw." )]
 	public static EditorStatus GetEditorStatus()
 	{
 		var scene = Game.ActiveScene;
+		var compileGroup = Project.CompileGroup;
+		var buildResult = compileGroup?.BuildResult;
 
 		return new EditorStatus
 		{
@@ -155,6 +158,9 @@ internal static class TopLevelTools
 			IsPlaying = Game.IsPlaying,
 			IsPaused = Game.IsPaused,
 			ToolCount = ToolRegistry.All().Count(),
+			IsCompiling = compileGroup is not null && (compileGroup.IsBuilding || compileGroup.NeedsBuild),
+			LastCompileSucceeded = buildResult is { Diagnostics: not null } r ? r.Success : null,
+			LastCompileErrors = buildResult?.Diagnostics?.Count( x => x.Severity == DiagnosticSeverity.Error ) ?? 0,
 			Paths = new EditorPaths
 			{
 				Engine = FileSystem.Root.GetFullPath( "/" ),
@@ -239,6 +245,22 @@ internal class EditorStatus
 	public bool IsPlaying { get; set; }
 	public bool IsPaused { get; set; }
 	public int ToolCount { get; set; }
+
+	/// <summary>
+	/// Whether the project's code compiler is currently building, or has changes queued to build.
+	/// </summary>
+	public bool IsCompiling { get; set; }
+
+	/// <summary>
+	/// Whether the most recent finished compile succeeded. Null if no compile has happened yet.
+	/// </summary>
+	public bool? LastCompileSucceeded { get; set; }
+
+	/// <summary>
+	/// Error count from the most recent finished compile - only meaningful when LastCompileSucceeded is false.
+	/// </summary>
+	public int LastCompileErrors { get; set; }
+
 	public EditorPaths Paths { get; set; }
 }
 

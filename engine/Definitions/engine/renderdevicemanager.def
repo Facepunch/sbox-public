@@ -14,4 +14,8 @@ native static class Glue.RenderDeviceManager as NativeEngine.RenderDeviceManager
 
 	int GetDisplayModes( VideoDisplayMode[] modes, int max, bool windowed );
 
+	// Queries the native render device for upscaler support. nUpscalerType is the UpscalerType
+	// enum from rendersystem/iupscaler.h (UPSCALER_NONE=0, UPSCALER_AMD_FSR3=2, UPSCALER_NVIDIA_DLSS=3).
+	// Returns false for DLSS on non-NVIDIA hardware.
+	bool IsUpscalerSupported( int nUpscalerType );
 }

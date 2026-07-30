@@ -153,6 +153,19 @@
                 <SliderControl class="glass with-grow" Value:bind=@Fsr3SharpnessPercent Min="@(0)" Max="@(100)" Step="@(1)" ShowTextEntry="@true"></SliderControl>
             </row>
         }
+        else if ( UpscalerMode == Sandbox.Engine.Settings.UpscalerMode.DLSS )
+        {
+            <row class="upscaler-warning">
+                <i>warning</i>
+                <span>DLSS is a temporal AI upscaler. It can cause ghosting on moving objects and in-world UI elements. MSAA is disabled while active.</span>
+            </row>
+            <row class="with-gaps">
+                <cell class="glass with-padding is-label">
+                    Quality Preset
+                </cell>
+                <DropDown class="glass with-grow" Value:bind=@DlssQuality Options=@DlssQualityOptions></DropDown>
+            </row>
+        }
     </div>
 
      <SettingsFooter OnCancel=@OnCancel OnRestore=@OnRestore OnApply=@OnApply></SettingsFooter>
@@ -177,17 +190,29 @@
 
     public Sandbox.Engine.Settings.UpscalerMode UpscalerMode { get; set; }
     public Sandbox.Engine.Settings.Fsr3UpscalerQuality Fsr3UpscalerQuality { get; set; }
+    public Sandbox.Engine.Settings.DlssQuality DlssQuality { get; set; }
     public int UpscalerRenderScalePercent { get; set; }
     public int Fsr1SharpnessPercent { get; set; }
     public int Fsr3SharpnessPercent { get; set; }
 
-    List<Option> UpscalerModeOptions = new List<Option>()
+    // DLSS is only offered when the graphics device reports support for it (NVIDIA hardware).
+    List<Option> UpscalerModeOptions = BuildUpscalerModeOptions();
+
+    static List<Option> BuildUpscalerModeOptions()
     {
-        new Option("Off",          Sandbox.Engine.Settings.UpscalerMode.Off),
-        new Option("Stretch",      Sandbox.Engine.Settings.UpscalerMode.Stretch),
-        new Option("FSR",          Sandbox.Engine.Settings.UpscalerMode.FSR1),
-        new Option("FSR3 (TAA)",   Sandbox.Engine.Settings.UpscalerMode.FSR3),
-    };
+        var options = new List<Option>()
+        {
+            new Option("Off",          Sandbox.Engine.Settings.UpscalerMode.Off),
+            new Option("Stretch",      Sandbox.Engine.Settings.UpscalerMode.Stretch),
+            new Option("FSR",          Sandbox.Engine.Settings.UpscalerMode.FSR1),
+            new Option("FSR3 (TAA)",   Sandbox.Engine.Settings.UpscalerMode.FSR3),
+        };
+
+        if ( Sandbox.Engine.Settings.RenderSettings.IsUpscalerModeSupported( Sandbox.Engine.Settings.UpscalerMode.DLSS ) )
+            options.Add( new Option("DLSS", Sandbox.Engine.Settings.UpscalerMode.DLSS) );
+
+        return options;
+    }
 
     List<Option> UpscalerQualityOptions = new List<Option>()
     {
@@ -196,6 +221,15 @@
         new Option("Balanced",            Sandbox.Engine.Settings.Fsr3UpscalerQuality.Balanced),
         new Option("Performance",         Sandbox.Engine.Settings.Fsr3UpscalerQuality.Performance),
         new Option("Ultra Performance",   Sandbox.Engine.Settings.Fsr3UpscalerQuality.UltraPerformance),
+    };
+
+    List<Option> DlssQualityOptions = new List<Option>()
+    {
+        new Option("DLAA",                Sandbox.Engine.Settings.DlssQuality.DLAA),
+        new Option("Quality",             Sandbox.Engine.Settings.DlssQuality.Quality),
+        new Option("Balanced",            Sandbox.Engine.Settings.DlssQuality.Balanced),
+        new Option("Performance",         Sandbox.Engine.Settings.DlssQuality.Performance),
+        new Option("Ultra Performance",   Sandbox.Engine.Settings.DlssQuality.UltraPerformance),
     };
 
     List<Option> VideoModeOptions = new List<Option>()
@@ -286,6 +320,7 @@
 
         UpscalerMode = MenuUtility.RenderSettings.UpscalerMode;
         Fsr3UpscalerQuality = MenuUtility.RenderSettings.Fsr3UpscalerQuality;
+        DlssQuality = MenuUtility.RenderSettings.DlssQuality;
         UpscalerRenderScalePercent = (int)MathF.Round( MenuUtility.RenderSettings.UpscalerRenderScale * 100f );
         Fsr1SharpnessPercent = (int)MathF.Round( MenuUtility.RenderSettings.Fsr1Sharpness * 100f );
         Fsr3SharpnessPercent = (int)MathF.Round( MenuUtility.RenderSettings.Fsr3Sharpness * 100f );
@@ -352,6 +387,7 @@
 
         MenuUtility.RenderSettings.UpscalerMode = UpscalerMode;
         MenuUtility.RenderSettings.Fsr3UpscalerQuality = Fsr3UpscalerQuality;
+        MenuUtility.RenderSettings.DlssQuality = DlssQuality;
         MenuUtility.RenderSettings.UpscalerRenderScale = UpscalerRenderScalePercent / 100f;
         MenuUtility.RenderSettings.Fsr1Sharpness = Fsr1SharpnessPercent / 100f;
         MenuUtility.RenderSettings.Fsr3Sharpness = Fsr3SharpnessPercent / 100f;

@@ -5,6 +5,11 @@ partial class QuakeMap
 {
 	private const int LightmapPageSize = 4096;
 
+	private const int WaterPage = -1;
+	private const int SkyPage = -2;
+
+	private readonly Dictionary<int, (Texture Solid, Texture Alpha)> _skyLayers = [];
+
 	struct FaceSurface
 	{
 		public float umin;
@@ -102,6 +107,9 @@ partial class QuakeMap
 				.WithData( masks[i] )
 				.WithMips( numMips )
 				.Finish() );
+
+			if ( IsSkyTexture( Quake.BSP.File.GetString( file.Textures[i].Name ) ) )
+				_skyLayers[i] = CreateSkyLayers( file.TextureData[i].Data, palette, w, h );
 		}
 
 		var worldModel = CreateModel( file, file.Models[0], WorldModelName );
@@ -129,9 +137,69 @@ partial class QuakeMap
 		return material;
 	}
 
+	private static bool IsSkyTexture( string name ) => name.StartsWith( "sky", StringComparison.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// Sky textures are twice as wide as they are tall: the right half is the opaque background
+	/// layer and the left half scrolls over it at double speed, with palette index 0 acting as
+	/// the transparent colour. Same split as R_InitSky.
+	/// </summary>
+	private static (Texture Solid, Texture Alpha) CreateSkyLayers( byte[] indices, byte[] palette, int width, int height )
+	{
+		var half = width / 2;
+		var background = new byte[half * height * 4];
+		var clouds = new byte[half * height * 4];
+
+		for ( var y = 0; y < height; ++y )
+		{
+			var src = y * width;
+			var dst = y * half * 4;
+
+			for ( var x = 0; x < half; ++x, dst += 4 )
+			{
+				WritePixel( background, dst, indices[src + half + x], 255 );
+
+				var index = indices[src + x];
+				WritePixel( clouds, dst, index, index == 0 ? (byte)0 : (byte)255 );
+			}
+		}
+
+		return (CreateLayer( background ), CreateLayer( clouds ));
+
+		void WritePixel( byte[] data, int offset, byte index, byte alpha )
+		{
+			data[offset + 0] = palette[(index * 3) + 0];
+			data[offset + 1] = palette[(index * 3) + 1];
+			data[offset + 2] = palette[(index * 3) + 2];
+			data[offset + 3] = alpha;
+		}
+
+		Texture CreateLayer( byte[] data ) => Texture
+			.Create( half, height, ImageFormat.RGBA8888 )
+			.WithData( data )
+			.Finish();
+	}
+
+	private Material GetSkyMaterial( Quake.BSP.File file, int texIndex )
+	{
+		var key = (texIndex, SkyPage);
+		if ( _materials.TryGetValue( key, out var material ) )
+			return material;
+
+		var name = Quake.BSP.File.GetString( file.Textures[texIndex].Name );
+		var layers = _skyLayers[texIndex];
+
+		material = Material.Create( $"{name}_{texIndex}_sky", "shaders/quake_sky.shader" );
+		material.Set( "SolidLayer", layers.Solid );
+		material.Set( "AlphaLayer", layers.Alpha );
+
+		_materials[key] = material;
+		return material;
+	}
+
 	private Material GetWaterMaterial( Quake.BSP.File file, int texIndex )
 	{
-		var key = (texIndex, -1);
+		var key = (texIndex, WaterPage);
 		if ( _materials.TryGetValue( key, out var material ) )
 			return material;
 
@@ -359,20 +427,24 @@ partial class QuakeMap
 
 			var texIndex = (int)bspTexInfo.MipTex;
 			var texName = Quake.BSP.File.GetString( tex.Name );
-			var isSky = texName.StartsWith( "sky", StringComparison.OrdinalIgnoreCase );
+			var isSky = _skyLayers.ContainsKey( texIndex );
 			var isLiquid = texName.Length > 0 && texName[0] == '*';
 
-			if ( isSky )
-				continue;
-			if ( !isLiquid && (bspTexInfo.Flags & 1) != 0 )
+			if ( !isSky && !isLiquid && (bspTexInfo.Flags & 1) != 0 )
 				continue;
 
 			var surface = Surfaces[bspModel.FirstFace + faceIndex];
-			var page = isLiquid ? -1 : surface.page;
+			var page = isLiquid ? WaterPage : isSky ? SkyPage : surface.page;
 			var key = (texIndex, page);
 			if ( !meshes.TryGetValue( key, out var meshGroup ) )
 			{
-				var material = isLiquid ? GetWaterMaterial( file, texIndex ) : GetMaterial( file, texIndex, surface.page );
+				var material = page switch
+				{
+					WaterPage => GetWaterMaterial( file, texIndex ),
+					SkyPage => GetSkyMaterial( file, texIndex ),
+					_ => GetMaterial( file, texIndex, surface.page )
+				};
+
 				meshGroup = (new Mesh( material ), [], []);
 				meshes[key] = meshGroup;
 			}

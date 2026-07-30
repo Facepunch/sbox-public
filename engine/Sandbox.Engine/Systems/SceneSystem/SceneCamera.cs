@@ -561,6 +561,13 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 
 		// new stuff is commandlist based, so is total thread safe
 		OnRenderStageHook?.InvokeWithWarning( renderStage, this );
+
+		// Editor viewports don't use the game UI render hook, so capture the selected camera after its UI stage.
+		if ( renderStage == Rendering.Stage.AfterUI && IsRecordingCamera && Application.IsEditor && !Game.IsPlaying )
+		{
+			ScreenCaptureUtility.CaptureFrame();
+			ScreenCaptureUtility.DrawRecordingBorder();
+		}
 	}
 
 	/// <summary>

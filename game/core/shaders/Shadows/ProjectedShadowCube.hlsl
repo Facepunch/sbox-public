@@ -111,7 +111,7 @@ static const float2 PCFDiscSamples29[]=
 // Represents a cube-style shadow projection system. Provides utilities
 // to query shadow visibility at a given world position for a specific shadow index.
 //------------------------------------------------------------------------------
-class ProjectedShadowCube
+struct ProjectedShadowCube
 {
     //--------------------------------------------------------------------------
     // GetVisibility

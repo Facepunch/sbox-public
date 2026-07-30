@@ -67,6 +67,7 @@ partial class ObjectSelection
 					grid.Spacing = 4;
 
 					CreateButton( "Flip Faces", "meshtools/face_tool/flip_all_faces.png", "mesh.flip-all-mesh-faces", FlipMesh, _meshes.Length > 0, grid );
+					CreateButton( "Remove Bad Geometry", "meshtools/face_tool/remove_bad_faces.png", "mesh.remove-bad-geometry", RemoveBadGeometry, _meshes.Length > 0, grid );
 					CreateButton( "Bake Scale", "meshtools/object_selection_buttons/bake_scale.png", null, BakeScale, _meshes.Length > 0, grid );
 					CreateButton( "Convert To Mesh", "meshtools/object_selection_buttons/convert_to_mesh.png", "mesh.convert-model-to-mesh", ConvertModelsToMeshes, _modelRenderers.Length > 0, grid );
 					CreateButton( "Save To Model", "meshtools/object_selection_buttons/save_to_model.png", null, SaveToModel, _meshes.Length > 0, grid );
@@ -305,6 +306,22 @@ partial class ObjectSelection
 				foreach ( var mesh in _meshes )
 				{
 					mesh.Mesh.FlipAllFaces();
+				}
+			}
+		}
+
+		[Shortcut( "mesh.remove-bad-geometry", "", typeof( SceneViewWidget ) )]
+		public void RemoveBadGeometry()
+		{
+			using var scope = SceneEditorSession.Scope();
+
+			using ( SceneEditorSession.Active.UndoScope( "Remove Bad Geometry" )
+				.WithComponentChanges( _meshes )
+				.Push() )
+			{
+				foreach ( var mesh in _meshes )
+				{
+					mesh.Mesh.RemoveBadGeometry();
 				}
 			}
 		}

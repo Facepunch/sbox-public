@@ -17,19 +17,17 @@ partial class EdgeCutTool
 
 	void Cancel()
 	{
-		if ( _cutPoints.Count == 0 )
-		{
-			EditorToolManager.SetSubTool( _tool );
-		}
-
-		_cutPoints.Clear();
+		ClearCut();
+		_editUndo.Clear();
+		_activationUndo.Clear();
+		GoBack();
 	}
 
 	void Apply()
 	{
 		if ( _cutPoints.Count <= 1 )
 		{
-			EditorToolManager.SetSubTool( _tool );
+			Cancel();
 			return;
 		}
 
@@ -65,8 +63,14 @@ partial class EdgeCutTool
 			}
 		}
 
+		ClearCut();
+		_editUndo.Clear();
+
 		if ( !LoopMode )
-			EditorToolManager.SetSubTool( _tool );
+		{
+			_activationUndo.Clear();
+			GoBack();
+		}
 	}
 
 	bool ApplyCut( List<MeshVertex> outCutPathVertices, List<MeshEdge> outCutPathEdges )

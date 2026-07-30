@@ -8,6 +8,8 @@ namespace Editor.MeshEditor;
 [Alias( "tools.primitive-tool" )]
 public partial class PrimitiveTool( MeshTool tool ) : EditorTool
 {
+	const string EditorTypeCookie = "PrimitiveTool.EditorType";
+
 	public MeshTool MeshTool { get; private init; } = tool;
 
 	public PrimitiveEditor Editor { get; private set; }
@@ -16,7 +18,12 @@ public partial class PrimitiveTool( MeshTool tool ) : EditorTool
 
 	public override void OnEnabled()
 	{
-		Editor = EditorTypeLibrary.Create<PrimitiveEditor>( typeof( BlockEditor ), [this] );
+		var savedType = EditorCookie.GetString( EditorTypeCookie, null );
+		var type = EditorTypeLibrary.GetTypes<PrimitiveEditor>()
+			.FirstOrDefault( x => !x.IsAbstract && x.FullName == savedType )
+			?.TargetType ?? typeof( BlockEditor );
+
+		SelectEditor( type );
 	}
 
 	public override void OnDisabled()
@@ -27,6 +34,17 @@ public partial class PrimitiveTool( MeshTool tool ) : EditorTool
 			Create();
 
 		Editor = null;
+	}
+
+	internal void SelectEditor( Type type )
+	{
+		if ( Editor?.GetType() == type )
+			return;
+
+		Editor = EditorTypeLibrary.Create<PrimitiveEditor>( type, [this] );
+
+		if ( Editor is not null )
+			EditorCookie.SetString( EditorTypeCookie, type.FullName );
 	}
 
 	public void Create()

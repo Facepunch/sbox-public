@@ -433,6 +433,9 @@ internal sealed partial class PackageLoader : IDisposable
 		{
 			using var gr = new HeavyGarbageRegion();
 			LoadAllAssembliesFromPackage( ap );
+
+			// Make sure we load the loose content as well
+			FileSystem.Mounted.Mount( ap.FileSystem );
 		}
 		catch
 		{

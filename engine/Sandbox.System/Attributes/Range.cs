@@ -74,7 +74,7 @@ namespace Sandbox
 /// <summary>
 /// For use with Curves, allows you to define a custom range for the time
 /// </summary>
-[AttributeUsage( AttributeTargets.Property )]
+[AttributeUsage( AttributeTargets.Property | AttributeTargets.Field )]
 public class TimeRangeAttribute : System.Attribute
 {
 	public float Min { get; }
@@ -91,7 +91,7 @@ public class TimeRangeAttribute : System.Attribute
 /// <summary>
 /// For use with Curves, allows you to define a custom range for the value
 /// </summary>
-[AttributeUsage( AttributeTargets.Property )]
+[AttributeUsage( AttributeTargets.Property | AttributeTargets.Field )]
 public class ValueRangeAttribute : System.Attribute
 {
 	public float Min { get; }

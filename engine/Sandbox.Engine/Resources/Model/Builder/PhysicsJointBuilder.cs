@@ -1,7 +1,7 @@
 namespace Sandbox;
 
 /// <summary>
-/// Provides ability to generate a physics joint for a <see cref="Model"/> at runtime.
+/// Configures a joint between two model physics bodies.
 /// </summary>
 public abstract class PhysicsJointBuilder
 {
@@ -24,12 +24,12 @@ public abstract class PhysicsJointBuilder
 	internal JointDesc Desc;
 
 	/// <summary>
-	/// The index of the first body connected by the joint.
+	/// The index of the first connected body, using the order bodies were added to the model.
 	/// </summary>
 	public int Body1 { get => Desc.Body1; set => Desc.Body1 = value; }
 
 	/// <summary>
-	/// The index of the second body connected by the joint.
+	/// The index of the second connected body, using the order bodies were added to the model.
 	/// </summary>
 	public int Body2 { get => Desc.Body2; set => Desc.Body2 = value; }
 
@@ -54,39 +54,63 @@ public abstract class PhysicsJointBuilder
 	public float LinearStrength { get => Desc.LinearStrength; set => Desc.LinearStrength = value; }
 
 	/// <summary>
-	/// The maximum angular force/torque the joint can withstand before breaking.
+	/// The maximum torque the joint can withstand before breaking.
 	/// </summary>
 	public float AngularStrength { get => Desc.AngularStrength; set => Desc.AngularStrength = value; }
 
 	protected PhysicsJointBuilder() { }
 }
 
+/// <summary>
+/// Fluent configuration methods shared by all physics joint builders.
+/// </summary>
 public static class PhysicsJointBuilderExtensions
 {
-	/// <inheritdoc cref="PhysicsJointBuilder.Body1"/>
+	/// <summary>Sets the first connected body.</summary>
+	/// <param name="b">The joint builder.</param>
+	/// <param name="v">The body index.</param>
+	/// <returns>The joint builder.</returns>
 	public static T WithBody1<T>( this T b, int v ) where T : PhysicsJointBuilder { b.Body1 = v; return b; }
 
-	/// <inheritdoc cref="PhysicsJointBuilder.Body2"/>
+	/// <summary>Sets the second connected body.</summary>
+	/// <param name="b">The joint builder.</param>
+	/// <param name="v">The body index.</param>
+	/// <returns>The joint builder.</returns>
 	public static T WithBody2<T>( this T b, int v ) where T : PhysicsJointBuilder { b.Body2 = v; return b; }
 
-	/// <inheritdoc cref="PhysicsJointBuilder.Frame1"/>
+	/// <summary>Sets the joint frame in the first body's local space.</summary>
+	/// <param name="b">The joint builder.</param>
+	/// <param name="v">The local joint frame.</param>
+	/// <returns>The joint builder.</returns>
 	public static T WithFrame1<T>( this T b, Transform v ) where T : PhysicsJointBuilder { b.Frame1 = v; return b; }
 
-	/// <inheritdoc cref="PhysicsJointBuilder.Frame2"/>
+	/// <summary>Sets the joint frame in the second body's local space.</summary>
+	/// <param name="b">The joint builder.</param>
+	/// <param name="v">The local joint frame.</param>
+	/// <returns>The joint builder.</returns>
 	public static T WithFrame2<T>( this T b, Transform v ) where T : PhysicsJointBuilder { b.Frame2 = v; return b; }
 
-	/// <inheritdoc cref="PhysicsJointBuilder.EnableCollision"/>
+	/// <summary>Sets whether the connected bodies can collide.</summary>
+	/// <param name="b">The joint builder.</param>
+	/// <param name="v">Whether collision is enabled.</param>
+	/// <returns>The joint builder.</returns>
 	public static T WithCollision<T>( this T b, bool v ) where T : PhysicsJointBuilder { b.EnableCollision = v; return b; }
 
-	/// <inheritdoc cref="PhysicsJointBuilder.LinearStrength"/>
+	/// <summary>Sets the joint's breaking force.</summary>
+	/// <param name="b">The joint builder.</param>
+	/// <param name="v">The maximum linear force.</param>
+	/// <returns>The joint builder.</returns>
 	public static T WithLinearStrength<T>( this T b, float v ) where T : PhysicsJointBuilder { b.LinearStrength = v; return b; }
 
-	/// <inheritdoc cref="PhysicsJointBuilder.AngularStrength"/>
+	/// <summary>Sets the joint's breaking torque.</summary>
+	/// <param name="b">The joint builder.</param>
+	/// <param name="v">The maximum torque.</param>
+	/// <returns>The joint builder.</returns>
 	public static T WithAngularStrength<T>( this T b, float v ) where T : PhysicsJointBuilder { b.AngularStrength = v; return b; }
 }
 
 /// <summary>
-/// Provides ability to generate a hinge joint for a <see cref="Model"/> at runtime.
+/// Builds a hinge joint that rotates around one axis.
 /// </summary>
 public sealed class HingeJointBuilder : PhysicsJointBuilder
 {
@@ -115,13 +139,21 @@ public sealed class HingeJointBuilder : PhysicsJointBuilder
 	/// </summary>
 	public float MaxTorque { get => Desc.MaxTorque; set => Desc.MaxTorque = value; }
 
-	/// <inheritdoc cref="TwistLimit"/>
+	/// <summary>
+	/// Sets and enables the twist angle limits.
+	/// </summary>
+	/// <param name="min">The minimum twist angle in degrees.</param>
+	/// <param name="max">The maximum twist angle in degrees.</param>
 	public HingeJointBuilder WithTwistLimit( float min, float max ) { TwistLimit = new Vector2( min, max ); EnableTwistLimit = true; return this; }
 
-	/// <inheritdoc cref="TargetVelocity"/>
+	/// <summary>
+	/// Sets the target angular velocity and enables the motor.
+	/// </summary>
+	/// <param name="v">The target angular velocity.</param>
 	public HingeJointBuilder WithTargetVelocity( Vector3 v ) { TargetVelocity = v; EnableMotor = true; return this; }
 
 	/// <inheritdoc cref="MaxTorque"/>
+	/// <param name="v">The maximum motor torque.</param>
 	public HingeJointBuilder WithMaxTorque( float v ) { MaxTorque = v; return this; }
 
 	internal HingeJointBuilder()
@@ -131,7 +163,7 @@ public sealed class HingeJointBuilder : PhysicsJointBuilder
 }
 
 /// <summary>
-/// Provides ability to generate a ball joint for a <see cref="Model"/> at runtime.
+/// Builds a ball joint with optional swing and twist limits.
 /// </summary>
 public sealed class BallJointBuilder : PhysicsJointBuilder
 {
@@ -155,10 +187,17 @@ public sealed class BallJointBuilder : PhysicsJointBuilder
 	/// </summary>
 	public Vector2 TwistLimit { get => Desc.TwistLimit; set => Desc.TwistLimit = value; }
 
-	/// <inheritdoc cref="SwingLimit"/>
+	/// <summary>
+	/// Sets and enables the swing angle limit.
+	/// </summary>
+	/// <param name="v">The maximum swing angle in degrees.</param>
 	public BallJointBuilder WithSwingLimit( float v ) { SwingLimit = v; EnableSwingLimit = true; return this; }
 
-	/// <inheritdoc cref="TwistLimit"/>
+	/// <summary>
+	/// Sets and enables the twist angle limits.
+	/// </summary>
+	/// <param name="min">The minimum twist angle in degrees.</param>
+	/// <param name="max">The maximum twist angle in degrees.</param>
 	public BallJointBuilder WithTwistLimit( float min, float max ) { TwistLimit = new Vector2( min, max ); EnableTwistLimit = true; return this; }
 
 	internal BallJointBuilder()
@@ -168,7 +207,7 @@ public sealed class BallJointBuilder : PhysicsJointBuilder
 }
 
 /// <summary>
-/// Provides ability to generate a fixed joint for a <see cref="Model"/> at runtime.
+/// Builds a fixed joint that locks the relative position and rotation of two bodies.
 /// </summary>
 public sealed class FixedJointBuilder : PhysicsJointBuilder
 {
@@ -197,15 +236,19 @@ public sealed class FixedJointBuilder : PhysicsJointBuilder
 	public float AngularDamping { get => Desc.AngularDamping; set => Desc.AngularDamping = value; }
 
 	/// <inheritdoc cref="LinearFrequency"/>
+	/// <param name="v">The linear spring frequency.</param>
 	public FixedJointBuilder WithLinearFrequency( float v ) { LinearFrequency = v; return this; }
 
 	/// <inheritdoc cref="LinearDamping"/>
+	/// <param name="v">The linear spring damping ratio.</param>
 	public FixedJointBuilder WithLinearDamping( float v ) { LinearDamping = v; return this; }
 
 	/// <inheritdoc cref="AngularFrequency"/>
+	/// <param name="v">The angular spring frequency.</param>
 	public FixedJointBuilder WithAngularFrequency( float v ) { AngularFrequency = v; return this; }
 
 	/// <inheritdoc cref="AngularDamping"/>
+	/// <param name="v">The angular spring damping ratio.</param>
 	public FixedJointBuilder WithAngularDamping( float v ) { AngularDamping = v; return this; }
 
 	internal FixedJointBuilder()
@@ -215,7 +258,7 @@ public sealed class FixedJointBuilder : PhysicsJointBuilder
 }
 
 /// <summary>
-/// Provides ability to generate a slider joint for a <see cref="Model"/> at runtime.
+/// Builds a slider joint that moves along one axis.
 /// </summary>
 public sealed class SliderJointBuilder : PhysicsJointBuilder
 {
@@ -229,92 +272,15 @@ public sealed class SliderJointBuilder : PhysicsJointBuilder
 	/// </summary>
 	public Vector2 Limit { get => Desc.LinearLimit; set => Desc.LinearLimit = value; }
 
-	/// <inheritdoc cref="Limit"/>
+	/// <summary>
+	/// Sets and enables the translation limits.
+	/// </summary>
+	/// <param name="min">The minimum translation along the joint axis.</param>
+	/// <param name="max">The maximum translation along the joint axis.</param>
 	public SliderJointBuilder WithLimit( float min, float max ) { Limit = new Vector2( min, max ); EnableLimit = true; return this; }
 
 	internal SliderJointBuilder()
 	{
 		Desc.Type = PhysicsJointType.PRISMATIC_JOINT;
-	}
-}
-
-partial class ModelBuilder
-{
-	private readonly List<PhysicsJointBuilder> _joints = [];
-
-	private static void InitJoint( PhysicsJointBuilder b, int body1, int body2, Transform? frame1, Transform? frame2, bool collision )
-	{
-		frame1 ??= Transform.Zero;
-		frame2 ??= Transform.Zero;
-
-		b.Body1 = body1;
-		b.Body2 = body2;
-		b.Frame1 = frame1.Value;
-		b.Frame2 = frame2.Value;
-		b.EnableCollision = collision;
-	}
-
-	/// <summary>
-	/// Adds a hinge joint between two bodies, allowing rotation around a single axis.
-	/// </summary>
-	/// <param name="body1">The index of the first body.</param>
-	/// <param name="body2">The index of the second body.</param>
-	/// <param name="frame1">Optional joint frame in local space of body1.</param>
-	/// <param name="frame2">Optional joint frame in local space of body2.</param>
-	/// <param name="collision">Whether the connected bodies can collide.</param>
-	public HingeJointBuilder AddHingeJoint( int body1, int body2, Transform? frame1 = default, Transform? frame2 = default, bool collision = false )
-	{
-		var b = new HingeJointBuilder();
-		InitJoint( b, body1, body2, frame1, frame2, collision );
-		_joints.Add( b );
-		return b;
-	}
-
-	/// <summary>
-	/// Adds a ball joint between two bodies, allowing free rotation within optional swing/twist limits.
-	/// </summary>
-	/// <param name="body1">The index of the first body.</param>
-	/// <param name="body2">The index of the second body.</param>
-	/// <param name="frame1">Optional joint frame in local space of body1.</param>
-	/// <param name="frame2">Optional joint frame in local space of body2.</param>
-	/// <param name="collision">Whether the connected bodies can collide.</param>
-	public BallJointBuilder AddBallJoint( int body1, int body2, Transform? frame1 = default, Transform? frame2 = default, bool collision = false )
-	{
-		var b = new BallJointBuilder();
-		InitJoint( b, body1, body2, frame1, frame2, collision );
-		_joints.Add( b );
-		return b;
-	}
-
-	/// <summary>
-	/// Adds a fixed joint between two bodies, locking their relative position and orientation.
-	/// </summary>
-	/// <param name="body1">The index of the first body.</param>
-	/// <param name="body2">The index of the second body.</param>
-	/// <param name="frame1">Optional joint frame in local space of body1.</param>
-	/// <param name="frame2">Optional joint frame in local space of body2.</param>
-	/// <param name="collision">Whether the connected bodies can collide.</param>
-	public FixedJointBuilder AddFixedJoint( int body1, int body2, Transform? frame1 = default, Transform? frame2 = default, bool collision = false )
-	{
-		var b = new FixedJointBuilder();
-		InitJoint( b, body1, body2, frame1, frame2, collision );
-		_joints.Add( b );
-		return b;
-	}
-
-	/// <summary>
-	/// Adds a slider joint between two bodies, allowing motion along a single axis.
-	/// </summary>
-	/// <param name="body1">The index of the first body.</param>
-	/// <param name="body2">The index of the second body.</param>
-	/// <param name="frame1">Optional joint frame in local space of body1.</param>
-	/// <param name="frame2">Optional joint frame in local space of body2.</param>
-	/// <param name="collision">Whether the connected bodies can collide.</param>
-	public SliderJointBuilder AddSliderJoint( int body1, int body2, Transform? frame1 = default, Transform? frame2 = default, bool collision = false )
-	{
-		var b = new SliderJointBuilder();
-		InitJoint( b, body1, body2, frame1, frame2, collision );
-		_joints.Add( b );
-		return b;
 	}
 }

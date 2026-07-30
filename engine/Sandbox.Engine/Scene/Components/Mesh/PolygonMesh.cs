@@ -12,6 +12,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 	private HalfEdgeMesh.Mesh Topology { get; init; } = new();
 
 	private readonly List<FaceHandle> _triangleFaces = new();
+	private readonly List<FaceHandle> _badFaces = new();
 	private readonly List<int> _meshIndices = new();
 	private readonly List<Vector3> _meshVertices = new();
 	private readonly List<byte> _meshTriangleMaterials = new();
@@ -20,6 +21,10 @@ public sealed partial class PolygonMesh : IJsonConvert
 	private readonly Dictionary<string, int> _materialIdsByName = new();
 	private int _materialId = 0;
 	private float _smoothingThreshold;
+
+	// Editor only face visibility, not serialized. Hidden faces are skipped
+	// when rebuilding the model so they don't render, trace or collide.
+	private readonly HashSet<int> _hiddenFaces = new();
 
 	private static readonly float CollinearTolerance = MathF.Cos( 1f.DegreeToRadian() );
 
@@ -284,6 +289,11 @@ public sealed partial class PolygonMesh : IJsonConvert
 	public IEnumerable<HalfEdgeHandle> HalfEdgeHandles => Topology.HalfEdgeHandles;
 
 	/// <summary>
+	/// Faces that failed to triangulate during the last rebuild
+	/// </summary>
+	public IReadOnlyList<FaceHandle> BadFaces => _badFaces;
+
+	/// <summary>
 	/// Add a vertex to the topology
 	/// </summary>
 	public VertexHandle AddVertex( Vector3 position )
@@ -373,6 +383,32 @@ public sealed partial class PolygonMesh : IJsonConvert
 	}
 
 	/// <summary>
+	/// Assign a material to a list of faces, and update their texture coordinates to match.
+	/// </summary>
+	public void AssignMaterialToFaces( IEnumerable<FaceHandle> faces, Material material )
+	{
+		var id = AddMaterial( material );
+		List<FaceHandle> changedFaces = null;
+
+		foreach ( var hFace in faces )
+		{
+			if ( !hFace.IsValid || MaterialIndex[hFace] == id )
+				continue;
+
+			MaterialIndex[hFace] = id;
+			changedFaces ??= [];
+			changedFaces.Add( hFace );
+		}
+
+		if ( changedFaces is null )
+			return;
+
+		ComputeFaceTextureCoordinatesFromParameters( changedFaces );
+
+		IsDirty = true;
+	}
+
+	/// <summary>
 	/// Assign a material to a face
 	/// </summary>
 	public void SetFaceMaterial( FaceHandle hFace, string material )
@@ -386,6 +422,26 @@ public sealed partial class PolygonMesh : IJsonConvert
 	public Material GetFaceMaterial( FaceHandle hFace )
 	{
 		return GetMaterial( MaterialIndex[hFace] );
+	}
+
+	/// <summary>
+	/// Are any faces hidden?
+	/// </summary>
+	public bool HasHiddenFaces => _hiddenFaces.Count > 0;
+
+	/// <summary>
+	/// Is this face hidden?
+	/// </summary>
+	public bool IsFaceHidden( FaceHandle hFace ) => _hiddenFaces.Contains( hFace.Index );
+
+	/// <summary>
+	/// Hide or show a face. Hidden faces are editor only and not saved, they are
+	/// excluded from the rebuilt model so they don't render or trace.
+	/// </summary>
+	public void SetFaceHidden( FaceHandle hFace, bool hidden )
+	{
+		if ( hidden ? _hiddenFaces.Add( hFace.Index ) : _hiddenFaces.Remove( hFace.Index ) )
+			IsDirty = true;
 	}
 
 	/// <summary>
@@ -4026,21 +4082,6 @@ public sealed partial class PolygonMesh : IJsonConvert
 		return texcoords;
 	}
 
-	/// <summary>
-	/// Set face texture properties
-	/// </summary>
-	public void SetFaceTextureParameters( FaceHandle hFace, Vector2 offset, Vector3 uAxis, Vector3 vAxis )
-	{
-		TextureOffset[hFace] = offset;
-		TextureScale[hFace] = 0.25f;
-		TextureUAxis[hFace] = uAxis;
-		TextureVAxis[hFace] = vAxis;
-
-		ComputeFaceTextureCoordinatesFromParameters( new[] { hFace } );
-
-		IsDirty = true;
-	}
-
 	public void GetFaceTextureParameters( FaceHandle hFace, out Vector4 outAxisU, out Vector4 outAxisV, out Vector2 outScale )
 	{
 		var offset = TextureOffset[hFace];
@@ -4301,6 +4342,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 		var halfEdgeCount = Topology.HalfEdgeCount;
 
 		_triangleFaces.Clear();
+		_badFaces.Clear();
 		_meshIndices.Clear();
 		_meshVertices.Clear();
 		_meshFaces.Clear();
@@ -4319,6 +4361,9 @@ public sealed partial class PolygonMesh : IJsonConvert
 		var builder = Model.Builder;
 		var submeshes = new Dictionary<int, Submesh>();
 
+		// Prune hidden entries for faces that no longer exist
+		_hiddenFaces.RemoveWhere( x => !FaceHandleFromIndex( x ).IsValid );
+
 		// Pre-compute every face normal once; ComputeFaceNormal will read from this cache
 		// instead of recomputing (which is otherwise called O(V²) times per face during triangulation).
 		foreach ( var hFace in Topology.FaceHandles )
@@ -4329,6 +4374,9 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 		foreach ( var hFace in Topology.FaceHandles )
 		{
+			if ( IsFaceHidden( hFace ) )
+				continue;
+
 			var materialId = MaterialIndex[hFace];
 			var material = GetMaterial( MaterialIndex[hFace] );
 			if ( !submeshes.TryGetValue( materialId, out var submesh ) )
@@ -4569,9 +4617,10 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 	public void FindCornerVerticesForFace( FaceHandle hFace, float minCornerAngle, out List<VertexHandle> outCornerVertices )
 	{
-		outCornerVertices = new List<VertexHandle>();
-
 		var threshold = MathF.Cos( minCornerAngle.Clamp( 0.0f, 180.0f ).DegreeToRadian() );
+
+		// Measure how sharply the boundary turns at each vertex, in winding order
+		var candidates = new List<(VertexHandle Vertex, float Dot)>();
 
 		var hStartFaceVertex = GetFirstVertexInFace( hFace );
 		var hCurrentFaceVertex = hStartFaceVertex;
@@ -4591,17 +4640,24 @@ public sealed partial class PolygonMesh : IJsonConvert
 			var dirIn = (posCurr - posPrev).Normal;
 			var dirOut = (posNext - posCurr).Normal;
 
-			var dot = dirIn.Dot( dirOut );
-			if ( dot <= threshold )
-			{
-				outCornerVertices.Add( hVertexCurr );
-			}
+			candidates.Add( (hVertexCurr, dirIn.Dot( dirOut )) );
 
 			hPreviousFaceVertex = hCurrentFaceVertex;
 			hCurrentFaceVertex = hNextFaceVertex;
 			hNextFaceVertex = GetNextVertexInFace( hCurrentFaceVertex );
 		}
 		while ( hCurrentFaceVertex != hStartFaceVertex );
+
+		outCornerVertices = candidates.Where( x => x.Dot <= threshold ).Select( x => x.Vertex ).ToList();
+
+		// If too few corners pass the threshold (e.g. a quad with one corner flatter than
+		// the minimum angle), fall back to the four sharpest turns so the face can still
+		// be treated as a quad.
+		if ( outCornerVertices.Count < 4 && candidates.Count >= 4 )
+		{
+			var sharpest = candidates.OrderBy( x => x.Dot ).Take( 4 ).Select( x => x.Vertex ).ToHashSet();
+			outCornerVertices = candidates.Where( x => sharpest.Contains( x.Vertex ) ).Select( x => x.Vertex ).ToList();
+		}
 	}
 
 	public void QuadSliceFaces( IReadOnlyList<FaceHandle> faces, int cutsX, int cutsY, float minCornerAngleDegrees, List<FaceHandle> outNewFaceList )
@@ -4783,6 +4839,38 @@ public sealed partial class PolygonMesh : IJsonConvert
 			{
 				IsDirty = true;
 			}
+		}
+	}
+
+	/// <summary>
+	/// Remove all invalid geometry from the mesh: degenerate faces, edges not attached
+	/// to any face and vertices not attached to any edge.
+	/// </summary>
+	public void RemoveBadGeometry()
+	{
+		RemoveBadFaces();
+
+		var wireEdges = Topology.HalfEdgeHandles
+			.Where( h => h.Index < h.OppositeEdge.Index && !h.Face.IsValid && !h.OppositeEdge.Face.IsValid )
+			.ToList();
+
+		foreach ( var hEdge in wireEdges )
+		{
+			Topology.RemoveEdge( hEdge, true );
+		}
+
+		var freeVertices = Topology.VertexHandles
+			.Where( v => !v.Edge.IsValid )
+			.ToList();
+
+		foreach ( var hVertex in freeVertices )
+		{
+			Topology.RemoveVertex( hVertex, true );
+		}
+
+		if ( wireEdges.Count > 0 || freeVertices.Count > 0 )
+		{
+			IsDirty = true;
 		}
 	}
 
@@ -5701,6 +5789,11 @@ public sealed partial class PolygonMesh : IJsonConvert
 			.ToArray();
 
 		var faceIndices = Mesh.TriangulatePolygon( vertexPositions );
+
+		// Triangulation produced fewer indices than expected, remember the face so it can be highlighted in the editor
+		if ( faceIndices.Length != (vertexPositions.Length - 2) * 3 )
+			_badFaces.Add( hFace );
+
 		if ( faceIndices.Length < 3 )
 			return;
 

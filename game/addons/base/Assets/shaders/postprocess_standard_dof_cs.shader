@@ -14,10 +14,10 @@ CS
 
     #if D_MSAA
     Texture2DMS<float4> Color       < Attribute("Color"); >;
-    Texture2DMS<float>  Depth       < Attribute("Depth"); >;
+    Texture2DMS<float>  DepthTexture  < Attribute("Depth"); >;
     #else
     Texture2D Color                 < Attribute("Color"); >;
-    Texture2D Depth                 < Attribute("Depth"); >;
+    Texture2D DepthTexture          < Attribute("Depth"); >;
     #endif
 
     Texture2D VerticalSRV           < Attribute("VerticalSRV"); >;
@@ -69,9 +69,9 @@ CS
     {
         float depth;
         #if D_MSAA
-            depth = Depth.Load( screenPos, sampleIndex ).r;
+            depth = DepthTexture.Load( screenPos, sampleIndex ).r;
         #else
-            depth = Depth.Load( int3( screenPos, 0 ) ).r;
+            depth = DepthTexture.Load( int3( screenPos, 0 ) ).r;
         #endif
 
         depth = 1.0 - Depth::Normalize(depth);
@@ -115,9 +115,9 @@ CS
         uint nSampleCount = 1;
         uint2 dim;
         #if D_MSAA
-            Depth.GetDimensions(dim.x, dim.y, nSampleCount);
+            DepthTexture.GetDimensions(dim.x, dim.y, nSampleCount);
         #else
-            Depth.GetDimensions(dim.x, dim.y);
+            DepthTexture.GetDimensions(dim.x, dim.y);
         #endif
 
         const uint DownsampleExp = 2;

@@ -50,7 +50,7 @@ float3 InvProjectPosition(float3 coord, float4x4 mat)
     return p.xyz / p.w;
 }
 
-class HierarchicalRaymarch
+struct HierarchicalRaymarch
 {
     /** Read the Hi‑Z depth chain and remap from clip‑space (reverse‑Z) to [0‑1] linear. */
     static float LoadDepth(int2 pixel, int mip)

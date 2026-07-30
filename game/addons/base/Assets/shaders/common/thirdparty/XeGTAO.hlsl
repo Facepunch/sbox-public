@@ -22,8 +22,11 @@ RWTexture2D<float4>         g_outputDbgImage    : register( u2 );
 #define XE_GTAO_PI               	(3.1415926535897932384626433832795)
 #define XE_GTAO_PI_HALF             (1.5707963267948966192313216916398)
 
+// Facepunch: defaulted off (upstream defaults it on).  The fp16 paths below are min16float, which Slang doesn't have,
+// and float16_t, which is real fp16 and needs the optional shaderFloat16 device feature - unavailable below
+// GTX 1600 / RTX 2000.  Shaders are compiled offline into one binary, so we can't pick per device.
 #ifndef XE_GTAO_USE_HALF_FLOAT_PRECISION
-#define XE_GTAO_USE_HALF_FLOAT_PRECISION 1
+#define XE_GTAO_USE_HALF_FLOAT_PRECISION 0
 #endif
 
 #if defined(XE_GTAO_FP32_DEPTHS) && XE_GTAO_USE_HALF_FLOAT_PRECISION

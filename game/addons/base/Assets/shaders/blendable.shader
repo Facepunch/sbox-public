@@ -94,6 +94,7 @@ PS
 	StaticCombo( S_MULTIBLEND, F_MULTIBLEND, Sys( PC ) );
     StaticCombo( S_USE_TINT_MASKS_IN_VERTEX_PAINT, F_USE_TINT_MASKS_IN_VERTEX_PAINT, Sys( PC ) );
 
+	BoolAttribute( SupportsMappingDimensions, true );
 	int ShaderVersion < Source( ShaderVersion ); >;
 	//
 	// Includes
@@ -244,7 +245,7 @@ PS
 	//
 	// Structures
 	//
-	class MaterialMultiblend : Material
+	struct MaterialMultiblend : Material
 	{
 		static Material lerp( Material a, Material b, float fBlendValue, float fBlendMaskB, float fSoftness = 0.5 )
 		{

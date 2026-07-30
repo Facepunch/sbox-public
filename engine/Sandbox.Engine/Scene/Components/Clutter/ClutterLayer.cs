@@ -313,7 +313,12 @@ class ClutterLayer
 		Tiles.Clear();
 		ModelInstancesByTile.Clear();
 
-		foreach ( var coord in _bodiesByTile.Keys.ToList() )
+		// Copied out first, RemoveBodies mutates the dictionary.
+		_coordsToRemove.Clear();
+		foreach ( var coord in _bodiesByTile.Keys )
+			_coordsToRemove.Add( coord );
+
+		foreach ( var coord in _coordsToRemove )
 			RemoveBodies( coord );
 
 		foreach ( var batch in _batches.Values )

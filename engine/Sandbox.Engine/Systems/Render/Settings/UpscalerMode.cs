@@ -17,4 +17,7 @@ public enum UpscalerMode
 
 	/// <summary>AMD FidelityFX Super Resolution 3 — temporal upscaler.</summary>
 	FSR3 = 3,
+
+	/// <summary>NVIDIA Deep Learning Super Sampling — temporal AI upscaler. NVIDIA hardware only.</summary>
+	DLSS = 4,
 }

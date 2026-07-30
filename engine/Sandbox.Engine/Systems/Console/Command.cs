@@ -140,15 +140,37 @@ partial class ManagedCommand : Command
 		var type = member is PropertyInfo pi ? pi.PropertyType : member.DeclaringType;
 
 		var defaultValue = member.GetCustomAttribute<DefaultValueAttribute>()?.Value;
+		var isReplicated = attribute.Flags.Contains( ConVarFlags.Replicated );
+
 		_defaultValue = defaultValue?.ToString()
+			?? ReadInitialValue()
 			?? (type.IsValueType ? Activator.CreateInstance( type )?.ToString() : null);
+
+		// Property initializers have already run, so whatever it holds now is the default. Not for
+		// replicated convars though - reading one goes through the string table, so we'd risk
+		// baking the host's current value in as our default
+		string ReadInitialValue()
+		{
+			if ( member is not PropertyInfo || isReplicated ) return null;
+
+			try
+			{
+				return Value;
+			}
+			catch ( Exception e )
+			{
+				// Addon code owns these getters, one throwing can't stop the ConVar registering
+				Log.Warning( e, $"Couldn't read the default value of {Name}" );
+				return null;
+			}
+		}
 
 		if ( attribute is ConVarAttribute cv )
 		{
 			IsSaved = cv.Saved;
 			MinValue = cv.MinValue;
 			MaxValue = cv.MaxValue;
-			IsReplicated = cv.Flags.Contains( ConVarFlags.Replicated );
+			IsReplicated = isReplicated;
 			IsUserInfo = cv.Flags.Contains( ConVarFlags.UserInfo );
 		}
 
