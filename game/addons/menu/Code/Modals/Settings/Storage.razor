@@ -122,7 +122,7 @@
 
         @if (refreshTask == null || refreshTask.IsCompleted)
         {
-            <Button Icon="restore" @onclick=@TryRefresh>Refresh</Button>
+            <Button Icon="restore" @onclick=@ForceRefresh>Refresh</Button>
         }
 
         @if (clearTask?.IsCompleted ?? true)
@@ -139,6 +139,11 @@
     /// The default dead period. If a file hasn't been used in this many days assume it's dead
     /// </summary>
     const int DaysAgo = 7;
+
+    /// <summary>
+    /// Show cached results immediately, but rescan quietly once they're this old.
+    /// </summary>
+    static readonly TimeSpan SoftRefreshAge = TimeSpan.FromSeconds( 45 );
 
     Task refreshTask;
     Task clearTask;
@@ -169,6 +174,12 @@
     long SharedSize => Packages.Where( x => !IsGame(x) ).Sum( x => x.Size );
     int SharedCount => Packages.Count( x => !IsGame(x) );
 
+    /// <summary>
+    /// True when the page is already showing something useful (cached or partial).
+    /// Background refreshes shouldn't wipe this mid-scan.
+    /// </summary>
+    bool HasDisplay => Size > 0 || Packages.Count > 0;
+
     IEnumerable<MenuUtility.Storage.PackageEntry> SortedPackages => SortBy switch
     {
         "played" => GamePackages.OrderByDescending( x => x.LastPlayed ),
@@ -183,7 +194,55 @@
         if (!firstTime)
             return;
 
-        TryRefresh();
+        var hadCache = TryApplyCache();
+
+        // Fresh cache: nothing to do. Stale or missing: scan (keeping cached UI if we have it).
+        if (!hadCache || IsCacheStale())
+            TryRefresh();
+    }
+
+    /// <summary>
+    /// Paint the last scan onto the page without touching disk.
+    /// </summary>
+    bool TryApplyCache()
+    {
+        var snap = MenuUtility.Storage.LastUsage;
+        if ( snap is null )
+            return false;
+
+        ApplySnapshot( snap );
+        return true;
+    }
+
+    bool IsCacheStale()
+    {
+        var snap = MenuUtility.Storage.LastUsage;
+        return snap is null || !snap.IsFresh( SoftRefreshAge );
+    }
+
+    void ApplySnapshot( MenuUtility.Storage.UsageSnapshot snap )
+    {
+        SizeBreakdown = new Dictionary<string, long>( snap.SizeBreakdown );
+        Packages = snap.Packages.ToList();
+        PackageBreakdowns = new Dictionary<string, string>( snap.PackageBreakdowns );
+        Files = snap.Files;
+        Size = snap.Size;
+        OldSize = snap.OldSize;
+        StateHasChanged();
+    }
+
+    void StoreCache()
+    {
+        MenuUtility.Storage.SetCachedUsage( new MenuUtility.Storage.UsageSnapshot
+        {
+            CapturedAt = DateTimeOffset.UtcNow,
+            Files = Files,
+            Size = Size,
+            OldSize = OldSize,
+            SizeBreakdown = new Dictionary<string, long>( SizeBreakdown ),
+            Packages = Packages.ToList(),
+            PackageBreakdowns = new Dictionary<string, string>( PackageBreakdowns )
+        } );
     }
 
     /// <summary>
@@ -195,7 +254,7 @@
         await clearTask;
         clearTask = null;
 
-        TryRefresh();
+        ForceRefresh();
     }
 
     /// <summary>
@@ -210,7 +269,7 @@
     async Task DeletePackage( MenuUtility.Storage.PackageEntry package )
     {
         await MenuUtility.Storage.DeletePackageAsync( package.Ident );
-        TryRefresh();
+        ForceRefresh();
     }
 
     /// <summary>
@@ -221,6 +280,15 @@
         if (refreshTask != null && !refreshTask.IsCompleted ) return;
 
         refreshTask = Refresh();
+    }
+
+    /// <summary>
+    /// User hit Refresh — drop the cache and rescan.
+    /// </summary>
+    void ForceRefresh()
+    {
+        MenuUtility.Storage.InvalidateCache();
+        TryRefresh();
     }
 
     string GetBreakdown( string ident )
@@ -258,47 +326,64 @@
 
     async Task Refresh()
     {
-        SizeBreakdown.Clear();
-        Files = 0;
-        Size = 0;
-        OldSize = 0;
+        // Scan into locals first so a background refresh doesn't blank the cached UI.
+        var sizeBreakdown = new Dictionary<string, long>();
+        long files = 0;
+        long size = 0;
+        long oldSize = 0;
 
         DateTime cutoff = DateTime.Now.AddDays(-DaysAgo);
+        var showingProgress = !HasDisplay;
 
-        StateHasChanged();
+        if ( showingProgress )
+        {
+            SizeBreakdown.Clear();
+            Files = 0;
+            Size = 0;
+            OldSize = 0;
+            StateHasChanged();
+        }
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
 
         foreach (var entry in MenuUtility.Storage.GetStorageFiles())
         {
-            Files++;
-            Size += entry.Size;
+            files++;
+            size += entry.Size;
 
             if (entry.LastAccessed < cutoff)
-                OldSize += entry.Size;
+                oldSize += entry.Size;
 
             var type = ClassifyFile(entry.Filename);
 
-            if (!SizeBreakdown.ContainsKey(type))
-                SizeBreakdown[type] = 0;
+            if (!sizeBreakdown.ContainsKey(type))
+                sizeBreakdown[type] = 0;
 
-            SizeBreakdown[type] += entry.Size;
+            sizeBreakdown[type] += entry.Size;
 
-
-            if (sw.ElapsedMilliseconds > 16)
+            if (showingProgress && sw.ElapsedMilliseconds > 16)
             {
+                SizeBreakdown = new Dictionary<string, long>( sizeBreakdown );
+                Files = files;
+                Size = size;
+                OldSize = oldSize;
                 sw.Restart();
                 await Task.DelayRealtime( 1 );
                 StateHasChanged();
             }
         }
 
+        SizeBreakdown = sizeBreakdown;
+        Files = files;
+        Size = size;
+        OldSize = oldSize;
         StateHasChanged();
 
         Packages = await MenuUtility.Storage.GetPackagesAsync();
         StateHasChanged();
 
         await RefreshBreakdowns();
+        StoreCache();
     }
 
     /// <summary>
@@ -306,8 +391,7 @@
     /// </summary>
     async Task RefreshBreakdowns()
     {
-        PackageBreakdowns.Clear();
-
+        var breakdowns = new Dictionary<string, string>();
         var sw = System.Diagnostics.Stopwatch.StartNew();
 
         foreach (var package in GamePackages)
@@ -327,10 +411,13 @@
                 }
             }
 
-            PackageBreakdowns[package.Ident] = string.Join(" • ", counts.OrderByDescending(x => x.Value)
+            breakdowns[package.Ident] = string.Join(" • ", counts.OrderByDescending(x => x.Value)
                 .Select(x => $"{x.Value:n0} {(x.Value == 1 ? x.Key : x.Key + "s")}"));
 
+            PackageBreakdowns = new Dictionary<string, string>( breakdowns );
             StateHasChanged();
         }
+
+        PackageBreakdowns = breakdowns;
     }
 }

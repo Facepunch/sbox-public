@@ -10,6 +10,65 @@ public static partial class MenuUtility
 	/// </summary>
 	public static class Storage
 	{
+		/// <summary>
+		/// How long a scan stays "fresh". The settings page will still show
+		/// older results instantly, but kick off a background refresh.
+		/// </summary>
+		public static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes( 2 );
+
+		static UsageSnapshot _cachedUsage;
+
+		/// <summary>
+		/// Last completed scan, if any. May be older than <see cref="CacheTtl"/>.
+		/// </summary>
+		public static UsageSnapshot LastUsage => _cachedUsage;
+
+		/// <summary>
+		/// Snapshot of storage usage from a completed scan. Kept so the
+		/// settings page can reopen without rescanning the download cache.
+		/// </summary>
+		public sealed class UsageSnapshot
+		{
+			public DateTimeOffset CapturedAt { get; set; }
+			public long Files { get; set; }
+			public long Size { get; set; }
+			public long OldSize { get; set; }
+			public Dictionary<string, long> SizeBreakdown { get; set; } = new();
+			public List<PackageEntry> Packages { get; set; } = new();
+			public Dictionary<string, string> PackageBreakdowns { get; set; } = new();
+
+			public bool IsFresh( TimeSpan? maxAge = null )
+			{
+				return DateTimeOffset.UtcNow - CapturedAt <= (maxAge ?? CacheTtl);
+			}
+		}
+
+		/// <summary>
+		/// True if we have a scan that is still within <paramref name="maxAge"/>.
+		/// </summary>
+		public static bool TryGetCachedUsage( out UsageSnapshot snapshot, TimeSpan? maxAge = null )
+		{
+			snapshot = _cachedUsage;
+			return snapshot is not null && snapshot.IsFresh( maxAge );
+		}
+
+		/// <summary>
+		/// Remember the results of a completed scan for the rest of the session.
+		/// </summary>
+		public static void SetCachedUsage( UsageSnapshot snapshot )
+		{
+			_cachedUsage = snapshot;
+		}
+
+		/// <summary>
+		/// Drop the cached scan. Called after deletes / flush, or when the
+		/// user hits Refresh.
+		/// </summary>
+		public static void InvalidateCache()
+		{
+			_cachedUsage = null;
+		}
+
 		public struct FileEntry
 		{
 			public string Filename { get; set; }
@@ -138,6 +197,7 @@ public static partial class MenuUtility
 			var record = DownloadedPackages.Find( ident );
 			if ( record is null ) return;
 
+			InvalidateCache();
 			await Task.Run( () => DownloadedPackages.Delete( record ) );
 		}
 
@@ -147,6 +207,8 @@ public static partial class MenuUtility
 		public static async Task FlushAsync( DateTime beforeDate )
 		{
 			var path = EngineFileSystem.DownloadedFiles.GetFullPath( "/" );
+
+			InvalidateCache();
 
 			//
 			// Run the guts of the logic in a thread to avoid hitching
