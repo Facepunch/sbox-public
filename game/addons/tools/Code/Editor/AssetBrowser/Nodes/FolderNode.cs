@@ -31,9 +31,24 @@ class FolderNode : TreeNode<LocalAssetBrowser.Location>
 		}
 	}
 
-	~FolderNode()
+	/// <summary>
+	/// Release the watcher as soon as we leave the tree. A finalizer is no good here - an
+	/// enabled FileSystemWatcher is kept alive by its own pending overlapped read, so it
+	/// never becomes collectable and the finalizer never runs.
+	/// </summary>
+	protected internal override void OnRemoved()
 	{
-		watcher?.Dispose();
+		base.OnRemoved();
+
+		if ( watcher is null )
+			return;
+
+		watcher.EnableRaisingEvents = false;
+		watcher.Created -= OnExternalChanges;
+		watcher.Deleted -= OnExternalChanges;
+		watcher.Renamed -= OnExternalChanges;
+		watcher.Dispose();
+		watcher = null;
 	}
 
 	private void OnExternalChanges( object sender, FileSystemEventArgs e )

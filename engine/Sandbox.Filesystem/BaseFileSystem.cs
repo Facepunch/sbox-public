@@ -392,9 +392,8 @@ public class BaseFileSystem
 
 	internal FileWatch Watch( string pathglob = null )
 	{
-		watcher?.Dispose();
-		watcher = null;
-
+		// One recursive watcher feeds every FileWatch on this filesystem, so only ever build it once.
+		// Tearing it down and rebuilding it per caller churned a watcher over the whole mount tree.
 		if ( watcher == null )
 		{
 			watcher = system.Watch( "/" );

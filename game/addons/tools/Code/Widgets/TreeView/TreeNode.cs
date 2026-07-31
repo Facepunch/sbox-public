@@ -66,8 +66,42 @@ public partial class TreeNode
 
 	public virtual void Clear()
 	{
+		foreach ( var child in children )
+		{
+			if ( child is null ) continue;
+
+			Release( child );
+		}
+
 		children.Clear();
 		Dirty();
+	}
+
+	/// <summary>
+	/// Called when this node has been dropped from the tree. Anything that needs releasing
+	/// deterministically - file watchers, native handles - should be released here. Nothing
+	/// else will do it for us, and the node isn't reused afterwards.
+	/// </summary>
+	protected internal virtual void OnRemoved()
+	{
+
+	}
+
+	/// <summary>
+	/// Drop a node and everything below it, giving each one a chance to release what it holds.
+	/// </summary>
+	internal static void Release( TreeNode node )
+	{
+		foreach ( var child in node.children )
+		{
+			if ( child is null ) continue;
+
+			Release( child );
+		}
+
+		node.children.Clear();
+		node.parent = null;
+		node.OnRemoved();
 	}
 
 	internal void InternalBuildChildren()
@@ -166,18 +200,29 @@ public partial class TreeNode
 
 	public void RemoveItem( TreeNode item )
 	{
-		item.parent = null;
 		children.Remove( item );
+		Release( item );
 
 		TreeView?.Dirty( this );
 	}
 
 	public void SetItems( IEnumerable<TreeNode> items )
 	{
-		children.Clear();
-		children.AddRange( items );
+		var incoming = items.ToArray();
 
-		foreach ( var item in items )
+		// Anything we're not keeping is being dropped, so let it clean up
+		foreach ( var child in children )
+		{
+			if ( child is null ) continue;
+			if ( incoming.Contains( child ) ) continue;
+
+			Release( child );
+		}
+
+		children.Clear();
+		children.AddRange( incoming );
+
+		foreach ( var item in incoming )
 		{
 			item.parent = this;
 		}
