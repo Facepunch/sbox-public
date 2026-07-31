@@ -731,7 +731,6 @@ file class MapComponentMapLoader : SceneMapLoader
 				kv.GetValue( "SkyColor", Color.White ) *
 				kv.GetValue( "SkyIntensity", 1.0f );
 
-
 			light = directional;
 		}
 
