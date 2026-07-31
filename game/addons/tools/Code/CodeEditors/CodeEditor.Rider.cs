@@ -88,46 +88,15 @@ public class Rider : ICodeEditor
 						var riderPath = commandKey?.GetValue( null ) as string;
 
 						if ( riderName != null && riderPath != null )
-							riderPathsDict.Add( riderName.Split( ' ' ).Skip( 1 ).Aggregate( ( s, s1 ) => s + " " + s1 ), riderPath );
+							riderPathsDict[riderName] = riderPath;
 					}
 				}
 			}
 
-			// Convert version to a number so it can be ranked
-			// Prefers highest major
-			// Then prefers normal release, Early Access Program version and lastly Nightly
-			//YYYYMMPPEE
-			//2024.3.5 - 2024030500
-			//2024.3.6 - 2024030600
-			//2024.3 Nigthly - 2024030000
-			//2025.1 EAP7 - 2025010007
-
-			if ( riderPathsDict.Count > 1 )
-			{
-				var rankedRiderPathsDict = riderPathsDict.OrderByDescending( pair =>
-				{
-					var year = uint.Parse( pair.Key.Split( '.' )[0] );
-					uint minor;
-					if ( !pair.Key.Contains( "Nightly" ) && !pair.Key.Contains( "EAP" ) )
-						minor = uint.Parse( pair.Key.Split( '.' )[1] );
-					else
-						minor = uint.Parse( pair.Key.Split( '.' )[1].Split( " " )[0] );
-					var patch = pair.Key.Contains( "Nightly" ) || pair.Key.Contains( "EAP" )
-						? 00
-						: uint.Parse( pair.Key.Split( '.' )[2] );
-					var eap = pair.Key.Contains( "EAP" )
-						? uint.Parse( pair.Key.Split( '.' )[1].Split( " " )[1].Replace( "EAP", "" ) )
-						: 00;
-
-					ulong final = year * 1000000 + minor * 10000 + patch * 100 + eap;
-
-					return final;
-				} );
-
-				value = rankedRiderPathsDict.First().Value;
-			}
-			else
-				value = riderPathsDict.Count != 0 ? riderPathsDict.First().Value : null;
+			value = riderPathsDict
+				.OrderByDescending( pair => GetVersionRank( pair.Key ) )
+				.Select( pair => pair.Value )
+				.FirstOrDefault();
 		}
 
 		if ( value == null )
@@ -145,5 +114,27 @@ public class Rider : ICodeEditor
 
 		RiderPath = matches[0].Groups[1].Value;
 		return RiderPath;
+	}
+
+	private static (uint Year, uint Minor, uint Channel, uint Patch, uint Eap) GetVersionRank( string name )
+	{
+		var versionMatch = Regex.Match( name, @"(?<!\d)(?<year>\d{4})\.(?<minor>\d+)(?:\.(?<patch>\d+))?", RegexOptions.IgnoreCase );
+		if ( !versionMatch.Success ||
+			!uint.TryParse( versionMatch.Groups["year"].Value, out var year ) ||
+			!uint.TryParse( versionMatch.Groups["minor"].Value, out var minor ) )
+		{
+			return default;
+		}
+
+		uint.TryParse( versionMatch.Groups["patch"].Value, out var patch );
+
+		var isEap = name.Contains( "EAP", StringComparison.OrdinalIgnoreCase );
+		var isNightly = name.Contains( "Nightly", StringComparison.OrdinalIgnoreCase );
+		var channel = isEap ? 1u : isNightly ? 0u : 2u;
+
+		var eapMatch = Regex.Match( name, @"\bEAP\s*(?<number>\d+)", RegexOptions.IgnoreCase );
+		uint.TryParse( eapMatch.Groups["number"].Value, out var eap );
+
+		return (year, minor, channel, patch, eap);
 	}
 }
