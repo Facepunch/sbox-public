@@ -1,6 +1,4 @@
-﻿using Microsoft.CodeAnalysis.Text;
-using static Sandbox.Gizmo;
-
+﻿
 namespace Editor.MeshEditor;
 
 partial class EdgeCutTool

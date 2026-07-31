@@ -2,6 +2,8 @@
 #include "modeldoc_editor_app.h"
 #include "modeldoc_editor_session.h"
 #include "modeldoc_lib/modeldoc_rendermeshfile.h"
+#include "modeldoc_lib/modeldoc_physicsfile.h"
+#include "modeldoc_lib/modeldoc_skeletonfile.h"
 #include "modeldoc_lib/modeldoc_physicshullfromrender.h"
 #include "modeldoc_lib/modeldoc_physicsmeshfromrender.h"
 #include "modeldoc_lib/modeldoc_materialgroup.h"
@@ -190,6 +192,25 @@ native class CModelDoc
 	inline void AddPhysicsMeshFromRender()
 	{
 		self->CreateNode< CModelDocPhysicsMeshFromRender >( "", nullptr, MODELDOC_CREATE_NODE_DEFAULT );
+	}
+
+	/// Set the import scale on all imported file nodes (render meshes, physics files, skeletons)
+	inline void SetImportScale( float flScale )
+	{
+		CUtlVector< CModelDocRenderMeshFile * > renderMeshFiles;
+		self->FindNodesByType( &renderMeshFiles );
+		for ( CModelDocRenderMeshFile *pNode : renderMeshFiles )
+			pNode->SetImportScale( flScale );
+
+		CUtlVector< CModelDocPhysicsFile * > physicsFiles;
+		self->FindNodesByType( &physicsFiles );
+		for ( CModelDocPhysicsFile *pNode : physicsFiles )
+			pNode->SetImportScale( flScale );
+
+		CUtlVector< CModelDocSkeletonFile * > skeletonFiles;
+		self->FindNodesByType( &skeletonFiles );
+		for ( CModelDocSkeletonFile *pNode : skeletonFiles )
+			pNode->SetImportScale( flScale );
 	}
 }
 

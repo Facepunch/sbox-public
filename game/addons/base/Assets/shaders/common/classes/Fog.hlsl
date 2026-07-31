@@ -8,7 +8,7 @@
 //
 // Public Fog Api.
 //
-class Fog
+struct Fog
 {
 	static float3 Apply( float3 worldPos, float2 screenPos, float3 color )
 	{

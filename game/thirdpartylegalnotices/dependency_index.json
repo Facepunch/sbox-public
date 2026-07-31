@@ -342,6 +342,21 @@
 			]
 		},
 		{
+			"Name": "Slang",
+			"Comment": "Shading language & compiler; compiles our HLSL shaders to SPIR-V.",
+			"UsedBy": [
+				"vfx_vulkan"
+			],
+			"License": "Apache-2.0-with-LLVM-Exception",
+			"ProjectUrl": "https://github.com/shader-slang/slang",
+			"Linkage": "dynamic",
+			"Copyright": [
+				"NVIDIA Corporation & Affiliates",
+				"The Khronos Group Inc.",
+				"Slang contributors"
+			]
+		},
+		{
 			"Name": "embree",
 			"Comment": "Intel Embree ray tracing kernels (embree3 for vrad3; embree4 via steamaudio).",
 			"UsedBy": [

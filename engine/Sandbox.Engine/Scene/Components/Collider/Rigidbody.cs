@@ -297,7 +297,8 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	bool _collisionUpdateEventsEnabled = false;
 
 	/// <summary>
-	/// Like CollisionEventsEnabled but means the OnCollisionUpdate gets called when the collision persists
+	/// Like CollisionEventsEnabled but means the OnCollisionUpdate gets called when the collision persists.
+	/// Updates are only sent while the collision is awake, sleeping contacts don't emit them.
 	/// </summary>
 	public bool CollisionUpdateEventsEnabled
 	{

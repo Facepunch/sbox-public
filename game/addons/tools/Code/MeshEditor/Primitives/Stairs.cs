@@ -2,10 +2,13 @@ using System;
 
 namespace Editor.MeshEditor;
 
+/// <summary>
+/// Creates a staircase fitted to the drawn bounds.
+/// </summary>
 [Title( "Stairs" ), Icon( "stairs" )]
 public class StairsPrimitive : PrimitiveBuilder
 {
-	[Title( "Number of steps" ), Range( 2, 64 )]
+	[Title( "Number of steps" ), Range( 2, 64 ), WideMode, Description( "Controls the number of steps in the staircase." )]
 	public int NumberOfSteps { get; set; } = 16;
 
 	[Hide] private Vector3 Center;

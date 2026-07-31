@@ -368,6 +368,8 @@ internal static class DedicatedServer
 	private static void OnConnected( SteamServersConnected_t cb )
 	{
 		Log.Warning( $"Connected to Steam" );
+
+		Utility.Steam.InitializeClient();
 	}
 
 	private static void OnDisconnected( SteamServersDisconnected_t cb )

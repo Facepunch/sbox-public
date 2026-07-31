@@ -15,7 +15,7 @@ Texture2D g_tDepthChain < Attribute( "DepthChainDownsample" ); SrgbRead( false )
 //
 // Public Depth API
 //
-class Depth
+struct Depth
 {
 	// Returns the depth value at the given screen position from the depth.
 	static float Get( float2 screenPosition )

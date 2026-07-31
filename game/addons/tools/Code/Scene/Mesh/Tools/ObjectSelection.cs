@@ -434,37 +434,6 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 				Gizmo.Draw.LineBBox( component.Model.Bounds );
 			}
 		}
-
-		if ( Gizmo.WasLeftMousePressed )
-		{
-			Select( tr.GameObject );
-		}
-	}
-
-	void Select( GameObject element )
-	{
-		bool ctrl = Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl );
-		bool shift = Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift );
-		bool contains = Selection.Contains( element );
-
-		if ( shift && contains ) return;
-
-		using ( Scene.Editor?.UndoScope( "Select Mesh" ).Push() )
-		{
-			if ( ctrl )
-			{
-				if ( contains ) Selection.Remove( element );
-				else Selection.Add( element );
-			}
-			else if ( shift )
-			{
-				Selection.Add( element );
-			}
-			else
-			{
-				Selection.Set( element );
-			}
-		}
 	}
 
 	protected override void OnBoxSelect( Frustum frustum, Rect screenRect, bool isFinal )
@@ -472,50 +441,20 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 		var selection = new HashSet<GameObject>();
 		var previous = new HashSet<GameObject>();
 
-		bool fullyInside = true;
-		bool removing = Gizmo.IsCtrlPressed;
-
 		foreach ( var go in Scene.GetAllObjects( true ) )
 		{
+			// GetAllObjects starts with the scene itself, which encloses everything
+			if ( go == Scene ) continue;
 			if ( go.Tags.Has( "hidden" ) ) continue;
 
-			var bounds = go.GetBounds();
-			if ( !frustum.IsInside( bounds, !fullyInside ) )
-			{
+			// Partial, otherwise you'd have to fit a whole block in the box to select it
+			if ( frustum.IsInside( GetDragBounds( go ), true ) )
+				selection.Add( go );
+			else
 				previous.Add( go );
-				continue;
-			}
-
-			selection.Add( go );
 		}
 
-		foreach ( var selectedObj in selection )
-		{
-			if ( !removing )
-			{
-				if ( Selection.Contains( selectedObj ) ) continue;
-
-				Selection.Add( selectedObj );
-			}
-			else
-			{
-				if ( !Selection.Contains( selectedObj ) ) continue;
-
-				Selection.Remove( selectedObj );
-			}
-		}
-
-		foreach ( var removed in previous )
-		{
-			if ( removing )
-			{
-				Selection.Add( removed );
-			}
-			else
-			{
-				Selection.Remove( removed );
-			}
-		}
+		ApplyDragSelection( selection, previous );
 	}
 
 	private void DrawBounds()

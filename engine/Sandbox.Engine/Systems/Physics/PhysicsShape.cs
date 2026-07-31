@@ -117,7 +117,8 @@ public sealed partial class PhysicsShape : IHandle
 	}
 
 	/// <summary>
-	/// Controls whether this shape can fire continuous touch events for its owning entity (i.e. calling Entity.Touch every frame)
+	/// Controls whether this shape can fire continuous touch events for its owning entity (i.e. calling Entity.Touch every frame).
+	/// Persist events are only sent while the contact is awake, sleeping contacts don't emit them.
 	/// </summary>
 	public bool EnableTouchPersists
 	{

@@ -37,6 +37,9 @@ internal class ReplicatedConvars
 	public void Reset()
 	{
 		StringTable.Reset();
+
+		// what OnWrappedGet reads for replicated convars, including sv_cheats
+		_values.Clear();
 	}
 
 	/// <summary>
@@ -64,12 +67,18 @@ internal class ReplicatedConvars
 
 		Log.Info( $"Replicated Var Changed: {entry.Name} = {newValue}" );
 
+		// we only ever see sv_cheats through this table, so no change notification fires for it
+		if ( entry.Name.Equals( ConVarSystem.CheatsVariableName, StringComparison.OrdinalIgnoreCase ) && !newValue.ToBool() )
+		{
+			ConVarSystem.ResetCheatConVars();
+		}
+
 		// TODO - if we have a notice flag, broadcast to the game somehow
 	}
 
 	void OnTableEntryRemoved( StringTable.Entry entry )
 	{
-
+		_values.Remove( entry.Name );
 	}
 
 	void OnTableSnapshot()

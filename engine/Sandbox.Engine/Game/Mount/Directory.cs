@@ -140,6 +140,8 @@ public static class Directory
 	/// </summary>
 	static void TryMountFilesystem( string name )
 	{
+		using var scope = GlobalContext.MenuScope();
+
 		var path = EngineFileSystem.Root.GetFullPath( $"/mount/{name}/assets" );
 		if ( string.IsNullOrWhiteSpace( path ) ) return;
 		if ( !System.IO.Directory.Exists( path ) ) return;

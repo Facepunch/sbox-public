@@ -388,7 +388,7 @@ PS
 
 		if(hasLighting)
 		{
-			FinalCombinerInput_t finalCombinerInput = (FinalCombinerInput_t)0;
+			FinalCombinerInput_t finalCombinerInput = {};
 			finalCombinerInput.vPositionWithOffsetWs.xyz = i.vPositionWithOffsetWs.xyz;
 			finalCombinerInput.vPositionWs.xyz = i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz;
 			finalCombinerInput.vRoughness = 1;

@@ -2265,7 +2265,7 @@ public abstract partial class BaseStyles
 	}
 
 	internal Length? _outlineoffset;
-	
+
 	/// <summary>
 	/// Represents the <c>outline-offset</c> CSS property.
 	/// </summary>
@@ -2276,6 +2276,22 @@ public abstract partial class BaseStyles
 		{
 			if ( _outlineoffset == value ) return;
 			_outlineoffset = value;
+			Dirty();
+		}
+	}
+
+	internal Isolation? _isolation;
+
+	/// <summary>
+	/// Represents the <c>isolation</c> CSS property.
+	/// </summary>
+	public Isolation? Isolation
+	{
+		get => _isolation;
+		set
+		{
+			if ( _isolation == value ) return;
+			_isolation = value;
 			Dirty();
 		}
 	}
@@ -2427,6 +2443,7 @@ public abstract partial class BaseStyles
 		if ( a._outlinewidth != null ) _outlinewidth = a._outlinewidth;
 		if ( a._outlinecolor != null ) _outlinecolor = a._outlinecolor;
 		if ( a._outlineoffset != null ) _outlineoffset = a._outlineoffset;
+		if ( a._isolation != null ) _isolation = a._isolation;
 	}
 
 	/// <summary>
@@ -2576,6 +2593,7 @@ public abstract partial class BaseStyles
 		_outlinewidth = a._outlinewidth;
 		_outlinecolor = a._outlinecolor;
 		_outlineoffset = a._outlineoffset;
+		_isolation = a._isolation;
 	}
 
 	/// <summary>
@@ -3066,6 +3084,7 @@ public abstract partial class BaseStyles
 		hash.Add( _outlinewidth );
 		hash.Add( _outlinecolor );
 		hash.Add( _outlineoffset );
+		hash.Add( _isolation );
 		return hash.ToHashCode();
 	}
 
@@ -3618,6 +3637,7 @@ public abstract partial class BaseStyles
 		copy._outlinewidth = _outlinewidth;
 		copy._outlinecolor = _outlinecolor;
 		copy._outlineoffset = _outlineoffset;
+		copy._isolation = _isolation;
 		copy.CssWide = CssWide == null ? null : new System.Collections.Generic.Dictionary<string, CssWideKeyword>( CssWide );
 		return copy;
 	}
@@ -3785,6 +3805,7 @@ public abstract partial class BaseStyles
 		if ( !_outlinewidth.HasValue ) _outlinewidth = 0;
 		if ( !_outlinecolor.HasValue ) _outlinecolor = Color.Transparent;
 		if ( !_outlineoffset.HasValue ) _outlineoffset = 0;
+		if ( !_isolation.HasValue ) _isolation = UI.Isolation.Auto;
 	}
 
 	internal bool IsDefault( string name )
@@ -3933,6 +3954,7 @@ public abstract partial class BaseStyles
 			case "outline-width": return (_outlinewidth == 0);
 			case "outline-color": return (_outlinecolor == Color.Transparent);
 			case "outline-offset": return (_outlineoffset == 0);
+			case "isolation": return (_isolation == UI.Isolation.Auto);
 		}
 		
 		throw new Exception( $"Invalid property name '{name}'" );

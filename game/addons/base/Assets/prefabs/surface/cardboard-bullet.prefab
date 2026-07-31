@@ -20,7 +20,7 @@
         "__guid": "6ab36efb-e3b3-4bbf-a4d2-5359e02c0cb5",
         "__enabled": true,
         "Flags": 0,
-        "BecomeOrphan": false,
+        "BecomeOrphan": true,
         "DestroyAfterSeconds": 1,
         "OnComponentDestroy": null,
         "OnComponentDisabled": null,
@@ -32,69 +32,6 @@
       }
     ],
     "Children": [
-      {
-        "__guid": "94099ab5-5688-41bc-87ad-4f405fc262a7",
-        "__version": 2,
-        "Flags": 0,
-        "Name": "Decal",
-        "Position": "0,0,0",
-        "Rotation": "0,0,0,1",
-        "Scale": "1,1,1",
-        "Tags": "",
-        "Enabled": true,
-        "NetworkMode": 2,
-        "NetworkFlags": 0,
-        "NetworkOrphaned": 0,
-        "NetworkTransmit": true,
-        "OwnerTransfer": 1,
-        "Components": [
-          {
-            "__type": "Sandbox.Decal",
-            "__guid": "9bc27a4c-abbc-41f4-a4f5-a7028f442208",
-            "__enabled": true,
-            "Flags": 0,
-            "__version": 3,
-            "AttenuationAngle": 1,
-            "ColorMix": {
-              "Type": "Range",
-              "Evaluation": "Seed",
-              "Constants": "0.699999988,1,0,0"
-            },
-            "ColorTint": "0.76279,0.634,0.52863,1",
-            "Decals": [
-              "decals/impact/plaster/decal_impact_plaster_01.decal",
-              "decals/impact/plaster/decal_impact_plaster_02.decal",
-              "decals/impact/plaster/decal_impact_plaster_03.decal"
-            ],
-            "Depth": 8,
-            "LifeTime": 0,
-            "Looped": false,
-            "OnComponentDestroy": null,
-            "OnComponentDisabled": null,
-            "OnComponentEnabled": null,
-            "OnComponentFixedUpdate": null,
-            "OnComponentStart": null,
-            "OnComponentUpdate": null,
-            "Parallax": 1,
-            "Rotation": {
-              "Type": "Range",
-              "Evaluation": "Seed",
-              "Constants": "0,360,0,0"
-            },
-            "Scale": {
-              "Type": "Range",
-              "Evaluation": "Seed",
-              "Constants": "0.300000012,1,0,0"
-            },
-            "SequenceId": 0,
-            "SheetSequence": false,
-            "Size": "1,1",
-            "SortLayer": 0,
-            "Transient": true
-          }
-        ],
-        "Children": []
-      },
       {
         "__guid": "943f0ee9-a1cd-4f2b-928f-c1723b5844c4",
         "__version": 2,

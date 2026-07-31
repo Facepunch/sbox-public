@@ -45,6 +45,11 @@ public struct MountResourceInfo
 	/// <inheritdoc cref="ResourceLoader.Name" />
 	public string Name { get; init; }
 
+	/// <summary>
+	/// The thumbnail for this resource, if provided by the loader.
+	/// </summary>
+	public Texture Thumbnail { get; init; }
+
 	/// <inheritdoc cref="ResourceLoader.Flags" />
 	public ResourceFlags Flags { get; init; }
 
@@ -52,6 +57,13 @@ public struct MountResourceInfo
 	{
 		Name = e.Name;
 		Path = e.Path;
+		Thumbnail = (e as IThumbnailProvider)?.Thumbnail;
 		Flags = e.Flags;
 	}
+}
+
+
+public interface IThumbnailProvider
+{
+	Texture Thumbnail { get; }
 }

@@ -1,29 +1,74 @@
 @import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+// 104px from the top of the screen, less the 64px navbar above Home.
+$front-panel-top: 40px;
+$front-panel-side: 26px;
 
 Home
 {
-	align-items: center;
+	position: relative;
+	width: 100%;
+	height: 100%;
+	flex-grow: 1;
+	flex-direction: row;
 	justify-content: center;
 
-	.page
+	// The middle belongs to the character - only the panels take clicks.
+	pointer-events: none;
+
+	// Caps how far apart the panels can drift on an ultrawide.
+	.stage
 	{
-		flex-direction: row;
-		align-items: flex-end;
-		justify-content: space-between;
+		position: relative;
 		width: 100%;
-		max-width: $screen-w-xl;
-		padding: 50px;
+		max-width: $front-stage-max;
+		height: 100%;
 	}
 
-	column
+	.panel
 	{
-		height: 100%;
-		justify-content: space-between;
+		@include front-panel;
+		top: $front-panel-top;
+	}
+
+	.panel-left
+	{
+		left: $front-panel-side;
+		width: 428px;
+	}
+
+	// 400px to match News below it, which brings its own width and aspect ratio.
+	.panel-right
+	{
+		right: $front-panel-side;
 		width: 400px;
-		gap: 1rem;
+	}
+
+	// Styled by News.razor.scss - this is only placement.
+	News
+	{
+		position: absolute;
+		right: $front-panel-side;
+		bottom: 50px;
+	}
+
+	// Positioning only; DesktopButtons.razor.scss owns its appearance.
+	.model-toggle
+	{
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 40px;
+		justify-content: center;
+		pointer-events: none;
+
+		// Its stylesheet uses z-index: -10, relative to this box.
+		z-index: 1;
 	}
 }
 
+// News overrides most of this but relies on the blur, outline and radius.
 Home Card
 {
 	background: rgba( $default-950, 0.8 );
@@ -34,32 +79,3 @@ Home Card
 	padding: 2rem;
 	border-radius: $rounding-large;
 }
-
-Home column.right
-{
-	// DesktopButtons hardcodes width: 50% and height: 100% (it used to be a
-	// direct child of .page). Inside this column that would eat the whole
-	// height and squash the feed - clamp it to its own content size and keep
-	// it full width so the buttons stay pinned bottom-right.
-	DesktopButtons
-	{
-		width: 100%;
-		height: auto;
-		flex-shrink: 0;
-	}
-
-	Card.feed
-	{
-		gap: 1rem;
-		flex-grow: 1;
-		min-height: 0;
-		overflow: hidden;
-
-		// Pinned header - only the list below it scrolls.
-		label.medium
-		{
-			flex-shrink: 0;
-		}
-	}
-}
-

@@ -160,8 +160,7 @@ public partial class FindReplaceMaterialTool : SelectionTool<MeshFace>
 
 				var mesh = component.Mesh;
 
-				foreach ( var hFace in faces )
-					mesh.SetFaceMaterial( hFace, ReplaceMaterial );
+				mesh.AssignMaterialToFaces( faces, ReplaceMaterial );
 			}
 		}
 

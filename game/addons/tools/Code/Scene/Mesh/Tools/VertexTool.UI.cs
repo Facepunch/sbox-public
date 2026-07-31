@@ -69,6 +69,8 @@ partial class VertexTool
 			_vertexGroups = _vertices.GroupBy( x => x.Component ).ToList();
 			_components = _vertexGroups.Select( x => x.Key ).ToList();
 
+			this.AddPivotGroup( tool );
+
 			{
 				var group = AddGroup( "Merge" );
 				{

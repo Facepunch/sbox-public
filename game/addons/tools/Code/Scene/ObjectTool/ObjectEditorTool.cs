@@ -33,66 +33,25 @@ public class ObjectEditorTool : EditorTool
 		var selection = new HashSet<GameObject>();
 		var previous = new HashSet<GameObject>();
 
-		bool fullyInside = true;
-		bool removing = Gizmo.IsCtrlPressed;
-
-		foreach ( var mr in Scene.GetAllComponents<ModelRenderer>() )
-		{
-			var bounds = mr.Bounds;
-			if ( !frustum.IsInside( bounds, !fullyInside ) )
-			{
-				previous.Add( mr.GameObject );
-				continue;
-			}
-
-			selection.Add( mr.GameObject );
-		}
-
 		foreach ( var go in Scene.GetAllObjects( true ) )
 		{
-			if ( selection.Contains( go ) ) continue;
-			if ( !go.HasGizmoHandle ) continue;
-			if ( !frustum.IsInside( go.WorldPosition ) )
-			{
+			// GetAllObjects starts with the scene itself, which encloses everything
+			if ( go == Scene ) continue;
+			if ( go.Tags.Has( "hidden" ) ) continue;
+
+			var bounds = GetDragBounds( go );
+
+			// Nothing renderable, fall back to hitting the object's origin
+			if ( bounds.Size.AlmostEqual( 0.0f ) && !go.HasGizmoHandle ) continue;
+
+			// Partial, otherwise you'd have to fit the whole model in the box to select it
+			if ( frustum.IsInside( bounds, true ) )
+				selection.Add( go );
+			else
 				previous.Add( go );
-				continue;
-			}
-
-			selection.Add( go );
 		}
 
-		foreach ( var selectedObj in selection )
-		{
-			if ( !removing )
-			{
-				//if ( selected.Contains( selectedObj ) ) continue;
-				if ( Selection.Contains( selectedObj ) ) continue;
-
-				Selection.Add( selectedObj );
-			}
-			else
-			{
-				if ( !Selection.Contains( selectedObj ) ) continue;
-
-				Selection.Remove( selectedObj );
-			}
-		}
-
-		foreach ( var removed in previous )
-		{
-			if ( removing )
-			{
-				//if ( !selected.Contains( removed ) ) continue;
-
-				Selection.Add( removed );
-			}
-			else
-			{
-				//	if ( selected.Contains( removed ) ) continue;
-
-				Selection.Remove( removed );
-			}
-		}
+		ApplyDragSelection( selection, previous );
 	}
 
 	void UpdateSelectionMode()

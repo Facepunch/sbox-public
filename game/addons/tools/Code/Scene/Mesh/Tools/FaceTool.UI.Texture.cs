@@ -319,10 +319,9 @@ partial class FaceTool
 				.WithComponentChanges( _components )
 				.Push() )
 			{
-				foreach ( var face in _faces )
+				foreach ( var group in _faces.GroupBy( x => x.Component.Mesh ) )
 				{
-					var mesh = face.Component.Mesh;
-					mesh.SetFaceMaterial( face.Handle, material );
+					group.Key.AssignMaterialToFaces( group.Select( x => x.Handle ), material );
 				}
 			}
 		}
@@ -374,10 +373,7 @@ partial class FaceTool
 					if ( HotspotUseActiveMaterial )
 					{
 						var faces = group.Select( x => x.Handle ).ToArray();
-						foreach ( var face in faces )
-						{
-							mesh.SetFaceMaterial( face, material );
-						}
+						mesh.AssignMaterialToFaces( faces, material );
 
 						ApplyHotspotForFaces( mesh, group.Key.WorldTransform, faces, material, perFace );
 					}
@@ -457,6 +453,7 @@ partial class FaceTool
 			var uAxis = rotation.Right;
 			var vAxis = rotation.Up;
 			var offset = new Vector2( uAxis.Dot( position ), vAxis.Dot( position ) );
+			var scale = new Vector2( 0.25f, 0.25f );
 
 			using ( SceneEditorSession.Active.UndoScope( "Align to View" )
 				.WithComponentChanges( _components )
@@ -464,7 +461,8 @@ partial class FaceTool
 			{
 				foreach ( var face in _faces )
 				{
-					face.Component.Mesh.SetFaceTextureParameters( face.Handle, offset, uAxis, vAxis );
+					var mesh = face.Component.Mesh;
+					mesh.SetFaceTextureParameters( face.Handle, new Vector4( uAxis, offset.x ), new Vector4( vAxis, offset.y ), scale );
 				}
 			}
 		}

@@ -616,6 +616,28 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 			menu.AddOption( o );
 		}
 
+		menu.AddSeparator();
+
+		{
+			var o = menu.AddOption( new Option( this, "Split Left", "first_page" ) );
+			o.Triggered = () =>
+			{
+				var browser = MainAssetBrowser.Create( this, DockArea.Left );
+				browser.Local.NavigateTo( CurrentLocation );
+				browser.Local.ViewModeType = ViewModeType;
+			};
+		}
+
+		{
+			var o = menu.AddOption( new Option( this, "Split Right", "last_page" ) );
+			o.Triggered = () =>
+			{
+				var browser = MainAssetBrowser.Create( this, DockArea.Right );
+				browser.Local.NavigateTo( CurrentLocation );
+				browser.Local.ViewModeType = ViewModeType;
+			};
+		}
+
 		menu.OpenAt( source.BottomLeft, false );
 	}
 

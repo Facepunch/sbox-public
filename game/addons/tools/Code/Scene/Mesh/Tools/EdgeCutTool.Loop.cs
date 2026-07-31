@@ -40,9 +40,6 @@ partial class EdgeCutTool
 				_cutPoints.Add( _loopPreview[0] );
 
 			Apply();
-
-			_cutPoints.Clear();
-			_loopPreview = null;
 		}
 	}
 

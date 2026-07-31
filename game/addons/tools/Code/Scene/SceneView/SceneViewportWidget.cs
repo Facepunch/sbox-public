@@ -22,8 +22,6 @@ public partial class SceneViewportWidget : Widget
 
 	public SceneRenderingWidget Renderer;
 
-	ViewportOptions ViewportOptions;
-
 	/// <summary>
 	/// NOTE: You should not access position or rotation from here, get and set from  <see cref="State"/> instead.
 	/// </summary>
@@ -80,10 +78,6 @@ public partial class SceneViewportWidget : Widget
 		Overlay.Position = ScreenPosition;
 		Overlay.Size = Size;
 		Overlay.Show();
-
-		ViewportOptions = new ViewportOptions( this );
-		Overlay.Header.Add( ViewportOptions );
-		ViewportOptions.Show();
 
 		FocusMode = FocusMode.None;
 	}
@@ -688,6 +682,7 @@ public partial class SceneViewportWidget : Widget
 		UpdateDragDrops();
 
 		DrawCameraSpeedOverlay();
+		DrawOrientationGizmo();
 
 		Overlay?.Update();
 	}
@@ -877,6 +872,9 @@ public partial class SceneViewportWidget : Widget
 	public override void OnDestroyed()
 	{
 		Session.OnFrameTo -= FrameOn;
+
+		_gizmoSceneObject?.Delete();
+		_gizmoSceneObject = null;
 
 		_activeCamera?.GameObject?.Destroy();
 		_activeCamera = null;

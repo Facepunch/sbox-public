@@ -1187,6 +1187,12 @@ namespace DotRecast.Detour.Crowd
 					obstacleQuery.AddCircle( nei.npos, nei.option.radius, nei.vel, nei.dvel );
 				}
 
+				// A goal on the navmesh boundary sits on a wall segment, and avoidance won't steer into a
+				// wall. Suppress the stretch within a radius of the goal, clipping rather than dropping as
+				// segments are polygon edges and can span a tile. targetPos is a velocity unless VALID.
+				bool clipSegmentsAtGoal = ag.targetState == DtMoveRequestState.DT_CROWDAGENT_TARGET_VALID;
+				float goalSegmentRangeSqr = ag.option.radius * ag.option.radius;
+
 				// Append neighbour segments as obstacles.
 				for ( int j = 0; j < ag.boundary.GetSegmentCount(); ++j )
 				{
@@ -1196,6 +1202,36 @@ namespace DotRecast.Detour.Crowd
 					if ( DtUtils.TriArea2D( ag.npos, s[0], s3 ) < 0.0f )
 					{
 						continue;
+					}
+
+					if ( clipSegmentsAtGoal )
+					{
+						var goalDistSqr = DtUtils.DistancePtSegSqr2D( ag.targetPos, s[0], s3, out var goalT );
+						if ( goalDistSqr < goalSegmentRangeSqr )
+						{
+							var segLengthSqr = DtUtils.DistanceBetween2DSqr( s[0], s3 );
+							if ( segLengthSqr < 0.0001f )
+							{
+								continue;
+							}
+
+							// Half chord the goal circle cuts from the segment, as a fraction.
+							var halfChord = MathF.Sqrt( (goalSegmentRangeSqr - goalDistSqr) / segLengthSqr );
+							var tMin = goalT - halfChord;
+							var tMax = goalT + halfChord;
+
+							if ( tMin > 0.0f )
+							{
+								obstacleQuery.AddSegment( s[0], Vector3.Lerp( s[0], s3, tMin ) );
+							}
+
+							if ( tMax < 1.0f )
+							{
+								obstacleQuery.AddSegment( Vector3.Lerp( s[0], s3, tMax ), s3 );
+							}
+
+							continue;
+						}
 					}
 
 					obstacleQuery.AddSegment( s[0], s3 );

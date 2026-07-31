@@ -8,7 +8,7 @@
 
 StaticCombo( S_MODE_DEPTH, 0..1, Sys( ALL ) );
 
-class DepthNormals
+struct DepthNormals
 {
     static float4 Output( float3 normal, float roughness = 1.0f, float opacity = 1.0f )
     {

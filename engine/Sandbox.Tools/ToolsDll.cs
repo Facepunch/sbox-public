@@ -45,7 +45,6 @@ internal class ToolsDll : IToolsDll
 
 	public void Exiting()
 	{
-		Editor.Mcp.McpServer.Stop();
 		EditorEvent.Run( "app.exit" );
 		EditorCookie?.Save();
 		ProjectCookie?.Save();

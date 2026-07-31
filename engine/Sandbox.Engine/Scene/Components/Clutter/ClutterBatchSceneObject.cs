@@ -91,8 +91,13 @@ internal class ClutterBatchSceneObject : SceneCustomObject
 		var modelCenter = modelBounds.Center;
 		var worldBounds = modelBounds.Transform( transforms[0] );
 
-		var instances = new GpuInstanceTransform[_count];
-		var spheres = new Vector4[_count];
+		// Pooled - a real instance set puts both of these in the LOH, and this reruns on every rebuild.
+		using var pooledInstances = new PooledSpan<GpuInstanceTransform>( _count );
+		using var pooledSpheres = new PooledSpan<Vector4>( _count );
+
+		var instances = pooledInstances.Span;
+		var spheres = pooledSpheres.Span;
+
 		for ( int i = 0; i < _count; i++ )
 		{
 			var transform = transforms[i];

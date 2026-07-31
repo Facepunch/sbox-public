@@ -169,7 +169,7 @@ public partial class BaseCombatWeapon
 	}
 
 	/// <summary>
-	/// Spawn just the surface impact prefab (decal/particles) at a hit, stuck to what was hit - no sound.
+	/// Spawn just the surface impact prefabs (decal/particles) at a hit, stuck to what was hit - no sound.
 	/// For attacks that want the visual but their own impact audio (a melee thunk instead of a ricochet).
 	/// </summary>
 	public static void ImpactPrefab( GameObject hitObject, Surface surface, Vector3 position, Vector3 normal )
@@ -180,7 +180,20 @@ public partial class BaseCombatWeapon
 		if ( !surface.IsValid() )
 			return;
 
-		var prefab = surface.PrefabCollection.BulletImpact ?? surface.GetBaseSurface()?.PrefabCollection.BulletImpact;
+		var baseSurface = surface.GetBaseSurface();
+		var impactPrefab = surface.PrefabCollection.BulletImpact ?? baseSurface?.PrefabCollection.BulletImpact;
+		var decalPrefab = surface.PrefabCollection.BulletImpactDecal ?? baseSurface?.PrefabCollection.BulletImpactDecal;
+
+		SpawnImpactPrefab( impactPrefab, hitObject, position, normal, true );
+
+		if ( hitObject.IsValid() )
+		{
+			SpawnImpactPrefab( decalPrefab, hitObject, position, normal, false );
+		}
+	}
+
+	static void SpawnImpactPrefab( GameObject prefab, GameObject hitObject, Vector3 position, Vector3 normal, bool becomeOrphan )
+	{
 		if ( prefab is null )
 			return;
 
@@ -192,6 +205,11 @@ public partial class BaseCombatWeapon
 
 		// Each peer spawns its own - never networked.
 		impact.Flags |= GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
+
+		if ( impact.GetComponent<TemporaryEffect>() is { } temporaryEffect )
+		{
+			temporaryEffect.BecomeOrphan = becomeOrphan;
+		}
 
 		// The hit object can be gone by the time the impact plays - this shot killed it - and the
 		// impact still belongs where it landed, anchored to the world.

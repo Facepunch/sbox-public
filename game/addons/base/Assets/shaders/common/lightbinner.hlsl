@@ -68,7 +68,7 @@ cbuffer ViewLightingConfigV2
 //       envmaps should be in their own file
 //
 
-class BinnedLight
+struct BinnedLight
 {
     uint Type;          // 1 = spot, 2 = point, 3 = rect, etc..
     LightShape Shape;   // Sphere, Capsule, Rectangle, etc..., maybe redundant with Type?
@@ -132,7 +132,7 @@ class BinnedLight
     }
 };
 
-class BinnedEnvMap
+struct BinnedEnvMap
 {
     float4x3 WorldToLocal;
     float4 BoxMins;

@@ -21,8 +21,13 @@ public class Bloom : BasePostProcess<Bloom>
 
 	[Range( 0, 2 )]
 	[Property] public float Threshold { get; set; } = 1.0f;
-	[Property, Range( 1.0f, 2.2f )] public float Gamma { get; set; } = 2.2f;
 	[Property] public Color Tint { get; set; } = Color.White;
+
+	/// <summary>
+	/// No longer used, bloom filtering is fixed quality now.
+	/// </summary>
+	[Hide, Obsolete( "Bloom gamma is no longer used, this property has no effect." )]
+	public float Gamma { get; set; } = 2.2f;
 
 	public enum FilterMode
 	{
@@ -30,13 +35,21 @@ public class Bloom : BasePostProcess<Bloom>
 		Biquadratic = 1
 	}
 
-	[Property] public FilterMode Filter { get; set; } = FilterMode.Bilinear;
+	/// <summary>
+	/// No longer used, bloom filtering is fixed quality now.
+	/// </summary>
+	[Hide, Obsolete( "Bloom filtering is fixed quality now, this property has no effect." )]
+	public FilterMode Filter { get; set; } = FilterMode.Bilinear;
 
 	CommandList command = new CommandList( "Bloom" );
 
 	private static Material Shader = Material.FromShader( "postprocess_bloom.shader" );
 
 	private static ComputeShader ShaderCs = new ComputeShader( "postprocess_bloom_cs" );
+
+	// Half res down to 1/64th res
+	const int MipCount = 6;
+	static readonly string[] MipNames = ["BloomMip0", "BloomMip1", "BloomMip2", "BloomMip3", "BloomMip4", "BloomMip5"];
 
 	public override void Render()
 	{
@@ -45,34 +58,49 @@ public class Bloom : BasePostProcess<Bloom>
 
 		command.Reset();
 
-		// Grab the current frame color once and reuse for compute + composite
-		var colorHandle = command.Attributes.GrabFrameTexture( "ColorBuffer", true );
+		// Grab the current frame color once and reuse for compute + composite, no mips needed
+		var colorHandle = command.Attributes.GrabFrameTexture( "ColorBuffer" );
 
-		// Half-resolution target for bloom accumulation
-		var bloomRt = command.GetRenderTarget( "BloomTexture", 2, ImageFormat.RGBA16161616F, ImageFormat.None ); // Maybe 1010102F?
+		// Progressive downsample chain, half res down to 1/64th res
+		for ( int i = 0; i < MipCount; i++ )
+			command.GetRenderTarget( MipNames[i], 2 << i, ImageFormat.RGBA16161616F, ImageFormat.None );
 
-		// Bind inputs for compute
-		command.Attributes.Set( "Color", colorHandle.ColorTexture );
+		static RenderTargetHandle Mip( int i ) => new() { Name = MipNames[i] };
 
-		// Parameters
-		command.Attributes.Set( "Strength", GetWeighted( x => x.Strength, 0 ) );
 		command.Attributes.Set( "Threshold", GetWeighted( x => x.Threshold, 0 ) );
-		command.Attributes.Set( "Gamma", GetWeighted( x => x.Gamma, 0 ) );
-		command.Attributes.Set( "Tint", GetWeighted( x => x.Tint, Color.White ) );
-		command.Attributes.Set( "InvDimensions", new Vector2( 2.0f / Screen.Width, 2.0f / Screen.Height ) );
-		command.Attributes.SetCombo( "D_FILTER", Filter );
 
-		// Output target for compute
-		command.Attributes.Set( "BloomOut", bloomRt.ColorTexture );
+		// Prefilter: threshold + firefly suppression, full res -> half res
+		command.Attributes.SetCombo( "D_STAGE", 0 );
+		command.Attributes.Set( "InputTexture", colorHandle.ColorTexture );
+		command.Attributes.Set( "BloomOut", Mip( 0 ).ColorTexture );
+		command.DispatchCompute( ShaderCs, Mip( 0 ).Size );
+		command.ResourceBarrierTransition( Mip( 0 ), ResourceState.NonPixelShaderResource );
 
-		// Dispatch compute at bloom RT size
-		command.DispatchCompute( ShaderCs, bloomRt.Size );
+		// Downsample chain
+		command.Attributes.SetCombo( "D_STAGE", 1 );
+		for ( int i = 1; i < MipCount; i++ )
+		{
+			command.Attributes.Set( "InputTexture", Mip( i - 1 ).ColorTexture );
+			command.Attributes.Set( "BloomOut", Mip( i ).ColorTexture );
+			command.DispatchCompute( ShaderCs, Mip( i ).Size );
+			command.ResourceBarrierTransition( Mip( i ), ResourceState.NonPixelShaderResource );
+		}
 
-		command.ResourceBarrierTransition( bloomRt, ResourceState.PixelShaderResource );
+		// Upsample chain, tent filter accumulating back into each level
+		command.Attributes.SetCombo( "D_STAGE", 2 );
+		for ( int i = MipCount - 2; i >= 0; i-- )
+		{
+			command.Attributes.Set( "InputTexture", Mip( i + 1 ).ColorTexture );
+			command.Attributes.Set( "BloomOut", Mip( i ).ColorTexture );
+			command.DispatchCompute( ShaderCs, Mip( i ).Size );
+			command.ResourceBarrierTransition( Mip( i ), i == 0 ? ResourceState.PixelShaderResource : ResourceState.NonPixelShaderResource );
+		}
 
 		// Composite: sample the bloom texture in PS and apply selected mode
-		command.Attributes.Set( "BloomTexture", bloomRt.ColorTexture );
+		command.Attributes.Set( "BloomTexture", Mip( 0 ).ColorTexture );
 		command.Attributes.Set( "CompositeMode", (int)Mode );
+		command.Attributes.Set( "BloomScale", GetWeighted( x => x.Strength, 0 ) / (2.0f * MipCount) );
+		command.Attributes.Set( "Tint", GetWeighted( x => x.Tint, Color.White ) );
 
 		command.Blit( Shader );
 

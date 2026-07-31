@@ -188,6 +188,12 @@ internal class PrefabInstanceData
 			return;
 		}
 
+		// Suppress any ambient blob-capture context (e.g. from an in-progress resource save higher
+		// up the call stack). The resulting patch is cached and reapplied long after that context's
+		// lifetime ends, so any embedded data (like mesh blobs) must be self-contained, not a
+		// reference that can only be resolved while that context is still active.
+		using var suppressBlobs = BlobDataSerializer.Suppress();
+
 		var instanceData = _instanceRoot.SerializeStandard( _serializeOptions );
 
 		RemapInstanceIdsToPrefabIds( ref instanceData );

@@ -12,8 +12,6 @@ public sealed partial class VertexTool( MeshTool tool ) : SelectionTool<MeshVert
 {
 	public override bool DrawVertices => true;
 
-	public override bool HasBoxSelectionMode() => true;
-
 	public override void BuildSceneContextMenu( Menu menu, Ray ray, SceneTraceResult? trace )
 	{
 		base.BuildSceneContextMenu( menu, ray, trace );
@@ -32,77 +30,6 @@ public sealed partial class VertexTool( MeshTool tool ) : SelectionTool<MeshVert
 		AddMenuOption( sel, "Select Loop", "all_out", "mesh.select-loop", count > 1 );
 		AddMenuOption( sel, "Invert Selection", "swap_vert", InvertCurrentSelection, "mesh.invert-selection", true );
 		sel.AddOption( "Select All", "select_all", () => InvokeShortcut( "mesh.select-all" ), "mesh.select-all" );
-	}
-
-	protected override void OnBoxSelect( Frustum frustum, Rect screenRect, bool isFinal )
-	{
-		HashSet<MeshVertex> selection = [];
-		HashSet<MeshVertex> previous = [];
-
-		foreach ( var component in Scene.GetAllComponents<MeshComponent>() )
-		{
-			var mesh = component.Mesh;
-			if ( mesh == null ) continue;
-
-			if ( component.GameObject.Tags.Has( "hidden" ) ) continue;
-
-			var bounds = component.GetWorldBounds();
-			if ( !frustum.IsInside( bounds, true ) )
-			{
-				foreach ( var handle in mesh.VertexHandles )
-					previous.Add( new MeshVertex( component, handle ) );
-
-				continue;
-			}
-
-			var transform = component.Transform.World;
-
-			foreach ( var v in mesh.VertexHandles )
-			{
-				var worldPos = transform.PointToWorld( mesh.GetVertexPosition( v ) );
-
-				if ( !Tool.SelectionThrough && IsVertexOccluded( worldPos, Gizmo.Camera.Position ) )
-				{
-					previous.Add( new MeshVertex( component, v ) );
-					continue;
-				}
-
-				if ( frustum.IsInside( worldPos ) )
-				{
-					selection.Add( new MeshVertex( component, v ) );
-				}
-				else
-				{
-					previous.Add( new MeshVertex( component, v ) );
-				}
-			}
-		}
-
-		if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
-		{
-			foreach ( var v in selection )
-			{
-				if ( Selection.Contains( v ) )
-					Selection.Remove( v );
-			}
-		}
-		else
-		{
-			foreach ( var v in selection )
-			{
-				if ( !Selection.Contains( v ) )
-					Selection.Add( v );
-			}
-
-			if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) )
-			{
-				foreach ( var v in previous )
-				{
-					if ( Selection.Contains( v ) )
-						Selection.Remove( v );
-				}
-			}
-		}
 	}
 
 	public override void OnUpdate()

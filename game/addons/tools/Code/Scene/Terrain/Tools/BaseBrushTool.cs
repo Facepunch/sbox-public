@@ -109,7 +109,7 @@ public abstract class BaseBrushTool : EditorTool
 			SceneOverlay.Parent.Cursor = CursorShape.Blank;
 
 			DrawBrushAdjustText();
-			DrawBrushPreviewAt( _lastHitWorldPos, _lastHitTx );
+			DrawBrushPreviewAt( _lastHitWorldPos, _lastHitTx, terrain );
 			return;
 		}
 		else
@@ -162,7 +162,7 @@ public abstract class BaseBrushTool : EditorTool
 			OnPaintEnded( terrain );
 		}
 
-		DrawBrushPreviewAt( _lastHitWorldPos, _lastHitTx, PaintMode ? terrain : null );
+		DrawBrushPreviewAt( _lastHitWorldPos, _lastHitTx, terrain );
 	}
 
 	void DrawBrushPreviewAt( Vector3 worldPos, Transform tx, Terrain terrain = null )

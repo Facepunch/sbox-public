@@ -111,7 +111,7 @@ static const float2 PCFDiscSamples29[]=
 // Represents a cube-style shadow projection system. Provides utilities
 // to query shadow visibility at a given world position for a specific shadow index.
 //------------------------------------------------------------------------------
-class ProjectedShadowCube
+struct ProjectedShadowCube
 {
     //--------------------------------------------------------------------------
     // GetVisibility
@@ -159,6 +159,8 @@ class ProjectedShadowCube
 		}
 
 		ProjectedShadowCubeStruct shadow = ProjectedCubeShadows[shadowCubeIndex];
+		
+		worldPosition = ApplyShadowNormalOffset( worldPosition, 2.0f * length( shadow.LightPosition - worldPosition ) * shadow.InvShadowMapRes, shadow.ShadowHardness );
 
 		float3 worldToLight = shadow.LightPosition - worldPosition;
 		float distance = length( worldToLight );

@@ -1,0 +1,79 @@
+//
+// Front page (/home) tokens. No fills, no border boxes, no shadows - a panel is a scrim,
+// hairline rules and typography, so the 3D character behind it stays the hero.
+//
+
+$front-font: "Poppins";
+
+$front-heading: #eef1f6;
+$front-body: #c8cedb;
+$front-secondary: #8b93a3;
+$front-tertiary: #6f7788;
+$front-label: #7d8698;
+
+$front-accent: #8fd14f;
+$front-accent-dim: rgba( $front-accent, 0.4 );
+
+$front-hairline: rgba( 255, 255, 255, 0.1 );
+$front-track: rgba( 255, 255, 255, 0.13 );
+
+// Hairlines and body copy sit this far in from the panel edge; media may bleed past it.
+$front-inset: 16px;
+
+$front-radius: 14px;
+$front-panel-foot: 12px;
+
+// Matches $screen-w-xl in _theme.scss.
+$front-stage-max: 1920px;
+
+@mixin front-panel
+{
+	position: absolute;
+	flex-direction: column;
+	pointer-events: all;
+	overflow: hidden;
+	padding-bottom: $front-panel-foot;
+	font-family: $front-font;
+	font-size: 13px;
+	color: $front-body;
+
+	background-color: rgba( 8, 10, 14, 0.5 );
+	backdrop-filter: blur( 3px );
+	border-radius: $front-radius $front-radius 0 0;
+}
+
+@mixin front-section-label
+{
+	font-family: $front-font;
+	font-size: 10.5px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.09em;
+	color: $front-label;
+}
+
+// No top padding - a zone that follows another opens with its own rule, which supplies the gap.
+@mixin front-zone
+{
+	flex-direction: column;
+	flex-shrink: 0;
+	width: 100%;
+	padding: 0 $front-inset 14px $front-inset;
+}
+
+@mixin front-zone-rule
+{
+	height: 1px;
+	flex-shrink: 0;
+	margin-bottom: 14px;
+	background-color: $front-hairline;
+}
+
+// Right-aligned secondary text next to a section label ("Browse all >").
+@mixin front-label-action
+{
+	font-family: $front-font;
+	font-size: 11px;
+	font-weight: 500;
+	color: $front-secondary;
+}

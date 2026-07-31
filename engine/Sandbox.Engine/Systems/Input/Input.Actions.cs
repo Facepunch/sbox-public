@@ -129,6 +129,9 @@ public static partial class Input
 	/// <inheritdoc cref="SetAction(int, bool)"/>
 	public static void SetAction( string action, bool down ) => SetAction( GetActionIndex( action ), down );
 
+	/// <inheritdoc cref="SetLastAction(int, bool)"/>
+	public static void SetLastAction( string action, bool down ) => SetLastAction( GetActionIndex( action ), down );
+
 	/// <summary>
 	/// Remove this action, so it's no longer being pressed.
 	/// </summary>
@@ -182,6 +185,17 @@ public static partial class Input
 	{
 		if ( down ) Actions |= 1UL << index;
 		else Actions &= ~(1UL << index);
+	}
+
+	/// <summary>
+	/// Activates / Deactivates the previous action when building input.
+	/// </summary>
+	/// <param name="index"></param>
+	/// <param name="down"></param>
+	internal static void SetLastAction( int index, bool down )
+	{
+		if ( down ) LastActions |= 1UL << index;
+		else LastActions &= ~(1UL << index);
 	}
 
 	static InputAction FindInputActionByName( string action )

@@ -143,6 +143,23 @@ GS
 		float4 vPositionPs0 = Position3WsToPs( i[0].vPositionWs.xyz );
 		float4 vPositionPs1 = Position3WsToPs( i[1].vPositionWs.xyz );
 
+		// test if any of these points are too close to near plane, long lines can blow up in thickness,
+		// so clip them if they're below the threshold 
+		const float flNearPlaneW = 0.01;
+		bool bPos0 = vPositionPs0.w < flNearPlaneW;
+		bool bPos1 = vPositionPs1.w < flNearPlaneW;
+
+		if ( bPos0 != bPos1 )
+		{
+			float flT = ( flNearPlaneW - vPositionPs0.w ) / ( vPositionPs1.w - vPositionPs0.w );
+			float4 vCorrectedPosPs = lerp( vPositionPs0, vPositionPs1, flT );
+
+			if ( bPos0 )
+				vPositionPs0 = vCorrectedPosPs;
+			else
+				vPositionPs1 = vCorrectedPosPs;
+		}
+
 		// Expand line in 2D
 
 		float2 vLineNormal2D = ( vPositionPs1.xy / vPositionPs1.w ) - ( vPositionPs0.xy / vPositionPs0.w );

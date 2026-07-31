@@ -34,6 +34,12 @@ public static class Steam
 		if ( Application.IsUnitTest )
 			return;
 
+		if ( Application.IsDedicatedServer )
+		{
+			SteamId = NativeEngine.Steam.SteamGameServer_GetSteamID();
+			return;
+		}
+
 		var sf = NativeEngine.Steam.SteamFriends();
 		var su = NativeEngine.Steam.SteamUser();
 		var utils = NativeEngine.Steam.SteamUtils();

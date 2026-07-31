@@ -59,6 +59,8 @@ PS
     Texture2D ColorBuffer < Attribute( "ColorBuffer" ); >;
     Texture2D BloomTexture < Attribute( "BloomTexture" ); >;
     int CompositeMode< Attribute("CompositeMode"); Default(0); >;
+    float BloomScale < Attribute("BloomScale"); Default(0.0f); >;
+    float3 Tint < Attribute("Tint"); Default3(1.0f, 1.0f, 1.0f); >;
 
     float3 ScreenHDR(float3 base, float3 blend)
     {
@@ -76,20 +78,21 @@ PS
 
         float4 baseColor = ColorBuffer.Sample(g_sBilinearMirror, vScreenUv.xy);
         float4 bloom = BloomTexture.Sample(g_sBilinearMirror, vScreenUv.xy);
+        bloom.rgb *= Tint * BloomScale;
 
         float3 finalColor = 0;
         if (CompositeMode == 0)
         {
-            finalColor = baseColor + bloom.rgb; // Additive
+            finalColor = baseColor.rgb + bloom.rgb; // Additive
         }
         else if (CompositeMode == 1)
         {
-            finalColor = ScreenHDR(baseColor, bloom.rgb); // Screen
+            finalColor = ScreenHDR(baseColor.rgb, bloom.rgb); // Screen
         }
         else // 2: Lerp by bloom luminance
         {
             float bloomLuminance = Luminance(bloom.rgb);
-            finalColor = lerp(baseColor, bloom.rgb, saturate(bloomLuminance));
+            finalColor = lerp(baseColor.rgb, bloom.rgb, saturate(bloomLuminance));
         }
         
         // Approximate bloom alpha with brightness so it bleeds fine on translucent backgrounds

@@ -786,10 +786,11 @@ partial class GameObjectNode : TreeNode<GameObject>
 			}
 			prefabRoot.Name = System.IO.Path.GetFileNameWithoutExtension( saveLocation );
 
-			EditorUtility.Prefabs.ConvertGameObjectToPrefab( prefabRoot, saveLocation );
-			EditorUtility.InspectorObject = prefabRoot;
+			prefabRoot = EditorUtility.Prefabs.ConvertGameObjectToPrefab( prefabRoot, saveLocation );
+			if ( prefabRoot is null ) return;
 
-			EditorScene.Selection.Clear();
+			EditorUtility.InspectorObject = prefabRoot;
+			EditorScene.Selection.Set( prefabRoot );
 		}
 	}
 
