@@ -83,8 +83,14 @@
                 </column>
 
                 <column class="dates">
-                    <div>Downloaded @package.Downloaded.Humanize()</div>
-                    <div>Played @package.LastPlayed.Humanize()</div>
+                    <div class="date-row">
+                        <span class="label">Downloaded</span>
+                        <span class="value">@FormatAge( package.Downloaded )</span>
+                    </div>
+                    <div class="date-row">
+                        <span class="label">Last played</span>
+                        <span class="value">@FormatAge( package.LastPlayed )</span>
+                    </div>
                 </column>
 
                 <div class="size">@package.Size.FormatBytes()</div>
@@ -220,6 +226,17 @@
     string GetBreakdown( string ident )
     {
         return PackageBreakdowns.GetValueOrDefault( ident, "" );
+    }
+
+    /// <summary>
+    /// Relative age for the list ("3 days ago"). Falls back if the stamp is missing.
+    /// </summary>
+    static string FormatAge( DateTimeOffset when )
+    {
+        if ( when == default )
+            return "—";
+
+        return $"{(DateTimeOffset.Now - when).Humanize( 1 )} ago";
     }
 
     static string ClassifyFile( string filename )
