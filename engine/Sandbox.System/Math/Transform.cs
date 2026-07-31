@@ -61,7 +61,7 @@ public struct Transform : System.IEquatable<Transform>, IInterpolator<Transform>
 	{
 		Position = pos;
 		Rotation = Rotation.Identity;
-		Scale = 1.0f;
+		Scale = Vector3.One;
 	}
 
 	public Transform() : this( default )
@@ -154,19 +154,33 @@ public struct Transform : System.IEquatable<Transform>, IInterpolator<Transform>
 	public Transform ToLocal( in Transform child )
 	{
 		var rotInv = Rotation.Inverse;
+		var pos = (child.Position - Position) * rotInv;
+		var rot = rotInv * child.Rotation;
 
-		var localSafeScale = new Vector3(
-			Scale.x != 0f ? child.Scale.x / Scale.x : child.Scale.x,
-			Scale.y != 0f ? child.Scale.y / Scale.y : child.Scale.y,
-			Scale.z != 0f ? child.Scale.z / Scale.z : child.Scale.z
-		);
-
-		return new Transform
+		if ( Scale.Equals( Vector3.One ) && child.Scale.Equals( Vector3.One ) )
 		{
-			Position = ((child.Position - Position) * rotInv) / SafeScale,
-			Rotation = rotInv * child.Rotation,
-			Scale = localSafeScale
-		};
+			// Cheap conversion ignoring scale
+			return new Transform
+			{
+				Position = pos,
+				Rotation = rot,
+				Scale = Vector3.One
+			};
+		}
+		else
+		{
+			// Expensive conversion with scale
+			return new Transform
+			{
+				Position = pos / SafeScale,
+				Rotation = rot,
+				Scale = new Vector3(
+					Scale.x != 0f ? child.Scale.x / Scale.x : child.Scale.x,
+					Scale.y != 0f ? child.Scale.y / Scale.y : child.Scale.y,
+					Scale.z != 0f ? child.Scale.z / Scale.z : child.Scale.z
+				),
+			};
+		}
 	}
 
 	/// <summary>
@@ -187,11 +201,14 @@ public struct Transform : System.IEquatable<Transform>, IInterpolator<Transform>
 	/// </summary>
 	public static Transform Lerp( in Transform a, in Transform b, float t, bool clamp )
 	{
+		if ( clamp ) t = t.Clamp( 0, 1 );
+		if ( t == 0f ) return a;
+		if ( t == 1f ) return b;
 		return new Transform
 		{
-			Position = Vector3.Lerp( a.Position, b.Position, t, clamp ),
-			Rotation = Rotation.Slerp( a.Rotation, b.Rotation, t, clamp ),
-			Scale = Vector3.Lerp( a.Scale, b.Scale, t, clamp ),
+			Position = Vector3.Lerp( a.Position, b.Position, t, false ),
+			Rotation = Rotation.Slerp( a.Rotation, b.Rotation, t, false ),
+			Scale = Vector3.Lerp( a.Scale, b.Scale, t, false ),
 		};
 	}
 
