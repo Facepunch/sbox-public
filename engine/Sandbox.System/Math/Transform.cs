@@ -154,33 +154,14 @@ public struct Transform : System.IEquatable<Transform>, IInterpolator<Transform>
 	public Transform ToLocal( in Transform child )
 	{
 		var rotInv = Rotation.Inverse;
-		var pos = (child.Position - Position) * rotInv;
-		var rot = rotInv * child.Rotation;
+		var scale = SafeScale;
 
-		if ( Scale.Equals( Vector3.One ) && child.Scale.Equals( Vector3.One ) )
+		return new Transform
 		{
-			// Cheap conversion ignoring scale
-			return new Transform
-			{
-				Position = pos,
-				Rotation = rot,
-				Scale = Vector3.One
-			};
-		}
-		else
-		{
-			// Expensive conversion with scale
-			return new Transform
-			{
-				Position = pos / SafeScale,
-				Rotation = rot,
-				Scale = new Vector3(
-					Scale.x != 0f ? child.Scale.x / Scale.x : child.Scale.x,
-					Scale.y != 0f ? child.Scale.y / Scale.y : child.Scale.y,
-					Scale.z != 0f ? child.Scale.z / Scale.z : child.Scale.z
-				),
-			};
-		}
+			Position = (child.Position - Position) * rotInv / scale,
+			Rotation = rotInv * child.Rotation,
+			Scale = child.Scale / scale
+		};
 	}
 
 	/// <summary>
