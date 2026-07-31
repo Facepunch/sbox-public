@@ -726,7 +726,13 @@ file class MapComponentMapLoader : SceneMapLoader
 		}
 		else
 		{
-			light = go.Components.Create<DirectionalLight>();
+			var directional = go.Components.Create<DirectionalLight>();
+			directional.SkyColor =
+				kv.GetValue( "SkyColor", Color.White ) *
+				kv.GetValue( "SkyIntensity", 1.0f );
+
+
+			light = directional;
 		}
 
 		// Hammer lights have no concept of "hardness" — let's make them reasonably sharp by default.
