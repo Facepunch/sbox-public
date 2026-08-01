@@ -31,7 +31,6 @@ public partial class SceneViewportWidget
 
 		Renderer.Camera = _activeCamera;
 		Renderer.EnableEngineOverlays = IsGameView;
-		ViewportOptions.Visible = !IsGameView;
 	}
 
 	/// <summary>

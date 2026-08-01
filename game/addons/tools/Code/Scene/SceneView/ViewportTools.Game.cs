@@ -140,8 +140,9 @@ class ResolutionModeButton : Button
 	public string GetSizeString()
 	{
 		var viewport = _sceneViewWidget.GetGameTarget();
+		var size = viewport.Renderer.Size * viewport.Renderer.DpiScale;
 
-		return $"{viewport.Renderer.Width}x{viewport.Renderer.Height}";
+		return $"{size.x:0}x{size.y:0}";
 	}
 
 	private void UpdateButtonText()

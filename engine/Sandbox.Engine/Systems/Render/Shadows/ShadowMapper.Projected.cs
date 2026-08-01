@@ -50,36 +50,14 @@ internal partial class ShadowMapper
 			return InvalidShadowIndex;
 		}
 
+		bool isBakedLight = (light.lightNative.GetLightFlags() & 32) != 0; // LIGHTTYPE_FLAGS_BAKED
+		bool isStaticLight = light.GameObject.IsValid() && light.GameObject.IsStatic;
+
 		// How big do we want it, it's okay if our cached is bigger, but not if it's smaller
 		var mainViewport = view.GetMainViewport();
 		int desiredResolution = GetDesiredResolution( flScreenSize, (int)Math.Max( mainViewport.Rect.Width, mainViewport.Rect.Height ) );
 
-		// If we are bigger than we need, queue us for a potential resize
-		// This will be done with a compute shader
-
-		if ( !Cache.TryGetValue( light, out var cacheEntry ) )
-		{
-			cacheEntry = new()
-			{
-				ShadowMap = AcquireTexture( desiredResolution, isCube: false ),
-				CurrentResolution = desiredResolution,
-				IsCube = false,
-				DebugName = $"{light}_Shadow"
-			};
-			Cache.AddOrUpdate( light, cacheEntry );
-		}
-
-		// Keep track of how big we actually want it, if we run low on budget we can downgrade these out of scope
-		cacheEntry.DesiredResolution = desiredResolution;
-		cacheEntry.ScreenSize = flScreenSize;
-
-		// Do we want a bigger resolution for this shadow map now?
-		if ( cacheEntry.CurrentResolution != desiredResolution )
-		{
-			ReleaseTexture( cacheEntry.ShadowMap, cacheEntry.CurrentResolution, cacheEntry.IsCube );
-			cacheEntry.ShadowMap = AcquireTexture( desiredResolution, isCube: false );
-			cacheEntry.CurrentResolution = desiredResolution;
-		}
+		var cacheEntry = GetOrCreateCacheEntry( light, desiredResolution, isCube: false, flScreenSize );
 
 		Matrix ScaleBias = Matrix.Identity;
 		ScaleBias._numerics[0, 0] = 0.5f;
@@ -92,13 +70,46 @@ internal partial class ShadowMapper
 
 		float biasScale = ComputeBiasScale( light.lightNative.GetPhi(), light.Radius, cacheEntry.CurrentResolution );
 
-		// Baked lights exclude static objects from shadow maps, their static shadows come from lightmaps
-		var excludeFlags = (light.lightNative.GetLightFlags() & 32) != 0 // LIGHTTYPE_FLAGS_BAKED
+		// Static lights render their static casters once into a cache that gets copied in
+		// each frame, and only dynamic casters are re-rendered on top.
+		if ( isStaticLight && !isBakedLight && cacheEntry.StaticCache is null )
+		{
+			cacheEntry.StaticCache = AcquireTexture( cacheEntry.CurrentResolution, isCube: false );
+
+			// Render static objects to the static cache, once
+			CSceneSystem.AddShadowView( cacheEntry.DebugName + "_StaticCache",
+				view,
+				nativeFrustum,
+				new( 0, 0, cacheEntry.CurrentResolution, cacheEntry.CurrentResolution ),
+				cacheEntry.StaticCache.native,
+				0,
+				requiredFlags: SceneObjectFlags.StaticObject,
+				excludedFlags: SceneObjectFlags.None,
+				(int)(ShadowDepthBias * biasScale),
+				ShadowSlopeScale * biasScale );
+		}
+
+		bool useStaticCache = cacheEntry.StaticCache is not null;
+
+		// Baked lights exclude static objects from shadow maps, their static shadows come from lightmaps.
+		// Cached lights exclude them too - their static shadows come from the static cache.
+		var excludeFlags = isBakedLight || useStaticCache
 			? SceneObjectFlags.StaticObject
 			: SceneObjectFlags.None;
 
 		RenderViewport viewport = new( 0, 0, cacheEntry.CurrentResolution, cacheEntry.CurrentResolution );
-		CSceneSystem.AddShadowView( cacheEntry.DebugName, view, nativeFrustum, viewport, cacheEntry.ShadowMap.native, 0, SceneObjectFlags.None, excludeFlags, (int)(ShadowDepthBias * biasScale), ShadowSlopeScale * biasScale );
+
+		CSceneSystem.AddShadowView( cacheEntry.DebugName,
+							view,
+							nativeFrustum,
+							viewport,
+							cacheEntry.ShadowMap.native,
+							0,
+							SceneObjectFlags.None,
+							excludeFlags,
+							(int)(ShadowDepthBias * biasScale),
+							ShadowSlopeScale * biasScale,
+							cachedShadowTexture: useStaticCache ? cacheEntry.StaticCache.native : default );
 
 		// Render targets don't use texture streaming surely, is this needed?
 		cacheEntry.ShadowMap.MarkUsed( 2048 );

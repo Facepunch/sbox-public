@@ -5,7 +5,7 @@
 
 // Raw dog motion vectors, use this to get where the offset pixel you're fetching was on last frame
 // Right now this is limited to camera motion only, includes depth delta as well
-class Motion
+struct Motion
 {
     // Reprojects a world position to screen space using the last frame's depth buffer
     static float3 GetFromWorldPosition(float3 worldPosition)

@@ -9,17 +9,9 @@ namespace Sandbox;
 [Icon( "light_mode" )]
 [EditorHandle( "materials/gizmo/directionallight.png" )]
 [Alias( "DirectionalLightComponent" )]
-public class DirectionalLight : Light, Component.IRenderThread
+public class DirectionalLight : Light
 {
 	SceneDirectionalLight _so;
-
-	// Owned internally - generates the contact-shadow mask this light samples.
-	readonly ScreenSpaceShadows _screenSpaceShadows;
-
-	public DirectionalLight()
-	{
-		_screenSpaceShadows = new ScreenSpaceShadows( this );
-	}
 
 	/// <summary>
 	/// Color of the ambient sky color
@@ -84,14 +76,25 @@ public class DirectionalLight : Light, Component.IRenderThread
 	/// fine contact detail the shadow maps miss, at some GPU cost.
 	/// </summary>
 	[Property, Group( "Shadows" ), Title( "Contact Shadows" ), Advanced]
-	public bool ContactShadows { get; set; } = true;
+	public bool ContactShadows
+	{
+		get;
+		set
+		{
+			field = value;
+
+			if ( _so.IsValid() )
+				_so.ContactShadows = value;
+		}
+	} = true;
 
 	protected override SceneLight CreateSceneObject()
 	{
 		return _so = new SceneDirectionalLight( Scene.SceneWorld, WorldRotation, LightColor )
 		{
 			ShadowCascadeCount = ShadowCascadeCount,
-			ShadowCascadeSplitRatio = ShadowCascadeSplitRatio
+			ShadowCascadeSplitRatio = ShadowCascadeSplitRatio,
+			ContactShadows = ContactShadows,
 		};
 	}
 
@@ -100,25 +103,6 @@ public class DirectionalLight : Light, Component.IRenderThread
 		Tags.Add( "light_directional" );
 
 		base.OnAwake();
-	}
-
-	protected override void OnDisabled()
-	{
-		base.OnDisabled();
-
-		_screenSpaceShadows.Disable();
-	}
-
-	void IRenderThread.OnRenderStage( CameraComponent camera, Rendering.Stage stage )
-	{
-		// Turned off for this light - stop publishing a mask so it stops sampling one.
-		if ( !ContactShadows )
-		{
-			_screenSpaceShadows.Disable();
-			return;
-		}
-
-		_screenSpaceShadows.OnRenderStage( camera, stage );
 	}
 
 	protected override void DrawGizmos()

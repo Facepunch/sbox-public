@@ -324,6 +324,13 @@ public class EditorMainWindow : DockWindow
 
 		SetVisible( true );
 
+		// Register the main editor window as an SDL window and tell the input system it's the main window,
+		// needed for relative mouse capture mode. SDL adopts it as its keyboard focus window only if it
+		// holds OS focus when wrapped, so register right after showing - before the layout restore below
+		// hands focus to a native dock child (e.g. a viewport).
+		NativeEngine.InputSystem.RegisterWindowWithSDL( _widget.winId() );
+		NativeEngine.InputSystem.SetEditorMainWindow( _widget.winId() );
+
 		// This will attempt to restore the last used layout (or default layout if first time)
 		// Which means it will create dock widgets and move them around
 		StateCookie = "SboxSceneEditor";
@@ -331,11 +338,6 @@ public class EditorMainWindow : DockWindow
 		EditorEvent.Run( "editor.created", this );
 
 		RebuildApps();
-
-		// Register the main editor window as an SDL window and tell the input system it's the main window
-		// We need this for focusing and relative mouse capture mode
-		NativeEngine.InputSystem.RegisterWindowWithSDL( _widget.winId() );
-		NativeEngine.InputSystem.SetEditorMainWindow( _widget.winId() );
 	}
 
 	public override void SaveToStateCookie()

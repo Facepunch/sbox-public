@@ -126,10 +126,6 @@ public class ClutterDefinitionEditor : BaseResourceEditor<ClutterDefinition>
 			return;
 
 		so.OnPropertyChanged += NoteChanged;
-		var sheet = new ControlSheet();
-		sheet.AddObject( so );
-		sheet.Margin = 0;
-		_scattererProperties.Add( sheet );
 	}
 
 	private Widget CreateStreamingTab( SerializedObject serialized )

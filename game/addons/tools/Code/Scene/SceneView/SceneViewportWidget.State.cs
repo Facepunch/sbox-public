@@ -9,6 +9,7 @@ public partial class SceneViewportWidget
 		public Vector3 CameraPosition { get; set; }
 		public Rotation CameraRotation { get; set; }
 		public float? CameraOrthoHeight { get; set; }
+		public bool CameraOrtho { get; set; }
 	}
 
 	public enum ViewMode
@@ -126,6 +127,17 @@ public partial class SceneViewportWidget
 					break;
 			}
 		}
+
+		internal static Gizmo.GridAxis GridAxisForDirection( Vector3 axisDir )
+		{
+			float[] a = [MathF.Abs( axisDir.x ), MathF.Abs( axisDir.y ), MathF.Abs( axisDir.z )];
+			return Array.IndexOf( a, a.Max() ) switch
+			{
+				0 => Gizmo.GridAxis.YZ,
+				1 => Gizmo.GridAxis.ZX,
+				_ => Gizmo.GridAxis.XY
+			};
+		}
 	}
 	public ViewportState State { get; init; }
 
@@ -148,6 +160,13 @@ public partial class SceneViewportWidget
 				State.CameraOrthoHeight = cookie.CameraOrthoHeight.Value;
 			if ( !State.Is2D )
 				State.CameraRotation = cookie.CameraRotation;
+
+			// Restore an axis-aligned ortho view
+			if ( cookie.CameraOrtho && !State.Is2D )
+			{
+				_gizmoOrthoActive = true;
+				_gizmoOrthoSnap = true;
+			}
 			return;
 		}
 
@@ -192,6 +211,7 @@ public partial class SceneViewportWidget
 				CameraPosition = State.CameraPosition,
 				CameraRotation = State.CameraRotation,
 				CameraOrthoHeight = State.CameraOrthoHeight,
+				CameraOrtho = _gizmoOrthoActive,
 			} );
 		}
 

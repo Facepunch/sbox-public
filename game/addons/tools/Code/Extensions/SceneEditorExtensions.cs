@@ -263,15 +263,14 @@ public static class SceneEditorExtensions
 		canvas.Focus();
 
 		var delta = Application.CursorDelta * 0.1f;
-		var angles = camera.WorldRotation.Angles();
 
 		if ( LockCursorToCanvas( canvas ) )
 			delta = Vector2.Zero;
 
-		var orbitPosition = camera.WorldPosition + camera.WorldRotation.Forward * distance;
-
 		if ( rightMouse )
 		{
+			var orbitPosition = camera.WorldPosition + camera.WorldRotation.Forward * distance;
+
 			float zoomDelta = (delta.x + delta.y) * EditorPreferences.OrbitZoomSpeed;
 
 			if ( EditorPreferences.InvertOrbitZoom )
@@ -290,35 +289,59 @@ public static class SceneEditorExtensions
 				canvas.Cursor = CursorShape.Blank;
 			else
 				canvas.Cursor = CursorShape.SizeV;
-		}
-		else if ( !camera.Orthographic )
-		{
-			angles.roll = 0;
-			angles.yaw -= delta.x;
-			angles.pitch += delta.y;
-			angles = angles.Normal;
-			angles.pitch = angles.pitch.Clamp( -89, 89 );
 
-			camera.WorldRotation = angles;
+			distance = distance.Clamp( 0, 10000 );
+			camera.WorldPosition = orbitPosition + camera.WorldRotation.Backward * distance;
+			self.ClearCameraSmoothing();
 
-			if ( EditorPreferences.HideOrbitCursor )
-				canvas.Cursor = CursorShape.Blank;
-			else
-				canvas.Cursor = CursorShape.ClosedHand;
+			return true;
 		}
-		else
-		{
+
+		if ( camera.Orthographic )
 			return false;
-		}
+
+		// Shared with the scene orientation gizmo drag so both orbit identically.
+		self.OrbitCameraAroundPivot( camera, delta, ref distance );
+
+		if ( EditorPreferences.HideOrbitCursor )
+			canvas.Cursor = CursorShape.Blank;
+		else
+			canvas.Cursor = CursorShape.ClosedHand;
+
+		return true;
+	}
+
+	/// <summary>
+	/// Orbits a camera around a pivot point in a set amount of units in front of it.
+	/// Shared by ALT+drag orbit and the scene orientation gizmo
+	/// </summary>
+	public static void OrbitCameraAroundPivot( this Gizmo.Instance self, CameraComponent camera, Vector2 delta, ref float distance )
+	{
+		var orbitPosition = camera.WorldPosition + camera.WorldRotation.Forward * distance;
+
+		var angles = camera.WorldRotation.Angles();
+		angles.roll = 0;
+		angles.yaw -= delta.x;
+		angles.pitch += delta.y;
+		angles = angles.Normal;
+		angles.pitch = angles.pitch.Clamp( -89, 89 );
+
+		camera.WorldRotation = angles;
 
 		distance = distance.Clamp( 0, 10000 );
 		camera.WorldPosition = orbitPosition + camera.WorldRotation.Backward * distance;
 
+		self.ClearCameraSmoothing();
+	}
+
+	/// <summary>
+	/// Clears the first-person camera smoothing target/velocity so it won't lerp against a camera transform that was set directly (like by orbiting)
+	/// </summary>
+	public static void ClearCameraSmoothing( this Gizmo.Instance self )
+	{
 		// I hate this but we need to stomp the camera lerp in first person camera when we switch back
 		self.SetValue<Vector3?>( "CameraTarget", default );
 		self.SetValue<Vector3>( "CameraVelocity", default );
-
-		return true;
 	}
 
 	/// <summary>

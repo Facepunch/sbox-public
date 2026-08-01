@@ -546,6 +546,14 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	{
 		switch ( renderStage )
 		{
+			case Rendering.Stage.AfterDepthPrepass:
+				{
+					// Light shadow-mask command lists (screen-space contact shadows) only need the
+					// full-res depth buffer, and this stage already runs per view with a valid.
+					ShadowMapperCallbacks.RenderScreenSpaceShadows();
+					break;
+				}
+
 			case Rendering.Stage.AfterPostProcess:
 				{
 					OnRenderOverlay?.Invoke();
@@ -561,6 +569,13 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 
 		// new stuff is commandlist based, so is total thread safe
 		OnRenderStageHook?.InvokeWithWarning( renderStage, this );
+
+		// Editor viewports don't use the game UI render hook, so capture the selected camera after its UI stage.
+		if ( renderStage == Rendering.Stage.AfterUI && IsRecordingCamera && Application.IsEditor && !Game.IsPlaying )
+		{
+			ScreenCaptureUtility.CaptureFrame();
+			ScreenCaptureUtility.DrawRecordingBorder();
+		}
 	}
 
 	/// <summary>

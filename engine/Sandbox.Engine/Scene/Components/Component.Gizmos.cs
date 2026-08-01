@@ -12,9 +12,7 @@ public abstract partial class Component
 	static readonly ReflectionCache<Type, bool> _typeOverridesDrawGizmos = new(
 		t => t.GetMethod( nameof( DrawGizmos ), BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public, null, Type.EmptyTypes, null )?.DeclaringType != typeof( Component ) );
 
-	bool? _overridesDrawGizmos;
-
-	internal bool OverridesDrawGizmos => _overridesDrawGizmos ??= _typeOverridesDrawGizmos[GetType()];
+	internal bool OverridesDrawGizmos => _typeOverridesDrawGizmos[GetType()];
 
 	internal void DrawGizmosInternal()
 	{

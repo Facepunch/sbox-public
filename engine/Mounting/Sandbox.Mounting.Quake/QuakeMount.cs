@@ -156,6 +156,13 @@ public partial class QuakeMount : BaseGameMount
 		var fullpath = Path.Combine( pakDir, path ).Replace( '\\', '/' );
 		if ( !registered.Add( fullpath ) ) return;
 
+		if ( path.EndsWith( "_bk.tga", System.StringComparison.OrdinalIgnoreCase ) )
+		{
+			// skybox
+			context.Add( ResourceType.Material, fullpath[..^7], new QuakeSkybox( pakDir, path[..^7] ) );
+			return;
+		}
+
 		switch ( ext )
 		{
 			case ".mdl": context.Add( ResourceType.Model, fullpath, new QuakeModel( pakDir, path ) ); break;

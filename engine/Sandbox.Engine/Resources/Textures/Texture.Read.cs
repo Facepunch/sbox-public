@@ -229,7 +229,7 @@ public partial class Texture
 		}
 
 		var maxLength = (dstRect.Y + dstRect.H - 1) * dstStride + dstRect.X + dstRect.W;
-		if ( maxLength >= dstData.Length )
+		if ( maxLength > dstData.Length )
 			throw new ArgumentException( $"Output rect size ({maxLength}) exceeds destination array size {dstData.Length}" );
 
 		if ( maxLength <= 0 )

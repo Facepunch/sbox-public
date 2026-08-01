@@ -23,7 +23,6 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 	internal struct LegacyLightData
 	{
 		public int DirectLight;
-		public bool CastShadows;
 		public int BakeLightIndex;
 		public float BakeLightIndexScale;
 		public bool BakedLightIndexing;
@@ -41,21 +40,16 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 
 		public readonly void ApplyTo( CSceneLightObject light )
 		{
-			// Lightbinner only allocates realtime shadow maps for BAKED lights when MIXED_SHADOWS
-			// is set (Stationary, or Baked with castshadows enabled). Without it, indexed/baked
-			// lights light the scene but never cast shadows.
+			// The lightbinner gates realtime shadow maps for baked lights on MIXED_SHADOWS, so only
+			// Stationary may set it - Baked gets its shadows from the lightmap.
 			switch ( DirectLight )
 			{
-				case 3: // HAMMER_DIRECT_LIGHT_STATIONARY — always mixed
+				case 3: // HAMMER_DIRECT_LIGHT_STATIONARY
 					light.SetLightFlags( light.GetLightFlags() | 16 ); // LIGHTTYPE_FLAGS_MIXED_SHADOWS
 					light.SetLightFlags( light.GetLightFlags() | 32 ); // LIGHTTYPE_FLAGS_BAKED
 					break;
 				case 1: // HAMMER_DIRECT_LIGHT_BAKED
 					light.SetLightFlags( light.GetLightFlags() | 32 ); // LIGHTTYPE_FLAGS_BAKED
-																	   // Hammer default is castshadows=Yes on baked lights; treat that as mixed so
-																	   // indexed map lights keep realtime dynamic shadows (static comes from lightmaps).
-					if ( CastShadows )
-						light.SetLightFlags( light.GetLightFlags() | 16 ); // LIGHTTYPE_FLAGS_MIXED_SHADOWS
 					break;
 			}
 
@@ -149,7 +143,7 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 			if ( _sceneObject.IsValid() )
 				_sceneObject.ShadowBias = value;
 		}
-	} = 0.0005f;
+	} = 0.0f;
 
 	[Property, Range( 0, 1 ), Category( "Shadows" )]
 	public float ShadowHardness

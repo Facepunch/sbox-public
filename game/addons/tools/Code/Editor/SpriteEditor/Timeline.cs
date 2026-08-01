@@ -118,7 +118,7 @@ public class Timeline : Widget
 
 		Layout.Add( ScrollArea );
 
-		SetSizeMode( SizeMode.Default, SizeMode.CanShrink );
+		SetSizeMode( SizeMode.Default, SizeMode.Flexible );
 
 		UpdateFrameList();
 		UpdatePlayButton();

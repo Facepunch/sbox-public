@@ -25,4 +25,14 @@ internal static class ShadowMapperCallbacks
 	internal static void UploadToGPU( IntPtr handle ) => Get( handle ).UploadToGPU();
 	internal static uint FindOrCreateShadowMaps( IntPtr handle, SceneLight sceneObject, ISceneView view, float flScreenSize ) => Get( handle ).FindOrCreateShadowMaps( sceneObject, view, flScreenSize );
 	internal static int DoDirectionalLight( IntPtr handle, SceneLight sceneObject, ISceneView view ) => Get( handle ).DoDirectionalLight( sceneObject, view );
+
+	/// <summary>
+	/// Run light command lists for the current Graphics view (after depth).
+	/// </summary>
+	internal static void RenderScreenSpaceShadows()
+	{
+		var view = Graphics.SceneView;
+		foreach ( var sm in ShadowMappers.Values )
+			sm.RenderScreenSpaceShadows( view );
+	}
 }

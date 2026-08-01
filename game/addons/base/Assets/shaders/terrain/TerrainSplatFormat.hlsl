@@ -38,6 +38,7 @@ struct SplatChannel
         return (ExtraData & 0x01) != 0;
     }
     
+    [mutating]
     void SetHole( bool isHole )
     {
         ExtraData = isHole ? (ExtraData | 0x01) : (ExtraData & 0xFFFE);

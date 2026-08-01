@@ -43,7 +43,8 @@ public partial class Mixer
 	MultiChannelBuffer _processorBuffer;
 
 	/// <summary>
-	/// Actually apply the processors to the output buffer
+	/// Apply the processors in place to each per-listener buffer. These include everything our
+	/// children mixed in, so a mixer's processors cover its whole subtree.
 	/// </summary>
 	void ApplyProcessors()
 	{
@@ -56,6 +57,8 @@ public partial class Mixer
 			foreach ( var processor in processors )
 				processor.RemoveListeners( _snapshot.RemovedListeners );
 		}
+
+		if ( processors.Count == 0 ) return;
 
 		foreach ( var listener in _usedListeners )
 		{
@@ -77,8 +80,6 @@ public partial class Mixer
 			}
 
 			ApplyProcessors( processors, targetBuffer, listener, mixTransform );
-
-			_outputBuffer.MixFrom( targetBuffer, 1.0f );
 		}
 	}
 

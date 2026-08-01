@@ -611,6 +611,19 @@ internal class File
 			return (T)value.ToType( typeof( T ) );
 		}
 
+		public readonly bool TryGetValue<T>( string key, out T outValue )
+		{
+			var value = GetValueString( key, null );
+			if ( string.IsNullOrWhiteSpace( value ) )
+			{
+				outValue = default;
+				return false;
+			}
+
+			outValue = (T)value.ToType( typeof( T ) );
+			return true;
+		}
+
 		public readonly string GetString( string key, string defaultValue = default )
 		{
 			return GetValueString( key, defaultValue );

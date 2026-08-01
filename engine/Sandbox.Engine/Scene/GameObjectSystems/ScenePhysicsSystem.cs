@@ -110,7 +110,7 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 
 	void OnIntersectionStart( PhysicsIntersection o )
 	{
-		if ( CollisionEvents is null ) return;
+		if ( CollisionEvents.Count == 0 ) return;
 
 		var c = new Collision( new CollisionSource( o.Self ), new CollisionSource( o.Other ), o.Contact );
 		foreach ( var e in CollisionEvents )
@@ -121,7 +121,7 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 
 	void OnIntersectionHit( PhysicsIntersection o )
 	{
-		if ( CollisionEvents is null ) return;
+		if ( CollisionEvents.Count == 0 ) return;
 
 		var c = new Collision( new CollisionSource( o.Self ), new CollisionSource( o.Other ), o.Contact );
 		foreach ( var e in CollisionEvents )
@@ -132,7 +132,7 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 
 	void OnIntersectionUpdate( PhysicsIntersection o )
 	{
-		if ( CollisionEvents is null ) return;
+		if ( CollisionEvents.Count == 0 ) return;
 
 		var c = new Collision( new CollisionSource( o.Self ), new CollisionSource( o.Other ), o.Contact );
 		foreach ( var e in CollisionEvents )
@@ -143,7 +143,7 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 
 	void OnIntersectionEnd( PhysicsIntersectionEnd o )
 	{
-		if ( CollisionEvents is null ) return;
+		if ( CollisionEvents.Count == 0 ) return;
 
 		var c = new CollisionStop( new CollisionSource( o.Self ), new CollisionSource( o.Other ) );
 		foreach ( var e in CollisionEvents )

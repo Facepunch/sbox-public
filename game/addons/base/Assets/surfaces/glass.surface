@@ -43,6 +43,10 @@
       "_type": "gameobject",
       "prefab": "prefabs/surface/glass_bullet.prefab"
     },
+    "BulletImpactDecal": {
+      "_type": "gameobject",
+      "prefab": "prefabs/surface/glass_bullet-decal.prefab"
+    },
     "BluntImpact": null
   },
   "SoundCollection": {

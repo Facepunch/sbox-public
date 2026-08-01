@@ -6,6 +6,11 @@
 <root class="reward-card-panel @( IsSelected ? "selected" : "" ) @RarityClass" style="@BorderStyle">
 
 	<div class="card-art" style="background-image: url( @Item?.Icon )">
+		@if ( Item?.IsOwned ?? false )
+		{
+			<div class="owned-pill">@Item.OwnedCount OWNED</div>
+		}
+
 		@if ( IsSelected )
 		{
 			<div class="check-circle">
@@ -42,5 +47,5 @@
 		? $"border-color: {Item.RarityColor}"
 		: "";
 
-	protected override int BuildHash() => HashCode.Combine( Item?.ItemDefId, IsSelected, Item?.Rarity );
+	protected override int BuildHash() => HashCode.Combine( Item?.ItemDefId, IsSelected, Item?.Rarity, Item?.OwnedCount );
 }

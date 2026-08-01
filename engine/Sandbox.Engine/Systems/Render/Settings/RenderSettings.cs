@@ -159,6 +159,39 @@ public partial class RenderSettings
 		}
 	}
 
+	/// <summary>
+	/// DLSS quality preset (Ultra Performance / Performance / Balanced / Quality / DLAA), maps
+	/// to a discrete render-resolution multiplier. Only used when <see cref="UpscalerMode"/>
+	/// is <see cref="UpscalerMode.DLSS"/>. DLSS has no sharpness control.
+	/// </summary>
+	public DlssQuality DlssQuality
+	{
+		get => VideoSettings.Get<DlssQuality>( "upscaler.dlss_quality", DlssQuality.Performance );
+		set
+		{
+			VideoSettings.Set<DlssQuality>( "upscaler.dlss_quality", value );
+			if ( value != DlssQuality.Off )
+				ConVarSystem.SetInt( "r_dlss_quality", (int)value, true );
+		}
+	}
+
+	/// <summary>
+	/// Returns whether the given <see cref="UpscalerMode"/> is usable on the current graphics
+	/// device. Off / Stretch / FSR1 / FSR3 are always available; DLSS requires NVIDIA hardware
+	/// with NGX support and is queried from the native render device.
+	/// </summary>
+	public static bool IsUpscalerModeSupported( UpscalerMode mode )
+	{
+		// UpscalerType from src/public/rendersystem/iupscaler.h: NONE=0, AMD_FSR3=2, NVIDIA_DLSS=3.
+		const int UPSCALER_NVIDIA_DLSS = 3;
+
+		return mode switch
+		{
+			UpscalerMode.DLSS => NativeEngine.RenderDeviceManager.IsUpscalerSupported( UPSCALER_NVIDIA_DLSS ),
+			_ => true,
+		};
+	}
+
 	public void ResetVideoConfig()
 	{
 		int desktopWidth = 0;
@@ -181,6 +214,7 @@ public partial class RenderSettings
 		Fsr1Sharpness = 0.25f;
 		Fsr3UpscalerQuality = Fsr3UpscalerQuality.Performance;
 		Fsr3Sharpness = 0.5f;
+		DlssQuality = DlssQuality.Performance;
 
 		VideoSettings.Save();
 	}

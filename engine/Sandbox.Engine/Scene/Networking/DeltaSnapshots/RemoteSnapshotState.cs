@@ -14,7 +14,7 @@ internal class RemoteSnapshotState
 	/// </summary>
 	private const float MaximumAckResponseTime = 0.25f;
 
-	private record struct PredictedEntry( byte[] Value, float ExpireTime, ulong Hash );
+	private record struct PredictedEntry( ushort SnapshotId, byte[] Value, float ExpireTime, ulong Hash );
 	public record struct Entry( ushort SnapshotId, byte[] Data, ulong Hash );
 
 	// One of these exists per (connection, object) and holds one entry per synced slot -> don't pre-size them
@@ -49,10 +49,11 @@ internal class RemoteSnapshotState
 	/// Add a predicted entry to the snapshot from a <see cref="DeltaSnapshot.SnapshotDataEntry"/>.
 	/// </summary>
 	/// <param name="input"></param>
+	/// <param name="snapshotId"></param>
 	/// <param name="timeNow"></param>
-	public void AddPredicted( in DeltaSnapshot.SnapshotDataEntry input, float timeNow )
+	public void AddPredicted( in DeltaSnapshot.SnapshotDataEntry input, ushort snapshotId, float timeNow )
 	{
-		_predictedData[input.Slot] = new PredictedEntry( input.Value, timeNow + MaximumAckResponseTime, input.Hash );
+		_predictedData[input.Slot] = new PredictedEntry( snapshotId, input.Value, timeNow + MaximumAckResponseTime, input.Hash );
 	}
 
 	/// <summary>
@@ -63,7 +64,11 @@ internal class RemoteSnapshotState
 		if ( Data.TryGetValue( input.Slot, out var entry ) && !IsNewer( snapshotId, entry.SnapshotId ) )
 			return;
 
-		_predictedData.Remove( input.Slot );
+		if ( _predictedData.TryGetValue( input.Slot, out var predicted ) && !IsNewer( predicted.SnapshotId, snapshotId ) )
+		{
+			_predictedData.Remove( input.Slot );
+		}
+
 		Data[input.Slot] = new Entry( snapshotId, input.Value, input.Hash );
 	}
 
@@ -88,10 +93,16 @@ internal class RemoteSnapshotState
 	/// </summary>
 	public bool TryGetHash( int slot, out ulong hash, float timeNow )
 	{
-		if ( _predictedData.TryGetValue( slot, out var predicted ) && timeNow <= predicted.ExpireTime )
+		if ( _predictedData.TryGetValue( slot, out var predicted ) )
 		{
-			hash = predicted.Hash;
-			return true;
+			if ( timeNow <= predicted.ExpireTime )
+			{
+				hash = predicted.Hash;
+				return true;
+			}
+
+			hash = 0;
+			return false;
 		}
 
 		if ( Data.TryGetValue( slot, out var e ) )
@@ -118,10 +129,16 @@ internal class RemoteSnapshotState
 	/// </summary>
 	public bool TryGetValue( int slot, out byte[] value, float timeNow )
 	{
-		if ( _predictedData.TryGetValue( slot, out var predicted ) && timeNow <= predicted.ExpireTime )
+		if ( _predictedData.TryGetValue( slot, out var predicted ) )
 		{
-			value = predicted.Value;
-			return true;
+			if ( timeNow <= predicted.ExpireTime )
+			{
+				value = predicted.Value;
+				return true;
+			}
+
+			value = null;
+			return false;
 		}
 
 		if ( Data.TryGetValue( slot, out var e ) )

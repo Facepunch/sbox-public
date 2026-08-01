@@ -88,7 +88,7 @@ float Terrain_HeightBlendWeight( float t, float baseHeight, float overlayHeight,
 // This will get more complex with regions as we grow.. Regions means multiple heightmaps
 // So lets have a nice helper class for most things
 // This should just be for accessing data, rendering related methods shouldn't be crammed in here
-class Terrain
+struct Terrain
 {
     static int Count() { return g_nTerrainCount; }
     static TerrainStruct Get() { return g_Terrains[0]; }

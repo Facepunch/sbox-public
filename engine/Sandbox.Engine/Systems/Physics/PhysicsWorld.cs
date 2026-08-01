@@ -111,7 +111,7 @@ public sealed partial class PhysicsWorld : IHandle
 	public void Step( float delta ) => Step( delta, 1 );
 
 	[UnmanagedFunctionPointer( CallingConvention.StdCall )]
-	unsafe delegate void ProcessIntersectionsDelegate_t( VPhysIntersectionNotification_t* ptr );
+	unsafe delegate void ProcessIntersectionsDelegate_t( VPhysIntersectionNotification_t* notifications, int count );
 
 	internal double CurrentTime;
 	internal float CurrentDelta;
@@ -162,9 +162,8 @@ public sealed partial class PhysicsWorld : IHandle
 
 	internal unsafe void ProcessIntersections()
 	{
-		// I wonder if this is slow and we should cache it?
 		if ( onIntersectionFunctionPointer == DelegateFunctionPointer.Null )
-			onIntersectionFunctionPointer = DelegateFunctionPointer.Get<ProcessIntersectionsDelegate_t>( OnIntersection );
+			onIntersectionFunctionPointer = DelegateFunctionPointer.Get<ProcessIntersectionsDelegate_t>( OnIntersections );
 
 		world.ProcessIntersections( onIntersectionFunctionPointer );
 	}
@@ -190,6 +189,10 @@ public sealed partial class PhysicsWorld : IHandle
 			public IPhysicsBody Body;
 
 			public int SurfaceIndex;
+
+			// HandleIndex values filled by native so we don't have to call back to resolve them
+			public int ShapeManagedIndex;
+			public int BodyManagedIndex;
 		};
 	}
 
@@ -210,55 +213,61 @@ public sealed partial class PhysicsWorld : IHandle
 	internal Action<PhysicsBody> OnBodyOutOfBounds { get; set; }
 	internal Action<PhysicsBody> OnBodyFellAsleep { get; set; }
 
-	unsafe void OnIntersection( VPhysIntersectionNotification_t* ptr )
+	unsafe void OnIntersections( VPhysIntersectionNotification_t* notifications, int count )
 	{
-		try
+		for ( int i = 0; i < count; i++ )
 		{
-			var c = new PhysicsContact( ptr );
-			var a = new PhysicsContact.Target( ptr->Left );
-			var b = new PhysicsContact.Target( ptr->Right );
+			try
+			{
+				var ptr = notifications + i;
 
-			Assert.NotNull( a.Body, "a.Body was null.. does this make any sense?" );
-			Assert.NotNull( b.Body, "b.Body was null.. does this make any sense?" );
+				var a = new PhysicsContact.Target( ptr->Left );
+				var b = new PhysicsContact.Target( ptr->Right );
 
-			if ( ptr->Reason == IntersectionEventType_t.TouchBegin )
-			{
-				OnIntersectionStart?.InvokeWithWarning( new PhysicsIntersection( a, b, c ) );
-				a.Body.DispatchIntersectionStart( new PhysicsIntersection( a, b, c ) );
-				b.Body.DispatchIntersectionStart( new PhysicsIntersection( b, a, c ) );
+				// A handler earlier in the batch may have deleted one of these, skip the event like native used to
+				if ( !a.Body.IsValid() || !b.Body.IsValid() || !a.Shape.IsValid() || !b.Shape.IsValid() )
+					continue;
+
+				var c = new PhysicsContact( ptr );
+
+				if ( ptr->Reason == IntersectionEventType_t.TouchBegin )
+				{
+					OnIntersectionStart?.InvokeWithWarning( new PhysicsIntersection( a, b, c ) );
+					a.Body.DispatchIntersectionStart( new PhysicsIntersection( a, b, c ) );
+					b.Body.DispatchIntersectionStart( new PhysicsIntersection( b, a, c ) );
+				}
+				else if ( ptr->Reason == IntersectionEventType_t.Hit )
+				{
+					OnIntersectionHit?.InvokeWithWarning( new PhysicsIntersection( a, b, c ) );
+				}
+				else if ( ptr->Reason == IntersectionEventType_t.TouchEnd )
+				{
+					OnIntersectionEnd?.InvokeWithWarning( new PhysicsIntersectionEnd( a, b ) );
+					a.Body.DispatchIntersectionEnd( new PhysicsIntersectionEnd( a, b ) );
+					b.Body.DispatchIntersectionEnd( new PhysicsIntersectionEnd( b, a ) );
+				}
+				else if ( ptr->Reason == IntersectionEventType_t.TouchPersists )
+				{
+					OnIntersectionUpdate?.InvokeWithWarning( new PhysicsIntersection( a, b, c ) );
+					a.Body.DispatchIntersectionUpdate( new PhysicsIntersection( a, b, c ) );
+					b.Body.DispatchIntersectionUpdate( new PhysicsIntersection( b, a, c ) );
+				}
+				else if ( ptr->Reason == IntersectionEventType_t.TriggerBegin )
+				{
+					a.Body.DispatchTriggerBegin( new PhysicsIntersection( a, b, c ) );
+					b.Body.DispatchTriggerBegin( new PhysicsIntersection( b, a, c ) );
+				}
+				else if ( ptr->Reason == IntersectionEventType_t.TriggerEnd )
+				{
+					a.Body.DispatchTriggerEnd( new PhysicsIntersectionEnd( a, b ) );
+					b.Body.DispatchTriggerEnd( new PhysicsIntersectionEnd( b, a ) );
+				}
 			}
-			else if ( ptr->Reason == IntersectionEventType_t.Hit )
+			catch ( System.Exception e )
 			{
-				OnIntersectionHit?.InvokeWithWarning( new PhysicsIntersection( a, b, c ) );
-			}
-			else if ( ptr->Reason == IntersectionEventType_t.TouchEnd )
-			{
-				OnIntersectionEnd?.InvokeWithWarning( new PhysicsIntersectionEnd( a, b ) );
-				a.Body.DispatchIntersectionEnd( new PhysicsIntersectionEnd( a, b ) );
-				b.Body.DispatchIntersectionEnd( new PhysicsIntersectionEnd( b, a ) );
-			}
-			else if ( ptr->Reason == IntersectionEventType_t.TouchPersists )
-			{
-				OnIntersectionUpdate?.InvokeWithWarning( new PhysicsIntersection( a, b, c ) );
-				a.Body.DispatchIntersectionUpdate( new PhysicsIntersection( a, b, c ) );
-				b.Body.DispatchIntersectionUpdate( new PhysicsIntersection( b, a, c ) );
-			}
-			else if ( ptr->Reason == IntersectionEventType_t.TriggerBegin )
-			{
-				a.Body.DispatchTriggerBegin( new PhysicsIntersection( a, b, c ) );
-				b.Body.DispatchTriggerBegin( new PhysicsIntersection( b, a, c ) );
-			}
-			else if ( ptr->Reason == IntersectionEventType_t.TriggerEnd )
-			{
-				a.Body.DispatchTriggerEnd( new PhysicsIntersectionEnd( a, b ) );
-				b.Body.DispatchTriggerEnd( new PhysicsIntersectionEnd( b, a ) );
+				Log.Error( e );
 			}
 		}
-		catch ( System.Exception e )
-		{
-			Log.Error( e );
-		}
-
 	}
 
 	Vector3 gravity;
@@ -481,11 +490,8 @@ public readonly unsafe struct PhysicsContact
 	{
 		internal Target( in VPhysIntersectionNotification_t.Side o )
 		{
-			Assert.True( o.Body.IsValid );
-			Assert.True( o.Shape.IsValid );
-
-			Body = o.Body.ManagedObject();
-			Shape = o.Shape.ManagedObject();
+			Body = HandleIndex.Get<PhysicsBody>( o.BodyManagedIndex );
+			Shape = HandleIndex.Get<PhysicsShape>( o.ShapeManagedIndex );
 			Surface = Surface.FindByIndex( o.SurfaceIndex );
 		}
 

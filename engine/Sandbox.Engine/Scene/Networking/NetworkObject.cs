@@ -534,6 +534,9 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		if ( GameObject?.IsDestroyed ?? true )
 			return;
 
+		if ( !Networking.IsHost )
+			return;
+
 		if ( !_createMessageConnections.Add( target.Id ) )
 			return;
 

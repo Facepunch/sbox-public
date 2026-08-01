@@ -22,8 +22,7 @@ FEATURES
 //=========================================================================================================================
 MODES
 {
-    Forward();                                               // Indicates this shader will be used for main rendering
-    ToolsShadingComplexity("tools_shading_complexity.shader"); // Shows how expensive drawing is in debug view
+    Forward(); // Indicates this shader will be used for main rendering
     Depth( S_MODE_DEPTH );
 }
 
@@ -46,6 +45,10 @@ struct VertexInput
 struct PixelInput
 {
     #include "common/pixelinput.hlsl"
+
+    #if ( PROGRAM == VFX_PROGRAM_PS )
+        bool bIsFrontface : SV_IsFrontFace;
+    #endif
 };
 
 //=========================================================================================================================
@@ -106,6 +109,7 @@ PS
     #include "common/pixel.hlsl"
     #include "common/classes/Depth.hlsl"
 
+    RenderState( CullMode, F_RENDER_BACKFACES ? NONE : DEFAULT );
     BoolAttribute(bWantsFBCopyTexture, S_GLASS_QUALITY != GLASS_CHEAP );
     
     Texture2D g_tFrameBufferCopyTexture < Attribute("FrameBufferCopyTexture");   SrgbRead( false ); >;    
@@ -184,6 +188,12 @@ PS
             return 1;
         }
         #endif
+
+        // refractive glass freaks out on backfaces if normals aren't flipped
+        if ( !i.bIsFrontface )
+        {
+            m.Normal = -m.Normal;
+        }
 
         m.Metalness = 0; // Glass is always non-metallic
 

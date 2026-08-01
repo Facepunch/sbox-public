@@ -58,6 +58,8 @@ public partial class StickyPopup : Widget
 
 		scrollArea.Canvas.Layout = Layout.Column();
 		scrollArea.Canvas.Layout.Margin = new( 8, 0, 8, 8 );
+		scrollArea.Canvas.VerticalSizeMode = SizeMode.CanGrow;
+		scrollArea.Canvas.Layout.SizeConstraint = SizeConstraint.SetMinimumSize;
 		scrollArea.Canvas.Name = "StickyPopupCanvas";
 
 		//
@@ -90,8 +92,14 @@ public partial class StickyPopup : Widget
 
 	protected override Vector2 SizeHint()
 	{
-		var totalHeight = Children.Sum( x => x is ScrollArea scrollArea ? scrollArea.Canvas.Height : x.Height );
-		return new Vector2( PreferredWidth, MathF.Min( totalHeight, MaxHeight ) );
+		var contentHeight = Children.Sum( x => x is ScrollArea { Canvas: { } canvas }
+			? MathF.Max( canvas.Height, canvas.MinimumHeight )
+			: x.Height );
+
+		var size = base.SizeHint();
+		size.x = MathF.Max( size.x, PreferredWidth );
+		size.y = MathF.Min( MathF.Max( size.y, contentHeight ), MaxHeight );
+		return size;
 	}
 
 	protected override void DoLayout()

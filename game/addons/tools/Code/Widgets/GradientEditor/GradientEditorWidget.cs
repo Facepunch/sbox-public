@@ -81,8 +81,8 @@ public partial class GradientEditorWidget : Widget
 		{
 			_value = value;
 			Update();
-			ValueChanged?.Invoke( _value );
 			UpdatePoints();
+			ValueChanged?.Invoke( _value );
 		}
 	}
 
@@ -168,6 +168,9 @@ public partial class GradientEditorWidget : Widget
 
 	private void SelectNext( bool forward )
 	{
+		if ( selectedPoint is null )
+			return;
+
 		int currentIdx = selectedPoint.Index;
 
 		if ( IsColorSelection )
@@ -232,11 +235,15 @@ public partial class GradientEditorWidget : Widget
 	void OnEdited()
 	{
 		Update();
+		ValueChanged?.Invoke( _value );
 	}
 
 	[Shortcut( "editor.delete", "DEL" )]
 	void DeletePoint()
 	{
+		if ( selectedPoint is null )
+			return;
+
 		alphaBar.Points.Remove( selectedPoint );
 		colorBar.Points.Remove( selectedPoint );
 
@@ -359,6 +366,8 @@ public partial class GradientEditorWidget : Widget
 		editColor.Enabled = color && p is not null;
 		editAlpha.Enabled = !color && p is not null;
 		editPosition.Enabled = p is not null;
+
+		Update();
 	}
 
 	[WidgetGallery]

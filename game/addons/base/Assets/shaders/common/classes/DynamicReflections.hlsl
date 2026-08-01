@@ -4,7 +4,7 @@
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Accessor for the result of dynamic reflections, whether they are SSR or eventually Raytraced Reflections
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-class DynamicReflections
+struct DynamicReflections
 {
     static float4 Sample(float2 ScreenPosition, float Roughness = 0.0f)
     {

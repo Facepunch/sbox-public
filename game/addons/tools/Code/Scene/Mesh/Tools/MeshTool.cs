@@ -62,6 +62,35 @@ public partial class MeshTool : EditorTool
 	public override void OnUpdate()
 	{
 		AllowGameObjectSelection = CurrentTool?.GetType() == typeof( ObjectSelection );
+
+		DrawBadFaces();
+	}
+
+	/// <summary>
+	/// Outline faces that failed to triangulate so they can be seen and fixed.
+	/// </summary>
+	private void DrawBadFaces()
+	{
+		foreach ( var component in Scene.GetAllComponents<MeshComponent>() )
+		{
+			var mesh = component.Mesh;
+			if ( mesh is null || mesh.BadFaces.Count == 0 )
+				continue;
+
+			using var scope = Gizmo.Scope( "BadFaces", component.WorldTransform );
+
+			Gizmo.Draw.IgnoreDepth = true;
+			Gizmo.Draw.LineThickness = 3;
+			Gizmo.Draw.Color = Color.Red;
+
+			foreach ( var hFace in mesh.BadFaces )
+			{
+				if ( !hFace.IsValid )
+					continue;
+
+				Gizmo.Draw.Lines( mesh.GetFaceEdges( hFace ).Select( mesh.GetEdgeLine ) );
+			}
+		}
 	}
 
 	public override void OnSelectionChanged()

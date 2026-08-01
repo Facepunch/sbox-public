@@ -90,8 +90,20 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 			}
 		}
 
+		if ( ShowSelectionBounds )
+			DrawBounds();
+
 		if ( edges.Count == 2 )
 			AngleFromEdges( edges[0], edges[1] );
+	}
+
+	private void DrawBounds()
+	{
+		using ( Gizmo.Scope( "Edge Size" ) )
+		{
+			var box = CalculateSelectionBounds();
+			DimensionDisplay.DrawBounds( box );
+		}
 	}
 
 	protected override IEnumerable<MeshEdge> ConvertSelectionToCurrentType()

@@ -73,7 +73,7 @@
 						<Item Context="item">
 							@if (item is ResourceLoader scene)
 							{
-							<MapTile Title="@scene.Name" Tooltip="@scene.Path" OnSelect=@(() => OnSelectScene(scene.Path)) />
+							<MapTile Title="@scene.Name" Thumbnail="@((scene as IThumbnailProvider)?.Thumbnail)" Tooltip="@scene.Path" OnSelect=@(() => OnSelectScene(scene.Path)) />
 						}
 					</Item>
 				</VirtualGrid>

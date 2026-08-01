@@ -19,6 +19,12 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 	private readonly HashSet<Terrain> _subscribedTerrains = [];
 	private Vector3 _lastCameraPosition;
 
+	// Reused by the update path so an idle scene doesn't allocate.
+	private readonly List<ClutterComponent> _activeInfinite = [];
+	private readonly List<ClutterComponent> _componentsToRemove = [];
+	private readonly List<Terrain> _sceneTerrains = [];
+	private readonly HashSet<ClutterLayer> _layersToRebuild = [];
+
 	/// <summary>
 	/// Storage for painted clutter model instances.
 	/// Serialized with the scene - this is the source of truth for painted clutter.
@@ -106,7 +112,10 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 
 	private void SubscribeToTerrains()
 	{
-		foreach ( var terrain in Scene.GetAllComponents<Terrain>() )
+		_sceneTerrains.Clear();
+		Scene.GetAll( _sceneTerrains );
+
+		foreach ( var terrain in _sceneTerrains )
 		{
 			if ( _subscribedTerrains.Add( terrain ) )
 			{
@@ -135,11 +144,15 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 
 	private void RemoveInactiveComponents( List<ClutterComponent> activeInfiniteComponents )
 	{
-		var toRemove = _componentToLayer.Keys
-			.Where( c => !c.IsValid() || (c.Infinite && !activeInfiniteComponents.Contains( c )) )
-			.ToList();
+		_componentsToRemove.Clear();
 
-		foreach ( var component in toRemove )
+		foreach ( var component in _componentToLayer.Keys )
+		{
+			if ( !component.IsValid() || (component.Infinite && !activeInfiniteComponents.Contains( component )) )
+				_componentsToRemove.Add( component );
+		}
+
+		foreach ( var component in _componentsToRemove )
 		{
 			_componentToLayer[component].ClearAllTiles();
 			_componentToLayer.Remove( component );
@@ -148,12 +161,12 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 
 	private void UpdateInfiniteLayers( Vector3 cameraPosition )
 	{
-		var activeComponents = Scene.GetAllComponents<ClutterComponent>()
-			.Where( c => c.Active && c.Infinite )
-			.ToList();
+		_activeInfinite.Clear();
+		Scene.GetAll( _activeInfinite );
+		_activeInfinite.RemoveAll( static c => !c.Active || !c.Infinite );
 
-		RemoveInactiveComponents( activeComponents );
-		UpdateActiveComponents( activeComponents, cameraPosition );
+		RemoveInactiveComponents( _activeInfinite );
+		UpdateActiveComponents( _activeInfinite, cameraPosition );
 	}
 
 	/// <summary>
@@ -289,7 +302,7 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 			return;
 
 		// Track which layers had tiles populated
-		HashSet<ClutterLayer> layersToRebuild = [];
+		_layersToRebuild.Clear();
 
 		_pendingJobs.RemoveAll( job =>
 			!job.Parent.IsValid() ||
@@ -330,25 +343,30 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 				processed++;
 
 				if ( job.Layer != null )
-					layersToRebuild.Add( job.Layer );
+					_layersToRebuild.Add( job.Layer );
 			}
 		}
 
 		// Rebuild batches for layers that had tiles populated
-		foreach ( var layer in layersToRebuild )
+		foreach ( var layer in _layersToRebuild )
 		{
 			layer.RebuildBatches();
 		}
 
-		var infiniteJobs = _pendingJobs.Where( j => j.Tile != null ).ToList();
-		if ( infiniteJobs.Count > MAX_PENDING_JOBS )
+		var infiniteJobs = 0;
+		foreach ( var job in _pendingJobs )
+			if ( job.Tile != null ) infiniteJobs++;
+
+		// Drop the furthest queued tiles. Sorted by distance, so walking back from the end takes those.
+		for ( int i = _pendingJobs.Count - 1; i >= 0 && infiniteJobs > MAX_PENDING_JOBS; i-- )
 		{
-			var toRemove = infiniteJobs.Skip( MAX_PENDING_JOBS ).ToList();
-			foreach ( var job in toRemove )
-			{
-				_pendingTiles.Remove( job.Tile );
-				_pendingJobs.Remove( job );
-			}
+			var job = _pendingJobs[i];
+			if ( job.Tile == null )
+				continue;
+
+			_pendingTiles.Remove( job.Tile );
+			_pendingJobs.RemoveAt( i );
+			infiniteJobs--;
 		}
 	}
 

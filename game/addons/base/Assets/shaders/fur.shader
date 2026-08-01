@@ -165,6 +165,9 @@ PS
 		vAlbedo = lerp( vAlbedo, vAlbedo * flFur, g_flNoiseAlbedoMultiply );
 		vAlbedo += vRimColour;
 
+		// Albedo tint
+		vAlbedo *= i.vVertexColor.rgb;
+
 		// Finish this by setting up material slots
 		m.Albedo = vAlbedo;
 		m.Normal = vNormal;

@@ -1,0 +1,248 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@using Sandbox.UI.Navigation;
+@using Sandbox.Html;
+@using Sandbox.Services;
+@inherits Panel
+
+@if ( InGame.Count > 0 )
+{
+    <div class="head">
+        <label class="section-label">In game now</label>
+    </div>
+
+    @foreach ( var live in InGame )
+    {
+        <div class="event">
+
+            <div class="avatar" style="background-image: url(avatar:@live.Id)" />
+
+            <div class="live-body">
+                <label class="live-name">@live.Name</label>
+                <label class="live-in">in</label>
+                <label class="live-game">@live.Game</label>
+            </div>
+
+            <div class="grow" />
+
+            @if ( live.Joinable )
+            {
+                <div class="join clicky" @onclick="@(() => Join( live ))">
+                    <label>Join</label>
+                </div>
+            }
+
+        </div>
+    }
+
+    <div class="group-rule" />
+}
+
+<div class="head">
+    <label class="section-label">Activity feed</label>
+</div>
+
+@foreach ( var entry in Events )
+{
+    <div class="event">
+
+        <div class="thumb" style="@( ThumbStyle( entry ) )" />
+
+        <div class="event-body">
+
+            <Label class="event-action" IsRich="@(true)" Text="@( ActionText( entry ) )" OnNodeClicked="@OnNodeClicked" />
+
+            @if ( entry.Package is not null )
+            {
+                <label class="event-game clicky" @onclick="@(() => entry.Package.OpenModal())">@entry.Package.Title</label>
+            }
+
+        </div>
+
+        <label class="event-time">@( (DateTimeOffset.UtcNow - entry.Timestamp).Humanize( true ) )</label>
+
+    </div>
+}
+
+<div class="footer-rule" />
+
+<label class="see-all clicky" @onclick="@SeeAll">See all activity ›</label>
+
+@code
+{
+    [Parameter] public Sandbox.Services.Feed[] Activity { get; set; }
+
+    [Parameter] public int Take { get; set; } = 8;
+
+    /// <summary>Snapshotted so we don't hit Steam every frame.</summary>
+    class LiveFriend
+    {
+        public Friend Handle;
+        public ulong Id;
+        public string Name;
+        public string Game;
+        public bool Joinable;
+    }
+
+    List<LiveFriend> InGame { get; set; } = new();
+
+    const float FriendCheckInterval = 3f;
+
+    TimeSince timeSinceFriendCheck = FriendCheckInterval;
+
+    /// <summary>One row per person, newest entry each. The feed arrives newest-first.</summary>
+    IEnumerable<Sandbox.Services.Feed> Events
+    {
+        get
+        {
+            var live = new HashSet<ulong>( InGame.Select( x => x.Id ) );
+            var seen = new HashSet<ulong>();
+            var result = new List<Sandbox.Services.Feed>();
+
+            foreach ( var entry in Activity ?? Array.Empty<Sandbox.Services.Feed>() )
+            {
+                if ( entry?.Player is null ) continue;
+                if ( IsRating( entry ) ) continue;
+
+                var id = entry.Player.Id.ValueUnsigned;
+
+                // Already in the group above.
+                if ( live.Contains( id ) ) continue;
+                if ( !seen.Add( id ) ) continue;
+
+                result.Add( entry );
+
+                if ( result.Count >= Take ) break;
+            }
+
+            return result;
+        }
+    }
+
+    /// <summary>Ratings aren't activity worth a row.</summary>
+    static bool IsRating( Sandbox.Services.Feed entry )
+    {
+        if ( string.IsNullOrEmpty( entry.Text ) ) return true;
+
+        return entry.Text.StartsWith( "liked", StringComparison.OrdinalIgnoreCase )
+            || entry.Text.StartsWith( "disliked", StringComparison.OrdinalIgnoreCase );
+    }
+
+    /// <summary>Game thumbnail, falling back to the player's avatar when there's no package.</summary>
+    static string ThumbStyle( Sandbox.Services.Feed entry )
+    {
+        var url = entry.Package?.Thumb;
+
+        if ( string.IsNullOrEmpty( url ) )
+            url = entry.Player.Avatar;
+
+        return $"background-image: url({url})";
+    }
+
+    /// <summary>
+    /// "Lorenz played" - the {package} placeholder is dropped, since the title is drawn on
+    /// its own line below. Not every entry type has the placeholder anyway.
+    /// </summary>
+    string ActionText( Sandbox.Services.Feed entry )
+    {
+        var action = System.Net.WebUtility.HtmlEncode( entry.Text ?? "" );
+
+        action = action.Replace( "{package}", " " );
+
+        while ( action.Contains( "  " ) )
+            action = action.Replace( "  ", " " );
+
+        action = action.Trim();
+
+        var name = System.Net.WebUtility.HtmlEncode( entry.Player.Name );
+
+        return $"<a href=\"player:{entry.Player.Id}\" class=\"front-friend\">{name}</a> {action}";
+    }
+
+    void OnNodeClicked( INode node )
+    {
+        var href = node.GetAttribute( "href", null );
+
+        if ( href is not null && href.StartsWith( "player:" ) && long.TryParse( href["player:".Length..], out var steamId ) )
+        {
+            Game.Overlay.ShowPlayer( steamId );
+        }
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( !IsVisible ) return;
+        if ( timeSinceFriendCheck < FriendCheckInterval ) return;
+
+        timeSinceFriendCheck = 0;
+        RefreshInGame();
+    }
+
+    void RefreshInGame()
+    {
+        var found = new List<LiveFriend>();
+
+        foreach ( var friend in MenuUtility.Friends )
+        {
+            if ( friend.IsMe ) continue;
+            if ( !friend.IsPlayingThisGame ) continue;
+
+            // "menu" means they're idling in the main menu.
+            var game = friend.GetRichPresence( "gametitle" );
+            if ( string.IsNullOrWhiteSpace( game ) ) continue;
+            if ( string.Equals( game, "menu", StringComparison.OrdinalIgnoreCase ) ) continue;
+
+            found.Add( new LiveFriend
+            {
+                Handle = friend,
+                Id = friend.Id,
+                Name = friend.Name,
+                Game = game,
+                Joinable = MenuHelpers.HasAuthority
+                    && !string.IsNullOrWhiteSpace( friend.GetRichPresence( "connect" ) ),
+            } );
+        }
+
+        found = found.OrderBy( x => x.Name ).ToList();
+
+        if ( Unchanged( found ) )
+            return;
+
+        InGame = found;
+        StateHasChanged();
+    }
+
+    bool Unchanged( List<LiveFriend> found )
+    {
+        if ( found.Count != InGame.Count )
+            return false;
+
+        for ( int i = 0; i < found.Count; i++ )
+        {
+            if ( found[i].Id != InGame[i].Id ) return false;
+            if ( found[i].Game != InGame[i].Game ) return false;
+            if ( found[i].Joinable != InGame[i].Joinable ) return false;
+        }
+
+        return true;
+    }
+
+    void Join( LiveFriend live )
+    {
+        if ( !MenuHelpers.HasAuthority )
+            return;
+
+        MenuUtility.JoinFriendGame( live.Handle );
+    }
+
+    void SeeAll()
+    {
+        this.Navigate( "/hub" );
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Activity?.Length, Activity?.FirstOrDefault()?.Timestamp, Take, InGame.Count );
+}

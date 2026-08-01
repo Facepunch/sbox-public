@@ -22,8 +22,6 @@ public partial class SceneViewportWidget : Widget
 
 	public SceneRenderingWidget Renderer;
 
-	ViewportOptions ViewportOptions;
-
 	/// <summary>
 	/// NOTE: You should not access position or rotation from here, get and set from  <see cref="State"/> instead.
 	/// </summary>
@@ -80,10 +78,6 @@ public partial class SceneViewportWidget : Widget
 		Overlay.Position = ScreenPosition;
 		Overlay.Size = Size;
 		Overlay.Show();
-
-		ViewportOptions = new ViewportOptions( this );
-		Overlay.Header.Add( ViewportOptions );
-		ViewportOptions.Show();
 
 		FocusMode = FocusMode.None;
 	}
@@ -191,6 +185,46 @@ public partial class SceneViewportWidget : Widget
 	/// </summary>
 	private static float SizeFromDistanceAndFieldOfView( float distance, float fov )
 		=> 2.0f * distance * MathF.Tan( 0.5f * MathX.DegreeToRadian( fov ) );
+
+	private Gizmo.GridAxis? _lastGridAxis;
+
+	private void EnterPerspectiveView()
+	{
+		var wasGizmoOrtho = _gizmoOrthoActive && !State.Is2D;
+
+		_gizmoOrthoActive = false;
+
+		if ( wasGizmoOrtho && _lastGridAxis is { } axis )
+		{
+			State.GridAxis = axis;
+			_lastGridAxis = null;
+		}
+
+		if ( State.Is2D )
+			State.View = ViewMode.Perspective;
+
+		cameraTargetPosition = null;
+	}
+
+	private void EnterOrthoView( Vector3 axisDir, Vector3 up, Vector3 pivot, float distance )
+	{
+		if ( !State.Is2D && !_gizmoOrthoActive )
+		{
+			_lastGridAxis = State.GridAxis;
+		}
+
+		State.CameraRotation = Rotation.LookAt( -axisDir, up );
+		State.CameraPosition = pivot + axisDir * distance;
+		State.CameraOrthoHeight = SizeFromDistanceAndFieldOfView( distance, EditorPreferences.CameraFieldOfView );
+		State.GridAxis = ViewportState.GridAxisForDirection( axisDir );
+
+		_activeCamera.WorldRotation = State.CameraRotation;
+		_activeCamera.WorldPosition = State.CameraPosition;
+
+		_gizmoOrthoActive = true;
+		_gizmoOrthoSnap = true;
+		cameraTargetPosition = null;
+	}
 
 	/// <summary>
 	/// Returns the distance the camera needs to be from the target to fit the ortho height in the view at the given FOV.
@@ -648,6 +682,7 @@ public partial class SceneViewportWidget : Widget
 		UpdateDragDrops();
 
 		DrawCameraSpeedOverlay();
+		DrawOrientationGizmo();
 
 		Overlay?.Update();
 	}
@@ -837,6 +872,9 @@ public partial class SceneViewportWidget : Widget
 	public override void OnDestroyed()
 	{
 		Session.OnFrameTo -= FrameOn;
+
+		_gizmoSceneObject?.Delete();
+		_gizmoSceneObject = null;
 
 		_activeCamera?.GameObject?.Destroy();
 		_activeCamera = null;

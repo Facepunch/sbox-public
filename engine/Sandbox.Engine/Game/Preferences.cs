@@ -36,6 +36,12 @@ public static class Preferences
 	[ConVar( "controller_look_speed_pitch", ConVarFlags.Protected, Help = "How fast the camera turns vertically when the stick is pushed all the way up/down (deg/s)", Saved = true, Min = 0.1f, Max = 360.0f )]
 	public static float ControllerLookPitchSpeed { get; internal set; } = 160.0f;
 
+	/// <summary>
+	/// The percentage of joystick travel ignored around the neutral position.
+	/// </summary>
+	[ConVar( "controller_joystick_deadzone", ConVarFlags.Protected, Help = "Percentage of joystick travel ignored around the neutral position", Saved = true, Min = 0.0f, Max = 50.0f )]
+	public static float ControllerJoystickDeadzone { get; internal set; } = 12.5f;
+
 	[ConVar( "controller_analog_speed", ConVarFlags.Protected, Help = "How fast the left joystick moves, for stuff like the virtual cursor in menus", Saved = true, Min = 0.1f, Max = 360.0f )]
 	internal static float ControllerAnalogSpeed { get; set; } = 2.0f;
 

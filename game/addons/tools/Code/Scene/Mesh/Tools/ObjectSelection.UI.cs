@@ -51,7 +51,7 @@ partial class ObjectSelection
 					var grid = Layout.Row();
 					grid.Spacing = 4;
 
-					CreateButton( "Set Origin To Pivot", "meshtools/object_selection_buttons/set_origin_to_pivot.png", "mesh.set-origin-to-pivot", SetOriginToPivot, _meshes.Length > 0, grid );
+					CreateButton( "Set Origin To Pivot", "meshtools/object_selection_buttons/set_origin_to_pivot.png", "mesh.set-origin-to-pivot", SetOriginToPivot, _gos.Length > 0, grid );
 					CreateButton( "Center Origin", "meshtools/object_selection_buttons/center_origin.png", "mesh.center-origin", CenterOrigin, _meshes.Length > 0, grid );
 					CreateButton( "Merge Meshes", "meshtools/object_selection_buttons/merge_meshes.png", "mesh.merge-meshes", MergeMeshes, _meshes.Length > 1, grid );
 					CreateButton( "Merge Meshes By Edge", "meshtools/object_selection_buttons/merge_meshes_by_edge.png", null, MergeMeshesByEdge, _meshes.Length > 1, grid );
@@ -67,6 +67,7 @@ partial class ObjectSelection
 					grid.Spacing = 4;
 
 					CreateButton( "Flip Faces", "meshtools/face_tool/flip_all_faces.png", "mesh.flip-all-mesh-faces", FlipMesh, _meshes.Length > 0, grid );
+					CreateButton( "Remove Bad Geometry", "meshtools/face_tool/remove_bad_faces.png", "mesh.remove-bad-geometry", RemoveBadGeometry, _meshes.Length > 0, grid );
 					CreateButton( "Bake Scale", "meshtools/object_selection_buttons/bake_scale.png", null, BakeScale, _meshes.Length > 0, grid );
 					CreateButton( "Convert To Mesh", "meshtools/object_selection_buttons/convert_to_mesh.png", "mesh.convert-model-to-mesh", ConvertModelsToMeshes, _modelRenderers.Length > 0, grid );
 					CreateButton( "Save To Model", "meshtools/object_selection_buttons/save_to_model.png", null, SaveToModel, _meshes.Length > 0, grid );
@@ -236,14 +237,23 @@ partial class ObjectSelection
 		{
 			using var scope = SceneEditorSession.Scope();
 
+			var boundsObjects = _gos
+				.Where( x => x.IsValid() && x.GetComponent<MeshComponent>() is null )
+				.ToArray();
+
 			using ( SceneEditorSession.Active.UndoScope( "Set Origin To Pivot" )
-				.WithGameObjectChanges( _meshes.Select( x => x.GameObject ), GameObjectUndoFlags.Properties )
-				.WithComponentChanges( _meshes )
+				.WithGameObjectChanges( _meshes.Select( x => x.GameObject ).Concat( boundsObjects ), GameObjectUndoFlags.Properties )
+				.WithComponentChanges( _meshes.Cast<Component>().Concat( boundsObjects.SelectMany( x => x.Components.GetAll() ) ) )
 				.Push() )
 			{
 				foreach ( var mesh in _meshes )
 				{
 					SetMeshOrigin( mesh, _tool.Pivot );
+				}
+
+				foreach ( var go in boundsObjects )
+				{
+					SetObjectOrigin( go, _tool.Pivot );
 				}
 			}
 		}
@@ -296,6 +306,22 @@ partial class ObjectSelection
 				foreach ( var mesh in _meshes )
 				{
 					mesh.Mesh.FlipAllFaces();
+				}
+			}
+		}
+
+		[Shortcut( "mesh.remove-bad-geometry", "", typeof( SceneViewWidget ) )]
+		public void RemoveBadGeometry()
+		{
+			using var scope = SceneEditorSession.Scope();
+
+			using ( SceneEditorSession.Active.UndoScope( "Remove Bad Geometry" )
+				.WithComponentChanges( _meshes )
+				.Push() )
+			{
+				foreach ( var mesh in _meshes )
+				{
+					mesh.Mesh.RemoveBadGeometry();
 				}
 			}
 		}
@@ -523,6 +549,33 @@ partial class ObjectSelection
 			meshComponent.Mesh.ApplyTransform( new Transform( -localCenter ) );
 			meshComponent.WorldPosition = origin;
 			meshComponent.RebuildMesh();
+		}
+
+		static void SetObjectOrigin( GameObject go, Vector3 origin )
+		{
+			if ( !go.IsValid() ) return;
+
+			var oldTransform = go.WorldTransform;
+			go.WorldPosition = origin;
+			var newTransform = go.WorldTransform;
+
+			foreach ( var component in go.Components.GetAll() )
+			{
+				var serialized = component.GetSerialized();
+				if ( serialized is null ) continue;
+
+				foreach ( var prop in serialized.Where( p => p.PropertyType == typeof( BBox ) && p.IsEditable ) )
+				{
+					var bounds = prop.GetValue<BBox>();
+
+					var worldMins = oldTransform.PointToWorld( bounds.Mins );
+					var worldMaxs = oldTransform.PointToWorld( bounds.Maxs );
+
+					prop.SetValue( new BBox(
+						newTransform.PointToLocal( worldMins ),
+						newTransform.PointToLocal( worldMaxs ) ) );
+				}
+			}
 		}
 
 		static void BakeScale( MeshComponent meshComponent )

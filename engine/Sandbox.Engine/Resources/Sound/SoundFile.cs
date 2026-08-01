@@ -16,7 +16,7 @@ public enum SoundFormat : byte
 public partial class SoundFile : Resource, IValid
 {
 	/// <summary>
-	/// Options for creating a sound from raw PCM data via <see cref="FromPcm(string, Span{byte}, PcmOptions)"/>.
+	/// Options for creating a sound from raw PCM data via <see cref="FromPcm(string, Span{byte}, PcmOptions?)"/>.
 	/// </summary>
 	public struct PcmOptions()
 	{
@@ -52,22 +52,23 @@ public partial class SoundFile : Resource, IValid
 	}
 
 	/// <summary>
-	/// Options for creating a sound from WAV or MP3 data via <see cref="FromWav(string, Span{byte}, LoadOptions)"/> or <see cref="FromMp3(string, Span{byte}, LoadOptions)"/>.
+	/// Options for creating a sound from WAV or MP3 data via <see cref="FromWav(string, Span{byte}, LoadOptions?)"/> or <see cref="FromMp3(string, Span{byte}, LoadOptions?)"/>.
+	/// Left alone, a WAV loops as its own "cue " chunk declares.
 	/// </summary>
 	public struct LoadOptions()
 	{
 		/// <summary>
-		/// Whether the sound should loop. Overridden by <see cref="LoopStart"/>/<see cref="LoopEnd"/> if set.
+		/// Loop the whole sound. Overridden by <see cref="LoopStart"/>/<see cref="LoopEnd"/> if set.
 		/// </summary>
 		public bool Loop { get; set; } = false;
 
 		/// <summary>
-		/// Start sample of the loop region. -1 means no loop.
+		/// Start sample of the loop region. -1 uses whatever the file declares.
 		/// </summary>
 		public int LoopStart { get; set; } = -1;
 
 		/// <summary>
-		/// End sample of the loop region. 0 means end of sound.
+		/// End sample of the loop region. 0 uses whatever the file declares.
 		/// </summary>
 		public int LoopEnd { get; set; } = 0;
 	}
@@ -248,10 +249,12 @@ public partial class SoundFile : Resource, IValid
 	/// </summary>
 	/// <param name="filename">Sound name</param>
 	/// <param name="data">Raw interleaved PCM data</param>
-	/// <param name="options">PCM format and loop options</param>
-	public static unsafe SoundFile FromPcm( string filename, Span<byte> data, PcmOptions options = default )
+	/// <param name="pcmOptions">PCM format and loop options</param>
+	public static unsafe SoundFile FromPcm( string filename, Span<byte> data, PcmOptions? pcmOptions = null )
 	{
 		ThreadSafe.AssertIsMainThread( "SoundFile.FromPcm" );
+
+		var options = pcmOptions ?? new PcmOptions();
 
 		if ( !filename.EndsWith( ".vsnd", StringComparison.OrdinalIgnoreCase ) )
 			filename = System.IO.Path.ChangeExtension( filename, "vsnd" );
@@ -277,10 +280,12 @@ public partial class SoundFile : Resource, IValid
 	/// </summary>
 	/// <param name="filename">Sound name</param>
 	/// <param name="data">WAV file data</param>
-	/// <param name="options">Loop options</param>
-	public static unsafe SoundFile FromWav( string filename, Span<byte> data, LoadOptions options = default )
+	/// <param name="loadOptions">Loop options</param>
+	public static unsafe SoundFile FromWav( string filename, Span<byte> data, LoadOptions? loadOptions = null )
 	{
 		ThreadSafe.AssertIsMainThread( "SoundFile.FromWav" );
+
+		var options = loadOptions ?? new LoadOptions();
 
 		if ( !filename.EndsWith( ".vsnd", StringComparison.OrdinalIgnoreCase ) )
 			filename = System.IO.Path.ChangeExtension( filename, "vsnd" );
@@ -305,8 +310,10 @@ public partial class SoundFile : Resource, IValid
 			format = 3;
 		}
 
-		var loopStart = options.LoopStart >= 0 ? options.LoopStart : (options.Loop ? 0 : -1);
-		var loopEnd = options.LoopEnd;
+		// A WAV can declare its own loop with a "cue " chunk, which is what sound editors write.
+		// An explicit option still wins.
+		var loopStart = options.LoopStart >= 0 ? options.LoopStart : (options.Loop ? 0 : soundData.LoopStart);
+		var loopEnd = options.LoopEnd != 0 ? options.LoopEnd : soundData.LoopEnd;
 
 		return Create( filename, pcmData, soundData.Channels, soundData.SampleRate, format, soundData.SampleCount, soundData.Duration, loopStart, loopEnd );
 	}
@@ -316,10 +323,12 @@ public partial class SoundFile : Resource, IValid
 	/// </summary>
 	/// <param name="filename">Sound name</param>
 	/// <param name="data">MP3 file data</param>
-	/// <param name="options">Loop options</param>
-	public static unsafe SoundFile FromMp3( string filename, Span<byte> data, LoadOptions options = default )
+	/// <param name="loadOptions">Loop options</param>
+	public static unsafe SoundFile FromMp3( string filename, Span<byte> data, LoadOptions? loadOptions = null )
 	{
 		ThreadSafe.AssertIsMainThread( "SoundFile.FromMp3" );
+
+		var options = loadOptions ?? new LoadOptions();
 
 		if ( !filename.EndsWith( ".vsnd", StringComparison.OrdinalIgnoreCase ) )
 			filename = System.IO.Path.ChangeExtension( filename, "vsnd" );
@@ -355,10 +364,12 @@ public partial class SoundFile : Resource, IValid
 	/// </summary>
 	/// <param name="filename">Sound name</param>
 	/// <param name="data">OGG file data</param>
-	/// <param name="options">Loop options</param>
-	public static unsafe SoundFile FromOgg( string filename, Span<byte> data, LoadOptions options = default )
+	/// <param name="loadOptions">Loop options</param>
+	public static unsafe SoundFile FromOgg( string filename, Span<byte> data, LoadOptions? loadOptions = null )
 	{
 		ThreadSafe.AssertIsMainThread( "SoundFile.FromOgg" );
+
+		var options = loadOptions ?? new LoadOptions();
 
 		if ( !filename.EndsWith( ".vsnd", StringComparison.OrdinalIgnoreCase ) )
 			filename = System.IO.Path.ChangeExtension( filename, "vsnd" );

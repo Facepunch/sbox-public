@@ -212,7 +212,6 @@ partial class Compiler
 		}
 
 		bool ilHotloadSupported;
-		ImmutableArray<SyntaxTree> beforeIlHotloadProcessingTrees;
 
 		{
 			var processor = RunGenerators( compiler, modifiedSyntaxTrees, output );
@@ -220,7 +219,6 @@ partial class Compiler
 			compiler = processor.Compilation;
 
 			ilHotloadSupported = processor.ILHotloadSupported;
-			beforeIlHotloadProcessingTrees = processor.BeforeILHotloadProcessingTrees;
 
 			// If you have any errors in codegen don't bother compiling, developer should sort it out
 			if ( processor.Diagnostics.Any( x => x.Severity == DiagnosticSeverity.Error ) )
@@ -289,7 +287,7 @@ partial class Compiler
 			return;
 		}
 
-		incrementalState.Update( archive, inputSyntaxTrees, beforeIlHotloadProcessingTrees, compiler );
+		incrementalState.Update( archive, inputSyntaxTrees, compiler );
 
 		using ( var a_stream = new System.IO.MemoryStream( output.AssemblyData ) )
 		{
