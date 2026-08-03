@@ -40,6 +40,10 @@ public partial class SceneViewportWidget
 	{
 		GameMode.SetPlayWidget( Renderer );
 		IsGameView = true;
+
+		_gizmoSceneObject?.Delete();
+		_gizmoSceneObject = null;
+
 		Tools.DisposeAll();
 	}
 
@@ -83,6 +87,10 @@ public partial class SceneViewportWidget
 	{
 		GameMode.SetPlayWidget( Renderer );
 		IsGameView = true;
+
+		_gizmoSceneObject?.Delete();
+		_gizmoSceneObject = null;
+
 		Tools.DisposeAll();
 	}
 }

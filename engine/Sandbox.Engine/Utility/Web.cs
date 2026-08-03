@@ -1,5 +1,7 @@
 ﻿using Sentry;
+using System.Buffers;
 using System.IO;
+using System.Net;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
@@ -8,13 +10,31 @@ namespace Sandbox.Utility;
 
 internal static class Web
 {
-	static HttpClient client = new HttpClient()
+	// Attempts per download, including the first
+	const int DownloadAttempts = 4;
+
+	// Jittered so workers that failed together don't all come back at the same moment. Swallows the
+	// cancel so we still reach the retry, where GetAsync throws and cleans up the temp file.
+	static async Task RetryDelay( int tries, CancellationToken token )
 	{
-		Timeout = TimeSpan.FromMinutes( 120 )
+		try { await Task.Delay( 500 * tries + Random.Shared.Int( 0, 500 * tries ), token ); }
+		catch ( OperationCanceledException ) { }
+	}
+
+	// h2 so downloads share connections, ALPN falls back to 1.1
+	static HttpClient client = new HttpClient( new SocketsHttpHandler
+	{
+		// Opens another connection if the server's stream limit is below MaxParallelDownloads
+		EnableMultipleHttp2Connections = true,
+	} )
+	{
+		Timeout = TimeSpan.FromMinutes( 120 ),
+		DefaultRequestVersion = HttpVersion.Version20,
+		DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrLower,
 	};
 
 	/// <summary>
-	/// Download a file to a target filename (todo - progress)
+	/// Download a file to a target filename
 	/// </summary>
 	public static async Task<bool> DownloadFile( string url, string targetFileName, CancellationToken cancelToken, Sandbox.Utility.DataProgress.Callback progress = null )
 	{
@@ -22,26 +42,35 @@ internal static class Web
 
 		var tempName = targetFileName + $".{Random.Shared.Int( 10000, 99999 )}.tmp";
 
+		// Don't leave a half written temp file behind
+		bool Fail()
+		{
+			try { System.IO.File.Delete( tempName ); } catch ( System.Exception ) { }
+			return false;
+		}
+
 		int tries = 0;
 		retry:
 
 		try
 		{
 			tries++;
-			var response = await client.GetAsync( url, HttpCompletionOption.ResponseContentRead );
+
+			// Headers only, so the body streams to disk instead of buffering in memory
+			using var response = await client.GetAsync( url, HttpCompletionOption.ResponseHeadersRead, cancelToken );
 
 			if ( !response.IsSuccessStatusCode )
 			{
-				if ( tries < 3 )
+				if ( tries < DownloadAttempts )
 				{
 					Log.Warning( $"Error downloading {url} (status was {response.StatusCode}) - retrying" );
-					await Task.Delay( 500 * tries );
+					await RetryDelay( tries, cancelToken );
 					goto retry;
 				}
 
 				Log.Warning( $"Error downloading {url} (status was {response.StatusCode})" );
 				SentrySdk.AddBreadcrumb( $"Error downloading {url} (status was {response.StatusCode})", "download.failed" );
-				return false;
+				return Fail();
 			}
 
 			DataProgress p = new DataProgress();
@@ -54,53 +83,76 @@ internal static class Web
 
 			using var fileStream = new FileStream( tempName, FileMode.Create );
 			using var bodyStream = await response.Content.ReadAsStreamAsync( cancelToken );
-			using var content = new DataProgress.HttpContentStream( bodyStream );
 
-			if ( progress is not null )
+			// Not HttpContentStream: it's for request bodies, wants a seekable stream, and drops the token
+			using var buffer = MemoryPool<byte>.Shared.Rent( 64 * 1024 );
+			int read;
+			long transferred = 0, reported = 0;
+
+			void Report()
 			{
-				content.Progress = p => MainThread.Queue( () => progress.Invoke( p ) );
+				if ( progress is null || transferred == reported ) return;
+
+				var tick = new DataProgress { TotalBytes = p.TotalBytes, ProgressBytes = transferred, DeltaBytes = transferred - reported };
+				reported = transferred;
+				MainThread.Queue( () => progress.Invoke( tick ) );
 			}
 
-			await content.CopyToAsync( fileStream, cancelToken );
+			while ( (read = await bodyStream.ReadAsync( buffer.Memory, cancelToken )) > 0 )
+			{
+				await fileStream.WriteAsync( buffer.Memory[..read], cancelToken );
+
+				transferred += read;
+
+				// Reads come back around 20KB, so coalesce rather than marshalling one of these each
+				if ( transferred - reported >= 256 * 1024 ) Report();
+			}
+
+			Report();
 		}
-		catch ( TaskCanceledException )
+		catch ( OperationCanceledException )
 		{
+			Fail();
 			throw;
 		}
 		catch ( System.Net.Http.HttpRequestException e )
 		{
-			if ( tries <= 3 )
+			if ( tries < DownloadAttempts )
 			{
 				Log.Warning( $"Error downloading {url} ({e.Message}) - retrying" );
-				await Task.Delay( 500 * tries );
+				await RetryDelay( tries, cancelToken );
 				goto retry;
 			}
 
 			Log.Warning( e, $"Http Error downloading {url}" );
 			SentrySdk.CaptureException( e, scope => scope.SetExtra( "url", url ) );
-			return false;
+			return Fail();
 		}
 		catch ( System.IO.IOException ioe )
 		{
-			if ( tries <= 3 )
+			if ( tries < DownloadAttempts )
 			{
 				Log.Warning( $"Error downloading {url} ({ioe.Message}) - retrying" );
-				await Task.Delay( 500 * tries );
+				await RetryDelay( tries, cancelToken );
 				goto retry;
 			}
 
 			Log.Warning( ioe, $"IO Error downloading {url}" );
 			SentrySdk.CaptureException( ioe, scope => scope.SetExtra( "url", url ) );
-			return false;
+			return Fail();
 		}
 		catch ( Exception ex )
 		{
 			Log.Warning( ex, $"Error downloading {url}" );
 			SentrySdk.CaptureException( ex, scope => scope.SetExtra( "url", url ) );
-			return false;
+			return Fail();
 		}
 
-		cancelToken.ThrowIfCancellationRequested();
+		if ( cancelToken.IsCancellationRequested )
+		{
+			Fail();
+			cancelToken.ThrowIfCancellationRequested();
+		}
 
 		int imoveTries = 0;
 		while ( true )
@@ -115,7 +167,7 @@ internal static class Web
 			catch ( System.Exception )
 			{
 				if ( imoveTries > 10 )
-					return false;
+					return Fail();
 
 				await Task.Delay( 100 * tries );
 			}
@@ -149,7 +201,7 @@ internal static class Web
 				}
 			}
 		}
-		catch ( TaskCanceledException )
+		catch ( OperationCanceledException )
 		{
 			throw;
 		}
@@ -183,7 +235,7 @@ internal static class Web
 				await Task.Delay( 500 );
 				continue;
 			}
-			catch ( TaskCanceledException )
+			catch ( OperationCanceledException )
 			{
 				throw;
 			}
@@ -208,7 +260,7 @@ internal static class Web
 		{
 			return JsonSerializer.Deserialize<T>( json, new JsonSerializerOptions( JsonSerializerOptions.Default ) { PropertyNameCaseInsensitive = true } );
 		}
-		catch ( TaskCanceledException )
+		catch ( OperationCanceledException )
 		{
 			throw;
 		}

@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 
 namespace Editor;
 
@@ -137,14 +137,45 @@ public partial class SceneTreeWidget : Widget
 
 		_lastScene.TryGetTarget( out var last );
 
+		var sceneChanged = !ReferenceEquals( last, session.Scene );
+
 		// if query AND scene is unchanged - no need to rebuild the tree
-		if ( !queryDirty && ReferenceEquals( last, session.Scene ) )
+		if ( !queryDirty && !sceneChanged )
 			return;
 
 		_lastScene.SetTarget( session.Scene );
 
+		// Expand state is keyed by GameObjects, so it pins whatever scene they belong to. Close
+		// the ones whose scene has gone, or we hold every closed scene for the whole session.
+		// Only the closed ones: switching between two open scenes must keep both expanded.
+		if ( sceneChanged )
+			CloseItemsFromClosedScenes();
+
 		queryDirty = false;
 		Rebuild();
+	}
+
+	void CloseItemsFromClosedScenes()
+	{
+		foreach ( var item in TreeView.OpenItems.ToArray() )
+		{
+			if ( item is GameObject go && !IsSceneOpen( go.Scene ) )
+				TreeView.Close( item );
+		}
+	}
+
+	static bool IsSceneOpen( Scene scene )
+	{
+		if ( scene is null )
+			return false;
+
+		foreach ( var session in SceneEditorSession.All )
+		{
+			if ( ReferenceEquals( session.Scene, scene ) )
+				return true;
+		}
+
+		return false;
 	}
 
 	private void Rebuild()

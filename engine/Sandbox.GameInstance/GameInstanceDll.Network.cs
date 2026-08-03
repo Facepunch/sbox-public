@@ -47,6 +47,12 @@ internal partial class GameInstanceDll
 	private List<FileWatch> FileWatchers { get; set; } = new();
 	private bool DidMountNetworkedFiles { get; set; }
 
+	/// <summary>
+	/// What we enumerate for files to offer joining clients: the game's content plus any local
+	/// libraries. We own this so it needs disposing, the filesystems mounted into it don't.
+	/// </summary>
+	internal AggregateFileSystem NetworkedFileSystem { get; private set; }
+
 	public GameNetworkSystem CreateGameNetworking( NetworkSystem system )
 	{
 		var instance = new SceneNetworkSystem( TypeLibrary, system );
@@ -360,7 +366,25 @@ internal partial class GameInstanceDll
 			_netIncludePaths.AddRange( resourcePaths );
 		}
 
-		var fs = gameInstance.GameFileSystem;
+		// a library is its own package with its own filesystem, so its assets aren't in the
+		// game's filesystem and joining clients are never told about them
+		var libraries = Project.Libraries
+			.Where( x => x.Active && x.RootDirectory is not null )
+			.ToArray();
+
+		var fs = new AggregateFileSystem();
+		fs.Mount( gameInstance.GameFileSystem );
+
+		foreach ( var library in libraries )
+		{
+			if ( PackageManager.Find( library.Package.FullIdent, true ) is not { } libraryPackage )
+				continue;
+
+			fs.Mount( libraryPackage.FileSystem );
+		}
+
+		NetworkedFileSystem = fs;
+
 		var files = fs.FindFile( "/", "*", true );
 
 		foreach ( var file in files )
@@ -380,6 +404,9 @@ internal partial class GameInstanceDll
 		FileWatchers.Add( watcher );
 
 		NetworkTransientGeneratedFiles( project );
+
+		// library transients can't be networked - large files resolve through EngineFileSystem.Mounted,
+		// and only the main project's .sbox/transient is ever mounted there
 
 		if ( AssetDownloadCache.DebugNetworkFiles )
 			Log.Info( $"..done in {sw.Elapsed.TotalSeconds:0.00}s" );

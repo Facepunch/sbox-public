@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 using Info = Editor.TextureResidencyInfo;
 
 namespace Editor;
@@ -38,8 +40,9 @@ public partial class GpuResourceViewer : Widget
 	int[] _catCount = new int[Tags.Length];
 	ulong _vmBudget, _vmUsage;
 
-	Dictionary<Texture, Pixmap> _thumbs = new();
-	HashSet<Texture> _thumbsLoading = new();
+	// Weak keys: a thumbnail cache must not keep a texture resident. Self-pruning, so no sweep.
+	ConditionalWeakTable<Texture, Pixmap> _thumbs = new();
+	ConditionalWeakTable<Texture, object> _thumbsLoading = new();
 
 	const int ThumbMaxSize = 16;
 
@@ -368,18 +371,6 @@ public partial class GpuResourceViewer : Widget
 	{
 		_all = Info.GetAll().ToList();
 
-		var liveTextures = _all
-			.Where( x => x.Texture is { IsValid: true } )
-			.Select( x => x.Texture )
-			.ToHashSet();
-
-		foreach ( var staleTexture in _thumbs.Keys.Where( x => !liveTextures.Contains( x ) ).ToArray() )
-		{
-			_thumbs.Remove( staleTexture );
-		}
-
-		_thumbsLoading.RemoveWhere( x => !liveTextures.Contains( x ) );
-
 		Refresh();
 	}
 
@@ -576,7 +567,7 @@ public partial class GpuResourceViewer : Widget
 		if ( info.Texture is not { IsValid: true } tex ) return null;
 		if ( _thumbs.TryGetValue( tex, out var p ) ) return p;
 		if ( (info.Categories & (Info.TextureCategory.DepthBuffer | Info.TextureCategory.MSAA)) != 0 ) return null;
-		if ( !_thumbsLoading.Add( tex ) ) return null;
+		if ( !_thumbsLoading.TryAdd( tex, tex ) ) return null;
 
 		_ = LoadThumbAsync( tex );
 		return null;
@@ -602,11 +593,11 @@ public partial class GpuResourceViewer : Widget
 					if ( resized is not null ) pm = resized;
 				}
 			} );
-			_thumbs[tex] = pm;
+			_thumbs.AddOrUpdate( tex, pm );
 			List?.Update();
 			Treemap?.Update();
 		}
-		catch { _thumbs[tex] = null; }
+		catch { _thumbs.AddOrUpdate( tex, null ); }
 		finally { _thumbsLoading.Remove( tex ); }
 	}
 

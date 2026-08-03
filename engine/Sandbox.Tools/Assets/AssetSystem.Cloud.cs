@@ -26,6 +26,8 @@ public static partial class AssetSystem
 	/// <param name="token"></param>
 	public static async Task<Asset> InstallAsync( Package package, bool skipIfInstalled = true, Action<float> loading = null, CancellationToken token = default )
 	{
+		ThreadSafe.AssertIsMainThread();
+
 		if ( package == null )
 			return null;
 
@@ -82,30 +84,16 @@ public static partial class AssetSystem
 			if ( asset is null || asset.Package != package )
 				continue;
 
-			// some files are shared between packages, so check if any other packages need this file
-			var dependants = asset.GetDependants( false );
-			Package requiredBy = null;
-			foreach ( var dependant in dependants )
-			{
-				if ( dependant.Package is null ) continue;
-
-				if ( !IsCloudInstalled( dependant.Package ) )
-					continue;
-
-				requiredBy = dependant.Package;
-				break;
-			}
-
+			var requiredBy = CloudDirectory.FindPackages( fullPath, file ).FirstOrDefault();
 			if ( requiredBy == null )
 			{
-				// no other packages need this, we can delete it
+				// no other package needs this, we can delete it
 				asset.Delete();
 			}
 			else
 			{
 				// update any assets that depend on this to point to the package that remains
 				ReplaceReferences( asset.GetDependants( false ), package, requiredBy );
-
 				asset.Package = requiredBy;
 			}
 		}
@@ -268,9 +256,6 @@ public static partial class AssetSystem
 
 		IToolsDll.Current?.RunEvent( "package.download.start", package, token );
 
-		//
-		// Process 16 files at a time
-		//
 		await package.Revision.Manifest.Files.ForEachTaskAsync( async ( e ) =>
 		{
 			await DownloadFile( package, e, token );
@@ -279,7 +264,7 @@ public static partial class AssetSystem
 			float frac = (float)((double)downloaded / (double)totalSize);
 			progress?.Invoke( frac );
 			IToolsDll.Current?.RunEvent( "package.download.update", package, frac );
-		}, 16 );
+		}, Package.MaxParallelDownloads );
 
 		IToolsDll.Current?.RunEvent( "package.download.complete", package );
 	}
@@ -307,7 +292,8 @@ public static partial class AssetSystem
 		if ( EngineFileSystem.CoreContent.FileExists( entry.Path ) )
 			return;
 
-		CloudDirectory.AddFile( entry.Path, entry.Crc, entry.Size, package.FullIdent, package.Revision.VersionId );
+		if ( !CloudDirectory.AddFile( entry.Path, entry.Crc, entry.Size, package ) )
+			return; // unwanted - newer revision already registered
 
 		//
 		// File exists - we should probably check crcs and shit
@@ -315,10 +301,9 @@ public static partial class AssetSystem
 		if ( FileSystem.Cloud.FileExists( entry.Path ) && FileSystem.Cloud.FileSize( entry.Path ) == entry.Size )
 			return;
 
+		var targetFile = FileSystem.Cloud.GetFullPath( entry.Path );
 		var targetPath = System.IO.Path.GetDirectoryName( entry.Path );
 		FileSystem.Cloud.CreateDirectory( targetPath );
-
-		var targetFile = FileSystem.Cloud.GetFullPath( entry.Path );
 
 		if ( System.IO.File.Exists( targetFile ) )
 		{
