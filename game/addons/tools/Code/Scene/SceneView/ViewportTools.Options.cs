@@ -17,11 +17,72 @@ partial class ViewportTools
 		{
 			var group = AddGroup();
 
+			if ( sceneViewWidget.CurrentView != SceneViewWidget.ViewMode.Game )
+				group.Layout.Add( new ViewportButton( "tune", OpenViewSettings ) { ToolTip = "View Settings" } );
+
 			group.Layout.Add( new ViewportButton( "grid_view", OpenSceneViewModeMenu ) { ToolTip = "Layout" } );
 			group.Layout.Add( new ViewportButton( "crop_free", ToggleFullscreen ) { ToolTip = "Toggle Fullscreen" } );
 
 			layout.Add( group );
 		}
+	}
+
+	void OpenViewSettings()
+	{
+		var viewport = sceneViewWidget.LastSelectedViewportWidget;
+		if ( !viewport.IsValid() )
+			return;
+
+		var so = viewport.State.GetSerialized();
+
+		var menu = new ContextMenu( this );
+
+		{
+			var widget = new Widget( menu );
+			widget.OnPaintOverride = () =>
+			{
+				Paint.SetBrushAndPen( Theme.WidgetBackground.WithAlpha( 0.5f ) );
+				Paint.DrawRect( widget.LocalRect.Shrink( 2 ), 2 );
+				return true;
+			};
+
+			var cs = new ControlSheet();
+
+			cs.AddRow( so.GetProperty( nameof( SceneViewportWidget.ViewportState.View ) ) );
+			cs.AddRow( so.GetProperty( nameof( SceneViewportWidget.ViewportState.WireframeMode ) ) );
+			cs.AddRow( so.GetProperty( nameof( SceneViewportWidget.ViewportState.EnablePostProcessing ) ) );
+
+			if ( viewport.SceneView.Session.Scene is PrefabScene )
+			{
+				cs.AddRow( so.GetProperty( nameof( SceneViewportWidget.ViewportState.EnablePrefabLighting ) ) );
+			}
+
+			cs.AddRow( so.GetProperty( nameof( SceneViewportWidget.ViewportState.ShowSkyIn2D ) ) );
+
+			cs.AddRow( so.GetProperty( nameof( SceneViewportWidget.ViewportState.ShowGrid ) ) );
+			cs.AddRow( so.GetProperty( nameof( SceneViewportWidget.ViewportState.GridOpacity ) ) );
+			if ( viewport.State.View == SceneViewportWidget.ViewMode.Perspective )
+			{
+				cs.AddRow( so.GetProperty( nameof( SceneViewportWidget.ViewportState.GridAxis ) ) );
+			}
+
+			widget.Layout = cs;
+			widget.MaximumWidth = 400;
+
+			menu.AddWidget( widget );
+		}
+
+		menu.AddSeparator();
+
+		foreach ( var entry in EditorTypeLibrary.GetEnumDescription( typeof( SceneCameraDebugMode ) ) )
+		{
+			var val = (SceneCameraDebugMode)entry.ObjectValue;
+			var o = menu.AddOption( entry.Title, entry.Icon, () => viewport.State.RenderMode = val );
+			o.Checkable = true;
+			o.Checked = viewport.State.RenderMode == val;
+		}
+
+		menu.OpenAtCursor();
 	}
 
 	private static readonly Pixmap LayoutOne = Pixmap.FromFile( "toolimages:qcontrols/split_single.png" );

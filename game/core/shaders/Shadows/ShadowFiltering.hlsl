@@ -79,35 +79,17 @@ static const float2 g_vPoissonDisk16[16] =
     float2(  0.878554, -0.397416 ),
 };
 
-//--------------------------------------------------------------------------------------------------
-// Receiver plane depth bias (Isidoro 2006, AMD)
-//
-// Solves the 2x2 screen-space derivative system for the receiver plane's depth gradient in
-// shadow-map UV space, so each PCF tap follows the surface:
-//     compareDepth = shadowPos.z + dot( uvOffset, gradient )
-// This removes the slope acne in shadow maps even at very tight bias values.
-//
-//--------------------------------------------------------------------------------------------------
-float2 ComputeReceiverPlaneDepthBias( float3 vShadowPos )
+// Holbert 2011: offset receiver along face normal by ~PCF kernel radius in texels (kills slope acne).
+// ddx/ddy of world pos is quad-safe here — position is computed in uniform control flow.
+float3 ApplyShadowNormalOffset( float3 vPositionWs, float flTexelWorldSize, float flHardness )
 {
-    // Dont run this on non-pixel shaders, since ddx/ddy are undefined there and will produce NaN values
 #if ( PROGRAM == VFX_PROGRAM_PS )
-    float3 vDX = ddx_fine( vShadowPos );
-    float3 vDY = ddy_fine( vShadowPos );
-
-    float2 vBiasUV;
-    vBiasUV.x = vDY.y * vDX.z - vDX.y * vDY.z;
-    vBiasUV.y = vDX.x * vDY.z - vDY.x * vDX.z;
-
-    float flDet = vDX.x * vDY.y - vDX.y * vDY.x;
-    float flRcpDet = flDet != 0.0 ? 1.0 / flDet : 0.0;
-
-    // Cap to a sane slope - |dz/du| > ~1 implies the receiver plane spans the whole shadow map
-    // in depth across a single UV unit, which is a near-degenerate derivative glitch that would
-    // otherwise produce a huge per-tap offset.
-    return clamp(vBiasUV * flRcpDet, -1.0, 1.0);
+    const float3 vNormalWs = normalize( cross( ddy( vPositionWs ), ddx( vPositionWs ) ) );
+    const float flRadiusTexels = 1.5 * min( UserShadowFilterQuality, 3 ) * rcp( max( flHardness, 1.0 ) ) + 1.0; // matches the SampleShadowPCF_* kernels below
+	return vPositionWs + vNormalWs * ( flTexelWorldSize * flRadiusTexels );
+#else
+	return vPositionWs;
 #endif
-    return 0.0f;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -138,16 +120,15 @@ float SampleShadowPCF_Poisson5( ShadowPCFInput i )
     float2x2 mRotation = float2x2( flCos, -flSin, flSin, flCos );
     
     float2 vFilterScale = flFilterRadius * flHardness * vTexelSize;
-    float2 vDzDuv = ComputeReceiverPlaneDepthBias( i.ShadowPos );
 
     float flShadow = 0.0;
+    float flCompareDepth = saturate( i.ShadowPos.z + i.Bias );
 
     [unroll]
     for ( int s = 0; s < 5; s++ )
     {
         float2 vOffset = mul( mRotation, g_vPoissonDisk5[s] ) * vFilterScale;
         float2 vSampleUV = i.ShadowPos.xy + vOffset;
-        float flCompareDepth = saturate( i.ShadowPos.z + dot( vOffset, vDzDuv ) + i.Bias );
         flShadow += i.ShadowMap.SampleCmpLevelZero( ShadowDepthPCFSampler, vSampleUV, flCompareDepth );
     }
 
@@ -170,16 +151,15 @@ float SampleShadowPCF_Poisson12( ShadowPCFInput i )
     float2x2 mRotation = float2x2( flCos, -flSin, flSin, flCos );
     
     float2 vFilterScale = flFilterRadius * flHardness * vTexelSize;
-    float2 vDzDuv = ComputeReceiverPlaneDepthBias( i.ShadowPos );
 
     float flShadow = 0.0;
+    float flCompareDepth = saturate( i.ShadowPos.z + i.Bias );
 
     [unroll]
     for ( int s = 0; s < 12; s++ )
     {
         float2 vOffset = mul( mRotation, g_vPoissonDisk12[s] ) * vFilterScale;
         float2 vSampleUV = i.ShadowPos.xy + vOffset;
-        float flCompareDepth = saturate( i.ShadowPos.z + dot( vOffset, vDzDuv ) + i.Bias );
         flShadow += i.ShadowMap.SampleCmpLevelZero( ShadowDepthPCFSampler, vSampleUV, flCompareDepth );
     }
 
@@ -202,16 +182,15 @@ float SampleShadowPCF_Poisson16( ShadowPCFInput i )
     float2x2 mRotation = float2x2( flCos, -flSin, flSin, flCos );
     
     float2 vFilterScale = flFilterRadius * flHardness * vTexelSize;
-    float2 vDzDuv = ComputeReceiverPlaneDepthBias( i.ShadowPos );
 
     float flShadow = 0.0;
+    float flCompareDepth = saturate( i.ShadowPos.z + i.Bias );
 
     [unroll]
     for ( int s = 0; s < 16; s++ )
     {
         float2 vOffset = mul( mRotation, g_vPoissonDisk16[s] ) * vFilterScale;
         float2 vSampleUV = i.ShadowPos.xy + vOffset;
-        float flCompareDepth = saturate( i.ShadowPos.z + dot( vOffset, vDzDuv ) + i.Bias );
         flShadow += i.ShadowMap.SampleCmpLevelZero( ShadowDepthPCFSampler, vSampleUV, flCompareDepth );
     }
 

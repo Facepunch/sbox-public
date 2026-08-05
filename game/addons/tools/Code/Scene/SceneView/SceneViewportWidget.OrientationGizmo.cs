@@ -26,6 +26,7 @@ public partial class SceneViewportWidget
 	private bool _gizmoLeftWasDown;
 	private Vector2 _gizmoPressPos;
 	private Vector2 _gizmoLockCursor;
+	private OrientationGizmoSceneObject _gizmoSceneObject;
 
 	private float GizmoRadius => 30f * Renderer.DpiScale;
 	private float GizmoBallRadius => 7f * Renderer.DpiScale;
@@ -184,25 +185,29 @@ public partial class SceneViewportWidget
 		EnterOrthoView( axisDir, up, gizmoPivot, distance );
 	}
 
-	internal void PaintOrientationGizmo()
+	internal void DrawOrientationGizmo()
 	{
 		if ( !_activeCamera.IsValid() )
+		{
+			// Don't draw anything that's stale.
+			_gizmoSceneObject?.Begin();
+			_gizmoSceneObject?.Push();
 			return;
+		}
 
-		const float radius = 30f;
-		const float ballRadius = 7f;
-		var inset = radius + ballRadius + 20f;
-		var rendererOffset = Renderer.ScreenPosition - ScreenPosition;
-		var center = rendererOffset + new Vector2( Renderer.Width - inset, inset );
+		var dpi = Renderer.DpiScale;
+		var center = GizmoCenter;
+		var radius = GizmoRadius;
+		var ballRadius = GizmoBallRadius;
 
-		Paint.Antialiasing = true;
+		_gizmoSceneObject ??= new OrientationGizmoSceneObject( GizmoInstance.World );
+		var draw = _gizmoSceneObject;
+		draw.Begin();
 
 		if ( _gizmoHovered )
 		{
-			var bg = radius + ballRadius + 4f;
-			Paint.ClearPen();
-			Paint.SetBrush( Color.Black.WithAlpha( 0.1f ) );
-			Paint.DrawCircle( center, new Vector2( bg * 2f ) );
+			var bg = radius + ballRadius + 4f * dpi;
+			draw.Circle( center, bg, Color.Black.WithAlpha( 0.1f ) );
 		}
 
 		Span<int> order = stackalloc int[GizmoAxes.Length];
@@ -216,6 +221,7 @@ public partial class SceneViewportWidget
 			order[i] = i;
 		}
 
+		// Back-to-front sort so closer handles draw on top.
 		for ( int i = 1; i < order.Length; i++ )
 		{
 			var key = order[i];
@@ -241,37 +247,121 @@ public partial class SceneViewportWidget
 			// Positive axes get a solid line, negative axes a thinner dashed line. Hovered axes are highlighted.
 			var lineColor = (hovered ? Color.Lerp( color, Color.White, 0.5f ) : color)
 				.WithAlpha( facing * (positive ? (hovered ? 1f : 0.8f) : (hovered ? 0.9f : 0.45f)) );
-			Paint.SetPen( lineColor, positive ? (hovered ? 2.5f : 2f) : (hovered ? 2f : 1.5f), positive ? PenStyle.Solid : PenStyle.Dash );
-			Paint.DrawLine( center, pos );
+			var lineThickness = (positive ? (hovered ? 2.5f : 2f) : (hovered ? 2f : 1.5f)) * dpi;
 
 			if ( positive )
 			{
-				Paint.SetBrush( color.WithAlpha( facing ) );
-				if ( hovered )
-					Paint.SetPen( Color.White, 1.5f );
-				else
-					Paint.ClearPen();
+				draw.Line( center, pos, lineThickness, lineColor );
 
-				Paint.DrawCircle( pos, new Vector2( ballRadius * 2f ) );
+				draw.Circle( pos, ballRadius, color.WithAlpha( facing ), hovered ? Color.White : default, hovered ? 1.5f * dpi : 0f );
+				draw.Text( GizmoAxisLabels[i], pos, 10f * dpi, Color.Black.WithAlpha( facing ) );
 			}
 			else
 			{
-				// Hollow ball for negative axes.
-				Paint.SetBrush( Color.Black.WithAlpha( facing * 0.5f ) );
-				Paint.SetPen( (hovered ? Color.White : color).WithAlpha( facing ), 1.5f );
-				Paint.DrawCircle( pos, new Vector2( ballRadius * 2f ) );
+				DrawGizmoDashedLine( draw, center, pos, lineThickness, 4f * dpi, 3f * dpi, lineColor );
+				draw.Circle( pos, ballRadius, Color.Black.WithAlpha( facing * 0.5f ), (hovered ? Color.White : color).WithAlpha( facing ), 1.5f * dpi );
 			}
 		}
 
-		// X/Y/Z labels for the positive axes
-		Paint.SetFont( "Roboto", 8, 200 );
-		Paint.SetPen( Color.Black );
-		foreach ( var i in order )
-		{
-			if ( (i % 2) != 0 )
-				continue;
+		draw.Push();
+	}
 
-			Paint.DrawText( new Rect( positions[i] - new Vector2( ballRadius ), ballRadius * 2f ), GizmoAxisLabels[i], TextFlag.Center );
+	private static void DrawGizmoDashedLine( OrientationGizmoSceneObject draw, Vector2 a, Vector2 b, float thickness, float dash, float gap, Color color )
+	{
+		var delta = b - a;
+		var length = delta.Length;
+		if ( length <= 0f )
+			return;
+
+		var dir = delta / length;
+		for ( var pos = 0f; pos < length; pos += dash + gap )
+		{
+			var segStart = a + dir * pos;
+			var segEnd = a + dir * MathF.Min( pos + dash, length );
+			draw.Line( segStart, segEnd, thickness, color );
 		}
+	}
+}
+
+/// <summary>
+/// Renders the orientation gizmo as a single scene object so every primitive draws in strict order.
+/// </summary>
+internal sealed class OrientationGizmoSceneObject : SceneCustomObject
+{
+	private enum PrimitiveKind { Circle, Line, Text }
+
+	private struct Primitive
+	{
+		public PrimitiveKind Kind;
+		public Vector2 A;       // circle centre / line start / text position
+		public Vector2 B;       // line end
+		public float Size;      // circle radius / line thickness / font size
+		public Color Color;     // fill / line / text colour
+		public Color Border;    // circle border colour
+		public float BorderSize;
+		public string Text;
+	}
+
+	private List<Primitive> _build = new();
+	private List<Primitive> _render = new();
+	private readonly RenderAttributes _lineAttributes = new();
+
+	public OrientationGizmoSceneObject( SceneWorld world ) : base( world )
+	{
+		RenderLayer = SceneRenderLayer.OverlayWithoutDepth;
+		Bounds = BBox.FromPositionAndSize( 0, float.MaxValue ); // never frustum-cull a screen-space overlay
+	}
+
+	public void Begin() => _build.Clear();
+	public void Push() => (_render, _build) = (_build, _render);
+
+	public void Circle( Vector2 center, float radius, Color fill, Color border = default, float borderSize = 0f )
+		=> _build.Add( new Primitive { Kind = PrimitiveKind.Circle, A = center, Size = radius, Color = fill, Border = border, BorderSize = borderSize } );
+
+	public void Line( Vector2 start, Vector2 end, float thickness, Color color )
+		=> _build.Add( new Primitive { Kind = PrimitiveKind.Line, A = start, B = end, Size = thickness, Color = color } );
+
+	public void Text( string text, Vector2 pos, float size, Color color )
+		=> _build.Add( new Primitive { Kind = PrimitiveKind.Text, A = pos, Size = size, Color = color, Text = text } );
+
+	public override void RenderSceneObject()
+	{
+		var primitives = _render; // snapshot the published buffer; never mutated while we enumerate it
+
+		foreach ( var p in primitives )
+		{
+			switch ( p.Kind )
+			{
+				case PrimitiveKind.Circle:
+					var rect = new Rect( p.A.x - p.Size, p.A.y - p.Size, p.Size * 2f, p.Size * 2f );
+					var borderWidth = p.BorderSize > 0f ? new Vector4( p.BorderSize ) : default;
+					Graphics.DrawRoundedRectangle( rect, p.Color, new Vector4( p.Size ), borderWidth, p.Border );
+					break;
+
+				case PrimitiveKind.Line:
+					DrawLine( p.A, p.B, p.Size, p.Color );
+					break;
+
+				case PrimitiveKind.Text:
+					Graphics.DrawText( new Rect( p.A, 0f ), p.Text, p.Color, "Roboto", p.Size, flags: TextFlag.Center );
+					break;
+			}
+		}
+	}
+
+	private void DrawLine( Vector2 start, Vector2 end, float thickness, Color color )
+	{
+		var delta = end - start;
+		var length = delta.Length;
+		if ( length <= 0f )
+			return;
+
+		var angle = MathF.Atan2( delta.y, delta.x ).RadianToDegree();
+		var rect = new Rect( start.x, start.y - thickness * 0.5f, length, thickness );
+
+		// Pass local attributes so the rotation/texture stay scoped to this quad and never touch global state.
+		_lineAttributes.Set( "Texture", Texture.White );
+		_lineAttributes.Set( "TransformMat", Matrix.CreateRotationZ( angle, new Vector3( start.x, start.y, 0f ) ) );
+		Graphics.DrawQuad( rect, Material.UI.Basic, color, _lineAttributes );
 	}
 }

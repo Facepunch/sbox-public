@@ -2,34 +2,55 @@
 @using Sandbox.UI.Navigation;
 @using Sandbox;
 @using System;
-@using Menu
 @using MenuProject.MenuUI.Front
-@using MenuProject.MenuUI.Front.Feed
 @inherits Panel
 @page "/home"
 
-<div class="page">
+<div class="stage">
 
-    <column>
-        <SpotlightGames />
-        <div class="grow" />
-        <RewardProgress />
-        <News />
-    </column>
+    <div class="panel panel-left">
+        <ContinuePlaying Activity="@Activity" />
+        <SpotlightGames Activity="@Activity" />
+        <RewardDrop />
+    </div>
 
+    <div class="panel panel-right">
+        <ActivityFeed Activity="@Activity" Take="@(8)" />
+    </div>
+
+    <News />
+
+</div>
+
+<div class="model-toggle">
     <DesktopButtons />
-
-    <column class="right">
-        <Card>
-            <ChildContent>
-                    <PlayerFeed Take=@(30) />
-            </ChildContent>
-        </Card>
-
-    </column>
-
 </div>
 
 @code
 {
+    // Sandbox.Services stays unimported - its News type would clash with the <News /> tag.
+    Sandbox.Services.Feed[] Activity { get; set; } = Array.Empty<Sandbox.Services.Feed>();
+
+    RealTimeUntil timeUntilRefresh = 0;
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( !IsVisible ) return;
+        if ( timeUntilRefresh > 0 ) return;
+
+        timeUntilRefresh = 60 * 3;
+
+        _ = UpdateActivity();
+    }
+
+    async Task UpdateActivity()
+    {
+        // Deeper than the rows we draw - the panels derive friend counts from the same data.
+        Activity = await MenuUtility.GetPlayerFeed( 30 ) ?? Array.Empty<Sandbox.Services.Feed>();
+        StateHasChanged();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Activity.Length );
 }

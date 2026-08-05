@@ -40,6 +40,8 @@ partial class EdgeTool
 			_edgeGroups = _edges.GroupBy( x => x.Component ).ToList();
 			_components = _edgeGroups.Select( x => x.Key ).ToList();
 
+			this.AddPivotGroup( tool );
+
 			{
 				var group = AddGroup( "Modify" );
 

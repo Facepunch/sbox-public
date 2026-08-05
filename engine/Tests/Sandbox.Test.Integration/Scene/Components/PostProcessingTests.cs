@@ -136,9 +136,7 @@ public class PostProcessingComponentTest
 		Assert.AreEqual( SceneCamera.BloomAccessor.BloomMode.Additive, bloom.Mode );
 		Assert.AreEqual( 1.0f, bloom.Strength );
 		Assert.AreEqual( 1.0f, bloom.Threshold );
-		Assert.AreEqual( 2.2f, bloom.Gamma );
 		Assert.AreEqual( Color.White, bloom.Tint );
-		Assert.AreEqual( Bloom.FilterMode.Bilinear, bloom.Filter );
 
 		var overlay = go.Components.Create<BlitOverlay>( false );
 		Assert.AreEqual( 0.1f, overlay.Blend );
@@ -364,9 +362,7 @@ public class PostProcessingComponentTest
 		bloom.Mode = SceneCamera.BloomAccessor.BloomMode.Screen;
 		bloom.Strength = 5.0f;
 		bloom.Threshold = 1.5f;
-		bloom.Gamma = 1.8f;
 		bloom.Tint = new Color( 0.1f, 0.2f, 0.3f );
-		bloom.Filter = Bloom.FilterMode.Biquadratic;
 
 		var dof = go.Components.Create<DepthOfField>();
 		dof.BlurSize = 50.0f;
@@ -414,9 +410,7 @@ public class PostProcessingComponentTest
 		Assert.AreEqual( SceneCamera.BloomAccessor.BloomMode.Screen, loadedBloom.Mode );
 		Assert.AreEqual( 5.0f, loadedBloom.Strength );
 		Assert.AreEqual( 1.5f, loadedBloom.Threshold, 0.001f, "Threshold round trips untouched because the serialized version is current" );
-		Assert.AreEqual( 1.8f, loadedBloom.Gamma );
 		Assert.AreEqual( new Color( 0.1f, 0.2f, 0.3f ), loadedBloom.Tint );
-		Assert.AreEqual( Bloom.FilterMode.Biquadratic, loadedBloom.Filter );
 
 		var loadedDof = clone.Components.Get<DepthOfField>();
 		Assert.IsNotNull( loadedDof );

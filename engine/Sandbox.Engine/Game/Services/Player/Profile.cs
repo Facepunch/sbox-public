@@ -8,7 +8,11 @@ namespace Sandbox.Services.Players;
 public sealed class Profile
 {
 	public SteamId Id { get; init; }
-	public string Name { get; init; }
+	public string Name
+	{
+		get => Preferences.StreamerMode ? Steam.GetAnonymousName( Id ) : field;
+		init;
+	}
 	public string Url { get; init; }
 	public bool Online { get; init; }
 	public bool Private { get; init; }

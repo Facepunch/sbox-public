@@ -76,16 +76,9 @@ public class SceneOverlayWidget : Widget
 	{
 		Active = this;
 
-		if ( Parent is SceneViewportWidget vw )
+		if ( Parent is SceneViewportWidget vw && vw.SceneView.CurrentView == SceneViewWidget.ViewMode.Game )
 		{
-			if ( vw.SceneView.CurrentView == SceneViewWidget.ViewMode.Game )
-			{
-				EditorEvent.Run( "sceneview.paintoverlay" );
-			}
-			else
-			{
-				vw.PaintOrientationGizmo();
-			}
+			EditorEvent.Run( "sceneview.paintoverlay" );
 		}
 	}
 }

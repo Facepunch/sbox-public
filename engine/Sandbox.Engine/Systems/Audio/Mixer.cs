@@ -264,6 +264,19 @@ public partial class Mixer
 	}
 
 	/// <summary>
+	/// Get the buffer for this listener, silencing it on first use each frame.
+	/// </summary>
+	MultiChannelBuffer GetListenerBuffer( Listener listener )
+	{
+		if ( !_outputBuffers.TryGetValue( listener, out var buffer ) )
+			buffer = _outputBuffers[listener] = new MultiChannelBuffer( AudioEngine.ChannelCount );
+
+		if ( _usedListeners.Add( listener ) ) buffer.Silence();
+
+		return buffer;
+	}
+
+	/// <summary>
 	/// Recursively mix all child mixers.
 	/// </summary>
 	internal void MixChildren( VoiceFrameSnapshot snapshot )
@@ -283,7 +296,13 @@ public partial class Mixer
 
 				child.FinishMixing();
 
-				_outputBuffer.MixFrom( child.Output, 1.0f );
+				// Keep the listener split so our processors run over child audio too.
+				foreach ( var listener in child._usedListeners )
+				{
+					if ( !child._outputBuffers.TryGetValue( listener, out var childBuffer ) ) continue;
+
+					GetListenerBuffer( listener ).MixFrom( childBuffer, 1.0f );
+				}
 			}
 		}
 	}
@@ -378,7 +397,15 @@ public partial class Mixer
 				volume *= Preferences.VoipVolume;
 		}
 
-		_outputBuffer.Scale( volume );
+		// Scale per listener, not the collapsed output: our parent reads these buffers directly.
+		foreach ( var listener in _usedListeners )
+		{
+			if ( !_outputBuffers.TryGetValue( listener, out var targetBuffer ) ) continue;
+
+			targetBuffer.Scale( volume );
+			_outputBuffer.MixFrom( targetBuffer, 1.0f );
+		}
+
 		Meter.Add( _outputBuffer, _voiceCount );
 	}
 
@@ -439,8 +466,8 @@ public partial class Mixer
 			}
 
 			if ( source is null ) continue;
-			if ( !_outputBuffers.TryGetValue( listener, out var targetBuffer ) ) targetBuffer = _outputBuffers[listener] = new MultiChannelBuffer( AudioEngine.ChannelCount );
-			if ( _usedListeners.Add( listener ) ) targetBuffer.Silence();
+
+			var targetBuffer = GetListenerBuffer( listener );
 
 			mixBuffer.CopyFromUpmix( samples );
 

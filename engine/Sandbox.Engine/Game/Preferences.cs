@@ -61,6 +61,12 @@ public static class Preferences
 	public static bool ChatEnabled { get; set; } = true;
 
 	/// <summary>
+	/// When enabled, player usernames/avatars are replaced with anonymous versions.
+	/// </summary>
+	[ConVar( "streamer_mode", ConVarFlags.Saved, Help = "Hide usernames and profile pictures in the built-in chat behind anonymous aliases." )]
+	public static bool StreamerMode { get; set; } = false;
+
+	/// <summary>
 	/// Whether the user wants to see subtitles for sounds that have them. Off by
 	/// default - turned on in the audio settings.
 	/// </summary>

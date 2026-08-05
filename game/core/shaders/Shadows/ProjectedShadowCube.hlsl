@@ -159,6 +159,8 @@ struct ProjectedShadowCube
 		}
 
 		ProjectedShadowCubeStruct shadow = ProjectedCubeShadows[shadowCubeIndex];
+		
+		worldPosition = ApplyShadowNormalOffset( worldPosition, 2.0f * length( shadow.LightPosition - worldPosition ) * shadow.InvShadowMapRes, shadow.ShadowHardness );
 
 		float3 worldToLight = shadow.LightPosition - worldPosition;
 		float distance = length( worldToLight );

@@ -2,6 +2,15 @@ using HalfEdgeMesh;
 
 namespace Editor.MeshEditor;
 
+public enum PivotSpace
+{
+	/// <summary>Position relative to the pivot.</summary>
+	Local,
+
+	/// <summary>Position in world coordinates.</summary>
+	Global
+}
+
 public abstract class SelectionTool( MeshTool tool ) : EditorTool
 {
 	public MeshTool Tool { get; } = tool;
@@ -112,6 +121,10 @@ public abstract class SelectionTool( MeshTool tool ) : EditorTool
 	{
 	}
 
+	public virtual void NudgeRotation( Vector2 direction )
+	{
+	}
+
 	public virtual void AlignDown( bool useLocalDown )
 	{
 	}
@@ -188,6 +201,16 @@ public abstract class SelectionTool( MeshTool tool ) : EditorTool
 		get => EditorCookie.Get( $"mesh.{GetType().Name}.show-selection-bounds", ShowSelectionBoundsDefault );
 		set => EditorCookie.Set( $"mesh.{GetType().Name}.show-selection-bounds", value );
 	}
+
+	/// <summary>
+	/// The space the selection position is displayed and edited in, shared by all selection modes.
+	/// </summary>
+	[Title( "Space" )]
+	public PivotSpace PivotSpace
+	{
+		get => EditorCookie.Get( "mesh.pivot-space", PivotSpace.Global );
+		set => EditorCookie.Set( "mesh.pivot-space", value );
+	}
 }
 
 file class SelectionToolShortcutsWidget( SelectionTool tool ) : Widget
@@ -203,6 +226,30 @@ file class SelectionToolShortcutsWidget( SelectionTool tool ) : Widget
 
 	[Shortcut( "mesh.selection-nudge-right", "RIGHT", typeof( SceneViewWidget ) )]
 	public void NudgeRight() => tool.Nudge( Vector2.Right );
+
+	[Shortcut( "mesh.selection-rotate-up", "ALT+UP", typeof( SceneViewWidget ) )]
+	public void RotateUp() => tool.NudgeRotation( Vector2.Up );
+
+	[Shortcut( "mesh.selection-rotate-down", "ALT+DOWN", typeof( SceneViewWidget ) )]
+	public void RotateDown() => tool.NudgeRotation( Vector2.Down );
+
+	[Shortcut( "mesh.selection-rotate-left", "ALT+LEFT", typeof( SceneViewWidget ) )]
+	public void RotateLeft() => tool.NudgeRotation( Vector2.Left );
+
+	[Shortcut( "mesh.selection-rotate-right", "ALT+RIGHT", typeof( SceneViewWidget ) )]
+	public void RotateRight() => tool.NudgeRotation( Vector2.Right );
+
+	[Shortcut( "mesh.selection-rotate-duplicate-up", "ALT+SHIFT+UP", typeof( SceneViewWidget ) )]
+	public void RotateDuplicateUp() => tool.NudgeRotation( Vector2.Up );
+
+	[Shortcut( "mesh.selection-rotate-duplicate-down", "ALT+SHIFT+DOWN", typeof( SceneViewWidget ) )]
+	public void RotateDuplicateDown() => tool.NudgeRotation( Vector2.Down );
+
+	[Shortcut( "mesh.selection-rotate-duplicate-left", "ALT+SHIFT+LEFT", typeof( SceneViewWidget ) )]
+	public void RotateDuplicateLeft() => tool.NudgeRotation( Vector2.Left );
+
+	[Shortcut( "mesh.selection-rotate-duplicate-right", "ALT+SHIFT+RIGHT", typeof( SceneViewWidget ) )]
+	public void RotateDuplicateRight() => tool.NudgeRotation( Vector2.Right );
 
 	[Shortcut( "mesh.align-down-local", "CTRL+KP_1", typeof( SceneViewWidget ) )]
 	public void AlignDownLocal() => tool.AlignDown( useLocalDown: true );
@@ -749,6 +796,51 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 		}
 
 		Pivot -= delta;
+
+		Tool?.MoveMode?.OnBegin( this );
+	}
+
+	public override void NudgeRotation( Vector2 direction )
+	{
+		if ( !Selection.Any() ) return;
+
+		var viewport = SceneViewWidget.Current?.LastSelectedViewportWidget;
+		if ( !viewport.IsValid() ) return;
+
+		var gizmo = viewport.GizmoInstance;
+		if ( gizmo is null ) return;
+
+		using var gizmoScope = gizmo.Push();
+		if ( Gizmo.Pressed.Any ) return;
+
+		var basis = CalculateSelectionBasis();
+		var screenRight = -Gizmo.Nudge( basis, Vector2.Right ).Normal;
+		var screenUp = -Gizmo.Nudge( basis, Vector2.Up ).Normal;
+		var faceNormal = screenRight.Cross( screenUp ).Normal;
+
+		var axis = direction.x != 0.0f
+			? faceNormal
+			: screenRight;
+
+		var angle = direction.x != 0.0f
+			? direction.x * Gizmo.Settings.AngleSpacing
+			: -direction.y * Gizmo.Settings.AngleSpacing;
+
+		var delta = Rotation.FromAxis( axis, angle );
+
+		StartDrag();
+
+		try
+		{
+			Rotate( Pivot, Rotation.Identity, delta );
+			UpdateDrag();
+		}
+		finally
+		{
+			EndDrag();
+		}
+
+		Tool?.MoveMode?.OnBegin( this );
 	}
 
 	private void UpdateTexturesAfterNudge()
@@ -793,6 +885,45 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 	{
 		var bounds = CalculateSelectionBounds();
 		return bounds.Center;
+	}
+
+	/// <summary>
+	/// Selection position, relative to the pivot in <see cref="PivotSpace.Local"/> space.
+	/// Setting it moves the selection; the pivot stays put, acting as the reference point.
+	/// </summary>
+	[Title( "Position" ), WideMode]
+	public Vector3 PivotPosition
+	{
+		get => CalculateSelectionOrigin() - PivotOrigin;
+		set => MoveSelection( PivotOrigin + value - CalculateSelectionOrigin() );
+	}
+
+	Vector3 PivotOrigin => PivotSpace == PivotSpace.Local ? Pivot : Vector3.Zero;
+
+	/// <summary>
+	/// Move the selected vertices by a world space delta. The undo scope is held open
+	/// until <see cref="EndMoveSelection"/> so a drag records a single undo entry.
+	/// </summary>
+	public void MoveSelection( Vector3 delta )
+	{
+		if ( _vertexSelection.Count == 0 || delta.LengthSquared < 0.0001f )
+			return;
+
+		var components = _vertexSelection.Select( v => v.Component ).Distinct();
+
+		using var scope = SceneEditorSession.Scope();
+		_undoScope ??= SceneEditorSession.Active.UndoScope( "Move Selection" ).WithComponentChanges( components ).Push();
+
+		foreach ( var vertex in _vertexSelection )
+			vertex.Component.Mesh.SetVertexPosition( vertex.Handle, vertex.Transform.PointToLocal( vertex.PositionWorld + delta ) );
+
+		Tool?.MoveMode?.OnBegin( this );
+	}
+
+	public void EndMoveSelection()
+	{
+		_undoScope?.Dispose();
+		_undoScope = null;
 	}
 
 	public void CalculateSelectionVertices()
@@ -1462,4 +1593,28 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 		new( 0, 0, -1 ),
 		new( 0, 0, -1 ),
 	};
+}
+
+public static class SelectionToolSidebarExtensions
+{
+	/// <summary>
+	/// Add a "Transform" group for moving the selection relative to its pivot.
+	/// </summary>
+	public static void AddPivotGroup<T>( this ToolSidebarWidget sidebar, SelectionTool<T> tool ) where T : IMeshElement
+	{
+		var group = sidebar.AddGroup( "Transform", collapsible: true );
+		var hasSelection = tool.Selection.OfType<T>().Any();
+
+		var so = tool.GetSerialized();
+		so.OnPropertyFinishEdit += _ => tool.EndMoveSelection();
+
+		var position = ControlWidget.Create( so.GetProperty( nameof( SelectionTool<T>.PivotPosition ) ) );
+		position.FixedHeight = Theme.ControlHeight;
+		position.Enabled = hasSelection;
+		group.Add( position );
+
+		var space = ControlWidget.Create( so.GetProperty( nameof( SelectionTool.PivotSpace ) ) );
+		space.Enabled = hasSelection;
+		group.Add( space );
+	}
 }

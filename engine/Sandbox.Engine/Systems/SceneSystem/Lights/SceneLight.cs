@@ -185,16 +185,42 @@ public class SceneLight : SceneObject
 	/// </summary>
 	internal Vector3 WorldDirection => lightNative.GetWorldDirection();
 
-	public float ShadowBias { get; set; } = 0.0005f;
+	public float ShadowBias { get; set; } = 0.0f;
 
 	public float ShadowHardness { get; set; } = 0.0f;
 
 	/// <summary>
-	/// Bindless indices of the screen-space shadow masks for this light, keyed by managed camera id
-	/// (masks are generated per rendering view). Written from threaded procedural-layer jobs while
-	/// other views' light binning reads it, hence the concurrent dictionary.
+	/// Should this light generate screen-space contact shadows on top of its shadow maps?
 	/// </summary>
-	internal readonly System.Collections.Concurrent.ConcurrentDictionary<int, uint> ShadowMaskTextureIndices = new();
+	internal bool ContactShadows { get; set; }
+
+	/// <summary>
+	/// Get or create screen-space shadow mask for this light and view, valid for the current frame only.
+	/// </summary>
+	internal Texture GetShadowMask( ISceneView view )
+	{
+		// Only managed cameras reach OnRenderStage, so only they ever clear/dispatch into the mask.
+		// Purely native views (cubemap bakes, capture views) must get no mask, or the CSM pass
+		// samples uninitialized contents instead of "fully lit".
+		var cameraId = view.m_ManagedCameraId;
+		if ( cameraId == 0 )
+			return null;
+
+		var vp = view.GetMainViewport();
+
+		int width = (int)vp.Rect.Width;
+		int height = (int)vp.Rect.Height;
+
+		if ( width < 1 || height < 1 )
+			return null;
+
+		// the loan is released immediately - the stable name means both same-frame calls
+		// (CSM setup + the mask pass) resolve to the same cached RT and bindless index. Hold the
+		// loan for the frame if anything else ever starts requesting same-size temporaries by name.
+		using var rt = RenderTarget.GetTemporary( width, height, ImageFormat.A8, ImageFormat.None,
+			MultisampleAmount.MultisampleNone, 1, $"ShadowMask_{(nint)lightNative}_{cameraId}" );
+		return rt.ColorTarget;
+	}
 
 	internal override void OnTransformChanged( in Transform tx )
 	{

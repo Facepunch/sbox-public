@@ -62,6 +62,9 @@ struct DirectionalLightShadow
 	static float SampleCascade( int cascadeIndex, float3 worldPosition, float2 screenPos )
     {
 		float4x4 worldToShadow = g_DirectionalLightWorldToShadowViewMatrices[cascadeIndex];
+
+		worldPosition = ApplyShadowNormalOffset( worldPosition, g_DirectionalLightInverseShadowMapSize / length( worldToShadow[0].xyz ), g_DirectionalLightCascadeHardness[cascadeIndex] );
+		
 		float3 positionLs = mul( worldToShadow, float4( worldPosition, 1.0f ) ).xyz;
 
         ShadowPCFInput pcfInput;

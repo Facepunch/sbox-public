@@ -4,7 +4,7 @@
 native enum ButtonCode_t is NativeEngine.ButtonCode;
 native enum GameControllerCode_t is NativeEngine.GameControllerCode;
 native enum GameControllerAxis_t is NativeEngine.GameControllerAxis;
-native enum GameControllerType_t is NativeEngine.GameControllerType;
+native enum GameControllerGlyphSet_t is NativeEngine.GameControllerGlyphSet;
 
 native accessor g_pInputService
 {

@@ -6,6 +6,7 @@ public class BrushSettings
 	[Property, Range( 0.0f, 1.0f ), Step( 0.01f ), WideMode] public float Opacity { get; set; } = 0.5f;
 	[Property, Range( 0, 360 ), Step( 1 ), WideMode] public float Rotation { get; set; } = 0;
 	[Property] public bool RandomRotation { get; set; } = false;
+	[Property, Title( "Show Grid" )] public bool ShowGridPreview { get; set; } = true;
 }
 
 public class BrushSettingsWidgetWindow : WidgetWindow

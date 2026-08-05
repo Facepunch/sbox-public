@@ -38,11 +38,20 @@ public partial class DockManager
 	}
 
 	/// <summary>
+	/// Registers a dock type without creating its widget.
+	/// </summary>
+	public void RegisterDockType( DockInfo info )
+	{
+		ArgumentNullException.ThrowIfNull( info );
+		docks[info.Title] = info;
+	}
+
+	/// <summary>
 	/// Register a dock type and immediately create and dock it.
 	/// </summary>
 	public void AddDock( DockInfo info )
 	{
-		docks[info.Title] = info;
+		RegisterDockType( info );
 
 		// already created (e.g. re-registered after a hotload)
 		if ( FindDockWidget( info.Title ) is not null )
@@ -61,7 +70,7 @@ public partial class DockManager
 	/// </summary>
 	public void RegisterDock( DockInfo info )
 	{
-		docks[info.Title] = info;
+		RegisterDockType( info );
 
 		// already created (e.g. re-registered after a hotload)
 		if ( FindDockWidget( info.Title ) is not null )

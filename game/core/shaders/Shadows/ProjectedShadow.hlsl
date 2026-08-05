@@ -42,6 +42,9 @@ struct ProjectedShadow
         ProjectedShadowStruct shadow = ProjectedShadows[shadowIndex];
         Texture2D shadowmap = Bindless::GetTexture2D( shadow.ShadowMapTextureIndex );
 
+        const float flDepthW = abs( mul( float4( worldPosition, 1.0f ), shadow.WorldToShadowMatrix ).w );
+        worldPosition = ApplyShadowNormalOffset( worldPosition, flDepthW * shadow.InvShadowMapRes, shadow.ShadowHardness );
+
         float4 shadowPosition = mul( float4( worldPosition, 1.0f ), shadow.WorldToShadowMatrix );
 
         float3 positionTextureSpace = shadowPosition.xyz / shadowPosition.w;

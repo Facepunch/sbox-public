@@ -430,6 +430,9 @@ partial class QuakeMap
 			var isSky = _skyLayers.ContainsKey( texIndex );
 			var isLiquid = texName.Length > 0 && texName[0] == '*';
 
+			if ( isSky && _hasSkybox )
+				continue;
+
 			if ( !isSky && !isLiquid && (bspTexInfo.Flags & 1) != 0 )
 				continue;
 

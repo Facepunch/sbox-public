@@ -59,6 +59,8 @@ PS
     Texture2D ColorBuffer < Attribute( "ColorBuffer" ); >;
     Texture2D BloomTexture < Attribute( "BloomTexture" ); >;
     int CompositeMode< Attribute("CompositeMode"); Default(0); >;
+    float BloomScale < Attribute("BloomScale"); Default(0.0f); >;
+    float3 Tint < Attribute("Tint"); Default3(1.0f, 1.0f, 1.0f); >;
 
     float3 ScreenHDR(float3 base, float3 blend)
     {
@@ -76,6 +78,7 @@ PS
 
         float4 baseColor = ColorBuffer.Sample(g_sBilinearMirror, vScreenUv.xy);
         float4 bloom = BloomTexture.Sample(g_sBilinearMirror, vScreenUv.xy);
+        bloom.rgb *= Tint * BloomScale;
 
         float3 finalColor = 0;
         if (CompositeMode == 0)

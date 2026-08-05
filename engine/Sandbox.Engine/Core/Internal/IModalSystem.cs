@@ -1,4 +1,6 @@
-﻿namespace Sandbox.Modals;
+﻿using Sandbox.UI;
+
+namespace Sandbox.Modals;
 
 public interface IModalSystem
 {
@@ -56,6 +58,62 @@ public struct FriendsListModalOptions
 	/// Show online (but not in-game) members
 	/// </summary>
 	public bool ShowOnlineMembers { get; set; } = true;
+
+	/// <summary>
+	/// If set, the modal will open anchored next to a panel (eg. the button that opened it)
+	/// instead of centered on screen.
+	/// </summary>
+	public Anchoring? Anchor { get; set; }
+
+	/// <summary>
+	/// Anchors a modal next to a source panel (eg. the button that opened it), instead of it
+	/// opening centered on screen. See <see cref="FriendsListModalOptions.Anchor"/>.
+	/// </summary>
+	public struct Anchoring
+	{
+		public Anchoring() { }
+
+		/// <summary>
+		/// The panel to anchor next to.
+		/// </summary>
+		public Panel Panel { get; set; }
+
+		/// <summary>
+		/// Which side of <see cref="Panel"/> to anchor to.
+		/// </summary>
+		public ModalAnchorPosition Position { get; set; } = ModalAnchorPosition.BelowRight;
+
+		/// <summary>
+		/// Gap between <see cref="Panel"/> and the modal.
+		/// </summary>
+		public float Offset { get; set; } = 8.0f;
+	}
+}
+
+/// <summary>
+/// Where to anchor a modal relative to a source panel. See <see cref="FriendsListModalOptions.Anchoring"/>.
+/// </summary>
+public enum ModalAnchorPosition
+{
+	/// <summary>
+	/// Below the source panel, aligned to its left edge.
+	/// </summary>
+	BelowLeft,
+
+	/// <summary>
+	/// Below the source panel, aligned to its right edge.
+	/// </summary>
+	BelowRight,
+
+	/// <summary>
+	/// Above the source panel, aligned to its left edge.
+	/// </summary>
+	AboveLeft,
+
+	/// <summary>
+	/// Above the source panel, aligned to its right edge.
+	/// </summary>
+	AboveRight,
 }
 
 

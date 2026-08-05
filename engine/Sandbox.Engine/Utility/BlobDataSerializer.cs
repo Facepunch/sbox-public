@@ -216,6 +216,30 @@ internal static class BlobDataSerializer
 	}
 
 	/// <summary>
+	/// Temporarily suppresses any active blob context, forcing nested serialization to write
+	/// self-contained (inline) data instead of referencing an ambient context by guid.
+	/// Use this when producing JSON that must remain valid outside the current context's lifetime,
+	/// e.g. a diff patch that's cached and reapplied long after the context that created it is gone.
+	/// </summary>
+	internal static IDisposable Suppress()
+	{
+		return new SuppressScope( _current );
+	}
+
+	private sealed class SuppressScope : IDisposable
+	{
+		private readonly BlobContext _previous;
+
+		public SuppressScope( BlobContext previous )
+		{
+			_previous = previous;
+			_current = null;
+		}
+
+		public void Dispose() => _current = _previous;
+	}
+
+	/// <summary>
 	/// Load blob data from memory if available, otherwise from file path.
 	/// </summary>
 	public static BlobContext Load( byte[] data, string filePath )

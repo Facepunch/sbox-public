@@ -546,6 +546,14 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	{
 		switch ( renderStage )
 		{
+			case Rendering.Stage.AfterDepthPrepass:
+				{
+					// Light shadow-mask command lists (screen-space contact shadows) only need the
+					// full-res depth buffer, and this stage already runs per view with a valid.
+					ShadowMapperCallbacks.RenderScreenSpaceShadows();
+					break;
+				}
+
 			case Rendering.Stage.AfterPostProcess:
 				{
 					OnRenderOverlay?.Invoke();

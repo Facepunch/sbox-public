@@ -16,6 +16,7 @@ public partial class Panel
 		if ( HasFilter ) return true;
 		if ( styles.FilterDropShadow.Count > 0 ) return true;
 		if ( styles.MaskImage != null ) return true;
+		if ( styles.Isolation == UI.Isolation.Isolate ) return true;
 
 		return false;
 	}

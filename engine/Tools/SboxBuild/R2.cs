@@ -47,7 +47,12 @@ internal static class R2
 			// a FULL_OBJECT checksum that R2 rejects ("checksum type FULL_OBJECT is not
 			// supported"). Only checksum when the operation actually requires it.
 			RequestChecksumCalculation = RequestChecksumCalculation.WHEN_REQUIRED,
-			ResponseChecksumValidation = ResponseChecksumValidation.WHEN_REQUIRED
+			ResponseChecksumValidation = ResponseChecksumValidation.WHEN_REQUIRED,
+			// R2 throttles per-object writes (HTTP 429 "Reduce your concurrent request rate
+			// for the same object"), so give the SDK plenty of room to back off and retry an
+			// individual request rather than failing the whole transfer.
+			RetryMode = RequestRetryMode.Adaptive,
+			MaxErrorRetry = 8
 		};
 
 		return (new AmazonS3Client( accessKeyId, secretAccessKey, config ), bucket);

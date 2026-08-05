@@ -143,7 +143,7 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 			if ( _sceneObject.IsValid() )
 				_sceneObject.ShadowBias = value;
 		}
-	} = 0.0005f;
+	} = 0.0f;
 
 	[Property, Range( 0, 1 ), Category( "Shadows" )]
 	public float ShadowHardness

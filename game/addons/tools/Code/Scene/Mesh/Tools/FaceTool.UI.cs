@@ -74,6 +74,8 @@ partial class FaceTool
 				_meshTool.CreateMoveModeButtons( row );
 			}
 
+			this.AddPivotGroup( tool );
+
 			{
 				var group = AddGroup( "Operations", collapsible: true );
 

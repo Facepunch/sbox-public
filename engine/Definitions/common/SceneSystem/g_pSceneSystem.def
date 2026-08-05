@@ -75,11 +75,16 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
     void BeginRenderingDynamicView( ISceneView pView );
     //ISceneView AddDynamicView( string pszDebugName, ISceneView pParentView, CFrustum frustum, void* hSwapChain, ISceneWorld pWorld, RenderViewport mainViewport, void* pVis, int nPriority, int nViewProducerIndex );
 
-	ISceneView AddShadowView( string debugName, ISceneView pParentView, CFrustum frustum, RenderViewport_t mainViewport, ITexture rt, int rtIdx, ESceneObjectFlags requiredFlags, ESceneObjectFlags excludedFlags, int depthBias, float slopeScaledDepthBias, CFrustum exclusionFrustum );
+	ISceneView AddShadowView( string debugName, ISceneView pParentView, CFrustum frustum, RenderViewport_t mainViewport, ITexture rt, int rtIdx, ESceneObjectFlags requiredFlags, ESceneObjectFlags excludedFlags, int depthBias, float slopeScaledDepthBias, CFrustum exclusionFrustum, ITexture cachedShadowTexture );
+
+	inline ISceneView AddShadowView( string debugName, ISceneView pParentView, CFrustum frustum, RenderViewport_t mainViewport, ITexture rt, int rtIdx, ESceneObjectFlags requiredFlags, ESceneObjectFlags excludedFlags, int depthBias, float slopeScaledDepthBias, ITexture cachedShadowTexture )
+	{
+		return g_pSceneSystem->AddShadowView( debugName, pParentView, frustum, mainViewport, rt, rtIdx, requiredFlags, excludedFlags, depthBias, slopeScaledDepthBias, nullptr, cachedShadowTexture );
+	}
 
 	inline ISceneView AddShadowView( string debugName, ISceneView pParentView, CFrustum frustum, RenderViewport_t mainViewport, ITexture rt, int rtIdx, ESceneObjectFlags requiredFlags, ESceneObjectFlags excludedFlags, int depthBias, float slopeScaledDepthBias )
 	{
-		return g_pSceneSystem->AddShadowView( debugName, pParentView, frustum, mainViewport, rt, rtIdx, requiredFlags, excludedFlags, depthBias, slopeScaledDepthBias, nullptr );
+		return g_pSceneSystem->AddShadowView( debugName, pParentView, frustum, mainViewport, rt, rtIdx, requiredFlags, excludedFlags, depthBias, slopeScaledDepthBias, nullptr, RENDER_TEXTURE_HANDLE_INVALID );
 	}
     
 	ITexture GetWellKnownTexture( SceneSystemWellKnownTextureObjectID a );

@@ -71,9 +71,13 @@ internal partial class ShadowMapper
 
 	ISceneView SceneView { get; set; }
 
+	/// <summary>Directional light for this view.</summary>
+	SceneLight DirectionalLight { get; set; }
+
 	internal void InitForView( ISceneView sceneView )
 	{
 		SceneView = sceneView;
+		DirectionalLight = null;
 
 		// Evict stale shadow maps and clean the texture pool
 		Update();
@@ -83,6 +87,7 @@ internal partial class ShadowMapper
 		GPUProjectedCubeShadows.Clear();
 		GPUDirectionalLightData.CascadeCount = 0;
 		GPUDirectionalLightData.Enabled = false;
+		GPUDirectionalLightData.ShadowMaskTextureIndex = 0;
 		ShadowsAllocated = 0;
 
 		// Save statistics from last frame, then reset
@@ -125,9 +130,53 @@ internal partial class ShadowMapper
 		public int DebugLightIndex;
 		public bool IsCube;
 		public string DebugName;
+		public int CachedTransformVersion;
 	}
 
 	public static ConditionalWeakTable<SceneLight, LightEntry> Cache = new();
+
+	/// <summary>
+	/// Get or create the cache entry for a light, handling resolution changes and
+	/// dropping the static cache if the light moved.
+	/// </summary>
+	static LightEntry GetOrCreateCacheEntry( SceneLight light, int desiredResolution, bool isCube, float flScreenSize )
+	{
+		if ( !Cache.TryGetValue( light, out var entry ) )
+		{
+			entry = new()
+			{
+				ShadowMap = AcquireTexture( desiredResolution, isCube ),
+				CurrentResolution = desiredResolution,
+				IsCube = isCube,
+				DebugName = $"{light}_Shadow",
+			};
+			Cache.AddOrUpdate( light, entry );
+		}
+
+		// Keep track of how big we actually want it, if we run low on budget we can downgrade these out of scope
+		entry.DesiredResolution = desiredResolution;
+		entry.ScreenSize = flScreenSize;
+
+		// Do we want a different resolution for this shadow map now?
+		if ( entry.CurrentResolution != desiredResolution )
+		{
+			ReleaseTexture( entry.ShadowMap, entry.CurrentResolution, entry.IsCube );
+			ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
+			entry.ShadowMap = AcquireTexture( desiredResolution, isCube );
+			entry.StaticCache = null;
+			entry.CurrentResolution = desiredResolution;
+		}
+
+		// The static cache is only valid for the transform it was rendered at
+		if ( entry.CachedTransformVersion != light.TransformVersion )
+		{
+			entry.CachedTransformVersion = light.TransformVersion;
+			ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
+			entry.StaticCache = null;
+		}
+
+		return entry;
+	}
 
 	public static long MemorySize
 	{
@@ -138,6 +187,9 @@ internal partial class ShadowMapper
 			{
 				if ( kvp.Value.ShadowMap is not null )
 					total += g_pRenderDevice.ComputeTextureMemorySize( kvp.Value.ShadowMap.native );
+
+				if ( kvp.Value.StaticCache is not null )
+					total += g_pRenderDevice.ComputeTextureMemorySize( kvp.Value.StaticCache.native );
 			}
 			return total;
 		}
@@ -218,8 +270,10 @@ internal partial class ShadowMapper
 			{
 				if ( Cache.TryGetValue( light, out var entry ) )
 				{
+					ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
 					ReleaseTexture( entry.ShadowMap, entry.CurrentResolution, entry.IsCube );
 					entry.ShadowMap = null;
+					entry.StaticCache = null;
 					Cache.Remove( light );
 				}
 			}
@@ -247,6 +301,8 @@ internal partial class ShadowMapper
 
 		ReleaseTexture( entry.ShadowMap, entry.CurrentResolution, entry.IsCube );
 		entry.ShadowMap = null;
+		ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
+		entry.StaticCache = null;
 		Cache.Remove( light );
 	}
 
@@ -305,6 +361,7 @@ internal partial class ShadowMapper
 
 	internal int DoDirectionalLight( SceneLight sceneObject, ISceneView view )
 	{
+		DirectionalLight = sceneObject;
 		GPUDirectionalLightData.Enabled = true;
 
 		if ( !CSMEnabled )

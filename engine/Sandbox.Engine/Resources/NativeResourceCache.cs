@@ -1,7 +1,6 @@
-﻿using Microsoft.Extensions.Caching.Memory;
 using Sandbox;
 using System.Collections.Concurrent;
-using System.Reflection;
+using System.Threading;
 
 /// <summary>
 /// We only want 1 instance of a Resource class in C# and we want that to have 1 strong handle to native.
@@ -12,14 +11,21 @@ using System.Reflection;
 /// in generation 0 or 1 immediately after usage. This can cause the resource to need to be loaded every frame.
 /// Or worse be finalized at unpredictable times.
 /// 
-/// So we keep a sliding memory cache of the Resources - realistically these only need to live for an extra frame.
-/// But it's probably nice to keep around for longer if they're going to be used on and off.
+/// So we hold a strong reference to recently touched Resources for a few seconds - realistically
+/// these only need to live for an extra frame, but it's nice to keep them around a little longer
+/// if they're going to be used on and off.
 /// </summary>
 internal static partial class NativeResourceCache
 {
 	const int ExpirationSeconds = 5;
-	static readonly TimeSpan SlidingExpiration = TimeSpan.FromSeconds( ExpirationSeconds );
-	static readonly MemoryCache MemoryCache = new( new MemoryCacheOptions() { } );
+
+	/// <summary>
+	/// Recently touched resources, and the batch before. Each swap drops the older batch, so
+	/// retention is one to two ExpirationSeconds - enough that something fetched every frame
+	/// isn't collected and rebuilt in between.
+	/// </summary>
+	static ConcurrentDictionary<long, object> retained = new();
+	static ConcurrentDictionary<long, object> retainedPrevious = new();
 
 	/// <summary>
 	/// We still want a WeakReference cache because we might have a strong reference somewhere to a resource
@@ -52,14 +58,9 @@ internal static partial class NativeResourceCache
 		}
 	} = false;
 
-	private static Action<MemoryCache, DateTime> StartScanForExpiredItemsIfNeeded { get; } = typeof( MemoryCache )
-		.GetMethod( nameof( StartScanForExpiredItemsIfNeeded ), BindingFlags.Instance | BindingFlags.NonPublic )
-		.CreateDelegate<Action<MemoryCache, DateTime>>();
-
 	internal static void Add( long key, object value )
 	{
-		var cacheEntryOptions = new MemoryCacheEntryOptions().SetSlidingExpiration( SlidingExpiration );
-		MemoryCache.Set( key, value, cacheEntryOptions );
+		KeepAlive( key, value );
 
 		WeakTable[key] = new WeakReference( value );
 
@@ -69,32 +70,51 @@ internal static partial class NativeResourceCache
 		}
 	}
 
+	/// <summary>Hold a strong reference until at least the next swap.</summary>
+	static void KeepAlive( long key, object value ) => retained[key] = value;
+
 	/// <summary>
-	/// Remove a key from both caches. Used when a resource is explicitly disposed
-	/// so that a new instance can be created for the same native pointer.
+	/// Remove a key. Used when a resource is explicitly disposed so that a new instance can be
+	/// created for the same native pointer.
 	/// </summary>
 	internal static void Remove( long key )
 	{
-		MemoryCache.Remove( key );
+		// Explicitly disposed, so drop the strong reference now rather than at the next swap.
+		retained.TryRemove( key, out _ );
+		retainedPrevious.TryRemove( key, out _ );
+
 		WeakTable.TryRemove( key, out _ );
 		CallstackTable.TryRemove( key, out _ );
 	}
 
-	internal static bool TryGetValue<T>( long key, out T value ) where T : class
+	/// <summary>
+	/// Look up without renewing retention, for anything that walks every resource - a plain
+	/// TryGetValue would touch the whole set and keep all of it alive.
+	/// </summary>
+	internal static bool TryPeek<T>( long key, out T value ) where T : class
 	{
-		if ( MemoryCache.TryGetValue( key, out value ) )
+		value = null;
+
+		if ( WeakTable.TryGetValue( key, out var weakValue ) && weakValue.Target is T target )
 		{
+			value = target;
 			return true;
 		}
 
-		// If we missed the Cache, check our weak refs.
+		return false;
+	}
+
+	internal static bool TryGetValue<T>( long key, out T value ) where T : class
+	{
+		value = null;
+
 		// Read Target once to avoid TOCTOU race with GC.
 		if ( WeakTable.TryGetValue( key, out var weakValue ) && weakValue.Target is T target )
 		{
 			value = target;
 
-			// and add it back to the cache
-			Add( key, value );
+			// Touching it renews retention, so anything in active use stays put.
+			KeepAlive( key, target );
 
 			return true;
 		}
@@ -102,21 +122,25 @@ internal static partial class NativeResourceCache
 		return false;
 	}
 
-	static TimeSince LastScan = 0;
+	// Expiry has to stop when renewals do. Only a paused game qualifies: nothing ticks, so
+	// nothing renews. Everywhere else - playing, editor stopped, menu - still fetches every
+	// frame. Was a TimeSince, which froze whenever the editor wasn't playing, so nothing expired.
+	static double expiryClock;
 
 	/// <summary>
-	/// Ticks the underlying MemoryCache to clear expired entries
+	/// Expires resources we haven't touched recently, and prunes dead weak entries.
 	/// </summary>
 	internal static void Tick()
 	{
-		if ( LastScan < ExpirationSeconds )
+		expiryClock += Game.IsPaused ? 0 : RealTime.Delta;
+
+		if ( expiryClock < ExpirationSeconds )
 			return;
 
-		LastScan = 0;
+		expiryClock = 0;
 
-		// MemoryCache doesn't have its own timer for clearing anything...
-		// This will get rid of any expired stuff
-		StartScanForExpiredItemsIfNeeded( MemoryCache, DateTime.UtcNow );
+		// Anything not touched since the last swap loses its strong reference here.
+		retainedPrevious = Interlocked.Exchange( ref retained, new ConcurrentDictionary<long, object>() );
 
 		// Prune dead WeakTable entries to prevent unbounded growth from procedural resources.
 		// Skipped when leak tracking is enabled so every allocation stays visible until shutdown.
@@ -150,7 +174,9 @@ internal static partial class NativeResourceCache
 		}
 
 		stats.WeakTableTotal = WeakTable.Count;
-		stats.MemoryCacheCount = MemoryCache.Count;
+		// Can over-count: a key touched again after a swap is in both batches. Only a debug
+		// readout, not worth walking the whole set to deduplicate.
+		stats.MemoryCacheCount = retained.Count + retainedPrevious.Count;
 
 		return stats;
 	}
@@ -181,7 +207,8 @@ internal static partial class NativeResourceCache
 
 	internal static void ClearCache()
 	{
-		MemoryCache.Clear();
+		retained = new ConcurrentDictionary<long, object>();
+		retainedPrevious = new ConcurrentDictionary<long, object>();
 	}
 
 	private static void ClearWeakTable()

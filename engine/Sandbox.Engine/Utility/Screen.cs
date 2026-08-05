@@ -23,9 +23,9 @@ public static class Screen
 	public static float Height => Size.y;
 
 	/// <summary>
-	/// The aspect ratio of the screen. Equal to Width/Height
+	/// The aspect ratio of the screen. Equal to Width/Height, or 1 if the screen size is not yet known.
 	/// </summary>
-	public static float Aspect => Width / Height;
+	public static float Aspect => Height > 0 ? Width / Height : 1f;
 
 	/// <summary>
 	/// The desktop's dpi scale on the current monitor.

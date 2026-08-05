@@ -10,9 +10,13 @@ public partial class AssetBrowser
 		WrappedAssetBrowser browser;
 
 		// 1. try to find one for the current focused window
-		if ( Application.FocusWidget?.GetWindow() is DockWindow dockable )
+		if ( Application.FocusWidget is { } focused )
 		{
-			browser = dockable.DockManager.FindDockWidget( "Asset Browser" )?.Widget as WrappedAssetBrowser;
+			var manager = focused.GetWindow() is DockWindow dockable
+				? dockable.DockManager
+				: EditorWindow?.DockManager;
+
+			browser = manager?.FindDockWidget( focused )?.Widget as WrappedAssetBrowser;
 			if ( browser.IsValid() ) return browser;
 		}
 

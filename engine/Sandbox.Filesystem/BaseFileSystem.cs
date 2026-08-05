@@ -139,9 +139,9 @@ public class BaseFileSystem
 	/// </summary>
 	public bool FileExists( string path )
 	{
-		ArgumentNullException.ThrowIfNullOrEmpty( path, "path" );
 		Assert.NotNull( system );
 
+		if ( string.IsNullOrEmpty( path ) ) return false;
 		if ( path.Contains( ":" ) ) return false;
 
 		return system.FileExists( FixPath( path ) );

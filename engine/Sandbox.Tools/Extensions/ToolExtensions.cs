@@ -234,8 +234,9 @@ public static partial class SandboxToolExtensions
 	/// Creates a scope for applying a frame in a <see cref="MoviePlayer"/>.
 	/// Dispose after modifying any properties controlled by the movie.
 	/// </summary>
+	[Obsolete( $"Not needed when using {nameof( MovieUpdateBuilder )}" )]
 	public static IDisposable BeginApplyFrame( this MoviePlayer player )
 	{
-		return player.BeginApplyFrameInternal();
+		return null;
 	}
 }

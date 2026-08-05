@@ -610,3 +610,21 @@ public enum ObjectFit
 	/// </summary>
 	None
 }
+
+/// <summary>
+/// Possible values for the "isolation" CSS rule, dictating whether an element creates a new stacking context.
+/// </summary>
+public enum Isolation
+{
+	/// <summary>
+	/// A new stacking context is created only if one of the other properties that trigger the creation of a
+	/// stacking context is present (eg. a non-zero z-index, a filter, a mask, etc).
+	/// </summary>
+	Auto,
+
+	/// <summary>
+	/// Forces the creation of a new stacking context, even if none of the other stacking-context-triggering
+	/// properties are present.
+	/// </summary>
+	Isolate
+}

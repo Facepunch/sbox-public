@@ -368,8 +368,8 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		camera.Ortho = Orthographic;
 		camera.OrthoHeight = OrthographicHeight;
 
-		if ( FovAxis == Axis.Vertical )
-			camera.FieldOfView = Screen.CreateVerticalFieldOfView( _renderView.FieldOfView );
+		if ( FovAxis == Axis.Vertical && ScreenRect.Height > 0 )
+			camera.FieldOfView = Screen.CreateVerticalFieldOfView( _renderView.FieldOfView, ScreenRect.Width / ScreenRect.Height );
 		else
 			camera.FieldOfView = _renderView.FieldOfView;
 	}
