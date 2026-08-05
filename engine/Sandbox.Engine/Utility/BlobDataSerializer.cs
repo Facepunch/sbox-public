@@ -299,6 +299,20 @@ internal static class BlobDataSerializer
 					if ( blockData != null )
 						binaryData = ParseFile( blockData );
 				}
+				else if ( Game.Resources.Get<GameResource>( filePath ) is { Package: not null } resource )
+				{
+					var activePackage = PackageManager.Find( resource.Package.FullIdent );
+					if ( activePackage?.FileSystem?.FileExists( compiledPath ) ?? false )
+					{
+						var blockData = Game.Resources.ReadCompiledResourceBlock( CompiledBlobName, activePackage.FileSystem.ReadAllBytes( compiledPath ) );
+						if ( blockData != null )
+							binaryData = ParseFile( blockData );
+					}
+				}
+				else
+				{
+					Log.Warning( $"Failed to locate binary blob: {filePath}" );
+				}
 			}
 		}
 
