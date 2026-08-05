@@ -27,7 +27,7 @@
 					<i>search</i>
 
                     @{
-                        var placeholderText = MenuHelpers.Localize( "organizationmodal", "placeholder", new() { { "type", MenuHelpers.Localize( "organizationmodal", type ) } } );
+                        var placeholderText = Language.GetPhrase( "organizationmodal.placeholder", new() { { "type", Language.GetPhrase( "organizationmodal." + type ) } } );
                         <TextEntry @ref="SearchEntry" Placeholder="@placeholderText" />
                     }
 				</div>

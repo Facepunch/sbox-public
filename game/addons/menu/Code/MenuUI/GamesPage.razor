@@ -35,7 +35,7 @@
                     foreach (var facet in Result.Facets)
                     {
                         <div class="flex-column flex-gap-16">
-                            <h2><WithIcon Icon="@facet.Entries.FirstOrDefault()?.Icon" Text="@( MenuHelpers.Localize( "category", facet.Title ) )"></WithIcon></h2>
+                            <h2><WithIcon Icon="@facet.Entries.FirstOrDefault()?.Icon" Text="@( Localize( facet.Title ) )"></WithIcon></h2>
                             <PackageCategoryFilter Result=@Result Selected="@SelectedCategory" Facet="@facet"></PackageCategoryFilter>
                         </div>
                     }
@@ -104,6 +104,13 @@
     PackageList PackageList = default;
 
     Package.FindResult Result => PackageList?.Result;
+
+    string Localize( string originalText )
+    {
+        string normalizedOriginal = "category." + originalText.Replace( " ", "" ).Replace( "-", "" );
+        string localizedText = Language.GetPhrase( normalizedOriginal );
+        return localizedText == normalizedOriginal ? originalText : localizedText;
+    }
 
     public GamesPage()
     {

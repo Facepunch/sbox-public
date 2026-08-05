@@ -19,7 +19,7 @@
     else
     {
         <div class="info">
-            <span class="items">@MenuHelpers.Localize( "cartbutton", "items", new() { { "count", Cart.Items.Count } } )</span>
+            <span class="items">@Language.GetPhrase( "cartbutton.items", new() { { "count", Cart.Items.Count } } )</span>
             <span class="CheckOut">#cartbutton.check_out</span>
         </div>
     }

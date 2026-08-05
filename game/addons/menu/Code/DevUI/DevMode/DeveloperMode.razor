@@ -44,9 +44,10 @@
         var parts = labels.Split( ',' );
         for ( int i = 0; i < parts.Length; i++ )
         {
-            string localizedText = Game.Language.GetPhrase( "developermode.frame_stats." + parts[i].Trim().ToLower().Replace( " ", "" ).Replace( "#", "" ) );
-            if ( string.IsNullOrEmpty( localizedText ) || localizedText.StartsWith( "developermode" ) )
-                        continue;
+            string normalizedOriginal = "developermode.frame_stats." + parts[i].Replace( " ", "" ).Replace( "#", "" );
+            string localizedText = Language.GetPhrase( normalizedOriginal );
+            if( localizedText == normalizedOriginal )
+                continue;
 
             parts[i] = localizedText;
         }

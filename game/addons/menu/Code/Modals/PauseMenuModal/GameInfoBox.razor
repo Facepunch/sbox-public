@@ -23,7 +23,7 @@
 
         <div class="title-org">
             <div class="title clicky" onmousedown="@( ()=> Package.OpenModal() )">@Package.Title</div>
-            <div class="org clicky" onmousedown="@( ()=> Game.Overlay.ShowOrganizationModal( Package.Org ) )">@MenuHelpers.Localize( "gameinfobox", "by", new() { { "org", Package.Org?.Title } } )</div>
+            <div class="org clicky" onmousedown="@( ()=> Game.Overlay.ShowOrganizationModal( Package.Org ) )">@Language.GetPhrase( "gameinfobox.by", new() { { "org", Package.Org?.Title } } )</div>
         </div>
 
         @if ( !string.IsNullOrWhiteSpace( Package.Summary ) )
@@ -33,14 +33,14 @@
 
         <div class="metrics">
 
-            <Button Icon="directions_run" Disabled Text="@MenuHelpers.Localize( "gameinfobox", "users", new() { { "count", Package.Usage.Total.Users.ToMetric( 0 ) } } )"></Button>
-            <Button Icon="play_arrow" Disabled Text="@MenuHelpers.Localize( "gameinfobox", "plays", new() { { "count", Package.Usage.Total.Sessions.ToMetric( 0 ) } } )"></Button>
-            <Button Icon="favorite" Active="@IsFavourite" class="favorite" Text="@MenuHelpers.Localize( "gameinfobox", "favorites", new() { { "count", Package.Favourited.ToMetric() } } )" onclick="@ToggleFavourite"></Button>
-            <Button Icon="bug_report" Disabled Text="@MenuHelpers.Localize( "gameinfobox", "errors", new() { { "rate", (Package.ErrorRate * 100.0f).Clamp( 0, 100 ).ToString( "0\\%" ) } } )"></Button>
-            <Button Icon="thumb_up" Active="@(Package.Interaction.Rating == 0)" Text="@MenuHelpers.Localize( "gameinfobox", "likes", new() { { "count", Package.VotesUp.ToMetric() } } )" onclick="@VoteUp"></Button>
-            <Button Icon="thumb_down" Active="@(Package.Interaction.Rating == 1)" Text="@MenuHelpers.Localize( "gameinfobox", "dislikes", new() { { "count", Package.VotesDown.ToMetric() } } )" onclick="@VoteDown"></Button>
+            <Button Icon="directions_run" Disabled Text="@Language.GetPhrase( "gameinfobox.users", new() { { "count", Package.Usage.Total.Users.ToMetric( 0 ) } } )"></Button>
+            <Button Icon="play_arrow" Disabled Text="@Language.GetPhrase( "gameinfobox.plays", new() { { "count", Package.Usage.Total.Sessions.ToMetric( 0 ) } } )"></Button>
+            <Button Icon="favorite" Active="@IsFavourite" class="favorite" Text="@Language.GetPhrase( "gameinfobox.favorites", new() { { "count", Package.Favourited.ToMetric() } } )" onclick="@ToggleFavourite"></Button>
+            <Button Icon="bug_report" Disabled Text="@Language.GetPhrase( "gameinfobox.errors", new() { { "rate", (Package.ErrorRate * 100.0f).Clamp( 0, 100 ).ToString( "0\\%" ) } } )"></Button>
+            <Button Icon="thumb_up" Active="@(Package.Interaction.Rating == 0)" Text="@Language.GetPhrase( "gameinfobox.likes", new() { { "count", Package.VotesUp.ToMetric() } } )" onclick="@VoteUp"></Button>
+            <Button Icon="thumb_down" Active="@(Package.Interaction.Rating == 1)" Text="@Language.GetPhrase( "gameinfobox.dislikes", new() { { "count", Package.VotesDown.ToMetric() } } )" onclick="@VoteDown"></Button>
             <Button Icon="reviews"
-                    Text="@MenuHelpers.Localize( "gameinfobox", "reviews", new() { { "score", Package.Reviews.Score.ToString( "N0" ) }, { "total", Package.Reviews.Total } } )"
+                    Text="@Language.GetPhrase( "gameinfobox.reviews", new() { { "score", Package.Reviews.Score.ToString( "N0" ) }, { "total", Package.Reviews.Total } } )"
                     onclick="@( () => Game.Overlay.ShowReviewModal(Package) )"></Button>
             
 

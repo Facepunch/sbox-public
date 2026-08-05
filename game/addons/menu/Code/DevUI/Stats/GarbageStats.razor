@@ -3,12 +3,12 @@
 
 <root class="statbox"> 
 
-    <title>@MenuHelpers.Localize( "developermode", "garbagestats.garbage_collector" )</title>
+    <title>@Language.GetPhrase("developermode.garbagestats.garbage_collector")</title>
 
-    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.LastSecond.ByteAlloc.FormatBytes()" Title=@MenuHelpers.Localize( "developermode", "garbagestats.allocations" )></StatValue>
-    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.LastSecond.Gc0.ToMetric()" Title=@MenuHelpers.Localize( "developermode", "garbagestats.gen0" )></StatValue>
-    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.LastSecond.Gc1.ToMetric()" Title=@MenuHelpers.Localize( "developermode", "garbagestats.gen1" )></StatValue>
-    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.LastSecond.Gc2.ToMetric()" Title=@MenuHelpers.Localize( "developermode", "garbagestats.gen2" )></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.LastSecond.ByteAlloc.FormatBytes()" Title=@Language.GetPhrase("developermode.garbagestats.allocations")></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.LastSecond.Gc0.ToMetric()" Title=@Language.GetPhrase("developermode.garbagestats.gen0")></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.LastSecond.Gc1.ToMetric()" Title=@Language.GetPhrase("developermode.garbagestats.gen1")></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.LastSecond.Gc2.ToMetric()" Title=@Language.GetPhrase("developermode.garbagestats.gen2")></StatValue>
 
 </root>
 

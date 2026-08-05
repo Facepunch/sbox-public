@@ -17,12 +17,12 @@
 
         @foreach ( var group in groups )
         {
-            <h2>@( MenuHelpers.Localize( "settings.keybinds", group.Key, null, true ) )</h2>
+            <h2>@( Localize( group.Key ) )</h2>
 
             @foreach ( InputAction button in group )
             {
                 <row>
-                    <div class="is-label">@( MenuHelpers.Localize( "settings.keybinds", button.Title ?? button.Name, null, true ) )</div>
+                    <div class="is-label">@( Localize( (button.Title ?? button.Name) ) )</div>
 
                     <div>
                         <KeyBind BindGroup=@BindGroup Action=@button Slot=@(0) />
@@ -42,6 +42,13 @@
 @code
 {
     public string BindGroup => Game.InGame ? Game.Ident : "common";
+
+    string Localize( string originalText )
+    {
+        string normalizedOriginal = "settings.keybinds." + originalText.Replace( " ", "" ).Replace( "#", "" ).Replace( "-", "" );
+        string localizedText = Language.GetPhrase( normalizedOriginal );
+        return localizedText == normalizedOriginal ? originalText : localizedText;
+    }
 
     public void OnCancel()
     {

@@ -46,7 +46,7 @@
 	private string Localize( int totalPlayers, int serverCount )
 	{
 		string suffix = ServerCount == 1 ? "desc" : "desc_multi";
-		string localizedText = MenuHelpers.Localize( "gamegrouprow", suffix, new() { { "totalplayers", totalPlayers }, { "servercount", serverCount } } );
+		string localizedText = Language.GetPhrase("gamegrouprow." + suffix, new() { { "totalplayers", totalPlayers }, { "servercount", serverCount } } );
 		
 		return localizedText;
 	}

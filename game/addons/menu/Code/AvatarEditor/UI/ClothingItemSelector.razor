@@ -14,7 +14,7 @@
 
                 <div class="@c topcategorybutton" onclick=@(() => SelectCategory(entry) )>
                     <div class="icon"><Image Texture="@entry.Icon"></Image></div>
-                    <div class="title">@MenuHelpers.Localize( "clothingitemselector", entry.Title, null, true )</div>
+                    <div class="title">@Localize( entry.Title, null )</div>
 
                         @if ( main == entry )
                         {
@@ -35,7 +35,7 @@
                                 {
                                     var cl = subcategory == sub ? "active" : "";
 
-                                    <div class="tab @cl" tooltip="@MenuHelpers.Localize( "tooltip.clothingitemselector." + entry.Title , subcategory.Title, null, true )" @onclick=@(() => ChangeGroup( subcategory ))>
+                                    <div class="tab @cl" tooltip="@Localize( subcategory.Title, entry.Title )" @onclick=@(() => ChangeGroup( subcategory ))>
                                         <div class="icon"><Image Texture="@subcategory.Icon"></Image></div>
                                     </div>
                                 }
@@ -94,6 +94,17 @@
 
     Clothing selectedItem = null;
 
+    string Localize( string originalText, string prefix = null )
+    {
+        string normalizedOriginal = originalText.Replace( " ", "" ).Replace( "-", "" );
+        string normalizedPrefix = prefix?.Replace( " ", "" ).Replace( "-", "" );
+
+        string key = string.IsNullOrEmpty( normalizedPrefix ) ? $"clothingitemselector.{normalizedOriginal}" : $"tooltip.clothingitemselector.{normalizedPrefix}.{normalizedOriginal}";
+        string localizedText = Language.GetPhrase( key );
+
+        return localizedText == key ? originalText : localizedText;
+    }
+
     override protected void OnParametersSet()
     {
         SelectCategory( Category.Categories.First() );
@@ -119,7 +130,7 @@
 
         _suball = new();
         _suball.Name = "all";
-        _suball.Title = MenuHelpers.Localize( "tooltip.clothingitemselector", "All" );
+        _suball.Title = Language.GetPhrase("tooltip.clothingitemselector.All");
         _suball.Categories = main.SubCategories.SelectMany(x => x.Categories).ToArray();
 
         var cookieValue = Game.Cookies.GetString($"clothing;{Category.Name};{main.Name};lasttab");

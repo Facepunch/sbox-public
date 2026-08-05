@@ -37,7 +37,7 @@
 							<label class="name">@def.Name</label>
 							@if ( linked is { } l )
 							{
-								<label class="status connected">@MenuHelpers.Localize( "servicesmodal", "linked_to", new(){ {"name", l.Name} } )</label>
+								<label class="status connected">@Language.GetPhrase( "servicesmodal.linked_to", new(){ {"name", l.Name} } )</label>
 							}
 							else
 							{
@@ -46,7 +46,7 @@
 
                             @if ( Streamer.IsActive )
                             {
-                                <label class="status">@MenuHelpers.Localize( "servicesmodal", "active_viewers", new(){ {"count", Streamer.ViewerCount} } )</label>
+                                <label class="status">@Language.GetPhrase( "servicesmodal.active_viewers", new(){ {"count", Streamer.ViewerCount} } )</label>
                             }
 
 						</div>

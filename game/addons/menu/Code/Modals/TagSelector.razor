@@ -16,7 +16,7 @@
         {
             var active = (((int)Value) & entry.IntegerValue) != 0;
 
-            <div @onclick=@( () => Clicked( (int) entry.IntegerValue ) ) class="tag @(active ? "active" : "")">@( MenuHelpers.Localize( "tagselector.tags", entry.Title, null, true ) )</div>
+            <div @onclick=@( () => Clicked( (int) entry.IntegerValue ) ) class="tag @(active ? "active" : "")">@( Localize( entry.Title ) )</div>
         }
 
     }    
@@ -27,6 +27,13 @@
 {
     [Property]
     public object Value { get; set; }
+
+    string Localize( string originalText )
+    {
+        string normalizedOriginal = "tagselector.tags." + originalText.Replace( " ", "" ).Replace( "-", "" );
+        string localizedText = Language.GetPhrase( normalizedOriginal );
+        return localizedText == normalizedOriginal ? originalText : localizedText;
+    }
 
     void Clicked( int bit )
     {

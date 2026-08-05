@@ -16,13 +16,13 @@
 	    @if ( IsDedicatedServerOnly )
 	    {
 		    <Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>
-			@MenuHelpers.Localize( "actionbar", "servers", new() { { "servercount", LobbyCount } } )
+			@Language.GetPhrase( "actionbar.servers", new() { { "servercount", LobbyCount } } )
 		</Button>
 	    }
 	    else if ( IsMultiplayerGame )
         {
 			<Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>
-				@MenuHelpers.Localize( "actionbar", "lobbies", new() { { "lobbycount", LobbyCount } } )
+				@Language.GetPhrase( "actionbar.lobbies", new() { { "lobbycount", LobbyCount } } )
 			</Button>
         }
 
@@ -46,7 +46,7 @@
 
             @if ( Package.Info.IsStreamerGame )
             {
-                var text = Streamer.IsActive ? MenuHelpers.Localize( "actionbar", "stream_viewers", new() { { "count", Streamer.ViewerCount } } ) : MenuHelpers.Localize( "actionbar", "stream_setup" );
+                var text = Streamer.IsActive ? Language.GetPhrase( "actionbar.stream_viewers", new() { { "count", Streamer.ViewerCount } } ) : Language.GetPhrase( "actionbar.stream_setup" );
 
                 <Button Active=@Streamer.IsActive Text="@text" Icon="settings_input_antenna" class="streaming" @onclick="@(() => Game.Overlay.ShowServiceConnector())"></Button>
             }

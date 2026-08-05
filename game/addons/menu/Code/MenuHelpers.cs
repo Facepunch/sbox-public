@@ -27,8 +27,8 @@ public static class MenuHelpers
 		if ( package.Info.IsQuickPlay )
 		{
 			LoadingScreen.IsVisible = true;
-			LoadingScreen.Title = Localize( "menuhelpers", "loadingscreen.title" );
-			LoadingScreen.Subtitle = Localize( "menuhelpers", "loadingscreen.subtitle" );
+			LoadingScreen.Title = Language.GetPhrase( "menuhelpers.loadingscreen.title" );
+			LoadingScreen.Subtitle = Language.GetPhrase( "menuhelpers.loadingscreen.subtitle" );
 
 			if ( await MenuUtility.TryJoinLobby( package.FullIdent ) )
 				return;
@@ -66,7 +66,7 @@ public static class MenuHelpers
 		// Direct launch
 		MenuUtility.CloseAllModals();
 		LoadingScreen.IsVisible = true;
-		LoadingScreen.Title = Localize( "menuhelpers", "loadingscreen.loading" );
+		LoadingScreen.Title = Language.GetPhrase( "menuhelpers.loadingscreen.loading" );
 		LoadingScreen.Subtitle = "";
 
 		if ( mapPackage is null )
@@ -117,11 +117,11 @@ public static class MenuHelpers
 	{
 		var menu = MenuPanel.Open( source );
 
-		menu.AddOption( "contact_page", Localize( "menuhelpers", "friendmenu.view_profile" ), () => Game.Overlay.ShowPlayer( (long)friend.Id ) );
+		menu.AddOption( "contact_page", Language.GetPhrase( "menuhelpers.friendmenu.view_profile" ), () => Game.Overlay.ShowPlayer( (long)friend.Id ) );
 
 		if ( !friend.IsFriend && !friend.IsMe )
 		{
-			menu.AddOption( "person_add", Localize( "menuhelpers", "friendmenu.send_friend_request" ), friend.OpenAddFriendOverlay );
+			menu.AddOption( "person_add", Language.GetPhrase( "menuhelpers.friendmenu.send_friend_request" ), friend.OpenAddFriendOverlay );
 		}
 
 		var me = new Friend( Game.SteamId );
@@ -132,7 +132,7 @@ public static class MenuHelpers
 
 		if ( canJoinGame && !inSameGame )
 		{
-			menu.AddOption( "sports_esports", Localize( "menuhelpers", "friendmenu.join_game" ), () => MenuUtility.JoinFriendGame( friend ) );
+			menu.AddOption( "sports_esports", Language.GetPhrase( "menuhelpers.friendmenu.join_game" ), () => MenuUtility.JoinFriendGame( friend ) );
 		}
 
 		return menu;
@@ -152,11 +152,11 @@ public static class MenuHelpers
 	{
 		var menu = MenuPanel.Open( source );
 
-		menu.AddOption( "play_arrow", Localize( "menuhelpers", "gamemenu.open_game" ), () => LaunchGame( package.FullIdent ) );
+		menu.AddOption( "play_arrow", Language.GetPhrase( "menuhelpers.gamemenu.open_game" ), () => LaunchGame( package.FullIdent ) );
 
 		if ( package.Tags.Contains( "maplaunch" ) )
 		{
-			menu.AddOption( "folder", Localize( "menuhelpers", "gamemenu.open_with_map" ), () =>
+			menu.AddOption( "folder", Language.GetPhrase( "menuhelpers.gamemenu.open_with_map" ), () =>
 			{
 				Game.Overlay.ShowPackageSelector( $"type:map sort:trending target:{package.FullIdent}", ( p ) => MenuUtility.OpenGameWithMap( package.FullIdent, p.FullIdent ) );
 			} );
@@ -165,16 +165,16 @@ public static class MenuHelpers
 		if ( multiplayerOverride || package.Tags.Contains( "multiplayer" ) || package.Info.MaxPlayers > 1 )
 		{
 			menu.AddSpacer();
-			menu.AddOption( "list", Localize( "menuhelpers", "gamemenu.view_servers" ), () =>
+			menu.AddOption( "list", Language.GetPhrase( "menuhelpers.gamemenu.view_servers" ), () =>
 			{
 				Game.Overlay.ShowServerList( new Sandbox.Modals.ServerListConfig( package.FullIdent ) );
 			} );
 		}
 
 		menu.AddSpacer();
-		menu.AddOption( "corporate_fare", Localize( "menuhelpers", "gamemenu.view_creator" ), () => Game.Overlay.ShowOrganizationModal( package.Org ) );
-		menu.AddOption( "star", Localize( "menuhelpers", "gamemenu.review_game" ), () => Game.Overlay.ShowReviewModal( package ) );
-		menu.AddOption( "flag", Localize( "menuhelpers", "gamemenu.report_game" ), () => Game.Overlay.ShowReportModal( package.FullIdent ) );
+		menu.AddOption( "corporate_fare", Language.GetPhrase( "menuhelpers.gamemenu.view_creator" ), () => Game.Overlay.ShowOrganizationModal( package.Org ) );
+		menu.AddOption( "star", Language.GetPhrase( "menuhelpers.gamemenu.review_game" ), () => Game.Overlay.ShowReviewModal( package ) );
+		menu.AddOption( "flag", Language.GetPhrase( "menuhelpers.gamemenu.report_game" ), () => Game.Overlay.ShowReportModal( package.FullIdent ) );
 	}
 
 	static void OpenMapMenu( Panel source, Package package )
@@ -212,18 +212,18 @@ public static class MenuHelpers
 
 		if ( HasAuthority )
 		{
-			menu.AddOption( "play_arrow", Localize( "menuhelpers", "mapmenu.join_existing_session" ), () => OnPackageSelected( package ) );
-			menu.AddOption( "playlist_add", Localize( "menuhelpers", "mapmenu.create_own_game" ), () => CreateGameWithMap( SANDBOX_IDENT, package ) );
+			menu.AddOption( "play_arrow", Language.GetPhrase( "menuhelpers.mapmenu.join_existing_session" ), () => OnPackageSelected( package ) );
+			menu.AddOption( "playlist_add", Language.GetPhrase( "menuhelpers.mapmenu.create_own_game" ), () => CreateGameWithMap( SANDBOX_IDENT, package ) );
 
 			menu.AddSpacer();
 		}
 
-		menu.AddOption( "list", Localize( "menuhelpers", "mapmenu.view_servers" ), () => ViewGameList( package ) );
+		menu.AddOption( "list", Language.GetPhrase( "menuhelpers.mapmenu.view_servers" ), () => ViewGameList( package ) );
 
 		menu.AddSpacer();
-		menu.AddOption( "info", Localize( "menuhelpers", "mapmenu.view_map_details" ), () => Game.Overlay.ShowPackageModal( package.FullIdent ) );
-		menu.AddOption( "corporate_fare", Localize( "menuhelpers", "mapmenu.view_creator" ), () => Game.Overlay.ShowOrganizationModal( package.Org ) );
-		menu.AddOption( "star", Localize( "menuhelpers", "mapmenu.rate_map" ), () => Game.Overlay.ShowReviewModal( package ) );
+		menu.AddOption( "info", Language.GetPhrase( "menuhelpers.mapmenu.view_map_details" ), () => Game.Overlay.ShowPackageModal( package.FullIdent ) );
+		menu.AddOption( "corporate_fare", Language.GetPhrase( "menuhelpers.mapmenu.view_creator" ), () => Game.Overlay.ShowOrganizationModal( package.Org ) );
+		menu.AddOption( "star", Language.GetPhrase( "menuhelpers.mapmenu.rate_map" ), () => Game.Overlay.ShowReviewModal( package ) );
 	}
 
 	public static async void LoadMap( Package package )
@@ -270,44 +270,5 @@ public static class MenuHelpers
 		}
 
 		Game.Overlay.ShowGameModal( gameIdent );
-	}
-
-	/// <summary>
-	/// Look up a localized phrase by fullKey.
-	/// When <paramref name="returnOriginKey"/> is true, returns <paramref name="fullKey"/>
-	/// untouched instead of the full key on lookup failure.
-	/// </summary>
-	public static string Localize( string fullKey, bool returnOriginKey = false )
-	{
-		var normalized = fullKey.Trim().ToLower().Replace( " ", "" ).Replace( "#", "" ).Replace( "-", "" );
-		var result = Game.Language.GetPhrase( normalized );
-		return returnOriginKey && result == normalized ? fullKey : result;
-	}
-
-	/// <summary>
-	/// Look up a localized phrase with template data.
-	/// When <paramref name="returnOriginKey"/> is true, returns <paramref name="fullKey"/>
-	/// untouched instead of the full key on lookup failure.
-	/// </summary>
-	public static string Localize( string fullKey, Dictionary<string, object> data, bool returnOriginKey = false )
-	{
-		var normalized = fullKey.Trim().ToLower().Replace( " ", "" ).Replace( "#", "" ).Replace( "-", "" );
-		var result = Game.Language.GetPhrase( normalized, data );
-		return returnOriginKey && result == normalized ? fullKey : result;
-	}
-
-	/// <summary>
-	/// Look up a localized phrase with a prefix appended to the key, plus optional template data.
-	/// When <paramref name="returnOriginKey"/> is true, returns <paramref name="key"/>
-	/// untouched instead of the full prefixed key on lookup failure.
-	/// </summary>
-	public static string Localize( string prefix, string key, Dictionary<string, object> data = null, bool returnOriginKey = false )
-	{
-		if ( !prefix.EndsWith( "." ) )
-			prefix += ".";
-
-		var normalized = (prefix + key).Trim().ToLower().Replace( " ", "" ).Replace( "#", "" ).Replace( "-", "" );
-		var result = Game.Language.GetPhrase( normalized, data );
-		return returnOriginKey && result == normalized ? key : result;
 	}
 }

@@ -8,7 +8,7 @@
 	<div class="card-art" style="background-image: url( @Item?.Icon )">
 		@if ( Item?.IsOwned ?? false )
 		{
-			<div class="owned-pill">@MenuHelpers.Localize( "rewardcardpanel", "owned", new() { { "count", Item.OwnedCount } } )</div>
+			<div class="owned-pill">@Language.GetPhrase( "rewardcardpanel.owned", new() { { "count", Item.OwnedCount } } )</div>
 		}
 
 		@if ( IsSelected )

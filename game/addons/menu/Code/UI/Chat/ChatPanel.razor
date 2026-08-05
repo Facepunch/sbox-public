@@ -33,9 +33,9 @@
 		{
 			@if ( !string.IsNullOrEmpty( InputPrefix ) )
 			{
-				<span class="channel-label">@MenuHelpers.Localize( "chat", "channel_" + InputPrefix )</span>
+				<span class="channel-label">@Language.GetPhrase( "chat.channel_" + InputPrefix )</span>
 			}
-			<TextEntry @ref="InputBox" MaxLength="@(Sandbox.Platform.Chat.MaxMessageLength)" Placeholder=@MenuHelpers.Localize( "chat", "placeholder" ) onsubmit="@OnInputSubmit" />
+			<TextEntry @ref="InputBox" MaxLength="@(Sandbox.Platform.Chat.MaxMessageLength)" Placeholder=@Language.GetPhrase( "chat.placeholder" ) onsubmit="@OnInputSubmit" />
 		}
 	</div>
 
@@ -197,7 +197,7 @@
 			}
 
 			EntryMenu = new Popup( this, Popup.PositionMode.UnderMouse, 0 );
-			EntryMenu.AddOption( MenuHelpers.Localize( "chat", "view_profile" ), () => friend.OpenInOverlay() );
+			EntryMenu.AddOption( Language.GetPhrase( "chat.view_profile" ), () => friend.OpenInOverlay() );
 			return;
 		}
 

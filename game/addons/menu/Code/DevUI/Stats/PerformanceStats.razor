@@ -3,11 +3,11 @@
 
 <root class="statbox"> 
 
-    <title>@MenuHelpers.Localize( "developermode", "performancestats.performance" )</title>
+    <title>@Language.GetPhrase("developermode.performancestats.performance")</title>
 
-    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.LastSecond.FrameMin.ToString( "0 ms" )" Title=@MenuHelpers.Localize( "developermode", "performancestats.min" )></StatValue>
-    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.LastSecond.FrameMax.ToString( "0 ms" )" Title=@MenuHelpers.Localize( "developermode", "performancestats.max" )></StatValue>
-    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.LastSecond.FrameAvg.ToString( "0 ms" )" Title=@MenuHelpers.Localize( "developermode", "performancestats.avg" )></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.LastSecond.FrameMin.ToString( "0 ms" )" Title=@Language.GetPhrase("developermode.performancestats.min")></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.LastSecond.FrameMax.ToString( "0 ms" )" Title=@Language.GetPhrase("developermode.performancestats.max")></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.LastSecond.FrameAvg.ToString( "0 ms" )" Title=@Language.GetPhrase("developermode.performancestats.avg")></StatValue>
 
 </root>
 

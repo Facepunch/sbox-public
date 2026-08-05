@@ -92,12 +92,12 @@
 
     void PartyRoom.IEventListener.OnMemberJoin( Friend friend )
     {
-        Panel?.AddSystemMessage( "👋", MenuHelpers.Localize( "chat", "joined_party", new() { { "name", friend.Name } } ) );
+        Panel?.AddSystemMessage( "👋", Language.GetPhrase( "chat.joined_party", new() { { "name", friend.Name } } ) );
     }
 
     void PartyRoom.IEventListener.OnMemberLeave( Friend friend )
     {
-        Panel?.AddSystemMessage( "🥀", MenuHelpers.Localize( "chat", "left_party", new() { { "name", friend.Name } } ) );
+        Panel?.AddSystemMessage( "🥀", Language.GetPhrase( "chat.left_party", new() { { "name", friend.Name } } ) );
     }
 
     public override void Tick()

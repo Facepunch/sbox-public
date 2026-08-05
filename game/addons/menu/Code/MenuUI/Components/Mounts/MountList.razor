@@ -64,13 +64,13 @@
 
 	private async Task SetState( BaseGameMount mount, bool enabled )
 	{
-		string job = mount.IsMounted ? MenuHelpers.Localize( "mountlist", "unmounting" ) : MenuHelpers.Localize( "mountlist", "mounting" );
+		string job = mount.IsMounted ? Language.GetPhrase("mountlist.unmounting") : Language.GetPhrase("mountlist.mounting");
 
 		var data = new Dictionary<string, object>() { { "job", job }, { "title", mount.Title } };
 
 		var toast = new Toast()
 		{
-			Title = MenuHelpers.Localize( "mountlist", "task_progress", data ),
+			Title = Language.GetPhrase("mountlist.task_progress", data),
 			Icon = "album",
 			ExtraClasses = "loading"
 		};
@@ -83,7 +83,7 @@
 
 		MenuOverlay.Instance?.BottomRight?.Queue(new MenuProject.Toast()
 		{
-			Title = MenuHelpers.Localize( "mountlist", "task_complete", data ),
+			Title = Language.GetPhrase("mountlist.task_complete", data),
 			Icon = "download_done",
 		} );
 	}

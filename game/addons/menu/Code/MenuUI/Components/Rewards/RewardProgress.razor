@@ -79,7 +79,7 @@
 		}
 	}
 
-	string HeaderTitle => Window?.Title ?? MenuHelpers.Localize( "rewardprogress", "rewards" );
+	string HeaderTitle => Window?.Title ?? Language.GetPhrase("rewardprogress.rewards");
 
 	/// <summary>True while a GetRewards call is in flight, so the refresh icon can spin.</summary>
 	bool IsRefreshing { get; set; }

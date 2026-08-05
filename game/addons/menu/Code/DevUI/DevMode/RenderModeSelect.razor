@@ -13,8 +13,15 @@
 
     SceneCameraDebugMode _selectedMode;
 
-    string CurrentTitle => MenuHelpers.Localize( "rendermodeselect", GetDisplayInfo().Name ) ?? _selectedMode.ToString();
+    string CurrentTitle => Localize( GetDisplayInfo().Name ) ?? _selectedMode.ToString();
     string CurrentIcon => GetDisplayInfo().Icon ?? "image";
+
+    string Localize( string originalText )
+    {
+        string normalizedOriginal = "rendermodeselect." + originalText.Replace( " ", "" ).Replace( "-", "" );
+        string localizedText = Language.GetPhrase( normalizedOriginal );
+        return localizedText == normalizedOriginal ? originalText : localizedText;
+    }
 
     DisplayInfo GetDisplayInfo()
     {
@@ -57,7 +64,7 @@
         foreach ( var (mode, info) in DebugModes )
         {
             var captured = mode;
-            var option = popup.AddOption( MenuHelpers.Localize( "rendermodeselect", info.Name, null, true ), info.Icon, () => SetMode( captured ) );
+            var option = popup.AddOption( Localize( info.Name ), info.Icon, () => SetMode( captured ) );
 
             if ( mode == _selectedMode )
                 option.AddClass( "active" );

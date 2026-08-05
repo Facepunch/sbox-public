@@ -30,7 +30,7 @@
         Value="@Package.VotesDown.ToMetric()" />
 
     <MetricButton 
-        Tooltip="@MenuHelpers.Localize( "tooltip.packagemetrics", "reviews", new() { { "score", Package.Reviews.Score.ToString("N0") }, { "total", Package.Reviews.Total } } )" 
+        Tooltip="@Language.GetPhrase( "tooltip.packagemetrics.reviews", new() { { "score", Package.Reviews.Score.ToString("N0") }, { "total", Package.Reviews.Total } } )"
         Icon="reviews" 
         Value="@Package.Reviews.Score.ToString( "0\\%" )" />
 

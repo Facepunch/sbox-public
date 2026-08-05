@@ -7,7 +7,7 @@
 {
     <root class="clicky" onmousedown="@( () => Package.OpenModal() )">
         <row>
-            <label class="small">@MenuHelpers.Localize( "friendgamepopup", "playing", new(){ {"title", Package.Title} } )</label>
+            <label class="small">@Language.GetPhrase( "friendgamepopup.playing", new(){ {"title", Package.Title} } )</label>
         </row>
     </root>
 }
@@ -15,7 +15,7 @@ else
 {
     <root>
         <row>
-            <label class="small">@MenuHelpers.Localize( "friendgamepopup", "playing", new(){ {"title", Title} } )</label>
+            <label class="small">@Language.GetPhrase( "friendgamepopup.playing", new(){ {"title", Title} } )</label>
         </row>
     </root>
 }

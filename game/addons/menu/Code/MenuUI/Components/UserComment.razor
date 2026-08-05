@@ -21,7 +21,7 @@
             @if (Date != null)
             {
                 <label>
-                   @MenuHelpers.Localize( "usercomment", "post_date", new() { { "time", Date?.Humanize() } })
+                   @Language.GetPhrase("usercomment.post_date", new() { { "time", Date?.Humanize() } })
                 </label>
             }
 

@@ -30,7 +30,7 @@
                 {                    
                     var di = Game.TypeLibrary.GetEnumDescription( tag.Key );
 
-                    <Badge Type="positive" Number=@tag.Value Icon="@di.Icon" Text="@( MenuHelpers.Localize("tagselector.tags", di.Title, null, true) )"></Badge>
+                    <Badge Type="positive" Number=@tag.Value Icon="@di.Icon" Text="@( Localize( di.Title ) )"></Badge>
                 }
             </div>
         }
@@ -44,7 +44,7 @@
                 {
                     var di = Game.TypeLibrary.GetEnumDescription(tag.Key);
 
-                    <Badge Type="negative" Number=@tag.Value Icon="@di.Icon" Text="@( MenuHelpers.Localize("tagselector.tags", di.Title, null, true) )"></Badge>
+                    <Badge Type="negative" Number=@tag.Value Icon="@di.Icon" Text="@( Localize( di.Title ) )"></Badge>
                 }
             </div>
         }
@@ -71,7 +71,7 @@
 
             @foreach (var review in Reviews)
             {
-                <UserComment Player="@review.Player" Date="@review.Updated" TimePlayed="@MenuHelpers.Localize("packagereviews", "time_played", new() { { "time", review.PlayTime.Humanize(1) } } )">
+                <UserComment Player="@review.Player" Date="@review.Updated" TimePlayed="@Language.GetPhrase("packagereviews.time_played", new() { { "time", review.PlayTime.Humanize(1) } } )">
                     <TopBar>
                         @if (review.Score == ReviewScore.Positive)
                         {
@@ -95,11 +95,11 @@
 
                                 @foreach (var flag in GetPositiveFlags(review.Positives))
                                 {
-                                    <Badge Type="positive" Text="@( MenuHelpers.Localize("tagselector.tags", flag, null, true) )"></Badge>
+                                    <Badge Type="positive" Text="@( Localize( flag ) )"></Badge>
                                 }
                                 @foreach (var flag in GetNegativeFlags(review.Negatives))
                                 {
-                                    <Badge Type="negative" Text="@( MenuHelpers.Localize("tagselector.tags", flag, null, true) )"></Badge>
+                                    <Badge Type="negative" Text="@( Localize( flag ) )"></Badge>
                                 }
                             </div>
                         }
@@ -123,6 +123,13 @@
     int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize);
     bool HasPreviousPage => CurrentPage > 1;
     bool HasNextPage => CurrentPage < TotalPages;
+
+    string Localize( string originalText )
+    {
+        string normalizedOriginal = "tagselector.tags." + originalText.Replace( " ", "" ).Replace( "-", "" );
+        string localizedText = Language.GetPhrase( normalizedOriginal );
+        return localizedText == normalizedOriginal ? originalText : localizedText;
+    }
 
     protected override async Task OnParametersSetAsync()
     {

@@ -349,8 +349,7 @@
 
     "gamesbrowse.browse_games": "Browse Games",
 
-    "gamestarting.prefix": " for info, hold ",
-    "gamestarting.suffix": " to exit",
+    "gamestarting.phrase": "{Button1} for info, hold {Button2} to exit.",
 
     "itemstore.title": "Item Store",
     "itemstore.subtitle": "Here you can buy items for your avatar",
@@ -548,9 +547,10 @@
 
     "rewardcardpanel.owned": "{count} OWNED",
 
-    "rewardprogress.loading": "Loading…",
-    "rewardprogress.open_reward": "Open Reward",
-    "rewardprogress.rewards": "Rewards",
+    "rewarddrop.done": "Done",
+    "rewarddrop.loading": "Loading…",
+    "rewarddrop.open_reward": "Open reward · {met} of {total} done",
+    "rewarddrop.title": "Reward drop",
 
     "rewardunboxui.back": "Back",
     "rewardunboxui.title": "Nothing to open right now.",

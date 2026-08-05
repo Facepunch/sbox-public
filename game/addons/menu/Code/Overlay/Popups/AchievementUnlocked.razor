@@ -34,8 +34,8 @@
 @code
 {
     public string Icon { get; set; } = "https://files.facepunch.com/garry/597b35a5-c634-4ffe-9376-733b40901b6c.png";
-    public string Title {get;set;} = MenuHelpers.Localize( "achievementunlocked", "missing_title" );
-    public string Description {get;set;} = MenuHelpers.Localize( "achievementunlocked", "missing_description" );
+    public string Title {get;set;} = Language.GetPhrase( "achievementunlocked.missing_title" );
+    public string Description {get;set;} = Language.GetPhrase( "achievementunlocked.missing_description" );
     public int Score {get;set;} = 100;
     public int PlayerScore {get;set;} = 1300;
 

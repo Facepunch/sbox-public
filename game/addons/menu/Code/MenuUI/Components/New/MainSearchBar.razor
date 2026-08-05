@@ -60,7 +60,7 @@
                 {
                     <div class="search-status">
                         <icon>search_off</icon>
-                        <label>@MenuHelpers.Localize("mainsearchbar", "no_results", new() { { "search", SearchText?.Value } } )</label>
+                        <label>@Language.GetPhrase("mainsearchbar.no_results", new() { { "search", SearchText?.Value } } )</label>
                     </div>
                 }
                 else if (AutocompleteResult != null)
@@ -128,7 +128,7 @@
 
                     <separator class="horizontal"></separator>
                     <div class="section-footer" onclick=@Submit>
-                        <label class="small">@MenuHelpers.Localize("mainsearchbar", "view_results", new() { { "result", SearchText?.Value } } )</label>
+                        <label class="small">@Language.GetPhrase("mainsearchbar.view_results", new() { { "result", SearchText?.Value } } )</label>
                         <div class="grow"></div>
                         <icon>arrow_forward</icon>
                     </div>
@@ -256,13 +256,13 @@
 
 	string VotePercentage(Package p)
 	{
-		if (p.VotesUp == 0 && p.VotesDown == 0) return MenuHelpers.Localize("mainsearchbar", "unrated");
+		if (p.VotesUp == 0 && p.VotesDown == 0) return Language.GetPhrase("mainsearchbar.unrated");
 		return $"{(int)(p.VotesUp * 100f / (p.VotesUp + p.VotesDown))}%";
 	}
 
 	string PlayersNowText(Package p)
 	{
-		return MenuHelpers.Localize("mainsearchbar", "playing_now", new() { { "count", p.Usage.UsersNow.KiloFormat() } } );
+		return Language.GetPhrase("mainsearchbar.playing_now", new() { { "count", p.Usage.UsersNow.KiloFormat() } } );
 	}
 
 	void UseSuggestion(string suggestion)

@@ -35,7 +35,7 @@
 		if (Party is null || Party.Owner.IsMe)
 			return "#party.owner";
 
-		return MenuHelpers.Localize( "party", "membership", new() { { "owner", Party.Owner.Name } } );
+		return Language.GetPhrase( "party.membership", new() { { "owner", Party.Owner.Name } } );
 	}
 
 	public void Leave()

@@ -40,7 +40,7 @@
 		<div class="claim-bar">
 			<div class="claim-info">
 				<div class="select-banner">
-					<label>@MenuHelpers.Localize( "rewardunboxui", Offer.PickCount == 1 ? "select_reward" : "select_rewards", new() { { "count", Offer.PickCount } } )</label>
+					<label>@Language.GetPhrase( "rewardunboxui." + (Offer.PickCount == 1 ? "select_reward" : "select_rewards"), new() { { "count", Offer.PickCount } } )</label>
 				</div>
 				<label class="blurb">#rewardunboxui.pick_blurb</label>
 			</div>
@@ -131,7 +131,7 @@
 		StateHasChanged();
 	}
 
-	string ClaimText => MenuHelpers.Localize( "rewardunboxui", IsChoosing ? "claiming" : "claim" );
+	string ClaimText => Language.GetPhrase( "rewardunboxui." + (IsChoosing ? "claiming" : "claim") );
 
 	/// <summary>You can confirm once you've picked exactly the number of items the offer allows.</summary>
 	bool CanConfirm

@@ -35,12 +35,12 @@
                 <div class="info-row"><i>videogame_asset</i><label>#packageinfopanel.game</label></div>
                 @if (Package.Created != default)
                 {
-                    <div class="info-row"><i>calendar_today</i><label>@MenuHelpers.Localize( "packageinfopanel", "created", new() { { "time", (DateTime.UtcNow - Package.Created).Humanize(1) } } )</label></div>
+                    <div class="info-row"><i>calendar_today</i><label>@Language.GetPhrase( "packageinfopanel.created", new() { { "time", (DateTime.UtcNow - Package.Created).Humanize(1) } } )</label></div>
                 }
-                <div class="info-row"><i>update</i><label>@MenuHelpers.Localize( "packageinfopanel", "updated", new() { { "time", (DateTime.UtcNow - Package.Updated).Humanize(1) } } )</label></div>
+                <div class="info-row"><i>update</i><label>@Language.GetPhrase( "packageinfopanel.updated", new() { { "time", (DateTime.UtcNow - Package.Updated).Humanize(1) } } )</label></div>
                 @if (Package.Reviews.Total > 0)
                 {
-                    <div class="info-row clickable" @onclick="@(() => OnReviewsClicked?.Invoke())"><i>reviews</i><label>@MenuHelpers.Localize( "packageinfopanel", "reviews_summary", new() { { "score", Package.Reviews.Score.ToString("0\\%") }, { "total", Package.Reviews.Total } } )</label></div>
+                    <div class="info-row clickable" @onclick="@(() => OnReviewsClicked?.Invoke())"><i>reviews</i><label>@Language.GetPhrase( "packageinfopanel.reviews_summary", new() { { "score", Package.Reviews.Score.ToString("0\\%") }, { "total", Package.Reviews.Total } } )</label></div>
                 }
             </ChildContent>
         </Card>
@@ -48,8 +48,8 @@
         <Card>
             <ChildContent>
                 <label class="section-label">#packageinfopanel.usage_stats</label>
-                <div class="info-row"><i>group</i><label>@MenuHelpers.Localize( "packageinfopanel", "players_count", new() { { "count", Package.Usage.Total.Users.ToMetric() } } )</label></div>
-                <div class="info-row"><i>calendar_month</i><label>@MenuHelpers.Localize( "packageinfopanel", "sessions_count", new() { { "count", Package.Usage.Total.Sessions.ToMetric() } } )</label></div>
+                <div class="info-row"><i>group</i><label>@Language.GetPhrase( "packageinfopanel.players_count", new() { { "count", Package.Usage.Total.Users.ToMetric() } } )</label></div>
+                <div class="info-row"><i>calendar_month</i><label>@Language.GetPhrase( "packageinfopanel.sessions_count", new() { { "count", Package.Usage.Total.Sessions.ToMetric() } } )</label></div>
             </ChildContent>
         </Card>
 

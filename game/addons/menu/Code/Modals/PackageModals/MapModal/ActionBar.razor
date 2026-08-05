@@ -13,7 +13,7 @@
         @if ( LobbyCount > 0 )
         {
 			<Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>
-				@MenuHelpers.Localize( "actionbar", "lobbies", new() { { "lobbycount", LobbyCount } } )
+				@Language.GetPhrase( "actionbar.lobbies", new() { { "lobbycount", LobbyCount } } )
 			</Button>
         }
 

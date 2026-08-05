@@ -3,7 +3,7 @@
 
 <root class="statbox"> 
 
-	<title>@MenuHelpers.Localize( "developermode", "networkstats.network_stats" )</title>
+	<title>@Language.GetPhrase("developermode.networkstats.network_stats")</title>
 	
 	@{
 		var hostConnection = Connection.Host;
@@ -37,11 +37,11 @@
 			peerCount++;
 	}
 
-	<StatValue Value="@peerCount.ToString()" Title=@MenuHelpers.Localize( "developermode", "networkstats.peers" )></StatValue>
-	<StatValue Value="@((totalBytesIn / 1024f).ToString( "0.00" ))" Title=@MenuHelpers.Localize( "developermode", "networkstats.bytesin" )></StatValue>
-	<StatValue Value="@((totalBytesOut / 1024f).ToString( "0.00" ))" Title=@MenuHelpers.Localize( "developermode", "networkstats.bytesout" )></StatValue>
-	<StatValue Value="@totalPacketsIn.ToString( "0.00" )" Title=@MenuHelpers.Localize( "developermode", "networkstats.packetsin" )></StatValue>
-	<StatValue Value="@totalPacketsOut.ToString( "0.00" )" Title=@MenuHelpers.Localize( "developermode", "networkstats.packetsout" )></StatValue>
+	<StatValue Value="@peerCount.ToString()" Title=@Language.GetPhrase("developermode.networkstats.peers")></StatValue>
+	<StatValue Value="@((totalBytesIn / 1024f).ToString( "0.00" ))" Title=@Language.GetPhrase("developermode.networkstats.bytesin")></StatValue>
+	<StatValue Value="@((totalBytesOut / 1024f).ToString( "0.00" ))" Title=@Language.GetPhrase("developermode.networkstats.bytesout")></StatValue>
+	<StatValue Value="@totalPacketsIn.ToString( "0.00" )" Title=@Language.GetPhrase("developermode.networkstats.packetsin")></StatValue>
+	<StatValue Value="@totalPacketsOut.ToString( "0.00" )" Title=@Language.GetPhrase("developermode.networkstats.packetsout")></StatValue>
 </root>
 
 

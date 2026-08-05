@@ -10,7 +10,7 @@
    sticky meta column (title / version / date) on the left and the categorised entries on the right. *@
 
 <root>
-    <PackageTabHeader Title="#packagechanges.title" Subtitle="@( MenuHelpers.Localize("packagechanges", "subtitle", new() { { "title", Package?.Title } } ) )" />
+    <PackageTabHeader Title="#packagechanges.title" Subtitle="@( Language.GetPhrase("packagechanges.subtitle", new() { { "title", Package?.Title } } ) )" />
 
     @if (!_loaded)
     {

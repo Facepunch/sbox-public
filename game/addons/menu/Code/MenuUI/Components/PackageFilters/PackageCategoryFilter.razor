@@ -44,17 +44,12 @@
         if ( string.IsNullOrEmpty( name ) )
             return title;
 
-        string localizedText;
-        
-        if( parentText is null )
-                localizedText = Game.Language.GetPhrase( "category." + facetText + "." + name.ToLower().Replace( " ", "" ).Replace( "#", "" ) );
-        else
-                localizedText = Game.Language.GetPhrase( "category." + facetText + "." + parentText + "." + name.ToLower().Replace( " ", "" ).Replace( "#", "" ) );
+        string normalizedName = name.Replace( " ", "" ).Replace( "#", "" );
 
-        if ( string.IsNullOrEmpty( localizedText ) || localizedText.StartsWith( "category" ) )
-            return title;
+        string key = string.IsNullOrEmpty( parentText ) ? $"category.{facetText}.{normalizedName}" : $"category.{facetText}.{parentText}.{normalizedName}";
+        string localizedText = Language.GetPhrase( key );
 
-        return localizedText;
+        return localizedText == key ? title : localizedText;
     }
 
     protected override void OnParametersSet()

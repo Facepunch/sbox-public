@@ -74,8 +74,8 @@
 
 	string VotePercentage()
 	{
-		if (Package == null) return MenuHelpers.Localize("maptile", "unrated");
-		if (Package.VotesUp == 0 && Package.VotesDown == 0) return MenuHelpers.Localize("maptile", "unrated");
+		if (Package == null) return Language.GetPhrase("maptile.unrated");
+		if (Package.VotesUp == 0 && Package.VotesDown == 0) return Language.GetPhrase("maptile.unrated");
 		return $"{(int)(Package.VotesUp * 100f / (Package.VotesUp + Package.VotesDown))}%";
 	}
 }

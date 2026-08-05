@@ -18,7 +18,7 @@
                 @foreach (var entry in SizeBreakdown.OrderByDescending( x => x.Value ) )
                 {
                     <div class="file-category file-type-@entry.Key" style="flex-grow: @entry.Value;">
-                        <div class="title">@MenuHelpers.Localize( "settings.storage", entry.Key )</div>
+                        <div class="title">@Language.GetPhrase( "settings.storage." + entry.Key )</div>
                         <div class="size">@entry.Value.FormatBytes()</div>
                     </div>
                 }

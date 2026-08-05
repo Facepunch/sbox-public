@@ -58,7 +58,7 @@
 									<ChildContent>
 										@{foreach (var item in TypeLibrary.GetEnumDescription(typeof(Sandbox.Network.LobbyPrivacy)))
 										{
-											<Button class="clicky" Text=@( MenuHelpers.Localize( "creategamemodal", item.Title ) ) Icon=@item.Icon Value=@item.ObjectValue />
+											<Button class="clicky" Text=@( Localize( item.Title ) ) Icon=@item.Icon Value=@item.ObjectValue />
 										}}
 									</ChildContent>
 								</ButtonGroup>
@@ -153,6 +153,13 @@
 	string ServerName { get; set; }
 	int Players { get; set; }
 
+    string Localize( string originalText )
+    {
+        string normalizedOriginal = "creategamemodal." + originalText.Replace( " ", "" ).Replace( "-", "" );
+        string localizedText = Language.GetPhrase( normalizedOriginal );
+        return localizedText == normalizedOriginal ? originalText : localizedText;
+    }
+
 	public CreateGameModal( Sandbox.Modals.CreateGameOptions options )
 	{
 		Package = options.Package;
@@ -164,7 +171,7 @@
 		Output = Game.Cookies.Get<CreateGameResults>( CookieName, new()
         {
             MaxPlayers = MinPlayers,
-            ServerName = MenuHelpers.Localize( "creategamemodal", "server_default_name", new() { { "name", Sandbox.Utility.Steam.PersonaName } } )
+            ServerName = Language.GetPhrase( "creategamemodal.server_default_name", new() { { "name", Sandbox.Utility.Steam.PersonaName } } )
         } );
 
 		//
@@ -183,7 +190,7 @@
 		}
 		if ( string.IsNullOrEmpty( ServerName ) )
 		{
-			ServerName = MenuHelpers.Localize( "creategamemodal", "server_default_name", new() { { "name", Sandbox.Utility.Steam.PersonaName } } );
+			ServerName = Language.GetPhrase( "creategamemodal.server_default_name", new() { { "name", Sandbox.Utility.Steam.PersonaName } } );
 		}
 
 		//

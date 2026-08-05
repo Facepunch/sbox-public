@@ -548,9 +548,10 @@
     "review.placeholder": "写下你的评测..",
     "review.post_review": "发布评测",
 
-    "rewardprogress.loading": "加载中…",
-    "rewardprogress.open_reward": "开启奖励",
-    "rewardprogress.rewards": "奖励",
+    "rewarddrop.done": "已完成",
+    "rewarddrop.loading": "加载中…",
+    "rewarddrop.open_reward": "打开奖励 · 已完成 {met}/{total}",
+    "rewarddrop.title": "奖励掉落",
 
     "rewardunboxui.back": "返回",
     "rewardunboxui.title": "目前没有可开启的奖励。",

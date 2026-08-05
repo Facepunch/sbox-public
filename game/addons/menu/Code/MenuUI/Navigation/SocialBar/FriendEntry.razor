@@ -53,18 +53,18 @@
                 var game = Friend.GetRichPresence("gametitle");
                 var map = Friend.GetRichPresence("map");
 
-                if (string.IsNullOrEmpty(game)) return MenuHelpers.Localize( "friendentry", "unknown_state" );
-                if (game == "menu") return MenuHelpers.Localize( "friendentry", "main_menu" ); // (Idle)
-                if (string.IsNullOrWhiteSpace(map)) return MenuHelpers.Localize( "friendentry", "unknown_map", new() { { "gametitle", game } } );
-                return MenuHelpers.Localize( "friendentry", "playing", new() { { "gametitle", game }, { "maptitle", map } } );
+                if (string.IsNullOrEmpty(game)) return Language.GetPhrase( "friendentry.unknown_state" );
+                if (game == "menu") return Language.GetPhrase( "friendentry.main_menu" ); // (Idle)
+                if (string.IsNullOrWhiteSpace(map)) return Language.GetPhrase( "friendentry.unknown_map", new() { { "gametitle", game } } );
+                return Language.GetPhrase( "friendentry.playing", new() { { "gametitle", game }, { "maptitle", map } } );
             }
 
-            if (Friend.IsPlayingAGame) return MenuHelpers.Localize( "friendentry", "playing_other" );
-            if (Friend.IsAway) return MenuHelpers.Localize( "friendentry", "away" );
-            if (Friend.IsBusy) return MenuHelpers.Localize( "friendentry", "busy" );
-            if (Friend.IsSnoozing) return MenuHelpers.Localize( "friendentry", "snooze" );
-            if (Friend.IsOnline) return MenuHelpers.Localize( "friendentry", "online" );
-            return MenuHelpers.Localize( "friendentry", "offline" );
+            if (Friend.IsPlayingAGame) return Language.GetPhrase( "friendentry.playing_other" );
+            if (Friend.IsAway) return Language.GetPhrase( "friendentry.away" );
+            if (Friend.IsBusy) return Language.GetPhrase( "friendentry.busy" );
+            if (Friend.IsSnoozing) return Language.GetPhrase( "friendentry.snooze" );
+            if (Friend.IsOnline) return Language.GetPhrase( "friendentry.online" );
+            return Language.GetPhrase( "friendentry.offline" );
         }
     }
 
