@@ -1,6 +1,18 @@
 namespace Sandbox;
 
 /// <summary>
+/// For <see cref="BlobData"/> types whose binary data reference other assets by resource path.
+/// Ensures asset references in blobs are recognized by the resource compiler.
+/// </summary>
+public interface IBlobReferences
+{
+	/// <summary>
+	/// Enumerate the resource paths (e.g. model paths) referenced by this blob.
+	/// </summary>
+	IEnumerable<string> GetReferencedResources();
+}
+
+/// <summary>
 /// Base class for properties that should be serialized to binary format instead of JSON.
 /// Used for large data structures that would be inefficient as JSON.
 /// </summary>

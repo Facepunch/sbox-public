@@ -6,7 +6,8 @@ namespace SceneTests.Core;
 /// <summary>
 /// Pins how per-scene GameObjectSystem property overrides apply: matching systems get
 /// their properties set, unknown systems and malformed json warn instead of crashing,
-/// and one bad property doesn't stop the others.
+/// and one bad property doesn't stop the others. Transient overrides revert on dispose
+/// and are excluded from host scene serialization.
 /// </summary>
 [TestClass]
 public class SceneSystemOverridesTest
@@ -97,6 +98,92 @@ public class SceneSystemOverridesTest
 			scene.ApplyGameObjectSystemOverrides( JsonValue.Create( "this is not an object" ) );
 			scene.ApplyGameObjectSystemOverrides( null );
 		} );
+	}
+
+	[TestMethod]
+	public void TransientOverrideRevertsOnDispose()
+	{
+		WithTestSystems( scene =>
+		{
+			var system = scene.GetSystem<OverridableSystem>();
+			var node = Json.ParseToJsonObject( $$"""
+				{ "{{typeof( OverridableSystem ).FullName}}": { "Speed": 42 } }
+				""" );
+
+			using ( scene.ApplyTransientGameObjectSystemOverrides( node ) )
+			{
+				Assert.AreEqual( 42, system.Speed );
+			}
+
+			Assert.AreEqual( 0, system.Speed );
+		} );
+	}
+
+	[TestMethod]
+	public void TransientOverrideIsNotSerialized()
+	{
+		WithTestSystems( scene =>
+		{
+			var node = Json.ParseToJsonObject( $$"""
+				{ "{{typeof( OverridableSystem ).FullName}}": { "Speed": 42 } }
+				""" );
+
+			using var scope = scene.ApplyTransientGameObjectSystemOverrides( node );
+
+			Assert.AreEqual( 42, scene.GetSystem<OverridableSystem>().Speed );
+			Assert.IsNull( SerializedSystemSpeed( scene ) );
+		} );
+	}
+
+	[TestMethod]
+	public void NonTransientOverrideIsSerialized()
+	{
+		WithTestSystems( scene =>
+		{
+			var node = Json.ParseToJsonObject( $$"""
+				{ "{{typeof( OverridableSystem ).FullName}}": { "Speed": 42 } }
+				""" );
+
+			scene.ApplyGameObjectSystemOverrides( node );
+
+			Assert.AreEqual( 42, (int)SerializedSystemSpeed( scene ) );
+		} );
+	}
+
+	[TestMethod]
+	public void TransientOverridePreservesSceneOwnValue()
+	{
+		WithTestSystems( scene =>
+		{
+			var sceneNode = Json.ParseToJsonObject( $$"""
+				{ "{{typeof( OverridableSystem ).FullName}}": { "Speed": 7 } }
+				""" );
+			scene.ApplyGameObjectSystemOverrides( sceneNode );
+
+			var mapNode = Json.ParseToJsonObject( $$"""
+				{ "{{typeof( OverridableSystem ).FullName}}": { "Speed": 42 } }
+				""" );
+
+			using ( scene.ApplyTransientGameObjectSystemOverrides( mapNode ) )
+			{
+				Assert.AreEqual( 42, scene.GetSystem<OverridableSystem>().Speed );
+				Assert.AreEqual( 7, (int)SerializedSystemSpeed( scene ) );
+			}
+
+			Assert.AreEqual( 7, scene.GetSystem<OverridableSystem>().Speed );
+			Assert.AreEqual( 7, (int)SerializedSystemSpeed( scene ) );
+		} );
+	}
+
+	static JsonNode SerializedSystemSpeed( Scene scene )
+	{
+		if ( scene.SerializeProperties()["GameObjectSystems"] is not JsonObject systems )
+			return null;
+
+		if ( systems[typeof( OverridableSystem ).FullName] is not JsonObject properties )
+			return null;
+
+		return properties["Speed"];
 	}
 
 	/// <summary>

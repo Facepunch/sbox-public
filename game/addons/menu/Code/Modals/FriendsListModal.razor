@@ -1,25 +1,75 @@
 ﻿@using Sandbox.Modals
 @using Sandbox
+@using Sandbox.UI
 @using MenuProject.Social
 
 @namespace MenuProject.Modals
 @inherits MenuProject.Modals.BaseModal
 
-<root class="friendslist-modal">
-	<div class="inner">
+<root class="friendslist-modal @(IsAnchored ? "anchored" : "")">
+	<div class="inner" @ref="Inner">
 
         <div class="header">
-            <h2><i>people</i>Friends</h2>
+            <i>people</i>
+            <h2>Friends</h2>
         </div>
 
-		<div class="friends-list">			
-			@* TODO: It'd be really great if we could group together our friends in parties here *@
-			@foreach ( var friend in Friends )
-			{
-			    <FriendEntry Friend=@friend></FriendEntry>
-			}
+		<div class="friends-list">
+            @if ( InGameFriends.Any() )
+            {
+                <div class="group-label">
+                    <span class="text">In Game</span>
+                    <span class="count">@InGameFriends.Count()</span>
+                    <separator class="horizontal" />
+                </div>
 
-            @if( !Friends.Any() )
+                @foreach ( var group in GroupForDisplay( InGameFriends ) )
+                {
+                    if ( group.IsParty )
+                    {
+                        <div class="party-cluster">
+                            @foreach ( var friend in group.Members )
+                            {
+                                <FriendEntry Friend=@friend></FriendEntry>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <FriendEntry Friend=@group.Members[0]></FriendEntry>
+                    }
+                }
+            }
+
+            @if ( OnlineFriends.Any() )
+            {
+                <div class="group-label">
+                    <span class="text">Online</span>
+                    <span class="count">@OnlineFriends.Count()</span>
+                    <separator class="horizontal" />
+                </div>
+
+                @foreach ( var friend in OnlineFriends.OrderBy( x => x.Name ) )
+                {
+                    <FriendEntry Friend=@friend></FriendEntry>
+                }
+            }
+
+            @if ( OfflineFriends.Any() )
+            {
+                <div class="group-label">
+                    <span class="text">Offline</span>
+                    <span class="count">@OfflineFriends.Count()</span>
+                    <separator class="horizontal" />
+                </div>
+
+                @foreach ( var friend in OfflineFriends )
+                {
+                    <FriendEntry Friend=@friend></FriendEntry>
+                }
+            }
+
+            @if( !AllFriends.Any() )
             {
                 <p>Nothing to show!</p>
             }
@@ -30,16 +80,80 @@
 
 @code
 {
-    public IEnumerable<Friend> Friends => MenuUtility.Friends.Where( ShouldShow )
-        .OrderBy( GetGroup )
-        .ThenBy( x => x.Name );
+    public IEnumerable<Friend> AllFriends => MenuUtility.Friends.Where( ShouldShow );
+
+    public IEnumerable<Friend> InGameFriends => AllFriends.Where( x => x.IsPlayingThisGame );
+    public IEnumerable<Friend> OnlineFriends => AllFriends.Where( x => !x.IsPlayingThisGame && x.IsOnline );
+
+    public IEnumerable<Friend> OfflineFriends => AllFriends.Where( x => !x.IsOnline )
+        .OrderBy( x => x.Name );
+
+    private static bool IsJoinable( Friend friend ) => !string.IsNullOrEmpty( friend.GetRichPresence( "connect" ) );
+
+    /// <summary>
+    /// The Steam lobby id of whatever party this friend is currently in, or null if they're not in one.
+    /// Friends sharing the same (non-null) value are in a party together.
+    /// </summary>
+    private static string PartyKey( Friend friend )
+    {
+        var id = friend.GetRichPresence( "party_id" );
+        return string.IsNullOrEmpty( id ) ? null : id;
+    }
+
+    /// <summary>
+    /// A cluster of friends to render together - either a single friend on their own, or
+    /// several friends who share a party (see <see cref="PartyKey"/>).
+    /// </summary>
+    private record FriendGroup( string PartyId, IReadOnlyList<Friend> Members )
+    {
+        public bool IsParty => PartyId is not null && Members.Count > 1;
+    }
+
+    /// <summary>
+    /// Groups friends who are in the same party together, with joinable friends/parties bubbled
+    /// to the top. Friends with no party (or the only one of our friends in a given party) each
+    /// get their own singleton group - only real, shared parties get clustered together.
+    /// </summary>
+    private IEnumerable<FriendGroup> GroupForDisplay( IEnumerable<Friend> friends )
+    {
+        var groups = new List<FriendGroup>();
+
+        foreach ( var g in friends.GroupBy( PartyKey ) )
+        {
+            if ( g.Key is not null && g.Count() > 1 )
+            {
+                groups.Add( new FriendGroup( g.Key, g.OrderByDescending( IsJoinable ).ThenBy( x => x.Name ).ToList() ) );
+            }
+            else
+            {
+                foreach ( var friend in g )
+                    groups.Add( new FriendGroup( null, new[] { friend } ) );
+            }
+        }
+
+        return groups
+            .OrderByDescending( g => g.IsParty )
+            .ThenByDescending( g => g.Members.Any( IsJoinable ) )
+            .ThenBy( g => g.Members[0].Name );
+    }
 
     FriendsListModalOptions Options;
+    Panel Inner;
 
     public FriendsListModal(FriendsListModalOptions options)
     {
         Options = options;
     }
+
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        base.OnAfterTreeRender( firstTime );
+
+        if ( firstTime && IsAnchored )
+            PositionAnchored( Options.Anchor.Value.Panel, Options.Anchor.Value.Position, Options.Anchor.Value.Offset );
+    }
+
+    bool IsAnchored => Options.Anchor.HasValue && Options.Anchor.Value.Panel.IsValid();
 
     private bool ShouldShow(Friend friend)
     {
@@ -57,15 +171,46 @@
         return false;
     }
 
-    private int GetGroup( Friend friend ) 
+    /// <summary>
+    /// Anchors <see cref="Inner"/> next to <paramref name="source"/>, on the side given by
+    /// <paramref name="position"/>. Positioned once - assumes <paramref name="source"/> doesn't
+    /// move after this is called (eg. a docked button).
+    /// </summary>
+    void PositionAnchored( Panel source, ModalAnchorPosition position, float offset = 8.0f )
     {
-        if ( friend.IsOnline && friend.IsPlayingThisGame ) return 1;
-        if ( friend.IsOnline && friend.IsPlayingAGame ) return 2;
-        if ( friend.IsAway || friend.IsBusy || friend.IsSnoozing ) return 4;
-        if ( friend.IsOnline ) return 3;
-        return 99;
-    }
+        // Derive everything from the source panel's scale rather than our own - at this point we
+        // haven't been added to the panel tree yet, so our own Box.Rect isn't valid.
+        var scale = source.ScaleFromScreen;
+        var rect = source.Box.Rect * scale;
+        var w = Screen.Width * scale;
+        var h = Screen.Height * scale;
 
+        switch ( position )
+        {
+            case ModalAnchorPosition.BelowLeft:
+                Inner.Style.Left = rect.Left;
+                Inner.Style.Top = rect.Bottom + offset;
+                break;
+
+            case ModalAnchorPosition.BelowRight:
+                Inner.Style.Right = w - rect.Right;
+                Inner.Style.Top = rect.Bottom + offset;
+                break;
+
+            case ModalAnchorPosition.AboveLeft:
+                Inner.Style.Left = rect.Left;
+                Inner.Style.Bottom = h - rect.Top + offset;
+                break;
+
+            case ModalAnchorPosition.AboveRight:
+                Inner.Style.Right = w - rect.Right;
+                Inner.Style.Bottom = h - rect.Top + offset;
+                break;
+        }
+
+        Inner.Style.Position = PositionMode.Absolute;
+        Inner.Style.Dirty();
+    }
 
     [Event("friend.change")]
     public void SteamFriends_OnPersonaStateChange(Friend friend)

@@ -188,7 +188,7 @@ class ClutterLayer
 
 		foreach ( var modelPath in storage.ModelPaths )
 		{
-			var model = ResourceLibrary.Get<Model>( modelPath );
+			var model = Model.Load( modelPath );
 			if ( model == null ) continue;
 
 			foreach ( var instance in storage.GetInstances( modelPath ) )

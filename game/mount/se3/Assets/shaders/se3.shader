@@ -46,8 +46,9 @@ VS
 
 PS
 {
-	#include "common/pixel.hlsl"
+	// Material inputs first: pixel.hlsl resolves MATERIAL_ALPHA_TEXTURE at include time.
 	#include "common/utils/Material.CommonInputs.hlsl"
+	#include "common/pixel.hlsl"
 
 	StaticCombo( S_ALPHA_TEST, F_ALPHA_TEST, Sys( ALL ) );
 

@@ -277,6 +277,51 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 		{
 			go.WorldPosition -= delta;
 		}
+
+		Tool?.MoveMode?.OnBegin( this );
+	}
+
+	public override void NudgeRotation( Vector2 direction )
+	{
+		if ( !Selection.Any() ) return;
+
+		var viewport = SceneViewWidget.Current?.LastSelectedViewportWidget;
+		if ( !viewport.IsValid() ) return;
+
+		var gizmo = viewport.GizmoInstance;
+		if ( gizmo is null ) return;
+
+		using var gizmoScope = gizmo.Push();
+		if ( Gizmo.Pressed.Any ) return;
+
+		var basis = CalculateSelectionBasis();
+		var screenLeft = -Gizmo.Nudge( basis, Vector2.Left ).Normal;
+		var screenUp = -Gizmo.Nudge( basis, Vector2.Up ).Normal;
+		var faceNormal = screenLeft.Cross( screenUp ).Normal;
+
+		var axis = direction.x != 0.0f
+			? faceNormal
+			: screenLeft;
+
+		var angle = direction.x != 0.0f
+			? direction.x * Gizmo.Settings.AngleSpacing
+			: -direction.y * Gizmo.Settings.AngleSpacing;
+
+		var delta = Rotation.FromAxis( axis, angle );
+
+		StartDrag();
+
+		try
+		{
+			Rotate( Pivot, Rotation.Identity, delta );
+			UpdateDrag();
+		}
+		finally
+		{
+			EndDrag();
+		}
+
+		Tool?.MoveMode?.OnBegin( this );
 	}
 
 	public override BBox CalculateLocalBounds()

@@ -356,7 +356,7 @@ partial class Session
 	/// <summary>
 	/// Advance all bound <see cref="SkinnedModelRenderer"/>s by the given <paramref name="deltaTime"/>.
 	/// </summary>
-	public void AdvanceAnimations( MovieTime deltaTime )
+	private void PostApplyFrame( MovieTime deltaTime )
 	{
 		// Negative deltas aren't supported :(
 

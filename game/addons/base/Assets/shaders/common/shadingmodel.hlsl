@@ -63,12 +63,16 @@ void AdjustAlphaToCoverage( inout Material m )
         // Clip first to try to kill the wave if we're in an area of all zero
         clip(m.Opacity - eps);
 
-        m.Opacity = AdjustOpacityForAlphaToCoverage( m.Opacity, g_flAlphaTestReference, g_flAntiAliasedEdgeStrength, m.TextureCoords.xy );
+        // Shaders with custom material inputs have no known alpha texture, so no mip compensation.
+        #ifdef MATERIAL_ALPHA_TEXTURE
+            float2 vAlphaTextureSize = float2( TextureDimensions2DS( MATERIAL_ALPHA_TEXTURE, 0 ) );
+        #else
+            float2 vAlphaTextureSize = float2( 1.0f, 1.0f );
+        #endif
 
-        if (g_nMSAASampleCount == 1)
-            OpaqueFadeDepth((m.Opacity + 0.5f + eps) * 0.5f, m.ScreenPosition.xy);
-        else
-            clip(m.Opacity - 0.000001); // Second clipping pass after alpha to coverage adjustment
+        m.Opacity = AdjustOpacityForAlphaToCoverage( m.Opacity, g_flAlphaTestReference, g_flAntiAliasedEdgeStrength, m.TextureCoords.xy, vAlphaTextureSize );
+
+        clip(m.Opacity - 0.000001); // Second clipping pass after alpha to coverage adjustment
     }
     #endif
 }

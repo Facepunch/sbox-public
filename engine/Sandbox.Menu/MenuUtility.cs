@@ -298,6 +298,19 @@ public static partial class MenuUtility
 	}
 
 	/// <summary>
+	/// Whether this friend can be invited to your current (or about-to-be-created) party -
+	/// ie. they're online, not you, and not already in it.
+	/// </summary>
+	public static bool CanInviteToParty( Friend friend )
+	{
+		if ( !friend.IsOnline ) return false;
+		if ( friend.IsMe ) return false;
+		if ( PartyRoom.Current is not null && PartyRoom.Current.Members.Contains( friend ) ) return false;
+
+		return true;
+	}
+
+	/// <summary>
 	/// Opens the invite overlay
 	/// </summary>
 	public static void InviteOverlayToParty()

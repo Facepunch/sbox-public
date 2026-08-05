@@ -66,6 +66,14 @@
             <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@AntiAliasingOptions Value:bind=@AntiAliasing></ButtonGroup>
         </row>
 
+        @if ( !HasEffectiveAntiAliasing )
+        {
+            <row class="setting-warning">
+                <i>warning</i>
+                <span>Without anti-aliasing, foliage and hair edges fall back to a hard cutout and look harsher, most noticeably at a distance. 2x is enough to avoid this.</span>
+            </row>
+        }
+
         <row class="with-gaps">
             <cell class="glass with-padding is-label">
                 Texture Detail
@@ -194,6 +202,11 @@
     public int UpscalerRenderScalePercent { get; set; }
     public int Fsr1SharpnessPercent { get; set; }
     public int Fsr3SharpnessPercent { get; set; }
+
+    // Every upscaler renders to a non-MSAA target, so the dropdown value is only what actually
+    // ships when no upscaler is selected.
+    bool HasEffectiveAntiAliasing => AntiAliasing != MultisampleAmount.MultisampleNone
+                                  && UpscalerMode == Sandbox.Engine.Settings.UpscalerMode.Off;
 
     // DLSS is only offered when the graphics device reports support for it (NVIDIA hardware).
     List<Option> UpscalerModeOptions = BuildUpscalerModeOptions();

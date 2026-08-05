@@ -121,6 +121,10 @@ public abstract class SelectionTool( MeshTool tool ) : EditorTool
 	{
 	}
 
+	public virtual void NudgeRotation( Vector2 direction )
+	{
+	}
+
 	public virtual void AlignDown( bool useLocalDown )
 	{
 	}
@@ -222,6 +226,30 @@ file class SelectionToolShortcutsWidget( SelectionTool tool ) : Widget
 
 	[Shortcut( "mesh.selection-nudge-right", "RIGHT", typeof( SceneViewWidget ) )]
 	public void NudgeRight() => tool.Nudge( Vector2.Right );
+
+	[Shortcut( "mesh.selection-rotate-up", "ALT+UP", typeof( SceneViewWidget ) )]
+	public void RotateUp() => tool.NudgeRotation( Vector2.Up );
+
+	[Shortcut( "mesh.selection-rotate-down", "ALT+DOWN", typeof( SceneViewWidget ) )]
+	public void RotateDown() => tool.NudgeRotation( Vector2.Down );
+
+	[Shortcut( "mesh.selection-rotate-left", "ALT+LEFT", typeof( SceneViewWidget ) )]
+	public void RotateLeft() => tool.NudgeRotation( Vector2.Left );
+
+	[Shortcut( "mesh.selection-rotate-right", "ALT+RIGHT", typeof( SceneViewWidget ) )]
+	public void RotateRight() => tool.NudgeRotation( Vector2.Right );
+
+	[Shortcut( "mesh.selection-rotate-duplicate-up", "ALT+SHIFT+UP", typeof( SceneViewWidget ) )]
+	public void RotateDuplicateUp() => tool.NudgeRotation( Vector2.Up );
+
+	[Shortcut( "mesh.selection-rotate-duplicate-down", "ALT+SHIFT+DOWN", typeof( SceneViewWidget ) )]
+	public void RotateDuplicateDown() => tool.NudgeRotation( Vector2.Down );
+
+	[Shortcut( "mesh.selection-rotate-duplicate-left", "ALT+SHIFT+LEFT", typeof( SceneViewWidget ) )]
+	public void RotateDuplicateLeft() => tool.NudgeRotation( Vector2.Left );
+
+	[Shortcut( "mesh.selection-rotate-duplicate-right", "ALT+SHIFT+RIGHT", typeof( SceneViewWidget ) )]
+	public void RotateDuplicateRight() => tool.NudgeRotation( Vector2.Right );
 
 	[Shortcut( "mesh.align-down-local", "CTRL+KP_1", typeof( SceneViewWidget ) )]
 	public void AlignDownLocal() => tool.AlignDown( useLocalDown: true );
@@ -768,6 +796,51 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 		}
 
 		Pivot -= delta;
+
+		Tool?.MoveMode?.OnBegin( this );
+	}
+
+	public override void NudgeRotation( Vector2 direction )
+	{
+		if ( !Selection.Any() ) return;
+
+		var viewport = SceneViewWidget.Current?.LastSelectedViewportWidget;
+		if ( !viewport.IsValid() ) return;
+
+		var gizmo = viewport.GizmoInstance;
+		if ( gizmo is null ) return;
+
+		using var gizmoScope = gizmo.Push();
+		if ( Gizmo.Pressed.Any ) return;
+
+		var basis = CalculateSelectionBasis();
+		var screenRight = -Gizmo.Nudge( basis, Vector2.Right ).Normal;
+		var screenUp = -Gizmo.Nudge( basis, Vector2.Up ).Normal;
+		var faceNormal = screenRight.Cross( screenUp ).Normal;
+
+		var axis = direction.x != 0.0f
+			? faceNormal
+			: screenRight;
+
+		var angle = direction.x != 0.0f
+			? direction.x * Gizmo.Settings.AngleSpacing
+			: -direction.y * Gizmo.Settings.AngleSpacing;
+
+		var delta = Rotation.FromAxis( axis, angle );
+
+		StartDrag();
+
+		try
+		{
+			Rotate( Pivot, Rotation.Identity, delta );
+			UpdateDrag();
+		}
+		finally
+		{
+			EndDrag();
+		}
+
+		Tool?.MoveMode?.OnBegin( this );
 	}
 
 	private void UpdateTexturesAfterNudge()

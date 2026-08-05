@@ -468,17 +468,23 @@ public partial class MovieEditor : Widget, IHotloadManaged
 	/// Returns true if the given movie <paramref name="resource"/> has an open session.
 	/// This includes parent sessions of the current session, for nested movies.
 	/// </summary>
-	public bool IsMovieOpen( IMovieResource resource )
+	public bool IsMovieOpen( IMovieResource resource ) => FindSession( resource ) is not null;
+
+	/// <summary>
+	/// Returns an open movie session for the given <paramref name="resource"/>, or
+	/// null if it isn't currently being edited. This includes parent sessions for nested movies.
+	/// </summary>
+	public Session? FindSession( IMovieResource resource )
 	{
 		var session = Session;
 
 		while ( session is not null )
 		{
-			if ( session.Resource == resource ) return true;
+			if ( session.Resource == resource ) return session;
 
 			session = session.Parent;
 		}
 
-		return false;
+		return null;
 	}
 }

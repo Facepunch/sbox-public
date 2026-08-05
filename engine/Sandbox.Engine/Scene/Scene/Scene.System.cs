@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Nodes;
+using System.Text.Json.Nodes;
 
 namespace Sandbox;
 
@@ -61,7 +61,7 @@ public partial class Scene
 	/// Apply configuration values to a GameObjectSystem with priority:
 	/// 1. Project-wide value (from <see cref="ProjectSettings.Systems"/>)
 	/// 2. Default value (already set by property initializer)
-	/// Scene-specific overrides are applied during deserialization via <see cref="ApplyGameObjectSystemOverrides"/>
+	/// Scene-specific overrides are applied during deserialization via <see cref="ApplyGameObjectSystemOverrides(JsonNode)"/>
 	/// </summary>
 	void ApplyGameObjectSystemConfig( GameObjectSystem system )
 	{
@@ -84,59 +84,6 @@ public partial class Scene
 					catch ( Exception ex )
 					{
 						Log.Warning( $"Failed to apply config value to {systemType.FullName}.{property.Name}: {ex.Message}" );
-					}
-				}
-			}
-		}
-	}
-
-	/// <summary>
-	/// Apply scene-specific GameObjectSystem property overrides.
-	/// Called during scene deserialization.
-	/// </summary>
-	internal void ApplyGameObjectSystemOverrides( JsonNode overridesNode )
-	{
-		if ( overridesNode is null )
-			return;
-
-		Dictionary<string, JsonObject> overrides;
-
-		try
-		{
-			overrides = Json.FromNode<Dictionary<string, JsonObject>>( overridesNode );
-		}
-		catch ( System.Exception e )
-		{
-			Log.Warning( e, $"Error when deserializing GameObjectSystem overrides ({e.Message})" );
-			return;
-		}
-
-		if ( overrides is null || overrides.Count == 0 )
-			return;
-
-		foreach ( var system in systems.Values )
-		{
-			var systemType = Game.TypeLibrary.GetType( system.GetType() );
-			if ( systemType is null ) continue;
-
-			if ( !overrides.TryGetValue( systemType.FullName, out var properties ) )
-				continue;
-
-			foreach ( var property in systemType.Properties.Where( x => x.HasAttribute<PropertyAttribute>() ) )
-			{
-				if ( !property.CanWrite ) continue;
-
-				if ( properties.TryGetPropertyValue( property.Name, out var valueNode ) )
-				{
-					try
-					{
-						// Deserialize the JSON node directly to the property's type
-						var value = Json.FromNode( valueNode, property.PropertyType );
-						property.SetValue( system, value );
-					}
-					catch ( Exception ex )
-					{
-						Log.Warning( $"Failed to apply scene override to {systemType.FullName}.{property.Name}: {ex.Message}" );
 					}
 				}
 			}

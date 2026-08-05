@@ -3,8 +3,8 @@
 
 FriendPopup.popup-panel
 {
-    background-color: #181b26;
-    border-radius: 8px 8px 0 0;
+    background: linear-gradient( to bottom, #1d212f, #1c202d );
+    border-radius: 8px;
     font-family: Poppins;
     border: 0px solid black;
     min-width: 220px;
@@ -78,6 +78,23 @@ row.join
     position: absolute;
     bottom: -29px;
     font-size: 48px;
+}
+
+// Popup.SetPositioning adds this class for PositionMode.Right - point the arrow back at the
+// source panel (to our left) instead of leaving it stuck below, pointing at nothing, and move the
+// accent border to match (left instead of bottom).
+FriendPopup.popup-panel.right
+{
+    border-bottom: 0px solid transparent;
+    border-left: 3px solid #477fe7;
+
+    .arrow
+    {
+        bottom: auto;
+        left: -7px;
+        top: 50%;
+        transform: translate(-50%, -50%) rotate(90deg);
+    }
 }
 
 .is-party

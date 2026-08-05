@@ -219,83 +219,30 @@ PS
 
 	#if S_ALPHA_TEST
 
-	// Approximate mip level from texture coordinate screen-space derivatives.
-	// Equivalent to what the GPU uses for automatic LOD selection.
-	// Reference: https://www.khronos.org/registry/OpenGL/specs/gl/glspec46.core.pdf (sec 8.14.1)
-	float CalcMipLevel( float2 vTexCoord )
+	// Relaxes the alpha cutoff with distance so foliage doesn't pop as geometry LODs change.
+	// The shared coverage path tests against the fixed g_flAlphaTestReference, so scale opacity by
+	// the ratio instead of passing a relaxed reference. The scale cancels out of the
+	// derivative-sharpening term, exactly so at g_flAntiAliasedEdgeStrength 1 and approximately
+	// below it, where the result blends back toward the scaled raw opacity.
+	float DistanceAlphaScale( float dist )
 	{
-		float2 dx = ddx( vTexCoord );
-		float2 dy = ddy( vTexCoord );
-		float delta = max( dot( dx, dx ), dot( dy, dy ) );
-		return max( 0.0, 0.5 * log2( delta ) );
-	}
-
-	// Best-practice alpha-to-coverage for foliage.
-	// Based on Ben Golus's "Anti-Aliased Alpha Test: The Esoteric Alpha To Coverage"
-	// and The Witness's mip-aware alpha correction by Ignacio Castaño.
-	//
-	// Two key steps:
-	// 1) Mip compensation: mipmapping averages the alpha channel, collapsing its
-	//    distribution toward the mean. This makes distant foliage vanish or sparkle.
-	//    We counteract by scaling alpha proportional to mip level, restoring coverage.
-	// 2) Derivative sharpening: rescale alpha around the cutoff using fwidth() so
-	//    alpha-to-coverage sees a clean 0→1 step across one pixel width. This gives
-	//    crisp edges that the MSAA hardware anti-aliases via sub-pixel coverage masks.
-	float ApplyAlphaToCoverage( float opacity, float dist, float2 vTextureCoords )
-	{
-		clip( opacity - ( 1.0 / 255.0 ) );
-
-		// Compute texel-space mip level so the compensation factor is resolution-aware
-		int2 vTexDim = TextureDimensions2DS( g_tColor, 0 );
-		float mipLevel = CalcMipLevel( vTextureCoords * float2( vTexDim ) );
-
-		// Compensate for mip-level alpha averaging.
-		// At mip 0 no change; at higher mips, boost alpha to restore original coverage.
-		// 0.25 is the empirically best scale factor per Ben Golus / The Witness.
-		opacity *= 1.0 + mipLevel * 0.25;
-
-		// Distance-based alpha reference — relax the cutoff at distance so distant
-		// foliage doesn't pop in/out harshly as geometry LODs change.
 		float distFactor = saturate( ( dist - g_flAlphaDistanceStart ) / max( g_flAlphaDistanceEnd - g_flAlphaDistanceStart, 0.001 ) );
 		float alphaRef = lerp( g_flAlphaTestReference, 0.1, distFactor );
-
-		// Sharpen alpha to a single-pixel-wide edge using screen-space derivatives.
-		// After mip compensation the gradient is restored, so fwidth() stays reliable
-		// at all distances — no fallback to raw alpha needed.
-		return saturate( ( opacity - alphaRef ) / max( fwidth( opacity ), 0.0001 ) + 0.5 );
-	}
-
-	void ApplyAlphaTest( inout Material m, float dist )
-	{
-		// Same mip compensation for the non-MSAA clip path
-		int2 vTexDim = TextureDimensions2DS( g_tColor, 0 );
-		float mipLevel = CalcMipLevel( m.TextureCoords * float2( vTexDim ) );
-		m.Opacity *= 1.0 + mipLevel * 0.25;
-
-		float distFactor = saturate( ( dist - g_flAlphaDistanceStart ) / max( g_flAlphaDistanceEnd - g_flAlphaDistanceStart, 0.001 ) );
-		float alphaRef = lerp( g_flAlphaTestReference, 0.1, distFactor );
-		clip( m.Opacity - alphaRef );
-		m.Opacity = 1.0;
+		return g_flAlphaTestReference / max( alphaRef, 0.001 );
 	}
 
 	#endif
 
 	#if S_GRAZING_FADE
-	void ApplyGrazingAngleFade( float3 positionWs, float3 viewDir, float2 screenPos )
+	// Fades leaf cards out as they turn edge-on, where a flat card reads wrong.
+	// Derives from the face normal, so it's constant across a triangle. Apply it to the final
+	// coverage, never to opacity before the sharpening: a per-triangle constant cancels out of
+	// fwidth() there, which erodes the card inward from its edges instead of fading it.
+	float GrazingAngleFade( float3 positionWs, float3 viewDir )
 	{
 		float3 geometricNormal = normalize( cross( ddx( positionWs ), ddy( positionWs ) ) );
 		float NdotV = abs( dot( geometricNormal, viewDir ) );
-		float fade = saturate( ( NdotV - g_flGrazingFadeEnd ) / max( g_flGrazingFadeStart - g_flGrazingFadeEnd, 0.001 ) );
-
-		const float4x4 bayer = float4x4(
-			0.0/16.0,  8.0/16.0,  2.0/16.0, 10.0/16.0,
-			12.0/16.0, 4.0/16.0, 14.0/16.0,  6.0/16.0,
-			3.0/16.0, 11.0/16.0,  1.0/16.0,  9.0/16.0,
-			15.0/16.0, 7.0/16.0, 13.0/16.0,  5.0/16.0
-		);
-
-		int2 pixel = int2( screenPos ) % 4;
-		clip( fade - bayer[pixel.x][pixel.y] );
+		return saturate( ( NdotV - g_flGrazingFadeEnd ) / max( g_flGrazingFadeStart - g_flGrazingFadeEnd, 0.001 ) );
 	}
 	#endif
 
@@ -377,7 +324,18 @@ PS
 		bool closeUp = dist < g_flDetailFadeDistance * 10.0f;
 
 		#if S_GRAZING_FADE
-			ApplyGrazingAngleFade( m.WorldPosition, viewDir, m.ScreenPosition.xy );
+			float flGrazingFade = GrazingAngleFade( m.WorldPosition, viewDir );
+
+			// Without alpha test there's no alpha-to-coverage to carry a partial fade.
+			#if S_ALPHA_TEST
+				bool bFadeViaCoverage = ( g_nMSAASampleCount > 1 );
+			#else
+				bool bFadeViaCoverage = false;
+			#endif
+
+			// Spent as sub-pixel coverage below when we have samples for it, otherwise cut at the
+			// halfway point. The fade is constant per triangle, so the cut drops a whole card at once.
+			clip( flGrazingFade - ( bFadeViaCoverage ? ( 1.0 / 255.0 ) : 0.5 ) );
 		#endif
 
 		#if S_TRANSMISSIVE
@@ -389,13 +347,7 @@ PS
 		#endif
 
 		#if S_ALPHA_TEST
-			// Old alpha test method for non-MSAA - clip pixels here
-			if (g_nMSAASampleCount == 1)
-			{
-				ApplyAlphaTest( m, dist );
-			}
-
-			float opacity = m.Opacity;
+			m.Opacity *= DistanceAlphaScale( dist );
 		#endif
 
 		#if S_TRANSMISSIVE
@@ -426,13 +378,14 @@ PS
 		if ( g_flAmbientBoost > 0.0 )
 			m.Emission += m.Albedo * g_flAmbientBoost;
 
+		// Shade() runs the shared alpha-to-coverage path and returns the coverage in alpha.
 		float4 output = ShadingModelStandard::Shade( i, m );
 
-		// Output custom alpha to coverage for foliage, overriding the one in shadingmodel
-		// Ensures we have smooth MSAA edges on foliage that are still sharp close-up
-		// and gracefully fall back to raw A2C at distance where derivatives get noisy
-		#if S_ALPHA_TEST
-			output.a = ApplyAlphaToCoverage( opacity, dist, i.vTextureCoords.xy );
+		#if ( S_GRAZING_FADE && S_ALPHA_TEST )
+			// Spend the fade as sub-pixel coverage so MSAA resolves it as translucency instead of a
+			// dither pattern. Must come after Shade() has sharpened the edge, see GrazingAngleFade.
+			if ( bFadeViaCoverage )
+				output.a *= flGrazingFade;
 		#endif
 
 		return output;

@@ -523,25 +523,42 @@ public sealed partial class TrackView : IComparable<TrackView>
 		return parent;
 	}
 
-	public void ApplyFrame( MovieTime time )
+	public void PrepareUpdate( MovieTime time, MovieUpdateBuilder updateBuilder )
 	{
 		switch ( Track )
 		{
 			case ProjectSequenceTrack sequenceTrack:
 				var session = TrackList.Session;
-				var binder = session.Binder;
+				var binder = updateBuilder.Binder;
 
 				var sequenceBlock = sequenceTrack.Blocks.GetBlock( time );
-				if ( sequenceBlock is null ) break;
+				if ( sequenceBlock is null )
+				{
+					foreach ( var propertyTrack in sequenceTrack.PropertyTracks )
+					{
+						var target = binder.Get( propertyTrack );
 
-				// If we're editing this sequence, its Session will handle applying so we don't need
-				// to do it here
+						if ( !target.CanWrite ) continue;
+						if ( !target.HasDefaultValue ) continue;
 
-				if ( session.Editor.IsMovieOpen( sequenceBlock.Resource ) ) break;
+						updateBuilder.AddDefault( target );
+					}
+
+					break;
+				}
+
+				// If we're editing this sequence, let its Session handle applying so we
+				// can see any live changes
+
+				if ( session.Editor.FindSession( sequenceBlock.Resource ) is { } nestedSession )
+				{
+					nestedSession.PrepareUpdate( sequenceBlock.Transform.Inverse * time, updateBuilder );
+					break;
+				}
 
 				foreach ( var propertyTrack in sequenceTrack.PropertyTracks )
 				{
-					propertyTrack.Update( time, binder );
+					updateBuilder.Add( propertyTrack, time );
 				}
 
 				break;
@@ -556,11 +573,11 @@ public sealed partial class TrackView : IComparable<TrackView>
 
 				if ( _previewBlocks.GetBlock( time ) is IPropertySignal block )
 				{
-					property.Value = block.GetValue( time );
+					updateBuilder.Add( property, block.GetValue( time ) );
 				}
 				else
 				{
-					property.Update( propertyTrack, time );
+					updateBuilder.Add( propertyTrack, time );
 				}
 
 				break;

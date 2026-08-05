@@ -277,34 +277,58 @@ internal static class BlobDataSerializer
 	/// </summary>
 	public static BlobContext LoadFrom( string filePath )
 	{
-		Dictionary<Guid, byte[]> binaryData = null;
-
-		if ( !string.IsNullOrEmpty( filePath ) )
-		{
-			if ( filePath.EndsWith( "_c" ) )
-				filePath = filePath[..^2];
-
-			var path = filePath + "_d";
-
-			if ( FileSystem.Mounted?.FileExists( path ) == true )
-				binaryData = ParseFile( FileSystem.Mounted.ReadAllBytes( path ) );
-			else if ( File.Exists( path ) )
-				binaryData = ParseFile( File.ReadAllBytes( path ) );
-			else // Read from compiled scene instead
-			{
-				var compiledPath = filePath + "_c";
-				if ( FileSystem.Mounted?.FileExists( compiledPath ) == true )
-				{
-					var blockData = Game.Resources.ReadCompiledResourceBlock( CompiledBlobName, FileSystem.Mounted.ReadAllBytes( compiledPath ) );
-					if ( blockData != null )
-						binaryData = ParseFile( blockData );
-				}
-			}
-		}
+		var binaryData = ResolveBlobData( filePath );
 
 		var context = new BlobContext( _current, binaryData );
 		_current = context;
 		return context;
+	}
+
+	/// <summary>
+	/// Finds and parses the blob table for a resource, searching all relevant filesystems and file variations.
+	/// Checks both "_d" sidecar and compiled "_c" files, with disk fallback if needed (for published resources).
+	/// </summary>
+	private static Dictionary<Guid, byte[]> ResolveBlobData( string filePath )
+	{
+		if ( string.IsNullOrEmpty( filePath ) )
+			return null;
+
+		if ( filePath.EndsWith( "_c" ) )
+			filePath = filePath[..^2];
+
+		var sidecarPath = filePath + "_d";
+		var compiledPath = filePath + "_c";
+
+		ReadOnlySpan<BaseFileSystem> filesystems =
+		[
+			FileSystem.Mounted,
+			PackageManager.MountedFileSystem,
+		];
+
+		foreach ( var fs in filesystems )
+		{
+			if ( fs is null )
+				continue;
+
+			// The "_d" sidecar is already stored in the blob-file format.
+			if ( fs.FileExists( sidecarPath ) )
+				return ParseFile( fs.ReadAllBytes( sidecarPath ) );
+
+			// Otherwise pull the compiled blob block out of the compiled resource.
+			if ( fs.FileExists( compiledPath ) )
+			{
+				var blockData = Game.Resources.ReadCompiledResourceBlock( CompiledBlobName, fs.ReadAllBytes( compiledPath ) );
+				if ( blockData != null )
+					return ParseFile( blockData );
+			}
+		}
+
+		// Final fallback: a loose sidecar on raw disk (e.g. freshly saved in the editor and not
+		// yet visible through a mounted filesystem).
+		if ( File.Exists( sidecarPath ) )
+			return ParseFile( File.ReadAllBytes( sidecarPath ) );
+
+		return null;
 	}
 
 	/// <summary>
