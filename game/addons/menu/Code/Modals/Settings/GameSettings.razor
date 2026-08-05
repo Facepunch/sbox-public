@@ -31,6 +31,11 @@
             <div class="is-label">#settings.game.chat_enabled</div>
             <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@ChatEnabledOptions Value:bind=@ChatEnabled></ButtonGroup>
         </row>
+
+        <row class="with-gaps">
+            <div class="is-label">Streamer Mode</div>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@StreamerModeOptions Value:bind=@StreamerMode></ButtonGroup>
+        </row>
         
 	</div>
 
@@ -44,8 +49,10 @@
     public string Language { get; set; }
     public float FieldOfView { get; set; }
     public bool ChatEnabled { get; set; }
+    public bool StreamerMode { get; set; }
 
     List<Option> ChatEnabledOptions = [new("#settings.off", false), new("#settings.on", true)];
+    List<Option> StreamerModeOptions = [new("#settings.off", false), new("#settings.on", true)];
 
     List<Option> _languageOptions;
     List<Option> LanguageOptions
@@ -79,6 +86,7 @@
     {
         MenuUtility.RenderSettings.DefaultFOV = 60;
         Preferences.ChatEnabled = true;
+        Preferences.StreamerMode = false;
         ConsoleSystem.Run("language", "en");
     }
 
@@ -87,6 +95,7 @@
         FieldOfView = MenuUtility.RenderSettings.DefaultFOV;
         Language = Sandbox.Language.Current.Abbreviation;
         ChatEnabled = Preferences.ChatEnabled;
+        StreamerMode = Preferences.StreamerMode;
     }
 
     public void OnApply()
@@ -94,5 +103,6 @@
         ConsoleSystem.Run("language", Language);
         MenuUtility.RenderSettings.DefaultFOV = (int)(FieldOfView.Clamp( 45, 120 ));
         Preferences.ChatEnabled = ChatEnabled;
+        Preferences.StreamerMode = StreamerMode;
     }
 }
