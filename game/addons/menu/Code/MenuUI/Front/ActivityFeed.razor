@@ -91,6 +91,7 @@
     const float FriendCheckInterval = 3f;
 
     TimeSince timeSinceFriendCheck = FriendCheckInterval;
+    bool _lastStreamerMode = Preferences.StreamerMode;
 
     /// <summary>One row per person, newest entry each. The feed arrives newest-first.</summary>
     IEnumerable<Sandbox.Services.Feed> Events
@@ -176,6 +177,14 @@
         base.Tick();
 
         if ( !IsVisible ) return;
+
+        if( Preferences.StreamerMode != _lastStreamerMode )
+        {
+            _lastStreamerMode = Preferences.StreamerMode;
+            RefreshInGame();
+            StateHasChanged();
+        }
+
         if ( timeSinceFriendCheck < FriendCheckInterval ) return;
 
         timeSinceFriendCheck = 0;
@@ -186,7 +195,7 @@
     {
         var found = new List<LiveFriend>();
 
-        foreach ( var friend in MenuUtility.Friends )
+        foreach ( Friend friend in MenuUtility.Friends )
         {
             if ( friend.IsMe ) continue;
             if ( !friend.IsPlayingThisGame ) continue;
@@ -224,6 +233,7 @@
         for ( int i = 0; i < found.Count; i++ )
         {
             if ( found[i].Id != InGame[i].Id ) return false;
+            if ( found[i].Name != InGame[i].Name ) return false;
             if ( found[i].Game != InGame[i].Game ) return false;
             if ( found[i].Joinable != InGame[i].Joinable ) return false;
         }

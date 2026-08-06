@@ -30,7 +30,15 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 	/// Serialized with the scene - this is the source of truth for painted clutter.
 	/// </summary>
 	[Property, Hide]
-	public ClutterStorage Storage { get; set; } = new();
+	public ClutterStorage Storage
+	{
+		get;
+		set
+		{
+			field = value;
+			_dirty = true;
+		}
+	} = new();
 
 	/// <summary>
 	/// Layer for rendering painted model instances from Storage.
@@ -43,7 +51,7 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 	public ClutterGridSystem( Scene scene ) : base( scene )
 	{
 		Listen( Stage.FinishUpdate, 0, OnUpdate, "ClutterGridSystem.Update" );
-		Listen( Stage.SceneLoaded, 0, RebuildPaintedLayer, "ClutterGridSystem.RestorePainted" );
+		Listen( Stage.SceneLoaded, 0, RestorePaintedLayer, "ClutterGridSystem.RestorePainted" );
 	}
 
 	public override void Dispose()
@@ -69,16 +77,16 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 	private void OnUpdate()
 	{
 		var camera = GetActiveCamera();
-		if ( camera == null )
-			return;
+		if ( camera is not null )
+		{
+			_lastCameraPosition = camera.WorldPosition;
 
-		_lastCameraPosition = camera.WorldPosition;
+			PublishLodParameters( camera );
 
-		PublishLodParameters( camera );
-
-		SubscribeToTerrains();
-		UpdateInfiniteLayers( _lastCameraPosition );
-		ProcessJobs();
+			SubscribeToTerrains();
+			UpdateInfiniteLayers( _lastCameraPosition );
+			ProcessJobs();
+		}
 
 		if ( _dirty )
 		{
@@ -93,6 +101,12 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 			if ( component.IsValid() && !component.Infinite )
 				layer.RebuildIfDirty();
 		}
+	}
+
+	private void RestorePaintedLayer()
+	{
+		RebuildPaintedLayer();
+		_dirty = false;
 	}
 
 	/// <summary>

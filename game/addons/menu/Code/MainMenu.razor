@@ -34,6 +34,7 @@
     public static MainMenu Instance { get; private set; }
 
     static bool _welcomeShown;
+    static bool _streamerPromptShown;
 
     override protected void OnEnabled()
     {
@@ -54,19 +55,48 @@
         // Fetch resolutions now so opening the settings modal doesn't stutter later.
         MenuProject.Settings.VideoSettings.FetchResolutions();
 
-        _ = ShowWelcomeScreenIfNeeded();
+        _ = ShowStartupModalsIfNeeded();
+    }
+
+    async Task ShowStartupModalsIfNeeded()
+    {
+        await Task.DelayRealtime(1500);
+
+        await ShowWelcomeScreenIfNeeded();
+
+        // Shown after the welcome screen so it sits on top of it if both appear.
+        await ShowStreamerModePromptIfNeeded();
     }
 
     async Task ShowWelcomeScreenIfNeeded()
     {
-        await Task.DelayRealtime(1500);
-
         if ( _welcomeShown ) return;
         if ( Game.Cookies.Get<bool>( WelcomeScreenModal.CookieKey, false ) ) return;
 
         _welcomeShown = true;
 
         var modal = new WelcomeScreenModal();
+        modal.Parent = Panel;
+
+        // Give the welcome modal a frame before we show the next modal
+        await Task.DelayRealtime( 1 );
+    }
+
+    async Task ShowStreamerModePromptIfNeeded()
+    {
+        if ( _streamerPromptShown ) return;
+        if ( Preferences.StreamerMode ) return;
+
+        // Only inform the user about Streamer Mode once, then remember it across startups.
+        if ( Game.Cookies.Get<bool>( StreamerModePromptModal.CookieKey, false ) ) return;
+
+        // Enumerating every process can take tens of ms, so keep it off the main thread.
+        if ( !await RecordingSoftware.IsRunningAsync() ) return;
+
+        _streamerPromptShown = true;
+        Game.Cookies.Set( StreamerModePromptModal.CookieKey, true );
+
+        var modal = new StreamerModePromptModal();
         modal.Parent = Panel;
     }
 

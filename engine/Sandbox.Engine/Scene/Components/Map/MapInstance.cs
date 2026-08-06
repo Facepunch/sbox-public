@@ -1,5 +1,6 @@
 using Facepunch.ActionGraphs;
 using NativeEngine;
+using Sandbox.Clutter;
 using Sentry;
 using System.Text.Json.Nodes;
 using System.Threading;
@@ -57,6 +58,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	string loadedMapName;
 	Package loadedMapPkg;
 	string sceneMapScenePath;
+	IDisposable _systemOverridesScope;
 
 	public MapInstance() : base()
 	{
@@ -146,6 +148,9 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		RemoveCollision();
 
 		Physics = null;
+
+		_systemOverridesScope?.Dispose();
+		_systemOverridesScope = null;
 
 		if ( GameObject.IsValid() && GameObject.Children is not null )
 		{
@@ -425,6 +430,8 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 
 		using var optionsScope = ActionGraph.PushSerializationOptions( sceneFile.SerializationOptions with { ForceUpdateCached = Scene.IsEditor } );
 		using var sceneScope = Scene.Push();
+		// Set up a blob context to resolve binary data in the map scene.
+		using var blobs = BlobDataSerializer.Load( sceneFile.BinaryData, path );
 		using var batchGroup = CallbackBatch.Batch();
 
 		foreach ( var json in sceneFile.GameObjects )
@@ -449,6 +456,22 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 			if ( go.NetworkMode == NetworkMode.Object )
 			{
 				go.NetworkSpawn();
+			}
+		}
+
+		// Apply scene-level GameObjectSystems data (e.g. painted clutter) to the host scene.
+		if ( sceneFile.SceneProperties is not null
+			&& sceneFile.SceneProperties.TryGetPropertyValue( "GameObjectSystems", out var systemsNode )
+			&& systemsNode is not null )
+		{
+			_systemOverridesScope = Scene.ApplyTransientGameObjectSystemOverrides( systemsNode );
+
+			if ( !NoOrigin
+				&& systemsNode is JsonObject systems
+				&& systems[typeof( ClutterGridSystem ).FullName] is JsonObject clutter
+				&& clutter.ContainsKey( nameof( ClutterGridSystem.Storage ) ) )
+			{
+				Scene.GetSystem<ClutterGridSystem>()?.Storage.ApplyWorldTransform( WorldTransform );
 			}
 		}
 

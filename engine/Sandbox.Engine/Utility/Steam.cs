@@ -8,6 +8,11 @@ public static class Steam
 	internal static ulong BaseFakeSteamId => 90071996842377216;
 
 	/// <summary>
+	/// Is this a fake SteamId? i.e. a bot or local (split-screen/local-instance) player rather than a real Steam account.
+	/// </summary>
+	internal static bool IsFakeSteamId( ulong steamId ) => steamId >= BaseFakeSteamId;
+
+	/// <summary>
 	/// Return what type os SteamId this is
 	/// </summary>
 	public static SteamId.AccountTypes CategorizeSteamId( SteamId steamid ) => steamid.AccountType;

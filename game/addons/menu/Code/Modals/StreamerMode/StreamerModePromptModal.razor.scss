@@ -1,0 +1,84 @@
+@import '../../styles/_theme.scss';
+@import '../../styles/mainmenu.scss';
+
+StreamerModePromptModal
+{
+	position: absolute;
+	left: 0px;
+	top: 0px;
+	right: 0px;
+	bottom: 0px;
+	justify-content: center;
+	align-items: center;
+	pointer-events: all;
+	background-color: #1114;
+	backdrop-filter: blur( 4px ) contrast( 0.7 ) brightness( 0.1 );
+	transition: all 250ms ease-out;
+	opacity: 1;
+
+	&:intro
+	{
+		opacity: 0;
+	}
+
+	&:outro
+	{
+		transition: all 0.3s ease-in;
+		pointer-events: none;
+		opacity: 0;
+	}
+
+	.window
+	{
+		z-index: 1000;
+		width: 600px;
+		min-height: 200px;
+		font-family: $font-default;
+		border-radius: $rounding-default;
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 16px;
+		padding: 16px;
+		pointer-events: all;
+		background-color: $default-900;
+		border: 1px solid $default-border;
+		box-shadow: 0 16px 48px rgba( black, 0.5 );
+	}
+
+	.content
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		gap: 16px;
+	}
+
+	.body
+	{
+		padding: 8px;
+		font-size: $text-regular;
+		border-radius: $rounding-default;
+		background-color: $default-950;
+		flex-grow: 1;
+		text-align: center;
+		justify-content: center;
+		white-space: pre-line;
+	}
+
+	.header
+	{
+		justify-content: center;
+		align-items: center;
+		gap: 1rem;
+
+		.heading
+		{
+			font-size: $text-large;
+		}
+	}
+
+	.footer
+	{
+		justify-content: center;
+		gap: 8px;
+	}
+}
