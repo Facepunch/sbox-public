@@ -548,7 +548,7 @@ partial class GameObjectNode : TreeNode<GameObject>
 	{
 		var m = new ContextMenu( TreeView ) { Searchable = true };
 		AddGameObjectMenuItems( m, this );
-		
+
 		var ev = new EditorEvent.GameObjectContextMenuEvent( Value, m );
 		EditorEvent.RunInterface<EditorEvent.IHierarchyView>( x => x.ShowContextMenu( ev ) );
 
