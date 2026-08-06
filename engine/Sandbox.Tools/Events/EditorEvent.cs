@@ -153,7 +153,7 @@ public static partial class EditorEvent
 		/// <param name="ev">Event arguments describing what the context menu was opened on.</param>
 		void ShowContextMenu( ShowContextMenuEvent ev ) { }
 	}
-	
+
 	/// <summary>
 	/// Event args for <see cref="IHierarchyView.ShowContextMenu"/> events.
 	/// </summary>
@@ -165,11 +165,11 @@ public static partial class EditorEvent
 	);
 
 	/// <summary>Allows tools to inject behaviour in the hierarchy editor.</summary>
-	public interface IHierarchyView : EditorEvent.IEventListener
+	public interface IHierarchyView : IEventListener
 	{
 		/// <summary>
 		/// Called when the hierarchy viewport wants to show a context menu for a GameObject.
 		/// </summary>
-		void ShowContextMenu( GameObjectContextMenuEvent ev ) {}
+		void ShowContextMenu( GameObjectContextMenuEvent ev ) { }
 	}
 }
