@@ -54,8 +54,12 @@ partial class FaceTool
 			{
 				var group = AddGroup( "Texture", collapsible: true );
 
+				var modeLabelRow = group.AddRow();
+				modeLabelRow.Add( new Label.Small( "Mode" ) );
+				modeLabelRow.AddStretchCell();
+
 				var row1 = group.AddRow();
-				row1.Spacing = 2;
+				row1.Spacing = 4;
 				row1.AddStretchCell();
 
 				AddToggleButton( "Align", "meshtools/texture_tool_buttons/texture_align.png", hasSelectedFaces, row1, "align" );
@@ -111,14 +115,30 @@ partial class FaceTool
 
 			_panelContainer.Layout.Clear( true );
 
-			if ( _faces.Length == 0 || _activePanel is null )
+			if ( _faces.Length == 0 )
 				return;
+
+			_activePanel ??= "align";
+
+			var submodeLabelRow = _panelContainer.Layout.AddRow();
+			submodeLabelRow.Add( new Label.Small( _activePanel switch
+			{
+				"align" => "Align",
+				"scale" => "Scale",
+				"shift" => "Shift",
+				"fit" => "Fit",
+				"justify" => "Justify",
+				"hotspot" => "Hotspot",
+				_ => "Align"
+			} ) );
+			submodeLabelRow.AddStretchCell();
+
+			var row = _panelContainer.Layout.AddRow();
+			row.Spacing = 4;
+			row.AddStretchCell();
 
 			if ( _activePanel == "align" )
 			{
-				var row = _panelContainer.Layout.AddRow();
-				row.Spacing = 2;
-				row.AddStretchCell();
 				AddIconBtn( "meshtools/texture_tool_buttons/align_to_grid.png", AlignToGrid, true, row, "Align to Grid" );
 				AddIconBtn( "meshtools/texture_tool_buttons/align_to_face.png", AlignToFace, true, row, "Align to Face" );
 				AddIconBtn( "meshtools/texture_tool_buttons/align_to_view.png", AlignToView, true, row, "Align to View" );
@@ -128,9 +148,6 @@ partial class FaceTool
 			}
 			else if ( _activePanel == "scale" )
 			{
-				var row = _panelContainer.Layout.AddRow();
-				row.Spacing = 2;
-				row.AddStretchCell();
 				AddIconBtn( "meshtools/texture_tool_buttons/scale_x_up.png", () => DoScaleX( true ), true, row, "Scale X Up" );
 				AddIconBtn( "meshtools/texture_tool_buttons/scale_x_down.png", () => DoScaleX( false ), true, row, "Scale X Down" );
 				AddIconBtn( "meshtools/texture_tool_buttons/scale_y_up.png", () => DoScaleY( true ), true, row, "Scale Y Up" );
@@ -139,9 +156,6 @@ partial class FaceTool
 			}
 			else if ( _activePanel == "shift" )
 			{
-				var row = _panelContainer.Layout.AddRow();
-				row.Spacing = 2;
-				row.AddStretchCell();
 				AddIconBtn( "meshtools/texture_tool_buttons/shift_left.png", () => DoShiftX( true ), true, row, "Shift Left" );
 				AddIconBtn( "meshtools/texture_tool_buttons/shift_right.png", () => DoShiftX( false ), true, row, "Shift Right" );
 				AddIconBtn( "meshtools/texture_tool_buttons/shift_up.png", () => DoShiftY( true ), true, row, "Shift Up" );
@@ -150,9 +164,6 @@ partial class FaceTool
 			}
 			else if ( _activePanel == "fit" )
 			{
-				var row = _panelContainer.Layout.AddRow();
-				row.Spacing = 2;
-				row.AddStretchCell();
 				AddIconBtn( "meshtools/texture_tool_buttons/fit_both.png", () => DoFit( TextureFit.x, TextureFit.y ), true, row, "Fit Both" );
 				AddIconBtn( "meshtools/texture_tool_buttons/fit_x.png", () => DoFit( TextureFit.x, -1 ), true, row, "Fit X" );
 				AddIconBtn( "meshtools/texture_tool_buttons/fit_y.png", () => DoFit( -1, TextureFit.y ), true, row, "Fit Y" );
@@ -181,9 +192,6 @@ partial class FaceTool
 			}
 			else if ( _activePanel == "justify" )
 			{
-				var row = _panelContainer.Layout.AddRow();
-				row.Spacing = 2;
-				row.AddStretchCell();
 				AddIconBtn( "meshtools/texture_tool_buttons/justify_left.png", () => DoJustify( PolygonMesh.TextureJustification.Left ), true, row, "Left" );
 				AddIconBtn( "meshtools/texture_tool_buttons/justify_top.png", () => DoJustify( PolygonMesh.TextureJustification.Top ), true, row, "Top" );
 				AddIconBtn( "meshtools/texture_tool_buttons/justify_center.png", () => DoJustify( PolygonMesh.TextureJustification.Center ), true, row, "Center" );
@@ -282,12 +290,15 @@ partial class FaceTool
 			};
 			btn.OnClick = () =>
 			{
-				_activePanel = _activePanel == panelName ? null : panelName;
+				if ( _activePanel == panelName )
+					return;
+
+				_activePanel = panelName;
 				EditorCookie.Set( "TextureActivePanel", _activePanel );
 
 				foreach ( var sibling in btn.Parent.Children.OfType<IconButton>() )
 				{
-					sibling.IsActive = sibling == btn && _activePanel == panelName;
+					sibling.IsActive = sibling == btn;
 				}
 
 				RebuildPanel();
@@ -319,10 +330,9 @@ partial class FaceTool
 				.WithComponentChanges( _components )
 				.Push() )
 			{
-				foreach ( var face in _faces )
+				foreach ( var group in _faces.GroupBy( x => x.Component.Mesh ) )
 				{
-					var mesh = face.Component.Mesh;
-					mesh.SetFaceMaterial( face.Handle, material );
+					group.Key.AssignMaterialToFaces( group.Select( x => x.Handle ), material );
 				}
 			}
 		}
@@ -374,10 +384,7 @@ partial class FaceTool
 					if ( HotspotUseActiveMaterial )
 					{
 						var faces = group.Select( x => x.Handle ).ToArray();
-						foreach ( var face in faces )
-						{
-							mesh.SetFaceMaterial( face, material );
-						}
+						mesh.AssignMaterialToFaces( faces, material );
 
 						ApplyHotspotForFaces( mesh, group.Key.WorldTransform, faces, material, perFace );
 					}
@@ -403,6 +410,15 @@ partial class FaceTool
 				: EmptyRectData;
 			var size = CalculateTextureSize( material );
 			ComputeHotspotUVsForFaces( mesh, transform, faces, data, (int)size.x, (int)size.y, perFace, HotspotTiling, HotspotConforming, HotspotAllowMirrorHorizontal, HotspotAllowMirrorVertical );
+		}
+
+
+		[Shortcut( "mesh.find-replace-material-tool", "SHIFT+R", typeof( SceneViewWidget ) )]
+		void OpenFindReplaceMaterialTool()
+		{
+			var tool = new FindReplaceMaterialTool( _meshTool, nameof( FaceTool ) );
+			tool.Manager = _meshTool.Manager;
+			_meshTool.CurrentTool = tool;
 		}
 
 		private void AlignToGrid()
@@ -448,6 +464,7 @@ partial class FaceTool
 			var uAxis = rotation.Right;
 			var vAxis = rotation.Up;
 			var offset = new Vector2( uAxis.Dot( position ), vAxis.Dot( position ) );
+			var scale = new Vector2( 0.25f, 0.25f );
 
 			using ( SceneEditorSession.Active.UndoScope( "Align to View" )
 				.WithComponentChanges( _components )
@@ -455,7 +472,8 @@ partial class FaceTool
 			{
 				foreach ( var face in _faces )
 				{
-					face.Component.Mesh.SetFaceTextureParameters( face.Handle, offset, uAxis, vAxis );
+					var mesh = face.Component.Mesh;
+					mesh.SetFaceTextureParameters( face.Handle, new Vector4( uAxis, offset.x ), new Vector4( vAxis, offset.y ), scale );
 				}
 			}
 		}

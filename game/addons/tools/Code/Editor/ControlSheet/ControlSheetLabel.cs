@@ -5,7 +5,7 @@
 /// </summary>
 class ControlSheetLabel : Widget
 {
-	private SerializedProperty Property { get; }
+	public SerializedProperty Property { get; private set; }
 	private Drag _drag;
 
 	public ControlSheetLabel( SerializedProperty property )

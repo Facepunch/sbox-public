@@ -22,9 +22,11 @@
             <div class="tabs">
                 <div @onclick=@( () => CurrentTabName = null ) class="@ActiveClass( null )">General</div>
 
-                @foreach ( var group in Settings.GroupBy( x => x.Group ) )
+                @foreach ( var group in Settings
+                    .GroupBy( x => x.Group )
+                    .Where( x => x.Key != "General" && x.Key != null )
+                    .OrderBy( x => GetGroupName( x.Key ), StringComparer.OrdinalIgnoreCase ) )
                 {
-                    @if ( group.Key == "General" || group.Key == null ) continue;
                     <div @onclick=@( () => CurrentTabName = group.Key ) class="@ActiveClass( group.Key )">@GetGroupName( group.Key )</div>
                 }
             </div>
@@ -33,6 +35,8 @@
                 @{ 
                     var settings = Settings
                         .Where( x => x.Group == CurrentTabName && Output.GameSettings.ContainsKey( x.Name ) )
+                        .OrderBy( x => x.Title, StringComparer.OrdinalIgnoreCase )
+                        .ThenBy( x => x.Name, StringComparer.OrdinalIgnoreCase )
                         .ToList();
                 }
 
@@ -88,7 +92,11 @@
                     <div class="row">
                         <div class="is-label">@e.Title.ToTitleCase()</div>
                         <div class="control">
-                            @if ( IsCheckbox( e ) )
+                            @if ( HasOptions( e ) )
+                            {
+                                <DropDown Value=@Output.GameSettings[e.Name] ValueChanged=@((string x) => { Output.GameSettings[e.Name] = x; }) BuildOptions=@( () => GetOptions(e) )></DropDown>
+                            }
+                            else if ( IsCheckbox( e ) )
                             {
 								<ButtonGroup class="bg-round" Value=@(Output.GameSettings[e.Name].ToBool()) ValueChanged=@((object x) => { Output.GameSettings[e.Name] = x.ToString(); })>
 									<ChildContent>
@@ -108,10 +116,6 @@
                                     <TextEntry Value=@Output.GameSettings[e.Name] OnTextEdited=@((string x) => { Output.GameSettings[e.Name] = x; }) />
                                 }
 
-                            }
-                            else if ( HasOptions( e ) ) 
-                            {
-                                <DropDown Value=@Output.GameSettings[e.Name] ValueChanged=@((string x) => { Output.GameSettings[e.Name] = x; }) BuildOptions=@( () => GetOptions(e) )></DropDown>
                             }
                         </div>
                     </div>
@@ -186,13 +190,19 @@
 		// Initialize GameSettings dictionary with defaults if missing
 		//
 
-		foreach ( var setting in Settings )
-		{
-			if ( !Output.GameSettings.ContainsKey( setting.Name ) )
-			{
-				Output.GameSettings[setting.Name] = setting.Default ?? string.Empty;
-			}
-		}
+        foreach ( var setting in Settings )
+        {
+            if ( !Output.GameSettings.TryGetValue( setting.Name, out var value ) )
+            {
+                Output.GameSettings[setting.Name] = GetDefaultValue( setting );
+                continue;
+            }
+
+            if ( HasOptions( setting ) )
+            {
+                Output.GameSettings[setting.Name] = GetOptionValue( setting, value );
+            }
+        }
 
 		SetMap( Output.Map ?? Package.Info.DefaultMap );
 	}
@@ -214,6 +224,21 @@
 
 		return options;
 	}
+
+	private string GetDefaultValue( GameSetting setting )
+	{
+		if ( !HasOptions( setting ) ) return setting.Default ?? string.Empty;
+
+		return GetOptionValue( setting, setting.Default );
+	}
+
+    private string GetOptionValue( GameSetting setting, string value )
+    {
+        var option = setting.Options.FirstOrDefault( x => string.Equals( x.Name, value, StringComparison.OrdinalIgnoreCase ) );
+        if ( !string.IsNullOrEmpty( option.Name ) ) return option.Name;
+
+        return setting.Options[0].Name ?? string.Empty;
+    }
 
 	public bool HasOptions( GameSetting entry )
 	{

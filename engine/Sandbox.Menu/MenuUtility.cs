@@ -1,4 +1,4 @@
-﻿using Sandbox.Engine;
+using Sandbox.Engine;
 using Sandbox.Engine.Settings;
 using Sandbox.Modals;
 using Sandbox.Services;
@@ -36,6 +36,29 @@ public static partial class MenuUtility
 	public static void RemoveChatListener( Action<ChatMessageEvent> listener )
 	{
 		Platform.Chat.OnMessage -= listener;
+	}
+
+	/// <summary>
+	/// Collect the subtitle lines being spoken right now, from the running game's
+	/// scene (or the menu's own scene when not in a game). Used by the menu's
+	/// subtitle overlay.
+	/// </summary>
+	public static void GetSubtitles( List<SubtitlesGameObjectSystem.Line> lines )
+	{
+		// We're called from the menu context, but the active scene has to be
+		// resolved in the game's - Game.ActiveScene is per-context, and the menu
+		// context's is the menu background scene, not the game the player is in
+		Scene scene;
+
+		using ( GlobalContext.GameScope() )
+		{
+			scene = Application.GetActiveScene();
+		}
+
+		if ( !scene.IsValid() )
+			return;
+
+		scene.GetSystem<SubtitlesGameObjectSystem>()?.GetActive( lines );
 	}
 
 	public static ConCmdAttribute.AutoCompleteResult[] AutoComplete( string text, int maxCount )
@@ -154,6 +177,17 @@ public static partial class MenuUtility
 	}
 
 	/// <summary>
+	/// Invite a friend to the current game.
+	/// </summary>
+	public static bool InviteFriendGame( Friend friend )
+	{
+		var connectString = new Friend( Game.SteamId ).GetRichPresence( "connect" );
+		if ( string.IsNullOrWhiteSpace( connectString ) ) return false;
+
+		return friend.InviteToGame( connectString );
+	}
+
+	/// <summary>
 	/// We might be running the game from sbox.game, so we want the menu system to open the game immediately
 	/// </summary>
 	public static string StartupGameIdent => Utility.CommandLine.GetSwitch( "-rungame", null );
@@ -261,6 +295,19 @@ public static partial class MenuUtility
 	public static void InviteToParty( SteamId steamid )
 	{
 		PartyRoom.Current?.InviteFriend( steamid );
+	}
+
+	/// <summary>
+	/// Whether this friend can be invited to your current (or about-to-be-created) party -
+	/// ie. they're online, not you, and not already in it.
+	/// </summary>
+	public static bool CanInviteToParty( Friend friend )
+	{
+		if ( !friend.IsOnline ) return false;
+		if ( friend.IsMe ) return false;
+		if ( PartyRoom.Current is not null && PartyRoom.Current.Members.Contains( friend ) ) return false;
+
+		return true;
 	}
 
 	/// <summary>

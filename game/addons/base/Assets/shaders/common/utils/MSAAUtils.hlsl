@@ -2,7 +2,7 @@
 #define MSAA_UTILS_HLSL
 
 #include "common/classes/Depth.hlsl"
-class MSAAUtils
+struct MSAAUtils
 {
     // UV to feed a Gather on a non-MSAA full-res texture. Anchored a quarter texel off the
     // quad boundary so the 2x2 quad selection is numerically stable (a corner-exact uv can

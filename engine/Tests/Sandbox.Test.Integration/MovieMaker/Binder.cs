@@ -695,6 +695,46 @@ public sealed class BinderTest : SceneTestBase
 
 		Assert.IsTrue( target.IsBound );
 	}
+
+	/// <summary>
+	/// Edge case for multiple GameObject.Enabled tracks being bound to the same object.
+	/// Enabled tracks default to <c>false</c> outside of a block, but we need to make
+	/// sure this works across multiple tracks.
+	/// </summary>
+	[TestMethod]
+	public void MultipleEnableTracks()
+	{
+		var goTrack = MovieClip.RootGameObject( "Example" );
+
+		var track1 = goTrack
+			.Property<bool>( nameof( GameObject.Enabled ) )
+			.WithConstant( (1.0, 2.0), true );
+
+		var track2 = goTrack
+			.Property<bool>( nameof( GameObject.Enabled ) )
+			.WithConstant( (3.0, 4.0), true );
+
+		var clip = MovieClip.FromTracks( goTrack, track1, track2 );
+		var exampleObject = new GameObject( true, "Example" );
+
+		Assert.IsTrue( TrackBinder.Default.Get( track1 ).IsBound );
+		Assert.AreEqual( TrackBinder.Default.Get( track1 ), TrackBinder.Default.Get( track2 ) );
+
+		clip.Update( 0.5, TrackBinder.Default );
+		Assert.IsFalse( exampleObject.Enabled );
+
+		clip.Update( 1.5, TrackBinder.Default );
+		Assert.IsTrue( exampleObject.Enabled );
+
+		clip.Update( 2.5, TrackBinder.Default );
+		Assert.IsFalse( exampleObject.Enabled );
+
+		clip.Update( 3.5, TrackBinder.Default );
+		Assert.IsTrue( exampleObject.Enabled );
+
+		clip.Update( 4.5, TrackBinder.Default );
+		Assert.IsFalse( exampleObject.Enabled );
+	}
 }
 
 public class ExampleComponent : Component

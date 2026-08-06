@@ -1,6 +1,7 @@
 ﻿@using System;
 @using Sandbox;
 @using Sandbox.UI;
+@using Sandbox.Modals;
 @using MenuProject;
 @inherits Panel
 @namespace MenuProject
@@ -16,7 +17,7 @@
 		}
 		@if ( Party is null || Party.MemberCount < Party.MaxMembers )
 		{
-			<Button class="empty-slot" onmouseup="@InviteSomeone" Tooltip="Invite a friend" Icon="add"/>
+			<Button @ref="InviteButton" class="empty-slot" onmouseup="@InviteSomeone" Tooltip="Invite a friend" Icon="add"/>
 		}
     </div>
 </root>
@@ -32,6 +33,7 @@
 	protected override int BuildHash() => System.HashCode.Combine( Party, Members.Count(), Party?.Owner );
 
 	PartyMenu menuPopup;
+	Button InviteButton;
 
 	void OpenMenu()
 	{
@@ -65,7 +67,18 @@
 	async Task InviteSomeone()
 	{
 		await EnsureLobbyExists();
-        MenuUtility.InviteOverlayToParty();
+
+		ModalSystem.Instance.FriendsList(new FriendsListModalOptions
+		{
+			ShowOnlineMembers = true,
+			ShowOfflineMembers = false,
+			Anchor = new()
+			{
+				Panel = InviteButton,
+				Position = ModalAnchorPosition.AboveLeft,
+				Offset = 24,
+			},
+		});
     }
 
 	public override void Tick()

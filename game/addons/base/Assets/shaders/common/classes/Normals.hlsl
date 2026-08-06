@@ -7,7 +7,7 @@
 
 int NormalsTextureIndex < Attribute("NormalsTextureIndex");>;
 
-class Normals
+struct Normals
 {
     /// <summary>
     /// Reconstructs the world-space normal at the given screen position from the depth buffer.
@@ -46,7 +46,7 @@ class Normals
     }
 };
 
-class Roughness
+struct Roughness
 {
     static float Sample(int2 screenPos, uint msaaSampleIndex = 0 )
     {

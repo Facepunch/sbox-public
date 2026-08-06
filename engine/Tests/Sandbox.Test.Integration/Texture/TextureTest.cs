@@ -159,4 +159,34 @@ public class TextureTest
 			texture.GetPixelsAsync3D<Color32>( _ => { }, ImageFormat.RGBA8888, (0, 0, 0, 1, 1, -1), 0 );
 		} );
 	}
+
+	[TestMethod]
+	public void GetPixelsDestArrayBoundsCheck()
+	{
+		var texture = Texture.Create( 4, 4 ).Finish();
+
+		// Exactly-sized buffer for the whole texture should not trigger the bounds check.
+		// The native ReadTexturePixels fails in headless mode. However, we only want to
+		// validate that the ArgumentExcpetion does not get thrown for getting the entire
+		// texture.
+		var exactBuffer = new Color32[4 * 4];
+		try
+		{
+			texture.GetPixels( (0, 0, 4, 4), 0, 0, exactBuffer.AsSpan(), ImageFormat.RGBA8888, (0, 0, 4, 4), 4 );
+		}
+		catch ( ArgumentException )
+		{
+			Assert.Fail( "Should not reject a dest array that exactly fits the requested rect" );
+		}
+		catch ( Exception )
+		{
+		}
+
+		// Undersized buffer should throw
+		var tooSmallBuffer = new Color32[4 * 4 - 1];
+		Assert.ThrowsException<ArgumentException>( () =>
+		{
+			texture.GetPixels( (0, 0, 4, 4), 0, 0, tooSmallBuffer.AsSpan(), ImageFormat.RGBA8888, (0, 0, 4, 4), 4 );
+		} );
+	}
 }

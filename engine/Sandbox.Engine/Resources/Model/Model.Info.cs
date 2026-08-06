@@ -40,6 +40,8 @@ partial class Model
 			public float UvDensity { get; init; }
 			public int InstanceCount { get; init; }
 			public bool AlphaBlended { get; init; }
+			public int StartIndex { get; init; }
+			public int BaseVertex { get; init; }
 			public Material Material { get; init; }
 		}
 	}
@@ -66,7 +68,7 @@ partial class Model
 				var drawCalls = new ModelMeshInfo.DrawCallData[draws];
 				for ( int d = 0; d < draws; d++ )
 				{
-					native.GetDrawCallInfo( i, d, out int dcVerts, out int indices, out int primType, out float uvDensity, out int instanceCount, out int alphaBlendedInt );
+					native.GetDrawCallInfo( i, d, out int dcVerts, out int indices, out int primType, out float uvDensity, out int instanceCount, out int alphaBlendedInt, out int startIndex, out int baseVertex );
 
 					drawCalls[d] = new ModelMeshInfo.DrawCallData
 					{
@@ -76,7 +78,9 @@ partial class Model
 						UvDensity = uvDensity,
 						InstanceCount = instanceCount,
 						AlphaBlended = alphaBlendedInt != 0,
-						Material = Material.FromNative( native.GetDrawCallMaterial( i, d ) )
+						Material = Material.FromNative( native.GetDrawCallMaterial( i, d ) ),
+						StartIndex = startIndex,
+						BaseVertex = baseVertex
 					};
 				}
 

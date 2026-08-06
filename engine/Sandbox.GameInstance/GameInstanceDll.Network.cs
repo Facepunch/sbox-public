@@ -47,6 +47,12 @@ internal partial class GameInstanceDll
 	private List<FileWatch> FileWatchers { get; set; } = new();
 	private bool DidMountNetworkedFiles { get; set; }
 
+	/// <summary>
+	/// What we enumerate for files to offer joining clients: the game's content plus any local
+	/// libraries. We own this so it needs disposing, the filesystems mounted into it don't.
+	/// </summary>
+	internal AggregateFileSystem NetworkedFileSystem { get; private set; }
+
 	public GameNetworkSystem CreateGameNetworking( NetworkSystem system )
 	{
 		var instance = new SceneNetworkSystem( TypeLibrary, system );
@@ -258,8 +264,12 @@ internal partial class GameInstanceDll
 	}
 
 	static string[] _interestingExtensions = new[] { "_c", ".scss", ".ttf" };
-	static string[] _engineAssets = new[] { "vtex_c", "vmat_c", "vsnd_c", "vmdl_c", "vpk", "vanmgrph_c" }; // anything that the engine has to download has to be a LARGE download
+	static string[] _engineAssets = new[] { "vtex_c", "vmat_c", "vsnd_c", "vmdl_c", "vpk", "vanmgrph_c", "shader_c" }; // anything the native engine loads from disk has to be a LARGE download
 	List<string> _netIncludePaths = new(); // wildcard-supported paths we also want to include content of
+
+	// Small files only live in an in-memory filesystem, which native loaders can't read - engine assets must be a real file on disk.
+	internal static bool ShouldUseLargeDownload( string filename, long size )
+		=> size >= 1024 * 64 || _engineAssets.Any( x => filename.EndsWith( x ) );
 
 	bool ShouldNetworkFile( string filename )
 	{
@@ -289,14 +299,10 @@ internal partial class GameInstanceDll
 		if ( !fs.FileExists( filename ) )
 			return;
 
-		bool isEngineAsset = _engineAssets.Any( x => filename.EndsWith( x ) );
-
 		var fullPath = fs.GetFullPath( filename );
 		var size = fs.FileSize( filename );
 
-		var smallFileSize = 1024 * 64; // biggest file to include in the memory filesystem is 64kb
-
-		if ( !isEngineAsset && size < smallFileSize )
+		if ( !ShouldUseLargeDownload( filename, size ) )
 		{
 			var bytes = fs.ReadAllBytes( filename );
 			var wasAdded = NetworkedSmallFiles.AddFile( fs, filename, bytes.ToArray() );
@@ -360,7 +366,25 @@ internal partial class GameInstanceDll
 			_netIncludePaths.AddRange( resourcePaths );
 		}
 
-		var fs = gameInstance.GameFileSystem;
+		// a library is its own package with its own filesystem, so its assets aren't in the
+		// game's filesystem and joining clients are never told about them
+		var libraries = Project.Libraries
+			.Where( x => x.Active && x.RootDirectory is not null )
+			.ToArray();
+
+		var fs = new AggregateFileSystem();
+		fs.Mount( gameInstance.GameFileSystem );
+
+		foreach ( var library in libraries )
+		{
+			if ( PackageManager.Find( library.Package.FullIdent, true ) is not { } libraryPackage )
+				continue;
+
+			fs.Mount( libraryPackage.FileSystem );
+		}
+
+		NetworkedFileSystem = fs;
+
 		var files = fs.FindFile( "/", "*", true );
 
 		foreach ( var file in files )
@@ -380,6 +404,9 @@ internal partial class GameInstanceDll
 		FileWatchers.Add( watcher );
 
 		NetworkTransientGeneratedFiles( project );
+
+		// library transients can't be networked - large files resolve through EngineFileSystem.Mounted,
+		// and only the main project's .sbox/transient is ever mounted there
 
 		if ( AssetDownloadCache.DebugNetworkFiles )
 			Log.Info( $"..done in {sw.Elapsed.TotalSeconds:0.00}s" );

@@ -32,6 +32,9 @@ public partial class HammerMainWindow : DockWindow
 		// Shows some tool bars... ?
 		_nativeHammerWindow.SetupDefaultLayout();
 
+		// Hammer's default layout is built by native code, so snapshot it to restore on reset
+		_defaultLayout = DockManager.State;
+
 		// Saves & loads layout and shit
 		StateCookie = "SboxHammer";
 
@@ -69,7 +72,7 @@ public partial class HammerMainWindow : DockWindow
 	{
 		if ( fullscreen )
 		{
-			SaveToStateCookie();
+			SaveLayout();
 
 			foreach ( var dock in DockManager.DockTypes )
 			{
@@ -79,8 +82,16 @@ public partial class HammerMainWindow : DockWindow
 		}
 		else
 		{
-			RestoreFromStateCookie();
+			RestoreLayout();
 		}
+	}
+
+	string _defaultLayout;
+
+	protected override void BuildDefaultLayout()
+	{
+		if ( !string.IsNullOrEmpty( _defaultLayout ) )
+			DockManager.State = _defaultLayout;
 	}
 
 	internal static uint InitHammerMainWindow( Native.CQHammerMainWnd ptr )

@@ -45,6 +45,32 @@ public sealed class BoxCollider : Collider
 		}
 	}
 
+	/// <summary>
+	/// Sets the box to the bounds of this GameObject
+	/// </summary>
+	[Button( "Set to GameObject Bounds", "fullscreen" ), Group( "Box" )]
+	public void SetToGameObjectBounds()
+	{
+		BBox? bounds = null;
+
+		foreach ( var component in GameObject.GetComponentsInChildren<Component.IHasBounds>() )
+		{
+			if ( component is Component source && ReferenceEquals( source, this ) )
+				continue;
+
+			var sourceTransform = component is Component sourceComponent ? WorldTransform.ToLocal( sourceComponent.WorldTransform ) : global::Transform.Zero;
+			var localBounds = component.LocalBounds.Transform( sourceTransform );
+			bounds = bounds.HasValue ? bounds.Value.AddBBox( localBounds ) : localBounds;
+		}
+
+		if ( !bounds.HasValue )
+			return;
+
+		_center = bounds.Value.Center;
+		_scale = bounds.Value.Size;
+		UpdateShape();
+	}
+
 	private PhysicsShape Shape;
 
 	internal override void UpdateShape()

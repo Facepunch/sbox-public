@@ -38,6 +38,7 @@ struct SplatChannel
         return (ExtraData & 0x01) != 0;
     }
     
+    [mutating]
     void SetHole( bool isHole )
     {
         ExtraData = isHole ? (ExtraData | 0x01) : (ExtraData & 0xFFFE);
@@ -148,6 +149,16 @@ struct CompactTerrainMaterial
     float GetNormalizedBlend()
     {
         return float(BlendFactor) / 255.0;
+    }
+
+    // Expand into the 4-slot material stack used by indexed splatting
+    void GetMaterialStack( out uint indices[4], out float weights[4] )
+    {
+        float blend = GetNormalizedBlend();
+        indices[0] = BaseTextureId;    weights[0] = 1.0 - blend;
+        indices[1] = OverlayTextureId; weights[1] = blend;
+        indices[2] = 0; weights[2] = 0.0;
+        indices[3] = 0; weights[3] = 0.0;
     }
 };
 

@@ -46,6 +46,11 @@ internal class BinaryConvert : JsonConverterFactory
 							blobGuid = guid;
 						}
 					}
+					else
+					{
+						// Skip any other properties (e.g. the "$refs" array used by the compiler).
+						reader.Skip();
+					}
 				}
 			}
 
@@ -64,6 +69,19 @@ internal class BinaryConvert : JsonConverterFactory
 
 			writer.WriteStartObject();
 			writer.WriteString( "$blob", guid.ToString() );
+
+			// Emit asset references for resource compiler detection.
+			if ( value is IBlobReferences references )
+			{
+				writer.WriteStartArray( "$refs" );
+				foreach ( var path in references.GetReferencedResources() )
+				{
+					if ( !string.IsNullOrWhiteSpace( path ) )
+						writer.WriteStringValue( path );
+				}
+				writer.WriteEndArray();
+			}
+
 			writer.WriteEndObject();
 		}
 	}

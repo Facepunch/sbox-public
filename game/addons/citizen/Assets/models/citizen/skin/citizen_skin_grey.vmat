@@ -8,9 +8,9 @@ Layer0
 	F_SELF_ILLUM 1
 
 	//---- Ambient Occlusion ----
-	g_flAmbientOcclusionDirectDiffuse "1.000"
+	g_flAmbientOcclusionDirectDiffuse "0.000"
 	g_flAmbientOcclusionDirectSpecular "1.000"
-	TextureAmbientOcclusion "[1.000000 1.000000 1.000000 0.000000]"
+	TextureAmbientOcclusion "[0.000000 0.000000 0.000000 0.000000]"
 
 	//---- Color ----
 	g_flModelTintAmount "1.000"
@@ -31,19 +31,18 @@ Layer0
 
 	//---- Roughness ----
 	g_flRoughnessScaleFactor "1.000"
-	TextureRoughness "[0.141000 0.141000 0.141000 0.000000]"
+	TextureRoughness "[1.000000 1.000000 1.000000 0.000000]"
 
 	//---- Self Illum ----
 	g_flSelfIllumAlbedoFactor "0.000"
 	g_flSelfIllumBrightness "3.000"
 	g_flSelfIllumScale "1.000"
+	g_vSelfIllumOffset "[0.000 0.000]"
 	g_vSelfIllumScrollSpeed "[0.000 0.000]"
 	g_vSelfIllumTint "[0.031373 0.031373 0.031373 1.000000]"
-	TextureSelfIllumMask "[0.835000 0.835000 0.835000 0.000000]"
+	TextureSelfIllumMask "[1.000000 1.000000 1.000000 0.000000]"
 
 	//---- Texture Coordinates ----
-	g_nScaleTexCoordUByModelScaleAxis "0"
-	g_nScaleTexCoordVByModelScaleAxis "0"
 	g_vTexCoordOffset "[0.000 0.000]"
 	g_vTexCoordScale "[1.000 1.000]"
 	g_vTexCoordScrollSpeed "[0.000 0.000]"

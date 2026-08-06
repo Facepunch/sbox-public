@@ -14,9 +14,10 @@ public static partial class Program
 	public static int Main( string[] args )
 	{
 		var options = new ShaderCompileOptions();
-		options.ForceRecompile = args.Any( x => x.Contains( "-f" ) );
-		options.SingleThreaded = args.Any( x => x.Contains( "-s" ) );
-		options.ConsoleOutput = !args.Any( x => x.Contains( "-q" ) );
+		// Exact matches - substring matching meant any other flag containing these letters (e.g. -slang) turned them on
+		options.ForceRecompile = args.Any( x => x == "-f" );
+		options.SingleThreaded = args.Any( x => x == "-s" );
+		options.ConsoleOutput = !args.Any( x => x == "-q" );
 
 		// Recompile mode: bring already-compiled .shader_c files up to the current VCS version using the HLSL
 		// source embedded in them - no .shader source file needed. This is what the backend shader-recompile

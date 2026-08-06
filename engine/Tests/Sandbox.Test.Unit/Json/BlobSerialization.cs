@@ -356,6 +356,99 @@ public class BlobSerializationTest
 
 		Assert.IsNull( result );
 	}
+
+	[TestMethod]
+	public void ContextLoadFromMergesSeparatelyCapturedBlobs()
+	{
+		var blob1 = new TestBlob { IntValue = 1, StringValue = "First" };
+		var blob2 = new TestBlob { IntValue = 2, StringValue = "Second" };
+
+		// Capture each blob in its own context, like per-object undo snapshots do
+		JsonNode node1, node2;
+		using ( var blobs = BlobDataSerializer.Capture() )
+		{
+			node1 = Json.ToNode( blob1 );
+			blobs.SaveTo( node1 );
+		}
+
+		using ( var blobs = BlobDataSerializer.Capture() )
+		{
+			node2 = Json.ToNode( blob2 );
+			blobs.SaveTo( node2 );
+		}
+
+		// Merge both into one shared context - both must be readable
+		using ( var blobs = BlobDataSerializer.LoadFromMemory( default ) )
+		{
+			blobs.LoadFrom( node1 );
+			blobs.LoadFrom( node2 );
+
+			var result1 = Json.FromNode( node1, typeof( TestBlob ) ) as TestBlob;
+			var result2 = Json.FromNode( node2, typeof( TestBlob ) ) as TestBlob;
+
+			Assert.AreEqual( "First", result1?.StringValue );
+			Assert.AreEqual( "Second", result2?.StringValue );
+		}
+	}
+
+	[TestMethod]
+	public void ContextLoadFromToleratesMissingData()
+	{
+		using var blobs = BlobDataSerializer.LoadFromMemory( default );
+
+		blobs.LoadFrom( null );
+		blobs.LoadFrom( new JsonObject { ["Name"] = "no blob data here" } );
+	}
+
+	[TestMethod]
+	public void UnchangedContentSerializesIdentically()
+	{
+		// Two separate instances with identical content, captured in separate contexts -
+		// like re-saving an unchanged scene. Ids are derived from content, so the json
+		// and the blob payload must come out byte-identical, or every save dirties the file.
+		static TestBlob MakeBlob() => new()
+		{
+			IntValue = 42,
+			StringValue = "Stable",
+			Positions = new List<Vector3> { new Vector3( 1, 2, 3 ) }
+		};
+
+		JsonNode node1, node2;
+		byte[] data1, data2;
+
+		using ( var blobs = BlobDataSerializer.Capture() )
+		{
+			node1 = Json.ToNode( MakeBlob() );
+			data1 = blobs.ToByteArray();
+		}
+
+		using ( var blobs = BlobDataSerializer.Capture() )
+		{
+			node2 = Json.ToNode( MakeBlob() );
+			data2 = blobs.ToByteArray();
+		}
+
+		Assert.AreEqual( node1.ToJsonString(), node2.ToJsonString(), "Identical blob content must produce an identical $blob reference" );
+		CollectionAssert.AreEqual( data1, data2, "Identical blob content must produce identical blob file bytes" );
+	}
+
+	[TestMethod]
+	public void ChangedContentGetsNewBlobId()
+	{
+		JsonNode node1, node2;
+
+		using ( var blobs = BlobDataSerializer.Capture() )
+		{
+			node1 = Json.ToNode( new TestBlob { IntValue = 1 } );
+			node2 = Json.ToNode( new TestBlob { IntValue = 2 } );
+
+			// both blobs must stay readable in the capture context
+			Assert.AreEqual( 1, (Json.FromNode( node1, typeof( TestBlob ) ) as TestBlob)?.IntValue );
+			Assert.AreEqual( 2, (Json.FromNode( node2, typeof( TestBlob ) ) as TestBlob)?.IntValue );
+		}
+
+		Assert.AreNotEqual( node1.ToJsonString(), node2.ToJsonString(), "Different blob content must produce different $blob references" );
+	}
 }
 
 /// <summary>

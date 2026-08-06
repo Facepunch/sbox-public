@@ -55,6 +55,9 @@ namespace Sandbox.UI
 				case "position":
 					return SetPosition( value );
 
+				case "isolation":
+					return SetIsolation( value );
+
 				case "flex-direction":
 					return SetFlexDirction( value );
 
@@ -1193,6 +1196,23 @@ namespace Sandbox.UI
 					return true;
 				default:
 					Log.Warning( $"Unhandled position property: {value}" );
+					return false;
+			}
+		}
+
+
+		bool SetIsolation( string value )
+		{
+			switch ( value )
+			{
+				case "auto":
+					Isolation = UI.Isolation.Auto;
+					return true;
+				case "isolate":
+					Isolation = UI.Isolation.Isolate;
+					return true;
+				default:
+					Log.Warning( $"Unhandled isolation property: {value}" );
 					return false;
 			}
 		}

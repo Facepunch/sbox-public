@@ -1,38 +1,116 @@
 @using System;
-@using Sandbox.UI;
+@using System.Linq;
 @using Sandbox;
-@using Menu;
-@inherits Panel;
+@using Sandbox.UI;
+@using Sandbox.UI.Navigation;
+@using Sandbox.Services;
+@inherits Panel
 
-@if (Packages.Count == 0)
-    return;
+<div class="zone-rule" />
 
-<root>
-    <Card class="spotlight">
-        <ChildContent>
-            @foreach (var p in Packages.Take( 1 ) )
+<div class="head">
+    <label class="section-label">Try these games</label>
+    <div class="grow" />
+    <label class="browse clicky" @onclick="@BrowseAll">Browse all ›</label>
+</div>
+
+@foreach ( var suggestion in Suggestions )
+{
+    var package = suggestion.Package;
+
+    <div class="game clicky" @onclick="@(() => package.OpenModal())" @onrightclick="@(() => MenuHelpers.OpenPackageMenu( this, package ))">
+
+        <div class="thumb">
+            @if ( !string.IsNullOrEmpty( package.Thumb ) )
             {
-                <PackageCard Size=@PackageCard.SizeType.List Package=@p Clicked="@(() => p.OpenModal())" RightClicked="@(() => MenuHelpers.OpenPackageMenu(this, p))" />
+                <img src="@package.Thumb" />
             }
-        </ChildContent>
-    </Card>
-</root>
+        </div>
 
-@code{
-    List<Package> Packages = new();
+        <div class="game-text">
+            <label class="game-title">@package.Title</label>
+            <label class="game-sub">@( Reason( suggestion ) )</label>
+        </div>
 
-    protected override async Task OnParametersSetAsync()
+        <icon class="chevron">chevron_right</icon>
+
+    </div>
+}
+
+@code
+{
+    [Parameter] public Sandbox.Services.Feed[] Activity { get; set; }
+
+    class Suggestion
     {
-        await Update();
+        public Package Package;
+        public bool FromFriends;
     }
 
-    async Task Update()
+    List<Suggestion> Suggestions { get; set; } = new();
+
+    const int SuggestionCount = 2;
+
+    /// <summary>
+    /// Why this game is here. Evaluated per render, so it upgrades to the named-friend reason
+    /// once the activity feed arrives.
+    /// </summary>
+    string Reason( Suggestion suggestion )
     {
-        var found = await Package.FindAsync( "type:game in:facepunch.spotlight sort:random", 2, 0, default );
+        var friend = FrontPage.LatestFriendIn( Activity, suggestion.Package );
+        if ( friend is not null )
+            return $"{friend} played this";
 
-        Packages.Clear();
-        Packages.AddRange( found.Packages );
+        if ( suggestion.FromFriends )
+            return "Popular with your friends";
 
+        if ( suggestion.Package.Created > DateTimeOffset.UtcNow.AddDays( -7 ) )
+            return "New this week";
+
+        return "Featured by Facepunch";
+    }
+
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        if ( !firstTime )
+            return;
+
+        _ = Load();
+    }
+
+    async Task Load()
+    {
+        var picked = new List<Suggestion>();
+
+        var friends = await Package.FindAsync( "type:game sort:friends", SuggestionCount, 0, default );
+
+        foreach ( var package in friends?.Packages ?? Array.Empty<Package>() )
+        {
+            picked.Add( new Suggestion { Package = package, FromFriends = true } );
+        }
+
+        // Nobody you know is playing anything - fall back to the spotlight list.
+        if ( picked.Count < SuggestionCount )
+        {
+            var spotlight = await Package.FindAsync( "type:game in:facepunch.spotlight sort:random", SuggestionCount + 2, 0, default );
+
+            foreach ( var package in spotlight?.Packages ?? Array.Empty<Package>() )
+            {
+                if ( picked.Count >= SuggestionCount ) break;
+                if ( picked.Any( x => x.Package.FullIdent == package.FullIdent ) ) continue;
+
+                picked.Add( new Suggestion { Package = package, FromFriends = false } );
+            }
+        }
+
+        Suggestions = picked;
         StateHasChanged();
     }
+
+    void BrowseAll()
+    {
+        this.Navigate( "/games" );
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Suggestions.Count, Suggestions.FirstOrDefault()?.Package?.FullIdent, Activity?.Length );
 }

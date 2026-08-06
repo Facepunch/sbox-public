@@ -282,7 +282,9 @@ internal static class Bootstrap
 	{
 		Environment.CurrentDirectory = rootFolder;
 
-		Sandbox.Utility.Steam.InitializeClient();
+		if ( !Application.IsDedicatedServer )
+			Sandbox.Utility.Steam.InitializeClient();
+
 		ThreadSafe.MarkMainThread();
 
 		ThreadPool.SetMinThreads( Environment.ProcessorCount, Environment.ProcessorCount );

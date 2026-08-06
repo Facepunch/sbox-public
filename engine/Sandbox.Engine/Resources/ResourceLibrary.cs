@@ -60,21 +60,48 @@ public class ResourceSystem
 		// This isn't thread safe
 		ThreadSafe.AssertIsMainThread();
 
-		// Make sure we're unregistering the currently indexed resource
-
-		ResourceIndexLong.Remove( resource.ResourceIdLong );
-		WeakIndexLong.Remove( resource.ResourceIdLong );
+		// Only remove entries that index this exact resource. A stale instance whose index
+		// entry was replaced (e.g. re-registered under the same path) must not unregister
+		// the live resource when it gets finalized.
+		var removed = RemoveIndexed( ResourceIndexLong, resource.ResourceIdLong, resource );
+		removed |= RemoveIndexedWeak( WeakIndexLong, resource.ResourceIdLong, resource );
 
 #pragma warning disable CS0618 // Type or member is obsolete
-		ResourceIndex.Remove( resource.ResourceId );
-		WeakIndex.Remove( resource.ResourceId );
+		removed |= RemoveIndexed( ResourceIndex, resource.ResourceId, resource );
+		removed |= RemoveIndexedWeak( WeakIndex, resource.ResourceId, resource );
 #pragma warning restore CS0618 // Type or member is obsolete
 
-
-		if ( resource is GameResource gameResource && !gameResource.IsPromise )
+		if ( removed && resource is GameResource gameResource && !gameResource.IsPromise )
 		{
 			IToolsDll.Current?.RunEvent<IEventListener>( i => i.OnUnregister( gameResource ) );
 		}
+	}
+
+	private static bool RemoveIndexed<TKey>( Dictionary<TKey, Resource> index, TKey key, Resource resource )
+	{
+		if ( !index.TryGetValue( key, out var indexed ) || indexed != resource )
+			return false;
+
+		return index.Remove( key );
+	}
+
+	private static bool RemoveIndexedWeak<TKey>( Dictionary<TKey, WeakReference<Resource>> index, TKey key, Resource resource )
+	{
+		if ( !index.TryGetValue( key, out var weakRef ) )
+			return false;
+
+		if ( !weakRef.TryGetTarget( out var target ) )
+		{
+			// A dead entry can't be this resource - we hold a live reference to it.
+			// Prune it, but it doesn't count as unregistering this resource.
+			index.Remove( key );
+			return false;
+		}
+
+		if ( target != resource )
+			return false;
+
+		return index.Remove( key );
 	}
 
 	internal void OnHotload()

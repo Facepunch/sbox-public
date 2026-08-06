@@ -84,7 +84,9 @@ internal struct Friend
 	internal static Dictionary<ulong, int> _steamLevelCache = new();
 	internal static Dictionary<ulong, FriendGameInfo?> _gameInfoCache = new();
 
-	public string Name => !SteamFriends.IsInstalled ? null : _nameCache.GetOrCreate( Id.Value, SteamFriends.Internal.GetFriendPersonaName );
+	public string Name => Sandbox.Preferences.StreamerMode
+		? Sandbox.Utility.Steam.GetAnonymousName( Id.Value )
+		: (!SteamFriends.IsInstalled ? null : _nameCache.GetOrCreate( Id.Value, SteamFriends.Internal.GetFriendPersonaName ));
 
 	public string Nickname
 	{
@@ -102,6 +104,9 @@ internal struct Friend
 	{
 		get
 		{
+			if ( Sandbox.Preferences.StreamerMode )
+				return Sandbox.Utility.Steam.GetAnonymousName( Id.Value );
+
 			if ( !string.IsNullOrWhiteSpace( Nickname ) )
 				return Nickname;
 

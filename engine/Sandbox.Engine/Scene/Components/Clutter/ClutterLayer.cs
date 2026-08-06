@@ -188,7 +188,7 @@ class ClutterLayer
 
 		foreach ( var modelPath in storage.ModelPaths )
 		{
-			var model = ResourceLibrary.Get<Model>( modelPath );
+			var model = Model.Load( modelPath );
 			if ( model == null ) continue;
 
 			foreach ( var instance in storage.GetInstances( modelPath ) )
@@ -247,6 +247,9 @@ class ClutterLayer
 
 	public void RebuildBatches()
 	{
+		// Don't build batch list on headless. We only care about collisions.
+		if ( Application.IsHeadless ) { _dirty = false; return; }
+
 		var scene = ParentObject?.Scene ?? GridSystem?.Scene;
 		if ( scene?.SceneWorld == null ) { _dirty = false; return; }
 
@@ -310,7 +313,12 @@ class ClutterLayer
 		Tiles.Clear();
 		ModelInstancesByTile.Clear();
 
-		foreach ( var coord in _bodiesByTile.Keys.ToList() )
+		// Copied out first, RemoveBodies mutates the dictionary.
+		_coordsToRemove.Clear();
+		foreach ( var coord in _bodiesByTile.Keys )
+			_coordsToRemove.Add( coord );
+
+		foreach ( var coord in _coordsToRemove )
 			RemoveBodies( coord );
 
 		foreach ( var batch in _batches.Values )

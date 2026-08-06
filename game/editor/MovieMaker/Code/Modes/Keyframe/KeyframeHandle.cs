@@ -2,6 +2,8 @@
 using Sandbox.MovieMaker;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Reflection;
+using Sandbox.UI;
 
 namespace Editor.MovieMaker;
 
@@ -20,10 +22,21 @@ public sealed class KeyframeHandle : GraphicsItem, IComparable<KeyframeHandle>, 
 		get;
 		set
 		{
+			var maxInterpolation = View.Target.TargetType.MaxSupportedKeyframeInterpolation;
+
+			if ( value.Interpolation > maxInterpolation )
+			{
+				value = value with { Interpolation = maxInterpolation };
+			}
+
 			if ( field == value ) return;
 
+			if ( !Equals( value.Value, field.Value ) )
+			{
+				ToolTip = $"{View.Track.Name} = {value.Value?.ToString() ?? "null"}";
+			}
+
 			field = value;
-			ToolTip = $"{View.Track.Name} = {Keyframe.Value?.ToString() ?? "null"}";
 
 			UpdatePosition();
 		}
@@ -236,8 +249,9 @@ public sealed class KeyframeHandle : GraphicsItem, IComparable<KeyframeHandle>, 
 			.ThenBy( x => x.Keyframe )
 			.ToImmutableArray();
 
-		ev.Menu.AddHeading( $"Selected Keyframe{(selection.Length > 1 ? "s" : "")}" );
+		ev.Title = $"Selected Keyframe{(selection.Length > 1 ? "s" : "")}";
 
+		CreateValueEditMenu( selection, ev.Menu );
 		CreateInterpolationMenu( selection, ev.Menu );
 		CreateConnectionMenu( selection, ev.Menu );
 
@@ -266,8 +280,63 @@ public sealed class KeyframeHandle : GraphicsItem, IComparable<KeyframeHandle>, 
 		return clipboard;
 	}
 
+	private void CreateValueEditMenu( IReadOnlyList<KeyframeHandle> selection, Menu parent )
+	{
+		var type = selection.First().View.Target.TargetType;
+
+		if ( selection.Any( x => x.View.Target.TargetType != type ) ) return;
+
+		var method = GetType()
+			.GetMethod( nameof( TryCreateValueEdit ), BindingFlags.NonPublic | BindingFlags.Instance )!
+			.MakeGenericMethod( type );
+
+		if ( method.Invoke( this, [selection] ) is not Widget widget ) return;
+
+		parent.AddWidget( widget );
+	}
+
+	private Widget? TryCreateValueEdit<T>( IReadOnlyList<KeyframeHandle> selection )
+	{
+		var selectedValue = (T)Keyframe.Value!;
+
+		var property = TypeLibrary.CreateProperty( "Value", () => selectedValue, value =>
+		{
+			selectedValue = value;
+
+			foreach ( var handle in selection )
+			{
+				handle.Keyframe = handle.Keyframe with { Value = value };
+			}
+
+			EditMode?.UpdateTracksFromHandles( selection );
+		}, [] );
+
+		try
+		{
+			var control = ControlSheet.CreateRow( property );
+
+			if ( control is null ) return null;
+
+			control.MaximumWidth = 320f;
+
+			((GridLayout)control.Layout).SetMinimumColumnWidth( 2, 80 );
+
+			return control;
+		}
+		catch ( Exception ex )
+		{
+			Log.Warning( ex );
+			return null;
+		}
+	}
+
 	private void CreateInterpolationMenu( IReadOnlyList<KeyframeHandle> selection, Menu parent )
 	{
+		var maxInterpolation = selection
+			.Select( x => x.View.Target.TargetType )
+			.Distinct()
+			.Min( x => x.MaxSupportedKeyframeInterpolation );
+
 		var menu = parent.AddMenu( "Interpolation Mode", "gradient" );
 		var currentMode = selection.All( x => x.Keyframe.Interpolation == selection[0].Keyframe.Interpolation )
 			? selection[0].Keyframe.Interpolation
@@ -276,6 +345,7 @@ public sealed class KeyframeHandle : GraphicsItem, IComparable<KeyframeHandle>, 
 		foreach ( var value in Enum.GetValues<KeyframeInterpolation>() )
 		{
 			if ( value < 0 ) continue;
+			if ( value > maxInterpolation ) continue;
 
 			var option = menu.AddOption( value.ToString().ToTitleCase(), action: () =>
 			{

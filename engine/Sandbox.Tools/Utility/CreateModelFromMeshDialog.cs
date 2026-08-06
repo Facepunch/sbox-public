@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.Json.Serialization;
 
 namespace Editor;
 
@@ -10,13 +11,66 @@ public class CreateModelFromMeshDialog : Widget
 {
 	public enum CollisionMode
 	{
+		[Icon( "change_history" ), Title( "Convex Hull" )]
 		Hull,
+		[Icon( "grid_on" ), Title( "Exact Mesh" )]
 		Mesh,
+		[Icon( "block" )]
 		None,
 	}
 
+	public enum ScaleUnit
+	{
+		Inches,
+		Feet,
+		Meters,
+		Centimeters,
+		Millimeters,
+		Custom,
+	}
+
+	/// <summary>
+	/// Import options, remembered between uses. Add a property here to add a setting to the dialog.
+	/// </summary>
+	public class ImportOptions
+	{
+		[Property, Title( "Collision" )]
+		public CollisionMode Collision { get; set; } = CollisionMode.Hull;
+
+		/// <summary>
+		/// Unit presets, derived from <see cref="ImportScale"/> - same conversions ModelDoc uses.
+		/// </summary>
+		[Property, Title( "Units" ), JsonIgnore]
+		public ScaleUnit Units
+		{
+			get => ImportScale switch
+			{
+				1.0f => ScaleUnit.Inches,
+				12.0f => ScaleUnit.Feet,
+				39.37f => ScaleUnit.Meters,
+				0.3937f => ScaleUnit.Centimeters,
+				0.03937f => ScaleUnit.Millimeters,
+				_ => ScaleUnit.Custom,
+			};
+			set => ImportScale = value switch
+			{
+				ScaleUnit.Inches => 1.0f,
+				ScaleUnit.Feet => 12.0f,
+				ScaleUnit.Meters => 39.37f,
+				ScaleUnit.Centimeters => 0.3937f,
+				ScaleUnit.Millimeters => 0.03937f,
+				_ => ImportScale,
+			};
+		}
+
+		[Property, Title( "Import Scale" ), Range( 0.001f, 1000.0f, slider: false )]
+		public float ImportScale { get; set; } = 1.0f;
+	}
+
+	const string OptionsCookie = "CreateModelFromMeshDialog.ImportOptions";
+
 	readonly List<Asset> _meshFiles;
-	readonly ComboBox _collisionCombo;
+	readonly ImportOptions _options;
 	readonly LineEdit _fileEdit;
 	readonly FolderEdit _folderEdit;
 	readonly Widget _fileRow;
@@ -52,11 +106,12 @@ public class CreateModelFromMeshDialog : Widget
 
 		Layout.AddSpacingCell( 4 );
 
-		AddRow( "Collision", _collisionCombo = new ComboBox( this ) );
-		_collisionCombo.AddItem( "Convex Hull", icon: "change_history" );
-		_collisionCombo.AddItem( "Exact Mesh", icon: "grid_on" );
-		_collisionCombo.AddItem( "None", icon: "block" );
-		_collisionCombo.CurrentIndex = 0;
+		_options = EditorCookie.Get( OptionsCookie, new ImportOptions() );
+
+		foreach ( var prop in _options.GetSerialized() )
+		{
+			AddRow( prop.DisplayName, ControlWidget.Create( prop ) );
+		}
 
 		var defaultDir = Path.GetDirectoryName( meshFiles[0].AbsolutePath );
 		var defaultFile = Path.ChangeExtension( meshFiles[0].AbsolutePath, ".vmdl" );
@@ -131,15 +186,10 @@ public class CreateModelFromMeshDialog : Widget
 			_fileEdit.Text = result;
 	}
 
-	CollisionMode SelectedCollision => _collisionCombo.CurrentIndex switch
-	{
-		0 => CollisionMode.Hull,
-		1 => CollisionMode.Mesh,
-		_ => CollisionMode.None,
-	};
-
 	void OnCreate()
 	{
+		EditorCookie.Set( OptionsCookie, _options );
+
 		Close();
 
 		if ( _meshFiles.Count == 1 )
@@ -179,7 +229,12 @@ public class CreateModelFromMeshDialog : Widget
 
 		g_pModelDocUtils.InitFromMesh( document, mesh.Path );
 
-		switch ( SelectedCollision )
+		if ( _options.ImportScale > 0.0f && !_options.ImportScale.AlmostEqual( 1.0f ) )
+		{
+			document.SetImportScale( _options.ImportScale );
+		}
+
+		switch ( _options.Collision )
 		{
 			case CollisionMode.Hull:
 				document.AddPhysicsHullFromRender();

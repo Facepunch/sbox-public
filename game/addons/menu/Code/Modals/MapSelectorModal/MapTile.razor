@@ -6,9 +6,9 @@
 @namespace MenuProject.Modals.MapSelect
 
 <root>
-	@if ( Thumbnail is not null )
+	@if ( Thumbnail.IsValid() )
 	{
-		<div class="image" style="background-image: url(@Thumbnail)">
+		<div class="image" @ref=ThumbnailPanel>
 
 		@if (Package is not null)
 		{
@@ -34,13 +34,15 @@
 	public string Title { get; set; }
 
 	[Parameter]
-	public string Thumbnail { get; set; }
+	public Texture Thumbnail { get; set; }
 
 	[Parameter]
 	public Package Package { get; set; }
 
 	[Parameter]
 	public Action OnSelect { get; set; }
+
+	Panel ThumbnailPanel = null;
 
 	protected override void OnParametersSet()
 	{
@@ -49,7 +51,17 @@
 		if ( Package is not null )
 		{
 			Title = Package.Title;
-			Thumbnail = Package.ThumbWide;
+			Thumbnail = Texture.Load( Package.ThumbWide );
+		}
+	}
+
+	protected override void OnAfterTreeRender(bool firstTime)
+	{
+		base.OnAfterTreeRender(firstTime);
+
+		if ( ThumbnailPanel != null )
+		{
+			ThumbnailPanel.Style.BackgroundImage = Thumbnail;
 		}
 	}
 

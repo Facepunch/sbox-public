@@ -6,7 +6,7 @@
 
 float3 CalcParallaxReflectionCubemapLocal(float3 vPositionWs, float3 vNormalWs, uint nEnvMap);
 
-class EnvMap
+struct EnvMap
 {
     // Computes the environment map color contribution
     static float3 From(float3 WorldPosition, float4 PositionSs, float3 WorldNormal, float2 Roughness = 0.0f)

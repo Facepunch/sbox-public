@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Reflection;
 using System.Text.Json.Serialization;
+using Sandbox.MovieMaker.Compiled;
 
 namespace Editor.MovieMaker;
 
@@ -221,12 +222,18 @@ internal sealed record KeyframeSignal<T>( ImmutableArray<Keyframe<T>> Keyframes 
 
 		var index = FindIndex( time );
 
-		if ( _interpolator is not { } interpolator )
+		return GetValue( index, time );
+	}
+
+	private T GetValue( int index, MovieTime time )
+	{
+		var p0 = Keyframes[index];
+
+		if ( _interpolator is not { } interpolator || p0.Interpolation == KeyframeInterpolation.Step )
 		{
-			return Keyframes[index].Value;
+			return p0.Value;
 		}
 
-		var p0 = Keyframes[index];
 		var p1 = Keyframes[index + 1];
 
 		var timeRange = new MovieTimeRange( p0.Time, p1.Time );
@@ -234,11 +241,6 @@ internal sealed record KeyframeSignal<T>( ImmutableArray<Keyframe<T>> Keyframes 
 
 		if ( fraction <= 0f ) return p0.Value;
 		if ( fraction >= 1f ) return p1.Value;
-
-		if ( p0.Interpolation == KeyframeInterpolation.Step )
-		{
-			p1 = p1 with { Interpolation = KeyframeInterpolation.Step };
-		}
 
 		if ( _transformer is not { } transformer || p0.Interpolation <= KeyframeInterpolation.Quadratic && p1.Interpolation <= KeyframeInterpolation.Quadratic )
 		{
@@ -357,6 +359,107 @@ internal sealed record KeyframeSignal<T>( ImmutableArray<Keyframe<T>> Keyframes 
 	protected override PropertySignal<T> OnTransform( MovieTransform value ) =>
 		new KeyframeSignal<T>( [.. Keyframes.Select( x => x with { Time = value * x.Time } )] );
 
+	public override IEnumerable<ICompiledPropertyBlock<T>> Compile( MovieTimeRange timeRange, int? sampleRate )
+	{
+		var firstKeyframe = Keyframes[0];
+
+		if ( Keyframes.Length == 1 )
+		{
+			yield return new CompiledConstantBlock<T>( timeRange, firstKeyframe.Value );
+			yield break;
+		}
+
+		var sampleRateOrDefault = sampleRate ?? MovieProject.DefaultSampleRate;
+
+		// Before first keyframe
+
+		if ( timeRange.Start < firstKeyframe.Time )
+		{
+			yield return new CompiledConstantBlock<T>( (timeRange.Start, MovieTime.Min( timeRange.End, firstKeyframe.Time )), firstKeyframe.Value );
+		}
+
+		if ( timeRange.End <= firstKeyframe.Time )
+		{
+			yield break;
+		}
+
+		var firstIndex = FindIndex( timeRange.Start );
+		var lastIndex = Math.Min( FindIndex( timeRange.End ), Keyframes.Length - 2 );
+
+		// Spans between keyframes
+
+		ICompiledPropertyBlock<T>? prevBlock = null;
+
+		for ( var i = firstIndex; i <= lastIndex; i++ )
+		{
+			prevBlock = CompileSingle( i, timeRange, sampleRateOrDefault );
+
+			yield return prevBlock;
+		}
+
+		// After last keyframe
+
+		if ( NeedsTrailingBlock( timeRange, prevBlock ) )
+		{
+			var lastKeyframe = Keyframes[^1];
+
+			yield return new CompiledConstantBlock<T>( (MovieTime.Max( timeRange.Start, lastKeyframe.Time ), timeRange.End), lastKeyframe.Value );
+		}
+	}
+
+	private ICompiledPropertyBlock<T> CompileSingle( int index, MovieTimeRange timeRange, int sampleRate )
+	{
+		var p0 = Keyframes[index];
+		var p1 = Keyframes[index + 1];
+
+		timeRange = timeRange.Clamp( (p0.Time, p1.Time) );
+
+		if ( CanCompileAsConstant( index, timeRange ) )
+		{
+			return new CompiledConstantBlock<T>( timeRange, p0.Value );
+		}
+
+		return new CompiledSampleBlock<T>( timeRange, default, sampleRate, [..Sample( timeRange, sampleRate )] );
+	}
+
+	private bool CanCompileAsConstant( int index, MovieTimeRange timeRange )
+	{
+		var p0 = Keyframes[index];
+
+		if ( timeRange.Duration.IsZero ) return true;
+		if ( p0.Interpolation == KeyframeInterpolation.Step ) return true;
+
+		var p1 = Keyframes[index + 1];
+
+		var comparer = EqualityComparer<T>.Default;
+
+		if ( !comparer.Equals( p0.Value, p1.Value ) )
+		{
+			return false;
+		}
+
+		var pPrev = Keyframes[Math.Max( 0, index - 1 )];
+		var pNext = Keyframes[Math.Min( Keyframes.Length - 1, index + 2 )];
+
+		if ( p0.Interpolation >= KeyframeInterpolation.Cubic && !comparer.Equals( p0.Value, pPrev.Value ) ) return false;
+		if ( p1.Interpolation >= KeyframeInterpolation.Cubic && !comparer.Equals( p1.Value, pNext.Value ) ) return false;
+
+		return true;
+	}
+
+	private bool NeedsTrailingBlock( MovieTimeRange timeRange, ICompiledPropertyBlock<T>? prevBlock )
+	{
+		var lastKeyframe = Keyframes[^1];
+
+		if ( timeRange.End < lastKeyframe.Time ) return false;
+		if ( timeRange.End > lastKeyframe.Time ) return true;
+		if ( prevBlock is null ) return true;
+
+		var comparer = EqualityComparer<T>.Default;
+
+		return !comparer.Equals( prevBlock.GetValue( timeRange.End ), lastKeyframe.Value );
+	}
+
 	public override IEnumerable<MovieTimeRange> GetPaintHints( MovieTimeRange timeRange )
 	{
 		var prev = Keyframes[0];
@@ -401,4 +504,21 @@ internal sealed record KeyframeSignal<T>( ImmutableArray<Keyframe<T>> Keyframes 
 
 	[SkipHotload]
 	private static readonly ITransformer<T>? _transformer = Transformer.GetDefault<T>();
+}
+
+internal static class TypeInterpolationExtensions
+{
+	extension( Type type )
+	{
+		public KeyframeInterpolation MaxSupportedKeyframeInterpolation
+		{
+			get
+			{
+				if ( !Interpolator.CanInterpolate( type ) ) return KeyframeInterpolation.Step;
+				if ( !Transformer.CanTransform( type ) ) return KeyframeInterpolation.Quadratic;
+
+				return KeyframeInterpolation.Cubic;
+			}
+		}
+	}
 }

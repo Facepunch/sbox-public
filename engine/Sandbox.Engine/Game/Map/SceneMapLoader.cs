@@ -153,7 +153,8 @@ public class SceneMapLoader : MapLoader
 			Attenuation0 = kv.GetValue( "attenuation0", 0.0f ),
 			Attenuation1 = kv.GetValue( "attenuation1", 0.0f ),
 			Attenuation2 = kv.GetValue( "attenuation2", 1.0f ),
-			CastShadows = kv.GetValue<int>( "castshadows" ) == 1,
+			// Hammer's ShadowType is No/Yes and defaults to Yes.
+			CastShadows = kv.GetValue( "castshadows", 1 ) == 1,
 			LightCookie = kv.GetResource<Texture>( "lightcookie" ),
 			BakeLightIndex = kv.GetValue( "bakelightindex", -1 ),
 			BakeLightIndexScale = kv.GetValue( "bakelightindexscale", 1.0f ),

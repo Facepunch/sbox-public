@@ -31,13 +31,17 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 		public bool RenderSpecular;
 		public int FogLighting;
 
-		// Only set by light types whose components don't expose these (falloff, point cookie).
+		// Only set by light types whose components don't expose these (falloff, constant attn, point cookie).
+		public float? ConstantAttenuation;
 		public float? LinearAttenuation;
 		public float? QuadraticAttenuation;
+		public float? FallOff;
 		public Texture Cookie;
 
 		public readonly void ApplyTo( CSceneLightObject light )
 		{
+			// The lightbinner gates realtime shadow maps for baked lights on MIXED_SHADOWS, so only
+			// Stationary may set it - Baked gets its shadows from the lightmap.
 			switch ( DirectLight )
 			{
 				case 3: // HAMMER_DIRECT_LIGHT_STATIONARY
@@ -57,8 +61,10 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 			light.SetRenderSpecular( RenderSpecular );
 			light.SetFogLightingMode( FogLighting );
 
+			if ( ConstantAttenuation is { } constant ) light.SetConstantAttn( constant );
 			if ( LinearAttenuation is { } linear ) light.SetLinearAttn( linear );
 			if ( QuadraticAttenuation is { } quadratic ) light.SetQuadraticAttn( quadratic );
+			if ( FallOff is { } fallOff ) light.SetFallOff( fallOff );
 			if ( Cookie is not null ) light.SetLightCookie( Cookie.native );
 		}
 	}
@@ -137,7 +143,7 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 			if ( _sceneObject.IsValid() )
 				_sceneObject.ShadowBias = value;
 		}
-	} = 0.0005f;
+	} = 0.0f;
 
 	[Property, Range( 0, 1 ), Category( "Shadows" )]
 	public float ShadowHardness

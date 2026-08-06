@@ -75,7 +75,7 @@ class MaterialLoader( string fullPath ) : ResourceLoader<GameMount>
 			if ( !value.EndsWith( ".dds", StringComparison.OrdinalIgnoreCase ) )
 				continue;
 
-			var texture = Texture.Load( $"mount://ns2/ns2/{value}.vtex", false );
+			var texture = Texture.Load( $"mount://{Host.Ident}/ns2/{value}.vtex", false );
 			if ( texture is null || texture.IsError )
 				continue;
 

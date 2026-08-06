@@ -1,4 +1,4 @@
-﻿namespace Editor.SoundEditor;
+namespace Editor.SoundEditor;
 
 public class Timeline : Widget
 {
@@ -8,6 +8,7 @@ public class Timeline : Widget
 	public bool Repeating { get; set; }
 	public float Time { get; private set; }
 	public List<VisemeFrame> Frames;
+	public List<SubtitleTrack.Word> Words;
 
 	private readonly Option PlayOption;
 	private readonly Option PlayFromStartOption;
@@ -52,6 +53,35 @@ public class Timeline : Widget
 		TimelineView.SetVisemes( frames );
 	}
 
+	/// <summary>
+	/// Replace the timeline's subtitle words.
+	/// </summary>
+	public void SetSubtitles( List<SubtitleTrack.Word> words )
+	{
+		Words = words;
+		TimelineView.SetSubtitles( words );
+	}
+
+	/// <summary>
+	/// Ask for the sound's transcript and lay it out over the timeline as subtitle
+	/// words - spread over the speech the viseme track knows about, ready to be
+	/// dragged into place.
+	/// </summary>
+	public void EditTranscript()
+	{
+		// Can't lay words out over a sound that hasn't loaded - and Generate
+		// would return nothing, wiping whatever is already authored
+		if ( TimelineView.Duration <= 0 )
+			return;
+
+		var initial = Words is null ? "" : string.Join( " ", Words.Select( x => x.Text ) );
+
+		Dialog.AskString(
+			text => SetSubtitles( SubtitleGenerator.Generate( text, TimelineView.Duration, Frames ) ),
+			"Type what's being said. The words get spread over the sound - drag them around the timeline to fine-tune the timing.",
+			"Generate", "Cancel", initial, "Set Subtitles" );
+	}
+
 	public void SetSamples( short[] samples, float duration, string sound )
 	{
 		TimelineView.SetSamples( samples, duration, sound );
@@ -67,6 +97,9 @@ public class Timeline : Widget
 
 		Frames = asset.MetaData.Get<List<VisemeFrame>>( "visemes" );
 		TimelineView.SetVisemes( Frames );
+
+		Words = asset.MetaData.Get<List<SubtitleTrack.Word>>( "subtitles" );
+		TimelineView.SetSubtitles( Words );
 	}
 
 	[EditorEvent.Frame]
@@ -101,6 +134,11 @@ public class TimelineView : GraphicsView
 	private readonly Scrubber Scrubber;
 	private readonly WaveForm WaveForm;
 	private readonly List<VisemeItem> VisemeItems = new();
+	private readonly List<WordItem> WordItems = new();
+
+	// Subtitle words sit in their own row under the time axis, visemes below that
+	internal float WordRowTop => Theme.RowHeight;
+	internal float VisemeRowTop => Theme.RowHeight * 2;
 
 	public float Duration { get; private set; }
 	public float ZoomFactor { get; private set; }
@@ -149,8 +187,14 @@ public class TimelineView : GraphicsView
 
 		foreach ( var item in VisemeItems )
 		{
-			item.Position = new Vector2( PositionFromTime( item.Frame.StartTime ), Theme.RowHeight );
-			item.Size = new Vector2( PositionFromTime( item.Frame.EndTime - item.Frame.StartTime ), SceneRect.Bottom - Theme.RowHeight );
+			item.Position = new Vector2( PositionFromTime( item.Frame.StartTime ), VisemeRowTop );
+			item.Size = new Vector2( PositionFromTime( item.Frame.EndTime - item.Frame.StartTime ), SceneRect.Bottom - VisemeRowTop );
+		}
+
+		foreach ( var item in WordItems )
+		{
+			item.Position = new Vector2( PositionFromTime( item.Word.StartTime ), WordRowTop );
+			item.Size = new Vector2( PositionFromTime( item.Word.EndTime - item.Word.StartTime ), Theme.RowHeight );
 		}
 	}
 
@@ -165,6 +209,12 @@ public class TimelineView : GraphicsView
 	public void OnFrame()
 	{
 		Time = Time.Clamp( 0, Duration );
+
+		// Light up the word being spoken at the scrubber - the karaoke preview
+		foreach ( var item in WordItems )
+		{
+			item.Active = Time >= item.Word.StartTime && Time < item.Word.EndTime;
+		}
 
 		if ( !Timeline.Playing )
 		{
@@ -264,8 +314,8 @@ public class TimelineView : GraphicsView
 	private void AddItem( VisemeFrame frame )
 	{
 		var item = new VisemeItem( this, frame );
-		item.Position = new Vector2( PositionFromTime( frame.StartTime ), Theme.RowHeight );
-		item.Size = new Vector2( PositionFromTime( frame.EndTime - frame.StartTime ), SceneRect.Bottom - Theme.RowHeight );
+		item.Position = new Vector2( PositionFromTime( frame.StartTime ), VisemeRowTop );
+		item.Size = new Vector2( PositionFromTime( frame.EndTime - frame.StartTime ), SceneRect.Bottom - VisemeRowTop );
 		VisemeItems.Add( item );
 		Add( item );
 	}
@@ -276,6 +326,36 @@ public class TimelineView : GraphicsView
 			item.Destroy();
 
 		VisemeItems.Clear();
+	}
+
+	public void SetSubtitles( List<SubtitleTrack.Word> words )
+	{
+		ClearWords();
+
+		if ( words == null )
+			return;
+
+		foreach ( var word in words )
+		{
+			AddItem( word );
+		}
+	}
+
+	private void AddItem( SubtitleTrack.Word word )
+	{
+		var item = new WordItem( this, word );
+		item.Position = new Vector2( PositionFromTime( word.StartTime ), WordRowTop );
+		item.Size = new Vector2( PositionFromTime( word.EndTime - word.StartTime ), Theme.RowHeight );
+		WordItems.Add( item );
+		Add( item );
+	}
+
+	public void ClearWords()
+	{
+		foreach ( var item in WordItems.ToArray() )
+			item.Destroy();
+
+		WordItems.Clear();
 	}
 
 	public void MoveScrubber( float position )
@@ -311,11 +391,38 @@ public class TimelineView : GraphicsView
 		Timeline.Frames = VisemeItems.Select( x => x.Frame ).ToList();
 	}
 
+	internal void WordKeyPress( KeyEvent e )
+	{
+		var items = WordItems.Where( x => x.Selected ).ToArray();
+
+		if ( e.Key == KeyCode.Delete )
+		{
+			foreach ( var item in items )
+			{
+				Delete( item );
+			}
+		}
+	}
+
+	internal void Delete( WordItem item )
+	{
+		if ( WordItems.Remove( item ) )
+		{
+			item.Destroy();
+		}
+	}
+
+	internal void UpdateWords()
+	{
+		Timeline.Words = WordItems.Select( x => x.Word ).ToList();
+	}
+
 	protected override void OnContextMenu( ContextMenuEvent e )
 	{
 		base.OnContextMenu( e );
 
-		var time = TimeFromPosition( ToScene( e.LocalPosition ).x );
+		var scenePosition = ToScene( e.LocalPosition );
+		var time = TimeFromPosition( scenePosition.x );
 		var menu = new ContextMenu( this );
 
 		var visemeMenu = menu.AddMenu( "Create Viseme" );
@@ -327,6 +434,16 @@ public class TimelineView : GraphicsView
 			visemeMenu.AddOption( LipSyncGenerator.Label( v ), null, () => CreateViseme( v, time ) );
 		}
 
+		// Right clicked on a subtitle word - offer to change it
+		var word = WordItems.FirstOrDefault( x => x.SceneRect.IsInside( scenePosition ) );
+		if ( word != null )
+		{
+			menu.AddOption( $"Edit Word '{word.Word.Text}'...", "edit", () => word.EditText() );
+		}
+
+		menu.AddOption( "Add Word...", "title", () => CreateWord( time ) );
+		menu.AddOption( "Set Subtitles...", "subtitles", () => Timeline.EditTranscript() );
+
 		menu.OpenAt( e.ScreenPosition );
 	}
 
@@ -334,6 +451,20 @@ public class TimelineView : GraphicsView
 	{
 		AddItem( new VisemeFrame { Viseme = viseme, StartTime = time, EndTime = time + 0.1f } );
 		UpdateFrames();
+	}
+
+	private void CreateWord( float time )
+	{
+		Dialog.AskString( text =>
+		{
+			// The dialog validates, but a blank word would silently vanish at
+			// compile - don't let one exist at all
+			if ( string.IsNullOrWhiteSpace( text ) )
+				return;
+
+			AddItem( new SubtitleTrack.Word { Text = text.Trim(), StartTime = time, EndTime = time + 0.3f } );
+			UpdateWords();
+		}, "The word being spoken here", "Add", "Cancel", "", "Add Word" );
 	}
 }
 
@@ -542,10 +673,15 @@ public class Scrubber : GraphicsItem
 	}
 }
 
-public class VisemeItem : GraphicsItem
+/// <summary>
+/// A draggable, edge-resizable item in a row of the sound editor timeline - the
+/// shared machinery behind viseme and subtitle word items. Keeps items inside the
+/// clip: they can't be moved or resized to times before zero or past the end of
+/// the sound.
+/// </summary>
+public abstract class TimelineRowItem : GraphicsItem
 {
-	private readonly TimelineView TimelineView;
-	public VisemeFrame Frame { get; private set; }
+	protected readonly TimelineView TimelineView;
 
 	[Flags]
 	private enum SizeDirection
@@ -559,12 +695,9 @@ public class VisemeItem : GraphicsItem
 	private Vector2 Offset;
 	private SizeDirection Direction;
 
-	public VisemeItem( TimelineView view, VisemeFrame frame )
+	protected TimelineRowItem( TimelineView view )
 	{
-		Frame = frame;
-
 		TimelineView = view;
-		ToolTip = LipSyncGenerator.Label( frame.Viseme );
 
 		ZIndex = -1;
 		HoverEvents = true;
@@ -573,62 +706,39 @@ public class VisemeItem : GraphicsItem
 		Focusable = true;
 	}
 
+	/// <summary>
+	/// Scene-space top of the row this item lives in.
+	/// </summary>
+	protected abstract float RowTop { get; }
+
+	/// <summary>
+	/// The item was moved or resized - write the new times back.
+	/// </summary>
+	protected abstract void OnRectChanged();
+
 	protected override void OnMoved()
 	{
 		base.OnMoved();
 
-		Position = Position.WithY( Theme.RowHeight );
-		Position = Position.WithX( Position.x.Clamp( 0, TimelineView.PositionFromTime( TimelineView.Duration ) ) );
+		// Keep the whole item inside the clip
+		var maxX = MathF.Max( 0, TimelineView.PositionFromTime( TimelineView.Duration ) - Size.x );
 
-		UpdateFrame();
+		Position = Position.WithY( RowTop );
+		Position = Position.WithX( Position.x.Clamp( 0, maxX ) );
+
+		OnRectChanged();
 	}
 
-	private void UpdateFrame()
-	{
-		var frame = Frame;
-		frame.StartTime = TimelineView.TimeFromPosition( SceneRect.Left );
-		frame.EndTime = TimelineView.TimeFromPosition( SceneRect.Right );
-		Frame = frame;
-
-		TimelineView.UpdateFrames();
-	}
-
-	protected override void OnKeyPress( KeyEvent e )
-	{
-		base.OnKeyPress( e );
-
-		TimelineView.VisemeKeyPress( e );
-		TimelineView.UpdateFrames();
-	}
-
-	protected override void OnPaint()
-	{
-		base.OnPaint();
-
-		Paint.Antialiasing = false;
-		Paint.ClearPen();
-		if ( Paint.HasSelected )
-			Paint.SetPen( Theme.Primary );
-		Paint.SetBrush( Theme.Primary.WithAlpha( Paint.HasMouseOver || Paint.HasSelected ? 0.5f : 0.2f ) );
-		Paint.DrawRect( LocalRect.Shrink( 1 ) );
-		Paint.SetPen( Theme.Text );
-		var r = LocalRect;
-		r.Height = Theme.RowHeight;
-		Paint.DrawText( r.Shrink( 2 ), LipSyncGenerator.Label( Frame.Viseme ) );
-	}
-
-	private Rect ResizeLeft( Rect rect, float position )
+	private static Rect ResizeLeft( Rect rect, float position )
 	{
 		rect.Left = position;
 		var size = rect.Right - rect.Left;
-
-		Log.Info( size );
 		size -= MathF.Max( 8, size );
 		rect.Left += size;
 		return rect;
 	}
 
-	private Rect ResizeRight( Rect rect, float position )
+	private static Rect ResizeRight( Rect rect, float position )
 	{
 		rect.Right = position;
 		var size = rect.Right - rect.Left;
@@ -739,11 +849,154 @@ public class VisemeItem : GraphicsItem
 		else if ( Direction.HasFlag( SizeDirection.Right ) )
 			rect = ResizeRight( rect, position.x );
 
-		SceneRect = rect;
+		// Resizing can't produce times before zero or past the end of the clip
+		rect.Left = MathF.Max( rect.Left, 0 );
+		rect.Right = MathF.Min( rect.Right, TimelineView.PositionFromTime( TimelineView.Duration ) );
 
+		// Before the geometry changes, so the scene's spatial index stays right
 		PrepareGeometryChange();
+
+		SceneRect = rect;
 		Update();
 
-		UpdateFrame();
+		OnRectChanged();
+	}
+}
+
+public class VisemeItem : TimelineRowItem
+{
+	public VisemeFrame Frame { get; private set; }
+
+	public VisemeItem( TimelineView view, VisemeFrame frame ) : base( view )
+	{
+		Frame = frame;
+		ToolTip = LipSyncGenerator.Label( frame.Viseme );
+	}
+
+	protected override float RowTop => TimelineView.VisemeRowTop;
+
+	protected override void OnRectChanged()
+	{
+		var frame = Frame;
+		frame.StartTime = TimelineView.TimeFromPosition( SceneRect.Left );
+		frame.EndTime = TimelineView.TimeFromPosition( SceneRect.Right );
+		Frame = frame;
+
+		TimelineView.UpdateFrames();
+	}
+
+	protected override void OnKeyPress( KeyEvent e )
+	{
+		base.OnKeyPress( e );
+
+		TimelineView.VisemeKeyPress( e );
+		TimelineView.UpdateFrames();
+	}
+
+	protected override void OnPaint()
+	{
+		base.OnPaint();
+
+		Paint.Antialiasing = false;
+		Paint.ClearPen();
+		if ( Paint.HasSelected )
+			Paint.SetPen( Theme.Primary );
+		Paint.SetBrush( Theme.Primary.WithAlpha( Paint.HasMouseOver || Paint.HasSelected ? 0.5f : 0.2f ) );
+		Paint.DrawRect( LocalRect.Shrink( 1 ) );
+		Paint.SetPen( Theme.Text );
+		var r = LocalRect;
+		r.Height = Theme.RowHeight;
+		Paint.DrawText( r.Shrink( 2 ), LipSyncGenerator.Label( Frame.Viseme ) );
+	}
+}
+
+/// <summary>
+/// A subtitle word on the timeline - drag to move, grab an edge to retime, Delete
+/// to remove, right click to edit the text. Lights up while the scrubber is inside
+/// its span, so playback previews the karaoke effect.
+/// </summary>
+public class WordItem : TimelineRowItem
+{
+	public SubtitleTrack.Word Word { get; private set; }
+
+	private bool _active;
+
+	/// <summary>
+	/// True while the timeline's playback time is inside this word's span.
+	/// </summary>
+	public bool Active
+	{
+		get => _active;
+		set
+		{
+			if ( _active == value )
+				return;
+
+			_active = value;
+			Update();
+		}
+	}
+
+	public WordItem( TimelineView view, SubtitleTrack.Word word ) : base( view )
+	{
+		Word = word;
+		ToolTip = word.Text;
+	}
+
+	protected override float RowTop => TimelineView.WordRowTop;
+
+	/// <summary>
+	/// Pop a dialog to change the word's text.
+	/// </summary>
+	public void EditText()
+	{
+		Dialog.AskString( text =>
+		{
+			// The dialog validates, but a blank word would silently vanish at
+			// compile - keep the old text rather than emptying it
+			if ( string.IsNullOrWhiteSpace( text ) )
+				return;
+
+			var word = Word;
+			word.Text = text.Trim();
+			Word = word;
+			ToolTip = word.Text;
+
+			TimelineView.UpdateWords();
+			Update();
+		}, "The word being spoken here", "Okay", "Cancel", Word.Text, "Edit Word" );
+	}
+
+	protected override void OnRectChanged()
+	{
+		var word = Word;
+		word.StartTime = TimelineView.TimeFromPosition( SceneRect.Left );
+		word.EndTime = TimelineView.TimeFromPosition( SceneRect.Right );
+		Word = word;
+
+		TimelineView.UpdateWords();
+	}
+
+	protected override void OnKeyPress( KeyEvent e )
+	{
+		base.OnKeyPress( e );
+
+		TimelineView.WordKeyPress( e );
+		TimelineView.UpdateWords();
+	}
+
+	protected override void OnPaint()
+	{
+		base.OnPaint();
+
+		Paint.Antialiasing = false;
+		Paint.ClearPen();
+		if ( Paint.HasSelected )
+			Paint.SetPen( Theme.Yellow );
+		var alpha = Active ? 0.6f : Paint.HasMouseOver || Paint.HasSelected ? 0.5f : 0.2f;
+		Paint.SetBrush( Theme.Yellow.WithAlpha( alpha ) );
+		Paint.DrawRect( LocalRect.Shrink( 1 ) );
+		Paint.SetPen( Theme.Text );
+		Paint.DrawText( LocalRect.Shrink( 2 ), Word.Text );
 	}
 }

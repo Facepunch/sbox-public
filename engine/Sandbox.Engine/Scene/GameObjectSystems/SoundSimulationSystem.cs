@@ -10,7 +10,7 @@ internal sealed partial class SoundSimulationSystem : GameObjectSystem<SoundSimu
 	readonly List<SoundHandle> _culledHandles = new();
 	readonly Dictionary<Audio.Mixer, int> _voiceCountByMixer = new();
 
-	[ConVar] internal static bool snd_simulation_enable { get; set; } = true;
+	[ConVar( Saved = true )] internal static bool snd_simulation_enable { get; set; } = true;
 
 	public SoundSimulationSystem( Scene scene ) : base( scene )
 	{

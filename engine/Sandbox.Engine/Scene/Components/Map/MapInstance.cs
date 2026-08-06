@@ -1,5 +1,6 @@
 using Facepunch.ActionGraphs;
 using NativeEngine;
+using Sandbox.Clutter;
 using Sentry;
 using System.Text.Json.Nodes;
 using System.Threading;
@@ -57,6 +58,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	string loadedMapName;
 	Package loadedMapPkg;
 	string sceneMapScenePath;
+	IDisposable _systemOverridesScope;
 
 	public MapInstance() : base()
 	{
@@ -146,6 +148,9 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		RemoveCollision();
 
 		Physics = null;
+
+		_systemOverridesScope?.Dispose();
+		_systemOverridesScope = null;
 
 		if ( GameObject.IsValid() && GameObject.Children is not null )
 		{
@@ -425,6 +430,8 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 
 		using var optionsScope = ActionGraph.PushSerializationOptions( sceneFile.SerializationOptions with { ForceUpdateCached = Scene.IsEditor } );
 		using var sceneScope = Scene.Push();
+		// Set up a blob context to resolve binary data in the map scene.
+		using var blobs = BlobDataSerializer.Load( sceneFile.BinaryData, path );
 		using var batchGroup = CallbackBatch.Batch();
 
 		foreach ( var json in sceneFile.GameObjects )
@@ -449,6 +456,22 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 			if ( go.NetworkMode == NetworkMode.Object )
 			{
 				go.NetworkSpawn();
+			}
+		}
+
+		// Apply scene-level GameObjectSystems data (e.g. painted clutter) to the host scene.
+		if ( sceneFile.SceneProperties is not null
+			&& sceneFile.SceneProperties.TryGetPropertyValue( "GameObjectSystems", out var systemsNode )
+			&& systemsNode is not null )
+		{
+			_systemOverridesScope = Scene.ApplyTransientGameObjectSystemOverrides( systemsNode );
+
+			if ( !NoOrigin
+				&& systemsNode is JsonObject systems
+				&& systems[typeof( ClutterGridSystem ).FullName] is JsonObject clutter
+				&& clutter.ContainsKey( nameof( ClutterGridSystem.Storage ) ) )
+			{
+				Scene.GetSystem<ClutterGridSystem>()?.Storage.ApplyWorldTransform( WorldTransform );
 			}
 		}
 
@@ -654,6 +677,7 @@ file class MapComponentMapLoader : SceneMapLoader
 			prop.Model = model;
 			prop.Tint = kv.GetValue( "rendercolor", Color.White );
 			prop.WorldScale = kv.GetValue( "scales", Vector3.One );
+			prop.MaterialGroup = kv.GetValue( "skin", "default" );
 		}
 
 		if ( model.Physics is null || model.Physics.Parts.Count == 0 )
@@ -678,8 +702,8 @@ file class MapComponentMapLoader : SceneMapLoader
 	//
 	void CreateLightComponent( GameObject go, ObjectEntry kv, LightType type )
 	{
-		// Never network these - LegacyData is internal (not serialized), so a snapshot copy
-		// would arrive half-configured, and every client builds an identical light from the vpk anyway.
+		// Never network these — LegacyData is internal (not serialized), so a snapshot copy would
+		// arrive half-configured. Every client builds an identical light from the map VPK anyway.
 		go.NetworkMode = NetworkMode.Never;
 
 		var data = LightData.Parse( kv, type );
@@ -698,8 +722,16 @@ file class MapComponentMapLoader : SceneMapLoader
 			spot.ConeOuter = data.OuterConeAngle;
 			spot.Cookie = data.LightCookie;
 
+			// Hammer lights have attenuation and cone mask from the lightmap itself
+			// We can take advantage of that and tighten the cone for sharper shadows
+			spot.ConeInner = MathF.Min( data.InnerConeAngle, 80.0f );
+			spot.ConeOuter = MathF.Min( data.OuterConeAngle, 80.0f );
+
+			// Native quadratic is the Hammer coefficient; SceneLight.QuadraticAttenuation scales by 10000.
+			legacy.ConstantAttenuation = data.Attenuation0;
 			legacy.LinearAttenuation = data.Attenuation1;
 			legacy.QuadraticAttenuation = data.Attenuation2;
+			legacy.FallOff = data.FallOff;
 
 			light = spot;
 		}
@@ -708,6 +740,7 @@ file class MapComponentMapLoader : SceneMapLoader
 			var point = go.Components.Create<PointLight>();
 			point.Radius = data.Range;
 
+			legacy.ConstantAttenuation = data.Attenuation0;
 			legacy.LinearAttenuation = data.Attenuation1;
 			legacy.QuadraticAttenuation = data.Attenuation2;
 			legacy.Cookie = data.LightCookie; // PointLight doesn't expose a cookie property
@@ -716,11 +749,20 @@ file class MapComponentMapLoader : SceneMapLoader
 		}
 		else
 		{
-			light = go.Components.Create<DirectionalLight>();
+			var directional = go.Components.Create<DirectionalLight>();
+			var skyColor = kv.GetValue( "SkyColor", Color.White );
+			directional.SkyColor = (skyColor * kv.GetValue( "SkyIntensity", 1.0f )).WithAlpha( skyColor.a );
+
+			light = directional;
 		}
+
+		// Hammer lights have no concept of "hardness" — let's make them reasonably sharp by default.
+		light.ShadowHardness = 0.5f;
 
 		light.LightColor = data.FinalColor;
 		light.Shadows = data.CastShadows;
+		// Fog mode / render diffuse-specular / attenuation ride in LegacyData — applied when the
+		// scene light is created (OnEnabled). Component FogMode can't express Hammer's "Baked" fog.
 		light.LegacyData = legacy;
 	}
 

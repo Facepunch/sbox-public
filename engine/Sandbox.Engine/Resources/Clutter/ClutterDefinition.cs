@@ -49,7 +49,7 @@ public class ClutterDefinition : GameResource
 	[Property, Range( 1, 10 )]
 	public int TileRadius { get; set; } = 4;
 
-	[Property]
+	[Property, InlineEditor]
 	public AnyOfType<Scatterer> Scatterer { get; set; } = new SimpleScatterer();
 
 	public override int GetHashCode()

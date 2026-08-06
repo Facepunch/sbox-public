@@ -325,15 +325,6 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		GetSnapshot( connection, ref snapshot );
 		output.Snapshot = snapshot;
 
-		foreach ( var networkObjectData in snapshot.NetworkObjects )
-		{
-			if ( networkObjectData is not ObjectCreateMsg createMessage )
-				continue;
-
-			var networkGameObject = activeScene.Directory.FindByGuid( createMessage.Guid );
-			networkGameObject?._net?.MarkCreateMessageSent( connection );
-		}
-
 		var bs = ByteStream.Create( 256 );
 		bs.Write( InternalMessageType.Packed );
 
@@ -608,6 +599,10 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 				if ( nwo is not ObjectCreateMsg oc )
 					continue;
 
+				// Fold blobs into the shared scope - Deserialize is deferred to the batch flush,
+				// so a per-object scope would be gone before its blob data (eg. mesh) is read.
+				blobs.Load( oc.BlobData );
+
 				var go = new GameObject();
 				go.Deserialize( JsonNode.Parse( oc.JsonData ).AsObject(), networkDeserializeOptionsCreate );
 				createdNetworkObjects.Add( new( go, oc ) );
@@ -733,7 +728,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 	public override void OnJoined( Connection client )
 	{
-		Platform.Chat.BroadcastText( $"👋 {client.Name} has joined the game" );
+		Platform.Chat.BroadcastPlayerJoin( client );
 
 		Action queue = default;
 
@@ -770,7 +765,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 			if ( Networking.IsHost )
 			{
-				Platform.Chat.BroadcastText( $"👋 {client.Name} left the game" );
+				Platform.Chat.BroadcastPlayerLeave( client );
 
 				Action queue = default;
 
@@ -1129,6 +1124,13 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 				if ( source is not null && !source.IsHost && (msg.Owner != source.Id || msg.Creator != source.Id) )
 					continue;
 
+				// Drop a create for an id we already have rather than spawning a duplicate under a reassigned GUID.
+				if ( scene.Directory.FindByGuid( msg.Guid ).IsValid() )
+				{
+					Log.Warning( $"Ignoring batched ObjectCreateMsg for {msg.Guid} from {source}: an object with that id already exists." );
+					continue;
+				}
+
 				using ( BlobDataSerializer.LoadFromMemory( msg.BlobData ) )
 				{
 					var go = new GameObject();
@@ -1156,6 +1158,14 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		// Don't let clients claim ownership or creation on behalf of other connections
 		if ( source is not null && !source.IsHost && (message.Owner != source.Id || message.Creator != source.Id) )
 			return;
+
+		// We already have an object with this id. Spawning another would create a duplicate and then
+		// silently reassign its GUID, turning a single stray create into an endless duplicate generator.
+		if ( scene.Directory.FindByGuid( message.Guid ).IsValid() )
+		{
+			Log.Warning( $"Ignoring ObjectCreateMsg for {message.Guid} from {source}: an object with that id already exists." );
+			return;
+		}
 
 		var go = new GameObject();
 

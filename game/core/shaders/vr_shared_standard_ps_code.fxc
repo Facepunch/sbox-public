@@ -300,12 +300,9 @@ FinalCombinerInput_t PS_SharedStandardProcessing( const PS_INPUT i )
         // Clip first to try to kill the wave if we're in an area of all zero
         clip(o.flOpacity - eps);
 
-		o.flOpacity = AdjustOpacityForAlphaToCoverage( o.flOpacity, g_flAlphaTestReference, g_flAntiAliasedEdgeStrength, i.vTextureCoords.xy );
-		
-        if (g_nMSAASampleCount == 1)
-            OpaqueFadeDepth((o.flOpacity + 0.5f + eps) * 0.5f, i.vPositionSs.xy);
-        else
-            clip(o.flOpacity - 0.000001);
+		o.flOpacity = AdjustOpacityForAlphaToCoverage( o.flOpacity, g_flAlphaTestReference, g_flAntiAliasedEdgeStrength, i.vTextureCoords.xy, float2( TextureDimensions2DS( g_tColor, 0 ) ) );
+
+        clip(o.flOpacity - 0.000001);
 	}
 	#endif
 

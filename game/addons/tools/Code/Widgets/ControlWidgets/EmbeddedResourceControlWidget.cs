@@ -4,14 +4,10 @@ using Editor.AssetPickers;
 /// Shows a control for editing embedded resources. This is basically a dropdown, when you click on it
 /// the popup editor will show up with the properties of the embedded resource - with a toolbar.
 /// </summary>
-public class EmbeddedResourceControlWidget : ControlWidget
+public class EmbeddedResourceControlWidget : StickyPopupControlWidget
 {
 	TypeDescription _typeDescription;
 	AssetType _assetType;
-	Layout _toolbarRow;
-	Widget _toolbar;
-
-	protected StickyPopup _popup;
 	public override bool SupportsMultiEdit => true;
 	public override bool IsControlButton => !IsControlDisabled;
 
@@ -34,10 +30,6 @@ public class EmbeddedResourceControlWidget : ControlWidget
 
 	public EmbeddedResourceControlWidget( SerializedProperty property ) : base( property )
 	{
-		HorizontalSizeMode = SizeMode.CanGrow | SizeMode.Expand;
-		VerticalSizeMode = SizeMode.CanGrow;
-		Layout = Layout.Column();
-		Cursor = CursorShape.Finger;
 
 		//
 		// If we're opening the popup editor, we need to ensure that the resource is valid
@@ -53,6 +45,7 @@ public class EmbeddedResourceControlWidget : ControlWidget
 		SerializedProperty.OnChanged = OnChanged;
 
 		Reset( resource, SerializedProperty );
+		InitializeInlineEditor();
 	}
 
 	/// <summary>
@@ -89,34 +82,18 @@ public class EmbeddedResourceControlWidget : ControlWidget
 	void OnChanged( SerializedProperty prop )
 	{
 		// Rebuild popup if external changes were made
-		if ( _popup.IsValid() )
-		{
-			BuildPopup( _popup );
-		}
+		RebuildEditor();
 	}
 
-	protected override void OnMouseReleased( MouseEvent e )
-	{
-		if ( _popup.IsValid() )
-		{
-			_popup?.Destroy();
-			_popup = null;
-			return;
-		}
 
-		OpenPopupEditor();
-	}
-
-	public override void OnDestroyed()
-	{
-		_popup?.Destroy();
-		_popup = null;
-
-		base.OnDestroyed();
-	}
 
 	protected override void OnPaint()
 	{
+		if ( IsInlineEditor )
+		{
+			PaintInlineEditorHeader();
+			return;
+		}
 		var asset = Resource.IsValid() ? AssetSystem.FindByPath( Resource.ResourcePath ) : null;
 		var pickerName = DisplayInfo.ForType( SerializedProperty.PropertyType ).Name;
 		if ( _assetType is not null ) pickerName = _assetType.FriendlyName;
@@ -158,23 +135,7 @@ public class EmbeddedResourceControlWidget : ControlWidget
 		PropertyFinishEdit();
 	}
 
-	void Copy()
-	{
-		string str = ToClipboardString();
-		EditorUtility.Clipboard.Copy( str );
-	}
 
-	void Paste()
-	{
-		PropertyStartEdit();
-
-		string str = EditorUtility.Clipboard.Paste();
-		FromClipboardString( str );
-		BuildPopup( _popup );
-
-		SignalValuesChanged();
-		PropertyStartEdit();
-	}
 
 	void SetType( TypeDescription type )
 	{
@@ -184,7 +145,7 @@ public class EmbeddedResourceControlWidget : ControlWidget
 		Reset( resource, SerializedProperty );
 		SerializedProperty.SetValue( resource );
 
-		BuildPopup( _popup );
+		RebuildEditor();
 		SignalValuesChanged();
 
 		PropertyFinishEdit();
@@ -192,7 +153,7 @@ public class EmbeddedResourceControlWidget : ControlWidget
 
 	void OpenTypePopup()
 	{
-		var menu = new ContextMenu( _popup );
+		var menu = new ContextMenu( IsInlineEditor ? this : _popup );
 		var resourceType = Resource?.GetType() ?? SerializedProperty.PropertyType;
 
 		foreach ( var type in SupportedTypes )
@@ -206,105 +167,32 @@ public class EmbeddedResourceControlWidget : ControlWidget
 		menu.OpenAt( _toolbar.ScreenRect.BottomLeft );
 	}
 
-	void BuildPopup( StickyPopup popup )
+	protected override void BuildEditor( Widget target, bool isPopup )
 	{
-		if ( !popup.IsValid() ) return;
+		if ( !target.IsValid() ) return;
 
-		//
-		// Clear the layout
-		//
-		popup.Layout.Clear( true );
-		popup.OnPaintOverride = PaintPopupBackground;
-
-		//
-		// ReadOnly
-		//
-		popup.ReadOnly = !SerializedProperty.IsEditable;
-
-		//
-		// Toolbar
-		//
-		_toolbarRow = popup.Layout.AddRow();
-		_toolbarRow.Spacing = 4;
-
-		var toolbar = new ToolBar( popup );
-		toolbar.SetIconSize( 13 );
-		toolbar.ButtonStyle = ToolButtonStyle.TextUnderIcon;
+		PrepareEditor( target, isPopup );
 
 		if ( SupportedTypes.Any() )
-		{
-			toolbar.AddOption( "Type", "type_specimen", action: OpenTypePopup ).Enabled = !popup.ReadOnly;
-		}
+			_toolbar.AddOption( "Type", "type_specimen", action: OpenTypePopup ).Enabled = !target.ReadOnly;
 
 		var so = Resource?.GetSerialized();
-
 		if ( so.IsValid() )
 		{
 			if ( _assetType?.HasEditor ?? false )
-			{
-				toolbar.AddOption( "Editor", "dvr", action: OpenInEditor ).Enabled = !popup.ReadOnly;
-			}
+				_toolbar.AddOption( "Editor", "dvr", action: OpenInEditor ).Enabled = !target.ReadOnly;
 
-			toolbar.AddSeparator();
-			toolbar.AddOption( "Save As", "drive_file_move", action: ConvertToFile ).Enabled = !popup.ReadOnly;
-			toolbar.AddOption( "Load", "swap_horiz", action: LoadFromFile ).Enabled = !popup.ReadOnly;
-			toolbar.AddSeparator();
-
-			toolbar.AddOption( "Copy", "content_copy", action: Copy );
-			toolbar.AddOption( "Paste", "content_paste", action: Paste ).Enabled = !popup.ReadOnly;
-			toolbar.AddSeparator();
-
-			toolbar.AddOption( "Clear", "delete", action: Reset ).Enabled = !popup.ReadOnly;
+			_toolbar.AddOption( "Save As", "drive_file_move", action: ConvertToFile ).Enabled = !target.ReadOnly;
+			_toolbar.AddOption( "Load", "swap_horiz", action: LoadFromFile ).Enabled = !target.ReadOnly;
+			AddClipboardOptions( target, RebuildEditor );
+			_toolbar.AddSeparator();
+			_toolbar.AddOption( "Clear", "delete", action: Reset ).Enabled = !target.ReadOnly;
 		}
-		_toolbar = toolbar;
-		_toolbarRow.Add( toolbar );
 
-		//
-		// Populate control sheet with properties
-		//
-		popup.CreateProperties( so );
+		FinishEditor( target, isPopup, so );
 	}
 
-	bool PaintPopupBackground()
-	{
-		// Body
-		Paint.ClearPen();
-		Paint.SetBrushLinear( 0, Vector2.Down * 256, Theme.SurfaceBackground.Lighten( 0.2f ).WithAlpha( 0.98f ), Theme.SurfaceBackground.WithAlpha( 0.95f ) );
-		Paint.DrawRect( Paint.LocalRect );
 
-		// Toolbar
-		var toolbarColor = SerializedProperty.IsEditable ? Theme.Green : Theme.Green.Desaturate( 0.5f );
-		Paint.ClearPen();
-		Paint.SetBrush( toolbarColor.WithAlpha( 0.1f ) );
-		Paint.DrawRect( _toolbarRow.OuterRect );
-
-		Paint.ClearBrush();
-		Paint.SetPen( Color.Black.WithAlpha( 0.33f ), 2, PenStyle.Solid );
-		Paint.DrawRect( Paint.LocalRect.Shrink( 0, -10, 1, 1 ), 4 );
-
-		return true;
-	}
-
-	protected void OpenPopupEditor()
-	{
-		_popup?.Destroy();
-		_popup = null;
-
-		var popup = new StickyPopup( null )
-		{
-			Owner = this,
-			MinimumWidth = Width,
-			Position = ScreenRect.BottomLeft
-		};
-
-		BuildPopup( popup );
-
-		popup.Visible = true;
-		popup.Focus( true );
-
-		_popup = popup;
-		_popup.DestroyUnrelatedPopups();
-	}
 
 	private async void ConvertToFile()
 	{
@@ -354,7 +242,7 @@ public class EmbeddedResourceControlWidget : ControlWidget
 				CreateEmbeddedFromFile( SerializedProperty, gr );
 			}
 
-			BuildPopup( _popup );
+			RebuildEditor();
 		};
 
 		picker.Title = $"Select {SerializedProperty.DisplayName}";

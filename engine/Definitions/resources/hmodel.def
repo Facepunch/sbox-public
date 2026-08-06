@@ -122,7 +122,7 @@ native class CModel as NativeEngine.IModel
 		return pMesh->GetName();
 	}
 
-	inline void GetDrawCallInfo( int iMesh, int iDrawCall, out int vertexCount, out int indexCount, out int primitiveType, out float uvDensity, out int instanceCount, out int alphaBlended )
+	inline void GetDrawCallInfo( int iMesh, int iDrawCall, out int vertexCount, out int indexCount, out int primitiveType, out float uvDensity, out int instanceCount, out int alphaBlended, out int startIndex, out int baseVertex )
 	{
 		*vertexCount = 0;
 		*indexCount = 0;
@@ -130,6 +130,8 @@ native class CModel as NativeEngine.IModel
 		*uvDensity = 0.0f;
 		*instanceCount = 0;
 		*alphaBlended = 0;
+		*startIndex = 0;
+		*baseVertex = 0;
 
 		const CRenderMesh *pMesh = self->GetMeshData( iMesh );
 		if ( !pMesh ) return;
@@ -148,6 +150,8 @@ native class CModel as NativeEngine.IModel
 				*uvDensity = pDraw->m_flUvDensity;
 				*instanceCount = pDraw->m_nInstanceCount;
 				*alphaBlended = pDraw->m_bAlphaBlendedMaterial != 0 ? 1 : 0;
+				*startIndex = pDraw->m_nStartIndex;
+				*baseVertex = pDraw->m_nBaseVertex;
 				return;
 			}
 			flatIndex += nDraws;

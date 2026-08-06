@@ -101,7 +101,7 @@ row
         width: 300px;
     }
 
-    &.upscaler-warning
+    &.upscaler-warning, &.setting-warning
     {
         background-color: #f5a62333;
         border: 1px solid #f5a62344;

@@ -369,8 +369,8 @@ PS
 		OpaqueFadeDepth(col.a * tintColor.a , i.vPositionSs.xy );
 		return 1;
 	#else
-		// Cutoff on untinted alpha so tint opacity doesn't interact with the scissor threshold
-		col.a = AdjustOpacityForAlphaToCoverage( col.a, alphaCutoff, 1.0f, i.vPositionSs.xy );
+		// Cutoff on untinted alpha so tint opacity doesn't interact with the scissor threshold.
+		// No coverage adjustment: sprites only use alpha-to-coverage in depth mode.
 		if(col.a < alphaCutoff) discard;
 	#endif
 
@@ -388,7 +388,7 @@ PS
 
 		if(hasLighting)
 		{
-			FinalCombinerInput_t finalCombinerInput = (FinalCombinerInput_t)0;
+			FinalCombinerInput_t finalCombinerInput = {};
 			finalCombinerInput.vPositionWithOffsetWs.xyz = i.vPositionWithOffsetWs.xyz;
 			finalCombinerInput.vPositionWs.xyz = i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz;
 			finalCombinerInput.vRoughness = 1;

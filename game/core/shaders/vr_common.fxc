@@ -285,18 +285,51 @@ float PowerSpecularOcclusion( float3 vPositionWs, float3 vNormalWs, float flAmbi
 #endif
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Turns an alpha value into a coverage value for alpha-to-coverage, and clips the pixel outright
+// when there are no samples to spend that coverage across.
+//
+// vAlphaTextureSize is the size of the texture the alpha came from, needed to compensate for mip
+// averaging. References: Ben Golus, "Anti-Aliased Alpha Test", and Castano's mip alpha correction.
+//-------------------------------------------------------------------------------------------------------------------------------------------------------------
+float AdjustOpacityForAlphaToCoverage( float flOpacity, float flAlphaTestReference, float flAntiAliasedEdgeStrength, float2 vTextureCoords, float2 vAlphaTextureSize )
+{
+	// Mipmapping averages alpha, collapsing its distribution toward the mean, so distant surfaces
+	// lose coverage and sparkle. Scale alpha back up by mip level to restore it; 0.25 per mip is
+	// the empirical figure from Golus / Castano.
+	float2 vTexelCoords = vTextureCoords.xy * vAlphaTextureSize.xy;
+	float2 dx = ddx( vTexelCoords.xy );
+	float2 dy = ddy( vTexelCoords.xy );
+	float flMipLevel = max( 0.0, 0.5 * log2( max( dot( dx, dx ), dot( dy, dy ) ) ) );
+
+	// Deliberately not saturated: callers scale flOpacity to shift the effective cutoff (see
+	// foliage's DistanceAlphaScale) and rely on that scale cancelling out of the fwidth below.
+	// Clamping here would flatten the neighbours fwidth reads and collapse the edge to sub-pixel.
+	float flCompensatedOpacity = flOpacity * ( 1.0 + flMipLevel * 0.25 );
+
+	// Shader derivative magic for sharp anti-aliased edges in alpha-to-coverage. Compensation
+	// restores the gradient, so fwidth stays reliable however far away the surface is.
+	float flAntiAliasedOpacityEdge = saturate( 0.5 + ( flCompensatedOpacity - flAlphaTestReference ) / max( fwidth( flCompensatedOpacity ), 0.000001 ) );
+
+	// The driver disables alpha-to-coverage on single-sample targets but keeps alpha-to-one, so
+	// the coverage below would be discarded and the surface would render fully opaque. Cut a hard
+	// silhouette at the alpha test instead, which is where depth_only.shader cuts for shadows.
+	// Test the compensated alpha, not the coverage: those only agree at edge strength 1, and hair
+	// is typically authored at 0.
+	if ( g_nMSAASampleCount == 1 )
+	{
+		clip( flCompensatedOpacity - flAlphaTestReference );
+	}
+
+	return lerp( saturate( flCompensatedOpacity ), flAntiAliasedOpacityEdge, flAntiAliasedEdgeStrength );
+}
+
+// Deprecated
+// Kept for compatibility with old shaders. Pass the alpha texture's size to the overload above
+// instead: without it there is nothing to derive a mip level from, so alpha still collapses toward
+// the mean with distance. Note this clips like the overload above, which the old version did not.
 float AdjustOpacityForAlphaToCoverage( float flOpacity, float flAlphaTestReference, float flAntiAliasedEdgeStrength, float2 vTextureCoords )
 {
-	// Shader derivative magic for sharp anti-aliased edges in alpha-to-coverage
-	float flAntiAliasedOpacityEdge = saturate( 0.5 + ( flOpacity - flAlphaTestReference ) / max( fwidth( flOpacity ), 0.000001 ) );
-
-	// Fall back to ordinary alpha-to-coverage at a sufficient distance/angle
-	float flAlphaToCoverageAmount = saturate( 4.0 * length( fwidth( vTextureCoords.xy ) ) );
-
-	// Fall back to ordinary alpha-to-coverage with user parameter
-	flAlphaToCoverageAmount = lerp( 1.0, flAlphaToCoverageAmount, flAntiAliasedEdgeStrength );
-
-	return lerp( flAntiAliasedOpacityEdge, flOpacity, flAlphaToCoverageAmount );
+	return AdjustOpacityForAlphaToCoverage( flOpacity, flAlphaTestReference, flAntiAliasedEdgeStrength, vTextureCoords, float2( 1.0, 1.0 ) );
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------

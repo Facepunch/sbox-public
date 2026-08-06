@@ -25,6 +25,10 @@ public partial class PolygonMesh
 				{
 					mesh.ComputeFaceTextureCoordinatesFromParameters();
 				}
+				else
+				{
+					mesh.ComputeFaceTextureParametersFromCoordinates();
+				}
 
 				mesh.IsDirty = true;
 

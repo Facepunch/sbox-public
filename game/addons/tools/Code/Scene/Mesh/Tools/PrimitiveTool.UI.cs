@@ -20,7 +20,7 @@ partial class PrimitiveTool
 
 		void OnEditorSelected( Type type )
 		{
-			_tool.Editor = EditorTypeLibrary.Create<PrimitiveEditor>( type, [_tool] );
+			_tool.SelectEditor( type );
 
 			UpdateTitle();
 			BuildSettings();
@@ -47,6 +47,13 @@ partial class PrimitiveTool
 		public void Frame()
 		{
 			UpdateButtons();
+		}
+
+		[EditorEvent.Hotload]
+		public void Hotload()
+		{
+			UpdateTitle();
+			BuildSettings();
 		}
 
 		void UpdateButtons()
@@ -83,19 +90,23 @@ partial class PrimitiveTool
 			}
 
 			{
-				var list = new PrimitiveListView( this );
-				list.FixedWidth = 200;
-				list.SetItems( GetBuilderTypes() );
-				list.SelectItem( list.Items.FirstOrDefault( x => (x as TypeDescription).TargetType == tool.Editor?.GetType() ) );
-				list.ItemSelected = ( e ) => OnEditorSelected( (e as TypeDescription).TargetType );
-				list.BuildLayout();
-
-				var group = AddGroup( "Primitive Type" );
-				group.Add( list );
+				var group = AddGroup( "Creation Mode" );
+				var picker = group.Add( new PrimitiveTypePicker( this, "Primitive" ) );
+				picker.SetItems( GetBuilderTypes() );
+				picker.SelectType( tool.Editor?.GetType() );
+				picker.TypeSelected = type => OnEditorSelected( type.TargetType );
 			}
 
 			{
-				Layout.AddSpacingCell( 4 );
+				_settingsWidget = new ToolSidebarWidget( this );
+				_settingsWidget.Layout.Margin = 0;
+				Layout.Add( _settingsWidget );
+
+				BuildSettings();
+			}
+
+			{
+				Layout.AddSpacingCell( 8 );
 
 				var row = Layout.AddRow();
 				row.Spacing = 4;
@@ -113,16 +124,6 @@ partial class PrimitiveTool
 				} );
 
 				UpdateButtons();
-
-				Layout.AddSpacingCell( 4 );
-			}
-
-			{
-				_settingsWidget = new ToolSidebarWidget( this );
-				_settingsWidget.Layout.Margin = 0;
-				Layout.Add( _settingsWidget );
-
-				BuildSettings();
 			}
 
 			Layout.AddStretchCell();
@@ -137,66 +138,65 @@ partial class PrimitiveTool
 		static IEnumerable<TypeDescription> GetBuilderTypes()
 		{
 			return EditorTypeLibrary.GetTypes<PrimitiveEditor>()
-				.Where( x => !x.IsAbstract )
-				.OrderBy( x => x.Name );
+				.Where( x => !x.IsAbstract );
 		}
 	}
 }
 
-public class PrimitiveListView : ListView
+internal sealed class PrimitiveTypePicker : Button
 {
-	public PrimitiveListView( Widget parent ) : base( parent )
-	{
-		ItemSpacing = 0;
-		ItemSize = 32;
-		Margin = 0;
+	readonly string _typeName;
+	IReadOnlyList<TypeDescription> _items = [];
 
-		HorizontalScrollbarMode = ScrollbarMode.Off;
-		VerticalScrollbarMode = ScrollbarMode.Off;
+	public Action<TypeDescription> TypeSelected { get; set; }
+
+	public PrimitiveTypePicker( Widget parent, string typeName ) : base( parent )
+	{
+		_typeName = typeName;
+		FixedHeight = Theme.RowHeight;
+		HorizontalSizeMode = SizeMode.Flexible;
+		Clicked = OpenPicker;
 	}
 
-	protected override void DoLayout()
+	public void SetItems( IEnumerable<TypeDescription> items )
 	{
-		base.DoLayout();
-
-		BuildLayout();
+		_items = items.OrderBy( x => x.Title ).ToArray();
 	}
 
-	public void BuildLayout()
+	public void SelectType( Type type )
 	{
-		var rect = CanvasRect;
-		var itemSize = ItemSize;
-		var itemSpacing = ItemSpacing;
-		var itemsPerRow = 1;
-		var itemCount = Items.Count();
-
-		if ( itemSize.x > 0 ) itemsPerRow = ((rect.Width + itemSpacing.x) / (itemSize.x + itemSpacing.x)).FloorToInt();
-		itemsPerRow = Math.Max( 1, itemsPerRow );
-
-		var rowCount = MathX.CeilToInt( itemCount / (float)itemsPerRow );
-		FixedHeight = rowCount * (itemSize.y + itemSpacing.y) + Margin.EdgeSize.y;
+		var selected = _items.FirstOrDefault( x => x.TargetType == type );
+		Text = selected is null ? $"Select {_typeName}..." : $"{selected.Title}  ▾";
+		Icon = selected?.Icon ?? "category";
+		ToolTip = selected?.Description;
 	}
 
-	protected override string GetTooltip( object obj )
+	void OpenPicker()
 	{
-		var builder = obj as TypeDescription;
-		var displayInfo = DisplayInfo.ForType( builder.TargetType );
-		return displayInfo.Name;
-	}
-
-	protected override void PaintItem( VirtualWidget item )
-	{
-		if ( item.Selected )
+		var popup = new AdvancedDropdownPopup( this );
+		popup.Dropdown.RootTitle = $"{_typeName} Types";
+		popup.Dropdown.SearchPlaceholderText = $"Find {_typeName} Types";
+		popup.Dropdown.OnBuildItems = root =>
 		{
-			Paint.ClearPen();
-			Paint.SetBrush( Theme.Blue );
-			Paint.DrawRect( item.Rect, 4 );
-		}
+			foreach ( var type in _items )
+			{
+				root.Add( new AdvancedDropdownItem( type.Title, type.Icon, type )
+				{
+					Description = type.Description,
+					Tooltip = type.Description
+				} );
+			}
+		};
 
-		var builder = item.Object as TypeDescription;
-		var displayInfo = DisplayInfo.ForType( builder.TargetType );
+		popup.OnSelect = value =>
+		{
+			if ( value is not TypeDescription type )
+				return;
 
-		Paint.SetPen( item.Selected || item.Hovered ? Color.White : Color.Gray );
-		Paint.DrawIcon( item.Rect, displayInfo.Icon ?? "square", HeaderBarStyle.IconSize );
+			SelectType( type.TargetType );
+			TypeSelected?.Invoke( type );
+		};
+		popup.Dropdown.Rebuild();
+		popup.OpenAt( ScreenRect.BottomLeft, animateOffset: new Vector2( 0, -4 ) );
 	}
 }

@@ -52,7 +52,7 @@ internal static class WorkerThread
 			{
 				await Task.Delay( 1, ct );
 			}
-			catch ( TaskCanceledException )
+			catch ( OperationCanceledException )
 			{
 				return;
 			}

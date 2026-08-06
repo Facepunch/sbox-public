@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using Sandbox.Mounting;
+using System.IO;
 
 namespace Editor.AssetPickers;
 
@@ -17,6 +18,11 @@ public class GenericPicker : AssetPicker
 	/// Internal cloud browser.
 	/// </summary>
 	public CloudAssetBrowser CloudBrowser { get; protected set; }
+
+	/// <summary>
+	/// Internal mounts browser.
+	/// </summary>
+	public MountsAssetBrowser MountsBrowser { get; protected set; }
 
 	/// <summary>
 	/// The picked assets.
@@ -71,6 +77,20 @@ public class GenericPicker : AssetPicker
 			DockManager.AddDock( "Cloud Browser", "cloud_download", CloudBrowser, DockArea.Center ).Locked = true;
 		}
 
+		if ( Options.EnableMounts )
+		{
+			MountsBrowser = new MountsAssetBrowser( DockManager, assetTypes );
+			MountsBrowser.WindowTitle = "Mounts";
+			MountsBrowser.SetWindowIcon( "museum" );
+
+			MountsBrowser.OnAssetHighlight += Highlight;
+			MountsBrowser.OnAssetsHighlight += Highlight;
+			MountsBrowser.OnAssetSelected += ( a ) => Select();
+			MountsBrowser.OnHighlight += Highlight;
+			MountsBrowser.MultiSelect = Options.EnableMultiselect;
+			DockManager.AddDock( "Mounts", "museum", MountsBrowser, DockArea.Center ).Locked = true;
+		}
+
 		Layout.Add( DockManager, 1 );
 		Layout.AddSeparator();
 
@@ -102,6 +122,11 @@ public class GenericPicker : AssetPicker
 		{
 			SetSelection( package );
 		}
+		else if ( MountsBrowser is not null && MountUtility.IsMountPath( asset.Path ) )
+		{
+			DockManager.RaiseDock( "Mounts" );
+			MountsBrowser.FocusOnAsset( asset );
+		}
 		else
 		{
 			DockManager.RaiseDock( "Asset Browser" );
@@ -121,16 +146,18 @@ public class GenericPicker : AssetPicker
 
 	void Select()
 	{
-		if ( AssetBrowser.Visible )
+		AssetBrowser browser = AssetBrowser.Visible ? AssetBrowser : (MountsBrowser?.Visible ?? false) ? MountsBrowser : null;
+
+		if ( browser is not null )
 		{
-			var assets = AssetBrowser.GetSelected<AssetEntry>().Select( x => x.Asset ).ToList();
+			var assets = browser.GetSelected<AssetEntry>().Select( x => x.Asset ).ToList();
 
 			if ( !IsSelectionValid( assets ) )
 				return;
 
 			Submit( assets.ToArray() );
 		}
-		else if ( CloudBrowser.Visible )
+		else if ( CloudBrowser?.Visible ?? false )
 		{
 			Package package = CloudBrowser.GetSelected<PackageEntry>().FirstOrDefault().Package;
 			if ( package is not null )

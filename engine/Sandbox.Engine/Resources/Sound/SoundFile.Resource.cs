@@ -9,5 +9,6 @@ public partial class SoundFile
 	internal override void OnLoaded( ResourceLoadContext context )
 	{
 		ReadVisemes( context );
+		ReadSubtitles( context );
 	}
 }

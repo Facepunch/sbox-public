@@ -30,7 +30,7 @@ enum PipelineTextureSlot
     PipelineTextureSlotAO = 0,
     PipelineTextureSlotSSR = 1
 };
-class Bindless
+struct Bindless
 {
 
 #if PROGRAM == VFX_PROGRAM_PS

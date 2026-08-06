@@ -323,7 +323,7 @@ internal partial class ShadowMapper
 			frustum.InitOrthoCamera( cascade.Origin, cascade.Angles, cascade.Near, cascade.Far, cascade.Width, cascade.Height );
 
 			// Render shadow view
-			CSceneSystem.AddShadowView( CascadeNames[i], view, frustum, new( 0, 0, shadowmapSize, shadowmapSize ), rt.DepthTarget.native, 0, SceneObjectFlags.None, excludeFlags, ShadowDepthBias, ShadowSlopeScale, i > 0 ? exclusionFrustum : default );
+			CSceneSystem.AddShadowView( CascadeNames[i], view, frustum, new( 0, 0, shadowmapSize, shadowmapSize ), rt.DepthTarget.native, 0, SceneObjectFlags.None, excludeFlags, ShadowDepthBias, ShadowSlopeScale, i > 0 ? exclusionFrustum : default, default );
 
 			// Cache an exclusion frustum sized to the largest square inscribed in the cascade's bounding sphere.
 			var size = cascade.SphereRadius / MathF.Sqrt( 2.0f );
@@ -377,8 +377,15 @@ internal partial class ShadowMapper
 		gpuShadowData.CascadeCount = (uint)numCascades;
 		gpuShadowData.InverseShadowMapSize = 1.0f / shadowmapSize;
 
-		// Masks are generated per camera - pick the one published for the camera this view renders.
-		gpuShadowData.ShadowMaskTextureIndex = light.ShadowMaskTextureIndices.GetValueOrDefault( view.m_ManagedCameraId );
+		// Ensure we have our screenspace texture index before we actually render them if we use it, so it's already ready when we composite.
+		gpuShadowData.ShadowMaskTextureIndex = 0;
+		if ( ContactShadowsEnabled && light.ContactShadows )
+		{
+			var mask = light.GetShadowMask( view );
+			if ( mask is not null )
+				gpuShadowData.ShadowMaskTextureIndex = (uint)mask.Index;
+		}
+
 		GPUDirectionalLightData = gpuShadowData;
 	}
 

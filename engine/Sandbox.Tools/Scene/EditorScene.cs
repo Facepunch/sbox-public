@@ -252,7 +252,7 @@ public static class EditorScene
 
 		if ( playMode )
 		{
-			if ( IGameInstance.Current is null )
+			if ( IGameInstance.Current is not null )
 			{
 				LoadingScreen.IsVisible = true;
 				LoadingScreen.Title = "Loading Game..";
@@ -391,10 +391,6 @@ public static class EditorScene
 		ArgumentNullException.ThrowIfNull( prefab );
 
 		var allSessions = SceneEditorSession.All;
-
-		// If only the edited prefab session is open, there's nothing else to update
-		if ( allSessions.Count <= 1 )
-			return;
 
 		// First pass: update other open prefab sessions that may contain instances
 		// of this prefab, then write their changes so dependent prefabs stay current

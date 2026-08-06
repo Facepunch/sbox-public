@@ -41,6 +41,10 @@
       "_type": "gameobject",
       "prefab": "prefabs/surface/plastic_bullet.prefab"
     },
+    "BulletImpactDecal": {
+      "_type": "gameobject",
+      "prefab": "prefabs/surface/plastic_bullet-decal.prefab"
+    },
     "BluntImpact": null
   },
   "SoundCollection": {

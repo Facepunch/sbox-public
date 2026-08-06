@@ -150,7 +150,7 @@ namespace DotRecast.Detour.Crowd
 				ncorners--;
 				if ( 0 < ncorners )
 				{
-					corners.Slice( 1, 3 ).CopyTo( corners.Slice( 0, 3 ) );
+					corners.Slice( 1, ncorners ).CopyTo( corners.Slice( 0, ncorners ) );
 				}
 			}
 

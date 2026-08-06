@@ -137,6 +137,35 @@ public static class Chat
 	{
 		system.AddHandler<ChatMsg>( OnHostReceive );
 		system.AddHandler<ChatBroadcastMsg>( OnClientReceive );
+		system.AddHandler<ChatPlayerNotificationMsg>( OnClientReceivePlayerNotification );
+	}
+
+	internal static void BroadcastPlayerJoin( Connection player ) => BroadcastPlayerNotification( player, joined: true );
+	internal static void BroadcastPlayerLeave( Connection player ) => BroadcastPlayerNotification( player, joined: false );
+	static void BroadcastPlayerNotification( Connection player, bool joined )
+	{
+		if ( !Networking.IsHost ) return;
+		if ( player is null ) return;
+
+		var msg = new ChatPlayerNotificationMsg
+		{
+			SenderId = player.Id,
+			Joined = joined
+		};
+
+		Networking.System?.Broadcast( msg );
+
+		// Show locally on the host too
+		OnClientReceivePlayerNotification( msg, Connection.Host, Connection.Host.Id );
+	}
+
+	static void OnClientReceivePlayerNotification( ChatPlayerNotificationMsg msg, Connection source, Guid guid )
+	{
+		var name = Connection.Find( msg.SenderId )?.Name ?? "Unknown Player";
+
+		AddText( msg.Joined
+			? $"👋 {name} has joined the game"
+			: $"👋 {name} left the game" );
 	}
 
 	/// <summary>
@@ -262,4 +291,15 @@ internal struct ChatBroadcastMsg
 {
 	public string Message { get; set; }
 	public Guid SenderId { get; set; }
+}
+
+/// <summary>
+/// Net message broadcast from the host to all clients about a specific player joining/leaving.
+/// This is used so clients can individually resolve the player's name (for things like streamer mode)
+/// </summary>
+[Expose]
+internal struct ChatPlayerNotificationMsg
+{
+	public Guid SenderId { get; set; }
+	public bool Joined { get; set; }
 }

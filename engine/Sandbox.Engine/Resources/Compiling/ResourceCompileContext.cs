@@ -57,8 +57,10 @@ public abstract class ResourceCompileContext
 
 	/// <summary>
 	/// Add a reference that is needed to compile this resource, but isn't actually needed once compiled.
+	/// Optional references may not exist - the compile won't fail without them, but if the file is
+	/// created or modified later we'll recompile.
 	/// </summary>
-	public abstract void AddCompileReference( string path );
+	public abstract void AddCompileReference( string path, bool optional = false );
 
 	/// <summary>
 	/// Add a game file reference. This file will be included in packages but is not a native resource.
@@ -108,7 +110,7 @@ public abstract class ResourceCompileContext
 
 		// Depend on the meta even when it doesn't exist yet - authoring one later
 		// (eg adding visemes to a sound for the first time) should recompile us
-		AddCompileReference( metaPath );
+		AddCompileReference( metaPath, optional: true );
 
 		try
 		{

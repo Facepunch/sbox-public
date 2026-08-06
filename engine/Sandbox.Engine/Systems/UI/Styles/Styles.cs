@@ -147,7 +147,7 @@ public partial class Styles : BaseStyles
 			bool wasSuccessful = Set( property, value );
 			if ( !wasSuccessful )
 			{
-				Log.Error( $"{value} is not valid with {property} {p.FileAndLine}" );
+				Log.Warning( $"{value} is not valid with {property} {p.FileAndLine}" );
 			}
 
 			var prop = new IStyleBlock.StyleProperty

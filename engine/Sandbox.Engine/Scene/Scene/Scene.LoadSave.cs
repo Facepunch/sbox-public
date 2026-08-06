@@ -296,7 +296,9 @@ public partial class Scene : GameObject
 			{
 				if ( !property.CanWrite ) continue;
 
-				var currentValue = property.GetValue( system );
+				var currentValue = TryGetPreTransientValue( system, property, out var preTransientValue )
+					? preTransientValue
+					: property.GetValue( system );
 				var hasGlobalValue = ProjectSettings.Systems.TryGetPropertyValue( systemType, property, out var globalValue );
 				var compareValue = hasGlobalValue ? globalValue : SystemsConfig.GetDefaultValue( property );
 

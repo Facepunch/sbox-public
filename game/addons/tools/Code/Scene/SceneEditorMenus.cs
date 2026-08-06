@@ -334,7 +334,9 @@ public static class SceneEditorMenus
 	[Shortcut( "gameObject.nudge-right", "ALT+RIGHT" )]
 	public static void NudgeRight() => Nudge( Vector2.Right );
 
-	private static void Nudge( Vector2 direction )
+	internal static void DuplicateNudge( Vector2 direction ) => Nudge( direction, true );
+
+	private static void Nudge( Vector2 direction, bool duplicate = false )
 	{
 		using var scope = SceneEditorSession.Scope();
 
@@ -349,8 +351,16 @@ public static class SceneEditorMenus
 			return;
 
 		var gos = EditorScene.Selection.OfType<GameObject>();
-		using ( SceneEditorSession.Active.UndoScope( "Nudge Object(s)" ).WithGameObjectChanges( gos, GameObjectUndoFlags.Properties ).Push() )
+		using ( duplicate
+			? SceneEditorSession.Active.UndoScope( "Duplicate Object(s)" ).WithGameObjectCreations().Push()
+			: SceneEditorSession.Active.UndoScope( "Nudge Object(s)" ).WithGameObjectChanges( gos, GameObjectUndoFlags.Properties ).Push() )
 		{
+			if ( duplicate )
+			{
+				DuplicateInternal();
+				gos = EditorScene.Selection.OfType<GameObject>();
+			}
+
 			var gizmoInstance = lastSelectedViewportWidget.GizmoInstance;
 
 			var rotation = Rotation.Identity;

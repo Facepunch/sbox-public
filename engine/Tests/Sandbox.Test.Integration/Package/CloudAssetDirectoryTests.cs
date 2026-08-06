@@ -21,7 +21,7 @@ public class CloudAssetDirectoryTest
 	/// A fixed timestamp with second precision, so date fields survive LiteDB's date serialization
 	/// without needing tolerance checks.
 	/// </summary>
-	static readonly DateTimeOffset Stamp = new( 2021, 6, 1, 12, 0, 0, TimeSpan.Zero );
+	static DateTimeOffset Stamp = new( 2021, 6, 1, 12, 0, 0, TimeSpan.Zero );
 
 	/// <summary>
 	/// Per-test scratch folder for the LiteDB database files.
@@ -297,12 +297,65 @@ public class CloudAssetDirectoryTest
 		using var directory = new CloudAssetDirectory( path );
 		directory.AddPackage( package );
 
-		directory.AddFile( "/cloud/withfiles/model.vmdl_c", "crc-a", 100, package.FullIdent, package.Revision.VersionId );
-		directory.AddFile( "/cloud/withfiles/texture.vtex_c", "crc-b", 200, package.FullIdent, package.Revision.VersionId );
+		directory.AddFile( "/cloud/withfiles/model.vmdl_c", "crc-a", 100, package );
+		directory.AddFile( "/cloud/withfiles/texture.vtex_c", "crc-b", 200, package );
 
 		var files = directory.GetPackageFiles( package ).ToList();
 
 		Assert.AreEqual( 2, files.Count );
+	}
+
+	/// <summary>
+	/// Package lookup from file
+	/// </summary>
+	[TestMethod]
+	public void AddFile_GetPackages()
+	{
+		var path = DbPath( "get_package" );
+		using var directory = new CloudAssetDirectory( path );
+
+		var packageA = MakePackage( "clouddirtest", "one", "material", 99 );
+		var packageB = MakePackage( "clouddirtest", "two", "material", 99, "{\"PrimaryAsset\":\"materials/plain.vmat\"}" );
+		var packageC = MakePackage( "clouddirtest", "three", "material", 99 );
+
+		directory.AddPackage( packageA );
+		directory.AddPackage( packageB );
+		directory.AddPackage( packageC );
+
+		directory.AddFile( "materials/plain.vmat", "crc-a", 100, packageA );
+		directory.AddPackageLink( "materials/plain.vmat", packageB );
+		directory.AddPackageLink( "materials/plain.vmat", packageC );
+
+		// FindPackage - multiple are registed, but should return the one where it's a PrimaryAsset
+		var package = directory.FindPackage( ".sbox/cloud/materials/plain.vmat", "materials/plain.vmat" );
+		Assert.AreEqual( package, packageB );
+
+		// FindPackages returns all packages that share the file
+		var packages = directory.FindPackages( ".sbox/cloud/materials/plain.vmat", "materials/plain.vmat" );
+		Assert.AreEqual( packages.Count(), 3 );
+	}
+
+	/// <summary>
+	/// When encountering a shared file with different versions, AddFile keeps the file from the package with the newer revision
+	/// </summary>
+	[TestMethod]
+	public void AddFile_VersionConflict()
+	{
+		var path = DbPath( "add_ver_conflict" );
+		using var directory = new CloudAssetDirectory( path );
+
+		var packageB = MakePackage( "clouddirtest", "two", "material", 99 );
+		Stamp = Stamp.AddSeconds( 1 ); // make sure the revision is newer
+		var packageA = MakePackage( "clouddirtest", "one", "material", 99 );
+
+		directory.AddPackage( packageA );
+		directory.AddPackage( packageB );
+
+		Assert.IsTrue( directory.AddFile( "materials/plain.vmat", "crc-a", 100, packageA ) );
+		Assert.IsFalse( directory.AddFile( "materials/plain.vmat", "crc-b", 200, packageB ) );
+
+		Assert.IsTrue( directory.TryGetFile( "materials/plain.vmat", out var file ) );
+		Assert.AreEqual( file.Size, 100 ); // the file from the newer revision is what's kept
 	}
 
 	/// <summary>
@@ -317,7 +370,7 @@ public class CloudAssetDirectoryTest
 
 		using var directory = new CloudAssetDirectory( path );
 		directory.AddPackage( v1 );
-		directory.AddFile( "/cloud/versioned/old.vmdl_c", "crc-old", 100, v1.FullIdent, 1 );
+		directory.AddFile( "/cloud/versioned/old.vmdl_c", "crc-old", 100, v1 );
 
 		Assert.AreEqual( 1, directory.GetPackageFiles( v1 ).Count() );
 

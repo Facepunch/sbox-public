@@ -148,7 +148,11 @@ internal class FontManager : FontMapper
 		var f = GetBestTypeface( style );
 
 		// Fallback on system font
-		f ??= Default.TypefaceFromStyle( style, ignoreFontVariants );
+		if ( f is null )
+		{
+			Log.Warning( $"FontManager: Font '{style.FontFamily}' not found, falling back to system font" );
+			f = Default.TypefaceFromStyle( style, ignoreFontVariants );
+		}
 
 		lock ( Cache )
 		{

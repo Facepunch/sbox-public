@@ -42,7 +42,7 @@ uint DDGIVolumeCount < Attribute( "DDGI_VolumeCount" ); >;
 #define DDGI_IRRADIANCE_OCT_RESOLUTION 8
 #define DDGI_DISTANCE_OCT_RESOLUTION 16
 
-class DDGI
+struct DDGI
 {
     // Tile size equals the octahedral resolution (no border texels)
     static uint TileSize(uint resolution)
@@ -200,7 +200,7 @@ class DDGI
                 return candidate;
         }
 
-        return (DDGIVolume)0;
+        return {};
     }
 
     static float3 Evaluate( DDGIVolume volume, float3 positionWs, float3 normalWs, float3 cameraDirection = float3(0,0,1) )

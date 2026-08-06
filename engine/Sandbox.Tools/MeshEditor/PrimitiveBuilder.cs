@@ -70,6 +70,23 @@ public abstract class PrimitiveBuilder
 			Faces.Add( new Face( positions.Select( AddVertex ) ) );
 			return Faces[^1];
 		}
+
+		/// <summary>
+		/// Appends another mesh without welding its vertices into this one.
+		/// </summary>
+		public void AddMesh( PolygonMesh mesh )
+		{
+			var firstVertex = Vertices.Count;
+			Vertices.AddRange( mesh.Vertices );
+
+			foreach ( var face in mesh.Faces )
+			{
+				Faces.Add( new Face( face.Indices.Select( index => firstVertex + index ) )
+				{
+					Material = face.Material
+				} );
+			}
+		}
 	}
 
 	/// <summary>
@@ -81,6 +98,11 @@ public abstract class PrimitiveBuilder
 	/// Setup properties from box.
 	/// </summary>
 	public abstract void SetFromBox( BBox box );
+
+	/// <summary>
+	/// Create a custom editor for this primitive, or return null to use the standard property sheet.
+	/// </summary>
+	public virtual Widget CreatePropertyEditor( SerializedObject properties ) => null;
 
 	/// <summary>
 	/// If this primitive is 2D the bounds box will be limited to have no depth.

@@ -1,5 +1,4 @@
 ﻿using Sandbox.MovieMaker;
-using Sandbox.MovieMaker.Compiled;
 
 namespace Editor.MovieMaker.BlockDisplays;
 
@@ -9,16 +8,6 @@ partial class CurveBlockItem<T>
 {
 	private readonly List<CurveTile> _tiles = new();
 	private bool _rangesDirty;
-
-	IEnumerable<MovieTimeRange> ICurveBlockItem.GetPaintHints( MovieTimeRange timeRange )
-	{
-		return Block switch
-		{
-			IPaintHintBlock paintHintBlock => paintHintBlock.GetPaintHints( timeRange ),
-			CompiledSampleBlock<T> => [timeRange.Clamp( Block.TimeRange )],
-			_ => []
-		};
-	}
 
 	/// <summary>
 	/// Make sure we have the right number of tiles given the current width of this block.

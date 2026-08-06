@@ -10,6 +10,11 @@ namespace Sandbox;
 
 public partial class Package
 {
+	/// <summary>
+	/// How many files to download at once. Bound by requests in flight, not bandwidth.
+	/// </summary>
+	internal const int MaxParallelDownloads = 64;
+
 	struct FileDownloadEntry
 	{
 		public ManifestSchema.File File;
@@ -74,7 +79,7 @@ public partial class Package
 
 		var progress = LoadingProgress.Create( $"Downloading '{Title}'" );
 
-		var workers = 16;
+		var workers = MaxParallelDownloads;
 		var sw = Stopwatch.StartNew();
 		long totalSize = downloadQueue.Sum( x => x.File.Size );
 		long downloadedSize = 0;
@@ -99,6 +104,9 @@ public partial class Package
 
 		bool hasError = false;
 
+		// Stop the other workers when one fails, they'd keep writing to a filesystem we've thrown away
+		using var downloadCancel = CancellationTokenSource.CreateLinkedTokenSource( token );
+
 		//
 		// Download any pending files
 		//
@@ -108,21 +116,24 @@ public partial class Package
 			{
 				try
 				{
-					await DownloadFileAsync( e, fs, progressCallback, token );
+					await DownloadFileAsync( e, fs, progressCallback, downloadCancel.Token );
 				}
-				catch ( OperationCanceledException ) { }
+				// Only swallow if we're the ones who cancelled, a timeout mustn't pass as success
+				catch ( OperationCanceledException ) when ( downloadCancel.IsCancellationRequested ) { }
 				catch ( Exception ex )
 				{
 					Log.Warning( ex, $"Error when downloading {FullIdent}/{e.File.Url}" );
 					hasError = true;
+					downloadCancel.Cancel();
 				}
 
-			}, workers, token );
+			}, workers );
 
 		long oldSize = 0;
 		while ( !task.IsCompleted )
 		{
-			token.ThrowIfCancellationRequested();
+			if ( hasError || token.IsCancellationRequested )
+				break;
 
 			if ( downloadedSize != oldSize )
 			{
@@ -140,12 +151,15 @@ public partial class Package
 			}
 
 			await Task.Delay( 16 );
-
-			if ( hasError )
-			{
-				return null;
-			}
 		}
+
+		// Wait for the cancelled workers to finish writing
+		await task;
+
+		token.ThrowIfCancellationRequested();
+
+		if ( hasError )
+			return null;
 
 		progress.Title = $"Download '{Title}' Complete";
 		// Clear subtitle so download stats don't bleed into the next phase (e.g. Compiling).
@@ -154,7 +168,7 @@ public partial class Package
 		Log.Trace( $"..done in {sw.Elapsed.TotalSeconds:0.00}s" );
 
 		metric.SetValue( "time", sw.Elapsed.TotalSeconds );
-		metric.SetValue( "workers", sw.Elapsed.TotalSeconds );
+		metric.SetValue( "workers", workers );
 		metric.SetValue( "order", "random" );
 		metric.Submit();
 

@@ -36,6 +36,12 @@ public static class Preferences
 	[ConVar( "controller_look_speed_pitch", ConVarFlags.Protected, Help = "How fast the camera turns vertically when the stick is pushed all the way up/down (deg/s)", Saved = true, Min = 0.1f, Max = 360.0f )]
 	public static float ControllerLookPitchSpeed { get; internal set; } = 160.0f;
 
+	/// <summary>
+	/// The percentage of joystick travel ignored around the neutral position.
+	/// </summary>
+	[ConVar( "controller_joystick_deadzone", ConVarFlags.Protected, Help = "Percentage of joystick travel ignored around the neutral position", Saved = true, Min = 0.0f, Max = 50.0f )]
+	public static float ControllerJoystickDeadzone { get; internal set; } = 12.5f;
+
 	[ConVar( "controller_analog_speed", ConVarFlags.Protected, Help = "How fast the left joystick moves, for stuff like the virtual cursor in menus", Saved = true, Min = 0.1f, Max = 360.0f )]
 	internal static float ControllerAnalogSpeed { get; set; } = 2.0f;
 
@@ -53,6 +59,19 @@ public static class Preferences
 
 	[ConVar( "platform.chat.enabled", ConVarFlags.Saved, Help = "Do we want to enable the platform level chat system? The game also has to have it enabled." )]
 	public static bool ChatEnabled { get; set; } = true;
+
+	/// <summary>
+	/// When enabled, player usernames/avatars are replaced with anonymous versions.
+	/// </summary>
+	[ConVar( "streamer_mode", ConVarFlags.Saved, Help = "Hide usernames and profile pictures in the built-in chat behind anonymous aliases." )]
+	public static bool StreamerMode { get; set; } = false;
+
+	/// <summary>
+	/// Whether the user wants to see subtitles for sounds that have them. Off by
+	/// default - turned on in the audio settings.
+	/// </summary>
+	[ConVar( "snd_subtitles", ConVarFlags.Saved, Help = "Show subtitles for sounds that have them" )]
+	public static bool Subtitles { get; set; } = false;
 }
 
 /// <summary>

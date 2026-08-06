@@ -69,6 +69,8 @@ partial class VertexTool
 			_vertexGroups = _vertices.GroupBy( x => x.Component ).ToList();
 			_components = _vertexGroups.Select( x => x.Key ).ToList();
 
+			this.AddPivotGroup( tool );
+
 			{
 				var group = AddGroup( "Merge" );
 				{
@@ -115,6 +117,11 @@ partial class VertexTool
 			}
 
 			Layout.AddStretchCell();
+
+			{
+				var group = AddGroup( "Visualization" );
+				group.Add( ControlSheetRow.Create( tool.GetSerialized().GetProperty( nameof( ShowSelectionBounds ) ) ) );
+			}
 
 			AddShortcuts(
 				("Lasso Select", "Alt+Shift+Drag"),

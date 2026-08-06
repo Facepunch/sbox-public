@@ -19,6 +19,9 @@ Texture2D g_tColor < Channel(RGB, AlphaWeighted(TextureColor, TextureTranslucenc
 Texture2D g_tNormal < Channel(RGB, Box(TextureNormal), Linear); Channel(A, Box(TextureTintMask), Linear); OutputFormat(BC7); SrgbRead(false); > ;
 Texture2D g_tRma < Channel(R, Box(TextureRoughness), Linear); Channel(G, Box(TextureMetalness), Linear); Channel(B, Box(TextureAmbientOcclusion), Linear); Channel(A, Box(TextureBlendMask), Linear); OutputFormat(BC7); SrgbRead(false); > ;
 
+// Texture Material::Opacity comes from; alpha-to-coverage needs its size for mip compensation.
+#define MATERIAL_ALPHA_TEXTURE g_tColor
+
 // For VRAD3
 TextureAttribute(LightSim_DiffuseAlbedoTexture, g_tColor);
 TextureAttribute(RepresentativeTexture, g_tColor);

@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Caching.Memory;
 using NativeEngine;
-using Sandbox.Engine;
 using Steamworks;
 using Steamworks.Data;
+using System.Collections.Concurrent;
 using System.Threading;
 
 namespace Sandbox.TextureLoader;
@@ -16,6 +16,11 @@ internal static class Avatar
 	/// Caches raw avatar pixel data from Steam API responses to avoid repeat network requests.
 	/// </summary>
 	static readonly MemoryCache _dataCache = new( new MemoryCacheOptions() );
+
+	/// <summary>
+	/// Caches generated (Bot/Streamer Mode) avatar textures so we don't re-render them on every request.
+	/// </summary>
+	static readonly ConcurrentDictionary<ulong, Texture> _generatedCache = new();
 
 	record struct AvatarData( int Width, int Height, byte[] Pixels );
 
@@ -79,43 +84,16 @@ internal static class Avatar
 			}
 
 			//
-			// Bots, lets find steam profiles with Simpsons avatars and use those
-			// Edit: I could only find like 6 so lets use a bunch of random ones
+			// Bots and Streamer Mode users get a deterministic, generated avatar
 			//
-			if ( steamid >= Utility.Steam.BaseFakeSteamId )
+			if ( Preferences.StreamerMode || steamid >= Utility.Steam.BaseFakeSteamId )
 			{
-				steamid = SandboxSystem.Random.FromArray( new ulong[]
-				{
-				76561198076731362,
-				76561198115447501,
-				76561198081295106,
-				76561198165412225,
-				76561198023414915,
-				76561198176366622,
-				76561198092430664,
-				76561198066084037,
-				76561198368894435,
-				76561198389241377,
-				76561198158965172,
-				76561198306626714,
-				76561198208716648,
-				76561198835780877,
-				76561197970331648,
-				76561198051740093,
-				76561198111069943,
-				76561198075423731,
-				76561197965588718,
-				76561197960316241,
-				76561198361294115,
-				76561197960555384,
-				76561198021354850,
-				76561198207495888,
-				76561198040673812,
-				76561198241363850,
-				76561198151921867,
-				76561198095212046,
-				76561198169445087
-				} );
+				if ( ct.IsCancellationRequested ) return;
+
+				var generated = _generatedCache.GetOrAdd( steamid, GenerateAvatar );
+				placeholder.CopyFrom( generated );
+				placeholder.IsLoaded = true;
+				return;
 			}
 
 			if ( ct.IsCancellationRequested ) return;
@@ -182,5 +160,46 @@ internal static class Avatar
 		{
 			placeholder.IsLoaded = true;
 		}
+	}
+
+	static readonly string[] AvatarIcons =
+	{
+		"pets", "rocket_launch", "favorite", "star", "bolt", "cruelty_free", "sports_esports", "mood",
+		"emoji_emotions", "ac_unit", "local_fire_department", "spa", "diamond", "park", "sailing", "flight",
+		"anchor", "cake", "icecream", "sports_basketball", "sports_soccer", "music_note", "headphones",
+		"photo_camera", "palette", "brush", "extension", "casino", "savings", "psychology", "coffee",
+		"forest", "water_drop", "wb_sunny", "dark_mode", "auto_awesome", "celebration", "bug_report"
+	};
+
+	static Texture GenerateAvatar( ulong id )
+	{
+		const int size = 256;
+
+		var rng = new Random( unchecked((int)id) );
+		var bgHue = rng.Float( 0f, 360f );
+		var background = (Color)new ColorHsv( bgHue, rng.Float( 0.45f, 0.7f ), rng.Float( 0.45f, 0.7f ) );
+
+		using var bitmap = new Bitmap( size, size );
+
+		// Some avatars get a gradient background, some get a solid fill.
+		if ( rng.Float( 0f, 1f ) < 0.5f )
+		{
+			var second = (Color)new ColorHsv( (bgHue + rng.Float( -35f, 35f ) + 360f) % 360f, rng.Float( 0.5f, 0.75f ), rng.Float( 0.25f, 0.45f ) );
+			bitmap.SetLinearGradient( new Vector2( 0, 0 ), new Vector2( 0, size ), Gradient.FromColors( background, second ) );
+		}
+		else
+		{
+			bitmap.SetFill( background );
+		}
+
+		bitmap.DrawRect( bitmap.Rect );
+
+		// Light, low-saturation icon colour (so it's still visible against the background)
+		var icon = AvatarIcons[rng.Next( AvatarIcons.Length )];
+		var iconColor = (Color)new ColorHsv( rng.Float( 0f, 360f ), rng.Float( 0f, 0.25f ), rng.Float( 0.9f, 1f ) );
+
+		bitmap.DrawText( new TextRendering.Scope( icon, iconColor, size * 0.5f, "Material Icons" ), bitmap.Rect, TextFlag.Center | TextFlag.DontClip );
+
+		return bitmap.ToTexture();
 	}
 }

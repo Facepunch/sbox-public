@@ -33,7 +33,7 @@ public partial class Panel
 		{
 			await OnParametersSetAsync();
 		}
-		catch ( TaskCanceledException )
+		catch ( OperationCanceledException )
 		{
 			return;
 		}
