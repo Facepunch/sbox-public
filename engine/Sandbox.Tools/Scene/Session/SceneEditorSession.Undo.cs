@@ -290,7 +290,6 @@ internal sealed class SceneUndoSnapshot : IDisposable
 				}
 				var serializeOptions = new GameObject.SerializeOptions { IgnoreChildren = !flags.HasFlag( GameObjectUndoFlags.Children ), IgnoreComponents = !flags.HasFlag( GameObjectUndoFlags.Components ) };
 				GameObjectRefs.Add( GameObjectReference.FromInstance( go ) );
-				if ( go.IsOutermostPrefabInstanceRoot ) go.PrefabInstance.RefreshPatch();
 
 				using var blobs = BlobDataSerializer.Capture();
 
