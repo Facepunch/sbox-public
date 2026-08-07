@@ -594,19 +594,20 @@ internal sealed class SceneUndoSnapshot : IDisposable
 		// add all gos still valid and not destroyed
 		foreach ( var (go, flags) in _initalCapturedGameObjects )
 		{
+			if ( !go.IsValid() || go.IsDestroyed )
+			{
+				continue;
+			}
+
 			if ( go.IsPrefabInstance )
 			{
 				disposeWatchedGameObjects[go.OutermostPrefabInstanceRoot] = GameObjectUndoFlags.All;
 			}
 
-			// We may have moved this object to a different prefab instance => update prefabroot instead of it 
+			// We may have moved this object to a different prefab instance => update prefabroot instead of it
 			if ( go.Parent.IsValid() && go.Parent.IsPrefabInstance )
 			{
 				disposeWatchedGameObjects[go.Parent.OutermostPrefabInstanceRoot] = GameObjectUndoFlags.All;
-				continue;
-			}
-			if ( !go.IsValid() || go.IsDestroyed )
-			{
 				continue;
 			}
 
