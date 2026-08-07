@@ -229,7 +229,7 @@ public static partial class Json
 	/// <summary>
 	/// Represents a tracked object in a JSON tree with metadata for diffing and patching operations.
 	/// </summary>
-	private class TrackedObject
+	internal class TrackedObject
 	{
 		/// <summary>The unique identifier for this object</summary>
 		public ObjectIdentifier Id;
@@ -237,7 +237,7 @@ public static partial class Json
 		/// <summary>The defintion taht was used to track this object.</summary>
 		public TrackedObjectDefinition Definition;
 
-		/// <summary>The object's JSON data without its children</summary>
+		/// <summary>The object's JSON data. A stripped standalone copy when IsStripped, otherwise a reference into the source tree.</summary>
 		public JsonObject Data;
 
 		/// <summary>Reference to this object's parent (null for root objects)</summary>
@@ -313,11 +313,27 @@ public static partial class Json
 		}
 	}
 
-	private class TrackedObjects
+	/// <summary>
+	/// Result of indexing a JSON tree for diffing, the expensive part of CalculateDifferences.
+	/// Build once with <see cref="BuildTrackedObjects"/> to diff repeatedly against the same "old" root.
+	/// Never pass a cached instance into ApplyPatch, it mutates the graph in place.
+	/// </summary>
+	internal class TrackedObjects
 	{
 		public TrackedObject Root;
 		public Dictionary<ObjectIdentifier, TrackedObject> IdToTrackedObject = new( 128 );
 		public HashSet<ulong> TrackedPaths = new( 128 );
+
+		/// <summary>
+		/// True when each Data is a stripped standalone copy, false when it still references the source tree.
+		/// </summary>
+		public bool IsStripped;
+
+		/// <summary>
+		/// True if a tracked object was found inside a non-tracked container (multi-segment ContainerProperty).
+		/// Stripping can't be skipped then, tracked content inside untracked containers would leak into comparisons.
+		/// </summary>
+		public bool HasMultiSegmentContainers;
 	}
 
 	private static (ObjectIdentifier?, TrackedObjectDefinition) TryGetObjectIdentifier(
@@ -396,9 +412,16 @@ public static partial class Json
 		return (bestCandidate, bestDefinition);
 	}
 
+	/// <param name="root">Tree to index.</param>
+	/// <param name="definitions">Tracked object type definitions.</param>
+	/// <param name="allowUnstripped">
+	/// Skip the stripping pass when provably unnecessary, leaving Data pointing into the source tree.
+	/// Only for the read-only "new" side of a diff, never for ApplyPatch. Check IsStripped before using Data.
+	/// </param>
 	private static TrackedObjects FindTrackedObjectsInJson(
 		JsonObject root,
-		HashSet<TrackedObjectDefinition> definitions )
+		HashSet<TrackedObjectDefinition> definitions,
+		bool allowUnstripped = false )
 	{
 		var result = new TrackedObjects();
 
@@ -410,6 +433,13 @@ public static partial class Json
 		// Pass 1: traverse without cloning — Data references point into the original tree.
 		TraverseNode( root, 0UL, definitions, result, null, null, false );
 
+		// With single-segment containment the property comparison skips all tracked content via
+		// TrackedPaths anyway, unstripped data compares identically
+		if ( allowUnstripped && !result.HasMultiSegmentContainers )
+		{
+			return result;
+		}
+
 		// Pass 2: replace Data with a fresh stripped copy that owns its own nodes
 		// (Parent == null), so ToJson() can reparent them freely.
 		foreach ( var (_, trackedObj) in result.IdToTrackedObject )
@@ -417,6 +447,7 @@ public static partial class Json
 			trackedObj.Data = CopyStrippedData( trackedObj.Data, trackedObj.PathHash, result.TrackedPaths );
 		}
 
+		result.IsStripped = true;
 		return result;
 	}
 
@@ -482,6 +513,13 @@ public static partial class Json
 			TrackedObject currentTrackedObj = null;
 			if ( currentIdentifier.HasValue )
 			{
+				// A '.' means this object sits inside a non-tracked container. Dots in container
+				// keys false-positive here, that only costs the fast path, never correctness
+				if ( containerProperty != null && containerProperty.IndexOf( '.' ) >= 0 )
+				{
+					result.HasMultiSegmentContainers = true;
+				}
+
 				currentTrackedObj = new TrackedObject
 				{
 					Id = currentIdentifier.Value,
@@ -608,6 +646,13 @@ public static partial class Json
 	}
 
 	/// <summary>
+	/// Indexes a JSON tree for diffing ahead of time, build once when diffing repeatedly against the same "old" root.
+	/// Always fully stripped so comparing against an unstripped new side stays sound.
+	/// </summary>
+	internal static TrackedObjects BuildTrackedObjects( JsonObject root, HashSet<TrackedObjectDefinition> definitions )
+		=> FindTrackedObjectsInJson( root, definitions );
+
+	/// <summary>
 	/// Compares two JSON object trees and calculates the differences between them.
 	/// </summary>
 	/// <param name="oldRoot">The original JSON object tree</param>
@@ -619,11 +664,21 @@ public static partial class Json
 		JsonObject newRoot,
 		HashSet<TrackedObjectDefinition> definitions )
 	{
+		return CalculateDifferences( FindTrackedObjectsInJson( oldRoot, definitions ), newRoot, definitions );
+	}
+
+	/// <summary>
+	/// Same as above but takes an already indexed "old" side (see <see cref="BuildTrackedObjects"/>).
+	/// </summary>
+	internal static Patch CalculateDifferences(
+		TrackedObjects oldObjects,
+		JsonObject newRoot,
+		HashSet<TrackedObjectDefinition> definitions )
+	{
 		var patch = new Patch();
 
-		// Find objects in old and new JSON structures
-		var oldObjects = FindTrackedObjectsInJson( oldRoot, definitions );
-		var newObjects = FindTrackedObjectsInJson( newRoot, definitions );
+		// The new side is read-only and discarded after diffing, skip the expensive stripped copy pass when possible
+		var newObjects = FindTrackedObjectsInJson( newRoot, definitions, allowUnstripped: true );
 
 		// Find removed objects
 		foreach ( var oldObj in oldObjects.IdToTrackedObject )
@@ -646,13 +701,18 @@ public static partial class Json
 				// Object is in new but not in old
 				if ( newObj.Value.Parent != null )
 				{
+					// The patch outlives the source tree, produce the owned stripped copy on demand
+					var addedData = newObjects.IsStripped
+						? newObj.Value.Data
+						: CopyStrippedData( newObj.Value.Data, newObj.Value.PathHash, newObjects.TrackedPaths );
+
 					patch.AddedObjects.Add( new AddedObject
 					{
 						Id = newObj.Key,
 						Parent = newObj.Value.Parent.Id,
 						ContainerProperty = newObj.Value.ContainerProperty,
 						IsContainerArray = newObj.Value.IsContainedInArray,
-						Data = newObj.Value.Data,
+						Data = addedData,
 						PreviousElement = newObj.Value.PreviousElement?.Id
 					} );
 				}

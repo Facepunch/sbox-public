@@ -201,9 +201,8 @@ internal class PrefabInstanceData
 		var prefabScene = (PrefabCacheScene)GetPrefab( PrefabSource );
 		Assert.IsValid( prefabScene );
 
-		var fullPrefabData = prefabScene.FullPrefabInstanceJson;
-
-		var patch = Json.CalculateDifferences( fullPrefabData, instanceData, DiffObjectDefinitions );
+		// Reuse the prefab's pre-indexed base data instead of re-indexing it on every refresh
+		var patch = Json.CalculateDifferences( prefabScene.FullPrefabInstanceTrackedObjects, instanceData, DiffObjectDefinitions );
 
 		_patch = patch;
 	}
