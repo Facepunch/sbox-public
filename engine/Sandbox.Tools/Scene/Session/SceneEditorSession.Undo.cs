@@ -288,12 +288,27 @@ internal sealed class SceneUndoSnapshot : IDisposable
 					Log.Info( $"Undo GameObjectSnapshot: GameObject queued for snapshot is not valid" );
 					continue;
 				}
-				var serializeOptions = new GameObject.SerializeOptions { IgnoreChildren = !flags.HasFlag( GameObjectUndoFlags.Children ), IgnoreComponents = !flags.HasFlag( GameObjectUndoFlags.Components ) };
+				var serializeOptions = new GameObject.SerializeOptions
+				{
+					IgnoreChildren = !flags.HasFlag( GameObjectUndoFlags.Children ),
+					IgnoreComponents = !flags.HasFlag( GameObjectUndoFlags.Components ),
+
+					// No children captured means no need for the patch form and its expensive RefreshPatch
+					SerializePrefabForDiff = go.IsOutermostPrefabInstanceRoot && !flags.HasFlag( GameObjectUndoFlags.Children ),
+				};
 				GameObjectRefs.Add( GameObjectReference.FromInstance( go ) );
 
 				using var blobs = BlobDataSerializer.Capture();
 
 				var json = go.Serialize( serializeOptions );
+
+				if ( serializeOptions.SerializePrefabForDiff )
+				{
+					// Don't let the restore treat the root as a nested instance and wipe its patch
+					json.Remove( GameObject.JsonKeys.EditorPrefabInstanceNestedSource );
+					json[GameObject.JsonKeys.EditorSkipPrefabBreakOnRefresh] = true;
+				}
+
 				blobs.SaveTo( json );
 				State.Add( json );
 				GameObjectNextSiblingRefs.Add( go.GetNextSibling( false ).IsValid() ? GameObjectReference.FromInstance( go.GetNextSibling( false ) ) : GameObjectReference.FromId( Guid.Empty ) );
