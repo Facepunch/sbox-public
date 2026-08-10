@@ -11,7 +11,6 @@
   "Category": "Hair",
   "ConditionalModels": {},
   "Tags": null,
-  "Parent": "models/citizen_clothes/hair/hair_looseblonde/hair.loose.brown.clothing",
   "Model": "models/citizen_clothes/hair/hair_looseblonde/hair_looseblonde.vmdl",
   "HumanAltModel": "models/citizen_clothes/hair/hair_looseblonde/hair_looseblonde_m_hum.vmdl",
   "HumanAltFemaleModel": "models/citizen_clothes/hair/hair_looseblonde/hair_looseblonde_m_hum.vmdl",

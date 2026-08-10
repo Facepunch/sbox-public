@@ -5844,7 +5844,7 @@
                     ]
                   },
                   "OnReleased": null,
-                  "OnSound": "sounds/button1.sound",
+                  "OnSound": "sounds/kenney/ui/ui.button.press.sound",
                   "OnTurnedOff": null,
                   "OnTurnedOn": null,
                   "ResetTime": 2,
