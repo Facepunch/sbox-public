@@ -143,7 +143,7 @@ internal static class TopLevelTools
 	[Description( "Get the current state of the editor - engine version, which project is open, the active scene and whether it has unsaved changes, whether play mode is running or paused, how many tools are registered, the directory paths that matter (logs, project code and assets), and the state of the code compiler. Check IsCompiling/LastCompileSucceeded here after editing code instead of relying on read_console - a successful compile can scroll out of view or be mistaken for the last failure you saw." )]
 	public static EditorStatus GetEditorStatus()
 	{
-		var scene = Game.ActiveScene;
+		var scene = SceneEditorSession.Active?.Scene ?? Game.ActiveScene;
 		var compileGroup = Project.CompileGroup;
 		var buildResult = compileGroup?.BuildResult;
 
