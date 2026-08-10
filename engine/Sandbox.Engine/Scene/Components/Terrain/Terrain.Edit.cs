@@ -105,6 +105,13 @@ public partial class Terrain
 	/// <summary>
 	/// Updates the GPU texture maps with the CPU data
 	/// </summary>
+
+	/// <summary>
+	/// Call after modifying the GPU height map texture directly (e.g. an editor sculpt compute dispatch).
+	/// Schedules a rebake of the baked normal/AO maps so shading updates live during a brush stroke.
+	/// </summary>
+	public void NotifyHeightMapEdited() => RebakeNormalMap();
+
 	public void SyncGPUTexture()
 	{
 		HeightMap.Update( new ReadOnlySpan<ushort>( Storage.HeightMap ) );
