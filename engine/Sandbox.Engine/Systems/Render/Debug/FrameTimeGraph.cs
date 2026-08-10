@@ -1,3 +1,6 @@
+using Sandbox.Diagnostics;
+using Sandbox.Engine.Settings;
+
 namespace Sandbox;
 
 internal static partial class DebugOverlay
@@ -11,6 +14,7 @@ internal static partial class DebugOverlay
 	{
 		const int Capacity = 256;
 		const int Buckets = 60;
+		const int WorstCount = 5;
 		static readonly double[] samples = new double[Capacity];
 		static readonly double[] scratch = new double[Capacity];       // reused snapshot buffer, no per-frame alloc
 		static readonly double[] scratchSorted = new double[Capacity]; // reused buffer for percentile sorting
@@ -21,22 +25,123 @@ internal static partial class DebugOverlay
 		static readonly Color Good = new( 0.40f, 0.85f, 0.50f );
 		static readonly Color Warn = new( 1.00f, 0.72f, 0.20f );
 		static readonly Color Bad = new( 0.95f, 0.32f, 0.22f );
+		static readonly Color Dim = Color.White.WithAlpha( 0.8f );
 
 		const string FontName = "Roboto Mono";
 		const int FontWeight = 600;
 
 		static float _smoothedMax = 20f;
 
+		// Info lines are rebuilt on a timer, never per frame, so drawing stays allocation free.
+		static long _prevLoopFrames, _prevRenderedFrames;
+		static FastTimer _infoTimer = FastTimer.StartNew();
+		static string _infoRates = "", _infoDisplay = "", _infoCaps = "", _infoWorst = "";
+		static string _infoHeader = "", _labelMedian = "", _labelYMax = "";
+		static double _notRendered;
+
+		// Stats stashed by Draw so UpdateInfo can format them off the per-frame path.
+		static double _sFps, _sAvg, _sStddev, _sLow1, _sMax, _sMedian, _sYMax;
+
+		static readonly string[] worstNames = new string[WorstCount];
+		static readonly float[] worstMax = new float[WorstCount];
+		static readonly float[] worstAvg = new float[WorstCount];
+
+		private static double prevShuttle;
+
 		/// <summary>Push one frame's duration (ms). No-op unless the overlay is enabled.</summary>
 		internal static void Sample( double frameMs )
 		{
-			if ( overlay_fps != 1 )
+			if ( overlay_fps <= 0 )
 				return;
 
 			samples[head] = frameMs;
 			head = (head + 1) % Capacity;
 			if ( count < Capacity )
 				count++;
+
+			UpdateInfo();
+		}
+
+		static void UpdateInfo()
+		{
+			var elapsed = _infoTimer.ElapsedSeconds;
+			if ( elapsed < 0.5 && _infoRates.Length > 0 )
+				return;
+
+			double loopRate = 0, renderedRate = 0;
+
+			// Sampling stops while the overlay is off, so a long gap means a stale baseline.
+			if ( elapsed <= 2.0 )
+			{
+				loopRate = (EngineLoop.LoopFrames - _prevLoopFrames) / elapsed;
+				renderedRate = (EngineLoop.RenderedFrames - _prevRenderedFrames) / elapsed;
+			}
+
+			_prevLoopFrames = EngineLoop.LoopFrames;
+			_prevRenderedFrames = EngineLoop.RenderedFrames;
+			_infoTimer = FastTimer.StartNew();
+
+			_notRendered = loopRate > 0 ? 1.0 - (renderedRate / loopRate) : 0;
+
+			_infoRates = $"Frames/s   main loop {loopRate:0.0}   rendered {renderedRate:0.0}   GPU {PerformanceStats.GpuFrametime:0.0}ms"
+				+ (_notRendered > 0.01 ? $"   {_notRendered * 100:0}% NOT RENDERED" : "");
+
+			var rs = RenderSettings.Instance;
+			var displayMode = rs.Fullscreen ? "Exclusive FS" : (rs.Borderless ? "Borderless" : "Windowed");
+			_infoDisplay = $"{displayMode}   VSync {(rs.VSync ? "on" : "off")}   {EngineLoop.DisplayRefreshRate:0}Hz   "
+				+ $"{Screen.Width:0}x{Screen.Height:0}   {rs.AntiAliasQuality}   Upscale {rs.UpscalerMode}";
+
+			var effective = EngineLoop.EffectiveMaxFrameRate;
+			_infoCaps = $"fps_max {rs.MaxFrameRate}   fps_max_menu {rs.MaxFrameRateMenu}   fps_max_inactive {rs.MaxFrameRateInactive}   "
+				+ (effective > 0 ? $"-> capped at {effective:0} by {EngineLoop.MaxFrameRateSource}" : "-> uncapped");
+
+			var found = CollectWorst();
+			_infoWorst = "Slowest ms, worst/avg frame of last 60   ";
+			for ( var i = 0; i < found; i++ )
+				_infoWorst += $"{worstNames[i]} {worstMax[i]:0.0}/{worstAvg[i]:0.0}   ";
+
+			_infoHeader = $"FrameTime   {_sFps:0} fps   {_sAvg:0.0}ms   stddev {_sStddev:0.0}ms   1%low {_sLow1:0} fps   max {_sMax:0.0}ms";
+			_labelMedian = $"{_sMedian:0.0}ms";
+			_labelYMax = $"{_sYMax:0.0}ms";
+		}
+
+		// Fills the worst* arrays with the slowest subsystems by worst frame. Returns how many are set.
+		static int CollectWorst()
+		{
+			Array.Clear( worstMax, 0, WorstCount );
+			Array.Clear( worstAvg, 0, WorstCount );
+			Array.Clear( worstNames, 0, WorstCount );
+
+			var found = 0;
+
+			foreach ( var timing in PerformanceStats.Timings.GetMain() )
+			{
+				var metric = timing.GetMetric( 60 );
+				if ( metric.Max < 0.05f )
+					continue;
+
+				for ( var i = 0; i < WorstCount; i++ )
+				{
+					if ( metric.Max <= worstMax[i] )
+						continue;
+
+					for ( var j = WorstCount - 1; j > i; j-- )
+					{
+						worstMax[j] = worstMax[j - 1];
+						worstAvg[j] = worstAvg[j - 1];
+						worstNames[j] = worstNames[j - 1];
+					}
+
+					worstMax[i] = metric.Max;
+					worstAvg[i] = metric.Avg;
+					worstNames[i] = timing.Name;
+
+					if ( found < WorstCount ) found++;
+					break;
+				}
+			}
+
+			return found;
 		}
 
 		static Color ColorFor( double ms, double reference )
@@ -46,7 +151,7 @@ internal static partial class DebugOverlay
 			return Bad;
 		}
 
-		internal static void Draw( ref Vector2 position )
+		internal static void Draw( ref Vector2 position, int verbosity )
 		{
 			if ( count == 0 )
 				return;
@@ -82,38 +187,79 @@ internal static partial class DebugOverlay
 			_smoothedMax = _smoothedMax.LerpTo( targetMax, Time.Delta * 5f );
 			var yMax = MathF.Max( _smoothedMax, 1f );
 
-			const float graphWidth = 420f;
+			_sFps = fps; _sAvg = avg; _sStddev = stddev; _sLow1 = low1Fps; _sMax = max;
+			_sMedian = median; _sYMax = yMax;
+
+			const float graphWidth = 560f;
 			const float stripHeight = 56f;
 			const float histHeight = 64f;
 			const float headerHeight = 16f;
+			const float lineHeight = 13f;
+			const int infoLines = 4;
 			const float gap = 10f;
 
 			var x = position.x;
 			var y = position.y;
 
 			// ---- header stats ----
-			var header = $"FrameTime   {fps:0} fps   {avg:0.0}ms   stddev {stddev:0.0}ms   1%low {low1Fps:0} fps   max {max:0.0}ms";
-			DrawLabel( header, new Rect( x, y, graphWidth, headerHeight ), TextFlag.LeftTop, Color.White );
+			DrawLabel( _infoHeader, new Rect( x, y, graphWidth, headerHeight ), TextFlag.LeftTop, Color.White );
 			y += headerHeight + 2f;
 
-			// ---- live frametime strip (time series, newest on the right) ----
+			// ---- info lines, built in UpdateInfo ----
+			var rateColor = _notRendered > 0.05 ? Bad : (_notRendered > 0.01 ? Warn : Good);
+			DrawLabel( _infoRates, new Rect( x, y, graphWidth, lineHeight ), TextFlag.LeftTop, rateColor );
+			y += lineHeight;
+
+			DrawLabel( _infoDisplay, new Rect( x, y, graphWidth, lineHeight ), TextFlag.LeftTop, Dim );
+			y += lineHeight;
+
+			DrawLabel( _infoCaps, new Rect( x, y, graphWidth, lineHeight ), TextFlag.LeftTop, Dim );
+			y += lineHeight;
+
+			DrawLabel( _infoWorst, new Rect( x, y, graphWidth, lineHeight ), TextFlag.LeftTop, Dim );
+			y += lineHeight + gap;
+
 			var stripRect = new Rect( x, y, graphWidth, stripHeight );
 			Hud.DrawRect( stripRect, Color.Black.WithAlpha( 0.25f ), borderWidth: 1, borderColor: Color.White.WithAlpha( 0.1f ) );
 
-			var barW = graphWidth / Capacity;
-			var stripBottom = y + stripHeight;
-			for ( var i = 0; i < count; i++ )
+			if ( verbosity < 2 )
 			{
-				var ms = buf[count - 1 - i]; // newest first
-				var h = MathF.Min( stripHeight, (float)(ms / yMax) * stripHeight );
-				var bx = x + graphWidth - (i + 1) * barW;
-				Hud.DrawRect( new Rect( bx, stripBottom - h, MathF.Max( barW, 1f ), h ), ColorFor( ms, median ).WithAlpha( 0.9f ) );
-			}
+				// ---- live frametime strip (time series, newest on the right) ----
 
-			// median (cadence) reference line on the strip
-			var medY = stripBottom - MathF.Min( stripHeight, (float)(median / yMax) * stripHeight );
-			Hud.DrawRect( new Rect( x, medY, graphWidth, 1f ), Color.White.WithAlpha( 0.35f ) );
-			DrawLabel( $"{median:0.0}ms", new Rect( x + graphWidth - 52f, medY - 11f, 50f, 10f ), TextFlag.RightBottom, Color.White.WithAlpha( 0.7f ) );
+				var barW = graphWidth / Capacity;
+				var stripBottom = y + stripHeight;
+				for ( var i = 0; i < count; i++ )
+				{
+					var ms = buf[count - 1 - i]; // newest first
+					var h = MathF.Min( stripHeight, (float)(ms / yMax) * stripHeight );
+					var bx = x + graphWidth - (i + 1) * barW;
+					Hud.DrawRect( new Rect( bx, stripBottom - h, MathF.Max( barW, 1f ), h ), ColorFor( ms, median ).WithAlpha( 0.9f ) );
+				}
+
+				// median (cadence) reference line on the strip
+				var medY = stripBottom - MathF.Min( stripHeight, (float)(median / yMax) * stripHeight );
+				Hud.DrawRect( new Rect( x, medY, graphWidth, 1f ), Color.White.WithAlpha( 0.35f ) );
+				DrawLabel( _labelMedian, new Rect( x + graphWidth - 52f, medY - 11f, 50f, 10f ), TextFlag.RightBottom, Color.White.WithAlpha( 0.7f ) );
+			}
+			else
+			{
+				// ---- live frametime shuttle (fires left-right once a second), for slow-mo screen recordings ----
+
+				var nextShuttle = RealTime.NowDouble;
+
+				var shuttleX = (float)((prevShuttle - Math.Floor( prevShuttle )) * graphWidth);
+				var shuttleWidth = (float)((nextShuttle - prevShuttle) * graphWidth);
+				var shuttleColor = ColorFor( (nextShuttle - prevShuttle) * 1000.0, median ).WithAlpha( 0.9f );
+
+				prevShuttle = nextShuttle;
+
+				if ( shuttleX + shuttleWidth > graphWidth )
+				{
+					Hud.DrawRect( new Rect( x, y, Math.Min( shuttleX + shuttleWidth - graphWidth, graphWidth ), stripHeight ), shuttleColor );
+				}
+
+				Hud.DrawRect( new Rect( x + shuttleX, y, Math.Min( shuttleWidth, graphWidth - shuttleX ), stripHeight ), shuttleColor );
+			}
 
 			y += stripHeight + gap;
 
@@ -149,10 +295,10 @@ internal static partial class DebugOverlay
 
 			// x-axis labels: 0, median, yMax
 			DrawLabel( "0", new Rect( x, histBottom + 2f, 40f, 10f ), TextFlag.LeftTop, Color.White.WithAlpha( 0.6f ) );
-			DrawLabel( $"{median:0.0}ms", new Rect( medX - 25f, histBottom + 2f, 50f, 10f ), TextFlag.CenterTop, Color.White.WithAlpha( 0.6f ) );
-			DrawLabel( $"{yMax:0.0}ms", new Rect( x + graphWidth - 40f, histBottom + 2f, 40f, 10f ), TextFlag.RightTop, Color.White.WithAlpha( 0.6f ) );
+			DrawLabel( _labelMedian, new Rect( medX - 25f, histBottom + 2f, 50f, 10f ), TextFlag.CenterTop, Color.White.WithAlpha( 0.6f ) );
+			DrawLabel( _labelYMax, new Rect( x + graphWidth - 40f, histBottom + 2f, 40f, 10f ), TextFlag.RightTop, Color.White.WithAlpha( 0.6f ) );
 
-			position.y += headerHeight + stripHeight + gap + histHeight + 16f;
+			position.y += headerHeight + 2f + (infoLines * lineHeight) + stripHeight + gap + histHeight + 16f;
 		}
 
 		static void DrawLabel( string text, Rect rect, TextFlag flags, Color color )

@@ -384,19 +384,6 @@
 			]
 		},
 		{
-			"Name": "fossilize",
-			"Comment": "Vulkan pipeline/shader cache management (Valve).",
-			"UsedBy": [
-				"engine2"
-			],
-			"License": "MIT",
-			"ProjectUrl": "https://github.com/ValveSoftware/Fossilize/",
-			"Linkage": "static",
-			"Copyright": [
-				"2018 Hans-Kristian Arntzen"
-			]
-		},
-		{
 			"Name": "ISPCTextureCompressor",
 			"Comment": "Intel ISPC texture compressor (e.g. BC7).",
 			"UsedBy": [
