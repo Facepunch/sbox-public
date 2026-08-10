@@ -14,7 +14,7 @@
     {
         @if ( gameGroups.Count == 0 )
         {
-            <div class="notice">#serverlist.empty</div>
+            <div class="notice">#serverlist.no_servers</div>
         }
         else
         {
@@ -50,7 +50,7 @@
 
         @if ( serverLobbies.Count == 0 )
         {
-            <div class="notice">Sorry - no servers were found 😔</div>
+            <div class="notice">#serverlist.no_servers</div>
         }
         else
         {

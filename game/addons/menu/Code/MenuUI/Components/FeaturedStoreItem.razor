@@ -15,7 +15,7 @@
     // Only nag about it once it's actually leaving soon
     if ( DaysLeft >= 3 ) return;
 
-    var daysLeftString = DaysLeft == 0 ? "today!" : DaysLeft == 1 ? $"in 1 day" : $"in {DaysLeft} days";
+    var daysLeftString = DaysLeft == 0 ? Language.GetPhrase( "featuredstoreitem.leaving_today" ) : DaysLeft == 1 ? Language.GetPhrase( "featuredstoreitem.leaving_one_day" ) : Language.GetPhrase( "featuredstoreitem.leaving_days", new() { ["days"] = DaysLeft } );
 }
 
 <root>

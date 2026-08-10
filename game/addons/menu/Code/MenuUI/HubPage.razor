@@ -16,18 +16,14 @@
 
                 <div class="block">
 
-                    <label class="medium">
-                        Recommended For You
-                    </label>
+                    <label class="medium">#hubpage.recommended</label>
 
-                    <HorizontalGameList Icon="group" Title="Played by Friends" Query="type:game sort:friends" Limit=@(5) />
-                    <HorizontalGameList Icon="history" Title="Jump Back In" Query="type:game sort:used" Limit=@(5) />
-                    <HorizontalGameList Icon="favorite" Title="Favourites" Query="type:game sort:favourites" Limit=@(5) />
+                    <HorizontalGameList Icon="group" Title="#hubpage.friends_played" Query="type:game sort:friends" Limit=@(5) />
+                    <HorizontalGameList Icon="history" Title="#hubpage.jump_back" Query="type:game sort:used" Limit=@(5) />
+                    <HorizontalGameList Icon="favorite" Title="#hubpage.favourites" Query="type:game sort:favourites" Limit=@(5) />
 
                     <row>
-                        <label class="medium">
-                            Friend Activity
-                        </label>
+                        <label class="medium">#hubpage.friend_activity</label>
                     </row>
                     <PlayerFeed></PlayerFeed>
                 </div>
@@ -39,9 +35,7 @@
         <Left>
             <column style="gap: 12px;">
                 <row>
-                    <label class="medium">
-                        Your Achievements
-                    </label>
+                    <label class="medium">#hubpage.your_achievements</label>
                 </row>
                 <AchievementDeck></AchievementDeck>
             </column>

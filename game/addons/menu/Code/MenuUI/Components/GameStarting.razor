@@ -33,7 +33,7 @@
         if (MenuUtility.GamePackage is not null)
         {
             GameTitle = MenuUtility.GamePackage.Title;
-            GameAuthor = MenuUtility.GamePackage.Org?.Title ?? "Unknown";
+            GameAuthor = MenuUtility.GamePackage.Org?.Title ?? Language.GetPhrase("gamestarting.unknown");
             AvatarUrl = MenuUtility.GamePackage.Thumb;
         }
     }

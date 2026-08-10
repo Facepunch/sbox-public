@@ -25,7 +25,7 @@
 <div class="meta-row clicky" @onclick="@OpenDetails" @onrightclick="@OpenMenu">
 
     <div class="titles">
-        <label class="section-label">Continue playing</label>
+        <label class="section-label">#continueplaying.continue_playing</label>
         <label class="game-title">@Target.Title</label>
         <label class="meta">@MetaLine</label>
     </div>
@@ -58,7 +58,7 @@
         {
             if ( Achievements is null || Achievements.Total <= 0 ) return null;
 
-            return $"{(int)(Achievements.Unlocked * 100f / Achievements.Total)}% complete";
+            return Language.GetPhrase( "continueplaying.completion", new() { ["percent"] = (int)(Achievements.Unlocked * 100f / Achievements.Total) } );;
         }
     }
 
@@ -69,7 +69,7 @@
             var seconds = Target.Interaction.Seconds;
             if ( seconds < 60 ) return null;
 
-            return $"{TimeSpan.FromSeconds( seconds ).Humanize( true )} played";
+            return Language.GetPhrase( "continueplaying.playtime", new() { ["time"] = TimeSpan.FromSeconds( seconds ).Humanize( true ) } );
         }
     }
 
@@ -79,7 +79,7 @@
         {
             var now = Target.Usage.UsersNow;
 
-            return now > 0 ? $"{now:N0} playing" : null;
+            return now > 0 ? Language.GetPhrase( "continueplaying.playing_now", new() { ["count"] = now.ToString( "N0" ) } ) : null;
         }
     }
 
@@ -90,7 +90,7 @@
             var count = FrontPage.FriendsThisWeek( Activity, Target );
             if ( count <= 0 ) return null;
 
-            return count == 1 ? "1 friend this week" : $"{count} friends this week";
+            return count == 1 ? Language.GetPhrase( "continueplaying.friend_week_one" ) : Language.GetPhrase( "continueplaying.friend_week_plural", new() { ["count"] = count } );
         }
     }
 

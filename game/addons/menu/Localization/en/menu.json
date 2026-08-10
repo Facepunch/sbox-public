@@ -33,6 +33,13 @@
     "actionbar.loadingscreen.failed_title": "Join Game Failed",
     "actionbar.loadingscreen.failed_tip": "Couldn't join any available games",
 
+    "activityfeed.in_game": "In game now",
+    "activityfeed.join": "Join",
+    "activityfeed.activity_feed": "Activity feed",
+    "activityfeed.see_all": "See all activity ›",
+
+    "achievementdeck.empty": "No achievements yet - play something!",
+
     "avatar.change": "Change",
     "avatar.changetip": "Change your appearance",
     "avatar.toggletype": "Switch between human and citizen",
@@ -211,6 +218,15 @@
     "console.logs": "logs",
     "console.clear": "clear",
 
+    "contentblockheroitem.play_now": "Play Now",
+
+    "continueplaying.continue_playing": "Continue playing",
+    "continueplaying.completion": "{percent}% complete",
+    "continueplaying.playtime": "{time} played",
+    "continueplaying.playing_now": "{count} playing",
+    "continueplaying.friend_week_one": "1 friend this week",
+    "continueplaying.friend_week_plural": "{count} friends this week",
+
     "creategamemodal.title": "Create Game",
     "creategamemodal.general": "General",
     "creategamemodal.server_name": "Server Name",
@@ -275,6 +291,10 @@
     "developermode.scenestats.update": "Update",
     "developermode.scenestats.gcpause": "GcPause",
 
+    "featuredstoreitem.leaving_today": "Leaving today!",
+    "featuredstoreitem.leaving_one_day": "Leaving in 1 day",
+    "featuredstoreitem.leaving_days": "Leaving in {days} days",
+
     "friend.main_menu": "Main Menu",
     "friend.friend_request": "Send Friend Request",
     "friend.profile": "Profile",
@@ -303,10 +323,15 @@
     "friendentry.snooze": "Snooze",
     "friendentry.online": "Online",
     "friendentry.offline": "Offline",
+    "friendentry.full": "full",
+    "friendentry.invite": "Invite",
 
     "friendgamepopup.playing": "Playing {title}",
 
     "friendslistmodal.friends": "Friends",
+    "friendslistmodal.in_game": "In Game",
+    "friendslistmodal.online": "Online",
+    "friendslistmodal.offline": "Offline",
     "friendslistmodal.nothing": "Nothing to show!",
 
     "gameclosedtoast.review": "Review",
@@ -349,7 +374,16 @@
 
     "gamesbrowse.browse_games": "Browse Games",
 
-    "gamestarting.phrase": "{Button1} for info, hold {Button2} to exit.",
+    "gamestarting.prefix": " for info, hold ",
+    "gamestarting.suffix": " to exit",
+    "gamestarting.unknown": "Unknown",
+
+    "hubpage.recommended": "Recommended For You",
+    "hubpage.friends_played": "Played by Friends",
+    "hubpage.jump_back": "Jump Back In",
+    "hubpage.favourites": "Favourites",
+    "hubpage.friend_activity": "Friend Activity",
+    "hubpage.your_achievements": "Your Achievements",
 
     "itemstore.title": "Item Store",
     "itemstore.subtitle": "Here you can buy items for your avatar",
@@ -567,11 +601,13 @@
     "serverlist.map": "Map",
     "serverlist.players": "Players",
     "serverlist.ping": "Ping",
+    "serverlist.no_servers": "Sorry - no servers were found 😔",
 
     "servermodal.game": "Game",
     "servermodal.map": "Map",
     "servermodal.cancel": "Cancel",
     "servermodal.join_server": "Join Server",
+    "servermodal.unknown": "Unknown",
 
     "servicesmodal.title": "Services",
     "servicesmodal.description": "If you have a twitch account you can link it here. Games will be able to access your viewer's names and read the chat,so you can have interactive streams!",
@@ -594,6 +630,7 @@
     "settings.video.inactive": "Inactive",
     "settings.video.quality": "Quality",
     "settings.video.anti_aliasing": "Anti-Aliasing",
+    "settings.video.anti_aliasing.description": "Without anti-aliasing, foliage and hair edges fall back to a hard cutout and look harsher, most noticeably at a distance. 2x is enough to avoid this.",
     "settings.video.texture_detail": "Texture Detail",
     "settings.video.volumetric_fog": "Volumetric Fog",
     "settings.video.post_processing": "Post Processing",
@@ -687,6 +724,7 @@
     "settings.game.field_of_view": "Field Of View",
     "settings.game.platform": "Platform",
     "settings.game.chat_enabled": "Chat Enabled",
+    "settings.game.streamer_mode": "Streamer Mode",
     "settings.storage": "Storage",
     "settings.storage.map": "Map",
     "settings.storage.texture": "Texture",
@@ -721,6 +759,21 @@
     "settings.high": "High",
     "settings.off": "Off",
     "settings.on": "On",
+
+    "shoppingcart.purchased_one": "You purchased {name}!",
+    "shoppingcart.purchased_more": "You purchased {count} items!",
+
+    "spotlightgames.title": "Try these games",
+    "spotlightgames.browse_all": "Browse all ›",
+    "spotlightgames.friend_played": "{name} played this",
+    "spotlightgames.popular_with_friends": "Popular with your friends",
+    "spotlightgames.new_this_week": "New this week",
+    "spotlightgames.featured_by_facepunch": "Featured by Facepunch",
+
+    "streamermodepromptmodal.title": "Recording Software Detected",
+    "streamermodepromptmodal.body": "We noticed you have recording software running. Would you like to enable Streamer Mode to hide usernames and avatars in most games?",
+    "streamermodepromptmodal.yes": "Enable Streamer Mode",
+    "streamermodepromptmodal.no": "No Thanks",
 
     "tagselector.tags.none": "None",
     "tagselector.tags.graphics": "Graphics",

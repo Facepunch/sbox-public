@@ -9,9 +9,9 @@
 <div class="zone-rule" />
 
 <div class="head">
-    <label class="section-label">Try these games</label>
+    <label class="section-label">#spotlightgames.title</label>
     <div class="grow" />
-    <label class="browse clicky" @onclick="@BrowseAll">Browse all ›</label>
+    <label class="browse clicky" @onclick="@BrowseAll">#spotlightgames.browse_all</label>
 </div>
 
 @foreach ( var suggestion in Suggestions )
@@ -59,15 +59,15 @@
     {
         var friend = FrontPage.LatestFriendIn( Activity, suggestion.Package );
         if ( friend is not null )
-            return $"{friend} played this";
+            return Language.GetPhrase( "spotlightgames.friend_played", new() { ["name"] = friend } );
 
         if ( suggestion.FromFriends )
-            return "Popular with your friends";
+            return Language.GetPhrase( "spotlightgames.popular_with_friends" );
 
         if ( suggestion.Package.Created > DateTimeOffset.UtcNow.AddDays( -7 ) )
-            return "New this week";
+            return Language.GetPhrase( "spotlightgames.new_this_week" );
 
-        return "Featured by Facepunch";
+        return Language.GetPhrase( "spotlightgames.featured_by_facepunch" );
     }
 
     protected override void OnAfterTreeRender( bool firstTime )

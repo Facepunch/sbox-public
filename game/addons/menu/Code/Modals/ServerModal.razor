@@ -51,7 +51,7 @@
 				</div>
 				<div class="info">
 					<label class="eyebrow">#servermodal.map</label>
-					<label class="title">@(MapPackage?.Title ?? (MapUnavailable ? "Unknown" : Server.Map))</label>
+					<label class="title">@(MapPackage?.Title ?? (MapUnavailable ? Language.GetPhrase("servermodal.unknown") : Server.Map))</label>
 				</div>
 			</div>
 

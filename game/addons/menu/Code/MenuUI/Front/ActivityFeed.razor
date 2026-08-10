@@ -10,7 +10,7 @@
 @if ( InGame.Count > 0 )
 {
     <div class="head">
-        <label class="section-label">In game now</label>
+        <label class="section-label">#activityfeed.in_game</label>
     </div>
 
     @foreach ( var live in InGame )
@@ -30,7 +30,7 @@
             @if ( live.Joinable )
             {
                 <div class="join clicky" @onclick="@(() => Join( live ))">
-                    <label>Join</label>
+                    <label>#activityfeed.join</label>
                 </div>
             }
 
@@ -41,7 +41,7 @@
 }
 
 <div class="head">
-    <label class="section-label">Activity feed</label>
+    <label class="section-label">#activityfeed.activity_feed</label>
 </div>
 
 @foreach ( var entry in Events )
@@ -68,7 +68,7 @@
 
 <div class="footer-rule" />
 
-<label class="see-all clicky" @onclick="@SeeAll">See all activity ›</label>
+<label class="see-all clicky" @onclick="@SeeAll">#activityfeed.see_all</label>
 
 @code
 {

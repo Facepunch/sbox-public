@@ -33,6 +33,13 @@
     "actionbar.loadingscreen.failed_title": "加入游戏失败",
     "actionbar.loadingscreen.failed_tip": "找不到可加入的游戏",
 
+    "activityfeed.in_game": "正在游玩",
+    "activityfeed.join": "加入",
+    "activityfeed.activity_feed": "动态",
+    "activityfeed.see_all": "查看所有动态 ›",
+
+    "achievementdeck.empty": "尚未拥有成就 - 快去玩点什么吧!",
+
     "avatar.change": "更改",
     "avatar.changetip": "更改外观",
     "avatar.toggletype": "在人类和公民之间切换",
@@ -211,6 +218,15 @@
     "console.logs": "日志",
     "console.clear": "清空",
 
+    "contentblockheroitem.play_now": "立刻游玩",
+
+    "continueplaying.continue_playing": "继续游戏",
+    "continueplaying.completion": "已完成 {percent}% 成就",
+    "continueplaying.playtime": "已游玩 {time}",
+    "continueplaying.playing_now": "{count} 人在玩",
+    "continueplaying.friend_week_one": "本周 1 位好友玩过",
+    "continueplaying.friend_week_plural": "本周有 {count} 位好友玩过",
+
     "creategamemodal.title": "创建游戏",
     "creategamemodal.general": "常规",
     "creategamemodal.server_name": "服务器名称",
@@ -275,6 +291,10 @@
     "developermode.scenestats.update": "Tick更新",
     "developermode.scenestats.gcpause": "GcPause",
 
+    "featuredstoreitem.leaving_today": "今日下架!",
+    "featuredstoreitem.leaving_one_day": "1 天后下架",
+    "featuredstoreitem.leaving_days": "{days} 天后下架",
+
     "friend.main_menu": "主菜单",
     "friend.friend_request": "发送好友请求",
     "friend.profile": "个人资料",
@@ -291,6 +311,8 @@
     "friend.is_afk": "暂离",
     "friend.is_offline": "离线",
     "friend.is_online": "在线",
+    "friendentry.full": "已满",
+    "friendentry.invite": "邀请",
 
     "friendentry.join": "加入好友游戏",
     "friendentry.unknown_state": "[未知状态]",
@@ -307,6 +329,9 @@
     "friendgamepopup.playing": "正在游玩 {title}",
 
     "friendslistmodal.friends": "好友列表",
+    "friendslistmodal.in_game": "游戏中",
+    "friendslistmodal.online": "在线",
+    "friendslistmodal.offline": "离线",
     "friendslistmodal.nothing": "暂无内容！",
 
     "gameclosedtoast.review": "评价",
@@ -351,6 +376,14 @@
 
     "gamestarting.prefix": " 查看详情，长按 ",
     "gamestarting.suffix": " 退出",
+    "gamestarting.unknown": "Unknown",
+
+    "hubpage.recommended": "为您推荐",
+    "hubpage.friends_played": "好友玩过",
+    "hubpage.jump_back": "继续游戏",
+    "hubpage.favourites": "收藏",
+    "hubpage.friend_activity": "好友动态",
+    "hubpage.your_achievements": "你的成就",
     
     "itemstore.title": "物品商店",
     "itemstore.subtitle": "你可以在此为你的虚拟形象购买物品",
@@ -568,11 +601,13 @@
     "serverlist.map": "地图",
     "serverlist.players": "人数",
     "serverlist.ping": "延迟",
+    "serverlist.no_servers": "很抱歉 - 未能找到服务器 😔",
 
     "servermodal.game": "游戏",
     "servermodal.map": "地图",
     "servermodal.cancel": "取消",
     "servermodal.join_server": "加入服务器",
+    "servermodal.unknown": "未知",
 
     "servicesmodal.title": "服务",
     "servicesmodal.description": "如果你有 Twitch 账号，可以在此进行绑定。游戏将能够访问你观众的名称并读取聊天记录，从而让你体验互动式直播！",
@@ -595,6 +630,7 @@
     "settings.video.inactive": "后台",
     "settings.video.quality": "画质",
     "settings.video.anti_aliasing": "抗锯齿",
+    "settings.video.anti_aliasing.description": "在关闭抗锯齿的情况下，植被与毛发的边缘会退化为生硬的裁剪效果，看起来更粗糙，这在远处尤为明显。开启 2x 即可避免此现象。",
     "settings.video.texture_detail": "贴图细节",
     "settings.video.volumetric_fog": "体积雾",
     "settings.video.post_processing": "后期处理",
@@ -688,6 +724,7 @@
     "settings.game.field_of_view": "视野",
     "settings.game.platform": "平台",
     "settings.game.chat_enabled": "启用文本聊天",
+    "settings.game.streamer_mode": "直播模式",
     "settings.storage": "存储",
     "settings.storage.map": "地图",
     "settings.storage.texture": "纹理",
@@ -722,6 +759,21 @@
     "settings.high": "高",
     "settings.off": "关",
     "settings.on": "开",
+
+    "shoppingcart.purchased_one": "您已购买 {name}!",
+    "shoppingcart.purchased_more": "您已购买 {count} 件物品!",
+
+    "spotlightgames.title": "试试这些游戏",
+    "spotlightgames.browse_all": "浏览全部 ›",
+    "spotlightgames.friend_played": "{name} 玩过",
+    "spotlightgames.popular_with_friends": "好友都在玩",
+    "spotlightgames.new_this_week": "本周新作",
+    "spotlightgames.featured_by_facepunch": "Facepunch 精选",
+
+    "streamermodepromptmodal.title": "检测到录制软件",
+    "streamermodepromptmodal.body": "我们注意到您正在运行录制软件。是否要开启直播模式，以在大多数游戏中隐藏用户名和头像？",
+    "streamermodepromptmodal.yes": "开启直播模式",
+    "streamermodepromptmodal.no": "不用，谢谢",
 
     "tagselector.tags.none": "无",
     "tagselector.tags.graphics": "画面表现",
