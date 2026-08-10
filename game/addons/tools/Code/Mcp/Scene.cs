@@ -18,16 +18,32 @@ public static partial class SceneTools
 	{
 		return new OpenSceneList
 		{
-			Scenes = SceneEditorSession.All.Select( session => new OpenScene
-			{
-				Name = session.Scene?.Name,
-				ResourcePath = session.Scene?.Source?.ResourcePath,
-				Type = session is GameEditorSession ? "Game" : session.Scene is PrefabScene ? "Prefab" : "Scene",
-				IsActive = session == SceneEditorSession.Active,
-				HasUnsavedChanges = session.HasUnsavedChanges,
-				RootObjectCount = session.Scene?.Children.Count ?? 0
-			} ).ToArray()
+			Scenes = SceneEditorSession.All.Select( SceneRow ).ToArray()
 		};
+	}
+
+	/// <summary>
+	/// Make a scene the active editor tab. Opens it from its asset path if it isn't open.
+	/// Scene edits always target the active scene, so switch before editing a background scene.
+	/// </summary>
+	/// <param name="scene">Scene name or resource path from list_scenes, or a .scene/.prefab path from asset_search.</param>
+	[McpTool( "open_scene" )]
+	public static OpenScene OpenSceneTab( string scene )
+	{
+		if ( Game.IsPlaying )
+			throw new Exception( "Can't switch scene tabs while playing - play_stop first" );
+
+		var session = ResolveSession( scene );
+
+		if ( session is GameEditorSession )
+			throw new Exception( "That's the running game session, which has no tab to switch to - play_stop first, then open the scene you want to edit" );
+
+		session ??= SceneEditorSession.CreateFromPath( scene )
+			?? throw new Exception( $"Nothing to open for '{scene}' - list_scenes shows what's already open, asset_search type:scene finds scene assets on disk" );
+
+		session.MakeActive();
+
+		return SceneRow( session );
 	}
 
 	/// <summary>
@@ -1007,12 +1023,34 @@ public static partial class SceneTools
 				?? throw new Exception( "No scene is open in the editor" );
 		}
 
-		var match = SceneEditorSession.All
-			.Select( x => x.Scene )
-			.FirstOrDefault( x => string.Equals( x?.Name, nameOrPath, StringComparison.OrdinalIgnoreCase )
-				|| string.Equals( x?.Source?.ResourcePath, nameOrPath, StringComparison.OrdinalIgnoreCase ) );
+		return ResolveSession( nameOrPath )?.Scene
+			?? throw new Exception( $"No open scene matches '{nameOrPath}' - list_scenes shows what's open" );
+	}
 
-		return match ?? throw new Exception( $"No open scene matches '{nameOrPath}' - list_scenes shows what's open" );
+	/// <summary>
+	/// The open session whose scene matches a name or resource path. Null when nothing matches.
+	/// </summary>
+	private static SceneEditorSession ResolveSession( string nameOrPath )
+	{
+		return SceneEditorSession.All
+			.FirstOrDefault( x => string.Equals( x.Scene?.Name, nameOrPath, StringComparison.OrdinalIgnoreCase )
+				|| string.Equals( x.Scene?.Source?.ResourcePath, nameOrPath, StringComparison.OrdinalIgnoreCase ) );
+	}
+
+	/// <summary>
+	/// One session as list_scenes and open_scene report it.
+	/// </summary>
+	private static OpenScene SceneRow( SceneEditorSession session )
+	{
+		return new OpenScene
+		{
+			Name = session.Scene?.Name,
+			ResourcePath = session.Scene?.Source?.ResourcePath,
+			Type = session is GameEditorSession ? "Game" : session.Scene is PrefabScene ? "Prefab" : "Scene",
+			IsActive = session == SceneEditorSession.Active,
+			HasUnsavedChanges = session.HasUnsavedChanges,
+			RootObjectCount = session.Scene?.Children.Count ?? 0
+		};
 	}
 
 	private static GameObject FindByGuid( string id )
