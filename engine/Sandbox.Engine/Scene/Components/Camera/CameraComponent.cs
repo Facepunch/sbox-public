@@ -654,6 +654,9 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		return new Vector2( v.x, v.y );
 	}
 
+	/// <summary>
+	/// Returns a ray created from the specified cursor position on the screen, by conversion into 3D space.
+	/// </summary>
 	public Ray ScreenPixelToRay( Vector2 pixelPosition )
 	{
 		EnsureSceneCameraCreated();
