@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Text.Json.Nodes;
 
 namespace SceneTests.Components;
 
@@ -122,10 +123,9 @@ public class TerrainComponentTest
 	}
 
 	/// <summary>
-	/// A programmatic TerrainMaterial has pinned defaults - the default source images, unit
+	/// A programmatic TerrainMaterial has pinned defaults - empty source images, unit
 	/// scales and no surface. NoTiling is the only flag source, HasHeightTexture flips once
-	/// the height image differs from the default, and the materials list on the storage is
-	/// plain in-memory state.
+	/// a height image is set, and the materials list on the storage is plain in-memory state.
 	/// </summary>
 	[TestMethod]
 	public void StorageMaterialsListState()
@@ -133,7 +133,7 @@ public class TerrainComponentTest
 		var storage = new TerrainStorage();
 		var material = new TerrainMaterial();
 
-		Assert.AreEqual( "materials/default/default_color.tga", material.AlbedoImage, "Default albedo image is pinned" );
+		Assert.IsNull( material.AlbedoImage, "Source images start empty and fall back to the default image when compiled" );
 		Assert.AreEqual( 1.0f, material.UVScale );
 		Assert.AreEqual( 0.0f, material.Metalness );
 		Assert.AreEqual( 1.0f, material.NormalStrength );
@@ -141,7 +141,7 @@ public class TerrainComponentTest
 		Assert.AreEqual( 0.0f, material.DisplacementScale );
 		Assert.IsFalse( material.NoTiling );
 		Assert.AreEqual( TerrainFlags.None, material.Flags );
-		Assert.IsFalse( material.HasHeightTexture, "The default height image does not count as a height texture" );
+		Assert.IsFalse( material.HasHeightTexture, "An empty height image does not count as a height texture" );
 		Assert.IsNull( material.Surface );
 		Assert.IsNull( material.BCRTexture, "Generated textures only exist for materials loaded from disk" );
 		Assert.IsNull( material.NHOTexture );
@@ -149,12 +149,84 @@ public class TerrainComponentTest
 		material.NoTiling = true;
 		Assert.AreEqual( TerrainFlags.NoTile, material.Flags, "NoTiling maps onto the NoTile flag" );
 
-		material.HeightImage = "materials/custom/height.tga";
-		Assert.IsTrue( material.HasHeightTexture, "A non-default height image enables displacement" );
+		material.HeightImage = Texture.White;
+		Assert.IsTrue( material.HasHeightTexture, "A height image enables displacement" );
 
 		storage.Materials.Add( material );
 		Assert.AreEqual( 1, storage.Materials.Count );
 		Assert.AreSame( material, storage.Materials[0] );
+	}
+
+	/// <summary>
+	/// Terrain materials are two packed textures, so the compiler copies single channels out of
+	/// the source images: channels land where they're routed, a source can feed more than one
+	/// channel, the result takes the size of the largest source and smaller sources are scaled
+	/// up into it, and channels nothing was routed into stay at zero.
+	/// </summary>
+	[TestMethod]
+	public void PackChannelsRoutesSourceChannels()
+	{
+		using var color = new Bitmap( 2, 2 );
+		color.SetPixels( [Color.Red, Color.Green, Color.Blue, Color.White] );
+
+		using var mask = new Bitmap( 1, 1 );
+		mask.SetPixels( [new Color( 0.25f, 0.5f, 0.75f, 1.0f )] );
+
+		using var packed = Bitmap.PackChannels(
+			( color, Bitmap.ColorChannel.Red, Bitmap.ColorChannel.Red ),
+			( color, Bitmap.ColorChannel.Green, Bitmap.ColorChannel.Green ),
+			( mask, Bitmap.ColorChannel.Red, Bitmap.ColorChannel.Alpha ) );
+
+		Assert.AreEqual( 2, packed.Width, "The packed image takes the size of the largest source" );
+		Assert.AreEqual( 2, packed.Height );
+
+		var pixels = packed.GetPixels();
+
+		Assert.AreEqual( 1.0f, pixels[0].r, 0.01f, "Red comes from the color image" );
+		Assert.AreEqual( 0.0f, pixels[0].g, 0.01f );
+		Assert.AreEqual( 0.0f, pixels[1].r, 0.01f );
+		Assert.AreEqual( 1.0f, pixels[1].g, 0.01f, "Green comes from the color image" );
+
+		foreach ( var pixel in pixels )
+		{
+			Assert.AreEqual( 0.0f, pixel.b, 0.01f, "Nothing was routed into blue" );
+			Assert.AreEqual( 0.25f, pixel.a, 0.01f, "Alpha comes from the mask's red, scaled up to the packed size" );
+		}
+	}
+
+	/// <summary>
+	/// Terrain material source images used to be bare image paths and are textures now, so a
+	/// pre-v1 tmat runs the v1 upgrader: a real path becomes an image file texture keeping its
+	/// file, a path that was only ever the default image becomes empty (the compiler falls back
+	/// to that same default), and a slot that is already a texture is left alone.
+	/// </summary>
+	[TestMethod]
+	public void MaterialSourceImagePathsUpgradeToTextures()
+	{
+		JsonUpgrader.UpdateUpgraders( Game.TypeLibrary );
+
+		var json = JsonNode.Parse( """
+		{
+			"AlbedoImage": "terrain/grass_color.png",
+			"RoughnessImage": "materials/default/default_rough.tga",
+			"NormalImage": "",
+			"HeightImage": { "$compiler": "texture", "$source": "imagefile", "data": { "FilePath": "terrain/grass_height.png" } },
+			"UVScale": 4
+		}
+		""" ).AsObject();
+
+		JsonUpgrader.Upgrade( 0, json, typeof( TerrainMaterial ) );
+
+		var albedo = json["AlbedoImage"].AsObject();
+		Assert.AreEqual( "texture", (string)albedo["$compiler"] );
+		Assert.AreEqual( "imagefile", (string)albedo["$source"] );
+		Assert.AreEqual( "terrain/grass_color.png", (string)albedo["data"]["FilePath"], "The image path should survive the upgrade" );
+
+		Assert.IsNull( json["RoughnessImage"], "A path that was just the default image becomes an empty slot" );
+		Assert.IsNull( json["NormalImage"], "An empty path becomes an empty slot" );
+
+		Assert.AreEqual( "terrain/grass_height.png", (string)json["HeightImage"]["data"]["FilePath"], "An already upgraded slot is untouched" );
+		Assert.AreEqual( 4, (int)json["UVScale"], "Unrelated properties are untouched" );
 	}
 
 	/// <summary>
