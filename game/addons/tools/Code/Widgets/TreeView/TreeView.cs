@@ -98,6 +98,17 @@ public partial class TreeView : BaseItemWidget
 		}
 	}
 
+	public override void OnDestroyed()
+	{
+		base.OnDestroyed();
+
+		// Closing the view drops the whole tree, so let every node release what it holds
+		foreach ( var node in _items.OfType<TreeNode>().ToArray() )
+		{
+			TreeNode.Release( node );
+		}
+	}
+
 	protected override void Rebuild()
 	{
 		Frame();
