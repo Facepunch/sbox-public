@@ -44,10 +44,10 @@ internal class TerrainMaterialCompiler : ResourceCompiler
 		//
 		{
 			using var packed = Bitmap.PackChannels(
-				( albedo, Bitmap.ColorChannel.Red, Bitmap.ColorChannel.Red ),
-				( albedo, Bitmap.ColorChannel.Green, Bitmap.ColorChannel.Green ),
-				( albedo, Bitmap.ColorChannel.Blue, Bitmap.ColorChannel.Blue ),
-				( roughness, Bitmap.ColorChannel.Red, Bitmap.ColorChannel.Alpha ) );
+				(albedo, Bitmap.ColorChannel.Red, Bitmap.ColorChannel.Red),
+				(albedo, Bitmap.ColorChannel.Green, Bitmap.ColorChannel.Green),
+				(albedo, Bitmap.ColorChannel.Blue, Bitmap.ColorChannel.Blue),
+				(roughness, Bitmap.ColorChannel.Red, Bitmap.ColorChannel.Alpha) );
 
 			WritePacked( path, file, BCRSuffix, packed );
 
@@ -65,10 +65,10 @@ internal class TerrainMaterialCompiler : ResourceCompiler
 		//
 		{
 			using var packed = Bitmap.PackChannels(
-				( normal, Bitmap.ColorChannel.Red, Bitmap.ColorChannel.Red ),
-				( normal, Bitmap.ColorChannel.Green, Bitmap.ColorChannel.Green ),
-				( height, Bitmap.ColorChannel.Red, Bitmap.ColorChannel.Blue ),
-				( ao, Bitmap.ColorChannel.Red, Bitmap.ColorChannel.Alpha ) );
+				(normal, Bitmap.ColorChannel.Red, Bitmap.ColorChannel.Red),
+				(normal, Bitmap.ColorChannel.Green, Bitmap.ColorChannel.Green),
+				(height, Bitmap.ColorChannel.Red, Bitmap.ColorChannel.Blue),
+				(ao, Bitmap.ColorChannel.Red, Bitmap.ColorChannel.Alpha) );
 
 			WritePacked( path, file, NHOSuffix, packed );
 

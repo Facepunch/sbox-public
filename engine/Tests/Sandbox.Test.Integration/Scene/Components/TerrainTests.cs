@@ -173,9 +173,9 @@ public class TerrainComponentTest
 		mask.SetPixels( [new Color( 0.25f, 0.5f, 0.75f, 1.0f )] );
 
 		using var packed = Bitmap.PackChannels(
-			( color, Bitmap.ColorChannel.Red, Bitmap.ColorChannel.Red ),
-			( color, Bitmap.ColorChannel.Green, Bitmap.ColorChannel.Green ),
-			( mask, Bitmap.ColorChannel.Red, Bitmap.ColorChannel.Alpha ) );
+			(color, Bitmap.ColorChannel.Red, Bitmap.ColorChannel.Red),
+			(color, Bitmap.ColorChannel.Green, Bitmap.ColorChannel.Green),
+			(mask, Bitmap.ColorChannel.Red, Bitmap.ColorChannel.Alpha) );
 
 		Assert.AreEqual( 2, packed.Width, "The packed image takes the size of the largest source" );
 		Assert.AreEqual( 2, packed.Height );
