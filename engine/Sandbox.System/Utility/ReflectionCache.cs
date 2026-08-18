@@ -1,14 +1,54 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Reflection;
 
 namespace Sandbox;
 
 /// <summary>
+/// Non-generic base so every <see cref="ReflectionCache{TKey,TValue}"/> instantiation can be
+/// found and pruned when a collectible assembly is unloading (in-process client tenants).
+/// </summary>
+internal abstract class ReflectionCacheBase
+{
+	private static readonly List<WeakReference<ReflectionCacheBase>> _all = new();
+
+	protected static void Register( ReflectionCacheBase cache )
+	{
+		lock ( _all )
+		{
+			_all.Add( new WeakReference<ReflectionCacheBase>( cache ) );
+		}
+	}
+
+	/// <summary>
+	/// Remove entries keyed by members of the given assembly from every cache - a cached
+	/// Type key would keep an unloading collectible assembly loaded forever.
+	/// </summary>
+	public static void PruneAssembly( Assembly assembly )
+	{
+		lock ( _all )
+		{
+			for ( var i = _all.Count - 1; i >= 0; i-- )
+			{
+				if ( !_all[i].TryGetTarget( out var cache ) )
+				{
+					_all.RemoveAt( i );
+					continue;
+				}
+
+				cache.Prune( assembly );
+			}
+		}
+	}
+
+	protected abstract void Prune( Assembly assembly );
+}
+
+/// <summary>
 /// Lazily performs expensive reflection, caching the result.
 /// Clears itself during hotloads.
 /// </summary>
-internal sealed class ReflectionCache<TKey, TValue> : IHotloadManaged
+internal sealed class ReflectionCache<TKey, TValue> : ReflectionCacheBase, IHotloadManaged
 	where TKey : MemberInfo
 {
 	[SkipHotload]
@@ -28,6 +68,7 @@ internal sealed class ReflectionCache<TKey, TValue> : IHotloadManaged
 		_defaultItems = defaultItems;
 
 		AddDefaultItems();
+		Register( this );
 	}
 
 	/// <summary>
@@ -47,6 +88,19 @@ internal sealed class ReflectionCache<TKey, TValue> : IHotloadManaged
 		foreach ( var item in _defaultItems )
 		{
 			_cache.TryAdd( item.Key, item.Value );
+		}
+	}
+
+	protected override void Prune( Assembly assembly )
+	{
+		foreach ( var key in _cache.Keys )
+		{
+			var owner = key is Type type ? type.Assembly : key.DeclaringType?.Assembly;
+
+			if ( owner == assembly )
+			{
+				_cache.TryRemove( key, out _ );
+			}
 		}
 	}
 

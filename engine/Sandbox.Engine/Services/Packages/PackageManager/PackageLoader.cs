@@ -628,6 +628,7 @@ internal sealed partial class PackageLoader : IDisposable
 		outgoing.FastHotload = true;
 		outgoing.ModifiedAssembly = incoming?.Assembly;
 		outgoing.CodeArchiveBytes = incoming.CodeArchiveBytes;
+		outgoing.CompiledAssemblyBytes = incoming.CompiledAssemblyBytes ?? outgoing.CompiledAssemblyBytes;
 		outgoing.Version = incoming.Assembly.GetName().Version;
 		return true;
 	}

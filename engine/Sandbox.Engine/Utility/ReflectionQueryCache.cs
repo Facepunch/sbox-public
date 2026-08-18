@@ -43,6 +43,31 @@ internal static class ReflectionQueryCache
 	}
 
 	/// <summary>
+	/// Drop cached entries for types from the given assembly only - cached Type keys would
+	/// root an unloading collectible assembly forever.
+	/// </summary>
+	public static void RemoveAssembly( Assembly assembly )
+	{
+		static void Prune<TValue>( Dictionary<Type, TValue> cache, Assembly assembly )
+		{
+			var dead = cache.Keys.Where( t => t.Assembly == assembly ).ToArray();
+
+			foreach ( var key in dead )
+			{
+				cache.Remove( key );
+			}
+		}
+
+		Prune( _isTypeCloneableByCopy, assembly );
+		Prune( _isICloneableSafe, assembly );
+		Prune( _isResourceType, assembly );
+		Prune( _orderedMemberCache, assembly );
+		Prune( _requiredComponentMemberCache, assembly );
+		Prune( _syncVarMemberCache, assembly );
+		MemberCopyCache.RemoveAssembly( assembly );
+	}
+
+	/// <summary>
 	/// Returns true if this type's ICloneable.Clone() is safe to call during cloning,
 	/// meaning the type declares its own Clone() rather than inheriting a shallow-copy
 	/// implementation from a BCL base type (Delegate, Array, etc.).

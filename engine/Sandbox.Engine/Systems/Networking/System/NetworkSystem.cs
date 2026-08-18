@@ -33,6 +33,13 @@ internal partial class NetworkSystem
 	public string DebugName { get; }
 
 	/// <summary>
+	/// True if this system is an in-process client session (an editor "docked client").
+	/// It shares the process with the host, so the handshake skips process-level side
+	/// effects: code archive compilation, mounting, editor play-state, global disconnect.
+	/// </summary>
+	internal bool IsInProcessClient { get; init; }
+
+	/// <summary>
 	/// Whether the host is busy right now. This can be used to determine if
 	/// the host can be changed.
 	/// </summary>

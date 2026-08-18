@@ -227,6 +227,20 @@ internal static class MemberCopyCache
 
 	internal static void Clear() => _cache.Clear();
 
+	/// <summary>
+	/// Drop cached delegates for members declared in the given assembly, so a cached key
+	/// can't root an unloading collectible assembly.
+	/// </summary>
+	internal static void RemoveAssembly( System.Reflection.Assembly assembly )
+	{
+		var dead = _cache.Keys.Where( k => k.TypeDescription?.TargetType?.Assembly == assembly ).ToArray();
+
+		foreach ( var key in dead )
+		{
+			_cache.Remove( key );
+		}
+	}
+
 	internal static void CopyTo( PropertyDescription prop, object source, object target )
 	{
 		if ( !_cache.TryGetValue( prop, out var del ) )

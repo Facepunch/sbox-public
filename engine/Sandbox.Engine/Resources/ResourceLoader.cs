@@ -150,6 +150,10 @@ internal static class ResourceLoader
 		if ( string.IsNullOrEmpty( type.Extension ) )
 			return;
 
+		// No watching in this context - and the registry below must not root a shorter-lived context's assemblies.
+		if ( BaseFileSystem.WatcherCreationSuppressed )
+			return;
+
 		// Watcher already set up for this type - no need to allocate another one.
 		if ( Watchers.ContainsKey( type.TargetType.AssemblyQualifiedName ) )
 			return;

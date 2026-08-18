@@ -10,6 +10,14 @@ namespace Sandbox.Engine;
 internal partial class GlobalContext
 {
 	/// <summary>
+	/// True when this context belongs to an in-process client tenant (an editor docked
+	/// client, see <see cref="Sandbox.InProcessTenant"/>) rather than the Menu or Game.
+	/// Process-global side effects a tenant must not perform are suppressed at choke
+	/// points: ToolsDll.RunEvent, BaseFileSystem.Watch, Screen.UpdateFromEngine.
+	/// </summary>
+	public bool IsInProcessTenant { get; init; }
+
+	/// <summary>
 	/// Sandbox.GameInstance or Sandbox.Menu
 	/// </summary>
 	public Assembly LocalAssembly { get; set; }
@@ -18,6 +26,13 @@ internal partial class GlobalContext
 	/// The input context for this game instance, which contains the current input state and bindings.
 	/// </summary>
 	public InputContext InputContext { get; set; }
+
+	/// <summary>
+	/// The mouse visibility this world wants (see <see cref="Mouse.Visibility"/>). Per
+	/// context: the host's game and each docked client's game set their own, and the
+	/// input router applies whichever world currently has input focus.
+	/// </summary>
+	public MouseVisibility MouseVisibility { get; set; } = MouseVisibility.Auto;
 
 	/// <summary>
 	/// The active scene for this game instance.

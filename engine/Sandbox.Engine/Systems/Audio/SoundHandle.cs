@@ -203,6 +203,13 @@ public partial class SoundHandle : IValid, IDisposable
 	public Mixer TargetMixer { get; set; }
 
 	/// <summary>
+	/// Set when this sound was created by a docked in-process client session: the session's
+	/// private submix, which overrides <see cref="TargetMixer"/> completely so a client's
+	/// game can't play audio through the host's mixers.
+	/// </summary>
+	internal Mixer TenantMixer { get; set; }
+
+	/// <summary>
 	/// Marks this sound as voice/speech audio (e.g., from VoiceComponent).
 	/// Voice sounds use cheaper HRTF interpolation since they don't benefit from bilinear filtering.
 	/// </summary>
@@ -338,6 +345,8 @@ public partial class SoundHandle : IValid, IDisposable
 		_sfx = soundHandle;
 		_sceneRef = new WeakReference<Scene>( Game.ActiveScene );
 
+		TenantMixer = InProcessClientSession.CurrentSlice?.ClientMixer;
+
 		var tempSound = _sfx.GetSound();
 		SampleRate = tempSound.m_rate();
 		tempSound.DestroyStrongHandle();
@@ -368,6 +377,7 @@ public partial class SoundHandle : IValid, IDisposable
 	internal bool IsTargettingMixer( Mixer mixer )
 	{
 		if ( _destroyed ) return false;
+		if ( TenantMixer is not null ) return mixer == TenantMixer;
 		if ( WantsDefaultMixer() && Mixer.Default == mixer ) return true;
 		if ( TargetMixer is null ) return false;
 		if ( string.IsNullOrEmpty( mixer.Name ) ) return false;
@@ -378,12 +388,12 @@ public partial class SoundHandle : IValid, IDisposable
 
 	/// <summary>
 	/// Gets the effective mixer this sound will play on.
-	/// Returns the TargetMixer if set, otherwise the default mixer.
+	/// The tenant submix always wins, then TargetMixer, then the default mixer.
 	/// </summary>
 	internal Mixer GetEffectiveMixer()
 	{
 		if ( _destroyed ) return null;
-		return TargetMixer ?? Mixer.Default;
+		return TenantMixer ?? TargetMixer ?? Mixer.Default;
 	}
 
 	/// <summary>
@@ -477,11 +487,15 @@ public partial class SoundHandle : IValid, IDisposable
 
 	internal static void StopAll( float fade, Mixer mixer = null )
 	{
+		// Scoped to the calling world - a docked client's StopAll must not silence the host or other clients, and vice versa.
+		var sliceMixer = InProcessClientSession.CurrentSlice?.ClientMixer;
+
 		_tickList.Clear();
 		_tickList.AddRange( active );
 		foreach ( var handle in _tickList )
 		{
-			if ( mixer is not null && handle.TargetMixer != mixer ) continue;
+			if ( mixer is not null && handle.TargetMixer != mixer && handle.TenantMixer != mixer ) continue;
+			if ( mixer is null && handle.TenantMixer != sliceMixer ) continue;
 			if ( handle.IsValid ) handle.Stop( fade );
 		}
 	}
@@ -585,7 +599,7 @@ public partial class SoundHandle : IValid, IDisposable
 			SpacialBlend = SpacialBlend,
 			Position = Position,
 			Scene = Scene,
-			TargetMixer = TargetMixer,
+			TargetMixer = TenantMixer ?? TargetMixer,
 			CreatedTime = _CreatedTime,
 			SourceOffset = sourceOffset,
 			SourceCount = snap.AllModels.Count - sourceOffset,
@@ -610,7 +624,7 @@ public partial class SoundHandle : IValid, IDisposable
 			Loopback = Loopback,
 			IsVoice = IsVoice,
 			Scene = Scene,
-			TargetMixer = TargetMixer,
+			TargetMixer = TenantMixer ?? TargetMixer,
 			CreatedTime = _CreatedTime,
 			SourceOffset = 0,
 			SourceCount = 0,

@@ -41,7 +41,10 @@ public struct StringToken : IEquatable<StringToken>
 		if ( value.Length == 0 ) return 0;
 
 		var token = value.MurmurHash2( true );
-		CacheReverse[token] = value;
+
+		// Tokens are case-insensitive (the hash lowercases) - store a canonical casing, or GetValue depends on registration order.
+		CacheReverse[token] = value.ToLowerInvariant();
+
 		return token;
 	}
 

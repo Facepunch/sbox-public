@@ -157,6 +157,14 @@ internal partial class NetworkSystem
 		if ( Connection.Local.State == Connection.ChannelState.Unconnected )
 			return;
 
+		if ( IsInProcessClient )
+		{
+			// Only this client session dies - never the whole (shared) game instance.
+			Log.Info( $"In-process client disconnected: {reasonString}" );
+			Disconnect();
+			return;
+		}
+
 		IGameInstanceDll.Current.Disconnect( $"You have been disconnected from the server.\nReason: {reasonString}" );
 	}
 

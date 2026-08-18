@@ -100,4 +100,20 @@ internal class ReplicatedConvars
 	{
 		return _values.TryGetValue( name, out value );
 	}
+
+	/// <summary>
+	/// Get the authoritative (host-side) value of a replicated ConVar, straight from the
+	/// string table the host maintains. Used by docked in-process clients.
+	/// </summary>
+	public bool TryGetHostValue( string name, out string value )
+	{
+		if ( StringTable.Entries.TryGetValue( name, out var entry ) )
+		{
+			value = entry.ReadAsString();
+			return true;
+		}
+
+		value = null;
+		return false;
+	}
 }

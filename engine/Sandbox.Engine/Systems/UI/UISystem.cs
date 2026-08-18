@@ -137,6 +137,27 @@ internal class UISystem
 		}
 	}
 
+	/// <summary>
+	/// Simulate without processing any input - hover/capture state is process-global, so
+	/// only one UI system per frame may tick input against it.
+	/// </summary>
+	internal void SimulateNoInput()
+	{
+		Screen.UpdateFromEngine();
+
+		TickPanels();
+		PreLayout();
+		RunDeferredDeletion();
+		Layout();
+		PostLayout();
+		RunDeferredDeletion();
+		BuildDescriptors();
+
+		PanelRenderer.Stats.Reset();
+		BuildCommandLists();
+		CombineCommandLists();
+	}
+
 	internal void DirtyAllStyles()
 	{
 		for ( int i = RootPanels.Count() - 1; i >= 0; i-- )

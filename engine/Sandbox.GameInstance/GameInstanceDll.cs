@@ -7,6 +7,7 @@ using Sandbox.UI;
 using Sandbox.Utility;
 using Sandbox.VR;
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace Sandbox;
@@ -111,6 +112,9 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		GlobalContext.Current.OnHotload();
 		Game.ActiveScene?.OnHotload();
 		Event.Run( "hotloaded" );
+
+		// Docked clients run private assembly copies - they rebuild to pick up the new code.
+		InProcessClientSession.NotifyHostCodeChanged();
 	}
 
 	/// <summary>
@@ -466,6 +470,9 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			//
 			using ( Performance.Scope( "GameFrame" ) )
 			{
+				// The focused docked client consumes the real input; the host ticks muted.
+				using var inputMute = InProcessClientSession.Focused is not null ? InProcessClientSession.MuteHostInput() : null;
+
 				// The old scene could be invalid here as a network message may end
 				// up destroying it (such as changing a scene)
 				if ( scene.IsValid() )
@@ -519,7 +526,16 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		using ( Game.ActiveScene?.Push() )
 		{
 			Game.Language?.Tick();
-			GlobalContext.Current.UISystem.Simulate( mouseIsAllowed );
+
+			// The focused docked client's UI system processes input this frame (one processor per frame) - ours just renders.
+			if ( InProcessClientSession.Focused is not null )
+			{
+				GlobalContext.Current.UISystem.SimulateNoInput();
+			}
+			else
+			{
+				GlobalContext.Current.UISystem.Simulate( mouseIsAllowed );
+			}
 
 			Game.ActiveScene?.ProcessDeletes();
 		}
@@ -938,6 +954,11 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		value = default;
 
 		if ( !Networking.IsActive ) return false;
+
+		// In-process client: the host's authoritative replicated table lives in this process - serve from it directly.
+		if ( Networking.System is { IsInProcessClient: true } )
+			return ReplicatedConvars.TryGetHostValue( name, out value );
+
 		if ( Networking.IsHost ) return false;
 
 		return ReplicatedConvars.TryGetValue( name, out value );
@@ -969,5 +990,30 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	{
 		AssemblyEnroller.LoadPackage( package.FullIdent, true );
 		return Task.CompletedTask;
+	}
+
+	/// <summary>
+	/// The compiled bytes of every non-editor game assembly, for in-process client tenants
+	/// to load private copies from.
+	/// </summary>
+	public IReadOnlyList<(string Name, byte[] Bytes)> GetGameAssemblies()
+	{
+		if ( AssemblyEnroller is null )
+			return null;
+
+		var result = new List<(string Name, byte[] Bytes)>();
+
+		foreach ( var a in AssemblyEnroller.GetLoadedAssemblies() )
+		{
+			if ( a.IsEditorAssembly )
+				continue;
+
+			if ( a.Assembly is null )
+				continue;
+
+			result.Add( (a.Name, a.CompiledAssemblyBytes) );
+		}
+
+		return result;
 	}
 }

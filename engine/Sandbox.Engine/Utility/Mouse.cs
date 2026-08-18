@@ -78,8 +78,13 @@ public static class Mouse
 
 	/// <summary>
 	/// The visibility state of the mouse cursor. Auto will only show the mouse when clickable UI elements are visible.
+	/// Per world: the host's game and each docked in-process client keep their own state.
 	/// </summary>
-	public static MouseVisibility Visibility { get; set; } = MouseVisibility.Auto;
+	public static MouseVisibility Visibility
+	{
+		get => GlobalContext.Current.MouseVisibility;
+		set => GlobalContext.Current.MouseVisibility = value;
+	}
 }
 
 /// <summary>

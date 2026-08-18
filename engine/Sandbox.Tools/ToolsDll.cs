@@ -50,10 +50,13 @@ internal class ToolsDll : IToolsDll
 		ProjectCookie?.Save();
 	}
 
-	public void RunEvent( string name ) => EditorEvent.Run( name );
-	public void RunEvent( string name, object argument ) => EditorEvent.Run( name, argument );
-	public void RunEvent( string name, object arg0, object arg1 ) => EditorEvent.Run( name, arg0, arg1 );
-	public void RunEvent<T>( Action<T> action ) => EditorEvent.RunInterface<T>( action );
+	// Editor events describe the HOST's state - a tenant's private resource loads/mounts/saves must not re-announce, so mute the whole seam.
+	static bool MuteEvents => GlobalContext.Current.IsInProcessTenant;
+
+	public void RunEvent( string name ) { if ( !MuteEvents ) EditorEvent.Run( name ); }
+	public void RunEvent( string name, object argument ) { if ( !MuteEvents ) EditorEvent.Run( name, argument ); }
+	public void RunEvent( string name, object arg0, object arg1 ) { if ( !MuteEvents ) EditorEvent.Run( name, arg0, arg1 ); }
+	public void RunEvent<T>( Action<T> action ) { if ( !MuteEvents ) EditorEvent.RunInterface<T>( action ); }
 
 	/// <summary>
 	/// Called from <see cref="EngineLoop.OnClientOutput"/>,
@@ -284,8 +287,9 @@ internal class ToolsDll : IToolsDll
 
 		// Escape was pressed in game and wasn't swallowed
 		// so lets change focus from the game window to the main editor
-		// window, which is going to free the mouse cursor from being captured
-		if ( Game.IsPlaying && Input.EscapePressed )
+		// window, which is going to free the mouse cursor from being captured.
+		// A focused docked client's tab gets first claim on escape - don't race it.
+		if ( Game.IsPlaying && Input.EscapePressed && Sandbox.InProcessClientSession.Focused is null )
 		{
 			EditorWindow.Focus();
 			Input.EscapePressed = false;

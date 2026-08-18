@@ -189,13 +189,17 @@ public class StyleSheet
 		Watcher = context.FileMount.Watch();
 		Watcher.OnChanges += x =>
 		{
+			// The context can be torn down between the file change and this callback.
+			if ( context.FileMount is null )
+				return;
+
 			UpdateFromFile( name, true, context );
 
 			// Watch any files that got @import'd during this reparse so editing them hotloads too
 			foreach ( var file in IncludedFiles )
 				Watcher?.AddFile( file );
 
-			context.UISystem.DirtyAllStyles();
+			context.UISystem?.DirtyAllStyles();
 		};
 
 		foreach ( var file in IncludedFiles )

@@ -16,6 +16,36 @@ public static class GameMode
 	internal static bool IsPlayWidget( SceneRenderingWidget widget ) => widget == _inPlay;
 
 	/// <summary>
+	/// True while the play widget (the host's game view) has focus. Used by docked client
+	/// tabs to know when the player has clicked back into the host's game.
+	/// </summary>
+	internal static bool PlayWidgetFocused => _inPlay?.IsFocused ?? false;
+
+	/// <summary>
+	/// Bind the engine's window state (what ties SDL input routing to a window) to the
+	/// given window/swapchain. Docked clients borrow it while they hold input focus.
+	/// </summary>
+	internal static void SetEngineStateWindow( nint winId, SwapChainHandle_t swapChain )
+	{
+		g_pEngineServiceMgr.SetEngineState( winId, swapChain );
+	}
+
+	/// <summary>
+	/// Point the engine's window state and game input focus back at the play widget, when
+	/// a docked client releases input focus. Re-asserting the focus flag matters: the
+	/// released tab's "focus off" would otherwise clobber the play widget's earlier
+	/// "focus on", leaving host input dead until an OS focus cycle.
+	/// </summary>
+	internal static void RestoreEngineState()
+	{
+		if ( _inPlay is SceneRenderingWidget playWidget && playWidget.IsValid() && playWidget._widget.IsValid )
+		{
+			g_pEngineServiceMgr.SetEngineState( playWidget._widget.winId(), playWidget.SwapChain );
+			NativeEngine.InputSystem.OnEditorGameFocusChange( playWidget._widget.winId(), true );
+		}
+	}
+
+	/// <summary>
 	/// Given a widget, register it for SDL input, and tell the engine this is the swapchain we have
 	/// </summary>
 	/// <param name="widget"></param>
@@ -90,6 +120,10 @@ public static class GameMode
 	{
 		// SDL handles position when the widget is focused; only fill in the gap when unfocused.
 		if ( _inPlay is null || _inPlay.IsFocused )
+			return;
+
+		// While a docked client holds focus the router's cursor is in that client's window space - don't inject ours.
+		if ( Sandbox.InProcessClientSession.Focused is not null )
 			return;
 
 		var pos = new Vector2( (int)local.x, (int)local.y );

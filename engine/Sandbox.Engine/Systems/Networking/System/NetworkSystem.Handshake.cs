@@ -62,7 +62,8 @@ internal partial class NetworkSystem
 		log.Trace( $"My Client ID is {Connection.Local.Id}" );
 
 		// This is a bit of a mess, it needs a good cleaning up. If they have a menu package, then load it first.
-		if ( !string.IsNullOrEmpty( msg.GamePackage ) )
+		// In-process clients skip this: the game package is already loaded in this process.
+		if ( !string.IsNullOrEmpty( msg.GamePackage ) && !IsInProcessClient )
 		{
 			LoadingScreen.Title = $"Loading {msg.GamePackage}";
 
@@ -89,7 +90,8 @@ internal partial class NetworkSystem
 			log.Trace( $"No game package - must be a developer" );
 		}
 
-		if ( IGameInstanceDll.Current is not null )
+		// In-process clients keep their tenant TypeLibrary - the host's would undo per-client assembly isolation.
+		if ( IGameInstanceDll.Current is not null && !IsInProcessClient )
 		{
 			// TypeLibrary was probably rebuilt, keep it up to date
 			TypeLibrary = IGameInstanceDll.Current.TypeLibrary;
@@ -105,9 +107,9 @@ internal partial class NetworkSystem
 		Networking.MapName = msg.MapName;
 
 		//
-		// Check any required mount for this map
+		// Check any required mount for this map. An in-process client already has whatever the host mounted.
 		//
-		if ( Mounting.MountUtility.TryParse( msg.Map, out string ident ) )
+		if ( !IsInProcessClient && Mounting.MountUtility.TryParse( msg.Map, out string ident ) )
 		{
 			// make sure the mount exists and is mounted
 			var mount = Mounting.Directory.Get( ident );
@@ -263,16 +265,25 @@ internal partial class NetworkSystem
 
 		log.Trace( "Welcome!" );
 
-		LoadingScreen.Title = "Loading Network Tables";
-		if ( !await IGameInstanceDll.Current?.LoadNetworkTables( this ) )
+		if ( IsInProcessClient )
 		{
-			// code archive compile failed or something
-			Networking.Disconnect();
-			return;
+			// Everything is already loaded in this process - compiling code archives or remounting would corrupt shared state.
+			GameSystem = new SceneNetworkSystem( TypeLibrary, this );
+			GameSystem.OnInitialize();
 		}
+		else
+		{
+			LoadingScreen.Title = "Loading Network Tables";
+			if ( !await IGameInstanceDll.Current?.LoadNetworkTables( this ) )
+			{
+				// code archive compile failed or something
+				Networking.Disconnect();
+				return;
+			}
 
-		LoadingScreen.Title = "Init Game System";
-		await InitializeGameSystemAsync();
+			LoadingScreen.Title = "Init Game System";
+			await InitializeGameSystemAsync();
+		}
 
 		log.Trace( $"Game Network System: {GameSystem}" );
 
@@ -482,6 +493,14 @@ internal partial class NetworkSystem
 			return Task.CompletedTask;
 		}
 
+		if ( IsInProcessClient )
+		{
+			// Only this client session dies - never the whole (shared) game instance.
+			Log.Info( $"In-process client kicked: {msg.Reason}" );
+			Disconnect();
+			return Task.CompletedTask;
+		}
+
 		IGameInstanceDll.Current.Disconnect( $"Kicked from server.\n\nReason: {msg.Reason}" );
 		return Task.CompletedTask;
 	}
@@ -497,13 +516,18 @@ internal partial class NetworkSystem
 		if ( msg.HandshakeId != Connection.Local.HandshakeId )
 			return Task.CompletedTask;
 
-		if ( Application.IsEditor )
+		// In-process clients must not touch the shared editor play state or loading screen.
+		if ( !IsInProcessClient )
 		{
-			IToolsDll.Current?.SetPlaying();
+			if ( Application.IsEditor )
+			{
+				IToolsDll.Current?.SetPlaying();
+			}
+
+			LoadingScreen.IsVisible = false;
 		}
 
 		Log.Trace( $"[{this}] I am spawning into the game!" );
-		LoadingScreen.IsVisible = false;
 
 		Connection.Local.State = Connection.ChannelState.Connected;
 		source.State = Connection.ChannelState.Connected;

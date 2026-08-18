@@ -153,6 +153,17 @@ public abstract partial class Resource : IValid, IJsonConvert, BytePack.ISeriali
 			?? Engine.GlobalContext.Menu.ResourceSystem.Get( typeof( Resource ), resourceName );
 
 		resource?.OnLoaded( new ResourceLoadContext( resourceName, header ) );
+
+		// In-process client tenants hold their own typed wrappers for the same files - hand each of them the data too.
+		foreach ( var session in InProcessClientSession.All )
+		{
+			var tenantResource = session.FindTenantResource( resourceName );
+
+			if ( tenantResource is not null && tenantResource != resource )
+			{
+				tenantResource.OnLoaded( new ResourceLoadContext( resourceName, header ) );
+			}
+		}
 	}
 
 	public override string ToString()
