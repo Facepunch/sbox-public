@@ -45,29 +45,30 @@ public partial class Bitmap
 		foreach ( var group in channels.GroupBy( x => x.Source ) )
 		{
 			var source = group.Key;
-			Bitmap resized = null;
 
-			try
+			if ( source.Width == width && source.Height == height )
 			{
-				if ( source.Width != width || source.Height != height )
-					resized = source.Resize( width, height );
-
-				var pixels = (resized ?? source).GetBuffer();
-
-				foreach ( var (_, from, to) in group )
-				{
-					for ( int i = 0; i < width * height; i++ )
-					{
-						destination[i * 4 + (int)to] = pixels[i * 4 + (int)from];
-					}
-				}
+				CopyChannels( source, group, destination, width, height );
+				continue;
 			}
-			finally
-			{
-				resized?.Dispose();
-			}
+
+			using var resized = source.Resize( width, height );
+			CopyChannels( resized, group, destination, width, height );
 		}
 
 		return packed;
+	}
+
+	static void CopyChannels( Bitmap bitmap, IEnumerable<(Bitmap Source, ColorChannel From, ColorChannel To)> channels, Span<byte> destination, int width, int height )
+	{
+		var pixels = bitmap.GetBuffer();
+
+		foreach ( var (_, from, to) in channels )
+		{
+			for ( int i = 0; i < width * height; i++ )
+			{
+				destination[i * 4 + (int)to] = pixels[i * 4 + (int)from];
+			}
+		}
 	}
 }
