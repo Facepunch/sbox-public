@@ -59,8 +59,8 @@ PS
 {
     #include "common/classes/Depth.hlsl"
 
-    #define DOF_PASS_COMBINE_FRONT 0
-    #define DOF_PASS_COMBINE_BACK 1
+    #define DOF_PASS_COMBINE_BACK 0
+    #define DOF_PASS_COMBINE_FRONT 1
 
     DynamicCombo( D_DOF_TYPE, 0..1, Sys( PC ) );
 
@@ -88,9 +88,10 @@ PS
         int levels;
         Color.GetDimensions( 0, dimensions.x, dimensions.y, levels );
 
-        float4 vColor = Tex2DBicubic( Color, i.vTexCoord.xy, dimensions, BilinearClamp );
+        float4 vColor = Color.Sample( BilinearClamp, i.vTexCoord );
+        vColor.a += fwidth( vColor.a); // Correct with neighbours
 
-        float flBias = D_DOF_TYPE == 0 ? 0.01f : 0.02f;
+        float flBias = D_DOF_TYPE == 0 ? 0.001f : 0.001f;
 
         vColor.a = RemapValClamped( vColor.a, 0.0f, flBias, 0.0f, 1.0f ); // Smooth fade the alpha from CoC
         

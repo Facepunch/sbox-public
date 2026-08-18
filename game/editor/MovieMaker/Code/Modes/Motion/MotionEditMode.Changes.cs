@@ -1,6 +1,6 @@
-﻿using System.Collections.Immutable;
+﻿using Sandbox.MovieMaker;
+using System.Collections.Immutable;
 using System.Linq;
-using Sandbox.MovieMaker;
 
 namespace Editor.MovieMaker;
 
@@ -107,29 +107,12 @@ partial class MotionEditMode
 
 	private void Delete( MovieTimeRange timeRange, bool shiftTime )
 	{
-		var changed = false;
-
 		using ( Session.History.Push( shiftTime ? "Remove Time" : "Clear Time" ) )
 		{
-			foreach ( var view in Session.TrackList.EditablePropertyTracks )
+			if ( Session.Delete( [..Session.TrackList.EditablePropertyTracks], timeRange, shiftTime, false ) )
 			{
-				var track = (IProjectPropertyTrack)view.Track;
-
-				if ( shiftTime )
-				{
-					changed |= track.Remove( timeRange ) && view.MarkValueChanged();
-				}
-				else
-				{
-					changed |= track.Clear( timeRange ) && view.MarkValueChanged();
-				}
+				DisplayAction( "delete" );
 			}
-		}
-
-		if ( changed )
-		{
-			Session.ClipModified();
-			DisplayAction( "delete" );
 		}
 	}
 
@@ -233,33 +216,6 @@ partial class MotionEditMode
 		DisplayAction( "content_paste" );
 
 		return true;
-	}
-
-	private MovieResource CreateSequence( MovieTimeRange timeRange )
-	{
-		var project = new MovieProject();
-		var offset = -timeRange.Start;
-
-		foreach ( var editable in Session.TrackList.EditablePropertyTracks )
-		{
-			if ( editable.Track is not IProjectPropertyTrack propertyTrack ) continue; // TODO
-			if ( propertyTrack.Slice( timeRange ) is not { Count: > 0 } slice ) continue;
-
-			var trackCopy = (IProjectPropertyTrack)project.GetOrAddTrack( editable.Track );
-
-			trackCopy.SetBlocks( [.. slice.Select( x => x.Shift( offset ) )] );
-		}
-
-		Delete( timeRange, false );
-
-		var resource = new MovieResource { EditorData = project.Serialize(), Compiled = project.Compile() };
-		var track = Project.AddSequenceTrack( "Sequences" );
-
-		track.AddBlock( timeRange, new MovieTransform( -offset ), resource );
-
-		Session.TrackList.Update();
-
-		return resource;
 	}
 
 	protected override void OnTrackStateChanged( TrackView view )

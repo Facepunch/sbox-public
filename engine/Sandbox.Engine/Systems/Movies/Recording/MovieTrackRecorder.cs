@@ -266,9 +266,12 @@ internal sealed class MovieGameObjectTrackRecorder : MovieTrackRecorder<Compiled
 		{
 			// Create a new child recorder for this GameObject
 
-			var track = Track.GameObject( trackName ?? gameObject.Name, metadata: new TrackMetadata(
+			var metadata = new TrackMetadata(
 				ReferenceId: gameObject.Id,
-				PrefabSource: gameObject.IsPrefabInstanceRoot ? gameObject.PrefabInstanceSource : null ) );
+				PrefabSource: gameObject.IsPrefabInstanceRoot ? gameObject.PrefabInstanceSource : null,
+				Order: 1_000 + Children.OfType<MovieGameObjectTrackRecorder>().Count() );
+
+			var track = Track.GameObject( trackName ?? gameObject.Name, metadata: metadata );
 
 			recorder = new MovieGameObjectTrackRecorder( this, track );
 

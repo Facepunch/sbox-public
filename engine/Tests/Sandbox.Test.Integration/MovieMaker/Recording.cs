@@ -666,4 +666,37 @@ public sealed class RecorderTest : SceneTestBase
 		Assert.IsNull( clip.GetReference<GameObject>( "Example 1" ) );
 		Assert.IsNotNull( clip.GetReference<GameObject>( "Example 2" ) );
 	}
+
+	/// <summary>
+	/// Recorded tracks get assigned an ascending <see cref="TrackMetadata.Order"/>.
+	/// </summary>
+	[TestMethod]
+	public void TrackOrderAscending()
+	{
+		var go1 = new GameObject( "Foo" );
+		var go2 = new GameObject( "Bar" );
+
+		var options = new MovieRecorderOptions()
+			.WithCaptureAction( x =>
+			{
+				x.GetTrackRecorder( go1 )?.Capture();
+
+				if ( x.Time > 5.0 )
+				{
+					x.GetTrackRecorder( go2 )?.Capture();
+				}
+			} );
+
+		var clip = Record( options, 10.0 );
+
+		Console.WriteLine( Json.Serialize( clip ) );
+
+		var track1 = clip.GetReference<GameObject>( "Foo" );
+		var track2 = clip.GetReference<GameObject>( "Bar" );
+
+		Assert.IsNotNull( track1 );
+		Assert.IsNotNull( track2 );
+
+		Assert.IsTrue( track1.Metadata?.Order < track2.Metadata?.Order );
+	}
 }

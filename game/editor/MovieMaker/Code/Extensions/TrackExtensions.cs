@@ -1,4 +1,5 @@
-﻿using Sandbox.MovieMaker;
+﻿using System.Collections;
+using Sandbox.MovieMaker;
 using Sandbox.MovieMaker.Compiled;
 using Sandbox.MovieMaker.Properties;
 using System.Linq;
@@ -146,6 +147,24 @@ public static class TrackExtensions
 		finally
 		{
 			dummyWorld.Delete();
+		}
+	}
+
+	public static IEnumerable<TrackView> SelectDescendants( this IEnumerable<TrackView> trackViews )
+	{
+		var queue = new Queue<TrackView>( trackViews );
+		var set = new HashSet<TrackView>();
+
+		while ( queue.TryDequeue( out var next ) )
+		{
+			if ( !set.Add( next ) ) continue;
+
+			yield return next;
+
+			foreach ( var child in next.Children )
+			{
+				queue.Enqueue( child );
+			}
 		}
 	}
 }

@@ -116,6 +116,26 @@ public sealed partial class TrackView : IComparable<TrackView>
 		}
 	}
 
+	public Color BackgroundColor
+	{
+		get
+		{
+			var canModify = !IsLocked;
+
+			var defaultColor = Theme.SurfaceBackground.LerpTo( Theme.ControlBackground, canModify ? 0f : 0.5f );
+			var selectedColor = Color.Lerp( defaultColor, Theme.Primary, canModify ? 0.5f : 0.2f );
+
+			var color = IsSelected ? selectedColor : defaultColor;
+
+			if ( IsHovered )
+			{
+				color = color.Lighten( 0.25f );
+			}
+
+			return color;
+		}
+	}
+
 	private readonly SynchronizedSet<IProjectTrack, TrackView> _children;
 
 	private bool _dispatchValueChanged = false;
@@ -455,7 +475,7 @@ public sealed partial class TrackView : IComparable<TrackView>
 		var childrenCompare = (Children.Count > 0).CompareTo( other.Children.Count > 0 );
 		if ( childrenCompare != 0 ) return childrenCompare;
 
-		return string.Compare( Track.Name, other.Track.Name, StringComparison.Ordinal );
+		return Track.CompareTo( other.Track );
 	}
 
 	public T GetCookie<T>( string name, T fallback ) =>

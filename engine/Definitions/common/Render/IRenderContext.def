@@ -66,6 +66,19 @@ native class IRenderContext as NativeEngine.IRenderContext
 		self->Clear( col, flags );
 	}
 
+	// Clears a texture in-band on THIS context, so it's correctly ordered and synchronized
+	// with the surrounding recorded commands (unlike IRenderDevice::ClearTexture which spins
+	// up its own context and submits it immediately, out of band).
+	inline void ClearTexture( ITexture hTexture, Color color )
+	{
+		if ( hTexture == RENDER_TEXTURE_HANDLE_INVALID )
+			return;
+
+		// Despite its name, this does not need to be a UAV
+		uint32 clearValueUINT[ 4 ] = { (uint32)color[ 0 ], (uint32)color[ 1 ], (uint32)color[ 2 ], (uint32)color[ 3 ] };
+		self->ClearUnorderedAccessViewUint( hTexture, 0, clearValueUINT );
+	}
+
 	inline void BindRenderTargets( ITexture colorTexture, ITexture depthTexture, ISceneLayer layer )
 	{
 		// We can have a layer that only renders to color but if we only bind depth assume we want to blit to main framebuffer

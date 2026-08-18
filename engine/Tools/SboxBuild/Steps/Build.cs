@@ -28,9 +28,6 @@ internal static class Build
 
 		if ( !shouldSkipNative )
 		{
-			if ( new BuildVpc().Run() != ExitCode.Success )
-				return ExitCode.Failure;
-
 			if ( new GenerateSolutions( config ).Run() != ExitCode.Success )
 				return ExitCode.Failure;
 

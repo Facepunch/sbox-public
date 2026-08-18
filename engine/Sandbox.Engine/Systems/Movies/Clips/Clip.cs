@@ -59,11 +59,14 @@ public interface ITrack
 /// </summary>
 /// <param name="ReferenceId">ID of the <see cref="Component"/> or <see cref="GameObject"/> this track was created to target.</param>
 /// <param name="PrefabSource">For <see cref="GameObject"/> tracks, the prefab path that the original target object was instantiated from.</param>
+/// <param name="Order">Sorting order for serialization / in the movie editor.</param>
 public sealed record TrackMetadata(
 	[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )]
 	Guid? ReferenceId = null,
 	[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )]
-	string? PrefabSource = null );
+	string? PrefabSource = null,
+	[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingDefault )]
+	int Order = 0 );
 
 /// <summary>
 /// Maps to an <see cref="ITrackReference"/> in a scene, which binds to a <see cref="GameObject"/>
