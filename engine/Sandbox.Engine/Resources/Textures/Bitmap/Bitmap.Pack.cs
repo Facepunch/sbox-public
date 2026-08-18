@@ -45,10 +45,13 @@ public partial class Bitmap
 		foreach ( var group in channels.GroupBy( x => x.Source ) )
 		{
 			var source = group.Key;
-			var resized = source.Width == width && source.Height == height ? null : source.Resize( width, height );
+			Bitmap resized = null;
 
 			try
 			{
+				if ( source.Width != width || source.Height != height )
+					resized = source.Resize( width, height );
+
 				var pixels = (resized ?? source).GetBuffer();
 
 				foreach ( var (_, from, to) in group )
