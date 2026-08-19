@@ -56,8 +56,17 @@ internal static class Image
 			}
 			else
 			{
-				using var image = SKImage.FromEncodedData( data );
-				using var bitmap = SKBitmap.FromImage( image );
+				// Decode straight from the codec asking for straight (unpremultiplied) alpha, the same as
+				// Bitmap.Loading does. Going via SKImage.FromEncodedData / SKBitmap.FromImage silently
+				// gives premultiplied pixels, which nothing downstream expects.
+				var info = new SKImageInfo( codec.Info.Width, codec.Info.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul );
+				using var bitmap = SKBitmap.Decode( codec, info );
+
+				if ( bitmap is null )
+				{
+					Log.Warning( $"Error decoding image: {debugName}" );
+					return default;
+				}
 
 				var texture = CreateTexture( bitmap, debugName );
 				return texture;

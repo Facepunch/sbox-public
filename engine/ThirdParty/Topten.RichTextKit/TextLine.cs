@@ -389,11 +389,11 @@ namespace Topten.RichTextKit
 			}
 		}
 
-		internal void UpdateOverhang( float right, ref float leftOverhang, ref float rightOverhang )
+		internal void UpdateOverhang( SKRect textRect, ref SKRect overhang )
 		{
 			foreach ( var r in Runs )
 			{
-				r.UpdateOverhang( right, ref leftOverhang, ref rightOverhang );
+				r.UpdateOverhang( textRect, ref overhang );
 			}
 		}
 

@@ -48,7 +48,11 @@
     [Parameter] public string Query { get; set; }
     [Parameter] public int Take { get; set; } = 100;
     [Parameter] public bool ShowFilters { get; set; } = false;
-    [Parameter] public Vector2 ItemSize => new Vector2( 260, 170 );
+    /// <summary>
+    /// Base cell size. The grid stretches cells to fill the row and scales the height to
+    /// match, so this only sets the aspect - a 16:9 image plus the title/stats strip below it.
+    /// </summary>
+    [Parameter] public Vector2 ItemSize { get; set; } = new Vector2( 260, 206 );
 
     [Parameter] public System.Action<Package> OnMenu { get; set; }
     [Parameter] public System.Action<Package> OnSelected { get; set; }

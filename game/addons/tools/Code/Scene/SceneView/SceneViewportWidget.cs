@@ -601,7 +601,7 @@ public partial class SceneViewportWidget : Widget
 				}
 			}
 
-			bool shouldBlockOrbit = blockCamera || (blockCameraForToolInput && GizmoInstance.Input.IsHovered) || gizmoInputUsed;
+			bool shouldBlockOrbit = blockCamera || (blockCameraForToolInput && GizmoInstance.Input.IsHovered) || gizmoInputUsed || Gizmo.Pressed.Any;
 
 			_activeCamera.OrthographicHeight = State.CameraOrthoHeight;
 

@@ -38,7 +38,6 @@ PS
 	float4 g_vInvTextureDim < Source( InvTextureDim ); SourceArg( g_tColor ); >;
 	Texture2D g_tColor < Attribute( "Texture" ); SrgbRead( true ); >;
 
-	RenderState( SrgbWriteEnable0, true );
 	RenderState( ColorWriteEnable0, RGBA );
 	RenderState( FillMode, SOLID );
 	RenderState( CullMode, NONE );
@@ -55,6 +54,6 @@ PS
 
 		float4 vImage = g_tColor.Sample( g_sAniso, i.vTexCoord.xy );
 		o.vColor = vImage * i.vColor.rgba;
-		return UI_CommonProcessing_Post( i, o );
+		return UI_CommonProcessing_Post( i, o, vImage.a );
 	}
 }

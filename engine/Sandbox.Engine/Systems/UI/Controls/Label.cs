@@ -24,6 +24,11 @@ namespace Sandbox.UI
 		bool sizeFinalized;
 		Vector2 availableSpace;
 
+		/// <summary>
+		/// A background-clip: text at or above this label is painting its glyphs, so it doesn't draw them itself.
+		/// </summary>
+		bool clipsBackgroundToText;
+
 		[Category( "Selection" )]
 		public bool ShouldDrawSelection
 		{
@@ -292,10 +297,11 @@ namespace Sandbox.UI
 			{
 				_textBlock = new TextBlock();
 				_textBlock.LookupStyles = HtmlStyleLookup;
-				_textBlock.OnTextureChanged = MarkRenderDirty;
+				_textBlock.OnTextureChanged = TextTextureChanged;
 			}
 
 			_textBlock.NoWrap = !Multiline;
+			clipsBackgroundToText = cascade.ClipBackgroundToText || ComputedStyle.BackgroundClip == BackgroundClip.Text;
 
 			if ( IsRich )
 			{
@@ -320,6 +326,41 @@ namespace Sandbox.UI
 				YogaNode.MarkDirty();
 				sizeFinalized = false;
 			}
+		}
+
+		/// <summary>
+		/// Where the text is laid out, which scrolls with the caret in a text entry.
+		/// </summary>
+		Rect TextLayoutRect => new Rect( Box.RectInner.Position - caretScroll, Box.RectInner.Size );
+
+		/// <summary>
+		/// The panel clipping its background to this text holds the texture in its own descriptor,
+		/// so it rebuilds when the text is rerendered.
+		/// </summary>
+		void TextTextureChanged()
+		{
+			MarkRenderDirty();
+
+			if ( !clipsBackgroundToText ) return;
+
+			for ( var panel = Parent; panel is not null; panel = panel.Parent )
+			{
+				panel.MarkRenderDirty();
+				if ( panel.ComputedStyle?.BackgroundClip == BackgroundClip.Text ) break;
+			}
+		}
+
+		/// <summary>
+		/// The rendered text this label lends to a background-clip: text, and where it sits.
+		/// </summary>
+		internal bool GetTextMask( out Texture texture, out Rect rect )
+		{
+			texture = null;
+			rect = default;
+
+			if ( !clipsBackgroundToText || _textBlock is null || ComputedStyle is null ) return false;
+
+			return _textBlock.GetMask( ComputedStyle, TextLayoutRect, out texture, out rect );
 		}
 
 		private Styles HtmlStyleLookup( INode node )
@@ -405,9 +446,9 @@ namespace Sandbox.UI
 				_textBlock.SizeFinalized( Box.RectInner.Width, Box.RectInner.Height );
 			}
 
-			var rect = Box.RectInner;
-			rect.Position -= caretScroll;
-			_textBlock?.BuildDescriptors( CachedDescriptors, CachedOverrideBlendMode, ComputedStyle, rect, CachedRenderOpacity );
+			if ( clipsBackgroundToText ) return;
+
+			_textBlock?.BuildDescriptors( CachedDescriptors, CachedOverrideBlendMode, ComputedStyle, TextLayoutRect, CachedRenderOpacity );
 		}
 
 		public int GetLetterAt( Vector2 pos )

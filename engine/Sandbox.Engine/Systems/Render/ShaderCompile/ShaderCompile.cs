@@ -203,7 +203,9 @@ public static class ShaderCompile
 		// Open the source file
 		var source = await System.IO.File.ReadAllTextAsync( s.AbsolutePath );
 
-		foreach ( var program in s.Programs )
+		// Snapshot - the loop awaits per program, so anything touching the list while a
+		// compile is in flight would invalidate a live enumerator.
+		foreach ( var program in s.Programs.ToArray() )
 		{
 			var success = await program.Compile( compileOptions, vfx, source, result, token, s.AbsolutePath, s.RelativePath );
 

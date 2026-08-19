@@ -365,7 +365,7 @@
 			],
 			"License": "Apache-2.0",
 			"ProjectUrl": "https://github.com/embree/embree/",
-			"Linkage": "dynamic",
+			"Linkage": "static",
 			"Copyright": [
 				"2009-2024 Intel Corporation"
 			]
@@ -381,19 +381,6 @@
 			"Linkage": "static",
 			"Copyright": [
 				"2015 Etc2Comp Authors"
-			]
-		},
-		{
-			"Name": "fossilize",
-			"Comment": "Vulkan pipeline/shader cache management (Valve).",
-			"UsedBy": [
-				"engine2"
-			],
-			"License": "MIT",
-			"ProjectUrl": "https://github.com/ValveSoftware/Fossilize/",
-			"Linkage": "static",
-			"Copyright": [
-				"2018 Hans-Kristian Arntzen"
 			]
 		},
 		{
@@ -474,6 +461,21 @@
 			"Linkage": "dynamic",
 			"Copyright": [
 				"1997-2025 Sam Lantinga"
+			]
+		},
+		{
+			"Name": "glslang",
+			"Comment": "Khronos reference GLSL/HLSL front end; we build it to obtain SPVRemapper and the SPIR-V tooling libraries.",
+			"UsedBy": [
+				"shaderpreprocessing"
+			],
+			"License": "glslang",
+			"ProjectUrl": "https://github.com/KhronosGroup/glslang",
+			"Linkage": "static",
+			"Copyright": [
+				"2002-2024 The Khronos Group Inc.",
+				"2012-2016 LunarG, Inc.",
+				"2013-2016 Google, Inc."
 			]
 		},
 		{
@@ -779,7 +781,7 @@
 		},
 		{
 			"Name": "LAME",
-			"Comment": "LAME MP3 encoder (lame_enc.dll).",
+			"Comment": "LAME MP3 encoder (libmp3lame).",
 			"UsedBy": [
 				"soundssystem"
 			],
@@ -823,19 +825,6 @@
 			"Copyright": [
 				"2019 Sentry",
 				"Functional Software, Inc."
-			]
-		},
-		{
-			"Name": "OpenVR",
-			"Comment": "OpenVR runtime API (openvr_api.dll).",
-			"UsedBy": [
-				"engine2"
-			],
-			"License": "BSD-3-Clause",
-			"ProjectUrl": "https://github.com/ValveSoftware/openvr/",
-			"Linkage": "dynamic",
-			"Copyright": [
-				"2015 Valve Corporation"
 			]
 		},
 		{

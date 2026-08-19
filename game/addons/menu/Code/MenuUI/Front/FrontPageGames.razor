@@ -1,0 +1,172 @@
+﻿@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+
+@if ( Group is null )
+    return;
+
+<root>
+    @{ int mosaicIndex = 0; }
+    @foreach ( var (entry, index) in Group.Groupings.Select( ( g, i ) => (g, i) ) )
+    {
+        // Every other section gets a mosaic - one big video tile beside two rows of small
+        // ones - and the mosaics alternate which side the big tile sits on. In between,
+        // a plain single row.
+        var packages = entry.Packages ?? Array.Empty<Package>();
+        var big = index % 2 == 0 ? PickBig( packages ) : null;
+        var mosaic = big is not null && Columns >= 3 && packages.Length >= 3;
+        var bigRight = mosaic && (mosaicIndex++ % 2 == 1);
+
+        <div class="section">
+
+            <div class="head">
+                <div class="head-text">
+                    <label class="title">@entry.Title</label>
+                    @if ( !string.IsNullOrEmpty( entry.Description ) )
+                    {
+                        <label class="description">@entry.Description</label>
+                    }
+                </div>
+                <div class="grow" />
+                <a class="view-all" href="@GroupUrl( entry )">View All</a>
+            </div>
+
+            @if ( mosaic )
+            {
+                var smallCols = Columns - 2;
+                var rest = packages.Where( x => x != big ).ToArray();
+                var rowOne = rest.Take( smallCols ).ToArray();
+                var rowTwo = rest.Skip( smallCols ).Take( smallCols ).ToArray();
+
+                // A row that ran out of packages keeps full-row tile widths and leaves the
+                // gap empty - stretched tiles would break the grid.
+                var rowOneStyle = rowOne.Length < smallCols ? ShortRowTileStyle : "";
+                var rowTwoStyle = rowTwo.Length < smallCols ? ShortRowTileStyle : "";
+
+                <div class="tiles mosaic @( bigRight ? "big-right" : "big-left" )">
+                    @* The wrapper owns the width - PackageCard sets its own root class/style, so
+                       anything passed straight to it gets clobbered. *@
+                    <div class="big" style="width: @( (int)BigWidth )px;">
+                        <PackageCard Package=@big ShowSummary=@true
+                                     Clicked="@(() => big.OpenModal())"
+                                     RightClicked="@(() => MenuHelpers.OpenPackageMenu( this, big ))" />
+                    </div>
+
+                    <div class="grid">
+                        <div class="row">
+                            @foreach ( var package in rowOne )
+                            {
+                                <PackageCard Package=@package style="@rowOneStyle"
+                                             Clicked="@(() => package.OpenModal())"
+                                             RightClicked="@(() => MenuHelpers.OpenPackageMenu( this, package ))" />
+                            }
+                        </div>
+                        @if ( rowTwo.Any() )
+                        {
+                            <div class="row">
+                                @foreach ( var package in rowTwo )
+                                {
+                                    <PackageCard Package=@package style="@rowTwoStyle"
+                                                 Clicked="@(() => package.OpenModal())"
+                                                 RightClicked="@(() => MenuHelpers.OpenPackageMenu( this, package ))" />
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="tiles">
+                    <div class="row">
+                        @foreach ( var package in packages.Take( Columns ) )
+                        {
+                            <PackageCard Package=@package
+                                         Clicked="@(() => package.OpenModal())"
+                                         RightClicked="@(() => MenuHelpers.OpenPackageMenu( this, package ))" />
+                        }
+                    </div>
+                </div>
+            }
+
+        </div>
+    }
+</root>
+
+@code
+{
+    // Keep in sync with .row PackageCard width and the gap in FrontPageGames.razor.scss.
+    const float TileWidth = 250f;
+    const float TileGap = 8f;
+
+    [Parameter] public Package.ListResult Group { get; set; }
+
+    /// <summary>
+    /// How many tile columns fit across a row at the current width. The big tile spans two of them.
+    /// </summary>
+    int Columns { get; set; } = 5;
+
+    /// <summary>
+    /// The big tile is exactly two tiles plus the gap between them, in unscaled px - so its
+    /// far edge lands where a second column's would.
+    /// </summary>
+    float BigWidth { get; set; } = TileWidth * 2 + TileGap;
+
+    /// <summary>
+    /// Inline style for tiles in a row that came up short: pin them to a full row's tile
+    /// width instead of letting them grow into the space.
+    /// </summary>
+    string ShortRowTileStyle => $"flex-grow: 0; width: {(int)((BigWidth - TileGap) / 2)}px;";
+
+    /// <summary>
+    /// The big tile is the group's first package that has a video - it's the one that
+    /// plays. None with a video means no big tile.
+    /// </summary>
+    static Package PickBig( Package[] packages ) => packages.FirstOrDefault( x => !string.IsNullOrEmpty( x?.VideoThumb ) );
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        // Measure a real row rather than guessing at paddings from our own box.
+        var tiles = FirstTilesRow();
+        var scale = ScaleToScreen;
+
+        if ( tiles is null || scale <= 0 || tiles.Box.RectInner.Width <= 0 )
+            return;
+
+        // Inner rect - the tiles lay out inside .tiles' padding.
+        var rowWidth = tiles.Box.RectInner.Width / scale;
+        var fit = Math.Max( 1, (int)((rowWidth + TileGap) / (TileWidth + TileGap)) );
+
+        var tileWidth = (rowWidth - (fit - 1) * TileGap) / fit;
+        var bigWidth = MathF.Round( tileWidth * 2 + TileGap );
+
+        if ( fit != Columns || !bigWidth.AlmostEqual( BigWidth, 0.5f ) )
+        {
+            Columns = fit;
+            BigWidth = bigWidth;
+            StateHasChanged();
+        }
+    }
+
+    Panel FirstTilesRow()
+    {
+        foreach ( var section in Children )
+        {
+            foreach ( var child in section.Children )
+            {
+                if ( child.HasClass( "tiles" ) )
+                    return child;
+            }
+        }
+
+        return null;
+    }
+
+    static string GroupUrl( Package.ListResult.Grouping g ) => $"/games/group?Query={g.QueryString}&title={g.Title}&icon={g.Icon}";
+
+    protected override int BuildHash() => HashCode.Combine( Group, Group?.Groupings?.Length, Columns, BigWidth );
+}
+

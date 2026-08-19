@@ -131,6 +131,12 @@ public partial class Scene : GameObject
 
 	List<IRenderThread> renderThreadEventTargets = new();
 
+	/// <summary>
+	/// Screen panels in draw order, captured in PreRender(). Sorted here so the render
+	/// thread neither walks the object index nor sorts every frame.
+	/// </summary>
+	internal List<ScreenPanel> renderScreenPanels = new();
+
 	internal void PreRender()
 	{
 		// Snapshot IRenderThread components on the main thread so the render thread
@@ -138,7 +144,33 @@ public partial class Scene : GameObject
 		renderThreadEventTargets.Clear();
 		GetAll( renderThreadEventTargets );
 
+		renderScreenPanels.Clear();
+		GetAll( renderScreenPanels );
+		SortScreenPanels( renderScreenPanels );
+
 		foreach ( var c in preRenderComponents.EnumerateLocked() ) c.OnPreRenderInternal();
+	}
+
+	/// <summary>
+	/// Sort by ZIndex, keeping scene order for equal ZIndex so overlapping panels draw
+	/// in a predictable order. List.Sort isn't stable; a stable insertion sort is fine
+	/// for the handful of panels a scene has and doesn't allocate.
+	/// </summary>
+	static void SortScreenPanels( List<ScreenPanel> panels )
+	{
+		for ( int i = 1; i < panels.Count; i++ )
+		{
+			var panel = panels[i];
+			int j = i - 1;
+
+			while ( j >= 0 && panels[j].ZIndex > panel.ZIndex )
+			{
+				panels[j + 1] = panels[j];
+				j--;
+			}
+
+			panels[j + 1] = panel;
+		}
 	}
 
 	static Superluminal _updateTimer = new Superluminal( "Scene.Update", Color.Cyan );

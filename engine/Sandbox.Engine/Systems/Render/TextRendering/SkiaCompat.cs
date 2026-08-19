@@ -5,6 +5,38 @@ namespace Sandbox
 {
 	internal static class SkiaCompat
 	{
+		extension( SKBitmap bitmap )
+		{
+			/// <summary>
+			/// Put a colour into every fully transparent texel, so nothing outside the ink is black.
+			/// Skia works premultiplied, so anything it didn't draw - and anything it drew with less than
+			/// half a level of coverage - lands as a plain zero, which a bilinear tap near an edge drags in.
+			/// </summary>
+			public unsafe void RepairTransparentTexels( SKColorF color )
+			{
+				var pixels = bitmap.GetPixels();
+				if ( pixels == IntPtr.Zero ) return;
+
+				var count = bitmap.Width * bitmap.Height;
+
+				if ( bitmap.ColorType == SKColorType.RgbaF16 )
+				{
+					var rgb = (ulong)BitConverter.HalfToUInt16Bits( (Half)color.Red )
+						| ((ulong)BitConverter.HalfToUInt16Bits( (Half)color.Green ) << 16)
+						| ((ulong)BitConverter.HalfToUInt16Bits( (Half)color.Blue ) << 32);
+
+					new Span<ulong>( (void*)pixels, count ).Replace( 0ul, rgb );
+					return;
+				}
+
+				var r = (uint)(color.Red.Clamp( 0, 1 ) * 255.0f + 0.5f);
+				var g = (uint)(color.Green.Clamp( 0, 1 ) * 255.0f + 0.5f);
+				var b = (uint)(color.Blue.Clamp( 0, 1 ) * 255.0f + 0.5f);
+
+				new Span<uint>( (void*)pixels, count ).Replace( 0u, (r << 16) | (g << 8) | b );
+			}
+		}
+
 		public static SKColor ToSk( this in Color c )
 		{
 			var c32 = c.ToColor32();

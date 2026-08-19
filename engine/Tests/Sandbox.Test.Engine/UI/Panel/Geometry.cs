@@ -98,6 +98,60 @@ public class PanelGeometryTest
 	}
 
 	/// <summary>
+	/// A percent radius resolves per axis, so on a non-square panel the corner is a
+	/// quarter ellipse and IsInside has to follow the same shape it draws.
+	/// </summary>
+	[TestMethod]
+	public void PointInsideRespectsEllipticalCorners()
+	{
+		var root = new RootPanel();
+		root.PanelBounds = new Rect( 0, 0, 1000, 1000 );
+
+		var p = new Panel { Parent = root };
+		p.Style.Set( "position: absolute; left: 100px; top: 100px; width: 200px; height: 100px; border-radius: 50%;" );
+		root.Layout();
+
+		// A full ellipse, so the centre and all four edge midpoints are in
+		Assert.IsTrue( p.IsInside( new Vector2( 200, 150 ) ) );
+		Assert.IsTrue( p.IsInside( new Vector2( 101, 150 ) ) );
+		Assert.IsTrue( p.IsInside( new Vector2( 299, 150 ) ) );
+		Assert.IsTrue( p.IsInside( new Vector2( 200, 101 ) ) );
+
+		// Halfway along the top the ellipse has already curved away, where a circle
+		// of the smaller radius would still be running straight
+		Assert.IsFalse( p.IsInside( new Vector2( 250, 105 ) ) );
+		Assert.IsTrue( p.IsInside( new Vector2( 250, 115 ) ) );
+
+		Assert.IsFalse( p.IsInside( new Vector2( 105, 105 ) ) );
+		Assert.IsFalse( p.IsInside( new Vector2( 295, 195 ) ) );
+	}
+
+	/// <summary>
+	/// The two-value radius syntax gives a corner a different horizontal and vertical
+	/// radius, which IsInside honours rather than rounding both to one circle.
+	/// </summary>
+	[TestMethod]
+	public void PointInsideRespectsSplitRadius()
+	{
+		var root = new RootPanel();
+		root.PanelBounds = new Rect( 0, 0, 1000, 1000 );
+
+		var p = new Panel { Parent = root };
+		p.Style.Set( "position: absolute; left: 0px; top: 0px; width: 100px; height: 100px; border-radius: 40px / 20px;" );
+		root.Layout();
+
+		// Inside the wide, shallow corner - a 40px circle would have cut this off
+		Assert.IsTrue( p.IsInside( new Vector2( 5, 15 ) ) );
+
+		// Still outside it near the very corner
+		Assert.IsFalse( p.IsInside( new Vector2( 2, 2 ) ) );
+
+		// Past the corner on both axes, so the straight edges take over
+		Assert.IsTrue( p.IsInside( new Vector2( 50, 1 ) ) );
+		Assert.IsTrue( p.IsInside( new Vector2( 1, 50 ) ) );
+	}
+
+	/// <summary>
 	/// FindInRect yields the panel itself followed by every visible
 	/// descendant intersecting the queried rect, and skips hidden subtrees.
 	/// </summary>

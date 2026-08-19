@@ -1,0 +1,200 @@
+@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+
+<root>
+
+    <div class="info">
+        <label class="eyebrow">Welcome back,</label>
+        <label class="name">@Sandbox.Utility.Steam.PersonaName</label>
+    </div>
+
+    <div class="edit clicky" tooltip="Edit your avatar" @onclick="@OpenAvatarScene">
+        <icon>emoji_people</icon>
+        <label>Edit</label>
+    </div>
+
+    @if ( StatsLoaded )
+    {
+        <div class="stats">
+            <div class="stat">
+                <label class="stat-label">Achievements</label>
+                <div class="stat-value">
+                    <icon class="trophy">emoji_events</icon>
+                    <label>@AchievementsUnlocked.ToString( "N0" )</label>
+                </div>
+            </div>
+
+            <div class="grow" />
+
+            <div class="stat right">
+                <label class="stat-label">Points</label>
+                <div class="stat-value">
+                    <icon class="points">stars</icon>
+                    <label>@AchievementScore.ToString( "N0" )</label>
+                </div>
+            </div>
+        </div>
+    }
+
+</root>
+
+@code
+{
+    ScenePanel scenePanel;
+
+    /// <summary>Across their recently played games - the same feed the achievements page shows.</summary>
+    int AchievementsUnlocked { get; set; }
+    int AchievementScore { get; set; }
+    bool StatsLoaded { get; set; }
+
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        if ( !firstTime )
+            return;
+
+        // The scss doubles this panel's size then scales it back down by half,
+        // so the scene renders at 2x and the downscale anti-aliases it.
+        scenePanel = AddChild<ScenePanel>( "render" );
+        BuildScene( scenePanel.RenderScene );
+
+        _ = LoadStats();
+    }
+
+    async Task LoadStats()
+    {
+        var overviews = await MenuUtility.GetAchievementOverviews( 50 );
+
+        if ( overviews is null )
+            return;
+
+        AchievementsUnlocked = overviews.Sum( x => x.Unlocked );
+        AchievementScore = overviews.Sum( x => x.Score );
+        StatsLoaded = true;
+
+        StateHasChanged();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( StatsLoaded, AchievementsUnlocked, AchievementScore );
+
+    /// <summary>
+    /// A tiny portrait scene - camera, sun and the local player's dressed avatar.
+    /// The camera looks straight down the model's line so he stands centred in the card.
+    /// </summary>
+    static void BuildScene( Scene scene )
+    {
+        using ( scene.Push() )
+        {
+            var cameraObject = new GameObject( true, "Camera" );
+            cameraObject.WorldPosition = new Vector3( 133, 0, 48 );
+            cameraObject.WorldRotation = Rotation.FromYaw( 180 );
+
+            var camera = cameraObject.AddComponent<CameraComponent>();
+            camera.BackgroundColor = Color.Transparent;
+            camera.FieldOfView = 32;
+            camera.ZNear = 1;
+            camera.ZFar = 512;
+
+            var sunObject = new GameObject( true, "Sun" );
+            sunObject.WorldRotation = Rotation.From( 50, 150, 0 );
+
+            var sun = sunObject.AddComponent<DirectionalLight>();
+            sun.LightColor = new Color( 1.0f, 0.96f, 0.9f ) * 1.6f;
+            sun.SkyColor = new Color( 0.35f, 0.38f, 0.45f );
+
+            var bodyObject = new GameObject( true, "Body" );
+            bodyObject.WorldRotation = Rotation.FromYaw( -25 );
+
+            var clothing = ClothingContainer.CreateFromLocalUser();
+
+            var body = bodyObject.AddComponent<SkinnedModelRenderer>();
+            body.Model = Model.Load( clothing.PrefersHuman
+                ? "models/citizen_human/citizen_human_male.vmdl"
+                : "models/citizen/citizen.vmdl" );
+
+            // The hands-on-hips pose the garage character used.
+            body.Set( "special_idle_states", 1 );
+
+            // Properties land after the component wakes, so kick the dresser manually.
+            var dresser = bodyObject.AddComponent<Dresser>();
+            dresser.Source = Dresser.ClothingSource.LocalUser;
+            dresser.BodyTarget = body;
+            _ = dresser.Apply();
+        }
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+        UpdateEyes();
+    }
+
+    Vector3 _eyeDirection;
+    float _eyeWeight;
+
+    /// <summary>While hovered, the character's eyes follow the cursor.</summary>
+    void UpdateEyes()
+    {
+        if ( scenePanel is null || !scenePanel.RenderScene.IsValid() )
+            return;
+
+        var renderer = scenePanel.RenderScene.GetAllComponents<SkinnedModelRenderer>().FirstOrDefault();
+        if ( !renderer.IsValid() )
+            return;
+
+        var rect = Box.Rect;
+        var camera = scenePanel.RenderScene.Camera;
+
+        if ( rect.Width <= 0 || rect.Height <= 0 || !camera.IsValid() )
+            return;
+
+        var eyes = renderer.GetAttachment( "eyes" )?.Position ?? renderer.WorldPosition + Vector3.Up * 60;
+
+        // Default to watching the viewer - that's also what hover eases in from.
+        var wantDirection = (camera.WorldPosition - eyes).Normal;
+        var wantWeight = 0f;
+
+        if ( HasHovered )
+        {
+            // Cursor in card space, centered: -0.5 .. 0.5 on both axes.
+            var u = MousePosition.x / rect.Width - 0.5f;
+            var v = MousePosition.y / rect.Height - 0.5f;
+
+            var dist = camera.WorldPosition.Distance( eyes );
+            var halfWidth = dist * MathF.Tan( camera.FieldOfView.DegreeToRadian() * 0.5f );
+            var halfHeight = halfWidth * (rect.Height / rect.Width);
+
+            // Cast through the cursor pixel, but put the look target only a third of the
+            // way out from the camera. That keeps it well in front of his face - a target
+            // at his own depth swings wildly when the cursor is near his eyes - and
+            // pulling it toward the viewer damps the glance to something subtle.
+            var ray = camera.WorldRotation.Forward * dist
+                + camera.WorldRotation.Right * (u * 2f * halfWidth)
+                + camera.WorldRotation.Up * (-v * 2f * halfHeight);
+
+            var target = camera.WorldPosition + ray.Normal * (dist * 0.9f);
+
+            wantDirection = (target - eyes).Normal;
+            wantWeight = 1f;
+        }
+
+        if ( _eyeDirection.IsNearZeroLength )
+            _eyeDirection = wantDirection;
+
+        // Ease toward the target so glances read as movement, not snapping.
+        _eyeDirection = Vector3.Lerp( _eyeDirection, wantDirection, RealTime.Delta * 8f ).Normal;
+        _eyeWeight = _eyeWeight.LerpTo( wantWeight, RealTime.Delta * 6f );
+
+        renderer.SetLookDirection( "aim_eyes", _eyeDirection, _eyeWeight );
+    }
+
+    void OpenAvatarScene()
+    {
+        var options = new SceneLoadOptions();
+        options.ShowLoadingScreen = false;
+        options.SetScene( "/scenes/avatar.scene" );
+
+        Game.ActiveScene.Load( options );
+    }
+}

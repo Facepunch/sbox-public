@@ -208,20 +208,12 @@ partial class EdgeCutTool
 				Gizmo.Draw.LineThickness = 1;
 				Gizmo.Draw.IgnoreDepth = true;
 				Gizmo.Draw.Color = edgeColor.Darken( 0.3f ).WithAlpha( 0.2f );
-
-				foreach ( var v in mesh.Mesh.GetEdges() )
-				{
-					Gizmo.Draw.Line( v );
-				}
+				Gizmo.Draw.Lines( mesh.Mesh.GetVisibleEdges() );
 
 				Gizmo.Draw.Color = edgeColor;
 				Gizmo.Draw.IgnoreDepth = false;
 				Gizmo.Draw.LineThickness = 2;
-
-				foreach ( var v in mesh.Mesh.GetEdges() )
-				{
-					Gizmo.Draw.Line( v );
-				}
+				Gizmo.Draw.Lines( mesh.Mesh.GetVisibleEdges() );
 			}
 
 			using ( Gizmo.Scope( "Vertices" ) )
@@ -231,7 +223,7 @@ partial class EdgeCutTool
 				Gizmo.Draw.IgnoreDepth = true;
 				Gizmo.Draw.Color = vertexColor.Darken( 0.3f ).WithAlpha( 0.2f );
 
-				foreach ( var v in mesh.Mesh.GetVertexPositions() )
+				foreach ( var v in mesh.Mesh.GetVisibleVertexPositions() )
 				{
 					Gizmo.Draw.Sprite( v, 8, null, false );
 				}
@@ -239,7 +231,7 @@ partial class EdgeCutTool
 				Gizmo.Draw.Color = vertexColor;
 				Gizmo.Draw.IgnoreDepth = false;
 
-				foreach ( var v in mesh.Mesh.GetVertexPositions() )
+				foreach ( var v in mesh.Mesh.GetVisibleVertexPositions() )
 				{
 					Gizmo.Draw.Sprite( v, 8, null, false );
 				}

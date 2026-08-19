@@ -1,0 +1,175 @@
+@using MenuProject.MenuUI.Components
+@using MenuProject.MenuUI.Layout
+@using Sandbox;
+@using Sandbox.Mounting;
+@using Sandbox.UI;
+@using Sandbox.UI.Mounts;
+@using System;
+@using System.Collections.Generic;
+@using System.Linq;
+
+@page "/mounts"
+@inherits Panel
+
+@* Deliberately not using Page's Left slot - that sidebar is a full-height scrolling slab, right
+   for a long filter column but mostly empty under a fixed block of prose. This page lays out its
+   own two columns so the explainer card can hug its text. *@
+<root class="root">
+	<Page>
+		<Body>
+			<div class="columns">
+
+				<div class="aside">
+
+					<h2><WithIcon Icon="extension" Text="What's a mount?"></WithIcon></h2>
+					<p>
+						A mount lets s&amp;box use the content of a game you already own. Turn one on and it
+						reads that game straight out of its install folder, converting the models, maps,
+						materials and sounds as they're asked for.
+					</p>
+
+					<div class="block">
+						<label class="section-label">How it works</label>
+
+						<div class="step">
+							<icon>shopping_cart</icon>
+							<label>Own the game on Steam and install it. s&amp;box finds it through your library.</label>
+						</div>
+
+						<div class="step">
+							<icon>toggle_on</icon>
+							<label>Turn it on here. It stays on until you turn it off again.</label>
+						</div>
+
+						<div class="step">
+							<icon>folder_open</icon>
+							<label>Its content shows up in the asset browser, and in any game that asks for it.</label>
+						</div>
+					</div>
+
+					<div class="block">
+						<label class="section-label">Worth knowing</label>
+
+						<div class="note">
+							<icon>group</icon>
+							<label>In multiplayer, everyone needs the game installed and mounted too - otherwise they won't see the content.</label>
+						</div>
+
+						<div class="note">
+							<icon>memory</icon>
+							<label>Turning a mount off releases everything it loaded, so leave off what you're not using.</label>
+						</div>
+
+						<div class="note">
+							<icon>code</icon>
+							<label>Mounts are part of the engine, and anyone can write one for a game that isn't here yet.</label>
+						</div>
+
+						<label class="docs-link" onclick=@OpenDocs>Read more about mounts</label>
+					</div>
+
+				</div>
+
+				<div class="list">
+
+					@if ( !Mounts.Any() )
+					{
+						<div class="empty">
+							<icon>extension_off</icon>
+							<label class="title">No mounts installed</label>
+							<label class="hint">Mounts ship with the engine - if this list is empty something went wrong loading them.</label>
+						</div>
+					}
+
+					@if ( Installed.Any() )
+					{
+						<div class="section-head">
+							<label class="title">Installed</label>
+							<label class="count">@Installed.Count() games</label>
+						</div>
+
+						<div class="grid">
+							@foreach ( var mount in Installed )
+							{
+								<MountCard Mount="@mount"></MountCard>
+							}
+						</div>
+					}
+
+					@if ( Owned.Any() )
+					{
+						<div class="section-head quiet">
+							<label class="title">In your library</label>
+							<label class="count">@Owned.Count() games to install</label>
+						</div>
+
+						<div class="grid">
+							@foreach ( var mount in Owned )
+							{
+								<MountCard Mount="@mount"></MountCard>
+							}
+						</div>
+					}
+
+					@if ( Unowned.Any() )
+					{
+						<div class="section-head quiet">
+							<label class="title">Not owned</label>
+							<label class="count">@Unowned.Count() games</label>
+						</div>
+
+						<div class="grid">
+							@foreach ( var mount in Unowned )
+							{
+								<MountCard Mount="@mount"></MountCard>
+							}
+						</div>
+					}
+
+				</div>
+
+			</div>
+		</Body>
+	</Page>
+</root>
+
+@code
+{
+	const string DocsUrl = "https://sbox.game/dev/doc/game-mounts/";
+
+	List<BaseGameMount> mounts;
+
+	/// <summary>
+	/// Every mount, cached - which mounts exist only changes when an assembly loads, and the
+	/// page rebuilds its hash from this list every frame.
+	/// </summary>
+	List<BaseGameMount> Mounts => mounts ??= BaseGameMount.All.ToList();
+
+	// Three rungs, because the action differs at each: toggle it, install it, buy it. Owned and
+	// not installed used to sit with the unowned ones and get sent to a store page, which is a
+	// dead end for a game that's already yours.
+	//
+	// IsOwned is a native Steam call, so these are only walked while rendering - never from
+	// BuildHash, which runs every frame.
+	IEnumerable<BaseGameMount> Installed => Mounts.Where( x => x.IsInstalled );
+	IEnumerable<BaseGameMount> Owned => Mounts.Where( x => !x.IsInstalled && x.IsOwned );
+	IEnumerable<BaseGameMount> Unowned => Mounts.Where( x => !x.IsInstalled && !x.IsOwned );
+
+	void OpenDocs()
+	{
+		MenuUtility.OpenUrl( DocsUrl );
+	}
+
+	protected override int BuildHash()
+	{
+		var hash = new HashCode();
+
+		foreach ( var mount in Mounts )
+		{
+			hash.Add( mount.IsInstalled );
+			hash.Add( mount.IsMounted );
+		}
+
+		return hash.ToHashCode();
+	}
+}

@@ -193,11 +193,24 @@ public static partial class TextRendering
 			if ( style.LetterSpacing < 0 )
 				width += Math.Abs( (int)MathF.Floor( style.LetterSpacing ) );
 
-			var marginEdge = _effectMargin.EdgeSize;
+			// Ink that reaches past the measured rect (italic tails, accents, tight bearings) needs room too
+			var overhang = block.MeasuredOverhang;
+			var margin = _effectMargin + new Margin( MathF.Ceiling( overhang.Left ), MathF.Ceiling( overhang.Top ), MathF.Ceiling( overhang.Right ), MathF.Ceiling( overhang.Bottom ) );
+
+			var marginEdge = margin.EdgeSize;
 			width += marginEdge.x.CeilToInt();
 			height += marginEdge.y.CeilToInt();
 
-			using ( var bitmap = new SkiaSharp.SKBitmap( width, height, SkiaSharp.SKColorType.Bgra8888, SkiaSharp.SKAlphaType.Premul ) )
+			// Straight alpha, like every other texture. Skia's raster pipeline blends into an unpremultiplied
+			// target fine, and over a transparent clear the result is exact.
+			//
+			// HDR colours (any channel > 1) go to an extended-range half float surface — RgbaF16 (not RgbaF16Clamped)
+			// is the one Skia leaves unclamped — so the values reach the shader intact. Everything else stays 8-bit.
+			var isHdr = _scope.IsHdr;
+			var colorType = isHdr ? SkiaSharp.SKColorType.RgbaF16 : SkiaSharp.SKColorType.Bgra8888;
+			var imageFormat = isHdr ? ImageFormat.RGBA16161616F : ImageFormat.BGRA8888;
+
+			using ( var bitmap = new SkiaSharp.SKBitmap( width, height, colorType, SkiaSharp.SKAlphaType.Unpremul ) )
 			using ( var canvas = new SkiaSharp.SKCanvas( bitmap ) )
 			{
 				var o = new Topten.RichTextKit.TextPaintOptions
@@ -211,20 +224,20 @@ public static partial class TextRendering
 					Hinting = SKFontHinting.Full
 				};
 
-				canvas.Clear( style.TextColor.WithAlpha( 0 ) );
-
 				if ( !IsEmpty )
 				{
-					SKPoint drawPosition = new SKPoint( _effectMargin.Left - pad.Left, _effectMargin.Top - pad.Top );
+					SKPoint drawPosition = new SKPoint( margin.Left - pad.Left, margin.Top - pad.Top );
 
 					block.Paint( canvas, drawPosition, o );
 				}
+
+				bitmap.RepairTransparentTexels( style.TextColor );
 
 				// Always use the max number of mips
 				var mips = (int)MathF.Log2( MathF.Min( width, height ) ) + 1;
 				mips = mips.Clamp( 1, 8 );
 
-				Texture = Texture.Create( width, height, ImageFormat.BGRA8888 )
+				Texture = Texture.Create( width, height, imageFormat )
 									.WithName( "textblock" )
 									.WithData( bitmap.GetPixels(), width * height * bitmap.BytesPerPixel )
 									.WithStaticUsage()

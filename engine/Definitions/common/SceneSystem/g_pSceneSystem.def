@@ -102,6 +102,17 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 
     void PerformEndOfFrameDeletes();
 
+    // Frame-level view bracket. Opened once per frame around client output so every
+    // camera / scene panel / overlay render joins one submission window and the main
+    // thread waits once, instead of each render opening its own blocking bracket.
+    inline void BeginRenderingViews( bool bUpdateStats )
+    {
+        g_pSceneSystem->BeginRenderingViews( g_pRenderDevice, bUpdateStats );
+    }
+
+    void FinishRenderingViews();
+    bool WaitForRenderingToComplete();
+
     inline void SetupPerObjectLighting( CRenderAttributes renderAttributes, CSceneObject pSceneObject, ISceneLayer pSceneLayerInterface )
     {
         g_pSceneSystem->SetupPerObjectLighting( *renderAttributes, pSceneObject, pSceneLayerInterface );

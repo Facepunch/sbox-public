@@ -1,5 +1,4 @@
-﻿using System.Linq;
-using Editor.MovieMaker.BlockDisplays;
+﻿using Editor.MovieMaker.BlockDisplays;
 using Sandbox.MovieMaker;
 
 namespace Editor.MovieMaker;
@@ -98,6 +97,8 @@ public partial class TimelineTrack : GraphicsItem
 		_previewBlockItems.Update( View.PreviewBlocks );
 
 		Session.EditMode?.UpdateTimelineItems( this );
+
+		Update();
 	}
 
 	private BlockItem AddBlockItem( ITrackBlock src )
@@ -156,10 +157,9 @@ public partial class TimelineTrack : GraphicsItem
 
 	protected override void OnPaint()
 	{
-		if ( View.IsHovered )
-		{
-			Paint.SetBrushAndPen( Color.White.WithAlpha( 0.025f ) );
-			Paint.DrawRect( LocalRect );
-		}
+		if ( View is { IsHovered: false, IsSelected: false } ) return;
+
+		Paint.SetBrushAndPen( View.BackgroundColor.WithAlphaMultiplied( 0.25f ) );
+		Paint.DrawRect( LocalRect );
 	}
 }

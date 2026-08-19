@@ -355,8 +355,7 @@ namespace Topten.RichTextKit
 			_wordBoundaryIndicies.Clear();
 			_measuredHeight = 0;
 			_measuredWidth = 0;
-			_leftOverhang = null;
-			_rightOverhang = null;
+			_overhang = null;
 			_truncated = false;
 
 			// Only layout if actually have some text
@@ -611,31 +610,31 @@ namespace Topten.RichTextKit
 
 
 		/// <summary>
-		/// Gets the actual measured overhang in each direction based on the 
-		/// fonts used, and the supplied text.
+		/// How far glyph ink reaches past the measured text rectangle on each side, based on the
+		/// fonts used and the supplied text. Italic tails, accents and tight side bearings all land here.
 		/// </summary>
 		/// <remarks>
-		/// The return rectangle describes overhang amounts for each edge - not 
-		/// rectangle co-ordinates.
+		/// The text rectangle is MeasuredPadding.Left .. MeasuredPadding.Left + MeasuredWidth horizontally
+		/// and 0 .. MeasuredHeight vertically. The return rectangle describes overhang amounts for each
+		/// edge - not rectangle co-ordinates. Values are never negative.
 		/// </remarks>
 		public SKRect MeasuredOverhang
 		{
 			get
 			{
 				Layout();
-				if ( !_leftOverhang.HasValue )
+				if ( !_overhang.HasValue )
 				{
-					var right = _maxWidth ?? MeasuredWidth;
-					float leftOverhang = 0;
-					float rightOverhang = 0;
+					var pad = MeasuredPadding;
+					var textRect = new SKRect( pad.Left, 0, pad.Left + MeasuredWidth, MeasuredHeight );
+					var overhang = new SKRect();
 					foreach ( var l in _lines )
 					{
-						l.UpdateOverhang( right, ref leftOverhang, ref rightOverhang );
+						l.UpdateOverhang( textRect, ref overhang );
 					}
-					_leftOverhang = leftOverhang;
-					_rightOverhang = rightOverhang;
+					_overhang = overhang;
 				}
-				return new SKRect( _leftOverhang.Value, 0, _rightOverhang.Value, 0 );
+				return _overhang.Value;
 			}
 		}
 
@@ -1048,14 +1047,9 @@ namespace Topten.RichTextKit
 		float _measuredWidth;
 
 		/// <summary>
-		/// The required left overhang
+		/// Cached glyph ink overhang beyond the measured text rectangle, see <see cref="MeasuredOverhang"/>
 		/// </summary>
-		float? _leftOverhang = null;
-
-		/// <summary>
-		/// The required left overhang
-		/// </summary>
-		float? _rightOverhang = null;
+		SKRect? _overhang = null;
 
 		/// <summary>
 		/// Indicates if the text was truncated by max height/max lines limitations

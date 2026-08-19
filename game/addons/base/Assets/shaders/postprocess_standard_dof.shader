@@ -59,15 +59,16 @@ PS
 {
     #include "common/classes/Depth.hlsl"
 
-    #define DOF_PASS_COMBINE_FRONT 0
-    #define DOF_PASS_COMBINE_BACK 1
+    #define DOF_PASS_COMBINE_BACK 0
+    #define DOF_PASS_COMBINE_FRONT 1
 
     DynamicCombo( D_DOF_TYPE, 0..1, Sys( PC ) );
+    DynamicCombo( D_DEBUG_COC, 0..1, Sys( PC ) );
 
     // --------------------------------------------------------------------------------------------------------------------------------------------------------
 
     RenderState( DepthWriteEnable,  false );
-    RenderState( DepthEnable,       D_DOF_TYPE == 0 ? true : false );
+    RenderState( DepthEnable,       D_DOF_TYPE == 0 && D_DEBUG_COC == 0 ? true : false );
 
     RenderState( DepthFunc, D_DOF_TYPE == 0 ? GREATER_EQUAL : LESS_EQUAL );
 
@@ -88,9 +89,16 @@ PS
         int levels;
         Color.GetDimensions( 0, dimensions.x, dimensions.y, levels );
 
-        float4 vColor = Tex2DBicubic( Color, i.vTexCoord.xy, dimensions, BilinearClamp );
+        float4 vColor = Color.Sample( BilinearClamp, i.vTexCoord );
 
-        float flBias = D_DOF_TYPE == 0 ? 0.01f : 0.02f;
+        #if D_DEBUG_COC
+            // Grayscale CoC, the front layer only covers pixels where it has any CoC so the back layer stays visible
+            return float4( saturate( vColor.aaa ), D_DOF_TYPE == DOF_PASS_COMBINE_FRONT && vColor.a <= 0.0f ? 0.0f : 1.0f );
+        #endif
+
+        vColor.a += fwidth( vColor.a); // Correct with neighbours
+
+        float flBias = D_DOF_TYPE == 0 ? 0.001f : 0.001f;
 
         vColor.a = RemapValClamped( vColor.a, 0.0f, flBias, 0.0f, 1.0f ); // Smooth fade the alpha from CoC
         

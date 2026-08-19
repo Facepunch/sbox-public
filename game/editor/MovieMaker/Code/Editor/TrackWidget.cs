@@ -24,6 +24,8 @@ public partial class TrackWidget : Widget
 
 	public TrackView View { get; }
 
+	protected Session Session { get; }
+
 	RealTimeSince _timeSinceInteraction = 1000;
 
 	private readonly Label? _label;
@@ -39,6 +41,7 @@ public partial class TrackWidget : Widget
 	{
 		TrackList = trackList;
 		Parent = parent;
+		Session = trackList.Session;
 
 		View = view;
 		FocusMode = FocusMode.TabOrClickOrWheel;
@@ -228,28 +231,10 @@ public partial class TrackWidget : Widget
 
 	public bool IsSelected => View.IsSelected;
 
-	public Color BackgroundColor
-	{
-		get
-		{
-			var canModify = !View.IsLocked;
-
-			var defaultColor = Theme.SurfaceBackground.LerpTo( Theme.ControlBackground, canModify ? 0f : 0.5f );
-			var hoveredColor = defaultColor.Lighten( 0.25f );
-			var selectedColor = Color.Lerp( defaultColor, Theme.Primary, canModify ? 0.5f : 0.2f );
-
-			var isHovered = canModify && View.IsHovered;
-
-			return IsSelected ? selectedColor
-				: isHovered ? hoveredColor
-					: defaultColor;
-		}
-	}
-
 	protected override void OnPaint()
 	{
 		Paint.Antialiasing = false;
-		Paint.SetBrushAndPen( BackgroundColor );
+		Paint.SetBrushAndPen( View.BackgroundColor );
 		Paint.DrawRect( new Rect( LocalRect.Left + 1f, LocalRect.Top + 1f, LocalRect.Width - 2f, Timeline.TrackHeight - 2f ), 4 );
 
 		if ( View.Target is ITrackReference { IsAutoCreatedTarget: true } )
@@ -409,54 +394,25 @@ public partial class TrackWidget : Widget
 			}
 		} );
 
-		var player = TrackList.Session.Player;
-		var binder = TrackList.Session.Binder;
-		var refTracks = GetUniqueReferenceTracks( trackViews );
-
-		if ( refTracks.Any( x => !binder.Get( x ).IsBound ) )
+		menu.AddOption( "Save As Sequence..", "theaters", () =>
 		{
-			menu.AddOption( "Create Missing Targets", "person_add", () => player.UpdateTargets() );
-		}
-	}
+			var timeRange = new MovieTimeRange( 0, Session.Duration );
 
-	/// <summary>
-	/// Gets all reference tracks, including descendants, of the given <paramref name="trackViews"/>.
-	/// </summary>
-	private IReadOnlyList<IReferenceTrack> GetUniqueReferenceTracks( IEnumerable<TrackView> trackViews )
-	{
-		var queue = new Queue<TrackView>( trackViews );
-		var touched = new HashSet<IReferenceTrack>();
-		var list = new List<IReferenceTrack>();
+			Session.Editor.SaveAsDialog( "Save As Sequence..",
+				() => Session.CreateSequence( [.. trackViews.SelectDescendants()], timeRange ),
+				result =>
+				{
+					using var historyScope = Session.History.Push( "Create Sequence" );
 
-		while ( queue.TryDequeue( out var trackView ) )
-		{
-			switch ( trackView.Track )
-			{
-				case ProjectSequenceTrack sequenceTrack:
-					foreach ( var refTrack in sequenceTrack.ReferenceTracks )
+					foreach ( var trackView in trackViews )
 					{
-						if ( touched.Add( refTrack ) )
-						{
-							list.Add( refTrack );
-						}
+						trackView.Track.Remove();
 					}
-					break;
 
-				case IProjectReferenceTrack refTrack:
-					if ( touched.Add( refTrack ) )
-					{
-						list.Add( refTrack );
-					}
-					break;
-			}
-
-			foreach ( var child in trackView.Children )
-			{
-				queue.Enqueue( child );
-			}
-		}
-
-		return list;
+					Session.GetOrCreateTrack( result.Resource ).AddBlock( result.StartTime, result.Resource );
+					Session.TrackList.Update();
+				} );
+		} );
 	}
 
 	private bool? GetAggregateLockState( IEnumerable<TrackView> trackViews )

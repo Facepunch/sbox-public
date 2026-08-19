@@ -8,7 +8,12 @@
 #include "modeldoc_lib/modeldoc_physicsmeshfromrender.h"
 #include "modeldoc_lib/modeldoc_materialgroup.h"
 #include "modeldoc_lib/modeldoc_renderprimitive_mesh.h"
+#include "modeldoc_lib/modeldoc_lodgroup.h"
+#include "modeldoc_lib/modeldoc_physicsmeshfile.h"
+#include "modeldoc_lib/modeldoc_physicshullfile.h"
+#include "modeldoc_lib/modeldoc_singletons.h"
 #include "modeldoc_utils/imodeldocutils.h"
+#include "tier0/fmtstr.h"
 
 native class CModelDocEditorApp as NativeModelDoc.CModelDocEditorApp
 {
@@ -211,6 +216,53 @@ native class CModelDoc
 		self->FindNodesByType( &skeletonFiles );
 		for ( CModelDocSkeletonFile *pNode : skeletonFiles )
 			pNode->SetImportScale( flScale );
+	}
+
+	/// Add render mesh from external model file
+	inline void AddRenderMeshFile( string pFilename, int nLod )
+	{
+		CModelDocRenderMeshList *pDstRenderMeshList = self->FindSingletonNode< CModelDocRenderMeshList >();
+		CModelDocRenderMeshFile *pRenderMeshFile = self->CreateNode< CModelDocRenderMeshFile >( nullptr, pDstRenderMeshList, MODELDOC_CREATE_NODE_DEFAULT );
+		pRenderMeshFile->SetFilename( pFilename );
+
+		if ( nLod < 0 )
+			return;
+
+		pRenderMeshFile->SetName( CFmtStr( "LOD%i", nLod ) );
+
+		CModelDocLODGroupList *pDstLodGroupList = self->FindSingletonNode< CModelDocLODGroupList >();
+		CModelDocLODGroup *pLodGroup = self->CreateNode< CModelDocLODGroup >( nullptr, pDstLodGroupList, MODELDOC_CREATE_NODE_DEFAULT );
+		pLodGroup->SetSwitchThreshold( nLod * 50.0f );
+		pLodGroup->AddMesh( CFmtStr( "LOD%i", nLod ) );
+	}
+
+	/// Add physics collider mesh from external model file
+	inline void AddPhysicsMeshFile( string pFilename )
+	{
+		CModelDocPhysicsShapeList *pDstPhysicsShapeList = self->FindSingletonNode< CModelDocPhysicsShapeList >();
+		CModelDocPhysicsMeshFile *pPhysicsMeshFile = self->CreateNode< CModelDocPhysicsMeshFile >( nullptr, pDstPhysicsShapeList, MODELDOC_CREATE_NODE_DEFAULT );
+		pPhysicsMeshFile->SetFilename( pFilename );
+	}
+
+	/// Add convex hull physics collider from external model file
+	inline void AddPhysicsHullFile( string pFilename )
+	{
+		CModelDocPhysicsShapeList *pDstPhysicsShapeList = self->FindSingletonNode< CModelDocPhysicsShapeList >();
+		CModelDocPhysicsHullFile *pPhysicsHullFile = self->CreateNode< CModelDocPhysicsHullFile >( nullptr, pDstPhysicsShapeList, MODELDOC_CREATE_NODE_DEFAULT );
+		pPhysicsHullFile->SetFilename( pFilename );
+	}
+
+	/// Add a default material group
+	inline void AddDefaultMaterialGroup()
+	{
+		CModelDocNode *pParentNode = self->FindSingletonNode< CModelDocMaterialGroupList >();
+		CModelDocDefaultMaterialGroup *pMaterialGroup = self->CreateNode< CModelDocDefaultMaterialGroup >( "", pParentNode, MODELDOC_CREATE_NODE_DEFAULT );
+		
+		if ( pMaterialGroup )
+		{
+			pMaterialGroup->SetHasGlobalDefault( true );
+			pMaterialGroup->SetGlobalDefaultMaterial( "materials/default.vmat" );
+		}
 	}
 }
 

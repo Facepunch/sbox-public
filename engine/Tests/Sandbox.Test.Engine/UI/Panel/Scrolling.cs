@@ -47,6 +47,72 @@ public partial class PanelScrollingTest
 	}
 
 	/// <summary>
+	/// Builds a 200x200 padded scroll panel containing a single child of the given size.
+	/// </summary>
+	static (RootPanel Root, Panel Scroller) CreatePaddedScroller( int contentWidth, int contentHeight, string overflow = "overflow: scroll;" )
+	{
+		var root = new RootPanel();
+		root.PanelBounds = new Rect( 0, 0, 1000, 1000 );
+
+		var scroller = root.Add.Panel();
+		scroller.Style.Set( $"width: 200px; height: 200px; padding: 20px; {overflow} flex-direction: column;" );
+
+		var content = scroller.Add.Panel();
+		content.Style.Set( $"width: {contentWidth}px; height: {contentHeight}px; flex-shrink: 0;" );
+
+		root.Layout();
+
+		return (root, scroller);
+	}
+
+	/// <summary>
+	/// A scroll panel whose content fits inside it has nothing to scroll - on either axis. Its own
+	/// padding must not count as overflow, otherwise every padded scroll panel is scrollable by
+	/// its padding even when the content is nowhere near the edge.
+	/// </summary>
+	[TestMethod]
+	public void PaddingAloneDoesNotMakePanelScrollable()
+	{
+		var (_, scroller) = CreatePaddedScroller( 100, 100 );
+
+		Assert.AreEqual( 0, scroller.ScrollSize.x, 0.001f );
+		Assert.AreEqual( 0, scroller.ScrollSize.y, 0.001f );
+		Assert.IsFalse( scroller.HasScrollX );
+		Assert.IsFalse( scroller.HasScrollY );
+		Assert.IsFalse( scroller.TryScroll( new Vector2( 1, 0 ) ) );
+		Assert.IsFalse( scroller.TryScroll( new Vector2( 0, 1 ) ) );
+	}
+
+	/// <summary>
+	/// overflow-y: scroll on its own leaves the X axis unset, which the engine fills to scroll as
+	/// well (like CSS computing the other axis to auto). That must not make a panel horizontally
+	/// scrollable when its content is narrower than the box.
+	/// </summary>
+	[TestMethod]
+	public void VerticalScrollerWithPaddingHasNoHorizontalScroll()
+	{
+		var (_, scroller) = CreatePaddedScroller( 100, 1000, "overflow-y: scroll;" );
+
+		Assert.IsFalse( scroller.HasScrollX );
+		Assert.AreEqual( 0, scroller.ScrollSize.x, 0.001f );
+		Assert.IsFalse( scroller.TryScroll( new Vector2( 1, 0 ) ) );
+		Assert.IsTrue( scroller.HasScrollY );
+	}
+
+	/// <summary>
+	/// When the content does overflow, the padding after it is still part of the scrollable area:
+	/// 20 (top pad) + 1000 (content) + 20 (bottom pad) - 200 (box) = 840.
+	/// </summary>
+	[TestMethod]
+	public void OverflowingContentIncludesTrailingPadding()
+	{
+		var (_, scroller) = CreatePaddedScroller( 100, 1000 );
+
+		Assert.AreEqual( 840, scroller.ScrollSize.y, 0.001f );
+		Assert.AreEqual( 0, scroller.ScrollSize.x, 0.001f );
+	}
+
+	/// <summary>
 	/// A panel with overflow-y: scroll whose content is taller than its box becomes scrollable on
 	/// the Y axis only, and ScrollSize reports the content overhang (1000 - 200 = 800).
 	/// </summary>

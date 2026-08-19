@@ -164,7 +164,6 @@ PS
 	CreateInputTexture2D( TextureColor, Srgb, 8, "", "_sprite", "TextureColor", Default4( 1.0, 1.0, 1.0, 1.0 ) );
 	Texture2D g_color < Attribute( "TextureColor" ); Channel( RGBA, Box( TextureColor ), Srgb ); OutputFormat( DXT5 ); SrgbRead( true ); >;
 
-	RenderState( SrgbWriteEnable0, true );
 	RenderState( FillMode, SOLID );
 
 	#if ( D_NO_ZTEST )

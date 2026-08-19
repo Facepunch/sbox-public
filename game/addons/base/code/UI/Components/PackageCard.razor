@@ -6,14 +6,24 @@
 
 <root class=@BuildClass() @onrightclick=@OnCardRightClicked onclick=@OnCardClicked>
     <div class="image" style="background-image: url(@(Image() ?? "/ui/sbox-logo-square.svg"))">
+        @* Static art stays underneath while the video spins up. *@
+        @if ( ShowVideo() && !string.IsNullOrEmpty( Package?.VideoThumb ) )
+        {
+            <div class="package-video" style="background-image: url(@Package.VideoThumb)" />
+        }
+
         @if ( Package != null && Package.Flair.IsEmpty == false)
         {
             <PackageFlairBar Flair="@Package.Flair" />
         }
 
-        @if (Package?.Usage.UsersNow > 0)
+        @* Overlaid on the art as a pull quote - the mark is its own label so it can be set big. *@
+        @if ( ShowSummary && !string.IsNullOrWhiteSpace( Package?.Summary ) )
         {
-            <div class="online package-users" title="Playing Now">@Package.Usage.UsersNow</div>
+            <div class="package-summary">
+                <label class="quote-mark">“</label>
+                <label class="quote-text">@Package.Summary</label>
+            </div>
         }
     </div>
 
@@ -32,9 +42,27 @@
         }
         else
         {
-            <row>
-                <icon class="eyebrow">thumb_up</icon>
-                <label class="eyebrow">@VotePercentage()</label>
+            <row class="package-meta">
+                <div class="package-stat">
+                    <icon class="eyebrow">thumb_up</icon>
+                    <label class="eyebrow">@VotePercentage()</label>
+                </div>
+
+                @if ( Package.Usage.UsersNow > 0 )
+                {
+                    <div class="package-stat live">
+                        <div class="live-dot" />
+                        <label class="eyebrow">@Compact( Package.Usage.UsersNow ) playing</label>
+                    </div>
+                }
+                else
+                {
+                    <div class="package-stat">
+                        <icon class="eyebrow">group</icon>
+                        <label class="eyebrow">@Compact( Package.Usage.Total.Users )</label>
+                    </div>
+                }
+
                 <div class="grow" />
             </row>
         }
@@ -51,8 +79,21 @@
         List
     }
 
+    /// <summary>
+    /// Play package video thumbnails on every card, not just the hovered one.
+    /// </summary>
+    [ConVar( "menu_videothumbs", Help = "Autoplay video thumbnails on all package cards, not just on hover", Saved = true )]
+    public static bool VideoThumbs { get; set; } = true;
+
+    bool ShowVideo() => VideoThumbs || HasHovered;
+
     [Parameter] public Package Package { get; set; }
     [Parameter] public SizeType Size { get; set; }
+
+    /// <summary>
+    /// Show the package's summary as a quote over the art. Off by default - most cards are too small for it.
+    /// </summary>
+    [Parameter] public bool ShowSummary { get; set; }
 
     /// <summary>
     /// Called when the card is clicked
@@ -76,6 +117,15 @@
         return $"{(int)(Package.VotesUp * 100f / (Package.VotesUp + Package.VotesDown))}%";
     }
 
+    /// <summary>Shortens large player counts - "1.2K" rather than "1204".</summary>
+    static string Compact( long n )
+    {
+        if ( n >= 1_000_000 ) return $"{n / 1_000_000f:0.#}M";
+        if ( n >= 1_000 ) return $"{n / 1_000f:0.#}K";
+
+        return n.ToString();
+    }
+
     string Image() => Size switch
     {
         SizeType.Tall => Package?.ThumbTall,
@@ -85,5 +135,6 @@
         _ => Package?.ThumbWide
     };
 
-    protected override int BuildHash() => System.HashCode.Combine(Package?.FullIdent, Package?.Usage.UsersNow, Package?.Flair.Length);
+    // ShowVideo mounts the video layer, so hover/convar changes have to re-render.
+    protected override int BuildHash() => System.HashCode.Combine(Package?.FullIdent, Package?.Usage.UsersNow, Package?.Flair.Length, ShowVideo(), ShowSummary);
 }

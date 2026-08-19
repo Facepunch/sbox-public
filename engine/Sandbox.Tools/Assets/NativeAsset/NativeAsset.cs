@@ -262,6 +262,9 @@ internal class NativeAsset : Asset
 			return true;
 		}
 
+		if ( !CanRecompile )
+			return false;
+
 		return IAssetSystem.RecompileAsset( native, full );
 	}
 

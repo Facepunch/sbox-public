@@ -1,0 +1,200 @@
+﻿@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+FrontPageGames
+{
+	flex-direction: column;
+	overflow-y: scroll;
+	overflow-x: hidden;
+	// The rail and the top bar already inset us - this is only the feed's own breathing room.
+	padding: 12px 24px 48px 24px;
+
+	.section
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		width: 100%;
+		max-width: $screen-w-xl;
+		margin: 0 auto;
+		padding-bottom: 28px;
+	}
+
+	.head
+	{
+		flex-direction: row;
+		align-items: center;
+		width: 100%;
+		margin-bottom: 14px;
+		// .tiles' 5px side inset plus the card's 2px reserved (transparent) border, so the
+		// title and View All line up with the visible edges of the first and last card.
+		padding: 0 7px;
+
+		.head-text
+		{
+			flex-direction: column;
+			gap: 2px;
+		}
+
+		.title
+		{
+			font-size: 20px;
+			font-weight: 700;
+			color: $front-heading;
+		}
+
+		.description
+		{
+			font-size: 13px;
+			font-weight: 500;
+			color: $front-secondary;
+		}
+
+		.view-all
+		{
+			@include front-pill;
+
+			cursor: pointer;
+			font-family: $front-font;
+			font-size: 10.5px;
+			font-weight: 600;
+			text-transform: uppercase;
+			letter-spacing: 0.06em;
+			color: $front-body;
+
+			&:hover
+			{
+				color: $front-heading;
+			}
+		}
+	}
+
+	// The tile area. Plain: one .row. Mosaic: a .big beside a .grid of two .rows.
+	// The code counts how many tiles fit, so nothing should actually clip.
+	.tiles
+	{
+		width: 100%;
+		flex-direction: row;
+		flex-wrap: nowrap;
+		align-items: stretch;
+		gap: 8px;
+		padding: 5px 5px;
+
+		&.big-right
+		{
+			flex-direction: row-reverse;
+		}
+	}
+
+	.grid
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		width: 0;
+		gap: 8px;
+	}
+
+	.row
+	{
+		flex-direction: row;
+		flex-wrap: nowrap;
+		flex-shrink: 0;
+		width: 100%;
+		gap: 8px;
+	}
+
+	// Flexible width: rows always stretch edge to edge - no max, so the last tile's
+	// right edge meets the View All button whatever the count. Height comes from the
+	// art plus its band, not the card's default fixed height.
+	.row PackageCard
+	{
+		flex-grow: 1;
+		flex-shrink: 1;
+		width: 250px;
+		min-width: 225px;
+		height: auto;
+
+		.image
+		{
+			flex-grow: 0;
+			aspect-ratio: 16 / 9;
+		}
+	}
+
+	// Two tiles wide (the code sets the exact px), two rows tall (stretched by the row).
+	// The art fills whatever's left above the band; the summary sits over the art as a quote.
+	.big
+	{
+		flex-shrink: 0;
+		flex-direction: column;
+
+		PackageCard
+		{
+			flex-grow: 1;
+			width: 100%;
+			height: auto;
+
+			.image
+			{
+				flex-grow: 1;
+				// The base card's 16/9 would drive this box's width once it's stretched tall -
+				// clear it, and pin the width so a ratio can never widen the box.
+				aspect-ratio: none;
+				width: 100%;
+			}
+
+			column
+			{
+				padding: 12px 16px 14px 16px;
+			}
+
+			.package-title
+			{
+				font-size: 18px;
+				// The base card caps the title at 24px for its 14px font - too short for this size.
+				max-height: 30px;
+			}
+
+			// A pull quote across the bottom of the art: a big hanging mark in the menu blue,
+			// then the summary in italics beside it, on a scrim so it survives bright art.
+			.package-summary
+			{
+				position: absolute;
+				left: 0;
+				right: 0;
+				bottom: 0;
+				flex-direction: row;
+				align-items: flex-start;
+				padding: 72px 24px 18px 20px;
+				background-image: linear-gradient( 0deg, rgba( 0, 0, 0, 0.85 ) 30%, rgba( 0, 0, 0, 0 ) );
+
+				// The mark hangs above the text's cap height and glows a touch - HDR.
+				.quote-mark
+				{
+					flex-shrink: 0;
+					font-family: $front-font;
+					font-size: 64px;
+					font-weight: 900;
+					color: $front-primary * 3;
+					// Poppins carries a lot of headroom above the glyph - pull it up onto the line.
+					margin: -18px 6px 0 0;
+				}
+
+				.quote-text
+				{
+					flex-grow: 1;
+					flex-shrink: 1;
+					font-family: $front-font;
+					font-size: 16px;
+					font-weight: 600;
+					font-style: italic;
+					letter-spacing: 0.005em;
+					color: #ffffff;
+					white-space: normal;
+					text-shadow: 0 1px 2px rgba( 0, 0, 0, 0.6 );
+				}
+			}
+		}
+	}
+}
+

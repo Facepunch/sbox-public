@@ -344,8 +344,16 @@ public partial class AssetList
 		if ( meshes.Count == 0 )
 			return;
 
-		var label = meshes.Count == 1 ? "Create Model.." : $"Create {meshes.Count} Models..";
-		e.Menu.AddOption( label, "open_in_new", () => _ = new CreateModelFromMeshDialog( meshes ) );
+		if ( meshes.Count == 1 )
+		{
+			e.Menu.AddOption( "Create Model", "open_in_new", () => _ = new CreateModelFromMeshDialog( meshes ) );
+		}
+		else
+		{
+			var menu = e.Menu.AddMenu( "Create Models", "open_in_new" );
+			menu.AddOption( "Separate Models", "call_split", () => _ = new CreateModelFromMeshDialog( meshes ) );
+			menu.AddOption( "Single Model", "join_inner", () => _ = new CreateSingleModelFromMeshDialog( meshes ) );
+		}
 	}
 
 	static void RebuildTagMenu( Menu tag_menu, List<AssetEntry> entries )

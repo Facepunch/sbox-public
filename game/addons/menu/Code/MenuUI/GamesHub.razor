@@ -21,8 +21,10 @@
 	</Page>
 </root>
 
-@code 
+@code
 {
+	/// <summary>The curated content-block group shown on the discover page.</summary>
+	public const string ContentGroupId = "aa8913bd-495e-44d1-a8e1-288e69427f0d";
 
 	private bool _isLoading = false;
 
@@ -40,7 +42,7 @@
 		try
 		{
 			_isLoading = true;
-			Result = await Package.ListAsync("aa8913bd-495e-44d1-a8e1-288e69427f0d");
+			Result = await Package.ListAsync(ContentGroupId);
 		}
 		finally
 		{

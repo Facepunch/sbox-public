@@ -66,7 +66,27 @@ internal static partial class ShaderHooks
 		cts?.Dispose();
 		cts = new CancellationTokenSource();
 
-		_ = CompileShader( shader, cts.Token );
+		_ = RunCompile( shader, cts.Token );
+	}
+
+	/// <summary>
+	/// Nothing awaits the compile, so without this a failure would sit on the task until the
+	/// finalizer rethrew it - long after the edit, and blamed on whatever was running then.
+	/// </summary>
+	static async Task RunCompile( string shader, CancellationToken token )
+	{
+		try
+		{
+			await CompileShader( shader, token );
+		}
+		catch ( System.OperationCanceledException )
+		{
+			// A newer edit took over.
+		}
+		catch ( System.Exception e )
+		{
+			Log.Error( e, $"Failed to compile {shader}" );
+		}
 	}
 
 	static async Task CompileShader( string file, CancellationToken token )

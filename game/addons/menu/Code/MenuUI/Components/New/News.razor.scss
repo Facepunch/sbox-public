@@ -1,58 +1,69 @@
-@import "/styles/_Theme.scss";
+@import "/styles/_front.scss";
 
-News {
-    aspect-ratio: 16 / 9;
-    flex-grow: 0;
-    flex-shrink: 0;
-    width: 400px;
-    pointer-events: all;
+News
+{
+	@include front-card;
 
-    Card {
-        box-shadow: 0 0 0 1px $default-border;
-        width: 400px;
-        aspect-ratio: 16/9;
-        cursor: pointer;
-        transition: all 150ms $easing;
-        position: relative;
-        overflow: hidden;
+	position: relative;
+	// 16:9 - the media's own ratio, so it fills the card without cropping.
+	aspect-ratio: 1.78;
+	// Same weight as the package cards' hover border, reserved so hover costs no layout shift.
+	border-width: 2px;
+	transition: all 0.1s ease;
 
-        &:hover {
-            box-shadow: 0 0 0 1px rgba( $primary-blue, 1 );
-        }
-        gap: 3px;
+	.hero
+	{
+		position: absolute;
+		width: 100%;
+		height: 100%;
+		background-size: cover;
+		background-position: center;
+		background-color: rgba( 0, 0, 0, 0.35 );
+	}
 
-        background-color: transparent;
-        justify-content: flex-end;
-        flex-direction: column;
-        padding: 16px;
-        background-size: cover;
-        background-position: center;
+	// Scrim under the copy - the media is often bright at the bottom.
+	.news-overlay
+	{
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 7px;
+		padding: 14px $front-inset;
+		background-image: linear-gradient( 0deg, rgba( 0, 0, 0, 0.88 ), rgba( 0, 0, 0, 0 ) );
+	}
 
-        img {
-            position: absolute;
-            top: 0;
-            left: 0;
-            bottom: 0;
-            right: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            background-image-tint: $default-100;
-        }
+	// A chip, not plain text - it has to survive whatever is behind it.
+	.news-when
+	{
+		@include front-row-meta;
 
-        label {
-            z-index: 1;
-        }
+		color: $front-body;
+		padding: 3px 8px;
+		border-radius: 4px;
+		background-color: rgba( 0, 0, 0, 0.6 );
+	}
 
-        &::before {
-            position: absolute;
-            top: 0;
-            left: 0;
-            bottom: 0;
-            right: 0;
-            pointer-events: none;
-            z-index: -1;
-            background: linear-gradient( to top, $default-950, rgba( $default-950, 0 ) );
-        }
-    }
+	.news-title
+	{
+		@include front-row-title;
+
+		font-size: 15px;
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		color: #ffffff;
+	}
+
+	&:hover
+	{
+		// HDR - blooms.
+		border-color: $front-accent * 10;
+
+		.hero
+		{
+			filter: brightness( 1.1 );
+		}
+	}
 }

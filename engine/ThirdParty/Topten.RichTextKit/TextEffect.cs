@@ -23,7 +23,7 @@ namespace Topten.RichTextKit
 	/// </summary>
 	public struct TextEffect
 	{
-		public SKColor Color { get; set; }
+		public SKColorF Color { get; set; }
 		public SKPoint Offset { get; set; }
 		public float Width { get; set; }
 		public SKPaintStyle PaintStyle { get; set; }
@@ -32,7 +32,7 @@ namespace Topten.RichTextKit
 		public SKStrokeJoin StrokeJoin { get; set; }
 		public float StrokeMiter { get; set; }
 
-		public static TextEffect DropShadow( SKColor sKColor, float x, float y, float blurSize )
+		public static TextEffect DropShadow( SKColorF sKColor, float x, float y, float blurSize )
 		{
 			blurSize = blurSize.Clamp( 0, 512 );
 
@@ -47,7 +47,7 @@ namespace Topten.RichTextKit
 			};
 		}
 
-		public static TextEffect Outline( SKColor sKColor, float size )
+		public static TextEffect Outline( SKColorF sKColor, float size )
 		{
 			size = size.Clamp( 0, 512 );
 

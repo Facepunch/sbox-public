@@ -124,16 +124,55 @@ namespace Sandbox.UI
 			{
 				// reset
 				shouldRenderNextFrame = false;
+				QueueRender();
+			}
+		}
 
-				if ( Camera.World.IsValid() )
-				{
-					Camera.RenderToTexture( RenderTexture, null, default );
-				}
-				else if ( RenderScene.IsValid() && RenderScene.Camera.IsValid() )
-				{
-					RenderScene.PreCameraRender(); // TODO WTF?... terrible hack to get around Graphics.IsActive guard in RenderToTexture
-					RenderScene.Camera.RenderToTexture( RenderTexture );
-				}
+		// Panels wanting a render this frame. Rendered together during client output so
+		// they join the frame's view bracket instead of each blocking mid UI tick.
+		static readonly List<ScenePanel> _pendingRenders = new();
+		bool _renderQueued;
+
+		void QueueRender()
+		{
+			if ( _renderQueued ) return;
+
+			_renderQueued = true;
+			_pendingRenders.Add( this );
+		}
+
+		/// <summary>
+		/// Render every scene panel that queued a render this frame. Called once per frame
+		/// during client output.
+		/// </summary>
+		internal static void RenderPending()
+		{
+			if ( _pendingRenders.Count == 0 )
+				return;
+
+			foreach ( var panel in _pendingRenders )
+			{
+				panel._renderQueued = false;
+
+				if ( !panel.IsValid() ) continue;
+				if ( panel.RenderTexture == null ) continue;
+
+				panel.RenderNow();
+			}
+
+			_pendingRenders.Clear();
+		}
+
+		void RenderNow()
+		{
+			if ( Camera.World.IsValid() )
+			{
+				Camera.RenderToTexture( RenderTexture, null, default );
+			}
+			else if ( RenderScene.IsValid() && RenderScene.Camera.IsValid() )
+			{
+				RenderScene.PreCameraRender(); // TODO WTF?... terrible hack to get around Graphics.IsActive guard in RenderToTexture
+				RenderScene.Camera.RenderToTexture( RenderTexture );
 			}
 		}
 

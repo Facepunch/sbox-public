@@ -215,9 +215,11 @@ internal static class Utility
 			return true;
 		}
 
+		// SboxBuild describes the native build, so changing it changes the binaries.
 		var touchesNative = changedFiles.Any( f =>
 			f.StartsWith( "src/", StringComparison.OrdinalIgnoreCase ) ||
-			f.StartsWith( "engine/Definitions/", StringComparison.OrdinalIgnoreCase ) );
+			f.StartsWith( "engine/Definitions/", StringComparison.OrdinalIgnoreCase ) ||
+			f.StartsWith( "engine/Tools/SboxBuild/", StringComparison.OrdinalIgnoreCase ) );
 
 		if ( touchesNative )
 		{

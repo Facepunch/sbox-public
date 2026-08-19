@@ -69,26 +69,19 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	internal Action<Rendering.Stage, SceneCamera> OnRenderStageHook;
 
 	/// <summary>
-	/// Called when rendering the post process pass
-	/// </summary>
-	[Obsolete]
-	public Action OnRenderPostProcess { get; set; }
-
-	/// <summary>
-	/// Called when rendering the transparent pass
-	/// </summary>
-	[Obsolete]
-	public Action OnRenderOpaque { get; set; }
-
-	/// <summary>
 	/// Called when rendering the transparent pass
 	/// </summary>
 	[Obsolete]
 	public Action OnRenderTransparent { get; set; }
 
-	public Action OnRenderOverlay { get; set; }
+	internal Action OnRenderOverlay { get; set; }
 
-	public Action OnRenderUI { get; set; }
+	internal Action OnRenderUI { get; set; }
+
+	/// <summary>
+	/// Called before post processing, for UI that wants bloom and color grading applied to it.
+	/// </summary>
+	internal Action OnRenderUIBeforePostProcess { get; set; }
 
 	/// <summary>
 	/// The size of the screen. Allows us to work out aspect ratio.
@@ -554,13 +547,20 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 					break;
 				}
 
+			case Rendering.Stage.EarlyUI:
+				{
+					if ( RenderUI )
+						OnRenderUIBeforePostProcess?.Invoke();
+					break;
+				}
+
 			case Rendering.Stage.AfterPostProcess:
 				{
 					OnRenderOverlay?.Invoke();
 					break;
 				}
 
-			case Rendering.Stage.AfterUI:
+			case Rendering.Stage.UI:
 				{
 					OnRenderUI?.Invoke();
 					break;

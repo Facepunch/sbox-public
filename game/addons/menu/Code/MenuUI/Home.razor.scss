@@ -1,81 +1,145 @@
 @import "/styles/_theme.scss";
 @import "/styles/_front.scss";
 
-// 104px from the top of the screen, less the 64px navbar above Home.
-$front-panel-top: 40px;
-$front-panel-side: 26px;
-
 Home
 {
-	position: relative;
 	width: 100%;
 	height: 100%;
 	flex-grow: 1;
-	flex-direction: row;
-	justify-content: center;
 
-	// The middle belongs to the character - only the panels take clicks.
-	pointer-events: none;
-
-	// Caps how far apart the panels can drift on an ultrawide.
-	.stage
+	// A transparent strip, not a bar - the scene behind it is the backdrop, the rail
+	// supplies the only chrome fill on screen.
+	.tabs
 	{
-		position: relative;
-		width: 100%;
-		max-width: $front-stage-max;
-		height: 100%;
+		flex-shrink: 0;
+		z-index: 100;
+		align-items: center;
+		gap: 4px;
+		padding: $front-chrome-gap 24px 4px 24px;
+
+		// Splits the sort feeds from the genre feeds.
+		separator.vertical
+		{
+			height: 14px;
+			width: 1px;
+			background-color: $front-hairline;
+			margin: 0 10px;
+		}
+
+		// Pill tabs. A dim outline you can read as a row of switches, lit blue on the
+		// feed you're on.
+		.button
+		{
+			flex-shrink: 0;
+			align-items: center;
+			padding: 6px 14px;
+			border-radius: 999px;
+			border: 1px solid rgba( 255, 255, 255, 0.07 );
+			background-color: rgba( 12, 16, 24, 0.4 );
+			backdrop-filter: blur( 8px );
+			pointer-events: all;
+			cursor: pointer;
+			transition: all 0.15s ease;
+
+			Label
+			{
+				font-family: $front-font;
+				font-size: 10.5px;
+				font-weight: 600;
+				text-transform: uppercase;
+				letter-spacing: 0.07em;
+				color: $front-secondary;
+				transition: all 0.15s ease;
+			}
+
+			&:hover
+			{
+				sound-in: "ui.button.over";
+				border-color: rgba( 255, 255, 255, 0.18 );
+				background-color: rgba( 255, 255, 255, 0.07 );
+
+				Label
+				{
+					color: $front-heading;
+				}
+			}
+
+			// The lit one - tinted fill, blue rim, and a glow that bleeds past the pill.
+			&.active
+			{
+				border-color: rgba( 108, 168, 255, 0.55 );
+				background-color: rgba( $front-primary, 0.22 );
+				box-shadow: 0 0 16px rgba( 47, 127, 240, 0.35 );
+
+				Label
+				{
+					color: #cfe2ff;
+					text-shadow: 0 0 10px rgba( 120, 180, 255, 0.6 );
+				}
+			}
+
+			&:active
+			{
+				sound-in: "ui.button.press";
+				background-color: rgba( $front-primary, 0.35 );
+			}
+		}
 	}
 
-	.panel
+	.home-row
 	{
-		@include front-panel;
-		top: $front-panel-top;
+		flex-direction: row;
+		flex-grow: 1;
+		overflow: hidden;
 	}
 
-	.panel-left
+	// width 0 + grow: take the leftover space, never the content's width -
+	// otherwise the wide content blocks shove the aside off screen.
+	.feed
 	{
-		left: $front-panel-side;
-		width: 428px;
+		flex-direction: column;
+		flex-grow: 1;
+		width: 0;
+		overflow: hidden;
 	}
 
-	// 400px to match News below it, which brings its own width and aspect ratio.
-	.panel-right
+	// Sorted and genre feeds - a plain grid, the tab up top is the heading.
+	.feed PackageList
 	{
-		right: $front-panel-side;
+		flex-grow: 1;
+	}
+
+	.feed PackageList VirtualGrid
+	{
+		padding: 12px 24px 48px 24px;
+		gap: 16px;
+	}
+
+	// Right-hand column - two cards, the tall profile slab and the news hero.
+	.aside
+	{
+		flex-shrink: 0;
 		width: 400px;
+		flex-direction: column;
+		gap: 16px;
+		padding: $front-chrome-gap 16px 20px 0;
+		overflow: hidden;
+
+		// News keeps its natural height - only the profile card flexes.
+		> *
+		{
+			flex-shrink: 0;
+		}
+
+		// Takes every pixel the news card doesn't, so the column reaches the
+		// bottom of the screen instead of trailing off into empty space.
+		.profile-card
+		{
+			@include front-card;
+
+			flex-grow: 1;
+			flex-shrink: 1;
+			height: 0;
+		}
 	}
-
-	// Styled by News.razor.scss - this is only placement.
-	News
-	{
-		position: absolute;
-		right: $front-panel-side;
-		bottom: 50px;
-	}
-
-	// Positioning only; DesktopButtons.razor.scss owns its appearance.
-	.model-toggle
-	{
-		position: absolute;
-		left: 0;
-		right: 0;
-		bottom: 40px;
-		justify-content: center;
-		pointer-events: none;
-
-		// Its stylesheet uses z-index: -10, relative to this box.
-		z-index: 1;
-	}
-}
-
-// News overrides most of this but relies on the blur, outline and radius.
-Home Card
-{
-	background: rgba( $default-950, 0.8 );
-	backdrop-filter: blur( 10px );
-	outline: 1px solid #000a;
-	width: 100%;
-	flex-direction: column;
-	padding: 2rem;
-	border-radius: $rounding-large;
 }

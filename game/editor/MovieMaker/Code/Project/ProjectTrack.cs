@@ -162,7 +162,7 @@ public partial class ProjectReferenceTrack<T>( MovieProject project, Guid id, st
 	: ProjectTrack<T>( project, id, name ), IProjectReferenceTrack, IReferenceTrack<T>
 	where T : class, IValid
 {
-	public override int Order => -1000;
+	public override int Order => -0x1000_0000 + (Metadata?.Order ?? 0);
 
 	public new ProjectReferenceTrack<GameObject>? Parent => (ProjectReferenceTrack<GameObject>?)base.Parent;
 

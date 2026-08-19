@@ -78,5 +78,6 @@ internal static partial class AudioEngine
 		var mute = Mute || (MuteLoseFocus && !InputSystem.IsAppActive());
 		g_pAudioDevice.MuteDevice( mute );
 
+		Game.Music.Tick();
 	}
 }

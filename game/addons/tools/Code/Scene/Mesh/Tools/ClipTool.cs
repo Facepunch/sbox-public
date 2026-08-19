@@ -514,16 +514,12 @@ public partial class ClipTool : EditorTool
 			Gizmo.Draw.LineThickness = 1;
 			Gizmo.Draw.IgnoreDepth = true;
 			Gizmo.Draw.Color = edgeColor.Darken( 0.3f ).WithAlpha( 0.2f );
-
-			foreach ( var v in mesh.GetEdges() )
-				Gizmo.Draw.Line( v );
+			Gizmo.Draw.Lines( mesh.GetVisibleEdges() );
 
 			Gizmo.Draw.Color = edgeColor;
 			Gizmo.Draw.IgnoreDepth = false;
 			Gizmo.Draw.LineThickness = 2;
-
-			foreach ( var v in mesh.GetEdges() )
-				Gizmo.Draw.Line( v );
+			Gizmo.Draw.Lines( mesh.GetVisibleEdges() );
 		}
 	}
 

@@ -1,80 +1,25 @@
-﻿using static Facepunch.Constants;
+using Facepunch.Native;
+using static Facepunch.Constants;
 
 namespace Facepunch.Steps;
 
 /// <summary>
-/// Step to generate Visual Studio solutions without building them
+/// Step to generate the native Visual Studio projects and solutions from src/**/*.build.cs
 /// </summary>
-internal class GenerateSolutions( BuildConfiguration configuration = BuildConfiguration.Developer )
+internal class GenerateSolutions( BuildConfiguration configuration = BuildConfiguration.Developer, string module = null, string platform = null )
 {
-	private readonly Platform platform = Platform.Create();
-
 	internal ExitCode Run()
 	{
-		// Generate solutions based on configuration
-		if ( configuration == BuildConfiguration.Retail )
+		var options = new Options
 		{
-			return GenerateRetailSolutions();
-		}
-		else
-		{
-			return GenerateDeveloperSolutions( configuration );
-		}
-	}
+			Platform = platform ?? NativePlatform.Host().Name,
+			Retail = configuration == BuildConfiguration.Retail,
+			MemoryDebug = configuration == BuildConfiguration.DeveloperMemoryDebug,
+			Buildbot = Utility.IsCi()
+		};
 
-	private ExitCode GenerateRetailSolutions()
-	{
-		Log.Info( "Generating Retail solutions..." );
+		if ( options.MemoryDebug ) Log.Info( "Using Memory Debug settings (ASAN + allocation tracking)" );
 
-		string vpcPath = Path.Combine( "src", "devtools", "bin", platform.PlatformID, "vpc" );
-
-		// Generate schemacompiler_all solution
-		if ( !Utility.RunProcess( vpcPath, $"/mksln schemacompiler_all /define:BUILDBOT /retail /checkfiles /checkfiles_error /quiet /fi /fc /forceunity /define:PUBLISH /2026 /sbox /{platform.PlatformID} \"@schemacompiler_all\" /defdmacro:SBOX=1", "src" ) )
-			return ExitCode.Failure;
-
-		// Generate buildbot_all_win64 solution
-		if ( !Utility.RunProcess( vpcPath, $"/mksln buildbot_all_{platform.PlatformID} /define:BUILDBOT /retail /checkfiles /checkfiles_error /quiet /fi /fc /forceunity /define:PUBLISH /2026 /sbox /{platform.PlatformID} +everything +native_everything +sbox_game /defdmacro:SBOX=1", "src" ) )
-			return ExitCode.Failure;
-
-		// Generate buildbot_tools_win64 solution
-		// Used to rebuild tools on Windows, because sometimes it corrupts which is insane
-		if ( platform is WindowsPlatform )
-		{
-			if ( !Utility.RunProcess( vpcPath, $"/mksln buildbot_tools_{platform.PlatformID} /define:BUILDBOT /retail /checkfiles /checkfiles_error /quiet /fi /fc /forceunity /define:PUBLISH /2026 /{platform.PlatformID} +hammer +modeldoc_editor +animgraph_editor /defdmacro:SBOX=1", "src" ) )
-				return ExitCode.Failure;
-		}
-
-		return ExitCode.Success;
-	}
-
-	private ExitCode GenerateDeveloperSolutions( BuildConfiguration configuration )
-	{
-		Log.Info( "Generating Developer solutions..." );
-
-		string vpcPath = Path.Combine( "src", "devtools", "bin", platform.PlatformID, "vpc" );
-
-		string extraDefines = "";
-		if ( configuration == BuildConfiguration.DeveloperMemoryDebug )
-		{
-			Log.Info( "Using Memory Debug macros (ASAN + allocation tracking)" );
-			extraDefines = "/define:MEMDEBUG_TRACKING";
-		}
-
-		// Generate schemacompiler_all solution
-		Log.Info( "Generating Schema Compiler solution" );
-		if ( !Utility.RunProcess( vpcPath, $"/mksln schemacompiler_all {extraDefines} /checkfiles /checkfiles_error /forceunity /2026 /sbox /{platform.PlatformID} \"@schemacompiler_all\" /defdmacro:SBOX=1", "src" ) )
-			return ExitCode.Failure;
-
-		// Generate sbox_game solution
-		Log.Info( "Generating sbox_game solution" );
-		if ( !Utility.RunProcess( vpcPath, $"/mksln sbox_game {extraDefines} /checkfiles /checkfiles_error /forceunity /2026 /sbox /{platform.PlatformID} +sbox_game /defdmacro:SBOX=1", "src" ) )
-			return ExitCode.Failure;
-
-		// Generate developer_all_win64 solution
-		Log.Info( "Generating full engine solution" );
-		if ( !Utility.RunProcess( vpcPath, $"/mksln developer_all_{platform.PlatformID} {extraDefines} /checkfiles /checkfiles_error /forceunity /2026 /sbox /{platform.PlatformID} +everything +native_everything +sbox_game /defdmacro:SBOX=1", "src" ) )
-			return ExitCode.Failure;
-
-		return ExitCode.Success;
+		return Generate.Run( options, module ) ? ExitCode.Success : ExitCode.Failure;
 	}
 }

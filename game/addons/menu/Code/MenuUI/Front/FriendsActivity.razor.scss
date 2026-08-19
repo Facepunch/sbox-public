@@ -1,0 +1,92 @@
+@import "/styles/_front.scss";
+
+FriendsActivity
+{
+	@include front-card-list;
+
+	// The only part of the card that gives - a long list clips at the foot
+	// instead of stretching the card past the column.
+	flex-shrink: 1;
+	border-top: 1px solid $front-hairline;
+
+	.count
+	{
+		@include front-section-label;
+	}
+
+	.avatar
+	{
+		@include front-row-media;
+	}
+
+	// Name, "in", and the game all sit on one line.
+	.row-body
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 5px;
+	}
+
+	.friend-name
+	{
+		flex-shrink: 0;
+		font-size: 13px;
+		font-weight: 700;
+		color: $front-heading;
+	}
+
+	.friend-in
+	{
+		@include front-row-meta;
+
+		font-size: 12px;
+	}
+
+	// Plain by default - someone idling in the menu has no page to open, so it
+	// shouldn't look like a link. .clicky is only set when there is one.
+	.friend-game
+	{
+		flex-shrink: 1;
+		min-width: 0;
+		font-size: 13px;
+		font-weight: 600;
+		color: $front-body;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+
+		&.clicky
+		{
+			@include front-text-link;
+		}
+	}
+
+	.action
+	{
+		@include front-pill;
+	}
+
+	// Joining a friend is the thing you're here to do, so it's the one filled
+	// pill in the column. Invite stays a ghost.
+	.action.join
+	{
+		border-color: $front-primary;
+		background-color: $front-primary;
+
+		label
+		{
+			color: white;
+		}
+
+		&:hover
+		{
+			border-color: lighten( $front-primary, 12% );
+			background-color: lighten( $front-primary, 12% );
+
+			label
+			{
+				color: white;
+			}
+		}
+	}
+}

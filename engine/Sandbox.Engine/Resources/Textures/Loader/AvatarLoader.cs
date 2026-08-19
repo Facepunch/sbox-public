@@ -22,7 +22,42 @@ internal static class Avatar
 	/// </summary>
 	static readonly ConcurrentDictionary<ulong, Texture> _generatedCache = new();
 
+	/// <summary>
+	/// Weak references to every avatar texture, keyed by their url.
+	/// So we can re-resolve them (real vs generated) when Streamer Mode is toggled at runtime.
+	/// </summary>
+	static readonly ConcurrentDictionary<string, WeakReference<Texture>> _loaded = new();
+
+	static Avatar()
+	{
+		ConVarSystem.ConVarChanged += OnConVarChanged;
+	}
+
 	record struct AvatarData( int Width, int Height, byte[] Pixels );
+
+	static void OnConVarChanged( Command command, string oldValue )
+	{
+		if ( command.Name.Equals( "streamer_mode", System.StringComparison.OrdinalIgnoreCase ) )
+			RefreshAll();
+	}
+
+	// Reload every live avatar so it swaps between its real and generated variant. Dead refs are pruned here.
+	static void RefreshAll()
+	{
+		foreach ( var (url, weak) in _loaded )
+		{
+			if ( weak.TryGetTarget( out var texture ) )
+				_ = LoadIntoTexture( url, texture );
+			else
+				_loaded.TryRemove( url, out _ );
+		}
+	}
+
+	static void Track( string url, Texture texture )
+	{
+		if ( texture is not null )
+			_loaded[url] = new WeakReference<Texture>( texture );
+	}
 
 	internal static bool IsAppropriate( string url )
 	{
@@ -34,11 +69,16 @@ internal static class Avatar
 		try
 		{
 			if ( Game.Resources.Get<Texture>( filename ) is { } cached )
+			{
+				Track( filename, cached );
 				return cached;
+			}
 
 			var placeholder = Texture.Create( 1, 1 ).WithName( "avatar" ).WithData( new byte[4] { 0, 0, 0, 0 } ).Finish();
 			placeholder.IsLoaded = false;
 			placeholder.RegisterWeakResourceId( filename );
+
+			Track( filename, placeholder );
 
 			_ = LoadIntoTexture( filename, placeholder );
 
@@ -86,10 +126,8 @@ internal static class Avatar
 			//
 			// Bots and Streamer Mode users get a deterministic, generated avatar
 			//
-			if ( Preferences.StreamerMode || steamid >= Utility.Steam.BaseFakeSteamId )
+			if ( Preferences.StreamerMode || Utility.Steam.IsFakeSteamId( steamid ) )
 			{
-				if ( ct.IsCancellationRequested ) return;
-
 				var generated = _generatedCache.GetOrAdd( steamid, GenerateAvatar );
 				placeholder.CopyFrom( generated );
 				placeholder.IsLoaded = true;
@@ -121,6 +159,14 @@ internal static class Avatar
 
 			if ( ct.IsCancellationRequested ) return;
 
+			// Streamer Mode could have changed during the fetch above, don't copy a real avatar if true
+			if ( Preferences.StreamerMode )
+			{
+				placeholder.CopyFrom( _generatedCache.GetOrAdd( steamid, GenerateAvatar ) );
+				placeholder.IsLoaded = true;
+				return;
+			}
+
 			using var texture = Texture.Create( cached.Width, cached.Height, ImageFormat.RGBA8888 )
 					.WithName( "avatar" )
 					.WithData( cached.Pixels )
@@ -149,7 +195,9 @@ internal static class Avatar
 			if ( string.IsNullOrWhiteSpace( item ) )
 				return;
 
-			if ( ct.IsCancellationRequested ) return;
+			// Streamer Mode could have been enabled during the awaits above, don't apply a real animated avatar if true
+			if ( ct.IsCancellationRequested || Preferences.StreamerMode )
+				return;
 
 			//
 			// Download animated image into placeholder

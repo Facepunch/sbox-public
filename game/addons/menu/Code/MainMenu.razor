@@ -11,16 +11,20 @@
     <NavigationHost DefaultUrl="/home" @ref="Navigator">
         <ChildContent>
 
-            <Navbar />
+            <Sidebar />
 
-            <div class="navigator-canvas" slot="navigator-canvas"></div>
-			<div class="overlay">
-				<div class="overlay-container">
-					<OfflineMode />
-				</div>
-			</div>
+            <div class="stage">
 
-            <Footer />
+                <div class="navigator-canvas" slot="navigator-canvas"></div>
+                <div class="overlay">
+                    <div class="overlay-container">
+                        <OfflineMode />
+                    </div>
+                </div>
+
+                <Footer />
+
+            </div>
 
         </ChildContent>
     </NavigationHost>
@@ -28,12 +32,12 @@
 
 @code
 {
-    [Property] public GameObject Background { get; set; }
     public NavigationHost Navigator { get; protected set; }
 
     public static MainMenu Instance { get; private set; }
 
     static bool _welcomeShown;
+    static bool _streamerPromptShown;
 
     override protected void OnEnabled()
     {
@@ -41,26 +45,24 @@
 
         Instance = this;
 
-        var human = Scene.Directory.FindByName("Player Human").FirstOrDefault();
-        var citizen = Scene.Directory.FindByName("Player Citizen").FirstOrDefault();
-        var clothing = ClothingContainer.CreateFromLocalUser();
-
-        if ( human.IsValid() )
-            human.Enabled = clothing.PrefersHuman;
-
-        if ( citizen.IsValid() )
-            citizen.Enabled = !clothing.PrefersHuman;
-
         // Fetch resolutions now so opening the settings modal doesn't stutter later.
         MenuProject.Settings.VideoSettings.FetchResolutions();
 
-        _ = ShowWelcomeScreenIfNeeded();
+        _ = ShowStartupModalsIfNeeded();
+    }
+
+    async Task ShowStartupModalsIfNeeded()
+    {
+        await Task.DelayRealtime(1500);
+
+        await ShowWelcomeScreenIfNeeded();
+
+        // Shown after the welcome screen so it sits on top of it if both appear.
+        await ShowStreamerModePromptIfNeeded();
     }
 
     async Task ShowWelcomeScreenIfNeeded()
     {
-        await Task.DelayRealtime(1500);
-
         if ( _welcomeShown ) return;
         if ( Game.Cookies.Get<bool>( WelcomeScreenModal.CookieKey, false ) ) return;
 
@@ -68,14 +70,32 @@
 
         var modal = new WelcomeScreenModal();
         modal.Parent = Panel;
+
+        // Give the welcome modal a frame before we show the next modal
+        await Task.DelayRealtime( 1 );
+    }
+
+    async Task ShowStreamerModePromptIfNeeded()
+    {
+        if ( _streamerPromptShown ) return;
+        if ( Preferences.StreamerMode ) return;
+
+        // Only inform the user about Streamer Mode once, then remember it across startups.
+        if ( Game.Cookies.Get<bool>( StreamerModePromptModal.CookieKey, false ) ) return;
+
+        // Enumerating every process can take tens of ms, so keep it off the main thread.
+        if ( !await RecordingSoftware.IsRunningAsync() ) return;
+
+        _streamerPromptShown = true;
+        Game.Cookies.Set( StreamerModePromptModal.CookieKey, true );
+
+        var modal = new StreamerModePromptModal();
+        modal.Parent = Panel;
     }
 
     override protected void OnUpdate()
     {
         SetClass( "is-vr", Application.IsVR );
         SetClass( "has-streamer-account", Sandbox.MenuEngine.Account.HasLinkedStreamerServices );
-
-        var isInGame = Application.IsEditor ? false : Game.InGame;
-        Background.Enabled = Navigator?.CurrentUrl == "/home" && !isInGame;
     }
 }
