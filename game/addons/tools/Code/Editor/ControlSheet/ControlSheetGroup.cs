@@ -62,9 +62,9 @@ public class ControlSheetGroup : Widget
 
 					headerWidget.Title = toggleAttr.Label ?? groupName;
 
-					if ( toggleGroup.TryGetAttribute<TitleAttribute>( out var titleAttr ) )
+					if ( toggleGroup.TryGetAttribute<TitleAttribute>( out var titleAttr ) && !string.IsNullOrWhiteSpace( titleAttr.Value ) )
 					{
-						headerWidget.Title = !string.IsNullOrWhiteSpace( titleAttr.Value ) ? titleAttr.Value : groupName;
+						headerWidget.Title = titleAttr.Value;
 					}
 
 					headerWidget.ToolTip = toggleGroup.Description;
