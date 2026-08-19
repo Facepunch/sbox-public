@@ -1,3 +1,5 @@
+using System;
+
 /// <summary>
 /// A mounting implementation for Half-Life 1
 /// </summary>
@@ -9,7 +11,35 @@ public abstract class GameMount : BaseGameMount
 
 	public abstract IReadOnlyList<string> GameDirs { get; }
 
+	// Bytes as well as converted, not instead: a WAD holds font lumps beside its textures, an MDL
+	// holds attachments and events the converted model drops, and a WAV's cue loop can't be turned
+	// off once it's a SoundFile.
+	static readonly HashSet<string> RawExtensions = [".bsp", ".spr", ".wad", ".mdl", ".wav"];
+
+	// By name: a .cfg rule would catch a server config with rcon details in it.
+	static readonly HashSet<string> RawFiles = new( StringComparer.OrdinalIgnoreCase )
+	{
+		"liblist.gam", "titles.txt", "skill.cfg", "sound/sentences.txt", "sound/materials.txt",
+		"media/cdaudio.txt",
+	};
+
 	string appDir;
+
+	// Paths are relative to the game directory. Images and audio are scoped to where the game keeps
+	// them; the .txt patterns cover files a mod names itself.
+	static bool IsRawData( string path, string ext ) =>
+		RawExtensions.Contains( ext )
+		|| RawFiles.Contains( path )
+		|| (ext == ".mp3" && IsDirectChildOf( path, "media/" ))
+		|| (ext is ".tga" or ".bmp"
+			&& (IsDirectChildOf( path, "gfx/env/" ) || IsDirectChildOf( path, "resource/background/" )))
+		|| (ext == ".txt"
+			&& (IsDirectChildOf( path, "sprites/" )
+				|| (IsDirectChildOf( path, "resource/" ) && path.EndsWith( "Layout.txt", StringComparison.OrdinalIgnoreCase ))));
+
+	static bool IsDirectChildOf( string path, string directory ) =>
+		path.StartsWith( directory, StringComparison.OrdinalIgnoreCase )
+		&& path.IndexOf( '/', directory.Length ) < 0;
 
 	protected override void Initialize( InitializeContext context )
 	{
@@ -31,6 +61,8 @@ public abstract class GameMount : BaseGameMount
 			if ( !System.IO.Directory.Exists( root ) )
 				continue;
 
+			var dirPrefix = $"{dir}/";
+
 			foreach ( var fullPath in System.IO.Directory.GetFiles( root, "*.*", SearchOption.AllDirectories ) )
 			{
 				var ext = Path.GetExtension( fullPath )?.ToLowerInvariant();
@@ -38,6 +70,11 @@ public abstract class GameMount : BaseGameMount
 					continue;
 
 				var path = Path.GetRelativePath( appDir, fullPath ).Replace( '\\', '/' );
+
+				// Typed resources rename themselves ("models/x.mdl" -> "models/x.mdl.vmdl"), so raw
+				// and converted never collide.
+				if ( IsRawData( path[dirPrefix.Length..], ext ) )
+					context.Add( ResourceType.Binary, path, new RawFileLoader( fullPath ) );
 
 				if ( ext == ".wad" )
 				{
