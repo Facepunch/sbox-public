@@ -867,6 +867,38 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 		setup.Dispose();
 	}
 
+	/// <summary>
+	/// Renders the scene from the camera position into a single face of a cube texture.
+	/// </summary>
+	/// <param name="texture">Cube texture to render into. Must have 6 depth slices.</param>
+	/// <param name="faceIndex">Which face to render, indexing <see cref="CubeRotations"/>.</param>
+	/// <param name="config">Optional view setup overrides.</param>
+	internal void RenderToCubeTextureFace( Texture texture, int faceIndex, in ViewSetup config = default )
+	{
+		if ( texture is null || texture.native.IsNull )
+			return;
+
+		if ( texture.Depth != 6 ) throw new Exception( "Expected a texture with 6 depth slices for RenderToCubeTextureFace" );
+
+		if ( faceIndex < 0 || faceIndex >= CubeRotations.Length )
+			throw new ArgumentOutOfRangeException( nameof( faceIndex ), $"Face index must be between 0 and {CubeRotations.Length - 1}" );
+
+		var renderSize = texture.Size;
+
+		if ( renderSize.x <= 0 ) return;
+		if ( renderSize.y <= 0 ) return;
+
+		OnPreRender( renderSize );
+
+		var setup = new CameraRenderer( "RenderToCubeTextureFace", _cameraId );
+		setup.Configure( this, config );
+
+		setup.Native.CameraRotation = (Rotation * CubeRotations[faceIndex]).Angles();
+		setup.Native.RenderToCubeTexture( texture.native, faceIndex );
+
+		setup.Dispose();
+	}
+
 	private void RenderStereo( in ViewSetup config = default )
 	{
 		if ( !TargetEye.Contains( StereoTargetEye.LeftEye ) && !TargetEye.Contains( StereoTargetEye.RightEye ) )
