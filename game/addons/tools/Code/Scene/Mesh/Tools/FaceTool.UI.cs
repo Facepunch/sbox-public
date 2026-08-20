@@ -1019,5 +1019,94 @@ partial class FaceTool
 
 			SelectionFrameUtil.FramePoints( points );
 		}
+
+		[Shortcut( "mesh.select-loop", "L", typeof( SceneViewWidget ) )]
+		private void SelectLoop()
+		{
+			var faces = _faces
+				.Where( x => x.IsValid() )
+				.ToArray();
+
+			var loopFaces = faces.ToHashSet();
+			var hasDirection = false;
+
+			foreach ( var group in faces.GroupBy( x => x.Component ) )
+			{
+				var component = group.Key;
+				var mesh = component.Mesh;
+				var selectedHandles = group
+					.Select( x => x.Handle )
+					.ToHashSet();
+
+				foreach ( var face in group )
+				{
+					foreach ( var edge in mesh.GetFaceEdges( face.Handle ) )
+					{
+						mesh.GetFacesConnectedToEdge( edge, out var faceA, out var faceB );
+
+						var neighbor = faceA == face.Handle ? faceB : faceA;
+						if ( !neighbor.IsValid || !selectedHandles.Contains( neighbor ) )
+							continue;
+
+						hasDirection = true;
+						ExtendFaceLoop( component, face.Handle, neighbor, loopFaces );
+					}
+				}
+			}
+
+			if ( !hasDirection )
+				return;
+
+			using var scope = SceneEditorSession.Scope();
+			using var undoScope = SceneEditorSession.Active.UndoScope( "Select Face Loop" ).Push();
+
+			var selection = SceneEditorSession.Active.Selection;
+			selection.Clear();
+
+			foreach ( var face in loopFaces )
+				selection.Add( face );
+		}
+
+		private static void ExtendFaceLoop( MeshComponent component, FaceHandle current, FaceHandle previous, HashSet<MeshFace> loopFaces )
+		{
+			var mesh = component.Mesh;
+
+			while ( current.IsValid )
+			{
+				var edges = mesh.GetFaceEdges( current );
+				if ( edges.Length != 4 )
+					return;
+
+				var incomingEdgeIndex = -1;
+
+				for ( var i = 0; i < edges.Length; i++ )
+				{
+					mesh.GetFacesConnectedToEdge( edges[i], out var faceA, out var faceB );
+
+					if ( (faceA == current && faceB == previous) ||
+						(faceB == current && faceA == previous) )
+					{
+						incomingEdgeIndex = i;
+						break;
+					}
+				}
+
+				if ( incomingEdgeIndex < 0 )
+					return;
+
+				var oppositeEdge = edges[(incomingEdgeIndex + 2) % edges.Length];
+				mesh.GetFacesConnectedToEdge( oppositeEdge, out var oppositeFaceA, out var oppositeFaceB );
+
+				var next = oppositeFaceA == current ? oppositeFaceB : oppositeFaceA;
+				if ( !next.IsValid || mesh.IsFaceHidden( next ) )
+					return;
+
+				if ( !loopFaces.Add( new MeshFace( component, next ) ) )
+					return;
+
+				previous = current;
+				current = next;
+			}
+		}
 	}
 }
