@@ -54,7 +54,10 @@ internal static partial class ShaderHooks
 		Editor?.OpenFile( filename );
 	}
 
+	static readonly List<string> queue = new();
+	static string compiling;
 	static CancellationTokenSource cts;
+	static bool draining;
 
 	[Event( "compile.shader" )]
 	public static void CompileShader( string shader )
@@ -62,36 +65,82 @@ internal static partial class ShaderHooks
 		if ( !FileSystem.Mounted.FileExists( shader ) ) return;
 		if ( !shader.EndsWith( ".shader" ) ) return;
 
-		cts?.Cancel();
-		cts?.Dispose();
-		cts = new CancellationTokenSource();
+		if ( queue.Contains( shader, StringComparer.OrdinalIgnoreCase ) )
+			return;
 
-		_ = RunCompile( shader, cts.Token );
+		queue.Add( shader );
+
+		if ( string.Equals( compiling, shader, StringComparison.OrdinalIgnoreCase ) )
+			cts?.Cancel();
+
+		if ( !draining )
+			_ = Drain();
 	}
 
 	/// <summary>
-	/// Nothing awaits the compile, so without this a failure would sit on the task until the
-	/// finalizer rethrew it - long after the edit, and blamed on whatever was running then.
+	/// Compile queued shaders one by one
 	/// </summary>
-	static async Task RunCompile( string shader, CancellationToken token )
+	static async Task Drain()
 	{
+		draining = true;
+
 		try
 		{
-			await CompileShader( shader, token );
-		}
-		catch ( System.OperationCanceledException )
-		{
-			// A newer edit took over.
+			await Task.Yield();
+
+			var completed = 0;
+
+			if ( queue.Count > 1 )
+				Log.Info( $"Compiling {queue.Count} shaders.." );
+
+			while ( queue.Count > 0 )
+			{
+				var shader = queue[0];
+				queue.RemoveAt( 0 );
+
+				var total = completed + 1 + queue.Count;
+				completed++;
+
+				compiling = shader;
+				cts = new CancellationTokenSource();
+
+				try
+				{
+					await CompileShader( shader, completed, total, cts.Token );
+				}
+				catch ( System.OperationCanceledException )
+				{
+					// catch cases when shader file was updated while being in queue, 
+					// otherwise it is considered as a failed batch..
+					Log.Info( $"Shader file was updated while in queue: {shader}" );
+				}
+				catch ( System.Exception e )
+				{
+					Log.Error( e, $"Failed to compile {shader}" );
+				}
+				finally
+				{
+					compiling = null;
+					cts.Dispose();
+					cts = null;
+				}
+			}
 		}
 		catch ( System.Exception e )
 		{
-			Log.Error( e, $"Failed to compile {shader}" );
+			Log.Error( e, "Shader compile queue failed" );
+		}
+		finally
+		{
+			compiling = null;
+			cts = null;
+			draining = false;
 		}
 	}
 
-	static async Task CompileShader( string file, CancellationToken token )
+	static async Task CompileShader( string file, int index, int total, CancellationToken token )
 	{
-		Log.Info( $"Compiling: {file}" );
+		Log.Info( total > 1 ? $"Compiling: {file} ({index}/{total})" : $"Compiling: {file}" );
 		var sw = Stopwatch.StartNew();
 
 		var options = new Sandbox.Engine.Shaders.ShaderCompileOptions
