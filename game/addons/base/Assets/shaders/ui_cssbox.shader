@@ -35,14 +35,17 @@ VS
 PS
 { 
 	#include "ui/pixel.hlsl"
+	#include "ui/rounded_rect.hlsl"
 
 	DynamicCombo( D_BORDER_IMAGE, 0..2, Sys( PC ) ); // None = 0, Rounded = 1, Stretch = 2
 	DynamicCombo( D_BACKGROUND_IMAGE, 0..1, Sys( PC ) ); // Use Background Image = 1
 
 	bool HasBorder <Default( 0 ); Attribute( "HasBorder" );>;
 	bool HasBorderImageFill <Default(  0 ); Attribute( "HasBorderImageFill" );>;
-	float4 CornerRadius < Attribute( "BorderRadius" ); >;
-	float4 BorderWidth < UiGroup( "Border" ); Attribute( "BorderSize" ); >;	
+	float4 CornerRadius < Attribute( "BorderRadius" ); >;	// horizontal radii ( top-left, top-right, bottom-left, bottom-right )
+	float4 CornerRadiusV < Attribute( "BorderRadiusV" ); >;	// vertical radii, same order
+	float BoxBloat < Default( 0.0 ); Attribute( "BoxBloat" ); >;	// pixels the quad is grown by on each side, so the edge antialiasing has room
+	float4 BorderWidth < UiGroup( "Border" ); Attribute( "BorderSize" ); >;	// left, top, right, bottom
 	float4 BorderImageSlice < UiGroup( "Border" ); Attribute( "BorderImageSlice"); >;
 	float4 BorderColorL < UiType( Color ); Default4( 0.0, 0.0, 0.0, 1.0 ); UiGroup( "Border,10/Colors,10/1" ); Attribute( "BorderColorL" ); >;
 	float4 BorderColorT < UiType( Color ); Default4( 0.0, 0.0, 0.0, 1.0 ); UiGroup( "Border,10/Colors,10/2" ); Attribute( "BorderColorT" ); >;
@@ -69,7 +72,6 @@ PS
 	float4 g_vViewport < Source( Viewport ); >;
 
 	// Render State -------------------------------------------------------------------------------------------------------------------------------------------
-	RenderState( SrgbWriteEnable0, true );
 
 	// Always write rgba
 	RenderState( ColorWriteEnable0, RGBA );
@@ -81,24 +83,9 @@ PS
 	// No depth
 	RenderState( DepthWriteEnable, false );
 
-	#define SUBPIXEL_AA_MAGIC 0.5
-
 	float3 TonemapBasic( float3 vColor, float flWeight )
 	{
 		return vColor * ( flWeight * rcp( max( vColor.r, max( vColor.g, vColor.b ) ) + 1.0f ) );
-	}
-
-	float GetDistanceFromEdge( float2 pos, float2 size, float4 cornerRadius )
-	{
-		float minCorner = min(size.x, size.y);
-
-		//Based off https://iquilezles.org/www/articles/distfunctions2d/distfunctions2d.htm
-
-		float4 r = min( cornerRadius * 2.0 , minCorner );
-		r.xy = (pos.x>0.0)?r.xy : r.zw;
-		r.x  = (pos.y>0.0)?r.x  : r.y;
-		float2 q = abs(pos)-(size)+r.x;
-		return -0.5 + min(max(q.x,q.y),0.0) + length(max(q,0.0)) - r.x;
 	}
 
 	float2 RotateTexCoord( float2 vTexCoord, float angle, float2 offset = 0.5 )
@@ -107,81 +94,48 @@ PS
 		return mul( m, vTexCoord - offset ) + offset;
 	}
 
-	float4 CalcBorderColor( float4 ruv )
+	// Distance to the padding box edge: the box inset by its borders, each corner's radii less the border on
+	// its two sides. A corner that loses either radius goes square, like CSS.
+	float PaddingBoxSdf( float2 p )
 	{
-		float4 c = 	( BorderColorL * ruv.x ) +
-					( BorderColorT * ruv.y ) +
-					( BorderColorR * ruv.z ) +
-					( BorderColorB * ruv.a );
-		return c; 
+		float2 innerSize = max( BoxSize - float2( BorderWidth.x + BorderWidth.z, BorderWidth.y + BorderWidth.w ), 0.0 );
+		float2 innerCentre = float2( BorderWidth.x - BorderWidth.z, BorderWidth.y - BorderWidth.w ) * 0.5;
+
+		float4 innerH = CornerRadius - BorderWidth.xzxz;
+		float4 innerV = CornerRadiusV - BorderWidth.yyww;
+		float4 keep = step( 0.0001, innerH ) * step( 0.0001, innerV );
+
+		return RoundedRectSdf( p - innerCentre, innerSize * 0.5, innerH * keep, innerV * keep );
 	}
 
-	float CalcBorderWidth( float4 ruv ) 
-	{ 
-		float w = 	( BorderWidth.x * ruv.x ) +
-					( BorderWidth.y * ruv.y ) +
-					( BorderWidth.z * ruv.z ) +
-					( BorderWidth.a * ruv.a );
-		return w * 2.0;
-	}
-
-	float2 DistanceNormal( float2 p, float2 c )
+	// Which side's colour a border pixel takes. CSS splits each corner along the line from the box corner
+	// to the padding box corner, which is the same as picking the side the pixel is proportionally least
+	// deep into. Sides with no border never win. The join between the two nearest sides is antialiased
+	// over a pixel, like the web strokes it.
+	float4 BorderSideColor( float2 pos )
 	{
-		const float eps = 1;
-		const float2 h = float2(eps,0);
-		return normalize( float3( GetDistanceFromEdge(p-h.xy, c, CornerRadius) - GetDistanceFromEdge(p+h.xy, c, CornerRadius),
-								GetDistanceFromEdge(p-h.yx, c, CornerRadius) - GetDistanceFromEdge(p+h.yx, c, CornerRadius),
-								2.0*h.x
-			) ).xy;
-	}
+		float4 has = step( 0.0001, BorderWidth );
+		float4 depth = float4( pos.x, pos.y, BoxSize.x - pos.x, BoxSize.y - pos.y ) / max( BorderWidth, 0.0001 );
+		depth = depth * has + ( 1.0 - has ) * 1e9;
 
-	float4 AddBorder( float2 texCoord, float2 pos, float distanceFromCenter )
-	{
-		float2 vTransPos = texCoord * BoxSize;
+		// Nearest side and runner up
+		float4 c1 = BorderColorL, c2 = BorderColorT;
+		float d1 = depth.x, d2 = depth.y;
+		if ( d2 < d1 ) { c1 = BorderColorT; c2 = BorderColorL; d1 = depth.y; d2 = depth.x; }
+		if ( depth.z < d1 ) { c2 = c1; d2 = d1; c1 = BorderColorR; d1 = depth.z; } else if ( depth.z < d2 ) { c2 = BorderColorR; d2 = depth.z; }
+		if ( depth.w < d1 ) { c2 = c1; d2 = d1; c1 = BorderColorB; d1 = depth.w; } else if ( depth.w < d2 ) { c2 = BorderColorB; d2 = depth.w; }
 
-		//Scale - Fixme: this is messing transitions
-		float2 fScale = 1.0 / ( 1.0 - ( float2( BorderWidth.z + BorderWidth.x , BorderWidth.y + BorderWidth.w ) / BoxSize) );
-		vTransPos = ( vTransPos - ( BoxSize * 0.5 ) ) * ( fScale ) + ( BoxSize * 0.5 );	
-		
-		//Offset
-		vTransPos += float2( -BorderWidth.x + BorderWidth.z, -BorderWidth.y + BorderWidth.a ) * (fScale * 0.5);
-
-		float2 vOffsetPos = ( BoxSize ) * ( ( vTransPos / BoxSize) * 2.0 - 1.0);
-		
-		float2 vNormal = DistanceNormal( vOffsetPos, BoxSize );
-
-		float fDistance = GetDistanceFromEdge( vOffsetPos, BoxSize, CornerRadius );
-		fDistance += 1.5;
-
-		float4 vBorderL = BorderColorL;
-		float4 vBorderT = BorderColorT;
-		float4 vBorderR = BorderColorR;
-		float4 vBorderB = BorderColorB;
-
-		vBorderL.a = max( vNormal.x, 0 ) * fDistance / ( BorderWidth.x );
-		vBorderT.a = max( vNormal.y, 0 ) * fDistance / ( BorderWidth.y );
-		vBorderR.a = max(-vNormal.x, 0 ) * fDistance / ( BorderWidth.z );
-		vBorderB.a = max(-vNormal.y, 0 ) * fDistance / ( BorderWidth.w );
-		
-		float4 vBorderColor = -100;
-		float fBorderAlpha = 0;
-		
-		if( BorderWidth.x > 0.0f && vBorderL.a > vBorderColor.a ) { vBorderColor = vBorderL; fBorderAlpha = BorderColorL.a; }
-		if( BorderWidth.y > 0.0f && vBorderT.a > vBorderColor.a ) { vBorderColor = vBorderT; fBorderAlpha = BorderColorT.a; }
-		if( BorderWidth.z > 0.0f && vBorderR.a > vBorderColor.a ) { vBorderColor = vBorderR; fBorderAlpha = BorderColorR.a; }
-		if( BorderWidth.a > 0.0f && vBorderB.a > vBorderColor.a ) { vBorderColor = vBorderB; fBorderAlpha = BorderColorB.a; }
-
-		float fAntialiasAmount = max( 1.0f / SUBPIXEL_AA_MAGIC, 2.0f / SUBPIXEL_AA_MAGIC * abs( distanceFromCenter / ( min(BoxSize.x, BoxSize.y) ) ) );
-		vBorderColor.a = saturate( smoothstep( 0, fAntialiasAmount, fDistance ) )  * fBorderAlpha;
-
-		return vBorderColor;
+		// How far this pixel is from the join line, in pixels
+		float diff = d2 - d1;
+		float t = saturate( 0.5 - diff / max( fwidth( diff ), 0.0001 ) );
+		return lerp( c1, c2, t );
 	}
 
 	float4 AlphaBlend( float4 src, float4 dest )
 	{
 		float4 result;
 		result.a = src.a + (1 - src.a) * dest.a;
-		result.rgb = (1 / result.a) * (src.a * src.rgb + (1 - src.a) * dest.a * dest.rgb);
+		result.rgb = ( src.a * src.rgb + (1 - src.a) * dest.a * dest.rgb ) / max( result.a, 0.0001 );
 		return result;
 	}
 
@@ -268,11 +222,13 @@ PS
 		float4 borderImageTint = BorderImageTint.rgba;
 		borderImageTint.rgb = SrgbGammaToLinear(borderImageTint.rgb);
 
-		float borderRadius = 0;
-		float2 pos = ( BoxSize ) * (i.vTexCoord.xy * 2.0 - 1.0);  
+		// The quad may be the box grown by BoxBloat; make texcoords 0..1 across the box itself
+		i.vTexCoord.xy = ( i.vTexCoord.xy - 0.5 ) * ( BoxSize + BoxBloat * 2.0 ) / max( BoxSize, 0.0001 ) + 0.5;
 
-		float dist = GetDistanceFromEdge( pos, BoxSize, CornerRadius );
-		
+		// Pixels from the box centre
+		float2 pos = ( i.vTexCoord.xy - 0.5 ) * BoxSize;
+		float dOuter = RoundedRectSdf( pos, BoxSize * 0.5, CornerRadius, CornerRadiusV );
+
 		float4 vBox = i.vColor.rgba;
 		float4 vBoxBorder;
 
@@ -286,18 +242,17 @@ PS
 		{
 			if ( HasBorder )
 			{
-				vBoxBorder = AddBorder( i.vTexCoord.xy, pos, dist );
+				// The border is everything inside the box that isn't inside the padding box
+				vBoxBorder = BorderSideColor( i.vTexCoord.xy * BoxSize );
 				vBoxBorder.xyz = SrgbGammaToLinear( vBoxBorder.xyz );
+				vBoxBorder.a = saturate( vBoxBorder.a ) * ( 1.0 - SdfCoverage( PaddingBoxSdf( pos ) ) );
 			}
 			else
 			{
 				vBoxBorder = 0;
 			}
 		}
-  
-		// this makes the corner radius borders uneven and weird
-		//	dist -= D_BORDER_IMAGE ? 1.0 + SUBPIXEL_AA_MAGIC : 1.0; // Add one pixel to fill to specified size
-		
+
 		if ( D_BACKGROUND_IMAGE == 1 )
 		{
 			float2 vOffset = BgPos.xy / bgSize;
@@ -308,9 +263,7 @@ PS
 
 			float4 vImage;
 
-			float mipBias = -1.5; // negative = sharper, positive = blurrier
-	
-			vImage = g_tColor.SampleBias( Bindless::GetSampler( SamplerIndex ), vUV, mipBias );
+			vImage = g_tColor.Sample( Bindless::GetSampler( SamplerIndex ), vUV );
 
 			// Clamping UV? NoRepeat (3) will clamp both
 			if ( BgRepeat != 0 && BgRepeat != 4 )
@@ -328,12 +281,13 @@ PS
 				}
 			}
 			
-			vImage.xyz = SrgbGammaToLinear( vImage.xyz );
-
-			#if ( D_BLENDMODE == 3 ) // PREMULIPLIED
+			#if ( D_BLENDMODE == 3 )
+				// Premultiplied texture, premultiplied in sRGB space
+				vImage = UIPremultipliedTexel( vImage );
 				vImage.rgb *= bgTint.rgb;
 				vImage *= bgTint.a;
 			#else
+				vImage.xyz = SrgbGammaToLinear( vImage.xyz );
 				vImage *= bgTint;
 			#endif
 
@@ -348,9 +302,15 @@ PS
 			o.vColor = AlphaBlend( vBoxBorder, o.vColor );
 		}
 
-		// corner curves
-		o.vColor.a *= smoothstep(-0.5, -0.5 + fwidth(dist), -dist);
-		
-		return UI_CommonProcessing_Post( i, o );
+		float edge = SdfCoverage( dOuter );
+		o.vColor.a *= edge;
+
+		// Premultiplied content already sits in the target's space, see ui/gamma.hlsl
+		#if ( D_BLENDMODE == 3 )
+			o.vColor = UI_ApplyClip( o.vColor, true );
+			return o;
+		#else
+			return UI_CommonProcessing_Post( i, o, edge );
+		#endif
 	}
 }

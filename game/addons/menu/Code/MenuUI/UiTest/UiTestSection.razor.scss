@@ -1,0 +1,203 @@
+@import "/styles/_uitest.scss";
+
+.uitest
+{
+	width: 100%;
+	height: 100%;
+	flex-direction: row;
+	pointer-events: all;
+	font-family: $uitest-font;
+	background-color: $uitest-background;
+
+	> .rail
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		width: $uitest-rail-width;
+		height: 100%;
+		background-color: $uitest-rail;
+		border-right: 1px solid $uitest-hairline;
+
+		> .head
+		{
+			flex-direction: column;
+			flex-shrink: 0;
+			padding: 18px 16px;
+			gap: 2px;
+			border-bottom: 1px solid $uitest-hairline;
+
+			.title
+			{
+				font-size: 15px;
+				font-weight: 700;
+				color: $uitest-heading;
+			}
+
+			.sub
+			{
+				font-size: 11px;
+				color: $uitest-dim;
+			}
+		}
+
+		> .pages
+		{
+			flex-direction: column;
+			flex-shrink: 1;
+			padding: 8px 0;
+			overflow-y: scroll;
+
+			> *
+			{
+				flex-shrink: 0;
+			}
+		}
+	}
+
+	.entry
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 10px;
+		padding: 9px 16px;
+		cursor: pointer;
+		border-left: 2px solid transparent;
+		transition: all 0.1s ease;
+
+		icon
+		{
+			font-family: "Material Icons";
+			font-size: 17px;
+			width: 17px;
+			color: $uitest-dim;
+		}
+
+		label
+		{
+			font-size: 12.5px;
+			font-weight: 500;
+			color: $uitest-body;
+			white-space: nowrap;
+		}
+
+		&:hover
+		{
+			background-color: rgba( 255, 255, 255, 0.05 );
+
+			icon, label
+			{
+				color: $uitest-heading;
+			}
+		}
+
+		&.active
+		{
+			background-color: rgba( 74, 158, 255, 0.12 );
+			border-left: 2px solid $uitest-accent;
+
+			icon
+			{
+				color: $uitest-accent;
+			}
+
+			label
+			{
+				color: $uitest-heading;
+				font-weight: 600;
+			}
+		}
+
+		&.back
+		{
+			flex-shrink: 0;
+			border-top: 1px solid $uitest-hairline;
+			border-left: 2px solid transparent;
+		}
+	}
+
+	> .content
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		width: 0;
+		height: 100%;
+
+		> .pagehead
+		{
+			flex-direction: column;
+			flex-shrink: 0;
+			gap: 3px;
+			padding: 20px 28px 14px 28px;
+			border-bottom: 1px solid $uitest-hairline;
+
+			.title
+			{
+				font-size: 19px;
+				font-weight: 700;
+				color: $uitest-heading;
+			}
+
+			.desc
+			{
+				font-size: 12px;
+				color: $uitest-dim;
+			}
+		}
+
+		> .pagebody
+		{
+			flex-direction: column;
+			flex-grow: 1;
+			overflow: hidden;
+		}
+	}
+}
+
+.uitest-page
+{
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+	padding: 24px 28px;
+	overflow-y: scroll;
+	color: $uitest-body;
+	font-size: 12px;
+
+	&.hidden
+	{
+		display: none;
+	}
+
+	> *
+	{
+		flex-shrink: 0;
+	}
+
+	.cases
+	{
+		flex-direction: row;
+		flex-wrap: wrap;
+		gap: 18px;
+	}
+
+	h2
+	{
+		font-size: 14px;
+		font-weight: 700;
+		color: $uitest-heading;
+		margin: 22px 0 10px 0;
+	}
+
+	h2:first-child
+	{
+		margin-top: 0;
+	}
+
+	p
+	{
+		max-width: 780px;
+		margin: 0 0 10px 0;
+		color: $uitest-body;
+	}
+}

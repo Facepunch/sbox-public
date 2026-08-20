@@ -77,12 +77,6 @@ PackageCard
 			max-width: 500px;
 		}
 
-		.package-users
-		{
-			top: 1px;
-			right: 1px;
-		}
-
 		&:hover
 		{
 			background-color: $default-800;
@@ -144,28 +138,6 @@ PackageCard
 		font-size: 14px;
 	}
 
-	.package-users
-	{
-		position: absolute;
-		bottom: 4px;
-		right: 4px;
-		background-color: rgba( 10, 40, 10, 0.95 );
-		padding: 3px 5px;
-		border-radius: 2px;
-		justify-content: center;
-		align-items: center;
-		gap: 3px;
-		font-size: 11px;
-		color: #def;
-		border: 1px solid #252;
-		color: #2f3;
-
-		&:before
-		{
-			content: '●';
-			font-size: 0.5rem;
-		}
-	}
 	// Hover effect (not for list)
 	&:not(.list)
 	{
@@ -206,11 +178,6 @@ PackageCard
 
 
 .package-card.list packageflairbar
-{
-	display: none;
-}
-
-.package-card.list .package-users
 {
 	display: none;
 }

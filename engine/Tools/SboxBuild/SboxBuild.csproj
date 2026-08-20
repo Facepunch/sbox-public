@@ -16,6 +16,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+	<Compile Include="..\..\..\src\**\*.build.cs" LinkBase="Modules" />
+	<Using Include="Facepunch.Native" />
+	<Using Include="Facepunch.Native.ModuleKind" Static="true" />
+  </ItemGroup>
+
+  <ItemGroup>
 	<PackageReference Include="AWSSDK.S3" Version="4.0.25.3" />
 	<PackageReference Include="JetBrains.Refasmer" Version="2.0.3" />
 	<PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />

@@ -1,0 +1,58 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+
+<root class="@( Cart.Items.Count == 0 ? "empty" : "" )">
+
+    <div class="head">
+        <label class="section-label">Cart</label>
+        @if ( Cart.Items.Count > 0 )
+        {
+            <label class="count">@Cart.Items.Count</label>
+        }
+    </div>
+
+    @if ( Cart.Items.Count == 0 )
+    {
+        <label class="hint">Nothing in your cart yet. Add items and check out here.</label>
+    }
+    else
+    {
+        <div class="rows">
+            @foreach ( var group in Cart.Items.GroupBy( x => x.Id ) )
+            {
+                var item = group.First();
+                var count = group.Count();
+
+                <div class="row">
+                    <div class="art" style="background-image: url( @item.IconUrl ); border-color: @item.RarityColor"></div>
+                    <div class="row-body">
+                        <label class="name">@item.Name</label>
+                        <label class="meta">@( count > 1 ? $"{count} × {item.Price}" : item.Price.ToString() )</label>
+                    </div>
+                    <div class="remove" @onclick="@( () => Cart.RemoveAllFromCart( item ) )" tooltip="Remove">
+                        <icon>close</icon>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="total">
+            <label class="total-label">Total</label>
+            <label class="total-value">@Cart.CartValue</label>
+        </div>
+
+        <div class="checkout @( Cart.CheckingOut ? "busy" : "" )" @onclick="@Cart.CheckOut">
+            <icon>shopping_cart_checkout</icon>
+            <label>@( Cart.CheckingOut ? "Checking out…" : "Check out" )</label>
+        </div>
+    }
+
+</root>
+
+@code
+{
+    public ShoppingCart Cart { get; set; }
+
+    protected override int BuildHash() => HashCode.Combine( Cart.Items.Count, Cart.CartValue, Cart.CheckingOut );
+}

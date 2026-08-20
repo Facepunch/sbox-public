@@ -243,6 +243,18 @@ public partial struct Color : IEquatable<Color>
 	internal Color ToSrgb() => new Color( SrgbLinearToGamma( r ), SrgbLinearToGamma( g ), SrgbLinearToGamma( b ), a );
 
 	/// <summary>
+	/// Scale rgb in linear space, leaving alpha alone. Behaves like a light intensity multiplier,
+	/// so values over 1 make an HDR color. Used by the stylesheet "color * N" syntax.
+	/// </summary>
+	internal Color ScaleBrightness( float scale )
+	{
+		scale = MathF.Max( scale, 0.0f );
+
+		var l = ToLinear();
+		return new Color( l.r * scale, l.g * scale, l.b * scale, a ).ToSrgb();
+	}
+
+	/// <summary>
 	/// Returns a new color with each component being the minimum of the 2 given colors.
 	/// </summary>
 	/// <param name="a">Color A</param>
@@ -917,6 +929,29 @@ public partial struct Color : IEquatable<Color>
 
 	internal static Color? Parse( ref Parse p, bool isColorFunction = false )
 	{
+		var color = ParseColor( ref p, isColorFunction );
+		if ( !color.HasValue )
+			return color;
+
+		// Optional "* N" brightness multiplier - "white * 4", "#f00 * 2"
+		var restoreP = p;
+		p = p.SkipWhitespaceAndNewlines();
+
+		if ( p.Current == '*' )
+		{
+			p.Pointer++;
+			p = p.SkipWhitespaceAndNewlines();
+
+			if ( p.TryReadFloat( out var scale ) )
+				return color.Value.ScaleBrightness( scale );
+		}
+
+		p = restoreP;
+		return color;
+	}
+
+	private static Color? ParseColor( ref Parse p, bool isColorFunction )
+	{
 		p = p.SkipWhitespaceAndNewlines();
 
 		// 'currentColor' resolves to the element's own computed color, which isn't known here - return
@@ -1105,6 +1140,9 @@ public partial struct Color : IEquatable<Color>
 				float l = 0.0f;
 				float a = 1.0f;
 
+				p = p.SkipWhitespaceAndNewlines();
+				if ( p.IsEnd ) return null;
+
 				if ( p.IsDigit )
 				{
 					if ( !p.TryReadFloat( out h ) ) return null;
@@ -1124,8 +1162,8 @@ public partial struct Color : IEquatable<Color>
 					s /= 100.0f;
 					l /= 100.0f;
 
-					// Functional syntax
-					p = p.SkipWhitespaceAndNewlines( "/" );
+					// Either separator, comma syntax or functional
+					p = p.SkipWhitespaceAndNewlines( ",/" );
 
 					// Alpha is optional even in HSLA
 					// Alpha can ALSO be used with HSL, so lets attempt to fetch alpha data
@@ -1146,6 +1184,8 @@ public partial struct Color : IEquatable<Color>
 				{
 					return null;
 				}
+
+				p = p.SkipWhitespaceAndNewlines();
 
 				if ( p.Current != ')' )
 				{

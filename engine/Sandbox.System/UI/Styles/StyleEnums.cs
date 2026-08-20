@@ -628,3 +628,21 @@ public enum Isolation
 	/// </summary>
 	Isolate
 }
+
+/// <summary>
+/// Possible values for the <c>background-clip</c> CSS property, deciding how far the background is painted.
+/// </summary>
+public enum BackgroundClip
+{
+	/// <summary>Painted over the whole element, borders included.</summary>
+	BorderBox = 0,
+
+	/// <summary>Stops at the inside edge of the border.</summary>
+	PaddingBox = 1,
+
+	/// <summary>Stops at the inside edge of the padding.</summary>
+	ContentBox = 2,
+
+	/// <summary>Painted only where the element's text is, so the text shows through the glyphs.</summary>
+	Text = 3
+}

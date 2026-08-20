@@ -1,56 +1,165 @@
-@using Sandbox.UI;
-@using Sandbox.UI.Navigation;
-@using Sandbox;
-@using System;
+@using MenuProject.MenuUI.ContentBlock
 @using MenuProject.MenuUI.Front
-@inherits Panel
+@using MenuProject.MenuUI.Layout
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.UI;
 @page "/home"
+@inherits Panel
 
-<div class="stage">
+<root class="home">
+	<Page>
+		<Body>
+			<div class="home-row">
 
-    <div class="panel panel-left">
-        <ContinuePlaying Activity="@Activity" />
-        <SpotlightGames Activity="@Activity" />
-        <RewardDrop />
-    </div>
+				<div class="feed">
 
-    <div class="panel panel-right">
-        <ActivityFeed Activity="@Activity" Take="@(8)" />
-    </div>
+					@* Feeds live with the page they change - leave the front page and they go with it. *@
+					<div class="tabs">
+						@foreach ( var tab in Tabs )
+						{
+							<Button Href="@tab.Url" Active="@(CurrentTab == tab)">@tab.Title</Button>
+						}
 
-    <News />
+						<separator class="vertical" />
 
-</div>
+						@foreach ( var tab in Genres )
+						{
+							<Button Href="@tab.Url" Active="@(CurrentTab == tab)">@tab.Title</Button>
+						}
+					</div>
 
-<div class="model-toggle">
-    <DesktopButtons />
-</div>
+					@if ( CurrentTab.IsDiscover )
+					{
+						@if (Result is null)
+						{
+							<LoadingPanel></LoadingPanel>
+						}
+						else
+						{
+							<FrontPageGames Group="@Result" />
+						}
+					}
+					else
+					{
+						<PackageList Query=@($"type:game {CurrentTab.Query}") Take=@(60) OnSelected=@Selected OnMenu=@Menu></PackageList>
+					}
+				</div>
+
+				<div class="aside">
+
+					@*
+						Friends in game right now, then what everyone's been up to lately.
+						The feed is what fills the card out on a quiet night.
+					*@
+					<div class="profile-card">
+						<AvatarButton />
+						<FriendsActivity />
+						<ActivityFeed Activity="@Activity" />
+					</div>
+
+					<News />
+
+				</div>
+
+			</div>
+		</Body>
+	</Page>
+</root>
 
 @code
 {
-    // Sandbox.Services stays unimported - its News type would clash with the <News /> tag.
-    Sandbox.Services.Feed[] Activity { get; set; } = Array.Empty<Sandbox.Services.Feed>();
+	/// <summary>The curated content-block group shown on the front page.</summary>
+	public const string ContentGroupId = "32790afe-3968-4c13-b01a-39fbe36e7dd2";
 
-    RealTimeUntil timeUntilRefresh = 0;
+	/// <summary>
+	/// A feed the front page can show. Discover is the curated blocks, the rest run a
+	/// package query - Query is everything after "type:game".
+	/// </summary>
+	public record FeedTab( string Name, string Title, string Query )
+	{
+		public bool IsDiscover => Query is null;
+		public string Url => $"/home?Tab={Name}";
+	}
 
-    public override void Tick()
-    {
-        base.Tick();
+	/// <summary>The feeds offered in the top bar, in order.</summary>
+	public static readonly FeedTab[] Tabs =
+	[
+		new( "discover", "Discover", null ),
+		new( "trending", "Trending", "sort:trending" ),
+		new( "popular", "Popular", "sort:rankmonth" ),
+		new( "newest", "Newest", "sort:newest" ),
+		new( "updated", "Updated", "sort:updated" ),
+		new( "gems", "Hidden Gems", "sort:hiddengem" ),
+	];
 
-        if ( !IsVisible ) return;
-        if ( timeUntilRefresh > 0 ) return;
+	/// <summary>Genre feeds, shown after the main tabs. Best-rated first within each genre.</summary>
+	public static readonly FeedTab[] Genres =
+	[
+		new( "shooter", "Shooter", "sort:quality genre:shooter" ),
+		new( "puzzle", "Puzzle", "sort:quality genre:puzzle" ),
+		new( "strategy", "Strategy", "sort:quality genre:strategy" ),
+		new( "sports", "Sports", "sort:quality genre:sports" ),
+		new( "roguelike", "Roguelike", "sort:quality genre:roguelike" ),
+	];
 
-        timeUntilRefresh = 60 * 3;
+	static FeedTab FindTab( string name ) => Tabs.Concat( Genres ).FirstOrDefault( x => x.Name == name ) ?? Tabs[0];
 
-        _ = UpdateActivity();
-    }
+	/// <summary>The feed the front page is currently showing.</summary>
+	public static FeedTab CurrentTab { get; private set; } = Tabs[0];
 
-    async Task UpdateActivity()
-    {
-        // Deeper than the rows we draw - the panels derive friend counts from the same data.
-        Activity = await MenuUtility.GetPlayerFeed( 30 ) ?? Array.Empty<Sandbox.Services.Feed>();
-        StateHasChanged();
-    }
+	// The navigator caches this page and re-applies query params through the
+	// setter on every visit, so the tab has to be picked here.
+	[Parameter]
+	public string Tab
+	{
+		get => field;
+		set
+		{
+			field = value;
+			CurrentTab = FindTab( value );
+		}
+	}
 
-    protected override int BuildHash() => HashCode.Combine( Activity.Length );
+	Package.ListResult Result;
+
+	Sandbox.Services.Feed[] Activity { get; set; } = System.Array.Empty<Sandbox.Services.Feed>();
+
+	RealTimeUntil timeUntilRefresh = 0;
+
+	protected override async Task OnParametersSetAsync()
+	{
+		Result = await Package.ListAsync( ContentGroupId );
+		StateHasChanged();
+	}
+
+	public override void Tick()
+	{
+		base.Tick();
+
+		if ( !IsVisible ) return;
+		if ( timeUntilRefresh > 0 ) return;
+
+		timeUntilRefresh = 60 * 3;
+
+		_ = UpdateActivity();
+	}
+
+	async Task UpdateActivity()
+	{
+		Activity = await MenuUtility.GetPlayerFeed( 30 ) ?? System.Array.Empty<Sandbox.Services.Feed>();
+		StateHasChanged();
+	}
+
+	void Selected( Package package )
+	{
+		ContentBlocks.OnLaunch( package );
+	}
+
+	void Menu( Package package )
+	{
+		ContentBlocks.OnMenu( this, package );
+	}
+
+	protected override int BuildHash() => System.HashCode.Combine( Result, Activity.Length, CurrentTab );
 }

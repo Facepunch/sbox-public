@@ -58,7 +58,7 @@ internal partial class PanelRenderer
 
 	void UpdateScissorState( Panel panel )
 	{
-		var hash = HashCode.Combine( ScissorGPU.Rect, ScissorGPU.CornerRadius, ScissorGPU.Matrix );
+		var hash = ScissorGPU.GetHash();
 		if ( panel._lastScissorHash == hash ) return;
 
 		panel._lastScissorHash = hash;

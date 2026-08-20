@@ -143,73 +143,45 @@ public partial class MenuSystem : IMenuSystem
 	public bool ForceCursorVisible => DeveloperMode.Open || ChatOverlay.IsOpen;
 
 
-	class MenuMusic
-	{
-		public bool Enabled;
-		public float Volume;
-		public float TargetVolume = 0.5f;
-		string file;
-		MusicPlayer player;
+	SoundFile menuTrack;
+	SoundFile loadingTrack;
+	SoundFile avatarTrack;
 
-		public MenuMusic( string filename )
-		{
-			file = filename;
-		}
-
-		public void Update()
-		{
-			float targetVolume = Enabled ? 1 : 0;
-			if ( targetVolume == Volume )
-				return;
-
-			Volume = Volume.Approach( targetVolume, RealTime.SmoothDelta * 2.0f ); // 0.5s fade
-			if ( Volume <= 0.001f )
-			{
-				player?.Dispose();
-				player = null;
-				return;
-			}
-
-			if ( player is null )
-			{
-				try
-				{
-					player = MusicPlayer.Play( FileSystem.Mounted, file );
-				}
-				catch ( ArgumentException )
-				{
-					// music not found, fuck it
-					return;
-				}
-
-				player.Repeat = true;
-			}
-
-			player.Volume = Volume * TargetVolume;
-			player.Position = Vector3.Zero;
-			player.ListenLocal = true;
-			player.TargetMixer = Mixer.FindMixerByName( "music" );
-		}
-	}
-
-	MenuMusic menu = new MenuMusic( "music/menu-bg.wav" );
-	MenuMusic loading = new MenuMusic( "music/menu-loading.wav" );
-	MenuMusic avatar = new MenuMusic( "music/furniture_shop_loop.ogg" );
-
+	/// <summary>
+	/// Music is one shared channel, so only ever touch it when it's silent or playing one of our tracks.
+	/// A game's music carries on through loading screens and after it starts.
+	/// </summary>
 	void UpdateMusic()
 	{
+		menuTrack ??= SoundFile.Load( "music/menu.mp3" );
+		loadingTrack ??= SoundFile.Load( "music/menu-loading.wav" );
+		avatarTrack ??= SoundFile.Load( "music/furniture_shop_loop.ogg" );
+
+		var current = Game.Music.Track;
+		bool isOurs = current is null || current == menuTrack || current == loadingTrack || current == avatarTrack;
+		if ( !isOurs )
+			return;
+
+		bool isLoading = LoadingScreen.IsVisible && (IGameInstance.Current is null || IGameInstance.Current.IsLoading);
+		bool isInGame = IGameInstance.Current is not null;
 		bool isAvatarMenu = Game.ActiveScene?.Get<AvatarEditManager>() != null;
-		bool isLoadingScreen = LoadingScreen.IsVisible;
 
-		menu.Enabled = false;
-		menu.Update();
-
-		loading.Enabled = LoadingScreen.IsVisible && (IGameInstance.Current is null || IGameInstance.Current.IsLoading);
-		loading.Update();
-
-		avatar.Enabled = isAvatarMenu;
-		avatar.TargetVolume = 0.1f;
-		avatar.Update();
+		if ( isLoading )
+		{
+			Game.Music.Play( loadingTrack, fade: 0.5f, volume: 0.5f );
+		}
+		else if ( isInGame )
+		{
+			Game.Music.Stop( 0.5f );
+		}
+		else if ( isAvatarMenu )
+		{
+			Game.Music.Play( avatarTrack, fade: 0.5f, volume: 0.1f );
+		}
+		else
+		{
+			Game.Music.Play( menuTrack, fade: 0.5f, volume: 0.1f );
+		}
 	}
 
 	void IMenuSystem.OnPackageClosed( Package package )

@@ -28,7 +28,9 @@ internal static class Build
 
 		if ( !shouldSkipNative )
 		{
-			if ( new BuildVpc().Run() != ExitCode.Success )
+			// Public distributions skip this with the rest of the native build - they link
+			// nothing, so they need no third party binaries.
+			if ( new DownloadThirdParty().Run() != ExitCode.Success )
 				return ExitCode.Failure;
 
 			if ( new GenerateSolutions( config ).Run() != ExitCode.Success )

@@ -14,11 +14,11 @@ namespace Topten.RichTextKit
 		public SKPoint Center { get; set; }
 		public RadialSizeMode SizeMode { get; set; }
 		public GradientType GradientType { get; set; }
-		public SKColor[] Colors { get; set; }
+		public SKColorF[] Colors { get; set; }
 		public float[] Positions { get; set; }
 		public float Angle { get; set; }
 
-		public static TextGradient Linear( SKColor[] colors, float[] positions, float angle )
+		public static TextGradient Linear( SKColorF[] colors, float[] positions, float angle )
 		{
 			return new TextGradient()
 			{
@@ -29,7 +29,7 @@ namespace Topten.RichTextKit
 			};
 		}
 
-		public static TextGradient Radial( SKColor[] colors, float[] positions, float angle, SKPoint center, RadialSizeMode sizeMode )
+		public static TextGradient Radial( SKColorF[] colors, float[] positions, float angle, SKPoint center, RadialSizeMode sizeMode )
 		{
 			return new TextGradient()
 			{
@@ -66,7 +66,8 @@ namespace Topten.RichTextKit
 				var localScale = SKMatrix.CreateScale( sx, sy, width * .5f, height * .5f );
 				localMatrix = SKMatrix.Concat( localMatrix, localScale );
 
-				return SKShader.CreateLinearGradient( startPoint, endPoint, Colors, Positions, SKShaderTileMode.Clamp, localMatrix );
+				// SKColorF stops with a null colour space stay unclamped, so HDR (>1) colours survive onto an F16 surface
+				return SKShader.CreateLinearGradient( startPoint, endPoint, Colors, null, Positions, SKShaderTileMode.Clamp, localMatrix );
 			}
 
 			if ( GradientType == GradientType.Radial )
@@ -117,7 +118,7 @@ namespace Topten.RichTextKit
 
 				localMatrix = SKMatrix.Concat( localMatrix, SKMatrix.CreateScale( scaleX, scaleY, center.X, center.Y ) );
 
-				return SKShader.CreateRadialGradient( center, radius, Colors, Positions, SKShaderTileMode.Clamp, localMatrix );
+				return SKShader.CreateRadialGradient( center, radius, Colors, null, Positions, SKShaderTileMode.Clamp, localMatrix );
 			}
 
 			return null;

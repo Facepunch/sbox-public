@@ -433,6 +433,8 @@ public partial class Panel
 		set => GameObject = value;
 	}
 
+	GameObject _gameObject;
+
 	/// <summary>
 	/// Returns the GameObject that this panel belongs to
 	/// </summary>
@@ -440,13 +442,13 @@ public partial class Panel
 	{
 		get
 		{
-			if ( field is not null )
-				return field;
+			if ( _gameObject is not null )
+				return _gameObject;
 
 			return Parent?.GameObject;
 		}
 
-		internal set;
+		internal set => _gameObject = value;
 	}
 
 	/// <summary>

@@ -105,8 +105,7 @@ public partial class Panel
 				BackgroundImage = texture,
 				BackgroundRect = new Vector4( 0, 0, textRect.Width, textRect.Height ),
 				BackgroundTint = tint,
-				OverrideBlendMode = BlendMode.PremultipliedAlpha,
-				PremultiplyAlpha = true,
+				BackgroundRepeat = BackgroundRepeat.Clamp,
 				FilterMode = FilterMode.Bilinear,
 			} );
 		}
@@ -179,18 +178,8 @@ public partial class Panel
 
 		var desc = new BoxDrawDescriptor( rect, color )
 		{
-			BorderRadius = new Vector4(
-				style.BorderBottomRightRadius.Value.GetPixels( size ),
-				style.BorderTopRightRadius.Value.GetPixels( size ),
-				style.BorderBottomLeftRadius.Value.GetPixels( size ),
-				style.BorderTopLeftRadius.Value.GetPixels( size )
-			),
-			BorderSize = new Vector4(
-				style.BorderLeftWidth.Value.GetPixels( size ),
-				style.BorderTopWidth.Value.GetPixels( size ),
-				style.BorderRightWidth.Value.GetPixels( size ),
-				style.BorderBottomWidth.Value.GetPixels( size )
-			),
+			Radii = BorderRadii.FromStyle( style, rect ),
+			BorderSize = PanelRenderer.GetBorderWidths( style, size ),
 			BorderColorL = style.BorderLeftColor.Value.WithAlphaMultiplied( opacity ),
 			BorderColorT = style.BorderTopColor.Value.WithAlphaMultiplied( opacity ),
 			BorderColorR = style.BorderRightColor.Value.WithAlphaMultiplied( opacity ),

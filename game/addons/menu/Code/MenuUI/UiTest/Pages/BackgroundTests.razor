@@ -1,0 +1,122 @@
+@namespace MenuProject.UiTest
+@inherits UiTestPage
+
+@using Sandbox;
+@using Sandbox.UI;
+
+@attribute [Title( "Backgrounds" )]
+@attribute [Description( "Images: sizing, position, repeat, border-image" )]
+@attribute [Icon( "image" )]
+@attribute [Order( 60 )]
+
+@*
+    Gradients have their own page - this one is about real images, which arrive with a size of
+    their own that the box has to reconcile with. Two sources: an svg that can be drawn at any
+    size without going soft, and a png that can't.
+*@
+
+<root>
+
+    <h2>Sizing</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Plate" Css="background-image: url( /ui/welcome/playermodel.png )"
+                    Note="No size given, so the image comes in at its own and repeats to fill." />
+        <UiTestCase Setup="@Plate" Css="background-image: url( /ui/welcome/playermodel.png ); background-size: cover"
+                    Note="Fills the box, keeps the aspect, crops the overflow." />
+        <UiTestCase Setup="@Plate" Css="background-image: url( /ui/welcome/playermodel.png ); background-size: contain"
+                    Note="Fits inside and keeps the aspect - and by default the leftover is filled by repeats." />
+        <UiTestCase Setup="@Plate" Css="background-image: url( /ui/welcome/playermodel.png ); background-size: contain; background-repeat: no-repeat"
+                    Note="Contain as people usually mean it." />
+        <UiTestCase Setup="@Plate" Css="background-image: url( /ui/welcome/playermodel.png ); background-size: 100% 100%"
+                    Note="Stretched to the box, aspect ignored." />
+        <UiTestCase Setup="@Wide" Css="background-image: url( /ui/welcome/playermodel.png ); background-size: cover"
+                    Note="Cover on a wide box crops top and bottom rather than letterboxing." />
+        <UiTestCase Setup="@Plate" Css="background-image: url( /ui/welcome/playermodel.png ); background-size: 50px 50px"
+                    Note="A fixed tile, so it repeats four times." />
+        <UiTestCase Setup="@Plate" Css="background-image: url( /ui/welcome/playermodel.png ); background-size: 50%"
+                    Note="One value is the width; on the web the height then follows the aspect." />
+    </div>
+
+    <h2>Position</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Plate" Css="background-image: url( /ui/sbox_ident_default.svg ); background-size: 40px 40px; background-repeat: no-repeat; background-position: center" />
+        <UiTestCase Setup="@Plate" Css="background-image: url( /ui/sbox_ident_default.svg ); background-size: 40px 40px; background-repeat: no-repeat; background-position: right bottom" />
+        <UiTestCase Setup="@Plate" Css="background-image: url( /ui/sbox_ident_default.svg ); background-size: 40px 40px; background-repeat: no-repeat; background-position: left top" />
+        <UiTestCase Setup="@Plate" Css="background-image: url( /ui/sbox_ident_default.svg ); background-size: 40px 40px; background-repeat: no-repeat; background-position: 10px 30px" />
+        <UiTestCase Setup="@Plate" Css="background-image: url( /ui/sbox_ident_default.svg ); background-size: 40px 40px; background-repeat: no-repeat; background-position: 75% 25%"
+                    Note="A percentage lines that point of the image up with the same point of the box - it isn't an offset." />
+        <UiTestCase Setup="@Plate" Css="background-image: url( /ui/sbox_ident_default.svg ); background-size: 40px 40px; background-position: center"
+                    Note="Repeating is anchored to the position, so tiles land either side of centre." />
+    </div>
+
+    <h2>Repeat</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Plate" Css="background-image: url( /ui/sbox_ident_default.svg ); background-size: 30px 30px; background-repeat: repeat" />
+        <UiTestCase Setup="@Plate" Css="background-image: url( /ui/sbox_ident_default.svg ); background-size: 30px 30px; background-repeat: repeat-x" />
+        <UiTestCase Setup="@Plate" Css="background-image: url( /ui/sbox_ident_default.svg ); background-size: 30px 30px; background-repeat: repeat-y" />
+        <UiTestCase Setup="@Plate" Css="background-image: url( /ui/sbox_ident_default.svg ); background-size: 30px 30px; background-repeat: no-repeat" />
+    </div>
+
+    <h2>With the rest of the box</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Plain" class="checkered" Css="background-image: url( /ui/sbox_ident_default.svg ); background-size: contain; background-repeat: no-repeat"
+                    Note="The svg's own transparency, over a chequerboard." />
+        <UiTestCase Setup="@Plate" Css="background-color: #4a9eff; background-image: url( /ui/sbox_ident_default.svg ); background-size: 50px 50px; background-repeat: no-repeat; background-position: center"
+                    Note="Image over colour - the colour shows wherever the image doesn't." />
+        <UiTestCase Setup="@Plate" Css="background-image: url( /ui/welcome/playermodel.png ); background-size: cover; border-radius: 24px"
+                    Note="The image is clipped by the radius, not just the fill." />
+        <UiTestCase Setup="@Plate" Css="background-image: url( /ui/welcome/playermodel.png ); background-size: cover; border-radius: 24px; border: 6px solid #4ac2e8"
+                    Note="A background runs under the border, not inside it." />
+        <UiTestCase Setup="@Plate" class="checkered" Css="background-image: url( /ui/welcome/playermodel.png ); background-size: cover; opacity: 0.4" />
+        <UiTestCase Setup="@Plate" class="roomy" Css="background-image: url( /ui/welcome/playermodel.png ); background-size: cover; transform: rotate( 12deg )" />
+    </div>
+
+    <h2>Scaling quality</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Plate" Css="background-image: url( /ui/sbox_ident_default.svg ); background-size: 16px 16px; background-repeat: no-repeat; background-position: center"
+                    Note="An svg asked for small. Vector, so it should be crisp rather than a shrunken bitmap." />
+        <UiTestCase Setup="@Plate" class="roomy" Css="background-image: url( /ui/sbox_ident_default.svg ); background-size: contain; background-repeat: no-repeat; transform: scale( 2 )"
+                    Note="Blown up after layout, so this one does resample - softness is expected here." />
+        <UiTestCase Setup="@Plate" Css="background-image: url( /ui/welcome/playermodel.png ); background-size: 24px 24px; background-repeat: no-repeat; background-position: center"
+                    Note="A photo minified hard - mip quality, and whether it sparkles when it moves." />
+        <UiTestCase Setup="@Plate" Css="background-image: url( /ui/welcome/playermodel.png ); background-size: cover; image-rendering: pixelated"
+                    Note="Nearest neighbour, if we take it." />
+    </div>
+
+    <h2>border-image</h2>
+
+    <p>
+        Nine-slice, and the only coverage the border-image shader has ever had. What matters:
+        corners keep their size and don't stretch, edges repeat or stretch as asked, and the
+        middle is only drawn with "fill".
+    </p>
+
+    <div class="cases">
+        <UiTestCase Setup="@Plain" Css="border: 20px solid transparent; border-image: url( /ui/sbox_ident_default.svg ) 33% / 20px stretch"
+                    Note="Edges stretched between the corners." />
+        <UiTestCase Setup="@Plain" Css="border: 20px solid transparent; border-image: url( /ui/sbox_ident_default.svg ) 33% / 20px round"
+                    Note="Edges tiled instead, rounded to a whole number of tiles." />
+        <UiTestCase Setup="@Plain" Css="border: 20px solid transparent; border-image: url( /ui/sbox_ident_default.svg ) 33% / 20px stretch fill"
+                    Note="With fill, the middle slice is drawn too." />
+        <UiTestCase Setup="@PlainWide" Css="border: 20px solid transparent; border-image: url( /ui/sbox_ident_default.svg ) 33% / 20px round"
+                    Note="Non-square box: the corners must stay square while only the edges repeat." />
+        <UiTestCase Setup="@Plain" Css="border: 30px solid transparent; border-image: url( /ui/sbox_ident_default.svg ) 33% / 30px stretch"
+                    Note="Thicker border, same slice, so the corners scale up." />
+    </div>
+
+</root>
+
+@code
+{
+    // A dark plate behind each image, so transparency and letterboxing are visible
+    const string Plate = "width: 100px; height: 100px; background-color: #23262e";
+    const string Wide = "width: 200px; height: 100px; background-color: #23262e";
+
+    const string Plain = "width: 100px; height: 100px";
+    const string PlainWide = "width: 200px; height: 100px";
+}

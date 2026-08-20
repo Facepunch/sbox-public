@@ -124,6 +124,16 @@ public static partial class TextRendering
 			return block.Size;
 		}
 
+		/// <summary>
+		/// True if any colour that gets painted has a channel above 1, so the block needs a float surface.
+		/// </summary>
+		internal readonly bool IsHdr =>
+			TextColor.IsHdr
+			|| (Shadow.Enabled && Shadow.Color.IsHdr)
+			|| (ShadowUnder.Enabled && ShadowUnder.Color.IsHdr)
+			|| (Outline.Enabled && Outline.Size > 0 && Outline.Color.IsHdr)
+			|| (OutlineUnder.Enabled && OutlineUnder.Size > 0 && OutlineUnder.Color.IsHdr);
+
 		internal void ToStyle( Topten.RichTextKit.Style style )
 		{
 			style.FontFamily = FontName;
@@ -131,7 +141,7 @@ public static partial class TextRendering
 			style.FontWeight = FontWeight;
 			style.FontItalic = FontItalic;
 			style.FontVariantNumeric = FontVariantNumeric;
-			style.TextColor = TextColor.ToSk();
+			style.TextColor = TextColor.ToSkF();
 			style.Underline = Topten.RichTextKit.UnderlineStyle.None;
 			style.StrikeThrough = Topten.RichTextKit.StrikeThroughStyle.None;
 			style.LetterSpacing = LetterSpacing;
@@ -140,22 +150,22 @@ public static partial class TextRendering
 
 			if ( ShadowUnder.Enabled )
 			{
-				style.AddEffect( Topten.RichTextKit.TextEffect.DropShadow( ShadowUnder.Color.ToSk(), ShadowUnder.Offset.x, ShadowUnder.Offset.y, ShadowUnder.Size ) );
+				style.AddEffect( Topten.RichTextKit.TextEffect.DropShadow( ShadowUnder.Color.ToSkF(), ShadowUnder.Offset.x, ShadowUnder.Offset.y, ShadowUnder.Size ) );
 			}
 
 			if ( OutlineUnder.Enabled && OutlineUnder.Size > 0 )
 			{
-				style.AddEffect( Topten.RichTextKit.TextEffect.Outline( OutlineUnder.Color.ToSk(), OutlineUnder.Size ) );
+				style.AddEffect( Topten.RichTextKit.TextEffect.Outline( OutlineUnder.Color.ToSkF(), OutlineUnder.Size ) );
 			}
 
 			if ( Shadow.Enabled )
 			{
-				style.AddEffect( Topten.RichTextKit.TextEffect.DropShadow( Shadow.Color.ToSk(), Shadow.Offset.x, Shadow.Offset.y, Shadow.Size ) );
+				style.AddEffect( Topten.RichTextKit.TextEffect.DropShadow( Shadow.Color.ToSkF(), Shadow.Offset.x, Shadow.Offset.y, Shadow.Size ) );
 			}
 
 			if ( Outline.Enabled && Outline.Size > 0 )
 			{
-				style.AddEffect( Topten.RichTextKit.TextEffect.Outline( Outline.Color.ToSk(), Outline.Size ) );
+				style.AddEffect( Topten.RichTextKit.TextEffect.Outline( Outline.Color.ToSkF(), Outline.Size ) );
 			}
 
 		}

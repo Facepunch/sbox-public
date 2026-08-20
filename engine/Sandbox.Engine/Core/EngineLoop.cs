@@ -41,6 +41,7 @@ internal static class EngineLoop
 
 		using ( _runFrame.Start() )
 		{
+			Application.FrameCount++;
 			RealTime.Update( time );
 			Time.Update( RealTime.Now, RealTime.Delta );
 
@@ -511,6 +512,8 @@ internal static class EngineLoop
 		// The editor renders it's own game scene
 		if ( Application.IsEditor )
 		{
+			Sandbox.UI.ScenePanel.RenderPending();
+
 			using ( _toolsRender.Start() )
 				IToolsDll.Current?.OnRender();
 			return;
@@ -518,10 +521,25 @@ internal static class EngineLoop
 
 		var engineChain = g_pEngineServiceMgr.GetEngineSwapChain();
 
-		using ( _gameRender.Start() )
-			IGameInstanceDll.Current?.OnRender( engineChain );
-		using ( _menuRender.Start() )
-			IMenuDll.Current?.OnRender( engineChain );
+		// One view bracket for the whole frame. Every camera, scene panel and overlay
+		// render below joins it, so their scene jobs overlap and we wait once at the end
+		// instead of each render blocking the main thread separately.
+		CSceneSystem.BeginRenderingViews( true );
+
+		try
+		{
+			Sandbox.UI.ScenePanel.RenderPending();
+
+			using ( _gameRender.Start() )
+				IGameInstanceDll.Current?.OnRender( engineChain );
+			using ( _menuRender.Start() )
+				IMenuDll.Current?.OnRender( engineChain );
+		}
+		finally
+		{
+			CSceneSystem.FinishRenderingViews();
+			CSceneSystem.WaitForRenderingToComplete();
+		}
 	}
 
 	/// <summary>

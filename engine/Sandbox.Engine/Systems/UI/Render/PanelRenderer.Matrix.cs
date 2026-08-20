@@ -12,15 +12,16 @@ internal partial class PanelRenderer
 	/// </summary>
 	private void BuildTransformState( Panel panel )
 	{
-		panel.GlobalMatrix = panel.Parent?.GlobalMatrix ?? null;
-		panel.LocalMatrix = null;
+		var globalMat = panel.Parent?.GlobalMatrix;
+		var globalMatInverted = panel.Parent?.GlobalMatrixInverted;
 
 		var style = panel.ComputedStyle;
 		Matrix transformMat;
+		Matrix? localMat = null;
 
 		if ( style.Transform.Value.IsEmpty() || panel.TransformMatrix == Matrix.Identity )
 		{
-			transformMat = panel.GlobalMatrix?.Inverted ?? Matrix.Identity;
+			transformMat = globalMatInverted ?? Matrix.Identity;
 		}
 		else
 		{
@@ -28,28 +29,34 @@ internal partial class PanelRenderer
 			origin.x += style.TransformOriginX.Value.GetPixels( panel.Box.Rect.Width, 0.0f );
 			origin.y += style.TransformOriginY.Value.GetPixels( panel.Box.Rect.Height, 0.0f );
 
-			Vector3 transformedOrigin = panel.Parent?.GlobalMatrix?.Inverted.Transform( origin ) ?? origin;
+			Vector3 transformedOrigin = globalMatInverted?.Transform( origin ) ?? origin;
 
-			transformMat = panel.GlobalMatrix?.Inverted ?? Matrix.Identity;
+			transformMat = globalMatInverted ?? Matrix.Identity;
 			transformMat *= Matrix.CreateTranslation( -transformedOrigin );
 			transformMat *= panel.TransformMatrix;
 			transformMat *= Matrix.CreateTranslation( transformedOrigin );
 
 			var mi = transformMat.Inverted;
 
-			if ( panel.GlobalMatrix.HasValue )
-			{
-				panel.LocalMatrix = panel.GlobalMatrix.Value.Inverted * mi;
-			}
-			else
-			{
-				panel.LocalMatrix = mi;
-			}
+			localMat = globalMatInverted.HasValue ? globalMatInverted.Value * mi : mi;
 
-			panel.GlobalMatrix = mi;
+			globalMat = mi;
+			globalMatInverted = transformMat;
 		}
 
-		panel.CachedDescriptors ??= new();
-		panel.CachedDescriptors.TransformMat = transformMat;
+		// Most panels have no transform anywhere in their chain, so these stores
+		// are usually all no-ops - only write when the value actually changed.
+		if ( panel.GlobalMatrix != globalMat )
+			panel.SetGlobalMatrix( globalMat, globalMatInverted );
+
+		if ( panel.LocalMatrix != localMat )
+			panel.LocalMatrix = localMat;
+
+		// CachedDescriptors must always exist with a valid TransformMat after this -
+		// pooled RenderLayers carry a stale TransformMat from their previous owner.
+		if ( panel.CachedDescriptors is null )
+			panel.CachedDescriptors = new() { TransformMat = transformMat };
+		else if ( panel.CachedDescriptors.TransformMat != transformMat )
+			panel.CachedDescriptors.TransformMat = transformMat;
 	}
 }

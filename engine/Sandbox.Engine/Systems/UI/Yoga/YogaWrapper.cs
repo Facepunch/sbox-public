@@ -70,6 +70,12 @@ internal sealed class YogaWrapper
 
 	public bool HasNewLayout => Yoga.YGNodeGetHasNewLayout( Node );
 
+	/// <summary>
+	/// Whether this node needs a layout calculation. Yoga propagates dirtiness to the
+	/// root, so a clean root means the whole tree is clean.
+	/// </summary>
+	public bool IsDirty => Yoga.YGNodeIsDirty( Node );
+
 	internal float LayoutX => Yoga.YGNodeLayoutGetLeft( Node );
 	internal float LayoutY => Yoga.YGNodeLayoutGetTop( Node );
 	internal float LayoutWidth => Yoga.YGNodeLayoutGetWidth( Node );

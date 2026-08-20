@@ -224,11 +224,8 @@ public static partial class Graphics
 	{
 		var texture = TextRendering.GetOrCreateTexture( scope, flag: flags );
 
-		Attributes.Set( "Texture", texture );
-		Attributes.Set( "SamplerIndex", SamplerState.GetBindlessIndex( new SamplerState() { Filter = scope.FilterMode } ) );
-
 		var rect = position.Align( texture.Size, flags );
-		DrawQuad( rect.Floor(), Material.UI.Text, Color.White );
+		DrawTextTexture( texture, scope.FilterMode, rect.Floor(), 0 );
 
 		return rect;
 	}
@@ -240,11 +237,23 @@ public static partial class Graphics
 	{
 		var texture = TextRendering.GetOrCreateTexture( scope, flag: flags );
 
-		Attributes.Set( "Texture", texture );
-		Attributes.Set( "SamplerIndex", SamplerState.GetBindlessIndex( new SamplerState() { Filter = scope.FilterMode } ) );
-
 		var rect = position.Align( texture.Size, flags );
-		DrawQuad( rect, angle, Material.UI.Text, Color.White );
+		DrawTextTexture( texture, scope.FilterMode, rect, angle );
+	}
+
+	/// <summary>
+	/// Draws a rendered text texture with Material.UI.Text. Sampled clamped so glyphs on one edge
+	/// don't bleed into the other when the quad isn't pixel aligned.
+	/// </summary>
+	internal static void DrawTextTexture( Texture texture, FilterMode filter, in Rect rect, float angle )
+	{
+		Attributes.Set( "Texture", texture );
+		Attributes.Set( "SamplerIndex", SamplerState.GetBindlessIndex( new SamplerState() { Filter = filter, AddressModeU = TextureAddressMode.Clamp, AddressModeV = TextureAddressMode.Clamp } ) );
+
+		if ( angle == 0f )
+			DrawQuad( rect, Material.UI.Text, Color.White );
+		else
+			DrawQuad( rect, angle, Material.UI.Text, Color.White );
 	}
 
 	/// <summary>
@@ -287,13 +296,19 @@ public static partial class Graphics
 	}
 
 	/// <summary>
-	/// Draw a rounded rectangle, with optional border, in Material.UI.Box
+	/// Draw a rounded rectangle, with optional border, in Material.UI.Box. Corner radii are
+	/// (bottom-right, top-right, bottom-left, top-left); radii too big for the rect are scaled to fit, like CSS.
+	/// Border widths are left, top, right, bottom.
 	/// </summary>
 	public static unsafe void DrawRoundedRectangle( in Rect rect, in Color color, in Vector4 cornerRadius = default, in Vector4 borderWidth = default, in Color borderColor = default )
 	{
+		var radii = UI.BorderRadii.FromPublic( cornerRadius ).Clamped( rect.Width, rect.Height );
+
 		Attributes.Set( "BoxPosition", new Vector2( rect.Left, rect.Top ) );
 		Attributes.Set( "BoxSize", new Vector2( rect.Width, rect.Height ) );
-		Attributes.Set( "BorderRadius", cornerRadius );
+		Attributes.Set( "BoxBloat", 1.0f );
+		Attributes.Set( "BorderRadius", radii.Horizontal );
+		Attributes.Set( "BorderRadiusV", radii.Vertical );
 		Attributes.SetCombo( "D_BACKGROUND_IMAGE", 0 );
 
 		if ( !borderWidth.IsNearZeroLength )
@@ -313,7 +328,10 @@ public static partial class Graphics
 			Attributes.SetCombo( "D_BORDER_IMAGE", 0 );
 		}
 
-		DrawQuad( rect, Material.UI.Box, color );
+		DrawQuad( rect.Grow( 1 ), Material.UI.Box, color );
+
+		// Attributes are global, don't leave the bloat on for anyone drawing with Material.UI.Box themselves
+		Attributes.Set( "BoxBloat", 0.0f );
 	}
 
 }

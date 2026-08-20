@@ -28,7 +28,7 @@ native static class globalYoga as Yoga
 
 	bool YGNodeGetHasNewLayout( YGNodeRef r );
 	void YGNodeSetHasNewLayout( YGNodeRef r, bool b );
-	void YGNodeIsDirty( YGNodeRef r );
+	bool YGNodeIsDirty( YGNodeRef r );
 	void YGNodeMarkDirty( YGNodeRef r );
 	void YGNodeInsertChild( YGNodeRef owner, YGNodeRef child, int index );
 	void YGNodeRemoveChild( YGNodeRef owner, YGNodeRef child );

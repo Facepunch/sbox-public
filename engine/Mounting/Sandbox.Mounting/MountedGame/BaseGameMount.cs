@@ -21,6 +21,22 @@ public abstract class BaseGameMount
 	public bool IsMounted { get; protected set; }
 
 	/// <summary>
+	/// True if this game is in your Steam library, whether or not it's installed. An installed
+	/// game always counts as owned. False for a mount that doesn't name a Steam app and isn't
+	/// installed, since there's nothing to ask about it.
+	/// </summary>
+	public bool IsOwned
+	{
+		get
+		{
+			if ( IsInstalled ) return true;
+			if ( SteamAppId is not long appId ) return false;
+
+			return _host?.Steam?.IsAppOwned( appId ) ?? false;
+		}
+	}
+
+	/// <summary>
 	/// A short, lowercase string that will be used to uniquely identify this asset source
 	/// ie "rust"
 	/// </summary>
@@ -35,6 +51,38 @@ public abstract class BaseGameMount
 	/// The Steam app id this game belongs to, if any. Used to link to the store when it isn't installed.
 	/// </summary>
 	public virtual long? SteamAppId => null;
+
+	/// <summary>
+	/// Wide capsule art for this game, 460x215. Null if this mount doesn't name a Steam app.
+	/// </summary>
+	public virtual string CapsuleUrl => GetSteamImageUrl( "header.jpg" );
+
+	/// <summary>
+	/// Portrait library art for this game, 600x900. Null if this mount doesn't name a Steam app.
+	/// </summary>
+	public virtual string PortraitUrl => GetSteamImageUrl( "library_600x900.jpg" );
+
+	/// <summary>
+	/// Wide hero banner for this game, 1920x620. Null if this mount doesn't name a Steam app.
+	/// </summary>
+	public virtual string HeroUrl => GetSteamImageUrl( "library_hero.jpg" );
+
+	/// <summary>
+	/// This game's logo on transparency. Null if this mount doesn't name a Steam app.
+	/// </summary>
+	public virtual string LogoUrl => GetSteamImageUrl( "logo.png" );
+
+	/// <summary>
+	/// Steam's CDN serves these for any app id, whether or not the game is installed or owned,
+	/// so a mount can show its game off before you have it. There's no square icon here - that
+	/// one is keyed by a hash from the web API rather than by app id.
+	/// </summary>
+	string GetSteamImageUrl( string name )
+	{
+		if ( SteamAppId is not long appId ) return null;
+
+		return $"https://cdn.cloudflare.steamstatic.com/steam/apps/{appId}/{name}";
+	}
 
 	/// <summary>
 	/// Allows logging for this specific asset source

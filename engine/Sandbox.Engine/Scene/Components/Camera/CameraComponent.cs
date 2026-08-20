@@ -1,4 +1,5 @@
 ﻿
+using Sandbox.Engine;
 using Sandbox.Rendering;
 using Sandbox.UI;
 using System.Drawing;
@@ -143,17 +144,16 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	/// <summary>
 	/// Since we are rendering to a texture, better to generate mipmaps for it.
 	/// </summary>
-	private CommandList _renderTextureMipGenCommandList
+	private CommandList _renderTextureMipGenCommandList;
+
+	private CommandList CreateRenderTextureMipGenCommandList()
 	{
-		get
-		{
-			var cmd = new CommandList( "Generate MipMaps For RenderTexture" );
+		var cmd = new CommandList( "Generate MipMaps For RenderTexture" );
 
-			if ( RenderTexture != null && RenderTexture.Texture != null && RenderTexture.Texture.Mips > 1 )
-				cmd.GenerateMipMaps( RenderTexture.Texture );
+		if ( RenderTexture != null && RenderTexture.Texture != null && RenderTexture.Texture.Mips > 1 )
+			cmd.GenerateMipMaps( RenderTexture.Texture );
 
-			return cmd;
-		}
+		return cmd;
 	}
 
 	private Texture _renderTarget;
@@ -475,7 +475,8 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		if ( Scene is null )
 			return;
 
-		camera.OnRenderUI = () => OnCameraRenderUI( camera );
+		camera.OnRenderUI = () => OnCameraRenderUI( camera, ScreenPanel.RenderTiming.AfterPostProcess );
+		camera.OnRenderUIBeforePostProcess = () => OnCameraRenderUI( camera, ScreenPanel.RenderTiming.BeforePostProcess );
 	}
 
 	[Obsolete( "Use CommandList" )]
@@ -499,14 +500,34 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	[Obsolete( "Use CommandList" )]
 	public IDisposable AddHookAfterUI( string debugName, int order, Action<SceneCamera> renderEffect ) => null;
 
-	private void OnCameraRenderUI( SceneCamera camera )
+	/// <summary>
+	/// Anything to draw at <see cref="Stage.EarlyUI"/>? The pipeline skips that layer's passes otherwise.
+	/// </summary>
+	private bool HasEarlyUI()
+	{
+		if ( commandlists.ContainsKey( Stage.EarlyUI ) )
+			return true;
+
+		foreach ( var c in Scene.renderScreenPanels )
+		{
+			if ( c.Active && c.Timing == ScreenPanel.RenderTiming.BeforePostProcess && (c.TargetCamera ?? (IsMainCamera ? this : null)) == this )
+				return true;
+		}
+
+		return false;
+	}
+
+	private void OnCameraRenderUI( SceneCamera camera, ScreenPanel.RenderTiming timing )
 	{
 		if ( Scene is null )
 			return;
 
-		foreach ( var c in Scene.GetAll<ScreenPanel>().OrderBy( x => x.ZIndex ) )
+		// Runs on the render thread, so iterate the snapshot PreRender() took rather than
+		// the live object index - walking that while the main thread edits it blows up.
+		foreach ( var c in Scene.renderScreenPanels )
 		{
 			if ( !c.Active ) continue;
+			if ( c.Timing != timing ) continue;
 			var target = c.TargetCamera ?? (IsMainCamera ? this : null);
 			if ( target != this ) continue;
 			if ( RenderExcludeTags.HasAny( c.GameObject.Tags ) ) continue;
@@ -535,6 +556,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 
 			UpdateSceneCameraUI( sceneCamera );
 			sceneCamera.RenderUI = renderUI;
+			sceneCamera.Attributes.Set( "enableEarlyUI", HasEarlyUI() );
 			UpdateSceneCameraStereo( sceneCamera );
 		}
 	}
@@ -691,7 +713,10 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		AddCommandList( _overlayCommandList, Rendering.Stage.AfterUI, 5000 );
 
 		if ( RenderTexture is not null )
+		{
+			_renderTextureMipGenCommandList = CreateRenderTextureMipGenCommandList();
 			AddCommandList( _renderTextureMipGenCommandList, Rendering.Stage.AfterPostProcess, 10000 );
+		}
 	}
 
 	protected override void OnDisabled()
@@ -700,7 +725,12 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 
 		RemoveCommandList( _hudCommandList );
 		RemoveCommandList( _overlayCommandList );
-		RemoveCommandList( _renderTextureMipGenCommandList );
+
+		if ( _renderTextureMipGenCommandList is not null )
+		{
+			RemoveCommandList( _renderTextureMipGenCommandList );
+			_renderTextureMipGenCommandList = null;
+		}
 	}
 
 	/// <summary>
@@ -869,6 +899,8 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		if ( Scene is null )
 			return;
 
+		bool resized = false;
+
 		foreach ( var panel in Scene.GetAll<ScreenPanel>() )
 		{
 			if ( !panel.IsValid() || !panel.Active )
@@ -889,8 +921,15 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 			rootPanel.PreLayout( screenRect );
 			rootPanel.CalculateLayout();
 			rootPanel.PostLayout();
+			rootPanel.BuildDescriptors();
 
 			rootPanel.BuildCommandList();
+			resized = true;
 		}
+
+		// The render consumes the combined list, not the per-root ones - without
+		// recombining, it draws the last real frame's layout at the old size.
+		if ( resized )
+			GlobalContext.Current.UISystem.CombineCommandLists();
 	}
 }

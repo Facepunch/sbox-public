@@ -1,6 +1,3 @@
-using Sandbox;
-using System;
-
 namespace Editor.Mcp;
 
 [McpToolset( "play", "Play mode - start, stop and pause the game" )]

@@ -1,0 +1,202 @@
+@using MenuProject.MenuUI.Components
+@using MenuProject.MenuUI.Components.Notifications
+@using MenuProject.MenuUI.Layout
+@using Sandbox;
+@using Sandbox.UI;
+@using Sandbox.UI.Navigation;
+@using System;
+@using System.Collections.Generic;
+@using System.Linq;
+
+@page "/notifications"
+@inherits Panel
+@implements INavigatorPage
+
+@* Same shape as the mounts page - an explainer card that hugs its text on the left, the
+   list taking whatever's left. Page's Left slot is a full-height slab, which is wrong for
+   a fixed block of prose. *@
+<root class="root">
+	<Page>
+		<Body>
+			<div class="inbox-body">
+
+				<div class="inbox-aside">
+
+					<h2><WithIcon Icon="notifications" Text="Your inbox"></WithIcon></h2>
+					<p>
+						Anything that happened on sbox.game involving you or something you follow ends
+						up here - so you can catch up on it without leaving the menu.
+					</p>
+
+					<div class="block">
+						<label class="section-label">How it works</label>
+
+						<div class="step">
+							<icon>cloud</icon>
+							<label>These come from sbox.game, so the site shows you the same list.</label>
+						</div>
+
+						<div class="step">
+							<icon>open_in_new</icon>
+							<label>Click one to open what it's about. A game opens right here, anything else opens the site.</label>
+						</div>
+
+						<div class="step">
+							<icon>mark_email_read</icon>
+							<label>Opening this page marks everything read. Read ones stay listed, just dimmed.</label>
+						</div>
+					</div>
+
+					<div class="block">
+						<label class="section-label">Worth knowing</label>
+
+						<div class="note">
+							<icon>history</icon>
+							<label>The most recent @FetchCount are shown. Older ones are still on the site.</label>
+						</div>
+
+						<div class="note">
+							<icon>cloud_off</icon>
+							<label>Nothing is kept on this machine - offline, there's nothing to show.</label>
+						</div>
+
+						<label class="docs-link" onclick=@OpenSite>Open sbox.game</label>
+					</div>
+
+				</div>
+
+				<div class="inbox-list">
+
+					<div class="section-head">
+						<label class="title">Notifications</label>
+						<label class="count">@CountText</label>
+						<div class="grow" />
+
+						<div class="refresh @( IsLoading ? "busy" : "" )" onclick=@Refresh>
+							<icon>refresh</icon>
+							<label>@( IsLoading ? "Loading" : "Refresh" )</label>
+						</div>
+					</div>
+
+					@if ( notices is null )
+					{
+						<div class="inbox-empty">
+							<icon>@( IsLoading ? "hourglass_empty" : "cloud_off" )</icon>
+							<label class="title">@( IsLoading ? "Fetching your notifications" : "Couldn't reach sbox.game" )</label>
+							<label class="hint">@( IsLoading ? "One moment." : "Notifications live on the site, so there's nothing to show while you're offline." )</label>
+						</div>
+					}
+					else if ( notices.Length == 0 )
+					{
+						<div class="inbox-empty">
+							<icon>done_all</icon>
+							<label class="title">Nothing waiting</label>
+							<label class="hint">Comments, follows and updates all land here. Go and play something.</label>
+						</div>
+					}
+
+					@* Unread stays its own band for this visit, even though opening the page marks
+					   it read - otherwise the new stuff is lost in everything else. *@
+					@if ( Unread.Any() )
+					{
+						<div class="section-head">
+							<label class="title">New</label>
+							<label class="count">@Unread.Count() since you last looked</label>
+						</div>
+
+						@foreach ( var notice in Unread )
+						{
+							<NotificationCard Notice="@notice"></NotificationCard>
+						}
+					}
+
+					@if ( Earlier.Any() )
+					{
+						<div class="section-head quiet">
+							<label class="title">Earlier</label>
+							<label class="count">@Earlier.Count() you've already seen</label>
+						</div>
+
+						@foreach ( var notice in Earlier )
+						{
+							<NotificationCard Notice="@notice"></NotificationCard>
+						}
+					}
+
+				</div>
+
+			</div>
+		</Body>
+	</Page>
+</root>
+
+@code
+{
+	/// <summary>How many the backend hands back. The rest stay on the site.</summary>
+	const int FetchCount = 20;
+
+	Sandbox.Services.Notification[] notices;
+
+	bool IsLoading { get; set; }
+
+	IEnumerable<Sandbox.Services.Notification> All => notices ?? Enumerable.Empty<Sandbox.Services.Notification>();
+
+	IEnumerable<Sandbox.Services.Notification> Unread => All.Where( x => x.Read is null );
+	IEnumerable<Sandbox.Services.Notification> Earlier => All.Where( x => x.Read is not null );
+
+	string CountText
+	{
+		get
+		{
+			if ( notices is null ) return "";
+
+			var unread = Unread.Count();
+			if ( unread > 0 ) return $"{unread} new";
+
+			return $"{notices.Length} total";
+		}
+	}
+
+	// The navigator caches pages, so a second visit gets the same panel back - fetch on
+	// every open rather than only the first render, or the list is however old the last
+	// visit left it.
+	void INavigatorPage.OnNavigationOpen()
+	{
+		_ = Load();
+	}
+
+	void Refresh()
+	{
+		_ = Load();
+	}
+
+	async Task Load()
+	{
+		if ( IsLoading ) return;
+
+		IsLoading = true;
+		StateHasChanged();
+
+		notices = await MenuUtility.GetNotifications( FetchCount );
+
+		if ( !this.IsValid() ) return;
+
+		IsLoading = false;
+		StateHasChanged();
+
+		if ( !All.Any( x => x.Read is null ) )
+			return;
+
+		// Marks them read on the backend only - the rows keep the state they arrived with, so
+		// what's new stays legible while you're looking at it.
+		await MenuUtility.MarkNotificationsRead();
+		Sidebar.InvalidateBadges();
+	}
+
+	void OpenSite()
+	{
+		MenuUtility.OpenUrl( "https://sbox.game" );
+	}
+
+	protected override int BuildHash() => HashCode.Combine( notices, IsLoading, Unread.Count() );
+}

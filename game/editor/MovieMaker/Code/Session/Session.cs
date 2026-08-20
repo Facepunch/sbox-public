@@ -342,6 +342,83 @@ public sealed partial class Session
 		}
 	}
 
+	public sealed record CreateSequenceResult( MovieResource Resource, MovieTime StartTime = default );
+
+	public CreateSequenceResult CreateSequence( IReadOnlyList<TrackView> trackViews, MovieTimeRange timeRange )
+	{
+		var project = new MovieProject();
+
+		var minTime = MovieTime.MaxValue;
+		var maxTime = MovieTime.MinValue;
+
+		foreach ( var trackView in trackViews )
+		{
+			if ( trackView.Track is not IProjectBlockTrack blockTrack ) continue;
+			if ( blockTrack.Blocks is not { Count: > 0 } blocks ) continue;
+
+			foreach ( var block in blocks )
+			{
+				if ( block.TimeRange.Intersect( timeRange ) is not { } intersection ) continue;
+
+				minTime = MovieTime.Min( intersection.Start, minTime );
+				maxTime = MovieTime.Max( intersection.End, maxTime );
+			}
+		}
+
+		timeRange = timeRange.Clamp( (minTime, maxTime) );
+
+		foreach ( var trackView in trackViews )
+		{
+			if ( trackView.Track is not IProjectPropertyTrack propertyTrack ) continue; // TODO
+
+			if ( propertyTrack.Slice( timeRange ) is not { Count: > 0 } slice ) continue;
+
+			var trackCopy = (IProjectPropertyTrack)project.GetOrAddTrack( trackView.Track );
+
+			trackCopy.SetBlocks( [.. slice.Select( x => x.Shift( -timeRange.Start ) )] );
+		}
+
+		var resource = new MovieResource { EditorData = project.Serialize(), Compiled = project.Compile() };
+
+		return new CreateSequenceResult( resource, timeRange.Start );
+	}
+
+	public bool Delete( IReadOnlyList<TrackView> trackViews, MovieTimeRange timeRange, bool shiftTime, bool removeEmptyTracks )
+	{
+		var changed = false;
+
+		foreach ( var view in trackViews )
+		{
+			if ( view.Track is not IProjectPropertyTrack propertyTrack ) continue;
+
+			var trackChanged = shiftTime ? propertyTrack.Remove( timeRange ) : propertyTrack.Clear( timeRange );
+
+			if ( !trackChanged ) continue;
+
+			changed = true;
+
+			view.MarkValueChanged();
+		}
+
+		if ( !changed ) return false;
+
+		if ( !removeEmptyTracks )
+		{
+			ClipModified();
+
+			return true;
+		}
+
+		foreach ( var view in trackViews.Reverse() )
+		{
+			if ( view.IsEmpty ) view.Remove();
+		}
+
+		ClipModified();
+
+		return true;
+	}
+
 	public void Undo()
 	{
 		if ( History.Undo() )

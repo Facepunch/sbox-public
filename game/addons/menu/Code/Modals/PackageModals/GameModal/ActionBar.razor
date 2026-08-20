@@ -59,7 +59,7 @@
             {
 	            @if ( IsDedicatedServerOnly )
 	            {
-					<Button icon="auto_awesome" class="play" Disabled=@(!MenuHelpers.HasAuthority) onclick=@ShowServerList>#actionbar.view_servers</Button>
+					<Button icon="auto_awesome" class="play" Disabled=@(!MenuHelpers.HasAuthority) onclick=@OpenLobbyList>#actionbar.view_servers</Button>
 	            }
 	            else
 	            {
@@ -103,13 +103,6 @@
         {
             MapPackage = await Package.FetchAsync(map, false);
         }
-    }
-
-    private void ShowServerList()
-    {
-        MenuUtility.CloseAllModals();
-
-        MenuSystem.Instance.Url = $"/multiplayer?Package={Package.FullIdent}";
     }
 
     void OnPlay()

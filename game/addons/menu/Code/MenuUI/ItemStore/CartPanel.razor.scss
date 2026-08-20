@@ -1,0 +1,145 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+// The cart lives in the sidebar - a labelled band of rows, a total, one filled button.
+CartPanel
+{
+	flex-direction: column;
+	flex-shrink: 0;
+	gap: 12px;
+	padding-top: 16px;
+	border-top: 1px solid $front-hairline;
+
+	.head
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.section-label
+	{
+		@include front-section-label;
+	}
+
+	.count
+	{
+		min-width: 18px;
+		height: 18px;
+		padding: 0 6px;
+		align-items: center;
+		justify-content: center;
+		border-radius: 999px;
+		background-color: $front-primary;
+		font-family: $front-font;
+		font-size: 10px;
+		font-weight: 700;
+		color: #fff;
+	}
+
+	.hint
+	{
+		font-size: 12px;
+		color: $front-tertiary;
+	}
+
+	.rows
+	{
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.row
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 10px;
+	}
+
+	.art
+	{
+		@include front-row-media;
+
+		width: 40px;
+		height: 40px;
+		border: 1px solid;
+		background-color: rgba( 0, 0, 0, 0.35 );
+	}
+
+	.row-body
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+		gap: 1px;
+	}
+
+	.name
+	{
+		@include front-row-title;
+	}
+
+	.meta
+	{
+		@include front-row-meta;
+	}
+
+	.remove
+	{
+		@include front-icon-button;
+
+		width: 28px;
+		height: 28px;
+		cursor: pointer;
+
+		icon
+		{
+			font-size: 15px;
+		}
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+			icon { color: $front-danger; }
+		}
+	}
+
+	.total
+	{
+		flex-direction: row;
+		align-items: flex-end;
+		justify-content: space-between;
+		padding-top: 10px;
+		border-top: 1px solid $front-hairline;
+	}
+
+	.total-label
+	{
+		@include front-section-label;
+	}
+
+	.total-value
+	{
+		font-family: $front-font;
+		font-size: 22px;
+		font-weight: 800;
+		color: $front-heading;
+	}
+
+	.checkout
+	{
+		@include front-button;
+
+		cursor: pointer;
+
+		&:hover { sound-in: "ui.button.over"; }
+		&:active { sound-in: "ui.button.press"; }
+
+		&.busy
+		{
+			opacity: 0.6;
+			pointer-events: none;
+		}
+	}
+}

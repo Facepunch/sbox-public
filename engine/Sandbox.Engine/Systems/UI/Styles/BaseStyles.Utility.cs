@@ -43,11 +43,17 @@ namespace Sandbox.UI
 		{
 			value = value.Trim();
 
-			// 'auto' on its own means no forced ratio; 'auto 16/9' means fall back to the given ratio.
+			// 'none' clears any ratio a less specific rule set. NaN rather than null: null is
+			// "not set" and gets skipped by the cascade, whereas NaN is a real value that Yoga
+			// reads as no ratio.
+			if ( value.Equals( "none", System.StringComparison.OrdinalIgnoreCase ) )
+				return float.NaN;
+
+			// 'auto' on its own is the same; 'auto 16/9' means fall back to the given ratio.
 			if ( value.StartsWith( "auto", System.StringComparison.OrdinalIgnoreCase ) )
 			{
 				value = value.Substring( 4 ).Trim();
-				if ( value.Length == 0 ) return null;
+				if ( value.Length == 0 ) return float.NaN;
 			}
 
 			var vals = value.Split( new[] { ' ', ':', '/' }, StringSplitOptions.RemoveEmptyEntries );

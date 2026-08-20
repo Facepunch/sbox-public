@@ -54,7 +54,6 @@
                 }
 
                 <Button class="circle" Tooltip="#tooltip.pausemodal.reconfigure_controls" Icon="gamepad" @onclick="@(() => Game.Overlay.ShowBinds())"></Button>
-				<Sandbox.UI.Mounts.MountButton class="circle" Tooltip="#tooltip.pausemodal.mounted_games" PositionMode=@Popup.PositionMode.AboveCenter />
 				<Button class="circle" Tooltip="#tooltip.pausemodal.open_settings" Icon="settings" @onclick="@(() => Game.Overlay.ShowSettingsModal())"></Button>
 
                 @if ( (game?.Info.IsStreamerGame ?? false) )

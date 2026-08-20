@@ -1,0 +1,64 @@
+@import "/styles/_uitest.scss";
+
+UiTestCase
+{
+	flex-direction: column;
+	flex-shrink: 0;
+	width: $uitest-case-width;
+	gap: 6px;
+
+	.stage
+	{
+		height: $uitest-stage-height;
+		flex-shrink: 0;
+		align-items: flex-start;
+		justify-content: flex-start;
+		padding: 10px;
+		border-radius: 4px;
+		border: 1px solid $uitest-hairline;
+		background-color: $uitest-stage;
+	}
+
+	.sample
+	{
+		position: relative;
+		flex-shrink: 0;
+	}
+
+	.css
+	{
+		font-family: "Roboto Mono";
+		font-size: 11px;
+		color: $uitest-code;
+		max-width: 100%;
+	}
+
+	.note
+	{
+		font-size: 11px;
+		color: $uitest-dim;
+		max-width: 100%;
+	}
+
+	&.roomy .stage
+	{
+		height: $uitest-stage-height-roomy;
+		padding: 40px;
+	}
+
+	&.checkered .stage
+	{
+		background-color: #ffffff;
+		background-image: linear-gradient( 45deg, #c8c8c8, #ffffff, #c8c8c8, #ffffff, #c8c8c8 );
+	}
+
+	&.dark .stage
+	{
+		background-color: #000000;
+	}
+
+	&.wide
+	{
+		width: 340px;
+	}
+}

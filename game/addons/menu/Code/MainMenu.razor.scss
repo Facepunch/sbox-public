@@ -1,5 +1,8 @@
 @import '/styles/_Theme.scss';
 @import '/styles/mainmenu.scss';
+// Dresses the shared PackageCard in the front page's tile look. Imported once, here,
+// because it emits rules rather than tokens.
+@import '/styles/_packagecard.scss';
 
 .mainmenu {
 	position: relative;
@@ -40,9 +43,20 @@
     }
 }
 
+// Rail on the left, everything else in a column beside it.
 NavigationHost {
+    flex-direction: row;
+    flex-grow: 1;
+}
+
+.stage {
+    // The floating footer hangs off this, not the whole screen, so it centres on the
+    // page rather than under the rail.
+    position: relative;
     flex-direction: column;
     flex-grow: 1;
+    width: 0;
+    overflow: hidden;
 }
 
 .navigator-canvas {

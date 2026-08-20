@@ -1,0 +1,51 @@
+@using Sandbox.UI;
+@using Sandbox;
+@using System;
+@using System.Globalization;
+@namespace Sandbox.UI
+@inherits Panel
+
+@* A rail entry that can carry a count, a pip, or a progress bar. Button turns its content
+   into a label, so both ride alongside it rather than sitting inside it. *@
+<root>
+
+    <Button Href="@Href" Icon="@Icon" Text="@Text" />
+
+    @if ( !string.IsNullOrEmpty( Badge ) )
+    {
+        <div class="badge @BadgeClass"><label>@Badge</label></div>
+    }
+
+    @* After the Button, so it draws over the entry's hover fill instead of under it. *@
+    @if ( Progress.HasValue )
+    {
+        <div class="progress @BadgeClass">
+            <div class="progress-fill" style="width: @FillWidth" />
+        </div>
+    }
+
+</root>
+
+@code {
+    /// <summary>The page this entry goes to.</summary>
+    [Parameter] public string Href { get; set; }
+
+    /// <summary>Material icon name.</summary>
+    [Parameter] public string Icon { get; set; }
+
+    /// <summary>The label under the icon.</summary>
+    [Parameter] public string Text { get; set; }
+
+    /// <summary>Count or short marker riding the icon's corner. Nothing is drawn when it's empty.</summary>
+    [Parameter] public string Badge { get; set; }
+
+    /// <summary>Extra class on the badge and the bar - "reward" for the green ones.</summary>
+    [Parameter] public string BadgeClass { get; set; }
+
+    /// <summary>How far along, 0 to 1. A bar rides the entry's bottom edge; null draws nothing.</summary>
+    [Parameter] public float? Progress { get; set; }
+
+    string FillWidth => (Math.Clamp( Progress ?? 0f, 0f, 1f ) * 100f).ToString( "0.#", CultureInfo.InvariantCulture ) + "%";
+
+    protected override int BuildHash() => HashCode.Combine( Href, Icon, Text, Badge, BadgeClass, Progress );
+}

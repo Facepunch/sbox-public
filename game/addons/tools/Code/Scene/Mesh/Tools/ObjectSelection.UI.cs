@@ -111,6 +111,13 @@ partial class ObjectSelection
 			}
 
 			Layout.AddStretchCell();
+
+			{
+				var group = AddGroup( "Visualization" );
+				group.Add( ControlSheetRow.Create(
+					tool.GetSerialized().GetProperty( nameof( ShowSelectionBounds ) )
+				) );
+			}
 		}
 
 		[Shortcut( "mesh.separate-components", "ALT+N", typeof( SceneViewWidget ) )]
@@ -427,6 +434,9 @@ partial class ObjectSelection
 
 			_gos[0].Scene.Editor.FrameTo( bounds );
 		}
+
+		[Shortcut( "mesh.select-similar", "CTRL+ALT+O", typeof( SceneViewWidget ) )]
+		public void SelectSimilar() => _tool.SelectSimilar();
 
 		public void MergeMeshesByEdge()
 		{

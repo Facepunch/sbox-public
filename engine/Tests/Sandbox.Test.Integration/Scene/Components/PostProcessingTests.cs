@@ -171,7 +171,7 @@ public class PostProcessingComponentTest
 		var dof = go.Components.Create<DepthOfField>( false );
 		Assert.AreEqual( 30.0f, dof.BlurSize );
 		Assert.AreEqual( 200.0f, dof.FocalDistance );
-		Assert.AreEqual( 500.0f, dof.FocusRange );
+		Assert.AreEqual( 15000.0f, dof.FocusRange );
 		Assert.IsFalse( dof.FrontBlur );
 		Assert.IsTrue( dof.BackBlur );
 

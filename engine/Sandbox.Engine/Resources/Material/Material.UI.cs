@@ -24,11 +24,6 @@ namespace Sandbox
 			internal static Material BatchedBox { get; set; } = FromShader( "shaders/ui_cssbox_batched.shader" );
 
 			/// <summary>
-			/// CSS Box Shadow rendering
-			/// </summary>
-			internal static Material BoxShadow { get; set; } = FromShader( "shaders/ui_cssshadow.shader" );
-
-			/// <summary>
 			/// CSS Text Rendering
 			/// </summary>
 			internal static Material Text { get; set; } = FromShader( "shaders/ui_text.shader" );
@@ -44,11 +39,6 @@ namespace Sandbox
 			/// For filter: drop-shadow( ... );
 			/// </summary>
 			internal static Material DropShadow { get; set; } = FromShader( "shaders/ui_dropshadow.shader" );
-
-			/// <summary>
-			/// CSS Outline rendering
-			/// </summary>
-			internal static Material Outline { get; set; } = FromShader( "shaders/ui_cssoutline.shader" );
 		}
 	}
 }

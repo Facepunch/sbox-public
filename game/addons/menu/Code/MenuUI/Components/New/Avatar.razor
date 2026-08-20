@@ -45,10 +45,17 @@
 
     FriendPopup popup;
 
-    protected override void OnMouseOver(MousePanelEvent e)
+    protected override void OnMouseUp(MousePanelEvent e)
     {
+        base.OnMouseUp(e);
+
+        // Click toggles - a second click on the same avatar closes it.
         if (popup.IsValid())
+        {
+            popup.Delete();
+            popup = null;
             return;
+        }
 
         Popup.CloseAll();
         popup = FriendPopup.Show(this, new Friend(UserId), Popup.PositionMode.AboveCenter, 32);

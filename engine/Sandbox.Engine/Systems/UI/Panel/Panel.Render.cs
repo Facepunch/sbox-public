@@ -12,6 +12,7 @@ public partial class Panel
 
 	internal int _lastScissorHash;
 	internal Matrix? _lastLayerMatrix;
+	internal Matrix? _lastLayerMatrixInverted;
 
 	internal enum RenderMode : byte { Inline, Batched, Layer }
 

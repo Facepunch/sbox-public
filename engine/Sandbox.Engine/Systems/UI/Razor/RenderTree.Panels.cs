@@ -152,6 +152,7 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 
 		scope.Block.Binds ??= new();
 		scope.Block.Binds.Add( check );
+		scope.Block.MarkHasBinds();
 
 		// prime it
 		check();

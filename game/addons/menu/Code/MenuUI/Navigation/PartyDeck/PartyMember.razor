@@ -1,7 +1,6 @@
-﻿@using System;
+@using System;
 @using Sandbox;
 @using Sandbox.UI;
-@using MenuProject.MenuUI.Popups;
 @inherits Panel
 @implements PartyRoom.IEventListener
 @namespace MenuProject
@@ -29,27 +28,10 @@
 
 	public bool IsTalking => soundHandle?.Amplitude > 0;
 
-	private FriendPopup popup;
-
 	private SoundStream soundStream;
 	private SoundHandle soundHandle;
 
 	protected override int BuildHash() => System.HashCode.Combine( IsOwner, IsTalking );
-
-	protected override void OnMouseUp(MousePanelEvent e)
-	{
-		base.OnMouseUp(e);
-		
-		if ( popup is not null && popup.IsVisible )
-		{
-			popup.Delete();
-			popup = null;
-			return;
-		}
-
-		Popup.CloseAll();
-		popup = FriendPopup.Show(this, Friend, Popup.PositionMode.AboveCenter, 32);
-	}
 
 	void PartyRoom.IEventListener.OnVoiceMessage(Friend friend, byte[] data)
 	{

@@ -8,7 +8,9 @@ public partial class SceneEditorSession
 {
 	public UndoSystem UndoSystem { get; } = new UndoSystem();
 
-	internal bool IsUndoScopeOpen = false;
+	internal SceneUndoSnapshot LastUndoSnapshot { get; set; }
+	internal bool IsUndoScopeOpen => LastUndoSnapshot is { IsOpen: true };
+
 	bool _suppressUndoSounds = false;
 
 	private void InitUndo()
@@ -18,21 +20,11 @@ public partial class SceneEditorSession
 		// annoy everyone as much as possible
 		UndoSystem.OnUndo = ( x ) =>
 		{
-			if ( !_suppressUndoSounds && EditorPreferences.UndoSounds )
-			{
-				EditorUtility.PlayRawSound( "sounds/editor/success.wav" );
-			}
-
 			HasUnsavedChanges = true;
 		};
 
 		UndoSystem.OnRedo = ( x ) =>
 		{
-			if ( !_suppressUndoSounds && EditorPreferences.UndoSounds )
-			{
-				EditorUtility.PlayRawSound( "sounds/editor/success.wav" );
-			}
-
 			HasUnsavedChanges = true;
 		};
 	}
@@ -92,6 +84,31 @@ public partial class SceneEditorSession
 	public ISceneUndoScope UndoScope( string name )
 	{
 		return new SceneUndoScope( this, name );
+	}
+
+	/// <summary>
+	/// Cancels any open undo scopes, because we don't want the most
+	/// recent change to appear in the undo stack.
+	/// </summary>
+	public void CancelUndoScope()
+	{
+		LastUndoSnapshot?.Cancel();
+	}
+
+	internal void SucceedUndoRedo()
+	{
+		if ( !_suppressUndoSounds && EditorPreferences.UndoSounds )
+		{
+			EditorUtility.PlayRawSound( "sounds/editor/success.wav" );
+		}
+	}
+
+	internal void FailUndoRedo()
+	{
+		if ( !_suppressUndoSounds && EditorPreferences.UndoSounds )
+		{
+			EditorUtility.PlayRawSound( "sounds/editor/fail.wav" );
+		}
 	}
 }
 
@@ -437,8 +454,6 @@ internal sealed class SceneUndoSnapshot : IDisposable
 
 		_name = builder.Name;
 
-		_session.IsUndoScopeOpen = true;
-
 		// resolve builder contents
 		foreach ( var (gos, flags) in builder.CapturedGameObjects )
 		{
@@ -554,7 +569,15 @@ internal sealed class SceneUndoSnapshot : IDisposable
 		}
 	}
 
+	private bool _cancelled;
 	private bool _alreadyDisposed = false;
+
+	internal bool IsOpen => !_alreadyDisposed;
+
+	public void Cancel()
+	{
+		_cancelled = true;
+	}
 
 	public void Dispose()
 	{
@@ -563,14 +586,16 @@ internal sealed class SceneUndoSnapshot : IDisposable
 
 		try
 		{
-			DisposeInternal();
+			if ( !_cancelled )
+			{
+				DisposeInternal();
+			}
 		}
 		finally
 		{
 			_session?.Scene?.Directory?.OnComponentAdded -= OnComponentAdded;
 			_session?.Scene?.Directory?.OnGameObjectAdded -= OnGameObjectAdded;
 
-			_session?.IsUndoScopeOpen = false;
 			_alreadyDisposed = true;
 		}
 	}
@@ -905,7 +930,6 @@ internal class SceneUndoScope : ISceneUndoScope
 	}
 	public IDisposable Push()
 	{
-		var snapshot = new SceneUndoSnapshot( this );
-		return snapshot;
+		return Session.LastUndoSnapshot = new SceneUndoSnapshot( this );
 	}
 }

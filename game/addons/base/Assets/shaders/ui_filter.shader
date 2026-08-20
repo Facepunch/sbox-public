@@ -1,4 +1,4 @@
-HEADER
+﻿HEADER
 {
 	DevShader = true;
 	Version = 1;
@@ -34,6 +34,7 @@ VS
 PS
 {
 	#include "ui/pixel.hlsl"
+	#include "ui/blur.hlsl"
 
 	float4 g_vViewport < Source( Viewport ); >; 
 
@@ -79,7 +80,7 @@ PS
 
 	// Main ---------------------------------------------------------------------------------------------------------------------------------------------------
 
-	// https://drafts.fxtf.org/filter-effects/#elementdef-fecolormatrix
+	// https://drafts.csswg.org/filter-effects-1/#elementdef-fecolormatrix
 	float4 DoColorMatrix( float4 color, float4x4 mColorMatrix )
 	{
 		return saturate(mul(mColorMatrix, color));
@@ -96,9 +97,36 @@ PS
 		return dot( vColor, float3( 0.2126729f, 0.7151522f, 0.0721750f ) );
 	}
 
-	float4 FetchLayeredTexel( float2 uv )
+	// https://drafts.csswg.org/filter-effects-1/#elementdef-fecolormatrix - saturate
+	float3 DoSaturate( float3 vColor, float s )
 	{
-		float4 vColor = g_tColor.Sample( Bindless::GetSampler( BorderSamplerIndex ), uv );
+		float3x3 m = float3x3(
+			0.213f + 0.787f * s, 0.715f - 0.715f * s, 0.072f - 0.072f * s,
+			0.213f - 0.213f * s, 0.715f + 0.285f * s, 0.072f - 0.072f * s,
+			0.213f - 0.213f * s, 0.715f - 0.715f * s, 0.072f + 0.928f * s );
+
+		return mul( m, vColor );
+	}
+
+	// https://drafts.csswg.org/filter-effects-1/#elementdef-fecolormatrix - hueRotate
+	float3 DoHueRotate( float3 vColor, float flDegrees )
+	{
+		float c = cos( radians( flDegrees ) );
+		float s = sin( radians( flDegrees ) );
+
+		float3x3 m = float3x3(
+			0.213f + c * 0.787f - s * 0.213f, 0.715f - c * 0.715f - s * 0.715f, 0.072f - c * 0.072f + s * 0.928f,
+			0.213f - c * 0.213f + s * 0.143f, 0.715f + c * 0.285f + s * 0.140f, 0.072f - c * 0.072f - s * 0.283f,
+			0.213f - c * 0.213f - s * 0.787f, 0.715f - c * 0.715f + s * 0.715f, 0.072f + c * 0.928f + s * 0.072f );
+
+		return mul( m, vColor );
+	}
+
+	// The colour part of the filter chain, applied to the (blurred) layer texel. CSS defines these
+	// on sRGB values, not linear ones, so the texel is encoded for the maths and decoded after.
+	float4 ApplyColorFilters( float4 vColor )
+	{
+		vColor.rgb = SrgbLinearToGamma( vColor.rgb );
 
 		// Contrast
 		vColor.rgb = saturate( (vColor.rgb - 0.5f) * FilterContrast + 0.5f );
@@ -117,35 +145,15 @@ PS
 		// Invert
 		vColor.rgb = lerp( vColor.rgb, 1.0f - vColor.rgb, FilterInvert );
 
-		float3 vHsvColor = RgbToHsv( vColor.rgb );
-		vHsvColor.r = frac( vHsvColor.r + ( FilterHueRotate / 360.0f ) );
-		vHsvColor.g = lerp( 0.0f, vHsvColor.g, FilterSaturate );
-		vHsvColor.b *= FilterBrightness;
+		vColor.rgb = saturate( DoHueRotate( vColor.rgb, FilterHueRotate ) );
+		vColor.rgb = saturate( DoSaturate( vColor.rgb, FilterSaturate ) );
 
-		vColor.rgb = HsvToRgb( vHsvColor );
+		// Brightness is a straight multiply, not a lift of the HSV value
+		vColor.rgb = saturate( vColor.rgb * FilterBrightness );
+
+		vColor.rgb = SrgbGammaToLinear( vColor.rgb );
 
 		return vColor * FilterTint;
-	}
-
-	float4 DoBlur( float4 color, float2 uv, float2 size ) 
-	{
-		float Pi = M_PI * 2;
-		float Directions = 32.0; // BLUR DIRECTIONS (Default 16.0 - More is better but slower)
-		float Quality = 8.0; // BLUR QUALITY (Default 4.0 - More is better but slower)
-	
-		// Blur calculations
-		for( float d=0.0; d<Pi; d+=Pi/Directions)
-		{
-			for(float j=1.0/Quality; j<=1.0; j+=1.0/Quality)
-			{
-				color += FetchLayeredTexel( uv + float2( cos(d), sin(d) ) * size * j );	
-			}
-		}
-		
-		// Normalize by actual sample count: Directions * Quality blur samples plus the incoming centre sample
-		color /= (Directions * Quality) + 1.0;
-
-		return color;
 	}
 
 	float2 RotateTexCoord( float2 vTexCoord, float angle, float2 offset = 0.5 )
@@ -158,8 +166,9 @@ PS
 	{
 		PS_OUTPUT o;
 
+		// The quad is the layer grown by three sigma of blur on each side, see Panel.Layer.cs
 		float2 uv = i.vTexCoord.xy;
-		float2 uvAdjust = FilterBlur * g_vInvTextureDim.xy;
+		float2 uvAdjust = FilterBlur * 3.0 * g_vInvTextureDim.xy;
 		uv = lerp(-uvAdjust, 1.0 + uvAdjust, uv);
 
 		UI_CommonProcessing_Pre( i );
@@ -168,12 +177,10 @@ PS
 		//uv.x = lerp( uvAdjust, 1 - uvAdjust, uv.x );
 		//uv.y = lerp( uvAdjust, 1 - uvAdjust, uv.y );
 
-		o.vColor = FetchLayeredTexel( uv );
-
-		if ( FilterBlur > 0 ) 
-		{
-        	o.vColor = DoBlur( o.vColor, uv, FilterBlur * g_vInvTextureDim.xy );
-		}
+		// filter: blur( r ) - r is the gaussian's standard deviation. Sampled with a border sampler so the blur fades
+		// to nothing past the layer's edge instead of wrapping its far side in
+		o.vColor = GaussianBlurTexture( g_tColor, g_sTrilinearBorder, uv, FilterBlur, g_vInvTextureDim.xy );
+		o.vColor = ApplyColorFilters( o.vColor );
 
 		//
 		// Masking
