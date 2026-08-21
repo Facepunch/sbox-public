@@ -34,6 +34,9 @@ public partial class EditableCurve
 
 		internal void UpdatePositionFromValue()
 		{
+			// Rebuilding positions from the curve invalidates where a drag started
+			HandleDrag.End();
+
 			var val = new Vector2( Frame.Time, Frame.Value );
 			Position = ValueToPosition( val );
 		}
@@ -166,12 +169,12 @@ public partial class EditableCurve
 
 		protected override void OnMoved()
 		{
-			RealPosition = Position;
-			var value = PositionToValue( Position );
-			if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
+			// Let the drag snap all of its handles together, instead of each on its own
+			if ( !HandleDrag.IsApplying && Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
 			{
 				var _xInc = EditableCurve.editor.GetBackgroundIncrementX();
 				var _yInc = EditableCurve.editor.GetBackgroundIncrementY();
+				var value = PositionToValue( Position );
 				value.x = value.x
 						.Remap( 0, 1, EditableCurve.TimeRange.x, EditableCurve.TimeRange.y, false )
 						.SnapToGrid( _xInc )
@@ -183,20 +186,39 @@ public partial class EditableCurve
 				Position = ValueToPosition( value );
 			}
 
+			UpdateValueFromPosition();
+			EditableCurve?.OnHandleMoved();
+		}
+
+		/// <summary>
+		/// Update this handle's keyframe to match where it is on the chart
+		/// </summary>
+		internal void UpdateValueFromPosition()
+		{
+			RealPosition = Position;
+			var value = PositionToValue( Position );
 			Frame.Time = value.x;
 			Frame.Value = value.y;
-
-			EditableCurve?.OnHandleMoved();
 		}
 
 		protected override void OnPositionChanged()
 		{
 			base.OnPositionChanged();
 
-			Position = Position.Clamp( 0, EditableCurve.Size );
+			// Dragged handles are limited as a group, so the selection keeps its shape
+			if ( !HandleDrag.Moved( this ) )
+			{
+				Position = Position.Clamp( 0, EditableCurve.Size );
+			}
 
 			In?.UpdatePositionFromValue();
 			Out?.UpdatePositionFromValue();
+		}
+
+		protected override void OnDestroy()
+		{
+			base.OnDestroy();
+			HandleDrag.End();
 		}
 
 		protected override void OnHoverEnter( GraphicsHoverEvent e )
@@ -214,8 +236,18 @@ public partial class EditableCurve
 		{
 			base.OnMousePressed( e );
 
+			if ( e.LeftMouseButton )
+				HandleDrag.Begin( this );
+
 			if ( e.RightMouseButton )
 				OpenContextMenu( e.ScreenPosition );
+		}
+
+		protected override void OnMouseReleased( GraphicsMouseEvent e )
+		{
+			base.OnMouseReleased( e );
+
+			HandleDrag.End();
 		}
 
 		public virtual void OpenContextMenu( Vector2 pos )
