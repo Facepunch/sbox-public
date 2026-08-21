@@ -26,7 +26,7 @@ CS
 
 	RWStructuredBuffer<uint> SortBuffer < Attribute( "SortBuffer" ); >;
 
-	// Sort keys, compared as uints. For sprites: camera distance biased by Z index, in order-preserving float bits.
+	// Sort keys, compared as uints. For sprites: Z index layer in high bits, camera distance tie-break in low bits.
 	RWStructuredBuffer<uint> DistanceBuffer < Attribute( "DistanceBuffer" ); >;
 	int Count < Attribute( "Count" ); >;
 	int Block < Attribute( "Block" ); >;
