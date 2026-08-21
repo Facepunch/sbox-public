@@ -58,6 +58,7 @@ struct Bindless
     static inline SamplerState GetSampler( int nIndex ) { return g_bindless_Sampler[ nIndex ]; }
     static inline SamplerComparisonState GetSamplerComparison( int nIndex ) { return g_bindless_SamplerComparison[ nIndex ]; }
 #endif
+    static inline Texture2D GetTexture2DNonUniform( int nIndex, bool srgb = false ) { return g_bindless_Texture2D[ NonUniformResourceIndex( nIndex + (srgb ? 1 : 0) ) ]; }
 
     static inline int GetPipelineTextureIndex( PipelineTextureSlot slot ) { return g_PipelineTextureIndices[slot]; }
 
