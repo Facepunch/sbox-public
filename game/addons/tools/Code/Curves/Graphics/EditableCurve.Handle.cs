@@ -53,12 +53,9 @@ public partial class EditableCurve
 			// Map the position to the viewport range
 			var x = pos.x.Remap( 0, EditableCurve.Size.x, EditableCurve.ViewportRangeX.x, EditableCurve.ViewportRangeX.y, false );
 			var y = pos.y.Remap( 0, EditableCurve.Size.y, EditableCurve.ViewportRangeY.y, EditableCurve.ViewportRangeY.x, false );
-			// Now remap the viewport range to the actual range
-			if ( EditableCurve.Value.Length > 1 )
-			{
-				x = x.Remap( EditableCurve.TimeRange.x, EditableCurve.TimeRange.y, 0, 1, false );
-				y = y.Remap( EditableCurve.ValueRange.x, EditableCurve.ValueRange.y, 0, 1, false );
-			}
+			// Now remap the viewport range to the normalized (0-1) range that frames are stored in
+			x = x.Remap( EditableCurve.TimeRange.x, EditableCurve.TimeRange.y, 0, 1, false );
+			y = y.Remap( EditableCurve.ValueRange.x, EditableCurve.ValueRange.y, 0, 1, false );
 			return new Vector2( x, y );
 		}
 
