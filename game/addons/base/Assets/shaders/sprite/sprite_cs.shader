@@ -156,16 +156,16 @@ CS
 		return (bits & 0x80000000) ? ~bits : (bits | 0x80000000);
 	}
 
-	// World units (inches) each Z index step biases the sort distance toward the camera
-	#define SORT_BIAS_PER_Z_INDEX 1.0f
-
-	// Sort key compared as uint by sort_cs. The Z index biases the sort distance toward the
-	// camera, so sprites close to each other layer stably by Z index while clearly separated
-	// sprites still sort by real distance. 0xFFFFFFFF is reserved for invalid slots.
+	// Sort key compared as uint by sort_cs, smaller key = rendered on top.
+	// High 8 bits: Z index layer (higher ZIndex => smaller layer byte => on top).
+	// Low 24 bits: camera distance in order-preserving float bits (top 24 bits),
+	// breaking ties within a layer (closer => on top).
+	// 0xFFFFFFFF is reserved for invalid slots.
 	uint CalculateSortKey(float3 worldPosition, int zIndex)
 	{
-		float biasedDistance = CalculateDistance(worldPosition) - zIndex * SORT_BIAS_PER_Z_INDEX;
-		return FloatToSortableUint(biasedDistance);
+		uint layer = (uint)(127 - clamp(zIndex, -128, 127));
+		uint distanceBits = FloatToSortableUint(CalculateDistance(worldPosition)) >> 8;
+		return min((layer << 24) | distanceBits, 0xFFFFFFFEu);
 	}
 
 	[numthreads( 64, 1, 1 ) ]

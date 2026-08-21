@@ -150,7 +150,7 @@ public sealed partial class SpriteRenderer : Renderer, Component.ExecuteInEditor
 	public bool IsSorted { get; set; }
 
 	/// <summary>
-	/// Depth sort bias; each Z index is 1 inch. Higher ZIndex layers on top when sprites are close. Used when sorting is enabled.
+	/// Sorting layer. Sprites with a higher ZIndex always render on top of lower ones; sprites with the same ZIndex sort by camera distance. Used when sorting is enabled. Clamped to [-128, 127].
 	/// </summary>
 	[Property, Category( "Visuals" ), Order( -200 )]
 	[ShowIf( nameof( IsSorted ), true )]

@@ -176,7 +176,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 	GpuBuffer<SpriteVertex> VertexBuffer;
 	GpuBuffer<int> IndexBuffer;
 	GpuBuffer<uint> GPUSortingBuffer;
-	// Holds sort keys built by sprite_cs: camera distance biased by Z index, in order-preserving float bits
+	// Holds sort keys built by sprite_cs: Z index layer (high bits) then camera distance (low bits), as order-preserving uints
 	GpuBuffer<uint> GPUDistanceBuffer;
 
 	SpriteData[] SpriteDataBuffer = null!;
