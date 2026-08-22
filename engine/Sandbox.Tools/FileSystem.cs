@@ -85,11 +85,7 @@ public static class FileSystem
 
 		foreach ( var addon in Project.All.Where( x => x.Active ) )
 		{
-			var contentPath = addon.GetAssetsPath();
-			if ( string.IsNullOrWhiteSpace( contentPath ) ) continue;
-			if ( !System.IO.Directory.Exists( contentPath ) ) continue;
-
-			Content.CreateAndMount( contentPath );
+			Content.Mount( addon.AssetsFileSystem );
 		}
 
 		var watch = Content.Watch();

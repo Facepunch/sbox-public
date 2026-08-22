@@ -216,7 +216,7 @@ static class StartupLoadProject
 			await project.Package.MountAsync( true );
 
 			// Mount our current project into the filesystem and make sure to load all assets
-			FileSystem.Mounted.CreateAndMount( project.GetAssetsPath() );
+			FileSystem.Mounted.Mount( project.AssetsFileSystem );
 			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted, ct, true );
 		}
 		else
@@ -293,8 +293,7 @@ static class StartupLoadProject
 
 	static void UpdateProjectFilesystem( Project project )
 	{
-		var assetsPath = project.GetAssetsPath();
-		if ( !System.IO.Directory.Exists( assetsPath ) )
+		if ( !project.HasAssetsPath() )
 			return;
 
 		NativeEngine.FullFileSystem.AddProjectPath( project.Config.FullIdent, project.GetAssetsPath() );

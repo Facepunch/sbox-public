@@ -1,0 +1,71 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+Sidebar
+{
+	@include front-card;
+
+	position: relative;
+	z-index: 100;
+	flex-shrink: 0;
+	width: $front-rail-width;
+	align-items: center;
+	gap: 16px;
+	margin: $front-chrome-gap 0 $front-chrome-gap $front-chrome-gap;
+	// No side padding - entries run the full width of the rail so the active fill
+	// and its marker bar can reach the edge. The logo insets itself instead.
+	padding: 14px 0;
+	pointer-events: all;
+
+	Logo
+	{
+		flex-shrink: 0;
+		height: 46px;
+		margin: 0 10px;
+		border-radius: $front-radius;
+	}
+
+	.nav
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		width: 100%;
+		gap: 16px;
+	}
+
+	.nav .button
+	{
+		@include front-nav-item;
+
+		pointer-events: all;
+		cursor: pointer;
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+	}
+
+	// Button stacks an icon above a column holding its label - centre that column too.
+	.button-right-column
+	{
+		flex-direction: column;
+		align-items: center;
+	}
+
+	.nav .quit:hover
+	{
+		background-color: rgba( $front-danger, 0.18 );
+		border-color: rgba( $front-danger, 0.35 );
+
+		iconpanel, label
+		{
+			color: $front-danger;
+		}
+	}
+}

@@ -1,4 +1,5 @@
 ﻿
+[QFlags]
 native enum Qt::TextInteractionFlags as TextInteractionFlags;
 native enum QPlainTextEdit::LineWrapMode as LineWrapMode;
 native enum QTextOption::WrapMode as QTextOptionWrapMode;

@@ -1,0 +1,101 @@
+// Everything animates between its base rule and its .on rule. The page toggles .on for you.
+
+$fill: #4a9eff;
+$fill2: #e8b04a;
+
+TransitionTests
+{
+	// A dot on a track, so easing reads as position over time
+	.dot
+	{
+		position: absolute;
+		left: 0;
+		top: 14px;
+		width: 32px;
+		height: 32px;
+		border-radius: 50%;
+		background-color: $fill;
+	}
+
+	&.on .dot { left: 108px; }
+
+	.linear { transition: left 1s linear; }
+	.ease { transition: left 1s ease; }
+	.ease-in { transition: left 1s ease-in; }
+	.ease-out { transition: left 1s ease-out; }
+	.ease-in-out { transition: left 1s ease-in-out; }
+	.bezier { transition: left 1s cubic-bezier( 0.5, -0.5, 0.5, 1.5 ); }
+
+	.fast { transition: left 0.25s linear; }
+	.slow { transition: left 2s linear; }
+	.delayed { transition: left 1s linear 0.5s; }
+	.none { transition: none; }
+
+	.two-props
+	{
+		transition: left 1s linear, background-color 0.25s linear;
+	}
+
+	&.on .two-props { background-color: #3fc76a; }
+
+	// Property probes
+	.swatch
+	{
+		width: 80px;
+		height: 80px;
+		background-color: $fill2;
+	}
+
+	.colour { transition: background-color 1s linear; }
+	&.on .colour { background-color: #4a9eff; }
+
+	.fade { transition: opacity 1s linear; }
+	&.on .fade { opacity: 0.15; }
+
+	.xform { transition: transform 1s linear; }
+	&.on .xform { transform: scale( 0.6 ) rotate( 45deg ); }
+
+	.radius { transition: border-radius 1s linear; border-radius: 4px; }
+	&.on .radius { border-radius: 50%; }
+
+	// No radius at all to a radius - both axes have to animate, not one snap and one slide
+	.radius-from-none { transition: all 1s linear; }
+	&.on .radius-from-none { border-radius: 20px; }
+
+	.filtered { transition: filter 1s linear; }
+	&.on .filtered { filter: blur( 6px ); }
+
+	.shadowed { transition: box-shadow 1s linear; box-shadow: 0 0 0 0 #4a9eff; }
+	&.on .shadowed { box-shadow: 0 0 20px 6px #4a9eff; }
+
+	// The web can't interpolate between units either - one clean snap is the right answer
+	.mixed-units { transition: width 1s linear; width: 40%; }
+	&.on .mixed-units { width: 120px; }
+
+	.grad
+	{
+		transition: background-image 1s linear;
+		background-image: linear-gradient( to right, #e8b04a, #e84a4a );
+	}
+
+	&.on .grad { background-image: linear-gradient( to right, #4a9eff, #3fc76a ); }
+
+	// Mounted and unmounted on the same timer
+	.mounted
+	{
+		width: 80px;
+		height: 80px;
+		border-radius: 12px;
+		background-color: $fill;
+		transition: all 0.6s ease-out;
+
+		&:intro { opacity: 0; }
+		&:outro { opacity: 0; }
+	}
+
+	.mounted.scaled
+	{
+		&:intro { transform: scale( 0.5 ); }
+		&:outro { transform: scale( 1.4 ); }
+	}
+}

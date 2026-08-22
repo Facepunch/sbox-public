@@ -1,0 +1,143 @@
+@using MenuProject
+@using MenuProject.UiTest
+@using Sandbox.UI;
+@using Sandbox.UI.Navigation;
+@using Sandbox;
+@using System;
+@using System.Linq;
+@namespace Sandbox.UI
+@inherits Panel
+
+<root>
+
+    @* Double click the mark for the UI test section. Deliberately undiscoverable. *@
+    <Logo @ondoubleclick=@( () => UiTestSection.Open() ) />
+
+    <div class="nav">
+        <Button Href="/home" Icon="home">#menu.home</Button>
+        <Button Href="/games/all?Sort=trending&Filter=" Icon="sports_esports">Games</Button>
+        <Button Href="/maps/all" Icon="map">#menu.maps</Button>
+        <Button Href="@FavouritesUrl" Icon="favorite">Favourites</Button>
+        <Button Href="/mounts" Icon="extension">Mounts</Button>
+        <Button Href="/itemstore" Icon="shopping_cart">#menu.store</Button>
+    </div>
+
+    <div class="grow" />
+
+    @* The two personal pages. Both carry a badge, so both are RailButtons. *@
+    <div class="nav">
+        @* Nothing waiting means nothing to go and look at, so the entry isn't there at all. *@
+        @if ( ShowInbox )
+        {
+            <RailButton Href="@InboxUrl" Icon="notifications" Text="Inbox" Badge="@NotificationBadge" />
+        }
+
+        <RailButton Href="/rewards" Icon="redeem" Text="Rewards" Badge="@RewardBadge" BadgeClass="reward" Progress="@RewardProgress" />
+
+        <Button @onmouseup=@Settings Icon="settings">Settings</Button>
+        <Button @onmouseup=@Quit class="quit" Icon="power_settings_new">Quit</Button>
+    </div>
+
+</root>
+
+@code {
+    const string FavouritesUrl = "/games/group?Query=type:game sort:favourite&title=Favourite Games&Icon=💖";
+
+    const string InboxUrl = "/notifications";
+
+    // Both counts come off the backend, so they're polled rather than watched. The pages
+    // themselves fetch their own copy - this only feeds the badges.
+    const float PollSeconds = 60 * 5;
+
+    static bool badgesStale;
+
+    int notificationCount;
+    RealTimeUntil timeUntilNotificationPoll = 0;
+
+    RewardState rewardState;
+    RealTimeUntil timeUntilRewardPoll = 0;
+
+    /// <summary>
+    /// Marks the badges as out of date, so the rail re-reads them on its next tick. The
+    /// inbox marks notifications read as you look at them, which the rail can't see.
+    /// </summary>
+    public static void InvalidateBadges()
+    {
+        badgesStale = true;
+    }
+
+    /// <summary>
+    /// The inbox is only offered when something's waiting - except while you're reading it,
+    /// since opening the page marks everything read and the entry would vanish under you.
+    /// </summary>
+    bool ShowInbox => notificationCount > 0 || MainMenu.Instance?.Navigator?.CurrentUrl == InboxUrl;
+
+    /// <summary>Unread notifications, capped so a big number can't widen the badge off the rail.</summary>
+    string NotificationBadge => notificationCount switch
+    {
+        <= 0 => null,
+        > 99 => "99+",
+        _ => notificationCount.ToString()
+    };
+
+    /// <summary>A pip when there's a drop waiting - the bar covers everything short of that.</summary>
+    string RewardBadge => RewardReady ? "!" : null;
+
+    RewardWindow RewardWindow => rewardState?.Windows.FirstOrDefault();
+
+    bool RewardReady => RewardWindow is not null && (RewardWindow.IsEligible || rewardState.Pending is not null);
+
+    /// <summary>How far the drop has come. Null while there's nothing being tracked, so no bar.</summary>
+    float? RewardProgress => RewardWindow is null ? null : (RewardReady ? 1f : RewardWindow.Progress);
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( !IsVisible )
+            return;
+
+        if ( badgesStale )
+        {
+            badgesStale = false;
+            timeUntilNotificationPoll = 0;
+            timeUntilRewardPoll = 0;
+        }
+
+        if ( timeUntilNotificationPoll <= 0 )
+        {
+            timeUntilNotificationPoll = PollSeconds;
+            _ = UpdateNotificationCount();
+        }
+
+        if ( timeUntilRewardPoll <= 0 )
+        {
+            timeUntilRewardPoll = PollSeconds;
+            _ = UpdateRewards();
+        }
+    }
+
+    async Task UpdateNotificationCount()
+    {
+        notificationCount = await MenuUtility.GetNotificationCount();
+        StateHasChanged();
+    }
+
+    async Task UpdateRewards()
+    {
+        rewardState = await MenuUtility.Rewards.GetRewards();
+        StateHasChanged();
+    }
+
+    void Settings()
+    {
+        Game.Overlay.ShowSettingsModal();
+    }
+
+    void Quit()
+    {
+        ConsoleSystem.Run( "quit" );
+    }
+
+    protected override int BuildHash() => HashCode.Combine( ShowInbox, NotificationBadge, RewardBadge, RewardProgress );
+}

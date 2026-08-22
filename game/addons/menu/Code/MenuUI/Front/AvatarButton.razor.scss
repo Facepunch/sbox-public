@@ -1,0 +1,119 @@
+@import "/styles/_front.scss";
+
+AvatarButton
+{
+	position: relative;
+	flex-shrink: 0;
+	flex-direction: column;
+	height: 250px;
+	padding: 0 $front-inset;
+	// Double size scaled back down by half: the scene renders at 2x panel
+	// resolution and the downscale anti-aliases the model.
+	.render
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		width: 200%;
+		height: 200%;
+		transform: scale( 0.5 );
+		transform-origin: 0% 0%;
+		z-index: 0;
+	}
+	// Text column over the left half - the character render sits in the right half.
+	.info
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		padding-top: 18px;
+		z-index: 5;
+	}
+
+	.eyebrow
+	{
+		font-size: 10.5px;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.09em;
+		color: $front-label;
+	}
+
+	.name
+	{
+		font-size: 26px;
+		font-weight: 700;
+		color: $front-heading;
+		margin-top: 2px;
+		max-width: 60%;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	// Floats over the render, top right - the card itself is no longer clickable.
+	.edit
+	{
+		@include front-pill;
+
+		position: absolute;
+		top: 16px;
+		right: $front-inset;
+		z-index: 10;
+		background-color: rgba( 8, 10, 14, 0.6 );
+	}
+	// Rule above, so the stats read as their own band under the portrait. One to each
+	// edge, so the band spans the card rather than bunching up on the left.
+	.stats
+	{
+		flex-direction: row;
+		align-items: flex-end;
+		flex-shrink: 0;
+		padding: 12px 0 14px 0;
+		border-top: 1px solid $front-hairline;
+		z-index: 5;
+	}
+
+	.stat
+	{
+		flex-direction: column;
+		gap: 4px;
+
+		&.right
+		{
+			align-items: flex-end;
+		}
+	}
+
+	.stat-label
+	{
+		@include front-section-label;
+	}
+
+	.stat-value
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 7px;
+
+		label
+		{
+			font-size: 20px;
+			font-weight: 700;
+			color: $front-heading;
+		}
+
+		icon
+		{
+			font-size: 20px;
+		}
+
+		.trophy
+		{
+			color: $front-trophy;
+		}
+
+		.points
+		{
+			color: $front-points;
+		}
+	}
+}

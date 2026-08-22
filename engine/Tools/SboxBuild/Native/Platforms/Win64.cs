@@ -9,6 +9,8 @@ public sealed class Win64 : NativePlatform
 {
 	public const string Toolset = "v145";
 	public const string WindowsSdk = "10.0";
+	public const string MinimumVisualStudio = "18.9";
+
 	public const int MpCount = 8;
 
 	public override string Name => "win64";
@@ -96,7 +98,7 @@ public sealed class Win64 : NativePlatform
 	{
 		using var vsWhere = new Process();
 		vsWhere.StartInfo.FileName = @"src\devtools\bin\win64\vswhere";
-		vsWhere.StartInfo.Arguments = "-latest -prerelease -products Microsoft.VisualStudio.Product.Enterprise Microsoft.VisualStudio.Product.Professional Microsoft.VisualStudio.Product.Community Microsoft.VisualStudio.Product.BuildTools -property installationPath";
+		vsWhere.StartInfo.Arguments = $"-latest -prerelease -version {MinimumVisualStudio} -products Microsoft.VisualStudio.Product.Enterprise Microsoft.VisualStudio.Product.Professional Microsoft.VisualStudio.Product.Community Microsoft.VisualStudio.Product.BuildTools -property installationPath";
 		vsWhere.StartInfo.UseShellExecute = false;
 		vsWhere.StartInfo.RedirectStandardOutput = true;
 		vsWhere.StartInfo.CreateNoWindow = true;
@@ -104,6 +106,12 @@ public sealed class Win64 : NativePlatform
 
 		var installation = vsWhere.StandardOutput.ReadToEnd().Trim();
 		vsWhere.WaitForExit();
+
+		if ( string.IsNullOrEmpty( installation ) )
+		{
+			Log.Error( $"No Visual Studio {MinimumVisualStudio} or newer installation found. The native build needs MSBuild {MinimumVisualStudio}; update Visual Studio." );
+			return string.Empty;
+		}
 
 		var path = Path.Combine( installation, @"Common7\Tools\VsDevCmd.bat" );
 		if ( File.Exists( path ) ) return path;

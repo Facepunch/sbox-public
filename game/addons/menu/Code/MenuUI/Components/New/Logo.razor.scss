@@ -1,5 +1,6 @@
 @import "/styles/_theme.scss";
 
+// A static mark - no hover, no active. Takes pointer events for the UI test double click.
 Logo {
     aspect-ratio: 1;
     height: 32px;
@@ -7,17 +8,8 @@ Logo {
     background-size: cover;
     background-position: center;
     pointer-events: all;
-    cursor: pointer;
 
     &.large {
         height: 64px;
-    }
-
-    &:hover {
-        filter: drop-shadow( 0 0 6px $primary-blue );
-    }
-
-    &.active {
-        filter: drop-shadow( 0 0 9px $primary-blue );
     }
 }

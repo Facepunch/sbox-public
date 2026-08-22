@@ -1,4 +1,4 @@
-﻿@using MenuProject.MenuUI.Components
+@using MenuProject.MenuUI.Components
 @using MenuProject.MenuUI.Layout
 @using Sandbox;
 @using Sandbox.UI;
@@ -9,53 +9,103 @@
 	<Page title="Item Store" subtitle="Here you can buy items for your avatar" icon="local_mall" variant="green">
 
 		<Left>
-            <h2><WithIcon Text="Item Store" Icon="info"></WithIcon></h2>
-            
-            <p>Here you can buy cosmetic items. These items will be added to your Steam Inventory and you will be able to choose them in the avatar editor.</p>
+            <div class="store-intro">
+                <h2><WithIcon Text="Item Store" Icon="local_mall"></WithIcon></h2>
+                <p>Cosmetics for your avatar. Anything you buy lands in your Steam inventory and shows up in the avatar editor.</p>
+            </div>
 
-            
+            @if ( Categories.Count() > 1 )
+            {
+                <div class="store-filter">
+                    <label class="section-label">Category</label>
+                    <div class="chips">
+                        <div class="chip @( SelectedCategory is null ? "active" : "" )" @onclick="@( () => SelectedCategory = null )">
+                            <label>All</label>
+                            <label class="n">@ForSale.Count()</label>
+                        </div>
+                        @foreach ( var cat in Categories )
+                        {
+                            var name = cat.Key;
+                            <div class="chip @( SelectedCategory == name ? "active" : "" )" @onclick="@( () => SelectedCategory = name )">
+                                <label>@name</label>
+                                <label class="n">@cat.Count()</label>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            <CartPanel Cart="@Cart"></CartPanel>
 		</Left>
 
 		<Body>
+            <div class="store-body">
 
-            <div class="store-header">
-                <CartButton Cart="@Cart"></CartButton>
-            </div>
-
-            <div class="itemlist">
-                @foreach (var item in UnownedItems)
+                @if ( !ForSale.Any() )
                 {
-                    <ItemTile Cart="@Cart" Item="@item"></ItemTile>
-                }
-
-                @if (OwnedItems.Any())
-                {
-                    <div class="owned-header">
-                        <h2>Already Owned</h2>
+                    <div class="store-empty">
+                        <icon>storefront</icon>
+                        <label class="title">Nothing for sale right now</label>
+                        <label class="hint">New items show up here when they go on sale.</label>
                     </div>
-                    @foreach (var item in OwnedItems)
-                    {
-                        <ItemTile Cart="@Cart" Item="@item"></ItemTile>
-                    }
                 }
-            </div>
+                else
+                {
+                    <div class="section-head">
+                        <label class="title">@( SelectedCategory ?? "Everything" )</label>
+                        <label class="count">@GridItems.Count() items</label>
+                    </div>
 
+                    <div class="grid">
+                        @foreach ( var item in GridItems )
+                        {
+                            <ItemTile Cart="@Cart" Item="@item"></ItemTile>
+                        }
+                    </div>
+                }
+
+                @if ( OwnedItems.Any() )
+                {
+                    <div class="section-head owned">
+                        <label class="title">Already owned</label>
+                        <label class="count">@OwnedItems.Count() items</label>
+                    </div>
+
+                    <div class="grid">
+                        @foreach ( var item in OwnedItems )
+                        {
+                            <ItemTile Cart="@Cart" Item="@item"></ItemTile>
+                        }
+                    </div>
+                }
+
+            </div>
 		</Body>
 	</Page>
 </root>
 
-@code 
+@code
 {
     public ShoppingCart Cart = new();
 
+    string SelectedCategory { get; set; }
+
     IEnumerable<Sandbox.Services.Inventory.ItemDefinition> AllItems => Sandbox.Services.Inventory.Definitions
-            .Where(x => x.Price.Value > 0)
-            .OrderBy(x => x.SellEnd is null)
-            .ThenBy(x => x.Name);
+            .Where( x => x.Price.Value > 0 )
+            .OrderBy( x => x.SellEnd is null )
+            .ThenBy( x => x.SellEnd )
+            .ThenByDescending( x => x.IsOnSale )
+            .ThenByDescending( x => x.RarityGrade )
+            .ThenBy( x => x.Name );
 
-    IEnumerable<Sandbox.Services.Inventory.ItemDefinition> UnownedItems => AllItems
-            .Where(x => !Sandbox.Services.Inventory.HasItem(x.Id));
+    IEnumerable<Sandbox.Services.Inventory.ItemDefinition> ForSale => AllItems.Where( x => !Sandbox.Services.Inventory.HasItem( x.Id ) );
+    IEnumerable<Sandbox.Services.Inventory.ItemDefinition> OwnedItems => AllItems.Where( x => Sandbox.Services.Inventory.HasItem( x.Id ) );
 
-    IEnumerable<Sandbox.Services.Inventory.ItemDefinition> OwnedItems => AllItems
-            .Where(x => Sandbox.Services.Inventory.HasItem(x.Id));
+    IEnumerable<IGrouping<string, Sandbox.Services.Inventory.ItemDefinition>> Categories => ForSale.GroupBy( x => x.CategoryLabel ).OrderBy( x => x.Key );
+
+    IEnumerable<Sandbox.Services.Inventory.ItemDefinition> GridItems => SelectedCategory is null
+        ? ForSale
+        : ForSale.Where( x => x.CategoryLabel == SelectedCategory );
+
+    protected override int BuildHash() => HashCode.Combine( SelectedCategory, Sandbox.Services.Inventory.Items?.Count, Cart.Items.Count );
 }

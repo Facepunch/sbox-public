@@ -1,26 +1,32 @@
 @import '/styles/_Theme.scss';
+@import '/styles/_front.scss';
 
-$footer-background: $default-900;
-
+// The stage doesn't reach the left edge of the screen - the rail does - so a full width
+// bar ends in mid air. It's a pill floating over the scene instead, centred on the stage.
+// Out of flow, so the page runs under it rather than being cut short above it - only the
+// pill itself takes clicks.
 Footer {
-    align-items: center;
-    width: 100%;
-    gap: 16px;
-    position: relative;
-    z-index: 1;
-    background: $footer-background;
-    border-top: 1px solid $default-border;
-    flex-shrink: 0;
-    z-index: 1000;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
     align-items: center;
     justify-content: center;
+    padding: 0 24px $front-chrome-gap 24px;
+    z-index: 1000;
+    pointer-events: none;
 
     > .inner {
-        gap: 12px;
+        pointer-events: all;
+        @include front-slab;
+
+        flex-shrink: 0;
+        gap: 16px;
         align-items: center;
-        width: 100%;
-        padding: 16px 50px;
-        max-width: $screen-w-xl;
+        padding: 8px 14px;
+        border-radius: 999px;
+        border: 1px solid $front-border;
+        box-shadow: 0 14px 36px rgba( 0, 0, 0, 0.5 );
     }
 
     .friends {

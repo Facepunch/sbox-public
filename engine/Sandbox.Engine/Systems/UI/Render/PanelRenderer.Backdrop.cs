@@ -12,16 +12,9 @@ internal partial class PanelRenderer
 
 		var rect = panel.Box.Rect;
 		var opacity = state.RenderOpacity;
-		var size = (rect.Width + rect.Height) * 0.5f;
-
 		target.Backdrops.Add( new BackdropDrawDescriptor( rect )
 		{
-			BorderRadius = new Vector4(
-				style.BorderBottomRightRadius.Value.GetPixels( size ),
-				style.BorderTopRightRadius.Value.GetPixels( size ),
-				style.BorderBottomLeftRadius.Value.GetPixels( size ),
-				style.BorderTopLeftRadius.Value.GetPixels( size )
-			),
+			Radii = BorderRadii.FromStyle( style, rect ),
 			Opacity = opacity,
 			Brightness = style.BackdropFilterBrightness.Value.GetPixels( 1.0f ),
 			Contrast = style.BackdropFilterContrast.Value.GetPixels( 1.0f ),

@@ -1,0 +1,259 @@
+@using MenuProject.MenuUI.Components
+@using MenuProject.MenuUI.Layout
+@using Sandbox;
+@using Sandbox.UI;
+@using Sandbox.UI.Navigation;
+@using System;
+@using System.Globalization;
+@using System.Linq;
+
+@page "/rewards"
+@inherits Panel
+@implements INavigatorPage
+
+@* Same two columns as mounts and the inbox - explainer on the left, the drop and what it
+   wants from you on the right. *@
+<root class="root">
+	<Page>
+		<Body>
+			<div class="rewards-body">
+
+				<div class="rewards-aside">
+
+					<h2><WithIcon Icon="redeem" Text="Item drops"></WithIcon></h2>
+					<p>
+						Playing earns you drops. Meet everything on the list, open the drop, and keep
+						one of the items you're offered - no money involved anywhere.
+					</p>
+
+					<div class="block">
+						<label class="section-label">How it works</label>
+
+						<div class="step">
+							<icon>sports_esports</icon>
+							<label>Play games. Progress counts itself - there's nothing to turn on.</label>
+						</div>
+
+						<div class="step">
+							<icon>checklist</icon>
+							<label>Every objective has to be met before the drop unlocks.</label>
+						</div>
+
+						<div class="step">
+							<icon>inventory_2</icon>
+							<label>Open it here and choose from what you're offered. What you pick is yours.</label>
+						</div>
+					</div>
+
+					<div class="block">
+						<label class="section-label">Worth knowing</label>
+
+						<div class="note">
+							<icon>cloud</icon>
+							<label>Progress lives on your account, so it follows you to whatever machine you play on.</label>
+						</div>
+
+						<div class="note">
+							<icon>hourglass_bottom</icon>
+							<label>A drop you've opened but not picked from waits for you - come back and finish it.</label>
+						</div>
+
+						<label class="docs-link" onclick=@OpenStore>Browse the item store</label>
+					</div>
+
+				</div>
+
+				<div class="rewards-list">
+
+					@if ( Window is null )
+					{
+						<div class="rewards-empty">
+							<icon>@( IsLoading ? "hourglass_empty" : "redeem" )</icon>
+							<label class="title">@( IsLoading ? "Checking your progress" : "No drop right now" )</label>
+							<label class="hint">@( IsLoading ? "One moment." : "Nothing is being tracked for you at the moment. Play something and check back." )</label>
+						</div>
+					}
+					else
+					{
+						@* The hero - one arc for everything, the same number the rail's badge decides on. *@
+						<div class="hero @( CanOpen ? "done" : "" )">
+
+							<div class="ring">
+								<div class="ring-fill" style="background-image: @RingGradient" />
+								<div class="ring-inner">
+									<label class="percent">@PercentText</label>
+									<label class="percent-label">@( CanOpen ? "ready" : "done" )</label>
+								</div>
+							</div>
+
+							<div class="hero-body">
+								<label class="eyebrow">@( CanOpen ? "Your drop is waiting" : "Next drop" )</label>
+								<label class="hero-title">@Title</label>
+								<label class="hero-hint">@StatusText</label>
+
+								<div class="open @( CanOpen ? "reward" : "locked" )" onclick=@OpenReward>
+									<icon>@( CanOpen ? "inventory_2" : "lock" )</icon>
+									<label>@( CanOpen ? "Open your drop" : "Keep playing" )</label>
+								</div>
+							</div>
+
+						</div>
+
+						@if ( Facets.Length > 0 )
+						{
+							<div class="section-head">
+								<label class="title">Objectives</label>
+								<label class="count">@MetCount of @Facets.Length met</label>
+								<div class="grow" />
+
+								<div class="refresh @( IsLoading ? "busy" : "" )" onclick=@Refresh>
+									<icon>refresh</icon>
+									<label>@( IsLoading ? "Loading" : "Refresh" )</label>
+								</div>
+							</div>
+
+							@foreach ( var facet in Facets )
+							{
+								<div class="objective @( facet.Met ? "met" : "" )">
+
+									<div class="objective-head">
+										<icon>@( facet.Met ? "check_circle" : "radio_button_unchecked" )</icon>
+
+										<div class="objective-body">
+											<label class="objective-title">@facet.Title</label>
+
+											@if ( !string.IsNullOrWhiteSpace( facet.Description ) )
+											{
+												<label class="objective-hint">@facet.Description</label>
+											}
+										</div>
+
+										<label class="objective-count">@CountText( facet )</label>
+									</div>
+
+									<div class="track" style="background-image: @TrackGradient( facet )"></div>
+
+								</div>
+							}
+						}
+					}
+
+				</div>
+
+			</div>
+		</Body>
+	</Page>
+</root>
+
+@code
+{
+	// Mirrors $front-reward and $front-track in _front.scss. Progress is a hard-stopped
+	// gradient set inline, so the colours have to be spelled out here as well.
+	// HDR - a drop is the one thing on screen allowed to glow. The track stays in range so
+	// only the filled part lights up.
+	const string FillColor = "#3fc76a * 3";
+	const string TrackColor = "rgba( 255, 255, 255, 0.13 )";
+
+	RewardState State { get; set; }
+
+	bool IsLoading { get; set; }
+
+	/// <summary>Only one window exists today.</summary>
+	RewardWindow Window => State?.Windows.FirstOrDefault();
+
+	RewardFacet[] Facets => Window?.Facets ?? Array.Empty<RewardFacet>();
+
+	bool CanOpen => Window is not null && (Window.IsEligible || State.Pending is not null);
+
+	int MetCount => Window?.MetCount ?? 0;
+
+	bool Complete => Window?.IsComplete ?? false;
+
+	string Title => string.IsNullOrWhiteSpace( Window?.Title ) ? "Item drop" : Window.Title;
+
+	/// <summary>Every objective averaged - one arc stands in for all of them.</summary>
+	float Fraction => Window is null ? 0f : (CanOpen ? 1f : Window.Progress);
+
+	string PercentText => $"{(int)(Fraction * 100f)}%";
+
+	string StatusText
+	{
+		get
+		{
+			if ( State?.Pending is not null ) return "You started opening this one - go back and pick your item.";
+			if ( CanOpen ) return "Everything's met. Open it and choose what you keep.";
+			if ( Facets.Length == 0 ) return "Nothing to do here yet.";
+
+			return $"{Facets.Length - MetCount} left to go.";
+		}
+	}
+
+	static string CountText( RewardFacet facet )
+	{
+		return facet.Met ? "Done" : $"{(int)facet.Current}/{(int)facet.Required}";
+	}
+
+	/// <summary>Two hard stops - filled arc up to the percentage, empty track the rest of the way.</summary>
+	string RingGradient
+	{
+		get
+		{
+			var pct = (Fraction * 100f).ToString( "0.#", CultureInfo.InvariantCulture );
+
+			return $"conic-gradient( {FillColor} 0%, {FillColor} {pct}%, {TrackColor} {pct}%, {TrackColor} 100% )";
+		}
+	}
+
+	/// <summary>The same two stops along a bar instead of around a circle.</summary>
+	static string TrackGradient( RewardFacet facet )
+	{
+		var pct = (facet.Progress * 100f).ToString( "0.#", CultureInfo.InvariantCulture );
+
+		return $"linear-gradient( 90deg, {FillColor} 0%, {FillColor} {pct}%, {TrackColor} {pct}%, {TrackColor} 100% )";
+	}
+
+	// The navigator caches pages, so fetch on every open - progress moves while you're playing,
+	// and the panel you come back to is the one you left.
+	void INavigatorPage.OnNavigationOpen()
+	{
+		_ = Load();
+	}
+
+	void Refresh()
+	{
+		_ = Load();
+	}
+
+	async Task Load()
+	{
+		if ( IsLoading ) return;
+
+		IsLoading = true;
+		StateHasChanged();
+
+		State = await MenuUtility.Rewards.GetRewards();
+
+		if ( !this.IsValid() ) return;
+
+		IsLoading = false;
+		StateHasChanged();
+
+		// The rail's badge is decided by the same state.
+		Sidebar.InvalidateBadges();
+	}
+
+	void OpenReward()
+	{
+		if ( !CanOpen )
+			return;
+
+		SceneTransition.Load( "/scenes/reward-unbox.scene" );
+	}
+
+	void OpenStore()
+	{
+		this.Navigate( "/itemstore" );
+	}
+
+	protected override int BuildHash() => HashCode.Combine( State, IsLoading, MetCount, Fraction, CanOpen );
+}

@@ -9,6 +9,7 @@ internal static class ImageRect
 
 	public record struct Input
 	{
+		/// <summary>Null for images with no intrinsic size (gradients) - they size to the panel.</summary>
 		public Texture Image;
 
 		public Rect PanelRect;
@@ -27,8 +28,8 @@ internal static class ImageRect
 	{
 		var x = 0.0f;
 		var y = 0.0f;
-		var w = (float)input.Image.Width;
-		var h = (float)input.Image.Height;
+		var w = (float)(input.Image?.Width ?? input.PanelRect.Width);
+		var h = (float)(input.Image?.Height ?? input.PanelRect.Height);
 		var sizeX = input.ImageSizeX ?? input.DefaultSize;
 		var aspect = h / w;
 

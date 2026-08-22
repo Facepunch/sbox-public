@@ -104,7 +104,14 @@ public sealed class Linux64 : NativePlatform
 			if ( module.PrecompiledHeader is not null )
 			{
 				var root = Conventions.PchRoot( module );
-				if ( root is not null ) config.Include( root );
+				if ( root is not null )
+				{
+					config.Include( root );
+					// MSVC force includes the precompiled header into every source (/FI). The sources lean
+					// on that rather than including it themselves, so gcc has to be told the same with
+					// -include, or everything the header pulls in goes missing.
+					config.ForceInclude( module.PrecompiledHeader.Replace( '\\', '/' ) );
+				}
 			}
 
 			// The engine reads one type through a pointer to another, which -O2 is otherwise free to
@@ -124,12 +131,11 @@ public sealed class Linux64 : NativePlatform
 				"-fno-trapping-math", "-fassociative-math", "-freciprocal-math" );
 
 			config.Option( debug ? "-O0" : "-O2" );
-			if ( module.ThirdParty ) config.Option( "-w" );
-			else config.Option( ["-Wall", "-Wformat", "-Wformat-security", .. Warnings] );
+			config.Option( "-w" );
 
 			if ( lib ) continue;
 
-			if ( !exe ) config.LinkOptions.Add( "-shared" );
+			if ( !exe ) config.LinkOptions.AddRange( ["-shared", "-Wl,--no-undefined"] );
 			config.LinkOptions.Add( "-Wl,-rpath,$ORIGIN" );
 
 			// SDL3 ships beside the engine, but a build time tool runs from devtools and still needs it.
@@ -145,15 +151,4 @@ public sealed class Linux64 : NativePlatform
 	/// <summary>The vendored SDL3, which tier0 links and every binary then needs at runtime.</summary>
 	public string SdlDir => $"thirdparty/sdl3/lib/{DirectoryName}";
 
-	/// <summary>Warnings the engine turns off.</summary>
-	private static readonly string[] Warnings =
-	[
-		"-Wno-char-subscripts", "-Wno-comment", "-Wno-delete-non-virtual-dtor", "-Wno-float-equal",
-		"-Wno-invalid-offsetof", "-Wno-maybe-uninitialized", "-Wno-missing-field-initializers",
-		"-Wno-multichar", "-Wno-parentheses", "-Wno-reorder", "-Wno-shadow", "-Wno-sign-compare",
-		"-Wno-strict-overflow", "-Wno-switch", "-Wno-trigraphs", "-Wno-unknown-pragmas",
-		"-Wno-unused-but-set-variable", "-Wno-unused-function", "-Wno-unused-label",
-		"-Wno-unused-local-typedefs", "-Wno-unused-parameter", "-Wno-unused-result", "-Wno-unused-value",
-		"-Wno-unused-variable", "-Wno-unknown-warning-option"
-	];
 }

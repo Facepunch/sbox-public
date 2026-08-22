@@ -45,6 +45,11 @@
 			Length.Scale( ref _borderbottomrightradius, scale );
 			Length.Scale( ref _borderbottomleftradius, scale );
 
+			Length.Scale( ref _bordertopleftradiusv, scale );
+			Length.Scale( ref _bordertoprightradiusv, scale );
+			Length.Scale( ref _borderbottomrightradiusv, scale );
+			Length.Scale( ref _borderbottomleftradiusv, scale );
+
 			Length.Scale( ref _outlinewidth, scale );
 			Length.Scale( ref _outlineoffset, scale );
 

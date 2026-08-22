@@ -172,26 +172,28 @@ internal static class TopLevelTools
 	}
 
 	[McpTool.ReadOnly( "read_console" ), McpListed]
-	[Description( "Read recent console output, oldest first - what the editor and game logged: prints, warnings, errors, exceptions, compile results. This is how you see the effect of what you just did. Errors come with the top of their stack trace." )]
+	[Description( "Read recent console output, oldest first - what the editor and game logged: prints, warnings, errors, exceptions, compile results. This is how you see the effect of what you just did. Errors come with the top of their stack trace. Every read ends with a cursor - pass it back as 'since' next time to get only what was logged after it, instead of re-reading the same output." )]
 	public static object ReadConsole(
 		[Description( "How many of the most recent matching entries to return." ), Range( 1, 500 )] int limit = 50,
 		[Description( "Lowest severity to include." )] LogLevel minimumLevel = LogLevel.Trace,
-		[Description( "Only entries whose message or logger name contains this, case insensitive." )] string filter = "" )
+		[Description( "Only entries whose message or logger name contains this, case insensitive." )] string filter = "",
+		[Description( "Cursor from a previous read - only entries logged after it come back. 0 reads the most recent." )] long since = 0 )
 	{
 		var snapshot = LogBuffer.Snapshot();
+		var cursor = snapshot.Length == 0 ? 0 : snapshot[^1].Sequence;
 
-		var matching = snapshot.Where( x => x.Level >= minimumLevel );
+		var matching = snapshot.Where( x => x.Sequence > since && x.Event.Level >= minimumLevel );
 
 		if ( !string.IsNullOrWhiteSpace( filter ) )
 		{
-			matching = matching.Where( x => (x.Message?.Contains( filter, StringComparison.OrdinalIgnoreCase ) ?? false)
-				|| (x.Logger?.Contains( filter, StringComparison.OrdinalIgnoreCase ) ?? false) );
+			matching = matching.Where( x => (x.Event.Message?.Contains( filter, StringComparison.OrdinalIgnoreCase ) ?? false)
+				|| (x.Event.Logger?.Contains( filter, StringComparison.OrdinalIgnoreCase ) ?? false) );
 		}
 
-		var entries = matching.TakeLast( limit ).ToArray();
+		var entries = matching.TakeLast( limit ).Select( x => x.Event ).ToArray();
 
 		if ( entries.Length == 0 )
-			return $"No matching console output ({snapshot.Length} entries buffered).";
+			return $"No matching console output ({snapshot.Length} entries buffered). Cursor: {cursor}";
 
 		var builder = new StringBuilder();
 
@@ -214,6 +216,8 @@ internal static class TopLevelTools
 				}
 			}
 		}
+
+		builder.Append( $"Cursor: {cursor}" );
 
 		return builder.ToString();
 	}

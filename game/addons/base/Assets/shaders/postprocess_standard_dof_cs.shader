@@ -130,9 +130,10 @@ CS
 
     //
     // Thin lens circle of confusion, normalized to 0..1 of the max blur radius.
+    // Zeroed under the dispatch threshold so undispatched tiles stay fully transparent in the composite.
     //
-    float BackCoc( float depth )  { return saturate( ( depth - FocusPlane ) / max( FocusRange, 1e-2f ) ); }
-    float FrontCoc( float depth ) { return saturate( ( FocusPlane - depth ) / max( FocusRange, 1e-2f ) ); }
+    float BackCoc( float depth )  { float c = saturate( ( depth - FocusPlane ) / max( FocusRange, 1e-2f ) ); return c > CocThreshold() ? c : 0.0f; }
+    float FrontCoc( float depth ) { float c = saturate( ( FocusPlane - depth ) / max( FocusRange, 1e-2f ) ); return c > CocThreshold() ? c : 0.0f; }
 
     groupshared uint g_nTileMaxBack;
     groupshared uint g_nTileMaxFront;

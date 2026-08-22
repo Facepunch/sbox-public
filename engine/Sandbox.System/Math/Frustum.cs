@@ -166,6 +166,45 @@ public unsafe struct Frustum : System.IEquatable<Frustum>
 		return f;
 	}
 
+	/// <summary>
+	/// Returns a frustum scaled around its view center.
+	/// </summary>
+	public readonly Frustum Scaled( float scale, Vector3 cameraPosition, bool perspective )
+	{
+		scale = Math.Clamp( scale, 0.001f, 1.0f );
+		if ( scale >= 1.0f )
+			return this;
+
+		var topLeft = GetCorner( 0 ).Value;
+		var topRight = GetCorner( 1 ).Value;
+		var bottomRight = GetCorner( 2 ).Value;
+		var bottomLeft = GetCorner( 3 ).Value;
+		var center = (topLeft + topRight + bottomRight + bottomLeft) * 0.25f;
+
+		topLeft = Vector3.Lerp( center, topLeft, scale );
+		topRight = Vector3.Lerp( center, topRight, scale );
+		bottomRight = Vector3.Lerp( center, bottomRight, scale );
+		bottomLeft = Vector3.Lerp( center, bottomLeft, scale );
+
+		if ( perspective )
+		{
+			return FromCorners(
+				new Ray( cameraPosition, topLeft - cameraPosition ),
+				new Ray( cameraPosition, topRight - cameraPosition ),
+				new Ray( cameraPosition, bottomRight - cameraPosition ),
+				new Ray( cameraPosition, bottomLeft - cameraPosition ),
+				-NearPlane.GetDistance( cameraPosition ),
+				FarPlane.GetDistance( cameraPosition ) );
+		}
+
+		var result = this;
+		result.LeftPlane.Distance = bottomLeft.Dot( result.LeftPlane.Normal );
+		result.RightPlane.Distance = topRight.Dot( result.RightPlane.Normal );
+		result.TopPlane.Distance = topLeft.Dot( result.TopPlane.Normal );
+		result.BottomPlane.Distance = bottomRight.Dot( result.BottomPlane.Normal );
+		return result;
+	}
+
 	internal static Frustum FromOrtho(
 		Vector2 screenMin,
 		Vector2 screenMax,

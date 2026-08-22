@@ -738,4 +738,31 @@ public class SizingPropertiesTest
 		Assert.IsTrue( s.Set( "aspect-ratio", "4/3" ) );
 		Assert.AreEqual( 4f / 3f, s.AspectRatio.Value, 0.001f );
 	}
+
+	/// <summary>
+	/// A bare 'auto' (or 'none') is a real value, not "unset": when a more specific rule says
+	/// aspect-ratio: auto, it has to beat a less specific 16/9 in the cascade. So it stores NaN -
+	/// which Yoga reads as no ratio - rather than null, which Add() would skip over.
+	/// </summary>
+	[TestMethod]
+	public void AspectRatioAutoClearsInheritedRatioInCascade()
+	{
+		var baseRule = new Styles();
+		Assert.IsTrue( baseRule.Set( "aspect-ratio", "16/9" ) );
+
+		foreach ( var keyword in new[] { "auto", "none" } )
+		{
+			var overrideRule = new Styles();
+			Assert.IsTrue( overrideRule.Set( "aspect-ratio", keyword ) );
+			Assert.IsTrue( overrideRule.AspectRatio.HasValue, $"'{keyword}' must be a set value so it survives the cascade" );
+			Assert.IsTrue( float.IsNaN( overrideRule.AspectRatio.Value ) );
+
+			var computed = new Styles();
+			computed.Add( baseRule );
+			computed.Add( overrideRule );
+
+			Assert.IsTrue( computed.AspectRatio.HasValue );
+			Assert.IsTrue( float.IsNaN( computed.AspectRatio.Value ), $"'{keyword}' should have cleared the 16/9" );
+		}
+	}
 }

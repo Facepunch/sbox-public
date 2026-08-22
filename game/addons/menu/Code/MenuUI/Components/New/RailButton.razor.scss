@@ -1,0 +1,57 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+// The entry itself is a Button, styled by the rail's .nav rules - all this adds is the
+// badge and the box it's positioned against.
+RailButton
+{
+	position: relative;
+	flex-shrink: 0;
+	width: 100%;
+
+	.badge
+	{
+		@include front-count-badge;
+
+		// Sits on the glyph rather than the entry's corner - the entry is the full width
+		// of the rail, so its corner is nowhere near the icon.
+		top: 6px;
+		right: 22px;
+		// Rings the badge in the rail's own fill, so a count over a bright glyph still reads.
+		border: 2px solid $front-card;
+		pointer-events: none;
+	}
+
+	.badge.reward
+	{
+		background-color: $front-reward;
+	}
+
+	// Rides the entry's bottom edge, inset so it reads as belonging to the entry rather than
+	// as a rule between two of them.
+	.progress
+	{
+		position: absolute;
+		left: 14px;
+		right: 14px;
+		bottom: 6px;
+		height: 3px;
+		border-radius: 999px;
+		background-color: $front-track;
+		overflow: hidden;
+		pointer-events: none;
+	}
+
+	.progress-fill
+	{
+		height: 100%;
+		border-radius: 999px;
+		// HDR - the fill blooms, the track behind it stays in range.
+		background-color: $front-primary * 3;
+	}
+
+	.progress.reward .progress-fill
+	{
+		background-color: $front-reward * 3;
+	}
+}

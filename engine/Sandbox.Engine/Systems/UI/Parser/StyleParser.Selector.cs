@@ -90,6 +90,13 @@ internal static partial class StyleParser
 				return null;
 
 			rule.Parent = lastRule;
+
+			// Only the first part of a chain hangs off the enclosing block. A copy on later parts
+			// shares ImmediateParent with the combinator, so > would demand the block be an
+			// immediate parent too.
+			if ( lastRule != null )
+				rule.DecendantOf = null;
+
 			rule.ImmediateParent = immediateParent;
 			rule.AdjacentSibling = adjacentSibling;
 			rule.GeneralSibling = generalSibling;

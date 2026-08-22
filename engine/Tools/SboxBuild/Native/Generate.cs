@@ -16,6 +16,7 @@ public static class Generate
 		}
 
 		NativePlatform.Current = platform;
+		Module.Retail = options.Retail;
 
 		var modules = Registry.Load( options );
 		if ( modules.Count == 0 )

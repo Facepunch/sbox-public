@@ -35,6 +35,7 @@ internal class Program
 		AddUploadSteamCommand( rootCommand );
 		AddDiscordPostCommand( rootCommand );
 		AddDownloadPublicArtifactsCommand( rootCommand );
+		AddDownloadThirdPartyCommand( rootCommand );
 		AddUploadBuildArtifactsCommand( rootCommand );
 		AddCheckNativeTouchedCommand( rootCommand );
 		AddNotifySlackCommand( rootCommand );
@@ -259,6 +260,20 @@ internal class Program
 		{
 			Environment.ExitCode = (int)new DownloadPublicArtifacts( nativeOnly ).Run();
 		}, nativeOnlyOption );
+		rootCommand.Add( cmd );
+	}
+
+	private static void AddDownloadThirdPartyCommand( RootCommand rootCommand )
+	{
+		var cmd = new Command( "download-thirdparty", "Download third party dependencies built by sbox-thirdparty" );
+		var forceOption = new Option<bool>( "--force",
+			description: "Re-download even if the current release is already extracted",
+			getDefaultValue: () => false );
+		cmd.AddOption( forceOption );
+		cmd.SetHandler( ( bool force ) =>
+		{
+			Environment.ExitCode = (int)new DownloadThirdParty( force ).Run();
+		}, forceOption );
 		rootCommand.Add( cmd );
 	}
 

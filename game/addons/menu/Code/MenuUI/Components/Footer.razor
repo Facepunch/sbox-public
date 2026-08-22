@@ -15,8 +15,6 @@
             <PartyDeck />
         </div>
 
-        <div class="grow" />
-
         <div class="right">
 
             <div class="friends">
@@ -48,7 +46,8 @@
     void ShowFriendsModal()
     {
         MenuUtility.CloseAllModals();
-        ModalSystem.Instance.FriendsList(new FriendsListModalOptions
+
+        ModalSystem.Instance?.FriendsList(new FriendsListModalOptions
         {
             Anchor = new()
             {

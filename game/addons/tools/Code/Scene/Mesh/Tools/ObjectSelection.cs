@@ -19,9 +19,12 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 	MeshComponent[] _meshes = [];
 	GameObject[] _objects = [];
 
+	protected override bool ShowSelectionBoundsDefault => true;
+
 	readonly Dictionary<MeshComponent, FaceTextureParameters[]> _startFaceParameters = [];
 
 	readonly record struct FaceTextureParameters( FaceHandle Face, Vector4 AxisU, Vector4 AxisV, Vector2 Scale );
+	readonly record struct MeshTopology( int VertexCount, int EdgeCount, int FaceCount );
 
 	public override void BuildSceneContextMenu( Menu menu, Ray ray, SceneTraceResult? trace )
 	{
@@ -30,6 +33,12 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 		bool hasMeshes = _meshes.Length > 0;
 		bool manyMeshes = _meshes.Length > 1;
 		bool hasObjects = _objects.Length > 0;
+
+		if ( hasObjects )
+		{
+			var selection = menu.AddMenu( "Selection", "select_all" );
+			AddMenuOption( selection, "Select Similar", "filter_center_focus", SelectSimilar, "mesh.select-similar", true );
+		}
 
 		bool convertible = _objects
 			.Select( x => x.GetComponent<ModelRenderer>() )
@@ -157,20 +166,25 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 	{
 		_transformKind = TextureLockTransform.Scale;
 
+		var scaleFromIndividualOrigins = !GlobalSpace && _startPoints.Count > 1;
+
 		foreach ( var entry in _startPoints )
 		{
-			var position = entry.Value.Position - origin;
-			position *= basis.Inverse;
-			position *= deltaScale;
-			position *= basis;
-			position += origin;
+			var position = entry.Value.Position;
 
-			var scale = entry.Value.Scale * deltaScale;
+			if ( !scaleFromIndividualOrigins )
+			{
+				position -= origin;
+				position *= basis.Inverse;
+				position *= deltaScale;
+				position *= basis;
+				position += origin;
+			}
 
 			entry.Key.WorldTransform = new Transform(
 				position,
 				entry.Value.Rotation,
-				scale
+				entry.Value.Scale * deltaScale
 			);
 		}
 	}
@@ -397,7 +411,9 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 		UpdateMoveMode();
 		UpdateHovered();
 		UpdateSelectionMode();
-		DrawBounds();
+
+		if ( ShowSelectionBounds )
+			DrawBounds();
 	}
 
 	void UpdateMoveMode()
@@ -442,6 +458,58 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 		}
 
 		ClearPivot();
+	}
+
+	public void SelectSimilar()
+	{
+		var meshTopologies = _meshes
+			.Where( x => x.IsValid() && x.Mesh is not null )
+			.Select( GetTopology )
+			.ToHashSet();
+
+		var models = _objects
+			.Select( x => x.GetComponent<ModelRenderer>() )
+			.Where( x => x.IsValid() && x.Model.IsValid() )
+			.Select( x => x.Model )
+			.ToHashSet();
+
+		if ( meshTopologies.Count == 0 && models.Count == 0 )
+			return;
+
+		using var scope = SceneEditorSession.Scope();
+		using var undoScope = SceneEditorSession.Active
+			.UndoScope( "Select Similar Objects" )
+			.Push();
+
+		foreach ( var go in Scene.GetAllObjects( true ) )
+		{
+			if ( go == Scene || go.Tags.Has( "hidden" ) )
+				continue;
+
+			bool matchingMesh = go.GetComponent<MeshComponent>() is { } meshComponent
+				&& meshComponent.IsValid()
+				&& meshComponent.Mesh is not null
+				&& meshTopologies.Contains( GetTopology( meshComponent ) );
+
+			bool matchingModel = go.GetComponent<ModelRenderer>() is { } modelRenderer
+				&& modelRenderer.IsValid()
+				&& modelRenderer.Model.IsValid()
+				&& models.Contains( modelRenderer.Model );
+
+			if ( matchingMesh || matchingModel )
+				Selection.Add( go );
+		}
+	}
+
+	private static MeshTopology GetTopology( MeshComponent component )
+	{
+		var mesh = component.Mesh;
+
+		return new MeshTopology(
+			mesh.VertexHandles.Count(),
+			mesh.HalfEdgeHandles.Count() / 2,
+			mesh.FaceHandles.Count()
+		);
 	}
 
 	void UpdateSelectionMode()

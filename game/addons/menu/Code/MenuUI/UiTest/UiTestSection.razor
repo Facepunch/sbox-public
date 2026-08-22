@@ -1,0 +1,184 @@
+@namespace MenuProject.UiTest
+@inherits PanelComponent
+
+@using Sandbox;
+@using Sandbox.UI;
+@using System;
+@using System.Collections.Generic;
+@using System.Linq;
+
+@* The UI test section, on its own scene so nothing else is in the way. Double click the menu's logo. *@
+
+<root class="uitest">
+
+    <div class="rail">
+
+        <div class="head">
+            <label class="title">UI Tests</label>
+            <label class="sub">Compare against a browser</label>
+        </div>
+
+        @* Not "page" - razor reads @page as its own directive and eats the expression. *@
+        <div class="pages">
+            @foreach ( var test in Pages )
+            {
+                <div class="entry @( test == CurrentPage ? "active" : null )" @onclick=@( () => Show( test ) )>
+                    <icon>@( string.IsNullOrEmpty( test.Icon ) ? "science" : test.Icon )</icon>
+                    <label>@test.Title</label>
+                </div>
+            }
+        </div>
+
+        <div class="grow"></div>
+
+        <div class="entry toggle" @onclick=@TogglePostProcessing>
+            <icon>@( BeforePostProcessing ? "check_box" : "check_box_outline_blank" )</icon>
+            <label>Before post process</label>
+        </div>
+
+        <div class="entry back" @onclick=@( () => BackToMenu() )>
+            <icon>arrow_back</icon>
+            <label>Back to menu</label>
+        </div>
+
+    </div>
+
+    <div class="content">
+
+        <div class="pagehead">
+            <label class="title">@CurrentPage?.Title</label>
+            <label class="desc">@CurrentPage?.Description</label>
+        </div>
+
+        <div class="pagebody" @ref="Body"></div>
+
+    </div>
+
+</root>
+
+@code
+{
+    /// <summary>
+    /// Leave the menu for the test scene, on a page matched by part of its title.
+    /// </summary>
+    [MenuConCmd( "menu_uitest" )]
+    public static void Open( string page = null )
+    {
+        WantedPage = page ?? "";
+        LoadScene( "/scenes/uitest.scene" );
+    }
+
+    /// <summary>
+    /// Page to open on. A convar, not a static - statics don't survive the hotload that can come
+    /// with loading the scene.
+    /// </summary>
+    [MenuConVar( "menu_uitest_page" )]
+    public static string WantedPage { get; set; } = "";
+
+    /// <summary>
+    /// Page this scene opens on, beating the convar.
+    /// </summary>
+    [Property] public string StartPage { get; set; }
+
+    /// <summary>
+    /// Back to the menu.
+    /// </summary>
+    public static void BackToMenu() => LoadScene( "/scenes/menu-main.scene" );
+
+    static void LoadScene( string path )
+    {
+        var options = new SceneLoadOptions { ShowLoadingScreen = false };
+
+        if ( !options.SetScene( path ) )
+        {
+            Log.Warning( $"{path} isn't mounted yet - restart the editor and it'll be there" );
+            return;
+        }
+
+        Game.ActiveScene?.Load( options );
+    }
+
+    /// <summary>
+    /// Every <see cref="UiTestPage"/> there is, in the order they're listed.
+    /// </summary>
+    public List<TypeDescription> Pages { get; }
+
+    /// <summary>
+    /// The page being shown.
+    /// </summary>
+    public TypeDescription CurrentPage { get; private set; }
+
+    Panel Body;
+
+    // Keyed by name - a hotload hands out new TypeDescriptions, so the old ones stop matching
+    Dictionary<string, Panel> built = new();
+
+    public UiTestSection()
+    {
+        Pages = TypeLibrary.GetTypes<UiTestPage>()
+            .Where( x => !x.IsAbstract )
+            .OrderBy( x => x.Order )
+            .ThenBy( x => x.Title )
+            .ToList();
+    }
+
+    protected override void OnTreeFirstBuilt()
+    {
+        var want = string.IsNullOrWhiteSpace( StartPage ) ? WantedPage : StartPage;
+
+        var wanted = string.IsNullOrWhiteSpace( want )
+            ? null
+            : Pages.FirstOrDefault( x => x.Title.Contains( want, StringComparison.OrdinalIgnoreCase ) );
+
+        Show( wanted ?? Pages.FirstOrDefault() );
+    }
+
+    /// <summary>
+    /// Show a page, building it the first time it's asked for.
+    /// </summary>
+    public void Show( TypeDescription page )
+    {
+        if ( page is null ) return;
+        if ( !Body.IsValid() ) return;
+
+        CurrentPage = page;
+
+        var key = page.FullName;
+
+        if ( !built.TryGetValue( key, out var panel ) || !panel.IsValid() )
+        {
+            panel = page.Create<Panel>();
+            if ( !panel.IsValid() ) return;
+
+            panel.Parent = Body;
+            built[key] = panel;
+        }
+
+        foreach ( var (name, existing) in built )
+        {
+            existing.SetClass( "hidden", name != key );
+        }
+
+        StateHasChanged();
+    }
+
+    ScreenPanel Screen => Components.Get<ScreenPanel>();
+
+    /// <summary>
+    /// Whether the UI is drawn before post processing, so bloom and tonemapping apply to it.
+    /// </summary>
+    public bool BeforePostProcessing => Screen?.Timing == ScreenPanel.RenderTiming.BeforePostProcess;
+
+    void TogglePostProcessing()
+    {
+        if ( Screen is null ) return;
+
+        Screen.Timing = BeforePostProcessing
+            ? ScreenPanel.RenderTiming.AfterPostProcess
+            : ScreenPanel.RenderTiming.BeforePostProcess;
+
+        StateHasChanged();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( CurrentPage, Pages.Count, BeforePostProcessing );
+}

@@ -192,6 +192,10 @@ public partial class RootPanel : Panel
 		if ( YogaNode == null )
 			return;
 
+		// Dirtiness propagates to the root, so a clean root means nothing to do
+		if ( !YogaNode.IsDirty )
+			return;
+
 		using var perfScope = Performance.Scope( "CalculateLayout" );
 		PushRootValues();
 		YogaNode.CalculateLayout();

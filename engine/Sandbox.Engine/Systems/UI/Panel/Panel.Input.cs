@@ -51,47 +51,36 @@ public partial class Panel
 		var s = ComputedStyle;
 		if ( s == null ) return false;
 
+		if ( !s.HasBorderRadius ) return true;
+
+		var radii = BorderRadii.FromStyle( s, rect );
+
 		pos.x -= rect.Left;
 		pos.y -= rect.Top;
 
+		var right = rect.Width - pos.x;
+		var bottom = rect.Height - pos.y;
 
-		if ( s.BorderTopLeftRadius.HasValue && s.BorderTopLeftRadius.Value.Unit > 0 )
-		{
-			var r = s.BorderTopLeftRadius.Value.GetPixels( (rect.Width + rect.Height) * 0.5f );
-			r = MathF.Min( MathF.Min( r, rect.Width / 2.0f ), rect.Height / 2.0f );
-			var c = new Vector2( r, r );
-			if ( pos.x < c.x && pos.y < c.y && Vector2.Distance( pos, c ) > r )
-				return false;
-		}
-
-		if ( s.BorderTopRightRadius.HasValue && s.BorderTopRightRadius.Value.Unit > 0 )
-		{
-			var r = s.BorderTopRightRadius.Value.GetPixels( (rect.Width + rect.Height) * 0.5f );
-			r = MathF.Min( MathF.Min( r, rect.Width / 2.0f ), rect.Height / 2.0f );
-			var c = new Vector2( rect.Width - r, r );
-			if ( pos.x > c.x && pos.y < c.y && Vector2.Distance( pos, c ) > r )
-				return false;
-		}
-
-		if ( s.BorderBottomRightRadius.HasValue && s.BorderBottomRightRadius.Value.Unit > 0 )
-		{
-			var r = s.BorderBottomRightRadius.Value.GetPixels( (rect.Width + rect.Height) * 0.5f );
-			r = MathF.Min( MathF.Min( r, rect.Width / 2.0f ), rect.Height / 2.0f );
-			var c = new Vector2( rect.Width - r, rect.Height - r );
-			if ( pos.x > c.x && pos.y > c.y && Vector2.Distance( pos, c ) > r )
-				return false;
-		}
-
-		if ( s.BorderBottomLeftRadius.HasValue && s.BorderBottomLeftRadius.Value.Unit > 0 )
-		{
-			var r = s.BorderBottomLeftRadius.Value.GetPixels( (rect.Width + rect.Height) * 0.5f );
-			r = MathF.Min( MathF.Min( r, rect.Width / 2.0f ), rect.Height / 2.0f );
-			var c = new Vector2( r, rect.Height - r );
-			if ( pos.x < c.x && pos.y > c.y && Vector2.Distance( pos, c ) > r )
-				return false;
-		}
+		if ( OutsideCorner( radii.TopLeft, pos.x, pos.y ) ) return false;
+		if ( OutsideCorner( radii.TopRight, right, pos.y ) ) return false;
+		if ( OutsideCorner( radii.BottomRight, right, bottom ) ) return false;
+		if ( OutsideCorner( radii.BottomLeft, pos.x, bottom ) ) return false;
 
 		return true;
+	}
+
+	/// <summary>
+	/// Whether a point falls outside a corner's quarter ellipse. Distances are from the panel's
+	/// two edges at that corner, so both are below the radius only within the corner itself.
+	/// </summary>
+	static bool OutsideCorner( Vector2 radius, float fromSide, float fromTopOrBottom )
+	{
+		if ( fromSide >= radius.x || fromTopOrBottom >= radius.y ) return false;
+
+		var x = (radius.x - fromSide) / radius.x;
+		var y = (radius.y - fromTopOrBottom) / radius.y;
+
+		return x * x + y * y > 1.0f;
 	}
 
 	/// <summary>

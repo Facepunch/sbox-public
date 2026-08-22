@@ -43,7 +43,7 @@ public class EditorAppSystem : AppSystem
 
 		var path = Utility.CommandLine.GetSwitch( "-project", "" ).TrimQuoted();
 
-		Project project = new() { ConfigFilePath = path };
+		Project project = new( path );
 		if ( project.LoadMinimal() )
 			return true;
 

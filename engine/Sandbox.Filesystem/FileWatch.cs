@@ -1,4 +1,5 @@
 ﻿using System.Text.RegularExpressions;
+using System.Threading;
 
 namespace Sandbox;
 
@@ -12,6 +13,23 @@ public sealed class FileWatch : IDisposable
 	/// Bit of a hack until we can do better. Don't trigger any watchers until this time.
 	/// </summary>
 	internal static float SuppressWatchers { get; set; }
+	private static int SuppressionCount;
+
+	internal static IDisposable Suppress()
+	{
+		Interlocked.Increment( ref SuppressionCount );
+		return new SuppressionScope();
+	}
+
+	private static void ClearPendingChanges()
+	{
+		foreach ( var fs in WithChanges )
+		{
+			fs.changedFiles.Clear();
+		}
+
+		WithChanges.Clear();
+	}
 
 	private static Logger log = new Logger( "FileWatch" );
 	internal static List<BaseFileSystem> WithChanges = new List<BaseFileSystem>();
@@ -156,9 +174,14 @@ public sealed class FileWatch : IDisposable
 			// Hack, we sometimes want to suppress this hotload for a number of seconds
 			// This blanket suppression is maybe not the best way, could do it via wildcards or something
 			//
+			// Scoped suppression defers changes until the scope ends.
+			if ( SuppressionCount > 0 )
+				return;
+
+			// Legacy timed suppression intentionally discards changes.
 			if ( SuppressWatchers > RealTime.Now )
 			{
-				WithChanges.Clear();
+				ClearPendingChanges();
 				return;
 			}
 
@@ -189,6 +212,19 @@ public sealed class FileWatch : IDisposable
 				if ( filesystem.Key.PendingDispose )
 					filesystem.Key.Dispose();
 			}
+		}
+	}
+
+	private sealed class SuppressionScope : IDisposable
+	{
+		private bool disposed;
+
+		public void Dispose()
+		{
+			if ( disposed ) return;
+			disposed = true;
+
+			Interlocked.Decrement( ref SuppressionCount );
 		}
 	}
 

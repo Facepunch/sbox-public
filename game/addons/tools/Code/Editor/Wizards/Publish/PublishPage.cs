@@ -15,11 +15,6 @@ partial class PublishWizard : BaseWizard
 		Project = project;
 		context = publishContext;
 
-		if ( context != null )
-		{
-			ConfigureResource();
-		}
-
 		AddSteps();
 	}
 
@@ -62,28 +57,6 @@ partial class PublishWizard : BaseWizard
 		var w = new PublishWizard( project, publishContext );
 		w.CreateWindow( 800, 600 );
 		return w;
-	}
-
-	/// <summary>
-	/// Take ResourcePublishContext and apply any changes to Project
-	/// which we will assume is a temporary project, and we're uploading
-	/// an asset, rather than a game.
-	/// </summary>
-	void ConfigureResource()
-	{
-		if ( context.IncludeCode )
-		{
-			//
-			// We don't have a better way right now. In the future
-			// we'll allow them to define which code to include and whatever.
-			//
-			Project.RootDirectory = Project.Current.RootDirectory;
-		}
-		else
-		{
-			// Don't drag in code from whatever project happens to be open right now.
-			Project.RootDirectory = null;
-		}
 	}
 }
 

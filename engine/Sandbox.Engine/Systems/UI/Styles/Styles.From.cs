@@ -25,6 +25,14 @@
 			{
 				TextGradient = a.TextGradient;
 			}
+
+			// The gradient is part of the background-image property, so any rule that
+			// set background-image - url(), none, or a gradient - carries its gradient
+			// state (possibly empty) over ours. A later url() must clear an earlier gradient.
+			if ( a._backgroundImage != null || !a.BackgroundGradient.ColorOffsets.IsDefaultOrEmpty )
+			{
+				BackgroundGradient = a.BackgroundGradient;
+			}
 		}
 
 		public override void From( BaseStyles bs )
@@ -45,7 +53,7 @@
 			}
 
 			TextGradient = a.TextGradient;
-
+			BackgroundGradient = a.BackgroundGradient;
 		}
 
 		internal void CopyShadows( BaseStyles bs )

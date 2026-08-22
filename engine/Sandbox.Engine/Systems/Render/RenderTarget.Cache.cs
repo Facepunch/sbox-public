@@ -22,7 +22,6 @@ public sealed partial class RenderTarget
 	public static RenderTarget GetTemporary( int width, int height, ImageFormat colorFormat = ImageFormat.Default, ImageFormat depthFormat = ImageFormat.Default, MultisampleAmount msaa = MultisampleAmount.MultisampleNone, int numMips = 1, string targetName = "" )
 	{
 		const int maxSize = 1024 * 16;
-		int maxMips = (int)Math.Log2( Math.Max( width, height ) );
 
 		if ( width <= 0 ) throw new ArgumentException( $"width should be higher than 0 (was {width}x{height})" );
 		if ( width > maxSize ) throw new ArgumentException( $"width should be lower than ({maxSize})" );
@@ -31,7 +30,7 @@ public sealed partial class RenderTarget
 		if ( numMips <= 0 ) throw new ArgumentException( $"numMips should be higher than 0 (was {width}x{height}x{numMips})" );
 		if ( numMips > 1 && msaa != MultisampleAmount.MultisampleNone ) throw new ArgumentException( $"Texture cannot have both msaa and mips at same time" );
 
-		numMips = Math.Min( numMips, maxMips );
+		numMips = Math.Min( numMips, CalculateMaxMipCount( width, height ) );
 
 		if ( colorFormat == ImageFormat.Default )
 			colorFormat = Graphics.IdealColorFormat;
@@ -77,6 +76,11 @@ public sealed partial class RenderTarget
 		return rt;
 	}
 
+	internal static int CalculateMaxMipCount( int width, int height )
+	{
+		return (int)Math.Log2( Math.Max( width, height ) ) + 1; // matt: this is correct, do not fucking tocuh it
+	}
+
 	/// <summary>
 	/// Get a temporary render target. You should dispose the returned handle when you're done to return the textures to the pool.
 	/// </summary>
@@ -100,7 +104,22 @@ public sealed partial class RenderTarget
 			ss = 8;
 		}
 
-		return GetTemporary( (int)(ss.x / sizeFactor), (int)(ss.y / sizeFactor), colorFormat, depthFormat, msaa, numMips, targetName );
+		var (width, height) = ScaleDownSize( ss, sizeFactor );
+
+		return GetTemporary( width, height, colorFormat, depthFormat, msaa, numMips, targetName );
+	}
+
+	/// <summary>
+	/// A viewport divided by a downsample factor, never smaller than a pixel. A big factor
+	/// against a short viewport - the tail of a bloom chain, say - would otherwise round an
+	/// axis down to zero, which isn't a render target you can make.
+	/// </summary>
+	internal static (int Width, int Height) ScaleDownSize( Vector2 viewport, int sizeFactor )
+	{
+		var width = Math.Max( (int)(viewport.x / sizeFactor), 1 );
+		var height = Math.Max( (int)(viewport.y / sizeFactor), 1 );
+
+		return (width, height);
 	}
 
 	internal void Return( RenderTarget source )

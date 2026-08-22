@@ -1,193 +1,69 @@
 @import "/styles/_front.scss";
 
+// The card's filler - takes whatever height the portrait and friends list leave,
+// so the slab always reaches the bottom with content in it rather than a void.
 ActivityFeed
 {
-	@include front-zone;
-	padding-top: 14px;    // only zone in its panel, so nothing above supplies the gap
-	padding-bottom: 2px;  // the panel adds $front-panel-foot underneath
-	gap: 9px;
+	@include front-card-list;
 
-	.head
-	{
-		flex-direction: row;
-		align-items: center;
-		margin-bottom: 1px;
-	}
+	flex-grow: 1;
+	flex-shrink: 1;
+	height: 0;
+	border-top: 1px solid $front-hairline;
 
-	.section-label
-	{
-		@include front-section-label;
-	}
-
-	.event
-	{
-		flex-direction: row;
-		align-items: center;
-		gap: 9px;
-	}
-
-	// Used by the "in game now" rows - rich presence gives a game name but no artwork.
-	.avatar
-	{
-		width: 28px;
-		height: 28px;
-		flex-shrink: 0;
-		border-radius: 5px;
-		background-size: cover;
-		background-position: center;
-		background-color: rgba( 0, 0, 0, 0.35 );
-	}
-
-	// Square, matching the game tiles on the left panel.
 	.thumb
 	{
-		width: 32px;
-		height: 32px;
-		flex-shrink: 0;
-		border-radius: 4px;
-		background-size: cover;
-		background-position: center;
-		background-color: rgba( 0, 0, 0, 0.35 );
+		@include front-row-media;
 	}
 
-	.event-body
+	// Action on one line, the game underneath it.
+	.row-body
 	{
 		flex-direction: column;
-		flex-grow: 1;
-		min-width: 0;
+		gap: 1px;
 	}
 
-	// Secondary to the game name - the game is the subject of the row.
 	.event-action
 	{
-		font-size: 11.5px;
-		color: $front-secondary;
+		font-size: 12px;
+		color: $front-tertiary;
+		max-width: 100%;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+
+		// The player's name inside the rich text - opens their profile.
+		a
+		{
+			@include front-text-link;
+
+			font-weight: 700;
+			color: $front-heading;
+
+			&:hover
+			{
+				color: $front-link-hover;
+			}
+		}
 	}
 
+	// Always opens the game's page - this row only renders when there's a package.
 	.event-game
 	{
+		@include front-text-link;
+
 		font-size: 13px;
 		font-weight: 600;
-		color: $front-heading;
+		max-width: 100%;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
-
-		&:hover
-		{
-			color: $front-accent;
-		}
 	}
 
 	.event-time
 	{
-		flex-shrink: 0;
-		font-size: 11px;
-		color: $front-tertiary;
+		@include front-row-meta;
+
+		margin-left: auto;
 	}
-
-	// "In game now" rows - same skeleton, with a Join where the timestamp goes.
-	.live-body
-	{
-		flex-direction: row;
-		align-items: center;
-		flex-shrink: 1;
-		min-width: 0;
-		gap: 5px;
-	}
-
-	.live-name
-	{
-		flex-shrink: 0;
-		font-size: 12.5px;
-		font-weight: 700;
-		color: $front-accent;
-	}
-
-	.live-in
-	{
-		flex-shrink: 0;
-		font-size: 12px;
-		color: $front-tertiary;
-	}
-
-	.live-game
-	{
-		flex-shrink: 1;
-		min-width: 0;
-		font-size: 12.5px;
-		font-weight: 600;
-		color: $front-heading;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.join
-	{
-		flex-shrink: 0;
-		align-items: center;
-		justify-content: center;
-		padding: 3px 11px;
-		border-radius: 4px;
-		border: 1px solid rgba( $front-accent, 0.45 );
-		transition: all 0.1s ease;
-
-		label
-		{
-			font-family: $front-font;
-			font-size: 11.5px;
-			font-weight: 600;
-			color: $front-accent;
-		}
-
-		&:hover
-		{
-			border-color: $front-accent;
-			background-color: rgba( $front-accent, 0.14 );
-		}
-	}
-
-	.group-rule
-	{
-		height: 1px;
-		margin: 3px 0 2px 0;
-		background-color: $front-hairline;
-	}
-
-	.footer-rule
-	{
-		height: 1px;
-		margin: 5px 0 2px 0;
-		background-color: $front-hairline;
-	}
-
-	.see-all
-	{
-		@include front-label-action;
-
-		&:hover
-		{
-			color: $front-heading;
-		}
-	}
-}
-
-// Rich-text node - must be top-level, they match on their own tag/class only.
-// text-decoration overrides the unscoped `a` rule in HtmlPanel.cs.scss.
-.front-friend
-{
-	color: $front-accent;
-	font-weight: 700;
-	text-decoration: none;
-	cursor: pointer;
-}
-
-.front-friend:hover
-{
-	color: #ffffff;
-	text-decoration: none;
 }

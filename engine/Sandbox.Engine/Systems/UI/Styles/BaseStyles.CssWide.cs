@@ -64,7 +64,7 @@ public abstract partial class BaseStyles
 		["inset"] = new[] { "top", "right", "bottom", "left" },
 		["gap"] = new[] { "row-gap", "column-gap" },
 		["overflow"] = new[] { "overflow-x", "overflow-y" },
-		["border-radius"] = new[] { "border-top-left-radius", "border-top-right-radius", "border-bottom-right-radius", "border-bottom-left-radius" },
+		["border-radius"] = new[] { "border-top-left-radius", "border-top-right-radius", "border-bottom-right-radius", "border-bottom-left-radius", "border-top-left-radius-v", "border-top-right-radius-v", "border-bottom-right-radius-v", "border-bottom-left-radius-v" },
 		["border-width"] = new[] { "border-top-width", "border-right-width", "border-bottom-width", "border-left-width" },
 		["border-color"] = new[] { "border-left-color", "border-top-color", "border-right-color", "border-bottom-color" },
 		["border"] = new[] { "border-left-width", "border-top-width", "border-right-width", "border-bottom-width", "border-left-color", "border-top-color", "border-right-color", "border-bottom-color" },

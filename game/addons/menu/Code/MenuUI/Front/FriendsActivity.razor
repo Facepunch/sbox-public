@@ -1,0 +1,182 @@
+@using System;
+@using System.Linq;
+@using MenuProject;
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+
+<root class="@( Friends.Count == 0 ? "hidden" : "" )">
+
+    <div class="head">
+        <label class="section-label">Friends activity</label>
+        <label class="count">(@Friends.Count)</label>
+    </div>
+
+    <div class="rows">
+        @foreach ( var live in Friends )
+        {
+            <div class="row">
+
+                @* round - these are people, not games *@
+                <div class="avatar round" style="background-image: url(avatar:@live.Id)" />
+
+                <div class="row-body">
+                    <label class="friend-name">@live.Name</label>
+                    <label class="friend-in">in</label>
+                    <label class="friend-game @( live.HasPage ? "clicky" : "" )" @onclick="@(() => OpenGame( live ))">@live.Game</label>
+                </div>
+
+                <div class="grow" />
+
+                @if ( live.Joinable )
+                {
+                    <div class="action join clicky" @onclick="@(() => Join( live ))">
+                        <label>Join</label>
+                    </div>
+                }
+                else if ( live.Invitable )
+                {
+                    <div class="action clicky" @onclick="@(() => Invite( live ))">
+                        <label>Invite</label>
+                    </div>
+                }
+
+            </div>
+        }
+    </div>
+
+</root>
+
+@code
+{
+    /// <summary>Snapshotted so we don't hit Steam every frame.</summary>
+    class LiveFriend
+    {
+        public Friend Handle;
+        public ulong Id;
+        public string Name;
+        public string Game;
+        public string Ident;
+        public bool Joinable;
+        public bool Invitable;
+
+        /// <summary>Idling in the menu isn't a game, so there's nothing to open.</summary>
+        public bool HasPage => !string.IsNullOrWhiteSpace( Ident );
+    }
+
+    List<LiveFriend> Friends { get; set; } = new();
+
+    const float FriendCheckInterval = 3f;
+
+    TimeSince timeSinceFriendCheck = FriendCheckInterval;
+    bool _lastStreamerMode = Preferences.StreamerMode;
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( !IsVisible ) return;
+
+        // Streamer mode changes friend names, so refresh straight away.
+        if ( Preferences.StreamerMode != _lastStreamerMode )
+        {
+            _lastStreamerMode = Preferences.StreamerMode;
+            RefreshFriends();
+            StateHasChanged();
+        }
+
+        if ( timeSinceFriendCheck < FriendCheckInterval ) return;
+
+        timeSinceFriendCheck = 0;
+        RefreshFriends();
+    }
+
+    void RefreshFriends()
+    {
+        var found = new List<LiveFriend>();
+
+        foreach ( var friend in MenuUtility.Friends )
+        {
+            if ( friend.IsMe ) continue;
+            if ( !friend.IsPlayingThisGame ) continue;
+
+            // "menu" means they're idling in the main menu - still worth a row, they're
+            // the people you can actually pull into something.
+            var game = friend.GetRichPresence( "gametitle" );
+            if ( string.IsNullOrWhiteSpace( game ) ) continue;
+
+            var joinable = MenuHelpers.HasAuthority
+                && !string.IsNullOrWhiteSpace( friend.GetRichPresence( "connect" ) );
+
+            found.Add( new LiveFriend
+            {
+                Handle = friend,
+                Id = friend.Id,
+                Name = friend.Name,
+                Game = game,
+                Ident = friend.GetRichPresence( "gamename" ),
+                Joinable = joinable,
+                Invitable = !joinable && MenuUtility.CanInviteToParty( friend ),
+            } );
+        }
+
+        // In a game first - idling in the menu is the least interesting row.
+        found = found
+            .OrderByDescending( x => x.Joinable )
+            .ThenBy( x => x.Name )
+            .ToList();
+
+        if ( Unchanged( found ) )
+            return;
+
+        Friends = found;
+        StateHasChanged();
+    }
+
+    bool Unchanged( List<LiveFriend> found )
+    {
+        if ( found.Count != Friends.Count )
+            return false;
+
+        for ( int i = 0; i < found.Count; i++ )
+        {
+            if ( found[i].Id != Friends[i].Id ) return false;
+            if ( found[i].Name != Friends[i].Name ) return false;
+
+            if ( found[i].Game != Friends[i].Game ) return false;
+            if ( found[i].Ident != Friends[i].Ident ) return false;
+            if ( found[i].Joinable != Friends[i].Joinable ) return false;
+            if ( found[i].Invitable != Friends[i].Invitable ) return false;
+        }
+
+        return true;
+    }
+
+    void Join( LiveFriend live )
+    {
+        if ( !MenuHelpers.HasAuthority )
+            return;
+
+        MenuUtility.JoinFriendGame( live.Handle );
+    }
+
+    async void Invite( LiveFriend live )
+    {
+        await PartyDeck.EnsureLobbyExists();
+        MenuUtility.InviteToParty( live.Id );
+    }
+
+    /// <summary>Opens the game's page. Fetches when it isn't already cached.</summary>
+    async void OpenGame( LiveFriend live )
+    {
+        if ( !live.HasPage )
+            return;
+
+        if ( !Package.TryGetCached( live.Ident, out var package ) )
+            package = await Package.Fetch( live.Ident, false );
+
+        package?.OpenModal();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Friends.Count, MenuHelpers.HasAuthority );
+}

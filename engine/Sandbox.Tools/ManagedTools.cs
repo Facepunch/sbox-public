@@ -55,14 +55,18 @@ internal static class ManagedTools
 
 	public static void InitQt()
 	{
-		var root = Environment.CurrentDirectory;
+		// Qt needs real paths on disk, but which case those are spelled in is the filesystem's
+		// business, not ours - so ask it rather than gluing strings onto the working directory.
+		QDir.addSearchPath( "toolimages", FileSystem.Root.GetFullPath( "/core/tools/images" ) );
+		QDir.addSearchPath( "toolimages", FileSystem.Root.GetFullPath( "/addons/tools/assets" ) );
 
-		QDir.addSearchPath( "toolimages", $"{root}/core/tools/images" );
-		QDir.addSearchPath( "toolimages", $"{root}/addons/tools/assets" );
+		// Same for the fonts, which is what bit: this folder is really called Assets, so
+		// enumerating a spelled-out path found nothing and Qt never got a font.
+		const string fontFolder = "/addons/base/assets/fonts";
 
-		foreach ( var file in System.IO.Directory.EnumerateFiles( $"{root}/addons/base/assets/fonts/", "*.ttf" ) )
+		foreach ( var file in FileSystem.Root.FindFile( fontFolder, "*.ttf" ) )
 		{
-			QFontDatabase.addApplicationFont( file );
+			QFontDatabase.addApplicationFont( FileSystem.Root.GetFullPath( $"{fontFolder}/{file}" ) );
 		}
 	}
 

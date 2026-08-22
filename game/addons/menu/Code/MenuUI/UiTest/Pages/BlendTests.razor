@@ -1,0 +1,124 @@
+@namespace MenuProject.UiTest
+@inherits UiTestPage
+
+@using Sandbox;
+@using Sandbox.UI;
+
+@attribute [Title( "Blending" )]
+@attribute [Description( "Filters, blend modes, and group opacity" )]
+@attribute [Icon( "opacity" )]
+@attribute [Order( 75 )]
+
+@*
+    Filters are known to differ from Chrome - the web runs them on linear RGB, we appear to work
+    on the encoded value and do brightness and saturate through HSV. Each filter case has its
+    unfiltered self next to it so the comparison is direct.
+*@
+
+<root>
+
+    <h2>Filters</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Swatch" Css="filter: none" Note="Reference." />
+        <UiTestCase Setup="@Swatch" Css="filter: brightness( 1.4 )" Note="The web multiplies in linear RGB. Ours goes through HSV, which is why this reads brighter and more yellow than Chrome's." />
+        <UiTestCase Setup="@Swatch" Css="filter: brightness( 0.6 )" />
+        <UiTestCase Setup="@Swatch" Css="filter: contrast( 1.6 )" />
+        <UiTestCase Setup="@Swatch" Css="filter: contrast( 0.4 )" />
+        <UiTestCase Setup="@Swatch" Css="filter: saturate( 0.2 )" Note="The web uses a luminance-preserving matrix, so a desaturated colour keeps its brightness." />
+        <UiTestCase Setup="@Swatch" Css="filter: saturate( 2 )" />
+        <UiTestCase Setup="@Swatch" Css="filter: hue-rotate( 90deg )" />
+        <UiTestCase Setup="@Swatch" Css="filter: hue-rotate( 180deg )" />
+        <UiTestCase Setup="@Swatch" Css="filter: invert( 1 )" />
+        <UiTestCase Setup="@Swatch" Css="filter: grayscale( 1 )" Note="Grey by luminance - the result should match the colour's perceived brightness." />
+        <UiTestCase Setup="@Swatch" Css="filter: sepia( 1 )" />
+    </div>
+
+    <h2>Chained and blurred</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Swatch" Css="filter: brightness( 1.2 ) saturate( 0.5 ) hue-rotate( 40deg )" Note="Order matters - these apply left to right." />
+        <UiTestCase Setup="@Swatch" Css="filter: saturate( 0.5 ) brightness( 1.2 ) hue-rotate( 40deg )" Note="Same three, different order, so a different result." />
+        <UiTestCase Setup="@Swatch" class="roomy" Css="filter: blur( 6px )" Note="Blur reaches outside the box - it must not be clipped to it." />
+        <UiTestCase Setup="@Swatch" class="roomy" Css="filter: drop-shadow( 6px 6px 8px #000000 )" Note="drop-shadow follows the drawn shape, unlike box-shadow which follows the box." />
+        <UiTestCase Setup="@Swatch" class="roomy" Css="filter: blur( 3px ) drop-shadow( 4px 4px 0 #4a9eff )" Note="A shadow of an already blurred thing." />
+        <UiTestCase Setup="@Round" class="roomy" Css="filter: drop-shadow( 0 0 6px #4a9eff )" Note="Round shape, so the shadow should be round too." />
+    </div>
+
+    <h2>backdrop-filter</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Glass" class="checkered" Css="backdrop-filter: blur( 8px )" Note="Blurs what's behind, not itself." />
+        <UiTestCase Setup="@Glass" class="checkered" Css="backdrop-filter: blur( 8px ); background-color: rgba( 255, 255, 255, 0.15 )" Note="The usual frosted panel." />
+        <UiTestCase Setup="@Glass" class="checkered" Css="backdrop-filter: brightness( 0.4 )" Note="Darkens the backdrop rather than blurring it." />
+        <UiTestCase Setup="@Glass" class="checkered" Css="backdrop-filter: blur( 8px ); border-radius: 24px" Note="The backdrop is clipped by the corners." />
+        <UiTestCase Setup="@Glass" class="checkered roomy" Css="backdrop-filter: blur( 8px ); transform: rotate( 10deg )" Note="Rotated - the sampled region has to rotate with it." />
+    </div>
+
+    <h2>Blend modes</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Frame" Rule="mix-blend-mode: normal" Note="Reference: the red square simply covers the gradient.">
+            <ChildContent><div class="under"><div class="blend normal"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="mix-blend-mode: multiply" Note="Always darker.">
+            <ChildContent><div class="under"><div class="blend multiply"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="mix-blend-mode: screen" Note="Always lighter.">
+            <ChildContent><div class="under"><div class="blend screen"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="mix-blend-mode: overlay" Note="Multiply or screen depending on the backdrop.">
+            <ChildContent><div class="under"><div class="blend overlay"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="mix-blend-mode: lighten" Note="Per channel maximum.">
+            <ChildContent><div class="under"><div class="blend lighten"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="mix-blend-mode: difference" Note="Absolute difference - the most obvious one if the maths is off.">
+            <ChildContent><div class="under"><div class="blend difference"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="isolation: isolate on the parent" Note="Isolation stops the blend reaching past its group - the blended square should only see the gradient, not the page.">
+            <ChildContent><div class="under isolated"><div class="blend difference"></div></div></ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Group opacity</h2>
+
+    <p>
+        The web composites a subtree once and then fades the result, so overlapping children don't
+        show through each other. Fading each child on its own is a different picture - if these
+        two cases match, we're doing it per child.
+    </p>
+
+    <div class="cases">
+        <UiTestCase Setup="@Frame" Rule="parent { opacity: 0.5 }" Note="One group at half opacity: the overlap should look the same as the rest.">
+            <ChildContent>
+                <div class="group-fade">
+                    <div class="ov red"></div><div class="ov green"></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="each child { opacity: 0.5 }" Note="Each child faded separately, so the overlap is denser. This one is expected to differ from the case beside it.">
+            <ChildContent>
+                <div class="group">
+                    <div class="ov red half"></div><div class="ov green half"></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="parent { opacity: 0.5 } with a filter inside" Note="Group opacity over a filtered child - the filter's layer mustn't be faded twice.">
+            <ChildContent>
+                <div class="group-fade">
+                    <div class="ov red"></div><div class="ov green blurred"></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+    </div>
+
+</root>
+
+@code
+{
+    const string Swatch = "width: 90px; height: 90px; background-color: #e8b04a";
+    const string Round = "width: 90px; height: 90px; border-radius: 50%; background-color: #e8b04a";
+    const string Glass = "width: 90px; height: 90px";
+    const string Frame = "width: 120px; height: 100px";
+}

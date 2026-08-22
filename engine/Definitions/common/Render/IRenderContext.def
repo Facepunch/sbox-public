@@ -81,12 +81,15 @@ native class IRenderContext as NativeEngine.IRenderContext
 
 	inline void BindRenderTargets( ITexture colorTexture, ITexture depthTexture, ISceneLayer layer )
 	{
+		const RenderTargetDesc_t &layerDesc = layer->GetRenderTargetDesc();
+
 		// We can have a layer that only renders to color but if we only bind depth assume we want to blit to main framebuffer
 		if( colorTexture == RENDER_TEXTURE_HANDLE_INVALID )
-			colorTexture = layer->GetRenderTargetDesc().m_pColorTargets[0];
+			colorTexture = layerDesc.m_pColorTargets[0];
 
-		RenderTargetDesc_t rtDesc( colorTexture, depthTexture, RENDER_SRGB );
-		
+		// Custom targets bind in the layer's color space, same as RestoreRenderTargets
+		RenderTargetDesc_t rtDesc( colorTexture, depthTexture, layerDesc.m_allowSrgbWrite[0] );
+
 		self->BindRenderTargets( rtDesc );
 	}
 

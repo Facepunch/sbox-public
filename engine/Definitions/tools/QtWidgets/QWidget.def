@@ -1,6 +1,7 @@
 ﻿#include "qcontrols/qt_includes.h"
 #include "sbox_widgets.h"
 
+[QFlags]
 native enum Qt::WindowFlags is Editor.WindowFlags;
 native enum Qt::WidgetAttribute is Editor.Widget.Flag;
 native enum Qt::FocusPolicy is Editor.FocusMode;

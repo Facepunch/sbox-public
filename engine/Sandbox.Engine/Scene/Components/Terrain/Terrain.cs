@@ -96,7 +96,7 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 
 		var cam = Scene.IsEditor ? Application.Editor.Camera : Scene.Camera;
 		if ( cam.IsValid() )
-			_so.UpdateView( GetCullFrustum( cam ), cam.WorldPosition );
+			_so.UpdateClipCamera( cam.WorldPosition );
 
 		if ( Storage is null )
 			return;
@@ -110,12 +110,6 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 			material.BCRTexture?.MarkUsed( 4096 );
 			material.NHOTexture?.MarkUsed( 4096 );
 		}
-	}
-	private Frustum GetCullFrustum( CameraComponent cam )
-	{
-		float scale = Math.Clamp( MeshletFrustumScale, 0, 1 );
-		var sr = cam.ScreenRect;
-		return cam.GetFrustum( sr.Shrink( sr.Width * (1.0f - scale) * 0.5f, sr.Height * (1.0f - scale) * 0.5f ) );
 	}
 
 	protected override void OnTagsChanged()

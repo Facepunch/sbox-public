@@ -1,0 +1,56 @@
+// Blend cases need something underneath worth blending with, so each sits on a gradient.
+
+BlendTests
+{
+	.under
+	{
+		position: relative;
+		width: 100px;
+		height: 90px;
+		flex-shrink: 0;
+		background-image: linear-gradient( 135deg, #101010, #ffffff );
+	}
+
+	.isolated { isolation: isolate; }
+
+	.blend
+	{
+		position: absolute;
+		left: 20px;
+		top: 20px;
+		width: 60px;
+		height: 50px;
+		background-color: #e84a4a;
+	}
+
+	.normal { mix-blend-mode: normal; }
+	.multiply { mix-blend-mode: multiply; }
+	.screen { mix-blend-mode: screen; }
+	.overlay { mix-blend-mode: overlay; }
+	.lighten { mix-blend-mode: lighten; }
+	.difference { mix-blend-mode: difference; }
+
+	// Two overlapping children, faded as a group or one at a time
+	.group, .group-fade
+	{
+		position: relative;
+		width: 100px;
+		height: 90px;
+		flex-shrink: 0;
+	}
+
+	.group-fade { opacity: 0.5; }
+
+	.ov
+	{
+		position: absolute;
+		width: 60px;
+		height: 60px;
+	}
+
+	.ov.red { left: 0; top: 0; background-color: #e84a4a; }
+	.ov.green { left: 30px; top: 25px; background-color: #3fc76a; }
+
+	.half { opacity: 0.5; }
+	.blurred { filter: blur( 3px ); }
+}

@@ -8,6 +8,11 @@ public struct LayoutCascade
 
 	public Styles ParentStyles;
 
+	/// <summary>
+	/// An ancestor has background-clip: text, so the text under it is the stencil for its background.
+	/// </summary>
+	internal bool ClipBackgroundToText;
+
 	internal RootPanel Root;
 
 	//

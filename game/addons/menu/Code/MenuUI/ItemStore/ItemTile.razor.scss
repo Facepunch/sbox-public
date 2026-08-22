@@ -1,116 +1,275 @@
-﻿
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+// A portrait card lit by its own rarity: the art floats on a radial wash of the rarity
+// colour, and the border takes the same colour once the item is in the cart.
 ItemTile
 {
-    display: flex;
-    flex-direction: row;
-    gap: 10px;
-    width: 550px;
-    background-color: #0003;
-    border-radius: 10px;
-    overflow: hidden;
-    opacity: 0.8;
-}
+	@include front-card;
 
-ItemTile:hover
-{
-    opacity: 1;
-}
+	width: 232px;
+	border-width: 1px;
+	transition: all 0.15s ease;
+	cursor: default;
 
-ItemTile .left
-{
-    width: 180px;
-    height: 180px;
-    flex-shrink: 0;
-}
+	&:hover
+	{
+		transform: translateY( -3px );
+		box-shadow: 0 14px 30px rgba( 0, 0, 0, 0.45 );
 
-ItemTile .right
-{
-    flex-direction: column;
-    padding: 18px;
-    flex-grow: 1;
-}
+		.art
+		{
+			transform: scale( 1.06 );
+		}
+	}
 
-ItemTile .title
-{
-    font-family: poppins;
-    font-weight: bold;
-    font-size: 20px;
-}
+	&.in-cart
+	{
+		background-color: rgba( 47, 127, 240, 0.08 );
+	}
 
-ItemTile .description
-{
-    font-size: 15px;
-    opacity: 0.2;
-}
+	// Already in the inventory - still there, but stepped back.
+	&.owned
+	{
+		opacity: 0.55;
 
-ItemTile .enddate
-{
-    color: #08f;
-    font-weight: bold;
-}
+		&:hover { opacity: 0.85; }
+	}
 
-ItemTile .spacer
-{
-    flex-grow: 1;
-}
+	.art-wrap
+	{
+		position: relative;
+		width: 100%;
+		aspect-ratio: 1 / 1;
+		align-items: center;
+		justify-content: center;
+		overflow: hidden;
+		background-color: rgba( 0, 0, 0, 0.25 );
+	}
 
-.bottom .spacer
-{
-    flex-grow: 1;
-}
+	.art
+	{
+		width: 84%;
+		height: 84%;
+		background-size: contain;
+		background-position: center;
+		background-repeat: no-repeat;
+		transition: transform 0.2s ease;
+	}
 
-.cart
-{
-    flex-direction: row;
-    align-items: center;
-}
+	.tags
+	{
+		position: absolute;
+		top: 10px;
+		left: 10px;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 5px;
+	}
 
-.cart .count
-{
-    padding: 0 5px;
-    justify-content: center;
-    align-items: center;
-    min-width: 32px;
-}
+	.tag
+	{
+		padding: 3px 8px;
+		border-radius: 999px;
+		font-family: $front-font;
+		font-size: 10px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: #fff;
+		background-color: rgba( 14, 18, 26, 0.85 );
+		border: 1px solid $front-hairline;
 
-.cart .price
-{
-    flex-grow: 1;
-    padding: 0 20px;
-}
+		&.leaving
+		{
+			color: $front-trophy;
+			border-color: rgba( 232, 180, 74, 0.35 );
+		}
 
-.cart .adder
-{
-    background-color: #444a;
-    border-radius: 10px;
-    overflow: hidden;
-}
+		&.soon
+		{
+			color: #fff;
+			background-color: $front-trophy;
+			border-color: $front-trophy;
+		}
 
-.cart .add, .cart .remove
-{
-    background: linear-gradient( to bottom, rgba(121,153,5,1) 0%, rgba(83,105,4,1) 95%);
-    padding: 7px;
-    color: #D2E885;
-    border-radius: 4px;
-    cursor: pointer;
-}
+		&.sale
+		{
+			color: #fff;
+			background-color: $front-reward;
+			border-color: $front-reward;
+		}
+	}
 
+	.owned-pill
+	{
+		position: absolute;
+		right: 10px;
+		bottom: 10px;
+		padding: 3px 8px;
+		border-radius: 999px;
+		font-family: $front-font;
+		font-size: 10px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: $front-body;
+		background-color: rgba( 14, 18, 26, 0.85 );
+		border: 1px solid $front-hairline;
+	}
 
-.cart .add:hover, .cart .remove:hover
-{
-    color: #fff;
-    filter: brightness( 2 );
-}
+	.body
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		padding: 12px 14px 14px;
+		gap: 2px;
+		border-top: 1px solid $front-hairline;
+	}
 
-.cart .add:active, .cart .remove:active
-{
-    color: #fff;
-    filter: brightness( 3 );
-}
+	.name
+	{
+		font-family: $front-font;
+		font-size: 15px;
+		font-weight: 700;
+		color: $front-heading;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
 
+	.rarity
+	{
+		font-size: 10.5px;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+	}
 
-.owned
-{
-    color: red;
-    font-weight: bold;
+	.buy
+	{
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+		margin-top: 12px;
+		gap: 8px;
+	}
+
+	.price
+	{
+		flex-direction: column;
+		flex-shrink: 1;
+		min-width: 0;
+	}
+
+	.now
+	{
+		font-family: $front-font;
+		font-size: 17px;
+		font-weight: 800;
+		color: $front-heading;
+	}
+
+	.was
+	{
+		font-size: 11px;
+		font-weight: 500;
+		color: $front-tertiary;
+	}
+
+	// Sale prices go green so the number itself says "deal", not just the tag.
+	&.on-sale .now
+	{
+		color: $front-reward;
+	}
+
+	.add
+	{
+		@include front-button;
+
+		flex-shrink: 0;
+		padding: 7px 12px;
+		cursor: pointer;
+
+		label { font-size: 11px; }
+		icon { font-size: 15px; }
+
+		&:hover { sound-in: "ui.button.over"; }
+		&:active { sound-in: "ui.button.press"; }
+	}
+
+	.adder
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		border-radius: 6px;
+		border: 1px solid rgba( $front-primary, 0.6 );
+		background-color: rgba( $front-primary, 0.14 );
+		overflow: hidden;
+	}
+
+	.step
+	{
+		width: 28px;
+		height: 28px;
+		align-items: center;
+		justify-content: center;
+		cursor: pointer;
+		transition: all 0.1s ease;
+
+		icon
+		{
+			font-size: 16px;
+			color: $front-heading;
+		}
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+			background-color: rgba( $front-primary, 0.5 );
+		}
+
+		&:active { sound-in: "ui.button.press"; }
+	}
+
+	// The count is typeable - a bare entry between the two step buttons. min/max-height,
+	// margin and flex-grow are stated because other menu stylesheets set them on bare
+	// TextEntry and stylesheets are global. No text-align here: centring a TextEntry's
+	// label kills its text render.
+	.count
+	{
+		width: 40px;
+		height: 28px;
+		min-height: 0;
+		max-height: 28px;
+		margin: 0;
+		padding: 0 8px;
+		flex-grow: 0;
+		flex-shrink: 0;
+		border: 0;
+		border-left: 1px solid rgba( $front-primary, 0.35 );
+		border-right: 1px solid rgba( $front-primary, 0.35 );
+		border-radius: 0;
+		background-color: rgba( 0, 0, 0, 0.25 );
+		font-family: $front-font;
+		font-size: 13px;
+		font-weight: 700;
+		color: $front-heading;
+		cursor: text;
+		justify-content: center;
+
+		// The base style grows the label to fill the entry, which left-aligns the number.
+		.content-label
+		{
+			flex-grow: 0;
+			padding: 0;
+			margin: 0;
+		}
+
+		&:focus
+		{
+			background-color: rgba( $front-primary, 0.3 );
+		}
+	}
 }

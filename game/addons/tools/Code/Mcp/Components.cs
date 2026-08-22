@@ -1,7 +1,3 @@
-using Sandbox;
-using System;
-using System.Linq;
-
 namespace Editor.Mcp;
 
 [McpToolset( "component", "Component type documentation - what components exist and what properties they expose" )]

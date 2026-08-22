@@ -1,7 +1,9 @@
 ﻿
 native enum Qt::ScrollBarPolicy is Editor.ScrollbarMode;
 native enum QGraphicsItem::GraphicsItemFlag is Native.GraphicsItemFlag;
+[QFlags]
 native enum Qt::KeyboardModifiers is Editor.QtKeyboardModifiers;
+[QFlags]
 native enum Qt::MouseButtons is Sandbox.MouseButtons;
 native enum QGraphicsView::ViewportAnchor is Editor.GraphicsView.ViewportAnchorType;
 

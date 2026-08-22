@@ -1536,15 +1536,8 @@ public sealed unsafe partial class CommandList
 			// MakeReady resets TimeSinceUsed, preventing Tick() from evicting this block
 			tb.MakeReady();
 
-			Graphics.Attributes.Set( "Texture", tb.Texture );
-			Graphics.Attributes.Set( "SamplerIndex", SamplerState.GetBindlessIndex( new SamplerState() { Filter = tb.FilterMode } ) );
-
 			var rect = position.Align( tb.Texture.Size, flags );
-
-			if ( angle == 0f )
-				Graphics.DrawQuad( rect.Floor(), Material.UI.Text, Color.White );
-			else
-				Graphics.DrawQuad( rect.Floor(), angle, Material.UI.Text, Color.White );
+			Graphics.DrawTextTexture( tb.Texture, tb.FilterMode, rect.Floor(), angle );
 		}
 
 		AddEntry( &Execute, new Entry

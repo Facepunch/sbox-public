@@ -70,6 +70,23 @@ public abstract class Module
 	/// <summary>What the current run is generating for, so a module can branch on it.</summary>
 	public static bool Windows => NativePlatform.Current.IsWindows;
 	public static bool Linux => !Windows;
+	public static bool Retail { get; internal set; }
+
+	/// <summary>
+	/// A prebuilt third party library under src/thirdparty, named the way the platform being
+	/// built names it. Set shared for one that ships as a dll or so rather than statically.
+	/// </summary>
+	public static string ThirdPartyLib( string dir, string name, bool shared = false )
+	{
+		var path = $"thirdparty/{dir}/lib/{NativePlatform.Current.DirectoryName}";
+
+		if ( Windows )
+			return $"{path}/{name}.lib";
+
+		// Some carry the prefix in the name already, as libwebp does.
+		var prefix = name.StartsWith( "lib", StringComparison.Ordinal ) ? "" : "lib";
+		return $"{path}/{prefix}{name}.{(shared ? "so" : "a")}";
+	}
 
 	public string Name;
 	public ModuleKind Kind = ModuleKind.Lib;
@@ -126,6 +143,7 @@ public abstract class Module
 
 	/// <summary>This module is only built on Windows.</summary>
 	public bool WindowsOnly;
+
 
 	/// <summary>Relax warnings for code we do not own.</summary>
 	public bool ThirdParty;
