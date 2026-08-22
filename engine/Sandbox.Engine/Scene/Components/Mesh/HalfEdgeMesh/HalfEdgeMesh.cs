@@ -2788,7 +2788,7 @@ internal sealed partial class Mesh
 
 				hFullEdge = FindFullEdgeConnectingVertices( hVertexA, hVertexB );
 				bool bSuccess = CollapseEdge( hFullEdge, out hOutNewVertex, bCheckOnly, out var _ );
-				if ( bCheckOnly )
+				if ( bCheckOnly || !bSuccess )
 				{
 					RemoveFace( hNewFace, false );
 				}
@@ -2810,7 +2810,7 @@ internal sealed partial class Mesh
 
 				hFullEdge = FindFullEdgeConnectingVertices( hVertexA, hVertexB );
 				var bSuccess = CollapseEdge( hFullEdge, out hOutNewVertex, bCheckOnly, out var _ );
-				if ( bCheckOnly )
+				if ( bCheckOnly || !bSuccess )
 				{
 					RemoveFace( hNewFace, false );
 				}
