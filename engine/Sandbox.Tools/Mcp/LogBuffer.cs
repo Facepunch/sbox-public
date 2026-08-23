@@ -11,8 +11,15 @@ internal static class LogBuffer
 	const int MaxEvents = 2000;
 
 	static readonly object sync = new();
-	static readonly Queue<LogEvent> events = new();
+	static readonly Queue<Entry> events = new();
 	static bool capturing;
+	static long sequence;
+
+	/// <summary>
+	/// One buffered event and the number it was captured under. The number only ever goes up, so
+	/// a reader can ask for everything since the last one it saw.
+	/// </summary>
+	public readonly record struct Entry( long Sequence, LogEvent Event );
 
 	public static void StartCapture()
 	{
@@ -28,7 +35,7 @@ internal static class LogBuffer
 	{
 		lock ( sync )
 		{
-			events.Enqueue( e );
+			events.Enqueue( new Entry( ++sequence, e ) );
 
 			while ( events.Count > MaxEvents )
 			{
@@ -40,7 +47,7 @@ internal static class LogBuffer
 	/// <summary>
 	/// Everything buffered so far, oldest first.
 	/// </summary>
-	public static LogEvent[] Snapshot()
+	public static Entry[] Snapshot()
 	{
 		lock ( sync )
 		{

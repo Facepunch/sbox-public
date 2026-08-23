@@ -1,4 +1,5 @@
-﻿using static Facepunch.Constants;
+﻿using System.Globalization;
+using static Facepunch.Constants;
 
 namespace Facepunch.Steps;
 
@@ -18,7 +19,7 @@ internal class WriteVersion
 							  $"{Environment.GetEnvironmentVariable( "GITHUB_RUN_ID" )}\n" +
 							  $"{Environment.GetEnvironmentVariable( "GITHUB_JOB" )}\n" +
 							  $"{Environment.GetEnvironmentVariable( "GITHUB_ACTOR" )}\n" +
-							  $"{DateTime.UtcNow}\n";
+							  $"{DateTime.UtcNow.ToString( "dd/MM/yyyy HH:mm:ss", CultureInfo.InvariantCulture )}\n";
 
 			File.WriteAllText( target, contents );
 

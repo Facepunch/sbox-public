@@ -38,34 +38,16 @@ internal static partial class PackageManager
 
 			if ( package is LocalPackage localPackage )
 			{
-				var projectSettingsPath = System.IO.Path.Combine( localPackage.Project.GetRootPath(), "ProjectSettings" );
+				// A local package mounts it's project's filesystems (don't use them directly!)
+				o.FileSystem = new AggregateFileSystem();
+				o.FileSystem.Mount( localPackage.Project.CodeFileSystem );
+				o.FileSystem.Mount( localPackage.Project.AssetsFileSystem );
 
 				o.ProjectSettings = new AggregateFileSystem();
-				if ( System.IO.Directory.Exists( projectSettingsPath ) )
-				{
-					o.ProjectSettings.CreateAndMount( projectSettingsPath );
-				}
+				o.ProjectSettings.Mount( localPackage.Project.ProjectSettingsFileSystem );
 
-				o.Localization ??= new AggregateFileSystem();
-				if ( System.IO.Directory.Exists( localPackage.LocalizationPath ) )
-				{
-					o.Localization.CreateAndMount( localPackage.LocalizationPath );
-				}
-
-				o.FileSystem = new AggregateFileSystem();
-
-				if ( System.IO.Directory.Exists( localPackage.CodePath ) )
-				{
-					if ( localPackage.CodePath != null )
-					{
-						o.FileSystem.CreateAndMount( localPackage.CodePath );
-					}
-				}
-
-				if ( System.IO.Directory.Exists( localPackage.ContentPath ) )
-				{
-					o.FileSystem.CreateAndMount( localPackage.ContentPath );
-				}
+				o.Localization = new AggregateFileSystem();
+				o.Localization.Mount( localPackage.Project.LocalizationFileSystem );
 
 				o.AssemblyFileSystem = new AggregateFileSystem();
 
@@ -129,7 +111,7 @@ internal static partial class PackageManager
 			//
 			// Mount localization data from this package
 			//
-			Localization ??= new AggregateFileSystem();
+			Localization = new AggregateFileSystem();
 			if ( FileSystem.DirectoryExists( "localization" ) )
 			{
 				// Mount as a subsystem of the package's FileSystem
@@ -137,22 +119,19 @@ internal static partial class PackageManager
 			}
 
 			//
-			// If the ProjectSettings folder exists, we can create a filesystem for it.
-			// If not, just create a memory filesystem, which will be empty, but at least won't be null.
+			// Same for ProjectSettings. Empty if the package hasn't got the folder, so callers get
+			// a filesystem with nothing in it rather than a null.
 			//
+			ProjectSettings = new AggregateFileSystem();
 			if ( FileSystem.DirectoryExists( "ProjectSettings" ) )
 			{
-				ProjectSettings = FileSystem.CreateSubSystem( "ProjectSettings" );
-			}
-			else
-			{
-				ProjectSettings = new MemoryFileSystem();
+				ProjectSettings.Mount( FileSystem.CreateSubSystem( "ProjectSettings" ) );
 			}
 
 			//
 			// Mount assembly from this package
 			//
-			AssemblyFileSystem ??= new AggregateFileSystem();
+			AssemblyFileSystem = new AggregateFileSystem();
 			if ( FileSystem.DirectoryExists( ".bin" ) )
 			{
 				// Mount as a subsystem of the package's FileSystem
@@ -162,7 +141,6 @@ internal static partial class PackageManager
 			var dllFs = await DownloadBinDllsAsync( Package.Revision, token );
 			if ( dllFs != null )
 			{
-				AssemblyFileSystem ??= new AggregateFileSystem();
 				AssemblyFileSystem.Mount( dllFs );
 			}
 		}
@@ -346,6 +324,14 @@ internal static partial class PackageManager
 
 			AssemblyFileSystem.Dispose();
 			AssemblyFileSystem = null;
+
+			// Ours as well - for a local package these are wrappers around the project's
+			// filesystems, and the project keeps those
+			ProjectSettings?.Dispose();
+			ProjectSettings = null;
+
+			Localization?.Dispose();
+			Localization = null;
 
 			// Reload any resident resources that were just unmounted (they shouldn't be used & will appear as an error, or a local variant)
 			NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();

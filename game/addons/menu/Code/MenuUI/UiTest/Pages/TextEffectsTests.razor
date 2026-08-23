@@ -1,0 +1,91 @@
+﻿@namespace MenuProject.UiTest
+@inherits UiTestPage
+
+@using Sandbox;
+@using Sandbox.UI;
+
+@attribute [Title( "Text: Effects" )]
+@attribute [Description( "Decorations, shadows, strokes, gradients" )]
+@attribute [Icon( "format_underlined" )]
+@attribute [Order( 34 )]
+
+<root>
+
+    <h2>Decoration</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Text" Css="text-decoration: underline" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="text-decoration: overline" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="text-decoration: line-through" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="text-decoration: underline; text-decoration-color: #4ac2e8" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="text-decoration: underline; text-decoration-thickness: 3px" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="text-decoration: underline; text-underline-offset: 4px" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="text-decoration: underline; text-decoration-skip-ink: all" Text="@Descenders"
+                    Note="The line breaks around descenders." />
+        <UiTestCase Setup="@Text" Css="text-decoration: underline; text-decoration-skip-ink: none" Text="@Descenders"
+                    Note="Straight through them instead." />
+        <UiTestCase Setup="@Text" Css="text-decoration: none" Text="@Sample" Note="Explicitly none - it used to be ignored." />
+    </div>
+
+    <h2>Shadow</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Text" Css="text-shadow: 2px 2px 0 #000" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="text-shadow: 0 2px 6px #000" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="text-shadow: 0 0 12px #4ac2e8" Text="@Sample" Note="A glow - the shadow is the only thing outside the glyphs." />
+        <UiTestCase Setup="@Text" Css="text-shadow: 2px 2px 0 #e84a4a, -2px -2px 0 #4a6ee8" Text="@Sample"
+                    Note="Two shadows, first one on top." />
+        <UiTestCase Setup="@Text" Css="text-decoration: underline; text-shadow: 0 2px 4px #000" Text="@Sample"
+                    Note="The underline's shadow must be the shadow colour, not the text colour." />
+        <UiTestCase Setup="@Text" Css="color: rgba( 255, 255, 255, 0.4 ); text-shadow: 0 2px 4px #000" Text="@Sample"
+                    Note="Translucent text over its own shadow - no solid copy should show through." />
+    </div>
+
+    <h2>Stroke and outline</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Text" Css="text-stroke: 1px #000" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="text-stroke: 3px #000" Text="@Sample" Note="A thick stroke grows inward and outward from the glyph edge." />
+        <UiTestCase Setup="@Text" Css="text-stroke: 2px #4ac2e8; color: #16181d" Text="@Sample" Note="Dark fill, bright stroke." />
+        <UiTestCase Setup="@Text" Css="text-stroke: 2px #000; text-shadow: 0 2px 4px #000" Text="@Sample" Note="Stroke and shadow together." />
+    </div>
+
+    <h2>Gradient fill</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Text" Css="color: linear-gradient( to right, #4ac2e8, #e84ad0 )" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="color: linear-gradient( to bottom, #ffffff, #6f7788 )" Text="@Sample"
+                    Note="Top to bottom across the line box, not per glyph." />
+        <UiTestCase Setup="@Text" Css="color: linear-gradient( to right, #4ac2e8, #e84ad0 ); text-stroke: 1px #000" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="color: radial-gradient( #ffffff, #4a6ee8 )" Text="@Sample" />
+    </div>
+
+    <h2>Rich spans</h2>
+
+    <p>
+        A label can carry spans with their own styles. Each span's font size is its own - it used to
+        take the parent's.
+    </p>
+
+    <div class="cases">
+        <UiTestCase Setup="width: 200px" Note="A span with font-size: 22px inside 14px text. The line box grows to the tallest span.">
+            <ChildContent>
+                <label style="font-size: 14px; color: #e6eaf2">Normal, <span style="font-size: 22px; color: #4ac2e8">bigger blue</span>, normal again</label>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="width: 200px" Note="Spans with font-weight: 900 and font-style: italic.">
+            <ChildContent>
+                <label style="font-size: 14px; color: #e6eaf2">Weight <span style="font-weight: 900">900</span> and <span style="font-style: italic">italic</span> inline</label>
+            </ChildContent>
+        </UiTestCase>
+    </div>
+
+</root>
+
+@code
+{
+    const string Text = UiTestCase.TextSetup;
+
+    const string Sample = "Sphinx of black quartz";
+    const string Descenders = "puzzling jargon gypsy";
+}

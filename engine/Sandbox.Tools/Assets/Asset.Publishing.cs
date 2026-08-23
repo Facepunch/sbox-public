@@ -312,11 +312,11 @@ public partial class Asset
 		/// The project isn't stored or listed anywhere, so is considered a transient that you can load
 		/// up, edit, save and then throw away.
 		/// </summary>
-		public Project CreateTemporaryProject()
+		/// <param name="rootDirectory">Where the project's code comes from, if it's bundling any.</param>
+		public Project CreateTemporaryProject( System.IO.DirectoryInfo rootDirectory = null )
 		{
-			var lp = new Project();
+			var lp = new Project( rootDirectory );
 			lp.ProjectSourceObject = asset;
-			lp.IsTransient = true;
 			lp.OnSaveProject = () => asset.Publishing.Save();
 			lp.Config = asset.Publishing.ProjectConfig;
 

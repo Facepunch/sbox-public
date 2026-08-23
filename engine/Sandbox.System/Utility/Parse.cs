@@ -543,8 +543,25 @@ namespace Sandbox
 			var color = Color.Parse( c );
 			if ( !color.HasValue ) return false;
 
-			Pointer = p.Pointer;
 			outval = color.Value;
+
+			// Optional "* N" brightness multiplier - "rgba( white * 4, 0.5 )"
+			var afterColor = p;
+			p = p.SkipWhitespaceAndNewlines();
+
+			if ( p.Current == '*' )
+			{
+				p.Pointer++;
+				p = p.SkipWhitespaceAndNewlines();
+
+				if ( p.TryReadFloat( out var scale ) )
+				{
+					outval = outval.ScaleBrightness( scale );
+					afterColor = p;
+				}
+			}
+
+			Pointer = afterColor.Pointer;
 			return true;
 		}
 

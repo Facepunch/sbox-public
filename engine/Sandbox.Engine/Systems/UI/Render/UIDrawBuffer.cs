@@ -32,6 +32,11 @@ internal class UIDrawBuffer
 	/// </summary>
 	public BlendMode OverrideBlendMode = BlendMode.Normal;
 
+	/// <summary>
+	/// Takes screen space to the current panel's layout space. Set before OnDraw().
+	/// </summary>
+	public Matrix ScreenToPanel = Matrix.Identity;
+
 	public void AddBox( in BoxDrawDescriptor desc )
 	{
 		ActiveLayer.AddBox( desc );
@@ -39,7 +44,9 @@ internal class UIDrawBuffer
 
 	public void AddShadow( in ShadowDrawDescriptor desc )
 	{
-		ActiveLayer.AddShadow( desc );
+		var d = desc;
+		d.ScissorTransformMat = ScreenToPanel;
+		ActiveLayer.AddShadow( d );
 	}
 
 	public void AddOutline( in OutlineDrawDescriptor desc )

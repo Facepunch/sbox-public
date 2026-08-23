@@ -1166,7 +1166,7 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			((Texture)entry.Object1).Clear( new Color( entry.Data1.x, entry.Data1.y, entry.Data1.z, entry.Data1.w ) );
+			Graphics.Context.ClearTexture( ((Texture)entry.Object1).native, new Color( entry.Data1.x, entry.Data1.y, entry.Data1.z, entry.Data1.w ) );
 		}
 
 		AddEntry( &Execute, new Entry { Object1 = texture, Data1 = new Vector4( color.r, color.g, color.b, color.a ) } );
@@ -1187,7 +1187,7 @@ public sealed unsafe partial class CommandList
 				return;
 			}
 
-			target.ColorTarget.Clear( new Color( entry.Data1.x, entry.Data1.y, entry.Data1.z, entry.Data1.w ) );
+			Graphics.Context.ClearTexture( target.ColorTarget.native, new Color( entry.Data1.x, entry.Data1.y, entry.Data1.z, entry.Data1.w ) );
 		}
 
 		AddEntry( &Execute, new Entry { Object5 = handle.ColorTexture.Name, Data1 = new Vector4( color.r, color.g, color.b, color.a ) } );
@@ -1536,15 +1536,8 @@ public sealed unsafe partial class CommandList
 			// MakeReady resets TimeSinceUsed, preventing Tick() from evicting this block
 			tb.MakeReady();
 
-			Graphics.Attributes.Set( "Texture", tb.Texture );
-			Graphics.Attributes.Set( "SamplerIndex", SamplerState.GetBindlessIndex( new SamplerState() { Filter = tb.FilterMode } ) );
-
 			var rect = position.Align( tb.Texture.Size, flags );
-
-			if ( angle == 0f )
-				Graphics.DrawQuad( rect.Floor(), Material.UI.Text, Color.White );
-			else
-				Graphics.DrawQuad( rect.Floor(), angle, Material.UI.Text, Color.White );
+			Graphics.DrawTextTexture( tb.Texture, tb.FilterMode, rect.Floor(), angle );
 		}
 
 		AddEntry( &Execute, new Entry

@@ -150,8 +150,7 @@ public static partial class Graphics
 
 			var cf = _state.sceneView.GetFrustum();
 
-			// Extract planes from native CFrustum
-			// Plane indices: RIGHT=0, LEFT=1, TOP=2, BOTTOM=3, NEAR=4, FAR=5
+			// Native planes are camera-relative.
 			cf.GetPlane( 0, out var rn, out var rd );
 			cf.GetPlane( 1, out var ln, out var ld );
 			cf.GetPlane( 2, out var tn, out var td );
@@ -159,13 +158,14 @@ public static partial class Graphics
 			cf.GetPlane( 4, out var nn, out var nd );
 			cf.GetPlane( 5, out var fn, out var fd );
 
+			var origin = cf.GetCameraPosition();
 			return new Frustum(
-				right: new Plane( ln, ld ),
-				left: new Plane( ln, rd ),
-				top: new Plane( tn, td ),
-				bottom: new Plane( bn, bd ),
-				near: new Plane( nn, nd ),
-				far: new Plane( fn, fd )
+				right: new Plane( rn, rd + origin.Dot( rn ) ),
+				left: new Plane( ln, ld + origin.Dot( ln ) ),
+				top: new Plane( tn, td + origin.Dot( tn ) ),
+				bottom: new Plane( bn, bd + origin.Dot( bn ) ),
+				near: new Plane( nn, nd + origin.Dot( nn ) ),
+				far: new Plane( fn, fd + origin.Dot( fn ) )
 			);
 		}
 	}

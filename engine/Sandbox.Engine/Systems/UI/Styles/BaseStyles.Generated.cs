@@ -408,6 +408,70 @@ public abstract partial class BaseStyles
 		}
 	}
 
+	internal Length? _bordertopleftradiusv;
+	
+	/// <summary>
+	/// Represents the <c>border-top-left-radius-v</c> CSS property.
+	/// </summary>
+	public Length? BorderTopLeftRadiusV
+	{
+		get => _bordertopleftradiusv;
+		set
+		{
+			if ( _bordertopleftradiusv == value ) return;
+			_bordertopleftradiusv = value;
+			Dirty();
+		}
+	}
+
+	internal Length? _bordertoprightradiusv;
+	
+	/// <summary>
+	/// Represents the <c>border-top-right-radius-v</c> CSS property.
+	/// </summary>
+	public Length? BorderTopRightRadiusV
+	{
+		get => _bordertoprightradiusv;
+		set
+		{
+			if ( _bordertoprightradiusv == value ) return;
+			_bordertoprightradiusv = value;
+			Dirty();
+		}
+	}
+
+	internal Length? _borderbottomrightradiusv;
+	
+	/// <summary>
+	/// Represents the <c>border-bottom-right-radius-v</c> CSS property.
+	/// </summary>
+	public Length? BorderBottomRightRadiusV
+	{
+		get => _borderbottomrightradiusv;
+		set
+		{
+			if ( _borderbottomrightradiusv == value ) return;
+			_borderbottomrightradiusv = value;
+			Dirty();
+		}
+	}
+
+	internal Length? _borderbottomleftradiusv;
+	
+	/// <summary>
+	/// Represents the <c>border-bottom-left-radius-v</c> CSS property.
+	/// </summary>
+	public Length? BorderBottomLeftRadiusV
+	{
+		get => _borderbottomleftradiusv;
+		set
+		{
+			if ( _borderbottomleftradiusv == value ) return;
+			_borderbottomleftradiusv = value;
+			Dirty();
+		}
+	}
+
 	internal Length? _borderleftwidth;
 	
 	/// <summary>
@@ -1816,6 +1880,22 @@ public abstract partial class BaseStyles
 		}
 	}
 
+	internal BackgroundClip? _backgroundclip;
+	
+	/// <summary>
+	/// Represents the <c>background-clip</c> CSS property.
+	/// </summary>
+	public BackgroundClip? BackgroundClip
+	{
+		get => _backgroundclip;
+		set
+		{
+			if ( _backgroundclip == value ) return;
+			_backgroundclip = value;
+			Dirty();
+		}
+	}
+
 	internal Length? _borderimagewidthleft;
 	
 	/// <summary>
@@ -2301,149 +2381,302 @@ public abstract partial class BaseStyles
 	/// </summary>
 	private void AddGenerated( BaseStyles a )
 	{
+
 		if ( a._content != null ) _content = a._content;
+
 		if ( a._width != null ) _width = a._width;
+
 		if ( a._minwidth != null ) _minwidth = a._minwidth;
+
 		if ( a._maxwidth != null ) _maxwidth = a._maxwidth;
+
 		if ( a._height != null ) _height = a._height;
+
 		if ( a._minheight != null ) _minheight = a._minheight;
+
 		if ( a._maxheight != null ) _maxheight = a._maxheight;
+
 		if ( a._left != null ) _left = a._left;
+
 		if ( a._top != null ) _top = a._top;
+
 		if ( a._right != null ) _right = a._right;
+
 		if ( a._bottom != null ) _bottom = a._bottom;
+
 		if ( a._opacity != null ) _opacity = a._opacity;
+
 		if ( a._backgroundcolor != null ) _backgroundcolor = a._backgroundcolor;
+
 		if ( a._paddingleft != null ) _paddingleft = a._paddingleft;
+
 		if ( a._paddingtop != null ) _paddingtop = a._paddingtop;
+
 		if ( a._paddingright != null ) _paddingright = a._paddingright;
+
 		if ( a._paddingbottom != null ) _paddingbottom = a._paddingbottom;
+
 		if ( a._marginleft != null ) _marginleft = a._marginleft;
+
 		if ( a._margintop != null ) _margintop = a._margintop;
+
 		if ( a._marginright != null ) _marginright = a._marginright;
+
 		if ( a._marginbottom != null ) _marginbottom = a._marginbottom;
+
 		if ( a._bordertopleftradius != null ) _bordertopleftradius = a._bordertopleftradius;
+
 		if ( a._bordertoprightradius != null ) _bordertoprightradius = a._bordertoprightradius;
+
 		if ( a._borderbottomrightradius != null ) _borderbottomrightradius = a._borderbottomrightradius;
+
 		if ( a._borderbottomleftradius != null ) _borderbottomleftradius = a._borderbottomleftradius;
+
+		if ( a._bordertopleftradiusv != null ) _bordertopleftradiusv = a._bordertopleftradiusv;
+
+		if ( a._bordertoprightradiusv != null ) _bordertoprightradiusv = a._bordertoprightradiusv;
+
+		if ( a._borderbottomrightradiusv != null ) _borderbottomrightradiusv = a._borderbottomrightradiusv;
+
+		if ( a._borderbottomleftradiusv != null ) _borderbottomleftradiusv = a._borderbottomleftradiusv;
+
 		if ( a._borderleftwidth != null ) _borderleftwidth = a._borderleftwidth;
+
 		if ( a._bordertopwidth != null ) _bordertopwidth = a._bordertopwidth;
+
 		if ( a._borderrightwidth != null ) _borderrightwidth = a._borderrightwidth;
+
 		if ( a._borderbottomwidth != null ) _borderbottomwidth = a._borderbottomwidth;
+
 		if ( a._borderleftcolor != null ) _borderleftcolor = a._borderleftcolor;
+
 		if ( a._bordertopcolor != null ) _bordertopcolor = a._bordertopcolor;
+
 		if ( a._borderrightcolor != null ) _borderrightcolor = a._borderrightcolor;
+
 		if ( a._borderbottomcolor != null ) _borderbottomcolor = a._borderbottomcolor;
+
 		if ( a._fontsize != null ) _fontsize = a._fontsize;
+
 		if ( a._fontcolor != null ) _fontcolor = a._fontcolor;
+
 		if ( a._fontweight != null ) _fontweight = a._fontweight;
+
 		if ( a._fontfamily != null ) _fontfamily = a._fontfamily;
+
 		if ( a._caretcolor != null ) _caretcolor = a._caretcolor;
+
 		if ( a._cursor != null ) _cursor = a._cursor;
+
 		if ( a._pointerevents != null ) _pointerevents = a._pointerevents;
+
 		if ( a._mixblendmode != null ) _mixblendmode = a._mixblendmode;
+
 		if ( a._position != null ) _position = a._position;
+
 		if ( a._overflowx != null ) _overflowx = a._overflowx;
+
 		if ( a._overflowy != null ) _overflowy = a._overflowy;
+
 		if ( a._flexdirection != null ) _flexdirection = a._flexdirection;
+
 		if ( a._justifycontent != null ) _justifycontent = a._justifycontent;
+
 		if ( a._display != null ) _display = a._display;
+
 		if ( a._flexwrap != null ) _flexwrap = a._flexwrap;
+
 		if ( a._aligncontent != null ) _aligncontent = a._aligncontent;
+
 		if ( a._alignself != null ) _alignself = a._alignself;
+
 		if ( a._alignitems != null ) _alignitems = a._alignitems;
+
 		if ( a._flexbasis != null ) _flexbasis = a._flexbasis;
+
 		if ( a._flexgrow != null ) _flexgrow = a._flexgrow;
+
 		if ( a._flexshrink != null ) _flexshrink = a._flexshrink;
+
 		if ( a._rowgap != null ) _rowgap = a._rowgap;
+
 		if ( a._columngap != null ) _columngap = a._columngap;
+
 		if ( a._aspectratio != null ) _aspectratio = a._aspectratio;
+
 		if ( a._textalign != null ) _textalign = a._textalign;
+
 		if ( a._textoverflow != null ) _textoverflow = a._textoverflow;
+
 		if ( a._textfilter != null ) _textfilter = a._textfilter;
+
 		if ( a._wordbreak != null ) _wordbreak = a._wordbreak;
+
 		if ( a._textdecorationline != null ) _textdecorationline = a._textdecorationline;
+
 		if ( a._textdecorationcolor != null ) _textdecorationcolor = a._textdecorationcolor;
+
 		if ( a._textdecorationthickness != null ) _textdecorationthickness = a._textdecorationthickness;
+
 		if ( a._textdecorationskipink != null ) _textdecorationskipink = a._textdecorationskipink;
+
 		if ( a._textdecorationstyle != null ) _textdecorationstyle = a._textdecorationstyle;
+
 		if ( a._textunderlineoffset != null ) _textunderlineoffset = a._textunderlineoffset;
+
 		if ( a._textoverlineoffset != null ) _textoverlineoffset = a._textoverlineoffset;
+
 		if ( a._textlinethroughoffset != null ) _textlinethroughoffset = a._textlinethroughoffset;
+
 		if ( a._fontstyle != null ) _fontstyle = a._fontstyle;
+
 		if ( a._fontvariantnumeric != null ) _fontvariantnumeric = a._fontvariantnumeric;
+
 		if ( a._transform != null ) _transform = a._transform;
+
 		if ( a._texttransform != null ) _texttransform = a._texttransform;
+
 		if ( a._transformoriginx != null ) _transformoriginx = a._transformoriginx;
+
 		if ( a._transformoriginy != null ) _transformoriginy = a._transformoriginy;
+
 		if ( a._letterspacing != null ) _letterspacing = a._letterspacing;
+
 		if ( a._lineheight != null ) _lineheight = a._lineheight;
+
 		if ( a._wordspacing != null ) _wordspacing = a._wordspacing;
+
 		if ( a._whitespace != null ) _whitespace = a._whitespace;
+
 		if ( a._zindex != null ) _zindex = a._zindex;
+
 		if ( a._order != null ) _order = a._order;
+
 		if ( a._soundin != null ) _soundin = a._soundin;
+
 		if ( a._soundout != null ) _soundout = a._soundout;
+
 		if ( a._backdropfilterblur != null ) _backdropfilterblur = a._backdropfilterblur;
+
 		if ( a._backdropfilterbrightness != null ) _backdropfilterbrightness = a._backdropfilterbrightness;
+
 		if ( a._backdropfiltercontrast != null ) _backdropfiltercontrast = a._backdropfiltercontrast;
+
 		if ( a._backdropfiltersaturate != null ) _backdropfiltersaturate = a._backdropfiltersaturate;
+
 		if ( a._backdropfiltersepia != null ) _backdropfiltersepia = a._backdropfiltersepia;
+
 		if ( a._backdropfilterinvert != null ) _backdropfilterinvert = a._backdropfilterinvert;
+
 		if ( a._backdropfilterhuerotate != null ) _backdropfilterhuerotate = a._backdropfilterhuerotate;
+
 		if ( a._filterblur != null ) _filterblur = a._filterblur;
+
 		if ( a._filtersaturate != null ) _filtersaturate = a._filtersaturate;
+
 		if ( a._filtersepia != null ) _filtersepia = a._filtersepia;
+
 		if ( a._filterbrightness != null ) _filterbrightness = a._filterbrightness;
+
 		if ( a._filterhuerotate != null ) _filterhuerotate = a._filterhuerotate;
+
 		if ( a._filterinvert != null ) _filterinvert = a._filterinvert;
+
 		if ( a._filtercontrast != null ) _filtercontrast = a._filtercontrast;
+
 		if ( a._filtertint != null ) _filtertint = a._filtertint;
+
 		if ( a._filterborderwidth != null ) _filterborderwidth = a._filterborderwidth;
+
 		if ( a._filterbordercolor != null ) _filterbordercolor = a._filterbordercolor;
+
 		if ( a._maskmode != null ) _maskmode = a._maskmode;
+
 		if ( a._maskrepeat != null ) _maskrepeat = a._maskrepeat;
+
 		if ( a._masksizex != null ) _masksizex = a._masksizex;
+
 		if ( a._masksizey != null ) _masksizey = a._masksizey;
+
 		if ( a._maskpositionx != null ) _maskpositionx = a._maskpositionx;
+
 		if ( a._maskpositiony != null ) _maskpositiony = a._maskpositiony;
+
 		if ( a._maskangle != null ) _maskangle = a._maskangle;
+
 		if ( a._maskscope != null ) _maskscope = a._maskscope;
+
 		if ( a._backgroundsizex != null ) _backgroundsizex = a._backgroundsizex;
+
 		if ( a._backgroundsizey != null ) _backgroundsizey = a._backgroundsizey;
+
 		if ( a._backgroundpositionx != null ) _backgroundpositionx = a._backgroundpositionx;
+
 		if ( a._backgroundpositiony != null ) _backgroundpositiony = a._backgroundpositiony;
+
 		if ( a._backgroundrepeat != null ) _backgroundrepeat = a._backgroundrepeat;
+		if ( a._backgroundclip != null ) _backgroundclip = a._backgroundclip;
+
 		if ( a._borderimagewidthleft != null ) _borderimagewidthleft = a._borderimagewidthleft;
+
 		if ( a._borderimagewidthright != null ) _borderimagewidthright = a._borderimagewidthright;
+
 		if ( a._borderimagewidthtop != null ) _borderimagewidthtop = a._borderimagewidthtop;
+
 		if ( a._borderimagewidthbottom != null ) _borderimagewidthbottom = a._borderimagewidthbottom;
+
 		if ( a._borderimagefill != null ) _borderimagefill = a._borderimagefill;
+
 		if ( a._borderimagerepeat != null ) _borderimagerepeat = a._borderimagerepeat;
+
 		if ( a._borderimagetint != null ) _borderimagetint = a._borderimagetint;
+
 		if ( a._backgroundblendmode != null ) _backgroundblendmode = a._backgroundblendmode;
+
 		if ( a._backgroundtint != null ) _backgroundtint = a._backgroundtint;
+
 		if ( a._backgroundangle != null ) _backgroundangle = a._backgroundangle;
+
 		if ( a._textbackgroundangle != null ) _textbackgroundangle = a._textbackgroundangle;
+
 		if ( a._perspectiveoriginx != null ) _perspectiveoriginx = a._perspectiveoriginx;
+
 		if ( a._perspectiveoriginy != null ) _perspectiveoriginy = a._perspectiveoriginy;
+
 		if ( a._textstrokecolor != null ) _textstrokecolor = a._textstrokecolor;
+
 		if ( a._textstrokewidth != null ) _textstrokewidth = a._textstrokewidth;
+
 		if ( a._imagerendering != null ) _imagerendering = a._imagerendering;
+
 		if ( a._animationdelay != null ) _animationdelay = a._animationdelay;
+
 		if ( a._animationdirection != null ) _animationdirection = a._animationdirection;
+
 		if ( a._animationduration != null ) _animationduration = a._animationduration;
+
 		if ( a._animationfillmode != null ) _animationfillmode = a._animationfillmode;
+
 		if ( a._animationiterationcount != null ) _animationiterationcount = a._animationiterationcount;
+
 		if ( a._animationname != null ) _animationname = a._animationname;
+
 		if ( a._animationplaystate != null ) _animationplaystate = a._animationplaystate;
+
 		if ( a._animationtimingfunction != null ) _animationtimingfunction = a._animationtimingfunction;
+
 		if ( a._fontsmooth != null ) _fontsmooth = a._fontsmooth;
+
 		if ( a._objectfit != null ) _objectfit = a._objectfit;
+
 		if ( a._outlinewidth != null ) _outlinewidth = a._outlinewidth;
+
 		if ( a._outlinecolor != null ) _outlinecolor = a._outlinecolor;
+
 		if ( a._outlineoffset != null ) _outlineoffset = a._outlineoffset;
+
 		if ( a._isolation != null ) _isolation = a._isolation;
+
 	}
 
 	/// <summary>
@@ -2476,6 +2709,10 @@ public abstract partial class BaseStyles
 		_bordertoprightradius = a._bordertoprightradius;
 		_borderbottomrightradius = a._borderbottomrightradius;
 		_borderbottomleftradius = a._borderbottomleftradius;
+		_bordertopleftradiusv = a._bordertopleftradiusv;
+		_bordertoprightradiusv = a._bordertoprightradiusv;
+		_borderbottomrightradiusv = a._borderbottomrightradiusv;
+		_borderbottomleftradiusv = a._borderbottomleftradiusv;
 		_borderleftwidth = a._borderleftwidth;
 		_bordertopwidth = a._bordertopwidth;
 		_borderrightwidth = a._borderrightwidth;
@@ -2564,6 +2801,7 @@ public abstract partial class BaseStyles
 		_backgroundpositionx = a._backgroundpositionx;
 		_backgroundpositiony = a._backgroundpositiony;
 		_backgroundrepeat = a._backgroundrepeat;
+		_backgroundclip = a._backgroundclip;
 		_borderimagewidthleft = a._borderimagewidthleft;
 		_borderimagewidthright = a._borderimagewidthright;
 		_borderimagewidthtop = a._borderimagewidthtop;
@@ -2594,6 +2832,7 @@ public abstract partial class BaseStyles
 		_outlinecolor = a._outlinecolor;
 		_outlineoffset = a._outlineoffset;
 		_isolation = a._isolation;
+
 	}
 
 	/// <summary>
@@ -2678,6 +2917,18 @@ public abstract partial class BaseStyles
 		case "border-bottom-left-radius":
 			BorderBottomLeftRadius = Length.Parse( value );
 			return BorderBottomLeftRadius.HasValue;
+		case "border-top-left-radius-v":
+			BorderTopLeftRadiusV = Length.Parse( value );
+			return BorderTopLeftRadiusV.HasValue;
+		case "border-top-right-radius-v":
+			BorderTopRightRadiusV = Length.Parse( value );
+			return BorderTopRightRadiusV.HasValue;
+		case "border-bottom-right-radius-v":
+			BorderBottomRightRadiusV = Length.Parse( value );
+			return BorderBottomRightRadiusV.HasValue;
+		case "border-bottom-left-radius-v":
+			BorderBottomLeftRadiusV = Length.Parse( value );
+			return BorderBottomLeftRadiusV.HasValue;
 		case "border-left-width":
 			BorderLeftWidth = Length.Parse( value );
 			return BorderLeftWidth.HasValue;
@@ -2967,6 +3218,10 @@ public abstract partial class BaseStyles
 		hash.Add( _bordertoprightradius );
 		hash.Add( _borderbottomrightradius );
 		hash.Add( _borderbottomleftradius );
+		hash.Add( _bordertopleftradiusv );
+		hash.Add( _bordertoprightradiusv );
+		hash.Add( _borderbottomrightradiusv );
+		hash.Add( _borderbottomleftradiusv );
 		hash.Add( _borderleftwidth );
 		hash.Add( _bordertopwidth );
 		hash.Add( _borderrightwidth );
@@ -3055,6 +3310,7 @@ public abstract partial class BaseStyles
 		hash.Add( _backgroundpositionx );
 		hash.Add( _backgroundpositiony );
 		hash.Add( _backgroundrepeat );
+		hash.Add( _backgroundclip );
 		hash.Add( _borderimagewidthleft );
 		hash.Add( _borderimagewidthright );
 		hash.Add( _borderimagewidthtop );
@@ -3085,6 +3341,7 @@ public abstract partial class BaseStyles
 		hash.Add( _outlinecolor );
 		hash.Add( _outlineoffset );
 		hash.Add( _isolation );
+
 		return hash.ToHashCode();
 	}
 
@@ -3117,6 +3374,10 @@ public abstract partial class BaseStyles
 		LerpProperty( "border-top-right-radius", from, to, delta );
 		LerpProperty( "border-bottom-right-radius", from, to, delta );
 		LerpProperty( "border-bottom-left-radius", from, to, delta );
+		LerpProperty( "border-top-left-radius-v", from, to, delta );
+		LerpProperty( "border-top-right-radius-v", from, to, delta );
+		LerpProperty( "border-bottom-right-radius-v", from, to, delta );
+		LerpProperty( "border-bottom-left-radius-v", from, to, delta );
 		LerpProperty( "border-left-width", from, to, delta );
 		LerpProperty( "border-top-width", from, to, delta );
 		LerpProperty( "border-right-width", from, to, delta );
@@ -3189,6 +3450,7 @@ public abstract partial class BaseStyles
 		LerpProperty( "outline-width", from, to, delta );
 		LerpProperty( "outline-color", from, to, delta );
 		LerpProperty( "outline-offset", from, to, delta );
+
 	}
 	
 	/// <summary>
@@ -3269,6 +3531,18 @@ public abstract partial class BaseStyles
 				break;
 			case "border-bottom-left-radius":
 				Lerp( ref _borderbottomleftradius, from._borderbottomleftradius, to._borderbottomleftradius, 0, delta );
+				break;
+			case "border-top-left-radius-v":
+				Lerp( ref _bordertopleftradiusv, from._bordertopleftradiusv ?? from._bordertopleftradius, to._bordertopleftradiusv ?? to._bordertopleftradius, 0, delta );
+				break;
+			case "border-top-right-radius-v":
+				Lerp( ref _bordertoprightradiusv, from._bordertoprightradiusv ?? from._bordertoprightradius, to._bordertoprightradiusv ?? to._bordertoprightradius, 0, delta );
+				break;
+			case "border-bottom-right-radius-v":
+				Lerp( ref _borderbottomrightradiusv, from._borderbottomrightradiusv ?? from._borderbottomrightradius, to._borderbottomrightradiusv ?? to._borderbottomrightradius, 0, delta );
+				break;
+			case "border-bottom-left-radius-v":
+				Lerp( ref _borderbottomleftradiusv, from._borderbottomleftradiusv ?? from._borderbottomleftradius, to._borderbottomleftradiusv ?? to._borderbottomleftradius, 0, delta );
 				break;
 			case "border-left-width":
 				Lerp( ref _borderleftwidth, from._borderleftwidth, to._borderleftwidth, 0, delta );
@@ -3520,6 +3794,10 @@ public abstract partial class BaseStyles
 		copy._bordertoprightradius = _bordertoprightradius;
 		copy._borderbottomrightradius = _borderbottomrightradius;
 		copy._borderbottomleftradius = _borderbottomleftradius;
+		copy._bordertopleftradiusv = _bordertopleftradiusv;
+		copy._bordertoprightradiusv = _bordertoprightradiusv;
+		copy._borderbottomrightradiusv = _borderbottomrightradiusv;
+		copy._borderbottomleftradiusv = _borderbottomleftradiusv;
 		copy._borderleftwidth = _borderleftwidth;
 		copy._bordertopwidth = _bordertopwidth;
 		copy._borderrightwidth = _borderrightwidth;
@@ -3608,6 +3886,7 @@ public abstract partial class BaseStyles
 		copy._backgroundpositionx = _backgroundpositionx;
 		copy._backgroundpositiony = _backgroundpositiony;
 		copy._backgroundrepeat = _backgroundrepeat;
+		copy._backgroundclip = _backgroundclip;
 		copy._borderimagewidthleft = _borderimagewidthleft;
 		copy._borderimagewidthright = _borderimagewidthright;
 		copy._borderimagewidthtop = _borderimagewidthtop;
@@ -3644,168 +3923,337 @@ public abstract partial class BaseStyles
 
 	public void ApplyCascading( BaseStyles parent )
 	{
+
 		if ( _fontsize == null ) _fontsize = parent._fontsize;
+
 		if ( _fontcolor == null ) _fontcolor = parent._fontcolor;
+
 		if ( _fontweight == null ) _fontweight = parent._fontweight;
+
 		if ( _fontfamily == null ) _fontfamily = parent._fontfamily;
+
 		if ( _cursor == null ) _cursor = parent._cursor;
+
 		if ( _pointerevents == null ) _pointerevents = parent._pointerevents;
+
 		if ( _mixblendmode == null ) _mixblendmode = parent._mixblendmode;
+
 		if ( _textalign == null ) _textalign = parent._textalign;
+
 		if ( _textoverflow == null ) _textoverflow = parent._textoverflow;
+
 		if ( _textfilter == null ) _textfilter = parent._textfilter;
+
 		if ( _wordbreak == null ) _wordbreak = parent._wordbreak;
+
 		if ( _textdecorationline == null ) _textdecorationline = parent._textdecorationline;
+
 		if ( _textdecorationcolor == null ) _textdecorationcolor = parent._textdecorationcolor;
+
 		if ( _textdecorationthickness == null ) _textdecorationthickness = parent._textdecorationthickness;
+
 		if ( _textdecorationskipink == null ) _textdecorationskipink = parent._textdecorationskipink;
+
 		if ( _textdecorationstyle == null ) _textdecorationstyle = parent._textdecorationstyle;
+
 		if ( _textunderlineoffset == null ) _textunderlineoffset = parent._textunderlineoffset;
+
 		if ( _textoverlineoffset == null ) _textoverlineoffset = parent._textoverlineoffset;
+
 		if ( _textlinethroughoffset == null ) _textlinethroughoffset = parent._textlinethroughoffset;
+
 		if ( _fontstyle == null ) _fontstyle = parent._fontstyle;
+
 		if ( _fontvariantnumeric == null ) _fontvariantnumeric = parent._fontvariantnumeric;
+
 		if ( _texttransform == null ) _texttransform = parent._texttransform;
+
 		if ( _letterspacing == null ) _letterspacing = parent._letterspacing;
+
 		if ( _lineheight == null ) _lineheight = parent._lineheight;
+
 		if ( _wordspacing == null ) _wordspacing = parent._wordspacing;
+
 		if ( _whitespace == null ) _whitespace = parent._whitespace;
+
 		if ( _textstrokecolor == null ) _textstrokecolor = parent._textstrokecolor;
+
 		if ( _textstrokewidth == null ) _textstrokewidth = parent._textstrokewidth;
+
 		if ( _imagerendering == null ) _imagerendering = parent._imagerendering;
+
 		if ( _fontsmooth == null ) _fontsmooth = parent._fontsmooth;
+
 	}
 
 	private void FillDefaultsGenerated()
 	{
+
 		if ( !_width.HasValue ) _width = Length.Undefined;
+
 		if ( !_minwidth.HasValue ) _minwidth = 0;
+
 		if ( !_maxwidth.HasValue ) _maxwidth = Length.Undefined;
+
 		if ( !_height.HasValue ) _height = Length.Undefined;
+
 		if ( !_minheight.HasValue ) _minheight = 0;
+
 		if ( !_maxheight.HasValue ) _maxheight = Length.Undefined;
+
 		if ( !_left.HasValue ) _left = Length.Undefined;
+
 		if ( !_top.HasValue ) _top = Length.Undefined;
+
 		if ( !_right.HasValue ) _right = Length.Undefined;
+
 		if ( !_bottom.HasValue ) _bottom = Length.Undefined;
+
 		if ( !_opacity.HasValue ) _opacity = 1;
+
 		if ( !_backgroundcolor.HasValue ) _backgroundcolor = Color.Transparent;
+
 		if ( !_paddingleft.HasValue ) _paddingleft = 0;
+
 		if ( !_paddingtop.HasValue ) _paddingtop = 0;
+
 		if ( !_paddingright.HasValue ) _paddingright = 0;
+
 		if ( !_paddingbottom.HasValue ) _paddingbottom = 0;
+
 		if ( !_marginleft.HasValue ) _marginleft = 0;
+
 		if ( !_margintop.HasValue ) _margintop = 0;
+
 		if ( !_marginright.HasValue ) _marginright = 0;
+
 		if ( !_marginbottom.HasValue ) _marginbottom = 0;
+
 		if ( !_bordertopleftradius.HasValue ) _bordertopleftradius = 0;
+
 		if ( !_bordertoprightradius.HasValue ) _bordertoprightradius = 0;
+
 		if ( !_borderbottomrightradius.HasValue ) _borderbottomrightradius = 0;
+
 		if ( !_borderbottomleftradius.HasValue ) _borderbottomleftradius = 0;
+
+		if ( !_bordertopleftradiusv.HasValue ) _bordertopleftradiusv = null;
+
+		if ( !_bordertoprightradiusv.HasValue ) _bordertoprightradiusv = null;
+
+		if ( !_borderbottomrightradiusv.HasValue ) _borderbottomrightradiusv = null;
+
+		if ( !_borderbottomleftradiusv.HasValue ) _borderbottomleftradiusv = null;
+
 		if ( !_borderleftwidth.HasValue ) _borderleftwidth = 0;
+
 		if ( !_bordertopwidth.HasValue ) _bordertopwidth = 0;
+
 		if ( !_borderrightwidth.HasValue ) _borderrightwidth = 0;
+
 		if ( !_borderbottomwidth.HasValue ) _borderbottomwidth = 0;
+
 		if ( !_borderleftcolor.HasValue ) _borderleftcolor = Color.White;
+
 		if ( !_bordertopcolor.HasValue ) _bordertopcolor = Color.White;
+
 		if ( !_borderrightcolor.HasValue ) _borderrightcolor = Color.White;
+
 		if ( !_borderbottomcolor.HasValue ) _borderbottomcolor = Color.White;
+
 		if ( !_fontsize.HasValue ) _fontsize = Length.Pixels( 13 ).Value;
+
 		if ( !_fontcolor.HasValue ) _fontcolor = Color.Black;
+
 		if ( !_fontweight.HasValue ) _fontweight = 400;
+
 		if ( !_caretcolor.HasValue ) _caretcolor = null;
+
 		if ( !_pointerevents.HasValue ) _pointerevents = UI.PointerEvents.None;
+
 		if ( !_position.HasValue ) _position = UI.PositionMode.Static;
+
 		if ( !_overflowx.HasValue ) _overflowx = OverflowMode.Visible;
+
 		if ( !_overflowy.HasValue ) _overflowy = OverflowMode.Visible;
+
 		if ( !_flexdirection.HasValue ) _flexdirection = UI.FlexDirection.Row;
+
 		if ( !_justifycontent.HasValue ) _justifycontent = Justify.FlexStart;
+
 		if ( !_display.HasValue ) _display = DisplayMode.Flex;
+
 		if ( !_flexwrap.HasValue ) _flexwrap = Wrap.NoWrap;
+
 		if ( !_aligncontent.HasValue ) _aligncontent = Align.Auto;
+
 		if ( !_alignself.HasValue ) _alignself = Align.Auto;
+
 		if ( !_alignitems.HasValue ) _alignitems = Align.Stretch;
+
 		if ( !_flexbasis.HasValue ) _flexbasis = Length.Auto;
+
 		if ( !_flexgrow.HasValue ) _flexgrow = 0;
+
 		if ( !_flexshrink.HasValue ) _flexshrink = 1;
+
 		if ( !_rowgap.HasValue ) _rowgap = Length.Auto;
+
 		if ( !_columngap.HasValue ) _columngap = Length.Auto;
+
 		if ( !_textalign.HasValue ) _textalign = UI.TextAlign.Left;
+
 		if ( !_textoverflow.HasValue ) _textoverflow = UI.TextOverflow.None;
+
 		if ( !_textfilter.HasValue ) _textfilter = Rendering.FilterMode.Bilinear;
+
 		if ( !_wordbreak.HasValue ) _wordbreak = UI.WordBreak.Normal;
+
 		if ( !_textdecorationline.HasValue ) _textdecorationline = TextDecoration.None;
+
 		if ( !_textdecorationcolor.HasValue ) _textdecorationcolor = Color.White;
+
 		if ( !_textdecorationthickness.HasValue ) _textdecorationthickness = 1;
+
 		if ( !_textdecorationskipink.HasValue ) _textdecorationskipink = 0;
+
 		if ( !_textdecorationstyle.HasValue ) _textdecorationstyle = UI.TextDecorationStyle.Solid;
+
 		if ( !_textunderlineoffset.HasValue ) _textunderlineoffset = 0;
+
 		if ( !_textoverlineoffset.HasValue ) _textoverlineoffset = 0;
+
 		if ( !_textlinethroughoffset.HasValue ) _textlinethroughoffset = 0;
+
 		if ( !_fontstyle.HasValue ) _fontstyle = UI.FontStyle.None;
+
 		if ( !_fontvariantnumeric.HasValue ) _fontvariantnumeric = UI.FontVariantNumeric.Normal;
+
 		if ( !_transform.HasValue ) _transform = new UI.PanelTransform();
+
 		if ( !_texttransform.HasValue ) _texttransform = UI.TextTransform.None;
+
 		if ( !_transformoriginx.HasValue ) _transformoriginx = Length.Percent( 50 ).Value;
+
 		if ( !_transformoriginy.HasValue ) _transformoriginy = Length.Percent( 50 ).Value;
+
 		if ( !_letterspacing.HasValue ) _letterspacing = Length.Percent( 0 ).Value;
+
 		if ( !_lineheight.HasValue ) _lineheight = Length.Percent( 100 ).Value;
+
 		if ( !_wordspacing.HasValue ) _wordspacing = Length.Percent( 0 ).Value;
+
 		if ( !_whitespace.HasValue ) _whitespace = UI.WhiteSpace.Normal;
+
 		if ( !_zindex.HasValue ) _zindex = 0;
+
 		if ( !_order.HasValue ) _order = 0;
+
 		if ( !_backdropfilterblur.HasValue ) _backdropfilterblur = 0;
+
 		if ( !_backdropfilterbrightness.HasValue ) _backdropfilterbrightness = 1;
+
 		if ( !_backdropfiltercontrast.HasValue ) _backdropfiltercontrast = 1;
+
 		if ( !_backdropfiltersaturate.HasValue ) _backdropfiltersaturate = 1;
+
 		if ( !_backdropfiltersepia.HasValue ) _backdropfiltersepia = 0;
+
 		if ( !_backdropfilterinvert.HasValue ) _backdropfilterinvert = 0;
+
 		if ( !_backdropfilterhuerotate.HasValue ) _backdropfilterhuerotate = 0;
+
 		if ( !_filterblur.HasValue ) _filterblur = 0;
+
 		if ( !_filtersaturate.HasValue ) _filtersaturate = 1;
+
 		if ( !_filtersepia.HasValue ) _filtersepia = 0;
+
 		if ( !_filterbrightness.HasValue ) _filterbrightness = 1;
+
 		if ( !_filterhuerotate.HasValue ) _filterhuerotate = 0;
+
 		if ( !_filterinvert.HasValue ) _filterinvert = 0;
+
 		if ( !_filtercontrast.HasValue ) _filtercontrast = 1;
+
 		if ( !_filtertint.HasValue ) _filtertint = Color.White;
+
 		if ( !_filterborderwidth.HasValue ) _filterborderwidth = 0;
+
 		if ( !_filterbordercolor.HasValue ) _filterbordercolor = Color.White;
+
 		if ( !_maskmode.HasValue ) _maskmode = UI.MaskMode.MatchSource;
+
 		if ( !_maskrepeat.HasValue ) _maskrepeat = UI.BackgroundRepeat.Repeat;
+
 		if ( !_masksizex.HasValue ) _masksizex = Length.Undefined;
+
 		if ( !_masksizey.HasValue ) _masksizey = Length.Undefined;
+
 		if ( !_maskpositionx.HasValue ) _maskpositionx = Length.Percent( 0 ).Value;
+
 		if ( !_maskpositiony.HasValue ) _maskpositiony = Length.Percent( 0 ).Value;
+
 		if ( !_maskangle.HasValue ) _maskangle = 0;
+
 		if ( !_maskscope.HasValue ) _maskscope = UI.MaskScope.Default;
+
 		if ( !_backgroundsizex.HasValue ) _backgroundsizex = Length.Undefined;
+
 		if ( !_backgroundsizey.HasValue ) _backgroundsizey = Length.Undefined;
+
 		if ( !_backgroundpositionx.HasValue ) _backgroundpositionx = Length.Percent( 0 ).Value;
+
 		if ( !_backgroundpositiony.HasValue ) _backgroundpositiony = Length.Percent( 0 ).Value;
+
 		if ( !_backgroundrepeat.HasValue ) _backgroundrepeat = UI.BackgroundRepeat.Repeat;
+		if ( !_backgroundclip.HasValue ) _backgroundclip = UI.BackgroundClip.BorderBox;
+
 		if ( !_borderimagewidthleft.HasValue ) _borderimagewidthleft = 1;
+
 		if ( !_borderimagewidthright.HasValue ) _borderimagewidthright = 1;
+
 		if ( !_borderimagewidthtop.HasValue ) _borderimagewidthtop = 1;
+
 		if ( !_borderimagewidthbottom.HasValue ) _borderimagewidthbottom = 1;
+
 		if ( !_borderimagefill.HasValue ) _borderimagefill = UI.BorderImageFill.Unfilled;
+
 		if ( !_borderimagerepeat.HasValue ) _borderimagerepeat = UI.BorderImageRepeat.Stretch;
+
 		if ( !_borderimagetint.HasValue ) _borderimagetint = Color.White;
+
 		if ( !_backgroundtint.HasValue ) _backgroundtint = Color.White;
+
 		if ( !_backgroundangle.HasValue ) _backgroundangle = 0;
+
 		if ( !_textbackgroundangle.HasValue ) _textbackgroundangle = 0;
+
 		if ( !_perspectiveoriginx.HasValue ) _perspectiveoriginx = Length.Percent( 50 ).Value;
+
 		if ( !_perspectiveoriginy.HasValue ) _perspectiveoriginy = Length.Percent( 50 ).Value;
+
 		if ( !_textstrokecolor.HasValue ) _textstrokecolor = Color.White;
+
 		if ( !_textstrokewidth.HasValue ) _textstrokewidth = 0;
+
 		if ( !_imagerendering.HasValue ) _imagerendering = UI.ImageRendering.Anisotropic;
+
 		if ( !_animationiterationcount.HasValue ) _animationiterationcount = 1;
+
 		if ( !_fontsmooth.HasValue ) _fontsmooth = UI.FontSmooth.Auto;
+
 		if ( !_objectfit.HasValue ) _objectfit = UI.ObjectFit.Cover;
+
 		if ( !_outlinewidth.HasValue ) _outlinewidth = 0;
+
 		if ( !_outlinecolor.HasValue ) _outlinecolor = Color.Transparent;
+
 		if ( !_outlineoffset.HasValue ) _outlineoffset = 0;
+
 		if ( !_isolation.HasValue ) _isolation = UI.Isolation.Auto;
+
 	}
 
 	internal bool IsDefault( string name )
@@ -3837,6 +4285,10 @@ public abstract partial class BaseStyles
 			case "border-top-right-radius": return (_bordertoprightradius == 0);
 			case "border-bottom-right-radius": return (_borderbottomrightradius == 0);
 			case "border-bottom-left-radius": return (_borderbottomleftradius == 0);
+			case "border-top-left-radius-v": return (_bordertopleftradiusv == null);
+			case "border-top-right-radius-v": return (_bordertoprightradiusv == null);
+			case "border-bottom-right-radius-v": return (_borderbottomrightradiusv == null);
+			case "border-bottom-left-radius-v": return (_borderbottomleftradiusv == null);
 			case "border-left-width": return (_borderleftwidth == 0);
 			case "border-top-width": return (_bordertopwidth == 0);
 			case "border-right-width": return (_borderrightwidth == 0);
@@ -3925,6 +4377,7 @@ public abstract partial class BaseStyles
 			case "background-position-x": return (_backgroundpositionx == Length.Percent( 0 ).Value);
 			case "background-position-y": return (_backgroundpositiony == Length.Percent( 0 ).Value);
 			case "background-repeat": return (_backgroundrepeat == UI.BackgroundRepeat.Repeat);
+			case "background-clip": return (_backgroundclip == UI.BackgroundClip.BorderBox);
 			case "border-image-width-left": return (_borderimagewidthleft == 1);
 			case "border-image-width-right": return (_borderimagewidthright == 1);
 			case "border-image-width-top": return (_borderimagewidthtop == 1);

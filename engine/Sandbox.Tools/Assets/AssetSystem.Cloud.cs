@@ -42,6 +42,7 @@ public static partial class AssetSystem
 			// download the manifest
 			await package.Revision.DownloadManifestAsync( token );
 
+			using var suppressWatchers = FileWatch.Suppress();
 			await DownloadCloudFiles( package, loading, token );
 
 			foreach ( var file in package.Revision.Manifest.Files )

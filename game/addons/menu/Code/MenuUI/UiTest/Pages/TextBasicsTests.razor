@@ -1,0 +1,79 @@
+@namespace MenuProject.UiTest
+@inherits UiTestPage
+
+@using Sandbox;
+@using Sandbox.UI;
+
+@attribute [Title( "Text: Basics" )]
+@attribute [Description( "Font, size, weight, spacing, alignment" )]
+@attribute [Icon( "text_fields" )]
+@attribute [Order( 30 )]
+
+<root>
+
+    <h2>Family and weight</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Text" Css="font-family: Poppins" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font-family: Roboto" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font-family: Inter" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font-family: Roboto Mono" Text="@Sample" Note="Monospace, so every glyph advances the same." />
+        <UiTestCase Setup="@Text" Css="font-family: NotAFont" Text="@Sample" Note="A font we don't have falls back rather than drawing nothing." />
+        <UiTestCase Setup="@Text" Css="font-weight: 300" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font-weight: 400" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font-weight: 700" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font-weight: 900" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font-style: italic" Text="@Sample" Note="Italic tails lean past the text box - they mustn't be clipped." />
+        <UiTestCase Setup="@Text" Css="font-style: italic; font-weight: 700" Text="@Sample" />
+    </div>
+
+    <h2>Size</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Text" Css="font-size: 8px" Text="@Sample" Note="Small text is where hinting and gamma show up first." />
+        <UiTestCase Setup="@Text" Css="font-size: 11px" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font-size: 16px" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font-size: 32px" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font-size: 13.5px" Text="@Sample" Note="Fractional sizes round to a 32nd internally - they shouldn't jitter." />
+        <UiTestCase Setup="@Text" Css="font-size: 200%" Text="@Sample" Note="Percentage is of the inherited size." />
+    </div>
+
+    <h2>Spacing</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Text" Css="letter-spacing: 2px" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="letter-spacing: -1px" Text="@Sample" Note="Negative spacing pulls glyphs together; the box must still fit them." />
+        <UiTestCase Setup="@Text" Css="word-spacing: 8px" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="line-height: 1" Text="@Paragraph" />
+        <UiTestCase Setup="@Text" Css="line-height: 2" Text="@Paragraph" />
+        <UiTestCase Setup="@Text" Css="line-height: 8px" Text="@Paragraph" Note="A length line-height, tighter than the glyphs." />
+    </div>
+
+    <h2>Alignment and case</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Text" Css="text-align: left" Text="@Paragraph" />
+        <UiTestCase Setup="@Text" Css="text-align: center" Text="@Paragraph" />
+        <UiTestCase Setup="@Text" Css="text-align: right" Text="@Paragraph" />
+        <UiTestCase Setup="@Text" Css="text-transform: uppercase" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="text-transform: lowercase" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="text-transform: capitalize" Text="@Sample" />
+    </div>
+
+    <h2>Numbers</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Text" Css="font-variant-numeric: normal" Text="@Digits" />
+        <UiTestCase Setup="@Text" Css="font-variant-numeric: tabular-nums" Text="@Digits" Note="Every digit the same width, so a counter doesn't shuffle." />
+    </div>
+
+</root>
+
+@code
+{
+    const string Text = UiTestCase.TextSetup;
+
+    const string Sample = "Sphinx of black quartz";
+    const string Paragraph = "Sphinx of black quartz, judge my vow. Pack my box with five dozen liquor jugs.";
+    const string Digits = "0123456789 1111 8888";
+}

@@ -6,10 +6,17 @@ namespace Sandbox.UI;
 /// Represents all supported CSS properties and their currently assigned values.
 /// </summary>
 [SkipHotload]
+[Expose]
 public partial class Styles : BaseStyles
 {
 	internal Dictionary<string, IStyleBlock.StyleProperty> RawValues = new Dictionary<string, IStyleBlock.StyleProperty>( StringComparer.OrdinalIgnoreCase );
 	internal GradientInfo TextGradient;
+
+	/// <summary>
+	/// A background linear-gradient, evaluated in the pixel shader rather than baked
+	/// to a texture. Empty when the background is a color, image or unsupported gradient.
+	/// </summary>
+	internal GradientInfo BackgroundGradient;
 
 	/// <summary>
 	/// Whether this style sheet has any transitions that would need to be run.
@@ -90,6 +97,22 @@ public partial class Styles : BaseStyles
 			if ( BorderRightWidth.HasValue && BorderRightWidth.Value.Value > 0 ) return true;
 			if ( BorderBottomWidth.HasValue && BorderBottomWidth.Value.Value > 0 ) return true;
 			if ( BorderLeftWidth.HasValue && BorderLeftWidth.Value.Value > 0 ) return true;
+
+			return false;
+		}
+	}
+
+	/// <summary>
+	/// Whether any corner is rounded, so callers can skip resolving radii at all.
+	/// </summary>
+	public bool HasBorderRadius
+	{
+		get
+		{
+			if ( BorderTopLeftRadius.HasValue && BorderTopLeftRadius.Value.Value > 0 ) return true;
+			if ( BorderTopRightRadius.HasValue && BorderTopRightRadius.Value.Value > 0 ) return true;
+			if ( BorderBottomLeftRadius.HasValue && BorderBottomLeftRadius.Value.Value > 0 ) return true;
+			if ( BorderBottomRightRadius.HasValue && BorderBottomRightRadius.Value.Value > 0 ) return true;
 
 			return false;
 		}
@@ -275,6 +298,20 @@ public partial class Styles : BaseStyles
 					LerpProperty( "border-top-right-radius", from, to, delta );
 					LerpProperty( "border-bottom-right-radius", from, to, delta );
 					LerpProperty( "border-bottom-left-radius", from, to, delta );
+					break;
+
+				// A corner's vertical radius travels with its horizontal one
+				case "border-top-left-radius":
+					LerpProperty( "border-top-left-radius-v", from, to, delta );
+					break;
+				case "border-top-right-radius":
+					LerpProperty( "border-top-right-radius-v", from, to, delta );
+					break;
+				case "border-bottom-right-radius":
+					LerpProperty( "border-bottom-right-radius-v", from, to, delta );
+					break;
+				case "border-bottom-left-radius":
+					LerpProperty( "border-bottom-left-radius-v", from, to, delta );
 					break;
 			}
 		}

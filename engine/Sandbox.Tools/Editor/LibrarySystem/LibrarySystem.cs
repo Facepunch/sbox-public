@@ -292,14 +292,14 @@ public class LibraryProject
 		// add the content path
 		if ( project.HasAssetsPath() )
 		{
-			var assetPath = project.GetAssetsPath();
+			var assets = project.AssetsFileSystem;
 
 			// Add to our c# content search path
-			FileSystem.Content.CreateAndMount( assetPath );
-			FileSystem.Mounted.CreateAndMount( assetPath );
+			FileSystem.Content.Mount( assets );
+			FileSystem.Mounted.Mount( assets );
 
 			// make content available to the game
-			EngineFileSystem.LibraryContent.CreateAndMount( assetPath );
+			EngineFileSystem.LibraryContent.Mount( assets );
 
 			// Add to the c++ filesystem search path
 			NativeEngine.FullFileSystem.AddProjectPath( project.Config.FullIdent, project.GetAssetsPath() );
@@ -308,7 +308,7 @@ public class LibraryProject
 		if ( project.HasCodePath() )
 		{
 			// make .scss etc available to the game
-			EngineFileSystem.LibraryContent.CreateAndMount( project.GetCodePath() );
+			EngineFileSystem.LibraryContent.Mount( project.CodeFileSystem );
 		}
 	}
 

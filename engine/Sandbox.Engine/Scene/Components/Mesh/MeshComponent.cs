@@ -112,6 +112,7 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 			if ( _sceneObject.IsValid() )
 			{
 				_sceneObject.Flags.CastShadows = RenderType == ShadowRenderType.On || RenderType == ShadowRenderType.ShadowsOnly;
+				_sceneObject.Flags.ExcludeGameLayer = RenderType == ShadowRenderType.ShadowsOnly;
 			}
 		}
 	} = ShadowRenderType.On;
@@ -314,6 +315,7 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 		_sceneObject.Tags.SetFrom( GameObject.Tags );
 		_sceneObject.ColorTint = Color;
 		_sceneObject.Flags.CastShadows = RenderType == ShadowRenderType.On || RenderType == ShadowRenderType.ShadowsOnly;
+		_sceneObject.Flags.ExcludeGameLayer = RenderType == ShadowRenderType.ShadowsOnly;
 		_sceneObject.Flags.IsStatic = GameObject.IsStatic;
 	}
 }

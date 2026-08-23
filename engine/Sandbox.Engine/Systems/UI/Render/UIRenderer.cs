@@ -17,12 +17,14 @@ internal static class UIRenderer
 
 			var attributes = commandList.Attributes;
 
-			attributes.Set( "HasInverseScissor", 0 );
 			attributes.SetCombo( "D_LAYERED", desc.IsLayered ? 1 : 0 );
 
 			attributes.Set( "BoxPosition", desc.PanelRect.Position );
 			attributes.Set( "BoxSize", desc.PanelRect.Size );
-			attributes.Set( "BorderRadius", desc.BorderRadius );
+			var radii = desc.Radii.Clamped( desc.PanelRect.Width, desc.PanelRect.Height );
+			attributes.Set( "BorderRadius", radii.Horizontal );
+			attributes.Set( "BorderRadiusV", radii.Vertical );
+			attributes.Set( "BoxBloat", 1.0f );
 
 			attributes.Set( "Brightness", desc.Brightness );
 			attributes.Set( "Contrast", desc.Contrast );
@@ -40,7 +42,7 @@ internal static class UIRenderer
 				PanelRenderer.Stats.FrameGrabs++;
 			}
 
-			commandList.DrawQuad( desc.PanelRect, Material.UI.BackdropFilter, Color.White.WithAlpha( desc.Opacity ) );
+			commandList.DrawQuad( desc.PanelRect.Grow( 1 ), Material.UI.BackdropFilter, Color.White.WithAlpha( desc.Opacity ) );
 		}
 
 		var reset = commandList.Attributes;

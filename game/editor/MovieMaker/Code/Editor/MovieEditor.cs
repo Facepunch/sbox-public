@@ -1,13 +1,15 @@
-﻿using Sandbox.MovieMaker;
+﻿using Sandbox.Helpers;
+using Sandbox.MovieMaker;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using static Editor.MovieMaker.Session;
 
 namespace Editor.MovieMaker;
 
 #nullable enable
 
-public partial class MovieEditor : Widget, IHotloadManaged
+public partial class MovieEditor : Widget, IHotloadManaged, IUndoSystemProvider
 {
 	public const string HelpUrl = "https://sbox.game/dev/doc/systems/movie-maker/";
 
@@ -31,6 +33,8 @@ public partial class MovieEditor : Widget, IHotloadManaged
 	public ListPanel? ListPanel { get; private set; }
 	public TimelinePanel? TimelinePanel { get; private set; }
 	public HistoryPanel? HistoryPanel { get; private set; }
+
+	private Button? _createPlayerButton;
 
 	public bool ShowHistory
 	{
@@ -159,7 +163,7 @@ public partial class MovieEditor : Widget, IHotloadManaged
 		CreateStartupHelper();
 	}
 
-	void CreateStartupHelper()
+	private void CreateStartupHelper()
 	{
 		var row = Layout.AddRow();
 
@@ -171,20 +175,30 @@ public partial class MovieEditor : Widget, IHotloadManaged
 		col.Add( new Label( "Create a Movie Player component to get started.\nThe Movie Player is responsible for playing a movie clip in-game." ) { Alignment = TextFlag.Center } );
 		col.AddSpacingCell( 32 );
 
-		var button = col.Add( new Button.Primary( "Create Movie Player Component", "add_circle" ) );
+		_createPlayerButton = col.Add( new Button.Primary( "Create Movie Player Component", "add_circle" ) );
+		_createPlayerButton.Clicked = CreateNewPlayer;
 
-		button.Clicked = CreateNewPlayer;
-		button.Enabled = SceneEditorSession.Active is { Scene.IsValid: true };
+		UpdateCreatePlayerButton();
 
 		col.AddStretchCell();
 
 		row.AddStretchCell();
+
+		Update();
+	}
+
+	private void UpdateCreatePlayerButton()
+	{
+		if ( !_createPlayerButton.IsValid() ) return;
+
+		_createPlayerButton.Enabled = SceneEditorSession.Active is { Scene.IsValid: true };
 	}
 
 	[EditorEvent.Frame]
 	public void Frame()
 	{
 		UpdateEditorContext();
+		UpdateCreatePlayerButton();
 
 		Session?.Frame();
 	}
@@ -254,18 +268,6 @@ public partial class MovieEditor : Widget, IHotloadManaged
 				Log.Warning( ex );
 			}
 		}
-	}
-
-	[Shortcut( "editor.undo", "CTRL+Z" )]
-	public void OnUndo()
-	{
-		Session?.Undo();
-	}
-
-	[Shortcut( "editor.redo", "CTRL+Y" )]
-	public void OnRedo()
-	{
-		Session?.Redo();
 	}
 
 	/// <summary>
@@ -440,10 +442,10 @@ public partial class MovieEditor : Widget, IHotloadManaged
 	}
 
 	public void SaveFileAs() => SaveAsDialog( "Save Movie As..",
-		() => new MovieResource { Compiled = Session!.Project.Compile(), EditorData = Session.Project.Serialize() },
-		ConfirmedSwitchResource );
+		() => new CreateSequenceResult( new MovieResource { Compiled = Session!.Project.Compile(), EditorData = Session.Project.Serialize() } ),
+		result => ConfirmedSwitchResource( result.Resource ) );
 
-	public void SaveAsDialog( string title, Func<MovieResource> createResource, Action<MovieResource>? afterSave = null )
+	public void SaveAsDialog( string title, Func<CreateSequenceResult> createResource, Action<CreateSequenceResult>? afterSave = null )
 	{
 		var fd = new FileDialog( null );
 		fd.Title = title;
@@ -457,11 +459,11 @@ public partial class MovieEditor : Widget, IHotloadManaged
 			return;
 
 		var sceneAsset = AssetSystem.CreateResource( "movie", fd.SelectedFile );
-		var file = createResource();
+		var result = createResource();
 
-		sceneAsset.SaveToDisk( file );
+		sceneAsset.SaveToDisk( result.Resource );
 
-		afterSave?.Invoke( file );
+		afterSave?.Invoke( result );
 	}
 
 	/// <summary>
@@ -487,4 +489,6 @@ public partial class MovieEditor : Widget, IHotloadManaged
 
 		return null;
 	}
+
+	IUndoSystem? IUndoSystemProvider.UndoSystem => Session?.History;
 }

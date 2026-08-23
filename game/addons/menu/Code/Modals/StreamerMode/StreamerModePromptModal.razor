@@ -1,0 +1,39 @@
+@using Sandbox
+@using Sandbox.UI
+
+@namespace MenuProject.Modals
+@inherits MenuProject.Modals.BaseModal
+
+<root>
+    <div class="window">
+        <div class="content">
+            <div class="header">
+                <label class="heading">Recording Software Detected</label>
+            </div>
+            <div class="body">
+                <label class="body">We noticed you have recording software running. Would you like to enable Streamer Mode to hide usernames and avatars in most games?</label>
+            </div>
+        </div>
+        <div class="footer">
+            <Button class="clicky secondary" @onclick="@Decline">No Thanks</Button>
+            <Button class="clicky primary" Icon="visibility_off" @onclick="@Enable">Enable Streamer Mode</Button>
+        </div>
+    </div>
+</root>
+
+@code
+{
+    // Set once the prompt has been shown so we only inform the user about Streamer Mode a single time.
+    public const string CookieKey = "menu.streamermodeprompt.shown";
+
+    void Enable()
+    {
+        Preferences.StreamerMode = true;
+        Delete();
+    }
+
+    void Decline()
+    {
+        Delete();
+    }
+}

@@ -199,7 +199,6 @@ PS
 	DynamicCombo( D_NO_ZTEST, 0..1, Sys( ALL ) );
 
 	// Render State -------------------------------------------------------------------------------------------------------------------------------------------
-	//RenderState( SrgbWriteEnable0, true );
 	RenderState( FillMode, SOLID );
 
 	// Write 0 to the stencil so we don't stencil based get overlays drawing overtop

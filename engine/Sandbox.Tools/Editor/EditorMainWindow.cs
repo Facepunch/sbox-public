@@ -1,8 +1,10 @@
-﻿using NativeEngine;
+﻿using System;
+using NativeEngine;
+using Sandbox.Helpers;
 
 namespace Editor;
 
-public class EditorMainWindow : DockWindow
+public class EditorMainWindow : DockWindow, IUndoSystemProvider
 {
 	internal static EditorMainWindow Current;
 
@@ -248,39 +250,43 @@ public class EditorMainWindow : DockWindow
 		CodeEditor.OpenSolution();
 	}
 
+	IUndoSystem IUndoSystemProvider.UndoSystem => SceneEditorSession.Active?.UndoSystem;
+
 	[Shortcut( "editor.undo", "CTRL+Z", ShortcutType.Window )]
 	static void Undo()
 	{
-		using ( SceneEditorSession.Scope() )
-		{
-			if ( SceneEditorSession.Active.IsUndoScopeOpen )
-			{
-				if ( EditorPreferences.UndoSounds )
-				{
-					EditorUtility.PlayRawSound( "sounds/editor/fail.wav" );
-				}
+		if ( SceneEditorSession.Active is not { } session ) return;
 
-				return;
-			}
-			SceneEditorSession.Active.UndoSystem.Undo();
+		if ( session.IsUndoScopeOpen )
+		{
+			session.FailUndoRedo();
+			return;
+		}
+
+		using var scope = session.Scene.Push();
+
+		if ( IUndoSystem.Undo( EditorWindow ) )
+		{
+			session.SucceedUndoRedo();
 		}
 	}
 
 	[Shortcut( "editor.redo", "CTRL+Y", ShortcutType.Window )]
 	static void Redo()
 	{
-		using ( SceneEditorSession.Scope() )
-		{
-			if ( SceneEditorSession.Active.IsUndoScopeOpen )
-			{
-				if ( EditorPreferences.UndoSounds )
-				{
-					EditorUtility.PlayRawSound( "sounds/editor/fail.wav" );
-				}
+		if ( SceneEditorSession.Active is not { } session ) return;
 
-				return;
-			}
-			SceneEditorSession.Active.UndoSystem.Redo();
+		if ( session.IsUndoScopeOpen )
+		{
+			session.FailUndoRedo();
+			return;
+		}
+
+		using var scope = session.Scene.Push();
+
+		if ( IUndoSystem.Redo( EditorWindow ) )
+		{
+			session.SucceedUndoRedo();
 		}
 	}
 

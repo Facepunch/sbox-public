@@ -89,6 +89,7 @@ native accessor g_pRenderDevice
 
 	RenderDeviceAPI_t GetRenderDeviceAPI();
 
+	[nogc]
 	void MarkTextureUsed( ITexture texture, int nRequiredMipSize );
 
 	bool IsTextureRenderTarget( ITexture texture );

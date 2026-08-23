@@ -1,8 +1,11 @@
 @import "/styles/_theme.scss";
+@import "/styles/_front.scss";
 
+// Transparent everywhere - the scene camera and its effects are the backdrop on every page,
+// not just the front page. Only the panels on top of it carry fills.
 Page
 {
-	background-color: $default-950;
+	background-color: transparent;
 	flex-grow: 1;
 	position: relative;
 	justify-content: center;
@@ -24,24 +27,26 @@ Page > .inner {
     width: 100%;
 }
 
+// A filter column is a card floating over the scene, same slab as the rail.
 Page > .inner > .sidebar
 {
-    flex-shrink: 0;
-    width: 400px;
-    background-color: $default-900;
-    overflow: hidden;
+    @include front-card;
+
+    width: 360px;
     overflow-y: scroll;
-    flex-direction: column;
     pointer-events: all;
     gap: 8px;
-    padding: 50px;
-    box-shadow: 6px 0 36px rgba( black, 0.5 );
+    margin: $front-chrome-gap;
+    padding: 24px;
 }
 
+// width 0 + grow: take the leftover space, never the content's width - otherwise a wide
+// grid sizes this to its own content and overflows off the right of the screen.
 Page > .inner > .pagebody
 {
     flex-grow: 1;
     flex-shrink: 1;
+    width: 0;
     flex-direction: column;
 }
 

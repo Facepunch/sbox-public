@@ -1,0 +1,128 @@
+﻿@namespace MenuProject.UiTest
+@inherits UiTestPage
+
+@using Sandbox;
+@using Sandbox.UI;
+
+@attribute [Title( "Gradients" )]
+@attribute [Description( "background-image gradients - direction, stops, shape, tiling" )]
+@attribute [Icon( "gradient" )]
+@attribute [Order( 10 )]
+
+<root>
+
+    <h2>Linear - direction</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( red, blue )"
+                    Note="No direction means to bottom." />
+        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( to right, red, blue )" />
+        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( to top, red, blue )" />
+        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( 45deg, red, blue )"
+                    Note="0deg is up, angles go clockwise, so red is bottom-left." />
+        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( 135deg, red, blue )" />
+        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( -45deg, red, blue )" />
+        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( 0.25turn, red, blue )" />
+        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( to bottom right, red, blue )"
+                    Note="A corner leans with the box - on 200x100 this is 153deg, not 135." />
+        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( to bottom right, red, blue )"
+                    Note="Square, so the same keyword is 135deg here." />
+        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( to top right, red, blue )" />
+    </div>
+
+    <h2>Linear - stops</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( to right, black, white )"
+                    Note="Ramp for banding and gamma. Should be smooth, and mid-grey at halfway." />
+        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( to right, red 0%, red 50%, blue 50%, blue 100% )"
+                    Note="Hard stop - one pixel of transition at most." />
+        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( to right, red, green 20%, blue )"
+                    Note="An off-centre stop squashes one side and stretches the other." />
+        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( to right, red, yellow, green, blue )"
+                    Note="Stops with no positions space evenly." />
+        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( to right, red 20%, blue 60% )"
+                    Note="Stops short of the ends, so both ends are flat." />
+        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( to right, red 40px, blue 120px )"
+                    Note="Pixel positions. On a 200px wide box the ramp runs from 40px to 120px." />
+        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( to right, red 40px, blue 120px )"
+                    Note="The same gradient on a 100px box - the stops stay put, they don't scale with it." />
+        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( 45deg, red 40px, blue 120px )"
+                    Note="Pixels are measured along the gradient line, which is longer than the box at an angle." />
+        <UiTestCase Setup="@Wide" class="checkered" Css="background-image: linear-gradient( to right, rgba( 255, 0, 0, 0 ), rgba( 255, 0, 0, 1 ) )"
+                    Note="Alpha ramp. Premultiplied interpolation - no dark or grey halfway." />
+        <UiTestCase Setup="@Wide" class="checkered" Css="background-image: linear-gradient( to right, transparent, blue )"
+                    Note="The web treats transparent as transparent black but still doesn't darken." />
+        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( to right, red, orange, yellow, green, blue, indigo, violet, red, orange )"
+                    Note="Nine stops. The shader holds eight, so this is where they start going missing." />
+    </div>
+
+    <h2>Radial</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Wide" Css="background-image: radial-gradient( red, blue )"
+                    Note="Default is an ellipse to the farthest corner, so it fills a wide box." />
+        <UiTestCase Setup="@Wide" Css="background-image: radial-gradient( circle, red, blue )"
+                    Note="A circle sized to the farthest corner - blue only reaches the corners." />
+        <UiTestCase Setup="@Wide" Css="background-image: radial-gradient( closest-side, red, blue )" />
+        <UiTestCase Setup="@Wide" Css="background-image: radial-gradient( closest-side circle, red, blue )" />
+        <UiTestCase Setup="@Wide" Css="background-image: radial-gradient( farthest-side, red, blue )" />
+        <UiTestCase Setup="@Wide" Css="background-image: radial-gradient( closest-corner circle, red, blue )" />
+        <UiTestCase Setup="@Wide" Css="background-image: radial-gradient( circle at 20% 80%, red, blue )" />
+        <UiTestCase Setup="@Wide" Css="background-image: radial-gradient( circle at 30px 20px, red, blue )"
+                    Note="A pixel centre. Check it stays put when the UI scale changes." />
+        <UiTestCase Setup="@Wide" Css="background-image: radial-gradient( circle at right top, red, blue )" />
+        <UiTestCase Setup="@Wide" Css="background-image: radial-gradient( red 30%, blue 30% )"
+                    Note="Hard-edged disc." />
+    </div>
+
+    <h2>Conic</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Square" Css="background-image: conic-gradient( red, blue )"
+                    Note="Starts straight up and sweeps clockwise." />
+        <UiTestCase Setup="@Square" Css="background-image: conic-gradient( from 90deg, red, blue )" />
+        <UiTestCase Setup="@Square" Css="background-image: conic-gradient( red, yellow, green, blue, red )"
+                    Note="Repeating the first colour last hides the seam." />
+        <UiTestCase Setup="@Square" Css="background-image: conic-gradient( at 20% 20%, red, blue )" />
+        <UiTestCase Setup="@Square" Css="background-image: conic-gradient( #333 0%, #333 25%, #666 25%, #666 50%, #333 50%, #333 75%, #666 75% ); border-radius: 50%"
+                    Note="Hard stops make a pie chart. Edges should be clean at any size." />
+    </div>
+
+    <h2>Tiling - background-size, position, repeat</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( to right, red, blue ); background-size: 50px 100%"
+                    Note="A 50px tile repeated across, so the ramp restarts every 50px." />
+        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( to right, red, blue ); background-size: 50px 100%; background-repeat: no-repeat"
+                    Note="One tile, nothing painted past it." />
+        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( to right, red, blue ); background-size: 50px 100%; background-position: center"
+                    Note="Repeat is anchored to the position, so tiles land either side of centre." />
+        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( to right, red, blue ); background-size: 50%; background-repeat: repeat-x"
+                    Note="Percentage size, and repeat on one axis only." />
+        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( 45deg, #444 25%, #888 25%, #888 50%, #444 50% ); background-size: 24px 24px"
+                    Note="The web's checkerboard trick - the tile must line up with its neighbours." />
+    </div>
+
+    <h2>With other properties</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( to right, red, blue ); border-radius: 20px" />
+        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( to right, red, blue ); border: 6px solid rgba( 255, 255, 255, 0.6 ); border-radius: 20px"
+                    Note="The gradient runs under the border, not inside it." />
+        <UiTestCase Setup="@Square" class="checkered" Css="background-color: #00ff00; background-image: linear-gradient( to right, rgba( 255, 0, 0, 1 ), rgba( 255, 0, 0, 0 ) )"
+                    Note="Image over colour: green shows through where the image is transparent." />
+        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( to right, red, blue ); opacity: 0.4" class="checkered" />
+        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( to right, red, blue ); transform: rotate( 15deg )" class="roomy"
+                    Note="The gradient rotates with the box - it isn't screen aligned." />
+        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( to right, red, blue ); transform: scale( 1.6 )" class="roomy"
+                    Note="Scaling must not band or step the ramp - it's evaluated per pixel." />
+    </div>
+
+</root>
+
+@code
+{
+    const string Square = "width: 100px; height: 100px";
+    const string Wide = "width: 200px; height: 100px";
+}

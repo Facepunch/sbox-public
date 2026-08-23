@@ -55,7 +55,41 @@ public partial class Panel
 	/// If this panel or its parents have transforms, they'll be compounded here.
 	/// </summary>
 	[Hide]
-	public Matrix? GlobalMatrix { get; internal set; }
+	public Matrix? GlobalMatrix
+	{
+		get;
+		internal set
+		{
+			field = value;
+			_globalMatrixInverted = null;
+		}
+	}
+
+	Matrix? _globalMatrixInverted;
+
+	/// <summary>
+	/// Cached inverse of <see cref="GlobalMatrix"/>. Null when GlobalMatrix is null.
+	/// </summary>
+	internal Matrix? GlobalMatrixInverted
+	{
+		get
+		{
+			if ( GlobalMatrix is not { } m )
+				return null;
+
+			_globalMatrixInverted ??= m.Inverted;
+			return _globalMatrixInverted;
+		}
+	}
+
+	/// <summary>
+	/// Set <see cref="GlobalMatrix"/> along with an already known inverse, so it doesn't need computing again.
+	/// </summary>
+	internal void SetGlobalMatrix( Matrix? matrix, Matrix? inverted )
+	{
+		GlobalMatrix = matrix;
+		_globalMatrixInverted = inverted;
+	}
 
 	/// <summary>
 	/// The matrix that is applied as a result of transform: styles
@@ -136,6 +170,19 @@ public partial class Panel
 		Parent?.SetNeedsPreLayout();
 	}
 
+	/// <summary>
+	/// Request the final layout pass without a style rebuild. Enough for anything that
+	/// only moves content - like scrolling - where styles and yoga layout are unaffected.
+	/// </summary>
+	internal void SetNeedsFinalLayout()
+	{
+		if ( needsFinalLayout ) return;
+
+		needsFinalLayout = true;
+
+		Parent?.SetNeedsFinalLayout();
+	}
+
 	internal virtual void PreLayout( LayoutCascade cascade )
 	{
 		if ( YogaNode == null )
@@ -201,6 +248,7 @@ public partial class Panel
 
 			HasBackground = ComputedStyle.BackgroundColor.Value.a > 0f
 				|| ComputedStyle.BorderImageSource is not null
+				|| !ComputedStyle.BackgroundGradient.ColorOffsets.IsDefaultOrEmpty
 				|| (ComputedStyle.BackgroundImage is not null && ComputedStyle.BackgroundImage != Texture.Invalid)
 				|| (ComputedStyle.BorderLeftColor.Value.a > 0f && ComputedStyle.BorderLeftWidth.Value.GetPixels( 1.0f ) > 0f)
 				|| (ComputedStyle.BorderTopColor.Value.a > 0f && ComputedStyle.BorderTopWidth.Value.GetPixels( 1.0f ) > 0f)
@@ -223,6 +271,9 @@ public partial class Panel
 		// We need to tell the children to force an update if any of the parent's
 		// cascading styles have changed.
 		cascade.ParentChanged = cascade.ParentChanged || changed;
+
+		// background-clip: text clips to the text of the whole subtree, so every label under it lends its own
+		cascade.ClipBackgroundToText = cascade.ClipBackgroundToText || ComputedStyle.BackgroundClip == BackgroundClip.Text;
 
 		for ( int i = 0; i < _children.Count; i++ )
 		{
@@ -318,13 +369,13 @@ public partial class Panel
 		if ( YogaNode is null )
 			return;
 
-		PushLengthValues();
-
 		var hash = HashCode.Combine( offset, ScrollOffset, ScrollVelocity, ComputedStyle?.Transform, Opacity, ComputedStyle.Display );
-		if ( layoutHash == hash && !YogaNode.HasNewLayout && !needsFinalLayout ) return;
+		if ( layoutHash == hash && !needsFinalLayout && !YogaNode.HasNewLayout ) return;
 
 		needsFinalLayout = false;
 		layoutHash = hash;
+
+		PushLengthValues();
 
 		//if ( YogaNode.HasNewLayout || parentPos != offset )
 		{
@@ -450,18 +501,34 @@ public partial class Panel
 			var rect = Box.Rect;
 			rect.Position -= ScrollOffset;
 
+			// The scrollable area is our box grown to fit the children. The padding after the
+			// last child scrolls with the content, so it's added to the children's extent - not
+			// to the box, which already includes it. Adding it to the box made every padded scroll
+			// panel scrollable by its padding even when nothing overflowed.
+			Rect content = default;
+			bool hasContent = false;
+
 			for ( int i = 0; i < _children.Count; i++ )
 			{
 				var child = _children[i];
 
-				if ( child.IsVisible )
-				{
-					rect.Add( child.GetLayoutRect() );
-				}
+				if ( !child.IsVisible )
+					continue;
+
+				var childRect = child.GetLayoutRect();
+
+				if ( hasContent ) content.Add( childRect );
+				else content = childRect;
+
+				hasContent = true;
 			}
 
-			rect.Height += Box.Padding.Bottom;
-			rect.Right += Box.Padding.Right;
+			if ( hasContent )
+			{
+				content.Right += Box.Padding.Right;
+				content.Bottom += Box.Padding.Bottom;
+				rect.Add( content );
+			}
 
 			ConstrainScrolling( rect.Size );
 		}

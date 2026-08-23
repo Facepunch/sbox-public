@@ -445,6 +445,63 @@ public sealed partial class PolygonMesh : IJsonConvert
 	}
 
 	/// <summary>
+	/// Is every face using this edge hidden?
+	/// </summary>
+	public bool IsEdgeHidden( HalfEdgeHandle hEdge )
+	{
+		if ( _hiddenFaces.Count == 0 )
+			return false;
+
+		GetFacesConnectedToEdge( hEdge, out var hFaceA, out var hFaceB );
+
+		var hasFaceA = hFaceA.IsValid;
+		var hasFaceB = hFaceB.IsValid;
+
+		if ( hasFaceA && !IsFaceHidden( hFaceA ) )
+			return false;
+
+		if ( hasFaceB && !IsFaceHidden( hFaceB ) )
+			return false;
+
+		// An edge with no face at all was never drawn by a face being hidden
+		return hasFaceA || hasFaceB;
+	}
+
+	/// <summary>
+	/// Is every face using this vertex hidden?
+	/// </summary>
+	public bool IsVertexHidden( VertexHandle hVertex )
+	{
+		if ( _hiddenFaces.Count == 0 )
+			return false;
+
+		var hFirstEdge = hVertex.Edge;
+		if ( !hFirstEdge.IsValid )
+			return false;
+
+		var hEdge = hFirstEdge;
+		var hasFace = false;
+
+		do
+		{
+			var hFace = hEdge.Face;
+			if ( hFace.IsValid )
+			{
+				if ( !IsFaceHidden( hFace ) )
+					return false;
+
+				hasFace = true;
+			}
+
+			hEdge = hEdge.OppositeEdge.NextEdge;
+		}
+		while ( hEdge != hFirstEdge );
+
+		// A loose vertex was never drawn by a face being hidden
+		return hasFace;
+	}
+
+	/// <summary>
 	/// Get the smoothing of this edge
 	/// </summary>
 	public EdgeSmoothMode GetEdgeSmoothing( HalfEdgeHandle hEdge )
@@ -3467,6 +3524,20 @@ public sealed partial class PolygonMesh : IJsonConvert
 	}
 
 	/// <summary>
+	/// Get the positions of all vertices still used by a face that isn't hidden
+	/// </summary>
+	public IEnumerable<Vector3> GetVisibleVertexPositions()
+	{
+		foreach ( var hVertex in Topology.VertexHandles )
+		{
+			if ( IsVertexHidden( hVertex ) )
+				continue;
+
+			yield return Positions[hVertex];
+		}
+	}
+
+	/// <summary>
 	/// Set the blend of a vertex
 	/// </summary>
 	public void SetVertexBlend( HalfEdgeHandle hFaceVertex, Color32 blend )
@@ -3546,6 +3617,23 @@ public sealed partial class PolygonMesh : IJsonConvert
 		foreach ( var hEdge in Topology.HalfEdgeHandles )
 		{
 			if ( hEdge.Index > Topology.GetOppositeHalfEdge( hEdge ).Index )
+				continue;
+
+			yield return GetEdgeLine( hEdge );
+		}
+	}
+
+	/// <summary>
+	/// Get the start and end points of all edges still used by a face that isn't hidden
+	/// </summary>
+	public IEnumerable<Line> GetVisibleEdges()
+	{
+		foreach ( var hEdge in Topology.HalfEdgeHandles )
+		{
+			if ( hEdge.Index > Topology.GetOppositeHalfEdge( hEdge ).Index )
+				continue;
+
+			if ( IsEdgeHidden( hEdge ) )
 				continue;
 
 			yield return GetEdgeLine( hEdge );

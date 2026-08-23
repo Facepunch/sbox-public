@@ -1,0 +1,20 @@
+<Project>
+	<PropertyGroup Condition="'$(PublishSingleFile)' == 'true'">
+		<NoWarn>$(NoWarn);IL3000</NoWarn>
+		<_SuppressSingleFileAnalysisWarnings>true</_SuppressSingleFileAnalysisWarnings>
+	</PropertyGroup>
+
+	<!-- The engine remains in game/bin/managed. A framework-dependent launcher bundle carries
+	     only itself and its runtime config, avoiding loose files without embedding .NET or engine code. -->
+	<Target Name="FilterLauncherSingleFilePublish"
+		AfterTargets="ComputeResolvedFilesToPublishList;_ComputeFilesToBundle"
+		Condition="'$(PublishSingleFile)' == 'true' and '$(GenerateDependencyFile)' == 'false'">
+		<ItemGroup>
+			<LauncherRuntimeAsset Include="@(RuntimePackAsset)" />
+			<LauncherExternalAsset Include="@(ResolvedFileToPublish)"
+				Exclude="@(LauncherRuntimeAsset);@(IntermediateAssembly);$(ProjectRuntimeConfigFilePath);$(AppHostIntermediatePath);$(SingleFileHostIntermediatePath)" />
+			<ResolvedFileToPublish Remove="@(LauncherExternalAsset)" />
+			<FilesToBundle Remove="@(LauncherExternalAsset)" />
+		</ItemGroup>
+	</Target>
+</Project>

@@ -65,6 +65,9 @@ VS
 
 PS
 {
+	// Bark animation uses the prop origin, so we tag this so we don't combine this with other meshes
+	BoolAttribute( VertexNeedsPropOrigin, true );
+
 	#include "common/utils/Material.CommonInputs.hlsl"
 	#include "common/pixel.hlsl"
 

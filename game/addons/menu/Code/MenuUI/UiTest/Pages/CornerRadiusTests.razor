@@ -1,0 +1,125 @@
+@namespace MenuProject.UiTest
+@inherits UiTestPage
+
+@using Sandbox;
+@using Sandbox.UI;
+
+@attribute [Title( "Corner Radius" )]
+@attribute [Description( "border-radius - shorthands, ellipses, borders, clipping, shadows" )]
+@attribute [Icon( "rounded_corner" )]
+@attribute [Order( 20 )]
+
+<root>
+
+    <h2>Shorthand</h2>
+
+    <div class="cases">
+        <UiTestCase Css="border-radius: 8px" />
+        <UiTestCase Css="border-radius: 0" />
+        <UiTestCase Css="border-radius: 20px 0" Note="Two values are TL/BR then TR/BL." />
+        <UiTestCase Css="border-radius: 20px 0 40px" Note="Three values are TL, TR/BL, BR." />
+        <UiTestCase Css="border-radius: 10px 20px 30px 40px" Note="Four go clockwise from top-left." />
+        <UiTestCase Setup="@Short" Css="border-radius: 30px 30px 0 0" Note="On a 100x40 box the web keeps all 30px - it doesn't scale them down." />
+        <UiTestCase Setup="@Short" Css="border-radius: 100px" Note="A radius past half the height clamps to a pill." />
+        <UiTestCase Setup="@Half" Css="border-radius: 50px 0 0 0" Note="One corner taking the whole height." />
+        <UiTestCase Css="border-radius: 60px 60px 0 0" Note="Adjacent radii that overflow the side scale together, keeping their ratio." />
+        <UiTestCase Setup="@Wide" Css="border-radius: 100% 0" Note="Opposite corners can each take the whole box - the web draws a lens." />
+    </div>
+
+    <h2>Percentages and ellipses</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Wide" Css="border-radius: 50%" Note="On 200x100 this is a full ellipse, not a circle: x resolves against width, y against height." />
+        <UiTestCase Css="border-radius: 50%" Note="Square, so it's a circle." />
+        <UiTestCase Setup="@Wide" Css="border-radius: 10%" Note="20x10 ellipses." />
+        <UiTestCase Setup="@Wide" Css="border-radius: 40px 20px / 20px 40px" Note="Horizontal radii before the slash, vertical after." />
+        <UiTestCase Css="border-top-left-radius: 50px 20px" Note="Longhand takes two values the same way." />
+        <UiTestCase Setup="@Wide" Css="border-radius: 50% / 20px" />
+    </div>
+
+    <h2>With borders</h2>
+
+    <div class="cases">
+        <UiTestCase Css="border-radius: 20px; border: 2px solid #4ac2e8" Note="The inner edge keeps a 18px radius - the border width comes off it." />
+        <UiTestCase Css="border-radius: 20px; border: 10px solid #4ac2e8" />
+        <UiTestCase Css="border-radius: 20px; border: 25px solid #4ac2e8" Note="Border thicker than the radius: the inner corner is square." />
+        <UiTestCase Css="border-radius: 20px; border-left: 10px solid #e84a4a; border-top: 2px solid #4ae86e; border-right: 2px solid #4a6ee8; border-bottom: 10px solid #e84ad0"
+                    Note="Where two colours meet the join is a straight line, mitred at the corner." />
+        <UiTestCase Css="border-left: 10px solid #e84a4a; border-top: 2px solid #4ae86e"
+                    Note="No radius, uneven widths - the join line's slope follows the widths." />
+        <UiTestCase Css="border-radius: 20px; border-bottom: 3px solid #4ac2e8" Note="One side only still follows the corner." />
+        <UiTestCase Setup="@Small" Css="border-radius: 6px; border: 1px solid #4ac2e8" Note="Small and thin - a 1px border shouldn't disappear or double up." />
+        <UiTestCase Css="border-radius: 0; border: 2px solid #e84a4a" />
+    </div>
+
+    <h2>Clipping children</h2>
+
+    <div class="cases">
+        <UiTestCase Css="border-radius: 20px; border: 4px solid #4ac2e8; overflow: hidden">
+            <ChildContent><div style="@Child"></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@WideNoFill" Css="border-radius: 50%; overflow: hidden">
+            <ChildContent><div style="@Child"></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Css="border-radius: 20px; overflow: hidden" Note="Text is clipped by the same corners as anything else.">
+            <ChildContent>
+                <label style="position: absolute; left: -10px; top: 40px; width: 200px; font-size: 16px; color: #000; white-space: nowrap">Clipped text runs off the edge</label>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@WideNoFill" Css="border-radius: 50%; overflow: hidden; transform: scale( 0.5 )" Note="The clip's antialiasing follows the transform - one screen pixel wide, not one layout pixel.">
+            <ChildContent><div style="@Child"></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Css="border-radius: 20px; overflow: hidden; transform: rotate( 15deg )" class="roomy">
+            <ChildContent><div style="@Child"></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Css="border-radius: 30px; overflow: hidden" Note="Nested clips - the child's corners and the parent's both apply.">
+            <ChildContent>
+                <div style="position: absolute; left: 20px; top: -20px; width: 120px; height: 120px; border-radius: 10px; overflow: hidden; background-color: #4ac2e8">
+                    <div style="@Child"></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Shadows and outlines</h2>
+
+    <div class="cases">
+        <UiTestCase class="roomy" Css="border-radius: 20px; box-shadow: 0 0 0 8px #4ac2e8" Note="Spread with no blur - a hard ring that follows the corner." />
+        <UiTestCase class="roomy" Css="border-radius: 20px; box-shadow: 0 0 20px #000" />
+        <UiTestCase class="roomy" Css="border-radius: 20px; box-shadow: 8px 8px 12px #000" />
+        <UiTestCase class="roomy" Css="box-shadow: 0 0 10px 6px #000" Note="Blur and spread together, no radius." />
+        <UiTestCase class="roomy" Setup="@Wide" Css="border-radius: 50%; box-shadow: 0 0 20px #000" Note="A blurred shadow of an ellipse - the silhouette must match the box, top and bottom." />
+        <UiTestCase Css="border-radius: 20px; box-shadow: inset 0 0 20px #000" />
+        <UiTestCase Css="border-radius: 20px; border: 4px solid #4ac2e8; box-shadow: inset 4px 4px 0 6px #000" Note="Inset shadows are clipped by the padding box, inside the border." />
+        <UiTestCase class="roomy" Css="border-radius: 20px; outline: 3px solid #4ac2e8; outline-offset: 4px" Note="An outline sits outside the box and doesn't affect layout." />
+        <UiTestCase Css="border-radius: 20px; outline: 3px solid #4ac2e8; outline-offset: -6px" Note="A negative offset pulls it inside." />
+        <UiTestCase class="roomy" Css="border-radius: 0 0 0 100%; box-shadow: 0 0 12px #000" Note="One huge corner - the shadow should hug it all the way round." />
+    </div>
+
+    <h2>Filters, backdrops and scale</h2>
+
+    <div class="cases">
+        <UiTestCase class="roomy" Css="border-radius: 20px; filter: drop-shadow( 6px 6px 10px #000 )" Note="drop-shadow follows the drawn shape, so the corners are round." />
+        <UiTestCase class="roomy" Css="border-radius: 20px; filter: blur( 4px )" />
+        <UiTestCase class="checkered" Setup="@NoFill" Css="border-radius: 20px; backdrop-filter: blur( 8px ); border: 1px solid #fff" Note="The blur is clipped to the corners." />
+        <UiTestCase class="checkered" Setup="@NoFill" Css="border-radius: 20px; background-color: rgba( 232, 176, 74, 0.5 ); backdrop-filter: blur( 8px )" />
+        <UiTestCase Css="border-radius: 20px; border: 2px solid #4ac2e8; transform: scale( 0.5 )" Note="Corners and border stay sharp when scaled down." />
+        <UiTestCase Setup="@Tiny" class="roomy" Css="border-radius: 10px; border: 2px solid #4ac2e8; transform: scale( 10 ); transform-origin: 0 0"
+                    Note="Blown up 10x: the antialiasing ramp should still be one screen pixel, and the border an even 20px." />
+    </div>
+
+</root>
+
+@code
+{
+    const string Short = "width: 100px; height: 40px; background-color: #e8b04a";
+    const string Half = "width: 100px; height: 50px; background-color: #e8b04a";
+    const string Wide = "width: 200px; height: 100px; background-color: #e8b04a";
+    const string Small = "width: 30px; height: 20px; background-color: #e8b04a";
+    const string Tiny = "width: 20px; height: 20px; background-color: #e8b04a";
+
+    const string NoFill = "width: 100px; height: 100px";
+    const string WideNoFill = "width: 200px; height: 100px";
+
+    const string Child = "position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: #e84a4a";
+}

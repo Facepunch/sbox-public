@@ -12,39 +12,54 @@ $front-tertiary: #6f7788;
 $front-label: #7d8698;
 
 $front-accent: #8fd14f;
-$front-accent-dim: rgba( $front-accent, 0.4 );
 
+// The one loud colour in the chrome - active nav, badges, the reward ring, filled buttons.
+$front-primary: #2f7ff0;
+
+// Quit, and anything else that shouldn't be pressed by accident.
+$front-danger: #ff5d6a;
+
+// Game names and other in-card links.
+$front-link: #5b9ee8;
+$front-link-hover: #94c6ff * 6;
+
+// The reward green - emerald, deliberately not $front-accent, so a claimable
+// reward is the one loud thing in the column.
+$front-reward: #3fc76a;
+$front-reward-deep: #1d7a3d;
+
+// Stat glyphs, one colour each so the pair reads as two different things.
+$front-trophy: #e8b44a;
+$front-points: #4f9bf0;
+
+// Rules *inside* a panel. Soft - they separate bands, they don't draw the box.
 $front-hairline: rgba( 255, 255, 255, 0.1 );
 $front-track: rgba( 255, 255, 255, 0.13 );
+
+// The outline *around* a panel. Brighter than a hairline and cool-tinted rather than
+// neutral, so a card edge reads as a defined box against the 3D backdrop.
+$front-border: rgba( 174, 196, 238, 0.3 );
+
+// The strip under a tile's art. Opaque enough to carry small text over the 3D backdrop.
+$front-tile-bar: rgba( 14, 18, 26, 0.88 );
+
+// Sidebar cards - a slab the character render and rows sit inside. Lit from the top,
+// but only just: the fall to the bottom is a shade, not a fade to black.
+$front-card: rgba( 24, 30, 44, 0.9 );
+$front-card-top: rgba( 34, 43, 62, 0.92 );
+$front-card-bottom: rgba( 21, 27, 40, 0.94 );
 
 // Hairlines and body copy sit this far in from the panel edge; media may bleed past it.
 $front-inset: 16px;
 
 $front-radius: 14px;
-$front-panel-foot: 12px;
 
-// Matches $screen-w-xl in _theme.scss.
-$front-stage-max: 1920px;
-
-@mixin front-panel
-{
-	position: absolute;
-	flex-direction: column;
-	pointer-events: all;
-	overflow: hidden;
-	padding-bottom: $front-panel-foot;
-	font-family: $front-font;
-	font-size: 13px;
-	color: $front-body;
-
-	background-color: rgba( 8, 10, 14, 0.5 );
-	backdrop-filter: blur( 3px );
-	border-radius: $front-radius $front-radius 0 0;
-}
+// Chrome - the left rail and the top bar float over the scene with this much air around them.
+$front-rail-width: 92px;
+$front-chrome-gap: 16px;
 
 @mixin front-section-label
 {
-	font-family: $front-font;
 	font-size: 10.5px;
 	font-weight: 600;
 	text-transform: uppercase;
@@ -52,28 +67,597 @@ $front-stage-max: 1920px;
 	color: $front-label;
 }
 
-// No top padding - a zone that follows another opens with its own rule, which supplies the gap.
-@mixin front-zone
+// The fill every chrome surface shares - cards, the rail, popovers. Sets the family
+// once here so everything inside inherits it instead of restating it per rule.
+@mixin front-slab
+{
+	font-family: $front-font;
+	background-color: $front-card;
+	background-image: linear-gradient( 180deg, $front-card-top, $front-card-bottom );
+	backdrop-filter: blur( 8px );
+}
+
+// A slab in the right-hand column. Rounded, hairlined, blurred over the 3D backdrop.
+@mixin front-card
+{
+	@include front-slab;
+
+	flex-direction: column;
+	flex-shrink: 0;
+	overflow: hidden;
+	border-radius: $front-radius;
+	border: 1px solid $front-border;
+}
+
+// A section inside a card - full bleed sides come from the card, so pad here.
+@mixin front-card-section
 {
 	flex-direction: column;
 	flex-shrink: 0;
-	width: 100%;
-	padding: 0 $front-inset 14px $front-inset;
+	padding: 14px $front-inset;
 }
 
-@mixin front-zone-rule
+// Small rounded pill button - "Edit", "Join", "Invite".
+@mixin front-pill
 {
-	height: 1px;
+	flex-direction: row;
 	flex-shrink: 0;
-	margin-bottom: 14px;
-	background-color: $front-hairline;
+	align-items: center;
+	justify-content: center;
+	gap: 5px;
+	padding: 4px 11px;
+	border-radius: 999px;
+	border: 1px solid $front-hairline;
+	background-color: rgba( 255, 255, 255, 0.05 );
+	transition: all 0.1s ease;
+
+	label
+	{
+		font-size: 10.5px;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: $front-body;
+	}
+
+	icon
+	{
+		font-size: 14px;
+		color: $front-secondary;
+	}
+
+	&:hover
+	{
+		border-color: rgba( 255, 255, 255, 0.28 );
+		background-color: rgba( 255, 255, 255, 0.11 );
+
+		label, icon
+		{
+			color: $front-heading;
+		}
+	}
 }
 
-// Right-aligned secondary text next to a section label ("Browse all >").
-@mixin front-label-action
+// An inline text link inside a card row - a game title, a player's name. Reads as a
+// link and behaves like one; anything not clickable should not use this.
+@mixin front-text-link
 {
-	font-family: $front-font;
+	pointer-events: all;
+	cursor: pointer;
+	color: $front-link;
+	transition: color 0.6s ease;
+	// Colour only - the engine draws text-decoration in a fixed white, which reads
+	// as a stray line rather than an underline on a coloured link.
+	&:hover
+	{
+		sound-in: "ui.button.over";
+		color: $front-link-hover;
+		transition: color 0.01s ease-out;
+	}
+
+	&:active
+	{
+		sound-in: "ui.button.press";
+	}
+}
+
+//
+// The aside's list sections - friends activity, recent activity, news - are all the
+// same shape: a labelled head, then rows of [media, body, trailing meta]. These four
+// carry that shape so each component only states what makes it different.
+//
+
+// A labelled band inside a card, with a scrolling list under the label.
+@mixin front-card-list
+{
+	@include front-card-section;
+
+	gap: 10px;
+	overflow: hidden;
+
+	// Nothing to show - gone entirely, so the card doesn't end on an empty band.
+	&.hidden
+	{
+		display: none;
+	}
+
+	.head
+	{
+		flex-direction: row;
+		align-items: center;
+		flex-shrink: 0;
+		gap: 5px;
+	}
+
+	.section-label
+	{
+		@include front-section-label;
+	}
+
+	// More rows than fit is normal, so the list scrolls rather than clipping them away.
+	.rows
+	{
+		flex-direction: column;
+		flex-shrink: 1;
+		gap: 11px;
+		overflow-y: scroll;
+
+		// Rows keep their natural height - without this the shrinking container
+		// squashes them into each other instead of scrolling.
+		> *
+		{
+			flex-shrink: 0;
+		}
+	}
+
+	.row
+	{
+		flex-direction: row;
+		align-items: center;
+		flex-shrink: 0;
+		gap: 10px;
+	}
+
+	.row-body
+	{
+		flex-shrink: 1;
+		min-width: 0;
+	}
+}
+
+// A row's leading media. Square by default; .round for people, since a circle
+// reads as a person and a rounded rect as a game.
+@mixin front-row-media
+{
+	width: 32px;
+	height: 32px;
+	flex-shrink: 0;
+	border-radius: 6px;
+	background-size: cover;
+	background-position: center;
+	background-color: rgba( 0, 0, 0, 0.35 );
+
+	&.round
+	{
+		border-radius: 50%;
+	}
+}
+
+// The quiet text at the end of a row - a timestamp, an "in".
+@mixin front-row-meta
+{
+	flex-shrink: 0;
 	font-size: 11px;
 	font-weight: 500;
-	color: $front-secondary;
+	color: $front-tertiary;
 }
+
+// A row's primary line - a friend's name, a news headline.
+@mixin front-row-title
+{
+	font-size: 13px;
+	font-weight: 700;
+	color: $front-heading;
+	max-width: 100%;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+// A rail entry - icon stacked over its label. No fill of its own; the page you're on
+// is marked by a bar down the rail's right edge, not by a slab.
+@mixin front-nav-item
+{
+	position: relative;
+	flex-direction: column;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	width: 100%;
+	// Fixed, not derived from the children. A Razor-set Icon and the content Label
+	// both re-measure on re-render, and a bad frame otherwise resizes the entry and
+	// shunts every entry below it down the rail.
+	height: 68px;
+	padding: 10px 4px;
+	// Square and full bleed - the active entry's fill runs edge to edge and butts
+	// straight into the marker bar, so neither may be rounded.
+	border-radius: 0;
+	// The marker is a border, reserved transparent on every entry. A pseudo-element
+	// would be a real child here, and it lays out in flow for the frame before its
+	// absolute positioning lands - which jumps the whole rail on navigation.
+	border-right: 3px solid transparent;
+	transition: all 0.1s ease;
+
+	// Explicit box, not one measured from the glyph. Icon is set as a Razor parameter,
+	// so the panel re-measures on re-render and can come back zero-height for a frame -
+	// which makes the whole rail jump on navigation.
+	icon, iconpanel
+	{
+		width: 100%;
+		height: 23px;
+		text-align: center;
+		font-size: 23px;
+		color: $front-secondary;
+	}
+
+	label
+	{
+		font-family: $front-font;
+		font-size: 11px;
+		font-weight: 600;
+		color: $front-secondary;
+	}
+
+	&:hover
+	{
+		background-color: rgba( 255, 255, 255, 0.06 );
+
+		icon, iconpanel, label
+		{
+			color: $front-heading;
+		}
+	}
+
+	&.active
+	{
+		background-color: rgba( $front-primary, 0.14 );
+		border-right: 3px solid $front-primary;
+
+		icon, iconpanel
+		{
+			color: $front-primary;
+		}
+
+		label
+		{
+			color: $front-heading;
+		}
+	}
+}
+
+// Round icon button - the top bar's right-hand cluster.
+@mixin front-icon-button
+{
+	position: relative;
+	flex-shrink: 0;
+	width: 38px;
+	height: 38px;
+	align-items: center;
+	justify-content: center;
+	border-radius: 50%;
+	border: 1px solid transparent;
+	transition: all 0.1s ease;
+
+	// Full width and centred text rather than letting the glyph centre its own box:
+	// an IconPanel whose Icon is set after construction measures ~2px wide and the
+	// glyph then hangs outside it, off centre.
+	icon, iconpanel
+	{
+		width: 100%;
+		text-align: center;
+		font-size: 20px;
+		color: $front-secondary;
+	}
+
+	&:hover
+	{
+		background-color: rgba( 255, 255, 255, 0.08 );
+		border-color: $front-hairline;
+
+		icon, iconpanel
+		{
+			color: $front-heading;
+		}
+	}
+}
+
+// The count that rides a button's corner - the rail's inbox and rewards entries.
+@mixin front-count-badge
+{
+	position: absolute;
+	top: -1px;
+	right: -3px;
+	min-width: 17px;
+	height: 17px;
+	align-items: center;
+	justify-content: center;
+	padding: 0 5px;
+	border-radius: 999px;
+	background-color: $front-primary;
+
+	label
+	{
+		font-family: $front-font;
+		font-size: 10px;
+		font-weight: 700;
+		color: #ffffff;
+	}
+}
+
+//
+// The shape the pages that explain themselves share - mounts, the inbox, rewards. An
+// explainer card on the left that hugs its prose, a scrolling column of things on the
+// right. Include these inside the page's own selector: stylesheets are global, so a bare
+// .step or .list would leak everywhere.
+//
+
+// The two columns.
+@mixin front-page-columns
+{
+	flex-direction: row;
+	flex-grow: 1;
+	flex-shrink: 1;
+	gap: $front-chrome-gap;
+	padding: $front-chrome-gap;
+	overflow: hidden;
+}
+
+// The explainer. align-self so the card ends with its text instead of running the full
+// height; it still scrolls if the text outgrows the screen.
+@mixin front-page-aside
+{
+	@include front-card;
+
+	align-self: flex-start;
+	max-height: 100%;
+	width: 360px;
+	padding: 24px;
+	gap: 8px;
+	overflow-y: scroll;
+
+	h2
+	{
+		flex-shrink: 0;
+		font-size: 15px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: $front-heading;
+
+		i
+		{
+			color: $front-primary;
+			text-transform: none;
+			font-size: 21px;
+		}
+	}
+
+	p
+	{
+		flex-shrink: 0;
+		color: $front-body;
+		margin: 12px 0 4px 0;
+	}
+
+	// A labelled block of iconned rows. Every explainer is made of these.
+	.block
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 12px;
+		margin-top: 12px;
+
+		.section-label
+		{
+			@include front-section-label;
+		}
+
+		icon
+		{
+			flex-shrink: 0;
+			width: 20px;
+			text-align: center;
+			font-size: 18px;
+			color: $front-primary;
+			margin-top: 1px;
+		}
+
+		label
+		{
+			font-size: 12.5px;
+			color: $front-body;
+		}
+	}
+
+	.step, .note
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: flex-start;
+		gap: 10px;
+	}
+
+	// Notes are asides to the steps, so their glyphs stay quiet.
+	.note icon
+	{
+		color: $front-tertiary;
+	}
+
+	// More specific than the .block label rule above, which would otherwise take the
+	// link's colour off it.
+	.block .docs-link
+	{
+		@include front-text-link;
+
+		font-size: 12.5px;
+		font-weight: 600;
+		flex-shrink: 0;
+		margin-left: 30px;
+	}
+}
+
+// The column of things beside the explainer. width 0 + grow: take the leftover space rather
+// than the content's width, or a wide row sizes the column to itself and pushes off screen.
+@mixin front-page-list
+{
+	flex-direction: column;
+	flex-grow: 1;
+	flex-shrink: 1;
+	width: 0;
+	overflow-y: scroll;
+	padding: 0 8px 64px 0;
+	gap: 16px;
+
+	// Rows keep their natural height rather than being squashed by the scrolling parent.
+	> *
+	{
+		flex-shrink: 0;
+	}
+}
+
+// A band's heading inside that column - a title, a count, and room for an action.
+@mixin front-page-section-head
+{
+	flex-shrink: 0;
+	flex-direction: row;
+	align-items: baseline;
+	gap: 10px;
+	margin-top: 12px;
+	padding: 0 4px;
+
+	.title
+	{
+		font-family: $front-font;
+		font-size: 18px;
+		font-weight: 700;
+		color: $front-heading;
+	}
+
+	.count
+	{
+		font-size: 12px;
+		font-weight: 500;
+		color: $front-secondary;
+	}
+
+	// A second band under the first - quieter, and further from what it follows.
+	&.quiet
+	{
+		margin-top: 32px;
+
+		.title { color: $front-secondary; }
+	}
+}
+
+// Nothing to show. A card, so the column doesn't just look broken.
+@mixin front-page-empty
+{
+	@include front-card;
+
+	align-items: center;
+	justify-content: center;
+	padding: 64px;
+	gap: 6px;
+
+	icon
+	{
+		font-size: 40px;
+		color: $front-tertiary;
+		margin-bottom: 8px;
+	}
+
+	.title
+	{
+		font-family: $front-font;
+		font-size: 18px;
+		font-weight: 700;
+		color: $front-heading;
+	}
+
+	.hint
+	{
+		font-size: 13px;
+		color: $front-secondary;
+	}
+}
+
+// Filled call to action. Blue by default; .reward for the green claim, .locked when it can't be pressed.
+@mixin front-button
+{
+	flex-direction: row;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	padding: 11px 0;
+	border-radius: 6px;
+	background-color: $front-primary;
+	transition: all 0.1s ease;
+
+	label
+	{
+		font-family: $front-font;
+		font-size: 12.5px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.07em;
+		color: #ffffff;
+	}
+
+	icon
+	{
+		font-size: 17px;
+		color: #ffffff;
+	}
+
+	&:hover
+	{
+		filter: brightness( 1.15 );
+	}
+
+	&.reward
+	{
+		background-image: linear-gradient( 90deg, $front-reward-deep, $front-reward );
+	}
+
+	&.locked
+	{
+		background-image: none;
+		background-color: rgba( 255, 255, 255, 0.06 );
+		border: 1px solid $front-hairline;
+		cursor: default;
+
+		label, icon
+		{
+			color: $front-secondary;
+		}
+
+		&:hover
+		{
+			filter: none;
+		}
+	}
+}
+
+// Progress bar. The bar is one element - progress comes from a hard-stopped
+// background-image gradient set inline, so there's no fill child to size.
+@mixin front-track
+{
+	height: 8px;
+	flex-shrink: 0;
+	border-radius: 999px;
+	background-color: $front-track;
+	overflow: hidden;
+}
+

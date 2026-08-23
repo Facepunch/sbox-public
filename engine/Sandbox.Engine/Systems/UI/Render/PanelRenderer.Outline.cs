@@ -24,12 +24,7 @@ partial class PanelRenderer
 
 		target.AddOutline( new OutlineDrawDescriptor( rect, color, outlineWidth )
 		{
-			BorderRadius = new Vector4(
-				style.BorderTopLeftRadius.Value.GetPixels( size ),
-				style.BorderTopRightRadius.Value.GetPixels( size ),
-				style.BorderBottomLeftRadius.Value.GetPixels( size ),
-				style.BorderBottomRightRadius.Value.GetPixels( size )
-			),
+			Radii = BorderRadii.FromStyle( style, rect ),
 			Offset = style.OutlineOffset.Value.GetPixels( size ),
 			OverrideBlendMode = OverrideBlendMode,
 		} );

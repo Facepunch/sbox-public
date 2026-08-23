@@ -46,16 +46,13 @@ public class ProjectList
 	/// </summary>
 	public Project TryAddFromFile( string path )
 	{
-		if ( !path.EndsWith( ".sbproj" ) )
-			path = System.IO.Path.Combine( path, ".sbproj" );
-
-		var cleanPath = System.IO.Path.GetFullPath( path );
+		var cleanPath = Project.NormalizeConfigFilePath( path );
 
 		// Don't add the same project twice
 		if ( All.Where( a => a.ConfigFilePath == cleanPath ).FirstOrDefault() is Project lp )
 			return lp;
 
-		var project = new Project { ConfigFilePath = cleanPath, LastOpened = DateTime.Now - TimeSpan.FromSeconds( 10 ) };
+		var project = new Project( cleanPath ) { LastOpened = DateTime.Now - TimeSpan.FromSeconds( 10 ) };
 		project.LoadMinimal();
 
 		// If it loaded broken, don't bother with it

@@ -1,0 +1,186 @@
+@import "/styles/_front.scss";
+
+//
+// The front page's tile look, applied to the shared PackageCard. PackageCard lives in
+// the base addon and can't import these tokens, so the menu dresses it from here -
+// stylesheets are global, so this reaches every card the menu renders.
+//
+// The image-on-top variants get the full treatment. .list is a horizontal row and
+// keeps its own layout; only its colours are touched.
+//
+
+PackageCard
+{
+	font-family: $front-font;
+
+	// Reserved so the hover border costs no layout shift.
+	border: 2px solid transparent;
+	border-radius: $front-radius;
+	overflow: hidden;
+	transition: all 0.12s ease;
+
+	.image
+	{
+		flex-shrink: 0;
+		overflow: hidden;
+		// Its own rounding, not just the card's - overflow here clips children to this
+		// box, so without it the hover video renders square corners over rounded art.
+		border-radius: $front-radius $front-radius 0 0;
+		border: 0;
+		// Darker than the page, so art-less cards read as intentional.
+		background-color: #0B0D14;
+		transition: all 0.12s ease;
+		background-tint: white;
+	}
+
+	.package-video
+	{
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background-size: cover;
+		background-position: center;
+	}
+
+	// Top right, not top left. Pinning both edges and right-aligning avoids having to
+	// unset the base component's `left`. Bigger and fully opaque than the web default -
+	// at tile size the 0.7 opacity reads as washed out.
+	PackageFlairBar
+	{
+		top: 8px;
+		left: 8px;
+		right: 8px;
+		justify-content: flex-end;
+		gap: 4px;
+
+		.flair
+		{
+			width: 24px;
+			height: 24px;
+			border-radius: 6px;
+			opacity: 1;
+
+			icon
+			{
+				font-size: 16px;
+			}
+		}
+	}
+
+	// A band below the art, on its own fill - the art stays unobstructed.
+	column
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 4px;
+		padding: 9px 12px 11px 12px;
+		background-color: $front-tile-bar;
+	}
+
+	.package-title
+	{
+		font-size: 14px;
+		font-weight: 600;
+		color: $front-heading;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	// Icon+number pairs read as one unit, with clear air between the pairs.
+	.package-meta
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 12px;
+	}
+
+	.package-stat
+	{
+		flex-direction: row;
+		align-items: center;
+		flex-shrink: 0;
+		gap: 5px;
+
+		icon
+		{
+			font-size: 12px;
+			color: $front-secondary;
+		}
+
+		label
+		{
+			font-size: 12px;
+			font-weight: 500;
+			letter-spacing: 0;
+			text-transform: none;
+			color: $front-secondary;
+		}
+
+		.live-dot
+		{
+			width: 6px;
+			height: 6px;
+			border-radius: 3px;
+			background-color: $front-accent;
+		}
+
+		&.live label
+		{
+			color: $front-accent;
+		}
+	}
+
+	// The whole card takes a border - no zoom, so a hovered row stays a row.
+	&:hover
+	{
+		// HDR - blooms.
+		border-color: $front-primary * 10;
+		box-shadow: 0 8px 28px rgba( black, 0.55 );
+		// Undo the base component's scale/glow treatment.
+		transform: none;
+		background-color: transparent;
+
+		.image
+		{
+			background-tint: white * 1.15;
+		}
+
+		.package-title
+		{
+			color: #ffffff;
+		}
+	}
+
+	&:active
+	{
+		border-color: $front-link;
+	}
+
+	// A row, not a tile - no art band, no rounding on the image's bottom corners.
+	&.list
+	{
+		border-radius: $front-radius;
+
+		.image
+		{
+			border-radius: $front-radius;
+		}
+
+		column
+		{
+			background-color: transparent;
+			padding: 0;
+			justify-content: center;
+		}
+
+		&:hover
+		{
+			border-color: $front-hairline;
+			box-shadow: none;
+			background-color: rgba( 255, 255, 255, 0.05 );
+		}
+	}
+}

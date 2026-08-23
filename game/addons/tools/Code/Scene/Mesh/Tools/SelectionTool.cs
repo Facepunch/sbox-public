@@ -691,20 +691,12 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 				Gizmo.Draw.LineThickness = 1;
 				Gizmo.Draw.IgnoreDepth = true;
 				Gizmo.Draw.Color = edgeColor.Darken( 0.3f ).WithAlpha( 0.1f );
-
-				foreach ( var v in mesh.Mesh.GetEdges() )
-				{
-					Gizmo.Draw.Line( v );
-				}
+				Gizmo.Draw.Lines( mesh.Mesh.GetVisibleEdges() );
 
 				Gizmo.Draw.Color = edgeColor;
 				Gizmo.Draw.IgnoreDepth = false;
 				Gizmo.Draw.LineThickness = 2;
-
-				foreach ( var v in mesh.Mesh.GetEdges() )
-				{
-					Gizmo.Draw.Line( v );
-				}
+				Gizmo.Draw.Lines( mesh.Mesh.GetVisibleEdges() );
 			}
 
 			if ( DrawVertices )
@@ -716,7 +708,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 					Gizmo.Draw.IgnoreDepth = true;
 					Gizmo.Draw.Color = vertexColor.Darken( 0.3f ).WithAlpha( 0.2f );
 
-					foreach ( var v in mesh.Mesh.GetVertexPositions() )
+					foreach ( var v in mesh.Mesh.GetVisibleVertexPositions() )
 					{
 						Gizmo.Draw.Sprite( v, 8, null, false );
 					}
@@ -724,7 +716,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 					Gizmo.Draw.Color = vertexColor;
 					Gizmo.Draw.IgnoreDepth = false;
 
-					foreach ( var v in mesh.Mesh.GetVertexPositions() )
+					foreach ( var v in mesh.Mesh.GetVisibleVertexPositions() )
 					{
 						Gizmo.Draw.Sprite( v, 8, null, false );
 					}
@@ -1301,6 +1293,9 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 			{
 				foreach ( var h in mesh.VertexHandles )
 				{
+					if ( mesh.IsVertexHidden( h ) )
+						continue;
+
 					var worldPos = transform.PointToWorld( mesh.GetVertexPosition( h ) );
 					var vertex = (T)(object)new MeshVertex( component, h );
 
@@ -1331,6 +1326,9 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 				foreach ( var h in mesh.HalfEdgeHandles )
 				{
 					if ( h.Index > mesh.GetOppositeHalfEdge( h ).Index )
+						continue;
+
+					if ( mesh.IsEdgeHidden( h ) )
 						continue;
 
 					mesh.GetEdgeVertices( h, out var vA, out var vB );

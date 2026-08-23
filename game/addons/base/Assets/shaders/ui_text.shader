@@ -36,7 +36,9 @@ PS
 	#include "ui/pixel.hlsl"
 	#include "common/classes/Fog.hlsl"
 
-	Texture2D g_tTextTexture < Attribute( "Texture" ); SrgbRead( true ); >;
+	// Straight alpha, sRGB-encoded. Read raw and decode in the shader (like ui_cssbox_batched) rather than SrgbRead,
+	// because HDR text is rasterized to RGBA16F which has no sRGB view - the hardware would hand it back undecoded.
+	Texture2D g_tTextTexture < Attribute( "Texture" ); SrgbRead( false ); >;
 	int SamplerIndex < Attribute( "SamplerIndex"); >;
 	float g_FogStrength < Attribute( "g_FogStrength" ); >;
 
@@ -91,16 +93,17 @@ PS
 
 		float2 vTexCoord = i.vTexCoord.xy;
 
-		float mipBias = -1.5;
 		SamplerState sampler = Bindless::GetSampler( SamplerIndex );
-		float4 vColor = g_tTextTexture.SampleBias( sampler, vTexCoord, mipBias );
+		float4 vColor = g_tTextTexture.Sample( sampler, vTexCoord );
+		vColor.rgb = SrgbGammaToLinear( vColor.rgb );
 
 		o.vColor = vColor;
+		o.vColor.a *= i.vColor.a;
+		o = UI_CommonProcessing_Post( i, o, vColor.a );
 
 		#if ( D_BLENDMODE == 3 )
-			o.vColor *= i.vColor.a;
-		#else
-			o.vColor.a *= i.vColor.a;
+			// Caller asked for a premultiplied blend state, so hand it premultiplied output
+			o.vColor.rgb *= o.vColor.a;
 		#endif
 
 		// Apply fog only on world panels

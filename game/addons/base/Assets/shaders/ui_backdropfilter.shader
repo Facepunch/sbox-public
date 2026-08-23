@@ -34,9 +34,12 @@ VS
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 PS
 {
-	#include "ui/pixel.hlsl"  
+	#include "ui/pixel.hlsl"
+	#include "ui/rounded_rect.hlsl"
 
-	float4 CornerRadius < Attribute( "BorderRadius" ); >;
+	float4 CornerRadius < Attribute( "BorderRadius" ); >;	// horizontal radii ( top-left, top-right, bottom-left, bottom-right )
+	float4 CornerRadiusV < Attribute( "BorderRadiusV" ); >;	// vertical radii, same order
+	float BoxBloat < Default( 0.0 ); Attribute( "BoxBloat" ); >;	// pixels the quad is grown by on each side, so the edge antialiasing has room
 
 	float Brightness < Attribute( "Brightness" ); Default( 1 ); >;
 	float Contrast < Attribute( "Contrast" );  Default( 1 ); >;
@@ -53,7 +56,6 @@ PS
 	float4 g_vViewport < Source( Viewport ); >; 
 
 	// Render State -------------------------------------------------------------------------------------------------------------------------------------------
-	RenderState( SrgbWriteEnable0, true );
 
 	// Always write rgba
 	RenderState( ColorWriteEnable0, RGBA );
@@ -67,18 +69,6 @@ PS
 
 	// Main ---------------------------------------------------------------------------------------------------------------------------------------------------
 
-	float GetDistanceFromEdge(float2 pos, float2 size, float4 cornerRadius)
-	{
-		float minCorner = min(size.x, size.y);
-
-			//Based off https://iquilezles.org/www/articles/distfunctions2d/distfunctions2d.htm
-
-		float4 r = min(cornerRadius * 2.0, minCorner);
-		r.xy = (pos.x > 0.0) ? r.xy : r.zw;
-		r.x = (pos.y > 0.0) ? r.x : r.y;
-		float2 q = abs(pos) - (size) + r.x;
-		return -1.0 + min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r.x;
-	}
 
 	float4 DoColorMatrix( float4 color, float4x4 mColorMatrix )
 	{
@@ -98,7 +88,11 @@ PS
 
 		float3 backdrop = g_tFrameBufferCopyTexture.SampleLevel( g_sTrilinearClamp, uv, sqrt( BlurScale / 2 ) ).rgb;
 
-		backdrop = SrgbLinearToGamma( backdrop );
+		// Filter in gamma space. A grab of a float target that holds gamma-space UI is already there.
+		if ( !g_bUIFrameGrabEncoded || g_bUIInPanelLayer )
+		{
+			backdrop = SrgbLinearToGamma( backdrop );
+		}
 
 		// Sepia
 		backdrop = DoColorMatrix (
@@ -149,10 +143,11 @@ PS
 
 		o.vColor = DoBackdropFilter( vUV );
 
-		float2 pos = ( BoxSize ) * (i.vTexCoord.xy * 2.0 - 1.0);
-		float dist = GetDistanceFromEdge(pos, BoxSize, CornerRadius);
-		o.vColor.a = saturate( -dist * SUBPIXEL_AA_MAGIC ) * i.vColor.a;
+		// The quad may be the box grown by BoxBloat; make texcoords 0..1 across the box itself
+		float2 boxUv = ( i.vTexCoord.xy - 0.5 ) * ( BoxSize + BoxBloat * 2.0 ) / max( BoxSize, 0.0001 ) + 0.5;
+		float edge = SdfCoverage( RoundedRectSdfUv( boxUv, BoxSize, CornerRadius, CornerRadiusV ) );
+		o.vColor.a = edge * i.vColor.a;
 
-		return UI_CommonProcessing_Post( i, o );
+		return UI_CommonProcessing_Post( i, o, edge );
 	}
 }

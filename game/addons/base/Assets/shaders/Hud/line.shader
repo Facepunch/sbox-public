@@ -94,6 +94,7 @@ VS
 PS
 {
 	#include "common/blendmode.hlsl"
+	#include "ui/gamma.hlsl"
 
 	RenderState( DepthEnable, true );
 	RenderState( DepthWriteEnable, false );
@@ -127,6 +128,7 @@ PS
 		}
 
 		float4 color = lerp( ColorStart, ColorEnd, i.Color.x );
-		return float4( color.rgb, shapeMask * color.a );
+		color = UISoftenHdrEdges( float4( color.rgb, shapeMask * color.a ), shapeMask );
+		return UIEncodeOutput( color );
 	}
 }

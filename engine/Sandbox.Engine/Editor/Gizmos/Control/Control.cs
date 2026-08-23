@@ -22,7 +22,7 @@ public static partial class Gizmo
 		/// <summary>
 		/// A front left up position movement widget. If widget was moved then will return true and out will return the new position.
 		/// </summary>
-		public bool Position( string name, Vector3 position, out Vector3 newPos, Rotation? axisRotation = null, float squareSize = 3.0f )
+		public bool Position( string name, Vector3 position, out Vector3 newPos, Rotation? axisRotation = null, float squareSize = 3.0f, Func<Vector3?> centerRaycast = null )
 		{
 			if ( position.IsNaN )
 			{
@@ -75,6 +75,15 @@ public static partial class Gizmo
 				using var scope = Sandbox.Gizmo.Scope( "squares" );
 				Hitbox.DepthBias *= 0.8f;
 
+				if ( centerRaycast != null )
+				{
+					Sandbox.Gizmo.Draw.Color = Color.White.WithAlpha( 1.1f );
+					if ( DragCenterRaycast( "drag-camera", 2.0f, centerRaycast, out var moved ) )
+					{
+						movement += moved;
+					}
+				}
+				else
 				{
 					var camRot = Transform.RotationToLocal( Camera.Rotation );
 
@@ -145,6 +154,38 @@ public static partial class Gizmo
 		{
 			Sandbox.Gizmo.Draw.LineThickness = 2.0f;
 			Sandbox.Gizmo.Draw.LineCircle( 0, Sandbox.Gizmo.IsHovered ? 0.6f : 0.5f, 8 );
+		}
+
+		/// <summary>
+		/// A center handle that moves the object to the position of a raycast hit, cast from mouse cursor
+		/// </summary>
+		public bool DragCenterRaycast( string name, float size, Func<Vector3?> raycast, out Vector3 movement )
+		{
+			movement = default;
+
+			using var x = Sandbox.Gizmo.Scope( name );
+
+			var bbox = new BBox( new Vector3( -size ), new Vector3( size ) );
+
+			Sandbox.Gizmo.Hitbox.BBox( bbox );
+
+			if ( !Sandbox.Gizmo.IsHovered ) Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Draw.Color.Darken( 0.33f );
+
+			var drawSize = Sandbox.Gizmo.IsHovered ? size : size * 0.85f;
+			Sandbox.Gizmo.Draw.SolidBox( new BBox( new Vector3( -drawSize ), new Vector3( drawSize ) ) );
+
+			if ( !Pressed.This )
+				return false;
+
+			if ( raycast() is not Vector3 hit )
+				return false;
+
+			var anchor = Transform.Position;
+			var rot = Transform.Rotation;
+
+			movement = (hit - anchor) * rot.Inverse;
+
+			return true;
 		}
 
 		/// <summary>

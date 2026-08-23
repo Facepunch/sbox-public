@@ -1,4 +1,4 @@
-HEADER
+﻿HEADER
 {
 	DevShader = true;
 	Version = 1;
@@ -28,58 +28,86 @@ COMMON
 	struct BoxInstanceData
 	{
 		float4 Rect;
-		uint Color;
-		float4 BorderRadius;
-		float4 BorderSize;
-		uint BorderColorL;
-		uint BorderColorT;
-		uint BorderColorR;
-		uint BorderColorB;
+		float4 Color;
+		float4 BorderRadius;	// horizontal radii ( top-left, top-right, bottom-left, bottom-right )
+		float4 BorderRadiusV;	// vertical radii, same order
+		float4 BorderSize;		// left, top, right, bottom
+		float4 BorderColorL;
+		float4 BorderColorT;
+		float4 BorderColorR;
+		float4 BorderColorB;
 		int TextureIndex;
 		int SamplerIndex;
 		int BackgroundRepeat;
 		float BackgroundAngle;
 		float4 BackgroundRect;
-		uint BackgroundTint;
+		float4 BackgroundTint;
 		int BorderImageIndex;
 		int BorderImageSamplerIndex;
 		int BorderImageMode;
 		int BorderImageFill;
 		float4 BorderImageSlice;
-		uint BorderImageTint;
+		float4 BorderImageTint;
 		int Flags;
 		int ScissorIndex;
 		int Mode;
 		int TransformIndex;
 		int InverseScissorIndex;
+		int TextMaskIndex;
+		int TextMaskSamplerIndex;
+		int BackgroundClip;
+		float4 BackgroundClipRect;	// box clip: the inset. text clip: where the mask sits.
 	};
-
-	float4 UnpackColor( uint packed )
-	{
-		float4 c;
-		c.r = (float)(packed & 0xFF) / 255.0;
-		c.g = (float)((packed >> 8) & 0xFF) / 255.0;
-		c.b = (float)((packed >> 16) & 0xFF) / 255.0;
-		c.a = (float)((packed >> 24) & 0xFF) / 255.0;
-		return c;
-	}
 
 	struct TransformData
 	{
 		float4x4 Mat;
 	};
 
-	struct ScissorData
+	// One rounded rect of a clip stack. Rect is left, top, right, bottom in the clipping panel's layout space,
+	// TransformMat takes screen space there.
+	struct ClipShape
 	{
 		float4 Rect;
-		float4 CornerRadius;
+		float4 RadiiH;
+		float4 RadiiV;
 		float4x4 TransformMat;
+	};
+
+	// Must match ScissorInstance in GPUBoxInstance.cs
+	#define MAX_CLIPS 4
+	struct ScissorData
+	{
+		int Count;
 		int Invert;
+		int Pad0;
+		int Pad1;
+		ClipShape Clips[MAX_CLIPS];
+	};
+
+	// Must match GPUGradientInstance in GPUBoxInstance.cs. Stop colors are straight
+	// alpha in sRGB space; Angle is radians - 0 points down the panel for a linear
+	// gradient, straight up for a conic one.
+	struct GradientData
+	{
+		float4 StopColors[8];
+		float StopOffsets[8];
+		int Count;
+		float Angle;
+		int Type;			// 0 linear, 1 radial, 2 conic
+		int SizeMode;		// radial: 0 farthest-side, 1 farthest-corner, 2 closest-side, 3 closest-corner
+		float2 Center;		// radial and conic
+		int CenterUnits;	// bit 0/1 set when that centre axis is a fraction of the box, not pixels
+		int Circle;			// radial: 1 for a circle instead of an ellipse
+		int StopUnits;		// bit per stop, set when that offset is a pixel length not a fraction
+		int Corner;			// linear: 1 top-left, 2 top-right, 3 bottom-left, 4 bottom-right, 0 for an angle
 	};
 
 	StructuredBuffer<BoxInstanceData> BoxInstances < Attribute( "BoxInstances" ); >;
 	StructuredBuffer<ScissorData> ScissorBuffer < Attribute( "ScissorBuffer" ); >;
 	StructuredBuffer<TransformData> TransformBuffer < Attribute( "TransformBuffer" ); >;
+	StructuredBuffer<GradientData> GradientBuffer < Attribute( "GradientBuffer" ); >;
+
 }
 
 struct PixelInput
@@ -100,6 +128,7 @@ VS
 {
 	#include "math_general.fxc"
 	#include "instancing.fxc"
+	#include "ui/gamma.hlsl"
 
 	#define EPSILON 0.000001
 
@@ -120,6 +149,9 @@ VS
 		float2( 0, 1 ),
 	};
 
+	// Quads are the box grown by a pixel so the outer half of the edge antialiasing has somewhere to land
+	#define BOX_BLOAT 1.0
+
 	PixelInput MainVs( uint nVertexID : SV_VertexID, uint nInstanceID : SV_InstanceID )
 	{
 		PixelInput o;
@@ -128,7 +160,8 @@ VS
 		float2 corner = QuadPositions[nVertexID];
 		BoxInstanceData inst = BoxInstances[instanceIndex];
 
-		float2 vPositionSs = inst.Rect.xy + corner * inst.Rect.zw;
+		float2 vLocal = inst.Rect.xy - BOX_BLOAT + corner * ( inst.Rect.zw + BOX_BLOAT * 2.0 );
+		float2 vPositionSs = vLocal;
 
 		float4 vViewport = g_vViewport;
 		float4x4 instTransform = TransformBuffer[inst.TransformIndex].Mat;
@@ -156,13 +189,15 @@ VS
 		}
 		#endif
 
-		o.vPositionPanelSpace = mul( instTransform, float4( inst.Rect.xy + corner * inst.Rect.zw, 0, 1 ) );
-		o.vTexCoord.xy = corner;
+		o.vPositionPanelSpace = mul( instTransform, float4( vLocal, 0, 1 ) );
+
+		// 0..1 across the box itself, so a little outside that in the bloat
+		o.vTexCoord.xy = ( vLocal - inst.Rect.xy ) / max( inst.Rect.zw, 0.0001 );
 		o.vTexCoord.zw = vPositionSs / vViewport.zw;
 
-		float4 instColor = UnpackColor( inst.Color );
-		o.vColor.rgb = SrgbGammaToLinear( instColor.rgb );
-		o.vColor.a = instColor.a;
+		// rgb can be HDR, alpha over 1 breaks alpha blending
+		o.vColor.rgb = UIDecodeColor( inst.Color.rgb );
+		o.vColor.a = saturate( inst.Color.a );
 
 		o.iInstanceID = instanceIndex;
 
@@ -173,10 +208,11 @@ VS
 PS
 {
 	#include "common/blendmode.hlsl"
+	#include "ui/gamma.hlsl"
+	#include "ui/rounded_rect.hlsl"
 
 	// Scissor is now per-instance via ScissorIndex into ScissorBuffer (defined in COMMON)
 
-	RenderState( SrgbWriteEnable0, true );
 	RenderState( ColorWriteEnable0, RGBA );
 	RenderState( FillMode, SOLID );
 	RenderState( CullMode, NONE );
@@ -188,58 +224,64 @@ PS
 		RenderState( DepthEnable, true );
 	#endif
 
-	#define SUBPIXEL_AA_MAGIC 0.5
-
-	float GetDistanceFromEdge( float2 pos, float2 size, float4 cornerRadius )
+	// Distance to an inset box edge - the box pulled in by inset, each corner's radii less the inset on
+	// its two sides. A corner that loses either radius goes square, like CSS. Inset is left, top, right, bottom.
+	// The padding box is this with the border widths; the content box adds the padding on top.
+	float InsetBoxSdf( float2 p, float2 boxSize, float4 radiiH, float4 radiiV, float4 inset )
 	{
-		float minCorner = min( size.x, size.y );
-		float4 r = min( cornerRadius * 2.0, minCorner );
-		r.xy = ( pos.x > 0.0 ) ? r.xy : r.zw;
-		r.x  = ( pos.y > 0.0 ) ? r.x  : r.y;
-		float2 q = abs( pos ) - size + r.x;
-		return -0.5 + min( max( q.x, q.y ), 0.0 ) + length( max( q, 0.0 ) ) - r.x;
+		float2 innerSize = max( boxSize - float2( inset.x + inset.z, inset.y + inset.w ), 0.0 );
+		float2 innerCentre = float2( inset.x - inset.z, inset.y - inset.w ) * 0.5;
+
+		float4 innerH = radiiH - inset.xzxz;
+		float4 innerV = radiiV - inset.yyww;
+		float4 keep = step( 0.0001, innerH ) * step( 0.0001, innerV );
+
+		return RoundedRectSdf( p - innerCentre, innerSize * 0.5, innerH * keep, innerV * keep );
 	}
 
-	float2 DistanceNormal( float2 p, float2 size, float4 cornerRadius )
+	// How much of this pixel the background is allowed to paint. border-box paints everywhere, the padding
+	// and content boxes stop at their edge, and text keeps only what the panel's glyphs cover.
+	float BackgroundClipCoverage( BoxInstanceData inst, float2 pos, float2 boxSize, float2 texCoord )
 	{
-		const float eps = 1;
-		const float2 h = float2( eps, 0 );
-		return normalize( float3(
-			GetDistanceFromEdge( p - h.xy, size, cornerRadius ) - GetDistanceFromEdge( p + h.xy, size, cornerRadius ),
-			GetDistanceFromEdge( p - h.yx, size, cornerRadius ) - GetDistanceFromEdge( p + h.yx, size, cornerRadius ),
-			2.0 * h.x
-		) ).xy;
+		if ( inst.BackgroundClip == 0 )
+			return 1.0;
+
+		if ( inst.BackgroundClip != 3 )
+			return SdfCoverage( InsetBoxSdf( pos, boxSize, inst.BorderRadius, inst.BorderRadiusV, inst.BackgroundClipRect ) );
+
+		// No text under the panel means nothing to paint into
+		if ( inst.TextMaskIndex == 0 )
+			return 0.0;
+
+		float2 uv = ( texCoord * boxSize - inst.BackgroundClipRect.xy ) / inst.BackgroundClipRect.zw;
+		if ( any( uv < 0.0 ) || any( uv > 1.0 ) )
+			return 0.0;
+
+		Texture2D maskTex = Bindless::GetTexture2D( inst.TextMaskIndex );
+		return saturate( maskTex.Sample( Bindless::GetSampler( inst.TextMaskSamplerIndex ), uv ).a );
 	}
 
-	float4 AddBorder( float2 texCoord, float2 pos, float dist, float2 boxSize, float4 cornerRadius, float4 borderWidth, float4 bcL, float4 bcT, float4 bcR, float4 bcB )
+	// Which side's colour a border pixel takes. CSS splits each corner along the line from the box corner
+	// to the padding box corner, which is the same as picking the side the pixel is proportionally least
+	// deep into. Sides with no border never win. The join between the two nearest sides is antialiased
+	// over a pixel, like the web strokes it.
+	float4 BorderSideColor( float2 pos, float2 boxSize, float4 borderWidth, float4 cL, float4 cT, float4 cR, float4 cB )
 	{
-		float2 vTransPos = texCoord * boxSize;
+		float4 has = step( 0.0001, borderWidth );
+		float4 depth = float4( pos.x, pos.y, boxSize.x - pos.x, boxSize.y - pos.y ) / max( borderWidth, 0.0001 );
+		depth = depth * has + ( 1.0 - has ) * 1e9;
 
-		float2 fScale = 1.0 / ( 1.0 - ( float2( borderWidth.z + borderWidth.x, borderWidth.y + borderWidth.w ) / boxSize ) );
-		vTransPos = ( vTransPos - ( boxSize * 0.5 ) ) * fScale + ( boxSize * 0.5 );
-		vTransPos += float2( -borderWidth.x + borderWidth.z, -borderWidth.y + borderWidth.a ) * ( fScale * 0.5 );
+		// Nearest side and runner up
+		float4 c1 = cL, c2 = cT;
+		float d1 = depth.x, d2 = depth.y;
+		if ( d2 < d1 ) { c1 = cT; c2 = cL; d1 = depth.y; d2 = depth.x; }
+		if ( depth.z < d1 ) { c2 = c1; d2 = d1; c1 = cR; d1 = depth.z; } else if ( depth.z < d2 ) { c2 = cR; d2 = depth.z; }
+		if ( depth.w < d1 ) { c2 = c1; d2 = d1; c1 = cB; d1 = depth.w; } else if ( depth.w < d2 ) { c2 = cB; d2 = depth.w; }
 
-		float2 vOffsetPos = boxSize * ( ( vTransPos / boxSize ) * 2.0 - 1.0 );
-		float2 vNormal = DistanceNormal( vOffsetPos, boxSize, cornerRadius );
-		float fDistance = GetDistanceFromEdge( vOffsetPos, boxSize, cornerRadius ) + 1.5;
-
-		float4 vBorderL = bcL; vBorderL.a = max(  vNormal.x, 0 ) * fDistance / borderWidth.x;
-		float4 vBorderT = bcT; vBorderT.a = max(  vNormal.y, 0 ) * fDistance / borderWidth.y;
-		float4 vBorderR = bcR; vBorderR.a = max( -vNormal.x, 0 ) * fDistance / borderWidth.z;
-		float4 vBorderB = bcB; vBorderB.a = max( -vNormal.y, 0 ) * fDistance / borderWidth.w;
-
-		float4 vBorderColor = -100;
-		float fBorderAlpha = 0;
-
-		if ( borderWidth.x > 0 && vBorderL.a > vBorderColor.a ) { vBorderColor = vBorderL; fBorderAlpha = bcL.a; }
-		if ( borderWidth.y > 0 && vBorderT.a > vBorderColor.a ) { vBorderColor = vBorderT; fBorderAlpha = bcT.a; }
-		if ( borderWidth.z > 0 && vBorderR.a > vBorderColor.a ) { vBorderColor = vBorderR; fBorderAlpha = bcR.a; }
-		if ( borderWidth.w > 0 && vBorderB.a > vBorderColor.a ) { vBorderColor = vBorderB; fBorderAlpha = bcB.a; }
-
-		float fAntialiasAmount = max( 1.0 / SUBPIXEL_AA_MAGIC, 2.0 / SUBPIXEL_AA_MAGIC * abs( dist / min( boxSize.x, boxSize.y ) ) );
-		vBorderColor.a = saturate( smoothstep( 0, fAntialiasAmount, fDistance ) ) * fBorderAlpha;
-
-		return vBorderColor;
+		// How far this pixel is from the join line, in pixels
+		float diff = d2 - d1;
+		float t = saturate( 0.5 - diff / max( fwidth( diff ), 0.0001 ) );
+		return lerp( c1, c2, t );
 	}
 
 	float4 AddImageBorder( float2 texCoord, float2 boxSize, float4 borderWidth, int borderImageIndex, int borderImageSamplerIndex, int borderImageMode, int borderImageFill, float4 borderImageSlice )
@@ -288,7 +330,7 @@ PS
 			uv.y = ( ( vBoxTexCoord.y - ( boxSize.y - BorderImageWidth.w ) ) / BorderImageWidth.w ) * vBorderPixelRatio.w + ( 1.0 - vBorderPixelRatio.w );
 
 		float4 r = borderTex.Sample( Bindless::GetSampler( borderImageSamplerIndex ), uv );
-		r.xyz = SrgbGammaToLinear( r.xyz );
+		r.xyz = UIDecodeColor( r.xyz );
 		return r;
 	}
 
@@ -296,7 +338,7 @@ PS
 	{
 		float4 result;
 		result.a = src.a + ( 1 - src.a ) * dest.a;
-		result.rgb = ( 1 / result.a ) * ( src.a * src.rgb + ( 1 - src.a ) * dest.a * dest.rgb );
+		result.rgb = ( src.a * src.rgb + ( 1 - src.a ) * dest.a * dest.rgb ) / max( result.a, 0.0001 );
 		return result;
 	}
 
@@ -306,179 +348,273 @@ PS
 		return mul( m, vTexCoord - offset ) + offset;
 	}
 
-	bool IsOutsideBox( float2 vPos, float4 vRect, float4 vRadius, float4x4 matTransform )
+	// How much of the pixel a clip stack lets through, 0..1. The clip's transform is affine, so the screen pixel's
+	// footprint carried through each clip's matrix gives its ramp width - no derivatives in the loop, so it can
+	// stop at Count.
+	float ScissorCoverage( ScissorData scissor, float2 vPanelPos )
 	{
-		vPos = mul( matTransform, float4( vPos, 0, 1 ) ).xy;
-		float2 tl = float2( vRect.x + vRadius.x, vRect.y + vRadius.x );
-		float2 tr = float2( vRect.z - vRadius.y, vRect.y + vRadius.y );
-		float2 bl = float2( vRect.x + vRadius.z, vRect.w - vRadius.z );
-		float2 br = float2( vRect.z - vRadius.w, vRect.w - vRadius.w );
+		float2 vPixelX = ddx( vPanelPos );
+		float2 vPixelY = ddy( vPanelPos );
 
-		return ( vPos.x < vRect.x || vPos.x > vRect.z || vPos.y > vRect.w || vPos.y < vRect.y ) ||
-			   ( length( vPos - tl ) > vRadius.x && vPos.x < tl.x && vPos.y < tl.y ) ||
-			   ( length( vPos - tr ) > vRadius.y && vPos.x > tr.x && vPos.y < tr.y ) ||
-			   ( length( vPos - bl ) > vRadius.z && vPos.x < bl.x && vPos.y > bl.y ) ||
-			   ( length( vPos - br ) > vRadius.w && vPos.x > br.x && vPos.y > br.y );
+		float flCoverage = 1.0;
+
+		[loop]
+		for ( int k = 0; k < scissor.Count; k++ )
+		{
+			ClipShape c = scissor.Clips[k];
+			float2 p = mul( c.TransformMat, float4( vPanelPos, 0, 1 ) ).xy;
+			float2 vCentre = ( c.Rect.xy + c.Rect.zw ) * 0.5;
+			float2 vHalf = ( c.Rect.zw - c.Rect.xy ) * 0.5;
+			float d = RoundedRectSdf( p - vCentre, vHalf, c.RadiiH, c.RadiiV );
+
+			float2x2 mToClip = float2x2( c.TransformMat[0].xy, c.TransformMat[1].xy );
+			float flPixel = 0.5 * ( length( mul( mToClip, vPixelX ) ) + length( mul( mToClip, vPixelY ) ) );
+			flCoverage *= saturate( 0.5 - d / max( flPixel, 0.0001 ) );
+		}
+
+		return scissor.Invert ? 1.0 - flCoverage : flCoverage;
 	}
 
-	float ShadowRoundedRect( float2 pos, float2 center, float2 box, float size )
+	// Modes 1 and 2. BackgroundRect is the shape as (x, y, w, h) relative to the quad, BackgroundAngle the CSS blur
+	// radius. Outset draws the blurred shape, inset draws what's outside it; the extra scissor keeps each on its side
+	// of the box.
+	float4 RenderShadow( BoxInstanceData inst, PixelInput i, bool inset, out float flCoverage )
 	{
-		return size - length( pos - center );
-	}
-
-	float ShadowDrawCurvedRect( float2 pos, float2 size, float4 cornerRadius, float shadowWidth, bool inset )
-	{
-		float f = 1;
-		f = min( pos.x, size.x - pos.x );
-		f = min( f, pos.y );
-		f = min( f, size.y - pos.y );
-
-		float radAdd = shadowWidth * 0.4;
-		if ( inset ) radAdd = -radAdd;
-
-		float r = min( size.y * 0.5, cornerRadius[0] + radAdd );
-		if ( pos.x < r && pos.y < r )
-			f = min( f, ShadowRoundedRect( pos, r, size, r ) );
-
-		r = min( size.y * 0.5, cornerRadius[1] + radAdd );
-		if ( pos.x > size.x - r && pos.y < r )
-			f = min( f, ShadowRoundedRect( pos, float2( size.x - r, r ), size, r ) );
-
-		r = min( size.y * 0.5, cornerRadius[3] + radAdd );
-		if ( pos.x > size.x - r && pos.y > size.y - r )
-			f = min( f, ShadowRoundedRect( pos, float2( size.x - r, size.y - r ), size, r ) );
-
-		r = min( size.y * 0.5, cornerRadius[2] + radAdd );
-		if ( pos.x < r && pos.y > size.y - r )
-			f = min( f, ShadowRoundedRect( pos, float2( r, size.y - r ), size, r ) );
-
-		return f;
-	}
-
-	float4 RenderShadow( BoxInstanceData inst, PixelInput i, bool inset )
-	{
-		float blur = inst.BackgroundAngle;
-		float spread = inst.BackgroundRect.x;
-		float2 offset = inst.BackgroundRect.yz;
 		float2 boxSize = inst.Rect.zw;
+		float2 p = i.vTexCoord.xy * boxSize;
 
-		// The rect was bloated by blur — compute inner shadow box size
-		float2 shadowSize = boxSize - float2( blur, blur ) * 2.0;
+		float4 shape = inst.BackgroundRect;
+		float2 half = shape.zw * 0.5;
+		float2 q = p - ( shape.xy + half );
+		float sigma = inst.BackgroundAngle * 0.5;
 
-		float2 pos = boxSize * i.vTexCoord.xy - float2( blur, blur );
+		float a;
+		if ( sigma > 0.01 )
+			a = RoundedRectShadow( q, half, inst.BorderRadius, inst.BorderRadiusV, sigma );
+		else
+			a = SdfCoverage( RoundedRectSdf( q, half, inst.BorderRadius, inst.BorderRadiusV ) );
 
-		if ( inset ) pos -= offset;
+		if ( inset ) a = 1.0 - a;
 
-		float d = ShadowDrawCurvedRect( pos, shadowSize, inst.BorderRadius, blur, inset );
-		d = smoothstep( -blur * 0.5, blur * 0.5, d );
-		d = saturate( d );
-
-		if ( inset ) d = 1.0 - d;
+		flCoverage = saturate( a );
 
 		float4 col = i.vColor;
-		col.a *= d;
+		col.a *= flCoverage;
 		return col;
 	}
-	float OutlineDrawRoundedRect( float2 pos, float2 size, float4 cornerRadius )
-	{
-		float f = 1;
-		f = min( pos.x, size.x - pos.x );
-		f = min( f, pos.y );
-		f = min( f, size.y - pos.y );
 
-		float r = min( size.y * 0.5, cornerRadius[0] );
-		if ( pos.x < r && pos.y < r )
-			f = min( f, ShadowRoundedRect( pos, r, size, r ) );
-
-		r = min( size.y * 0.5, cornerRadius[1] );
-		if ( pos.x > size.x - r && pos.y < r )
-			f = min( f, ShadowRoundedRect( pos, float2( size.x - r, r ), size, r ) );
-
-		r = min( size.y * 0.5, cornerRadius[2] );
-		if ( pos.x < r && pos.y > size.y - r )
-			f = min( f, ShadowRoundedRect( pos, float2( r, size.y - r ), size, r ) );
-
-		r = min( size.y * 0.5, cornerRadius[3] );
-		if ( pos.x > size.x - r && pos.y > size.y - r )
-			f = min( f, ShadowRoundedRect( pos, float2( size.x - r, size.y - r ), size, r ) );
-
-		return f;
-	}
-
-	float4 RenderOutline( BoxInstanceData inst, PixelInput i )
+	// Mode 3. BackgroundRect is (panel w, panel h, width, offset), BackgroundAngle how far the quad reaches past the
+	// panel. The outline is the band between the panel shape pushed out by offset and by offset + width.
+	float4 RenderOutline( BoxInstanceData inst, PixelInput i, out float flCoverage )
 	{
 		float2 panelSize = inst.BackgroundRect.xy;
 		float outlineWidth = inst.BackgroundRect.z;
 		float outlineOffset = inst.BackgroundRect.w;
 		float bloat = inst.BackgroundAngle;
-		float2 boxSize = inst.Rect.zw;
 
-		float2 pos = ( panelSize + float2( bloat, bloat ) * 2.0 ) * i.vTexCoord.xy - float2( bloat, bloat );
-		float d = OutlineDrawRoundedRect( pos, panelSize, inst.BorderRadius );
-		float dist_outside = -d;
+		float2 p = ( panelSize + bloat * 2.0 ) * i.vTexCoord.xy - bloat;
+		float d = RoundedRectSdf( p - panelSize * 0.5, panelSize * 0.5, inst.BorderRadius, inst.BorderRadiusV );
 
-		float inner_aa = smoothstep( outlineOffset - 0.25, outlineOffset + 0.25, dist_outside );
-		float outer_aa = 1.0 - smoothstep( outlineOffset + outlineWidth - 0.5, outlineOffset + outlineWidth + 0.5, dist_outside );
+		flCoverage = SdfBandCoverage( d - ( outlineOffset + outlineWidth ), d - outlineOffset );
 
 		float4 col = i.vColor;
-		col.a *= inner_aa * outer_aa;
+		col.a *= flCoverage;
 		return col;
 	}
 
-	float4 MainPs( PixelInput i ) : SV_Target0
+	// Position along the gradient, 0 at its start and 1 at its end. Linear runs along a line through the box
+	// centre, long enough that its ends touch the corners; radial and conic measure out from their centre, all
+	// matching the web. gradLength comes back with it: how many pixels that 0..1 spans, which is what a stop
+	// position written in pixels is measured in.
+	float GradientPosition( GradientData g, float2 texCoord, float2 boxSize, out float gradLength )
+	{
+		gradLength = 1.0;
+
+		if ( g.Type == 0 ) // linear
+		{
+			float2 dir = float2( sin( g.Angle ), cos( g.Angle ) ); // 0 = down the panel, 90deg = right
+
+			// A corner keyword isn't 45 degrees: the gradient line is perpendicular to the diagonal
+			// joining the other two corners, so it leans with the box.
+			if ( g.Corner != 0 )
+			{
+				float2 towards = float2( ( g.Corner == 2 || g.Corner == 4 ) ? 1 : -1,
+										 ( g.Corner == 3 || g.Corner == 4 ) ? 1 : -1 );
+
+				dir = normalize( float2( towards.x * boxSize.y, towards.y * boxSize.x ) );
+			}
+
+			float2 rel = ( texCoord - 0.5 ) * boxSize;
+			gradLength = abs( boxSize.x * dir.x ) + abs( boxSize.y * dir.y );
+			return dot( rel, dir ) / max( gradLength, 0.0001 ) + 0.5;
+		}
+
+		float2 p = texCoord * boxSize;
+
+		float2 c;
+		c.x = ( g.CenterUnits & 1 ) ? g.Center.x * boxSize.x : g.Center.x;
+		c.y = ( g.CenterUnits & 2 ) ? g.Center.y * boxSize.y : g.Center.y;
+
+		float2 d = p - c;
+
+		if ( g.Type == 2 ) // conic
+		{
+			// Zero points straight up and the sweep runs clockwise, like the web. Angle
+			// rotates where it starts. frac wraps the negative half back into 0..1.
+			float a = atan2( d.x, -d.y );
+			return frac( ( a - g.Angle ) / 6.28318530718 );
+		}
+
+		// radial - the ending shape's radii, per the four CSS sizes
+		float2 nearSide = float2( min( c.x, boxSize.x - c.x ), min( c.y, boxSize.y - c.y ) );
+		float2 farSide = float2( max( c.x, boxSize.x - c.x ), max( c.y, boxSize.y - c.y ) );
+
+		float2 radius;
+
+		if ( g.Circle )
+		{
+			// One radius: the nearest/farthest side, or the distance to that corner.
+			float r =	( g.SizeMode == 0 ) ? max( farSide.x, farSide.y ) :
+						( g.SizeMode == 1 ) ? length( farSide ) :
+						( g.SizeMode == 2 ) ? min( nearSide.x, nearSide.y ) :
+						length( nearSide );
+
+			radius = float2( r, r );
+		}
+		else
+		{
+			// A corner ellipse keeps the matching side ellipse's aspect and is scaled to
+			// touch the corner, which always works out to sqrt(2) larger.
+			radius =	( g.SizeMode == 0 ) ? farSide :
+						( g.SizeMode == 1 ) ? farSide * 1.41421356 :
+						( g.SizeMode == 2 ) ? nearSide :
+						nearSide * 1.41421356;
+		}
+
+		// The gradient ray runs to the ending shape, so that's what a pixel position is along
+		gradLength = radius.x;
+
+		return length( d / max( radius, 0.0001 ) );
+	}
+
+	// A stop's position as a fraction of the gradient, resolving the ones written as pixels
+	float GradientStop( GradientData g, int i, float gradLength )
+	{
+		if ( g.StopUnits & ( 1 << i ) )
+			return g.StopOffsets[i] / max( gradLength, 0.0001 );
+
+		return g.StopOffsets[i];
+	}
+
+	// Stops interpolate premultiplied with linear alpha, in sRGB space, like the web.
+	float4 EvaluateGradient( GradientData g, float2 texCoord, float2 boxSize )
+	{
+		float gradLength;
+		float t = GradientPosition( g, texCoord, boxSize, gradLength );
+
+		int last = g.Count - 1;
+
+		if ( t <= GradientStop( g, 0, gradLength ) )
+			return g.StopColors[0];
+
+		if ( t >= GradientStop( g, last, gradLength ) )
+			return g.StopColors[last];
+
+		float4 col = g.StopColors[last];
+
+		[loop]
+		for ( int s = 0; s < last; s++ )
+		{
+			float o1 = GradientStop( g, s + 1, gradLength );
+			if ( t <= o1 )
+			{
+				float o0 = GradientStop( g, s, gradLength );
+				float f = saturate( ( t - o0 ) / max( o1 - o0, 0.0001 ) );
+
+				float4 A = g.StopColors[s];
+				float4 B = g.StopColors[s + 1];
+
+				float a = lerp( A.a, B.a, f );
+				float3 rgb = lerp( A.rgb * A.a, B.rgb * B.a, f );
+				if ( a > 0.0001 )
+					rgb /= a;
+
+				col = float4( rgb, a );
+				break;
+			}
+		}
+
+		return col;
+	}
+
+	// The instance's own clip stack, and for outset box-shadows the second one that keeps them out of their panel
+	float InstanceClipCoverage( BoxInstanceData inst, PixelInput i )
+	{
+		float flCoverage = 1.0;
+
+		if ( inst.ScissorIndex >= 0 )
+			flCoverage *= ScissorCoverage( ScissorBuffer[inst.ScissorIndex], i.vPositionPanelSpace.xy );
+
+		if ( inst.InverseScissorIndex >= 0 )
+			flCoverage *= ScissorCoverage( ScissorBuffer[inst.InverseScissorIndex], i.vPositionPanelSpace.xy );
+
+		return flCoverage;
+	}
+
+	// flCoverage is how much of the pixel the shape covers, before opacity, see UISoftenHdrEdges
+	float4 RenderInstance( PixelInput i, out float flCoverage )
 	{
 		BoxInstanceData inst = BoxInstances[i.iInstanceID];
 
-		// Per-instance scissoring via lookup table. Must run before mode dispatch so shadows/outlines also get clipped.
-		if ( inst.ScissorIndex >= 0 )
-		{
-			ScissorData scissor = ScissorBuffer[inst.ScissorIndex];
-			float2 pixelPos = i.vPositionPanelSpace.xy;
-			bool outside = IsOutsideBox( pixelPos, scissor.Rect, scissor.CornerRadius, scissor.TransformMat );
-			bool shouldClip = scissor.Invert ? !outside : outside;
-			clip( shouldClip ? -1 : 1 );
-		}
-
-		// Second scissor slot (used by outset box-shadows to clip inside the panel rect)
-		if ( inst.InverseScissorIndex >= 0 )
-		{
-			ScissorData scissor = ScissorBuffer[inst.InverseScissorIndex];
-			float2 pixelPos = i.vPositionPanelSpace.xy;
-			bool outside = IsOutsideBox( pixelPos, scissor.Rect, scissor.CornerRadius, scissor.TransformMat );
-			bool shouldClip = scissor.Invert ? !outside : outside;
-			clip( shouldClip ? -1 : 1 );
-		}
-
-		if ( inst.Mode == 1 ) return RenderShadow( inst, i, false );
-		if ( inst.Mode == 2 ) return RenderShadow( inst, i, true );
-		if ( inst.Mode == 3 ) return RenderOutline( inst, i );
+		if ( inst.Mode == 1 ) return RenderShadow( inst, i, false, flCoverage );
+		if ( inst.Mode == 2 ) return RenderShadow( inst, i, true, flCoverage );
+		if ( inst.Mode == 3 ) return RenderOutline( inst, i, flCoverage );
 
 		// Mode 0: standard box rendering
 		float2 boxSize = inst.Rect.zw;
-		float4 cornerRadius = inst.BorderRadius;
 		float4 borderWidth = inst.BorderSize;
 
-		float2 pos = boxSize * ( i.vTexCoord.xy * 2.0 - 1.0 );
-		float dist = GetDistanceFromEdge( pos, boxSize, cornerRadius );
+		float2 pos = ( i.vTexCoord.xy - 0.5 ) * boxSize;
+		float dOuter = RoundedRectSdf( pos, boxSize * 0.5, inst.BorderRadius, inst.BorderRadiusV );
 
 		float4 col = i.vColor;
 
-		// Background image
-		if ( inst.TextureIndex > 0 )
+		float flMask = 1.0;
+
+		// Background image or gradient (negative TextureIndex = gradient table index).
+		// Both are tiles sized and placed by background-size/position, like the web.
+		if ( inst.TextureIndex != 0 )
 		{
 			float2 bgSize = inst.BackgroundRect.zw;
-			float4 bgTint = UnpackColor( inst.BackgroundTint );
-			bgTint.rgb = SrgbGammaToLinear( bgTint.rgb );
+			float4 bgTint = inst.BackgroundTint;
+			bgTint.rgb = UIDecodeColor( bgTint.rgb );
+			bgTint.a = saturate( bgTint.a );
 
 			float2 vOffset = inst.BackgroundRect.xy / bgSize;
 			float2 vUV = -vOffset + ( i.vTexCoord.xy * ( boxSize / bgSize ) );
-			vUV = RotateTexCoord( vUV, inst.BackgroundAngle );
 
-			Texture2D tex = Bindless::GetTexture2D( inst.TextureIndex );
-			// float4 vImage = float4( 1, 0, 0, 1 );
-			float4 vImage = tex.SampleBias( Bindless::GetSampler( inst.SamplerIndex ), vUV, -1.5 );
-
+			float4 vImage;
 			int bgRepeat = inst.BackgroundRepeat;
+
+			if ( inst.TextureIndex > 0 )
+			{
+				vUV = RotateTexCoord( vUV, inst.BackgroundAngle );
+
+				Texture2D tex = Bindless::GetTexture2D( inst.TextureIndex );
+				vImage = tex.Sample( Bindless::GetSampler( inst.SamplerIndex ), vUV );
+			}
+			else
+			{
+				// The sampler wraps textures; wrap the tile coordinate ourselves.
+				// Clamping falls out of the stop walk, which pins to the end stops.
+				float2 tileUV = vUV;
+				if ( bgRepeat == 0 || bgRepeat == 1 ) tileUV.x = frac( tileUV.x );
+				if ( bgRepeat == 0 || bgRepeat == 2 ) tileUV.y = frac( tileUV.y );
+
+				GradientData gradient = GradientBuffer[ -inst.TextureIndex - 1 ];
+				vImage = EvaluateGradient( gradient, tileUV, bgSize );
+			}
+
 			if ( bgRepeat != 0 && bgRepeat != 4 )
 			{
 				if ( bgRepeat != 1 )
@@ -487,51 +623,94 @@ PS
 					if ( vUV.y < 0 || vUV.y > 1 ) vImage = 0;
 			}
 
-			vImage.xyz = SrgbGammaToLinear( vImage.xyz );
-
 			#if ( D_BLENDMODE == 3 )
+				// Premultiplied texture, premultiplied in sRGB space
+				vImage = UIPremultipliedTexel( vImage );
 				vImage.rgb *= bgTint.rgb;
 				vImage *= bgTint.a;
 			#else
+				vImage.xyz = UIDecodeColor( vImage.xyz );
 				vImage *= bgTint;
 			#endif
 
 			col.rgb = lerp( col.rgb, vImage.rgb, saturate( vImage.a + ( 1 - col.a ) ) );
 			col.a = max( col.a, vImage.a );
+
+			// A texture's alpha is a mask - a glyph's edge lives there - so it's coverage. A gradient's isn't.
+			if ( inst.TextureIndex > 0 )
+				flMask = saturate( vImage.a );
 		}
+
+		// The border isn't clipped, so the background is cut back before the border goes on
+		float bgClip = BackgroundClipCoverage( inst, pos, boxSize, i.vTexCoord.xy );
+		#if ( D_BLENDMODE == 3 )
+			col *= bgClip;
+		#else
+			col.a *= bgClip;
+		#endif
+		flMask *= bgClip;
 
 		// Border image or solid border
 		if ( inst.BorderImageMode > 0 )
 		{
-			float4 biTint = UnpackColor( inst.BorderImageTint );
-			biTint.rgb = SrgbGammaToLinear( biTint.rgb );
+			float4 biTint = inst.BorderImageTint;
+			biTint.rgb = UIDecodeColor( biTint.rgb );
+			biTint.a = saturate( biTint.a );
 			float4 vBoxBorder = AddImageBorder( i.vTexCoord.xy, boxSize, borderWidth, inst.BorderImageIndex,
 				inst.BorderImageSamplerIndex, inst.BorderImageMode, inst.BorderImageFill, inst.BorderImageSlice ) * biTint;
 			col = AlphaBlend( vBoxBorder, col );
+			flMask = max( flMask, saturate( vBoxBorder.a ) );
 		}
 		else
 		{
 			bool hasBorder = borderWidth.x != 0 || borderWidth.y != 0 || borderWidth.z != 0 || borderWidth.w != 0;
 			if ( hasBorder )
 			{
-				float4 vBoxBorder = AddBorder( i.vTexCoord.xy, pos, dist, boxSize, cornerRadius, borderWidth,
-					UnpackColor( inst.BorderColorL ), UnpackColor( inst.BorderColorT ),
-					UnpackColor( inst.BorderColorR ), UnpackColor( inst.BorderColorB ) );
-				vBoxBorder.xyz = SrgbGammaToLinear( vBoxBorder.xyz );
+				// The border is everything inside the box that isn't inside the padding box
+				float dInner = InsetBoxSdf( pos, boxSize, inst.BorderRadius, inst.BorderRadiusV, borderWidth );
+
+				float4 vBoxBorder = BorderSideColor( i.vTexCoord.xy * boxSize, boxSize, borderWidth,
+					inst.BorderColorL, inst.BorderColorT,
+					inst.BorderColorR, inst.BorderColorB );
+				vBoxBorder.xyz = UIDecodeColor( vBoxBorder.xyz );
+				vBoxBorder.a = saturate( vBoxBorder.a ) * ( 1.0 - SdfCoverage( dInner ) );
 				col = AlphaBlend( vBoxBorder, col );
+				flMask = max( flMask, vBoxBorder.a );
 			}
 		}
 
-		float edge = saturate( -dist - 0.5 );
+		float edge = SdfCoverage( dOuter );
+		flCoverage = edge * flMask;
 
-		if ( inst.Flags & 1 )
-		{
+		// Premultiplied colour scales as a whole, straight alpha by alpha
+		#if ( D_BLENDMODE == 3 )
 			col *= edge;
-		}
-		else
-		{
+		#else
 			col.a *= edge;
-		}
+		#endif
+
+		return col;
+	}
+
+	float4 MainPs( PixelInput i ) : SV_Target0
+	{
+		BoxInstanceData inst = BoxInstances[i.iInstanceID];
+
+		float flCoverage;
+		float4 col = RenderInstance( i, flCoverage );
+
+		// Clip last, so nothing taking screen derivatives runs after the discard
+		float flClip = InstanceClipCoverage( inst, i );
+		if ( flClip <= 0.0 )
+			clip( -1 );
+
+		// Premultiplied content already sits in the target's space, see ui/gamma.hlsl
+		#if ( D_BLENDMODE == 3 )
+			col *= flClip;
+		#else
+			col.a *= flClip;
+			col = UISoftenHdrEdges( col, flCoverage * flClip );
+		#endif
 
 		return col;
 	}

@@ -23,6 +23,11 @@ internal class LocalFileSystem : BaseFileSystem
 			Physical = new Zio.FileSystems.PhysicalFileSystem();
 		}
 
+		// Everything the physical filesystem hands back is in real on-disk casing, so if we root
+		// the sub filesystem below at a differently cased path then nothing underneath it comes
+		// back rooted correctly and SubFileSystem throws at us. Fix the case first.
+		rootFolder = Physical.ConvertPathToInternal( Physical.ConvertPathFromInternal( rootFolder ) );
+
 		var rootPath = Physical.ConvertPathFromInternal( rootFolder );
 		system = new Zio.FileSystems.SubFileSystem( Physical, rootPath );
 

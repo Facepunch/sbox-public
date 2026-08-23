@@ -21,7 +21,9 @@ public partial class Texture
 		{
 			Codec = codec;
 			_frameInfo = Codec.FrameInfo;
-			Bitmap = new SKBitmap( Codec.Info.Width, Codec.Info.Height, SKColorType.Rgba8888, SKAlphaType.Premul );
+			// Straight alpha, like every other texture. Skia is happy to decode frames unpremultiplied,
+			// including ones that composite over a prior frame.
+			Bitmap = new SKBitmap( Codec.Info.Width, Codec.Info.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul );
 			Duration = _frameInfo.Sum( x => x.Duration );
 			FrameIndex = -1;
 

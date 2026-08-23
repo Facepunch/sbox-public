@@ -26,11 +26,19 @@ public static partial class Http
 			PooledConnectionLifetime = TimeSpan.FromMinutes( 2 ),
 			// Must be false — SocketsHttpHandler bypasses DelegatingHandler on redirects, allowing SSRF.
 			AllowAutoRedirect = false,
+			// Opens another connection if the server's stream limit is below what we're asking for.
+			EnableMultipleHttp2Connections = true,
 		};
 
 		// Gives us 1 http client per game, so cookies don't persist etc.
 		Client = new HttpClient( new SboxHttpHandler( socketHttpHandler ) );
 		Client.Timeout = TimeSpan.FromMinutes( 120 );
+
+		// h2 so parallel requests share connections, ALPN falls back to 1.1. Without this
+		// HttpRequestMessage defaults to 1.1, which never offers h2 in ALPN, so something
+		// fetching many resources at once opens a TCP+TLS connection per request.
+		Client.DefaultRequestVersion = HttpVersion.Version20;
+		Client.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
 	}
 
 	/// <summary>

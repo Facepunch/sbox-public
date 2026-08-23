@@ -58,16 +58,20 @@ public readonly ref struct HudPainter
 	/// </summary>
 	/// <param name="rect">The rectangle to draw.</param>
 	/// <param name="color">The fill color of the rectangle.</param>
-	/// <param name="cornerRadius">The radius for each corner (optional).</param>
+	/// <param name="cornerRadius">Corner radii as (bottom-right, top-right, bottom-left, top-left). Radii too big for the rect are scaled to fit, like CSS.</param>
 	/// <param name="borderWidth">The width of the border for each edge (optional).</param>
 	/// <param name="borderColor">The color of the border (optional).</param>
 	public void DrawRect( in Rect rect, in Color color, in Vector4 cornerRadius = default, in Vector4 borderWidth = default, in Color borderColor = default )
 	{
 		var r = rect.SnapToGrid();
 
+		var radii = UI.BorderRadii.FromPublic( cornerRadius ).Clamped( r.Width, r.Height );
+
 		list.Attributes.Set( "BoxPosition", new Vector2( r.Left, r.Top ) );
 		list.Attributes.Set( "BoxSize", new Vector2( r.Width, r.Height ) );
-		list.Attributes.Set( "BorderRadius", cornerRadius );
+		list.Attributes.Set( "BoxBloat", 1.0f );
+		list.Attributes.Set( "BorderRadius", radii.Horizontal );
+		list.Attributes.Set( "BorderRadiusV", radii.Vertical );
 		list.Attributes.SetCombo( "D_BACKGROUND_IMAGE", 0 );
 
 		if ( !borderWidth.IsNearZeroLength )
@@ -87,7 +91,7 @@ public readonly ref struct HudPainter
 			list.Attributes.SetCombo( "D_BORDER_IMAGE", 0 );
 		}
 
-		list.DrawQuad( r, Material.UI.Box, color );
+		list.DrawQuad( r.Grow( 1 ), Material.UI.Box, color );
 	}
 
 	/// <summary>

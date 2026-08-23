@@ -29,6 +29,11 @@ var Members = new Dictionary<string, (string TypeName, string DefaultValue, bool
 	{ "BorderTopRightRadius",		("Length?",				"0",							false)},
 	{ "BorderBottomRightRadius",	("Length?",				"0",							false)},
 	{ "BorderBottomLeftRadius",		("Length?",				"0",							false)},
+	// Vertical corner radii, for elliptical corners. Null means the same as the horizontal one.
+	{ "BorderTopLeftRadiusV",		("Length?",				"null",							false)},
+	{ "BorderTopRightRadiusV",		("Length?",				"null",							false)},
+	{ "BorderBottomRightRadiusV",	("Length?",				"null",							false)},
+	{ "BorderBottomLeftRadiusV",	("Length?",				"null",							false)},
 	{ "BorderLeftWidth",			("Length?",				"0",							false)},
 	{ "BorderTopWidth",				("Length?",				"0",							false)},
 	{ "BorderRightWidth",			("Length?",				"0",							false)},
@@ -117,6 +122,7 @@ var Members = new Dictionary<string, (string TypeName, string DefaultValue, bool
 	{ "BackgroundPositionX",		("Length?",				"Length.Percent( 0 ).Value",	false)},
 	{ "BackgroundPositionY",		("Length?",				"Length.Percent( 0 ).Value",	false)},
 	{ "BackgroundRepeat",			("BackgroundRepeat?",	"UI.BackgroundRepeat.Repeat",	false)},
+	{ "BackgroundClip",				("BackgroundClip?",		"UI.BackgroundClip.BorderBox",	false)},
 	{ "BorderImageWidthLeft",		("Length?",				"1",							false)},
 	{ "BorderImageWidthRight",		("Length?",				"1",							false)},
 	{ "BorderImageWidthTop",		("Length?",				"1",							false)},
@@ -147,6 +153,15 @@ var Members = new Dictionary<string, (string TypeName, string DefaultValue, bool
 	{ "OutlineColor",				("Color?",				"Color.Transparent",			false)},
 	{ "OutlineOffset",				("Length?",				"0",							false)},
 	{ "Isolation",					("Isolation?",			"UI.Isolation.Auto",			false)}
+};
+
+// Members whose null means "same as this other member", so a transition lerps from that one
+var LerpFallbacks = new Dictionary<string, string>
+{
+	{ "BorderTopLeftRadiusV",		"BorderTopLeftRadius" },
+	{ "BorderTopRightRadiusV",		"BorderTopRightRadius" },
+	{ "BorderBottomRightRadiusV",	"BorderBottomRightRadius" },
+	{ "BorderBottomLeftRadiusV",	"BorderBottomLeftRadius" },
 };
 
 static bool IsTransitionable( string propertyName )
@@ -330,10 +345,20 @@ foreach ( var member in Members )
 		var defaultValue = $"{member.Value.DefaultValue}";
 		if ( value.IsInherited )
 			defaultValue = $"from._{key} ?? {defaultValue}";
-			
+
+		var fromValue = $"from._{key}";
+		var toValue = $"to._{key}";
+		if ( LerpFallbacks.TryGetValue( member.Key, out var fallback ) )
+		{
+			var fallbackKey = fallback.ToLowerInvariant();
+			fromValue = $"{fromValue} ?? from._{fallbackKey}";
+			toValue = $"{toValue} ?? to._{fallbackKey}";
+			defaultValue = Members[fallback].DefaultValue;
+		}
+
 		if ( IsTransitionable( value.TypeName ) ) {
 			#>	case "<#=CSSName#>":
-				Lerp( ref _<#=key#>, from._<#=key#>, to._<#=key#>, <#=defaultValue#>, delta );
+				Lerp( ref _<#=key#>, <#=fromValue#>, <#=toValue#>, <#=defaultValue#>, delta );
 				break;
 		<#}}#>}
 	}

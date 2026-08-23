@@ -344,8 +344,18 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 
 		if ( location is DiskLocation )
 		{
-			watcher.Path = CurrentLocation.Path;
-			watcher.EnableRaisingEvents = true;
+			// Best effort. Every watcher is an inotify instance on Linux and the kernel only
+			// hands out so many per user - losing the watch costs us auto-refresh, which is not
+			// worth throwing out of a dock's constructor and taking editor startup down with it.
+			try
+			{
+				watcher.Path = CurrentLocation.Path;
+				watcher.EnableRaisingEvents = true;
+			}
+			catch ( Exception e )
+			{
+				Log.Warning( $"Couldn't watch {CurrentLocation.Path} for changes ({e.Message})" );
+			}
 		}
 		else
 		{

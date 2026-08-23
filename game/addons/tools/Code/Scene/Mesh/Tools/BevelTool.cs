@@ -92,11 +92,7 @@ public partial class BevelTool( BevelEdges[] edges ) : EditorTool
 			{
 				Gizmo.Draw.Color = color;
 				Gizmo.Draw.LineThickness = 2;
-
-				foreach ( var e in comp.Mesh.GetEdges() )
-				{
-					Gizmo.Draw.Line( e );
-				}
+				Gizmo.Draw.Lines( comp.Mesh.GetVisibleEdges() );
 			}
 		}
 	}

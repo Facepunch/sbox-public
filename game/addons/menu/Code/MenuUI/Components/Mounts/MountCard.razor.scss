@@ -1,0 +1,234 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+MountCard
+{
+	@include front-slab;
+	flex-direction: column;
+	flex-shrink: 0;
+	// 4 to a row at 1920 with room to spare. Art is 460x215 Steam capsule, so the art box
+	// keeps that ratio - anything else letterboxes or squashes it.
+	width: 312px;
+	// Reserved so hover and the mounted state cost no layout shift.
+	border: 2px solid transparent;
+	border-radius: $front-radius;
+	overflow: hidden;
+	pointer-events: all;
+	cursor: pointer;
+	transition: all 0.12s ease;
+	opacity: 0.8;
+
+	.art
+	{
+		// Positioned, so the action button anchors here and not on some ancestor.
+		position: relative;
+		flex-shrink: 0;
+		height: 146px;
+		align-items: center;
+		justify-content: center;
+		background-size: cover;
+		background-position: center;
+		// Darker than the tile, so a game with no art reads as intentional.
+		background-color: #0b0d14;
+		transition: all 0.12s ease;
+		// Only shown when there's no capsule to draw. Direct child - as a descendant rule this
+		// also caught the action button's icon and stretched it across the whole tile.
+		> icon
+		{
+			width: 100%;
+			text-align: center;
+			font-size: 34px;
+			color: $front-tertiary;
+		}
+	}
+	// Pin both edges and right-align, same as PackageFlairBar. `right` alone leaves a
+	// content-sized absolute node without a definite width, and the pill overhangs the tile
+	// and gets clipped by its overflow.
+	.art-actions
+	{
+		position: absolute;
+		top: 8px;
+		left: 8px;
+		right: 8px;
+		flex-direction: row;
+		justify-content: flex-end;
+	}
+	// The one live control on a tile you can't toggle, so it gets its own pointer and feedback
+	// rather than inheriting the tile's.
+	.action
+	{
+		@include front-pill;
+		flex-shrink: 0;
+		// The art behind it is busy, so it needs its own ground to stay legible.
+		background-color: rgba( 8, 10, 16, 0.82 );
+		border-color: rgba( 255, 255, 255, 0.22 );
+		pointer-events: all;
+		cursor: pointer;
+
+		label
+		{
+			white-space: nowrap;
+		}
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+	}
+	// A band below the art, on its own fill - the art stays unobstructed. min-height so a tile
+	// without the second line still matches the others in its row.
+	.bar
+	{
+		flex-direction: row;
+		align-items: center;
+		flex-shrink: 0;
+		min-height: 54px;
+		gap: 10px;
+		padding: 9px 12px 11px 12px;
+		background-color: $front-tile-bar;
+	}
+	// width 0 + grow so a long title ellipsises instead of pushing the switch off the tile.
+	.body
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		width: 0;
+		gap: 2px;
+	}
+
+	.title
+	{
+		@include front-row-title;
+		font-size: 14px;
+		font-weight: 600;
+	}
+
+	.meta
+	{
+		font-size: 11px;
+		font-weight: 500;
+		color: $front-tertiary;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	// The knob is absolute and slides on `left` - the track's own layout stays put.
+	.switch
+	{
+		position: relative;
+		flex-shrink: 0;
+		width: 42px;
+		height: 22px;
+		border-radius: 999px;
+		background-color: $front-track;
+		border: 1px solid $front-hairline;
+		transition: all 0.15s ease;
+
+		.knob
+		{
+			position: absolute;
+			top: 3px;
+			left: 3px;
+			width: 14px;
+			height: 14px;
+			border-radius: 50%;
+			background-color: $front-secondary;
+			transition: all 0.15s ease;
+		}
+	}
+	// Only a tile with something to toggle, and not already working, reacts to the pointer.
+	&.installed:not( .busy ), &.mounted:not( .busy )
+	{
+		&:hover
+		{
+			// HDR - blooms, same as the front page's cards.
+			border-color: $front-primary * 10;
+			sound-in: "ui.button.over";
+
+			.title
+			{
+				color: #ffffff;
+			}
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+	}
+
+	&.mounted
+	{
+		border-color: rgba( $front-primary, 0.55 );
+		opacity: 1;
+
+		.meta
+		{
+			color: $front-body;
+		}
+
+		.switch
+		{
+			background-color: $front-primary;
+			border-color: $front-primary;
+
+			.knob
+			{
+				left: 23px;
+				background-color: #ffffff;
+			}
+		}
+	}
+	// Mid-operation. The knob parks half way so the switch reads as in transit rather than as
+	// either state, and there's nothing to click until it lands. After .mounted deliberately -
+	// same specificity, so this has to be the later rule to win while a mount is turning off.
+	&.busy
+	{
+		cursor: default;
+		// Reset the track as well as the knob. Turning a mounted game off keeps .mounted's blue
+		// fill otherwise, and a blue knob on a blue track is an unreadable lozenge.
+		.switch
+		{
+			background-color: $front-track;
+			border-color: $front-hairline;
+
+			.knob
+			{
+				left: 13px;
+				background-color: $front-primary;
+			}
+		}
+
+		.meta
+		{
+			color: $front-primary;
+		}
+	}
+	// Nothing to toggle until the game is on disk, so neither tile behaves like a button. The art
+	// drains of colour, but the action button keeps its weight - it's the way out of here.
+	&.owned, &.missing
+	{
+		cursor: default;
+
+		.title
+		{
+			color: $front-secondary;
+		}
+	}
+	// Already yours, one free click from usable - stays close to full colour.
+	&.owned .art
+	{
+		filter: saturate( 0.75 );
+	}
+	// Something you'd have to buy. Pushed furthest back of the three.
+	&.missing .art
+	{
+		filter: saturate( 0.2 );
+		opacity: 0.75;
+	}
+}

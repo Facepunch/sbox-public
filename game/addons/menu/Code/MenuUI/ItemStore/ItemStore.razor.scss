@@ -1,63 +1,167 @@
-﻿@import "/styles/_theme.scss";
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
 
 ItemStore
 {
-    position: relative;
-    background-color: $default-950;
-    align-items: center;
-    justify-content: center;
+	position: relative;
+	background-color: transparent;
+	align-items: center;
+	justify-content: center;
 }
 
 Page
 {
-    width: 100%;
-    max-width: $screen-w-xl;
+	width: 100%;
+	max-width: $screen-w-xl;
 }
 
-.itemlist
+// Everything below is scoped - stylesheets are global and bare .grid/.chip would leak.
+ItemStore
 {
-    gap: 20px;
-    justify-content: center;
-    flex-wrap: wrap;
-    overflow-y: scroll;
-    flex-grow: 1;
-    flex-shrink: 1;
-    mask: linear-gradient( to top, white, black ) top top / 100% 200px;
-    padding-top: 100px;
-    padding-bottom: 200px;
-}
+	// Sidebar: intro, category chips, then the cart pinned to the bottom.
 
-.store-header
-{
-    margin: 32px;
-    justify-content: flex-end;
-    flex-shrink: 0;
-    z-index: 100;
-    margin-bottom: -100px;
-    pointer-events: none;
-}
+	.store-intro
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+	}
 
-CartButton
-{
-    pointer-events: all;
-}
+	.store-filter
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 10px;
+		margin-top: 8px;
 
-.itemlist
-{
-    margin: 32px;
-}
-.owned-header
-{
-    width: 100%;
-    padding: 16px 8px 8px;
-    flex-shrink: 0;
+		.section-label
+		{
+			@include front-section-label;
+		}
 
-    h2
-    {
-        color: #717a8d;
-        text-transform: uppercase;
-        letter-spacing: 2px;
-        font-size: 13px;
-        font-weight: 600;
-    }
+		.chips
+		{
+			flex-direction: row;
+			flex-wrap: wrap;
+			gap: 6px;
+		}
+
+		.chip
+		{
+			@include front-pill;
+
+			cursor: pointer;
+			padding: 5px 10px 5px 12px;
+
+			.n
+			{
+				padding: 0 6px;
+				border-radius: 999px;
+				background-color: rgba( 255, 255, 255, 0.08 );
+				color: $front-tertiary;
+				letter-spacing: 0;
+			}
+
+			&:hover { sound-in: "ui.button.over"; }
+
+			&.active
+			{
+				background-color: $front-primary;
+				border-color: $front-primary;
+
+				label { color: #fff; }
+
+				.n
+				{
+					background-color: rgba( 255, 255, 255, 0.2 );
+					color: #fff;
+				}
+			}
+		}
+	}
+
+	// Body: one scrolling column of card rows.
+
+	.store-body
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		overflow-y: scroll;
+		padding: $front-chrome-gap 24px 64px $front-chrome-gap;
+		gap: 16px;
+
+	}
+
+	.section-head
+	{
+		flex-shrink: 0;
+		flex-direction: row;
+		align-items: baseline;
+		gap: 10px;
+		margin-top: 16px;
+		padding: 0 4px;
+
+		.title
+		{
+			font-family: $front-font;
+			font-size: 20px;
+			font-weight: 700;
+			color: $front-heading;
+		}
+
+		.count
+		{
+			font-size: 12px;
+			font-weight: 500;
+			color: $front-secondary;
+		}
+
+		&.owned
+		{
+			margin-top: 32px;
+
+			.title { color: $front-secondary; }
+		}
+	}
+
+	.grid
+	{
+		flex-shrink: 0;
+		flex-direction: row;
+		flex-wrap: wrap;
+		gap: 12px;
+		padding: 4px;
+	}
+
+	.store-empty
+	{
+		@include front-card;
+		flex-shrink: 0;
+
+		align-items: center;
+		justify-content: center;
+		padding: 64px;
+		gap: 6px;
+
+		icon
+		{
+			font-size: 40px;
+			color: $front-tertiary;
+			margin-bottom: 8px;
+		}
+
+		.title
+		{
+			font-family: $front-font;
+			font-size: 18px;
+			font-weight: 700;
+			color: $front-heading;
+		}
+
+		.hint
+		{
+			font-size: 13px;
+			color: $front-secondary;
+		}
+	}
 }

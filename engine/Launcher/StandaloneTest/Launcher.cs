@@ -37,15 +37,21 @@ public static class Launcher
 								.ToList();
 		if ( existing.Count > 0 )
 		{
-			foreach ( var p in existing )
+			// Bringing it to front is Windows only - MainWindowHandle is always zero elsewhere,
+			// and User32 isn't there to call. We still want to bail out either way, so that we
+			// don't end up running two launchers.
+			if ( OperatingSystem.IsWindows() )
 			{
-				IntPtr handle = p.MainWindowHandle;
-				if ( IsIconic( handle ) )
+				foreach ( var p in existing )
 				{
-					ShowWindow( handle, SW_RESTORE );
-				}
+					IntPtr handle = p.MainWindowHandle;
+					if ( IsIconic( handle ) )
+					{
+						ShowWindow( handle, SW_RESTORE );
+					}
 
-				SetForegroundWindow( handle );
+					SetForegroundWindow( handle );
+				}
 			}
 
 			return true;

@@ -1,0 +1,120 @@
+// Green is the right answer, red is the wrong rule winning, grey is "shouldn't have matched".
+// Rules are deliberately spelled out rather than shared, so each case reads on its own.
+
+$ok: #3fc76a;
+$bad: #e84a4a;
+$idle: #3a3f4b;
+
+CascadeTests
+{
+	.probe
+	{
+		width: 100px;
+		height: 100px;
+		flex-shrink: 0;
+		background-color: $idle;
+	}
+
+	.probe.small
+	{
+		width: 30px;
+		height: 30px;
+	}
+
+	.row
+	{
+		flex-direction: row;
+		gap: 4px;
+	}
+
+	.wrap, .par, .anc, .ctx
+	{
+		flex-direction: row;
+	}
+
+	// Specificity
+	.one { background-color: $bad; }
+	.one.two { background-color: $ok; }
+
+	.a.b.c { background-color: $bad; }
+	#idwin { background-color: $ok; }
+
+	// Later of two identical selectors wins
+	.dupe { background-color: $bad; }
+	.dupe { background-color: $ok; }
+
+	// Beaten by the inline style on the element
+	.inline { background-color: $bad; }
+
+	.deep { background-color: $bad; }
+	.ctx .deep { background-color: $ok; }
+
+	.elem { background-color: $bad; }
+	div.elem { background-color: $ok; }
+
+	// Combinators
+	.par > .kid { background-color: $ok; }
+	.par-nest > .kid-nest { background-color: $ok; }
+	.sib + .sib { background-color: $ok; }
+	.gen ~ .after { background-color: $ok; }
+	.anc .desc { background-color: $ok; }
+
+	// Pseudo-classes
+	.nth:nth-child(2) { background-color: $ok; }
+	.fc:first-child { background-color: $ok; }
+	.fc:last-child { background-color: $ok; }
+	.n:not(.skip) { background-color: $ok; }
+	.host:has(.needle) { background-color: $ok; }
+	.star * { background-color: $ok; }
+
+	.needle
+	{
+		width: 8px;
+		height: 8px;
+		background-color: #16181d;
+	}
+
+	// Inheritance
+	.inh
+	{
+		padding: 8px;
+		color: $ok;
+		background-color: #23262e;
+	}
+
+	.inh-size
+	{
+		padding: 8px;
+		font-size: 22px;
+		color: #e6eaf2;
+	}
+
+	.inh-over
+	{
+		padding: 8px;
+		font-size: 22px;
+		color: #e6eaf2;
+	}
+
+	.inh-over label.own-size
+	{
+		font-size: 11px;
+	}
+
+	// One unparseable declaration must not take the rule with it
+	.bad-prop
+	{
+		not-a-property: 5px;
+		background-color: $ok;
+	}
+
+	.bad-value
+	{
+		background-color: nonsense;
+		background-color: $ok;
+	}
+}
+
+// The same child combinator again, but not nested inside the page's own block - if this one
+// matches and the nested one doesn't, the bug is in how nesting rewrites the selector.
+.par-flat > .kid-flat { background-color: #3fc76a; }
