@@ -658,7 +658,12 @@ public static partial class SandboxSystemExtensions
 		if ( t == typeof( Angles ) ) { Value = global::Angles.Parse( str ); return true; }
 		if ( t == typeof( Color ) ) { Value = global::Color.Parse( str ); return true; }
 		if ( t == typeof( RangedFloat ) ) { Value = RangedFloat.Parse( str ); return true; }
-		if ( t.IsEnum ) { Value = Enum.Parse( t, str ); return true; }
+		if ( t.IsEnum )
+		{
+			if ( !Enum.TryParse( t, str, out Value ) )
+				Value = Enum.Parse( t, str, true );
+			return true;
+		}
 
 		if ( t == typeof( Rotation ) )
 		{
