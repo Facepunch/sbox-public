@@ -23,10 +23,11 @@ CS
 	#define GROUP_SIZE 256
 	#define MAX_DIM_GROUPS 1024
 	#define MAX_DIM_THREADS ( GROUP_SIZE * MAX_DIM_GROUPS )
-	#define FLT_MAX 3.402823466e+38f;
 
 	RWStructuredBuffer<uint> SortBuffer < Attribute( "SortBuffer" ); >;
-	RWStructuredBuffer<float> DistanceBuffer < Attribute( "DistanceBuffer" ); >;
+
+	// Sort keys, compared as uints. For sprites: Z index layer in high bits, camera distance tie-break in low bits.
+	RWStructuredBuffer<uint> DistanceBuffer < Attribute( "DistanceBuffer" ); >;
 	int Count < Attribute( "Count" ); >;
 	int Block < Attribute( "Block" ); >;
 	int Dim < Attribute( "Dim" ); >;
@@ -44,7 +45,7 @@ CS
 				return;
 
 			SortBuffer[currentIndex] = currentIndex;
-			DistanceBuffer[currentIndex] = FLT_MAX;
+			DistanceBuffer[currentIndex] = 0xFFFFFFFF;
 		}
 		#else
 		{
@@ -55,13 +56,13 @@ CS
 			uint indexA = SortBuffer[currentIndex];
 			uint indexB = SortBuffer[compareIndex];
 
-			float distanceA = DistanceBuffer[indexA];
-			float distanceB = DistanceBuffer[indexB];
+			uint keyA = DistanceBuffer[indexA];
+			uint keyB = DistanceBuffer[indexB];
 
 			bool ascending = ( currentIndex & Dim ) == 0;
-			float comparison = ( distanceA - distanceB ) * ( ascending ? 1 : -1 );
+			bool outOfOrder = ascending ? ( keyA > keyB ) : ( keyA < keyB );
 
-			if ( comparison > 0 )
+			if ( outOfOrder )
 			{
 				SortBuffer[currentIndex] = indexB;
 				SortBuffer[compareIndex] = indexA;

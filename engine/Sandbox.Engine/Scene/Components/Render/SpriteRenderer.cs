@@ -150,6 +150,13 @@ public sealed partial class SpriteRenderer : Renderer, Component.ExecuteInEditor
 	public bool IsSorted { get; set; }
 
 	/// <summary>
+	/// Sorting layer. Sprites with a higher ZIndex always render on top of lower ones; sprites with the same ZIndex sort by camera distance. Used when sorting is enabled. Clamped to [-128, 127].
+	/// </summary>
+	[Property, Category( "Visuals" ), Order( -200 )]
+	[ShowIf( nameof( IsSorted ), true )]
+	public int ZIndex { get; set; }
+
+	/// <summary>
 	/// This action is invoked when an animation starts playing. The string parameter is the name of the animation that started.
 	/// </summary>
 	[Property, Category( "Actions" )]

@@ -63,12 +63,13 @@ CS
 		float3 Velocity;
 		float4 BlendSheetUV;
 		float2 Offset;
+		int ZIndex;
 	};
 	StructuredBuffer<SpriteData> SpriteBuffer < Attribute( "Sprites" ); >;
 	RWStructuredBuffer<SpriteData> SpriteBufferOut < Attribute( "SpriteBufferOut" ); >;
 
 	// Sorting related
-	RWStructuredBuffer<float> DistanceBuffer < Attribute( "DistanceBuffer" ); >;
+	RWStructuredBuffer<uint> DistanceBuffer < Attribute( "DistanceBuffer" ); >;
 	float3 CameraPosition < Attribute ("CameraPosition"); >;
 
 	int SpriteCount < Attribute( "SpriteCount"); >;
@@ -129,13 +130,11 @@ CS
 		return mul(mul(rotZ, rotY), rotX);
 	}
 
-	#define FLT_MAX 3.402823466e+38f
-
 	groupshared int groupWriteSize[64];
     groupshared int groupWriteOffset[64];
     groupshared int groupBaseOffset;
 
-	// Perspective: squared Euclidean distance.
+	// Perspective: Euclidean distance.
 	// Orthographic: depth along the view axis only
 	float CalculateDistance(float3 worldPosition)
 	{
@@ -147,7 +146,26 @@ CS
 			return dot( delta, g_vCameraDirWs.xyz );
 		}
 
-		return dot(delta, delta);
+		return length(delta);
+	}
+
+	// Map a float to a uint that preserves ordering when compared as uints
+	uint FloatToSortableUint(float f)
+	{
+		uint bits = asuint(f);
+		return (bits & 0x80000000) ? ~bits : (bits | 0x80000000);
+	}
+
+	// Sort key compared as uint by sort_cs, smaller key = rendered on top.
+	// High 8 bits: Z index layer (higher ZIndex => smaller layer byte => on top).
+	// Low 24 bits: camera distance in order-preserving float bits (top 24 bits),
+	// breaking ties within a layer (closer => on top).
+	// 0xFFFFFFFF is reserved for invalid slots.
+	uint CalculateSortKey(float3 worldPosition, int zIndex)
+	{
+		uint layer = (uint)(127 - clamp(zIndex, -128, 127));
+		uint distanceBits = FloatToSortableUint(CalculateDistance(worldPosition)) >> 8;
+		return min((layer << 24) | distanceBits, 0xFFFFFFFEu);
 	}
 
 	[numthreads( 64, 1, 1 ) ]
@@ -173,12 +191,12 @@ CS
 			}
 
 
-			DistanceBuffer[i] = CalculateDistance(sprite.Position);
+			DistanceBuffer[i] = CalculateSortKey(sprite.Position, sprite.ZIndex);
 			SpriteBufferOut[i] = sprite;
 		}
 		else
 		{
-			DistanceBuffer[i] = FLT_MAX;
+			DistanceBuffer[i] = 0xFFFFFFFF;
 		}
 
 		int writeSize = 0;
@@ -253,7 +271,7 @@ CS
 
 					b.Position = pos;
 					// We fill distance buffer for sorting
-					DistanceBuffer[writeLocation] = CalculateDistance(b.Position);
+					DistanceBuffer[writeLocation] = CalculateSortKey(b.Position, b.ZIndex);
 					SpriteBufferOut[writeLocation] = b;
 
 					index++;
@@ -265,7 +283,7 @@ CS
 
 				// Fil distance buffer for sorting
 				writeLocation = writeOffset + index;
-				DistanceBuffer[writeLocation] = CalculateDistance(b.Position);
+				DistanceBuffer[writeLocation] = CalculateSortKey(b.Position, b.ZIndex);
 
 				SpriteBufferOut[writeLocation] = b;
 
