@@ -296,6 +296,8 @@ public partial class StandaloneExporter
 		//
 		{
 			QueueCopy( $"{engineDir}/sbox-standalone.exe", $"{baseDir}/{StandaloneManifest.ExecutableName}.exe", BuildStep.FinalizeExecutable );
+			QueueCopy( $"{engineDir}/sbox-standalone.dll", $"{baseDir}/sbox-standalone.dll", BuildStep.FinalizeExecutable );
+			QueueCopy( $"{engineDir}/sbox-standalone.runtimeconfig.json", $"{baseDir}/sbox-standalone.runtimeconfig.json", BuildStep.FinalizeExecutable );
 		}
 
 		//
