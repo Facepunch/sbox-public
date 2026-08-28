@@ -1,4 +1,5 @@
 ﻿using Refit;
+using Sandbox.Engine;
 using Sandbox.Internal;
 using Sandbox.Protobuf;
 using System.Collections.Concurrent;
@@ -475,6 +476,7 @@ public partial class Package
 		if ( msg.Data is PackageMsg.Update packageUpdated )
 		{
 			ClearCache( packageUpdated.PackageIdent );
+			IToolsDll.Current?.RunEvent( "package.updated", packageUpdated.PackageIdent, packageUpdated.RevisionId );
 		}
 
 		if ( msg.Data is PackageMsg.Changed packageChanged )

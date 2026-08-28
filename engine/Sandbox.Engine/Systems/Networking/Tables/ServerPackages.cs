@@ -248,6 +248,23 @@ internal class ServerPackages
 
 		return dl;
 	}
+
+	/// <summary>
+	/// Forget cached downloads that point at a package revision which has just been replaced.
+	/// </summary>
+	internal static void Forget( PackageManager.ActivePackage activePackage )
+	{
+		if ( Downloads is null )
+			return;
+
+		foreach ( var key in Downloads
+			.Where( x => ReferenceEquals( x.Value.activePackage, activePackage ) )
+			.Select( x => x.Key )
+			.ToArray() )
+		{
+			Downloads.Remove( key );
+		}
+	}
 }
 
 internal class UpdateLoadingScreen : ILoadingInterface
