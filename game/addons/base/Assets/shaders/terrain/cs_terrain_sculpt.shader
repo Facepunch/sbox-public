@@ -91,19 +91,24 @@ CS
         }
         if ( D_SCULPT_MODE == MODE_SMOOTH )
         {
-            float brush = Brush.SampleLevel( g_sBilinearBorder, brushUV, 0 ) * BrushSettings[0].Strength;
-            if ( brush <= 0.0f ) return;
-            
-            // Sample surroundings (3x3)
+            float brush = Brush.SampleLevel( g_sBilinearBorder, brushUV, 0 );
+            float strength = BrushSettings[0].Strength;
+            if ( brush <= 0.0f || strength <= 0.0f ) return;
+
+            // Kernel size and blend both follow the brush falloff - anything that
+            // cuts off abruptly leaves a crease along the stroke edge
+            int radius = clamp( (int)ceil( brush * strength ), 1, 8 );
+
+            // Average the (2*radius+1)^2 neighbourhood
             float sum = 0.0f;
             int sampleCount = 0;
-            
-            for ( int y = -1; y <= 1; y++ )
+
+            for ( int y = -radius; y <= radius; y++ )
             {
-                for ( int x = -1; x <= 1; x++ )
+                for ( int x = -radius; x <= radius; x++ )
                 {
                     int2 samplePos = texel + int2( x, y );
-                    
+
                     if ( samplePos.x >= 0 && samplePos.y >= 0 && samplePos.x < w && samplePos.y < h )
                     {
                         sum += Heightmap.Load( samplePos ).x;
@@ -111,11 +116,17 @@ CS
                     }
                 }
             }
-            
+
             float average = sum / sampleCount;
             float height = Heightmap.Load( texel ).x;
-            
-            Heightmap[texel] = lerp( height, average, brush );
+
+            // Strength above 1 steepens the response curve instead of scaling, which
+            // would clip the falloff into a hard-edged stamp. Capped below full
+            // replacement: our neighbour reads race other threads' writes, and an
+            // uncapped blend lets already-averaged values cascade into a plateau.
+            float t = strength <= 1.0f ? brush * strength : min( 1.0f - pow( 1.0f - brush, strength ), 0.5f );
+
+            Heightmap[texel] = lerp( height, average, t );
         }
         if ( D_SCULPT_MODE == MODE_HOLE )
         {
