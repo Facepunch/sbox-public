@@ -1,4 +1,3 @@
-
 namespace Editor.MeshEditor;
 
 /// <summary>
@@ -14,15 +13,22 @@ public sealed class ResizeMode : MoveMode
 	private BBox _box;
 	private Rotation _basis;
 
+	private Vector3 _activeResizeAxis;
+
 	public override void OnBegin( SelectionTool tool )
 	{
 		_basis = tool.CalculateSelectionBasis();
 		_startBox = tool.GlobalSpace ? tool.CalculateSelectionBounds() : tool.CalculateLocalBounds();
 		_box = _startBox;
+
+		_activeResizeAxis = default;
 	}
 
 	protected override void OnUpdate( SelectionTool tool )
 	{
+		if ( !Gizmo.IsLeftMouseDown )
+			_activeResizeAxis = default;
+
 		var snapTarget = FindVertexSnapTarget( tool );
 
 		using ( Gizmo.Scope( "box", new Transform( Vector3.Zero, _basis ) ) )
@@ -30,19 +36,23 @@ public sealed class ResizeMode : MoveMode
 			Gizmo.Hitbox.DepthBias = 0.01f;
 			Gizmo.Hitbox.CanInteract = CanUseGizmo;
 
-			if ( !Gizmo.Control.BoundingBox( "resize", _box, out var outBox, out _, out var resizeAxis ) )
-				return;
+			if ( Gizmo.Control.BoundingBox( "resize", _box, out var outBox, out _, out var resizeAxis ) )
+			{
+				_box = outBox;
+				_activeResizeAxis = resizeAxis;
 
-			_box = outBox;
+				if ( snapTarget.HasValue )
+					ApplyVertexSnap( ref _box, resizeAxis, _basis.Inverse * snapTarget.Value );
 
-			if ( snapTarget.HasValue )
-				ApplyVertexSnap( ref _box, resizeAxis, _basis.Inverse * snapTarget.Value );
-
-			tool.StartDrag();
-			ResizeBBox( tool, _startBox, _box, _basis );
-			tool.UpdateDrag();
-			tool.Pivot = tool.CalculateSelectionOrigin();
+				tool.StartDrag();
+				ResizeBBox( tool, _startBox, _box, _basis );
+				tool.UpdateDrag();
+				tool.Pivot = tool.CalculateSelectionOrigin();
+			}
 		}
+
+		if ( Gizmo.IsLeftMouseDown && _activeResizeAxis != Vector3.Zero )
+			DrawResizeText( _startBox, _box, _activeResizeAxis, _basis );
 	}
 
 	static Vector3? FindVertexSnapTarget( SelectionTool tool )
@@ -112,6 +122,44 @@ public sealed class ResizeMode : MoveMode
 		}
 
 		tool.Resize( basis * origin, basis, scale );
+	}
+
+	static void DrawResizeText( BBox startBox, BBox box, Vector3 axis, Rotation basis )
+	{
+		var i = FaceAxis( axis );
+		var resizeDelta = MathF.Abs( box.Size[i] - startBox.Size[i] );
+
+		if ( resizeDelta < 0.01f )
+			return;
+
+		var position = box.Center;
+		position[i] = IsMaxsFace( axis ) ? box.Maxs[i] : box.Mins[i];
+
+		var outward = Vector3.Zero;
+		outward[i] = IsMaxsFace( axis ) ? 1.0f : -1.0f;
+
+		position = basis * position;
+
+		var cameraDistance = Gizmo.Camera.Position.Distance( position );
+		var scaledTextSize = 22 * Gizmo.Settings.GizmoScale * Application.DpiScale * (cameraDistance / 50.0f).Clamp( 0.5f, 1.0f );
+		var worldOffset = 10.0f * Gizmo.Settings.GizmoScale * (cameraDistance / 50.0f).Clamp( 0.5f, 4.0f );
+
+		position += (basis * outward).Normal * worldOffset;
+
+		using ( Gizmo.Scope( "ResizeText" ) )
+		{
+			Gizmo.Draw.IgnoreDepth = true;
+			Gizmo.Draw.ScreenText( new TextRendering.Scope
+			{
+				Text = $"{resizeDelta:0.##}",
+				TextColor = Color.White,
+				FontSize = scaledTextSize,
+				FontName = "Roboto Mono",
+				FontWeight = 600,
+				LineHeight = 1,
+				Outline = new TextRendering.Outline() { Color = Color.Black, Enabled = true, Size = 3 }
+			}, position, new Vector2( 0, -scaledTextSize * 0.5f ) );
+		}
 	}
 
 	static int FaceAxis( Vector3 axis ) => axis.x != 0 ? 0 : axis.y != 0 ? 1 : 2;
