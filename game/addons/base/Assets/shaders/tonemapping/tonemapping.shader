@@ -52,8 +52,9 @@ PS
     #define TONEMAPPING_REINHARDJODIE 3
     #define TONEMAPPING_LINEAR 4
     #define TONEMAPPING_AGX 5
+    #define TONEMAPPING_KHRONOS 6
 
-    DynamicCombo( D_TONEMAPPING, 0..5, Sys( PC ) ); 
+    DynamicCombo( D_TONEMAPPING, 0..6, Sys( PC ) ); 
    
     #define ExposureMethod_RGB        0
     #define ExposureMethod_LUM        1
@@ -209,6 +210,26 @@ PS
         vColor = max( vColor, 0.0.xxx );
     }
 
+    void ToneMapping_Khronos( in out float3 color )
+    {
+        const float startCompression = 0.8 - 0.04;
+        const float desaturation = 0.15;
+
+        float x = min( color.r, min( color.g, color.b ) );
+        float offset = x < 0.08 ? x - 6.25 * x * x : 0.04;
+        color -= offset;
+
+        float peak = max( color.r, min( color.g, color.b ) );
+        if ( peak < startCompression ) return;
+
+        const float d = 1.0 - startCompression;
+        float newPeak = 1.0 - d * d / ( peak + d - startCompression );
+        color *= newPeak / peak;
+
+        float g = 1.0 - 1.0 / ( desaturation * ( peak - newPeak ) + 1.0 );
+        color = lerp( color, newPeak * float3( 1, 1, 1 ), g );
+    }
+
     float4 MainPs( PixelInput i ) : SV_Target0
     {   
         float4 color = g_tColorBuffer.Sample( g_sPointClamp, i.vTexCoord );
@@ -225,6 +246,8 @@ PS
               ToneMapping_Aces( rgb );
         #elif ( D_TONEMAPPING == TONEMAPPING_AGX )
               ToneMapping_Agx( rgb );
+        #elif ( D_TONEMAPPING == TONEMAPPING_KHRONOS )
+              ToneMapping_Khronos( rgb );
         #endif
 
         return float4( rgb, color.a ); 
