@@ -105,7 +105,8 @@ VS
                 if( baseMat.HasFlag( TerrainFlags::NoTile ) )
                     baseLayerUV = Terrain_SampleSeamlessUV( baseLayerUV );
 
-                float4 baseNho = Bindless::GetTexture2D( baseMat.nho_texid ).SampleLevel( materialSampler, baseLayerUV, 0 );
+                // Use NonUniform for nho_texid to avoid AMD lane divergence issues (#11291).
+                float4 baseNho = Bindless::GetTexture2DNonUniform( baseMat.nho_texid ).SampleLevel( materialSampler, baseLayerUV, 0 );
                 float baseDisplacement = ( baseNho.b - 0.5f ) * 2.0f * baseMat.displacementscale;
 
                 float blend = controlMat.GetNormalizedBlend();
@@ -119,7 +120,7 @@ VS
                     if( overlayMat.HasFlag( TerrainFlags::NoTile ) )
                         overlayLayerUV = Terrain_SampleSeamlessUV( overlayLayerUV );
 
-                    float4 overlayNho = Bindless::GetTexture2D( overlayMat.nho_texid ).SampleLevel( materialSampler, overlayLayerUV, 0 );
+                    float4 overlayNho = Bindless::GetTexture2DNonUniform( overlayMat.nho_texid ).SampleLevel( materialSampler, overlayLayerUV, 0 );
                     float overlayDisplacement = ( overlayNho.b - 0.5f ) * 2.0f * overlayMat.displacementscale;
 
                     // Height-aware blend, matching the surface color/normal blend
