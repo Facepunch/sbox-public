@@ -123,6 +123,8 @@ public sealed partial class ParticleSpriteRenderer : ParticleRenderer, Component
 
 	/// <summary>
 	/// Aligns the sprite to face its velocity direction.
+	/// With LookAtCamera aligns the sprite's vertical axis to the particle's 3D velocity while still facing the camera,
+	/// other alignments rotate the sprite in screen space.
 	/// </summary>
 	[Property, ToggleGroup( "FaceVelocity" ), Order( 2 )]
 	public bool FaceVelocity { get; set; }
@@ -163,6 +165,26 @@ public sealed partial class ParticleSpriteRenderer : ParticleRenderer, Component
 	/// </summary>
 	[Property, ToggleGroup( "MotionBlur" ), Range( 0, 1 )]
 	public float BlurOpacity { get; set; } = 0.5f;
+
+	/// <summary>
+	/// Stretches the sprite along its vertical axis based on the particle's velocity. Great for muzzle flashes
+	/// and other fast moving particles. Pair with <see cref="FaceVelocity"/> so the vertical axis follows the
+	/// direction of motion.
+	/// </summary>
+	[Property, ToggleGroup( "Stretch" ), Order( 4 )]
+	public bool Stretch { get; set; }
+
+	/// <summary>
+	/// Stretches particles proportionally to their speed. Set to 0 for constant stretching.
+	/// </summary>
+	[Property, ToggleGroup( "Stretch" ), Range( 0, 1 )]
+	public float StretchSpeedScale { get; set; } = 0.0f;
+
+	/// <summary>
+	/// Scale of the stretching of
+	/// </summary>
+	[Property, ToggleGroup( "Stretch" ), Range( 0, 2 )]
+	public float StretchScale { get; set; } = 1.0f;
 
 	/// <summary>
 	/// The animation that is currently being played. Returns null if no sprite is set or the sprite has no animations.
