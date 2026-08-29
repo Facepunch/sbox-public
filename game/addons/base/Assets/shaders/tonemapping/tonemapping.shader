@@ -61,6 +61,8 @@ PS
     DynamicCombo( D_EXPOSUREMETHOD, 0..1, Sys( PC ) );   
      
     Texture2D g_tColorBuffer < Attribute( "ColorBuffer" ); SrgbRead( false ); >;
+    float fl_Exposure < Attribute( "Exposure" ); >;
+    float fl_ExposureMix < Attribute( "ExposureMix" ); >;
          
     float CalculateLuminance(float3 color)
     { 
@@ -213,7 +215,7 @@ PS
     {   
         float4 color = g_tColorBuffer.Sample( g_sPointClamp, i.vTexCoord );
 
-        float3 rgb = max(0.0.xxx, color.rgb) * g_flToneMapScalarLinear;
+        float3 rgb = max(0.0.xxx, color.rgb) * lerp( fl_Exposure, g_flToneMapScalarLinear, fl_ExposureMix );
 
         #if ( D_TONEMAPPING == TONEMAPPING_LINEAR ) 
             // it's already linear
