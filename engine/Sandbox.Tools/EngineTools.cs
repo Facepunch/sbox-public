@@ -5,54 +5,64 @@
 	{
 		public record ToolDescription( string Name, string Description, string Library, string Icon );
 
-		static readonly List<ToolDescription> AllTools = new()
+		/// <summary>
+		/// All native tools registered on this machine, including unavailable tools.
+		/// </summary>
+		internal static IReadOnlyList<ToolDescription> All { get; } = new List<ToolDescription>
 		{
 			new ToolDescription( "Hammer",                  "For editing maps",                 "hammer",               "handyman" ),
 			new ToolDescription( "Material Editor",         "For editing materials",            "met",                  "insert_photo" ),
 			new ToolDescription( "Model Editor",            "For editing models",               "modeldoc_editor",      "view_in_ar" ),
 			new ToolDescription( "Animgraph Editor",        "For editing animation graphs",     "animgraph_editor",     "directions_run" ),
-		};
+		}.AsReadOnly();
 
-		static readonly Dictionary<string, string> UnavailableTools = new( System.StringComparer.OrdinalIgnoreCase );
-		static readonly IReadOnlyList<ToolDescription> AllToolsView = AllTools.AsReadOnly();
-
-		/// <summary>
-		/// All native tools registered on this machine, including unavailable tools.
-		/// </summary>
-		public static IReadOnlyList<ToolDescription> All => AllToolsView;
+		static readonly HashSet<string> UnavailableTools = new( System.StringComparer.OrdinalIgnoreCase );
 
 		internal static void SetAvailable( string library )
 		{
 			UnavailableTools.Remove( library );
 		}
 
-		internal static void SetUnavailable( string library, string reason )
+		internal static void SetUnavailable( string library )
 		{
-			UnavailableTools[library] = reason;
+			UnavailableTools.Add( library );
 		}
 
 		internal static bool IsAvailable( string library )
 		{
-			return !UnavailableTools.ContainsKey( library );
+			return !UnavailableTools.Contains( library );
 		}
 
 		internal static bool EnsureAvailable( string library )
 		{
-			if ( !UnavailableTools.TryGetValue( library, out var reason ) )
+			if ( !UnavailableTools.Contains( library ) )
+			{
 				return true;
+			}
 
-			var tool = AllTools.FirstOrDefault( x => x.Library.Equals( library, System.StringComparison.OrdinalIgnoreCase ) );
+			var tool = All.FirstOrDefault( x => x.Library.Equals( library, System.StringComparison.OrdinalIgnoreCase ) );
 			EditorUtility.DisplayDialog(
 				$"{tool?.Name ?? "Editor"} Unavailable",
-				$"The native editor library couldn't be loaded.\n\n{reason}" );
+				GetUnavailableMessage() );
 			return false;
 		}
 
-		public static void ShowTool( string name )
+		internal static string GetUnavailableMessage()
 		{
-			var tool = AllTools.First( x => x.Name == name );
+			if ( !System.OperatingSystem.IsWindows() )
+			{
+				return "Native tools aren't supported on non-Windows builds.";
+			}
+
+			return "The native editor library couldn't be loaded.";
+		}
+
+		internal static void ShowTool( ToolDescription tool )
+		{
 			if ( !EnsureAvailable( tool.Library ) )
+			{
 				return;
+			}
 
 			Native.ToolGlue.ShowTool( $"tools/{tool.Library}.dll" );
 		}

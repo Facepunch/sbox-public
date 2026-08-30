@@ -43,10 +43,10 @@ internal static class AssemblyInitialize
 			initialize();
 			EngineTools.SetAvailable( library );
 		}
-		catch ( System.Exception e )
+		catch ( System.Exception )
 		{
-			EngineTools.SetUnavailable( library, e.Message );
-			Log.Warning( $"{name} is unavailable, its native library didn't load ({e.Message})" );
+			EngineTools.SetUnavailable( library );
+			Log.Warning( $"{name} is unavailable. {EngineTools.GetUnavailableMessage()}" );
 		}
 	}
 
