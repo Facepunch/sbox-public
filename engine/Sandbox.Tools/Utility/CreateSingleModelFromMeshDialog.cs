@@ -71,6 +71,8 @@ public class CreateSingleModelFromMeshDialog : Widget
 
 	readonly List<ParsedMesh> _parsed;
 	readonly CreateModelFromMeshDialog.ImportOptions _options;
+	readonly CreateModelFromMeshDialog.MaterialOverrideRow _materialRow;
+	readonly SerializedObject _serializedOptions;
 	readonly LineEdit _fileEdit;
 
 	public CreateSingleModelFromMeshDialog( List<Asset> meshFiles ) : base( null )
@@ -104,10 +106,10 @@ public class CreateSingleModelFromMeshDialog : Widget
 		var scroller = new ScrollArea( this );
 		scroller.FixedHeight = 86;
 		scroller.HorizontalScrollbarMode = ScrollbarMode.Off;
-		scroller.SetStyles( $"background-color: transparent;" );
+		scroller.SetStyles( $"background-color: {Theme.TabBarBackground};" );
 		scroller.Canvas = new Widget( this ) { Layout = Layout.Column() };
 		scroller.Canvas.Layout.Spacing = 4;
-		scroller.Canvas.SetStyles( $"background-color: transparent;" );
+		scroller.Canvas.SetStyles( $"background-color: {Theme.TabBarBackground};" );
 
 		foreach ( var mesh in _parsed )
 		{
@@ -130,10 +132,17 @@ public class CreateSingleModelFromMeshDialog : Widget
 
 		_options = EditorCookie.Get( OptionsCookie, new CreateModelFromMeshDialog.ImportOptions() );
 
-		foreach ( var prop in _options.GetSerialized() )
+		_serializedOptions = _options.GetSerialized();
+
+		foreach ( var prop in _serializedOptions )
 		{
-			AddRow( prop.DisplayName, ControlWidget.Create( prop ) );
+			var row = AddRow( prop.DisplayName, ControlWidget.Create( prop ) );
+
+			if ( prop.Name == nameof( CreateModelFromMeshDialog.ImportOptions.GlobalMaterial ) )
+				_materialRow = new CreateModelFromMeshDialog.MaterialOverrideRow( this, row );
 		}
+
+		_serializedOptions.OnPropertyChanged += _ => _materialRow?.Update( _options.GlobalMaterialOverride );
 
 		var defaultBase = _parsed.FirstOrDefault( m => !m.Skipped )?.BaseName ?? Path.GetFileNameWithoutExtension( meshFiles[0].AbsolutePath );
 		var defaultDir = Path.GetDirectoryName( meshFiles[0].AbsolutePath );
@@ -160,8 +169,16 @@ public class CreateSingleModelFromMeshDialog : Widget
 		footer.Add( createButton );
 
 		FixedWidth = 420;
-		AdjustSize();
-		FixedHeight = Height;
+
+		if ( _materialRow is not null )
+		{
+			_materialRow.Measure( _options.GlobalMaterialOverride );
+		}
+		else
+		{
+			AdjustSize();
+			FixedHeight = Height;
+		}
 
 		var geo = EditorCookie.GetString( "CreateSingleModelFromMeshDialog.Geometry", null );
 		if ( geo is not null )
@@ -246,7 +263,7 @@ public class CreateSingleModelFromMeshDialog : Widget
 			}
 		}
 
-		document.AddDefaultMaterialGroup();
+		CreateModelFromMeshDialog.ApplyMaterialOverride( _options, document );
 
 		if ( _options.ImportScale > 0.0f && !_options.ImportScale.AlmostEqual( 1.0f ) )
 		{

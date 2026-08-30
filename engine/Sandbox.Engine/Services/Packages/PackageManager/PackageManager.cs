@@ -56,9 +56,6 @@ internal static partial class PackageManager
 	/// </summary>
 	internal static async Task<ActivePackage> InstallAsync( PackageLoadOptions options )
 	{
-		if ( options.PackageIdent == "local.base" )
-			options.PackageIdent = "local.base#local";
-
 		//
 		// If this package exists then mark it with our tag and move on
 		//
@@ -150,8 +147,6 @@ internal static partial class PackageManager
 	{
 		HashSet<string> dependancies = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
 
-		bool hasLocalBase = false;
-
 		//
 		// This is the right way to reference packages. We should move everything else
 		// to use this.
@@ -159,23 +154,6 @@ internal static partial class PackageManager
 		foreach ( var i in package.EnumerateInstallDependencies() )
 		{
 			dependancies.Add( i );
-
-			// if we have a gamemode reference - then that contains the base library!
-			if ( package.TypeName == "game" )
-			{
-				hasLocalBase = true;
-			}
-		}
-
-		if ( package is LocalPackage packageLocal )
-		{
-			//
-			// Hack Sadface: If this is a local game then include the base as a dependency
-			//
-			if ( !hasLocalBase && packageLocal.NeedsLocalBasePackage() )
-			{
-				dependancies.Add( "local.base#local" );
-			}
 		}
 
 		//

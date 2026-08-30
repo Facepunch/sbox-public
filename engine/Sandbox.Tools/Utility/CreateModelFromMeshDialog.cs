@@ -65,6 +65,68 @@ public class CreateModelFromMeshDialog : Widget
 
 		[Property, Title( "Import Scale" ), Range( 0.001f, 1000.0f, slider: false )]
 		public float ImportScale { get; set; } = 1.0f;
+
+		/// <summary>
+		/// Add a material group that overrides every material on the model
+		/// </summary>
+		[Property, Title( "Globally Override Materials" )]
+		public bool GlobalMaterialOverride { get; set; } = true;
+
+		/// <summary>
+		/// Material to override every material on the model with. Leave empty to use a default placeholder white material
+		/// </summary>
+		[Property, Title( "Override Material" ), ResourceType( "vmat" )]
+		public string GlobalMaterial { get; set; }
+	}
+
+	internal static void ApplyMaterialOverride( ImportOptions options, CModelDoc document )
+	{
+		if ( !options.GlobalMaterialOverride )
+			return;
+
+		document.AddDefaultMaterialGroup( options.GlobalMaterial );
+	}
+
+	internal class MaterialOverrideRow
+	{
+		readonly Widget _dialog;
+		readonly Widget _row;
+		float _expandedHeight;
+		float _collapsedHeight;
+		bool _visible = true;
+
+		public MaterialOverrideRow( Widget dialog, Widget row )
+		{
+			_dialog = dialog;
+			_row = row;
+		}
+
+		/// <summary>
+		/// Recalculate window height after material override row is shown or hidden
+		/// </summary>
+		public void Measure( bool visible )
+		{
+			_dialog.AdjustSize();
+			_expandedHeight = _dialog.Height;
+
+			_row.Hidden = true;
+			_dialog.AdjustSize();
+			_collapsedHeight = _dialog.Height;
+
+			_visible = visible;
+			_row.Hidden = !visible;
+			_dialog.FixedHeight = visible ? _expandedHeight : _collapsedHeight;
+		}
+
+		public void Update( bool visible )
+		{
+			if ( _visible == visible )
+				return;
+
+			_visible = visible;
+			_row.Hidden = !visible;
+			_dialog.FixedHeight = visible ? _expandedHeight : _collapsedHeight;
+		}
 	}
 
 	const string OptionsCookie = "CreateModelFromMeshDialog.ImportOptions";
@@ -75,6 +137,8 @@ public class CreateModelFromMeshDialog : Widget
 	readonly FolderEdit _folderEdit;
 	readonly Widget _fileRow;
 	readonly Widget _folderRow;
+	readonly MaterialOverrideRow _materialRow;
+	readonly SerializedObject _serializedOptions;
 
 	public CreateModelFromMeshDialog( List<Asset> meshFiles ) : base( null )
 	{
@@ -108,10 +172,17 @@ public class CreateModelFromMeshDialog : Widget
 
 		_options = EditorCookie.Get( OptionsCookie, new ImportOptions() );
 
-		foreach ( var prop in _options.GetSerialized() )
+		_serializedOptions = _options.GetSerialized();
+
+		foreach ( var prop in _serializedOptions )
 		{
-			AddRow( prop.DisplayName, ControlWidget.Create( prop ) );
+			var row = AddRow( prop.DisplayName, ControlWidget.Create( prop ) );
+
+			if ( prop.Name == nameof( ImportOptions.GlobalMaterial ) )
+				_materialRow = new MaterialOverrideRow( this, row );
 		}
+
+		_serializedOptions.OnPropertyChanged += _ => _materialRow?.Update( _options.GlobalMaterialOverride );
 
 		var defaultDir = Path.GetDirectoryName( meshFiles[0].AbsolutePath );
 		var defaultFile = Path.ChangeExtension( meshFiles[0].AbsolutePath, ".vmdl" );
@@ -144,8 +215,16 @@ public class CreateModelFromMeshDialog : Widget
 		footer.Add( createButton );
 
 		FixedWidth = 420;
-		AdjustSize();
-		FixedHeight = Height;
+
+		if ( _materialRow is not null )
+		{
+			_materialRow.Measure( _options.GlobalMaterialOverride );
+		}
+		else
+		{
+			AdjustSize();
+			FixedHeight = Height;
+		}
 
 		var geo = EditorCookie.GetString( "CreateModelFromMeshDialog.Geometry", null );
 		if ( geo is not null )
@@ -228,6 +307,8 @@ public class CreateModelFromMeshDialog : Widget
 		var document = CModelDoc.Create();
 
 		g_pModelDocUtils.InitFromMesh( document, mesh.Path );
+
+		ApplyMaterialOverride( _options, document );
 
 		if ( _options.ImportScale > 0.0f && !_options.ImportScale.AlmostEqual( 1.0f ) )
 		{

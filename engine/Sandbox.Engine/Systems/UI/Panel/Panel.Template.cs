@@ -6,11 +6,38 @@ public partial class Panel
 
 	private void LoadStyleSheet()
 	{
+		if ( LoadStyleSheetFromInlineAttribute() )
+			return;
+
 		if ( LoadStyleSheetFromAttribute() )
 			return;
 
 		if ( LoadStyleSheetAuto() )
 			return;
+	}
+
+	/// <summary>
+	/// Loads a stylesheet from inline content in a [StyleSheet.Inline] attribute.
+	/// </summary>
+	/// <returns>True if the attribute exists and we loaded from it, otherwise false</returns>
+	private bool LoadStyleSheetFromInlineAttribute()
+	{
+		var type = Game.TypeLibrary?.GetType( GetType() );
+		var attr = type?.GetAttribute<UI.StyleSheet.InlineAttribute>( false );
+
+		if ( attr == null )
+			return false;
+
+		var key = $"inline:{attr.Name}";
+
+		if ( previouslyLoadedTemplateStylesheet != key && !string.IsNullOrWhiteSpace( previouslyLoadedTemplateStylesheet ) )
+			StyleSheet.Remove( previouslyLoadedTemplateStylesheet );
+
+		previouslyLoadedTemplateStylesheet = key;
+
+		// Always runs, so a hotload that changed the styles reparses the shared sheet
+		StyleSheet.AddInline( attr.Styles, key );
+		return true;
 	}
 
 	/// <summary>

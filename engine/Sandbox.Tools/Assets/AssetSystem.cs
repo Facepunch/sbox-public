@@ -199,9 +199,18 @@ public static partial class AssetSystem
 			return null;
 
 		path = path.Replace( '\\', '/' );
-		path = path.TrimStart( '/' );
 
 		if ( assetsByPath.TryGetValue( path, out var asset ) && !asset.IsDeleted )
+		{
+			return asset;
+		}
+
+		// Unix absolute paths and rooted resource paths both begin with '/'.
+		// The exact absolute form was checked first; keep supporting the historical
+		// resource-relative form as a fallback.
+		if ( path[0] == '/' &&
+			assetsByPath.TryGetValue( path.TrimStart( '/' ), out asset ) &&
+			!asset.IsDeleted )
 		{
 			return asset;
 		}

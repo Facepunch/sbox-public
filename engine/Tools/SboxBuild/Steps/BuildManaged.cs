@@ -85,13 +85,13 @@ internal class BuildManaged( bool clean = false )
 					var launcherDir = Path.Combine( engineDir, "Launcher" );
 
 					// Linux has no .NET redistributable the way game/_redist covers Windows, so the
-					// runtime ships in game/dotnet and the apphost is told to look there relative to
-					// itself. Without this it falls through to /usr/share/dotnet and runs against
-					// whatever the machine happens to have, or nothing at all. It survives
-					// PublishSingleFile, though it has to be on the restore too: publish runs
-					// --no-restore, and if only one of the pair sets it the single file bundler is
-					// handed no apphost and fails with "Must specify the host binary".
-					var relativeDotnet = OperatingSystem.IsLinux() ? " -p:AppHostRelativeDotNet=dotnet" : "";
+					// runtime ships in game/bin/dotnet and the apphost is told to look there
+					// relative to itself. Without this it falls through to /usr/share/dotnet and
+					// runs against whatever the machine happens to have, or nothing at all. It
+					// survives PublishSingleFile, though it has to be on the restore too: publish
+					// runs --no-restore, and if only one of the pair sets it the single file
+					// bundler is handed no apphost and fails with "Must specify the host binary".
+					var relativeDotnet = OperatingSystem.IsLinux() ? " -p:AppHostRelativeDotNet=bin/dotnet" : "";
 
 					if ( !Utility.RunDotnetCommand( launcherDir,
 						$"restore {project} -r {launcherRid} -p:Configuration=Release -p:SelfContained=false -p:RestoreRecursive=false{relativeDotnet}" ) )
@@ -141,7 +141,7 @@ internal class BuildManaged( bool clean = false )
 	}
 
 	/// <summary>
-	/// Lays the shared framework the Linux launchers resolve against into game/dotnet.
+	/// Lays the shared framework the Linux launchers resolve against into game/bin/dotnet.
 	///
 	/// Taken from the SDK running this build rather than downloaded, so what ships is the runtime
 	/// the assemblies were compiled against, and the build needs no network for it. Only
@@ -174,8 +174,8 @@ internal class BuildManaged( bool clean = false )
 		}
 
 		var version = Path.GetFileName( source );
-		var target = Path.Combine( rootDir, "game", "dotnet" );
-		Log.Info( $"Step 7: Stage .NET {version} runtime into game/dotnet" );
+		var target = Path.Combine( rootDir, "game", "bin", "dotnet" );
+		Log.Info( $"Step 7: Stage .NET {version} runtime into game/bin/dotnet" );
 
 		RecreateDirectory( target );
 		CopyDirectory( source, Path.Combine( target, "shared", "Microsoft.NETCore.App", version ) );
@@ -188,7 +188,7 @@ internal class BuildManaged( bool clean = false )
 	/// /usr/bin pointing at the real root, and it is the root we want.</summary>
 	private static string FindDotnetOnPath()
 	{
-		foreach ( var dir in ( Environment.GetEnvironmentVariable( "PATH" ) ?? "" )
+		foreach ( var dir in (Environment.GetEnvironmentVariable( "PATH" ) ?? "")
 			.Split( Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries ) )
 		{
 			var candidate = Path.Combine( dir, "dotnet" );

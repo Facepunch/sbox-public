@@ -23,14 +23,15 @@ public class RotationEditorTool : EditorTool
 		var nonSceneGos = Selection.OfType<GameObject>().Where( go => go.GetType() != typeof( Sandbox.Scene ) );
 		if ( nonSceneGos.Count() == 0 ) return;
 
-		var bbox = BBox.FromPoints( nonSceneGos.Select( x => x.WorldPosition ) );
+		var positions = nonSceneGos.Select( x => x.WorldPosition ).ToArray();
+		var centroid = positions.Aggregate( Vector3.Zero, ( sum, p ) => sum + p ) / positions.Length;
 
 		if ( !Gizmo.Pressed.Any && Gizmo.HasMouseFocus )
 		{
 			startPoints.Clear();
 			moveDelta = Rotation.Identity;
 			handleRotation = nonSceneGos.FirstOrDefault()?.WorldRotation ?? Rotation.Identity;
-			handlePosition = bbox.Center;
+			handlePosition = centroid;
 			undoScope?.Dispose();
 			undoScope = null;
 		}
@@ -39,7 +40,7 @@ public class RotationEditorTool : EditorTool
 
 		// Stop updating the handle position if we're dragging
 
-		var origin = Gizmo.Pressed.Any ? handlePosition : bbox.Center;
+		var origin = Gizmo.Pressed.Any ? handlePosition : centroid;
 
 		using ( Gizmo.Scope( "Tool", new Transform( origin, basis ) ) )
 		{

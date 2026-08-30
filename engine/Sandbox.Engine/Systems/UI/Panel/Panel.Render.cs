@@ -16,6 +16,7 @@ public partial class Panel
 
 	internal enum RenderMode : byte { Inline, Batched, Layer }
 
+	internal int CachedBackgroundVersion;
 	internal RenderLayer CachedDescriptors;
 	internal RenderMode CachedRenderMode;
 	internal float CachedRenderOpacity = 1.0f;

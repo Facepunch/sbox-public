@@ -8,7 +8,7 @@
 	     only itself and its runtime config, avoiding loose files without embedding .NET or engine code.
 
 	     AppHostForPublishIntermediatePath is the host when AppHostRelativeDotNet is set, which the
-	     Linux build does so the launchers find game/dotnet. It has to survive the filter or the
+	     Linux build does so the launchers find game/bin/dotnet. It has to survive the filter or the
 	     bundler is handed no host and fails with "Must specify the host binary". -->
 	<Target Name="FilterLauncherSingleFilePublish"
 		AfterTargets="ComputeResolvedFilesToPublishList;_ComputeFilesToBundle"

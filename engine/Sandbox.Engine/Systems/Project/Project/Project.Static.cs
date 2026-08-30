@@ -109,8 +109,6 @@ public partial class Project
 	/// </summary>
 	internal static async Task InitializeBuiltIn( bool syncPackageManager = true )
 	{
-		AddFromFileBuiltIn( "addons/base/.sbproj" );
-
 		if ( !Application.IsStandalone && !Application.IsHeadless )
 		{
 			AddFromFileBuiltIn( "addons/menu/.sbproj" );

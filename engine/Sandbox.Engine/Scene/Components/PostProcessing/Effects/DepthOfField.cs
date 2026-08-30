@@ -60,9 +60,9 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 
 	CommandList command = new CommandList( "Depth Of Field" );
 
-	private static ComputeShader ShaderCs = new ComputeShader( "postprocess_standard_dof_cs" );
+	private static ComputeShader ShaderCs = new ComputeShader( "postprocess/postprocess_standard_dof_cs" );
 
-	private static Material Shader = Material.FromShader( "postprocess_standard_dof.shader" );
+	private static Material Shader = Material.FromShader( "shaders/postprocess/postprocess_standard_dof.shader" );
 
 	/// <summary>
 	/// Max classified tiles per layer. Each tile covers 32x32 full-res pixels, this covers ~8K screens.

@@ -206,12 +206,12 @@ KeyBind
     &:hover
     {
         box-shadow: 0px 0px 30px #467de544, 0px 0px 20px #467de501;
-        border: 1px solid #467de544;
+        outline: 1px solid #467de544;
     }
 
     &.rebinding
     {
-        border: 1px solid #467de544;
+        outline: 1px solid #467de544;
         box-shadow: 0px 0px 30px #467de544, 0px 0px 80px #467de511;
 
         Image

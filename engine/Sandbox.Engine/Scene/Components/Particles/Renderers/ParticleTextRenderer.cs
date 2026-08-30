@@ -25,6 +25,19 @@ public sealed class ParticleTextRenderer : ParticleRenderer, Component.ExecuteIn
 	[Group( "Rendering" ), Order( 1 )]
 	[Property, Range( 0, 50 )] public float DepthFeather { get; set; } = 0.0f;
 
+	/// <summary>
+	/// Sprites closer to the camera than this are completely invisible.
+	/// </summary>
+	[Group( "Rendering" ), Order( 1 )]
+	[Property, Range( 0, 64 )] public float CameraFadeNear { get; set; } = 0.0f;
+
+	/// <summary>
+	/// Sprites further from the camera than this are fully opaque. Between this and
+	/// <see cref="CameraFadeNear"/> they fade out. Leave at zero to disable the fade.
+	/// </summary>
+	[Group( "Rendering" ), Order( 1 )]
+	[Property, Range( 0, 256 )] public float CameraFadeFar { get; set; } = 0.0f;
+
 	[Group( "Rendering" )]
 	[Property, Range( 0, 1 )] public float FogStrength { get; set; } = 1.0f;
 

@@ -21,6 +21,7 @@ public static partial class EditorUtility
 
 		var document = CModelDoc.Create();
 		g_pModelDocUtils.InitFromMesh( document, meshFile.Path );
+		document.AddDefaultMaterialGroup( null ); // restore prior default (InitFromMesh no longer adds this itself)
 		document.SaveToFile( modelFilename );
 		document.DeleteThis();
 

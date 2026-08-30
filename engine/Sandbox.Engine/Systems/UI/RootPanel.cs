@@ -66,7 +66,7 @@ public partial class RootPanel : Panel
 		GlobalContext.Current.UISystem.AddRoot( this );
 		AddToLists();
 
-		StyleSheet.Load( "/styles/rootpanel.scss" );
+		StyleSheet.Load( "/styles/base/rootpanel.scss" );
 	}
 
 	public override void Delete( bool immediate = true )

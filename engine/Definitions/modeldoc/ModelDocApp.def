@@ -253,15 +253,16 @@ native class CModelDoc
 	}
 
 	/// Add a default material group
-	inline void AddDefaultMaterialGroup()
+	inline void AddDefaultMaterialGroup( string pGlobalMaterial )
 	{
 		CModelDocNode *pParentNode = self->FindSingletonNode< CModelDocMaterialGroupList >();
 		CModelDocDefaultMaterialGroup *pMaterialGroup = self->CreateNode< CModelDocDefaultMaterialGroup >( "", pParentNode, MODELDOC_CREATE_NODE_DEFAULT );
-		
+
 		if ( pMaterialGroup )
 		{
+			const char *pMaterial = ( pGlobalMaterial && *pGlobalMaterial ) ? pGlobalMaterial : "materials/default.vmat";
 			pMaterialGroup->SetHasGlobalDefault( true );
-			pMaterialGroup->SetGlobalDefaultMaterial( "materials/default.vmat" );
+			pMaterialGroup->SetGlobalDefaultMaterial( pMaterial );
 		}
 	}
 }

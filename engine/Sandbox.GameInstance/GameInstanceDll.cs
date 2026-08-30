@@ -52,18 +52,11 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 				FileSystem.Mounted.Mount( EngineFileSystem.LibraryContent );
 			}
 
-			if ( Application.IsStandalone )
+			FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/core/" );
+
+			if ( !Application.IsStandalone )
 			{
-				// In standalone, we don't ship code - only assets
-				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, $"/base/Assets" );
-				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/core/" );
-			}
-			else
-			{
-				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, "/base/Assets/" );
-				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, "/base/code/" );
-				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/core/" );
-				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, "/citizen/Assets/" );
+				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/addons/citizen/Assets/" );
 			}
 		}
 

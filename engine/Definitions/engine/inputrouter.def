@@ -6,7 +6,7 @@ managed static class Sandbox.Engine.InputRouter
 	static void OnKey( ButtonCode scanButtonCode, ButtonCode keyButtonCode, bool state, bool repeating, int ikeymods );
 	static void OnText( uint key );
 	static void OnWindowActive( bool active );
-	static void OnMouseWheel( int x, int y, int ikeymods );
+	static void OnMouseWheel( float x, float y, int ikeymods );
 	static void OnImeStart();
 	static void OnImeComposition( string text, bool final );
 	static void OnImeEnd();

@@ -305,7 +305,7 @@ internal static partial class InputRouter
 		}
 	}
 
-	internal static void OnMouseWheel( int x, int y, int ikeymods )
+	internal static void OnMouseWheel( float x, float y, int ikeymods )
 	{
 		var value = new Vector2( x, y );
 		var mouse = Contexts.FirstOrDefault( x => x.MouseState != InputContext.InputState.Ignore );

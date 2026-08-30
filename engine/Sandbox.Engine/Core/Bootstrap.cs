@@ -55,7 +55,6 @@ internal static class Bootstrap
 			{
 				using var timerFs = StartupTiming?.ScopeTimer( "FilesystemInit" );
 
-				EngineFileSystem.InitializeAddonsFolder();
 				EngineFileSystem.InitializeDataFolder();
 
 				if ( !Application.IsStandalone )

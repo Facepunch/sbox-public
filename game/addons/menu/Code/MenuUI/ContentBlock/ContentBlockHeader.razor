@@ -5,11 +5,20 @@
 
 <root class="content-block-header">
     <row>
-        <a href=@url>
+        @if ( HasQuery )
+        {
+            <a href=@url>
+                <label class="heading icon">@Group.Icon</label>
+                <label class="heading">@Group.Title</label>
+                <label class="heading icon chevron">chevron_right</label>
+            </a>
+        }
+        else
+        {
+            @* No link, so no chevron either. *@
             <label class="heading icon">@Group.Icon</label>
             <label class="heading">@Group.Title</label>
-            <label class="heading icon chevron">chevron_right</label>
-        </a>
+        }
     </row>
 </root>
 
@@ -18,5 +27,10 @@
     [Parameter]
     public Package.ListResult.Grouping Group { get; set; }
 
+    // No query means the link would land on an unrelated list.
+    bool HasQuery => !string.IsNullOrEmpty( Group?.QueryString );
+
     string url => $"/games/group?Query={Group.QueryString}&title={Group.Title}&icon={Group.Icon}";
+
+    protected override int BuildHash() => System.HashCode.Combine( Group?.Title, Group?.Icon, HasQuery );
 }

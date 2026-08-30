@@ -57,23 +57,4 @@ public class ProjectInfo
 		return Guid.ToString( "B" ).ToUpper();
 	}
 
-	public IEnumerable<ProjectInfo> GetDependencies( Dictionary<string, ProjectInfo> allProjects )
-	{
-		if ( Name == "base" )
-			yield break;
-
-		var seen = new HashSet<ProjectInfo>();
-
-		if ( !allProjects.TryGetValue( "base", out ProjectInfo p ) || !seen.Add( p ) )
-			yield break;
-
-		yield return p;
-
-		foreach ( var e in p.GetDependencies( allProjects ) )
-		{
-			if ( seen.Add( e ) )
-				yield return e;
-		}
-
-	}
 }

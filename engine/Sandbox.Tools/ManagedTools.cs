@@ -62,7 +62,7 @@ internal static class ManagedTools
 
 		// Same for the fonts, which is what bit: this folder is really called Assets, so
 		// enumerating a spelled-out path found nothing and Qt never got a font.
-		const string fontFolder = "/addons/base/assets/fonts";
+		const string fontFolder = "/core/fonts";
 
 		foreach ( var file in FileSystem.Root.FindFile( fontFolder, "*.ttf" ) )
 		{

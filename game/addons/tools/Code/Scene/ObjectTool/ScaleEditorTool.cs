@@ -12,8 +12,11 @@ namespace Editor;
 [Order( 2 )]
 public class ScaleEditorTool : EditorTool
 {
-	readonly Dictionary<GameObject, (Vector3 StartScale, Vector3 StartSize)> startState = [];
+	readonly Dictionary<GameObject, (Vector3 StartScale, Vector3 StartSize, Vector3 StartPosition)> startState = [];
 	Vector3 scaleDelta;
+	Vector3 handlePosition;
+	Rotation handleRotation;
+	Vector3 startBoundsSize;
 	IDisposable undoScope;
 
 	public override void OnUpdate()
@@ -21,18 +24,26 @@ public class ScaleEditorTool : EditorTool
 		var nonSceneGos = Selection.OfType<GameObject>().Where( go => go.GetType() != typeof( Sandbox.Scene ) );
 		if ( !nonSceneGos.Any() ) return;
 
-		var handlePosition = nonSceneGos.First().WorldPosition;
-		var handleRotation = nonSceneGos.First().WorldRotation;
+		var positions = nonSceneGos.Select( x => x.WorldPosition ).ToArray();
+		var centroid = positions.Aggregate( Vector3.Zero, ( sum, p ) => sum + p ) / positions.Length;
 
 		if ( !Gizmo.Pressed.Any && Gizmo.HasMouseFocus )
 		{
 			startState.Clear();
 			scaleDelta = default;
+			handlePosition = centroid;
+			handleRotation = nonSceneGos.FirstOrDefault()?.WorldRotation ?? Rotation.Identity;
+			startBoundsSize = BBox.FromPoints( positions ).Size;
 			undoScope?.Dispose();
 			undoScope = null;
 		}
 
-		using ( Gizmo.Scope( "Tool", new Transform( handlePosition ) ) )
+		// do not update the handle position while dragging
+		var origin = Gizmo.Pressed.Any ? handlePosition : centroid;
+		var scaleAsGroup = nonSceneGos.Count() > 1 && Gizmo.Settings.GlobalSpace;
+		var groupSize = MathF.Max( startBoundsSize.x, MathF.Max( startBoundsSize.y, startBoundsSize.z ) );
+
+		using ( Gizmo.Scope( "Tool", new Transform( origin ) ) )
 		{
 			Gizmo.Hitbox.DepthBias = 0.01f;
 
@@ -47,27 +58,36 @@ public class ScaleEditorTool : EditorTool
 					foreach ( var go in nonSceneGos )
 					{
 						go.DispatchPreEdited( nameof( GameObject.LocalScale ) );
+						if ( scaleAsGroup ) go.DispatchPreEdited( nameof( GameObject.LocalPosition ) );
 						go.BreakProceduralBone();
-						startState[go] = (go.WorldScale, go.GetBounds().Size);
+						startState[go] = (go.WorldScale, go.GetBounds().Size, go.WorldPosition);
 					}
 				}
 
-				foreach ( var (go, (startScale, startSize)) in startState )
+				foreach ( var (go, (startScale, startSize, startPosition)) in startState )
 				{
 					if ( !go.IsValid() ) continue;
 
-					var newSize = MathF.Max( startSize.x, MathF.Max( startSize.y, startSize.z ) );
+					var newSize = scaleAsGroup ? groupSize : MathF.Max( startSize.x, MathF.Max( startSize.y, startSize.z ) );
 					if ( newSize < 0.001f ) newSize = 1.0f;
 
 					var snap = Gizmo.Snap( scaleDelta, scaleDelta ) * 2.0f;
 
-					go.WorldScale = new Vector3(
-						startScale.x * (1.0f + snap.x / newSize),
-						startScale.y * (1.0f + snap.y / newSize),
-						startScale.z * (1.0f + snap.z / newSize)
+					var scaleFactor = new Vector3(
+						1.0f + snap.x / newSize,
+						1.0f + snap.y / newSize,
+						1.0f + snap.z / newSize
 					);
 
+					go.WorldScale = startScale * scaleFactor;
+
+					if ( scaleAsGroup )
+					{
+						go.WorldPosition = origin + (startPosition - origin) * scaleFactor;
+					}
+
 					go.DispatchEdited( nameof( GameObject.LocalScale ) );
+					if ( scaleAsGroup ) go.DispatchEdited( nameof( GameObject.LocalPosition ) );
 				}
 			}
 		}

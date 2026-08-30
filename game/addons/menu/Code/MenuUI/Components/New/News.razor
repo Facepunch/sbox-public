@@ -11,12 +11,17 @@
     <div class="news-overlay">
         <label class="news-when">@NewsWhen</label>
         <label class="news-title">@NewsTitle</label>
+        @if ( !string.IsNullOrWhiteSpace( NewsSummary ) )
+        {
+            <label class="news-summary">@NewsSummary</label>
+        }
     </div>
 
 </root>
 
 @code {
     public string NewsTitle { get; set; } = "Loading...";
+    public string NewsSummary { get; set; }
     public string NewsWhen { get; set; } = "";
     public string NewsUrl { get; set; } = "#";
     public string NewsImage { get; set; }
@@ -39,6 +44,7 @@
         var news = p.LatestNewsPost;
 
         NewsTitle = news.Title;
+        NewsSummary = news.Summary;
         NewsWhen = news.Created.LocalDateTime.ToRelativeTimeString();
         NewsImage = news.Media;
         NewsUrl = news.Url;
@@ -51,5 +57,5 @@
         MenuUtility.OpenUrl( $"https://sbox.game{NewsUrl}" );
     }
 
-    protected override int BuildHash() => System.HashCode.Combine( NewsTitle, NewsWhen, NewsImage );
+    protected override int BuildHash() => System.HashCode.Combine( NewsTitle, NewsSummary, NewsWhen, NewsImage );
 }

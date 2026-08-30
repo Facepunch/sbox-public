@@ -79,7 +79,6 @@ public static class FileSystem
 
 		Content = new AggregateFileSystem();
 		Content.CreateAndMount( EngineFileSystem.Root, "/core/" );
-		Content.CreateAndMount( EngineFileSystem.Root, "/addons/base/Assets/" );
 		Content.CreateAndMount( EngineFileSystem.Root, "/addons/citizen/Assets/" );
 		Content.Mount( Cloud );
 

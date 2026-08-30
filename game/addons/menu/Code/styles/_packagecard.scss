@@ -42,6 +42,21 @@ PackageCard
 		bottom: 0;
 		background-size: cover;
 		background-position: center;
+
+		// The still art is underneath, so fading crossfades into it instead of cutting.
+		opacity: 1;
+		transition: opacity 0.4s ease-out;
+
+		&:intro
+		{
+			opacity: 0;
+		}
+
+		&:outro
+		{
+			opacity: 0;
+			transition: opacity 0.3s ease-in;
+		}
 	}
 
 	// Top right, not top left. Pinning both edges and right-aligning avoids having to

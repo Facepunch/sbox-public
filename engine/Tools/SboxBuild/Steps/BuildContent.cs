@@ -10,7 +10,9 @@ internal class BuildContent
 		{
 			string rootDir = Directory.GetCurrentDirectory();
 			string gameDir = Path.Combine( rootDir, "game" );
-			string contentBuilderPath = Path.Combine( gameDir, "bin", "win64", "contentbuilder.exe" );
+			// contentbuilder is native, so it sits under the platform directory it was built for.
+			string contentBuilderPath = Path.Combine( gameDir, "bin", NativePlatform.Current.DirectoryName,
+				OperatingSystem.IsWindows() ? "contentbuilder.exe" : "contentbuilder" );
 
 			// Verify content builder exists
 			if ( !File.Exists( contentBuilderPath ) )
