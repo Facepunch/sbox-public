@@ -44,7 +44,7 @@
         if ( string.IsNullOrEmpty( name ) )
             return title;
 
-        string normalizedName = name.Replace( " ", "" ).Replace( "#", "" );
+        string normalizedName = name.Replace( " ", "" ).Replace( "#", "" ).Replace( "/", "_" );
 
         string key = string.IsNullOrEmpty( parentText ) ? $"category.{facetText}.{normalizedName}" : $"category.{facetText}.{parentText}.{normalizedName}";
         string localizedText = Language.GetPhrase( key );

@@ -11,16 +11,16 @@
 		<Left>
             <div class="store-intro">
                 <h2><WithIcon Text="#itemstore.icontitle" Icon="local_mall"></WithIcon></h2>
-                <p>Cosmetics for your avatar. Anything you buy lands in your Steam inventory and shows up in the avatar editor.</p>
+                <p>#itemstore.tip</p>
             </div>
 
             @if ( Categories.Count() > 1 )
             {
                 <div class="store-filter">
-                    <label class="section-label">Category</label>
+                    <label class="section-label">#itemstore.category</label>
                     <div class="chips">
                         <div class="chip @( SelectedCategory is null ? "active" : "" )" @onclick="@( () => SelectedCategory = null )">
-                            <label>All</label>
+                            <label>#itemstore.all</label>
                             <label class="n">@ForSale.Count()</label>
                         </div>
                         @foreach ( var cat in Categories )
@@ -45,15 +45,15 @@
                 {
                     <div class="store-empty">
                         <icon>storefront</icon>
-                        <label class="title">Nothing for sale right now</label>
-                        <label class="hint">New items show up here when they go on sale.</label>
+                        <label class="title">#itemstore.empty_title</label>
+                        <label class="hint">#itemstore.empty_hint</label>
                     </div>
                 }
                 else
                 {
                     <div class="section-head">
-                        <label class="title">@( SelectedCategory ?? "Everything" )</label>
-                        <label class="count">@GridItems.Count() items</label>
+                        <label class="title">@( SelectedCategory ?? Language.GetPhrase( "itemstore.everything" ) )</label>
+                        <label class="count">@Language.GetPhrase( "itemstore.grid_count", new() { { "count", GridItems.Count() } } )</label>
                     </div>
 
                     <div class="grid">
@@ -68,7 +68,7 @@
                 {
                     <div class="section-head owned">
                         <label class="title">#itemstore.already_owned</label>
-                        <label class="count">@OwnedItems.Count() items</label>
+                        <label class="count">@Language.GetPhrase( "itemstore.owned_count", new() { { "count", OwnedItems.Count() } } )</label>
                     </div>
 
                     <div class="grid">

@@ -3,6 +3,10 @@
 
     "tooltip.avatar.workshop.review": "添加评测",
 
+    "tooltip.avatarbutton.edit_avatar": "编辑你的形象",
+
+    "tooltip.cartpanel.remove": "移除",
+
     "tooltip.clothingitemselector.all": "全部",
     "tooltip.clothingitemselector.hats.cap": "鸭舌帽",
     "tooltip.clothingitemselector.hats.beanie": "针织帽",
@@ -89,6 +93,8 @@
     "tooltip.gameclosedtoast.vote_up": "点赞",
     "tooltip.gameclosedtoast.vote_down": "点踩",
     "tooltip.gameclosedtoast.add_review": "撰写评价",
+
+    "tooltip.itemtile.count": "输入您想购买的数量",
 
     "tooltip.packagemetrics.favourited": "收藏",
     "tooltip.packagemetrics.thumbs_up": "推荐",

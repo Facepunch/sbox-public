@@ -80,9 +80,7 @@ public class ShoppingCart
 
 				// Show a confirmation popup with the purchased items
 				var itemCount = itemNames.Count;
-				var message = itemCount == 1
-					? Language.GetPhrase( "shoppingcart.purchased_one", new() { ["name"] = itemNames.First() } )
-					: Language.GetPhrase( "shoppingcart.purchased_more", new() { ["count"] = itemCount } );
+				var message = itemCount == 1 ? Language.GetPhrase( "shoppingcart.purchased_one", new() { { "name", itemNames.First() } } ) : Language.GetPhrase( "shoppingcart.purchased_more", new() { { "count", itemCount } } );
 
 				MenuOverlay.Show( message, "check_circle" );
 			}

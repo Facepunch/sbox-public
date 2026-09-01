@@ -14,12 +14,12 @@
     <Logo @ondoubleclick=@( () => UiTestSection.Open() ) />
 
     <div class="nav">
-        <Button Href="/home" Icon="home">#menu.home</Button>
-        <Button Href="/games/all?Sort=trending&Filter=" Icon="sports_esports">Games</Button>
-        <Button Href="/maps/all" Icon="map">#menu.maps</Button>
-        <Button Href="@FavouritesUrl" Icon="favorite">Favourites</Button>
-        <Button Href="/mounts" Icon="extension">Mounts</Button>
-        <Button Href="/itemstore" Icon="shopping_cart">#menu.store</Button>
+        <Button Href="/home" Icon="home">#sidebar.home</Button>
+        <Button Href="/games/all?Sort=trending&Filter=" Icon="sports_esports">#sidebar.games</Button>
+        <Button Href="/maps/all" Icon="map">#sidebar.maps</Button>
+        <Button Href="@FavouritesUrl" Icon="favorite">#sidebar.favourites</Button>
+        <Button Href="/mounts" Icon="extension">#sidebar.mounts</Button>
+        <Button Href="/itemstore" Icon="shopping_cart">#sidebar.store</Button>
     </div>
 
     <div class="grow" />
@@ -29,13 +29,13 @@
         @* Nothing waiting means nothing to go and look at, so the entry isn't there at all. *@
         @if ( ShowInbox )
         {
-            <RailButton Href="@InboxUrl" Icon="notifications" Text="Inbox" Badge="@NotificationBadge" />
+            <RailButton Href="@InboxUrl" Icon="notifications" Text="#sidebar.inbox" Badge="@NotificationBadge" />
         }
 
-        <RailButton Href="/rewards" Icon="redeem" Text="Rewards" Badge="@RewardBadge" BadgeClass="reward" Progress="@RewardProgress" />
+        <RailButton Href="/rewards" Icon="redeem" Text="#sidebar.rewards" Badge="@RewardBadge" BadgeClass="reward" Progress="@RewardProgress" />
 
-        <Button @onmouseup=@Settings Icon="settings">Settings</Button>
-        <Button @onmouseup=@Quit class="quit" Icon="power_settings_new">Quit</Button>
+        <Button @onmouseup=@Settings Icon="settings">#sidebar.settings</Button>
+        <Button @onmouseup=@Quit class="quit" Icon="power_settings_new">#sidebar.quit</Button>
     </div>
 
 </root>

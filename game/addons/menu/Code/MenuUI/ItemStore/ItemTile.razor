@@ -19,7 +19,7 @@
 
         @if ( Owned > 0 )
         {
-            <label class="owned-pill">@( Owned > 1 ? $"Own {Owned}" : "Owned" )</label>
+            <label class="owned-pill">@( Owned > 1 ? Language.GetPhrase( "itemtile.owned_many", new() { { "count", Owned } } ) : Language.GetPhrase( "itemtile.owned" ) )</label>
         }
     </div>
 
@@ -32,7 +32,7 @@
                 <label class="now">@Item.Price</label>
                 @if ( Item.IsOnSale )
                 {
-                    <label class="was">was @Item.BasePrice</label>
+                    <label class="was">@Language.GetPhrase( "itemtile.original_price", new() { { "price", Item.BasePrice } } )</label>
                 }
             </div>
 
@@ -41,7 +41,7 @@
                 <div class="adder">
                     <div class="step" @onclick="@RemoveFromCart"><icon>remove</icon></div>
                     <TextEntry class="count" Numeric="@true" NumberFormat="0" MinValue="@(0f)" MaxValue="@((float)ShoppingCart.MaxPerItem)"
-                               Value="@CountInCart.ToString()" OnTextEdited="@OnCountEdited" onblur="@( ( PanelEvent e ) => OnCountBlur( e ) )" tooltip="Type how many you want"></TextEntry>
+                               Value="@CountInCart.ToString()" OnTextEdited="@OnCountEdited" onblur="@( ( PanelEvent e ) => OnCountBlur( e ) )" tooltip="#tooltip.itemtile.count"></TextEntry>
                     <div class="step" @onclick="@AddToCart"><icon>add</icon></div>
                 </div>
             }
@@ -49,7 +49,7 @@
             {
                 <div class="add" @onclick="@AddToCart">
                     <icon>add_shopping_cart</icon>
-                    <label>Add</label>
+                    <label>#itemtile.add</label>
                 </div>
             }
         </div>

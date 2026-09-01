@@ -3,6 +3,10 @@
 
     "tooltip.avatar.workshop.review": "Add a Review",
 
+    "tooltip.avatarbutton.edit_avatar": "Edit your avatar",
+
+    "tooltip.cartpanel.remove": "Remove",
+
     "tooltip.clothingitemselector.all": "All",
     "tooltip.clothingitemselector.hats.cap": "Cap",
     "tooltip.clothingitemselector.hats.beanie": "Beanie",
@@ -89,6 +93,8 @@
     "tooltip.gameclosedtoast.vote_up": "Vote Up",
     "tooltip.gameclosedtoast.vote_down": "Vote Down",
     "tooltip.gameclosedtoast.add_review": "Add a Review",
+
+    "tooltip.itemtile.count": "Type how many you want",
 
     "tooltip.packagemetrics.favourited": "Favourited",
     "tooltip.packagemetrics.thumbs_up": "Thumbs Up",
