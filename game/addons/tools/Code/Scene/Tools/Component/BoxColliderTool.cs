@@ -8,6 +8,12 @@ public class BoxColliderTool : EditorTool<BoxCollider>
 
 	public override void OnUpdate()
 	{
+		if ( !Gizmo.Pressed.Any )
+		{
+			_componentUndoScope?.Dispose();
+			_componentUndoScope = null;
+		}
+
 		var boxCollider = GetSelectedComponent<BoxCollider>();
 		if ( boxCollider == null )
 			return;
@@ -23,12 +29,6 @@ public class BoxColliderTool : EditorTool<BoxCollider>
 
 				boxCollider.Center = newBox.Center;
 				boxCollider.Scale = newBox.Size;
-			}
-
-			if ( Gizmo.WasLeftMouseReleased )
-			{
-				_componentUndoScope?.Dispose();
-				_componentUndoScope = null;
 			}
 		}
 	}

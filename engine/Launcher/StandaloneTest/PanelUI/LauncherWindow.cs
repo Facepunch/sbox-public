@@ -591,7 +591,9 @@ class LauncherWindow : Panel
 
 	void Stagger( Panel panel )
 	{
-		panel.Style.Set( "animation-delay", $"{animIndex * 0.025f:0.000}s" );
+		// Invariant - this is CSS, not something anyone reads. Formatted in a comma-decimal
+		// culture the delay would come back out as whole seconds
+		panel.Style.Set( "animation-delay", FormattableString.Invariant( $"{animIndex * 0.025f:0.000}s" ) );
 		animIndex++;
 	}
 

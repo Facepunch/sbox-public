@@ -198,7 +198,7 @@ public class Hierarchy : Panel
 
 		rows[item] = row;
 
-		if ( rowIndex < 40 ) row.Style.Set( "transition-delay", $"{rowIndex * 0.01f:0.000}s" );
+		if ( rowIndex < 40 ) row.Style.Set( "transition-delay", FormattableString.Invariant( $"{rowIndex * 0.01f:0.000}s" ) );
 		rowIndex++;
 
 		var indent = row.Add.Panel();
