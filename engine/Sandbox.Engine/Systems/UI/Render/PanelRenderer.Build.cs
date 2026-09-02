@@ -71,8 +71,11 @@ internal partial class PanelRenderer
 		if ( panel.ComputedStyle?.BackgroundImage is not { } tex )
 			return;
 
-		if ( tex.IsDirty )
+		if ( tex.DirtyVersion != panel.CachedBackgroundVersion )
+		{
+			panel.CachedBackgroundVersion = tex.DirtyVersion;
 			panel.IsRenderDirty = true;
+		}
 
 		tex.MarkUsed();
 	}

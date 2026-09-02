@@ -1,4 +1,4 @@
-﻿namespace Sandbox.UI;
+namespace Sandbox.UI;
 
 /// <summary>
 /// This is a tree renderer for panels. If we ever use razor on other ui we'll want to make a copy of
@@ -51,6 +51,46 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 		if ( t is Panel p )
 		{
 			p.ParametersChanged( false );
+		}
+	}
+
+	/// <summary>
+	/// The stock razor compiler sets component parameters by name - resolve the property on
+	/// the panel and set it, like <see cref="AddBind{T}"/> does.
+	/// </summary>
+	protected override void SetComponentParameter( int sequence, string parameterName, object value )
+	{
+		var scope = CurrentScope;
+		scope.Sequence = sequence;
+
+		var element = scope.Element;
+
+		// Fragments are fresh delegates every build, so they always apply - same as SetRenderFragment
+		if ( value is not Microsoft.AspNetCore.Components.RenderFragment && scope.Block.CheckCacheValue( HashCode.Combine( element, sequence, parameterName ), value?.GetHashCode() ?? 0 ) )
+			return;
+
+		var property = element.GetType().GetProperty( parameterName );
+
+		if ( property is null )
+		{
+			// Not a property - a plain attribute on the component, class="dark" and the like
+			AddAttributeObject( sequence, parameterName, value );
+			return;
+		}
+
+		if ( value is null || property.PropertyType.IsInstanceOfType( value ) )
+		{
+			property.SetValue( element, value );
+		}
+		else if ( Translation.TryConvert( value, property.PropertyType, out var converted ) )
+		{
+			property.SetValue( element, converted );
+		}
+
+		if ( element is Panel panel )
+		{
+			if ( value is Microsoft.AspNetCore.Components.RenderFragment ) panel.OnRenderFragmentChanged( Parent );
+			else panel.ParametersChanged( false );
 		}
 	}
 

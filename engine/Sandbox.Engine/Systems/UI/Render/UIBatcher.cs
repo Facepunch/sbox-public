@@ -13,6 +13,8 @@ internal class UIBatcher
 	readonly Dictionary<int, int> transformLookup = new();
 	readonly List<GPUGradientInstance> gradientTable = new();
 	readonly Dictionary<int, int> gradientLookup = new();
+	readonly List<GPUBorderShape> shapeTable = new();
+	readonly Dictionary<int, int> shapeLookup = new();
 
 	// All tables are cumulative within a frame and only need one buffer per frame slot.
 	const int FrameCount = 3;
@@ -20,6 +22,7 @@ internal class UIBatcher
 	readonly GpuBuffer<ScissorInstance>[] scissorBuffers = new GpuBuffer<ScissorInstance>[FrameCount];
 	readonly GpuBuffer<TransformInstance>[] transformBuffers = new GpuBuffer<TransformInstance>[FrameCount];
 	readonly GpuBuffer<GPUGradientInstance>[] gradientBuffers = new GpuBuffer<GPUGradientInstance>[FrameCount];
+	readonly GpuBuffer<GPUBorderShape>[] shapeBuffers = new GpuBuffer<GPUBorderShape>[FrameCount];
 	int frameIndex;
 	readonly List<GPUBoxInstance> frameInstances = new();
 
@@ -27,10 +30,12 @@ internal class UIBatcher
 	int scissorUploaded;
 	int transformUploaded;
 	int gradientUploaded;
+	int shapeUploaded;
 
 	internal int ScissorCount => scissorTable.Count;
 	internal int TransformCount => transformTable.Count;
 	internal int GradientCount => gradientTable.Count;
+	internal int BorderShapeCount => shapeTable.Count;
 
 	internal int GpuBufferCount
 	{
@@ -43,6 +48,7 @@ internal class UIBatcher
 				if ( scissorBuffers[i] != null ) count++;
 				if ( transformBuffers[i] != null ) count++;
 				if ( gradientBuffers[i] != null ) count++;
+				if ( shapeBuffers[i] != null ) count++;
 			}
 			return count;
 		}
@@ -58,10 +64,13 @@ internal class UIBatcher
 		transformLookup.Clear();
 		gradientTable.Clear();
 		gradientLookup.Clear();
+		shapeTable.Clear();
+		shapeLookup.Clear();
 		frameInstances.Clear();
 		scissorUploaded = 0;
 		transformUploaded = 0;
 		gradientUploaded = 0;
+		shapeUploaded = 0;
 	}
 
 	internal int GetOrAddScissor( PanelRenderer.GPUScissor scissor )
@@ -92,6 +101,23 @@ internal class UIBatcher
 		gradientTable.Add( GPUGradientInstance.From( in gradient ) );
 
 		gradientLookup[hash] = index;
+		return index;
+	}
+
+	internal int GetOrAddShape( in GPUBorderShape shape )
+	{
+		if ( shape.Kind == 0 )
+			return -1;
+
+		var hash = shape.GetHash();
+
+		if ( shapeLookup.TryGetValue( hash, out var existing ) )
+			return existing;
+
+		var index = shapeTable.Count;
+		shapeTable.Add( shape );
+
+		shapeLookup[hash] = index;
 		return index;
 	}
 
@@ -132,6 +158,7 @@ internal class UIBatcher
 		UploadScissorBuffer( cl );
 		UploadTransformBuffer( cl );
 		UploadGradientBuffer( cl );
+		UploadShapeBuffer( cl );
 
 		cl.Attributes.Set( "TransformMat", Matrix.Identity );
 		cl.Attributes.Set( "HasScissor", 0 );
@@ -198,6 +225,25 @@ internal class UIBatcher
 		}
 
 		cl.Attributes.Set( "GradientBuffer", (GpuBuffer)buffer );
+	}
+
+	void UploadShapeBuffer( CommandList cl )
+	{
+		if ( shapeTable.Count == 0 ) return;
+
+		var buffer = EnsureBuffer( ref shapeBuffers[frameIndex], shapeTable.Count, out bool grew );
+
+		if ( grew )
+			shapeUploaded = 0;
+
+		int newCount = shapeTable.Count - shapeUploaded;
+		if ( newCount > 0 )
+		{
+			buffer.SetData<GPUBorderShape>( CollectionsMarshal.AsSpan( shapeTable ).Slice( shapeUploaded, newCount ), shapeUploaded );
+			shapeUploaded = shapeTable.Count;
+		}
+
+		cl.Attributes.Set( "BorderShapeBuffer", (GpuBuffer)buffer );
 	}
 
 	static GpuBuffer<T> EnsureBuffer<T>( ref GpuBuffer<T> buffer, int capacity, out bool wasReplaced ) where T : unmanaged

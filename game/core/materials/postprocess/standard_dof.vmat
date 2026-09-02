@@ -1,0 +1,4 @@
+"Layer0"
+{
+	"shader"		"shaders/postprocess/postprocess_standard_dof.shader_c"
+}

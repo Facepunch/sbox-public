@@ -17,6 +17,7 @@
   </Folder>
   <Folder Name="/Engine/Exe/">
     <Project Path="Launcher/CrashReporter/CrashReporter.csproj" Id="652c4b4b-7f21-4884-9ad5-6a9032ce4ef9" />
+    <Project Path="Launcher/PanelGallery/PanelGallery.csproj" />
     <Project Path="Launcher/Sbox/Sbox.csproj" />
     <Project Path="Launcher/SboxBench/SboxBench.csproj" />
     <Project Path="Launcher/SboxDev/Sbox-Dev.csproj" />

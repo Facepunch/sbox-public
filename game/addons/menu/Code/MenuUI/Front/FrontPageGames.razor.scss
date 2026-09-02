@@ -6,8 +6,9 @@ FrontPageGames
 	flex-direction: column;
 	overflow-y: scroll;
 	overflow-x: hidden;
+
 	// The rail and the top bar already inset us - this is only the feed's own breathing room.
-	padding: 12px 24px 48px 24px;
+	padding: 64px 24px 48px 24px;
 
 	.section
 	{
@@ -37,6 +38,7 @@ FrontPageGames
 
 		.title
 		{
+			font-family: $front-font;
 			font-size: 20px;
 			font-weight: 700;
 			color: $front-heading;
@@ -44,7 +46,8 @@ FrontPageGames
 
 		.description
 		{
-			font-size: 13px;
+			font-family: $front-font;
+			font-size: 14px;
 			font-weight: 500;
 			color: $front-secondary;
 		}

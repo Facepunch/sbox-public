@@ -1,0 +1,109 @@
+
+#include "rendersystem/irenderdevice.h"
+#include "sbox/panelwindow.h"
+
+//
+// Our own OS windows, so UI can be drawn in a window that isn't the engine's main window and
+// isn't owned by a widget toolkit. Implemented in src/engine2/sbox/panelwindow.cpp.
+//
+native static class PanelWindowGlue as NativeEngine.PanelWindowNative
+{
+	void* Create( string title, int x, int y, int width, int height, bool borderless );
+	void Destroy( CastTo[void*] IntPtr window );
+
+	void* CreatePopup( CastTo[void*] IntPtr parent, int x, int y, int width, int height );
+	void DestroyPopup( CastTo[void*] IntPtr window );
+
+	void SetTitle( CastTo[void*] IntPtr window, string title );
+	void SetPosition( CastTo[void*] IntPtr window, int x, int y );
+	void SetSize( CastTo[void*] IntPtr window, int width, int height );
+	void GetClientSize( CastTo[void*] IntPtr window, out int width, out int height );
+	void GetBounds( CastTo[void*] IntPtr window, out int x, out int y, out int width, out int height );
+	float GetContentsScale( CastTo[void*] IntPtr window );
+
+	bool IsFocused( CastTo[void*] IntPtr window );
+	bool IsMinimized( CastTo[void*] IntPtr window );
+	bool IsVisible( CastTo[void*] IntPtr window );
+	bool IsMaximized( CastTo[void*] IntPtr window );
+
+	void Show( CastTo[void*] IntPtr window );
+	void Hide( CastTo[void*] IntPtr window );
+	void Minimize( CastTo[void*] IntPtr window );
+	void Maximize( CastTo[void*] IntPtr window );
+	void Restore( CastTo[void*] IntPtr window );
+	void SetForeground( CastTo[void*] IntPtr window );
+
+	void EnableCustomChrome( CastTo[void*] IntPtr window );
+
+	void OpenFolderDialog( CastTo[void*] IntPtr window, string defaultPath );
+	void OpenFileDialog( CastTo[void*] IntPtr window, string defaultPath, string filters );
+	void SaveFileDialog( CastTo[void*] IntPtr window, string defaultPath, string filters );
+
+	void SetMinSize( CastTo[void*] IntPtr window, int width, int height );
+	void SetMaxSize( CastTo[void*] IntPtr window, int width, int height );
+	void SetCanMaximize( CastTo[void*] IntPtr window, bool canMaximize );
+
+	SwapChainHandle_t CreateSwapChain( CastTo[void*] IntPtr window, int nMSAAAmount, bool vsync );
+	void ResizeSwapChain( SwapChainHandle_t swapChain, int width, int height );
+	void GetSwapChainSize( SwapChainHandle_t swapChain, out int width, out int height );
+
+	void SetTextInputArea( CastTo[void*] IntPtr window, int x, int y, int width, int height );
+
+	int BeginDrag( CastTo[void*] IntPtr window, string files, string text );
+}
+
+//
+// Everything SDL sends for one of our windows arrives here, and goes no further into the engine.
+//
+managed static class Sandbox.UI.PanelWindowInput
+{
+	static void OnMouseMove( IntPtr window, float x, float y );
+	static void OnMouseButton( IntPtr window, ButtonCode button, bool down, int clicks, int ikeymods );
+	static void OnMouseWheel( IntPtr window, float x, float y, int ikeymods );
+	static void OnKey( IntPtr window, ButtonCode button, bool down, bool repeating, int ikeymods );
+	static void OnText( IntPtr window, string text );
+
+	//
+	// The IME composition string changed. Non-empty is the pending composition; empty means it
+	// was committed or cancelled - committed text arrives through OnText either way.
+	//
+	static void OnImeComposition( IntPtr window, string text );
+
+	//
+	// An OS drag over the window, with live accept/reject - OnDragEnter carries the payload
+	// once (files newline separated), OnDragOver and OnDragDrop answer with the effect the
+	// cursor shows: 0 reject, 1 copy, 2 move.
+	//
+	static void OnDragEnter( IntPtr window, string files, string text );
+	static int OnDragOver( IntPtr window, float x, float y );
+	static void OnDragLeave( IntPtr window );
+	static int OnDragDrop( IntPtr window, float x, float y );
+
+	// A frame pulse while an outgoing drag has the thread parked in the OS drag loop
+	static void OnDragFrame();
+
+	//
+	// The plain path for platforms without the live drop target - files accumulate through
+	// OnDropFile until OnDropComplete lands the lot on the panel under the cursor.
+	//
+	static void OnDropFile( IntPtr window, string path );
+	static void OnDropText( IntPtr window, string text );
+	static void OnDropComplete( IntPtr window, float x, float y );
+
+	static void OnFocus( IntPtr window, bool focused );
+	static void OnMouseLeave( IntPtr window );
+	static void OnResized( IntPtr window );
+	static void OnClose( IntPtr window );
+
+	//
+	// What the user picked in the OS dialog this window opened - folder, open or save. Empty
+	// on cancel.
+	//
+	static void OnFileDialogResult( IntPtr window, string path );
+
+	//
+	// What's under the cursor, so the OS knows whether a click drags the window, resizes it or
+	// goes to the UI. Values match SDL_HitTestResult.
+	//
+	static int OnHitTest( IntPtr window, int x, int y );
+}

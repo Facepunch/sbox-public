@@ -1,6 +1,7 @@
 ﻿#include "qcontrols/qt_includes.h"
 #include "qcontrols/qutils.h"
 #include "sbox_widgets.h"
+#include "qtinputbridge.h"
 
 native accessor qApp as Native.QApp
 {
@@ -63,15 +64,45 @@ native accessor qApp as Native.QApp
 	{
 		InitQtPluginsDir();
 
+		// Windows only - anywhere else this names a plugin that doesn't exist and Qt aborts
+		// rather than falling back.
+		#if defined( V_PLATFORM_WINDOWS_PC )
 		qputenv( "QT_QPA_PLATFORM", "windows:darkmode=2" );
+		#elif defined( POSIX )
+		// xcb is the only platform plugin we ship, so don't leave Qt to pick wayland from the
+		// session and abort. An explicit choice in the environment still wins.
+		if ( qEnvironmentVariableIsEmpty( "QT_QPA_PLATFORM" ) )
+		{
+			qputenv( "QT_QPA_PLATFORM", "xcb" );
+		}
+		#endif
 
 		QApplication::setAttribute( Qt::AA_EnableHighDpiScaling );
 		QApplication::setAttribute( Qt::AA_UseHighDpiPixmaps );
 		QApplication::setHighDpiScaleFactorRoundingPolicy( Qt::HighDpiScaleFactorRoundingPolicy::PassThrough );
 
-		int argc = CommandLine()->ParmCount();
-		char **argv = (char**)CommandLine()->GetParms();
-		new QApplication( argc, argv );
+		// Qt keeps this pointer rather than copying it, and reads it back later in
+		// QCoreApplication::arguments() - on xcb that happens every time a window is created,
+		// via QXcbIntegration::wmClass(). So it has to outlive the QApplication.
+		static int argc = CommandLine()->ParmCount();
+		static CUtlVector< char * > argArray;
+
+		if ( argArray.Count() == 0 )
+		{
+			argArray.EnsureCount( argc );
+
+			for ( int i = 0; i < argc; ++i )
+			{
+				argArray[ i ] = MemAlloc_StrDup( CommandLine()->GetParm( i ) );
+			}
+		}
+
+		new QApplication( argc, argArray.Base() );
+
+		// Linux only, and a no-op elsewhere. There is no WNDPROC to subclass on X11, so Qt is
+		// the only thing that ever sees input for a tools window - this passes it on to the
+		// engine. Has to be after the QApplication exists, since it hangs off it.
+		ToolFramework2_InstallQtInputBridge();
 	}
 		
 	inline void ReloadTabbedStyle()

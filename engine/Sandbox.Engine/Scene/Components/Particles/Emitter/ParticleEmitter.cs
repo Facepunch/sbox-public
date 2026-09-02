@@ -56,13 +56,20 @@ public abstract class ParticleEmitter : Component, Component.ExecuteInEditor, Co
 	/// </summary>
 	public float EmitRandom { get; private set; }
 
+	/// <summary>
+	/// The evaluated duration value for this emitter instance, computed from the Duration property
+	/// </summary>
+	public float EvaluatedDuration { get; private set; }
+
+	/// <summary>
+	/// The evaluated delay value for this emitter instance, computed from the Delay property
+	/// </summary>
+	public float EvaluatedDelay { get; private set; }
+
 	public float time;
 	float emitted;
 	bool burstPending;
 	bool suspended;
-
-	float evaluatedDuration;
-	float evaluatedDelay;
 	float evaluatedBurst;
 	protected float evaluatedRateOverDistance;
 
@@ -106,13 +113,13 @@ public abstract class ParticleEmitter : Component, Component.ExecuteInEditor, Co
 		EmitRandom = Random.Shared.Float( 0, 1 );
 		burstPending = true;
 
-		evaluatedDuration = Duration.Evaluate( 0, Random.Shared.Float( 0, 1 ) );
-		evaluatedDelay = Delay.Evaluate( 0, Random.Shared.Float( 0, 1 ) );
+		EvaluatedDuration = Duration.Evaluate( 0, Random.Shared.Float( 0, 1 ) );
+		EvaluatedDelay = Delay.Evaluate( 0, Random.Shared.Float( 0, 1 ) );
 		evaluatedBurst = Burst.Evaluate( 0, Random.Shared.Float( 0, 1 ) );
 	}
 
-	bool IsStarted => time - evaluatedDelay >= 0;
-	bool IsFinished => !burstPending && time > (evaluatedDuration + evaluatedDelay);
+	bool IsStarted => time - EvaluatedDelay >= 0;
+	bool IsFinished => !burstPending && time > (EvaluatedDuration + EvaluatedDelay);
 
 	void OnParticleStep( float delta )
 	{
@@ -122,7 +129,7 @@ public abstract class ParticleEmitter : Component, Component.ExecuteInEditor, Co
 
 		time += delta;
 
-		float runTime = time - evaluatedDelay;
+		float runTime = time - EvaluatedDelay;
 		Delta = 0;
 
 		// not started yet
@@ -163,7 +170,7 @@ public abstract class ParticleEmitter : Component, Component.ExecuteInEditor, Co
 			}
 		}
 
-		Delta = time.Remap( evaluatedDelay, evaluatedDuration + evaluatedDelay, 0, 1 );
+		Delta = time.Remap( EvaluatedDelay, EvaluatedDuration + EvaluatedDelay, 0, 1 );
 
 		evaluatedRateOverDistance = RateOverDistance.Evaluate( Delta, EmitRandom );
 		if ( evaluatedRateOverDistance > 0 )

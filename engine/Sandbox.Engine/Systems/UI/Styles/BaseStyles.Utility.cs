@@ -129,6 +129,11 @@ namespace Sandbox.UI
 				return;
 			}
 
+			// A fully transparent endpoint fades in place. Its rgb is meaningless - usually
+			// black - and lerping through it darkens the whole transition
+			if ( from.a <= 0.0f ) from = to.WithAlpha( 0.0f );
+			else if ( to.a <= 0.0f ) to = from.WithAlpha( 0.0f );
+
 			o = Color.Lerp( from, to, delta );
 		}
 

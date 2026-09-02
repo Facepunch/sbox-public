@@ -302,20 +302,31 @@ partial class FaceTool
 		private static void HideFaces( MeshFace[] faces )
 		{
 			var selection = SceneEditorSession.Active.Selection;
+			var components = new HashSet<MeshComponent>();
 
 			foreach ( var face in faces.Where( x => x.IsValid() ) )
 			{
 				face.Component.Mesh.SetFaceHidden( face.Handle, true );
 				selection.Remove( face );
+				components.Add( face.Component );
 			}
+
+			foreach ( var component in components )
+				component.RebuildMesh();
 		}
 
 		private static void UnhideFaces( MeshFace[] faces )
 		{
+			var components = new HashSet<MeshComponent>();
+
 			foreach ( var face in faces.Where( x => x.IsValid() ) )
 			{
 				face.Component.Mesh.SetFaceHidden( face.Handle, false );
+				components.Add( face.Component );
 			}
+
+			foreach ( var component in components )
+				component.RebuildMesh();
 		}
 
 		[Shortcut( "mesh.open-clipping-tool", "SHIFT+X", typeof( SceneViewWidget ) )]

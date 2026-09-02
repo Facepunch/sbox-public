@@ -15,6 +15,9 @@ public abstract class Toolchain
 
 	public List<string> LinkDirectories = [];
 
+	/// <summary>Raw switches for the linker, written as given.</summary>
+	public List<string> LinkOptions = [];
+
 	/// <summary>Headers forced into every source, as if it included them first.</summary>
 	public List<string> ForceIncludes = [];
 
@@ -24,6 +27,7 @@ public abstract class Toolchain
 		config.Options.AddRange( CompileOptions );
 		config.LinkLibs.AddRange( LinkLibraries.Select( Library ) );
 		config.LibDirs.AddRange( LinkDirectories );
+		config.LinkOptions.AddRange( LinkOptions );
 		config.ForceIncludes.AddRange( ForceIncludes );
 	}
 

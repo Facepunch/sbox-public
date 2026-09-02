@@ -97,6 +97,32 @@ public class PanelGeometryTest
 		Assert.IsFalse( p.IsInside( new Vector2( 101, 199 ) ) );
 	}
 
+	[TestMethod]
+	public void PointInsideRespectsPolygonBorderShape()
+	{
+		var root = new RootPanel { PanelBounds = new Rect( 0, 0, 1000, 1000 ) };
+		var p = new Panel { Parent = root };
+		p.Style.Set( "position: absolute; left: 100px; top: 100px; width: 100px; height: 100px; border-shape: polygon(50% 0%, 100% 100%, 0% 100%);" );
+		root.Layout();
+
+		Assert.IsTrue( p.IsInside( new Vector2( 150, 150 ) ) );
+		Assert.IsFalse( p.IsInside( new Vector2( 105, 105 ) ) );
+		Assert.IsTrue( p.IsInside( new Vector2( 150, 105 ) ) );
+	}
+
+	[TestMethod]
+	public void PointInsideRespectsCircleBorderShape()
+	{
+		var root = new RootPanel { PanelBounds = new Rect( 0, 0, 1000, 1000 ) };
+		var p = new Panel { Parent = root };
+		p.Style.Set( "position: absolute; left: 100px; top: 100px; width: 200px; height: 100px; border-shape: circle(40px at 25% 50%);" );
+		root.Layout();
+
+		Assert.IsTrue( p.IsInside( new Vector2( 150, 150 ) ) );
+		Assert.IsTrue( p.IsInside( new Vector2( 190, 150 ) ) );
+		Assert.IsFalse( p.IsInside( new Vector2( 250, 150 ) ) );
+	}
+
 	/// <summary>
 	/// A percent radius resolves per axis, so on a non-square panel the corner is a
 	/// quarter ellipse and IsInside has to follow the same shape it draws.

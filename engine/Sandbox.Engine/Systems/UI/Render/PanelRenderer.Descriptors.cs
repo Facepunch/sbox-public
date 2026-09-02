@@ -36,6 +36,7 @@ internal partial class PanelRenderer
 				_ => FilterMode.Anisotropic
 			},
 		};
+		desc.SetBorderShape( style.BorderShape );
 
 		if ( style.BorderImageSource != null )
 		{

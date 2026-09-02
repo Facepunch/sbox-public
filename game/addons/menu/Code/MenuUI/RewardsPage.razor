@@ -9,7 +9,7 @@
 
 @page "/rewards"
 @inherits Panel
-@implements INavigatorPage
+@implements Sandbox.UI.Navigation.INavigatorPage
 
 @* Same two columns as mounts and the inbox - explainer on the left, the drop and what it
    wants from you on the right. *@
@@ -211,7 +211,7 @@
 
 	// The navigator caches pages, so fetch on every open - progress moves while you're playing,
 	// and the panel you come back to is the one you left.
-	void INavigatorPage.OnNavigationOpen()
+	void Sandbox.UI.Navigation.INavigatorPage.OnNavigationOpen()
 	{
 		_ = Load();
 	}
@@ -249,7 +249,7 @@
 
 	void OpenStore()
 	{
-		this.Navigate( "/itemstore" );
+		Sandbox.UI.Navigation.NavigationExtensions.Navigate( this, "/itemstore" );
 	}
 
 	protected override int BuildHash() => HashCode.Combine( State, IsLoading, MetCount, Fraction, CanOpen );

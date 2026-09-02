@@ -20,6 +20,7 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo( "ShaderCompiler" )]
 [assembly: InternalsVisibleTo( "Sandbox.Mounting.Test" )]
 [assembly: InternalsVisibleTo( "sbox-launcher" )]
+[assembly: InternalsVisibleTo( "panelgallery" )]
 [assembly: InternalsVisibleTo( "sbox-server" )]
 [assembly: InternalsVisibleTo( "sbox-dev" )]
 [assembly: InternalsVisibleTo( "sbox" )]

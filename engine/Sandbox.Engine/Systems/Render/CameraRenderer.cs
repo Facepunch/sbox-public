@@ -104,6 +104,7 @@ internal ref struct CameraRenderer
 		Native.EnablePostprocessing = config.EnablePostprocessing ?? camera.EnablePostProcessing;
 		Native.EnableEngineOverlays = camera.EnableEngineOverlays;
 		Native.EnableUI = camera.RenderUI;
+		Native.UIOnly = camera.UIOnly;
 		Native.FlipX = config.FlipX ?? false;
 		Native.FlipY = config.FlipY ?? false;
 

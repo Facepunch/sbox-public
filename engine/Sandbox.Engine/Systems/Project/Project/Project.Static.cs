@@ -109,8 +109,6 @@ public partial class Project
 	/// </summary>
 	internal static async Task InitializeBuiltIn( bool syncPackageManager = true )
 	{
-		AddFromFileBuiltIn( "addons/base/.sbproj" );
-
 		if ( !Application.IsStandalone && !Application.IsHeadless )
 		{
 			AddFromFileBuiltIn( "addons/menu/.sbproj" );
@@ -259,18 +257,14 @@ public partial class Project
 	internal static Project AddFromFile( string path, bool active = true, ProjectLoadFlags flags = ProjectLoadFlags.None )
 	{
 		// Need an project file
-		if ( !path.EndsWith( ".sbproj" ) )
-			path = System.IO.Path.Combine( path, ".sbproj" );
-
-		var cleanPath = System.IO.Path.GetFullPath( path );
+		var cleanPath = NormalizeConfigFilePath( path );
 
 		// Don't add the same project twice
 		if ( All.Where( a => a.ConfigFilePath == cleanPath ).FirstOrDefault() is Project lp )
 			return lp;
 
-		var project = new Project
+		var project = new Project( cleanPath )
 		{
-			ConfigFilePath = cleanPath,
 			Active = active,
 			IsBuiltIn = flags.HasFlag( ProjectLoadFlags.BuiltIn )
 		};
@@ -321,9 +315,7 @@ public partial class Project
 
 	public static Project Load( string dir )
 	{
-		var cleanPath = System.IO.Path.GetFullPath( dir );
-
-		var project = new Project { ConfigFilePath = cleanPath, Active = false };
+		var project = new Project( NormalizeConfigFilePath( dir ) ) { Active = false };
 		project.Load();
 
 		// If it loaded broken, don't bother with it

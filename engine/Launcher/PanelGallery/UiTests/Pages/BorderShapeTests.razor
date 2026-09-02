@@ -1,0 +1,65 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+
+@using Sandbox;
+@using Sandbox.UI;
+
+@attribute [Title( "Border shapes" )]
+@attribute [Description( "Polygon and circle border boxes, with SDF borders and filters" )]
+@attribute [Icon( "polyline" )]
+@attribute [Order( 64 )]
+
+<root>
+    <h2>Polygon shapes</h2>
+    <p>Polygon coordinates resolve against the border box. Concave shapes use an even-odd sign test.</p>
+    <div class="cases">
+        <UiTestCase Setup="@Coral" Css="border-shape: polygon( 50% 0%, 100% 100%, 0% 100% )" Note="A three-point triangle." />
+        <UiTestCase Setup="@Teal" Css="border-shape: polygon( 25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0% 50% )" Note="A convex six-point polygon." />
+        <UiTestCase Setup="@Gold" Css="border-shape: polygon( 0% 18%, 58% 18%, 58% 0%, 100% 50%, 58% 100%, 58% 82%, 0% 82%, 18% 50% )" Note="Eight vertices, the current maximum." />
+        <UiTestCase Setup="@Purple" Css="border-shape: polygon( 0% 0%, 100% 0%, 72% 50%, 100% 100%, 0% 100%, 28% 50% )" Note="The centre notches remain outside." />
+    </div>
+
+    <h2>Circle shapes</h2>
+    <div class="cases">
+        <UiTestCase Setup="@Blue" Css="border-shape: circle()" Note="Defaults to closest-side at the centre." />
+        <UiTestCase Setup="@WideBlue" Css="border-shape: circle( 35% at 25% 60% )" Note="Percentage radius uses the normalized diagonal; the centre has independent x/y coordinates." />
+        <UiTestCase Setup="@Blue" Css="border-shape: circle( 42px at 60px 45px )" Note="Pixel radius and centre." />
+    </div>
+
+    <h2>Borders and filters</h2>
+    <p>A uniform standard border follows the border-shape SDF. Filter output can extend beyond the clipped source.</p>
+    <div class="cases">
+        <UiTestCase class="roomy" Setup="@Pink" Css="border-shape: polygon( 25% 5%, 95% 5%, 75% 95%, 5% 95% ); border: 5px solid white" Note="The border follows all four sloped polygon edges." />
+        <UiTestCase class="roomy dark" Setup="@Pink" Css="border-shape: polygon( 25% 5%, 95% 5%, 75% 95%, 5% 95% ); border: 4px solid white; filter: drop-shadow( 14px 16px 9px #05040acc )" Note="The shadow remains outside the polygon border." />
+        <UiTestCase class="roomy" Setup="@Blue" Css="border-shape: circle( 45% ); border: 5px solid white" Note="The same border syntax traces a circle." />
+    </div>
+
+    <h2>Content and descendants</h2>
+    <p>
+        Like border-radius, a border shape changes what the panel itself paints and leaves its descendants
+        alone. Children are clipped by overflow, and they clip to the padding box rather than to the shape.
+    </p>
+    <div class="cases">
+        <UiTestCase class="wide" Setup="@ChildHost" Css="border-shape: polygon( 0% 0%, 75% 0%, 100% 50%, 75% 100%, 0% 100%, 20% 50% )" Note="The oversized child overhangs the polygon - descendants are not shaped.">
+            <ChildContent><div class="oversized-child">CHILD</div></ChildContent>
+        </UiTestCase>
+        <UiTestCase class="wide" Setup="@ChildHost" Css="border-shape: polygon( 0% 0%, 75% 0%, 100% 50%, 75% 100%, 0% 100%, 20% 50% ); overflow: hidden" Note="With overflow hidden the child clips to the padding box, not to the polygon.">
+            <ChildContent><div class="oversized-child">CHILD</div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@TextShape" Text="TEXT" Css="border-shape: circle( 48% ); border: 3px solid white" Note="The background and border take the circle; the text sits inside it unclipped." />
+    </div>
+</root>
+
+@code
+{
+    const string Base = "width: 120px; height: 120px; align-items: center; justify-content: center; font-size: 18px; font-weight: 700";
+    const string Coral = Base + "; background-image: linear-gradient( 145deg, #ff8b58, #e6375b )";
+    const string Teal = Base + "; background-image: linear-gradient( 145deg, #46e3cd, #167e9c )";
+    const string Gold = Base + "; background-image: linear-gradient( 145deg, #f3cd57, #ef6b3f )";
+    const string Purple = Base + "; background-image: linear-gradient( 145deg, #bd7cff, #5554d9 )";
+    const string Blue = Base + "; background-image: linear-gradient( 145deg, #57a7ff, #3150c8 )";
+    const string WideBlue = "width: 180px; height: 100px; background-image: linear-gradient( 145deg, #57a7ff, #3150c8 )";
+    const string Pink = Base + "; background-image: linear-gradient( 145deg, #ff5da2, #8f43e7 )";
+    const string ChildHost = "width: 220px; height: 110px; background-color: #252936; align-items: center; justify-content: center";
+    const string TextShape = Base + "; background-color: #3150c8; color: white";
+}

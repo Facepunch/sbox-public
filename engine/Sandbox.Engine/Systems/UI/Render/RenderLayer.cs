@@ -16,6 +16,8 @@ internal struct RenderInstance
 	public Texture BackgroundImage;
 	public Texture BorderImage;
 	public GradientInfo BackgroundGradient;
+	// Resolved into the batcher's shape table at render time, like the gradient - the table resets every frame
+	public GPUBorderShape BorderShapeData;
 	// A second clip on top of the panel's own: box-shadows use it to stay outside (outset) or inside (inset) their box
 	public bool HasExtraScissor;
 	public PanelRenderer.GPUScissor ExtraScissor;
@@ -86,6 +88,7 @@ internal class RenderLayer
 			BorderImage = desc.HasBorderImage ? desc.BorderImageTexture : null,
 			// An image wins if both are somehow present - the gradient rides the same property.
 			BackgroundGradient = !desc.HasImage && desc.HasGradient ? desc.BackgroundGradient : default,
+			BorderShapeData = desc.BorderShapeData,
 		} );
 	}
 

@@ -38,13 +38,16 @@ $rounding-large: 8px;
 
 $easing: ease;
 
-$screen-w-xl: 1920px;
+$screen-w-xl: 2560px;
 $screen-w-md: 1280px;
 
 MainMenu {
-    font-size: $text-regular;
-    color: $default-text;
-    font-family: $font-default;
+	font-size: $text-regular;
+	color: $default-text;
+	font-family: $font-default;
+
+	max-width: $screen-w-xl;
+	margin: 0 auto;
 }
 
 label {

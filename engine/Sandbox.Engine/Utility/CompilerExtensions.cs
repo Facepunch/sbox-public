@@ -3,14 +3,6 @@
 public static class CompilerExtensions
 {
 	/// <summary>
-	/// Add a reference to the "<c>base</c>" package.
-	/// </summary>
-	public static void AddBaseReference( this Compiler compiler )
-	{
-		compiler.AddReference( "package.base" );
-	}
-
-	/// <summary>
 	/// Add a reference to the "<c>toolbase</c>" package.
 	/// </summary>
 	public static void AddToolBaseReference( this Compiler compiler )

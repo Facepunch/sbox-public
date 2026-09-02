@@ -169,6 +169,7 @@ public abstract partial class BaseStyles
 		s.Content = "";
 		s.SoundIn = "";
 		s.SoundOut = "";
+		s.BorderShape = UI.BorderShape.None;
 
 		return s;
 	}

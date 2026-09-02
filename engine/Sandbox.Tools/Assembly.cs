@@ -7,3 +7,4 @@
 [assembly: InternalsVisibleTo( "Sandbox.Test.Integration" )]
 [assembly: InternalsVisibleTo( "Sandbox.AppSystem" )]
 [assembly: InternalsVisibleTo( "sbox-launcher" )]
+[assembly: InternalsVisibleTo( "panelgallery" )]

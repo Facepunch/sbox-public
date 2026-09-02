@@ -1,0 +1,47 @@
+@import "/styles/_uitest.scss";
+
+//
+// The page chrome, loaded by UiTestPage itself. The section rail these pages used to live in
+// died with the menu scene - the gallery hosts them now.
+//
+.uitest-page
+{
+	flex-direction: column;
+	flex-shrink: 0;
+	width: 100%;
+	color: $uitest-body;
+	font-size: 12px;
+	font-family: $uitest-font;
+
+	> *
+	{
+		flex-shrink: 0;
+	}
+
+	.cases
+	{
+		flex-direction: row;
+		flex-wrap: wrap;
+		gap: 18px;
+	}
+
+	h2
+	{
+		font-size: 14px;
+		font-weight: 700;
+		color: $uitest-heading;
+		margin: 22px 0 10px 0;
+	}
+
+	h2:first-child
+	{
+		margin-top: 0;
+	}
+
+	p
+	{
+		max-width: 780px;
+		margin: 0 0 10px 0;
+		color: $uitest-body;
+	}
+}

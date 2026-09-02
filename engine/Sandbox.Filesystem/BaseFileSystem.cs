@@ -321,8 +321,34 @@ public class BaseFileSystem
 	{
 		// Log.Trace( $"CreateFileSystem( {path} ) [{GetFullPath(path)}]" );
 
-		var sub = new Zio.FileSystems.SubFileSystem( system, FixPath( path ), false, false );
+		// SubFileSystem roots itself at the path we hand it and expects everything the filesystem
+		// underneath gives back to sit under that, so it has to be spelled the way that one
+		// spells it - ask for "Code" on a disk that has "code" and it throws at us.
+		var sub = new Zio.FileSystems.SubFileSystem( system, ResolveCasing( path ), false, false );
 		return new BaseFileSystem( sub );
+	}
+
+	/// <summary>
+	/// <paramref name="path"/> spelled the way whatever is underneath us spells it, so a mis-cased
+	/// path that names something real comes back as the real thing. A filesystem with nothing
+	/// single to resolve against - an aggregate of several - hands it straight back.
+	/// </summary>
+	internal string ResolveCasing( string path )
+	{
+		path = FixPath( path );
+
+		try
+		{
+			return system.ConvertPathFromInternal( system.ConvertPathToInternal( path ) ).FullName;
+		}
+		catch ( System.InvalidOperationException )
+		{
+			return path;
+		}
+		catch ( System.NotSupportedException )
+		{
+			return path;
+		}
 	}
 
 
@@ -390,24 +416,43 @@ public class BaseFileSystem
 		return (int)FindFile( path, recursive: recursive ).Sum( x => system.GetFileLength( Path.Combine( path, x ) ) );
 	}
 
+	bool watchUnavailable;
+
 	internal FileWatch Watch( string pathglob = null )
 	{
-		watcher?.Dispose();
-		watcher = null;
-
-		if ( watcher == null )
+		// One watcher for the whole filesystem, shared by every FileWatch handed out. It used
+		// to be disposed and rebuilt on each call, which the null check below was clearly not
+		// expecting: on Linux that means a fresh set of inotify instances per call - one per
+		// mounted filesystem in the aggregate - and the editor watches a stylesheet at a time
+		// until it hits the 128 instance limit and the whole thing falls over.
+		if ( watcher == null && !watchUnavailable )
 		{
-			watcher = system.Watch( "/" );
-			watcher.NotifyFilter = Zio.NotifyFilters.Attributes | Zio.NotifyFilters.Size | Zio.NotifyFilters.CreationTime | Zio.NotifyFilters.LastWrite | Zio.NotifyFilters.FileName | Zio.NotifyFilters.DirectoryName | Zio.NotifyFilters.Security;
-			watcher.IncludeSubdirectories = true;
+			try
+			{
+				watcher = system.Watch( "/" );
+				watcher.NotifyFilter = Zio.NotifyFilters.Attributes | Zio.NotifyFilters.Size | Zio.NotifyFilters.CreationTime | Zio.NotifyFilters.LastWrite | Zio.NotifyFilters.FileName | Zio.NotifyFilters.DirectoryName | Zio.NotifyFilters.Security;
+				watcher.IncludeSubdirectories = true;
 
-			watcher.Changed += OnDirectoryContentsChanged;
-			watcher.Deleted += OnDirectoryContentsChanged;
-			watcher.Created += OnDirectoryContentsChanged;
-			watcher.Renamed += OnDirectoryContentsRenamed;
-			watcher.Error += OnDirectoryContentsError;
+				watcher.Changed += OnDirectoryContentsChanged;
+				watcher.Deleted += OnDirectoryContentsChanged;
+				watcher.Created += OnDirectoryContentsChanged;
+				watcher.Renamed += OnDirectoryContentsRenamed;
+				watcher.Error += OnDirectoryContentsError;
 
-			watcher.EnableRaisingEvents = true;
+				watcher.EnableRaisingEvents = true;
+			}
+			catch ( System.IO.IOException e )
+			{
+				// Linux gives every filesystem watch its own inotify instance and caps how many
+				// of those a user can have - 128 out of the box, which the editor can exhaust
+				// across all the filesystems it mounts. Watching is what makes assets hot
+				// reload, so losing it is worth a warning, but it isn't worth refusing to boot.
+				watcher?.Dispose();
+				watcher = null;
+				watchUnavailable = true;
+
+				Log.Warning( $"Couldn't watch {this} for changes, so nothing under it will hot reload ({e.Message})" );
+			}
 		}
 
 		FileWatch w = (pathglob != null) ? new FileWatch( this, pathglob ) : new FileWatch( this );
@@ -553,7 +598,17 @@ public class BaseFileSystem
 			if ( fs.GetFileSystems().Contains( filesystem.system ) )
 				return;
 
-			fs.AddFileSystem( filesystem.system );
+			try
+			{
+				fs.AddFileSystem( filesystem.system );
+			}
+			catch ( System.IO.IOException e )
+			{
+				// Adding to an aggregate that's being watched starts a watcher for the new
+				// filesystem, and that's what runs us out of inotify instances - see Watch().
+				// The mount itself is what matters here; losing the watch costs hot reload.
+				Log.Warning( $"Mounted {filesystem} but couldn't watch it for changes ({e.Message})" );
+			}
 		}
 	}
 

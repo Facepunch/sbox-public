@@ -306,13 +306,16 @@ internal sealed class SceneUndoSnapshot : IDisposable
 					continue;
 				}
 				var serializeOptions = new GameObject.SerializeOptions { IgnoreChildren = !flags.HasFlag( GameObjectUndoFlags.Children ), IgnoreComponents = !flags.HasFlag( GameObjectUndoFlags.Components ) };
-				GameObjectRefs.Add( GameObjectReference.FromInstance( go ) );
 				if ( go.IsOutermostPrefabInstanceRoot ) go.PrefabInstance.RefreshPatch();
 
 				using var blobs = BlobDataSerializer.Capture();
 
 				var json = go.Serialize( serializeOptions );
+				if ( json is null )
+					continue;
+
 				blobs.SaveTo( json );
+				GameObjectRefs.Add( GameObjectReference.FromInstance( go ) );
 				State.Add( json );
 				GameObjectNextSiblingRefs.Add( go.GetNextSibling( false ).IsValid() ? GameObjectReference.FromInstance( go.GetNextSibling( false ) ) : GameObjectReference.FromId( Guid.Empty ) );
 				GameObjectParentRefs.Add( go.Parent.IsValid() ? GameObjectReference.FromInstance( go.Parent ) : GameObjectReference.FromId( Guid.Empty ) );

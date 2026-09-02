@@ -20,13 +20,14 @@ public sealed partial class Project
 	/// Absolute path to the .addon file
 	/// </summary>
 	[JsonPropertyName( "Path" )]
-	public string ConfigFilePath { get; set; }
+	public string ConfigFilePath { get; private set; }
 
 	/// <summary>
-	/// Root directory of this project
+	/// Root directory of this project, the folder its <see cref="ConfigFilePath"/> sits in. Fixed
+	/// when the project is created, along with the filesystems rooted in it.
 	/// </summary>
 	[JsonIgnore]
-	public DirectoryInfo RootDirectory { get; set; }
+	public DirectoryInfo RootDirectory { get; private set; }
 
 	/// <summary>
 	/// True if this project is active
@@ -99,9 +100,59 @@ public sealed partial class Project
 	[JsonIgnore]
 	internal MemoryFileSystem AssemblyFileSystem { get; }
 
-	public Project()
+	private Project()
 	{
 		AssemblyFileSystem = new MemoryFileSystem();
+	}
+
+	/// <summary>
+	/// A project from its .sbproj on disk. Everything about where the project lives comes from this
+	/// path, so a project can't be pointed somewhere else once it exists.
+	/// </summary>
+	[JsonConstructor]
+	public Project( string configFilePath ) : this()
+	{
+		try
+		{
+			ConfigFilePath = NormalizeConfigFilePath( configFilePath );
+			if ( ConfigFilePath is null ) return;
+
+			RootDirectory = new DirectoryInfo( System.IO.Path.GetDirectoryName( ConfigFilePath ) );
+
+			CreateFileSystems();
+		}
+		catch ( System.Exception e )
+		{
+			// A path we can't make sense of is a broken project, not an exception out of the
+			// deserializer - the list it came from has to survive one bad entry.
+			Log.Warning( e, $"Project path error ({e.Message}) - deactivating project" );
+			Broken = true;
+		}
+	}
+
+	/// <summary>
+	/// A transient project rooted at <paramref name="rootDirectory"/>, or at nothing. There's no
+	/// .sbproj behind one of these, see <c>Asset.Publishing.CreateTemporaryProject</c>.
+	/// </summary>
+	internal Project( DirectoryInfo rootDirectory ) : this()
+	{
+		IsTransient = true;
+		RootDirectory = rootDirectory;
+
+		CreateFileSystems();
+	}
+
+	/// <summary>
+	/// A project is named by its .sbproj, but callers hand us the folder it's in just as often.
+	/// </summary>
+	internal static string NormalizeConfigFilePath( string path )
+	{
+		if ( string.IsNullOrWhiteSpace( path ) ) return null;
+
+		if ( !path.EndsWith( ".sbproj" ) )
+			path = System.IO.Path.Combine( path, ".sbproj" );
+
+		return System.IO.Path.GetFullPath( path );
 	}
 
 	internal void Dispose()
@@ -113,6 +164,8 @@ public sealed partial class Project
 		EditorCompiler = null;
 
 		AssemblyFileSystem?.Dispose();
+
+		DisposeFileSystems();
 	}
 
 	internal bool LoadMinimal()
@@ -122,14 +175,7 @@ public sealed partial class Project
 
 		try
 		{
-			RootDirectory = new DirectoryInfo( System.IO.Path.GetDirectoryName( ConfigFilePath ) );
-			Assert.True( RootDirectory.Exists, $"{RootDirectory} does not exist" );
-
-			if ( !ConfigFilePath.EndsWith( ".sbproj" ) )
-			{
-				// Turn Path from myproject/ into myproject/.sbproj
-				ConfigFilePath = System.IO.Path.Combine( RootDirectory.FullName, ".sbproj" );
-			}
+			Assert.True( RootDirectory?.Exists ?? false, $"{RootDirectory} does not exist" );
 
 			var text = File.ReadAllText( ConfigFilePath );
 			Config = JsonSerializer.Deserialize<DataModel.ProjectConfig>( text );
@@ -175,41 +221,145 @@ public sealed partial class Project
 	/// <returns></returns>
 	public string GetProjectPath() => System.IO.Directory.EnumerateFiles( GetRootPath(), "*.sbproj" ).FirstOrDefault();
 
+	private readonly object fileSystemLock = new();
+
+	/// <summary>
+	/// A filesystem rooted at this project's folder.
+	///
+	/// Anything looking for one of our well known folders should go through this rather than
+	/// touching System.IO directly. We always ask for them by their canonical name ("Code",
+	/// "Assets"..) but what's on disk is whatever case the author's machine let them get away
+	/// with, and on Linux that's the difference between a project having code and not. This
+	/// resolves the case for us, and so does every path that comes back out of it.
+	/// </summary>
+	[JsonIgnore]
+	internal BaseFileSystem FileSystem { get; private set; }
+
+	/// <summary>
+	/// The project's Code folder, or null if it hasn't got one.
+	/// </summary>
+	[JsonIgnore]
+	internal BaseFileSystem CodeFileSystem { get; private set; }
+
+	/// <summary>
+	/// The project's Assets folder, or null if it hasn't got one.
+	/// </summary>
+	[JsonIgnore]
+	internal BaseFileSystem AssetsFileSystem { get; private set; }
+
+	/// <summary>
+	/// The project's Localization folder, or null if it hasn't got one.
+	/// </summary>
+	[JsonIgnore]
+	internal BaseFileSystem LocalizationFileSystem { get; private set; }
+
+	/// <summary>
+	/// The project's ProjectSettings folder, or null if it hasn't got one.
+	/// </summary>
+	[JsonIgnore]
+	internal BaseFileSystem ProjectSettingsFileSystem { get; private set; }
+
+	/// <summary>
+	/// Open the project's folder, and one filesystem per well known folder in it. The project owns
+	/// all of these, so mount them and hold onto them, but leave disposing them to us.
+	/// </summary>
+	private void CreateFileSystems()
+	{
+		lock ( fileSystemLock )
+		{
+			DisposeFileSystems();
+
+			// A project can be pointed at nothing - see the publish wizard, which builds one to
+			// decide whether it's including any code
+			if ( RootDirectory is null || !RootDirectory.Exists ) return;
+
+			FileSystem = new LocalFileSystem( RootDirectory.FullName );
+
+			CodeFileSystem = CreateFolderFileSystem( "Code" );
+			AssetsFileSystem = CreateFolderFileSystem( "Assets" );
+			LocalizationFileSystem = CreateFolderFileSystem( "Localization" );
+			ProjectSettingsFileSystem = CreateFolderFileSystem( "ProjectSettings" );
+		}
+	}
+
+	/// <summary>
+	/// A filesystem for one of our well known project folders, or null if the project hasn't got
+	/// it - which callers can hand straight to Mount either way. The casing on disk is whatever
+	/// the author's machine let them get away with; the filesystem sorts that out for us.
+	/// </summary>
+	private BaseFileSystem CreateFolderFileSystem( string name )
+	{
+		if ( !FileSystem.DirectoryExists( name ) ) return null;
+
+		return FileSystem.CreateSubSystem( name );
+	}
+
+	private void DisposeFileSystems()
+	{
+		lock ( fileSystemLock )
+		{
+			CodeFileSystem?.Dispose();
+			CodeFileSystem = null;
+
+			AssetsFileSystem?.Dispose();
+			AssetsFileSystem = null;
+
+			LocalizationFileSystem?.Dispose();
+			LocalizationFileSystem = null;
+
+			ProjectSettingsFileSystem?.Dispose();
+			ProjectSettingsFileSystem = null;
+
+			FileSystem?.Dispose();
+			FileSystem = null;
+		}
+	}
+
+	/// <summary>
+	/// Absolute path to one of our well known project folders, with the casing it has on disk.
+	/// </summary>
+	private string GetProjectFolder( string name ) => FileSystem?.GetFullPath( name ) ?? System.IO.Path.Combine( RootDirectory.FullName, name );
+
+	/// <summary>
+	/// Does this project have a well known folder called <paramref name="name"/>?
+	/// </summary>
+	private bool HasProjectFolder( string name ) => FileSystem?.DirectoryExists( name ) ?? false;
+
 	/// <summary>
 	/// Absolute path to the Code folder of the project.
 	/// </summary>
-	public string GetCodePath() => System.IO.Path.Combine( RootDirectory.FullName, "Code" );
+	public string GetCodePath() => GetProjectFolder( "Code" );
 
 	/// <summary>
 	/// Returns true if the Code path exists
 	/// </summary>
-	public bool HasCodePath() => RootDirectory is not null && System.IO.Directory.Exists( GetCodePath() );
+	public bool HasCodePath() => HasProjectFolder( "Code" );
 
 	/// <summary>
 	/// Absolute path to the Editor folder of the project.
 	/// </summary>
-	public string GetEditorPath() => System.IO.Path.Combine( RootDirectory.FullName, "Editor" );
+	public string GetEditorPath() => GetProjectFolder( "Editor" );
 
 	/// <summary>
 	/// Returns true if the Editor path exists
 	/// </summary>
-	public bool HasEditorPath() => RootDirectory is not null && System.IO.Directory.Exists( GetEditorPath() );
+	public bool HasEditorPath() => HasProjectFolder( "Editor" );
 
 	/// <summary>
 	/// Absolute path to the Assets folder of the project, or <see langword="null"/> if not set.
 	/// </summary>
-	public string GetAssetsPath() => System.IO.Path.Combine( RootDirectory.FullName, "Assets" );
+	public string GetAssetsPath() => GetProjectFolder( "Assets" );
 
 	/// <summary>
 	/// Absolute path to the Localization folder of the project, or <see langword="null"/> if not set.
 	/// </summary>
 	/// <returns></returns>
-	public string GetLocalizationPath() => System.IO.Path.Combine( RootDirectory.FullName, "Localization" );
+	public string GetLocalizationPath() => GetProjectFolder( "Localization" );
 
 	/// <summary>
 	/// Returns true if the Assets path exists
 	/// </summary>
-	public bool HasAssetsPath() => RootDirectory is not null && System.IO.Directory.Exists( GetAssetsPath() );
+	public bool HasAssetsPath() => HasProjectFolder( "Assets" );
 
 	internal void Save()
 	{

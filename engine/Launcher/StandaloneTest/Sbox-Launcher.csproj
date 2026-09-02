@@ -34,6 +34,8 @@
 		<ProjectReference Include="..\..\Sandbox.Filesystem\Sandbox.Filesystem.csproj" Private="false" />
 		<ProjectReference Include="..\..\Sandbox.Tools\Sandbox.Tools.csproj" Private="false" />
 		<ProjectReference Include="..\..\Sandbox.System\Sandbox.System.csproj" Private="false" />
+		<ProjectReference Include="..\..\Sandbox.Services\Sandbox.Services.csproj" Private="false" />
+		<ProjectReference Include="..\..\Microsoft.AspNetCore.Components\Microsoft.AspNetCore.Components.csproj" Private="false" />
 	</ItemGroup>
 	
 	<Import Project="..\Shared\LaunchShared.projitems" Label="Shared" />

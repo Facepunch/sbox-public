@@ -1,4 +1,6 @@
-﻿namespace Sandbox;
+﻿using System.ComponentModel;
+
+namespace Sandbox;
 
 public static partial class Gizmo
 {
@@ -148,6 +150,14 @@ public static partial class Gizmo
 			newPos = position + movement;
 
 			return true;
+		}
+
+		// PAINDAY - #5562 added the centerRaycast parameter. Adding a parameter is a binary break, so
+		// already-compiled packages still reference the old 5 argument signature. Keep it around and forward.
+		[EditorBrowsable( EditorBrowsableState.Never ), Obsolete( "Use the overload with a centerRaycast callback" )]
+		public bool Position( string name, Vector3 position, out Vector3 newPos, Rotation? axisRotation, float squareSize )
+		{
+			return Position( name, position, out newPos, axisRotation, squareSize, null );
 		}
 
 		static void DrawPositionCenter()

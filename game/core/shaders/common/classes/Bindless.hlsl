@@ -1,0 +1,98 @@
+#ifndef BINDLESS_H
+#define BINDLESS_H
+
+Texture2D g_bindless_Texture2D[] EXTERNAL_DESC_SET( t, g_globalLateBoundBindlessSet, 16 );
+Texture2DMS<float4> g_bindless_Texture2DMS[] EXTERNAL_DESC_SET( t, g_globalLateBoundBindlessSet, 16 );
+Texture3D g_bindless_Texture3D[] EXTERNAL_DESC_SET( t, g_globalLateBoundBindlessSet, 16 );
+TextureCube g_bindless_TextureCube[] EXTERNAL_DESC_SET( t, g_globalLateBoundBindlessSet, 16 );
+Texture2DArray g_bindless_Texture2DArray[] EXTERNAL_DESC_SET( t, g_globalLateBoundBindlessSet, 16 );
+TextureCubeArray g_bindless_TextureCubeArray[] EXTERNAL_DESC_SET( t, g_globalLateBoundBindlessSet, 16 );
+
+SamplerState g_bindless_Sampler[2048] EXTERNAL_DESC_SET( s, g_globalLateBoundBindlessSet, 15 );
+SamplerComparisonState g_bindless_SamplerComparison[2048] EXTERNAL_DESC_SET( s, g_globalLateBoundBindlessSet, 15 );
+
+#if PROGRAM == VFX_PROGRAM_CS
+RWTexture2D<float4> g_bindless_RWTexture2D[] EXTERNAL_DESC_SET( u, g_globalLateBoundBindlessSet, 16 );
+RWTexture3D<float4> g_bindless_RWTexture3D[] EXTERNAL_DESC_SET( u, g_globalLateBoundBindlessSet, 16 );
+RWTexture2DArray<float4> g_bindless_RWTexture2DArray[] EXTERNAL_DESC_SET( u, g_globalLateBoundBindlessSet, 16 );
+#endif
+
+// Stable, pipeline-level texture slots. These are full-screen resources produced once per frame
+// by procedural layers (AO, SSR). Rather than route a dynamic bindless index through the racy
+// per-view render attributes, the scene system publishes the indices in a single small structured
+// buffer at a fixed binding. The buffer persists frame-to-frame, so consumers automatically read
+// last frame's result if a producer is skipped. Binding MUST match RENDER_GLOBAL_BINDING_PIPELINE_TEX_INDICES
+// in renderdevicetypes.h
+StructuredBuffer<int> g_PipelineTextureIndices EXTERNAL_DESC_SET(t, g_globalLateBoundBindlessSet, 14);
+
+enum PipelineTextureSlot
+{
+    PipelineTextureSlotAO = 0,
+    PipelineTextureSlotSSR = 1
+};
+
+// A bindless index that varies across a wave - e.g instanced data
+struct NonUniform
+{
+    int index;
+};
+
+struct Bindless
+{
+
+#if PROGRAM == VFX_PROGRAM_PS
+    // everything applies NonUniformResourceIndex because that's what you want 99% of the time
+    // we can do uniform variants but only if we prove that they're actually faster in the cases
+    static inline Texture2D GetTexture2D( int nIndex, bool srgb = false ){ return g_bindless_Texture2D[NonUniformResourceIndex(nIndex + (srgb ? 1 : 0))]; }
+    static inline Texture2DMS<float4> GetTexture2DMS( int nIndex ) { return g_bindless_Texture2DMS[ NonUniformResourceIndex(nIndex) ]; }
+    static inline Texture3D GetTexture3D( int nIndex ) { return g_bindless_Texture3D[ NonUniformResourceIndex(nIndex) ]; }
+    static inline TextureCube GetTextureCube( int nIndex ) { return g_bindless_TextureCube[ NonUniformResourceIndex(nIndex) ]; }
+    static inline Texture2DArray GetTexture2DArray( int nIndex ) { return g_bindless_Texture2DArray[ NonUniformResourceIndex(nIndex) ]; }
+    static inline TextureCubeArray GetTextureCubeArray( int nIndex ) { return g_bindless_TextureCubeArray[ NonUniformResourceIndex(nIndex) ]; }
+
+    // Samplers can't take NonUniformResourceIndex unconditionally - it crashes AMD RDNA 1/2 drivers
+    static inline SamplerState GetSampler( dynamic_uniform int nIndex ) { return g_bindless_Sampler[ nIndex ]; }
+    static inline SamplerComparisonState GetSamplerComparison( dynamic_uniform int nIndex ) { return g_bindless_SamplerComparison[ nIndex ]; }
+    static inline SamplerState GetSampler( NonUniform nIndex ) { return g_bindless_Sampler[ NonUniformResourceIndex(nIndex.index) ]; }
+    static inline SamplerComparisonState GetSamplerComparison( NonUniform nIndex ) { return g_bindless_SamplerComparison[ NonUniformResourceIndex(nIndex.index) ]; }
+#else
+    // Non-Fragment doesn't have the same need for NonUniformResourceIndex and we can't even use it in some cases (e.g. compute shader UAVs) so just do a direct index.
+    static inline Texture2D GetTexture2D( int nIndex, bool srgb = false ){ return g_bindless_Texture2D[nIndex + (srgb ? 1 : 0)]; }
+    static inline Texture2DMS<float4> GetTexture2DMS( int nIndex ) { return g_bindless_Texture2DMS[ nIndex ]; }
+    static inline Texture3D GetTexture3D( int nIndex ) { return g_bindless_Texture3D[ nIndex ]; }
+    static inline TextureCube GetTextureCube( int nIndex ) { return g_bindless_TextureCube[ nIndex ]; }
+    static inline Texture2DArray GetTexture2DArray( int nIndex ) { return g_bindless_Texture2DArray[ nIndex ]; }
+    static inline TextureCubeArray GetTextureCubeArray( int nIndex ) { return g_bindless_TextureCubeArray[ nIndex ]; }
+
+    static inline SamplerState GetSampler( dynamic_uniform int nIndex ) { return g_bindless_Sampler[ nIndex ]; }
+    static inline SamplerComparisonState GetSamplerComparison( dynamic_uniform int nIndex ) { return g_bindless_SamplerComparison[ nIndex ]; }
+    static inline SamplerState GetSampler( NonUniform nIndex ) { return g_bindless_Sampler[ nIndex.index ]; }
+    static inline SamplerComparisonState GetSamplerComparison( NonUniform nIndex ) { return g_bindless_SamplerComparison[ nIndex.index ]; }
+#endif
+
+    static inline int GetPipelineTextureIndex( PipelineTextureSlot slot ) { return g_PipelineTextureIndices[slot]; }
+
+#if PROGRAM == VFX_PROGRAM_CS
+    static inline RWTexture2D<float4> GetRWTexture2D( int nIndex ) { return g_bindless_RWTexture2D[ NonUniformResourceIndex(nIndex) ]; }
+    static inline RWTexture3D<float4> GetRWTexture3D( int nIndex ) { return g_bindless_RWTexture3D[ NonUniformResourceIndex(nIndex) ]; }
+    static inline RWTexture2DArray<float4> GetRWTexture2DArray( int nIndex ) { return g_bindless_RWTexture2DArray[ NonUniformResourceIndex(nIndex) ]; }
+#endif
+};
+
+// Keep these for now but don't use them or document them
+#define GetBindlessTexture2D( nIndex ) g_bindless_Texture2D[ nIndex ]
+#define GetBindlessTexture2DMS( nIndex ) g_bindless_Texture2DMS[ nIndex ]
+#define GetBindlessTexture3D( nIndex ) g_bindless_Texture3D[ nIndex ]
+#define GetBindlessTextureCube( nIndex ) g_bindless_TextureCube[ nIndex ]
+#define GetBindlessTexture2DArray( nIndex ) g_bindless_Texture2DArray[ nIndex ]
+#define GetBindlessTextureCubeArray( nIndex ) g_bindless_TextureCubeArray[ nIndex ]
+#define GetBindlessSampler( nIndex ) g_bindless_Sampler[ nIndex ]
+#define GetBindlessSamplerComparison( nIndex ) g_bindless_SamplerComparison[ nIndex ]
+
+#if PROGRAM == VFX_PROGRAM_CS
+#define GetBindlessRWTexture2D( nIndex ) g_bindless_RWTexture2D[ nIndex ]
+#define GetBindlessRWTexture3D( nIndex ) g_bindless_RWTexture3D[ nIndex ]
+#define GetBindlessRWTexture2DArray( nIndex ) g_bindless_RWTexture2DArray[ nIndex ]
+#endif
+
+#endif /* BINDLESS_H */

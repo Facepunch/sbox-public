@@ -1,0 +1,455 @@
+@import "_palette.scss";
+
+//
+// The launcher's own styles - the project rows, the news rail, the creator. Everything
+// generic, and the palette variables, live in editor.scss.
+//
+
+LauncherWindow
+{
+	flex-direction: row;
+}
+
+//
+// The background - the latest news artwork once it arrives, softened so the UI stays
+// readable. The window's ground colour shows until then.
+//
+.backdrop
+{
+	position: absolute;
+	left: 0px;
+	top: 0px;
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
+	background-size: cover;
+	background-position: center;
+
+	// The blur fades out at the panel's edges, so overscan past the window to keep that off screen
+	transform: scale( 1.1 );
+
+	filter: blur( 8px ) saturate( 1.1 ) brightness( 0.45 );
+	opacity: 0;
+	transition: opacity 1.2s ease-out;
+}
+
+.backdrop.visible { opacity: 0.65; }
+
+.style-light .backdrop { filter: blur( 8px ) saturate( 1.1 ) brightness( 1.15 ); }
+.style-light .backdrop.visible { opacity: 0.35; }
+
+// The window lights up while a droppable project hovers over it
+LauncherWindow.dropping { border-color: $accent; }
+LauncherWindow.dropping .projects { background-color: rgba( $accent, 0.06 ); border-radius: 12px; }
+
+.sidebar .version
+{
+	color: $text-faint;
+	font-size: 10px;
+	margin: 10px 8px 0 8px;
+}
+
+//
+// The main column
+//
+.main { flex-grow: 1; flex-direction: column; overflow: hidden; }
+
+.titlebar .fps { color: $text-faint; font-size: 10px; margin-right: 14px; }
+
+.content { flex-grow: 1; flex-direction: column; overflow: hidden; }
+
+.header
+{
+	flex-shrink: 0;
+	flex-direction: row;
+	align-items: center;
+	padding: 2px 24px 16px 24px;
+}
+
+.header .pagetitle { font-size: 20px; font-weight: 700; }
+
+.header .count
+{
+	margin-left: 10px;
+	padding: 2px 8px;
+	border-radius: 20px;
+	background-color: $raised;
+	border: 1px solid $line;
+	color: $text-muted;
+	font-size: 10px;
+	font-weight: 600;
+}
+
+.header .grow { flex-grow: 1; }
+.header .searchbox { width: 240px; margin-right: 8px; }
+.header .flatbutton { margin-left: 8px; text-transform: none; letter-spacing: 0; }
+.header .primarybutton { margin-left: 8px; }
+
+//
+// The project list
+//
+@keyframes rise
+{
+	from { opacity: 0; transform: translateY( 8px ); }
+	to { opacity: 1; transform: translateY( 0px ); }
+}
+
+.body
+{
+	flex-grow: 1;
+	flex-direction: row;
+	overflow: hidden;
+	padding: 0 24px;
+}
+
+.project-column
+{
+	flex-grow: 1;
+	min-width: 0;
+	flex-direction: column;
+	padding-right: 14px;
+}
+
+.projects
+{
+	flex-grow: 1;
+	overflow: scroll;
+	flex-direction: column;
+	padding-bottom: 20px;
+}
+
+.projects .sectionlabel
+{
+	animation-name: rise;
+	animation-duration: 0.4s;
+	animation-timing-function: ease-out;
+	animation-fill-mode: both;
+}
+
+.projectrow
+{
+	width: 100%;
+	flex-shrink: 0;
+	flex-direction: row;
+	align-items: center;
+	height: 58px;
+	padding: 0 12px 0 10px;
+	margin-bottom: 6px;
+	border-radius: 10px;
+	background-color: $surface;
+	border: 1px solid $line;
+	pointer-events: all;
+	animation-name: rise;
+	animation-duration: 0.4s;
+	animation-timing-function: ease-out;
+	animation-fill-mode: both;
+	transition: background-color 0.12s ease-out, border-color 0.12s ease-out;
+}
+
+.projectrow:hover
+{
+	background-color: $raised;
+	border-color: $accent;
+}
+
+// The project's face - its package thumbnail once that's loaded, its own gradient until then
+.projectrow .thumb
+{
+	width: 38px;
+	height: 38px;
+	flex-shrink: 0;
+	border-radius: 9px;
+	overflow: hidden;
+	align-items: center;
+	justify-content: center;
+	background-size: cover;
+	background-position: center;
+	color: #ffffff;
+	font-size: 14px;
+	font-weight: 700;
+	transition: transform 0.15s ease-out;
+}
+
+.projectrow:hover .thumb { transform: scale( 1.08 ); }
+
+.projectrow .text { flex-grow: 1; flex-shrink: 0.1; flex-basis: 180px; min-width: 0; flex-direction: column; margin-left: 12px; overflow: hidden; }
+.projectrow .name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.projectrow .sub { font-size: 11px; color: $text-muted; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.projectrow .grow { flex-grow: 1; }
+
+// Lit while an editor is open on the project
+.projectrow .runningtag
+{
+	display: none;
+	flex-shrink: 0.35;
+	min-width: 0;
+	flex-direction: row;
+	align-items: center;
+	margin-right: 12px;
+	color: $positive;
+	font-size: 11px;
+	font-weight: 600;
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+.projectrow .runningtag .icon { flex-shrink: 0; font-size: 9px; margin-right: 5px; }
+.projectrow .runningtag .running-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.projectrow.running { border-color: rgba( $positive, 0.45 ); }
+.projectrow.running:hover { border-color: $positive; }
+.projectrow.running .runningtag { display: flex; }
+
+// Opening is blocked while an editor is on the project, so no Open button either -
+// another instance is deliberate, through the right click menu
+.projectrow.running .open { display: none; }
+
+// Package stats - ratings and players, filled in when the backend answers
+.projectrow .statswrap { flex-grow: 0; flex-shrink: 1; flex-basis: auto; min-width: 0; flex-direction: row; align-items: center; overflow: hidden; }
+
+.projectrow .stat
+{
+	flex-direction: row;
+	align-items: center;
+	margin-right: 12px;
+	color: $text-muted;
+	font-size: 11px;
+	animation-name: rise;
+	animation-duration: 0.3s;
+	animation-timing-function: ease-out;
+	animation-fill-mode: both;
+	flex-shrink: 0;
+	white-space: nowrap;
+}
+
+.projectrow .stat .icon { font-size: 13px; margin-right: 4px; color: $text-faint; }
+.projectrow .stat.rating .icon { color: $positive; }
+.projectrow .stat.playing .icon { color: $accent; }
+
+.projectrow .badge
+{
+	flex-direction: row;
+	align-items: center;
+	margin-right: 8px;
+	color: $text-faint;
+}
+
+.projectrow .badge .icon { font-size: 14px; }
+.projectrow .badge.pin { color: $accent; }
+
+// Open slides in when the row is hovered, grows a little under the cursor
+.projectrow .open
+{
+	flex-shrink: 0;
+	flex-direction: row;
+	align-items: center;
+	height: 26px;
+	padding: 0 10px;
+	margin-left: 6px;
+	border-radius: 6px;
+	background-color: $accent;
+	color: #fff;
+	font-size: 11px;
+	font-weight: 600;
+	opacity: 0;
+	transform: translateX( 8px );
+	pointer-events: all;
+	cursor: pointer;
+	transition: opacity 0.15s ease-out, transform 0.15s ease-out, background-color 0.12s ease-out;
+}
+
+.projectrow:hover .open { opacity: 1; transform: translateX( 0px ); }
+.projectrow .open:hover { background-color: $accent-hover; transform: scale( 1.08 ); }
+.projectrow .open:active { transform: scale( 0.94 ); }
+.projectrow .open .icon { font-size: 13px; margin-right: 4px; }
+
+//
+// The rail - platform news down the right hand side
+//
+.rail
+{
+	width: 290px;
+	flex-shrink: 0;
+	flex-direction: column;
+	margin-left: 14px;
+	min-width: 0;
+}
+
+.news-list
+{
+	flex-grow: 1;
+	flex-direction: column;
+	overflow: scroll;
+	padding-bottom: 20px;
+}
+
+.newscard
+{
+	flex-shrink: 0;
+	flex-direction: column;
+	margin-bottom: 12px;
+	border-radius: 10px;
+	overflow: hidden;
+	background-color: $surface;
+	border: 1px solid $line;
+	pointer-events: all;
+	cursor: pointer;
+	animation-name: rise;
+	animation-duration: 0.4s;
+	animation-timing-function: ease-out;
+	animation-fill-mode: both;
+	transition: border-color 0.12s ease-out;
+}
+
+.newscard:hover { border-color: $accent; }
+
+.newscard .image
+{
+	height: 136px;
+	flex-shrink: 0;
+	background-size: cover;
+	background-position: center;
+	transition: transform 0.3s ease-out;
+}
+
+.newscard:hover .image { transform: scale( 1.05 ); }
+
+.newscard .text { flex-direction: column; padding: 10px 12px; background-color: $raised; }
+.newscard .title { font-size: 12px; font-weight: 600; }
+.newscard .date { font-size: 10px; color: $text-faint; margin-top: 3px; }
+
+//
+// Project creator
+//
+.creator
+{
+	flex-grow: 1;
+	flex-direction: column;
+	overflow: scroll;
+	padding: 0 32px 24px 32px;
+	animation-name: rise;
+	animation-duration: 0.4s;
+	animation-timing-function: ease-out;
+	animation-fill-mode: both;
+}
+
+.creator .creator-container
+{
+	width: 100%;
+	max-width: 820px;
+	flex-direction: column;
+}
+
+.creator .heading { flex-shrink: 0; font-size: 20px; font-weight: 700; margin-bottom: 22px; }
+
+.creator .creator-body { flex-shrink: 0; flex-direction: column; }
+
+.creator .template-pane { flex-direction: column; }
+
+.creator .settings
+{
+	width: 540px;
+	max-width: 100%;
+	flex-direction: column;
+	margin-top: 26px;
+}
+
+.creator .section-heading
+{
+	flex-shrink: 0;
+	margin-bottom: 12px;
+	color: $text-muted;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.6px;
+	text-transform: uppercase;
+}
+
+.creator .field { width: 100%; flex-shrink: 0; flex-direction: column; margin-bottom: 14px; }
+.creator .field > .label { align-self: flex-start; color: $text-muted; margin-bottom: 6px; font-weight: 600; }
+.creator .field .textentry, .creator .field .folderselector { width: 100%; }
+.creator .field .checkbox { align-self: flex-start; }
+
+.creator .templates { flex-shrink: 0; flex-direction: row; flex-wrap: wrap; margin: 0 -10px 4px 0; }
+
+.creator .template
+{
+	width: 128px;
+	height: 88px;
+	margin: 0 10px 10px 0;
+	padding: 0 8px;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
+	border-radius: 10px;
+	background-color: $surface;
+	border: 1px solid $line;
+	color: $text;
+	pointer-events: all;
+	cursor: pointer;
+	transition: border-color 0.12s ease-out, background-color 0.12s ease-out;
+}
+
+.creator .template:hover { background-color: $raised; }
+.creator .template.selected { border-color: $accent; background-color: rgba( $accent, 0.08 ); }
+.creator .template .icon { font-size: 22px; margin-bottom: 7px; color: $text-muted; }
+.creator .template.selected .icon { color: $accent; }
+
+.creator .template-description { flex-shrink: 0; color: $text-muted; line-height: 18px; max-width: 540px; }
+
+.creator .buttons
+{
+	flex-shrink: 0;
+	flex-direction: row;
+	align-items: center;
+	margin-top: 24px;
+	padding: 16px 0 0 0;
+	border-top: 1px solid $line;
+}
+.creator .buttons .path-preview { color: $text-faint; margin-right: 12px; }
+.creator .buttons .path-preview.error { color: $danger; }
+.creator .grow { flex-grow: 1; }
+
+//
+// Light theme overrides
+//
+// The backdrop artwork darkens the ground, faint grey doesn't read over it
+.style-light .titlebar .fps { color: $l-text-muted; }
+.style-light .sidebar .version { color: $l-text-muted; }
+LauncherWindow.style-light .sectionlabel .text { color: $l-text; }
+
+.style-light .header .count { background-color: $l-raised; border-color: $l-line; color: $l-text-muted; }
+
+.style-light .project-column .sectionlabel .rule, .style-light .rail .sectionlabel .rule, .style-light .sidebar .sectionlabel .rule { background-color: rgba( $l-text, 0.20 ); }
+
+.style-light .projectrow { background-color: $l-surface; border-color: $l-line; }
+.style-light .projectrow:hover { background-color: $l-raised; border-color: $accent; }
+.style-light .projectrow .runningtag { color: $l-positive; }
+.style-light .projectrow.running { border-color: rgba( $l-positive, 0.55 ); }
+.style-light .projectrow.running:hover { border-color: $l-positive; }
+.style-light .projectrow .sub { color: $l-text-muted; }
+.style-light .projectrow .stat { color: $l-text-muted; }
+.style-light .projectrow .stat .icon { color: $l-text-faint; }
+.style-light .projectrow .stat.rating .icon { color: $l-positive; }
+.style-light .projectrow .stat.playing .icon { color: $accent; }
+.style-light .projectrow .badge { color: $l-text-faint; }
+.style-light .projectrow .badge.pin { color: $accent; }
+
+.style-light .newscard { background-color: $l-surface; border-color: $l-line; }
+.style-light .newscard:hover { border-color: $accent; }
+.style-light .newscard .text { background-color: $l-raised; }
+.style-light .newscard .date { color: $l-text-faint; }
+
+.style-light .creator .field > .label { color: $l-text-muted; }
+.style-light .creator .section-heading { color: $l-text; }
+.style-light .creator .template-description { color: $l-text; }
+.style-light .creator .field .textentry .content-label.placeholder { color: $l-text; }
+.style-light .creator .buttons .path-preview { color: $l-text-muted; }
+.style-light .creator .buttons { border-color: $l-line; }
+.style-light .creator .template { background-color: $l-surface; border-color: $l-line; color: $l-text; }
+.style-light .creator .template:hover { background-color: $l-raised; }
+.style-light .creator .template.selected { border-color: $accent; }
+.style-light .creator .template .icon { color: $l-text-muted; }
+.style-light .creator .template.selected .icon { color: $accent; }

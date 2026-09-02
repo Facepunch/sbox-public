@@ -131,14 +131,28 @@ internal abstract class MovieTrackRecorder<TTrack, TTarget> : IMovieTrackRecorde
 		var time = MovieRecorder.Time;
 
 		if ( time <= _lastRecordedFrame ) return;
-		if ( !Target.IsActive ) return;
 
 		_lastRecordedFrame = time;
 
-		OnCapture();
+		if ( Target.IsActive )
+		{
+			OnCapture();
+		}
+		else
+		{
+			OnSkip();
+		}
 	}
 
+	/// <summary>
+	/// Called when target is active, and time has progressed since the last capture / skip.
+	/// </summary>
 	protected abstract void OnCapture();
+
+	/// <summary>
+	/// Called when target isn't active (disabled / destroyed), but time has progressed since the last capture / skip.
+	/// </summary>
+	protected virtual void OnSkip() { }
 
 	protected virtual ICompiledTrack? OnCompile( MovieTimeRange timeRange ) => Track;
 
@@ -333,16 +347,9 @@ internal sealed class MovieGameObjectTrackRecorder : MovieTrackRecorder<Compiled
 
 	protected override void OnCapture()
 	{
-		// Need to always record ancestors for transform to be correct
-
-		Parent?.Capture();
-
-		Property( nameof( GameObject.Enabled ) ).Capture();
-
 		// Bones are animation controlled, don't need to record the transform
 
 		if ( Target.Value is not { IsValid: true } gameObject ) return;
-		if ( (gameObject.Flags & (GameObjectFlags.Bone | GameObjectFlags.PhysicsBone)) != 0 ) return;
 
 		if ( _firstCapture )
 		{
@@ -350,12 +357,26 @@ internal sealed class MovieGameObjectTrackRecorder : MovieTrackRecorder<Compiled
 			FindPrefabSource( gameObject );
 		}
 
+		// Need to always record ancestors for transform to be correct
+
+		Parent?.Capture();
+
+		if ( (gameObject.Flags & (GameObjectFlags.Bone | GameObjectFlags.PhysicsBone)) != 0 ) return;
+
+		Property( nameof( GameObject.Enabled ) ).Capture();
 		Property( nameof( GameObject.Parent ) ).Capture();
 		Property( nameof( GameObject.LocalPosition ) ).Capture();
 		Property( nameof( GameObject.LocalRotation ) ).Capture();
 		Property( nameof( GameObject.LocalScale ) ).Capture();
 		Property( nameof( GameObject.Tags ) ).Capture( gameObject.Tags );
 		Property( nameof( GameObject.Flags ) ).Property( nameof( GameObjectFlags.Absolute ) ).Capture();
+	}
+
+	protected override void OnSkip()
+	{
+		Parent?.Capture();
+
+		Property( nameof( GameObject.Enabled ) ).Capture();
 	}
 
 	private void FindPrefabSource( GameObject gameObject )
@@ -390,13 +411,13 @@ internal sealed class MovieComponentTrackRecorder<T> : MovieTrackRecorder<Compil
 
 	protected override void OnCapture()
 	{
+		if ( Target.Value is not { IsValid: true } component ) return;
+
 		// Record containing GameObject's transform
 
 		Parent!.Capture();
 
 		Property( nameof( Component.Enabled ) ).Capture();
-
-		if ( Target.Value is not { IsValid: true } component ) return;
 
 		// IComponentCapturer implementations decide which properties get recorded
 
@@ -404,6 +425,13 @@ internal sealed class MovieComponentTrackRecorder<T> : MovieTrackRecorder<Compil
 		{
 			recorder.Capture( this, component );
 		}
+	}
+
+	protected override void OnSkip()
+	{
+		Parent!.Capture();
+
+		Property( nameof( Component.Enabled ) ).Capture();
 	}
 
 	ITrackReference IMovieComponentTrackRecorder.Target => Target;
@@ -430,6 +458,7 @@ internal sealed class MoviePropertyTrackRecorder<T> : MovieTrackRecorder<Compile
 
 	private T _lastValue = default!;
 
+	private readonly bool _isEnabledTrack;
 	private bool _isDefaultValue;
 	private T _defaultValue = default!;
 
@@ -440,6 +469,8 @@ internal sealed class MoviePropertyTrackRecorder<T> : MovieTrackRecorder<Compile
 	{
 		_sampleInterval = MovieTime.FromFrames( 1, MovieRecorder.Options.SampleRate );
 		_writer = new PropertyBlockWriter<T>( MovieRecorder.Options.SampleRate, MovieRecorder.Options.BufferDuration );
+
+		_isEnabledTrack = Name == nameof( GameObject.Enabled ) && typeof( T ) == typeof( bool ) && Parent is MovieGameObjectTrackRecorder or IMovieComponentTrackRecorder;
 	}
 
 	protected override void OnCapture()
@@ -463,14 +494,6 @@ internal sealed class MoviePropertyTrackRecorder<T> : MovieTrackRecorder<Compile
 
 		_elapsed = MovieRecorder.Time;
 
-		// If target isn't bound or is disabled, end the last block
-
-		if ( !Target.IsActive )
-		{
-			FinishBlock();
-			return;
-		}
-
 		// If we didn't capture last frame, end the block
 
 		if ( _sampleTime <= MovieRecorder.LastCaptureTime )
@@ -486,11 +509,68 @@ internal sealed class MoviePropertyTrackRecorder<T> : MovieTrackRecorder<Compile
 		}
 	}
 
+	protected override void OnSkip()
+	{
+		// Make sure we handle Enable tracks becoming false when skipping
+
+		if ( _isEnabledTrack && _isDefaultValue && Target.Value is false )
+		{
+			_isDefaultValue = false;
+		}
+
+		// If target isn't bound or is disabled, end the last block
+
+		FinishBlock();
+	}
+
+	/// <summary>
+	/// We use Enabled to represent objects / components being destroyed / created,
+	/// so we always include it for normal objects. We don't need to do that for map
+	/// objects, or objects flagged with <see cref="GameObjectFlags.DontDestroyOnLoad"/>
+	/// / <see cref="GameObjectFlags.Static"/>.
+	/// </summary>
+	private static bool AlwaysIncludeEnabledTrack( IMovieTrackRecorder parentRecorder )
+	{
+		if ( parentRecorder is MovieGameObjectTrackRecorder goRecorder )
+		{
+			return AlwaysIncludeEnabledTrack( goRecorder.Target.Value );
+		}
+
+		if ( parentRecorder is IMovieComponentTrackRecorder cmpRecorder )
+		{
+			return AlwaysIncludeEnabledTrack( ((Component?)cmpRecorder.Target.Value)?.GameObject );
+		}
+
+		return true;
+	}
+
+	private static bool AlwaysIncludeEnabledTrack( GameObject? go )
+	{
+		if ( go is null ) return true;
+
+		if ( (go.Flags & GameObjectFlags.Static) != 0 ) return false;
+		if ( (go.Flags & GameObjectFlags.DontDestroyOnLoad) != 0 ) return false;
+		if ( go.GetComponentInParent<MapInstance>() is not null ) return false;
+
+		return true;
+	}
+
 	private void FindDefaultValue()
 	{
 		// GameObject/Component.Enabled should always be recorded, since we use it to show or hide objects
 
-		if ( Name == nameof( GameObject.Enabled ) && Parent is MovieGameObjectTrackRecorder or IMovieComponentTrackRecorder ) return;
+		if ( _isEnabledTrack )
+		{
+			if ( AlwaysIncludeEnabledTrack( Parent! ) )
+			{
+				_isDefaultValue = false;
+				return;
+			}
+
+			_isDefaultValue = true;
+			_defaultValue = (T)(object)true;
+			return;
+		}
 
 		// GameObject.Parent special case: default to the parent-parent track's ID
 
@@ -500,8 +580,8 @@ internal sealed class MoviePropertyTrackRecorder<T> : MovieTrackRecorder<Compile
 
 			BindingReference<GameObject> defaultValue = (Track.Parent.Parent as ICompiledReferenceTrack)?.Id;
 
-			_defaultValue = (T)(object)defaultValue;
 			_isDefaultValue = true;
+			_defaultValue = (T)(object)defaultValue;
 			return;
 		}
 

@@ -141,9 +141,12 @@ public partial class PanelScrollingTest
 		Assert.IsTrue( scroller.TryScroll( new Vector2( 0, 1 ) ) );
 		Assert.AreEqual( 20, scroller.ScrollVelocity.y, 0.001f );
 
-		// Velocity compounds - 20 * (1 + 20/100) = 24 gets added on top
+		Assert.IsTrue( scroller.TryScroll( new Vector2( 0, 0.125f ) ) );
+		Assert.AreEqual( 23, scroller.ScrollVelocity.y, 0.001f );
+
+		// Velocity compounds - 20 * (1 + 23/100) = 24.6 gets added on top
 		Assert.IsTrue( scroller.TryScroll( new Vector2( 0, 1 ) ) );
-		Assert.AreEqual( 44, scroller.ScrollVelocity.y, 0.001f );
+		Assert.AreEqual( 47.6f, scroller.ScrollVelocity.y, 0.001f );
 
 		Assert.IsFalse( scroller.TryScroll( new Vector2( 1, 0 ) ) );
 		Assert.AreEqual( 0, scroller.ScrollVelocity.x, 0.001f );

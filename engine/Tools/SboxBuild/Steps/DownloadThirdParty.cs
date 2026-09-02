@@ -37,7 +37,7 @@ internal class DownloadThirdParty( bool force = false )
 				// Per dependency, not per directory: several share game/bin. The platform is
 				// in the stamp because a dependency's headers can differ between platforms.
 				var marker = Path.Combine( targetDir, $".sbox-thirdparty-{dep.Name}" );
-				var stamp = $"{dep.Tag} {platform}";
+				var stamp = $"{dep.Tag} {platform} r{dep.Rebuild}";
 
 				if ( !force && IsCurrent( marker, stamp ) )
 				{

@@ -20,7 +20,7 @@
 
     @foreach (var p in Packages.Take( 4 ) )
     {
-        <PackageCard Size=@PackageCard.SizeType.List Package=@p Clicked="@(() => p.OpenModal())" RightClicked="@(() => MenuHelpers.OpenPackageMenu(this, p))" />
+        <MenuProject.UI.PackageCard Size=@MenuProject.UI.PackageCard.SizeType.List Package=@p Clicked="@(() => p.OpenModal())" RightClicked="@(() => MenuHelpers.OpenPackageMenu(this, p))" />
     }
 
 </root>

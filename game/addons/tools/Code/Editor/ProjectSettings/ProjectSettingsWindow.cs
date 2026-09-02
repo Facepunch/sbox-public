@@ -313,10 +313,27 @@ internal sealed class ProjectSettingsWindow : Window
 
 	void OnNodeSelected( object item )
 	{
-		if ( item is TreeNode node )
+		if ( item is not TreeNode node || node == CurrentNode )
+			return;
+
+		if ( !HasUnsavedChanges )
 		{
 			SelectNode( node );
+			return;
 		}
+
+		ShowUnsavedChangesPopup(
+			onSave: () =>
+			{
+				Save();
+				SelectNode( node );
+			},
+			onDiscard: () =>
+			{
+				HasUnsavedChanges = false;
+				SelectNode( node );
+			},
+			onCancel: () => TreeView.SelectItem( CurrentNode ) );
 	}
 
 	void SelectNode( TreeNode node )
@@ -379,11 +396,25 @@ internal sealed class ProjectSettingsWindow : Window
 		if ( !HasUnsavedChanges )
 			return true;
 
+		ShowUnsavedChangesPopup(
+			onSave: () =>
+			{
+				Save();
+				Close();
+			},
+			onDiscard: () =>
+			{
+				HasUnsavedChanges = false;
+				Close();
+			} );
+
+		return false;
+	}
+
+	private void ShowUnsavedChangesPopup( Action onSave, Action onDiscard, Action onCancel = null )
+	{
 		if ( _popup.IsValid() )
-		{
-			// If this hits, it means we're already showing a popup, don't create another
-			return false;
-		}
+			return;
 
 		_popup = new PopupDialogWidget( "⚠️" );
 		_popup.FixedWidth = 462;
@@ -396,10 +427,9 @@ internal sealed class ProjectSettingsWindow : Window
 		{
 			Clicked = () =>
 			{
-				Save();
 				_popup.Destroy();
 				_popup = null;
-				Close();
+				onSave();
 			}
 		} );
 
@@ -407,10 +437,9 @@ internal sealed class ProjectSettingsWindow : Window
 		{
 			Clicked = () =>
 			{
-				_hasUnsavedChanges = false;
 				_popup.Destroy();
 				_popup = null;
-				Close();
+				onDiscard();
 			}
 		} );
 
@@ -420,13 +449,12 @@ internal sealed class ProjectSettingsWindow : Window
 			{
 				_popup.Destroy();
 				_popup = null;
+				onCancel?.Invoke();
 			}
 		} );
 
 		_popup.SetModal( true, true );
 		_popup.Show();
-
-		return false;
 	}
 
 	/// <summary>

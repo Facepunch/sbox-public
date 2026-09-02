@@ -56,10 +56,23 @@ News
 		color: #ffffff;
 	}
 
+	// Three lines max. No text-overflow, it would stop the label wrapping.
+	.news-summary
+	{
+		font-size: 12px;
+		font-weight: 500;
+		line-height: 14px;
+		color: $front-body;
+		// Needs a width to wrap inside; the overlay aligns to flex-start.
+		align-self: stretch;
+		max-height: 42px;
+		overflow: hidden;
+	}
+
 	&:hover
 	{
 		// HDR - blooms.
-		border-color: $front-accent * 10;
+		border-color: $front-accent * 4;
 
 		.hero
 		{

@@ -8,15 +8,6 @@ namespace Sandbox.MovieMaker;
 #nullable enable
 
 [Expose]
-file sealed class ComponentCapturer : ComponentCapturer<Component>
-{
-	protected override void OnCapture( IMovieTrackRecorder recorder, Component component )
-	{
-		recorder.Property( nameof( Component.Enabled ) ).Capture();
-	}
-}
-
-[Expose]
 file sealed class CameraCapturer : ComponentCapturer<CameraComponent>
 {
 	protected override void OnCapture( IMovieTrackRecorder recorder, CameraComponent component )
@@ -391,6 +382,8 @@ file sealed class ParticleSpriteRendererCapturer : ComponentCapturer<ParticleSpr
 		recorder.Property( nameof( ParticleSpriteRenderer.Alignment ) ).Capture();
 		recorder.Property( nameof( ParticleSpriteRenderer.SortMode ) ).Capture();
 		recorder.Property( nameof( ParticleSpriteRenderer.DepthFeather ) ).Capture();
+		recorder.Property( nameof( ParticleSpriteRenderer.CameraFadeNear ) ).Capture();
+		recorder.Property( nameof( ParticleSpriteRenderer.CameraFadeFar ) ).Capture();
 		recorder.Property( nameof( ParticleSpriteRenderer.FogStrength ) ).Capture();
 		recorder.Property( nameof( ParticleSpriteRenderer.FaceVelocity ) ).Capture();
 		recorder.Property( nameof( ParticleSpriteRenderer.RotationOffset ) ).Capture();
@@ -412,6 +405,8 @@ file sealed class ParticleTextRendererCapturer : ComponentCapturer<ParticleTextR
 		recorder.Property( nameof( ParticleTextRenderer.Pivot ) ).Capture();
 		recorder.Property( nameof( ParticleTextRenderer.Scale ) ).Capture();
 		recorder.Property( nameof( ParticleTextRenderer.DepthFeather ) ).Capture();
+		recorder.Property( nameof( ParticleTextRenderer.CameraFadeNear ) ).Capture();
+		recorder.Property( nameof( ParticleTextRenderer.CameraFadeFar ) ).Capture();
 		recorder.Property( nameof( ParticleTextRenderer.FogStrength ) ).Capture();
 		recorder.Property( nameof( ParticleTextRenderer.Additive ) ).Capture();
 		recorder.Property( nameof( ParticleTextRenderer.Shadows ) ).Capture();

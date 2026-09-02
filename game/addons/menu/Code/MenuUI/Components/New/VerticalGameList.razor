@@ -23,7 +23,7 @@
         {
             @foreach (var item in Result.Packages.OrderByDescending( x => x.Usage.UsersNow ))
             {
-                <PackageCard Size=@PackageCard.SizeType.List Package=@item Clicked="@(() => item.OpenModal())" RightClicked="@(() => MenuHelpers.OpenPackageMenu(this, item))" />
+                <MenuProject.UI.PackageCard Size=@MenuProject.UI.PackageCard.SizeType.List Package=@item Clicked="@(() => item.OpenModal())" RightClicked="@(() => MenuHelpers.OpenPackageMenu(this, item))" />
             }
         }
     </div>

@@ -101,11 +101,6 @@ public sealed partial class Project
 			{
 				project.AddAspComponentsGlobalUsing();
 				project.AddGameNamespaceGlobalStatic();
-
-				if ( Config.FullIdent != "local.base" && !project.PackageReferences.Contains( "local.base" ) )
-				{
-					project.PackageReferences.Add( "local.base" );
-				}
 			}
 
 			if ( (Config.Type == "game" || Config.Type == "addon") && !IsBuiltIn )
@@ -207,11 +202,6 @@ public sealed partial class Project
 		{
 			project.AddAspComponentsGlobalUsing();
 			project.AddGameNamespaceGlobalStatic();
-
-			if ( !project.PackageReferences.Contains( "local.base" ) )
-			{
-				project.PackageReferences.Add( "local.base" );
-			}
 		}
 
 		if ( Config.Type == "game" )

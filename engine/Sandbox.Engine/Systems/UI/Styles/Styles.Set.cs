@@ -102,6 +102,9 @@ namespace Sandbox.UI
 				case "border-radius":
 					return SetBorderRadius( value );
 
+				case "border-shape":
+					return SetBorderShape( value );
+
 				case "border-top-left-radius":
 					return SetCornerRadius( value, v => BorderTopLeftRadius = v, v => BorderTopLeftRadiusV = v );
 				case "border-top-right-radius":
@@ -575,6 +578,50 @@ namespace Sandbox.UI
 			setH( h );
 			setV( v );
 			return true;
+		}
+
+		bool SetBorderShape( string value )
+		{
+			value = value?.Trim();
+			if ( string.Equals( value, "none", StringComparison.OrdinalIgnoreCase ) ) { BorderShape = UI.BorderShape.None; return true; }
+			if ( value != null && value.StartsWith( "circle(", StringComparison.OrdinalIgnoreCase ) && value[^1] == ')' )
+				return SetCircleBorderShape( value.Substring( 7, value.Length - 8 ) );
+			if ( value == null || !value.StartsWith( "polygon(", StringComparison.OrdinalIgnoreCase ) || value[^1] != ')' ) return false;
+
+			var contents = value.Substring( 8, value.Length - 9 );
+			var points = new List<BorderShapePoint>();
+			int start = 0, depth = 0;
+			for ( int i = 0; i <= contents.Length; i++ )
+			{
+				if ( i < contents.Length ) { if ( contents[i] == '(' ) depth++; else if ( contents[i] == ')' ) depth--; if ( contents[i] != ',' || depth != 0 ) continue; }
+				if ( depth != 0 || points.Count == UI.BorderShape.MaxPoints ) return false;
+				var p = new Parse( contents.Substring( start, i - start ) ).SkipWhitespaceAndNewlines();
+				if ( !p.TryReadLength( out var x ) ) return false; p = p.SkipWhitespaceAndNewlines();
+				if ( !p.TryReadLength( out var y ) ) return false; p = p.SkipWhitespaceAndNewlines();
+				if ( !p.IsEnd ) return false;
+				points.Add( new BorderShapePoint( x, y ) ); start = i + 1;
+			}
+			if ( points.Count < 3 ) return false;
+			BorderShape = new UI.BorderShape( points.ToArray() ); return true;
+		}
+
+		bool SetCircleBorderShape( string contents )
+		{
+			var p = new Parse( contents ).SkipWhitespaceAndNewlines();
+			Length? radius = null; Length cx = Length.Percent( 50 ).Value; Length cy = cx;
+			if ( p.IsEnd ) { BorderShape = new UI.BorderShape( radius, cx, cy ); return true; }
+			if ( !p.Is( "at", 0, true ) )
+			{
+				if ( !p.TryReadLength( out var r ) || (r.Unit != LengthUnit.Expression && r.Value < 0) ) return false;
+				radius = r; p = p.SkipWhitespaceAndNewlines();
+				if ( p.IsEnd ) { BorderShape = new UI.BorderShape( radius, cx, cy ); return true; }
+			}
+			if ( !p.Is( "at", 0, true ) ) return false;
+			p.Pointer += 2; if ( !p.IsEnd && !p.IsWhitespace && !p.IsNewline ) return false; p = p.SkipWhitespaceAndNewlines();
+			if ( !p.TryReadLength( out cx ) ) return false; p = p.SkipWhitespaceAndNewlines();
+			if ( !p.TryReadLength( out cy ) ) return false; p = p.SkipWhitespaceAndNewlines();
+			if ( !p.IsEnd ) return false;
+			BorderShape = new UI.BorderShape( radius, cx, cy ); return true;
 		}
 
 		bool SetBorderWidth( string value )

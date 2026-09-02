@@ -21,6 +21,8 @@ public static class Qt
 	{
 		if ( !module.Qt ) return;
 
+		if ( !NativePlatform.Current.IsWindows ) { ApplyLinux( module ); return; }
+
 		var moc = Paths.Relative( module.Dir, $"{Root}/bin/{Paths.Platform}/moc.exe" );
 		var arguments = string.Join( ' ', Defines.Select( d => $"-D{d}" ) )
 			+ " " + string.Join( ' ', Includes.Select( i => $"-I;{Paths.Relative( module.Dir, $"{Root}/include/{i}".TrimEnd( '/' ) )};" ) )
@@ -109,6 +111,120 @@ public static class Qt
 				Path = $"{module.Dir}/{Generated}/moc_{name}.cpp",
 				Kind = FileKind.Compile
 			} );
+		}
+	}
+
+	/// <summary>
+	/// The Linux path. The Windows one above speaks MSBuild - $(ProjectDir), %(FullPath), backslashes and a
+	/// moc.exe - which the makefile generator cannot consume. This emits the same moc/uic/rcc steps as plain
+	/// CustomBuild whose Command, Inputs and Outputs are shell ready, src-relative paths; Makefile.cs turns
+	/// each into a rule. The two paths are kept apart rather than branched line by line so neither has to
+	/// carry the other's quirks.
+	/// </summary>
+	private static void ApplyLinux( Module module )
+	{
+		// The downloaded Qt5 lays its tools out as bin/<platform>/moc, without the .exe.
+		var moc = $"{Root}/bin/{Paths.Platform}/moc";
+		var uic = $"{Root}/bin/{Paths.Platform}/uic";
+		var rcc = $"{Root}/bin/{Paths.Platform}/rcc";
+
+		// WIN32/UNICODE would send Qt's headers down their Windows path while moc parses them, so drop them.
+		var defines = Defines.Where( d => d is not "WIN32" and not "UNICODE" ).Select( d => $"-D{d}" );
+		var includes = Includes.Select( i => $"-I{$"{Root}/include/{i}".TrimEnd( '/' )}" ).Append( $"-I{module.Dir}" ).Append( "-I." );
+		var arguments = string.Join( ' ', defines ) + " " + string.Join( ' ', includes );
+
+		string Out( string rel ) => $"{module.Dir}/{Generated}/{rel}";
+
+		foreach ( var config in module.Configs ) config.Include( $"{module.Dir}/{Generated}", $"{module.Dir}/ui" );
+		module.ReleaseConfig.Define( "QT_NO_DEBUG" );
+
+		// Every Qt module links the same three libraries, so add them here rather than in each module.
+		// Harmless on a static library, which does not link.
+		foreach ( var config in module.Configs )
+		{
+			// This Qt fork tucks setTitleBarWidget and friends behind the pre-5.0 deprecation guard, and the
+			// docking code calls them, so keep the deprecated API visible.
+			config.Define( "QT_DISABLE_DEPRECATED_BEFORE=0" );
+			// Without this the fork's Q_DECL_EXPORT expands to nothing under gcc, so a shared Qt module
+			// (the docking system) exports none of its classes and its consumers cannot link.
+			config.Define( "QT_VISIBILITY_AVAILABLE" );
+			config.LinkLibs.AddRange( ["Qt5Core", "Qt5Gui", "Qt5Widgets"] );
+			config.LibDirs.Add( $"{Root}/lib/{Paths.Platform}" );
+			config.LinkOptions.Add( $"-Wl,-rpath,$ORIGIN/{Paths.Relative( "../game/bin/" + Paths.Platform, $"{Root}/lib/{Paths.Platform}" ).Replace( '\\', '/' )}" );
+		}
+
+		// .ui -> ui/ui_<name>.h, included by name.
+		foreach ( var form in module.ResolvedFiles.Where( f => f.Path.EndsWith( ".ui", StringComparison.OrdinalIgnoreCase ) ).ToList() )
+		{
+			var name = Path.GetFileNameWithoutExtension( form.Path );
+			var output = $"{module.Dir}/ui/ui_{name}.h";
+			form.Kind = FileKind.None;
+			form.Build = new CustomBuild
+			{
+				Message = $"Qt uic: {Path.GetFileName( form.Path )}",
+				Command = $"{uic} {form.Path} -o {output}",
+				Inputs = [form.Path],
+				Outputs = [output]
+			};
+		}
+
+		// .qrc -> qrc_<name>.cpp, a compiled source.
+		foreach ( var resource in module.ResolvedFiles.Where( f => f.Path.EndsWith( ".qrc", StringComparison.OrdinalIgnoreCase ) ).ToList() )
+		{
+			var name = Path.GetFileNameWithoutExtension( resource.Path );
+			var output = Out( $"qrc_{name}.cpp" );
+			resource.Kind = FileKind.None;
+			resource.Build = new CustomBuild
+			{
+				Message = $"Qt rcc: {Path.GetFileName( resource.Path )}",
+				Command = $"{rcc} -no-compress {resource.Path} -o {output}",
+				Inputs = [resource.Path],
+				Outputs = [output]
+			};
+			module.ResolvedFiles.Add( new SourceFile { Path = output, Kind = FileKind.Compile, NoPch = true } );
+		}
+
+		// A source declaring Q_OBJECT includes its own <name>.moc, so it stays compiled and the step hangs
+		// off an empty carrier beside the output.
+		foreach ( var source in module.ResolvedFiles.Where( f => NeedsSourceMoc( module, f ) ).ToList() )
+		{
+			var name = Path.GetFileNameWithoutExtension( source.Path );
+			var output = Out( $"{name}.moc" );
+			var carrier = Out( $"{name}.moc.input" );
+
+			var path = Paths.Absolute( carrier );
+			Directory.CreateDirectory( Path.GetDirectoryName( path ) );
+			if ( !File.Exists( path ) ) File.WriteAllText( path, "" );
+
+			module.ResolvedFiles.Add( new SourceFile
+			{
+				Path = carrier,
+				Kind = FileKind.None,
+				Build = new CustomBuild
+				{
+					Message = $"Qt moc: {Path.GetFileName( source.Path )}",
+					Command = $"{moc} {arguments} {source.Path} -o {output}",
+					Inputs = [source.Path],
+					Outputs = [output]
+				}
+			} );
+		}
+
+		// A header declaring Q_OBJECT becomes moc_<name>.cpp, which is compiled.
+		foreach ( var header in module.ResolvedFiles.Where( f => NeedsMoc( module, f ) ).ToList() )
+		{
+			var name = Path.GetFileNameWithoutExtension( header.Path );
+			var output = Out( $"moc_{name}.cpp" );
+
+			header.Build = new CustomBuild
+			{
+				Message = $"Qt moc: {Path.GetFileName( header.Path )}",
+				Command = $"{moc} {arguments} {header.Path} -o {output}",
+				Inputs = [header.Path],
+				Outputs = [output]
+			};
+
+			module.ResolvedFiles.Add( new SourceFile { Path = output, Kind = FileKind.Compile } );
 		}
 	}
 

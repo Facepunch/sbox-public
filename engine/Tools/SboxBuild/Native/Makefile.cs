@@ -28,13 +28,16 @@ public static class Makefile
 		make.Append( ".PHONY: all clean force " + string.Join( ' ', modules.Select( m => m.Name ) ) + "\n" );
 		// Named, not positional: the first rule in the file is not necessarily the one to build.
 		make.Append( ".DEFAULT_GOAL := all\n\n" );
-		make.Append( "all: " + string.Join( ' ', modules.Select( m => m.Name ) ) + "\n\n" );
+		var fbxSource = "thirdparty/fbx/FbxSdk/2020.3.4/lib/gcc/x64/release/libfbxsdk.so";
+		var fbxOutput = $"{Paths.BinDir}/libfbxsdk.so";
+		make.Append( "all: " + string.Join( ' ', modules.Select( m => m.Name ).Append( fbxOutput ) ) + "\n\n" );
 		make.Append( "force:\n\n" );
 
 		// The vendored SDL3 carries SONAME libSDL3.so.0, which is the name the loader then looks for, and
 		// the tree only has the unversioned file.
 		var sdl = $"{platform.SdlDir}/libSDL3.so";
 		make.Append( $"{sdl}.0: {sdl}\n\tln -sf libSDL3.so $@\n\n" );
+		make.Append( $"{fbxOutput}: {fbxSource}\n\t@$(MKDIR) $(dir $@)\n\tcp -f $< $@\n\n" );
 
 		// The schema compiler is a parent that shells out to a child, so a schema step waits for both.
 		var schemaTools = modules
@@ -57,6 +60,9 @@ public static class Makefile
 				+ " " + string.Join( ' ', includes.Select( i => $"-I{Path( i )}" ) )
 				+ " " + string.Join( ' ', settings.Options.Distinct() );
 
+			// The precompiled header is C++, so it only force-includes into C++ sources, never the C ones.
+			var forceInclude = " " + string.Join( ' ', settings.ForceIncludes.Distinct().Select( fi => $"-include {Path( fi )}" ) );
+
 			var upper = module.Name.ToUpperInvariant().Replace( '-', '_' );
 			make.Append( $"# ---- {module.Name}\n" );
 			make.Append( $"{upper}_FLAGS := {Collapse( flags )}\n" );
@@ -72,6 +78,32 @@ public static class Makefile
 			var schemaSentinel = Schema( make, module, config, objDir, schemaTools );
 			var antlrStamp = Antlr( make, module, objDir );
 			var generators = new[] { schemaSentinel, antlrStamp }.Where( s => s is not null ).ToList();
+
+			// Files carrying a build step (Qt moc/uic/rcc) generate sources the rest of the module needs.
+			// One rule per step; every object then waits on the outputs order-only, the same way it waits
+			// on schema, so a moc is up before anything that includes its result compiles.
+			foreach ( var built in module.ResolvedFiles.Where( f => f.Build is not null ) )
+			{
+				var cb = built.Build;
+				var outs = cb.Outputs.Select( Path ).ToList();
+				if ( outs.Count == 0 ) continue;
+
+				// A step still written in MSBuild - $(IntDir), %(Filename), an .exe assembler - was authored
+				// for the vcxproj build and cannot run from a makefile. Those are Windows only (tier0's masm
+				// and message table), so leave them to the Windows generator rather than emit a broken rule.
+				if ( cb.Command is null || cb.Command.Contains( "%(" ) || cb.Command.Contains( "$(" ) ) continue;
+
+				var ins = cb.Inputs.Select( Path );
+				make.Append( $"{outs[0]}: {string.Join( ' ', ins )} {flagsFile}\n" );
+				make.Append( "\t@$(MKDIR) $(dir $@)\n" );
+				make.Append( $"\t@echo '{cb.Message}'\n" );
+				make.Append( $"\t{cb.Command}\n" );
+
+				// Make cannot state a rule with several outputs; the extras hang off the first.
+				for ( int i = 1; i < outs.Count; i++ ) make.Append( $"{outs[i]}: {outs[0]}\n" );
+
+				generators.AddRange( outs );
+			}
 
 			var objects = new List<string>();
 
@@ -93,7 +125,7 @@ public static class Makefile
 				// The gnu dialect, because tier0's logging macros rely on the GNU handling of an empty
 				// ##__VA_ARGS__. -fpermissive downgrades the conformance errors gcc raises and clang does not.
 				// C++ only: gcc rejects -fpermissive for C.
-				var extra = asC ? "" : " -x c++ -std=gnu++20 -fpermissive";
+				var extra = asC ? "" : " -x c++ -std=gnu++20 -fpermissive" + forceInclude;
 				var perFile = file.Clang.Count > 0 ? " " + string.Join( ' ', file.Clang ) : "";
 
 				// Generated code reaches any source in the module, through a unity batch or a header, so every
@@ -111,6 +143,9 @@ public static class Makefile
 				.Where( modules.Contains )
 				.Select( Output )
 				.ToList();
+			var inputs = module.Libraries.Select( l => LinkInput( l, modules ) ).Where( x => x is not null ).ToList();
+			dependencies.AddRange( inputs.Where( x => !x.StartsWith( "-l", StringComparison.Ordinal ) ) );
+			if ( inputs.Contains( fbxSource ) ) dependencies.Add( fbxOutput );
 
 			if ( module.Kind != ModuleKind.Lib ) dependencies.Add( $"{sdl}.0" );
 
@@ -125,7 +160,6 @@ public static class Makefile
 			{
 				var libs = string.Join( ' ', settings.LinkLibs.Distinct().Select( l => $"-l{l}" ) );
 				var dirs = string.Join( ' ', settings.LibDirs.Distinct().Select( d => $"-L{Path( d )}" ) );
-				var inputs = module.Libraries.Select( l => LinkInput( l, modules ) ).Where( x => x is not null ).ToList();
 				var linked = inputs.Count > 0
 					? "-Wl,--start-group " + string.Join( ' ', inputs ) + " -Wl,--end-group"
 					: "";
@@ -141,7 +175,20 @@ public static class Makefile
 				make.Append( "\t$(STRIP) --strip-unneeded -x $@\n" );
 			}
 
-			make.Append( $"{module.Name}: {output}\n\n" );
+			if ( module.Launcher )
+			{
+				var launcher = $"{platform.OutputDir( module )}/{module.OutputName}";
+				var binlaunch = modules.First( m => m.Name.Equals( "binlaunch", StringComparison.OrdinalIgnoreCase ) );
+				make.Append( $"{launcher}: {output} {Output( binlaunch )}\n" );
+				make.Append( "\t@$(MKDIR) $(dir $@)\n" );
+				make.Append( $"\tcp -f {Output( binlaunch )} $@\n" );
+				make.Append( "\tchmod +x $@\n" );
+				make.Append( $"{module.Name}: {launcher}\n\n" );
+			}
+			else
+			{
+				make.Append( $"{module.Name}: {output}\n\n" );
+			}
 		}
 
 		var objDirs = depFiles.Select( d => System.IO.Path.GetDirectoryName( d ).Replace( '\\', '/' ) ).Distinct();

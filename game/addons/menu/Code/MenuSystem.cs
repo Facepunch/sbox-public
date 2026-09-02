@@ -190,6 +190,13 @@ public partial class MenuSystem : IMenuSystem
 		MenuOverlay.Instance.BottomRight.Queue( panel, duration: 0, clickToDismiss: false );
 	}
 
+	/// <summary>Go to a menu url from the console, for driving the menu from a test or tool.</summary>
+	[MenuConCmd( "menu_goto" )]
+	public static void GoTo( string url )
+	{
+		MainMenu.Instance?.Navigator?.Navigate( url );
+	}
+
 	[MenuConCmd( "menu_packageclosed" )]
 	public static async Task PackageClosedTest( string ident )
 	{

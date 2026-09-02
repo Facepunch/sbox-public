@@ -71,6 +71,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		public Vector3 Velocity = Vector3.Zero;
 		public Vector4 BlendSheetUV;
 		public Vector2 Offset;
+		public uint CameraFade;     // Two halves: lower 16 bits near distance, upper 16 bits far distance
 		public SpriteData()
 		{
 
@@ -92,6 +93,14 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 			ushort fogPacked = (ushort)(fogStrength.Clamp( 0f, 1f ) * 65535f);
 			ushort alphaPacked = (ushort)(alphaCutout.Clamp( 0f, 1f ) * 65535f);
 			return (uint)(fogPacked | (alphaPacked << 16));
+		}
+
+		// Pack the two camera fade distances (world units) into a single uint as halves
+		internal static uint PackCameraFade( float near, float far )
+		{
+			uint nearPacked = BitConverter.HalfToUInt16Bits( (Half)MathF.Max( near, 0f ) );
+			uint farPacked = BitConverter.HalfToUInt16Bits( (Half)MathF.Max( far, 0f ) );
+			return nearPacked | (farPacked << 16);
 		}
 	}
 	struct SpriteVertex
@@ -441,6 +450,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 						FogStrengthCutout = packedFogAndAlpha,
 						Lighting = packedExponent,
 						DepthFeather = c.DepthFeather,
+						CameraFade = SpriteData.PackCameraFade( c.CameraFadeNear, c.CameraFadeFar ),
 						SamplerIndex = SamplerState.GetBindlessIndex( sampler with { Filter = c.TextureFilter } ),
 						Offset = c.Pivot
 					};

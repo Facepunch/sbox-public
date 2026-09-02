@@ -134,6 +134,12 @@ internal static partial class DebugOverlay
 			pos.y += OverlaySpacing;
 		}
 
+		if ( overlay_video != 0 )
+		{
+			DebugOverlay.Video.Draw( ref pos );
+			pos.y += OverlaySpacing;
+		}
+
 		if ( ShadowMapper.DebugEnabled )
 			ShadowMapper.Draw( ref pos, Hud );
 	}

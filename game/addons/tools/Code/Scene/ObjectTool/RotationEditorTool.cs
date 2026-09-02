@@ -23,14 +23,15 @@ public class RotationEditorTool : EditorTool
 		var nonSceneGos = Selection.OfType<GameObject>().Where( go => go.GetType() != typeof( Sandbox.Scene ) );
 		if ( nonSceneGos.Count() == 0 ) return;
 
-		var bbox = BBox.FromPoints( nonSceneGos.Select( x => x.WorldPosition ) );
+		var positions = nonSceneGos.Select( x => x.WorldPosition ).ToArray();
+		var centroid = positions.Aggregate( Vector3.Zero, ( sum, p ) => sum + p ) / positions.Length;
 
 		if ( !Gizmo.Pressed.Any && Gizmo.HasMouseFocus )
 		{
 			startPoints.Clear();
 			moveDelta = Rotation.Identity;
 			handleRotation = nonSceneGos.FirstOrDefault()?.WorldRotation ?? Rotation.Identity;
-			handlePosition = bbox.Center;
+			handlePosition = centroid;
 			undoScope?.Dispose();
 			undoScope = null;
 		}
@@ -39,7 +40,8 @@ public class RotationEditorTool : EditorTool
 
 		// Stop updating the handle position if we're dragging
 
-		var origin = Gizmo.Pressed.Any ? handlePosition : bbox.Center;
+		var origin = Gizmo.Pressed.Any ? handlePosition : centroid;
+		var rotateAsGroup = nonSceneGos.Count() > 1 && Gizmo.Settings.GlobalSpace;
 
 		using ( Gizmo.Scope( "Tool", new Transform( origin, basis ) ) )
 		{
@@ -54,9 +56,15 @@ public class RotationEditorTool : EditorTool
 				foreach ( var entry in startPoints )
 				{
 					var rot = basis * moveDelta * basis.Inverse;
-					var position = entry.Value.Position - handlePosition;
-					position *= rot;
-					position += handlePosition;
+					var position = entry.Value.Position;
+
+					if ( rotateAsGroup )
+					{
+						position -= handlePosition;
+						position *= rot;
+						position += handlePosition;
+					}
+
 					rot *= entry.Value.Rotation;
 					var scale = entry.Value.Scale;
 

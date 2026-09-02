@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components;
 using Sandbox.Html;
 using System.Globalization;
 
@@ -208,10 +208,29 @@ namespace Sandbox.UI
 			Text = value ?? "";
 		}
 
+		private int _caretPosition;
+
 		/// <summary>
 		/// Position of the text cursor/caret within the text, at which newly typed characters are inserted.
+		/// Setting it keeps it inside the text and scrolls to put it on screen - everything that moves
+		/// the caret goes through here, so nothing has to remember to do either.
 		/// </summary>
-		public int CaretPosition { get; set; }
+		public int CaretPosition
+		{
+			get => _caretPosition;
+			set
+			{
+				value = value.Clamp( 0, TextLength );
+				if ( _caretPosition == value ) return;
+
+				_caretPosition = value;
+
+				// Moving the caret any other way gives up the x that up and down were aiming for
+				if ( !_movingLine ) _desiredCaretX = null;
+
+				ScrollToCaret();
+			}
+		}
 
 		/// <summary>
 		/// Amount of characters in the text of the text entry. Not bytes.
@@ -238,6 +257,9 @@ namespace Sandbox.UI
 				SelectionEnd = TextLength;
 				ScrollToCaret();
 			}
+
+			// The text can shrink out from under the scroll offset without the caret moving at all
+			ClampScroll();
 		}
 
 		/// <summary>
@@ -413,6 +435,14 @@ namespace Sandbox.UI
 			{
 				sizeFinalized = true;
 				YogaNode.MarkDirty();
+			}
+
+			// The visible width is what scrolling measures against, so a resize - or the first
+			// layout, where there wasn't one yet - has to put the caret back on screen
+			if ( _scrolledSize != Box.RectInner.Size )
+			{
+				_scrolledSize = Box.RectInner.Size;
+				ScrollToCaret();
 			}
 
 			_textRect = Box.RectInner;

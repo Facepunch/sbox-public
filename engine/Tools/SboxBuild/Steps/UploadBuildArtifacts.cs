@@ -17,12 +17,17 @@ internal class UploadBuildArtifacts
 	private static readonly string[] IncludeGlobs =
 	{
 		"*.exe",
-		"*.dll",
-		"*.json",
+		"sbox",
+		"sbox-dev",
+		"sbox-launcher",
+		"sbox-standalone",
+		"sbox-server",
+		"benchmark",
 		".version",
 		"thirdpartylegalnotices.txt",
 		"thirdpartylegalnotices/**",
 		"bin/win64/**",
+		"bin/linuxsteamrt64/**",
 		"bin/managed/**",
 		"bin/assettypes.txt",
 		"bin/enginetools.txt",
@@ -250,17 +255,19 @@ internal class UploadBuildArtifacts
 		return files;
 	}
 
-	private static void CreateArchive( IReadOnlyCollection<(string EntryPath, string AbsolutePath)> files, string zipPath )
+	internal static void CreateArchive( IReadOnlyCollection<(string EntryPath, string AbsolutePath)> files, string zipPath )
 	{
 		if ( File.Exists( zipPath ) )
 			File.Delete( zipPath );
 
 		Log.Info( $"Creating build archive ({files.Count} file(s))..." );
 
-		using var archive = ZipFile.Open( zipPath, ZipArchiveMode.Create );
-		foreach ( var (entryPath, absolutePath) in files )
+		using ( var archive = ZipFile.Open( zipPath, ZipArchiveMode.Create ) )
 		{
-			archive.CreateEntryFromFile( absolutePath, entryPath, CompressionLevel.Fastest );
+			foreach ( var (entryPath, absolutePath) in files )
+			{
+				archive.CreateEntryFromFile( absolutePath, entryPath, CompressionLevel.Fastest );
+			}
 		}
 	}
 

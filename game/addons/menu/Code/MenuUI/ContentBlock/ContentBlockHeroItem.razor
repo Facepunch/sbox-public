@@ -10,7 +10,7 @@
         <ChildContent>
             <PackageHero Package="@Package" class="large">
                 <Actions>
-                    <Button class="play-button" Disabled=@(!MenuHelpers.HasAuthority) Icon="play_arrow" @onclick=@PlayNow>
+					<Button class="play-button" Disabled=@(!MenuHelpers.HasAuthority) Icon="play_arrow" @onclick=@((Action<PanelEvent>)PlayNow)>
                         <ChildContent>
                             <Label class="eyebrow" Text="#contentblockheroitem.play_now"></Label>
                         </ChildContent>

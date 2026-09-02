@@ -1,0 +1,117 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+
+@using Sandbox;
+@using Sandbox.UI;
+
+@attribute [Title( "Overflow" )]
+@attribute [Description( "Clipping, scrolling, and what escapes a box" )]
+@attribute [Icon( "crop" )]
+@attribute [Order( 65 )]
+
+@*
+    Every case has a child bigger than, or hanging out of, its parent. The question each time is
+    what the parent does about it. The red child is the one to watch.
+*@
+
+<root>
+
+    <h2>Overflow modes</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Frame" Rule="overflow: visible" Note="The default: the child hangs out and is drawn in full.">
+            <ChildContent><div class="clip visible"><div class="over"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="overflow: hidden" Note="Cut at the padding box, no scrollbar.">
+            <ChildContent><div class="clip hidden-o"><div class="over"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="overflow: scroll" Note="Clipped and scrollable, even though it fits horizontally.">
+            <ChildContent><div class="clip scroll"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="overflow-y: scroll  (content shorter than the box)" Note="Nothing to scroll, so it mustn't scroll - and shouldn't take the wheel from a parent that can.">
+            <ChildContent><div class="clip scroll"><div class="short"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="overflow-x: hidden; overflow-y: visible" Note="One axis each. The web forces both to clip once either is hidden - worth knowing which way we go.">
+            <ChildContent><div class="clip mixed-axis"><div class="over"></div></div></ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Clip shape</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Frame" Rule="overflow: hidden; border-radius: 24px" Note="Corners clip the child too.">
+            <ChildContent><div class="clip hidden-o round"><div class="fill"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="overflow: hidden; border-radius: 50%" Note="A full ellipse clip.">
+            <ChildContent><div class="clip hidden-o circle"><div class="fill"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="overflow: hidden; border: 8px solid; border-radius: 24px" Note="The clip follows the padding box, inside the border, not the border box.">
+            <ChildContent><div class="clip hidden-o round bordered"><div class="fill"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" class="roomy" Rule="overflow: hidden; transform: rotate( 12deg )" Note="The clip rotates with the box, and its edge should be as smooth as the box's own.">
+            <ChildContent><div class="clip hidden-o round rot"><div class="fill"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="overflow: hidden; transform: scale( 0.6 )" Note="Scaled down: the clip edge must stay one screen pixel, not shrink with the box.">
+            <ChildContent><div class="clip hidden-o round small"><div class="fill"></div></div></ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Nested clips</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Frame" Rule="two rounded clips, one inside the other" Note="Both corners apply - the child can't escape either.">
+            <ChildContent>
+                <div class="clip hidden-o round"><div class="inner-clip"><div class="fill"></div></div></div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="clip &gt; transform &gt; clip" Note="A transform between the two clips - both still have to hold.">
+            <ChildContent>
+                <div class="clip hidden-o round"><div class="inner-clip tilted"><div class="fill"></div></div></div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="five nested clips" Note="Past the shader's four clip slots. The extra one still has to clip, even if it loses its corners.">
+            <ChildContent>
+                <div class="clip hidden-o round"><div class="inner-clip"><div class="inner-clip"><div class="inner-clip"><div class="inner-clip"><div class="fill"></div></div></div></div></div></div>
+            </ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Scrolling</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Frame" Rule="overflow-y: scroll; padding: 12px" Note="Padding after the last child has to scroll with the content, not be added to the box.">
+            <ChildContent><div class="clip scroll padded"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="overflow-y: scroll  (children shrink)" Note="Rows must keep their height and scroll, not squash to fit.">
+            <ChildContent>
+                <div class="clip scroll">
+                    <div class="row-item"></div><div class="row-item"></div><div class="row-item"></div>
+                    <div class="row-item"></div><div class="row-item"></div><div class="row-item"></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="overflow: scroll; border-radius: 24px" Note="Scrolled content is clipped by the corners as it moves.">
+            <ChildContent><div class="clip scroll round"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Masks</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Frame" Rule="mask-image: linear-gradient( to bottom, white, transparent )" Note="A soft mask rather than a hard clip.">
+            <ChildContent><div class="masked fade-mask"></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="mask-image: radial-gradient( white, transparent )" Note="Radial mask.">
+            <ChildContent><div class="masked round-mask"></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="mask-image + border-radius" Note="Mask and clip together on one element.">
+            <ChildContent><div class="masked fade-mask round"></div></ChildContent>
+        </UiTestCase>
+    </div>
+
+</root>
+
+@code
+{
+    const string Frame = "width: 120px; height: 110px";
+}

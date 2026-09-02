@@ -9,7 +9,7 @@ namespace Sandbox;
 /// <summary>
 /// Holds onto a list of root panels to tick, input and draw
 /// </summary>
-internal class UISystem
+internal partial class UISystem
 {
 	internal PanelRenderer Renderer = new();
 
@@ -25,6 +25,20 @@ internal class UISystem
 	internal Panel CurrentFocus { get; set; }
 	internal Panel NextFocus { get; set; }
 	internal bool FocusPendingChange { get; set; }
+
+	/// <summary>
+	/// The deepest panel at this position across every root, topmost root first.
+	/// </summary>
+	internal Panel FindPanelAt( Vector2 position )
+	{
+		for ( int i = RootPanels.Count - 1; i >= 0; i-- )
+		{
+			var hit = UISurface.FindPanelAt( RootPanels[i], position, null );
+			if ( hit is not null ) return hit;
+		}
+
+		return null;
+	}
 
 	internal void AddRoot( RootPanel rootPanel )
 	{
@@ -83,6 +97,8 @@ internal class UISystem
 		using ( Performance.Scope( "Update Screen Size" ) )
 		{
 			Screen.UpdateFromEngine();
+			Size = Screen.Size;
+			DpiScale = Screen.DesktopScale;
 		}
 
 		using ( Performance.Scope( "Tick Panels" ) )
@@ -95,6 +111,15 @@ internal class UISystem
 			TickInput( allowMouseInput );
 		}
 
+		LayoutAndBuild();
+	}
+
+	/// <summary>
+	/// Lay every root panel out at <see cref="Size"/> and turn them into command lists. This is
+	/// the half of the frame that has nothing to do with input, so any surface can drive it.
+	/// </summary>
+	internal void LayoutAndBuild()
+	{
 		using ( Performance.Scope( "Pre Layout" ) )
 		{
 			PreLayout();
@@ -159,10 +184,7 @@ internal class UISystem
 
 	internal void PreLayout()
 	{
-		var width = Screen.Width;
-		var height = Screen.Height;
-
-		var screenRect = new Rect( 0, 0, width, height );
+		var screenRect = new Rect( 0, 0, Size.x, Size.y );
 
 		for ( int i = 0; i < RootPanels.Count(); i++ )
 		{
@@ -219,6 +241,28 @@ internal class UISystem
 		}
 	}
 
+	/// <summary>
+	/// The input half of a frame for a surface that isn't the game screen - no game input context,
+	/// no cursor visibility rules, just hover, focus and events for our own root panels.
+	/// </summary>
+	internal void TickSurfaceInput( bool allowMouseInput )
+	{
+		for ( int i = 0; i < RootPanels.Count; i++ )
+		{
+			if ( !RootPanels[i].IsValid ) continue;
+			RootPanels[i].TickInputInternal();
+		}
+
+		Input.Tick( RootPanels.Where( p => !p.IsWorldPanel ).OrderByDescending( x => x.ComputedStyle?.ZIndex ?? 0 ), allowMouseInput );
+
+		TickFocus();
+
+		// With nothing focused the keys go to the root, so a surface can have window wide shortcuts
+		// instead of dropping every key press
+		InputEventQueue.TickFocused( CurrentFocus ?? RootPanels.FirstOrDefault() );
+		InputEventQueue.Tick( Input.Hovered, Input.Active );
+	}
+
 	internal void TickInput( bool allowMouseInput )
 	{
 		for ( int i = 0; i < RootPanels.Count(); i++ )
@@ -239,7 +283,7 @@ internal class UISystem
 		// were set at the same time as changing focus will be applied so
 		// that when we judge elibility the logic will be correct
 		//
-		InputFocus.Tick();
+		TickFocus();
 
 		//
 		// Send all key events to the focused panel

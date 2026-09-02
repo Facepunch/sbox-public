@@ -1,0 +1,56 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+
+@using Sandbox;
+@using Sandbox.UI;
+
+@attribute [Title( "Filters" )]
+@attribute [Description( "filter functions, against the numbers a browser gives" )]
+@attribute [Icon( "tune" )]
+@attribute [Order( 50 )]
+
+<root>
+
+    <p>
+        CSS defines these on sRGB values, so the maths runs on the encoded colour. The notes are what
+        Chrome renders the same case as - sample the middle of a swatch and compare.
+    </p>
+
+    <h2>Brightness and contrast</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Grey" Css="filter: brightness( 1.5 )" Note="Chrome: 192,192,192 - a straight multiply of 128." />
+        <UiTestCase Setup="@Amber" Css="filter: brightness( 1.4 )" Note="Chrome: 255,246,104." />
+        <UiTestCase Setup="@Amber" Css="filter: brightness( 0.5 )" Note="Chrome: 116,88,37." />
+        <UiTestCase Setup="@Grey" Css="filter: contrast( 1.6 )" Note="Chrome: 128,128,128 - mid grey is the pivot." />
+        <UiTestCase Setup="@Amber" Css="filter: contrast( 1.6 )" Note="Chrome: 255,205,42." />
+    </div>
+
+    <h2>Saturate and hue</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Amber" Css="filter: saturate( 0 )" Note="Chrome: 181,181,181 - luminance, not the brightest channel." />
+        <UiTestCase Setup="@Amber" Css="filter: saturate( 2 )" Note="Chrome: 255,171,0." />
+        <UiTestCase Setup="@Red" Css="filter: hue-rotate( 90deg )" Note="Chrome: 0,91,0." />
+        <UiTestCase Setup="@Red" Css="filter: hue-rotate( 180deg )" Note="Chrome: 0,109,109." />
+        <UiTestCase Setup="@Amber" Css="filter: grayscale( 1 )" Note="Chrome: 181,181,181 - same as saturate(0)." />
+    </div>
+
+    <h2>The rest</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Amber" Css="filter: invert( 1 )" Note="Chrome: 23,79,181." />
+        <UiTestCase Setup="@Amber" Css="filter: sepia( 1 )" Note="Chrome: 241,214,167." />
+        <UiTestCase Setup="@Amber" Css="filter: blur( 4px )" />
+        <UiTestCase Setup="@Amber" class="roomy" Css="filter: drop-shadow( 6px 6px 10px #000 )" />
+        <UiTestCase Setup="@Amber" Css="filter: brightness( 1.4 ) saturate( 0 )" Note="FAILING: Chrome brightens then desaturates for 238,238,238. We apply a fixed order whatever was written, so this comes out near white." />
+    </div>
+
+</root>
+
+@code
+{
+    const string Grey = "width: 100px; height: 100px; background-color: #808080";
+    const string Amber = "width: 100px; height: 100px; background-color: #e8b04a";
+    const string Red = "width: 100px; height: 100px; background-color: #ff0000";
+}

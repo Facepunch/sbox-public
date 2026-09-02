@@ -41,6 +41,9 @@ struct GPUBoxInstance
 	public int BackgroundClip;
 	public Vector4 BackgroundClipRect;
 
+	/// <summary>Index into the border shape table, or -1 for a plain rounded rect.</summary>
+	public int ShapeIndex;
+
 	// Mode 1/2 (shadow): BackgroundRect = the blurred shape as (x, y, w, h) relative to Rect, BackgroundAngle = blur,
 	//                    BorderRadius/V = the shape's corners
 	// Mode 3 (outline):  BackgroundRect = (panel w, panel h, width, offset), BackgroundAngle = how far Rect is grown past the panel
@@ -69,6 +72,7 @@ struct GPUBoxInstance
 			BackgroundRect = new Vector4( shape.Left - quad.Left, shape.Top - quad.Top, shape.Width, shape.Height ),
 			Mode = desc.Inset ? 2 : 1,
 			InverseScissorIndex = -1,
+			ShapeIndex = -1,
 		};
 	}
 
@@ -90,6 +94,7 @@ struct GPUBoxInstance
 			BackgroundAngle = bloat,
 			Mode = 3,
 			InverseScissorIndex = -1,
+			ShapeIndex = -1,
 		};
 	}
 
@@ -140,6 +145,8 @@ struct GPUBoxInstance
 			BackgroundClipRect = desc.BackgroundClip == UI.BackgroundClip.Text ? desc.TextMaskRect : desc.BackgroundClipInset,
 			TextMaskIndex = desc.HasTextMask ? desc.TextMask.Index : 0,
 			TextMaskSamplerIndex = desc.HasTextMask ? GetClampSamplerIndex( FilterMode.Bilinear ) : 0,
+			// The caller resolves this against the batcher's table, like ScissorIndex and TransformIndex
+			ShapeIndex = -1,
 		};
 	}
 
@@ -252,6 +259,23 @@ internal struct GPUGradientInstance
 		// leaves a pixel length alone.
 		return length.GetPixels( 1f );
 	}
+}
+
+/// <summary>
+/// One border shape, uploaded to a StructuredBuffer and pointed at by <see cref="GPUBoxInstance.ShapeIndex"/>.
+/// Must match BorderShapeData in ui_cssbox_batched.shader. Vertices are relative to the box's
+/// top-left, which keeps a shape identical wherever its panel sits so the table can dedupe it;
+/// unused slots are zero and the shader only reads the first <see cref="PolygonCount"/> of them.
+/// </summary>
+[StructLayout( LayoutKind.Sequential )]
+internal struct GPUBorderShape
+{
+	public Vector4 Polygon01, Polygon23, Polygon45, Polygon67;
+	public int PolygonCount;
+	public Vector4 Circle;
+	public int Kind;
+
+	internal readonly int GetHash() => HashCode.Combine( Polygon01, Polygon23, Polygon45, Polygon67, PolygonCount, Circle, Kind );
 }
 
 /// <summary>

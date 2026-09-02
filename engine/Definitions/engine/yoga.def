@@ -14,6 +14,7 @@ native enum YGFlexDirection as Sandbox.UI.FlexDirection;
 native enum YGGutter;
 native struct YGValue;
 native enum YGUnit;
+native enum YGErrata;
 
 [nogc]
 native static class globalYoga as Yoga
@@ -54,6 +55,7 @@ native static class globalYoga as Yoga
 	void YGConfigFree( YGConfigRef c );
 	void YGConfigSetUseWebDefaults(YGConfigRef config, bool enabled);
 	void YGConfigSetPointScaleFactor( YGConfigRef config, float pixelsInPoint);
+	void YGConfigSetErrata(YGConfigRef config, YGErrata errata);
 
 	void YGNodeCopyStyle(YGNodeRef dstNode, YGNodeRef srcNode);
 

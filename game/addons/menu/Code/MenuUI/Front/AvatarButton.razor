@@ -57,7 +57,7 @@
         // The scss doubles this panel's size then scales it back down by half,
         // so the scene renders at 2x and the downscale anti-aliases it.
         scenePanel = AddChild<ScenePanel>( "render" );
-        BuildScene( scenePanel.RenderScene );
+        _ = BuildScene( scenePanel.RenderScene );
 
         _ = LoadStats();
     }
@@ -82,14 +82,11 @@
     /// A tiny portrait scene - camera, sun and the local player's dressed avatar.
     /// The camera looks straight down the model's line so he stands centred in the card.
     /// </summary>
-    static void BuildScene( Scene scene )
+    static async Task BuildScene( Scene scene )
     {
         using ( scene.Push() )
         {
             var cameraObject = new GameObject( true, "Camera" );
-            cameraObject.WorldPosition = new Vector3( 133, 0, 48 );
-            cameraObject.WorldRotation = Rotation.FromYaw( 180 );
-
             var camera = cameraObject.AddComponent<CameraComponent>();
             camera.BackgroundColor = Color.Transparent;
             camera.FieldOfView = 32;
@@ -120,7 +117,11 @@
             var dresser = bodyObject.AddComponent<Dresser>();
             dresser.Source = Dresser.ClothingSource.LocalUser;
             dresser.BodyTarget = body;
-            _ = dresser.Apply();
+            await dresser.Apply();
+
+            var h = dresser.ManualHeight.Remap( 0, 1, 0.8f, 1.2f, true );
+            cameraObject.WorldPosition = new Vector3(133, 0, 48 * h );
+            cameraObject.WorldRotation = Rotation.FromYaw(180);
         }
     }
 

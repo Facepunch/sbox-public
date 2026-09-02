@@ -1,4 +1,4 @@
-﻿using NativeEngine;
+using NativeEngine;
 using Sandbox.Engine;
 using System.Runtime.InteropServices;
 
@@ -24,6 +24,15 @@ internal class PanelInput
 	//public string LastCursor;
 
 	public Selection Selection = new Selection();
+
+	/// <summary>
+	/// Cursor state in this input's coordinate space. The game's input reads the global mouse;
+	/// a surface's input feeds its own, so drag detection works in windows the game input
+	/// system knows nothing about.
+	/// </summary>
+	internal virtual Vector2 CursorPosition => Mouse.Position;
+	internal virtual Vector2 CursorDelta => Mouse.Delta;
+	internal virtual Vector2 CursorVelocity => Mouse.Velocity;
 
 	public PanelInput()
 	{
@@ -110,8 +119,16 @@ internal class PanelInput
 	/// <summary>
 	/// Called from input when mouse wheel changes
 	/// </summary>
+	/// <summary>
+	/// What was held down when the mouse was last pressed or released, so click events can
+	/// carry it - shift+click means something different to a click.
+	/// </summary>
+	internal KeyboardModifiers MouseModifiers { get; private set; }
+
 	internal void AddMouseButton( ButtonCode code, bool down, KeyboardModifiers modifiers )
 	{
+		MouseModifiers = modifiers;
+
 		if ( down ) mousebuttons.Add( code );
 		else mousebuttons.Remove( code );
 	}
@@ -352,7 +369,7 @@ internal class PanelInput
 
 		public void Update( bool down, Panel hovered )
 		{
-			var mouseMoved = !Mouse.Delta.IsNearZeroLength;
+			var mouseMoved = !Input.CursorDelta.IsNearZeroLength;
 
 			//
 			// Watch drag - we might have started dragging
@@ -378,7 +395,7 @@ internal class PanelInput
 
 				if ( Dragged )
 				{
-					DragTarget?.CreateEvent( new DragEvent( "ondrag", DragTarget, StartHoldOffsetLocal, StartHoldOffsetScreen ) { MouseDelta = Mouse.Delta } );
+					DragTarget?.CreateEvent( new DragEvent( "ondrag", DragTarget, StartHoldOffsetLocal, StartHoldOffsetScreen ) { MouseDelta = Input.CursorDelta } );
 				}
 			}
 
@@ -434,13 +451,13 @@ internal class PanelInput
 				if ( DragTarget != null )
 				{
 					StartHoldOffsetLocal = DragTarget.MousePosition + DragTarget.ScrollOffset;
-					StartHoldOffsetScreen = Mouse.Position;
+					StartHoldOffsetScreen = Input.CursorPosition;
 				}
 			}
 
 			Active.Focus();
 
-			MouseDownEvent = new MousePanelEvent( "onmousedown", Active, GetMouseButtonName( MouseButton ) );
+			MouseDownEvent = new MousePanelEvent( "onmousedown", Active, GetMouseButtonName( MouseButton ) ) { KeyboardModifiers = Input.MouseModifiers };
 			Active.CreateEvent( MouseDownEvent );
 
 			Active.OnButtonEvent( new ButtonEvent( MouseButton, true ) );

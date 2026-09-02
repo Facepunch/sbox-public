@@ -31,7 +31,7 @@ public static partial class Game
 		if ( string.IsNullOrWhiteSpace( json ) )
 			return;
 
-		NativeEngine.EngineGlobal.Plat_SetClipboardText( json );
+		NativeEngine.EngineGlobal.SDL_SetClipboardText( json );
 		Log.Info( $"Copied {scene.Name} scene to clipboard, paste it into a new scene in the editor." );
 	}
 }

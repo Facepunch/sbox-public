@@ -513,6 +513,14 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	}
 
 	/// <summary>
+	/// This camera only draws UI - skip the scene rendering pipeline entirely and put the UI
+	/// straight onto its target. For a window that is nothing but panels, which is what a
+	/// launcher window is: the pipeline's passes and render targets are all for a scene that
+	/// isn't there.
+	/// </summary>
+	internal bool UIOnly { get; set; }
+
+	/// <summary>
 	/// Should be called before a render
 	/// </summary>
 	internal void OnPreRender( Vector2 size )

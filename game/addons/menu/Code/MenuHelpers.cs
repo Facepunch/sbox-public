@@ -2,6 +2,7 @@
 using Sandbox.DataModel;
 using Sandbox.Diagnostics;
 using Sandbox.Modals;
+using MenuPanel = MenuProject.UI.MenuPanel;
 
 public static class MenuHelpers
 {

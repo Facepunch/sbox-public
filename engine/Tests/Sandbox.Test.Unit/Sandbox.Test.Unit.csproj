@@ -34,6 +34,7 @@
 		<ProjectReference Include="..\..\Sandbox.Reflection\Sandbox.Reflection.csproj" />
 		<ProjectReference Include="..\..\Sandbox.System\Sandbox.System.csproj" />
 		<ProjectReference Include="..\..\Sandbox.Tools\Sandbox.Tools.csproj" />
+		<ProjectReference Include="..\..\Tools\InteropGen\InteropGen.csproj" />
 		<ProjectReference Include="..\Fixtures\HotloadTestAssembly\Sandbox.Test.AfterHotload.csproj">
 			<Aliases>After</Aliases>
 		</ProjectReference>

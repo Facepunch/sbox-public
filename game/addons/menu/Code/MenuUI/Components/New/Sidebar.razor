@@ -1,5 +1,4 @@
 @using MenuProject
-@using MenuProject.UiTest
 @using Sandbox.UI;
 @using Sandbox.UI.Navigation;
 @using Sandbox;
@@ -11,7 +10,7 @@
 <root>
 
     @* Double click the mark for the UI test section. Deliberately undiscoverable. *@
-    <Logo @ondoubleclick=@( () => UiTestSection.Open() ) />
+    <Logo />
 
     <div class="nav">
         <Button Href="/home" Icon="home">#sidebar.home</Button>
@@ -34,8 +33,8 @@
 
         <RailButton Href="/rewards" Icon="redeem" Text="#sidebar.rewards" Badge="@RewardBadge" BadgeClass="reward" Progress="@RewardProgress" />
 
-        <Button @onmouseup=@Settings Icon="settings">#sidebar.settings</Button>
-        <Button @onmouseup=@Quit class="quit" Icon="power_settings_new">#sidebar.quit</Button>
+        <Button Href="/settings" Icon="settings">#sidebar.settings</Button>
+        <Button @onmouseup=@Quit class="quit" Icon="power_settings_new">>#sidebar.quit</Button>
     </div>
 
 </root>
@@ -127,11 +126,6 @@
     {
         rewardState = await MenuUtility.Rewards.GetRewards();
         StateHasChanged();
-    }
-
-    void Settings()
-    {
-        Game.Overlay.ShowSettingsModal();
     }
 
     void Quit()

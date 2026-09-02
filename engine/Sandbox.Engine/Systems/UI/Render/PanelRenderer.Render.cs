@@ -214,6 +214,7 @@ internal partial class PanelRenderer
 			gpu.ScissorIndex = scissorIndex;
 			gpu.TransformIndex = transformIndex;
 			gpu.InverseScissorIndex = ri.HasExtraScissor ? batcher.GetOrAddScissor( ri.ExtraScissor ) : -1;
+			gpu.ShapeIndex = batcher.GetOrAddShape( ri.BorderShapeData );
 
 			// Pack z-depth in the high bits, per-panel intra-pass in the low bits.
 			int sortPass = zDepth * 256 + (ri.Pass & 0xFF);
@@ -347,6 +348,7 @@ internal partial class PanelRenderer
 				gpu.TextureIndex = -batcher.GetOrAddGradient( in ri.BackgroundGradient ) - 1;
 
 			gpu.InverseScissorIndex = ri.HasExtraScissor ? batcher.GetOrAddScissor( ri.ExtraScissor ) : -1;
+			gpu.ShapeIndex = batcher.GetOrAddShape( ri.BorderShapeData );
 
 			AddInstance( gpu, scissor, transform );
 		}

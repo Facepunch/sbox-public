@@ -1,0 +1,27 @@
+//
+// The editor palette, from docs/ui-theme.md. Dark is the default; the $l- set feeds the
+// .style-light overrides at the bottom of each sheet.
+//
+$ground: #0c0d0f;
+$surface: #131417;
+$raised: #1a1c21;
+$raised-hover: #22252c;
+$line: #26282e;
+$text: #ffffff;
+$text-muted: #8a8f98;
+$text-faint: #6e737c;
+$accent: #3273eb;
+$accent-hover: #4c86f0;
+$accent-active: #2a62cf;
+$danger: #e2314a;
+$positive: #3dbe64;
+
+$l-ground: #f4f5f7;
+$l-surface: #ffffff;
+$l-raised: #eceef1;
+$l-raised-hover: #e2e5ea;
+$l-line: #d9dce1;
+$l-text: #16181d;
+$l-text-muted: #5c6370;
+$l-text-faint: #8a9099;
+$l-positive: #2f9e55;

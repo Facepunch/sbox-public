@@ -28,6 +28,12 @@ native class CVideoPlayer as NativeEngine.CVideoPlayer
 	void GetSpectrum( CUtlVectorFloat outSpectrum );
 	float GetAmplitude();
 
+	double GetVideoDecodeSeconds();
+	double GetAudioDecodeSeconds();
+	int GetDecodedFrameCount();
+	int GetPacketQueueDepth();
+	int GetFrameQueueDepth();
+
 	ITexture GetTexture();
 	CAudioStreamManaged GetAudioStream();
 }

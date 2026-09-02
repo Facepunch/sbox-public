@@ -510,7 +510,7 @@ public static partial class EditorUtility
 
 		if ( toLauncher )
 		{
-			ProcessStartInfo info = new ProcessStartInfo( "sbox-launcher.exe" );
+			ProcessStartInfo info = new ProcessStartInfo( NetCore.GetExecutablePath( "sbox-launcher" ) );
 			info.WorkingDirectory = System.Environment.CurrentDirectory;
 
 			Process.Start( info );
@@ -707,8 +707,8 @@ public static partial class EditorUtility
 	{
 		EditorWindow.Close();
 
-		ProcessStartInfo info = new ProcessStartInfo( "sbox-dev.exe", $"{Environment.CommandLine} -project \"{Project.Current.ConfigFilePath}\"" );
-		info.UseShellExecute = true;
+		ProcessStartInfo info = new ProcessStartInfo( NetCore.GetExecutablePath( "sbox-dev" ), $"{Environment.CommandLine} -project \"{Project.Current.ConfigFilePath}\"" );
+		info.UseShellExecute = OperatingSystem.IsWindows();
 		info.CreateNoWindow = true;
 		info.WorkingDirectory = System.Environment.CurrentDirectory;
 

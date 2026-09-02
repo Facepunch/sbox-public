@@ -139,15 +139,16 @@ internal partial class PanelRenderer
 	/// </summary>
 	internal ref struct ClipScope
 	{
+		PanelRenderer Renderer;
 		Rect Previous;
 		GPUScissor PreviousGPU;
 		bool _disposed = false; // Whether this scope actually set a new scissor or not. If the panel had overflow: visible then we won't set a new scissor, so we can skip restoring the old one.
 
-		public ClipScope( Rect scissorRect, BorderRadii radii, Matrix globalMatrix )
+		public ClipScope( PanelRenderer renderer, Rect scissorRect, BorderRadii radii, Matrix globalMatrix )
 		{
 			_disposed = true;
 
-			var renderer = GlobalContext.Current.UISystem.Renderer;
+			Renderer = renderer;
 
 			Previous = renderer.Scissor;
 			PreviousGPU = renderer.ScissorGPU;
@@ -178,9 +179,8 @@ internal partial class PanelRenderer
 			if ( !_disposed ) return;
 			_disposed = false;
 
-			var renderer = GlobalContext.Current.UISystem.Renderer;
-			renderer.Scissor = Previous;
-			renderer.ScissorGPU = PreviousGPU;
+			Renderer.Scissor = Previous;
+			Renderer.ScissorGPU = PreviousGPU;
 		}
 	}
 
@@ -198,7 +198,7 @@ internal partial class PanelRenderer
 		var size = (rect.Width + rect.Height) * 0.5f;
 		var radii = BorderRadii.FromStyle( panel.ComputedStyle, rect ).Inner( GetBorderWidths( panel.ComputedStyle, size ) );
 
-		return new ClipScope( panel.Box.ClipRect, radii, panel.GlobalMatrix ?? Matrix.Identity );
+		return new ClipScope( this, panel.Box.ClipRect, radii, panel.GlobalMatrix ?? Matrix.Identity );
 	}
 
 	static readonly string[] ScissorRectAttribute = ["ScissorRect0", "ScissorRect1", "ScissorRect2", "ScissorRect3"];

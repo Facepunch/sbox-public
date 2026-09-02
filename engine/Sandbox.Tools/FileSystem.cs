@@ -79,17 +79,12 @@ public static class FileSystem
 
 		Content = new AggregateFileSystem();
 		Content.CreateAndMount( EngineFileSystem.Root, "/core/" );
-		Content.CreateAndMount( EngineFileSystem.Root, "/addons/base/Assets/" );
 		Content.CreateAndMount( EngineFileSystem.Root, "/addons/citizen/Assets/" );
 		Content.Mount( Cloud );
 
 		foreach ( var addon in Project.All.Where( x => x.Active ) )
 		{
-			var contentPath = addon.GetAssetsPath();
-			if ( string.IsNullOrWhiteSpace( contentPath ) ) continue;
-			if ( !System.IO.Directory.Exists( contentPath ) ) continue;
-
-			Content.CreateAndMount( contentPath );
+			Content.Mount( addon.AssetsFileSystem );
 		}
 
 		var watch = Content.Watch();

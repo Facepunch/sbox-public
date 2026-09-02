@@ -183,27 +183,12 @@ internal sealed partial class PackageLoader : IDisposable
 			}
 		}
 
-		var baseHotloaded = hotloadedPackages.Any( x => x.Package.IsNamed( "local.base" ) );
 		var toolBaseHotloaded = hotloadedPackages.Any( x => x.Package.IsNamed( "local.toolbase" ) );
 
 		bool ReferencesHotloadedPackage( Package package )
 		{
-			switch ( package.TypeName )
-			{
-				case "tool":
-					if ( toolBaseHotloaded ) return true;
-					break;
-
-				case "game":
-				case "addon":
-					if ( baseHotloaded ) return true;
-					break;
-
-				default:
-					// addon code can exist with a resource package
-					if ( baseHotloaded && !string.IsNullOrWhiteSpace( package.Info.ParentPackage ) ) return true;
-					break;
-			}
+			if ( package.TypeName == "tool" && toolBaseHotloaded )
+				return true;
 
 			return package.EnumeratePackageReferences()
 				.Any( x => hotloadedPackages
@@ -398,15 +383,6 @@ internal sealed partial class PackageLoader : IDisposable
 			//
 			{
 				bool needsToolsPackage = packageLocal.TypeName == "tool";
-
-				if ( packageLocal.NeedsLocalBasePackage() )
-				{
-					LoadPackage( "local.base#local" );
-
-					// if we're loading a local game, then load the tools package first, because
-					// we are assuming that there is an editor folder, which will require it.
-					needsToolsPackage = packageLocal.TypeName == "game" && ToolsMode;
-				}
 
 				if ( needsToolsPackage )
 				{
@@ -753,14 +729,6 @@ internal sealed partial class PackageLoader : IDisposable
 
 		if ( deep )
 		{
-			if ( package.Package is LocalPackage pl && pl.NeedsLocalBasePackage() )
-			{
-				var children = GetLoadedAssemblies( "local.base#local", deep, allowEditor );
-
-				foreach ( var c in children )
-					foundList.Add( c );
-			}
-
 			foreach ( var child in package.Package.EnumeratePackageReferences() )
 			{
 				var children = GetLoadedAssemblies( child, deep, allowEditor );

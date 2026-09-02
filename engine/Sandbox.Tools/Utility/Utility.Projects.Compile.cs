@@ -35,8 +35,6 @@ public static partial class EditorUtility
 
 			//Log.Info( $"Code Path: {addon.GetCodePath()}" );
 
-			bool hasBase = false;
-
 			//
 			// Install any libraries (unless we are a library)
 			//
@@ -60,8 +58,6 @@ public static partial class EditorUtility
 						libCompiler.GeneratedCode.AppendLine( "global using Microsoft.AspNetCore.Components;" );
 						libCompiler.GeneratedCode.AppendLine( "global using Microsoft.AspNetCore.Components.Rendering;" );
 
-						libCompiler.AddBaseReference();
-
 						foreach ( var reference in references )
 						{
 							libCompiler.AddReference( reference.Package );
@@ -73,29 +69,6 @@ public static partial class EditorUtility
 						compiler.AddReference( library.Package );
 					}
 				}
-			}
-
-			//
-			// if we're a game or an addon then put the base code in the base
-			//
-			if ( !hasBase )
-			{
-				var baseSettings = new Compiler.Configuration();
-				baseSettings.Clean();
-				baseSettings.ReleaseMode = Compiler.ReleaseMode.Release;
-
-				logOutput?.Invoke( "Adding package.base to compiler" );
-
-				var baseCompiler = compileGroup.CreateCompiler( "base", EngineFileSystem.Root.GetFullPath( "/addons/base/code/" ), baseSettings );
-				baseCompiler.UseAbsoluteSourcePaths = false;
-				baseCompiler.GeneratedCode.AppendLine( "global using static Sandbox.Internal.GlobalGameNamespace;" );
-
-				// Required by razor
-				baseCompiler.GeneratedCode.AppendLine( "global using Microsoft.AspNetCore.Components;" );
-				baseCompiler.GeneratedCode.AppendLine( "global using Microsoft.AspNetCore.Components.Rendering;" );
-
-				// reference this from the main compiler
-				compiler.AddReference( baseCompiler );
 			}
 
 			//

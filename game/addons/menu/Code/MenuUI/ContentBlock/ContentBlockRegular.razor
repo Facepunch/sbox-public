@@ -10,7 +10,7 @@
 		<ChildContent>
 			@foreach ( var package in Group.Packages )
 			{
-				<PackageCard Package=@package Clicked="@(() => package.OpenModal())" RightClicked="@(() => MenuHelpers.OpenPackageMenu(this, package))" />
+				<MenuProject.UI.PackageCard Package=@package Clicked="@(() => package.OpenModal())" RightClicked="@(() => MenuHelpers.OpenPackageMenu(this, package))" />
 			}
 		</ChildContent>
 	</ContentBlockBody>

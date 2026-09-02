@@ -217,6 +217,10 @@ namespace Sandbox.Generator
 			if ( rewritten is not null )
 				return rewritten;
 
+			rewritten = ArrayPoolSharedRedirect.VisitIdentifierName( node, this );
+			if ( rewritten is not null )
+				return rewritten;
+
 			return base.VisitIdentifierName( node );
 		}
 

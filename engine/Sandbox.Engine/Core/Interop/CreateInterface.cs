@@ -15,7 +15,13 @@ internal static class CreateInterface
 		if ( loadedModules.TryGetValue( dll, out var module ) )
 			return module;
 
-		if ( !NativeLibrary.TryLoad( dll, out module ) )
+		// Callers spell these the Windows way. Map it to whatever this platform calls the
+		// library, and fall back to looking beside the engine's other natives - a bare name
+		// resolves against the runtime's search path, which isn't where ours live.
+		var nativeName = Sandbox.Interop.GetNativeLibraryName( dll );
+
+		if ( !NativeLibrary.TryLoad( nativeName, out module ) &&
+			 !NativeLibrary.TryLoad( System.IO.Path.Combine( NetCore.NativeDllPath, nativeName ), out module ) )
 			return default;
 
 		loadedModules[dll] = module;

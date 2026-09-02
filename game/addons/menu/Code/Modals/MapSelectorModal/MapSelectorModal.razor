@@ -42,11 +42,11 @@
 		<div class="body">
 			@if ( ActiveTab == "workshop")
 			{
-				<PackageList ShowFilters="@true" Query="type:map sort:trending" Take=@(200)>
+				<MenuProject.UI.PackageList ShowFilters="@true" Query="type:map sort:trending" Take=@(200)>
 					<Item Context="package">
 						<MapTile Package="@package" OnSelect=@(() => OnSelectPackage(package)) />
 					</Item>
-				</PackageList>
+				</MenuProject.UI.PackageList>
 			}
 			else if ( Directory.Get(ActiveTab.Replace("mount:", "")) is { } mount )
 			{

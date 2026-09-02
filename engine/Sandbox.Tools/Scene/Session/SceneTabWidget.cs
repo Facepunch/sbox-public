@@ -123,6 +123,19 @@ sealed class SceneTabWidget : Widget
 
 	internal List<SceneTab> Tabs => _tabs;
 
+	internal void Reorder( SceneTab tab, float centerX )
+	{
+		var oldIndex = _tabs.IndexOf( tab );
+		if ( oldIndex < 0 ) return;
+
+		var newIndex = _tabs.Count( x => x != tab && centerX > x.ScreenPosition.x + x.Width * 0.5f );
+		if ( newIndex == oldIndex ) return;
+
+		_tabs.RemoveAt( oldIndex );
+		_tabs.Insert( newIndex, tab );
+		RebuildTabBar();
+	}
+
 	void RebuildTabBar()
 	{
 		_tabBar.Layout.Clear( false );
@@ -233,6 +246,9 @@ sealed class SceneTab : Widget
 
 	readonly SceneTabWidget _owner;
 	readonly IconButton _close;
+	Vector2 _dragStart;
+	float _dragOffset;
+	bool _dragPressed;
 
 	bool IsCurrent => _owner.IsCurrent( this );
 	bool IsPlaying => Session.IsPlaying;
@@ -315,7 +331,31 @@ sealed class SceneTab : Widget
 			return;
 		}
 
-		if ( e.LeftMouseButton ) Session.MakeActive();
+		if ( e.LeftMouseButton )
+		{
+			_dragStart = e.ScreenPosition;
+			_dragOffset = e.LocalPosition.x;
+			_dragPressed = true;
+			Session.MakeActive();
+		}
+	}
+
+	protected override void OnMouseMove( MouseEvent e )
+	{
+		base.OnMouseMove( e );
+
+		if ( !_dragPressed || (e.ButtonState & MouseButtons.Left) == 0 ) return;
+		if ( _dragStart.Distance( e.ScreenPosition ) <= 6.0f ) return;
+
+		_owner.Reorder( this, e.ScreenPosition.x - _dragOffset + Width * 0.5f );
+	}
+
+	protected override void OnMouseReleased( MouseEvent e )
+	{
+		base.OnMouseReleased( e );
+
+		if ( e.LeftMouseButton )
+			_dragPressed = false;
 	}
 
 	protected override void OnContextMenu( ContextMenuEvent e )

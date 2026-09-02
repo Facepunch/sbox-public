@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components;
 using System.Text;
 
 namespace Sandbox.UI;
@@ -133,6 +133,14 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 	/// </summary>
 	public void AddAttributeObject( int sequence, string attrName, object value )
 	{
+		// The stock razor compiler passes child content and other typed component
+		// parameters through here - those set real properties, not string attributes
+		if ( value is Microsoft.AspNetCore.Components.RenderFragment )
+		{
+			SetComponentParameter( sequence, attrName, value );
+			return;
+		}
+
 		var scope = CurrentScope;
 		scope.Sequence = sequence;
 

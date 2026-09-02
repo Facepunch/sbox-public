@@ -509,6 +509,9 @@ internal static class EngineLoop
 
 		using var _outputScope = _clientOutput.Start();
 
+		// UI windows own their own swap chains, they're not part of anyone's view
+		Sandbox.UI.PanelWindows.FrameAll();
+
 		// The editor renders it's own game scene
 		if ( Application.IsEditor )
 		{

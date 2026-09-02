@@ -9,7 +9,10 @@ partial class TrackBinder
 	/// <summary>
 	/// Creates any missing <see cref="GameObject"/>s or <see cref="Component"/>s for the given <paramref name="clip"/> to target.
 	/// </summary>
-	public IEnumerable<ITrackReference> CreateTargets( IMovieClip clip, GameObject? rootParent = null ) => CreateTargets( clip.Tracks.OfType<IReferenceTrack>(), rootParent );
+	public IEnumerable<ITrackReference> CreateTargets( IMovieClip clip, GameObject? rootParent = null )
+	{
+		return CreateTargets( clip.Tracks.OfType<IReferenceTrack>(), rootParent );
+	}
 
 	/// <summary>
 	/// Creates any missing <see cref="GameObject"/>s or <see cref="Component"/>s for the given
@@ -24,6 +27,7 @@ partial class TrackBinder
 		var allTracks = tracks
 			.OrderBy( x => x.GetDepth() )
 			.ThenBy( x => x.Id )
+			.WithoutMapInstanceChildren()
 			.ToArray();
 
 		var children = allTracks
@@ -148,5 +152,44 @@ partial class TrackBinder
 	{
 		reference.Bind( inst );
 		createdTargets.Add( reference );
+	}
+}
+
+file static class ReferenceTrackExtensions
+{
+	extension( IEnumerable<IReferenceTrack> refTracks )
+	{
+		public IEnumerable<IReferenceTrack> WithoutMapInstanceChildren()
+		{
+			// Note: We're assuming we've ordered by depth, and we're assuming all
+			// ancestors of tracks are included in the enumerable
+
+			var refTrackArray = refTracks.ToArray();
+			var insideMapInstance = new HashSet<IReferenceTrack>();
+
+			// First pass: tag parents of IReferenceTrack<MapInstance>
+
+			foreach ( var track in refTrackArray.OfType<IReferenceTrack<MapInstance>>() )
+			{
+				if ( track.Parent is { } parent )
+				{
+					insideMapInstance.Add( parent );
+				}
+			}
+
+			// Now we can propagate this tag to children
+			// We still want to yield any MapInstance, just not its children
+
+			foreach ( var track in refTrackArray )
+			{
+				if ( track is not IReferenceTrack<MapInstance> && track.Parent is { } parent && insideMapInstance.Contains( parent ) )
+				{
+					insideMapInstance.Add( track );
+					continue;
+				}
+
+				yield return track;
+			}
+		}
 	}
 }

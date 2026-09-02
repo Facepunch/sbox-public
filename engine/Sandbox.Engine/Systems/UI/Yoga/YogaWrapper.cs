@@ -511,7 +511,14 @@ internal sealed class YogaWrapper
 		{
 			if ( Initialized && _positionType == value ) return;
 			_positionType = value;
-			Yoga.YGNodeStyleSetPositionType( Node, _positionType ?? PositionMode.Static );
+
+			// Static maps to relative at the yoga boundary. Yoga anchors an absolute child to
+			// its nearest non-static ancestor, so static panels would push every absolute
+			// panel up to the root - and absolute has always meant relative-to-parent here
+			var mode = _positionType ?? PositionMode.Relative;
+			if ( mode == PositionMode.Static ) mode = PositionMode.Relative;
+
+			Yoga.YGNodeStyleSetPositionType( Node, mode );
 		}
 	}
 

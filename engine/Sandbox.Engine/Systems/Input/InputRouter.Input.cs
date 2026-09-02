@@ -296,16 +296,16 @@ internal static partial class InputRouter
 		}
 	}
 
-	internal static void OnText( uint key )
+	internal static void OnText( string text )
 	{
 		var keyboard = Contexts.FirstOrDefault( x => x.KeyboardState == InputContext.InputState.UI );
 		if ( keyboard is not null )
 		{
-			keyboard.IN_Text( (char)key );
+			keyboard.IN_Text( text );
 		}
 	}
 
-	internal static void OnMouseWheel( int x, int y, int ikeymods )
+	internal static void OnMouseWheel( float x, float y, int ikeymods )
 	{
 		var value = new Vector2( x, y );
 		var mouse = Contexts.FirstOrDefault( x => x.MouseState != InputContext.InputState.Ignore );
@@ -328,31 +328,41 @@ internal static partial class InputRouter
 		}
 	}
 
-	internal static void OnImeStart()
+	internal static void OnImeComposition( string text )
 	{
 		var keyboard = Contexts.FirstOrDefault( x => x.KeyboardState != InputContext.InputState.Ignore );
 		if ( keyboard is not null )
 		{
-			keyboard.IN_ImeStart();
+			keyboard.IN_ImeComposition( text );
 		}
 	}
 
-	internal static void OnImeComposition( string text, bool final )
+	// Gathered as the OS hands over an in-flight drop, delivered together on OnDropComplete
+	static List<string> _dropFiles;
+	static string _dropText;
+
+	internal static void OnDropFile( string path )
 	{
-		var keyboard = Contexts.FirstOrDefault( x => x.KeyboardState != InputContext.InputState.Ignore );
-		if ( keyboard is not null )
-		{
-			keyboard.IN_ImeComposition( text, final );
-		}
+		_dropFiles ??= new();
+		_dropFiles.Add( path );
 	}
 
-	internal static void OnImeEnd()
+	internal static void OnDropText( string text )
 	{
-		var keyboard = Contexts.FirstOrDefault( x => x.KeyboardState != InputContext.InputState.Ignore );
-		if ( keyboard is not null )
-		{
-			keyboard.IN_ImeEnd();
-		}
+		_dropText = text;
+	}
+
+	internal static void OnDropComplete( float x, float y )
+	{
+		var files = _dropFiles;
+		var text = _dropText;
+		_dropFiles = null;
+		_dropText = null;
+
+		if ( files is null && string.IsNullOrEmpty( text ) ) return;
+
+		var mouse = Contexts.FirstOrDefault( c => c.MouseState != InputContext.InputState.Ignore );
+		mouse?.IN_Drop( files, text, new Vector2( x, y ) );
 	}
 
 	/// <summary>

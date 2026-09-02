@@ -215,6 +215,22 @@ public static partial class MenuUtility
 	public static RenderSettings RenderSettings => Sandbox.Engine.Settings.RenderSettings.Instance;
 
 	/// <summary>
+	/// The graphics preset this machine should start on.
+	/// </summary>
+	public static GraphicsPreset DetectGraphicsPreset() => Sandbox.Engine.Settings.RenderSettings.DetectPreset();
+
+	/// <summary>
+	/// What a graphics preset writes, keyed by setting name. Lets the settings menu tell which
+	/// preset unsaved edits add up to without keeping its own copy of the preset tables.
+	/// </summary>
+	public static IReadOnlyDictionary<string, string> GraphicsPresetValues( GraphicsPreset preset ) =>
+		Sandbox.Engine.Settings.RenderSettings.SettingsFor( preset );
+
+	/// <summary>What a post-processing preset writes, keyed by setting name.</summary>
+	public static IReadOnlyDictionary<string, string> PostProcessPresetValues( PostProcessQuality preset ) =>
+		Sandbox.Engine.Settings.RenderSettings.SettingsFor( preset );
+
+	/// <summary>
 	/// Listen to the voice
 	/// </summary>
 	public static void SetVoiceListen( bool b )

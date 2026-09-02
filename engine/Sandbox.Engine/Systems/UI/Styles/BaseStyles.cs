@@ -2,6 +2,22 @@
 
 public abstract partial class BaseStyles : ICloneable
 {
+	internal BorderShape _bordershape;
+
+	/// <summary>
+	/// Represents the <c>border-shape</c> CSS property.
+	/// </summary>
+	public BorderShape BorderShape
+	{
+		get => _bordershape;
+		set
+		{
+			if ( Equals( _bordershape, value ) ) return;
+			_bordershape = value;
+			Dirty();
+		}
+	}
+
 	/// <summary>
 	/// Called when any CSS properties are changed.
 	/// </summary>
@@ -36,6 +52,7 @@ public abstract partial class BaseStyles : ICloneable
 	public virtual void Add( BaseStyles bs )
 	{
 		AddGenerated( bs );
+		if ( bs._bordershape != null ) _bordershape = bs._bordershape;
 
 		if ( bs._backgroundImage != null ) _backgroundImage = bs._backgroundImage;
 		if ( bs._maskImage != null ) _maskImage = bs._maskImage;
@@ -54,6 +71,7 @@ public abstract partial class BaseStyles : ICloneable
 	public virtual void From( BaseStyles bs )
 	{
 		FromGenerated( bs );
+		_bordershape = bs._bordershape;
 
 		_backgroundImage = bs._backgroundImage;
 		_maskImage = bs._maskImage;
@@ -87,6 +105,7 @@ public abstract partial class BaseStyles : ICloneable
 
 	public void FillDefaults()
 	{
+		_bordershape ??= UI.BorderShape.None;
 		_overflowx ??= Overflow ?? OverflowMode.Visible;
 		_overflowy ??= Overflow ?? OverflowMode.Visible;
 
@@ -137,7 +156,7 @@ public abstract partial class BaseStyles : ICloneable
 	{
 		var generated_hash = GetHashCodeGenerated();
 
-		generated_hash = HashCode.Combine( generated_hash, _backgroundImage, _borderImageSource, _maskImage, _backgroundPlaybackPaused );
+		generated_hash = HashCode.Combine( generated_hash, _backgroundImage, _borderImageSource, _maskImage, _backgroundPlaybackPaused, _bordershape );
 
 		return generated_hash;
 	}

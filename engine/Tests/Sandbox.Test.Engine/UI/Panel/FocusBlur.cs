@@ -279,4 +279,29 @@ public class PanelFocusTest
 		Assert.IsFalse( p.HasFocus );
 		Assert.IsNull( InputFocus.Current );
 	}
+
+	/// <summary>
+	/// A focus switch marks both panels render dirty. OnDraw can depend on HasFocus (like
+	/// TextEntry's caret), and without this a panel whose styles don't change on :focus is
+	/// never repainted - the caret wouldn't show until the first keystroke.
+	/// </summary>
+	[TestMethod]
+	public void FocusSwitchMarksBothPanelsRenderDirty()
+	{
+		var root = CreateRoot();
+		var a = new Panel { Parent = root, AcceptsFocus = true };
+		var b = new Panel { Parent = root, AcceptsFocus = true };
+
+		a.Focus();
+		InputFocus.Tick();
+
+		a.IsRenderDirty = false;
+		b.IsRenderDirty = false;
+
+		b.Focus();
+		InputFocus.Tick();
+
+		Assert.IsTrue( b.IsRenderDirty, "the newly focused panel should repaint" );
+		Assert.IsTrue( a.IsRenderDirty, "the blurred panel should repaint" );
+	}
 }

@@ -2,7 +2,7 @@
 
 namespace Sandbox
 {
-	public class VertexBuffer
+	public partial class VertexBuffer
 	{
 		/// <summary>
 		/// List of all vertices in this buffer.

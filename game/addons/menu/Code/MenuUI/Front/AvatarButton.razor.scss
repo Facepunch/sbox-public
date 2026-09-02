@@ -60,15 +60,13 @@ AvatarButton
 		z-index: 10;
 		background-color: rgba( 8, 10, 14, 0.6 );
 	}
-	// Rule above, so the stats read as their own band under the portrait. One to each
-	// edge, so the band spans the card rather than bunching up on the left.
+	// No rule above - it would cut straight across the character render behind it.
 	.stats
 	{
 		flex-direction: row;
 		align-items: flex-end;
 		flex-shrink: 0;
 		padding: 12px 0 14px 0;
-		border-top: 1px solid $front-hairline;
 		z-index: 5;
 	}
 

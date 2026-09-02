@@ -30,7 +30,7 @@
                 {
                     foreach (var facet in Result.Facets)
                     {
-                        <div class="flex-column flex-gap-16">
+                        <div class="flex-column flex-gap-8">
                             <h2><WithIcon Icon="@facet.Entries.FirstOrDefault()?.Icon" Text="@( Localize( facet.Title ) )"></WithIcon></h2>
                             <PackageCategoryFilter Result=@Result Selected="@SelectedCategory" Facet="@facet"></PackageCategoryFilter>
                         </div>
@@ -47,7 +47,7 @@
         </Left>
 
 		<Body>
-            <PackageList @ref=PackageList ShowFilters="@false" Query=@($"type:map sort:{filterOrder} {GetQuery()}") OnSelected="@OnPackageSelected" OnMenu=@OnMenu Take=@(200)></PackageList>
+            <MenuProject.UI.PackageList @ref=PackageList ShowFilters="@false" Query=@($"type:map sort:{filterOrder} {GetQuery()}") OnSelected="@OnPackageSelected" OnMenu=@OnMenu Take=@(200)></MenuProject.UI.PackageList>
 		</Body>
 	</Page>
 </root>
@@ -62,7 +62,7 @@
     List<string> SelectedTags = new();
     Dictionary<string, string> SelectedCategory = new();
 
-    PackageList PackageList = default;
+    MenuProject.UI.PackageList PackageList = default;
 
     Package.FindResult Result => PackageList?.Result;
     

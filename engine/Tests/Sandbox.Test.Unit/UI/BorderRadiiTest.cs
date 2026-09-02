@@ -185,4 +185,44 @@ public class BorderRadiiTest
 		var r = BorderRadii.FromStyle( style, new Rect( 0, 0, 200, 100 ) );
 		Assert.AreEqual( new Vector2( 100, 10 ), r.TopLeft );
 	}
+
+	[TestMethod]
+	public void ScaleAppliesToBothAxes()
+	{
+		var style = new Styles();
+		Assert.IsTrue( style.Set( "border-radius", "8px" ) );
+
+		style.ApplyScale( 2.0f );
+
+		var r = BorderRadii.FromStyle( style, new Rect( 0, 0, 200, 200 ) );
+
+		Assert.AreEqual( new Vector2( 16, 16 ), r.TopLeft );
+		Assert.AreEqual( new Vector2( 16, 16 ), r.TopRight );
+		Assert.AreEqual( new Vector2( 16, 16 ), r.BottomLeft );
+		Assert.AreEqual( new Vector2( 16, 16 ), r.BottomRight );
+	}
+
+	[TestMethod]
+	public void ScaleKeepsEllipseAspect()
+	{
+		var style = new Styles();
+		Assert.IsTrue( style.Set( "border-radius", "20px / 10px" ) );
+
+		style.ApplyScale( 1.5f );
+
+		var r = BorderRadii.FromStyle( style, new Rect( 0, 0, 400, 400 ) );
+		Assert.AreEqual( new Vector2( 30, 15 ), r.TopLeft );
+	}
+
+	[TestMethod]
+	public void ScaleLeavesPercentagesAlone()
+	{
+		var style = new Styles();
+		Assert.IsTrue( style.Set( "border-radius", "50%" ) );
+
+		style.ApplyScale( 2.0f );
+
+		var r = BorderRadii.FromStyle( style, new Rect( 0, 0, 100, 100 ) );
+		Assert.AreEqual( new Vector2( 50, 50 ), r.TopLeft );
+	}
 }

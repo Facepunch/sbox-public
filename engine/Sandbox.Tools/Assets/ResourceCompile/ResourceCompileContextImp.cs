@@ -193,6 +193,10 @@ unsafe class ResourceCompileContextImp : ResourceCompileContext, IDisposable
 
 			foreach ( var e in jsonobj )
 			{
+				// component type names aren't asset references, but can look like one (eg Sandbox.Decal)
+				if ( e.Key.Equals( "__type", StringComparison.OrdinalIgnoreCase ) )
+					continue;
+
 				//
 				// An object with a $compiler has been found. 
 				// This is an embedded resource definition.
@@ -268,8 +272,6 @@ unsafe class ResourceCompileContextImp : ResourceCompileContext, IDisposable
 					AddRuntimeReference( asset.Path );
 					Log.Trace( $"AddRuntimeReference: {str} {asset.Path}" );
 				}
-
-
 			}
 			else if ( AssetType.FromExtension( extension ) is { } type )
 			{

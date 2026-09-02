@@ -30,9 +30,6 @@ partial class PanelRenderer
 					ImageSizeX = style.BackgroundSizeX,
 					ImageSizeY = style.BackgroundSizeY,
 				} ).Rect;
-
-				if ( texture.IsDirty )
-					texture.IsDirty = false;
 			}
 			else if ( desc.HasGradient )
 			{

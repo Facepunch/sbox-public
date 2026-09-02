@@ -106,6 +106,12 @@ public partial class Panel : IPanel, IValid, IComponent
 	public bool HasOutro => (PseudoClass & PseudoClass.Outro) != 0;
 
 
+	/// <summary>
+	/// The UI system this panel belongs to. Asked of our parent, and answered by the root - a panel
+	/// that hasn't been added to anything yet says the game's, which is where an orphan would end up.
+	/// </summary>
+	internal virtual UISystem UISystem => Parent?.UISystem ?? Sandbox.Engine.GlobalContext.Current.UISystem;
+
 	public Panel()
 	{
 		InitializeEvents();

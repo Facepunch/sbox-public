@@ -1,4 +1,4 @@
-@using Sandbox.UI;
+﻿@using Sandbox.UI;
 @using Sandbox.UI.Navigation;
 @using Sandbox;
 @using System;
@@ -45,8 +45,8 @@
 
         Instance = this;
 
-        // Fetch resolutions now so opening the settings modal doesn't stutter later.
-        MenuProject.Settings.VideoSettings.FetchResolutions();
+        // Fetch resolutions now so opening the settings doesn't stutter later.
+        MenuProject.Settings.SettingsCatalog.FetchResolutions();
 
         _ = ShowStartupModalsIfNeeded();
     }

@@ -27,6 +27,12 @@ internal sealed class TextBlock : IDisposable
 
 	public Vector2 BlockSize;
 
+	/// <summary>
+	/// The size the text measures to right now. Unlike <see cref="BlockSize"/> this doesn't wait
+	/// on the texture being built, so layout and scrolling can ask about size at any point.
+	/// </summary>
+	public Vector2 MeasuredSize => Block is null ? default : new Vector2( Block.MeasuredWidth, Block.MeasuredHeight );
+
 	internal Texture Texture;
 
 	// we keep the last texture around incase we can re-use it
@@ -737,17 +743,29 @@ internal sealed class TextBlock : IDisposable
 		return 1.0f;
 	}
 
+	/// <summary>
+	/// How wide the drawn caret is, which has to fit on screen along with the glyph it sits against.
+	/// </summary>
+	const float CaretWidth = 2.0f;
+
+	/// <summary>
+	/// Move the scroll offset so the caret is inside the visible bounds, and never past the
+	/// ends of the text.
+	/// </summary>
 	internal void ScrollToCaret( int caretPosition, ref Vector2 scroll, Vector2 visibleBounds )
 	{
-		Rect caretRect = CaretRect( caretPosition - 1 );
+		if ( visibleBounds.x <= 0 || visibleBounds.y <= 0 )
+			return;
+
+		Rect caretRect = CaretRect( caretPosition );
 
 		if ( caretRect.Left < scroll.x )
 		{
 			scroll.x = caretRect.Left;
 		}
-		else if ( caretRect.Right > scroll.x + visibleBounds.x )
+		else if ( caretRect.Left + CaretWidth > scroll.x + visibleBounds.x )
 		{
-			scroll.x = caretRect.Right - visibleBounds.x + caretRect.Width;
+			scroll.x = caretRect.Left + CaretWidth - visibleBounds.x;
 		}
 
 		if ( caretRect.Top < scroll.y )
@@ -756,8 +774,28 @@ internal sealed class TextBlock : IDisposable
 		}
 		else if ( caretRect.Bottom > scroll.y + visibleBounds.y )
 		{
-			scroll.y = caretRect.Bottom - visibleBounds.y + caretRect.Height;
+			scroll.y = caretRect.Bottom - visibleBounds.y;
 		}
+
+		ClampScroll( ref scroll, visibleBounds );
+	}
+
+	/// <summary>
+	/// Keep the scroll offset inside the text. Editing can leave it pointing past the end -
+	/// deleting the second half of a line the entry was scrolled into, say.
+	/// </summary>
+	internal void ClampScroll( ref Vector2 scroll, Vector2 visibleBounds )
+	{
+		if ( visibleBounds.x <= 0 || visibleBounds.y <= 0 )
+			return;
+
+		if ( Block is null )
+			return;
+
+		// The measured size, not BlockSize - that one is a side effect of building the texture,
+		// and scrolling can't wait on a render to know how big the text is
+		scroll.x = Math.Clamp( scroll.x, 0, Math.Max( 0, Block.MeasuredWidth + CaretWidth - visibleBounds.x ) );
+		scroll.y = Math.Clamp( scroll.y, 0, Math.Max( 0, Block.MeasuredHeight - visibleBounds.y ) );
 	}
 
 	public void Dispose()

@@ -40,6 +40,11 @@
 
 	Sandbox.VideoPlayer videoPlayer;
 
+	/// <summary>
+	/// Held while the video is making noise, to turn the menu music down under it.
+	/// </summary>
+	IDisposable musicDuck;
+
 	public VideoPanel()
 	{
 		videoPlayer = new VideoPlayer();
@@ -64,6 +69,9 @@
 
     public override void OnDeleted()
     {
+        musicDuck?.Dispose();
+        musicDuck = null;
+
         videoPlayer?.Dispose();
         videoPlayer = null;
     }
@@ -78,9 +86,30 @@
             Style.AspectRatio = (float)videoPlayer.Width / (float)videoPlayer.Height;
         }
 
+        UpdateMusicDuck();
+
         videoPlayer.Present();
         var tex = videoPlayer?.Texture;
         Style.SetBackgroundImage(tex);
+    }
+
+    /// <summary>
+    /// Two things talking at once is a mess, so silence the music while we're playing sound.
+    /// It carries on where it left off when the video stops.
+    /// </summary>
+    void UpdateMusicDuck()
+    {
+        var wantsDuck = videoPlayer.HasAudio && !videoPlayer.Muted && !videoPlayer.IsPaused && videoPlayer.Audio.Volume > 0;
+
+        if (wantsDuck)
+        {
+            musicDuck ??= Game.Music.Duck(1.0f, 0.5f);
+        }
+        else
+        {
+            musicDuck?.Dispose();
+            musicDuck = null;
+        }
     }
 
 }

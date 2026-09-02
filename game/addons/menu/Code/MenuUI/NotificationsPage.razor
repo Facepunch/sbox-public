@@ -10,7 +10,7 @@
 
 @page "/notifications"
 @inherits Panel
-@implements INavigatorPage
+@implements Sandbox.UI.Navigation.INavigatorPage
 
 @* Same shape as the mounts page - an explainer card that hugs its text on the left, the
    list taking whatever's left. Page's Left slot is a full-height slab, which is wrong for
@@ -157,7 +157,7 @@
 	// The navigator caches pages, so a second visit gets the same panel back - fetch on
 	// every open rather than only the first render, or the list is however old the last
 	// visit left it.
-	void INavigatorPage.OnNavigationOpen()
+	void Sandbox.UI.Navigation.INavigatorPage.OnNavigationOpen()
 	{
 		_ = Load();
 	}

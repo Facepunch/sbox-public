@@ -78,9 +78,9 @@ public sealed class PanelStyle : Styles
 	/// </summary>
 	internal void InvalidateBroadphase()
 	{
-		if ( StyleBlocks == null )
-			return;
-
+		// Always walk the whole subtree. Stopping at a panel that happens to have no blocks built
+		// yet would leave its children holding rules from the old sheet, so a stylesheet swap only
+		// applied to part of the tree.
 		StyleBlocks = null;
 
 		foreach ( var child in panel.Children )

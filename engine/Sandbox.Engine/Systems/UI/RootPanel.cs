@@ -56,17 +56,36 @@ public partial class RootPanel : Panel
 	/// </summary>
 	internal readonly CommandList PanelCommandList;
 
-	public RootPanel()
+	/// <summary>
+	/// The UI system this root belongs to. Told to us when we're created and never changes - a root
+	/// can't move between surfaces.
+	/// </summary>
+	internal override UISystem UISystem => system;
+
+	readonly UISystem system;
+
+	/// <summary>
+	/// A root in the game's UI. This is the one addon code wants.
+	/// </summary>
+	public RootPanel() : this( GlobalContext.Current.UISystem )
+	{
+	}
+
+	/// <summary>
+	/// A root in a particular UI system - a surface creates its root this way.
+	/// </summary>
+	internal RootPanel( UISystem system )
 	{
 		Style.Width = Length.Percent( 100 );
 		Style.Height = Length.Percent( 100 );
 
 		PanelCommandList = new CommandList( $"UI Root: {GetType().Name}" );
 
-		GlobalContext.Current.UISystem.AddRoot( this );
+		this.system = system;
+		system.AddRoot( this );
 		AddToLists();
 
-		StyleSheet.Load( "/styles/rootpanel.scss" );
+		StyleSheet.Load( "/styles/base/rootpanel.scss" );
 	}
 
 	public override void Delete( bool immediate = true )
@@ -78,7 +97,7 @@ public partial class RootPanel : Panel
 	{
 		base.OnDeleted();
 
-		GlobalContext.Current.UISystem.RemoveRoot( this );
+		UISystem.RemoveRoot( this );
 	}
 
 	internal override void AddToLists()
@@ -230,14 +249,12 @@ public partial class RootPanel : Panel
 	/// </summary>
 	internal void BuildDescriptors( float opacity = 1.0f )
 	{
-		var renderer = GlobalContext.Current.UISystem.Renderer;
-		renderer.BuildDescriptors( this, opacity );
+		UISystem.Renderer.BuildDescriptors( this, opacity );
 	}
 
 	internal void BuildCommandList( float opacity = 1.0f )
 	{
-		var renderer = GlobalContext.Current.UISystem.Renderer;
-		renderer.BuildCommandList( this, opacity );
+		UISystem.Renderer.BuildCommandList( this, opacity );
 	}
 
 	/// <summary>

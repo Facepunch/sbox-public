@@ -21,7 +21,7 @@ $front-danger: #ff5d6a;
 
 // Game names and other in-card links.
 $front-link: #5b9ee8;
-$front-link-hover: #94c6ff * 6;
+$front-link-hover: #94c6ff * 4;
 
 // The reward green - emerald, deliberately not $front-accent, so a claimable
 // reward is the one loud thing in the column.
@@ -145,7 +145,7 @@ $front-chrome-gap: 16px;
 	pointer-events: all;
 	cursor: pointer;
 	color: $front-link;
-	transition: color 0.6s ease;
+	transition: color 0.15s ease;
 	// Colour only - the engine draws text-decoration in a fixed white, which reads
 	// as a stray line rather than an underline on a coloured link.
 	&:hover
@@ -279,7 +279,6 @@ $front-chrome-gap: 16px;
 	// both re-measure on re-render, and a bad frame otherwise resizes the entry and
 	// shunts every entry below it down the rail.
 	height: 68px;
-	padding: 10px 4px;
 	// Square and full bleed - the active entry's fill runs edge to edge and butts
 	// straight into the marker bar, so neither may be rounded.
 	border-radius: 0;
@@ -287,6 +286,7 @@ $front-chrome-gap: 16px;
 	// would be a real child here, and it lays out in flow for the frame before its
 	// absolute positioning lands - which jumps the whole rail on navigation.
 	border-right: 3px solid transparent;
+	padding: 10px 1px 10px 4px;
 	transition: all 0.1s ease;
 
 	// Explicit box, not one measured from the glyph. Icon is set as a Razor parameter,
@@ -531,7 +531,7 @@ $front-chrome-gap: 16px;
 {
 	flex-shrink: 0;
 	flex-direction: row;
-	align-items: baseline;
+	align-items: center;
 	gap: 10px;
 	margin-top: 12px;
 	padding: 0 4px;

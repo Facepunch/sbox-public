@@ -57,30 +57,27 @@ internal sealed class MenuDll : IMenuDll
 		//
 		GlobalContext.Current.FileMount = new AggregateFileSystem();
 		{
-			if ( Application.IsStandalone )
+			// No menu or citizen addon in standalone
+			if ( !Application.IsStandalone )
 			{
-				// No menu or citizen addon in standalone
-				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, $"/base/code" );
-				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, $"/base/Assets" );
-			}
-			else
-			{
-				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, "/base/code/" );
-				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, "/base/Assets/" );
-				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, "/menu/Code/" );
-				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, "/menu/Assets/" );
-				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, "/citizen/Assets/" );
+				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/addons/menu/Code/" );
+				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/addons/menu/Assets/" );
+				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/addons/citizen/Assets/" );
 			}
 
 			FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/core/" );
 			FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/thirdpartylegalnotices/" );
+
+			// The editor's UI assets - stylesheets and the like - are visible while editing
+			if ( Application.IsEditor )
+				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/addons/editor/assets/" );
 		}
 
 		//
 		// Localization from menu 
 		//
 		Game.Language = new LanguageContainer();
-		Game.Language.FileSystem.CreateAndMount( EngineFileSystem.Addons, "/menu/localization/" );
+		Game.Language.FileSystem.CreateAndMount( EngineFileSystem.Root, "/addons/menu/localization/" );
 
 
 		//

@@ -10,164 +10,342 @@ public struct EdgeArchEdges
 	[Hide, JsonInclude] public List<int> Edges { get; set; }
 }
 
+public record struct EdgeArchParameters
+{
+	[Hide]
+	private int _steps;
+
+	[Title( "Steps" ), Range( 1, 32 ), WideMode, DefaultValue( 4 )]
+	public int Steps
+	{
+		readonly get => Math.Clamp( _steps, 1, 32 );
+		set => _steps = Math.Clamp( value, 1, 32 );
+	}
+
+	[Title( "Arc Height" ), Range( -256.0f, 256.0f ), WideMode]
+	public float Height { get; set; } = 16.0f;
+
+	[Title( "Arc Offset" ), Range( -256.0f, 256.0f ), WideMode]
+	public float Offset { get; set; } = 0.0f;
+
+	public EdgeArchParameters() : this( 4, 16.0f, 0.0f )
+	{
+	}
+
+	public EdgeArchParameters( int steps, float height, float offset )
+	{
+		_steps = default;
+		Steps = steps;
+		Height = height;
+		Offset = offset;
+	}
+}
+
 [Alias( "tools.edge-arch-tool" )]
 public partial class EdgeArchTool( EdgeArchEdges[] edges ) : EditorTool
 {
-	private readonly Dictionary<MeshComponent, PolygonMesh> _originalMeshes = new();
-	private readonly Dictionary<MeshComponent, List<VertexHandle>> _edgeVertices = new();
-	private readonly Dictionary<MeshComponent, List<HalfEdgeHandle>> _newEdges = new();
+	private const string ParametersCookie = "MeshEditor.EdgeArch.Parameters";
+	private static readonly EdgeArchParameters DefaultParameters = new();
+
+	/// <summary>
+	/// The vertices of each arc we've made, in order from one end to the other. What to draw and
+	/// what to select both come from these, so there's one thing to keep straight instead of two.
+	/// </summary>
+	private readonly Dictionary<MeshComponent, List<List<VertexHandle>>> _arcs = [];
+
+	private readonly ToolUndoStack _undo = new();
+	private EdgeArchParameters _parametersBeforeEdit;
+	private bool _applied;
+
+	[InlineEditor( Label = false )]
+	public EdgeArchParameters Parameters { get; set; } = EditorCookie.Get( ParametersCookie, DefaultParameters );
 
 	public override void OnEnabled()
 	{
 		base.OnEnabled();
 
-		foreach ( var edgeGroup in edges )
-		{
-			if ( !edgeGroup.Component.IsValid() ) continue;
-
-			var originalMesh = new PolygonMesh();
-			originalMesh.Transform = edgeGroup.Mesh.Transform;
-			originalMesh.MergeMesh( edgeGroup.Mesh, Transform.Zero, out _, out _, out _ );
-
-			_originalMeshes[edgeGroup.Component] = originalMesh;
-		}
+		// Undo steps back through the arcs we've tried, then out of the tool - the mesh is mid
+		// preview, so undoing whatever came before it would undo into something that isn't saved.
+		_undo.Push( "Activate Edge Arch Tool", CancelFromUndo );
 	}
 
-	public override void OnUpdate()
+	public override void OnDisabled()
 	{
-		if ( edges.Length == 0 ) return;
+		base.OnDisabled();
 
-		foreach ( var group in edges )
-		{
-			var comp = group.Component;
-			if ( !comp.IsValid() ) continue;
+		if ( !_applied )
+			RestoreOriginals();
 
-			if ( !_newEdges.TryGetValue( comp, out var newEdgeHandles ) )
-				continue;
-
-			using ( Gizmo.ObjectScope( comp.GameObject, comp.WorldTransform ) )
-			using ( Gizmo.Scope( "EdgeArcs" ) )
-			{
-				Gizmo.Draw.IgnoreDepth = true;
-				Gizmo.Draw.Color = Color.Yellow;
-				Gizmo.Draw.LineThickness = 2;
-
-				foreach ( var edgeHandle in newEdgeHandles )
-				{
-					comp.Mesh.GetVerticesConnectedToEdge( edgeHandle, out var vertexA, out var vertexB );
-					comp.Mesh.GetVertexPosition( vertexA, Transform.Zero, out var posA );
-					comp.Mesh.GetVertexPosition( vertexB, Transform.Zero, out var posB );
-
-					Gizmo.Draw.Line( posA, posB );
-
-					if ( edgeHandle != newEdgeHandles[0] )
-						Gizmo.Draw.Sprite( posA, 8f, null, false );
-				}
-
-				var startVertex = newEdgeHandles[0];
-				comp.Mesh.GetVerticesConnectedToEdge( startVertex, out var vertexStart, out var vertexEnd );
-				comp.Mesh.GetVertexPosition( vertexStart, Transform.Zero, out var startPos );
-				var endVertexHandle = newEdgeHandles[newEdgeHandles.Count - 1];
-				comp.Mesh.GetVerticesConnectedToEdge( endVertexHandle, out var vertexStartEnd, out var vertexEndEnd );
-				comp.Mesh.GetVertexPosition( vertexEndEnd, Transform.Zero, out var endPos );
-
-				Gizmo.Draw.Color = Color.Cyan;
-				Gizmo.Draw.Sprite( startPos, 8f, null, false );
-				Gizmo.Draw.Sprite( endPos, 8f, null, false );
-			}
-		}
+		_undo.Clear();
+		_arcs.Clear();
 	}
 
-	private static Vector3[] ComputeControlPoints( PolygonMesh mesh, HalfEdgeHandle edgeHandle,
-		float arcHeight, float arcOffset )
+	/// <summary>
+	/// Remember what the arc looked like before an edit starts, so the whole of a slider drag
+	/// undoes as the one step rather than every value it passed through.
+	/// </summary>
+	public void BeginParameterEdit()
 	{
-		var usedOpposite = false;
-		var faceHandle = mesh.GetHalfEdgeFace( edgeHandle );
-		if ( !faceHandle.IsValid )
-		{
-			var oppositeEdge = mesh.GetOppositeHalfEdge( edgeHandle );
-			faceHandle = mesh.GetHalfEdgeFace( oppositeEdge );
-			usedOpposite = true;
-		}
-
-		if ( !faceHandle.IsValid )
-		{
-			return new Vector3[4];
-		}
-
-		mesh.GetVerticesConnectedToEdge( edgeHandle, out var vertexA, out var vertexB );
-		mesh.GetVertexPosition( vertexA, Transform.Zero, out var startPos );
-		mesh.GetVertexPosition( vertexB, Transform.Zero, out var endPos );
-
-		mesh.ComputeFaceNormal( faceHandle, out var faceNormal );
-
-		var edgeVec = endPos - startPos;
-		var edgeDir = edgeVec.Normal;
-
-		var arcDir = faceNormal.Cross( edgeDir ).Normal;
-
-		if ( usedOpposite )
-			arcDir = -arcDir;
-
-		var scaledHeight = arcHeight * (4.0f / 3.0f);
-		var scaledOffset = arcOffset * (4.0f / 3.0f);
-
-		scaledOffset = Math.Max( scaledOffset, -edgeVec.Length );
-
-		var controlPoints = new Vector3[4];
-		controlPoints[0] = startPos;
-		controlPoints[1] = startPos + (arcDir * scaledHeight) - (edgeDir * scaledOffset);
-		controlPoints[2] = endPos + (arcDir * scaledHeight) + (edgeDir * scaledOffset);
-		controlPoints[3] = endPos;
-
-		var sideA = controlPoints[1] - controlPoints[0];
-		var sideADir = sideA.Normal;
-		var sideALength = sideA.Length * 0.75f;
-		controlPoints[1] = controlPoints[0] + sideADir * sideALength;
-
-		var sideB = controlPoints[2] - controlPoints[3];
-		var sideBDir = sideB.Normal;
-		var sideBLength = sideB.Length * 0.75f;
-		controlPoints[2] = controlPoints[3] + sideBDir * sideBLength;
-
-		return controlPoints;
+		_parametersBeforeEdit = Parameters;
 	}
 
-	private static Vector3 EvaluateBezier( Vector3[] controlPoints, float t )
+	public void CommitParameterEdit( string title )
 	{
-		var u = 1 - t;
-		var tt = t * t;
-		var uu = u * u;
-		var uuu = uu * u;
-		var ttt = tt * t;
+		if ( _parametersBeforeEdit == Parameters )
+			return;
 
-		var point = uuu * controlPoints[0];
-		point += 3 * uu * t * controlPoints[1];
-		point += 3 * u * tt * controlPoints[2];
-		point += ttt * controlPoints[3];
+		var before = _parametersBeforeEdit;
+		var after = Parameters;
+		SetParameters( after );
 
-		return point;
+		_undo.Push( title,
+			undo: () => SetParameters( before ),
+			redo: () => SetParameters( after ) );
 	}
 
-	public void UpdateArch( int numSteps, float arcHeight, float arcOffset )
+	/// <summary>
+	/// Take the arc. The preview draws straight into the meshes, so they go back to what they were
+	/// before the scope opens - what it records is the whole arc, not whatever the sliders last did.
+	/// </summary>
+	public void Apply()
 	{
-		_edgeVertices.Clear();
-		_newEdges.Clear();
+		var components = new List<MeshComponent>( edges.Length );
+		var arched = new List<PolygonMesh>( edges.Length );
+		var created = new List<MeshEdge>();
 
 		foreach ( var edgeGroup in edges )
 		{
 			var component = edgeGroup.Component;
 			if ( !component.IsValid() ) continue;
 
-			if ( !_originalMeshes.TryGetValue( component, out var originalMesh ) )
+			components.Add( component );
+			arched.Add( component.Mesh );
+
+			if ( !_arcs.TryGetValue( component, out var arcs ) )
 				continue;
 
-			var mesh = new PolygonMesh();
-			mesh.Transform = originalMesh.Transform;
-			mesh.MergeMesh( originalMesh, Transform.Zero, out _, out _, out _ );
+			foreach ( var arc in arcs )
+			{
+				for ( int i = 1; i < arc.Count; i++ )
+				{
+					var edge = component.Mesh.FindEdgeConnectingVertices( arc[i - 1], arc[i] );
 
-			var edgeVertices = new List<VertexHandle>();
-			var newEdges = new List<HalfEdgeHandle>();
+					if ( edge.IsValid )
+						created.Add( new MeshEdge( component, edge ) );
+				}
+			}
+		}
+
+		if ( components.Count == 0 )
+		{
+			GoBack();
+			return;
+		}
+
+		RestoreOriginals();
+		_undo.Clear();
+
+		using var scope = SceneEditorSession.Scope();
+
+		using ( SceneEditorSession.Active.UndoScope( "Apply Edge Arch" )
+			.WithComponentChanges( components )
+			.Push() )
+		{
+			for ( int i = 0; i < components.Count; i++ )
+			{
+				components[i].Mesh = arched[i];
+			}
+
+			var selection = SceneEditorSession.Active.Selection;
+			selection.Clear();
+
+			foreach ( var edge in created )
+			{
+				selection.Add( edge );
+			}
+		}
+
+		_applied = true;
+
+		GoBack();
+	}
+
+	/// <summary>
+	/// Drop the arc. It was only ever a preview, so there's nothing to undo - the meshes go back to
+	/// what they were and the undo stack is left how we found it.
+	/// </summary>
+	public void Cancel()
+	{
+		using var scope = SceneEditorSession.Scope();
+
+		_undo.Clear();
+		RestoreOriginals();
+
+		SceneEditorSession.Active.Selection.Clear();
+
+		GoBack();
+	}
+
+	private void CancelFromUndo()
+	{
+		using var scope = SceneEditorSession.Scope();
+
+		RestoreOriginals();
+		GoBack();
+	}
+
+	private void SetParameters( EdgeArchParameters parameters )
+	{
+		Parameters = parameters;
+		EditorCookie.Set( ParametersCookie, parameters );
+		UpdateArch();
+	}
+
+	private void RestoreOriginals()
+	{
+		foreach ( var edgeGroup in edges )
+		{
+			if ( edgeGroup.Component.IsValid() )
+				edgeGroup.Component.Mesh = edgeGroup.Mesh;
+		}
+	}
+
+	private static void GoBack()
+	{
+		EditorToolManager.SetSubTool( nameof( EdgeTool ) );
+	}
+
+	public override void OnUpdate()
+	{
+		foreach ( var edgeGroup in edges )
+		{
+			var component = edgeGroup.Component;
+			if ( !component.IsValid() ) continue;
+
+			if ( !_arcs.TryGetValue( component, out var arcs ) )
+				continue;
+
+			using ( Gizmo.ObjectScope( component.GameObject, component.WorldTransform ) )
+			using ( Gizmo.Scope( "EdgeArcs" ) )
+			{
+				Gizmo.Draw.IgnoreDepth = true;
+				Gizmo.Draw.LineThickness = 2;
+
+				foreach ( var arc in arcs )
+				{
+					DrawArc( component.Mesh, arc );
+				}
+			}
+		}
+	}
+
+	/// <summary>
+	/// One arc - a line through its vertices with a dot on each cut it made, and a brighter dot on
+	/// each end so it's clear which edge the arc belongs to.
+	/// </summary>
+	private static void DrawArc( PolygonMesh mesh, List<VertexHandle> vertices )
+	{
+		if ( vertices.Count < 2 ) return;
+
+		Gizmo.Draw.Color = Color.Yellow;
+
+		mesh.GetVertexPosition( vertices[0], Transform.Zero, out var start );
+		var previous = start;
+
+		for ( int i = 1; i < vertices.Count; i++ )
+		{
+			mesh.GetVertexPosition( vertices[i], Transform.Zero, out var position );
+
+			Gizmo.Draw.Line( previous, position );
+
+			if ( i < vertices.Count - 1 )
+				Gizmo.Draw.Sprite( position, 8.0f, null, false );
+
+			previous = position;
+		}
+
+		Gizmo.Draw.Color = Color.Cyan;
+		Gizmo.Draw.Sprite( start, 8.0f, null, false );
+		Gizmo.Draw.Sprite( previous, 8.0f, null, false );
+	}
+
+	/// <summary>
+	/// The curve an arc follows, as a cubic bezier.
+	/// </summary>
+	private readonly record struct ArcCurve( Vector3 Start, Vector3 ControlA, Vector3 ControlB, Vector3 End )
+	{
+		public Vector3 Evaluate( float t )
+		{
+			var u = 1.0f - t;
+
+			return (u * u * u * Start) +
+				(3.0f * u * u * t * ControlA) +
+				(3.0f * u * t * t * ControlB) +
+				(t * t * t * End);
+		}
+	}
+
+	/// <summary>
+	/// Work out the curve for one edge. It bows away from the face the edge belongs to, so an edge
+	/// with no face on either side has nothing to bow away from and stays straight.
+	/// </summary>
+	private static ArcCurve ComputeArc( PolygonMesh mesh, HalfEdgeHandle edgeHandle, in EdgeArchParameters parameters )
+	{
+		mesh.GetVerticesConnectedToEdge( edgeHandle, out var vertexA, out var vertexB );
+		mesh.GetVertexPosition( vertexA, Transform.Zero, out var start );
+		mesh.GetVertexPosition( vertexB, Transform.Zero, out var end );
+
+		var flip = false;
+		var faceHandle = mesh.GetHalfEdgeFace( edgeHandle );
+
+		if ( !faceHandle.IsValid )
+		{
+			faceHandle = mesh.GetHalfEdgeFace( mesh.GetOppositeHalfEdge( edgeHandle ) );
+			flip = true;
+		}
+
+		if ( !faceHandle.IsValid )
+			return new ArcCurve( start, start, end, end );
+
+		mesh.ComputeFaceNormal( faceHandle, out var faceNormal );
+
+		var edgeVector = end - start;
+		var edgeDirection = edgeVector.Normal;
+		var arcDirection = faceNormal.Cross( edgeDirection ).Normal * (flip ? -1.0f : 1.0f);
+
+		// Pulling the controls in past the far end folds the arc back on itself
+		var offset = Math.Max( parameters.Offset, -edgeVector.Length * 0.75f );
+		var lift = arcDirection * parameters.Height;
+
+		return new ArcCurve( start,
+			start + lift - (edgeDirection * offset),
+			end + lift + (edgeDirection * offset),
+			end );
+	}
+
+	/// <summary>
+	/// Build the arc from the meshes we started with. Every change comes through here, so a mesh is
+	/// only ever arced once however many times the sliders move.
+	/// </summary>
+	public void UpdateArch()
+	{
+		var parameters = Parameters;
+
+		_arcs.Clear();
+
+		foreach ( var edgeGroup in edges )
+		{
+			var component = edgeGroup.Component;
+			if ( !component.IsValid() ) continue;
+
+			// The mesh we were handed is what the component started with, and we never touch it -
+			// the arc is built into a copy so the sliders always work from the same shape.
+			var original = edgeGroup.Mesh;
+
+			var mesh = new PolygonMesh { Transform = original.Transform };
+			mesh.MergeMesh( original, Transform.Zero, out _, out _, out _ );
+
+			var arcs = new List<List<VertexHandle>>( edgeGroup.Edges.Count );
 
 			foreach ( var edgeIndex in edgeGroup.Edges )
 			{
@@ -178,80 +356,47 @@ public partial class EdgeArchTool( EdgeArchEdges[] edges ) : EditorTool
 
 				mesh.GetVerticesConnectedToEdge( edgeHandle, out var startVertex, out var endVertex );
 
-				var vertexList = SubdivideEdge( mesh, startVertex, endVertex, numSteps, out var edgeList );
+				// The curve comes off the original - arcing one edge moves the vertices the next
+				// one would read its face normal from.
+				var curve = ComputeArc( original, original.HalfEdgeHandleFromIndex( edgeIndex ), parameters );
+				var vertices = SubdivideEdge( mesh, startVertex, endVertex, parameters.Steps );
 
-				var originalEdgeHandle = originalMesh.HalfEdgeHandleFromIndex( edgeIndex );
-				var controlPoints = ComputeControlPoints( originalMesh, originalEdgeHandle, arcHeight, arcOffset );
+				for ( int i = 0; i < vertices.Count; i++ )
+				{
+					mesh.SetVertexPosition( vertices[i], curve.Evaluate( i / (float)(vertices.Count - 1) ) );
+				}
 
-				ApplyArcToVertices( mesh, vertexList, controlPoints );
-
-				edgeVertices.AddRange( vertexList );
-				newEdges.AddRange( edgeList );
+				arcs.Add( vertices );
 			}
 
 			mesh.ComputeFaceTextureCoordinatesFromParameters();
-			component.Mesh = mesh;
 
-			_edgeVertices[component] = edgeVertices;
-			_newEdges[component] = newEdges;
+			component.Mesh = mesh;
+			_arcs[component] = arcs;
 		}
 	}
 
-	private static List<VertexHandle> SubdivideEdge( PolygonMesh mesh, VertexHandle startVertex, VertexHandle endVertex,
-		int numSteps, out List<HalfEdgeHandle> edges )
+	/// <summary>
+	/// Cut an edge into <paramref name="steps"/> even pieces, handing back its vertices in order
+	/// from one end to the other.
+	/// </summary>
+	private static List<VertexHandle> SubdivideEdge( PolygonMesh mesh, VertexHandle startVertex, VertexHandle endVertex, int steps )
 	{
-		edges = new List<HalfEdgeHandle>();
-		var vertices = new List<VertexHandle> { startVertex };
+		var vertices = new List<VertexHandle>( steps + 1 ) { startVertex };
+		var current = startVertex;
 
-		if ( numSteps <= 0 )
+		for ( int i = 1; i < steps; i++ )
 		{
-			vertices.Add( endVertex );
-			return vertices;
+			// Each cut is a fraction of what's left of the edge, not of the whole of it
+			if ( !mesh.AddVertexToEdge( current, endVertex, 1.0f / (steps - i + 1), out var vertex ) )
+				break;
+
+			vertices.Add( vertex );
+			current = vertex;
 		}
-
-		var currentVertex = startVertex;
-
-		for ( int i = 0; i < numSteps - 1; i++ )
-		{
-			mesh.AddVertexToEdge( currentVertex, endVertex, 0.5f, out var newVertex );
-			vertices.Add( newVertex );
-
-			var edgeHandles = mesh.HalfEdgeHandles.Where( e =>
-			{
-				mesh.GetVerticesConnectedToEdge( e, out var a, out var b );
-				return (a == currentVertex && b == newVertex) || (a == newVertex && b == currentVertex);
-			} ).ToList();
-
-			if ( edgeHandles.Count > 0 )
-				edges.Add( edgeHandles[0] );
-
-			currentVertex = newVertex;
-		}
-
-		var finalEdgeHandles = mesh.HalfEdgeHandles.Where( e =>
-		{
-			mesh.GetVerticesConnectedToEdge( e, out var a, out var b );
-			return (a == currentVertex && b == endVertex) || (a == endVertex && b == currentVertex);
-		} ).ToList();
-
-		if ( finalEdgeHandles.Count > 0 )
-			edges.Add( finalEdgeHandles[0] );
 
 		vertices.Add( endVertex );
 
 		return vertices;
-	}
-
-	private static void ApplyArcToVertices( PolygonMesh mesh, List<VertexHandle> vertices, Vector3[] controlPoints )
-	{
-		var numPoints = vertices.Count;
-		if ( numPoints < 2 ) return;
-
-		for ( int i = 0; i < numPoints; i++ )
-		{
-			float t = i / (float)(numPoints - 1);
-			var position = EvaluateBezier( controlPoints, t );
-			mesh.SetVertexPosition( vertices[i], position );
-		}
 	}
 }

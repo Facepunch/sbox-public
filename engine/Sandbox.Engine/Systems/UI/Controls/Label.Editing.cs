@@ -1,31 +1,62 @@
-﻿using System.Globalization;
+using System.Globalization;
 
 namespace Sandbox.UI;
 
 public partial class Label
 {
+	private bool _multiline = true;
+
 	/// <summary>
 	/// Enables multi-line support for editing purposes.
 	/// </summary>
-	public bool Multiline { get; set; } = true;
 	// Sol: TODO: unlink this from wrapping, add css text-wrap or something
+	public bool Multiline
+	{
+		get => _multiline;
+		set
+		{
+			if ( _multiline == value ) return;
+
+			_multiline = value;
+
+			// This decides whether the text wraps, which is measured during layout - without
+			// this the block keeps wrapping until something else happens to dirty it
+			YogaNode?.MarkDirty();
+			SetNeedsPreLayout();
+		}
+	}
 
 	private Vector2 caretScroll;
 
 	/// <summary>
-	/// Replace the currently selected text with given text.
+	/// Where the caret is aiming for while it moves up and down - an x in text space, not a
+	/// character index, because the same index sits at a different place on every line. Passing
+	/// through a short line shouldn't drag the caret left for good, so this outlives the lines
+	/// in between. Null when nothing is aiming anywhere - zero is a real position.
+	/// </summary>
+	private float? _desiredCaretX;
+
+	/// <summary>
+	/// Set while moving between lines, so the move doesn't throw away the column it's using.
+	/// </summary>
+	private bool _movingLine;
+
+	/// <summary>
+	/// The visible size the scroll offset was last worked out against - see FinalLayout.
+	/// </summary>
+	private Vector2 _scrolledSize;
+
+	/// <summary>
+	/// Replace the currently selected text with given text. The caret ends up after the
+	/// replacement.
 	/// </summary>
 	public void ReplaceSelection( string str )
 	{
 		var s = Math.Min( SelectionStart, SelectionEnd );
 		var e = Math.Max( SelectionStart, SelectionEnd );
-		var len = e - s;
 
-		if ( CaretPosition > e ) CaretPosition -= len;
-		else if ( CaretPosition > s ) CaretPosition = s;
-
-		CaretPosition += new StringInfo( str ).LengthInTextElements;
 		InsertText( str, s, e );
+		CaretPosition = s + new StringInfo( str ).LengthInTextElements;
 
 		SelectionStart = 0;
 		SelectionEnd = 0;
@@ -81,11 +112,36 @@ public partial class Label
 	/// </summary>
 	public void ScrollToCaret()
 	{
-		// Sol: not supported right now. think would work totally differently with "proper" scrollbars etc?
-		if ( Multiline ) return;
 		if ( _textBlock is null ) return;
 
+		var before = caretScroll;
 		_textBlock.ScrollToCaret( CaretPosition, ref caretScroll, Box.RectInner.Size );
+
+		ScrollChanged( before );
+	}
+
+	/// <summary>
+	/// Keep the scroll offset inside the text - editing can leave it pointing past the end.
+	/// </summary>
+	internal void ClampScroll()
+	{
+		if ( _textBlock is null ) return;
+
+		var before = caretScroll;
+		_textBlock.ClampScroll( ref caretScroll, Box.RectInner.Size );
+
+		ScrollChanged( before );
+	}
+
+	/// <summary>
+	/// The text is drawn at an offset, so moving that offset has to redraw it. Nothing else
+	/// marks this dirty - moving the caret with the arrow keys changes nothing but the scroll.
+	/// </summary>
+	private void ScrollChanged( Vector2 before )
+	{
+		if ( before == caretScroll ) return;
+
+		MarkRenderDirty();
 	}
 
 	/// <summary>
@@ -109,9 +165,7 @@ public partial class Label
 	public void MoveToWordBoundaryRight( bool select )
 	{
 		var boundaries = GetWordBoundaryIndices();
-		var right = boundaries.FirstOrDefault( x => x >= CaretPosition );
-
-		if ( right == 0 ) return;
+		var right = boundaries.FirstOrDefault( x => x > CaretPosition, TextLength );
 
 		MoveCaretPos( right - CaretPosition, select );
 	}
@@ -234,14 +288,34 @@ public partial class Label
 			return;
 		}
 
+		if ( _textBlock is null ) return;
+
 		var caret = GetCaretRect( CaretPosition );
 
-		var height = caret.Size;
-		height.x = 0;
+		// Work in text space - the caret rect comes back in screen space, which moves with the
+		// panel and the scroll
+		var local = new Vector2(
+			caret.Left - _textRect.Left + caretScroll.x,
+			caret.Top - _textRect.Top + caretScroll.y );
 
-		var click = caret.Position + caret.Size * 0.5f + height * offset_line * 1.2f;
-		var pos = GetLetterAtScreenPosition( click );
-		SetCaretPosition( pos, select );
+		// The first move of a run fixes the x every move after it aims for
+		_desiredCaretX ??= local.x;
+
+		var y = local.y + caret.Height * 0.5f + caret.Height * offset_line * 1.2f;
+
+		var pos = GetLetterAt( new Vector2( _desiredCaretX.Value, y ) );
+		if ( pos < 0 ) return;
+
+		_movingLine = true;
+
+		try
+		{
+			SetCaretPosition( pos, select );
+		}
+		finally
+		{
+			_movingLine = false;
+		}
 	}
 
 	/// <summary>
@@ -265,28 +339,44 @@ public partial class Label
 	/// </summary>
 	public List<int> GetWordBoundaryIndices()
 	{
-		var result = new List<int>() { 0, StringInfo.LengthInTextElements };
-		var e = StringInfo.GetTextElementEnumerator( Text );
-		var input = string.Empty;
+		var result = new List<int>() { 0 };
 
-		// make it work with graphemes by assuming everything is 1 char long
+		var e = StringInfo.GetTextElementEnumerator( Text );
+		var index = 0;
+		var lastKind = -1;
+
+		// A boundary sits wherever the kind of character changes - between words, runs of
+		// symbols and runs of whitespace. An emoji counts by its whole grapheme, one element
 		while ( e.MoveNext() )
 		{
-			input += e.GetTextElement()[0];
+			var kind = ElementKind( e.GetTextElement() );
+
+			if ( lastKind >= 0 && kind != lastKind )
+				result.Add( index );
+
+			lastKind = kind;
+			index++;
 		}
 
-		var match = System.Text.RegularExpressions.Regex.Match( input, @"\b" );
-
-		while ( match.Success )
-		{
-			result.Add( match.Index );
-			match = match.NextMatch();
-		}
-
-		result = result.Distinct().ToList();
-		result.Sort();
+		if ( result[^1] != TextLength )
+			result.Add( TextLength );
 
 		return result;
+	}
+
+	/// <summary>
+	/// What a text element is for word boundary purposes - part of a word, whitespace, or a
+	/// symbol. Emoji are symbols, so the caret stops at each side of a run of them.
+	/// </summary>
+	private static int ElementKind( string element )
+	{
+		if ( !System.Text.Rune.TryGetRuneAt( element, 0, out var rune ) )
+			return 2;
+
+		if ( System.Text.Rune.IsWhiteSpace( rune ) ) return 0;
+		if ( System.Text.Rune.IsLetterOrDigit( rune ) || rune.Value == '_' ) return 1;
+
+		return 2;
 	}
 
 	/// <summary>

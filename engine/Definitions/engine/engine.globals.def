@@ -1,6 +1,7 @@
 
 #include "engine2.h"
 #include "tier0/platform_extra.h"
+#include "SDL3/SDL.h"
 #include "sbox/media/mediainterface.h"
 #include "protocol.h"
 #include "tier0/tools_stall_monitor.h"
@@ -21,10 +22,12 @@ native static class global as NativeEngine.EngineGlobal
 	void Plat_ChangeCurrentFrame( long nDelta );
 	bool Plat_IsRunningOnCustomerMachine();
 
-	bool Plat_HasClipboardText();
-	void Plat_SetClipboardText( string text );
-	string Plat_GetClipboardText();
-	void Plat_ClearClipboardText();
+	bool SDL_HasClipboardText();
+	bool SDL_SetClipboardText( string text );
+
+	// Returns SDL-allocated utf8 - convert it, then hand it back to SDL_free
+	IntPtr SDL_GetClipboardText();
+	void SDL_free( CastTo[void*] IntPtr mem );
 
 	inline bool IsWindowFocused()
 	{
@@ -65,6 +68,8 @@ native static class global as NativeEngine.EngineGlobal
 	bool SourceEngineUnitTestInit();
 	bool SourceEnginePreInit( string lpCmdLine, CMaterialSystem2AppSystemDict appDict );
 	bool SourceEngineInit( CMaterialSystem2AppSystemDict appDict );
+	bool SourceEnginePanelAppInit( CMaterialSystem2AppSystemDict appDict );
+	void SourceEnginePanelAppFrame();
 	bool SourceEngineFrame( CMaterialSystem2AppSystemDict appDict, double currentTime, double previousTime );
 	void SourceEngineShutdown( CMaterialSystem2AppSystemDict appDict, bool forced );
 

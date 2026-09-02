@@ -1,0 +1,548 @@
+//
+// The editor's base stylesheet - the generic controls every editor window shares: window
+// chrome, sidebar navigation, inputs, buttons, menus. Put "editor-window" on the root
+// panel; add "style-light" next to it for the light theme.
+@import "_palette.scss";
+
+.editor-window
+{
+	width: 100%;
+	height: 100%;
+	background-color: $ground;
+	color: $text;
+	font-family: Poppins;
+	font-size: 12px;
+	border: 1px solid $line;
+	pointer-events: all;
+}
+
+//
+// Title bar chrome
+//
+.titlebar
+{
+	flex-shrink: 0;
+	height: 40px;
+	flex-direction: row;
+	align-items: center;
+	justify-content: flex-end;
+}
+
+.titlebar .windowbutton
+{
+	pointer-events: all;
+	width: 42px;
+	height: 40px;
+	align-items: center;
+	justify-content: center;
+	color: $text-muted;
+	transition: background-color 0.12s ease-out, color 0.12s ease-out;
+}
+
+.titlebar .windowbutton .icon { font-size: 15px; }
+.titlebar .windowbutton:hover { background-color: $raised; color: $text; }
+.titlebar .windowbutton:active { background-color: $raised-hover; }
+.titlebar .windowbutton.close:hover { background-color: $danger; color: #fff; }
+
+//
+// Sidebar - brand lockup, navigation, resources
+//
+@keyframes slidein
+{
+	from { opacity: 0; transform: translateX( -10px ); }
+	to { opacity: 1; transform: translateX( 0px ); }
+}
+
+.sidebar
+{
+	width: 210px;
+	flex-shrink: 0;
+	flex-direction: column;
+	padding: 16px 10px 14px 10px;
+	background-color: rgba( $surface, 0.45 );
+	border-right: 1px solid $line;
+}
+
+.sidebar .gap { height: 10px; flex-shrink: 0; }
+.sidebar .grow { flex-grow: 1; }
+.sidebar .sectionlabel { margin: 16px 8px 8px 8px; }
+
+.lockup
+{
+	flex-shrink: 0;
+	flex-direction: column;
+	padding: 4px 8px 0 8px;
+	margin-bottom: 22px;
+	animation-name: slidein;
+	animation-duration: 0.45s;
+	animation-timing-function: ease-out;
+	animation-fill-mode: both;
+}
+
+.lockup .brand { flex-direction: row; align-items: center; }
+
+.lockup .marque
+{
+	width: 34px;
+	height: 34px;
+	border-radius: 9px;
+	background-color: $accent;
+	align-items: center;
+	justify-content: center;
+	color: #fff;
+	font-size: 14px;
+	font-weight: 700;
+}
+
+.lockup .wordmark { font-size: 19px; font-weight: 700; margin-left: 9px; }
+
+.lockup .tagline
+{
+	margin-top: 7px;
+	color: $text-faint;
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 3px;
+}
+
+.navitem
+{
+	flex-shrink: 0;
+	flex-direction: row;
+	align-items: center;
+	height: 38px;
+	padding: 0 12px;
+	margin-bottom: 2px;
+	border-radius: 8px;
+	color: $text-muted;
+	pointer-events: all;
+	cursor: pointer;
+	animation-name: slidein;
+	animation-duration: 0.4s;
+	animation-timing-function: ease-out;
+	animation-fill-mode: both;
+	transition: background-color 0.12s ease-out, color 0.12s ease-out;
+}
+
+.navitem .icon { font-size: 17px; margin-right: 11px; transition: transform 0.15s ease-out; }
+.navitem .label { font-size: 13px; font-weight: 500; }
+.navitem .grow { flex-grow: 1; }
+.navitem .external { font-size: 12px; margin-right: 0; color: $text-faint; opacity: 0; transition: opacity 0.12s ease-out; }
+
+.navitem:hover { color: $text; background-color: $raised; }
+.navitem:active { background-color: $raised-hover; }
+.navitem:hover .icon { transform: translateX( 2px ); }
+.navitem:hover .external { opacity: 1; }
+
+// The active page: blue accent bar, blue-tinted surface - straight from the theme doc
+@keyframes barin
+{
+	from { height: 0px; opacity: 0; }
+	to { height: 18px; opacity: 1; }
+}
+
+.navitem.active
+{
+	color: $text;
+	background-color: rgba( $accent, 0.14 );
+}
+
+.navitem.active .icon { color: $accent; }
+
+.navitem.active .bar
+{
+	position: absolute;
+	left: 0px;
+	top: 10px;
+	width: 3px;
+	height: 18px;
+	border-radius: 2px;
+	background-color: $accent;
+	animation-name: barin;
+	animation-duration: 0.2s;
+	animation-timing-function: ease-out;
+	animation-fill-mode: both;
+}
+
+//
+// Micro-labels - the uppercase letterspaced section headers
+//
+.sectionlabel
+{
+	flex-shrink: 0;
+	flex-direction: row;
+	align-items: center;
+	margin: 14px 0 10px 0;
+}
+
+.sectionlabel .text
+{
+	color: $text-faint;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 1px;
+}
+
+.sectionlabel .rule { flex-grow: 1; height: 1px; margin-left: 12px; background-color: $line; }
+
+//
+// Buttons
+//
+.iconbutton
+{
+	width: 34px;
+	height: 34px;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	border-radius: 8px;
+	background-color: $raised;
+	border: 1px solid $line;
+	color: $text-muted;
+	pointer-events: all;
+	cursor: pointer;
+	transition: background-color 0.12s ease-out, color 0.12s ease-out, border-color 0.12s ease-out;
+}
+
+.iconbutton:hover { background-color: $raised-hover; color: $text; }
+.iconbutton:active { background-color: $ground; transform: scale( 0.94 ); }
+.iconbutton .icon { font-size: 16px; }
+
+.primarybutton
+{
+	flex-shrink: 0;
+	flex-direction: row;
+	align-items: center;
+	height: 34px;
+	padding: 0 14px;
+	border-radius: 8px;
+	background-color: $accent;
+	color: #fff;
+	font-weight: 600;
+	pointer-events: all;
+	cursor: pointer;
+	transition: background-color 0.12s ease-out;
+}
+
+.primarybutton:hover { background-color: $accent-hover; }
+.primarybutton:active { background-color: $accent-active; transform: scale( 0.97 ); }
+.primarybutton .icon { font-size: 15px; margin-right: 6px; }
+
+.flatbutton
+{
+	height: 34px;
+	padding: 0 16px;
+	flex-direction: row;
+	align-items: center;
+	border-radius: 8px;
+	background-color: transparent;
+	border: 1px solid $line;
+	color: $text;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 1px;
+	text-transform: uppercase;
+	pointer-events: all;
+	cursor: pointer;
+	transition: background-color 0.12s ease-out;
+}
+
+.flatbutton:hover { background-color: $raised; }
+.flatbutton:active { background-color: $ground; transform: scale( 0.97 ); }
+.flatbutton .icon { font-size: 15px; margin-right: 6px; }
+
+//
+// Text inputs
+//
+.textentry
+{
+	height: 34px;
+	padding: 0 11px;
+	flex-direction: row;
+	align-items: center;
+	border-radius: 8px;
+	background-color: $raised;
+	border: 1px solid $raised;
+	pointer-events: all;
+	overflow: hidden;
+	white-space: nowrap;
+	transition: border-color 0.12s ease-out;
+}
+
+.textentry:focus { border-color: $accent; }
+
+// Read only still reads as text you can select, just not as somewhere to type
+.textentry.readonly { background-color: $surface; border-color: $line; }
+.textentry.readonly:focus { border-color: $line; }
+.textentry iconpanel { font-size: 14px; color: $text-faint; }
+.textentry .content-label { color: $text; align-self: center; }
+.textentry .content-label.placeholder { color: $text-faint; }
+
+// A multiline entry is a box of text - it wraps, it starts at the top, and it's as tall as
+// whoever placed it says
+.textentry.is-multiline
+{
+	height: auto;
+	padding: 8px 11px;
+	align-items: flex-start;
+	white-space: pre-wrap;
+}
+
+// The label is the window onto the text, so it fills the entry rather than growing to fit -
+// scrolling measures against it, and it has to be the visible size for that to mean anything
+.textentry.is-multiline .content-label { align-self: stretch; width: 100%; height: 100%; overflow: hidden; }
+
+// A button's text styling mustn't leak into its icon - uppercasing a ligature name stops
+// the glyph resolving
+.button iconpanel { text-transform: none; letter-spacing: 0; }
+
+//
+// Button group - pick one, joined together into a single control
+//
+.buttongroup
+{
+	flex-direction: row;
+	flex-shrink: 0;
+	border-radius: 8px;
+	overflow: hidden;
+	border: 1px solid $line;
+	background-color: $raised;
+	pointer-events: all;
+}
+
+.buttongroup .button
+{
+	flex-direction: row;
+	align-items: center;
+	justify-content: center;
+	height: 32px;
+	padding: 0 14px;
+	color: $text-muted;
+	font-size: 12px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background-color 0.12s ease-out, color 0.12s ease-out;
+}
+
+.buttongroup .button:hover { background-color: $raised-hover; color: $text; }
+.buttongroup .button.active { background-color: $accent; color: #ffffff; }
+.buttongroup .button .icon { font-size: 15px; }
+
+//
+// Form - a column of titled rows, which is what most property editors are
+//
+.form { flex-direction: column; flex-shrink: 0; }
+
+.form .field-header
+{
+	flex-direction: row;
+	align-items: center;
+	margin: 16px 0 8px 0;
+	color: $text-faint;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 1px;
+}
+
+// Letter spacing on the header mustn't leak into the icon - it stops the ligature resolving
+.form .field-header iconpanel { letter-spacing: 0; font-size: 14px; margin-right: 8px; }
+
+.field
+{
+	flex-direction: row;
+	align-items: center;
+	margin-bottom: 6px;
+	flex-shrink: 0;
+}
+
+.field > .label
+{
+	width: 110px;
+	flex-shrink: 0;
+	padding-right: 12px;
+	color: $text-muted;
+}
+
+.field .field-control { flex-grow: 1; flex-direction: row; align-items: center; }
+
+//
+// Folder picker - a text entry plus a browse button that opens the OS dialog
+//
+.folderselector { flex-direction: row; align-items: center; }
+.folderselector .textentry { flex-grow: 1; margin-right: 8px; }
+.folderselector .iconbutton { flex-shrink: 0; }
+
+//
+// Checkbox
+//
+.checkbox { flex-direction: row; align-items: center; cursor: pointer; color: $text-muted; padding: 4px 0; }
+.checkbox:hover { color: $text; }
+
+// The glyph hides by matching the box color - the text renderer doesn't do alpha
+.checkbox .checkmark { width: 20px; height: 20px; border-radius: 4px; border: 1px solid $line; background-color: $raised; font-size: 14px; padding-top: 2px; text-align: center; color: $raised; margin-right: 10px; }
+.checkbox.checked .checkmark { background-color: $accent; border-color: $accent; color: #ffffff; }
+
+//
+// Toggle switch
+//
+// Toggle switch - Sandbox.UI.SwitchControl. The padded, hoverable row is what makes it feel
+// like a whole clickable line rather than a lone switch
+.switchcontrol
+{
+	flex-shrink: 0;
+	flex-direction: row;
+	align-items: center;
+	padding: 8px;
+	border-radius: 8px;
+	pointer-events: all;
+	cursor: pointer;
+	transition: background-color 0.12s ease-out;
+}
+
+.switchcontrol:hover { background-color: $raised; }
+
+.switchcontrol .switch-frame { background-color: $line; }
+.switchcontrol.active .switch-frame { background-color: $accent; }
+
+.switchcontrol .switch-inner { background-color: $text-muted; }
+.switchcontrol.active .switch-inner { background-color: #fff; }
+
+.switchcontrol .switch-label { color: $text-muted; }
+.switchcontrol:hover .switch-label { color: $text; }
+
+//
+// Popup menus - their own OS windows, so they carry the base style themselves
+//
+
+// In-surface popups (Sandbox.UI.Popup) position themselves with Left/Top and expect
+// their host to make that mean something
+.popup-panel { position: absolute; z-index: 100; }
+
+// In an OS popup window the compositor rounds and borders the window itself - our own
+// radius and border would double up inside its clip
+.os-popup .dropdown { border-radius: 0; border: none; }
+// Dropdown menus flow vertically through their items.
+.dropdown
+{
+	flex-direction: column;
+	align-items: stretch;
+	flex-shrink: 0;
+	min-width: 160px;
+	padding: 6px;
+	border-radius: 8px;
+	background-color: $raised;
+	border: 1px solid $raised;
+	color: $text;
+	font-family: Poppins;
+	font-size: 12px;
+	pointer-events: all;
+	transition: background-color 0.12s ease-out, border-color 0.12s ease-out;
+}
+
+.dropdown:hover { background-color: $raised-hover; }
+.dropdown:focus { border-color: $accent; }
+
+// The icon belongs beside the text, not above it
+.dropdown > iconpanel { font-size: 15px; margin-right: 8px; color: $text-muted; }
+.dropdown .dropdown_indicator { color: $text-muted; font-size: 16px; margin: 0; }
+
+.dropdown .row
+{
+	flex-direction: row;
+	align-items: center;
+	flex-shrink: 0;
+	height: 27px;
+	padding: 0 10px;
+	border-radius: 6px;
+	// Menus grow to their widest item rather than wrapping it
+	white-space: nowrap;
+	pointer-events: all;
+	cursor: pointer;
+	transition: background-color 0.1s ease-out;
+}
+
+.dropdown .row:hover { background-color: $accent; color: #fff; }
+.dropdown .row:active { background-color: $accent-active; color: #fff; }
+.dropdown .row .icon { font-size: 14px; margin-right: 8px; }
+.dropdown .separator { height: 1px; margin: 5px 4px; background-color: $line; }
+
+//
+// Empty state
+//
+.empty
+{
+	flex-grow: 1;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 40px;
+}
+
+.empty .icon { font-size: 44px; color: $line; margin-bottom: 14px; }
+.empty .title { font-size: 15px; font-weight: 600; color: $text-muted; margin-bottom: 5px; }
+.empty .hint { color: $text-faint; }
+
+
+//
+// Light theme - put style-light on the root alongside editor-window. Rules above are the
+// dark defaults; these override the color-bearing ones.
+//
+.style-light.editor-window { background-color: $l-ground; color: $l-text; border-color: $l-line; }
+
+.style-light .titlebar .windowbutton { color: $l-text-muted; }
+.style-light .titlebar .windowbutton:hover { background-color: $l-raised; color: $l-text; }
+
+.style-light .sidebar { background-color: rgba( #ffffff, 0.45 ); border-color: $l-line; }
+.style-light .lockup .tagline { color: $l-text-faint; }
+
+.style-light .navitem { color: $l-text-muted; }
+.style-light .navitem:hover { color: $l-text; background-color: $l-raised; }
+.style-light .navitem.active { color: $l-text; }
+.style-light .navitem .external { color: $l-text-faint; }
+
+.style-light .sectionlabel .text { color: $l-text-faint; }
+.style-light .sectionlabel .rule { background-color: $l-line; }
+
+.style-light .iconbutton { background-color: $l-raised; border-color: $l-line; color: $l-text-muted; }
+.style-light .iconbutton:hover { background-color: $l-raised-hover; color: $l-text; }
+.style-light .iconbutton:active { background-color: $l-line; }
+.style-light .flatbutton:active { background-color: $l-line; }
+.style-light .titlebar .windowbutton:active { background-color: $l-raised-hover; }
+.style-light .navitem:active { background-color: $l-raised-hover; }
+
+.style-light .flatbutton { border-color: $l-line; color: $l-text; }
+.style-light .flatbutton:hover { background-color: $l-raised; }
+
+.style-light .textentry { background-color: $l-raised; border-color: $l-raised; }
+.style-light .textentry:focus { border-color: $accent; }
+.style-light .textentry iconpanel { color: $l-text-faint; }
+.style-light .textentry .content-label { color: $l-text; }
+.style-light .textentry .content-label.placeholder { color: $l-text-muted; }
+
+.style-light .buttongroup { background-color: $l-raised; border-color: $l-line; }
+.style-light .buttongroup .button { color: $l-text-muted; }
+.style-light .buttongroup .button:hover { background-color: $l-raised-hover; color: $l-text; }
+.style-light .buttongroup .button.active { background-color: $accent; color: #ffffff; }
+
+.style-light .form .field-header { color: $l-text-faint; }
+.style-light .field > .label { color: $l-text-muted; }
+
+.style-light .checkbox { color: $l-text-muted; }
+.style-light .checkbox:hover { color: $l-text; }
+.style-light .checkbox .checkmark { background-color: $l-raised; border-color: $l-line; color: $l-raised; }
+.style-light .checkbox.checked .checkmark { background-color: $accent; border-color: $accent; color: #fff; }
+
+.style-light .switchcontrol:hover { background-color: $l-raised; }
+.style-light .switchcontrol .switch-frame { background-color: $l-line; }
+.style-light .switchcontrol.active .switch-frame { background-color: $accent; }
+.style-light .switchcontrol .switch-inner { background-color: $l-text-muted; }
+.style-light .switchcontrol.active .switch-inner { background-color: #fff; }
+.style-light .switchcontrol .switch-label { color: $l-text-muted; }
+.style-light .switchcontrol:hover .switch-label { color: $l-text; }
+
+.style-light .dropdown { background-color: $l-raised; border-color: $l-line; color: $l-text; }
+.style-light .dropdown .separator { background-color: $l-line; }
+
+.style-light .empty .icon { color: $l-line; }
+.style-light .empty .title { color: $l-text-muted; }
+.style-light .empty .hint { color: $l-text-faint; }

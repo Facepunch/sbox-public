@@ -4,12 +4,24 @@ managed static class Sandbox.Engine.InputRouter
 	static void OnMousePositionChange( float x, float y, float dx, float dy );
 	static void OnMouseButton( ButtonCode button, bool state, int ikeymods );
 	static void OnKey( ButtonCode scanButtonCode, ButtonCode keyButtonCode, bool state, bool repeating, int ikeymods );
-	static void OnText( uint key );
+	static void OnText( string text );
 	static void OnWindowActive( bool active );
-	static void OnMouseWheel( int x, int y, int ikeymods );
-	static void OnImeStart();
-	static void OnImeComposition( string text, bool final );
-	static void OnImeEnd();
+	static void OnMouseWheel( float x, float y, int ikeymods );
+
+	//
+	// The IME composition string changed. Non-empty is the pending composition; empty means it
+	// was committed or cancelled - committed text arrives through OnText either way.
+	//
+	static void OnImeComposition( string text );
+
+	//
+	// Files or text dragged in from the OS. Files accumulate through OnDropFile until
+	// OnDropComplete lands the lot on the panel under the cursor.
+	//
+	static void OnDropFile( string path );
+	static void OnDropText( string text );
+	static void OnDropComplete( float x, float y );
+
 	static void OnGameControllerButton( int deviceId, GameControllerCode button, bool state );
 	static void OnGameControllerAxis( int deviceId, GameControllerAxis axis, int value );
 	static void OnGameControllerConnected( int joystickId, int deviceId );

@@ -196,6 +196,7 @@ public partial class Panel
 				_ => FilterMode.Anisotropic
 			},
 		};
+		desc.SetBorderShape( style.BorderShape );
 
 		if ( style.BorderImageSource != null )
 		{

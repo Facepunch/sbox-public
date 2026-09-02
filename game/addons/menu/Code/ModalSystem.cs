@@ -1,4 +1,4 @@
-using MenuProject.Modals;
+﻿using MenuProject.Modals;
 using MenuProject.Modals.PauseMenuModal;
 using Sandbox;
 using Sandbox.Modals;
@@ -150,7 +150,19 @@ public class ModalSystem : IModalSystem
 
 	public void Settings( string page = "" )
 	{
-		Push( new SettingsModal( page ) );
+		var category = MenuProject.Settings.SettingsCatalog.ResolveCategory( page );
+
+		// In a game there's no menu to navigate, so the same view goes up full bleed instead.
+		if ( !Sandbox.Game.InGame && MenuProject.MainMenu.Instance?.Navigator is not null )
+		{
+			CloseExisting<SettingsModal>();
+			MenuProject.MainMenu.Instance.Navigator.Navigate( string.IsNullOrEmpty( category ) ? "/settings" : $"/settings?Category={category}" );
+			return;
+		}
+
+		if ( CloseExisting<SettingsModal>() ) return;
+
+		Push( new SettingsModal( category ) );
 	}
 
 	public void ServiceConnector()
