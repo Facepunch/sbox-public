@@ -39,10 +39,8 @@ public static class ContextMenu
 		var position = parent.MousePosition;
 
 		var list = items.ToArray();
-		var rows = list.Count( x => x is not null );
-		var separators = list.Length - rows;
 
-		var popup = PanelWindow.Popup( parent, position, new Vector2( 220, 12 + rows * 26 + separators * 11 ) );
+		var popup = PanelWindow.Popup( parent, position );
 
 		var menu = popup.Root.Add.Panel( "dropdown" );
 		menu.StyleSheet.Load( "/styles/gallery.scss" );

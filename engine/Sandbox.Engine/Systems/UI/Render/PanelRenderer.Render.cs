@@ -8,6 +8,50 @@ internal partial class PanelRenderer
 	bool backdropGrabActive;
 	BlendMode pendingBlendMode = BlendMode.Normal;
 
+	internal static void MarkPresented( Texture texture, Panel panel, Matrix transform, in GPUScissor scissor, ref bool? panelIsOnScreen, bool? playbackPaused = null )
+	{
+		var player = texture.ParentObject as VideoPlayer;
+		if ( player is null )
+		{
+			if ( texture.IsAnimated ) texture.MarkUsed();
+			return;
+		}
+
+		var presented = playbackPaused switch
+		{
+			true => false,
+			false => true,
+			_ => panelIsOnScreen ??= OverlapsScissor( panel.Box.Rect, transform, scissor )
+		};
+
+		player.TrackPresentation( presented );
+		if ( presented ) texture.MarkUsed();
+	}
+
+	internal static bool OverlapsScissor( Rect rect, Matrix transform, in GPUScissor scissor )
+	{
+		var panelTl = transform.Transform( rect.TopLeft );
+		var panelTr = transform.Transform( rect.TopRight );
+		var panelBl = transform.Transform( rect.BottomLeft );
+		var panelBr = transform.Transform( rect.BottomRight );
+
+		for ( int i = 0; i < scissor.Count; i++ )
+		{
+			ref readonly var clip = ref scissor.Clips[i];
+			var tl = clip.Matrix.Transform( panelTl );
+			var tr = clip.Matrix.Transform( panelTr );
+			var bl = clip.Matrix.Transform( panelBl );
+			var br = clip.Matrix.Transform( panelBr );
+			var min = Vector2.Min( Vector2.Min( tl, tr ), Vector2.Min( bl, br ) );
+			var max = Vector2.Max( Vector2.Max( tl, tr ), Vector2.Max( bl, br ) );
+
+			if ( max.x <= clip.Rect.Left || max.y <= clip.Rect.Top || min.x >= clip.Rect.Right || min.y >= clip.Rect.Bottom )
+				return false;
+		}
+
+		return true;
+	}
+
 	void DrawPanel( Panel panel, CommandList cl )
 	{
 		if ( panel?.ComputedStyle == null || !panel.IsVisible )
@@ -182,6 +226,7 @@ internal partial class PanelRenderer
 	{
 		var desc = panel.CachedDescriptors;
 		if ( desc == null ) return;
+		bool? panelIsOnScreen = null;
 
 		int scissorIndex = batcher.GetOrAddScissor( scissor );
 		int transformIndex = batcher.GetOrAddTransform( transform );
@@ -195,14 +240,12 @@ internal partial class PanelRenderer
 
 			if ( ri.BackgroundImage is not null )
 			{
-				if ( ri.BackgroundImage.IsAnimated )
-					ri.BackgroundImage.MarkUsed();
+				MarkPresented( ri.BackgroundImage, panel, transform, scissor, ref panelIsOnScreen, panel.ComputedStyle?.BackgroundPlaybackPaused );
 				gpu.TextureIndex = ri.BackgroundImage.Index > 0 ? ri.BackgroundImage.Index : Texture.Transparent.Index;
 			}
 			if ( ri.BorderImage is not null )
 			{
-				if ( ri.BorderImage.IsAnimated )
-					ri.BorderImage.MarkUsed();
+				MarkPresented( ri.BorderImage, panel, transform, scissor, ref panelIsOnScreen );
 				gpu.BorderImageIndex = ri.BorderImage.Index > 0 ? ri.BorderImage.Index : Texture.Transparent.Index;
 			}
 
@@ -302,6 +345,7 @@ internal partial class PanelRenderer
 	{
 		var desc = panel.CachedDescriptors;
 		if ( desc == null ) return;
+		bool? panelIsOnScreen = null;
 
 		var customIdx = 0;
 
@@ -331,14 +375,12 @@ internal partial class PanelRenderer
 			var gpu = ri.GPU;
 			if ( ri.BackgroundImage is not null )
 			{
-				if ( ri.BackgroundImage.IsAnimated )
-					ri.BackgroundImage.MarkUsed();
+				MarkPresented( ri.BackgroundImage, panel, transform, scissor, ref panelIsOnScreen, panel.ComputedStyle?.BackgroundPlaybackPaused );
 				gpu.TextureIndex = ri.BackgroundImage.Index > 0 ? ri.BackgroundImage.Index : Texture.Transparent.Index;
 			}
 			if ( ri.BorderImage is not null )
 			{
-				if ( ri.BorderImage.IsAnimated )
-					ri.BorderImage.MarkUsed();
+				MarkPresented( ri.BorderImage, panel, transform, scissor, ref panelIsOnScreen );
 				gpu.BorderImageIndex = ri.BorderImage.Index > 0 ? ri.BorderImage.Index : Texture.Transparent.Index;
 			}
 

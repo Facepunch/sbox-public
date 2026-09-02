@@ -202,7 +202,7 @@ public class ContentTabs : Panel
 			if ( filter.Length > 0 && !asset.Name.Contains( filter, StringComparison.OrdinalIgnoreCase ) ) continue;
 
 			var card = grid.Add.Panel( "assetcard" );
-			if ( index < 60 ) card.Style.Set( "transition-delay", $"{index * 0.014f:0.000}s" );
+			if ( index < 60 ) card.Style.Set( "transition-delay", FormattableString.Invariant( $"{index * 0.014f:0.000}s" ) );
 			index++;
 
 			var thumb = card.Add.Panel( "thumb" );

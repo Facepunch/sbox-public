@@ -5,6 +5,7 @@ global using System.Collections.Generic;
 global using System.Linq;
 global using System.Threading.Tasks;
 global using static Sandbox.Internal.GlobalToolsNamespace;
+global using static Sandbox.Internal.GlobalSystemNamespace;
 using System.Diagnostics;
 using System.Threading;
 

@@ -35,10 +35,9 @@ static class PopupMenu
 		if ( parent is null ) return;
 
 		var list = items.ToArray();
-		var rows = list.Count( x => x is not null );
 		var position = anchor?.Box.Rect.BottomLeft + new Vector2( 0, 6 ) ?? parent.MousePosition;
 
-		var popup = Editor.PanelWindow.Popup( parent, position, new Vector2( 180, 12 + rows * 26 + (list.Length - rows) * 11 ) );
+		var popup = Editor.PanelWindow.Popup( parent, position );
 
 		// A click anywhere that isn't the menu dismisses it, same as an OS menu
 		popup.OnCloseRequested = Close;

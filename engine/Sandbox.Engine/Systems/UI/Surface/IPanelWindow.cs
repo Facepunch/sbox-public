@@ -33,6 +33,13 @@ internal interface IPanelWindow
 	void SetCursorPosition( Vector2 position );
 
 	/// <summary>
+	/// A position SDL reported against this window, in surface pixels. SDL talks in window
+	/// coordinates and those aren't pixels on every platform, so every position arriving from the
+	/// OS goes through here and nothing downstream has to know the difference.
+	/// </summary>
+	Vector2 ToSurface( Vector2 windowPosition );
+
+	/// <summary>
 	/// Simulate and draw. Called every frame, and again from inside a resize drag - the OS holds
 	/// the thread in a modal loop there and this is the only chance we get. Returns whether
 	/// anything was presented, so a loop paced by vsync knows when to back off instead.
@@ -46,7 +53,7 @@ internal interface IPanelWindow
 
 	/// <summary>
 	/// What's under the cursor, so the OS knows whether a click drags the window, resizes it, or
-	/// belongs to the UI.
+	/// belongs to the UI. The position is in surface pixels, like every other position down here.
 	/// </summary>
 	WindowHitTest HitTest( Vector2 position );
 

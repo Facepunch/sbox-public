@@ -34,34 +34,35 @@ partial class StandaloneExporter
 	}
 
 	private static string[] CoreWhitelist = [
-		// Error particle
-		"particles/error/error.vtex_c",
-		"particles/error_particle.vtex_c",
-		
 		// Shaders
-		"shaders/*.shader_c",
+		"shaders/**/*.shader_c",
 		
-		// Dev textures, materials, models (contains error assets etc.)
+		// Dev textures, models (contains error assets etc.)
 		"textures/dev/**/*.vtex_c",
 		"models/dev/**/*.vmdl_c",
-		"materials/dev/**/*.vmat_c",
-		"materials/dev/**/*.vtex_c",
+		"models/dev/**/*.vmat_c",
+		"models/dev/**/*.vtex_c",
+		"textures/**/*.vtex_c",
+		"debug/*",
 
-		// Default materials (solid colors)
-		"materials/default/**/*.vmat_c",
-		"materials/default/**/*.vtex_c",
+		// Default materials
+		"materials/**/*.vmat_c",
+		"materials/**/*.vtex_c",
 		"dev/helper/**/*.vmat_c",
 		"dev/helper/**/*.vtex_c",
-		"materials/error.vmat_c",
+		"dev/vgui/**/*.vmat_c",
+		"dev/*.vtex_c",
 		
 		// Splash screen
 		"materials/startup_background.vtex_c",
 
+		// Interface
+		"fonts/*.ttf",
+		"styles/**/*",
+		"ui/**/*",
+
 		// Config files
 		"cfg/*",
-
-		// Sound mixers (required for engine boot?)
-		"scripts/soundmixers.txt",
 	];
 
 	private IEnumerable<string> GetCoreFiles( string engineDir )

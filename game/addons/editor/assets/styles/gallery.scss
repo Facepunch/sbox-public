@@ -113,6 +113,7 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 //
 .titlebar
 {
+	position: relative;
 	flex-shrink: 0;
 	height: 34px;
 	flex-direction: row;
@@ -292,6 +293,7 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 //
 .toolbar, .viewporttoolbar
 {
+	position: relative;
 	flex-shrink: 0;
 	height: 34px;
 	flex-direction: row;
@@ -946,7 +948,8 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 .console .filter.error.active { color: $rose; }
 .console .filter.info.active { color: $text; }
 
-.console .list { flex-grow: 1; overflow: scroll; background-color: $sunken; }
+// The rows are absolute inside the list, laid out against the spacer's height
+.console .list { position: relative; flex-grow: 1; overflow: scroll; background-color: $sunken; }
 .console .list .spacer { position: relative; flex-shrink: 0; width: 100%; }
 
 .console .row
@@ -1273,7 +1276,7 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 .numberbox .axis.z { color: #7dd3fc; }
 .numberbox .value { flex-grow: 1; color: $bright; }
 
-.slider { pointer-events: all; flex-grow: 1; height: 22px; flex-direction: row; align-items: center; cursor: ew-resize; }
+.slider { position: relative; pointer-events: all; flex-grow: 1; height: 22px; flex-direction: row; align-items: center; cursor: ew-resize; }
 .slider .track
 {
 	position: relative;

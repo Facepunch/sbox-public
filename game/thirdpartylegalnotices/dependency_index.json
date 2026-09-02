@@ -243,17 +243,18 @@
 			]
 		},
 		{
-			"Name": "Autodesk FBX SDK",
-			"Comment": "FBX import/export SDK. Autodesk® and FBX® are registered trademarks or trademarks of Autodesk, Inc., and/or its subsidiaries and/or affiliates in the USA and/or other countries. All other brand names, product names, or trademarks belong to their respective holders.",
+			"Name": "ufbx",
+			"Comment": "Single source file FBX import library.",
 			"UsedBy": [
 				"resourcecompiler",
-				"modeldoc"
+				"modeldoc",
+				"hammer"
 			],
-			"License": "Autodesk-FBX",
-			"ProjectUrl": "https://aps.autodesk.com/developer/overview/fbx-sdk",
-			"Linkage": "dynamic",
+			"License": "MIT",
+			"ProjectUrl": "https://github.com/ufbx/ufbx",
+			"Linkage": "static",
 			"Copyright": [
-				"2012 Autodesk, Inc."
+				"2020 Samuli Raivio"
 			]
 		},
 		{

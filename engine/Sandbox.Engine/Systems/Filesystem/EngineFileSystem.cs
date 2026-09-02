@@ -56,6 +56,7 @@ internal static class EngineFileSystem
 		if ( Application.IsEditor )
 		{
 			LibraryContent = new AggregateFileSystem();
+			Root.CreateDirectory( "/.source2/temp" );
 			EditorTemporary = Root.CreateSubSystem( "/.source2/temp" );
 		}
 

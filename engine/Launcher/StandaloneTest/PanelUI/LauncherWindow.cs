@@ -482,16 +482,7 @@ class LauncherWindow : Panel
 		var projects = ProjectList.GetAll().Where( x => !x.IsBuiltIn ).ToList();
 
 		// Samples ride along without being saved to the list
-		var samples = new List<Project>();
-
-		foreach ( var dir in System.IO.Directory.EnumerateDirectories( "samples/" ) )
-		{
-			var file = System.IO.Directory.EnumerateFiles( dir, "*.sbproj" ).FirstOrDefault();
-			if ( file is null ) continue;
-
-			var sample = ProjectList.TryAddFromFile( file );
-			if ( sample is not null ) samples.Add( sample );
-		}
+		var samples = FindSamples();
 
 		projects = sort switch
 		{
@@ -530,6 +521,34 @@ class LauncherWindow : Panel
 
 		if ( projectsPanel.ChildrenCount == 0 )
 			AddEmptyState();
+	}
+
+	/// <summary>
+	/// The sample projects that ship beside the engine. They are content rather than part of
+	/// the saved list, and the launcher has to come up without them - an install that never
+	/// got the content depot has no samples folder at all.
+	/// </summary>
+	List<Project> FindSamples()
+	{
+		var samples = new List<Project>();
+
+		try
+		{
+			foreach ( var dir in System.IO.Directory.EnumerateDirectories( "samples/" ) )
+			{
+				var file = System.IO.Directory.EnumerateFiles( dir, "*.sbproj" ).FirstOrDefault();
+				if ( file is null ) continue;
+
+				var sample = ProjectList.TryAddFromFile( file );
+				if ( sample is not null ) samples.Add( sample );
+			}
+		}
+		catch ( Exception e )
+		{
+			Log.Info( $"Couldn't read the samples folder: {e.Message}" );
+		}
+
+		return samples;
 	}
 
 	void AddGroup( string title, IEnumerable<Project> projects )
@@ -572,7 +591,9 @@ class LauncherWindow : Panel
 
 	void Stagger( Panel panel )
 	{
-		panel.Style.Set( "animation-delay", $"{animIndex * 0.025f:0.000}s" );
+		// Invariant - this is CSS, not something anyone reads. Formatted in a comma-decimal
+		// culture the delay would come back out as whole seconds
+		panel.Style.Set( "animation-delay", FormattableString.Invariant( $"{animIndex * 0.025f:0.000}s" ) );
 		animIndex++;
 	}
 

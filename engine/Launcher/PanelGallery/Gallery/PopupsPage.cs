@@ -51,9 +51,7 @@ public class PopupsPage : GalleryPage
 		var window = PanelWindow.FromPanel( anchor );
 		if ( window is null ) return;
 
-		// Sized to fit the rows from the start - SizeToContents trims it, but a window born
-		// far too small crushes the first layout instead
-		var popup = PanelWindow.Popup( window, anchor.Box.Rect.BottomLeft + new Vector2( 0, 6 ), new Vector2( 220, 12 + 3 * 27 ) );
+		var popup = PanelWindow.Popup( window, anchor.Box.Rect.BottomLeft + new Vector2( 0, 6 ) );
 
 		var menu = popup.Root.Add.Panel( "dropdown" );
 		menu.StyleSheet.Load( "/styles/editor.scss" );

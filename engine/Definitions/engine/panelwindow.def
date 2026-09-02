@@ -20,6 +20,8 @@ native static class PanelWindowGlue as NativeEngine.PanelWindowNative
 	void GetClientSize( CastTo[void*] IntPtr window, out int width, out int height );
 	void GetBounds( CastTo[void*] IntPtr window, out int x, out int y, out int width, out int height );
 	float GetContentsScale( CastTo[void*] IntPtr window );
+	float GetPixelDensity( CastTo[void*] IntPtr window );
+	float GetDisplayScaleAt( int x, int y );
 
 	bool IsFocused( CastTo[void*] IntPtr window );
 	bool IsMinimized( CastTo[void*] IntPtr window );

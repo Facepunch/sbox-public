@@ -158,12 +158,7 @@ public class EditorWindow : Panel
 			// other native menu does
 			var rect = item.Box.Rect;
 
-			// Rough size up front so it opens at about the right size, then it fits itself exactly
-			var rows = items.Count( x => x is not null );
-			var separators = items.Length - rows;
-			var guess = new Vector2( 240, 12 + rows * 33 + separators * 11 );
-
-			var popup = PanelWindow.Popup( Window, new Vector2( rect.Left, rect.Bottom ), guess );
+			var popup = PanelWindow.Popup( Window, new Vector2( rect.Left, rect.Bottom ) );
 
 			var menu = popup.Root.Add.Panel( "dropdown" );
 			menu.StyleSheet.Load( "/styles/gallery.scss" );

@@ -4,9 +4,17 @@ namespace Sandbox.UI
 {
 	public abstract partial class BaseStyles
 	{
+		//
+		// A CSS number is a plain decimal - it never carries a group separator. The TryParse
+		// overloads that take only a format provider allow one, and under the invariant culture
+		// that separator is the comma, so "0,500" comes back as five hundred rather than failing.
+		// A value written out in a comma-decimal culture would land as a wildly wrong number
+		// instead of being rejected, so say which styles we actually accept.
+		//
+
 		static float? ParseFloat( string value )
 		{
-			if ( float.TryParse( value, CultureInfo.InvariantCulture, out var result ) )
+			if ( float.TryParse( value, NumberStyles.Float, CultureInfo.InvariantCulture, out var result ) )
 				return result;
 
 			return null;
@@ -14,7 +22,7 @@ namespace Sandbox.UI
 
 		static int? ParseInt( string value )
 		{
-			if ( int.TryParse( value, CultureInfo.InvariantCulture, out var result ) )
+			if ( int.TryParse( value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var result ) )
 				return result;
 
 			return null;

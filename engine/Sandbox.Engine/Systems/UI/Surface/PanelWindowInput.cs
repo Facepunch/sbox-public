@@ -21,7 +21,7 @@ internal static class PanelWindowInput
 	{
 		if ( PanelWindows.Find( window ) is not { } target ) return;
 
-		PanelWindows.SetCursorPosition( target, new Vector2( x, y ) );
+		PanelWindows.SetCursorPosition( target, target.ToSurface( new Vector2( x, y ) ) );
 	}
 
 	/// <summary>
@@ -98,7 +98,9 @@ internal static class PanelWindowInput
 	/// </summary>
 	internal static int OnDragOver( IntPtr window, float x, float y )
 	{
-		return (int)(PanelWindows.Find( window )?.Surface.DragOver( new Vector2( x, y ) ) ?? DropAction.None);
+		if ( PanelWindows.Find( window ) is not { } target ) return (int)DropAction.None;
+
+		return (int)target.Surface.DragOver( target.ToSurface( new Vector2( x, y ) ) );
 	}
 
 	/// <summary>
@@ -114,7 +116,9 @@ internal static class PanelWindowInput
 	/// </summary>
 	internal static int OnDragDrop( IntPtr window, float x, float y )
 	{
-		return (int)(PanelWindows.Find( window )?.Surface.Drop( new Vector2( x, y ) ) ?? DropAction.None);
+		if ( PanelWindows.Find( window ) is not { } target ) return (int)DropAction.None;
+
+		return (int)target.Surface.Drop( target.ToSurface( new Vector2( x, y ) ) );
 	}
 
 	/// <summary>
@@ -150,7 +154,9 @@ internal static class PanelWindowInput
 	/// </summary>
 	internal static void OnDropComplete( IntPtr window, float x, float y )
 	{
-		PanelWindows.Find( window )?.Surface.DropComplete( new Vector2( x, y ) );
+		if ( PanelWindows.Find( window ) is not { } target ) return;
+
+		target.Surface.DropComplete( target.ToSurface( new Vector2( x, y ) ) );
 	}
 
 	// Windows with an IME composition in flight
@@ -227,7 +233,7 @@ internal static class PanelWindowInput
 	{
 		if ( PanelWindows.Find( window ) is not { } target ) return 0;
 
-		return (int)target.HitTest( new Vector2( x, y ) );
+		return (int)target.HitTest( target.ToSurface( new Vector2( x, y ) ) );
 	}
 
 	/// <summary>

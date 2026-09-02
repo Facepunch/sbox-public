@@ -78,22 +78,7 @@ partial class ObjectSelection
 				}
 			}
 
-			{
-				var group = AddGroup( "Pivot" );
-
-				var grid = Layout.Row();
-				grid.Spacing = 4;
-
-				CreateButton( "Previous", "meshtools/pivot_tools/previous.png", "mesh.previous-pivot", PreviousPivot, _gos.Length > 0, grid );
-				CreateButton( "Next", "meshtools/pivot_tools/next.png", "mesh.next-pivot", NextPivot, _gos.Length > 0, grid );
-				CreateButton( "Clear", "meshtools/pivot_tools/clear.png", "mesh.clear-pivot", ClearPivot, _gos.Length > 0, grid );
-				CreateButton( "Center", "meshtools/object_selection_buttons/center_origin.png", "mesh.center-pivot", CenterPivot, _gos.Length > 0, grid );
-				CreateButton( "World Origin", "meshtools/pivot_tools/world_origin.png", "mesh.zero-pivot", ZeroPivot, _gos.Length > 0, grid );
-
-				grid.AddStretchCell();
-
-				group.Add( grid );
-			}
+			this.AddPivotButtons( _tool, _gos.Length > 0 );
 
 			{
 				var group = AddGroup( "Tools" );
@@ -224,21 +209,6 @@ partial class ObjectSelection
 			_tool.Tool.CurrentTool = tool;
 		}
 
-		[Shortcut( "mesh.previous-pivot", "Shift+MWheelDown", typeof( SceneViewWidget ) )]
-		public void PreviousPivot() => _tool.PreviousPivot();
-
-		[Shortcut( "mesh.next-pivot", "Shift+MWheelUp", typeof( SceneViewWidget ) )]
-		public void NextPivot() => _tool.NextPivot();
-
-		[Shortcut( "mesh.center-pivot", "Ctrl+Home", typeof( SceneViewWidget ) )]
-		public void CenterPivot() => _tool.CenterPivot();
-
-		[Shortcut( "mesh.clear-pivot", "Home", typeof( SceneViewWidget ) )]
-		public void ClearPivot() => _tool.ClearPivot();
-
-		[Shortcut( "mesh.zero-pivot", "Ctrl+End", typeof( SceneViewWidget ) )]
-		public void ZeroPivot() => _tool.ZeroPivot();
-
 		[Shortcut( "mesh.set-origin-to-pivot", "Ctrl+D", typeof( SceneViewWidget ) )]
 		public void SetOriginToPivot()
 		{
@@ -255,12 +225,12 @@ partial class ObjectSelection
 			{
 				foreach ( var mesh in _meshes )
 				{
-					SetMeshOrigin( mesh, _tool.Pivot );
+					SetMeshOrigin( mesh, _tool.Pivot.Position );
 				}
 
 				foreach ( var go in boundsObjects )
 				{
-					SetObjectOrigin( go, _tool.Pivot );
+					SetObjectOrigin( go, _tool.Pivot.Position );
 				}
 			}
 		}
@@ -281,7 +251,7 @@ partial class ObjectSelection
 				}
 			}
 
-			_tool.ClearPivot();
+			_tool.Pivot.Reset();
 		}
 
 		[Shortcut( "mesh.bake-scale", "", typeof( SceneViewWidget ) )]

@@ -107,9 +107,11 @@ public sealed partial class SceneModel : SceneObject
 	/// </summary>
 	/// <param name="boneIndex">Bone index to set transform of.</param>
 	/// <param name="transform"></param>
+	/// <exception cref="ArgumentOutOfRangeException">Thrown when given index exceeds range of [0,BoneCount-1]</exception>
 	public void SetBoneWorldTransform( int boneIndex, Transform transform )
 	{
-		// TODO: Throw on index OOB
+		OOBChecks.ThrowIfBoneOutOfBounds( boneIndex, Model?.BoneCount ?? 0, nameof( boneIndex ) );
+
 		animNative.SetWorldSpaceRenderBoneTransform( boneIndex, transform );
 	}
 

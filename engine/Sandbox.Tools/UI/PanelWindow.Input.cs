@@ -13,7 +13,8 @@ public sealed partial class PanelWindow
 	string _cursor;
 
 	/// <summary>
-	/// How far from the edge of a borderless window counts as a resize handle, in pixels.
+	/// How far from the edge of a borderless window counts as a resize handle, in the same units
+	/// the UI is authored in - it grows with the display scale so the grab stays the same size.
 	/// </summary>
 	public float ResizeBorder { get; set; } = 6.0f;
 
@@ -28,6 +29,8 @@ public sealed partial class PanelWindow
 		_mousePosition = position;
 		_mouseInside = position.x >= 0 && position.y >= 0 && position.x < Surface.Size.x && position.y < Surface.Size.y;
 	}
+
+	Vector2 IPanelWindow.ToSurface( Vector2 windowPosition ) => WindowToPixels( windowPosition );
 
 	void ApplyCursorShape()
 	{
@@ -65,9 +68,6 @@ public sealed partial class PanelWindow
 	{
 		var size = Surface.Size;
 		if ( size.x < 1 || size.y < 1 ) return IPanelWindow.WindowHitTest.Normal;
-
-		// SDL asks in window points, we lay out in pixels
-		position *= Surface.DpiScale;
 
 		if ( !IsMaximized )
 		{

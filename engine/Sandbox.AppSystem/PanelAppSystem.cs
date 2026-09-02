@@ -3,6 +3,7 @@ using Sandbox.Engine;
 using Sandbox.UI;
 using System;
 using System.Diagnostics;
+using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -90,6 +91,20 @@ public class PanelAppSystem : AppSystem
 		DLLImportResolver.SetupResolvers();
 		Sandbox.Tasks.SyncContext.Init();
 		ThreadSafe.MarkMainThread();
+
+		// Same as Bootstrap.PreInit - the engine formats and parses in one culture everywhere,
+		// so an app that boots its own way rather than through PreInit has to say so too
+		if ( CultureInfo.CurrentCulture.Name != "en-US" )
+		{
+			var culture = CultureInfo.CreateSpecificCulture( "en-US" );
+
+			// Default* covers the thread pool as well, so work that ran off the main thread comes
+			// back with numbers the rest of the engine can read
+			CultureInfo.DefaultThreadCurrentCulture = culture;
+			CultureInfo.DefaultThreadCurrentUICulture = culture;
+			Thread.CurrentThread.CurrentCulture = culture;
+			Thread.CurrentThread.CurrentUICulture = culture;
+		}
 
 		ThreadPool.SetMinThreads( Environment.ProcessorCount, Environment.ProcessorCount );
 

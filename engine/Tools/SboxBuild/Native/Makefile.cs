@@ -28,16 +28,13 @@ public static class Makefile
 		make.Append( ".PHONY: all clean force " + string.Join( ' ', modules.Select( m => m.Name ) ) + "\n" );
 		// Named, not positional: the first rule in the file is not necessarily the one to build.
 		make.Append( ".DEFAULT_GOAL := all\n\n" );
-		var fbxSource = "thirdparty/fbx/FbxSdk/2020.3.4/lib/gcc/x64/release/libfbxsdk.so";
-		var fbxOutput = $"{Paths.BinDir}/libfbxsdk.so";
-		make.Append( "all: " + string.Join( ' ', modules.Select( m => m.Name ).Append( fbxOutput ) ) + "\n\n" );
+		make.Append( "all: " + string.Join( ' ', modules.Select( m => m.Name ) ) + "\n\n" );
 		make.Append( "force:\n\n" );
 
 		// The vendored SDL3 carries SONAME libSDL3.so.0, which is the name the loader then looks for, and
 		// the tree only has the unversioned file.
 		var sdl = $"{platform.SdlDir}/libSDL3.so";
 		make.Append( $"{sdl}.0: {sdl}\n\tln -sf libSDL3.so $@\n\n" );
-		make.Append( $"{fbxOutput}: {fbxSource}\n\t@$(MKDIR) $(dir $@)\n\tcp -f $< $@\n\n" );
 
 		// The schema compiler is a parent that shells out to a child, so a schema step waits for both.
 		var schemaTools = modules
@@ -145,7 +142,6 @@ public static class Makefile
 				.ToList();
 			var inputs = module.Libraries.Select( l => LinkInput( l, modules ) ).Where( x => x is not null ).ToList();
 			dependencies.AddRange( inputs.Where( x => !x.StartsWith( "-l", StringComparison.Ordinal ) ) );
-			if ( inputs.Contains( fbxSource ) ) dependencies.Add( fbxOutput );
 
 			if ( module.Kind != ModuleKind.Lib ) dependencies.Add( $"{sdl}.0" );
 

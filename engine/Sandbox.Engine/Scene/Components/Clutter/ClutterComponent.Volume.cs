@@ -222,8 +222,16 @@ public sealed partial class ClutterComponent
 			child.Destroy();
 	}
 
+	private IDisposable _boundsUndoScope;
+
 	private void DrawVolumeGizmos()
 	{
+		if ( !Gizmo.Pressed.Any )
+		{
+			_boundsUndoScope?.Dispose();
+			_boundsUndoScope = null;
+		}
+
 		if ( !Gizmo.IsSelected )
 			return;
 
@@ -236,6 +244,8 @@ public sealed partial class ClutterComponent
 
 			if ( Gizmo.Control.BoundingBox( "bounds", Bounds, out var newBounds ) )
 			{
+				_boundsUndoScope ??= Scene.Editor?.UndoScope( "Resize Clutter Bounds" ).WithComponentChanges( this ).Push();
+
 				Bounds = newBounds;
 			}
 		}

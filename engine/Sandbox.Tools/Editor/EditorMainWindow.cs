@@ -421,7 +421,8 @@ public class EditorMainWindow : DockWindow, IUndoSystemProvider
 
 		foreach ( var tool in EngineTools.All )
 		{
-			var option = AppsMenu.AddOption( tool.Name, tool.Icon, () => EngineTools.ShowTool( tool.Name ) );
+			var option = AppsMenu.AddOption( tool.Name, tool.Icon, () => EngineTools.ShowTool( tool ) );
+			option.Enabled = EngineTools.IsAvailable( tool.Library );
 			option.StatusTip = tool.Description;
 			option.ToolTip = $"{tool.Name} - {tool.Description}";
 		}

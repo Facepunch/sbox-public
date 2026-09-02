@@ -10,16 +10,31 @@ public abstract class VolumeComponent : Component, VolumeSystem.IVolume
 	/// </summary>
 	public bool IsInfinite => SceneVolume.Type == SceneVolume.VolumeTypes.Infinite;
 
+	private IDisposable _volumeUndoScope;
+
 	protected override void DrawGizmos()
 	{
 		base.DrawGizmos();
+
+		if ( !Gizmo.Pressed.Any )
+		{
+			_volumeUndoScope?.Dispose();
+			_volumeUndoScope = null;
+		}
 
 		if ( !Gizmo.IsSelected )
 			return;
 
 		var vol = SceneVolume;
-		vol.DrawGizmos( true );
-		SceneVolume = vol;
+
+		vol.DrawGizmos( true, out var changed );
+
+		if ( changed )
+		{
+			_volumeUndoScope ??= Scene.Editor?.UndoScope( "Resize Volume" ).WithComponentChanges( this ).Push();
+
+			SceneVolume = vol;
+		}
 	}
 
 	bool VolumeSystem.IVolume.Test( Vector3 worldPosition )

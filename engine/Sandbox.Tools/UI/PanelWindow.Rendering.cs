@@ -71,7 +71,7 @@ public sealed partial class PanelWindow
 	/// </summary>
 	bool SimulateFrame()
 	{
-		var size = Size;
+		var size = PixelSize;
 		if ( size.x < 1 || size.y < 1 ) return false;
 
 		if ( size != _swapChainSize )
@@ -85,7 +85,17 @@ public sealed partial class PanelWindow
 		Surface.Size = _swapChainSize;
 
 		if ( !_isPopup )
-			Surface.DpiScale = PanelWindowNative.GetContentsScale( _window );
+		{
+			var scale = PanelWindowNative.GetContentsScale( _window );
+
+			// Dragged onto a display that scales differently - the limits the OS is holding were
+			// worked out in the old display's units
+			if ( scale != Surface.DpiScale )
+			{
+				Surface.DpiScale = scale;
+				ApplySizeLimits();
+			}
+		}
 
 		Surface.MouseInside = _mouseInside;
 		Surface.MouseMoved( _mousePosition );
@@ -115,12 +125,9 @@ public sealed partial class PanelWindow
 	{
 		if ( Surface.Focus is not { } focus ) return;
 
-		var scale = Surface.DpiScale;
-		if ( scale <= 0 ) scale = 1;
-
-		// Surface pixels to window points
+		// Surface pixels to window coordinates
 		var rect = focus.ImeCaretRect;
-		rect = new Rect( rect.Left / scale, rect.Top / scale, rect.Width / scale, rect.Height / scale );
+		rect = new Rect( PixelsToWindow( rect.Position ), PixelsToWindow( rect.Size ) );
 
 		if ( rect == _imeArea ) return;
 		_imeArea = rect;
@@ -140,6 +147,13 @@ public sealed partial class PanelWindow
 		if ( !_shown )
 		{
 			_shown = true;
+
+			// It was born as big as its parent, so the OS may have shoved it back onto the screen
+			// to make it fit. It has shrunk to its contents since, so ask again for where it was
+			// meant to go - the OS still gets the last word if it doesn't fit there either
+			if ( _isPopup )
+				PanelWindowNative.SetPosition( _window, (int)_pendingPosition.x, (int)_pendingPosition.y );
+
 			PanelWindowNative.Show( _window );
 		}
 
@@ -157,11 +171,18 @@ public sealed partial class PanelWindow
 		var content = Surface.Root.GetChild( 0 ).Box.Rect.Size;
 		if ( content.x < 1 || content.y < 1 ) return false;
 
-		var wanted = new Vector2( MathF.Ceiling( content.x ), MathF.Ceiling( content.y ) );
-		if ( (wanted - Surface.Size).Length < 1.0f ) return false;
+		// Round up - a window a fraction short clips what's in it
+		var wanted = PixelsToWindow( new Vector2( MathF.Ceiling( content.x ), MathF.Ceiling( content.y ) ) );
 
-		var scale = Surface.DpiScale;
-		PanelWindowNative.SetSize( _window, (int)(wanted.x / scale), (int)(wanted.y / scale) );
+		var width = (int)MathF.Ceiling( wanted.x );
+		var height = (int)MathF.Ceiling( wanted.y );
+
+		// Compared in window coordinates - they're the only sizes a window can take, and where one
+		// is worth more than a pixel, comparing pixels never settles
+		PanelWindowNative.GetBounds( _window, out _, out _, out var currentWidth, out var currentHeight );
+		if ( width == currentWidth && height == currentHeight ) return false;
+
+		PanelWindowNative.SetSize( _window, width, height );
 
 		return true;
 	}

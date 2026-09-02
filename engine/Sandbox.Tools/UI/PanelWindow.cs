@@ -116,28 +116,82 @@ public sealed partial class PanelWindow : IDisposable, IPanelWindow
 	}
 
 	/// <summary>
-	/// Size of the window's client area, in pixels.
+	/// Size of the window's client area, in the units the UI inside it is authored in. The window
+	/// on the desktop is this much again bigger on a display that scales.
 	/// </summary>
 	public Vector2 Size
 	{
 		get
 		{
-			if ( _window == IntPtr.Zero ) return _pendingSize;
+			if ( _window == IntPtr.Zero ) return default;
 
-			PanelWindowNative.GetClientSize( _window, out var w, out var h );
-			return new Vector2( w, h );
+			return PixelSize / Surface.DpiScale;
 		}
 
 		set
 		{
 			if ( _window == IntPtr.Zero ) return;
 
-			PanelWindowNative.SetSize( _window, (int)value.x, (int)value.y );
+			var window = UiToWindow( value );
+			PanelWindowNative.SetSize( _window, (int)MathF.Ceiling( window.x ), (int)MathF.Ceiling( window.y ) );
 		}
 	}
 
 	/// <summary>
-	/// Position of the window on the desktop, in pixels.
+	/// Size of the window's client area in real pixels - what the swap chain is sized to, and what
+	/// the surface lays its panels out in. Zero until there's an OS window to measure: a popup
+	/// waits for a frame boundary to make one.
+	/// </summary>
+	internal Vector2 PixelSize
+	{
+		get
+		{
+			if ( _window == IntPtr.Zero ) return default;
+
+			PanelWindowNative.GetClientSize( _window, out var w, out var h );
+			return new Vector2( w, h );
+		}
+	}
+
+	//
+	// Three spaces meet at a window, and SDL hands us the one number that isn't obvious:
+	//
+	//   ui      - what panels are authored in, and what everything public here is measured in
+	//   pixels  - what the surface lays out in and what the swap chain is sized to
+	//   window  - what SDL reports input in and takes geometry in
+	//
+	// pixels = ui * Surface.DpiScale, and pixels = window * PixelDensity. On Windows a window
+	// coordinate is already a pixel and the display scale carries everything; on a retina Mac the
+	// density carries it instead. The three conversions below are the only places this matters -
+	// nothing outside this class has to know either number exists.
+	//
+
+	/// <summary>
+	/// Pixels to one of SDL's window coordinates. One on Windows, two on a retina Mac. This is not
+	/// the display scale - a 1.75x Windows display has a display scale of 1.75 and a density of 1.
+	/// </summary>
+	float PixelDensity => _window == IntPtr.Zero ? 1.0f : PanelWindowNative.GetPixelDensity( _window );
+
+	/// <summary>
+	/// Authored UI units to window coordinates, for handing the OS a size or a size limit. Uses the
+	/// same scale the surface lays out with, so a window can't disagree with what's inside it.
+	/// </summary>
+	Vector2 UiToWindow( Vector2 ui ) => ui * Surface.DpiScale / PixelDensity;
+
+	/// <summary>
+	/// Surface pixels to window coordinates, for handing the OS a position or a size.
+	/// </summary>
+	Vector2 PixelsToWindow( Vector2 pixels ) => pixels / PixelDensity;
+
+	/// <summary>
+	/// Window coordinates to surface pixels, for input arriving from SDL.
+	/// </summary>
+	Vector2 WindowToPixels( Vector2 window ) => window * PixelDensity;
+
+	/// <summary>
+	/// Position of the window on the desktop, in the OS's own coordinates - desktop pixels on
+	/// Windows. Deliberately not the units <see cref="Size"/> is in: a desktop spanning displays
+	/// that scale differently has no single UI unit to measure it in.
 	/// </summary>
 	public Vector2 Position
 	{
@@ -166,7 +220,7 @@ public sealed partial class PanelWindow : IDisposable, IPanelWindow
 		set
 		{
 			field = value;
-			if ( _window != IntPtr.Zero ) PanelWindowNative.SetMinSize( _window, (int)value.x, (int)value.y );
+			ApplySizeLimits();
 		}
 	}
 
@@ -179,8 +233,24 @@ public sealed partial class PanelWindow : IDisposable, IPanelWindow
 		set
 		{
 			field = value;
-			if ( _window != IntPtr.Zero ) PanelWindowNative.SetMaxSize( _window, (int)value.x, (int)value.y );
+			ApplySizeLimits();
 		}
+	}
+
+	/// <summary>
+	/// Hand the size limits to the OS in its own units. Re-applied when the display scale changes,
+	/// because the same limit is a different number of window coordinates on a display that scales
+	/// differently. Zero means no limit, which is what SDL wants too.
+	/// </summary>
+	void ApplySizeLimits()
+	{
+		if ( _window == IntPtr.Zero ) return;
+
+		var min = UiToWindow( MinSize );
+		var max = UiToWindow( MaxSize );
+
+		PanelWindowNative.SetMinSize( _window, (int)min.x, (int)min.y );
+		PanelWindowNative.SetMaxSize( _window, (int)max.x, (int)max.y );
 	}
 
 	/// <summary>
@@ -231,14 +301,17 @@ public sealed partial class PanelWindow : IDisposable, IPanelWindow
 	public bool IsMaximized => _window != IntPtr.Zero && PanelWindowNative.IsMaximized( _window );
 
 	/// <summary>
-	/// Open a window and start running UI in it.
+	/// Open a window and start running UI in it. The size is in the units the UI inside it is
+	/// authored in, the same as <see cref="Size"/> - on a display that scales, the window on the
+	/// desktop comes out that much bigger, so what you asked for is what fits inside it.
 	/// </summary>
 	public PanelWindow( string title, Vector2 size ) : this( title, size, new Vector2( -1, -1 ), false )
 	{
 	}
 
 	/// <summary>
-	/// Open a window at a given desktop position. Pass -1,-1 to let the OS place it.
+	/// Open a window at a given desktop position, in the OS's own coordinates - see
+	/// <see cref="Position"/>. Pass -1,-1 to let the OS place it.
 	/// </summary>
 	public PanelWindow( string title, Vector2 size, Vector2 position ) : this( title, size, position, false )
 	{
@@ -264,7 +337,14 @@ public sealed partial class PanelWindow : IDisposable, IPanelWindow
 		Borderless = borderless;
 		Title = title;
 
-		_window = PanelWindowNative.Create( title ?? "", (int)position.x, (int)position.y, (int)size.x, (int)size.y, borderless );
+		// The size asked for is in the units the UI is authored in, and the UI is drawn at the
+		// display scale - the window has to carry that same scale or the contents it was sized
+		// for do not fit. There is no window to ask yet, so ask the display it will open on.
+		var displayScale = PanelWindowNative.GetDisplayScaleAt( (int)position.x, (int)position.y );
+		var width = (int)MathF.Ceiling( size.x * displayScale );
+		var height = (int)MathF.Ceiling( size.y * displayScale );
+
+		_window = PanelWindowNative.Create( title ?? "", (int)position.x, (int)position.y, width, height, borderless );
 		if ( _window == IntPtr.Zero )
 			throw new Exception( "Couldn't create the window" );
 
@@ -275,7 +355,7 @@ public sealed partial class PanelWindow : IDisposable, IPanelWindow
 		// multisampled swapchain costs a resolve every frame plus the multisampled colour and depth
 		// images behind it (23MB for a 1100x660 window at 4x, more than the window's own buffers)
 		_swapChain = PanelWindowNative.CreateSwapChain( _window, (int)RenderMultisampleType.RENDER_MULTISAMPLE_NONE, VSync );
-		_swapChainSize = Size;
+		_swapChainSize = PixelSize;
 
 		_world = new SceneWorld();
 
@@ -294,6 +374,10 @@ public sealed partial class PanelWindow : IDisposable, IPanelWindow
 
 		Surface = new UISurface();
 		Surface.OnCursorChanged = x => _cursor = x;
+
+		// Before the first frame, so anything set on the window between here and then - a size
+		// limit, say - converts against the scale the surface will actually lay out with
+		Surface.DpiScale = PanelWindowNative.GetContentsScale( _window );
 
 		_all.Add( this );
 		PanelWindows.Register( this );

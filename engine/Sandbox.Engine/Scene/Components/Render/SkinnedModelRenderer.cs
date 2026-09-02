@@ -469,6 +469,9 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 	/// </summary>
 	void ReadBonesFromGameObjects()
 	{
+		// Bone map can outlive the model it was built from, so indices aren't guaranteed to still be in range.
+		var boneCount = Model.IsValid() ? Model.BoneCount : 0;
+
 		foreach ( var entry in boneToGameObject )
 		{
 			if ( !entry.Value.Flags.Contains( GameObjectFlags.ProceduralBone ) )
@@ -478,10 +481,14 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 			if ( entry.Value.Flags.Contains( GameObjectFlags.Absolute ) )
 				continue;
 
+			var boneIndex = entry.Key.Index;
+			if ( boneIndex < 0 || boneIndex >= boneCount )
+				continue;
+
 			var localTransform = entry.Value.LocalTransform;
 			if ( localTransform.IsValid )
 			{
-				SceneModel.SetParentSpaceBone( entry.Key.Index, localTransform );
+				SceneModel.SetParentSpaceBone( boneIndex, localTransform );
 			}
 		}
 	}
