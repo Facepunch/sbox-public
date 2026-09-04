@@ -14,7 +14,7 @@
 
         <div class="game-title">@GameTitle</div>
         <div class="game-author">@GameAuthor</div>
-        <div class="more-info"><span class="button">F1</span> for info, hold <span class="button">ESC</span> to exit</div>
+        <div class="more-info"><span class="button">F1</span>@Language.GetPhrase("gamestarting.prefix")<span class="button">ESC</span>@Language.GetPhrase("gamestarting.suffix")</div>
 
     </div>
     
@@ -33,7 +33,7 @@
         if (MenuUtility.GamePackage is not null)
         {
             GameTitle = MenuUtility.GamePackage.Title;
-            GameAuthor = MenuUtility.GamePackage.Org?.Title ?? "Unknown";
+            GameAuthor = MenuUtility.GamePackage.Org?.Title ?? Language.GetPhrase("gamestarting.unknown");
             AvatarUrl = MenuUtility.GamePackage.Thumb;
         }
     }

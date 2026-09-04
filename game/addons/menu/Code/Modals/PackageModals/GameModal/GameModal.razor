@@ -18,7 +18,7 @@
 
             <PortalButton StartActive Portal=@Portal>
                 <Button>
-                    <SearchlightTab Title="Overview" Icon="people" />
+                    <SearchlightTab Title="#gamemodal.overview" Icon="people" />
                 </Button>
                 <Content>
                     <Media Package=@Package></Media>
@@ -28,7 +28,7 @@
 
             <PortalButton @ref=ReviewsTab Portal=@Portal>
                 <Button>
-                    <SearchlightTab Title="Reviews" Icon="reviews" />
+                    <SearchlightTab Title="#gamemodal.reviews" Icon="reviews" />
                 </Button>
                 <Content>
                     <PackageReviews Package=@Package/>
@@ -39,7 +39,7 @@
             {
                 <PortalButton @ref=ChangesTab Portal=@Portal>
                     <Button>
-                        <SearchlightTab Title="Changes" Icon="history" />
+                        <SearchlightTab Title="#gamemodal.changes" Icon="history" />
                     </Button>
                     <Content>
                         <PackageChanges Package=@Package/>
@@ -51,7 +51,7 @@
             {
                 <PortalButton Portal=@Portal>
                     <Button>
-                        <SearchlightTab Title="News" Icon="newspaper" />
+                        <SearchlightTab Title="#gamemodal.news" Icon="newspaper" />
                     </Button>
                     <Content>
                         <PackageNews Package=@Package/>
@@ -61,7 +61,7 @@
 
             <PortalButton Portal=@Portal>
                 <Button>
-                    <SearchlightTab Title="Achievements" Icon="emoji_events" />
+                    <SearchlightTab Title="#gamemodal.achievements" Icon="emoji_events" />
                 </Button>
                 <Content>
 					<AchievementList Package=@Package />

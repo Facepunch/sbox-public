@@ -7,8 +7,8 @@
 <div class="header">
     <ButtonGroup Value:bind="@tab" class="bg-round" ValueChanged="@OnTabChanged">
         <ChildContent>
-            <Button Text="Newest" Value="newest"></Button>
-            <Button Text="Voted" Value="quality"></Button>
+            <Button Text=#avatar.workshop.newest Value="newest"></Button>
+            <Button Text=#avatar.workshop.voted Value="upvotes"></Button>
         </ChildContent>
     </ButtonGroup>
 </div>

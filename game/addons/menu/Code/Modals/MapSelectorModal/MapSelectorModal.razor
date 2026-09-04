@@ -14,9 +14,7 @@
 
 		<div class="tabs">
 			<span class="@(ActiveTab == "workshop" ? " active" : "")" @onclick=@(() => ActiveTab = "workshop")>
-				<icon>business_center</icon>
-				Workshop
-			</span>
+				<icon>business_center</icon>#mapselectormodal.workshop</span>
 
 			<div class="seperator" />
 
@@ -64,7 +62,7 @@
 
 				if (!scenes.Any())
 				{
-					<Label class="medium none">No results</Label>
+					<Label class="medium none">#mapselectormodal.no_results</Label>
 				}
 				else
 				{

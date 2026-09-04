@@ -19,7 +19,7 @@
 
             <PortalButton StartActive Portal=@Portal>
                 <Button>
-                    <SearchlightTab Title="Overview" Icon="people" />
+                    <SearchlightTab Title="#mapmodal.overview" Icon="people" />
                 </Button>
                 <Content>
                     <Media Package=@Package></Media>
@@ -29,7 +29,7 @@
 
             <PortalButton @ref=ReviewsTab Portal=@Portal>
                 <Button>
-                    <SearchlightTab Title="Reviews" Icon="reviews" />
+                    <SearchlightTab Title="#mapmodal.reviews" Icon="reviews" />
                 </Button>
                 <Content>
                     <PackageReviews Package=@Package />
@@ -40,7 +40,7 @@
             {
                 <PortalButton @ref=ChangesTab Portal=@Portal>
                     <Button>
-                        <SearchlightTab Title="Changes" Icon="history" />
+                        <SearchlightTab Title="#mapmodal.changes" Icon="history" />
                     </Button>
                     <Content>
                         <PackageChanges Package=@Package />
@@ -52,7 +52,7 @@
             {
                 <PortalButton Portal=@Portal>
                     <Button>
-                        <SearchlightTab Title="News" Icon="newspaper" />
+                        <SearchlightTab Title="#mapmodal.news" Icon="newspaper" />
                     </Button>
                     <Content>
                         <PackageNews Package=@Package />
@@ -70,7 +70,7 @@
                     <Button>
                         <Card class="achievements-card">
                             <ChildContent>
-                                <Label class="section-label">Achievements</Label>
+                                <Label class="section-label">#mapmodal.achievements</Label>
                                 <PackageAchievementSummary Package="@Package" />
                             </ChildContent>
                         </Card>
