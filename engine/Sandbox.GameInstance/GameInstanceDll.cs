@@ -707,6 +707,11 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 				GlobalContext.Current.FileData = FileSystem.OrganizationData.CreateSubSystem( package );
 			}
+			else if ( Application.IsStandalone && ident == Standalone.Manifest.Ident )
+			{
+				GlobalContext.Current.FileOrg = EngineFileSystem.Data;
+				GlobalContext.Current.FileData = EngineFileSystem.Data;
+			}
 			else
 			{
 				EngineFileSystem.Data.CreateDirectory( ".local" );
