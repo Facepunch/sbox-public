@@ -301,7 +301,7 @@ internal static class EngineLoop
 		{
 			using ( IGameInstanceDll.Current?.PushScope() )
 			{
-				VoiceManager.Tick();
+				Microphone.Tick();
 				Sandbox.TextRendering.Tick();
 			}
 		}
