@@ -93,7 +93,9 @@ public static partial class EditorUtility
 			}
 
 			var uvs = polygonMesh.GetFaceVertexTexCoords().ToArray();
-			var normals = polygonMesh.GetFaceVertexNormals().ToArray();
+			var normals = polygonMesh.GetFaceVertexNormals()
+				.Select( x => polygonMesh.Transform.NormalToWorld( x ) )
+				.ToArray();
 
 			fixed ( Vector3* pNormals = &normals[0] )
 				mesh.SetNormals( (IntPtr)pNormals, normals.Length );
@@ -204,7 +206,9 @@ public static partial class EditorUtility
 			}
 
 			var uvs = polygonMesh.GetFaceVertexTexCoords().ToArray();
-			var normals = polygonMesh.GetFaceVertexNormals().ToArray();
+			var normals = polygonMesh.GetFaceVertexNormals()
+				.Select( x => polygonMesh.Transform.NormalToWorld( x ) )
+				.ToArray();
 
 			fixed ( Vector3* pNormals = &normals[0] )
 				mesh.SetNormals( (IntPtr)pNormals, normals.Length );

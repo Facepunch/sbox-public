@@ -88,8 +88,7 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 				.WithComponentChanges( _meshes )
 				.Push();
 
-			DuplicateSelection();
-			OnSelectionChanged();
+			DuplicateSelectionKeepingPivot();
 		}
 		else
 		{
@@ -286,8 +285,7 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 		{
 			if ( duplicate )
 			{
-				DuplicateSelection();
-				OnSelectionChanged();
+				DuplicateSelectionKeepingPivot();
 			}
 
 			foreach ( var go in _objects )
@@ -450,6 +448,16 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 
 		if ( !previous.SetEquals( _objects.Select( x => x?.Id ) ) )
 			Pivot.Reset();
+	}
+
+	/// <summary>
+	/// Duplicating swaps the selection for copies sat in the same place. That isn't a selection
+	/// change as far as the pivot is concerned, so refresh the cache without resetting it.
+	/// </summary>
+	void DuplicateSelectionKeepingPivot()
+	{
+		DuplicateSelection();
+		RebuildSelectionCache();
 	}
 
 	void RebuildSelectionCache()

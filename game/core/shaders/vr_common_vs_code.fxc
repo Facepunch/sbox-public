@@ -52,7 +52,7 @@ void VS_DecodeObjectSpaceNormalAndTangent( const VS_INPUT i, out float3 vNormalO
 	//
 	float4 vInputNormalOs = i.vNormalOs;
 	float4 vInputTangentUOs_flTangentVSign = float4( 0.0, 0.0, 1.0, 1.0 );
-	#if ( D_COMPRESSED_NORMALS_AND_TANGENTS != 1 )
+	if ( g_bUncompressedTangentFrame )
 	{
 		vInputNormalOs.w = 1.0f;
 
@@ -66,7 +66,6 @@ void VS_DecodeObjectSpaceNormalAndTangent( const VS_INPUT i, out float3 vNormalO
 		}
 		#endif
 	}
-	#endif
 
 	DecompressNormalTangent( vInputNormalOs.xyzw, vInputTangentUOs_flTangentVSign.xyzw, vNormalOs.xyz, vTangentUOs_flTangentVSign.xyzw );
 }
