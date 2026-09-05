@@ -5,6 +5,8 @@ namespace Editor.TerrainEditor;
 
 public class TerrainMaterialList : ListView
 {
+	static List<TerrainMaterialList> All = [];
+
 	Terrain Terrain;
 	Drag dragData;
 	int dragOverIndex = -1;
@@ -21,9 +23,17 @@ public class TerrainMaterialList : ListView
 		ItemAlign = Sandbox.UI.Align.FlexStart;
 		Margin = 8;
 
+		All.Add(this);
 		Terrain = terrain;
 
 		BuildItems();
+	}
+
+	public override void OnDestroyed()
+	{
+		base.OnDestroyed();
+
+		All.Remove( this );
 	}
 
 	protected override bool OnDragItem( VirtualWidget item )
@@ -147,19 +157,31 @@ public class TerrainMaterialList : ListView
 
 	private void ShowItemContext( object obj )
 	{
-		if ( obj is not TerrainMaterial entry ) return;
-
 		var m = new ContextMenu( this );
 		m.AddOption( "Open In Editor", "edit", () =>
 		{
-			var asset = AssetSystem.FindByPath( entry.ResourcePath );
-			asset?.OpenInEditor();
+			foreach ( var entry in SelectedItems )
+			{
+				if ( entry is TerrainMaterial material )
+				{
+					var asset = AssetSystem.FindByPath( material.ResourcePath );
+					asset?.OpenInEditor();
+				}
+			}
 		} );
 
 		m.AddOption( "Remove", "delete", () =>
 		{
-			Terrain.Storage.Materials.Remove( entry );
+			foreach ( var entry in SelectedItems )
+			{
+				if ( entry is TerrainMaterial material )
+				{
+					Terrain.Storage.Materials.Remove( material );
+				}
+			}
+
 			Terrain.UpdateMaterialsBuffer();
+
 			BuildItems();
 		} );
 
@@ -168,7 +190,10 @@ public class TerrainMaterialList : ListView
 
 	public void BuildItems()
 	{
-		SetItems( Terrain.Storage.Materials.Cast<object>() );
+		foreach ( var materialList in All )
+		{
+			materialList.SetItems( Terrain.Storage.Materials.Cast<object>() );
+		}
 	}
 
 	protected override void PaintItem( VirtualWidget item )
