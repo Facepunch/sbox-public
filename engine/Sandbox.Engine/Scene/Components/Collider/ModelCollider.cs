@@ -10,6 +10,9 @@
 public class ModelCollider : Collider, IHasModel
 {
 	private Model _model;
+	private bool _hasCollisionMesh;
+
+	public override bool IsConcave => _hasCollisionMesh;
 
 	[Property]
 	public Model Model
@@ -18,6 +21,12 @@ public class ModelCollider : Collider, IHasModel
 		set
 		{
 			_model = value;
+
+			if ( value == null )
+			{
+				_hasCollisionMesh = false;
+				Static = false;
+			}
 
 			UpdateShape();
 		}
@@ -50,9 +59,11 @@ public class ModelCollider : Collider, IHasModel
 		if ( !Gizmo.IsSelected && !Gizmo.IsHovered )
 			return;
 
-		if ( Model is null ) return;
+		if ( Model is null )
+			return;
 
-		if ( Model.Physics is null ) return;
+		if ( Model.Physics is null )
+			return;
 
 		Gizmo.Draw.Color = Gizmo.Colors.Green;
 
@@ -85,6 +96,8 @@ public class ModelCollider : Collider, IHasModel
 
 	protected override IEnumerable<PhysicsShape> CreatePhysicsShapes( PhysicsBody targetBody, Transform local )
 	{
+		_hasCollisionMesh = false;
+
 		if ( Model is null || Model.Physics is null )
 			yield break;
 
@@ -129,6 +142,8 @@ public class ModelCollider : Collider, IHasModel
 
 			foreach ( var mesh in part.Meshes )
 			{
+				_hasCollisionMesh = true;
+
 				var shape = targetBody.AddShape( mesh, bx, false, true );
 				Assert.NotNull( shape, "Mesh shape was null" );
 

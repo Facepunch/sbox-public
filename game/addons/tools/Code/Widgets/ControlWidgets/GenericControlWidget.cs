@@ -38,6 +38,7 @@ public class GenericControlWidget : ControlObjectWidget
 			foreach ( var key in keys )
 			{
 				var widget = Layout.Add( ControlSheetRow.CreateEditor( key ) );
+				widget.ConditionalReadOnly = key.IsConditionalReadOnly();
 				widget.Visible = key.ShouldShow();
 				KeyPropertyWidgets.Add( key, widget );
 			}
@@ -230,6 +231,7 @@ public class GenericControlWidget : ControlObjectWidget
 
 		foreach ( var kvp in KeyPropertyWidgets )
 		{
+			kvp.Value.ConditionalReadOnly = kvp.Key.IsConditionalReadOnly();
 			kvp.Value.Visible = kvp.Key.ShouldShow();
 		}
 	}

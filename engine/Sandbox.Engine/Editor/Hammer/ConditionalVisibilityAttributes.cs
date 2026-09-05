@@ -90,3 +90,38 @@ public class ShowIfAttribute : HideIfAttribute
 		return !base.TestCondition( so );
 	}
 }
+
+/// <summary>
+/// Make this property read-only if a given property within the same class has the given value. Used typically in the Editor Inspector.
+/// </summary>
+[AttributeUsage( AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Method, AllowMultiple = true )]
+public class ReadOnlyIfAttribute : InspectorReadOnlyAttribute
+{
+	/// <summary>
+	/// Property name to test.
+	/// </summary>
+	public string PropertyName { get; set; }
+
+	/// <summary>
+	/// Property value to test against.
+	/// </summary>
+	public object Value { get; set; }
+
+	public ReadOnlyIfAttribute( string propertyName, object value )
+	{
+		PropertyName = propertyName;
+		Value = value;
+	}
+
+	public override bool TestCondition( SerializedObject so )
+	{
+		if ( so.TryGetProperty( PropertyName, out var property ) )
+		{
+			var value = property.GetValue<object>();
+			return Equals( value, Value );
+		}
+
+		Log.Warning( $"ReadOnlyIfAttribute: Couldn't find property '{PropertyName}' on {so.TypeName}" );
+		return false;
+	}
+}

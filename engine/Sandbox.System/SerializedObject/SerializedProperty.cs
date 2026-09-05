@@ -424,6 +424,22 @@ public abstract partial class SerializedProperty : IValid
 	}
 
 	/// <summary>
+	/// Returns true if this property should be read-only in the inspector.
+	/// </summary>
+	public bool IsConditionalReadOnly()
+	{
+		if ( Parent is null ) return false;
+
+		foreach ( var attr in GetAttributes<InspectorReadOnlyAttribute>() )
+		{
+			if ( attr.TestCondition( Parent ) )
+				return true;
+		}
+
+		return false;
+	}
+
+	/// <summary>
 	/// Return true if this is a nullable value type
 	/// </summary>
 	public bool IsNullable
@@ -519,6 +535,14 @@ public abstract partial class SerializedProperty : IValid
 /// Hide a property if a condition matches.
 /// </summary>
 public abstract class InspectorVisibilityAttribute : System.Attribute
+{
+	public abstract bool TestCondition( SerializedObject so );
+}
+
+/// <summary>
+/// Make a property read-only if a condition matches.
+/// </summary>
+public abstract class InspectorReadOnlyAttribute : System.Attribute
 {
 	public abstract bool TestCondition( SerializedObject so );
 }
