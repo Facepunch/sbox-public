@@ -138,12 +138,8 @@ public sealed class HullCollider : Collider
 
 		if ( Type == PrimitiveType.Box )
 		{
-			var box = BBox.FromPositionAndSize( Center, BoxSize );
-			box.Mins *= world.Scale;
-			box.Maxs *= world.Scale;
-			box.Mins += local.Position;
-			box.Maxs += local.Position;
-			Shape.UpdateBoxShape( box.Center, local.Rotation, box.Size * 0.5f );
+			var center = local.PointToWorld( Center );
+			Shape.UpdateBoxShape( center, local.Rotation, BoxSize * world.Scale * 0.5f );
 		}
 		else if ( Type == PrimitiveType.Cone )
 		{
@@ -171,11 +167,8 @@ public sealed class HullCollider : Collider
 
 		if ( Type == PrimitiveType.Box )
 		{
-			var box = BBox.FromPositionAndSize( Center, BoxSize );
-			box.Mins *= scale;
-			box.Maxs *= scale;
-			box.Mins += local.Position;
-			box.Maxs += local.Position;
+			var center = local.PointToWorld( Center );
+			var box = BBox.FromPositionAndSize( center, BoxSize * scale );
 			Shape = body.AddBoxShape( box, local.Rotation );
 		}
 		else if ( Type == PrimitiveType.Cone )

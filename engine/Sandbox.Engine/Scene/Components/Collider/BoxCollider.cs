@@ -81,13 +81,9 @@ public sealed class BoxCollider : Collider
 		var body = Rigidbody;
 		var world = Transform.TargetWorld;
 		var local = body.IsValid() ? body.Transform.TargetWorld.WithScale( 1.0f ).ToLocal( world ) : global::Transform.Zero;
-		var box = BBox.FromPositionAndSize( Center, Scale );
-		box.Mins *= world.Scale;
-		box.Maxs *= world.Scale;
-		box.Mins += local.Position;
-		box.Maxs += local.Position;
+		var center = local.PointToWorld( Center );
 
-		Shape.UpdateBoxShape( box.Center, local.Rotation, box.Size * 0.5f );
+		Shape.UpdateBoxShape( center, local.Rotation, Scale * world.Scale * 0.5f );
 
 		CalculateLocalBounds();
 	}
@@ -106,17 +102,8 @@ public sealed class BoxCollider : Collider
 
 	protected override IEnumerable<PhysicsShape> CreatePhysicsShapes( PhysicsBody targetBody, Transform local )
 	{
-		var box = BBox.FromPositionAndSize( Center, Scale );
-
-		var scale = WorldScale;
-
-		// scale by our scale!
-		box.Mins *= scale;
-		box.Maxs *= scale;
-
-		// move!
-		box.Mins += local.Position;
-		box.Maxs += local.Position;
+		var center = local.PointToWorld( Center );
+		var box = BBox.FromPositionAndSize( center, Scale * WorldScale );
 
 		var shape = targetBody.AddBoxShape( box, local.Rotation );
 
