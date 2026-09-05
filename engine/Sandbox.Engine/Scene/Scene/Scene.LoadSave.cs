@@ -33,6 +33,18 @@ public partial class Scene : GameObject
 	/// </summary>
 	public bool Load( SceneLoadOptions options )
 	{
+		return Load( options, out _ );
+	}
+
+	/// <summary>
+	/// Load from the provided <see cref="SceneLoadOptions"/>. This will not load the scene for other clients in a
+	/// multiplayer session, you should instead use <see cref="Game.ChangeScene"/>
+	/// if you want to bring other clients.
+	/// </summary>
+	public bool Load( SceneLoadOptions options, out List<GameObject> sceneObjects )
+	{
+		sceneObjects = [];
+
 		var sceneFile = options.GetSceneFile();
 
 		if ( !sceneFile.IsValid() )
@@ -121,6 +133,8 @@ public partial class Scene : GameObject
 				{
 					var go = CreateObject( false );
 					go.Deserialize( json );
+
+					sceneObjects.Add( go );
 				}
 			}
 

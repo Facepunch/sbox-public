@@ -50,6 +50,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		AddHandler<LoadSceneSnapshotMsg>( OnLoadSceneSnapshotMsg );
 		AddHandler<LoadSceneRequestSnapshotMsg>( OnLoadSceneRequestSnapshotMsg );
 		AddHandler<SceneLoadedMsg>( OnSceneLoadedMsg );
+		AddHandler<LoadAdditiveSceneMsg>( OnLoadAdditiveScene );
 	}
 
 	internal void OnHotload()
@@ -124,6 +125,48 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			PendingSceneLoads[c.Id] = loadMsg.Id;
 			c.SendStream( msg );
 			c.State = Connection.ChannelState.MountVPKs;
+		}
+
+		msg.Dispose();
+	}
+
+	internal void LoadAdditiveSceneBroadcast( List<GameObject> sceneObjects, SceneLoadOptions options )
+	{
+		if ( !Networking.IsActive || !Networking.IsHost )
+			return;
+
+		JsonArray gameObjects = [];
+		foreach ( var gameObject in sceneObjects )
+		{
+			var json = gameObject.Serialize();
+			if ( json is null )
+				continue;
+
+			gameObjects.Add( json );
+		}
+
+		var sceneFile = options.GetSceneFile();
+		var loadMsg = new LoadAdditiveSceneMsg
+		{
+			SceneFile = sceneFile,
+			GameObjects = Json.Serialize( gameObjects ),
+			ShowLoadingScreen = options.ShowLoadingScreen,
+		};
+
+		var msg = ByteStream.Create( 256 );
+		msg.Write( InternalMessageType.Packed );
+
+		Networking.System.Serialize( loadMsg, ref msg );
+
+		foreach ( var c in Connection.All )
+		{
+			if ( c == Connection.Local )
+				continue;
+
+			if ( c.State < Connection.ChannelState.Snapshot )
+				continue;
+
+			c.SendStream( msg );
 		}
 
 		msg.Dispose();
@@ -382,6 +425,37 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		PendingSceneLoads.Remove( connection.Id );
 		Instance?.OnJoined( connection );
+	}
+
+	private void OnLoadAdditiveScene( LoadAdditiveSceneMsg msg, Connection source )
+	{
+		if ( !source.IsHost )
+			return;
+
+		var scene = Game.ActiveScene;
+		if ( !scene.IsValid() )
+			return;
+
+		var gameObjects = JsonNode.Parse( msg.GameObjects ).AsArray();
+		var sceneFile = new SceneFile
+		{
+			Id = msg.SceneFile.Id,
+			GameObjects = gameObjects.Select( x => x.AsObject() ).ToArray(),
+			SceneProperties = msg.SceneFile.SceneProperties
+		};
+
+		var loadOptions = new SceneLoadOptions
+		{
+			IsAdditive = true,
+			ShowLoadingScreen = msg.ShowLoadingScreen
+		};
+
+		loadOptions.SetScene( sceneFile );
+
+		using ( SuppressSpawnMessages() )
+		{
+			scene.Load( loadOptions );
+		}
 	}
 
 	/// <summary>
@@ -1480,6 +1554,14 @@ struct SceneLoadedMsg
 {
 	public Guid SceneId { get; set; }
 	public Guid Id { get; set; }
+}
+
+[Expose]
+struct LoadAdditiveSceneMsg
+{
+	public SceneFile SceneFile { get; set; }
+	public string GameObjects { get; set; }
+	public bool ShowLoadingScreen { get; set; }
 }
 
 [Expose]
