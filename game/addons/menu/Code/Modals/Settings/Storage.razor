@@ -60,13 +60,68 @@
 
         </column>
 
+        <div class="list-header">
+            <h2>Downloaded Games</h2>
+            <ButtonGroup class="glass" ButtonClass="glass with-click" Options=@SortOptions Value:bind=@SortBy></ButtonGroup>
+        </div>
+
+        @if (!GamePackages.Any())
+        {
+            <div class="empty-list">Games you download will show up here once they've been played.</div>
+        }
+
+        @foreach (var package in SortedPackages)
+        {
+            <row class="package-row">
+
+                <div class="thumb" style="background-image: url( @(string.IsNullOrEmpty(package.Thumb) ? "/ui/sbox-logo-square.svg" : package.Thumb) )"></div>
+
+                <column class="info">
+                    <div class="title">@package.Title <span class="ident">@package.Ident</span></div>
+                    <div class="breakdown">@GetBreakdown(package.Ident)</div>
+                </column>
+
+                <column class="dates">
+                    <div class="date-row">
+                        <span class="label">Downloaded</span>
+                        <span class="value">@FormatAge( package.Downloaded )</span>
+                    </div>
+                    <div class="date-row">
+                        <span class="label">Last played</span>
+                        <span class="value">@FormatAge( package.LastPlayed )</span>
+                    </div>
+                </column>
+
+                <div class="size">@package.Size.FormatBytes()</div>
+
+                <Button Icon="delete" Tooltip="Delete Cached Files" @onclick=@(() => ConfirmDelete(package))></Button>
+
+            </row>
+        }
+
+        @if (SharedCount > 0)
+        {
+            <row class="package-row shared">
+
+                <div class="thumb is-icon"><icon>checkroom</icon></div>
+
+                <column class="info">
+                    <div class="title">Avatar Items &amp; Shared Assets</div>
+                    <div class="breakdown">@SharedCount packages - clothing and other assets used across games</div>
+                </column>
+
+                <div class="size">@SharedSize.FormatBytes()</div>
+
+            </row>
+        }
+
 	</div>
 
     <div class="page-footer">
 
         @if (refreshTask == null || refreshTask.IsCompleted)
         {
-            <Button Icon="restore" @onclick=@TryRefresh>Refresh</Button>
+            <Button Icon="restore" @onclick=@ForceRefresh>Refresh</Button>
         }
 
         @if (clearTask?.IsCompleted ?? true)
@@ -84,14 +139,52 @@
     /// </summary>
     const int DaysAgo = 7;
 
+    /// <summary>
+    /// Show cached results immediately, but rescan quietly once they're this old.
+    /// </summary>
+    static readonly TimeSpan SoftRefreshAge = TimeSpan.FromSeconds( 45 );
+
     Task refreshTask;
     Task clearTask;
 
     Dictionary<string, long> SizeBreakdown = new Dictionary<string, long>();
 
+    List<MenuUtility.Storage.PackageEntry> Packages = new();
+    Dictionary<string, string> PackageBreakdowns = new();
+
     long Files;
     long Size;
     long OldSize;
+
+    string SortBy { get; set; } = "size";
+
+    List<Option> SortOptions = [new("Size", "size"), new("Last Played", "played"), new("Name", "name")];
+
+    /// <summary>
+    /// Package types that are games you join and play. Everything else (clothing,
+    /// models etc) is shared content and gets lumped into a single line.
+    /// </summary>
+    static readonly string[] GameTypes = ["game", "gamemode", "map"];
+
+    static bool IsGame( MenuUtility.Storage.PackageEntry package ) => GameTypes.Contains( package.Type, StringComparer.OrdinalIgnoreCase );
+
+    IEnumerable<MenuUtility.Storage.PackageEntry> GamePackages => Packages.Where( IsGame );
+
+    long SharedSize => Packages.Where( x => !IsGame(x) ).Sum( x => x.Size );
+    int SharedCount => Packages.Count( x => !IsGame(x) );
+
+    /// <summary>
+    /// True when the page is already showing something useful (cached or partial).
+    /// Background refreshes shouldn't wipe this mid-scan.
+    /// </summary>
+    bool HasDisplay => Size > 0 || Packages.Count > 0;
+
+    IEnumerable<MenuUtility.Storage.PackageEntry> SortedPackages => SortBy switch
+    {
+        "played" => GamePackages.OrderByDescending( x => x.LastPlayed ),
+        "name" => GamePackages.OrderBy( x => x.Title ),
+        _ => GamePackages.OrderByDescending( x => x.Size )
+    };
 
     protected override void OnAfterTreeRender(bool firstTime)
     {
@@ -100,7 +193,55 @@
         if (!firstTime)
             return;
 
-        TryRefresh();
+        var hadCache = TryApplyCache();
+
+        // Fresh cache: nothing to do. Stale or missing: scan (keeping cached UI if we have it).
+        if (!hadCache || IsCacheStale())
+            TryRefresh();
+    }
+
+    /// <summary>
+    /// Paint the last scan onto the page without touching disk.
+    /// </summary>
+    bool TryApplyCache()
+    {
+        var snap = MenuUtility.Storage.LastUsage;
+        if ( snap is null )
+            return false;
+
+        ApplySnapshot( snap );
+        return true;
+    }
+
+    bool IsCacheStale()
+    {
+        var snap = MenuUtility.Storage.LastUsage;
+        return snap is null || !snap.IsFresh( SoftRefreshAge );
+    }
+
+    void ApplySnapshot( MenuUtility.Storage.UsageSnapshot snap )
+    {
+        SizeBreakdown = new Dictionary<string, long>( snap.SizeBreakdown );
+        Packages = snap.Packages.ToList();
+        PackageBreakdowns = new Dictionary<string, string>( snap.PackageBreakdowns );
+        Files = snap.Files;
+        Size = snap.Size;
+        OldSize = snap.OldSize;
+        StateHasChanged();
+    }
+
+    void StoreCache()
+    {
+        MenuUtility.Storage.SetCachedUsage( new MenuUtility.Storage.UsageSnapshot
+        {
+            CapturedAt = DateTimeOffset.UtcNow,
+            Files = Files,
+            Size = Size,
+            OldSize = OldSize,
+            SizeBreakdown = new Dictionary<string, long>( SizeBreakdown ),
+            Packages = Packages.ToList(),
+            PackageBreakdowns = new Dictionary<string, string>( PackageBreakdowns )
+        } );
     }
 
     /// <summary>
@@ -112,7 +253,22 @@
         await clearTask;
         clearTask = null;
 
-        TryRefresh();
+        ForceRefresh();
+    }
+
+    /// <summary>
+    /// Ask before purging a package's cached files
+    /// </summary>
+    void ConfirmDelete( MenuUtility.Storage.PackageEntry package )
+    {
+        MenuOverlay.Question( $"Delete {package.Size.FormatBytes()} of cached files for {package.Title}? It'll redownload next time you play it.", "delete",
+            () => _ = DeletePackage( package ), null );
+    }
+
+    async Task DeletePackage( MenuUtility.Storage.PackageEntry package )
+    {
+        await MenuUtility.Storage.DeletePackageAsync( package.Ident );
+        ForceRefresh();
     }
 
     /// <summary>
@@ -125,59 +281,142 @@
         refreshTask = Refresh();
     }
 
+    /// <summary>
+    /// User hit Refresh — drop the cache and rescan.
+    /// </summary>
+    void ForceRefresh()
+    {
+        MenuUtility.Storage.InvalidateCache();
+        TryRefresh();
+    }
+
+    string GetBreakdown( string ident )
+    {
+        return PackageBreakdowns.GetValueOrDefault( ident, "" );
+    }
+
+    /// <summary>
+    /// Relative age for the list ("3 days ago"). Falls back if the stamp is missing.
+    /// </summary>
+    static string FormatAge( DateTimeOffset when )
+    {
+        if ( when == default )
+            return "—";
+
+        return $"{(DateTimeOffset.Now - when).Humanize( 1 )} ago";
+    }
+
+    static string ClassifyFile( string filename )
+    {
+        if (filename.Contains(".vpk", StringComparison.OrdinalIgnoreCase)) return "Map";
+        if (filename.Contains(".vtex", StringComparison.OrdinalIgnoreCase)) return "Texture";
+        if (filename.Contains(".shader", StringComparison.OrdinalIgnoreCase)) return "Shader";
+        if (filename.Contains(".png", StringComparison.OrdinalIgnoreCase)) return "Image";
+        if (filename.Contains(".jpg", StringComparison.OrdinalIgnoreCase)) return "Image";
+        if (filename.Contains(".gif", StringComparison.OrdinalIgnoreCase)) return "Image";
+        if (filename.Contains(".mp4", StringComparison.OrdinalIgnoreCase)) return "Video";
+        if (filename.Contains(".vmt", StringComparison.OrdinalIgnoreCase)) return "Material";
+        if (filename.Contains(".vmat", StringComparison.OrdinalIgnoreCase)) return "Material";
+        if (filename.Contains(".vmdl", StringComparison.OrdinalIgnoreCase)) return "Model";
+        if (filename.Contains(".vsnd", StringComparison.OrdinalIgnoreCase)) return "Sound";
+
+        return "Other";
+    }
+
     async Task Refresh()
     {
-        SizeBreakdown.Clear();
-        Files = 0;
-        Size = 0;
-        OldSize = 0;
+        // Scan into locals first so a background refresh doesn't blank the cached UI.
+        var sizeBreakdown = new Dictionary<string, long>();
+        long files = 0;
+        long size = 0;
+        long oldSize = 0;
 
         DateTime cutoff = DateTime.Now.AddDays(-DaysAgo);
+        var showingProgress = !HasDisplay;
 
-        StateHasChanged();
+        if ( showingProgress )
+        {
+            SizeBreakdown.Clear();
+            Files = 0;
+            Size = 0;
+            OldSize = 0;
+            StateHasChanged();
+        }
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
 
         foreach (var entry in MenuUtility.Storage.GetStorageFiles())
         {
-            Files++;
-            Size += entry.Size;
+            files++;
+            size += entry.Size;
 
             if (entry.LastAccessed < cutoff)
-                OldSize += entry.Size;
+                oldSize += entry.Size;
 
-            var type = "Other";
+            var type = ClassifyFile(entry.Filename);
 
-            if (entry.Filename.Contains(".vpk", StringComparison.OrdinalIgnoreCase)) type = "Map";
-            else if (entry.Filename.Contains(".vtex", StringComparison.OrdinalIgnoreCase)) type = "Texture";
-            else if (entry.Filename.Contains(".shader", StringComparison.OrdinalIgnoreCase)) type = "Shader";
-            else if (entry.Filename.Contains(".png", StringComparison.OrdinalIgnoreCase)) type = "Image";
-            else if (entry.Filename.Contains(".jpg", StringComparison.OrdinalIgnoreCase)) type = "Image";
-            else if (entry.Filename.Contains(".gif", StringComparison.OrdinalIgnoreCase)) type = "Image";
-            else if (entry.Filename.Contains(".mp4", StringComparison.OrdinalIgnoreCase)) type = "Video";
-            else if (entry.Filename.Contains(".vmt", StringComparison.OrdinalIgnoreCase)) type = "Material";
-            else if (entry.Filename.Contains(".vmdl", StringComparison.OrdinalIgnoreCase)) type = "Model";
-            else if (entry.Filename.Contains(".vsnd", StringComparison.OrdinalIgnoreCase)) type = "Sound";
+            if (!sizeBreakdown.ContainsKey(type))
+                sizeBreakdown[type] = 0;
 
-            if (type == "Other")
+            sizeBreakdown[type] += entry.Size;
+
+            if (showingProgress && sw.ElapsedMilliseconds > 16)
             {
-             //   type = System.IO.Path.GetExtension( entry.Filename );
-            }
-
-            if (!SizeBreakdown.ContainsKey(type))
-                SizeBreakdown[type] = 0;
-
-            SizeBreakdown[type] += entry.Size;
-
-
-            if (sw.ElapsedMilliseconds > 16)
-            {
+                SizeBreakdown = new Dictionary<string, long>( sizeBreakdown );
+                Files = files;
+                Size = size;
+                OldSize = oldSize;
                 sw.Restart();
                 await Task.DelayRealtime( 1 );
                 StateHasChanged();
             }
         }
 
+        SizeBreakdown = sizeBreakdown;
+        Files = files;
+        Size = size;
+        OldSize = oldSize;
         StateHasChanged();
+
+        Packages = await MenuUtility.Storage.GetPackagesAsync();
+        StateHasChanged();
+
+        await RefreshBreakdowns();
+        StoreCache();
+    }
+
+    /// <summary>
+    /// Count each package's cached files by type, same categories as the totals above
+    /// </summary>
+    async Task RefreshBreakdowns()
+    {
+        var breakdowns = new Dictionary<string, string>();
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
+        foreach (var package in GamePackages)
+        {
+            var counts = new Dictionary<string, int>();
+
+            foreach (var file in MenuUtility.Storage.GetPackageFiles(package.Ident))
+            {
+                var type = ClassifyFile(file.Filename);
+
+                counts[type] = counts.GetValueOrDefault(type) + 1;
+
+                if (sw.ElapsedMilliseconds > 16)
+                {
+                    sw.Restart();
+                    await Task.DelayRealtime( 1 );
+                }
+            }
+
+            breakdowns[package.Ident] = string.Join(" • ", counts.OrderByDescending(x => x.Value)
+                .Select(x => $"{x.Value:n0} {(x.Value == 1 ? x.Key : x.Key + "s")}"));
+
+            PackageBreakdowns = new Dictionary<string, string>( breakdowns );
+            StateHasChanged();
+        }
+
+        PackageBreakdowns = breakdowns;
     }
 }
