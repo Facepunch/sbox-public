@@ -35,6 +35,7 @@ partial class MoveMode
 		var rot = renderer.WorldRotation;
 		var vel = Controller.Velocity;
 		var wishVel = Controller.WishVelocity;
+		bool useWorldVel = Controller.UseWorldVelocityForAnimation;
 
 		// skid
 		{
@@ -54,8 +55,9 @@ partial class MoveMode
 			// skid is the difference between our old velocity and our current velocity
 			var skid = (smoothed - vel) * skidAmount;
 
-			// if we're standing still, use our actual velity as the skid
-			skid = Vector3.Lerp( skid, vel * pushSkidAmount, wishVel.Length.Remap( 100, 0, 0, 1 ) );
+			// if we're standing still, use our actual velocity as the skid
+			var skidRef = useWorldVel ? vel : wishVel;
+			skid = Vector3.Lerp( skid, vel * pushSkidAmount, skidRef.Length.Remap( 100, 0, 0, 1 ) );
 
 			// smooth our skidders
 			smoothedSkid.Target = skid;
@@ -72,10 +74,10 @@ partial class MoveMode
 
 		// move the legs
 		{
-			var smoothed = wishVel;
+			var smoothed = useWorldVel ? vel : wishVel;
 			{
 				smoothedWish.Target = smoothed;
-				smoothedWish.SmoothTime = 0.6f;
+				smoothedWish.SmoothTime = Controller.AnimationSmoothTime;
 				smoothedWish.Update( Time.Delta );
 				smoothed = smoothedWish.Current;
 
@@ -95,11 +97,12 @@ partial class MoveMode
 
 		// the player's wish
 		{
-			var local = GetLocalVelocity( rot, wishVel );
+			var wishSource = useWorldVel ? vel : wishVel;
+			var local = GetLocalVelocity( rot, wishSource );
 
 			renderer.Set( "wish_direction", GetAngle( local ) );
-			renderer.Set( "wish_speed", wishVel.Length );
-			renderer.Set( "wish_groundspeed", wishVel.WithZ( 0f ).Length );
+			renderer.Set( "wish_speed", wishSource.Length );
+			renderer.Set( "wish_groundspeed", wishSource.WithZ( 0f ).Length );
 			renderer.Set( "wish_x", local.x );
 			renderer.Set( "wish_y", local.y );
 			renderer.Set( "wish_z", local.z );

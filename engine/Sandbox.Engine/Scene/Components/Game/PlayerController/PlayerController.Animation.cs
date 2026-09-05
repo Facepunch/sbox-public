@@ -69,6 +69,17 @@ public sealed partial class PlayerController : Component
 	/// </summary>
 	[Property, Feature( "Animator" ), Group( "Aim" ), Order( 1003 ), Range( 0, 1 )] public float AimStrengthBody { get; set; } = 1;
 
+	/// <summary>
+	/// If enabled, locomotion animations will be driven by the character's actual world velocity.
+	/// </summary>
+	[Property, Feature( "Animator" )]
+	public bool UseWorldVelocityForAnimation { get; set; }
+
+	/// <summary>
+	/// How much the locomotion animation is smoothed. Higher values are smoother but less responsive.
+	/// </summary>
+	[Property, Feature( "Animator" ), Range( 0, 2 )]
+	public float AnimationSmoothTime { get; set; } = 0.6f;
 
 	void EnableAnimationEvents()
 	{
