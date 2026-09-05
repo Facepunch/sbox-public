@@ -22,12 +22,14 @@ internal static class VoiceManager
 	public static bool IsValid => steamUser.IsValid;
 	public static bool IsListening { get; private set; }
 	public static bool IsRecording => timeSinceLastHear < 0.2f;
+	private static bool _listenActive;
 
 	public static bool StartRecording()
 	{
 		if ( !IsValid ) return false;
 
 		IsListening = true;
+		_listenActive = true;
 		steamUser.StartVoiceRecording();
 		return true;
 	}
@@ -61,8 +63,10 @@ internal static class VoiceManager
 		uint dataSize = 0;
 
 		// Check if there's any avaliable first, the subsequent call takes 0.1ms even if you're not recording..
-		if ( steamUser.GetAvailableVoice( out var _ ) != 0 )
+		if ( !_listenActive || steamUser.GetAvailableVoice( out var _ ) != 0 )
 		{
+			if ( _listenActive && !IsListening && !IsRecording )
+				_listenActive = false;
 			dataSize = 0;
 			compressedMemory = Memory<byte>.Empty;
 			return;
