@@ -23,6 +23,13 @@ internal static partial class Api
 
 		public static async Task UpdateActivity( string game, string gameVersion, string map, string[] addons )
 		{
+			// A standalone build talks to no s&box services - Api.Init() never initializes the Backend there
+			// (so Backend.Account is null) and reporting activity isn't wanted for a self-hosted game. Bail BEFORE
+			// the mutex / Performance.Flip so nothing here can throw into the catch (which was logging an NRE on
+			// standalone startup); returning before the try also keeps the finally from releasing an unheld mutex.
+			if ( Application.IsStandalone )
+				return;
+
 			var shc = HashCode.Combine( game );
 			bool newSessionHash = shc != sessionHashCode;
 			sessionHashCode = shc;

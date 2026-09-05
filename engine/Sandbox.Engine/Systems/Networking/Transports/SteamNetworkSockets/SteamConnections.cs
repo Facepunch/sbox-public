@@ -112,8 +112,14 @@ internal static partial class SteamNetwork
 
 		internal override async Task<bool> OnReceiveUserInfo( UserInfo info )
 		{
+			// This runs before the connection has any ConnectionInfo/PreInfo, so a rejection here
+			// only surfaces to the server console via these logs - otherwise all the host sees is
+			// the generic "Unknown Player disconnected" from OnDisconnected.
+			var who = $"{info.Name} [{info.SteamId}]";
+
 			if ( info.AuthTicket == null || info.AuthTicket.Length == 0 )
 			{
+				Log.Info( $"Rejecting {who}: Invalid Auth Ticket (client sent no ticket - is Steam running/logged in on the client?)" );
 				Close( (int)NetConnectionEnd.Misc_SteamConnectivity, "Invalid Auth Ticket" );
 				return false;
 			}
@@ -123,6 +129,7 @@ internal static partial class SteamNetwork
 
 			if ( currentPlayerCount >= maxPlayers )
 			{
+				Log.Info( $"Rejecting {who}: Server Full ({currentPlayerCount}/{maxPlayers})" );
 				Close( (int)NetConnectionEnd.App_Generic, "Server Full" );
 				return false;
 			}
@@ -139,18 +146,38 @@ internal static partial class SteamNetwork
 			var result = Services.Auth.BeginAuthSession( info.SteamId, info.AuthTicket );
 			if ( result != BeginAuthResult.OK )
 			{
+				PendingAuth.Remove( info.SteamId );
+				Log.Warning( $"Rejecting {who}: BeginAuthSession failed ({result}) - check the server is logged onto Steam and the app id matches the client." );
 				Close( 0, result.ToString() );
 				return false;
 			}
 
 			// Wait for Steam to validate and tell us the app owner
-			var authResponse = await tcs.Task.WaitAsync( TimeSpan.FromSeconds( 30 ) );
+			ValidateAuthTicketResponse_t authResponse;
+			try
+			{
+				authResponse = await tcs.Task.WaitAsync( TimeSpan.FromSeconds( 30 ) );
+			}
+			catch ( TimeoutException )
+			{
+				// The ValidateAuthTicketResponse callback never arrived. Usually means the server
+				// couldn't reach Steam to validate the ticket. Clean up so we don't leak the pending
+				// entry or the auth session we started above.
+				PendingAuth.Remove( info.SteamId );
+				Services.Auth.EndAuthSession( info.SteamId );
+				Log.Warning( $"Rejecting {who}: timed out after 30s waiting for Steam to validate the auth ticket (is the server connected to Steam?)." );
+				Close( (int)NetConnectionEnd.Misc_SteamConnectivity, "Auth Timeout" );
+				return false;
+			}
 
 			if ( authResponse.AuthSessionResponse != AuthResponse.OK )
 			{
+				Log.Warning( $"Rejecting {who}: Auth Failed ({authResponse.AuthSessionResponse}) - the client likely doesn't own this app on Steam, or the app id is mismatched." );
 				Close( 0, $"Auth Failed: {authResponse.AuthSessionResponse}" );
 				return false;
 			}
+
+			Log.Info( $"{who} passed Steam authentication (owner {authResponse.OwnerSteamID})" );
 
 			OwnerSteamId = authResponse.OwnerSteamID;
 
