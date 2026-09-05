@@ -95,20 +95,34 @@ public class PanelDataBindingTest
 	}
 
 	/// <summary>
-	/// SetProperty parses enum properties with Enum.Parse, which is case sensitive - an exact
-	/// value name applies, while a wrong-cased name fails the conversion and leaves the
-	/// property unchanged.
+	/// SetProperty parses enum properties with Enum.Parse, which is normally case
+	/// sensitive - an exact value name applies, but if no exact match can be found
+	/// it will settle for a case insensitive match.
 	/// </summary>
 	[TestMethod]
 	public void SetPropertyEnumConversion()
 	{
 		var p = new BindingProbePanel();
 
+		// exact match
 		p.SetProperty( "BoundMode", "Second" );
 		Assert.AreEqual( BindingProbeMode.Second, p.BoundMode );
 
-		p.SetProperty( "BoundMode", "third" );
+		// falls back to case insensitive
+		p.SetProperty( "BoundMode", "second" );
 		Assert.AreEqual( BindingProbeMode.Second, p.BoundMode );
+
+		// exact match
+		p.SetProperty( "BoundMode", "third" );
+		Assert.AreEqual( BindingProbeMode.third, p.BoundMode );
+
+		// exact match
+		p.SetProperty( "BoundMode", "Third" );
+		Assert.AreEqual( BindingProbeMode.Third, p.BoundMode );
+
+		// property is not set on invalid value
+		p.SetProperty( "BoundMode", "BadValue" );
+		Assert.AreEqual( BindingProbeMode.Third, p.BoundMode );
 	}
 
 	/// <summary>
@@ -177,7 +191,8 @@ public enum BindingProbeMode
 {
 	First,
 	Second,
-	Third
+	Third,
+	third
 }
 
 /// <summary>
