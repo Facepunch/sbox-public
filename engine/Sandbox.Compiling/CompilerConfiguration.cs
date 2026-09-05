@@ -82,6 +82,7 @@ partial class Compiler
 		/// <summary>
 		/// Each unique element of <see cref="AssemblyReferences"/>
 		/// </summary>
+		[JsonIgnore]
 		public IReadOnlySet<string> DistinctAssemblyReferences => new HashSet<string>( AssemblyReferences.Where( IsPermittedAssemblyReference ), StringComparer.OrdinalIgnoreCase );
 
 		public void Clean()
