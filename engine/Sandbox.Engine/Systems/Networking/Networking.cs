@@ -605,6 +605,36 @@ public static partial class Networking
 	}
 
 	/// <summary>
+	/// Returns the id of the steam lobby.
+	/// </summary>
+	public static ulong? GetLobbyId()
+	{
+		if ( System is null )
+			return null;
+
+		foreach ( var socket in System.Sockets )
+			if ( socket is SteamLobbySocket lobbySocket )
+				return lobbySocket.LobbySteamId;
+
+		return null;
+	}
+
+	/// <summary>
+	/// Returns informations about the steam lobby.
+	/// </summary>
+	public static LobbyInformation? GetLobby()
+	{
+		if ( System is null )
+			return null;
+
+		foreach ( var socket in System.Sockets )
+			if ( socket is SteamLobbySocket lobbySocket )
+				return new LobbyInformation( lobbySocket.SteamLobby );
+
+		return null;
+	}
+
+	/// <summary>
 	/// Disconnect from current multiplayer session.
 	/// </summary>
 	public static void Disconnect()

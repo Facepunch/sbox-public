@@ -200,26 +200,7 @@ public static partial class Networking
 			return found;
 
 		foreach ( var l in lobbies )
-		{
-			var item = new LobbyInformation();
-			item.LobbyId = l.Id;
-			item.OwnerId = l.Owner.Id;
-			item.Ping = -1;
-
-			item.MaxMembers = l.MaxMembers;
-			item.Members = l.MemberCount;
-			item.Data = l.Data.ToDictionary( x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase );
-
-			item.Data.Remove( "name", out item.Name );
-			item.Data.Remove( "map", out item.Map );
-			item.Data.Remove( "game", out item.Game );
-
-			if ( string.IsNullOrEmpty( item.Name ) ) item.Name = $"{item.LobbyId}";
-			if ( string.IsNullOrEmpty( item.Map ) ) item.Map = "";
-			if ( string.IsNullOrEmpty( item.Game ) ) item.Game = "";
-
-			found.Add( item );
-		}
+			found.Add( new LobbyInformation( l ) );
 
 		return found;
 	}

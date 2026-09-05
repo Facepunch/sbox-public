@@ -121,6 +121,25 @@ public struct LobbyInformation
 	/// </summary>
 	internal bool ContainsFriends => false;
 
+	internal LobbyInformation( Lobby lobby )
+	{
+		LobbyId = lobby.Id;
+		OwnerId = lobby.Owner.Id;
+		Ping = -1;
+
+		MaxMembers = lobby.MaxMembers;
+		Members = lobby.MemberCount;
+		Data = lobby.Data.ToDictionary( x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase );
+
+		Data.Remove( "name", out Name );
+		Data.Remove( "map", out Map );
+		Data.Remove( "game", out Game );
+
+		if ( string.IsNullOrEmpty( Name ) ) Name = $"{LobbyId}";
+		if ( string.IsNullOrEmpty( Map ) ) Map = "";
+		if ( string.IsNullOrEmpty( Game ) ) Game = "";
+	}
+
 	public string Get( string key, string defaultValue = "" )
 	{
 		return Data.GetValueOrDefault( key, defaultValue );
