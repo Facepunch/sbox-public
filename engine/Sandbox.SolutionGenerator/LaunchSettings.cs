@@ -15,6 +15,9 @@ namespace Sandbox.SolutionGenerator
 
 			[JsonPropertyName( "commandLineArgs" )]
 			public string CommandLineArgs { get; set; }
+
+			[JsonPropertyName( "workingDirectory" )]
+			public string WorkingDirectory { get; set; }
 		}
 
 		[JsonPropertyName( "profiles" )]
