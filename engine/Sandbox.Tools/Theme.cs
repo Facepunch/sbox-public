@@ -151,65 +151,65 @@ public static partial class Theme
 	private static void LoadFromFile()
 	{
 		var themeJson = FileSystem.Root.ReadAllText( "/addons/tools/assets/styles/theme.json" );
-		var theme = Json.Deserialize<Dictionary<string, string>>( themeJson );
+		var theme = themeJson is not null ? Json.Deserialize<Dictionary<string, string>>( themeJson ) : null;
 
-		TabBackground = Color.Parse( theme["TabBackground"] ) ?? Color.Parse( "#3b3b3b" ).Value;
-		TabBarBackground = Color.Parse( theme["TabBarBackground"] ) ?? Color.Parse( "#242424" ).Value;
-		TabInactiveBackground = Color.Parse( theme["TabInactiveBackground"] ) ?? Color.Parse( "#242424" ).Value;
-		SurfaceBackground = Color.Parse( theme["SurfaceBackground"] ) ?? Color.Parse( "#3b3b3b" ).Value;
-		SurfaceLightBackground = Color.Parse( theme["SurfaceLightBackground"] ) ?? Color.Parse( "#696969" ).Value;
-		SidebarBackground = Color.Parse( theme["SidebarBackground"] ) ?? Color.Parse( "#242424" ).Value;
-		WindowBackground = Color.Parse( theme["WindowBackground"] ) ?? Color.Parse( "#181818" ).Value;
-		WidgetBackground = Color.Parse( theme["WidgetBackground"] ) ?? Color.Parse( "#242424" ).Value;
-		ControlBackground = Color.Parse( theme["ControlBackground"] ) ?? Color.Parse( "#181818" ).Value;
-		ButtonBackground = Color.Parse( theme["ButtonBackground"] ) ?? Color.Parse( "#181818" ).Value;
-		SelectedBackground = Color.Parse( theme["SelectedBackground"] ) ?? Color.Parse( "#808080" ).Value;
-		StatusBarBackground = Color.Parse( theme["StatusBarBackground"] ) ?? Color.Parse( "#242424" ).Value;
-		Text = Color.Parse( theme["Text"] ) ?? Color.Parse( "#FFFFFF" ).Value;
-		TextControl = Color.Parse( theme["TextControl"] ) ?? Color.Parse( "#FFFFFF" ).Value;
-		TextLight = Color.Parse( theme["TextLight"] ) ?? Color.Parse( "#9E9E9E" ).Value;
-		TextWidget = Color.Parse( theme["TextWidget"] ) ?? Color.Parse( "#FFFFFF" ).Value;
-		TextButton = Color.Parse( theme["TextButton"] ) ?? Color.Parse( "#FFFFFF" ).Value;
-		TextSelected = Color.Parse( theme["TextSelected"] ) ?? Color.Parse( "#66a3ff" ).Value;
-		TextLink = Color.Parse( theme["TextLink"] ) ?? Color.Parse( "#FFFFFF" ).Value;
-		TextHighlight = Color.Parse( theme["TextHighlight"] ) ?? Color.Parse( "#66a3ff" ).Value;
-		TextDisabled = Color.Parse( theme["TextDisabled"] ) ?? Color.Parse( "#FFFFFF55" ).Value;
-		Border = Color.Parse( theme["Border"] ) ?? Color.Parse( "#525252" ).Value;
-		BorderLight = Color.Parse( theme["BorderLight"] ) ?? Color.Parse( "#696969" ).Value;
-		BorderButton = Color.Parse( theme["BorderButton"] ) ?? Color.Parse( "#696969" ).Value;
-		Shadow = Color.Parse( theme["Shadow"] ) ?? Color.Parse( "#242424" ).Value;
-		Primary = Color.Parse( theme["Primary"] ) ?? Color.Parse( "#5a8deb" ).Value;
-		Overlay = Color.Parse( theme["Overlay"] ) ?? Color.Parse( "#242424" ).Value;
-		MultipleValues = Color.Parse( theme["MultipleValues"] ) ?? Color.Parse( "#808080" ).Value;
-		Highlight = Color.Parse( theme["Highlight"] ) ?? Color.Parse( "#9E9E9E" ).Value;
-		TextDark = Color.Parse( theme["TextDark"] ) ?? Color.Parse( "#000000" ).Value;
-		Base = Color.Parse( theme["Base"] ) ?? Color.Parse( "#202020" ).Value;
-		BaseAlt = Color.Parse( theme["BaseAlt"] ) ?? Color.Parse( "#242424" ).Value;
+		TabBackground = Color.Parse( theme?["TabBackground"] ) ?? Color.Parse( "#3b3b3b" ).Value;
+		TabBarBackground = Color.Parse( theme?["TabBarBackground"] ) ?? Color.Parse( "#242424" ).Value;
+		TabInactiveBackground = Color.Parse( theme?["TabInactiveBackground"] ) ?? Color.Parse( "#242424" ).Value;
+		SurfaceBackground = Color.Parse( theme?["SurfaceBackground"] ) ?? Color.Parse( "#3b3b3b" ).Value;
+		SurfaceLightBackground = Color.Parse( theme?["SurfaceLightBackground"] ) ?? Color.Parse( "#696969" ).Value;
+		SidebarBackground = Color.Parse( theme?["SidebarBackground"] ) ?? Color.Parse( "#242424" ).Value;
+		WindowBackground = Color.Parse( theme?["WindowBackground"] ) ?? Color.Parse( "#181818" ).Value;
+		WidgetBackground = Color.Parse( theme?["WidgetBackground"] ) ?? Color.Parse( "#242424" ).Value;
+		ControlBackground = Color.Parse( theme?["ControlBackground"] ) ?? Color.Parse( "#181818" ).Value;
+		ButtonBackground = Color.Parse( theme?["ButtonBackground"] ) ?? Color.Parse( "#181818" ).Value;
+		SelectedBackground = Color.Parse( theme?["SelectedBackground"] ) ?? Color.Parse( "#808080" ).Value;
+		StatusBarBackground = Color.Parse( theme?["StatusBarBackground"] ) ?? Color.Parse( "#242424" ).Value;
+		Text = Color.Parse( theme?["Text"] ) ?? Color.Parse( "#FFFFFF" ).Value;
+		TextControl = Color.Parse( theme?["TextControl"] ) ?? Color.Parse( "#FFFFFF" ).Value;
+		TextLight = Color.Parse( theme?["TextLight"] ) ?? Color.Parse( "#9E9E9E" ).Value;
+		TextWidget = Color.Parse( theme?["TextWidget"] ) ?? Color.Parse( "#FFFFFF" ).Value;
+		TextButton = Color.Parse( theme?["TextButton"] ) ?? Color.Parse( "#FFFFFF" ).Value;
+		TextSelected = Color.Parse( theme?["TextSelected"] ) ?? Color.Parse( "#66a3ff" ).Value;
+		TextLink = Color.Parse( theme?["TextLink"] ) ?? Color.Parse( "#FFFFFF" ).Value;
+		TextHighlight = Color.Parse( theme?["TextHighlight"] ) ?? Color.Parse( "#66a3ff" ).Value;
+		TextDisabled = Color.Parse( theme?["TextDisabled"] ) ?? Color.Parse( "#FFFFFF55" ).Value;
+		Border = Color.Parse( theme?["Border"] ) ?? Color.Parse( "#525252" ).Value;
+		BorderLight = Color.Parse( theme?["BorderLight"] ) ?? Color.Parse( "#696969" ).Value;
+		BorderButton = Color.Parse( theme?["BorderButton"] ) ?? Color.Parse( "#696969" ).Value;
+		Shadow = Color.Parse( theme?["Shadow"] ) ?? Color.Parse( "#242424" ).Value;
+		Primary = Color.Parse( theme?["Primary"] ) ?? Color.Parse( "#5a8deb" ).Value;
+		Overlay = Color.Parse( theme?["Overlay"] ) ?? Color.Parse( "#242424" ).Value;
+		MultipleValues = Color.Parse( theme?["MultipleValues"] ) ?? Color.Parse( "#808080" ).Value;
+		Highlight = Color.Parse( theme?["Highlight"] ) ?? Color.Parse( "#9E9E9E" ).Value;
+		TextDark = Color.Parse( theme?["TextDark"] ) ?? Color.Parse( "#000000" ).Value;
+		Base = Color.Parse( theme?["Base"] ) ?? Color.Parse( "#202020" ).Value;
+		BaseAlt = Color.Parse( theme?["BaseAlt"] ) ?? Color.Parse( "#242424" ).Value;
 
-		ToggleEnabled = Color.Parse( theme["ToggleEnabled"] ) ?? Color.Parse( "#5aeb5c" ).Value;
-		ToggleDisabled = Color.Parse( theme["ToggleDisabled"] ) ?? Color.Parse( "#566e56" ).Value;
+		ToggleEnabled = Color.Parse( theme?["ToggleEnabled"] ) ?? Color.Parse( "#5aeb5c" ).Value;
+		ToggleDisabled = Color.Parse( theme?["ToggleDisabled"] ) ?? Color.Parse( "#566e56" ).Value;
 
-		Blue = Color.Parse( theme["Blue"] ) ?? Color.Parse( "#3273EB" ).Value;
-		Green = Color.Parse( theme["Green"] ) ?? Color.Parse( "#B0E24D" ).Value;
-		Red = Color.Parse( theme["Red"] ) ?? Color.Parse( "#FB5A5A" ).Value;
-		Yellow = Color.Parse( theme["Yellow"] ) ?? Color.Parse( "#E6DB74" ).Value;
-		Pink = Color.Parse( theme["Pink"] ) ?? Color.Parse( "#DF9194" ).Value;
+		Blue = Color.Parse( theme?["Blue"] ) ?? Color.Parse( "#3273EB" ).Value;
+		Green = Color.Parse( theme?["Green"] ) ?? Color.Parse( "#B0E24D" ).Value;
+		Red = Color.Parse( theme?["Red"] ) ?? Color.Parse( "#FB5A5A" ).Value;
+		Yellow = Color.Parse( theme?["Yellow"] ) ?? Color.Parse( "#E6DB74" ).Value;
+		Pink = Color.Parse( theme?["Pink"] ) ?? Color.Parse( "#DF9194" ).Value;
 
-		Prefab = Color.Parse( theme["Prefab"] ) ?? Color.Parse( "#3273EB" ).Value;
-		Folder = Color.Parse( theme["Folder"] ) ?? Color.Parse( "#E6DB74" ).Value;
+		Prefab = Color.Parse( theme?["Prefab"] ) ?? Color.Parse( "#3273EB" ).Value;
+		Folder = Color.Parse( theme?["Folder"] ) ?? Color.Parse( "#E6DB74" ).Value;
 
-		if ( !float.TryParse( theme["ControlRadius"], out ControlRadius ) )
+		if ( !float.TryParse( theme?["ControlRadius"], out ControlRadius ) )
 			ControlRadius = 3.0f;
 
-		if ( !float.TryParse( theme["ControlHeight"], out ControlHeight ) )
+		if ( !float.TryParse( theme?["ControlHeight"], out ControlHeight ) )
 			ControlHeight = 18.0f;
 
-		if ( !float.TryParse( theme["RowHeight"], out RowHeight ) )
+		if ( !float.TryParse( theme?["RowHeight"], out RowHeight ) )
 			RowHeight = 16.0f;
 
-		HeadingFont = theme["HeadingFont"];
-		DefaultFont = theme["DefaultFont"];
-		MonospaceFont = theme["MonospaceFont"];
+		HeadingFont = theme?["HeadingFont"];
+		DefaultFont = theme?["DefaultFont"];
+		MonospaceFont = theme?["MonospaceFont"];
 	}
 
 	public static Color GetTint( EditorTint tint )
