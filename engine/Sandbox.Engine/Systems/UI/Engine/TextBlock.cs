@@ -560,7 +560,7 @@ internal sealed class TextBlock : IDisposable
 		if ( Texture == null )
 			return;
 
-		LastTexture?.Dispose();
+		RetireTexture( LastTexture );
 		LastTexture = Texture;
 
 		Texture = null;
@@ -713,7 +713,7 @@ internal sealed class TextBlock : IDisposable
 					return;
 				}
 
-				LastTexture?.Dispose();
+				RetireTexture( LastTexture );
 				LastTexture = null;
 			}
 
@@ -849,11 +849,18 @@ internal sealed class TextBlock : IDisposable
 	{
 		ReleaseTexture();
 
-		LastTexture?.Dispose();
+		RetireTexture( LastTexture );
 		LastTexture = null;
 
 		Block = null;
 		Style = null;
 		SizeCache = null;
+	}
+
+	/// <summary>Keep a retired text texture alive until queued UI rendering has finished with its bindless index.</summary>
+	private static void RetireTexture( Texture texture )
+	{
+		if ( texture is not null )
+			EngineLoop.DisposeAtFrameEnd( texture );
 	}
 }
