@@ -189,14 +189,16 @@ public static partial class EditorUtility
 			return;
 
 		// don't allow moving a folder inside a subfolder of itself!
-		if ( newDirectory.StartsWith( directory, StringComparison.OrdinalIgnoreCase ) )
+		if ( IsSameOrDescendantDirectory( directory, newDirectory ) )
 			return;
 
 		if ( !System.IO.Directory.Exists( newDirectory ) )
 			System.IO.Directory.CreateDirectory( newDirectory );
 
 
-		var assets = AssetSystem.All.Where( x => x.AbsolutePath.StartsWith( directory.Replace( '\\', '/' ), StringComparison.OrdinalIgnoreCase ) && x.AbsolutePath.Substring( directory.Length ).Contains( '/' ) );
+		var assets = AssetSystem.All
+			.Where( x => IsDirectChildPath( directory, x.AbsolutePath ) )
+			.ToArray();
 		foreach ( var asset in assets )
 		{
 			if ( !System.IO.Path.Exists( asset.AbsolutePath ) ) continue;
@@ -206,17 +208,55 @@ public static partial class EditorUtility
 		var files = System.IO.Directory.GetFiles( directory, "*", System.IO.SearchOption.TopDirectoryOnly );
 		foreach ( var file in files )
 		{
-			var newFile = file.Replace( directory, newDirectory );
+			var newFile = System.IO.Path.Combine( newDirectory, System.IO.Path.GetFileName( file ) );
 			System.IO.File.Move( file, newFile );
 		}
 
 		var folders = System.IO.Directory.GetDirectories( directory, "*", System.IO.SearchOption.TopDirectoryOnly );
 		foreach ( var folder in folders )
 		{
-			RenameDirectory( folder, folder.Replace( directory, newDirectory ), true );
+			var newFolder = System.IO.Path.Combine( newDirectory, System.IO.Path.GetFileName( folder ) );
+			RenameDirectory( folder, newFolder, true );
 		}
 
 		if ( !recursive ) System.IO.Directory.Delete( directory, true );
+	}
+
+	internal static bool IsSameOrDescendantDirectory( string directory, string candidate )
+	{
+		var directoryPath = NormalizeDirectoryPath( directory );
+		var candidatePath = NormalizeDirectoryPath( candidate );
+		var directoryPrefix = directoryPath.EndsWith( '/' ) ? directoryPath : $"{directoryPath}/";
+
+		return string.Equals( candidatePath, directoryPath, StringComparison.OrdinalIgnoreCase )
+			|| candidatePath.StartsWith( directoryPrefix, StringComparison.OrdinalIgnoreCase );
+	}
+
+	internal static bool IsDirectChildPath( string directory, string candidate )
+	{
+		if ( string.IsNullOrWhiteSpace( candidate ) )
+			return false;
+
+		candidate = candidate.Replace( '\\', '/' );
+		if ( !System.IO.Path.IsPathFullyQualified( candidate ) )
+			return false;
+
+		var directoryPath = NormalizeDirectoryPath( directory );
+		var candidatePath = NormalizePath( candidate );
+		var directoryPrefix = directoryPath.EndsWith( '/' ) ? directoryPath : $"{directoryPath}/";
+
+		return candidatePath.StartsWith( directoryPrefix, StringComparison.OrdinalIgnoreCase )
+			&& candidatePath.IndexOf( '/', directoryPrefix.Length ) == -1;
+	}
+
+	private static string NormalizeDirectoryPath( string path )
+	{
+		return System.IO.Path.TrimEndingDirectorySeparator( NormalizePath( path ) );
+	}
+
+	private static string NormalizePath( string path )
+	{
+		return System.IO.Path.GetFullPath( path.Replace( '\\', '/' ) ).NormalizeFilename( false );
 	}
 
 	/// <summary>
