@@ -430,6 +430,53 @@ public class TerrainComponentTest
 	}
 
 	/// <summary>
+	/// Applying CPU storage changes updates terrain dependencies and emits one notification.
+	/// Collision-only refreshes remain side-effect free for modification listeners.
+	/// </summary>
+	[TestMethod]
+	public void StorageChangesSynchronizeAndNotify()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var storage = CreateSmallStorage();
+		var go = scene.CreateObject();
+		var terrain = go.Components.Create<Terrain>( false );
+		terrain.Storage = storage;
+		terrain.Enabled = true;
+
+		var notificationCount = 0;
+		var notifiedFlags = default( Terrain.SyncFlags );
+		var notifiedRegion = default( RectInt );
+		var colliderHeightAtNotification = 0.0f;
+		terrain.OnTerrainModified += ( flags, region ) =>
+		{
+			notificationCount++;
+			notifiedFlags = flags;
+			notifiedRegion = region;
+			colliderHeightAtNotification = terrain.Shapes[0].LocalBounds.Maxs.y;
+		};
+
+		var dirtyRegion = new RectInt( -16, -16, 96, 96 );
+		terrain.UpdateCollision( Terrain.SyncFlags.Height, dirtyRegion );
+		Assert.AreEqual( 0, notificationCount, "Updating collision alone is not a terrain modification" );
+
+		storage.HeightMap[^1] = ushort.MaxValue;
+		terrain.ApplyStorageChanges( Terrain.SyncFlags.Height, dirtyRegion );
+
+		Assert.AreEqual( 1, notificationCount );
+		Assert.AreEqual( Terrain.SyncFlags.Height, notifiedFlags );
+		Assert.AreEqual( 0, notifiedRegion.Left );
+		Assert.AreEqual( 64, notifiedRegion.Right );
+		Assert.AreEqual( 0, notifiedRegion.Top );
+		Assert.AreEqual( 64, notifiedRegion.Bottom );
+		Assert.AreEqual( 1000.0f, colliderHeightAtNotification, 1.0f, "Storage changes reach the live collider before notification" );
+
+		go.Destroy();
+		scene.ProcessDeletes();
+	}
+
+	/// <summary>
 	/// RayIntersects casts against the CPU heightmap without needing the component enabled.
 	/// The heightfield occupies half a cell to (resolution - 0.5) cells on the local X and Y
 	/// axes with height along local Z: a downward ray over the raised plateau hits at the

@@ -270,8 +270,7 @@ public abstract class BaseBrushTool : EditorTool
 				dest[dirtyRegion.Left + x + (dirtyRegion.Top + y) * terrain.Storage.Resolution] = region[x + y * dirtyRegion.Width];
 			}
 		}
-		terrain.SyncGPUTexture();
-		terrain.UpdateCollision( flags, dirtyRegion );
+		terrain.ApplyStorageChanges( flags, dirtyRegion );
 	};
 
 	protected virtual void OnPaintEnded( Terrain terrain )
