@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace Sandbox;
@@ -17,13 +18,24 @@ public enum TerrainFlags : uint
 public class TerrainMaterial : GameResource
 {
 	//
-	// Editor only
+	// Source images used when a slot is left empty
 	//
-	[Category( "Source Images" ), ImageAssetPath] public string AlbedoImage { get; set; } = "materials/default/default_color.tga";
-	[Category( "Source Images" ), ImageAssetPath] public string RoughnessImage { get; set; } = "materials/default/default_rough.tga";
-	[Category( "Source Images" ), ImageAssetPath] public string NormalImage { get; set; } = "materials/default/default_normal.tga";
-	[Category( "Source Images" ), ImageAssetPath] public string HeightImage { get; set; } = "materials/default/default_ao.tga";
-	[Category( "Source Images" ), ImageAssetPath, Title( "AO Image" )] public string AOImage { get; set; } = "materials/default/default_ao.tga";
+	internal const string DefaultAlbedoImage = "materials/default/default_color.tga";
+	internal const string DefaultRoughnessImage = "materials/default/default_rough.tga";
+	internal const string DefaultNormalImage = "materials/default/default_normal.tga";
+	internal const string DefaultHeightImage = "materials/default/default_ao.tga";
+	internal const string DefaultAOImage = "materials/default/default_ao.tga";
+
+	//
+	// Editor only. These get packed into the two generated textures below when the
+	// material compiles, which means they have to resolve to an image file - the
+	// packing runs through the texture compiler, not through the generator.
+	//
+	[Category( "Source Images" )] public Texture AlbedoImage { get; set; }
+	[Category( "Source Images" )] public Texture RoughnessImage { get; set; }
+	[Category( "Source Images" )] public Texture NormalImage { get; set; }
+	[Category( "Source Images" )] public Texture HeightImage { get; set; }
+	[Category( "Source Images" ), Title( "AO Image" )] public Texture AOImage { get; set; }
 
 	//
 	// Compiled generated textures
@@ -37,7 +49,7 @@ public class TerrainMaterial : GameResource
 	[Category( "Material" ), Range( 0.1f, 10 )] public float HeightBlendStrength { get; set; } = 1.0f;
 
 	[JsonIgnore, Hide]
-	public bool HasHeightTexture => !string.IsNullOrEmpty( HeightImage ) && HeightImage != "materials/default/default_ao.tga";
+	public bool HasHeightTexture => HeightImage is not null;
 
 	[Category( "Material" ), Range( 0.0f, 10.0f ), Title( "Displacement Scale" ), ShowIf( nameof( HasHeightTexture ), true )]
 	public float DisplacementScale { get; set; } = 0.0f;
@@ -60,6 +72,51 @@ public class TerrainMaterial : GameResource
 	}
 
 	[Category( "Misc" )] public Surface Surface { get; set; }
+
+	[Hide, JsonIgnore] public override int ResourceVersion => 1;
+
+	/// <summary>
+	/// v1
+	/// - Source images were bare image paths, they're textures now. An empty slot falls
+	///   back to its default image, so drop the paths that were only ever the default.
+	/// </summary>
+	[Expose, JsonUpgrader( typeof( TerrainMaterial ), 1 )]
+	static void Upgrader_v1_ImagePathsToTextures( JsonObject json )
+	{
+		Upgrade( json, nameof( AlbedoImage ), DefaultAlbedoImage );
+		Upgrade( json, nameof( RoughnessImage ), DefaultRoughnessImage );
+		Upgrade( json, nameof( NormalImage ), DefaultNormalImage );
+		Upgrade( json, nameof( HeightImage ), DefaultHeightImage );
+		Upgrade( json, nameof( AOImage ), DefaultAOImage );
+
+		static void Upgrade( JsonObject json, string name, string defaultPath )
+		{
+			if ( !json.TryGetPropertyValue( name, out var node ) )
+				return;
+
+			// Only a bare path is the old format
+			if ( node is not JsonValue value || !value.TryGetValue<string>( out var filePath ) )
+				return;
+
+			if ( string.IsNullOrWhiteSpace( filePath ) || filePath == defaultPath )
+			{
+				json[name] = null;
+				return;
+			}
+
+			json[name] = new JsonObject
+			{
+				["$compiler"] = "texture",
+				["$source"] = "imagefile",
+				["data"] = new JsonObject
+				{
+					["FilePath"] = filePath,
+					["MaxSize"] = 4096
+				},
+				["compiled"] = null
+			};
+		}
+	}
 
 	void LoadGeneratedTextures()
 	{
