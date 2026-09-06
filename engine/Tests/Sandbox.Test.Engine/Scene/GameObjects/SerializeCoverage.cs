@@ -93,7 +93,7 @@ public class SerializeCoverageTest : SceneTest
 		var node = go.Serialize();
 
 		Assert.AreEqual( go.Id, node["__guid"].Deserialize<Guid>() );
-		Assert.AreEqual( 2, node["__version"].GetValue<int>() );
+		Assert.AreEqual( 3, node["__version"].GetValue<int>() );
 		Assert.AreEqual( "Core", node["Name"].GetValue<string>() );
 		Assert.IsTrue( node["Enabled"].GetValue<bool>() );
 		Assert.AreEqual( new Vector3( 1, 2, 3 ), node["Position"].GetValue<Vector3>() );
