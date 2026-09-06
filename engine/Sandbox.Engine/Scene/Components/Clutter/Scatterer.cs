@@ -43,6 +43,9 @@ public abstract class Scatterer
 	public List<ClutterInstance> Scatter( BBox bounds, ClutterDefinition clutter, int seed, Scene scene = null, BBox? sceneBounds = null )
 	{
 		scene ??= Game.ActiveScene;
+		if ( scene is null || clutter is null || clutter.IsEmpty )
+			return [];
+
 		Random = new Random( seed );
 
 		return Generate( bounds, clutter, scene, sceneBounds ?? scene.GetBounds() );

@@ -26,10 +26,6 @@ public class SimpleScatterer : Scatterer
 
 	protected override List<ClutterInstance> Generate( BBox bounds, ClutterDefinition clutter, Scene scene, BBox sceneBounds )
 	{
-		scene ??= Game.ActiveScene;
-		if ( scene == null || clutter == null )
-			return [];
-
 		var pointCount = CalculatePointCount( bounds, Density );
 		var points = JitteredGridPoints( bounds, pointCount );
 		var totalPoints = points.Length;

@@ -76,10 +76,6 @@ public class SlopeScatterer : Scatterer
 
 	protected override List<ClutterInstance> Generate( BBox bounds, ClutterDefinition clutter, Scene scene, BBox sceneBounds )
 	{
-		scene ??= Game.ActiveScene;
-		if ( scene == null || clutter == null || clutter.IsEmpty )
-			return [];
-
 		var pointCount = CalculatePointCount( bounds, Density );
 		var points = JitteredGridPoints( bounds, pointCount );
 		var instances = new List<ClutterInstance>( points.Length );
@@ -261,10 +257,6 @@ public class TerrainMaterialScatterer : Scatterer
 
 	protected override List<ClutterInstance> Generate( BBox bounds, ClutterDefinition clutter, Scene scene, BBox sceneBounds )
 	{
-		scene ??= Game.ActiveScene;
-		if ( scene == null || clutter == null || clutter.IsEmpty )
-			return [];
-
 		// Clear terrain cache for new generation
 		_cachedTerrain = null;
 		_cachedTerrainObject = null;
