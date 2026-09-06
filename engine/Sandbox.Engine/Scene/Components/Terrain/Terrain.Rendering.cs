@@ -1,4 +1,4 @@
-﻿using Sandbox.Rendering;
+using Sandbox.Rendering;
 using System.Runtime.InteropServices;
 using static Sandbox.ModelRenderer;
 
