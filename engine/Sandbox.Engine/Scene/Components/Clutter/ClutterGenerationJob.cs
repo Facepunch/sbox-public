@@ -92,8 +92,9 @@ class ClutterGenerationJob
 				seed = Scatterer.GenerateSeed( Tile.SeedOffset, Tile.Coordinates.x, Tile.Coordinates.y );
 			}
 
+			var scene = Parent.Scene;
 			var instances = Clutter.Scatterer.HasValue
-				? Clutter.Scatterer.Value.Scatter( Bounds, Clutter, seed, Parent.Scene )
+				? Clutter.Scatterer.Value.Scatter( Bounds, Clutter, seed, scene, GetSceneBounds( scene ) )
 				: null;
 
 			if ( LocalBounds.HasValue && VolumeTransform.HasValue )
@@ -119,6 +120,34 @@ class ClutterGenerationJob
 		{
 			OnComplete?.Invoke();
 		}
+	}
+
+	private static Scene _sceneBoundsScene;
+	private static BBox _sceneBounds;
+	private static bool _sceneBoundsDirty = true;
+
+	/// <summary>
+	/// Invalidates the cached scene bounds. Usefull for height changes in the scene.
+	/// </summary>
+	internal static void InvalidateSceneBounds()
+	{
+		_sceneBoundsDirty = true;
+	}
+
+	/// <summary>
+	/// Cached scene bounds for ground traces; only Z is used. Expensive to query, so cache until invalidated. 
+	/// Unguarded statics—jobs run on main thread only.
+	/// </summary>
+	private static BBox GetSceneBounds( Scene scene )
+	{
+		if ( !_sceneBoundsDirty && _sceneBoundsScene == scene )
+			return _sceneBounds;
+
+		_sceneBoundsScene = scene;
+		_sceneBounds = scene.GetBounds();
+		_sceneBoundsDirty = false;
+
+		return _sceneBounds;
 	}
 
 	private static void ApplyEntryLocalScale( List<ClutterInstance> instances )
