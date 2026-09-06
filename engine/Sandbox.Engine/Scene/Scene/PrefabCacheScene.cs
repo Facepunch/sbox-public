@@ -19,6 +19,12 @@ internal partial class PrefabCacheScene : PrefabScene
 	internal JsonObject FullPrefabInstanceJson { get; set; }
 
 	/// <summary>
+	/// Pre-indexed <see cref="FullPrefabInstanceJson"/> for diffing, built once instead of
+	/// re-indexing the whole prefab tree every time an instance refreshes its patch.
+	/// </summary>
+	internal Json.TrackedObjects FullPrefabInstanceTrackedObjects { get; set; }
+
+	/// <summary>
 	/// Contains all the prefab files that are referenced by this prefab scene.
 	/// </summary>
 	private HashSet<PrefabFile> referencedPrefabs = new();
@@ -53,6 +59,7 @@ internal partial class PrefabCacheScene : PrefabScene
 		}
 
 		FullPrefabInstanceJson = Serialize( new SerializeOptions { SerializePrefabForDiff = true } );
+		FullPrefabInstanceTrackedObjects = Json.BuildTrackedObjects( FullPrefabInstanceJson, GameObject.DiffObjectDefinitions );
 
 		// Iterate all gameobjects in scene and find prefab instances, add them to reference set
 		referencedPrefabs = GetAllObjects( false ).Where( o => o.IsPrefabInstanceRoot ).Select( p => ResourceLibrary.Get<PrefabFile>( p.PrefabInstanceSource ) ).ToHashSet();
