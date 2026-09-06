@@ -74,7 +74,7 @@ public class SlopeScatterer : Scatterer
 	[Property]
 	public bool UseFallback { get; set; } = true;
 
-	protected override List<ClutterInstance> Generate( BBox bounds, ClutterDefinition clutter, Scene scene = null )
+	protected override List<ClutterInstance> Generate( BBox bounds, ClutterDefinition clutter, Scene scene, BBox sceneBounds )
 	{
 		scene ??= Game.ActiveScene;
 		if ( scene == null || clutter == null || clutter.IsEmpty )
@@ -87,7 +87,6 @@ public class SlopeScatterer : Scatterer
 		if ( points.Length == 0 )
 			return instances;
 
-		var sceneBounds = scene.GetBounds();
 		using var pooledTraces = RentGroundTraces( scene, points, sceneBounds );
 
 		foreach ( var trace in pooledTraces.Span )
@@ -260,7 +259,7 @@ public class TerrainMaterialScatterer : Scatterer
 	[JsonIgnore, Hide]
 	private GameObject _cachedTerrainObject;
 
-	protected override List<ClutterInstance> Generate( BBox bounds, ClutterDefinition clutter, Scene scene = null )
+	protected override List<ClutterInstance> Generate( BBox bounds, ClutterDefinition clutter, Scene scene, BBox sceneBounds )
 	{
 		scene ??= Game.ActiveScene;
 		if ( scene == null || clutter == null || clutter.IsEmpty )
@@ -277,7 +276,6 @@ public class TerrainMaterialScatterer : Scatterer
 		if ( points.Length == 0 )
 			return instances;
 
-		var sceneBounds = scene.GetBounds();
 		using var pooledTraces = RentGroundTraces( scene, points, sceneBounds );
 
 		foreach ( var trace in pooledTraces.Span )
