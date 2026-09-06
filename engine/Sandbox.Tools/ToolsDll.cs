@@ -250,16 +250,17 @@ internal class ToolsDll : IToolsDll
 
 	public void OnFunctionKey( ButtonCode key, KeyboardModifiers modifiers )
 	{
+		// Rarely, OnFunctionKey and GlobalKeyPressed can receive the same key at the same time and therefore call EditorShortcuts.Invoke twice, 
+		// which cancels out the invoker event (e.g. Start + Stop).
+		if ( EditorShortcuts._timeSinceGlobalShortcut <= 0.05f )
+			return;
+
 		var keys = NativeEngine.InputSystem.CodeToString( key ).ToUpperInvariant();
 		if ( modifiers.HasFlag( KeyboardModifiers.Shift ) ) keys = "SHIFT+" + keys;
 		if ( modifiers.HasFlag( KeyboardModifiers.Alt ) ) keys = "ALT+" + keys;
 		if ( modifiers.HasFlag( KeyboardModifiers.Ctrl ) ) keys = "CTRL+" + keys;
 
 		EditorShortcuts.Invoke( keys, true );
-
-		// This is really just here for F5, if we stop the game session and defocus the game window, Qt is going to then run it's event
-		// The other option is, do we need to run EditorShortcuts from game mode? What is there other than F5?
-		EditorShortcuts._timeSinceGlobalShortcut = 0;
 	}
 
 	public void Spin()
