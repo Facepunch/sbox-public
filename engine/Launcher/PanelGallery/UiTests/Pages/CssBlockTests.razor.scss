@@ -1,0 +1,71 @@
+// Dark blue is the block container; its children are coloured bars. Grey is a wrapper that shows
+// where a container's own edge ends up. Red is an absolutely positioned child.
+
+$container: #1f3550;
+$host: #3a3f4b;
+$abs: #e84a4a;
+
+CssBlockTests
+{
+	.block
+	{
+		display: block;
+		width: 100%;
+		background-color: transparent;
+	}
+
+	.bar
+	{
+		height: 24px;
+		align-items: center;
+		justify-content: center;
+		border-radius: 3px;
+
+		label
+		{
+			font-size: 11px;
+			font-weight: 600;
+			color: rgba( 0, 0, 0, 0.75 );
+		}
+	}
+
+	.c1 { background-color: #e8b04a; }
+	.c2 { background-color: #4ac2e8; }
+	.c3 { background-color: #3fc76a; }
+	.c4 { background-color: #c77bd8; }
+	.c5 { background-color: #e88a4a; }
+	.c6 { background-color: #8fa3bf; }
+
+	// Flow
+	.w50 { width: 50%; }
+	.w25 { width: 25%; }
+	.w100 { width: 100px; }
+	.centred { width: 80px; margin-left: auto; margin-right: auto; }
+	.pushed { width: 60px; margin-left: auto; }
+	.text { padding: 6px; }
+	.para { display: block; font-size: 12px; color: #e6eaf2; margin-bottom: 6px; }
+
+	// Margin collapsing
+	.mb20 { margin-bottom: 20px; }
+	.mt10 { margin-top: 10px; }
+	.mt20 { margin-top: 20px; }
+	.mtneg { margin-top: -12px; }
+	.spacer { display: block; margin-top: 30px; margin-bottom: 30px; }
+
+	// A grey wrapper block, so an escaping margin reads as a gap above the blue container
+	.host { display: block; width: 100%; background-color: $host; }
+	.auto-height { height: auto; }
+	.pad1 { padding-top: 1px; }
+	.inner { background-color: #2d4a6e; }
+
+	// Mixing with flex
+	.flex-host { flex-direction: row; width: 100%; gap: 6px; }
+	.flex-side { width: 50px; height: 60px; }
+	.in-flex { flex-grow: 1; width: auto; }
+	.flex-row { flex-direction: row; gap: 4px; margin-top: 4px; margin-bottom: 4px; }
+	.flex-grow { flex-grow: 1; }
+	.fixed-height { height: 110px; }
+	.centre-content { align-content: center; }
+	.abs-corner { position: absolute; right: 4px; bottom: 4px; width: 50px; height: 24px; background-color: $abs; align-items: center; justify-content: center; }
+	.abs-corner label { font-size: 11px; font-weight: 600; color: #ffffff; }
+}

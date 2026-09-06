@@ -17,6 +17,7 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 	bool _resizeDragging;
 	BBox _resizeBefore;
 	int _undoStartCount;
+	int _cameraFacing = -1;
 
 	static float TextSize => 22 * Gizmo.Settings.GizmoScale * Application.DpiScale;
 
@@ -196,6 +197,14 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 			_activeMaterial = Tool.ActiveMaterial;
 		}
 
+		// Some primitives orient themselves to the camera, so rebuild when the facing direction changes.
+		var facing = CameraFacing;
+		if ( _cameraFacing != facing )
+		{
+			_cameraFacing = facing;
+			BuildPreview();
+		}
+
 		if ( !Gizmo.Pressed.Any )
 		{
 			if ( _dragStarted )
@@ -310,6 +319,23 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 	{
 		var mesh = Build();
 		_previewModel = mesh?.Rebuild();
+	}
+
+	/// <summary>
+	/// Which horizontal direction the camera is mostly looking down. Used to
+	/// detect when camera-aligned primitives need rebuilding.
+	/// </summary>
+	static int CameraFacing
+	{
+		get
+		{
+			var forward = Gizmo.Camera.Rotation.Forward;
+
+			if ( MathF.Abs( forward.y ) > MathF.Abs( forward.x ) )
+				return forward.y >= 0.0f ? 0 : 1;
+
+			return forward.x >= 0.0f ? 2 : 3;
+		}
 	}
 
 	void PushUndo( string name, BBox? before, BBox? after )

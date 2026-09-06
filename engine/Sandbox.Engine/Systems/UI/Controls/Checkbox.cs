@@ -84,7 +84,16 @@ public class Checkbox : Panel
 	public Checkbox()
 	{
 		AddClass( "checkbox" );
+		AcceptsFocus = true;
 		CheckMark = Add.Icon( "check", "checkmark" );
+	}
+
+	public override void OnButtonTyped( ButtonEvent e )
+	{
+		if ( TryClickFromKeyboard( e ) )
+			return;
+
+		base.OnButtonTyped( e );
 	}
 
 	public override void SetProperty( string name, string value )

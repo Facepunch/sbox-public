@@ -1,0 +1,20 @@
+@using Sandbox;
+@using Sandbox.Services;
+@using Sandbox.UI;
+@using System;
+@namespace MenuProject.MenuUI.Jams
+@inherits Panel
+
+<root>
+    <label class="what">@Label</label>
+    <label class="time">@JamFormat.Countdown( Target, Jam.Now, ticking: true )</label>
+</root>
+
+@code
+{
+    [Parameter] public Jam Jam { get; set; }
+    [Parameter] public string Label { get; set; }
+    [Parameter] public DateTimeOffset Target { get; set; }
+
+    protected override int BuildHash() => HashCode.Combine( Label, Target, Jam?.Now.Second );
+}

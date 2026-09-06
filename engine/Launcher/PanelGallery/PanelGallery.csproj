@@ -40,7 +40,18 @@
 		<CompilerVisibleProperty Include="SandboxRazorRoot" />
 		<AdditionalFiles Include="UiTests\**\*.razor" />
 		<None Include="UiTests\**\*.scss" />
+
+		<!-- The stylesheets the test pages read at runtime -->
+		<UiTestContent Include="UiTests\**\*.scss" />
 	</ItemGroup>
+
+	<!-- A checkout serves UiTests straight from source. A Steam install has no source tree, so the
+	     same files go under the editor assets, which the content depot ships -->
+	<Target Name="CopyUiTestContent" AfterTargets="Build">
+		<Copy SourceFiles="@(UiTestContent)"
+		      DestinationFiles="@(UiTestContent->'$(OutputPath)\..\..\addons\editor\assets\uitests\%(RecursiveDir)%(Filename)%(Extension)')"
+		      SkipUnchangedFiles="true" />
+	</Target>
 
 	<ItemGroup>
 		<!-- Analyzer, not a library - the Razor SDK compiles the razor, this adds the

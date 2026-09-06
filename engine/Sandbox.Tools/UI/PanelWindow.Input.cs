@@ -6,7 +6,7 @@ namespace Editor;
 // Input. PanelWindowInput hands us what the OS sent for this window - see
 // Systems/UI/Surface/PanelWindowInput.cs.
 //
-public sealed partial class PanelWindow
+public partial class PanelWindow
 {
 	Vector2 _mousePosition;
 	bool _mouseInside;
@@ -26,6 +26,9 @@ public sealed partial class PanelWindow
 
 	void IPanelWindow.SetCursorPosition( Vector2 position )
 	{
+		// The window under it keeps its hover
+		if ( IgnoresInput ) return;
+
 		_mousePosition = position;
 		_mouseInside = position.x >= 0 && position.y >= 0 && position.x < Surface.Size.x && position.y < Surface.Size.y;
 	}
@@ -46,21 +49,21 @@ public sealed partial class PanelWindow
 	/// user cancels. One dialog at a time - asking again while one is open joins the first.
 	/// </summary>
 	public System.Threading.Tasks.Task<string> PickFolder( string defaultPath = null )
-		=> PanelWindowDialogs.PickFolder( _window, defaultPath );
+		=> PanelWindowDialogs.PickFolder( Handle, defaultPath );
 
 	/// <summary>
 	/// Ask the OS for a file to open. The filter is name and extension list pairs, like
 	/// "Scene files|scene;prefab|All files|*". Null when the user cancels.
 	/// </summary>
 	public System.Threading.Tasks.Task<string> PickOpenFile( string defaultPath = null, string filters = null )
-		=> PanelWindowDialogs.PickOpenFile( _window, defaultPath, filters );
+		=> PanelWindowDialogs.PickOpenFile( Handle, defaultPath, filters );
 
 	/// <summary>
 	/// Ask the OS where to save a file. <paramref name="defaultPath"/> can end in a suggested
 	/// file name. Filters as in <see cref="PickOpenFile"/>. Null when the user cancels.
 	/// </summary>
 	public System.Threading.Tasks.Task<string> PickSaveFile( string defaultPath = null, string filters = null )
-		=> PanelWindowDialogs.PickSaveFile( _window, defaultPath, filters );
+		=> PanelWindowDialogs.PickSaveFile( Handle, defaultPath, filters );
 
 	IPanelWindow.WindowHitTest IPanelWindow.HitTest( Vector2 position ) => HitTest( position );
 

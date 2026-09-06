@@ -49,7 +49,15 @@ public sealed class PanelStyle : Styles
 	/// ourself and our anscestors and then filter them by the broadphase. The broadphase is a check
 	/// against classes, element names and ids, things that don't change in a recursive way.
 	/// </summary>
-	StyleBlock[] StyleBlocks;
+	List<StyleBlock> _styleBlocks;
+
+	/// <summary>
+	/// Scratch set for de-duplicating candidate blocks. Rules build on worker threads, so one per
+	/// thread. Emptied around every gather: a block held here would keep its stylesheet's textures
+	/// alive, and a gather that threw would leave stale entries for the next one.
+	/// </summary>
+	[ThreadStatic]
+	static HashSet<StyleBlock> _seenBlocks;
 
 	/// <summary>
 	/// A hash of the things that are checked in the broadphase.
@@ -81,7 +89,7 @@ public sealed class PanelStyle : Styles
 		// Always walk the whole subtree. Stopping at a panel that happens to have no blocks built
 		// yet would leave its children holding rules from the old sheet, so a stylesheet swap only
 		// applied to part of the tree.
-		StyleBlocks = null;
+		_styleBlocks = null;
 
 		foreach ( var child in panel.Children )
 		{
@@ -91,21 +99,32 @@ public sealed class PanelStyle : Styles
 
 	void BuildApplicableBlocks()
 	{
-		var list = new List<StyleBlock>();
+		_styleBlocks ??= new();
+		_styleBlocks.Clear();
 
 		// Gather only the rules indexed for our classes (plus the unindexed element/id/* rules) rather
 		// than scanning every rule. ::before/::after broadphase against their parent's classes.
 		var bp = ((IStyleTarget)panel).IsBeforeOrAfter ? panel.Parent : panel;
+		if ( bp == null ) return;
 
-		if ( bp != null )
+		var seen = _seenBlocks ??= new();
+		seen.Clear();
+
+		try
 		{
-			var seen = new HashSet<StyleBlock>();
+			for ( var p = panel; p != null; p = p.StyleParent )
+			{
+				var sheets = p.StyleSheet.List;
+				if ( sheets == null ) continue;
 
-			foreach ( var sheet in panel.AllStyleSheets )
-				sheet.GatherCandidates( bp._class, panel, seen, list );
+				foreach ( var sheet in sheets )
+					sheet.GatherCandidates( bp._class, panel, seen, _styleBlocks );
+			}
 		}
-
-		StyleBlocks = list.ToArray();
+		finally
+		{
+			seen.Clear();
+		}
 	}
 
 
@@ -118,8 +137,8 @@ public sealed class PanelStyle : Styles
 	{
 		activeRules?.Clear();
 
-		var hash = HashCode.Combine( panel.Id, panel.ElementName, panel.Classes );
-		if ( StyleBlocks == null || hash != broadPhaseHash )
+		var hash = HashCode.Combine( panel.Id, panel.ElementName, panel.ClassHash );
+		if ( _styleBlocks == null || hash != broadPhaseHash )
 		{
 			BuildApplicableBlocks();
 		}
@@ -130,7 +149,7 @@ public sealed class PanelStyle : Styles
 
 		bool isBeforeOrAfter = (panel as IStyleTarget).IsBeforeOrAfter;
 
-		foreach ( var c in StyleBlocks )
+		foreach ( var c in _styleBlocks )
 		{
 			//
 			// If we're not a ::before or ::after element, see if we have any styles with ::before or ::after elements.

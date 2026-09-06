@@ -40,7 +40,7 @@ static class PopupMenu
 		var popup = Editor.PanelWindow.Popup( parent, position );
 
 		// A click anywhere that isn't the menu dismisses it, same as an OS menu
-		popup.OnCloseRequested = Close;
+		popup.OnCloseRequested = () => { Close(); return false; };
 
 		// The popup is its own window with its own root, so it carries the theme itself
 		popup.Root.SetClass( "style-light", LauncherPreferences.LightTheme );

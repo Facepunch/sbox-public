@@ -1,6 +1,6 @@
 using Sandbox;
 
-namespace Menu;
+namespace SboxMenu;
 
 [Title( "VR Model Switcher" )]
 public sealed class VRModelSwitcher : Component

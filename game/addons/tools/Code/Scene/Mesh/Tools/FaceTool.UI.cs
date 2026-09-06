@@ -75,6 +75,7 @@ partial class FaceTool
 			}
 
 			this.AddPivotGroup( tool );
+			this.AddPivotButtons( tool, _faces.Length > 0 );
 
 			{
 				var group = AddGroup( "Operations", collapsible: true );

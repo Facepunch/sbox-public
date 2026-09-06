@@ -68,7 +68,14 @@ public enum PositionMode
 	/// <summary>
 	/// Same as <see cref="Relative"/>, but the elements size does not affect other elements at all.
 	/// </summary>
-	Absolute = 2
+	Absolute = 2,
+
+	/// <summary>
+	/// A root-viewport overlay that remains a logical child. Insets and percentages use the viewport,
+	/// ignoring ancestor scrolling, transforms and clipping. Unset insets start at the viewport's top-left
+	/// (not the CSS static position). Logical visibility and opacity still apply.
+	/// </summary>
+	Fixed = 3
 }
 
 
@@ -131,7 +138,13 @@ public enum Justify
 	/// <summary>
 	/// [  O  O  O  O  ]
 	/// </summary>
-	SpaceEvenly = 5
+	SpaceEvenly = 5,
+
+	/// <summary>
+	/// The initial value (<c>normal</c>). In a flex container this behaves like <see cref="FlexStart"/>;
+	/// in a grid container <c>auto</c> tracks stretch to fill the free space.
+	/// </summary>
+	Stretch = 6
 }
 
 /// <summary>
@@ -152,7 +165,47 @@ public enum DisplayMode
 	/// <summary>
 	/// Causes an element's children to appear as if they were direct children of the element's parent, ignoring the element itself. This can be useful when a wrapper element should be ignored.
 	/// </summary>
-	Contents = 2
+	Contents = 2,
+
+	/// <summary>
+	/// Display via CSS block layout: children stack vertically and fill the width, with collapsing vertical margins.
+	/// </summary>
+	Block = 3,
+
+	/// <summary>
+	/// Display via CSS grid layout: children are placed into the rows and columns defined by
+	/// <c>grid-template-columns</c> and <c>grid-template-rows</c>.
+	/// </summary>
+	Grid = 4,
+
+	/// <summary>Text-only inline content within a block paragraph. Not an inline-block box.</summary>
+	Inline = 5
+}
+
+/// <summary>
+/// Possible values for <c>grid-auto-flow</c> CSS property: how grid items without an explicit position are placed.
+/// </summary>
+public enum GridAutoFlow
+{
+	/// <summary>
+	/// Fill each row in turn, adding rows as needed.
+	/// </summary>
+	Row = 0,
+
+	/// <summary>
+	/// Fill each column in turn, adding columns as needed.
+	/// </summary>
+	Column = 1,
+
+	/// <summary>
+	/// Like <see cref="Row"/>, but back-fills holes left by earlier items.
+	/// </summary>
+	RowDense = 2,
+
+	/// <summary>
+	/// Like <see cref="Column"/>, but back-fills holes left by earlier items.
+	/// </summary>
+	ColumnDense = 3
 }
 
 /// <summary>
@@ -645,4 +698,19 @@ public enum BackgroundClip
 
 	/// <summary>Painted only where the element's text is, so the text shows through the glyphs.</summary>
 	Text = 3
+}
+
+/// <summary>
+/// Possible values for the <c>scrollbar-gutter</c> CSS property.
+/// </summary>
+public enum ScrollbarGutter
+{
+	/// <summary>No space is reserved, the scrollbar overlays the content.</summary>
+	Auto = 0,
+
+	/// <summary>Space for the scrollbar is reserved at the right edge, whether or not one is showing.</summary>
+	Stable = 1,
+
+	/// <summary>Space is reserved at both edges, so the content stays centred.</summary>
+	StableBothEdges = 2
 }

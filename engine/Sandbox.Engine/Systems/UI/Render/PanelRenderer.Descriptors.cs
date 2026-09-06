@@ -126,6 +126,14 @@ internal partial class PanelRenderer
 
 		target.Scissor = ScissorGPU;
 
+		// Inline owners have fragment geometry, not CSS boxes. Their text is painted by the paragraph.
+		if ( panel.InlineOwner is not null )
+		{
+			panel.PushLayer( this );
+			panel.IsRenderDirty = false;
+			return;
+		}
+
 		AddShadowDescriptors( panel, ref state, inset: false, target );
 		panel.PushLayer( this );
 		AddBackdropDescriptor( panel, ref state, target );
@@ -145,6 +153,7 @@ internal partial class PanelRenderer
 		try
 		{
 			panel.OnDraw();
+			panel.InlineParagraph?.Draw();
 		}
 		catch ( Exception e )
 		{

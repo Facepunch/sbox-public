@@ -53,7 +53,6 @@ CS
 	uint g_nNormalOffset < Attribute( "NormalOffset" ); >; 				// 8 bit
 	uint g_nTangentSpaceOffset < Attribute( "TangentSpaceOffset" ); >; 	// 8 bit
 	uint g_nInstanceCount < Attribute( "InstanceCount" ); >;
-	bool g_bHasPackedNormal < Attribute( "HasPackedNormal" ); >;
 
 	struct InstanceParams_t
 	{
@@ -99,16 +98,16 @@ CS
 
 	void CS_DecodeObjectSpaceNormalAndTangent( uint nBaseVertexOffset, out float3 vNormalOs, out float4 vTangentUOs_flTangentVSign )
 	{
-		if ( g_nTangentSpaceOffset == 0xFFFFFFFF && g_bHasPackedNormal )
+		if ( g_nTangentSpaceOffset == 0xFFFFFFFF && !g_bUncompressedTangentFrame )
 		{
 			uint nPacked = g_inputVB.Load( nBaseVertexOffset + g_nNormalOffset );
-			float4 vCompressedNormalOs = float4( 
-				( nPacked >> 0 ) & 0xFF, 
-				( nPacked >> 8 ) & 0xFF,
-				( nPacked >> 16 ) & 0xFF, 
-				( nPacked >> 24 ) & 0xFF );
+			float4 vCompressedNormalOs = float4(
+				( nPacked >> 0 )  & 0x3FF,
+				( nPacked >> 10 ) & 0x3FF,
+				( nPacked >> 20 ) & 0x3FF,
+				( nPacked >> 30 ) & 0x3 );
 
-			_DecompressUByte4NormalTangent( vCompressedNormalOs, vNormalOs, vTangentUOs_flTangentVSign );
+			_DecompressNormalTangent( vCompressedNormalOs, vNormalOs, vTangentUOs_flTangentVSign );
 		}
 		else
 		{

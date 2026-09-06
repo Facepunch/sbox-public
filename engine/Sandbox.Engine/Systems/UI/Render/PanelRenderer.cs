@@ -21,6 +21,17 @@ internal sealed partial class PanelRenderer
 	Matrix? worldPanelMat;
 	internal RenderTarget DefaultRenderTarget;
 
+	internal void ResetFixedOverlayState( Rect viewport )
+	{
+		Matrix = Matrix.Identity;
+		RenderModeStack.Clear();
+		RenderModeStack.Push( "normal" );
+		SetRenderMode( "normal" );
+		ClipWholeRect = null;
+		ScrollCullRect = null;
+		InitScissor( viewport );
+	}
+
 	internal void AdvanceFrame()
 	{
 		lock ( _lock )
@@ -44,6 +55,18 @@ internal sealed partial class PanelRenderer
 			InitScissor( Screen );
 
 			BuildDescriptors( (Panel)panel, new RenderState { X = Screen.Left, Y = Screen.Top, Width = Screen.Width, Height = Screen.Height, RenderOpacity = opacity } );
+			foreach ( var overlay in panel.FixedOverlays )
+			{
+				ResetFixedOverlayState( Screen );
+				BuildDescriptors( overlay, new RenderState
+				{
+					X = Screen.Left,
+					Y = Screen.Top,
+					Width = Screen.Width,
+					Height = Screen.Height,
+					RenderOpacity = opacity * (overlay.Parent?.Opacity ?? 1.0f)
+				} );
+			}
 		}
 	}
 
@@ -80,7 +103,19 @@ internal sealed partial class PanelRenderer
 			InitScissor( Screen, cl );
 
 			DrawPanel( root, cl );
+			FlushDeferredBatches( cl );
 			FlushBatch( cl );
+			foreach ( var overlay in root.FixedOverlays )
+			{
+				if ( !overlay.IsVisible ) continue;
+				// Never let z/batch sorting or an ancestor layer move floaters below ordinary content.
+				backdropGrabActive = false;
+				zDepth = 0;
+				if ( overlay.CachedRenderMode == Panel.RenderMode.Layer ) DrawLayerPanel( overlay, cl );
+				else DrawPanel( overlay, cl );
+				FlushDeferredBatches( cl );
+				FlushBatch( cl );
+			}
 
 			Stats.ScissorCount = batcher.ScissorCount;
 			Stats.GpuBufferCount = batcher.GpuBufferCount;

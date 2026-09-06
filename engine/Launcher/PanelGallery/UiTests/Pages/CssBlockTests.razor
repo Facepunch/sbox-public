@@ -1,0 +1,156 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+
+@using Sandbox;
+@using Sandbox.UI;
+
+@attribute [Title( "CSS Block" )]
+@attribute [Description( "display: block - vertical flow and margin collapsing" )]
+@attribute [Icon( "view_agenda" )]
+@attribute [Order( 21 )]
+
+@*
+    Every stage holds one block container full of coloured blocks. Blocks stack top to
+    bottom and fill the width; the space between them is where margin collapsing shows.
+*@
+
+<root>
+
+    <h2>Flow</h2>
+
+    <div class="cases">
+        <UiTestCase class="layout-case" Setup="@Block" Rule="display: block  (three children, no sizes)" Note="Children stack and stretch to the container width. The container is as tall as its content.">
+            <ChildContent>
+                <div class="block">
+                    <div class="bar c1"><label>1</label></div><div class="bar c2"><label>2</label></div><div class="bar c3"><label>3</label></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Block" Rule="width: 50%  /  width: 25%  /  width: 100px" Note="Sized blocks keep their width and stay at the left edge.">
+            <ChildContent>
+                <div class="block">
+                    <div class="bar c1 w50"><label>50%</label></div><div class="bar c2 w25"><label>25%</label></div><div class="bar c3 w100"><label>100px</label></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Block" Rule="width: 80px; margin: 0 auto" Note="Auto horizontal margins centre a block. Item 3 uses margin-left: auto to push right.">
+            <ChildContent>
+                <div class="block">
+                    <div class="bar c1 centred"><label>auto</label></div><div class="bar c2"><label>2</label></div><div class="bar c3 pushed"><label>right</label></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Block" Rule="text in block flow" Note="Labels of different lengths take their own height, one under the other, wrapping at the container width.">
+            <ChildContent>
+                <div class="block text">
+                    <label class="para">A short line.</label>
+                    <label class="para">A longer paragraph that has to wrap onto a second line inside the block container.</label>
+                    <label class="para">Last.</label>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Margin collapsing</h2>
+
+    <div class="cases">
+        <UiTestCase class="layout-case" Setup="@Block" Rule="margin-bottom: 20px  meets  margin-top: 10px" Note="Adjoining margins collapse to the larger one: the gap between 1 and 2 is 20px, not 30px. The 10px gap to 3 is plain.">
+            <ChildContent>
+                <div class="block">
+                    <div class="bar c1 mb20"><label>margin-bottom: 20</label></div><div class="bar c2 mt10"><label>margin-top: 10</label></div><div class="bar c3 mt10"><label>margin-top: 10</label></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Block" Rule="margin-bottom: 20px  meets  margin-top: -12px" Note="A negative margin subtracts: the gap is 8px.">
+            <ChildContent>
+                <div class="block">
+                    <div class="bar c1 mb20"><label>margin-bottom: 20</label></div><div class="bar c2 mtneg"><label>margin-top: -12</label></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Block" Rule="an empty block with margin: 30px 0 between two blocks" Note="Margins collapse through the empty block: one 30px gap, not 60px plus the neighbours.">
+            <ChildContent>
+                <div class="block">
+                    <div class="bar c1 mb20"><label>margin-bottom: 20</label></div><div class="spacer"></div><div class="bar c2 mt10"><label>margin-top: 10</label></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Block" Rule="first child margin-top: 20px  (container has no padding or border)" Note="The margin escapes: the container starts 20px lower and the child sits flush at its top edge.">
+            <ChildContent>
+                <div class="host">
+                    <div class="block auto-height">
+                        <div class="bar c1 mt20"><label>margin-top: 20</label></div><div class="bar c2"><label>2</label></div>
+                    </div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Block" Rule="first child margin-top: 20px  (container has padding-top: 1px)" Note="Padding blocks the collapse: the container starts at the top and the 20px is inside it.">
+            <ChildContent>
+                <div class="host">
+                    <div class="block auto-height pad1">
+                        <div class="bar c1 mt20"><label>margin-top: 20</label></div><div class="bar c2"><label>2</label></div>
+                    </div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Block" Rule="nested block whose first child has margin-top: 20px" Note="The margin escapes two levels: outer container, inner container and child all start together, 20px down.">
+            <ChildContent>
+                <div class="host">
+                    <div class="block auto-height">
+                        <div class="block inner">
+                            <div class="bar c1 mt20"><label>margin-top: 20</label></div>
+                        </div>
+                        <div class="bar c2"><label>2</label></div>
+                    </div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Mixing with flex</h2>
+
+    <div class="cases">
+        <UiTestCase class="layout-case" Setup="@Block" Rule="a block container as a flex item  (flex-direction: row)" Note="Left: a flex item. Right: a block that grew to fill the row and stacks its children.">
+            <ChildContent>
+                <div class="flex-host">
+                    <div class="bar c6 flex-side"><label>flex</label></div>
+                    <div class="block in-flex">
+                        <div class="bar c1"><label>1</label></div><div class="bar c2"><label>2</label></div>
+                    </div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Block" Rule="a flex row inside a block container" Note="The flex row stretches to the block's width and lays its children out side by side; blocks continue underneath.">
+            <ChildContent>
+                <div class="block">
+                    <div class="bar c1"><label>1</label></div>
+                    <div class="flex-row">
+                        <div class="bar c2 flex-grow"><label>a</label></div><div class="bar c3 flex-grow"><label>b</label></div><div class="bar c4 flex-grow"><label>c</label></div>
+                    </div>
+                    <div class="bar c5"><label>3</label></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Block" Rule="align-content: center; height: 110px" Note="Leftover height is split above and below the children.">
+            <ChildContent>
+                <div class="block fixed-height centre-content">
+                    <div class="bar c1"><label>1</label></div><div class="bar c2"><label>2</label></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Block" Rule="position: absolute; right: 4px; bottom: 4px  (red)" Note="An absolute child is taken out of the flow and positioned against the block's padding box.">
+            <ChildContent>
+                <div class="block fixed-height">
+                    <div class="bar c1"><label>1</label></div><div class="bar c2"><label>2</label></div>
+                    <div class="abs-corner"><label>abs</label></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+    </div>
+
+</root>
+
+@code
+{
+    const string Block = "width: 208px";
+}

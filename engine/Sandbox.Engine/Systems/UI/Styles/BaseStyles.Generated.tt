@@ -54,8 +54,20 @@ var Members = new Dictionary<string, (string TypeName, string DefaultValue, bool
 	{ "OverflowX",					("OverflowMode?",		"OverflowMode.Visible",			false)},
 	{ "OverflowY",					("OverflowMode?",		"OverflowMode.Visible",			false)},
 	{ "FlexDirection",				("FlexDirection?",		"UI.FlexDirection.Row",			false)},
-	{ "JustifyContent",				("Justify?",			"Justify.FlexStart",			false)},
+	{ "JustifyContent",				("Justify?",			"Justify.Stretch",				false)},
+	{ "JustifyItems",				("Align?",				"Align.Auto",					false)},
+	{ "JustifySelf",				("Align?",				"Align.Auto",					false)},
 	{ "Display",					("DisplayMode?",		"DisplayMode.Flex",				false)},
+	// Grid. Track lists and placements keep their CSS text; the layout engine parses them.
+	{ "GridTemplateColumns",		("string",				"\"none\"",						false)},
+	{ "GridTemplateRows",			("string",				"\"none\"",						false)},
+	{ "GridAutoColumns",			("string",				"\"auto\"",						false)},
+	{ "GridAutoRows",				("string",				"\"auto\"",						false)},
+	{ "GridAutoFlow",				("GridAutoFlow?",		"UI.GridAutoFlow.Row",			false)},
+	{ "GridColumnStart",			("string",				"\"auto\"",						false)},
+	{ "GridColumnEnd",				("string",				"\"auto\"",						false)},
+	{ "GridRowStart",				("string",				"\"auto\"",						false)},
+	{ "GridRowEnd",					("string",				"\"auto\"",						false)},
 	{ "FlexWrap",					("Wrap?",				"Wrap.NoWrap",					false)},
 	{ "AlignContent",				("Align?",				"Align.Auto",					false)},
 	{ "AlignSelf",					("Align?",				"Align.Auto",					false)},
@@ -152,7 +164,11 @@ var Members = new Dictionary<string, (string TypeName, string DefaultValue, bool
 	{ "OutlineWidth",				("Length?",				"0",							false)},
 	{ "OutlineColor",				("Color?",				"Color.Transparent",			false)},
 	{ "OutlineOffset",				("Length?",				"0",							false)},
-	{ "Isolation",					("Isolation?",			"UI.Isolation.Auto",			false)}
+	{ "Isolation",					("Isolation?",			"UI.Isolation.Auto",			false)},
+	{ "ScrollbarWidth",				("Length?",				"0",							true)},
+	{ "ScrollbarGutter",			("ScrollbarGutter?",	"UI.ScrollbarGutter.Auto",		false)},
+	{ "ScrollbarThumbColor",		("Color?",				"null",							true)},
+	{ "ScrollbarTrackColor",		("Color?",				"null",							true)}
 };
 
 // Members whose null means "same as this other member", so a transition lerps from that one
@@ -253,7 +269,7 @@ foreach ( var member in Members)
 		switch ( property )
 		{
 		<#
-			string? GetParsingFunction( string type ) 
+			string GetParsingFunction( string type )
 			{
 				if ( type.EndsWith( "?" ))
 					type = type.Substring( 0, type.Length - 1 );
@@ -400,6 +416,12 @@ foreach ( var member in Members )
 		var (key, value) = (member.Key.ToLowerInvariant(), member.Value);
 #>
 		if ( !_<#=key#>.HasValue ) _<#=key#> = <#=member.Value.DefaultValue#>;
+<#
+	}
+	else if ( member.Value.TypeName == "string" && member.Key.StartsWith( "Grid" ) )
+	{
+#>
+		_<#=member.Key.ToLowerInvariant()#> ??= <#=member.Value.DefaultValue#>;
 <#
 	}
 }

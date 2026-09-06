@@ -155,7 +155,7 @@ public class ComponentListWidget : Widget
 		undoScope = null;
 	}
 
-	void ContextMenu( Component component, Menu menu, string title )
+	void ContextMenu( Component component, Editor.Menu menu, string title )
 	{
 		AddLayoutOptions( component, menu );
 
@@ -330,7 +330,7 @@ public class ComponentListWidget : Widget
 		}
 	}
 
-	void AddLayoutOptions( Component component, Menu menu )
+	void AddLayoutOptions( Component component, Editor.Menu menu )
 	{
 		menu.AddOption( "Collapse Others", "unfold_less", action: () =>
 		{
@@ -359,7 +359,7 @@ public class ComponentListWidget : Widget
 		menu.AddSeparator();
 	}
 
-	void ContextMenuMultiple( Component component, Menu menu, string title )
+	void ContextMenuMultiple( Component component, Editor.Menu menu, string title )
 	{
 		var componentList = component.GameObject.Components;
 		var index = componentList.GetAll( component.GetType(), FindMode.EverythingInSelf ).ToList().IndexOf( component );

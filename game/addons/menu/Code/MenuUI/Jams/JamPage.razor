@@ -1,0 +1,309 @@
+@using MenuProject.MenuUI.ContentBlock
+@using MenuProject.MenuUI.Layout
+@using Sandbox;
+@using Sandbox.Services;
+@using Sandbox.UI;
+@using Sandbox.UI.Navigation;
+@using System;
+@using System.Collections.Generic;
+@using System.Linq;
+@namespace MenuProject.MenuUI.Jams
+
+@page "/jam"
+@inherits Panel
+@implements Sandbox.UI.Navigation.INavigatorPage
+
+<root class="root">
+	<Page>
+		<Body>
+			<div class="jam-body">
+
+				@if ( Jam is null )
+				{
+					<div class="jam-empty">
+						<icon>@( IsLoading ? "hourglass_empty" : "emoji_events" )</icon>
+						<label class="title">@( IsLoading ? "Checking for a jam" : "No jam right now" )</label>
+						<label class="hint">@( IsLoading ? "One moment." : "Nothing is running at the moment. Check back later." )</label>
+					</div>
+				}
+				else
+				{
+					<div class="bar">
+						@if ( Jam.IsLive )
+						{
+							<div class="live"><div class="pip"></div><label>Live</label></div>
+						}
+
+						<label class="strong">@Jam.Title</label>
+						<div class="sep"></div>
+						<label>@PhaseText</label>
+
+						@if ( Jam.HasStarted && Jam.Now < Jam.Deadline )
+						{
+							<div class="sep"></div>
+							<label>Entries close @JamFormat.Day( Jam.Deadline )</label>
+						}
+
+						@if ( Jam.CommunityVoting && Jam.Now < Jam.NominationsEnd )
+						{
+							<div class="sep"></div>
+							<label>Nominate until @JamFormat.Day( Jam.NominationsEnd )</label>
+						}
+
+						@if ( CountdownTarget is DateTimeOffset target )
+						{
+							<JamCountdown class="countdown" Jam=@Jam Label=@CountdownLabel Target=@target />
+						}
+					</div>
+
+					<div class="columns">
+						<div class="main">
+
+							<label class="kicker">@( ShowTheme ? "Theme" : "Game jam" )</label>
+							<label class="headline">@Headline</label>
+							<label class="sub">@Jam.Description</label>
+							<label class="blurb">@Blurb</label>
+
+							<div class="actions">
+								@if ( Jam.AcceptingEntries )
+								{
+									<div class="action" onclick=@EnterGame>
+										<icon>touch_app</icon>
+										<label>Enter your game</label>
+									</div>
+								}
+
+								<div class="action secondary" onclick=@OpenWebsite>
+									<icon>open_in_new</icon>
+									<label>Jam page</label>
+								</div>
+							</div>
+
+							@foreach ( var category in Jam.Categories )
+							{
+								<div class="sec">
+									<div class="sec-label">
+										<label class="eyebrow">Prizes</label>
+										<label class="name">@category.Title</label>
+									</div>
+
+									<div class="prize">
+										<label class="prize-icon">@category.Icon</label>
+
+										<div class="prize-body">
+											<label class="prize-title">@PrizeTitle( category )</label>
+
+											@if ( !string.IsNullOrWhiteSpace( category.Description ) )
+											{
+												<label class="prize-hint">@category.Description</label>
+											}
+										</div>
+
+										<div class="places">
+											@if ( category.Places.Length > 0 )
+											{
+												@for ( var i = 0; i < category.Places.Length; i++ )
+												{
+													<div class="place @( i == 0 ? "first" : "" )">
+														<label class="amount">@category.Places[i]</label>
+														<label class="ordinal">@JamFormat.Ordinal( i + 1 )</label>
+													</div>
+												}
+											}
+											else if ( !string.IsNullOrWhiteSpace( category.Prize ) )
+											{
+												<div class="place first">
+													<label class="amount">@category.Prize</label>
+													<label class="ordinal">Prize</label>
+												</div>
+											}
+										</div>
+									</div>
+								</div>
+							}
+
+							<div class="sec grow">
+								<div class="sec-label">
+									<label class="eyebrow">Entries</label>
+									<label class="name">@EntriesText</label>
+								</div>
+
+								@if ( !Jam.HasStarted )
+								{
+									<div class="jam-empty small">
+										<icon>lock_clock</icon>
+										<label class="title">Theme drops @JamFormat.Day( Jam.Starts )</label>
+										<label class="hint">Entries open the moment it does.</label>
+									</div>
+								}
+								else
+								{
+									<div class="entries">
+										<MenuProject.UI.PackageList ShowFilters="@false" Query=@Jam.Query Take=@( 200 ) ItemSize=@( new Vector2( 260, 236 ) )>
+											<Item Context="package">
+												<JamEntryCard Jam=@Jam Package=@package CanNominate=@CanNominate Nominated=@Nominated.Contains( package.FullIdent ) OnSelected=@Selected OnMenu=@Menu />
+											</Item>
+										</MenuProject.UI.PackageList>
+									</div>
+								}
+							</div>
+
+						</div>
+
+						<JamSpine Jam=@Jam />
+					</div>
+				}
+
+			</div>
+		</Body>
+	</Page>
+</root>
+
+@code
+{
+	Jam Jam { get; set; }
+
+	bool IsLoading { get; set; }
+
+	HashSet<string> Nominated { get; set; } = new( StringComparer.OrdinalIgnoreCase );
+
+	bool ShowTheme => Jam.HasStarted && !string.IsNullOrWhiteSpace( Jam.Theme );
+
+	string Headline => ShowTheme ? Jam.Theme : Jam.Title;
+
+	bool CanNominate => CanNominateIn( Jam );
+
+	static bool CanNominateIn( Jam jam ) => jam is not null && jam.CommunityVoting && jam.HasStarted && jam.Now < jam.NominationsEnd;
+
+	string PhaseText
+	{
+		get
+		{
+			if ( !Jam.HasStarted )
+				return $"Starts {JamFormat.Day( Jam.Starts )}";
+
+			var step = Jam.CurrentStepIndex >= 0 ? Jam.Timeline[Jam.CurrentStepIndex] : null;
+			var next = Jam.NextStep;
+
+			if ( step is null || next is null )
+				return Jam.CurrentPhase.ToString();
+
+			var total = Math.Max( 1, (int)Math.Round( (next.At - step.At).TotalDays ) );
+			var into = Math.Clamp( (Jam.Now.UtcDateTime.Date - step.At.UtcDateTime.Date).Days + 1, 1, total );
+
+			return $"{step.Name} · day {into:00} / {total:00}";
+		}
+	}
+
+	DateTimeOffset? CountdownTarget
+	{
+		get
+		{
+			if ( !Jam.HasStarted ) return Jam.Starts;
+			if ( Jam.Now < Jam.Deadline ) return Jam.Deadline;
+			if ( Jam.CommunityVoting && Jam.Now < Jam.NominationsEnd ) return Jam.NominationsEnd;
+
+			return Jam.NextStep?.At;
+		}
+	}
+
+	string CountdownLabel
+	{
+		get
+		{
+			if ( !Jam.HasStarted ) return "Starts in";
+			if ( Jam.Now < Jam.Deadline ) return "Entries close in";
+			if ( Jam.CommunityVoting && Jam.Now < Jam.NominationsEnd ) return "Nominations lock in";
+
+			return $"{Jam.NextStep?.Name} in";
+		}
+	}
+
+	string Blurb
+	{
+		get
+		{
+			if ( !Jam.HasStarted )
+				return Jam.CommunityVoting
+					? "The theme is a secret until the jam starts. Once it does, play the entries and nominate the ones you rate."
+					: "The theme is a secret until the jam starts.";
+
+			if ( CanNominate )
+				return "Play the entries as they land and nominate the ones you rate. Nominations decide who makes the finals.";
+
+			if ( Jam.CommunityVoting )
+				return "Nominations are closed. The finalists go head to head.";
+
+			return "Play the entries.";
+		}
+	}
+
+	string EntriesText => Jam.EntryCount switch
+	{
+		0 => Jam.HasStarted ? "none yet" : "not open yet",
+		1 => "1 so far",
+		_ => $"{Jam.EntryCount} so far",
+	};
+
+	static string PrizeTitle( Jam.Category category )
+	{
+		if ( category.Places.Length > 1 && !string.IsNullOrWhiteSpace( category.Prize ) )
+			return $"{category.Prize} across {NumberWord( category.Places.Length )} places";
+
+		return category.Prize ?? category.Title;
+	}
+
+	static string NumberWord( int n ) => n switch
+	{
+		2 => "two", 3 => "three", 4 => "four", 5 => "five", 6 => "six", 7 => "seven", 8 => "eight", 9 => "nine", 10 => "ten",
+		_ => n.ToString(),
+	};
+
+	void Sandbox.UI.Navigation.INavigatorPage.OnNavigationOpen()
+	{
+		_ = Load();
+	}
+
+	async Task Load()
+	{
+		if ( IsLoading ) return;
+
+		IsLoading = true;
+		StateHasChanged();
+
+		var jam = await Jam.GetActive();
+		if ( !this.IsValid() ) return;
+
+		if ( CanNominateIn( jam ) )
+		{
+			Nominated = await jam.GetMyNominationsAsync();
+			if ( !this.IsValid() ) return;
+		}
+
+		Jam = jam;
+		IsLoading = false;
+		StateHasChanged();
+	}
+
+	void EnterGame()
+	{
+		MenuUtility.OpenUrl( $"{Jam.Url}/submit" );
+	}
+
+	void OpenWebsite()
+	{
+		MenuUtility.OpenUrl( Jam.Url );
+	}
+
+	void Selected( Package package )
+	{
+		ContentBlocks.OnLaunch( package );
+	}
+
+	void Menu( Package package )
+	{
+		ContentBlocks.OnMenu( this, package );
+	}
+
+	protected override int BuildHash() => HashCode.Combine( Jam?.Ident, Jam?.CurrentPhase, Jam?.EntryCount, IsLoading, Nominated.Count, Jam?.Now.Hour );
+}

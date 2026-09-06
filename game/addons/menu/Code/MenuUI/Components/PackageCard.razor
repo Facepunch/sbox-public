@@ -97,9 +97,38 @@
     public static int VideoThumbsPerShelf { get; set; } = 2;
     public static int VideoThumbsPerGrid { get; set; } = 6;
     public static float VideoThumbsSeconds { get; set; } = 10f;
+	const float VideoActivationDelay = 0.3f;
+	bool showVideo;
+	float? videoRequestedAt;
 
-    // No Rotation means the old "every card plays". Hover always wins.
-    bool ShowVideo() => HasHovered || (VideoThumbs && (Rotation is null || Rotation.IsPlaying( this )));
+	bool WantsVideo() => HasHovered || (VideoThumbs && (Rotation is null || Rotation.IsPlaying( this )));
+	bool ShowVideo() => showVideo;
+
+	public override void Tick()
+	{
+		base.Tick();
+
+		if ( !WantsVideo() )
+		{
+			videoRequestedAt = null;
+
+			if ( showVideo )
+			{
+				showVideo = false;
+				StateHasChanged();
+			}
+
+			return;
+		}
+
+		videoRequestedAt ??= RealTime.Now;
+
+		if ( !showVideo && RealTime.Now - videoRequestedAt.Value >= VideoActivationDelay )
+		{
+			showVideo = true;
+			StateHasChanged();
+		}
+	}
 
     string VideoUrl()
     {

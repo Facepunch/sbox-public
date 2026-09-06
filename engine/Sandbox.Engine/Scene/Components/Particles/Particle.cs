@@ -30,6 +30,8 @@ public partial class Particle : IDynamicFloatContext
 	public int Sequence;
 	public Vector3 SequenceTime;
 	public int Frame;
+	public Angles StartAngles;
+	public float StartScale;
 
 	int RandomSeed;
 	internal bool hasUpdated;
@@ -113,6 +115,7 @@ public partial class Particle : IDynamicFloatContext
 		p.BornTime = Time.Now;
 		p.Age = 0;
 		p.Angles = Angles.Zero;
+		p.StartAngles = Angles.Zero;
 		p.Frame = 0;
 		p.Velocity = 0;
 		p.LastVelocity = 0;
@@ -122,6 +125,7 @@ public partial class Particle : IDynamicFloatContext
 		p.Sequence = 0;
 		p.SequenceTime = 0;
 		p.Size = 5;
+		p.StartScale = 1;
 		p.HitTime = -1000;
 		p.LastHitTime = -1000;
 		p.TimeScale = 1;

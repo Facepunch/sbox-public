@@ -73,6 +73,7 @@ partial class PanelRenderer
 		foreach ( var label in panel.Descendants.Prepend( panel ).OfType<Label>() )
 		{
 			if ( !label.IsVisible ) continue;
+			if ( label.VisualRoot != panel.VisualRoot ) continue;
 			if ( !label.GetTextMask( out var texture, out var rect ) ) continue;
 
 			desc.TextMask = texture;

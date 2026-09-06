@@ -10,6 +10,7 @@ public class PackageDto
 	public string Thumb { get; set; }
 	public string ThumbWide { get; set; }
 	public string ThumbTall { get; set; }
+	public PackageThumbnailSet Thumbnails { get; set; }
 	public DateTimeOffset Updated { get; set; }
 	public DateTimeOffset Created { get; set; }
 	public PackageUsageStats UsageStats { get; set; }
@@ -105,3 +106,12 @@ public class PackageDto
 		return $"{Org.Ident}/{Ident}{append}";
 	}
 }
+
+public class PackageThumbnailSet
+{
+	public PackageThumbnail[] Square { get; set; }
+	public PackageThumbnail[] Wide { get; set; }
+	public PackageThumbnail[] Tall { get; set; }
+}
+
+public record PackageThumbnail( int Width, int Height, string Url );

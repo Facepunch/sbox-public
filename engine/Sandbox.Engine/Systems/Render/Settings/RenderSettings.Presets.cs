@@ -69,7 +69,7 @@ public partial class RenderSettings
 		if ( IsIntegratedGpu( SystemInfo.Gpu ) )
 			return GraphicsPreset.Low;
 
-		if ( vram >= Class( 10, GB ) && ram >= 16 * GB && cores >= 12 )
+		if ( vram >= Class( 12, GB ) && ram >= 16 * GB && cores >= 12 )
 			return GraphicsPreset.Ultra;
 
 		if ( vram >= Class( 6, GB ) && ram >= 16 * GB && cores >= 8 )

@@ -87,6 +87,7 @@ public class Button : Panel, INavigationEvent
 	public Button()
 	{
 		AddClass( "button" );
+		AcceptsFocus = true;
 
 		IconPanel = AddChild( new IconPanel( "people", "icon" ) );
 		IconPanel.Style.Display = DisplayMode.None;
@@ -190,6 +191,14 @@ public class Button : Panel, INavigationEvent
 			RightColumn.Style.Display = DisplayMode.Flex;
 			HelpLabel.Text = value;
 		}
+	}
+
+	public override void OnButtonTyped( ButtonEvent e )
+	{
+		if ( !Disabled && TryClickFromKeyboard( e ) )
+			return;
+
+		base.OnButtonTyped( e );
 	}
 
 	/// <summary>

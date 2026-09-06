@@ -808,6 +808,38 @@ public abstract partial class BaseStyles
 		}
 	}
 
+	internal Align? _justifyitems;
+	
+	/// <summary>
+	/// Represents the <c>justify-items</c> CSS property.
+	/// </summary>
+	public Align? JustifyItems
+	{
+		get => _justifyitems;
+		set
+		{
+			if ( _justifyitems == value ) return;
+			_justifyitems = value;
+			Dirty();
+		}
+	}
+
+	internal Align? _justifyself;
+	
+	/// <summary>
+	/// Represents the <c>justify-self</c> CSS property.
+	/// </summary>
+	public Align? JustifySelf
+	{
+		get => _justifyself;
+		set
+		{
+			if ( _justifyself == value ) return;
+			_justifyself = value;
+			Dirty();
+		}
+	}
+
 	internal DisplayMode? _display;
 	
 	/// <summary>
@@ -820,6 +852,150 @@ public abstract partial class BaseStyles
 		{
 			if ( _display == value ) return;
 			_display = value;
+			Dirty();
+		}
+	}
+
+	internal string _gridtemplatecolumns;
+	
+	/// <summary>
+	/// Represents the <c>grid-template-columns</c> CSS property.
+	/// </summary>
+	public string GridTemplateColumns
+	{
+		get => _gridtemplatecolumns;
+		set
+		{
+			if ( _gridtemplatecolumns == value ) return;
+			_gridtemplatecolumns = value;
+			Dirty();
+		}
+	}
+
+	internal string _gridtemplaterows;
+	
+	/// <summary>
+	/// Represents the <c>grid-template-rows</c> CSS property.
+	/// </summary>
+	public string GridTemplateRows
+	{
+		get => _gridtemplaterows;
+		set
+		{
+			if ( _gridtemplaterows == value ) return;
+			_gridtemplaterows = value;
+			Dirty();
+		}
+	}
+
+	internal string _gridautocolumns;
+	
+	/// <summary>
+	/// Represents the <c>grid-auto-columns</c> CSS property.
+	/// </summary>
+	public string GridAutoColumns
+	{
+		get => _gridautocolumns;
+		set
+		{
+			if ( _gridautocolumns == value ) return;
+			_gridautocolumns = value;
+			Dirty();
+		}
+	}
+
+	internal string _gridautorows;
+	
+	/// <summary>
+	/// Represents the <c>grid-auto-rows</c> CSS property.
+	/// </summary>
+	public string GridAutoRows
+	{
+		get => _gridautorows;
+		set
+		{
+			if ( _gridautorows == value ) return;
+			_gridautorows = value;
+			Dirty();
+		}
+	}
+
+	internal GridAutoFlow? _gridautoflow;
+	
+	/// <summary>
+	/// Represents the <c>grid-auto-flow</c> CSS property.
+	/// </summary>
+	public GridAutoFlow? GridAutoFlow
+	{
+		get => _gridautoflow;
+		set
+		{
+			if ( _gridautoflow == value ) return;
+			_gridautoflow = value;
+			Dirty();
+		}
+	}
+
+	internal string _gridcolumnstart;
+	
+	/// <summary>
+	/// Represents the <c>grid-column-start</c> CSS property.
+	/// </summary>
+	public string GridColumnStart
+	{
+		get => _gridcolumnstart;
+		set
+		{
+			if ( _gridcolumnstart == value ) return;
+			_gridcolumnstart = value;
+			Dirty();
+		}
+	}
+
+	internal string _gridcolumnend;
+	
+	/// <summary>
+	/// Represents the <c>grid-column-end</c> CSS property.
+	/// </summary>
+	public string GridColumnEnd
+	{
+		get => _gridcolumnend;
+		set
+		{
+			if ( _gridcolumnend == value ) return;
+			_gridcolumnend = value;
+			Dirty();
+		}
+	}
+
+	internal string _gridrowstart;
+	
+	/// <summary>
+	/// Represents the <c>grid-row-start</c> CSS property.
+	/// </summary>
+	public string GridRowStart
+	{
+		get => _gridrowstart;
+		set
+		{
+			if ( _gridrowstart == value ) return;
+			_gridrowstart = value;
+			Dirty();
+		}
+	}
+
+	internal string _gridrowend;
+	
+	/// <summary>
+	/// Represents the <c>grid-row-end</c> CSS property.
+	/// </summary>
+	public string GridRowEnd
+	{
+		get => _gridrowend;
+		set
+		{
+			if ( _gridrowend == value ) return;
+			_gridrowend = value;
 			Dirty();
 		}
 	}
@@ -2345,7 +2521,7 @@ public abstract partial class BaseStyles
 	}
 
 	internal Length? _outlineoffset;
-
+	
 	/// <summary>
 	/// Represents the <c>outline-offset</c> CSS property.
 	/// </summary>
@@ -2361,7 +2537,7 @@ public abstract partial class BaseStyles
 	}
 
 	internal Isolation? _isolation;
-
+	
 	/// <summary>
 	/// Represents the <c>isolation</c> CSS property.
 	/// </summary>
@@ -2376,307 +2552,238 @@ public abstract partial class BaseStyles
 		}
 	}
 
+	internal Length? _scrollbarwidth;
+	
+	/// <summary>
+	/// Represents the <c>scrollbar-width</c> CSS property.
+	/// </summary>
+	public Length? ScrollbarWidth
+	{
+		get => _scrollbarwidth;
+		set
+		{
+			if ( _scrollbarwidth == value ) return;
+			_scrollbarwidth = value;
+			Dirty();
+		}
+	}
+
+	internal ScrollbarGutter? _scrollbargutter;
+	
+	/// <summary>
+	/// Represents the <c>scrollbar-gutter</c> CSS property.
+	/// </summary>
+	public ScrollbarGutter? ScrollbarGutter
+	{
+		get => _scrollbargutter;
+		set
+		{
+			if ( _scrollbargutter == value ) return;
+			_scrollbargutter = value;
+			Dirty();
+		}
+	}
+
+	internal Color? _scrollbarthumbcolor;
+	
+	/// <summary>
+	/// Represents the <c>scrollbar-thumb-color</c> CSS property.
+	/// </summary>
+	public Color? ScrollbarThumbColor
+	{
+		get => _scrollbarthumbcolor;
+		set
+		{
+			if ( _scrollbarthumbcolor == value ) return;
+			_scrollbarthumbcolor = value;
+			Dirty();
+		}
+	}
+
+	internal Color? _scrollbartrackcolor;
+	
+	/// <summary>
+	/// Represents the <c>scrollbar-track-color</c> CSS property.
+	/// </summary>
+	public Color? ScrollbarTrackColor
+	{
+		get => _scrollbartrackcolor;
+		set
+		{
+			if ( _scrollbartrackcolor == value ) return;
+			_scrollbartrackcolor = value;
+			Dirty();
+		}
+	}
+
 	/// <summary>
 	/// Copy over only the styles that are set.
 	/// </summary>
 	private void AddGenerated( BaseStyles a )
 	{
-
 		if ( a._content != null ) _content = a._content;
-
 		if ( a._width != null ) _width = a._width;
-
 		if ( a._minwidth != null ) _minwidth = a._minwidth;
-
 		if ( a._maxwidth != null ) _maxwidth = a._maxwidth;
-
 		if ( a._height != null ) _height = a._height;
-
 		if ( a._minheight != null ) _minheight = a._minheight;
-
 		if ( a._maxheight != null ) _maxheight = a._maxheight;
-
 		if ( a._left != null ) _left = a._left;
-
 		if ( a._top != null ) _top = a._top;
-
 		if ( a._right != null ) _right = a._right;
-
 		if ( a._bottom != null ) _bottom = a._bottom;
-
 		if ( a._opacity != null ) _opacity = a._opacity;
-
 		if ( a._backgroundcolor != null ) _backgroundcolor = a._backgroundcolor;
-
 		if ( a._paddingleft != null ) _paddingleft = a._paddingleft;
-
 		if ( a._paddingtop != null ) _paddingtop = a._paddingtop;
-
 		if ( a._paddingright != null ) _paddingright = a._paddingright;
-
 		if ( a._paddingbottom != null ) _paddingbottom = a._paddingbottom;
-
 		if ( a._marginleft != null ) _marginleft = a._marginleft;
-
 		if ( a._margintop != null ) _margintop = a._margintop;
-
 		if ( a._marginright != null ) _marginright = a._marginright;
-
 		if ( a._marginbottom != null ) _marginbottom = a._marginbottom;
-
 		if ( a._bordertopleftradius != null ) _bordertopleftradius = a._bordertopleftradius;
-
 		if ( a._bordertoprightradius != null ) _bordertoprightradius = a._bordertoprightradius;
-
 		if ( a._borderbottomrightradius != null ) _borderbottomrightradius = a._borderbottomrightradius;
-
 		if ( a._borderbottomleftradius != null ) _borderbottomleftradius = a._borderbottomleftradius;
-
 		if ( a._bordertopleftradiusv != null ) _bordertopleftradiusv = a._bordertopleftradiusv;
-
 		if ( a._bordertoprightradiusv != null ) _bordertoprightradiusv = a._bordertoprightradiusv;
-
 		if ( a._borderbottomrightradiusv != null ) _borderbottomrightradiusv = a._borderbottomrightradiusv;
-
 		if ( a._borderbottomleftradiusv != null ) _borderbottomleftradiusv = a._borderbottomleftradiusv;
-
 		if ( a._borderleftwidth != null ) _borderleftwidth = a._borderleftwidth;
-
 		if ( a._bordertopwidth != null ) _bordertopwidth = a._bordertopwidth;
-
 		if ( a._borderrightwidth != null ) _borderrightwidth = a._borderrightwidth;
-
 		if ( a._borderbottomwidth != null ) _borderbottomwidth = a._borderbottomwidth;
-
 		if ( a._borderleftcolor != null ) _borderleftcolor = a._borderleftcolor;
-
 		if ( a._bordertopcolor != null ) _bordertopcolor = a._bordertopcolor;
-
 		if ( a._borderrightcolor != null ) _borderrightcolor = a._borderrightcolor;
-
 		if ( a._borderbottomcolor != null ) _borderbottomcolor = a._borderbottomcolor;
-
 		if ( a._fontsize != null ) _fontsize = a._fontsize;
-
 		if ( a._fontcolor != null ) _fontcolor = a._fontcolor;
-
 		if ( a._fontweight != null ) _fontweight = a._fontweight;
-
 		if ( a._fontfamily != null ) _fontfamily = a._fontfamily;
-
 		if ( a._caretcolor != null ) _caretcolor = a._caretcolor;
-
 		if ( a._cursor != null ) _cursor = a._cursor;
-
 		if ( a._pointerevents != null ) _pointerevents = a._pointerevents;
-
 		if ( a._mixblendmode != null ) _mixblendmode = a._mixblendmode;
-
 		if ( a._position != null ) _position = a._position;
-
 		if ( a._overflowx != null ) _overflowx = a._overflowx;
-
 		if ( a._overflowy != null ) _overflowy = a._overflowy;
-
 		if ( a._flexdirection != null ) _flexdirection = a._flexdirection;
-
 		if ( a._justifycontent != null ) _justifycontent = a._justifycontent;
-
+		if ( a._justifyitems != null ) _justifyitems = a._justifyitems;
+		if ( a._justifyself != null ) _justifyself = a._justifyself;
 		if ( a._display != null ) _display = a._display;
-
+		if ( a._gridtemplatecolumns != null ) _gridtemplatecolumns = a._gridtemplatecolumns;
+		if ( a._gridtemplaterows != null ) _gridtemplaterows = a._gridtemplaterows;
+		if ( a._gridautocolumns != null ) _gridautocolumns = a._gridautocolumns;
+		if ( a._gridautorows != null ) _gridautorows = a._gridautorows;
+		if ( a._gridautoflow != null ) _gridautoflow = a._gridautoflow;
+		if ( a._gridcolumnstart != null ) _gridcolumnstart = a._gridcolumnstart;
+		if ( a._gridcolumnend != null ) _gridcolumnend = a._gridcolumnend;
+		if ( a._gridrowstart != null ) _gridrowstart = a._gridrowstart;
+		if ( a._gridrowend != null ) _gridrowend = a._gridrowend;
 		if ( a._flexwrap != null ) _flexwrap = a._flexwrap;
-
 		if ( a._aligncontent != null ) _aligncontent = a._aligncontent;
-
 		if ( a._alignself != null ) _alignself = a._alignself;
-
 		if ( a._alignitems != null ) _alignitems = a._alignitems;
-
 		if ( a._flexbasis != null ) _flexbasis = a._flexbasis;
-
 		if ( a._flexgrow != null ) _flexgrow = a._flexgrow;
-
 		if ( a._flexshrink != null ) _flexshrink = a._flexshrink;
-
 		if ( a._rowgap != null ) _rowgap = a._rowgap;
-
 		if ( a._columngap != null ) _columngap = a._columngap;
-
 		if ( a._aspectratio != null ) _aspectratio = a._aspectratio;
-
 		if ( a._textalign != null ) _textalign = a._textalign;
-
 		if ( a._textoverflow != null ) _textoverflow = a._textoverflow;
-
 		if ( a._textfilter != null ) _textfilter = a._textfilter;
-
 		if ( a._wordbreak != null ) _wordbreak = a._wordbreak;
-
 		if ( a._textdecorationline != null ) _textdecorationline = a._textdecorationline;
-
 		if ( a._textdecorationcolor != null ) _textdecorationcolor = a._textdecorationcolor;
-
 		if ( a._textdecorationthickness != null ) _textdecorationthickness = a._textdecorationthickness;
-
 		if ( a._textdecorationskipink != null ) _textdecorationskipink = a._textdecorationskipink;
-
 		if ( a._textdecorationstyle != null ) _textdecorationstyle = a._textdecorationstyle;
-
 		if ( a._textunderlineoffset != null ) _textunderlineoffset = a._textunderlineoffset;
-
 		if ( a._textoverlineoffset != null ) _textoverlineoffset = a._textoverlineoffset;
-
 		if ( a._textlinethroughoffset != null ) _textlinethroughoffset = a._textlinethroughoffset;
-
 		if ( a._fontstyle != null ) _fontstyle = a._fontstyle;
-
 		if ( a._fontvariantnumeric != null ) _fontvariantnumeric = a._fontvariantnumeric;
-
 		if ( a._transform != null ) _transform = a._transform;
-
 		if ( a._texttransform != null ) _texttransform = a._texttransform;
-
 		if ( a._transformoriginx != null ) _transformoriginx = a._transformoriginx;
-
 		if ( a._transformoriginy != null ) _transformoriginy = a._transformoriginy;
-
 		if ( a._letterspacing != null ) _letterspacing = a._letterspacing;
-
 		if ( a._lineheight != null ) _lineheight = a._lineheight;
-
 		if ( a._wordspacing != null ) _wordspacing = a._wordspacing;
-
 		if ( a._whitespace != null ) _whitespace = a._whitespace;
-
 		if ( a._zindex != null ) _zindex = a._zindex;
-
 		if ( a._order != null ) _order = a._order;
-
 		if ( a._soundin != null ) _soundin = a._soundin;
-
 		if ( a._soundout != null ) _soundout = a._soundout;
-
 		if ( a._backdropfilterblur != null ) _backdropfilterblur = a._backdropfilterblur;
-
 		if ( a._backdropfilterbrightness != null ) _backdropfilterbrightness = a._backdropfilterbrightness;
-
 		if ( a._backdropfiltercontrast != null ) _backdropfiltercontrast = a._backdropfiltercontrast;
-
 		if ( a._backdropfiltersaturate != null ) _backdropfiltersaturate = a._backdropfiltersaturate;
-
 		if ( a._backdropfiltersepia != null ) _backdropfiltersepia = a._backdropfiltersepia;
-
 		if ( a._backdropfilterinvert != null ) _backdropfilterinvert = a._backdropfilterinvert;
-
 		if ( a._backdropfilterhuerotate != null ) _backdropfilterhuerotate = a._backdropfilterhuerotate;
-
 		if ( a._filterblur != null ) _filterblur = a._filterblur;
-
 		if ( a._filtersaturate != null ) _filtersaturate = a._filtersaturate;
-
 		if ( a._filtersepia != null ) _filtersepia = a._filtersepia;
-
 		if ( a._filterbrightness != null ) _filterbrightness = a._filterbrightness;
-
 		if ( a._filterhuerotate != null ) _filterhuerotate = a._filterhuerotate;
-
 		if ( a._filterinvert != null ) _filterinvert = a._filterinvert;
-
 		if ( a._filtercontrast != null ) _filtercontrast = a._filtercontrast;
-
 		if ( a._filtertint != null ) _filtertint = a._filtertint;
-
 		if ( a._filterborderwidth != null ) _filterborderwidth = a._filterborderwidth;
-
 		if ( a._filterbordercolor != null ) _filterbordercolor = a._filterbordercolor;
-
 		if ( a._maskmode != null ) _maskmode = a._maskmode;
-
 		if ( a._maskrepeat != null ) _maskrepeat = a._maskrepeat;
-
 		if ( a._masksizex != null ) _masksizex = a._masksizex;
-
 		if ( a._masksizey != null ) _masksizey = a._masksizey;
-
 		if ( a._maskpositionx != null ) _maskpositionx = a._maskpositionx;
-
 		if ( a._maskpositiony != null ) _maskpositiony = a._maskpositiony;
-
 		if ( a._maskangle != null ) _maskangle = a._maskangle;
-
 		if ( a._maskscope != null ) _maskscope = a._maskscope;
-
 		if ( a._backgroundsizex != null ) _backgroundsizex = a._backgroundsizex;
-
 		if ( a._backgroundsizey != null ) _backgroundsizey = a._backgroundsizey;
-
 		if ( a._backgroundpositionx != null ) _backgroundpositionx = a._backgroundpositionx;
-
 		if ( a._backgroundpositiony != null ) _backgroundpositiony = a._backgroundpositiony;
-
 		if ( a._backgroundrepeat != null ) _backgroundrepeat = a._backgroundrepeat;
 		if ( a._backgroundclip != null ) _backgroundclip = a._backgroundclip;
-
 		if ( a._borderimagewidthleft != null ) _borderimagewidthleft = a._borderimagewidthleft;
-
 		if ( a._borderimagewidthright != null ) _borderimagewidthright = a._borderimagewidthright;
-
 		if ( a._borderimagewidthtop != null ) _borderimagewidthtop = a._borderimagewidthtop;
-
 		if ( a._borderimagewidthbottom != null ) _borderimagewidthbottom = a._borderimagewidthbottom;
-
 		if ( a._borderimagefill != null ) _borderimagefill = a._borderimagefill;
-
 		if ( a._borderimagerepeat != null ) _borderimagerepeat = a._borderimagerepeat;
-
 		if ( a._borderimagetint != null ) _borderimagetint = a._borderimagetint;
-
 		if ( a._backgroundblendmode != null ) _backgroundblendmode = a._backgroundblendmode;
-
 		if ( a._backgroundtint != null ) _backgroundtint = a._backgroundtint;
-
 		if ( a._backgroundangle != null ) _backgroundangle = a._backgroundangle;
-
 		if ( a._textbackgroundangle != null ) _textbackgroundangle = a._textbackgroundangle;
-
 		if ( a._perspectiveoriginx != null ) _perspectiveoriginx = a._perspectiveoriginx;
-
 		if ( a._perspectiveoriginy != null ) _perspectiveoriginy = a._perspectiveoriginy;
-
 		if ( a._textstrokecolor != null ) _textstrokecolor = a._textstrokecolor;
-
 		if ( a._textstrokewidth != null ) _textstrokewidth = a._textstrokewidth;
-
 		if ( a._imagerendering != null ) _imagerendering = a._imagerendering;
-
 		if ( a._animationdelay != null ) _animationdelay = a._animationdelay;
-
 		if ( a._animationdirection != null ) _animationdirection = a._animationdirection;
-
 		if ( a._animationduration != null ) _animationduration = a._animationduration;
-
 		if ( a._animationfillmode != null ) _animationfillmode = a._animationfillmode;
-
 		if ( a._animationiterationcount != null ) _animationiterationcount = a._animationiterationcount;
-
 		if ( a._animationname != null ) _animationname = a._animationname;
-
 		if ( a._animationplaystate != null ) _animationplaystate = a._animationplaystate;
-
 		if ( a._animationtimingfunction != null ) _animationtimingfunction = a._animationtimingfunction;
-
 		if ( a._fontsmooth != null ) _fontsmooth = a._fontsmooth;
-
 		if ( a._objectfit != null ) _objectfit = a._objectfit;
-
 		if ( a._outlinewidth != null ) _outlinewidth = a._outlinewidth;
-
 		if ( a._outlinecolor != null ) _outlinecolor = a._outlinecolor;
-
 		if ( a._outlineoffset != null ) _outlineoffset = a._outlineoffset;
-
 		if ( a._isolation != null ) _isolation = a._isolation;
-
+		if ( a._scrollbarwidth != null ) _scrollbarwidth = a._scrollbarwidth;
+		if ( a._scrollbargutter != null ) _scrollbargutter = a._scrollbargutter;
+		if ( a._scrollbarthumbcolor != null ) _scrollbarthumbcolor = a._scrollbarthumbcolor;
+		if ( a._scrollbartrackcolor != null ) _scrollbartrackcolor = a._scrollbartrackcolor;
 	}
 
 	/// <summary>
@@ -2734,7 +2841,18 @@ public abstract partial class BaseStyles
 		_overflowy = a._overflowy;
 		_flexdirection = a._flexdirection;
 		_justifycontent = a._justifycontent;
+		_justifyitems = a._justifyitems;
+		_justifyself = a._justifyself;
 		_display = a._display;
+		_gridtemplatecolumns = a._gridtemplatecolumns;
+		_gridtemplaterows = a._gridtemplaterows;
+		_gridautocolumns = a._gridautocolumns;
+		_gridautorows = a._gridautorows;
+		_gridautoflow = a._gridautoflow;
+		_gridcolumnstart = a._gridcolumnstart;
+		_gridcolumnend = a._gridcolumnend;
+		_gridrowstart = a._gridrowstart;
+		_gridrowend = a._gridrowend;
 		_flexwrap = a._flexwrap;
 		_aligncontent = a._aligncontent;
 		_alignself = a._alignself;
@@ -2832,7 +2950,10 @@ public abstract partial class BaseStyles
 		_outlinecolor = a._outlinecolor;
 		_outlineoffset = a._outlineoffset;
 		_isolation = a._isolation;
-
+		_scrollbarwidth = a._scrollbarwidth;
+		_scrollbargutter = a._scrollbargutter;
+		_scrollbarthumbcolor = a._scrollbarthumbcolor;
+		_scrollbartrackcolor = a._scrollbartrackcolor;
 	}
 
 	/// <summary>
@@ -2973,6 +3094,30 @@ public abstract partial class BaseStyles
 			return true;
 		case "mix-blend-mode":
 			MixBlendMode = value.TrimQuoted( true );
+			return true;
+		case "grid-template-columns":
+			GridTemplateColumns = value.TrimQuoted( true );
+			return true;
+		case "grid-template-rows":
+			GridTemplateRows = value.TrimQuoted( true );
+			return true;
+		case "grid-auto-columns":
+			GridAutoColumns = value.TrimQuoted( true );
+			return true;
+		case "grid-auto-rows":
+			GridAutoRows = value.TrimQuoted( true );
+			return true;
+		case "grid-column-start":
+			GridColumnStart = value.TrimQuoted( true );
+			return true;
+		case "grid-column-end":
+			GridColumnEnd = value.TrimQuoted( true );
+			return true;
+		case "grid-row-start":
+			GridRowStart = value.TrimQuoted( true );
+			return true;
+		case "grid-row-end":
+			GridRowEnd = value.TrimQuoted( true );
 			return true;
 		case "flex-basis":
 			FlexBasis = Length.Parse( value );
@@ -3184,6 +3329,15 @@ public abstract partial class BaseStyles
 		case "outline-offset":
 			OutlineOffset = Length.Parse( value );
 			return OutlineOffset.HasValue;
+		case "scrollbar-width":
+			ScrollbarWidth = Length.Parse( value );
+			return ScrollbarWidth.HasValue;
+		case "scrollbar-thumb-color":
+			ScrollbarThumbColor = Color.Parse( value );
+			return ScrollbarThumbColor.HasValue;
+		case "scrollbar-track-color":
+			ScrollbarTrackColor = Color.Parse( value );
+			return ScrollbarTrackColor.HasValue;
 		default:
 			return false;
 		}
@@ -3243,7 +3397,18 @@ public abstract partial class BaseStyles
 		hash.Add( _overflowy );
 		hash.Add( _flexdirection );
 		hash.Add( _justifycontent );
+		hash.Add( _justifyitems );
+		hash.Add( _justifyself );
 		hash.Add( _display );
+		hash.Add( _gridtemplatecolumns );
+		hash.Add( _gridtemplaterows );
+		hash.Add( _gridautocolumns );
+		hash.Add( _gridautorows );
+		hash.Add( _gridautoflow );
+		hash.Add( _gridcolumnstart );
+		hash.Add( _gridcolumnend );
+		hash.Add( _gridrowstart );
+		hash.Add( _gridrowend );
 		hash.Add( _flexwrap );
 		hash.Add( _aligncontent );
 		hash.Add( _alignself );
@@ -3341,7 +3506,10 @@ public abstract partial class BaseStyles
 		hash.Add( _outlinecolor );
 		hash.Add( _outlineoffset );
 		hash.Add( _isolation );
-
+		hash.Add( _scrollbarwidth );
+		hash.Add( _scrollbargutter );
+		hash.Add( _scrollbarthumbcolor );
+		hash.Add( _scrollbartrackcolor );
 		return hash.ToHashCode();
 	}
 
@@ -3450,7 +3618,9 @@ public abstract partial class BaseStyles
 		LerpProperty( "outline-width", from, to, delta );
 		LerpProperty( "outline-color", from, to, delta );
 		LerpProperty( "outline-offset", from, to, delta );
-
+		LerpProperty( "scrollbar-width", from, to, delta );
+		LerpProperty( "scrollbar-thumb-color", from, to, delta );
+		LerpProperty( "scrollbar-track-color", from, to, delta );
 	}
 	
 	/// <summary>
@@ -3760,6 +3930,15 @@ public abstract partial class BaseStyles
 			case "outline-offset":
 				Lerp( ref _outlineoffset, from._outlineoffset, to._outlineoffset, 0, delta );
 				break;
+			case "scrollbar-width":
+				Lerp( ref _scrollbarwidth, from._scrollbarwidth, to._scrollbarwidth, from._scrollbarwidth ?? 0, delta );
+				break;
+			case "scrollbar-thumb-color":
+				Lerp( ref _scrollbarthumbcolor, from._scrollbarthumbcolor, to._scrollbarthumbcolor, from._scrollbarthumbcolor ?? null, delta );
+				break;
+			case "scrollbar-track-color":
+				Lerp( ref _scrollbartrackcolor, from._scrollbartrackcolor, to._scrollbartrackcolor, from._scrollbartrackcolor ?? null, delta );
+				break;
 		}
 	}
 	
@@ -3819,7 +3998,18 @@ public abstract partial class BaseStyles
 		copy._overflowy = _overflowy;
 		copy._flexdirection = _flexdirection;
 		copy._justifycontent = _justifycontent;
+		copy._justifyitems = _justifyitems;
+		copy._justifyself = _justifyself;
 		copy._display = _display;
+		copy._gridtemplatecolumns = _gridtemplatecolumns;
+		copy._gridtemplaterows = _gridtemplaterows;
+		copy._gridautocolumns = _gridautocolumns;
+		copy._gridautorows = _gridautorows;
+		copy._gridautoflow = _gridautoflow;
+		copy._gridcolumnstart = _gridcolumnstart;
+		copy._gridcolumnend = _gridcolumnend;
+		copy._gridrowstart = _gridrowstart;
+		copy._gridrowend = _gridrowend;
 		copy._flexwrap = _flexwrap;
 		copy._aligncontent = _aligncontent;
 		copy._alignself = _alignself;
@@ -3917,343 +4107,209 @@ public abstract partial class BaseStyles
 		copy._outlinecolor = _outlinecolor;
 		copy._outlineoffset = _outlineoffset;
 		copy._isolation = _isolation;
+		copy._scrollbarwidth = _scrollbarwidth;
+		copy._scrollbargutter = _scrollbargutter;
+		copy._scrollbarthumbcolor = _scrollbarthumbcolor;
+		copy._scrollbartrackcolor = _scrollbartrackcolor;
 		copy.CssWide = CssWide == null ? null : new System.Collections.Generic.Dictionary<string, CssWideKeyword>( CssWide );
 		return copy;
 	}
 
 	public void ApplyCascading( BaseStyles parent )
 	{
-
 		if ( _fontsize == null ) _fontsize = parent._fontsize;
-
 		if ( _fontcolor == null ) _fontcolor = parent._fontcolor;
-
 		if ( _fontweight == null ) _fontweight = parent._fontweight;
-
 		if ( _fontfamily == null ) _fontfamily = parent._fontfamily;
-
 		if ( _cursor == null ) _cursor = parent._cursor;
-
 		if ( _pointerevents == null ) _pointerevents = parent._pointerevents;
-
 		if ( _mixblendmode == null ) _mixblendmode = parent._mixblendmode;
-
 		if ( _textalign == null ) _textalign = parent._textalign;
-
 		if ( _textoverflow == null ) _textoverflow = parent._textoverflow;
-
 		if ( _textfilter == null ) _textfilter = parent._textfilter;
-
 		if ( _wordbreak == null ) _wordbreak = parent._wordbreak;
-
 		if ( _textdecorationline == null ) _textdecorationline = parent._textdecorationline;
-
 		if ( _textdecorationcolor == null ) _textdecorationcolor = parent._textdecorationcolor;
-
 		if ( _textdecorationthickness == null ) _textdecorationthickness = parent._textdecorationthickness;
-
 		if ( _textdecorationskipink == null ) _textdecorationskipink = parent._textdecorationskipink;
-
 		if ( _textdecorationstyle == null ) _textdecorationstyle = parent._textdecorationstyle;
-
 		if ( _textunderlineoffset == null ) _textunderlineoffset = parent._textunderlineoffset;
-
 		if ( _textoverlineoffset == null ) _textoverlineoffset = parent._textoverlineoffset;
-
 		if ( _textlinethroughoffset == null ) _textlinethroughoffset = parent._textlinethroughoffset;
-
 		if ( _fontstyle == null ) _fontstyle = parent._fontstyle;
-
 		if ( _fontvariantnumeric == null ) _fontvariantnumeric = parent._fontvariantnumeric;
-
 		if ( _texttransform == null ) _texttransform = parent._texttransform;
-
 		if ( _letterspacing == null ) _letterspacing = parent._letterspacing;
-
 		if ( _lineheight == null ) _lineheight = parent._lineheight;
-
 		if ( _wordspacing == null ) _wordspacing = parent._wordspacing;
-
 		if ( _whitespace == null ) _whitespace = parent._whitespace;
-
 		if ( _textstrokecolor == null ) _textstrokecolor = parent._textstrokecolor;
-
 		if ( _textstrokewidth == null ) _textstrokewidth = parent._textstrokewidth;
-
 		if ( _imagerendering == null ) _imagerendering = parent._imagerendering;
-
 		if ( _fontsmooth == null ) _fontsmooth = parent._fontsmooth;
-
+		if ( _scrollbarwidth == null ) _scrollbarwidth = parent._scrollbarwidth;
+		if ( _scrollbarthumbcolor == null ) _scrollbarthumbcolor = parent._scrollbarthumbcolor;
+		if ( _scrollbartrackcolor == null ) _scrollbartrackcolor = parent._scrollbartrackcolor;
 	}
 
 	private void FillDefaultsGenerated()
 	{
-
 		if ( !_width.HasValue ) _width = Length.Undefined;
-
 		if ( !_minwidth.HasValue ) _minwidth = 0;
-
 		if ( !_maxwidth.HasValue ) _maxwidth = Length.Undefined;
-
 		if ( !_height.HasValue ) _height = Length.Undefined;
-
 		if ( !_minheight.HasValue ) _minheight = 0;
-
 		if ( !_maxheight.HasValue ) _maxheight = Length.Undefined;
-
 		if ( !_left.HasValue ) _left = Length.Undefined;
-
 		if ( !_top.HasValue ) _top = Length.Undefined;
-
 		if ( !_right.HasValue ) _right = Length.Undefined;
-
 		if ( !_bottom.HasValue ) _bottom = Length.Undefined;
-
 		if ( !_opacity.HasValue ) _opacity = 1;
-
 		if ( !_backgroundcolor.HasValue ) _backgroundcolor = Color.Transparent;
-
 		if ( !_paddingleft.HasValue ) _paddingleft = 0;
-
 		if ( !_paddingtop.HasValue ) _paddingtop = 0;
-
 		if ( !_paddingright.HasValue ) _paddingright = 0;
-
 		if ( !_paddingbottom.HasValue ) _paddingbottom = 0;
-
 		if ( !_marginleft.HasValue ) _marginleft = 0;
-
 		if ( !_margintop.HasValue ) _margintop = 0;
-
 		if ( !_marginright.HasValue ) _marginright = 0;
-
 		if ( !_marginbottom.HasValue ) _marginbottom = 0;
-
 		if ( !_bordertopleftradius.HasValue ) _bordertopleftradius = 0;
-
 		if ( !_bordertoprightradius.HasValue ) _bordertoprightradius = 0;
-
 		if ( !_borderbottomrightradius.HasValue ) _borderbottomrightradius = 0;
-
 		if ( !_borderbottomleftradius.HasValue ) _borderbottomleftradius = 0;
-
 		if ( !_bordertopleftradiusv.HasValue ) _bordertopleftradiusv = null;
-
 		if ( !_bordertoprightradiusv.HasValue ) _bordertoprightradiusv = null;
-
 		if ( !_borderbottomrightradiusv.HasValue ) _borderbottomrightradiusv = null;
-
 		if ( !_borderbottomleftradiusv.HasValue ) _borderbottomleftradiusv = null;
-
 		if ( !_borderleftwidth.HasValue ) _borderleftwidth = 0;
-
 		if ( !_bordertopwidth.HasValue ) _bordertopwidth = 0;
-
 		if ( !_borderrightwidth.HasValue ) _borderrightwidth = 0;
-
 		if ( !_borderbottomwidth.HasValue ) _borderbottomwidth = 0;
-
 		if ( !_borderleftcolor.HasValue ) _borderleftcolor = Color.White;
-
 		if ( !_bordertopcolor.HasValue ) _bordertopcolor = Color.White;
-
 		if ( !_borderrightcolor.HasValue ) _borderrightcolor = Color.White;
-
 		if ( !_borderbottomcolor.HasValue ) _borderbottomcolor = Color.White;
-
 		if ( !_fontsize.HasValue ) _fontsize = Length.Pixels( 13 ).Value;
-
 		if ( !_fontcolor.HasValue ) _fontcolor = Color.Black;
-
 		if ( !_fontweight.HasValue ) _fontweight = 400;
-
 		if ( !_caretcolor.HasValue ) _caretcolor = null;
-
 		if ( !_pointerevents.HasValue ) _pointerevents = UI.PointerEvents.None;
-
 		if ( !_position.HasValue ) _position = UI.PositionMode.Static;
-
 		if ( !_overflowx.HasValue ) _overflowx = OverflowMode.Visible;
-
 		if ( !_overflowy.HasValue ) _overflowy = OverflowMode.Visible;
-
 		if ( !_flexdirection.HasValue ) _flexdirection = UI.FlexDirection.Row;
-
-		if ( !_justifycontent.HasValue ) _justifycontent = Justify.FlexStart;
-
+		if ( !_justifycontent.HasValue ) _justifycontent = Justify.Stretch;
+		if ( !_justifyitems.HasValue ) _justifyitems = Align.Auto;
+		if ( !_justifyself.HasValue ) _justifyself = Align.Auto;
 		if ( !_display.HasValue ) _display = DisplayMode.Flex;
 
+		_gridtemplatecolumns ??= "none";
+
+		_gridtemplaterows ??= "none";
+
+		_gridautocolumns ??= "auto";
+
+		_gridautorows ??= "auto";
+		if ( !_gridautoflow.HasValue ) _gridautoflow = UI.GridAutoFlow.Row;
+
+		_gridcolumnstart ??= "auto";
+
+		_gridcolumnend ??= "auto";
+
+		_gridrowstart ??= "auto";
+
+		_gridrowend ??= "auto";
 		if ( !_flexwrap.HasValue ) _flexwrap = Wrap.NoWrap;
-
 		if ( !_aligncontent.HasValue ) _aligncontent = Align.Auto;
-
 		if ( !_alignself.HasValue ) _alignself = Align.Auto;
-
 		if ( !_alignitems.HasValue ) _alignitems = Align.Stretch;
-
 		if ( !_flexbasis.HasValue ) _flexbasis = Length.Auto;
-
 		if ( !_flexgrow.HasValue ) _flexgrow = 0;
-
 		if ( !_flexshrink.HasValue ) _flexshrink = 1;
-
 		if ( !_rowgap.HasValue ) _rowgap = Length.Auto;
-
 		if ( !_columngap.HasValue ) _columngap = Length.Auto;
-
 		if ( !_textalign.HasValue ) _textalign = UI.TextAlign.Left;
-
 		if ( !_textoverflow.HasValue ) _textoverflow = UI.TextOverflow.None;
-
 		if ( !_textfilter.HasValue ) _textfilter = Rendering.FilterMode.Bilinear;
-
 		if ( !_wordbreak.HasValue ) _wordbreak = UI.WordBreak.Normal;
-
 		if ( !_textdecorationline.HasValue ) _textdecorationline = TextDecoration.None;
-
 		if ( !_textdecorationcolor.HasValue ) _textdecorationcolor = Color.White;
-
 		if ( !_textdecorationthickness.HasValue ) _textdecorationthickness = 1;
-
 		if ( !_textdecorationskipink.HasValue ) _textdecorationskipink = 0;
-
 		if ( !_textdecorationstyle.HasValue ) _textdecorationstyle = UI.TextDecorationStyle.Solid;
-
 		if ( !_textunderlineoffset.HasValue ) _textunderlineoffset = 0;
-
 		if ( !_textoverlineoffset.HasValue ) _textoverlineoffset = 0;
-
 		if ( !_textlinethroughoffset.HasValue ) _textlinethroughoffset = 0;
-
 		if ( !_fontstyle.HasValue ) _fontstyle = UI.FontStyle.None;
-
 		if ( !_fontvariantnumeric.HasValue ) _fontvariantnumeric = UI.FontVariantNumeric.Normal;
-
 		if ( !_transform.HasValue ) _transform = new UI.PanelTransform();
-
 		if ( !_texttransform.HasValue ) _texttransform = UI.TextTransform.None;
-
 		if ( !_transformoriginx.HasValue ) _transformoriginx = Length.Percent( 50 ).Value;
-
 		if ( !_transformoriginy.HasValue ) _transformoriginy = Length.Percent( 50 ).Value;
-
 		if ( !_letterspacing.HasValue ) _letterspacing = Length.Percent( 0 ).Value;
-
 		if ( !_lineheight.HasValue ) _lineheight = Length.Percent( 100 ).Value;
-
 		if ( !_wordspacing.HasValue ) _wordspacing = Length.Percent( 0 ).Value;
-
 		if ( !_whitespace.HasValue ) _whitespace = UI.WhiteSpace.Normal;
-
 		if ( !_zindex.HasValue ) _zindex = 0;
-
 		if ( !_order.HasValue ) _order = 0;
-
 		if ( !_backdropfilterblur.HasValue ) _backdropfilterblur = 0;
-
 		if ( !_backdropfilterbrightness.HasValue ) _backdropfilterbrightness = 1;
-
 		if ( !_backdropfiltercontrast.HasValue ) _backdropfiltercontrast = 1;
-
 		if ( !_backdropfiltersaturate.HasValue ) _backdropfiltersaturate = 1;
-
 		if ( !_backdropfiltersepia.HasValue ) _backdropfiltersepia = 0;
-
 		if ( !_backdropfilterinvert.HasValue ) _backdropfilterinvert = 0;
-
 		if ( !_backdropfilterhuerotate.HasValue ) _backdropfilterhuerotate = 0;
-
 		if ( !_filterblur.HasValue ) _filterblur = 0;
-
 		if ( !_filtersaturate.HasValue ) _filtersaturate = 1;
-
 		if ( !_filtersepia.HasValue ) _filtersepia = 0;
-
 		if ( !_filterbrightness.HasValue ) _filterbrightness = 1;
-
 		if ( !_filterhuerotate.HasValue ) _filterhuerotate = 0;
-
 		if ( !_filterinvert.HasValue ) _filterinvert = 0;
-
 		if ( !_filtercontrast.HasValue ) _filtercontrast = 1;
-
 		if ( !_filtertint.HasValue ) _filtertint = Color.White;
-
 		if ( !_filterborderwidth.HasValue ) _filterborderwidth = 0;
-
 		if ( !_filterbordercolor.HasValue ) _filterbordercolor = Color.White;
-
 		if ( !_maskmode.HasValue ) _maskmode = UI.MaskMode.MatchSource;
-
 		if ( !_maskrepeat.HasValue ) _maskrepeat = UI.BackgroundRepeat.Repeat;
-
 		if ( !_masksizex.HasValue ) _masksizex = Length.Undefined;
-
 		if ( !_masksizey.HasValue ) _masksizey = Length.Undefined;
-
 		if ( !_maskpositionx.HasValue ) _maskpositionx = Length.Percent( 0 ).Value;
-
 		if ( !_maskpositiony.HasValue ) _maskpositiony = Length.Percent( 0 ).Value;
-
 		if ( !_maskangle.HasValue ) _maskangle = 0;
-
 		if ( !_maskscope.HasValue ) _maskscope = UI.MaskScope.Default;
-
 		if ( !_backgroundsizex.HasValue ) _backgroundsizex = Length.Undefined;
-
 		if ( !_backgroundsizey.HasValue ) _backgroundsizey = Length.Undefined;
-
 		if ( !_backgroundpositionx.HasValue ) _backgroundpositionx = Length.Percent( 0 ).Value;
-
 		if ( !_backgroundpositiony.HasValue ) _backgroundpositiony = Length.Percent( 0 ).Value;
-
 		if ( !_backgroundrepeat.HasValue ) _backgroundrepeat = UI.BackgroundRepeat.Repeat;
 		if ( !_backgroundclip.HasValue ) _backgroundclip = UI.BackgroundClip.BorderBox;
-
 		if ( !_borderimagewidthleft.HasValue ) _borderimagewidthleft = 1;
-
 		if ( !_borderimagewidthright.HasValue ) _borderimagewidthright = 1;
-
 		if ( !_borderimagewidthtop.HasValue ) _borderimagewidthtop = 1;
-
 		if ( !_borderimagewidthbottom.HasValue ) _borderimagewidthbottom = 1;
-
 		if ( !_borderimagefill.HasValue ) _borderimagefill = UI.BorderImageFill.Unfilled;
-
 		if ( !_borderimagerepeat.HasValue ) _borderimagerepeat = UI.BorderImageRepeat.Stretch;
-
 		if ( !_borderimagetint.HasValue ) _borderimagetint = Color.White;
-
 		if ( !_backgroundtint.HasValue ) _backgroundtint = Color.White;
-
 		if ( !_backgroundangle.HasValue ) _backgroundangle = 0;
-
 		if ( !_textbackgroundangle.HasValue ) _textbackgroundangle = 0;
-
 		if ( !_perspectiveoriginx.HasValue ) _perspectiveoriginx = Length.Percent( 50 ).Value;
-
 		if ( !_perspectiveoriginy.HasValue ) _perspectiveoriginy = Length.Percent( 50 ).Value;
-
 		if ( !_textstrokecolor.HasValue ) _textstrokecolor = Color.White;
-
 		if ( !_textstrokewidth.HasValue ) _textstrokewidth = 0;
-
 		if ( !_imagerendering.HasValue ) _imagerendering = UI.ImageRendering.Anisotropic;
-
 		if ( !_animationiterationcount.HasValue ) _animationiterationcount = 1;
-
 		if ( !_fontsmooth.HasValue ) _fontsmooth = UI.FontSmooth.Auto;
-
 		if ( !_objectfit.HasValue ) _objectfit = UI.ObjectFit.Cover;
-
 		if ( !_outlinewidth.HasValue ) _outlinewidth = 0;
-
 		if ( !_outlinecolor.HasValue ) _outlinecolor = Color.Transparent;
-
 		if ( !_outlineoffset.HasValue ) _outlineoffset = 0;
-
 		if ( !_isolation.HasValue ) _isolation = UI.Isolation.Auto;
-
+		if ( !_scrollbarwidth.HasValue ) _scrollbarwidth = 0;
+		if ( !_scrollbargutter.HasValue ) _scrollbargutter = UI.ScrollbarGutter.Auto;
+		if ( !_scrollbarthumbcolor.HasValue ) _scrollbarthumbcolor = null;
+		if ( !_scrollbartrackcolor.HasValue ) _scrollbartrackcolor = null;
 	}
 
 	internal bool IsDefault( string name )
@@ -4309,8 +4365,19 @@ public abstract partial class BaseStyles
 			case "overflow-x": return (_overflowx == OverflowMode.Visible);
 			case "overflow-y": return (_overflowy == OverflowMode.Visible);
 			case "flex-direction": return (_flexdirection == UI.FlexDirection.Row);
-			case "justify-content": return (_justifycontent == Justify.FlexStart);
+			case "justify-content": return (_justifycontent == Justify.Stretch);
+			case "justify-items": return (_justifyitems == Align.Auto);
+			case "justify-self": return (_justifyself == Align.Auto);
 			case "display": return (_display == DisplayMode.Flex);
+			case "grid-template-columns": return (_gridtemplatecolumns == "none");
+			case "grid-template-rows": return (_gridtemplaterows == "none");
+			case "grid-auto-columns": return (_gridautocolumns == "auto");
+			case "grid-auto-rows": return (_gridautorows == "auto");
+			case "grid-auto-flow": return (_gridautoflow == UI.GridAutoFlow.Row);
+			case "grid-column-start": return (_gridcolumnstart == "auto");
+			case "grid-column-end": return (_gridcolumnend == "auto");
+			case "grid-row-start": return (_gridrowstart == "auto");
+			case "grid-row-end": return (_gridrowend == "auto");
 			case "flex-wrap": return (_flexwrap == Wrap.NoWrap);
 			case "align-content": return (_aligncontent == Align.Auto);
 			case "align-self": return (_alignself == Align.Auto);
@@ -4408,6 +4475,10 @@ public abstract partial class BaseStyles
 			case "outline-color": return (_outlinecolor == Color.Transparent);
 			case "outline-offset": return (_outlineoffset == 0);
 			case "isolation": return (_isolation == UI.Isolation.Auto);
+			case "scrollbar-width": return (_scrollbarwidth == 0);
+			case "scrollbar-gutter": return (_scrollbargutter == UI.ScrollbarGutter.Auto);
+			case "scrollbar-thumb-color": return (_scrollbarthumbcolor == null);
+			case "scrollbar-track-color": return (_scrollbartrackcolor == null);
 		}
 		
 		throw new Exception( $"Invalid property name '{name}'" );

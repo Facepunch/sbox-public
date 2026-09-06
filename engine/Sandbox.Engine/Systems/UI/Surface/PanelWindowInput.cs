@@ -17,9 +17,23 @@ internal static class PanelWindowInput
 	/// The cursor moved. SDL gives the position relative to the window it happened in, which is
 	/// the only frame it means anything in.
 	/// </summary>
-	internal static void OnMouseMove( IntPtr window, float x, float y )
+	internal static void OnMouseMove( IntPtr window, float x, float y, float dx, float dy )
 	{
 		if ( PanelWindows.Find( window ) is not { } target ) return;
+
+		// A pinned cursor doesn't go anywhere; the movement is the delta, and the first one after
+		// pinning is the warp that pinned it
+		if ( PanelWindows.CaptureWindow == target )
+		{
+			if ( PanelWindows.SkipNextCaptureDelta )
+			{
+				PanelWindows.SkipNextCaptureDelta = false;
+				return;
+			}
+
+			PanelWindows.CaptureDelta += new Vector2( dx, dy );
+			return;
+		}
 
 		PanelWindows.SetCursorPosition( target, target.ToSurface( new Vector2( x, y ) ) );
 	}
@@ -37,6 +51,15 @@ internal static class PanelWindowInput
 
 	internal static void OnMouseButton( IntPtr window, ButtonCode button, bool down, int clicks, int ikeymods )
 	{
+		// A click that landed on a window that ignores input - on a platform that didn't pass it
+		// through to the window underneath - is a click on nothing. It dismisses the popups and
+		// that's all.
+		if ( PanelWindows.Find( window ) is { IgnoresInput: true } )
+		{
+			if ( down ) PanelWindows.DismissPopups();
+			return;
+		}
+
 		// The window under the cursor, not the focused one - the mouse doesn't need focus
 		if ( Target( window ) is not { } target ) return;
 
@@ -48,6 +71,9 @@ internal static class PanelWindowInput
 		// The in-surface popups too, the way the game's input does - a click inside one
 		// survives, anywhere else closes them
 		if ( down ) BasePopup.CloseAll( target.Surface.Hovered );
+
+		// A popup window can go with them - a click on nothing in it, say
+		if ( !target.IsOpen ) return;
 
 		var modifiers = ToModifiers( ikeymods );
 
@@ -71,16 +97,26 @@ internal static class PanelWindowInput
 
 	internal static void OnKey( IntPtr window, ButtonCode button, bool down, bool repeating, int ikeymods )
 	{
-		if ( PanelWindows.Find( window ) is not { } target ) return;
+		if ( KeyboardTarget( window ) is not { } target ) return;
 
 		target.Surface.SetKey( button, down, ToModifiers( ikeymods ) );
 	}
 
 	internal static void OnText( IntPtr window, string text )
 	{
-		if ( PanelWindows.Find( window ) is not { } target ) return;
+		if ( KeyboardTarget( window ) is not { } target ) return;
 
 		target.Surface.TypeText( text );
+	}
+
+	/// <summary>
+	/// The window a key pressed in this OS window goes to - an open menu takes the keyboard.
+	/// </summary>
+	static IPanelWindow KeyboardTarget( IntPtr window )
+	{
+		if ( PanelWindows.Find( window ) is not { } target ) return null;
+
+		return PanelWindows.KeyboardTarget( target );
 	}
 
 	/// <summary>
@@ -181,6 +217,8 @@ internal static class PanelWindowInput
 	{
 		if ( PanelWindows.Find( window ) is not { } target ) return;
 
+		target.FocusChanged( focused );
+
 		if ( !focused )
 		{
 			target.MouseInside = false;
@@ -205,16 +243,35 @@ internal static class PanelWindowInput
 	/// </summary>
 	internal static void OnResized( IntPtr window )
 	{
-		if ( PanelWindows.Find( window )?.Frame( interactiveResize: true ) == true )
+		if ( PanelWindows.Find( window ) is not { } target ) return;
+
+		target.Resized();
+
+		if ( target.Frame( interactiveResize: true ) )
 		{
 			PanelWindows.FrameEnd();
 		}
+	}
+
+	internal static void OnStateChanged( IntPtr window, int state )
+	{
+		PanelWindows.Find( window )?.StateChanged( state );
 	}
 
 	internal static void OnClose( IntPtr window )
 	{
 		_composing.Remove( window );
 		PanelWindows.Find( window )?.RequestClose();
+	}
+
+	internal static void OnMoved( IntPtr window )
+	{
+		PanelWindows.Find( window )?.Moved();
+	}
+
+	internal static void OnDisplayChanged( IntPtr window )
+	{
+		PanelWindows.Find( window )?.DisplayChanged();
 	}
 
 	/// <summary>

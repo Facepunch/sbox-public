@@ -249,6 +249,9 @@ public partial class TextEntry : BaseControl
 		AcceptsFocus = true;
 		AddClass( "textentry" );
 
+		// Dragging selects text, it never scrolls
+		CanDragScroll = false;
+
 		Label = Add.Label( "", "content-label" );
 		Label.Tokenize = false;
 		Label.Style.WhiteSpace = WhiteSpace.Pre;
@@ -598,6 +601,9 @@ public partial class TextEntry : BaseControl
 
 	protected override void OnMouseDown( MousePanelEvent e )
 	{
+		// Stopping a press on the scrollbar here would stop its drag from starting
+		if ( ScrollBar.Owns( e.Target ) ) return;
+
 		e.StopPropagation();
 
 		// Shift extends what's already selected instead of starting again, so a click picks
@@ -645,6 +651,8 @@ public partial class TextEntry : BaseControl
 
 	protected override void OnMouseUp( MousePanelEvent e )
 	{
+		if ( ScrollBar.Owns( e.Target ) ) return;
+
 		SelectingWords = false;
 
 		// Released on the selection without having dragged it anywhere - that's a plain click,
@@ -681,6 +689,9 @@ public partial class TextEntry : BaseControl
 	protected override void OnMouseMove( MousePanelEvent e )
 	{
 		base.OnMouseMove( e );
+
+		if ( ScrollBar.Owns( e.Target ) ) return;
+
 		e.StopPropagation();
 
 		// Far enough from a press that grabbed the selection - that's a drag, not a click
@@ -1058,6 +1069,9 @@ public partial class TextEntry : BaseControl
 	protected override void OnDragSelect( SelectionEvent e )
 	{
 		if ( string.IsNullOrEmpty( Text ) )
+			return;
+
+		if ( ScrollBar.Owns( e.Target ) )
 			return;
 
 		// This press grabbed the selection to carry it somewhere - it mustn't turn into a

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Components;
+﻿using Microsoft.AspNetCore.Components;
 using Sandbox.Html;
 using System.Globalization;
 
@@ -19,6 +19,7 @@ namespace Sandbox.UI
 		internal string _text;
 		internal Rect _textRect;
 		internal TextBlock _textBlock;
+		internal bool IsGeneratedText;
 
 		int layoutStateHash;
 		bool sizeFinalized;
@@ -104,7 +105,7 @@ namespace Sandbox.UI
 		public Label()
 		{
 			AddClass( "label" );
-			YogaNode.SetMeasureFunction( MeasureText );
+			LayoutTree.SetMeasureFunction( MeasureText );
 		}
 
 		public Label( string text, string classname = null ) : this()
@@ -113,11 +114,16 @@ namespace Sandbox.UI
 			AddClass( classname );
 		}
 
-		Vector2 MeasureText( YGNodeRef node, float width, YGMeasureMode widthMode, float height, YGMeasureMode heightMode )
+		Vector2 MeasureText( float width, Sandbox.Layout.MeasureMode widthMode, float height, Sandbox.Layout.MeasureMode heightMode )
 		{
 			try
 			{
 				if ( _textBlock == null ) return new Vector2( 2, 10 );
+
+				if ( widthMode == Sandbox.Layout.MeasureMode.MinContent )
+					return _textBlock.MeasureMinContent();
+				if ( heightMode == Sandbox.Layout.MeasureMode.MinContent )
+					return _textBlock.MeasureMinContent( widthMode == Sandbox.Layout.MeasureMode.Undefined ? float.NaN : width );
 
 				availableSpace = new Vector2( width, height );
 
@@ -174,6 +180,7 @@ namespace Sandbox.UI
 				_text = value;
 				StringInfo.String = value ?? string.Empty;
 				CaretSantity();
+				LayoutTree?.MarkDirty();
 				SetNeedsPreLayout();
 			}
 		}
@@ -242,6 +249,13 @@ namespace Sandbox.UI
 		/// </summary>
 		protected void CaretSantity()
 		{
+			// Nothing to clamp on a label nobody is editing, and counting text elements allocates
+			if ( CaretPosition == 0 && SelectionStart == 0 && SelectionEnd == 0 )
+			{
+				ClampScroll();
+				return;
+			}
+
 			if ( CaretPosition > TextLength )
 			{
 				CaretPosition = TextLength;
@@ -280,6 +294,7 @@ namespace Sandbox.UI
 
 		public override string GetClipboardValue( bool cut )
 		{
+			if ( InlineOwner is not null ) return InlineOwner.SelectedText;
 			if ( !HasSelection() )
 				return null;
 
@@ -323,7 +338,7 @@ namespace Sandbox.UI
 			}
 
 			_textBlock.NoWrap = !Multiline;
-			clipsBackgroundToText = cascade.ClipBackgroundToText || ComputedStyle.BackgroundClip == BackgroundClip.Text;
+			clipsBackgroundToText = (!IsFixed && cascade.ClipBackgroundToText) || ComputedStyle.BackgroundClip == BackgroundClip.Text;
 
 			if ( IsRich )
 			{
@@ -345,7 +360,7 @@ namespace Sandbox.UI
 
 			if ( _textBlock.UpdateStyles( ComputedStyle ) )
 			{
-				YogaNode.MarkDirty();
+				LayoutTree.MarkDirty();
 				sizeFinalized = false;
 			}
 		}
@@ -365,7 +380,7 @@ namespace Sandbox.UI
 
 			if ( !clipsBackgroundToText ) return;
 
-			for ( var panel = Parent; panel is not null; panel = panel.Parent )
+			for ( var panel = VisualParent; panel is not null; panel = panel.VisualParent )
 			{
 				panel.MarkRenderDirty();
 				if ( panel.ComputedStyle?.BackgroundClip == BackgroundClip.Text ) break;
@@ -425,6 +440,7 @@ namespace Sandbox.UI
 		public override void FinalLayout( Vector2 offset )
 		{
 			base.FinalLayout( offset );
+			if ( InlineOwner is not null ) return;
 
 			if ( !IsVisible ) return;
 			if ( ComputedStyle is null ) return;
@@ -434,15 +450,7 @@ namespace Sandbox.UI
 			if ( !sizeFinalized )
 			{
 				sizeFinalized = true;
-				YogaNode.MarkDirty();
-			}
-
-			// The visible width is what scrolling measures against, so a resize - or the first
-			// layout, where there wasn't one yet - has to put the caret back on screen
-			if ( _scrolledSize != Box.RectInner.Size )
-			{
-				_scrolledSize = Box.RectInner.Size;
-				ScrollToCaret();
+				LayoutTree.MarkDirty();
 			}
 
 			_textRect = Box.RectInner;
@@ -466,10 +474,21 @@ namespace Sandbox.UI
 			}
 
 			_textRect.Size = _textBlock.BlockSize;
+
+			// Scrolling measures against the visible size, so a resize puts the caret back on screen.
+			// After the text rect is placed, because the caret rect comes from it.
+			if ( _scrolledSize != Box.RectInner.Size )
+			{
+				_scrolledSize = Box.RectInner.Size;
+				ScrollToCaret();
+			}
+
+			ScrollParentToCaret();
 		}
 
 		public override void OnDraw()
 		{
+			if ( InlineOwner is not null ) return;
 			// Ensure texture is created if we have text but no texture yet
 			if ( _textBlock != null && _textBlock.Texture == null && !string.IsNullOrEmpty( _textBlock.Text ) )
 			{

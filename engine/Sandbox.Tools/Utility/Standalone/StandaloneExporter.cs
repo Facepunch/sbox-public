@@ -209,26 +209,6 @@ public partial class StandaloneExporter
 		// Copy core compiled files
 		//
 		{
-			void QueueCompiled( string dir, BuildStep type )
-			{
-				foreach ( var subdir in Directory.GetDirectories( dir ) )
-				{
-					QueueCompiled( subdir, type );
-				}
-
-				foreach ( var file in Directory.GetFiles( dir ) )
-				{
-					var relativePath = Path.GetRelativePath( engineDir, file );
-					var targetPath = Path.Combine( baseDir, relativePath );
-
-					if ( Path.GetExtension( file ).EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) )
-						QueueCopy( file, targetPath, type );
-				}
-			}
-
-			// Copy all compiled core content, in case anything references it at runtime
-			QueueCompiled( $"{engineDir}/core", BuildStep.CopyProjectAssets );
-
 			// Get all core files - only the ones we absolutely need, because everything else should
 			// already have been copied into the addon itself.
 			// This is mainly stuff like dev textures that are necessary for the engine to run.
@@ -262,34 +242,6 @@ public partial class StandaloneExporter
 
 				QueueCopy( sourcePath, targetPath, BuildStep.CopyCode );
 			}
-		}
-
-		//
-		// Copy:
-		// - core/ui/*
-		// - core/styles/*
-		// - core/fonts/*
-		//
-		{
-			void QueueAll( string dir, BuildStep type )
-			{
-				foreach ( var subdir in Directory.GetDirectories( dir ) )
-				{
-					QueueAll( subdir, type );
-				}
-
-				foreach ( var file in Directory.GetFiles( dir ) )
-				{
-					var relativePath = Path.GetRelativePath( engineDir, file );
-					var targetPath = Path.Combine( baseDir, relativePath );
-
-					QueueCopy( file, targetPath, type );
-				}
-			}
-
-			QueueAll( $"{engineDir}/core/ui", BuildStep.CopyBaseAssets ); // Necessary
-			QueueAll( $"{engineDir}/core/styles", BuildStep.CopyBaseAssets ); // Necessary
-			QueueAll( $"{engineDir}/core/fonts", BuildStep.CopyBaseAssets ); // Necessary
 		}
 
 		//

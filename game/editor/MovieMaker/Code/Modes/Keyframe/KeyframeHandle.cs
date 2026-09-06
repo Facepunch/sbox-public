@@ -45,7 +45,21 @@ public sealed class KeyframeHandle : GraphicsItem, IComparable<KeyframeHandle>, 
 	public MovieTime Time
 	{
 		get => Keyframe.Time;
-		set => Keyframe = Keyframe with { Time = value };
+		set
+		{
+			if ( value == Keyframe.Time ) return;
+			Keyframe = Keyframe with { Time = value };
+		}
+	}
+
+	public KeyframeConnection Connection
+	{
+		get => Keyframe.Connection;
+		set
+		{
+			if ( value == Keyframe.Connection ) return;
+			Keyframe = Keyframe with { Connection = value };
+		}
 	}
 
 	public bool IsDragging { get; private set; }
@@ -517,6 +531,7 @@ public sealed class KeyframeHandle : GraphicsItem, IComparable<KeyframeHandle>, 
 	}
 
 	MovieTimeRange IMovieItem.TimeRange => Keyframe.Time;
+
 	void IMovieDraggable.StartDrag() => IsDragging = true;
 
 	void IMovieDraggable.Drag( MovieTime delta )

@@ -7,6 +7,17 @@ namespace UITests;
 public class PolygonBoxRenderingTest
 {
 	[TestMethod]
+	public void ContinuousTextureUseIsCulledByScissor()
+	{
+		var scissor = PanelRenderer.GPUScissor.Single( new Rect( 0, 0, 200, 200 ), BorderRadii.Zero, Matrix.Identity );
+
+		Assert.IsTrue( PanelRenderer.OverlapsScissor( new Rect( 50, 50, 100, 100 ), Matrix.Identity, scissor ) );
+		Assert.IsTrue( PanelRenderer.OverlapsScissor( new Rect( 150, 150, 100, 100 ), Matrix.Identity, scissor ) );
+		Assert.IsFalse( PanelRenderer.OverlapsScissor( new Rect( 250, 50, 100, 100 ), Matrix.Identity, scissor ) );
+		Assert.IsFalse( PanelRenderer.OverlapsScissor( new Rect( 50, 250, 100, 100 ), Matrix.Identity, scissor ) );
+	}
+
+	[TestMethod]
 	public void PolygonPayloadLayoutAndPacking()
 	{
 		var style = new Styles();

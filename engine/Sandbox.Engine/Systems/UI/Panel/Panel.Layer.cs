@@ -101,7 +101,7 @@ public partial class Panel
 		// or it would override the parent layer's RT for nested layers.
 		var parentLayerMat = Matrix.Identity;
 		var isWorld = false;
-		var ancestor = Parent;
+		var ancestor = VisualParent;
 		while ( ancestor != null )
 		{
 			if ( ancestor.HasPanelLayer && ancestor.CachedLayerMatrix.HasValue )
@@ -109,7 +109,7 @@ public partial class Panel
 				parentLayerMat = ancestor.CachedLayerMatrix.Value;
 				break;
 			}
-			ancestor = ancestor.Parent;
+			ancestor = ancestor.VisualParent;
 		}
 		isWorld = render.IsWorldPanel( this );
 

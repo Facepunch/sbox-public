@@ -6,7 +6,7 @@ using Topten.RichTextKit;
 
 namespace Sandbox.UI;
 
-internal sealed class TextBlock : IDisposable
+internal sealed partial class TextBlock : IDisposable
 {
 	[ConVar( ConVarFlags.Protected, Help = "Enable rendering text to textures" )]
 	public static bool ui_rendertext { get; set; } = true;
@@ -110,6 +110,17 @@ internal sealed class TextBlock : IDisposable
 
 
 	Dictionary<int, Vector2> SizeCache = new Dictionary<int, Vector2>();
+	Vector2? MinContentSize;
+
+	internal Vector2 MeasureMinContent( float? width = null )
+	{
+		if ( width is null && MinContentSize is { } cached ) return cached;
+
+		var size = Block.MeasureMinContent( width, WhiteSpace == UI.WhiteSpace.BreakSpaces, EndsWithNewline );
+		var result = new Vector2( size.Width.CeilToInt(), size.Height.CeilToInt() );
+		if ( width is null ) MinContentSize = result;
+		return result;
+	}
 
 	public Vector2 Measure( float width, float height )
 	{
@@ -128,11 +139,53 @@ internal sealed class TextBlock : IDisposable
 			Block.MaxHeight = float.IsNaN( height ) ? null : (height + 1);
 		}
 
-		var s = new Vector2( Block.MeasuredWidth.CeilToInt(), Block.MeasuredHeight.CeilToInt() );
+		var measuredHeight = Block.MeasuredHeight;
+
+		// The paragraph gives a trailing newline's empty line no height, but the caret can sit on it
+		if ( EndsWithNewline && Block.Lines.Count > 0 ) measuredHeight += Block.Lines[^1].Height;
+
+		var s = new Vector2( Block.MeasuredWidth.CeilToInt(), measuredHeight.CeilToInt() );
 
 		SizeCache[hash] = s;
 
 		return s;
+	}
+
+	/// <summary>
+	/// The block's text ends with a line break. Checked on the collapsed text rather than <see cref="Text"/>,
+	/// since white-space collapsing can strip a trailing newline and leave the block with no line for it.
+	/// </summary>
+	bool EndsWithNewline;
+
+	static bool EndsWithLineBreak( string text ) => text is { Length: > 0 } && text[^1] is '\n' or '\u2029';
+
+	/// <summary>
+	/// Number of lines, including the empty one after a trailing newline
+	/// </summary>
+	public int LineCount => Block is null ? 0 : Block.Lines.Count + (EndsWithNewline ? 1 : 0);
+
+	/// <summary>
+	/// The line a caret position is on
+	/// </summary>
+	public int LineOf( int caretPosition )
+	{
+		var codepoint = CaretToCodePointIndex( caretPosition );
+
+		if ( EndsWithNewline && codepoint > 0 && codepoint == Block.Length )
+			return Block.Lines.Count;
+
+		return Block.GetCaretInfo( new CaretPosition { CodePointIndex = codepoint } ).LineIndex;
+	}
+
+	/// <summary>
+	/// The caret position nearest an x on a given line
+	/// </summary>
+	public int GetLetterAtLine( int line, float x )
+	{
+		if ( Block is null ) return -1;
+		if ( line >= Block.Lines.Count ) return Block.LookupCaretIndex( Block.Length );
+
+		return Block.LookupCaretIndex( Block.HitTestLine( line, x ).ClosestCodePointIndex );
 	}
 
 	void WaitTextureReady()
@@ -178,20 +231,20 @@ internal sealed class TextBlock : IDisposable
 	/// </summary>
 	Rect GetTextureRect( Styles currentStyle, Rect textrect )
 	{
-		if ( currentStyle.TextAlign == TextAlign.Center )
+		if ( currentStyle?.TextAlign == TextAlign.Center )
 		{
 			textrect.Left += (textrect.Width - BlockSize.x) * 0.5f;
 		}
-		else if ( currentStyle.TextAlign == TextAlign.Right )
+		else if ( currentStyle?.TextAlign == TextAlign.Right )
 		{
 			textrect.Left = textrect.Right - BlockSize.x;
 		}
 
-		if ( currentStyle.AlignItems == Align.Center )
+		if ( currentStyle?.AlignItems == Align.Center )
 		{
 			textrect.Top += (textrect.Height - BlockSize.y) * 0.5f;
 		}
-		else if ( currentStyle.AlignItems == Align.FlexEnd )
+		else if ( currentStyle?.AlignItems == Align.FlexEnd )
 		{
 			textrect.Top = textrect.Bottom - BlockSize.y;
 		}
@@ -232,7 +285,7 @@ internal sealed class TextBlock : IDisposable
 		float xPosition = pos.CaretRectangle.Left;
 		float yPosition = pos.CaretRectangle.Top;
 
-		if ( codepoint > 0 && codepoint == Block.Length && Text.Length > 0 && Text[^1] == '\n' )
+		if ( codepoint > 0 && codepoint == Block.Length && EndsWithNewline )
 		{
 			xPosition = 0;
 			yPosition += Block.Lines[pos.LineIndex].Height;
@@ -289,7 +342,7 @@ internal sealed class TextBlock : IDisposable
 		hash = HashCode.Combine( hash, style.TextStrokeWidth, style.TextStrokeColor, style.TextDecorationColor, style.TextDecorationThickness, style.TextDecorationSkipInk, style.TextDecorationStyle );
 		hash = HashCode.Combine( hash, style.TextUnderlineOffset, style.TextOverlineOffset, style.TextLineThroughOffset, style.TextGradient, style.TextOverflow, style.WordBreak, style.LineHeight );
 		hash = HashCode.Combine( hash, style.WordSpacing );
-		hash = HashCode.Combine( hash, Smooth, FontVariantNumeric );
+		hash = HashCode.Combine( hash, Smooth, FontVariantNumeric, NoWrap, IsHtml );
 
 		if ( FontHash == hash && Block != null )
 			return false;
@@ -414,10 +467,11 @@ internal sealed class TextBlock : IDisposable
 		}
 
 		Block.Clear();
+		EndsWithNewline = false;
 		Block.Alignment = (Topten.RichTextKit.TextAlignment)TextAlign;
 		Block.Overflow = (Topten.RichTextKit.TextOverflow)TextOverflow;
 		Block.WordBreak = (Topten.RichTextKit.WordBreakMode)WordBreak;
-		Block.NoWrap = NoWrap || WhiteSpace == UI.WhiteSpace.NoWrap;
+		Block.NoWrap = NoWrap || WhiteSpace is UI.WhiteSpace.NoWrap or UI.WhiteSpace.Pre;
 
 		if ( IsHtml && !string.IsNullOrWhiteSpace( Text ) )
 		{
@@ -442,7 +496,7 @@ internal sealed class TextBlock : IDisposable
 
 						sty.FontSize = (s.FontSize ?? style.FontSize ?? Length.Pixels( 13 ).Value).GetPixels( 100 );
 						sty.FontSize = MathF.Round( sty.FontSize * 32.0f ) / 32.0f;
-						sty.FontFamily = s.FontFamily;
+						sty.FontFamily = s.FontFamily ?? sty.FontFamily;
 						sty.TextColor = s.FontColor?.ToSkF() ?? sty.TextColor;
 						sty.BackgroundColor = s.BackgroundColor?.ToSkF() ?? sty.BackgroundColor;
 						IsHdr |= (s.FontColor?.IsHdr ?? false) || (s.BackgroundColor?.IsHdr ?? false);
@@ -464,13 +518,16 @@ internal sealed class TextBlock : IDisposable
 				Log.Warning( e );
 			}
 		}
-		else
+		else if ( !IsInlineParagraph )
 		{
-			Block.AddText( FixedText( Text ), Style );
+			var text = FixedText( Text );
+			Block.AddText( text, Style );
+			EndsWithNewline = EndsWithLineBreak( text );
 		}
 
 
 		SizeCache.Clear();
+		MinContentSize = null;
 		ReleaseTexture();
 
 		return true;
@@ -488,6 +545,7 @@ internal sealed class TextBlock : IDisposable
 		{
 			var startText = block.Length;
 			block.AddText( node.InnerHtml, style );
+			EndsWithNewline = EndsWithLineBreak( node.InnerHtml );
 			var endText = block.Length;
 
 			var span = new HtmlSpan( node?.ParentNode, startText, endText );
@@ -497,6 +555,7 @@ internal sealed class TextBlock : IDisposable
 		if ( node.Name == "br" )
 		{
 			block.AddText( "\n", style );
+			EndsWithNewline = true;
 			return;
 		}
 
@@ -579,7 +638,7 @@ internal sealed class TextBlock : IDisposable
 		}
 		else
 		{
-			Block.MaxWidth = WhiteSpace == UI.WhiteSpace.NoWrap ? null : (maxwidth.CeilToInt() + 1);
+			Block.MaxWidth = IsInlineParagraph ? _inlineWidth : WhiteSpace == UI.WhiteSpace.NoWrap ? null : (maxwidth.CeilToInt() + 1);
 		}
 
 		int width = Block.MeasuredWidth.CeilToInt().Clamp( 2, 4096 );
@@ -808,5 +867,6 @@ internal sealed class TextBlock : IDisposable
 		Block = null;
 		Style = null;
 		SizeCache = null;
+		_inlineLayout = null;
 	}
 }

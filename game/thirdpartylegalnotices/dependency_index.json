@@ -3,6 +3,36 @@
 	"Statement": "The following libraries and components are included or used by s&box. We appreciate the developers' contributions to open & shared software.",
 	"Components": [
 		{
+			"Name": "Yoga",
+			"Comment": "Portions of the managed flexbox layout implementation and its conformance fixtures derive from Yoga 3.2.1. Source-derived code is compiled into Sandbox.Layout; no native Yoga library is required.",
+			"UsedBy": [
+				"Sandbox.Layout"
+			],
+			"License": "MIT",
+			"ProjectUrl": "https://github.com/facebook/yoga",
+			"Version": "3.2.1",
+			"Linkage": "static",
+			"Modified": true,
+			"Copyright": [
+				"Facebook, Inc. and its affiliates."
+			]
+		},
+		{
+			"Name": "Taffy",
+			"Comment": "Portions of the managed grid layout implementation and the block/grid conformance fixtures derive from Taffy. Source-derived code is compiled into Sandbox.Layout. Fixture revision: ac2b86929d35b7e0f1d24919595b89b4ce89baa4.",
+			"UsedBy": [
+				"Sandbox.Layout"
+			],
+			"License": "MIT",
+			"ProjectUrl": "https://github.com/DioxusLabs/taffy",
+			"Linkage": "static",
+			"Modified": true,
+			"Copyright": [
+				"2018 Visly Inc.",
+				"2026 Taffy Authors"
+			]
+		},
+		{
 			"Name": "SkiaSharp",
 			"Comment": "SkiaSharp is a cross-platform 2D graphics API for .NET platforms based on Google's Skia Graphics Library. It provides a comprehensive 2D API that can be used across mobile, server and desktop models to render images.",
 			"UsedBy": [
@@ -635,19 +665,6 @@
 			"Copyright": [
 				"2022 Dirk Gregorius",
 				"2022 Erin Catto"
-			]
-		},
-		{
-			"Name": "Yoga",
-			"Comment": "Facebook Yoga layout engine (C# binding).",
-			"UsedBy": [
-				"engine2"
-			],
-			"License": "MIT",
-			"ProjectUrl": "https://github.com/facebook/yoga/",
-			"Linkage": "static",
-			"Copyright": [
-				"Facebook, Inc. and its affiliates"
 			]
 		},
 		{

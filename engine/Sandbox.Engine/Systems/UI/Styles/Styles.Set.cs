@@ -188,6 +188,35 @@ namespace Sandbox.UI
 					AlignItems = GetAlign( value );
 					return AlignItems.HasValue;
 
+				case "justify-items":
+					JustifyItems = GetAlign( value );
+					return JustifyItems.HasValue;
+
+				case "justify-self":
+					JustifySelf = GetAlign( value );
+					return JustifySelf.HasValue;
+
+				case "place-items":
+					return SetPlace( value, v => AlignItems = v, v => JustifyItems = v );
+
+				case "place-self":
+					return SetPlace( value, v => AlignSelf = v, v => JustifySelf = v );
+
+				case "grid-auto-flow":
+					return SetGridAutoFlow( value );
+
+				case "grid-column":
+					return SetGridLine( value, v => GridColumnStart = v, v => GridColumnEnd = v );
+
+				case "grid-row":
+					return SetGridLine( value, v => GridRowStart = v, v => GridRowEnd = v );
+
+				case "grid-area":
+					return SetGridArea( value );
+
+				case "grid-template":
+					return SetGridTemplate( value );
+
 				case "text-align":
 					return SetTextAlign( value );
 
@@ -1241,10 +1270,149 @@ namespace Sandbox.UI
 				case "contents":
 					Display = DisplayMode.Contents;
 					return true;
+				case "block":
+				case "flow-root":
+					Display = DisplayMode.Block;
+					return true;
+				case "grid":
+					Display = DisplayMode.Grid;
+					return true;
+				case "inline":
+					Display = DisplayMode.Inline;
+					return true;
 				default:
 					Log.Warning( $"Unhandled display property: {value}" );
 					return false;
 			}
+		}
+
+		bool SetGridAutoFlow( string value )
+		{
+			var row = false;
+			var column = false;
+			var dense = false;
+
+			foreach ( var part in value.Split( ' ', StringSplitOptions.RemoveEmptyEntries ) )
+			{
+				switch ( part )
+				{
+					case "row": row = true; break;
+					case "column": column = true; break;
+					case "dense": dense = true; break;
+					default:
+						Log.Warning( $"Unhandled grid-auto-flow property: {value}" );
+						return false;
+				}
+			}
+
+			if ( row && column )
+			{
+				Log.Warning( $"Unhandled grid-auto-flow property: {value}" );
+				return false;
+			}
+
+			GridAutoFlow = column ? (dense ? UI.GridAutoFlow.ColumnDense : UI.GridAutoFlow.Column) : (dense ? UI.GridAutoFlow.RowDense : UI.GridAutoFlow.Row);
+			return true;
+		}
+
+		/// <summary>
+		/// <c>place-items</c> / <c>place-self</c>: align value, then an optional justify value.
+		/// </summary>
+		bool SetPlace( string value, Action<Align?> setAlign, Action<Align?> setJustify )
+		{
+			var parts = value.Split( ' ', StringSplitOptions.RemoveEmptyEntries );
+			if ( parts.Length is 0 or > 2 ) return false;
+
+			var align = GetAlign( parts[0] );
+			var justify = parts.Length == 2 ? GetAlign( parts[1] ) : align;
+			if ( !align.HasValue || !justify.HasValue ) return false;
+
+			setAlign( align );
+			setJustify( justify );
+			return true;
+		}
+
+		/// <summary>
+		/// <c>grid-column</c> / <c>grid-row</c>: <c>start [ / end ]</c>. A lone named line applies to both
+		/// edges, any other lone value leaves the end <c>auto</c> (css-grid-1 §8.4).
+		/// </summary>
+		bool SetGridLine( string value, Action<string> setStart, Action<string> setEnd )
+		{
+			var parts = value.Split( '/' );
+			if ( parts.Length > 2 ) return false;
+
+			var start = parts[0].Trim();
+			if ( start.Length == 0 ) return false;
+
+			string end;
+			if ( parts.Length == 2 )
+			{
+				end = parts[1].Trim();
+				if ( end.Length == 0 ) return false;
+			}
+			else
+			{
+				end = IsCustomIdent( start ) ? start : "auto";
+			}
+
+			setStart( start );
+			setEnd( end );
+			return true;
+		}
+
+		/// <summary>
+		/// <c>grid-area</c>: <c>row-start / column-start / row-end / column-end</c>, omitted values copying
+		/// the matching named line or falling back to <c>auto</c>.
+		/// </summary>
+		bool SetGridArea( string value )
+		{
+			var parts = value.Split( '/' );
+			if ( parts.Length is 0 or > 4 ) return false;
+
+			for ( int i = 0; i < parts.Length; i++ )
+			{
+				parts[i] = parts[i].Trim();
+				if ( parts[i].Length == 0 ) return false;
+			}
+
+			var rowStart = parts[0];
+			var columnStart = parts.Length > 1 ? parts[1] : (IsCustomIdent( rowStart ) ? rowStart : "auto");
+			var rowEnd = parts.Length > 2 ? parts[2] : (IsCustomIdent( rowStart ) ? rowStart : "auto");
+			var columnEnd = parts.Length > 3 ? parts[3] : (IsCustomIdent( columnStart ) ? columnStart : "auto");
+
+			GridRowStart = rowStart;
+			GridColumnStart = columnStart;
+			GridRowEnd = rowEnd;
+			GridColumnEnd = columnEnd;
+			return true;
+		}
+
+		/// <summary>
+		/// <c>grid-template</c>: <c>none</c> or <c>rows / columns</c>. Area strings aren't supported.
+		/// </summary>
+		bool SetGridTemplate( string value )
+		{
+			if ( value == "none" )
+			{
+				GridTemplateRows = "none";
+				GridTemplateColumns = "none";
+				return true;
+			}
+
+			var parts = value.Split( '/' );
+			if ( parts.Length != 2 ) return false;
+
+			GridTemplateRows = parts[0].Trim();
+			GridTemplateColumns = parts[1].Trim();
+			return true;
+		}
+
+		static bool IsCustomIdent( string s )
+		{
+			if ( s.Length == 0 || char.IsDigit( s[0] ) || s[0] == '-' ) return false;
+			if ( s is "auto" or "span" ) return false;
+			foreach ( var c in s ) if ( !(char.IsLetterOrDigit( c ) || c == '-' || c == '_') ) return false;
+			return true;
 		}
 
 		bool SetPointerEvents( string value )
@@ -1275,6 +1443,9 @@ namespace Sandbox.UI
 					return true;
 				case "absolute":
 					Position = PositionMode.Absolute;
+					return true;
+				case "fixed":
+					Position = PositionMode.Fixed;
 					return true;
 				case "relative":
 					Position = PositionMode.Relative;
@@ -1383,9 +1554,11 @@ namespace Sandbox.UI
 				case "flex-start":
 				case "start":
 				case "left":
+					JustifyContent = UI.Justify.FlexStart;
+					return true;
 				case "normal":
 				case "stretch":
-					JustifyContent = UI.Justify.FlexStart;
+					JustifyContent = UI.Justify.Stretch;
 					return true;
 				case "center":
 					JustifyContent = UI.Justify.Center;

@@ -25,7 +25,7 @@ public sealed class ShearMode : MoveMode
 			Gizmo.Draw.IgnoreDepth = true;
 			Gizmo.Hitbox.DepthBias = 0.01f;
 			Gizmo.Hitbox.CanInteract = CanUseGizmo;
-			Gizmo.Transform = new Transform( tool.Pivot, Rotation.Identity );
+			Gizmo.Transform = new Transform( tool.Pivot.Position, Rotation.Identity );
 
 			using var scaler = Gizmo.GizmoControls.PushFixedScale();
 
@@ -77,7 +77,7 @@ public sealed class ShearMode : MoveMode
 
 				using ( Gizmo.Scope( "shear_text" ) )
 				{
-					DrawText( tool.Pivot, $"{snappedShear:0.##}", color );
+					DrawText( tool.Pivot.Position, $"{snappedShear:0.##}", color );
 				}
 			}
 
@@ -104,7 +104,6 @@ public sealed class ShearMode : MoveMode
 
 					ApplyShear( tool, constraintAxis, shearAxis, snappedShear );
 					tool.UpdateDrag();
-					tool.Pivot = tool.CalculateSelectionOrigin();
 				}
 			}
 		}

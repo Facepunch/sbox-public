@@ -4,13 +4,16 @@ using System;
 
 namespace Editor;
 
-public sealed partial class PanelWindow
+public partial class PanelWindow
 {
 	Vector2 _swapChainSize;
 	bool _inFrame;
 
-	// Popups are born hidden and appear once there's something to see - see DrawFrame
-	bool _shown = true;
+	/// <summary>
+	/// Whether the OS window is on screen. A window is born hidden and appears once it has drawn
+	/// its contents, so this is false for its first frame or two.
+	/// </summary>
+	public bool IsShown { get; private protected set; }
 
 	/// <summary>
 	/// Resize the window to fit the first thing on the surface. Popups use this so a menu is
@@ -26,14 +29,12 @@ public sealed partial class PanelWindow
 
 	internal bool Frame( bool interactiveResize = false )
 	{
-		if ( _window == IntPtr.Zero )
+		if ( Handle == IntPtr.Zero )
 		{
-			if ( !_isPopup || Surface is null ) return false;
-
-			CreateNativeWindow();
+			if ( Surface is null || !CreateNativeWindow() ) return false;
 		}
 
-		if ( PanelWindowNative.IsMinimized( _window ) ) return false;
+		if ( PanelWindowNative.IsMinimized( Handle ) ) return false;
 
 		// Resize events land mid-frame during a drag, and we draw from those too
 		if ( _inFrame && !AllowNestedFrame ) return false;
@@ -69,10 +70,56 @@ public sealed partial class PanelWindow
 	/// <summary>
 	/// Tick, input, layout. Returns false if there's nothing to draw afterwards.
 	/// </summary>
+	bool _relativeMouse;
+
+	/// <summary>
+	/// Whether the panel with the mouse captured is one of ours. While it is, the OS cursor is
+	/// hidden and pinned and <see cref="Mouse.Delta"/> reports the movement.
+	/// </summary>
+	bool HasMouseCapture => Panel.MouseCapture is { } captured && captured.FindRootPanel() == Surface?.Root;
+
+	void UpdateMouseCapture()
+	{
+		var wants = HasMouseCapture;
+		if ( wants == _relativeMouse ) return;
+
+		SetRelativeMouse( wants );
+	}
+
+	void SetRelativeMouse( bool relative )
+	{
+		_relativeMouse = relative;
+		if ( Handle != IntPtr.Zero ) PanelWindowNative.SetRelativeMouse( Handle, relative );
+
+		if ( relative )
+		{
+			PanelWindows.CaptureWindow = this;
+			PanelWindows.SkipNextCaptureDelta = true;
+		}
+		else if ( PanelWindows.CaptureWindow == this )
+		{
+			PanelWindows.CaptureWindow = null;
+		}
+
+		PanelWindows.CaptureDelta = 0;
+	}
+
+	/// <summary>
+	/// Drop a capture held by one of our panels. The window is going away or losing focus, and
+	/// a capture that outlives either leaves the cursor hidden with nothing to release it.
+	/// </summary>
+	void ReleaseMouseCapture()
+	{
+		if ( HasMouseCapture ) Panel.MouseCapture.SetMouseCapture( false );
+		if ( _relativeMouse ) SetRelativeMouse( false );
+	}
+
 	bool SimulateFrame()
 	{
 		var size = PixelSize;
 		if ( size.x < 1 || size.y < 1 ) return false;
+
+		UpdateMouseCapture();
 
 		if ( size != _swapChainSize )
 			PanelWindowNative.ResizeSwapChain( _swapChain, (int)size.x, (int)size.y );
@@ -84,9 +131,14 @@ public sealed partial class PanelWindow
 
 		Surface.Size = _swapChainSize;
 
-		if ( !_isPopup )
+		// A window that sizes to its contents has nothing to show until it has some - drawing
+		// now would put an empty window on the screen at whatever size it happens to be
+		if ( SizeToContents && Surface.Root.ChildrenCount == 0 )
+			return false;
+
+		if ( FollowsDisplayScale )
 		{
-			var scale = PanelWindowNative.GetContentsScale( _window );
+			var scale = PanelWindowNative.GetContentsScale( Handle );
 
 			// Dragged onto a display that scales differently - the limits the OS is holding were
 			// worked out in the old display's units
@@ -103,7 +155,7 @@ public sealed partial class PanelWindow
 		Surface.Simulate();
 
 		// Panels can close the window from an event - if that happened there's nothing to draw
-		if ( _window == IntPtr.Zero )
+		if ( Handle == IntPtr.Zero )
 			return false;
 
 		UpdateImeArea();
@@ -132,7 +184,7 @@ public sealed partial class PanelWindow
 		if ( rect == _imeArea ) return;
 		_imeArea = rect;
 
-		PanelWindowNative.SetTextInputArea( _window, (int)rect.Left, (int)rect.Top, (int)rect.Width, (int)rect.Height );
+		PanelWindowNative.SetTextInputArea( Handle, (int)rect.Left, (int)rect.Top, (int)rect.Width, (int)rect.Height );
 	}
 
 	void DrawFrame()
@@ -142,23 +194,28 @@ public sealed partial class PanelWindow
 
 		g_pRenderDevice.Present( _swapChain );
 
-		// A popup is created hidden so the user never sees it blank at the wrong size - the
-		// first drawn frame is when it appears
-		if ( !_shown )
+		// A window is created hidden so the user never sees it blank at the wrong size - the
+		// first drawn frame is when it appears. Anything asked of it before now, like being
+		// maximized, is applied by SDL as it's shown.
+		if ( !IsShown )
 		{
-			_shown = true;
-
-			// It was born as big as its parent, so the OS may have shoved it back onto the screen
-			// to make it fit. It has shrunk to its contents since, so ask again for where it was
-			// meant to go - the OS still gets the last word if it doesn't fit there either
-			if ( _isPopup )
-				PanelWindowNative.SetPosition( _window, (int)_pendingPosition.x, (int)_pendingPosition.y );
-
-			PanelWindowNative.Show( _window );
+			IsShown = true;
+			OnFirstShow();
+			PanelWindowNative.Show( Handle );
 		}
 
 		ApplyCursorShape();
 	}
+
+	/// <summary>
+	/// Whether the window follows its display's scale as it's dragged between displays.
+	/// </summary>
+	private protected virtual bool FollowsDisplayScale => true;
+
+	/// <summary>
+	/// The window has drawn its first frame and is about to be shown.
+	/// </summary>
+	private protected virtual void OnFirstShow() { }
 
 	/// <summary>
 	/// Shrink the window to whatever is on the surface. Returns true if we resized, in which case
@@ -179,10 +236,10 @@ public sealed partial class PanelWindow
 
 		// Compared in window coordinates - they're the only sizes a window can take, and where one
 		// is worth more than a pixel, comparing pixels never settles
-		PanelWindowNative.GetBounds( _window, out _, out _, out var currentWidth, out var currentHeight );
+		PanelWindowNative.GetBounds( Handle, out _, out _, out var currentWidth, out var currentHeight );
 		if ( width == currentWidth && height == currentHeight ) return false;
 
-		PanelWindowNative.SetSize( _window, width, height );
+		PanelWindowNative.SetSize( Handle, width, height );
 
 		return true;
 	}

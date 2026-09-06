@@ -251,24 +251,19 @@ public class Hierarchy : Panel
 		}
 	}
 
-	/// <summary>
-	/// Whether the light theme is on, so menus we open match the window.
-	/// </summary>
-	public Func<bool> IsLightMode { get; set; }
-
 	void OpenMenu( GameObject item, Panel row )
 	{
 		Select( item );
 
-		ContextMenu.Open( this, new ContextMenu.Item[]
-		{
-			new( "Rename", () => BeginRename( item, row ), "edit", "F2" ),
-			new( "Duplicate", () => Duplicate( item ), "content_copy", "Ctrl+D" ),
-			null,
-			new( "Create Empty Child", () => CreateChild( item ), "add" ),
-			null,
-			new( "Delete", () => Delete( item ), "delete", "Del" ),
-		}, IsLightMode?.Invoke() ?? false );
+		var menu = new Sandbox.UI.Menu();
+		menu.AddOption( "Rename", "edit", () => BeginRename( item, row ) ).Shortcut = "F2";
+		menu.AddOption( "Duplicate", "content_copy", () => Duplicate( item ) ).Shortcut = "Ctrl+D";
+		menu.AddSeparator();
+		menu.AddOption( "Create Empty Child", "add", () => CreateChild( item ) );
+		menu.AddSeparator();
+		menu.AddOption( "Delete", "delete", () => Delete( item ) ).Shortcut = "Del";
+
+		menu.Open( this, Sandbox.UI.Popup.PositionMode.UnderMouse );
 	}
 
 	/// <summary>

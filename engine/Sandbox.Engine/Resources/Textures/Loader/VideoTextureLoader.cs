@@ -73,7 +73,7 @@ internal static class VideoTextureLoader
 		return player.Texture;
 	}
 
-	// Presenting is false once nothing has drawn the texture for a few frames.
+	// Presenting is false once nothing has presented the texture for a few frames.
 	internal record struct ActivePlayer( string Url, VideoPlayer Player, bool Presenting );
 
 	internal static void GetActive( List<ActivePlayer> output )
@@ -84,7 +84,7 @@ internal static class VideoTextureLoader
 				continue;
 
 			if ( texture.ParentObject is VideoPlayer player )
-				output.Add( new ActivePlayer( entry.Key, player, texture.LastUsed <= 2 ) );
+				output.Add( new ActivePlayer( entry.Key, player, player.LastPresented <= 2 ) );
 		}
 	}
 
@@ -102,10 +102,10 @@ internal static class VideoTextureLoader
 			if ( texture.ParentObject is not VideoPlayer player )
 				continue;
 
-			// Nothing has drawn this for a few frames. Left running it decodes and throws away
+			// Nothing has presented this for a few frames. Left running it decodes and throws away
 			// every frame forever - the clock keeps advancing past them, so they always read as
 			// late and the queue never fills to block the decoder. Pausing freezes the clock.
-			if ( texture.LastUsed > 2 )
+			if ( player.LastPresented > 2 )
 			{
 				player.Pause();
 				continue;

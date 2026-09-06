@@ -246,6 +246,10 @@ public abstract class BaseVirtualPanel : Panel
 		rect.Height = MathF.Max( GetTotalHeight( _items.Count ) * ScaleToScreen, rect.Height );
 
 		ConstrainScrolling( rect.Size );
+
+		// Scrollbars are not part of the virtual list and need to be laid out manually
+		ScrollbarY?.FinalLayout( offset );
+		ScrollbarX?.FinalLayout( offset );
 	}
 
 	/// <summary>

@@ -52,7 +52,7 @@ namespace Sandbox.UI
 			value = value.Trim();
 
 			// 'none' clears any ratio a less specific rule set. NaN rather than null: null is
-			// "not set" and gets skipped by the cascade, whereas NaN is a real value that Yoga
+			// "not set" and gets skipped by the cascade, whereas NaN is a real value that the layout engine
 			// reads as no ratio.
 			if ( value.Equals( "none", System.StringComparison.OrdinalIgnoreCase ) )
 				return float.NaN;

@@ -11,7 +11,7 @@ native static class PanelWindowGlue as NativeEngine.PanelWindowNative
 	void* Create( string title, int x, int y, int width, int height, bool borderless );
 	void Destroy( CastTo[void*] IntPtr window );
 
-	void* CreatePopup( CastTo[void*] IntPtr parent, int x, int y, int width, int height );
+	void Setup( CastTo[void*] IntPtr window );
 	void DestroyPopup( CastTo[void*] IntPtr window );
 
 	void SetTitle( CastTo[void*] IntPtr window, string title );
@@ -44,7 +44,27 @@ native static class PanelWindowGlue as NativeEngine.PanelWindowNative
 	void SetMinSize( CastTo[void*] IntPtr window, int width, int height );
 	void SetMaxSize( CastTo[void*] IntPtr window, int width, int height );
 	void SetCanMaximize( CastTo[void*] IntPtr window, bool canMaximize );
+	void SetDropShadow( CastTo[void*] IntPtr window, bool dropShadow );
+	void SetRoundedCorners( CastTo[void*] IntPtr window, bool rounded );
 
+	void SetAlwaysOnTop( CastTo[void*] IntPtr window, bool onTop );
+	void SendToBack( CastTo[void*] IntPtr window );
+	void BringToFront( CastTo[void*] IntPtr window );
+	void SetOpacity( CastTo[void*] IntPtr window, float opacity );
+	void SetShowInTaskbar( CastTo[void*] IntPtr window, bool show );
+	void SetIcon( CastTo[void*] IntPtr window, int width, int height, CastTo[const void*] IntPtr pixels );
+	void SetResizable( CastTo[void*] IntPtr window, bool resizable );
+	void SetFullscreen( CastTo[void*] IntPtr window, bool fullscreen, bool exclusive );
+	bool IsFullscreen( CastTo[void*] IntPtr window );
+	void GetDisplayBounds( CastTo[void*] IntPtr window, out int x, out int y, out int width, out int height );
+	void GetDisplayWorkArea( CastTo[void*] IntPtr window, out int x, out int y, out int width, out int height );
+	void Flash( CastTo[void*] IntPtr window, int operation );
+	void SetAspectRatio( CastTo[void*] IntPtr window, float aspect );
+	void SetOwner( CastTo[void*] IntPtr window, CastTo[void*] IntPtr owner );
+	void SetModal( CastTo[void*] IntPtr window, bool modal );
+	void SetRelativeMouse( CastTo[void*] IntPtr window, bool relative );
+	void SetCanClose( CastTo[void*] IntPtr window, bool canClose );
+	void SetOverlayIcon( CastTo[void*] IntPtr window, int width, int height, CastTo[const void*] IntPtr pixels, string description );
 	SwapChainHandle_t CreateSwapChain( CastTo[void*] IntPtr window, int nMSAAAmount, bool vsync );
 	void ResizeSwapChain( SwapChainHandle_t swapChain, int width, int height );
 	void GetSwapChainSize( SwapChainHandle_t swapChain, out int width, out int height );
@@ -59,7 +79,8 @@ native static class PanelWindowGlue as NativeEngine.PanelWindowNative
 //
 managed static class Sandbox.UI.PanelWindowInput
 {
-	static void OnMouseMove( IntPtr window, float x, float y );
+	// dx, dy is the movement since the last event - what there is to read while the cursor is pinned
+	static void OnMouseMove( IntPtr window, float x, float y, float dx, float dy );
 	static void OnMouseButton( IntPtr window, ButtonCode button, bool down, int clicks, int ikeymods );
 	static void OnMouseWheel( IntPtr window, float x, float y, int ikeymods );
 	static void OnKey( IntPtr window, ButtonCode button, bool down, bool repeating, int ikeymods );
@@ -96,6 +117,11 @@ managed static class Sandbox.UI.PanelWindowInput
 	static void OnMouseLeave( IntPtr window );
 	static void OnResized( IntPtr window );
 	static void OnClose( IntPtr window );
+	static void OnMoved( IntPtr window );
+	// The window was minimized (1), maximized (2), or restored from either (0)
+	static void OnStateChanged( IntPtr window, int state );
+	// The window crossed onto another display, which may scale differently
+	static void OnDisplayChanged( IntPtr window );
 
 	//
 	// What the user picked in the OS dialog this window opened - folder, open or save. Empty

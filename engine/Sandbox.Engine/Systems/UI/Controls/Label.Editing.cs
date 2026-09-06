@@ -21,7 +21,7 @@ public partial class Label
 
 			// This decides whether the text wraps, which is measured during layout - without
 			// this the block keeps wrapping until something else happens to dirty it
-			YogaNode?.MarkDirty();
+			LayoutTree?.MarkDirty();
 			SetNeedsPreLayout();
 		}
 	}
@@ -118,6 +118,24 @@ public partial class Label
 		_textBlock.ScrollToCaret( CaretPosition, ref caretScroll, Box.RectInner.Size );
 
 		ScrollChanged( before );
+
+		// The parent (a multiline entry) scrolls to the caret in FinalLayout, once the text block is current
+		_caretIntoView = 3;
+		SetNeedsFinalLayout();
+	}
+
+	/// <summary>
+	/// Layouts left to try scrolling the parent to the caret. Each scroll needs another layout to check again.
+	/// </summary>
+	int _caretIntoView;
+
+	void ScrollParentToCaret()
+	{
+		if ( _caretIntoView <= 0 ) return;
+		if ( Parent is not { } parent || _textBlock is null ) { _caretIntoView = 0; return; }
+
+		var scrolled = parent.ScrollIntoView( GetCaretRect( CaretPosition ) );
+		_caretIntoView = scrolled ? _caretIntoView - 1 : 0;
 	}
 
 	/// <summary>
@@ -301,9 +319,22 @@ public partial class Label
 		// The first move of a run fixes the x every move after it aims for
 		_desiredCaretX ??= local.x;
 
-		var y = local.y + caret.Height * 0.5f + caret.Height * offset_line * 1.2f;
+		// By line rather than by caret height, an empty line's caret has no height
+		var line = _textBlock.LineOf( CaretPosition ) + offset_line;
 
-		var pos = GetLetterAt( new Vector2( _desiredCaretX.Value, y ) );
+		if ( line < 0 )
+		{
+			SetCaretPosition( 0, select );
+			return;
+		}
+
+		if ( line >= _textBlock.LineCount )
+		{
+			SetCaretPosition( TextLength, select );
+			return;
+		}
+
+		var pos = _textBlock.GetLetterAtLine( line, _desiredCaretX.Value );
 		if ( pos < 0 ) return;
 
 		_movingLine = true;

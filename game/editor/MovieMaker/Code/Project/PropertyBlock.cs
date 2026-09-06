@@ -26,6 +26,7 @@ public interface IProjectPropertyBlock : IPropertyBlock, IPaintHintBlock
 {
 	IProjectPropertyBlock? Slice( MovieTimeRange timeRange );
 	IProjectPropertyBlock Shift( MovieTime offset );
+
 	IProjectPropertyBlock WithSignal( PropertySignal signal );
 
 	PropertySignal Signal { get; }

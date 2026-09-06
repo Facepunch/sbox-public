@@ -1,0 +1,164 @@
+// Blue is the box, the gradient is the content that overflows it: red at the top, orange at the bottom.
+
+$box: #2f5d8a;
+$content-start: #e84a4a;
+$content-end: #e8b04a;
+
+ScrollbarTests
+{
+	// Inherited, so every box on the page gets a bar unless a case says otherwise
+	scrollbar-width: 8px;
+
+	.box
+	{
+		position: relative;
+		width: 90px;
+		height: 90px;
+		flex-shrink: 0;
+		flex-direction: column;
+		overflow-y: scroll;
+		background-color: $box;
+	}
+
+	// Content
+	.tall   { width: 100%;  height: 220px;  flex-shrink: 0; background-image: linear-gradient( to bottom, $content-start, $content-end ); }
+	.barely { width: 100%;  height: 100px;  flex-shrink: 0; background-image: linear-gradient( to bottom, $content-start, $content-end ); }
+	.huge   { width: 100%;  height: 3000px; flex-shrink: 0; background-image: linear-gradient( to bottom, $content-start, $content-end ); }
+	.wide   { width: 220px; height: 40px;   flex-shrink: 0; background-image: linear-gradient( to right, $content-start, $content-end ); }
+	.big    { width: 220px; height: 220px;  flex-shrink: 0; background-image: linear-gradient( 135deg, $content-start, $content-end ); }
+	.short  { width: 100%;  height: 30px;   flex-shrink: 0; background-color: $content-start; }
+
+	// Width
+	.w-none { scrollbar-width: none; }
+	.w-thin { scrollbar-width: thin; }
+	.w-auto { scrollbar-width: auto; }
+	.w-4    { scrollbar-width: 4px; }
+	.w-16   { scrollbar-width: 16px; }
+
+	// Colour
+	.c-blue { scrollbar-color: #4ac2e8 #00000099; }
+	.c-red  { scrollbar-color: #e84a4a transparent; }
+	.c-fn   { scrollbar-color: rgba( 255, 255, 255, 0.9 ) rgba( 0, 0, 0, 0.5 ); }
+	.c-auto { scrollbar-color: auto; }
+
+	// Gutter
+	.g-auto   { scrollbar-gutter: auto; }
+	.g-stable { scrollbar-gutter: stable; }
+	.g-both   { scrollbar-gutter: stable both-edges; }
+	.padded10 { padding: 10px; }
+
+	// Axes
+	.x    { overflow-x: scroll; }
+	.both { overflow: scroll; }
+	.auto { overflow-y: auto; }
+
+	// Content
+	.rows > div
+	{
+		width: 100%;
+		height: 22px;
+		flex-shrink: 0;
+		background-color: $content-start;
+		border-bottom: 2px solid $box;
+	}
+
+	.rows > div:last-child
+	{
+		background-color: #4ac96a;
+		border-bottom: none;
+	}
+
+	.marked::after
+	{
+		width: 100%;
+		height: 10px;
+		flex-shrink: 0;
+		background-color: #ffffff;
+	}
+
+	.entry
+	{
+		overflow-y: scroll;
+		padding: 6px;
+		font-size: 12px;
+		color: #ffffff;
+		background-color: #1b3a57;
+	}
+
+	.virtual-grid
+	{
+		gap: 5px;
+
+		.cell
+		{
+			align-items: center;
+			justify-content: center;
+			background-color: $content-start;
+			border: 1px solid red;
+			font-size: 10px;
+		}
+	}
+
+	// Reversed axes
+	.col-rev { flex-direction: column-reverse; }
+	.end     { justify-content: flex-end; }
+	.row-rev { flex-direction: row-reverse; overflow-x: scroll; }
+
+	// Box and clip
+	.round    { border-radius: 24px; }
+	.bordered { border: 8px solid #4ac2e8; }
+	.padded   { padding: 12px; }
+	.small    { transform: scale( 0.6 ); }
+	.rot      { transform: rotate( 12deg ); }
+
+	// Nesting and inheritance
+	.outer
+	{
+		width: 180px;
+		height: 150px;
+	}
+
+	.outer.inherit { scrollbar-width: 12px; }
+	.outer.tinted  { scrollbar-color: #4ac96a #00000099; }
+
+	.inner
+	{
+		width: 120px;
+		height: 90px;
+		margin: 0 20px;
+		background-color: #1b3a57;
+	}
+
+	.spacer
+	{
+		width: 100%;
+		height: 120px;
+		flex-shrink: 0;
+		background-image: linear-gradient( to bottom, $content-start, $content-end );
+	}
+
+	.spacer.top { height: 40px; }
+
+	// Changing under it - the page toggles .grown on a timer
+	.grower
+	{
+		width: 100%;
+		height: 60px;
+		flex-shrink: 0;
+		background-image: linear-gradient( to bottom, $content-start, $content-end );
+		transition: height 0.4s ease-out;
+	}
+
+	&.grown .grower { height: 220px; }
+
+	.resizer { transition: height 0.4s ease-out; }
+	&.grown .resizer { height: 50px; }
+
+	.rethick { scrollbar-width: thin; }
+	&.grown .rethick { scrollbar-width: 14px; }
+
+	&.grown .onoff { scrollbar-width: none; }
+
+	.regutter { scrollbar-gutter: auto; }
+	&.grown .regutter { scrollbar-gutter: stable; }
+}

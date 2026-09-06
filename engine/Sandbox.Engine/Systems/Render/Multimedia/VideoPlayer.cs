@@ -98,6 +98,15 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 	internal int DecodedFrames => native.GetDecodedFrameCount();
 	internal int PacketQueueDepth => native.GetPacketQueueDepth();
 	internal int FrameQueueDepth => native.GetFrameQueueDepth();
+	ulong _lastPresentedFrame;
+	bool _tracksPresentation;
+	internal int LastPresented => _tracksPresentation ? (int)Math.Min( Application.FrameCount - _lastPresentedFrame, 1000UL ) : Texture.LastUsed;
+
+	internal void TrackPresentation( bool presented )
+	{
+		_tracksPresentation = true;
+		if ( presented ) _lastPresentedFrame = Application.FrameCount;
+	}
 
 	uint IWeakInteropHandle.InteropHandle { get; set; }
 

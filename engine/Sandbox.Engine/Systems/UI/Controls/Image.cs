@@ -15,7 +15,7 @@ namespace Sandbox.UI
 
 		public Image()
 		{
-			YogaNode.SetMeasureFunction( MeasureTexture );
+			LayoutTree.SetMeasureFunction( MeasureTexture );
 		}
 
 		/// <summary>
@@ -30,7 +30,7 @@ namespace Sandbox.UI
 
 			if ( !IsValid ) return;
 			IsRenderDirty = true;
-			YogaNode.MarkDirty(); // Update MeasureTexture
+			LayoutTree.MarkDirty(); // Update MeasureTexture
 		}
 
 		float oldScaleToScreen = 1.0f;
@@ -40,7 +40,7 @@ namespace Sandbox.UI
 
 			if ( ScaleToScreen != oldScaleToScreen )
 			{
-				YogaNode.MarkDirty();
+				LayoutTree.MarkDirty();
 			}
 		}
 
@@ -67,15 +67,15 @@ namespace Sandbox.UI
 			if ( name == "src" ) SetTexture( value );
 		}
 
-		internal Vector2 MeasureTexture( YGNodeRef node, float width, YGMeasureMode widthMode, float height, YGMeasureMode heightMode )
+		internal Vector2 MeasureTexture( float width, Sandbox.Layout.MeasureMode widthMode, float height, Sandbox.Layout.MeasureMode heightMode )
 		{
 			if ( !Texture.IsValid() ) return default;
 
 			try
 			{
 				var (w, h) = (Texture.Width, Texture.Height);
-				var exact = YGMeasureMode.YGMeasureModeExactly;
-				var atMost = YGMeasureMode.YGMeasureModeAtMost;
+				var exact = Sandbox.Layout.MeasureMode.Exactly;
+				var atMost = Sandbox.Layout.MeasureMode.AtMost;
 
 				oldScaleToScreen = ScaleToScreen;
 				var ideal = new Vector2( w * ScaleToScreen, h * ScaleToScreen );

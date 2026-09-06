@@ -46,6 +46,8 @@ public sealed class Win64 : NativePlatform
 			if ( config.Name == "Debug" ) Debug( module, config, options );
 			else Release( module, config, options );
 		}
+
+		module.ResolvedFiles.Add( new SourceFile { Path = "devtools/engine2.natvis", Kind = FileKind.Natvis } );
 	}
 
 	public override void Generate( List<Module> modules, Options options )

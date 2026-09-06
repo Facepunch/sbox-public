@@ -1,0 +1,194 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+
+@using Sandbox;
+@using Sandbox.UI;
+
+@attribute [Title( "CSS Grid" )]
+@attribute [Description( "display: grid - tracks, placement, alignment" )]
+@attribute [Icon( "grid_view" )]
+@attribute [Order( 20 )]
+
+@*
+    Every stage holds one grid container with numbered, coloured items. The caption is the
+    rule on the container; anything on an item is in the note.
+*@
+
+<root>
+
+    <h2>Tracks</h2>
+
+    <div class="cases">
+        <UiTestCase class="layout-case" Setup="@Grid" Rule="grid-template-columns: 60px 60px 60px; grid-template-rows: 40px 40px; gap: 6px" Note="Six items fill two rows of three fixed cells, in order.">
+            <ChildContent>
+                <div class="grid fixed">
+                    <div class="item c1"><label>1</label></div><div class="item c2"><label>2</label></div><div class="item c3"><label>3</label></div>
+                    <div class="item c4"><label>4</label></div><div class="item c5"><label>5</label></div><div class="item c6"><label>6</label></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Grid" Rule="grid-template-columns: 1fr 2fr 1fr; grid-auto-rows: 40px; gap: 6px" Note="The middle column is twice the width of the outer two. Rows come from grid-auto-rows.">
+            <ChildContent>
+                <div class="grid fr">
+                    <div class="item c1"><label>1fr</label></div><div class="item c2"><label>2fr</label></div><div class="item c3"><label>1fr</label></div>
+                    <div class="item c4"><label>4</label></div><div class="item c5"><label>5</label></div><div class="item c6"><label>6</label></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Grid" Rule="grid-template-columns: repeat( auto-fill, minmax( 50px, 1fr ) ); gap: 6px" Note="As many 50px+ columns as fit in 208px (three), stretched to share the remainder. Seven items wrap to three rows.">
+            <ChildContent>
+                <div class="grid autofill">
+                    <div class="item c1"><label>1</label></div><div class="item c2"><label>2</label></div><div class="item c3"><label>3</label></div>
+                    <div class="item c4"><label>4</label></div><div class="item c5"><label>5</label></div><div class="item c6"><label>6</label></div>
+                    <div class="item c1"><label>7</label></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Grid" Rule="grid-template-columns: [full-start] 50px [main-start] 1fr [main-end] 50px [full-end]" Note="Item 1 spans main-start / main-end, item 2 spans full-start / full-end - by line name.">
+            <ChildContent>
+                <div class="grid named">
+                    <div class="item c1 named-main"><label>main</label></div>
+                    <div class="item c2 named-full"><label>full</label></div>
+                    <div class="item c3"><label>3</label></div><div class="item c4"><label>4</label></div><div class="item c5"><label>5</label></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Grid" Rule="grid-template-columns: minmax( 40px, auto ) fit-content( 60px ) max-content" Note="Track widths come from the labels: the first is at least 40px, the second is capped at 60px, the last fits its text.">
+            <ChildContent>
+                <div class="grid intrinsic">
+                    <div class="item c1"><label>ab</label></div><div class="item c2"><label>a long caption here</label></div><div class="item c3"><label>max-content</label></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Placement</h2>
+
+    <div class="cases">
+        <UiTestCase class="layout-case" Setup="@Grid" Rule="grid-template-columns: repeat( 3, 1fr ); grid-auto-rows: 36px; gap: 6px" Note="Item 1: grid-column: span 2. Item 4: grid-row: 2 / 4 (two rows tall). The rest auto-place around them.">
+            <ChildContent>
+                <div class="grid three">
+                    <div class="item c1 span2"><label>span 2</label></div><div class="item c2"><label>2</label></div>
+                    <div class="item c3"><label>3</label></div><div class="item c4 tall"><label>rows 2-3</label></div><div class="item c5"><label>5</label></div>
+                    <div class="item c6"><label>6</label></div><div class="item c1"><label>7</label></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Grid" Rule="grid-auto-flow: row  (items 1 and 2 span 2 columns)" Note="Sparse row flow: item 2 doesn't fit after item 1 so it moves down, and the cell after 1 stays empty.">
+            <ChildContent>
+                <div class="grid three flow-row">
+                    <div class="item c1 span2"><label>span 2</label></div><div class="item c2 span2"><label>span 2</label></div>
+                    <div class="item c3"><label>3</label></div><div class="item c4"><label>4</label></div><div class="item c5"><label>5</label></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Grid" Rule="grid-auto-flow: row dense  (items 1 and 2 span 2 columns)" Note="Dense flow: item 3 back-fills the hole left after item 1.">
+            <ChildContent>
+                <div class="grid three flow-dense">
+                    <div class="item c1 span2"><label>span 2</label></div><div class="item c2 span2"><label>span 2</label></div>
+                    <div class="item c3"><label>3</label></div><div class="item c4"><label>4</label></div><div class="item c5"><label>5</label></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Grid" Rule="grid-auto-flow: column; grid-template-rows: 36px 36px" Note="Items fill down each column first; columns are added as needed (grid-auto-columns: 50px).">
+            <ChildContent>
+                <div class="grid flow-column">
+                    <div class="item c1"><label>1</label></div><div class="item c2"><label>2</label></div><div class="item c3"><label>3</label></div>
+                    <div class="item c4"><label>4</label></div><div class="item c5"><label>5</label></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Grid" Rule="grid-area: 2 / 1 / 3 / 3  on item 5" Note="Explicit placement by area: item 5 sits in row 2, spanning columns 1-2; auto items skip over it.">
+            <ChildContent>
+                <div class="grid three">
+                    <div class="item c1"><label>1</label></div><div class="item c2"><label>2</label></div><div class="item c3"><label>3</label></div>
+                    <div class="item c4"><label>4</label></div><div class="item c5 area"><label>grid-area</label></div><div class="item c6"><label>6</label></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Alignment</h2>
+
+    <div class="cases">
+        <UiTestCase class="layout-case" Setup="@Grid" Rule="justify-items: center; align-items: end  (60px cells, 30px items)" Note="Items sit centred horizontally at the bottom of their cells. Item 3 overrides with place-self: start start.">
+            <ChildContent>
+                <div class="grid align-items-demo">
+                    <div class="item small c1"><label>1</label></div><div class="item small c2"><label>2</label></div><div class="item small c3 self-start"><label>3</label></div>
+                    <div class="item small c4"><label>4</label></div><div class="item small c5 self-stretch"><label>st</label></div><div class="item small c6"><label>6</label></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Grid" Rule="justify-content: space-between; align-content: center  (fixed 40px tracks)" Note="The tracks are smaller than the container, so the free space goes between the columns and around the rows.">
+            <ChildContent>
+                <div class="grid content-demo">
+                    <div class="item c1"><label>1</label></div><div class="item c2"><label>2</label></div><div class="item c3"><label>3</label></div>
+                    <div class="item c4"><label>4</label></div><div class="item c5"><label>5</label></div><div class="item c6"><label>6</label></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Grid" Rule="justify-content: center; grid-template-columns: 40px 40px 40px" Note="Fixed tracks centred as a block in a wider container.">
+            <ChildContent>
+                <div class="grid center-demo">
+                    <div class="item c1"><label>1</label></div><div class="item c2"><label>2</label></div><div class="item c3"><label>3</label></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Grid" Rule="margin: auto on item 2  (1fr tracks, 30px item)" Note="Auto margins centre a grid item in both axes of its cell.">
+            <ChildContent>
+                <div class="grid three tallrows">
+                    <div class="item c1"><label>1</label></div><div class="item small c2 auto-margin"><label>2</label></div><div class="item c3"><label>3</label></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Nesting and absolutes</h2>
+
+    <div class="cases">
+        <UiTestCase class="layout-case" Setup="@Grid" Rule="a 2-column grid whose second item is itself a 2x2 grid" Note="The inner grid stretches to its cell and lays out its own four items.">
+            <ChildContent>
+                <div class="grid nested-outer">
+                    <div class="item c1"><label>outer</label></div>
+                    <div class="grid nested-inner">
+                        <div class="item c2"><label>a</label></div><div class="item c3"><label>b</label></div>
+                        <div class="item c4"><label>c</label></div><div class="item c5"><label>d</label></div>
+                    </div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Grid" Rule="position: absolute; grid-column: 2 / 4; grid-row: 2; inset: 4px  (red)" Note="An absolutely positioned child uses its grid area as the containing block - the red box fills cells 2-3 of row 2, inset by 4px, on top of the flow items.">
+            <ChildContent>
+                <div class="grid three tallrows">
+                    <div class="item c1"><label>1</label></div><div class="item c2"><label>2</label></div><div class="item c3"><label>3</label></div>
+                    <div class="item c4"><label>4</label></div><div class="item c5"><label>5</label></div><div class="item c6"><label>6</label></div>
+                    <div class="abs-area"><label>abs</label></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Grid" Rule="position: absolute; right: 4px; bottom: 4px  (no grid placement)" Note="Without a placement the containing block is the grid's padding box, so the red box hugs the bottom-right corner.">
+            <ChildContent>
+                <div class="grid three tallrows">
+                    <div class="item c1"><label>1</label></div><div class="item c2"><label>2</label></div><div class="item c3"><label>3</label></div>
+                    <div class="abs-corner"><label>abs</label></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Grid" Rule="grid inside a flex row, next to a flex item" Note="The grid is a flex item (flex-grow: 1) and sizes its 1fr columns to whatever width flex gives it.">
+            <ChildContent>
+                <div class="flex-host">
+                    <div class="item c6 flex-side"><label>flex</label></div>
+                    <div class="grid in-flex">
+                        <div class="item c1"><label>1</label></div><div class="item c2"><label>2</label></div><div class="item c3"><label>3</label></div>
+                    </div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+    </div>
+
+</root>
+
+@code
+{
+    const string Grid = "width: 208px";
+}

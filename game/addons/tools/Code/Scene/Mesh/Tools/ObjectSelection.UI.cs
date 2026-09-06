@@ -78,22 +78,7 @@ partial class ObjectSelection
 				}
 			}
 
-			{
-				var group = AddGroup( "Pivot" );
-
-				var grid = Layout.Row();
-				grid.Spacing = 4;
-
-				CreateButton( "Previous", "meshtools/pivot_tools/previous.png", "mesh.previous-pivot", PreviousPivot, _gos.Length > 0, grid );
-				CreateButton( "Next", "meshtools/pivot_tools/next.png", "mesh.next-pivot", NextPivot, _gos.Length > 0, grid );
-				CreateButton( "Clear", "meshtools/pivot_tools/clear.png", "mesh.clear-pivot", ClearPivot, _gos.Length > 0, grid );
-				CreateButton( "Center", "meshtools/object_selection_buttons/center_origin.png", "mesh.center-pivot", CenterPivot, _gos.Length > 0, grid );
-				CreateButton( "World Origin", "meshtools/pivot_tools/world_origin.png", "mesh.zero-pivot", ZeroPivot, _gos.Length > 0, grid );
-
-				grid.AddStretchCell();
-
-				group.Add( grid );
-			}
+			this.AddPivotButtons( _tool, _gos.Length > 0 );
 
 			{
 				var group = AddGroup( "Tools" );
@@ -224,21 +209,6 @@ partial class ObjectSelection
 			_tool.Tool.CurrentTool = tool;
 		}
 
-		[Shortcut( "mesh.previous-pivot", "Shift+MWheelDown", typeof( SceneViewWidget ) )]
-		public void PreviousPivot() => _tool.PreviousPivot();
-
-		[Shortcut( "mesh.next-pivot", "Shift+MWheelUp", typeof( SceneViewWidget ) )]
-		public void NextPivot() => _tool.NextPivot();
-
-		[Shortcut( "mesh.center-pivot", "Ctrl+Home", typeof( SceneViewWidget ) )]
-		public void CenterPivot() => _tool.CenterPivot();
-
-		[Shortcut( "mesh.clear-pivot", "Home", typeof( SceneViewWidget ) )]
-		public void ClearPivot() => _tool.ClearPivot();
-
-		[Shortcut( "mesh.zero-pivot", "Ctrl+End", typeof( SceneViewWidget ) )]
-		public void ZeroPivot() => _tool.ZeroPivot();
-
 		[Shortcut( "mesh.set-origin-to-pivot", "Ctrl+D", typeof( SceneViewWidget ) )]
 		public void SetOriginToPivot()
 		{
@@ -255,12 +225,12 @@ partial class ObjectSelection
 			{
 				foreach ( var mesh in _meshes )
 				{
-					SetMeshOrigin( mesh, _tool.Pivot );
+					SetMeshOrigin( mesh, _tool.Pivot.Position );
 				}
 
 				foreach ( var go in boundsObjects )
 				{
-					SetObjectOrigin( go, _tool.Pivot );
+					SetObjectOrigin( go, _tool.Pivot.Position );
 				}
 			}
 		}
@@ -281,7 +251,7 @@ partial class ObjectSelection
 				}
 			}
 
-			_tool.ClearPivot();
+			_tool.Pivot.Reset();
 		}
 
 		[Shortcut( "mesh.bake-scale", "", typeof( SceneViewWidget ) )]
@@ -630,10 +600,63 @@ partial class ObjectSelection
 				Transform = renderer.WorldTransform
 			};
 
+			var mesh = polygonMesh;
+
 			var hasAnyFaces = false;
-			var vertexMap = new Dictionary<int, VertexHandle>( vertices.Length );
+			var vertexMap = new Dictionary<(int, int, int), VertexHandle>( vertices.Length );
+			var cornerNormals = new Dictionary<(FaceHandle, VertexHandle), Vector3>( vertices.Length );
 			var usedDrawCalls = false;
 			var materialSlots = renderer.Model.Materials;
+
+			// Compiled models split vertices at every normal, uv and material seam. Weld them back by
+			// position so the mesh is manifold again, otherwise every edge stays open and reads as hard.
+			VertexHandle GetOrAddVertex( int index )
+			{
+				const float weldScale = 10000.0f;
+
+				var position = vertices[index].Position;
+				var key = ((int)MathF.Round( position.x * weldScale ),
+					(int)MathF.Round( position.y * weldScale ),
+					(int)MathF.Round( position.z * weldScale ));
+
+				if ( !vertexMap.TryGetValue( key, out var handle ) )
+				{
+					handle = mesh.AddVertex( position );
+					vertexMap[key] = handle;
+				}
+
+				return handle;
+			}
+
+			FaceHandle AddTriangle( int ia, int ib, int ic )
+			{
+				var va = GetOrAddVertex( ia );
+				var vb = GetOrAddVertex( ib );
+				var vc = GetOrAddVertex( ic );
+
+				if ( va == vb || vb == vc || vc == va )
+					return FaceHandle.Invalid;
+
+				var face = mesh.AddFace( new[] { va, vb, vc } );
+
+				// Welding made this corner non-manifold, keep the triangle as its own island rather than dropping it
+				if ( !face.IsValid )
+				{
+					va = mesh.AddVertex( vertices[ia].Position );
+					vb = mesh.AddVertex( vertices[ib].Position );
+					vc = mesh.AddVertex( vertices[ic].Position );
+
+					face = mesh.AddFace( new[] { va, vb, vc } );
+					if ( !face.IsValid )
+						return face;
+				}
+
+				cornerNormals[(face, va)] = vertices[ia].Normal;
+				cornerNormals[(face, vb)] = vertices[ib].Normal;
+				cornerNormals[(face, vc)] = vertices[ic].Normal;
+
+				return face;
+			}
 
 			for ( int drawCall = 0; drawCall < materialSlots.Length; drawCall++ )
 			{
@@ -656,26 +679,7 @@ partial class ObjectSelection
 					if ( ia < 0 || ib < 0 || ic < 0 || ia >= vertices.Length || ib >= vertices.Length || ic >= vertices.Length )
 						continue;
 
-					if ( !vertexMap.TryGetValue( ia, out var va ) )
-					{
-						va = polygonMesh.AddVertex( vertices[ia].Position );
-						vertexMap[ia] = va;
-					}
-
-					if ( !vertexMap.TryGetValue( ib, out var vb ) )
-					{
-						vb = polygonMesh.AddVertex( vertices[ib].Position );
-						vertexMap[ib] = vb;
-					}
-
-					if ( !vertexMap.TryGetValue( ic, out var vc ) )
-					{
-						vc = polygonMesh.AddVertex( vertices[ic].Position );
-						vertexMap[ic] = vc;
-					}
-
-					var verts = new[] { va, vb, vc };
-					var face = polygonMesh.AddFace( verts );
+					var face = AddTriangle( ia, ib, ic );
 					if ( !face.IsValid )
 						continue;
 
@@ -706,26 +710,7 @@ partial class ObjectSelection
 					if ( ia < 0 || ib < 0 || ic < 0 || ia >= vertices.Length || ib >= vertices.Length || ic >= vertices.Length )
 						continue;
 
-					if ( !vertexMap.TryGetValue( ia, out var va ) )
-					{
-						va = polygonMesh.AddVertex( vertices[ia].Position );
-						vertexMap[ia] = va;
-					}
-
-					if ( !vertexMap.TryGetValue( ib, out var vb ) )
-					{
-						vb = polygonMesh.AddVertex( vertices[ib].Position );
-						vertexMap[ib] = vb;
-					}
-
-					if ( !vertexMap.TryGetValue( ic, out var vc ) )
-					{
-						vc = polygonMesh.AddVertex( vertices[ic].Position );
-						vertexMap[ic] = vc;
-					}
-
-					var verts = new[] { va, vb, vc };
-					var face = polygonMesh.AddFace( verts );
+					var face = AddTriangle( ia, ib, ic );
 					if ( !face.IsValid )
 						continue;
 
@@ -749,9 +734,48 @@ partial class ObjectSelection
 				return false;
 			}
 
+			// Compiled models only carry smoothing as normal discontinuities across their split
+			// vertices, so classify each shared edge by comparing the source normals either side.
+			RestoreEdgeSmoothing();
+
 			polygonMesh.ComputeFaceTextureParametersFromCoordinates();
 
 			return true;
+
+			void RestoreEdgeSmoothing()
+			{
+				const float smoothTolerance = 0.9999f;
+
+				foreach ( var hFace in mesh.FaceHandles )
+				{
+					mesh.GetFaceVerticesConnectedToFace( hFace, out var hEdges );
+
+					foreach ( var hEdge in hEdges )
+					{
+						var hOpposite = hEdge.OppositeEdge;
+						if ( !hOpposite.IsValid )
+							continue;
+
+						var hOtherFace = hOpposite.Face;
+						if ( !hOtherFace.IsValid )
+							continue;
+
+						if ( !mesh.GetVerticesConnectedToEdge( hEdge, hFace, out var vA, out var vB ) )
+							continue;
+
+						if ( !cornerNormals.TryGetValue( (hFace, vA), out var nearA ) ) continue;
+						if ( !cornerNormals.TryGetValue( (hFace, vB), out var nearB ) ) continue;
+						if ( !cornerNormals.TryGetValue( (hOtherFace, vA), out var farA ) ) continue;
+						if ( !cornerNormals.TryGetValue( (hOtherFace, vB), out var farB ) ) continue;
+
+						var smooth = nearA.Dot( farA ) > smoothTolerance && nearB.Dot( farB ) > smoothTolerance;
+						var mode = smooth ? PolygonMesh.EdgeSmoothMode.Soft : PolygonMesh.EdgeSmoothMode.Hard;
+
+						mesh.SetEdgeSmoothing( hEdge, mode );
+						mesh.SetEdgeSmoothing( hOpposite, mode );
+					}
+				}
+			}
 		}
 
 		static Material ResolveRenderMaterial( ModelRenderer renderer, int drawCall )

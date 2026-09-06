@@ -1,4 +1,5 @@
 ﻿using Refit;
+using System.Text.Json.Serialization;
 
 namespace Sandbox.Services;
 
@@ -35,6 +36,9 @@ public partial class ServiceApi
 
 		[Post( "/package/manifest" )]
 		Task<PublishManifestResult> PublishManifest( [Body] PublishManifest manifest );
+
+		[Get( "/package/manifest/1/{packageIdent}/{revisionId}" )]
+		Task<PackageManifestDto> GetManifest( string packageIdent, long? revisionId = null );
 
 		[Post( "/package/update/1/{packageIdent}" )]
 		Task<PackageDto> Update( string packageIdent, [Query] string key, [Query] string value );
@@ -198,3 +202,42 @@ public struct PublishManifestResult
 	public string[] Files { get; set; }
 	public long VersionId { get; set; }
 }
+
+/// <summary>
+/// A package revision's download manifest - the list of files to download. Without a
+/// revision id you get the package's live version.
+/// </summary>
+public class PackageManifestDto
+{
+	public int Schema { get; set; }
+
+	/// <summary>
+	/// The package id
+	/// </summary>
+	public long Asset { get; set; }
+
+	public ManifestFileEntry[] Files { get; set; }
+
+	/// <summary>
+	/// The organization's short name
+	/// </summary>
+	public string Organization { get; set; }
+
+	/// <summary>
+	/// The package ident
+	/// </summary>
+	public string Package { get; set; }
+
+	public int EngineVersion { get; set; }
+	public long TotalSize { get; set; }
+	public long FileCount { get; set; }
+	public DateTimeOffset Created { get; set; }
+}
+
+// File entries are lowercase on the wire - manifests have always been written that way
+// and engines in the wild parse them case-sensitively.
+public record struct ManifestFileEntry(
+	[property: JsonPropertyName( "url" )] string Url,
+	[property: JsonPropertyName( "crc" )] string Crc,
+	[property: JsonPropertyName( "path" )] string Path,
+	[property: JsonPropertyName( "size" )] long Size );

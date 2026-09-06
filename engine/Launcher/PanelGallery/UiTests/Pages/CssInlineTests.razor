@@ -1,0 +1,81 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+
+@using Sandbox;
+@using Sandbox.UI;
+
+@attribute [Title( "CSS Inline" )]
+@attribute [Description( "Text-only inline paragraphs - shared wrapping, nested styles and selection" )]
+@attribute [Icon( "format_color_text" )]
+@attribute [Order( 23 )]
+
+<root>
+    <h2>Shared text flow</h2>
+    <div class="cases">
+        <UiTestCase class="inline-case" Setup="width: 300px" Rule="block paragraph / nested inline spans" Note="One paragraph, not separately wrapped labels. The orange span contains a bold italic span.">
+            <ChildContent>
+                <Panel class="paragraph" AllowChildSelection="@true" AcceptsFocus="@true">
+                    <span>You received </span><span class="reward">a legendary <span class="emphasis">sword of the northern watch</span></span><span>. Its story continues on the same line, then wraps with the rest of the paragraph.</span>
+                </Panel>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="inline-case" Setup="width: 300px" Rule="one link / several visual fragments" Note="Hover or click any blue fragment. Empty space before or after the wrapped link is not part of its hit area. Drag to select; Ctrl+C copies.">
+            <ChildContent>
+                <div class="interactive-case">
+                    <Panel class="paragraph" AllowChildSelection="@true" AcceptsFocus="@true">
+                        <span>Read </span><span class="inline-link" onclick="@ClickLink">the field guide to unusual equipment and its surprisingly long history</span><span> before setting out.</span>
+                    </Panel>
+                    <label class="status">@LinkStatus</label>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="inline-case" Setup="width: 300px" Rule="span boundaries are not word boundaries" Note="The colored pieces form one word. Adjacent spaces collapse across owners, while a non-breaking space stays intact.">
+            <ChildContent>
+                <Panel class="paragraph" AllowChildSelection="@true" AcceptsFocus="@true">
+                    <span>inter</span><span class="reward">oper</span><span class="cool">ability</span><span> is one word. </span><span>   These spaces </span><span> collapse. Keep </span><span class="reward">@("10\u00a0kg")</span><span> together.</span>
+                </Panel>
+            </ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Reflow and text metrics</h2>
+    <div class="cases">
+        <UiTestCase class="inline-case" Setup="width: 300px" Rule="same content / width: 180px" Note="Compare with the next case. Style boundaries do not restart a line; the paragraph owns wrapping.">
+            <ChildContent>
+                <Panel class="paragraph narrow" AllowChildSelection="@true" AcceptsFocus="@true">
+                    <span>A quiet </span><span class="reward">orange fox</span><span> follows </span><span class="cool">the winding river</span><span> back to the village.</span>
+                </Panel>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="inline-case" Setup="width: 300px" Rule="same content / width: 300px" Note="The same owners produce fewer line fragments with more space. Select across colors and copy as one sentence.">
+            <ChildContent>
+                <Panel class="paragraph" AllowChildSelection="@true" AcceptsFocus="@true">
+                    <span>A quiet </span><span class="reward">orange fox</span><span> follows </span><span class="cool">the winding river</span><span> back to the village.</span>
+                </Panel>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase class="inline-case" Setup="width: 300px" Rule="font-size: 18px / 30px / 22px" Note="Mixed font sizes share a text baseline. Click the control to change text and verify that the paragraph reflows.">
+            <ChildContent>
+                <div class="interactive-case">
+                    <Panel class="paragraph" AllowChildSelection="@true" AcceptsFocus="@true">
+                        <span class="small">Small text beside </span><span class="large reward">@ChangingText</span><span> and ordinary text on a shared line.</span>
+                    </Panel>
+                    <button class="change-text" onclick="@ToggleText">Change text</button>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+    </div>
+
+    <label class="scope-note">First milestone: left-aligned text, normal whitespace, nested font styles, links and read-only selection. Inline borders, backgrounds, embedded controls and mixed block/inline flow are not implemented yet.</label>
+</root>
+
+@code
+{
+    int clicks;
+    bool expanded;
+    string LinkStatus => clicks == 0 ? "Link has not been clicked" : $"Link clicked {clicks} time(s)";
+    string ChangingText => expanded ? "a much longer heading" : "BIG";
+    void ClickLink() => clicks++;
+    void ToggleText() => expanded = !expanded;
+    protected override int BuildHash() => HashCode.Combine( clicks, expanded );
+}

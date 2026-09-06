@@ -1,0 +1,68 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+JamEntryCard
+{
+	flex-direction: column;
+	flex-shrink: 0;
+	gap: 6px;
+
+	PackageCard
+	{
+		width: 100%;
+	}
+
+	.nominate
+	{
+		@include front-pill;
+
+		align-self: flex-end;
+		height: 22px;
+		padding: 0 10px;
+		margin-right: 4px;
+		pointer-events: all;
+		cursor: pointer;
+
+		label
+		{
+			font-size: 9.5px;
+		}
+
+		.ring
+		{
+			width: 9px;
+			height: 9px;
+			border-radius: 50%;
+			border: 1px solid $front-secondary;
+		}
+
+		&:hover .ring
+		{
+			border-color: $front-heading;
+		}
+
+		&.on
+		{
+			background-color: rgba( $front-reward, 0.14 );
+			border-color: rgba( $front-reward, 0.5 );
+
+			label
+			{
+				color: $front-reward;
+			}
+
+			.ring
+			{
+				background-color: $front-reward;
+				border-color: $front-reward;
+				box-shadow: 0 0 8px rgba( $front-reward, 0.6 );
+			}
+		}
+
+		&.busy
+		{
+			opacity: 0.5;
+			pointer-events: none;
+		}
+	}
+}

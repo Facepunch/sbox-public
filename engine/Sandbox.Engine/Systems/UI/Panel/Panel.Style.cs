@@ -49,14 +49,16 @@ public partial class Panel
 
 	internal void MarkStylesRebuilt()
 	{
-		inRebuildStyleRulesList = false;
-		inRebuildStyleRulesList_Ancestors = false;
-		inRebuildStyleRulesList_Children = false;
+		_pendingRebuildRoot = null;
+		_pendingRebuildRoot_Ancestors = null;
+		_pendingRebuildRoot_Children = null;
 	}
 
-	bool inRebuildStyleRulesList;
-	bool inRebuildStyleRulesList_Ancestors;
-	bool inRebuildStyleRulesList_Children;
+	// The root whose next rebuild pass this panel is queued on. A panel moved to another tree
+	// before that pass ran queues again on the root it's in.
+	RootPanel _pendingRebuildRoot;
+	RootPanel _pendingRebuildRoot_Ancestors;
+	RootPanel _pendingRebuildRoot_Children;
 
 	/// <summary>
 	/// Should be called when something happens that means that this panel's stylesheets need to be
@@ -72,25 +74,25 @@ public partial class Panel
 		if ( root == null )
 			return;
 
-		if ( ancestors && !inRebuildStyleRulesList_Ancestors )
+		if ( ancestors && _pendingRebuildRoot_Ancestors != root )
 		{
-			inRebuildStyleRulesList_Ancestors = true;
+			_pendingRebuildRoot_Ancestors = root;
 			Parent?.StyleSelectorsChanged( true, false, root );
 		}
 
-		if ( descendants && !inRebuildStyleRulesList_Children && HasChildren )
+		if ( descendants && _pendingRebuildRoot_Children != root && HasChildren )
 		{
-			inRebuildStyleRulesList_Children = true;
+			_pendingRebuildRoot_Children = root;
 
-			foreach ( var child in Children )
+			for ( int i = 0; i < _children.Count; i++ )
 			{
-				child.StyleSelectorsChanged( false, true, root );
+				_children[i]?.StyleSelectorsChanged( false, true, root );
 			}
 		}
 
-		if ( !inRebuildStyleRulesList )
+		if ( _pendingRebuildRoot != root )
 		{
-			inRebuildStyleRulesList = true;
+			_pendingRebuildRoot = root;
 			root.AddToBuildStyleRulesList( this );
 		}
 	}

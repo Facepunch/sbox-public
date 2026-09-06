@@ -223,23 +223,48 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 	align-items: center;
 }
 
-.menubar .item
+.menubar > .menu
 {
-	pointer-events: all;
 	padding: 3px 8px;
 	font-size: 12px;
 	border-radius: 4px;
-	cursor: pointer;
 	color: $text;
 	transition: background-color 0.12s ease-out, color 0.12s ease-out;
 }
 
-.menubar .item:hover { background-color: $raised; color: $bright; }
-.menubar .item.open
+.menubar > .menu.active { background-color: $raised; color: $bright; }
+.menubar > .menu.open { background-color: $indigo; color: #fff; }
+
+.menulist
 {
-	background-color: $indigo;
-	color: #fff;
+	min-width: 200px;
+	padding: 6px;
+	font-size: 12px;
+	color: $text;
+	background-color: $popup;
+	border: 1px solid $edge;
+	border-radius: 10px;
+	box-shadow: 0px 18px 44px $shadow-heavy;
 }
+
+.menulist .menu
+{
+	height: 30px;
+	padding: 0px 10px 0px 4px;
+	border-radius: 6px;
+	transition: background-color 0.1s ease-out, padding-left 0.1s ease-out;
+}
+
+.menulist .menu.active, .menulist .menu.open
+{
+	background-image: linear-gradient( 90deg, $indigo 0%, rgba( #4c8dff, 0.55 ) 100% );
+	color: #fff;
+	padding-left: 8px;
+}
+
+.menulist .menu > .shortcut { opacity: 1; color: $dim; font-size: 10px; font-family: Roboto Mono; }
+.menulist .menu.active > .shortcut { color: $on-accent-dim; }
+.menulist .menu.separator { height: 1px; padding: 0px; margin: 5px 8px; background-color: $line; }
 
 .dropdown
 {
@@ -1491,9 +1516,14 @@ EditorWindow.editor-light-mode { background-color: $window; color: $text; border
 .editor-light-mode .titlebar .windowbutton { color: $dim; }
 .editor-light-mode .titlebar .windowbutton:hover { background-color: $hover-wash; color: $bright; }
 .editor-light-mode .titlebar .windowbutton.close:hover { background-color: $rose; }
-.editor-light-mode .menubar .item { color: $text; }
-.editor-light-mode .menubar .item:hover { background-color: $raised; color: $bright; }
-.editor-light-mode .menubar .item.open { background-color: $indigo; }
+.editor-light-mode .menubar > .menu { color: $text; }
+.editor-light-mode .menubar > .menu.active { background-color: $raised; color: $bright; }
+.editor-light-mode .menubar > .menu.open { background-color: $indigo; }
+.editor-light-mode .menulist { color: $text; background-color: $popup; border: 1px solid $edge; box-shadow: 0px 18px 44px $shadow-heavy; }
+.editor-light-mode .menulist .menu.active, .editor-light-mode .menulist .menu.open { background-image: linear-gradient( 90deg, $indigo 0%, rgba( #4c8dff, 0.55 ) 100% ); }
+.editor-light-mode .menulist .menu > .shortcut { color: $dim; }
+.editor-light-mode .menulist .menu.active > .shortcut { color: $on-accent-dim; }
+.editor-light-mode .menulist .menu.separator { background-color: $line; }
 .editor-light-mode .dropdown { color: $text; background-color: $popup; border: 1px solid $edge; box-shadow: 0px 18px 44px $shadow-heavy; }
 .editor-light-mode .dropdown .row:hover { background-image: linear-gradient( 90deg, $indigo 0%, rgba( #4c8dff, 0.55 ) 100% ); }
 .editor-light-mode .dropdown .row .shortcut { color: $dim; }

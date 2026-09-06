@@ -19,6 +19,11 @@
         <Button Href="@FavouritesUrl" Icon="favorite">Favourites</Button>
         <Button Href="/mounts" Icon="extension">Mounts</Button>
         <Button Href="/itemstore" Icon="shopping_cart">#menu.store</Button>
+
+        @if ( jam is not null )
+        {
+            <RailButton Href="/jam" Icon="emoji_events" Text="Jam" Glow="@JamLive" Sub="@JamCountdown" />
+        }
     </div>
 
     <div class="grow" />
@@ -56,6 +61,9 @@
     RewardState rewardState;
     RealTimeUntil timeUntilRewardPoll = 0;
 
+    Sandbox.Services.Jam jam;
+    RealTimeUntil timeUntilJamPoll = 0;
+
     /// <summary>
     /// Marks the badges as out of date, so the rail re-reads them on its next tick. The
     /// inbox marks notifications read as you look at them, which the rail can't see.
@@ -89,6 +97,34 @@
     /// <summary>How far the drop has come. Null while there's nothing being tracked, so no bar.</summary>
     float? RewardProgress => RewardWindow is null ? null : (RewardReady ? 1f : RewardWindow.Progress);
 
+    /// <summary>Lit while the jam is live - entries open, or being judged and voted on.</summary>
+    bool JamLive => jam is { IsLive: true };
+
+    /// <summary>
+    /// What the jam is counting down to, short enough for the rail: the start, then the
+    /// deadline, then the nomination lock, then whatever step is next. Ticks once under a day.
+    /// </summary>
+    string JamCountdown
+    {
+        get
+        {
+            if ( jam is null ) return null;
+
+            var target = !jam.HasStarted ? jam.Starts
+                : jam.Now < jam.Deadline ? jam.Deadline
+                : jam.CommunityVoting && jam.Now < jam.NominationsEnd ? jam.NominationsEnd
+                : jam.NextStep?.At;
+
+            if ( target is not DateTimeOffset at || at <= jam.Now ) return null;
+
+            // Clock style. Days go in front once there are any, and seconds drop off to keep it short.
+            var left = at - jam.Now;
+            if ( left.TotalDays >= 1 ) return $"{left.Days}d {left.Hours:00}:{left.Minutes:00}";
+
+            return $"{left.Hours:00}:{left.Minutes:00}:{left.Seconds:00}";
+        }
+    }
+
     public override void Tick()
     {
         base.Tick();
@@ -101,6 +137,7 @@
             badgesStale = false;
             timeUntilNotificationPoll = 0;
             timeUntilRewardPoll = 0;
+            timeUntilJamPoll = 0;
         }
 
         if ( timeUntilNotificationPoll <= 0 )
@@ -113,6 +150,12 @@
         {
             timeUntilRewardPoll = PollSeconds;
             _ = UpdateRewards();
+        }
+
+        if ( timeUntilJamPoll <= 0 )
+        {
+            timeUntilJamPoll = PollSeconds;
+            _ = UpdateJam();
         }
     }
 
@@ -128,10 +171,16 @@
         StateHasChanged();
     }
 
+    async Task UpdateJam()
+    {
+        jam = await Sandbox.Services.Jam.GetActive();
+        StateHasChanged();
+    }
+
     void Quit()
     {
         ConsoleSystem.Run( "quit" );
     }
 
-    protected override int BuildHash() => HashCode.Combine( ShowInbox, NotificationBadge, RewardBadge, RewardProgress );
+    protected override int BuildHash() => HashCode.Combine( ShowInbox, NotificationBadge, RewardBadge, RewardProgress, jam?.Ident, JamLive, JamCountdown );
 }

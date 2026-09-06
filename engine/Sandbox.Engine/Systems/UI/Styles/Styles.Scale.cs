@@ -52,6 +52,7 @@
 
 			Length.Scale( ref _outlinewidth, scale );
 			Length.Scale( ref _outlineoffset, scale );
+			Length.Scale( ref _scrollbarwidth, scale );
 
 			Length.Scale( ref _transformoriginx, scale );
 			Length.Scale( ref _transformoriginy, scale );

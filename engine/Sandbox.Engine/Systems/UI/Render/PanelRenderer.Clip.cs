@@ -188,7 +188,12 @@ internal partial class PanelRenderer
 	/// Create a clip scope for a panel's children. This updates the renderer's scissor state
 	/// so child panels will inherit the correct scissor when their command lists are built.
 	/// </summary>
-	public ClipScope Clip( Panel panel )
+	public ClipScope Clip( Panel panel ) => Clip( panel, panel.Box.ClipRect );
+
+	/// <summary>
+	/// Create a clip scope for a panel's children, clipping to the given rect
+	/// </summary>
+	public ClipScope Clip( Panel panel, Rect clipRect )
 	{
 		var overflow = panel.ComputedStyle?.Overflow ?? OverflowMode.Visible;
 		if ( overflow == OverflowMode.Visible || overflow == OverflowMode.ClipWhole ) return default;
@@ -198,7 +203,7 @@ internal partial class PanelRenderer
 		var size = (rect.Width + rect.Height) * 0.5f;
 		var radii = BorderRadii.FromStyle( panel.ComputedStyle, rect ).Inner( GetBorderWidths( panel.ComputedStyle, size ) );
 
-		return new ClipScope( this, panel.Box.ClipRect, radii, panel.GlobalMatrix ?? Matrix.Identity );
+		return new ClipScope( this, clipRect, radii, panel.GlobalMatrix ?? Matrix.Identity );
 	}
 
 	static readonly string[] ScissorRectAttribute = ["ScissorRect0", "ScissorRect1", "ScissorRect2", "ScissorRect3"];

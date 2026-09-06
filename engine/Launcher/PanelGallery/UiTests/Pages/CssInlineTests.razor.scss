@@ -1,0 +1,58 @@
+CssInlineTests
+{
+	.inline-case
+	{
+		width: 330px;
+
+		.stage
+		{
+			height: 240px;
+			padding: 14px;
+		}
+	}
+
+	.paragraph
+	{
+		display: block;
+		width: 300px;
+		font-family: Arial;
+		font-size: 22px;
+		color: #e6eaf2;
+		pointer-events: all;
+
+		span { display: inline; }
+		.reward { color: #e8b04a; }
+		.cool { color: #4ac2e8; }
+		.emphasis { font-weight: 700; font-style: italic; }
+		.small { font-size: 18px; }
+		.large { font-size: 30px; }
+
+		.inline-link
+		{
+			color: #68bfff;
+			text-decoration: underline;
+			cursor: pointer;
+
+			&:hover { color: #ffd580; }
+		}
+	}
+
+	.narrow { width: 180px; }
+	.interactive-case { flex-direction: column; gap: 16px; }
+	.status { font-size: 12px; color: #b7c4d8; }
+	.change-text
+	{
+		align-self: flex-start;
+		padding: 6px 10px;
+		font-size: 13px;
+		color: #e6eaf2;
+		background-color: #35485f;
+		border-radius: 3px;
+		cursor: pointer;
+		pointer-events: all;
+
+		&:hover { background-color: #47617e; }
+		&:focus { border: 1px solid #68bfff; }
+	}
+	.scope-note { font-size: 13px; color: #b7c4d8; max-width: 1000px; }
+}

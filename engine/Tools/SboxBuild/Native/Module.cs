@@ -26,7 +26,8 @@ public enum FileKind
 	Compile,
 	Include,
 	None,
-	Resource
+	Resource,
+	Natvis,
 }
 
 public sealed class SourceFile

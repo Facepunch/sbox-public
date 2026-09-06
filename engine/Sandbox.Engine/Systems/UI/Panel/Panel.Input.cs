@@ -63,6 +63,8 @@ public partial class Panel
 	/// <param name="pos">The position to test, in screen coordinates.</param>
 	public bool IsInside( Vector2 pos )
 	{
+		if ( InlineOwner is not null ) return InlineOwner.Contains( this, pos );
+
 		var rect = Box.Rect;
 
 		if ( pos.x < rect.Left || pos.x > rect.Right ) return false;
@@ -175,6 +177,54 @@ public partial class Panel
 	}
 
 	/// <summary>
+	/// Where this panel sits in the Tab order. 0, the default, is tree order. Positive values come
+	/// before that, lowest first. Negative means Tab skips it, though it can still be focused by
+	/// clicking or <see cref="Focus"/>.
+	/// </summary>
+	[Property]
+	public int TabIndex { get; set; }
+
+	/// <summary>
+	/// Move focus to the panel after this one in Tab order.
+	/// </summary>
+	public bool FocusNext()
+	{
+		return UISystem.MoveFocus( this, false );
+	}
+
+	/// <summary>
+	/// Move focus to the panel before this one in Tab order.
+	/// </summary>
+	public bool FocusPrevious()
+	{
+		return UISystem.MoveFocus( this, true );
+	}
+
+	/// <summary>
+	/// Enter or Space on a focused control clicks it. Returns true when the key was one of those
+	/// and the click was sent.
+	/// </summary>
+	internal bool TryClickFromKeyboard( ButtonEvent e )
+	{
+		if ( !e.Pressed ) return false;
+		if ( e.Button is not ("enter" or "space") ) return false;
+
+		CreateEvent( new MousePanelEvent( "onclick", this, "mouseleft" ) );
+		return true;
+	}
+
+	/// <summary>
+	/// Scroll every scrolling ancestor the least amount that brings this panel into view.
+	/// </summary>
+	internal void ScrollAncestorsIntoView()
+	{
+		for ( var p = Parent; p is not null; p = p.Parent )
+		{
+			p.ScrollIntoView( Box.Rect );
+		}
+	}
+
+	/// <summary>
 	/// Called when any button, mouse (except for mouse4/5) and keyboard, are pressed or depressed while hovering this panel.
 	/// </summary>
 	public virtual void OnButtonEvent( ButtonEvent e )
@@ -212,6 +262,7 @@ public partial class Panel
 	/// </summary>
 	public virtual string GetClipboardValue( bool cut )
 	{
+		if ( InlineOwner is not null ) return InlineOwner.SelectedText;
 		if ( AllowChildSelection )
 			return CollectSelectedChildrenText( this );
 
@@ -273,6 +324,66 @@ public partial class Panel
 		ScrollOffset = new Vector2( ScrollOffset.x, ScrollSize.y );
 		IsScrollAtBottom = true;
 		ScrollVelocity = new Vector2( 0, 0 );
+		return true;
+	}
+
+	/// <summary>
+	/// Jump to a scroll position, clamped to the scrollable area. Stops any inertia.
+	/// </summary>
+	public void ScrollTo( Vector2 offset )
+	{
+		var min = IsScrollAxisReversed ? -ScrollSize : Vector2.Zero;
+		var max = IsScrollAxisReversed ? Vector2.Zero : ScrollSize;
+
+		offset = Vector2.Max( Vector2.Min( offset, max ), min );
+
+		ScrollVelocity = 0;
+		IsScrollAtBottom = offset.y >= ScrollSize.y;
+
+		if ( ScrollOffset == offset )
+			return;
+
+		ScrollOffset = offset;
+		SetNeedsFinalLayout();
+	}
+
+	/// <summary>
+	/// Scroll the least amount that brings a screen-space rect inside the content box. Returns false if
+	/// nothing scrolled. The offset isn't clamped here: content that has just grown hasn't updated the
+	/// scroll range yet, and the next layout clamps anyway.
+	/// </summary>
+	public bool ScrollIntoView( Rect rect )
+	{
+		if ( ComputedStyle is null ) return false;
+		if ( ComputedStyle.Overflow != OverflowMode.Scroll ) return false;
+
+		var view = Box.RectInner;
+		var clip = ContentClipRect;
+		view.Left = Math.Max( view.Left, clip.Left );
+		view.Right = Math.Min( view.Right, clip.Right );
+
+		var offset = ScrollOffset;
+
+		// A scroll requested but not yet laid out will move the rect, so work from where it's going to be
+		rect.Position -= offset - _laidOutScrollOffset;
+
+		if ( ComputedStyle.OverflowY == OverflowMode.Scroll )
+		{
+			if ( rect.Bottom > view.Bottom ) offset.y += MathF.Ceiling( rect.Bottom - view.Bottom );
+			if ( rect.Top < view.Top ) offset.y -= MathF.Ceiling( view.Top - rect.Top );
+		}
+
+		if ( ComputedStyle.OverflowX == OverflowMode.Scroll )
+		{
+			if ( rect.Right > view.Right ) offset.x += MathF.Ceiling( rect.Right - view.Right );
+			if ( rect.Left < view.Left ) offset.x -= MathF.Ceiling( view.Left - rect.Left );
+		}
+
+		if ( offset == ScrollOffset ) return false;
+
+		ScrollVelocity = 0;
+		ScrollOffset = offset;
+		SetNeedsFinalLayout();
 		return true;
 	}
 
