@@ -790,6 +790,23 @@ public partial class GameObject
 		}
 
 		/// <summary>
+		/// Force an immediate re-check of network visibility for this object, bypassing the normal cull-delay
+		/// grace period. Call this when your <see cref="Component.INetworkVisible"/> implementation's result
+		/// changes and you want the new visibility state (e.g. hiding a dead player) to take effect on the very
+		/// next network tick instead of after the usual grace period.
+		/// <br/>
+		/// <br/>
+		/// Note: Do not call this every tick, only call it when you need the visibility state to be re-evaluated immediately.
+		/// </summary>
+		public void ForceVisibilityUpdate()
+		{
+			if ( !Active || (IsProxy && !Networking.IsHost) )
+				return;
+
+			go._net?.ForceVisibilityUpdate();
+		}
+
+		/// <summary>
 		/// Become the network owner of this object.
 		/// <br/>
 		/// <br/>
