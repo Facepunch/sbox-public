@@ -1,4 +1,4 @@
-﻿using Sandbox.Resources;
+using Sandbox.Resources;
 
 namespace Editor;
 
@@ -77,23 +77,20 @@ internal static class MaterialMenu
 
 	private static void CreateMaterialUsingImageFiles( IEnumerable<AssetEntry> entries )
 	{
-		string[] types = new[] { "color", "ao", "normal", "metallic", "rough", "diff", "diffuse", "nrm", "spec", "selfillum", "mask" };
-
 		var asset = entries.First().Asset;
 		var assetName = asset.Name;
 
 		Log.Info( assetName );
 
-		foreach ( var t in types )
-		{
-			if ( assetName.EndsWith( $"_{t}" ) ) assetName = assetName.Substring( 0, assetName.Length - (t.Length + 1) );
-		}
+		// Derive the shared base name by stripping the trailing _suffix (e.g. ak47_roughness -> ak47)
+		var lastUnderscore = assetName.LastIndexOf( '_' );
+		var baseName = lastUnderscore > 0 ? assetName.Substring( 0, lastUnderscore ) : assetName;
 
 		var fd = new FileDialog( null );
 		fd.Title = "Create Material from Image Files..";
 		fd.Directory = System.IO.Path.GetDirectoryName( asset.AbsolutePath );
 		fd.DefaultSuffix = ".vmat";
-		fd.SelectFile( $"{assetName}.vmat" );
+		fd.SelectFile( $"{baseName}.vmat" );
 		fd.SetFindFile();
 		fd.SetModeSave();
 		fd.SetNameFilter( "Material File (*.vmat)" );
@@ -104,7 +101,7 @@ internal static class MaterialMenu
 		// Find all the image files in the same folder as the first asset we selected
 		var assetPath = System.IO.Path.GetDirectoryName( asset.AbsolutePath ).NormalizeFilename( false );
 		var assetPeers = AssetSystem.All.Where( x => x.AssetType == AssetType.ImageFile ).Where( x => x.AbsolutePath.StartsWith( assetPath ) ).ToArray();
-		var assetPeersWithSameBaseName = assetPeers.Where( x => x.Name == assetName || x.Name.StartsWith( assetName + "_" ) ).ToArray();
+		var assetPeersWithSameBaseName = assetPeers.Where( x => x.Name == baseName || x.Name.StartsWith( baseName + "_" ) ).ToArray();
 		if ( assetPeersWithSameBaseName.Length > 0 )
 		{
 			assetPeers = assetPeersWithSameBaseName;
@@ -113,27 +110,61 @@ internal static class MaterialMenu
 		//
 		// Try to work out what textures should go where using hacks and magic
 		//
+		string[] texColorExtensions = ["color", "diff", "albedo", "basecolor"];
+		string[] texNormalExtensions = ["nrm", "normal", "amb"];
+		string[] texAoExtensions = ["ao", "occ", "amb", "ambientocclusion"];
+		string[] texRoughExtensions = ["rough", "roughness"];
+		string[] texMetallicExtensions = ["metallic", "metal", "metalness"];
+		string[] texSelfIllumExtensions = ["selfillum"];
+		string[] texMaskExtensions = ["mask"];
 
-		string texColor = assetPeers.Where( x => x.Name.Contains( "_color" ) || x.Name.Contains( "_diff" ) ).Select( x => x.RelativePath ).FirstOrDefault();
-		texColor ??= asset.RelativePath; // Failing that, lets use whatever we have selected, since they most likely selected the color one right
+		// 1. Color Texture
+		string texColor = assetPeers
+			.FirstOrDefault( peer => texColorExtensions.Any( keyword => peer.Name.Contains( $"_{keyword}" ) ) )
+			?.RelativePath;
 
-		string texNormal = assetPeers.Where( x => x.Name.Contains( "_nrm" ) || x.Name.Contains( "_normal" ) || x.Name.Contains( "_amb" ) ).Select( x => x.RelativePath ).FirstOrDefault( "materials/default/default_normal.tga" );
-		string texAo = assetPeers.Where( x => x.Name.Contains( "_ao" ) || x.Name.Contains( "_occ" ) || x.Name.Contains( "_amb" ) ).Select( x => x.RelativePath ).FirstOrDefault( "materials/default/default_ao.tga" );
-		string texRough = assetPeers.Where( x => x.Name.Contains( "_rough" ) ).Select( x => x.RelativePath ).FirstOrDefault( "materials/default/default_rough.tga" );
+		texColor ??= asset.RelativePath; // Failing that, lets use whatever we have selected
 
-		string texMetallic = assetPeers.Where( x => x.Name.Contains( "_metallic" ) ).Select( x => x.RelativePath ).FirstOrDefault();
+		// 2. Normal Texture 
+		string texNormal = assetPeers
+			.FirstOrDefault( peer => texNormalExtensions.Any( keyword => peer.Name.Contains( $"_{keyword}" ) ) )
+			?.RelativePath ?? "materials/default/default_normal.tga";
+
+		// 3. AO Texture 
+		string texAo = assetPeers
+			.FirstOrDefault( peer => texAoExtensions.Any( keyword => peer.Name.Contains( $"_{keyword}" ) ) )
+			?.RelativePath ?? "materials/default/default_ao.tga";
+
+		// 4. Roughness Texture 
+		string texRough = assetPeers
+			.FirstOrDefault( peer => texRoughExtensions.Any( keyword => peer.Name.Contains( $"_{keyword}" ) ) )
+			?.RelativePath ?? "materials/default/default_rough.tga";
+
+		// 5. Metallic Texture 
+		string texMetallic = assetPeers
+			.FirstOrDefault( peer => texMetallicExtensions.Any( keyword => peer.Name.Contains( $"_{keyword}" ) ) )
+			?.RelativePath;
+
 		if ( texMetallic != null )
 		{
 			texMetallic = $"\n	F_METALNESS_TEXTURE 1\n	F_SPECULAR 1\n	TextureMetalness \"{texMetallic}\"";
 		}
 
-		string texSelfIllum = assetPeers.Where( x => x.Name.Contains( "_selfillum" ) ).Select( x => x.RelativePath ).FirstOrDefault();
+		// 6. Self Illum Texture 
+		string texSelfIllum = assetPeers
+			.FirstOrDefault( peer => texSelfIllumExtensions.Any( keyword => peer.Name.Contains( $"_{keyword}" ) ) )
+			?.RelativePath;
+
 		if ( texSelfIllum != null )
 		{
 			texSelfIllum = $"\n	F_SELF_ILLUM 1\n	TextureSelfIllumMask \"{texSelfIllum}\"";
 		}
 
-		string tintMask = assetPeers.Where( x => x.Name.Contains( "_mask" ) ).Select( x => x.RelativePath ).FirstOrDefault();
+		// 7. Tint Mask Texture 
+		string tintMask = assetPeers
+			.FirstOrDefault( peer => texMaskExtensions.Any( keyword => peer.Name.Contains( $"_{keyword}" ) ) )
+			?.RelativePath;
+
 		if ( tintMask != null )
 		{
 			tintMask = $"\n	F_TINT_MASK 1\n	TextureTintMask \"{tintMask}\"";
