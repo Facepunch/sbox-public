@@ -33,6 +33,10 @@
 		<DefineConstants>WIN;$(DefineConstants)</DefineConstants>
 	</PropertyGroup>
 
+	<PropertyGroup Condition="'$(OS)' != 'Windows_NT'">
+		<DefineConstants>$(DefineConstants);STEAMWORKS_POSIX</DefineConstants>
+	</PropertyGroup>
+
 	<ItemGroup>
 		<PackageReference Include="Facepunch.ActionGraphs" Version="1.9.27" />
 		<PackageReference Include="Fleck" Version="1.2.0" />
