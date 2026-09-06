@@ -126,6 +126,7 @@ public class BlockTreeNode : TreeNode<Doo.Block>
 	void Menu_Delete()
 	{
 		_doo.DeleteBlock( Value );
+		TreeView.GetAncestor<DooEditorWidget>()?.NoteDirty();
 	}
 
 	public override bool OnDragStart()
@@ -184,6 +185,8 @@ public class BlockTreeNode : TreeNode<Doo.Block>
 		{
 			_doo.InsertAfter( Value, block );
 		}
+
+		TreeView.GetAncestor<DooEditorWidget>()?.NoteDirty();
 	}
 
 	bool IsDescendantOf( BlockTreeNode potentialAncestor )

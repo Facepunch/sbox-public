@@ -42,6 +42,15 @@ public class DooEditorWidget : PopupWidget
 		RebuildUI();
 	}
 
+	/// <summary>
+	/// Notify the parent resource that this Doo was modified and needs saving.
+	/// </summary>
+	public void NoteDirty()
+	{
+		if ( SerializedObject?.ParentProperty is { } parent )
+			SerializedObject.NoteChanged( parent );
+	}
+
 	Layout _rightColumn;
 
 	void RebuildUI()
