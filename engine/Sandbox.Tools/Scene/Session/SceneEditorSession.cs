@@ -289,7 +289,8 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		string fileType = isPrefab ? "Prefab" : "Scene";
 
 		var saveLocation = string.Empty;
-		if ( !saveAs && Scene.Source is not null && AssetSystem.FindByPath( Scene.Source.ResourcePath ) is Asset sourceAsset )
+		var existingAsset = Scene.Source is not null ? AssetSystem.FindByPath( Scene.Source.ResourcePath ) : null;
+		if ( !saveAs && existingAsset is Asset sourceAsset )
 		{
 			saveLocation = sourceAsset.AbsolutePath;
 		}
@@ -323,7 +324,11 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		var asset = AssetSystem.CreateResource( extension, saveLocation );
 		Assert.NotNull( asset, $"Failed to CreateResource for {fileType} at {saveLocation}" );
 
-		GameResource resource = Scene is PrefabScene prefabScene ? prefabScene.ToPrefabFile() : Scene.CreateSceneFile();
+		// Drop the resource if the asset changes; otherwise, the old asset will point to the new one
+		if ( saveAs && existingAsset != asset )
+			Scene.Source = null;
+
+		GameResource resource = Scene is PrefabScene prefabScene ? prefabScene.ToPrefabFile() : Scene.ToSceneFile();
 		asset.SaveToDisk( resource );
 
 		// Update this scene's path

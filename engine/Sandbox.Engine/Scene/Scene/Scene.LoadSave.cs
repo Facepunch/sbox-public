@@ -409,4 +409,12 @@ public partial class Scene : GameObject
 		target.SceneProperties = SerializeProperties();
 		target.BinaryData = blobs.ToByteArray();
 	}
+
+	internal SceneFile ToSceneFile()
+	{
+		var target = (Source as SceneFile) ?? new SceneFile();
+		ToSceneFile( target );
+
+		return target;
+	}
 }
