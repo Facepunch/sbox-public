@@ -1,4 +1,4 @@
-using Sandbox.Engine;
+﻿using Sandbox.Engine;
 
 namespace Sandbox.Network;
 
@@ -428,6 +428,7 @@ internal partial class NetworkSystem
 		};
 
 		source.SendMessage( output );
+
 	}
 
 	Task On_Handshake_ClientReady( ClientReady msg, Connection source, Guid msgId )
@@ -496,11 +497,6 @@ internal partial class NetworkSystem
 
 		if ( msg.HandshakeId != Connection.Local.HandshakeId )
 			return Task.CompletedTask;
-
-		if ( Application.IsEditor )
-		{
-			IToolsDll.Current?.SetPlaying();
-		}
 
 		Log.Trace( $"[{this}] I am spawning into the game!" );
 		LoadingScreen.IsVisible = false;
