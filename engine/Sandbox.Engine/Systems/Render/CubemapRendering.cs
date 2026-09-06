@@ -81,6 +81,56 @@ internal static class CubemapRendering
 	}
 
 	/// <summary>
+	/// Renders a single face of a cubemap, filtering only once the last face has been drawn.
+	/// </summary>
+	/// <param name="world">The scene world to render.</param>
+	/// <param name="cubemapTexture">The texture to render the cubemap to.</param>
+	/// <param name="cubemapTransform">The position and rotation of the cubemap camera.</param>
+	/// <param name="znear">The near plane distance for the camera.</param>
+	/// <param name="zfar">The far plane distance for the camera.</param>
+	/// <param name="faceIndex">Which face to render, 0 to 5.</param>
+	/// <param name="filterType">The quality level for GGX filtering.</param>
+	/// <param name="excludeTags">Objects with any of these tags will be excluded from the render.</param>
+	public static void RenderSingleFace( SceneWorld world, Texture cubemapTexture, Transform cubemapTransform, float znear, float zfar, int faceIndex, GGXFilterType filterType, ITagSet excludeTags = null )
+	{
+		if ( Application.IsHeadless )
+			throw new Exception( "Tried to call CubemapRendering.RenderSingleFace from a dedicated server" );
+
+		const int numFaces = 6;
+
+		if ( faceIndex < 0 || faceIndex >= numFaces )
+			return;
+
+		using var camera = new SceneCamera( "CubemapRendering" );
+		camera.FieldOfView = 90;
+		camera.ZNear = znear;
+		camera.ZFar = zfar;
+		camera.Position = cubemapTransform.Position;
+		camera.Rotation = cubemapTransform.Rotation;
+		camera.World = world;
+		camera.ExcludeFromTextureStreaming = true;
+
+		if ( excludeTags is not null )
+		{
+			camera.ExcludeTags.SetFrom( excludeTags );
+		}
+
+		// Only the last face triggers the filter.
+		if ( faceIndex == numFaces - 1 )
+		{
+			camera.OnRenderStageHook += ( stage, camera ) =>
+			{
+				if ( stage != Stage.AfterPostProcess )
+					return;
+
+				Filter( cubemapTexture, filterType ).ExecuteOnRenderThread();
+			};
+		}
+
+		camera.RenderToCubeTextureFace( cubemapTexture, faceIndex );
+	}
+
+	/// <summary>
 	/// Applies filtering to a cubemap texture, generating both downsample and GGX filtering.
 	/// </summary>
 	/// <param name="cubemapTexture">The cubemap texture to filter.</param>
