@@ -285,6 +285,7 @@ public class ToggleGroupAttribute : GroupAttribute
 /// <summary>
 /// Sets the icon of a type or a type member. Colors are expected in HTML formats, like "rgb(255,255,255)" or "#FFFFFF".
 /// This info can then be retrieved via DisplayInfo library.
+/// The icon is typically the name of a <a href="https://fonts.google.com/icons">material icon</a>.
 /// </summary>
 public sealed class IconAttribute : System.Attribute, IIconProvider, IIconAttribute, IUninheritable
 {
