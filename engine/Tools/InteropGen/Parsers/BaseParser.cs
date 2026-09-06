@@ -130,7 +130,7 @@ internal class BaseParser
 		string fullname = Path.Combine( path, filename );
 
 		// Directory.GetFiles returns rooted paths, so include them directly.
-		foreach ( string file in Directory.GetFiles( fullname.TrimEnd( '*' ), "*.def", option ).OrderBy( x => x ) )
+		foreach ( string file in Directory.GetFiles( fullname.TrimEnd( '*' ), "*.def", option ).OrderBy( x => x, StringComparer.InvariantCulture ) )
 		{
 			IncludeFile( file );
 		}
