@@ -343,7 +343,9 @@ public static partial class Input
 		get
 		{
 			var ident = Application.GameIdent;
-			if ( string.IsNullOrEmpty( ident ) ) ident = "common";
+
+			if ( string.IsNullOrEmpty( ident ) ) 
+				ident = "common";
 
 			return InputBinds.FindCollection( ident );
 		}
@@ -378,6 +380,7 @@ public static partial class Input
 		if ( fallbackToCommon )
 		{
 			var commonValue = InputBinds.FindCollection( "common" ).Get( actionName, slot );
+
 			if ( !string.IsNullOrWhiteSpace( commonValue ) )
 				return commonValue;
 		}
@@ -405,9 +408,10 @@ public static partial class Input
 		foreach ( var (name, bind) in collection.Actions )
 		{
 			var slots = new string[bind.Slots.Length];
+
 			for ( int i = 0; i < bind.Slots.Length; i++ )
 			{
-				slots[i] = bind.Get( i )?.FullString;
+				slots[i] = bind.Get( i ).FullString;
 			}
 
 			result[name] = slots;
