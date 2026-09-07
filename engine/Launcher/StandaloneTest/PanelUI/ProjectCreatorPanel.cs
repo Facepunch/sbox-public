@@ -32,6 +32,8 @@ class ProjectCreatorPanel : Panel
 	Label _description;
 	Label _pathPreview;
 
+	Button _createButton;
+
 	public ProjectCreatorPanel()
 	{
 		AddClass( "creator" );
@@ -77,7 +79,7 @@ class ProjectCreatorPanel : Panel
 
 		_pathPreview = buttons.Add.Label( "", "path-preview" );
 
-		buttons.AddChild( new Button( "Create", "add_box", "primarybutton", Create ) );
+		_createButton = buttons.AddChild( new Button( "Create", "add_box", "primarybutton", Create ) );
 
 		UpdatePathPreview();
 	}
@@ -203,6 +205,8 @@ class ProjectCreatorPanel : Panel
 
 		_pathPreview.Text = exists ? $"{path} already exists" : path;
 		_pathPreview.SetClass( "error", exists );
+
+		_createButton.Disabled = exists;
 	}
 
 	/// <summary>
@@ -220,14 +224,14 @@ class ProjectCreatorPanel : Panel
 
 		Directory.CreateDirectory( projectPath );
 
-		var config = new ProjectConfig
-		{
-			Ident = ProjectIdent,
-			Title = ProjectTitle,
-			Org = "local",
-			Type = _selected?.Config.Type ?? "game",
-			Schema = 1,
-		};
+		var config = _selected.Config;
+		config.Ident = ProjectIdent;
+		config.Title = ProjectTitle;
+		config.Org = "local";
+		config.Type ??= "game";
+
+		// clear out template info from our new project, it's not needed for end users
+		config.SetMeta( "ProjectTemplate", null );
 
 		if ( _selected is not null )
 		{

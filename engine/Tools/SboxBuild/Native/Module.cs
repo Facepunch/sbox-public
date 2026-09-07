@@ -70,7 +70,9 @@ public abstract class Module
 {
 	/// <summary>What the current run is generating for, so a module can branch on it.</summary>
 	public static bool Windows => NativePlatform.Current.IsWindows;
-	public static bool Linux => !Windows;
+	public static bool Linux => NativePlatform.Current.IsLinux;
+	public static bool Osx => NativePlatform.Current.IsOsx;
+	public static bool Posix => !Windows;
 	public static bool Retail { get; internal set; }
 	public static bool MemoryDebug { get; internal set; }
 
@@ -87,7 +89,8 @@ public abstract class Module
 
 		// Some carry the prefix in the name already, as libwebp does.
 		var prefix = name.StartsWith( "lib", StringComparison.Ordinal ) ? "" : "lib";
-		return $"{path}/{prefix}{name}.{(shared ? "so" : "a")}";
+		var extension = shared ? (Osx ? "dylib" : "so") : "a";
+		return $"{path}/{prefix}{name}.{extension}";
 	}
 
 	public string Name;
@@ -145,7 +148,6 @@ public abstract class Module
 
 	/// <summary>This module is only built on Windows.</summary>
 	public bool WindowsOnly;
-
 
 	/// <summary>Relax warnings for code we do not own.</summary>
 	public bool ThirdParty;

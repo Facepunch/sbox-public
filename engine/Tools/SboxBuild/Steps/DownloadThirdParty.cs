@@ -110,7 +110,9 @@ internal class DownloadThirdParty( bool force = false )
 		// private repo where that URL 404s.
 		var cdnUrl = $"https://github.com/{Repo}/releases/download/{dep.Tag}/{asset}";
 
-		var tempRoot = Path.Combine( Path.GetTempPath(), $"sbox-thirdparty-{Guid.NewGuid():N}" );
+		// If OSX, then use this
+		var temp = NativePlatform.Current.IsOsx ? Paths.Absolute( "obj" ) : Path.GetTempPath();
+		var tempRoot = Path.Combine( temp, $"sbox-thirdparty-{Guid.NewGuid():N}" );
 		var archive = Path.Combine( tempRoot, asset );
 		var extracted = Path.Combine( tempRoot, "extracted" );
 

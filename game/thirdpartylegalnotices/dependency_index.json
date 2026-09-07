@@ -654,6 +654,23 @@
 			]
 		},
 		{
+			"Name": "Mesa KosmicKrisp",
+			"Comment": "Mesa Vulkan-on-Metal driver for macOS on Apple Silicon. Loaded as libvulkan_kosmickrisp.dylib in place of a platform Vulkan loader.",
+			"UsedBy": [
+				"rendersystem"
+			],
+			"License": "MIT AND BSD-3-Clause AND SGI-B-2.0",
+			"ProjectUrl": "https://github.com/facepunch/mesa-kosmickrisp",
+			"Version": "26.3.0-devel",
+			"Linkage": "dynamic",
+			"Copyright": [
+				"Mesa contributors",
+				"1999-2007 Brian Paul",
+				"2025 LunarG, Inc.",
+				"2025 Google LLC"
+			]
+		},
+		{
 			"Name": "Box3D",
 			"Comment": "Physics Engine",
 			"UsedBy": [

@@ -337,16 +337,20 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 			_keyframeBody.BodyType = isKeyframed ? PhysicsBodyType.Keyframed : PhysicsBodyType.Static;
 			_keyframeBody.UseController = isKeyframed;
 
-			if ( Static )
+			if ( Scene.Is2D )
 			{
-				ScenePhysicsSystem.Current?.RemoveKeyframe( this );
+				var system = Scene.GetSystem<ScenePhysics2dSystem>();
+				if ( Static ) system?.RemoveKeyframe( this );
+				else system?.AddKeyframe( this );
 			}
 			else
 			{
-				ScenePhysicsSystem.Current?.AddKeyframe( this );
+				var system = ScenePhysicsSystem.Current;
+				if ( Static ) system?.RemoveKeyframe( this );
+				else system?.AddKeyframe( this );
 			}
 		}
-		else
+		else if ( !Scene.Is2D )
 		{
 			// If we're in editor, check if the editor wants to simulate us
 			if ( Scene.IsEditor )
@@ -369,7 +373,7 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 
 		var go = body.GameObject;
 
-		if ( !IsProxy )
+		if ( !IsProxy && !Scene.IsEditor )
 		{
 			var currentWorldTx = go.WorldTransform;
 
@@ -377,10 +381,15 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 			// A naive world→local round-trip loses precision at large world coordinates, which
 			// would introduce phantom transform overrides in prefab instances.
 			// Position: 1cm tolerance. Rotation: dot-product threshold (1 - 1e-6 ≈ 0.16°).
-			if ( !currentWorldTx.Position.AlmostEqual( body.Position, 0.01f ) ||
+			var bodyPosition = body.Position;
+
+			if ( Scene.Is2D )
+				bodyPosition = bodyPosition.WithZ( currentWorldTx.Position.z );
+
+			if ( !currentWorldTx.Position.AlmostEqual( bodyPosition, 0.01f ) ||
 				!currentWorldTx.Rotation.AlmostEqual( body.Rotation, 0.000001f ) )
 			{
-				currentWorldTx.Position = body.Position;
+				currentWorldTx.Position = bodyPosition;
 				currentWorldTx.Rotation = body.Rotation;
 				go.WorldTransform = currentWorldTx;
 			}
@@ -392,9 +401,10 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 		var local = go.Transform.TargetWorld.WithScale( 1.0f ).ToLocal( world );
 
 		// create the new shapes
-		body.native.SetTrigger( IsTrigger );
-		Shapes.AddRange( CreatePhysicsShapes( body, local ) );
-		body.native.SetTrigger( false );
+		using ( IsTrigger ? body.TriggerScope() : null )
+		{
+			Shapes.AddRange( CreatePhysicsShapes( body, local ) );
+		}
 
 		// configure shapes
 		ConfigureShapes();

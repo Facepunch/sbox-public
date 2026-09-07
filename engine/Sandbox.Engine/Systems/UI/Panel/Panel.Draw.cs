@@ -68,7 +68,7 @@ public partial class Panel
 		/// <param name="tint">Optional color tint applied to the texture. Defaults to <see cref="Color.White"/> (no tint).</param>
 		public static void Texture( Texture texture, Rect rect, Color? tint = null )
 		{
-			UIDrawBuffer.Current.AddBox( new BoxDrawDescriptor( rect, tint ?? Color.White )
+			UIDrawBuffer.Current.AddBox( new BoxDrawDescriptor( rect, Color.Transparent )
 			{
 				BackgroundImage = texture,
 				BackgroundTint = tint ?? Color.White,

@@ -214,6 +214,17 @@ public partial class Scene : GameObject
 		return json;
 	}
 
+	internal void Reload()
+	{
+		var json = Serialize();
+
+		_physicsWorld?.Delete();
+		_physicsWorld = null;
+
+		ReloadSystems();
+		Deserialize( json );
+	}
+
 	public override void Deserialize( JsonObject node, DeserializeOptions option )
 	{
 		if ( this is PrefabScene )

@@ -27,6 +27,14 @@ public struct CharacterControllerHelper
 		Trace = trace;
 	}
 
+	bool Is2D => Trace.scene is { Is2D: true };
+	Vector3 UpDirection => Is2D ? Vector2.Up : Vector3.Up;
+
+	Vector3 WithoutVertical( Vector3 value )
+	{
+		var up = UpDirection;
+		return value - up * value.Dot( up );
+	}
 
 	/// <summary>
 	/// Trace this from one position to another
@@ -69,7 +77,7 @@ public struct CharacterControllerHelper
 				moveplanes.StartBump( Velocity );
 			}
 
-			bool standable = pm.Normal.Angle( Vector3.Up ) <= MaxStandableAngle;
+			bool standable = pm.Normal.Angle( UpDirection ) <= MaxStandableAngle;
 
 			//Gizmo.Transform = Transform.Zero;
 
@@ -113,15 +121,15 @@ public struct CharacterControllerHelper
 		var fraction = TryMove( timeDelta );
 
 		// If it got almost all the way then that's cool, use it
-		if ( fraction <= 0.01f )
+		if ( fraction >= 0.99f )
 			return fraction;
 
 		// Move up (as much as we can)
-		stepMove.TraceMove( Vector3.Up * stepsize );
+		stepMove.TraceMove( UpDirection * stepsize );
 
 		// if the move delta is too low, we probably won't get up a step
 		Vector3 moveBack = 0;
-		var moveDelta = stepMove.Velocity.WithZ( 0 ) * timeDelta;
+		var moveDelta = WithoutVertical( stepMove.Velocity ) * timeDelta;
 		var deltaLen = moveDelta.Length;
 
 		// if it's really low, then we're probably moving straight up or down
@@ -140,17 +148,17 @@ public struct CharacterControllerHelper
 		var stepFraction = stepMove.TraceMove( moveDelta );
 
 		// Move back down
-		var tr = stepMove.TraceMove( Vector3.Down * stepsize );
+		var tr = stepMove.TraceMove( -UpDirection * stepsize );
 
 		// if we didn't land on something, return
 		if ( !tr.Hit ) return fraction;
 
 		// If we landed on a wall then this is no good
-		if ( tr.Normal.Angle( Vector3.Up ) > MaxStandableAngle )
+		if ( tr.Normal.Angle( UpDirection ) > MaxStandableAngle )
 			return fraction;
 
 		// if the original non stepped attempt moved further use that
-		if ( startPosition.Distance( Position.WithZ( startPosition.z ) ) > startPosition.Distance( stepMove.Position.WithZ( startPosition.z ) ) )
+		if ( WithoutVertical( Position - startPosition ).LengthSquared > WithoutVertical( stepMove.Position - startPosition ).LengthSquared )
 			return fraction;
 
 		if ( !moveBack.IsNearZeroLength )

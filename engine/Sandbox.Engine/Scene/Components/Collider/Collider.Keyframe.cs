@@ -19,7 +19,10 @@ public abstract partial class Collider
 
 	void DestroyKeyframe()
 	{
-		ScenePhysicsSystem.Current?.RemoveKeyframe( this );
+		if ( Scene.Is2D )
+			Scene?.GetSystem<ScenePhysics2dSystem>()?.RemoveKeyframe( this );
+		else
+			ScenePhysicsSystem.Current?.RemoveKeyframe( this );
 
 		_keyframeBody?.Remove();
 		_keyframeBody = null;
@@ -32,13 +35,10 @@ public abstract partial class Collider
 
 		var isKeyframed = !Static && !Scene.IsEditor;
 
-		_keyframeBody = new PhysicsBody( Scene.PhysicsWorld )
-		{
-			BodyType = isKeyframed ? PhysicsBodyType.Keyframed : PhysicsBodyType.Static,
-			Transform = GetTargetTransform().WithScale( 1.0f ),
-			UseController = isKeyframed,
-			GravityEnabled = false
-		};
+		_keyframeBody = Scene.PhysicsWorld.CreateBody();
+		_keyframeBody.BodyType = isKeyframed ? PhysicsBodyType.Keyframed : PhysicsBodyType.Static;
+		_keyframeBody.Transform = GetTargetTransform().WithScale( 1.0f );
+		_keyframeBody.UseController = isKeyframed;
 
 		_keyframeBody.Component = this;
 
@@ -49,7 +49,10 @@ public abstract partial class Collider
 
 		if ( isKeyframed )
 		{
-			ScenePhysicsSystem.Current?.AddKeyframe( this );
+			if ( Scene.Is2D )
+				Scene.GetSystem<ScenePhysics2dSystem>()?.AddKeyframe( this );
+			else
+				ScenePhysicsSystem.Current?.AddKeyframe( this );
 		}
 	}
 

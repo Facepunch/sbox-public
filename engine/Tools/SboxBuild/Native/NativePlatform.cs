@@ -10,7 +10,10 @@ namespace Facepunch.Native;
 public abstract class NativePlatform
 {
 	/// <summary>Every platform there is a generator for.</summary>
-	public static NativePlatform[] All => [new Win64(), new Linux64()];
+	public static NativePlatform[] All => [new Win64(), new Linux64(), new Osx()];
+
+	/// <summary>Whether the target is AArch64 rather than x86_64.</summary>
+	public bool IsArm64 { get; protected init; }
 
 	/// <summary>The platform this run targets. Defaults to the one this machine is.</summary>
 	public static NativePlatform Current
@@ -57,6 +60,8 @@ public abstract class NativePlatform
 	public virtual string DirectoryName => Name;
 
 	public abstract bool IsWindows { get; }
+	public virtual bool IsLinux => false;
+	public virtual bool IsOsx => false;
 
 	/// <summary>Where prebuilt and generated libraries live, relative to src/.</summary>
 	public abstract string LibPublic { get; }

@@ -8,7 +8,32 @@ namespace Sandbox;
 [Expose]
 sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 {
-	private PhysicsWorld PhysicsWorld;
+	PhysicsWorld3d _world;
+
+	internal PhysicsWorld3d PhysicsWorld => GetWorld();
+
+	PhysicsWorld3d GetWorld()
+	{
+		if ( _world is not null )
+			return _world;
+
+		if ( Scene is null || !Scene.HasPhysicsWorld )
+			return null;
+
+		_world = Scene.PhysicsWorld?._world as PhysicsWorld3d;
+		if ( _world is null )
+			return null;
+
+		_world.OnIntersectionStart += OnIntersectionStart;
+		_world.OnIntersectionHit += OnIntersectionHit;
+		_world.OnIntersectionUpdate += OnIntersectionUpdate;
+		_world.OnIntersectionEnd += OnIntersectionEnd;
+		_world.OnBodyOutOfBounds += OnBodyOutOfBounds;
+		_world.OnBodyFellAsleep += OnBodyFellAsleep;
+
+		return _world;
+	}
+
 	private HashSetEx<Collider> KeyframeColliders { get; set; } = new();
 	private HashSet<Rigidbody> RigidBodies { get; set; } = new();
 	private List<ISceneCollisionEvents> CollisionEvents { get; } = new();
@@ -21,40 +46,33 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 		Listen( Stage.FinishUpdate, 0, DebugDrawPhysics, "DebugDrawPhysics" );
 	}
 
-	/// <summary>
-	/// Called by the scene when it creates its physics world. The world is created on
-	/// demand by the first thing that needs physics - we shouldn't be the ones forcing
-	/// it to exist.
-	/// </summary>
-	internal void OnPhysicsWorldCreated( PhysicsWorld world )
-	{
-		PhysicsWorld = world;
-		PhysicsWorld.OnIntersectionStart += OnIntersectionStart;
-		PhysicsWorld.OnIntersectionHit += OnIntersectionHit;
-		PhysicsWorld.OnIntersectionUpdate += OnIntersectionUpdate;
-		PhysicsWorld.OnIntersectionEnd += OnIntersectionEnd;
-		PhysicsWorld.OnBodyOutOfBounds += OnBodyOutOfBounds;
-		PhysicsWorld.OnBodyFellAsleep += OnBodyFellAsleep;
-	}
-
 	public override void Dispose()
 	{
 		base.Dispose();
 
-		if ( !PhysicsWorld.IsValid() )
+		if ( _world is null )
 			return;
 
-		PhysicsWorld.OnIntersectionStart -= OnIntersectionStart;
-		PhysicsWorld.OnIntersectionHit -= OnIntersectionHit;
-		PhysicsWorld.OnIntersectionUpdate -= OnIntersectionUpdate;
-		PhysicsWorld.OnIntersectionEnd -= OnIntersectionEnd;
-		PhysicsWorld.OnBodyOutOfBounds -= OnBodyOutOfBounds;
-		PhysicsWorld.OnBodyFellAsleep -= OnBodyFellAsleep;
+		_world.OnIntersectionStart -= OnIntersectionStart;
+		_world.OnIntersectionHit -= OnIntersectionHit;
+		_world.OnIntersectionUpdate -= OnIntersectionUpdate;
+		_world.OnIntersectionEnd -= OnIntersectionEnd;
+		_world.OnBodyOutOfBounds -= OnBodyOutOfBounds;
+		_world.OnBodyFellAsleep -= OnBodyFellAsleep;
+
+		_world = null;
 	}
 
 	void UpdatePhysics()
 	{
+		if ( Scene.Is2D )
+			return;
+
 		if ( Scene.IsEditor && !Enabled )
+			return;
+
+		var world = PhysicsWorld;
+		if ( world is null )
 			return;
 
 		using var _ = PerformanceStats.Timings.Physics.Scope();
@@ -87,8 +105,8 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 			c.UpdateKeyframeTransform();
 		}
 
-		// The actual physics step - if the world was never created there's nothing to step
-		PhysicsWorld?.Step( Time.NowDouble, Time.Delta, steps );
+		// The actual physics step
+		world.Step( Time.NowDouble, Time.Delta, steps );
 
 		//
 		// Update the positions of the rigidbodies based on the new physics positions
@@ -168,12 +186,16 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 
 	void DebugDrawPhysics()
 	{
-		if ( !PhysicsWorld.IsValid() )
+		if ( Scene.Is2D )
+			return;
+
+		var world = PhysicsWorld;
+		if ( world is null )
 			return;
 
 		using ( Performance.Scope( "PhysicsDraw" ) )
 		{
-			PhysicsWorld.DebugDraw();
+			world.DebugDraw();
 		}
 	}
 

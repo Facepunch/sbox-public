@@ -16,6 +16,7 @@ public static partial class Gizmo
 			if ( !ReferenceEquals( _vertexObjectMaterial, material ) ) return false;
 			if ( _vertexObject.PrimitiveType != type ) return false;
 			if ( _vertexObjectPath != Path ) return false;
+			if ( _vertexObject.Transform != Transform ) return false;
 
 			//if ( type == Graphics.PrimitiveType.Lines )
 			{

@@ -3,27 +3,25 @@ using System.Runtime.InteropServices;
 
 namespace Sandbox;
 
-partial class PhysicsWorld
+partial class PhysicsWorld3d
 {
-	internal Scene Scene { get; set; }
 	private DebugOverlaySystem DebugOverlay => Scene?.DebugOverlay;
 
 	/// <summary>
 	/// A SceneWorld where debug SceneObjects exist.
 	/// </summary>
 	[EditorBrowsable( EditorBrowsableState.Never )]
-	public SceneWorld DebugSceneWorld
+	public override SceneWorld DebugSceneWorld
 	{
 		get => native.GetDebugScene();
 		set => native.SetDebugScene( value );
 	}
 
 	/// <summary>
-	/// Draws the physics debug overlays enabled via the physics_debug_draw convars,
-	/// updating the SceneObjects in the <see cref="DebugSceneWorld"/>. Call once per tick or frame.
+	/// Updates all the SceneObjects in the <see cref="DebugSceneWorld"/>, call once per tick or frame.
 	/// </summary>
 	[EditorBrowsable( EditorBrowsableState.Never )]
-	public unsafe void DebugDraw()
+	public override unsafe void DebugDraw()
 	{
 		if ( onDebugDrawFunctionPointer == DelegateFunctionPointer.Null )
 			onDebugDrawFunctionPointer = DelegateFunctionPointer.Get<DebugDrawDelegate_t>( OnDebugDrawInternal );

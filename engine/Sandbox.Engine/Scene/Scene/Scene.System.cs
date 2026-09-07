@@ -58,6 +58,32 @@ public partial class Scene
 	}
 
 	/// <summary>
+	/// Dispose and recreate all existing systems without rediscovering types.
+	/// </summary>
+	internal void ReloadSystems()
+	{
+		if ( systems.Count == 0 )
+			return;
+
+		using ( Push() )
+		{
+			var types = systems.Keys.ToArray();
+			ShutdownSystems();
+
+			foreach ( var type in types )
+			{
+				var e = Game.TypeLibrary.GetType( type )?.Create<GameObjectSystem>( [this] );
+				if ( e is null ) continue;
+
+				ApplyGameObjectSystemConfig( e );
+
+				systems[e.GetType()] = e;
+				AddObjectToDirectory( e );
+			}
+		}
+	}
+
+	/// <summary>
 	/// Apply configuration values to a GameObjectSystem with priority:
 	/// 1. Project-wide value (from <see cref="ProjectSettings.Systems"/>)
 	/// 2. Default value (already set by property initializer)

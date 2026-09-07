@@ -150,7 +150,7 @@ class ClutterGenerationJob
 		var parts = model.Physics.Parts;
 		var referenceTransform = parts.Count > 0 ? parts[0].Transform : Transform.Zero;
 		var bodyTransform = transform.ToWorld( referenceTransform );
-		var body = new PhysicsBody( world );
+		var body = world.CreateBody();
 		body.BodyType = PhysicsBodyType.Static;
 		body.Position = bodyTransform.Position;
 		body.Rotation = bodyTransform.Rotation;

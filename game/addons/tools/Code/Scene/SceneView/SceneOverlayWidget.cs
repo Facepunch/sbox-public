@@ -13,6 +13,11 @@ public class SceneOverlayWidget : Widget
 
 		WindowFlags = WindowFlags.FramelessWindowHint | WindowFlags.Tool;
 
+		// Cocoa and X11 won't let clicks through to the viewport underneath without it. On Windows it
+		// would also stop the tool widgets parented in here (EditorTool.AddOverlay) getting any.
+		if ( !OperatingSystem.IsWindows() )
+			WindowFlags |= WindowFlags.WindowTransparentForInput;
+
 		Active = this;
 
 		Layout = Layout.Column();

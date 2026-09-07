@@ -28,7 +28,15 @@ public sealed class SphereCollider : Collider
 		using ( Gizmo.Scope( "SphereCollider" ) )
 		{
 			Gizmo.Draw.Color = Gizmo.Colors.Green.WithAlpha( Gizmo.IsChildSelected ? 0.5f : 0.1f );
-			Gizmo.Draw.LineSphere( new Sphere( Center, Radius ) );
+
+			if ( Scene.Is2D )
+			{
+				Gizmo.Draw.LineCircle( Center, Vector3.Up, Radius, sections: 32 );
+			}
+			else
+			{
+				Gizmo.Draw.LineSphere( new Sphere( Center, Radius ) );
+			}
 		}
 	}
 
@@ -61,6 +69,12 @@ public sealed class SphereCollider : Collider
 		if ( !Shape.IsValid() )
 			return;
 
+		if ( Scene.Is2D )
+		{
+			Rebuild();
+			return;
+		}
+
 		var body = Rigidbody;
 		var world = Transform.TargetWorld;
 		var local = body.IsValid() ? body.Transform.TargetWorld.WithScale( 1.0f ).ToLocal( world ) : global::Transform.Zero;
@@ -76,7 +90,9 @@ public sealed class SphereCollider : Collider
 			}
 
 			var radius = Radius * world.UniformScale;
-			Shape.native.UpdateSphereShape( local.PointToWorld( Center ), radius );
+
+			if ( Shape?._shape is PhysicsShape3d shape3d )
+				shape3d.native.UpdateSphereShape( local.PointToWorld( Center ), radius );
 		}
 		else
 		{
@@ -107,7 +123,32 @@ public sealed class SphereCollider : Collider
 	{
 		var scale = WorldScale;
 
-		if ( scale.x.AlmostEqual( scale.y ) && scale.y.AlmostEqual( scale.z ) )
+		if ( Scene.Is2D )
+		{
+			var center = Center * scale;
+
+			if ( scale.x.AlmostEqual( scale.y ) )
+			{
+				var radius = Radius * scale.x;
+				Shape = targetBody.AddSphereShape( new Sphere( center, radius ) );
+			}
+			else
+			{
+				var rx = Radius * MathF.Max( 0.01f, MathF.Abs( scale.x ) );
+				var ry = Radius * MathF.Max( 0.01f, MathF.Abs( scale.y ) );
+				const int segments = 8;
+				Span<Vector3> points = stackalloc Vector3[segments];
+
+				for ( int i = 0; i < segments; i++ )
+				{
+					var angle = 2.0f * MathF.PI * i / segments;
+					points[i] = new Vector3( center.x + rx * MathF.Cos( angle ), center.y + ry * MathF.Sin( angle ), 0 );
+				}
+
+				Shape = targetBody.AddHullShape( Vector3.Zero, Rotation.Identity, points );
+			}
+		}
+		else if ( scale.x.AlmostEqual( scale.y ) && scale.y.AlmostEqual( scale.z ) )
 		{
 			var radius = Radius * scale.x;
 			var sphere = new Sphere( local.PointToWorld( Center ), radius );

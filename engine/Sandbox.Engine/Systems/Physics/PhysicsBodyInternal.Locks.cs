@@ -21,18 +21,13 @@ public struct PhysicsLock
 /// Represents a physics object. An entity can have multiple physics objects. See <see cref="PhysicsGroup">PhysicsGroup</see>.
 /// A physics objects consists of one or more <see cref="PhysicsShape">PhysicsShape</see>s.
 /// </summary>
-public sealed partial class PhysicsBody : IHandle
+internal abstract partial class PhysicsBodyInternal
 {
 	PhysicsLock _locks;
 
-	public PhysicsLock Locking
+	public virtual PhysicsLock Locking
 	{
 		get => _locks;
-
-		set
-		{
-			_locks = value;
-			native.SetMotionLocks( value.X, value.Y, value.Z, value.Pitch, value.Yaw, value.Roll );
-		}
+		set => _locks = value;
 	}
 }

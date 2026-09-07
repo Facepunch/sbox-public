@@ -33,7 +33,7 @@ public partial class RenderSettings
 		settings[nameof( TextureQuality )] = values.Texture.ToString();
 		settings[nameof( ShadowQuality )] = values.Shadow.ToString();
 		settings[nameof( VolumetricFogQuality )] = values.Fog.ToString();
-		settings[nameof( AntiAliasQuality )] = values.AntiAlias.ToString();
+		settings[nameof( AntiAliasQuality )] = GetSupportedAntiAliasQuality( values.AntiAlias ).ToString();
 
 		return settings;
 	}

@@ -69,9 +69,10 @@ public sealed partial class PlayerController : Component
 			return;
 
 		var currentPosition = WorldPosition;
+		var up = UpDirection;
 
 		float radiusScale = 1.0f;
-		var tr = TraceBody( currentPosition + Vector3.Up * 1, currentPosition + Vector3.Down * stepSize, radiusScale, 0.5f );
+		var tr = TraceBody( currentPosition + up, currentPosition - up * stepSize, radiusScale, 0.5f );
 
 		while ( tr.StartedSolid )
 		{
@@ -79,7 +80,7 @@ public sealed partial class PlayerController : Component
 			if ( radiusScale < 0.7f )
 				return;
 
-			tr = TraceBody( currentPosition + Vector3.Up * 1, currentPosition + Vector3.Down * stepSize, radiusScale, 0.5f );
+			tr = TraceBody( currentPosition + up, currentPosition - up * stepSize, radiusScale, 0.5f );
 		}
 
 		if ( tr.StartedSolid )
@@ -89,7 +90,7 @@ public sealed partial class PlayerController : Component
 
 		if ( tr.Hit )
 		{
-			var targetPosition = tr.EndPosition + Vector3.Up * 0.01f;
+			var targetPosition = tr.EndPosition + up * 0.01f;
 			var delta = currentPosition - targetPosition;
 			if ( delta == Vector3.Zero ) return;
 
@@ -97,18 +98,17 @@ public sealed partial class PlayerController : Component
 
 			// when stepping down, clear out the gravity velocity to avoid
 			// it thinking we're falling and building up like crazy
-			if ( delta.z > 0.01f )
+			if ( delta.Dot( up ) > 0.01f )
 			{
-				var velocity = Body.Velocity;
-				velocity.z = 0;
-				Body.Velocity = velocity;
+				Body.Velocity = WithVertical( Body.Velocity, 0 );
 			}
 		}
 	}
 
 	void CategorizeGround()
 	{
-		var groundVel = GroundVelocity.z;
+		var up = UpDirection;
+		var groundVel = GroundVelocity.Dot( up );
 		bool wasOnGround = IsOnGround;
 
 		if ( !Mode.AllowGrounding )
@@ -133,8 +133,8 @@ public sealed partial class PlayerController : Component
 			return;
 		}
 
-		var from = WorldPosition + Vector3.Up * 4;
-		var to = WorldPosition + Vector3.Down * 2;
+		var from = WorldPosition + up * 4;
+		var to = WorldPosition - up * 2;
 
 		float radiusScale = 1;
 		var tr = TraceBody( from, to, radiusScale, 0.5f );
