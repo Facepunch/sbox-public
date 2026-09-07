@@ -352,23 +352,13 @@ public static partial class Input
 	}
 
 	/// <summary>
-	/// Read the button(s) currently bound to an action, as a compact combo string
-	/// such as <c>"ctrl + a"</c>.
+	/// Get the button combo bound to an action, e.g. <c>"ctrl + a"</c>.
 	/// </summary>
 	/// <remarks>
-	/// <para>
-	/// Resolution order: the loaded game's bind <see cref="SetBind"/> first, then the shared
-	/// "common" collection (if <paramref name="fallbackToCommon"/> is set), then the action's
-	/// declared default key. This mirrors the lookup the input router performs when it resolves
-	/// an action, so the string returned here is always what the player has to physically press.
-	/// </para>
-	/// <para>
-	/// Returns <see langword="null"/> when nothing is bound to that action.
-	/// </para>
+	/// Resolution order: the game's bind, then the shared "common" collection (unless
+	/// <paramref name="fallbackToCommon"/> is <see langword="false"/>), then the action's default key.
+	/// Returns <see langword="null"/> when nothing is bound.
 	/// </remarks>
-	/// <param name="actionName">The action to look up, as it appears in <see cref="ActionNames"/>.</param>
-	/// <param name="slot">The bind slot to read. Each action has up to two slots.</param>
-	/// <param name="fallbackToCommon">If <see langword="true"/>, fall back to the shared game-agnostic binds.</param>
 	public static string GetBind( string actionName, int slot = 0, bool fallbackToCommon = true )
 	{
 		var collection = CurrentBinds;
@@ -390,15 +380,11 @@ public static partial class Input
 	}
 
 	/// <summary>
-	/// Read every bind defined for the loaded game, as an action name mapped to its slot values.
+	/// Get every bind for the loaded game, keyed by action name.
 	/// </summary>
 	/// <remarks>
-	/// <para>
-	/// The returned arrays always have two entries, one per bind slot. An empty or <see langword="null"/>
-	/// entry means that slot is unbound. Values are the raw stored combo strings - the action name used
-	/// as a key matches <see cref="ActionNames"/>, and each value can be passed straight back to
-	/// <see cref="SetBind"/>.
-	/// </para>
+	/// Each value has two entries, one per slot; empty entries mean unbound. Values can be
+	/// passed straight back to <see cref="SetBind"/>.
 	/// </remarks>
 	public static Dictionary<string, string[]> GetAllBinds()
 	{
@@ -421,34 +407,20 @@ public static partial class Input
 	}
 
 	/// <summary>
-	/// (Re)bind the button(s) for an action to <paramref name="buttonName"/>.
+	/// Bind the button combo to an action.
 	/// </summary>
 	/// <remarks>
-	/// <para>
-	/// The value is a compact combo string such as <c>"ctrl + a"</c>, exactly as you'd expect to
-	/// see from <see cref="CaptureBind"/>. It takes effect immediately - the input router re-reads
-	/// the bind collection on the next physical button press. Use <see cref="SaveBinds"/> to persist
-	/// it to disk so it survives a restart.
-	/// </para>
-	/// <para>
-	/// This is reversible - <see cref="ResetBinds"/> restores every action to its declared default.
-	/// </para>
+	/// Takes effect immediately. Use <see cref="SaveBinds"/> to persist across restarts, or
+	/// <see cref="ResetBinds"/> to restore defaults. Pass <see langword="null"/> to clear a slot.
 	/// </remarks>
-	/// <param name="actionName">The action to bind, as it appears in <see cref="ActionNames"/>.</param>
-	/// <param name="buttonName">The button combo to assign, or <see langword="null"/> to clear the slot.</param>
-	/// <param name="slot">The bind slot to write. Each action has up to two slots.</param>
 	public static void SetBind( string actionName, string buttonName, int slot = 0 )
 	{
 		CurrentBinds.Set( actionName, slot, buttonName );
 	}
 
 	/// <summary>
-	/// Restore every bind in the loaded game back to its declared default, and persist it.
+	/// Restore every bind to its default and persist it.
 	/// </summary>
-	/// <remarks>
-	/// This is equivalent to the bind reset button found in the engine's settings - it clears
-	/// any user overrides and rewrites the collection to disk.
-	/// </remarks>
 	public static void ResetBinds()
 	{
 		var collection = CurrentBinds;
@@ -457,41 +429,11 @@ public static partial class Input
 	}
 
 	/// <summary>
-	/// Write the loaded game's binds out to disk as JSON, so they persist across restarts.
+	/// Persist the binds to disk, so they survive a restart.
 	/// </summary>
-	/// <remarks>
-	/// You don't need to call this after every <see cref="SetBind"/> - only when you consider the
-	/// player's configuration "committed". The settings UI calls this when the panel is closed.
-	/// </remarks>
 	public static void SaveBinds()
 	{
 		CurrentBinds.SaveToDisk();
-	}
-
-	/// <summary>
-	/// Begin capturing the next key combo the player presses.
-	/// </summary>
-	/// <remarks>
-	/// <para>
-	/// While capturing, the engine swallows input and collects every button pressed until the
-	/// player releases them all, then invokes <paramref name="onCaptured"/> with the resulting combo
-	/// (for example <c>["ctrl", "a"]</c>). Pressing <c>escape</c> interrupts the capture sooner - the
-	/// callback fires immediately so callers can treat that as a cancel.
-	/// </para>
-	/// <para>
-	/// Only a single capture can be active at a time; the most recent caller wins.
-	/// </para>
-	/// </remarks>
-	/// <param name="onCaptured">Callback invoked once the player releases the captured keys.</param>
-	public static void CaptureBind( Action<string[]> onCaptured )
-	{
-		if ( Game.InputContext is null )
-		{
-			onCaptured?.Invoke( Array.Empty<string>() );
-			return;
-		}
-
-		Game.InputContext.StartTrapping( onCaptured );
 	}
 
 	/// <summary>
