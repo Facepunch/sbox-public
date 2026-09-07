@@ -344,7 +344,7 @@ public static partial class Input
 		{
 			var ident = Application.GameIdent;
 
-			if ( string.IsNullOrEmpty( ident ) ) 
+			if ( string.IsNullOrEmpty( ident ) )
 				ident = "common";
 
 			return InputBinds.FindCollection( ident );
