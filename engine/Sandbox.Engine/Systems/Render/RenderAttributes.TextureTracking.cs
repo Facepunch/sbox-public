@@ -13,7 +13,17 @@ public partial class RenderAttributes
 
 	private void SetUsedTexture( StringToken k, Texture texture )
 	{
-		usedTextures ??= [];
+		if ( usedTextures is null )
+		{
+			usedTextures = [];
+
+			// We're holding strong texture handles now, so the finalizer has real cleanup to do.
+			if ( finalizeSuppressed )
+			{
+				GC.ReRegisterForFinalize( this );
+				finalizeSuppressed = false;
+			}
+		}
 
 		var native = texture?.native ?? default;
 
