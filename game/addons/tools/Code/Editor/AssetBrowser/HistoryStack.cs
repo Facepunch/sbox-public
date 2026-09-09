@@ -113,7 +113,10 @@ public class HistoryStack<T> : IEnumerable<T>
 		items ??= new LinkedList<T>();
 
 		int idx = ProjectCookie.Get( $"{StateCookie}.HistoryIdx", -1 );
-		if ( idx != -1 )
+
+		// A saved index can outlive the history it points into - the clamp alone does not
+		// cover that, because an empty list clamps to -1 and GoTo rejects it.
+		if ( idx != -1 && items.Count > 0 )
 		{
 			GoTo( idx.Clamp( 0, items.Count - 1 ) );
 		}
