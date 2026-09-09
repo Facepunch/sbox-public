@@ -207,21 +207,15 @@ public partial class AssetList
 		var directories = SelectedItems.OfType<DirectoryEntry>().ToList();
 
 		var onlyOneFolder = assets.Count == 0 && directories.Count == 1;
+
+		// Show the folder menu if there's only one folder selected
 		if ( onlyOneFolder )
 		{
 			OpenFolderContextMenu( directories[0].DirectoryInfo.FullName, false );
 			return;
 		}
-
+	
 		var selection = ExpandDirectories( assets, directories );
-		if ( selection.Count == 0 )
-		{
-			// Only asset-less folders are selected - the folder menu is all we can offer. Right click
-			// always selects what's under the cursor, so an empty expansion means we have folders.
-			OpenFolderContextMenu( directories[0].DirectoryInfo.FullName, false );
-			return;
-		}
-
 		var ac = new AssetContextMenu
 		{
 			SelectedList = selection,
