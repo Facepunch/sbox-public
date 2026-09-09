@@ -1116,6 +1116,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		if ( source is not null && !source.CanSpawnObjects )
 			return;
 
+		using var blobs = BlobDataSerializer.LoadFromMemory( [] );
+
 		using ( CallbackBatch.Batch() )
 		{
 			foreach ( var msg in message.CreateMsgs )
@@ -1131,12 +1133,11 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 					continue;
 				}
 
-				using ( BlobDataSerializer.LoadFromMemory( msg.BlobData ) )
-				{
-					var go = new GameObject();
-					go.Deserialize( JsonNode.Parse( msg.JsonData ).AsObject(), networkDeserializeOptionsCreate );
-					go.NetworkSpawnRemote( msg );
-				}
+				blobs.Load( msg.BlobData );
+
+				var go = new GameObject();
+				go.Deserialize( JsonNode.Parse( msg.JsonData ).AsObject(), networkDeserializeOptionsCreate );
+				go.NetworkSpawnRemote( msg );
 			}
 		}
 	}
@@ -1169,8 +1170,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		var go = new GameObject();
 
-		using ( CallbackBatch.Batch() )
 		using ( BlobDataSerializer.LoadFromMemory( message.BlobData ) )
+		using ( CallbackBatch.Batch() )
 		{
 			go.Deserialize( JsonNode.Parse( message.JsonData ).AsObject(), networkDeserializeOptionsCreate );
 			go.NetworkSpawnRemote( message );
