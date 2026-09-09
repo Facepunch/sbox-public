@@ -1,4 +1,4 @@
-using Editor.Widgets.Packages;
+﻿using Editor.Widgets.Packages;
 using System.IO;
 using System.Security;
 
@@ -634,6 +634,7 @@ public partial class AssetList
 			"editor.delete"
 			);
 
+			if ( count == 1 )
 				e.Menu.AddOption( $"Rename", "edit", action: () => e.AssetList.OpenRenameFlyout( entry, e.ScreenPosition ), shortcut: "editor.rename" );
 		}
 
