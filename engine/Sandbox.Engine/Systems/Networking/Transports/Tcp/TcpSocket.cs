@@ -51,6 +51,7 @@ internal class TcpSocket : NetworkSocket, IValid
 		listener.Stop();
 	}
 
+	[SkipHotload]
 	CancellationTokenSource tokenSource;
 
 	public bool IsValid => true;
