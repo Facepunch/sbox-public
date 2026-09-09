@@ -214,8 +214,18 @@ public partial class AssetList
 			OpenFolderContextMenu( directories[0].DirectoryInfo.FullName, false );
 			return;
 		}
-	
+
+		// Only folders we found no assets in - the asset menu has nothing to act on and its handlers
+		// assume at least one entry, but the selection is still deletable.
 		var selection = ExpandDirectories( assets, directories );
+		if ( selection.Count == 0 )
+		{
+			var menu = new ContextMenu( this );
+			menu.AddOption( $"Delete ({directories.Count})", "delete", DeleteAsset, "editor.delete" );
+			menu.OpenAtCursor();
+			return;
+		}
+
 		var ac = new AssetContextMenu
 		{
 			SelectedList = selection,
@@ -296,30 +306,29 @@ public partial class AssetList
 	[Event( "asset.contextmenu", Priority = 1 )]
 	private protected static void OnAssetContextMenu_OpenSection( AssetContextMenu e )
 	{
+		if ( e.SelectedList.Count <= 0 ) return;
+
 		var entry = e.SelectedList.First();
 		var count = e.SelectedList.Count;
 		var asset = entry.Asset;
 
-		if ( count > 0 )
+		if ( e.SelectedList.All( x => x.Asset is { CanOpenInEditor: true } ) )
 		{
-			if ( e.SelectedList.All( x => x.Asset is { CanOpenInEditor: true } ) )
+			e.Menu.AddOption( count == 1 ? "Open in Editor" : $"Open {count} in Editor(s)", "edit",
+				() => e.SelectedList.ForEach( x => x.Asset.OpenInEditor() ) );
+		}
+		else if ( !asset?.IsProcedural ?? true )
+		{
+			if ( e.SelectedList.All( x => EditorUtility.IsCodeFile( x.FileInfo.FullName ) ) )
 			{
-				e.Menu.AddOption( count == 1 ? "Open in Editor" : $"Open {count} in Editor(s)", "edit",
-					() => e.SelectedList.ForEach( x => x.Asset.OpenInEditor() ) );
+				string editorName = CodeEditor.Title;
+				e.Menu.AddOption( count == 1 ? $"Open in {editorName}" : $"Open {count} in {editorName}", "edit",
+					() => e.SelectedList.ForEach( x => CodeEditor.OpenFile( x.FileInfo.FullName ) ) );
 			}
-			else if ( !asset?.IsProcedural ?? true )
+			else
 			{
-				if ( e.SelectedList.All( x => EditorUtility.IsCodeFile( x.FileInfo.FullName ) ) )
-				{
-					string editorName = CodeEditor.Title;
-					e.Menu.AddOption( count == 1 ? $"Open in {editorName}" : $"Open {count} in {editorName}", "edit",
-						() => e.SelectedList.ForEach( x => CodeEditor.OpenFile( x.FileInfo.FullName ) ) );
-				}
-				else
-				{
-					e.Menu.AddOption( count == 1 ? "Open" : $"Open {count} files", "open_in_new",
-					() => e.SelectedList.ForEach( x => EditorUtility.OpenFolder( x.FileInfo.FullName ) ) );
-				}
+				e.Menu.AddOption( count == 1 ? "Open" : $"Open {count} files", "open_in_new",
+				() => e.SelectedList.ForEach( x => EditorUtility.OpenFolder( x.FileInfo.FullName ) ) );
 			}
 		}
 
