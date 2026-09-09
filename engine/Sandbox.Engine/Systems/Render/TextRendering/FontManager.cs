@@ -109,7 +109,16 @@ internal class FontManager : FontMapper
 		var face = GetBestTypeface( style );
 		if ( face is null )
 		{
-			Log.Warning( $"FontManager: Font '{style.FontFamily}' not found, falling back to system font" );
+			// The default mapper also returns a face for missing families, so check availability separately.
+			if ( !string.IsNullOrEmpty( style.FontFamily ) )
+			{
+				using var systemFonts = SKFontManager.Default.GetFontStyles( style.FontFamily );
+				if ( systemFonts.Count == 0 )
+				{
+					Log.Warning( $"FontManager: Font '{style.FontFamily}' not found" );
+				}
+			}
+
 			face = Default.TypefaceFromStyle( style, ignoreFontVariants );
 		}
 

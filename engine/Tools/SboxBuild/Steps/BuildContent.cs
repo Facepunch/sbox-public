@@ -21,6 +21,14 @@ internal class BuildContent
 				return ExitCode.Failure;
 			}
 
+			if ( OperatingSystem.IsLinux() )
+			{
+				// Restore execute permission for downloaded binaries, including cached artifacts.
+				var mode = File.GetUnixFileMode( contentBuilderPath );
+				if ( (mode & UnixFileMode.UserExecute) == 0 )
+					File.SetUnixFileMode( contentBuilderPath, mode | UnixFileMode.UserExecute );
+			}
+
 			bool success = Utility.RunProcess( contentBuilderPath, "-b", gameDir );
 
 			if ( !success )

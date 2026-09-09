@@ -128,100 +128,29 @@ public partial class Scene : GameObject
 		};
 	}
 
-	sealed class TraceQueryResult
-	{
-		public CQueryResult Vec = CQueryResult.Create();
-		~TraceQueryResult() => Vec.DeleteThis();
-	}
-
-	[ThreadStatic] static TraceQueryResult _threadQueryResult;
-	static CQueryResult ThreadQueryResult
-	{
-		get
-		{
-			_threadQueryResult ??= new TraceQueryResult();
-			_threadQueryResult.Vec.RemoveAll();
-			return _threadQueryResult.Vec;
-		}
-	}
-
 	/// <summary>
 	/// Find game objects in a sphere using physics.
 	/// </summary>
 	public IEnumerable<GameObject> FindInPhysics( Sphere sphere )
-	{
-		var results = ThreadQueryResult;
-		PhysicsWorld.native.Query( results, sphere.Center, sphere.Radius, 0x07 );
-		return FilterQueryResults( results );
-	}
+		=> PhysicsWorld.FindInPhysics( sphere );
 
 	/// <summary>
 	/// Find game objects in a box using physics.
 	/// </summary>
 	public IEnumerable<GameObject> FindInPhysics( BBox box )
-	{
-		var results = ThreadQueryResult;
-		PhysicsWorld.native.Query( results, box, 0x07 );
-		return FilterQueryResults( results );
-	}
+		=> PhysicsWorld.FindInPhysics( box );
 
 	/// <summary>
 	/// Find game objects in a frustum using physics.
 	/// </summary>
-	public unsafe IEnumerable<GameObject> FindInPhysics( Frustum frustum )
-	{
-		var corners = stackalloc Vector3[8];
-		if ( !frustum.TryGetCorners( corners ) )
-			return Enumerable.Empty<GameObject>();
-
-		var results = ThreadQueryResult;
-		PhysicsWorld.native.Query( results, (IntPtr)corners, 8, 0x07 );
-		return FilterQueryResults( results );
-	}
+	public IEnumerable<GameObject> FindInPhysics( Frustum frustum )
+		=> PhysicsWorld.FindInPhysics( frustum );
 
 	/// <summary>
 	/// Find physics bodies overlapping a sphere, writing into a caller-provided span.
 	/// </summary>
 	internal int FindBodiesInPhysics( Vector3 center, float radius, Span<PhysicsBody> result )
-	{
-		var queryResult = ThreadQueryResult;
-		PhysicsWorld.native.Query( queryResult, center, radius, 0x07 );
-
-		int total = queryResult.Count();
-		int written = 0;
-		for ( int i = 0; i < total && written < result.Length; i++ )
-		{
-			var shape = queryResult.Element( i );
-			if ( !shape.IsValid() ) continue;
-			var body = shape.Body;
-			if ( body.IsValid() ) result[written++] = body;
-		}
-		return written;
-	}
-
-	private HashSet<GameObject> FilterQueryResults( CQueryResult results )
-	{
-		var gameObjects = new HashSet<GameObject>();
-		int count = results.Count();
-		for ( int i = 0; i < count; ++i )
-		{
-			var shape = results.Element( i );
-			if ( !shape.IsValid() )
-				continue;
-
-			var body = shape.Body;
-			if ( !body.IsValid() )
-				continue;
-
-			var gameObject = body.GameObject;
-			if ( !gameObject.IsValid() )
-				continue;
-
-			gameObjects.Add( gameObject );
-		}
-
-		return gameObjects;
-	}
+		=> PhysicsWorld?._world?.FindBodiesInPhysics( center, radius, result ) ?? 0;
 }
 
 [Expose, ActionGraphIgnore]

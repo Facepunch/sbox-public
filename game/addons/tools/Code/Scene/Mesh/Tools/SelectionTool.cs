@@ -744,19 +744,11 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 				{
 					Gizmo.Draw.IgnoreDepth = true;
 					Gizmo.Draw.Color = vertexColor.Darken( 0.3f ).WithAlpha( 0.2f );
-
-					foreach ( var v in mesh.Mesh.GetVisibleVertexPositions() )
-					{
-						Gizmo.Draw.Sprite( v, 8, null, false );
-					}
+					Gizmo.Draw.Sprites( mesh.Mesh.GetVisibleVertexPositions(), 8, worldspace: false );
 
 					Gizmo.Draw.Color = vertexColor;
 					Gizmo.Draw.IgnoreDepth = false;
-
-					foreach ( var v in mesh.Mesh.GetVisibleVertexPositions() )
-					{
-						Gizmo.Draw.Sprite( v, 8, null, false );
-					}
+					Gizmo.Draw.Sprites( mesh.Mesh.GetVisibleVertexPositions(), 8, worldspace: false );
 				}
 			}
 		}

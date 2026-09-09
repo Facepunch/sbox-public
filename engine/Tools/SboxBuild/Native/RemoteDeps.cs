@@ -39,7 +39,7 @@ public static class RemoteDeps
 	}
 
 	/// <summary>The platforms that build everything. The others are console or arm only.</summary>
-	private static readonly string[] DESKTOP = ["win64", "linuxsteamrt64"];
+	private static readonly string[] DESKTOP = ["win64", "linuxsteamrt64", "osxarm64"];
 	private static readonly string[] WIN = ["win64"];
 
 	public static readonly Dep[] All =
@@ -48,7 +48,7 @@ public static class RemoteDeps
 		new( "sdl3", "release-3.4.14", "thirdparty/sdl3" )
 			{ Rebuild = 1, RuntimeDir = ["../game/bin", "devtools/bin"] },
 		new( "dav1d", "1.5.3", "thirdparty/dav1d" ) { Rebuild = 1 },
-		new( "libcurl", "8.12.1", "thirdparty/libcurl" ) { Rebuild = 3 },
+		new( "libcurl", "8.12.1", "thirdparty/libcurl" ) { Rebuild = 4 },
 		new( "libopus", "v1.5.2", "thirdparty/libopus" ) { Rebuild = 1 },
 		new( "libvpx", "v1.16.0", "thirdparty/libvpx" ) { Rebuild = 1 },
 		new( "libwebp", "v1.5.0", "thirdparty/libwebp" ) { Rebuild = 1 },

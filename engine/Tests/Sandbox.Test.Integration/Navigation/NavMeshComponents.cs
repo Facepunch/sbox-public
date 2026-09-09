@@ -150,21 +150,21 @@ public class NavMeshComponentTest
 		var go = scene.CreateObject();
 		var agent = go.Components.Create<NavMeshAgent>();
 
-		Assert.IsNull( scene.NavMesh.crowd, "crowd should not exist before the navmesh is enabled" );
+		Assert.IsNull( scene.NavMesh.Simulation, "crowd should not exist before the navmesh is enabled" );
 		Assert.IsNull( agent.agentInternal );
 
 		// Enabling the navmesh initializes the crowd and registers existing agents via OnInit
 		scene.NavMesh.IsEnabled = true;
 
-		Assert.IsNotNull( scene.NavMesh.crowd );
+		Assert.IsNotNull( scene.NavMesh.Simulation );
 		Assert.IsNotNull( agent.agentInternal, "existing agent should register when the navmesh initializes" );
-		Assert.AreEqual( 1, scene.NavMesh.crowd.GetActiveAgents().Count );
+		Assert.AreEqual( 1, scene.NavMesh.Simulation.Count );
 
 		// Agents created after init register immediately
 		var go2 = scene.CreateObject();
 		var agent2 = go2.Components.Create<NavMeshAgent>();
 		Assert.IsNotNull( agent2.agentInternal );
-		Assert.AreEqual( 2, scene.NavMesh.crowd.GetActiveAgents().Count );
+		Assert.AreEqual( 2, scene.NavMesh.Simulation.Count );
 
 		// Property setters push the new parameters into the live crowd agent
 		agent.MaxSpeed = 240f;
@@ -174,28 +174,27 @@ public class NavMeshComponentTest
 		agent.Separation = 0.5f;
 		agent.AutoTraverseLinks = false;
 
-		var option = agent.agentInternal.option;
-		Assert.AreEqual( 240f, option.maxSpeed );
-		Assert.AreEqual( 32f, option.radius );
-		Assert.AreEqual( 32f * 16f, option.collisionQueryRange );
-		Assert.AreEqual( 80f, option.height );
-		Assert.AreEqual( 480f, option.maxAcceleration );
-		Assert.AreEqual( 0.5f * 12f, option.separationWeight, 0.001f );
-		Assert.IsFalse( option.autoTraverseOffMeshLink );
+		var option = agent.agentInternal.Options;
+		Assert.AreEqual( 240f, option.MaxSpeed );
+		Assert.AreEqual( 32f, option.Radius );
+		Assert.AreEqual( 80f, option.Height );
+		Assert.AreEqual( 480f, option.Acceleration );
+		Assert.AreEqual( 0.5f, option.Separation, 0.001f );
+		Assert.IsFalse( option.AutoTraverseLinks );
 
 		// Disabling removes the agent from the crowd, re-enabling adds it back
 		agent.Enabled = false;
 		Assert.IsNull( agent.agentInternal );
-		Assert.AreEqual( 1, scene.NavMesh.crowd.GetActiveAgents().Count );
+		Assert.AreEqual( 1, scene.NavMesh.Simulation.Count );
 
 		agent.Enabled = true;
 		Assert.IsNotNull( agent.agentInternal );
-		Assert.AreEqual( 2, scene.NavMesh.crowd.GetActiveAgents().Count );
+		Assert.AreEqual( 2, scene.NavMesh.Simulation.Count );
 
 		// Destroying the GameObject also unregisters its agent
 		go2.Destroy();
 		scene.ProcessDeletes();
-		Assert.AreEqual( 1, scene.NavMesh.crowd.GetActiveAgents().Count );
+		Assert.AreEqual( 1, scene.NavMesh.Simulation.Count );
 	}
 
 	/// <summary>

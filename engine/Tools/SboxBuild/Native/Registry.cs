@@ -87,7 +87,7 @@ public static class Registry
 		var path = name.Replace( '\\', '/' ).TrimStart( '/' );
 		if ( !path.Contains( '/' ) ) path = $"{Paths.LibPublic}/{path}";
 
-		string[] known = [".lib", ".a", ".so"];
+		string[] known = [".lib", ".a", ".so", ".dylib"];
 		if ( !known.Any( e => path.EndsWith( e, StringComparison.OrdinalIgnoreCase ) ) ) path += ".lib";
 
 		return path;

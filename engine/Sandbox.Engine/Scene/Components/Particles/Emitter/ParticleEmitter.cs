@@ -140,12 +140,6 @@ public abstract class ParticleEmitter : Component, Component.ExecuteInEditor, Co
 		{
 			if ( !Loop )
 			{
-				if ( Scene.IsEditor && !GameObject.HasFlagOrParent( GameObjectFlags.NotSaved ) )
-				{
-					// TODO - if this is selected
-					ResetEmitter();
-				}
-
 				if ( DestroyOnEnd && !Scene.IsEditor && target.Particles.Count == 0 )
 				{
 					GameObject.Destroy();

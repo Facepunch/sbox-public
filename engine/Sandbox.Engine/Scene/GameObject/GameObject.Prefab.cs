@@ -22,7 +22,7 @@ public partial class GameObject
 
 		if ( !IsPrefabInstanceRoot )
 		{
-			Clear();
+			OutermostPrefabInstanceRoot.PrefabInstance.UpdateGameObjectFromPrefab( this );
 			return;
 		}
 

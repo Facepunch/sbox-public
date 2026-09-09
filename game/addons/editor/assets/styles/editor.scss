@@ -224,11 +224,16 @@
 	background-color: $accent;
 	color: #fff;
 	font-weight: 600;
-	pointer-events: all;
-	cursor: pointer;
 	transition: background-color 0.12s ease-out;
+
+	&:not(.disabled)
+	{
+		cursor: pointer;
+		pointer-events: all;
+	}
 }
 
+.primarybutton.disabled { background-color: $raised; color: $text-muted; pointer-events: none; }
 .primarybutton:hover { background-color: $accent-hover; }
 .primarybutton:active { background-color: $accent-active; transform: scale( 0.97 ); }
 .primarybutton .icon { font-size: 15px; margin-right: 6px; }
@@ -247,11 +252,16 @@
 	font-weight: 600;
 	letter-spacing: 1px;
 	text-transform: uppercase;
-	pointer-events: all;
-	cursor: pointer;
 	transition: background-color 0.12s ease-out;
+
+	&:not(.disabled)
+	{
+		cursor: pointer;
+		pointer-events: all;
+	}
 }
 
+.flatbutton.disabled { background-color: $raised; color: $text-muted; pointer-events: none; }
 .flatbutton:hover { background-color: $raised; }
 .flatbutton:active { background-color: $ground; transform: scale( 0.97 ); }
 .flatbutton .icon { font-size: 15px; margin-right: 6px; }

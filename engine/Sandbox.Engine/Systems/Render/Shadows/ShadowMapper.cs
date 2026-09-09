@@ -37,6 +37,9 @@ internal partial class ShadowMapper
 	[ConVar( "r.shadows.local.enabled", Help = "Enable local light (spot/point) shadows." )]
 	public static bool LocalShadowsEnabled { get; set; } = true;
 
+	[ConVar( "r.shadows.updates", Min = 1, Max = 256, Help = "How many local light shadow maps may be re-rendered per frame. The most stale lights (weighted by screen size) go first; new, moved and resized lights always update." )]
+	public static int MaxUpdatesPerFrame { get; set; } = 8;
+
 	[ConVar( "r.shadows.depthbias", Min = -256, Max = 0, Help = "Rasterizer constant depth bias applied during shadow map rendering. More negative = stronger bias." )]
 	public static int ShadowDepthBias { get; set; } = -1;
 
@@ -131,7 +134,24 @@ internal partial class ShadowMapper
 		public bool IsCube;
 		public string DebugName;
 		public int CachedTransformVersion;
+
+		// Shadow maps don't depend on the camera: rendered at most once per engine frame, shared by every view that
+		// frame (cube faces, mirrors, VR eyes), and time sliced across frames. 0 = never rendered, must render.
+		public ulong RenderedFrame;
+		public ulong UsedFrame;
+		public bool Scheduled;
+		internal GPUProjectedShadow Projected;
+		internal GPUProjectedCubeShadow Cube;
 	}
+
+	static ulong FrameStamp;
+	static readonly List<LightEntry> Schedule = new();
+
+	/// <summary>
+	/// Higher refreshes sooner. Screen size enters exponentially, so a light near enough to fill part of the
+	/// view outranks a distant one by orders of magnitude instead of by their size ratio.
+	/// </summary>
+	static float Priority( LightEntry e ) => (FrameStamp - e.RenderedFrame) * MathF.Exp( 6f * e.ScreenSize );
 
 	public static ConditionalWeakTable<SceneLight, LightEntry> Cache = new();
 
@@ -157,6 +177,10 @@ internal partial class ShadowMapper
 		entry.DesiredResolution = desiredResolution;
 		entry.ScreenSize = flScreenSize;
 
+		// A smaller view later in the same frame (probe bake, mirror) keeps the bigger map already rendered this frame
+		if ( entry.RenderedFrame == Application.FrameCount && desiredResolution < entry.CurrentResolution )
+			desiredResolution = entry.CurrentResolution;
+
 		// Do we want a different resolution for this shadow map now?
 		if ( entry.CurrentResolution != desiredResolution )
 		{
@@ -165,14 +189,16 @@ internal partial class ShadowMapper
 			entry.ShadowMap = AcquireTexture( desiredResolution, isCube );
 			entry.StaticCache = null;
 			entry.CurrentResolution = desiredResolution;
+			entry.RenderedFrame = 0;
 		}
 
-		// The static cache is only valid for the transform it was rendered at
+		// The static cache is only valid for the transform it was rendered at, and a moved light must re-render
 		if ( entry.CachedTransformVersion != light.TransformVersion )
 		{
 			entry.CachedTransformVersion = light.TransformVersion;
 			ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
 			entry.StaticCache = null;
+			entry.RenderedFrame = 0;
 		}
 
 		return entry;
@@ -251,6 +277,11 @@ internal partial class ShadowMapper
 	/// </summary>
 	public static void Update()
 	{
+		// Once per engine frame, not per view
+		if ( FrameStamp == Application.FrameCount )
+			return;
+
+		FrameStamp = Application.FrameCount;
 		float now = RealTime.Now;
 
 		// Evict stale cache entries
@@ -289,6 +320,20 @@ internal partial class ShadowMapper
 				TotalTexturesDisposed++;
 			}
 		}
+
+		// Time slicing: the update budget goes to the lights that have waited longest, weighted by screen size,
+		// so big lights refresh often and small ones still get a turn. New and moved lights bypass the budget.
+		Schedule.Clear();
+		foreach ( var kvp in Cache )
+		{
+			kvp.Value.Scheduled = false;
+			if ( kvp.Value.UsedFrame == FrameStamp - 1 )
+				Schedule.Add( kvp.Value );
+		}
+
+		Schedule.Sort( static ( a, b ) => Priority( b ).CompareTo( Priority( a ) ) );
+		for ( int i = 0; i < Schedule.Count && i < MaxUpdatesPerFrame; i++ )
+			Schedule[i].Scheduled = true;
 	}
 
 	/// <summary>

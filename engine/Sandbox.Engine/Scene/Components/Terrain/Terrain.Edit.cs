@@ -112,6 +112,20 @@ public partial class Terrain
 	}
 
 	/// <summary>
+	/// Applies CPU-side storage changes to rendering and collision, then notifies terrain-dependent systems.
+	/// </summary>
+	public void ApplyStorageChanges( SyncFlags flags, RectInt region )
+	{
+		Assert.NotNull( Storage );
+
+		region = ClampToResolution( region );
+
+		SyncGPUTexture();
+		UpdateCollision( flags, region );
+		OnTerrainModified?.Invoke( flags, region );
+	}
+
+	/// <summary>
 	/// Update the collider heights/materials from the current CPU data for a region.
 	/// </summary>
 	public void UpdateCollision( SyncFlags flags, RectInt region )

@@ -1,4 +1,4 @@
-﻿namespace Sandbox.Physics;
+namespace Sandbox.Physics;
 
 /// <summary>
 /// The control joint is designed to control the movement of a body while remaining responsive to collisions.  
@@ -8,19 +8,15 @@
 /// </summary>
 public partial class ControlJoint : PhysicsJoint
 {
-	internal ControlJoint( HandleCreationData _ ) { }
+	internal ControlJoint( PhysicsJointInternal joint ) : base( joint ) { }
 
 	/// <summary>
 	/// The desired relative linear velocity.
 	/// </summary>
 	public Vector3 LinearVelocity
 	{
-		get => native.IsNull ? default : native.Motor_GetLinearVelocity();
-		set
-		{
-			if ( native.IsNull ) return;
-			native.Motor_SetLinearVelocity( value );
-		}
+		get => _joint?.Motor_LinearVelocity ?? default;
+		set => _joint?.Motor_LinearVelocity = value;
 	}
 
 	/// <summary>
@@ -28,12 +24,8 @@ public partial class ControlJoint : PhysicsJoint
 	/// </summary>
 	public Vector3 AngularVelocity
 	{
-		get => native.IsNull ? default : native.Motor_GetAngularVelocity();
-		set
-		{
-			if ( native.IsNull ) return;
-			native.Motor_SetAngularVelocity( value );
-		}
+		get => _joint?.Motor_AngularVelocity ?? default;
+		set => _joint?.Motor_AngularVelocity = value;
 	}
 
 	/// <summary>
@@ -41,12 +33,8 @@ public partial class ControlJoint : PhysicsJoint
 	/// </summary>
 	public float MaxVelocityForce
 	{
-		get => native.IsNull ? 0.0f : native.Motor_GetMaxVelocityForce();
-		set
-		{
-			if ( native.IsNull ) return;
-			native.Motor_SetMaxVelocityForce( value );
-		}
+		get => _joint?.Motor_MaxVelocityForce ?? 0;
+		set => _joint?.Motor_MaxVelocityForce = value;
 	}
 
 	/// <summary>
@@ -54,12 +42,8 @@ public partial class ControlJoint : PhysicsJoint
 	/// </summary>
 	public float MaxVelocityTorque
 	{
-		get => native.IsNull ? 0.0f : native.Motor_GetMaxVelocityTorque();
-		set
-		{
-			if ( native.IsNull ) return;
-			native.Motor_SetMaxVelocityTorque( value );
-		}
+		get => _joint?.Motor_MaxVelocityTorque ?? 0;
+		set => _joint?.Motor_MaxVelocityTorque = value;
 	}
 
 	/// <summary>
@@ -69,20 +53,20 @@ public partial class ControlJoint : PhysicsJoint
 	{
 		get
 		{
-			if ( native.IsNull ) return default;
+			if ( _joint is null ) return default;
 			return new PhysicsSpring
 			{
-				Frequency = native.Motor_GetLinearHertz(),
-				Damping = native.Motor_GetLinearDampingRatio(),
-				Maximum = native.Motor_GetMaxSpringForce()
+				Frequency = _joint.Motor_LinearHertz,
+				Damping = _joint.Motor_LinearDampingRatio,
+				Maximum = _joint.Motor_MaxSpringForce
 			};
 		}
 		set
 		{
-			if ( native.IsNull ) return;
-			native.Motor_SetLinearHertz( value.Frequency );
-			native.Motor_SetLinearDampingRatio( value.Damping );
-			native.Motor_SetMaxSpringForce( value.Maximum );
+			if ( _joint is null ) return;
+			_joint.Motor_LinearHertz = value.Frequency;
+			_joint.Motor_LinearDampingRatio = value.Damping;
+			_joint.Motor_MaxSpringForce = value.Maximum;
 		}
 	}
 
@@ -93,20 +77,20 @@ public partial class ControlJoint : PhysicsJoint
 	{
 		get
 		{
-			if ( native.IsNull ) return default;
+			if ( _joint is null ) return default;
 			return new PhysicsSpring
 			{
-				Frequency = native.Motor_GetAngularHertz(),
-				Damping = native.Motor_GetAngularDampingRatio(),
-				Maximum = native.Motor_GetMaxSpringTorque()
+				Frequency = _joint.Motor_AngularHertz,
+				Damping = _joint.Motor_AngularDampingRatio,
+				Maximum = _joint.Motor_MaxSpringTorque
 			};
 		}
 		set
 		{
-			if ( native.IsNull ) return;
-			native.Motor_SetAngularHertz( value.Frequency );
-			native.Motor_SetAngularDampingRatio( value.Damping );
-			native.Motor_SetMaxSpringTorque( value.Maximum );
+			if ( _joint is null ) return;
+			_joint.Motor_AngularHertz = value.Frequency;
+			_joint.Motor_AngularDampingRatio = value.Damping;
+			_joint.Motor_MaxSpringTorque = value.Maximum;
 		}
 	}
 }

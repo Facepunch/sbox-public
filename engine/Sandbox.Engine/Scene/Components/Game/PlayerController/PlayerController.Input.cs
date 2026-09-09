@@ -96,7 +96,7 @@ public sealed partial class PlayerController : Component
 		if ( JumpSpeed <= 0 ) return;
 
 		timeSinceJump = 0;
-		Jump( Vector3.Up * JumpSpeed );
+		Jump( UpDirection * JumpSpeed );
 		OnJumped();
 
 		IEvents.PostToGameObject( GameObject, x => x.OnJumped() );
@@ -144,9 +144,9 @@ public sealed partial class PlayerController : Component
 		// if we're in the air, keep our head in the same position
 		if ( wantsDuck && IsAirborne )
 		{
-			WorldPosition += Vector3.Up * unduckDelta;
+			WorldPosition += UpDirection * unduckDelta;
 			Transform.ClearInterpolation();
-			bodyDuckOffset = Vector3.Up * -unduckDelta;
+			bodyDuckOffset = UpDirection * -unduckDelta;
 		}
 	}
 }

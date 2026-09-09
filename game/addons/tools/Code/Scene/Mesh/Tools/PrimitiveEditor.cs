@@ -22,6 +22,8 @@ public abstract class PrimitiveEditor
 	public abstract void OnCancel();
 	public abstract PolygonMesh Build();
 
+	public virtual Rotation BuildRotation => Rotation.Identity;
+
 	public virtual void OnCreated( MeshComponent component )
 	{
 	}

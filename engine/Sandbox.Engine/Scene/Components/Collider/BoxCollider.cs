@@ -101,7 +101,22 @@ public sealed class BoxCollider : Collider
 
 		Gizmo.Draw.LineThickness = 1;
 		Gizmo.Draw.Color = Gizmo.Colors.Green.WithAlpha( Gizmo.IsSelected ? 1.0f : 0.2f );
-		Gizmo.Draw.LineBBox( box );
+
+		if ( Scene.Is2D )
+		{
+			var a = new Vector3( box.Mins.x, box.Mins.y, 0 );
+			var b = new Vector3( box.Maxs.x, box.Mins.y, 0 );
+			var c = new Vector3( box.Maxs.x, box.Maxs.y, 0 );
+			var d = new Vector3( box.Mins.x, box.Maxs.y, 0 );
+			Gizmo.Draw.Line( a, b );
+			Gizmo.Draw.Line( b, c );
+			Gizmo.Draw.Line( c, d );
+			Gizmo.Draw.Line( d, a );
+		}
+		else
+		{
+			Gizmo.Draw.LineBBox( box );
+		}
 	}
 
 	protected override IEnumerable<PhysicsShape> CreatePhysicsShapes( PhysicsBody targetBody, Transform local )

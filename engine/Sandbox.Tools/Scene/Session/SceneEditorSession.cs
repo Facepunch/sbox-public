@@ -62,6 +62,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 
 		InitUndo();
 		timeSinceSavedState = 0;
+		_reloadHash = scene.ReloadHash;
 
 		if ( this is not GameEditorSession )
 		{
@@ -153,6 +154,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	}
 
 	RealTimeSince timeSinceSavedState;
+	int _reloadHash;
 
 	public void Tick()
 	{
@@ -160,6 +162,14 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		// If this is an editor scene, tick it to flush deleted objects etc
 		//
 		Scene.ProcessDeletes();
+
+		// Reload the scene if settings that affect world setup have changed
+		var hash = Scene.ReloadHash;
+		if ( hash != _reloadHash )
+		{
+			_reloadHash = hash;
+			Scene.Reload();
+		}
 
 		// Save camera state to disk
 		if ( timeSinceSavedState > 1.0f )

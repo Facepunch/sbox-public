@@ -51,7 +51,10 @@ public sealed class Map
 		if ( !PhysicsWorld.IsValid() )
 			return;
 
-		var physicsGroup = PhysicsWorld.native.CreateAggregateInstance( $"{mapFolder}/world_physics.vphys", new Transform( origin ), 0, PhysicsMotionType.Static );
+		if ( PhysicsWorld?._world is not PhysicsWorld3d world3d )
+			return;
+
+		var physicsGroup = world3d.native.CreateAggregateInstance( $"{mapFolder}/world_physics.vphys", new Transform( origin ), 0, PhysicsMotionType.Static );
 		if ( !physicsGroup.IsValid() )
 		{
 			Log.Warning( $"Couldn't find map physics: '{mapFolder}/world_physics.vphys'" );
@@ -69,9 +72,9 @@ public sealed class Map
 			SceneMap = null;
 		}
 
-		if ( PhysicsGroup.IsValid() )
+		if ( PhysicsGroup.IsValid() && PhysicsWorld?._world is PhysicsWorld3d world3d )
 		{
-			PhysicsWorld.native.DestroyAggregateInstance( PhysicsGroup );
+			world3d.native.DestroyAggregateInstance( PhysicsGroup );
 			PhysicsGroup = null;
 		}
 

@@ -484,9 +484,9 @@ public static partial class Networking
 		//
 		// Did the menu want to override the lobby's privacy mode?
 		//
-		if ( LaunchArguments.Privacy != config.Privacy )
+		if ( LaunchArguments.PrivacyOverride is { } privacy )
 		{
-			config.Privacy = LaunchArguments.Privacy;
+			config.Privacy = privacy;
 		}
 
 		_ = CreateLobbyAsync( config, lobbyCts.Token );

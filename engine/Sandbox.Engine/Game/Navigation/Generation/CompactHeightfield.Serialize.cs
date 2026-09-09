@@ -1,4 +1,4 @@
-﻿using static Sandbox.IByteParsable;
+using static Sandbox.IByteParsable;
 
 namespace Sandbox.Navigation.Generation;
 
@@ -20,6 +20,7 @@ internal partial class CompactHeightfield : IByteParsable<CompactHeightfield>
 		var cellHeight = stream.Read<float>();
 
 		compactHeightfield.Init( width, height, spanCount, walkableHeight, walkableClimb, bMin, bMax, cellSize, cellHeight );
+		compactHeightfield.BMax = bMax;
 
 		var cells = compactHeightfield.Cells;
 		ReadCells( ref stream, cells );

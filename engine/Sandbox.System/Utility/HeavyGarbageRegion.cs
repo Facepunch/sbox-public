@@ -22,6 +22,10 @@ internal ref struct HeavyGarbageRegion
 		{
 			// Already in a NoGCRegion - this is fine
 		}
+		catch ( ArgumentOutOfRangeException )
+		{
+			// totalSize > ephemeral segment (workstation GC / osxarm64). Skip no-GC.
+		}
 	}
 
 	/// <summary>

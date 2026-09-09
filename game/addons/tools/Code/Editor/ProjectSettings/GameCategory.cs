@@ -6,23 +6,27 @@ internal sealed class GameCategory : ProjectSettingsWindow.Category
 	/// <summary>
 	/// This scene is loaded when the game starts.
 	/// </summary>
-	public SceneFile StartupScene { get; set; }
+	[ResourceType( "scene" )]
+	public string StartupScene { get; set; }
 
 	/// <summary>
 	/// This scene is loaded when a game is started with a targeted map. Leave blank if you don't support map loading.
 	/// </summary>
-	public SceneFile MapStartupScene { get; set; }
+	[ResourceType( "scene" )]
+	public string MapStartupScene { get; set; }
 
 	/// <summary>
 	/// This scene is loaded when the Dedicated Server starts.
 	/// </summary>
-	public SceneFile ServerStartupScene { get; set; }
+	[ResourceType( "scene" )]
+	public string ServerStartupScene { get; set; }
 
 	/// <summary>
 	/// This scene is additive loaded to every scene you load. You can use this to add UI or other common things
 	/// that need to be present in every loaded scene.
 	/// </summary>
-	public SceneFile SystemScene { get; set; }
+	[ResourceType( "scene" )]
+	public string SystemScene { get; set; }
 
 
 	/// <summary>
@@ -34,11 +38,11 @@ internal sealed class GameCategory : ProjectSettingsWindow.Category
 
 	public override void OnInit( Project project )
 	{
-		StartupScene = ResourceLibrary.Get<SceneFile>( Project.Config.GetMetaOrDefault( "StartupScene", "start.scene" ) );
-		MapStartupScene = ResourceLibrary.Get<SceneFile>( Project.Config.GetMetaOrDefault( "MapStartupScene", "" ) );
+		StartupScene = Project.Config.GetMetaOrDefault( "StartupScene", "start.scene" );
+		MapStartupScene = Project.Config.GetMetaOrDefault( "MapStartupScene", "" );
 		LaunchMode = Project.Config.GetMetaOrDefault( "LaunchMode", LaunchModes.Normal );
-		ServerStartupScene = ResourceLibrary.Get<SceneFile>( Project.Config.GetMetaOrDefault( "DedicatedServerStartupScene", "" ) );
-		SystemScene = ResourceLibrary.Get<SceneFile>( Project.Config.GetMetaOrDefault( "SystemScene", "" ) );
+		ServerStartupScene = Project.Config.GetMetaOrDefault( "DedicatedServerStartupScene", "" );
+		SystemScene = Project.Config.GetMetaOrDefault( "SystemScene", "" );
 		UsesStreamerFeatures = Project.Config.GetMetaOrDefault( "UsesStreamerFeatures", false );
 
 		{
@@ -61,11 +65,11 @@ internal sealed class GameCategory : ProjectSettingsWindow.Category
 
 	public override void OnSave()
 	{
-		Project.Config.SetMeta( "StartupScene", StartupScene?.ResourcePath ?? null );
-		Project.Config.SetMeta( "MapStartupScene", MapStartupScene?.ResourcePath ?? null );
+		Project.Config.SetMeta( "StartupScene", string.IsNullOrEmpty( StartupScene ) ? null : StartupScene );
+		Project.Config.SetMeta( "MapStartupScene", string.IsNullOrEmpty( MapStartupScene ) ? null : MapStartupScene );
 		Project.Config.SetMeta( "LaunchMode", LaunchMode );
-		Project.Config.SetMeta( "DedicatedServerStartupScene", ServerStartupScene?.ResourcePath ?? null );
-		Project.Config.SetMeta( "SystemScene", SystemScene?.ResourcePath ?? null );
+		Project.Config.SetMeta( "DedicatedServerStartupScene", string.IsNullOrEmpty( ServerStartupScene ) ? null : ServerStartupScene );
+		Project.Config.SetMeta( "SystemScene", string.IsNullOrEmpty( SystemScene ) ? null : SystemScene );
 		Project.Config.SetMeta( "UsesStreamerFeatures", UsesStreamerFeatures ? UsesStreamerFeatures : null );
 
 		base.OnSave();

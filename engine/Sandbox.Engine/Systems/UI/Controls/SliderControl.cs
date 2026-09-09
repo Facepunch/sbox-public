@@ -19,7 +19,6 @@ public class SliderControl : BaseControl
 		    min-width: 50px;
 		    position: relative;
 		    flex-shrink: 0;
-		    flex-direction: row;
 		    cursor: pointer;
 		    gap: 8px;
 		    flex-grow: 1;
@@ -31,15 +30,16 @@ public class SliderControl : BaseControl
 		        flex-direction: column;
 		        flex-shrink: 1;
 		        flex-grow: 1;
-		        min-height: 32px;
+		        min-height: 24px;
 		        justify-content: center;
 
 		        > .values
 		        {
 		            width: 100%;
 		            pointer-events: none;
-		            font-size: 14px;
-		            color: #aaa;
+		            font-size: 12px;
+		            opacity: 0.6;
+		            margin-bottom: 2px;
 
 		            > .left
 		            {
@@ -50,19 +50,29 @@ public class SliderControl : BaseControl
 		        > .track
 		        {
 		            position: relative;
-		            background-color: #888;
-		            height: 7px;
-		            margin: 8px;
+		            background-color: #3a3e47;
+		            height: 6px;
+		            margin: 9px 8px;
 		            align-items: center;
-		            border-radius: 4px;
+		            border-radius: 3px;
 
 		            > .track-active
 		            {
-		                background-color: #fff;
+		                background-color: #3273EB;
 		                position: absolute;
 		                height: 100%;
 		                left: 0px;
-		                border-radius: 4px;
+		                border-radius: 3px;
+		            }
+
+		            > .tick
+		            {
+		                position: absolute;
+		                top: 0px;
+		                bottom: 0px;
+		                width: 2px;
+		                background-color: #ffffff38;
+		                transform: translateX( -50% );
 		            }
 
 		            > .thumb
@@ -70,11 +80,24 @@ public class SliderControl : BaseControl
 		                position: relative;
 		                background-color: #fff;
 		                border-radius: 100px;
-		                width: 16px;
-		                height: 16px;
+		                width: 14px;
+		                height: 14px;
 		                transform: translateX( -50% );
+		                box-shadow: 0 1px 4px #000a;
+		                transition: box-shadow 0.1s ease-out;
+		                z-index: 1;
 		            }
 		        }
+		    }
+
+		    &:hover > .inner > .track > .thumb
+		    {
+		        box-shadow: 0 1px 4px #000a, 0 0 0 4px #3273EB40;
+		    }
+
+		    &:active > .inner > .track > .thumb
+		    {
+		        box-shadow: 0 1px 4px #000a, 0 0 0 6px #3273EB60;
 		    }
 
 		    > .entry
@@ -106,15 +129,16 @@ public class SliderControl : BaseControl
 
 		    > .label
 		    {
-		        background-color: black;
-		        padding: 8px 12px;
-		        border-radius: 8px;
+		        background-color: #0c0d0f;
+		        padding: 4px 8px;
+		        border-radius: 4px;
+		        font-size: 12px;
 		    }
 
 		    >.tail
 		    {
 		        bottom: -0px;
-		        background-color: black;
+		        background-color: #0c0d0f;
 		        width: 10px;
 		        height: 10px;
 		        transform: rotateZ(45 deg) translateX( 4px );
@@ -137,7 +161,7 @@ public class SliderControl : BaseControl
 	public float Max
 	{
 		get => _max;
-		set { _max = value; UpdateVisuals(); }
+		set { _max = value; UpdateVisuals(); RebuildTicks(); }
 	}
 
 	/// <summary>
@@ -147,7 +171,32 @@ public class SliderControl : BaseControl
 	public float Min
 	{
 		get => _min;
-		set { _min = value; UpdateVisuals(); }
+		set { _min = value; UpdateVisuals(); RebuildTicks(); }
+	}
+
+	float _tickStep;
+	readonly List<Panel> _ticks = new();
+
+	SliderFill _fill = SliderFill.Left;
+
+	/// <summary>
+	/// Which part of the track is drawn filled - from the left up to the thumb by default.
+	/// </summary>
+	[Parameter]
+	public SliderFill Fill
+	{
+		get => _fill;
+		set { _fill = value; UpdateVisuals(); }
+	}
+
+	/// <summary>
+	/// Draw a mark on the track every this many units, counting up from <see cref="Min"/>. 0 for none.
+	/// </summary>
+	[Parameter]
+	public float TickStep
+	{
+		get => _tickStep;
+		set { _tickStep = value; RebuildTicks(); }
 	}
 
 	/// <summary>
@@ -300,6 +349,28 @@ public class SliderControl : BaseControl
 		UpdateTooltip();
 	}
 
+	void RebuildTicks()
+	{
+		// can be called from a property setter during construction
+		if ( TrackPanel is null ) return;
+
+		foreach ( var tick in _ticks ) tick.Delete( true );
+		_ticks.Clear();
+
+		if ( _tickStep <= 0 || Max <= Min ) return;
+
+		// A tiny step on a big range would flood the track
+		var count = (int)MathF.Floor( (Max - Min) / _tickStep );
+		if ( count > 200 ) return;
+
+		for ( int i = 0; i <= count; i++ )
+		{
+			var tick = TrackPanel.Add.Panel( "tick" );
+			tick.Style.Left = Length.Percent( MathX.LerpInverse( Min + i * _tickStep, Min, Max, true ) * 100.0f );
+			_ticks.Add( tick );
+		}
+	}
+
 	void UpdateVisuals()
 	{
 		// can be called from a property setter during construction
@@ -309,7 +380,20 @@ public class SliderControl : BaseControl
 		renderedValue = value;
 
 		var position = MathX.LerpInverse( value, Min, Max, true ) * 100.0f;
-		trackActivePanel.Style.Width = Length.Percent( position );
+
+		var (fillStart, fillWidth) = _fill switch
+		{
+			SliderFill.Right => (position, 100.0f - position),
+			SliderFill.Center => (MathF.Min( 50.0f, position ), MathF.Abs( position - 50.0f )),
+			SliderFill.None => (0.0f, 0.0f),
+			_ => (0.0f, position),
+		};
+
+		// A zero-width fill still draws its rounded ends, so it goes away entirely
+		trackActivePanel.Style.Display = fillWidth > 0.0f ? DisplayMode.Flex : DisplayMode.None;
+		trackActivePanel.Style.Left = Length.Percent( fillStart );
+		trackActivePanel.Style.Width = Length.Percent( fillWidth );
+
 		ThumbPanel.Style.Left = Length.Percent( position );
 
 		minLabel.Text = Min.ToString( NumberFormat );
@@ -396,4 +480,30 @@ public class SliderControl : BaseControl
 		base.OnMiddleClick( e );
 		e.StopPropagation();
 	}
+}
+
+/// <summary>
+/// Which part of a slider's track is drawn filled.
+/// </summary>
+public enum SliderFill
+{
+	/// <summary>
+	/// From the left edge up to the thumb.
+	/// </summary>
+	Left,
+
+	/// <summary>
+	/// From the thumb to the right edge.
+	/// </summary>
+	Right,
+
+	/// <summary>
+	/// From the middle of the track to the thumb, either way. For values that swing about zero.
+	/// </summary>
+	Center,
+
+	/// <summary>
+	/// No fill, just the thumb on the track.
+	/// </summary>
+	None
 }

@@ -130,7 +130,12 @@ public partial class Menu
 			AddClass( "menulist" );
 		}
 
-		protected override BasePopup ParentPopup => _owner.ParentMenu?._list;
+		/// <summary>
+		/// A submenu hangs off its parent's list. A root menu opened from inside another popup - the
+		/// layout menu in a colour picker, say - hangs off that popup, so choosing from it doesn't
+		/// close what it was opened from.
+		/// </summary>
+		protected override BasePopup ParentPopup => _owner.ParentMenu?._list ?? PopupSource?.AncestorsAndSelf.OfType<BasePopup>().FirstOrDefault();
 
 		/// <summary>
 		/// Styled as if it were inside the row that opened it, wherever it's actually showing. A

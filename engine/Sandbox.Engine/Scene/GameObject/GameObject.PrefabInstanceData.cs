@@ -46,6 +46,22 @@ internal class PrefabInstanceData
 		_isNested = isNested;
 	}
 
+	internal sealed record OwnershipSnapshot( string Source, bool IsNested, Dictionary<Guid, Guid> Mappings )
+	{
+		internal void Restore( GameObject root )
+		{
+			if ( root.PrefabInstance is not { } instance || instance.PrefabSource != Source )
+			{
+				root.InitPrefabInstance( Source, IsNested );
+				instance = root.PrefabInstance;
+			}
+			instance._isNested = IsNested;
+			instance.UpdateLookups( Mappings );
+		}
+	}
+
+	internal OwnershipSnapshot CaptureOwnership() => new( PrefabSource, IsNested, new( _prefabGuidToInstanceGuid ) );
+
 	/// <summary>
 	/// Deterministically derives a stable instance guid for a prefab object with no persisted mapping
 	/// entry (e.g. one added to a nested prefab after its consumers were saved). Stable across cache
@@ -201,11 +217,7 @@ internal class PrefabInstanceData
 		var prefabScene = (PrefabCacheScene)GetPrefab( PrefabSource );
 		Assert.IsValid( prefabScene );
 
-		var fullPrefabData = prefabScene.FullPrefabInstanceJson;
-
-		var patch = Json.CalculateDifferences( fullPrefabData, instanceData, DiffObjectDefinitions );
-
-		_patch = patch;
+		_patch = prefabScene.CalculateDifferences( instanceData );
 	}
 
 	/// <summary>
@@ -592,7 +604,11 @@ internal class PrefabInstanceData
 		var prefabScene = (PrefabCacheScene)prefabGameObject.Scene;
 		prefabScene.ToPrefabFile();
 
-		PrefabInstanceData.ConvertAllPrefabInstancesToNested( go );
+		// Applying to this instance's source must preserve the root's ownership.
+		if ( go == _instanceRoot )
+			ConvertChildPrefabInstancesToNested( go );
+		else
+			ConvertAllPrefabInstancesToNested( go );
 
 		RefreshPatch();
 	}

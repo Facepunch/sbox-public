@@ -63,8 +63,11 @@ class HeightFieldGenerator : IDisposable
 		if ( !world.IsValid() )
 			return;
 
+		if ( world?._world is not PhysicsWorld3d world3d )
+			return;
+
 		var results = CQueryResult.Create();
-		world.native.Query( results, tileBoundsWorld, 0x07 );
+		world3d.native.Query( results, tileBoundsWorld, 0x07 );
 
 		// clear arrays
 		inputGeoVerticesCount = 0;
@@ -83,7 +86,7 @@ class HeightFieldGenerator : IDisposable
 			if ( !navMesh.IsBodyRelevantForNavmesh( body ) )
 				continue;
 
-			AddGeometryFromPhysicsShape( shape );
+			AddGeometryFromPhysicsShape( shape.Owner );
 
 		}
 
@@ -95,7 +98,10 @@ class HeightFieldGenerator : IDisposable
 		triangulationVertArrCache.SetCount( 0 );
 		triangulationIndexArrCache.SetCount( 0 );
 
-		shape.native.GetTriangulationForNavmesh( triangulationVertArrCache, triangulationIndexArrCache, cfg.Bounds );
+		if ( shape?._shape is not PhysicsShape3d shape3d )
+			return;
+
+		shape3d.native.GetTriangulationForNavmesh( triangulationVertArrCache, triangulationIndexArrCache, cfg.Bounds );
 
 		if ( inputGeoVerticesCount + triangulationVertArrCache.Count() > inputGeoVertices.Length )
 		{

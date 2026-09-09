@@ -107,42 +107,85 @@ internal static class NetworkConsoleCommands
 			return;
 		}
 
+		var output = new StringBuilder();
+
+		void Section( string title )
+		{
+			if ( output.Length > 0 ) output.AppendLine();
+			output.AppendLine( $"{title}:" );
+		}
+
+		void Field( string label, object value )
+		{
+			output.AppendLine( $"\t{label + ":",-22}\t{value}" );
+		}
+
+		var gameLobby = Networking.System.Sockets.OfType<SteamLobbySocket>().FirstOrDefault();
+		var lobbyPrivacy = gameLobby is not null
+			? gameLobby.SteamLobby.GetData( "access_level" )
+			: null;
+		var privacyLabel = lobbyPrivacy switch
+		{
+			nameof( LobbyPrivacy.FriendsOnly ) => "friends only",
+			nameof( LobbyPrivacy.Private ) => "private",
+			nameof( LobbyPrivacy.Public ) => "public",
+			_ => "unknown privacy"
+		};
+		var playerCount = Networking.System.ConnectionInfo.All.Values.Count( x => x.State == Connection.ChannelState.Connected );
+		output.AppendLine( $"{Networking.ServerName} ({privacyLabel})" );
+		output.AppendLine( $"'{Application.GameIdent}' on '{Networking.MapName}'" );
+		output.AppendLine( $"{playerCount}/{Networking.MaxPlayers} players" );
+
 		var status = Networking.GetSteamRelayStatus( out var debugMsg );
-		Log.Info( $"Steam Relay Access [Availability: {status}] {new string( debugMsg )}" );
-		Log.Info( $"Network Id: {Connection.Local.Id}" );
-		Log.Info( $"IsClient: {Networking.System.IsClient}" );
-		Log.Info( $"IsHost: {Networking.System.IsHost}" );
+		Section( "Steam Relay" );
+		Field( "Availability", status );
+		Field( "Details", debugMsg );
+
+		Section( "Socket Information" );
+		Field( "Network Id", Connection.Local.Id );
+		Field( "Role", Networking.System.IsHost ? "Host" : "Client" );
 
 		int s = 0;
 		foreach ( var socket in Networking.System.Sockets )
 		{
-			Log.Info( $" Socket {++s}: {socket}" );
+			output.AppendLine( $"\tSocket {++s}" );
+			Field( "Transport", socket );
+
+			if ( socket is SteamLobbySocket lobbySocket )
+			{
+				var lobby = lobbySocket.SteamLobby;
+				var privacy = lobby.GetData( "access_level" );
+				Field( "Lobby Id", lobbySocket.LobbySteamId );
+				Field( "Owner Steam Id", lobbySocket.HostSteamId );
+				Field( "Members", $"{lobby.MemberCount}/{lobby.MaxMembers}" );
+				Field( "Advertised Privacy", string.IsNullOrEmpty( privacy ) ? "Unknown" : privacy );
+			}
 		}
 
 		if ( Networking.System.Connection is Connection connect )
 		{
-			Log.Info( $"Primary Connection:" );
-			Log.Info( $"	 Name: {connect.Name}" );
-			Log.Info( $"	 Id: {connect.Id}" );
-			Log.Info( $"	 State: {connect.State}" );
-			Log.Info( $"	 Address: {connect.Address}" );
-			Log.Info( $"	 Time: {connect.Time}" );
-			Log.Info( $"	 Latency: {connect.Latency}" );
-			Log.Info( $"	 Messages: {connect.MessagesSent} sent, {connect.MessagesRecieved} recv" );
+			output.AppendLine( "\tPrimary Connection" );
+			Field( "Name", connect.Name );
+			Field( "Id", connect.Id );
+			Field( "State", connect.State );
+			Field( "Address", connect.Address );
+			Field( "Time", connect.Time );
+			Field( "Latency", connect.Latency );
+			Field( "Messages", $"{connect.MessagesSent} sent / {connect.MessagesRecieved} received" );
 		}
 
-		int i = 0;
-		foreach ( var channel in Networking.System.Connections )
+		Section( "Player Info" );
+		var players = Networking.System.ConnectionInfo.All.Values.ToArray();
+		var nameWidth = Math.Max( 24, players.Select( x => x.Name?.Length ?? 0 ).DefaultIfEmpty( 0 ).Max() );
+		output.AppendLine( $"\t{"Name".PadRight( nameWidth )}  {"Steam Id",-17}  {"State",-24}  {"Connected For",-13}  Connection Id" );
+		foreach ( var info in players )
 		{
-			Log.Info( $" {++i}: {channel.State} {channel.Id} {channel.Name} {channel.Address} [{channel.MessagesSent}/{channel.MessagesRecieved}]" );
+			var connectedMinutes = (long)Math.Max( 0, (DateTimeOffset.UtcNow - info.ConnectionTime).TotalMinutes );
+			output.AppendLine( $"\t{(info.Name ?? "").PadRight( nameWidth )}  {info.SteamId,-17}  {info.State,-24}  {connectedMinutes + "m",-13}  {info.ConnectionId}" );
 		}
+		if ( players.Length == 0 ) output.AppendLine( "\tNone" );
 
-		Log.Info( $"PLAYERS ----------" );
-
-		foreach ( var info in Networking.System.ConnectionInfo.All.Values )
-		{
-			Log.Info( $"{info.ConnectionId}	{info.SteamId}	{info.State}		{info.Name}		{info.ConnectionTime}" );
-		}
+		Log.Info( output.ToString() );
 	}
 
 	[ConCmd( "disconnect", ConVarFlags.Protected )]

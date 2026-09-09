@@ -38,6 +38,13 @@ public class GalleryTarget
 	public bool Enabled { get; set; } = true;
 	public Color Colour { get; set; } = Color.Orange;
 
+	// The picker reads these to leave out alpha and HDR brightness
+	[ColorUsage( hasAlpha: false )]
+	public Color Opaque { get; set; } = Color.Orange;
+
+	[ColorUsage( isHDR: false )]
+	public Color Sdr { get; set; } = Color.Orange;
+
 	/// <summary>
 	/// A property of this object, for binding a control to.
 	/// </summary>

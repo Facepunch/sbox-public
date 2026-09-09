@@ -296,7 +296,7 @@ partial class SkinnedModelRenderer
 						var hingeAxis = worldFrame1.Rotation.Up;
 						var targetVelocity = hingeAxis.Dot( jointDesc.AngularTargetVelocity );
 
-						hingeJoint.native.SetAngularMotor( targetVelocity, jointDesc.MaxTorque );
+						hingeJoint.SetAngularMotor( targetVelocity, jointDesc.MaxTorque );
 					}
 
 					joint = hingeJoint;

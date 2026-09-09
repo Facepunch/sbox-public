@@ -70,24 +70,66 @@ internal class SyncPublicRepo( bool dryRun = false )
 	private static readonly string[] RepoFilterPathExcludeGlobs =
 	{
 		"**/*.pdb",
-		"game/core/shaders/**"
-	};
 
-	private static readonly string[] RepoFilterShaderWhitelistGlobs =
-	{
-		"game/core/shaders/**/vr_*",
-		"game/core/shaders/**/*.hlsl",
-		"game/core/shaders/**/*.shader_c",
-		"game/core/shaders/common.fxc",
-		"game/core/shaders/common_samplers.fxc",
-		"game/core/shaders/descriptor_set_support.fxc",
-		"game/core/shaders/system.fxc",
-		"game/core/shaders/tiled_culling.hlsl",
-		"game/core/shaders/skinning_cs.shader",
-		"game/core/shaders/yuv_resolve.shader",
-		"game/core/shaders/sbox_pixel.fxc",
-		"game/core/shaders/sbox_shared.fxc",
-		"game/core/shaders/sbox_vertex.fxc"
+		// Private legacy shader sources, matching depot.game.content.vdf and UploadBuildArtifacts.
+		"game/core/shaders/ambient_cube.fxc",
+		"game/core/shaders/baked_lighting_constants.fxc",
+		"game/core/shaders/bump_strength.fxc",
+		"game/core/shaders/encoded_normals.fxc",
+		"game/core/shaders/ffd.fxc",
+		"game/core/shaders/instancing.fxc",
+		"game/core/shaders/irradiance_probe_lighting.fxc",
+		"game/core/shaders/irradiance_volume.fxc",
+		"game/core/shaders/light_probe_volume.fxc",
+		"game/core/shaders/math_general.fxc",
+		"game/core/shaders/mathlib_base.fxc",
+		"game/core/shaders/morph.fxc",
+		"game/core/shaders/octohedral_encoding.fxc",
+		"game/core/shaders/parallax_occlusion.fxc",
+		"game/core/shaders/pcss.fxc",
+		"game/core/shaders/post_process_common.fxc",
+		"game/core/shaders/quad_overdraw_ps.fxc",
+		"game/core/shaders/sheet_sampling.fxc",
+		"game/core/shaders/sky.fxc",
+		"game/core/shaders/ssbump.fxc",
+		"game/core/shaders/transform_buffer.fxc",
+		"game/core/shaders/volumetric_fog.fxc",
+		"game/core/shaders/vs_decompress.fxc",
+
+		"game/core/shaders/complex.shader",
+		"game/core/shaders/copytexture.shader",
+		"game/core/shaders/cs_compress_dxt5.shader",
+		"game/core/shaders/cs_volumetric_fog.shader",
+		"game/core/shaders/debug_show_texture.shader",
+		"game/core/shaders/debug_wireframe_2d.shader",
+		"game/core/shaders/debugoverlay_wireframe.shader",
+		"game/core/shaders/depth_only.shader",
+		"game/core/shaders/downsample_depth.shader",
+		"game/core/shaders/error.shader",
+		"game/core/shaders/eyeball.shader",
+		"game/core/shaders/generic.shader",
+		"game/core/shaders/morph_composite.shader",
+		"game/core/shaders/simple.shader",
+		"game/core/shaders/skin.shader",
+		"game/core/shaders/sky.shader",
+		"game/core/shaders/static_overlay.shader",
+		"game/core/shaders/tonemap_query.shader",
+		"game/core/shaders/tools_2d_generic.shader",
+		"game/core/shaders/tools_generic.shader",
+		"game/core/shaders/tools_light_probe.shader",
+		"game/core/shaders/tools_selection_outline.shader",
+		"game/core/shaders/tools_selection_overlay.shader",
+		"game/core/shaders/tools_selection_stencil_copy.shader",
+		"game/core/shaders/tools_shading_complexity.shader",
+		"game/core/shaders/tools_solid.shader",
+		"game/core/shaders/tools_sprite.shader",
+		"game/core/shaders/tools_textured_unlit.shader",
+		"game/core/shaders/tools_visualize_collision_mesh.shader",
+		"game/core/shaders/tools_visualize_tangent_frame.shader",
+		"game/core/shaders/tools_wireframe.shader",
+		"game/core/shaders/ui.shader",
+		"game/core/shaders/unlit.shader",
+		"game/core/shaders/visualize_quad_overdraw.shader"
 	};
 
 	private static readonly Dictionary<string, string> RepoFilterPathRenames = new()
@@ -117,14 +159,11 @@ internal class SyncPublicRepo( bool dryRun = false )
 			return _matcher;
 		}
 
-		// Ordered since we first include everything, then exclude, then re-include specific files
-		_matcher = new Matcher( StringComparison.OrdinalIgnoreCase, preserveFilterOrder: true );
+		_matcher = new Matcher( StringComparison.OrdinalIgnoreCase );
 
 		_matcher.AddIncludePatterns( RepoFilterPathIncludeGlobs );
 
 		_matcher.AddExcludePatterns( RepoFilterPathExcludeGlobs );
-
-		_matcher.AddIncludePatterns( RepoFilterShaderWhitelistGlobs );
 
 		return _matcher;
 	}
@@ -169,6 +208,12 @@ internal class SyncPublicRepo( bool dryRun = false )
 
 			// Upload linux binaries
 			if ( !TryUploadBuildArtifacts( repositoryRoot, remoteBase, "linuxsteamrt64", dryRun, ref uploadedArtifacts, uploadedArtifactHashes, uploadedArtifactPaths ) )
+			{
+				return false;
+			}
+
+			// Upload macOS binaries
+			if ( !TryUploadBuildArtifacts( repositoryRoot, remoteBase, "osxarm64", dryRun, ref uploadedArtifacts, uploadedArtifactHashes, uploadedArtifactPaths ) )
 			{
 				return false;
 			}
@@ -409,7 +454,6 @@ internal class SyncPublicRepo( bool dryRun = false )
 		{
 			IncludeGlobs = RepoFilterPathIncludeGlobs,
 			ExcludeGlobs = RepoFilterPathExcludeGlobs,
-			WhitelistedShaders = RepoFilterShaderWhitelistGlobs,
 			PathRenames = RepoFilterPathRenames.ToDictionary( pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase )
 		};
 
@@ -856,9 +900,6 @@ internal class SyncPublicRepo( bool dryRun = false )
 
 		[JsonPropertyName( "exclude_globs" )]
 		public string[] ExcludeGlobs { get; init; }
-
-		[JsonPropertyName( "whitelisted_shaders" )]
-		public string[] WhitelistedShaders { get; init; }
 
 		[JsonPropertyName( "path_renames" )]
 		public Dictionary<string, string> PathRenames { get; init; }

@@ -48,6 +48,24 @@ internal partial class ShadowMapper
 	static readonly CascadeDebugInfo[] CascadeDebugInfos = new CascadeDebugInfo[4];
 	static int CascadeDebugCount;
 
+	/// <summary>
+	/// The cascade set rendered this frame. Cascades are fit to one camera, so a later view this frame only
+	/// reuses them if it's within the outer cascade of that camera and no bigger than it: cube faces, mirrors
+	/// and VR eyes reuse the main view, while a probe bake that ran first never hijacks the main view.
+	/// </summary>
+	struct CascadeCache
+	{
+		public ulong Frame;
+		public SceneLight Light;
+		public Vector3 CameraPosition;
+		public float RadiusSquared;
+		public float ViewportArea;
+		public GPUDirectionalLight Data;
+	}
+
+	// ponytail: single slot, add a per-light dictionary if two worlds with suns interleave views in one frame
+	static CascadeCache LastCascades;
+
 	// Near Far frustum corners in clip space
 	private static readonly Vector4[] Corners =
 	[
@@ -296,11 +314,26 @@ internal partial class ShadowMapper
 			return;
 		}
 
+		var mainViewport = view.GetMainViewport();
+		float viewportArea = mainViewport.Rect.Width * mainViewport.Rect.Height;
+		var cameraPosition = view.GetCameraPosition();
+
+		if ( LastCascades.Frame == Application.FrameCount && LastCascades.Light == light && viewportArea <= LastCascades.ViewportArea
+			&& cameraPosition.DistanceSquared( LastCascades.CameraPosition ) <= LastCascades.RadiusSquared )
+		{
+			gpuShadowData = LastCascades.Data;
+			if ( ContactShadowsEnabled && light.ContactShadows && light.GetShadowMask( view ) is { } reusedMask )
+				gpuShadowData.ShadowMaskTextureIndex = (uint)reusedMask.Index;
+
+			GPUDirectionalLightData = gpuShadowData;
+			return;
+		}
+
 		DirectionalShadowMemorySize = 0;
 
 		// native stuff does this WorldDirection shit, we can just do light.Rotation if stuff is rotated properly
 		Span<Cascade> cascades = stackalloc Cascade[numCascades];
-		int cascadeCount = GetCascades( cascades, view.GetFrustum(), (-light.WorldDirection).EulerAngles.ToRotation(), numCascades, 1.0f, farClip, splitRatio, shadowmapSize, view.GetCameraPosition() );
+		int cascadeCount = GetCascades( cascades, view.GetFrustum(), (-light.WorldDirection).EulerAngles.ToRotation(), numCascades, 1.0f, farClip, splitRatio, shadowmapSize, cameraPosition );
 		cascades = cascades[..cascadeCount];
 		var frustum = CFrustum.Create();
 		var exclusionFrustum = CFrustum.Create();
@@ -376,6 +409,17 @@ internal partial class ShadowMapper
 
 		gpuShadowData.CascadeCount = (uint)numCascades;
 		gpuShadowData.InverseShadowMapSize = 1.0f / shadowmapSize;
+
+		float outerRadius = cascadeCount > 0 ? cascades[cascadeCount - 1].SphereRadius : 0f;
+		LastCascades = new CascadeCache
+		{
+			Frame = Application.FrameCount,
+			Light = light,
+			CameraPosition = cameraPosition,
+			RadiusSquared = outerRadius * outerRadius,
+			ViewportArea = viewportArea,
+			Data = gpuShadowData,
+		};
 
 		// Ensure we have our screenspace texture index before we actually render them if we use it, so it's already ready when we composite.
 		gpuShadowData.ShadowMaskTextureIndex = 0;
