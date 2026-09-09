@@ -1,4 +1,4 @@
-﻿using Editor.Widgets.Packages;
+using Editor.Widgets.Packages;
 using System.IO;
 using System.Security;
 
@@ -10,8 +10,8 @@ namespace Editor;
 public struct AssetContextMenu
 {
 	/// <summary>
-	/// List of selected assets when the context menu was opened.
-	/// These are the assets context menu should be affecting.
+	/// List of selected assets when the context menu was opened, including every asset found inside
+	/// any selected folder. These are the assets context menu should be affecting.
 	/// </summary>
 	public List<AssetEntry> SelectedList;
 
@@ -203,15 +203,22 @@ public partial class AssetList
 			return;
 		}
 
-		var selection = SelectedItems.OfType<AssetEntry>().ToList();
+		var assets = SelectedItems.OfType<AssetEntry>().ToList();
 		var directories = SelectedItems.OfType<DirectoryEntry>().ToList();
 
-		if ( directories.Any() )
+		var onlyOneFolder = assets.Count == 0 && directories.Count == 1;
+		if ( onlyOneFolder )
 		{
-			var dir = directories.First();
+			OpenFolderContextMenu( directories[0].DirectoryInfo.FullName, false );
+			return;
+		}
 
-			OpenFolderContextMenu( dir.DirectoryInfo.FullName, false );
-
+		var selection = ExpandDirectories( assets, directories );
+		if ( selection.Count == 0 )
+		{
+			// Only asset-less folders are selected - the folder menu is all we can offer. Right click
+			// always selects what's under the cursor, so an empty expansion means we have folders.
+			OpenFolderContextMenu( directories[0].DirectoryInfo.FullName, false );
 			return;
 		}
 
@@ -229,6 +236,50 @@ public partial class AssetList
 			return;
 
 		ac.Menu.OpenAt( ac.ScreenPosition, false );
+	}
+
+	/// <summary>
+	/// Every registered asset that lives inside <paramref name="directory"/>, recursively.
+	/// </summary>
+	internal static IEnumerable<Asset> AssetsInDirectory( DirectoryInfo directory )
+	{
+		if ( directory is null )
+			return Enumerable.Empty<Asset>();
+
+		var prefix = directory.FullName.NormalizeFilename( false );
+		if ( !prefix.EndsWith( '/' ) ) prefix += '/';
+
+		return AssetSystem.All.Where( x => x.AbsolutePath?.StartsWith( prefix, StringComparison.OrdinalIgnoreCase ) ?? false );
+	}
+
+	/// <summary>
+	/// Flatten selected assets and folders into a single list of asset entries, so context menu
+	/// options act on everything that is selected and not just the loose files.
+	/// </summary>
+	private static List<AssetEntry> ExpandDirectories( List<AssetEntry> assets, List<DirectoryEntry> directories )
+	{
+		if ( directories.Count == 0 )
+			return assets;
+
+		var seen = new HashSet<string>( assets.Count, StringComparer.OrdinalIgnoreCase );
+		var result = new List<AssetEntry>( assets.Count );
+
+		foreach ( var entry in assets )
+		{
+			if ( seen.Add( entry.AbsolutePath.NormalizeFilename( false, false ) ) )
+				result.Add( entry );
+		}
+
+		foreach ( var directory in directories )
+		{
+			foreach ( var asset in AssetsInDirectory( directory.DirectoryInfo ) )
+			{
+				if ( seen.Add( asset.AbsolutePath ) )
+					result.Add( new AssetEntry( asset ) );
+			}
+		}
+
+		return result;
 	}
 
 	[Event( "asset.nativecontextmenu" )]
@@ -583,7 +634,7 @@ public partial class AssetList
 			"editor.delete"
 			);
 
-			e.Menu.AddOption( $"Rename", "edit", action: () => e.AssetList.OpenRenameFlyout( entry, e.ScreenPosition ), shortcut: "editor.rename" );
+				e.Menu.AddOption( $"Rename", "edit", action: () => e.AssetList.OpenRenameFlyout( entry, e.ScreenPosition ), shortcut: "editor.rename" );
 		}
 
 		if ( asset is not null )
@@ -703,7 +754,7 @@ public partial class AssetList
 
 		e.Menu.AddSeparator();
 
-		var assets = AssetSystem.All.Where( x => x.AbsolutePath.StartsWith( e.Target.FullName.Replace( '\\', '/' ), StringComparison.OrdinalIgnoreCase ) ).ToList();
+		var assets = AssetsInDirectory( e.Target ).ToList();
 		var assetCount = assets.Count;
 		if ( assetCount > 0 )
 		{
@@ -723,8 +774,7 @@ public partial class AssetList
 
 		if ( !e.ThisFolder )
 		{
-			var folder = e.Target.FullName.NormalizeFilename( false );
-			var assets = AssetSystem.All.Where( x => x.AbsolutePath.StartsWith( folder, StringComparison.OrdinalIgnoreCase ) ).ToArray();
+			var assets = AssetsInDirectory( e.Target ).ToArray();
 			var o = e.Menu.AddOption( $"Batch Publish ({assets.Length})..", "cloud_upload", () => BatchPublisher.FromAssets( assets ) );
 			o.Enabled = assets.Length > 0;
 		}
