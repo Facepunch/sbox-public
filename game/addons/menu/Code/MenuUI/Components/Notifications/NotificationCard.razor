@@ -1,0 +1,78 @@
+@using System;
+@using Sandbox.UI;
+@using Sandbox;
+@inherits Panel
+
+@* One notification. The whole row is the target when there's somewhere to go - the text
+   alone is a small thing to hit. *@
+<root class="@StateClass" onclick="@Pressed">
+
+    <div class="art" style="@ArtStyle">
+        @if ( string.IsNullOrEmpty( Notice.Icon ) )
+        {
+            <icon>@Glyph</icon>
+        }
+    </div>
+
+    <div class="body">
+        <label class="text">@Notice.Text</label>
+
+        <div class="meta">
+            <label class="when">@Notice.Updated.Humanize()</label>
+
+            @if ( Notice.Count > 1 )
+            {
+                <label class="times">@Notice.Count times</label>
+            }
+        </div>
+    </div>
+
+    @if ( HasLink )
+    {
+        <icon class="go">chevron_right</icon>
+    }
+
+</root>
+
+@code
+{
+    /// <summary>The notification this row draws.</summary>
+    [Parameter] public Sandbox.Services.Notification Notice { get; set; }
+
+    bool IsUnread => Notice.Read is null;
+
+    bool HasLink => !string.IsNullOrWhiteSpace( Notice.Url );
+
+    string StateClass => $"{( IsUnread ? "unread" : "read" )} {( HasLink ? "clicky" : "" )}";
+
+    /// <summary>Stand-in for a notification that came without art.</summary>
+    string Glyph => IsUnread ? "notifications" : "notifications_none";
+
+    /// <summary>Only set when there's art - an empty url downloads nothing and warns.</summary>
+    string ArtStyle => string.IsNullOrEmpty( Notice.Icon ) ? null : $"background-image: url( {Notice.Icon} )";
+
+    // A three part url is a package - that opens in the menu. Anything else is a page on
+    // the site, so it goes to the browser.
+    void Pressed()
+    {
+        if ( !HasLink )
+            return;
+
+        var parts = Notice.Url.Split( '/', StringSplitOptions.RemoveEmptyEntries );
+        if ( parts.Length == 3 )
+        {
+            Game.Overlay.ShowPackageModal( $"{parts[0]}.{parts[1]}", parts[2] );
+            return;
+        }
+
+        if ( Notice.Url.StartsWith( "/" ) )
+        {
+            MenuUtility.OpenUrl( $"https://sbox.game{Notice.Url}" );
+            return;
+        }
+
+        Log.Info( $"Unhandled: {Notice.Url}" );
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Notice.Text, Notice.Read, Notice.Count, Notice.Updated );
+}

@@ -67,7 +67,7 @@ public abstract partial class Component
 					return;
 
 				var attribute = p.GetAttribute<SyncAttribute>();
-				var interpolate = attribute?.Flags.HasFlag( SyncFlags.Interpolate ) ?? false;
+				var interpolate = attribute is not null && (attribute.Flags & SyncFlags.Interpolate) != 0;
 
 				if ( interpolate && p.Value is not null )
 				{
@@ -92,7 +92,7 @@ public abstract partial class Component
 	protected T __sync_GetValue<T>( WrappedPropertyGet<T> p )
 	{
 		var attribute = p.GetAttribute<SyncAttribute>();
-		var interpolate = attribute?.Flags.HasFlag( SyncFlags.Interpolate ) ?? false;
+		var interpolate = attribute is not null && (attribute.Flags & SyncFlags.Interpolate) != 0;
 		if ( !interpolate ) return p.Value;
 
 		var root = GameObject.FindNetworkRoot();

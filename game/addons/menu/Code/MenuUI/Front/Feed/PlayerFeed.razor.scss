@@ -2,4 +2,9 @@ PlayerFeed
 {
     gap: 16px;
     flex-direction: column;
+    overflow: scroll;
+    overflow-x: hidden;
+    // keep entries off the scrollbar
+    padding-right: 0.5rem;
+    pointer-events: all;
 }

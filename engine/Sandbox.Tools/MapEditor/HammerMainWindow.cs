@@ -32,10 +32,11 @@ public partial class HammerMainWindow : DockWindow
 		// Shows some tool bars... ?
 		_nativeHammerWindow.SetupDefaultLayout();
 
+		// Hammer's default layout is built by native code, so snapshot it to restore on reset
+		_defaultLayout = DockManager.State;
+
 		// Saves & loads layout and shit
 		StateCookie = "SboxHammer";
-
-		DockManager.Update();
 
 		// Set the focus back to the main window so it isn't on some random widget which will eat key bindings.
 		Focus();
@@ -48,29 +49,18 @@ public partial class HammerMainWindow : DockWindow
 		CreateDynamicViewMenu( new Menu( nativeMenu ) );
 	}
 
-	protected override void RestoreDefaultDockLayout()
-	{
-		var defaultLayout = "{\"floatingWindows\":[],\"mainWrapper\":{\"geometry\":\"AdnQywADAAAAAAAAAAAAAAAACcoAAAUHAAAAAAAAAAAAAAnKAAAFBwAAAAAAAAAACgAAAAAAAAAAAAAACcoAAAUH\",\"splitter\":{\"items\":[{\"items\":[{\"currentIndex\":0,\"objects\":[{\"data\":null,\"managedType\":\"\",\"name\":\"Tool Properties\"}],\"type\":\"area\"},{\"currentIndex\":0,\"objects\":[{\"data\":null,\"managedType\":\"\",\"name\":\"Active Material\"}],\"type\":\"area\"}],\"state\":\"AAAA/wAAAAEAAAACAAABaAAAAH8A/////wEAAAACAA==\",\"type\":\"splitter\"},{\"items\":[{\"currentIndex\":0,\"objects\":[{\"data\":null,\"managedType\":\"\",\"name\":\"Map View\"}],\"type\":\"area\"},{\"currentIndex\":0,\"objects\":[{\"data\":null,\"managedType\":\"HammerAssetBrowser\",\"name\":\"Asset Browser\"},{\"data\":null,\"managedType\":\"HammerCloudBrowser\",\"name\":\"Cloud Browser\"}],\"type\":\"area\"}],\"state\":\"AAAA/wAAAAEAAAACAAADsQAAAfYA/////wEAAAACAA==\",\"type\":\"splitter\"},{\"items\":[{\"currentIndex\":0,\"objects\":[{\"data\":null,\"managedType\":\"\",\"name\":\"Outliner\"},{\"data\":null,\"managedType\":\"\",\"name\":\"Selection Sets\"}],\"type\":\"area\"},{\"currentIndex\":0,\"objects\":[{\"data\":null,\"managedType\":\"\",\"name\":\"Object Properties\"}],\"type\":\"area\"}],\"state\":\"AAAA/wAAAAEAAAACAAAA8AAAAPAA/////wEAAAACAA==\",\"type\":\"splitter\"}],\"state\":\"AAAA/wAAAAEAAAADAAABYgAABFMAAAFqAP////8BAAAAAQA=\",\"type\":\"splitter\"}},\"toolWindowManagerStateFormat\":1}";
-		DockManager.State = defaultLayout;
-	}
-
 	/// <summary>
 	/// Lets Hammer register its dock widgets with our DockManager
 	/// </summary>
-	internal void AddNativeDock( string name, string icon, IntPtr sibling, IntPtr window, DockArea dockArea = DockArea.Left, DockManager.DockProperty properties = default, float split = 0.5f )
+	internal void AddNativeDock( string name, string icon, IntPtr sibling, IntPtr window, DockArea dockArea = DockArea.Left )
 	{
-		var siblingWidget = sibling != default ? new Widget( sibling ) : null;
-		var windowWidget = window != default ? new Widget( window ) : null;
+		if ( window == default ) return;
 
-		// Never delete these, Hammer will go fucking mental
-		properties |= DockManager.DockProperty.HideOnClose;
+		var widget = new Widget( window ) { WindowTitle = name, Name = name };
+		widget.SetWindowIcon( icon );
 
-		windowWidget.WindowTitle = name;
-		windowWidget.Name = name;
-		windowWidget.SetWindowIcon( icon );
-
-		DockManager.RegisterDockType( name, icon, () => throw new UnreachableException( $"{windowWidget} shouldn't have ever been deleted" ), false );
-		DockManager.AddDock( siblingWidget, windowWidget, dockArea, properties, split );
+		var relativeTo = sibling != default ? DockManager.FindDockWidget( new Widget( sibling ) ) : null;
+		DockManager.AddDock( name, icon, widget, dockArea, relativeTo );
 	}
 
 	internal void ToggleAssetBrowser()
@@ -82,7 +72,7 @@ public partial class HammerMainWindow : DockWindow
 	{
 		if ( fullscreen )
 		{
-			SaveToStateCookie();
+			SaveLayout();
 
 			foreach ( var dock in DockManager.DockTypes )
 			{
@@ -92,8 +82,16 @@ public partial class HammerMainWindow : DockWindow
 		}
 		else
 		{
-			RestoreFromStateCookie();
+			RestoreLayout();
 		}
+	}
+
+	string _defaultLayout;
+
+	protected override void BuildDefaultLayout()
+	{
+		if ( !string.IsNullOrEmpty( _defaultLayout ) )
+			DockManager.State = _defaultLayout;
 	}
 
 	internal static uint InitHammerMainWindow( Native.CQHammerMainWnd ptr )

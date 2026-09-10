@@ -9,7 +9,11 @@ namespace Sandbox;
 
 public partial class Project
 {
-	static CompileGroup CompileGroup;
+	/// <summary>
+	/// The compile group every local project's code builds in. Internal so game code can't see
+	/// it - editor code reaches it through the Sandbox.Tools Project extensions.
+	/// </summary>
+	internal static CompileGroup CompileGroup { get; private set; }
 
 
 	/// <summary>
@@ -105,8 +109,6 @@ public partial class Project
 	/// </summary>
 	internal static async Task InitializeBuiltIn( bool syncPackageManager = true )
 	{
-		AddFromFileBuiltIn( "addons/base/.sbproj" );
-
 		if ( !Application.IsStandalone && !Application.IsHeadless )
 		{
 			AddFromFileBuiltIn( "addons/menu/.sbproj" );
@@ -239,32 +241,33 @@ public partial class Project
 		File.WriteAllText( Path.Combine( vscodePath, "settings.json" ), JsonSerializer.Serialize( settings, JsonWriteIndented ) );
 	}
 
-	/// <summary>
-	/// Like AddFromFile but the project is marked as "built in" - which means
-	/// it's always automatically loaded and can't be unloaded.
-	/// </summary>
-	internal static Project AddFromFileBuiltIn( string path )
+	[Flags]
+	internal enum ProjectLoadFlags
 	{
-		var p = AddFromFile( path );
-		if ( p == null ) return null;
+		None = 0,
 
-		p.IsBuiltIn = true;
-		return p;
+		/// <summary>
+		/// Component of the engine, always automatically loaded and can't be unloaded
+		/// </summary>
+		BuiltIn = 1 << 0,
 	}
 
-	internal static Project AddFromFile( string path, bool active = true )
+	internal static Project AddFromFileBuiltIn( string path ) => AddFromFile( path, flags: ProjectLoadFlags.BuiltIn );
+
+	internal static Project AddFromFile( string path, bool active = true, ProjectLoadFlags flags = ProjectLoadFlags.None )
 	{
 		// Need an project file
-		if ( !path.EndsWith( ".sbproj" ) )
-			path = System.IO.Path.Combine( path, ".sbproj" );
-
-		var cleanPath = System.IO.Path.GetFullPath( path );
+		var cleanPath = NormalizeConfigFilePath( path );
 
 		// Don't add the same project twice
 		if ( All.Where( a => a.ConfigFilePath == cleanPath ).FirstOrDefault() is Project lp )
 			return lp;
 
-		var project = new Project { ConfigFilePath = cleanPath, Active = active };
+		var project = new Project( cleanPath )
+		{
+			Active = active,
+			IsBuiltIn = flags.HasFlag( ProjectLoadFlags.BuiltIn )
+		};
 		project.Load();
 
 		// If it loaded broken, don't bother with it
@@ -312,9 +315,7 @@ public partial class Project
 
 	public static Project Load( string dir )
 	{
-		var cleanPath = System.IO.Path.GetFullPath( dir );
-
-		var project = new Project { ConfigFilePath = cleanPath, Active = false };
+		var project = new Project( NormalizeConfigFilePath( dir ) ) { Active = false };
 		project.Load();
 
 		// If it loaded broken, don't bother with it

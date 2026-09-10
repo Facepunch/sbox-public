@@ -1,0 +1,94 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+
+@using Sandbox;
+@using Sandbox.UI;
+
+@attribute [Title( "Text: Sampling" )]
+@attribute [Description( "Text drawn at anything other than 1:1 - scaled, rotated, clipped" )]
+@attribute [Icon( "zoom_out_map" )]
+@attribute [Order( 36 )]
+
+<root>
+
+    <h2>Scaled up</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Text" class="roomy" Css="transform: scale( 1.5 )" Text="@Sample"
+                    Note="Magnified texture. Soft is expected, dark edges are not." />
+        <UiTestCase Setup="@Text" class="roomy" Css="transform: scale( 3 )" Text="@Sample"
+                    Note="Any dark halo around the glyphs is the texture's transparent pixels bleeding in." />
+        <UiTestCase Setup="@Text" class="roomy" Css="font-size: 48px; transform: scale( 0.33 )" Text="@Sample"
+                    Note="The same result the other way round - big text scaled down should look sharper than small text scaled up." />
+    </div>
+
+    <h2>Scaled down</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Text" Css="transform: scale( 0.75 )" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="transform: scale( 0.5 )" Text="@Sample" Note="Halfway into the first mip." />
+        <UiTestCase Setup="@Text" Css="transform: scale( 0.25 )" Text="@Sample" Note="Mip territory. Glyphs should thin out, not go grey and blocky." />
+        <UiTestCase Setup="@Text" class="dark" Css="transform: scale( 0.4 ); color: #ffffff" Text="@Sample"
+                    Note="White on black is where a dark fringe is most obvious." />
+    </div>
+
+    <h2>Rotated and skewed</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Text" class="roomy" Css="transform: rotate( 12deg )" Text="@Sample" />
+        <UiTestCase Setup="@Text" class="roomy" Css="transform: rotate( 90deg )" Text="@Sample" Note="Axis aligned again, so it should be as crisp as 0deg." />
+        <UiTestCase Setup="@Text" class="roomy" Css="transform: skew( 12deg, 0 )" Text="@Sample" />
+        <UiTestCase Setup="@Text" class="roomy" Css="transform: rotate( 8deg ) scale( 1.4 )" Text="@Sample" />
+    </div>
+
+    <h2>Off the pixel grid</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Text" Css="transform: translate( 0.5px, 0.5px )" Text="@Sample"
+                    Note="Half a pixel across. The whole line should shift evenly, not go blurry in patches." />
+        <UiTestCase Setup="@Text" Css="transform: translate( 0.33px, 0 )" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="margin-left: 10.5px" Text="@Sample" Note="A fractional layout position rather than a transform." />
+    </div>
+
+    <h2>Clipped</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="width: 200px; height: 40px; overflow: hidden; background-color: rgba( 255, 255, 255, 0.06 )" Css="border-radius: 12px">
+            <ChildContent>
+                <label style="position: absolute; left: 8px; top: 8px; width: 300px; font-size: 16px; color: #e6eaf2; white-space: nowrap">@Sample and then some</label>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="width: 200px; height: 40px; overflow: hidden; background-color: rgba( 255, 255, 255, 0.06 )" Css="border-radius: 12px; transform: scale( 0.6 )">
+            <ChildContent>
+                <label style="position: absolute; left: 8px; top: 8px; width: 300px; font-size: 16px; color: #e6eaf2; white-space: nowrap">@Sample and then some</label>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="width: 200px; height: 40px; overflow: hidden; background-color: rgba( 255, 255, 255, 0.06 )" Css="border-radius: 12px; transform: rotate( 8deg )">
+            <ChildContent>
+                <label style="position: absolute; left: 8px; top: 8px; width: 300px; font-size: 16px; color: #e6eaf2; white-space: nowrap">@Sample and then some</label>
+            </ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Inside a filtered layer</h2>
+
+    <p>
+        A filter or a mask draws the panel into its own 8-bit layer first, so text goes through an
+        extra encode and decode before it reaches the screen.
+    </p>
+
+    <div class="cases">
+        <UiTestCase Setup="@Text" Css="filter: blur( 1px )" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="filter: brightness( 1.4 )" Text="@Sample" Note="Same glyphs, brighter. Nothing should shift or soften." />
+        <UiTestCase Setup="@Text" Css="filter: drop-shadow( 2px 2px 3px #000 )" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="opacity: 0.5" Text="@Sample" Note="Half opacity, which is a straight alpha multiply, not a layer." />
+    </div>
+
+</root>
+
+@code
+{
+    const string Text = UiTestCase.TextSetup;
+
+    const string Sample = "Sphinx of black quartz";
+}

@@ -85,20 +85,28 @@ public class ResourceControlWidget : ControlWidget
 
 			DrawContent( rect, asset.Name, asset.RelativePath );
 		}
-		else if ( resource != null && !string.IsNullOrEmpty( resource.ResourcePath ) )
+		else if ( resource is not null )
 		{
-			Paint.SetBrush( Theme.Red.Darken( 0.8f ).WithAlpha( alpha ) );
-			Paint.DrawRect( iconRect, 2 );
+			if ( resource.IsError || !resource.IsValid )
+			{
+				Paint.SetBrush( Theme.Red.Darken( 0.8f ).WithAlpha( alpha ) );
+				Paint.DrawRect( iconRect, 2 );
 
-			Paint.SetPen( Theme.Red.WithAlpha( alpha ) );
-			Paint.DrawIcon( iconRect, "error", Math.Max( 16, iconRect.Height / 2 ) );
+				Paint.SetPen( Theme.Red.WithAlpha( alpha ) );
+				Paint.DrawIcon( iconRect, "error", Math.Max( 16, iconRect.Height / 2 ) );
 
-			DrawContent( rect, $"Missing {pickerName}", resource.ResourcePath );
+				DrawContent( rect, $"Missing {pickerName}", resource.ResourcePath );
+			}
+			else
+			{
+				if ( icon != null ) Paint.Draw( iconRect, icon, alpha );
+				DrawContent( rect, resource.ResourceName, resource.ResourcePath );
+			}
 		}
 		else
 		{
 			var textRect = rect.Shrink( 0, 3 );
-			if ( icon != null ) Paint.Draw( iconRect, icon );
+			if ( icon != null ) Paint.Draw( iconRect, icon, alpha );
 
 			Paint.SetDefaultFont();
 			Paint.SetPen( Theme.Text.WithAlpha( 0.2f * alpha ) * Tint );
@@ -204,9 +212,9 @@ public class ResourceControlWidget : ControlWidget
 			resource = asset.LoadResource( SerializedProperty.PropertyType );
 		}
 
-		SerializedProperty.Parent.NoteStartEdit( SerializedProperty );
+		SerializedProperty.Parent?.NoteStartEdit( SerializedProperty );
 		SerializedProperty.SetValue( resource );
-		SerializedProperty.Parent.NoteFinishEdit( SerializedProperty );
+		SerializedProperty.Parent?.NoteFinishEdit( SerializedProperty );
 	}
 
 	private void UpdateFromAssets( Asset[] assets )
@@ -219,6 +227,8 @@ public class ResourceControlWidget : ControlWidget
 			SerializedProperty.SetValue( resource );
 		}
 
+		if ( !IsValid ) return;
+
 		if ( IsInList )
 		{
 			var list = Parent.Parent as ListControlWidget;
@@ -226,7 +236,7 @@ public class ResourceControlWidget : ControlWidget
 			{
 				if ( !CanAssignAssetType( assets[i] ) ) continue;
 				var newResource = assets[i].LoadResource( SerializedProperty.PropertyType );
-				list.Collection.Add( newResource );
+				list?.Collection.Add( newResource );
 			}
 		}
 	}

@@ -6,7 +6,7 @@
 /// Velocity can either be added from the center of the ring, or from the ring itself.
 /// </summary>
 [Title( "Ring Emitter" )]
-[Category( "Particles" )]
+[Category( "Effects" )]
 [Icon( "check_box_outline_blank" )]
 public sealed class ParticleRingEmitter : ParticleEmitter
 {

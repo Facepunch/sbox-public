@@ -1,41 +1,26 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace Facepunch.InteropGen;
 
+/// <summary>
+/// A class exposed across the interop boundary - either a native class we import into managed, or a
+/// managed class we export to native. Holds its names/namespaces, base class, functions and variables.
+/// </summary>
 public class Class
 {
-	// Precompiled regex patterns for better performance
-	private static readonly Regex _classParseRegex = new(
+	private static readonly Regex ClassParseRegex = new(
 		@"([\w<>\*.:\(\)]+)( [\s+]?as [\s+]?([\w.:]+))?(.+)?",
-		RegexOptions.IgnoreCase | RegexOptions.Compiled
+		RegexOptions.IgnoreCase
 	);
 
-	private static readonly Regex _extraParseRegex = new(
+	private static readonly Regex ExtraParseRegex = new(
 		@"[\s+]?: [\s+]?([\w.:]+)",
-		RegexOptions.IgnoreCase | RegexOptions.Compiled
+		RegexOptions.IgnoreCase
 	);
 
-	// Cache for class parsing results
-	private static readonly ConcurrentDictionary<string, ParsedClassDefinition> _classParseCache = new();
-
-	// Struct to hold parsed components efficiently
-	private readonly struct ParsedClassDefinition
-	{
-		public readonly string ClassName;
-		public readonly string AliasName;
-		public readonly string ExtraInfo;
-
-		public ParsedClassDefinition( string className, string aliasName, string extraInfo )
-		{
-			ClassName = className;
-			AliasName = aliasName;
-			ExtraInfo = extraInfo;
-		}
-	}
+	private static readonly char[] NamespaceSeparators = ['.', ':'];
 
 	public string NativeName { get; set; }
 	public string ManagedName { get; set; }
@@ -51,86 +36,24 @@ public class Class
 
 	public int ClassDepth { get; set; }
 
-	private string _nativeNameWithNamespace;
-	public string NativeNameWithNamespace
-	{
-		get
-		{
-			if ( _nativeNameWithNamespace is not null )
-			{
-				return _nativeNameWithNamespace;
-			}
-
-			if ( string.IsNullOrEmpty( NativeNamespace ) )
-			{
-				return NativeName;
-			}
-
-			_nativeNameWithNamespace = $"{NativeNamespace}::{NativeName}";
-			return _nativeNameWithNamespace;
-		}
-	}
-
-	private string _managedNameWithNamespace;
-	public string ManagedNameWithNamespace
-	{
-		get
-		{
-			if ( _managedNameWithNamespace is not null )
-			{
-				return _managedNameWithNamespace;
-			}
-
-			if ( string.IsNullOrEmpty( ManagedNamespace ) )
-			{
-				return ManagedName;
-			}
-
-			_managedNameWithNamespace = $"{ManagedNamespace}.{ManagedName}";
-			return _managedNameWithNamespace;
-		}
-	}
-
-	public int ClassIdent { get; set; }
+	public string NativeNameWithNamespace => string.IsNullOrEmpty( NativeNamespace ) ? NativeName : $"{NativeNamespace}::{NativeName}";
+	public string ManagedNameWithNamespace => string.IsNullOrEmpty( ManagedNamespace ) ? ManagedName : $"{ManagedNamespace}.{ManagedName}";
 
 	public List<Function> Functions = [];
 	public List<Variable> Variables = [];
 
 	internal static Class Parse( bool isNative, bool isStatic, string type, string line )
 	{
-		// Check cache first
-		if ( _classParseCache.TryGetValue( line, out ParsedClassDefinition cached ) )
-		{
-			return CreateFromCached( isNative, isStatic, type, cached );
-		}
-
-		// Parse with regex only if not cached
-		Match match = _classParseRegex.Match( line );
+		Match match = ClassParseRegex.Match( line );
 		if ( !match.Success )
 		{
 			Log.Warning( $"Couldn't parse class definition: {line}" );
 			return null;
 		}
 
-		ParsedClassDefinition parsed = new(
-			className: match.Groups[1].Value.Trim(),
-			aliasName: match.Groups[3].Value.Trim(),
-			extraInfo: match.Groups[4].Value
-		);
-
-		// Cache the result if cache isn't too large
-		if ( _classParseCache.Count < 1000 )
-		{
-			_ = _classParseCache.TryAdd( line, parsed );
-		}
-
-		return CreateFromCached( isNative, isStatic, type, parsed );
-	}
-
-	private static Class CreateFromCached( bool isNative, bool isStatic, string type, ParsedClassDefinition parsed )
-	{
-		string className = parsed.ClassName;
-		string aliasName = parsed.AliasName;
+		string className = match.Groups[1].Value.Trim();
+		string aliasName = match.Groups[3].Value.Trim();
+		string extraInfo = match.Groups[4].Value;
 
 		if ( aliasName == className )
 		{
@@ -157,14 +80,14 @@ public class Class
 		f.ManagedName = GetClassName( aliasName );
 		f.NativeNamespace = GetNamespace( className ).Replace( ".", "::" );
 		f.ManagedNamespace = GetNamespace( aliasName );
-		f.ParseExtra( parsed.ExtraInfo );
+		f.ParseExtra( extraInfo );
 
 		return f;
 	}
 
 	public List<string> Attributes = [];
 
-	internal void TakeAttributes( List<string> attributes )
+	internal void TakeAttributes( List<string> attributes, Definition owner )
 	{
 		Attributes.AddRange( attributes );
 		attributes.Clear();
@@ -178,106 +101,56 @@ public class Class
 				Static = true,
 				NativeName = GetClassName( HandleIndex ),
 				ManagedName = GetClassName( HandleIndex ),
-				NativeNamespace = GetNamespace( HandleIndex ).Replace( ".", "::" ) + $"::{Definition.Current.Ident}",
+				NativeNamespace = GetNamespace( HandleIndex ).Replace( ".", "::" ) + $"::{owner.Ident}",
 				ManagedNamespace = GetNamespace( HandleIndex )
 			};
 
-			Definition.Current.Classes.Add( c );
+			owner.Classes.Add( c );
 		}
 
 		if ( IsResourceHandle )
 		{
-			//
-			// Add a function to destroy the handle
-			//
-			{
-				Function func = new()
-				{
-					Name = "DestroyStrongHandle",
-					Class = this,
-					NativeCallReplacement = $"delete (({ResourceHandleName}Strong*)self);"
-				};
-				Functions.Add( func );
-			}
+			string strong = $"{ResourceHandleName}Strong";
 
-			//
-			// Add a function to check the handle has data
-			//
+			void AddHandleFunction( string name, Arg returnArg, string nativeCall, bool nogc )
 			{
 				Function func = new()
 				{
-					Name = "IsStrongHandleValid",
-					Return = new ArgBool(),
+					Name = name,
 					Class = this,
-					NativeCallReplacement = $"return (({ResourceHandleName}Strong*)self)->HasData();"
+					NativeCallReplacement = nativeCall
 				};
-				func.attr.Add( "nogc" );
+
+				if ( returnArg != null )
+				{
+					func.Return = returnArg;
+				}
+
+				if ( nogc )
+				{
+					func.Attributes.Add( "nogc" );
+				}
 
 				Functions.Add( func );
 			}
 
-			//
-			// Add a function to check the handle has data
-			//
-			{
-				Function func = new()
-				{
-					Name = "IsError",
-					Return = new ArgBool(),
-					Class = this,
-					NativeCallReplacement = $"return (({ResourceHandleName}Strong*)self)->IsError();"
-				};
-				func.attr.Add( "nogc" );
+			// Destroy the handle
+			AddHandleFunction( "DestroyStrongHandle", null, $"delete (({strong}*)self);", false );
 
-				Functions.Add( func );
-			}
+			// Does the handle have data
+			AddHandleFunction( "IsStrongHandleValid", new ArgBool(), $"return (({strong}*)self)->HasData();", true );
 
-			//
-			// Add a function to check the handle has loaded
-			//
-			{
-				Function func = new()
-				{
-					Name = "IsStrongHandleLoaded",
-					Return = new ArgBool(),
-					Class = this,
-					NativeCallReplacement = $"return (({ResourceHandleName}Strong*)self)->IsLoaded();"
-				};
-				func.attr.Add( "nogc" );
+			// Is the handle errored
+			AddHandleFunction( "IsError", new ArgBool(), $"return (({strong}*)self)->IsError();", true );
 
-				Functions.Add( func );
-			}
+			// Has the handle loaded
+			AddHandleFunction( "IsStrongHandleLoaded", new ArgBool(), $"return (({strong}*)self)->IsLoaded();", true );
 
-			//
-			// Add a function to create a copy of the handle
-			//
-			{
-				Function func = new()
-				{
-					Name = "CopyStrongHandle",
-					Class = this,
-					Return = new ArgDefinedClass( this, "return", null ),
-					NativeCallReplacement = $"return new {ResourceHandleName}Strong( ( ({ResourceHandleName}Strong*) self)->GetHandle() );"
-				};
-				func.attr.Add( "nogc" );
+			// Create a copy of the handle
+			AddHandleFunction( "CopyStrongHandle", new ArgDefinedClass( this, "return", null ), $"return new {strong}( ( ({strong}*) self)->GetHandle() );", true );
 
-				Functions.Add( func );
-			}
-
-			//
-			// Add a function to create a copy of the handle
-			//
-			{
-				Function func = new()
-				{
-					Name = "GetBindingPtr",
-					Class = this,
-					Return = new ArgPointer(),
-					NativeCallReplacement = $"return (({ResourceHandleName}Strong*) self)->GetBinding();"
-				};
-				func.attr.Add( "nogc" );
-				Functions.Add( func );
-			}
+			// Get a pointer to the binding
+			AddHandleFunction( "GetBindingPtr", new ArgPointer(), $"return (({strong}*) self)->GetBinding();", true );
 		}
 	}
 
@@ -286,7 +159,7 @@ public class Class
 		return Attributes.Contains( name );
 	}
 
-	internal int NativeOrder( List<Class> classes )
+	internal int NativeOrder()
 	{
 		// hack hack hack
 		// put static classes last because they might rely on real classes
@@ -304,7 +177,7 @@ public class Class
 			return;
 		}
 
-		Match baseclass = _extraParseRegex.Match( value );
+		Match baseclass = ExtraParseRegex.Match( value );
 		if ( baseclass.Success )
 		{
 			BaseClassName = baseclass.Groups[1].Value.Trim();
@@ -313,13 +186,13 @@ public class Class
 
 	private static string GetNamespace( string name )
 	{
-		int index = name.LastIndexOfAny( new[] { '.', ':' } );
+		int index = name.LastIndexOfAny( NamespaceSeparators );
 		return index <= 0 ? "" : name[..index].Trim( '.', ':' );
 	}
 
 	private static string GetClassName( string name )
 	{
-		int index = name.LastIndexOfAny( new[] { '.', ':' } );
+		int index = name.LastIndexOfAny( NamespaceSeparators );
 		return index <= 0 ? name : name[index..].Trim( '.', ':' );
 	}
 
@@ -346,11 +219,6 @@ public class Class
 	{
 		get
 		{
-			if ( BaseClass == null )
-			{
-				yield break;
-			}
-
 			Class c = BaseClass;
 
 			while ( c != null )

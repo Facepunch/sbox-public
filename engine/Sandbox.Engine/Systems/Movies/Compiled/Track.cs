@@ -11,6 +11,7 @@ namespace Sandbox.MovieMaker.Compiled;
 public interface ICompiledTrack : ITrack, IComparable<ICompiledTrack>
 {
 	new ICompiledTrack? Parent { get; }
+	int Order => 0;
 
 	int IComparable<ICompiledTrack>.CompareTo( ICompiledTrack? other ) => TrackComparer.Compare( this, other );
 }
@@ -39,15 +40,21 @@ file static class TrackComparer
 		if ( a is null ) return -1;
 		if ( b is null ) return 1;
 
+		// Deeper tracks are always sorted after shallow ones
+
 		var aDepth = a.GetDepth();
 		var bDepth = b.GetDepth();
 
 		if ( aDepth != bDepth ) return aDepth - bDepth;
 
+		// Tracks can have a custom order
+
+		if ( a.Order != b.Order ) return a.Order - b.Order;
+
 		var nameCompare = a.Name.CompareTo( b.Name, StringComparison.Ordinal );
 		if ( nameCompare != 0 ) return nameCompare;
 
-		// Reference tracks can have the same name! Use track ID as a tie-breaker.
+		// Tracks can have the same name! Use track ID as a tie-breaker
 
 		if ( a is ICompiledReferenceTrack aRef && b is ICompiledReferenceTrack bRef )
 		{
@@ -58,8 +65,15 @@ file static class TrackComparer
 	}
 }
 
-public sealed record CompiledReferenceTrack<T>( Guid Id, string Name, CompiledReferenceTrack<GameObject>? Parent = null, TrackMetadata? Metadata = null ) : ICompiledReferenceTrack, IReferenceTrack<T>
-	where T : class, IValid;
+public sealed record CompiledReferenceTrack<T>(
+	Guid Id,
+	string Name,
+	CompiledReferenceTrack<GameObject>? Parent = null,
+	TrackMetadata? Metadata = null ) : ICompiledReferenceTrack, IReferenceTrack<T>
+	where T : class, IValid
+{
+	int ICompiledTrack.Order => Metadata?.Order ?? 0;
+}
 
 /// <inheritdoc cref="IActionTrack"/>
 public sealed record CompiledActionTrack( string Name, Type TargetType, ICompiledTrack Parent, ImmutableArray<CompiledActionBlock> Blocks ) : IActionTrack, ICompiledBlockTrack

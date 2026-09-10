@@ -196,7 +196,7 @@ public sealed class SignalBlendModification<T>( PropertySignal<T> signal, Proper
 public sealed class ClipboardBlendModification<T>( ImmutableArray<PropertyBlock<T>> sourceBlocks ) : BlendTrackModification<T>
 {
 	public ClipboardBlendModification( IEnumerable<IProjectPropertyBlock> blocks )
-		: this( [..blocks.Cast<PropertyBlock<T>>()] )
+		: this( [.. blocks.Cast<PropertyBlock<T>>()] )
 	{
 
 	}

@@ -1,0 +1,101 @@
+@using Sandbox;
+@using Sandbox.UI;
+
+@inherits Panel
+@namespace MenuProject.Overlay.Overlays
+
+<root>
+    @foreach ( var line in Lines )
+    {
+        <div class="line">
+            @foreach ( var word in line.Track.Words )
+            {
+                <span class="word">@word.Text</span>
+            }
+        </div>
+    }
+</root>
+
+@code
+{
+    readonly List<SubtitlesGameObjectSystem.Line> Lines = new();
+    int _lineSetHash;
+
+    /// <summary>
+    /// Does our user / game want the built-in subtitle UI?
+    /// - Local preferences
+    /// - Game preferences
+    /// </summary>
+    bool WantsSubtitles => Preferences.Subtitles && ProjectSettings.Platform.SubtitlesShowUI;
+
+    public override void Tick()
+    {
+        Lines.Clear();
+
+        if ( WantsSubtitles )
+        {
+            MenuUtility.GetSubtitles( Lines );
+        }
+
+        // When the set of lines changes, this frame still renders last frame's
+        // panels - don't paint the new lines' highlights onto the old lines'
+        // words. The rebuild lands next frame and OnAfterTreeRender catches up.
+        var hash = LineSetHash();
+        if ( hash != _lineSetHash )
+        {
+            _lineSetHash = hash;
+            return;
+        }
+
+        UpdateWordHighlights();
+    }
+
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        // Freshly built labels start unlit - light up what's already been said
+        UpdateWordHighlights();
+    }
+
+    /// <summary>
+    /// Light the words up as they're spoken by toggling classes on the labels
+    /// directly - rebuilding the panel tree every time a word changes would churn
+    /// panels and allocations for nothing. The tree only rebuilds when the set of
+    /// lines changes (see BuildHash), and SetClass is free when nothing changed.
+    /// </summary>
+    void UpdateWordHighlights()
+    {
+        var lineCount = Math.Min( Lines.Count, ChildrenCount );
+
+        for ( var i = 0; i < lineCount; i++ )
+        {
+            var line = Lines[i];
+            var linePanel = GetChild( i );
+            var words = line.Track.Words;
+            var wordCount = Math.Min( words.Count, linePanel.ChildrenCount );
+
+            for ( var w = 0; w < wordCount; w++ )
+            {
+                var wordPanel = linePanel.GetChild( w );
+
+                wordPanel.SetClass( "spoken", w <= line.CurrentWordIndex );
+                wordPanel.SetClass( "current", w == line.CurrentWordIndex && line.Time < words[w].EndTime );
+            }
+        }
+    }
+
+    int LineSetHash()
+    {
+        var hash = Lines.Count;
+
+        foreach ( var line in Lines )
+        {
+            hash = System.HashCode.Combine( hash, line.Track );
+        }
+
+        return hash;
+    }
+
+    // Only the set of lines - word highlighting is applied directly in Tick,
+    // so playback doesn't rebuild the tree
+    protected override int BuildHash() => LineSetHash();
+}

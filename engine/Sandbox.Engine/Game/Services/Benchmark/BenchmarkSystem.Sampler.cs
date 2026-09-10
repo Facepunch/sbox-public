@@ -16,6 +16,11 @@ public partial class BenchmarkSystem
 			/// </summary>
 			public double P5 { get; set; }
 			/// <summary>
+			/// The value below which 50% of the samples fall (the median). Robust to the
+			/// hitch tail — prefer this over <see cref="Avg"/> when comparing the typical frame.
+			/// </summary>
+			public double P50 { get; set; }
+			/// <summary>
 			/// The value below which 95% of the samples fall (the 95th percentile).
 			/// </summary>
 			public double P95 { get; set; }
@@ -97,6 +102,7 @@ public partial class BenchmarkSystem
 				Avg = samples.Count() > 0 ? samples.Average() : 0,
 				Sum = samples.Count() > 0 ? samples.Sum() : 0,
 				P5 = Percentile( 5 ),
+				P50 = Percentile( 50 ),
 				P95 = Percentile( 95 ),
 				P99 = Percentile( 99 ),
 				P99_9 = Percentile( 99.9 ),

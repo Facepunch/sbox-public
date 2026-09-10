@@ -52,15 +52,23 @@ public struct SceneVolume
 	public Capsule Capsule = Capsule.FromHeightAndRadius( 100, 10 );
 
 	/// <summary>
-	/// Draws an editable sphere/box gizmo, for adjusting the volume
+	/// Draws an editable sphere/box gizmo, for adjusting the volume.
 	/// </summary>
-	public void DrawGizmos( bool withControls )
+	public void DrawGizmos( bool withControls ) => DrawGizmos( withControls, out _ );
+
+	/// <summary>
+	/// Draws an editable sphere/box gizmo, for adjusting the volume.
+	/// <paramref name="changed"/> is true if a control changed the volume this frame.
+	/// </summary>
+	public void DrawGizmos( bool withControls, out bool changed )
 	{
+		changed = false;
+
 		if ( Type == VolumeTypes.Sphere )
 		{
 			if ( withControls )
 			{
-				Gizmo.Control.Sphere( "Volume", Sphere.Radius, out Sphere.Radius, Color.Yellow );
+				changed |= Gizmo.Control.Sphere( "Volume", Sphere.Radius, out Sphere.Radius, Color.Yellow );
 			}
 
 			Gizmo.Draw.IgnoreDepth = false;
@@ -78,7 +86,7 @@ public struct SceneVolume
 
 			if ( withControls )
 			{
-				Gizmo.Control.BoundingBox( "Volume", Box, out Box );
+				changed |= Gizmo.Control.BoundingBox( "Volume", Box, out Box );
 			}
 
 			Gizmo.Draw.Color = Gizmo.Colors.Blue.WithAlpha( 0.8f );
@@ -93,7 +101,7 @@ public struct SceneVolume
 		{
 			if ( withControls )
 			{
-				Gizmo.Control.Capsule( "Volume", Capsule, out Capsule, Color.Yellow );
+				changed |= Gizmo.Control.Capsule( "Volume", Capsule, out Capsule, Color.Yellow );
 			}
 
 			Gizmo.Draw.IgnoreDepth = false;

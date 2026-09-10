@@ -2,9 +2,9 @@
 
 namespace Facepunch.Steps;
 
-internal class ShaderProc( string name ) : Step( name )
+internal class ShaderProc
 {
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		Facepunch.ShaderProc.Program.Process( "engine" );
 		return ExitCode.Success;

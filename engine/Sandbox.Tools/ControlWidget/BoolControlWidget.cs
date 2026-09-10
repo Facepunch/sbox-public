@@ -32,6 +32,7 @@ public class BoolControlWidget : ControlWidget
 		PropertyStartEdit();
 		SerializedProperty.As.Bool = !SerializedProperty.As.Bool;
 		PropertyFinishEdit();
+		SignalValuesChanged();
 	}
 
 	protected override Vector2 SizeHint()
@@ -64,6 +65,7 @@ public class BoolControlWidget : ControlWidget
 		SerializedProperty.As.Bool = !SerializedProperty.As.Bool;
 		e.Accepted = true;
 		PropertyFinishEdit();
+		SignalValuesChanged();
 	}
 
 	protected override void OnPaint()

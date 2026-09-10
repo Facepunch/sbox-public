@@ -63,6 +63,12 @@ public sealed class DecalDefinition : GameResource
 	public float ParallaxStrength { get; set; } = 1.0f;
 
 	/// <summary>
+	/// Adjusts the opacity mask based on the height map.
+	/// </summary>
+	[HideIf( "HeightTexture", null )]
+	public float CoverageAmount { get; set; } = 1.0f;
+
+	/// <summary>
 	/// Tints the color of the decal's albedo and can be used to adjust the overall opacity of the decal.
 	/// </summary>
 	[Header( "Parameters" )]

@@ -52,7 +52,7 @@ public class DooEngine : GameObjectSystem<DooEngine>
 
 			await RunBody( ctx, ctx.Doo.Body );
 		}
-		catch ( TaskCanceledException ) { }
+		catch ( OperationCanceledException ) { }
 		catch ( Exception ex )
 		{
 			Log.Warning( ex, $"Error running Doo: {ex.Message}" );

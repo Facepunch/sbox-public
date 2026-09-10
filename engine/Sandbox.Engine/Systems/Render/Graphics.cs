@@ -47,7 +47,6 @@ public static partial class Graphics
 		public ImageFormat colorFormat;
 		public MultisampleAmount msaaLevel;
 		public Transform cameraTransform;
-		internal RenderAttributes frameAttributes;
 		internal RenderTarget renderTarget;
 		internal float defaultMinZ;
 		internal float defaultMaxZ;
@@ -88,9 +87,9 @@ public static partial class Graphics
 
 	/// <summary>
 	/// Access to the current frame's attributes.
-	/// These will live until the end of the frame.
 	/// </summary>
-	internal static RenderAttributes FrameAttributes => _state.frameAttributes;
+	[Obsolete( "Frame attributes are deprecated, try to use Pipeline Texture Sets." )]
+	internal static RenderAttributes FrameAttributes => Attributes;
 
 	/// <summary>
 	/// The camera transform of the currently rendering view
@@ -106,6 +105,33 @@ public static partial class Graphics
 	/// The camera rotation of the currently rendering view
 	/// </summary>
 	public static Rotation CameraRotation => CameraTransform.Rotation;
+
+	/// <summary>
+	/// GPU video memory budget in bytes, as reported by the OS (WDDM).
+	/// </summary>
+	public static ulong VideoMemoryBudget
+	{
+		get
+		{
+			if ( Application.IsHeadless ) return 0;
+			g_pRenderDevice.GetVideoMemoryInfo( out var budget, out _, out _ );
+			return budget;
+		}
+	}
+
+	/// <summary>
+	/// GPU video memory currently used by the engine's render system in bytes.
+	/// This includes textures, buffers, and all other GPU allocations tracked by the engine.
+	/// </summary>
+	public static ulong VideoMemoryUsed
+	{
+		get
+		{
+			if ( Application.IsHeadless ) return 0;
+			g_pRenderDevice.GetVideoMemoryInfo( out _, out _, out var rsUsage );
+			return rsUsage;
+		}
+	}
 
 
 	/// <summary>
@@ -124,8 +150,7 @@ public static partial class Graphics
 
 			var cf = _state.sceneView.GetFrustum();
 
-			// Extract planes from native CFrustum
-			// Plane indices: RIGHT=0, LEFT=1, TOP=2, BOTTOM=3, NEAR=4, FAR=5
+			// Native planes are camera-relative.
 			cf.GetPlane( 0, out var rn, out var rd );
 			cf.GetPlane( 1, out var ln, out var ld );
 			cf.GetPlane( 2, out var tn, out var td );
@@ -133,13 +158,14 @@ public static partial class Graphics
 			cf.GetPlane( 4, out var nn, out var nd );
 			cf.GetPlane( 5, out var fn, out var fd );
 
+			var origin = cf.GetCameraPosition();
 			return new Frustum(
-				right: new Plane( ln, ld ),
-				left: new Plane( ln, rd ),
-				top: new Plane( tn, td ),
-				bottom: new Plane( bn, bd ),
-				near: new Plane( nn, nd ),
-				far: new Plane( fn, fd )
+				right: new Plane( rn, rd + origin.Dot( rn ) ),
+				left: new Plane( ln, ld + origin.Dot( ln ) ),
+				top: new Plane( tn, td + origin.Dot( tn ) ),
+				bottom: new Plane( bn, bd + origin.Dot( bn ) ),
+				near: new Plane( nn, nd + origin.Dot( nn ) ),
+				far: new Plane( fn, fd + origin.Dot( fn ) )
 			);
 		}
 	}
@@ -193,9 +219,6 @@ public static partial class Graphics
 
 			_state.attributes = ObjectPool<RenderAttributes>.Get();
 			_state.attributes.Set( setup.renderContext.GetAttributesPtrForModify() );
-
-			_state.frameAttributes = ObjectPool<RenderAttributes>.Get();
-			_state.frameAttributes.Set( setup.sceneView.GetRenderAttributesPtr() );
 		}
 
 		public void Dispose()
@@ -204,12 +227,6 @@ public static partial class Graphics
 			{
 				_state.attributes.Set( default( CRenderAttributes ) );
 				ObjectPool<RenderAttributes>.Return( _state.attributes );
-			}
-
-			if ( _state.frameAttributes is not null )
-			{
-				_state.frameAttributes.Set( default( CRenderAttributes ) );
-				ObjectPool<RenderAttributes>.Return( _state.frameAttributes );
 			}
 
 			_state = _previous;
@@ -256,8 +273,12 @@ public static partial class Graphics
 		AssertRenderBlock();
 
 		bool withMips = downsampleMethod != DownsampleMethod.None;
-		var fullMips = (int)Math.Log2( Math.Max( Viewport.Width, Viewport.Height ) );
-		var numMips = withMips ? (maxMips > 0 ? Math.Min( maxMips, fullMips ) : fullMips) : 1;
+		var numMips = 1;
+		if ( withMips )
+		{
+			var fullMips = (int)Math.Log2( Math.Max( Viewport.Width, Viewport.Height ) );
+			numMips = maxMips > 0 ? Math.Min( maxMips, fullMips ) : fullMips;
+		}
 
 		// Grab a new one - which may very well be the one we just returned
 		var frameTexture = RenderTarget.GetTemporary( 1, ImageFormat.Default, ImageFormat.None, msaa: MultisampleAmount.MultisampleNone, numMips: numMips, targetName );

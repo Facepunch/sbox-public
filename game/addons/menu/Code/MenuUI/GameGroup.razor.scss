@@ -1,10 +1,29 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+GameGroup
+{
+    background-color: transparent;
+    align-items: center;
+    justify-content: center;
+}
+
+Page
+{
+    width: 100%;
+    max-width: $screen-w-xl;
+}
+
 GameGroup h2
 {
-    font-size: 2rem;
-    font-weight: 650;
-    padding: 2rem;
-    padding-bottom: 0;
-    gap: 1rem;
+	font-family: $front-font;
+	font-size: 20px;
+	font-weight: 700;
+	color: $front-heading;
+
+	padding: 2rem;
+	padding-bottom: 0;
+	gap: 1rem;
 }
 
 GameGroup packagelist virtualgrid

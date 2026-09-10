@@ -1,4 +1,4 @@
-global using Editor;
+﻿global using Editor;
 global using Sandbox;
 global using Sandbox.Diagnostics;
 global using System.Collections;
@@ -25,11 +25,29 @@ internal static class AssemblyInitialize
 	{
 		Managed.SourceTools.NativeInterop.Initialize();
 		Managed.SourceAssetSytem.NativeInterop.Initialize();
-		Managed.SourceHammer.NativeInterop.Initialize();
-		Managed.SourceModelDoc.NativeInterop.Initialize();
-		Managed.SourceAnimgraph.NativeInterop.Initialize();
+
+		// Hammer, ModelDoc and Animgraph each live in their own native library, and those
+		// aren't built on every platform yet. The editor itself doesn't need them - it's the
+		// individual tool that won't open - so don't take the whole thing down over one.
+		InitializeTool( "Hammer", "hammer", Managed.SourceHammer.NativeInterop.Initialize );
+		InitializeTool( "ModelDoc", "modeldoc_editor", Managed.SourceModelDoc.NativeInterop.Initialize );
+		InitializeTool( "Animgraph", "animgraph_editor", Managed.SourceAnimgraph.NativeInterop.Initialize );
 
 		IToolsDll.Current = new ToolsDll();
+	}
+
+	static void InitializeTool( string name, string library, System.Action initialize )
+	{
+		try
+		{
+			initialize();
+			EngineTools.SetAvailable( library );
+		}
+		catch ( System.Exception )
+		{
+			EngineTools.SetUnavailable( library );
+			Log.Warning( $"{name} is unavailable. {EngineTools.GetUnavailableMessage()}" );
+		}
 	}
 
 	public static void InitializeUnitTest( System.Reflection.Assembly callingAssembly )

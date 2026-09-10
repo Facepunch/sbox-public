@@ -4,7 +4,26 @@ namespace Sandbox.UI;
 
 public partial class Panel
 {
-	internal YogaWrapper YogaNode;
+	internal PanelLayout LayoutTree;
+	internal InlineParagraph InlineParagraph;
+	internal InlineParagraph InlineOwner;
+
+	private void UpdateInlineParagraph()
+	{
+		if ( Sandbox.UI.InlineParagraph.CanFormat( this ) )
+		{
+			InlineParagraph ??= new InlineParagraph( this );
+			InlineParagraph.Update();
+			LayoutTree.Node.InlineContent = InlineParagraph;
+		}
+		else if ( InlineParagraph is not null )
+		{
+			LayoutTree.Node.InlineContent = null;
+			InlineParagraph.Dispose();
+			InlineParagraph = null;
+			MarkRenderDirty();
+		}
+	}
 
 	/// <summary>
 	/// Access to various bounding boxes of this panel.
@@ -55,7 +74,41 @@ public partial class Panel
 	/// If this panel or its parents have transforms, they'll be compounded here.
 	/// </summary>
 	[Hide]
-	public Matrix? GlobalMatrix { get; internal set; }
+	public Matrix? GlobalMatrix
+	{
+		get;
+		internal set
+		{
+			field = value;
+			_globalMatrixInverted = null;
+		}
+	}
+
+	Matrix? _globalMatrixInverted;
+
+	/// <summary>
+	/// Cached inverse of <see cref="GlobalMatrix"/>. Null when GlobalMatrix is null.
+	/// </summary>
+	internal Matrix? GlobalMatrixInverted
+	{
+		get
+		{
+			if ( GlobalMatrix is not { } m )
+				return null;
+
+			_globalMatrixInverted ??= m.Inverted;
+			return _globalMatrixInverted;
+		}
+	}
+
+	/// <summary>
+	/// Set <see cref="GlobalMatrix"/> along with an already known inverse, so it doesn't need computing again.
+	/// </summary>
+	internal void SetGlobalMatrix( Matrix? matrix, Matrix? inverted )
+	{
+		GlobalMatrix = matrix;
+		_globalMatrixInverted = inverted;
+	}
 
 	/// <summary>
 	/// The matrix that is applied as a result of transform: styles
@@ -69,11 +122,11 @@ public partial class Panel
 	[Hide]
 	internal bool HasBackdropFilter { get; private set; }
 
-	/// <summary>
-	/// The computed style has a non-default filter property
-	/// </summary>
 	[Hide]
 	internal bool HasFilter { get; private set; }
+
+	[Hide]
+	internal bool HasCustomDraw => CachedDescriptors?.CustomEntries.Count > 0;
 
 	/// <summary>
 	/// The computed style has a renderable background
@@ -136,15 +189,29 @@ public partial class Panel
 		Parent?.SetNeedsPreLayout();
 	}
 
+	/// <summary>
+	/// Request the final layout pass without a style rebuild. Enough for anything that
+	/// only moves content - like scrolling - where styles and layout are unaffected.
+	/// </summary>
+	internal void SetNeedsFinalLayout()
+	{
+		if ( needsFinalLayout ) return;
+
+		needsFinalLayout = true;
+
+		Parent?.SetNeedsFinalLayout();
+	}
+
 	internal virtual void PreLayout( LayoutCascade cascade )
 	{
-		if ( YogaNode == null )
+		if ( LayoutTree == null )
 			return;
 
-		if ( !needsPreLayout && !cascade.SelectorChanged && !cascade.ParentChanged )
+		if ( !needsPreLayout && !cascade.SelectorChanged && !cascade.ParentChanged && !LayoutTree.ReferenceSizeChanged )
 			return;
 
 		needsPreLayout = false;
+		if ( cascade.Root is { } overlayRoot ) overlayRoot.FixedOverlaysDirty = true;
 
 		if ( IndexesDirty )
 		{
@@ -152,19 +219,41 @@ public partial class Panel
 		}
 
 
+		// Inherit from what we're styled under, if that's not where we're laid out
+		if ( StyleParent is { } styleParent && styleParent != Parent )
+		{
+			cascade.ParentStyles = styleParent.ComputedStyle;
+		}
+
+		var ownStyleChanged = Style.IsDirty;
+		var hadTransitions = Transitions.HasAny;
 		ComputedStyle = Style.BuildFinal( ref cascade, out bool changed );
+		if ( changed )
+		{
+			// ResolveCssWide retains the sparse keyword map, including expanded shorthands.
+			// Refresh even if a selector changes to inherit the same value we already had.
+			inheritsLayoutStyle = ComputedStyle.CssWide?.ContainsValue( CssWideKeyword.Inherit ) == true;
+		}
+		if ( IsFixed ) cascade.ClipBackgroundToText = false;
 		cascade.ParentStyles = ComputedStyle;
 
 		PushLengthValues();
-
 		ScaleToScreen = cascade.Scale;
+		if ( this is RootPanel root ) root.PushRootValues();
+
 		var previousOpacity = Opacity;
 		Opacity = ComputedStyle.Opacity.Value * (Parent?.Opacity ?? 1.0f);
 		UpdateVisibility();
+		// Scrollbar width inherits by default and can change the gutter without changing our rules.
+		LayoutTree.Gutter = ScrollbarGutter;
 
-		if ( changed || !YogaNode.Initialized )
+		// SelectorChanged forces BuildCached even when this panel's rules did not change (e.g. resize).
+		// Only that path needs a layout-input comparison; ordinary inheritance visits must stay cheap.
+		if ( !LayoutTree.Initialized || ownStyleChanged || LayoutTree.ReferenceSizeChanged
+			|| (cascade.ParentChanged && inheritsLayoutStyle)
+			|| (changed && (!cascade.SelectorChanged || hadTransitions || ComputedStyle.IsAnimationActive || GetLayoutStyleHash() != layoutStyleHash)) )
 		{
-			UpdateYoga();
+			UpdateLayoutStyle();
 		}
 
 		if ( Opacity != previousOpacity )
@@ -201,6 +290,7 @@ public partial class Panel
 
 			HasBackground = ComputedStyle.BackgroundColor.Value.a > 0f
 				|| ComputedStyle.BorderImageSource is not null
+				|| !ComputedStyle.BackgroundGradient.ColorOffsets.IsDefaultOrEmpty
 				|| (ComputedStyle.BackgroundImage is not null && ComputedStyle.BackgroundImage != Texture.Invalid)
 				|| (ComputedStyle.BorderLeftColor.Value.a > 0f && ComputedStyle.BorderLeftWidth.Value.GetPixels( 1.0f ) > 0f)
 				|| (ComputedStyle.BorderTopColor.Value.a > 0f && ComputedStyle.BorderTopWidth.Value.GetPixels( 1.0f ) > 0f)
@@ -214,15 +304,23 @@ public partial class Panel
 
 		if ( LayoutCount > 0 && !IsVisibleSelf )
 		{
+			// display:none must release ownership even though child style traversal is skipped.
+			if ( ComputedStyle.Display == DisplayMode.None ) UpdateInlineParagraph();
 			return;
 		}
 
 		if ( _children == null || _children.Count == 0 )
+		{
+			UpdateInlineParagraph();
 			return;
+		}
 
 		// We need to tell the children to force an update if any of the parent's
 		// cascading styles have changed.
 		cascade.ParentChanged = cascade.ParentChanged || changed;
+
+		// background-clip: text clips to the text of the whole subtree, so every label under it lends its own
+		cascade.ClipBackgroundToText = cascade.ClipBackgroundToText || ComputedStyle.BackgroundClip == BackgroundClip.Text;
 
 		for ( int i = 0; i < _children.Count; i++ )
 		{
@@ -231,62 +329,149 @@ public partial class Panel
 
 		//
 		// Our children's 'order' properties might have changed
-		// if so, tell yoga about the new order
+		// if so, tell the layout tree about the new order
 		//
 		SortChildrenOrder();
+		UpdateInlineParagraph();
 	}
 
-	internal void UpdateYoga()
+	private int layoutStyleHash;
+	private bool inheritsLayoutStyle;
+
+	private int GetLayoutStyleHash()
+	{
+		var style = ComputedStyle;
+		var hash = new HashCode();
+		AddLength( style.Width );
+		AddLength( style.Height );
+		AddLength( style.MaxWidth );
+		AddLength( style.MaxHeight );
+		AddLength( style.MinWidth );
+		AddLength( style.MinHeight );
+		AddLength( style.Left );
+		AddLength( style.Right );
+		AddLength( style.Top );
+		AddLength( style.Bottom );
+		AddLength( style.MarginLeft );
+		AddLength( style.MarginRight );
+		AddLength( style.MarginTop );
+		AddLength( style.MarginBottom );
+		AddLength( style.PaddingLeft );
+		AddLength( style.PaddingRight );
+		AddLength( style.PaddingTop );
+		AddLength( style.PaddingBottom );
+		AddLength( style.BorderLeftWidth );
+		AddLength( style.BorderRightWidth );
+		AddLength( style.BorderTopWidth );
+		AddLength( style.BorderBottomWidth );
+		AddLength( style.FlexBasis );
+		AddLength( style.RowGap );
+		AddLength( style.ColumnGap );
+		hash.Add( ScrollbarGutter );
+		hash.Add( style.Display );
+		hash.Add( style.Position );
+		hash.Add( style.AspectRatio );
+		hash.Add( style.FlexGrow );
+		hash.Add( style.FlexShrink );
+		hash.Add( style.FlexDirection );
+		hash.Add( style.FlexWrap );
+		hash.Add( style.AlignContent );
+		hash.Add( style.AlignItems );
+		hash.Add( style.AlignSelf );
+		hash.Add( style.JustifyContent );
+		hash.Add( style.Overflow );
+		hash.Add( style.JustifyItems );
+		hash.Add( style.JustifySelf );
+		hash.Add( style.GridTemplateColumns );
+		hash.Add( style.GridTemplateRows );
+		hash.Add( style.GridAutoColumns );
+		hash.Add( style.GridAutoRows );
+		hash.Add( style.GridAutoFlow );
+		hash.Add( style.GridColumnStart );
+		hash.Add( style.GridColumnEnd );
+		hash.Add( style.GridRowStart );
+		hash.Add( style.GridRowEnd );
+		return hash.ToHashCode();
+
+		void AddLength( Length? length )
+		{
+			hash.Add( length );
+			// Length's hash only includes the numeric value and unit, not the expression text.
+			if ( length?.Unit == LengthUnit.Expression ) hash.Add( length.Value.ToString() );
+		}
+	}
+
+	internal void UpdateLayoutStyle()
 	{
 		if ( ComputedStyle == null )
 			return;
 
-		YogaNode.Width = ComputedStyle.Width;
-		YogaNode.Height = ComputedStyle.Height;
-		YogaNode.MaxWidth = ComputedStyle.MaxWidth;
-		YogaNode.MaxHeight = ComputedStyle.MaxHeight;
-		YogaNode.MinWidth = ComputedStyle.MinWidth;
-		YogaNode.MinHeight = ComputedStyle.MinHeight;
-		YogaNode.Display = ComputedStyle.Display;
+		layoutStyleHash = GetLayoutStyleHash();
+		LayoutTree.BeginStyleUpdate();
 
-		YogaNode.Left = ComputedStyle.Left;
-		YogaNode.Right = ComputedStyle.Right;
-		YogaNode.Top = ComputedStyle.Top;
-		YogaNode.Bottom = ComputedStyle.Bottom;
+		LayoutTree.Width = ComputedStyle.Width;
+		LayoutTree.Height = ComputedStyle.Height;
+		LayoutTree.MaxWidth = ComputedStyle.MaxWidth;
+		LayoutTree.MaxHeight = ComputedStyle.MaxHeight;
+		LayoutTree.MinWidth = ComputedStyle.MinWidth;
+		LayoutTree.MinHeight = ComputedStyle.MinHeight;
+		LayoutTree.Display = ComputedStyle.Display;
 
-		YogaNode.MarginLeft = ComputedStyle.MarginLeft;
-		YogaNode.MarginRight = ComputedStyle.MarginRight;
-		YogaNode.MarginTop = ComputedStyle.MarginTop;
-		YogaNode.MarginBottom = ComputedStyle.MarginBottom;
+		LayoutTree.Left = ComputedStyle.Left;
+		LayoutTree.Right = ComputedStyle.Right;
+		LayoutTree.Top = ComputedStyle.Top;
+		LayoutTree.Bottom = ComputedStyle.Bottom;
 
-		YogaNode.PaddingLeft = ComputedStyle.PaddingLeft;
-		YogaNode.PaddingRight = ComputedStyle.PaddingRight;
-		YogaNode.PaddingTop = ComputedStyle.PaddingTop;
-		YogaNode.PaddingBottom = ComputedStyle.PaddingBottom;
+		LayoutTree.MarginLeft = ComputedStyle.MarginLeft;
+		LayoutTree.MarginRight = ComputedStyle.MarginRight;
+		LayoutTree.MarginTop = ComputedStyle.MarginTop;
+		LayoutTree.MarginBottom = ComputedStyle.MarginBottom;
 
-		YogaNode.BorderLeftWidth = ComputedStyle.BorderLeftWidth;
-		YogaNode.BorderTopWidth = ComputedStyle.BorderTopWidth;
-		YogaNode.BorderRightWidth = ComputedStyle.BorderRightWidth;
-		YogaNode.BorderBottomWidth = ComputedStyle.BorderBottomWidth;
+		LayoutTree.Gutter = ScrollbarGutter;
 
-		YogaNode.PositionType = ComputedStyle.Position;
-		YogaNode.AspectRatio = ComputedStyle.AspectRatio;
-		YogaNode.FlexGrow = ComputedStyle.FlexGrow;
-		YogaNode.FlexShrink = ComputedStyle.FlexShrink;
-		YogaNode.FlexBasis = ComputedStyle.FlexBasis;
-		YogaNode.Wrap = ComputedStyle.FlexWrap;
+		LayoutTree.PaddingLeft = ComputedStyle.PaddingLeft;
+		LayoutTree.PaddingRight = ComputedStyle.PaddingRight;
+		LayoutTree.PaddingTop = ComputedStyle.PaddingTop;
+		LayoutTree.PaddingBottom = ComputedStyle.PaddingBottom;
 
-		YogaNode.AlignContent = ComputedStyle.AlignContent;
-		YogaNode.AlignItems = ComputedStyle.AlignItems;
-		YogaNode.AlignSelf = ComputedStyle.AlignSelf;
-		YogaNode.FlexDirection = ComputedStyle.FlexDirection;
-		YogaNode.JustifyContent = ComputedStyle.JustifyContent;
-		YogaNode.Overflow = ComputedStyle.Overflow;
+		LayoutTree.BorderLeftWidth = ComputedStyle.BorderLeftWidth;
+		LayoutTree.BorderTopWidth = ComputedStyle.BorderTopWidth;
+		LayoutTree.BorderRightWidth = ComputedStyle.BorderRightWidth;
+		LayoutTree.BorderBottomWidth = ComputedStyle.BorderBottomWidth;
 
-		YogaNode.RowGap = ComputedStyle.RowGap;
-		YogaNode.ColumnGap = ComputedStyle.ColumnGap;
+		LayoutTree.PositionType = ComputedStyle.Position;
+		LayoutTree.AspectRatio = ComputedStyle.AspectRatio;
+		LayoutTree.FlexGrow = ComputedStyle.FlexGrow;
+		LayoutTree.FlexShrink = ComputedStyle.FlexShrink;
+		LayoutTree.FlexDirection = ComputedStyle.FlexDirection;
+		LayoutTree.FlexBasis = ComputedStyle.FlexBasis;
+		LayoutTree.Wrap = ComputedStyle.FlexWrap;
 
-		YogaNode.Initialized = true;
+		LayoutTree.AlignContent = ComputedStyle.AlignContent;
+		LayoutTree.AlignItems = ComputedStyle.AlignItems;
+		LayoutTree.AlignSelf = ComputedStyle.AlignSelf;
+		LayoutTree.JustifyContent = ComputedStyle.JustifyContent;
+		LayoutTree.Overflow = ComputedStyle.Overflow;
+
+		LayoutTree.RowGap = ComputedStyle.RowGap;
+		LayoutTree.ColumnGap = ComputedStyle.ColumnGap;
+
+		LayoutTree.JustifyItems = ComputedStyle.JustifyItems;
+		LayoutTree.JustifySelf = ComputedStyle.JustifySelf;
+
+		// Grid (parsed by the layout engine; cheap when unchanged)
+		LayoutTree.GridTemplateColumns = ComputedStyle.GridTemplateColumns;
+		LayoutTree.GridTemplateRows = ComputedStyle.GridTemplateRows;
+		LayoutTree.GridAutoColumns = ComputedStyle.GridAutoColumns;
+		LayoutTree.GridAutoRows = ComputedStyle.GridAutoRows;
+		LayoutTree.GridAutoFlow = ComputedStyle.GridAutoFlow;
+		LayoutTree.GridColumnStart = ComputedStyle.GridColumnStart;
+		LayoutTree.GridColumnEnd = ComputedStyle.GridColumnEnd;
+		LayoutTree.GridRowStart = ComputedStyle.GridRowStart;
+		LayoutTree.GridRowEnd = ComputedStyle.GridRowEnd;
+
+		LayoutTree.CaptureReferenceSize();
+		LayoutTree.Initialized = true;
 	}
 
 	/// <summary>
@@ -315,34 +500,40 @@ public partial class Panel
 		if ( ComputedStyle is null )
 			return;
 
-		if ( YogaNode is null )
+		if ( LayoutTree is null )
 			return;
 
-		PushLengthValues();
+		if ( IsFixed && FindRootPanel() is { } root ) offset = root.PanelBounds.Position;
 
 		var hash = HashCode.Combine( offset, ScrollOffset, ScrollVelocity, ComputedStyle?.Transform, Opacity, ComputedStyle.Display );
-		if ( layoutHash == hash && !YogaNode.HasNewLayout && !needsFinalLayout ) return;
+		if ( layoutHash == hash && !needsFinalLayout && !LayoutTree.HasNewLayout ) return;
 
 		needsFinalLayout = false;
 		layoutHash = hash;
 
-		//if ( YogaNode.HasNewLayout || parentPos != offset )
+		PushLengthValues();
+
+		//if ( LayoutTree.HasNewLayout || parentPos != offset )
 		{
 			var previousRect = Box.Rect;
 
-			Box.Rect = YogaNode.YogaRect;
+			Box.Rect = LayoutTree.LayoutRect;
 
 			Box.Rect.Position += offset;
 
 			OnLayout( ref Box.Rect );
 
-			Box.Padding = YogaNode.Padding;
-			Box.Margin = YogaNode.Margin;
-			Box.Border = YogaNode.Border;
+			Box.Padding = LayoutTree.Padding;
+			Box.Margin = LayoutTree.Margin;
 
-			Box.RectOuter = Box.Rect.Grow( YogaNode.Margin.Left, YogaNode.Margin.Top, YogaNode.Margin.Right, YogaNode.Margin.Bottom );
-			Box.RectInner = Box.Rect.Shrink( YogaNode.Padding.Left, YogaNode.Padding.Top, YogaNode.Padding.Right, YogaNode.Padding.Bottom );
-			Box.ClipRect = Box.Rect.Shrink( YogaNode.Border.Left, YogaNode.Border.Top, YogaNode.Border.Right, YogaNode.Border.Bottom );
+			// The scrollbar gutter rides on the layout border for layout, but it's inside the clip and doesn't draw
+			var border = LayoutTree.Border;
+			var gutter = LayoutTree.Gutter;
+			Box.Border = new Margin( border.Left - gutter.Left, border.Top, border.Right - gutter.Right, border.Bottom );
+
+			Box.RectOuter = Box.Rect.Grow( LayoutTree.Margin.Left, LayoutTree.Margin.Top, LayoutTree.Margin.Right, LayoutTree.Margin.Bottom );
+			Box.RectInner = Box.Rect.Shrink( LayoutTree.Padding.Left, LayoutTree.Padding.Top, LayoutTree.Padding.Right, LayoutTree.Padding.Bottom );
+			Box.ClipRect = Box.Rect.Shrink( Box.Border.Left, Box.Border.Top, Box.Border.Right, Box.Border.Bottom );
 
 			UpdateLayer( ComputedStyle );
 
@@ -384,8 +575,10 @@ public partial class Panel
 
 		bool wasScrollatBottom = IsScrollAtBottom;
 
-		offset = Box.Rect.Position - ScrollOffset.SnapToGrid( 1.0f );
+		_laidOutScrollOffset = ScrollOffset.SnapToGrid( 1.0f );
+		offset = Box.Rect.Position - _laidOutScrollOffset;
 		FinalLayoutChildren( offset );
+		InlineParagraph?.FinalizeLayout();
 
 		if ( wasScrollatBottom )
 		{
@@ -399,6 +592,11 @@ public partial class Panel
 	{
 		Length.CurrentFontSize = ComputedStyle.FontSize ?? Length.Pixels( 13 ).Value;
 	}
+
+	/// <summary>
+	/// The scroll offset the children were last laid out against
+	/// </summary>
+	Vector2 _laidOutScrollOffset;
 
 	/// <summary>
 	/// If true, we'll try to stay scrolled to the bottom when the panel changes size
@@ -437,6 +635,7 @@ public partial class Panel
 		{
 			try
 			{
+				if ( _children[i].IsFixed ) continue;
 				_children[i].FinalLayout( offset );
 			}
 			catch ( System.Exception e )
@@ -450,18 +649,38 @@ public partial class Panel
 			var rect = Box.Rect;
 			rect.Position -= ScrollOffset;
 
+			// The scrollable area is our box grown to fit the children. The padding after the
+			// last child scrolls with the content, so it's added to the children's extent - not
+			// to the box, which already includes it. Adding it to the box made every padded scroll
+			// panel scrollable by its padding even when nothing overflowed.
+			Rect content = default;
+			bool hasContent = false;
+
 			for ( int i = 0; i < _children.Count; i++ )
 			{
 				var child = _children[i];
 
-				if ( child.IsVisible )
-				{
-					rect.Add( child.GetLayoutRect() );
-				}
+				if ( !child.IsVisible || child.IsFixed )
+					continue;
+
+				if ( child is ScrollBar )
+					continue;
+
+				if ( !child.TryGetLayoutRect( out var childRect ) ) continue;
+
+				if ( hasContent ) content.Add( childRect );
+				else content = childRect;
+
+				hasContent = true;
 			}
 
-			rect.Height += Box.Padding.Bottom;
-			rect.Right += Box.Padding.Right;
+			if ( hasContent )
+			{
+				// Content scrolls up to the gutter, not under it
+				content.Right += Box.Padding.Right + LayoutTree.Gutter.Right;
+				content.Bottom += Box.Padding.Bottom;
+				rect.Add( content );
+			}
 
 			ConstrainScrolling( rect.Size );
 		}
@@ -472,26 +691,30 @@ public partial class Panel
 
 	}
 
-	Rect GetLayoutRect()
+	bool TryGetLayoutRect( out Rect rect )
 	{
-		if ( HasChildren && ComputedStyle.Display == DisplayMode.Contents )
+		rect = default;
+		if ( !IsVisible || IsFixed ) return false;
+		if ( ComputedStyle.Display == DisplayMode.Contents )
 		{
-			Rect rect = default;
-			for ( int i = 0; i < _children.Count; i++ )
+			bool hasRect = false;
+			for ( int i = 0; i < (_children?.Count ?? 0); i++ )
 			{
 				var child = _children[i];
 
-				if ( child.IsVisible )
+				if ( child.TryGetLayoutRect( out var childRect ) )
 				{
-					if ( i == 0 ) rect = child.GetLayoutRect();
-					else rect.Add( child.GetLayoutRect() );
+					if ( !hasRect ) rect = childRect;
+					else rect.Add( childRect );
+					hasRect = true;
 				}
 			}
 
-			return rect;
+			return hasRect;
 		}
 
-		return Box.RectOuter;
+		rect = Box.RectOuter;
+		return true;
 	}
 
 	private void UpdateScrollPin()
@@ -530,6 +753,11 @@ public partial class Panel
 	}
 
 	/// <summary>
+	/// Reversed by flex-direction: *-reverse or justify-content: flex-end, when the scroll offset runs from -<see cref="ScrollSize"/> to zero
+	/// </summary>
+	internal bool IsScrollAxisReversed => ComputedStyle.JustifyContent == Justify.FlexEnd || ComputedStyle.FlexDirection == FlexDirection.RowReverse || ComputedStyle.FlexDirection == FlexDirection.ColumnReverse;
+
+	/// <summary>
 	/// Constrain <see cref="ScrollOffset">scrolling</see> to the given size.
 	/// </summary>
 	protected virtual void ConstrainScrolling( Vector2 size )
@@ -559,8 +787,7 @@ public partial class Panel
 		// add velocity
 		so += ScrollVelocity * RealTime.SmoothDelta * 60.0f;
 
-		// Reverse the axis if flex-direction: *-reverse or justify-content: flex-end;
-		var axisReversed = ComputedStyle.JustifyContent == Justify.FlexEnd || ComputedStyle.FlexDirection == FlexDirection.RowReverse || ComputedStyle.FlexDirection == FlexDirection.ColumnReverse;
+		var axisReversed = IsScrollAxisReversed;
 
 		IsScrollAtBottom = so.y + ScrollVelocity.y >= size.y;
 		if ( ScrollVelocity.y > 0 && IsScrollAtBottom ) so.y += heightChange;
@@ -689,122 +916,4 @@ public class Box
 	/// Position of the bottom edge in screen coordinates.
 	/// </summary>
 	public float Bottom => Rect.Bottom;
-}
-
-internal static class YogaEx
-{
-	public static void SetYoga( this ref Length? self, YGNodeRef _native, Func<float> dimension, Action<YGNodeRef> setAuto, Action<YGNodeRef, float> setUnit, Action<YGNodeRef, float> setPercent )
-	{
-		if ( !self.HasValue || self.Value.Unit == LengthUnit.Undefined )
-		{
-			setUnit( _native, float.NaN );
-			return;
-		}
-
-		if ( self.Value.Unit == LengthUnit.Expression )
-		{
-			setUnit( _native, self.Value.GetPixels( dimension() ) );
-			return;
-		}
-
-		if ( self.Value.Unit == LengthUnit.Auto )
-		{
-			setAuto?.Invoke( _native );
-			return;
-		}
-
-		if ( self.Value.Unit == LengthUnit.Pixels )
-		{
-			setUnit( _native, self.Value.Value );
-			return;
-		}
-
-		if ( self.Value.Unit == LengthUnit.Percentage )
-		{
-			setPercent( _native, self.Value.Value );
-			return;
-		}
-
-		if ( self.Value.Unit == LengthUnit.ViewHeight || self.Value.Unit == LengthUnit.ViewWidth || self.Value.Unit == LengthUnit.ViewMin || self.Value.Unit == LengthUnit.ViewMax )
-		{
-			setUnit( _native, self.Value.GetPixels( 0.0f ) );
-			return;
-		}
-
-		if ( self.Value.Unit == LengthUnit.RootEm || self.Value.Unit == LengthUnit.Em )
-		{
-			setUnit( _native, self.Value.GetPixels( dimension() ) );
-			return;
-		}
-	}
-
-	public static void SetYoga( this ref Length? self, YGNodeRef _native, Func<float> dimension, Action<YGNodeRef, YGEdge> setAuto, Action<YGNodeRef, YGEdge, float> setUnit, Action<YGNodeRef, YGEdge, float> setPercent, YGEdge edge )
-	{
-		if ( !self.HasValue || self.Value.Unit == LengthUnit.Undefined )
-		{
-			setUnit( _native, edge, float.NaN );
-			return;
-		}
-
-		if ( self.Value.Unit == LengthUnit.Expression )
-		{
-			setUnit( _native, edge, self.Value.GetPixels( dimension() ) );
-			return;
-		}
-
-		if ( self.Value.Unit == LengthUnit.Auto )
-		{
-			setAuto?.Invoke( _native, edge );
-			return;
-		}
-
-		if ( self.Value.Unit == LengthUnit.Pixels )
-		{
-			setUnit( _native, edge, self.Value.Value );
-			return;
-		}
-
-		if ( self.Value.Unit == LengthUnit.Percentage )
-		{
-			if ( setPercent is not null )
-			{
-				setPercent( _native, edge, self.Value.Value );
-			}
-			else
-			{
-				setUnit( _native, edge, self.Value.GetPixels( dimension() ) );
-			}
-
-			return;
-		}
-
-		if ( self.Value.Unit == LengthUnit.ViewHeight || self.Value.Unit == LengthUnit.ViewWidth || self.Value.Unit == LengthUnit.ViewMin || self.Value.Unit == LengthUnit.ViewMax )
-		{
-			setUnit( _native, edge, self.Value.GetPixels( 0.0f ) );
-			return;
-		}
-
-		if ( self.Value.Unit == LengthUnit.RootEm || self.Value.Unit == LengthUnit.Em )
-		{
-			setUnit( _native, edge, self.Value.GetPixels( dimension() ) );
-			return;
-		}
-	}
-
-	public static float ToFloat( this Length? self, Length? dimension )
-	{
-		if ( self == null ) return 0;
-
-		if ( self.Value.Unit == LengthUnit.Expression )
-			return self.Value.GetPixels( dimension?.Value ?? 0f );
-
-		if ( self.Value.Unit == LengthUnit.Pixels )
-			return self.Value.Value;
-
-		if ( self.Value.Unit == LengthUnit.RootEm || self.Value.Unit == LengthUnit.Em )
-			return self.Value.GetPixels( dimension?.Value ?? 0f );
-
-		// TODO
-		return self.Value.Value;
-	}
 }

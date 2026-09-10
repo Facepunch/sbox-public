@@ -4,9 +4,6 @@ Layer0
 {
 	shader "shaders/skin.shader"
 
-	//---- Animation ----
-	F_MORPH_SUPPORTED 1
-
 	//---- Skin ----
 	F_USE_BENT_NORMALS 1
 	F_USE_FACE_OCCLUSION_TEXTURE 1
@@ -41,7 +38,7 @@ Layer0
 	//---- Normal ----
 	g_flDiffuseNormalBlur "1.834"
 	TextureBentNormal "models/citizen_human/heads/citizen_human_malehead01/citizen_human_malehead01_bentnormal.png"
-	TextureNormal "models/citizen_human/heads/citizen_human_femalehead01/female_head_normal.png"
+	TextureNormal "models/citizen_human/heads/citizen_human_femalehead01/citizen_human_femalehead01_normal.png"
 
 	//---- Roughness ----
 	g_flRoughnessScale "1.000"

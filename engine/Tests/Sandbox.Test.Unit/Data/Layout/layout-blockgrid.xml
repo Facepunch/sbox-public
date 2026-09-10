@@ -1,0 +1,996 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Layout conformance fixtures from Taffy (https://github.com/DioxusLabs/taffy), MIT licensed. Generated from Chrome. Group: blockgrid -->
+<tests group="blockgrid">
+<test name="blockgrid_block_in_grid_auto__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" direction="ltr" grid-template-columns="auto">
+      <text display="block" direction="ltr">
+        HH​HH
+      </text>
+      <div display="block" direction="ltr"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="40" height="10" resolved-rows="10px 0px" resolved-columns="40px">
+      <node x="0" y="0" width="40" height="10"/>
+      <node x="0" y="10" width="40" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_auto__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" direction="rtl" grid-template-columns="auto">
+      <text display="block" direction="rtl">
+        HH​HH
+      </text>
+      <div display="block" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="40" height="10" resolved-rows="10px 0px" resolved-columns="40px">
+      <node x="0" y="0" width="40" height="10"/>
+      <node x="0" y="10" width="40" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_auto__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" box-sizing="content-box" direction="ltr" grid-template-columns="auto">
+      <text display="block" box-sizing="content-box" direction="ltr">
+        HH​HH
+      </text>
+      <div display="block" box-sizing="content-box" direction="ltr"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="40" height="10" resolved-rows="10px 0px" resolved-columns="40px">
+      <node x="0" y="0" width="40" height="10"/>
+      <node x="0" y="10" width="40" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_auto__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" box-sizing="content-box" direction="rtl" grid-template-columns="auto">
+      <text display="block" box-sizing="content-box" direction="rtl">
+        HH​HH
+      </text>
+      <div display="block" box-sizing="content-box" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="40" height="10" resolved-rows="10px 0px" resolved-columns="40px">
+      <node x="0" y="0" width="40" height="10"/>
+      <node x="0" y="10" width="40" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fixed_fit_content_larger__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" direction="ltr" grid-template-columns="fit-content(50px)">
+      <text display="block" direction="ltr">
+        HH​HH
+      </text>
+      <div display="block" direction="ltr"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="40" height="10" resolved-rows="10px 0px" resolved-columns="40px">
+      <node x="0" y="0" width="40" height="10"/>
+      <node x="0" y="10" width="40" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fixed_fit_content_larger__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" direction="rtl" grid-template-columns="fit-content(50px)">
+      <text display="block" direction="rtl">
+        HH​HH
+      </text>
+      <div display="block" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="40" height="10" resolved-rows="10px 0px" resolved-columns="40px">
+      <node x="0" y="0" width="40" height="10"/>
+      <node x="0" y="10" width="40" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fixed_fit_content_larger__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" box-sizing="content-box" direction="ltr" grid-template-columns="fit-content(50px)">
+      <text display="block" box-sizing="content-box" direction="ltr">
+        HH​HH
+      </text>
+      <div display="block" box-sizing="content-box" direction="ltr"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="40" height="10" resolved-rows="10px 0px" resolved-columns="40px">
+      <node x="0" y="0" width="40" height="10"/>
+      <node x="0" y="10" width="40" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fixed_fit_content_larger__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" box-sizing="content-box" direction="rtl" grid-template-columns="fit-content(50px)">
+      <text display="block" box-sizing="content-box" direction="rtl">
+        HH​HH
+      </text>
+      <div display="block" box-sizing="content-box" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="40" height="10" resolved-rows="10px 0px" resolved-columns="40px">
+      <node x="0" y="0" width="40" height="10"/>
+      <node x="0" y="10" width="40" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fixed_fit_content_middle__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" direction="ltr" grid-template-columns="fit-content(30px)">
+      <text display="block" direction="ltr">
+        HH​HH
+      </text>
+      <div display="block" direction="ltr"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="30" height="20" resolved-rows="20px 0px" resolved-columns="30px">
+      <node x="0" y="0" width="30" height="20"/>
+      <node x="0" y="20" width="30" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fixed_fit_content_middle__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" direction="rtl" grid-template-columns="fit-content(30px)">
+      <text display="block" direction="rtl">
+        HH​HH
+      </text>
+      <div display="block" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="30" height="20" resolved-rows="20px 0px" resolved-columns="30px">
+      <node x="0" y="0" width="30" height="20"/>
+      <node x="0" y="20" width="30" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fixed_fit_content_middle__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" box-sizing="content-box" direction="ltr" grid-template-columns="fit-content(30px)">
+      <text display="block" box-sizing="content-box" direction="ltr">
+        HH​HH
+      </text>
+      <div display="block" box-sizing="content-box" direction="ltr"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="30" height="20" resolved-rows="20px 0px" resolved-columns="30px">
+      <node x="0" y="0" width="30" height="20"/>
+      <node x="0" y="20" width="30" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fixed_fit_content_middle__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" box-sizing="content-box" direction="rtl" grid-template-columns="fit-content(30px)">
+      <text display="block" box-sizing="content-box" direction="rtl">
+        HH​HH
+      </text>
+      <div display="block" box-sizing="content-box" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="30" height="20" resolved-rows="20px 0px" resolved-columns="30px">
+      <node x="0" y="0" width="30" height="20"/>
+      <node x="0" y="20" width="30" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fixed_fit_content_smaller__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" direction="ltr" grid-template-columns="fit-content(10px)">
+      <text display="block" direction="ltr">
+        HH​HH
+      </text>
+      <div display="block" direction="ltr"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="20" height="20" resolved-rows="20px 0px" resolved-columns="20px">
+      <node x="0" y="0" width="20" height="20"/>
+      <node x="0" y="20" width="20" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fixed_fit_content_smaller__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" direction="rtl" grid-template-columns="fit-content(10px)">
+      <text display="block" direction="rtl">
+        HH​HH
+      </text>
+      <div display="block" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="20" height="20" resolved-rows="20px 0px" resolved-columns="20px">
+      <node x="0" y="0" width="20" height="20"/>
+      <node x="0" y="20" width="20" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fixed_fit_content_smaller__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" box-sizing="content-box" direction="ltr" grid-template-columns="fit-content(10px)">
+      <text display="block" box-sizing="content-box" direction="ltr">
+        HH​HH
+      </text>
+      <div display="block" box-sizing="content-box" direction="ltr"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="20" height="20" resolved-rows="20px 0px" resolved-columns="20px">
+      <node x="0" y="0" width="20" height="20"/>
+      <node x="0" y="20" width="20" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fixed_fit_content_smaller__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" box-sizing="content-box" direction="rtl" grid-template-columns="fit-content(10px)">
+      <text display="block" box-sizing="content-box" direction="rtl">
+        HH​HH
+      </text>
+      <div display="block" box-sizing="content-box" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="20" height="20" resolved-rows="20px 0px" resolved-columns="20px">
+      <node x="0" y="0" width="20" height="20"/>
+      <node x="0" y="20" width="20" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fixed_larger__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" direction="ltr" grid-template-columns="50px">
+      <text display="block" direction="ltr">
+        HH​HH
+      </text>
+      <div display="block" direction="ltr"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="10" resolved-rows="10px 0px" resolved-columns="50px">
+      <node x="0" y="0" width="50" height="10"/>
+      <node x="0" y="10" width="50" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fixed_larger__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" direction="rtl" grid-template-columns="50px">
+      <text display="block" direction="rtl">
+        HH​HH
+      </text>
+      <div display="block" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="10" resolved-rows="10px 0px" resolved-columns="50px">
+      <node x="0" y="0" width="50" height="10"/>
+      <node x="0" y="10" width="50" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fixed_larger__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" box-sizing="content-box" direction="ltr" grid-template-columns="50px">
+      <text display="block" box-sizing="content-box" direction="ltr">
+        HH​HH
+      </text>
+      <div display="block" box-sizing="content-box" direction="ltr"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="10" resolved-rows="10px 0px" resolved-columns="50px">
+      <node x="0" y="0" width="50" height="10"/>
+      <node x="0" y="10" width="50" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fixed_larger__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" box-sizing="content-box" direction="rtl" grid-template-columns="50px">
+      <text display="block" box-sizing="content-box" direction="rtl">
+        HH​HH
+      </text>
+      <div display="block" box-sizing="content-box" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="10" resolved-rows="10px 0px" resolved-columns="50px">
+      <node x="0" y="0" width="50" height="10"/>
+      <node x="0" y="10" width="50" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fixed_middle__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" direction="ltr" grid-template-columns="30px">
+      <text display="block" direction="ltr">
+        HH​HH
+      </text>
+      <div display="block" direction="ltr"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="30" height="20" resolved-rows="20px 0px" resolved-columns="30px">
+      <node x="0" y="0" width="30" height="20"/>
+      <node x="0" y="20" width="30" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fixed_middle__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" direction="rtl" grid-template-columns="30px">
+      <text display="block" direction="rtl">
+        HH​HH
+      </text>
+      <div display="block" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="30" height="20" resolved-rows="20px 0px" resolved-columns="30px">
+      <node x="0" y="0" width="30" height="20"/>
+      <node x="0" y="20" width="30" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fixed_middle__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" box-sizing="content-box" direction="ltr" grid-template-columns="30px">
+      <text display="block" box-sizing="content-box" direction="ltr">
+        HH​HH
+      </text>
+      <div display="block" box-sizing="content-box" direction="ltr"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="30" height="20" resolved-rows="20px 0px" resolved-columns="30px">
+      <node x="0" y="0" width="30" height="20"/>
+      <node x="0" y="20" width="30" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fixed_middle__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" box-sizing="content-box" direction="rtl" grid-template-columns="30px">
+      <text display="block" box-sizing="content-box" direction="rtl">
+        HH​HH
+      </text>
+      <div display="block" box-sizing="content-box" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="30" height="20" resolved-rows="20px 0px" resolved-columns="30px">
+      <node x="0" y="0" width="30" height="20"/>
+      <node x="0" y="20" width="30" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fixed_smaller__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" direction="ltr" grid-template-columns="10px">
+      <text display="block" direction="ltr">
+        HH​HH
+      </text>
+      <div display="block" direction="ltr"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="10" height="20" resolved-rows="20px 0px" resolved-columns="10px">
+      <node x="0" y="0" width="10" height="20"/>
+      <node x="0" y="20" width="10" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fixed_smaller__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" direction="rtl" grid-template-columns="10px">
+      <text display="block" direction="rtl">
+        HH​HH
+      </text>
+      <div display="block" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="10" height="20" resolved-rows="20px 0px" resolved-columns="10px">
+      <node x="0" y="0" width="10" height="20"/>
+      <node x="0" y="20" width="10" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fixed_smaller__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" box-sizing="content-box" direction="ltr" grid-template-columns="10px">
+      <text display="block" box-sizing="content-box" direction="ltr">
+        HH​HH
+      </text>
+      <div display="block" box-sizing="content-box" direction="ltr"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="10" height="20" resolved-rows="20px 0px" resolved-columns="10px">
+      <node x="0" y="0" width="10" height="20"/>
+      <node x="0" y="20" width="10" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fixed_smaller__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" box-sizing="content-box" direction="rtl" grid-template-columns="10px">
+      <text display="block" box-sizing="content-box" direction="rtl">
+        HH​HH
+      </text>
+      <div display="block" box-sizing="content-box" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="10" height="20" resolved-rows="20px 0px" resolved-columns="10px">
+      <node x="0" y="0" width="10" height="20"/>
+      <node x="0" y="20" width="10" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fr__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" direction="ltr" grid-template-columns="1fr">
+      <text display="block" direction="ltr">
+        HH​HH
+      </text>
+      <div display="block" direction="ltr"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="40" height="10" resolved-rows="10px 0px" resolved-columns="40px">
+      <node x="0" y="0" width="40" height="10"/>
+      <node x="0" y="10" width="40" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fr__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" direction="rtl" grid-template-columns="1fr">
+      <text display="block" direction="rtl">
+        HH​HH
+      </text>
+      <div display="block" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="40" height="10" resolved-rows="10px 0px" resolved-columns="40px">
+      <node x="0" y="0" width="40" height="10"/>
+      <node x="0" y="10" width="40" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fr__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" box-sizing="content-box" direction="ltr" grid-template-columns="1fr">
+      <text display="block" box-sizing="content-box" direction="ltr">
+        HH​HH
+      </text>
+      <div display="block" box-sizing="content-box" direction="ltr"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="40" height="10" resolved-rows="10px 0px" resolved-columns="40px">
+      <node x="0" y="0" width="40" height="10"/>
+      <node x="0" y="10" width="40" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_fr__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" box-sizing="content-box" direction="rtl" grid-template-columns="1fr">
+      <text display="block" box-sizing="content-box" direction="rtl">
+        HH​HH
+      </text>
+      <div display="block" box-sizing="content-box" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="40" height="10" resolved-rows="10px 0px" resolved-columns="40px">
+      <node x="0" y="0" width="40" height="10"/>
+      <node x="0" y="10" width="40" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_max_content__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" direction="ltr" grid-template-columns="min-content">
+      <text display="block" direction="ltr">
+        HH​HH
+      </text>
+      <div display="block" direction="ltr"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="20" height="20" resolved-rows="20px 0px" resolved-columns="20px">
+      <node x="0" y="0" width="20" height="20"/>
+      <node x="0" y="20" width="20" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_max_content__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" direction="rtl" grid-template-columns="min-content">
+      <text display="block" direction="rtl">
+        HH​HH
+      </text>
+      <div display="block" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="20" height="20" resolved-rows="20px 0px" resolved-columns="20px">
+      <node x="0" y="0" width="20" height="20"/>
+      <node x="0" y="20" width="20" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_max_content__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" box-sizing="content-box" direction="ltr" grid-template-columns="min-content">
+      <text display="block" box-sizing="content-box" direction="ltr">
+        HH​HH
+      </text>
+      <div display="block" box-sizing="content-box" direction="ltr"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="20" height="20" resolved-rows="20px 0px" resolved-columns="20px">
+      <node x="0" y="0" width="20" height="20"/>
+      <node x="0" y="20" width="20" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_max_content__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" box-sizing="content-box" direction="rtl" grid-template-columns="min-content">
+      <text display="block" box-sizing="content-box" direction="rtl">
+        HH​HH
+      </text>
+      <div display="block" box-sizing="content-box" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="20" height="20" resolved-rows="20px 0px" resolved-columns="20px">
+      <node x="0" y="0" width="20" height="20"/>
+      <node x="0" y="20" width="20" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_min_content__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" direction="ltr" grid-template-columns="min-content">
+      <text display="block" direction="ltr">
+        HH​HH
+      </text>
+      <div display="block" direction="ltr"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="20" height="20" resolved-rows="20px 0px" resolved-columns="20px">
+      <node x="0" y="0" width="20" height="20"/>
+      <node x="0" y="20" width="20" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_min_content__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" direction="rtl" grid-template-columns="min-content">
+      <text display="block" direction="rtl">
+        HH​HH
+      </text>
+      <div display="block" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="20" height="20" resolved-rows="20px 0px" resolved-columns="20px">
+      <node x="0" y="0" width="20" height="20"/>
+      <node x="0" y="20" width="20" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_min_content__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" box-sizing="content-box" direction="ltr" grid-template-columns="min-content">
+      <text display="block" box-sizing="content-box" direction="ltr">
+        HH​HH
+      </text>
+      <div display="block" box-sizing="content-box" direction="ltr"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="20" height="20" resolved-rows="20px 0px" resolved-columns="20px">
+      <node x="0" y="0" width="20" height="20"/>
+      <node x="0" y="20" width="20" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_block_in_grid_min_content__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="grid" box-sizing="content-box" direction="rtl" grid-template-columns="min-content">
+      <text display="block" box-sizing="content-box" direction="rtl">
+        HH​HH
+      </text>
+      <div display="block" box-sizing="content-box" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="20" height="20" resolved-rows="20px 0px" resolved-columns="20px">
+      <node x="0" y="0" width="20" height="20"/>
+      <node x="0" y="20" width="20" height="0"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_grid_in_block__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="block" direction="ltr" width="200px">
+      <div display="grid" direction="ltr">
+        <div direction="ltr" width="50px" height="50px"/>
+      </div>
+      <div display="block" direction="ltr" width="50px" height="20px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="200" height="70">
+      <node x="0" y="0" width="200" height="50" resolved-rows="50px" resolved-columns="200px">
+        <node x="0" y="0" width="50" height="50"/>
+      </node>
+      <node x="0" y="50" width="50" height="20"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_grid_in_block__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="block" direction="rtl" width="200px">
+      <div display="grid" direction="rtl">
+        <div direction="rtl" width="50px" height="50px"/>
+      </div>
+      <div display="block" direction="rtl" width="50px" height="20px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="200" height="70">
+      <node x="0" y="0" width="200" height="50" resolved-rows="50px" resolved-columns="200px">
+        <node x="150" y="0" width="50" height="50"/>
+      </node>
+      <node x="150" y="50" width="50" height="20"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_grid_in_block__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="block" box-sizing="content-box" direction="ltr" width="200px">
+      <div display="grid" box-sizing="content-box" direction="ltr">
+        <div box-sizing="content-box" direction="ltr" width="50px" height="50px"/>
+      </div>
+      <div display="block" box-sizing="content-box" direction="ltr" width="50px" height="20px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="200" height="70">
+      <node x="0" y="0" width="200" height="50" resolved-rows="50px" resolved-columns="200px">
+        <node x="0" y="0" width="50" height="50"/>
+      </node>
+      <node x="0" y="50" width="50" height="20"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_grid_in_block__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="block" box-sizing="content-box" direction="rtl" width="200px">
+      <div display="grid" box-sizing="content-box" direction="rtl">
+        <div box-sizing="content-box" direction="rtl" width="50px" height="50px"/>
+      </div>
+      <div display="block" box-sizing="content-box" direction="rtl" width="50px" height="20px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="200" height="70">
+      <node x="0" y="0" width="200" height="50" resolved-rows="50px" resolved-columns="200px">
+        <node x="150" y="0" width="50" height="50"/>
+      </node>
+      <node x="150" y="50" width="50" height="20"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_margin_y_collapse_through_blocked_by_grid__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="block" direction="ltr" width="50px">
+      <div display="block" direction="ltr" height="10px" margin-bottom="10px"/>
+      <div display="grid" direction="ltr" margin-top="10px" margin-bottom="10px"/>
+      <div display="block" direction="ltr" height="10px" margin-top="10px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="40">
+      <node x="0" y="0" width="50" height="10"/>
+      <node x="0" y="20" width="50" height="0" resolved-rows="none" resolved-columns="none"/>
+      <node x="0" y="30" width="50" height="10"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_margin_y_collapse_through_blocked_by_grid__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="block" direction="rtl" width="50px">
+      <div display="block" direction="rtl" height="10px" margin-bottom="10px"/>
+      <div display="grid" direction="rtl" margin-top="10px" margin-bottom="10px"/>
+      <div display="block" direction="rtl" height="10px" margin-top="10px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="40">
+      <node x="0" y="0" width="50" height="10"/>
+      <node x="0" y="20" width="50" height="0" resolved-rows="none" resolved-columns="none"/>
+      <node x="0" y="30" width="50" height="10"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_margin_y_collapse_through_blocked_by_grid__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="block" box-sizing="content-box" direction="ltr" width="50px">
+      <div display="block" box-sizing="content-box" direction="ltr" height="10px" margin-bottom="10px"/>
+      <div display="grid" box-sizing="content-box" direction="ltr" margin-top="10px" margin-bottom="10px"/>
+      <div display="block" box-sizing="content-box" direction="ltr" height="10px" margin-top="10px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="40">
+      <node x="0" y="0" width="50" height="10"/>
+      <node x="0" y="20" width="50" height="0" resolved-rows="none" resolved-columns="none"/>
+      <node x="0" y="30" width="50" height="10"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_margin_y_collapse_through_blocked_by_grid__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="block" box-sizing="content-box" direction="rtl" width="50px">
+      <div display="block" box-sizing="content-box" direction="rtl" height="10px" margin-bottom="10px"/>
+      <div display="grid" box-sizing="content-box" direction="rtl" margin-top="10px" margin-bottom="10px"/>
+      <div display="block" box-sizing="content-box" direction="rtl" height="10px" margin-top="10px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="40">
+      <node x="0" y="0" width="50" height="10"/>
+      <node x="0" y="20" width="50" height="0" resolved-rows="none" resolved-columns="none"/>
+      <node x="0" y="30" width="50" height="10"/>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_margin_y_first_child_collapse_blocked_by_grid__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="block" direction="ltr" width="50px">
+      <div display="grid" direction="ltr" margin-top="10px">
+        <div display="block" direction="ltr" margin-top="10px">
+          <div direction="ltr" height="10px"/>
+        </div>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="30">
+      <node x="0" y="10" width="50" height="20" resolved-rows="20px" resolved-columns="50px">
+        <node x="0" y="10" width="50" height="10">
+          <node x="0" y="0" width="50" height="10"/>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_margin_y_first_child_collapse_blocked_by_grid__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="block" direction="rtl" width="50px">
+      <div display="grid" direction="rtl" margin-top="10px">
+        <div display="block" direction="rtl" margin-top="10px">
+          <div direction="rtl" height="10px"/>
+        </div>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="30">
+      <node x="0" y="10" width="50" height="20" resolved-rows="20px" resolved-columns="50px">
+        <node x="0" y="10" width="50" height="10">
+          <node x="0" y="0" width="50" height="10"/>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_margin_y_first_child_collapse_blocked_by_grid__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="block" box-sizing="content-box" direction="ltr" width="50px">
+      <div display="grid" box-sizing="content-box" direction="ltr" margin-top="10px">
+        <div display="block" box-sizing="content-box" direction="ltr" margin-top="10px">
+          <div box-sizing="content-box" direction="ltr" height="10px"/>
+        </div>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="30">
+      <node x="0" y="10" width="50" height="20" resolved-rows="20px" resolved-columns="50px">
+        <node x="0" y="10" width="50" height="10">
+          <node x="0" y="0" width="50" height="10"/>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_margin_y_first_child_collapse_blocked_by_grid__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="block" box-sizing="content-box" direction="rtl" width="50px">
+      <div display="grid" box-sizing="content-box" direction="rtl" margin-top="10px">
+        <div display="block" box-sizing="content-box" direction="rtl" margin-top="10px">
+          <div box-sizing="content-box" direction="rtl" height="10px"/>
+        </div>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="30">
+      <node x="0" y="10" width="50" height="20" resolved-rows="20px" resolved-columns="50px">
+        <node x="0" y="10" width="50" height="10">
+          <node x="0" y="0" width="50" height="10"/>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_margin_y_last_child_collapse_blocked_by_grid__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="block" direction="ltr" width="50px">
+      <div display="grid" direction="ltr" margin-bottom="10px">
+        <div display="block" direction="ltr" margin-bottom="10px">
+          <div direction="ltr" height="10px"/>
+        </div>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="30">
+      <node x="0" y="0" width="50" height="20" resolved-rows="20px" resolved-columns="50px">
+        <node x="0" y="0" width="50" height="10">
+          <node x="0" y="0" width="50" height="10"/>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_margin_y_last_child_collapse_blocked_by_grid__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="block" direction="rtl" width="50px">
+      <div display="grid" direction="rtl" margin-bottom="10px">
+        <div display="block" direction="rtl" margin-bottom="10px">
+          <div direction="rtl" height="10px"/>
+        </div>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="30">
+      <node x="0" y="0" width="50" height="20" resolved-rows="20px" resolved-columns="50px">
+        <node x="0" y="0" width="50" height="10">
+          <node x="0" y="0" width="50" height="10"/>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_margin_y_last_child_collapse_blocked_by_grid__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="block" box-sizing="content-box" direction="ltr" width="50px">
+      <div display="grid" box-sizing="content-box" direction="ltr" margin-bottom="10px">
+        <div display="block" box-sizing="content-box" direction="ltr" margin-bottom="10px">
+          <div box-sizing="content-box" direction="ltr" height="10px"/>
+        </div>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="30">
+      <node x="0" y="0" width="50" height="20" resolved-rows="20px" resolved-columns="50px">
+        <node x="0" y="0" width="50" height="10">
+          <node x="0" y="0" width="50" height="10"/>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>
+<test name="blockgrid_margin_y_last_child_collapse_blocked_by_grid__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div display="block" box-sizing="content-box" direction="rtl" width="50px">
+      <div display="grid" box-sizing="content-box" direction="rtl" margin-bottom="10px">
+        <div display="block" box-sizing="content-box" direction="rtl" margin-bottom="10px">
+          <div box-sizing="content-box" direction="rtl" height="10px"/>
+        </div>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="30">
+      <node x="0" y="0" width="50" height="20" resolved-rows="20px" resolved-columns="50px">
+        <node x="0" y="0" width="50" height="10">
+          <node x="0" y="0" width="50" height="10"/>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>
+</tests>

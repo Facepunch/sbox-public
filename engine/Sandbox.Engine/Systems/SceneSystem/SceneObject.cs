@@ -124,6 +124,12 @@ public partial class SceneObject : IHandle
 	Transform _transform;
 
 	/// <summary>
+	/// Incremented whenever <see cref="Transform"/> actually changes. Cheap way for
+	/// consumers (e.g. the shadow cache) to detect movement without storing a transform.
+	/// </summary>
+	internal int TransformVersion = 1;
+
+	/// <summary>
 	/// Transform of this scene object, relative to its <see cref="Parent"/>, or <see cref="SceneWorld"/> if parent is not set.
 	/// </summary>
 	public Transform Transform
@@ -135,6 +141,7 @@ public partial class SceneObject : IHandle
 				return;
 
 			_transform = value;
+			TransformVersion++;
 			native.SetTransform( value );
 			OnTransformChanged( value );
 		}
@@ -544,6 +551,16 @@ public partial class SceneObject : IHandle
 		{
 			get => HasFlag( Rendering.SceneObjectFlags.NoZPrepass ) == false;
 			set => SetFlag( Rendering.SceneObjectFlags.NoZPrepass, !value );
+		}
+
+		/// <summary>
+		/// Whether this object is a static, permanent part of the world that never moves.
+		/// Static objects can use cheaper rendering paths (e.g. we dont render them on dynamic shadowmaps ).
+		/// </summary>
+		public bool IsStatic
+		{
+			get => HasFlag( Rendering.SceneObjectFlags.StaticObject );
+			set => SetFlag( Rendering.SceneObjectFlags.StaticObject, value );
 		}
 	}
 

@@ -178,6 +178,11 @@ public class ScreenSpaceReflections : BasePostProcess<ScreenSpaceReflections>
 		if ( needsUpscale )
 			cmd.Clear( FullResRadiance, Color.Transparent );
 
+		// The previous-frame color is grabbed by cmdLastframe (AfterOpaque) and sampled here as an SRV.
+		// It's a persistent pooled texture, so its layout carries over from last frame's grab - transition
+		// it to a shader-read state before the compute passes read it. A bindless sample won't do this for us.
+		cmd.ResourceBarrierTransition( lastFrameRt, ResourceState.NonPixelShaderResource );
+
 		foreach ( Passes pass in Enum.GetValues( typeof( Passes ) ) )
 		{
 			if ( !Denoise && pass > Passes.Intersect )
@@ -246,6 +251,10 @@ public class ScreenSpaceReflections : BasePostProcess<ScreenSpaceReflections>
 			{
 				case Passes.Intersect:
 					cmd.ResourceBarrierTransition( radiancePing, ResourceState.NonPixelShaderResource );
+					// RayLength is a RWTexture written here and read back as a UAV in DenoiseReproject.
+					// The layout stays UnorderedAccess, so a plain transition emits nothing - issue a UAV
+					// barrier so the writes are visible to the reproject pass.
+					cmd.UavBarrier( RayLength );
 					break;
 
 				case Passes.DenoiseReproject:
@@ -273,12 +282,13 @@ public class ScreenSpaceReflections : BasePostProcess<ScreenSpaceReflections>
 
 		var finalReflection = needsUpscale ? FullResRadiance : radiancePing;
 		cmd.ResourceBarrierTransition( finalReflection, ResourceState.PixelShaderResource );
+		cmd.UavBarrier( finalReflection );
 
 		// Final SSR color to be used by shaders
 		if ( needsUpscale )
-			cmd.GlobalAttributes.Set( "ReflectionColorIndex", FullResRadiance.ColorIndex );
+			cmd.SetPipelineTexture( PipelineTextureSlot.Reflections, FullResRadiance.ColorTexture );
 		else
-			cmd.GlobalAttributes.Set( "ReflectionColorIndex", radiancePing.ColorIndex );
+			cmd.SetPipelineTexture( PipelineTextureSlot.Reflections, radiancePing.ColorTexture );
 
 
 		InsertCommandList( cmdLastframe, Stage.AfterOpaque, 0, "ScreenSpaceReflections" );

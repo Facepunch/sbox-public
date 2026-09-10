@@ -1,0 +1,19 @@
+Spinner
+{
+    width: 48px;
+    aspect-ratio: 1;
+    border: 5px solid #FFF;
+    border-bottom-color: transparent;
+    border-radius: 100%;
+    animation: rotation 1s linear infinite;
+}
+
+@keyframes rotation {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+} 

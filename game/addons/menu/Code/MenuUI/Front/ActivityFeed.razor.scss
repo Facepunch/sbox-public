@@ -1,0 +1,69 @@
+@import "/styles/_front.scss";
+
+// The card's filler - takes whatever height the portrait and friends list leave,
+// so the slab always reaches the bottom with content in it rather than a void.
+ActivityFeed
+{
+	@include front-card-list;
+
+	flex-grow: 1;
+	flex-shrink: 1;
+	height: 0;
+	border-top: 1px solid $front-hairline;
+
+	.thumb
+	{
+		@include front-row-media;
+	}
+
+	// Action on one line, the game underneath it.
+	.row-body
+	{
+		flex-direction: column;
+		gap: 1px;
+	}
+
+	.event-action
+	{
+		font-size: 12px;
+		color: $front-tertiary;
+		max-width: 100%;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+
+		// The player's name inside the rich text - opens their profile.
+		a
+		{
+			@include front-text-link;
+
+			font-weight: 700;
+			color: $front-heading;
+
+			&:hover
+			{
+				color: $front-link-hover;
+			}
+		}
+	}
+
+	// Always opens the game's page - this row only renders when there's a package.
+	.event-game
+	{
+		@include front-text-link;
+
+		font-size: 13px;
+		font-weight: 600;
+		max-width: 100%;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.event-time
+	{
+		@include front-row-meta;
+
+		margin-left: auto;
+	}
+}

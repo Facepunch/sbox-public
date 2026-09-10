@@ -1,0 +1,318 @@
+﻿
+
+RootPanel
+{
+	font-family: Roboto;
+	color: white;
+}
+
+IconPanel, i
+{
+	font-family: Material Icons;
+	background-position: center;
+	background-size: contain;
+}
+
+.tooltip
+{
+	background-color: rgba( black, 0.8 );
+	border: 1px solid rgba( #555, 0.1 );
+	padding: 10px;
+	border-radius: 4px;
+	color: white;
+	font-family: Inter;
+	font-weight: bold;
+	transition: opacity 0.09s ease;
+	opacity: 1;
+	margin: 0px;
+
+	&:intro, &:outro
+	{
+		opacity: 0;
+	}
+}
+
+.textentry
+{
+	cursor: text;
+	align-items: center;
+	justify-content: center;
+	white-space: nowrap;
+	overflow: hidden;
+	flex-direction: row;
+	position: relative;
+	padding: 10px;
+
+	&.disabled
+	{
+		cursor: default;
+	}
+
+	&.is-multiline
+	{
+		align-items: flex-start;
+		white-space: normal;
+		overflow-y: scroll;
+	}
+
+	.content-label,
+	.placeholder
+	{
+		flex-grow: 1;
+	}
+
+	.placeholder
+	{
+		opacity: 0.2;
+		pointer-events: none;
+	}
+
+	.iconpanel
+	{
+		position: absolute;
+		right: 0;
+		padding-right: 10px;
+		pointer-events: none;
+
+		&.clearbutton
+		{
+			color: #fff;
+			pointer-events: all;
+			cursor: pointer;
+			opacity: 0.1;
+
+			&:hover
+			{
+				opacity: 0.5;
+			}
+
+			&:active
+			{
+				opacity: 1;
+			}
+		}
+	}
+
+	&:empty
+	{
+		.clearbutton
+		{
+			display: none;
+		}
+	}
+
+	&.has-icon
+	{
+		padding-right: 30px;
+	}
+
+	.content-label,
+	.prefix-label,
+	.suffix-label,
+	.placeholder
+	{
+		overflow: hidden;
+	}
+
+	.content-label
+	{
+		order: 1;
+	}
+
+	.suffix-label
+	{
+		order: 2;
+	}
+
+	.prefix-label,
+	.suffix-label
+	{
+		flex-shrink: 0;
+		opacity: 0.5;
+	}
+
+	&.invalid
+	{
+		box-shadow: 0px 0px 1px 2px #f8356b;
+	}
+}
+
+.popup-panel
+{
+	background-color: #1b202c;
+	flex-direction: column;
+	color: #8e9ec2;
+	transition: all 0.1s ease-out;
+	position: absolute;
+	z-index: 2000;
+	min-height: 20px;
+	min-width: 10px;
+	overflow: scroll;
+	pointer-events: all;
+	box-shadow: 3px 3px 64px #000;
+	border-radius: 4px;
+
+	&.medium
+	{
+		max-width: 300px;
+	}
+
+	&.center-horizontal
+	{
+		transform-origin: top center;
+	}
+
+	&.below-center
+	{
+		transform: translateX( -50% );
+		transform-origin: 0% 0%;
+	}
+
+	&.above-left
+	{
+		transform-origin: 0% 100%;
+	}
+
+	&.above-center
+	{
+		transform: translateX( -50% );
+		transform-origin: 0% 100%;
+	}
+
+	&.left
+	{
+		transform-origin: 100% 50%;
+		transform: translate( 00% -50% );
+	}
+
+	&.right
+	{
+		transform-origin: 0 50%;
+		transform: translate( 0% -50% );
+	}
+
+	&:intro
+	{
+		transform: scale( 0 );
+		pointer-events: none;
+		opacity: 0;
+	}
+
+	&:outro
+	{
+		opacity: 0;
+		transition: all 0.1s ease-in;
+		margin-top: 50px;
+		pointer-events: none;
+	}
+
+	&.below-stretch
+	{
+		transform-origin: 0% 0%;
+
+		&:intro
+		{
+			transform: scaleY( 0.1 );
+		}
+	}
+
+	> .canvas
+	{
+		flex-direction: column;
+	}
+
+	.information
+	{
+		padding: 16px;
+		font-size: 14px;
+		opacity: 0.5;
+	}
+
+	button
+	{
+		padding: 2px 8px;
+		cursor: pointer;
+		font-family: Poppins;
+		font-weight: 600;
+		flex-shrink: 0;
+
+		&:hover
+		{
+			background-color: #08f;
+			color: #fff;
+		}
+	}
+}
+
+.treeview
+{
+	flex-direction: column;
+	overflow: scroll;
+	position: relative;
+	scrollbar-width: thin;
+}
+
+.treeview .tree-row
+{
+	flex-direction: row;
+	align-items: center;
+	justify-content: flex-start;
+	text-align: left;
+	white-space: nowrap;
+	overflow: hidden;
+	cursor: pointer;
+
+	// The row is the hit target; only the expander and the rename box take the mouse themselves
+	> * { pointer-events: none; }
+
+	.tree-expander
+	{
+		width: 20px;
+		font-size: 18px;
+		text-align: center;
+		opacity: 0;
+		pointer-events: all;
+	}
+
+	&.has-children .tree-expander { opacity: 0.6; }
+	&.has-children .tree-expander:hover { opacity: 1; }
+	&.open .tree-expander { transform: rotate( 90deg ); }
+
+	.tree-icon
+	{
+		font-size: 16px;
+		margin-right: 6px;
+	}
+
+	.tree-label
+	{
+		flex-grow: 1;
+		overflow: hidden;
+	}
+
+	.tree-content
+	{
+		flex-direction: row;
+		align-items: center;
+		flex-shrink: 0;
+
+		> * { pointer-events: all; }
+	}
+
+	.rename
+	{
+		pointer-events: all;
+		flex-grow: 1;
+		padding: 0px 4px;
+		height: 100%;
+	}
+
+	&:hover { background-color: rgba( white, 0.04 ); }
+	&.selected { background-color: rgba( white, 0.12 ); }
+	&.drop-target { box-shadow: inset 0 0 0 2px rgba( white, 0.6 ); }
+	&.dragging { opacity: 0.5; }
+
+	// Highlight holds, then the fade class carries the transition out
+	&.highlight { background-color: rgba( white, 0.35 ); }
+	&.highlight-fade { background-color: rgba( white, 0 ); transition: background-color 1s ease-out; }
+}

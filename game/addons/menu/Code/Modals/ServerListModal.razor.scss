@@ -5,16 +5,13 @@ ServerListModal
 
 	.inner
 	{
-		max-width: 35%;
-		max-height: 50%;
 		pointer-events: all;
 		overflow-y: scroll;
 		background-color: #16181e;
-		min-height: 512px;
-		min-width: 512px;
+		height: 750px;
+		width: 1100px;
 		flex-direction: column;
-		border-radius: 16px;
-		padding: 16px;
+		border-radius: 8px;
 		box-shadow: 2px 2px 20px #0005;
 		
 
@@ -76,8 +73,8 @@ ServerListModal
 			flex-grow: 0;
 			align-items: center;
 			justify-content: flex-end;
-			width: 50px;
-
+			width: 128px;
+			gap: 4px;
 
 			.sep
 			{
@@ -102,14 +99,4 @@ ServerListModal
 			background-color: #1117;
 		}
 	}
-}
-
-
-.loading
-{
-	font-size: 32px;
-	text-align: center;
-	justify-content: center;
-	padding: 100px 0px;
-	opacity: 0.02;
 }

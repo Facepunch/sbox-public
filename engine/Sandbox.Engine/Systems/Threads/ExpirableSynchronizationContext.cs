@@ -426,7 +426,7 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 				{
 					data.Callback( data.State );
 				}
-				catch ( TaskCanceledException )
+				catch ( OperationCanceledException )
 				{
 					// fine
 				}

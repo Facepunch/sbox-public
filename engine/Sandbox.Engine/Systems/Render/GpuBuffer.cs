@@ -285,7 +285,7 @@ public partial class GpuBuffer : IValid, IDisposable
 	/// </remarks>
 	/// <param name="data">The Span of data to upload. It should contain items of type T, which is a struct.</param>
 	/// <param name="elementOffset">The offset in terms of elements (not bytes) at which to start uploading data (default is 0).</param>
-	public void SetData<T>( Span<T> data, int elementOffset = 0 ) where T : unmanaged
+	public void SetData<T>( ReadOnlySpan<T> data, int elementOffset = 0 ) where T : unmanaged
 	{
 		ObjectDisposedException.ThrowIf( native == IntPtr.Zero, this );
 
@@ -308,7 +308,7 @@ public partial class GpuBuffer : IValid, IDisposable
 		SetData<T>( CollectionsMarshal.AsSpan( data ), elementOffset );
 	}
 
-	private unsafe void SetDataInternal( Span<byte> data, int elementOffset )
+	private unsafe void SetDataInternal( ReadOnlySpan<byte> data, int elementOffset )
 	{
 		if ( data.Length > ElementCount * ElementSize )
 		{
@@ -384,4 +384,47 @@ public class GpuBuffer<T> : GpuBuffer where T : unmanaged
 	public void SetData( Span<T> data, int elementOffset = 0 ) => SetData<T>( data, elementOffset );
 	public void GetDataAsync( Action<ReadOnlySpan<T>> callback ) => GetDataAsync<T>( callback );
 	public void GetDataAsync( Action<ReadOnlySpan<T>> callback, int start, int count ) => GetDataAsync<T>( callback, start, count );
+
+	/// <summary>
+	/// Tell the GPU to copy all elements from this buffer to <paramref name="dst"/>.
+	/// </summary>
+	public void CopyTo( GpuBuffer<T> dst )
+	{
+		CopyTo( dst, 0, 0, ElementCount );
+	}
+
+	/// <inheritdoc cref="CopyTo(GpuBuffer{T},int,int,int)"/>
+	public void CopyTo( GpuBuffer<T> dst, int elementCount )
+	{
+		CopyTo( dst, 0, 0, elementCount );
+	}
+
+	/// <summary>
+	/// Tell the GPU to copy a range of elements from this buffer to <paramref name="dst"/>.
+	/// </summary>
+	public void CopyTo( GpuBuffer<T> dst, int srcElementOffset, int destElementOffset, int elementCount )
+	{
+		ObjectDisposedException.ThrowIf( native == IntPtr.Zero, this );
+		ObjectDisposedException.ThrowIf( dst.native == IntPtr.Zero, dst );
+
+		ArgumentOutOfRangeException.ThrowIfNegative( elementCount );
+
+		ArgumentOutOfRangeException.ThrowIfNegative( srcElementOffset );
+		ArgumentOutOfRangeException.ThrowIfNegative( destElementOffset );
+
+		var srcEndOffset = checked(srcElementOffset + elementCount);
+		var dstEndOffset = checked(destElementOffset + elementCount);
+
+		ArgumentOutOfRangeException.ThrowIfGreaterThan( srcEndOffset, ElementCount );
+		ArgumentOutOfRangeException.ThrowIfGreaterThan( dstEndOffset, dst.ElementCount );
+
+		if ( elementCount == 0 ) return;
+
+		var elementSize = Unsafe.SizeOf<T>();
+
+		RenderTools.CopyGPUBuffer( Graphics.Context, native, dst.native,
+			checked((uint)(srcElementOffset * elementSize)),
+			checked((uint)(destElementOffset * elementSize)),
+			checked((uint)(elementCount * elementSize)) );
+	}
 }

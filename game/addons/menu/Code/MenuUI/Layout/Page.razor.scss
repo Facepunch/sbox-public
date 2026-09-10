@@ -1,10 +1,14 @@
 @import "/styles/_theme.scss";
+@import "/styles/_front.scss";
 
+// Transparent everywhere - the scene camera and its effects are the backdrop on every page,
+// not just the front page. Only the panels on top of it carry fills.
 Page
 {
-    flex-grow: 1;
-    position: relative;
-    justify-content: center;
+	background-color: transparent;
+	flex-grow: 1;
+	position: relative;
+	justify-content: center;
 }
 
 Page VirtualList 
@@ -20,25 +24,29 @@ Page > .inner {
     pointer-events: all;
     flex-direction: row;
     overflow: hidden;
-    background-color: $default-950;
+    width: 100%;
 }
 
+// A filter column is a card floating over the scene, same slab as the rail.
 Page > .inner > .sidebar
 {
-    flex-shrink: 0;
-    width: 400px;
-    background-color: $default-900;
-    overflow: hidden;
-    flex-direction: column;
+    @include front-card;
+
+    width: 360px;
+    overflow-y: scroll;
     pointer-events: all;
     gap: 8px;
+    margin: $front-chrome-gap;
+    padding: 24px;
 }
 
+// width 0 + grow: take the leftover space, never the content's width - otherwise a wide
+// grid sizes this to its own content and overflows off the right of the screen.
 Page > .inner > .pagebody
 {
     flex-grow: 1;
     flex-shrink: 1;
-    overflow: hidden;
+    width: 0;
     flex-direction: column;
 }
 
@@ -47,13 +55,6 @@ Page > .inner > .pagebody > .row
     padding: 50px;
     flex-direction: row;
 }
-
-    Page > .inner > .sidebar {
-        flex-direction: column;
-        padding: 50px;
-        overflow-y: scroll;
-        box-shadow: 6px 0 36px rgba( black, 0.5 );
-    }
 
 Page > .inner > .sidebar > .flex-column
 {
@@ -97,15 +98,37 @@ Page > .inner > .sidebar hr
     flex-shrink: 0;
 }
 
-Page > .inner > .sidebar TextEntry
-{
-    background-color: #0f1016;
-    height: 42px;
-    border-radius: 16px;
-    width: 100%;
-    flex-shrink: 0;
-    padding: 8px;
-}
+    Page > .inner > .sidebar TextEntry {
+        background-color: $default-950;
+        backdrop-filter: blur( 10px );
+        color: $default-text;
+        padding: 8px 12px;
+        border-radius: $rounding-default;
+        pointer-events: all;
+        transition: all 150ms $easing;
+        border: 1px solid rgba( $default-50, 0.1 );
+
+        &.has-icon {
+            Label {
+                margin-left: 26px;
+            }
+        }
+
+        .placeholder {
+            font-size: $text-regular;
+        }
+
+        Label {
+            font-weight: 700;
+        }
+
+        iconpanel {
+            position: absolute;
+            left: 12px;
+            opacity: 0.25;
+            font-size: $text-large;
+        }
+    }
 
 Page > .inner > .sidebar p
 {

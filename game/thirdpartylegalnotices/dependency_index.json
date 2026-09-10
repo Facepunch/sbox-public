@@ -3,6 +3,36 @@
 	"Statement": "The following libraries and components are included or used by s&box. We appreciate the developers' contributions to open & shared software.",
 	"Components": [
 		{
+			"Name": "Yoga",
+			"Comment": "Portions of the managed flexbox layout implementation and its conformance fixtures derive from Yoga 3.2.1. Source-derived code is compiled into Sandbox.Layout; no native Yoga library is required.",
+			"UsedBy": [
+				"Sandbox.Layout"
+			],
+			"License": "MIT",
+			"ProjectUrl": "https://github.com/facebook/yoga",
+			"Version": "3.2.1",
+			"Linkage": "static",
+			"Modified": true,
+			"Copyright": [
+				"Facebook, Inc. and its affiliates."
+			]
+		},
+		{
+			"Name": "Taffy",
+			"Comment": "Portions of the managed grid layout implementation and the block/grid conformance fixtures derive from Taffy. Source-derived code is compiled into Sandbox.Layout. Fixture revision: ac2b86929d35b7e0f1d24919595b89b4ce89baa4.",
+			"UsedBy": [
+				"Sandbox.Layout"
+			],
+			"License": "MIT",
+			"ProjectUrl": "https://github.com/DioxusLabs/taffy",
+			"Linkage": "static",
+			"Modified": true,
+			"Copyright": [
+				"2018 Visly Inc.",
+				"2026 Taffy Authors"
+			]
+		},
+		{
 			"Name": "SkiaSharp",
 			"Comment": "SkiaSharp is a cross-platform 2D graphics API for .NET platforms based on Google's Skia Graphics Library. It provides a comprehensive 2D API that can be used across mobile, server and desktop models to render images.",
 			"UsedBy": [
@@ -84,20 +114,6 @@
 			"Linkage": "static",
 			"Copyright": [
 				"1995-2024 Jean-loup Gailly and Mark Adler"
-			]
-		},
-		{
-			"Name": "FFTS",
-			"Comment": "The Fastest Fourier Transform in the South (FFT implementation).",
-			"UsedBy": [
-				"resourcecompiler",
-				"steamaudio"
-			],
-			"License": "BSD-3-Clause",
-			"ProjectUrl": "https://github.com/ValveSoftware/ffts",
-			"Linkage": "static",
-			"Copyright": [
-				"2012, 2013 Anthony M. Blake"
 			]
 		},
 		{
@@ -257,17 +273,18 @@
 			]
 		},
 		{
-			"Name": "Autodesk FBX SDK",
-			"Comment": "FBX import/export SDK. Autodesk® and FBX® are registered trademarks or trademarks of Autodesk, Inc., and/or its subsidiaries and/or affiliates in the USA and/or other countries. All other brand names, product names, or trademarks belong to their respective holders.",
+			"Name": "ufbx",
+			"Comment": "Single source file FBX import library.",
 			"UsedBy": [
 				"resourcecompiler",
-				"modeldoc"
+				"modeldoc",
+				"hammer"
 			],
-			"License": "Autodesk-FBX",
-			"ProjectUrl": "https://aps.autodesk.com/developer/overview/fbx-sdk",
-			"Linkage": "dynamic",
+			"License": "MIT",
+			"ProjectUrl": "https://github.com/ufbx/ufbx",
+			"Linkage": "static",
 			"Copyright": [
-				"2012 Autodesk, Inc."
+				"2020 Samuli Raivio"
 			]
 		},
 		{
@@ -296,20 +313,6 @@
 			"Copyright": [
 				"2016 Advanced Micro Devices, Inc.",
 				"2004-2006 ATI Technologies Inc."
-			]
-		},
-		{
-			"Name": "mpg123",
-			"Comment": "High-performance MPEG audio (MP3) decoding library.",
-			"UsedBy": [
-				"soundssystem"
-			],
-			"License": "LGPL-2.1-only",
-			"ProjectUrl": "https://www.mpg123.de/",
-			"Linkage": "dynamic",
-			"Copyright": [
-				"1995-2013 Michael Hipp",
-				"1995-2013 Other contributors"
 			]
 		},
 		{
@@ -370,6 +373,21 @@
 			]
 		},
 		{
+			"Name": "Slang",
+			"Comment": "Shading language & compiler; compiles our HLSL shaders to SPIR-V.",
+			"UsedBy": [
+				"vfx_vulkan"
+			],
+			"License": "Apache-2.0-with-LLVM-Exception",
+			"ProjectUrl": "https://github.com/shader-slang/slang",
+			"Linkage": "dynamic",
+			"Copyright": [
+				"NVIDIA Corporation & Affiliates",
+				"The Khronos Group Inc.",
+				"Slang contributors"
+			]
+		},
+		{
 			"Name": "embree",
 			"Comment": "Intel Embree ray tracing kernels (embree3 for vrad3; embree4 via steamaudio).",
 			"UsedBy": [
@@ -378,7 +396,7 @@
 			],
 			"License": "Apache-2.0",
 			"ProjectUrl": "https://github.com/embree/embree/",
-			"Linkage": "dynamic",
+			"Linkage": "static",
 			"Copyright": [
 				"2009-2024 Intel Corporation"
 			]
@@ -394,19 +412,6 @@
 			"Linkage": "static",
 			"Copyright": [
 				"2015 Etc2Comp Authors"
-			]
-		},
-		{
-			"Name": "fossilize",
-			"Comment": "Vulkan pipeline/shader cache management (Valve).",
-			"UsedBy": [
-				"engine2"
-			],
-			"License": "MIT",
-			"ProjectUrl": "https://github.com/ValveSoftware/Fossilize/",
-			"Linkage": "static",
-			"Copyright": [
-				"2018 Hans-Kristian Arntzen"
 			]
 		},
 		{
@@ -433,19 +438,6 @@
 			"Linkage": "static",
 			"Copyright": [
 				"2007-2010 Baptiste Lepilleur and The JsonCpp Authors"
-			]
-		},
-		{
-			"Name": "mikktspace",
-			"Comment": "Tangent space generation for normal mapping.",
-			"UsedBy": [
-				"resourcecompiler"
-			],
-			"License": "MIT",
-			"ProjectUrl": "https://github.com/mmikk/MikkTSpace/",
-			"Linkage": "header-only",
-			"Copyright": [
-				"2011 Morten S. Mikkelsen"
 			]
 		},
 		{
@@ -500,6 +492,21 @@
 			"Linkage": "dynamic",
 			"Copyright": [
 				"1997-2025 Sam Lantinga"
+			]
+		},
+		{
+			"Name": "glslang",
+			"Comment": "Khronos reference GLSL/HLSL front end; we build it to obtain SPVRemapper and the SPIR-V tooling libraries.",
+			"UsedBy": [
+				"shaderpreprocessing"
+			],
+			"License": "glslang",
+			"ProjectUrl": "https://github.com/KhronosGroup/glslang",
+			"Linkage": "static",
+			"Copyright": [
+				"2002-2024 The Khronos Group Inc.",
+				"2012-2016 LunarG, Inc.",
+				"2013-2016 Google, Inc."
 			]
 		},
 		{
@@ -647,6 +654,23 @@
 			]
 		},
 		{
+			"Name": "Mesa KosmicKrisp",
+			"Comment": "Mesa Vulkan-on-Metal driver for macOS on Apple Silicon. Loaded as libvulkan_kosmickrisp.dylib in place of a platform Vulkan loader.",
+			"UsedBy": [
+				"rendersystem"
+			],
+			"License": "MIT AND BSD-3-Clause AND SGI-B-2.0",
+			"ProjectUrl": "https://github.com/facepunch/mesa-kosmickrisp",
+			"Version": "26.3.0-devel",
+			"Linkage": "dynamic",
+			"Copyright": [
+				"Mesa contributors",
+				"1999-2007 Brian Paul",
+				"2025 LunarG, Inc.",
+				"2025 Google LLC"
+			]
+		},
+		{
 			"Name": "Box3D",
 			"Comment": "Physics Engine",
 			"UsedBy": [
@@ -658,19 +682,6 @@
 			"Copyright": [
 				"2022 Dirk Gregorius",
 				"2022 Erin Catto"
-			]
-		},
-		{
-			"Name": "Yoga",
-			"Comment": "Facebook Yoga layout engine (C# binding).",
-			"UsedBy": [
-				"engine2"
-			],
-			"License": "MIT",
-			"ProjectUrl": "https://github.com/facebook/yoga/",
-			"Linkage": "static",
-			"Copyright": [
-				"Facebook, Inc. and its affiliates"
 			]
 		},
 		{
@@ -805,7 +816,7 @@
 		},
 		{
 			"Name": "LAME",
-			"Comment": "LAME MP3 encoder (lame_enc.dll).",
+			"Comment": "LAME MP3 encoder (libmp3lame).",
 			"UsedBy": [
 				"soundssystem"
 			],
@@ -852,19 +863,6 @@
 			]
 		},
 		{
-			"Name": "OpenVR",
-			"Comment": "OpenVR runtime API (openvr_api.dll).",
-			"UsedBy": [
-				"engine2"
-			],
-			"License": "BSD-3-Clause",
-			"ProjectUrl": "https://github.com/ValveSoftware/openvr/",
-			"Linkage": "dynamic",
-			"Copyright": [
-				"2015 Valve Corporation"
-			]
-		},
-		{
 			"Name": "OpenXR",
 			"Comment": "Khronos OpenXR runtime loader (openxr_loader.dll).",
 			"UsedBy": [
@@ -904,30 +902,16 @@
 			]
 		},
 		{
-			"Name": "FFmpeg",
-			"Comment": "Audio and video encoding/decoding/transcoding framework (custom minimal build) using external components: OpenSSL (TLS/HTTPS), OpenH264 (H.264), libvpx (VP8/VP9), libaom (AV1), libopus (Opus), libvorbis (Vorbis), libogg (Ogg container), libFLAC (FLAC), libwebp (WebP), Vulkan Loader (Vulkan hwaccel/filters)",
-			"UsedBy": [
-				"engine2"
-			],
-			"License": "LGPL-3.0-only",
-			"ProjectUrl": "https://www.ffmpeg.org/",
-			"Linkage": "dynamic",
-			"Copyright": [
-				"2000-2024 FFmpeg developers",
-				"See License for a full list"
-			]
-		},
-		{
-			"Name": "ToolWindowManager",
-			"Comment": "ToolWindowManager is a Qt based tool window manager. This allows Qt projects to use docking functionality similar to QDockWidget, but since it's a separate component it's easier to customise and extend and so has a number of improvements over the built-in docking system.",
+			"Name": "Qt Advanced Docking System",
+			"Comment": "Qt Advanced Docking System lets you create customizable layouts using a full featured window docking system similar to what is found in many popular integrated development environments (IDEs) such as Visual Studio.",
 			"UsedBy": [
 				"toolframework2"
 			],
-			"License": "MIT",
-			"ProjectUrl": "https://github.com/baldurk/toolwindowmanager",
-			"Linkage": "static",
+			"License": "LGPL-2.1",
+			"ProjectUrl": "https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System",
+			"Linkage": "dynamic",
 			"Copyright": [
-				"2014 Pavel Strakhov"
+				"2017 Uwe Kindler"
 			]
 		},
 		{
@@ -943,6 +927,180 @@
 			"Copyright": [
 				"Copyright (c) 2015 - 2020 0x0ade"
 			]
-		}		
+		},
+		{
+			"Name": "dav1d",
+			"Comment": "AV1 cross-platform decoder focused on speed and correctness.",
+			"UsedBy": [
+				"engine2"
+			],
+			"License": "BSD-2-Clause",
+			"ProjectUrl": "https://code.videolan.org/videolan/dav1d",
+			"Linkage": "static",
+			"Copyright": [
+				"2018-2025 VideoLAN and dav1d authors"
+			]
+		},
+		{
+			"Name": "SVT-AV1",
+			"Comment": "Scalable Video Technology for AV1 encoder.",
+			"UsedBy": [
+				"engine2"
+			],
+			"License": "BSD-3-Clause-Clear",
+			"ProjectUrl": "https://gitlab.com/AOMediaCodec/SVT-AV1",
+			"Linkage": "static",
+			"Copyright": [
+				"2021 Alliance for Open Media"
+			]
+		},
+		{
+			"Name": "libvpx",
+			"Comment": "VP9 video codec library.",
+			"UsedBy": [
+				"engine2"
+			],
+			"License": "BSD-3-Clause",
+			"ProjectUrl": "https://chromium.googlesource.com/webm/libvpx",
+			"Linkage": "static",
+			"Copyright": [
+				"2010 The WebM Project authors"
+			]
+		},
+		{
+			"Name": "libyuv",
+			"Comment": "YUV color space conversion and scaling library.",
+			"UsedBy": [
+				"engine2"
+			],
+			"License": "BSD-3-Clause",
+			"ProjectUrl": "https://chromium.googlesource.com/libyuv/libyuv",
+			"Linkage": "static",
+			"Copyright": [
+				"2011 The LibYuv Project Authors"
+			]
+		},
+		{
+			"Name": "libopus",
+			"Comment": "Opus interactive audio codec library.",
+			"UsedBy": [
+				"engine2"
+			],
+			"License": "BSD-3-Clause",
+			"ProjectUrl": "https://opus-codec.org/",
+			"Linkage": "static",
+			"Copyright": [
+				"2001-2023 Xiph.Org, Skype Limited, Octasic, Jean-Marc Valin, Timothy B. Terriberry, CSIRO, Gregory Maxwell, Mark Borgerding, Erik de Castro Lopo, Mozilla, Amazon"
+			]
+		},
+		{
+			"Name": "libwebp",
+			"Comment": "WebP image codec library.",
+			"UsedBy": [
+				"engine2"
+			],
+			"License": "BSD-3-Clause",
+			"ProjectUrl": "https://chromium.googlesource.com/webm/libwebp",
+			"Linkage": "static",
+			"Copyright": [
+				"2010 Google Inc."
+			]
+		},
+		{
+			"Name": "libwebm",
+			"Comment": "WebM container format parser and muxer library.",
+			"UsedBy": [
+				"engine2"
+			],
+			"License": "BSD-3-Clause",
+			"ProjectUrl": "https://chromium.googlesource.com/webm/libwebm",
+			"Linkage": "static",
+			"Copyright": [
+				"2010 Google Inc."
+			]
+		},
+		{
+			"Name": "minimp4",
+			"Comment": "Minimalistic MP4 mux/demux single-header library.",
+			"UsedBy": [
+				"engine2"
+			],
+			"License": "CC0-1.0",
+			"ProjectUrl": "https://github.com/lieff/minimp4",
+			"Linkage": "static",
+			"Copyright": [
+				"lieff"
+			]
+		},
+		{
+			"Name": "dr_libs",
+			"Comment": "Single-header audio decoding libraries (dr_flac, dr_mp3, dr_wav).",
+			"UsedBy": [
+				"engine2"
+			],
+			"License": "MIT-0",
+			"ProjectUrl": "https://github.com/mackron/dr_libs",
+			"Linkage": "static",
+			"Copyright": [
+				"2020 David Reid"
+			]
+		},
+		{
+			"Name": "PFFFT",
+			"Comment": "Pretty Fast FFT — real/complex FFT used by the sound system and Steam Audio.",
+			"UsedBy": [
+				"engine2",
+				"steamaudio"
+			],
+			"License": "BSD-3-Clause",
+			"ProjectUrl": "https://github.com/marton78/pffft",
+			"Linkage": "static",
+			"Copyright": [
+				"2020 Dario Mambro",
+				"2019 Hayati Ayguen",
+				"2013 Julien Pommier",
+				"2004 University Corporation for Atmospheric Research (UCAR)"
+			]
+		},
+		{
+			"Name": "libcurl",
+			"Comment": "HTTP client library for URL transfers.",
+			"UsedBy": [
+				"engine2"
+			],
+			"License": "curl",
+			"ProjectUrl": "https://curl.se/libcurl/",
+			"Linkage": "static",
+			"Copyright": [
+				"1996-2026 Daniel Stenberg and many contributors"
+			]
+		},
+		{
+			"Name": "FidelityFX SDK",
+			"Comment": "AMD FidelityFX Super Resolution upscaling technologies. Includes FSR1 (spatial) and FSR3 (temporal) used by the rendering pipeline.",
+			"UsedBy": [
+				"engine2"
+			],
+			"License": "MIT",
+			"ProjectUrl": "https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK",
+			"Linkage": "static",
+			"Copyright": [
+				"2024 Advanced Micro Devices, Inc."
+			]
+		},
+		{
+			"Name": "Bend Studio Screen Space Shadows",
+			"Comment": "Bend Studio's wavefront screen-space contact shadow technique (SIGGRAPH 2023). The GPU projection code is included in shaders/common/thirdparty/bend_sss_gpu.hlsl and the CPU dispatch list builder is ported in the ScreenSpaceShadows component.",
+			"UsedBy": [
+				"sbox",
+				"sbox-dev"
+			],
+			"License": "Apache-2.0",
+			"ProjectUrl": "https://www.bendstudio.com/blog/inside-bend-screen-space-shadows/",
+			"Linkage": "static",
+			"Copyright": [
+				"2023 Sony Interactive Entertainment"
+			]
+		}
 	]
 }

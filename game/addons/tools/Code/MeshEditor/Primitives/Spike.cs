@@ -2,10 +2,13 @@
 
 namespace Editor.MeshEditor;
 
+/// <summary>
+/// Creates a pointed cone fitted to the drawn bounds.
+/// </summary>
 [Title( "Spike" ), Icon( "details" )]
 internal class SpikePrimitive : PrimitiveBuilder
 {
-	[Title( "Number of sides" )]
+	[Title( "Number of sides" ), WideMode, Description( "Controls how round the base of the spike is." )]
 	public int NumberOfSides { get; set; } = 16;
 
 	[Hide] public Vector3 Center { get; set; }

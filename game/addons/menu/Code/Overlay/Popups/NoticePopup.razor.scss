@@ -1,0 +1,74 @@
+
+NoticePopup
+{
+    background-color: #222;
+    color: white;
+    border-radius: 8px;
+    min-height: 64px;
+    max-width: 480px;
+    margin-top: 8px;
+    font-family: Poppins;
+    font-size: 16px;
+    font-weight: 500;
+    box-shadow: 5px 5px 50px rgba( black, 0.5 );
+    sound-in: "ui.popup.message.open";
+    overflow: hidden;
+    position: relative;
+    z-index: 1000;
+    transition: all 0.4s bounce-out;
+    flex-direction: row;
+    align-items: stretch;
+    cursor: pointer;
+}
+
+NoticePopup:hover
+{
+    background-color: #2a2a2a;
+}
+
+NoticePopup:intro
+{
+    transform: scale( 0.7 );
+    opacity: 0;
+}
+
+NoticePopup:outro
+{
+    transition: all 0.3s ease-out;
+    opacity: 0;
+    transform: scale( 1.1 );
+    sound-in: "ui.popup.message.close";
+}
+
+.icon
+{
+    width: 64px;
+    height: 64px;
+    background-size: cover;
+    background-position: center;
+    flex-shrink: 0;
+}
+
+.content
+{
+    flex-direction: column;
+    padding: 10px 16px;
+    justify-content: center;
+    flex-grow: 1;
+    gap: 4px;
+
+    .title
+    {
+        font-size: 16px;
+        font-weight: 600;
+        color: white;
+    }
+
+    .text
+    {
+        font-size: 13px;
+        font-weight: normal;
+        opacity: 0.7;
+        white-space: pre-line;
+    }
+}

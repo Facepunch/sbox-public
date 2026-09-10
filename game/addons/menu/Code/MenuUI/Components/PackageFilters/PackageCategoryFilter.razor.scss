@@ -6,6 +6,8 @@ PackageCategoryFilter
     justify-content: space-between;
     font-size: 16px;
     color: #b2bfd8;
+	gap: 2px;
+	padding-left: 8px;
 }
 
 PackageCategoryFilter gametag
@@ -15,11 +17,17 @@ PackageCategoryFilter gametag
 PackageCategoryFilter .option
 {
     cursor: pointer;
-    padding: 1px 8px;
     border-radius: 5px;
     transition: all 0.2s ease;
     gap: 10px;
     align-items: center;
+    
+    padding: 4px 8px;
+
+    &:hover
+    {
+		background-color: rgba( 255, 255, 255, 0.06 );
+    }
 }
 
 PackageCategoryFilter .option .iconpanel
@@ -34,7 +42,6 @@ PackageCategoryFilter .option.active
     cursor: pointer;
     background-color: #4379dc;
     color: white;
-    padding: 8px 8px;
 }
 
 PackageCategoryFilter .option.active .iconpanel

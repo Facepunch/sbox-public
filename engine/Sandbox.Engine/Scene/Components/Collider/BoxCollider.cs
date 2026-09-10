@@ -45,6 +45,32 @@ public sealed class BoxCollider : Collider
 		}
 	}
 
+	/// <summary>
+	/// Sets the box to the bounds of this GameObject
+	/// </summary>
+	[Button( "Set to GameObject Bounds", "fullscreen" ), Group( "Box" )]
+	public void SetToGameObjectBounds()
+	{
+		BBox? bounds = null;
+
+		foreach ( var component in GameObject.GetComponentsInChildren<Component.IHasBounds>() )
+		{
+			if ( component is Component source && ReferenceEquals( source, this ) )
+				continue;
+
+			var sourceTransform = component is Component sourceComponent ? WorldTransform.ToLocal( sourceComponent.WorldTransform ) : global::Transform.Zero;
+			var localBounds = component.LocalBounds.Transform( sourceTransform );
+			bounds = bounds.HasValue ? bounds.Value.AddBBox( localBounds ) : localBounds;
+		}
+
+		if ( !bounds.HasValue )
+			return;
+
+		_center = bounds.Value.Center;
+		_scale = bounds.Value.Size;
+		UpdateShape();
+	}
+
 	private PhysicsShape Shape;
 
 	internal override void UpdateShape()
@@ -75,7 +101,22 @@ public sealed class BoxCollider : Collider
 
 		Gizmo.Draw.LineThickness = 1;
 		Gizmo.Draw.Color = Gizmo.Colors.Green.WithAlpha( Gizmo.IsSelected ? 1.0f : 0.2f );
-		Gizmo.Draw.LineBBox( box );
+
+		if ( Scene.Is2D )
+		{
+			var a = new Vector3( box.Mins.x, box.Mins.y, 0 );
+			var b = new Vector3( box.Maxs.x, box.Mins.y, 0 );
+			var c = new Vector3( box.Maxs.x, box.Maxs.y, 0 );
+			var d = new Vector3( box.Mins.x, box.Maxs.y, 0 );
+			Gizmo.Draw.Line( a, b );
+			Gizmo.Draw.Line( b, c );
+			Gizmo.Draw.Line( c, d );
+			Gizmo.Draw.Line( d, a );
+		}
+		else
+		{
+			Gizmo.Draw.LineBBox( box );
+		}
 	}
 
 	protected override IEnumerable<PhysicsShape> CreatePhysicsShapes( PhysicsBody targetBody, Transform local )

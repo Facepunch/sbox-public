@@ -1,4 +1,4 @@
-﻿using Sandbox.Engine;
+using Sandbox.Engine;
 using Sandbox.Engine.Settings;
 using Sandbox.Modals;
 using Sandbox.Services;
@@ -28,6 +28,39 @@ public static partial class MenuUtility
 		Sandbox.Diagnostics.Logging.OnMessage -= logger;
 	}
 
+	public static void AddChatListener( Action<ChatMessageEvent> listener )
+	{
+		Platform.Chat.OnMessage += listener;
+	}
+
+	public static void RemoveChatListener( Action<ChatMessageEvent> listener )
+	{
+		Platform.Chat.OnMessage -= listener;
+	}
+
+	/// <summary>
+	/// Collect the subtitle lines being spoken right now, from the running game's
+	/// scene (or the menu's own scene when not in a game). Used by the menu's
+	/// subtitle overlay.
+	/// </summary>
+	public static void GetSubtitles( List<SubtitlesGameObjectSystem.Line> lines )
+	{
+		// We're called from the menu context, but the active scene has to be
+		// resolved in the game's - Game.ActiveScene is per-context, and the menu
+		// context's is the menu background scene, not the game the player is in
+		Scene scene;
+
+		using ( GlobalContext.GameScope() )
+		{
+			scene = Application.GetActiveScene();
+		}
+
+		if ( !scene.IsValid() )
+			return;
+
+		scene.GetSystem<SubtitlesGameObjectSystem>()?.GetActive( lines );
+	}
+
 	public static ConCmdAttribute.AutoCompleteResult[] AutoComplete( string text, int maxCount )
 	{
 		return ConVarSystem.GetAutoComplete( text, maxCount );
@@ -38,26 +71,17 @@ public static partial class MenuUtility
 		IMenuDll.Current?.RunEvent( "ui.skiptransitions" );
 	}
 
+	public static async Task<bool> RefreshAccountInfo()
+	{
+		await AccountInformation.Update();
+		return Api.IsConnected;
+	}
+
 	/// <summary>
 	/// If current game is active, return the package
 	/// </summary>
 	public static Package GamePackage => Application.GamePackage;
 
-	/// <summary>
-	/// Init a stream service
-	/// </summary>
-	public static async Task<bool> ConnectStream( StreamService service )
-	{
-		return await Sandbox.Engine.Streamer.Init( service );
-	}
-
-	/// <summary>
-	/// Init a stream service
-	/// </summary>
-	public static void DisconnectStream()
-	{
-		Sandbox.Engine.Streamer.Shutdown();
-	}
 
 	public static SceneWorld CreateSceneWorld()
 	{
@@ -153,6 +177,17 @@ public static partial class MenuUtility
 	}
 
 	/// <summary>
+	/// Invite a friend to the current game.
+	/// </summary>
+	public static bool InviteFriendGame( Friend friend )
+	{
+		var connectString = new Friend( Game.SteamId ).GetRichPresence( "connect" );
+		if ( string.IsNullOrWhiteSpace( connectString ) ) return false;
+
+		return friend.InviteToGame( connectString );
+	}
+
+	/// <summary>
 	/// We might be running the game from sbox.game, so we want the menu system to open the game immediately
 	/// </summary>
 	public static string StartupGameIdent => Utility.CommandLine.GetSwitch( "-rungame", null );
@@ -178,6 +213,22 @@ public static partial class MenuUtility
 	/// Access to the client's render settings
 	/// </summary>
 	public static RenderSettings RenderSettings => Sandbox.Engine.Settings.RenderSettings.Instance;
+
+	/// <summary>
+	/// The graphics preset this machine should start on.
+	/// </summary>
+	public static GraphicsPreset DetectGraphicsPreset() => Sandbox.Engine.Settings.RenderSettings.DetectPreset();
+
+	/// <summary>
+	/// What a graphics preset writes, keyed by setting name. Lets the settings menu tell which
+	/// preset unsaved edits add up to without keeping its own copy of the preset tables.
+	/// </summary>
+	public static IReadOnlyDictionary<string, string> GraphicsPresetValues( GraphicsPreset preset ) =>
+		Sandbox.Engine.Settings.RenderSettings.SettingsFor( preset );
+
+	/// <summary>What a post-processing preset writes, keyed by setting name.</summary>
+	public static IReadOnlyDictionary<string, string> PostProcessPresetValues( PostProcessQuality preset ) =>
+		Sandbox.Engine.Settings.RenderSettings.SettingsFor( preset );
 
 	/// <summary>
 	/// Listen to the voice
@@ -263,6 +314,19 @@ public static partial class MenuUtility
 	}
 
 	/// <summary>
+	/// Whether this friend can be invited to your current (or about-to-be-created) party -
+	/// ie. they're online, not you, and not already in it.
+	/// </summary>
+	public static bool CanInviteToParty( Friend friend )
+	{
+		if ( !friend.IsOnline ) return false;
+		if ( friend.IsMe ) return false;
+		if ( PartyRoom.Current is not null && PartyRoom.Current.Members.Contains( friend ) ) return false;
+
+		return true;
+	}
+
+	/// <summary>
 	/// Opens the invite overlay
 	/// </summary>
 	public static void InviteOverlayToParty()
@@ -273,9 +337,48 @@ public static partial class MenuUtility
 	/// <summary>
 	/// Post a review for a package
 	/// </summary>
-	public static Task PostReview( string packageIdent, Sandbox.Services.Review.ReviewScore score, string content )
+	public static Task PostReview( string packageIdent, Sandbox.Services.Review.ReviewScore score, string content, Sandbox.Services.Review.PositiveTags positives, Sandbox.Services.Review.NegativeTags negatives )
 	{
-		return Sandbox.Services.Review.Post( packageIdent, score, content );
+		return Sandbox.Services.Review.Post( packageIdent, score, content, positives, negatives );
+	}
+
+	/// <summary>
+	/// Post a report for a package
+	/// </summary>
+	public static Task PostReport( string packageIdent, Sandbox.Services.Reports.Reason reason, string content )
+	{
+		return Sandbox.Services.Reports.Post( packageIdent, reason, content );
+	}
+
+	/// <summary>
+	/// Begin linking a third-party service to the player's account (eg "Twitch"). Returns a URL
+	/// to open in a browser, where the player authorizes the service. Completion is delivered
+	/// asynchronously to <see cref="IBackendListener.OnServiceLinked"/>, so there's no need to
+	/// poll - just refresh <see cref="ListServices"/> when notified.
+	/// </summary>
+	public static async Task<string> BeginServiceLink( string service )
+	{
+		var result = await Backend.Account.BeginServiceLink( service );
+		return result.Url;
+	}
+
+	/// <summary>
+	/// List the player's linked services with their public info (name, avatar). Contains no tokens.
+	/// </summary>
+	public static async Task<List<LinkedService>> ListServices()
+	{
+		var services = await Backend.Account.ListServices();
+		return services.Select( x => new LinkedService( x.Type, x.Id, x.Name, x.Avatar ) ).ToList();
+	}
+
+	public static async Task SetMountState( string name, bool state )
+	{
+		await Sandbox.Mounting.Directory.SetMountState( name, state );
+
+		if ( !Application.IsEditor )
+		{
+			Sandbox.Mounting.MountConfig.Save();
+		}
 	}
 
 	/// <summary>
@@ -292,6 +395,12 @@ public static partial class MenuUtility
 	}
 
 }
+
+/// <summary>
+/// Public, token-free info about a third-party service account (eg Twitch) linked to the player.
+/// This is the menu-facing proxy for the backend's service link data.
+/// </summary>
+public record struct LinkedService( string Service, string Id, string Name, string Avatar );
 
 public class StoragePublish
 {

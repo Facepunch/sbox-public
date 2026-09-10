@@ -120,6 +120,9 @@ public class LocalAssetLocations : AssetLocations
 				continue;
 
 			var d = new DirectoryInfo( project.GetRootPath() );
+			if ( !d.Exists )
+				continue;
+
 			var loc = new DiskLocation( d );
 			LibrariesNode.AddItem( new FolderNode( loc ) );
 		}
@@ -174,12 +177,7 @@ public class LocalAssetLocations : AssetLocations
 
 		foreach ( var pin in Pins )
 		{
-			var di = new DirectoryInfo( pin );
-
-			if ( !di.Exists )
-				continue;
-
-			var item = new PinnedFolderNode( new DiskLocation( di ) );
+			var item = new PinnedFolderNode( new DiskLocation( pin ) );
 			item.OnContextMenuOpen = () =>
 			{
 				var m = new ContextMenu();

@@ -8,6 +8,9 @@ sealed class ParticleGameSystem : GameObjectSystem
 {
 	private List<ParticleEffect.ParticleWork> workList = new( 64 );
 
+	// Reused so we don't re-enumerate Scene.GetAll (iterator allocs) three times per frame
+	private readonly List<ParticleEffect> _effects = new();
+
 	public ParticleGameSystem( Scene scene ) : base( scene )
 	{
 		Listen( Stage.FinishUpdate, 0, UpdateParticles, "UpdateParticles" );
@@ -17,15 +20,16 @@ sealed class ParticleGameSystem : GameObjectSystem
 	{
 		using var __ = PerformanceStats.Timings.Particles.Scope();
 
-		var particles = Scene.GetAll<ParticleEffect>();
-		if ( particles.Count() == 0 ) return;
+		_effects.Clear();
+		Scene.GetAll( _effects );
+		if ( _effects.Count == 0 ) return;
 
 		var timeDelta = MathX.Clamp( Time.Delta, 0.0f, 1.0f / 30.0f );
 		var realTimeDelta = MathX.Clamp( RealTime.Delta, 0.0f, 1.0f / 30.0f );
 
 		workList.Clear();
 
-		foreach ( var p in particles )
+		foreach ( var p in _effects )
 		{
 			var delta = p.Timing switch
 			{
@@ -44,7 +48,7 @@ sealed class ParticleGameSystem : GameObjectSystem
 			System.Threading.Tasks.Parallel.ForEach( workList, ProcessWork );
 		}
 
-		foreach ( var p in particles )
+		foreach ( var p in _effects )
 		{
 			p.SpawnDeferredParticleCollisionPrefabs();
 			p.ApplyDeferredParticleForces();
@@ -52,6 +56,7 @@ sealed class ParticleGameSystem : GameObjectSystem
 		}
 
 		workList.Clear();
+		_effects.Clear();
 	}
 
 	/// <summary>

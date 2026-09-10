@@ -42,6 +42,7 @@ internal partial class PanelRenderer
 		cl.SetRenderTarget( handle );
 		cl.Attributes.Set( "LayerMat", mat );
 		cl.Attributes.SetCombo( "D_WORLDPANEL", 0 );
+		cl.Attributes.Set( "UIInPanelLayer", true );
 		cl.Clear( Color.Transparent );
 
 		LayerStack.Push( new LayerEntry { RTHandle = handle.Name, Matrix = mat } );
@@ -62,6 +63,7 @@ internal partial class PanelRenderer
 			cl.SetRenderTarget( defaultRT );
 			cl.Attributes.Set( "LayerMat", Matrix.Identity );
 			cl.Attributes.SetCombo( "D_WORLDPANEL", WorldPanelCombo );
+			cl.Attributes.Set( "UIInPanelLayer", false );
 		}
 	}
 }

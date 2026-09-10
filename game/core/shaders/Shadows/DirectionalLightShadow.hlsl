@@ -7,6 +7,8 @@
 // I don't know
 ;
 
+#include "common/utils/MSAAUtils.hlsl"
+
 // don't have more than this for fucks sake
 #define MAX_CASCADE_COUNT 4
 
@@ -19,7 +21,8 @@ cbuffer DirectionalLightCB
 	uint4 g_DirectionalLightShadowMapTextureIndex;
 	uint g_DirectionalLightCascadeCount;
     float g_DirectionalLightInverseShadowMapSize;
-	float g_DirectionalLightPadding;
+	// Bindless index of the screen-space (contact) shadow mask, 0 if none.
+	uint g_DirectionalLightScreenSpaceShadowIndex;
 	bool g_DirectionalLightEnabled;
     float4 g_DirectionalLightCascadeHardness;
     float4 g_DirectionalLightCascadeSpheres[MAX_CASCADE_COUNT]; // xyz = world center, w = radius squared
@@ -54,15 +57,18 @@ int FindCascade( float3 worldPosition, out float3 posLs )
 	return -1;
 }
 
-class DirectionalLightShadow
+struct DirectionalLightShadow
 {
 	static float SampleCascade( int cascadeIndex, float3 worldPosition, float2 screenPos )
     {
 		float4x4 worldToShadow = g_DirectionalLightWorldToShadowViewMatrices[cascadeIndex];
+
+		worldPosition = ApplyShadowNormalOffset( worldPosition, g_DirectionalLightInverseShadowMapSize / length( worldToShadow[0].xyz ), g_DirectionalLightCascadeHardness[cascadeIndex] );
+		
 		float3 positionLs = mul( worldToShadow, float4( worldPosition, 1.0f ) ).xyz;
 
         ShadowPCFInput pcfInput;
-        pcfInput.ShadowMap = g_bindless_Texture2D[ NonUniformResourceIndex( g_DirectionalLightShadowMapTextureIndex[cascadeIndex] ) ];
+        pcfInput.ShadowMap = Bindless::GetTexture2D( g_DirectionalLightShadowMapTextureIndex[cascadeIndex] );
         pcfInput.ShadowPos = positionLs;
         pcfInput.InvShadowMapRes = g_DirectionalLightInverseShadowMapSize;
         pcfInput.Bias = g_DirectionalLightShadowBias[cascadeIndex];
@@ -71,6 +77,24 @@ class DirectionalLightShadow
 
         return SampleShadowPCF( pcfInput );
     }
+
+	// Screen-space (contact) shadows precomputed into a full-screen mask by the ScreenSpaceShadows
+	// component. 1 = lit, 0 = shadowed. Returns 1 (no occlusion) when no mask is bound (index 0).
+	// The mask is a non-MSAA full-res texture, so composite it with MSAAUtils::GetSampleIndex to pick
+	// the depth-matching gather lane - this keeps the mask pixel-perfect under MSAA.
+	static float SampleScreenSpaceShadow( float4 vPositionSs )
+	{
+		#if ( S_TRANSLUCENT == 1 || PROGRAM != VFX_PROGRAM_PS )
+        	return 1.0f;
+		#endif
+		
+		if ( g_DirectionalLightScreenSpaceShadowIndex == 0 )
+			return 1.0f;
+
+        Texture2D tMask = Bindless::GetTexture2D(g_DirectionalLightScreenSpaceShadowIndex);
+        vPositionSs.xy -= g_vViewportOffset.xy;
+		return MSAAUtils::SampleRed( tMask, vPositionSs );
+	}
 
 	static float3 GetOccludedPosition( float3 fragPos )
     {
@@ -86,7 +110,7 @@ class DirectionalLightShadow
 			posLs = mul( g_DirectionalLightWorldToShadowViewMatrices[cascade], float4( fragPos, 1 ) ).xyz;
 		}
 
-		float s = g_bindless_Texture2D[ NonUniformResourceIndex( g_DirectionalLightShadowMapTextureIndex[cascade] ) ].SampleLevel( g_sPointClamp, posLs.xy, 0 ).r;
+		float s = Bindless::GetTexture2D( g_DirectionalLightShadowMapTextureIndex[cascade] ).SampleLevel( g_sPointClamp, posLs.xy, 0 ).r;
 
 		// zGrad is the gradient of shadow-Z w.r.t. world position; 1/|zGrad| converts shadow-Z delta to world units
 		// Reversed-Z: s > posLs.z when occluder is closer to light than fragment
@@ -94,19 +118,23 @@ class DirectionalLightShadow
         return fragPos + zGrad * max( s - posLs.z, 0.0f ) / dot( zGrad, zGrad );
     }
 
-    static float GetVisibility( float3 worldPosition, float2 screenPos )
+    static float GetVisibility( float3 worldPosition, float4 vPositionSs )
     {
+        float ssShadow = SampleScreenSpaceShadow( vPositionSs );
+
         if ( g_DirectionalLightCascadeCount == 0 )
-            return 1.0f;
+            return ssShadow;
 
 		float3 posLs;
 		int cascade = FindCascade( worldPosition, posLs );
 
 		if ( cascade < 0 )
-			return 1.0f;
+			return ssShadow;
 
-		return SampleCascade( cascade, worldPosition, screenPos );
+		return SampleCascade( cascade, worldPosition, vPositionSs.xy ) * ssShadow;
     }
+
+
 
     static float3 GetDebugColor( float3 worldPosition )
     {

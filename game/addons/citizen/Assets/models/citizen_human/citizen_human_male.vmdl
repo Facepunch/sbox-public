@@ -191,6 +191,14 @@
 								from = "underwear.vmat"
 								to = "models/citizen_human/bodies/underwear.vmat"
 							},
+							{
+								from = "m_playermodel_lightskin_02.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead03/citizen_human_malehead03.vmat"
+							},
+							{
+								from = "m_playermodel_darkskin_02.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead04/citizen_human_malehead04.vmat"
+							},
 						]
 						use_global_default = false
 						global_default_material = ""
@@ -198,7 +206,17 @@
 					{
 						_class = "MaterialGroup"
 						name = "skin_dark"
-						remaps = [  ]
+						remaps = 
+						[
+							{
+								from = "m_playermodel_lightskin_02.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead03/citizen_human_malehead03.vmat"
+							},
+							{
+								from = "m_playermodel_darkskin_02.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead04/citizen_human_malehead04.vmat"
+							},
+						]
 					},
 					{
 						_class = "MaterialGroup"
@@ -212,6 +230,14 @@
 							{
 								from = "models/citizen_human/heads/citizen_human_malehead01/eyes_dark.vmat"
 								to = "models/citizen_human/heads/citizen_human_malehead01/eyes_light.vmat"
+							},
+							{
+								from = "m_playermodel_lightskin_02.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead03/citizen_human_malehead03.vmat"
+							},
+							{
+								from = "m_playermodel_darkskin_02.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead04/citizen_human_malehead04.vmat"
 							},
 						]
 					},

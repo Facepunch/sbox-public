@@ -105,6 +105,16 @@ public static partial class Game
 		}
 
 		/// <summary>
+		/// Opens a modal to report the specified package
+		/// </summary>
+		public static void ShowReportModal( string packageIdent )
+		{
+			using var scope = GlobalContext.MenuScope();
+
+			IModalSystem.Current?.Report( packageIdent );
+		}
+
+		/// <summary>
 		/// Opens a modal for selecting a package
 		/// </summary>
 		public static void ShowPackageSelector( string query, Action<Package> onSelect, Action<string> onFilterChanged = null )
@@ -112,6 +122,17 @@ public static partial class Game
 			using var scope = GlobalContext.MenuScope();
 
 			IModalSystem.Current?.PackageSelect( query, onSelect, onFilterChanged );
+		}
+
+		/// <summary>
+		/// Opens a modal for selecting a map.
+		/// This can be either a map package from the workshop (an ident), or a scene from a mount (a path)
+		/// </summary>
+		public static void ShowMapSelector( Action<string> onSelect, string selected = null )
+		{
+			using var scope = GlobalContext.MenuScope();
+
+			IModalSystem.Current?.MapSelect( onSelect, selected );
 		}
 
 		[Obsolete( "Use ShowFriendsList with FriendsListModalOptions instead." )]
@@ -139,14 +160,26 @@ public static partial class Game
 		}
 
 		/// <summary>
-		/// Opens a modal that lets you modify your settings
-		/// Optionally, you can specify a page to open directly to: "keybinds", "video", "input", "audio", "game", "storage", "developer"
+		/// Opens the settings. In the menu that's a tab; in a game it goes up over the top.
+		/// Optionally, you can specify a category to open directly to: "display", "graphics",
+		/// "audio", "controls", "keybinds", "game", "storage", "developer", "about".
+		/// The old page names "video" and "input" still work, and land on display and controls.
 		/// </summary>
 		public static void ShowSettingsModal( string page = "" )
 		{
 			using var scope = GlobalContext.MenuScope();
 
 			IModalSystem.Current?.Settings( page );
+		}
+
+		/// <summary>
+		/// Shows modal to edit the streaming settings
+		/// </summary>
+		public static void ShowServiceConnector()
+		{
+			using var scope = GlobalContext.MenuScope();
+
+			IModalSystem.Current?.ServiceConnector();
 		}
 
 		/// <summary>
@@ -197,6 +230,25 @@ public static partial class Game
 		{
 			using var scope = GlobalContext.MenuScope();
 			IModalSystem.Current?.WorkshopPublish( options );
+		}
+
+		/// <summary>
+		/// Starts a local benchmark run from within the game. The results panel is shown when all packages complete.
+		/// </summary>
+		/// <param name="packageFilter">Package names to include (null = all configured packages)</param>
+		/// <param name="testFilter">Individual test names to run (null = all). Passed to packages via the benchmark.tests game setting.</param>
+		public static void RunLocalBenchmarks( string[] packageFilter = null, string[] testFilter = null )
+		{
+			BenchmarkOrchestrator.Run( packageFilter, testFilter );
+		}
+
+		/// <summary>
+		/// Opens the benchmark results modal with the given batch ID and per-test summaries.
+		/// </summary>
+		public static void ShowBenchmarkResults( Guid batchId, IReadOnlyList<BenchmarkTestSummary> summaries )
+		{
+			using var scope = GlobalContext.MenuScope();
+			IModalSystem.Current?.BenchmarkResults( batchId, summaries );
 		}
 
 		/// <summary>

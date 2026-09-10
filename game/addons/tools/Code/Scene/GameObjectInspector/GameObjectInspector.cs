@@ -43,7 +43,7 @@ public class GameObjectInspector : InspectorWidget
 
 		var session = SceneEditorSession.Resolve( gameObjects.FirstOrDefault() );
 		using var scene = session.Scene.Push();
-		undoScope = session.UndoScope( undoName ).WithGameObjectChanges( gameObjects, GameObjectUndoFlags.Properties | GameObjectUndoFlags.Components ).Push();
+		undoScope = session.UndoScope( undoName ).WithGameObjectChanges( gameObjects, GameObjectUndoFlags.Properties ).Push();
 
 		property.DispatchPreEdited();
 	}

@@ -69,16 +69,17 @@ public sealed class AchievementCollection
 	/// <summary>
 	/// Unlock this achievement. It can be anything.
 	/// </summary>
-	void Unlock( string name )
+	async void Unlock( string name )
 	{
 		if ( !_entries.TryGetValue( name, out Achievement entry ) ) return;
 		if ( entry.IsUnlocked ) return;
+		if ( Backend.Achievements is null ) return;
 
 		entry.UnlockTimestamp = DateTime.UtcNow;
 
 		try
 		{
-			Backend.Achievements?.Unlock( packageIdent, entry.Name );
+			await Backend.Achievements.Unlock( packageIdent, entry.Name );
 		}
 		catch ( System.Exception e )
 		{

@@ -22,7 +22,7 @@ public class RotateWithMotionBuilder : BlendModification
 	{
 		var sampleRate = EditMode.Project.SampleRate;
 		var sampleCount = selection.TotalTimeRange.Duration.GetFrameCount( sampleRate );
-		
+
 		var compiledTracks = new List<CompiledPropertyTrack<Rotation>>();
 		var samples = new Rotation[sampleCount];
 

@@ -76,6 +76,11 @@ public sealed class PrefabBuilder
 			prefab = new PrefabFile();
 			prefab.Register( resourcePath );
 		}
+		else
+		{
+			prefab.CachedScene?.DestroyInternal();
+			prefab.CachedScene = null;
+		}
 
 		prefab.RootObject = rootJson;
 		prefab.PostLoadInternal();

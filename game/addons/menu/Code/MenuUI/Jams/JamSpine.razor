@@ -1,0 +1,87 @@
+@using Sandbox;
+@using Sandbox.Services;
+@using Sandbox.UI;
+@using System;
+@namespace MenuProject.MenuUI.Jams
+@inherits Panel
+
+<root>
+    <label class="spine-label">Schedule</label>
+
+    @if ( Jam is not null )
+    {
+        var current = Jam.CurrentStepIndex;
+
+        @for ( var i = 0; i < Jam.Timeline.Length; i++ )
+        {
+            var step = Jam.Timeline[i];
+            var state = i < current ? "done" : i == current ? "now" : "";
+
+            <div class="node @state" style="flex-grow: @Weight( i )">
+                <div class="dot"></div>
+                @if ( i < Jam.Timeline.Length - 1 )
+                {
+                    <div class="line">
+                        @if ( i == current )
+                        {
+                            <div class="fill" style="height: @Progress%"></div>
+                            <div class="marker" style="top: @Progress%"></div>
+                        }
+                    </div>
+                }
+                <label class="when">@JamFormat.Day( step.At )</label>
+                <label class="name">@step.Name</label>
+                <label class="eta">@Countdown( i, current, step )</label>
+            </div>
+        }
+    }
+</root>
+
+@code
+{
+    [Parameter] public Jam Jam { get; set; }
+
+    string Progress
+    {
+        get
+        {
+            var i = Jam.CurrentStepIndex;
+            if ( i < 0 || i >= Jam.Timeline.Length - 1 ) return "0";
+
+            var start = Jam.Timeline[i].At;
+            var end = Jam.Timeline[i + 1].At;
+            var f = (Jam.Now - start).TotalSeconds / Math.Max( 1, (end - start).TotalSeconds );
+
+            return (Math.Clamp( f, 0, 1 ) * 100).ToString( "0.#", System.Globalization.CultureInfo.InvariantCulture );
+        }
+    }
+
+    string Weight( int index )
+    {
+        if ( index >= Jam.Timeline.Length - 1 ) return "0";
+
+        var days = (Jam.Timeline[index + 1].At - Jam.Timeline[index].At).TotalDays;
+
+        return Math.Max( days, 0.5 ).ToString( "0.##", System.Globalization.CultureInfo.InvariantCulture );
+    }
+
+    string Countdown( int index, int current, Jam.Step step )
+    {
+        if ( index < current ) return "done";
+
+        if ( index == current )
+        {
+            var next = Jam.NextStep;
+            if ( next is null ) return null;
+
+            var total = Math.Max( 1, (int)Math.Round( (next.At - step.At).TotalDays ) );
+            var into = Math.Clamp( (Jam.Now.UtcDateTime.Date - step.At.UtcDateTime.Date).Days + 1, 1, total );
+
+            return $"day {into} of {total}";
+        }
+
+        return $"in {JamFormat.Countdown( step.At, Jam.Now )}";
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Jam?.Ident, Jam?.CurrentStepIndex, Jam?.Now.Hour );
+}

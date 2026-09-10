@@ -168,16 +168,16 @@ public class HostSyncAttributeFix : Fixer<HostSyncAttributeAnalyzer>
 
 				public class MyClass
 				{
-					[|HostSync|]
+					[[|HostSync|]]
 					public int MySyncProperty { get; set; }
 				}
 				""",
 				"""
 				using Sandbox;
-				
+
 				public class MyClass
 				{
-					[|Sync( SyncFlags.FromHost )|]
+					[[|Sync(SyncFlags.FromHost)|]]
 					public int MySyncProperty { get; set; }
 				}
 				""" );

@@ -1,0 +1,53 @@
+﻿
+@import "/styles/_theme.scss";
+
+$primary: $primary-blue !default;
+$primary-alt: white !default;
+$form-control-height: 24px !default;
+
+.checkbox
+{
+	cursor: pointer;
+	color: rgba( $primary-alt, 0.6 );
+	align-items: center;
+	gap: 8px;
+
+	label
+	{
+		pointer-events: none;
+	}
+
+	> .checkmark
+	{
+		padding: 1px;
+		font-size: 22px;
+		border: 1px solid $primary;
+		border-radius: $rounding-small;
+		text-align: center;
+		justify-content: center;
+		align-items: center;
+		color: transparent;
+		min-height: $form-control-height;
+		pointer-events: none;
+		flex-shrink: 0;
+	}
+
+	&.checked
+	{
+		> .checkmark
+		{
+			color: $primary-alt;
+			background-color: $primary;
+		}
+	}
+
+	&:active
+	{
+		color: $primary-alt;
+	}
+
+	&:hover
+	{
+		color: $primary-alt;
+	}
+}

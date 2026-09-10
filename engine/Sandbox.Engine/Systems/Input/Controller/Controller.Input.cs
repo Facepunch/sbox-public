@@ -18,9 +18,14 @@ internal sealed partial class Controller
 	internal Input.Context InputContext { get; set; }
 
 	/// SDL reports values between this range
-	static readonly Vector2 AXIS_RANGE = new( -32768, 32767 );
+	internal static readonly Vector2 AXIS_RANGE = new( -32768, 32767 );
 
 	List<InputAxis> ControllerAxes { get; set; } = new();
+
+	/// <summary>
+	/// Triggers always use a fixed deadzone, they're not affected by <see cref="Preferences.ControllerJoystickDeadzone"/>.
+	/// </summary>
+	const float TriggerDeadzone = 0.125f;
 
 	/// <summary>
 	/// Get an axis
@@ -44,9 +49,10 @@ internal sealed partial class Controller
 		float flValue = inputValue;
 		float normalizedAxis = flValue.Remap( Controller.AXIS_RANGE.x, Controller.AXIS_RANGE.y, -1, 1 );
 
-		// 12.5% deadzone
-		// todo: make this modifiable 
-		var deadzone = 0.125f;
+		var deadzone = axis < NativeEngine.GameControllerAxis.TriggerLeft
+			? Preferences.ControllerJoystickDeadzone / 100.0f
+			: TriggerDeadzone;
+
 		if ( MathF.Abs( normalizedAxis ) <= deadzone ) normalizedAxis = 0f;
 
 		if ( normalizedAxis > 0f )

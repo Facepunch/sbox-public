@@ -1,5 +1,9 @@
 ﻿namespace Facepunch.InteropGen;
 
+/// <summary>
+/// Base for args that decorate another arg (the wrapped <see cref="Base"/>): forwards type/marshalling
+/// to it by default. Used by <see cref="ArgArray"/> and <see cref="ArgFlagsWrapper"/>.
+/// </summary>
 public class ArgWrapper : Arg
 {
 	public Arg Base;
@@ -14,13 +18,10 @@ public class ArgWrapper : Arg
 
 	public override bool IsRealArgument => Base.IsRealArgument;
 
-	public override string GetManagedDelegateType( bool incoming )
-	{
-		return Base.GetManagedDelegateType( incoming );
-	}
+	public override bool WrapsManagedCall => Base.WrapsManagedCall;
 
-	public override string GetNativeDelegateType( bool incoming )
+	public override string DelegateType( Side side, Dir dir )
 	{
-		return Base.GetNativeDelegateType( incoming );
+		return Base.DelegateType( side, dir );
 	}
 }

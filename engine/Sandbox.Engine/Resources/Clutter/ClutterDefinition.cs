@@ -49,7 +49,7 @@ public class ClutterDefinition : GameResource
 	[Property, Range( 1, 10 )]
 	public int TileRadius { get; set; } = 4;
 
-	[Property]
+	[Property, InlineEditor]
 	public AnyOfType<Scatterer> Scatterer { get; set; } = new SimpleScatterer();
 
 	public override int GetHashCode()
@@ -64,6 +64,9 @@ public class ClutterDefinition : GameResource
 			if ( entry != null )
 			{
 				hash.Add( entry.Weight );
+				hash.Add( entry.LocalScale );
+				hash.Add( entry.CastShadows );
+				hash.Add( entry.EnablePhysics );
 				hash.Add( entry.Model?.GetHashCode() ?? 0 );
 				hash.Add( entry.Prefab?.GetHashCode() ?? 0 );
 			}

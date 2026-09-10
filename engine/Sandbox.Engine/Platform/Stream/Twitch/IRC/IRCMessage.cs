@@ -1,122 +1,49 @@
-﻿using System.Text;
-using System.Collections.Generic;
+namespace Sandbox.Twitch;
 
-namespace Sandbox.Twitch
+/// <summary>
+/// A parsed Twitch IRC line, produced by <see cref="IrcParser.Parse"/>. Holds only the pieces we
+/// consume - everything else on the line is dropped while parsing.
+/// </summary>
+internal readonly struct IrcMessage
 {
-	internal class IRCMessage
+	/// <summary>
+	/// The command this line carries, or <see cref="IrcCommand.Unknown"/> if it's one we don't handle.
+	/// </summary>
+	public IrcCommand Command { get; }
+
+	/// <summary>
+	/// The nick the line came from, or null for server-originated lines (e.g. PING, NOTICE).
+	/// </summary>
+	public string User { get; }
+
+	/// <summary>
+	/// The target channel without its leading '#', or null if the line isn't channel-scoped.
+	/// </summary>
+	public string Channel { get; }
+
+	/// <summary>
+	/// The trailing text - a chat message body, the NAMES list, a NOTICE's text - or null if absent.
+	/// </summary>
+	public string Message { get; }
+
+	/// <summary>
+	/// IRCv3 tags keyed by name, or null if the line carried none. Read values via <see cref="GetTag"/>.
+	/// </summary>
+	readonly Dictionary<string, string> _tags;
+
+	public IrcMessage( IrcCommand command, string user, string channel, string message, Dictionary<string, string> tags )
 	{
-		/// <summary>
-		/// The channel the message was sent in
-		/// </summary>
-		public string Channel => Params.StartsWith( "#" ) ? Params.Remove( 0, 1 ) : Params;
-
-		public string Params => _parameters != null && _parameters.Length > 0 ? _parameters[0] : "";
-
-		/// <summary>
-		/// Message itself
-		/// </summary>
-		public string Message => Trailing;
-
-		public string Trailing => _parameters != null && _parameters.Length > 1 ? _parameters[_parameters.Length - 1] : "";
-
-		/// <summary>
-		/// Command parameters
-		/// </summary>
-		private readonly string[] _parameters;
-
-		/// <summary>
-		/// The user whose message it is
-		/// </summary>
-		public readonly string User;
-
-		/// <summary>
-		/// Hostmask of the user
-		/// </summary>
-		public readonly string Hostmask;
-
-		/// <summary>
-		/// Raw Command
-		/// </summary>
-		public readonly IRCCommand Command;
-
-		/// <summary>
-		/// IRCv3 tags
-		/// </summary>
-		public readonly Dictionary<string, string> Tags;
-
-		/// <summary>
-		/// Create an INCOMPLETE IrcMessage only carrying username
-		/// </summary>
-		/// <param name="user"></param>
-		public IRCMessage( string user )
-		{
-			_parameters = null;
-			User = user;
-			Hostmask = null;
-			Command = IRCCommand.Unknown;
-			Tags = null;
-		}
-
-		/// <summary>
-		/// Create an IrcMessage
-		/// </summary>
-		/// <param name="command">IRC Command</param>
-		/// <param name="parameters">Command params</param>
-		/// <param name="hostmask">User</param>
-		/// <param name="tags">IRCv3 tags</param>
-		public IRCMessage(
-			IRCCommand command,
-			string[] parameters,
-			string hostmask,
-			Dictionary<string, string> tags = null )
-		{
-			var idx = hostmask.IndexOf( '!' );
-			User = idx != -1 ? hostmask.Substring( 0, idx ) : hostmask;
-			Hostmask = hostmask;
-			_parameters = parameters;
-			Command = command;
-			Tags = tags;
-		}
-
-		public new string ToString()
-		{
-			var raw = new StringBuilder( 32 );
-			if ( Tags != null )
-			{
-				var tags = new string[Tags.Count];
-				var i = 0;
-				foreach ( var tag in Tags )
-				{
-					tags[i] = tag.Key + "=" + tag.Value;
-					++i;
-				}
-
-				if ( tags.Length > 0 )
-				{
-					raw.Append( "@" ).Append( string.Join( ";", tags ) ).Append( " " );
-				}
-			}
-
-			if ( !string.IsNullOrEmpty( Hostmask ) )
-			{
-				raw.Append( ":" ).Append( Hostmask ).Append( " " );
-			}
-
-			raw.Append( Command.ToString().ToUpper().Replace( "RPL_", "" ) );
-			if ( _parameters.Length <= 0 )
-				return raw.ToString();
-
-			if ( _parameters[0] != null && _parameters[0].Length > 0 )
-			{
-				raw.Append( " " ).Append( _parameters[0] );
-			}
-
-			if ( _parameters.Length > 1 && _parameters[1] != null && _parameters[1].Length > 0 )
-			{
-				raw.Append( " :" ).Append( _parameters[1] );
-			}
-
-			return raw.ToString();
-		}
+		Command = command;
+		User = user;
+		Channel = channel;
+		Message = message;
+		_tags = tags;
 	}
+
+	/// <summary>
+	/// Get an IRCv3 tag value by key (e.g. "display-name", "color", "badges"), or null if the line
+	/// had no tags or didn't carry that one.
+	/// </summary>
+	public string GetTag( string key )
+		=> _tags is not null && _tags.TryGetValue( key, out var value ) ? value : null;
 }

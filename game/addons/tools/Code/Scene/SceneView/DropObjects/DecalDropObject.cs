@@ -26,6 +26,7 @@ partial class DecalDropObject : BaseDropObject
 			undoScope = SceneEditorSession.Active.UndoScope( "Drop Prefab" ).WithGameObjectCreations().Push();
 
 			GameObject = new GameObject( false );
+			GameObject.Name = d.ResourceName;
 			GameObject.Flags = GameObjectFlags.NotSaved | GameObjectFlags.Hidden;
 			GameObject.Tags.Add( "isdragdrop" );
 

@@ -83,7 +83,7 @@ public static partial class Game
 	/// <summary>
 	/// Return true if we're running on a handheld device (the deck). Will always be false serverside.
 	/// </summary>
-	public static bool IsRunningOnHandheld { get; internal set; }
+	public static bool IsRunningOnHandheld => Steamworks.SteamClient.IsValid && Steamworks.SteamUtils.IsRunningOnSteamDeck;
 
 	/// <summary>
 	/// A shared random that is automatically seeded on tick
@@ -203,7 +203,8 @@ public static partial class Game
 			// Allow for a 1 second grace period for clients to receive the message
 			await Task.Delay( 1000 );
 
-			Networking.Disconnect();
+			// Clients are following us to the new game, nobody should take over this one
+			Networking.Disconnect( handoffHost: false );
 		}
 
 		// close old game

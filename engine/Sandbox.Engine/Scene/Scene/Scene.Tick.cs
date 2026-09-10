@@ -25,12 +25,16 @@ public partial class Scene : GameObject
 	void PreTickReset()
 	{
 		// Forward our preference to the Scene's PhysicsWorld
-		if ( PhysicsWorld.IsValid() )
+		// Access the backing fields - ticking shouldn't force these worlds to exist
+		if ( _physicsWorld.IsValid() )
 		{
-			PhysicsWorld.SubSteps = Sandbox.ProjectSettings.Physics.SubSteps;
+			_physicsWorld.SubSteps = Sandbox.ProjectSettings.Physics.SubSteps;
 		}
 
-		SceneWorld.GradientFog.Enabled = false;
+		if ( _sceneWorld is not null )
+		{
+			_sceneWorld.GradientFog.Enabled = false;
+		}
 	}
 
 	double estimatedServerTime;
@@ -101,9 +105,72 @@ public partial class Scene : GameObject
 		foreach ( var c in updateComponents.EnumerateLocked( true ) ) c.InternalUpdate();
 	}
 
+	List<CameraComponent> _cameraViewScratch = new();
+
+	/// <summary>
+	/// Composes every enabled camera's view - the one point in the frame where the camera moves.
+	/// Runs after Update and bone merging, before PreRender.
+	/// </summary>
+	void UpdateCameraViews()
+	{
+		// Snapshot - a modifier could add or remove cameras while we iterate.
+		_cameraViewScratch.Clear();
+		_cameraViewScratch.AddRange( Cameras );
+
+		// One sorted modifier set serves every camera this tick.
+		var modifiers = IsEditor ? null : CameraComponent.GatherModifiers( this );
+
+		foreach ( var camera in _cameraViewScratch )
+		{
+			if ( !camera.IsValid() || !camera.Active )
+				continue;
+
+			camera.ComposeView( modifiers );
+		}
+	}
+
+	List<IRenderThread> renderThreadEventTargets = new();
+
+	/// <summary>
+	/// Screen panels in draw order, captured in PreRender(). Sorted here so the render
+	/// thread neither walks the object index nor sorts every frame.
+	/// </summary>
+	internal List<ScreenPanel> renderScreenPanels = new();
+
 	internal void PreRender()
 	{
+		// Snapshot IRenderThread components on the main thread so the render thread
+		// can iterate without racing against concurrent Add/Remove in objectIndex.
+		renderThreadEventTargets.Clear();
+		GetAll( renderThreadEventTargets );
+
+		renderScreenPanels.Clear();
+		GetAll( renderScreenPanels );
+		SortScreenPanels( renderScreenPanels );
+
 		foreach ( var c in preRenderComponents.EnumerateLocked() ) c.OnPreRenderInternal();
+	}
+
+	/// <summary>
+	/// Sort by ZIndex, keeping scene order for equal ZIndex so overlapping panels draw
+	/// in a predictable order. List.Sort isn't stable; a stable insertion sort is fine
+	/// for the handful of panels a scene has and doesn't allocate.
+	/// </summary>
+	static void SortScreenPanels( List<ScreenPanel> panels )
+	{
+		for ( int i = 1; i < panels.Count; i++ )
+		{
+			var panel = panels[i];
+			int j = i - 1;
+
+			while ( j >= 0 && panels[j].ZIndex > panel.ZIndex )
+			{
+				panels[j + 1] = panels[j];
+				j--;
+			}
+
+			panels[j + 1] = panel;
+		}
 	}
 
 	static Superluminal _updateTimer = new Superluminal( "Scene.Update", Color.Cyan );
@@ -130,7 +197,7 @@ public partial class Scene : GameObject
 
 	/// <summary>
 	/// This is called in EditorTick and GameTick. It's only called in EditorTick if we're actually
-	/// an editor scene. 
+	/// an editor scene.
 	/// </summary>
 	void SharedTick()
 	{
@@ -169,6 +236,9 @@ public partial class Scene : GameObject
 				Signal( GameObjectSystem.Stage.UpdateBones );
 			}
 
+			// The cameras' views become final here - PreRender and rendering read a settled camera.
+			UpdateCameraViews();
+
 			if ( !Application.IsHeadless )
 			{
 				using ( _preRenderTimer.Start() )
@@ -183,11 +253,6 @@ public partial class Scene : GameObject
 			using ( _signalFinishUpdate.Start() )
 			{
 				Signal( GameObjectSystem.Stage.FinishUpdate );
-			}
-
-			using ( PerformanceStats.Timings.Audio.Scope() )
-			{
-				SoundHandle.FlushCreatedSounds();
 			}
 		}
 
@@ -245,7 +310,7 @@ public partial class Scene : GameObject
 		}
 
 		using var timeScope = Time.Scope( TimeNow, TimeDelta );
-		using var gizmoScope = gizmoInstance.Push();
+		using var gizmoScope = gizmoInstance?.Push();
 
 		using ( PerformanceStats.Timings.Async.Scope() )
 		{

@@ -22,6 +22,8 @@ internal class ToolsDll : IToolsDll
 		EditorEvent.Init();
 		EditorEvent.RegisterAssembly( Global.Assembly );
 
+		Game.IsPlaying = false;
+
 		EditorTypeLibrary = new Sandbox.Internal.TypeLibrary();
 		EditorTypeLibrary.AddIntrinsicTypes();
 		EditorTypeLibrary.AddAssembly( typeof( Vector3 ).Assembly, false );
@@ -75,6 +77,21 @@ internal class ToolsDll : IToolsDll
 			return;
 
 		EditorScene.Stop();
+	}
+
+	public void SetPlaying()
+	{
+		if ( Game.ActiveScene is null || !Game.ActiveScene.IsValid() )
+		{
+			return;
+		}
+
+		// Just incase we are ingame currently using the "connect" command we just stop the current session and start a new one, 
+		// so we dont end up with dupe GameSession
+		var sceneEditorSession = SceneEditorSession.All.FirstOrDefault( x => x.IsPlaying );
+		sceneEditorSession?.StopPlaying();
+
+		EditorScene.Play( true );
 	}
 
 	/// <summary>
@@ -177,6 +194,8 @@ internal class ToolsDll : IToolsDll
 		// Add all game addons to be compiled in tools mode, making them accessible for Hammer, Asset Editor, etc.
 		//
 		ManagedTools.AssembliesDirty = true;
+
+		Editor.Mcp.McpServer.Start();
 	}
 
 	/// <summary>
@@ -219,6 +238,9 @@ internal class ToolsDll : IToolsDll
 
 		// only load if a tools context
 		if ( context != "tools" && context != "hammer" && package.Package is not LocalPackage ) return;
+
+		// The menu addon should never leak into other projects, its loading is handled in MenuDll.
+		if ( package.Package is LocalPackage { Project.Config.Ident: "menu" } && Project.Current?.Config?.Ident != "menu" ) return;
 
 		log.Trace( $" - Loading: {package.Package.FullIdent}" );
 

@@ -1,6 +1,8 @@
 using NativeEngine;
 using Sandbox.Engine;
+using Sandbox.Modals;
 using Sandbox.Network;
+using Steamworks;
 using Steamworks.Data;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -20,6 +22,34 @@ public partial class PartyRoom : ILobby
 	/// The unique identifier of this lobby
 	/// </summary>
 	public SteamId Id => steamLobby.Id.Value;
+
+	/// <summary>
+	/// The server this party is playing on, if any. This is set by the owner of the party, and read by clients to know where to connect to.
+	/// </summary>
+	internal string GameAddress => steamLobby.GetData( "gameaddress" );
+
+	/// <summary>
+	/// The name of this lobby.
+	/// </summary>
+	public string Name
+	{
+		get => steamLobby.GetData( "name" );
+		set => steamLobby.SetData( "name", value );
+	}
+
+	/// <summary>
+	/// The maximum number of members allowed in this lobby.
+	/// </summary>
+	public int MaxMembers
+	{
+		get => steamLobby.MaxMembers;
+		set => steamLobby.MaxMembers = value;
+	}
+
+	/// <summary>
+	/// The current number of members in this lobby.
+	/// </summary>
+	public int MemberCount => steamLobby.MemberCount;
 
 	internal int NetworkChannel => (int)(Id % int.MaxValue);
 
@@ -44,6 +74,11 @@ public partial class PartyRoom : ILobby
 
 	public void Leave()
 	{
+		using ( GlobalContext.MenuScope() )
+		{
+			Event.EventSystem.RunInterface<IEventListener>( x => x.OnLeftParty( Current ) );
+		}
+
 		_preloadCts?.Cancel();
 		_preloadCts = null;
 		_preloadTask = null;
@@ -263,7 +298,14 @@ public partial class PartyRoom : ILobby
 				if ( iMessageType == MessageIdentity.VoiceMessage )
 				{
 					var message = data.ReadArraySpan<byte>( 1024 * 1024 );
-					OnVoiceData?.Invoke( new Friend( msg.IdentitySteamId ), message.ToArray() );
+					var voiceData = message.ToArray();
+
+					OnVoiceData?.Invoke( new Friend( msg.IdentitySteamId ), voiceData );
+
+					using ( GlobalContext.MenuScope() )
+					{
+						Event.EventSystem.RunInterface<IEventListener>( x => x.OnVoiceMessage( new Friend( msg.IdentitySteamId ), voiceData ) );
+					}
 				}
 
 				net.ReleaseMessage( ptr[i] );
@@ -279,7 +321,7 @@ public partial class PartyRoom : ILobby
 
 	public static async Task<PartyRoom> Create( int maxMembers, string name, bool ispublic )
 	{
-		var lobby = await Steamworks.SteamMatchmaking.CreateLobbyAsync( maxMembers );
+		var lobby = await Steamworks.SteamMatchmaking.CreateLobbyAsync( ispublic ? LobbyType.Public : LobbyType.Private, maxMembers );
 
 		if ( !lobby.HasValue )
 		{
@@ -289,16 +331,49 @@ public partial class PartyRoom : ILobby
 
 		lobby.Value.SetData( "name", name );
 
-		if ( !ispublic )
-		{
-			lobby.Value.SetPrivate();
-		}
-
 		var room = new PartyRoom( lobby.Value );
 
 		Current = room;
 
 		return room;
+	}
+
+	internal static async Task<bool> Join( Lobby lobby )
+	{
+		Current?.Leave();
+
+		if ( Application.IsEditor )
+			return false;
+
+		var result = await lobby.Join();
+		if ( result != RoomEnter.Success )
+		{
+			switch ( result )
+			{
+				case RoomEnter.DoesntExist:
+					IModalSystem.Current?.Notice( "Joining failed", "The party doesn't exist anymore.", "heart_broken" );
+					break;
+				case RoomEnter.Full:
+					IModalSystem.Current?.Notice( "Joining failed", "The party is full.", "heart_broken" );
+					break;
+				default:
+					IModalSystem.Current?.Notice( "Joining failed", $"Failed to join the party: {result}.", "heart_broken" );
+					break;
+			}
+
+			Log.Warning( $"Failed to join lobby for party ({result})" );
+			return false;
+		}
+
+		Current?.Leave();
+		Current = new PartyRoom( lobby );
+
+		using ( GlobalContext.MenuScope() )
+		{
+			Event.EventSystem.RunInterface<IEventListener>( x => x.OnJoinedParty( Current ) );
+		}
+
+		return true;
 	}
 
 
@@ -336,12 +411,22 @@ public partial class PartyRoom : ILobby
 	{
 		Log.Info( $"Party member entered {friend}" );
 		OnJoin?.Invoke( friend );
+
+		using ( GlobalContext.MenuScope() )
+		{
+			Event.EventSystem.RunInterface<IEventListener>( x => x.OnMemberJoin( friend ) );
+		}
 	}
 
 	void ILobby.OnMemberLeave( Friend friend )
 	{
 		Log.Info( $"Party member leave {friend}" );
 		OnLeave?.Invoke( friend );
+
+		using ( GlobalContext.MenuScope() )
+		{
+			Event.EventSystem.RunInterface<IEventListener>( x => x.OnMemberLeave( friend ) );
+		}
 	}
 
 	void ILobby.OnMemberUpdated( Friend friend )
@@ -388,16 +473,7 @@ public partial class PartyRoom : ILobby
 
 		public async Task Join()
 		{
-			var result = await x.Join();
-			if ( result != Steamworks.RoomEnter.Success )
-			{
-				Log.Warning( $"Failed to join lobby for party ({result})" );
-				return;
-			}
-
-			Current?.Leave();
-
-			Current = new PartyRoom( x );
+			await PartyRoom.Join( x );
 		}
 	}
 }

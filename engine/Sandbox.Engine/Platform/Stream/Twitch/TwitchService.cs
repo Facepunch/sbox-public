@@ -1,211 +1,103 @@
-﻿namespace Sandbox.Twitch
+namespace Sandbox.Twitch;
+
+internal class TwitchService : IStreamService
 {
-	internal class TwitchService : IStreamService
+	private readonly TwitchClient _client = new();
+	private readonly TwitchAPI _api = new();
+
+	public StreamService ServiceType => StreamService.Twitch;
+
+	public async Task<Streamer.User> GetUser( string username )
 	{
-		private readonly TwitchClient _client;
-		private readonly TwitchAPI _api;
+		var user = await _api.GetUser( username );
+		if ( user is null )
+			return default;
 
-		public StreamService ServiceType => StreamService.Twitch;
-
-		public TwitchService()
+		return new Streamer.User
 		{
-			_client = new TwitchClient();
-			_api = new TwitchAPI();
+			Id = user.Id,
+			Login = user.Login,
+			DisplayName = user.DisplayName,
+			UserType = user.UserType,
+			BroadcasterType = user.BroadcasterType,
+			Description = user.Description,
+			ProfileImageUrl = user.ProfileImageUrl,
+			OfflineImageUrl = user.OfflineImageUrl,
+			ViewCount = user.ViewCount,
+			Email = user.Email,
+			CreatedAt = user.CreatedAt,
+		};
+	}
+
+	public async Task<bool> Connect()
+	{
+		if ( !await _client.Connect() )
+		{
+			return false;
 		}
 
-		public async Task<StreamUser> GetUser( string username )
-		{
-			var user = await _api.GetUser( username );
+		timeUntilUpdateBroadcast = 30;
+		UpdateBroadcast();
+		return true;
+	}
 
-			return new StreamUser
-			{
-				Id = user.Id,
-				Login = user.Login,
-				DisplayName = user.DisplayName,
-				UserType = user.UserType,
-				BroadcasterType = user.BroadcasterType,
-				Description = user.Description,
-				ProfileImageUrl = user.ProfileImageUrl,
-				OfflineImageUrl = user.OfflineImageUrl,
-				ViewCount = user.ViewCount,
-				Email = user.Email,
-				CreatedAt = DateTimeOffset.Parse( user.CreatedAt ),
-			};
+	public void Disconnect()
+	{
+		_client.Disconnect();
+	}
+
+	public void SetChannelDelay( int delay )
+	{
+		_api.SetChannelDelay( Engine.Streamer.UserId, delay );
+	}
+
+	public void SetChannelLanguage( string language )
+	{
+		_api.SetChannelLanguage( Engine.Streamer.UserId, language );
+	}
+
+	RealTimeUntil timeUntilUpdateBroadcast = 30;
+	RealTimeUntil timeUntilUpdateChatters = 0;
+
+	void IStreamService.Tick()
+	{
+		if ( timeUntilUpdateBroadcast <= 0 )
+		{
+			timeUntilUpdateBroadcast = 30; // Update again in 30 seconds
+			UpdateBroadcast();
 		}
 
-		public async Task<List<StreamUserFollow>> GetUserFollowing( string userId )
+		if ( timeUntilUpdateChatters <= 0 )
 		{
-			var follows = await _api.GetUserFollowing( userId );
-
-			return follows.UserFollows.Select( follow => (StreamUserFollow)new StreamUserFollow
-			{
-				UserId = follow.ToId,
-				Username = follow.ToLogin,
-				DisplayName = follow.ToName,
-				CreatedAt = DateTimeOffset.Parse( follow.FollowedAt ),
-			} ).ToList();
+			timeUntilUpdateChatters = 30; // Poll the chatter list every 30 seconds
+			UpdateChatters();
 		}
+	}
 
-		public async Task<List<StreamUserFollow>> GetUserFollowers( string userId )
+	/// <summary>
+	/// Poll Get Chatters for the full presence list and reconcile it into the roster. This is our
+	/// reliable source of joins and (especially) leaves, since IRC PART events can't be counted on. A
+	/// failed poll returns null and is skipped, so a transient error never wipes the roster.
+	/// </summary>
+	async void UpdateChatters()
+	{
+		try
 		{
-			var follows = await _api.GetUserFollowers( userId );
+			var present = await _api.GetChatters( _client.UserId );
+			if ( present is null )
+				return;
 
-			return follows.UserFollows.Select( follow => (StreamUserFollow)new StreamUserFollow
-			{
-				UserId = follow.FromId,
-				Username = follow.FromLogin,
-				DisplayName = follow.FromName,
-				CreatedAt = DateTimeOffset.Parse( follow.FollowedAt ),
-			} ).ToList();
+			Engine.Streamer.ReconcileViewers( present );
 		}
-
-		public async Task<StreamChannel?> GetChannel()
+		catch ( System.Exception e )
 		{
-			var channel = await _api.GetChannel( _client.Username );
-			if ( channel == null )
-				return null;
-
-			return new StreamChannel
-			{
-				UserId = channel.BroadcasterId,
-				Username = channel.BroadcasterLogin,
-				DisplayName = channel.BroadcasterName,
-				Language = channel.BroadcasterLanguage,
-				GameId = channel.GameId,
-				GameName = channel.GameName,
-				Title = channel.Title,
-				Delay = channel.Delay,
-			};
+			Log.Warning( e, e.Message );
 		}
+	}
 
-
-		public async Task<StreamPoll> CreatePoll( string userId, string title, int duration, string[] choices )
-		{
-			var poll = await _api.CreatePoll( userId, title, duration, choices );
-
-			return new StreamPoll( poll );
-		}
-
-		public async Task<StreamPoll> EndPoll( string userId, string pollId, bool archive )
-		{
-			var poll = await _api.EndPoll( userId, pollId, archive );
-
-			return new StreamPoll( poll );
-		}
-
-		public async Task<StreamPrediction> CreatePrediction( string userId, string title, int duration, string firstOutcome, string secondOutcome )
-		{
-			var prediction = await _api.CreatePrediction( userId, title, duration, firstOutcome, secondOutcome );
-
-			return new StreamPrediction( prediction );
-		}
-
-		public async Task<StreamPrediction> LockPrediction( string userId, string predictionId )
-		{
-			var prediction = await _api.LockPrediction( userId, predictionId );
-
-			return new StreamPrediction( prediction );
-		}
-
-		public async Task<StreamPrediction> CancelPrediction( string userId, string predictionId )
-		{
-			var prediction = await _api.CancelPrediction( userId, predictionId );
-
-			return new StreamPrediction( prediction );
-		}
-
-		public async Task<StreamPrediction> ResolvePrediction( string userId, string predictionId, string winningOutcomeId )
-		{
-			var prediction = await _api.ResolvePrediction( userId, predictionId, winningOutcomeId );
-
-			return new StreamPrediction( prediction );
-		}
-
-		public async Task<StreamClip> CreateClip( string userId, bool hasDelay )
-		{
-			var clip = await _api.CreateClip( userId, hasDelay );
-
-			return new StreamClip( clip );
-		}
-
-		public void BanUser( string username, string reason )
-		{
-			_client.BanUser( username, reason );
-		}
-
-		public void ClearChat()
-		{
-			_client.ClearChat();
-		}
-
-		public async Task<bool> Connect()
-		{
-			return await _client.Connect();
-		}
-
-		public void Disconnect()
-		{
-			_client.Disconnect();
-		}
-
-		public void JoinChannel( string channel )
-		{
-			_client.JoinChannel( channel );
-		}
-
-		public void LeaveChannel( string channel )
-		{
-			_client.LeaveChannel( channel );
-		}
-
-		public void SendMessage( string message )
-		{
-			_client.SendMessage( message );
-		}
-
-		public void SetChannelDelay( int delay )
-		{
-			_api.SetChannelDelay( Engine.Streamer.UserId, delay );
-		}
-
-		public void SetChannelGame( string gameId )
-		{
-			_api.SetChannelGame( Engine.Streamer.UserId, gameId );
-		}
-
-		public void SetChannelLanguage( string language )
-		{
-			_api.SetChannelLanguage( Engine.Streamer.UserId, language );
-		}
-
-		public void SetChannelTitle( string title )
-		{
-			_api.SetChannelTitle( Engine.Streamer.UserId, title );
-		}
-
-		public void TimeoutUser( string username, int duration, string reason )
-		{
-			_client.TimeoutUser( username, duration, reason );
-		}
-
-		public void UnbanUser( string username )
-		{
-			_client.UnbanUser( username );
-		}
-
-		RealTimeUntil timeUntilUpdateBroadcast;
-
-
-		void IStreamService.Tick()
-		{
-			if ( timeUntilUpdateBroadcast <= 0 )
-			{
-				timeUntilUpdateBroadcast = 30; // Update again in 30 seconds
-				UpdateBroadcast();
-			}
-		}
-
-		async void UpdateBroadcast()
+	async void UpdateBroadcast()
+	{
+		try
 		{
 			var viewers = Engine.Streamer.CurrentBroadcast.ViewerCount;
 
@@ -213,7 +105,7 @@
 
 			if ( broadcast != null )
 			{
-				Engine.Streamer.CurrentBroadcast = new StreamBroadcast( broadcast );
+				Engine.Streamer.CurrentBroadcast = new Streamer.Broadcast( broadcast );
 
 				// Things are changing, update more often
 				if ( viewers != Engine.Streamer.CurrentBroadcast.ViewerCount )
@@ -226,6 +118,10 @@
 			{
 				Engine.Streamer.CurrentBroadcast = default;
 			}
+		}
+		catch ( System.Exception e )
+		{
+			Log.Warning( e, e.Message );
 		}
 	}
 }

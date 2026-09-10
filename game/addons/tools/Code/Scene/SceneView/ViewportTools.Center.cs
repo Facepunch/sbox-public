@@ -5,6 +5,24 @@ partial class ViewportTools
 	EditorToolButton PlayButton { get; set; }
 	EditorToolButton PauseButton { get; set; }
 	EditorToolButton EjectButton { get; set; }
+	Widget PlayToolbar { get; set; }
+
+	enum PlayControlState
+	{
+		Ready,
+		Playing,
+		Hidden
+	}
+
+	PlayControlState _playState;
+
+	PlayControlState CurrentPlayState => sceneViewWidget.Session switch
+	{
+		{ IsPrefabSession: true } => PlayControlState.Hidden,
+		{ IsPlaying: true } => PlayControlState.Playing,
+		_ when Game.IsPlaying => PlayControlState.Hidden,
+		_ => PlayControlState.Ready
+	};
 
 	private void BuildPlayToolbar( Layout toolbar )
 	{
@@ -15,40 +33,51 @@ partial class ViewportTools
 		UpdateState();
 	}
 
+	[Event( "keybinds.update" )]
+	private void OnKeybindsUpdated()
+	{
+		UpdateState();
+	}
+
+	private static string WithKeys( string text, string shortcut )
+	{
+		var keys = EditorShortcuts.GetDisplayKeys( shortcut );
+		return string.IsNullOrEmpty( keys ) ? text : $"{text} [{keys}]";
+	}
+
 	/// <summary>
 	/// When the state of game changes, e.g we're playing, stopping, ejecting, pausing, this gets called.
 	/// </summary>
 	private void UpdateState()
 	{
-		// Prefabs nada
-		if ( sceneViewWidget.Session.IsPrefabSession )
-		{
-			PlayButton.Enabled = false;
-			PauseButton.Enabled = false;
-			EjectButton.Enabled = false;
-			return;
-		}
+		_playState = CurrentPlayState;
+		PlayToolbar.Visible = _playState != PlayControlState.Hidden;
 
-		if ( Game.IsPlaying )
+		if ( _playState == PlayControlState.Hidden ) return;
+
+		var isPlaying = _playState == PlayControlState.Playing;
+		PlayButton.Enabled = true;
+
+		if ( isPlaying )
 		{
-			PlayButton.ToolTip = "Stop";
+			PlayButton.ToolTip = WithKeys( "Stop", "editor.toggle-play" );
 			PlayButton.GetIcon = () => "stop";
 			PlayButton.Color = Theme.Red;
 		}
 		else
 		{
-			PlayButton.ToolTip = "Play";
+			PlayButton.ToolTip = WithKeys( "Play", "editor.toggle-play" );
 			PlayButton.GetIcon = () => "play_arrow";
 			PlayButton.Color = Theme.Green;
 		}
 
-		// We can only pause whilst we're gaming
-		PauseButton.Enabled = Game.IsPlaying;
+		PauseButton.Enabled = isPlaying;
+		PauseButton.ToolTip = WithKeys( "Pause", "editor.pause" );
 
-		EjectButton.Enabled = Game.IsPlaying;
+		EjectButton.Enabled = isPlaying;
 		bool isEjected = sceneViewWidget.CurrentView == SceneViewWidget.ViewMode.GameEjected;
 		EjectButton.GetIcon = () => isEjected ? "sports_esports" : "eject";
-		EjectButton.ToolTip = isEjected ? "Return to Game" : "Eject";
+		EjectButton.ToolTip = WithKeys( isEjected ? "Return to Game" : "Eject", "editor.eject" );
 		EjectButton.Color = isEjected ? Theme.Green : Theme.TextLight;
 	}
 
@@ -65,15 +94,29 @@ partial class ViewportTools
 		}
 	}
 
-	private void Pause()
+	[EditorEvent.Frame]
+	private void UpdatePauseState()
 	{
-		// What the fuck, why isnt this a method
-		Game.IsPaused = !Game.IsPaused;
-		PauseButton.Color = Game.IsPaused ? Theme.Blue : Theme.TextLight;
+		if ( !PauseButton.IsValid() )
+			return;
+
+		if ( _playState != CurrentPlayState )
+			UpdateState();
+
+		PauseButton.Color = _playState == PlayControlState.Playing && Game.IsPaused ? Theme.Blue : Theme.TextLight;
 	}
 
-	[Shortcut( "editor.eject", "F8", ShortcutType.Window )]
-	public void Eject()
+	[Shortcut( "editor.pause", "F7", ShortcutType.Window )]
+	private void Pause()
+	{
+		if ( !sceneViewWidget.Session.IsPlaying )
+			return;
+
+		// What the fuck, why isnt this a method
+		Game.IsPaused = !Game.IsPaused;
+	}
+
+	private void Eject()
 	{
 		sceneViewWidget.ToggleEject();
 	}

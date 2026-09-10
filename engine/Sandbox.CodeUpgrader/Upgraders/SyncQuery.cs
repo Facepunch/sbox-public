@@ -34,22 +34,25 @@ public partial class SyncQueryAnalyzer : Analyzer
 
 	public override async Task RunTests( IAnalyzerTest tester )
 	{
+		// A plain [Sync] has no Query argument and must NOT be flagged
 		await tester.TestWithMarkup( """
 				using Sandbox;
 
 				public class MyClass
 				{
-					[[|Sync|]]
+					[Sync]
 					public int MySyncProperty { get; set; }
 				}
 				""" );
 
+		// Query is no longer a settable attribute property, so old code carries a
+		// CS0617 compiler error alongside our diagnostic - declare both.
 		await tester.TestWithMarkup( """
 				using Sandbox;
 
 				public class MyClass
 				{
-					[[|Sync( Query = true )|]]
+					[[|Sync( {|CS0617:Query|} = true )|]]
 					public int MySyncProperty { get; set; }
 				}
 				""" );
@@ -155,16 +158,16 @@ public class SyncQueryFix : Fixer<SyncQueryAnalyzer>
 
 				public class MyClass
 				{
-					[|Sync( Query = true )|]
+					[[|Sync( {|CS0617:Query|} = true )|]]
 					public int MySyncProperty { get; set; }
 				}
 				""",
 				"""
 				using Sandbox;
-				
+
 				public class MyClass
 				{
-					[|Sync( SyncFlags.Query )|]
+					[[|Sync(SyncFlags.Query)|]]
 					public int MySyncProperty { get; set; }
 				}
 				""" );

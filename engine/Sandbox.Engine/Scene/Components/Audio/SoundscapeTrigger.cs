@@ -7,7 +7,7 @@ namespace Sandbox;
 /// </summary>
 [Expose]
 [Title( "Soundscape Trigger" )]
-[Category( "Rendering" )]
+[Category( "Audio" )]
 [Icon( "surround_sound" )]
 [EditorHandle( "materials/gizmo/soundscape.png" )]
 [Tint( EditorTint.Green )]

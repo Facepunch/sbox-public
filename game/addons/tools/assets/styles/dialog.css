@@ -1,4 +1,6 @@
-Dialog {
+Dialog,
+CreateModelFromMeshDialog,
+CreateSingleModelFromMeshDialog {
 	background-color: $SurfaceBackground;
 }
 

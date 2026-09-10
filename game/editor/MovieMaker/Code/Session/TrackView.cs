@@ -2,6 +2,7 @@
 using Sandbox.MovieMaker.Properties;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Text;
 
 namespace Editor.MovieMaker;
 
@@ -92,13 +93,63 @@ public sealed partial class TrackView : IComparable<TrackView>
 	public bool IsLocked => IsLockedSelf || Parent?.IsLocked is true;
 
 	public string Title => Track.Name;
-	public string Description => Track.GetPathString();
+	public string Description
+	{
+		get
+		{
+			var builder = new StringBuilder();
+
+			builder.Append( $"<b>{Track.Name}</b> - {Track.TargetType.ToRichText()}" );
+
+			if ( Track.Parent is not null )
+			{
+				builder.Append( $"<br/><i>{Track.GetPathString()}</i>" );
+			}
+
+			if ( Target is ITrackReference reference )
+			{
+				builder.Append( "<hr/>" );
+				builder.Append( $"{reference.StatusString}" );
+			}
+
+			return builder.ToString();
+		}
+	}
+
+	public Color BackgroundColor
+	{
+		get
+		{
+			var canModify = !IsLocked;
+
+			var defaultColor = Theme.SurfaceBackground.LerpTo( Theme.ControlBackground, canModify ? 0f : 0.5f );
+			var selectedColor = Color.Lerp( defaultColor, Theme.Primary, canModify ? 0.5f : 0.2f );
+
+			var color = IsSelected ? selectedColor : defaultColor;
+
+			if ( IsHovered )
+			{
+				color = color.Lighten( 0.25f );
+			}
+
+			return color;
+		}
+	}
 
 	private readonly SynchronizedSet<IProjectTrack, TrackView> _children;
 
 	private bool _dispatchValueChanged = false;
 
 	public IReadOnlyList<TrackView> Children => _children;
+	public IEnumerable<TrackView> Descendants => Children.SelectMany<TrackView, TrackView>( x => [x, ..x.Descendants] );
+
+	/// <summary>
+	/// Descendant tracks that target the same GameObject as this track.
+	/// Will return any properties of this GameObject, any Component tracks, and any properties in those Components.
+	/// </summary>
+	public IEnumerable<TrackView> SameGameObjectDescendants => Children
+		.Where( x => x.Target is not ITrackReference<GameObject> )
+		.SelectMany<TrackView, TrackView>( x => [x, ..x.Descendants] );
 
 	public int StateHash { get; private set; }
 	public bool IsEmpty => _children.Count == 0 && Track.IsEmpty;
@@ -107,7 +158,7 @@ public sealed partial class TrackView : IComparable<TrackView>
 	/// Is this track representing the transform of a bone accessed through a <see cref="SkinnedModelRenderer"/>?
 	/// </summary>
 	public bool IsBoneTransform => Track is IPropertyTrack<Transform> && Parent is
-		{ Track.Name: "Bones", Parent.Track: IReferenceTrack<SkinnedModelRenderer> };
+	{ Track.Name: "Bones", Parent.Track: IReferenceTrack<SkinnedModelRenderer> };
 
 	/// <summary>
 	/// Is this track representing a (procedural) bone object?
@@ -118,6 +169,8 @@ public sealed partial class TrackView : IComparable<TrackView>
 		Parent?.Parent?.Target is ITrackReference<SkinnedModelRenderer> { Value.Model: { } model }
 			? model.Bones.GetBone( Track.Name )
 			: null;
+
+	public bool IsEnabledTrack => Track is IPropertyTrack<bool> { Name: nameof(GameObject.Enabled) } && Track.Parent is IReferenceTrack;
 
 	/// <summary>
 	/// Invoked when properties of this track are changed.
@@ -175,10 +228,34 @@ public sealed partial class TrackView : IComparable<TrackView>
 	/// </summary>
 	public void Select()
 	{
+		ExpandAncestors();
+
 		TrackList.DeselectAll();
 		TrackList.LastSelected = this;
 
 		IsSelected = true;
+	}
+
+	/// <summary>
+	/// Makes sure all ancestors of this track are expanded.
+	/// </summary>
+	public void ExpandAncestors()
+	{
+		if ( Parent?.ExpandCore() ?? false )
+		{
+			TrackList.Update();
+		}
+	}
+
+	internal bool ExpandCore()
+	{
+		var changed = !IsExpanded;
+
+		IsExpanded = true;
+
+		changed |= Parent?.ExpandCore() ?? false;
+
+		return changed;
 	}
 
 	/// <summary>
@@ -256,10 +333,10 @@ public sealed partial class TrackView : IComparable<TrackView>
 	{
 		// Keep Component tracks ordered the same as in the inspector
 
-		if ( Track.TargetType != typeof(GameObject) ) return 0;
+		if ( Track.TargetType != typeof( GameObject ) ) return 0;
 		if ( Target is not { IsBound: true, Value: GameObject go } ) return 0;
 		if ( track is not IProjectReferenceTrack refTrack ) return 0;
-		if ( !refTrack.TargetType.IsAssignableTo( typeof(Component) ) ) return 0;
+		if ( !refTrack.TargetType.IsAssignableTo( typeof( Component ) ) ) return 0;
 
 		var index = 0;
 
@@ -400,7 +477,7 @@ public sealed partial class TrackView : IComparable<TrackView>
 		var childrenCompare = (Children.Count > 0).CompareTo( other.Children.Count > 0 );
 		if ( childrenCompare != 0 ) return childrenCompare;
 
-		return string.Compare( Track.Name, other.Track.Name, StringComparison.Ordinal );
+		return Track.CompareTo( other.Track );
 	}
 
 	public T GetCookie<T>( string name, T fallback ) =>
@@ -424,7 +501,7 @@ public sealed partial class TrackView : IComparable<TrackView>
 			return;
 		}
 
-		EditorToolManager.SetTool( nameof(ObjectEditorTool) );
+		EditorToolManager.SetTool( nameof( ObjectEditorTool ) );
 
 		switch ( property.Name )
 		{
@@ -468,25 +545,42 @@ public sealed partial class TrackView : IComparable<TrackView>
 		return parent;
 	}
 
-	public void ApplyFrame( MovieTime time )
+	public void PrepareUpdate( MovieTime time, MovieUpdateBuilder updateBuilder )
 	{
 		switch ( Track )
 		{
 			case ProjectSequenceTrack sequenceTrack:
 				var session = TrackList.Session;
-				var binder = session.Binder;
+				var binder = updateBuilder.Binder;
 
 				var sequenceBlock = sequenceTrack.Blocks.GetBlock( time );
-				if ( sequenceBlock is null ) break;
+				if ( sequenceBlock is null )
+				{
+					foreach ( var propertyTrack in sequenceTrack.PropertyTracks )
+					{
+						var target = binder.Get( propertyTrack );
 
-				// If we're editing this sequence, its Session will handle applying so we don't need
-				// to do it here
+						if ( !target.CanWrite ) continue;
+						if ( !target.HasDefaultValue ) continue;
 
-				if ( session.Editor.IsMovieOpen( sequenceBlock.Resource ) ) break;
+						updateBuilder.AddDefault( target );
+					}
+
+					break;
+				}
+
+				// If we're editing this sequence, let its Session handle applying so we
+				// can see any live changes
+
+				if ( session.Editor.FindSession( sequenceBlock.Resource ) is { } nestedSession )
+				{
+					nestedSession.PrepareUpdate( sequenceBlock.Transform.Inverse * time, updateBuilder );
+					break;
+				}
 
 				foreach ( var propertyTrack in sequenceTrack.PropertyTracks )
 				{
-					propertyTrack.Update( time, binder );
+					updateBuilder.Add( propertyTrack, time );
 				}
 
 				break;
@@ -501,11 +595,11 @@ public sealed partial class TrackView : IComparable<TrackView>
 
 				if ( _previewBlocks.GetBlock( time ) is IPropertySignal block )
 				{
-					property.Value = block.GetValue( time );
+					updateBuilder.Add( property, block.GetValue( time ) );
 				}
 				else
 				{
-					property.Update( propertyTrack, time );
+					updateBuilder.Add( propertyTrack, time );
 				}
 
 				break;
@@ -542,10 +636,10 @@ public sealed partial class TrackView : IComparable<TrackView>
 		}
 
 		return new TransformTrack( this,
-			Find( nameof(GameObject.Enabled) ),
-			Find( nameof(GameObject.LocalPosition) ),
-			Find( nameof(GameObject.LocalRotation) ),
-			Find( nameof(GameObject.LocalScale) ) );
+			Find( nameof( GameObject.Enabled ) ),
+			Find( nameof( GameObject.LocalPosition ) ),
+			Find( nameof( GameObject.LocalRotation ) ),
+			Find( nameof( GameObject.LocalScale ) ) );
 	}
 }
 
@@ -696,5 +790,43 @@ file sealed class BoneTransformTrack : IPropertyTrack<Transform>
 		}
 
 		return parentTransform.ToWorld( localTransform );
+	}
+}
+
+internal static class TrackReferenceExtensions
+{
+	extension( ITrackReference target )
+	{
+		public string StatusString => target switch
+		{
+			{ IsBound: false } => "Not Bound",
+			{ IsAutoCreatedTarget: true } => "Bound to <b>auto-created target</b>",
+			{ IsBound: true } => "Bound to <b>scene object</b>",
+			_ => "Unknown binding"
+		};
+
+		private GameObject? GameObject
+		{
+			get
+			{
+				return target switch
+				{
+					ITrackReference<GameObject> { Value: { } go } => go,
+					{ Value: Component cmp } => cmp.GameObject,
+					_ => null
+				};
+			}
+		}
+
+		public bool IsAutoCreatedTarget
+		{
+			get
+			{
+				if ( target.GameObject is not { } go ) return false;
+				if ( go.GetComponentInParent<MoviePlayer>( includeDisabled: true ) is not { } player ) return false;
+
+				return player.IsCreatedTarget( go );
+			}
+		}
 	}
 }

@@ -31,11 +31,6 @@ internal static partial class PackageManager
 
 		public HashSet<string> Tags { get; } = new( StringComparer.OrdinalIgnoreCase );
 
-		/// <summary>
-		/// Mounted on FileSystem, this is where the codearchive is mounted to
-		/// </summary>
-		MemoryFileSystem memoryFileSystem;
-
 		internal static async Task<ActivePackage> Create( Package package, CancellationToken token, PackageLoadOptions options )
 		{
 			var o = new ActivePackage();
@@ -43,34 +38,16 @@ internal static partial class PackageManager
 
 			if ( package is LocalPackage localPackage )
 			{
-				var projectSettingsPath = System.IO.Path.Combine( localPackage.Project.GetRootPath(), "ProjectSettings" );
+				// A local package mounts it's project's filesystems (don't use them directly!)
+				o.FileSystem = new AggregateFileSystem();
+				o.FileSystem.Mount( localPackage.Project.CodeFileSystem );
+				o.FileSystem.Mount( localPackage.Project.AssetsFileSystem );
 
 				o.ProjectSettings = new AggregateFileSystem();
-				if ( System.IO.Directory.Exists( projectSettingsPath ) )
-				{
-					o.ProjectSettings.CreateAndMount( projectSettingsPath );
-				}
+				o.ProjectSettings.Mount( localPackage.Project.ProjectSettingsFileSystem );
 
-				o.Localization ??= new AggregateFileSystem();
-				if ( System.IO.Directory.Exists( localPackage.LocalizationPath ) )
-				{
-					o.Localization.CreateAndMount( localPackage.LocalizationPath );
-				}
-
-				o.FileSystem = new AggregateFileSystem();
-
-				if ( System.IO.Directory.Exists( localPackage.CodePath ) )
-				{
-					if ( localPackage.CodePath != null )
-					{
-						o.FileSystem.CreateAndMount( localPackage.CodePath );
-					}
-				}
-
-				if ( System.IO.Directory.Exists( localPackage.ContentPath ) )
-				{
-					o.FileSystem.CreateAndMount( localPackage.ContentPath );
-				}
+				o.Localization = new AggregateFileSystem();
+				o.Localization.Mount( localPackage.Project.LocalizationFileSystem );
 
 				o.AssemblyFileSystem = new AggregateFileSystem();
 
@@ -134,7 +111,7 @@ internal static partial class PackageManager
 			//
 			// Mount localization data from this package
 			//
-			Localization ??= new AggregateFileSystem();
+			Localization = new AggregateFileSystem();
 			if ( FileSystem.DirectoryExists( "localization" ) )
 			{
 				// Mount as a subsystem of the package's FileSystem
@@ -142,65 +119,71 @@ internal static partial class PackageManager
 			}
 
 			//
-			// If the ProjectSettings folder exists, we can create a filesystem for it.
-			// If not, just create a memory filesystem, which will be empty, but at least won't be null.
+			// Same for ProjectSettings. Empty if the package hasn't got the folder, so callers get
+			// a filesystem with nothing in it rather than a null.
 			//
+			ProjectSettings = new AggregateFileSystem();
 			if ( FileSystem.DirectoryExists( "ProjectSettings" ) )
 			{
-				ProjectSettings = FileSystem.CreateSubSystem( "ProjectSettings" );
-			}
-			else
-			{
-				ProjectSettings = new MemoryFileSystem();
+				ProjectSettings.Mount( FileSystem.CreateSubSystem( "ProjectSettings" ) );
 			}
 
 			//
 			// Mount assembly from this package
 			//
-			AssemblyFileSystem ??= new AggregateFileSystem();
+			AssemblyFileSystem = new AggregateFileSystem();
 			if ( FileSystem.DirectoryExists( ".bin" ) )
 			{
 				// Mount as a subsystem of the package's FileSystem
 				AssemblyFileSystem.Mount( FileSystem.CreateSubSystem( ".bin" ) );
 			}
+
+			var dllFs = await DownloadBinDllsAsync( Package.Revision, token );
+			if ( dllFs != null )
+			{
+				AssemblyFileSystem.Mount( dllFs );
+			}
 		}
 
-		private void Mount( bool reloadResources = true )
+		private static async Task<MemoryFileSystem> DownloadBinDllsAsync( Package.IRevision revision, CancellationToken token )
 		{
-			MountedFileSystem.Mount( FileSystem );
-			MountedFileSystem.Mount( AssemblyFileSystem );
+			var files = revision?.Manifest?.Files;
+			if ( files is null ) return null;
 
-			if ( reloadResources )
+			var dllFiles = files
+				.Where( f => f.Path.StartsWith( ".bin/", StringComparison.OrdinalIgnoreCase ) &&
+							 f.Path.EndsWith( ".dll", StringComparison.OrdinalIgnoreCase ) )
+				.ToArray();
+
+			if ( dllFiles.Length == 0 ) return null;
+
+			var memFs = new MemoryFileSystem();
+
+			foreach ( var file in dllFiles )
 			{
-				// Reload any already resident resources with the ones we've just mounted
-				NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();
+				token.ThrowIfCancellationRequested();
+				LoadingScreen.Subtitle = System.IO.Path.GetFileName( file.Path );
+
+				var bytes = await Sandbox.Utility.Web.GrabFile( file.Url, token );
+				if ( bytes is not null )
+				{
+					memFs.WriteAllBytes( System.IO.Path.GetFileName( file.Path ), bytes );
+				}
 			}
 
-			// Sandbox.FileSystem.Mounted.Mount( FileSystem );
-
-			// this only makes sense if the package is a local package
-			// Engine.SearchPath.Add( AbsolutePath, "GAME", true );
+			LoadingScreen.Subtitle = null;
+			return memFs;
 		}
 
-		/// <summary>
-		/// Called to unmount and remove this package from being active
-		/// </summary>
-		public void Delete()
+		internal bool HasPrecompiledDlls()
 		{
-			MountedFileSystem.UnMount( FileSystem );
-			MountedFileSystem.UnMount( AssemblyFileSystem );
+			return AssemblyFileSystem?.FindFile( "/", "*.dll", true ).Any() ?? false;
+		}
 
-			FileSystem.Dispose();
-			FileSystem = default;
-
-			PackageFileSystem?.Dispose();
-			PackageFileSystem = null;
-
-			AssemblyFileSystem.Dispose();
-			AssemblyFileSystem = null;
-
-			// Reload any resident resources that were just unmounted (they shouldn't be used & will appear as an error, or a local variant)
-			NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();
+		internal bool HasManifestDlls()
+		{
+			var files = Package.Revision?.Manifest?.Files;
+			return files?.Any( f => f.Path.StartsWith( ".bin/", StringComparison.OrdinalIgnoreCase ) && f.Path.EndsWith( ".dll", StringComparison.OrdinalIgnoreCase ) ) ?? false;
 		}
 
 		internal bool HasCodeArchives()
@@ -208,13 +191,19 @@ internal static partial class PackageManager
 			return FileSystem.FindFile( "/", "*.cll", true ).Any();
 		}
 
+		/// <summary>
+		/// Fallback for remote packages that ship code archives (.cll) but no precompiled dlls.
+		/// Compiles the archives locally and mounts the resulting assemblies onto
+		/// <see cref="AssemblyFileSystem"/>, matching how <see cref="DownloadBinDllsAsync"/>
+		/// exposes manifest dlls, so the normal load path picks them up.
+		/// </summary>
 		internal async Task<bool> CompileCodeArchive()
 		{
 			// get all the code archives
 			var codeArchives = FileSystem.FindFile( "/", "*.cll", true ).ToArray();
 
 			// It's okay for packages not to have code archives, but return as a fail
-			if ( codeArchives.Count() == 0 )
+			if ( codeArchives.Length == 0 )
 				return false;
 
 			var analytic = new Api.Events.EventRecord( "package.compile" );
@@ -222,10 +211,8 @@ internal static partial class PackageManager
 			analytic.SetValue( "version", Package.Revision?.VersionId );
 			analytic.SetValue( "archives", codeArchives );
 
-			Assert.AreNotEqual( 0, codeArchives.Length, "We have package files mounted" );
-
 			using var group = new CompileGroup( Package.Ident );
-			group.AccessControl = AccessControl;
+			group.AccessControl = PackageManager.AccessControl;
 			group.ReferenceProvider = this;
 
 			using ( analytic.ScopeTimer( "LoadArchives" ) )
@@ -240,13 +227,17 @@ internal static partial class PackageManager
 					// Create a compiler for it
 					var compiler = group.GetOrCreateCompiler( archive.CompilerName );
 					compiler.UpdateFromArchive( archive );
+					LoadingScreen.Subtitle = System.IO.Path.GetFileName( file );
+					await Task.Yield();
 				}
 			}
 
 			// Compile that bad boy
 			using ( analytic.ScopeTimer( "Compile" ) )
 			{
+				LoadingScreen.Subtitle = null;
 				await group.BuildAsync();
+				await Task.Yield();
 			}
 
 			if ( !group.BuildResult.Success )
@@ -277,20 +268,73 @@ internal static partial class PackageManager
 
 			using ( analytic.ScopeTimer( "Write" ) )
 			{
-				memoryFileSystem = new MemoryFileSystem();
-				memoryFileSystem.CreateDirectory( "/.bin" );
-				// Copy the compiled assemblies to the filesystem
+				var memFs = new MemoryFileSystem();
+				// Copy the compiled assemblies to the assembly filesystem, flat, so they load
+				// exactly like manifest-downloaded precompiled dlls.
 				foreach ( var assembly in group.BuildResult.Output )
 				{
-					Log.Trace( $"WRITE /.bin/{assembly.Compiler.AssemblyName}.dll" );
-					memoryFileSystem.WriteAllBytes( $"/.bin/{assembly.Compiler.AssemblyName}.dll", assembly.AssemblyData );
+					Log.Trace( $"WRITE {assembly.Compiler.AssemblyName}.dll" );
+					memFs.WriteAllBytes( $"{assembly.Compiler.AssemblyName}.dll", assembly.AssemblyData );
+					LoadingScreen.Subtitle = assembly.Compiler.AssemblyName;
+					await Task.Yield();
 				}
-				FileSystem.Mount( memoryFileSystem );
+
+				AssemblyFileSystem ??= new AggregateFileSystem();
+				AssemblyFileSystem.Mount( memFs );
 			}
+
+			LoadingScreen.Subtitle = null;
 
 			analytic.Submit();
 
 			return true;
+		}
+
+		private void Mount( bool reloadResources = true )
+		{
+			MountedFileSystem.Mount( FileSystem );
+
+			if ( reloadResources )
+			{
+				// Reload any already resident resources with the ones we've just mounted
+				NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();
+			}
+
+			// Sandbox.FileSystem.Mounted.Mount( FileSystem );
+
+			// this only makes sense if the package is a local package
+			// Engine.SearchPath.Add( AbsolutePath, "GAME", true );
+		}
+
+		/// <summary>
+		/// Called to unmount and remove this package from being active
+		/// </summary>
+		public void Delete()
+		{
+			MountedFileSystem.UnMount( FileSystem );
+
+			// Make sure we unmount the package from the global filesystem, so that any other packages that might have been mounted on top of it don't get broken.
+			Sandbox.FileSystem.Mounted?.UnMount( FileSystem );
+
+			FileSystem.Dispose();
+			FileSystem = default;
+
+			PackageFileSystem?.Dispose();
+			PackageFileSystem = null;
+
+			AssemblyFileSystem.Dispose();
+			AssemblyFileSystem = null;
+
+			// Ours as well - for a local package these are wrappers around the project's
+			// filesystems, and the project keeps those
+			ProjectSettings?.Dispose();
+			ProjectSettings = null;
+
+			Localization?.Dispose();
+			Localization = null;
+
+			// Reload any resident resources that were just unmounted (they shouldn't be used & will appear as an error, or a local variant)
+			NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();
 		}
 
 		public Microsoft.CodeAnalysis.PortableExecutableReference Lookup( string reference )

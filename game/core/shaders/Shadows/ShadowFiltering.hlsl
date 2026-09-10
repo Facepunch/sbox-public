@@ -79,6 +79,19 @@ static const float2 g_vPoissonDisk16[16] =
     float2(  0.878554, -0.397416 ),
 };
 
+// Holbert 2011: offset receiver along face normal by ~PCF kernel radius in texels (kills slope acne).
+// ddx/ddy of world pos is quad-safe here — position is computed in uniform control flow.
+float3 ApplyShadowNormalOffset( float3 vPositionWs, float flTexelWorldSize, float flHardness )
+{
+#if ( PROGRAM == VFX_PROGRAM_PS )
+    const float3 vNormalWs = normalize( cross( ddy( vPositionWs ), ddx( vPositionWs ) ) );
+    const float flRadiusTexels = 1.5 * min( UserShadowFilterQuality, 3 ) * rcp( max( flHardness, 1.0 ) ) + 1.0; // matches the SampleShadowPCF_* kernels below
+	return vPositionWs + vNormalWs * ( flTexelWorldSize * flRadiusTexels );
+#else
+	return vPositionWs;
+#endif
+}
+
 //--------------------------------------------------------------------------------------------------
 // R2 quasi-random sequence (Martin Roberts 2018)
 // Uses the plastic constant (unique real root of x³ = x + 1, p ≈ 1.3247) to achieve
@@ -107,18 +120,18 @@ float SampleShadowPCF_Poisson5( ShadowPCFInput i )
     float2x2 mRotation = float2x2( flCos, -flSin, flSin, flCos );
     
     float2 vFilterScale = flFilterRadius * flHardness * vTexelSize;
-    
+
     float flShadow = 0.0;
-    
+    float flCompareDepth = saturate( i.ShadowPos.z + i.Bias );
+
     [unroll]
     for ( int s = 0; s < 5; s++ )
     {
         float2 vOffset = mul( mRotation, g_vPoissonDisk5[s] ) * vFilterScale;
         float2 vSampleUV = i.ShadowPos.xy + vOffset;
-        float flCompareDepth = saturate( i.ShadowPos.z + i.Bias );
         flShadow += i.ShadowMap.SampleCmpLevelZero( ShadowDepthPCFSampler, vSampleUV, flCompareDepth );
     }
-    
+
     return flShadow / 5.0;
 }
 
@@ -138,18 +151,18 @@ float SampleShadowPCF_Poisson12( ShadowPCFInput i )
     float2x2 mRotation = float2x2( flCos, -flSin, flSin, flCos );
     
     float2 vFilterScale = flFilterRadius * flHardness * vTexelSize;
-    
+
     float flShadow = 0.0;
-    
+    float flCompareDepth = saturate( i.ShadowPos.z + i.Bias );
+
     [unroll]
     for ( int s = 0; s < 12; s++ )
     {
         float2 vOffset = mul( mRotation, g_vPoissonDisk12[s] ) * vFilterScale;
         float2 vSampleUV = i.ShadowPos.xy + vOffset;
-        float flCompareDepth = saturate( i.ShadowPos.z + i.Bias );
         flShadow += i.ShadowMap.SampleCmpLevelZero( ShadowDepthPCFSampler, vSampleUV, flCompareDepth );
     }
-    
+
     return flShadow / 12.0;
 }
 
@@ -169,18 +182,18 @@ float SampleShadowPCF_Poisson16( ShadowPCFInput i )
     float2x2 mRotation = float2x2( flCos, -flSin, flSin, flCos );
     
     float2 vFilterScale = flFilterRadius * flHardness * vTexelSize;
-    
+
     float flShadow = 0.0;
-    
+    float flCompareDepth = saturate( i.ShadowPos.z + i.Bias );
+
     [unroll]
     for ( int s = 0; s < 16; s++ )
     {
         float2 vOffset = mul( mRotation, g_vPoissonDisk16[s] ) * vFilterScale;
         float2 vSampleUV = i.ShadowPos.xy + vOffset;
-        float flCompareDepth = saturate( i.ShadowPos.z + i.Bias );
         flShadow += i.ShadowMap.SampleCmpLevelZero( ShadowDepthPCFSampler, vSampleUV, flCompareDepth );
     }
-    
+
     return flShadow / 16.0;
 }
 
@@ -222,3 +235,4 @@ float SampleShadowPCF( ShadowPCFInput i )
 }
 
 #endif
+

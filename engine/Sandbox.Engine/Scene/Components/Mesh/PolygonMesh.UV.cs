@@ -192,8 +192,8 @@ partial class PolygonMesh
 				return true;
 			}
 
-			outFace = default;
-			outEdge = default;
+			outFace = FaceHandle.Invalid;
+			outEdge = HalfEdgeHandle.Invalid;
 
 			return false;
 		}
@@ -225,8 +225,8 @@ partial class PolygonMesh
 				}
 			}
 
-			outFace = default;
-			outEdge = default;
+			outFace = FaceHandle.Invalid;
+			outEdge = HalfEdgeHandle.Invalid;
 
 			return false;
 		}
@@ -365,14 +365,14 @@ partial class PolygonMesh
 		var grouping = new FaceGrouping( this, faces );
 		var queue = new List<FaceHandle>();
 
-		for ( var start = grouping.FindNextStartingFace(); start is not null && start.IsValid; start = grouping.FindNextStartingFace() )
+		for ( var start = grouping.FindNextStartingFace(); start.IsValid; start = grouping.FindNextStartingFace() )
 		{
 			queue.Clear();
 			var q = 0;
 
 			var groupIndex = grouping.AddFaceGroup( start );
 
-			for ( var face = start; face is not null && face.IsValid; face = q < queue.Count ? queue[q++] : default )
+			for ( var face = start; face.IsValid; face = q < queue.Count ? queue[q++] : default )
 			{
 				GetEdgesConnectedToFace( face, out var edges );
 
@@ -435,7 +435,7 @@ partial class PolygonMesh
 				if ( kv.Value == -1 )
 					return kv.Key;
 
-			return default;
+			return FaceHandle.Invalid;
 		}
 
 		public int AddFaceGroup( FaceHandle start )

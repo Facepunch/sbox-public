@@ -9,6 +9,11 @@ internal partial class AssemblyAccess
 	{
 		Parallel.ForEach( Touched, touch =>
 		{
+			// Any and all user code is a package, all assemblies are prefixed with this
+			// And any code calling to within a package or across packages is free game
+			if ( touch.Key.StartsWith( "package." ) )
+				return;
+
 			if ( Global.Rules.IsInWhitelist( touch.Key ) )
 				return;
 

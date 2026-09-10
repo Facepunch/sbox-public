@@ -1,10 +1,11 @@
 @using System;
 @using Sandbox;
+@using Sandbox.Services;
 @using Sandbox.UI;
 @namespace Sandbox.Menu
 @inherits Panel
 
-<root>
+<root class="@( ShowJam ? "with-jam" : "" )">
 
     <div class="close" @onclick="@Close"><i>close</i></div>
 
@@ -48,6 +49,21 @@
 
     </div>
 
+    @if ( ShowJam )
+    {
+        <div class="jam @( IsNominated ? "on" : "" )">
+            <div class="text">
+                <label class="title">@_jam.Title entry</label>
+                <label class="hint">@( IsNominated ? "You nominated this game" : "Liked it? Nominate it" )</label>
+            </div>
+
+            <div class="nominate @( IsNominated ? "on" : "" ) @( _busy ? "busy" : "" ) @( CanToggle ? "" : "locked" )" onclick=@( () => _ = ToggleNomination() ) ToolTip="@NominateTooltip">
+                <i>@( IsNominated ? "check" : "how_to_vote" )</i>
+                <label>@( IsNominated ? "Nominated" : "Nominate" )</label>
+            </div>
+        </div>
+    }
+
     <div class="close-progress">
         <Panel class="inner" @ref=_closeProgress></Panel>
     </div>
@@ -58,10 +74,76 @@
 {
     [Parameter, EditorRequired] public Package Package { get; set; }
 
-    const float Lifetime = 10;
+    const float Lifetime = 15;
     float timeRemaining = Lifetime;
 
     Panel _closeProgress = default;
+
+    Jam _jam;
+    JamEntryStatus _entry;
+    bool _nominated;
+    bool _busy;
+
+    bool ShowJam => _jam is not null && _entry.IsEntry;
+    bool IsNominated => _nominated;
+    bool CanToggle => IsNominated || _entry.CanNominate;
+    string NominateTooltip => CanToggle ? null : _entry.Reason;
+
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        base.OnAfterTreeRender( firstTime );
+
+        if ( firstTime )
+            _ = LoadJam();
+    }
+
+    async Task LoadJam()
+    {
+        var jam = await Jam.GetActive();
+        if ( !this.IsValid() ) return;
+        if ( jam is null || !jam.CommunityVoting || !jam.HasStarted || jam.Now >= jam.NominationsEnd ) return;
+
+        var entry = await jam.GetEntryStatusAsync( Package );
+        if ( !this.IsValid() ) return;
+        if ( entry is not { IsEntry: true } status ) return;
+
+        _jam = jam;
+        _entry = status;
+        _nominated = status.Nominated;
+        StateHasChanged();
+    }
+
+    async Task ToggleNomination()
+    {
+        if ( _busy || !ShowJam || !CanToggle ) return;
+
+        _busy = true;
+        StateHasChanged();
+
+        var removing = IsNominated;
+        string reason;
+
+        try
+        {
+            reason = removing ? await _jam.WithdrawNominationAsync( Package ) : await _jam.NominateAsync( Package );
+        }
+        catch ( Exception e )
+        {
+            Log.Warning( e, $"Nominate {Package.FullIdent} failed" );
+            reason = "Couldn't reach the jam right now.";
+        }
+
+        if ( !this.IsValid() ) return;
+
+        _busy = false;
+
+        if ( reason is null )
+            _nominated = !removing;
+        else
+            MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast() { Title = reason, Icon = "how_to_vote" } );
+
+        StateHasChanged();
+    }
 
     public override void Tick()
     {
@@ -73,7 +155,7 @@
             _closeProgress.Style.Dirty();
         }
 
-        if ( HasHovered )
+        if ( HasHovered || _busy )
             return;
 
         timeRemaining -= RealTime.Delta;

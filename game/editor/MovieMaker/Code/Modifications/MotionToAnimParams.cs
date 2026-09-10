@@ -77,11 +77,11 @@ public class MotionToAnimParams : BlendModification
 			}
 
 			var rootTrack = (ProjectReferenceTrack<GameObject>)localPosTrackView.Parent!.Track;
-			var rendererTrack = (ProjectReferenceTrack<SkinnedModelRenderer>)EditMode.Session.GetOrCreateTrack( rootTrack, nameof(SkinnedModelRenderer) );
+			var rendererTrack = (ProjectReferenceTrack<SkinnedModelRenderer>)EditMode.Session.GetOrCreateTrack( rootTrack, nameof( SkinnedModelRenderer ) );
 
 			var compiledRootTrack = MovieClip.RootGameObject( rootTrack.Name, rootTrack.Id );
 			var compiledRendererTrack = compiledRootTrack.Component<SkinnedModelRenderer>( rendererTrack.Id );
-			var compiledParamsTrack = compiledRendererTrack.Property<SkinnedModelRenderer.ParameterAccessor>( nameof(SkinnedModelRenderer.Parameters) );
+			var compiledParamsTrack = compiledRendererTrack.Property<SkinnedModelRenderer.ParameterAccessor>( nameof( SkinnedModelRenderer.Parameters ) );
 
 			compiledTracks.Add( compiledParamsTrack.Property<float>( "move_x" )
 				.WithSamples( timeRange, sampleRate, velocities.Select( x => x.x ) ) );

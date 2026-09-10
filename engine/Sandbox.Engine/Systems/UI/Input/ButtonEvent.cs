@@ -60,5 +60,13 @@ public record ButtonEvent
 		Pressed = pressed;
 	}
 
+	internal ButtonEvent( string button, bool pressed, int virtualKey, KeyboardModifiers modifiers )
+	{
+		Button = InputEventQueue.NormalizeButtonName( button );
+		Pressed = pressed;
+		VirtualKey = virtualKey;
+		KeyboardModifiers = modifiers;
+	}
+
 	public override string ToString() => $"{Button} {(Pressed ? "pressed" : "released")}";
 }

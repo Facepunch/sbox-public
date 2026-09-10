@@ -1,0 +1,58 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+NotificationsPage
+{
+	position: relative;
+	background-color: transparent;
+	align-items: center;
+	justify-content: center;
+
+	// Scoped, like the other pages - stylesheets are global, so bare .step would leak.
+
+	.inbox-body
+	{
+		@include front-page-columns;
+	}
+
+	.inbox-aside
+	{
+		@include front-page-aside;
+	}
+
+	.inbox-list
+	{
+		@include front-page-list;
+
+		// A row is one line of text - run it the full width of a wide screen and it reads as
+		// mostly empty. The leftover space to the right is the point.
+		max-width: 1040px;
+	}
+
+	.section-head
+	{
+		@include front-page-section-head;
+	}
+
+	.inbox-empty
+	{
+		@include front-page-empty;
+	}
+
+	// Sits in the first section head, so it's a pill rather than another button in a row.
+	.refresh
+	{
+		@include front-pill;
+
+		// The head baselines its text; the pill is taller than a line of it.
+		align-self: center;
+		pointer-events: all;
+		cursor: pointer;
+
+		&.busy
+		{
+			pointer-events: none;
+			opacity: 0.5;
+		}
+	}
+}

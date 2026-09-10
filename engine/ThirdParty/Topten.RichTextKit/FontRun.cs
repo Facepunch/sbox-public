@@ -464,12 +464,10 @@ namespace Topten.RichTextKit
 		internal Buffer<int> CodePointBuffer;
 
 		/// <summary>
-		/// Calculate any overhang for this text line
+		/// Grow the overhang by however far this run's glyph ink reaches past the text rectangle. Glyph positions
+		/// are absolute within the block after layout, so bounds can be compared directly.
 		/// </summary>
-		/// <param name="right"></param>
-		/// <param name="leftOverhang"></param>
-		/// <param name="rightOverhang"></param>
-		internal void UpdateOverhang( float right, ref float leftOverhang, ref float rightOverhang )
+		internal void UpdateOverhang( SKRect textRect, ref SKRect overhang )
 		{
 			if ( RunKind == FontRunKind.TrailingWhitespace )
 				return;
@@ -477,15 +475,10 @@ namespace Topten.RichTextKit
 			if ( Glyphs.Length == 0 )
 				return;
 
-			using ( var paint = new SKPaint() )
 			using ( var font = new SKFont() )
 			{
 				float glyphScale = 1;
-				if ( Style.FontVariant == FontVariant.SuperScript )
-				{
-					glyphScale = 0.65f;
-				}
-				if ( Style.FontVariant == FontVariant.SubScript )
+				if ( Style.FontVariant == FontVariant.SuperScript || Style.FontVariant == FontVariant.SubScript )
 				{
 					glyphScale = 0.65f;
 				}
@@ -493,28 +486,24 @@ namespace Topten.RichTextKit
 				font.Typeface = Typeface;
 				font.Size = Style.FontSize * glyphScale;
 				font.Subpixel = true;
-				paint.IsAntialias = true;
 				font.Edging = SKFontEdging.SubpixelAntialias;
 
 				unsafe
 				{
 					fixed ( ushort* pGlyphs = Glyphs.Underlying )
 					{
-						font.GetGlyphWidths( (IntPtr)(pGlyphs + Start), sizeof( ushort ) * Glyphs.Length, SKTextEncoding.GlyphId, out var bounds );
-						if ( bounds != null )
+						font.GetGlyphWidths( (IntPtr)(pGlyphs + Glyphs.Start), sizeof( ushort ) * Glyphs.Length, SKTextEncoding.GlyphId, out var bounds );
+						if ( bounds == null )
+							return;
+
+						for ( int i = 0; i < bounds.Length; i++ )
 						{
-							for ( int i = 0; i < bounds.Length; i++ )
-							{
-								float gx = GlyphPositions[i].X;
+							var pos = GlyphPositions[i];
 
-								var loh = -(gx + bounds[i].Left);
-								if ( loh > leftOverhang )
-									leftOverhang = loh;
-
-								var roh = (gx + bounds[i].Right + 1) - right;
-								if ( roh > rightOverhang )
-									rightOverhang = roh;
-							}
+							overhang.Left = Math.Max( overhang.Left, textRect.Left - (pos.X + bounds[i].Left) );
+							overhang.Right = Math.Max( overhang.Right, (pos.X + bounds[i].Right) - textRect.Right );
+							overhang.Top = Math.Max( overhang.Top, textRect.Top - (pos.Y + bounds[i].Top) );
+							overhang.Bottom = Math.Max( overhang.Bottom, (pos.Y + bounds[i].Bottom) - textRect.Bottom );
 						}
 					}
 				}
@@ -725,7 +714,7 @@ namespace Topten.RichTextKit
 
 			using var paint = new SKPaint();
 
-			paint.Color = Style.TextColor;
+			paint.ColorF = Style.TextColor;
 			paint.Shader = ctx.Shader;
 
 			ctx.Canvas.DrawText( _textBlob, 0, 0, paint );
@@ -742,7 +731,7 @@ namespace Topten.RichTextKit
 			if ( Style.StrikeThrough == StrikeThroughStyle.None ) return;
 			if ( RunKind != FontRunKind.Normal ) return;
 
-			paint.Color = Style.UnderlineColor ?? Style.TextColor;
+			paint.ColorF = Style.UnderlineColor ?? Style.TextColor;
 			paint.StrokeWidth = MathF.Max( strokeWidth, 1 );
 
 			var strikeYPos = Line.YCoord + Line.BaseLine + (_font.Metrics.StrikeoutPosition ?? 0) + glyphVOffset + Style.StrikeThroughOffset;
@@ -757,7 +746,7 @@ namespace Topten.RichTextKit
 			if ( Style.Underline == UnderlineStyle.None || RunKind != FontRunKind.Normal ) return;
 
 			paint.StrokeWidth = MathF.Max( strokeWidth, 1 );
-			paint.Color = Style.UnderlineColor ?? Style.TextColor;
+			paint.ColorF = Style.UnderlineColor ?? Style.TextColor;
 
 			var underlineYPos = Line.YCoord + Line.BaseLine + (_font.Metrics.UnderlinePosition ?? 0);
 			var bHasUnderline = false;
@@ -842,11 +831,11 @@ namespace Topten.RichTextKit
 		{
 			if ( RunKind == FontRunKind.TrailingWhitespace ) return;
 
-			if ( Style.BackgroundColor != SKColor.Empty && RunKind == FontRunKind.Normal )
+			if ( Style.BackgroundColor.Alpha > 0 && RunKind == FontRunKind.Normal )
 			{
 				var rect = new SKRect( XCoord, Line.YCoord,
 					XCoord + Width, Line.YCoord + Line.Height );
-				using ( var skPaint = new SKPaint { Style = SKPaintStyle.Fill, Color = Style.BackgroundColor } )
+				using ( var skPaint = new SKPaint { Style = SKPaintStyle.Fill, ColorF = Style.BackgroundColor } )
 				{
 					ctx.Canvas.DrawRect( rect, skPaint );
 				}
@@ -883,8 +872,25 @@ namespace Topten.RichTextKit
 				effectPaint.StrokeWidth = effect.Width;
 				effectPaint.StrokeJoin = effect.StrokeJoin;
 				effectPaint.StrokeMiter = effect.StrokeMiter;
-				effectPaint.Color = effect.Color;
-				effectPaint.ImageFilter = effect.BlurSize > 0 ? SKImageFilter.CreateDropShadow( effect.Offset.X, effect.Offset.Y, effect.BlurSize, effect.BlurSize, effect.Color ) : null;
+				effectPaint.ColorF = effect.Color;
+
+				// Blurred, offset copy first (what SKImageFilter.CreateDropShadow used to draw under the source).
+				// A mask blur keeps the float paint colour, whereas the drop shadow image filter only takes an 8-bit SKColor.
+				if ( effect.BlurSize > 0 )
+				{
+					using var blur = SKMaskFilter.CreateBlur( effect.BlurStyle, effect.BlurSize );
+					effectPaint.MaskFilter = blur;
+
+					ctx.Canvas.Save();
+					ctx.Canvas.Translate( effect.Offset.X, effect.Offset.Y );
+					ctx.Canvas.DrawText( _textBlob, 0, 0, effectPaint );
+					PaintUnderline( ctx, effectPaint );
+					PaintStrikeThrough( ctx, effectPaint, glyphVOffset );
+					ctx.Canvas.Restore();
+
+					effectPaint.MaskFilter = null;
+					effectPaint.StrokeWidth = effect.Width; // underline/strike-through painting changes it
+				}
 
 				ctx.Canvas.DrawText( _textBlob, 0, 0, effectPaint );
 				PaintUnderline( ctx, effectPaint );
@@ -904,11 +910,11 @@ namespace Topten.RichTextKit
 			new( 1,  1 ),
 		};
 
-		unsafe void PaintPixelOutline( PaintTextContext ctx, SKColor color )
+		unsafe void PaintPixelOutline( PaintTextContext ctx, SKColorF color )
 		{
 			using var pixelPaint = new SKPaint
 			{
-				Color = color,
+				ColorF = color,
 				IsAntialias = false,
 			};
 

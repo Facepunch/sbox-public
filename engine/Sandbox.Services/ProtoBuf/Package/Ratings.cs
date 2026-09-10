@@ -1,14 +1,16 @@
 ﻿namespace Sandbox.Protobuf;
 
-public static class RatingMsg
+public static class ReactionMsg
 {
 	[ProtoContract( ImplicitFields = ImplicitFields.AllFields )]
-	public class RatingAdded : IMessage
+	public class ReactionAdded : IMessage
 	{
-		public static ushort MessageIdent => 2000;
+		public static MessageId MessageIdent => MessageId.ReactionAdded;
 
 		public Guid TargetGuid { get; set; }
 		public long SteamId { get; set; }
 		public int Rating { get; set; }
+		public string Name { get; set; }
+		public string Avatar { get; set; }
 	}
 }

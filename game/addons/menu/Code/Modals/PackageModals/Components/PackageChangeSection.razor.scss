@@ -1,0 +1,72 @@
+@import "/styles/_theme.scss";
+
+PackageChangeSection
+{
+    flex-direction: column;
+    flex-shrink: 0;
+    margin-bottom: 1.5rem;
+
+    .header
+    {
+        flex-direction: row;
+        flex-shrink: 0;
+        align-items: center;
+        gap: 0.5rem;
+        padding-bottom: 0.5rem;
+
+        .emoji
+        {
+            font-size: 1.1rem;
+        }
+
+        .section-title
+        {
+            font-size: 1.2rem;
+            font-weight: 550;
+            color: $default-text;
+            font-family: $font-heading;
+        }
+    }
+
+    .entries
+    {
+        flex-direction: column;
+        flex-shrink: 0;
+        gap: 3px;
+        padding-left: 6px;
+    }
+
+    .entry
+    {
+        flex-direction: row;
+        flex-shrink: 0;
+        align-items: flex-start;
+        gap: 8px;
+        color: $default-100;
+        font-size: $text-regular;
+        font-family: $font-default;
+
+        .bullet
+        {
+            flex-shrink: 0;
+            color: rgba( $default-50, 0.33 );
+        }
+
+        .text
+        {
+            flex-grow: 1;
+
+            &.link
+            {
+                color: $primary-blue;
+                cursor: pointer;
+
+                &:hover
+                {
+                    color: $default-text;
+                    text-decoration: underline;
+                }
+            }
+        }
+    }
+}

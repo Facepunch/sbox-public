@@ -9,7 +9,7 @@ public sealed partial class ClutterGridSystem
 	/// Manages storage and serialization of painted clutter instances.
 	/// Uses binary serialization via BlobData for efficient storage.
 	/// </summary>
-	public sealed class ClutterStorage : BlobData
+	public sealed class ClutterStorage : BlobData, IBlobReferences
 	{
 		public override int Version => 1;
 
@@ -36,7 +36,43 @@ public sealed partial class ClutterGridSystem
 		/// <summary>
 		/// Gets all model paths that have instances.
 		/// </summary>
-		public IEnumerable<string> ModelPaths => _instances.Keys;
+		public IEnumerable<string> ModelPaths
+		{
+			get
+			{
+				foreach ( var (modelPath, instances) in _instances )
+				{
+					if ( instances.Count > 0 )
+						yield return modelPath;
+				}
+			}
+		}
+
+		/// <summary>
+		/// Model paths referenced by painted instances. Emitted into the resource JSON on save so
+		/// painted clutter models are included when the owning scene/prefab is published.
+		/// </summary>
+		public IEnumerable<string> GetReferencedResources() => ModelPaths;
+
+		/// <summary>
+		/// Instance positions are stored in the space they were painted in. When this storage is
+		/// applied from a transformed host, shift the instances into that host's world space.
+		/// </summary>
+		public void ApplyWorldTransform( in Transform transform )
+		{
+			foreach ( var list in _instances.Values )
+			{
+				for ( var i = 0; i < list.Count; i++ )
+				{
+					var instance = list[i];
+					list[i] = instance with
+					{
+						Position = transform.PointToWorld( instance.Position ),
+						Rotation = transform.RotationToWorld( instance.Rotation )
+					};
+				}
+			}
+		}
 
 		/// <summary>
 		/// Gets instances for a specific model path.

@@ -153,7 +153,8 @@ internal class LargeNetworkFiles
 				Log.Info( $"Download file {file}" );
 			}
 
-			LoadingScreen.Title = $"Download file ({currentCount + 1}/{downloadQueue.Count}) {file}";
+			LoadingScreen.Title = $"Downloading Files ({currentCount + 1}/{downloadQueue.Count})";
+			LoadingScreen.Subtitle = file;
 
 			if ( RedirectFileSystem.FileExists( file.NormalizeFilename( true ) ) )
 			{
@@ -189,9 +190,10 @@ internal class LargeNetworkFiles
 			currentCount++;
 		}
 
-		downloadQueue.Clear();
+		LoadingScreen.Subtitle = null;
+		Log.Info( $"Download Complete ({currentCount} files total) ({sw.Elapsed.TotalSeconds:0.00}s)" );
 
-		Log.Info( $"Download Complete ({downloadQueue.Count()} files total) ({sw.Elapsed.TotalSeconds:0.00}s)" );
+		downloadQueue.Clear();
 	}
 
 	internal void NetworkInitialize( GameNetworkSystem instance )

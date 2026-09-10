@@ -90,25 +90,4 @@ internal static partial class Event
 	{
 		EventSystem?.Run( name, arg0, arg1, arg2 );
 	}
-
-	/// <summary>
-	/// Stream API related events. See Sandbox.Streamer.
-	/// </summary>
-	public static class Streamer
-	{
-		/// <summary>
-		/// Event called when joined a chat
-		/// </summary>
-		public class JoinChatAttribute : EventAttribute { public JoinChatAttribute() : base( "stream.join" ) { } }
-
-		/// <summary>
-		/// Event called when left a chat
-		/// </summary>
-		public class LeaveChatAttribute : EventAttribute { public LeaveChatAttribute() : base( "stream.leave" ) { } }
-
-		/// <summary>
-		/// Event called when chat message comes in
-		/// </summary>
-		public class ChatMessageAttribute : EventAttribute { public ChatMessageAttribute() : base( "stream.message" ) { } }
-	}
 }

@@ -16,6 +16,9 @@ internal static partial class Api
 			if ( !Application.IsRetail || Application.IsStandalone )
 				return;
 
+			if ( !AccountInformation.UseAnalytics )
+				return;
+
 			Pending.Add( e );
 		}
 

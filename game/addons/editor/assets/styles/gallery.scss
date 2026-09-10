@@ -1,0 +1,1697 @@
+//
+// The panel gallery's stylesheet - the mock scene editor, tool windows, menus and controls.
+// Written once against the dark palette below. The light theme redefines the palette at the
+// bottom and repeats just the colour-bearing declarations, scoped under .editor-light-mode -
+// flipping that class on the window is what switches theme, and transitions animate it.
+//
+
+$deep: #161d27;
+$window: #1b2431;
+$panel: #1f2937;
+$raised: #2a3644;
+$sunken: #172029;
+$sunken-hover: #1b242e;
+$line: #2b3644;
+$line-soft: #232d3a;
+$edge: #33404f;
+$edge-hover: #455364;
+$bar-a: #161d27;
+$bar-b: #161d27;
+$popup: rgba( #1f2937, 0.98 );
+$text: #c2ccd9;
+$dim: #7d8b9c;
+$faint: #5b6878;
+$bright: #f0f4f9;
+$indigo: #4c8dff;
+$violet: #4c8dff;
+$cyan: #46b8d8;
+$lime: #58c98a;
+$amber: #e0a34a;
+$rose: #ec6a76;
+$accent-text: #8fb8ff;
+$on-accent-dim: rgba( white, 0.75 );
+$hover-wash: rgba( white, 0.05 );
+$shadow-soft: rgba( black, 0.3 );
+$shadow-heavy: rgba( black, 0.45 );
+$knob: #eef2f8;
+$nub: #8493a5;
+$nub-hover: #c3ccd8;
+
+@keyframes pulse
+{
+	0% { opacity: 0.35; transform: scale( 0.75 ); }
+	50% { opacity: 1; transform: scale( 1.15 ); }
+	100% { opacity: 0.35; transform: scale( 0.75 ); }
+}
+
+@keyframes spin
+{
+	0% { transform: rotate( 0deg ); }
+	100% { transform: rotate( 360deg ); }
+}
+
+@keyframes sweep
+{
+	0% { transform: translateX( -100% ); }
+	100% { transform: translateX( 400% ); }
+}
+
+@keyframes glowline
+{
+	0% { opacity: 0.25; }
+	50% { opacity: 0.9; }
+	100% { opacity: 0.25; }
+}
+
+@keyframes rise
+{
+	0% { opacity: 0; transform: translateY( 8px ); }
+	100% { opacity: 1; transform: translateY( 0px ); }
+}
+
+EditorWindow
+{
+	width: 100%;
+	height: 100%;
+	flex-direction: column;
+	background-color: $window;
+	color: $text;
+	font-family: Inter;
+	font-size: 12px;
+	font-weight: 450;
+	border: 1px solid $edge;
+	pointer-events: all;
+}
+
+//
+// Everything that carries a palette colour eases into it, so flipping the theme class crossfades
+// the window instead of snapping. Rules further down with their own transition win over this.
+//
+EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divider, .paneheader,
+.paneheader .badge, .pane, .splitter, .tabbar, .tablehead, .cell, .section, .section .head,
+.section .body, .statusbar, .statusbar .sep, .assetgrid, .scroll, .graph .bar, .progress,
+.numberbox .value, .slider .track, .slider .readout, .searchbox .value, .searchbox .placeholder
+{
+	transition: background-color 0.35s ease-out, color 0.35s ease-out, border-color 0.35s ease-out;
+}
+
+//
+// Asset browser tab - a search row over the grid
+//
+.assets { flex-direction: column; flex-grow: 1; overflow: hidden; }
+.assets .bar { flex-shrink: 0; flex-direction: row; align-items: center; height: 30px; padding: 0 8px; background-color: $deep; border-bottom: 1px solid $line; }
+.assets .bar .searchbox { width: 220px; }
+.assets .bar .grow { flex-grow: 1; }
+.assets .bar .count { color: $faint; font-size: 11px; font-family: Roboto Mono; }
+.assets .scroll { flex-grow: 1; }
+
+.icon { font-family: Material Icons; font-size: 16px; }
+.mono { font-family: Roboto Mono; }
+
+//
+// Title bar - ours, not the OS's
+//
+.titlebar
+{
+	position: relative;
+	flex-shrink: 0;
+	height: 34px;
+	flex-direction: row;
+	align-items: center;
+	background-image: linear-gradient( 180deg, $bar-b 0%, $bar-a 100% );
+	border-bottom: 1px solid $line;
+}
+
+.titlebar .brand
+{
+	width: 22px;
+	height: 22px;
+	margin-left: 7px;
+	margin-right: 8px;
+	border-radius: 7px;
+	background-image: linear-gradient( 145deg, $cyan 0%, $indigo 60% );
+	box-shadow: none;
+	color: #fff;
+	align-items: center;
+	justify-content: center;
+	font-family: Poppins;
+	font-size: 11px;
+	font-weight: 800;
+	transition: transform 0.25s ease-out, box-shadow 0.25s ease-out;
+}
+
+.titlebar:hover .brand { transform: scale( 1.08 ) rotate( -4deg ); box-shadow: none; }
+
+//
+// Centred over everything else, so the menus on the left don't shove it off centre
+//
+.titlebar .titlewrap
+{
+	position: absolute;
+	left: 0px;
+	top: 0px;
+	width: 100%;
+	height: 34px;
+	flex-direction: row;
+	align-items: center;
+	justify-content: center;
+	pointer-events: none;
+}
+
+.titlebar .title { color: $dim; font-size: 12px; }
+
+.titlebar .project
+{
+	flex-direction: row;
+	align-items: center;
+	margin-right: 8px;
+	padding: 2px 8px 2px 2px;
+	border-radius: 5px;
+	transition: background-color 0.12s ease-out;
+}
+
+.titlebar .project:hover { background-color: $hover-wash; }
+
+.titlebar .project .chip
+{
+	width: 18px;
+	height: 18px;
+	margin-right: 6px;
+	border-radius: 4px;
+	background-image: linear-gradient( 145deg, $cyan 0%, $indigo 60% );
+	color: #fff;
+	align-items: center;
+	justify-content: center;
+	font-size: 10px;
+	font-weight: 700;
+}
+
+.titlebar .project .name { color: $text; font-size: 11px; }
+
+.titlebar .grow { flex-grow: 1; }
+
+.titlebar .windowbutton
+{
+	pointer-events: all;
+	width: 42px;
+	height: 34px;
+	align-items: center;
+	justify-content: center;
+	color: $dim;
+	transition: background-color 0.12s ease-out, color 0.12s ease-out;
+}
+
+.titlebar .windowbutton .icon { font-size: 15px; transition: transform 0.15s ease-out; }
+.titlebar .windowbutton:hover { background-color: $hover-wash; color: $bright; }
+.titlebar .windowbutton:hover .icon { transform: scale( 1.15 ); }
+.titlebar .windowbutton.close:hover { background-color: $rose; color: #fff; }
+
+.accentline
+{
+	flex-shrink: 0;
+	height: 1px;
+	background-image: linear-gradient( 90deg, rgba( #4c8dff, 0 ) 0%, rgba( #4c8dff, 0.55 ) 35%, rgba( #4c8dff, 0.15 ) 100% );
+}
+
+//
+// Menu bar
+//
+.menubar
+{
+	flex-shrink: 0;
+	flex-direction: row;
+	align-items: center;
+}
+
+.menubar > .menu
+{
+	padding: 3px 8px;
+	font-size: 12px;
+	border-radius: 4px;
+	color: $text;
+	transition: background-color 0.12s ease-out, color 0.12s ease-out;
+}
+
+.menubar > .menu.active { background-color: $raised; color: $bright; }
+.menubar > .menu.open { background-color: $indigo; color: #fff; }
+
+.menulist
+{
+	min-width: 200px;
+	padding: 6px;
+	font-size: 12px;
+	color: $text;
+	background-color: $popup;
+	border: 1px solid $edge;
+	border-radius: 10px;
+	box-shadow: 0px 18px 44px $shadow-heavy;
+}
+
+.menulist .menu
+{
+	height: 30px;
+	padding: 0px 10px 0px 4px;
+	border-radius: 6px;
+	transition: background-color 0.1s ease-out, padding-left 0.1s ease-out;
+}
+
+.menulist .menu.active, .menulist .menu.open
+{
+	background-image: linear-gradient( 90deg, $indigo 0%, rgba( #4c8dff, 0.55 ) 100% );
+	color: #fff;
+	padding-left: 8px;
+}
+
+.menulist .menu > .shortcut { opacity: 1; color: $dim; font-size: 10px; font-family: Roboto Mono; }
+.menulist .menu.active > .shortcut { color: $on-accent-dim; }
+.menulist .menu.separator { height: 1px; padding: 0px; margin: 5px 8px; background-color: $line; }
+
+.dropdown
+{
+	position: absolute;
+	z-index: 100;
+	flex-direction: column;
+	min-width: 200px;
+	padding: 6px;
+
+	// A popup lives in its own window, so it has no EditorWindow above it to inherit the base
+	// text style from - it has to carry its own
+	font-family: Inter;
+	font-size: 12px;
+	font-weight: 450;
+	color: $text;
+	background-color: $popup;
+	border: 1px solid $edge;
+	border-radius: 10px;
+	box-shadow: 0px 18px 44px $shadow-heavy;
+	pointer-events: all;
+	transform-origin: top left;
+	transition: opacity 0.12s ease-out, transform 0.12s ease-out;
+}
+
+.dropdown:intro { opacity: 0; transform: translateY( -6px ) scale( 0.96 ); }
+
+.dropdown .row
+{
+	pointer-events: all;
+	flex-direction: row;
+	align-items: center;
+	padding: 7px 10px;
+	border-radius: 6px;
+	cursor: pointer;
+	transition: background-color 0.1s ease-out, padding-left 0.1s ease-out;
+}
+
+.dropdown .row:hover
+{
+	background-image: linear-gradient( 90deg, $indigo 0%, rgba( #4c8dff, 0.55 ) 100% );
+	color: #fff;
+	padding-left: 14px;
+}
+
+.dropdown .row .shortcut { margin-left: auto; color: $dim; font-size: 10px; font-family: Roboto Mono; }
+.dropdown .row:hover .shortcut { color: $on-accent-dim; }
+.dropdown .separator { height: 1px; background-color: $line; margin: 5px 8px; }
+
+//
+// Toolbar
+//
+.toolbar, .viewporttoolbar
+{
+	position: relative;
+	flex-shrink: 0;
+	height: 34px;
+	flex-direction: row;
+	align-items: center;
+	padding: 0px 8px;
+	background-color: $panel;
+	border-bottom: 1px solid $line;
+}
+
+.toolbar .divider, .viewporttoolbar .divider { width: 1px; height: 18px; margin: 0px 8px; background-color: $line; }
+.toolbar .grow, .viewporttoolbar .grow { flex-grow: 1; }
+
+.viewporttoolbar .numberbox { width: 62px; flex-grow: 0; flex-shrink: 0; margin-left: 2px; }
+.viewporttoolbar .numberbox .unit { color: $faint; margin-left: 2px; }
+.viewporttoolbar .segmented { margin-right: 2px; }
+.viewporttoolbar .playcontrols
+{
+	position: absolute;
+	left: 0px;
+	width: 100%;
+	height: 33px;
+	flex-direction: row;
+	align-items: center;
+	justify-content: center;
+	pointer-events: none;
+}
+.viewporttoolbar .iconbutton.play.playing { color: $rose; }
+.viewporttoolbar .iconbutton.play { color: $lime; }
+.viewporttoolbar .iconbutton.disabled { opacity: 0.3; }
+
+.iconbutton
+{
+	pointer-events: all;
+	width: 32px;
+	height: 28px;
+	align-items: center;
+	justify-content: center;
+	border-radius: 7px;
+	color: $dim;
+	cursor: pointer;
+	transition: all 0.14s ease-out;
+}
+
+.iconbutton .icon { transition: transform 0.14s ease-out; }
+.iconbutton:hover { background-color: $raised; color: $bright; transform: translateY( -1px ); }
+.iconbutton:hover .icon { transform: scale( 1.12 ); }
+.iconbutton:active { transform: translateY( 1px ) scale( 0.94 ); }
+
+.iconbutton.active
+{
+	background-color: $indigo;
+	color: #fff;
+	box-shadow: none;
+}
+
+.iconbutton.warm.active
+{
+	background-color: $lime;
+	color: #06210e;
+	box-shadow: none;
+}
+
+.segmented
+{
+	flex-direction: row;
+	padding: 3px;
+	border-radius: 8px;
+	background-color: $sunken;
+	border: 1px solid $line-soft;
+}
+
+.segmented .segment
+{
+	pointer-events: all;
+	padding: 3px 12px;
+	border-radius: 6px;
+	color: $dim;
+	cursor: pointer;
+	transition: all 0.16s ease-out;
+}
+
+.segmented .segment:hover { color: $bright; }
+.segmented .segment.active { background-color: $raised; color: $bright; box-shadow: 0px 2px 8px $shadow-soft; }
+
+.searchbox
+{
+	pointer-events: all;
+	flex-direction: row;
+	align-items: center;
+	width: 230px;
+	height: 28px;
+	padding: 0px 10px;
+	border-radius: 8px;
+	background-color: $sunken;
+	border: 1px solid $line;
+	cursor: text;
+	transition: all 0.18s ease-out;
+}
+
+.searchbox:hover { border-color: $edge-hover; }
+.searchbox.focused
+{
+	border-color: $indigo;
+	box-shadow: 0px 0px 0px 2px rgba( #4c8dff, 0.2 );
+	width: 280px;
+}
+
+.searchbox .icon { font-size: 14px; color: $dim; margin-right: 7px; transition: color 0.18s ease-out; }
+.searchbox.focused .icon { color: $indigo; }
+.searchbox .value { color: $bright; }
+.searchbox .placeholder { color: $dim; }
+
+//
+// Body
+//
+.body { flex-grow: 1; flex-direction: row; overflow: hidden; }
+
+.pane { flex-direction: column; background-color: $panel; overflow: hidden; }
+.pane.left { width: 260px; flex-shrink: 0; }
+.pane.centre { flex-grow: 1; }
+.pane.right { width: 460px; flex-shrink: 0; }
+
+.paneheader .icon { font-size: 14px; margin-right: 6px; }
+.paneheader .grow { flex-grow: 1; }
+
+.paneheader
+{
+	flex-shrink: 0;
+	height: 28px;
+	flex-direction: row;
+	align-items: center;
+	padding: 0px 10px;
+	background-color: $raised;
+	border-bottom: 1px solid $line;
+	color: $dim;
+	font-size: 11px;
+	font-weight: 600;
+}
+
+.paneheader .grow { flex-grow: 1; }
+.paneheader .badge
+{
+	padding: 1px 7px;
+	border-radius: 8px;
+	background-color: rgba( #4c8dff, 0.13 );
+	color: $accent-text;
+	font-family: Roboto Mono;
+	font-size: 10px;
+	letter-spacing: 0px;
+}
+
+.splitter
+{
+	pointer-events: all;
+	width: 5px;
+	flex-shrink: 0;
+	background-color: $deep;
+	cursor: ew-resize;
+	transition: background-color 0.15s ease-out;
+}
+
+.splitter:hover, .splitter.dragging { background-color: $indigo; }
+
+.splitter.horizontal
+{
+	width: auto;
+	height: 5px;
+	flex-shrink: 0;
+	cursor: ns-resize;
+}
+
+.splitter.horizontal:hover, .splitter.horizontal.dragging { background-color: $indigo; }
+
+.scroll { flex-grow: 1; flex-direction: column; overflow: scroll; pointer-events: all; }
+
+//
+// Viewport
+//
+.viewport
+{
+	pointer-events: all;
+	cursor: crosshair;
+	flex-shrink: 0;
+	height: 46%;
+	position: relative;
+	background-color: #05060a;
+	border-bottom: 1px solid $line;
+	overflow: hidden;
+}
+
+.viewport .scene { width: 100%; height: 100%; }
+
+.viewport .overlay
+{
+	position: absolute;
+	left: 0px; top: 0px; right: 0px; bottom: 0px;
+	flex-direction: column;
+	justify-content: flex-end;
+	padding: 10px;
+	pointer-events: none;
+}
+
+.viewport .hud
+{
+	flex-direction: row;
+	align-items: center;
+}
+
+.viewport .chip
+{
+	pointer-events: all;
+	flex-direction: row;
+	align-items: center;
+	height: 24px;
+	padding: 0px 9px;
+	margin-right: 6px;
+	border-radius: 7px;
+	background-color: rgba( #10161e, 0.78 );
+	border: 1px solid rgba( white, 0.08 );
+	color: $text;
+	font-size: 11px;
+	font-family: Roboto Mono;
+	transition: all 0.15s ease-out;
+}
+
+.viewport .chip:hover { background-color: rgba( #4c8dff, 0.9 ); color: #fff; transform: translateY( -1px ); }
+.viewport .chip .icon { font-size: 13px; margin-right: 5px; }
+.viewport .chip.live .dot
+{
+	width: 6px; height: 6px; border-radius: 3px; margin-right: 6px;
+	background-color: $lime;
+	animation: pulse 1.6s infinite;
+}
+
+.viewport .grow { flex-grow: 1; }
+
+.viewport .vignette
+{
+	position: absolute;
+	left: 0px; top: 0px; right: 0px; bottom: 0px;
+	background-image: linear-gradient( 180deg, rgba( black, 0 ) 55%, rgba( black, 0.35 ) 100% );
+	pointer-events: none;
+}
+
+//
+// Hierarchy
+//
+.treerow
+{
+	pointer-events: all;
+	flex-direction: row;
+	align-items: center;
+	height: 24px;
+	flex-shrink: 0;
+	cursor: pointer;
+	color: $text;
+	transition: background-color 0.12s ease-out, color 0.35s ease-out, opacity 0.2s ease-out, transform 0.2s ease-out;
+}
+
+.treerow:intro { opacity: 0; transform: translateX( -10px ); }
+.treerow:hover { background-color: $raised; }
+.treerow.selected
+{
+	background-image: linear-gradient( 90deg, $indigo 0%, rgba( #4c8dff, 0.35 ) 100% );
+	color: #fff;
+}
+
+.treerow .arrow { width: 16px; font-size: 14px; color: $dim; transition: transform 0.15s ease-out, color 0.15s ease-out; }
+.treerow .arrow:hover { color: $bright; transform: scale( 1.25 ); }
+.treerow .kind { width: 18px; font-size: 14px; color: $faint; margin-right: 5px; transition: color 0.15s ease-out; }
+.treerow:hover .kind { color: $cyan; }
+.treerow.selected .kind { color: #fff; }
+.treerow .rename { flex-grow: 1; height: 19px; margin-right: 6px; }
+.treerow .name { flex-grow: 1; overflow: hidden; white-space: nowrap; }
+.treerow .eye { width: 24px; font-size: 14px; color: $faint; transition: color 0.15s ease-out, transform 0.15s ease-out; }
+.treerow .eye:hover { color: $amber; transform: scale( 1.2 ); }
+.treerow.hidden .name { color: $faint; }
+
+//
+// Tabs
+//
+.tabbar
+{
+	flex-shrink: 0;
+	height: 34px;
+	flex-direction: row;
+	align-items: stretch;
+	background-color: $deep;
+	border-bottom: 1px solid $line;
+}
+
+.tabbar .tab
+{
+	pointer-events: all;
+	flex-direction: row;
+	align-items: center;
+	padding: 0px 16px;
+	color: $dim;
+	cursor: pointer;
+	border-bottom: 2px solid transparent;
+	transition: all 0.18s ease-out;
+}
+
+.tabbar .tab:hover { color: $text; background-color: $hover-wash; }
+.tabbar .tab.active
+{
+	color: $bright;
+	background-image: linear-gradient( 180deg, rgba( #4c8dff, 0.12 ) 0%, $panel 80% );
+	border-bottom-color: $indigo;
+}
+
+.tabbar .tab .icon { font-size: 14px; margin-right: 7px; transition: transform 0.18s ease-out; }
+.tabbar .tab.active .icon { color: $indigo; transform: scale( 1.1 ); }
+.tabbar .tab .count
+{
+	margin-left: 9px;
+	padding: 1px 7px;
+	border-radius: 9px;
+	background-color: $raised;
+	color: $dim;
+	font-family: Roboto Mono;
+	font-size: 10px;
+	transition: all 0.18s ease-out;
+}
+
+.tabbar .tab.active .count { background-color: rgba( #4c8dff, 0.16 ); color: $accent-text; }
+
+//
+// Table
+//
+.tablehead
+{
+	flex-shrink: 0;
+	flex-direction: row;
+	height: 26px;
+	align-items: center;
+	background-color: $raised;
+	border-bottom: 1px solid $line;
+	color: $dim;
+	font-size: 10px;
+	font-weight: 700;
+	letter-spacing: 0.8px;
+}
+
+.tablerow
+{
+	pointer-events: all;
+	flex-direction: row;
+	align-items: center;
+	height: 26px;
+	flex-shrink: 0;
+	border-bottom: 1px solid $line-soft;
+	color: $text;
+	transition: background-color 0.12s ease-out, color 0.35s ease-out, opacity 0.3s ease-out, transform 0.3s ease-out;
+}
+
+.tablerow:intro { opacity: 0; transform: translateX( -14px ); }
+.tablerow:hover { background-color: $raised; }
+.tablerow.selected
+{
+	background-image: linear-gradient( 90deg, $indigo 0%, rgba( #4c8dff, 0.3 ) 100% );
+	color: #fff;
+}
+
+.cell { padding: 0px 12px; overflow: hidden; white-space: nowrap; }
+.cell.c-icon { width: 32px; font-size: 14px; color: $faint; padding: 0px; align-items: center; }
+.cell.c-name { flex-grow: 1; }
+.cell.c-type { width: 130px; color: $dim; }
+.cell.c-tris { width: 84px; color: $dim; font-family: Roboto Mono; font-size: 11px; }
+.cell.c-state { width: 96px; }
+.tablerow.selected .cell { color: #fff; }
+.tablerow:hover .cell.c-icon { color: $cyan; }
+
+.pill
+{
+	padding: 1px 9px;
+	border-radius: 10px;
+	font-size: 10px;
+	font-weight: 600;
+	background-color: $raised;
+	color: $dim;
+	transition: transform 0.15s ease-out;
+}
+
+.pill.ok { background-color: rgba( #58c98a, 0.16 ); color: $lime; }
+.pill.warn { background-color: rgba( #e0a34a, 0.16 ); color: $amber; }
+.pill.bad { background-color: rgba( #ec6a76, 0.18 ); color: $rose; }
+.tablerow:hover .pill { transform: scale( 1.06 ); }
+
+//
+// Assets
+//
+.assetgrid { flex-direction: row; flex-wrap: wrap; padding: 12px; align-content: flex-start; }
+
+.assetcard
+{
+	pointer-events: all;
+	width: 116px;
+	height: 132px;
+	margin: 6px;
+	flex-direction: column;
+	border-radius: 10px;
+	background-color: $raised;
+	border: 1px solid transparent;
+	cursor: pointer;
+	transition: all 0.2s ease-out;
+}
+
+.assetcard:intro { opacity: 0; transform: scale( 0.86 ) translateY( 12px ); }
+
+.assetcard:hover
+{
+	border-color: rgba( #4c8dff, 0.55 );
+	transform: translateY( -4px ) scale( 1.03 );
+	box-shadow: 0px 12px 26px $shadow-heavy;
+}
+
+.assetcard.selected
+{
+	border-color: $indigo;
+	box-shadow: 0px 0px 0px 2px rgba( #4c8dff, 0.25 );
+}
+
+.assetcard .thumb .gloss
+{
+	position: absolute;
+	left: 0px; top: 0px; right: 0px; bottom: 0px;
+	border-radius: 9px;
+	background-image: linear-gradient( 160deg, rgba( white, 0.28 ) 0%, rgba( white, 0.04 ) 38%, rgba( black, 0.35 ) 100% );
+}
+
+.assetcard .thumb
+{
+	height: 94px;
+	position: relative;
+	align-items: center;
+	justify-content: center;
+	border-radius: 9px;
+	font-size: 36px;
+	color: rgba( white, 0.85 );
+	transition: transform 0.25s ease-out;
+}
+
+.assetcard:hover .thumb .icon { transform: scale( 1.15 ) rotate( 5deg ); }
+.assetcard .thumb .icon { transition: transform 0.25s ease-out; }
+.assetcard .label { padding: 5px 8px; font-size: 10px; overflow: hidden; white-space: nowrap; color: $text; font-family: Roboto Mono; }
+
+//
+// Scene tabs - one per open scene, above the viewport
+//
+.scenetabs
+{
+	flex-shrink: 0;
+	height: 28px;
+	flex-direction: row;
+	align-items: flex-end;
+	background-color: $deep;
+	border-bottom: 1px solid $line;
+}
+
+.scenetabs .grow { flex-grow: 1; }
+
+.scenetab
+{
+	flex-direction: row;
+	align-items: center;
+	height: 27px;
+	padding: 0 14px;
+	color: $dim;
+	font-size: 12px;
+	pointer-events: all;
+	border-right: 1px solid $line-soft;
+	transition: all 0.14s ease-out;
+}
+
+.scenetab:hover { color: $text; background-color: $raised; }
+.scenetab.active
+{
+	color: $bright;
+	background-color: $panel;
+	border-bottom: 2px solid $indigo;
+}
+
+.scenetab .icon { font-size: 14px; margin-right: 6px; }
+.scenetab .dirty { margin-left: 4px; color: $amber; }
+
+//
+// The row of tools above the tree
+//
+.panetools
+{
+	flex-shrink: 0;
+	flex-direction: row;
+	align-items: center;
+	height: 28px;
+	padding: 0 6px;
+	border-bottom: 1px solid $line-soft;
+}
+
+.panetools .searchbox { flex-grow: 1; margin-left: 4px; }
+
+.toolbutton
+{
+	width: 22px;
+	height: 22px;
+	align-items: center;
+	justify-content: center;
+	border-radius: 4px;
+	color: $dim;
+	pointer-events: all;
+	transition: all 0.12s ease-out;
+}
+
+.toolbutton .icon { font-size: 16px; }
+.toolbutton:hover { background-color: $raised; color: $bright; }
+.toolbutton.active { background-color: $indigo; color: #fff; }
+
+//
+// Viewport overlays - frame rate, the tool strip and the axis ball
+//
+.viewport .fps
+{
+	position: absolute;
+	left: 8px;
+	top: 6px;
+	font-family: Roboto Mono;
+	font-size: 11px;
+	color: $lime;
+	text-shadow: 0px 1px 2px rgba( black, 0.8 );
+}
+
+.viewport .toolstrip
+{
+	position: absolute;
+	left: 6px;
+	top: 26px;
+	flex-direction: column;
+	padding: 3px;
+	border-radius: 7px;
+	background-color: rgba( black, 0.45 );
+	border: 1px solid rgba( white, 0.07 );
+}
+
+.viewport .toolstrip .toolbutton { width: 26px; height: 26px; color: rgba( white, 0.7 ); }
+.viewport .toolstrip .toolbutton:hover { background-color: rgba( white, 0.12 ); color: #fff; }
+.viewport .toolstrip .toolbutton.active { background-color: $indigo; color: #fff; }
+
+.viewport .axiswidget
+{
+	position: absolute;
+	right: 14px;
+	top: 14px;
+	width: 52px;
+	height: 52px;
+	border-radius: 26px;
+	background-color: rgba( black, 0.35 );
+	border: 1px solid rgba( white, 0.07 );
+}
+
+.viewport .axiswidget .arm
+{
+	position: absolute;
+	width: 14px;
+	height: 14px;
+	margin-left: -7px;
+	margin-top: -7px;
+	border-radius: 7px;
+	align-items: center;
+	justify-content: center;
+	font-size: 9px;
+	font-weight: 700;
+	color: #10141c;
+}
+
+.viewport .axiswidget .arm.negative { width: 9px; height: 9px; margin-left: -4px; margin-top: -4px; background-color: rgba( black, 0.35 ); border: 1px solid rgba( white, 0.3 ); }
+.viewport .axiswidget .arm.x { background-color: #e05a68; }
+.viewport .axiswidget .arm.y { background-color: #64c37d; }
+.viewport .axiswidget .arm.z { background-color: #4c8dff; }
+.viewport .axiswidget .arm.x.negative { background-color: rgba( #e05a68, 0.45 ); }
+.viewport .axiswidget .arm.y.negative { background-color: rgba( #64c37d, 0.45 ); }
+.viewport .axiswidget .arm.z.negative { background-color: rgba( #4c8dff, 0.45 ); }
+
+//
+// Message counts in the corner, same as the editor has
+//
+.statusbar .logcount
+{
+	flex-direction: row;
+	align-items: center;
+	margin-right: 10px;
+	color: $dim;
+}
+
+.statusbar .logcount .icon { font-size: 13px; margin-right: 4px; }
+.statusbar .logcount.warn { color: $amber; }
+.statusbar .logcount.error { color: $rose; }
+
+//
+// Console - Unity style: a filter bar, a virtual list of one line entries, and a detail pane
+// for whatever is selected.
+//
+.console { flex-direction: column; flex-grow: 1; overflow: hidden; }
+
+.console .bar
+{
+	flex-direction: row;
+	align-items: center;
+	flex-shrink: 0;
+	height: 28px;
+	padding: 0 8px;
+	background-color: $deep;
+	border-bottom: 1px solid $line;
+}
+
+.console .button
+{
+	flex-direction: row;
+	align-items: center;
+	padding: 3px 9px;
+	margin-right: 4px;
+	font-size: 11px;
+	color: $dim;
+	border: 1px solid $line;
+	border-radius: 3px;
+	transition: all 0.12s ease-out;
+}
+
+.console .button .icon { font-size: 13px; margin-right: 3px; }
+.console .button:hover { color: $bright; background-color: $raised; border-color: $edge; }
+.console .button.active { color: $bright; background-color: $raised; border-color: $edge-hover; }
+
+.console .bar .searchbox { width: 180px; margin-right: 6px; }
+
+.console .filter
+{
+	flex-direction: row;
+	align-items: center;
+	padding: 2px 7px 2px 5px;
+	margin-left: 3px;
+	border-radius: 3px;
+	color: $faint;
+	font-size: 11px;
+	opacity: 0.45;
+	transition: all 0.12s ease-out;
+}
+
+.console .filter:hover { background-color: $raised; }
+.console .filter.active { opacity: 1; background-color: $raised; }
+.console .filter .icon { font-size: 14px; margin-right: 3px; }
+.console .filter .count { font-family: Roboto Mono; }
+.console .filter.warn.active { color: $amber; }
+.console .filter.error.active { color: $rose; }
+.console .filter.info.active { color: $text; }
+
+// The rows are absolute inside the list, laid out against the spacer's height
+.console .list { position: relative; flex-grow: 1; overflow: scroll; background-color: $sunken; }
+.console .list .spacer { position: relative; flex-shrink: 0; width: 100%; }
+
+.console .row
+{
+	position: absolute;
+	left: 0;
+	right: 0;
+	height: 20px;
+	flex-direction: row;
+	align-items: center;
+	padding: 0 10px;
+	font-family: Roboto Mono;
+	font-size: 11px;
+	pointer-events: all;
+}
+
+.console .row.odd { background-color: $sunken-hover; }
+.console .row:hover { background-color: $raised; }
+.console .row.selected { background-image: linear-gradient( 90deg, rgba( $indigo, 0.35 ) 0%, rgba( $indigo, 0.10 ) 100% ); }
+.console .row .level { font-size: 13px; width: 18px; flex-shrink: 0; color: $faint; }
+.console .row .time { width: 58px; flex-shrink: 0; color: $faint; white-space: nowrap; }
+.console .row .source { width: 108px; flex-shrink: 0; color: $dim; overflow: hidden; white-space: nowrap; }
+.console .row .repeat
+{
+	min-width: 20px;
+	padding: 0 5px;
+	margin-left: 6px;
+	border-radius: 8px;
+	background-color: $raised;
+	color: $dim;
+	font-size: 10px;
+	text-align: center;
+}
+
+.console .row.warn .level { color: $amber; }
+.console .row.error .level { color: $rose; }
+
+.console .row .message { flex-grow: 1; flex-shrink: 1; flex-direction: row; overflow: hidden; }
+.console .row .message .part { color: $text; white-space: nowrap; }
+.console .row .message .part.match { background-color: rgba( $indigo, 0.35 ); color: $bright; }
+.console .row.warn .message .part { color: $amber; }
+.console .row.error .message .part { color: $rose; }
+
+.console .detail
+{
+	flex-shrink: 0;
+	flex-direction: column;
+	height: 132px;
+	overflow: scroll;
+	padding: 7px 10px;
+	background-color: $deep;
+	border-top: 1px solid $line;
+}
+
+.console .detail.empty { height: 0px; border-top-width: 0px; padding: 0px; }
+
+.console .detail .message
+{
+	flex-shrink: 0;
+	font-family: Roboto Mono;
+	font-size: 11px;
+	color: $bright;
+	margin-bottom: 6px;
+	pointer-events: all;
+	cursor: pointer;
+	white-space: pre-wrap;
+}
+
+.console .detail .message:hover { color: $accent-text; }
+
+.console .stackrow
+{
+	flex-direction: row;
+	align-items: center;
+	flex-shrink: 0;
+	padding: 1px 4px;
+	border-radius: 3px;
+	font-family: Roboto Mono;
+	font-size: 11px;
+	pointer-events: all;
+	transition: background-color 0.12s ease-out;
+}
+
+.console .stackrow:hover { background-color: $raised; }
+.console .stackrow.engine { opacity: 0.45; }
+.console .stackrow.nofile { opacity: 0.45; }
+.console .stackrow .function { color: $text; flex-grow: 1; overflow: hidden; white-space: nowrap; }
+.console .stackrow .file { color: $accent-text; margin-left: 10px; }
+
+.console .suggestions
+{
+	flex-direction: column;
+	flex-shrink: 0;
+	max-height: 160px;
+	overflow: scroll;
+	background-color: $popup;
+	border-top: 1px solid $line;
+}
+
+.console .suggestion
+{
+	flex-direction: row;
+	align-items: center;
+	flex-shrink: 0;
+	height: 20px;
+	padding: 0 12px;
+	font-size: 11px;
+	pointer-events: all;
+	transition: background-color 0.12s ease-out;
+}
+
+.console .suggestion:hover { background-color: $raised; }
+.console .suggestion .command { font-family: Roboto Mono; color: $accent-text; }
+.console .suggestion .description { margin-left: 12px; color: $faint; overflow: hidden; white-space: nowrap; }
+
+.console .commandline
+{
+	flex-direction: row;
+	align-items: center;
+	flex-shrink: 0;
+	height: 26px;
+	padding: 0 6px 0 10px;
+	background-color: $deep;
+	border-top: 1px solid $line;
+}
+
+.console .commandline .prompt { font-family: Roboto Mono; color: $lime; margin-right: 6px; }
+.console .commandline .searchbox { flex-grow: 1; background-color: transparent; border-width: 0px; }
+.console .commandline .searchbox .value { font-family: Roboto Mono; }
+.console .button.square { padding: 3px 5px; margin-right: 0px; }
+
+//
+// Inspector - laid out like Unity's: a tight header row per component with a tick box, then
+// label/value rows underneath. No boxes, no shouting.
+//
+.inspector { padding-bottom: 24px; }
+
+.objectheader
+{
+	flex-shrink: 0;
+	flex-direction: row;
+	align-items: center;
+	height: 34px;
+	padding: 0 10px;
+}
+
+.objectheader .typeicon { font-size: 17px; margin-right: 8px; color: $accent-text; }
+.objectheader .checkbox { margin-right: 8px; }
+.objectheader .name { flex-grow: 1; height: 26px; }
+
+.objecttags
+{
+	flex-shrink: 0;
+	flex-direction: row;
+	align-items: center;
+	height: 24px;
+	padding: 0 12px 0 11px;
+	margin-bottom: 4px;
+	color: $dim;
+}
+
+.objecttags .icon { font-size: 14px; margin-right: 7px; color: $faint; }
+.objecttags .value { font-size: 11px; }
+.objecttags .value.none { color: $faint; }
+
+.group { flex-direction: column; flex-shrink: 0; }
+
+.grouphead
+{
+	flex-direction: row;
+	align-items: center;
+	flex-shrink: 0;
+	height: 22px;
+	margin-top: 2px;
+	color: $dim;
+	font-size: 11px;
+	pointer-events: all;
+	transition: color 0.12s ease-out;
+}
+
+.grouphead:hover { color: $bright; }
+.grouphead .arrow { font-size: 13px; margin-right: 5px; color: $faint; }
+.groupbody { flex-direction: column; padding-left: 14px; }
+
+.section .head .menu { margin-left: 6px; font-size: 15px; color: $faint; opacity: 0; transition: opacity 0.12s ease-out; }
+.section .head:hover .menu { opacity: 1; }
+.inspector .empty { padding: 26px 12px; text-align: center; color: $faint; font-size: 12px; }
+
+.section { flex-direction: column; flex-shrink: 0; border-bottom: 1px solid $line-soft; }
+
+.section .head
+{
+	pointer-events: all;
+	flex-direction: row;
+	align-items: center;
+	height: 26px;
+	padding: 0px 8px;
+	background-color: $deep;
+	cursor: pointer;
+	color: $text;
+	font-size: 12px;
+	font-weight: 600;
+	transition: background-color 0.12s ease-out;
+}
+
+.section .head:hover { background-color: $raised; }
+.section .head .arrow
+{
+	width: 14px;
+	font-size: 13px;
+	color: $faint;
+	transition: transform 0.15s ease-out;
+}
+
+.section .head .typeicon { font-size: 14px; color: $dim; margin-right: 6px; }
+.section .head .grow { flex-grow: 1; }
+.section .body { flex-direction: column; padding: 5px 8px 8px 22px; transition: opacity 0.2s ease-out; }
+.section .body:intro { opacity: 0; }
+
+.checkbox
+{
+	pointer-events: all;
+	width: 15px;
+	height: 15px;
+	margin-right: 7px;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	border-radius: 3px;
+	background-color: $sunken;
+	border: 1px solid $edge;
+	cursor: pointer;
+	transition: all 0.12s ease-out;
+}
+
+.checkbox:hover { border-color: $edge-hover; }
+.checkbox .icon { font-size: 12px; color: transparent; transition: color 0.12s ease-out; }
+.checkbox.on { background-color: $indigo; border-color: $indigo; }
+.checkbox.on .icon { color: #fff; }
+
+.field
+{
+	flex-direction: row;
+	align-items: center;
+	min-height: 22px;
+	margin-bottom: 2px;
+}
+
+.field .label
+{
+	width: 32%;
+	max-width: 124px;
+	flex-shrink: 0;
+	padding-right: 8px;
+	color: $text;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.field .control { flex-grow: 1; flex-shrink: 1; flex-direction: row; align-items: center; overflow: hidden; }
+.field .control .numberbox { min-width: 52px; }
+.field .control .readonly { color: $faint; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+.textinput
+{
+	pointer-events: all;
+	flex-grow: 1;
+	height: 24px;
+	padding: 0px 8px;
+	flex-direction: row;
+	align-items: center;
+	justify-content: flex-start;
+	white-space: nowrap;
+	overflow: hidden;
+	border-radius: 6px;
+	background-color: $sunken;
+	border: 1px solid $line;
+	color: $bright;
+	cursor: text;
+	transition: all 0.15s ease-out;
+}
+
+.textinput:hover { border-color: $edge-hover; }
+.textinput.focused { border-color: $indigo; box-shadow: 0px 0px 0px 2px rgba( #4c8dff, 0.2 ); }
+.textinput .value { color: $bright; white-space: nowrap; }
+.textinput .placeholder { color: $faint; white-space: nowrap; }
+
+.field .readonly { color: $dim; white-space: nowrap; overflow: hidden; }
+
+.section .group
+{
+	margin-top: 8px;
+	margin-bottom: 3px;
+	color: $faint;
+	font-size: 10px;
+	font-weight: 700;
+	letter-spacing: 0.8px;
+}
+
+.numberbox
+{
+	pointer-events: all;
+	flex-grow: 1;
+	height: 24px;
+	margin-right: 4px;
+	padding: 0px 6px;
+	flex-direction: row;
+	align-items: center;
+	border-radius: 6px;
+	background-color: $sunken;
+	border: 1px solid $line;
+	cursor: ew-resize;
+	font-family: Roboto Mono;
+	font-size: 11px;
+	transition: all 0.15s ease-out;
+}
+
+.numberbox:hover { border-color: $edge-hover; background-color: $sunken-hover; }
+.numberbox.dragging { border-color: $indigo; box-shadow: 0px 0px 0px 2px rgba( #4c8dff, 0.2 ); }
+.numberbox .axis { width: 13px; font-weight: 700; }
+.numberbox .axis.x { color: $rose; }
+.numberbox .axis.y { color: $lime; }
+.numberbox .axis.z { color: #7dd3fc; }
+.numberbox .value { flex-grow: 1; color: $bright; }
+
+.slider { position: relative; pointer-events: all; flex-grow: 1; height: 22px; flex-direction: row; align-items: center; cursor: ew-resize; }
+.slider .track
+{
+	position: relative;
+	flex-grow: 1;
+	height: 5px;
+	border-radius: 3px;
+	background-color: $sunken;
+	border: 1px solid $line;
+	flex-direction: row;
+}
+.slider .fill
+{
+	border-radius: 3px;
+	background-image: linear-gradient( 90deg, $indigo 0%, $cyan 160% );
+	transition: box-shadow 0.15s ease-out;
+}
+
+.slider:hover .fill { box-shadow: none; }
+.slider .knob
+{
+	position: absolute;
+	top: 0px;
+	width: 13px;
+	height: 13px;
+	margin-top: -5px;
+	margin-left: -6px;
+	border-radius: 7px;
+	background-color: $knob;
+	transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+}
+
+.slider:hover .knob { transform: scale( 1.25 ); box-shadow: 0px 0px 12px $shadow-soft; }
+.slider .readout { width: 46px; flex-shrink: 0; margin-left: 10px; text-align: right; color: $dim; font-family: Roboto Mono; font-size: 11px; }
+
+.toggle
+{
+	pointer-events: all;
+	width: 36px;
+	height: 20px;
+	padding: 2px;
+	border-radius: 10px;
+	background-color: $sunken;
+	cursor: pointer;
+	transition: background-color 0.2s ease-out, box-shadow 0.2s ease-out;
+}
+
+.toggle.on
+{
+	background-image: linear-gradient( 90deg, $indigo 0%, $cyan 140% );
+	box-shadow: none;
+}
+
+.toggle .nub
+{
+	width: 16px;
+	height: 16px;
+	border-radius: 8px;
+	background-color: $nub;
+	transition: margin-left 0.2s ease-out, background-color 0.2s ease-out;
+}
+
+.toggle.on .nub { margin-left: 16px; background-color: #fff; }
+.toggle:hover .nub { background-color: $nub-hover; }
+
+.swatch
+{
+	pointer-events: all;
+	width: 36px;
+	height: 22px;
+	border-radius: 6px;
+	border: 1px solid $edge;
+	cursor: pointer;
+	margin-right: 10px;
+	transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+}
+
+.swatch:hover { transform: scale( 1.1 ); box-shadow: 0px 4px 14px $shadow-soft; }
+
+.combo
+{
+	pointer-events: all;
+	flex-grow: 1;
+	height: 24px;
+	flex-direction: row;
+	align-items: center;
+	padding: 0px 5px 0px 9px;
+	border-radius: 6px;
+	background-color: $sunken;
+	border: 1px solid $line;
+	cursor: pointer;
+	transition: all 0.15s ease-out;
+}
+
+.combo:hover { border-color: $edge-hover; }
+.combo .value { flex-grow: 1; color: $bright; }
+.combo .icon { font-size: 14px; color: $dim; transition: transform 0.15s ease-out; }
+.combo:hover .icon { transform: translateY( 2px ); color: $indigo; }
+
+//
+// Status bar
+//
+.statusbar
+{
+	flex-shrink: 0;
+	height: 26px;
+	flex-direction: row;
+	align-items: center;
+	padding: 0px 12px;
+	background-color: $raised;
+	border-top: 1px solid $line;
+	color: $dim;
+	font-size: 11px;
+}
+
+.statusbar .grow { flex-grow: 1; }
+.statusbar .sep { width: 1px; height: 12px; margin: 0px 12px; background-color: $line; }
+.statusbar .mono { font-family: Roboto Mono; }
+.statusbar .dot
+{
+	width: 7px;
+	height: 7px;
+	border-radius: 4px;
+	margin-right: 8px;
+	background-color: $lime;
+	animation: pulse 1.8s infinite;
+}
+
+.statusbar .spinner
+{
+	width: 11px;
+	height: 11px;
+	margin-right: 8px;
+	border-radius: 6px;
+	border: 2px solid rgba( #6366f1, 0.25 );
+	border-top: 2px solid $indigo;
+	animation: spin 0.9s infinite;
+}
+
+.progress
+{
+	width: 120px;
+	height: 4px;
+	border-radius: 2px;
+	background-color: $raised;
+	overflow: hidden;
+}
+
+.progress .bar
+{
+	width: 30%;
+	height: 4px;
+	border-radius: 2px;
+	background-color: $indigo;
+	animation: sweep 1.6s infinite;
+}
+
+.graph { flex-direction: row; align-items: flex-end; height: 14px; margin-right: 4px; }
+.graph .bar
+{
+	width: 3px;
+	margin-right: 1px;
+	border-radius: 1px;
+	background-color: rgba( #22d3ee, 0.55 );
+	transition: height 0.25s ease-out, background-color 0.25s ease-out;
+}
+
+//
+// Light theme
+//
+
+$deep: #eceff4;
+$window: #f2f4f8;
+$panel: #fafbfd;
+$raised: #e7ebf1;
+$sunken: #ffffff;
+$sunken-hover: #f6f8fb;
+$line: #dde2ea;
+$line-soft: #e9edf3;
+$edge: #ccd3de;
+$edge-hover: #a3adbc;
+$bar-a: #eceff4;
+$bar-b: #eceff4;
+$popup: rgba( #ffffff, 0.99 );
+$text: #46505f;
+$dim: #78828f;
+$faint: #a6aeba;
+$bright: #131a24;
+$indigo: #2f7bf0;
+$violet: #2f7bf0;
+$cyan: #1596b5;
+$lime: #3f9a68;
+$amber: #b57a20;
+$rose: #d94f5c;
+$accent-text: #2f6fd0;
+$on-accent-dim: rgba( white, 0.85 );
+$hover-wash: rgba( black, 0.04 );
+$shadow-soft: rgba( #1b2233, 0.10 );
+$shadow-heavy: rgba( #1b2233, 0.16 );
+$knob: #ffffff;
+$nub: #ffffff;
+$nub-hover: #ffffff;
+
+EditorWindow.editor-light-mode { background-color: $window; color: $text; border: 1px solid $edge; }
+.editor-light-mode .assets .bar { background-color: $deep; border-bottom: 1px solid $line; }
+.editor-light-mode .assets .bar .count { color: $faint; }
+.editor-light-mode .titlebar { background-image: linear-gradient( 180deg, $bar-b 0%, $bar-a 100% ); border-bottom: 1px solid $line; }
+.editor-light-mode .titlebar .brand { background-image: linear-gradient( 145deg, $cyan 0%, $indigo 60% ); }
+.editor-light-mode .titlebar .title { color: $dim; }
+.editor-light-mode .titlebar .project:hover { background-color: $hover-wash; }
+.editor-light-mode .titlebar .project .chip { background-image: linear-gradient( 145deg, $cyan 0%, $indigo 60% ); }
+.editor-light-mode .titlebar .project .name { color: $text; }
+.editor-light-mode .titlebar .windowbutton { color: $dim; }
+.editor-light-mode .titlebar .windowbutton:hover { background-color: $hover-wash; color: $bright; }
+.editor-light-mode .titlebar .windowbutton.close:hover { background-color: $rose; }
+.editor-light-mode .menubar > .menu { color: $text; }
+.editor-light-mode .menubar > .menu.active { background-color: $raised; color: $bright; }
+.editor-light-mode .menubar > .menu.open { background-color: $indigo; }
+.editor-light-mode .menulist { color: $text; background-color: $popup; border: 1px solid $edge; box-shadow: 0px 18px 44px $shadow-heavy; }
+.editor-light-mode .menulist .menu.active, .editor-light-mode .menulist .menu.open { background-image: linear-gradient( 90deg, $indigo 0%, rgba( #4c8dff, 0.55 ) 100% ); }
+.editor-light-mode .menulist .menu > .shortcut { color: $dim; }
+.editor-light-mode .menulist .menu.active > .shortcut { color: $on-accent-dim; }
+.editor-light-mode .menulist .menu.separator { background-color: $line; }
+.editor-light-mode .dropdown { color: $text; background-color: $popup; border: 1px solid $edge; box-shadow: 0px 18px 44px $shadow-heavy; }
+.editor-light-mode .dropdown .row:hover { background-image: linear-gradient( 90deg, $indigo 0%, rgba( #4c8dff, 0.55 ) 100% ); }
+.editor-light-mode .dropdown .row .shortcut { color: $dim; }
+.editor-light-mode .dropdown .row:hover .shortcut { color: $on-accent-dim; }
+.editor-light-mode .dropdown .separator { background-color: $line; }
+.editor-light-mode .toolbar, .editor-light-mode .viewporttoolbar { background-color: $panel; border-bottom: 1px solid $line; }
+.editor-light-mode .toolbar .divider, .editor-light-mode .viewporttoolbar .divider { background-color: $line; }
+.editor-light-mode .viewporttoolbar .numberbox .unit { color: $faint; }
+.editor-light-mode .viewporttoolbar .iconbutton.play.playing { color: $rose; }
+.editor-light-mode .viewporttoolbar .iconbutton.play { color: $lime; }
+.editor-light-mode .iconbutton { color: $dim; }
+.editor-light-mode .iconbutton:hover { background-color: $raised; color: $bright; }
+.editor-light-mode .iconbutton.active { background-color: $indigo; }
+.editor-light-mode .iconbutton.warm.active { background-color: $lime; }
+.editor-light-mode .segmented { background-color: $sunken; border: 1px solid $line-soft; }
+.editor-light-mode .segmented .segment { color: $dim; }
+.editor-light-mode .segmented .segment:hover { color: $bright; }
+.editor-light-mode .segmented .segment.active { background-color: $raised; color: $bright; box-shadow: 0px 2px 8px $shadow-soft; }
+.editor-light-mode .searchbox { background-color: $sunken; border: 1px solid $line; }
+.editor-light-mode .searchbox:hover { border-color: $edge-hover; }
+.editor-light-mode .searchbox.focused { border-color: $indigo; }
+.editor-light-mode .searchbox .icon { color: $dim; }
+.editor-light-mode .searchbox.focused .icon { color: $indigo; }
+.editor-light-mode .searchbox .value { color: $bright; }
+.editor-light-mode .searchbox .placeholder { color: $dim; }
+.editor-light-mode .pane { background-color: $panel; }
+.editor-light-mode .paneheader { background-color: $raised; border-bottom: 1px solid $line; color: $dim; }
+.editor-light-mode .paneheader .badge { color: $accent-text; }
+.editor-light-mode .splitter { background-color: $deep; }
+.editor-light-mode .splitter:hover, .editor-light-mode .splitter.dragging { background-color: $indigo; }
+.editor-light-mode .splitter.horizontal:hover, .editor-light-mode .splitter.horizontal.dragging { background-color: $indigo; }
+.editor-light-mode .viewport { border-bottom: 1px solid $line; }
+.editor-light-mode .viewport .chip { color: $text; }
+.editor-light-mode .viewport .chip.live .dot { background-color: $lime; }
+.editor-light-mode .treerow { color: $text; }
+.editor-light-mode .treerow:hover { background-color: $raised; }
+.editor-light-mode .treerow.selected { background-image: linear-gradient( 90deg, $indigo 0%, rgba( #4c8dff, 0.35 ) 100% ); }
+.editor-light-mode .treerow .arrow { color: $dim; }
+.editor-light-mode .treerow .arrow:hover { color: $bright; }
+.editor-light-mode .treerow .kind { color: $faint; }
+.editor-light-mode .treerow:hover .kind { color: $cyan; }
+.editor-light-mode .treerow .eye { color: $faint; }
+.editor-light-mode .treerow .eye:hover { color: $amber; }
+.editor-light-mode .treerow.hidden .name { color: $faint; }
+.editor-light-mode .tabbar { background-color: $deep; border-bottom: 1px solid $line; }
+.editor-light-mode .tabbar .tab { color: $dim; }
+.editor-light-mode .tabbar .tab:hover { color: $text; background-color: $hover-wash; }
+.editor-light-mode .tabbar .tab.active { color: $bright; background-image: linear-gradient( 180deg, rgba( #4c8dff, 0.12 ) 0%, $panel 80% ); border-bottom-color: $indigo; }
+.editor-light-mode .tabbar .tab.active .icon { color: $indigo; }
+.editor-light-mode .tabbar .tab .count { background-color: $raised; color: $dim; }
+.editor-light-mode .tabbar .tab.active .count { color: $accent-text; }
+.editor-light-mode .tablehead { background-color: $raised; border-bottom: 1px solid $line; color: $dim; }
+.editor-light-mode .tablerow { border-bottom: 1px solid $line-soft; color: $text; }
+.editor-light-mode .tablerow:hover { background-color: $raised; }
+.editor-light-mode .tablerow.selected { background-image: linear-gradient( 90deg, $indigo 0%, rgba( #4c8dff, 0.3 ) 100% ); }
+.editor-light-mode .cell.c-icon { color: $faint; }
+.editor-light-mode .cell.c-type { color: $dim; }
+.editor-light-mode .cell.c-tris { color: $dim; }
+.editor-light-mode .tablerow:hover .cell.c-icon { color: $cyan; }
+.editor-light-mode .pill { background-color: $raised; color: $dim; }
+.editor-light-mode .pill.ok { color: $lime; }
+.editor-light-mode .pill.warn { color: $amber; }
+.editor-light-mode .pill.bad { color: $rose; }
+.editor-light-mode .assetcard { background-color: $raised; }
+.editor-light-mode .assetcard:hover { box-shadow: 0px 12px 26px $shadow-heavy; }
+.editor-light-mode .assetcard.selected { border-color: $indigo; }
+.editor-light-mode .assetcard .label { color: $text; }
+.editor-light-mode .scenetabs { background-color: $deep; border-bottom: 1px solid $line; }
+.editor-light-mode .scenetab { color: $dim; border-right: 1px solid $line-soft; }
+.editor-light-mode .scenetab:hover { color: $text; background-color: $raised; }
+.editor-light-mode .scenetab.active { color: $bright; background-color: $panel; border-bottom: 2px solid $indigo; }
+.editor-light-mode .scenetab .dirty { color: $amber; }
+.editor-light-mode .panetools { border-bottom: 1px solid $line-soft; }
+.editor-light-mode .toolbutton { color: $dim; }
+.editor-light-mode .toolbutton:hover { background-color: $raised; color: $bright; }
+.editor-light-mode .toolbutton.active { background-color: $indigo; }
+.editor-light-mode .viewport .fps { color: $lime; }
+.editor-light-mode .viewport .toolstrip .toolbutton.active { background-color: $indigo; }
+.editor-light-mode .statusbar .logcount { color: $dim; }
+.editor-light-mode .statusbar .logcount.warn { color: $amber; }
+.editor-light-mode .statusbar .logcount.error { color: $rose; }
+.editor-light-mode .console .bar { background-color: $deep; border-bottom: 1px solid $line; }
+.editor-light-mode .console .button { color: $dim; border: 1px solid $line; }
+.editor-light-mode .console .button:hover { color: $bright; background-color: $raised; border-color: $edge; }
+.editor-light-mode .console .button.active { color: $bright; background-color: $raised; border-color: $edge-hover; }
+.editor-light-mode .console .filter { color: $faint; }
+.editor-light-mode .console .filter:hover { background-color: $raised; }
+.editor-light-mode .console .filter.active { background-color: $raised; }
+.editor-light-mode .console .filter.warn.active { color: $amber; }
+.editor-light-mode .console .filter.error.active { color: $rose; }
+.editor-light-mode .console .filter.info.active { color: $text; }
+.editor-light-mode .console .list { background-color: $sunken; }
+.editor-light-mode .console .row.odd { background-color: $sunken-hover; }
+.editor-light-mode .console .row:hover { background-color: $raised; }
+.editor-light-mode .console .row.selected { background-image: linear-gradient( 90deg, rgba( $indigo, 0.35 ) 0%, rgba( $indigo, 0.10 ) 100% ); }
+.editor-light-mode .console .row .level { color: $faint; }
+.editor-light-mode .console .row .time { color: $faint; }
+.editor-light-mode .console .row .source { color: $dim; }
+.editor-light-mode .console .row .repeat { background-color: $raised; color: $dim; }
+.editor-light-mode .console .row.warn .level { color: $amber; }
+.editor-light-mode .console .row.error .level { color: $rose; }
+.editor-light-mode .console .row .message .part { color: $text; }
+.editor-light-mode .console .row .message .part.match { background-color: rgba( $indigo, 0.35 ); color: $bright; }
+.editor-light-mode .console .row.warn .message .part { color: $amber; }
+.editor-light-mode .console .row.error .message .part { color: $rose; }
+.editor-light-mode .console .detail { background-color: $deep; border-top: 1px solid $line; }
+.editor-light-mode .console .detail .message { color: $bright; }
+.editor-light-mode .console .detail .message:hover { color: $accent-text; }
+.editor-light-mode .console .stackrow:hover { background-color: $raised; }
+.editor-light-mode .console .stackrow .function { color: $text; }
+.editor-light-mode .console .stackrow .file { color: $accent-text; }
+.editor-light-mode .console .suggestions { background-color: $popup; border-top: 1px solid $line; }
+.editor-light-mode .console .suggestion:hover { background-color: $raised; }
+.editor-light-mode .console .suggestion .command { color: $accent-text; }
+.editor-light-mode .console .suggestion .description { color: $faint; }
+.editor-light-mode .console .commandline { background-color: $deep; border-top: 1px solid $line; }
+.editor-light-mode .console .commandline .prompt { color: $lime; }
+.editor-light-mode .objectheader .typeicon { color: $accent-text; }
+.editor-light-mode .objecttags { color: $dim; }
+.editor-light-mode .objecttags .icon { color: $faint; }
+.editor-light-mode .objecttags .value.none { color: $faint; }
+.editor-light-mode .grouphead { color: $dim; }
+.editor-light-mode .grouphead:hover { color: $bright; }
+.editor-light-mode .grouphead .arrow { color: $faint; }
+.editor-light-mode .section .head .menu { color: $faint; }
+.editor-light-mode .inspector .empty { color: $faint; }
+.editor-light-mode .section { border-bottom: 1px solid $line-soft; }
+.editor-light-mode .section .head { background-color: $deep; color: $text; }
+.editor-light-mode .section .head:hover { background-color: $raised; }
+.editor-light-mode .section .head .arrow { color: $faint; }
+.editor-light-mode .section .head .typeicon { color: $dim; }
+.editor-light-mode .checkbox { background-color: $sunken; border: 1px solid $edge; }
+.editor-light-mode .checkbox:hover { border-color: $edge-hover; }
+.editor-light-mode .checkbox.on { background-color: $indigo; border-color: $indigo; }
+.editor-light-mode .field .label { color: $text; }
+.editor-light-mode .field .control .readonly { color: $faint; }
+.editor-light-mode .textinput { background-color: $sunken; border: 1px solid $line; color: $bright; }
+.editor-light-mode .textinput:hover { border-color: $edge-hover; }
+.editor-light-mode .textinput.focused { border-color: $indigo; }
+.editor-light-mode .textinput .value { color: $bright; }
+.editor-light-mode .textinput .placeholder { color: $faint; }
+.editor-light-mode .field .readonly { color: $dim; }
+.editor-light-mode .section .group { color: $faint; }
+.editor-light-mode .numberbox { background-color: $sunken; border: 1px solid $line; }
+.editor-light-mode .numberbox:hover { border-color: $edge-hover; background-color: $sunken-hover; }
+.editor-light-mode .numberbox.dragging { border-color: $indigo; }
+.editor-light-mode .numberbox .axis.x { color: $rose; }
+.editor-light-mode .numberbox .axis.y { color: $lime; }
+.editor-light-mode .numberbox .value { color: $bright; }
+.editor-light-mode .slider .track { background-color: $sunken; border: 1px solid $line; }
+.editor-light-mode .slider .fill { background-image: linear-gradient( 90deg, $indigo 0%, $cyan 160% ); }
+.editor-light-mode .slider .knob { background-color: $knob; }
+.editor-light-mode .slider:hover .knob { box-shadow: 0px 0px 12px $shadow-soft; }
+.editor-light-mode .slider .readout { color: $dim; }
+.editor-light-mode .toggle { background-color: $sunken; }
+.editor-light-mode .toggle.on { background-image: linear-gradient( 90deg, $indigo 0%, $cyan 140% ); }
+.editor-light-mode .toggle .nub { background-color: $nub; }
+.editor-light-mode .toggle:hover .nub { background-color: $nub-hover; }
+.editor-light-mode .swatch { border: 1px solid $edge; }
+.editor-light-mode .swatch:hover { box-shadow: 0px 4px 14px $shadow-soft; }
+.editor-light-mode .combo { background-color: $sunken; border: 1px solid $line; }
+.editor-light-mode .combo:hover { border-color: $edge-hover; }
+.editor-light-mode .combo .value { color: $bright; }
+.editor-light-mode .combo .icon { color: $dim; }
+.editor-light-mode .combo:hover .icon { color: $indigo; }
+.editor-light-mode .statusbar { background-color: $raised; border-top: 1px solid $line; color: $dim; }
+.editor-light-mode .statusbar .sep { background-color: $line; }
+.editor-light-mode .statusbar .dot { background-color: $lime; }
+.editor-light-mode .statusbar .spinner { border-top: 2px solid $indigo; }
+.editor-light-mode .progress { background-color: $raised; }
+.editor-light-mode .progress .bar { background-color: $indigo; }

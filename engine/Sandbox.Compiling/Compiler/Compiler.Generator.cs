@@ -16,7 +16,7 @@ partial class Compiler
 
 		if ( Group.AllowFastHotload && incrementalState.HasState )
 		{
-			processor.Run( compiler, syntaxTrees, incrementalState.Compilation, incrementalState.PreHotloadSyntaxTrees );
+			processor.Run( compiler, syntaxTrees, incrementalState.Compilation );
 		}
 		else
 		{

@@ -62,6 +62,12 @@ public static class Application
 	internal static int LocalInstanceId { get; private set; }
 
 	/// <summary>
+	/// Number of engine frames since startup. Increments once at the start of every frame.
+	/// Starts at 1, so a default frame stamp of 0 always reads as a frame that has passed.
+	/// </summary>
+	public static ulong FrameCount { get; internal set; } = 1;
+
+	/// <summary>
 	/// The engine's version string
 	/// </summary>
 	public static string Version { get; internal set; }
@@ -132,7 +138,7 @@ public static class Application
 			var split = text.Split( "\n" );
 
 			Version = split[0].Trim();
-			VersionDate = DateTime.ParseExact( split[4], "dd/MM/yyyy HH:mm:ss", null, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal );
+			VersionDate = DateTime.ParseExact( split[4], "dd/MM/yyyy HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal );
 		}
 	}
 
@@ -147,11 +153,15 @@ public static class Application
 	/// </summary>
 	internal static Package MapPackage { get; set; }
 
-
 	/// <summary>
 	/// The currently loaded game package's ident - if applicable.
 	/// </summary>
 	internal static string GameIdent { get; set; }
+
+	/// <summary>
+	/// The currently loaded map, can be an ident or a path.
+	/// </summary>
+	internal static string Map { get; set; }
 
 #if DEBUG
 	public static bool IsDebug => true;
@@ -192,11 +202,14 @@ public static class Application
 		GamePackage = default;
 		ExceptionCount = default;
 		MapPackage = default;
+
+		// Cheats, and anything they allowed, shouldn't carry over into the next game
+		ConVarSystem.ResetCheats();
 	}
 
 	public static bool CheatsEnabled
 	{
-		get => ConVarSystem.GetValue( "sv_cheats", "false", true ).ToBool();
+		get => ConVarSystem.GetValue( ConVarSystem.CheatsVariableName, "false", true ).ToBool();
 	}
 
 	/// <summary>
@@ -236,4 +249,20 @@ public static class Application
 	/// </summary>
 	public static EditorSystem Editor => IToolsDll.Current?.ActiveEditor;
 
+
+	[ConCmd( "version", Help = "Print info about the game version" )]
+	internal static void PrintVersion()
+	{
+		Log.Info( $"s&box version {Version} ({VersionDate})" );
+
+		if ( GamePackage is { } game )
+		{
+			Log.Info( $"Game: {game.GetIdent( false, true )} ({game.Revision?.Created})" );
+		}
+
+		if ( MapPackage is { } map )
+		{
+			Log.Info( $"Map: {map.GetIdent( false, true )} ({map.Revision?.Created})" );
+		}
+	}
 }

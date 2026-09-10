@@ -1,0 +1,359 @@
+@import '../../styles/_theme.scss';
+@import '../../styles/mainmenu.scss';
+
+WelcomeScreenModal
+{
+	position: absolute;
+	left: 0px;
+	top: 0px;
+	right: 0px;
+	bottom: 0px;
+	background-color: #1114;
+	backdrop-filter: blur( 4px ) contrast( 0.7 ) brightness( 0.1 );
+	justify-content: center;
+	align-items: center;
+	pointer-events: all;
+	transition: all 250ms ease-out;
+	opacity: 1;
+
+	&:intro
+	{
+		opacity: 0;
+	}
+
+	&:outro
+	{
+		transition: all 0.3s ease-in;
+		pointer-events: none;
+		opacity: 0;
+	}
+
+	.window
+	{
+		z-index: 1000;
+		width: 720px;
+		height: 600px;
+		font-family: $font-default;
+		border-radius: $rounding-large;
+		flex-direction: column;
+		flex-shrink: 0;
+		pointer-events: all;
+		background-color: $default-900;
+		border: 1px solid $default-border;
+		box-shadow: 0 16px 48px rgba( black, 0.5 );
+		overflow: hidden;
+		opacity: 1;
+		transform: scale( 1 ) translateY( 0px );
+		transition: transform 350ms ease-out, opacity 250ms ease-out;
+
+		&:intro
+		{
+			opacity: 0;
+			transform: scale( 0.94 ) translateY( 60px );
+		}
+
+		&:outro
+		{
+			opacity: 0;
+			transform: scale( 0.96 ) translateY( 20px );
+			transition: transform 150ms ease-in, opacity 150ms ease-in;
+		}
+	}
+
+	.screens
+	{
+		flex-direction: column;
+		flex-grow: 1;
+
+		.screen
+		{
+			flex-direction: column;
+			flex-grow: 1;
+			width: 100%;
+
+			.screen-header
+			{
+				width: 100%;
+				height: 240px;
+				flex-direction: column;
+				align-items: center;
+				justify-content: center;
+				gap: 10px;
+				padding: 24px 48px;
+				background-position: center;
+				background-size: cover;
+				background-color: $default-950;
+				border-bottom: 1px solid $default-border;
+				flex-shrink: 0;
+
+				label.eyebrow
+				{
+					background-color: rgba( $primary-blue, 0.9 );
+					color: white;
+					padding: 4px 14px;
+					border-radius: 999px;
+					font-family: $font-heading;
+					font-size: $text-eyebrow;
+					font-weight: 700;
+					text-transform: uppercase;
+					letter-spacing: 0.2em;
+					flex-shrink: 0;
+					box-shadow: 0 2px 8px rgba( black, 0.4 );
+				}
+
+				label.title
+				{
+					font-family: $font-heading;
+					font-size: 44px;
+					font-weight: 700;
+					color: white;
+					padding: 4px 24px;
+					background-color: rgba( black, 0.4 );
+					backdrop-filter: blur( 6px );
+					border-radius: $rounding-default;
+					text-align: center;
+					text-shadow: 2px 2px 4px rgba( black, 0.8 );
+					flex-shrink: 0;
+				}
+			}
+
+			.body
+			{
+				flex-direction: column;
+				gap: 12px;
+				width: 100%;
+				flex-grow: 1;
+				flex-shrink: 0;
+				padding: 32px 64px;
+				align-items: center;
+
+				> label
+				{
+					font-size: $text-medium;
+					color: $default-text-light;
+					text-align: center;
+					width: 100%;
+					flex-shrink: 0;
+				}
+
+				Button.learn-button
+				{
+					margin-top: 12px;
+					flex-shrink: 0;
+				}
+
+				label.intro-eyebrow
+				{
+					font-family: $font-heading;
+					font-size: $text-eyebrow;
+					font-weight: 700;
+					text-transform: uppercase;
+					letter-spacing: 0.2em;
+					color: $primary-blue;
+					text-align: center;
+					flex-shrink: 0;
+				}
+
+				label.intro-title
+				{
+					font-family: $font-heading;
+					font-size: 32px;
+					font-weight: 700;
+					color: $default-text;
+					text-align: center;
+					margin-bottom: 4px;
+					flex-shrink: 0;
+				}
+
+				.game-buttons
+				{
+					flex-direction: row;
+					gap: 16px;
+					width: 100%;
+					margin-top: 16px;
+					flex-shrink: 0;
+				}
+
+				.game-button
+				{
+					flex-grow: 1;
+					flex-basis: 0;
+					height: 280px;
+					background-position: center;
+					background-size: cover;
+					background-color: $default-950;
+					border-radius: $rounding-large;
+					border: 1px solid $default-border;
+					overflow: hidden;
+					cursor: pointer;
+					align-items: flex-end;
+					transition: all 150ms $easing;
+
+					&:hover
+					{
+						border-color: $primary-blue;
+						box-shadow: 0 0 20px rgba( $primary-blue, 0.4 );
+					}
+
+					&:active
+					{
+						transform: scale( 0.98 );
+					}
+
+					.game-button-label
+					{
+						flex-direction: column;
+						gap: 2px;
+						width: 100%;
+						padding: 16px;
+						background-image: linear-gradient( to top, rgba( black, 0.85 ) 0%, rgba( black, 0 ) 100% );
+						align-items: flex-start;
+
+						label.game-name
+						{
+							font-family: $font-heading;
+							font-size: 20px;
+							font-weight: 700;
+							color: white;
+							text-shadow: 2px 2px 4px rgba( black, 0.8 );
+							flex-shrink: 0;
+							width: 100%;
+							text-align: left;
+						}
+
+						label.game-desc
+						{
+							font-size: $text-regular;
+							color: $default-text-light;
+							text-shadow: 1px 1px 2px rgba( black, 0.8 );
+							flex-shrink: 0;
+							width: 100%;
+							text-align: left;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	.footer
+	{
+		flex-direction: column;
+		gap: 16px;
+		padding: 16px 24px 20px 24px;
+		border-top: 1px solid $default-border;
+		background-color: rgba( black, 0.15 );
+		flex-shrink: 0;
+	}
+
+	.dots
+	{
+		justify-content: center;
+		align-items: center;
+		gap: 8px;
+		flex-shrink: 0;
+
+		.dot
+		{
+			width: 8px;
+			height: 8px;
+			border-radius: 999px;
+			background-color: $default-700;
+			cursor: pointer;
+			transition: all 150ms $easing;
+			flex-shrink: 0;
+
+			&:hover
+			{
+				background-color: $default-500;
+			}
+
+			&.active
+			{
+				background-color: $primary-blue;
+				width: 24px;
+			}
+		}
+	}
+
+	.actions
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 12px;
+		flex-shrink: 0;
+
+		.grow
+		{
+			flex-grow: 1;
+		}
+
+		.dont-show
+		{
+			flex-direction: row;
+			align-items: center;
+			gap: 8px;
+			cursor: pointer;
+			color: $default-text-light;
+			font-size: $text-regular;
+			padding: 4px 8px;
+			border-radius: $rounding-default;
+			transition: all 150ms $easing;
+			flex-shrink: 0;
+
+			icon
+			{
+				font-size: 20px;
+				color: $default-300;
+				flex-shrink: 0;
+			}
+
+			label
+			{
+				flex-shrink: 0;
+			}
+
+			&:hover
+			{
+				color: $default-text;
+
+				icon
+				{
+					color: $default-text;
+				}
+			}
+
+			&.checked
+			{
+				icon
+				{
+					color: $primary-blue;
+				}
+			}
+		}
+
+		Button.secondary
+		{
+			font-family: $font-heading;
+			background-color: transparent;
+			color: $default-text-light;
+			font-size: $text-regular;
+			font-weight: bold;
+			padding: 4px 16px;
+			border-radius: $rounding-large;
+			border: 1px solid $default-border;
+
+			&:hover
+			{
+				color: $default-text;
+				border-color: $default-500;
+			}
+		}
+	}
+}
+
+strong
+{
+	color: white;
+	font-weight: 700;
+}

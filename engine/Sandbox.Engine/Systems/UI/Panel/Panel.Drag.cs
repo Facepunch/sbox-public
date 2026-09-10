@@ -70,7 +70,7 @@ public partial class Panel
 		if ( ScrollSize.IsNearZeroLength ) return;
 		if ( !WantsDragScrolling ) return;
 
-		var delta = Mouse.Velocity * -6.0f;
+		var delta = (UISystem?.Input.CursorVelocity ?? default) * -6.0f;
 
 		if ( !HasScrollX ) delta.x = 0.0f;
 		if ( !HasScrollY ) delta.y = 0.0f;
@@ -142,7 +142,9 @@ public partial class Panel
 	protected virtual void OnDragLeave( PanelEvent e ) { }
 
 	/// <summary>
-	/// Called when a dragged panel is released over this panel.
+	/// Called when a dragged panel is released over this panel. Drags from outside the app
+	/// come through here too, as a <see cref="DropEvent"/> - repeatedly while one hovers, so
+	/// its Action can answer whether it'd be taken, then once more when it lands.
 	/// </summary>
 	protected virtual void OnDrop( PanelEvent e ) { }
 }

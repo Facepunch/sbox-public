@@ -1,7 +1,19 @@
+@import "/styles/_theme.scss";
+
+MapsPage
+{
+	background-color: transparent;
+}
+
+Page
+{
+	width: 100%;
+	margin: auto;
+}
+
 MapsPage packagelist virtualgrid
 {
     padding: 32px;
     padding-bottom: 132px;
     gap: 16px;
 }
-

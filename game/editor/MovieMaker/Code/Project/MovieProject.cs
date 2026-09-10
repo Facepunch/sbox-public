@@ -123,23 +123,23 @@ public sealed partial class MovieProject : IMovieClip, IMovieProject
 			switch ( compiledTrack )
 			{
 				case ICompiledReferenceTrack refTrack:
-				{
-					var track = IProjectReferenceTrack.Create( this, refTrack.Id, refTrack.Name, refTrack.TargetType );
+					{
+						var track = IProjectReferenceTrack.Create( this, refTrack.Id, refTrack.Name, refTrack.TargetType );
 
-					track.Metadata = refTrack.Metadata;
+						track.Metadata = refTrack.Metadata;
 
-					AddTrackInternal( track, parentTrack );
-					continue;
-				}
+						AddTrackInternal( track, parentTrack );
+						continue;
+					}
 				case ICompiledPropertyTrack propertyTrack:
-				{
-					var track = IProjectPropertyTrack.Create( this, Guid.NewGuid(), propertyTrack.Name, propertyTrack.TargetType );
+					{
+						var track = IProjectPropertyTrack.Create( this, Guid.NewGuid(), propertyTrack.Name, propertyTrack.TargetType );
 
-					track.SetBlocks( propertyTrack.Blocks.ToProjectBlocks() );
+						track.SetBlocks( propertyTrack.Blocks.ToProjectBlocks() );
 
-					AddTrackInternal( track, parentTrack );
-					continue;
-				}
+						AddTrackInternal( track, parentTrack );
+						continue;
+					}
 				default:
 					throw new NotImplementedException();
 			}
@@ -259,30 +259,30 @@ public sealed partial class MovieProject : IMovieClip, IMovieProject
 				throw new NotImplementedException();
 
 			case IReferenceTrack referenceTrack:
-			{
-				if ( GetTrack( referenceTrack.Id ) is IProjectReferenceTrack refTrackCopy ) return refTrackCopy;
-
-				refTrackCopy = IProjectReferenceTrack.Create( this, referenceTrack.Id, referenceTrack.Name, referenceTrack.TargetType );
-				refTrackCopy.Metadata = referenceTrack.Metadata;
-
-				var parentCopy = track.Parent is { } parent ? GetOrAddTrack( parent ) : null;
-
-				AddTrackInternal( refTrackCopy, parentCopy );
-
-				return refTrackCopy;
-			}
-
-			case IPropertyTrack propertyTrack:
-			{
-				var parentCopy = GetOrAddTrack( propertyTrack.Parent );
-
-				if ( parentCopy.GetChild( propertyTrack.Name ) is { } existing && existing.TargetType == propertyTrack.TargetType )
 				{
-					return existing;
+					if ( GetTrack( referenceTrack.Id ) is IProjectReferenceTrack refTrackCopy ) return refTrackCopy;
+
+					refTrackCopy = IProjectReferenceTrack.Create( this, referenceTrack.Id, referenceTrack.Name, referenceTrack.TargetType );
+					refTrackCopy.Metadata = referenceTrack.Metadata;
+
+					var parentCopy = track.Parent is { } parent ? GetOrAddTrack( parent ) : null;
+
+					AddTrackInternal( refTrackCopy, parentCopy );
+
+					return refTrackCopy;
 				}
 
-				return AddPropertyTrack( propertyTrack.Name, propertyTrack.TargetType, GetOrAddTrack( propertyTrack.Parent ) );
-			}
+			case IPropertyTrack propertyTrack:
+				{
+					var parentCopy = GetOrAddTrack( propertyTrack.Parent );
+
+					if ( parentCopy.GetChild( propertyTrack.Name ) is { } existing && existing.TargetType == propertyTrack.TargetType )
+					{
+						return existing;
+					}
+
+					return AddPropertyTrack( propertyTrack.Name, propertyTrack.TargetType, GetOrAddTrack( propertyTrack.Parent ) );
+				}
 
 			default:
 				throw new NotImplementedException();

@@ -12,7 +12,7 @@ using System.Threading;
 /// </summary>
 [Expose]
 [Title( "Indirect Light Volume (DDGI)" )]
-[Category( "Rendering" )]
+[Category( "Light" )]
 [Icon( "grid_view" )]
 [EditorHandle( "materials/gizmo/lpv.png" )]
 [Alias( "DDGIVolume" )]
@@ -123,6 +123,13 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 	} = 1.0f;
 
 	/// <summary>
+	/// Objects with any of these tags will be excluded when baking probes for this volume.
+	/// </summary>
+	[Property]
+	[Group( "Advanced Settings" )]
+	public TagSet RenderExcludeTags { get; set; } = new();
+
+	/// <summary>
 	/// Calculated probe count along each axis based on bounds and density.
 	/// </summary>
 	public Vector3Int ProbeCounts => ComputeProbeCounts();
@@ -183,10 +190,18 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 	//
 	// Editor Actions
 	//
+	[Expose, Hide]
+	internal bool IsSceneSaved => Scene?.Editor?.GetSceneFolder() is not null;
+
+	[ShowIf( nameof( IsSceneSaved ), false )]
+	[InfoBox( "Save the scene before baking indirect light volumes.", "warning", EditorTint.Yellow )]
+	[Button( "Bake", "lightbulb" ), ReadOnly]
+	public void BakeProbesUnavailableMessage() { }
 
 	/// <summary>
 	/// Starts the probe baking process to capture lighting into the volume textures.
 	/// </summary>
+	[ShowIf( nameof( IsSceneSaved ), true )]
 	[Button( "Bake", "lightbulb" )]
 	public async Task BakeProbes( CancellationToken ct = default )
 	{
@@ -223,7 +238,7 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 			Graphics.FlushGPU();
 
 			IrradianceTexture = SaveTexture( updater.GeneratedIrradianceTexture, "Irradiance" );
-			DistanceTexture = SaveTexture( updater.GeneratedDistanceTexture, "Distance", ImageFormat.RG1616F ); // BC6H ideally, but block compression fucks precision too much
+			DistanceTexture = SaveTexture( updater.GeneratedDistanceTexture, "Distance", ImageFormat.BC6H ); // Previously RGBA16F, we're using softer depth so we can take advantage of BC6H compression now like Overwatch does.
 			RelocationTexture = SaveTexture( GeneratedRelocationTexture, "Relocation", ImageFormat.RGBA16161616F );
 		}
 
@@ -274,15 +289,30 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 	// Gizmos
 	//
 
+	private IDisposable _boundsUndoScope;
+
 	protected override void DrawGizmos()
 	{
+		if ( !Gizmo.Pressed.Any )
+		{
+			_boundsUndoScope?.Dispose();
+			_boundsUndoScope = null;
+		}
+
 		if ( !Gizmo.IsSelected )
 			return;
 
-		var bounds = Bounds;
-		Gizmo.Control.BoundingBox( "Bounds", bounds, out bounds );
-		Gizmo.Draw.LineBBox( bounds );
-		Bounds = bounds;
+		if ( Gizmo.Control.BoundingBox( "Bounds", Bounds, out var newBounds ) )
+		{
+			_boundsUndoScope ??= Scene.Editor?.UndoScope( "Resize Indirect Light Volume" ).WithComponentChanges( this ).Push();
+
+			Bounds = newBounds;
+		}
+
+		Gizmo.Draw.LineBBox( Bounds );
+
+		Gizmo.Draw.Color = new Color( 0.25f, 0.9f, 1, 0.05f );
+		Gizmo.Draw.SolidBox( Bounds );
 
 		// Use gizmo pooling so it follows gizmo visibility rules (hidden when gizmos disabled, not in cubemaps)
 		var debugGrid = Gizmo.Active.FindOrCreate<LPVDebugGridObject>( "lpv-grid", () => new( Gizmo.World ) );

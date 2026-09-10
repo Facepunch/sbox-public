@@ -3,8 +3,7 @@
 Avatar
 {
 	pointer-events: all;
-	padding: 4px;
-	margin: -4px;
+	cursor: pointer;
 
 	.avatar
 	{
@@ -12,7 +11,6 @@ Avatar
 		height: 24px;
 		background-image: url( "/ui/sbox-logo-square.svg" );
 		background-size: cover;
-		border-radius: 100%;
 
 		&.online
 		{
@@ -31,15 +29,17 @@ Avatar
 		{
 			width: 32px;
 			height: 32px;
+			border-radius: 4px;
 		}
 	}
-	
-    &.small
-    {
-        .avatar
-        {
-            width: 16px;
-            height: 16px;
-        }
-    }
+
+	&.small
+	{
+		.avatar
+		{
+			width: 16px;
+			height: 16px;
+			border-radius: 2px;
+		}
+	}
 }

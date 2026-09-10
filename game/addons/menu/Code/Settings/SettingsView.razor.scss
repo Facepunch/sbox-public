@@ -1,0 +1,904 @@
+﻿@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+// Scoped under SettingsView: stylesheets are global, and this used to dress every <row> in
+// the menu by accident.
+
+$settings-rail: 300px;
+$settings-detail: 370px;
+$settings-control: 430px;
+
+SettingsView
+{
+	flex-direction: row;
+	flex-grow: 1;
+	gap: $front-chrome-gap;
+	padding: $front-chrome-gap;
+	font-family: $front-font;
+	font-size: 15px;
+	overflow: hidden;
+
+	> .rail
+	{
+		@include front-card;
+
+		width: $settings-rail;
+		flex-shrink: 0;
+		padding: 16px 0;
+		gap: 16px;
+	}
+
+	// Not ".search": TextEntry gives its IconPanel a class named after the icon.
+	.settings-search
+	{
+		flex-shrink: 0;
+		margin: 0 14px;
+		padding: 8px 12px;
+		border-radius: $front-radius;
+		border: 1px solid $front-hairline;
+		background-color: rgba( 0, 0, 0, 0.25 );
+		color: $front-body;
+		pointer-events: all;
+		transition: all 0.1s ease;
+
+		&:focus, &:hover
+		{
+			border-color: rgba( $front-primary, 0.5 );
+		}
+
+		iconpanel
+		{
+			position: absolute;
+			left: 12px;
+			font-size: 18px;
+			color: $front-tertiary;
+		}
+
+		label
+		{
+			margin-left: 24px;
+			font-weight: 600;
+		}
+
+		.placeholder
+		{
+			color: $front-tertiary;
+			font-weight: 500;
+		}
+	}
+
+	.cats
+	{
+		flex-direction: column;
+		flex-shrink: 1;
+		overflow-y: scroll;
+		gap: 2px;
+
+		> *
+		{
+			flex-shrink: 0;
+		}
+	}
+
+	// Marker down the right edge, matching the menu's own rail. Reserved transparent on every
+	// entry so selecting one can't reflow the rail.
+	.cat
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 12px;
+		padding: 10px 14px;
+		border-right: 3px solid transparent;
+		pointer-events: all;
+		cursor: pointer;
+		transition: all 0.1s ease;
+
+		i
+		{
+			width: 22px;
+			text-align: center;
+			font-size: 21px;
+			color: $front-secondary;
+		}
+
+		label
+		{
+			flex-grow: 1;
+			font-size: 15px;
+			font-weight: 600;
+			color: $front-secondary;
+		}
+
+		&:hover
+		{
+			background-color: rgba( 255, 255, 255, 0.06 );
+			sound-in: "ui.button.over";
+
+			i, label { color: $front-heading; }
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+
+		&.active
+		{
+			background-color: rgba( $front-primary, 0.14 );
+			border-right: 3px solid $front-primary;
+
+			i { color: $front-primary; }
+			label { color: $front-heading; }
+		}
+
+		&.dimmed
+		{
+			opacity: 0.35;
+		}
+
+		.count
+		{
+			flex-shrink: 0;
+			min-width: 20px;
+			height: 18px;
+			align-items: center;
+			justify-content: center;
+			padding: 0 6px;
+			border-radius: 999px;
+			background-color: $front-primary;
+			font-size: 11px;
+			font-weight: 700;
+			color: #ffffff;
+		}
+	}
+
+	> .body
+	{
+		@include front-card;
+
+		flex-grow: 1;
+		flex-shrink: 1;
+		// width 0 + grow: take the leftover space, not the content's.
+		width: 0;
+	}
+
+	.head
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 2px;
+		padding: 22px 28px 18px 28px;
+		border-bottom: 1px solid $front-hairline;
+
+		.title
+		{
+			font-size: 28px;
+			font-weight: 700;
+			color: $front-heading;
+		}
+
+		.blurb
+		{
+			font-size: 14.5px;
+			color: $front-secondary;
+		}
+	}
+
+	.scroll
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		overflow-y: scroll;
+		padding: 18px 28px 32px 28px;
+		gap: 22px;
+
+		> *
+		{
+			flex-shrink: 0;
+		}
+	}
+
+	.section
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 4px;
+	}
+
+	.section-label
+	{
+		@include front-section-label;
+		font-size: 12px;
+
+		flex-shrink: 0;
+		margin-bottom: 4px;
+	}
+
+	.empty
+	{
+		align-items: center;
+		justify-content: center;
+		flex-direction: column;
+		gap: 10px;
+		padding: 64px;
+
+		i
+		{
+			font-size: 40px;
+			color: $front-tertiary;
+		}
+
+		label
+		{
+			font-size: 15px;
+			color: $front-secondary;
+		}
+	}
+
+	// By class, so the post-processing preset row gets the same shape.
+	.row
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		border-radius: 8px;
+		padding: 2px 10px;
+		transition: background-color 0.1s ease;
+
+		&:hover
+		{
+			background-color: rgba( 255, 255, 255, 0.04 );
+		}
+
+		&.focused
+		{
+			background-color: rgba( 255, 255, 255, 0.055 );
+		}
+
+		&.disabled
+		{
+			opacity: 0.45;
+			pointer-events: none;
+		}
+
+		.line
+		{
+			flex-direction: row;
+			align-items: center;
+			min-height: 42px;
+			gap: 16px;
+		}
+
+		.name
+		{
+			flex-grow: 1;
+			flex-shrink: 1;
+			font-size: 15px;
+			font-weight: 600;
+			color: $front-body;
+		}
+
+		.control
+		{
+			flex-direction: row;
+			justify-content: flex-end;
+			align-items: center;
+			flex-shrink: 0;
+			width: $settings-control;
+		}
+
+		.note
+		{
+			flex-direction: row;
+			align-items: flex-start;
+			gap: 8px;
+			margin: 0 0 8px 0;
+			padding: 8px 10px;
+			border-radius: 6px;
+
+			i
+			{
+				flex-shrink: 0;
+				font-size: 17px;
+				margin-top: 1px;
+			}
+
+			label
+			{
+				flex-grow: 1;
+				font-size: 13px;
+				line-height: 16px;
+			}
+
+			&.warn
+			{
+				background-color: rgba( 245, 166, 35, 0.11 );
+
+				i { color: #f5a623; }
+				label { color: $front-body; }
+			}
+
+			&.locked
+			{
+				background-color: rgba( 255, 255, 255, 0.05 );
+
+				i, label { color: $front-secondary; }
+			}
+		}
+	}
+
+	ButtonGroup
+	{
+		flex-direction: row;
+		flex-grow: 1;
+		gap: 4px;
+		padding: 3px;
+		border-radius: 8px;
+		background-color: rgba( 0, 0, 0, 0.25 );
+		border: 1px solid $front-hairline;
+
+		.button
+		{
+			flex-grow: 1;
+			flex-basis: 0;
+			align-items: center;
+			justify-content: center;
+			padding: 6px 6px;
+			border-radius: 6px;
+			font-size: 13.5px;
+			font-weight: 600;
+			white-space: nowrap;
+			color: $front-secondary;
+			pointer-events: all;
+			cursor: pointer;
+			transition: all 0.1s ease;
+
+			&:hover
+			{
+				background-color: rgba( 255, 255, 255, 0.07 );
+				color: $front-heading;
+			}
+
+			&.active
+			{
+				background-color: $front-primary;
+				color: #ffffff;
+			}
+		}
+	}
+
+	DropDown
+	{
+		flex-grow: 1;
+		align-items: center;
+		height: 34px;
+		padding: 0 12px;
+		border-radius: 8px;
+		background-color: rgba( 0, 0, 0, 0.25 );
+		border: 1px solid $front-hairline;
+		font-size: 14px;
+		font-weight: 600;
+		color: $front-body;
+		pointer-events: all;
+		cursor: pointer;
+
+		&:hover
+		{
+			border-color: rgba( $front-primary, 0.5 );
+			color: $front-heading;
+		}
+	}
+
+	// SliderControl's own inline stylesheet is three and four classes deep; anything shallower loses.
+	SliderControl.slidercontrol
+	{
+		flex-grow: 1;
+		height: 34px;
+
+		> .inner > .track
+		{
+			background-color: $front-track;
+			height: 6px;
+
+			> .track-active
+			{
+				background-color: $front-primary;
+			}
+
+			> .thumb
+			{
+				background-color: #ffffff;
+				width: 14px;
+				height: 14px;
+			}
+		}
+
+		> .entry
+		{
+			width: 58px;
+
+			> numberentry
+			{
+				border-radius: 6px;
+				background-color: rgba( 0, 0, 0, 0.25 );
+				border: 1px solid $front-hairline;
+				font-size: 13.5px;
+				font-weight: 600;
+				color: $front-body;
+			}
+		}
+	}
+
+	.action
+	{
+		@include front-pill;
+
+		padding: 8px 18px;
+	}
+
+	// Laid out like the rows it drives - label left, rungs in the control column - but dressed
+	// like the preset at the top of the page, so it doesn't read as just another setting.
+	SettingsPostProcessPreset
+	{
+		background-color: rgba( 255, 255, 255, 0.06 );
+		border: 1px solid $front-border;
+		// A pixel off the padding, so the border doesn't push the label and the rungs out of
+		// line with the rows underneath.
+		padding: 1px 9px;
+
+		.line
+		{
+			min-height: 50px;
+		}
+
+		// Own class in the selector, or ".row .name" wins on class count and the label stays
+		// at its full row size while only picking up the uppercasing.
+		&.row .preset-head
+		{
+			flex-direction: column;
+			flex-grow: 1;
+			flex-shrink: 1;
+			gap: 2px;
+		}
+
+		&.row .name
+		{
+			@include front-section-label;
+			font-size: 12px;
+
+			flex-grow: 0;
+		}
+
+		&.row .hint
+		{
+			font-size: 13px;
+			color: $front-tertiary;
+		}
+
+		// Separate pills rather than one joined strip, which is what tells them apart from the
+		// effect controls underneath.
+		.tiers
+		{
+			flex-direction: row;
+			flex-grow: 1;
+			gap: 6px;
+		}
+
+		.tier
+		{
+			flex-grow: 1;
+			flex-basis: 0;
+			align-items: center;
+			justify-content: center;
+			padding: 8px 4px;
+			border-radius: 6px;
+			background-color: rgba( 0, 0, 0, 0.22 );
+			pointer-events: all;
+			cursor: pointer;
+			transition: all 0.1s ease;
+
+			label
+			{
+				font-size: 13px;
+				font-weight: 600;
+				white-space: nowrap;
+				color: $front-secondary;
+			}
+
+			&:hover
+			{
+				background-color: rgba( 255, 255, 255, 0.1 );
+				sound-in: "ui.button.over";
+
+				label { color: $front-heading; }
+			}
+
+			&.active
+			{
+				background-color: $front-primary;
+
+				label { color: #ffffff; }
+			}
+
+			// Not something you pick; it's where you land after changing an effect by hand.
+			&.custom
+			{
+				background-color: rgba( 255, 255, 255, 0.16 );
+				cursor: default;
+
+				label { color: $front-heading; }
+			}
+		}
+	}
+
+	.presets
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 10px;
+		// 10px sides, matching a row's content inset, so the label and the tiers line up with
+		// the rows below.
+		padding: 16px 10px;
+		border-radius: $front-radius;
+		border: 1px solid $front-border;
+		background-color: rgba( 255, 255, 255, 0.035 );
+
+		.head
+		{
+			flex-direction: column;
+			gap: 2px;
+			padding: 0;
+			border-bottom: none;
+
+			.hint
+			{
+				font-size: 13px;
+				color: $front-tertiary;
+			}
+		}
+
+		.line
+		{
+			flex-direction: row;
+			align-items: center;
+			flex-shrink: 0;
+		}
+
+		.tiers
+		{
+			flex-direction: row;
+			align-items: center;
+			flex-shrink: 0;
+			justify-content: flex-end;
+			width: $settings-control;
+			gap: 6px;
+		}
+
+		.tiers .tier
+		{
+			flex-grow: 1;
+			flex-basis: 0;
+			padding: 9px 4px;
+
+			label { white-space: nowrap; }
+		}
+
+		.tier
+		{
+			flex-direction: row;
+			align-items: center;
+			justify-content: center;
+			gap: 6px;
+			padding: 9px 20px;
+			border-radius: 8px;
+			border: 1px solid $front-hairline;
+			background-color: rgba( 0, 0, 0, 0.2 );
+			pointer-events: all;
+			cursor: pointer;
+			transition: all 0.1s ease;
+
+			label
+			{
+				font-size: 13.5px;
+				font-weight: 700;
+				text-transform: uppercase;
+				letter-spacing: 0.06em;
+				color: $front-secondary;
+			}
+
+			i
+			{
+				font-size: 17px;
+				color: $front-secondary;
+			}
+
+			&:hover
+			{
+				border-color: rgba( 255, 255, 255, 0.28 );
+				background-color: rgba( 255, 255, 255, 0.08 );
+				sound-in: "ui.button.over";
+
+				label, i { color: $front-heading; }
+			}
+
+			&.active
+			{
+				background-color: $front-primary;
+				border-color: $front-primary;
+
+				label, i { color: #ffffff; }
+			}
+
+			// Not pickable; it's where you land after changing a setting by hand.
+			&.custom
+			{
+				background-color: rgba( 255, 255, 255, 0.1 );
+				border-color: $front-border;
+				cursor: default;
+
+				label { color: $front-heading; }
+			}
+
+			&.detect
+			{
+				padding: 9px 14px;
+			}
+		}
+	}
+
+	// front-pill's `icon` rule doesn't reach Button's IconPanel.
+	SettingsActions .button iconpanel,
+	.scroll.custom .button iconpanel,
+	SettingsRow .action iconpanel
+	{
+		font-size: 17px;
+		color: $front-secondary;
+	}
+
+	SettingsActions
+	{
+		flex-direction: row;
+		align-items: center;
+		flex-shrink: 0;
+		gap: 10px;
+		padding: 14px 28px;
+		border-top: 1px solid $front-hairline;
+
+		.unsaved
+		{
+			font-size: 13px;
+			font-weight: 600;
+			color: #f5a623;
+			margin-right: 4px;
+		}
+
+		.button
+		{
+			@include front-pill;
+
+			padding: 9px 18px;
+			pointer-events: all;
+			cursor: pointer;
+
+			&:hover
+			{
+				sound-in: "ui.button.over";
+			}
+		}
+
+		.primary
+		{
+			background-color: $front-primary;
+			border-color: $front-primary;
+
+			label, icon, iconpanel { color: #ffffff; }
+
+			&:hover
+			{
+				filter: brightness( 1.15 );
+			}
+
+			// Still there so the bar doesn't reflow, but plainly not pressable.
+			&.locked
+			{
+				background-color: rgba( 255, 255, 255, 0.05 );
+				border-color: $front-hairline;
+				cursor: default;
+
+				label, icon, iconpanel { color: $front-tertiary; }
+
+				&:hover { filter: none; }
+			}
+		}
+	}
+
+	> .detail
+	{
+		@include front-card;
+
+		width: $settings-detail;
+		flex-shrink: 0;
+		padding: 24px;
+		gap: 10px;
+
+		.title
+		{
+			flex-shrink: 0;
+			font-size: 19px;
+			font-weight: 700;
+			color: $front-heading;
+		}
+
+		.body
+		{
+			flex-shrink: 0;
+			font-size: 15px;
+			line-height: 20px;
+			color: $front-body;
+		}
+
+		.meta
+		{
+			@include front-section-label;
+			font-size: 12px;
+
+			flex-shrink: 0;
+			margin-top: -4px;
+		}
+
+		.hint
+		{
+			flex-direction: column;
+			flex-grow: 1;
+			align-items: center;
+			justify-content: center;
+			gap: 10px;
+			text-align: center;
+
+			i
+			{
+				font-size: 32px;
+				color: $front-tertiary;
+			}
+
+			label
+			{
+				font-size: 14px;
+				color: $front-tertiary;
+			}
+		}
+	}
+
+	// Key binds, storage and About bring their own markup from when each was its own page.
+
+	.scroll.custom
+	{
+		padding: 0;
+		overflow: hidden;
+
+		// Bounded, or the list runs past the card and takes the footer bar with it.
+		.page-inner
+		{
+			flex-direction: column;
+			flex-grow: 1;
+			flex-shrink: 1;
+			height: 100%;
+		}
+
+		.page-content
+		{
+			flex-direction: column;
+			flex-grow: 1;
+			flex-shrink: 1;
+			height: 0;
+			overflow-y: scroll;
+			padding: 18px 28px 32px 28px;
+		}
+
+		.page-footer
+		{
+			flex-direction: row;
+			justify-content: flex-end;
+			flex-shrink: 0;
+			gap: 10px;
+			padding: 14px 28px;
+			border-top: 1px solid $front-hairline;
+		}
+
+		h2
+		{
+			@include front-section-label;
+			font-size: 12px;
+
+			flex-shrink: 0;
+			align-items: center;
+			gap: 6px;
+			margin: 14px 0 6px 0;
+
+			i { font-size: 18px; }
+		}
+
+		row
+		{
+			flex-direction: row;
+			align-items: center;
+			justify-content: space-between;
+			flex-shrink: 0;
+			min-height: 42px;
+			gap: 16px;
+			padding: 2px 10px;
+			border-radius: 8px;
+
+			&:hover
+			{
+				background-color: rgba( 255, 255, 255, 0.04 );
+			}
+		}
+
+		.empty
+		{
+			flex-direction: column;
+			flex-shrink: 0;
+			gap: 6px;
+			padding: 24px 0;
+
+			.hint
+			{
+				font-size: 14px;
+				color: $front-secondary;
+			}
+		}
+
+		.is-label
+		{
+			flex-grow: 1;
+			font-size: 15px;
+			font-weight: 600;
+			color: $front-body;
+		}
+
+		KeyBind
+		{
+			align-items: center;
+			justify-content: center;
+			min-width: 128px;
+			height: 32px;
+			border-radius: 6px;
+			border: 1px solid $front-hairline;
+			background-color: rgba( 0, 0, 0, 0.25 );
+			font-size: 13.5px;
+			font-weight: 600;
+			color: $front-body;
+			gap: 4px;
+			pointer-events: all;
+			cursor: pointer;
+
+			Image
+			{
+				width: 28px;
+				transition: opacity 0.25s ease;
+			}
+
+			&:hover
+			{
+				border-color: rgba( $front-primary, 0.6 );
+			}
+
+			&.rebinding
+			{
+				border-color: $front-primary;
+
+				Image { opacity: 0.25; }
+			}
+		}
+
+		.button
+		{
+			@include front-pill;
+
+			padding: 9px 18px;
+			pointer-events: all;
+			cursor: pointer;
+		}
+	}
+}

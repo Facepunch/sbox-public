@@ -21,14 +21,16 @@ public partial class Texture : Resource, IDisposable
 	internal object ParentObject;
 
 	/// <summary>
-	/// Has the native handle changed?
+	/// Bumped when the native handle is swapped, so the size may have changed. A version, not
+	/// a flag - one texture can be shared by many panels, and a flag is consumed by whichever
+	/// one happens to rebuild first, leaving the rest stale.
 	/// </summary>
-	internal bool IsDirty;
+	internal int DirtyVersion;
 
 	/// <summary>
 	/// Whether this texture is an error or invalid or not.
 	/// </summary>
-	public bool IsError => native.IsNull || !native.IsStrongHandleValid() || native.IsError();
+	public override bool IsError => native.IsNull || !native.IsStrongHandleValid() || native.IsError();
 
 	public override bool IsValid => native.IsValid;
 
@@ -66,6 +68,9 @@ public partial class Texture : Resource, IDisposable
 	/// </summary>
 	internal void CopyFrom( Texture texture )
 	{
+		if ( !texture.IsValid() )
+			return;
+
 		if ( !native.IsNull )
 		{
 			var n = native;
@@ -83,12 +88,14 @@ public partial class Texture : Resource, IDisposable
 		// they release it, it'll be a hanging pointer!
 		native = texture.native.CopyStrongHandle();
 
+		IsAnimated = texture.IsAnimated;
+
 		UpdateSheetInfo();
 
 		gotdesc = false;
 		_desc = default;
 
-		IsDirty = true;
+		DirtyVersion++;
 	}
 
 	internal CTextureDesc Desc
@@ -132,6 +139,11 @@ public partial class Texture : Resource, IDisposable
 	/// Whether this texture has finished loading or not.
 	/// </summary>
 	public bool IsLoaded { get; internal set; } = true;
+
+	/// <summary>
+	/// True if this is a multi-frame animated image (GIF, animated WebP) driven by <see cref="Tick"/>.
+	/// </summary>
+	public bool IsAnimated { get; internal set; }
 
 	/// <summary>
 	/// Image format of this texture.
@@ -189,14 +201,24 @@ public partial class Texture : Resource, IDisposable
 		//
 		// Try to load the texture again, make a new texture
 		//
-		using var newTex = TryToLoad( filesystem, filename, false );
+		var newTex = TryToLoad( filesystem, filename, false );
 
 		//
-		// If success, copy from this texture
+		// FromNative can return this same cached wrapper - nothing to copy.
 		//
-		if ( newTex != null )
+		if ( newTex is null || ReferenceEquals( newTex, this ) )
+			return;
+
+		//
+		// If success, copy from this texture, always releasing the temporary handle.
+		//
+		try
 		{
 			CopyFrom( newTex );
+		}
+		finally
+		{
+			newTex.Dispose();
 		}
 	}
 
@@ -283,12 +305,23 @@ public partial class Texture : Resource, IDisposable
 
 	public bool HasAnimatedSequences { get; private set; }
 
+	ulong _markedUsedFrame;
+	int _markedUsedMipSize;
+
 	/// <summary>
 	/// Tells texture streaming this texture is being used.
 	/// This is usually automatic, but useful for bindless pipelines.
 	/// </summary>
 	public void MarkUsed( int requiredMipSize = 0 )
 	{
+		// Streaming only needs one touch per texture per frame, skip repeat calls
+		// unless they're asking for more detail than we already reported.
+		if ( _markedUsedFrame == Application.FrameCount && requiredMipSize <= _markedUsedMipSize )
+			return;
+
+		_markedUsedFrame = Application.FrameCount;
+		_markedUsedMipSize = requiredMipSize;
+
 		g_pRenderDevice.MarkTextureUsed( native, requiredMipSize );
 	}
 
@@ -313,6 +346,13 @@ public partial class Texture : Resource, IDisposable
 		if ( texture is not null && texture != this )
 		{
 			this.CopyFrom( texture );
+
+			// update any animation instance (eg for gifs) to point to this as well
+			if ( Animations.FirstOrDefault( x => x.Texture.TryGetTarget( out var t ) && ReferenceEquals( t, texture ) ) is { } animation )
+			{
+				animation.Texture.SetTarget( this );
+			}
+
 			texture.Dispose();
 		}
 

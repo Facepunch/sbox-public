@@ -36,7 +36,7 @@ public partial class GameTransform
 		}
 
 		var data = new TransformChangedData { Root = root };
-		GameObject.ForEachChildFast( "TransformChanged", false, &TransformChangedCallback, ref data );
+		GameObject.ForEachChildFast( "TransformChanged", true, &TransformChangedCallback, ref data );
 	}
 
 	// empty, no data to pass

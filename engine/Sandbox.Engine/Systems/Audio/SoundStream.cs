@@ -61,7 +61,7 @@ public sealed partial class SoundStream : IHandle, IDisposable
 
 	~SoundStream()
 	{
-		Dispose();
+		MainThread.QueueDispose( this );
 	}
 
 	public unsafe void WriteData( Span<short> data )
@@ -89,11 +89,15 @@ public sealed partial class SoundStream : IHandle, IDisposable
 
 	public void Dispose()
 	{
-		if ( native.IsValid )
-		{
-			native.Destroy();
-			native = IntPtr.Zero;
-		}
+		if ( !native.IsValid ) return;
+
+		GC.SuppressFinalize( this );
+
+		// Destroy() drops our reference; the native stream is reference counted and frees only once its
+		// last mixer is gone, so it's never freed mid-mix. Runs on the main thread (the finalizer routes
+		// here via QueueDispose), where Destroy frees the managed handle.
+		native.Destroy();
+		native = IntPtr.Zero;
 	}
 
 	/// <summary>

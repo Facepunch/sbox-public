@@ -22,9 +22,11 @@ internal class NativeAsset : Asset
 		Name = native.GetFriendlyName_Transient().NormalizeFilename( false );
 		RelativePath = native.GetRelativePath_Transient( AssetLocation_t.Invalid ).NormalizeFilename( false );
 		Path = System.IO.Path.ChangeExtension( RelativePath, AssetType.FileExtension ).NormalizeFilename( false );
-		AbsolutePath = native.GetAbsolutePath_Transient( AssetLocation_t.Invalid ).NormalizeFilename( false ); // invalid means get any
-		AbsoluteSourcePath = native.GetAbsolutePath_Transient( AssetLocation_t.Content ).NormalizeFilename( false ); // invalid means get any
-		AbsoluteCompiledPath = native.GetAbsolutePath_Transient( AssetLocation_t.Game ).NormalizeFilename( false ); // invalid means get any
+		// These name a file on disk, so they keep the case the disk uses - lower-casing them
+		// only works where the filesystem doesn't care.
+		AbsolutePath = Sandbox.CaseInsensitivePhysicalFileSystem.ResolveNativeCasing( native.GetAbsolutePath_Transient( AssetLocation_t.Invalid ).NormalizeFilename( false, false ) ); // invalid means get any
+		AbsoluteSourcePath = Sandbox.CaseInsensitivePhysicalFileSystem.ResolveNativeCasing( native.GetAbsolutePath_Transient( AssetLocation_t.Content ).NormalizeFilename( false, false ) ); // invalid means get any
+		AbsoluteCompiledPath = Sandbox.CaseInsensitivePhysicalFileSystem.ResolveNativeCasing( native.GetAbsolutePath_Transient( AssetLocation_t.Game ).NormalizeFilename( false, false ) ); // invalid means get any
 		IsDeleted = string.IsNullOrEmpty( AbsolutePath );
 
 		if ( AssetSystem.CloudDirectory is not null )
@@ -116,11 +118,20 @@ internal class NativeAsset : Asset
 
 		if ( nativeEditor != null )
 		{
+			if ( !EngineTools.EnsureAvailable( nativeEditor ) )
+			{
+				return;
+			}
+
 			native.OpenInSecondaryTool( nativeEditor );
 			return;
 		}
 
 		if ( IAssetEditor.OpenInEditor( this, out _ ) )
+		{
+			return;
+		}
+		if ( AssetType == AssetType.Model && !EngineTools.EnsureAvailable( "modeldoc_editor" ) )
 		{
 			return;
 		}
@@ -261,6 +272,9 @@ internal class NativeAsset : Asset
 			EditorEvent.Run( "compile.shader", Path );
 			return true;
 		}
+
+		if ( !CanRecompile )
+			return false;
 
 		return IAssetSystem.RecompileAsset( native, full );
 	}

@@ -68,7 +68,7 @@ public partial class Panel
 		/// <param name="tint">Optional color tint applied to the texture. Defaults to <see cref="Color.White"/> (no tint).</param>
 		public static void Texture( Texture texture, Rect rect, Color? tint = null )
 		{
-			UIDrawBuffer.Current.AddBox( new BoxDrawDescriptor( rect, tint ?? Color.White )
+			UIDrawBuffer.Current.AddBox( new BoxDrawDescriptor( rect, Color.Transparent )
 			{
 				BackgroundImage = texture,
 				BackgroundTint = tint ?? Color.White,
@@ -84,20 +84,29 @@ public partial class Panel
 		/// <param name="size">Font size in pixels.</param>
 		/// <param name="color">Text color.</param>
 		/// <param name="flags">Text alignment and layout flags. Defaults to <see cref="TextFlag.LeftTop"/>.</param>
-		public static void Text( string text, Rect rect, float size, Color color, TextFlag flags = TextFlag.LeftTop )
+		/// <param name="font">Font family name. Defaults to "Roboto".</param>
+		public static void Text( string text, Rect rect, float size, Color color, TextFlag flags = TextFlag.LeftTop, string font = "Roboto" )
 		{
-			var scope = new TextRendering.Scope( text, color, size );
-			var texture = TextRendering.GetOrCreateTexture( scope, rect.Size, flags );
+			var buf = UIDrawBuffer.Current;
+			var scale = buf.ScaleToScreen;
+
+			var scope = new TextRendering.Scope( text, color, size * scale, font );
+			var tb = TextRendering.GetOrCreateTextBlock( scope, flags, rect.Size == default ? new Vector2( 8096 ) : rect.Size );
+			tb.MakeReady();
+			var texture = tb.Texture;
 			if ( texture is null ) return;
 
-			var textRect = rect.Align( texture.Size, flags );
+			var textRect = rect.Align( texture.Size, flags ).Floor();
+			var tint = Color.White;
+			tint.a *= buf.Opacity;
 
-			UIDrawBuffer.Current.AddBox( new BoxDrawDescriptor( textRect, Color.White )
+			buf.AddBox( new BoxDrawDescriptor( textRect, Color.Transparent )
 			{
 				BackgroundImage = texture,
 				BackgroundRect = new Vector4( 0, 0, textRect.Width, textRect.Height ),
-				BackgroundTint = color,
-				OverrideBlendMode = BlendMode.PremultipliedAlpha,
+				BackgroundTint = tint,
+				BackgroundRepeat = BackgroundRepeat.Clamp,
+				FilterMode = FilterMode.Bilinear,
 			} );
 		}
 
@@ -169,18 +178,8 @@ public partial class Panel
 
 		var desc = new BoxDrawDescriptor( rect, color )
 		{
-			BorderRadius = new Vector4(
-				style.BorderBottomRightRadius.Value.GetPixels( size ),
-				style.BorderTopRightRadius.Value.GetPixels( size ),
-				style.BorderBottomLeftRadius.Value.GetPixels( size ),
-				style.BorderTopLeftRadius.Value.GetPixels( size )
-			),
-			BorderSize = new Vector4(
-				style.BorderLeftWidth.Value.GetPixels( size ),
-				style.BorderTopWidth.Value.GetPixels( size ),
-				style.BorderRightWidth.Value.GetPixels( size ),
-				style.BorderBottomWidth.Value.GetPixels( size )
-			),
+			Radii = BorderRadii.FromStyle( style, rect ),
+			BorderSize = PanelRenderer.GetBorderWidths( style, size ),
 			BorderColorL = style.BorderLeftColor.Value.WithAlphaMultiplied( opacity ),
 			BorderColorT = style.BorderTopColor.Value.WithAlphaMultiplied( opacity ),
 			BorderColorR = style.BorderRightColor.Value.WithAlphaMultiplied( opacity ),
@@ -197,6 +196,7 @@ public partial class Panel
 				_ => FilterMode.Anisotropic
 			},
 		};
+		desc.SetBorderShape( style.BorderShape );
 
 		if ( style.BorderImageSource != null )
 		{
@@ -214,6 +214,8 @@ public partial class Panel
 
 		if ( texture != null )
 		{
+			texture.MarkUsed();
+
 			desc.BackgroundImage = texture;
 			desc.BackgroundRect = ImageRect.Calculate( new ImageRect.Input
 			{
@@ -228,6 +230,6 @@ public partial class Panel
 			} ).Rect;
 		}
 
-		CachedDescriptors.Boxes.Add( desc );
+		CachedDescriptors.AddBox( desc );
 	}
 }

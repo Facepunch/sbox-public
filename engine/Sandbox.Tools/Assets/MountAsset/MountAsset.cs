@@ -43,7 +43,28 @@ internal class MountAsset : Asset
 	internal override int FindIntEditInfo( string name ) => 0;
 	public override string FindStringEditInfo( string name ) => null;
 
-	public override void OpenInEditor( string nativeEditor = null ) { } // I don't think we can?
+	public override void OpenInEditor( string nativeEditor = null )
+	{
+		var opened = file.Type switch
+		{
+			ResourceType.Scene or ResourceType.PrefabFile => TryOpenSceneSession(),
+			_ => false
+		};
+
+		if ( !opened )
+			Log.Warning( $"Don't know how to open mounted asset '{Path}' ({file.Type})" );
+	}
+
+	public override bool CanOpenInEditor => file.Type is ResourceType.Scene or ResourceType.PrefabFile;
+
+	private bool TryOpenSceneSession()
+	{
+		if ( SceneEditorSession.CreateFromPath( Path ) is not { } session )
+			return false;
+
+		session.MakeActive();
+		return true;
+	}
 
 	public override List<Asset> GetReferences( bool deep ) => new List<Asset>();
 	public override List<Asset> GetDependants( bool deep ) => new List<Asset>();

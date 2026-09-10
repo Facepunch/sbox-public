@@ -63,6 +63,8 @@ internal sealed class ProjectSettingsWindow : Window
 		WindowTitle = $"Project Settings";
 		Size = new Vector2( 1024, 768 );
 		MinimumSize = new Vector2( 1024, 768 );
+		StartCentered = true;
+		StateCookie = "ProjectSettings";
 
 		Canvas = new Widget( this );
 		Canvas.OnPaintOverride = () =>
@@ -137,11 +139,15 @@ internal sealed class ProjectSettingsWindow : Window
 
 		OnPropertyChanged += _ => HasUnsavedChanges = true;
 
-		// Select the first node by default
-		if ( NodeToCategories.Keys.FirstOrDefault() is TreeNode firstNode )
+		// Restore last selected category, or fall back to first
+		var lastCategory = ProjectCookie.GetString( "ProjectSettings.LastCategory", null );
+		var startNode = NodeToCategories.Keys.FirstOrDefault( n => n.Name == lastCategory )
+			?? NodeToCategories.Keys.FirstOrDefault();
+
+		if ( startNode is not null )
 		{
-			TreeView.SelectItem( firstNode );
-			SelectNode( firstNode );
+			TreeView.SelectItem( startNode );
+			SelectNode( startNode );
 		}
 
 		Show();
@@ -165,9 +171,10 @@ internal sealed class ProjectSettingsWindow : Window
 			categoriesBySection[sectionName].Add( (categoryType, icon, title) );
 		}
 
+		AddCategoryToList( typeof( ProjectPage ), "Project" );
+
 		if ( project.Config.Type == "game" )
 		{
-			AddCategoryToList( typeof( ProjectPage ), "Project" );
 			AddCategoryToList( typeof( GameCategory ), "Project" );
 			AddCategoryToList( typeof( StandaloneCategory ), "Project" );
 			AddCategoryToList( typeof( SystemsPage ), "Systems" );
@@ -177,6 +184,8 @@ internal sealed class ProjectSettingsWindow : Window
 			AddCategoryToList( typeof( InputCategory ), "Input" );
 
 			AddCategoryToList( typeof( MultiplayerCategory ), "Networking" );
+
+			AddCategoryToList( typeof( PlatformCategory ), "Platform" );
 
 			AddCategoryToList( typeof( CompilerCategory ), "Compiler" );
 
@@ -195,13 +204,6 @@ internal sealed class ProjectSettingsWindow : Window
 		else if ( project.Config.Type == "tool" )
 		{
 			AddCategoryToList( typeof( CompilerCategory ), "Compiler" );
-		}
-		else
-		{
-			//
-			// Always have a project category for other project types
-			//
-			AddCategoryToList( typeof( ProjectPage ), "Project" );
 		}
 
 		// Build the tree based on category counts
@@ -317,10 +319,27 @@ internal sealed class ProjectSettingsWindow : Window
 
 	void OnNodeSelected( object item )
 	{
-		if ( item is TreeNode node )
+		if ( item is not TreeNode node || node == CurrentNode )
+			return;
+
+		if ( !HasUnsavedChanges )
 		{
 			SelectNode( node );
+			return;
 		}
+
+		ShowUnsavedChangesPopup(
+			onSave: () =>
+			{
+				Save();
+				SelectNode( node );
+			},
+			onDiscard: () =>
+			{
+				HasUnsavedChanges = false;
+				SelectNode( node );
+			},
+			onCancel: () => TreeView.SelectItem( CurrentNode ) );
 	}
 
 	void SelectNode( TreeNode node )
@@ -328,6 +347,7 @@ internal sealed class ProjectSettingsWindow : Window
 		using var su = SuspendUpdates.For( Scroller.Canvas );
 
 		CurrentNode = node;
+		ProjectCookie.SetString( "ProjectSettings.LastCategory", node.Name );
 		Scroller.Canvas.Layout.Clear( true );
 
 		// Get all categories for this node
@@ -383,11 +403,25 @@ internal sealed class ProjectSettingsWindow : Window
 		if ( !HasUnsavedChanges )
 			return true;
 
+		ShowUnsavedChangesPopup(
+			onSave: () =>
+			{
+				Save();
+				Close();
+			},
+			onDiscard: () =>
+			{
+				HasUnsavedChanges = false;
+				Close();
+			} );
+
+		return false;
+	}
+
+	private void ShowUnsavedChangesPopup( Action onSave, Action onDiscard, Action onCancel = null )
+	{
 		if ( _popup.IsValid() )
-		{
-			// If this hits, it means we're already showing a popup, don't create another
-			return false;
-		}
+			return;
 
 		_popup = new PopupDialogWidget( "⚠️" );
 		_popup.FixedWidth = 462;
@@ -400,10 +434,9 @@ internal sealed class ProjectSettingsWindow : Window
 		{
 			Clicked = () =>
 			{
-				Save();
 				_popup.Destroy();
 				_popup = null;
-				Close();
+				onSave();
 			}
 		} );
 
@@ -411,10 +444,9 @@ internal sealed class ProjectSettingsWindow : Window
 		{
 			Clicked = () =>
 			{
-				_hasUnsavedChanges = false;
 				_popup.Destroy();
 				_popup = null;
-				Close();
+				onDiscard();
 			}
 		} );
 
@@ -424,13 +456,12 @@ internal sealed class ProjectSettingsWindow : Window
 			{
 				_popup.Destroy();
 				_popup = null;
+				onCancel?.Invoke();
 			}
 		} );
 
 		_popup.SetModal( true, true );
 		_popup.Show();
-
-		return false;
 	}
 
 	/// <summary>
@@ -577,6 +608,9 @@ internal sealed class ProjectSettingsWindow : Window
 		{
 			EditorUtility.Projects.Updated( Project );
 			SaveCallback?.Invoke( Project );
+
+			EditorEvent.Run( "project.settings.saved" );
+
 		}
 
 		/// <summary>

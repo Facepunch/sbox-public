@@ -43,12 +43,12 @@ public sealed class WorldInput : Component
 		WorldPanelInput.MouseRightPressed = Input.Down( RightMouseAction );
 		WorldPanelInput.MouseWheel = Input.MouseWheel;
 
-		// If the mouse is active, we want to use the mouse cursor ray instead, and let's implicitly use MOUSE1/2
+		// If the mouse is active, we want to use the mouse cursor ray instead, and use MOUSE1/2 as backup also
 		if ( Mouse.Active && Scene?.Camera is not null )
 		{
 			WorldPanelInput.Ray = Scene.Camera.ScreenPixelToRay( Mouse.Position );
-			WorldPanelInput.MouseLeftPressed = Input.Keyboard.Down( "MOUSE1" );
-			WorldPanelInput.MouseRightPressed = Input.Keyboard.Down( "MOUSE2" );
+			WorldPanelInput.MouseLeftPressed |= Input.Keyboard.Down( "MOUSE1" );
+			WorldPanelInput.MouseRightPressed |= Input.Keyboard.Down( "MOUSE2" );
 		}
 
 		// If we're in VR, triggers are mouse presses, joystick scrolls

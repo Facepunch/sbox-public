@@ -192,25 +192,9 @@ public sealed partial class ClutterComponent
 
 		var settings = GetCurrentSettings();
 		_volumeLayer ??= gridSystem.GetOrCreateLayer( this, settings );
-		_volumeLayer.ClearAllTiles();
 
-		// Rebuild model instances from storage
-		foreach ( var modelPath in Storage.ModelPaths )
-		{
-			var model = ResourceLibrary.Get<Model>( modelPath );
-			if ( model == null ) continue;
-
-			foreach ( var instance in Storage.GetInstances( modelPath ) )
-			{
-				_volumeLayer.AddModelInstance( Vector2Int.Zero, new ClutterInstance
-				{
-					Transform = new Transform( instance.Position, instance.Rotation, instance.Scale ),
-					Entry = new ClutterEntry { Model = model }
-				} );
-			}
-		}
-
-		_volumeLayer.RebuildBatches();
+		// The layer owns both rendering and collision for its instances.
+		_volumeLayer.PopulateFromStorage( Storage );
 	}
 
 	[Button( "Clear" )]
@@ -238,8 +222,16 @@ public sealed partial class ClutterComponent
 			child.Destroy();
 	}
 
+	private IDisposable _boundsUndoScope;
+
 	private void DrawVolumeGizmos()
 	{
+		if ( !Gizmo.Pressed.Any )
+		{
+			_boundsUndoScope?.Dispose();
+			_boundsUndoScope = null;
+		}
+
 		if ( !Gizmo.IsSelected )
 			return;
 
@@ -252,6 +244,8 @@ public sealed partial class ClutterComponent
 
 			if ( Gizmo.Control.BoundingBox( "bounds", Bounds, out var newBounds ) )
 			{
+				_boundsUndoScope ??= Scene.Editor?.UndoScope( "Resize Clutter Bounds" ).WithComponentChanges( this ).Push();
+
 				Bounds = newBounds;
 			}
 		}

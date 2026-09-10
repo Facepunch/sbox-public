@@ -14,6 +14,7 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 	class Block
 	{
 		public int Hash;
+		public Block Parent;
 		public List<Block> Children;
 
 		public bool IsRootElement;
@@ -24,6 +25,21 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 		public List<Panel> MarkupPanels;
 
 		public bool WasSeen;
+
+		// True when this block or anything below it might have binds. Starts true so
+		// new blocks get scanned once, then UpdateBinds keeps it exact.
+		bool hasBindsDeep = true;
+
+		/// <summary>
+		/// Mark this block and its ancestors as containing binds, so UpdateBinds visits them.
+		/// </summary>
+		public void MarkHasBinds()
+		{
+			for ( var b = this; b is not null; b = b.Parent )
+			{
+				b.hasBindsDeep = true;
+			}
+		}
 
 		public Block()
 		{
@@ -118,15 +134,23 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 
 		public bool UpdateBinds()
 		{
+			if ( !hasBindsDeep )
+				return false;
+
 			bool b = false;
+			bool foundBinds = Binds is { Count: > 0 };
 
 			if ( Children is not null )
 			{
 				for ( int i = 0; i < Children.Count; i++ )
 				{
-					b = Children[i].UpdateBinds() || b;
+					var child = Children[i];
+					b = child.UpdateBinds() || b;
+					foundBinds |= child.hasBindsDeep;
 				}
 			}
+
+			hasBindsDeep = foundBinds;
 
 			if ( Binds is not null )
 			{
@@ -193,6 +217,7 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 			{
 				child = new Block();
 				child.Hash = hash;
+				child.Parent = this;
 				Children.Add( child );
 			}
 

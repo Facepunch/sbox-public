@@ -1,0 +1,50 @@
+@using Sandbox
+@using Sandbox.UI
+@using System
+@namespace MenuProject.Settings
+@inherits Panel
+
+<root class="actions">
+
+	<Button class="quiet" Icon="restore" onclick=@RestoreDefaults>Restore Defaults</Button>
+
+	<div class="grow"></div>
+
+	@if ( Dirty )
+	{
+		<label class="unsaved">Unsaved changes</label>
+		<Button class="quiet" Icon="undo" onclick=@Revert>Revert</Button>
+	}
+
+	<Button class="primary @(Dirty ? "" : "locked")" Icon="save" onclick=@Apply>Save Changes</Button>
+
+</root>
+
+@code
+{
+	[Parameter] public SettingsView View { get; set; }
+
+	bool Dirty => View?.Catalog.IsDirty ?? false;
+
+	void Apply()
+	{
+		if ( !Dirty ) return;
+
+		View.Catalog.Apply();
+		View.Invalidate();
+	}
+
+	void Revert()
+	{
+		View?.Catalog.Revert();
+		View?.Invalidate();
+	}
+
+	void RestoreDefaults()
+	{
+		View?.Catalog.RestoreDefaults( View.Category );
+		View?.Invalidate();
+	}
+
+	protected override int BuildHash() => HashCode.Combine( Dirty );
+}

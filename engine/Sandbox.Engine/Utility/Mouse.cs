@@ -48,12 +48,12 @@ public static class Mouse
 	/// Change in local clients' cursor position since last frame.
 	/// </summary>
 	[ActionGraphNode( "input.mouse.delta" ), Title( "Mouse Delta" ), Category( "Input" ), Icon( "mouse" )]
-	public static Vector2 Delta => InputRouter.MouseCursorDelta;
+	public static Vector2 Delta => UI.PanelWindows.CaptureWindow is not null ? UI.PanelWindows.CaptureDelta : InputRouter.MouseCursorDelta;
 
 
 	/// <summary>
-	/// Sets the cursor type until another panel stomps this value.
-	/// Doesn't affect main menu.
+	/// Sets the cursor type used when the UI hasn't claimed the cursor (e.g. when the mouse
+	/// falls through the UI onto the world). UI panel hover cursors take precedence over this.
 	/// </summary>
 	public static string CursorType
 	{

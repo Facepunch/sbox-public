@@ -1,16 +1,7 @@
-using Sandbox.Utility;
-
 namespace Sandbox;
 
 public static partial class Input
 {
-	/// <summary>
-	/// What's our current player index (for input scoping)?
-	/// -1 is the default behavior, where it'll accept keyboard AND gamepad inputs.
-	/// Anything above that, is targeting a specific controller.
-	/// </summary>
-	internal static int CurrentPlayerScope { get; private set; } = -1;
-
 	/// <summary>
 	/// How many controllers are active right now?
 	/// </summary>
@@ -28,21 +19,13 @@ public static partial class Input
 	{
 		get
 		{
-			// Fallback if we're not using any input scoping
 			if ( CurrentPlayerScope == -1 ) return Controller.First;
+			if ( CurrentPlayerScope == 0 ) return null;
 
-			// Out of range?
-			if ( CurrentPlayerScope >= Controller.All.Count() )
-			{
-				return null;
-			}
+			var controllerIndex = CurrentPlayerScope - 1;
+			if ( controllerIndex >= Controller.All.Count() ) return null;
 
-			if ( Controller.All.ElementAt( CurrentPlayerScope ) is { } controller )
-			{
-				return controller;
-			}
-
-			return null;
+			return Controller.All.ElementAt( controllerIndex );
 		}
 	}
 
@@ -62,64 +45,32 @@ public static partial class Input
 	}
 
 	/// <summary>
-	/// Processes controller inputs based on a player index (for input scoping). This can be called many times a frame.
+	/// Processes controller inputs for the current scope.
 	/// </summary>
-	private static void ProcessControllerInput( int playerIndex = -1 )
+	private static void ProcessControllerInput()
 	{
-		CurrentPlayerScope = playerIndex;
+		if ( Input.CurrentController is not { } controller )
+			return;
 
-		// Default input accepts gamepad and keyboard and mouse, so we don't want to reset analogs
-		if ( CurrentPlayerScope != -1 )
+		// Use controller's input context
+		using var inputScope = controller.InputContext?.Push();
+
+		var lookX = controller.GetAxis( NativeEngine.GameControllerAxis.RightX ) * Time.Delta * Preferences.ControllerLookYawSpeed;
+		var lookY = controller.GetAxis( NativeEngine.GameControllerAxis.RightY ) * Time.Delta * Preferences.ControllerLookPitchSpeed;
+
+		AnalogLook += new Angles( lookY, -lookX, 0 );
+
+		var moveX = controller.GetAxis( NativeEngine.GameControllerAxis.LeftX );
+		var moveY = controller.GetAxis( NativeEngine.GameControllerAxis.LeftY );
+
+		AnalogMove += new Vector3( -moveY, -moveX, 0 );
+
+		MotionData = new()
 		{
-			// Reset analogs
-			AnalogLook = default;
-			AnalogMove = 0;
-		}
+			Gyroscope = controller.Gyroscope,
+			Accelerometer = controller.Accelerometer
+		};
 
-		if ( Input.CurrentController is { } controller && UsingController )
-		{
-			// Use controller's input context
-			// Doesn't need to be flipped, we do this once a frame for each controller.
-			using var inputScope = controller.InputContext?.Push();
-
-			var lookX = controller.GetAxis( NativeEngine.GameControllerAxis.RightX ) * Time.Delta * Preferences.ControllerLookYawSpeed;
-			var lookY = controller.GetAxis( NativeEngine.GameControllerAxis.RightY ) * Time.Delta * Preferences.ControllerLookPitchSpeed;
-
-			AnalogLook = new Angles( lookY, -lookX, 0 );
-
-			var moveX = controller.GetAxis( NativeEngine.GameControllerAxis.LeftX );
-			var moveY = controller.GetAxis( NativeEngine.GameControllerAxis.LeftY );
-
-			AnalogMove = new Vector3( -moveY, -moveX, 0 );
-
-			MotionData = new()
-			{
-				Gyroscope = controller.Gyroscope,
-				Accelerometer = controller.Accelerometer
-			};
-
-			controller.UpdateHaptics();
-		}
-	}
-
-	/// <summary>
-	/// Push a specific player scope to be active
-	/// </summary>
-	public static IDisposable PlayerScope( int index )
-	{
-		index = index.Clamp( 0, int.MaxValue );
-
-		var old = CurrentPlayerScope;
-
-		// Process input for our new scope
-		ProcessControllerInput( index );
-
-		return DisposeAction.Create( () =>
-		{
-			if ( CurrentPlayerScope == index )
-			{
-				ProcessControllerInput( old );
-			}
-		} );
+		controller.UpdateHaptics();
 	}
 }

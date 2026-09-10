@@ -1,13 +1,14 @@
-﻿using static Facepunch.Constants;
+﻿using System.Globalization;
+using static Facepunch.Constants;
 
 namespace Facepunch.Steps;
 
 /// <summary>
 /// Step to write version information to a file
 /// </summary>
-internal class WriteVersion( string name ) : Step( name )
+internal class WriteVersion
 {
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		try
 		{
@@ -18,7 +19,7 @@ internal class WriteVersion( string name ) : Step( name )
 							  $"{Environment.GetEnvironmentVariable( "GITHUB_RUN_ID" )}\n" +
 							  $"{Environment.GetEnvironmentVariable( "GITHUB_JOB" )}\n" +
 							  $"{Environment.GetEnvironmentVariable( "GITHUB_ACTOR" )}\n" +
-							  $"{DateTime.UtcNow}\n";
+							  $"{DateTime.UtcNow.ToString( "dd/MM/yyyy HH:mm:ss", CultureInfo.InvariantCulture )}\n";
 
 			File.WriteAllText( target, contents );
 

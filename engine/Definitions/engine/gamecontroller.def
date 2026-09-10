@@ -3,7 +3,8 @@
 native static class NativeEngine.SDLGameController
 {
 	int GetAxis( int joystickId, GameControllerAxis_t axis );
-	GameControllerType_t GetControllerType( int joystickId );
+	string GetControllerName( int joystickId );
+	GameControllerGlyphSet_t GetControllerGlyphSet( int joystickId );
 	bool Close( int joystickId );
 
 	// Features

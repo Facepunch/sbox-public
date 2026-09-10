@@ -15,6 +15,28 @@ public abstract partial class Collider
 	internal PhysicsBody PhysicsBody => Rigidbody.IsValid() ? Rigidbody.PhysicsBody : KeyBody;
 
 	/// <summary>
+	/// Finds the smallest move needed to separate this collider from another, ignoring all collision rules.
+	/// Returns true if they're overlapping; moving this collider by <paramref name="direction"/> *
+	/// <paramref name="distance"/> pushes it clear.
+	/// </summary>
+	public bool ComputePenetration( Collider other, out Vector3 direction, out float distance )
+	{
+		direction = default;
+		distance = default;
+
+		if ( !other.IsValid() )
+			return false;
+
+		var body = PhysicsBody;
+		var otherBody = other.PhysicsBody;
+
+		if ( !body.IsValid() || !otherBody.IsValid() )
+			return false;
+
+		return body.ComputePenetration( otherBody, out direction, out distance );
+	}
+
+	/// <summary>
 	/// Called when a Rigidbody is enabled. It calls this on all downstream colliders. On our part, we look at who out nearest
 	/// parent rigidbody is and add ourselves to that.
 	/// </summary>

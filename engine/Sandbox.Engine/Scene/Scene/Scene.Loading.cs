@@ -1,4 +1,6 @@
-﻿namespace Sandbox;
+﻿using NativeEngine;
+
+namespace Sandbox;
 
 public partial class Scene : GameObject
 {
@@ -98,6 +100,9 @@ public partial class Scene : GameObject
 
 				// Run pending startups
 				RunPendingStarts();
+
+				if ( WantsSystemScene && this is not PrefabScene )
+					g_pRenderDevice.FlushPipelineCache();
 
 				// Tell networking we've finished loading, lets players join
 				var sceneInformation = Components.Get<SceneInformation>();

@@ -4,10 +4,12 @@ namespace Editor.MeshEditor;
 /// Create different types of primitive meshes.
 /// </summary>
 [Title( "Primitive Tool" )]
-[Icon( "view_in_ar" )]
+[Icon( "meshtools/primitve_tools/create.png" )]
 [Alias( "tools.primitive-tool" )]
 public partial class PrimitiveTool( MeshTool tool ) : EditorTool
 {
+	const string EditorTypeCookie = "PrimitiveTool.EditorType";
+
 	public MeshTool MeshTool { get; private init; } = tool;
 
 	public PrimitiveEditor Editor { get; private set; }
@@ -16,14 +18,33 @@ public partial class PrimitiveTool( MeshTool tool ) : EditorTool
 
 	public override void OnEnabled()
 	{
-		Editor = EditorTypeLibrary.Create<PrimitiveEditor>( typeof( BlockEditor ), [this] );
+		var savedType = EditorCookie.GetString( EditorTypeCookie, null );
+		var type = EditorTypeLibrary.GetTypes<PrimitiveEditor>()
+			.FirstOrDefault( x => !x.IsAbstract && x.FullName == savedType )
+			?.TargetType ?? typeof( BlockEditor );
+
+		SelectEditor( type );
 	}
 
 	public override void OnDisabled()
 	{
-		Create();
+		if ( Game.IsPlaying )
+			Cancel();
+		else
+			Create();
 
 		Editor = null;
+	}
+
+	internal void SelectEditor( Type type )
+	{
+		if ( Editor?.GetType() == type )
+			return;
+
+		Editor = EditorTypeLibrary.Create<PrimitiveEditor>( type, [this] );
+
+		if ( Editor is not null )
+			EditorCookie.SetString( EditorTypeCookie, type.FullName );
 	}
 
 	public void Create()
@@ -48,8 +69,11 @@ public partial class PrimitiveTool( MeshTool tool ) : EditorTool
 			var bounds = mesh.CalculateBounds();
 			mesh.ApplyTransform( new Transform( -bounds.Center ) );
 
+			var rotation = Editor.BuildRotation;
+
 			var go = new GameObject( true, name );
-			go.WorldPosition = bounds.Center;
+			go.WorldPosition = rotation * bounds.Center;
+			go.WorldRotation = rotation;
 			var c = go.Components.Create<MeshComponent>( false );
 			c.Mesh = mesh;
 			c.SmoothingAngle = 40.0f;

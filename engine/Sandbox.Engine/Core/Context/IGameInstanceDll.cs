@@ -30,7 +30,7 @@ internal unsafe interface IGameInstanceDll
 	//
 	// Game Menu Shit
 	//
-	public Task LoadGamePackageAsync( string ident, GameLoadingFlags flags, CancellationToken ct );
+	public Task<bool> LoadGamePackageAsync( string ident, GameLoadingFlags flags, CancellationToken ct );
 
 	//
 	// Scene
@@ -43,8 +43,14 @@ internal unsafe interface IGameInstanceDll
 	//
 
 	GameNetworkSystem CreateGameNetworking( NetworkSystem system );
+	Task<GameNetworkSystem> CreateGameNetworkingAsync( NetworkSystem system );
 	public void InstallNetworkTables( NetworkSystem system );
-	public Task LoadNetworkTables( NetworkSystem system );
+
+	/// <summary>
+	/// We took over as host; adopt anything mirrored from the previous host.
+	/// </summary>
+	public void OnBecameHost() { }
+	public Task<bool> LoadNetworkTables( NetworkSystem system );
 
 	/// <summary>
 	/// Called when the "disconnect" command is ran.

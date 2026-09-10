@@ -40,12 +40,6 @@ public partial class ILHotload : IDisposable
 
 	private Exception _notSupportedException;
 
-	private record AssemblyChange
-	{
-		public required Assembly OriginalAssembly { get; init; }
-		public required Assembly ReplacingAssembly { get; init; }
-	}
-
 	public ILHotload( string name )
 	{
 		log = new Logger( $"{nameof( ILHotload )}/{name}" );
@@ -165,6 +159,8 @@ public partial class ILHotload : IDisposable
 			return false;
 		}
 
+		var newAsmVersion = newAsm.GetName().Version?.ToString();
+
 		hasSupportedAttribute = true;
 
 		// Look for methods / properties tagged with change attributes
@@ -216,7 +212,7 @@ public partial class ILHotload : IDisposable
 				// This should always be true because of the AllMembersEqual test earlier
 				Assert.AreEqual( baseMember.Name, newMember.Name );
 
-				if ( newMember is MethodInfo methodInfo && methodInfo.GetCustomAttribute<MethodBodyChangeAttribute>() != null )
+				if ( newMember is MethodInfo methodInfo && methodInfo.GetCustomAttribute<MethodBodyChangeAttribute>()?.ChangedAssemblyVersion == newAsmVersion )
 				{
 					newChangedMethods.Add( methodInfo );
 					continue;
@@ -231,6 +227,8 @@ public partial class ILHotload : IDisposable
 
 				foreach ( var attrib in changedAttribs )
 				{
+					if ( attrib.ChangedAssemblyVersion != newAsmVersion ) continue;
+
 					switch ( attrib.Accessor )
 					{
 						case PropertyAccessor.Get when propertyInfo.GetMethod != null:
@@ -378,6 +376,8 @@ public partial class ILHotload : IDisposable
 			return false;
 		}
 
+		log.Trace( $"TryReplaceMethod({source.ToSimpleString()}, source: {source.DeclaringType?.Assembly.GetName().Version}, replace: {replace.DeclaringType?.Assembly.GetName().Version})" );
+
 		var sourceAssembly = source.Module.Assembly;
 
 		if ( !ActiveDetours.TryGetValue( sourceAssembly, out var asmDetours ) )
@@ -397,6 +397,7 @@ public partial class ILHotload : IDisposable
 				// We're currently working on this detour
 				//
 
+				log.Trace( $"  in progress" );
 				return true;
 			}
 
@@ -406,6 +407,7 @@ public partial class ILHotload : IDisposable
 				// Exactly this detour is already in place
 				//
 
+				log.Trace( $"  already detoured" );
 				return true;
 			}
 
@@ -463,8 +465,9 @@ public partial class ILHotload : IDisposable
 
 			asmDetours[source] = detour;
 		}
-		catch ( NotSupportedException )
+		catch ( NotSupportedException e )
 		{
+			log.Trace( e );
 			asmDetours.Remove( source );
 			return false;
 		}
@@ -475,6 +478,7 @@ public partial class ILHotload : IDisposable
 			return false;
 		}
 
+		log.Trace( $"  success" );
 		return true;
 	}
 

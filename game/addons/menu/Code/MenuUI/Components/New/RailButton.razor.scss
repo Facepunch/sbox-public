@@ -1,0 +1,102 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+RailButton
+{
+	position: relative;
+	flex-shrink: 0;
+	width: 100%;
+
+	.badge
+	{
+		@include front-count-badge;
+
+		top: 6px;
+		right: 22px;
+		border: 2px solid $front-card;
+		pointer-events: none;
+	}
+
+	.badge.reward
+	{
+		background-color: $front-reward;
+	}
+
+	.progress
+	{
+		position: absolute;
+		left: 14px;
+		right: 14px;
+		bottom: 6px;
+		height: 3px;
+		border-radius: 999px;
+		background-color: $front-track;
+		overflow: hidden;
+		pointer-events: none;
+	}
+
+	.progress-fill
+	{
+		height: 100%;
+		border-radius: 999px;
+		background-color: $front-primary * 3;
+	}
+
+	.progress.reward .progress-fill
+	{
+		background-color: $front-reward * 3;
+	}
+}
+
+// Under Sidebar .nav so it beats the rail's own icon colours.
+Sidebar .nav RailButton.glow .button icon,
+Sidebar .nav RailButton.glow .button iconpanel
+{
+	color: $front-trophy * 2;
+	text-shadow: 0 0 14px rgba( $front-trophy, 0.7 );
+	animation-name: rail-glow;
+	animation-duration: 2.4s;
+	animation-timing-function: ease-in-out;
+	animation-iteration-count: infinite;
+}
+
+Sidebar .nav RailButton.glow .button label
+{
+	color: $front-heading;
+}
+
+@keyframes rail-glow
+{
+	0%   { color: $front-trophy * 1.5; text-shadow: 0 0 8px rgba( $front-trophy, 0.4 ); }
+	50%  { color: $front-trophy * 3;   text-shadow: 0 0 18px rgba( $front-trophy, 0.9 ); }
+	100% { color: $front-trophy * 1.5; text-shadow: 0 0 8px rgba( $front-trophy, 0.4 ); }
+}
+
+// Under Sidebar .nav so it beats the rail's own padding.
+Sidebar .nav RailButton.has-sub .button
+{
+	height: 80px;
+	padding: 8px 1px 26px 4px;
+}
+
+RailButton .sub
+{
+	position: absolute;
+	left: 0;
+	right: 3px;
+	bottom: 9px;
+	text-align: center;
+	// Poppins has no tabular figures.
+	font-family: $font-default;
+	font-variant-numeric: tabular-nums;
+	font-size: 9.5px;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	color: $front-secondary;
+	pointer-events: none;
+}
+
+RailButton.glow .sub
+{
+	color: $primary-yellow * 2;
+}

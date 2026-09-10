@@ -114,6 +114,19 @@ public sealed partial class SpriteRenderer : Renderer, Component.ExecuteInEditor
 	public float DepthFeather { get; set; }
 
 	/// <summary>
+	/// Sprites closer to the camera than this are completely invisible.
+	/// </summary>
+	[Property, Category( "Visuals" ), Order( -200 )]
+	public float CameraFadeNear { get; set; }
+
+	/// <summary>
+	/// Sprites further from the camera than this are fully opaque. Between this and
+	/// <see cref="CameraFadeNear"/> they fade out. Leave at zero to disable the fade.
+	/// </summary>
+	[Property, Category( "Visuals" ), Order( -200 )]
+	public float CameraFadeFar { get; set; }
+
+	/// <summary>
 	/// The strength of the fog effect applied to the sprite. This determines how much the sprite blends with any fog in the scene.
 	/// </summary>
 	[Property, Category( "Visuals" ), Order( -200 )]

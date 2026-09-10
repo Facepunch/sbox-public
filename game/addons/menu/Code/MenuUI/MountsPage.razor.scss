@@ -1,0 +1,46 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+MountsPage
+{
+	position: relative;
+	background-color: transparent;
+	align-items: center;
+	justify-content: center;
+
+	// Everything below is scoped - stylesheets are global, so bare .grid/.step would leak.
+
+	.columns
+	{
+		@include front-page-columns;
+	}
+
+	.aside
+	{
+		@include front-page-aside;
+	}
+
+	.list
+	{
+		@include front-page-list;
+	}
+
+	.section-head
+	{
+		@include front-page-section-head;
+	}
+
+	.empty
+	{
+		@include front-page-empty;
+	}
+
+	.grid
+	{
+		flex-shrink: 0;
+		flex-direction: row;
+		flex-wrap: wrap;
+		gap: 12px;
+		padding: 4px;
+	}
+}

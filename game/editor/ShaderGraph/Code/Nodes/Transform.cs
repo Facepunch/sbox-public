@@ -551,3 +551,39 @@ public sealed class HSVtoRGB : ShaderNode
 		return new NodeResult( 3, compiler.ResultFunction( "HSV2RGB", $"{compiler.ResultOrDefault( In, Vector3.One )}" ) );
 	};
 }
+
+/// <summary>
+/// Converts a color from sRGB gamma space to linear space.
+/// </summary>
+[Title( "Srgb Gamma To Linear" ), Category( "Transform" ), Icon( "invert_colors" )]
+public sealed class SrgbGammaToLinear : ShaderNode
+{
+	[Input( typeof( Vector3 ) )]
+	[Hide]
+	public NodeInput In { get; set; }
+
+	[Output( typeof( Vector3 ) )]
+	[Hide]
+	public NodeResult.Func Out => ( GraphCompiler compiler ) =>
+	{
+		return new NodeResult( 3, $"SrgbGammaToLinear( {compiler.ResultOrDefault( In, Vector3.One )} )" );
+	};
+}
+
+/// <summary>
+/// Converts a color from linear space to sRGB gamma space.
+/// </summary>
+[Title( "Srgb Linear To Gamma" ), Category( "Transform" ), Icon( "invert_colors" )]
+public sealed class SrgbLinearToGamma : ShaderNode
+{
+	[Input( typeof( Vector3 ) )]
+	[Hide]
+	public NodeInput In { get; set; }
+
+	[Output( typeof( Vector3 ) )]
+	[Hide]
+	public NodeResult.Func Out => ( GraphCompiler compiler ) =>
+	{
+		return new NodeResult( 3, $"SrgbLinearToGamma( {compiler.ResultOrDefault( In, Vector3.One )} )" );
+	};
+}

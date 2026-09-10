@@ -69,10 +69,10 @@ public static class GameTask
 	public static Task<T[]> WhenAll<T>( IEnumerable<Task<T>> tasks ) => source.WhenAll<T>( tasks );
 
 	/// <inheritdoc cref="TaskSource.WhenAny(Task[])"/>
-	public static Task WhenAny( params Task[] tasks ) => source.WhenAny( tasks );
+	public static Task<Task> WhenAny( params Task[] tasks ) => source.WhenAny( tasks );
 
 	/// <inheritdoc cref="TaskSource.WhenAny(IEnumerable{Task})"/>
-	public static Task WhenAny( IEnumerable<Task> tasks ) => source.WhenAny( tasks );
+	public static Task<Task> WhenAny( IEnumerable<Task> tasks ) => source.WhenAny( tasks );
 
 	/// <inheritdoc cref="TaskSource.WhenAny{T}(Task{T}[])"/>
 	public static Task<Task<T>> WhenAny<T>( params Task<T>[] tasks ) => source.WhenAny<T>( tasks );
@@ -528,17 +528,19 @@ public struct TaskSource
 	}
 
 	/// <inheritdoc cref="Task.WhenAny(Task[])" />
-	public async Task WhenAny( params Task[] tasks )
+	public async Task<Task> WhenAny( params Task[] tasks )
 	{
-		await Task.WhenAny( tasks ).WaitAsync( _cancellation );
+		var result = await Task.WhenAny( tasks ).WaitAsync( _cancellation );
 		CancelIfInvalid();
+		return result;
 	}
 
 	/// <inheritdoc cref="Task.WhenAny(IEnumerable{Task})" />
-	public async Task WhenAny( IEnumerable<Task> tasks )
+	public async Task<Task> WhenAny( IEnumerable<Task> tasks )
 	{
-		await Task.WhenAny( tasks ).WaitAsync( _cancellation );
+		var result = await Task.WhenAny( tasks ).WaitAsync( _cancellation );
 		CancelIfInvalid();
+		return result;
 	}
 
 	/// <inheritdoc cref="Task.WaitAny(Task[])" />

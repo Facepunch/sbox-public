@@ -102,7 +102,14 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 			if ( _showRecursive == value ) return;
 			_showRecursive = value;
 
-			watcher.IncludeSubdirectories = value;
+			try
+			{
+				watcher.IncludeSubdirectories = value;
+			}
+			catch ( IOException e )
+			{
+				Log.Warning( $"Couldn't update the file watcher for {CurrentLocation?.Path} ({e.Message})" );
+			}
 
 			UpdateAssetList();
 			SaveSettings();
@@ -157,20 +164,22 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 		AssetList.OnViewModeChanged += () => { UpdateViewModeIcon(); SaveSettings(); };
 		AssetList.OnHighlight = ( entries ) =>
 		{
-			var assets = entries.OfType<AssetEntry>().ToList();
-			if ( assets.Count == entries.Count() )
+			var highlightedEntries = entries.ToList();
+			var assets = highlightedEntries.OfType<AssetEntry>().ToList();
+
+			if ( assets.Count == highlightedEntries.Count )
 			{
 				if ( assets.Count > 1 )
 				{
 					OnAssetsHighlight?.Invoke( assets.Select( x => x.Asset ).ToArray() );
 				}
-				else
+				else if ( assets.Count == 1 )
 				{
 					OnAssetHighlight?.Invoke( assets.First().Asset );
 				}
 			}
 
-			OnHighlight?.Invoke( entries );
+			OnHighlight?.Invoke( highlightedEntries );
 		};
 
 		Chips = new ChipsWidget();
@@ -190,7 +199,7 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 
 		var splitter = new Splitter( this );
 		splitter.IsHorizontal = true;
-		splitter.AddWidget( AssetLocations );
+		splitter.AddWidget( BuildLocationsPanel() );
 		splitter.SetStretch( 0, 1 );
 		splitter.AddWidget( body );
 		splitter.SetStretch( 1, 5 );
@@ -231,6 +240,8 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 	{
 
 	}
+
+	protected virtual Widget BuildLocationsPanel() => AssetLocations;
 
 	public override void OnDestroyed()
 	{
@@ -340,8 +351,18 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 
 		if ( location is DiskLocation )
 		{
-			watcher.Path = CurrentLocation.Path;
-			watcher.EnableRaisingEvents = true;
+			// Best effort. Every watcher is an inotify instance on Linux and the kernel only
+			// hands out so many per user - losing the watch costs us auto-refresh, which is not
+			// worth throwing out of a dock's constructor and taking editor startup down with it.
+			try
+			{
+				watcher.Path = CurrentLocation.Path;
+				watcher.EnableRaisingEvents = true;
+			}
+			catch ( Exception e )
+			{
+				Log.Warning( $"Couldn't watch {CurrentLocation.Path} for changes ({e.Message})" );
+			}
 		}
 		else
 		{
@@ -618,10 +639,9 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 			var o = menu.AddOption( new Option( this, "Split Left", "first_page" ) );
 			o.Triggered = () =>
 			{
-				var ab = EditorWindow.DockManager.Create<MainAssetBrowser>();
-				ab.Local.NavigateTo( CurrentLocation );
-				ab.Local.ViewModeType = ViewModeType;
-				EditorWindow.DockManager.AddDock( this, ab, DockArea.Left );
+				var browser = MainAssetBrowser.Create( this, DockArea.Left );
+				browser.Local.NavigateTo( CurrentLocation );
+				browser.Local.ViewModeType = ViewModeType;
 			};
 		}
 
@@ -629,10 +649,9 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 			var o = menu.AddOption( new Option( this, "Split Right", "last_page" ) );
 			o.Triggered = () =>
 			{
-				var ab = EditorWindow.DockManager.Create<MainAssetBrowser>();
-				ab.Local.NavigateTo( CurrentLocation );
-				ab.Local.ViewModeType = ViewModeType;
-				EditorWindow.DockManager.AddDock( this, ab, DockArea.Right );
+				var browser = MainAssetBrowser.Create( this, DockArea.Right );
+				browser.Local.NavigateTo( CurrentLocation );
+				browser.Local.ViewModeType = ViewModeType;
 			};
 		}
 
@@ -709,10 +728,9 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 	{
 		if ( asset is null ) return;
 
-		var folder = System.IO.Path.GetDirectoryName( asset.AbsolutePath );
 		EditorWindow.DockManager.RaiseDock( this );
 
-		NavigateTo( folder );
+		NavigateTo( asset.AbsolutePath );
 
 		// wait for the list to (successfully) populate before selecting the item
 		var success = await RefreshTask;
@@ -750,7 +768,7 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 		{
 			PixmapIcon = x.Icon16,
 			Title = x.FriendlyName,
-			Group = (string.IsNullOrEmpty( x.Category ) ? "Other" : x.Category),
+			Group = string.IsNullOrEmpty( x.Category ) ? "Other" : x.Category,
 			Column = 0,
 			Count = () => AssetSystem.All.Where( y => y.AssetType == x ).Count(),
 			Color = x.Color

@@ -28,7 +28,6 @@
             }
             else
             {
-
                 <div class="status">@LoadingScreen.Title</div>
                 @if ( !string.IsNullOrWhiteSpace( LoadingScreen.Subtitle ) )
                 {
@@ -45,8 +44,7 @@
 
 @code
 {
-
-    protected override int BuildHash() => System.HashCode.Combine(LoadingScreen.IsVisible, LoadingScreen.Title, LoadingScreen.Subtitle, LoadingScreen.Media, LoadingScreen.Tasks.Count);
+    protected override int BuildHash() => System.HashCode.Combine(LoadingScreen.IsVisible, LoadingScreen.Title, LoadingScreen.Subtitle, LoadingScreen.Media, LoadingScreen.Tasks.Count, LoadingScreen.Tasks.FirstOrDefault()?.Title);
 
     public override void Tick()
     {

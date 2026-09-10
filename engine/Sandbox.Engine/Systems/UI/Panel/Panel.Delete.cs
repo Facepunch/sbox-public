@@ -40,7 +40,7 @@ public partial class Panel
 		IsDeleting = true;
 		Transitions.Clear(); // stop any intros
 		Switch( PseudoClass.Outro, true );
-		GlobalContext.Current.UISystem.AddDeferredDeletion( this );
+		UISystem.AddDeferredDeletion( this );
 	}
 
 	/// <summary>
@@ -61,6 +61,7 @@ public partial class Panel
 		try
 		{
 			RemoveFromLists();
+			RemoveFromSceneIndex();
 
 			Task.Expire();
 
@@ -79,11 +80,12 @@ public partial class Panel
 				Log.Error( ex, "Error when calling OnDeleted" );
 			}
 
-			// Clear any focus we may have
+			// Clear any focus we may have. UISystem is null for a panel that's already detached
+			// in a context with no global fallback system, e.g. a panel window app.
 			// TODO: Ideally this would cascade to parents who accept focus, but we'd need to change how Panels are removed.
-			if ( InputFocus.Current == this )
+			if ( UISystem is { } system && system.CurrentFocus == this )
 			{
-				InputFocus.Clear( this );
+				system.ClearFocus( this );
 			}
 
 			if ( MouseCapture == this )
@@ -91,11 +93,15 @@ public partial class Panel
 				SetMouseCapture( false );
 			}
 
-			YogaNode?.Dispose();
-			YogaNode = null;
+			InlineOwner?.Invalidate();
+			InlineParagraph?.Dispose();
+			InlineParagraph = null;
+			InlineOwner = null;
+			LayoutTree?.Dispose();
+			LayoutTree = null;
 
 			// Destroy the razor render tree — Block.ElementPanel holds strong refs to
-			// dynamically-created child panels whose Style.StyleBlocks keep parsed
+			// dynamically-created child panels whose Style._styleBlocks keep parsed
 			// stylesheet textures (gradients, masks, etc.) alive past shutdown.
 			renderTree?.Clear();
 			renderTree = null;
@@ -110,7 +116,7 @@ public partial class Panel
 			StyleSheet = default;
 			GameObject = null;
 
-			// Drop the PanelStyle — its StyleBlocks[] cache holds StyleBlock refs
+			// Drop the PanelStyle — its _styleBlocks cache holds StyleBlock refs
 			// whose Styles._backgroundImage/_maskImage keep textures alive.
 			Style = null;
 

@@ -4,7 +4,7 @@
 internal struct UserInfo
 {
 	public SteamId SteamId { get; set; }
-	public string DisplayName { get; set; }
+	public string Name { get; set; }
 	public DateTimeOffset ConnectionTime { get; set; }
 	public Dictionary<string, string> UserData { get; set; }
 	public int EngineVersion { get; internal set; }
@@ -25,7 +25,7 @@ internal struct UserInfo
 			{
 				ConnectionTime = DateTime.UtcNow,
 				SteamId = Utility.Steam.SteamId,
-				DisplayName = Utility.Steam.PersonaName,
+				Name = Utility.Steam.PersonaName,
 				EngineVersion = Engine.Protocol.Network,
 				UserData = new(),
 				PartyId = PartyRoom.Current?.Id ?? new( 0 ),

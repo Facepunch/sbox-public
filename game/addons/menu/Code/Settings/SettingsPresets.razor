@@ -1,0 +1,67 @@
+﻿@using Sandbox
+@using Sandbox.UI
+@using Sandbox.Engine.Settings
+@using System
+@namespace MenuProject.Settings
+@inherits Panel
+
+<root class="presets">
+
+	<div class="head">
+		<label class="section-label">Quality Preset</label>
+		<label class="hint">Sets everything under Quality in one go. Change any of them and you're on Custom.</label>
+	</div>
+
+	<div class="line">
+
+		<div class="tier detect" onclick=@Detect tooltip="Pick the preset that suits this machine">
+			<i>auto_fix_high</i>
+			<label>Auto-Detect</label>
+		</div>
+
+		<div class="grow"></div>
+
+		@* In the control column, so the rungs line up with the settings they set. *@
+		<div class="tiers">
+			@foreach ( var preset in Tiers )
+			{
+				<div class="tier @(Current == preset ? "active" : "")" onclick=@( () => Pick( preset ) )>
+					<label>@preset.ToString()</label>
+				</div>
+			}
+
+			@if ( Current == GraphicsPreset.Custom )
+			{
+				<div class="tier custom active">
+					<label>Custom</label>
+				</div>
+			}
+		</div>
+
+	</div>
+
+</root>
+
+@code
+{
+	[Parameter] public SettingsView View { get; set; }
+
+	static readonly GraphicsPreset[] Tiers = [GraphicsPreset.Low, GraphicsPreset.Medium, GraphicsPreset.High, GraphicsPreset.Ultra];
+
+	GraphicsPreset Current => View?.Catalog.StagedPreset ?? GraphicsPreset.Custom;
+
+	void Pick( GraphicsPreset preset )
+	{
+		View?.Catalog.StagePreset( preset );
+
+		// A ButtonGroup only reads its value when its parameters are set, so force the rebuild.
+		View?.Invalidate();
+	}
+
+	void Detect()
+	{
+		Pick( MenuUtility.DetectGraphicsPreset() );
+	}
+
+	protected override int BuildHash() => HashCode.Combine( Current );
+}

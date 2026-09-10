@@ -1026,11 +1026,13 @@ internal static class ContourBuilder
 				// We assume that there is one outline and multiple holes.
 				int nregions = chf.MaxRegions + 1;
 
-				using var pooledRegions = new PooledSpan<ContourRegion>( nregions );
+				// Cleared on return - both hold Contour references, which the pool would otherwise
+				// keep alive until the buffer is rented again.
+				using var pooledRegions = new PooledSpan<ContourRegion>( nregions, clearOnReturn: true );
 				Span<ContourRegion> regions = pooledRegions.Span;
 				regions.Clear();
 
-				using var pooledHoles = new PooledSpan<ContourHole>( nholes );
+				using var pooledHoles = new PooledSpan<ContourHole>( nholes, clearOnReturn: true );
 				Span<ContourHole> holes = pooledHoles.Span;
 
 				for ( int i = 0; i < ctx.ContourSet.Contours.Count; ++i )

@@ -15,5 +15,6 @@ internal partial class NetworkSystem
 	{
 		Connection = connection;
 		Connection.InitializeSystem( this );
+		SetHostConnection( connection );
 	}
 }

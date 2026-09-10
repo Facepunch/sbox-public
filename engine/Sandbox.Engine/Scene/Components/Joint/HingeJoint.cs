@@ -290,11 +290,11 @@ public sealed class HingeJoint : Joint
 				break;
 
 			case MotorMode.TargetAngle:
-				_joint.native.SetAngularSpring( new Vector3( TargetAngle.DegreeToRadian(), Frequency, DampingRatio ) );
+				_joint.SetAngularSpring( new Vector3( TargetAngle.DegreeToRadian(), Frequency, DampingRatio ) );
 				break;
 
 			case MotorMode.TargetVelocity:
-				_joint.native.SetAngularMotor( TargetVelocity.DegreeToRadian(), MaxTorque );
+				_joint.SetAngularMotor( TargetVelocity.DegreeToRadian(), MaxTorque );
 				break;
 		}
 	}

@@ -296,6 +296,7 @@ public partial class GameTransform
 	/// </summary>
 	[ActionGraphInclude]
 	[DefaultValue( 1f )]
+	[Uniform]
 	[Obsolete( "Use WorldScale instead of Transform.Scale" )]
 	public Vector3 Scale
 	{
@@ -339,6 +340,7 @@ public partial class GameTransform
 	[ActionGraphInclude]
 	[Property]
 	[DefaultValue( 1f )]
+	[Uniform]
 	[Obsolete( "Use LocalScale instead of Transform.LocalScale" )]
 	public Vector3 LocalScale
 	{

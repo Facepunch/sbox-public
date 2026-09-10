@@ -12,13 +12,23 @@ public static partial class Input
 
 	internal static ulong Actions
 	{
-		get => CurrentContext.ActionsCurrent;
+		get => CurrentPlayerScope switch
+		{
+			0 => CurrentContext.ActionsCurrent,
+			> 0 => CurrentController?.InputContext?.ActionsCurrent ?? 0,
+			_ => CurrentContext.ActionsCurrent | (Controller.First?.InputContext?.ActionsCurrent ?? 0)
+		};
 		set => CurrentContext.ActionsCurrent = value;
 	}
 
 	static ulong LastActions
 	{
-		get => CurrentContext.ActionsPrevious;
+		get => CurrentPlayerScope switch
+		{
+			0 => CurrentContext.ActionsPrevious,
+			> 0 => CurrentController?.InputContext?.ActionsPrevious ?? 0,
+			_ => CurrentContext.ActionsPrevious | (Controller.First?.InputContext?.ActionsPrevious ?? 0)
+		};
 		set => CurrentContext.ActionsPrevious = value;
 	}
 
@@ -119,6 +129,9 @@ public static partial class Input
 	/// <inheritdoc cref="SetAction(int, bool)"/>
 	public static void SetAction( string action, bool down ) => SetAction( GetActionIndex( action ), down );
 
+	/// <inheritdoc cref="SetLastAction(int, bool)"/>
+	public static void SetLastAction( string action, bool down ) => SetLastAction( GetActionIndex( action ), down );
+
 	/// <summary>
 	/// Remove this action, so it's no longer being pressed.
 	/// </summary>
@@ -172,6 +185,17 @@ public static partial class Input
 	{
 		if ( down ) Actions |= 1UL << index;
 		else Actions &= ~(1UL << index);
+	}
+
+	/// <summary>
+	/// Activates / Deactivates the previous action when building input.
+	/// </summary>
+	/// <param name="index"></param>
+	/// <param name="down"></param>
+	internal static void SetLastAction( int index, bool down )
+	{
+		if ( down ) LastActions |= 1UL << index;
+		else LastActions &= ~(1UL << index);
 	}
 
 	static InputAction FindInputActionByName( string action )
@@ -246,6 +270,9 @@ public static partial class Input
 			{
 				foreach ( var e in Contexts )
 				{
+					if ( IsControllerContext( e ) )
+						continue;
+
 					e.AccumActionsPressed |= 1UL << i;
 				}
 			}
@@ -253,6 +280,9 @@ public static partial class Input
 			{
 				foreach ( var e in Contexts )
 				{
+					if ( IsControllerContext( e ) )
+						continue;
+
 					e.AccumActionsReleased |= 1UL << i;
 				}
 			}
@@ -274,6 +304,14 @@ public static partial class Input
 		if ( string.IsNullOrEmpty( binding ) ) return;
 
 		ConVarSystem.Run( $"{binding}\n" );
+	}
+
+	/// <summary>
+	/// Returns true if the given context belongs to a controller
+	/// </summary>
+	private static bool IsControllerContext( Context context )
+	{
+		return Controller.All.Any( c => c.InputContext == context );
 	}
 
 	internal static InputSettings InputSettings { get; set; }

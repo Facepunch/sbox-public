@@ -45,6 +45,9 @@ public sealed partial class PlayerController : Component
 	{
 		var feetHeight = CurrentHeight * 0.5f;
 		var radius = (BodyRadius * MathF.Sqrt( 2 )) / 2;
+		var up = UpDirection;
+		var localUp = Rotation.FromYaw( -WorldRotation.Yaw() ) * up;
+		var localUpAbs = localUp.Abs();
 
 		// If we're not on the ground, we have slippy as fuck feet
 		var feetFriction = 0.0f;
@@ -77,13 +80,16 @@ public sealed partial class PlayerController : Component
 		// If it becomes too short to fit, disable it and let the feet collider cover the rest.
 		//
 		BodyCollider.Radius = radius;
-		BodyCollider.Start = Vector3.Up * (CurrentHeight - radius);
-		BodyCollider.End = Vector3.Up * MathF.Max( BodyCollider.Start.z - (feetHeight - radius), radius + 1.0f );
+		var bodyStart = CurrentHeight - radius;
+		var bodyEnd = MathF.Max( bodyStart - (feetHeight - radius), radius + 1.0f );
+		BodyCollider.Start = localUp * bodyStart;
+		BodyCollider.End = localUp * bodyEnd;
 		BodyCollider.Friction = 0.0f;
-		BodyCollider.Enabled = BodyCollider.End.z < BodyCollider.Start.z;
+		BodyCollider.Enabled = bodyEnd < bodyStart;
 
-		FeetCollider.Scale = new Vector3( BodyRadius, BodyRadius, BodyCollider.Enabled ? feetHeight : CurrentHeight );
-		FeetCollider.Center = new Vector3( 0, 0, FeetCollider.Scale.z * 0.5f );
+		var feetLength = BodyCollider.Enabled ? feetHeight : CurrentHeight;
+		FeetCollider.Scale = new Vector3( BodyRadius ) + localUpAbs * (feetLength - BodyRadius);
+		FeetCollider.Center = localUp * feetLength * 0.5f;
 		FeetCollider.Friction = feetFriction;
 		FeetCollider.Enabled = true;
 
@@ -100,7 +106,7 @@ public sealed partial class PlayerController : Component
 		// When not moving we drop it to the foot position.
 		//
 		float massCenter = IsOnGround ? WishVelocity.Length.Clamp( 0, CurrentHeight * 0.5f ) : CurrentHeight * 0.5f;
-		Body.MassCenterOverride = new Vector3( 0, 0, massCenter );
+		Body.MassCenterOverride = localUp * massCenter;
 		Body.OverrideMassCenter = true;
 
 		Mode?.UpdateRigidBody( Body );

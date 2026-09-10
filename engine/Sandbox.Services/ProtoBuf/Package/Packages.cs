@@ -5,7 +5,7 @@ public static class PackageMsg
 	[ProtoContract( ImplicitFields = ImplicitFields.AllFields )]
 	public class UsageChanged : IMessage
 	{
-		public static ushort MessageIdent => 5000;
+		public static MessageId MessageIdent => MessageId.PackageUsageChanged;
 
 		public string PackageIdent { get; set; }
 		public long UserCount { get; set; }
@@ -14,7 +14,7 @@ public static class PackageMsg
 	[ProtoContract( ImplicitFields = ImplicitFields.AllFields )]
 	public class FavouritesChanged : IMessage
 	{
-		public static ushort MessageIdent => 5001;
+		public static MessageId MessageIdent => MessageId.PackageFavouritesChanged;
 
 		public string PackageIdent { get; set; }
 		public long Value { get; set; }
@@ -23,7 +23,7 @@ public static class PackageMsg
 	[ProtoContract( ImplicitFields = ImplicitFields.AllFields )]
 	public class VotesChanged : IMessage
 	{
-		public static ushort MessageIdent => 5002;
+		public static MessageId MessageIdent => MessageId.PackageVotesChanged;
 
 		public string PackageIdent { get; set; }
 		public long VotesUp { get; set; }
@@ -36,7 +36,7 @@ public static class PackageMsg
 	[ProtoContract( ImplicitFields = ImplicitFields.AllFields )]
 	public class Changed : IMessage
 	{
-		public static ushort MessageIdent => 5003;
+		public static MessageId MessageIdent => MessageId.PackageChanged;
 
 		public string PackageIdent { get; set; }
 	}
@@ -47,7 +47,7 @@ public static class PackageMsg
 	[ProtoContract( ImplicitFields = ImplicitFields.AllFields )]
 	public class Update : IMessage
 	{
-		public static ushort MessageIdent => 5004;
+		public static MessageId MessageIdent => MessageId.PackageUpdate;
 
 		public string PackageIdent { get; set; }
 		public long RevisionId { get; set; }
@@ -56,7 +56,7 @@ public static class PackageMsg
 	[ProtoContract( ImplicitFields = ImplicitFields.AllFields )]
 	public class ViewsChanged : IMessage
 	{
-		public static ushort MessageIdent => 5005;
+		public static MessageId MessageIdent => MessageId.PackageViewsChanged;
 
 		public string PackageIdent { get; set; }
 		public long Value { get; set; }
@@ -66,7 +66,7 @@ public static class PackageMsg
 	[ProtoContract( ImplicitFields = ImplicitFields.AllFields )]
 	public class ReviewPosted : IMessage
 	{
-		public static ushort MessageIdent => 5006;
+		public static MessageId MessageIdent => MessageId.PackageReviewPosted;
 
 		public string PackageIdent { get; set; }
 		public long Score { get; set; }

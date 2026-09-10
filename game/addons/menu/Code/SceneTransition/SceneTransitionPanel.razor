@@ -1,0 +1,46 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using System.Globalization;
+@namespace Sandbox
+@inherits PanelComponent
+
+<root class="scene-transition">
+	<div class="cover @DirectionClass" style="@WipeStyle"></div>
+</root>
+
+@code
+{
+	public enum WipeDirection
+	{
+		In,
+		Out
+	}
+
+	public float Progress { get; set; }
+	public WipeDirection Direction { get; set; } = WipeDirection.In;
+
+	string DirectionClass => Direction == WipeDirection.In ? "wipe-in" : "wipe-out";
+
+	string WipeStyle
+	{
+		get
+		{
+			float translate;
+
+			if ( Direction == WipeDirection.In )
+			{
+				// 0 progress = off-screen right (100%), 1 progress = covering (0%)
+				translate = (1f - Progress) * 100f;
+			}
+			else
+			{
+				// 0 progress = covering (0%), 1 progress = off-screen left (-100%)
+				translate = -Progress * 100f;
+			}
+
+			return $"transform: translateX( {translate.ToString( "0.#", CultureInfo.InvariantCulture )}% )";
+		}
+	}
+
+	protected override int BuildHash() => HashCode.Combine( Progress.GetHashCode(), Direction );
+}

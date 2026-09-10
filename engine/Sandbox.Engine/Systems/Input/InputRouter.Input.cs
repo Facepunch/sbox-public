@@ -1,4 +1,4 @@
-﻿using NativeEngine;
+using NativeEngine;
 
 namespace Sandbox.Engine;
 
@@ -87,30 +87,26 @@ internal static partial class InputRouter
 	/// </summary>
 	internal static void OnMousePositionChange( float x, float y, float dx, float dy )
 	{
-		var delta = new Vector2( 0, 0 );
-
-		// if we're not in relative mode - take the delta from this
-		if ( !NativeEngine.InputSystem.GetRelativeMouseMode() )
-		{
-			delta = new Vector2( dx, dy );
-			MouseCursorDelta += delta;
-		}
-
 		MouseCursorPosition = new Vector2( x, y );
 
-		// if this is set, we're in capture mode - so just update the position
-		// which will update the position of the cursor when we come out of it
+		if ( InputSystem.GetRelativeMouseMode() )
+		{
+			dx = dy = 0;
+		}
+
+		// If this is set, we're in capture mode - so just update the position
+		// cache we restore when capture ends. This intentionally records the
+		// latest absolute position without moving the OS cursor.
 		if ( mouseCapturePosition is not null )
 		{
 			mouseCapturePosition = MouseCursorPosition;
 			return;
 		}
 
+		MouseCursorDelta += new Vector2( dx, dy );
+
 		var mouse = Contexts.FirstOrDefault( x => x.MouseState != InputContext.InputState.Ignore );
-		if ( mouse is not null )
-		{
-			mouse.In_MousePosition( MouseCursorPosition, delta );
-		}
+		mouse?.In_MousePosition( MouseCursorPosition, new Vector2( dx, dy ) );
 	}
 
 	internal static void OnGameControllerButton( int deviceId, GameControllerCode button, bool down )
@@ -163,16 +159,17 @@ internal static partial class InputRouter
 		foreach ( var action in Sandbox.Input.InputActions.Where( x => x.GamepadCode != GamepadCode.None && x.GamepadCode == code ) )
 		{
 			var i = Sandbox.Input.GetActionIndex( action );
-			foreach ( var e in Sandbox.Input.Contexts )
+
+			if ( controller?.InputContext is not { } controllerContext )
+				continue;
+
+			if ( down )
 			{
-				if ( down )
-				{
-					e.AccumActionsPressed |= 1UL << i;
-				}
-				else
-				{
-					e.AccumActionsReleased |= 1UL << i;
-				}
+				controllerContext.AccumActionsPressed |= 1UL << i;
+			}
+			else
+			{
+				controllerContext.AccumActionsReleased |= 1UL << i;
 			}
 		}
 	}
@@ -204,7 +201,8 @@ internal static partial class InputRouter
 			_ => GamepadCode.None,
 		};
 
-		OnGamepadCode( deviceId, code, value >= triggerDeadzone );
+		// Normalize raw SDL axis value to 0-1 range before comparing against the normalized deadzone.
+		OnGamepadCode( deviceId, code, ((float)value).Remap( 0, Controller.AXIS_RANGE.y, 0, 1 ) >= triggerDeadzone );
 	}
 
 	internal static void OnGameControllerConnected( int joystickId, int deviceId )
@@ -298,16 +296,16 @@ internal static partial class InputRouter
 		}
 	}
 
-	internal static void OnText( uint key )
+	internal static void OnText( string text )
 	{
 		var keyboard = Contexts.FirstOrDefault( x => x.KeyboardState == InputContext.InputState.UI );
 		if ( keyboard is not null )
 		{
-			keyboard.IN_Text( (char)key );
+			keyboard.IN_Text( text );
 		}
 	}
 
-	internal static void OnMouseWheel( int x, int y, int ikeymods )
+	internal static void OnMouseWheel( float x, float y, int ikeymods )
 	{
 		var value = new Vector2( x, y );
 		var mouse = Contexts.FirstOrDefault( x => x.MouseState != InputContext.InputState.Ignore );
@@ -330,31 +328,41 @@ internal static partial class InputRouter
 		}
 	}
 
-	internal static void OnImeStart()
+	internal static void OnImeComposition( string text )
 	{
 		var keyboard = Contexts.FirstOrDefault( x => x.KeyboardState != InputContext.InputState.Ignore );
 		if ( keyboard is not null )
 		{
-			keyboard.IN_ImeStart();
+			keyboard.IN_ImeComposition( text );
 		}
 	}
 
-	internal static void OnImeComposition( string text, bool final )
+	// Gathered as the OS hands over an in-flight drop, delivered together on OnDropComplete
+	static List<string> _dropFiles;
+	static string _dropText;
+
+	internal static void OnDropFile( string path )
 	{
-		var keyboard = Contexts.FirstOrDefault( x => x.KeyboardState != InputContext.InputState.Ignore );
-		if ( keyboard is not null )
-		{
-			keyboard.IN_ImeComposition( text, final );
-		}
+		_dropFiles ??= new();
+		_dropFiles.Add( path );
 	}
 
-	internal static void OnImeEnd()
+	internal static void OnDropText( string text )
 	{
-		var keyboard = Contexts.FirstOrDefault( x => x.KeyboardState != InputContext.InputState.Ignore );
-		if ( keyboard is not null )
-		{
-			keyboard.IN_ImeEnd();
-		}
+		_dropText = text;
+	}
+
+	internal static void OnDropComplete( float x, float y )
+	{
+		var files = _dropFiles;
+		var text = _dropText;
+		_dropFiles = null;
+		_dropText = null;
+
+		if ( files is null && string.IsNullOrEmpty( text ) ) return;
+
+		var mouse = Contexts.FirstOrDefault( c => c.MouseState != InputContext.InputState.Ignore );
+		mouse?.IN_Drop( files, text, new Vector2( x, y ) );
 	}
 
 	/// <summary>

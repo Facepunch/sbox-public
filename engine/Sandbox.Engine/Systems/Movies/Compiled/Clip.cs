@@ -1,5 +1,4 @@
 ﻿using System.Collections.Immutable;
-using Sandbox.MovieMaker.Properties;
 using static Sandbox.Internal.GlobalGameNamespace;
 
 namespace Sandbox.MovieMaker.Compiled;

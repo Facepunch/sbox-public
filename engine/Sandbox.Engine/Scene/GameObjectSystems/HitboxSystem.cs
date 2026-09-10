@@ -7,7 +7,7 @@ namespace Sandbox;
 [Expose]
 sealed class HitboxSystem : GameObjectSystem<HitboxSystem>, GameObjectSystem.ITraceProvider
 {
-	[ConVar( "debug_hitbox", ConVarFlags.Protected )]
+	[ConVar( "debug_hitbox", ConVarFlags.Protected | ConVarFlags.Cheat )]
 	static bool Debug { get; set; }
 
 	private PhysicsWorld _physicsWorld;

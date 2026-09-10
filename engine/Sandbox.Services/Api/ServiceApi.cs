@@ -12,13 +12,15 @@ public partial class ServiceApi : IDisposable
 	public IAchievementApi Achievements { get; }
 	public IPlayerApi Player { get; }
 	public INewsApi News { get; }
+	public IJamApi Jam { get; }
 	public INotificationApi Notification { get; }
 	public IStorageApi Storage { get; }
 	public IUtilityApi Utility { get; }
+	public ICodeApi Code { get; }
 
 	HttpClient client;
 
-	public ServiceApi( string url = "https://services.facepunch.com/sbox" )
+	public ServiceApi( string url = "https://public.facepunch.com/sbox" )
 	{
 		var refitSettings = new RefitSettings
 		{
@@ -40,9 +42,11 @@ public partial class ServiceApi : IDisposable
 		Achievements = RestService.For<IAchievementApi>( client, refitSettings );
 		Player = RestService.For<IPlayerApi>( client, refitSettings );
 		News = RestService.For<INewsApi>( client, refitSettings );
+		Jam = RestService.For<IJamApi>( client, refitSettings );
 		Notification = RestService.For<INotificationApi>( client, refitSettings );
 		Storage = RestService.For<IStorageApi>( client, refitSettings );
 		Utility = RestService.For<IUtilityApi>( client, refitSettings );
+		Code = RestService.For<ICodeApi>( client, refitSettings );
 	}
 
 	public void SetApiKey( string apiKey )

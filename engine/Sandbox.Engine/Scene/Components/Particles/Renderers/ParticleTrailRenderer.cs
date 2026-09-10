@@ -5,7 +5,7 @@ namespace Sandbox;
 /// Renders a trail for each particle in the effect.
 /// </summary>
 [Title( "Particle Trail Renderer" )]
-[Category( "Particles" )]
+[Category( "Effects" )]
 [Icon( "category" )]
 public sealed class ParticleTrailRenderer : ParticleController, Component.ExecuteInEditor
 {

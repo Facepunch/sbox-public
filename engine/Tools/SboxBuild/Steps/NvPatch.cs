@@ -2,9 +2,9 @@
 
 namespace Facepunch.Steps;
 
-internal class NvPatch( string name ) : Step( name )
+internal class NvPatch
 {
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		string rootDir = Directory.GetCurrentDirectory();
 		string nvpatchPath = Path.Combine( rootDir, "engine", "ThirdParty", "nvpatch", "nvpatch.exe" );

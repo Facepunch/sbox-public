@@ -126,6 +126,9 @@ public class ImageFileGenerator : TextureGenerator
 	[Hide]
 	public override bool CacheToDisk => true;
 
+	[Hide]
+	public override ImageFormat? FormatOverride => ConvertHeightToNormals ? null : ImageFormat.RGBA8888;
+
 	// Don't continually load from disk, cache that shit
 	[JsonIgnore, Hide]
 	int _loadedCacheHash;

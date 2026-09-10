@@ -6,7 +6,7 @@ public partial class ServiceApi
 {
 	public interface IBenchmarkApi
 	{
-		[Post( "/benchmark/batch" )]
+		[Post( "/benchmark/batch/1" )]
 		Task<BenchmarkResult> Submit( [Body] BenchmarkInput input );
 	}
 }

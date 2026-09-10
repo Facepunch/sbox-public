@@ -11,13 +11,13 @@ public class FloatBitmap : IDisposable
 		native = fbm;
 	}
 
-	internal unsafe FloatBitmap( int width, int height, ImageFormat format, IntPtr data, int dataSize )
+	internal unsafe FloatBitmap( int width, int height, ImageFormat format, IntPtr data, int dataSize, bool srgb = false )
 	{
 		native = FloatBitMap_t.Create( width, height );
 
 		if ( data != default && dataSize > 0 )
 		{
-			native.LoadFromBuffer( data, dataSize, format, FBMGammaType_t.FBM_GAMMA_LINEAR );
+			native.LoadFromBuffer( data, dataSize, format, srgb ? FBMGammaType_t.FBM_GAMMA_SRGB : FBMGammaType_t.FBM_GAMMA_LINEAR );
 		}
 	}
 
@@ -65,6 +65,29 @@ public class FloatBitmap : IDisposable
 		{
 			//	uint FLOAT_BITMAP_PREFER_RUNTIME_FRIENDLY_DXT_ENCODER = 1;
 			if ( !native.WriteToBuffer( (IntPtr)pData, data.Length, format, false, false, 0 ) )
+			{
+				return default;
+			}
+		}
+
+		return data;
+	}
+
+	public unsafe byte[] EncodeTo( ImageFormat format, bool srgb )
+	{
+		if ( native.IsNull )
+			return null;
+
+		var dataSize = ImageLoader.GetMemRequired( Width, Height, 1, 1, format );
+		if ( dataSize <= 0 )
+			return null;
+
+		var data = new byte[dataSize];
+
+		fixed ( byte* pData = data )
+		{
+			//	uint FLOAT_BITMAP_PREFER_RUNTIME_FRIENDLY_DXT_ENCODER = 1;
+			if ( !native.WriteToBuffer( (IntPtr)pData, data.Length, format, false, srgb, 0 ) )
 			{
 				return default;
 			}

@@ -1,4 +1,6 @@
-﻿namespace Editor;
+﻿using Sandbox.Resources;
+
+namespace Editor;
 
 internal static class MaterialMenu
 {
@@ -73,14 +75,20 @@ internal static class MaterialMenu
 		EditorUtility.InspectorObject = asset;
 	}
 
+	/// <summary>
+	/// Returns first asset which name contains provided fragment, or null if it found nothing.
+	/// </summary>
+	private static string FindTexture( IEnumerable<Asset> assets, params string[] fragments )
+	{
+		return assets.FirstOrDefault( x => fragments.Any( f => x.Name.Contains( f ) ) )?.RelativePath;
+	}
+
 	private static void CreateMaterialUsingImageFiles( IEnumerable<AssetEntry> entries )
 	{
-		string[] types = new[] { "color", "ao", "normal", "metallic", "rough", "diff", "diffuse", "nrm", "spec", "selfillum", "mask" };
+		string[] types = new[] { "color", "basecolor", "albedo", "ao", "occ", "amb", "normal", "metal", "metallic", "metalness", "rough", "diff", "diffuse", "nrm", "spec", "selfillum", "emissive", "emission", "mask", "tint", "opacity", "trans" };
 
 		var asset = entries.First().Asset;
 		var assetName = asset.Name;
-
-		Log.Info( assetName );
 
 		foreach ( var t in types )
 		{
@@ -99,42 +107,54 @@ internal static class MaterialMenu
 		if ( !fd.Execute() )
 			return;
 
-		// Find all the image files in the same folder as the first asset we selected
-		var assetPath = System.IO.Path.GetDirectoryName( asset.AbsolutePath ).NormalizeFilename( false );
-		var assetPeers = AssetSystem.All.Where( x => x.AssetType == AssetType.ImageFile ).Where( x => x.AbsolutePath.StartsWith( assetPath ) ).ToArray();
-		var assetPeersWithSameBaseName = assetPeers.Where( x => x.Name == assetName || x.Name.StartsWith( assetName + "_" ) ).ToArray();
+		var assetPath = System.IO.Path.GetDirectoryName( asset.AbsolutePath ).NormalizeFilename( false, false ) + "/";
+		var folderPeers = AssetSystem.All.Where( x => x.AssetType == AssetType.ImageFile ).Where( x => x.AbsolutePath.StartsWith( assetPath, StringComparison.OrdinalIgnoreCase ) ).ToArray();
+		var assetPeersWithSameBaseName = folderPeers.Where( x => x.Name == assetName || x.Name.StartsWith( assetName + "_" ) ).ToArray();
 		if ( assetPeersWithSameBaseName.Length > 0 )
 		{
-			assetPeers = assetPeersWithSameBaseName;
+			folderPeers = assetPeersWithSameBaseName;
 		}
+
+		// prioritize picking assets from file selection first
+		var assetPeers = entries.Select( x => x.Asset )
+			.Where( x => x is not null )
+			.Concat( folderPeers )
+			.DistinctBy( x => x.AbsolutePath )
+			.ToArray();
 
 		//
 		// Try to work out what textures should go where using hacks and magic
 		//
 
-		string texColor = assetPeers.Where( x => x.Name.Contains( "_color" ) || x.Name.Contains( "_diff" ) ).Select( x => x.RelativePath ).FirstOrDefault();
+		string texColor = FindTexture( assetPeers, "_color", "_basecolor", "_albedo", "_diff" );
 		texColor ??= asset.RelativePath; // Failing that, lets use whatever we have selected, since they most likely selected the color one right
 
-		string texNormal = assetPeers.Where( x => x.Name.Contains( "_nrm" ) || x.Name.Contains( "_normal" ) || x.Name.Contains( "_amb" ) ).Select( x => x.RelativePath ).FirstOrDefault( "materials/default/default_normal.tga" );
-		string texAo = assetPeers.Where( x => x.Name.Contains( "_ao" ) || x.Name.Contains( "_occ" ) || x.Name.Contains( "_amb" ) ).Select( x => x.RelativePath ).FirstOrDefault( "materials/default/default_ao.tga" );
-		string texRough = assetPeers.Where( x => x.Name.Contains( "_rough" ) ).Select( x => x.RelativePath ).FirstOrDefault( "materials/default/default_rough.tga" );
+		string texNormal = FindTexture( assetPeers, "_nrm", "_normal" ) ?? "materials/default/default_normal.tga";
+		string texAo = FindTexture( assetPeers, "_ao", "_occ", "_amb" ) ?? "materials/default/default_ao.tga";
+		string texRough = FindTexture( assetPeers, "_rough" ) ?? "materials/default/default_rough.tga";
 
-		string texMetallic = assetPeers.Where( x => x.Name.Contains( "_metallic" ) ).Select( x => x.RelativePath ).FirstOrDefault();
+		string texMetallic = FindTexture( assetPeers, "_metal" );
 		if ( texMetallic != null )
 		{
-			texMetallic = $"\n	F_METALNESS_TEXTURE 1\n	F_SPECULAR 1\n	TextureMetalness \"{texMetallic}\"";
+			texMetallic = $"\n	F_METALNESS_TEXTURE 1\n	TextureMetalness \"{texMetallic}\"";
 		}
 
-		string texSelfIllum = assetPeers.Where( x => x.Name.Contains( "_selfillum" ) ).Select( x => x.RelativePath ).FirstOrDefault();
+		string texSelfIllum = FindTexture( assetPeers, "_selfillum", "_emissive", "_emission" );
 		if ( texSelfIllum != null )
 		{
 			texSelfIllum = $"\n	F_SELF_ILLUM 1\n	TextureSelfIllumMask \"{texSelfIllum}\"";
 		}
 
-		string tintMask = assetPeers.Where( x => x.Name.Contains( "_mask" ) ).Select( x => x.RelativePath ).FirstOrDefault();
+		string tintMask = FindTexture( assetPeers, "_mask", "_tint" );
 		if ( tintMask != null )
 		{
-			tintMask = $"\n	F_TINT_MASK 1\n	TextureTintMask \"{texSelfIllum}\"";
+			tintMask = $"\n	F_TINT_MASK 1\n	TextureTintMask \"{tintMask}\"";
+		}
+
+		string texTranslucency = FindTexture( assetPeers, "_opacity", "_trans" );
+		if ( texTranslucency != null )
+		{
+			texTranslucency = $"\n	F_TRANSLUCENT 1\n	TextureTranslucency \"{texTranslucency}\"";
 		}
 
 		var file = $@"
@@ -145,7 +165,7 @@ Layer0
 	TextureColor ""{texColor}""
 	TextureAmbientOcclusion ""{texAo}""
 	TextureNormal ""{texNormal}""
-	TextureRoughness ""{texRough}""{texMetallic}{texSelfIllum}{tintMask}
+	TextureRoughness ""{texRough}""{texMetallic}{texSelfIllum}{tintMask}{texTranslucency}
 
 }}
 ";
@@ -178,9 +198,8 @@ Layer0
 
 		if ( isAnimation )
 		{
-			// Export one sprite with each frame as an animation
-			var paths = entries.Select( x => System.IO.Path.ChangeExtension( x.Asset.Path, System.IO.Path.GetExtension( x.Asset.AbsolutePath ) ) );
-			var sprite = Sprite.FromTextures( paths.Select( x => Texture.Load( x ) ).ToArray() );
+			var textures = entries.Select( x => TextureFromImageFile( x ) ).Where( x => x is not null ).ToArray();
+			var sprite = Sprite.FromTextures( textures );
 			var json = sprite.Serialize().ToJsonString();
 			System.IO.File.WriteAllText( fd.SelectedFile, json );
 
@@ -195,10 +214,12 @@ Layer0
 			// Export individual sprites
 			foreach ( var p in entries )
 			{
-				var path = System.IO.Path.ChangeExtension( p.Asset.Path, System.IO.Path.GetExtension( p.Asset.AbsolutePath ) );
-				var sprite = Sprite.FromTexture( Texture.Load( path ) );
+				var texture = TextureFromImageFile( p );
+				if ( texture is null ) continue;
+
+				var sprite = Sprite.FromTexture( texture );
 				var json = sprite.Serialize().ToJsonString();
-				var outPath = System.IO.Path.Combine( System.IO.Path.GetDirectoryName( fd.SelectedFile ), System.IO.Path.GetFileNameWithoutExtension( path ) + ".sprite" );
+				var outPath = System.IO.Path.Combine( System.IO.Path.GetDirectoryName( fd.SelectedFile ), System.IO.Path.GetFileNameWithoutExtension( p.Asset.AbsolutePath ) + ".sprite" );
 				System.IO.File.WriteAllText( outPath, json );
 
 				asset = AssetSystem.RegisterFile( outPath );
@@ -212,5 +233,15 @@ Layer0
 		MainAssetBrowser.Instance?.Local.UpdateAssetList();
 		MainAssetBrowser.Instance?.Local.FocusOnAsset( asset );
 		EditorUtility.InspectorObject = asset;
+	}
+
+	private static Texture TextureFromImageFile( AssetEntry entry )
+	{
+		var generator = new ImageFileGenerator
+		{
+			FilePath = entry.Asset.RelativePath
+		};
+
+		return generator.Create( ResourceGenerator.Options.Default );
 	}
 }

@@ -101,6 +101,8 @@ public abstract partial class ResourceCompiler
 		// store it in the json, so the compiled json will load the resource
 		//
 		embed.CompiledPath = transientPath.Trim( '/' );
+		Context.AddGameFileReference( $"{embed.CompiledPath}_c" );
+
 		return true;
 	}
 }

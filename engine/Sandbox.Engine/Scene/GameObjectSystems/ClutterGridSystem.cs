@@ -19,12 +19,26 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 	private readonly HashSet<Terrain> _subscribedTerrains = [];
 	private Vector3 _lastCameraPosition;
 
+	// Reused by the update path so an idle scene doesn't allocate.
+	private readonly List<ClutterComponent> _activeInfinite = [];
+	private readonly List<ClutterComponent> _componentsToRemove = [];
+	private readonly List<Terrain> _sceneTerrains = [];
+	private readonly HashSet<ClutterLayer> _layersToRebuild = [];
+
 	/// <summary>
 	/// Storage for painted clutter model instances.
 	/// Serialized with the scene - this is the source of truth for painted clutter.
 	/// </summary>
-	[Property]
-	public ClutterStorage Storage { get; set; } = new();
+	[Property, Hide]
+	public ClutterStorage Storage
+	{
+		get;
+		set
+		{
+			field = value;
+			_dirty = true;
+		}
+	} = new();
 
 	/// <summary>
 	/// Layer for rendering painted model instances from Storage.
@@ -37,7 +51,24 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 	public ClutterGridSystem( Scene scene ) : base( scene )
 	{
 		Listen( Stage.FinishUpdate, 0, OnUpdate, "ClutterGridSystem.Update" );
-		Listen( Stage.SceneLoaded, 0, RebuildPaintedLayer, "ClutterGridSystem.RestorePainted" );
+		Listen( Stage.SceneLoaded, 0, RestorePaintedLayer, "ClutterGridSystem.RestorePainted" );
+	}
+
+	public override void Dispose()
+	{
+		base.Dispose();
+
+		foreach ( var terrain in _subscribedTerrains )
+			if ( terrain.IsValid() ) terrain.OnTerrainModified -= OnTerrainModified;
+		_subscribedTerrains.Clear();
+
+		_painted?.ClearAllTiles();
+		_painted = null;
+
+		foreach ( var layer in _componentToLayer.Values )
+			layer.ClearAllTiles();
+
+		_componentToLayer.Clear();
 	}
 
 	/// <summary>
@@ -46,25 +77,59 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 	private void OnUpdate()
 	{
 		var camera = GetActiveCamera();
-		if ( camera == null )
-			return;
+		if ( camera is not null )
+		{
+			_lastCameraPosition = camera.WorldPosition;
 
-		_lastCameraPosition = camera.WorldPosition;
+			PublishLodParameters( camera );
 
-		SubscribeToTerrains();
-		UpdateInfiniteLayers( _lastCameraPosition );
-		ProcessJobs();
+			SubscribeToTerrains();
+			UpdateInfiniteLayers( _lastCameraPosition );
+			ProcessJobs();
+		}
 
 		if ( _dirty )
 		{
 			RebuildPaintedLayer();
 			_dirty = false;
 		}
+
+		_painted?.RebuildIfDirty();
+
+		foreach ( var (component, layer) in _componentToLayer )
+		{
+			if ( component.IsValid() && !component.Infinite )
+				layer.RebuildIfDirty();
+		}
+	}
+
+	private void RestorePaintedLayer()
+	{
+		RebuildPaintedLayer();
+		_dirty = false;
+	}
+
+	/// <summary>
+	/// Pushes the active camera's LOD parameters to the clutter scene objects for GPU LOD selection.
+	/// </summary>
+	private static void PublishLodParameters( CameraComponent camera )
+	{
+		var sceneCamera = camera.SceneCamera;
+
+		ClutterBatchSceneObject.Lod = new ClutterBatchSceneObject.LodParams
+		{
+			CameraPos = camera.WorldPosition,
+			TanHalfFov = MathF.Tan( camera.FieldOfView.DegreeToRadian() * 0.5f ),
+			ViewportWidth = sceneCamera is not null ? sceneCamera.Size.x : 1920f,
+		};
 	}
 
 	private void SubscribeToTerrains()
 	{
-		foreach ( var terrain in Scene.GetAllComponents<Terrain>() )
+		_sceneTerrains.Clear();
+		Scene.GetAll( _sceneTerrains );
+
+		foreach ( var terrain in _sceneTerrains )
 		{
 			if ( _subscribedTerrains.Add( terrain ) )
 			{
@@ -93,11 +158,15 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 
 	private void RemoveInactiveComponents( List<ClutterComponent> activeInfiniteComponents )
 	{
-		var toRemove = _componentToLayer.Keys
-			.Where( c => !c.IsValid() || (c.Infinite && !activeInfiniteComponents.Contains( c )) )
-			.ToList();
+		_componentsToRemove.Clear();
 
-		foreach ( var component in toRemove )
+		foreach ( var component in _componentToLayer.Keys )
+		{
+			if ( !component.IsValid() || (component.Infinite && !activeInfiniteComponents.Contains( component )) )
+				_componentsToRemove.Add( component );
+		}
+
+		foreach ( var component in _componentsToRemove )
 		{
 			_componentToLayer[component].ClearAllTiles();
 			_componentToLayer.Remove( component );
@@ -106,12 +175,12 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 
 	private void UpdateInfiniteLayers( Vector3 cameraPosition )
 	{
-		var activeComponents = Scene.GetAllComponents<ClutterComponent>()
-			.Where( c => c.Active && c.Infinite )
-			.ToList();
+		_activeInfinite.Clear();
+		Scene.GetAll( _activeInfinite );
+		_activeInfinite.RemoveAll( static c => !c.Active || !c.Infinite );
 
-		RemoveInactiveComponents( activeComponents );
-		UpdateActiveComponents( activeComponents, cameraPosition );
+		RemoveInactiveComponents( _activeInfinite );
+		UpdateActiveComponents( _activeInfinite, cameraPosition );
 	}
 
 	/// <summary>
@@ -217,11 +286,16 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 		return new BBox( minWorld, maxWorld );
 	}
 
-	private CameraComponent GetActiveCamera()
+	internal CameraComponent GetActiveCamera()
 	{
-		return Scene.IsEditor
-			? Scene.Camera
-			: Scene.Camera; // Figure out a way to grab editor camera
+		if ( Scene.IsEditor )
+		{
+			var editorCamera = Application.Editor?.Camera;
+			if ( editorCamera.IsValid() )
+				return editorCamera;
+		}
+
+		return Scene.Camera;
 	}
 
 	internal ClutterLayer GetOrCreateLayer( ClutterComponent component, ClutterSettings settings )
@@ -242,7 +316,7 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 			return;
 
 		// Track which layers had tiles populated
-		HashSet<ClutterLayer> layersToRebuild = [];
+		_layersToRebuild.Clear();
 
 		_pendingJobs.RemoveAll( job =>
 			!job.Parent.IsValid() ||
@@ -283,25 +357,30 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 				processed++;
 
 				if ( job.Layer != null )
-					layersToRebuild.Add( job.Layer );
+					_layersToRebuild.Add( job.Layer );
 			}
 		}
 
 		// Rebuild batches for layers that had tiles populated
-		foreach ( var layer in layersToRebuild )
+		foreach ( var layer in _layersToRebuild )
 		{
 			layer.RebuildBatches();
 		}
 
-		var infiniteJobs = _pendingJobs.Where( j => j.Tile != null ).ToList();
-		if ( infiniteJobs.Count > MAX_PENDING_JOBS )
+		var infiniteJobs = 0;
+		foreach ( var job in _pendingJobs )
+			if ( job.Tile != null ) infiniteJobs++;
+
+		// Drop the furthest queued tiles. Sorted by distance, so walking back from the end takes those.
+		for ( int i = _pendingJobs.Count - 1; i >= 0 && infiniteJobs > MAX_PENDING_JOBS; i-- )
 		{
-			var toRemove = infiniteJobs.Skip( MAX_PENDING_JOBS ).ToList();
-			foreach ( var job in toRemove )
-			{
-				_pendingTiles.Remove( job.Tile );
-				_pendingJobs.Remove( job );
-			}
+			var job = _pendingJobs[i];
+			if ( job.Tile == null )
+				continue;
+
+			_pendingTiles.Remove( job.Tile );
+			_pendingJobs.RemoveAt( i );
+			infiniteJobs--;
 		}
 	}
 
@@ -400,23 +479,7 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 			_painted = new ClutterLayer( settings, null, this );
 		}
 
-		_painted.ClearAllTiles();
-
-		foreach ( var modelPath in Storage.ModelPaths )
-		{
-			var model = ResourceLibrary.Get<Model>( modelPath );
-			if ( model == null ) continue;
-
-			foreach ( var instance in Storage.GetInstances( modelPath ) )
-			{
-				_painted.AddModelInstance( Vector2Int.Zero, new()
-				{
-					Transform = new( instance.Position, instance.Rotation, instance.Scale ),
-					Entry = new() { Model = model }
-				} );
-			}
-		}
-
-		_painted.RebuildBatches();
+		// The layer owns both rendering and collision for its instances.
+		_painted.PopulateFromStorage( Storage );
 	}
 }

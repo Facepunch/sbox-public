@@ -19,6 +19,7 @@ public static partial class Inventory
 		public string Category { get; private set; }
 		public bool StoreHidden { get; private set; }
 		public string Asset { get; private set; }
+		public string Rarity { get; private set; }
 		public DateTime? SellStart { get; private set; }
 		public DateTime? SellEnd { get; private set; }
 
@@ -64,6 +65,7 @@ public static partial class Inventory
 			Category = _props.GetValueOrDefault( "clothing_cat" );
 			StoreHidden = _props.GetValueOrDefault( "store_hidden" ).ToBool();
 			Asset = _props.GetValueOrDefault( "asset" );
+			Rarity = _props.GetValueOrDefault( "rarity" );
 
 			if ( _props.GetValueOrDefault( "sell_start" ) is string sellStartStr && int.TryParse( sellStartStr, out var sellStartInt ) )
 			{

@@ -1,5 +1,6 @@
-using Facepunch.ActionGraphs;
+﻿using Facepunch.ActionGraphs;
 using NativeEngine;
+using Sandbox.Clutter;
 using Sentry;
 using System.Text.Json.Nodes;
 using System.Threading;
@@ -37,7 +38,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	/// <summary>
 	/// True if the map is loaded
 	/// </summary>
-	public bool IsLoaded => loadedMap is not null;
+	public bool IsLoaded { get; set; }
 
 	readonly SemaphoreSlim mapLoadSemaphore = new( 1 );
 	readonly HashSet<CancellationTokenSource> tokenSources = new();
@@ -55,7 +56,9 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	SceneMap loadedMap;
 	GameObject _mapPhysics;
 	string loadedMapName;
+	Package loadedMapPkg;
 	string sceneMapScenePath;
+	IDisposable _systemOverridesScope;
 
 	public MapInstance() : base()
 	{
@@ -128,7 +131,13 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	/// </summary>
 	public void UnloadMap()
 	{
+		if ( loadedMapPkg is not null )
+		{
+			ServerPackages.Current?.RemoveRequirement( loadedMapPkg );
+		}
+
 		loadedMapName = null;
+		loadedMapPkg = null;
 		sceneMapScenePath = null;
 
 		bool hadMap = loadedMap is not null;
@@ -140,6 +149,9 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 
 		Physics = null;
 
+		_systemOverridesScope?.Dispose();
+		_systemOverridesScope = null;
+
 		if ( GameObject.IsValid() && GameObject.Children is not null )
 		{
 			foreach ( var child in GameObject.Children )
@@ -149,7 +161,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 					continue;
 
 				// If I'm a client and this came from the snapshot.. don't fucking delete me
-				if ( Networking.IsClient && child.NetworkMode == NetworkMode.Snapshot )
+				if ( ContentComesFromSnapshot && child.NetworkMode == NetworkMode.Snapshot )
 					continue;
 
 				// If it's a fully networked object and I'm the owner, we can delete
@@ -164,6 +176,8 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 			g_pWorldRendererMgr.ServiceWorldRequests();
 			SceneMap.OnMapUpdated -= OnMapUpdated;
 		}
+
+		IsLoaded = false;
 	}
 
 	protected override void OnUpdate()
@@ -190,9 +204,11 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	{
 		if ( UseMapFromLaunch && !string.IsNullOrWhiteSpace( LaunchArguments.Map ) )
 		{
-			MapName = LaunchArguments.Map;
-			await LoadMapAsync( MapName, context );
-			return true;
+			if ( await LoadMapAsync( LaunchArguments.Map, context ) )
+			{
+				MapName = LaunchArguments.Map;
+				return true;
+			}
 		}
 
 		if ( string.IsNullOrWhiteSpace( MapName ) )
@@ -223,11 +239,15 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		CancellationTokenSource tokenSource = new CancellationTokenSource();
 		tokenSources.Add( tokenSource );
 		var token = tokenSource.Token;
+		var snapshotContent = Networking.IsClient || (Scene?.IsLoadingSnapshot ?? false);
+		var acquired = false;
 
 		try
 		{
 			// wait for access
 			await mapLoadSemaphore.WaitAsync( token );
+			acquired = true;
+			_loadingSnapshotContent = snapshotContent;
 			GameObject.Flags |= GameObjectFlags.Loading;
 
 			token.ThrowIfCancellationRequested();
@@ -237,11 +257,15 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 			if ( mapFileName.EndsWith( ".vmap" ) )
 				mapFileName = System.IO.Path.ChangeExtension( mapFileName, ".vpk" );
 
-			// If this looks like a package ident, then download it
-			if ( !mapFileName.EndsWith( ".vpk" ) && Package.TryParseIdent( mapName, out var parts ) )
+			if ( mapFileName.EndsWith( ".scene" ) || mapFileName.EndsWith( ".vpk" ) )
 			{
-				var package = await Package.Fetch( mapName, false );
+				// can just load these directly
+			}
+			else if ( Package.TryParseIdent( mapName, out var parts ) )
+			{
+				// If this looks like a package ident, then download it
 
+				var package = await Package.Fetch( mapName, false );
 				if ( package is null || !IsValid )
 				{
 					Log.Warning( $"No package found: {mapName}" );
@@ -263,7 +287,11 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 				if ( !IsValid || fs is null )
 					return false;
 
+				loadedMapPkg = package;
 				mapFileName = package.PrimaryAsset;
+
+				if ( mapFileName.EndsWith( ".vmap" ) )
+					mapFileName = System.IO.Path.ChangeExtension( mapFileName, ".vpk" );
 
 				if ( string.IsNullOrWhiteSpace( mapFileName ) )
 				{
@@ -277,11 +305,12 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 					// use shortest name, just trying to avoid loading the skybox vpk
 					mapFileName = maps.OrderBy( x => x.Length ).First();
 				}
-				else if ( mapFileName.EndsWith( ".scene" ) )
-				{
-					// Scene maps can be loaded, but we need to do some special work with the GameObjects.
-					sceneMapScenePath = mapFileName;
-				}
+			}
+
+			if ( mapFileName.EndsWith( ".scene" ) )
+			{
+				// Scene maps can be loaded, but we need to do some special work with the GameObjects.
+				sceneMapScenePath = mapFileName;
 			}
 
 			token.ThrowIfCancellationRequested();
@@ -291,19 +320,23 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 				loadedMapName = mapName;
 				SentrySdk.AddBreadcrumb( $"Map Name is {loadedMapName}, filename is {mapFileName}", "map.load" );
 
-				using ( Scene.Push() )
+				await Task.Yield();
+				token.ThrowIfCancellationRequested();
+
+				using var scope = Scene.Push();
+
+				if ( mapFileName.EndsWith( ".vpk" ) )
 				{
 					var loader = new MapComponentMapLoader( this, NoOrigin ? 0 : WorldPosition );
 					loadedMap = new SceneMap( loader.World, mapFileName, loader );
 
 					if ( loadedMap.IsValid() )
 					{
-						var aggregateData = g_pPhysicsSystem.GetAggregateData( $"{loadedMap.MapFolder}/world_physics.vphys" );
-						if ( aggregateData.IsValid )
+						var vphysPath = $"{loadedMap.MapFolder}/world_physics.vphys";
+						Physics = PhysicsGroupDescription.Load( vphysPath );
+						if ( Physics is not null )
 						{
 							var objectKey = $"{mapFileName}.World Physics";
-
-							Physics = new PhysicsGroupDescription( aggregateData );
 							var go = new GameObject();
 
 							//
@@ -323,12 +356,20 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 						}
 						else
 						{
-							Log.Warning( $"Couldn't find map physics: '{loadedMap.MapFolder}/world_physics.vphys'" );
-							SentrySdk.AddBreadcrumb( $"Couldn't find map physics: '{loadedMap.MapFolder}/world_physics.vphys'", "map.load" );
+							Log.Warning( $"Couldn't find map physics: '{vphysPath}'" );
+							SentrySdk.AddBreadcrumb( $"Couldn't find map physics: '{vphysPath}'", "map.load" );
 						}
 					}
+				}
 
-					LoadMapSceneGameObjects( mapName );
+				if ( !LoadMapSceneGameObjects( mapName ) )
+				{
+					if ( !string.IsNullOrWhiteSpace( sceneMapScenePath ) )
+					{
+						// we're explictly trying to load a scenemap, and we couldn't - so this whole thing has failed
+						Log.Warning( $"Failed to load scenemap: {sceneMapScenePath}" );
+						return false;
+					}
 				}
 			}
 			catch ( Exception e )
@@ -339,10 +380,15 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 			}
 
 			OnMapLoaded?.InvokeWithWarning();
+			IsLoaded = true;
 		}
 		finally
 		{
-			mapLoadSemaphore.Release();
+			if ( acquired )
+			{
+				_loadingSnapshotContent = false;
+				mapLoadSemaphore.Release();
+			}
 
 			if ( GameObject.IsValid() )
 			{
@@ -374,14 +420,16 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		}
 	}
 
-	private void LoadMapSceneGameObjects( string mapName )
+	private bool LoadMapSceneGameObjects( string mapName )
 	{
 		// If this is being loaded from a vpk, load scene contents from world.scene_c.
 		// If this is from an actual scene, just use that.
 		var path = string.IsNullOrWhiteSpace( sceneMapScenePath ) ? $"{loadedMap?.MapFolder}/world.scene_c" : sceneMapScenePath + "_c";
-		var scene = Game.Resources.LoadRawGameResource( path );
-		if ( scene is not SceneFile sceneFile )
-			return;
+		var sceneFile = SceneFile.Load( path );
+		sceneFile ??= Game.Resources.LoadRawGameResource( path ) as SceneFile;
+
+		if ( sceneFile is null )
+			return false;
 
 		// Wouldn't this be nice? Doesn't make sense within a MapInstance, but when we switch away
 		// SceneLoadOptions options = new() { IsAdditive = true };
@@ -390,6 +438,8 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 
 		using var optionsScope = ActionGraph.PushSerializationOptions( sceneFile.SerializationOptions with { ForceUpdateCached = Scene.IsEditor } );
 		using var sceneScope = Scene.Push();
+		// Set up a blob context to resolve binary data in the map scene.
+		using var blobs = BlobDataSerializer.Load( sceneFile.BinaryData, path );
 		using var batchGroup = CallbackBatch.Batch();
 
 		foreach ( var json in sceneFile.GameObjects )
@@ -405,7 +455,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 			go.Deserialize( json );
 
 			// This is a failsafe for the above check for existing networked objects
-			if ( Networking.IsClient && go.NetworkMode != NetworkMode.Never )
+			if ( ContentComesFromSnapshot && go.NetworkMode != NetworkMode.Never )
 			{
 				go.DestroyImmediate();
 				continue;
@@ -416,7 +466,32 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 				go.NetworkSpawn();
 			}
 		}
+
+		// Apply scene-level GameObjectSystems data (e.g. painted clutter) to the host scene.
+		if ( sceneFile.SceneProperties is not null
+			&& sceneFile.SceneProperties.TryGetPropertyValue( "GameObjectSystems", out var systemsNode )
+			&& systemsNode is not null )
+		{
+			_systemOverridesScope = Scene.ApplyTransientGameObjectSystemOverrides( systemsNode );
+
+			if ( !NoOrigin
+				&& systemsNode is JsonObject systems
+				&& systems[typeof( ClutterGridSystem ).FullName] is JsonObject clutter
+				&& clutter.ContainsKey( nameof( ClutterGridSystem.Storage ) ) )
+			{
+				Scene.GetSystem<ClutterGridSystem>()?.Storage.ApplyWorldTransform( WorldTransform );
+			}
+		}
+
+		return true;
 	}
+
+	bool _loadingSnapshotContent;
+
+	/// <summary>
+	/// This map load is restoring content supplied by the network snapshot.
+	/// </summary>
+	internal bool ContentComesFromSnapshot => Networking.IsClient || _loadingSnapshotContent || (Scene?.IsLoadingSnapshot ?? false);
 
 	private bool ShouldIgnoreGameObject( JsonObject json )
 	{
@@ -429,7 +504,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 			}
 		}
 
-		if ( !Networking.IsClient || !json.TryGetPropertyValue( JsonKeys.Id, out var id ) )
+		if ( !ContentComesFromSnapshot || !json.TryGetPropertyValue( JsonKeys.Id, out var id ) )
 			return false;
 
 		var gameObject = Scene.Directory.FindByGuid( (Guid)id );
@@ -602,7 +677,7 @@ file class MapComponentMapLoader : SceneMapLoader
 
 		// Don't spawn networked props, because they will be spawned by
 		// the network!
-		if ( isNetworked && Networking.IsClient )
+		if ( isNetworked && Map.ContentComesFromSnapshot )
 		{
 			go.Destroy();
 			return;
@@ -617,6 +692,7 @@ file class MapComponentMapLoader : SceneMapLoader
 			prop.Model = model;
 			prop.Tint = kv.GetValue( "rendercolor", Color.White );
 			prop.WorldScale = kv.GetValue( "scales", Vector3.One );
+			prop.MaterialGroup = kv.GetValue( "skin", "default" );
 		}
 
 		if ( model.Physics is null || model.Physics.Parts.Count == 0 )
@@ -633,6 +709,76 @@ file class MapComponentMapLoader : SceneMapLoader
 		prop.GameObject.Network.SetOrphanedMode( NetworkOrphaned.ClearOwner );
 		prop.GameObject.Network.SetOwnerTransfer( OwnerTransfer.Takeover );
 		prop.GameObject.NetworkSpawn();
+	}
+
+	//
+	// Create a real Light component on the GameObject instead of a raw SceneLight. Exposed settings
+	// map to the component properties; everything else rides along in the internal LegacyData backend.
+	//
+	void CreateLightComponent( GameObject go, ObjectEntry kv, LightType type )
+	{
+		// Never network these — LegacyData is internal (not serialized), so a snapshot copy would
+		// arrive half-configured. Every client builds an identical light from the map VPK anyway.
+		go.NetworkMode = NetworkMode.Never;
+
+		var data = LightData.Parse( kv, type );
+		if ( !data.Enabled )
+			return;
+
+		var legacy = data.ToLegacyData();
+
+		Light light;
+
+		if ( type == LightType.Spot )
+		{
+			var spot = go.Components.Create<SpotLight>();
+			spot.Radius = data.Range;
+			spot.ConeInner = data.InnerConeAngle;
+			spot.ConeOuter = data.OuterConeAngle;
+			spot.Cookie = data.LightCookie;
+
+			// Hammer lights have attenuation and cone mask from the lightmap itself
+			// We can take advantage of that and tighten the cone for sharper shadows
+			spot.ConeInner = MathF.Min( data.InnerConeAngle, 80.0f );
+			spot.ConeOuter = MathF.Min( data.OuterConeAngle, 80.0f );
+
+			// Native quadratic is the Hammer coefficient; SceneLight.QuadraticAttenuation scales by 10000.
+			legacy.ConstantAttenuation = data.Attenuation0;
+			legacy.LinearAttenuation = data.Attenuation1;
+			legacy.QuadraticAttenuation = data.Attenuation2;
+			legacy.FallOff = data.FallOff;
+
+			light = spot;
+		}
+		else if ( type == LightType.Omni )
+		{
+			var point = go.Components.Create<PointLight>();
+			point.Radius = data.Range;
+
+			legacy.ConstantAttenuation = data.Attenuation0;
+			legacy.LinearAttenuation = data.Attenuation1;
+			legacy.QuadraticAttenuation = data.Attenuation2;
+			legacy.Cookie = data.LightCookie; // PointLight doesn't expose a cookie property
+
+			light = point;
+		}
+		else
+		{
+			var directional = go.Components.Create<DirectionalLight>();
+			var skyColor = kv.GetValue( "SkyColor", Color.White );
+			directional.SkyColor = (skyColor * kv.GetValue( "SkyIntensity", 1.0f )).WithAlpha( skyColor.a );
+
+			light = directional;
+		}
+
+		// Hammer lights have no concept of "hardness" — let's make them reasonably sharp by default.
+		light.ShadowHardness = 0.5f;
+
+		light.LightColor = data.FinalColor;
+		light.Shadows = data.CastShadows;
+		// Fog mode / render diffuse-specular / attenuation ride in LegacyData — applied when the
+		// scene light is created (OnEnabled). Component FogMode can't express Hammer's "Baked" fog.
+		light.LegacyData = legacy;
 	}
 
 	protected override void CreateObject( ObjectEntry kv )
@@ -670,6 +816,25 @@ file class MapComponentMapLoader : SceneMapLoader
 			case "info_player_start":
 				{
 					go.Components.Create<SpawnPoint>();
+					break;
+				}
+
+			// Lights that have a matching component become a GameObject + Light component.
+			// Rect/Capsule/Ortho have no component yet, so they fall through to the raw path.
+			case "light_environment":
+			case "light_directional":
+				{
+					CreateLightComponent( go, kv, LightType.Directional );
+					break;
+				}
+			case "light_spot":
+				{
+					CreateLightComponent( go, kv, LightType.Spot );
+					break;
+				}
+			case "light_omni":
+				{
+					CreateLightComponent( go, kv, LightType.Omni );
 					break;
 				}
 

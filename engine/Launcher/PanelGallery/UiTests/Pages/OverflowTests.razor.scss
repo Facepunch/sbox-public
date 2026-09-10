@@ -1,0 +1,99 @@
+// Blue is the container, red is the child that wants to escape it.
+
+$box: #2f5d8a;
+$child: #e84a4a;
+
+OverflowTests
+{
+	.clip
+	{
+		position: relative;
+		width: 90px;
+		height: 90px;
+		flex-shrink: 0;
+		background-color: $box;
+	}
+
+	.visible { overflow: visible; }
+	.hidden-o { overflow: hidden; }
+	.scroll { overflow-y: scroll; }
+	.mixed-axis { overflow-x: hidden; overflow-y: visible; }
+
+	.round { border-radius: 24px; }
+	.circle { border-radius: 50%; }
+	.bordered { border: 8px solid #4ac2e8; }
+	.rot { transform: rotate( 12deg ); }
+	.small { transform: scale( 0.6 ); }
+	.padded { padding: 12px; }
+
+	// Hangs out of its parent on every side
+	.over
+	{
+		position: absolute;
+		left: 30px;
+		top: 30px;
+		width: 90px;
+		height: 90px;
+		background-color: $child;
+	}
+
+	.fill
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		width: 100%;
+		height: 100%;
+		background-color: $child;
+	}
+
+	// Taller than the container, so there's something to scroll
+	.tall
+	{
+		width: 100%;
+		height: 220px;
+		flex-shrink: 0;
+		background-image: linear-gradient( to bottom, $child, #e8b04a );
+	}
+
+	// Deliberately shorter than the container
+	.short
+	{
+		width: 100%;
+		height: 30px;
+		flex-shrink: 0;
+		background-color: $child;
+	}
+
+	.row-item
+	{
+		width: 100%;
+		height: 26px;
+		flex-shrink: 0;
+		margin-bottom: 4px;
+		background-color: $child;
+	}
+
+	.inner-clip
+	{
+		position: relative;
+		width: 70px;
+		height: 70px;
+		overflow: hidden;
+		border-radius: 16px;
+		background-color: #1b3a57;
+	}
+
+	.tilted { transform: rotate( -10deg ); }
+
+	.masked
+	{
+		width: 90px;
+		height: 90px;
+		flex-shrink: 0;
+		background-image: linear-gradient( 45deg, #4a9eff, #e84ad0 );
+	}
+
+	.fade-mask { mask-image: linear-gradient( to bottom, white, transparent ); }
+	.round-mask { mask-image: radial-gradient( white, transparent ); }
+}

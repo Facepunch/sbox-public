@@ -5,9 +5,17 @@ using System.Threading.Tasks;
 
 namespace Facepunch.InteropGen;
 
+/// <summary>
+/// Entry point for the interop generator, invoked by the build (Tools/SboxBuild). Reads a manifest of
+/// .def files and turns each into its managed (.cs) and native (.cpp/.h) bindings.
+/// </summary>
 public static class Program
 {
-	public static void ProcessDefinitionFile( int index, string filename, bool skipNative )
+	/// <summary>
+	/// Build one .def file and write its managed output (and, unless <paramref name="skipNative"/>, its
+	/// native header and source), logging how long it took.
+	/// </summary>
+	public static void ProcessDefinitionFile( string filename, bool skipNative )
 	{
 		using ( Log.Group( ConsoleColor.Green, $"{System.IO.Path.GetFileName( filename )}" ) )
 		{
@@ -15,21 +23,18 @@ public static class Program
 
 			try
 			{
-				Definition definitions = Definition.FromFile( filename );
+				Definition definitions = InteropPipeline.Build( filename );
 
-				// Log.WriteLine( "Saving Managed File" );
-				ManagerWriter managedWriter = new( definitions, definitions.SaveFileCs );
+				ManagedWriter managedWriter = new( definitions, definitions.SaveFileCs );
 				managedWriter.Generate();
 				managedWriter.SaveToFile( definitions.SaveFileCs );
 
 				if ( !skipNative )
 				{
-					// Log.WriteLine( "Saving Native Header" );
 					NativeHeaderWriter nativeHeaderWriter = new( definitions, definitions.SaveFileCppH );
 					nativeHeaderWriter.Generate();
 					nativeHeaderWriter.SaveToFile( definitions.SaveFileCppH );
 
-					// Log.WriteLine( "Saving Native" );
 					NativeWriter nativeWriter = new( definitions, definitions.SaveFileCpp );
 					nativeWriter.Generate();
 					nativeWriter.SaveToFile( definitions.SaveFileCpp );
@@ -44,6 +49,10 @@ public static class Program
 		}
 	}
 
+	/// <summary>
+	/// The tool's entry point. Reads manifest.def in the given directory and processes every listed
+	/// .def file in parallel. Does nothing if there's no manifest.
+	/// </summary>
 	public static void ProcessManifest( string directory, bool skipNative = false )
 	{
 		string filename = System.IO.Path.Combine( directory, "manifest.def" );
@@ -52,25 +61,22 @@ public static class Program
 			return;
 		}
 
-		string[] manifestLines = System.IO.File.ReadAllLines( filename );
 		List<Task> tasks = [];
 
-		int i = 0;
-		foreach ( string line in manifestLines )
+		foreach ( string line in System.IO.File.ReadAllLines( filename ) )
 		{
 			if ( string.IsNullOrWhiteSpace( line ) )
 			{
 				continue;
 			}
 
-			if ( line.Trim().EndsWith( ".def" ) )
+			if ( !line.Trim().EndsWith( ".def" ) )
 			{
-				int index = i++;
-				string path = System.IO.Path.Combine( directory, line );
-
-				Task t = Task.Run( () => ProcessDefinitionFile( index, path, skipNative ) );
-				tasks.Add( t );
+				continue;
 			}
+
+			string path = System.IO.Path.Combine( directory, line );
+			tasks.Add( Task.Run( () => ProcessDefinitionFile( path, skipNative ) ) );
 		}
 
 		Task.WaitAll( tasks.ToArray() );

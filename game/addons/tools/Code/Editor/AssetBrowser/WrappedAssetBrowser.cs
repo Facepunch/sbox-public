@@ -1,4 +1,6 @@
-﻿namespace Editor;
+﻿using Sandbox.Mounting;
+
+namespace Editor;
 
 public class WrappedAssetBrowser : Widget
 {
@@ -23,4 +25,17 @@ public class WrappedAssetBrowser : Widget
 		Tabs.AddPage( "Cloud", "cloud", Cloud, "Cloud" );
 		Tabs.AddPage( "Mounts", "museum", Mounts, "Mounts" );
 	}
+
+	public AssetBrowser GetBrowser( string path )
+	{
+		if ( MountUtility.IsMountPath( path ) )
+			return Mounts;
+
+		return Local;
+	}
+
+	public AssetBrowser GetBrowser( Asset asset ) => GetBrowser( asset.Path );
+	public AssetBrowser GetBrowser( AssetEntry asset ) => GetBrowser( asset.AbsolutePath );
+
+	public void SwitchTo( Widget widget ) => Tabs.SetPage( widget );
 }

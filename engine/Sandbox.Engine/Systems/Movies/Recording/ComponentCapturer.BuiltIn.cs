@@ -1,18 +1,11 @@
 ﻿using System.Collections;
+using System.Runtime.CompilerServices;
+using Sandbox.MovieMaker.Properties;
 using static Sandbox.Component;
 
 namespace Sandbox.MovieMaker;
 
 #nullable enable
-
-[Expose]
-file sealed class ComponentCapturer : ComponentCapturer<Component>
-{
-	protected override void OnCapture( IMovieTrackRecorder recorder, Component component )
-	{
-		recorder.Property( nameof( Component.Enabled ) ).Capture();
-	}
-}
 
 [Expose]
 file sealed class CameraCapturer : ComponentCapturer<CameraComponent>
@@ -36,6 +29,8 @@ file sealed class CameraCapturer : ComponentCapturer<CameraComponent>
 
 		recorder.Property( nameof( CameraComponent.ZNear ) ).Capture();
 		recorder.Property( nameof( CameraComponent.ZFar ) ).Capture();
+		recorder.Property( nameof( CameraComponent.RenderTags ) ).Capture( component.RenderTags );
+		recorder.Property( nameof( CameraComponent.RenderExcludeTags ) ).Capture( component.RenderExcludeTags );
 	}
 }
 
@@ -186,29 +181,11 @@ file sealed class LineRendererCapturer : ComponentCapturer<LineRenderer>
 
 		if ( component.UseVectorPoints )
 		{
-			if ( component.VectorPoints is null ) return;
-
-			var vectorPointsTrack = recorder.Property( nameof( LineRenderer.VectorPoints ) );
-
-			vectorPointsTrack.Property( nameof( IList.Count ) ).Capture();
-
-			for ( var i = 0; i < component.VectorPoints.Count; i++ )
-			{
-				vectorPointsTrack.Property( i.ToString() ).Capture();
-			}
+			recorder.Property( nameof( LineRenderer.VectorPoints ) ).Capture( component.VectorPoints );
 		}
 		else
 		{
-			if ( component.Points is null ) return;
-
-			var pointsTrack = recorder.Property( nameof( LineRenderer.Points ) );
-
-			pointsTrack.Property( nameof( IList.Count ) ).Capture();
-
-			for ( var i = 0; i < component.Points.Count; i++ )
-			{
-				pointsTrack.Property( i.ToString() ).Capture();
-			}
+			recorder.Property( nameof( LineRenderer.Points ) ).Capture( component.Points );
 		}
 	}
 }
@@ -405,6 +382,8 @@ file sealed class ParticleSpriteRendererCapturer : ComponentCapturer<ParticleSpr
 		recorder.Property( nameof( ParticleSpriteRenderer.Alignment ) ).Capture();
 		recorder.Property( nameof( ParticleSpriteRenderer.SortMode ) ).Capture();
 		recorder.Property( nameof( ParticleSpriteRenderer.DepthFeather ) ).Capture();
+		recorder.Property( nameof( ParticleSpriteRenderer.CameraFadeNear ) ).Capture();
+		recorder.Property( nameof( ParticleSpriteRenderer.CameraFadeFar ) ).Capture();
 		recorder.Property( nameof( ParticleSpriteRenderer.FogStrength ) ).Capture();
 		recorder.Property( nameof( ParticleSpriteRenderer.FaceVelocity ) ).Capture();
 		recorder.Property( nameof( ParticleSpriteRenderer.RotationOffset ) ).Capture();
@@ -426,6 +405,8 @@ file sealed class ParticleTextRendererCapturer : ComponentCapturer<ParticleTextR
 		recorder.Property( nameof( ParticleTextRenderer.Pivot ) ).Capture();
 		recorder.Property( nameof( ParticleTextRenderer.Scale ) ).Capture();
 		recorder.Property( nameof( ParticleTextRenderer.DepthFeather ) ).Capture();
+		recorder.Property( nameof( ParticleTextRenderer.CameraFadeNear ) ).Capture();
+		recorder.Property( nameof( ParticleTextRenderer.CameraFadeFar ) ).Capture();
 		recorder.Property( nameof( ParticleTextRenderer.FogStrength ) ).Capture();
 		recorder.Property( nameof( ParticleTextRenderer.Additive ) ).Capture();
 		recorder.Property( nameof( ParticleTextRenderer.Shadows ) ).Capture();
@@ -527,5 +508,90 @@ file sealed class AmbientLightCapturer : ComponentCapturer<AmbientLight>
 	protected override void OnCapture( IMovieTrackRecorder recorder, AmbientLight component )
 	{
 		recorder.Property( nameof( AmbientLight.Color ) ).Capture();
+	}
+}
+
+[Expose]
+file sealed class BeamEffectCapturer : ComponentCapturer<BeamEffect>
+{
+	protected override void OnCapture( IMovieTrackRecorder recorder, BeamEffect component )
+	{
+		recorder.Property( nameof( BeamEffect.Scale ) ).Capture();
+		recorder.Property( nameof( BeamEffect.TargetGameObject ) ).Capture();
+
+		if ( !component.TargetGameObject.IsValid() )
+		{
+			recorder.Property( nameof( BeamEffect.TargetPosition ) ).Capture();
+		}
+
+		recorder.Property( nameof( BeamEffect.TargetRandom ) ).Capture();
+		recorder.Property( nameof( BeamEffect.FollowPoints ) ).Capture();
+		recorder.Property( nameof( BeamEffect.BeamsPerSecond ) ).Capture();
+		recorder.Property( nameof( BeamEffect.MaxBeams ) ).Capture();
+		recorder.Property( nameof( BeamEffect.InitialBurst ) ).Capture();
+		recorder.Property( nameof( BeamEffect.BeamLifetime ) ).Capture();
+		recorder.Property( nameof( BeamEffect.Looped ) ).Capture();
+		recorder.Property( nameof( BeamEffect.Material ) ).Capture();
+		recorder.Property( nameof( BeamEffect.TextureOffset ) ).Capture();
+		recorder.Property( nameof( BeamEffect.TextureScale ) ).Capture();
+		recorder.Property( nameof( BeamEffect.TextureScrollSpeed ) ).Capture();
+		recorder.Property( nameof( BeamEffect.TextureScroll ) ).Capture();
+		recorder.Property( nameof( BeamEffect.FilterMode ) ).Capture();
+		recorder.Property( nameof( BeamEffect.BeamColor ) ).Capture();
+		recorder.Property( nameof( BeamEffect.Alpha ) ).Capture();
+		recorder.Property( nameof( BeamEffect.Brightness ) ).Capture();
+		recorder.Property( nameof( BeamEffect.Additive ) ).Capture();
+		recorder.Property( nameof( BeamEffect.Shadows ) ).Capture();
+		recorder.Property( nameof( BeamEffect.Lighting ) ).Capture();
+		recorder.Property( nameof( BeamEffect.Opaque ) ).Capture();
+		recorder.Property( nameof( BeamEffect.DepthFeather ) ).Capture();
+		recorder.Property( nameof( BeamEffect.TravelBetweenPoints ) ).Capture();
+
+		if ( component.TravelBetweenPoints )
+		{
+			recorder.Property( nameof( BeamEffect.TravelLerp ) ).Capture();
+		}
+	}
+}
+
+/// <summary>
+/// Helpers for capturing collections. Ideally we'd have these happen automatically
+/// when <see cref="IMovieTrackRecorder.Capture"/> is called on a matching type eventually.
+/// </summary>
+internal static class CapturerExtensions
+{
+	[SkipHotload]
+	private static ConditionalWeakTable<ITagSet, HashSet<string>> KnownTags { get; } = new();
+
+	extension( IMovieTrackRecorder recorder )
+	{
+		public void Capture( IList? collection )
+		{
+			if ( collection is null ) return;
+
+			recorder.Property( nameof( IList.Count ) ).Capture();
+
+			for ( var i = 0; i < collection.Count; i++ )
+			{
+				recorder.Property( i.ToString() ).Capture();
+			}
+		}
+
+		public void Capture( ITagSet? collection )
+		{
+			if ( collection is null ) return;
+
+			var known = KnownTags.GetOrAdd( collection, _ => new HashSet<string>( StringComparer.OrdinalIgnoreCase ) );
+
+			foreach ( var name in collection.LocalTags )
+			{
+				known.Add( name );
+			}
+
+			foreach ( var name in known )
+			{
+				recorder.Property( name ).Capture();
+			}
+		}
 	}
 }

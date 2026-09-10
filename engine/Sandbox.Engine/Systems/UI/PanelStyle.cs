@@ -27,7 +27,11 @@ public sealed class PanelStyle : Styles
 
 	bool rulesChanged = true;
 
-	public override void Dirty() => isDirty = true;
+	public override void Dirty()
+	{
+		isDirty = true;
+		panel?.SetNeedsPreLayout();
+	}
 	internal bool IsDirty => isDirty;
 
 	internal PanelStyle( Panel panel )
@@ -49,7 +53,15 @@ public sealed class PanelStyle : Styles
 	/// ourself and our anscestors and then filter them by the broadphase. The broadphase is a check
 	/// against classes, element names and ids, things that don't change in a recursive way.
 	/// </summary>
-	StyleBlock[] StyleBlocks;
+	List<StyleBlock> _styleBlocks;
+
+	/// <summary>
+	/// Scratch set for de-duplicating candidate blocks. Rules build on worker threads, so one per
+	/// thread. Emptied around every gather: a block held here would keep its stylesheet's textures
+	/// alive, and a gather that threw would leave stale entries for the next one.
+	/// </summary>
+	[ThreadStatic]
+	static HashSet<StyleBlock> _seenBlocks;
 
 	/// <summary>
 	/// A hash of the things that are checked in the broadphase.
@@ -78,10 +90,11 @@ public sealed class PanelStyle : Styles
 	/// </summary>
 	internal void InvalidateBroadphase()
 	{
-		if ( StyleBlocks == null )
-			return;
-
-		StyleBlocks = null;
+		// Always walk the whole subtree. Stopping at a panel that happens to have no blocks built
+		// yet would leave its children holding rules from the old sheet, so a stylesheet swap only
+		// applied to part of the tree.
+		_styleBlocks = null;
+		panel.StyleSelectorsChanged( false, false );
 
 		foreach ( var child in panel.Children )
 		{
@@ -91,10 +104,32 @@ public sealed class PanelStyle : Styles
 
 	void BuildApplicableBlocks()
 	{
-		StyleBlocks = panel.AllStyleSheets
-									.SelectMany( x => x.Nodes )
-									.Where( x => x.TestBroadphase( panel ) )
-									.ToArray();
+		_styleBlocks ??= new();
+		_styleBlocks.Clear();
+
+		// Gather only the rules indexed for our classes (plus the unindexed element/id/* rules) rather
+		// than scanning every rule. ::before/::after broadphase against their parent's classes.
+		var bp = ((IStyleTarget)panel).IsBeforeOrAfter ? panel.Parent : panel;
+		if ( bp == null ) return;
+
+		var seen = _seenBlocks ??= new();
+		seen.Clear();
+
+		try
+		{
+			for ( var p = panel; p != null; p = p.StyleParent )
+			{
+				var sheets = p.StyleSheet.List;
+				if ( sheets == null ) continue;
+
+				foreach ( var sheet in sheets )
+					sheet.GatherCandidates( bp._class, panel, seen, _styleBlocks );
+			}
+		}
+		finally
+		{
+			seen.Clear();
+		}
 	}
 
 
@@ -107,8 +142,8 @@ public sealed class PanelStyle : Styles
 	{
 		activeRules?.Clear();
 
-		var hash = HashCode.Combine( panel.Id, panel.ElementName, panel.Classes );
-		if ( StyleBlocks == null || hash != broadPhaseHash )
+		var hash = HashCode.Combine( panel.Id, panel.ElementName, panel.ClassHash );
+		if ( _styleBlocks == null || hash != broadPhaseHash )
 		{
 			BuildApplicableBlocks();
 		}
@@ -119,15 +154,20 @@ public sealed class PanelStyle : Styles
 
 		bool isBeforeOrAfter = (panel as IStyleTarget).IsBeforeOrAfter;
 
-		foreach ( var c in StyleBlocks )
+		foreach ( var c in _styleBlocks )
 		{
 			//
 			// If we're not a ::before or ::after element, see if we have any styles with ::before or ::after elements.
 			//
 			if ( !isBeforeOrAfter )
 			{
-				_hasBeforeElement = _hasBeforeElement || c.Test( panel, PseudoClass.Before ) != null;
-				_hasAfterElement = _hasAfterElement || c.Test( panel, PseudoClass.After ) != null;
+				// Only probe blocks that actually have a ::before / ::after selector - the rest can never
+				// produce a pseudo-element, so testing them is wasted work.
+				if ( !_hasBeforeElement && c.HasBefore )
+					_hasBeforeElement = c.Test( panel, PseudoClass.Before ) != null;
+
+				if ( !_hasAfterElement && c.HasAfter )
+					_hasAfterElement = c.Test( panel, PseudoClass.After ) != null;
 			}
 
 			var winningSelector = c.Test( panel );
@@ -182,15 +222,14 @@ public sealed class PanelStyle : Styles
 			LastActiveRules ??= new();
 			activeRules ??= new();
 
-			foreach ( var rule in activeRules.Except( LastActiveRules ) )
-			{
-				OnRuleAdded( rule );
-			}
+			// Rules are ordered by cascade priority. Only the winning sound rule can trigger.
+			var soundIn = activeRules.LastOrDefault( x => x.Block.Styles.SoundIn != null );
+			if ( soundIn != null && !LastActiveRules.Contains( soundIn ) )
+				OnRuleAdded( soundIn );
 
-			foreach ( var rule in LastActiveRules.Except( activeRules ) )
-			{
-				OnRuleRemoved( rule );
-			}
+			var soundOut = LastActiveRules.LastOrDefault( x => x.Block.Styles.SoundOut != null );
+			if ( soundOut != null && !activeRules.Contains( soundOut ) )
+				OnRuleRemoved( soundOut );
 
 			LastActiveRules.Clear();
 			LastActiveRules.AddRange( activeRules );
@@ -228,8 +267,12 @@ public sealed class PanelStyle : Styles
 		}
 
 		Final.From( Cached );
+		Final.ResolveCssWide( cascade.ParentStyles );
 		cascade.ApplyCascading( Final );
 		Final.FillDefaults();
+
+		if ( Final.HasCurrentColor )
+			Final.ResolveCurrentColor( cascade.ParentStyles );
 
 		if ( panel.Transitions.Run( Final, time ) )
 		{
@@ -246,7 +289,7 @@ public sealed class PanelStyle : Styles
 
 	public override bool Set( string property, string value )
 	{
-		isDirty = true;
+		Dirty();
 
 		return base.Set( property, value );
 	}
@@ -304,7 +347,13 @@ public sealed class PanelStyle : Styles
 	{
 		if ( LastActiveRules == null ) return false;
 
-		return LastActiveRules.Any( x => x.Block.Styles == style );
+		foreach ( var rule in LastActiveRules )
+		{
+			if ( rule.Block.Styles == style )
+				return true;
+		}
+
+		return false;
 	}
 }
 
@@ -314,6 +363,6 @@ internal class StyleOrderer : IComparer<StyleSelector>
 
 	public int Compare( StyleSelector x, StyleSelector y )
 	{
-		return x.Score - y.Score;
+		return x.Score.CompareTo( y.Score );
 	}
 }

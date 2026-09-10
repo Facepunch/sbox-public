@@ -9,6 +9,6 @@ public static partial class SandboxToolExtensions
 	{
 		var p = project.GetAssetsPath();
 		p = p.NormalizeFilename( false );
-		return AssetSystem.All.Where( x => x.AbsolutePath.StartsWith( p ) ).ToArray();
+		return AssetSystem.All.Where( x => x.AbsolutePath.StartsWith( p, System.StringComparison.OrdinalIgnoreCase ) ).ToArray();
 	}
 }

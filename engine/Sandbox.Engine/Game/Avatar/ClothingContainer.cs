@@ -206,16 +206,23 @@ public partial class ClothingContainer
 	/// <summary>
 	/// Return a list of bodygroups and what their value should be
 	/// </summary>
-	public IEnumerable<(string name, int value)> GetBodyGroups( IEnumerable<Clothing> items )
+	public IEnumerable<(string name, int value)> GetBodyGroups( IEnumerable<Clothing> items, Model model = null )
 	{
 		var mask = items.Where( x => x.IsValid() ).Select( x => x.HideBody ).DefaultIfEmpty().Aggregate( ( a, b ) => a | b );
 
-		yield return ("head", (mask & Sandbox.Clothing.BodyGroups.Head) != 0 ? 1 : 0);
-		yield return ("Chest", (mask & Sandbox.Clothing.BodyGroups.Chest) != 0 ? 1 : 0);
-		yield return ("Legs", (mask & Sandbox.Clothing.BodyGroups.Legs) != 0 ? 1 : 0);
-		yield return ("Hands", (mask & Sandbox.Clothing.BodyGroups.Hands) != 0 ? 1 : 0);
-		yield return ("Feet", (mask & Sandbox.Clothing.BodyGroups.Feet) != 0 ? 1 : 0);
+		yield return ("Head", (mask & Sandbox.Clothing.BodyGroups.Head) != 0 ? HiddenChoice( model, "Head" ) : 0);
+		yield return ("Chest", (mask & Sandbox.Clothing.BodyGroups.Chest) != 0 ? HiddenChoice( model, "Chest" ) : 0);
+		yield return ("Legs", (mask & Sandbox.Clothing.BodyGroups.Legs) != 0 ? HiddenChoice( model, "Legs" ) : 0);
+		yield return ("Hands", (mask & Sandbox.Clothing.BodyGroups.Hands) != 0 ? HiddenChoice( model, "Hands" ) : 0);
+		yield return ("Feet", (mask & Sandbox.Clothing.BodyGroups.Feet) != 0 ? HiddenChoice( model, "Feet" ) : 0);
 	}
+
+	/// <summary>
+	/// The hidden choice is always the last bodygroup choice (empty mesh).
+	/// </summary>
+	static int HiddenChoice( Model model, string name ) =>
+		model?.Parts?.All?.FirstOrDefault( x => x.Name.Equals( name, StringComparison.OrdinalIgnoreCase ) )?.Choices?.Count - 1 ?? 1;
+
 
 	IEnumerable<Entry> GetSerializedEntities()
 	{
@@ -379,11 +386,13 @@ public partial class ClothingContainer
 	}
 
 	/// <summary>
-	/// Create the container from the local user's setup
+	/// Create the container from the local user's setup, stripped of any unowned items.
 	/// </summary>
 	public static ClothingContainer CreateFromLocalUser()
 	{
-		return CreateFromJson( Avatar.AvatarJson );
+		var container = CreateFromJson( Avatar.AvatarJson );
+		container.RemoveUnownedItems();
+		return container;
 	}
 
 	/// <summary>
@@ -404,6 +413,9 @@ public partial class ClothingContainer
 	/// </summary>
 	public void RemoveUnownedItems()
 	{
+		if ( !Services.Inventory.HasLoaded )
+			return;
+
 		Clothing.RemoveAll( entry =>
 		{
 			if ( entry.Clothing is not null )
@@ -418,6 +430,7 @@ public partial class ClothingContainer
 
 	/// <summary>
 	/// Removes clothing items that the given connection is not verified to own.
+	/// Must be called from the host or from the local player, as clients don't have access to other player inventory data.
 	/// </summary>
 	public void RemoveUnownedItems( Connection connection )
 	{
@@ -427,6 +440,10 @@ public partial class ClothingContainer
 			RemoveUnownedItems();
 			return;
 		}
+
+		// Clients don't have this data for remote players, so don't remove anything.
+		if ( !Networking.IsHost )
+			return;
 
 		// Use Connection.HasInventoryItem for remote players
 		Clothing.RemoveAll( entry =>

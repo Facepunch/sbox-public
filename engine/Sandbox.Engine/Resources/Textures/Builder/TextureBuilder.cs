@@ -31,6 +31,7 @@ namespace NativeEngine
 		public TextureCreationConfig_t GetWithFixes()
 		{
 			var fix = this;
+			fix.m_nNumMipLevels = Math.Max( fix.m_nNumMipLevels, (short)1 );
 
 			bool isDepth = fix.m_nImageFormat.IsDepthFormat();
 			if ( isDepth )

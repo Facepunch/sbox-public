@@ -157,6 +157,26 @@ public abstract class BaseDropObject
 		return new Transform( pos, rot, Scale );
 	}
 
+	/// <summary>
+	/// Checks whether a local file path matches a registered DropObject extension.
+	/// Does not handle cloud package URLs, only use this for quick validation only (like on hover).
+	/// </summary>
+	public static bool CanCreateDropFor( string path )
+	{
+		if ( string.IsNullOrEmpty( path ) )
+			return false;
+
+		var dropObjs = EditorTypeLibrary.GetTypesWithAttribute<DropObjectAttribute>();
+
+		foreach ( var obj in dropObjs )
+		{
+			if ( obj.Attribute.Extensions.Any( path.EndsWith ) )
+				return true;
+		}
+
+		return false;
+	}
+
 	public static async Task<BaseDropObject> CreateDropFor( string text )
 	{
 		if ( string.IsNullOrEmpty( text ) ) return null;

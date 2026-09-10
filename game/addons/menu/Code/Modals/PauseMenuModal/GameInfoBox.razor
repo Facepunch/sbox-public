@@ -40,7 +40,7 @@
             <Button Icon="thumb_up" Active="@(Package.Interaction.Rating == 0)" Text="@(Package.VotesUp.ToMetric() + " likes")" onclick="@VoteUp"></Button>
             <Button Icon="thumb_down" Active="@(Package.Interaction.Rating == 1)" Text="@(Package.VotesDown.ToMetric() + " dislikes" )" onclick="@VoteDown"></Button>
             <Button Icon="reviews"
-                Text="@($"{Package.Reviews.Score.ToString( "N0" )}% from {Package.Reviews.Total} Reviews")" 
+                    Text="@($"{Package.Reviews.Score.ToString( "N0" )}% from {Package.Reviews.Total} Reviews")"
                     onclick="@( () => Game.Overlay.ShowReviewModal(Package) )"></Button>
             
 

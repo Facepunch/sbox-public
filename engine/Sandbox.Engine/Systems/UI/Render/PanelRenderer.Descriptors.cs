@@ -12,20 +12,14 @@ internal partial class PanelRenderer
 		var color = style.BackgroundColor.Value;
 		color.a *= opacity;
 
+		var clip = style.BackgroundClip ?? BackgroundClip.BorderBox;
+
 		var desc = new BoxDrawDescriptor( rect, color )
 		{
-			BorderRadius = new Vector4(
-				style.BorderBottomRightRadius.Value.GetPixels( size ),
-				style.BorderTopRightRadius.Value.GetPixels( size ),
-				style.BorderBottomLeftRadius.Value.GetPixels( size ),
-				style.BorderTopLeftRadius.Value.GetPixels( size )
-			),
-			BorderSize = new Vector4(
-				style.BorderLeftWidth.Value.GetPixels( size ),
-				style.BorderTopWidth.Value.GetPixels( size ),
-				style.BorderRightWidth.Value.GetPixels( size ),
-				style.BorderBottomWidth.Value.GetPixels( size )
-			),
+			Radii = BorderRadii.FromStyle( style, rect ),
+			BorderSize = GetBorderWidths( style, size ),
+			BackgroundClip = clip,
+			BackgroundClipInset = GetClipInset( panel, clip ),
 			BorderColorL = style.BorderLeftColor.Value.WithAlphaMultiplied( opacity ),
 			BorderColorT = style.BorderTopColor.Value.WithAlphaMultiplied( opacity ),
 			BorderColorR = style.BorderRightColor.Value.WithAlphaMultiplied( opacity ),
@@ -42,6 +36,7 @@ internal partial class PanelRenderer
 				_ => FilterMode.Anisotropic
 			},
 		};
+		desc.SetBorderShape( style.BorderShape );
 
 		if ( style.BorderImageSource != null )
 		{
@@ -58,6 +53,33 @@ internal partial class PanelRenderer
 		}
 
 		return desc;
+	}
+
+	/// <summary>
+	/// How far the background's clip box is inset from the border box, as left, top, right, bottom.
+	/// </summary>
+	static Vector4 GetClipInset( Panel panel, BackgroundClip clip )
+	{
+		if ( clip == BackgroundClip.BorderBox || clip == BackgroundClip.Text )
+			return Vector4.Zero;
+
+		var inset = panel.Box.Border;
+		if ( clip == BackgroundClip.ContentBox ) inset += panel.Box.Padding;
+
+		return new Vector4( inset.Left, inset.Top, inset.Right, inset.Bottom );
+	}
+
+	/// <summary>
+	/// Border widths in pixels as left, top, right, bottom.
+	/// </summary>
+	internal static Vector4 GetBorderWidths( Styles style, float size )
+	{
+		return new Vector4(
+			style.BorderLeftWidth.Value.GetPixels( size ),
+			style.BorderTopWidth.Value.GetPixels( size ),
+			style.BorderRightWidth.Value.GetPixels( size ),
+			style.BorderBottomWidth.Value.GetPixels( size )
+		);
 	}
 
 	/// <summary>
@@ -91,7 +113,7 @@ internal partial class PanelRenderer
 			} ).Rect;
 		}
 
-		target.Boxes.Add( desc );
+		target.AddBox( desc );
 	}
 
 	/// <summary>
@@ -104,6 +126,14 @@ internal partial class PanelRenderer
 
 		target.Scissor = ScissorGPU;
 
+		// Inline owners have fragment geometry, not CSS boxes. Their text is painted by the paragraph.
+		if ( panel.InlineOwner is not null )
+		{
+			panel.PushLayer( this );
+			panel.IsRenderDirty = false;
+			return;
+		}
+
 		AddShadowDescriptors( panel, ref state, inset: false, target );
 		panel.PushLayer( this );
 		AddBackdropDescriptor( panel, ref state, target );
@@ -115,10 +145,15 @@ internal partial class PanelRenderer
 
 		var drawBuffer = UIDrawBuffer.Current;
 		drawBuffer.ActiveLayer = target;
+		drawBuffer.ScaleToScreen = panel.ScaleToScreen;
+		drawBuffer.Opacity = state.RenderOpacity;
+		drawBuffer.OverrideBlendMode = OverrideBlendMode;
+		drawBuffer.ScreenToPanel = panel.GlobalMatrix ?? Matrix.Identity;
 
 		try
 		{
 			panel.OnDraw();
+			panel.InlineParagraph?.Draw();
 		}
 		catch ( Exception e )
 		{
@@ -126,6 +161,9 @@ internal partial class PanelRenderer
 		}
 
 		drawBuffer.ActiveLayer = null;
+
+		if ( panel is IPanelDraw custom )
+			target.AddCustom( custom );
 
 		AddShadowDescriptors( panel, ref state, inset: true, target );
 		AddOutlineDescriptor( panel, ref state, target );

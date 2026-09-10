@@ -1,5 +1,38 @@
-﻿public partial struct Vector3
+﻿using Sandbox;
+
+public partial struct Vector3
 {
+	/// <summary>
+	/// This direction randomly deflected within a cone <paramref name="degrees"/> wide, centred on it.
+	/// Use for bullet spread. Pass a <paramref name="random"/> to control the randomness (e.g. a seeded
+	/// one, so peers agree on the deflection) - null uses the shared random.
+	/// </summary>
+	public readonly Vector3 WithAimCone( float degrees, System.Random random = null ) => WithAimCone( degrees, degrees, random );
+
+	/// <summary>
+	/// This direction randomly deflected within a cone <paramref name="horizontalDegrees"/> wide and
+	/// <paramref name="verticalDegrees"/> tall, centred on it. Use for bullet spread. Pass a
+	/// <paramref name="random"/> to control the randomness (e.g. a seeded one, so peers agree on the
+	/// deflection) - null uses the shared random.
+	/// </summary>
+	public readonly Vector3 WithAimCone( float horizontalDegrees, float verticalDegrees, System.Random random = null )
+	{
+		// LookAt on a near-zero vector would deflect it to an arbitrary direction - leave it alone.
+		if ( IsNearZeroLength )
+			return this;
+
+		random ??= System.Random.Shared;
+
+		var rotation = Rotation.LookAt( this );
+
+		rotation *= new Angles(
+			random.Float( -verticalDegrees, verticalDegrees ) * 0.5f,
+			random.Float( -horizontalDegrees, horizontalDegrees ) * 0.5f,
+			0 );
+
+		return rotation.Forward;
+	}
+
 	/// <summary>
 	/// Everything you need to smooth damp a Vector3. Just call Update every frame.
 	/// </summary>

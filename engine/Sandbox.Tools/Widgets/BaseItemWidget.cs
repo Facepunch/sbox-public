@@ -152,7 +152,7 @@ public partial class BaseItemWidget : BaseScrollWidget
 	/// </summary>
 	public void SetItems( IEnumerable<object> items )
 	{
-
+		SetSelectionAnchor( null );
 		_items.Clear();
 
 		if ( items != null )
@@ -192,8 +192,9 @@ public partial class BaseItemWidget : BaseScrollWidget
 	/// </summary>
 	public void RemoveItem( object item )
 	{
-
 		item = ResolveObject( item );
+		if ( Equals( item, SelectionAnchor ) )
+			SetSelectionAnchor( null );
 
 		if ( _items.Remove( item ) )
 		{
@@ -206,6 +207,7 @@ public partial class BaseItemWidget : BaseScrollWidget
 	/// </summary>
 	public virtual void Clear()
 	{
+		SetSelectionAnchor( null );
 		_items.Clear();
 
 		ItemLayouts.Clear();
@@ -695,7 +697,10 @@ public partial class BaseItemWidget : BaseScrollWidget
 					{
 						// Deselect selected when holding Ctrl or when toggle selection is on
 						if ( (ToggleSelect || e.HasCtrl) && hovered.Selected )
+						{
 							UnselectItem( hovered.Object );
+							SetSelectionAnchor( hovered.Object );
+						}
 						else
 							SelectItem( hovered.Object, e.HasCtrl );
 					}
@@ -942,8 +947,9 @@ public partial class BaseItemWidget : BaseScrollWidget
 	/// </summary>
 	public bool MultiSelect { get; set; }
 
-
 	SelectionSystem _selection = new SelectionSystem();
+	readonly List<object> _rangeSelection = [];
+	protected object SelectionAnchor { get; private set; }
 
 	public SelectionSystem Selection
 	{
@@ -1007,6 +1013,7 @@ public partial class BaseItemWidget : BaseScrollWidget
 		}
 
 		SetSelected( obj, true, skipEvents );
+		SetSelectionAnchor( obj );
 
 		if ( !skipEvents ) OnSelectionChanged?.Invoke( Selection.ToArray() );
 	}
@@ -1019,12 +1026,9 @@ public partial class BaseItemWidget : BaseScrollWidget
 	/// <param name="skipEvents">Do not invoke events.</param>
 	public void SelectItems( IEnumerable<object> items, bool add = false, bool skipEvents = false )
 	{
+		var itemsToSelect = (MultiSelect ? items : items.Take( 1 )).ToArray();
 		var selected = Selection.ToArray();
 		if ( !skipEvents ) OnBeforeSelection?.Invoke( selected );
-		if ( !MultiSelect && items.Count() > 1 )
-		{
-			items = items.Take( 1 );
-		}
 
 		if ( !MultiSelect || (!ToggleSelect && !add) )
 		{
@@ -1034,10 +1038,12 @@ public partial class BaseItemWidget : BaseScrollWidget
 			}
 		}
 
-		foreach ( var obj in items )
+		foreach ( var obj in itemsToSelect )
 		{
 			SetSelected( obj, true, skipEvents );
 		}
+
+		SetSelectionAnchor( itemsToSelect.LastOrDefault() );
 
 		if ( !skipEvents ) OnSelectionChanged?.Invoke( Selection.ToArray() );
 	}
@@ -1063,6 +1069,8 @@ public partial class BaseItemWidget : BaseScrollWidget
 	/// <param name="skipEvents">Do not invoke events.</param>
 	public void UnselectAll( bool skipEvents = false )
 	{
+		SetSelectionAnchor( null );
+
 		var selected = Selection.ToArray();
 		if ( selected.Length < 1 )
 			return;
@@ -1143,51 +1151,57 @@ public partial class BaseItemWidget : BaseScrollWidget
 	/// </summary>
 	protected virtual void SelectTo( object item, bool skipEvents = false )
 	{
-		var currentObj = Selection.FirstOrDefault() ?? _items.FirstOrDefault();
-		if ( currentObj == null )
-		{
+		var toIndex = ItemIndex( item );
+		if ( toIndex < 0 )
 			return;
-		}
 
-		if ( currentObj == item )
+		var fromIndex = ItemIndex( SelectionAnchor );
+		if ( fromIndex < 0 )
 		{
-			SelectItem( item );
-			return;
+			SetSelectionAnchor( item );
+			fromIndex = toIndex;
 		}
 
 		var selected = Selection.ToArray();
 		if ( !skipEvents ) OnBeforeSelection?.Invoke( selected );
 
-		foreach ( var i in selected )
-		{
-			SetSelected( i, false, skipEvents );
-		}
+		ClearSelectionRange( skipEvents );
 
-		var fromIndex = ItemIndex( currentObj );
-		var toIndex = ItemIndex( item );
-
-		// Whenever we shift around we always want to maintain whatever item we started with
-		// So lets explicitly add to this list backwards / forwards to always keep the start the same
-		if ( fromIndex < toIndex )
+		var step = fromIndex <= toIndex ? 1 : -1;
+		for ( var i = fromIndex; ; i += step )
 		{
-			for ( int i = fromIndex; i <= toIndex; i++ )
-			{
-				var obj = GetAtIndex( i );
-				SetSelected( obj, true, skipEvents );
-			}
-		}
-		else if ( fromIndex > toIndex )
-		{
-			for ( int i = fromIndex; i >= toIndex; i-- )
-			{
-				var obj = GetAtIndex( i );
-				SetSelected( obj, true, skipEvents );
-			}
+			SelectRangeItem( GetAtIndex( i ), skipEvents );
+			if ( i == toIndex ) break;
 		}
 
 		if ( !skipEvents ) OnSelectionChanged?.Invoke( Selection.ToArray() );
 
 		Update();
+	}
+
+	protected void SetSelectionAnchor( object item )
+	{
+		_rangeSelection.Clear();
+		SelectionAnchor = ResolveObject( item );
+	}
+
+	protected void ClearSelectionRange( bool skipEvents )
+	{
+		var rangeSelection = _rangeSelection.ToArray();
+		_rangeSelection.Clear();
+
+		foreach ( var item in rangeSelection )
+		{
+			SetSelected( item, false, skipEvents );
+		}
+	}
+
+	protected void SelectRangeItem( object item, bool skipEvents )
+	{
+		if ( !IsSelected( item ) )
+			_rangeSelection.Add( ResolveObject( item ) );
+
+		SetSelected( item, true, skipEvents );
 	}
 
 	protected void SelectAll( bool skipEvents = false )

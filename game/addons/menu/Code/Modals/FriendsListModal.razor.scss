@@ -1,10 +1,12 @@
+@import "/styles/_theme.scss";
+
 FriendsListModal
 {
     font-family: Poppins;
 
     .inner
     {
-        width: 450px;
+        width: 480px;
         max-height: 60%;
         pointer-events: all;
         overflow-y: scroll;
@@ -15,37 +17,107 @@ FriendsListModal
 
         .friends-list
         {
-            padding: 8px 16px 16px 16px;
+            padding: 4px 12px 16px 12px;
             flex-direction: column;
             overflow-y: scroll;
-            gap: 8px;
+        }
+    }
+
+    .group-label
+    {
+        flex-direction: row;
+        align-items: center;
+        flex-shrink: 0;
+        gap: 8px;
+        padding: 16px 4px 8px 4px;
+
+        &:first-child
+        {
+            padding-top: 4px;
+        }
+
+        .text
+        {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: $default-50;
+            opacity: 0.6;
+            flex-shrink: 0;
+        }
+
+        .count
+        {
+            font-size: 10px;
+            font-weight: 600;
+            color: $default-50;
+            opacity: 0.3;
+            flex-shrink: 0;
+        }
+
+        separator.horizontal
+        {
+            flex-grow: 1;
+            margin: 0;
+        }
+    }
+
+    .party-cluster
+    {
+        flex-direction: column;
+        flex-shrink: 0;
+        margin: 4px 0;
+        padding: 4px;
+        border-radius: 8px;
+        background-color: rgba(0, 0, 0, 0.25);
+    }
+
+    // When anchored next to a source panel (see FriendsListModalOptions.AnchorPanel), don't dim/blur
+    // the whole screen - it should feel like a popup, not a blocking modal.
+    &.anchored
+    {
+        background-color: transparent;
+        backdrop-filter: none;
+
+        // .modal insets itself by -1000px and adds 1000px of padding as a trick to let box-shadow/blur
+        // bleed past the edges of the screen. That's one extra layer of math PositionAnchored's
+        // screen-space Left/Right/Top/Bottom values would have to account for - reset it to a plain
+        // 0..Screen box instead so our coordinates map 1:1.
+        left: 0;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        padding: 0;
+
+        .inner
+        {
+            max-height: 624px;
+            width: 420px;
         }
     }
 }
 
-h2
+.header
 {
-    font-family: Poppins;
-    font-weight: 600;
-    font-size: 16px;
+    flex-direction: row;
     flex-shrink: 0;
-    margin: 8px 0;
     align-items: center;
     gap: 8px;
+    padding: 16px 16px 8px 16px;
+    color: white;
+
+    h2
+    {
+        font-family: Poppins;
+        font-weight: 600;
+        font-size: 16px;
+        margin: 0;
+    }
 
     i
     {
-        font-size: 24px;
+        font-size: 20px;
+        color: $default-50;
     }
-}
-
-
-.header
-{
-    flex-shrink: 0;
-    margin: 2px;
-    border-radius: 16px 16px 0px 0px;
-    padding: 8px 16px;
-    color: white;
-    background-color: #323b5233;
 }

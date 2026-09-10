@@ -33,6 +33,12 @@ class LoadContext : AssemblyLoadContext
 
 	List<IsolatedAssemblyContext> Children = new();
 
+	/// <summary>
+	/// Called when an assembly can't be resolved through normal means (Assemblies, root context).
+	/// Return null to fall through to the default probing.
+	/// </summary>
+	public Func<string, Assembly> OnDemandResolver { get; set; }
+
 	public LoadContext( Assembly root = null ) : base( "TLC", true )
 	{
 		this.root = root;
@@ -76,6 +82,13 @@ class LoadContext : AssemblyLoadContext
 			{
 				return asm;
 			}
+		}
+
+		if ( OnDemandResolver is not null )
+		{
+			var asm = OnDemandResolver( assemblyName.Name );
+			if ( asm is not null )
+				return asm;
 		}
 
 		return base.Load( assemblyName );

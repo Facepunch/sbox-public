@@ -12,47 +12,66 @@
 
 @code 
 {
-    string _source;
+	string _source;
 
-    public string Source 
-    { 
-        get => _source; 
+	public string Source 
+	{ 
+		get => _source; 
 
-        set
-        {
-            if (_source == value) return;
+		set
+		{
+			if (_source == value) return;
 
-            _source = value;
+			_source = value;
 
-            videoPlayer.Play( FileSystem.Mounted, Source );
-        }
-    }
+			videoPlayer.Play( FileSystem.Mounted, Source );
+		}
+	}
 
-    public bool Repeat
-    {
-        set
-        {
-            videoPlayer.Repeat = value;
-        }
-    }
+	public bool Repeat
+	{
+		set
+		{
+			videoPlayer.Repeat = value;
+		}
+	}
 
-    public bool Controls { get; set; } = true;
+	public bool Controls { get; set; } = true;
 
-    Sandbox.VideoPlayer videoPlayer;
+	Sandbox.VideoPlayer videoPlayer;
 
-    public VideoPanel()
-    {
-        videoPlayer = new VideoPlayer();
+	/// <summary>
+	/// Held while the video is making noise, to turn the menu music down under it.
+	/// </summary>
+	IDisposable musicDuck;
 
-        // TODO: Let the user decide how audio is played
-        // videoPlayer.OnAudioReady = () => videoPlayer.PlayAudio();
+	public VideoPanel()
+	{
+		videoPlayer = new VideoPlayer();
 
-        Repeat = true;
-        Style.AspectRatio = 16.0f / 9.0f;
-    }
+		// TODO: Let the user decide how audio is played
+		// videoPlayer.OnAudioReady = () => videoPlayer.PlayAudio();
+
+		Repeat = true;
+		Style.AspectRatio = 16.0f / 9.0f;
+	}
+
+	protected override void OnClick(MousePanelEvent e)
+	{
+		base.OnClick(e);
+
+		if ( Controls )
+		{
+			videoPlayer.TogglePause();
+			e.StopPropagation();
+		}
+	}
 
     public override void OnDeleted()
     {
+        musicDuck?.Dispose();
+        musicDuck = null;
+
         videoPlayer?.Dispose();
         videoPlayer = null;
     }
@@ -67,9 +86,30 @@
             Style.AspectRatio = (float)videoPlayer.Width / (float)videoPlayer.Height;
         }
 
+        UpdateMusicDuck();
+
         videoPlayer.Present();
         var tex = videoPlayer?.Texture;
         Style.SetBackgroundImage(tex);
+    }
+
+    /// <summary>
+    /// Two things talking at once is a mess, so silence the music while we're playing sound.
+    /// It carries on where it left off when the video stops.
+    /// </summary>
+    void UpdateMusicDuck()
+    {
+        var wantsDuck = videoPlayer.HasAudio && !videoPlayer.Muted && !videoPlayer.IsPaused && videoPlayer.Audio.Volume > 0;
+
+        if (wantsDuck)
+        {
+            musicDuck ??= Game.Music.Duck(1.0f, 0.5f);
+        }
+        else
+        {
+            musicDuck?.Dispose();
+            musicDuck = null;
+        }
     }
 
 }

@@ -11,7 +11,7 @@ public sealed partial class ParticleSystem : Resource
 	/// <summary>
 	/// Whether the particle system is invalid, or has not yet loaded.
 	/// </summary>
-	public bool IsError => default;
+	public override bool IsError => default;
 
 	/// <summary>
 	/// Particle system file name.

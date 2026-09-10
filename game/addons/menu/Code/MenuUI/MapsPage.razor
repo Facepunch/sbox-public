@@ -17,12 +17,11 @@
                     <GamePackageSortOrder Value:bind="@filterOrder" ></GamePackageSortOrder>
                 </div>
 
-                <TextEntry @ref="SearchEntry" placeholder="Search maps..."></TextEntry>
+                <TextEntry @ref="SearchEntry" placeholder="Search maps..." OnTextEdited=@OnSearchEdited></TextEntry>
 
                 @if (Result?.Properties is not null && Result.Properties.Length > 0 )
                 {
                     <div class="flex-column flex-gap-16">
-                        <h2><WithIcon Icon="filter_alt" Text="Filters"></WithIcon></h2>
                         <PackagePropertyFilter Result=@Result Selected="@SelectedTags"></PackagePropertyFilter>
                     </div>
                 }
@@ -31,7 +30,7 @@
                 {
                     foreach (var facet in Result.Facets)
                     {
-                        <div class="flex-column flex-gap-16">
+                        <div class="flex-column flex-gap-8">
                             <h2><WithIcon Icon="@facet.Entries.FirstOrDefault()?.Icon" Text="@facet.Title"></WithIcon></h2>
                             <PackageCategoryFilter Result=@Result Selected="@SelectedCategory" Facet="@facet"></PackageCategoryFilter>
                         </div>
@@ -48,19 +47,22 @@
         </Left>
 
 		<Body>
-            <PackageList @ref=PackageList ShowFilters="@false" Query=@($"type:map sort:{filterOrder} {GetQuery()}") OnSelected="@OnPackageSelected" Take=@(200)></PackageList>
+            <MenuProject.UI.PackageList @ref=PackageList ShowFilters="@false" Query=@($"type:map sort:{filterOrder} {GetQuery()}") OnSelected="@OnPackageSelected" OnMenu=@OnMenu Take=@(200)></MenuProject.UI.PackageList>
 		</Body>
 	</Page>
 </root>
 
 @code {
-    string filterOrder = "trending";
+    string filterOrder = "quality";
     TextEntry SearchEntry = default;
+    string debouncedSearch = "";
+    bool searchPending = false;
+    TimeSince timeSinceSearchEdited;
 
     List<string> SelectedTags = new();
     Dictionary<string, string> SelectedCategory = new();
 
-    PackageList PackageList = default;
+    MenuProject.UI.PackageList PackageList = default;
 
     Package.FindResult Result => PackageList?.Result;
 
@@ -68,6 +70,22 @@
 	{
         package.OpenModal();
 	}
+
+    void OnSearchEdited( string text )
+    {
+        searchPending = true;
+        timeSinceSearchEdited = 0;
+    }
+
+    public override void Tick()
+    {
+        if (searchPending && timeSinceSearchEdited >= 0.3f)
+        {
+            searchPending = false;
+            debouncedSearch = SearchEntry?.Text ?? "";
+            StateHasChanged();
+        }
+    }
 
 	void OnOrderChanged(string value)
 	{
@@ -81,7 +99,7 @@
 
     string GetQuery()
     {
-        string tagString = SearchEntry?.Text ?? "";
+        string tagString = debouncedSearch;
         foreach (var tag in SelectedTags)
         {
             tagString += $" +{tag}";

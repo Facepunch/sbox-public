@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace Sandbox.Services;
@@ -52,7 +53,7 @@ public static partial class Stats
 	[MethodImpl( MethodImplOptions.NoInlining )]
 	public static void Increment( string name, double amount )
 	{
-		var package = Application.GameIdent;
+		var package = ResolveCallerPackage( Assembly.GetCallingAssembly() );
 		if ( package is null ) return;
 
 		Api.Stats.AddIncrement( package, name, amount, null );
@@ -67,7 +68,7 @@ public static partial class Stats
 	[MethodImpl( MethodImplOptions.NoInlining )]
 	public static void Increment( string name, double amount, Dictionary<string, object> data )
 	{
-		var package = Application.GameIdent;
+		var package = ResolveCallerPackage( Assembly.GetCallingAssembly() );
 		if ( package is null ) return;
 
 		Api.Stats.AddIncrement( package, name, amount, GetObjectDictionary( data ) );
@@ -101,7 +102,7 @@ public static partial class Stats
 	[MethodImpl( MethodImplOptions.NoInlining )]
 	public static void SetValue( string name, double amount, string context = null, object data = null )
 	{
-		var package = Application.GameIdent;
+		var package = ResolveCallerPackage( Assembly.GetCallingAssembly() );
 		if ( package is null ) return;
 
 		Api.Stats.SetValue( package, name, amount, GetObjectDictionary( data ) );
@@ -113,13 +114,22 @@ public static partial class Stats
 	[MethodImpl( MethodImplOptions.NoInlining )]
 	public static void SetValue( string name, double amount, Dictionary<string, object> data )
 	{
-		var package = Application.GameIdent;
+		var package = ResolveCallerPackage( Assembly.GetCallingAssembly() );
 		if ( package is null ) return;
 
 		Api.Stats.SetValue( package, name, amount, GetObjectDictionary( data ) );
 
 		var localStats = Stats.GetLocalPlayerStats( package );
 		localStats?.Predict( name, amount );
+	}
+
+	private static string ResolveCallerPackage( Assembly callingAssembly )
+	{
+		var name = callingAssembly?.GetName().Name;
+		if ( name is not null && name.StartsWith( "package.", StringComparison.OrdinalIgnoreCase ) )
+			return name["package.".Length..];
+
+		return Application.GameIdent;
 	}
 
 	internal static void RPC_StatsIncrement( string package, string name, double amount, string data )

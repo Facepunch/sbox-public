@@ -8,7 +8,51 @@ public partial class Scene : GameObject
 {
 	public bool IsEditor { get; private set; }
 
-	public SceneWorld SceneWorld { get; private set; }
+	/// <summary>
+	/// A snapshot is currently creating objects whose map content it already supplies.
+	/// </summary>
+	internal bool IsLoadingSnapshot { get; private set; }
+
+	internal IDisposable LoadingSnapshotScope()
+	{
+		var previous = IsLoadingSnapshot;
+		IsLoadingSnapshot = true;
+		return new DisposeAction( () => IsLoadingSnapshot = previous );
+	}
+
+	bool _destroyed;
+	SceneWorld _sceneWorld;
+
+	/// <summary>
+	/// True if the scene world has been created. Reading <see cref="SceneWorld"/> creates
+	/// it - check this first when you only want to act on a world that already exists.
+	/// </summary>
+	internal bool HasSceneWorld => _sceneWorld is not null;
+
+	/// <summary>
+	/// True if the physics world has been created. Reading <see cref="PhysicsWorld"/> creates
+	/// it - check this first when you only want to act on a world that already exists.
+	/// </summary>
+	internal bool HasPhysicsWorld => _physicsWorld.IsValid();
+
+	/// <summary>
+	/// The scene world, holding this scene's renderables. Created on first access, so
+	/// scenes that never render anything (like prefab caches or tests) never create one.
+	/// </summary>
+	public SceneWorld SceneWorld
+	{
+		get
+		{
+			if ( _sceneWorld is null && !_destroyed )
+			{
+				_sceneWorld = new SceneWorld();
+			}
+
+			return _sceneWorld;
+		}
+		private set => _sceneWorld = value;
+	}
+
 	public SceneWorld DebugSceneWorld => gizmoInstance?.World;
 
 	[System.Obsolete( "Use Scene.Editor.HasUnsavedChanges" )]
@@ -47,26 +91,77 @@ public partial class Scene : GameObject
 	public RenderAttributes RenderAttributes { get; }
 
 	private PhysicsWorld _physicsWorld;
+	private ScenePhysicsMode _physicsMode;
+
+	/// <summary>
+	/// Which physics simulation this scene runs. The physics world is built for one mode, so this
+	/// is chosen once when the scene is authored and can't be changed while the scene is running.
+	/// </summary>
+	[Property]
+	public ScenePhysicsMode PhysicsMode
+	{
+		get => _physicsMode;
+		set
+		{
+			if ( _physicsMode == value )
+				return;
+
+			// The editor picks this up through ReloadHash and rebuilds the scene. At runtime nothing
+			// reloads, and tearing down a live world would take every body in the scene with it.
+			if ( HasPhysicsWorld && !IsEditor )
+			{
+				Log.Warning( $"Can't change {nameof( PhysicsMode )} once the physics world exists - reload the scene instead" );
+				return;
+			}
+
+			_physicsMode = value;
+		}
+	}
+
+	internal bool Is2D => PhysicsMode == ScenePhysicsMode.Physics2D;
+
+	/// <summary>
+	/// Hash of scene settings that require a world reload when changed.
+	/// </summary>
+	internal int ReloadHash => HashCode.Combine( PhysicsMode );
 
 	public PhysicsWorld PhysicsWorld => _physicsWorld ??= CreatePhysicsWorld();
 
-	private PhysicsWorld CreatePhysicsWorld()
+	/// <summary>
+	/// Creates the physics world for this scene, matching <see cref="PhysicsMode"/>.
+	/// </summary>
+	PhysicsWorld CreatePhysicsWorld()
 	{
-		return new PhysicsWorld
+		if ( PhysicsMode == ScenePhysicsMode.Physics2D )
 		{
-			DebugSceneWorld = DebugSceneWorld,
-			Gravity = Vector3.Down * 850,
-			SimulationMode = PhysicsSimulationMode.Continuous,
-			CollisionRules = ProjectSettings.Collision,
-			Scene = this
-		};
+			var world = new PhysicsWorld2d
+			{
+				Gravity = Vector2.Down * 850,
+				Scene = this,
+				CollisionRules = ProjectSettings.Collision,
+			};
+
+			return world.Owner;
+		}
+		else
+		{
+			var world = new PhysicsWorld3d
+			{
+				Gravity = Vector3.Down * 850,
+				SimulationMode = PhysicsSimulationMode.Continuous,
+				DebugSceneWorld = DebugSceneWorld,
+				Scene = this,
+				CollisionRules = ProjectSettings.Collision,
+			};
+
+			return world.Owner;
+		}
 	}
 
 	protected Scene( bool isEditor ) : base( true, "Scene" )
 	{
 		_all.Add( this );
 
-		SceneWorld = new SceneWorld();
 		Directory = new GameObjectDirectory( this );
 
 		RenderAttributes = new();
@@ -88,7 +183,7 @@ public partial class Scene : GameObject
 	/// <summary>
 	/// Returns true if this scene has not been destroyed
 	/// </summary>
-	public override bool IsValid => SceneWorld is not null;
+	public override bool IsValid => !_destroyed;
 
 	/// <summary>
 	/// Destroy this scene. After this you should never use it again.
@@ -114,6 +209,10 @@ public partial class Scene : GameObject
 		ShutdownSystems();
 
 		GC.SuppressFinalize( this );
+
+		// the lazy world properties stop creating once this is set, so tearing
+		// down a world that was never created stays a no-op
+		_destroyed = true;
 
 		_physicsWorld?.Delete();
 		_physicsWorld = default;
@@ -206,8 +305,13 @@ public partial class Scene : GameObject
 		HotloadObjectIndex();
 	}
 
+	static Superluminal _renderTimer = new Superluminal( "Scene.Render", Color.Cyan );
+	static Superluminal _cameraRenderTimer = new Superluminal( "Camera", Color.Cyan );
+
 	internal void Render( SwapChainHandle_t swapChain, Vector2? size )
 	{
+		using var _renderScope = _renderTimer.Start();
+
 		PreCameraRender();
 
 		// Get all cameras sorted by render priority
@@ -217,6 +321,7 @@ public partial class Scene : GameObject
 			if ( cc.Active == false ) continue;
 			if ( cc.IsSceneEditorCamera ) continue;
 
+			using var _cam = _cameraRenderTimer.Start( cc.GameObject?.Name );
 			cc.AddToRenderList( swapChain, size );
 		}
 	}

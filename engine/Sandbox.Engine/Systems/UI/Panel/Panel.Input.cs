@@ -4,6 +4,26 @@
 public partial class Panel
 {
 	/// <summary>
+	/// Current mouse position in this panel's surface, top left is 0,0. This is the one to
+	/// use inside panel code - <see cref="Mouse.Position"/> is the game window's cursor,
+	/// which is a different window when the panel lives in a panel window.
+	/// </summary>
+	internal Vector2 ScreenMousePosition => FindRootPanel()?.MousePos ?? default;
+
+	/// <summary>
+	/// The size of this panel's surface in pixels. The one to use inside panel code -
+	/// <see cref="Screen"/> is the game window, which is a different window when the panel
+	/// lives in a panel window.
+	/// </summary>
+	internal Vector2 ScreenSurfaceSize => FindRootPanel()?.Box.Rect.Size ?? default;
+
+	/// <summary>
+	/// Where IME composition happens in this panel, so the candidate window can sit next to
+	/// the caret instead of covering it. The whole panel when there's no better answer.
+	/// </summary>
+	internal virtual Rect ImeCaretRect => Box.Rect;
+
+	/// <summary>
 	/// Current mouse position local to this panels top left corner.
 	/// </summary>
 	[Hide]
@@ -43,6 +63,8 @@ public partial class Panel
 	/// <param name="pos">The position to test, in screen coordinates.</param>
 	public bool IsInside( Vector2 pos )
 	{
+		if ( InlineOwner is not null ) return InlineOwner.Contains( this, pos );
+
 		var rect = Box.Rect;
 
 		if ( pos.x < rect.Left || pos.x > rect.Right ) return false;
@@ -51,47 +73,59 @@ public partial class Panel
 		var s = ComputedStyle;
 		if ( s == null ) return false;
 
+		var local = pos - rect.Position;
+		if ( s.BorderShape?.IsNone == false )
+		{
+			if ( s.BorderShape.Kind == BorderShapeKind.Circle )
+			{
+				var circle = s.BorderShape.ResolveCircle( new Rect( Vector2.Zero, rect.Size ) );
+				if ( Vector2.Distance( local, circle.Center ) > circle.Radius ) return false;
+			}
+			else if ( !IsInsideShapePolygon( local, rect.Size, s.BorderShape.Points ) ) return false;
+		}
+
+		if ( !s.HasBorderRadius ) return true;
+
+		var radii = BorderRadii.FromStyle( s, rect );
+
 		pos.x -= rect.Left;
 		pos.y -= rect.Top;
 
+		var right = rect.Width - pos.x;
+		var bottom = rect.Height - pos.y;
 
-		if ( s.BorderTopLeftRadius.HasValue && s.BorderTopLeftRadius.Value.Unit > 0 )
-		{
-			var r = s.BorderTopLeftRadius.Value.GetPixels( (rect.Width + rect.Height) * 0.5f );
-			r = MathF.Min( MathF.Min( r, rect.Width / 2.0f ), rect.Height / 2.0f );
-			var c = new Vector2( r, r );
-			if ( pos.x < c.x && pos.y < c.y && Vector2.Distance( pos, c ) > r )
-				return false;
-		}
-
-		if ( s.BorderTopRightRadius.HasValue && s.BorderTopRightRadius.Value.Unit > 0 )
-		{
-			var r = s.BorderTopRightRadius.Value.GetPixels( (rect.Width + rect.Height) * 0.5f );
-			r = MathF.Min( MathF.Min( r, rect.Width / 2.0f ), rect.Height / 2.0f );
-			var c = new Vector2( rect.Width - r, r );
-			if ( pos.x > c.x && pos.y < c.y && Vector2.Distance( pos, c ) > r )
-				return false;
-		}
-
-		if ( s.BorderBottomRightRadius.HasValue && s.BorderBottomRightRadius.Value.Unit > 0 )
-		{
-			var r = s.BorderBottomRightRadius.Value.GetPixels( (rect.Width + rect.Height) * 0.5f );
-			r = MathF.Min( MathF.Min( r, rect.Width / 2.0f ), rect.Height / 2.0f );
-			var c = new Vector2( rect.Width - r, rect.Height - r );
-			if ( pos.x > c.x && pos.y > c.y && Vector2.Distance( pos, c ) > r )
-				return false;
-		}
-
-		if ( s.BorderBottomLeftRadius.HasValue && s.BorderBottomLeftRadius.Value.Unit > 0 )
-		{
-			var r = s.BorderBottomLeftRadius.Value.GetPixels( (rect.Width + rect.Height) * 0.5f );
-			r = MathF.Min( MathF.Min( r, rect.Width / 2.0f ), rect.Height / 2.0f );
-			var c = new Vector2( r, rect.Height - r );
-			if ( pos.x < c.x && pos.y > c.y && Vector2.Distance( pos, c ) > r )
-				return false;
-		}
+		if ( OutsideCorner( radii.TopLeft, pos.x, pos.y ) ) return false;
+		if ( OutsideCorner( radii.TopRight, right, pos.y ) ) return false;
+		if ( OutsideCorner( radii.BottomRight, right, bottom ) ) return false;
+		if ( OutsideCorner( radii.BottomLeft, pos.x, bottom ) ) return false;
 
 		return true;
+	}
+
+	static bool IsInsideShapePolygon( Vector2 pos, Vector2 size, IReadOnlyList<BorderShapePoint> points )
+	{
+		bool inside = false;
+		for ( int i = 0, j = points.Count - 1; i < points.Count; j = i++ )
+		{
+			var a = new Vector2( points[i].X.GetPixels( size.x ), points[i].Y.GetPixels( size.y ) );
+			var b = new Vector2( points[j].X.GetPixels( size.x ), points[j].Y.GetPixels( size.y ) );
+			if ( (a.y > pos.y) != (b.y > pos.y) && pos.x < (b.x - a.x) * (pos.y - a.y) / (b.y - a.y) + a.x ) inside = !inside;
+		}
+		return inside;
+	}
+
+	/// <summary>
+	/// Whether a point falls outside a corner's quarter ellipse. Distances are from the panel's
+	/// two edges at that corner, so both are below the radius only within the corner itself.
+	/// </summary>
+	static bool OutsideCorner( Vector2 radius, float fromSide, float fromTopOrBottom )
+	{
+		if ( fromSide >= radius.x || fromTopOrBottom >= radius.y ) return false;
+
+		var x = (radius.x - fromSide) / radius.x;
+		var y = (radius.y - fromTopOrBottom) / radius.y;
+
+		return x * x + y * y > 1.0f;
 	}
 
 	/// <summary>
@@ -131,7 +165,7 @@ public partial class Panel
 	/// </summary>
 	public bool Focus()
 	{
-		return InputFocus.Set( this );
+		return UISystem.SetFocus( this );
 	}
 
 	/// <summary>
@@ -139,7 +173,55 @@ public partial class Panel
 	/// </summary>
 	public bool Blur()
 	{
-		return InputFocus.Clear( this );
+		return UISystem.ClearFocus( this );
+	}
+
+	/// <summary>
+	/// Where this panel sits in the Tab order. 0, the default, is tree order. Positive values come
+	/// before that, lowest first. Negative means Tab skips it, though it can still be focused by
+	/// clicking or <see cref="Focus"/>.
+	/// </summary>
+	[Property]
+	public int TabIndex { get; set; }
+
+	/// <summary>
+	/// Move focus to the panel after this one in Tab order.
+	/// </summary>
+	public bool FocusNext()
+	{
+		return UISystem.MoveFocus( this, false );
+	}
+
+	/// <summary>
+	/// Move focus to the panel before this one in Tab order.
+	/// </summary>
+	public bool FocusPrevious()
+	{
+		return UISystem.MoveFocus( this, true );
+	}
+
+	/// <summary>
+	/// Enter or Space on a focused control clicks it. Returns true when the key was one of those
+	/// and the click was sent.
+	/// </summary>
+	internal bool TryClickFromKeyboard( ButtonEvent e )
+	{
+		if ( !e.Pressed ) return false;
+		if ( e.Button is not ("enter" or "space") ) return false;
+
+		CreateEvent( new MousePanelEvent( "onclick", this, "mouseleft" ) );
+		return true;
+	}
+
+	/// <summary>
+	/// Scroll every scrolling ancestor the least amount that brings this panel into view.
+	/// </summary>
+	internal void ScrollAncestorsIntoView()
+	{
+		for ( var p = Parent; p is not null; p = p.Parent )
+		{
+			p.ScrollIntoView( Box.Rect );
+		}
 	}
 
 	/// <summary>
@@ -180,6 +262,7 @@ public partial class Panel
 	/// </summary>
 	public virtual string GetClipboardValue( bool cut )
 	{
+		if ( InlineOwner is not null ) return InlineOwner.SelectedText;
 		if ( AllowChildSelection )
 			return CollectSelectedChildrenText( this );
 
@@ -241,6 +324,66 @@ public partial class Panel
 		ScrollOffset = new Vector2( ScrollOffset.x, ScrollSize.y );
 		IsScrollAtBottom = true;
 		ScrollVelocity = new Vector2( 0, 0 );
+		return true;
+	}
+
+	/// <summary>
+	/// Jump to a scroll position, clamped to the scrollable area. Stops any inertia.
+	/// </summary>
+	public void ScrollTo( Vector2 offset )
+	{
+		var min = IsScrollAxisReversed ? -ScrollSize : Vector2.Zero;
+		var max = IsScrollAxisReversed ? Vector2.Zero : ScrollSize;
+
+		offset = Vector2.Max( Vector2.Min( offset, max ), min );
+
+		ScrollVelocity = 0;
+		IsScrollAtBottom = offset.y >= ScrollSize.y;
+
+		if ( ScrollOffset == offset )
+			return;
+
+		ScrollOffset = offset;
+		SetNeedsFinalLayout();
+	}
+
+	/// <summary>
+	/// Scroll the least amount that brings a screen-space rect inside the content box. Returns false if
+	/// nothing scrolled. The offset isn't clamped here: content that has just grown hasn't updated the
+	/// scroll range yet, and the next layout clamps anyway.
+	/// </summary>
+	public bool ScrollIntoView( Rect rect )
+	{
+		if ( ComputedStyle is null ) return false;
+		if ( ComputedStyle.Overflow != OverflowMode.Scroll ) return false;
+
+		var view = Box.RectInner;
+		var clip = ContentClipRect;
+		view.Left = Math.Max( view.Left, clip.Left );
+		view.Right = Math.Min( view.Right, clip.Right );
+
+		var offset = ScrollOffset;
+
+		// A scroll requested but not yet laid out will move the rect, so work from where it's going to be
+		rect.Position -= offset - _laidOutScrollOffset;
+
+		if ( ComputedStyle.OverflowY == OverflowMode.Scroll )
+		{
+			if ( rect.Bottom > view.Bottom ) offset.y += MathF.Ceiling( rect.Bottom - view.Bottom );
+			if ( rect.Top < view.Top ) offset.y -= MathF.Ceiling( view.Top - rect.Top );
+		}
+
+		if ( ComputedStyle.OverflowX == OverflowMode.Scroll )
+		{
+			if ( rect.Right > view.Right ) offset.x += MathF.Ceiling( rect.Right - view.Right );
+			if ( rect.Left < view.Left ) offset.x -= MathF.Ceiling( view.Left - rect.Left );
+		}
+
+		if ( offset == ScrollOffset ) return false;
+
+		ScrollVelocity = 0;
+		ScrollOffset = offset;
+		SetNeedsFinalLayout();
 		return true;
 	}
 

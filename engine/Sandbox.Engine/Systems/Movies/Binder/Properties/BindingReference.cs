@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
+using Sandbox.MovieMaker.Compiled;
 
 namespace Sandbox.MovieMaker.Properties;
 
@@ -55,6 +56,7 @@ public readonly record struct BindingReference<T>( Guid? TrackId )
 	where T : class, IValid
 {
 	public static implicit operator BindingReference<T>( Guid? trackId ) => new( trackId );
+	public static implicit operator BindingReference<T>( CompiledReferenceTrack<T>? track ) => new( track?.Id );
 
 	/// <summary>
 	/// Resolve this binding reference by looking up the current binding for <see cref="TrackId"/>.

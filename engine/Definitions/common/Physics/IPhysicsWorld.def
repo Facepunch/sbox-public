@@ -11,7 +11,7 @@ native enum VPhysicsMotionType_t is Sandbox.PhysicsMotionType;
 delegate ProcessIntersectionsDelegate_t;
 delegate DebugDrawDelegate_t;
 
-[Handle:Sandbox.PhysicsWorld]
+[Handle:Sandbox.PhysicsWorld3d]
 native class IPhysicsWorld
 {
 	// Bodies
@@ -63,7 +63,7 @@ native class IPhysicsWorld
 
 	inline IPhysAggregateInstance CreateAggregateInstance( string resourceName, Transform tmStart, ulong nGSNHandle, PhysicsMotionType nMotionType )
 	{
-		HPhysAggregateData_Internal hPhysicsData = g_pResourceSystem->FindExistingResourceByName< RESOURCE_TYPE_PHYSICSDATA_INTERNAL >( CResourceName( resourceName ) );
+		HPhysicsData hPhysicsData = g_pResourceSystem->FindExistingResourceByName< RESOURCE_TYPE_PHYSICSDATA_INTERNAL >( CResourceName( resourceName ) );
 		IPhysAggregateInstance *pInstance = nullptr;
 		if ( !hPhysicsData.HasData() )
 			return pInstance;

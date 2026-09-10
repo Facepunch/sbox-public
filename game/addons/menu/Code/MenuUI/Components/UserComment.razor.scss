@@ -1,69 +1,90 @@
+@import "/styles/_theme.scss";
+
 UserComment
 {
-    flex-shrink: 0;
+	flex-shrink: 0;
 }
 
 UserComment > .left
 {
-    width: 70px;
-    min-width: 70px;
-    flex-shrink: 0;
-    flex-grow: 0;
-    flex-direction: column;
-    gap: 5px;
-    padding-top: 8px;
+	width: 64px;
+	min-width: 64px;
+	flex-shrink: 0;
+	flex-grow: 0;
+	flex-direction: column;
+	gap: 4px;
+	padding-top: 8px;
 }
 
 UserComment > .left img
 {
-    max-width: 48px;
-    border-radius: 8px;
-    cursor: pointer;
+	max-width: 48px;
+	border-radius: $rounding-default;
+	cursor: pointer;
+}
+
+UserComment
+{
+	&.positive > .right
+	{
+		border: 1px solid rgba( $primary-green, 0.1 );
+		background-color: rgba( $primary-green, 0.01 );
+	}
+
+	&.negative > .right
+	{
+		border: 1px solid rgba( $primary-red, 0.1 );
+		background-color: rgba( $primary-red, 0.01 );
+	}
+
+	&.promise > .right
+	{
+		border: 1px solid rgba( $primary-yellow, 0.1 );
+		background-color: rgba( $primary-yellow, 0.01 );
+	}
 }
 
 UserComment > .right
 {
-    flex-grow: 1;
-    flex-shrink: 1;
-    flex-direction: column;
-    border-radius: 8px;
-    border: 1px solid #3056adb0;
-    background: linear-gradient(to right, #232d43dd, #1f283b66);
-    font-size: 12px;
-    color: rgb(173, 179, 203);
-    min-height: 80px;
+	flex-grow: 1;
+	flex-shrink: 1;
+	flex-direction: column;
+	border-radius: $rounding-large;
+	background: $default-900;
+	font-size: $text-small;
+	color: $default-100;
+	min-height: 80px;
 }
 
 UserComment > .right > .header
 {
-    padding: 8px 16px;
-    gap: 10px;
-
+	padding: 12px;
+	gap: 8px;
+	align-items: center;
 }
 
 UserComment > .right > .header > .username
 {
-    font-weight: bold;
-    color: white;
-    cursor: pointer;
+	font-weight: 600;
+	color: $default-text;
+	cursor: pointer;
 }
-
 
 UserComment > .right > .header > .details
 {
-    opacity: 0.5;
-    flex-grow: 1;
-    justify-content: flex-end;
+	color: $default-300;
+	flex-grow: 1;
+	justify-content: flex-end;
+	font-size: $text-eyebrow;
 }
 
 UserComment > .right > .content
 {
-    padding: 16px 16px;
-    padding-top: 8px;
-
+	padding: 0 12px 12px;
+	flex-direction: column;
 }
 
 UserComment > .right > .header > .username.friend
 {
-    color: #fe85f0;
+	color: #fe85f0;
 }

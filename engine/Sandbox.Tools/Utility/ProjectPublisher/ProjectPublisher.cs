@@ -34,13 +34,16 @@ public partial class ProjectPublisher
 		if ( asset.Publishing is null )
 			return null;
 
-		var fakeProject = asset.Publishing.CreateTemporaryProject();
+		// We don't have a better way right now. In the future we'll allow them to define which
+		// code to include and whatever.
+		var context = asset.Publishing.BuildPublishContext();
+		var fakeProject = asset.Publishing.CreateTemporaryProject( context.IncludeCode ? Project.Current?.RootDirectory : null );
 
 		var p = new ProjectPublisher( fakeProject );
 		// p.Manifest.IncludeSourceFiles = asset.Publishing.ProjectConfig.IncludeSourceFiles;
 		p.Manifest.IncludeSourceFiles = false; // tony: Disabled this until we implement it in a better way
 		p.SetMetaFromAsset( asset );
-		await p.Manifest.BuildFrom( asset );
+		await p.Manifest.BuildFrom( asset, fakeProject );
 
 		// include thumbnail!
 		var thumb = await asset.RenderThumb();
@@ -90,7 +93,7 @@ public partial class ProjectPublisher
 
 		foreach ( var cvar in vars )
 		{
-			var e = new GameSetting( cvar.Attribute.Name, cvar.Member.Name, cvar.Member.Group );
+			var e = new GameSetting( cvar.Attribute.Name, cvar.Member.Title, cvar.Member.Group );
 
 			if ( e.Min != 0f )
 			{
@@ -512,9 +515,7 @@ public partial class ProjectPublisher
 	/// </summary>
 	public static bool CanPublishFile( Asset a )
 	{
-		// Core/base shaders should never be uploaded
-		// Ideally I'd just check against mod_base and mod_core but we have weird c# filesystem
-		if ( a.AbsolutePath.Contains( "/addons/base/assets/shaders/", StringComparison.OrdinalIgnoreCase ) ) return false;
+		// Core shaders should never be uploaded
 		if ( a.AbsolutePath.Contains( "/core/shaders/", StringComparison.OrdinalIgnoreCase ) ) return false;
 
 		return true;

@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 
 namespace Editor.ActionGraphs;
+
 internal static class ActionGraphTheme
 {
 	public static Color ActionColor { get; private set; }

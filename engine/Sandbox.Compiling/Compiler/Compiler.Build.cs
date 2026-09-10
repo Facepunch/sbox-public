@@ -37,6 +37,25 @@ partial class Compiler
 	}
 
 	/// <summary>
+	/// Fill CompilerOutput from a precompiled assembly, as if it had been built by this compiler.
+	/// </summary>
+	internal void UpdateFromAssembly( byte[] bytes )
+	{
+		using ( var a_stream = new System.IO.MemoryStream( bytes ) )
+		{
+			MetadataReference = Microsoft.CodeAnalysis.MetadataReference.CreateFromStream( a_stream );
+		}
+
+		var version = Interlocked.Increment( ref compileCounter );
+		Output = new CompilerOutput( this )
+		{
+			Successful = true,
+			Version = Version.Parse( $"0.0.{version}.0" ),
+			MetadataReference = MetadataReference
+		};
+	}
+
+	/// <summary>
 	/// Called by <see cref="CompileGroup"/> before a build starts. Prepares this compiler
 	/// to be referenced by other compilers before they build with <see cref="BuildAsync"/>.
 	/// </summary>
@@ -193,7 +212,6 @@ partial class Compiler
 		}
 
 		bool ilHotloadSupported;
-		ImmutableArray<SyntaxTree> beforeIlHotloadProcessingTrees;
 
 		{
 			var processor = RunGenerators( compiler, modifiedSyntaxTrees, output );
@@ -201,7 +219,6 @@ partial class Compiler
 			compiler = processor.Compilation;
 
 			ilHotloadSupported = processor.ILHotloadSupported;
-			beforeIlHotloadProcessingTrees = processor.BeforeILHotloadProcessingTrees;
 
 			// If you have any errors in codegen don't bother compiling, developer should sort it out
 			if ( processor.Diagnostics.Any( x => x.Severity == DiagnosticSeverity.Error ) )
@@ -270,7 +287,7 @@ partial class Compiler
 			return;
 		}
 
-		incrementalState.Update( archive, inputSyntaxTrees, beforeIlHotloadProcessingTrees, compiler );
+		incrementalState.Update( archive, inputSyntaxTrees, compiler );
 
 		using ( var a_stream = new System.IO.MemoryStream( output.AssemblyData ) )
 		{

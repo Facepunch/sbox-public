@@ -91,12 +91,12 @@ internal static class Translation
 		}
 
 		//
-		// Bool
+		// Enum
 		//
 		if ( targetType.IsEnum )
 		{
-			convertedValue = System.Enum.Parse( targetType, from.ToString() );
-			return true;
+			// TryConvert must not throw on bad input - return false like the float path below
+			return System.Enum.TryParse( targetType, from.ToString(), out convertedValue );
 		}
 
 		//

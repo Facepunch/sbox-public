@@ -12,6 +12,9 @@ partial class ClipTool
 		readonly ClipTool _tool;
 		readonly Button _applyButton;
 		readonly Button _cancelButton;
+		readonly IconButton _keepFront;
+		readonly IconButton _keepBack;
+		readonly IconButton _keepBoth;
 
 		public ClipToolWidget( ClipTool tool ) : base()
 		{
@@ -24,9 +27,9 @@ partial class ClipTool
 				var row = group.AddRow();
 				row.Spacing = 4;
 
-				CreateButton( "Keep Front", "hammer/clipper_keep_front.png", null, () => Keep( ClipKeepMode.Front ), true, row );
-				CreateButton( "Keep Back", "hammer/clipper_keep_back.png", null, () => Keep( ClipKeepMode.Back ), true, row );
-				CreateButton( "Keep Both", "hammer/clipper_keep_both.png", null, () => Keep( ClipKeepMode.Both ), true, row );
+				_keepFront = CreateButton( "Keep Front", "hammer/clipper_keep_front.png", null, () => Keep( ClipKeepMode.Front ), true, row );
+				_keepBack = CreateButton( "Keep Back", "hammer/clipper_keep_back.png", null, () => Keep( ClipKeepMode.Back ), true, row );
+				_keepBoth = CreateButton( "Keep Both", "hammer/clipper_keep_both.png", null, () => Keep( ClipKeepMode.Both ), true, row );
 			}
 
 			Layout.AddSpacingCell( 8 );
@@ -54,6 +57,16 @@ partial class ClipTool
 				row.Add( _cancelButton );
 			}
 
+			Layout.AddSpacingCell( 8 );
+
+			AddShortcuts(
+				("Draw Clip Line", "LMB Drag"),
+				("Cycle Keep Mode", EditorShortcuts.GetKeys( "mesh.clip-cycle-mode" )),
+				("Apply", EditorShortcuts.GetKeys( "mesh.clip-apply" )),
+				("Apply & Continue", EditorShortcuts.GetKeys( "mesh.clip-apply-stay" )),
+				("Cancel", EditorShortcuts.GetKeys( "mesh.clip-cancel" ))
+			);
+
 			Layout.AddStretchCell();
 		}
 
@@ -68,12 +81,17 @@ partial class ClipTool
 		[Shortcut( "mesh.clip-cancel", "ESC", typeof( SceneViewWidget ) )]
 		void Cancel() => _tool.Cancel();
 
+		[Shortcut( "mesh.clip-cycle-mode", "shift+x", typeof( SceneViewWidget ) )]
+		void CycleMode() => _tool.CycleMode();
 
 		[EditorEvent.Frame]
 		public void Frame()
 		{
 			_applyButton?.Enabled = _tool.CanApply;
-			_cancelButton?.Enabled = _tool.CanApply;
+			_cancelButton?.Enabled = true;
+			_keepFront?.IsActive = _tool.KeepMode == ClipKeepMode.Front;
+			_keepBack?.IsActive = _tool.KeepMode == ClipKeepMode.Back;
+			_keepBoth?.IsActive = _tool.KeepMode == ClipKeepMode.Both;
 		}
 	}
 }

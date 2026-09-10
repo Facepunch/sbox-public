@@ -104,7 +104,10 @@ class ClutterGenerationJob
 			}
 
 			if ( instances is { Count: > 0 } )
+			{
+				ApplyEntryLocalScale( instances );
 				SpawnInstances( instances );
+			}
 
 			if ( Tile != null )
 			{
@@ -116,6 +119,58 @@ class ClutterGenerationJob
 		{
 			OnComplete?.Invoke();
 		}
+	}
+
+	private static void ApplyEntryLocalScale( List<ClutterInstance> instances )
+	{
+		for ( int i = 0; i < instances.Count; i++ )
+		{
+			var instance = instances[i];
+			var localScale = instance.Entry?.LocalScale ?? 1f;
+			if ( localScale == 1f )
+				continue;
+
+			var transform = instance.Transform;
+			transform.Scale *= localScale;
+			instance.Transform = transform;
+			instances[i] = instance;
+		}
+	}
+
+	internal static PhysicsBody CreateStaticBodyForVolume( Model model, Transform transform, Scene scene )
+	{
+		return CreateStaticBody( model, transform, scene );
+	}
+
+	private static PhysicsBody CreateStaticBody( Model model, Transform transform, Scene scene )
+	{
+		var world = scene?.PhysicsWorld;
+		if ( world == null ) return null;
+
+		var parts = model.Physics.Parts;
+		var referenceTransform = parts.Count > 0 ? parts[0].Transform : Transform.Zero;
+		var bodyTransform = transform.ToWorld( referenceTransform );
+		var body = world.CreateBody();
+		body.BodyType = PhysicsBodyType.Static;
+		body.Position = bodyTransform.Position;
+		body.Rotation = bodyTransform.Rotation;
+
+		var scaleOnly = new Transform( Vector3.Zero, Rotation.Identity, transform.Scale.x );
+		foreach ( var part in parts )
+		{
+			var relativePart = referenceTransform.ToLocal( part.Transform );
+			var partTransform = scaleOnly.ToWorld( relativePart );
+			foreach ( var sphere in part.Spheres )
+				body.AddSphereShape( partTransform.PointToWorld( sphere.Sphere.Center ), sphere.Sphere.Radius * partTransform.UniformScale ).Tags.Add( "clutter" );
+			foreach ( var capsule in part.Capsules )
+				body.AddCapsuleShape( partTransform.PointToWorld( capsule.Capsule.CenterA ), partTransform.PointToWorld( capsule.Capsule.CenterB ), capsule.Capsule.Radius * partTransform.UniformScale ).Tags.Add( "clutter" );
+			foreach ( var hull in part.Hulls )
+				body.AddShape( hull, partTransform ).Tags.Add( "clutter" );
+			foreach ( var mesh in part.Meshes )
+				body.AddShape( mesh, partTransform, false ).Tags.Add( "clutter" );
+		}
+
+		return body;
 	}
 
 	private void SpawnInstances( List<ClutterInstance> instances )
@@ -141,6 +196,7 @@ class ClutterGenerationJob
 							instance.Transform.Scale.x
 						);
 					}
+
 					continue;
 				}
 

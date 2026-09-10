@@ -59,9 +59,11 @@ unsafe class ResourceCompileContextImp : ResourceCompileContext, IDisposable
 	/// <summary>
 	/// Add a reference that is needed to compile this resource, but isn't actually needed once compiled.
 	/// </summary>
-	public override void AddCompileReference( string path )
+	public override void AddCompileReference( string path, bool optional = false )
 	{
-		_context.RegisterInputFileDependency( path, 0 );
+		// INPUT_FILE_DEPENDENCY_OPTIONAL - a missing optional file doesn't fail the
+		// compile, but still recompiles us if it appears or changes later
+		_context.RegisterInputFileDependency( path, optional ? 1 : 0 );
 	}
 
 	/// <summary>
@@ -191,6 +193,10 @@ unsafe class ResourceCompileContextImp : ResourceCompileContext, IDisposable
 
 			foreach ( var e in jsonobj )
 			{
+				// component type names aren't asset references, but can look like one (eg Sandbox.Decal)
+				if ( e.Key.Equals( "__type", StringComparison.OrdinalIgnoreCase ) )
+					continue;
+
 				//
 				// An object with a $compiler has been found. 
 				// This is an embedded resource definition.
@@ -266,8 +272,6 @@ unsafe class ResourceCompileContextImp : ResourceCompileContext, IDisposable
 					AddRuntimeReference( asset.Path );
 					Log.Trace( $"AddRuntimeReference: {str} {asset.Path}" );
 				}
-
-
 			}
 			else if ( AssetType.FromExtension( extension ) is { } type )
 			{

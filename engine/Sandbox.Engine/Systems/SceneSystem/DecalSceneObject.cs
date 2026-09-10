@@ -96,6 +96,18 @@ internal sealed class DecalSceneObject : SceneObject
 		set => decalNative.m_nSamplerIndex = value;
 	}
 
+	public float CoverageAmount
+	{
+		get => decalNative.m_flCoverageAmount;
+		set => decalNative.m_flCoverageAmount = value;
+	}
+
+	public float CoverageRange
+	{
+		get => decalNative.m_flCoverageRange;
+		set => decalNative.m_flCoverageRange = value;
+	}
+
 	public DecalSceneObject( SceneWorld world )
 	{
 		Assert.IsValid( world );

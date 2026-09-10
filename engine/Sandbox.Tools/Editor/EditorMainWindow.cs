@@ -1,8 +1,10 @@
-﻿using NativeEngine;
+﻿using System;
+using NativeEngine;
+using Sandbox.Helpers;
 
 namespace Editor;
 
-public class EditorMainWindow : DockWindow
+public class EditorMainWindow : DockWindow, IUndoSystemProvider
 {
 	internal static EditorMainWindow Current;
 
@@ -98,13 +100,15 @@ public class EditorMainWindow : DockWindow
 
 	static bool isEngineLoggingVerbose;
 
+	internal SceneTabWidget SceneTabs { get; }
+	readonly DockWidget _centralDock;
+
 	private Option save;
 	private Option saveAs;
 	private Option saveAll;
 	private Option discard;
 	private Option undoOption;
 	private Option redoOption;
-	private Option gameMode;
 
 	internal EditorMainWindow()
 	{
@@ -114,7 +118,9 @@ public class EditorMainWindow : DockWindow
 		WindowTitle = "s&box editor";
 		DeleteOnClose = true;
 		FullScreenManager = new();
-		DockManager.OnLayoutLoaded += OnDockLayoutLoaded;
+
+		SceneTabs = new SceneTabWidget( this );
+		_centralDock = DockManager.SetCentralWidget( SceneTabs );
 
 		{
 			FileMenu = MenuBar.AddMenu( "File" );
@@ -143,6 +149,7 @@ public class EditorMainWindow : DockWindow
 			EditMenu.AddOption( "Cut", "cut", EditorScene.Cut, "editor.cut" );
 			EditMenu.AddOption( "Copy", "copy", EditorScene.Copy, "editor.copy" );
 			EditMenu.AddOption( "Paste", "paste", EditorScene.Paste, "editor.paste" );
+			EditMenu.AddOption( "Paste Special", "content_paste_go", EditorScene.PasteSpecial, "editor.paste-special" );
 			EditMenu.AddOption( "Paste As Child", null, EditorScene.PasteAsChild, "editor.paste-as-child" );
 			EditMenu.AboutToShow += OnEditMenuAboutToShow;
 		}
@@ -156,9 +163,10 @@ public class EditorMainWindow : DockWindow
 			var gameMenu = MenuBar.AddMenu( "Game" );
 			gameMenu.AddOption( "Play", "play_arrow", EditorScene.TogglePlay, "editor.toggle-play" );
 
-			gameMode = gameMenu.AddOption( new Option()
+			gameMenu.AddOption( new Option()
 			{
 				Checkable = true,
+				Checked = EditorScene.PlayMode,
 				Toggled = ( b ) => EditorScene.PlayMode = b,
 				Text = "Play in Game Mode",
 				Icon = "sports_esports"
@@ -242,39 +250,43 @@ public class EditorMainWindow : DockWindow
 		CodeEditor.OpenSolution();
 	}
 
+	IUndoSystem IUndoSystemProvider.UndoSystem => SceneEditorSession.Active?.UndoSystem;
+
 	[Shortcut( "editor.undo", "CTRL+Z", ShortcutType.Window )]
 	static void Undo()
 	{
-		using ( SceneEditorSession.Scope() )
-		{
-			if ( SceneEditorSession.Active.IsUndoScopeOpen )
-			{
-				if ( EditorPreferences.UndoSounds )
-				{
-					EditorUtility.PlayRawSound( "sounds/editor/fail.wav" );
-				}
+		if ( SceneEditorSession.Active is not { } session ) return;
 
-				return;
-			}
-			SceneEditorSession.Active.UndoSystem.Undo();
+		if ( session.IsUndoScopeOpen )
+		{
+			session.FailUndoRedo();
+			return;
+		}
+
+		using var scope = session.Scene.Push();
+
+		if ( IUndoSystem.Undo( EditorWindow ) )
+		{
+			session.SucceedUndoRedo();
 		}
 	}
 
 	[Shortcut( "editor.redo", "CTRL+Y", ShortcutType.Window )]
 	static void Redo()
 	{
-		using ( SceneEditorSession.Scope() )
-		{
-			if ( SceneEditorSession.Active.IsUndoScopeOpen )
-			{
-				if ( EditorPreferences.UndoSounds )
-				{
-					EditorUtility.PlayRawSound( "sounds/editor/fail.wav" );
-				}
+		if ( SceneEditorSession.Active is not { } session ) return;
 
-				return;
-			}
-			SceneEditorSession.Active.UndoSystem.Redo();
+		if ( session.IsUndoScopeOpen )
+		{
+			session.FailUndoRedo();
+			return;
+		}
+
+		using var scope = session.Scene.Push();
+
+		if ( IUndoSystem.Redo( EditorWindow ) )
+		{
+			session.SucceedUndoRedo();
 		}
 	}
 
@@ -309,55 +321,48 @@ public class EditorMainWindow : DockWindow
 		// Load gizmo settings
 		EditorScene.RestoreState();
 
-		// Load game mode value
-		gameMode.Checked = EditorScene.PlayMode;
-
 		// Register our menu bar and dock options, doesn't open anything
 		MenuBar.RegisterNamed( "Editor", MenuBar );
 		DockAttribute.RegisterWindow( "Editor", this );
 
+		// Reopen last session's scenes so their docks exist before the layout is restored
+		SceneEditorSession.RestoreOpenSessions();
+
+		SetVisible( true );
+
+		// Register the main editor window as an SDL window and tell the input system it's the main window,
+		// needed for relative mouse capture mode. SDL adopts it as its keyboard focus window only if it
+		// holds OS focus when wrapped, so register right after showing - before the layout restore below
+		// hands focus to a native dock child (e.g. a viewport).
+		NativeEngine.InputSystem.RegisterWindowWithSDL( _widget.winId() );
+		NativeEngine.InputSystem.SetEditorMainWindow( _widget.winId() );
+
 		// This will attempt to restore the last used layout (or default layout if first time)
 		// Which means it will create dock widgets and move them around
-		// This also involves creating SceneDocks which open scenes
 		StateCookie = "SboxSceneEditor";
-
-		// fucking horrible
-		string geometryCookie = EditorCookie.GetString( $"Window.{StateCookie}.Geometry", null );
-		if ( geometryCookie is null )
-		{
-			// no saved geometry, so default to center
-			Center();
-		}
 
 		EditorEvent.Run( "editor.created", this );
 
 		RebuildApps();
-
-		SetVisible( true );
-
-		// Register the main editor window as an SDL window and tell the input system it's the main window
-		// We need this for focusing and relative mouse capture mode
-		NativeEngine.InputSystem.RegisterWindowWithSDL( _widget.winId() );
-		NativeEngine.InputSystem.SetEditorMainWindow( _widget.winId() );
 	}
 
-	record struct LayoutFile( string Name, string Json );
-
-	protected override void RestoreDefaultDockLayout()
+	public override void SaveToStateCookie()
 	{
-		var layout = FileSystem.Config.ReadJsonOrDefault<LayoutFile>( $"/editor/layout/default.json", default );
-		if ( layout.Name is null ) return;
-		if ( layout.Json is null ) return;
+		base.SaveToStateCookie();
 
-		DockManager.State = layout.Json;
+		SceneEditorSession.SaveOpenSessions();
 	}
 
-	/// <summary>
-	/// Called when the layout is loaded. We want to force all the scene views to be visible!
-	/// </summary>
-	void OnDockLayoutLoaded()
+	protected override void BuildDefaultLayout()
 	{
-		SceneEditorSession.OnEditorWindowRestoreLayout();
+		// classic layout: hierarchy left, inspector right, asset browser + console under the scene
+		var hierarchy = DockManager.OpenDock( "Hierarchy", DockArea.Left );
+		DockManager.OpenDock( "Inspector", DockArea.Right );
+		var browser = DockManager.OpenDock( "Asset Browser", DockArea.Bottom, _centralDock );
+		DockManager.OpenDock( "Console", DockArea.Center, browser );
+
+		DockManager.SetSplitterProportions( hierarchy, 0.2f, 0.6f, 0.2f );
+		DockManager.SetSplitterProportions( browser, 0.75f, 0.25f );
 	}
 
 	/// <summary>
@@ -383,7 +388,6 @@ public class EditorMainWindow : DockWindow
 	public override void OnDestroyed()
 	{
 		// Unsubscribe from events
-		if ( DockManager != null ) DockManager.OnLayoutLoaded -= OnDockLayoutLoaded;
 		if ( RecentScenesMenu != null ) RecentScenesMenu.AboutToShow -= BuildRecentScenes;
 		if ( FileMenu != null ) FileMenu.AboutToShow -= OnFileMenuAboutToShow;
 		if ( ViewsMenu != null ) ViewsMenu.AboutToShow -= OnViewsMenuAboutToShow;
@@ -417,7 +421,8 @@ public class EditorMainWindow : DockWindow
 
 		foreach ( var tool in EngineTools.All )
 		{
-			var option = AppsMenu.AddOption( tool.Name, tool.Icon, () => EngineTools.ShowTool( tool.Name ) );
+			var option = AppsMenu.AddOption( tool.Name, tool.Icon, () => EngineTools.ShowTool( tool ) );
+			option.Enabled = EngineTools.IsAvailable( tool.Library );
 			option.StatusTip = tool.Description;
 			option.ToolTip = $"{tool.Name} - {tool.Description}";
 		}
@@ -490,7 +495,7 @@ public class EditorMainWindow : DockWindow
 	private void OnFileMenuAboutToShow()
 	{
 		save.Enabled = SceneEditorSession.Active?.HasUnsavedChanges ?? false;
-		saveAs.Enabled = SceneEditorSession.Active is not null;
+		saveAs.Enabled = SceneEditorSession.Active is { IsMounted: false };
 		saveAll.Enabled = SceneEditorSession.All.Any();
 		discard.Enabled = SceneEditorSession.Active?.HasUnsavedChanges ?? false;
 	}

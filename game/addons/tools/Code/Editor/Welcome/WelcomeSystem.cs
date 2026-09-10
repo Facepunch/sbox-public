@@ -403,7 +403,7 @@ internal static class WelcomeSystem
 		var window = mainWindow.GetWindow();
 		if ( window is DockWindow dockWindow )
 		{
-			return dockWindow.DockManager.GetDockWidget( "Inspector" );
+			return dockWindow.DockManager.FindDockWidget( "Inspector" )?.Widget;
 		}
 
 		return null;
@@ -437,7 +437,7 @@ internal static class WelcomeSystem
 		var window = mainWindow.GetWindow();
 		if ( window is DockWindow dockWindow )
 		{
-			dockWindow.DockManager.RaiseDock( assetBrowser );
+			dockWindow.DockManager.RaiseDock( "Asset Browser" );
 		}
 
 		// Switch to the Local tab
@@ -458,7 +458,7 @@ internal static class WelcomeSystem
 		var window = mainWindow.GetWindow();
 		if ( window is DockWindow dockWindow )
 		{
-			dockWindow.DockManager.RaiseDock( assetBrowser );
+			dockWindow.DockManager.RaiseDock( "Asset Browser" );
 		}
 
 		// Switch to the Cloud tab

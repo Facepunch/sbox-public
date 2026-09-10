@@ -23,23 +23,33 @@ internal static partial class DebugOverlay
 		internal static void Draw( ref Vector2 position )
 		{
 			var system = NetworkDebugSystem.Current;
-			if ( system is null || system.InboundStats is not { Count: > 0 } )
+			if ( system is null )
 				return;
 
-			var sortedStats = system.InboundStats.OrderByDescending( kv => kv.Value.TotalBytes ).Take( 20 );
+			if ( DrawStats( "Inbound Network Calls", system.InboundStats, ref position ) )
+				position.y += 18;
 
-			var totalBytesAll = system.InboundStats.Values.Sum( s => s.TotalBytes );
+			DrawStats( "Inbound Sync Vars", system.SyncVarInboundStats, ref position );
+		}
+
+		private static bool DrawStats( string title, Dictionary<string, NetworkDebugSystem.MessageStats> stats, ref Vector2 position )
+		{
+			if ( stats is not { Count: > 0 } )
+				return false;
+
+			var sortedStats = stats.OrderByDescending( kv => kv.Value.TotalBytes ).Take( 20 );
+			var totalBytesAll = stats.Values.Sum( s => s.TotalBytes );
 
 			var x = position.x;
 			var y = position.y;
 
-			var header = new TextRendering.Scope( "Network Calls", Color.Yellow, 11, FontName, FontWeight )
+			var header = new TextRendering.Scope( title, Color.Yellow, 13, FontName, FontWeight )
 			{
 				Outline = new TextRendering.Outline { Color = Color.Black, Enabled = true, Size = 2 }
 			};
 
 			Hud.DrawText( header, new Rect( x, y, 300f, 14f ), TextFlag.LeftTop );
-			y += 18;
+			y += 24;
 
 			var biggestNameWidth = 0f;
 
@@ -53,6 +63,37 @@ internal static partial class DebugOverlay
 					biggestNameWidth = size.x;
 			}
 
+			const float barMaxWidth = 50f;
+			var colName = x + barMaxWidth + 6f;
+			var colNameWidth = MathF.Max( 180f, biggestNameWidth + 8f );
+			var colCalls = colName + colNameWidth + 16f;
+			const float colCallsWidth = 50f;
+			var colKB = colCalls + colCallsWidth + 16f;
+			const float colKBWidth = 60f;
+			var colPercent = colKB + colKBWidth + 16f;
+			const float colPercentWidth = 60f;
+			var colBPerMsg = colPercent + colPercentWidth + 16f;
+			const float colBPerMsgWidth = 90f;
+
+			var headerDim = Color.White;
+			var headerScope = new TextRendering.Scope( "", headerDim, 10, FontName, 700 )
+			{
+				Outline = new TextRendering.Outline { Color = Color.Black, Enabled = true, Size = 2 },
+				Text = "NAME"
+			};
+
+			Hud.DrawText( headerScope, new Rect( colName, y, colNameWidth, 12f ), TextFlag.LeftCenter );
+			headerScope.Text = "CALLS";
+			Hud.DrawText( headerScope, new Rect( colCalls, y, colCallsWidth, 12f ), TextFlag.RightCenter );
+			headerScope.Text = "TOTAL";
+			Hud.DrawText( headerScope, new Rect( colKB, y, colKBWidth, 12f ), TextFlag.RightCenter );
+			headerScope.Text = "SHARE";
+			Hud.DrawText( headerScope, new Rect( colPercent, y, colPercentWidth, 12f ), TextFlag.RightCenter );
+			headerScope.Text = "B/MSG";
+			Hud.DrawText( headerScope, new Rect( colBPerMsg, y, colBPerMsgWidth, 12f ), TextFlag.RightCenter );
+
+			y += 14;
+
 			foreach ( var (name, stat) in sortedStats )
 			{
 				var pct = totalBytesAll > 0 ? (stat.TotalBytes / (float)totalBytesAll) : 0f;
@@ -64,28 +105,16 @@ internal static partial class DebugOverlay
 					_ => Color.White.WithAlpha( 0.9f )
 				};
 
-				var barMaxWidth = 50f;
 				var barHeight = 10f;
 				var barWidth = barMaxWidth * pct;
 				var rowHeight = 14f;
 
 				Hud.DrawRect(
 					new Rect( x, y + (rowHeight / 2f) - (barHeight / 2f), barWidth, barHeight ),
-					color.WithAlpha( 0.3f )
+					color.WithAlpha( 0.4f )
 				);
 
 				var shortName = GetShortName( name );
-				var colName = x + barMaxWidth + 6f;
-				var colNameWidth = MathF.Max( 180f, biggestNameWidth + 8f );
-				var colCalls = colName + colNameWidth + 16f;
-				var colCallsWidth = 50f;
-				var colKB = colCalls + colCallsWidth + 16f;
-				var colKBWidth = 60f;
-				var colPercent = colKB + colKBWidth + 16f;
-				var colPercentWidth = 60f;
-				var colBPerMsg = colPercent + colPercentWidth + 16f;
-				var colBPerMsgWidth = 90f;
-
 				var outline = new TextRendering.Outline
 				{
 					Color = Color.Black,
@@ -96,7 +125,7 @@ internal static partial class DebugOverlay
 				var scope = new TextRendering.Scope( shortName, color, 11, FontName, FontWeight ) { Outline = outline };
 				Hud.DrawText( scope, new Rect( colName, y, colNameWidth, rowHeight ), TextFlag.LeftCenter );
 
-				scope = new TextRendering.Scope( $"{stat.TotalCalls}x", color, 11, FontName, FontWeight ) { Outline = outline };
+				scope = new TextRendering.Scope( $"{stat.TotalCalls:N0}x", color, 11, FontName, FontWeight ) { Outline = outline };
 				Hud.DrawText( scope, new Rect( colCalls, y, colCallsWidth, rowHeight ), TextFlag.RightCenter );
 
 				scope = new TextRendering.Scope( $"{stat.TotalBytes / 1024f:0.0} KB", color, 11, FontName, FontWeight ) { Outline = outline };
@@ -112,6 +141,7 @@ internal static partial class DebugOverlay
 			}
 
 			position.y = y;
+			return true;
 		}
 	}
 }

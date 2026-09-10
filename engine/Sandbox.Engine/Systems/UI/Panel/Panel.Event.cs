@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 
 namespace Sandbox.UI;
 
@@ -202,6 +202,12 @@ public partial class Panel
 	}
 
 	/// <summary>
+	/// Run an event through the panel right now instead of queueing it. For events that need
+	/// an answer before returning - a hovering drag asking whether it'd be accepted.
+	/// </summary>
+	internal void DispatchEventImmediate( PanelEvent evnt ) => OnEvent( evnt );
+
+	/// <summary>
 	/// Called when various <see cref="PanelEvent"/>s happen. Handles event listeners and many standard events by default.
 	/// </summary>
 	protected virtual void OnEvent( PanelEvent e )
@@ -213,7 +219,7 @@ public partial class Panel
 			var text = GetClipboardValue( e is CutEvent );
 			if ( text != null )
 			{
-				NativeEngine.EngineGlobal.Plat_SetClipboardText( text );
+				NativeEngine.EngineGlobal.SDL_SetClipboardText( text );
 			}
 		}
 
@@ -230,6 +236,7 @@ public partial class Panel
 			if ( e.Is( "onmousedown" ) ) OnMouseDown( mpe );
 			if ( e.Is( "onmouseup" ) ) OnMouseUp( mpe );
 			if ( e.Is( "ondoubleclick" ) ) OnDoubleClick( mpe );
+			if ( e.Is( "ontripleclick" ) ) OnTripleClick( mpe );
 			if ( e.Is( "onmousemove" ) ) OnMouseMove( mpe );
 			if ( e.Is( "onmouseover" ) ) OnMouseOver( mpe );
 			if ( e.Is( "onmouseout" ) ) OnMouseOut( mpe );
@@ -309,6 +316,12 @@ public partial class Panel
 	/// Called when the player double clicks the panel with the left mouse button.
 	/// </summary>
 	protected virtual void OnDoubleClick( MousePanelEvent e ) { }
+
+	/// <summary>
+	/// Called when this panel is clicked a third time in quick succession. Arrives after the
+	/// double click, so a selection can grow from word to line.
+	/// </summary>
+	protected virtual void OnTripleClick( MousePanelEvent e ) { }
 
 	/// <summary>
 	/// Called when the cursor moves while hovering this panel.

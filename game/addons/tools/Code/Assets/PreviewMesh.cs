@@ -6,6 +6,7 @@ namespace Editor.Assets;
 [AssetPreview( "dmx" )]
 class PreviewMesh : AssetPreview
 {
+	public override bool IsAnimatedPreview => true;
 	public override float PreviewWidgetCycleSpeed => 0.2f;
 
 	public PreviewMesh( Asset asset ) : base( asset )

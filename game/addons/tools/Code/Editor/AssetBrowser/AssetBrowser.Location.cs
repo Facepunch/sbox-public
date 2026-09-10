@@ -56,17 +56,23 @@ public partial class AssetBrowser : Widget
 
 		public static bool TryParse( string absolutePath, out Location location )
 		{
+			// file path -> containing directory
+			if ( !string.IsNullOrEmpty( System.IO.Path.GetExtension( absolutePath ) ) )
+				absolutePath = absolutePath[..(absolutePath.LastIndexOf( '/' ))];
+
 			if ( absolutePath.Equals( "@everything", StringComparison.OrdinalIgnoreCase ) )
 			{
 				location = new EverythingLocation();
 				return true;
 			}
-			else if ( absolutePath.Equals( "@recents", StringComparison.OrdinalIgnoreCase ) )
+
+			if ( absolutePath.Equals( "@recents", StringComparison.OrdinalIgnoreCase ) )
 			{
 				location = new RecentsLocation();
 				return true;
 			}
-			else if ( absolutePath.StartsWith( "mount://", StringComparison.OrdinalIgnoreCase ) )
+
+			if ( absolutePath.StartsWith( "mount://", StringComparison.OrdinalIgnoreCase ) )
 			{
 				var sourceName = absolutePath.Substring( 8 );
 
@@ -84,7 +90,8 @@ public partial class AssetBrowser : Widget
 				location = new MountLocation( host, absolutePath.TrimEnd( '/' ) );
 				return true;
 			}
-			else if ( Directory.Exists( absolutePath ) )
+
+			if ( Directory.Exists( absolutePath ) )
 			{
 				var dir = new DirectoryInfo( absolutePath );
 				if ( dir.Attributes.HasFlag( FileAttributes.Hidden ) )

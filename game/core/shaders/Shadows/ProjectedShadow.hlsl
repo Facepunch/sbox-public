@@ -19,7 +19,7 @@ struct ProjectedShadowStruct
 
 StructuredBuffer<ProjectedShadowStruct> ProjectedShadows < Attribute( "ProjectedShadows" ); >;
 
-class ProjectedShadow
+struct ProjectedShadow
 {
     static float3 GetOccludedPosition( uint shadowIndex, float3 fragPos, float3 lightPos, float lightRadius )
     {
@@ -41,6 +41,9 @@ class ProjectedShadow
 
         ProjectedShadowStruct shadow = ProjectedShadows[shadowIndex];
         Texture2D shadowmap = Bindless::GetTexture2D( shadow.ShadowMapTextureIndex );
+
+        const float flDepthW = abs( mul( float4( worldPosition, 1.0f ), shadow.WorldToShadowMatrix ).w );
+        worldPosition = ApplyShadowNormalOffset( worldPosition, flDepthW * shadow.InvShadowMapRes, shadow.ShadowHardness );
 
         float4 shadowPosition = mul( float4( worldPosition, 1.0f ), shadow.WorldToShadowMatrix );
 

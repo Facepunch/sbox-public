@@ -11,7 +11,6 @@ ClothingIcon
     border-radius: 16px;
     width: 95px;
     flex-grow: 0;
-    flex-shrink: 0;
     height: 90px;
     aspect-ratio: 1;
 
@@ -39,12 +38,11 @@ ClothingIcon
         font-family: Material Icons;
         font-size: 18px;
         padding: 2px 8px;
-        opacity: 1;
+        opacity: 0.2;
         position: absolute;
         right: 2px;
         bottom: 2px;
         border-radius: 20px;
-        opacity: 0.2;
 
         &:hover
         {

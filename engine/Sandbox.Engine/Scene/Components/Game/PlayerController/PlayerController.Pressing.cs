@@ -234,7 +234,7 @@ public sealed partial class PlayerController : Component
 					return foundComponent;
 
 				// Check for IPressable components
-				foreach ( var c in hitObject.GetComponents<IPressable>() )
+				foreach ( var c in hitObject.GetComponentsInParent<IPressable>( includeSelf: true ) )
 				{
 					var @event = new IPressable.Event { Ray = EyeTransform.ForwardRay, Source = this };
 

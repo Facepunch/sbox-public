@@ -5,7 +5,7 @@ namespace Editor.MeshEditor;
 /// <summary>
 /// Draw a polygon mesh.
 /// </summary>
-[Title( "Polygon" ), Icon( "pentagon" )]
+[Title( "Polygon" ), Icon( "meshtools/primitve_tools/polygon.png" )]
 public sealed class PolygonEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 {
 	Plane _plane;
@@ -315,7 +315,7 @@ public sealed class PolygonEditor( PrimitiveTool tool ) : PrimitiveEditor( tool 
 
 	public override Widget CreateWidget() => new PolygonEditorWidget( this );
 
-	[WideMode]
+	[WideMode, Description( "Extrudes the polygon by this distance." )]
 	public float Height
 	{
 		get;
@@ -327,7 +327,7 @@ public sealed class PolygonEditor( PrimitiveTool tool ) : PrimitiveEditor( tool 
 		}
 	}
 
-	[WideMode]
+	[WideMode, Description( "Create inward-facing sides instead of a solid shape." )]
 	public bool Hollow
 	{
 		get;
@@ -353,8 +353,6 @@ public sealed class PolygonEditor( PrimitiveTool tool ) : PrimitiveEditor( tool 
 			var so = editor.GetSerialized();
 			row.Add( ControlSheetRow.Create( so.GetProperty( nameof( editor.Height ) ) ) );
 			row.Add( ControlSheetRow.Create( so.GetProperty( nameof( editor.Hollow ) ) ) ).FixedWidth = 60;
-
-			Layout.AddStretchCell();
 		}
 
 		[Shortcut( "editor.delete", "DEL", typeof( SceneViewWidget ) )]

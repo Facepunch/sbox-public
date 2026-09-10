@@ -10,13 +10,13 @@ namespace Facepunch.Steps;
 /// <summary>
 /// Downloads public artifacts that match the current repository commit.
 /// </summary>
-internal class DownloadPublicArtifacts( string name, bool nativeBinariesOnly = false ) : Step( name )
+internal class DownloadPublicArtifacts( bool nativeBinariesOnly = false )
 {
 	private const string BaseUrl = "https://artifacts.sbox.game";
 	private const int MaxParallelDownloads = 32;
 	private const int MaxDownloadAttempts = 3;
 	private const int MaxManifestLookbackCommits = 128;
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		try
 		{
@@ -37,6 +37,7 @@ internal class DownloadPublicArtifacts( string name, bool nativeBinariesOnly = f
 			}
 
 			using var httpClient = CreateHttpClient();
+			var requireMatchingNativeInputs = nativeBinariesOnly && !string.IsNullOrEmpty( Environment.GetEnvironmentVariable( "GITHUB_BASE_REF" ) );
 
 			ArtifactManifest manifest = null;
 			foreach ( var candidate in commitCandidates )
@@ -53,13 +54,20 @@ internal class DownloadPublicArtifacts( string name, bool nativeBinariesOnly = f
 					return ExitCode.Failure;
 				}
 
+				// PR bindings are generated from HEAD, not from the downloaded artifact revision.
+				if ( requireMatchingNativeInputs && !Utility.NativeInputsMatch( candidate ) )
+				{
+					Log.Warning( $"Skipping native artifacts from {candidate}: native inputs differ or could not be verified." );
+					continue;
+				}
+
 				manifest = candidateManifest;
 				break;
 			}
 
 			if ( manifest is null )
 			{
-				Log.Error( $"Unable to locate a manifest within the last {commitCandidates.Count} commit(s)." );
+				Log.Error( $"Unable to locate a compatible manifest within the last {commitCandidates.Count} commit(s)." );
 				return ExitCode.Failure;
 			}
 

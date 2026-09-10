@@ -33,14 +33,14 @@ internal record ArtifactManifest
 /// <summary>
 /// Syncs the master branch to the public repository by filtering specific paths
 /// </summary>
-internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
+internal class SyncPublicRepo( bool dryRun = false )
 {
 	private const string PUBLIC_REPO = "Facepunch/sbox-public";
 	private const string PUBLIC_BRANCH = "master";
 	private const string SHALLOW_EXCLUDE_TAG = "public-history-root";
 	private const int MAX_PARALLEL_UPLOADS = 32;
 
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		try
 		{
@@ -70,24 +70,66 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 	private static readonly string[] RepoFilterPathExcludeGlobs =
 	{
 		"**/*.pdb",
-		"game/core/shaders/**"
-	};
 
-	private static readonly string[] RepoFilterShaderWhitelistGlobs =
-	{
-		"game/core/shaders/**/vr_*",
-		"game/core/shaders/**/*.hlsl",
-		"game/core/shaders/**/*.shader_c",
-		"game/core/shaders/common.fxc",
-		"game/core/shaders/common_samplers.fxc",
-		"game/core/shaders/descriptor_set_support.fxc",
-		"game/core/shaders/system.fxc",
-		"game/core/shaders/tiled_culling.hlsl",
-		"game/core/shaders/skinning_cs.shader",
-		"game/core/shaders/yuv_resolve.shader",
-		"game/core/shaders/sbox_pixel.fxc",
-		"game/core/shaders/sbox_shared.fxc",
-		"game/core/shaders/sbox_vertex.fxc"
+		// Private legacy shader sources, matching depot.game.content.vdf and UploadBuildArtifacts.
+		"game/core/shaders/ambient_cube.fxc",
+		"game/core/shaders/baked_lighting_constants.fxc",
+		"game/core/shaders/bump_strength.fxc",
+		"game/core/shaders/encoded_normals.fxc",
+		"game/core/shaders/ffd.fxc",
+		"game/core/shaders/instancing.fxc",
+		"game/core/shaders/irradiance_probe_lighting.fxc",
+		"game/core/shaders/irradiance_volume.fxc",
+		"game/core/shaders/light_probe_volume.fxc",
+		"game/core/shaders/math_general.fxc",
+		"game/core/shaders/mathlib_base.fxc",
+		"game/core/shaders/morph.fxc",
+		"game/core/shaders/octohedral_encoding.fxc",
+		"game/core/shaders/parallax_occlusion.fxc",
+		"game/core/shaders/pcss.fxc",
+		"game/core/shaders/post_process_common.fxc",
+		"game/core/shaders/quad_overdraw_ps.fxc",
+		"game/core/shaders/sheet_sampling.fxc",
+		"game/core/shaders/sky.fxc",
+		"game/core/shaders/ssbump.fxc",
+		"game/core/shaders/transform_buffer.fxc",
+		"game/core/shaders/volumetric_fog.fxc",
+		"game/core/shaders/vs_decompress.fxc",
+
+		"game/core/shaders/complex.shader",
+		"game/core/shaders/copytexture.shader",
+		"game/core/shaders/cs_compress_dxt5.shader",
+		"game/core/shaders/cs_volumetric_fog.shader",
+		"game/core/shaders/debug_show_texture.shader",
+		"game/core/shaders/debug_wireframe_2d.shader",
+		"game/core/shaders/debugoverlay_wireframe.shader",
+		"game/core/shaders/depth_only.shader",
+		"game/core/shaders/downsample_depth.shader",
+		"game/core/shaders/error.shader",
+		"game/core/shaders/eyeball.shader",
+		"game/core/shaders/generic.shader",
+		"game/core/shaders/morph_composite.shader",
+		"game/core/shaders/simple.shader",
+		"game/core/shaders/skin.shader",
+		"game/core/shaders/sky.shader",
+		"game/core/shaders/static_overlay.shader",
+		"game/core/shaders/tonemap_query.shader",
+		"game/core/shaders/tools_2d_generic.shader",
+		"game/core/shaders/tools_generic.shader",
+		"game/core/shaders/tools_light_probe.shader",
+		"game/core/shaders/tools_selection_outline.shader",
+		"game/core/shaders/tools_selection_overlay.shader",
+		"game/core/shaders/tools_selection_stencil_copy.shader",
+		"game/core/shaders/tools_shading_complexity.shader",
+		"game/core/shaders/tools_solid.shader",
+		"game/core/shaders/tools_sprite.shader",
+		"game/core/shaders/tools_textured_unlit.shader",
+		"game/core/shaders/tools_visualize_collision_mesh.shader",
+		"game/core/shaders/tools_visualize_tangent_frame.shader",
+		"game/core/shaders/tools_wireframe.shader",
+		"game/core/shaders/ui.shader",
+		"game/core/shaders/unlit.shader",
+		"game/core/shaders/visualize_quad_overdraw.shader"
 	};
 
 	private static readonly Dictionary<string, string> RepoFilterPathRenames = new()
@@ -117,14 +159,11 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 			return _matcher;
 		}
 
-		// Ordered since we first include everything, then exclude, then re-include specific files
-		_matcher = new Matcher( StringComparison.OrdinalIgnoreCase, preserveFilterOrder: true );
+		_matcher = new Matcher( StringComparison.OrdinalIgnoreCase );
 
 		_matcher.AddIncludePatterns( RepoFilterPathIncludeGlobs );
 
 		_matcher.AddExcludePatterns( RepoFilterPathExcludeGlobs );
-
-		_matcher.AddIncludePatterns( RepoFilterShaderWhitelistGlobs );
 
 		return _matcher;
 	}
@@ -159,15 +198,22 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 			var relativeFilteredPath = GetRelativeWorkingDirectory( filteredRepoPath );
 			var uploadedArtifacts = new HashSet<ArtifactFileInfo>();
 			var uploadedArtifactHashes = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+			var uploadedArtifactPaths = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
 
 			// Upload windows binaries
-			if ( !TryUploadBuildArtifacts( repositoryRoot, remoteBase, "win64", dryRun, ref uploadedArtifacts, uploadedArtifactHashes ) )
+			if ( !TryUploadBuildArtifacts( repositoryRoot, remoteBase, "win64", dryRun, ref uploadedArtifacts, uploadedArtifactHashes, uploadedArtifactPaths ) )
 			{
 				return false;
 			}
 
 			// Upload linux binaries
-			if ( !TryUploadBuildArtifacts( repositoryRoot, remoteBase, "linuxsteamrt64", dryRun, ref uploadedArtifacts, uploadedArtifactHashes ) )
+			if ( !TryUploadBuildArtifacts( repositoryRoot, remoteBase, "linuxsteamrt64", dryRun, ref uploadedArtifacts, uploadedArtifactHashes, uploadedArtifactPaths ) )
+			{
+				return false;
+			}
+
+			// Upload macOS binaries
+			if ( !TryUploadBuildArtifacts( repositoryRoot, remoteBase, "osxarm64", dryRun, ref uploadedArtifacts, uploadedArtifactHashes, uploadedArtifactPaths ) )
 			{
 				return false;
 			}
@@ -189,7 +235,7 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 				return false;
 			}
 
-			if ( !TryUploadLfsArtifacts( filteredRepoPath, shallowLfsPaths, remoteBase, dryRun, ref uploadedArtifacts, uploadedArtifactHashes ) )
+			if ( !TryUploadLfsArtifacts( filteredRepoPath, shallowLfsPaths, remoteBase, dryRun, ref uploadedArtifacts, uploadedArtifactHashes, uploadedArtifactPaths ) )
 			{
 				return false;
 			}
@@ -291,7 +337,7 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 		return false;
 	}
 
-	private static bool TryUploadBuildArtifacts( string repositoryRoot, string remoteBase, string platform, bool skipUpload, ref HashSet<ArtifactFileInfo> artifacts, HashSet<string> uploadedHashes )
+	private static bool TryUploadBuildArtifacts( string repositoryRoot, string remoteBase, string platform, bool skipUpload, ref HashSet<ArtifactFileInfo> artifacts, HashSet<string> uploadedHashes, HashSet<string> uploadedPaths )
 	{
 		var buildArtifactsRoot = Path.Combine( repositoryRoot, "game", "bin", platform );
 		if ( !Directory.Exists( buildArtifactsRoot ) )
@@ -300,11 +346,12 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 			return true;
 		}
 
-		// Inline matcher: include everything, exclude managed root folder and pdbs
+		// Inline matcher: include everything, exclude managed root folder, pdbs, and debug symbols
 		var matcher = new Matcher( StringComparison.OrdinalIgnoreCase, preserveFilterOrder: true );
 		matcher.AddInclude( "**/*" );
 		matcher.AddExclude( "managed/**" );
 		matcher.AddExclude( "**/*.pdb" );
+		matcher.AddExclude( "**/*.dbg" );
 
 		var filesToUpload = matcher
 			.GetResultsInFullPath( buildArtifactsRoot )
@@ -337,7 +384,7 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 			} )
 			.ToList();
 
-		return TryUploadArtifacts( candidates, remoteBase, artifacts, uploadedHashes, "build", skipUpload );
+		return TryUploadArtifacts( candidates, remoteBase, artifacts, uploadedHashes, uploadedPaths, "build", skipUpload );
 	}
 
 	private static IReadOnlyCollection<string> GetCompiledAssetFiles( string repositoryRoot )
@@ -377,7 +424,7 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 		return compiledAssets;
 	}
 
-	private static bool TryUploadLfsArtifacts( string repoRoot, IReadOnlyCollection<string> lfsPaths, string remoteBase, bool skipUpload, ref HashSet<ArtifactFileInfo> artifacts, HashSet<string> uploadedHashes )
+	private static bool TryUploadLfsArtifacts( string repoRoot, IReadOnlyCollection<string> lfsPaths, string remoteBase, bool skipUpload, ref HashSet<ArtifactFileInfo> artifacts, HashSet<string> uploadedHashes, HashSet<string> uploadedPaths )
 	{
 		if ( lfsPaths.Count == 0 )
 		{
@@ -389,7 +436,7 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 			.Select( path => (RepoPath: path, AbsolutePath: Path.Combine( repoRoot, path.Replace( '/', Path.DirectorySeparatorChar ) )) )
 			.ToList();
 
-		return TryUploadArtifacts( candidates, remoteBase, artifacts, uploadedHashes, "LFS", skipUpload );
+		return TryUploadArtifacts( candidates, remoteBase, artifacts, uploadedHashes, uploadedPaths, "LFS", skipUpload );
 	}
 
 	private bool RunFilterRepo( string relativeRepoPath )
@@ -407,7 +454,6 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 		{
 			IncludeGlobs = RepoFilterPathIncludeGlobs,
 			ExcludeGlobs = RepoFilterPathExcludeGlobs,
-			WhitelistedShaders = RepoFilterShaderWhitelistGlobs,
 			PathRenames = RepoFilterPathRenames.ToDictionary( pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase )
 		};
 
@@ -602,7 +648,7 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 		".h"
 	};
 
-	private static bool TryUploadArtifacts( IReadOnlyCollection<(string RepoPath, string AbsolutePath)> candidates, string remoteBase, HashSet<ArtifactFileInfo> artifacts, HashSet<string> uploadedHashes, string artifactLabel, bool skipUpload )
+	private static bool TryUploadArtifacts( IReadOnlyCollection<(string RepoPath, string AbsolutePath)> candidates, string remoteBase, HashSet<ArtifactFileInfo> artifacts, HashSet<string> uploadedHashes, HashSet<string> uploadedPaths, string artifactLabel, bool skipUpload )
 	{
 		if ( candidates.Count == 0 )
 		{
@@ -668,6 +714,12 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 				continue;
 			}
 
+			if ( !uploadedPaths.Add( repoPathNormalized ) )
+			{
+				duplicateManifestCount++;
+				continue;
+			}
+
 			var artifact = new ArtifactFileInfo
 			{
 				Path = repoPathNormalized,
@@ -675,11 +727,7 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 				Size = cached.Size
 			};
 
-			if ( !artifacts.Add( artifact ) )
-			{
-				duplicateManifestCount++;
-				continue;
-			}
+			artifacts.Add( artifact );
 
 			if ( !uploadedHashes.Add( cached.Sha256 ) )
 			{
@@ -822,22 +870,7 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 		return string.IsNullOrEmpty( relativePath ) ? "." : relativePath;
 	}
 
-	private static string GetR2Base()
-	{
-		var r2AccessKeyId = Environment.GetEnvironmentVariable( "SYNC_R2_ACCESS_KEY_ID" );
-		var r2SecretAccessKey = Environment.GetEnvironmentVariable( "SYNC_R2_SECRET_ACCESS_KEY" );
-		var r2Bucket = Environment.GetEnvironmentVariable( "SYNC_R2_BUCKET" );
-		var r2Endpoint = Environment.GetEnvironmentVariable( "SYNC_R2_ENDPOINT" );
-
-		if ( string.IsNullOrEmpty( r2AccessKeyId ) || string.IsNullOrEmpty( r2SecretAccessKey ) ||
-			 string.IsNullOrEmpty( r2Bucket ) || string.IsNullOrEmpty( r2Endpoint ) )
-		{
-			Log.Error( "R2 credentials not properly configured in environment variables" );
-			return null;
-		}
-
-		return $":s3,bucket={r2Bucket},provider=Cloudflare,access_key_id={r2AccessKeyId},secret_access_key={r2SecretAccessKey},endpoint='{r2Endpoint}':";
-	}
+	private static string GetR2Base() => R2.GetRcloneRemote();
 
 	private static string ToForwardSlash( string path )
 	{
@@ -867,9 +900,6 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 
 		[JsonPropertyName( "exclude_globs" )]
 		public string[] ExcludeGlobs { get; init; }
-
-		[JsonPropertyName( "whitelisted_shaders" )]
-		public string[] WhitelistedShaders { get; init; }
 
 		[JsonPropertyName( "path_renames" )]
 		public Dictionary<string, string> PathRenames { get; init; }

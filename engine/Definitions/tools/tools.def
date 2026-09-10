@@ -12,7 +12,7 @@ managed static class Editor.ManagedTools
 
 	void GlobalMousePressed( int button );
 	void GlobalMouseReleased( int button );
-	void GlobalMouseWheel( int x, int y );
+	void GlobalMouseWheel( int x, int y, int modifiers );
 	bool GlobalKeyPressed( bool press, QKeyEvent keyEvent );
 	bool GlobalShortcutPressed();
 

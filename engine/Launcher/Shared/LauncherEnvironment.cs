@@ -20,14 +20,13 @@ public static class LauncherEnvironment
 	{
 		get
 		{
-			if ( OperatingSystem.IsWindows() )
-				return "win64";
-			if ( OperatingSystem.IsLinux() )
-				return "linuxsteamrt64";
-			if ( OperatingSystem.IsMacOS() )
-				return "osxarm64";
+			var platform = OperatingSystem.IsWindows() ? "win"
+				: OperatingSystem.IsLinux() ? "linuxsteamrt"
+				: OperatingSystem.IsMacOS() ? "osx"
+				: throw new Exception( "Unsupported platform" );
 
-			throw new Exception( "Unsupported platform" );
+			var architecture = RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "arm64" : "64";
+			return $"{platform}{architecture}";
 		}
 	}
 
@@ -35,10 +34,10 @@ public static class LauncherEnvironment
 	{
 		AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
 
-		GamePath = AppContext.BaseDirectory;
+		GamePath = System.IO.Path.TrimEndingDirectorySeparator( AppContext.BaseDirectory );
 
-		// this exe is in the bin folder
-		if ( GamePath.EndsWith( System.IO.Path.Combine( "bin", PlatformName ) ) )
+		// this exe is in a folder inside bin - bin/win64, bin/managed
+		if ( System.IO.Path.GetFileName( System.IO.Path.GetDirectoryName( GamePath ) ) == "bin" )
 		{
 			// go up two folders
 			GamePath = System.IO.Path.GetDirectoryName( GamePath );

@@ -111,28 +111,26 @@ public class InvokeBlock : InspectorWidget
 				}
 			}
 
-			if ( methodDesc.Parameters.Length == 0 )
+			if ( methodDesc.Parameters.Length > 0 )
 			{
-				return;
-			}
+				Layout.Add( new Label.Header( $"Parameters" ) );
 
-			Layout.Add( new Label.Header( $"Parameters" ) );
+				cs = new ControlSheet();
+				Layout.Add( cs );
 
-			cs = new ControlSheet();
-			Layout.Add( cs );
+				var array = obj.ToArray();
+				int i = 0;
+				foreach ( var param in methodDesc.Parameters )
+				{
+					var prop = array[i];
 
-			var array = obj.ToArray();
-			int i = 0;
-			foreach ( var param in methodDesc.Parameters )
-			{
-				var prop = array[i];
+					var csp = prop.GetCustomizable();
+					csp.SetDisplayName( $"{param.Name.ToTitleCase()}" );
+					csp.AddAttribute( new TypeHintAttribute( param.ParameterType ) );
 
-				var csp = prop.GetCustomizable();
-				csp.SetDisplayName( $"{param.Name.ToTitleCase()}" );
-				csp.AddAttribute( new TypeHintAttribute( param.ParameterType ) );
-
-				cs.AddRow( csp );
-				i++;
+					cs.AddRow( csp );
+					i++;
+				}
 			}
 		}
 

@@ -3,8 +3,6 @@
 [AssetPreview( "vmat" )]
 class PreviewMaterial : AssetPreview
 {
-	//public override bool IsAnimatedPreview => false;
-
 	public override float PreviewWidgetCycleSpeed => 0.2f;
 
 	SkyBox2D skyboxObject;
@@ -36,6 +34,10 @@ class PreviewMaterial : AssetPreview
 			}
 			else
 			{
+				var go = Scene.Directory.FindByName( "envmap" )?.FirstOrDefault() ?? new GameObject( true, "envmap" );
+				var c = go.GetOrAddComponent<EnvmapProbe>();
+				c.WorldPosition = new Vector3( 0, 0, 0 );
+				c.TintColor = Color.White * 0.1f;
 				var sprite = PrimaryObject.AddComponent<ModelRenderer>();
 				sprite.Model = Plane;
 				sprite.MaterialOverride = material;
@@ -89,7 +91,7 @@ class PreviewMaterial : AssetPreview
 
 		var ps = new ControlSheet();
 
-		ps.AddProperty( Camera, x => x.BackgroundColor );
+		ps.AddProperty( this, x => x.BackgroundColor );
 		ps.AddProperty( PrimaryObject.GetComponent<ModelRenderer>(), x => x.Tint );
 		//ps.AddProperty( Camera, x => x.EnablePostProcessing );
 

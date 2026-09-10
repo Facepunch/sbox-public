@@ -3,15 +3,18 @@ using static Facepunch.Constants;
 
 namespace Facepunch.Steps;
 
-internal class BuildShaders( string name, bool forced = false ) : Step( name )
+internal class BuildShaders( bool forced = false )
 {
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		try
 		{
 			string rootDir = Directory.GetCurrentDirectory();
 			string gameDir = Path.Combine( rootDir, "game" );
-			string shaderCompilerPath = Path.Combine( gameDir, "bin", "managed", "shadercompiler.exe" );
+			// Named for the assembly, which is cased: Windows did not care, Linux does. The apphost
+			// carries no extension there either.
+			string shaderCompilerPath = Path.Combine( gameDir, "bin", "managed",
+				OperatingSystem.IsWindows() ? "ShaderCompiler.exe" : "ShaderCompiler" );
 
 			// Verify shader compiler exists
 			if ( !File.Exists( shaderCompilerPath ) )

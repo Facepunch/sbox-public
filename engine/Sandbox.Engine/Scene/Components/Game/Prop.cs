@@ -132,6 +132,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 	public bool StartAsleep { get; set; }
 
 	[Property] public Action OnPropBreak { get; set; }
+	[Property] public Action<List<Gib>> OnGibsCreated { get; set; }
 	[Property] public Action<DamageInfo> OnPropTakeDamage { get; set; }
 
 	[Property, Hide]
@@ -337,6 +338,11 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 	/// </summary>
 	public bool IsFlammable => Model?.Data.Flammable ?? false;
 
+	/// <summary>
+	/// True if this prop will explode when destroyed.
+	/// </summary>
+	public bool IsExplosive => Model?.Data.Explosive ?? false;
+
 	[Sync]
 	public bool IsOnFire { get; protected set; }
 
@@ -352,6 +358,14 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		// The dead feel nothing
 		if ( Health <= 0.0f )
 			return;
+
+		// Explosive props detonate immediately on any physics impact
+		if ( IsExplosive && damage.Tags.Contains( "impact" ) )
+		{
+			Health = 0;
+			Kill( damage );
+			return;
+		}
 
 		if ( IsFlammable && !IsOnFire && ShouldDamageIgnite( damage ) )
 		{
@@ -373,7 +387,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 
 		if ( Health <= 0 )
 		{
-			Kill();
+			Kill( damage );
 			Health = 0;
 		}
 	}
@@ -415,19 +429,20 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		}
 	}
 
-	public void Kill()
+	public void Kill( DamageInfo damage = null )
 	{
-		OnBreak();
+		OnBreak( damage );
 		GameObject.Destroy();
 	}
 
-	void OnBreak()
+	void OnBreak( DamageInfo damage = null )
 	{
 		OnPropBreak?.Invoke();
 
 		PlayBreakSound();
 
-		NetworkCreateGibs();
+		var wasImpact = damage?.Tags.Contains( "impact" ) ?? false;
+		NetworkCreateGibs( wasImpact );
 
 		CreateExplosion();
 	}
@@ -464,6 +479,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 			x.PhysicsForceScale = force;
 			x.DamageAmount = damage;
 			x.Attacker = LastAttacker;
+			x.DamageTags?.Add( "explosion" );
 
 		}, FindMode.EverythingInSelfAndDescendants );
 
@@ -498,22 +514,22 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 	/// Create the gibs for this prop breaking, over the network. This causes clients to spawn the gibs too.
 	/// </summary>
 	[Rpc.Broadcast( NetFlags.OwnerOnly )]
-	public void NetworkCreateGibs()
+	public void NetworkCreateGibs( bool wasImpact = false )
 	{
-		CreateGibs();
+		CreateGibs( wasImpact );
 	}
 
 	/// <summary>
 	/// Create the gibs and return them.
 	/// </summary>
-	public List<Gib> CreateGibs()
+	public List<Gib> CreateGibs( bool wasImpact = false )
 	{
 		var gibs = new List<Gib>();
 
 		if ( Model is null )
 			return gibs;
 
-		var spawnServerGibs = !Network.IsProxy;
+		var spawnServerGibs = Networking.IsHost;
 		var spawnClientGibs = !Application.IsDedicatedServer;
 
 		var breaklist = Model.GetData<ModelBreakPiece[]>();
@@ -559,6 +575,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 				c.Model = model;
 				c.Enabled = true;
 				c.Tint = mr?.Tint ?? c.Tint;
+				c.MaterialGroup = mr?.MaterialGroup ?? c.MaterialGroup;
 
 				gibs.Add( c );
 
@@ -566,7 +583,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 				{
 					gib.Tags.Add( "debris", "clientside" ); // no physics interactions
 				}
-				else if ( !IsProxy )
+				else if ( Networking.IsHost )
 				{
 					// Spawn on the network
 					gib.NetworkSpawn( true, null );
@@ -579,21 +596,41 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		// Transfer velocity from us to the gibs.
 		if ( rb.IsValid() )
 		{
+			// If the prop was thrown on the floor or a wall when broken, we want the gibs to inherit the velocity from before that impact
+			// that way they crash into the floor/wall nicely and stuff.
+			// HOWEVER, we don't want this for anything else
+			// else we'd be stomping whatever changes people might be wanting to make to the velocity themselves.
+			var linVel = wasImpact ? rb.PreVelocity : rb.Velocity;
+			var angVel = wasImpact ? rb.PreAngularVelocity : rb.AngularVelocity;
 			foreach ( var gib in gibs )
 			{
 				var phys = gib.Components.Get<Rigidbody>( true );
 				if ( !phys.IsValid() ) continue;
 
 				// Compute linear velocity at the gibs spawn point.
-				var velocity = rb.PreVelocity + Vector3.Cross( rb.PreAngularVelocity, phys.MassCenter - rb.MassCenter );
+				var velocity = linVel + Vector3.Cross( angVel, phys.MassCenter - rb.MassCenter );
 
-				// Apply 50% energy loss.
-				velocity *= 0.5f;
+				if ( wasImpact )
+				{
+					// Apply 50% energy loss from surface impact.
+					velocity *= 0.5f;
+				}
 
 				phys.Velocity = velocity;
-				phys.AngularVelocity = rb.PreAngularVelocity;
+				phys.AngularVelocity = angVel;
 			}
 		}
+
+		// If this prop was on fire, ignite the gibs so the fire carries over.
+		if ( IsOnFire )
+		{
+			foreach ( var gib in gibs )
+			{
+				gib.Ignite();
+			}
+		}
+
+		OnGibsCreated?.Invoke( gibs );
 
 		return gibs;
 	}

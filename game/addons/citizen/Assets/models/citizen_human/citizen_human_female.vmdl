@@ -191,6 +191,10 @@
 								from = "m_playermodelhead02.vmat"
 								to = "models/citizen_human/heads/citizen_human_femalehead02/citizen_human_femalehead02.vmat"
 							},
+							{
+								from = "eyelashes.vmat"
+								to = "models/citizen_human/heads/citizen_human_femalehead01/eyelashes_01_opacity.vmat"
+							},
 						]
 						use_global_default = false
 						global_default_material = "models/citizen_human/bodies/male/body_mode_dark.vmat"
@@ -203,6 +207,10 @@
 							{
 								from = "models/citizen_human/heads/citizen_human_malehead01/eyes_dark.vmat"
 								to = "models/citizen_human/heads/citizen_human_malehead01/eyes_dark.vmat"
+							},
+							{
+								from = "eyelashes.vmat"
+								to = "models/citizen_human/heads/citizen_human_femalehead01/eyelashes_01_opacity.vmat"
 							},
 						]
 					},
@@ -218,6 +226,14 @@
 							{
 								from = "models/citizen_human/bodies/female/female_body_mode_dark.vmat"
 								to = "models/citizen_human/bodies/female/female_body_mode_light.vmat"
+							},
+							{
+								from = "eyelashes.vmat"
+								to = "models/citizen_human/heads/citizen_human_femalehead01/eyelashes_01_opacity.vmat"
+							},
+							{
+								from = "models/citizen_human/heads/citizen_human_femalehead01/eyelashes_01_opacity.vmat"
+								to = "models/citizen_human/heads/citizen_human_femalehead01/eyelashes_02_opacity.vmat"
 							},
 						]
 					},
@@ -357,6 +373,7 @@
 								"citizen_human_femalehead02",
 								"PlayerModelHeadBarbara_LOD0",
 								"PlayerModelHeadAmy_LOD0",
+								"eyelashes_01",
 							]
 						}
 					},

@@ -65,14 +65,7 @@ public partial class BaseWindow : Widget
 	{
 		if ( StartCentered )
 		{
-			if ( EditorWindow != null )
-			{
-				Position = EditorWindow.ScreenRect.Contain( Size ).Position;
-			}
-			else
-			{
-				Position = ScreenGeometry.Contain( Size ).Position;
-			}
+			CenterWindow();
 		}
 
 		base.Show();

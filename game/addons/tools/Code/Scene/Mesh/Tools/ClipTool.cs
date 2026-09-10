@@ -22,6 +22,8 @@ public partial class ClipTool : EditorTool
 			if ( field == value ) return;
 			field = value;
 
+			EditorCookie.Set( "ClipTool.CapNewSurfaces", value );
+
 			ApplyClipPreview();
 		}
 	}
@@ -38,6 +40,9 @@ public partial class ClipTool : EditorTool
 		{
 			if ( field == value ) return;
 			field = value;
+
+
+			EditorCookie.Set( "ClipTool.KeepMode", value );
 
 			ApplyClipPreview();
 		}
@@ -82,6 +87,9 @@ public partial class ClipTool : EditorTool
 
 	public override void OnEnabled()
 	{
+		KeepMode = EditorCookie.Get( "ClipTool.KeepMode", ClipKeepMode.Front );
+		CapNewSurfaces = EditorCookie.Get( "ClipTool.CapNewSurfaces", false );
+
 		Reset();
 		CacheSelectedMeshes();
 	}
@@ -208,35 +216,45 @@ public partial class ClipTool : EditorTool
 	{
 		if ( Gizmo.Pressed.Any ) return default;
 
-		SceneTraceResult tr = default;
-
-		if ( _hitPlane.HasValue )
+		static Vector3 SnapNormalToAxis( Vector3 n )
 		{
-			var plane = _hitPlane.Value;
+			var abs = n.Abs();
+
+			if ( abs.x >= abs.y && abs.x >= abs.z ) return new Vector3( MathF.Sign( n.x ), 0, 0 );
+			if ( abs.y >= abs.z ) return new Vector3( 0, MathF.Sign( n.y ), 0 );
+
+			return new Vector3( 0, 0, MathF.Sign( n.z ) );
+		}
+
+		static SceneTraceResult PlaneTrace( Plane plane )
+		{
+			SceneTraceResult tr = default;
+
 			if ( plane.TryTrace( Gizmo.CurrentRay, out var hit, true ) )
 			{
 				tr.Hit = true;
 				tr.Normal = plane.Normal;
 				tr.HitPosition = hit;
 			}
+
+			return tr;
 		}
-		else
+
+		if ( Gizmo.IsLeftMouseDown && !Gizmo.WasLeftMousePressed && _hitPlane is { } locked )
+			return PlaneTrace( locked );
+
+		var tr = MeshTrace.Run();
+		if ( tr.Hit )
 		{
-			tr = MeshTrace.Run();
-
-			if ( !tr.Hit )
-			{
-				var plane = new Plane( Vector3.Up, 0 );
-				if ( plane.TryTrace( Gizmo.CurrentRay, out var hit ) )
-				{
-					tr.Hit = true;
-					tr.Normal = plane.Normal;
-					tr.HitPosition = hit;
-				}
-			}
+			tr.Normal = SnapNormalToAxis( tr.Normal );
+			return tr;
 		}
 
-		return tr;
+		tr = PlaneTrace( _hitPlane ?? new Plane( Vector3.Up, 0 ) );
+		if ( tr.Hit ) return tr;
+
+		var normal = SnapNormalToAxis( -Gizmo.Camera.Rotation.Forward );
+		return PlaneTrace( new Plane( Gizmo.CurrentRay.Project( 512f ), normal ) );
 	}
 
 	void UpdatePoints( SceneTraceResult tr )
@@ -376,6 +394,8 @@ public partial class ClipTool : EditorTool
 
 	void Cancel()
 	{
+		var hadLine = _plane.HasValue;
+
 		foreach ( var (component, data) in _targets )
 		{
 			if ( component.Mesh == data.Mesh ) continue;
@@ -385,6 +405,11 @@ public partial class ClipTool : EditorTool
 		}
 
 		Reset();
+
+		if ( !hadLine )
+		{
+			EditorToolManager.SetSubTool( _faceSelection ? nameof( FaceTool ) : nameof( ObjectSelection ) );
+		}
 	}
 
 	MeshComponent ApplyClipBoth( MeshComponent mesh, HashSet<HalfEdgeMesh.FaceHandle> faces )
@@ -489,16 +514,22 @@ public partial class ClipTool : EditorTool
 			Gizmo.Draw.LineThickness = 1;
 			Gizmo.Draw.IgnoreDepth = true;
 			Gizmo.Draw.Color = edgeColor.Darken( 0.3f ).WithAlpha( 0.2f );
-
-			foreach ( var v in mesh.GetEdges() )
-				Gizmo.Draw.Line( v );
+			Gizmo.Draw.Lines( mesh.GetVisibleEdges() );
 
 			Gizmo.Draw.Color = edgeColor;
 			Gizmo.Draw.IgnoreDepth = false;
 			Gizmo.Draw.LineThickness = 2;
-
-			foreach ( var v in mesh.GetEdges() )
-				Gizmo.Draw.Line( v );
+			Gizmo.Draw.Lines( mesh.GetVisibleEdges() );
 		}
+	}
+
+	void CycleMode()
+	{
+		KeepMode = KeepMode switch
+		{
+			ClipKeepMode.Front => ClipKeepMode.Back,
+			ClipKeepMode.Back => ClipKeepMode.Both,
+			_ => ClipKeepMode.Front
+		};
 	}
 }

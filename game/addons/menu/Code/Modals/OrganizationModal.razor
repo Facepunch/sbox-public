@@ -3,7 +3,7 @@
 @using MenuProject.MenuUI.Components
 @using Sandbox;
 @using Sandbox.UI;
-@using Menu;
+@using SboxMenu;
 @using System;
 
 <root class="organization-modal">
@@ -34,7 +34,7 @@
 			</div>
 		</div>
 
-		<PackageList Query=@CurrentQuery OnSelected=@OnPackageSelected />
+		<MenuProject.UI.PackageList Query=@CurrentQuery OnSelected=@OnPackageSelected />
 
 	</div>
                 

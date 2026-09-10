@@ -8,7 +8,6 @@
 internal class EmptyConnection : Connection
 {
 	public override string Address => "empty";
-	public override string Name => "empty";
 	public override bool IsHost => false;
 
 	internal override void InternalClose( int closeCode, string closeReason ) { }

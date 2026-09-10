@@ -1,3 +1,5 @@
+@import "/styles/_theme.scss";
+
 FriendEntry {
     flex-shrink: 0;
     max-height: 48px;
@@ -5,10 +7,10 @@ FriendEntry {
     align-items: center;
     cursor: pointer;
     padding: 8px;
-    border-radius: 64px;
+    border-radius: 12px;
 
     &:hover {
-        background-color: rgba(255, 255, 255, 0.02);
+        background-color: rgba(255, 255, 255, 0.03);
 
         &:not(.active) {
             sound-in: "ui.button.over";
@@ -24,12 +26,14 @@ FriendEntry {
         height: 40px;
         background-size: cover;
         border-radius: 100%;
-        margin-right: 8px;
+        margin-right: 12px;
+        flex-shrink: 0;
     }
 
     .info {
         flex-direction: column;
         flex-grow: 1;
+        min-width: 0;
     }
 
     .name {
@@ -40,52 +44,116 @@ FriendEntry {
 
     .status {
         flex-grow: 0;
-        font-size: 10px;
+        font-size: 11px;
         font-weight: 500;
-        border-radius: 8px;
-        color: white;
+        color: $default-50;
+        opacity: 0.6;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
     }
 
     &.ingame {
-        .avatar {
-            border: 2px solid #3472e6;
+        .name {
+            color: lighten($primary-green, 40%);
         }
 
         .status {
-            color: #3472e6;
+            color: desaturate($primary-green, 20%);
+            opacity: 1;
         }
     }
 
-    &.online .status {
-        color: white;
-    }
+    &.online {
+        .name {
+            color: lighten($primary-blue, 40%);
+        }
 
-    &.offline .status {
-        color: gray;
+        .status {
+            color: desaturate($primary-blue, 20%);
+            opacity: 1;
+        }
     }
 
     .actions {
         flex-grow: 0;
+        flex-shrink: 0;
+        align-items: center;
         gap: 8px;
     }
 
-    .button-simple {
+    .action {
+        flex-direction: row;
         align-items: center;
+        justify-content: center;
         cursor: pointer;
-        font-size: 16px;
-        padding: 8px 8px;
-        color: white;
-        transition: all 0.1s ease-out;
-        gap: 8px;
-        border-radius: 32px;
-        background-color: transparent;
+        flex-shrink: 0;
+        gap: 0;
+        font-size: 12px;
+        font-weight: 600;
+        height: 28px;
+        width: 28px;
+        padding: 0;
+        color: $default-50;
+        background-color: rgba(255, 255, 255, 0.05);
+        border-radius: 14px;
+        overflow: hidden;
+        transition: width 0.2s ease-out, background-color 0.1s ease-out, color 0.1s ease-out;
+
+        i {
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        span {
+            opacity: 0;
+            max-width: 0;
+            overflow: hidden;
+            white-space: nowrap;
+            transition: opacity 0.15s ease-out, max-width 0.2s ease-out;
+        }
 
         &:hover {
-            background-color: white;
-            color: red;
+            width: 92px;
+            gap: 6px;
+            color: white;
+            background-color: rgba(255, 255, 255, 0.1);
+            sound-in: "ui.button.over";
 
-            &:not(.active) {
-                sound-in: "ui.button.over";
+            span {
+                opacity: 1;
+                max-width: 56px;
+            }
+        }
+
+        &.primary {
+            color: white;
+            background-color: $primary-blue;
+
+            &:hover {
+                width: 76px;
+                background-color: $primary-blue-dark;
+
+                span {
+                    max-width: 40px;
+                }
+            }
+        }
+
+        &.deny {
+            cursor: default;
+            color: $default-50;
+            opacity: 0.5;
+
+            &:hover {
+                width: 76px;
+                color: $default-50;
+                background-color: rgba(255, 255, 255, 0.05);
+                sound-in: none;
+
+                span {
+                    max-width: 40px;
+                }
             }
         }
     }

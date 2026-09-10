@@ -8,12 +8,24 @@ namespace Editor.MovieMaker;
 public interface IMovieItem
 {
 	bool MultiSelectable => false;
-	bool MovePlayheadOnSelect => TimeRange.Duration.IsZero;
 	bool OverridesMouseEvents => false;
 
 	MovieTimeRange TimeRange { get; }
 
+	/// <summary>
+	/// Move the playhead to this time when this item is selected.
+	/// </summary>
+	MovieTime? SelectionTime => TimeRange.Duration.IsZero ? TimeRange.Start : null;
+
+	/// <summary>
+	/// Called when this item is clicked twice in quick succession.
+	/// </summary>
 	void DoubleClick() { }
+
+	/// <summary>
+	/// Called when this item is selected individually (not box selected or multi-selected with ctrl).
+	/// </summary>
+	void SingleSelected() { }
 }
 
 public interface ITrackItem : IMovieItem
@@ -167,28 +179,33 @@ partial class Timeline
 
 	private bool StartDragging( Vector2 scenePos, GraphicsItem item )
 	{
-		_dragScope = null;
-		_lastDragTime = ScenePositionToTime( scenePos );
-
-		_draggedItems.Clear();
-		_resizedItems.Clear();
-
-		if ( StartResizing( scenePos, item ) ) return true;
-
 		if ( item is not IMovieDraggable draggable )
 		{
 			return false;
 		}
 
-		if ( !item.Selected )
+		if ( item.Selected )
 		{
-			DeselectAll();
-			item.Selected = true;
+			return StartDragging( scenePos, SelectedItems.OfType<IMovieDraggable>() );
 		}
 
-		_draggedItems.AddRange( SelectedItems.OfType<IMovieDraggable>() );
+		DeselectAll();
+		item.Selected = true;
 
-		_dragSnapOptions = new SnapOptions( draggable.SnapFilter );
+		return StartDragging( scenePos, [draggable] );
+
+	}
+
+	public bool StartDragging( Vector2 scenePos, IEnumerable<IMovieDraggable> items, IHistoryScope? undoScope = null )
+	{
+		_dragScope = undoScope;
+		_lastDragTime = ScenePositionToTime( scenePos );
+
+		_draggedItems.Clear();
+		_resizedItems.Clear();
+
+		_draggedItems.AddRange( items );
+		_dragSnapOptions = new SnapOptions( Filter: x => _draggedItems.All( item => item.SnapFilter( x ) ) );
 
 		foreach ( var dragged in _draggedItems )
 		{
@@ -308,9 +325,10 @@ partial class Timeline
 			{
 				item.Drag( delta );
 			}
+
+			Session.EditMode?.DragItems( _draggedItems, delta );
 		}
 
-		Session.EditMode?.DragItems( _draggedItems, delta );
 		Session.RefreshNextFrame();
 
 		_dragScope?.PostChange();
@@ -318,17 +336,28 @@ partial class Timeline
 
 	private void StopDragging()
 	{
-		foreach ( var item in _draggedItems )
-		{
-			item.EndDrag();
-		}
+		var isResizing = _resizedItems.Count > 0;
 
-		foreach ( var (item, _) in _resizedItems )
+		if ( isResizing )
 		{
-			item.EndResize();
+			foreach ( var (item, _) in _resizedItems )
+			{
+				item.EndResize();
+			}
+		}
+		else
+		{
+			foreach ( var item in _draggedItems )
+			{
+				item.EndDrag();
+			}
+
+			Session.EditMode?.EndDragItems( _draggedItems );
 		}
 
 		_dragScope?.Dispose();
+		_dragScope = null;
+
 		_draggedItems.Clear();
 		_resizedItems.Clear();
 

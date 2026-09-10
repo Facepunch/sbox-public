@@ -1,0 +1,150 @@
+@using Sandbox;
+@using Sandbox.Mounting;
+@using Sandbox.UI;
+@using System;
+
+@namespace Sandbox.UI.Mounts
+@inherits Panel
+
+@* Art on top, a band under it - the menu's tile shape, same as PackageCard. The whole tile is
+   the toggle when the game is installed, so there's no small target to hit. The tooltip carries
+   the full name, since a long one ellipsises in the band. *@
+<root class="@StateClass @(IsBusy ? "busy" : "")" onclick=@Toggle>
+
+	@* Steam serves the capsule for any app id, so even a game you don't own gets its real art. *@
+	<div class="art" style="background-image: url( @CapsuleUrl )">
+
+		@if ( CapsuleUrl is null )
+		{
+			<icon>@Glyph</icon>
+		}
+
+		@* Rides the art rather than the band so the title gets the band's full width. Two
+		   Serious Sams both truncate to "Serious Sam HD: The..." otherwise. *@
+		@if ( !Mount.IsInstalled && Mount.SteamAppId is not null )
+		{
+			<div class="art-actions">
+				@if ( Mount.IsOwned )
+				{
+					<div class="action" onclick=@OpenInstall>
+						<icon>download</icon>
+						<label>Install</label>
+					</div>
+				}
+				else
+				{
+					<div class="action" onclick=@OpenStore>
+						<icon>shopping_cart</icon>
+						<label>Steam</label>
+					</div>
+				}
+			</div>
+		}
+
+	</div>
+
+	<div class="bar">
+
+		<div class="body">
+			<label class="title">@Mount.Title</label>
+
+			@* Nothing useful to say about a game that isn't on disk - the section header covers it. *@
+			@if ( Mount.IsInstalled )
+			{
+				<label class="meta">@Meta</label>
+			}
+		</div>
+
+		@if ( Mount.IsInstalled )
+		{
+			<div class="switch">
+				<div class="knob" />
+			</div>
+		}
+
+	</div>
+
+</root>
+
+@code
+{
+	/// <summary>The game this card turns on and off.</summary>
+	[Parameter] public BaseGameMount Mount { get; set; }
+
+	string StateClass
+	{
+		get
+		{
+			if ( Mount.IsMounted ) return "mounted";
+			if ( Mount.IsInstalled ) return "installed";
+			// Owned but not installed is one free click away, so it stays brighter than
+			// something you'd have to buy.
+			if ( Mount.IsOwned ) return "owned";
+
+			return "missing";
+		}
+	}
+
+	/// <summary>Stand-in for a game with no Steam art of its own.</summary>
+	string Glyph => Mount.IsInstalled ? "videogame_asset" : "videogame_asset_off";
+
+	/// <summary>
+	/// Real game art, when the mount names a Steam app. Offline the download just fails and
+	/// leaves an empty box behind, one warning per tile, so don't ask for it at all - the glyph
+	/// stands in instead.
+	/// </summary>
+	string CapsuleUrl => Global.IsApiConnected ? Mount.CapsuleUrl : null;
+
+	/// <summary>
+	/// What we're in the middle of doing, null when idle. Doubles as the busy flag, so there's
+	/// only one thing to keep in sync.
+	/// </summary>
+	string busyLabel;
+
+	bool IsBusy => busyLabel is not null;
+
+	/// <summary>The second line - what we're doing, what turning this on got you, or that it's there to be turned on.</summary>
+	string Meta
+	{
+		get
+		{
+			if ( busyLabel is not null ) return busyLabel;
+			if ( Mount.IsMounted ) return $"{Mount.Resources.Count:N0} assets ready to use";
+
+			return "Ready to mount";
+		}
+	}
+
+	// Reading a whole game's worth of files takes seconds, so the card has to show it's working -
+	// otherwise it reads as "off" and you click again and queue the opposite operation.
+	async void Toggle()
+	{
+		if ( IsBusy ) return;
+		if ( !Mount.IsInstalled ) return;
+
+		var enable = !Mount.IsMounted;
+
+		busyLabel = enable ? "Mounting..." : "Unmounting...";
+		StateHasChanged();
+
+		await Mount.SetMounted( enable );
+
+		// The page can be navigated away from while a big mount is still reading.
+		if ( !this.IsValid() ) return;
+
+		busyLabel = null;
+		StateHasChanged();
+	}
+
+	void OpenStore()
+	{
+		Mount.OpenSteamStore();
+	}
+
+	void OpenInstall()
+	{
+		Mount.OpenSteamInstall();
+	}
+
+	protected override int BuildHash() => HashCode.Combine( Mount.IsInstalled, Mount.IsMounted, Mount.Resources.Count, busyLabel, Global.IsApiConnected );
+}

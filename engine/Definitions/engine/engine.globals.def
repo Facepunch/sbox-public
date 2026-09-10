@@ -1,6 +1,8 @@
 
 #include "engine2.h"
 #include "tier0/platform_extra.h"
+#include "SDL3/SDL.h"
+#include "sbox/sdl_extensions.h"
 #include "sbox/media/mediainterface.h"
 #include "protocol.h"
 #include "tier0/tools_stall_monitor.h"
@@ -12,6 +14,14 @@ native static class global as NativeEngine.EngineGlobal
 	void Plat_MessageBox( string title, string message );
 	bool Plat_GetDesktopResolution( int nMonitorIndex, ref int pWidth, ref int pHeight, ref uint pRefreshRate );
 	int Plat_GetDefaultMonitorIndex();
+
+	// Monitor the game window is on, or the default monitor before there is a window
+	inline int Plat_GetEngineWindowMonitorIndex()
+	{
+		PlatWindow_t window = g_pEngineServiceMgr->GetEngineWindow();
+		int nMonitor = ( window != PLAT_WINDOW_INVALID ) ? Plat_GetWindowMonitorIndex( window ) : -1;
+		return ( nMonitor >= 0 ) ? nMonitor : Plat_GetDefaultMonitorIndex();
+	}
 	bool Plat_SafeRemoveFile( string file );
 
 	void Plat_SetModuleFilename( string filename );
@@ -21,10 +31,16 @@ native static class global as NativeEngine.EngineGlobal
 	void Plat_ChangeCurrentFrame( long nDelta );
 	bool Plat_IsRunningOnCustomerMachine();
 
-	bool Plat_HasClipboardText();
-	void Plat_SetClipboardText( string text );
-	string Plat_GetClipboardText();
-	void Plat_ClearClipboardText();
+	bool SDL_HasClipboardText();
+	bool SDL_SetClipboardText( string text );
+
+	// Returns SDL-allocated utf8 - convert it, then hand it back to SDL_free
+	IntPtr SDL_GetClipboardText();
+	void SDL_free( CastTo[void*] IntPtr mem );
+	string SDL_GetError();
+
+	void* SDL_CreatePopupWindow( CastTo[SDL_Window*] IntPtr parent, int x, int y, int width, int height, ulong flags );
+	void SDL_SetWindowMouseTransparent( CastTo[SDL_Window*] IntPtr window, bool transparent );
 
 	inline bool IsWindowFocused()
 	{
@@ -65,6 +81,8 @@ native static class global as NativeEngine.EngineGlobal
 	bool SourceEngineUnitTestInit();
 	bool SourceEnginePreInit( string lpCmdLine, CMaterialSystem2AppSystemDict appDict );
 	bool SourceEngineInit( CMaterialSystem2AppSystemDict appDict );
+	bool SourceEnginePanelAppInit( CMaterialSystem2AppSystemDict appDict );
+	void SourceEnginePanelAppFrame();
 	bool SourceEngineFrame( CMaterialSystem2AppSystemDict appDict, double currentTime, double previousTime );
 	void SourceEngineShutdown( CMaterialSystem2AppSystemDict appDict, bool forced );
 

@@ -20,8 +20,8 @@ internal sealed partial class Controller
 		Log.Info( $"Detected {Controller.All.Count()} controllers" );
 		foreach ( var controller in Controller.All )
 		{
-			Log.Info( $"\t> {controller.ControllerType}, Handle: {controller.SDLHandle}, Device ID: {controller.DeviceId}" );
-			Log.Info( $"\t\t> Color: {controller.LEDColor}, Type: {controller.ControllerType}, GlyphVendor: {controller.GlyphVendor}" );
+			Log.Info( $"\t> {controller.Name}, GlyphSet: {controller.GlyphSet}, Handle: {controller.SDLHandle}, Device ID: {controller.DeviceId}" );
+			Log.Info( $"\t\t> Color: {controller.LEDColor}, GlyphVendor: {controller.GlyphVendor}" );
 			Log.Info( $"\t\t> Accel: {controller.Accelerometer}, Gyro: {controller.Gyroscope}" );
 		}
 		Log.Info( "---------------------------------------------------------------------------" );
@@ -30,12 +30,18 @@ internal sealed partial class Controller
 	public int SDLHandle { get; init; }
 	public int DeviceId { get; init; }
 
+	/// <summary>
+	/// The glyph set for this controller, used for icon/prompt selection.
+	/// </summary>
+	public GameControllerGlyphSet GlyphSet { get; init; }
+
 	internal Controller( int joystickHandle, int deviceHandle )
 	{
 		SDLHandle = joystickHandle;
 		DeviceId = deviceHandle;
 		InputContext = Input.Context.Create( $"GameController:{SDLHandle}" );
-		ControllerType = NativeEngine.SDLGameController.GetControllerType( SDLHandle );
+		Name = NativeEngine.SDLGameController.GetControllerName( SDLHandle );
+		GlyphSet = NativeEngine.SDLGameController.GetControllerGlyphSet( SDLHandle );
 
 		var id = joystickHandle % 4;
 		LEDColor = ControllerColors[id];
@@ -43,7 +49,7 @@ internal sealed partial class Controller
 
 	public override string ToString()
 	{
-		return $"{ControllerType} ({DeviceId})";
+		return $"{Name}";
 	}
 
 	/// <summary>
@@ -80,27 +86,22 @@ internal sealed partial class Controller
 	}
 
 	/// <summary>
-	/// What type of controller is this?
+	/// The name of this controller (e.g. "Xbox Wireless Controller", "Steam Controller")
 	/// </summary>
-	public GameControllerType ControllerType { get; init; }
+	public string Name { get; init; }
 
 	/// <summary>
-	/// Which glyph vendor are we using for this controller?
-	/// - default "The default vendor type, which uses Xbox glyphs"
-	/// - playstation
-	/// - switch 
+	/// Which glyph folder to use for this controller.
+	/// Derived from the controller's glyph set.
 	/// </summary>
-	public string GlyphVendor
+	public string GlyphVendor => GlyphSet switch
 	{
-		get => ControllerType switch
-		{
-			>= GameControllerType.Xbox360 and <= GameControllerType.XboxOne => "xbox",
-			>= GameControllerType.PS3 and <= GameControllerType.PS4 => "playstation",
-			GameControllerType.PS5 => "playstation",
-			GameControllerType.SwitchPro => "switch",
-			_ => "xbox"
-		};
-	}
+		GameControllerGlyphSet.Xbox => "xbox",
+		GameControllerGlyphSet.PlayStation => "playstation",
+		GameControllerGlyphSet.Switch => "switch",
+		GameControllerGlyphSet.Steam => "steam",
+		_ => "xbox"
+	};
 
 	/// <summary>
 	/// Rumbles the controller.

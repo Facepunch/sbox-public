@@ -1,21 +1,14 @@
-﻿using System.Collections.Concurrent;
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 
 namespace Facepunch.InteropGen.Parsers;
 
+/// <summary>
+/// Parses the body of a class: its functions, inline functions (pushing a <see cref="BodyParser"/>),
+/// variables and attributes, until the closing brace.
+/// </summary>
 internal class ClassParser : BaseParser
 {
-	// Precompiled regex for better performance
-	private static readonly Regex _attributeRegex = new(
-		@"^\[(.+)\]",
-		RegexOptions.IgnoreCase | RegexOptions.Compiled
-	);
-
-	// Cache for attribute parsing
-	private static readonly ConcurrentDictionary<string, string> _attributeCache = new();
-
 	private readonly Class Class;
-	public bool IsNative { get; set; }
 
 	public ClassParser( Definition definition, Class c )
 	{
@@ -38,16 +31,14 @@ internal class ClassParser : BaseParser
 			return;
 		}
 
-		Function inline_func = InlineFunction.Parse( line );
+		Function inline_func = Function.ParseInline( line );
 		if ( inline_func != null )
 		{
 			inline_func.Class = Class;
 			inline_func.TakeAttributes( Attributes );
 			Class.Functions.Add( inline_func );
 
-			BodyParser parser = new( definition, inline_func );
-			subParser.Push( parser );
-
+			subParser.Push( new BodyParser( definition, inline_func ) );
 			return;
 		}
 
@@ -68,36 +59,13 @@ internal class ClassParser : BaseParser
 			return;
 		}
 
-		// Use cached attribute parsing
-		if ( TryParseAttribute( trimmedLine, out string attributeValue ) )
+		Match attribute = AttributeRegex.Match( trimmedLine );
+		if ( attribute.Success )
 		{
-			Attributes.Add( attributeValue );
+			Attributes.Add( attribute.Groups[1].Value );
 			return;
 		}
 
 		base.ParseLine( line );
-	}
-
-	private bool TryParseAttribute( string line, out string attributeValue )
-	{
-
-		// Check cache first
-		if ( _attributeCache.TryGetValue( line, out attributeValue ) )
-		{
-			return attributeValue != null;
-		}
-
-		// Parse with regex
-		Match match = _attributeRegex.Match( line );
-		bool success = match.Success;
-		attributeValue = success ? match.Groups[1].Value : null;
-
-		// Cache result (including negative results)
-		if ( _attributeCache.Count < 1000 )
-		{
-			_ = _attributeCache.TryAdd( line, attributeValue );
-		}
-
-		return success;
 	}
 }

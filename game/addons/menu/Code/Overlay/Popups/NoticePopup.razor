@@ -1,0 +1,40 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Sandbox.OverlayPopups
+@inherits Panel
+
+<root onmousedown="@OpenLink">
+
+    <div class="icon" style="background-image: url( '@Icon' );"></div>
+
+    <div class="content">
+        <div class="title">@Title</div>
+        <div class="text">@Text</div>
+    </div>
+
+</root>
+
+@code
+{
+    public string Type { get; set; }
+    public string Title { get; set; } = "Notice";
+    public string Text { get; set; }
+    public string Icon { get; set; }
+    public string Link { get; set; }
+
+    protected override int BuildHash() => HashCode.Combine( Type, Title, Text, Icon, Link );
+
+    void OpenLink()
+    {
+        if ( string.IsNullOrWhiteSpace( Link ) )
+            return;
+
+        if ( Link.StartsWith( "/" ) )
+        {
+            MenuUtility.OpenUrl( $"https://sbox.game{Link}" );
+            return;
+        }
+
+        MenuUtility.OpenUrl( Link );
+    }
+}

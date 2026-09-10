@@ -110,9 +110,6 @@ internal class MountHost : IDisposable
 
 	internal void UnregisterTypes( Assembly assembly )
 	{
-		var assetSourceType = typeof( BaseGameMount );
-		var types = assembly.GetTypes().Where( t => assetSourceType.IsAssignableFrom( t ) && !t.IsAbstract );
-
 		foreach ( var (ident, source) in Sources.ToArray() )
 		{
 			if ( source.GetType().Assembly != assembly ) continue;

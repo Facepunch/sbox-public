@@ -22,7 +22,7 @@ public partial class GameObject
 
 		if ( !IsPrefabInstanceRoot )
 		{
-			Clear();
+			OutermostPrefabInstanceRoot.PrefabInstance.UpdateGameObjectFromPrefab( this );
 			return;
 		}
 
@@ -160,6 +160,11 @@ public partial class GameObject
 	internal bool IsMapInstanceRoot => MapSource is not null;
 
 	/// <summary>
+	/// Created by a MapInstance, directly or via an ancestor; never travels in a snapshot.
+	/// </summary>
+	internal bool IsSpawnedByMap => IsMapInstanceRoot || Components.Get<MapInstance>( FindMode.EverythingInAncestors ) is not null;
+
+	/// <summary>
 	/// Access point for all prefab instance related data.
 	/// Can be accessed on both instance root and children contained within the instance.
 	/// For outermost prefab instances this will contain a patch and guid mappings.
@@ -173,6 +178,10 @@ public partial class GameObject
 		}
 	}
 	PrefabInstanceData _prefabInstanceData = null;
+
+	// Id of a nested prefab instance whose guid mappings are built in PostDeserialize, once its
+	// subtree has its final ids.
+	private Guid? _pendingNestedMappingId;
 
 	/// <summary>
 	/// Defines objects within a scene hierarchy we want to track for prefab diffing and patching.

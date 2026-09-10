@@ -1,0 +1,80 @@
+@using Sandbox;
+@using Sandbox.Services;
+@using Sandbox.UI;
+@using System;
+@namespace MenuProject.MenuUI.Jams
+@inherits Panel
+
+<root>
+    <MenuProject.UI.PackageCard Package=@Package Clicked=@( () => OnSelected?.Invoke( Package ) ) RightClicked=@( () => OnMenu?.Invoke( Package ) ) />
+
+    @if ( CanNominate )
+    {
+        <div class="nominate @( IsNominated ? "on" : "" ) @( _busy ? "busy" : "" )" onclick=@( () => _ = Toggle() )>
+            <div class="ring"></div>
+            <label>@( IsNominated ? "Nominated" : "Nominate" )</label>
+        </div>
+    }
+</root>
+
+@code
+{
+    [Parameter] public Jam Jam { get; set; }
+    [Parameter] public Package Package { get; set; }
+    [Parameter] public bool CanNominate { get; set; }
+    [Parameter] public bool Nominated { get; set; }
+    [Parameter] public Action<Package> OnSelected { get; set; }
+    [Parameter] public Action<Package> OnMenu { get; set; }
+
+    bool? _override;
+    bool _lastNominated;
+    bool _busy;
+
+    bool IsNominated => _override ?? Nominated;
+
+    protected override void OnParametersSet()
+    {
+        if ( Nominated == _lastNominated ) return;
+
+        _lastNominated = Nominated;
+        _override = null;
+    }
+
+    async Task Toggle()
+    {
+        if ( _busy || Jam is null || Package is null ) return;
+
+        _busy = true;
+        StateHasChanged();
+
+        var removing = IsNominated;
+        string reason;
+
+        try
+        {
+            reason = removing ? await Jam.WithdrawNominationAsync( Package ) : await Jam.NominateAsync( Package );
+        }
+        catch ( Exception e )
+        {
+            Log.Warning( e, $"Nominate {Package.FullIdent} failed" );
+            reason = "Couldn't reach the jam right now.";
+        }
+
+        if ( !this.IsValid() ) return;
+
+        _busy = false;
+
+        if ( reason is null )
+        {
+            _override = !removing;
+        }
+        else
+        {
+            MenuOverlay.Instance?.BottomRight?.Queue( new Toast() { Title = reason, Icon = "how_to_vote" } );
+        }
+
+        StateHasChanged();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Package?.FullIdent, CanNominate, IsNominated, _busy );
+}

@@ -1,0 +1,120 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@using Sandbox.UI.Navigation;
+@using Sandbox.Html;
+@using Sandbox.Services;
+@inherits Panel
+
+<root class="@( Events.Any() ? "" : "hidden" )">
+
+    <div class="head">
+        <label class="section-label">Recent activity</label>
+    </div>
+
+    <div class="rows">
+        @foreach ( var entry in Events )
+        {
+            <div class="row">
+
+                <div class="thumb" style="@( ThumbStyle( entry ) )" />
+
+                <div class="row-body">
+                    <Label class="event-action" IsRich="@(true)" Text="@( ActionText( entry ) )" OnNodeClicked="@OnNodeClicked" />
+
+                    @if ( entry.Package is not null )
+                    {
+                        <label class="event-game clicky" @onclick="@(() => entry.Package.OpenModal())">@entry.Package.Title</label>
+                    }
+                </div>
+
+                <label class="event-time">@( (DateTimeOffset.UtcNow - entry.Timestamp).Humanize( true ) )</label>
+
+            </div>
+        }
+    </div>
+
+</root>
+
+@code
+{
+    [Parameter] public Sandbox.Services.Feed[] Activity { get; set; }
+
+    [Parameter] public int Take { get; set; } = 12;
+
+    /// <summary>One row per person, newest entry each. The feed arrives newest-first.</summary>
+    IEnumerable<Sandbox.Services.Feed> Events
+    {
+        get
+        {
+            var seen = new HashSet<ulong>();
+            var result = new List<Sandbox.Services.Feed>();
+
+            foreach ( var entry in Activity ?? Array.Empty<Sandbox.Services.Feed>() )
+            {
+                if ( entry?.Player is null ) continue;
+                if ( IsRating( entry ) ) continue;
+                if ( !seen.Add( entry.Player.Id.ValueUnsigned ) ) continue;
+
+                result.Add( entry );
+
+                if ( result.Count >= Take ) break;
+            }
+
+            return result;
+        }
+    }
+
+    /// <summary>Ratings aren't activity worth a row.</summary>
+    static bool IsRating( Sandbox.Services.Feed entry )
+    {
+        if ( string.IsNullOrEmpty( entry.Text ) ) return true;
+
+        return entry.Text.StartsWith( "liked", StringComparison.OrdinalIgnoreCase )
+            || entry.Text.StartsWith( "disliked", StringComparison.OrdinalIgnoreCase );
+    }
+
+    /// <summary>Game thumbnail, falling back to the player's avatar when there's no package.</summary>
+    static string ThumbStyle( Sandbox.Services.Feed entry )
+    {
+        var url = entry.Package?.Thumb;
+
+        if ( string.IsNullOrEmpty( url ) )
+            url = entry.Player.Avatar;
+
+        return $"background-image: url({url})";
+    }
+
+    /// <summary>
+    /// "Lorenz played" - the {package} placeholder is dropped, since the title is drawn on
+    /// its own line below. Not every entry type has the placeholder anyway.
+    /// </summary>
+    string ActionText( Sandbox.Services.Feed entry )
+    {
+        var action = System.Net.WebUtility.HtmlEncode( entry.Text ?? "" );
+
+        action = action.Replace( "{package}", " " );
+
+        while ( action.Contains( "  " ) )
+            action = action.Replace( "  ", " " );
+
+        action = action.Trim();
+
+        var name = System.Net.WebUtility.HtmlEncode( entry.Player.Name );
+
+        return $"<a href=\"player:{entry.Player.Id}\" class=\"front-friend\">{name}</a> {action}";
+    }
+
+    void OnNodeClicked( INode node )
+    {
+        var href = node.GetAttribute( "href", null );
+
+        if ( href is not null && href.StartsWith( "player:" ) && long.TryParse( href["player:".Length..], out var steamId ) )
+        {
+            Game.Overlay.ShowPlayer( steamId );
+        }
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Activity?.Length, Activity?.FirstOrDefault()?.Timestamp, Take );
+}

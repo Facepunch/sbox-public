@@ -82,12 +82,12 @@ namespace Topten.RichTextKit
 		/// <summary>
 		/// The text color for text in this run.
 		/// </summary>
-		SKColor TextColor { get; }
+		SKColorF TextColor { get; }
 
 		/// <summary>
 		/// The text underline color in this run.
 		/// </summary>
-		SKColor? UnderlineColor { get; }
+		SKColorF? UnderlineColor { get; }
 
 		/// <summary>
 		/// The text underline or strike through thickness in this run.
@@ -102,7 +102,7 @@ namespace Topten.RichTextKit
 		/// <summary>
 		/// The background color of this run.
 		/// </summary>
-		SKColor BackgroundColor { get; }
+		SKColorF BackgroundColor { get; }
 
 		/// <summary>
 		/// Extra spacing between each character

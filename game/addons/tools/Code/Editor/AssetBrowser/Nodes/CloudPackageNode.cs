@@ -24,6 +24,15 @@ partial class CloudPackageNode : AssetFilterNode
 		Dirty();
 	}
 
+	public override bool HasChildren => true;
+
+	protected override void BuildChildren()
+	{
+		Clear();
+		foreach ( var node in CloudTypeFilterNode.CreateForParent( Filter ) )
+			AddItem( node );
+	}
+
 	protected override void BuildContextMenu( ContextMenu menu )
 	{
 		menu.AddOption( "Refresh", "refresh", () => { _ = Update(); } );

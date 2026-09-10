@@ -35,6 +35,22 @@ public class ShoppingCart
 		Items.Remove( item );
 	}
 
+	/// <summary>
+	/// Set how many of this item are in the cart, adding or removing to match.
+	/// </summary>
+	public void SetCount( Sandbox.Services.Inventory.ItemDefinition item, int count )
+	{
+		count = Math.Clamp( count, 0, MaxPerItem );
+
+		while ( Count( item ) < count ) AddToCart( item );
+		while ( Count( item ) > count ) RemoveFromCart( item );
+	}
+
+	/// <summary>
+	/// The most of one item a single checkout will take.
+	/// </summary>
+	public const int MaxPerItem = 99;
+
 	public bool Contains( Sandbox.Services.Inventory.ItemDefinition item )
 	{
 		return Items.Contains( item );

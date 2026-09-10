@@ -4,7 +4,20 @@ namespace Sandbox.UI;
 
 public record struct BackdropDrawDescriptor( Rect PanelRect )
 {
-	public Vector4 BorderRadius;
+	/// <summary>
+	/// Corner radii, resolved. What the renderer draws with.
+	/// </summary>
+	internal BorderRadii Radii;
+
+	/// <summary>
+	/// Circular corner radii as (bottom-right, top-right, bottom-left, top-left).
+	/// </summary>
+	public Vector4 BorderRadius
+	{
+		readonly get => Radii.ToPublic();
+		set => Radii = BorderRadii.FromPublic( value );
+	}
+
 	public float Opacity;
 
 	public float Brightness;

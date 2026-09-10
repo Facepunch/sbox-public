@@ -52,28 +52,61 @@ class InterpolationBuffer<T>
 	/// <exception cref="InvalidOperationException">Throws if there are no snapshots in the interpolation buffer.</exception>
 	public T Query( double now )
 	{
-		if ( IsEmpty )
-			throw new InvalidOperationException( "No snapshots in interpolation buffer!" );
+		// A cull threshold of negative infinity never matches an entry, so nothing is removed.
+		return QueryAndCull( now, double.NegativeInfinity );
+	}
 
-		if ( _buffer.Count == 1 ) return First.State;
-		if ( First.Time > now ) return First.State;
-		if ( Last.Time < now ) return Last.State;
+	/// <summary>
+	/// Interpolates the buffer at <paramref name="now"/> and culls entries older than
+	/// <paramref name="cullBefore"/> in a single pass. <see cref="Query"/> is the no-cull case.
+	/// Assumes <paramref name="cullBefore"/> is not later than <paramref name="now"/>.
+	/// </summary>
+	public T QueryAndCull( double now, double cullBefore )
+	{
+		if ( IsEmpty ) throw new InvalidOperationException( "No snapshots in interpolation buffer!" );
 
-		for ( var i = 0; i < _buffer.Count - 1; i++ )
+		int count = _buffer.Count;
+		int removeCount = 0;
+		T result;
+
+		if ( _buffer[0].Time > now )
 		{
-			var from = _buffer[i];
-			var to = _buffer[i + 1];
-			var fromTime = _buffer[i].Time;
-			var toTime = _buffer[i + 1].Time;
+			// now precedes the buffer: clamp to first, nothing is old enough to cull.
+			result = _buffer[0].State;
+		}
+		else if ( _buffer[count - 1].Time < now )
+		{
+			// now is past the buffer: clamp to last, then count the cullable prefix.
+			result = _buffer[count - 1].State;
+			while ( removeCount < count && _buffer[removeCount].Time < cullBefore ) removeCount++;
+		}
+		else
+		{
+			result = _buffer[count - 1].State;
 
-			if ( fromTime <= now && now <= toTime )
+			// Single pass: find the [i, i+1] bracket around now and count the leading
+			// entries older than cullBefore in the same walk. Since cullBefore <= now, every
+			// cullable entry is at or before the bracket.
+			for ( int i = 0; i < count; i++ )
 			{
-				var delta = now.Remap( fromTime, toTime );
-				return _interpolator.Interpolate( from.State, to.State, (float)delta );
+				if ( _buffer[i].Time < cullBefore )
+					removeCount++;
+
+				if ( i < count - 1 && _buffer[i].Time <= now && now <= _buffer[i + 1].Time )
+				{
+					var delta = now.Remap( _buffer[i].Time, _buffer[i + 1].Time );
+					result = _interpolator.Interpolate( _buffer[i].State, _buffer[i + 1].State, (float)delta );
+
+					// Every entry old enough to cull is at or before the bracket, so we're done counting.
+					break;
+				}
 			}
 		}
 
-		return Last.State;
+		if ( removeCount > 0 )
+			_buffer.RemoveRange( 0, removeCount );
+
+		return result;
 	}
 
 	/// <summary>

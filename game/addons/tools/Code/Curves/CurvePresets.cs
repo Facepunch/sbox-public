@@ -6,7 +6,23 @@
 public class CurvePresets : ListView
 {
 	public Func<Curve?> GetCurveToSave { get; set; }
+
+	/// <summary>
+	/// Apply a preset to the curve being edited. The preset's own time/value ranges are ignored,
+	/// the edited curve keeps the ranges it already has.
+	/// </summary>
 	public Action<Curve> OnCurveClicked { get; set; }
+
+	/// <summary>
+	/// Apply a preset including its saved time/value ranges. Optional.
+	/// </summary>
+	public Action<Curve> OnCurveRangesClicked { get; set; }
+
+	/// <summary>
+	/// Whether <see cref="OnCurveRangesClicked"/> can do anything right now - ranges are locked
+	/// by the property being edited otherwise.
+	/// </summary>
+	public Func<bool> CanApplyRanges { get; set; }
 
 	List<Curve> curveList = new();
 
@@ -97,6 +113,12 @@ public class CurvePresets : ListView
 		if ( obj is not Curve c ) return;
 
 		var m = new ContextMenu( this );
+
+		if ( OnCurveRangesClicked is not null && (CanApplyRanges?.Invoke() ?? true) )
+		{
+			m.AddOption( "Apply With Ranges", "open_in_full", () => OnCurveRangesClicked( c ) );
+			m.AddSeparator();
+		}
 
 		m.AddOption( "Copy Json", "content_copy", () =>
 		{

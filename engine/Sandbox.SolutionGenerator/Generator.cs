@@ -83,14 +83,15 @@ namespace Sandbox.SolutionGenerator
 					IgnoreFolders = p.Settings.IgnoreFolders.ToList(),
 					IsEditorProject = p.IsEditorProject,
 					IsUnitTestProject = p.IsUnitTestProject,
-					IgnoreFiles = p.IgnoreFiles
+					IgnoreFiles = p.IgnoreFiles,
+					CompilerProperties = p.CompilerProperties
 				};
 
 				foreach ( var proj in p.PackageReferences.Distinct().Order() )
 				{
 					if ( proj.Contains( "\\" ) )
 					{
-						csproj.ProjectReferences += $"		<Reference Include=\"{proj}\" />\n";
+						csproj.ProjectReferences += $"		<Reference Include=\"{System.Security.SecurityElement.Escape( proj )}\" />\n";
 						continue;
 					}
 

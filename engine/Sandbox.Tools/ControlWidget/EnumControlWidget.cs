@@ -34,7 +34,7 @@ public class EnumControlWidget : ControlWidget
 		_enumDesc = EditorTypeLibrary.GetEnumDescription( propertyType );
 
 		// Always use group button for small enums
-		if ( _enumDesc?.Count() < 4 )
+		if ( _enumDesc?.Count() < 4 && !property.HasAttribute<EnumDropdownAttribute>() )
 		{
 			Layout = Layout.Row();
 			Layout.Add( new GroupButtonControlWidget( property ) );

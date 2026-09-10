@@ -196,6 +196,9 @@ internal partial class GlobalContext
 	{
 		ReflectionQueryCache.ClearTypeCache();
 
+		if ( !Application.IsUnitTest )
+			VertexLayout.FreeAll();
+
 		// These systems might be null in unit tests
 
 		ResourceSystem?.OnHotload();

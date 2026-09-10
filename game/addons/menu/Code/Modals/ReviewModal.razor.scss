@@ -77,18 +77,25 @@ ReviewModal.modal UserComment
 
 .ratings .rating
 {
-    flex-direction: column;
+    flex-direction: row;
     justify-content: center;
     align-items: center;
     gap: 1rem;
     pointer-events: all;
     opacity: 0.5;
     cursor: pointer;
-    font-size: 13px;
+    font-size: 1.3rem;
+    font-weight: bold;
     padding: 2rem;
-    background-color: #3336;
+}
+
+.ratings-outline
+{
     border-radius: 16px;
-    border: 4px solid transparent;
+    border: 1px solid #aaa2;
+    pointer-events: none;
+    background-color: #2225;
+    overflow: hidden;
 }
 
 .ratings .rating:hover
@@ -100,24 +107,37 @@ ReviewModal.modal UserComment
 .ratings .rating.active
 {
     opacity: 1;
-    background-color: #457be044;
-    border: 4px solid #457be0;
+    background-color: #457be0aa;
 }
 
 .ratings .rating .icon
 {
-    font-size: 64px;
-}
-
-.ratings .rating .icon
-{
-    font-size: 64px;
+    font-size: 2rem;
 }
 
 .posting i
 {
     font-size: 256px;
     animation: progress 0.2s infinite alternate ease;
+}
+
+.tag-entry
+{
+    width: 100%;
+
+    .tagcolumn
+    {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        align-items: center;
+        
+        TagSelector
+        {
+            margin: 2rem;
+            margin-bottom: 2rem;
+        }
+    }
 }
 
 @keyframes progress

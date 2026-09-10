@@ -4,12 +4,12 @@ using static Facepunch.Constants;
 
 namespace Facepunch.Steps;
 
-internal class DiscordPostStep( string name, string message, string author ) : Step( name )
+internal class DiscordPostStep( string message, string author )
 {
 	public string Message { get; } = message;
 	public string Author { get; } = author;
 
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		try
 		{

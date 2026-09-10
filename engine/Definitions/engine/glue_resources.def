@@ -6,6 +6,7 @@ native static class Glue.Resources as NativeGlue.Resources
 	IMaterial GetMaterial( string name );
 	ITexture GetTexture( string name );
 	IModel GetModel( string name );
+	CPhysicsData GetPhysics( string name );
 	HAnimationGraph GetAnimationGraph( string name );
 	CVfx GetShader( string name );
 }

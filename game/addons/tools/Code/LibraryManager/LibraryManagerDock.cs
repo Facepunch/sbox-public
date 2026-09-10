@@ -9,7 +9,6 @@ public class LibraryManagerDock : Widget
 	LibraryList ListLocal;
 	LibraryList ListGlobal;
 	Widget GlobalControls;
-	List<FacetDropdown> FacetDropdowns = new();
 
 	internal Action<string> OnValueChanged;
 
@@ -162,7 +161,6 @@ public class LibraryManagerDock : Widget
 	void RebuildGlobalControls()
 	{
 		GlobalControls.Layout.Clear( true );
-		FacetDropdowns.Clear();
 
 		// Only build the controls if we're on the global page
 		if ( PageSelect.SelectedIndex != 0 || ListGlobal?.LastResult?.Facets is null )
@@ -175,18 +173,6 @@ public class LibraryManagerDock : Widget
 			.GroupBy( x => x[0] ) // avoid duplicates
 			.ToDictionary( g => g.Key, g => g.First()[1] );
 
-		// Category Facets
-		foreach ( var facet in ListGlobal.LastResult.Facets )
-		{
-			string selection = null;
-			facetTags.TryGetValue( facet.Name, out selection );
-
-			var dropdown = GlobalControls.Layout.Add( new FacetDropdown( facet, selection, this ) );
-			dropdown.OnChanged += UpdateGlobalQuery;
-			dropdown.IncludeChildren = true;
-			FacetDropdowns.Add( dropdown );
-		}
-
 		// Sort Order
 		{
 			var sortEntries = new List<Package.Facet.Entry>();
@@ -195,14 +181,6 @@ public class LibraryManagerDock : Widget
 				sortEntries.Add( new Package.Facet.Entry( order.Name, order.Title, order.Icon, 0, [] ) );
 			}
 			var sortFacet = new Package.Facet( "sort", "Sort By", sortEntries.ToArray() );
-
-			var dropdown = GlobalControls.Layout.Add( new FacetDropdown( sortFacet, ListGlobal.SortMode, this ) );
-			dropdown.ShowCount = false;
-			dropdown.OnChanged += () =>
-			{
-				var name = dropdown.Selected?.Name.ToLower();
-				ListGlobal.SortMode = string.IsNullOrEmpty( name ) ? "updated" : name;
-			};
 		}
 	}
 
@@ -211,14 +189,6 @@ public class LibraryManagerDock : Widget
 		if ( ListGlobal is null ) return;
 
 		var query = "";
-
-		foreach ( var dropdown in FacetDropdowns )
-		{
-			if ( dropdown.Selected != null && !query.Contains( $"{dropdown.Facet.Name}:" ) )
-			{
-				query += $" {dropdown.GetFilter()}";
-			}
-		}
 		query = query.Trim();
 
 		ListGlobal.Query = query;

@@ -286,6 +286,13 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 		}
 	} = false;
 
+	/// <summary>
+	/// Objects with any of these tags will be excluded when rendering this cubemap.
+	/// </summary>
+	[HideIf( nameof( Mode ), EnvmapProbeMode.CustomTexture )]
+	[Property]
+	public TagSet RenderExcludeTags { get; set; } = new();
+
 	protected override void OnEnabled()
 	{
 		Assert.True( !_sceneObject.IsValid() );
@@ -490,10 +497,10 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 
 	internal void RenderCubemap()
 	{
-		RenderCubemap( _dynamicTexture, CubemapRendering.GGXFilterType.Fast );
+		RenderCubemap( _dynamicTexture, CubemapRendering.GGXFilterType.Fast, RenderExcludeTags );
 	}
 
-	internal void RenderCubemap( Texture target, CubemapRendering.GGXFilterType filterType )
+	internal void RenderCubemap( Texture target, CubemapRendering.GGXFilterType filterType, TagSet excludeTags = null )
 	{
 		if ( target is null )
 			return;
@@ -502,7 +509,7 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 
 		if ( target.UAVAccess )
 		{
-			CubemapRendering.Render( Scene.SceneWorld, target, WorldTransform.WithScale( 1 ), ZNear.Clamp( 1, ZFar ), ZFar.Clamp( ZNear, 1024 * 16 ), filterType );
+			CubemapRendering.Render( Scene.SceneWorld, target, WorldTransform.WithScale( 1 ), ZNear.Clamp( 1, ZFar ), ZFar.Clamp( ZNear, 1024 * 16 ), filterType, excludeTags );
 		}
 
 		// Just finished rendering, signal to component that we're done

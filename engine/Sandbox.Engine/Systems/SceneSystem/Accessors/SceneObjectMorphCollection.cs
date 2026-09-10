@@ -73,4 +73,6 @@ internal sealed class SceneObjectMorphCollection( SceneModel sceneObject ) : Mor
 	}
 
 	public override int Count => sceneObject.Model.MorphCount;
+
+	internal override Model Model => sceneObject.Model;
 }

@@ -244,6 +244,7 @@ public partial class ModelRenderer : Renderer, ExecuteInEditor, ITintable, IMate
 		_sceneObject.Model = model;
 		_sceneObject.MeshGroupMask = BodyGroups;
 		_sceneObject.Flags.CastShadows = RenderType == ShadowRenderType.On || RenderType == ShadowRenderType.ShadowsOnly;
+		_sceneObject.Flags.IsStatic = GameObject.IsStatic;
 		_sceneObject.RenderingEnabled = model.HasRenderMeshes();
 
 		if ( _lodOverride.HasValue )
@@ -256,6 +257,7 @@ public partial class ModelRenderer : Renderer, ExecuteInEditor, ITintable, IMate
 
 		if ( HasMaterialGroups )
 		{
+			_sceneObject.SetMaterialOverride( null );
 			_sceneObject.SetMaterialGroup( MaterialGroup );
 		}
 		else
@@ -323,8 +325,10 @@ public partial class ModelRenderer : Renderer, ExecuteInEditor, ITintable, IMate
 	/// <summary>
 	/// Tags have been updated - lets update our scene object tags
 	/// </summary>
-	protected override void OnTagsChanged()
+	internal override void OnTagsUpdatedInternal()
 	{
+		base.OnTagsUpdatedInternal();
+
 		if ( !_sceneObject.IsValid() ) return;
 
 		_sceneObject.Tags.SetFrom( GameObject.Tags );

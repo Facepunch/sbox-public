@@ -11,13 +11,14 @@ public partial class SceneDock : Widget
 {
 	public SceneEditorSession Session => _editorSession.GameSession ?? _editorSession;
 	private SceneEditorSession _editorSession;
+	private SceneViewWidget _sceneView;
 
 	public SceneDock( SceneEditorSession session ) : base( null )
 	{
 		_editorSession = session;
 
 		Layout = Layout.Row();
-		Layout.Add( new SceneViewWidget( session, this ) );
+		_sceneView = Layout.Add( new SceneViewWidget( session, this ) );
 		DeleteOnClose = true;
 
 		Name = session.Scene.Source?.ResourcePath;
@@ -53,6 +54,11 @@ public partial class SceneDock : Widget
 		if ( visible )
 		{
 			Session.MakeActive();
+
+			// Focus the viewport so keybinds work right away after switching tabs
+			var viewport = _sceneView?.LastSelectedViewportWidget;
+			if ( viewport.IsValid() )
+				viewport.Focus();
 		}
 	}
 

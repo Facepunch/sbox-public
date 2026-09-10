@@ -1,3 +1,5 @@
+@import "/styles/_Theme.scss";
+
 .content-blocks {
 	flex-direction: column;
 	overflow-y: scroll;
@@ -11,6 +13,9 @@
 
 .cblock
 {
+	width: 100%;
+	max-width: $screen-w-xl;
+	margin: auto;
 	flex-direction: column;
 	flex-shrink: 0;
 	padding: 1rem 0;

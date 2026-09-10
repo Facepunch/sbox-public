@@ -1,0 +1,25 @@
+@import "/styles/_theme.scss";
+
+PackageTabHeader
+{
+    flex-direction: column;
+    flex-shrink: 0;
+    gap: 4px;
+    margin-bottom: 50px;
+
+    .title
+    {
+        flex-shrink: 0;
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: $default-text;
+        font-family: $font-heading;
+    }
+
+    .subtitle
+    {
+        flex-shrink: 0;
+        color: $default-400;
+        font-size: $text-regular;
+    }
+}

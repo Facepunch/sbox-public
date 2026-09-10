@@ -40,6 +40,7 @@ class GameObjectHeader : Widget
 					top.Add( new GameObjectEnabledWidget( targetObject.GetProperty( nameof( GameObject.Enabled ) ) ) );
 					var s = top.Add( ControlWidget.Create( targetObject.GetProperty( nameof( GameObject.Name ) ) ), 1 );
 					s.HorizontalSizeMode = SizeMode.Flexible;
+					top.Add( new GameObjectStaticWidget( targetObject.GetProperty( nameof( GameObject.IsStatic ) ) ) );
 					top.Add( new GameObjectFlagsWidget( targetObject ) );
 				}
 
@@ -117,6 +118,33 @@ file sealed class GameObjectIconButton : IconButton
 		{
 			Update();
 		}
+	}
+}
+
+file sealed class GameObjectStaticWidget : BoolControlWidget
+{
+	public GameObjectStaticWidget( SerializedProperty property )
+		: base( property )
+	{
+		ToolTip = "Static - this object never moves during gameplay";
+		MinimumWidth = 64;
+		Icon = "";
+	}
+
+	protected override Vector2 SizeHint() => new( 64, Theme.RowHeight );
+
+	protected override void OnPaint()
+	{
+		// base paints the background, checked fill and hover ring; we add icon + label
+		base.OnPaint();
+
+		var rect = LocalRect.Shrink( 8, 2 );
+		var isOn = !SerializedProperty.IsMultipleDifferentValues && IsChecked;
+
+		Paint.SetPen( isOn ? Tint : Theme.Text.WithAlpha( 0.7f ) );
+		Paint.DrawIcon( rect, "anchor", 13, TextFlag.LeftCenter );
+		Paint.SetDefaultFont();
+		Paint.DrawText( rect, "Static", TextFlag.RightCenter );
 	}
 }
 

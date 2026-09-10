@@ -1,0 +1,123 @@
+{
+  "RootObject": {
+    "__guid": "df619cdf-4680-4701-9001-37a41297c085",
+    "__version": 2,
+    "Flags": 0,
+    "Name": "dirt-bullet-decal",
+    "Position": "0,0,0",
+    "Rotation": "0,0,0,1",
+    "Scale": "1,1,1",
+    "Tags": "",
+    "Enabled": true,
+    "NetworkMode": 2,
+    "NetworkFlags": 0,
+    "NetworkOrphaned": 0,
+    "NetworkTransmit": true,
+    "OwnerTransfer": 1,
+    "Components": [
+      {
+        "__type": "TemporaryEffect",
+        "__guid": "6ab36efb-e3b3-4bbf-a4d2-5359e02c0cb5",
+        "__enabled": true,
+        "Flags": 0,
+        "BecomeOrphan": false,
+        "DestroyAfterSeconds": 1,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "WaitForChildEffects": true
+      }
+    ],
+    "Children": [
+      {
+        "__guid": "94099ab5-5688-41bc-87ad-4f405fc262a7",
+        "__version": 2,
+        "Flags": 0,
+        "Name": "Decal",
+        "Position": "0,0,0",
+        "Rotation": "0,0,0,1",
+        "Scale": "1,1,1",
+        "Tags": "",
+        "Enabled": true,
+        "NetworkMode": 2,
+        "NetworkFlags": 0,
+        "NetworkOrphaned": 0,
+        "NetworkTransmit": true,
+        "OwnerTransfer": 1,
+        "Components": [
+          {
+            "__type": "Sandbox.Decal",
+            "__guid": "9bc27a4c-abbc-41f4-a4f5-a7028f442208",
+            "__enabled": true,
+            "Flags": 0,
+            "__version": 3,
+            "AttenuationAngle": 1,
+            "ColorMix": 1,
+            "ColorTint": "1,1,1,1",
+            "Decals": [
+              "decals/impact/dirt/decal_impact_dirt_01.decal",
+              "decals/impact/dirt/decal_impact_dirt_02.decal"
+            ],
+            "Depth": 8,
+            "LifeTime": 0,
+            "Looped": false,
+            "OnComponentDestroy": null,
+            "OnComponentDisabled": null,
+            "OnComponentEnabled": null,
+            "OnComponentFixedUpdate": null,
+            "OnComponentStart": null,
+            "OnComponentUpdate": null,
+            "Parallax": 1,
+            "Rotation": {
+              "Type": "Range",
+              "Evaluation": "Seed",
+              "Constants": "0,360,0,0"
+            },
+            "Scale": {
+              "Type": "Range",
+              "Evaluation": "Seed",
+              "Constants": "0.75,1.25,0,0"
+            },
+            "SequenceId": 0,
+            "SheetSequence": false,
+            "Size": "1,1",
+            "SortLayer": 0,
+            "Transient": true
+          }
+        ],
+        "Children": []
+      }
+    ],
+    "__properties": {
+      "NetworkInterpolation": true,
+      "TimeScale": 1,
+      "WantsSystemScene": true,
+      "Metadata": {},
+      "NavMesh": {
+        "Enabled": false,
+        "IncludeStaticBodies": true,
+        "IncludeKeyframedBodies": true,
+        "EditorAutoUpdate": false,
+        "AgentHeight": 64,
+        "AgentRadius": 16,
+        "AgentStepSize": 18,
+        "AgentMaxSlope": 40,
+        "ExcludedBodies": "",
+        "IncludedBodies": "",
+        "DeferGeneration": false,
+        "CustomBounds": false
+      }
+    },
+    "__variables": []
+  },
+  "ResourceVersion": 2,
+  "ShowInMenu": false,
+  "MenuPath": null,
+  "MenuIcon": null,
+  "DontBreakAsTemplate": false,
+  "__references": [],
+  "__version": 2
+}

@@ -151,7 +151,8 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 		{
 			field = value;
 
-			UpdateBody();
+			if ( _body.IsValid() )
+				_body.Locking = Locking;
 		}
 	}
 
@@ -296,7 +297,8 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	bool _collisionUpdateEventsEnabled = false;
 
 	/// <summary>
-	/// Like CollisionEventsEnabled but means the OnCollisionUpdate gets called when the collision persists
+	/// Like CollisionEventsEnabled but means the OnCollisionUpdate gets called when the collision persists.
+	/// Updates are only sent while the collision is awake, sleeping contacts don't emit them.
 	/// </summary>
 	public bool CollisionUpdateEventsEnabled
 	{
@@ -377,6 +379,25 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 			if ( _body.IsValid() ) _body.EnhancedCcd = value;
 		}
 	}
+
+	/// <summary>
+	/// The speed threshold below which this body will be put to sleep. Units per second.
+	/// Increase this to make the body sleep sooner, which is useful for stacking stability.
+	/// </summary>
+	[Advanced, Property, DefaultValue( 2.0f )]
+	public float SleepThreshold
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+
+			field = value;
+
+			if ( _body.IsValid() )
+				_body.SleepThreshold = value;
+		}
+	} = 2.0f;
 
 	void IGameObjectNetworkEvents.BeforeDropOwnership()
 	{
@@ -470,7 +491,7 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	{
 		if ( _body.IsValid() ) return;
 
-		_body = new PhysicsBody( Scene.PhysicsWorld );
+		_body = Scene.PhysicsWorld?.CreateBody();
 
 		_body.Component = this;
 		_body.Transform = WorldTransform;
@@ -485,10 +506,13 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 		_body.AngularVelocity = _lastAngularVelocity;
 
 		_body.EnhancedCcd = EnhancedCcd;
+		_body.SleepThreshold = SleepThreshold;
 
 		// Make sure we clear these so we don't reapply them again later
 		_lastVelocity = default;
 		_lastAngularVelocity = default;
+
+		_isSimulatingPhysics = ShouldSimulatePhysics;
 
 		UpdateBody();
 	}
@@ -551,10 +575,14 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	internal void UpdateTransformFromBody()
 	{
 		if ( !_body.IsValid() ) return;
-		if ( IsProxy ) return;
+		if ( !_isSimulatingPhysics ) return;
 
 		var tx = WorldTransform;
 		var target = _body.Transform.WithScale( tx.Scale );
+
+		if ( Scene.Is2D )
+			target.Position = target.Position.WithZ( tx.Position.z );
+
 		if ( target == tx ) return;
 
 		isUpdatingFromPhysics = true;
@@ -577,6 +605,8 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	/// </summary>
 	internal Vector3 PreAngularVelocity { get; private set; }
 
+	bool _isSimulatingPhysics;
+
 	void IScenePhysicsEvents.PrePhysicsStep()
 	{
 		if ( !_body.IsValid() ) return;
@@ -592,14 +622,22 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 			// Editor transform uses velocity to move.
 			_body.Move( TargetTransform.Value, Time.Delta );
 		}
-		else if ( IsProxy && GameObject.NetworkMode == NetworkMode.Object )
+		else
 		{
-			// Make damn sure these are disabled.
-			_body.MotionEnabled = false;
-			_body.EnableCollisionSounds = false;
+			var isSimulatingPhysics = ShouldSimulatePhysics;
+			if ( isSimulatingPhysics != _isSimulatingPhysics )
+			{
+				_isSimulatingPhysics = isSimulatingPhysics;
 
-			// Networked proxy should use velocity to move to world transform.
-			_body.Move( Transform.TargetWorld, Time.Delta );
+				// Update physics body properties if we changed from simulating physics on proxy.
+				UpdateBody();
+			}
+
+			// Synced networked proxy should use velocity to move to world transform.
+			if ( !isSimulatingPhysics )
+			{
+				_body.Move( Transform.TargetWorld, Time.Delta );
+			}
 		}
 
 		if ( IsProxy )
@@ -726,6 +764,15 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	}
 
 	/// <summary>
+	/// Returns true if this rigidbody is a networked proxy that should simulate physics
+	/// locally instead of being driven by network transform updates.
+	/// </summary>
+	bool ShouldSimulatePhysics =>
+		!IsProxy ||
+		GameObject.NetworkMode != NetworkMode.Object ||
+		GameObject.Network?.Flags.Contains( NetworkFlags.NoTransformSync ) == true;
+
+	/// <summary>
 	/// Updates the physics body with the current properties of this component.
 	/// </summary>
 	internal void UpdateBody()
@@ -737,29 +784,23 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 		{
 			var system = Scene.GetSystem<ScenePhysicsSystem>();
 			_body.BodyType = system is not null && system.HasRigidBody( this ) ? PhysicsBodyType.Dynamic : PhysicsBodyType.Static;
+			_body.EnableCollisionSounds = !RigidbodyFlags.Contains( RigidbodyFlags.DisableCollisionSounds );
 
 			// Always considered dynamic for navmesh
 			_body.NavmeshBodyTypeOverride = PhysicsBodyType.Dynamic;
 		}
 		else
 		{
-			// Only enable motion when it's enabled and we're not a proxy.
-			// Proxies should always be kinematic.
-			_body.MotionEnabled = MotionEnabled && !IsProxy;
-
 			// Reset whatever this is.
 			_body.NavmeshBodyTypeOverride = null;
+
+			_body.MotionEnabled = _isSimulatingPhysics && MotionEnabled;
+			_body.EnableCollisionSounds = _isSimulatingPhysics && !RigidbodyFlags.Contains( RigidbodyFlags.DisableCollisionSounds );
 		}
 
-		if ( IsProxy )
+		// All these properties only matter for dynamic.
+		if ( _body.BodyType == PhysicsBodyType.Dynamic )
 		{
-			// Proxy doesn't need collision sounds, impacts should be networked.
-			_body.EnableCollisionSounds = false;
-		}
-		else
-		{
-			// None of these properties matter on proxy.
-			_body.EnableCollisionSounds = !RigidbodyFlags.Contains( RigidbodyFlags.DisableCollisionSounds );
 			_body.Locking = Locking;
 			_body.AngularDamping = AngularDamping;
 			_body.LinearDamping = LinearDamping;
@@ -783,7 +824,17 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 		{
 			Gizmo.Draw.IgnoreDepth = true;
 			Gizmo.Draw.Color = Color.White;
-			Gizmo.Draw.LineSphere( _body.MotionEnabled ? _body.LocalMassCenter : MassCenterOverride, 1, 4 );
+
+			var center = _body.MotionEnabled ? _body.LocalMassCenter : MassCenterOverride;
+
+			if ( Scene.Is2D )
+			{
+				Gizmo.Draw.LineCircle( center, Vector3.Up, 1 );
+			}
+			else
+			{
+				Gizmo.Draw.LineSphere( center, 1, 4 );
+			}
 		}
 	}
 	void IGameObjectNetworkEvents.StartControl()

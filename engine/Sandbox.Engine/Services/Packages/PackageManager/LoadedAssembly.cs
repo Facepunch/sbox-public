@@ -20,6 +20,7 @@ internal class LoadedAssembly
 	string typeName => Package?.TypeName ?? "game";
 
 	public bool IsGame => typeName == "game";
+	public bool IsAddon => typeName == "addon";
 	public bool IsLibrary => typeName == "library";
 	public bool IsTool => typeName == "tool";
 
@@ -33,8 +34,7 @@ internal class LoadedAssembly
 		get
 		{
 			if ( IsTool ) return true;
-			if ( IsGame && Name.EndsWith( ".editor" ) ) return true;
-			if ( IsLibrary && Name.EndsWith( ".editor" ) ) return true;
+			if ( Name.EndsWith( ".editor" ) && (IsGame || IsLibrary || IsAddon) ) return true;
 
 			return false;
 		}

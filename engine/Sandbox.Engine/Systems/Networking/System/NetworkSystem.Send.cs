@@ -43,7 +43,7 @@ internal partial class NetworkSystem
 		bs.Write( InternalMessageType.Packed );
 		TypeLibrary.ToBytes( msg, ref bs );
 
-		Broadcast( bs, minimumState );
+		Broadcast( bs, minimumState, filter, flags );
 
 		bs.Dispose();
 	}

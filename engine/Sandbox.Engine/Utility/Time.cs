@@ -1,4 +1,5 @@
-﻿using Sandbox.Utility;
+﻿using NativeEngine;
+using Sandbox.Utility;
 
 namespace Sandbox;
 
@@ -29,6 +30,8 @@ public class Time
 		Now = (float)now;
 		Delta = (float)delta;
 		NowDouble = now;
+
+		SyncSceneSystemTime();
 	}
 
 	public static IDisposable Scope( double now, double delta )
@@ -44,6 +47,16 @@ public class Time
 			NowDouble = dn;
 			Delta = d;
 			Now = n;
+
+			SyncSceneSystemTime();
 		} );
+	}
+
+	private static void SyncSceneSystemTime()
+	{
+		if ( Application.IsUnitTest ) return;
+
+		// Sync g_flTime in shaders
+		CSceneSystem.SetNextRenderTime( Now );
 	}
 }

@@ -254,6 +254,9 @@ namespace Sandbox.UI
 		/// <returns></returns>
 		public static Length? Parse( string value )
 		{
+			if ( string.IsNullOrWhiteSpace( value ) ) return null;
+			value = value.Trim();
+
 			if ( value == "center" ) return new Length { Unit = LengthUnit.Center };
 			if ( value == "left" || value == "top" ) return new Length { Unit = LengthUnit.Start };
 			if ( value == "right" || value == "bottom" ) return new Length { Unit = LengthUnit.End };
@@ -261,88 +264,71 @@ namespace Sandbox.UI
 			if ( value == "contain" ) return Contain;
 			if ( value == "auto" ) return Auto;
 
-			// Store this as an expression, defers the actual calculation until we use it
-			if ( value.StartsWith( "calc(" ) ) return Calc( value );
+			// Store this as an expression, defers the actual calculation until we use it (these need the
+			// reference size to resolve percentages).
+			if ( value.StartsWith( "calc(" ) || value.StartsWith( "min(" ) || value.StartsWith( "max(" ) || value.StartsWith( "clamp(" ) )
+				return Calc( value );
 
 			// For keyframes
 			if ( value == "from" ) return Length.Percent( 0 );
 			if ( value == "to" ) return Length.Percent( 100 );
 
-			var pc = value.IndexOf( '%' );
-			if ( pc > 0 )
+			// Split into a numeric prefix and a unit suffix, then parse without ever throwing - a bad
+			// value returns null so it can't take the rest of the rule down with it.
+			int num = 0;
+			while ( num < value.Length && (char.IsDigit( value[num] ) || value[num] == '.' || value[num] == '-' || value[num] == '+') )
+				num++;
+
+			if ( !float.TryParse( value.Substring( 0, num ), NumberStyles.Float, CultureInfo.InvariantCulture, out float fnum ) )
 			{
-				var num = value.Substring( 0, pc );
-				return Length.Percent( float.Parse( num, CultureInfo.InvariantCulture ) );
+				// Special float literals like infinity / -infinity / nan (used by calc) have no usable
+				// digit prefix - fall back to a whole-string float parse for those.
+				if ( float.TryParse( value, NumberStyles.Float, CultureInfo.InvariantCulture, out float whole ) )
+					return Length.Pixels( whole );
+
+				return null;
 			}
 
-			var p = value.IndexOf( 'p' );
-			var x = value.IndexOf( 'x' );
-			if ( p > 0 && x == p + 1 )
-			{
-				var num = value.Substring( 0, p );
-				return Length.Pixels( float.Parse( num, CultureInfo.InvariantCulture ) );
-			}
+			// Unit is the leading run of letters (or %) after the number; trailing junk (eg "!important") is ignored.
+			var rest = value.Substring( num ).TrimStart();
+			int u = 0;
+			while ( u < rest.Length && (char.IsLetter( rest[u] ) || rest[u] == '%') )
+				u++;
+			var unit = rest.Substring( 0, u ).ToLowerInvariant();
 
-			var d = value.IndexOf( 'd' );
-			var e = value.IndexOf( 'e' );
-			var g = value.IndexOf( 'g' );
-			if ( d > 0 && e == d + 1 && g == d + 2 )
+			switch ( unit )
 			{
-				var num = value.Substring( 0, d );
-				return Length.Pixels( float.Parse( num, CultureInfo.InvariantCulture ) );
-			}
+				case "":
+				case "px":
+					return Length.Pixels( fnum );
+				case "%":
+					return Length.Percent( fnum );
+				case "deg":
+					// We have no angle unit - preserve the legacy behaviour of treating deg as pixels.
+					return Length.Pixels( fnum );
+				case "vh":
+					return Length.ViewHeight( fnum );
+				case "vw":
+					return Length.ViewWidth( fnum );
+				case "vmin":
+					return Length.ViewMin( fnum );
+				case "vmax":
+					return Length.ViewMax( fnum );
+				case "rem":
+					return Length.Rem( fnum );
+				case "em":
+					return Length.Em( fnum );
 
-			var v = value.IndexOf( 'v' );
-			var h = value.IndexOf( 'h' );
-			if ( v > 0 && h == v + 1 )
-			{
-				var num = value.Substring( 0, v );
-				return Length.ViewHeight( float.Parse( num, CultureInfo.InvariantCulture ) );
-			}
-
-			var w = value.IndexOf( 'w' );
-			if ( v > 0 && w == v + 1 )
-			{
-				var num = value.Substring( 0, v );
-				return Length.ViewWidth( float.Parse( num, CultureInfo.InvariantCulture ) );
-			}
-
-			var m = value.IndexOf( 'm' );
-			var i = value.IndexOf( 'i' );
-			var n = value.IndexOf( 'n' );
-
-			if ( v > 0 && m == v + 1 && i == v + 2 && n == v + 3 )
-			{
-				var num = value.Substring( 0, v );
-				return Length.ViewMin( float.Parse( num, CultureInfo.InvariantCulture ) );
-			}
-
-			var a = value.IndexOf( 'a' );
-			if ( v > 0 && m == v + 1 && a == v + 2 && x == v + 3 )
-			{
-				var num = value.Substring( 0, v );
-				return Length.ViewMax( float.Parse( num, CultureInfo.InvariantCulture ) );
-			}
-
-			var r = value.IndexOf( 'r' );
-			if ( r > 0 && e == r + 1 && m == r + 2 )
-			{
-				var num = value.Substring( 0, r );
-				return Length.Rem( float.Parse( num, CultureInfo.InvariantCulture ) );
-			}
-
-			if ( e > 0 && m == e + 1 )
-			{
-				var num = value.Substring( 0, e );
-				return Length.Em( float.Parse( num, CultureInfo.InvariantCulture ) );
-			}
-
-			//
-			// If we can parse it as a float, treat it as pixels
-			//
-			if ( float.TryParse( value, NumberStyles.Float, CultureInfo.InvariantCulture, out float fnum ) )
-			{
-				return Length.Pixels( fnum );
+				// Dynamic / small / large viewport units. We don't track a dynamic viewport, so treat
+				// them as the equivalent static vh/vw.
+				case "dvh":
+				case "svh":
+				case "lvh":
+					return Length.ViewHeight( fnum );
+				case "dvw":
+				case "svw":
+				case "lvw":
+					return Length.ViewWidth( fnum );
 			}
 
 			return null;

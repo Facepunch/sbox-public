@@ -8,28 +8,28 @@ include "sandbox.console.h"
 
 native class ConVar as NativeEngine.ConVar
 {
-	string GetName();
-	string GetHelpText();
+	stable string GetName();
+	stable string GetHelpText();
 
 	void SetValue( string value );
 	void SetValue( float flValue );
 	void SetValue( int nValue );
 
-	string GetString();
+	stable string GetString();
 	void Revert();
 	bool HasMin();
 	bool HasMax();
 	float GetMinValue();
 	float GetMaxValue();
-	string GetDefault();
+	stable string GetDefault();
 
 	ConVarFlags_t GetFlags();
 }
 
 native class ConCommand as NativeEngine.ConCommand
 {
-	string GetName();
-	string GetHelpText();
+	stable string GetName();
+	stable string GetHelpText();
 
 	ConVarFlags_t GetFlags();
 

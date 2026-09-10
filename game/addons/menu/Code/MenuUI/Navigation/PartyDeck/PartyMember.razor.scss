@@ -1,36 +1,36 @@
-﻿$primary: #3472e6 !default;
+@import '/styles/_Theme.scss';
 
-
-.partymember
+PartyMember
 {
-    color: $primary;
-    border: 2px solid $primary;
-    width: 48px;
-    height: 48px;
-    margin-right: 10px;
-    position: relative;
-    align-items: center;
-    justify-content: center;
-    border-radius: 100px;
-    padding: 0px;
-    cursor: pointer;
-    background-position: center;
-    background-size: cover;
-}
+	position: relative;
+	pointer-events: all;
+	cursor: pointer;
 
-.crown
-{
-    position: absolute;
-    top: -14px;
-    font-size: 14px;
-}
+	> Avatar
+	{
+		pointer-events: none;
+	}
 
-.talking
-{
-    position: absolute;
-    top: -34px;
-    font-size: 14px;
-    background-color: #000a;
-    padding: 3px;
-    border-radius: 8px;
+	> .crown
+	{
+		position: absolute;
+		top: -20px;
+		right: 0px;
+		z-index: 100;
+		transform: rotate( 13deg );
+		font-size: 18px;
+	}
+
+	> .talking
+	{
+		position: absolute;
+		bottom: -12px;
+		left: 7px;
+		z-index: 100;
+		background-color: $primary-green;
+		border-radius: 4px;
+		padding: 2px;
+		color: $default-950;
+		font-size: 14px;
+	}
 }

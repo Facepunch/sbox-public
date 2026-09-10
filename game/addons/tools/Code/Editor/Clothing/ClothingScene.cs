@@ -69,7 +69,7 @@ public class ClothingScene
 		}
 
 		// Recomputer body groups
-		foreach ( var (name, value) in container.GetBodyGroups( new[] { clothing } ) )
+		foreach ( var (name, value) in container.GetBodyGroups( new[] { clothing }, Body.Model ) )
 		{
 			Body.SetBodyGroup( name, value );
 		}

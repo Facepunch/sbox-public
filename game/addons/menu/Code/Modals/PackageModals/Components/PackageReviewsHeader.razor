@@ -1,0 +1,48 @@
+@namespace MenuProject.Modals.PackageModalComponents
+@using Sandbox
+
+@if (Package?.Reviews is null || Package?.Reviews.Total == 0)
+    return;
+
+@{
+    var stats = Package.Reviews;
+    var total = stats.PositiveRatings + stats.PromiseRatings + stats.NegativeRatings;
+
+    var positivePct = (int)Math.Round(stats.PositiveRatings * 100.0 / total);
+    var promisePct = (int)Math.Round(stats.PromiseRatings * 100.0 / total);
+    var negativePct = (int)Math.Round(stats.NegativeRatings * 100.0 / total);
+
+    var (verdict, sentiment, icon) = positivePct switch
+    {
+        >= 80 => ("Very Positive", "recommended", "☺️"),
+        >= 60 => ("Positive", "recommended", "☺️"),
+        >= 40 => ("Mixed", "mixed", "😐"),
+        _ => ("Negative", "negative", "☹️")
+    };
+}
+
+<root>
+    <div class="main">
+        <div class="verdict @sentiment">
+            <div class="icon">@icon</div>
+
+            <div>
+                <div class="title">@verdict</div>
+                <div class="count">@total reviews</div>
+            </div>
+        </div>
+
+        <div class="bar" title="@($"{positivePct}% recommended, {promisePct}% shows promise, {negativePct}% needs work")">
+            <div class="segment recommended" style="width:@positivePct%"></div>
+            <div class="segment promise" style="width:@promisePct%"></div>
+            <div class="segment negative" style="width:@negativePct%"></div>
+        </div>
+    </div>
+</root>
+
+
+@code
+{
+    [Parameter]
+    public Package Package { get; set; }
+}

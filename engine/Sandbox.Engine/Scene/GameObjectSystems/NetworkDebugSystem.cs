@@ -6,7 +6,7 @@ namespace Sandbox;
 [Expose]
 sealed partial class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 {
-	[ConVar( "net_debug_culling", ConVarFlags.Protected )]
+	[ConVar( "net_debug_culling", ConVarFlags.Protected | ConVarFlags.Cheat )]
 	private static bool DebugCulling { get; set; }
 
 	[ConVar( "net_diag_record", ConVarFlags.Protected, Help = "Record network RPC stats for use with net_diag_dump" )]
@@ -161,7 +161,7 @@ sealed partial class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 	/// </summary>
 	internal void TrackSync( string name, int bytes, bool outbound = false, Connection source = default )
 	{
-		if ( !NetworkRecord )
+		if ( DebugOverlay.overlay_network_calls == 0 && !NetworkRecord )
 			return;
 
 		EnsureInitialized();

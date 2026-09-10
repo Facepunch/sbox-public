@@ -34,6 +34,8 @@ public abstract class ResourceLoader
 	/// </summary>
 	public string Path { get; private set; }
 
+	public string RelativePath { get; private set; }
+
 	/// <summary>
 	/// The filename of the asset, without extension
 	/// </summary>
@@ -64,7 +66,6 @@ public abstract class ResourceLoader
 
 		// Standardize the path into a mount path
 		path = path.Replace( '\\', '/' ).Trim( '/' );
-		path = $"mount://{_mount.Ident}/{path}";
 
 		// Force an engine specific extension, if it isn't already set
 		if ( extensions.TryGetValue( type, out var extension ) )
@@ -73,7 +74,8 @@ public abstract class ResourceLoader
 				path += extension;
 		}
 
-		Path = path;
+		RelativePath = path;
+		Path = $"mount://{_mount.Ident}/{RelativePath}";
 		Type = type;
 		Name = System.IO.Path.GetFileNameWithoutExtension( path );
 
@@ -96,7 +98,7 @@ public abstract class ResourceLoader
 
 		_lock.Enter();
 
-		if ( _cachedResult is not null )
+		if ( _cachedResult is not null && (_cachedResult is not IValid v || v.IsValid) )
 		{
 			_lock.Exit();
 			return _cachedResult;
@@ -140,7 +142,7 @@ public abstract class ResourceLoader
 	/// </summary>
 	protected virtual object Load()
 	{
-		return null; ;
+		return null;
 	}
 
 	internal void ShutdownInternal()

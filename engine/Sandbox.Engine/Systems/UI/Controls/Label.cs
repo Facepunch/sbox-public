@@ -1,5 +1,5 @@
-﻿using Sandbox.Html;
-using Sandbox.Rendering;
+﻿using Microsoft.AspNetCore.Components;
+using Sandbox.Html;
 using System.Globalization;
 
 namespace Sandbox.UI
@@ -19,10 +19,16 @@ namespace Sandbox.UI
 		internal string _text;
 		internal Rect _textRect;
 		internal TextBlock _textBlock;
+		internal bool IsGeneratedText;
 
 		int layoutStateHash;
 		bool sizeFinalized;
 		Vector2 availableSpace;
+
+		/// <summary>
+		/// A background-clip: text at or above this label is painting its glyphs, so it doesn't draw them itself.
+		/// </summary>
+		bool clipsBackgroundToText;
 
 		[Category( "Selection" )]
 		public bool ShouldDrawSelection
@@ -99,7 +105,7 @@ namespace Sandbox.UI
 		public Label()
 		{
 			AddClass( "label" );
-			YogaNode.SetMeasureFunction( MeasureText );
+			LayoutTree.SetMeasureFunction( MeasureText );
 		}
 
 		public Label( string text, string classname = null ) : this()
@@ -108,11 +114,16 @@ namespace Sandbox.UI
 			AddClass( classname );
 		}
 
-		Vector2 MeasureText( YGNodeRef node, float width, YGMeasureMode widthMode, float height, YGMeasureMode heightMode )
+		Vector2 MeasureText( float width, Sandbox.Layout.MeasureMode widthMode, float height, Sandbox.Layout.MeasureMode heightMode )
 		{
 			try
 			{
 				if ( _textBlock == null ) return new Vector2( 2, 10 );
+
+				if ( widthMode == Sandbox.Layout.MeasureMode.MinContent )
+					return _textBlock.MeasureMinContent();
+				if ( heightMode == Sandbox.Layout.MeasureMode.MinContent )
+					return _textBlock.MeasureMinContent( widthMode == Sandbox.Layout.MeasureMode.Undefined ? float.NaN : width );
 
 				availableSpace = new Vector2( width, height );
 
@@ -147,6 +158,7 @@ namespace Sandbox.UI
 		/// <summary>
 		/// Text to display on the label.
 		/// </summary>
+		[Parameter]
 		public virtual string Text
 		{
 			get => _text;
@@ -168,6 +180,7 @@ namespace Sandbox.UI
 				_text = value;
 				StringInfo.String = value ?? string.Empty;
 				CaretSantity();
+				LayoutTree?.MarkDirty();
 				SetNeedsPreLayout();
 			}
 		}
@@ -175,6 +188,7 @@ namespace Sandbox.UI
 		/// <summary>
 		/// Set to true if this is rich text. This means it can support some inline html elements.
 		/// </summary>
+		[Parameter]
 		public bool IsRich { get; set; }
 
 		public override void SetProperty( string name, string value )
@@ -201,10 +215,29 @@ namespace Sandbox.UI
 			Text = value ?? "";
 		}
 
+		private int _caretPosition;
+
 		/// <summary>
 		/// Position of the text cursor/caret within the text, at which newly typed characters are inserted.
+		/// Setting it keeps it inside the text and scrolls to put it on screen - everything that moves
+		/// the caret goes through here, so nothing has to remember to do either.
 		/// </summary>
-		public int CaretPosition { get; set; }
+		public int CaretPosition
+		{
+			get => _caretPosition;
+			set
+			{
+				value = value.Clamp( 0, TextLength );
+				if ( _caretPosition == value ) return;
+
+				_caretPosition = value;
+
+				// Moving the caret any other way gives up the x that up and down were aiming for
+				if ( !_movingLine ) _desiredCaretX = null;
+
+				ScrollToCaret();
+			}
+		}
 
 		/// <summary>
 		/// Amount of characters in the text of the text entry. Not bytes.
@@ -216,6 +249,13 @@ namespace Sandbox.UI
 		/// </summary>
 		protected void CaretSantity()
 		{
+			// Nothing to clamp on a label nobody is editing, and counting text elements allocates
+			if ( CaretPosition == 0 && SelectionStart == 0 && SelectionEnd == 0 )
+			{
+				ClampScroll();
+				return;
+			}
+
 			if ( CaretPosition > TextLength )
 			{
 				CaretPosition = TextLength;
@@ -231,6 +271,9 @@ namespace Sandbox.UI
 				SelectionEnd = TextLength;
 				ScrollToCaret();
 			}
+
+			// The text can shrink out from under the scroll offset without the caret moving at all
+			ClampScroll();
 		}
 
 		/// <summary>
@@ -251,6 +294,7 @@ namespace Sandbox.UI
 
 		public override string GetClipboardValue( bool cut )
 		{
+			if ( InlineOwner is not null ) return InlineOwner.SelectedText;
 			if ( !HasSelection() )
 				return null;
 
@@ -290,10 +334,11 @@ namespace Sandbox.UI
 			{
 				_textBlock = new TextBlock();
 				_textBlock.LookupStyles = HtmlStyleLookup;
-				_textBlock.OnTextureChanged = MarkRenderDirty;
+				_textBlock.OnTextureChanged = TextTextureChanged;
 			}
 
 			_textBlock.NoWrap = !Multiline;
+			clipsBackgroundToText = (!IsFixed && cascade.ClipBackgroundToText) || ComputedStyle.BackgroundClip == BackgroundClip.Text;
 
 			if ( IsRich )
 			{
@@ -315,36 +360,79 @@ namespace Sandbox.UI
 
 			if ( _textBlock.UpdateStyles( ComputedStyle ) )
 			{
-				YogaNode.MarkDirty();
+				LayoutTree.MarkDirty();
 				sizeFinalized = false;
 			}
 		}
+
+		/// <summary>
+		/// Where the text is laid out, which scrolls with the caret in a text entry.
+		/// </summary>
+		Rect TextLayoutRect => new Rect( Box.RectInner.Position - caretScroll, Box.RectInner.Size );
+
+		/// <summary>
+		/// The panel clipping its background to this text holds the texture in its own descriptor,
+		/// so it rebuilds when the text is rerendered.
+		/// </summary>
+		void TextTextureChanged()
+		{
+			MarkRenderDirty();
+
+			if ( !clipsBackgroundToText ) return;
+
+			for ( var panel = VisualParent; panel is not null; panel = panel.VisualParent )
+			{
+				panel.MarkRenderDirty();
+				if ( panel.ComputedStyle?.BackgroundClip == BackgroundClip.Text ) break;
+			}
+		}
+
+		/// <summary>
+		/// The rendered text this label lends to a background-clip: text, and where it sits.
+		/// </summary>
+		internal bool GetTextMask( out Texture texture, out Rect rect )
+		{
+			texture = null;
+			rect = default;
+
+			if ( !clipsBackgroundToText || _textBlock is null || ComputedStyle is null ) return false;
+
+			return _textBlock.GetMask( ComputedStyle, TextLayoutRect, out texture, out rect );
+		}
+
 		private Styles HtmlStyleLookup( INode node )
 		{
-			if ( node.GetAttribute( "style", null ) is string styles )
-			{
-				Log.Warning( "TODO: Apply Html Styles" );
-			}
+			// Seed with the label's own computed styles so inherited properties are present.
+			// ComputedStyle is already in screen units, so it should never be rescaled.
+			var s = new Styles();
+			s.Add( ComputedStyle );
+
+			// Accumulate stylesheet + inline styles in logical units, scale once, then merge
+			var local = new Styles();
 
 			var blocks = AllStyleSheets
-							.SelectMany( x => x.Nodes )
-							.Select( x => x.Test( node ) )
-							.Where( x => x is not null )
-							.ToList();
+				.SelectMany( x => x.Nodes )
+				.Select( x => x.Test( node ) )
+				.Where( x => x is not null )
+				.ToList();
 
-			if ( blocks.Count == 0 )
-				return null;
-
-			blocks.Sort( StyleOrderer.Instance );
-
-			var s = new Styles();
-
-			foreach ( var entry in blocks )
+			if ( blocks.Count > 0 )
 			{
-				s.Add( entry.Block.Styles );
+				blocks.Sort( StyleOrderer.Instance );
+
+				foreach ( var entry in blocks )
+					local.Add( entry.Block.Styles );
 			}
 
-			s.ApplyScale( FindRootPanel().ScaleToScreen );
+			// Inline styles applied last, highest specificity wins
+			if ( node.GetAttribute( "style", null ) is string styles )
+			{
+				var p = new Parse( styles );
+				StyleParser.ParseStyles( ref p, local );
+			}
+
+			local.ApplyScale( FindRootPanel().ScaleToScreen );
+			s.Add( local );
 
 			return s;
 		}
@@ -352,6 +440,7 @@ namespace Sandbox.UI
 		public override void FinalLayout( Vector2 offset )
 		{
 			base.FinalLayout( offset );
+			if ( InlineOwner is not null ) return;
 
 			if ( !IsVisible ) return;
 			if ( ComputedStyle is null ) return;
@@ -361,7 +450,7 @@ namespace Sandbox.UI
 			if ( !sizeFinalized )
 			{
 				sizeFinalized = true;
-				YogaNode.MarkDirty();
+				LayoutTree.MarkDirty();
 			}
 
 			_textRect = Box.RectInner;
@@ -385,19 +474,30 @@ namespace Sandbox.UI
 			}
 
 			_textRect.Size = _textBlock.BlockSize;
+
+			// Scrolling measures against the visible size, so a resize puts the caret back on screen.
+			// After the text rect is placed, because the caret rect comes from it.
+			if ( _scrolledSize != Box.RectInner.Size )
+			{
+				_scrolledSize = Box.RectInner.Size;
+				ScrollToCaret();
+			}
+
+			ScrollParentToCaret();
 		}
 
 		public override void OnDraw()
 		{
+			if ( InlineOwner is not null ) return;
 			// Ensure texture is created if we have text but no texture yet
 			if ( _textBlock != null && _textBlock.Texture == null && !string.IsNullOrEmpty( _textBlock.Text ) )
 			{
 				_textBlock.SizeFinalized( Box.RectInner.Width, Box.RectInner.Height );
 			}
 
-			var rect = Box.RectInner;
-			rect.Position -= caretScroll;
-			_textBlock?.BuildDescriptors( CachedDescriptors, CachedOverrideBlendMode, ComputedStyle, rect, CachedRenderOpacity );
+			if ( clipsBackgroundToText ) return;
+
+			_textBlock?.BuildDescriptors( CachedDescriptors, CachedOverrideBlendMode, ComputedStyle, TextLayoutRect, CachedRenderOpacity );
 		}
 
 		public int GetLetterAt( Vector2 pos )
@@ -469,31 +569,49 @@ namespace Sandbox.UI
 			SetNeedsPreLayout();
 		}
 
+		/// <summary>
+		/// Called when a node within rich text (<see cref="IsRich"/>) is clicked, with the clicked
+		/// node. When set, this replaces the default behaviour - which opens a valid http/https
+		/// <c>href</c> on an anchor in the user's browser - letting you inspect the node and handle
+		/// custom anchor schemes or open in-game popups.
+		/// </summary>
+		[Parameter]
+		public Action<INode> OnNodeClicked { get; set; }
+
 		protected override void OnClick( MousePanelEvent e )
 		{
 			base.OnClick( e );
 
-			if ( hoveredNode is not null && hoveredNode.GetAttribute( "href", null ) is { } url )
+			if ( hoveredNode is null )
+				return;
+
+			if ( OnNodeClicked is not null )
 			{
-				bool isValid = Uri.TryCreate( url, UriKind.Absolute, out var parsedUri ) && (parsedUri.Scheme == "http" || parsedUri.Scheme == "https");
-
-				if ( !isValid )
-				{
-					Log.Warning( $"Blocked URL: {url}" );
-					return;
-				}
-
-				//
-				// Modal popup, are you sure etc?
-				//
-
-				System.Diagnostics.Process.Start( new System.Diagnostics.ProcessStartInfo()
-				{
-					FileName = parsedUri.ToString(),
-					UseShellExecute = true,
-					Verb = "open"
-				} );
+				OnNodeClicked.Invoke( hoveredNode );
+				return;
 			}
+
+			if ( hoveredNode.GetAttribute( "href", null ) is not { } url )
+				return;
+
+			bool isValid = Uri.TryCreate( url, UriKind.Absolute, out var parsedUri ) && (parsedUri.Scheme == "http" || parsedUri.Scheme == "https");
+
+			if ( !isValid )
+			{
+				Log.Warning( $"Blocked URL: {url}" );
+				return;
+			}
+
+			//
+			// Modal popup, are you sure etc?
+			//
+
+			System.Diagnostics.Process.Start( new System.Diagnostics.ProcessStartInfo()
+			{
+				FileName = parsedUri.ToString(),
+				UseShellExecute = true,
+				Verb = "open"
+			} );
 		}
 	}
 

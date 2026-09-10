@@ -60,6 +60,14 @@ public partial class Shader : Resource
 	}
 
 	/// <summary>
+	/// Loads the shader from an already-compiled <c>.shader_c</c> so it can be recompiled, WITHOUT loading the per-static-combo compiled data.
+	/// </summary>
+	internal bool LoadCompiledForRecompile( string filename )
+	{
+		return native.CreateFromResourceFile( filename, NativeEngine.VfxCompileTarget_t.SM_6_0_VULKAN, 0, true );
+	}
+
+	/// <summary>
 	/// Loads all shader programs from the shader source file, except those that are already loaded (from above, assumably)
 	/// </summary>
 	internal bool LoadFromSourceChecksums( string filename )

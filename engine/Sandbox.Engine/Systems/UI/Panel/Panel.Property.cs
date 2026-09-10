@@ -33,7 +33,7 @@ public partial class Panel
 		{
 			await OnParametersSetAsync();
 		}
-		catch ( TaskCanceledException )
+		catch ( OperationCanceledException )
 		{
 			return;
 		}
@@ -118,15 +118,17 @@ public partial class Panel
 		Game.TypeLibrary.SetProperty( this, name, value );
 	}
 
-	Dictionary<string, string> Attributes;
+	Dictionary<string, string> _attributes;
 
 	/// <summary>
 	/// Used in templates, gets an attribute that was set in the template.
 	/// </summary>
 	public void SetAttribute( string k, string v )
 	{
-		Attributes ??= new();
-		Attributes[k] = v;
+		if ( string.IsNullOrEmpty( k ) ) return;
+
+		_attributes ??= [];
+		_attributes[k] = v;
 	}
 
 	/// <summary>
@@ -134,9 +136,9 @@ public partial class Panel
 	/// </summary>
 	public string GetAttribute( string k, string defaultIfNotFound = default )
 	{
-		if ( Attributes == null ) return defaultIfNotFound;
+		if ( _attributes == null ) return defaultIfNotFound;
 
-		if ( Attributes.TryGetValue( k, out var v ) )
+		if ( _attributes.TryGetValue( k, out var v ) )
 			return v;
 
 		return defaultIfNotFound;

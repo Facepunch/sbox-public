@@ -327,6 +327,11 @@ public static partial class EditorUtility
 			// Save instance transform for later
 			var instanceTransform = go.LocalTransform;
 
+			// The save dialog gives an absolute path, but a prefab loaded from disk is registered
+			// under its relative asset path - resolve it so we overwrite the live prefab file
+			// instead of building a fresh one that existing instances know nothing about.
+			saveLocation = AssetSystem.FindByPath( saveLocation )?.Path ?? saveLocation;
+
 			var prefabFile = ResourceLibrary.Get<PrefabFile>( saveLocation );
 			if ( !prefabFile.IsValid() )
 			{
@@ -349,11 +354,21 @@ public static partial class EditorUtility
 				// Zero instance location for serialization to prefab file
 				go.LocalPosition = Vector3.Zero;
 
+				// When overwriting an existing prefab, keep its root id so existing instances stay linked to it
+				var previousRootGuid = prefabFile.RootObject?.GetPropertyValue<Guid?>( "__guid", null );
+
 				prefabFile.RootObject = go.SerializeStandard( new GameObject.SerializeOptions() );
-				instanceToPrefabGuid = SceneUtility.MakeIdGuidsUnique( prefabFile.RootObject );
+				instanceToPrefabGuid = SceneUtility.MakeIdGuidsUnique( prefabFile.RootObject, previousRootGuid );
 
 				// Reset transform
 				go.LocalTransform = instanceTransform;
+
+				// The cached scene still holds the old content, refresh so instances validate against the new content
+				prefabFile.CachedScene?.Refresh( prefabFile );
+
+				// Refresh existing instances of the overwritten prefab in all open sessions,
+				// cascading through prefabs that embed it
+				EditorScene.UpdatePrefabInstances( prefabFile );
 			}
 
 			UpdatePrefabAfterModification( prefabFile.ResourcePath, skipDiskWrite );
@@ -401,8 +416,9 @@ public static partial class EditorUtility
 
 		/// <summary>
 		/// Convert a GameObject to a prefab. This will write the newly created prefab to disk and set the prefab source on the GameObject.
+		/// Returns the converted GameObject, which may be a clone of the original if it was part of a prefab instance, or null on failure.
 		/// </summary>
-		public static void ConvertGameObjectToPrefab( GameObject go, string saveLocation, bool skipDiskWrite = false )
+		public static GameObject ConvertGameObjectToPrefab( GameObject go, string saveLocation, bool skipDiskWrite = false )
 		{
 			// We cannot convert the existing go in-place if it's part of a prefab instance.
 			if ( go.IsPrefabInstance )
@@ -430,8 +446,13 @@ public static partial class EditorUtility
 			if ( prefabFile is null )
 			{
 				Log.Warning( "Failed to convert GameObject to prefab, could not write file." );
-				return;
+				return null;
 			}
+
+			// Written back to the prefab it's already an instance of - lookups and patch
+			// were refreshed by the writeback, re-initializing here would wipe them.
+			if ( instanceToPrefabGuid is null )
+				return go;
 
 			// set or change prefab source
 			go.InitPrefabInstance( prefabFile.ResourcePath, false );
@@ -444,6 +465,8 @@ public static partial class EditorUtility
 			}
 			go.PrefabInstance.InitLookups( prefabToInstanceGuid );
 			go.PrefabInstance.RefreshPatch();
+
+			return go;
 		}
 
 		private static GameObject ResolveGameObject( object target )

@@ -321,7 +321,7 @@ namespace Sandbox
 
 		internal static string FormatAssemblyName( Assembly asm )
 		{
-			return FormatAssemblyName( asm?.GetName() );
+			return asm is null ? string.Empty : FormatAssemblyName( asm.GetName() );
 		}
 	}
 }

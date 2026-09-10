@@ -41,6 +41,9 @@ public partial class Document
 		[Hide, JsonIgnore]
 		public List<Vector2> UnwrappedVertexPositionsWorldSpace { get; set; } = new();
 
+		[Hide, JsonIgnore]
+		private (Vector2 min, Vector2 max) ReferenceUnwrappedBounds { get; set; }
+
 		public MeshRectangle( Window window ) : base( window )
 		{
 		}
@@ -51,7 +54,7 @@ public partial class Document
 			StoreOriginalUVs();
 
 			var settings = Session?.Settings?.FastTextureSettings;
-			if ( settings != null && settings.SavedRectMin != settings.SavedRectMax )
+			if ( settings != null && settings.Mapping != MappingMode.UseExisting && settings.SavedRectMin != settings.SavedRectMax )
 			{
 				Min = settings.SavedRectMin;
 				Max = settings.SavedRectMax;
@@ -80,13 +83,44 @@ public partial class Document
 
 				if ( facePoints.Count >= 3 )
 				{
-					Paint.SetBrush( Color.White.WithAlpha( 0.25f ) );
+					bool isVertexMode = settings is { EditVertices: true, ScaleMode: not ScaleMode.WorldScale };
+					Paint.SetBrush( isVertexMode ? Color.Transparent : Color.White.WithAlpha( 0.25f ) );
 					Paint.DrawPolygon( facePoints.ToArray() );
 				}
 			}
 
 			if ( settings != null && settings.ScaleMode == ScaleMode.WorldScale )
 				return;
+
+			if ( settings != null && settings.EditVertices )
+			{
+				for ( int i = 0; i < transformedPositions.Count; i++ )
+				{
+					var pixelPos = view.UVToPixel( transformedPositions[i] );
+					float radius = 3f;
+					var color = Color.White.WithAlpha( 0.8f );
+
+					if ( i == view.DraggingVertexIndex )
+					{
+						radius = 5f;
+						color = Color.Yellow;
+					}
+					else if ( i == view.HoveredVertexIndex )
+					{
+						radius = 4f;
+						color = Color.Cyan;
+					}
+					else if ( view.SelectedVertices.Contains( i ) )
+					{
+						radius = 4f;
+						color = Color.Green;
+					}
+
+					Paint.SetPen( color, 1.5f );
+					Paint.SetBrush( color.WithAlpha( 0.4f ) );
+					Paint.DrawCircle( pixelPos, radius );
+				}
+			}
 
 			DrawIndexedLine( view, HoveredEdge.vertexA, HoveredEdge.vertexB, transformedPositions );
 			DrawIndexedLine( view, AlignEdgeVertexA, AlignEdgeVertexB, transformedPositions, 0.5f );
@@ -204,6 +238,8 @@ public partial class Document
 				Min = previousBounds.Min;
 				Max = previousBounds.Max;
 			}
+
+			ReferenceUnwrappedBounds = GetUnwrappedMeshBounds();
 
 			SaveBoundsToSettings();
 
@@ -470,6 +506,7 @@ public partial class Document
 			}
 
 			OffsetUVsToVisibleRange();
+			ReferenceUnwrappedBounds = GetUnwrappedMeshBounds();
 			CalculateUVBounds();
 		}
 		private void OffsetUVsToVisibleRange()
@@ -564,39 +601,8 @@ public partial class Document
 				}
 			}
 
+			ReferenceUnwrappedBounds = GetUnwrappedMeshBounds();
 			CalculateUVBounds();
-		}
-
-		/// <summary>
-		/// Gets the wireframe lines for rendering the unwrapped mesh within the rectangle
-		/// Returns lines in rectangle-relative coordinates (0-1)
-		/// </summary>
-		public List<(Vector2 start, Vector2 end)> GetWireframeLines()
-		{
-			var lines = new List<(Vector2 start, Vector2 end)>();
-
-			if ( UnwrappedVertexPositions.Count == 0 || FaceVertexIndices.Count == 0 )
-				return lines;
-
-			var transformedPositions = GetRectangleRelativePositions();
-
-			foreach ( var faceIndices in FaceVertexIndices )
-			{
-				for ( int i = 0; i < faceIndices.Count; i++ )
-				{
-					var currentIndex = faceIndices[i];
-					var nextIndex = faceIndices[(i + 1) % faceIndices.Count]; // Wrap back around to first vertex
-
-					if ( currentIndex < transformedPositions.Count && nextIndex < transformedPositions.Count )
-					{
-						var start = transformedPositions[currentIndex];
-						var end = transformedPositions[nextIndex];
-						lines.Add( (start, end) );
-					}
-				}
-			}
-
-			return lines;
 		}
 
 		/// <summary>
@@ -657,7 +663,7 @@ public partial class Document
 			if ( UnwrappedVertexPositions.Count == 0 )
 				return transformedPositions;
 
-			var (unwrappedMin, unwrappedMax) = GetUnwrappedMeshBounds();
+			var (unwrappedMin, unwrappedMax) = ReferenceUnwrappedBounds;
 			var unwrappedSize = unwrappedMax - unwrappedMin;
 
 			var rectSize = Max - Min;
@@ -843,6 +849,79 @@ public partial class Document
 			}
 
 			return false;
+		}
+
+		public int FindClosestVertex( Vector2 mousePos, float maxDistance = 0.015f )
+		{
+			if ( UnwrappedVertexPositions.Count == 0 )
+				return -1;
+
+			var transformedPositions = GetRectangleRelativePositions();
+			float closestDist = maxDistance;
+			int closestIndex = -1;
+
+			for ( int i = 0; i < transformedPositions.Count; i++ )
+			{
+				var dist = transformedPositions[i].Distance( mousePos );
+				if ( dist < closestDist )
+				{
+					closestDist = dist;
+					closestIndex = i;
+				}
+			}
+
+			return closestIndex;
+		}
+
+		private Vector2 UVDeltaToUnwrappedDelta( Vector2 deltaUV )
+		{
+			var settings = Session?.Settings?.FastTextureSettings;
+			var imageSize = Session.GetImageSize();
+			var insetUV = new Vector2(
+				settings.InsetX / imageSize.x,
+				settings.InsetY / imageSize.y
+			);
+
+			var rectSize = Max - Min;
+			var insetSize = rectSize - insetUV * 2;
+
+			var (unwrappedMin, unwrappedMax) = ReferenceUnwrappedBounds;
+			var unwrappedSize = unwrappedMax - unwrappedMin;
+
+			if ( insetSize.x <= 0 || insetSize.y <= 0 || unwrappedSize.x <= 0 || unwrappedSize.y <= 0 )
+				return Vector2.Zero;
+
+			return new Vector2(
+				deltaUV.x * unwrappedSize.x / insetSize.x,
+				deltaUV.y * unwrappedSize.y / insetSize.y
+			);
+		}
+
+		public void MoveVertexTo( int vertexIndex, Vector2 targetUV )
+		{
+			if ( vertexIndex < 0 || vertexIndex >= UnwrappedVertexPositions.Count )
+				return;
+
+			var settings = Session?.Settings?.FastTextureSettings;
+			var imageSize = Session.GetImageSize();
+			var insetUV = new Vector2(
+				settings.InsetX / imageSize.x,
+				settings.InsetY / imageSize.y
+			);
+
+			var insetMin = Min + insetUV;
+			var normalized = UVDeltaToUnwrappedDelta( targetUV - insetMin );
+
+			var (unwrappedMin, _) = ReferenceUnwrappedBounds;
+			UnwrappedVertexPositions[vertexIndex] = unwrappedMin + normalized;
+		}
+
+		public void MoveVertexByDelta( int vertexIndex, Vector2 originalUnwrapped, Vector2 deltaUV )
+		{
+			if ( vertexIndex < 0 || vertexIndex >= UnwrappedVertexPositions.Count )
+				return;
+
+			UnwrappedVertexPositions[vertexIndex] = originalUnwrapped + UVDeltaToUnwrappedDelta( deltaUV );
 		}
 
 		private float DistanceToLineSegment( Vector2 point, Vector2 lineStart, Vector2 lineEnd )

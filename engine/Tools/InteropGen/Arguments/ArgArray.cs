@@ -1,6 +1,8 @@
 ﻿namespace Facepunch.InteropGen;
 
-
+/// <summary>
+/// Wraps an element arg as an array ("type[]"), turning its types into pointers.
+/// </summary>
 public class ArgArray : ArgWrapper
 {
 	public ArgArray( Arg val )
@@ -13,24 +15,10 @@ public class ArgArray : ArgWrapper
 	public override string ManagedType => $"{Base.ManagedType}*";
 	public override string ManagedDelegateType => $"{Base.ManagedType}*";
 	public override string NativeDelegateType => NativeType;
-	public override string GetManagedDelegateType( bool incoming )
-	{
-		return ManagedDelegateType;
-	}
 
-	public override string GetNativeDelegateType( bool incoming )
+	// Unlike ArgWrapper (which forwards to Base), an array's delegate type keeps the pointer.
+	public override string DelegateType( Side side, Dir dir )
 	{
-		return NativeDelegateType;
+		return side == Side.Managed ? ManagedDelegateType : NativeDelegateType;
 	}
-
-	public override string ToInterop( bool native, string code = null )
-	{
-		return base.ToInterop( native, code );
-	}
-
-	public override string WrapFunctionCall( string functionCall, bool native )
-	{
-		return functionCall;
-	}
-
 }

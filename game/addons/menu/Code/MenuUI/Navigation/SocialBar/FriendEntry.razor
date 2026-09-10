@@ -1,5 +1,6 @@
 ﻿@using System;
 @using MenuProject.MenuUI.Popups
+@using MenuProject;
 @using Sandbox;
 @using Sandbox.UI;
 
@@ -9,20 +10,22 @@
 	<div class="avatar" style="background-image: url( avatar:@Friend.Id )" />
 	<div class="info">
 		<div class="name">@Friend.Name</div>
-		<div>
-			<div class="status">@StateString.Substring(0, Math.Min(StateString.Length, 36))</div>
-		</div>
+		<div class="status">@StateString.Substring(0, Math.Min(StateString.Length, 36))</div>
 	</div>
 	<div class="actions">
 		@if ( Joinable )
 		{
-            <div class="button-simple" onclick=@JoinGame><i>sports_kabaddi</i><span class="text">join</span></div>
+            <div class="action primary" onclick=@JoinGame><i>sports_esports</i><span>join</span></div>
 		}
-        @*
-		<div class="button-simple" tooltip="Invite To Party" onclick=@InviteToParty>
-			<i>group_add</i>
-		</div>
-        *@
+        else if ( IsGenuinelyFull )
+        {
+            <div class="action deny"><i>block</i><span>full</span></div>
+        }
+
+        @if ( CanInviteToParty )
+        {
+            <div class="action" onclick=@InviteToParty><i>group_add</i><span>Invite</span></div>
+        }
     </div>
 </root>
 
@@ -32,6 +35,27 @@
     public Friend Friend { get; set; }
 
     public bool Joinable => !string.IsNullOrEmpty(Friend.GetRichPresence("connect"));
+
+    /// <summary>
+    /// Only show "Full" if this is genuinely a multiplayer game (MaxPlayers > 1) that the friend
+    /// isn't joinable for - not just because it's a singleplayer game or some other reason.
+    /// </summary>
+    public bool IsGenuinelyFull
+    {
+        get
+        {
+            if ( !Friend.IsPlayingThisGame ) return false;
+            if ( Joinable ) return false;
+
+            var gameIdent = Friend.GetRichPresence("gamename");
+            if ( string.IsNullOrEmpty(gameIdent) ) return false;
+            if ( !Package.TryGetCached(gameIdent, out var package) ) return false;
+
+            return package.Info.MaxPlayers > 1;
+        }
+    }
+
+    public bool CanInviteToParty => MenuUtility.CanInviteToParty(Friend);
 
     public string CssClasses
     {	
@@ -81,8 +105,14 @@
         MenuUtility.JoinFriendGame(Friend);
     }
 
+    async Task InviteToParty()
+    {
+        await PartyDeck.EnsureLobbyExists();
+        MenuUtility.InviteToParty(Friend.Id);
+    }
+
     void ShowFriendPopup()
     {
-        FriendPopup.Show(this, Friend, Popup.PositionMode.AboveCenter );
+        FriendPopup.Show(this, Friend, Popup.PositionMode.Right, 28.0f);
     }
 }

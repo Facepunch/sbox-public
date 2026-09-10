@@ -3,6 +3,12 @@
 [SkipHotload]
 class NavMeshGenerator : IDisposable
 {
+	internal readonly List<Vector3> LinkVertices = new();
+	internal readonly List<float> LinkRadii = new();
+	internal readonly List<int> LinkAreas = new();
+	internal readonly List<bool> LinkBidirectional = new();
+	internal readonly List<object> LinkUserData = new();
+
 	// Created in init disposed of after generate
 	private CompactHeightfield chfWorkingCopy;
 
@@ -11,6 +17,11 @@ class NavMeshGenerator : IDisposable
 	public void Init( Config config, CompactHeightfield inputChf )
 	{
 		cfg = config;
+		LinkVertices.Clear();
+		LinkRadii.Clear();
+		LinkAreas.Clear();
+		LinkBidirectional.Clear();
+		LinkUserData.Clear();
 		if ( chfWorkingCopy == null )
 		{
 			chfWorkingCopy = inputChf.Copy();

@@ -2,7 +2,7 @@
 
 public class PackageDto
 {
-	public OrganizationDto Org { get; set; }
+	public OrganizationMinimal Org { get; set; }
 	public string Ident { get; set; }
 	public string Title { get; set; }
 	public string Summary { get; set; }
@@ -10,16 +10,17 @@ public class PackageDto
 	public string Thumb { get; set; }
 	public string ThumbWide { get; set; }
 	public string ThumbTall { get; set; }
+	public PackageThumbnailSet Thumbnails { get; set; }
 	public DateTimeOffset Updated { get; set; }
 	public DateTimeOffset Created { get; set; }
 	public PackageUsageStats UsageStats { get; set; }
+	public long UsersNow { get; set; }
 	public PackageReviewStats ReviewStats { get; set; }
 	public string[] Tags { get; set; }
 	public int Favourited { get; set; }
 	public int VotesUp { get; set; }
 	public int VotesDown { get; set; }
 	public PackageVersion Version { get; set; }
-	public string Source { get; set; }
 	public bool Public { get; set; }
 	public bool Archive { get; set; }
 	public int ApiVersion { get; set; }
@@ -43,6 +44,13 @@ public class PackageDto
 	public PackageInteraction Interaction { get; set; }
 
 	/// <summary>
+	/// Small icon badges shown over the thumbnail — workshop-approved,
+	/// updated-since-you-played, etc. Intrinsic flair is cached; player-specific
+	/// flair is layered on per request. Never null.
+	/// </summary>
+	public List<PackageFlair> Flair { get; set; } = new();
+
+	/// <summary>
 	/// For games only, information about the loadingscreen
 	/// </summary>
 	public LoadingScreenSetup LoadingScreen { get; set; }
@@ -56,6 +64,12 @@ public class PackageDto
 	/// The latest news post
 	/// </summary>
 	public NewsPostDto LatestNews { get; set; }
+
+	/// <summary>
+	/// The 5 most recent visible changelists (summary only: id/title/version/date). Full detail is
+	/// available via the package/changelists API.
+	/// </summary>
+	public ChangeListSummary[] Changelists { get; set; } = [];
 
 	/// <summary>
 	/// What fraction of users got errors in the last day
@@ -72,8 +86,32 @@ public class PackageDto
 		// like allowing them to add titles or something. Stop short at uploading a screenshot or video for now.
 	}
 
+	/// <summary>
+	/// The amount of times this has been spawned
+	/// </summary>
+	public long Spawns { get; set; }
+
+	/// <summary>
+	/// The amount of players that have spawned this
+	/// </summary>
+	public long PlayerSpawns { get; set; }
+
+	/// <summary>
+	/// The total size of this package in bytes
+	/// </summary>
+	public long FileSize { get; set; }
+
 	public string DevLink( string append = "/" )
 	{
 		return $"{Org.Ident}/{Ident}{append}";
 	}
 }
+
+public class PackageThumbnailSet
+{
+	public PackageThumbnail[] Square { get; set; }
+	public PackageThumbnail[] Wide { get; set; }
+	public PackageThumbnail[] Tall { get; set; }
+}
+
+public record PackageThumbnail( int Width, int Height, string Url );

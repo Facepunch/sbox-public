@@ -57,6 +57,8 @@ internal static unsafe partial class VRSystem
 
 	internal static bool FrameSubmitted = false;
 
+	private static readonly object CompositorFrameLock = new();
+
 	/// <summary>
 	/// Tell the compositor that we're starting a frame, and reset frame state
 	/// </summary>
@@ -68,8 +70,14 @@ internal static unsafe partial class VRSystem
 		if ( !IsSessionReady() )
 			return;
 
-		FpxrCheck( Compositor.BeginFrame() );
-		FrameSubmitted = false;
+		lock ( CompositorFrameLock )
+		{
+			if ( Compositor == IntPtr.Zero )
+				return;
+
+			FpxrCheck( Compositor.BeginFrame() );
+			FrameSubmitted = false;
+		}
 	}
 
 	/// <summary>
@@ -83,9 +91,15 @@ internal static unsafe partial class VRSystem
 		if ( !IsSessionReady() )
 			return;
 
-		if ( FrameSubmitted )
+		lock ( CompositorFrameLock )
 		{
-			FpxrCheck( Compositor.EndFrame() );
+			if ( Compositor == IntPtr.Zero )
+				return;
+
+			if ( FrameSubmitted )
+			{
+				FpxrCheck( Compositor.EndFrame() );
+			}
 		}
 	}
 
@@ -94,11 +108,17 @@ internal static unsafe partial class VRSystem
 		if ( !IsSessionReady() )
 			return false;
 
-		var textureSubmitInfo = GetTextureSubmitInfoVulkan( colorTexture, depthTexture );
-		FpxrCheck( Compositor.Submit( textureSubmitInfo ) );
+		lock ( CompositorFrameLock )
+		{
+			if ( Compositor == IntPtr.Zero )
+				return false;
 
-		FrameSubmitted = true;
-		return true;
+			var textureSubmitInfo = GetTextureSubmitInfoVulkan( colorTexture, depthTexture );
+			FpxrCheck( Compositor.Submit( textureSubmitInfo ) );
+
+			FrameSubmitted = true;
+			return true;
+		}
 	}
 
 	internal static Matrix CreateProjection( float tanL, float tanR, float tanU, float tanD, float near, float far )

@@ -5,7 +5,22 @@ namespace Editor.MeshEditor;
 [Alias( "tools.edge-cut-tool" )]
 public partial class EdgeCutTool( string tool ) : EditorTool
 {
+	private const string LoopModeCookie = "MeshEditor.EdgeCut.LoopMode";
+
 	static int SelectionSampleRadius => 8;
+
+	private readonly ToolUndoStack _activationUndo = new();
+	private readonly ToolUndoStack _editUndo = new();
+	private bool _loopMode;
+
+	[DefaultValue( false )]
+	public bool LoopMode
+	{
+		get => _loopMode;
+		set => SetLoopMode( value, true );
+	}
+
+	List<MeshCutPoint> _loopPreview;
 
 	MeshComponent _hoveredMesh;
 	MeshCutPoint _previewCutPoint;
@@ -98,9 +113,17 @@ public partial class EdgeCutTool( string tool ) : EditorTool
 	readonly string _tool = tool;
 	bool _cancel;
 
+	public override void OnEnabled()
+	{
+		SetLoopMode( EditorCookie.Get( LoopModeCookie, LoopMode ), false );
+		_activationUndo.Push( "Activate Edge Cut Tool", CancelFromUndo );
+	}
+
 	public override void OnDisabled()
 	{
-		Cancel();
+		ClearCut();
+		_editUndo.Clear();
+		_activationUndo.Clear();
 	}
 
 	public override void OnUpdate()
@@ -108,6 +131,13 @@ public partial class EdgeCutTool( string tool ) : EditorTool
 		var escape = Application.IsKeyDown( KeyCode.Escape );
 		if ( escape && !_cancel ) Cancel();
 		_cancel = escape;
+
+		if ( LoopMode && _cutPoints.Count == 0 )
+		{
+			UpdateLoopCut();
+			DrawMesh( _hoveredMesh );
+			return;
+		}
 
 		_previewCutPoint = ShouldSnap() ? FindSnappedCutPoint() : FindCutPoint();
 
@@ -143,7 +173,65 @@ public partial class EdgeCutTool( string tool ) : EditorTool
 	{
 		if ( _previewCutPoint.IsValid() == false ) return;
 
+		var before = _cutPoints.ToArray();
 		_cutPoints.Add( _previewCutPoint );
+		PushCutPointsUndo( before );
+	}
+
+	public void ToggleLoopMode()
+	{
+		LoopMode = !LoopMode;
+	}
+
+	private void PushCutPointsUndo( MeshCutPoint[] before )
+	{
+		var after = _cutPoints.ToArray();
+
+		_editUndo.Push( "Add Edge Cut Point",
+			undo: () => SetCutPoints( before ),
+			redo: () => SetCutPoints( after ) );
+	}
+
+	private void SetCutPoints( MeshCutPoint[] points )
+	{
+		_cutPoints.Clear();
+		_cutPoints.AddRange( points );
+	}
+
+	private void SetLoopMode( bool loopMode, bool recordUndo )
+	{
+		if ( _loopMode == loopMode )
+			return;
+
+		var before = _loopMode;
+		_loopMode = loopMode;
+		EditorCookie.Set( LoopModeCookie, loopMode );
+
+		if ( recordUndo )
+		{
+			_editUndo.Push( "Toggle Edge Cut Loop Mode",
+				undo: () => SetLoopMode( before, false ),
+				redo: () => SetLoopMode( loopMode, false ) );
+		}
+	}
+
+	private void ClearCut()
+	{
+		_cutPoints.Clear();
+		_loopPreview = null;
+		_previewCutPoint = default;
+		_hoveredMesh = null;
+	}
+
+	private void CancelFromUndo()
+	{
+		ClearCut();
+		GoBack();
+	}
+
+	private void GoBack()
+	{
+		EditorToolManager.SetSubTool( _tool );
 	}
 
 	MeshCutPoint FindCutPoint()

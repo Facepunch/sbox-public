@@ -87,8 +87,22 @@ public partial class Sprite
 
 		private void AdvanceFrame( Sprite.Animation animation, float deltaTime )
 		{
-			var loopStart = 0;
-			var loopEnd = animation.Frames.Count - 1;
+			// Loop points only apply when the animation actually loops
+			var loopStart = animation.LoopMode == Sprite.LoopMode.None ? 0 : animation.EffectiveLoopStart;
+			var loopEnd = animation.LoopMode == Sprite.LoopMode.None ? animation.Frames.Count - 1 : animation.EffectiveLoopEnd;
+
+			// LoopMode.None should never use ping-pong reversal
+			if ( animation.LoopMode == Sprite.LoopMode.None )
+			{
+				IsPingPonging = false;
+			}
+			// If the current frame is outside the loop region, reset ping-pong state
+			// so playback proceeds naturally until it reaches the loop boundaries
+			else if ( CurrentFrameIndex < loopStart || CurrentFrameIndex > loopEnd )
+			{
+				IsPingPonging = false;
+			}
+
 			var frame = CurrentFrameIndex;
 			var lastFrame = frame;
 			var hasFinished = false;

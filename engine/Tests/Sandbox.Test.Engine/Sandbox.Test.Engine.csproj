@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!-- Engine-attached tests: loads the native engine DLLs (interop) but never boots the engine loop (see Assembly.cs). Needs FACEPUNCH_ENGINE. -->
+
+	<ItemGroup>
+		<Using Include="Microsoft.AspNetCore.Components" />
+		<Using Include="Microsoft.AspNetCore.Components.Rendering" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Facepunch.ActionGraphs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\Sandbox.Bind\Sandbox.Bind.csproj" />
+		<ProjectReference Include="..\..\Sandbox.Generator\Sandbox.Generator.csproj" />
+		<ProjectReference Include="..\..\Sandbox.System\Sandbox.System.csproj" />
+		<ProjectReference Include="..\..\Sandbox.Engine\Sandbox.Engine.csproj" />
+		<ProjectReference Include="..\..\Sandbox.Tools\Sandbox.Tools.csproj" />
+		<ProjectReference Include="..\..\Sandbox.Menu\Sandbox.Menu.csproj" />
+		<ProjectReference Include="..\..\Sandbox.AppSystem\Sandbox.AppSystem.csproj" />
+	</ItemGroup>
+
+</Project>

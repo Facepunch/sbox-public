@@ -1,0 +1,60 @@
+﻿@using Sandbox
+@using Sandbox.UI
+@using Sandbox.Engine.Settings
+@using System
+@namespace MenuProject.Settings
+@inherits Panel
+
+@* A preset over the effects listed under it. Its value is computed from them rather than staged
+   on its own, so it can't be a plain catalog item. *@
+<root class="row" onmouseover=@( () => View?.SetFocused( View.Catalog.PostProcessInfo ) )>
+
+	<div class="line">
+
+		<div class="preset-head">
+			<label class="name">Quality Preset</label>
+			<label class="hint">Sets every effect below in one go.</label>
+		</div>
+
+		<div class="control">
+			<div class="tiers">
+				@foreach ( var preset in Tiers )
+				{
+					<div class="tier @(Current == preset ? "active" : "")" onclick=@( () => Pick( preset ) )>
+						<label>@preset.ToString()</label>
+					</div>
+				}
+
+				@* Where you land after changing an effect by hand. Not something you pick. *@
+				@if ( Current == PostProcessQuality.Custom )
+				{
+					<div class="tier custom active">
+						<label>Custom</label>
+					</div>
+				}
+			</div>
+		</div>
+
+	</div>
+
+</root>
+
+@code
+{
+	[Parameter] public SettingsView View { get; set; }
+
+	static readonly PostProcessQuality[] Tiers =
+		[PostProcessQuality.Off, PostProcessQuality.Low, PostProcessQuality.Medium, PostProcessQuality.High];
+
+	PostProcessQuality Current => View?.Catalog.StagedPostProcess ?? PostProcessQuality.Custom;
+
+	void Pick( PostProcessQuality preset )
+	{
+		View?.Catalog.StagePostProcess( preset );
+
+		// A ButtonGroup only reads its value when its parameters are set, so force the rebuild.
+		View?.Invalidate();
+	}
+
+	protected override int BuildHash() => HashCode.Combine( Current );
+}

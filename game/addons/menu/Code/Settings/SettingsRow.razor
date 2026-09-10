@@ -1,0 +1,84 @@
+﻿@using Sandbox
+@using Sandbox.UI
+@using System
+@namespace MenuProject.Settings
+@inherits Panel
+
+<root class="@RootClass" onmouseover=@( () => View?.SetFocused( Item ) )>
+
+	<div class="line">
+
+		<label class="name">@Item.Title</label>
+
+		<div class="control">
+			@if ( Item.Kind == SettingKind.Action )
+			{
+				<Button class="action" onclick=@( () => Item.Invoke?.Invoke() )>@Item.ActionLabel</Button>
+			}
+			else if ( Item.Kind == SettingKind.Slider )
+			{
+				<SliderControl Value:bind=@Item.FloatValue Min=@Item.Min Max=@Item.Max Step=@Item.Step NumberFormat=@Item.NumberFormat ShowTextEntry=@true></SliderControl>
+			}
+			else if ( Item.Kind == SettingKind.Dropdown )
+			{
+				<DropDown Value:bind=@Item.Value BuildOptions=@( () => Item.CurrentOptions )></DropDown>
+			}
+			else
+			{
+				<ButtonGroup Value:bind=@Item.Value Options=@Item.CurrentOptions></ButtonGroup>
+			}
+		</div>
+
+	</div>
+
+	@if ( Disabled is not null )
+	{
+		<div class="note locked">
+			<i>lock</i>
+			<label>@Disabled</label>
+		</div>
+	}
+	else if ( Warning is not null )
+	{
+		<div class="note warn">
+			<i>warning</i>
+			<label>@Warning</label>
+		</div>
+	}
+
+</root>
+
+@code
+{
+	[Parameter] public SettingItem Item { get; set; }
+	[Parameter] public SettingsView View { get; set; }
+
+	/// <summary>The search that turned this row up.</summary>
+	[Parameter] public string Highlight { get; set; }
+
+	string Disabled => Item?.Disabled;
+	string Warning => Item?.Warning?.Invoke();
+
+	string RootClass
+	{
+		get
+		{
+			var classes = $"row kind-{Item?.Kind.ToString().ToLowerInvariant()}";
+
+			if ( Disabled is not null ) classes += " disabled";
+			if ( !string.IsNullOrEmpty( Highlight ) ) classes += " matched";
+
+			return classes;
+		}
+	}
+
+	// A class rather than a rebuild, so dragging a slider outside its row doesn't tear it out.
+	public override void Tick()
+	{
+		base.Tick();
+
+		SetClass( "focused", View?.Focused == Item );
+	}
+
+	protected override int BuildHash() => HashCode.Combine( Item?.Id, Disabled, Warning, View?.Revision );
+}

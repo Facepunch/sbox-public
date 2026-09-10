@@ -1,4 +1,6 @@
 
+@import "/styles/_front.scss";
+
 GameClosedToast
 {
     border-radius: 12px;
@@ -6,25 +8,27 @@ GameClosedToast
     font-family: "poppins";
     font-size: 18px;
     font-weight: 600;
-    pointer-events: none;
+    pointer-events: all;
     box-shadow: 5px 5px 20px rgba( black, 0.8 );
     opacity: 1;
     transition: all 0.2s ease-out;
     sound-in: "ui.popup.message.open";
     overflow: hidden;
-    flex-direction: row;
+    flex-direction: column;
     background-color: #1b202c;
     border: 1px solid #8e9ec244;
-    opacity: 1;
     padding: 16px;
     margin-bottom: 16px;
     height: 190px;
     width: 350px;
-    pointer-events: all;
     position: relative;
     left: 0px;
-    flex-direction: column;
     gap: 8px;
+
+    &.with-jam
+    {
+        height: 250px;
+    }
 
     &:intro
     {
@@ -106,7 +110,6 @@ GameClosedToast
 
     .button
     {
-        padding: 0;
         background-color: white;
         padding: 1px 4px;
         border-radius: 4px;
@@ -142,6 +145,8 @@ GameClosedToast
 .body
 {
     flex-grow: 1;
+    gap: 8px;
+    padding: 0;
 }
 
 .close
@@ -197,12 +202,6 @@ GameClosedToast
 }
 
 
-.body
-{
-    gap: 8px;
-    padding: 0px;
-}
-
 .body .option
 {
     flex-grow: 1;
@@ -253,6 +252,92 @@ GameClosedToast
 .body .group .option
 {
     border-radius: 0;
+}
+
+.jam
+{
+    flex-shrink: 0;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: linear-gradient( 90deg, rgba( $front-reward, 0.22 ), rgba( $front-reward, 0.08 ) );
+    border: 1px solid rgba( $front-reward, 0.45 );
+    box-shadow: 0 0 16px rgba( $front-reward, 0.15 );
+
+    .text
+    {
+        flex-grow: 1;
+        flex-direction: column;
+        gap: 2px;
+
+        .title
+        {
+            font-size: 12px;
+            font-weight: 700;
+            color: $front-heading;
+        }
+
+        .hint
+        {
+            font-size: 10px;
+            font-weight: 400;
+            color: $front-reward;
+        }
+    }
+
+    .nominate
+    {
+        flex-shrink: 0;
+        align-items: center;
+        gap: 6px;
+        height: 34px;
+        padding: 0 14px;
+        border-radius: 8px;
+        background-color: $front-reward;
+        color: #0d1a12;
+        cursor: pointer;
+        transition: all 0.1s ease;
+
+        i
+        {
+            font-size: 16px;
+        }
+
+        label
+        {
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        &:hover
+        {
+            sound-in: ui.button.over;
+            filter: brightness( 1.15 );
+        }
+
+        &.on
+        {
+            background-color: rgba( $front-reward, 0.15 );
+            border: 1px solid rgba( $front-reward, 0.6 );
+            color: $front-reward;
+        }
+
+        &.busy, &.locked
+        {
+            opacity: 0.5;
+        }
+
+        &.busy
+        {
+            pointer-events: none;
+        }
+
+        &.locked
+        {
+            cursor: default;
+        }
+    }
 }
 
 .close-progress

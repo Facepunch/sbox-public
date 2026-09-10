@@ -328,6 +328,14 @@ internal static unsafe partial class VRSystem
 		if ( !Compositor.IsValid )
 			return;
 
+		lock ( CompositorFrameLock )
+		{
+			if ( !Compositor.IsValid )
+				return;
+
+			Compositor.Shutdown();
+			Compositor = default;
+		}
 		Compositor.Shutdown();
 		Compositor = default;
 	}

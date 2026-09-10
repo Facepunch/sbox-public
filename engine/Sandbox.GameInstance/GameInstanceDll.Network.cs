@@ -44,22 +44,29 @@ internal partial class GameInstanceDll
 	/// </summary>
 	readonly ReplicatedConvars ReplicatedConvars = new( "ReplicatedConvars" );
 
+	public void OnBecameHost()
+	{
+		ReplicatedConvars.OnBecameHost();
+	}
+
 	private List<FileWatch> FileWatchers { get; set; } = new();
 	private bool DidMountNetworkedFiles { get; set; }
+
+	/// <summary>
+	/// What we enumerate for files to offer joining clients: the game's content plus any local
+	/// libraries. We own this so it needs disposing, the filesystems mounted into it don't.
+	/// </summary>
+	internal AggregateFileSystem NetworkedFileSystem { get; private set; }
 
 	public GameNetworkSystem CreateGameNetworking( NetworkSystem system )
 	{
 		var instance = new SceneNetworkSystem( TypeLibrary, system );
 
 		NetworkedLargeFiles.NetworkInitialize( instance );
+		Platform.Chat.NetworkInitialize( instance );
 
 		if ( Networking.IsHost )
 		{
-			if ( Application.GamePackage is { } gamePackage )
-			{
-				ServerPackages.AddRequirement( gamePackage );
-			}
-
 			AddFilesToNetwork( NetworkedConfigFiles, EngineFileSystem.ProjectSettings, [".config"] );
 			AddFilesToNetwork( NetworkedLangFiles, Game.Language.FileSystem, [".json"] );
 			BuildNetworkedFiles();
@@ -77,7 +84,43 @@ internal partial class GameInstanceDll
 			NetworkedConfigFiles.Refresh();
 			NetworkedLangFiles.Refresh();
 
-			ResourceLoader.LoadAllGameResource( FileSystem.Mounted );
+			ResourceLoader.LoadAllGameResource( FileSystem.Mounted, reloadExisting: true );
+			FontManager.Instance.LoadAll( FileSystem.Mounted );
+
+			DidMountNetworkedFiles = true;
+		}
+
+		return instance;
+	}
+
+	public async Task<GameNetworkSystem> CreateGameNetworkingAsync( NetworkSystem system )
+	{
+		var instance = new SceneNetworkSystem( TypeLibrary, system );
+
+		NetworkedLargeFiles.NetworkInitialize( instance );
+		Platform.Chat.NetworkInitialize( instance );
+
+		if ( Networking.IsHost )
+		{
+			AddFilesToNetwork( NetworkedConfigFiles, EngineFileSystem.ProjectSettings, [".config"] );
+			AddFilesToNetwork( NetworkedLangFiles, Game.Language.FileSystem, [".json"] );
+			BuildNetworkedFiles();
+		}
+		else if ( !DidMountNetworkedFiles )
+		{
+			EngineFileSystem.ProjectSettings.Mount( NetworkedConfigFiles.Files );
+			Game.Language.FileSystem.Mount( NetworkedLangFiles.Files );
+			Game.Language.Refresh();
+
+			FileSystem.Mounted.Mount( NetworkedLargeFiles.Files );
+			FileSystem.Mounted.Mount( NetworkedSmallFiles.Files );
+
+			NetworkedSmallFiles.Refresh();
+			NetworkedConfigFiles.Refresh();
+			NetworkedLangFiles.Refresh();
+
+			LoadingScreen.Title = "Loading Resources";
+			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted, reloadExisting: true );
 			FontManager.Instance.LoadAll( FileSystem.Mounted );
 
 			DidMountNetworkedFiles = true;
@@ -146,7 +189,7 @@ internal partial class GameInstanceDll
 			compiler.UpdateFromArchive( codeArchive );
 		};
 
-		CodeArchiveTable.PostNetworkUpdate = FinishLoadingCodeArchives;
+		CodeArchiveTable.PostNetworkUpdate = () => FinishLoadingCodeArchives();
 
 		//
 		// Config
@@ -155,33 +198,40 @@ internal partial class GameInstanceDll
 		ConfigTable.PostNetworkUpdate = UpdateConfigFromNetworkTable;
 	}
 
-	void FinishLoadingCodeArchives()
+	bool FinishLoadingCodeArchives()
 	{
+		if ( !compileGroup.NeedsBuild )
+		{
+			FinishLoadingAssemblies();
+			return true;
+		}
+
 		// We need to build it syncronously because we don't want other
 		// network shit coming in, that was created using the new assemblies
 		// and us not being able to understand because we don't have the
 		// new code compiled and loaded yet!
 		SyncContext.RunBlocking( compileGroup.BuildAsync() );
+		if ( !compileGroup.BuildResult.Success )
+			return false;
 
 		//
 		// Get the new assemblies and update them
 		//
-		if ( compileGroup.BuildResult.Success )
+		foreach ( var assm in compileGroup.BuildResult.Output )
 		{
-			foreach ( var assm in compileGroup.BuildResult.Output )
-			{
-				using var stream = new MemoryStream( assm.AssemblyData );
-				AssemblyEnroller.LoadAssemblyFromStream( assm.Compiler.AssemblyName, stream );
-			}
+			using var stream = new MemoryStream( assm.AssemblyData );
+			AssemblyEnroller.LoadAssemblyFromStream( assm.Compiler.AssemblyName, stream );
 		}
 
 		//
 		// Do the hotload and stuff
 		//
 		FinishLoadingAssemblies();
+
+		return true;
 	}
 
-	public async Task LoadNetworkTables( NetworkSystem system )
+	public async Task<bool> LoadNetworkTables( NetworkSystem system )
 	{
 		compileGroup = new CompileGroup( "server" );
 
@@ -198,19 +248,33 @@ internal partial class GameInstanceDll
 
 		// We might have loaded new assemblies, here's a safe time to
 		// hotload before we start downloading again.
-		FinishLoadingCodeArchives();
+		if ( !FinishLoadingCodeArchives() )
+		{
+			Disconnect( "Failed to compile code archives. Check log for details." );
+			return false;
+		}
 
 		// Load configs from network tables
 		UpdateConfigFromNetworkTable();
 
 		await ServerPackages.InstallAll();
 
+		// Prevent a blank title between the last package install and the download queue start.
+		if ( string.IsNullOrWhiteSpace( LoadingScreen.Title ) )
+			LoadingScreen.Title = "Loading..";
+
 		await NetworkedLargeFiles.RunDownloadQueue( system, default );
+
+		return true;
 	}
 
 	static string[] _interestingExtensions = new[] { "_c", ".scss", ".ttf" };
-	static string[] _engineAssets = new[] { "vtex_c", "vmat_c", "vsnd_c", "vmdl_c", "vpk", "vanmgrph_c" }; // anything that the engine has to download has to be a LARGE download
+	static string[] _engineAssets = new[] { "vtex_c", "vmat_c", "vsnd_c", "vmdl_c", "vpk", "vanmgrph_c", "shader_c" }; // anything the native engine loads from disk has to be a LARGE download
 	List<string> _netIncludePaths = new(); // wildcard-supported paths we also want to include content of
+
+	// Small files only live in an in-memory filesystem, which native loaders can't read - engine assets must be a real file on disk.
+	internal static bool ShouldUseLargeDownload( string filename, long size )
+		=> size >= 1024 * 64 || _engineAssets.Any( x => filename.EndsWith( x ) );
 
 	bool ShouldNetworkFile( string filename )
 	{
@@ -240,14 +304,10 @@ internal partial class GameInstanceDll
 		if ( !fs.FileExists( filename ) )
 			return;
 
-		bool isEngineAsset = _engineAssets.Any( x => filename.EndsWith( x ) );
-
 		var fullPath = fs.GetFullPath( filename );
 		var size = fs.FileSize( filename );
 
-		var smallFileSize = 1024 * 64; // biggest file to include in the memory filesystem is 64kb
-
-		if ( !isEngineAsset && size < smallFileSize )
+		if ( !ShouldUseLargeDownload( filename, size ) )
 		{
 			var bytes = fs.ReadAllBytes( filename );
 			var wasAdded = NetworkedSmallFiles.AddFile( fs, filename, bytes.ToArray() );
@@ -296,7 +356,8 @@ internal partial class GameInstanceDll
 		// No network files needed for package based games
 		if ( gameInstance.IsRemote ) return;
 
-		Log.Info( "Building network files.." );
+		if ( AssetDownloadCache.DebugNetworkFiles )
+			Log.Info( "Building network files.." );
 
 		// include anything on resource paths
 		var project = Project.Current;
@@ -310,7 +371,25 @@ internal partial class GameInstanceDll
 			_netIncludePaths.AddRange( resourcePaths );
 		}
 
-		var fs = gameInstance.GameFileSystem;
+		// a library is its own package with its own filesystem, so its assets aren't in the
+		// game's filesystem and joining clients are never told about them
+		var libraries = Project.Libraries
+			.Where( x => x.Active && x.RootDirectory is not null )
+			.ToArray();
+
+		var fs = new AggregateFileSystem();
+		fs.Mount( gameInstance.GameFileSystem );
+
+		foreach ( var library in libraries )
+		{
+			if ( PackageManager.Find( library.Package.FullIdent, true ) is not { } libraryPackage )
+				continue;
+
+			fs.Mount( libraryPackage.FileSystem );
+		}
+
+		NetworkedFileSystem = fs;
+
 		var files = fs.FindFile( "/", "*", true );
 
 		foreach ( var file in files )
@@ -328,6 +407,45 @@ internal partial class GameInstanceDll
 		};
 
 		FileWatchers.Add( watcher );
-		Log.Info( $"..done in {sw.Elapsed.TotalSeconds:0.00}s" );
+
+		NetworkTransientGeneratedFiles( project );
+
+		// library transients can't be networked - large files resolve through EngineFileSystem.Mounted,
+		// and only the main project's .sbox/transient is ever mounted there
+
+		if ( AssetDownloadCache.DebugNetworkFiles )
+			Log.Info( $"..done in {sw.Elapsed.TotalSeconds:0.00}s" );
+	}
+
+	/// <summary>
+	/// Make runtime-generated assets in the project's .sbox/transient/ folder available to joining clients
+	/// This is necessary for connected clients to see things like TextureGenerators.
+	/// </summary>
+	void NetworkTransientGeneratedFiles( Project project )
+	{
+		if ( project is null )
+			return;
+
+		var transientFolder = Path.Combine( project.GetRootPath(), ".sbox", "transient" );
+		if ( !Directory.Exists( transientFolder ) )
+			return;
+
+		var transientFs = new LocalFileSystem( transientFolder );
+
+		foreach ( var file in transientFs.FindFile( "/", "*", true ) )
+		{
+			UpdateNetworkFile( transientFs, file );
+		}
+
+		var watcher = transientFs.Watch();
+		watcher.OnChanges += w =>
+		{
+			foreach ( var fileName in w.Changes )
+			{
+				UpdateNetworkFile( transientFs, fileName );
+			}
+		};
+
+		FileWatchers.Add( watcher );
 	}
 }

@@ -1,0 +1,57 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+
+@using Sandbox;
+@using Sandbox.UI;
+
+@attribute [Title( "About" )]
+@attribute [Description( "What this section is for and how to add to it" )]
+@attribute [Icon( "help" )]
+@attribute [Order( 0 )]
+
+<root>
+
+    <h2>Reading a case</h2>
+
+    <p>
+        Every case prints the CSS that styled it. It's the same string, not a copy, so you can paste
+        it into a browser and the two should match at 1:1. Sizes and fills that aren't the point of
+        the test are left out of the caption.
+    </p>
+
+    <div class="cases">
+        <UiTestCase Css="border-radius: 12px 0" Note="A note says what to look for when the CSS doesn't." />
+    </div>
+
+    <h2>This window</h2>
+
+    <p>
+        Scale 1, not desktop scaling, so a CSS pixel is a screen pixel. Leave that alone - it's why
+        a screenshot from here can be diffed against a browser.
+    </p>
+
+    <p>
+        This window draws with no post processing, so HDR colours clamp instead of glowing. The HDR
+        page still proves the values parse and blend - seeing the glow needs a scene with bloom.
+    </p>
+
+    <h2>Adding a page</h2>
+
+    <p>
+        Derive a razor panel from UiTestPage in this folder. It shows up in the list on its own -
+        Title, Description, Icon and Order place it. Cases go in a "cases" div. Class a case
+        "checkered" for alpha, "dark" for glows, "roomy" when it draws outside its box, "wide" for
+        a long caption.
+    </p>
+
+    <p>
+        Keep a case that shows a bug, and say so in its note. Don't keep one that throws - an
+        exception while the tree builds repeats every frame and buries the console.
+    </p>
+
+    <p>
+        Watch what you name a const in a page: a page is a Panel, so Box, Style, Parent and the
+        rest of Panel's members are taken, and hiding one is a build error, not a warning.
+    </p>
+
+</root>

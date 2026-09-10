@@ -18,6 +18,7 @@ internal static partial class DebugOverlay
 			DrawHeader( ref drawPos, "UI Batching" );
 			Row( ref drawPos, "Panels", s.Panels, $"({s.BatchedPanels} batched, {s.InlinePanels} inline, {s.LayerPanels} layer)" );
 			Row( ref drawPos, "Draw Calls", s.DrawCalls );
+			Row( ref drawPos, "Frame Grabs", s.FrameGrabs );
 			Row( ref drawPos, "Flushes", s.FlushCount, s.FlushCount > 0 ? $"avg {s.InstanceCount / s.FlushCount} instances" : null );
 			Row( ref drawPos, "Instances", s.InstanceCount );
 			Row( ref drawPos, "Scissors", s.ScissorCount );

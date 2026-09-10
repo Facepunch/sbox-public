@@ -24,4 +24,7 @@ native class CDecalSceneObject as NativeEngine.CDecalSceneObject : CSceneObject
 	float m_flParallaxStrength;
 
 	int m_nSamplerIndex;
+
+	float m_flCoverageAmount;
+	float m_flCoverageRange;
 }

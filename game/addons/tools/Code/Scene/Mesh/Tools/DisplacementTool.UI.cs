@@ -47,6 +47,7 @@ partial class DisplacementTool
 				group.Add( ControlSheetRow.Create( so.GetProperty( nameof( tool.Hardness ) ) ) );
 				group.Add( ControlSheetRow.Create( so.GetProperty( nameof( tool.NormalDir ) ) ) );
 				group.Add( ControlSheetRow.Create( so.GetProperty( nameof( tool.PaintBackfacing ) ) ) );
+				group.Add( ControlSheetRow.Create( so.GetProperty( nameof( tool.ScaleWithDistance ) ) ) );
 			}
 			{
 				var group = AddGroup( "Visualization" );
@@ -55,6 +56,15 @@ partial class DisplacementTool
 			}
 
 			Layout.AddStretchCell();
+
+			AddShortcuts(
+				("Displace", "LMB"),
+				("Smooth", "Shift+LMB"),
+				("Invert Direction", "Ctrl+LMB"),
+				("Adjust Radius", "Shift+MMB Drag"),
+				("Adjust Strength", "Ctrl+MMB ↕"),
+				("Adjust Hardness", "Ctrl+MMB ↔")
+			);
 		}
 
 		[EditorEvent.Frame]

@@ -48,16 +48,17 @@ internal partial class PanelRenderer
 		if ( panel.HasPanelLayer )
 			return Panel.RenderMode.Layer;
 
-		if ( panel.HasBackdropFilter ) return Panel.RenderMode.Inline;
+		if ( panel is IPanelDraw ) return Panel.RenderMode.Inline;
 		if ( panel is ScenePanel ) return Panel.RenderMode.Inline;
 		if ( panel is BasePopup ) return Panel.RenderMode.Inline;
+		if ( panel.HasCustomDraw ) return Panel.RenderMode.Inline;
 
 		return Panel.RenderMode.Batched;
 	}
 
 	void UpdateScissorState( Panel panel )
 	{
-		var hash = HashCode.Combine( ScissorGPU.Rect, ScissorGPU.CornerRadius, ScissorGPU.Matrix );
+		var hash = ScissorGPU.GetHash();
 		if ( panel._lastScissorHash == hash ) return;
 
 		panel._lastScissorHash = hash;
@@ -70,8 +71,11 @@ internal partial class PanelRenderer
 		if ( panel.ComputedStyle?.BackgroundImage is not { } tex )
 			return;
 
-		if ( tex.IsDirty )
+		if ( tex.DirtyVersion != panel.CachedBackgroundVersion )
+		{
+			panel.CachedBackgroundVersion = tex.DirtyVersion;
 			panel.IsRenderDirty = true;
+		}
 
 		tex.MarkUsed();
 	}

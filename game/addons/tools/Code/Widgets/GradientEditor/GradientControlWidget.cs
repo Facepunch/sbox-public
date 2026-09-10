@@ -33,7 +33,14 @@ public class GradientControlWidget : ControlWidget
 	private void OpenPopup()
 	{
 		Gradient v = SerializedProperty.GetValue<Gradient>();
-		GradientEditorWidget.OpenPopup( this, v, x => { SerializedProperty.SetValue( x ); Update(); } );
+		GradientEditorWidget.OpenPopup( this, v, x =>
+		{
+			if ( SerializedProperty.GetValue<Gradient>().Equals( x ) )
+				return;
+
+			SerializedProperty.SetValue( x );
+			Update();
+		} );
 	}
 
 	protected override void OnContextMenu( ContextMenuEvent e )

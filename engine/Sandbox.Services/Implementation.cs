@@ -21,10 +21,12 @@ public static class Backend
 	public static INotificationApi Notifications { get; private set; }
 	public static IStorageApi Storage { get; private set; }
 	public static IUtilityApi Utility { get; private set; }
+	public static IJamApi Jam { get; private set; }
 
 	private static HttpClient httpClient = null;
 
-	public static void Initialize( DelegatingHandler httpHandler, string url = "https://services.facepunch.com/sbox" )
+	//public static void Initialize( DelegatingHandler httpHandler, string url = "http://localhost:7071" )
+	public static void Initialize( DelegatingHandler httpHandler, string url = "https://public.facepunch.com/sbox" )
 	{
 		var refitSettings = BuildSettings( url );
 
@@ -46,6 +48,7 @@ public static class Backend
 		Notifications = RestService.For<INotificationApi>( httpClient, refitSettings );
 		Storage = RestService.For<IStorageApi>( httpClient, refitSettings );
 		Utility = RestService.For<IUtilityApi>( httpClient, refitSettings );
+		Jam = RestService.For<IJamApi>( httpClient, refitSettings );
 	}
 
 	static RefitSettings BuildSettings( string url )

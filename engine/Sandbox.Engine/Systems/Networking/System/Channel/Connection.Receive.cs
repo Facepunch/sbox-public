@@ -6,7 +6,7 @@ namespace Sandbox;
 
 public abstract partial class Connection
 {
-	// Per-connection chunk reassembly buffer — grown on demand to the high-water mark.
+	// Per-connection chunk reassembly buffer, grown on demand to the high-water mark.
 	// _chunkBufferLength == -1 signals "no assembly in progress".
 	byte[] _chunkBuffer;
 	int _chunkBufferLength = -1;
@@ -18,18 +18,42 @@ public abstract partial class Connection
 	/// </summary>
 	internal void OnRawPacketReceived( ReadOnlySpan<byte> rawPacket, NetworkSystem.MessageHandler handler )
 	{
-		if ( rawPacket.Length < 1 ) return;
-
-		if ( rawPacket[0] == FlagChunk )
+		try
 		{
-			AssembleChunk( rawPacket, handler );
-			return;
-		}
+			if ( rawPacket.Length < 1 ) return;
 
-		DeliverDecoded( rawPacket, handler );
+			if ( rawPacket[0] == FlagChunk )
+			{
+				AssembleChunk( rawPacket, handler );
+				return;
+			}
+
+			DeliverDecoded( rawPacket, handler );
+		}
+		catch ( Exception e )
+		{
+			// Drop the bad packet and keep draining. A throw here would abort the whole drain loop and
+			// back up the incoming channel, starving every client until the server restarts.
+			Log.Warning( e, $"Dropping malformed packet ({rawPacket.Length}b) from {this}" );
+		}
 	}
 
 	private void AssembleChunk( ReadOnlySpan<byte> rawPacket, NetworkSystem.MessageHandler handler )
+	{
+		try
+		{
+			AssembleChunkInternal( rawPacket, handler );
+		}
+		catch
+		{
+			// Abandon any partial assembly so the next chunk can't extend a buffer with a gap in it.
+			// Reassembly only restarts on the next index==0 packet.
+			_chunkBufferLength = -1;
+			throw;
+		}
+	}
+
+	private void AssembleChunkInternal( ReadOnlySpan<byte> rawPacket, NetworkSystem.MessageHandler handler )
 	{
 		if ( rawPacket.Length < 9 ) throw new InvalidDataException( "Chunk packet too short" );
 
@@ -61,10 +85,7 @@ public abstract partial class Connection
 		// Chunks must arrive in strict sequential order. Out-of-order or duplicate chunks
 		// would silently corrupt the reassembled payload.
 		if ( index != _chunkExpectedIndex )
-		{
-			_chunkBufferLength = -1;
 			throw new InvalidDataException( $"Expected chunk {_chunkExpectedIndex} but received {index} of {total} from {this}" );
-		}
 
 		_chunkExpectedIndex++;
 
@@ -81,7 +102,7 @@ public abstract partial class Connection
 
 		var assembledLength = _chunkBufferLength;
 		_chunkBufferLength = -1;
-		// _chunkBuffer is intentionally kept — it will be reused for the next chunked message.
+		// _chunkBuffer is intentionally kept, it will be reused for the next chunked message.
 
 		DeliverDecoded( _chunkBuffer.AsSpan( 0, assembledLength ), handler );
 	}

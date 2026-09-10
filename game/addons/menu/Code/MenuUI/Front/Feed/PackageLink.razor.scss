@@ -1,0 +1,19 @@
+@import "/styles/_theme.scss";
+
+PackageLink
+{
+    align-self: flex-start;
+    pointer-events: all;
+
+    Label
+    {
+        color: #d4def6;
+        font-weight: 600;
+        white-space: normal;
+    }
+
+    &:hover Label
+    {
+        color: white;
+    }
+}

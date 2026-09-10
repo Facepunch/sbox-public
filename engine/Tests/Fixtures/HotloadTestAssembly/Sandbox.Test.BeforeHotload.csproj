@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!-- Fixture assembly for Sandbox.Test.Unit's hotload tests: the "before" version of TestClass.cs that hotload transforms from. Not a test suite. -->
+
+	<PropertyGroup>
+		<VersionPrefix>1.0.1</VersionPrefix>
+		<IsTestProject>false</IsTestProject>
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<AssemblyName>Sandbox.Test.Before</AssemblyName>
+		<PackageId>Sandbox.Test.Before</PackageId>
+		<LangVersion>preview</LangVersion>
+		<UseNETCoreGenerator>true</UseNETCoreGenerator>
+		<RootNamespace>Sandbox.TestAssembly</RootNamespace>
+		<DefineConstants>TRACE;TEST_BEFORE</DefineConstants>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\..\Sandbox.Hotload\Sandbox.Hotload.csproj" />
+		<ProjectReference Include="..\..\..\Sandbox.Reflection\Sandbox.Reflection.csproj" />
+	</ItemGroup>
+
+</Project>

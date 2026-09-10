@@ -12,6 +12,12 @@ public abstract class BasePopup : Panel
 	/// </summary>
 	public bool StayOpen { get; set; }
 
+	/// <summary>
+	/// The popup this one hangs off, if it's part of a chain like a cascading menu. Closing
+	/// everything but a popup spares its chain too, so a click in a submenu keeps the parents up.
+	/// </summary>
+	protected virtual BasePopup ParentPopup => null;
+
 	public static void CloseAll( Panel exceptThisOne = null )
 	{
 		if ( AllPopups.Count == 0 )
@@ -30,6 +36,7 @@ public abstract class BasePopup : Panel
 		{
 			if ( panel == floater ) continue;
 			if ( panel.StayOpen && panel.Parent.IsValid() ) continue;
+			if ( floater is not null && floater.IsInChainOf( panel ) ) continue;
 
 			try
 			{
@@ -46,6 +53,16 @@ public abstract class BasePopup : Panel
 	public BasePopup()
 	{
 		AllPopups.Add( this );
+	}
+
+	bool IsInChainOf( BasePopup ancestor )
+	{
+		for ( var popup = ParentPopup; popup is not null; popup = popup.ParentPopup )
+		{
+			if ( popup == ancestor ) return true;
+		}
+
+		return false;
 	}
 
 	public override void OnDeleted()

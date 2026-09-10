@@ -18,6 +18,7 @@ public static partial class PerformanceStats
 		public static Timings Audio { get; } = Get( "Audio", "#bdb2ff" );
 		public static Timings Editor { get; } = Get( "Editor", "#7f8188" );
 		//	public static Timings Io { get; } = Get( "IO", "#b5838d" );
+		public static Timings Idle { get; } = Get( "Idle", "#808080" );
 		public static Timings Input { get; } = Get( "Input", "#e9ff70" );
 		//	public static Timings Internal { get; } = Get( "Internal", "#e5e5e5" );
 		public static Timings NavMesh { get; } = Get( "NavMesh", "#738D45" );
@@ -39,7 +40,7 @@ public static partial class PerformanceStats
 
 		private static ReadOnlyCollection<Timings> BuildMain()
 		{
-			var list = new List<Timings> { Async, Animation, Audio, GcPause, Input, NavMesh, Network, Particles, Physics, Render, Update, Ui, Video };
+			var list = new List<Timings> { Async, Animation, Audio, GcPause, Idle, Input, NavMesh, Network, Particles, Physics, Render, Update, Ui, Video };
 			if ( Application.IsEditor )
 				list.Add( Editor );
 			return list.AsReadOnly();

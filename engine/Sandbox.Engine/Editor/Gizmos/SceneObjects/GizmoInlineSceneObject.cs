@@ -1,11 +1,13 @@
-﻿namespace Sandbox;
+﻿using Sandbox.Rendering;
+
+namespace Sandbox;
 
 /// <summary>
 /// Draws anything
 /// </summary>
 internal class GizmoInlineSceneObject : SceneCustomObject
 {
-	public Action Action { get; set; }
+	public CommandList CommandList { get; } = new( "GizmoInline" );
 
 	public GizmoInlineSceneObject( SceneWorld sceneWorld ) : base( sceneWorld )
 	{
@@ -13,6 +15,6 @@ internal class GizmoInlineSceneObject : SceneCustomObject
 
 	public override void RenderSceneObject()
 	{
-		Action?.Invoke();
+		CommandList.ExecuteOnRenderThread();
 	}
 }

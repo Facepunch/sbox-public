@@ -2,10 +2,13 @@
 
 namespace Editor.MeshEditor;
 
+/// <summary>
+/// Creates a sphere fitted to the drawn bounds.
+/// </summary>
 [Title( "Sphere" ), Icon( "sports_baseball" )]
 internal class SpherePrimitive : PrimitiveBuilder
 {
-	[Title( "Number of sides" )]
+	[Title( "Number of sides" ), WideMode, Description( "Controls how smooth the sphere is." )]
 	public int NumberOfSides { get; set; } = 8;
 
 	[Hide] public Vector3 Center { get; set; }

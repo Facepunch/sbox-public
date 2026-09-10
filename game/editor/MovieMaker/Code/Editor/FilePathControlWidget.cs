@@ -6,7 +6,7 @@ namespace Editor.MovieMaker;
 
 #nullable enable
 
-[CustomEditor( typeof( string ), WithAllAttributes = [ typeof( FileExtensionsAttribute ) ] )]
+[CustomEditor( typeof( string ), WithAllAttributes = [typeof( FileExtensionsAttribute )] )]
 public sealed class FilePathControlWidget : ControlWidget
 {
 	public FilePathControlWidget( SerializedProperty property ) : base( property )

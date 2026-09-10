@@ -114,7 +114,7 @@ internal class PropertyBlockWriter<T>( int sampleRate, MovieTime? bufferDuration
 
 		if ( IsConstant ) return new CompiledConstantBlock<T>( timeRange, _lastValue );
 
-		return new CompiledSampleBlock<T>( timeRange, samplesTimeRange.Start - timeRange.Start, sampleRate, [.. _samples!] );
+		return new CompiledSampleBlock<T>( timeRange, timeRange.Start - samplesTimeRange.Start, sampleRate, [.. _samples!] );
 	}
 
 	public IEnumerable<MovieTimeRange> GetPaintHints( MovieTimeRange timeRange ) => [TimeRange];

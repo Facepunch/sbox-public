@@ -18,7 +18,7 @@ public partial class RenderSettings
 
 	public bool Fullscreen
 	{
-		get => VideoSettings.Get<bool>( "fullscreen", true );
+		get => VideoSettings.Get<bool>( "fullscreen", false );
 		set => VideoSettings.Set<bool>( "fullscreen", value );
 	}
 
@@ -47,7 +47,49 @@ public partial class RenderSettings
 			return value.FromEngine();
 		}
 
-		set => VideoSettings.Set( "aaquality", value.ToEngine() );
+		set => VideoSettings.Set( "aaquality", GetSupportedAntiAliasQuality( value ).ToEngine() );
+	}
+
+	/// <summary>Returns the requested MSAA amount when supported, or the best available amount.</summary>
+	public static MultisampleAmount GetSupportedAntiAliasQuality( MultisampleAmount amount ) =>
+		NativeEngine.RenderDeviceManager.GetBestMultisampleType( amount.ToEngine() ).FromEngine();
+
+	internal struct VideoModeSnapshot
+	{
+		public int Width, Height;
+		public bool Fullscreen, Borderless, VSync;
+		public MultisampleAmount AntiAlias;
+		public int MaxFps, MaxFpsInactive;
+		public float Fov;
+	}
+
+	internal VideoModeSnapshot CaptureSnapshot() => new VideoModeSnapshot
+	{
+		Width = ResolutionWidth,
+		Height = ResolutionHeight,
+		Fullscreen = Fullscreen,
+		Borderless = Borderless,
+		VSync = VSync,
+		AntiAlias = AntiAliasQuality,
+		MaxFps = MaxFrameRate,
+		MaxFpsInactive = MaxFrameRateInactive,
+		Fov = DefaultFOV,
+	};
+
+	internal void RestoreSnapshot( VideoModeSnapshot snap )
+	{
+		ResolutionWidth = snap.Width;
+		ResolutionHeight = snap.Height;
+		Fullscreen = snap.Fullscreen;
+		Borderless = snap.Borderless;
+		VSync = snap.VSync;
+		AntiAliasQuality = snap.AntiAlias;
+		MaxFrameRate = snap.MaxFps;
+		MaxFrameRateInactive = snap.MaxFpsInactive;
+		DefaultFOV = snap.Fov;
+
+		NativeEngine.RenderDeviceManager.ChangeVideoMode( Fullscreen, Borderless, VSync, ResolutionWidth, ResolutionHeight, AntiAliasQuality.ToEngine() );
+		VideoSettings.Save();
 	}
 
 	private void ApplyVideoMode()

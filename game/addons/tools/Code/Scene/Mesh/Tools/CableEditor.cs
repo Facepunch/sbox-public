@@ -5,7 +5,7 @@ namespace Editor.MeshEditor;
 /// <summary>
 /// Draw a cable path by placing points in the scene.
 /// </summary>
-[Title( "Cable" ), Icon( "cable" )]
+[Title( "Cable" ), Icon( "meshtools/primitve_tools/cable.png" )]
 public sealed class CableEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 {
 	readonly List<Vector3> _points = [];
@@ -406,7 +406,7 @@ public sealed class CableEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 
 	public override Widget CreateWidget() => new CableEditorWidget( this );
 
-	[Range( 0.5f, 64f, slider: false ), Step( 0.5f ), Title( "Radius" ), WideMode]
+	[Range( 0.5f, 64f, slider: false ), Step( 0.5f ), Title( "Radius" ), WideMode, Description( "Controls the thickness of the cable." )]
 	public float Size
 	{
 		get;
@@ -418,7 +418,7 @@ public sealed class CableEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 		}
 	} = 8f;
 
-	[Range( 3, 32, slider: false ), Step( 1 ), Title( "Subdivisions" ), WideMode]
+	[Range( 3, 32, slider: false ), Step( 1 ), Title( "Subdivisions" ), WideMode, Description( "Controls how many sides are used around the cable." )]
 	public int Subdivisions
 	{
 		get;
@@ -431,7 +431,7 @@ public sealed class CableEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 		}
 	} = 8;
 
-	[Range( 0, 16, slider: false ), Step( 1 ), Title( "Spacing" ), WideMode]
+	[Range( 0, 16, slider: false ), Step( 1 ), Title( "Spacing" ), WideMode, Description( "Adds intermediate points between each placed point." )]
 	public int PathDetail
 	{
 		get;
@@ -444,7 +444,7 @@ public sealed class CableEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 		}
 	} = 6;
 
-	[Range( -512f, 512f, slider: false ), Step( 0.5f ), Title( "Slack" ), WideMode]
+	[Range( -512f, 512f, slider: false ), Step( 0.5f ), Title( "Slack" ), WideMode, Description( "Adds sag or tension between placed points." )]
 	public float Slack
 	{
 		get;
@@ -497,8 +497,6 @@ public sealed class CableEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 			group.Add( ControlSheetRow.Create( so.GetProperty( nameof( editor.Slack ) ) ) );
 			group.Add( ControlSheetRow.Create( so.GetProperty( nameof( editor.CapEnds ) ) ) );
 			group.Add( ControlSheetRow.Create( so.GetProperty( nameof( editor.OffsetFromSurface ) ) ) );
-
-			Layout.AddStretchCell();
 		}
 
 		[Shortcut( "editor.delete", "DEL", typeof( SceneViewWidget ) )]

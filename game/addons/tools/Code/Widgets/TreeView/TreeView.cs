@@ -1,6 +1,4 @@
-﻿using Sandbox.UI;
-
-namespace Editor;
+﻿namespace Editor;
 
 public partial class TreeView : BaseItemWidget
 {
@@ -387,7 +385,7 @@ public partial class TreeView : BaseItemWidget
 		// Create popup for renaming this item
 		//
 
-		var indent = item.Column * IndentWidth + ExpandWidth + 20;
+		var indent = (item.Column * IndentWidth) + ExpandWidth + 20;
 		var popup = new PopupWidget( this );
 		popup.Layout = Layout.Column();
 		popup.Position = ToScreen( item.Rect.TopLeft + new Vector2( indent, 0 ) );
@@ -397,11 +395,18 @@ public partial class TreeView : BaseItemWidget
 		var lineEdit = popup.Layout.Add( new LineEdit() );
 		lineEdit.Text = first?.Name ?? "";
 
+		var isCompleted = false;
 		var onComplete = () =>
 		{
-			if ( !popup.Visible ) return;
+			if ( isCompleted )
+				return;
 
-			first?.OnRename( item, lineEdit.Text, items );
+			isCompleted = true;
+
+			if ( !string.IsNullOrEmpty( lineEdit.Text ) )
+			{
+				first?.OnRename( item, lineEdit.Text, items );
+			}
 
 			popup.Close();
 		};
@@ -822,50 +827,28 @@ public partial class TreeView : BaseItemWidget
 	protected override void SelectTo( object item, bool skipEvents = false )
 	{
 		var indexed = BuildFullOrderedIndex();
-		var currentObj = Selection.FirstOrDefault() ?? _items.FirstOrDefault();
-
-		if ( currentObj is null ) return;
-
-		UnselectAll( true );
-
-		var indexA = indexed.IndexOf( ResolveObject( currentObj ) );
 		var indexB = indexed.IndexOf( ResolveObject( item ) );
+		if ( indexB < 0 ) return;
 
-		if ( indexA == -1 || indexB == -1 ) return;
-
-		if ( !skipEvents ) OnBeforeSelection?.Invoke( Selection.ToArray() );
-
-		// Whenever we shift around we always want to maintain whatever item we started with
-		// So lets explicitly add to this list backwards / forwards to always keep the start the same
-		if ( indexA < indexB )
+		var indexA = indexed.IndexOf( SelectionAnchor );
+		if ( indexA < 0 )
 		{
-			for ( int i = indexA; i <= indexB; i++ )
-			{
-				if ( ShouldDisplayChild != null )
-				{
-					var node = ResolveNode( indexed[i], true );
-
-					if ( !ShouldDisplayChild( node ) )
-						continue;
-				}
-
-				SetSelected( indexed[i], true, skipEvents );
-			}
+			SetSelectionAnchor( item );
+			indexA = indexB;
 		}
-		else if ( indexA > indexB )
+
+		var selected = Selection.ToArray();
+		if ( !skipEvents ) OnBeforeSelection?.Invoke( selected );
+
+		ClearSelectionRange( skipEvents );
+
+		var step = indexA <= indexB ? 1 : -1;
+		for ( var i = indexA; ; i += step )
 		{
-			for ( int i = indexA; i >= indexB; i-- )
-			{
-				if ( ShouldDisplayChild != null )
-				{
-					var node = ResolveNode( indexed[i], true );
+			if ( ShouldDisplayChild == null || ShouldDisplayChild( ResolveNode( indexed[i], true ) ) )
+				SelectRangeItem( indexed[i], skipEvents );
 
-					if ( !ShouldDisplayChild( node ) )
-						continue;
-				}
-
-				SetSelected( indexed[i], true, skipEvents );
-			}
+			if ( i == indexB ) break;
 		}
 
 		if ( !skipEvents ) OnSelectionChanged?.Invoke( Selection.ToArray() );

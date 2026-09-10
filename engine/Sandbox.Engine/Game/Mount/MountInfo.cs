@@ -33,3 +33,37 @@ public struct MountInfo
 		Mounted = e.IsMounted;
 	}
 }
+
+/// <summary>
+/// Information about a mount resource
+/// </summary>
+public struct MountResourceInfo
+{
+	/// <inheritdoc cref="ResourceLoader.Path" />
+	public string Path { get; init; }
+
+	/// <inheritdoc cref="ResourceLoader.Name" />
+	public string Name { get; init; }
+
+	/// <summary>
+	/// The thumbnail for this resource, if provided by the loader.
+	/// </summary>
+	public Texture Thumbnail { get; init; }
+
+	/// <inheritdoc cref="ResourceLoader.Flags" />
+	public ResourceFlags Flags { get; init; }
+
+	public MountResourceInfo( ResourceLoader e )
+	{
+		Name = e.Name;
+		Path = e.Path;
+		Thumbnail = (e as IThumbnailProvider)?.Thumbnail;
+		Flags = e.Flags;
+	}
+}
+
+
+public interface IThumbnailProvider
+{
+	Texture Thumbnail { get; }
+}

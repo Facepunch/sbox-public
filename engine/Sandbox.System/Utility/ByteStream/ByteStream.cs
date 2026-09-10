@@ -1,8 +1,10 @@
 ﻿using System.Buffers;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 #nullable enable
 
@@ -13,16 +15,56 @@ namespace Sandbox;
 /// </summary>
 public unsafe ref struct ByteStream
 {
-	byte[]? writeData;
+	// Buffer lives behind a shared, versioned anchor so a struct copy can't reach it after Dispose. hackerone.com/reports/3775849
+	sealed class Owner
+	{
+		public byte[]? Buffer;
+		public long Version;
+
+		[ThreadStatic] static Stack<Owner>? pool;
+
+		public static Owner Rent( byte[] buffer )
+		{
+			var o = pool is { Count: > 0 } p ? p.Pop() : new Owner();
+			o.Buffer = buffer;
+			return o;
+		}
+
+		public byte[]? Detach( long expected )
+		{
+			if ( Interlocked.CompareExchange( ref Version, expected + 1, expected ) != expected )
+				return null;
+
+			var b = Buffer;
+			Buffer = null;
+			(pool ??= new Stack<Owner>()).Push( this );
+			return b;
+		}
+	}
+
+	Owner? owner;
+	long version;
 	ReadOnlySpan<byte> readSpan;
 
 	int position;
 	int usedSize;
 
+	readonly byte[]? writeData
+	{
+		get
+		{
+			var o = owner;
+			if ( o is null ) return null;
+			if ( o.Version != version || o.Buffer is null )
+				throw new InvalidOperationException( "Cannot use a ByteStream after it has been disposed" );
+			return o.Buffer;
+		}
+	}
+
 	/// <summary>
 	/// Is this stream writable?
 	/// </summary>
-	public readonly bool Writable => writeData is not null;
+	public readonly bool Writable => owner is { Buffer: not null } o && o.Version == version;
 
 	/// <summary>
 	/// The current read or write position. Values are clamped to valid range.
@@ -51,7 +93,9 @@ public unsafe ref struct ByteStream
 	{
 		if ( size <= 0 ) throw new ArgumentOutOfRangeException( nameof( size ), $"Size must be larger than 0" );
 
-		writeData = ArrayPool<byte>.Shared.Rent( size );
+		var o = Owner.Rent( ArrayPool<byte>.Shared.Rent( size ) );
+		owner = o;
+		version = o.Version;
 		position = 0;
 	}
 
@@ -95,8 +139,12 @@ public unsafe ref struct ByteStream
 
 	public void Dispose()
 	{
-		if ( writeData is not null ) ArrayPool<byte>.Shared.Return( writeData );
-		writeData = null;
+		var o = owner;
+		if ( o is not null && o.Detach( version ) is byte[] buf )
+			ArrayPool<byte>.Shared.Return( buf );
+
+		owner = null;
+		version = default;
 		readSpan = default;
 		position = default;
 		usedSize = default;
@@ -105,10 +153,16 @@ public unsafe ref struct ByteStream
 	/// <summary>
 	/// Ensures buffer can accommodate write with overflow protection
 	/// </summary>
-	public void EnsureCanWrite( int size )
+	public void EnsureCanWrite( int size ) => GetWriteBuffer( size );
+
+	// Validates the stream and returns the backing buffer, growing it first if it can't fit `size` more bytes.
+	byte[] GetWriteBuffer( int size )
 	{
-		if ( writeData is null )
+		var o = owner;
+		if ( o is null )
 			throw new InvalidOperationException( "Cannot write to read-only stream" );
+		if ( o.Version != version || o.Buffer is not byte[] buf )
+			throw new InvalidOperationException( "Cannot use a ByteStream after it has been disposed" );
 
 		if ( size < 0 ) throw new ArgumentOutOfRangeException( nameof( size ), "Invalid write size" );
 
@@ -116,25 +170,26 @@ public unsafe ref struct ByteStream
 		if ( required > int.MaxValue )
 			throw new OutOfMemoryException( "Requested size exceeds maximum supported buffer size." );
 
-		if ( required > writeData.Length )
-		{
-			long newSize = writeData.Length;
-			// Grow geometrically 
-			while ( newSize < required )
-			{
-				if ( newSize >= int.MaxValue / 2 )
-				{
-					newSize = required;
-					break;
-				}
-				newSize *= 2;
-			}
+		if ( required <= buf.Length )
+			return buf;
 
-			var newBuffer = ArrayPool<byte>.Shared.Rent( (int)newSize );
-			Array.Copy( writeData, newBuffer, usedSize );
-			ArrayPool<byte>.Shared.Return( writeData );
-			writeData = newBuffer;
+		long newSize = buf.Length;
+		// Grow geometrically
+		while ( newSize < required )
+		{
+			if ( newSize >= int.MaxValue / 2 )
+			{
+				newSize = required;
+				break;
+			}
+			newSize *= 2;
 		}
+
+		var newBuffer = ArrayPool<byte>.Shared.Rent( (int)newSize );
+		Array.Copy( buf, newBuffer, usedSize );
+		ArrayPool<byte>.Shared.Return( buf );
+		o.Buffer = newBuffer;
+		return newBuffer;
 	}
 
 	public int ReadRemaining
@@ -225,10 +280,10 @@ public unsafe ref struct ByteStream
 			var bytesSize = rawData.Length * sizeof( T );
 			if ( bytesSize == 0 ) return;
 
-			EnsureCanWrite( bytesSize );
+			var buffer = GetWriteBuffer( bytesSize );
 
 			// Copy via refs to avoid per-call pinning without incurring extra span conversions
-			ref byte dstRef = ref MemoryMarshal.GetArrayDataReference( writeData! );
+			ref byte dstRef = ref MemoryMarshal.GetArrayDataReference( buffer );
 			ref byte dst = ref Unsafe.AddByteOffset( ref dstRef, (IntPtr)position );
 			ref T srcRef = ref MemoryMarshal.GetReference( rawData );
 			ref byte src = ref Unsafe.As<T, byte>( ref srcRef );
@@ -305,9 +360,7 @@ public unsafe ref struct ByteStream
 
 		Write( dataLen );
 
-		EnsureCanWrite( dataLen );
-
-		var dst = writeData!.AsSpan( position, dataLen );
+		var dst = GetWriteBuffer( dataLen ).AsSpan( position, dataLen );
 		System.Text.Encoding.UTF8.GetBytes( str, dst );
 
 		position += dataLen;
@@ -342,9 +395,8 @@ public unsafe ref struct ByteStream
 
 		var size = sizeof( T );
 
-		EnsureCanWrite( size );
-
-		ref byte dstRef = ref MemoryMarshal.GetArrayDataReference( writeData! );
+		var buffer = GetWriteBuffer( size );
+		ref byte dstRef = ref MemoryMarshal.GetArrayDataReference( buffer );
 		ref byte target = ref Unsafe.AddByteOffset( ref dstRef, (IntPtr)position );
 		Unsafe.WriteUnaligned( ref target, value );
 
@@ -626,7 +678,7 @@ public unsafe ref struct ByteStream
 		{
 			int bytes = elementSize * array.Length;
 
-			EnsureCanWrite( bytes );
+			var buffer = GetWriteBuffer( bytes );
 
 			var handle = GCHandle.Alloc( array, GCHandleType.Pinned );
 
@@ -634,7 +686,7 @@ public unsafe ref struct ByteStream
 			{
 				var src = (void*)handle.AddrOfPinnedObject();
 				var srcSpan = new ReadOnlySpan<byte>( src, bytes );
-				srcSpan.CopyTo( writeData!.AsSpan( position, bytes ) );
+				srcSpan.CopyTo( buffer.AsSpan( position, bytes ) );
 			}
 			finally
 			{

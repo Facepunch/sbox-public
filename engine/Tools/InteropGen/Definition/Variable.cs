@@ -3,13 +3,14 @@ using System.Text.RegularExpressions;
 
 namespace Facepunch.InteropGen;
 
+/// <summary>
+/// A member field exposed across the interop boundary, generated as a get/set pair.
+/// </summary>
 public class Variable
 {
-	public bool Native { get; set; }
 	public bool Static { get; private set; }
 	public string Name { get; set; }
 	public Arg Return { get; set; }
-	public Class Class { get; set; }
 	public string MangledName { get; set; }
 
 	internal static Variable Parse( string line )
@@ -20,15 +21,12 @@ public class Variable
 			return null;
 		}
 
-		Variable f = new()
+		return new Variable
 		{
-			Native = true,
 			Static = m.Groups[1].Success,
 			Name = m.Groups[3].Value.Trim(),
 			Return = Arg.Parse( m.Groups[2].Value + " returnvalue" )
 		};
-
-		return f;
 	}
 
 	internal string GetManagedName()
@@ -36,11 +34,12 @@ public class Variable
 		return Name == "GetType" ? "GetType_Native" : Name == "params" ? $"@{Name}" : Name;
 	}
 
-	private readonly List<string> attr = [];
-
+	/// <summary>
+	/// A variable doesn't use attributes, but it still consumes the pending ones so they don't
+	/// leak onto the next member.
+	/// </summary>
 	internal void TakeAttributes( List<string> attributes )
 	{
-		attr.AddRange( attributes );
 		attributes.Clear();
 	}
 }

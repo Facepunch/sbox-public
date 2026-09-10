@@ -7,13 +7,14 @@ namespace Editor.MeshEditor;
 /// Select and edit face geometry.
 /// </summary>
 [Title( "Face Tool" )]
-[Icon( "change_history" )]
+[Icon( "meshtools/sub-tools/face_tool.png" )]
 [Alias( "tools.face-tool" )]
 [Group( "3" )]
 public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>( tool )
 {
 	MeshFace _hoverFace;
 	SceneDynamicObject _faceObject;
+	protected override bool ShowSelectionBoundsDefault => true;
 
 	//Selection
 	public bool SelectByMaterial { get; set; } = false;
@@ -129,8 +130,51 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 			}
 		}
 
-		DrawBounds();
+		if ( ShowSelectionBounds )
+			DrawBounds();
+
 		RenderSubdivisionPreview();
+	}
+
+	public override void BuildSceneContextMenu( Menu menu, Ray ray, SceneTraceResult? trace )
+	{
+		base.BuildSceneContextMenu( menu, ray, trace );
+
+		AddMenuOption( menu, "Find / Replace Material", "find_replace", "mesh.find-replace-material-tool", true );
+		AddMenuOption( menu, "Unhide All Faces", "visibility", "mesh.unhide-faces",
+			Scene.GetAllComponents<MeshComponent>().Any( x => x.Mesh?.HasHiddenFaces is true ) );
+
+		bool any = Selection.OfType<MeshFace>().Any( x => x.IsValid() );
+		if ( !any ) return;
+
+		menu.AddSeparator();
+
+		var ops = menu.AddMenu( "Face Operations", "build" );
+		AddMenuOption( ops, "Inset Faces", "meshtools/face_tool/insert_face.png", "mesh.inset-tool", true );
+		AddMenuOption( ops, "Bridge Faces", "meshtools/face_tool/bridge_1.png", "mesh.bridge-tool", true );
+		AddMenuOption( ops, "Thicken Faces", "meshtools/face_tool/thicken_faces.png", "mesh.thicken-faces", true );
+		AddMenuOption( ops, "Combine Faces", "meshtools/face_tool/combine_faces.png", "mesh.combine-faces", true );
+		AddMenuOption( ops, "Collapse Faces", "meshtools/face_tool/collapse_faces.png", "mesh.collapse", true );
+		AddMenuOption( ops, "Detach Faces", "meshtools/face_tool/detach_faces.png", "mesh.detach-faces", true );
+		AddMenuOption( ops, "Extract Faces", "meshtools/face_tool/extract_faces.png", "mesh.extract-faces", true );
+		AddMenuOption( ops, "Merge Meshes", "meshtools/object_selection_buttons/merge_meshes.png", "mesh.merge-meshes", true );
+		AddMenuOption( ops, "Apply Material", "format_color_fill", "mesh.apply-material", true );
+
+		var tex = menu.AddMenu( "Texture Operations", "gradient" );
+		AddMenuOption( tex, "Apply Material", "format_color_fill", "mesh.apply-material", true );
+		AddMenuOption( tex, "Apply by Hotspot", "meshtools/texture_tool_buttons/apply_by_hotspot.png", "mesh.apply-hotspot", true );
+		AddMenuOption( tex, "Apply by Hotspot (Per Face)", "meshtools/texture_tool_buttons/apply_by_hotspot_(per_face).png", "mesh.apply-hotspot-per-face", true );
+		AddMenuOption( tex, "Fast Texture Tool", "meshtools/texture_tool_buttons/fast_texture_tool.png", "mesh.fast-texture-tool", true );
+
+		var sel = menu.AddMenu( "Face Selection", "select_all" );
+		AddMenuOption( sel, "Select Loop", "all_out", "mesh.select-loop", true );
+		AddMenuOption( sel, "Invert Selection", "swap_vert", InvertCurrentSelection, "mesh.invert-selection", true );
+		sel.AddOption( "Select All", "select_all", () => InvokeShortcut( "mesh.select-all" ), "mesh.select-all" );
+		AddMenuOption( sel, "Hide Faces", "visibility_off", "mesh.hide-faces", true );
+
+		var util = menu.AddMenu( "Face Tools", "tune" );
+		AddMenuOption( util, "Invert Mesh", "meshtools/face_tool/flip_all_faces.png", "mesh.flip-all-faces", true );
+		AddMenuOption( util, "Remove Bad Faces", "meshtools/face_tool/remove_bad_faces.png", "mesh.remove-bad-faces", true );
 	}
 
 	protected override IEnumerable<MeshFace> ConvertSelectionToCurrentType()
@@ -177,6 +221,9 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 
 			var mesh = face.Component.Mesh;
 
+			if ( mesh.IsFaceHidden( face.Handle ) )
+				continue;
+
 			if ( selectedEdges.Count > 0 )
 			{
 				var faceEdges = mesh.GetFaceEdges( face.Handle );
@@ -213,7 +260,12 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 		{
 			var component = group.Key;
 			foreach ( var hFace in component.Mesh.FaceHandles )
+			{
+				if ( component.Mesh.IsFaceHidden( hFace ) )
+					continue;
+
 				yield return new MeshFace( component, hFace );
+			}
 		}
 	}
 
@@ -295,7 +347,7 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 				mesh.GetFacesConnectedToEdge( edge, out var faceA, out var faceB );
 
 				var neighbor = faceA == currentHandle ? faceB : faceA;
-				if ( neighbor.IsValid && !visited.Contains( neighbor ) )
+				if ( neighbor.IsValid && !mesh.IsFaceHidden( neighbor ) && !visited.Contains( neighbor ) )
 				{
 					visited.Add( neighbor );
 					queue.Enqueue( neighbor );
@@ -369,7 +421,7 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 					mesh.GetFacesConnectedToEdge( edge, out var faceA, out var faceB );
 
 					var neighbor = faceA == currentHandle ? faceB : faceA;
-					if ( neighbor.IsValid && !visited.Contains( neighbor ) )
+					if ( neighbor.IsValid && !mesh.IsFaceHidden( neighbor ) && !visited.Contains( neighbor ) )
 					{
 						visited.Add( neighbor );
 						queue.Enqueue( neighbor );
@@ -459,7 +511,7 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 				mesh.GetFacesConnectedToEdge( edge, out var faceA, out var faceB );
 
 				var neighbor = faceA == current ? faceB : faceA;
-				if ( neighbor.IsValid && !visited.Contains( neighbor ) )
+				if ( neighbor.IsValid && !mesh.IsFaceHidden( neighbor ) && !visited.Contains( neighbor ) )
 				{
 					visited.Add( neighbor );
 					parent[neighbor] = current;
@@ -533,6 +585,9 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 		{
 			foreach ( var face in component.Mesh.FaceHandles )
 			{
+				if ( component.Mesh.IsFaceHidden( face ) )
+					continue;
+
 				unique.Add( new MeshFace( component, face ) );
 			}
 		}

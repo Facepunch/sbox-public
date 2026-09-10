@@ -40,7 +40,7 @@ partial class StandaloneExporter
 	/// </summary>
 	private void PeekAssembly( string title, byte[] contents )
 	{
-		var attr = EditorUtility.AssemblyMetadata.GetCustomAttributes( contents );
+		var attr = AssemblyMetadata.GetCustomAttributes( contents );
 
 		var assetAttributes = attr.Where( x => x.AttributeFullName == "Sandbox.Cloud/AssetAttribute" )
 								.ToArray();

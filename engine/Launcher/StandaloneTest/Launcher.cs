@@ -5,6 +5,7 @@ global using System.Collections.Generic;
 global using System.Linq;
 global using System.Threading.Tasks;
 global using static Sandbox.Internal.GlobalToolsNamespace;
+global using static Sandbox.Internal.GlobalSystemNamespace;
 using System.Diagnostics;
 using System.Threading;
 
@@ -17,7 +18,7 @@ public static class Launcher
 		if ( FindExisting() )
 			return 0;
 
-		var appSystem = new LauncherAppSystem();
+		var appSystem = new PanelLauncherAppSystem();
 		appSystem.Run();
 
 		return 0;
@@ -37,15 +38,21 @@ public static class Launcher
 								.ToList();
 		if ( existing.Count > 0 )
 		{
-			foreach ( var p in existing )
+			// Bringing it to front is Windows only - MainWindowHandle is always zero elsewhere,
+			// and User32 isn't there to call. We still want to bail out either way, so that we
+			// don't end up running two launchers.
+			if ( OperatingSystem.IsWindows() )
 			{
-				IntPtr handle = p.MainWindowHandle;
-				if ( IsIconic( handle ) )
+				foreach ( var p in existing )
 				{
-					ShowWindow( handle, SW_RESTORE );
-				}
+					IntPtr handle = p.MainWindowHandle;
+					if ( IsIconic( handle ) )
+					{
+						ShowWindow( handle, SW_RESTORE );
+					}
 
-				SetForegroundWindow( handle );
+					SetForegroundWindow( handle );
+				}
 			}
 
 			return true;
@@ -66,52 +73,27 @@ public static class Launcher
 	private static extern bool IsIconic( IntPtr handle );
 }
 
-public class LauncherAppSystem : QtAppSystem
+/// <summary>
+/// The launcher as a panel UI app - the least engine that can draw panels, one window, no Qt.
+/// </summary>
+public class PanelLauncherAppSystem : PanelAppSystem
 {
-	public override void Init()
+	Editor.PanelWindow window;
+
+	protected override void OnInitialized()
 	{
-		base.Init();
-
-		// We don't want to save editor cookies.
-		EditorCookie.StopTimer();
-
 		LauncherPreferences.Load();
 
-		var window = new StartupWindow();
-		ProcessEvents();
-		window.WindowOpacity = 0.0f;
-		window.Show();
-
-		// this looks like I'm being a fancy arsehole, but this is all because
-		// the window shows up white for some reason when first opened, and this
-		// disguises it.
-
-		var fromPos = window.Position + new Vector2( 0, 30 );
-		var toPos = window.Position;
-
-		for ( int i = 0; i <= 20; i++ )
-		{
-			float fEase = Easing.EaseOut( i / 20.0f );
-
-			Thread.Sleep( 1 );
-			ProcessEvents();
-
-			if ( !window.IsValid() )
-				return;
-
-			window.WindowOpacity = fEase;
-			window.Position = Vector2.Lerp( fromPos, toPos, fEase );
-		}
-
-		window.WindowOpacity = 1;
-
+		window = new Editor.PanelWindow( "Welcome to the s&box editor", new Vector2( 1100, 660 ), new Vector2( -1, -1 ), borderless: true, vsync: true );
+		window.MinSize = new Vector2( 880, 540 );
+		window.CanMaximize = false;
+		window.Root.AddChild( new Sandbox.LauncherUI.LauncherWindow( window ) );
 	}
 
-	protected override void OnShutdown()
+	public override void Shutdown()
 	{
-		// We don't want to save editor cookies.
-		EditorCookie = null;
-
 		LauncherPreferences.Save();
+
+		base.Shutdown();
 	}
 }

@@ -355,8 +355,7 @@ namespace Topten.RichTextKit
 			_wordBoundaryIndicies.Clear();
 			_measuredHeight = 0;
 			_measuredWidth = 0;
-			_leftOverhang = null;
-			_rightOverhang = null;
+			_overhang = null;
 			_truncated = false;
 
 			// Only layout if actually have some text
@@ -370,6 +369,86 @@ namespace Topten.RichTextKit
 
 				// Finalize lines
 				FinalizeLines();
+			}
+		}
+
+		/// <summary>
+		/// Measures the longest segment between permitted line breaks, without changing the current layout.
+		/// Emergency word wrapping and overflow truncation do not affect intrinsic width.
+		/// </summary>
+		/// <param name="availableWidth">Null measures min-content width; NaN measures max-content.
+		/// A finite width measures intrinsic height at that available width.</param>
+		/// <param name="preserveSpaces">Preserve spaces and allow a break after each, as in CSS break-spaces.</param>
+		/// <param name="reserveTrailingLine">Reserve the empty caret line after a trailing newline.</param>
+		public SKSize MeasureMinContent( float? availableWidth = null, bool preserveSpaces = false, bool reserveTrailingLine = false )
+		{
+			if ( Length == 0 ) return SKSize.Empty;
+
+			var block = new TextBlock { FontMapper = FontMapper, BaseDirection = BaseDirection, NoWrap = NoWrap, WordBreak = WordBreak };
+			try
+			{
+				foreach ( var run in StyleRuns )
+					block.AddText( run.CodePoints, run.Style );
+
+				float width = availableWidth is { } constraint && float.IsFinite( constraint )
+					? Math.Max( 0, constraint ) : block.MeasuredWidth;
+				if ( availableWidth is null && !NoWrap )
+				{
+					var breaker = new LineBreaker();
+					breaker.Reset( block.CodePoints.AsSlice() );
+					var breaks = WordBreak == WordBreakMode.Character
+						? block.CaretIndicies.Select( x => new LineBreak( x, x ) ).ToList()
+						: breaker.GetBreaks();
+					if ( preserveSpaces )
+					{
+						var preserved = new List<LineBreak>();
+						foreach ( var br in breaks )
+						{
+							int end = br.PositionMeasure;
+							while ( end < br.PositionWrap && block.CodePoints[end] == ' ' )
+							{
+								end++;
+								preserved.Add( new LineBreak( end, end ) );
+							}
+							if ( end == br.PositionMeasure || end < br.PositionWrap ) preserved.Add( new LineBreak( end, br.PositionWrap, br.Required ) );
+						}
+						breaks = preserved;
+					}
+
+					width = 0;
+					int start = 0;
+					int runIndex = 0;
+					foreach ( var lineBreak in breaks )
+					{
+						float segmentWidth = 0;
+						while ( runIndex < block.FontRuns.Count && block.FontRuns[runIndex].End <= start ) runIndex++;
+						for ( int i = runIndex; i < block.FontRuns.Count; i++ )
+						{
+							var run = block.FontRuns[i];
+							if ( run.Start >= lineBreak.PositionMeasure ) break;
+							var from = Math.Max( start, run.Start );
+							var to = Math.Min( lineBreak.PositionMeasure, run.End );
+							if ( to > from ) segmentWidth += run.LeadingWidth( to ) - run.LeadingWidth( from );
+						}
+						width = Math.Max( width, segmentWidth );
+						start = lineBreak.PositionWrap;
+					}
+				}
+
+				// Match the UI text measure's rounding and one-pixel wrapping allowance. Returning
+				// unwrapped height here would poison layout cache reuse at the intrinsic width.
+				// Return the unconstrained pass's pooled runs before shaping the constrained pass.
+				block.Clear();
+				foreach ( var run in StyleRuns )
+					block.AddText( run.CodePoints, run.Style );
+				block.MaxWidth = MathF.Ceiling( width ) + 1;
+				var height = block.MeasuredHeight;
+				if ( reserveTrailingLine && block.Lines.Count > 0 ) height += block.Lines[^1].Height;
+				return new SKSize( width, height );
+			}
+			finally
+			{
+				block.Clear();
 			}
 		}
 
@@ -589,6 +668,7 @@ namespace Topten.RichTextKit
 				switch ( ResolveTextAlignment() )
 				{
 					case TextAlignment.Left:
+					case TextAlignment.Justify: // justified text is anchored left and fills the width
 						r.Left = 0;
 						r.Right = _maxWidthResolved - _measuredWidth;
 						return r;
@@ -610,31 +690,31 @@ namespace Topten.RichTextKit
 
 
 		/// <summary>
-		/// Gets the actual measured overhang in each direction based on the 
-		/// fonts used, and the supplied text.
+		/// How far glyph ink reaches past the measured text rectangle on each side, based on the
+		/// fonts used and the supplied text. Italic tails, accents and tight side bearings all land here.
 		/// </summary>
 		/// <remarks>
-		/// The return rectangle describes overhang amounts for each edge - not 
-		/// rectangle co-ordinates.
+		/// The text rectangle is MeasuredPadding.Left .. MeasuredPadding.Left + MeasuredWidth horizontally
+		/// and 0 .. MeasuredHeight vertically. The return rectangle describes overhang amounts for each
+		/// edge - not rectangle co-ordinates. Values are never negative.
 		/// </remarks>
 		public SKRect MeasuredOverhang
 		{
 			get
 			{
 				Layout();
-				if ( !_leftOverhang.HasValue )
+				if ( !_overhang.HasValue )
 				{
-					var right = _maxWidth ?? MeasuredWidth;
-					float leftOverhang = 0;
-					float rightOverhang = 0;
+					var pad = MeasuredPadding;
+					var textRect = new SKRect( pad.Left, 0, pad.Left + MeasuredWidth, MeasuredHeight );
+					var overhang = new SKRect();
 					foreach ( var l in _lines )
 					{
-						l.UpdateOverhang( right, ref leftOverhang, ref rightOverhang );
+						l.UpdateOverhang( textRect, ref overhang );
 					}
-					_leftOverhang = leftOverhang;
-					_rightOverhang = rightOverhang;
+					_overhang = overhang;
 				}
-				return new SKRect( _leftOverhang.Value, 0, _rightOverhang.Value, 0 );
+				return _overhang.Value;
 			}
 		}
 
@@ -1047,14 +1127,9 @@ namespace Topten.RichTextKit
 		float _measuredWidth;
 
 		/// <summary>
-		/// The required left overhang
+		/// Cached glyph ink overhang beyond the measured text rectangle, see <see cref="MeasuredOverhang"/>
 		/// </summary>
-		float? _leftOverhang = null;
-
-		/// <summary>
-		/// The required left overhang
-		/// </summary>
-		float? _rightOverhang = null;
+		SKRect? _overhang = null;
 
 		/// <summary>
 		/// Indicates if the text was truncated by max height/max lines limitations
@@ -1952,6 +2027,12 @@ namespace Topten.RichTextKit
 					case TextAlignment.Center:
 						xAdjust = ((_maxWidth ?? _measuredWidth) - line.Width) / 2;
 						break;
+
+					case TextAlignment.Justify:
+						// Justify works by widening the spaces in-place rather than shifting the whole
+						// line, so it leaves xAdjust at 0 and adjusts glyph positions itself.
+						JustifyLine( line );
+						break;
 				}
 
 				// Position each run
@@ -1969,6 +2050,105 @@ namespace Topten.RichTextKit
 			while ( _fontRuns.Count > 0 && _fontRuns[_fontRuns.Count - 1].Line == null )
 			{
 				_fontRuns.RemoveAt( _fontRuns.Count - 1 );
+			}
+		}
+
+		/// <summary>
+		/// Distributes the slack on a line across its inter-word spaces so the line fills the available
+		/// width (CSS <c>text-align: justify</c>). The last line of a paragraph is left unjustified and
+		/// only left-to-right content is handled. Mutates glyph positions and code-point x-coords together
+		/// so rendering and hit-testing stay consistent. Called from <see cref="FinalizeLines"/> while the
+		/// glyph positions are still relative to their run, before they're moved into final position.
+		/// </summary>
+		void JustifyLine( TextLine line )
+		{
+			var runs = line.Runs;
+			if ( runs.Count == 0 )
+				return;
+
+			// The last line of the block isn't justified.
+			if ( line == _lines[_lines.Count - 1] )
+				return;
+
+			// Don't justify a line that ends at a hard line break (the last line of a paragraph).
+			var lastCps = runs[runs.Count - 1].CodePoints;
+			if ( lastCps.Length > 0 )
+			{
+				int last = lastCps[lastCps.Length - 1];
+				if ( last == '\n' || last == '\r' || last == 0x2028 || last == 0x2029 )
+					return;
+			}
+
+			// Right-to-left justification isn't implemented; leave those lines as laid out.
+			for ( int i = 0; i < runs.Count; i++ )
+			{
+				if ( runs[i].Direction == TextDirection.RTL )
+					return;
+			}
+
+			// How much width to make up, and how many spaces to spread it across.
+			float target = _maxWidth ?? _measuredWidth;
+			float slack = target - line.Width;
+			if ( slack <= 0.01f )
+				return;
+
+			int gaps = 0;
+			for ( int i = 0; i < runs.Count; i++ )
+			{
+				var run = runs[i];
+				if ( run.RunKind == FontRunKind.TrailingWhitespace )
+					break;
+
+				var cps = run.CodePoints;
+				for ( int c = 0; c < cps.Length; c++ )
+				{
+					if ( cps[c] == ' ' )
+						gaps++;
+				}
+			}
+
+			if ( gaps == 0 )
+				return;
+
+			float extra = slack / gaps;
+
+			// Walk the runs left-to-right. Within a run, each code point is shifted right by the space
+			// opened up before it; 'lineShift' carries that running total forward between runs.
+			float lineShift = 0;
+			for ( int i = 0; i < runs.Count; i++ )
+			{
+				var run = runs[i];
+				run.XCoord += lineShift;
+
+				if ( run.RunKind == FontRunKind.TrailingWhitespace )
+					continue;
+
+				var cps = run.CodePoints;
+
+				// Per code-point shift: a space adds 'extra' to everything after it.
+				var shift = new float[cps.Length];
+				float acc = 0;
+				for ( int c = 0; c < cps.Length; c++ )
+				{
+					shift[c] = acc;
+					if ( cps[c] == ' ' )
+						acc += extra;
+				}
+
+				// Glyph positions (rendering): map each glyph to its code point via the cluster.
+				for ( int g = 0; g < run.GlyphPositions.Length; g++ )
+				{
+					int cp = run.Clusters[g] - run.Start;
+					if ( cp >= 0 && cp < shift.Length )
+						run.GlyphPositions[g].X += shift[cp];
+				}
+
+				// Code-point x-coords (hit-testing / caret) shifted the same way.
+				for ( int c = 0; c < run.RelativeCodePointXCoords.Length && c < shift.Length; c++ )
+					run.RelativeCodePointXCoords[c] += shift[c];
+
+				run.Width += acc;
+				lineShift += acc;
 			}
 		}
 

@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using Sandbox.Mounting;
+using System.IO;
 
 namespace Editor.AssetPickers;
 
@@ -17,6 +18,11 @@ public class GenericPicker : AssetPicker
 	/// Internal cloud browser.
 	/// </summary>
 	public CloudAssetBrowser CloudBrowser { get; protected set; }
+
+	/// <summary>
+	/// Internal mounts browser.
+	/// </summary>
+	public MountsAssetBrowser MountsBrowser { get; protected set; }
 
 	/// <summary>
 	/// The picked assets.
@@ -47,8 +53,6 @@ public class GenericPicker : AssetPicker
 	void CreateUI( List<AssetType> assetTypes )
 	{
 		DockManager = new DockManager( this );
-		DockManager.DockProperty properties = DockManager.DockProperty.HideCloseButton
-			| DockManager.DockProperty.DisallowUserDocking | DockManager.DockProperty.DisableDraggableTab;
 
 		AssetBrowser = new LocalAssetBrowser( DockManager, assetTypes );
 		AssetBrowser.WindowTitle = "Asset Browser";
@@ -59,7 +63,7 @@ public class GenericPicker : AssetPicker
 		AssetBrowser.OnAssetSelected += ( a ) => Select();
 		AssetBrowser.OnHighlight += Highlight;
 		AssetBrowser.MultiSelect = Options.EnableMultiselect;
-		DockManager.AddDock( null, AssetBrowser, DockArea.Inside, properties );
+		DockManager.AddDock( "Asset Browser", "folder", AssetBrowser, DockArea.Center ).Locked = true;
 
 		if ( Options.EnableCloud )
 		{
@@ -70,7 +74,21 @@ public class GenericPicker : AssetPicker
 			CloudBrowser.OnPackageHighlight = HighlightPackage;
 			CloudBrowser.OnPackageSelected = ( a ) => Select();
 			CloudBrowser.MultiSelect = Options.EnableMultiselect;
-			DockManager.AddDock( null, CloudBrowser, DockArea.Inside, properties );
+			DockManager.AddDock( "Cloud Browser", "cloud_download", CloudBrowser, DockArea.Center ).Locked = true;
+		}
+
+		if ( Options.EnableMounts )
+		{
+			MountsBrowser = new MountsAssetBrowser( DockManager, assetTypes );
+			MountsBrowser.WindowTitle = "Mounts";
+			MountsBrowser.SetWindowIcon( "museum" );
+
+			MountsBrowser.OnAssetHighlight += Highlight;
+			MountsBrowser.OnAssetsHighlight += Highlight;
+			MountsBrowser.OnAssetSelected += ( a ) => Select();
+			MountsBrowser.OnHighlight += Highlight;
+			MountsBrowser.MultiSelect = Options.EnableMultiselect;
+			DockManager.AddDock( "Mounts", "museum", MountsBrowser, DockArea.Center ).Locked = true;
 		}
 
 		Layout.Add( DockManager, 1 );
@@ -94,7 +112,7 @@ public class GenericPicker : AssetPicker
 	{
 		if ( asset is null )
 		{
-			DockManager.RaiseDock( AssetBrowser );
+			DockManager.RaiseDock( "Asset Browser" );
 			AssetBrowser.NavigateTo( Project.Current.GetAssetsPath() );
 			return;
 		}
@@ -104,9 +122,14 @@ public class GenericPicker : AssetPicker
 		{
 			SetSelection( package );
 		}
+		else if ( MountsBrowser is not null && MountUtility.IsMountPath( asset.Path ) )
+		{
+			DockManager.RaiseDock( "Mounts" );
+			MountsBrowser.FocusOnAsset( asset );
+		}
 		else
 		{
-			DockManager.RaiseDock( AssetBrowser );
+			DockManager.RaiseDock( "Asset Browser" );
 			AssetBrowser.FocusOnAsset( asset );
 		}
 	}
@@ -116,23 +139,25 @@ public class GenericPicker : AssetPicker
 		if ( package is null )
 			return;
 
-		DockManager.RaiseDock( CloudBrowser );
+		DockManager.RaiseDock( "Cloud Browser" );
 		CloudBrowser.Search.Value += $" {package.FullIdent}";
 		CloudBrowser.FocusOnPackage( package );
 	}
 
 	void Select()
 	{
-		if ( AssetBrowser.Visible )
+		AssetBrowser browser = AssetBrowser.Visible ? AssetBrowser : (MountsBrowser?.Visible ?? false) ? MountsBrowser : null;
+
+		if ( browser is not null )
 		{
-			var assets = AssetBrowser.GetSelected<AssetEntry>().Select( x => x.Asset ).ToList();
+			var assets = browser.GetSelected<AssetEntry>().Select( x => x.Asset ).ToList();
 
 			if ( !IsSelectionValid( assets ) )
 				return;
 
 			Submit( assets.ToArray() );
 		}
-		else if ( CloudBrowser.Visible )
+		else if ( CloudBrowser?.Visible ?? false )
 		{
 			Package package = CloudBrowser.GetSelected<PackageEntry>().FirstOrDefault().Package;
 			if ( package is not null )
@@ -223,7 +248,7 @@ public class GenericPicker : AssetPicker
 
 	void Highlight( IEnumerable<IAssetListEntry> entries )
 	{
-		if ( entries.Any( x => x is not AssetEntry or PackageEntry ) )
+		if ( entries.Any( x => x is not AssetEntry ) )
 		{
 			// not something we can pick
 			ConfirmButton.Enabled = false;

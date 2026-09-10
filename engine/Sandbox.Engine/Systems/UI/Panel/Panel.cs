@@ -106,11 +106,17 @@ public partial class Panel : IPanel, IValid, IComponent
 	public bool HasOutro => (PseudoClass & PseudoClass.Outro) != 0;
 
 
+	/// <summary>
+	/// The UI system this panel belongs to. Asked of our parent, and answered by the root - a panel
+	/// that hasn't been added to anything yet says the game's, which is where an orphan would end up.
+	/// </summary>
+	internal virtual UISystem UISystem => Parent?.UISystem ?? Sandbox.Engine.GlobalContext.Current.UISystem;
+
 	public Panel()
 	{
 		InitializeEvents();
 
-		YogaNode = new YogaWrapper( this );
+		LayoutTree = new PanelLayout( this );
 		Style = new PanelStyle( this );
 		StyleSheet = new StyleSheetCollection( this );
 		Transitions = new Transitions( this );
@@ -195,7 +201,7 @@ public partial class Panel : IPanel, IValid, IComponent
 	{
 		get
 		{
-			foreach ( var p in AncestorsAndSelf )
+			for ( var p = this; p is not null; p = p.StyleParent )
 			{
 				if ( p.StyleSheet.List == null ) continue;
 
@@ -204,6 +210,13 @@ public partial class Panel : IPanel, IValid, IComponent
 			}
 		}
 	}
+
+	/// <summary>
+	/// The panel this one is styled under - whose stylesheets apply, whose selectors it's a
+	/// descendant of, whose font and colour it inherits. Normally the parent. A popup that floats
+	/// somewhere else in the tree, or in a window of its own, styles itself under what opened it.
+	/// </summary>
+	internal virtual Panel StyleParent => Parent;
 
 	/// <summary>
 	/// Switch a pseudo class on or off.
@@ -307,10 +320,15 @@ public partial class Panel : IPanel, IValid, IComponent
 
 		try
 		{
+			UpdateSceneIndexFromParent();
+
 			if ( ParentHasChanged )
 			{
 				ParentHasChanged = false;
 				OnParentChanged();
+
+				// Our ancestor stylesheets have changed, so our candidate rules need rebuilding
+				Style?.InvalidateBroadphase();
 				StyleSelectorsChanged( true, true );
 			}
 
@@ -338,12 +356,19 @@ public partial class Panel : IPanel, IValid, IComponent
 			// keep before and after updated
 			UpdateBeforeAfterElements();
 
+			UpdateScrollbars();
+
 			//
-			// If our style is dirty, or we're animating/transitioning/scrolling then make sure we get layed out
+			// If our style is dirty, or we're animating/transitioning then make sure we get layed out
 			//
-			if ( Style is not null && (Style.IsDirty || HasActiveTransitions || (ComputedStyle?.HasAnimation ?? false) || ScrollVelocity != 0 || isScrolling || IsDragScrolling) )
+			if ( Style is not null && (Style.IsDirty || HasActiveTransitions || (ComputedStyle?.IsAnimationActive ?? false)) )
 			{
 				SetNeedsPreLayout();
+			}
+			else if ( ScrollVelocity != 0 || isScrolling || IsDragScrolling )
+			{
+				// Scrolling only moves children - reapply offsets, skip the style rebuild
+				SetNeedsFinalLayout();
 			}
 
 			//
@@ -366,6 +391,10 @@ public partial class Panel : IPanel, IValid, IComponent
 			}
 
 			RunPendingEvents();
+
+			// A child's event can delete this panel
+			if ( IsDeleted ) return;
+
 			Tick();
 			RunPendingEvents();
 
@@ -423,9 +452,9 @@ public partial class Panel : IPanel, IValid, IComponent
 	{
 		var screenPos = new Vector2( pos.x + Box.Rect.Left, pos.y + Box.Rect.Top );
 
-		if ( GlobalMatrix.HasValue )
+		if ( GlobalMatrixInverted.HasValue )
 		{
-			screenPos = GlobalMatrix.Value.Inverted.Transform( screenPos );
+			screenPos = GlobalMatrixInverted.Value.Transform( screenPos );
 		}
 
 		return screenPos;
@@ -459,18 +488,20 @@ public partial class Panel : IPanel, IValid, IComponent
 	}
 
 	/// <summary>
-	/// Allow selecting child text
+	/// Allows drag selection of descendant text. Text in an inline paragraph is selected and copied
+	/// as one continuous string, without adding separators between spans.
 	/// </summary>
 	[Category( "Selection" )]
 	public bool AllowChildSelection { get; set; }
 
 	[Hide]
-	public bool IsValid => YogaNode is not null;
+	public bool IsValid => LayoutTree is not null;
 
 	string CollectSelectedChildrenText( Panel p )
 	{
 		if ( !p.IsVisible )
 			return null;
+		if ( p.InlineParagraph is not null ) return p.InlineParagraph.SelectedText;
 
 		if ( p is Sandbox.UI.Label label )
 		{
@@ -501,6 +532,11 @@ public partial class Panel : IPanel, IValid, IComponent
 		if ( AllowChildSelection )
 		{
 			e.StopPropagation();
+			if ( InlineParagraph is not null )
+			{
+				InlineParagraph.Select( e.StartPoint, e.EndPoint );
+				return;
+			}
 
 			foreach ( var child in Children )
 			{
@@ -510,10 +546,15 @@ public partial class Panel : IPanel, IValid, IComponent
 	}
 
 	/// <summary>
-	/// If AllowChildSelection is enabled, we'll try to select all children text
+	/// Selects all descendant text, including the complete logical text of inline paragraphs.
 	/// </summary>
 	public void SelectAllInChildren()
 	{
+		if ( InlineParagraph is not null )
+		{
+			InlineParagraph.SetSelection( 0, int.MaxValue );
+			return;
+		}
 		if ( this is Sandbox.UI.Label label )
 		{
 			label.ShouldDrawSelection = true;
@@ -529,10 +570,15 @@ public partial class Panel : IPanel, IValid, IComponent
 	}
 
 	/// <summary>
-	/// Clear any selection in children
+	/// Clears text selection in descendant labels and inline paragraphs.
 	/// </summary>
 	public void UnselectAllInChildren()
 	{
+		if ( InlineParagraph is not null )
+		{
+			InlineParagraph.SetSelection( 0, 0 );
+			return;
+		}
 		if ( this is Sandbox.UI.Label label )
 		{
 			label.ShouldDrawSelection = false;
@@ -547,6 +593,11 @@ public partial class Panel : IPanel, IValid, IComponent
 
 	void UpdateSelection( Panel p, SelectionEvent e )
 	{
+		if ( p.InlineParagraph is not null )
+		{
+			p.InlineParagraph.Select( e.StartPoint, e.EndPoint );
+			return;
+		}
 		var rect = e.SelectionRect;
 
 		// child is outside of selection vertically

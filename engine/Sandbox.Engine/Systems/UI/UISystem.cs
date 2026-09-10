@@ -3,14 +3,13 @@ using Sandbox.Internal;
 using Sandbox.Modals;
 using Sandbox.Rendering;
 using Sandbox.UI;
-using System.Threading;
 
 namespace Sandbox;
 
 /// <summary>
 /// Holds onto a list of root panels to tick, input and draw
 /// </summary>
-internal class UISystem
+internal partial class UISystem
 {
 	internal PanelRenderer Renderer = new();
 
@@ -22,10 +21,36 @@ internal class UISystem
 	internal List<Panel> DeletionList = new();
 	internal InputEventQueue InputEventQueue = new();
 
+	/// <summary>
+	/// Tooltips for the panels in this UI. Each instance has its own, so a tooltip in one window
+	/// has nothing to do with the game screen's.
+	/// </summary>
+	internal TooltipSystem Tooltips { get; } = new();
+
+	/// <summary>
+	/// Where popups in this UI open. Null floats them in the panel root, which is what a game
+	/// wants; a window puts each one in an OS window of its own.
+	/// </summary>
+	internal IPopupHost PopupHost { get; set; }
+
 	// focus
 	internal Panel CurrentFocus { get; set; }
 	internal Panel NextFocus { get; set; }
 	internal bool FocusPendingChange { get; set; }
+
+	/// <summary>
+	/// The deepest panel at this position across every root, topmost root first.
+	/// </summary>
+	internal Panel FindPanelAt( Vector2 position )
+	{
+		for ( int i = RootPanels.Count - 1; i >= 0; i-- )
+		{
+			var hit = UISurface.FindPanelAt( RootPanels[i], position, null );
+			if ( hit is not null ) return hit;
+		}
+
+		return null;
+	}
 
 	internal void AddRoot( RootPanel rootPanel )
 	{
@@ -84,6 +109,8 @@ internal class UISystem
 		using ( Performance.Scope( "Update Screen Size" ) )
 		{
 			Screen.UpdateFromEngine();
+			Size = Screen.Size;
+			DpiScale = Screen.DesktopScale;
 		}
 
 		using ( Performance.Scope( "Tick Panels" ) )
@@ -96,6 +123,15 @@ internal class UISystem
 			TickInput( allowMouseInput );
 		}
 
+		LayoutAndBuild();
+	}
+
+	/// <summary>
+	/// Lay every root panel out at <see cref="Size"/> and turn them into command lists. This is
+	/// the half of the frame that has nothing to do with input, so any surface can drive it.
+	/// </summary>
+	internal void LayoutAndBuild()
+	{
 		using ( Performance.Scope( "Pre Layout" ) )
 		{
 			PreLayout();
@@ -160,10 +196,7 @@ internal class UISystem
 
 	internal void PreLayout()
 	{
-		var width = Screen.Width;
-		var height = Screen.Height;
-
-		var screenRect = new Rect( 0, 0, width, height );
+		var screenRect = new Rect( 0, 0, Size.x, Size.y );
 
 		for ( int i = 0; i < RootPanels.Count(); i++ )
 		{
@@ -209,10 +242,40 @@ internal class UISystem
 		{
 			var root = RootPanels[i];
 			if ( !root.IsValid ) continue;
-			if ( root.RenderedManually ) continue;
+			if ( root.RenderedManually && !root.IsWorldPanel ) continue;
+
+			if ( root is Sandbox.UI.WorldPanel { SceneObject: not null } wp )
+			{
+				wp.SceneObject.BuildCommandList();
+			}
 
 			root.BuildCommandList();
 		}
+	}
+
+	/// <summary>
+	/// The input half of a frame for a surface that isn't the game screen - no game input context,
+	/// no cursor visibility rules, just hover, focus and events for our own root panels.
+	/// </summary>
+	internal void TickSurfaceInput( bool allowMouseInput )
+	{
+		for ( int i = 0; i < RootPanels.Count; i++ )
+		{
+			if ( !RootPanels[i].IsValid ) continue;
+			RootPanels[i].TickInputInternal();
+		}
+
+		Input.Tick( RootPanels.Where( p => !p.IsWorldPanel ).OrderByDescending( x => x.ComputedStyle?.ZIndex ?? 0 ), allowMouseInput );
+
+		TickFocus();
+
+		// With nothing focused the keys go to the root, so a surface can have window wide shortcuts
+		// instead of dropping every key press
+		InputEventQueue.TickFocused( CurrentFocus ?? RootPanels.FirstOrDefault() );
+		InputEventQueue.Tick( Input.Hovered, Input.Active );
+
+		Tooltips.SetHovered( allowMouseInput ? Input.Hovered : null, Input.CursorPosition );
+		Tooltips.Frame( Input.CursorPosition, allowMouseInput );
 	}
 
 	internal void TickInput( bool allowMouseInput )
@@ -235,7 +298,7 @@ internal class UISystem
 		// were set at the same time as changing focus will be applied so
 		// that when we judge elibility the logic will be correct
 		//
-		InputFocus.Tick();
+		TickFocus();
 
 		//
 		// Send all key events to the focused panel
@@ -247,6 +310,9 @@ internal class UISystem
 		// WorldInputs simulate this themselves in WorldInputInternal.Tick
 		//
 		InputEventQueue.Tick( Input.Hovered, Input.Active );
+
+		// The input router picks which UI is hovered for tooltips - this just runs the one it picked
+		Tooltips.Frame( Input.CursorPosition, InputRouter.MouseCursorVisible );
 
 		//
 		// Set mouse delta to 0 so it doesn't repeat the last frame's
@@ -292,7 +358,7 @@ internal class UISystem
 			}
 
 			//
-			// The developer console is open
+			// The developer console / chat is open
 			//
 			if ( IMenuSystem.Current?.ForceCursorVisible ?? false )
 			{
@@ -391,9 +457,26 @@ internal class UISystem
 		for ( int i = 0; i < DeletionList.Count; i++ )
 		{
 			var p = DeletionList[i];
+
+			// panel might have been turned null by hotloading
+			if ( p is null )
+			{
+				DeletionList.RemoveAt( i );
+				i--;
+				continue;
+			}
+
 			if ( !force && p.HasActiveTransitions ) continue;
 
-			p.Delete( true );
+			try
+			{
+				p.Delete( true );
+			}
+			catch ( System.Exception ex )
+			{
+				Log.Warning( ex, $"Exception while deferred-deleting {p}" );
+			}
+
 			DeletionList.RemoveAt( i );
 			i--;
 		}
@@ -420,7 +503,7 @@ internal class UISystem
 	internal void Clear()
 	{
 		// Clear any dangling tooltip panel references before destroying the tree.
-		TooltipSystem.Clear();
+		Tooltips.Clear();
 
 		// Use immediate deletion so child panels are recursively cleaned up
 		// right now. The default (deferred) path just queues an outro

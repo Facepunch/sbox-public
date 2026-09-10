@@ -1,0 +1,76 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+		<AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<GenerateDocumentationFile>False</GenerateDocumentationFile>
+		<AssemblyName>panelgallery</AssemblyName>
+		<CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+		<SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+		<NoWarn>1701;1702;1591;NETSDK1138</NoWarn>
+		<LangVersion>14</LangVersion>
+		<OutputPath>..\..\..\game\bin\managed</OutputPath>
+		<OutputType>WinExe</OutputType>
+		<DisableTransitiveProjectReferences>true</DisableTransitiveProjectReferences>
+		<PreserveCompilationReferences>false</PreserveCompilationReferences>
+		<PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
+		<PreserveCompilationContext>false</PreserveCompilationContext>
+		<GenerateRuntimeConfigDevFile>false</GenerateRuntimeConfigDevFile>
+		<StartupObject>Sandbox.Program</StartupObject>
+		<ApplicationIcon>panelgallery.ico</ApplicationIcon>
+		<ProduceReferenceAssembly>False</ProduceReferenceAssembly>
+		<DebugType>embedded</DebugType>
+		<TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+		<GenerateDependencyFile>false</GenerateDependencyFile>
+		<CETCompat>false</CETCompat>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<!-- Where the mounted filesystem the app serves is rooted, so the razor generator
+		     bakes stylesheet paths that resolve at runtime -->
+		<SandboxRazorRoot>UiTests</SandboxRazorRoot>
+
+		<!-- The Razor SDK's web machinery has nothing for us -->
+		<StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<CompilerVisibleProperty Include="SandboxRazorRoot" />
+		<AdditionalFiles Include="UiTests\**\*.razor" />
+		<None Include="UiTests\**\*.scss" />
+
+		<!-- The stylesheets the test pages read at runtime -->
+		<UiTestContent Include="UiTests\**\*.scss" />
+	</ItemGroup>
+
+	<!-- A checkout serves UiTests straight from source. A Steam install has no source tree, so the
+	     same files go under the editor assets, which the content depot ships -->
+	<Target Name="CopyUiTestContent" AfterTargets="Build">
+		<Copy SourceFiles="@(UiTestContent)"
+		      DestinationFiles="@(UiTestContent->'$(OutputPath)\..\..\addons\editor\assets\uitests\%(RecursiveDir)%(Filename)%(Extension)')"
+		      SkipUnchangedFiles="true" />
+	</Target>
+
+	<ItemGroup>
+		<!-- Analyzer, not a library - the Razor SDK compiles the razor, this adds the
+		     sandbox-specific partials on top -->
+		<ProjectReference Include="..\..\Sandbox.Generator\Sandbox.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\Sandbox.AppSystem\Sandbox.AppSystem.csproj" Private="false"/>
+		<ProjectReference Include="..\..\Sandbox.Compiling\Sandbox.Compiling.csproj" Private="false"/>
+		<ProjectReference Include="..\..\Sandbox.Reflection\Sandbox.Reflection.csproj" Private="false"/>
+		<ProjectReference Include="..\..\Sandbox.Engine\Sandbox.Engine.csproj"  Private="false"/>
+		<ProjectReference Include="..\..\Sandbox.Filesystem\Sandbox.Filesystem.csproj" Private="false" />
+		<ProjectReference Include="..\..\Sandbox.Tools\Sandbox.Tools.csproj" Private="false" />
+		<ProjectReference Include="..\..\Sandbox.System\Sandbox.System.csproj" Private="false" />
+		<ProjectReference Include="..\..\Sandbox.Services\Sandbox.Services.csproj" Private="false" />
+		<ProjectReference Include="..\..\Microsoft.AspNetCore.Components\Microsoft.AspNetCore.Components.csproj" Private="false" />
+	</ItemGroup>
+
+	<Import Project="..\Shared\LaunchShared.projitems" Label="Shared" />
+
+</Project>

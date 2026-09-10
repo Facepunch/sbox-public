@@ -31,7 +31,6 @@ public partial class SceneViewportWidget
 
 		Renderer.Camera = _activeCamera;
 		Renderer.EnableEngineOverlays = IsGameView;
-		ViewportOptions.Visible = !IsGameView;
 	}
 
 	/// <summary>
@@ -41,6 +40,10 @@ public partial class SceneViewportWidget
 	{
 		GameMode.SetPlayWidget( Renderer );
 		IsGameView = true;
+
+		_gizmoSceneObject?.Delete();
+		_gizmoSceneObject = null;
+
 		Tools.DisposeAll();
 	}
 
@@ -84,6 +87,10 @@ public partial class SceneViewportWidget
 	{
 		GameMode.SetPlayWidget( Renderer );
 		IsGameView = true;
+
+		_gizmoSceneObject?.Delete();
+		_gizmoSceneObject = null;
+
 		Tools.DisposeAll();
 	}
 }

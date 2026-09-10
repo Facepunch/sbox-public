@@ -135,6 +135,15 @@ public sealed class MultiChannelBuffer : IDisposable
 	}
 
 	/// <summary>
+	/// Clamp each sample to [-1, 1] across all channels to prevent digital clipping.
+	/// </summary>
+	public void HardLimit()
+	{
+		for ( int i = 0; i < ChannelCount; i++ )
+			_buffers.Get( new AudioChannel( i ) ).HardLimit();
+	}
+
+	/// <summary>
 	/// Send to device output
 	/// </summary>
 	internal void SendToOutput()

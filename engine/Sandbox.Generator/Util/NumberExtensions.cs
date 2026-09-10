@@ -99,10 +99,10 @@ namespace Sandbox
 
 			if ( secs < 60 ) return string.Format( "{0} seconds", secs );
 			if ( m < 60 ) return string.Format( "{1} minutes, {0} seconds", secs % 60, m );
-			if ( h < 48 ) return string.Format( "{2} hours and {1} minutes", secs % 60, m % 60, h );
-			if ( d < 7 ) return string.Format( "{3} days, {2} hours and {1} minutes", secs % 60, m % 60, h % 24, d );
+			if ( h < 48 ) return string.Format( "{1} hours and {0} minutes", m % 60, h );
+			if ( d < 7 ) return string.Format( "{2} days, {1} hours and {0} minutes", m % 60, h % 24, d );
 
-			return string.Format( "{4} weeks, {3} days, {2} hours and {1} minutes", secs % 60, m % 60, h % 24, d % 7, w );
+			return string.Format( "{3} weeks, {2} days, {1} hours and {0} minutes", m % 60, h % 24, d % 7, w );
 		}
 		/// <inheritdoc cref=" FormatSecondsLong(long)"/>
 		public static string FormatSecondsLong( this ulong secs ) { return FormatSecondsLong( (long)secs ); }

@@ -60,21 +60,48 @@ public class ResourceSystem
 		// This isn't thread safe
 		ThreadSafe.AssertIsMainThread();
 
-		// Make sure we're unregistering the currently indexed resource
-
-		ResourceIndexLong.Remove( resource.ResourceIdLong );
-		WeakIndexLong.Remove( resource.ResourceIdLong );
+		// Only remove entries that index this exact resource. A stale instance whose index
+		// entry was replaced (e.g. re-registered under the same path) must not unregister
+		// the live resource when it gets finalized.
+		var removed = RemoveIndexed( ResourceIndexLong, resource.ResourceIdLong, resource );
+		removed |= RemoveIndexedWeak( WeakIndexLong, resource.ResourceIdLong, resource );
 
 #pragma warning disable CS0618 // Type or member is obsolete
-		ResourceIndex.Remove( resource.ResourceId );
-		WeakIndex.Remove( resource.ResourceId );
+		removed |= RemoveIndexed( ResourceIndex, resource.ResourceId, resource );
+		removed |= RemoveIndexedWeak( WeakIndex, resource.ResourceId, resource );
 #pragma warning restore CS0618 // Type or member is obsolete
 
-
-		if ( resource is GameResource gameResource && !gameResource.IsPromise )
+		if ( removed && resource is GameResource gameResource && !gameResource.IsPromise )
 		{
 			IToolsDll.Current?.RunEvent<IEventListener>( i => i.OnUnregister( gameResource ) );
 		}
+	}
+
+	private static bool RemoveIndexed<TKey>( Dictionary<TKey, Resource> index, TKey key, Resource resource )
+	{
+		if ( !index.TryGetValue( key, out var indexed ) || indexed != resource )
+			return false;
+
+		return index.Remove( key );
+	}
+
+	private static bool RemoveIndexedWeak<TKey>( Dictionary<TKey, WeakReference<Resource>> index, TKey key, Resource resource )
+	{
+		if ( !index.TryGetValue( key, out var weakRef ) )
+			return false;
+
+		if ( !weakRef.TryGetTarget( out var target ) )
+		{
+			// A dead entry can't be this resource - we hold a live reference to it.
+			// Prune it, but it doesn't count as unregistering this resource.
+			index.Remove( key );
+			return false;
+		}
+
+		if ( target != resource )
+			return false;
+
+		return index.Remove( key );
 	}
 
 	internal void OnHotload()
@@ -122,7 +149,7 @@ public class ResourceSystem
 		foreach ( var resource in toDispose )
 		{
 			// Don't wait/rely for finalizer get rid of this immediately
-			resource.Destroy();
+			resource?.Destroy();
 		}
 
 		ResourceIndex.Clear();
@@ -415,7 +442,7 @@ public class ResourceSystem
 		return null;
 	}
 
-	internal T LoadGameResource<T>( string file, BaseFileSystem fs, bool deferPostload = false ) where T : GameResource
+	internal T LoadGameResource<T>( string file, BaseFileSystem fs, bool deferPostload = false, Package sourcePackage = null ) where T : GameResource
 	{
 		var attr = typeof( T ).GetCustomAttribute<AssetTypeAttribute>();
 		if ( attr == null ) return default;
@@ -424,13 +451,13 @@ public class ResourceSystem
 		// but this ain't TypeLibrary kiddo
 		attr.TargetType = typeof( T );
 
-		return LoadGameResource( attr, file, fs, deferPostload ) as T;
+		return LoadGameResource( attr, file, fs, deferPostload, sourcePackage ) as T;
 	}
 
 	/// <summary>
 	/// Loads a Gameresource from disk. Doesn't look at cache. Registers the resource if successful.
 	/// </summary>
-	internal GameResource LoadGameResource( AssetTypeAttribute type, string file, BaseFileSystem fs, bool deferPostload = false )
+	internal GameResource LoadGameResource( AssetTypeAttribute type, string file, BaseFileSystem fs, bool deferPostload = false, Package sourcePackage = null )
 	{
 		Assert.NotNull( type );
 		Assert.NotNull( file );
@@ -454,6 +481,12 @@ public class ResourceSystem
 
 			var se = GameResource.GetPromise( type.TargetType, file );
 			if ( se is null ) return null;
+
+			// Attribute the resource to the package it was loaded from (null = local project).
+			// Only overwrite when a package is supplied so aggregate reloads don't clobber a
+			// previously attributed cloud package.
+			if ( sourcePackage is not null )
+				se.Package = sourcePackage;
 
 			se.TryLoadFromData( data );
 

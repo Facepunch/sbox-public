@@ -41,5 +41,11 @@ namespace Topten.RichTextKit
 		/// specified in which case it right aligns to the widest line in the text block.
 		/// </summary>
 		Right,
+
+		/// <summary>
+		/// Justifies text by spreading the spaces on each line (except the last line of a paragraph)
+		/// so the line fills <see cref="TextBlock.MaxWidth"/>. Only left-to-right content is justified.
+		/// </summary>
+		Justify,
 	}
 }

@@ -83,6 +83,16 @@ internal partial class NetworkSystem
 		// This network system only exists in the game.
 		using var gameScope = GameSystem?.Push();
 
+		if ( _connections.Any( c => c.HasPendingSends ) )
+		{
+			// A failed encoder can close a connection while we drain the queue.
+			foreach ( var connection in _connections.ToArray() )
+			{
+				connection.FlushPendingSends();
+			}
+		}
+		Connection?.FlushPendingSends();
+
 		foreach ( var socket in sockets )
 		{
 			socket?.GetIncomingMessages( HandleIncomingMessage );
@@ -91,7 +101,20 @@ internal partial class NetworkSystem
 		Connection?.GetIncomingMessages( HandleIncomingMessage );
 	}
 
-	void HandleIncomingMessage( NetworkMessage msg )
+	// Outer catch so one bad message can't tear down the dispatch path.
+	internal void HandleIncomingMessage( NetworkMessage msg )
+	{
+		try
+		{
+			HandleIncomingMessageInternal( msg );
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( e, $"Error processing network message from {msg.Source}" );
+		}
+	}
+
+	void HandleIncomingMessageInternal( NetworkMessage msg )
 	{
 		// Conna: If this message is not from the host and we're still connecting, ignore it.
 		if ( !IsHost && !msg.Source.IsHost && Connection.Local.IsConnecting )
@@ -99,7 +122,17 @@ internal partial class NetworkSystem
 			return;
 		}
 
+		// Don't try to deserialize any scripts if we don't trust the sender!
+
+		using var scriptDisabledScope = !msg.Source.CanSendScripts
+			? Json.DisableScriptDeserialization()
+			: null;
+
 		var type = msg.Data.Read<InternalMessageType>();
+
+		// Leaving host: only acknowledgements matter now
+		if ( _isHandingOff && type != InternalMessageType.Packed )
+			return;
 
 		if ( type == InternalMessageType.HeartbeatPing )
 		{
@@ -177,6 +210,9 @@ internal partial class NetworkSystem
 				return;
 			}
 
+			if ( _isHandingOff && obj is not HostHandoffAckMsg and not HostLeavingAckMsg )
+				return;
+
 			if ( responseTo != Guid.Empty )
 			{
 				msg.Source.OnResponse( responseTo, obj );
@@ -185,15 +221,7 @@ internal partial class NetworkSystem
 
 			if ( typeMessageHandlers.TryGetValue( obj.GetType(), out var h ) )
 			{
-				try
-				{
-					h( obj, msg.Source, requestGuid );
-				}
-				catch ( Exception e )
-				{
-					Log.Warning( e );
-				}
-
+				h( obj, msg.Source, requestGuid );
 				return;
 			}
 
@@ -209,15 +237,7 @@ internal partial class NetworkSystem
 
 		if ( messageHandlers.TryGetValue( type, out var handler ) )
 		{
-			try
-			{
-				handler( type, msg );
-			}
-			catch ( Exception e )
-			{
-				Log.Warning( e );
-			}
-
+			handler( type, msg );
 			return;
 		}
 
@@ -241,6 +261,14 @@ internal partial class NetworkSystem
 		// Read and apply visibility origins from the client
 		{
 			var count = data.Read<char>();
+
+			// Each origin is 3 floats (12 bytes). Reject a count the payload can't hold before allocating
+			// or reading, so a crafted packet can't over-allocate or read past the buffer end.
+			if ( count * 12 > data.ReadRemaining )
+			{
+				Log.Warning( $"Ignoring malformed ClientTick from {source}: visibility origin count {(int)count} exceeds payload ({data.ReadRemaining}b remaining, length {data.Length})." );
+				return;
+			}
 
 			if ( count == 0 )
 			{
@@ -292,7 +320,7 @@ internal partial class NetworkSystem
 			ByteStream bs = ByteStream.Create( 512 );
 			bs.Write( InternalMessageType.HeartbeatPong );
 			bs.Write( serverRealTime ); // the time they sent
-			source.SendStream( bs, NetFlags.Unreliable | NetFlags.SendImmediate );
+			source.SendStream( bs, NetFlags.Reliable | NetFlags.SendImmediate );
 			bs.Dispose();
 		}
 

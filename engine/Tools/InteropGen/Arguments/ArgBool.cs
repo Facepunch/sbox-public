@@ -8,13 +8,13 @@ public class ArgBool : Arg
 	public override string ManagedDelegateType => "int";
 	public override string NativeDelegateType => "int";
 
-	public override string ToInterop( bool native, string code = null )
+	public override string ToInterop( Side side, string code = null )
 	{
 		code ??= Name;
 		return $"{code} ? 1 : 0";
 	}
 
-	public override string FromInterop( bool native, string code = null )
+	public override string FromInterop( Side side, string code = null )
 	{
 		code ??= Name;
 		return $"{code} != 0";

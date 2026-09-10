@@ -1,4 +1,4 @@
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using Sandbox.Network;
 using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
@@ -392,6 +392,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	internal readonly LocalSnapshotState LocalSnapshotState = new();
 
 	private readonly HashSet<Guid> _culledConnections = [];
+	private readonly HashSet<Guid> _createMessageConnections = [];
 	private readonly Dictionary<Guid, CullState> _cullStates = new();
 	private readonly SnapshotValueCache _snapshotCache = new();
 	private TimeUntil _nextUpdateCachedBounds;
@@ -410,6 +411,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	{
 		LocalSnapshotState.RemoveConnection( id );
 		_culledConnections.Remove( id );
+		_createMessageConnections.Remove( id );
 		_cullStates.Remove( id );
 	}
 
@@ -419,6 +421,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	internal void OnHostChanged( Connection previousHost, Connection newHost )
 	{
 		ClearConnections();
+		UpdateIsOwner();
 		UpdateIsProxy();
 	}
 
@@ -428,6 +431,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	private void ClearConnections()
 	{
 		LocalSnapshotState.ClearConnections();
+		_createMessageConnections.Clear();
 	}
 
 	bool IDeltaSnapshot.ShouldTransmit( Connection target )
@@ -446,6 +450,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 				if ( !_culledConnections.Remove( target.Id ) )
 					continue;
 
+				EnsureCreateMessageSent( target );
 				GameObject.Network.SetCullState( target, false );
 			}
 
@@ -488,6 +493,9 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 			{
 				state.LastVisibleAt = timeNow;
 
+				// Ensure a create before transmitting; objects omitted from a join snapshot start un-culled.
+				EnsureCreateMessageSent( target );
+
 				if ( !state.Culled )
 					continue;
 
@@ -519,11 +527,52 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	}
 
 	/// <summary>
+	/// Ensure that a create message has been sent to the specified <see cref="Connection"/>. If it has not, then send it.
+	/// </summary>
+	/// <param name="target"></param>
+	internal void EnsureCreateMessageSent( Connection target )
+	{
+		if ( GameObject?.IsDestroyed ?? true )
+			return;
+
+		if ( !Networking.IsHost )
+			return;
+
+		if ( !_createMessageConnections.Add( target.Id ) )
+			return;
+
+		target.SendMessage( GetCreateMessage() );
+	}
+
+	/// <summary>
+	/// Should this object be included in an initial snapshot for the given connection? True if it's
+	/// always transmitted, snapshot-only, or currently visible to the connection.
+	/// </summary>
+	internal bool ShouldIncludeInSnapshot( Connection source )
+	{
+		var go = GameObject;
+		if ( !go.IsValid() )
+			return false;
+
+		return go.Network.AlwaysTransmit || go.NetworkMode == NetworkMode.Snapshot
+			|| IsVisible( source, go.GetLocalBounds() + go.WorldPosition );
+	}
+
+	/// <summary>
+	/// Mark that a create message has been sent to the specified <see cref="Connection"/>.
+	/// </summary>
+	/// <param name="target"></param>
+	internal void MarkCreateMessageSent( Connection target )
+	{
+		_createMessageConnections.Add( target.Id );
+	}
+
+	/// <summary>
 	/// Is this network object visible to the provided <see cref="Connection"/>. We'll check if we
 	/// have a culler component and use that, but we'll also use our bounds to determine if we're
 	/// visible.
 	/// </summary>
-	private bool IsVisible( Connection target, BBox worldBounds )
+	internal bool IsVisible( Connection target, BBox worldBounds )
 	{
 		// Do we have a INetworkVisible? We're going to let that take priority.
 		var go = GameObject;
@@ -579,7 +628,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 
 		LocalSnapshotState.Begin();
 		LocalSnapshotState.SnapshotId = system.DeltaSnapshots.CreateSnapshotId( Id );
-		LocalSnapshotState.ParentId = GameObject.Parent is Scene ? Guid.Empty : GameObject.Parent.Id;
+		LocalSnapshotState.ParentId = GameObject.Parent is null or Scene ? Guid.Empty : GameObject.Parent.Id;
 		LocalSnapshotState.ObjectId = Id;
 		LocalSnapshotState.Flags = flags;
 
@@ -639,8 +688,9 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	}
 
 	private static readonly GameObject.SerializeOptions _createSerializeOptions = new() { SingleNetworkObject = true, SkipNulls = true };
+	private static readonly GameObject.SerializeOptions _handoffSerializeOptions = new() { SingleNetworkObject = true, SkipNulls = true, IncludeLocalObjects = true };
 
-	internal ObjectCreateMsg GetCreateMessage()
+	internal ObjectCreateMsg GetCreateMessage( bool includeLocalObjects = false, SnapshotCapture capture = null )
 	{
 		if ( GameObject.Parent is null )
 		{
@@ -648,19 +698,20 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		}
 
 		using var blobs = BlobDataSerializer.Capture();
-		var jsonData = GameObject.Serialize( _createSerializeOptions );
+		var jsonData = GameObject.Serialize( includeLocalObjects ? _handoffSerializeOptions : _createSerializeOptions );
 		if ( jsonData is null )
 		{
 			throw new( $"Unable to serialize {GameObject.Id} ({GameObject.Name})" );
 		}
 
+		capture?.AddObject( jsonData, blobs );
 		var create = new ObjectCreateMsg
 		{
 			Guid = GameObject.Id,
 			SnapshotVersion = GameObject._net.LocalSnapshotState.Version,
 			Transform = GameObject.Transform.TargetLocal,
-			JsonData = jsonData.ToJsonString(),
-			BlobData = blobs.ToByteArray(),
+			JsonData = capture is null ? jsonData.ToJsonString() : null,
+			BlobData = capture is null ? blobs.ToByteArray() : null,
 			Creator = Creator,
 			Parent = GameObject.Parent.Id,
 			Owner = Owner,
@@ -669,6 +720,15 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		};
 
 		return create;
+	}
+
+	/// <summary>
+	/// Re-apply the sync table after lifecycle callbacks, which may have overwritten it.
+	/// </summary>
+	internal void ReapplyCreateTable( ObjectCreateMsg msg )
+	{
+		if ( GameObject.IsValid() )
+			ReadDataTable( msg.TableData );
 	}
 
 	internal void DoOrphanedAction()
@@ -730,7 +790,10 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 
 			// Only the host can modify network flags after the object has been spawned.
 			if ( !source.IsHost )
+			{
 				jsonObj.Remove( GameObject.JsonKeys.NetworkFlags );
+				GameObject.PreserveFromHostSyncMembers( jsonObj );
+			}
 
 			GameObject.SetParentFromNetwork( scene.Directory.FindByGuid( message.Parent ) );
 			GameObject.NetworkRefresh( jsonObj );

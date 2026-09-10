@@ -183,6 +183,7 @@ public partial class TypeLibrary
 		typeof(Sandbox.UI.FlexDirection),
 		typeof(Sandbox.UI.Justify),
 		typeof(Sandbox.UI.DisplayMode),
+		typeof(Sandbox.UI.GridAutoFlow),
 		typeof(Sandbox.UI.PointerEvents),
 		typeof(Sandbox.UI.Wrap),
 		typeof(Sandbox.UI.TextAlign),
@@ -655,6 +656,16 @@ public partial class TypeLibrary
 
 		// cache me
 		return new EnumDescription( enumType );
+	}
+
+	/// <summary>
+	/// Get a describtion of an enum value. This is useful if your enum values are decorated with attributes that you want to read, for example.
+	/// </summary>
+	public EnumDescription.Entry GetEnumDescription<T>( T enumValue ) where T : Enum
+	{
+		var ed = GetEnumDescription( typeof( T ) );
+		if ( ed is null ) return default;
+		return ed.GetEntry( enumValue );
 	}
 
 	/// <summary>

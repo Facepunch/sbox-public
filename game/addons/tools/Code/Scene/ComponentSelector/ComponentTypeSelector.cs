@@ -99,7 +99,7 @@ internal partial class ComponentTypeSelectorWidget : AdvancedDropdownWidget
 
 		if ( FlatView )
 		{
-			foreach ( var type in types.OrderBy( x => x.Title ) )
+			foreach ( var type in types.OrderBy( x => x.Title.AutoLocalize() ) )
 			{
 				root.Add( CreateComponentItem( type ) );
 			}
@@ -109,13 +109,13 @@ internal partial class ComponentTypeSelectorWidget : AdvancedDropdownWidget
 		var categories = types
 			.Select( x => string.IsNullOrWhiteSpace( x.Group ) ? NoCategoryName : x.Group )
 			.Distinct()
-			.OrderBy( x => x )
+			.OrderBy( x => x.AutoLocalize() )
 			.ToArray();
 
 		if ( categories.Length <= 1 )
 		{
 			// Single or no category - just list all types
-			foreach ( var type in types.OrderBy( x => x.Title ) )
+			foreach ( var type in types.OrderBy( x => x.Title.AutoLocalize() ) )
 			{
 				root.Add( CreateComponentItem( type ) );
 			}
@@ -131,7 +131,7 @@ internal partial class ComponentTypeSelectorWidget : AdvancedDropdownWidget
 
 			if ( !categoryNodes.TryGetValue( topLevel, out var categoryNode ) )
 			{
-				categoryNode = new AdvancedDropdownItem( topLevel );
+				categoryNode = new AdvancedDropdownItem( topLevel.AutoLocalize() );
 				categoryNodes[topLevel] = categoryNode;
 				root.Add( categoryNode );
 			}
@@ -143,7 +143,7 @@ internal partial class ComponentTypeSelectorWidget : AdvancedDropdownWidget
 				var current = categoryNode;
 				for ( int i = 1; i < parts.Length; i++ )
 				{
-					var subName = parts[i];
+					var subName = parts[i].AutoLocalize();
 					var existing = current.Children.FirstOrDefault( x => x.Title == subName && x.HasChildren );
 					if ( existing is null )
 					{
@@ -154,7 +154,7 @@ internal partial class ComponentTypeSelectorWidget : AdvancedDropdownWidget
 				}
 
 				// Add types for this full category path
-				foreach ( var type in types.Where( x => x.Group == category ).OrderBy( x => x.Title ) )
+				foreach ( var type in types.Where( x => x.Group == category ).OrderBy( x => x.Title.AutoLocalize() ) )
 				{
 					current.Add( CreateComponentItem( type ) );
 				}
@@ -164,7 +164,7 @@ internal partial class ComponentTypeSelectorWidget : AdvancedDropdownWidget
 				// Add types for this top-level category
 				var categoryTypes = types.Where( x =>
 					(category == NoCategoryName) ? (x.Group == null) : (x.Group == category) )
-					.OrderBy( x => x.Title );
+					.OrderBy( x => x.Title.AutoLocalize() );
 
 				foreach ( var type in categoryTypes )
 				{
@@ -178,7 +178,7 @@ internal partial class ComponentTypeSelectorWidget : AdvancedDropdownWidget
 	{
 		return new AdvancedDropdownItem
 		{
-			Title = type.Title,
+			Title = type.Title.AutoLocalize(),
 			Icon = type.Icon,
 			Description = type.Description,
 			Tooltip = $"<b>{type.FullName}</b><br/>{type.Description}",
@@ -194,7 +194,7 @@ internal partial class ComponentTypeSelectorWidget : AdvancedDropdownWidget
 		if ( item.Value is not TypeDescription type ) return 0;
 
 		var score = 0;
-		var t = type.Title.Replace( " ", "" );
+		var t = type.Title.AutoLocalize().Replace( " ", "" );
 		var c = type.ClassName.Replace( " ", "" );
 		var d = type.Description.Replace( " ", "" );
 

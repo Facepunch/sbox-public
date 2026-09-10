@@ -8,7 +8,7 @@ namespace Sandbox;
 
 public partial class TerrainStorage
 {
-	public override int ResourceVersion => 2;
+	public override int ResourceVersion => 3;
 
 	[Expose, JsonUpgrader( typeof( TerrainStorage ), 1 )]
 	static void Upgrader_v1( JsonObject obj )
@@ -22,9 +22,9 @@ public partial class TerrainStorage
 		// I did pow2+1 heightmaps for a stupid reason, resample them to pow2
 		if ( !BitOperations.IsPow2( size ) )
 		{
-			var data = TerrainMaps.Decompress<ushort>( Convert.FromBase64String( heightmap ) );
+			var data = TerrainMapBlob.Decompress<ushort>( Convert.FromBase64String( heightmap ) );
 			var resized = ResampleHeightmap( data, size, size - 1 );
-			heightmap = Convert.ToBase64String( TerrainMaps.Compress<ushort>( resized ) );
+			heightmap = Convert.ToBase64String( TerrainMapBlob.Compress<ushort>( resized ) );
 		}
 
 		// These are still base64 deflate compressed
@@ -63,14 +63,14 @@ public partial class TerrainStorage
 		// We need to convert our old splatmat(RGBA) into an indexed control map which contains much more information 
 		// that is all packed together. We also merge our hole map into a single bit of our new indexed map.
 		var splatmapBase64 = splatmapValue.Deserialize<string>();
-		var splatmapData = TerrainMaps.Decompress<Color32>( Convert.FromBase64String( splatmapBase64 ) );
+		var splatmapData = TerrainMapBlob.Decompress<Color32>( Convert.FromBase64String( splatmapBase64 ) );
 
 		// Cache holes map, so we can pack it
 		byte[] holesData = null;
 		if ( maps["holesmap"] is JsonValue holesValue )
 		{
 			var holesBase64 = holesValue.Deserialize<string>();
-			holesData = TerrainMaps.Decompress<byte>( Convert.FromBase64String( holesBase64 ) ).ToArray();
+			holesData = TerrainMapBlob.Decompress<byte>( Convert.FromBase64String( holesBase64 ) ).ToArray();
 		}
 
 		var compactData = new CompactTerrainMaterial[splatmapData.Length];
@@ -100,16 +100,48 @@ public partial class TerrainStorage
 		}
 
 		// Add compact format to maps
-		var compactBase64 = Convert.ToBase64String( TerrainMaps.Compress<CompactTerrainMaterial>( compactData ) );
+		var compactBase64 = Convert.ToBase64String( TerrainMapBlob.Compress<CompactTerrainMaterial>( compactData ) );
 		maps["splatmap"] = compactBase64;
 
 		// Remove legacy holesmap
 		maps.Remove( "holesmap" );
 	}
 
+	[Expose, JsonUpgrader( typeof( TerrainStorage ), 3 )]
+	static void Upgrader_v3_Base64ToBlob( JsonObject obj )
+	{
+		if ( obj["Maps"] is not JsonObject mapsJson )
+			return;
+
+		// If already a blob reference, skip
+		if ( mapsJson.ContainsKey( "$blob" ) )
+			return;
+
+		// If no base64 data, skip
+		if ( !mapsJson.ContainsKey( "heightmap" ) || !mapsJson.ContainsKey( "splatmap" ) )
+			return;
+
+		// Read base64 data
+		var heightmapBase64 = mapsJson["heightmap"].Deserialize<string>();
+		var splatmapBase64 = mapsJson["splatmap"].Deserialize<string>();
+
+		var heightmap = TerrainMapBlob.Decompress<ushort>( Convert.FromBase64String( heightmapBase64 ) ).ToArray();
+		var splatmap = TerrainMapBlob.Decompress<uint>( Convert.FromBase64String( splatmapBase64 ) ).ToArray();
+
+		// Create blob and register it
+		var blob = new TerrainMapBlob
+		{
+			HeightMap = heightmap,
+			SplatMap = splatmap
+		};
+
+		// BlobDataSerializer is now active during upgrades!
+		var guid = BlobDataSerializer.RegisterBlob( blob );
+		obj["Maps"] = new JsonObject { ["$blob"] = guid.ToString() };
+	}
+
 	static Span<ushort> ResampleHeightmap( Span<ushort> original, int originalSize, int newSize )
 	{
-		// Create SKBitmap with the original data copied in
 		using var bitmap = new SKBitmap( originalSize, originalSize, SKColorType.Alpha16, SKAlphaType.Opaque );
 		using ( var pixmap = bitmap.PeekPixels() )
 		{
@@ -117,13 +149,8 @@ public partial class TerrainStorage
 			Marshal.Copy( dataBytes.ToArray(), 0, pixmap.GetPixels(), dataBytes.Length );
 		}
 
-		// Create new resized bitmap
-		var newBitmap = bitmap.Resize( new SKSizeI( newSize, newSize ), SKSamplingOptions.Default );
-
-		// Output pixels
-		using ( var pixmap = newBitmap.PeekPixels() )
-		{
-			return pixmap.GetPixelSpan<ushort>();
-		}
+		using var newBitmap = bitmap.Resize( new SKSizeI( newSize, newSize ), new SKSamplingOptions( SKFilterMode.Linear, SKMipmapMode.None ) );
+		using var newPixmap = newBitmap.PeekPixels();
+		return newPixmap.GetPixelSpan<ushort>().ToArray();
 	}
 }

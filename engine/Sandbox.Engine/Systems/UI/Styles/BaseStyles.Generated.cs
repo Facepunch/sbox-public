@@ -7,6 +7,7 @@ namespace Sandbox.UI;
 /// </summary>
 public abstract partial class BaseStyles
 {	
+
 	internal string _content;
 	
 	/// <summary>
@@ -22,7 +23,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _width;
 	
 	/// <summary>
@@ -38,7 +39,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _minwidth;
 	
 	/// <summary>
@@ -54,7 +55,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _maxwidth;
 	
 	/// <summary>
@@ -70,7 +71,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _height;
 	
 	/// <summary>
@@ -86,7 +87,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _minheight;
 	
 	/// <summary>
@@ -102,7 +103,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _maxheight;
 	
 	/// <summary>
@@ -118,7 +119,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _left;
 	
 	/// <summary>
@@ -134,7 +135,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _top;
 	
 	/// <summary>
@@ -150,7 +151,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _right;
 	
 	/// <summary>
@@ -166,7 +167,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _bottom;
 	
 	/// <summary>
@@ -182,7 +183,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal float? _opacity;
 	
 	/// <summary>
@@ -198,7 +199,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Color? _backgroundcolor;
 	
 	/// <summary>
@@ -214,7 +215,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _paddingleft;
 	
 	/// <summary>
@@ -230,7 +231,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _paddingtop;
 	
 	/// <summary>
@@ -246,7 +247,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _paddingright;
 	
 	/// <summary>
@@ -262,7 +263,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _paddingbottom;
 	
 	/// <summary>
@@ -278,7 +279,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _marginleft;
 	
 	/// <summary>
@@ -294,7 +295,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _margintop;
 	
 	/// <summary>
@@ -310,7 +311,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _marginright;
 	
 	/// <summary>
@@ -326,7 +327,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _marginbottom;
 	
 	/// <summary>
@@ -342,7 +343,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _bordertopleftradius;
 	
 	/// <summary>
@@ -358,7 +359,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _bordertoprightradius;
 	
 	/// <summary>
@@ -374,7 +375,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _borderbottomrightradius;
 	
 	/// <summary>
@@ -390,7 +391,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _borderbottomleftradius;
 	
 	/// <summary>
@@ -406,7 +407,71 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
+
+	internal Length? _bordertopleftradiusv;
 	
+	/// <summary>
+	/// Represents the <c>border-top-left-radius-v</c> CSS property.
+	/// </summary>
+	public Length? BorderTopLeftRadiusV
+	{
+		get => _bordertopleftradiusv;
+		set
+		{
+			if ( _bordertopleftradiusv == value ) return;
+			_bordertopleftradiusv = value;
+			Dirty();
+		}
+	}
+
+	internal Length? _bordertoprightradiusv;
+	
+	/// <summary>
+	/// Represents the <c>border-top-right-radius-v</c> CSS property.
+	/// </summary>
+	public Length? BorderTopRightRadiusV
+	{
+		get => _bordertoprightradiusv;
+		set
+		{
+			if ( _bordertoprightradiusv == value ) return;
+			_bordertoprightradiusv = value;
+			Dirty();
+		}
+	}
+
+	internal Length? _borderbottomrightradiusv;
+	
+	/// <summary>
+	/// Represents the <c>border-bottom-right-radius-v</c> CSS property.
+	/// </summary>
+	public Length? BorderBottomRightRadiusV
+	{
+		get => _borderbottomrightradiusv;
+		set
+		{
+			if ( _borderbottomrightradiusv == value ) return;
+			_borderbottomrightradiusv = value;
+			Dirty();
+		}
+	}
+
+	internal Length? _borderbottomleftradiusv;
+	
+	/// <summary>
+	/// Represents the <c>border-bottom-left-radius-v</c> CSS property.
+	/// </summary>
+	public Length? BorderBottomLeftRadiusV
+	{
+		get => _borderbottomleftradiusv;
+		set
+		{
+			if ( _borderbottomleftradiusv == value ) return;
+			_borderbottomleftradiusv = value;
+			Dirty();
+		}
+	}
+
 	internal Length? _borderleftwidth;
 	
 	/// <summary>
@@ -422,7 +487,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _bordertopwidth;
 	
 	/// <summary>
@@ -438,7 +503,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _borderrightwidth;
 	
 	/// <summary>
@@ -454,7 +519,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _borderbottomwidth;
 	
 	/// <summary>
@@ -470,7 +535,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Color? _borderleftcolor;
 	
 	/// <summary>
@@ -486,7 +551,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Color? _bordertopcolor;
 	
 	/// <summary>
@@ -502,7 +567,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Color? _borderrightcolor;
 	
 	/// <summary>
@@ -518,7 +583,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Color? _borderbottomcolor;
 	
 	/// <summary>
@@ -534,7 +599,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _fontsize;
 	
 	/// <summary>
@@ -550,7 +615,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Color? _fontcolor;
 	
 	/// <summary>
@@ -566,7 +631,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal int? _fontweight;
 	
 	/// <summary>
@@ -582,7 +647,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal string _fontfamily;
 	
 	/// <summary>
@@ -598,7 +663,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Color? _caretcolor;
 	
 	/// <summary>
@@ -614,7 +679,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal string _cursor;
 	
 	/// <summary>
@@ -630,7 +695,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal PointerEvents? _pointerevents;
 	
 	/// <summary>
@@ -646,7 +711,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal string _mixblendmode;
 	
 	/// <summary>
@@ -662,7 +727,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal PositionMode? _position;
 	
 	/// <summary>
@@ -678,7 +743,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal OverflowMode? _overflowx;
 	
 	/// <summary>
@@ -694,7 +759,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal OverflowMode? _overflowy;
 	
 	/// <summary>
@@ -710,7 +775,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal FlexDirection? _flexdirection;
 	
 	/// <summary>
@@ -726,7 +791,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Justify? _justifycontent;
 	
 	/// <summary>
@@ -742,7 +807,39 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
+
+	internal Align? _justifyitems;
 	
+	/// <summary>
+	/// Represents the <c>justify-items</c> CSS property.
+	/// </summary>
+	public Align? JustifyItems
+	{
+		get => _justifyitems;
+		set
+		{
+			if ( _justifyitems == value ) return;
+			_justifyitems = value;
+			Dirty();
+		}
+	}
+
+	internal Align? _justifyself;
+	
+	/// <summary>
+	/// Represents the <c>justify-self</c> CSS property.
+	/// </summary>
+	public Align? JustifySelf
+	{
+		get => _justifyself;
+		set
+		{
+			if ( _justifyself == value ) return;
+			_justifyself = value;
+			Dirty();
+		}
+	}
+
 	internal DisplayMode? _display;
 	
 	/// <summary>
@@ -758,7 +855,151 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
+
+	internal string _gridtemplatecolumns;
 	
+	/// <summary>
+	/// Represents the <c>grid-template-columns</c> CSS property.
+	/// </summary>
+	public string GridTemplateColumns
+	{
+		get => _gridtemplatecolumns;
+		set
+		{
+			if ( _gridtemplatecolumns == value ) return;
+			_gridtemplatecolumns = value;
+			Dirty();
+		}
+	}
+
+	internal string _gridtemplaterows;
+	
+	/// <summary>
+	/// Represents the <c>grid-template-rows</c> CSS property.
+	/// </summary>
+	public string GridTemplateRows
+	{
+		get => _gridtemplaterows;
+		set
+		{
+			if ( _gridtemplaterows == value ) return;
+			_gridtemplaterows = value;
+			Dirty();
+		}
+	}
+
+	internal string _gridautocolumns;
+	
+	/// <summary>
+	/// Represents the <c>grid-auto-columns</c> CSS property.
+	/// </summary>
+	public string GridAutoColumns
+	{
+		get => _gridautocolumns;
+		set
+		{
+			if ( _gridautocolumns == value ) return;
+			_gridautocolumns = value;
+			Dirty();
+		}
+	}
+
+	internal string _gridautorows;
+	
+	/// <summary>
+	/// Represents the <c>grid-auto-rows</c> CSS property.
+	/// </summary>
+	public string GridAutoRows
+	{
+		get => _gridautorows;
+		set
+		{
+			if ( _gridautorows == value ) return;
+			_gridautorows = value;
+			Dirty();
+		}
+	}
+
+	internal GridAutoFlow? _gridautoflow;
+	
+	/// <summary>
+	/// Represents the <c>grid-auto-flow</c> CSS property.
+	/// </summary>
+	public GridAutoFlow? GridAutoFlow
+	{
+		get => _gridautoflow;
+		set
+		{
+			if ( _gridautoflow == value ) return;
+			_gridautoflow = value;
+			Dirty();
+		}
+	}
+
+	internal string _gridcolumnstart;
+	
+	/// <summary>
+	/// Represents the <c>grid-column-start</c> CSS property.
+	/// </summary>
+	public string GridColumnStart
+	{
+		get => _gridcolumnstart;
+		set
+		{
+			if ( _gridcolumnstart == value ) return;
+			_gridcolumnstart = value;
+			Dirty();
+		}
+	}
+
+	internal string _gridcolumnend;
+	
+	/// <summary>
+	/// Represents the <c>grid-column-end</c> CSS property.
+	/// </summary>
+	public string GridColumnEnd
+	{
+		get => _gridcolumnend;
+		set
+		{
+			if ( _gridcolumnend == value ) return;
+			_gridcolumnend = value;
+			Dirty();
+		}
+	}
+
+	internal string _gridrowstart;
+	
+	/// <summary>
+	/// Represents the <c>grid-row-start</c> CSS property.
+	/// </summary>
+	public string GridRowStart
+	{
+		get => _gridrowstart;
+		set
+		{
+			if ( _gridrowstart == value ) return;
+			_gridrowstart = value;
+			Dirty();
+		}
+	}
+
+	internal string _gridrowend;
+	
+	/// <summary>
+	/// Represents the <c>grid-row-end</c> CSS property.
+	/// </summary>
+	public string GridRowEnd
+	{
+		get => _gridrowend;
+		set
+		{
+			if ( _gridrowend == value ) return;
+			_gridrowend = value;
+			Dirty();
+		}
+	}
+
 	internal Wrap? _flexwrap;
 	
 	/// <summary>
@@ -774,7 +1015,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Align? _aligncontent;
 	
 	/// <summary>
@@ -790,7 +1031,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Align? _alignself;
 	
 	/// <summary>
@@ -806,7 +1047,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Align? _alignitems;
 	
 	/// <summary>
@@ -822,7 +1063,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _flexbasis;
 	
 	/// <summary>
@@ -838,7 +1079,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal float? _flexgrow;
 	
 	/// <summary>
@@ -854,7 +1095,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal float? _flexshrink;
 	
 	/// <summary>
@@ -870,7 +1111,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _rowgap;
 	
 	/// <summary>
@@ -886,7 +1127,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _columngap;
 	
 	/// <summary>
@@ -902,7 +1143,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal float? _aspectratio;
 	
 	/// <summary>
@@ -918,7 +1159,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal TextAlign? _textalign;
 	
 	/// <summary>
@@ -934,7 +1175,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal TextOverflow? _textoverflow;
 	
 	/// <summary>
@@ -950,7 +1191,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Rendering.FilterMode? _textfilter;
 	
 	/// <summary>
@@ -966,7 +1207,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal WordBreak? _wordbreak;
 	
 	/// <summary>
@@ -982,7 +1223,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal TextDecoration? _textdecorationline;
 	
 	/// <summary>
@@ -998,7 +1239,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Color? _textdecorationcolor;
 	
 	/// <summary>
@@ -1014,7 +1255,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _textdecorationthickness;
 	
 	/// <summary>
@@ -1030,7 +1271,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal TextSkipInk? _textdecorationskipink;
 	
 	/// <summary>
@@ -1046,7 +1287,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal TextDecorationStyle? _textdecorationstyle;
 	
 	/// <summary>
@@ -1062,7 +1303,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _textunderlineoffset;
 	
 	/// <summary>
@@ -1078,7 +1319,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _textoverlineoffset;
 	
 	/// <summary>
@@ -1094,7 +1335,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _textlinethroughoffset;
 	
 	/// <summary>
@@ -1110,7 +1351,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal FontStyle? _fontstyle;
 	
 	/// <summary>
@@ -1128,7 +1369,7 @@ public abstract partial class BaseStyles
 	}
 
 	internal FontVariantNumeric? _fontvariantnumeric;
-
+	
 	/// <summary>
 	/// Represents the <c>font-variant-numeric</c> CSS property.
 	/// </summary>
@@ -1142,7 +1383,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal PanelTransform? _transform;
 	
 	/// <summary>
@@ -1158,7 +1399,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal TextTransform? _texttransform;
 	
 	/// <summary>
@@ -1174,7 +1415,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _transformoriginx;
 	
 	/// <summary>
@@ -1190,7 +1431,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _transformoriginy;
 	
 	/// <summary>
@@ -1206,7 +1447,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _letterspacing;
 	
 	/// <summary>
@@ -1222,7 +1463,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _lineheight;
 	
 	/// <summary>
@@ -1238,7 +1479,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _wordspacing;
 	
 	/// <summary>
@@ -1254,7 +1495,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal WhiteSpace? _whitespace;
 	
 	/// <summary>
@@ -1270,7 +1511,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal int? _zindex;
 	
 	/// <summary>
@@ -1286,7 +1527,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal int? _order;
 	
 	/// <summary>
@@ -1302,7 +1543,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal string _soundin;
 	
 	/// <summary>
@@ -1318,7 +1559,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal string _soundout;
 	
 	/// <summary>
@@ -1334,7 +1575,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _backdropfilterblur;
 	
 	/// <summary>
@@ -1350,7 +1591,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _backdropfilterbrightness;
 	
 	/// <summary>
@@ -1366,7 +1607,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _backdropfiltercontrast;
 	
 	/// <summary>
@@ -1382,7 +1623,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _backdropfiltersaturate;
 	
 	/// <summary>
@@ -1398,7 +1639,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _backdropfiltersepia;
 	
 	/// <summary>
@@ -1414,7 +1655,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _backdropfilterinvert;
 	
 	/// <summary>
@@ -1430,7 +1671,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _backdropfilterhuerotate;
 	
 	/// <summary>
@@ -1446,7 +1687,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _filterblur;
 	
 	/// <summary>
@@ -1462,7 +1703,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _filtersaturate;
 	
 	/// <summary>
@@ -1478,7 +1719,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _filtersepia;
 	
 	/// <summary>
@@ -1494,7 +1735,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _filterbrightness;
 	
 	/// <summary>
@@ -1510,7 +1751,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _filterhuerotate;
 	
 	/// <summary>
@@ -1526,7 +1767,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _filterinvert;
 	
 	/// <summary>
@@ -1542,7 +1783,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _filtercontrast;
 	
 	/// <summary>
@@ -1558,7 +1799,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Color? _filtertint;
 	
 	/// <summary>
@@ -1574,7 +1815,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _filterborderwidth;
 	
 	/// <summary>
@@ -1590,7 +1831,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Color? _filterbordercolor;
 	
 	/// <summary>
@@ -1606,7 +1847,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal MaskMode? _maskmode;
 	
 	/// <summary>
@@ -1622,7 +1863,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal BackgroundRepeat? _maskrepeat;
 	
 	/// <summary>
@@ -1638,7 +1879,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _masksizex;
 	
 	/// <summary>
@@ -1654,7 +1895,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _masksizey;
 	
 	/// <summary>
@@ -1670,7 +1911,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _maskpositionx;
 	
 	/// <summary>
@@ -1686,7 +1927,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _maskpositiony;
 	
 	/// <summary>
@@ -1702,7 +1943,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _maskangle;
 	
 	/// <summary>
@@ -1718,7 +1959,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal MaskScope? _maskscope;
 	
 	/// <summary>
@@ -1734,7 +1975,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _backgroundsizex;
 	
 	/// <summary>
@@ -1750,7 +1991,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _backgroundsizey;
 	
 	/// <summary>
@@ -1766,7 +2007,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _backgroundpositionx;
 	
 	/// <summary>
@@ -1782,7 +2023,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _backgroundpositiony;
 	
 	/// <summary>
@@ -1798,7 +2039,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal BackgroundRepeat? _backgroundrepeat;
 	
 	/// <summary>
@@ -1814,7 +2055,23 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
+
+	internal BackgroundClip? _backgroundclip;
 	
+	/// <summary>
+	/// Represents the <c>background-clip</c> CSS property.
+	/// </summary>
+	public BackgroundClip? BackgroundClip
+	{
+		get => _backgroundclip;
+		set
+		{
+			if ( _backgroundclip == value ) return;
+			_backgroundclip = value;
+			Dirty();
+		}
+	}
+
 	internal Length? _borderimagewidthleft;
 	
 	/// <summary>
@@ -1830,7 +2087,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _borderimagewidthright;
 	
 	/// <summary>
@@ -1846,7 +2103,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _borderimagewidthtop;
 	
 	/// <summary>
@@ -1862,7 +2119,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _borderimagewidthbottom;
 	
 	/// <summary>
@@ -1878,7 +2135,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal BorderImageFill? _borderimagefill;
 	
 	/// <summary>
@@ -1894,7 +2151,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal BorderImageRepeat? _borderimagerepeat;
 	
 	/// <summary>
@@ -1910,7 +2167,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Color? _borderimagetint;
 	
 	/// <summary>
@@ -1926,7 +2183,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal string _backgroundblendmode;
 	
 	/// <summary>
@@ -1942,7 +2199,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Color? _backgroundtint;
 	
 	/// <summary>
@@ -1958,7 +2215,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _backgroundangle;
 	
 	/// <summary>
@@ -1974,7 +2231,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _textbackgroundangle;
 	
 	/// <summary>
@@ -1990,7 +2247,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _perspectiveoriginx;
 	
 	/// <summary>
@@ -2006,7 +2263,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _perspectiveoriginy;
 	
 	/// <summary>
@@ -2022,7 +2279,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Color? _textstrokecolor;
 	
 	/// <summary>
@@ -2038,7 +2295,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _textstrokewidth;
 	
 	/// <summary>
@@ -2054,7 +2311,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal ImageRendering? _imagerendering;
 	
 	/// <summary>
@@ -2070,7 +2327,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal float? _animationdelay;
 	
 	/// <summary>
@@ -2086,7 +2343,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal string _animationdirection;
 	
 	/// <summary>
@@ -2102,7 +2359,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal float? _animationduration;
 	
 	/// <summary>
@@ -2118,7 +2375,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal string _animationfillmode;
 	
 	/// <summary>
@@ -2134,7 +2391,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal float? _animationiterationcount;
 	
 	/// <summary>
@@ -2150,7 +2407,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal string _animationname;
 	
 	/// <summary>
@@ -2166,7 +2423,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal string _animationplaystate;
 	
 	/// <summary>
@@ -2182,7 +2439,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal string _animationtimingfunction;
 	
 	/// <summary>
@@ -2198,7 +2455,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal FontSmooth? _fontsmooth;
 	
 	/// <summary>
@@ -2214,9 +2471,9 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
-	internal ObjectFit? _objectfit;
 
+	internal ObjectFit? _objectfit;
+	
 	/// <summary>
 	/// Represents the <c>object-fit</c> CSS property.
 	/// </summary>
@@ -2232,7 +2489,7 @@ public abstract partial class BaseStyles
 	}
 
 	internal Length? _outlinewidth;
-
+	
 	/// <summary>
 	/// Represents the <c>outline-width</c> CSS property.
 	/// </summary>
@@ -2248,7 +2505,7 @@ public abstract partial class BaseStyles
 	}
 
 	internal Color? _outlinecolor;
-
+	
 	/// <summary>
 	/// Represents the <c>outline-color</c> CSS property.
 	/// </summary>
@@ -2264,7 +2521,7 @@ public abstract partial class BaseStyles
 	}
 
 	internal Length? _outlineoffset;
-
+	
 	/// <summary>
 	/// Represents the <c>outline-offset</c> CSS property.
 	/// </summary>
@@ -2279,6 +2536,85 @@ public abstract partial class BaseStyles
 		}
 	}
 
+	internal Isolation? _isolation;
+	
+	/// <summary>
+	/// Represents the <c>isolation</c> CSS property.
+	/// </summary>
+	public Isolation? Isolation
+	{
+		get => _isolation;
+		set
+		{
+			if ( _isolation == value ) return;
+			_isolation = value;
+			Dirty();
+		}
+	}
+
+	internal Length? _scrollbarwidth;
+	
+	/// <summary>
+	/// Represents the <c>scrollbar-width</c> CSS property.
+	/// </summary>
+	public Length? ScrollbarWidth
+	{
+		get => _scrollbarwidth;
+		set
+		{
+			if ( _scrollbarwidth == value ) return;
+			_scrollbarwidth = value;
+			Dirty();
+		}
+	}
+
+	internal ScrollbarGutter? _scrollbargutter;
+	
+	/// <summary>
+	/// Represents the <c>scrollbar-gutter</c> CSS property.
+	/// </summary>
+	public ScrollbarGutter? ScrollbarGutter
+	{
+		get => _scrollbargutter;
+		set
+		{
+			if ( _scrollbargutter == value ) return;
+			_scrollbargutter = value;
+			Dirty();
+		}
+	}
+
+	internal Color? _scrollbarthumbcolor;
+	
+	/// <summary>
+	/// Represents the <c>scrollbar-thumb-color</c> CSS property.
+	/// </summary>
+	public Color? ScrollbarThumbColor
+	{
+		get => _scrollbarthumbcolor;
+		set
+		{
+			if ( _scrollbarthumbcolor == value ) return;
+			_scrollbarthumbcolor = value;
+			Dirty();
+		}
+	}
+
+	internal Color? _scrollbartrackcolor;
+	
+	/// <summary>
+	/// Represents the <c>scrollbar-track-color</c> CSS property.
+	/// </summary>
+	public Color? ScrollbarTrackColor
+	{
+		get => _scrollbartrackcolor;
+		set
+		{
+			if ( _scrollbartrackcolor == value ) return;
+			_scrollbartrackcolor = value;
+			Dirty();
+		}
+	}
 
 	/// <summary>
 	/// Copy over only the styles that are set.
@@ -2310,6 +2646,10 @@ public abstract partial class BaseStyles
 		if ( a._bordertoprightradius != null ) _bordertoprightradius = a._bordertoprightradius;
 		if ( a._borderbottomrightradius != null ) _borderbottomrightradius = a._borderbottomrightradius;
 		if ( a._borderbottomleftradius != null ) _borderbottomleftradius = a._borderbottomleftradius;
+		if ( a._bordertopleftradiusv != null ) _bordertopleftradiusv = a._bordertopleftradiusv;
+		if ( a._bordertoprightradiusv != null ) _bordertoprightradiusv = a._bordertoprightradiusv;
+		if ( a._borderbottomrightradiusv != null ) _borderbottomrightradiusv = a._borderbottomrightradiusv;
+		if ( a._borderbottomleftradiusv != null ) _borderbottomleftradiusv = a._borderbottomleftradiusv;
 		if ( a._borderleftwidth != null ) _borderleftwidth = a._borderleftwidth;
 		if ( a._bordertopwidth != null ) _bordertopwidth = a._bordertopwidth;
 		if ( a._borderrightwidth != null ) _borderrightwidth = a._borderrightwidth;
@@ -2331,7 +2671,18 @@ public abstract partial class BaseStyles
 		if ( a._overflowy != null ) _overflowy = a._overflowy;
 		if ( a._flexdirection != null ) _flexdirection = a._flexdirection;
 		if ( a._justifycontent != null ) _justifycontent = a._justifycontent;
+		if ( a._justifyitems != null ) _justifyitems = a._justifyitems;
+		if ( a._justifyself != null ) _justifyself = a._justifyself;
 		if ( a._display != null ) _display = a._display;
+		if ( a._gridtemplatecolumns != null ) _gridtemplatecolumns = a._gridtemplatecolumns;
+		if ( a._gridtemplaterows != null ) _gridtemplaterows = a._gridtemplaterows;
+		if ( a._gridautocolumns != null ) _gridautocolumns = a._gridautocolumns;
+		if ( a._gridautorows != null ) _gridautorows = a._gridautorows;
+		if ( a._gridautoflow != null ) _gridautoflow = a._gridautoflow;
+		if ( a._gridcolumnstart != null ) _gridcolumnstart = a._gridcolumnstart;
+		if ( a._gridcolumnend != null ) _gridcolumnend = a._gridcolumnend;
+		if ( a._gridrowstart != null ) _gridrowstart = a._gridrowstart;
+		if ( a._gridrowend != null ) _gridrowend = a._gridrowend;
 		if ( a._flexwrap != null ) _flexwrap = a._flexwrap;
 		if ( a._aligncontent != null ) _aligncontent = a._aligncontent;
 		if ( a._alignself != null ) _alignself = a._alignself;
@@ -2398,6 +2749,7 @@ public abstract partial class BaseStyles
 		if ( a._backgroundpositionx != null ) _backgroundpositionx = a._backgroundpositionx;
 		if ( a._backgroundpositiony != null ) _backgroundpositiony = a._backgroundpositiony;
 		if ( a._backgroundrepeat != null ) _backgroundrepeat = a._backgroundrepeat;
+		if ( a._backgroundclip != null ) _backgroundclip = a._backgroundclip;
 		if ( a._borderimagewidthleft != null ) _borderimagewidthleft = a._borderimagewidthleft;
 		if ( a._borderimagewidthright != null ) _borderimagewidthright = a._borderimagewidthright;
 		if ( a._borderimagewidthtop != null ) _borderimagewidthtop = a._borderimagewidthtop;
@@ -2427,6 +2779,11 @@ public abstract partial class BaseStyles
 		if ( a._outlinewidth != null ) _outlinewidth = a._outlinewidth;
 		if ( a._outlinecolor != null ) _outlinecolor = a._outlinecolor;
 		if ( a._outlineoffset != null ) _outlineoffset = a._outlineoffset;
+		if ( a._isolation != null ) _isolation = a._isolation;
+		if ( a._scrollbarwidth != null ) _scrollbarwidth = a._scrollbarwidth;
+		if ( a._scrollbargutter != null ) _scrollbargutter = a._scrollbargutter;
+		if ( a._scrollbarthumbcolor != null ) _scrollbarthumbcolor = a._scrollbarthumbcolor;
+		if ( a._scrollbartrackcolor != null ) _scrollbartrackcolor = a._scrollbartrackcolor;
 	}
 
 	/// <summary>
@@ -2459,6 +2816,10 @@ public abstract partial class BaseStyles
 		_bordertoprightradius = a._bordertoprightradius;
 		_borderbottomrightradius = a._borderbottomrightradius;
 		_borderbottomleftradius = a._borderbottomleftradius;
+		_bordertopleftradiusv = a._bordertopleftradiusv;
+		_bordertoprightradiusv = a._bordertoprightradiusv;
+		_borderbottomrightradiusv = a._borderbottomrightradiusv;
+		_borderbottomleftradiusv = a._borderbottomleftradiusv;
 		_borderleftwidth = a._borderleftwidth;
 		_bordertopwidth = a._bordertopwidth;
 		_borderrightwidth = a._borderrightwidth;
@@ -2480,7 +2841,18 @@ public abstract partial class BaseStyles
 		_overflowy = a._overflowy;
 		_flexdirection = a._flexdirection;
 		_justifycontent = a._justifycontent;
+		_justifyitems = a._justifyitems;
+		_justifyself = a._justifyself;
 		_display = a._display;
+		_gridtemplatecolumns = a._gridtemplatecolumns;
+		_gridtemplaterows = a._gridtemplaterows;
+		_gridautocolumns = a._gridautocolumns;
+		_gridautorows = a._gridautorows;
+		_gridautoflow = a._gridautoflow;
+		_gridcolumnstart = a._gridcolumnstart;
+		_gridcolumnend = a._gridcolumnend;
+		_gridrowstart = a._gridrowstart;
+		_gridrowend = a._gridrowend;
 		_flexwrap = a._flexwrap;
 		_aligncontent = a._aligncontent;
 		_alignself = a._alignself;
@@ -2547,6 +2919,7 @@ public abstract partial class BaseStyles
 		_backgroundpositionx = a._backgroundpositionx;
 		_backgroundpositiony = a._backgroundpositiony;
 		_backgroundrepeat = a._backgroundrepeat;
+		_backgroundclip = a._backgroundclip;
 		_borderimagewidthleft = a._borderimagewidthleft;
 		_borderimagewidthright = a._borderimagewidthright;
 		_borderimagewidthtop = a._borderimagewidthtop;
@@ -2576,15 +2949,20 @@ public abstract partial class BaseStyles
 		_outlinewidth = a._outlinewidth;
 		_outlinecolor = a._outlinecolor;
 		_outlineoffset = a._outlineoffset;
+		_isolation = a._isolation;
+		_scrollbarwidth = a._scrollbarwidth;
+		_scrollbargutter = a._scrollbargutter;
+		_scrollbarthumbcolor = a._scrollbarthumbcolor;
+		_scrollbartrackcolor = a._scrollbartrackcolor;
 	}
 
 	/// <summary>
 	/// Set a CSS property via its string name.
 	/// </summary>
 	private bool SetGenerated( string property, string value )
-    {
-        switch ( property )
-        {
+	{
+		switch ( property )
+		{
 		case "content":
 			Content = value.TrimQuoted( true );
 			return true;
@@ -2660,6 +3038,18 @@ public abstract partial class BaseStyles
 		case "border-bottom-left-radius":
 			BorderBottomLeftRadius = Length.Parse( value );
 			return BorderBottomLeftRadius.HasValue;
+		case "border-top-left-radius-v":
+			BorderTopLeftRadiusV = Length.Parse( value );
+			return BorderTopLeftRadiusV.HasValue;
+		case "border-top-right-radius-v":
+			BorderTopRightRadiusV = Length.Parse( value );
+			return BorderTopRightRadiusV.HasValue;
+		case "border-bottom-right-radius-v":
+			BorderBottomRightRadiusV = Length.Parse( value );
+			return BorderBottomRightRadiusV.HasValue;
+		case "border-bottom-left-radius-v":
+			BorderBottomLeftRadiusV = Length.Parse( value );
+			return BorderBottomLeftRadiusV.HasValue;
 		case "border-left-width":
 			BorderLeftWidth = Length.Parse( value );
 			return BorderLeftWidth.HasValue;
@@ -2704,6 +3094,30 @@ public abstract partial class BaseStyles
 			return true;
 		case "mix-blend-mode":
 			MixBlendMode = value.TrimQuoted( true );
+			return true;
+		case "grid-template-columns":
+			GridTemplateColumns = value.TrimQuoted( true );
+			return true;
+		case "grid-template-rows":
+			GridTemplateRows = value.TrimQuoted( true );
+			return true;
+		case "grid-auto-columns":
+			GridAutoColumns = value.TrimQuoted( true );
+			return true;
+		case "grid-auto-rows":
+			GridAutoRows = value.TrimQuoted( true );
+			return true;
+		case "grid-column-start":
+			GridColumnStart = value.TrimQuoted( true );
+			return true;
+		case "grid-column-end":
+			GridColumnEnd = value.TrimQuoted( true );
+			return true;
+		case "grid-row-start":
+			GridRowStart = value.TrimQuoted( true );
+			return true;
+		case "grid-row-end":
+			GridRowEnd = value.TrimQuoted( true );
 			return true;
 		case "flex-basis":
 			FlexBasis = Length.Parse( value );
@@ -2915,159 +3329,188 @@ public abstract partial class BaseStyles
 		case "outline-offset":
 			OutlineOffset = Length.Parse( value );
 			return OutlineOffset.HasValue;
+		case "scrollbar-width":
+			ScrollbarWidth = Length.Parse( value );
+			return ScrollbarWidth.HasValue;
+		case "scrollbar-thumb-color":
+			ScrollbarThumbColor = Color.Parse( value );
+			return ScrollbarThumbColor.HasValue;
+		case "scrollbar-track-color":
+			ScrollbarTrackColor = Color.Parse( value );
+			return ScrollbarTrackColor.HasValue;
 		default:
 			return false;
 		}
 	}
 
 	private int GetHashCodeGenerated()
-    {
-		int hash = 0;
+	{
+		var hash = new HashCode();
 
-			hash = HashCode.Combine( hash, _content );
-			hash = HashCode.Combine( hash, _width );
-			hash = HashCode.Combine( hash, _minwidth );
-			hash = HashCode.Combine( hash, _maxwidth );
-			hash = HashCode.Combine( hash, _height );
-			hash = HashCode.Combine( hash, _minheight );
-			hash = HashCode.Combine( hash, _maxheight );
-			hash = HashCode.Combine( hash, _left );
-			hash = HashCode.Combine( hash, _top );
-			hash = HashCode.Combine( hash, _right );
-			hash = HashCode.Combine( hash, _bottom );
-			hash = HashCode.Combine( hash, _opacity );
-			hash = HashCode.Combine( hash, _backgroundcolor );
-			hash = HashCode.Combine( hash, _paddingleft );
-			hash = HashCode.Combine( hash, _paddingtop );
-			hash = HashCode.Combine( hash, _paddingright );
-			hash = HashCode.Combine( hash, _paddingbottom );
-			hash = HashCode.Combine( hash, _marginleft );
-			hash = HashCode.Combine( hash, _margintop );
-			hash = HashCode.Combine( hash, _marginright );
-			hash = HashCode.Combine( hash, _marginbottom );
-			hash = HashCode.Combine( hash, _bordertopleftradius );
-			hash = HashCode.Combine( hash, _bordertoprightradius );
-			hash = HashCode.Combine( hash, _borderbottomrightradius );
-			hash = HashCode.Combine( hash, _borderbottomleftradius );
-			hash = HashCode.Combine( hash, _borderleftwidth );
-			hash = HashCode.Combine( hash, _bordertopwidth );
-			hash = HashCode.Combine( hash, _borderrightwidth );
-			hash = HashCode.Combine( hash, _borderbottomwidth );
-			hash = HashCode.Combine( hash, _borderleftcolor );
-			hash = HashCode.Combine( hash, _bordertopcolor );
-			hash = HashCode.Combine( hash, _borderrightcolor );
-			hash = HashCode.Combine( hash, _borderbottomcolor );
-			hash = HashCode.Combine( hash, _fontsize );
-			hash = HashCode.Combine( hash, _fontcolor );
-			hash = HashCode.Combine( hash, _fontweight );
-			hash = HashCode.Combine( hash, _fontfamily );
-			hash = HashCode.Combine( hash, _caretcolor );
-			hash = HashCode.Combine( hash, _cursor );
-			hash = HashCode.Combine( hash, _pointerevents );
-			hash = HashCode.Combine( hash, _mixblendmode );
-			hash = HashCode.Combine( hash, _position );
-			hash = HashCode.Combine( hash, _overflowx );
-			hash = HashCode.Combine( hash, _overflowy );
-			hash = HashCode.Combine( hash, _flexdirection );
-			hash = HashCode.Combine( hash, _justifycontent );
-			hash = HashCode.Combine( hash, _display );
-			hash = HashCode.Combine( hash, _flexwrap );
-			hash = HashCode.Combine( hash, _aligncontent );
-			hash = HashCode.Combine( hash, _alignself );
-			hash = HashCode.Combine( hash, _alignitems );
-			hash = HashCode.Combine( hash, _flexbasis );
-			hash = HashCode.Combine( hash, _flexgrow );
-			hash = HashCode.Combine( hash, _flexshrink );
-			hash = HashCode.Combine( hash, _rowgap );
-			hash = HashCode.Combine( hash, _columngap );
-			hash = HashCode.Combine( hash, _aspectratio );
-			hash = HashCode.Combine( hash, _textalign );
-			hash = HashCode.Combine( hash, _textoverflow );
-			hash = HashCode.Combine( hash, _textfilter );
-			hash = HashCode.Combine( hash, _wordbreak );
-			hash = HashCode.Combine( hash, _textdecorationline );
-			hash = HashCode.Combine( hash, _textdecorationcolor );
-			hash = HashCode.Combine( hash, _textdecorationthickness );
-			hash = HashCode.Combine( hash, _textdecorationskipink );
-			hash = HashCode.Combine( hash, _textdecorationstyle );
-			hash = HashCode.Combine( hash, _textunderlineoffset );
-			hash = HashCode.Combine( hash, _textoverlineoffset );
-			hash = HashCode.Combine( hash, _textlinethroughoffset );
-			hash = HashCode.Combine( hash, _fontstyle );
-			hash = HashCode.Combine( hash, _fontvariantnumeric );
-			hash = HashCode.Combine( hash, _transform );
-			hash = HashCode.Combine( hash, _texttransform );
-			hash = HashCode.Combine( hash, _transformoriginx );
-			hash = HashCode.Combine( hash, _transformoriginy );
-			hash = HashCode.Combine( hash, _letterspacing );
-			hash = HashCode.Combine( hash, _lineheight );
-			hash = HashCode.Combine( hash, _wordspacing );
-			hash = HashCode.Combine( hash, _whitespace );
-			hash = HashCode.Combine( hash, _zindex );
-			hash = HashCode.Combine( hash, _order );
-			hash = HashCode.Combine( hash, _soundin );
-			hash = HashCode.Combine( hash, _soundout );
-			hash = HashCode.Combine( hash, _backdropfilterblur );
-			hash = HashCode.Combine( hash, _backdropfilterbrightness );
-			hash = HashCode.Combine( hash, _backdropfiltercontrast );
-			hash = HashCode.Combine( hash, _backdropfiltersaturate );
-			hash = HashCode.Combine( hash, _backdropfiltersepia );
-			hash = HashCode.Combine( hash, _backdropfilterinvert );
-			hash = HashCode.Combine( hash, _backdropfilterhuerotate );
-			hash = HashCode.Combine( hash, _filterblur );
-			hash = HashCode.Combine( hash, _filtersaturate );
-			hash = HashCode.Combine( hash, _filtersepia );
-			hash = HashCode.Combine( hash, _filterbrightness );
-			hash = HashCode.Combine( hash, _filterhuerotate );
-			hash = HashCode.Combine( hash, _filterinvert );
-			hash = HashCode.Combine( hash, _filtercontrast );
-			hash = HashCode.Combine( hash, _filtertint );
-			hash = HashCode.Combine( hash, _filterborderwidth );
-			hash = HashCode.Combine( hash, _filterbordercolor );
-			hash = HashCode.Combine( hash, _maskmode );
-			hash = HashCode.Combine( hash, _maskrepeat );
-			hash = HashCode.Combine( hash, _masksizex );
-			hash = HashCode.Combine( hash, _masksizey );
-			hash = HashCode.Combine( hash, _maskpositionx );
-			hash = HashCode.Combine( hash, _maskpositiony );
-			hash = HashCode.Combine( hash, _maskangle );
-			hash = HashCode.Combine( hash, _maskscope );
-			hash = HashCode.Combine( hash, _backgroundsizex );
-			hash = HashCode.Combine( hash, _backgroundsizey );
-			hash = HashCode.Combine( hash, _backgroundpositionx );
-			hash = HashCode.Combine( hash, _backgroundpositiony );
-			hash = HashCode.Combine( hash, _backgroundrepeat );
-			hash = HashCode.Combine( hash, _borderimagewidthleft );
-			hash = HashCode.Combine( hash, _borderimagewidthright );
-			hash = HashCode.Combine( hash, _borderimagewidthtop );
-			hash = HashCode.Combine( hash, _borderimagewidthbottom );
-			hash = HashCode.Combine( hash, _borderimagefill );
-			hash = HashCode.Combine( hash, _borderimagerepeat );
-			hash = HashCode.Combine( hash, _borderimagetint );
-			hash = HashCode.Combine( hash, _backgroundblendmode );
-			hash = HashCode.Combine( hash, _backgroundtint );
-			hash = HashCode.Combine( hash, _backgroundangle );
-			hash = HashCode.Combine( hash, _textbackgroundangle );
-			hash = HashCode.Combine( hash, _perspectiveoriginx );
-			hash = HashCode.Combine( hash, _perspectiveoriginy );
-			hash = HashCode.Combine( hash, _textstrokecolor );
-			hash = HashCode.Combine( hash, _textstrokewidth );
-			hash = HashCode.Combine( hash, _imagerendering );
-			hash = HashCode.Combine( hash, _animationdelay );
-			hash = HashCode.Combine( hash, _animationdirection );
-			hash = HashCode.Combine( hash, _animationduration );
-			hash = HashCode.Combine( hash, _animationfillmode );
-			hash = HashCode.Combine( hash, _animationiterationcount );
-			hash = HashCode.Combine( hash, _animationname );
-			hash = HashCode.Combine( hash, _animationplaystate );
-			hash = HashCode.Combine( hash, _animationtimingfunction );
-			hash = HashCode.Combine( hash, _fontsmooth );
-			hash = HashCode.Combine( hash, _objectfit );
-			hash = HashCode.Combine( hash, _outlinewidth );
-			hash = HashCode.Combine( hash, _outlinecolor );
-			hash = HashCode.Combine( hash, _outlineoffset );
-
-		return hash;
+		hash.Add( _content );
+		hash.Add( _width );
+		hash.Add( _minwidth );
+		hash.Add( _maxwidth );
+		hash.Add( _height );
+		hash.Add( _minheight );
+		hash.Add( _maxheight );
+		hash.Add( _left );
+		hash.Add( _top );
+		hash.Add( _right );
+		hash.Add( _bottom );
+		hash.Add( _opacity );
+		hash.Add( _backgroundcolor );
+		hash.Add( _paddingleft );
+		hash.Add( _paddingtop );
+		hash.Add( _paddingright );
+		hash.Add( _paddingbottom );
+		hash.Add( _marginleft );
+		hash.Add( _margintop );
+		hash.Add( _marginright );
+		hash.Add( _marginbottom );
+		hash.Add( _bordertopleftradius );
+		hash.Add( _bordertoprightradius );
+		hash.Add( _borderbottomrightradius );
+		hash.Add( _borderbottomleftradius );
+		hash.Add( _bordertopleftradiusv );
+		hash.Add( _bordertoprightradiusv );
+		hash.Add( _borderbottomrightradiusv );
+		hash.Add( _borderbottomleftradiusv );
+		hash.Add( _borderleftwidth );
+		hash.Add( _bordertopwidth );
+		hash.Add( _borderrightwidth );
+		hash.Add( _borderbottomwidth );
+		hash.Add( _borderleftcolor );
+		hash.Add( _bordertopcolor );
+		hash.Add( _borderrightcolor );
+		hash.Add( _borderbottomcolor );
+		hash.Add( _fontsize );
+		hash.Add( _fontcolor );
+		hash.Add( _fontweight );
+		hash.Add( _fontfamily );
+		hash.Add( _caretcolor );
+		hash.Add( _cursor );
+		hash.Add( _pointerevents );
+		hash.Add( _mixblendmode );
+		hash.Add( _position );
+		hash.Add( _overflowx );
+		hash.Add( _overflowy );
+		hash.Add( _flexdirection );
+		hash.Add( _justifycontent );
+		hash.Add( _justifyitems );
+		hash.Add( _justifyself );
+		hash.Add( _display );
+		hash.Add( _gridtemplatecolumns );
+		hash.Add( _gridtemplaterows );
+		hash.Add( _gridautocolumns );
+		hash.Add( _gridautorows );
+		hash.Add( _gridautoflow );
+		hash.Add( _gridcolumnstart );
+		hash.Add( _gridcolumnend );
+		hash.Add( _gridrowstart );
+		hash.Add( _gridrowend );
+		hash.Add( _flexwrap );
+		hash.Add( _aligncontent );
+		hash.Add( _alignself );
+		hash.Add( _alignitems );
+		hash.Add( _flexbasis );
+		hash.Add( _flexgrow );
+		hash.Add( _flexshrink );
+		hash.Add( _rowgap );
+		hash.Add( _columngap );
+		hash.Add( _aspectratio );
+		hash.Add( _textalign );
+		hash.Add( _textoverflow );
+		hash.Add( _textfilter );
+		hash.Add( _wordbreak );
+		hash.Add( _textdecorationline );
+		hash.Add( _textdecorationcolor );
+		hash.Add( _textdecorationthickness );
+		hash.Add( _textdecorationskipink );
+		hash.Add( _textdecorationstyle );
+		hash.Add( _textunderlineoffset );
+		hash.Add( _textoverlineoffset );
+		hash.Add( _textlinethroughoffset );
+		hash.Add( _fontstyle );
+		hash.Add( _fontvariantnumeric );
+		hash.Add( _transform );
+		hash.Add( _texttransform );
+		hash.Add( _transformoriginx );
+		hash.Add( _transformoriginy );
+		hash.Add( _letterspacing );
+		hash.Add( _lineheight );
+		hash.Add( _wordspacing );
+		hash.Add( _whitespace );
+		hash.Add( _zindex );
+		hash.Add( _order );
+		hash.Add( _soundin );
+		hash.Add( _soundout );
+		hash.Add( _backdropfilterblur );
+		hash.Add( _backdropfilterbrightness );
+		hash.Add( _backdropfiltercontrast );
+		hash.Add( _backdropfiltersaturate );
+		hash.Add( _backdropfiltersepia );
+		hash.Add( _backdropfilterinvert );
+		hash.Add( _backdropfilterhuerotate );
+		hash.Add( _filterblur );
+		hash.Add( _filtersaturate );
+		hash.Add( _filtersepia );
+		hash.Add( _filterbrightness );
+		hash.Add( _filterhuerotate );
+		hash.Add( _filterinvert );
+		hash.Add( _filtercontrast );
+		hash.Add( _filtertint );
+		hash.Add( _filterborderwidth );
+		hash.Add( _filterbordercolor );
+		hash.Add( _maskmode );
+		hash.Add( _maskrepeat );
+		hash.Add( _masksizex );
+		hash.Add( _masksizey );
+		hash.Add( _maskpositionx );
+		hash.Add( _maskpositiony );
+		hash.Add( _maskangle );
+		hash.Add( _maskscope );
+		hash.Add( _backgroundsizex );
+		hash.Add( _backgroundsizey );
+		hash.Add( _backgroundpositionx );
+		hash.Add( _backgroundpositiony );
+		hash.Add( _backgroundrepeat );
+		hash.Add( _backgroundclip );
+		hash.Add( _borderimagewidthleft );
+		hash.Add( _borderimagewidthright );
+		hash.Add( _borderimagewidthtop );
+		hash.Add( _borderimagewidthbottom );
+		hash.Add( _borderimagefill );
+		hash.Add( _borderimagerepeat );
+		hash.Add( _borderimagetint );
+		hash.Add( _backgroundblendmode );
+		hash.Add( _backgroundtint );
+		hash.Add( _backgroundangle );
+		hash.Add( _textbackgroundangle );
+		hash.Add( _perspectiveoriginx );
+		hash.Add( _perspectiveoriginy );
+		hash.Add( _textstrokecolor );
+		hash.Add( _textstrokewidth );
+		hash.Add( _imagerendering );
+		hash.Add( _animationdelay );
+		hash.Add( _animationdirection );
+		hash.Add( _animationduration );
+		hash.Add( _animationfillmode );
+		hash.Add( _animationiterationcount );
+		hash.Add( _animationname );
+		hash.Add( _animationplaystate );
+		hash.Add( _animationtimingfunction );
+		hash.Add( _fontsmooth );
+		hash.Add( _objectfit );
+		hash.Add( _outlinewidth );
+		hash.Add( _outlinecolor );
+		hash.Add( _outlineoffset );
+		hash.Add( _isolation );
+		hash.Add( _scrollbarwidth );
+		hash.Add( _scrollbargutter );
+		hash.Add( _scrollbarthumbcolor );
+		hash.Add( _scrollbartrackcolor );
+		return hash.ToHashCode();
 	}
 
 	/// <summary>
@@ -3099,6 +3542,10 @@ public abstract partial class BaseStyles
 		LerpProperty( "border-top-right-radius", from, to, delta );
 		LerpProperty( "border-bottom-right-radius", from, to, delta );
 		LerpProperty( "border-bottom-left-radius", from, to, delta );
+		LerpProperty( "border-top-left-radius-v", from, to, delta );
+		LerpProperty( "border-top-right-radius-v", from, to, delta );
+		LerpProperty( "border-bottom-right-radius-v", from, to, delta );
+		LerpProperty( "border-bottom-left-radius-v", from, to, delta );
 		LerpProperty( "border-left-width", from, to, delta );
 		LerpProperty( "border-top-width", from, to, delta );
 		LerpProperty( "border-right-width", from, to, delta );
@@ -3171,6 +3618,9 @@ public abstract partial class BaseStyles
 		LerpProperty( "outline-width", from, to, delta );
 		LerpProperty( "outline-color", from, to, delta );
 		LerpProperty( "outline-offset", from, to, delta );
+		LerpProperty( "scrollbar-width", from, to, delta );
+		LerpProperty( "scrollbar-thumb-color", from, to, delta );
+		LerpProperty( "scrollbar-track-color", from, to, delta );
 	}
 	
 	/// <summary>
@@ -3251,6 +3701,18 @@ public abstract partial class BaseStyles
 				break;
 			case "border-bottom-left-radius":
 				Lerp( ref _borderbottomleftradius, from._borderbottomleftradius, to._borderbottomleftradius, 0, delta );
+				break;
+			case "border-top-left-radius-v":
+				Lerp( ref _bordertopleftradiusv, from._bordertopleftradiusv ?? from._bordertopleftradius, to._bordertopleftradiusv ?? to._bordertopleftradius, 0, delta );
+				break;
+			case "border-top-right-radius-v":
+				Lerp( ref _bordertoprightradiusv, from._bordertoprightradiusv ?? from._bordertoprightradius, to._bordertoprightradiusv ?? to._bordertoprightradius, 0, delta );
+				break;
+			case "border-bottom-right-radius-v":
+				Lerp( ref _borderbottomrightradiusv, from._borderbottomrightradiusv ?? from._borderbottomrightradius, to._borderbottomrightradiusv ?? to._borderbottomrightradius, 0, delta );
+				break;
+			case "border-bottom-left-radius-v":
+				Lerp( ref _borderbottomleftradiusv, from._borderbottomleftradiusv ?? from._borderbottomleftradius, to._borderbottomleftradiusv ?? to._borderbottomleftradius, 0, delta );
 				break;
 			case "border-left-width":
 				Lerp( ref _borderleftwidth, from._borderleftwidth, to._borderleftwidth, 0, delta );
@@ -3468,9 +3930,18 @@ public abstract partial class BaseStyles
 			case "outline-offset":
 				Lerp( ref _outlineoffset, from._outlineoffset, to._outlineoffset, 0, delta );
 				break;
+			case "scrollbar-width":
+				Lerp( ref _scrollbarwidth, from._scrollbarwidth, to._scrollbarwidth, from._scrollbarwidth ?? 0, delta );
+				break;
+			case "scrollbar-thumb-color":
+				Lerp( ref _scrollbarthumbcolor, from._scrollbarthumbcolor, to._scrollbarthumbcolor, from._scrollbarthumbcolor ?? null, delta );
+				break;
+			case "scrollbar-track-color":
+				Lerp( ref _scrollbartrackcolor, from._scrollbartrackcolor, to._scrollbartrackcolor, from._scrollbartrackcolor ?? null, delta );
+				break;
 		}
 	}
-
+	
 	/// <summary>
 	/// Perform a deep copy of this stylesheet
 	/// </summary>
@@ -3502,6 +3973,10 @@ public abstract partial class BaseStyles
 		copy._bordertoprightradius = _bordertoprightradius;
 		copy._borderbottomrightradius = _borderbottomrightradius;
 		copy._borderbottomleftradius = _borderbottomleftradius;
+		copy._bordertopleftradiusv = _bordertopleftradiusv;
+		copy._bordertoprightradiusv = _bordertoprightradiusv;
+		copy._borderbottomrightradiusv = _borderbottomrightradiusv;
+		copy._borderbottomleftradiusv = _borderbottomleftradiusv;
 		copy._borderleftwidth = _borderleftwidth;
 		copy._bordertopwidth = _bordertopwidth;
 		copy._borderrightwidth = _borderrightwidth;
@@ -3523,7 +3998,18 @@ public abstract partial class BaseStyles
 		copy._overflowy = _overflowy;
 		copy._flexdirection = _flexdirection;
 		copy._justifycontent = _justifycontent;
+		copy._justifyitems = _justifyitems;
+		copy._justifyself = _justifyself;
 		copy._display = _display;
+		copy._gridtemplatecolumns = _gridtemplatecolumns;
+		copy._gridtemplaterows = _gridtemplaterows;
+		copy._gridautocolumns = _gridautocolumns;
+		copy._gridautorows = _gridautorows;
+		copy._gridautoflow = _gridautoflow;
+		copy._gridcolumnstart = _gridcolumnstart;
+		copy._gridcolumnend = _gridcolumnend;
+		copy._gridrowstart = _gridrowstart;
+		copy._gridrowend = _gridrowend;
 		copy._flexwrap = _flexwrap;
 		copy._aligncontent = _aligncontent;
 		copy._alignself = _alignself;
@@ -3590,6 +4076,7 @@ public abstract partial class BaseStyles
 		copy._backgroundpositionx = _backgroundpositionx;
 		copy._backgroundpositiony = _backgroundpositiony;
 		copy._backgroundrepeat = _backgroundrepeat;
+		copy._backgroundclip = _backgroundclip;
 		copy._borderimagewidthleft = _borderimagewidthleft;
 		copy._borderimagewidthright = _borderimagewidthright;
 		copy._borderimagewidthtop = _borderimagewidthtop;
@@ -3619,6 +4106,12 @@ public abstract partial class BaseStyles
 		copy._outlinewidth = _outlinewidth;
 		copy._outlinecolor = _outlinecolor;
 		copy._outlineoffset = _outlineoffset;
+		copy._isolation = _isolation;
+		copy._scrollbarwidth = _scrollbarwidth;
+		copy._scrollbargutter = _scrollbargutter;
+		copy._scrollbarthumbcolor = _scrollbarthumbcolor;
+		copy._scrollbartrackcolor = _scrollbartrackcolor;
+		copy.CssWide = CssWide == null ? null : new System.Collections.Generic.Dictionary<string, CssWideKeyword>( CssWide );
 		return copy;
 	}
 
@@ -3654,6 +4147,9 @@ public abstract partial class BaseStyles
 		if ( _textstrokewidth == null ) _textstrokewidth = parent._textstrokewidth;
 		if ( _imagerendering == null ) _imagerendering = parent._imagerendering;
 		if ( _fontsmooth == null ) _fontsmooth = parent._fontsmooth;
+		if ( _scrollbarwidth == null ) _scrollbarwidth = parent._scrollbarwidth;
+		if ( _scrollbarthumbcolor == null ) _scrollbarthumbcolor = parent._scrollbarthumbcolor;
+		if ( _scrollbartrackcolor == null ) _scrollbartrackcolor = parent._scrollbartrackcolor;
 	}
 
 	private void FillDefaultsGenerated()
@@ -3682,6 +4178,10 @@ public abstract partial class BaseStyles
 		if ( !_bordertoprightradius.HasValue ) _bordertoprightradius = 0;
 		if ( !_borderbottomrightradius.HasValue ) _borderbottomrightradius = 0;
 		if ( !_borderbottomleftradius.HasValue ) _borderbottomleftradius = 0;
+		if ( !_bordertopleftradiusv.HasValue ) _bordertopleftradiusv = null;
+		if ( !_bordertoprightradiusv.HasValue ) _bordertoprightradiusv = null;
+		if ( !_borderbottomrightradiusv.HasValue ) _borderbottomrightradiusv = null;
+		if ( !_borderbottomleftradiusv.HasValue ) _borderbottomleftradiusv = null;
 		if ( !_borderleftwidth.HasValue ) _borderleftwidth = 0;
 		if ( !_bordertopwidth.HasValue ) _bordertopwidth = 0;
 		if ( !_borderrightwidth.HasValue ) _borderrightwidth = 0;
@@ -3699,8 +4199,27 @@ public abstract partial class BaseStyles
 		if ( !_overflowx.HasValue ) _overflowx = OverflowMode.Visible;
 		if ( !_overflowy.HasValue ) _overflowy = OverflowMode.Visible;
 		if ( !_flexdirection.HasValue ) _flexdirection = UI.FlexDirection.Row;
-		if ( !_justifycontent.HasValue ) _justifycontent = Justify.FlexStart;
+		if ( !_justifycontent.HasValue ) _justifycontent = Justify.Stretch;
+		if ( !_justifyitems.HasValue ) _justifyitems = Align.Auto;
+		if ( !_justifyself.HasValue ) _justifyself = Align.Auto;
 		if ( !_display.HasValue ) _display = DisplayMode.Flex;
+
+		_gridtemplatecolumns ??= "none";
+
+		_gridtemplaterows ??= "none";
+
+		_gridautocolumns ??= "auto";
+
+		_gridautorows ??= "auto";
+		if ( !_gridautoflow.HasValue ) _gridautoflow = UI.GridAutoFlow.Row;
+
+		_gridcolumnstart ??= "auto";
+
+		_gridcolumnend ??= "auto";
+
+		_gridrowstart ??= "auto";
+
+		_gridrowend ??= "auto";
 		if ( !_flexwrap.HasValue ) _flexwrap = Wrap.NoWrap;
 		if ( !_aligncontent.HasValue ) _aligncontent = Align.Auto;
 		if ( !_alignself.HasValue ) _alignself = Align.Auto;
@@ -3764,6 +4283,7 @@ public abstract partial class BaseStyles
 		if ( !_backgroundpositionx.HasValue ) _backgroundpositionx = Length.Percent( 0 ).Value;
 		if ( !_backgroundpositiony.HasValue ) _backgroundpositiony = Length.Percent( 0 ).Value;
 		if ( !_backgroundrepeat.HasValue ) _backgroundrepeat = UI.BackgroundRepeat.Repeat;
+		if ( !_backgroundclip.HasValue ) _backgroundclip = UI.BackgroundClip.BorderBox;
 		if ( !_borderimagewidthleft.HasValue ) _borderimagewidthleft = 1;
 		if ( !_borderimagewidthright.HasValue ) _borderimagewidthright = 1;
 		if ( !_borderimagewidthtop.HasValue ) _borderimagewidthtop = 1;
@@ -3785,6 +4305,11 @@ public abstract partial class BaseStyles
 		if ( !_outlinewidth.HasValue ) _outlinewidth = 0;
 		if ( !_outlinecolor.HasValue ) _outlinecolor = Color.Transparent;
 		if ( !_outlineoffset.HasValue ) _outlineoffset = 0;
+		if ( !_isolation.HasValue ) _isolation = UI.Isolation.Auto;
+		if ( !_scrollbarwidth.HasValue ) _scrollbarwidth = 0;
+		if ( !_scrollbargutter.HasValue ) _scrollbargutter = UI.ScrollbarGutter.Auto;
+		if ( !_scrollbarthumbcolor.HasValue ) _scrollbarthumbcolor = null;
+		if ( !_scrollbartrackcolor.HasValue ) _scrollbartrackcolor = null;
 	}
 
 	internal bool IsDefault( string name )
@@ -3816,6 +4341,10 @@ public abstract partial class BaseStyles
 			case "border-top-right-radius": return (_bordertoprightradius == 0);
 			case "border-bottom-right-radius": return (_borderbottomrightradius == 0);
 			case "border-bottom-left-radius": return (_borderbottomleftradius == 0);
+			case "border-top-left-radius-v": return (_bordertopleftradiusv == null);
+			case "border-top-right-radius-v": return (_bordertoprightradiusv == null);
+			case "border-bottom-right-radius-v": return (_borderbottomrightradiusv == null);
+			case "border-bottom-left-radius-v": return (_borderbottomleftradiusv == null);
 			case "border-left-width": return (_borderleftwidth == 0);
 			case "border-top-width": return (_bordertopwidth == 0);
 			case "border-right-width": return (_borderrightwidth == 0);
@@ -3836,8 +4365,19 @@ public abstract partial class BaseStyles
 			case "overflow-x": return (_overflowx == OverflowMode.Visible);
 			case "overflow-y": return (_overflowy == OverflowMode.Visible);
 			case "flex-direction": return (_flexdirection == UI.FlexDirection.Row);
-			case "justify-content": return (_justifycontent == Justify.FlexStart);
+			case "justify-content": return (_justifycontent == Justify.Stretch);
+			case "justify-items": return (_justifyitems == Align.Auto);
+			case "justify-self": return (_justifyself == Align.Auto);
 			case "display": return (_display == DisplayMode.Flex);
+			case "grid-template-columns": return (_gridtemplatecolumns == "none");
+			case "grid-template-rows": return (_gridtemplaterows == "none");
+			case "grid-auto-columns": return (_gridautocolumns == "auto");
+			case "grid-auto-rows": return (_gridautorows == "auto");
+			case "grid-auto-flow": return (_gridautoflow == UI.GridAutoFlow.Row);
+			case "grid-column-start": return (_gridcolumnstart == "auto");
+			case "grid-column-end": return (_gridcolumnend == "auto");
+			case "grid-row-start": return (_gridrowstart == "auto");
+			case "grid-row-end": return (_gridrowend == "auto");
 			case "flex-wrap": return (_flexwrap == Wrap.NoWrap);
 			case "align-content": return (_aligncontent == Align.Auto);
 			case "align-self": return (_alignself == Align.Auto);
@@ -3904,6 +4444,7 @@ public abstract partial class BaseStyles
 			case "background-position-x": return (_backgroundpositionx == Length.Percent( 0 ).Value);
 			case "background-position-y": return (_backgroundpositiony == Length.Percent( 0 ).Value);
 			case "background-repeat": return (_backgroundrepeat == UI.BackgroundRepeat.Repeat);
+			case "background-clip": return (_backgroundclip == UI.BackgroundClip.BorderBox);
 			case "border-image-width-left": return (_borderimagewidthleft == 1);
 			case "border-image-width-right": return (_borderimagewidthright == 1);
 			case "border-image-width-top": return (_borderimagewidthtop == 1);
@@ -3933,8 +4474,13 @@ public abstract partial class BaseStyles
 			case "outline-width": return (_outlinewidth == 0);
 			case "outline-color": return (_outlinecolor == Color.Transparent);
 			case "outline-offset": return (_outlineoffset == 0);
+			case "isolation": return (_isolation == UI.Isolation.Auto);
+			case "scrollbar-width": return (_scrollbarwidth == 0);
+			case "scrollbar-gutter": return (_scrollbargutter == UI.ScrollbarGutter.Auto);
+			case "scrollbar-thumb-color": return (_scrollbarthumbcolor == null);
+			case "scrollbar-track-color": return (_scrollbartrackcolor == null);
 		}
-
+		
 		throw new Exception( $"Invalid property name '{name}'" );
 	}
 }

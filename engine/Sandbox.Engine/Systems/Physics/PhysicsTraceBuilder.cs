@@ -6,7 +6,7 @@ namespace Sandbox;
 
 public partial struct PhysicsTraceBuilder
 {
-	internal PhysicsWorld targetWorld;
+	internal PhysicsWorldInternal targetWorld;
 	internal PhysicsBody targetBody;
 	internal PhysicsTrace.Request request;
 
@@ -15,7 +15,7 @@ public partial struct PhysicsTraceBuilder
 	/// </summary>
 	internal Func<PhysicsShape, bool> filterCallback;
 
-	internal PhysicsTraceBuilder( PhysicsWorld world )
+	internal PhysicsTraceBuilder( PhysicsWorldInternal world )
 	{
 		targetWorld = world;
 		request = default;
@@ -147,6 +147,56 @@ public partial struct PhysicsTraceBuilder
 		request.StartShape.Mins = Vector3.Down * halfHeight;
 		request.StartShape.Maxs = Vector3.Up * halfHeight;
 		request.StartShape.Radius = radius;
+		return this;
+	}
+
+	/// <summary>
+	/// Casts a cone (base at bottom, apex at top).
+	/// </summary>
+	public readonly PhysicsTraceBuilder Cone( float height, float baseRadius )
+	{
+		var t = this;
+		var halfHeight = height * 0.5f;
+
+		t.request.StartShape.Type = PhysicsTrace.Request.ShapeType.Cylinder;
+		t.request.StartShape.Mins = Vector3.Down * halfHeight;
+		t.request.StartShape.Maxs = Vector3.Up * halfHeight;
+		t.request.StartShape.Radius = new Vector2( baseRadius, 0.0f );
+
+		return t;
+	}
+
+	/// <summary>
+	/// Casts a cone from point A to point B.
+	/// </summary>
+	public PhysicsTraceBuilder Cone( float height, float baseRadius, in Vector3 from, in Vector3 to )
+	{
+		var halfHeight = height * 0.5f;
+
+		request.StartPos = from;
+		request.EndPos = to;
+		request.StartShape.Type = PhysicsTrace.Request.ShapeType.Cylinder;
+		request.StartShape.Mins = Vector3.Down * halfHeight;
+		request.StartShape.Maxs = Vector3.Up * halfHeight;
+		request.StartShape.Radius = new Vector2( baseRadius, 0.0f );
+
+		return this;
+	}
+
+	/// <summary>
+	/// Casts a cone from a ray.
+	/// </summary>
+	public PhysicsTraceBuilder Cone( float height, float baseRadius, in Ray ray, in float distance )
+	{
+		var halfHeight = height * 0.5f;
+
+		request.StartPos = ray.Position;
+		request.EndPos = ray.ProjectSafe( distance );
+		request.StartShape.Type = PhysicsTrace.Request.ShapeType.Cylinder;
+		request.StartShape.Mins = Vector3.Down * halfHeight;
+		request.StartShape.Maxs = Vector3.Up * halfHeight;
+		request.StartShape.Radius = new Vector2( baseRadius, 0.0f );
+
 		return this;
 	}
 
@@ -344,113 +394,35 @@ public partial struct PhysicsTraceBuilder
 
 	// Named this radius instead of size just incase there's some casting going on and Size gets called instead
 	/// <summary>
-	/// Makes this trace a sphere of given radius.
+	/// Makes this trace a sphere of given radius. Zero (or less) is ignored - the trace keeps its
+	/// current shape (a plain ray if none was set).
 	/// </summary>
 	public readonly PhysicsTraceBuilder Radius( float radius )
 	{
+		// A zero radius sphere is degenerate and hits nothing.
+		if ( radius <= 0 )
+			return this;
+
 		var c = this;
 		c.request.StartShape.Type = PhysicsTrace.Request.ShapeType.Sphere;
 		c.request.StartShape.Radius = radius;
 		return c;
 	}
 
-	[ThreadStatic]
-	static Func<PhysicsShape, bool> _currentfilterCallback;
-
-	[UnmanagedCallersOnly]
-	static byte FilterFunctionInternal( int value )
-	{
-		try
-		{
-			Assert.NotNull( _currentfilterCallback );
-
-			var shape = HandleIndex.Get<PhysicsShape>( value );
-			if ( shape is null ) return 1; // should never happen, just use default behaviour
-
-			if ( _currentfilterCallback( shape ) ) return 1;
-			return 0;
-		}
-		catch ( Exception e )
-		{
-			Log.Warning( e, $"Error in trace filter: {e.Message}" );
-			return 1;
-		}
-	}
-
-	readonly unsafe PhysicsTraceResult[] GetResults()
+	readonly PhysicsTraceResult[] GetResults()
 	{
 		if ( targetWorld is null )
 			throw new InvalidOperationException( "No physics world to trace" );
 
-		if ( targetBody is not null && !targetBody.IsValid() )
-		{
-			throw new InvalidOperationException( "The physics body has been released" );
-		}
-
-		var r = request;
-		r.World = targetWorld.native;
-
-		if ( targetBody.IsValid() )
-		{
-			r.Body = targetBody.native;
-		}
-
-		if ( filterCallback is not null )
-		{
-			r.FilterDelegate = (IntPtr)((delegate* unmanaged< int, byte >)&FilterFunctionInternal);
-			_currentfilterCallback = filterCallback;
-		}
-
-		var nativeResults = CUtlVectorTraceResult.Create( 32, 32 );
-		PhysicsTrace.TraceAll( r, nativeResults );
-		var count = nativeResults.Count();
-
-		_currentfilterCallback = default;
-
-		var results = new PhysicsTraceResult[count];
-
-		for ( var i = 0; i < count; i++ )
-		{
-			results[i] = PhysicsTraceResult.From( nativeResults.Element( i ), request.StartShape );
-		}
-
-		nativeResults.DeleteThis();
-
-		return results;
+		return targetWorld.TraceMultiple( in request, targetBody, filterCallback );
 	}
 
-	unsafe readonly PhysicsTraceResult GetResult()
+	readonly PhysicsTraceResult GetResult()
 	{
 		if ( targetWorld is null )
 			throw new InvalidOperationException( "No physics world to trace" );
 
-		if ( targetBody is not null && !targetBody.IsValid() )
-		{
-			throw new InvalidOperationException( "The physics body has been released" );
-		}
-
-		var r = request;
-		r.World = targetWorld.native;
-
-		if ( targetBody.IsValid() )
-		{
-			r.Body = targetBody.native;
-		}
-
-		if ( filterCallback is not null )
-		{
-			r.FilterDelegate = (IntPtr)((delegate* unmanaged< int, byte >)&FilterFunctionInternal);
-			_currentfilterCallback = filterCallback;
-		}
-
-		try
-		{
-			return PhysicsTraceResult.From( PhysicsTrace.Trace( r ), r.StartShape );
-		}
-		finally
-		{
-			_currentfilterCallback = default;
-		}
+		return targetWorld.TraceSingle( in request, targetBody, filterCallback );
 	}
 
 	/// <summary>
@@ -467,6 +439,17 @@ public partial struct PhysicsTraceBuilder
 	public readonly PhysicsTraceResult[] RunAll()
 	{
 		return GetResults();
+	}
+
+	/// <summary>
+	/// Run the trace and append every hit to <paramref name="results"/>, returning the hit count.
+	/// </summary>
+	internal readonly int RunAll( List<PhysicsTraceResult> results )
+	{
+		if ( targetWorld is null )
+			throw new InvalidOperationException( "No physics world to trace" );
+
+		return targetWorld.TraceMultiple( in request, targetBody, filterCallback, results );
 	}
 
 	/// <summary>

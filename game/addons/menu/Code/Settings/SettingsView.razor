@@ -1,0 +1,238 @@
+﻿@using Sandbox
+@using Sandbox.UI
+@using Sandbox.Engine.Settings
+@using System
+@using System.Linq
+@namespace MenuProject.Settings
+@inherits Panel
+
+<root>
+
+	<div class="rail">
+
+		<TextEntry @ref=SearchEntry class="settings-search" Icon="search" Placeholder="Search settings..." OnTextEdited=@OnSearchEdited></TextEntry>
+
+		<div class="cats">
+			@foreach ( var cat in Catalog.Categories )
+			{
+				var matches = MatchCount( cat );
+
+				<div class="cat @(cat.Id == Category ? "active" : "") @(Searching && matches == 0 ? "dimmed" : "")" onclick=@( () => Select( cat.Id ) )>
+					<i>@cat.Icon</i>
+					<label>@cat.Title</label>
+					@if ( Searching && matches > 0 )
+					{
+						<div class="count">@matches</div>
+					}
+				</div>
+			}
+		</div>
+
+	</div>
+
+	<div class="body">
+
+		<div class="head">
+			<label class="title">@(Searching ? "Search" : Current?.Title)</label>
+			<label class="blurb">@(Searching ? MatchSummary : Current?.Blurb)</label>
+		</div>
+
+		@if ( Searching )
+		{
+			<div class="scroll">
+				@foreach ( var group in Catalog.Search( Query ).GroupBy( x => x.Category ) )
+				{
+					<div class="section" @key=@group.Key>
+						<label class="section-label">@TitleOf( group.Key )</label>
+						@foreach ( var item in group )
+						{
+							<SettingsRow @key=@item.Id Item=@item View=@this Highlight=@Query />
+						}
+					</div>
+				}
+
+				@if ( !Catalog.Search( Query ).Any() )
+				{
+					<div class="empty">
+						<i>search_off</i>
+						<label>Nothing matches "@Query"</label>
+					</div>
+				}
+			</div>
+		}
+		else if ( Current is { IsCustom: true } )
+		{
+			@* These bring their own markup and their own actions. *@
+			<div class="scroll custom">
+				@if ( Category == "keybinds" )
+				{
+					<KeyBinds />
+				}
+				else if ( Category == "storage" )
+				{
+					<Storage />
+				}
+				else if ( Category == "about" )
+				{
+					<About />
+				}
+			</div>
+		}
+		else
+		{
+			<div class="scroll">
+
+				@if ( Current?.ShowPresets ?? false )
+				{
+					<SettingsPresets View=@this />
+				}
+
+				@* Keyed, or the render tree reuses a row's control for whatever setting lands in
+				   the same position and it stays bound to the old one. *@
+				@foreach ( var section in Catalog.InCategory( Category ).GroupBy( x => x.Section ) )
+				{
+					<div class="section" @key=@section.Key>
+						<label class="section-label">@section.Key</label>
+
+						@if ( section.Key == "Post Processing" )
+						{
+							<SettingsPostProcessPreset View=@this />
+						}
+
+						@foreach ( var item in section )
+						{
+							<SettingsRow @key=@item.Id Item=@item View=@this />
+						}
+					</div>
+				}
+
+			</div>
+
+			<SettingsActions View=@this />
+		}
+
+	</div>
+
+	<SettingsDetail View=@this />
+
+</root>
+
+@code
+{
+	/// <summary>Which category to open on.</summary>
+	[Parameter] public string StartCategory { get; set; }
+
+	public SettingsCatalog Catalog { get; } = new();
+
+	public string Category { get; private set; } = "display";
+
+	public string Query { get; private set; } = "";
+
+	/// <summary>The last row the mouse was over.</summary>
+	public SettingItem Focused { get; private set; }
+
+	/// <summary>What the pane explains. Falls back to the first row so it never sits empty.</summary>
+	public SettingItem Described
+	{
+		get
+		{
+			// Only while it's still on screen; a row from the previous category shouldn't explain this one.
+			if ( Focused is not null && (Searching || Focused.Category == Category) )
+				return Focused;
+
+			return FirstShown;
+		}
+	}
+
+	SettingItem FirstShown => Searching
+		? Catalog.Search( Query ).FirstOrDefault()
+		: Catalog.InCategory( Category ).FirstOrDefault();
+
+	/// <summary>
+	/// Bumped when something changes staged values behind the controls' backs. Rows rebuild off
+	/// this rather than off the values, so a mid-drag slider isn't torn out.
+	/// </summary>
+	public int Revision { get; private set; }
+
+	TextEntry SearchEntry;
+
+	bool Searching => !string.IsNullOrWhiteSpace( Query );
+
+	SettingsCategory Current => Catalog.Categories.FirstOrDefault( x => x.Id == Category );
+
+	string MatchSummary
+	{
+		get
+		{
+			var count = Catalog.Search( Query ).Count();
+			return $"{count} setting{(count == 1 ? "" : "s")} matching \"{Query}\"";
+		}
+	}
+
+	protected override void OnParametersSet()
+	{
+		base.OnParametersSet();
+
+		if ( !string.IsNullOrEmpty( StartCategory ) && Catalog.Categories.Any( x => x.Id == StartCategory ) )
+		{
+			Category = StartCategory;
+		}
+	}
+
+	public void Invalidate()
+	{
+		Revision++;
+		StateHasChanged();
+	}
+
+	public void SetFocused( SettingItem item )
+	{
+		if ( Focused == item ) return;
+
+		Focused = item;
+	}
+
+	void Select( string id )
+	{
+		Category = id;
+		Query = "";
+		Focused = null;
+
+		if ( SearchEntry.IsValid() )
+			SearchEntry.Text = "";
+
+		StateHasChanged();
+	}
+
+	void OnSearchEdited( string text )
+	{
+		Query = text?.Trim().ToLowerInvariant() ?? "";
+		StateHasChanged();
+	}
+
+	int MatchCount( SettingsCategory cat )
+	{
+		if ( !Searching ) return 0;
+		if ( cat.IsCustom ) return 0;
+
+		return Catalog.Search( Query ).Count( x => x.Category == cat.Id );
+	}
+
+	string TitleOf( string categoryId ) => Catalog.Categories.FirstOrDefault( x => x.Id == categoryId )?.Title ?? categoryId;
+
+	/// <summary>Rebuilds when a row appears or disappears, not when a value changes.</summary>
+	int VisibilityHash()
+	{
+		var hash = new HashCode();
+
+		foreach ( var item in Catalog.Items )
+		{
+			if ( item.Visible )
+				hash.Add( item.Id );
+		}
+
+		return hash.ToHashCode();
+	}
+
+	protected override int BuildHash() => HashCode.Combine( Category, Query, Revision, VisibilityHash() );
+}

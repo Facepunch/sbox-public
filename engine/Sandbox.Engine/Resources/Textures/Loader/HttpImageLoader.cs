@@ -81,6 +81,10 @@ internal static class ImageUrl
 		{
 			Log.Warning( e, $"HttpRequestException when downloading {url}" );
 		}
+		catch ( Exception e )
+		{
+			Log.Warning( e, $"Exception when downloading {url}" );
+		}
 
 		return default;
 	}

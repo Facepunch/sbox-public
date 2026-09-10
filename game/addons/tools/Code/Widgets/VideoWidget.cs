@@ -4,25 +4,34 @@ namespace Editor.Widgets;
 
 public class VideoGallery : Widget
 {
+	static readonly (string Label, string Url, bool Muted)[] s_testVideos =
+	[
+		( "AV1 + Opus (MP4)",                                         "https://files.facepunch.com/lolleko/2026/April/17_20-18-AntiquewhiteBedlingtonterrier.mp4",       false ),
+		( "VP9 + Opus (WebM)",                                        "https://files.facepunch.com/lolleko/2026/April/17_18-19-AgreeableZebradove.webm",                 true  ),
+		( "MP3: The s&box Song by Mungus (Gone but not forgotten)", "https://files.facepunch.com/lolleko/2026/April/18_17-01-ThriftyAsiaticgreaterfreshwaterclam.mp3",   true ),
+		( "WebP (animated)",                                          "https://files.facepunch.com/lolleko/2026/April/18_12-02-EmotionalZooplankton.webp",               true  ),
+	];
+
 	public VideoGallery( Widget parent ) : base( parent )
 	{
-		Layout = Layout.Grid();
-		Layout.Spacing = 0;
+		Layout = Layout.Column();
+		Layout.Spacing = 8;
+		Layout.Margin = 8;
 
-		if ( Layout is GridLayout gridLayout )
+		foreach ( var (label, url, muted) in s_testVideos )
 		{
-			gridLayout.AddCell( 0, 0, new VideoWidget( this, "https://files.facepunch.com/layla/1b0511b1/homelander_TRH_sfm_test_v008_720p.mp4" ), 1 );
+			Layout.Add( new Label( $"{label}  —  {url}" ) { ToolTip = url } );
+
+			var video = new VideoPlayerWidget( this, url ) { Muted = muted };
+			video.MinimumSize = new Vector2( 0, 220 );
+			Layout.Add( video, 1 );
 		}
 	}
 
 	[WidgetGallery]
 	[Title( "VideoPlayer" )]
 	[Icon( "movie" )]
-	internal static Widget WidgetGallery()
-	{
-		var canvas = new VideoGallery( null );
-		return canvas;
-	}
+	internal static Widget WidgetGallery() => new VideoGallery( null );
 }
 
 /// <summary>
@@ -106,5 +115,93 @@ public class VideoWidget : Widget
 		{
 			Player?.TogglePause();
 		}
+	}
+}
+
+/// <summary>
+/// Wraps <see cref="VideoWidget"/> and adds play/pause, mute, seek and time controls.
+/// </summary>
+public class VideoPlayerWidget : Widget
+{
+	public bool Muted
+	{
+		get => _display.Player.Muted;
+		set => _display.Player.Muted = value;
+	}
+
+	private readonly VideoWidget _display;
+	private readonly FloatSlider _seekSlider;
+	private readonly Button _playPauseBtn;
+	private readonly Button _muteBtn;
+	private readonly Label _timeLabel;
+	private bool _userSeeking;
+
+	public VideoPlayerWidget( Widget parent, string url ) : base( parent )
+	{
+		Layout = Layout.Column();
+		Layout.Spacing = 2;
+
+		_display = new VideoWidget( this, url );
+		Layout.Add( _display, 1 );
+
+		var controls = new Widget( this );
+		controls.Layout = Layout.Row();
+		controls.Layout.Spacing = 4;
+		controls.Layout.Margin = new Margin( 2, 2, 2, 2 );
+
+		_playPauseBtn = new Button( "⏸", controls );
+		_playPauseBtn.Clicked = () =>
+		{
+			_display.Player?.TogglePause();
+			UpdateControls();
+		};
+		controls.Layout.Add( _playPauseBtn );
+
+		_muteBtn = new Button( "🔊", controls );
+		_muteBtn.Clicked = () =>
+		{
+			_display.Player.Muted = !_display.Player.Muted;
+			UpdateControls();
+		};
+		controls.Layout.Add( _muteBtn );
+
+		_seekSlider = new FloatSlider( controls );
+		_seekSlider.Minimum = 0;
+		_seekSlider.Maximum = 1;
+		_seekSlider.Value = 0;
+		_seekSlider.OnValueEdited = () =>
+		{
+			_userSeeking = true;
+			_display.Player?.Seek( _seekSlider.Value );
+			_userSeeking = false;
+		};
+		controls.Layout.Add( _seekSlider, 1 );
+
+		_timeLabel = new Label( "0:00 / 0:00", controls );
+		_timeLabel.MinimumWidth = 90;
+		controls.Layout.Add( _timeLabel );
+
+		Layout.Add( controls );
+	}
+
+	[EditorEvent.Frame]
+	public void Frame()
+	{
+		UpdateControls();
+	}
+
+	private void UpdateControls()
+	{
+		var p = _display.Player;
+		if ( p == null ) return;
+
+		_playPauseBtn.Text = p.IsPaused ? "▶" : "⏸";
+		_muteBtn.Text = p.Muted ? "🔇" : "🔊";
+
+		if ( !_userSeeking && p.Duration > 0 )
+			_seekSlider.Value = (float)(p.PlaybackTime / p.Duration);
+
+		static string Fmt( double s ) => $"{(int)s / 60}:{(int)s % 60:D2}";
+		_timeLabel.Text = $"{Fmt( p.PlaybackTime )} / {Fmt( p.Duration )}";
 	}
 }

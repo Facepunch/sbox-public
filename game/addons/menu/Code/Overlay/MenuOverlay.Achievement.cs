@@ -1,8 +1,8 @@
-﻿using Sandbox;
+using Sandbox;
 
-public partial class MenuOverlay : IAchievementListener
+public partial class MenuOverlay : IBackendListener
 {
-	public void OnAchievementUnlocked( IAchievementListener.UnlockDescription data )
+	public void OnAchievementUnlocked( IBackendListener.AchievementUnlock data )
 	{
 		// should we async this and wait for the achievement texture to load?
 		// should we pre-download the achievement textures with the package?
@@ -16,20 +16,14 @@ public partial class MenuOverlay : IAchievementListener
 		Top.Queue( popup, duration: 6f, clickToDismiss: false );
 	}
 
-	/*
-	RealTimeSince timeSinceRun;
-
-	public override void Tick()
+	public void OnNotice( IBackendListener.Notice data )
 	{
-		base.Tick();
-
-		if ( timeSinceRun > 6 )
-		{
-			timeSinceRun = 0;
-
-			var popup = new Sandbox.OverlayPopups.AchievementUnlocked();
-			AddPopup( popup, null );
-		}
+		var popup = new Sandbox.OverlayPopups.NoticePopup();
+		popup.Title = data.Title;
+		popup.Text = data.Text;
+		popup.Icon = data.Icon;
+		popup.Type = data.Type;
+		popup.Link = data.Link;
+		Top.Queue( popup, duration: 8f, clickToDismiss: true );
 	}
-	*/
 }

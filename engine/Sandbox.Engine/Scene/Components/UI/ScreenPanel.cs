@@ -19,6 +19,11 @@ public sealed class ScreenPanel : Component, IRootPanelComponent
 	[Property] public int ZIndex { get; set; } = 100;
 	[Property] public CameraComponent TargetCamera { get; set; }
 
+	/// <summary>
+	/// Where in the render pipeline this panel is drawn.
+	/// </summary>
+	[Property] public RenderTiming Timing { get; set; } = RenderTiming.AfterPostProcess;
+
 	private GameRootPanel rootPanel;
 
 	public enum AutoScale
@@ -32,6 +37,19 @@ public sealed class ScreenPanel : Component, IRootPanelComponent
 		/// We use the same scaling as the desktop
 		/// </summary>
 		FollowDesktopScaling,
+	}
+
+	public enum RenderTiming
+	{
+		/// <summary>
+		/// Drawn after post processing, unaffected by it
+		/// </summary>
+		AfterPostProcess,
+
+		/// <summary>
+		/// Drawn before post processing, so bloom, tonemapping and color grading apply to the UI
+		/// </summary>
+		BeforePostProcess,
 	}
 
 	protected override void OnValidate()

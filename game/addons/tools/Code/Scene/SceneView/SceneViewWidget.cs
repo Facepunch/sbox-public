@@ -66,6 +66,15 @@ public partial class SceneViewWidget : Widget
 	public override void OnDestroyed()
 	{
 		SaveState();
+
+		if ( Current == this )
+			Current = null;
+
+		_externalChangesDialog?.Destroy();
+		_externalChangesDialog = null;
+
+		Tools.DisposeAll();
+
 		base.OnDestroyed();
 	}
 
@@ -478,6 +487,6 @@ file class EditorSubToolButton : Widget
 			Paint.SetPen( Theme.TextLight );
 		}
 
-		Paint.DrawIcon( LocalRect, Type.Icon, HeaderBarStyle.IconSize, TextFlag.Center );
+		Paint.DrawIcon( LocalRect, Type.Icon, HeaderBarStyle.LargeIconSize, TextFlag.Center );
 	}
 }

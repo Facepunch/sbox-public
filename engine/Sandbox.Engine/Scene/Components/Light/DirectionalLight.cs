@@ -71,12 +71,30 @@ public class DirectionalLight : Light
 	[Property, Group( "Shadows" ), HideIf( nameof( ShadowCascadeCount ), 1 )]
 	public CascadeVisualizer Visualizer { get; set; } = new();
 
+	/// <summary>
+	/// Add small-scale screen-space contact shadows on top of the cascaded shadow maps. Captures
+	/// fine contact detail the shadow maps miss, at some GPU cost.
+	/// </summary>
+	[Property, Group( "Shadows" ), Title( "Contact Shadows" ), Advanced]
+	public bool ContactShadows
+	{
+		get;
+		set
+		{
+			field = value;
+
+			if ( _so.IsValid() )
+				_so.ContactShadows = value;
+		}
+	} = true;
+
 	protected override SceneLight CreateSceneObject()
 	{
 		return _so = new SceneDirectionalLight( Scene.SceneWorld, WorldRotation, LightColor )
 		{
 			ShadowCascadeCount = ShadowCascadeCount,
-			ShadowCascadeSplitRatio = ShadowCascadeSplitRatio
+			ShadowCascadeSplitRatio = ShadowCascadeSplitRatio,
+			ContactShadows = ContactShadows,
 		};
 	}
 

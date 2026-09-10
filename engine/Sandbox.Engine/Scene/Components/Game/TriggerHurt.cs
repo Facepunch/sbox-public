@@ -42,7 +42,7 @@ public sealed class TriggerHurt : Component
 
 		timeSinceDamage = 0;
 
-		foreach ( var touching in Collider.Touching.SelectMany( x => x.GetComponentsInParent<IDamageable>().Distinct() ) )
+		foreach ( var touching in Collider.Touching.SelectMany( x => x.GetComponentsInParent<IDamageable>() ).Distinct() )
 		{
 			if ( touching is not Component target ) continue;
 

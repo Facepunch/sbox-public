@@ -12,9 +12,11 @@ public partial class Panel
 
 	internal int _lastScissorHash;
 	internal Matrix? _lastLayerMatrix;
+	internal Matrix? _lastLayerMatrixInverted;
 
 	internal enum RenderMode : byte { Inline, Batched, Layer }
 
+	internal int CachedBackgroundVersion;
 	internal RenderLayer CachedDescriptors;
 	internal RenderMode CachedRenderMode;
 	internal float CachedRenderOpacity = 1.0f;
@@ -72,17 +74,27 @@ public partial class Panel
 	/// </summary>
 	internal void BuildDescriptorsForChildren( PanelRenderer render, ref RenderState state )
 	{
-		using var _ = render.Clip( this );
+		SortRenderChildren();
 
-		if ( _renderChildrenDirty )
+		// Content clips short of the scrollbar gutter, the scrollbars clip to the whole padding box
+		using ( render.Clip( this, ContentClipRect ) )
 		{
-			_renderChildren.Sort( ( x, y ) => x.GetRenderOrderIndex() - y.GetRenderOrderIndex() );
-			_renderChildrenDirty = false;
+			for ( int i = 0; i < _renderChildren.Count; i++ )
+			{
+				if ( !_renderChildren[i].IsFixed && _renderChildren[i] is not ScrollBar )
+					render.BuildDescriptors( _renderChildren[i], state );
+			}
 		}
 
-		for ( int i = 0; i < _renderChildren.Count; i++ )
+		if ( ScrollbarCount == 0 ) return;
+
+		using ( render.Clip( this ) )
 		{
-			render.BuildDescriptors( _renderChildren[i], state );
+			for ( int i = 0; i < _renderChildren.Count; i++ )
+			{
+				if ( !_renderChildren[i].IsFixed && _renderChildren[i] is ScrollBar )
+					render.BuildDescriptors( _renderChildren[i], state );
+			}
 		}
 	}
 

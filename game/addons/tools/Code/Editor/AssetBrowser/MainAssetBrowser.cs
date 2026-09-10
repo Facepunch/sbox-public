@@ -2,7 +2,7 @@
 
 namespace Editor;
 
-[Dock( "Editor", "Asset Browser", "folder_open" )]
+[Dock( "Editor", "Asset Browser", "folder_open", DockArea.Bottom )]
 public class MainAssetBrowser : WrappedAssetBrowser
 {
 	private static WrappedAssetBrowser _instance;
@@ -17,11 +17,21 @@ public class MainAssetBrowser : WrappedAssetBrowser
 	}
 
 	/// <summary>
-	/// This constructor should only get called by the Docked version created by the editor.
+	/// Creates the primary editor asset browser.
 	/// </summary>
-	public MainAssetBrowser( Widget parent ) : base( parent, null )
+	public MainAssetBrowser( Widget parent ) : this( parent, true )
 	{
-		Instance ??= this;
+	}
+
+	private MainAssetBrowser( Widget parent, bool isPrimary ) : base( parent, null )
+	{
+		if ( isPrimary )
+		{
+			Instance ??= this;
+
+			EditorWindow.DockManager.OnStateRestoring -= RegisterSavedDockTypes;
+			EditorWindow.DockManager.OnStateRestoring += RegisterSavedDockTypes;
+		}
 
 		Local.OnAssetHighlight = a => EditorUtility.InspectorObject = a;
 		Local.OnAssetsHighlight = a => EditorUtility.InspectorObject = a;
@@ -32,6 +42,95 @@ public class MainAssetBrowser : WrappedAssetBrowser
 
 		Mounts.OnAssetHighlight = a => EditorUtility.InspectorObject = a;
 		Mounts.OnAssetsHighlight = a => EditorUtility.InspectorObject = a;
+		Mounts.OnAssetSelected = a => { if ( a.CanOpenInEditor ) a.OpenInEditor(); };
+	}
+
+	public static MainAssetBrowser CreateFloating()
+	{
+		var manager = EditorWindow.DockManager;
+		var disabled = manager.DockTypes
+			.Select( x => (Info: x, Index: GetSecondaryIndex( x.Title )) )
+			.Where( x => x.Index is not null && !manager.IsDockOpen( x.Info.Title ) )
+			.OrderBy( x => x.Index )
+			.FirstOrDefault();
+
+		if ( disabled.Info is not null )
+		{
+			manager.SetDockState( disabled.Info.Title, true );
+			var existing = manager.FindDockWidget( disabled.Info.Title );
+			existing.DeleteOnClose = true;
+			return existing.Widget as MainAssetBrowser;
+		}
+
+		var (browser, dock) = CreateDock();
+		manager.AddDockFloating( dock );
+		return browser;
+	}
+
+	public static MainAssetBrowser Create( Widget relativeTo, DockArea area )
+	{
+		var (browser, dock) = CreateDock( area );
+		var relativeDock = EditorWindow.DockManager.FindDockWidget( relativeTo );
+
+		EditorWindow.DockManager.AddDock( dock, area, relativeDock );
+		return browser;
+	}
+
+	private static (MainAssetBrowser Browser, DockWidget Dock) CreateDock( DockArea area = DockArea.Bottom )
+	{
+		const string title = "Asset Browser";
+		var manager = EditorWindow.DockManager;
+		var name = $"{title} 2";
+
+		bool IsTaken( string candidate )
+		{
+			if ( manager.FindDockWidget( candidate ) is not null )
+				return true;
+
+			return manager.DockTypes.Any( x => x.Title == candidate );
+		}
+
+		for ( var index = 3; IsTaken( name ); index++ )
+			name = $"{title} {index}";
+
+		var browser = new MainAssetBrowser( EditorWindow, false );
+		manager.RegisterDockType( CreateDockInfo( name, area ) );
+
+		var dock = manager.CreateDockWidget( name, "folder_open", browser );
+		dock.DeleteOnClose = true;
+
+		return (browser, dock);
+	}
+
+	private static DockManager.DockInfo CreateDockInfo( string name, DockArea area ) => new()
+	{
+		Title = name,
+		Icon = "folder_open",
+		Area = area,
+		CreateAction = () => new MainAssetBrowser( EditorWindow, false )
+	};
+
+	private static void RegisterSavedDockTypes( IReadOnlyCollection<string> dockNames )
+	{
+		var manager = EditorWindow.DockManager;
+
+		foreach ( var name in dockNames )
+		{
+			if ( GetSecondaryIndex( name ) is null )
+				continue;
+
+			manager.RegisterDock( CreateDockInfo( name, DockArea.Bottom ) );
+			manager.FindDockWidget( name ).DeleteOnClose = true;
+		}
+	}
+
+	private static int? GetSecondaryIndex( string name )
+	{
+		const string prefix = "Asset Browser ";
+		if ( !name.StartsWith( prefix, StringComparison.Ordinal ) )
+			return null;
+
+		return int.TryParse( name.AsSpan( prefix.Length ), out var index ) && index >= 2 ? index : null;
 	}
 
 	CancellationTokenSource packageCTS;
@@ -82,6 +181,6 @@ public class MainAssetBrowser : WrappedAssetBrowser
 	private static void AddViewMenuButtons( Menu menu )
 	{
 		menu.AddSeparator();
-		menu.AddOption( "New Asset Browser", "create_new_folder", () => EditorWindow.DockManager.Create<MainAssetBrowser>() );
+		menu.AddOption( "New Asset Browser", "create_new_folder", () => CreateFloating() );
 	}
 }

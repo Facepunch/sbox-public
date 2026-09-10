@@ -3,25 +3,27 @@ using System.Collections.Generic;
 
 namespace Facepunch.InteropGen;
 
+/// <summary>
+/// Console logger for the generator. Because .def files are processed on parallel threads, each thread
+/// buffers its group's lines (see <see cref="Group"/>) and flushes them together in
+/// <see cref="Completion"/>, so output from different files never interleaves.
+/// </summary>
 public static class Log
 {
-	private static readonly object lockObj = new();
+	private static readonly object consoleLock = new();
 
-	// Store logs by group name
-	private static readonly Dictionary<string, List<LogMessage>> groupLogs = [];
+	private record LogMessage( ConsoleColor Color, string Text, int Indent );
+
+	// Files are processed on separate threads. Each thread buffers its group's lines so they
+	// print together at the end instead of interleaving with other threads.
+	[ThreadStatic]
+	private static List<LogMessage> buffer;
+
+	[ThreadStatic]
+	private static string currentGroup;
 
 	[ThreadStatic]
 	internal static int Indentation;
-
-	[ThreadStatic]
-	internal static string CurrentGroup;
-
-	private record LogMessage
-	{
-		public ConsoleColor Color { get; set; }
-		public string Text { get; set; }
-		public int Indent { get; set; }
-	}
 
 	public static void WriteLine( string message )
 	{
@@ -35,68 +37,71 @@ public static class Log
 
 	public static void WriteLine( ConsoleColor color, string message )
 	{
-		lock ( lockObj )
+		if ( buffer == null )
 		{
-			if ( string.IsNullOrEmpty( CurrentGroup ) )
-			{
-				// No current group, just print directly
-				PrintDirectMessage( color, message );
-				return;
-			}
-
-			// Add to group logs
-			if ( !groupLogs.ContainsKey( CurrentGroup ) )
-			{
-				groupLogs[CurrentGroup] = [];
-			}
-
-			groupLogs[CurrentGroup].Add( new LogMessage
-			{
-				Color = color,
-				Text = message,
-				Indent = Indentation
-			} );
+			Print( color, message );
+			return;
 		}
+
+		buffer.Add( new LogMessage( color, message, Indentation ) );
 	}
 
-	private static void PrintDirectMessage( ConsoleColor color, string message )
+	/// <summary>
+	/// Start a group. Lines logged until <see cref="Completion"/> are buffered and printed together.
+	/// </summary>
+	public static IDisposable Group( ConsoleColor color, string groupName )
 	{
-		ConsoleColor originalColor = Console.ForegroundColor;
-		try
-		{
-			Console.ForegroundColor = color;
-			Console.WriteLine( message );
-		}
-		finally
-		{
-			Console.ForegroundColor = originalColor;
-		}
+		currentGroup = groupName;
+		buffer = [new LogMessage( color, groupName, 0 )];
+
+		Print( color, $"Started: {groupName}" );
+
+		Indentation = 2;
+		return new Indent();
 	}
 
-	// log completion message in green or red and then all the logs of the current group
+	/// <summary>
+	/// Flush the current group's buffered lines followed by a green (success) or red (failure) result line.
+	/// </summary>
 	public static void Completion( string message, bool success )
 	{
-		lock ( lockObj )
+		ConsoleColor resultColor = success ? ConsoleColor.Green : ConsoleColor.Red;
+
+		if ( buffer == null )
 		{
-			if ( string.IsNullOrEmpty( CurrentGroup ) )
+			Print( resultColor, message );
+			return;
+		}
+
+		lock ( consoleLock )
+		{
+			foreach ( LogMessage log in buffer )
 			{
-				// No current group, just print directly
-				PrintDirectMessage( success ? ConsoleColor.Green : ConsoleColor.Red, message );
-				return;
+				Print( log.Color, new string( ' ', log.Indent ) + log.Text );
 			}
-			// Print all logs for the current group
-			if ( groupLogs.TryGetValue( CurrentGroup, out List<LogMessage> logs ) )
+
+			Print( resultColor, $"{currentGroup}: {message}" );
+		}
+
+		buffer = null;
+		currentGroup = null;
+		Indentation = 0;
+	}
+
+	private static void Print( ConsoleColor color, string message )
+	{
+		lock ( consoleLock )
+		{
+			ConsoleColor original = Console.ForegroundColor;
+			try
 			{
-				foreach ( LogMessage log in logs )
-				{
-					PrintDirectMessage( log.Color, new string( ' ', log.Indent ) + log.Text );
-				}
+				Console.ForegroundColor = color;
+				Console.WriteLine( message );
 			}
-			PrintDirectMessage( success ? ConsoleColor.Green : ConsoleColor.Red, $"{CurrentGroup}: {message}" );
-			// Clear the current group
-			_ = groupLogs.Remove( CurrentGroup );
-			CurrentGroup = null;
-			Indentation = 0;
+			finally
+			{
+				Console.ForegroundColor = original;
+			}
 		}
 	}
 
@@ -107,37 +112,9 @@ public static class Log
 			Indentation += 2;
 		}
 
-		public virtual void Dispose()
+		public void Dispose()
 		{
 			Indentation -= 2;
 		}
-	}
-
-	public static IDisposable Group( ConsoleColor color, string groupName )
-	{
-		lock ( lockObj )
-		{
-			CurrentGroup = groupName;
-
-			// Initialize group if needed
-			if ( !groupLogs.ContainsKey( groupName ) )
-			{
-				groupLogs[groupName] = [];
-			}
-
-			// Add group header to logs
-			groupLogs[groupName].Add( new LogMessage
-			{
-				Color = color,
-				Text = groupName,
-				Indent = 0
-			} );
-
-			// Print start message immediately
-			PrintDirectMessage( color, $"Started: {groupName}" );
-
-			Indentation = 2;
-		}
-		return new Indent();
 	}
 }

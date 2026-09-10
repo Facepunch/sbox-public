@@ -8,6 +8,9 @@ public static class Clipboard
 	/// </summary>
 	public static void SetText( string text )
 	{
-		NativeEngine.EngineGlobal.Plat_SetClipboardText( text );
+		if ( string.IsNullOrEmpty( text ) )
+			return;
+
+		NativeEngine.EngineGlobal.SDL_SetClipboardText( text );
 	}
 }

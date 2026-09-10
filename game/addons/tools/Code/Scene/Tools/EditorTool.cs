@@ -55,6 +55,7 @@ public class EditorTool : IDisposable
 	/// </summary>
 	[JsonIgnore]
 	public SceneTrace MeshTrace => Trace.UseRenderMeshes( true, EditorPreferences.BackfaceSelection )
+										.WithoutTags( "hidden" )
 										.UsePhysicsWorld( false );
 
 
@@ -112,7 +113,7 @@ public class EditorTool : IDisposable
 		{
 			if ( Manager.IsCurrentViewFocused )
 			{
-				if ( HasLassoSelectionMode() && (IsLassoSelecting || (Gizmo.IsAltPressed && Gizmo.IsLeftMouseDown && Gizmo.Pressed.CursorDelta.Length > 0.1f)) )
+				if ( HasLassoSelectionMode() && (IsLassoSelecting || (Gizmo.IsAltPressed && (Gizmo.IsShiftPressed || Gizmo.IsCtrlPressed) && Gizmo.IsLeftMouseDown && Gizmo.Pressed.CursorDelta.Length > 0.1f)) )
 				{
 					UpdateLassoSelection();
 				}
@@ -149,6 +150,36 @@ public class EditorTool : IDisposable
 	public virtual void OnSelectionChanged()
 	{
 
+	}
+
+	/// <summary>
+	/// Allows tools to contribute custom items to the scene viewport context menu.
+	/// </summary>
+	public virtual void BuildSceneContextMenu( Menu menu, Ray ray, SceneTraceResult? trace )
+	{
+	}
+
+	protected static void AddMenuOption( Menu m, string name, string icon, string shortcut, bool condition )
+	{
+		if ( !condition ) return;
+		m.AddOption( name, icon, () => InvokeShortcut( shortcut ), shortcut );
+	}
+
+	protected static void AddMenuOption( Menu m, string name, string icon, Action action, string shortcut, bool condition )
+	{
+		if ( !condition ) return;
+		m.AddOption( name, icon, action, shortcut );
+	}
+
+	internal static bool InvokeShortcut( string identifier )
+	{
+		foreach ( var shortcut in EditorShortcuts.Entries )
+		{
+			if ( shortcut.Identifier != identifier ) continue;
+			if ( shortcut.Invoke( true ) ) return true;
+		}
+
+		return false;
 	}
 
 	/// <summary>
@@ -286,13 +317,14 @@ public class EditorTool : IDisposable
 	public virtual bool HasBoxSelectionMode() => false;
 
 	/// <summary>
-	/// If true then this mode uses lasso selection (activated with Alt+Drag)
+	/// If true then this mode uses lasso selection (Alt+Shift+Drag to add, Alt+Ctrl+Drag to remove)
 	/// </summary>
 	public virtual bool HasLassoSelectionMode() => false;
 
 	Ray _ray1;
 	Ray _ray2;
 	List<Vector2> _lassoPoints = new();
+	Dictionary<GameObject, BBox> _dragBounds = new();
 
 	protected bool IsBoxSelecting { get; private set; }
 	protected bool IsLassoSelecting { get; private set; }
@@ -304,6 +336,7 @@ public class EditorTool : IDisposable
 		if ( Gizmo.WasLeftMousePressed )
 		{
 			_ray1 = ray;
+			_dragBounds.Clear();
 		}
 
 		if ( Gizmo.IsLeftMouseDown && _ray1 != default )
@@ -349,7 +382,7 @@ public class EditorTool : IDisposable
 
 	private void UpdateLassoSelection()
 	{
-		if ( Gizmo.WasLeftMousePressed && !IsLassoSelecting )
+		if ( Gizmo.IsLeftMouseDown && !IsLassoSelecting )
 		{
 			_lassoPoints.Clear();
 			IsLassoSelecting = true;
@@ -450,6 +483,52 @@ public class EditorTool : IDisposable
 	protected virtual void OnBoxSelect( Frustum frustum, Rect screenRect, bool isFinal )
 	{
 
+	}
+
+	/// <summary>
+	/// GetBounds walks the whole component hierarchy, so cache it for the duration of a drag.
+	/// Nothing can move while the mouse is busy dragging a selection box.
+	/// </summary>
+	protected BBox GetDragBounds( GameObject go )
+	{
+		if ( _dragBounds.TryGetValue( go, out var bounds ) )
+			return bounds;
+
+		return _dragBounds[go] = go.GetBounds();
+	}
+
+	/// <summary>
+	/// Apply the result of a drag selection. Ctrl deselects whatever the drag covered, shift keeps
+	/// what was already selected, otherwise the drag replaces the selection.
+	/// </summary>
+	/// <param name="inside">Everything the drag covered</param>
+	/// <param name="outside">Everything it didn't</param>
+	protected void ApplyDragSelection<T>( IEnumerable<T> inside, IEnumerable<T> outside )
+	{
+		if ( Gizmo.IsCtrlPressed )
+		{
+			foreach ( var element in inside )
+			{
+				if ( Selection.Contains( element ) )
+					Selection.Remove( element );
+			}
+
+			return;
+		}
+
+		foreach ( var element in inside )
+		{
+			if ( !Selection.Contains( element ) )
+				Selection.Add( element );
+		}
+
+		if ( Gizmo.IsShiftPressed ) return;
+
+		foreach ( var element in outside )
+		{
+			if ( Selection.Contains( element ) )
+				Selection.Remove( element );
+		}
 	}
 
 	/// <summary>

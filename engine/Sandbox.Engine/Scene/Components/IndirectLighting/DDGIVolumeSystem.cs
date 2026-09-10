@@ -38,10 +38,22 @@ sealed class DDGIVolumeSystem : GameObjectSystem<DDGIVolumeSystem>
 	{
 		using var _ = PerformanceStats.Timings.Render.Scope();
 
-		if ( Application.IsHeadless || !_dirty )
+		if ( Application.IsHeadless )
 			return;
 
 		if ( Scene?.RenderAttributes is null )
+			return;
+
+		// Mark textures as used every frame, so the streaming system keeps 
+		// them resident while the volumes are active.
+		foreach ( var volume in Scene.GetAll<IndirectLightVolume>().Where( v => v is { Active: true, Enabled: true } ) )
+		{
+			volume.IrradianceTexture?.MarkUsed();
+			volume.DistanceTexture?.MarkUsed();
+			volume.RelocationTexture?.MarkUsed();
+		}
+
+		if ( !_dirty )
 			return;
 
 		_dirty = false;

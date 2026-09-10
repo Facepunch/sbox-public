@@ -22,17 +22,11 @@ public class PackageUsageStats
 		public long Sessions { get; set; }
 
 		[JsonIgnore]
-		public TimeSpan CombinedTime => TimeSpan.FromSeconds( Seconds );
-
-		[JsonIgnore]
 		public TimeSpan AverageTime => TimeSpan.FromSeconds( Seconds / MathF.Max( Users, 1 ) );
 	}
 
 	public Group Total { get; set; }
-	public Group Month { get; set; }
-	public Group Week { get; set; }
-	public Group Day { get; set; }
 
+	[Obsolete( "Moved to the root Package DTO (PackageWrapMinimal.UsersNow / PackageDto.UsersNow). Kept for wire compatibility; will be removed in a future cycle." )]
 	public long UsersNow { get; set; }
-	public double Trend { get; set; }
 }

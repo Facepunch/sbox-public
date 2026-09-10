@@ -59,11 +59,12 @@ public partial class Bitmap
 	/// <summary>
 	/// Exports the bitmap to the specified engine format
 	/// </summary>
+	/// <param name="format">The target image format to encode to.</param>
 	public byte[] ToFormat( ImageFormat format )
 	{
 		var data = _bitmap.GetPixels();
 
-		using var fbm = new FloatBitmap( Width, Height, ImageFormat, data, ByteCount );
+		using var fbm = new FloatBitmap( Width, Height, ImageFormat, data, ByteCount, srgb: false );
 		return fbm.EncodeTo( format );
 	}
 

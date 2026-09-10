@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!-- Integration tests: boots the full native engine via TestAppSystem (see Assembly.cs). Needs FACEPUNCH_ENGINE. -->
+
+	<ItemGroup>
+		<Using Include="Microsoft.AspNetCore.Components" />
+		<Using Include="Microsoft.AspNetCore.Components.Rendering" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Facepunch.ActionGraphs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\Sandbox.Bind\Sandbox.Bind.csproj" />
+		<ProjectReference Include="..\..\Sandbox.Generator\Sandbox.Generator.csproj" />
+		<ProjectReference Include="..\..\Sandbox.System\Sandbox.System.csproj" />
+		<ProjectReference Include="..\..\Sandbox.Engine\Sandbox.Engine.csproj" />
+		<ProjectReference Include="..\..\Sandbox.Tools\Sandbox.Tools.csproj" />
+		<ProjectReference Include="..\..\Sandbox.Menu\Sandbox.Menu.csproj" />
+		<ProjectReference Include="..\..\Sandbox.AppSystem\Sandbox.AppSystem.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Update="MovieMaker\TestData\RawRotation.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+		<None Update="MovieMaker\TestData\RawTransform.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
+</Project>

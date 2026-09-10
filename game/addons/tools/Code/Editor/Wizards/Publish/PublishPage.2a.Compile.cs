@@ -18,17 +18,28 @@ partial class PublishWizard
 
 		public override async Task OpenAsync()
 		{
-			BodyLayout?.Clear( true );
-
+			BodyLayout.Clear( true );
 			logOutput = new TextEdit( this );
-			BodyLayout.Add( logOutput, 1 );
+			Rebuild();
 
 			Enabled = false;
 			Visible = true;
 
 			PublishConfig.AssemblyFiles = null;
+			PublishConfig.CompilerOutput = null;
+			PublishConfig.Publisher = null;
+			PublishConfig.CodePackages.Clear();
+			CompileSuccessful = false;
 
 			await Refresh();
+		}
+
+		public override void Rebuild()
+		{
+			// Keep the live output, including its formatting, while compilation continues.
+			BodyLayout.Clear( false );
+			logOutput ??= new TextEdit( this );
+			BodyLayout.Add( logOutput, 1 );
 		}
 
 		public async Task Refresh()
@@ -96,17 +107,6 @@ partial class PublishWizard
 				PeekAssembly( assembly.Compiler.AssemblyName, assembly.AssemblyData );
 			}
 
-			//
-			// only games should actually ship with a package.base.dll
-			// because even though extensions/libraries/etc can reference them
-			// they should be referencing from game - not their own
-			//
-			if ( Project.Config.Type != "game" )
-			{
-				extrafiles.Remove( ".bin/package.base.xml" );
-				extrafiles.Remove( ".bin/package.base.cll" );
-			}
-
 			PublishConfig.AssemblyFiles = extrafiles;
 		}
 
@@ -115,7 +115,7 @@ partial class PublishWizard
 		/// </summary>
 		private void PeekAssembly( string title, byte[] contents )
 		{
-			var attr = EditorUtility.AssemblyMetadata.GetCustomAttributes( contents );
+			var attr = AssemblyMetadata.GetCustomAttributes( contents );
 
 			var assetAttributes = attr
 									.Where( x => x.AttributeFullName == "Sandbox.Cloud/AssetAttribute" )

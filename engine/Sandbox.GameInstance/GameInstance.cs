@@ -1,3 +1,4 @@
+using Sandbox.Engine;
 using Sandbox.Internal;
 using Sandbox.Menu;
 using Sandbox.Modals;
@@ -111,6 +112,9 @@ internal class GameInstance : IGameInstance
 
 		GlobalContext.Current.UISystem.Clear();
 
+		// Destroy resource manifests before unmounting their package or network-backed files.
+		Game.Resources.Clear();
+
 		if ( activePackage != null && !Application.IsStandalone )
 		{
 			Game.Language?.Shutdown();
@@ -128,13 +132,23 @@ internal class GameInstance : IGameInstance
 
 		GameInstanceDll.Current.Shutdown( this );
 
-		// If we were running a benchmark, leave the game
-		if ( Application.IsBenchmark )
+		// If we were running a benchmark, load the next package or finish
+		if ( Application.IsBenchmark || BenchmarkOrchestrator.IsRunning )
 		{
-			if ( !Bootstrap.TryLoadNextBenchmarkPackage() )
+			if ( !BenchmarkOrchestrator.TryLoadNextPackage() )
 			{
-				Console.WriteLine( "Quitting" );
-				ConVarSystem.Run( "quit" );
+				if ( BenchmarkOrchestrator.IsRunning )
+				{
+					BenchmarkOrchestrator.IsRunning = false;
+					BenchmarkOrchestrator.RestoreSettings();
+					Game.Overlay.ShowBenchmarkResults( BenchmarkOrchestrator.LastBatchId, BenchmarkOrchestrator.Summaries );
+				}
+				else
+				{
+					BenchmarkOrchestrator.RestoreSettings();
+					Console.WriteLine( "Quitting" );
+					ConVarSystem.Run( "quit" );
+				}
 			}
 		}
 
@@ -179,6 +193,11 @@ internal class GameInstance : IGameInstance
 			LoadProjectSettings();
 			SetupFileWatch();
 			return true;
+		}
+
+		if ( Package.TypeName != "game" && !Application.IsEditor )
+		{
+			throw new Exception( $"Package {Ident} is not a game" );
 		}
 
 		var achievementTask = _package.GetAchievements();
@@ -248,6 +267,8 @@ internal class GameInstance : IGameInstance
 		if ( !string.IsNullOrWhiteSpace( LaunchArguments.Map ) )
 		{
 			var map = LaunchArguments.Map;
+			Application.Map = map;
+
 			await LoadMapPackage( map, token );
 			Application.MapPackage = _mapPackage;
 		}
@@ -278,7 +299,7 @@ internal class GameInstance : IGameInstance
 		if ( !IsDeveloperHost )
 		{
 			Log.Trace( $"Loading GameResources" );
-			ResourceLoader.LoadAllGameResource( FileSystem.Mounted );
+			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted, token );
 		}
 
 		if ( !achievementTask.IsCompleted )
@@ -529,13 +550,14 @@ class MenuLoadingScreen : ILoadingInterface
 {
 	public void Dispose()
 	{
-		LoadingScreen.Title = "";
 		LoadingScreen.Subtitle = "";
 	}
 
 	public void LoadingProgress( LoadingProgress progress )
 	{
 		LoadingScreen.Title = $"{progress.Title}";
-		LoadingScreen.Subtitle = $"{progress.Percent:n0}% • {progress.Mbps:n0}mbps • {progress.CalculateETA().ToRemainingTimeString()}";
+		LoadingScreen.Subtitle = progress.Mbps > 0
+			? $"{progress.Percent:n0}% • {progress.Mbps:n0}mbps • {progress.CalculateETA().ToRemainingTimeString()}"
+			: "";
 	}
 }

@@ -1,0 +1,258 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+RewardsPage
+{
+	position: relative;
+	background-color: transparent;
+	align-items: center;
+	justify-content: center;
+
+	// Scoped, like the other pages - stylesheets are global, so bare .track would leak.
+
+	.rewards-body
+	{
+		@include front-page-columns;
+	}
+
+	.rewards-aside
+	{
+		@include front-page-aside;
+	}
+
+	.rewards-list
+	{
+		@include front-page-list;
+
+		// A row is one line of text - run it the full width of a wide screen and it reads as
+		// mostly empty. The leftover space to the right is the point.
+		max-width: 1040px;
+	}
+
+	.section-head
+	{
+		@include front-page-section-head;
+	}
+
+	.rewards-empty
+	{
+		@include front-page-empty;
+	}
+
+	.refresh
+	{
+		@include front-pill;
+
+		// The head baselines its text; the pill is taller than a line of it.
+		align-self: center;
+		pointer-events: all;
+		cursor: pointer;
+
+		&.busy
+		{
+			pointer-events: none;
+			opacity: 0.5;
+		}
+	}
+
+	// The drop itself - the arc beside what it's for, and the one button that matters.
+	.hero
+	{
+		@include front-card;
+
+		flex-direction: row;
+		align-items: center;
+		gap: 28px;
+		padding: 28px;
+	}
+
+	// A ready drop earns the green edge. Nothing else on the page is allowed it.
+	.hero.done
+	{
+		border-color: rgba( $front-reward, 0.55 );
+		box-shadow: 0 0 30px rgba( $front-reward, 0.16 );
+	}
+
+	// position, or the arc and its punched-out middle resolve against the card instead and
+	// paint straight across it.
+	.ring
+	{
+		position: relative;
+		width: 148px;
+		height: 148px;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.ring-fill
+	{
+		position: absolute;
+		width: 100%;
+		height: 100%;
+		border-radius: 50%;
+	}
+
+	// Punches the middle out of the arc, leaving a ring the percentage sits inside.
+	.ring-inner
+	{
+		position: absolute;
+		left: 11px;
+		top: 11px;
+		right: 11px;
+		bottom: 11px;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		border-radius: 50%;
+		background-color: rgba( 8, 10, 14, 0.92 );
+
+		.percent
+		{
+			font-family: $front-font;
+			font-size: 34px;
+			font-weight: 700;
+			color: $front-heading;
+		}
+
+		.percent-label
+		{
+			font-size: 10.5px;
+			font-weight: 600;
+			text-transform: uppercase;
+			letter-spacing: 0.09em;
+			color: $front-secondary;
+		}
+	}
+
+	.hero.done .ring-inner
+	{
+		.percent
+		{
+			color: $front-reward;
+		}
+
+		.percent-label
+		{
+			color: $front-reward;
+		}
+	}
+
+	.hero-body
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+		gap: 4px;
+	}
+
+	.hero-title
+	{
+		font-family: $front-font;
+		font-size: 26px;
+		font-weight: 700;
+		color: $front-heading;
+	}
+
+	.hero-hint
+	{
+		font-size: 13px;
+		color: $front-secondary;
+		margin-bottom: 14px;
+	}
+
+	// Wide enough to read as the page's action, not stretched across the whole card.
+	.open
+	{
+		@include front-button;
+
+		align-self: flex-start;
+		padding: 12px 26px;
+		pointer-events: all;
+		cursor: pointer;
+	}
+
+	// One objective. Its own slab, same as an inbox row, so a long list reads as a checklist.
+	.objective
+	{
+		@include front-card;
+
+		gap: 12px;
+		padding: 16px 18px;
+	}
+
+	.objective-head
+	{
+		flex-direction: row;
+		align-items: center;
+		flex-shrink: 0;
+		gap: 12px;
+
+		icon
+		{
+			flex-shrink: 0;
+			font-size: 22px;
+			color: $front-tertiary;
+		}
+	}
+
+	.objective-body
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+		gap: 2px;
+	}
+
+	.objective-title
+	{
+		font-family: $front-font;
+		font-size: 14px;
+		font-weight: 700;
+		color: $front-heading;
+	}
+
+	.objective-hint
+	{
+		font-size: 12px;
+		color: $front-secondary;
+	}
+
+	.objective-count
+	{
+		flex-shrink: 0;
+		font-family: $front-font;
+		font-size: 11px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: $front-secondary;
+	}
+
+	.objective.met
+	{
+		.objective-head icon
+		{
+			color: $front-reward;
+		}
+
+		.objective-count
+		{
+			color: $front-reward;
+		}
+
+		// A met bar is full width across the whole page - at full strength it's a green
+		// slab that shouts over the one you're actually working on.
+		.track
+		{
+			opacity: 0.45;
+		}
+	}
+
+	.track
+	{
+		@include front-track;
+	}
+}

@@ -89,7 +89,7 @@ public sealed class FromThemeAttribute : Attribute
 
 			try
 			{
-				var value = property.PropertyType == typeof(Color)
+				var value = property.PropertyType == typeof( Color )
 					? Color.Parse( valueString )!.Value
 					: Json.Deserialize( valueString, property.PropertyType );
 

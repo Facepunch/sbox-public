@@ -1,0 +1,29 @@
+ConvarCycle
+{
+    padding: 1rem;
+    cursor: pointer;
+    font-family: Poppins;
+    font-weight: bold;
+    font-size: 14px;
+    border-radius: 10px;
+    background-color: #ffffff05;
+    color: #fffa;
+
+    .suffix
+    {
+        font-weight: normal;
+        opacity: 0.7;
+    }
+}
+
+ConvarCycle:hover
+{
+    background-color: #fff1;
+    color: #fff;
+}
+
+ConvarCycle.active
+{
+    background-color: #0088ff;
+    color: #fff;
+}

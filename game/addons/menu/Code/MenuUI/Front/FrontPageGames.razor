@@ -1,0 +1,279 @@
+﻿@using System;
+@using System.Collections.Generic;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+
+@if ( Group is null )
+    return;
+
+<root>
+    @foreach ( var section in Sections )
+    {
+        <div class="section">
+
+            <div class="head">
+                <div class="head-text">
+                    <label class="title">@section.Title</label>
+                    @if ( !string.IsNullOrEmpty( section.Description ) )
+                    {
+                        <label class="description">@section.Description</label>
+                    }
+                </div>
+                <div class="grow" />
+                @if ( section.Url is not null )
+                {
+                    <a class="view-all" href="@section.Url">View All</a>
+                }
+            </div>
+
+            @if ( section.Big is not null )
+            {
+                <div class="tiles mosaic @( section.BigRight ? "big-right" : "big-left" )">
+                    @* The wrapper owns the width - PackageCard sets its own root class/style, so
+                       anything passed straight to it gets clobbered. *@
+                    <div class="big" style="width: @( (int)BigWidth )px;">
+                        <MenuProject.UI.PackageCard Package=@section.Big ShowSummary=@true
+                                     Rotation=@section.Rotation
+                                     Clicked="@(() => section.Big.OpenModal())"
+                                     RightClicked="@(() => MenuHelpers.OpenPackageMenu( this, section.Big ))" />
+                    </div>
+
+                    <div class="grid">
+                        <div class="row">
+                            @foreach ( var package in section.RowOne )
+                            {
+                                <MenuProject.UI.PackageCard Package=@package style="@section.RowOneStyle"
+                                             Rotation=@section.Rotation
+                                             Clicked="@(() => package.OpenModal())"
+                                             RightClicked="@(() => MenuHelpers.OpenPackageMenu( this, package ))" />
+                            }
+                        </div>
+                        @if ( section.RowTwo.Count > 0 )
+                        {
+                            <div class="row">
+                                @foreach ( var package in section.RowTwo )
+                                {
+                                    <MenuProject.UI.PackageCard Package=@package style="@section.RowTwoStyle"
+                                                 Rotation=@section.Rotation
+                                                 Clicked="@(() => package.OpenModal())"
+                                                 RightClicked="@(() => MenuHelpers.OpenPackageMenu( this, package ))" />
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="tiles">
+                    <div class="row">
+                        @foreach ( var package in section.RowOne )
+                        {
+                            <MenuProject.UI.PackageCard Package=@package
+                                         Rotation=@section.Rotation
+                                         Clicked="@(() => package.OpenModal())"
+                                         RightClicked="@(() => MenuHelpers.OpenPackageMenu( this, package ))" />
+                        }
+                    </div>
+                </div>
+            }
+
+        </div>
+    }
+</root>
+
+@code
+{
+    // Keep in sync with .row PackageCard width and the gap in FrontPageGames.razor.scss.
+    const float TileWidth = 250f;
+    const float TileGap = 8f;
+
+    [Parameter] public Package.ListResult Group { get; set; }
+
+    /// <summary>
+    /// How many tile columns fit across a row at the current width. The big tile spans two of them.
+    /// </summary>
+    int Columns { get; set; } = 5;
+
+    /// <summary>
+    /// The big tile is exactly two tiles plus the gap between them, in unscaled px - so its
+    /// far edge lands where a second column's would.
+    /// </summary>
+    float BigWidth { get; set; } = TileWidth * 2 + TileGap;
+
+    /// <summary>
+    /// One shelf. Each keeps its own rotation, so it only plays its own quota.
+    /// </summary>
+    class Section
+    {
+        public string Title;
+        public string Description;
+        public string Url;
+
+        public bool BigRight;
+        public Package Big;
+        public List<Package> RowOne = new();
+        public List<Package> RowTwo = new();
+        public string RowOneStyle = "";
+        public string RowTwoStyle = "";
+
+        public MenuProject.UI.CardVideoRotation Rotation;
+    }
+
+    List<Section> Sections { get; set; } = new();
+
+    Package.ListResult builtGroup;
+    int builtColumns = -1;
+    float builtBigWidth = -1;
+
+    /// <summary>
+    /// Inline style for tiles in a row that came up short: pin them to a full row's tile
+    /// width instead of letting them grow into the space.
+    /// </summary>
+    string ShortRowTileStyle => $"flex-grow: 0; width: {(int)((BigWidth - TileGap) / 2)}px;";
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+
+        BuildSections();
+    }
+
+    /// <summary>
+    /// Only depends on the group and the measured tile sizes, so rebuild when those move.
+    /// </summary>
+    void BuildSections()
+    {
+        if ( builtGroup == Group && builtColumns == Columns && builtBigWidth == BigWidth )
+            return;
+
+        builtGroup = Group;
+        builtColumns = Columns;
+        builtBigWidth = BigWidth;
+
+        // Carry rotations over so a resize doesn't restart everything mid-turn.
+        var previous = Sections;
+        Sections = new List<Section>();
+
+        if ( Group?.Groupings is null )
+            return;
+
+        var mosaicIndex = 0;
+
+        for ( int i = 0; i < Group.Groupings.Length; i++ )
+        {
+            var grouping = Group.Groupings[i];
+            var packages = grouping.Packages ?? Array.Empty<Package>();
+
+            var section = new Section
+            {
+                Title = grouping.Title,
+                Description = grouping.Description,
+                Url = GroupUrl( grouping ),
+                Rotation = i < previous.Count ? previous[i].Rotation : new MenuProject.UI.CardVideoRotation(),
+            };
+
+            // No query means View All would land on an unrelated list, so don't link at all.
+            if ( string.IsNullOrEmpty( grouping.QueryString ) )
+                section.Url = null;
+
+            // Featured groups get a mosaic, alternating which side the big tile sits on.
+            var big = grouping.Style == "large" ? PickBig( packages ) : null;
+
+            if ( big is not null && Columns >= 3 && packages.Length >= 3 )
+            {
+                var smallCols = Columns - 2;
+
+                section.BigRight = mosaicIndex++ % 2 == 1;
+                section.Big = big;
+
+                var rest = packages.Where( x => x != big ).ToArray();
+
+                section.RowOne.AddRange( rest.Take( smallCols ) );
+                section.RowTwo.AddRange( rest.Skip( smallCols ).Take( smallCols ) );
+
+                // A row that ran out of packages keeps full-row tile widths and leaves the
+                // gap empty - stretched tiles would break the grid.
+                section.RowOneStyle = section.RowOne.Count < smallCols ? ShortRowTileStyle : "";
+                section.RowTwoStyle = section.RowTwo.Count < smallCols ? ShortRowTileStyle : "";
+            }
+            else
+            {
+                section.RowOne.AddRange( packages.Take( Columns ) );
+            }
+
+            Sections.Add( section );
+        }
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        UpdateColumns();
+
+        foreach ( var section in Sections )
+        {
+            // A mosaic shelf carries half again as many cards, so it plays proportionally more.
+            var count = MenuProject.UI.PackageCard.VideoThumbsPerShelf;
+            if ( section.Big is not null )
+                count = (int)MathF.Round( count * 1.5f );
+
+            section.Rotation.Count = count;
+            section.Rotation.Interval = MenuProject.UI.PackageCard.VideoThumbsSeconds;
+            section.Rotation.Tick();
+        }
+    }
+
+    void UpdateColumns()
+    {
+        // Measure a real row rather than guessing at paddings from our own box.
+        var tiles = FirstTilesRow();
+        var scale = ScaleToScreen;
+
+        if ( tiles is null || scale <= 0 || tiles.Box.RectInner.Width <= 0 )
+            return;
+
+        // Inner rect - the tiles lay out inside .tiles' padding.
+        var rowWidth = tiles.Box.RectInner.Width / scale;
+        var fit = Math.Max( 1, (int)((rowWidth + TileGap) / (TileWidth + TileGap)) );
+
+        var tileWidth = (rowWidth - (fit - 1) * TileGap) / fit;
+        var bigWidth = MathF.Round( tileWidth * 2 + TileGap );
+
+        if ( fit != Columns || !bigWidth.AlmostEqual( BigWidth, 0.5f ) )
+        {
+            Columns = fit;
+            BigWidth = bigWidth;
+
+            BuildSections();
+            StateHasChanged();
+        }
+    }
+
+    Panel FirstTilesRow()
+    {
+        foreach ( var section in Children )
+        {
+            foreach ( var child in section.Children )
+            {
+                if ( child.HasClass( "tiles" ) )
+                    return child;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The big tile is the group's first package that has a video - it's the one that
+    /// plays. None with a video means no big tile.
+    /// </summary>
+    static Package PickBig( Package[] packages ) => packages.FirstOrDefault( x => !string.IsNullOrEmpty( x?.VideoThumb ) );
+
+    static string GroupUrl( Package.ListResult.Grouping g ) => $"/games/group?Query={g.QueryString}&title={g.Title}&icon={g.Icon}";
+
+    protected override int BuildHash() => HashCode.Combine( Group, Sections.Count, Columns, BigWidth );
+}

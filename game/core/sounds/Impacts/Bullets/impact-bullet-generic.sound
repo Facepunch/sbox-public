@@ -5,7 +5,10 @@
   "Decibels": 70,
   "SelectionMode": "Random",
   "Sounds": [
-    "sounds/impacts/bullets/generic-bullet-impact-1.vsnd"
+    "sounds/impacts/bullets/generic-bullet-impact-1.vsnd",
+    "sounds/impacts/bullets/generic-bullet-impact-2.vsnd",
+    "sounds/impacts/bullets/generic-bullet-impact-3.vsnd",
+    "sounds/impacts/bullets/generic-bullet-impact-4.vsnd"
   ],
   "Occlusion": true,
   "Reflections": true,

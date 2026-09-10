@@ -105,6 +105,9 @@ public record DiskLocation : LocalAssetBrowser.Location
 
 	public override IEnumerable<LocalAssetBrowser.Location> GetDirectories()
 	{
+		if ( !Directory.Exists( Path ) )
+			yield break;
+
 		foreach ( var subDir in Directory.GetDirectories( Path ) )
 		{
 			var dir = new DirectoryInfo( subDir );

@@ -27,6 +27,7 @@ public partial class DebugOverlaySystem
 		so.RenderLayer = SceneRenderLayer.OverlayWithoutDepth;
 		so.TextBlock = textBlock;
 		so.TextFlags = flags;
+		so.BuildCommandList();
 
 		Add( duration, so );
 	}
@@ -49,7 +50,6 @@ file class ScreenTextSceneObject : SceneCustomObject
 	{
 		RenderLayer = SceneRenderLayer.OverlayWithoutDepth;
 		Flags.CastShadows = false;
-		managedNative.ExecuteOnMainThread = false;
 		TextBlock = TextRendering.Scope.Default;
 	}
 

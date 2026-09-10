@@ -42,7 +42,7 @@ public class Phrase
 				}
 
 				// find closer
-				var cls = Value.IndexOf( '}', i );
+				var cls = Value.IndexOf( '}', idx );
 				if ( cls == -1 )
 				{
 					return;

@@ -90,10 +90,11 @@ internal partial class NetworkSystem
 			MapName = Networking.MapName,
 			EngineVersion = 234,
 			GamePackage = Application.GamePackage?.GetIdent( false, true ) ?? "",
-			MapPackage = Application.MapPackage?.GetIdent( false, true ) ?? "",
+			Map = Application.Map,
 			Host = new ChannelInfo { Id = Connection.Local.Id },
 			Assigned = new ChannelInfo { Id = channel.Id },
 			IsDeveloperHost = IsDeveloperHost,
+			HostMigration = IsHostMigrationEnabled,
 			HandshakeId = channel.HandshakeId
 		};
 
@@ -107,7 +108,7 @@ internal partial class NetworkSystem
 	/// </summary>
 	internal void RestartHandshake()
 	{
-		var host = _connections.FirstOrDefault( c => c.IsHost );
+		var host = HostConnection;
 		if ( host is null )
 			return;
 
@@ -127,6 +128,41 @@ internal partial class NetworkSystem
 
 	internal void OnDisconnected( Connection source )
 	{
+		if ( !_connections.Contains( source ) )
+			return;
+
+		// The leaving host is removed once we've loaded their snapshot
+		if ( _isBecomingHost && source == _leavingHost )
+			return;
+
+		if ( !IsHost && source == HostConnection )
+		{
+			OnHostLost( source );
+		}
+
+		RemovePeer( source );
+	}
+
+	/// <summary>
+	/// Forget a peer; tell the game if it had been told they joined.
+	/// </summary>
+	void RemovePeer( Connection source )
+	{
+		var known = _connections.Remove( source );
+		_pendingLeaveAcks.Remove( source.Id );
+		_pendingResyncs.Remove( source.Id );
+
+		// The server channel of a star topology client
+		if ( Connection == source )
+		{
+			Connection.Close( 0, "Host changed" );
+			Connection = null;
+			known = true;
+		}
+
+		if ( !known )
+			return;
+
 		if ( source.State >= Connection.ChannelState.Welcome )
 		{
 			// We only need to call this if we called OnConnected, which would only
@@ -135,14 +171,13 @@ internal partial class NetworkSystem
 		}
 
 		_connectionLookup.Remove( source.Id );
-		_connections.Remove( source );
 
 		source.State = Connection.ChannelState.Unconnected;
 
 		if ( !IsHost )
 			return;
 
-		Log.Info( $"{source.DisplayName} [{source.SteamId}] disconnected" );
+		Log.Info( $"{source.Name} [{source.SteamId}] disconnected" );
 
 		ConnectionInfo.Remove( source.Id );
 		OnConnectionInfoUpdated();

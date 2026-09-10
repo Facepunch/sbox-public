@@ -74,6 +74,12 @@ public sealed class VideoExportConfig
 	public Vector2Int Resolution { get; set; } = new( 1920, 1080 );
 
 	/// <summary>
+	/// MSAA level to use when rendering.
+	/// </summary>
+	[Feature( "Dimensions", Icon = "grain" )]
+	public MultisampleAmount MultisampleAmount { get; set; } = MultisampleAmount.Multisample2x;
+
+	/// <summary>
 	/// How many frames to render and discard before exporting, to warm up any temporal ray traced elements.
 	/// </summary>
 	[JsonIgnore, Hide]
@@ -89,8 +95,8 @@ public sealed class VideoExportConfig
 		set => CustomBitrate = value ? 0 : RecommendedBitrate;
 	}
 
-	private bool ShowCustomBitrate => Mode == ExportMode.VideoFile && UseRecommendedBitrate;
-	private bool ShowRecommendedBitrate => Mode == ExportMode.VideoFile && !UseRecommendedBitrate;
+	private bool ShowCustomBitrate => Mode == ExportMode.VideoFile && !UseRecommendedBitrate;
+	private bool ShowRecommendedBitrate => Mode == ExportMode.VideoFile && UseRecommendedBitrate;
 
 	/// <summary>
 	/// How many Mbit/s to attempt to export at. If this value is too low, some frames may get skipped for some reason.
@@ -110,7 +116,13 @@ public sealed class VideoExportConfig
 	public int RecommendedBitrate => (int)MathF.Ceiling( Resolution.x * Resolution.y * FrameRate * RecommendedBitsPerPixel / 1_000_000 );
 
 	[Feature( "Encoding", Icon = "terminal" ), ShowIf( nameof( Mode ), ExportMode.VideoFile )]
-	public VideoWriter.Codec Codec { get; set; } = VideoWriter.Codec.H264;
+	public VideoWriter.Codec Codec { get; set; } = VideoWriter.Codec.VP9;
+
+	[Feature( "Encoding", Icon = "terminal" ), ShowIf( nameof( Mode ), ExportMode.VideoFile )]
+	public VideoWriter.EncodingPreset Preset { get; set; } = VideoWriter.EncodingPreset.Quality;
+
+	[Feature( "Encoding", Icon = "terminal" ), ShowIf( nameof( Mode ), ExportMode.VideoFile )]
+	public VideoWriter.AudioCodec AudioCodec { get; set; } = VideoWriter.AudioCodec.Opus;
 
 	/// <summary>
 	/// Describes how long the sensor is exposed for each output frame.
@@ -136,7 +148,9 @@ public sealed class VideoExportConfig
 		Height = Resolution.y,
 		Bitrate = UseRecommendedBitrate ? RecommendedBitrate : CustomBitrate,
 		Codec = Codec,
-		Container = GetContainerForExtension( Path.GetExtension( filePath ) )
+		Container = GetContainerForExtension( Path.GetExtension( filePath ) ),
+		Preset = Preset,
+		AudioCodec = AudioCodec
 	};
 
 	private static VideoWriter.Container GetContainerForExtension( string extension )
@@ -207,25 +221,39 @@ public sealed class SessionRenderer
 
 		using var captureCamera = new SceneCamera( "Video Export Camera" );
 
-		using var subFrameTex = Texture.CreateRenderTarget( "VideoExportSubFrame", ImageFormat.RGBA16161616, config.Resolution );
-		using var accumulatedTex = Texture.Create( config.Resolution.x, config.Resolution.y, ImageFormat.RGBA32323232F )
-			.WithName( "VideoExportAccumulated" )
-			.WithUAVBinding()
-			.WithGPUOnlyUsage()
-			.Finish();
+		var multisampleCount = config.MultisampleAmount.SampleCount;
+
+		using var subFrameTex = Texture.CreateRenderTarget()
+			.WithFormat( ImageFormat.RGBA16161616 )
+			.WithSize( config.Resolution.x, config.Resolution.y )
+			.WithMSAA( config.MultisampleAmount )
+			.Create( "VideoExportSubFrame" );
+
+		var subFrameCount = config.SubFramesPerFrame;
+
+		using var accumulatedTex = subFrameCount > 1
+			? Texture.Create( config.Resolution.x, config.Resolution.y, ImageFormat.RGBA32323232F )
+				.WithName( "VideoExportAccumulated" )
+				.WithUAVBinding()
+				.WithGPUOnlyUsage()
+				.Finish()
+			: null;
 
 		var framePixels = new byte[config.Resolution.x * config.Resolution.y * 4];
 
-		var subFrameCount = config.SubFramesPerFrame;
 		var exposureFraction = (int)config.Exposure / 360f;
 		var exposureStart = 0.5f - exposureFraction * 0.5f;
 		var exposureEnd = 0.5f + exposureFraction * 0.5f;
 
 		var accumulate = new ComputeShader( "moviemaker_accumulate_cs" );
 
-		accumulate.Attributes.Set( "Subframe", subFrameTex );
-		accumulate.Attributes.Set( "Accumulated", accumulatedTex );
-		accumulate.Attributes.Set( "InvFrames", 1f / subFrameCount );
+		if ( subFrameCount > 1 )
+		{
+			accumulate.Attributes.Set( "Subframe", subFrameTex );
+			accumulate.Attributes.Set( "Accumulated", accumulatedTex );
+			accumulate.Attributes.Set( "SampleCount", multisampleCount );
+			accumulate.Attributes.Set( "InvFrames", 1f / (subFrameCount * multisampleCount) );
+		}
 
 		var alphaDivide = new ComputeShader( "moviemaker_alphadivide_cs" );
 
@@ -247,7 +275,7 @@ public sealed class SessionRenderer
 
 			if ( !isWarmup && subFrameCount > 1 )
 			{
-				accumulatedTex.Clear( new Color( 0f, 0f, 0f, 0f ) );
+				accumulatedTex!.Clear( new Color( 0f, 0f, 0f, 0f ) );
 			}
 
 			var frameTime = timeRange.Start + (isWarmup ? 0 : MovieTime.FromFrames( i, config.FrameRate ));
@@ -257,11 +285,14 @@ public sealed class SessionRenderer
 				var subFrameFraction = isWarmup ? 0f : (float)j / subFrameCount;
 				var subFrameTime = MathX.Lerp( exposureStart, exposureEnd, subFrameFraction ) / config.FrameRate;
 				var nextTime = frameTime + MovieTime.FromSeconds( subFrameTime );
+				var deltaTime = nextTime - prevTime;
+
+				using var timeScope = Time.Scope( nextTime.TotalSeconds, deltaTime.TotalSeconds );
 
 				_session.PlayheadTime = nextTime;
 				_session.Editor?.TimelinePanel?.Timeline.PanToPlayheadTime();
 
-				BeforeRenderFrame( captureCamera, config, nextTime - prevTime );
+				BeforeRenderFrame( captureCamera, config, deltaTime );
 
 				// Render a (sub)frame!
 
@@ -298,7 +329,7 @@ public sealed class SessionRenderer
 
 			// Grab the frame from the GPU and add it to the video writer
 
-			var frameSourceTex = subFrameCount > 1 ? accumulatedTex : subFrameTex;
+			var frameSourceTex = subFrameCount > 1 ? accumulatedTex! : subFrameTex;
 
 			frameSourceTex.GetPixels( (0, 0, frameSourceTex.Width, frameSourceTex.Height), 0, 0,
 				MemoryMarshal.Cast<byte, Color32>( framePixels.AsSpan() ),
@@ -357,4 +388,21 @@ public sealed class SessionRenderer
 partial class Session
 {
 	public SessionRenderer Renderer { get; }
+}
+
+file static class Extensions
+{
+	extension( MultisampleAmount ms )
+	{
+		public int SampleCount => ms switch
+		{
+			MultisampleAmount.MultisampleNone => 1,
+			MultisampleAmount.Multisample2x => 2,
+			MultisampleAmount.Multisample4x => 4,
+			MultisampleAmount.Multisample6x => 6,
+			MultisampleAmount.Multisample8x => 8,
+			MultisampleAmount.Multisample16x => 16,
+			_ => throw new NotImplementedException()
+		};
+	}
 }

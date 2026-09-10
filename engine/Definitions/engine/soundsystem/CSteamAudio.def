@@ -3,8 +3,35 @@
 [nogc]
 native class CBinauralEffect
 {
-	static CBinauralEffect Create(); [new]
-	void Dispose(); [delete]
+static CBinauralEffect Create(); [new]
+void Dispose(); [delete]
 
-	void Apply( Vector3 localDirection, float spatialBlend, bool useNearestInterpolation, CAudioMixDeviceBuffers input, CAudioMixDeviceBuffers output );
+void Apply( Vector3 localDirection, float spatialBlend, bool useNearestInterpolation, CAudioMixDeviceBuffers input, CAudioMixDeviceBuffers output );
+}
+
+[nogc]
+native class CDirectEffect
+{
+static CDirectEffect Create(); [new]
+void Dispose(); [delete]
+
+void Apply( float distanceAtten, float airAbsorption0, float airAbsorption1, float airAbsorption2, float occlusion, float transmission0, float transmission1, float transmission2, CAudioMixDeviceBuffers input, CAudioMixDeviceBuffers output );
+}
+
+[nogc]
+native class CReverbEffect
+{
+static CReverbEffect Create(); [new]
+void Dispose(); [delete]
+
+void Apply( float t60Low, float t60Mid, float t60High, CAudioMixDeviceBuffers input, CAudioMixDeviceBuffers output );
+}
+
+[nogc]
+native class CPathEffect
+{
+static CPathEffect Create(); [new]
+void Dispose(); [delete]
+
+void Apply( float sh0, float sh1, float sh2, float sh3, float eq0, float eq1, float eq2, CAudioMixDeviceBuffers input, CAudioMixDeviceBuffers output );
 }

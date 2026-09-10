@@ -21,8 +21,14 @@ partial class CloudAccountNode : TreeNode.Header
 
 		if ( !HasChildren ) return;
 
+		var filter = (TreeView as CloudLocations)?.CollectionFilter ?? "";
+
 		foreach ( var x in EditorUtility.Account.Memberships.OrderBy( x => x.Title ) )
 		{
+			if ( !string.IsNullOrEmpty( filter ) &&
+				 !x.Title.Contains( filter, StringComparison.OrdinalIgnoreCase ) )
+				continue;
+
 			AddItem( new CloudAssetNode( x.Thumb, x.Title, $"org:{x.Ident}" ) );
 		}
 	}

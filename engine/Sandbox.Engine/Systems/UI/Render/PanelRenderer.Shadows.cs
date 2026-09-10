@@ -14,17 +14,18 @@ partial class PanelRenderer
 
 		var style = panel.ComputedStyle;
 		var rect = panel.Box.Rect;
-		var size = (rect.Width + rect.Height) * 0.5f;
 		var opacity = state.RenderOpacity;
 
-		var borderRadius = new Vector4(
-			style.BorderTopLeftRadius.Value.GetPixels( size ),
-			style.BorderTopRightRadius.Value.GetPixels( size ),
-			style.BorderBottomLeftRadius.Value.GetPixels( size ),
-			style.BorderBottomRightRadius.Value.GetPixels( size )
-		);
+		var radii = BorderRadii.FromStyle( style, rect );
 
-		var scissorRect = panel.Box.ClipRect.ToVector4();
+		// Outset shadows live outside the border box, inset ones inside the padding box
+		if ( inset )
+		{
+			var size = (rect.Width + rect.Height) * 0.5f;
+			radii = radii.Inner( GetBorderWidths( style, size ) );
+			rect = panel.Box.ClipRect;
+		}
+
 		var scissorMat = panel.GlobalMatrix ?? Matrix.Identity;
 
 		for ( int i = 0; i < c; i++ )
@@ -38,14 +39,12 @@ partial class PanelRenderer
 
 			target.AddShadow( new ShadowDrawDescriptor( rect, color )
 			{
-				BorderRadius = borderRadius,
+				Radii = radii,
 				Offset = new Vector2( shadow.OffsetX, shadow.OffsetY ),
 				Blur = shadow.Blur,
 				Spread = shadow.Spread,
 				Inset = inset,
 				OverrideBlendMode = OverrideBlendMode,
-				ScissorRect = scissorRect,
-				ScissorCornerRadius = borderRadius,
 				ScissorTransformMat = scissorMat,
 			} );
 		}

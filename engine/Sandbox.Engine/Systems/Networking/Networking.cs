@@ -4,6 +4,7 @@ using Sandbox.Utility;
 using Sentry;
 using Steamworks;
 using Steamworks.Data;
+using System.Diagnostics;
 using System.Text;
 using System.Threading;
 using Steam = NativeEngine.Steam;
@@ -23,6 +24,18 @@ public static partial class Networking
 
 	[ConVar( "net_max_incoming", ConVarFlags.Protected, Help = "Maximum incoming messages to receive per tick. 0 = unlimited." )]
 	internal static int ReceiveBatchSizePerTick { get; set; } = 1024;
+
+	[ConVar( "net_allow_local", ConVarFlags.Protected, Help = "Allow loopback connections for multi-instance testing on one machine (P2P-like)." )]
+	internal static bool AllowLocal { get; set; } = false;
+
+	[ConVar( "net_local_port", ConVarFlags.Protected, Help = "Loopback port local game instances use to join a host on this machine. Change it if Windows has reserved the default." )]
+	internal static int LocalPort { get; set; } = 55333;
+
+	[ConVar( "net_host_handoff_timeout", ConVarFlags.Protected, Help = "How long a leaving host waits for the new host to acknowledge the handoff, in seconds." )]
+	internal static float HostHandoffTimeout { get; set; } = 3f;
+
+	[ConVar( "net_host_migration_timeout", ConVarFlags.Protected, Help = "How long a client waits for the new host to show up before giving up, in seconds." )]
+	internal static float HostMigrationTimeout { get; set; } = 15f;
 
 	internal static Dictionary<string, string> ServerData { get; set; } = new();
 
@@ -214,18 +227,6 @@ public static partial class Networking
 	public static Connection HostConnection => Connection.Host;
 
 	/// <summary>
-	/// Whether the host is busy right now. This can be used to determine if
-	/// the host can be changed.
-	/// </summary>
-	internal static bool IsHostBusy
-	{
-		get
-		{
-			return System?.IsHostBusy ?? true;
-		}
-	}
-
-	/// <summary>
 	/// A list of connections that are currently on this server. If you're not on a server
 	/// this will return only one connection (Connection.Local). Some games restrict the 
 	/// connection list - in which case you will get an empty list.
@@ -354,6 +355,10 @@ public static partial class Networking
 		// Connection.All, which allocates and includes mock ConnectionInfo entries with zero stats.
 		foreach ( var c in System.Connections )
 		{
+			// Don't try to count connections that aren't authenticated yet, Steam stats calls are blocking until fully authed
+			if ( c.State < Connection.ChannelState.Welcome )
+				continue;
+
 			var s = c.Stats;
 			totalIn += s.InBytesPerSecond;
 			totalOut += s.OutBytesPerSecond;
@@ -461,7 +466,7 @@ public static partial class Networking
 		//
 		// Did the menu want to override the lobby's max players?
 		//
-		if ( LaunchArguments.MaxPlayers > 1 )
+		if ( LaunchArguments.MaxPlayers > 0 )
 		{
 			config.MaxPlayers = LaunchArguments.MaxPlayers;
 		}
@@ -477,9 +482,9 @@ public static partial class Networking
 		//
 		// Did the menu want to override the lobby's privacy mode?
 		//
-		if ( LaunchArguments.Privacy != config.Privacy )
+		if ( LaunchArguments.PrivacyOverride is { } privacy )
 		{
-			config.Privacy = LaunchArguments.Privacy;
+			config.Privacy = privacy;
 		}
 
 		_ = CreateLobbyAsync( config, lobbyCts.Token );
@@ -501,9 +506,6 @@ public static partial class Networking
 
 	static async Task<bool> CreateDedicatedServer( LobbyConfig config, CancellationToken token = default )
 	{
-		var success = await DedicatedServer.Start( config );
-		if ( !success ) return false;
-
 		lock ( NetworkThreadLock )
 		{
 			var net = new NetworkSystem( "server", Engine.IGameInstanceDll.Current.TypeLibrary )
@@ -512,10 +514,29 @@ public static partial class Networking
 			};
 
 			System = net;
+			System.InitializeHost();
+		}
 
-			net.InitializeHost();
-			net.AddSocket( DedicatedServer.IpSocket );
-			net.AddSocket( DedicatedServer.IdSocket );
+		var success = await DedicatedServer.Start( config );
+		if ( !success )
+		{
+			// Currently we shutdown the server if we fail to start the lobby, however lets clean up just incase.
+			lock ( NetworkThreadLock )
+			{
+				System = null;
+			}
+			return false;
+		}
+
+		lock ( NetworkThreadLock )
+		{
+			System.AddSocket( DedicatedServer.IpSocket );
+			System.AddSocket( DedicatedServer.IdSocket );
+
+			if ( AllowLocal )
+			{
+				System.AddSocket( new TcpSocket( "127.0.0.1", LocalPort ) );
+			}
 
 			return !token.IsCancellationRequested;
 		}
@@ -569,27 +590,45 @@ public static partial class Networking
 			return false;
 
 		net.AddSocket( socket );
-
-		//
-		// If runnning in editor, we create a named socket that we can join locally
-		//
-		if ( Application.IsEditor || Application.IsStandalone )
-		{
-			net.AddSocket( new TcpSocket( "127.0.0.1", 55333 ) );
-		}
+		AddLocalListenSocket( net );
 
 		return true;
 	}
 
 	/// <summary>
-	/// Disconnect from current multiplayer session.
+	/// Listen on loopback so local instances can join us.
+	/// </summary>
+	internal static void AddLocalListenSocket( NetworkSystem net )
+	{
+		if ( !Application.IsEditor && !Application.IsStandalone && !Application.IsJoinLocal )
+			return;
+
+		if ( net.Sockets.Any( s => s is TcpSocket ) )
+			return;
+
+		net.AddSocket( new TcpSocket( "127.0.0.1", LocalPort ) );
+	}
+
+	/// <summary>
+	/// Disconnect from current multiplayer session. If we're the host, the game is handed
+	/// to another player first.
 	/// </summary>
 	public static void Disconnect()
+	{
+		Disconnect( true );
+	}
+
+	internal static void Disconnect( bool handoffHost )
 	{
 		lobbyCts?.Cancel();
 		lobbyCts = null;
 
 		if ( System is null ) return;
+
+		if ( handoffHost )
+		{
+			HandoffHost();
+		}
 
 		lock ( NetworkThreadLock )
 		{
@@ -605,16 +644,53 @@ public static partial class Networking
 		}
 	}
 
+	/// <summary>
+	/// Hand the game to a successor before the scene goes. Blocks the main thread with a
+	/// <see cref="HostHandoffTimeout"/> polling budget; capture and message handling can exceed it.
+	/// </summary>
+	static void HandoffHost()
+	{
+		var system = System;
+		if ( system is null || !system.IsHost ) return;
+
+		lock ( NetworkThreadLock )
+		{
+			if ( !system.BeginHostHandoff() ) return;
+		}
+
+		var timer = Stopwatch.StartNew();
+
+		while ( timer.Elapsed.TotalSeconds < HostHandoffTimeout )
+		{
+			lock ( NetworkThreadLock )
+			{
+				system.ProcessMessagesInThread();
+
+				if ( system.PumpHostHandoff() )
+				{
+					Log.Info( $"Host handoff acknowledged in {timer.ElapsedMilliseconds}ms" );
+					return;
+				}
+			}
+
+			Thread.Sleep( 5 );
+		}
+
+		Log.Warning( "Host handoff was not acknowledged in time" );
+	}
+
 	internal static IDisposable DisconnectScope()
 	{
 		if ( System is null ) return default;
+
+		// Hand off now, while the scene still exists
+		HandoffHost();
 
 		System.IsDisconnecting = true;
 
 		return new DisposeAction( () =>
 		{
-			System.IsDisconnecting = false;
-
+			System?.IsDisconnecting = false;
 			Disconnect();
 		} );
 	}
@@ -654,6 +730,8 @@ public static partial class Networking
 		LoadingScreen.Media = null;
 		LoadingScreen.Title = "Connecting";
 
+		OnTryConnect( target );
+
 		var count = 0;
 		while ( count < retries )
 		{
@@ -664,7 +742,7 @@ public static partial class Networking
 					Log.Info( $"Connecting to local client.." );
 
 					System = new( "localclient", IGameInstanceDll.Current.TypeLibrary );
-					System.Connect( new TcpChannel( "127.0.0.1", 55333 ) );
+					System.Connect( new TcpChannel( "127.0.0.1", LocalPort ) );
 				}
 				else
 				{
@@ -727,6 +805,7 @@ public static partial class Networking
 		LoadingScreen.Title = "Connecting";
 
 		LastConnectionString = steamId.ToString();
+		OnTryConnect( LastConnectionString );
 
 		if ( steamId.AccountType == SteamId.AccountTypes.Lobby )
 		{
@@ -836,6 +915,19 @@ public static partial class Networking
 		return false;
 	}
 
+	static void OnTryConnect( string address )
+	{
+		// if we're a non-leader in a party and we're connecting to a server that isn't what the leader is on, leave the party.
+		if ( PartyRoom.Current is { } party && !party.Owner.IsMe )
+		{
+			string partyAddress = party.GameAddress;
+			if ( string.IsNullOrEmpty( partyAddress ) || partyAddress != address )
+			{
+				party.Leave();
+			}
+		}
+	}
+
 	/// <summary>
 	/// The client has been told to reconnect to the server. Pause while the server restarts, then attempt to reconnect.
 	/// </summary>
@@ -860,5 +952,21 @@ public static partial class Networking
 		await Task.Delay( 4000 ); // pause to allow server to restart
 
 		return await TryConnect( address );
+	}
+
+	/// <summary>
+	/// Are we currently matchmaking?
+	/// We want to suppress user-facing join errors in this case, and silently keep trying lobbies until we find one that works.
+	/// </summary>
+	internal static bool IsMatchmaking { get; private set; }
+
+	internal static IDisposable MatchmakingScope()
+	{
+		IsMatchmaking = true;
+
+		return new DisposeAction( () =>
+		{
+			IsMatchmaking = false;
+		} );
 	}
 }

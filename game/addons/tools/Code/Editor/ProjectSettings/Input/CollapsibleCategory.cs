@@ -79,6 +79,8 @@ internal partial class CollapsibleCategory : Widget
 			Owner = owner;
 		}
 
+		protected override void BuildRightIcons( Layout layout ) { }
+
 		protected override void OnExpandChanged()
 		{
 			Owner?.SetState( IsExpanded );

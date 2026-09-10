@@ -21,7 +21,6 @@ internal partial class NetworkSystem
 
 		socket.OnClientConnect = OnConnected;
 		socket.OnClientDisconnect = OnDisconnected;
-		socket.OnHostChanged = OnHostChanged;
 		socket.Initialize( this );
 	}
 
@@ -38,23 +37,5 @@ internal partial class NetworkSystem
 		}
 
 		sockets.Clear();
-	}
-
-	void OnHostChanged( (Connection previous, Connection current) state )
-	{
-		if ( state.previous is not null )
-		{
-			Log.Info( $"The network host has changed from {state.previous} to {state.current}" );
-		}
-
-		var wasHost = IsHost;
-		IsHost = state.current == Connection.Local;
-
-		if ( IsHost && !wasHost )
-		{
-			GameSystem?.OnBecameHost( state.previous );
-		}
-
-		GameSystem?.OnHostChanged( state.previous, state.current );
 	}
 }

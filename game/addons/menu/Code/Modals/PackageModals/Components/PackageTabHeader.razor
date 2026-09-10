@@ -1,0 +1,23 @@
+@namespace MenuProject.Modals.PackageModalComponents
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI;
+
+@* Small title + subtitle shown at the top of a package modal tab (Changes, News, ...).
+   Mirrors the web's <PageHeader Small> styling. *@
+
+<root>
+    <label class="title">@Title</label>
+    @if (!string.IsNullOrWhiteSpace(Subtitle))
+    {
+        <label class="subtitle">@Subtitle</label>
+    }
+</root>
+
+@code
+{
+    [Parameter] public string Title { get; set; }
+    [Parameter] public string Subtitle { get; set; }
+
+    protected override int BuildHash() => System.HashCode.Combine(Title, Subtitle);
+}

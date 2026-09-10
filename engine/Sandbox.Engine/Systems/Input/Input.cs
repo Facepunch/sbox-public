@@ -81,24 +81,10 @@ public static partial class Input
 	}
 
 	/// <summary>
-	/// Called multiple times between ticks.
+	/// Computes AnalogLook from mouse delta and user preferences.
 	/// </summary>
-	internal static void Process()
+	private static void ComputeAnalogLook()
 	{
-		// Reset suppression flag
-		Suppressed = false;
-
-		// Flip all controller input contexts once a frame
-		foreach ( var controller in Controller.All )
-		{
-			controller.InputContext?.Flip();
-		}
-
-		//
-		// Setup
-		//
-		CurrentContext.MouseCursorVisible = InputRouter.MouseCursorVisible;
-
 		// this is all kind of how it did it in CInputService::HandleAnalogValueChange
 		var mouseSensitivity = Preferences.Sensitivity * 10.0f;
 		var halfDim = MathF.Max( Screen.Width, Screen.Height ) * 0.5f;
@@ -107,19 +93,20 @@ public static partial class Input
 		AnalogLook = new( (MouseDelta.y / halfDim) * mouseSensitivity, (-MouseDelta.x / halfDim) * mouseSensitivity, 0 );
 
 		if ( MouseCursorVisible )
-		{
 			AnalogLook = default;
-		}
-
-		Actions = CurrentContext.ActionsCurrent;
-		LastActions = CurrentContext.ActionsPrevious;
 
 		if ( Preferences.InvertMousePitch )
 			AnalogLook = AnalogLook.WithPitch( -AnalogLook.pitch );
 
 		if ( Preferences.InvertMouseYaw )
 			AnalogLook = AnalogLook.WithYaw( -AnalogLook.yaw );
+	}
 
+	/// <summary>
+	/// Computes AnalogMove from movement action bindings.
+	/// </summary>
+	private static void ComputeAnalogMove()
+	{
 		// garry: do we need to smooth these or something?
 		// They were smoothed in the old input code, but I think
 		// we leave them as raw as possible now and let games decide
@@ -128,7 +115,29 @@ public static partial class Input
 		if ( Down( "backward", false ) ) AnalogMove += Vector3.Backward;
 		if ( Down( "left", false ) ) AnalogMove += Vector3.Left;
 		if ( Down( "right", false ) ) AnalogMove += Vector3.Right;
+	}
 
+	/// <summary>
+	/// Called multiple times between ticks.
+	/// </summary>
+	internal static void Process()
+	{
+		// Reset suppression flag
+		Suppressed = false;
+
+		// Flip all controller input contexts
+		foreach ( var controller in Controller.All )
+		{
+			controller.InputContext?.Flip();
+		}
+
+		CurrentContext.MouseCursorVisible = InputRouter.MouseCursorVisible;
+
+		// Compute analogs
+		ComputeAnalogLook();
+		ComputeAnalogMove();
+
+		// Overlay controller analogs
 		ProcessControllerInput();
 	}
 

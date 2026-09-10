@@ -8,6 +8,9 @@ public partial class MirrorTool( string tool ) : EditorTool
 	Vector3 _point1;
 	Vector3 _point2;
 
+	Vector3 _dragStartP1;
+	Vector3 _dragStartP2;
+
 	readonly List<(Transform, GameObject)> _selectedObjects = [];
 
 	private IDisposable _undoScope;
@@ -133,6 +136,31 @@ public partial class MirrorTool( string tool ) : EditorTool
 		return new Transform( pos, Rotation.LookAt( forward, up ) );
 	}
 
+	static Vector3 SnapToPlaneGrid( Vector3 point, Vector3 planeNormal )
+	{
+		var rotation = Rotation.LookAt( planeNormal );
+		var local = point * rotation.Inverse;
+		local = Gizmo.Snap( local, new Vector3( 0, 1, 1 ) );
+		return local * rotation;
+	}
+
+	void UpdateMirrorPlane()
+	{
+		if ( !_hitPlane.HasValue ) return;
+
+		var up = _hitPlane.Value.Normal;
+		var right = _point2 - _point1;
+
+		if ( right.LengthSquared.AlmostEqual( 0.0f ) )
+		{
+			_plane = default;
+			return;
+		}
+
+		var forward = up.Cross( right ).Normal;
+		_plane = new Plane( forward, _point1.Dot( forward ) );
+	}
+
 	public override void OnUpdate()
 	{
 		if ( _selectedObjects.Count == 0 ) return;
@@ -147,75 +175,161 @@ public partial class MirrorTool( string tool ) : EditorTool
 
 				copy.WorldTransform = MirrorTransform( tx, _plane.Value );
 			}
+		}
+
+		if ( _hitPlane.HasValue )
+		{
+			var normal = _hitPlane.Value.Normal;
 
 			Gizmo.Draw.Color = Color.White;
-			Gizmo.Draw.LineThickness = 4;
-			Gizmo.Draw.Sprite( _point1, 10, null, false );
-			Gizmo.Draw.Sprite( _point2, 10, null, false );
-			Gizmo.Draw.Line( _point1, _point2 );
+
+			using ( Gizmo.Scope( "mirror_p1", _point1 ) )
+			{
+				Gizmo.Hitbox.Sprite( 0, 12, false );
+
+				if ( Gizmo.WasLeftMousePressed && Gizmo.IsHovered )
+					_dragStartP1 = _point1;
+
+				if ( Gizmo.Pressed.This )
+				{
+					var drag = Gizmo.GetMouseDrag( 0, normal );
+					_point1 = SnapToPlaneGrid( _dragStartP1 - drag, normal );
+					UpdateMirrorPlane();
+				}
+
+				Gizmo.Draw.Sprite( 0, Gizmo.IsHovered ? 12 : 10, null, false );
+			}
+
+			using ( Gizmo.Scope( "mirror_p2", _point2 ) )
+			{
+				Gizmo.Hitbox.Sprite( 0, 12, false );
+
+				if ( Gizmo.WasLeftMousePressed && Gizmo.IsHovered )
+					_dragStartP2 = _point2;
+
+				if ( Gizmo.Pressed.This )
+				{
+					var drag = Gizmo.GetMouseDrag( 0, normal );
+					_point2 = SnapToPlaneGrid( _dragStartP2 - drag, normal );
+					UpdateMirrorPlane();
+				}
+
+				Gizmo.Draw.Sprite( 0, Gizmo.IsHovered ? 12 : 10, null, false );
+			}
+
+			using ( Gizmo.Scope( "mirror_line" ) )
+			{
+				using var _ = Gizmo.Hitbox.LineScope();
+
+				if ( Gizmo.WasLeftMousePressed && Gizmo.IsHovered )
+				{
+					_dragStartP1 = _point1;
+					_dragStartP2 = _point2;
+				}
+
+				if ( Gizmo.Pressed.This )
+				{
+					var drag = Gizmo.GetMouseDrag( _dragStartP1, normal );
+					_point1 = SnapToPlaneGrid( _dragStartP1 - drag, normal );
+					_point2 = SnapToPlaneGrid( _dragStartP2 - drag, normal );
+					UpdateMirrorPlane();
+				}
+
+				Gizmo.Draw.LineThickness = Gizmo.IsHovered ? 5 : 4;
+				Gizmo.Draw.Line( _point1, _point2 );
+			}
+
+			var right = _point2 - _point1;
+			if ( !right.LengthSquared.AlmostEqual( 0.0f ) )
+			{
+				var length = right.Length;
+				var height = length * 0.5f;
+
+				var rotation = Rotation.LookAt( right.Normal, normal );
+				var center = (_point1 + _point2) * 0.5f;
+
+				using ( Gizmo.Scope( "mirror_plane", new Transform( center, rotation ) ) )
+				{
+					var box = new BBox( new Vector3( -length * 0.5f, 0, -height ), new Vector3( length * 0.5f, 0, height ) );
+
+					Gizmo.Draw.Color = Color.White.WithAlpha( 0.2f );
+					Gizmo.Draw.LineBBox( box );
+
+					Gizmo.Draw.Color = Color.White.WithAlpha( 0.01f );
+					Gizmo.Draw.SolidBox( box );
+				}
+			}
 		}
 
 		var tr = TracePlane();
 		if ( !tr.Hit ) return;
 
-		var rot = Rotation.LookAt( tr.Normal );
-		var point = Gizmo.Snap( tr.HitPosition * rot.Inverse, new Vector3( 0, 1, 1 ) ) * rot;
+		var point = SnapToPlaneGrid( tr.HitPosition, tr.Normal );
 
-		Gizmo.Draw.Sprite( point, 10, null, false );
+		if ( !Gizmo.HasHovered )
+		{
+			Gizmo.Draw.Color = Color.White;
+			Gizmo.Draw.Sprite( point, 10, null, false );
+		}
 
-		if ( Gizmo.WasLeftMousePressed )
+		if ( Gizmo.WasLeftMousePressed && !Gizmo.HasHovered )
 		{
 			_hitPlane = new Plane( point, tr.Normal );
-			_plane = _hitPlane;
 			_point1 = point;
 			_point2 = point;
+			_plane = default;
 		}
-		else if ( Gizmo.IsLeftMouseDown )
+		else if ( Gizmo.IsLeftMouseDown && !Gizmo.HasHovered && !point.AlmostEqual( _point1 ) )
 		{
 			_point2 = point;
-
-			if ( _point1.AlmostEqual( _point2 ) )
-			{
-				_plane = default;
-			}
-			else
-			{
-				var forward = tr.Normal.Cross( _point2 - _point1 ).Normal;
-				_plane = new Plane( forward, _point1.Dot( forward ) );
-			}
-		}
-		else
-		{
-			_hitPlane = default;
+			UpdateMirrorPlane();
 		}
 	}
+
+	bool CanApply => _plane.HasValue;
 
 	SceneTraceResult TracePlane()
 	{
 		if ( Gizmo.Pressed.Any ) return default;
 
-		if ( _hitPlane.HasValue &&
-			 _hitPlane.Value.TryTrace( Gizmo.CurrentRay, out var hit, true ) )
+		static Vector3 SnapNormalToAxis( Vector3 n )
 		{
-			return new SceneTraceResult
-			{
-				Hit = true,
-				Normal = _hitPlane.Value.Normal,
-				HitPosition = hit
-			};
+			var abs = n.Abs();
+
+			if ( abs.x >= abs.y && abs.x >= abs.z ) return new Vector3( MathF.Sign( n.x ), 0, 0 );
+			if ( abs.y >= abs.z ) return new Vector3( 0, MathF.Sign( n.y ), 0 );
+
+			return new Vector3( 0, 0, MathF.Sign( n.z ) );
 		}
+
+		static SceneTraceResult PlaneTrace( Plane plane )
+		{
+			SceneTraceResult tr = default;
+
+			if ( plane.TryTrace( Gizmo.CurrentRay, out var hit, true ) )
+			{
+				tr.Hit = true;
+				tr.Normal = plane.Normal;
+				tr.HitPosition = hit;
+			}
+
+			return tr;
+		}
+
+		if ( Gizmo.IsLeftMouseDown && !Gizmo.WasLeftMousePressed && _hitPlane is { } locked )
+			return PlaneTrace( locked );
 
 		var tr = MeshTrace.Run();
-		if ( tr.Hit ) return tr;
-
-		var ground = new Plane( Vector3.Up, 0 );
-		if ( ground.TryTrace( Gizmo.CurrentRay, out var g ) )
+		if ( tr.Hit )
 		{
-			tr.Hit = true;
-			tr.Normal = ground.Normal;
-			tr.HitPosition = g;
+			tr.Normal = SnapNormalToAxis( tr.Normal );
+			return tr;
 		}
 
-		return tr;
+		tr = PlaneTrace( _hitPlane ?? new Plane( Vector3.Up, 0 ) );
+		if ( tr.Hit ) return tr;
+
+		var normal = SnapNormalToAxis( -Gizmo.Camera.Rotation.Forward );
+		return PlaneTrace( new Plane( Gizmo.CurrentRay.Project( 512f ), normal ) );
 	}
 }

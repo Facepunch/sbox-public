@@ -111,11 +111,12 @@ public sealed class Transitions
 	{
 		if ( !to.HasTransitions ) return;
 
+		// Snapshot once and share across every descriptor - the lerp only ever reads these
+		var fromCopy = (Styles)from.Clone();
+		var toCopy = (Styles)to.Clone();
+
 		foreach ( var desc in to.Transitions.List )
 		{
-			var fromCopy = (Styles)from.Clone();
-			var toCopy = (Styles)to.Clone();
-
 			TransitionFunction action = (desc.Property == "all")
 				? ( style, delta ) => style.FromLerp( fromCopy, toCopy, delta )
 				: ( style, delta ) => style.LerpProperty( desc.Property, fromCopy, toCopy, delta );
@@ -162,7 +163,17 @@ public sealed class Transitions
 		if ( !HasAny )
 			return false;
 
-		if ( Entries.RemoveAll( x => x.StartTime + x.Length < now ) > 0 )
+		var removedExpired = false;
+		for ( int i = Entries.Count - 1; i >= 0; i-- )
+		{
+			if ( Entries[i].StartTime + Entries[i].Length < now )
+			{
+				Entries.RemoveAt( i );
+				removedExpired = true;
+			}
+		}
+
+		if ( removedExpired )
 		{
 			panel.SetNeedsPreLayout();
 		}

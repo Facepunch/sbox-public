@@ -19,4 +19,16 @@ internal partial class NetworkSystem
 		if ( GameSystem is null )
 			Disconnect();
 	}
+
+	public async Task InitializeGameSystemAsync()
+	{
+		if ( IGameInstanceDll.Current is null || Application.IsUnitTest )
+			return;
+
+		GameSystem = await IGameInstanceDll.Current.CreateGameNetworkingAsync( this );
+		GameSystem?.OnInitialize();
+
+		if ( GameSystem is null )
+			Disconnect();
+	}
 }

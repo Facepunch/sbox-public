@@ -1,0 +1,41 @@
+﻿@import "/styles/_uitest.scss";
+
+// The div cases are written as plain markup rather than UiTestCase, because what they're
+// testing is a panel whose text lives in labels under it - which is what a div with text builds.
+
+BackgroundClipTests
+{
+	.divcase
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		width: $uitest-case-width;
+		gap: 6px;
+
+		.plate
+		{
+			flex-shrink: 0;
+			padding: 10px;
+			border-radius: 4px;
+			border: 1px solid $uitest-hairline;
+			background-color: $uitest-stage;
+			font-size: 28px;
+			font-weight: 700;
+			background-image: linear-gradient( to right, #ff4a6e, #4a9eff );
+			background-clip: text;
+		}
+
+		.css
+		{
+			font-family: "Roboto Mono";
+			font-size: 11px;
+			color: $uitest-code;
+		}
+
+		.note
+		{
+			font-size: 11px;
+			color: $uitest-dim;
+		}
+	}
+}

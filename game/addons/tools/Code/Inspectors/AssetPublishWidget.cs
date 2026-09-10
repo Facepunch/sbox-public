@@ -35,25 +35,11 @@ sealed class AssetPublishWidget : Widget, AssetSystem.IEventListener
 		Paint.DrawRect( LocalRect );
 	}
 
-	ResourcePublishContext BuildPubishContext()
-	{
-		var context = new ResourcePublishContext();
-
-		// pre fill?
-
-		var resource = Asset.LoadResource();
-		if ( resource == null )
-		{
-			return context;
-		}
-
-		resource.ConfigurePublishing( context );
-		return context;
-	}
+	ResourcePublishContext BuildPublishContext() => Asset.Publishing.BuildPublishContext();
 
 	void StartBuild()
 	{
-		var context = BuildPubishContext();
+		var context = BuildPublishContext();
 
 		Layout.Clear( true );
 
@@ -112,13 +98,15 @@ sealed class AssetPublishWidget : Widget, AssetSystem.IEventListener
 		var upload = Layout.Add( new IconButton( "upload" ) );
 		upload.ToolTip = "Publish";
 		upload.Background = Theme.Green;
-		upload.OnClick = () => OpenProjectWindow( addon );
+		upload.OnClick = () => OpenProjectWindow();
 
 		var settings = Layout.Add( new IconButton( "settings" ) );
 		settings.ToolTip = "Settings";
 		settings.OnClick = () => ProjectSettingsWindow.OpenForProject( addon );
 
 		var package = await Package.FetchAsync( addon.Config.FullIdent, false );
+		if ( !Layout.IsValid() ) return;
+
 		if ( package is not null )
 		{
 			var view = Layout.Add( new IconButton( "launch" ) );
@@ -129,9 +117,19 @@ sealed class AssetPublishWidget : Widget, AssetSystem.IEventListener
 		Update();
 	}
 
-	void OpenProjectWindow( Project project )
+	void OpenProjectWindow()
 	{
-		var w = PublishWizard.Open( project, BuildPubishContext() );
+		var context = BuildPublishContext();
+
+		//
+		// The wizard's project is rooted where its code comes from, and that's decided here. We
+		// don't have a better way right now - in the future we'll allow them to define which code
+		// to include and whatever. Without code we root it nowhere, so we don't drag any in from
+		// whatever project happens to be open.
+		//
+		var project = Asset.Publishing.CreateTemporaryProject( context.IncludeCode ? Project.Current?.RootDirectory : null );
+
+		PublishWizard.Open( project, context );
 	}
 }
 

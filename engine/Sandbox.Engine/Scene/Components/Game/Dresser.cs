@@ -78,7 +78,7 @@ public sealed class Dresser : Component, Component.ExecuteInEditor
 	[Header( "Manual Items" )]
 	[ShowIf( "Source", ClothingSource.Manual )]
 	[Property]
-	public List<ClothingContainer.ClothingEntry> Clothing { get; set; }
+	public List<ClothingContainer.ClothingEntry> Clothing { get; set; } = [];
 
 	[ShowIf( "Source", ClothingSource.Manual )]
 	[Property]

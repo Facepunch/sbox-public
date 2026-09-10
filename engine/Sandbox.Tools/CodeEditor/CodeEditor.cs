@@ -13,6 +13,12 @@ namespace Editor;
 public interface ICodeEditor
 {
 	/// <summary>
+	/// Friendly display name for this code editor.
+	/// Defaults to the name from <see cref="TitleAttribute"/> via <see cref="DisplayInfo"/>.
+	/// </summary>
+	public string Title => DisplayInfo.ForType( GetType(), true ).Name;
+
+	/// <summary>
 	/// Opens a file in the editor, optionally at a line and column.
 	/// </summary>
 	public void OpenFile( string path, int? line = null, int? column = null );
@@ -127,9 +133,9 @@ public static partial class CodeEditor
 		{
 			if ( CodeEditor.Current != null )
 			{
-				var displayInfo = DisplayInfo.ForType( CodeEditor.Current.GetType(), true );
-				if ( !string.IsNullOrEmpty( displayInfo.Name ) )
-					return displayInfo.Name;
+				var title = CodeEditor.Current.Title;
+				if ( !string.IsNullOrEmpty( title ) )
+					return title;
 			}
 
 			return "Code Editor";

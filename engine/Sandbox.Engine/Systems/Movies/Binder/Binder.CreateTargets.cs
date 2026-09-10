@@ -6,20 +6,19 @@ namespace Sandbox.MovieMaker;
 
 partial class TrackBinder
 {
-	private readonly record struct CreatedTarget( ITrackReference Reference, IValid Value );
-
-	private readonly List<CreatedTarget> _createdTargets = new();
-
 	/// <summary>
 	/// Creates any missing <see cref="GameObject"/>s or <see cref="Component"/>s for the given <paramref name="clip"/> to target.
 	/// </summary>
-	public void CreateTargets( IMovieClip clip, bool replace = true, GameObject? rootParent = null ) => CreateTargets( clip.Tracks.OfType<IReferenceTrack>(), replace, rootParent );
+	public IEnumerable<ITrackReference> CreateTargets( IMovieClip clip, GameObject? rootParent = null )
+	{
+		return CreateTargets( clip.Tracks.OfType<IReferenceTrack>(), rootParent );
+	}
 
 	/// <summary>
 	/// Creates any missing <see cref="GameObject"/>s or <see cref="Component"/>s for the given
 	/// set of <paramref name="tracks"/> to target.
 	/// </summary>
-	public void CreateTargets( IEnumerable<IReferenceTrack> tracks, bool replace = true, GameObject? rootParent = null )
+	public IEnumerable<ITrackReference> CreateTargets( IEnumerable<IReferenceTrack> tracks, GameObject? rootParent = null )
 	{
 		// Make sure GameObjects get created in this scene
 
@@ -28,6 +27,7 @@ partial class TrackBinder
 		var allTracks = tracks
 			.OrderBy( x => x.GetDepth() )
 			.ThenBy( x => x.Id )
+			.WithoutMapInstanceChildren()
 			.ToArray();
 
 		var children = allTracks
@@ -35,67 +35,21 @@ partial class TrackBinder
 			.GroupBy( x => x.Parent! )
 			.ToDictionary( x => x.Key, x => x.ToArray() );
 
+		var createdTargets = new List<ITrackReference>();
+
 		foreach ( var track in allTracks )
 		{
-			CreateTarget( track, children, rootParent );
+			CreateTarget( track, children, rootParent, createdTargets );
 		}
 
-		if ( !replace ) return;
-
-		// We're replacing, destroy any old targets that aren't still referenced
-
-		var usedTargets = allTracks
-			.Select( x => Get( x ).Value as IValid )
-			.Where( x => x.IsValid() )
-			.ToHashSet();
-
-		var unusedTargets = _createdTargets
-			.Where( x => !usedTargets.Contains( x.Value ) )
-			.ToHashSet();
-
-		DestroyTargets( unusedTargets );
-
-		_createdTargets.RemoveAll( unusedTargets.Contains );
+		return createdTargets;
 	}
-
-	/// <summary>
-	/// Destroy any instances created by <see cref="CreateTargets(Sandbox.MovieMaker.IMovieClip,bool,GameObject)"/>.
-	/// </summary>
-	public void DestroyTargets()
-	{
-		DestroyTargets( _createdTargets );
-		_createdTargets.Clear();
-	}
-
-	private static void DestroyTargets( IEnumerable<CreatedTarget> targets )
-	{
-		foreach ( var (reference, value) in targets )
-		{
-			reference.Reset();
-
-			if ( !value.IsValid() ) continue;
-
-			switch ( value )
-			{
-				case Component cmp:
-					cmp.Destroy();
-					break;
-
-				case GameObject go:
-					go.Destroy();
-					break;
-			}
-		}
-	}
-
-	private static GameObjectFlags CreatedTargetGameObjectFlags => GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
-	private static ComponentFlags CreatedTargetComponentFlags => ComponentFlags.NotSaved | ComponentFlags.NotNetworked;
 
 	/// <summary>
 	/// Create any missing <see cref="GameObject"/>s or <see cref="Component"/>s for the given track
 	/// and its children to target.
 	/// </summary>
-	private void CreateTarget( IReferenceTrack track, IReadOnlyDictionary<IReferenceTrack<GameObject>, IReferenceTrack[]> children, GameObject? rootParent = null )
+	private void CreateTarget( IReferenceTrack track, IReadOnlyDictionary<IReferenceTrack<GameObject>, IReferenceTrack[]> children, GameObject? rootParent, List<ITrackReference> createdTargets )
 	{
 		var target = Get( track );
 		var parentGo = target.Parent?.Value ?? rootParent;
@@ -106,16 +60,19 @@ partial class TrackBinder
 			Assert.AreEqual( Scene, parentGo.Scene );
 		}
 
-		if ( track is IReferenceTrack<GameObject> goTrack && target is ITrackReference<GameObject> { IsBound: false } goRef )
+		// Attempt auto-bind
+		_ = target.Value;
+
+		if ( TryGetBinding( target.Id, out _ ) ) return;
+
+		if ( track is IReferenceTrack<GameObject> goTrack )
 		{
 			if ( goTrack.Metadata?.PrefabSource is { } prefabSource && GameObject.GetPrefab( prefabSource ) is { } prefab )
 			{
 				var go = prefab.Clone( Transform.Zero, parentGo, name: goTrack.Name );
 
-				go.Flags |= CreatedTargetGameObjectFlags;
-
-				BindCreatedTarget( goRef, go );
-				RemoveUnboundTargets( go, goTrack, children );
+				BindCreatedTarget( target, go, createdTargets );
+				RemoveUnboundTargets( go, goTrack, children, createdTargets );
 			}
 			else
 			{
@@ -126,21 +83,17 @@ partial class TrackBinder
 
 				var go = new GameObject( parentGo, name: goTrack.Name );
 
-				go.Flags |= CreatedTargetGameObjectFlags;
-
-				BindCreatedTarget( goRef, go );
+				BindCreatedTarget( target, go, createdTargets );
 			}
 		}
-		else if ( target.Parent is not null && parentGo is not null && target is { IsBound: false } cmpRef )
+		else if ( target.Parent is not null && parentGo is not null )
 		{
 			var typeDesc = GlobalGameNamespace.TypeLibrary.GetType( target.TargetType );
 			if ( typeDesc is null ) return;
 
 			var cmp = parentGo.Components.Create( typeDesc );
 
-			cmp.Flags |= CreatedTargetComponentFlags;
-
-			BindCreatedTarget( cmpRef, cmp );
+			BindCreatedTarget( target, cmp, createdTargets );
 		}
 	}
 
@@ -148,7 +101,7 @@ partial class TrackBinder
 	/// We've created <paramref name="go"/> from a prefab, but we only want child objects / <see cref="Component"/>s
 	/// that we have tracks for. Remove the rest here.
 	/// </summary>
-	private void RemoveUnboundTargets( GameObject go, IReferenceTrack<GameObject> track, IReadOnlyDictionary<IReferenceTrack<GameObject>, IReferenceTrack[]> children )
+	private void RemoveUnboundTargets( GameObject go, IReferenceTrack<GameObject> track, IReadOnlyDictionary<IReferenceTrack<GameObject>, IReferenceTrack[]> children, List<ITrackReference> createdTargets )
 	{
 		var childTracks = children.GetValueOrDefault( track, [] );
 
@@ -164,10 +117,8 @@ partial class TrackBinder
 			}
 			else
 			{
-				child.Flags |= CreatedTargetGameObjectFlags;
-
-				BindCreatedTarget( Get( match ), child );
-				RemoveUnboundTargets( child, match, children );
+				BindCreatedTarget( Get( match ), child, createdTargets );
+				RemoveUnboundTargets( child, match, children, createdTargets );
 			}
 		}
 
@@ -187,21 +138,58 @@ partial class TrackBinder
 			{
 				visitedTracks.Add( match );
 
-				cmp.Flags |= CreatedTargetComponentFlags;
-
-				BindCreatedTarget( Get( match ), cmp );
+				BindCreatedTarget( Get( match ), cmp, createdTargets );
 			}
 		}
 	}
 
 	/// <summary>
-	/// We've created <paramref name="inst"/> during <see cref="CreateTargets(Sandbox.MovieMaker.IMovieClip,bool,GameObject)"/>,
+	/// We've created <paramref name="inst"/> during <see cref="CreateTargets(Sandbox.MovieMaker.IMovieClip,GameObject)"/>,
 	/// bind it to the track reference it was created for and keep track of it for removal
-	/// during <see cref="DestroyTargets()"/>.
+	/// during <see cref="MoviePlayer.DestroyTargets()"/>.
 	/// </summary>
-	private void BindCreatedTarget( ITrackReference reference, IValid inst )
+	private void BindCreatedTarget( ITrackReference reference, IValid inst, List<ITrackReference> createdTargets )
 	{
 		reference.Bind( inst );
-		_createdTargets.Add( new CreatedTarget( reference, inst ) );
+		createdTargets.Add( reference );
+	}
+}
+
+file static class ReferenceTrackExtensions
+{
+	extension( IEnumerable<IReferenceTrack> refTracks )
+	{
+		public IEnumerable<IReferenceTrack> WithoutMapInstanceChildren()
+		{
+			// Note: We're assuming we've ordered by depth, and we're assuming all
+			// ancestors of tracks are included in the enumerable
+
+			var refTrackArray = refTracks.ToArray();
+			var insideMapInstance = new HashSet<IReferenceTrack>();
+
+			// First pass: tag parents of IReferenceTrack<MapInstance>
+
+			foreach ( var track in refTrackArray.OfType<IReferenceTrack<MapInstance>>() )
+			{
+				if ( track.Parent is { } parent )
+				{
+					insideMapInstance.Add( parent );
+				}
+			}
+
+			// Now we can propagate this tag to children
+			// We still want to yield any MapInstance, just not its children
+
+			foreach ( var track in refTrackArray )
+			{
+				if ( track is not IReferenceTrack<MapInstance> && track.Parent is { } parent && insideMapInstance.Contains( parent ) )
+				{
+					insideMapInstance.Add( track );
+					continue;
+				}
+
+				yield return track;
+			}
+		}
 	}
 }

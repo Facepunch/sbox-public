@@ -1,4 +1,5 @@
 ﻿using Sandbox.Internal;
+using Sandbox.UI;
 using Sandbox.Utility;
 
 namespace Sandbox;
@@ -40,6 +41,8 @@ public partial class Scene : GameObject
 			if ( t == typeof( object ) ) break;
 			if ( t == typeof( Component ) ) break;
 			if ( t == typeof( GameObjectSystem ) ) break;
+			if ( t == typeof( Panel ) ) break;
+			if ( t == typeof( Label ) ) break;
 
 			types.Add( t );
 			types.AddRange( t.GetInterfaces() );

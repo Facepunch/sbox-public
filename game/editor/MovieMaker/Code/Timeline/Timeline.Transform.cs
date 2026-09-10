@@ -129,10 +129,10 @@ public partial class Timeline
 
 		var view = (VisibleRect, PixelsPerSecond);
 
+		if ( view == _lastView ) return false;
+
 		UpdateBackground( view.VisibleRect );
 		UpdateScrubBars( view.VisibleRect );
-
-		if ( view == _lastView ) return false;
 
 		_lastView = view;
 

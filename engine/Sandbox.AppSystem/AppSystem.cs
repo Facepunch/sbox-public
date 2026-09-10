@@ -38,13 +38,23 @@ public class AppSystem
 		// check core count, ram, os?
 		// rendersystemvulkan ends up checking gpu, driver, vram later on
 
-		MissingDependancyDiagnosis.Run();
 	}
 
 	public virtual void Init()
 	{
 		GCSettings.LatencyMode = GCLatencyMode.SustainedLowLatency;
-		NetCore.InitializeInterop( Environment.CurrentDirectory );
+		try
+		{
+			NetCore.InitializeInterop( Environment.CurrentDirectory );
+		}
+		catch
+		{
+			if ( OperatingSystem.IsWindows() )
+			{
+				MissingDependancyDiagnosis.Run();
+			}
+			throw;
+		}
 	}
 
 	void SetupEnvironment()

@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<OutputType>Exe</OutputType>
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+		<OutputPath>..\..\..\game\bin\managed</OutputPath>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<NoWarn>1701;1702;1591</NoWarn>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- Managed-only package compiler. Referencing Sandbox.Compiling pulls in Sandbox.Generator (the source
+		     generator that bakes RPC / serialization identities) transitively, so this tool always compiles with
+		     the exact toolchain of the build it ships inside. Mirrors MenuBuild's setup. -->
+		<ProjectReference Include="..\..\Sandbox.Compiling\Sandbox.Compiling.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Roslyn types (MetadataReference etc.) used directly here. Version must match Sandbox.Compiling. -->
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0-2.final" />
+	</ItemGroup>
+
+</Project>

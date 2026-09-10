@@ -88,6 +88,8 @@ public partial class Panel
 
 			ParentHasChanged = true;
 			// Dirty
+
+			UpdateSceneIndex();
 		}
 	}
 
@@ -99,6 +101,7 @@ public partial class Panel
 	/// </summary>
 	private void RemoveChild( Panel p )
 	{
+		if ( FindRootPanel() is { } root ) root.FixedOverlaysDirty = true;
 		if ( IsDeleted )
 			return;
 
@@ -111,9 +114,11 @@ public partial class Panel
 			_renderChildren.Remove( p );
 			_renderChildrenDirty = true;
 
-			if ( p.YogaNode is not null )
+			(InlineOwner ?? InlineParagraph)?.Invalidate();
+
+			if ( p.LayoutTree is not null )
 			{
-				YogaNode?.RemoveChild( p.YogaNode );
+				LayoutTree?.RemoveChild( p.LayoutTree );
 			}
 
 			OnChildRemoved( p );
@@ -162,7 +167,8 @@ public partial class Panel
 	/// </summary>
 	private void InternalAddChild( Panel child )
 	{
-		if ( YogaNode?.IsMeasureDefined == true )
+		if ( FindRootPanel() is { } root ) root.FixedOverlaysDirty = true;
+		if ( LayoutTree?.IsMeasureDefined == true )
 			throw new Exception( $"{this} can not have children." );
 
 		_children ??= new( 4 );
@@ -172,7 +178,7 @@ public partial class Panel
 		if ( _childrenHash.Contains( child ) )
 			throw new Exception( "AddChild but already have child!" );
 
-		YogaNode?.AddChild( child.YogaNode );
+		LayoutTree?.AddChild( child.LayoutTree );
 
 		_childrenHash.Add( child );
 		_children.Add( child );
@@ -212,13 +218,14 @@ public partial class Panel
 
 		_children.RemoveAll( x => x is null );
 		_children.Sort( sorter );
+		if ( FindRootPanel() is { } root ) root.FixedOverlaysDirty = true;
 
 		int i = 0;
 		foreach ( var child in _children )
 		{
 			child.UpdateSiblingIndex( i++, _children.Count );
-			YogaNode.RemoveChild( child.YogaNode );
-			YogaNode.AddChild( child.YogaNode );
+			LayoutTree.RemoveChild( child.LayoutTree );
+			LayoutTree.AddChild( child.LayoutTree );
 		}
 
 		IndexesDirty = true;
@@ -237,11 +244,12 @@ public partial class Panel
 		var sorted = _children.OrderBy( x => { if ( x is TargetType tt ) { return sorter( tt ); } return 0; } ).ToArray();
 		_children.Clear();
 		_children.AddRange( sorted );
+		if ( FindRootPanel() is { } root ) root.FixedOverlaysDirty = true;
 
 		foreach ( var child in _children )
 		{
-			YogaNode.RemoveChild( child.YogaNode );
-			YogaNode.AddChild( child.YogaNode );
+			LayoutTree.RemoveChild( child.LayoutTree );
+			LayoutTree.AddChild( child.LayoutTree );
 		}
 
 		IndexesDirty = true;
@@ -278,19 +286,30 @@ public partial class Panel
 		if ( count == 0 )
 			return;
 
+		// Scrollbars aren't siblings of the content, so the real last child keeps :last-child
+		var siblings = count - ScrollbarCount;
+
 		for ( int i = 0; i < count; i++ )
 		{
-			_children[i].UpdateSiblingIndex( i, count );
+			_children[i].UpdateSiblingIndex( i, siblings );
 		}
 	}
 
 	internal void UpdateSiblingIndex( int index, int siblings )
 	{
+		if ( SiblingIndex != index && Parent is { } parent )
+		{
+			parent._renderChildrenDirty = true;
+			if ( FindRootPanel() is { } root ) root.FixedOverlaysDirty = true;
+		}
+		SiblingIndex = index;
+
+		if ( this is ScrollBar )
+			return;
+
 		Switch( PseudoClass.FirstChild, index == 0 );
 		Switch( PseudoClass.LastChild, index == siblings - 1 );
 		Switch( PseudoClass.OnlyChild, index == 0 && siblings == 1 );
-
-		SiblingIndex = index;
 	}
 
 	/// <summary>
@@ -431,6 +450,8 @@ public partial class Panel
 		set => GameObject = value;
 	}
 
+	GameObject _gameObject;
+
 	/// <summary>
 	/// Returns the GameObject that this panel belongs to
 	/// </summary>
@@ -438,13 +459,13 @@ public partial class Panel
 	{
 		get
 		{
-			if ( field is not null )
-				return field;
+			if ( _gameObject is not null )
+				return _gameObject;
 
 			return Parent?.GameObject;
 		}
 
-		internal set;
+		internal set => _gameObject = value;
 	}
 
 	/// <summary>

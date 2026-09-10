@@ -32,26 +32,31 @@ public partial class MenuBar : Widget
 
 	public Option AddOption( string path, string icon = null, Action action = null, string shortcut = null )
 	{
-		var parts = path.Split( '/', StringSplitOptions.RemoveEmptyEntries );
-
 		var menu = GetPathTo( path );
+		if ( menu is not { Count: > 0 } ) return null;
+
+		var parts = path.Split( '/', StringSplitOptions.RemoveEmptyEntries );
 		return menu.Last().AddOption( parts.Last(), icon, action, shortcut );
 	}
 
 	public void AddOption( string path, Option option )
 	{
-		var parts = path.Split( '/', StringSplitOptions.RemoveEmptyEntries );
+		if ( option == null ) return;
 
 		var menu = GetPathTo( path );
+		if ( menu is not { Count: > 0 } ) return;
+
+		var parts = path.Split( '/', StringSplitOptions.RemoveEmptyEntries );
 		option.Text = parts.Last();
 		menu.Last().AddOption( option );
 	}
 
 	public void RemovePath( string path )
 	{
-		var parts = path.Split( '/', StringSplitOptions.RemoveEmptyEntries );
 		var menus = GetPathTo( path );
-		if ( menus.Count == 0 ) return;
+		if ( menus is not { Count: > 0 } ) return;
+
+		var parts = path.Split( '/', StringSplitOptions.RemoveEmptyEntries );
 
 		menus.Last().RemoveOption( parts.Last() );
 		menus.Reverse();
@@ -67,6 +72,8 @@ public partial class MenuBar : Widget
 
 	public List<Menu> GetPathTo( string path )
 	{
+		if ( string.IsNullOrEmpty( path ) ) return null;
+
 		var list = new List<Menu>();
 		var parts = Menu.GetSplitPath( path );
 		if ( parts.Length == 1 ) return null;
@@ -90,7 +97,7 @@ public partial class MenuBar : Widget
 	{
 		Menus.RemoveAll( x => !x.IsValid );
 
-		var m = Menus.FirstOrDefault( x => x.Title.ToLower() == name.ToLower() );
+		var m = Menus.FirstOrDefault( x => string.Equals( x.Title, name, StringComparison.OrdinalIgnoreCase ) );
 		if ( m != null ) return m;
 
 		return AddMenu( name );

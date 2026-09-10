@@ -2,39 +2,29 @@
 
 namespace Editor;
 
-class FolderNode : TreeNode<LocalAssetBrowser.Location>
+partial class FolderNode : TreeNode<LocalAssetBrowser.Location>
 {
 	public override string Name => Value.Name;
 	public string Icon { get; set; }
 	public bool TitleCase { get; set; } = false;
 
-	DirectoryEntry.FolderMetadata Metadata;
+	public bool IsPresent { get; private set; } = true;
 
-	FileSystemWatcher watcher;
+	DirectoryEntry.FolderMetadata Metadata;
 
 	public FolderNode( LocalAssetBrowser.Location location ) : base( location )
 	{
 		Icon = location.Icon;
 		Metadata = DirectoryEntry.GetMetadata( Value.Path );
 
-		if ( location is DiskLocation )
+		IsPresent = Value.IsValid();
+
+		if ( location is DiskLocation && IsPresent )
 		{
-			watcher = new FileSystemWatcher( location.Path );
-			watcher.EnableRaisingEvents = true;
-			watcher.Created += OnExternalChanges;
-			watcher.Deleted += OnExternalChanges;
-			watcher.Renamed += OnExternalChanges;
+			// Watched for as long as this node is alive - DirectoryWatcher holds us weakly, so
+			// there's nothing here to keep hold of or clean up
+			DirectoryWatcher.Watch( location.Path, this );
 		}
-	}
-
-	~FolderNode()
-	{
-		watcher?.Dispose();
-	}
-
-	private void OnExternalChanges( object sender, FileSystemEventArgs e )
-	{
-		Dirty();
 	}
 
 	protected override void BuildChildren()
@@ -66,7 +56,7 @@ class FolderNode : TreeNode<LocalAssetBrowser.Location>
 
 		rect.Left += 24;
 
-		Paint.SetPen( Theme.Text );
+		Paint.SetPen( IsPresent ? Theme.Text : Theme.TextDisabled );
 		Paint.SetDefaultFont();
 		Paint.DrawText( rect, TitleCase ? Name.ToTitleCase() : Name, TextFlag.LeftCenter );
 	}

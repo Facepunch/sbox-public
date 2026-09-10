@@ -36,6 +36,7 @@ public static partial class Sound
 	internal static void Clear()
 	{
 		Audio.Listener.Clear();
+		Game.Music.ClearDucks();
 	}
 
 

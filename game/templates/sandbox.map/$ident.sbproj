@@ -1,0 +1,19 @@
+{
+  "Title": "Map",
+  "Type": "addon",
+  "Org": "local",
+  "Ident": "map.minimal",
+  "Schema": 1,
+  "IncludeSourceFiles": false,
+  "Resources": null,
+  "PackageReferences": [],
+  "EditorReferences": null,
+  "IsWhitelistDisabled": false,
+  "Metadata": {
+    "ProjectTemplate": {
+      "Icon": "map",
+      "Order": 1000,
+      "Description": "Create a map that works for most games"
+    }
+  }
+}

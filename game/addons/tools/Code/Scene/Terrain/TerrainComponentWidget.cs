@@ -15,12 +15,15 @@ partial class TerrainComponentWidget : ComponentEditorWidget
 	{
 		Layout.Clear( true );
 
-		// If there is no valid Storage on this Terrain - give create UI.
-		var storageProperty = SerializedObject.GetProperty( "Storage" );
-		if ( storageProperty is null || storageProperty.IsNull )
+		var terrain = SerializedObject.Targets.FirstOrDefault() as Terrain;
+		if ( !terrain.IsValid() ) return;
+
+		if ( terrain.Storage is null )
 		{
-			Layout.Add( CreateTerrain() );
-			return;
+			var storage = new TerrainStorage();
+			storage.EmbeddedResource = new Sandbox.Resources.EmbeddedResource { ResourceCompiler = "embed" };
+			terrain.Storage = storage;
+			terrain.UpdateMaterialsBuffer();
 		}
 
 		Layout.Add( SettingsPage() );

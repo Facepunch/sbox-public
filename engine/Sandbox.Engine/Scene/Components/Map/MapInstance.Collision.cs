@@ -1,12 +1,20 @@
 ﻿
 namespace Sandbox;
 
-partial class MapInstance
+partial class MapInstance : IHasPhysicsDescription
 {
 	private PhysicsGroupDescription Physics;
 	private List<PhysicsBody> Bodies { get; set; } = new();
 	private List<CollisionEventSystem> CollisionEvents { get; set; } = new();
 	private MapCollider Collider { get; set; }
+
+	PhysicsGroupDescription IHasPhysicsDescription.Physics => Physics;
+
+	void IHasPhysicsDescription.OnPhysicsReloaded()
+	{
+		RemoveCollision();
+		AddCollision();
+	}
 
 	void OnEnableCollisionChanged()
 	{
@@ -83,7 +91,7 @@ partial class MapInstance
 		{
 			Assert.NotNull( part, "Physics part was null" );
 
-			var body = new PhysicsBody( Scene.PhysicsWorld );
+			var body = Scene.PhysicsWorld.CreateBody();
 			body.Component = Collider;
 			body.Transform = world;
 			Bodies.Add( body );
@@ -134,7 +142,10 @@ partial class MapInstance
 
 		var shapeCount = body.ShapeCount;
 		var indicesCount = part.native.GetCollisionAttributeCount();
-		var attributeCount = Physics.native.GetCollisionAttributeCount();
+		var attributeCount = Physics.CollisionAttributeCount;
+
+		if ( body?._body is not PhysicsBody3d body3d )
+			return;
 
 		if ( indicesCount > 0 )
 		{
@@ -148,7 +159,7 @@ partial class MapInstance
 				var index = part.native.GetCollisionAttributeIndex( i );
 				if ( index < attributeCount )
 				{
-					var shape = body.native.GetShape( i );
+					var shape = body3d.native.GetShape( i );
 					if ( !shape.IsValid() )
 						continue;
 
@@ -172,9 +183,12 @@ partial class MapInstance
 			var tags = Physics.GetTags( part.native.m_nCollisionAttributeIndex );
 			foreach ( var shape in body.Shapes )
 			{
+				if ( shape?._shape is not PhysicsShape3d shape3d )
+					continue;
+
 				foreach ( var tag in tags )
 				{
-					shape.native.AddTag( tag.Value );
+					shape3d.native.AddTag( tag.Value );
 				}
 			}
 		}

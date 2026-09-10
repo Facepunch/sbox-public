@@ -1,0 +1,348 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+JamPage
+{
+	position: relative;
+	background-color: transparent;
+	align-items: center;
+	justify-content: center;
+
+	.jam-body
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		padding: 0 40px 24px 40px;
+		overflow: hidden;
+	}
+
+	.bar
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 16px;
+		height: 56px;
+		padding: 0 4px;
+		border-bottom: 1px solid rgba( 255, 255, 255, 0.18 );
+
+		label
+		{
+			font-size: 11px;
+			font-weight: 600;
+			letter-spacing: 0.08em;
+			text-transform: uppercase;
+			color: $front-secondary;
+		}
+
+		label b, label.strong
+		{
+			color: $front-heading;
+			font-weight: 700;
+		}
+
+		.sep
+		{
+			width: 1px;
+			height: 14px;
+			background-color: $front-hairline;
+		}
+	}
+
+	.live
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 6px;
+		height: 24px;
+		padding: 0 10px;
+		border-radius: $rounding-default;
+		background-color: $front-danger * 1.2;
+		animation-name: jam-live-breathe;
+		animation-duration: 2.4s;
+		animation-timing-function: ease-in-out;
+		animation-iteration-count: infinite;
+
+		label
+		{
+			font-family: $front-font;
+			font-size: 10px;
+			font-weight: 800;
+			letter-spacing: 0.14em;
+			color: #ffffff;
+		}
+
+		.pip
+		{
+			width: 6px;
+			height: 6px;
+			border-radius: 50%;
+			background-color: #ffffff * 3;
+			animation-name: jam-live-pulse;
+			animation-duration: 1.2s;
+			animation-timing-function: ease-in-out;
+			animation-iteration-count: infinite;
+		}
+	}
+
+	JamCountdown
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 8px;
+		margin-left: auto;
+
+		.what
+		{
+			font-size: 11px;
+			font-weight: 600;
+			letter-spacing: 0.08em;
+			text-transform: uppercase;
+			color: $front-secondary;
+		}
+
+		// Poppins has no tabular figures.
+		.time
+		{
+			font-family: $font-default;
+			font-variant-numeric: tabular-nums;
+			font-size: 16px;
+			font-weight: 700;
+			letter-spacing: 0.02em;
+			color: $primary-yellow;
+		}
+	}
+
+	.columns
+	{
+		flex-direction: row;
+		flex-grow: 1;
+		flex-shrink: 1;
+		gap: 56px;
+		padding: 36px 4px 0 4px;
+		overflow: hidden;
+	}
+
+	.main
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		width: 0;
+		overflow: hidden;
+	}
+
+	.kicker
+	{
+		@include front-section-label;
+
+		color: $front-primary;
+	}
+
+	.headline
+	{
+		font-family: $front-font;
+		font-size: 58px;
+		font-weight: 800;
+		letter-spacing: -0.03em;
+		line-height: 0.95;
+		color: $front-heading;
+		margin: 8px 0 8px 0;
+	}
+
+	.sub
+	{
+		font-size: 14px;
+		color: $front-secondary;
+	}
+
+	.blurb
+	{
+		font-size: 14px;
+		color: $front-body;
+		margin: 10px 0 18px 0;
+		max-width: 720px;
+	}
+
+	.actions
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		gap: 10px;
+		margin-bottom: 24px;
+	}
+
+	.action
+	{
+		@include front-button;
+
+		padding: 0 18px;
+		height: 32px;
+		pointer-events: all;
+		cursor: pointer;
+	}
+
+	.action.secondary
+	{
+		background-color: rgba( 255, 255, 255, 0.06 );
+		border: 1px solid $front-hairline;
+
+		label, icon
+		{
+			color: $front-body;
+		}
+	}
+
+	.sec
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		gap: 20px;
+		padding: 20px 0;
+		border-top: 1px solid $front-hairline;
+	}
+
+	.sec.grow
+	{
+		flex-grow: 1;
+		flex-shrink: 1;
+		height: 0;
+		padding-bottom: 0;
+	}
+
+	.sec-label
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		width: 130px;
+		padding-top: 3px;
+
+		.eyebrow
+		{
+			@include front-section-label;
+		}
+
+		.name
+		{
+			font-size: 13px;
+			font-weight: 600;
+			color: $front-body;
+		}
+	}
+
+	.prize
+	{
+		flex-direction: row;
+		flex-grow: 1;
+		align-items: center;
+		gap: 16px;
+	}
+
+	.prize-icon
+	{
+		flex-shrink: 0;
+		font-size: 26px;
+	}
+
+	.prize-body
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		width: 440px;
+		gap: 1px;
+	}
+
+	.prize-title
+	{
+		font-family: $front-font;
+		font-size: 16px;
+		font-weight: 700;
+		color: $front-heading;
+	}
+
+	.prize-hint
+	{
+		font-size: 12.5px;
+		color: $front-secondary;
+	}
+
+	.places
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: flex-end;
+		gap: 56px;
+		margin-left: 40px;
+	}
+
+	.place
+	{
+		flex-direction: column;
+		align-items: flex-start;
+
+		.amount
+		{
+			font-family: $front-font;
+			font-size: 18px;
+			font-weight: 600;
+			color: $front-body;
+		}
+
+		.ordinal
+		{
+			@include front-section-label;
+		}
+	}
+
+	.place.first .amount
+	{
+		font-size: 26px;
+		font-weight: 700;
+		color: $front-trophy;
+	}
+
+	.entries
+	{
+		flex-grow: 1;
+		flex-shrink: 1;
+		width: 0;
+		height: 100%;
+
+		PackageList
+		{
+			width: 100%;
+			height: 100%;
+		}
+	}
+
+	.jam-empty
+	{
+		@include front-page-empty;
+
+		flex-grow: 1;
+		border: 0;
+		background-color: transparent;
+		background-image: none;
+	}
+
+	.jam-empty.small
+	{
+		padding: 32px;
+	}
+}
+
+@keyframes jam-live-pulse
+{
+	0% { background-color: #ffffff * 1.5; }
+	50% { background-color: #ffffff * 8; }
+	100% { background-color: #ffffff * 1.5; }
+}
+
+@keyframes jam-live-breathe
+{
+	0% { background-color: $front-danger * 1.1; }
+	50% { background-color: $front-danger * 1.7; }
+	100% { background-color: $front-danger * 1.1; }
+}

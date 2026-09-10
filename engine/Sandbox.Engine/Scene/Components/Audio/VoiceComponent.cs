@@ -63,31 +63,13 @@ public class Voice : Component
 	private bool recording = false;
 	private SoundStream soundStream;
 	private SoundHandle sound;
-	private float[] morphs;
-
-	private static readonly string[] VisemeNames = new string[]
-	{
-		"viseme_sil",
-		"viseme_PP",
-		"viseme_FF",
-		"viseme_TH",
-		"viseme_DD",
-		"viseme_KK",
-		"viseme_CH",
-		"viseme_SS",
-		"viseme_NN",
-		"viseme_RR",
-		"viseme_AA",
-		"viseme_E",
-		"viseme_I",
-		"viseme_O",
-		"viseme_U",
-	};
 
 	private MixerHandle targetMixer;
 
-	/// <inheritdoc cref="SoundHandle.TargetMixer"/>
-	[Property]
+	/// <summary>
+	/// Which mixer to target. Must be a descendant of the Voice mixer. Defaults to the Voice mixer if not set or invalid.
+	/// </summary>
+	[Property, ParentMixer( "Voice" )]
 	public MixerHandle VoiceMixer
 	{
 		get => targetMixer;
@@ -104,7 +86,7 @@ public class Voice : Component
 
 	public Mixer TargetMixer
 	{
-		get => targetMixer.GetOrDefault();
+		get => targetMixer.Get( Mixer.Voice );
 		set => VoiceMixer = value;
 	}
 
@@ -152,9 +134,11 @@ public class Voice : Component
 
 		soundStream = new SoundStream( VoiceManager.SampleRate );
 
-		if ( Renderer.IsValid() && Renderer.Model.MorphCount > 0 )
+		// Ensure that the Mixer selected is a Voice mixer
+		var currentMixer = targetMixer.GetOrDefault();
+		if ( !currentMixer.IsDescendantOf( Mixer.Voice ) )
 		{
-			morphs = new float[Renderer.Model.MorphCount];
+			targetMixer = Mixer.Voice;
 		}
 
 		base.OnEnabledInternal();
@@ -198,16 +182,12 @@ public class Voice : Component
 		get
 		{
 			if ( IsProxy ) return false;
-			if ( Mode == ActivateMode.AlwaysOn ) return true;
-			if ( Mode == ActivateMode.PushToTalk )
-			{
-				return Input.Down( PushToTalkInput );
-			}
+			if ( Preferences.VoiceMode == VoiceMode.Disabled ) return false;
+			if ( Preferences.VoiceMode == VoiceMode.OpenMicrophone )
+				return Mode == ActivateMode.AlwaysOn || Mode == ActivateMode.PushToTalk || (Mode == ActivateMode.Manual && _isListening);
 
-			if ( Mode == ActivateMode.Manual )
-				return _isListening;
-
-			return false;
+			// PushToTalk: always require key press regardless of component mode
+			return Input.Down( PushToTalkInput );
 		}
 	}
 
@@ -226,8 +206,7 @@ public class Voice : Component
 		if ( WorldspacePlayback )
 		{
 			sound.Position = WorldPosition;
-			sound.Occlusion = true;
-			sound.OcclusionRadius = 64;
+			sound.OcclusionEnabled = true;
 		}
 		else
 		{
@@ -241,8 +220,7 @@ public class Voice : Component
 
 	protected sealed override void OnUpdate()
 	{
-		ApplyVisemes();
-		FadeMorphs();
+		UpdateMorphs();
 		UpdateSound();
 
 		// Stop the sound if we haven't received voice data for a while
@@ -327,81 +305,33 @@ public class Voice : Component
 		OnVoice( buffer );
 	}
 
-	private void FadeMorphs()
+	private void UpdateMorphs()
 	{
 		if ( !Renderer.IsValid() )
 			return;
 
-		if ( morphs == null )
+		// Nothing said for a while - the morphs have eased back to the animation
+		if ( LastPlayed > 1.0f )
 			return;
 
 		var model = Renderer.Model;
-		if ( model == null )
+		if ( model is null || model.MorphCount == 0 )
 			return;
-
-		var morphCount = model.MorphCount;
-		if ( morphCount == 0 )
-			return;
-
-		if ( morphCount != morphs.Length )
-		{
-			morphs = new float[morphCount];
-		}
 
 		var sceneModel = Renderer.SceneModel;
 		if ( !sceneModel.IsValid() )
 			return;
 
-		if ( LastPlayed > 1.0f )
-			return;
+		// Drive the mouth from the live voice analysis. Voice packets are bursty,
+		// so hold the current shape through short gaps, then ease back to zero.
+		ReadOnlySpan<float> visemes = default;
 
-		for ( int i = 0; i < morphCount; i++ )
+		if ( LastPlayed < 0.2f && sound.IsValid() && sound.LipSync.VisemeWeights is { } live )
 		{
-			var weight = sceneModel.Morphs.Get( i );
-			float target = LastPlayed < 0.2f ? morphs[i] : 0.0f;
-
-			weight = MathX.ExponentialDecay( weight, target, MorphSmoothTime * 0.17f, Time.Delta );
-			sceneModel.Morphs.Set( i, Math.Max( 0, weight ) );
+			visemes = live;
 		}
-	}
 
-	private void ApplyVisemes()
-	{
-		if ( !sound.IsValid() )
-			return;
-
-		if ( !Renderer.IsValid() )
-			return;
-
-		if ( morphs == null )
-			return;
-
-		var model = Renderer.Model;
-		if ( model == null )
-			return;
-
-		var morphCount = model.MorphCount;
-		if ( morphCount == 0 )
-			return;
-
-		if ( morphCount != morphs.Length )
-			return;
-
-		var visemes = sound.LipSync.Visemes;
-		if ( visemes is null )
-			return;
-
-		for ( int i = 0; i < morphCount; i++ )
-		{
-			float totalWeight = 0;
-			for ( int visemeIndex = 0; visemeIndex < visemes.Count; visemeIndex++ )
-			{
-				float weight = model.GetVisemeMorph( VisemeNames[visemeIndex], i );
-				totalWeight += weight * visemes[visemeIndex];
-			}
-
-			morphs[i] = (totalWeight * MorphScale).Clamp( 0, 1 );
-		}
+		sceneModel.Morphs.ApplyVisemes( visemes, MorphScale, MorphSmoothTime );
 	}
 
 	private unsafe void OnVoice( byte[] buffer )
@@ -428,5 +358,15 @@ public class Voice : Component
 			LastPlayed = 0;
 			UpdateSound();
 		} );
+	}
+
+	[AttributeUsage( AttributeTargets.Property )]
+	public class ParentMixerAttribute : Attribute
+	{
+		public string MixerName { get; }
+		public ParentMixerAttribute( string mixerName )
+		{
+			MixerName = mixerName;
+		}
 	}
 }

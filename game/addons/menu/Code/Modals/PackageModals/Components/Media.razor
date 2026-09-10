@@ -2,7 +2,7 @@
 @inherits Panel
 @using Sandbox;
 @using Sandbox.UI;
-@using Menu;
+@using SboxMenu;
 @using System;
 @using Sandbox.Network
 
@@ -16,7 +16,7 @@
         {
             if ( selectedShot.IsVideo)
             {
-                <VideoPanel Controls=@false Source="@selectedShot.Url" />
+                <VideoPanel Controls=@true Source="@selectedShot.Url" />
             }
             else
             {

@@ -26,10 +26,8 @@ public partial class Component
 		{
 			if ( !go.IsValid() ) return;
 
-			foreach ( var fx in go.GetComponentsInChildren<ITemporaryEffect>( true, true ) )
-			{
-				fx.DisableLooping();
-			}
+			// Walks in place instead of collecting a list, this is called per particle when a follower dies
+			go.Components.Execute<ITemporaryEffect>( static fx => fx.DisableLooping(), FindMode.EverythingInSelfAndDescendants );
 		}
 	}
 

@@ -16,9 +16,10 @@
           "Offset": "0,0",
           "Rotate": 0,
           "FlipVertical": false,
-          "FlipHorizontal": false
+          "FlipHorizontal": false,
+          "FormatOverride": null
         },
-        "compiled": null
+        "compiled": "textures/generated/svgsource/30a3c4846bdcef63.vtex"
       },
       "ShowAll": true,
       "SubCategories": [
@@ -37,12 +38,14 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": null
+            "compiled": "textures/generated/svgsource/12b49e9a9c28c0e8.vtex"
           },
           "Categories": [
-            "Hat"
+            "Hat",
+            "Headwear"
           ]
         },
         {
@@ -60,9 +63,10 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/3fd2681abfbfb6c8.vtex"
+            "compiled": "textures/generated/svgsource/28d9e84fdef7670c.vtex"
           },
           "Categories": [
             "HatBeanie"
@@ -108,7 +112,7 @@
               "FlipVertical": false,
               "FlipHorizontal": false
             },
-            "compiled": null
+            "compiled": "textures/generated/svgsource/e1330ccc44ff9633.vtex"
           },
           "Categories": [
             "HatCostume"
@@ -154,7 +158,7 @@
               "FlipVertical": false,
               "FlipHorizontal": false
             },
-            "compiled": null
+            "compiled": "textures/generated/svgsource/2228a3068708a04d.vtex"
           },
           "Categories": [
             "HatSpecial"
@@ -177,9 +181,10 @@
           "Offset": "0,0",
           "Rotate": 0,
           "FlipVertical": false,
-          "FlipHorizontal": false
+          "FlipHorizontal": false,
+          "FormatOverride": null
         },
-        "compiled": "textures/generated/svgsource/80c764008605430c.vtex"
+        "compiled": "textures/generated/svgsource/5f17eb8b19443966.vtex"
       },
       "ShowAll": true,
       "SubCategories": [
@@ -198,12 +203,14 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/859d2c64ad2df123.vtex"
+            "compiled": "textures/generated/svgsource/d76ad59abee5c00f.vtex"
           },
           "Categories": [
-            "GlassesEye"
+            "GlassesEye",
+            "Eyewear"
           ]
         },
         {
@@ -221,9 +228,10 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/3bc8dd310e5396c6.vtex"
+            "compiled": "textures/generated/svgsource/c48383b1a9f277e3.vtex"
           },
           "Categories": [
             "GlassesSun"
@@ -244,9 +252,10 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/b453c90ec068d55e.vtex"
+            "compiled": "textures/generated/svgsource/d8e6a3c1c0b07c51.vtex"
           },
           "Categories": [
             "GlassesSpecial"
@@ -269,9 +278,10 @@
           "Offset": "0,0",
           "Rotate": 0,
           "FlipVertical": false,
-          "FlipHorizontal": false
+          "FlipHorizontal": false,
+          "FormatOverride": null
         },
-        "compiled": "textures/generated/svgsource/2925a55784cc508.vtex"
+        "compiled": "textures/generated/svgsource/c450c995087ca1b2.vtex"
       },
       "ShowAll": false,
       "SubCategories": [
@@ -290,9 +300,10 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/34a8f092068e6169.vtex"
+            "compiled": "textures/generated/svgsource/463eb5694d505145.vtex"
           },
           "Categories": [
             "NecklaceChain"
@@ -313,9 +324,10 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/2925a55784cc508.vtex"
+            "compiled": "textures/generated/svgsource/c450c995087ca1b2.vtex"
           },
           "Categories": [
             "NecklacePendant"
@@ -336,9 +348,10 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/51be9613301ae793.vtex"
+            "compiled": "textures/generated/svgsource/4e16cc0f591520a8.vtex"
           },
           "Categories": [
             "NecklaceSpecial"
@@ -361,9 +374,10 @@
           "Offset": "0,0",
           "Rotate": 0,
           "FlipVertical": false,
-          "FlipHorizontal": false
+          "FlipHorizontal": false,
+          "FormatOverride": null
         },
-        "compiled": "textures/generated/svgsource/cfc308e15c339110.vtex"
+        "compiled": "textures/generated/svgsource/4f7d9827e66099e1.vtex"
       },
       "ShowAll": false,
       "SubCategories": [
@@ -382,12 +396,14 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/cfc308e15c339110.vtex"
+            "compiled": "textures/generated/svgsource/4f7d9827e66099e1.vtex"
           },
           "Categories": [
-            "WristWatch"
+            "WristWatch",
+            "Wristwear"
           ]
         },
         {
@@ -405,9 +421,10 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/b69bd098fa55d303.vtex"
+            "compiled": "textures/generated/svgsource/a903c7c7192bd5c2.vtex"
           },
           "Categories": [
             "WristJewel"
@@ -428,9 +445,10 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/8f48eab80e377033.vtex"
+            "compiled": "textures/generated/svgsource/613250821e3a2a7d.vtex"
           },
           "Categories": [
             "WristBand"
@@ -451,9 +469,10 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/c3f9dd4cdb3bb4ac.vtex"
+            "compiled": "textures/generated/svgsource/eb5ac0a8ee6000ce.vtex"
           },
           "Categories": [
             "WristSpecial"
@@ -476,9 +495,10 @@
           "Offset": "0,0",
           "Rotate": 0,
           "FlipVertical": false,
-          "FlipHorizontal": false
+          "FlipHorizontal": false,
+          "FormatOverride": null
         },
-        "compiled": "textures/generated/svgsource/9e51af1c683d1188.vtex"
+        "compiled": "textures/generated/svgsource/d67be97586353d07.vtex"
       },
       "ShowAll": false,
       "SubCategories": [
@@ -497,9 +517,10 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/9e51af1c683d1188.vtex"
+            "compiled": "textures/generated/svgsource/d67be97586353d07.vtex"
           },
           "Categories": [
             "EarringDangle"
@@ -520,9 +541,10 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/2db1b0977f149141.vtex"
+            "compiled": "textures/generated/svgsource/f919ed2c2a2aba2e.vtex"
           },
           "Categories": [
             "EarringStud"
@@ -543,12 +565,133 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/fc8ada0f16d6047d.vtex"
+            "compiled": "textures/generated/svgsource/8afa24633ea63e5a.vtex"
           },
           "Categories": [
             "EarringSpecial"
+          ]
+        }
+      ]
+    },
+    {
+      "Name": "piercing",
+      "Title": "Piercings",
+      "Icon": {
+        "$compiler": "texture",
+        "$source": "svgsource",
+        "data": {
+          "Size": "256,256",
+          "Source": "\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg width=\"1200pt\" height=\"1200pt\" version=\"1.1\" viewBox=\"0 0 1200 1200\" xmlns=\"http://www.w3.org/2000/svg\">\n <path d=\"m276 228c0-59.625 48.375-108 108-108s108 48.375 108 108-48.375 108-108 108c-3.4219 0-6.8438-0.14062-10.172-0.46875-74.578 63.844-121.82 158.63-121.82 264.47 0 192.19 155.81 348 348 348s348-155.81 348-348c0-106.64-47.953-202.08-123.52-265.92-6.6562 1.2656-13.5 1.9219-20.484 1.9219-59.625 0-108-48.375-108-108s48.375-108 108-108 108 48.375 108 108c0 2.3438-0.09375 4.6875-0.23438 7.0312 102.94 88.031 168.24 218.86 168.24 364.97 0 265.08-214.92 480-480 480-265.08 0-480-214.92-480-480 0-140.86 60.656-267.52 157.26-355.31-0.84375-5.4375-1.2656-11.016-1.2656-16.688z\" fill-rule=\"evenodd\"/>\n</svg>",
+          "Colorize": true,
+          "TargetColor": "1,1,1,1",
+          "Scale": 1,
+          "Offset": "0,0",
+          "Rotate": 0,
+          "FlipVertical": false,
+          "FlipHorizontal": false,
+          "FormatOverride": null
+        },
+        "compiled": "textures/generated/svgsource/564b9f2fd75dfd58.vtex"
+      },
+      "ShowAll": false,
+      "SubCategories": [
+        {
+          "Name": "piercing",
+          "Title": "Piercing",
+          "Icon": {
+            "$compiler": "texture",
+            "$source": "svgsource",
+            "data": {
+              "Size": "256,256",
+              "Source": "\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg width=\"1200pt\" height=\"1200pt\" version=\"1.1\" viewBox=\"0 0 1200 1200\" xmlns=\"http://www.w3.org/2000/svg\">\n <path d=\"m276 228c0-59.625 48.375-108 108-108s108 48.375 108 108-48.375 108-108 108c-3.4219 0-6.8438-0.14062-10.172-0.46875-74.578 63.844-121.82 158.63-121.82 264.47 0 192.19 155.81 348 348 348s348-155.81 348-348c0-106.64-47.953-202.08-123.52-265.92-6.6562 1.2656-13.5 1.9219-20.484 1.9219-59.625 0-108-48.375-108-108s48.375-108 108-108 108 48.375 108 108c0 2.3438-0.09375 4.6875-0.23438 7.0312 102.94 88.031 168.24 218.86 168.24 364.97 0 265.08-214.92 480-480 480-265.08 0-480-214.92-480-480 0-140.86 60.656-267.52 157.26-355.31-0.84375-5.4375-1.2656-11.016-1.2656-16.688z\" fill-rule=\"evenodd\"/>\n</svg>\n",
+              "Colorize": true,
+              "TargetColor": "1,1,1,1",
+              "Scale": 1,
+              "Offset": "0,0",
+              "Rotate": 0,
+              "FlipVertical": false,
+              "FlipHorizontal": false,
+              "FormatOverride": null
+            },
+            "compiled": "textures/generated/svgsource/79113e16f375b3d7.vtex"
+          },
+          "Categories": [
+            "Piercing"
+          ]
+        },
+        {
+          "Name": "nose",
+          "Title": "Nose",
+          "Icon": {
+            "$compiler": "texture",
+            "$source": "svgsource",
+            "data": {
+              "Size": "256,256",
+              "Source": "\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg width=\"1200pt\" height=\"1200pt\" version=\"1.1\" viewBox=\"0 0 1200 1200\" xmlns=\"http://www.w3.org/2000/svg\">\n <path d=\"m180 744.37c0 89.719 72.703 162.47 162.42 162.47h24.281l-34.312-44.859c-8.0625-10.5-6.0938-25.594 4.4531-33.656 10.5-8.0625 25.594-6.0469 33.656 4.5l60.234 78.703c3.6562 2.6719 6.5156 6.375 8.2031 10.641l39.797 51.984c27.938 36.469 71.203 57.844 117.14 57.844 44.062 0 85.875-19.734 113.91-53.766l120.24-146.11c8.4375-10.219 23.578-11.672 33.797-3.2344 10.219 8.3906 11.719 23.531 3.2812 33.75l-36.375 44.203h31.078c87.375 0 158.21-70.828 158.21-158.21 0-66.609-41.766-126.14-104.44-148.78l-26.438-9.5156c-19.266-6.9844-34.219-22.594-40.359-42.141l-103.12-329.68c-9.4219-30.047-37.312-50.531-68.812-50.531h-165.66c-25.172 0-47.719 15.656-56.438 39.281l-128.26 346.03c-6.0469 16.266-18.516 29.344-34.5 36.094l-12.703 5.3438c-60.188 25.406-99.281 84.375-99.281 149.63z\"/>\n</svg>\n",
+              "Colorize": true,
+              "TargetColor": "1,1,1,1",
+              "Scale": 1,
+              "Offset": "0,0",
+              "Rotate": 0,
+              "FlipVertical": false,
+              "FlipHorizontal": false,
+              "FormatOverride": null
+            },
+            "compiled": "textures/generated/svgsource/15cf406d4297706f.vtex"
+          },
+          "Categories": [
+            "PierceNose"
+          ]
+        },
+        {
+          "Name": "eyebrow",
+          "Title": "Eyebrow",
+          "Icon": {
+            "$compiler": "texture",
+            "$source": "svgsource",
+            "data": {
+              "Size": "256,256",
+              "Source": "\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg width=\"1200pt\" height=\"1200pt\" version=\"1.1\" viewBox=\"0 0 1200 1200\" xmlns=\"http://www.w3.org/2000/svg\">\n <path d=\"m831.97 448.51c4.0703-22.457 25.574-37.363 48.031-33.293 22.457 4.0703 37.363 25.574 33.293 48.031-4.0703 22.457-25.574 37.363-48.031 33.293-22.457-4.0703-37.363-25.574-33.293-48.031zm11.484 269.33 4.6719-25.789c-11.906-1.5703-23.816-3.1211-35.762-4.5117l-4.3281 23.879c-14.742 4.1445-26.652 16.207-29.566 32.289-4.0703 22.457 10.836 43.961 33.293 48.031s43.961-10.836 48.031-33.293c2.918-16.078-3.9961-31.555-16.34-40.605zm-99.227-228.24c22.457 4.0703 43.961-10.836 48.031-33.293 4.0703-22.457-10.836-43.961-33.293-48.031-22.457-4.0703-43.961 10.836-48.031 33.293s10.836 43.961 33.293 48.031zm-30.273 189.7c-22.457-4.0703-43.961 10.836-48.031 33.293-4.0703 22.457 10.836 43.961 33.293 48.031 22.457 4.0703 43.961-10.836 48.031-33.293 4.0703-22.457-10.836-43.961-33.293-48.031zm400.66 35.793 0.011719-0.042969c-0.023438-0.007812-0.042969-0.011718-0.058594-0.011718-24.668-27.844-173.82-161.33-188.97-174.06-15.129-13.125-34.773-21.328-55.414-23.105-116.01-7.6797-232.94-11.52-349.81-11.52-99.465 0-198.88 2.7812-297.69 8.3438-4.3008 0.24609-8.0859 3.1602-9.4258 7.2617l-47.199 144.87c-1.1367 3.4805-0.39844 7.2266 1.9688 10.008 2.0117 2.3789 4.9023 3.6758 7.9766 3.6758 0.52344 0 1.0547-0.039062 1.5859-0.11328 118.07-18.027 238.16-26.996 358.28-26.996 194.81 0 389.74 23.582 576.56 70.371 0.36328 0.085937 0.72656 0.13672 1.0898 0.13672 0.92188 0 1.8242-0.28125 2.5898-0.81641 1.0664-0.75 1.7656-1.9258 1.8984-3.2305 0.0625-0.57031-1.1406-2.2227-3.3945-4.7734zm-929.55-164.68c3.625-12.648 7.3633-25.281 11.266-37.918 0.125-0.40625-0.050781-0.85938-0.44141-1.0664-0.44141-0.23047-0.98828-0.0625-1.2188 0.38281-13.949 26.488-25.824 54.082-36.172 82.305-5.1016 14.113-11.375 28.031-13.73 42.965-2.4531 14.879-3.832 30.023-1.7812 45.605 0.039062 0.28516 0.20703 0.55078 0.47656 0.70312 0.45703 0.25391 1.0352 0.09375 1.293-0.36328 1.2734-2.2578 2.375-4.5352 3.5156-6.8086 5.7461-11.469 10.02-23.098 13.969-34.797 4.832-13.957 6.4922-28.75 10.039-43.125 3.875-16.02 8.2227-31.965 12.785-47.883zm-58.898 3.3398c-0.4375-0.23828-0.98828-0.078125-1.2305 0.35938-11.691 21.348-21.547 43.68-30.133 66.57-4.2266 11.445-9.6875 22.672-11.293 34.887-1.707 12.16-2.4062 24.555 0.24609 37.355 0.050781 0.24609 0.19922 0.47656 0.42578 0.62109 0.45312 0.28906 1.0547 0.16016 1.3438-0.28906 7.1016-10.926 11.484-22.141 15.477-33.445 4.0898-11.242 4.9375-23.328 7.6016-35.02 5.1992-23.395 11.457-46.637 18-70 0.10938-0.39453-0.0625-0.83203-0.4375-1.0391zm34.75-21.168c-0.44141-0.23437-0.98828-0.066406-1.2227 0.375-12.812 24.098-23.656 49.234-33.094 74.969-4.6484 12.867-10.5 25.531-12.457 39.188-2.0547 13.602-3.0703 27.453-0.69141 41.711 0.046876 0.26562 0.20313 0.51953 0.45703 0.66797 0.45312 0.26953 1.043 0.12109 1.3125-0.33203 7.375-12.391 12.07-25.055 16.414-37.797 4.4414-12.691 5.6758-26.207 8.7656-39.324 6.043-26.238 13.297-52.285 20.957-78.398 0.12109-0.41016-0.054687-0.85547-0.44141-1.0586z\"/>\n</svg>\n",
+              "Colorize": true,
+              "TargetColor": "1,1,1,1",
+              "Scale": 1,
+              "Offset": "0,0",
+              "Rotate": 0,
+              "FlipVertical": false,
+              "FlipHorizontal": false,
+              "FormatOverride": null
+            },
+            "compiled": "textures/generated/svgsource/3910c894e1af2ed.vtex"
+          },
+          "Categories": [
+            "PierceEyebrow"
+          ]
+        },
+        {
+          "Name": "special",
+          "Title": "Special",
+          "Icon": {
+            "$compiler": "texture",
+            "$source": "svgsource",
+            "data": {
+              "Size": "256,256",
+              "Source": "\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg width=\"1200pt\" height=\"1200pt\" version=\"1.1\" viewBox=\"0 0 1200 1200\" xmlns=\"http://www.w3.org/2000/svg\">\n <path d=\"m1012 538.8c0-227.2-184.8-412-412-412s-412 184.8-412 412c0 168 101.2 313.2 246 377.2 4.8008 87.602 77.199 157.2 166 157.2s161.2-69.602 166-157.2c144.8-64 246-209.2 246-377.2zm-267.6 285.6c-28.801-50-82.398-83.602-144.4-83.602s-115.6 33.602-144.4 83.602c-104-52.801-175.6-160.8-175.6-285.6 0-176.4 143.6-320 320-320s320 143.6 320 320c0 124.4-71.602 232.8-175.6 285.6z\"/>\n</svg>\n",
+              "Colorize": true,
+              "TargetColor": "1,1,1,1",
+              "Scale": 1,
+              "Offset": "0,0",
+              "Rotate": 0,
+              "FlipVertical": false,
+              "FlipHorizontal": false,
+              "FormatOverride": null
+            },
+            "compiled": "textures/generated/svgsource/c478ffafe9d57b9b.vtex"
+          },
+          "Categories": [
+            "PierceSpecial"
           ]
         }
       ]
@@ -568,9 +711,10 @@
           "Offset": "0,0",
           "Rotate": 0,
           "FlipVertical": false,
-          "FlipHorizontal": false
+          "FlipHorizontal": false,
+          "FormatOverride": null
         },
-        "compiled": "textures/generated/svgsource/306bdac58e3371e9.vtex"
+        "compiled": "textures/generated/svgsource/260096ad76ccb10b.vtex"
       },
       "ShowAll": false,
       "SubCategories": [
@@ -589,9 +733,10 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/306bdac58e3371e9.vtex"
+            "compiled": "textures/generated/svgsource/260096ad76ccb10b.vtex"
           },
           "Categories": [
             "HeadJewel"
@@ -612,9 +757,10 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/4ee114fcc317c6c3.vtex"
+            "compiled": "textures/generated/svgsource/7836efccced851e5.vtex"
           },
           "Categories": [
             "HeadBand"
@@ -635,9 +781,10 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/1c9f86b6d47ca6a0.vtex"
+            "compiled": "textures/generated/svgsource/9f57722cb9ee926d.vtex"
           },
           "Categories": [
             "HeadTech"
@@ -658,9 +805,10 @@
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/9081d883e9ef5552.vtex"
+            "compiled": "textures/generated/svgsource/eb1962b9f0083b86.vtex"
           },
           "Categories": [
             "HeadSpecial"
@@ -676,16 +824,17 @@
         "$source": "svgsource",
         "data": {
           "Size": "256,256",
-          "Source": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg width=\"1200pt\" height=\"1200pt\" version=\"1.1\" viewBox=\"0 0 1200 1200\" xmlns=\"http://www.w3.org/2000/svg\">\n <path d=\"m922.8 268.8c-14.961 0-29.305 5.9414-39.883 16.52-10.574 10.574-16.52 24.922-16.52 39.879v243.6c-0.33594 4.0352-2.0273 7.8438-4.7969 10.801-3.0195 3.4062-7.4688 5.1836-12 4.7969-4.1406 0-8.1055-1.6406-11.031-4.5664-2.9258-2.9258-4.5703-6.8945-4.5703-11.031v-342c0-20.152-10.75-38.77-28.199-48.844s-38.949-10.074-56.402 0c-17.449 10.074-28.199 28.691-28.199 48.844v302.4c-0.33594 4.3984-2.0117 8.5859-4.8008 12-3.2656 3.0312-7.543 4.7422-12 4.8008-4.3516 0.011719-8.5117-1.793-11.477-4.9844-2.9609-3.1914-4.457-7.4727-4.1211-11.816v-352.8c0-20.148-10.75-38.766-28.199-48.844-17.453-10.074-38.953-10.074-56.402 0-17.449 10.078-28.199 28.695-28.199 48.844v362.4c-0.33594 4.3945-2.0117 8.582-4.8008 12-3.2656 3.0312-7.543 4.7383-12 4.8008-4.3516 0.011719-8.5156-1.7969-11.477-4.9883-2.9648-3.1875-4.457-7.4727-4.1211-11.812v-292.8c0-20.148-10.75-38.77-28.203-48.844-17.449-10.074-38.949-10.074-56.398 0s-28.199 28.695-28.199 48.844v453.6l-78-104.4v-0.003906c-11.293-15.812-28.5-26.391-47.707-29.328-19.211-2.9375-38.789 2.0156-54.293 13.73-15.543 11.496-25.906 28.672-28.828 47.781-2.9258 19.109 1.832 38.602 13.227 54.219l182.4 248.4c90 121.2 164.4 150 254.4 150h66c63.969 0 125.32-25.41 170.55-70.645 45.234-45.234 70.645-106.59 70.645-170.55v-513.6c0-14.957-5.9414-29.305-16.52-39.879-10.574-10.578-24.922-16.52-39.879-16.52z\"/>\n</svg>\n",
+          "Source": "\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg width=\"1200pt\" height=\"1200pt\" version=\"1.1\" viewBox=\"0 0 1200 1200\" xmlns=\"http://www.w3.org/2000/svg\">\n <path d=\"m922.8 268.8c-14.961 0-29.305 5.9414-39.883 16.52-10.574 10.574-16.52 24.922-16.52 39.879v243.6c-0.33594 4.0352-2.0273 7.8438-4.7969 10.801-3.0195 3.4062-7.4688 5.1836-12 4.7969-4.1406 0-8.1055-1.6406-11.031-4.5664-2.9258-2.9258-4.5703-6.8945-4.5703-11.031v-342c0-20.152-10.75-38.77-28.199-48.844s-38.949-10.074-56.402 0c-17.449 10.074-28.199 28.691-28.199 48.844v302.4c-0.33594 4.3984-2.0117 8.5859-4.8008 12-3.2656 3.0312-7.543 4.7422-12 4.8008-4.3516 0.011719-8.5117-1.793-11.477-4.9844-2.9609-3.1914-4.457-7.4727-4.1211-11.816v-352.8c0-20.148-10.75-38.766-28.199-48.844-17.453-10.074-38.953-10.074-56.402 0-17.449 10.078-28.199 28.695-28.199 48.844v362.4c-0.33594 4.3945-2.0117 8.582-4.8008 12-3.2656 3.0312-7.543 4.7383-12 4.8008-4.3516 0.011719-8.5156-1.7969-11.477-4.9883-2.9648-3.1875-4.457-7.4727-4.1211-11.812v-292.8c0-20.148-10.75-38.77-28.203-48.844-17.449-10.074-38.949-10.074-56.398 0s-28.199 28.695-28.199 48.844v453.6l-78-104.4v-0.003906c-11.293-15.812-28.5-26.391-47.707-29.328-19.211-2.9375-38.789 2.0156-54.293 13.73-15.543 11.496-25.906 28.672-28.828 47.781-2.9258 19.109 1.832 38.602 13.227 54.219l182.4 248.4c90 121.2 164.4 150 254.4 150h66c63.969 0 125.32-25.41 170.55-70.645 45.234-45.234 70.645-106.59 70.645-170.55v-513.6c0-14.957-5.9414-29.305-16.52-39.879-10.574-10.578-24.922-16.52-39.879-16.52z\"/>\n</svg>\n",
           "Colorize": true,
           "TargetColor": "1,1,1,1",
           "Scale": 1,
           "Offset": "0,0",
           "Rotate": 0,
           "FlipVertical": false,
-          "FlipHorizontal": false
+          "FlipHorizontal": false,
+          "FormatOverride": null
         },
-        "compiled": "textures/generated/svgsource/5e8c12a6bb28a478.vtex"
+        "compiled": "textures/generated/svgsource/85c2c58759681134.vtex"
       },
       "ShowAll": true,
       "SubCategories": [
@@ -697,16 +846,17 @@
             "$source": "svgsource",
             "data": {
               "Size": "256,256",
-              "Source": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg width=\"1200pt\" height=\"1200pt\" version=\"1.1\" viewBox=\"0 0 1200 1200\" xmlns=\"http://www.w3.org/2000/svg\">\n <path d=\"m645 172.5v47.93c-7.1992-2.0273-14.629-2.9297-22.5-2.9297-18.457 0-35.773 5.6289-49.945 15.301-4.0547-11.027-9.8984-21.156-17.555-29.699v-30.602c0-24.758 20.258-45 45-45s45 20.242 45 45z\"/>\n <path d=\"m780 127.5v182.93c-7.1992-2.0273-14.629-2.9297-22.5-2.9297-16.43 0-31.727 4.5-45 12.145v-12.145c0-22.727-8.5547-43.43-22.5-59.398v-120.6c0-24.758 20.258-45 45-45s45 20.242 45 45z\"/>\n <path d=\"m1050 262.5v355.96c0 32.398-5.8555 64.57-17.102 94.945l-42.301 112.5c-2.6992-0.22656-5.3984-0.89844-8.1016-0.89844h-143.33c5.6289-23.398 8.3281-47.258 8.3281-71.543v-355.96c0-22.727-8.5547-43.43-22.5-59.398v-165.6c0-24.758 20.258-45 45-45 24.742 0 45 20.242 45 45v247.5c0 12.371 10.129 22.5 22.5 22.5s22.5-10.129 22.5-22.5v-157.5c0-24.758 20.258-45 45-45 24.742 0 45 20.242 45 45z\"/>\n <path d=\"m1027.5 915v22.5c0 24.742-20.258 45-45 45h-188.1c-2.6992-2.4727-5.6289-4.7266-8.7734-6.7422l39.602-105.76h157.27c24.742 0 45 20.242 45 45z\"/>\n <path d=\"m352.48 960h382.52c2.7852 0 5.4102 0.5625 8.125 0.81641l42.18-112.46c11.363-30.312 17.195-62.426 17.195-94.801v-356.04c0-24.852-20.148-45-45-45s-45 20.148-45 45v157.5c0 12.422-10.066 22.5-22.5 22.5s-22.5-10.078-22.5-22.5v-247.5c0-24.852-20.148-45-45-45s-45 20.148-45 45v247.5c0 12.422-10.066 22.5-22.5 22.5s-22.5-10.078-22.5-22.5v-292.5c0-24.852-20.148-45-45-45s-45 20.148-45 45v292.5c0 12.422-10.066 22.5-22.5 22.5s-22.5-10.078-22.5-22.5v-247.5c0-24.852-20.148-45-45-45s-45 20.148-45 45v385.73l-82.715-70.895c-12.086-10.355-26.965-17.398-42.781-19.117-56.148-6.1094-76.117 43.031-54.191 72.926l209.3 285.41c5.0156-0.86328 10.105-1.5469 15.359-1.5469z\"/>\n <path d=\"m352.49 1005h382.5c24.852 0 45 24.852 45 45v22.5c0 24.852-20.148 45-45 45h-382.5c-24.852 0-45-24.852-45-45v-22.5c0-24.852 20.148-45 45-45z\"/>\n</svg>\n",
+              "Source": "\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg width=\"1200pt\" height=\"1200pt\" version=\"1.1\" viewBox=\"0 0 1200 1200\" xmlns=\"http://www.w3.org/2000/svg\">\n <path d=\"m645 172.5v47.93c-7.1992-2.0273-14.629-2.9297-22.5-2.9297-18.457 0-35.773 5.6289-49.945 15.301-4.0547-11.027-9.8984-21.156-17.555-29.699v-30.602c0-24.758 20.258-45 45-45s45 20.242 45 45z\"/>\n <path d=\"m780 127.5v182.93c-7.1992-2.0273-14.629-2.9297-22.5-2.9297-16.43 0-31.727 4.5-45 12.145v-12.145c0-22.727-8.5547-43.43-22.5-59.398v-120.6c0-24.758 20.258-45 45-45s45 20.242 45 45z\"/>\n <path d=\"m1050 262.5v355.96c0 32.398-5.8555 64.57-17.102 94.945l-42.301 112.5c-2.6992-0.22656-5.3984-0.89844-8.1016-0.89844h-143.33c5.6289-23.398 8.3281-47.258 8.3281-71.543v-355.96c0-22.727-8.5547-43.43-22.5-59.398v-165.6c0-24.758 20.258-45 45-45 24.742 0 45 20.242 45 45v247.5c0 12.371 10.129 22.5 22.5 22.5s22.5-10.129 22.5-22.5v-157.5c0-24.758 20.258-45 45-45 24.742 0 45 20.242 45 45z\"/>\n <path d=\"m1027.5 915v22.5c0 24.742-20.258 45-45 45h-188.1c-2.6992-2.4727-5.6289-4.7266-8.7734-6.7422l39.602-105.76h157.27c24.742 0 45 20.242 45 45z\"/>\n <path d=\"m352.48 960h382.52c2.7852 0 5.4102 0.5625 8.125 0.81641l42.18-112.46c11.363-30.312 17.195-62.426 17.195-94.801v-356.04c0-24.852-20.148-45-45-45s-45 20.148-45 45v157.5c0 12.422-10.066 22.5-22.5 22.5s-22.5-10.078-22.5-22.5v-247.5c0-24.852-20.148-45-45-45s-45 20.148-45 45v247.5c0 12.422-10.066 22.5-22.5 22.5s-22.5-10.078-22.5-22.5v-292.5c0-24.852-20.148-45-45-45s-45 20.148-45 45v292.5c0 12.422-10.066 22.5-22.5 22.5s-22.5-10.078-22.5-22.5v-247.5c0-24.852-20.148-45-45-45s-45 20.148-45 45v385.73l-82.715-70.895c-12.086-10.355-26.965-17.398-42.781-19.117-56.148-6.1094-76.117 43.031-54.191 72.926l209.3 285.41c5.0156-0.86328 10.105-1.5469 15.359-1.5469z\"/>\n <path d=\"m352.49 1005h382.5c24.852 0 45 24.852 45 45v22.5c0 24.852-20.148 45-45 45h-382.5c-24.852 0-45-24.852-45-45v-22.5c0-24.852 20.148-45 45-45z\"/>\n</svg>\n",
               "Colorize": true,
               "TargetColor": "1,1,1,1",
               "Scale": 1,
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/f918d3c027cfb4a6.vtex"
+            "compiled": "textures/generated/svgsource/ac30cfeb666fceec.vtex"
           },
           "Categories": [
             "Gloves"
@@ -720,16 +870,17 @@
             "$source": "svgsource",
             "data": {
               "Size": "256,256",
-              "Source": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg width=\"1200pt\" height=\"1200pt\" version=\"1.1\" viewBox=\"0 0 1200 1200\" xmlns=\"http://www.w3.org/2000/svg\">\n <path d=\"m549.88 379.41v104.37c33.086-6.5547 67.137-6.5352 100.21 0.058594v-104.38c-1.4648-0.20312-2.9023-0.48438-4.375-0.66797h-91.801c-1.3594 0.17188-2.6836 0.43359-4.0391 0.61719z\"/>\n <path d=\"m599.8 1002.5c-55.371 0.0625-109.34-17.449-154.12-50.016-44.785-32.566-78.074-78.508-95.082-131.2-17.004-52.699-16.844-109.43 0.45703-162.04 17.301-52.602 50.852-98.355 95.816-130.67v-119.02c-75.652 34.875-137.12 94.555-174.22 169.15-37.098 74.594-47.594 159.62-29.754 241 17.84 81.375 62.945 154.21 127.84 206.45 64.902 52.23 145.7 80.723 229.01 80.75 83.309 0.03125 164.12-28.402 229.06-80.59s110.09-125 127.99-206.36c17.895-81.363 7.457-166.4-29.586-241.02-37.047-74.617-98.473-134.34-174.1-169.27v119.2c44.867 32.371 78.316 78.145 95.527 130.73 17.215 52.582 17.309 109.27 0.26953 161.91-17.039 52.641-50.336 98.52-95.098 131.04-44.762 32.523-98.684 50.012-154.02 49.949z\"/>\n <path d=\"m447.79 122.85h56.812l9.1875-29.102h-53.965z\"/>\n <path d=\"m646.91 93.75h-93.789l-9.2266 29.102h112.2z\"/>\n <path d=\"m686.21 93.75 9.1875 29.102h56.812l-12.035-29.102z\"/>\n <path d=\"m547.05 160.35 49.16 115.42h7.5781l49.16-115.42z\"/>\n <path d=\"m506.29 160.35h-43.352l79.648 85.273z\"/>\n <path d=\"m693.71 160.35-36.297 85.273 79.648-85.273z\"/>\n <path d=\"m650.1 327.28c0.070313-4.7461 0.80469-9.4609 2.1797-14.008h-104.58 0.003906c1.3789 4.5469 2.1133 9.2617 2.1797 14.008v14.008h100.21z\"/>\n <path d=\"m484.37 327.28v203.25c0.042968 7.707 6.3008 13.934 14.008 13.934 7.7109 0 13.969-6.2266 14.008-13.934v-203.25c0.019532-3.7266-1.4453-7.3086-4.0742-9.9492-2.6289-2.6445-6.2031-4.1289-9.9336-4.1289-3.7266 0-7.3008 1.4844-9.9297 4.1289-2.6289 2.6406-4.0977 6.2227-4.0781 9.9492z\"/>\n <path d=\"m687.6 327.28v203.25c-0.019531 3.7266 1.4492 7.3086 4.0781 9.9492 2.6289 2.6445 6.2031 4.1289 9.9297 4.1289 3.7266 0 7.3008-1.4844 9.9297-4.1289 2.6289-2.6406 4.0977-6.2227 4.0781-9.9492v-203.25c0.019531-3.7266-1.4492-7.3086-4.0781-9.9492-2.6289-2.6445-6.2031-4.1289-9.9297-4.1289-3.7266 0-7.3008 1.4844-9.9297 4.1289-2.6289 2.6406-4.0977 6.2227-4.0781 9.9492z\"/>\n</svg>\n",
+              "Source": "\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg width=\"1200pt\" height=\"1200pt\" version=\"1.1\" viewBox=\"0 0 1200 1200\" xmlns=\"http://www.w3.org/2000/svg\">\n <path d=\"m549.88 379.41v104.37c33.086-6.5547 67.137-6.5352 100.21 0.058594v-104.38c-1.4648-0.20312-2.9023-0.48438-4.375-0.66797h-91.801c-1.3594 0.17188-2.6836 0.43359-4.0391 0.61719z\"/>\n <path d=\"m599.8 1002.5c-55.371 0.0625-109.34-17.449-154.12-50.016-44.785-32.566-78.074-78.508-95.082-131.2-17.004-52.699-16.844-109.43 0.45703-162.04 17.301-52.602 50.852-98.355 95.816-130.67v-119.02c-75.652 34.875-137.12 94.555-174.22 169.15-37.098 74.594-47.594 159.62-29.754 241 17.84 81.375 62.945 154.21 127.84 206.45 64.902 52.23 145.7 80.723 229.01 80.75 83.309 0.03125 164.12-28.402 229.06-80.59s110.09-125 127.99-206.36c17.895-81.363 7.457-166.4-29.586-241.02-37.047-74.617-98.473-134.34-174.1-169.27v119.2c44.867 32.371 78.316 78.145 95.527 130.73 17.215 52.582 17.309 109.27 0.26953 161.91-17.039 52.641-50.336 98.52-95.098 131.04-44.762 32.523-98.684 50.012-154.02 49.949z\"/>\n <path d=\"m447.79 122.85h56.812l9.1875-29.102h-53.965z\"/>\n <path d=\"m646.91 93.75h-93.789l-9.2266 29.102h112.2z\"/>\n <path d=\"m686.21 93.75 9.1875 29.102h56.812l-12.035-29.102z\"/>\n <path d=\"m547.05 160.35 49.16 115.42h7.5781l49.16-115.42z\"/>\n <path d=\"m506.29 160.35h-43.352l79.648 85.273z\"/>\n <path d=\"m693.71 160.35-36.297 85.273 79.648-85.273z\"/>\n <path d=\"m650.1 327.28c0.070313-4.7461 0.80469-9.4609 2.1797-14.008h-104.58 0.003906c1.3789 4.5469 2.1133 9.2617 2.1797 14.008v14.008h100.21z\"/>\n <path d=\"m484.37 327.28v203.25c0.042968 7.707 6.3008 13.934 14.008 13.934 7.7109 0 13.969-6.2266 14.008-13.934v-203.25c0.019532-3.7266-1.4453-7.3086-4.0742-9.9492-2.6289-2.6445-6.2031-4.1289-9.9336-4.1289-3.7266 0-7.3008 1.4844-9.9297 4.1289-2.6289 2.6406-4.0977 6.2227-4.0781 9.9492z\"/>\n <path d=\"m687.6 327.28v203.25c-0.019531 3.7266 1.4492 7.3086 4.0781 9.9492 2.6289 2.6445 6.2031 4.1289 9.9297 4.1289 3.7266 0 7.3008-1.4844 9.9297-4.1289 2.6289-2.6406 4.0977-6.2227 4.0781-9.9492v-203.25c0.019531-3.7266-1.4492-7.3086-4.0781-9.9492-2.6289-2.6445-6.2031-4.1289-9.9297-4.1289-3.7266 0-7.3008 1.4844-9.9297 4.1289-2.6289 2.6406-4.0977 6.2227-4.0781 9.9492z\"/>\n</svg>\n",
               "Colorize": true,
               "TargetColor": "1,1,1,1",
               "Scale": 1,
               "Offset": "0,0",
               "Rotate": 0,
               "FlipVertical": false,
-              "FlipHorizontal": false
+              "FlipHorizontal": false,
+              "FormatOverride": null
             },
-            "compiled": "textures/generated/svgsource/b15c58683039d308.vtex"
+            "compiled": "textures/generated/svgsource/f2d42bbcc1819a1f.vtex"
           },
           "Categories": [
             "Ring"

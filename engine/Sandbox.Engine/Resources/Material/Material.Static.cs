@@ -19,6 +19,10 @@ public sealed partial class Material : Resource
 	{
 		// MaterialSystem2.CreateRawMaterial will also assert in native, but let's catch this in managed too.
 		ThreadSafe.AssertIsMainThread();
+
+		// Prevent reentrency
+		if ( Graphics.IsActive ) throw new System.Exception( "Material.Create cannot be called during rendering." );
+
 		return FromNative( MaterialSystem2.CreateRawMaterial( materialName, shader, anonymous ) );
 	}
 

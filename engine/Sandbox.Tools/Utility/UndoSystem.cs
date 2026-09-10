@@ -1,13 +1,83 @@
 ﻿using System;
-using static Editor.Label;
-using static Sandbox.Scene;
 
 namespace Sandbox.Helpers;
 
 /// <summary>
-/// A system that aims to wrap the main reusable functionality of an undo system
+/// Implemented by <see cref="Widget"/>s that contain an <see cref="IUndoSystem"/>.
+/// When an undo / redo shortcut is pressed with the editor window in focus, it'll look for
+/// a descendant widget implementing this interface with the most recent timestamp to undo / redo.
 /// </summary>
-public partial class UndoSystem
+public interface IUndoSystemProvider
+{
+	/// <summary>
+	/// Undo system that this widget is responsible for. Can be null.
+	/// </summary>
+	IUndoSystem UndoSystem { get; }
+}
+
+/// <summary>
+/// Interface for an undo/redo edit history system.
+/// </summary>
+public interface IUndoSystem
+{
+	/// <summary>
+	/// Finds all undo systems exposed by <see cref="IUndoSystemProvider"/>-implementing
+	/// descendants of <paramref name="root"/>. Only considers visible, enabled widgets.
+	/// </summary>
+	private static IEnumerable<IUndoSystem> FindAll( Widget root )
+	{
+		// Note that DockWidgets are considered descendants of their DockManager,
+		// even when floating in a child window.
+
+		foreach ( var widget in root.GetDescendants<Widget>() )
+		{
+			if ( widget is not IUndoSystemProvider { UndoSystem: { } system } ) continue;
+			if ( widget is not { IsValid: true, Visible: true, Enabled: true } ) continue;
+
+			yield return system;
+		}
+	}
+
+	/// <summary>
+	/// Calls <see cref="Undo()"/> on the undo system with the most recent change found through
+	/// descendants of <paramref name="root"/>. Returns <see langword="true"/> if a change was undone.
+	/// </summary>
+	internal static bool Undo( Widget root ) =>
+		FindAll( root ).MaxBy( x => x.UndoTimestamp ?? DateTime.MinValue )?.Undo() ?? false;
+
+	/// <summary>
+	/// Calls <see cref="Redo()"/> on the undo system with the most recently undone change found through
+	/// descendants of <paramref name="root"/>. Returns <see langword="true"/> if a change was redone.
+	/// </summary>
+	internal static bool Redo( Widget root ) =>
+		FindAll( root ).MinBy( x => x.RedoTimestamp ?? DateTime.MaxValue )?.Redo() ?? false;
+
+	/// <summary>
+	/// Timestamp of the last change made, or null if there's nothing to undo.
+	/// </summary>
+	DateTime? UndoTimestamp { get; }
+
+	/// <summary>
+	/// Timestamp of the last undone change, or null if there's nothing to redo.
+	/// </summary>
+	DateTime? RedoTimestamp { get; }
+
+	/// <summary>
+	/// Undoes the last change made. Calling <see cref="Redo()"/> should now re-apply that change.
+	/// Returns false if there was no change to undo.
+	/// </summary>
+	bool Undo();
+
+	/// <summary>
+	/// Redoes the last undone change, or returns false if there was no undone change to redo.
+	/// </summary>
+	bool Redo();
+}
+
+/// <summary>
+/// A system that aims to wrap the main reusable functionality of an <see cref="IUndoSystem"/>.
+/// </summary>
+public partial class UndoSystem : IUndoSystem
 {
 	public class Entry
 	{
@@ -39,6 +109,10 @@ public partial class UndoSystem
 	/// Forwards stack, gets cleared when a new undo is added
 	/// </summary>
 	public Stack<Entry> Forward { get; } = new();
+
+	DateTime? IUndoSystem.UndoTimestamp => Back.TryPeek( out var prev ) ? prev.Timestamp : null;
+
+	DateTime? IUndoSystem.RedoTimestamp => Forward.TryPeek( out var next ) ? next.Timestamp : null;
 
 	/// <summary>
 	/// Instigate an undo. Return true if we found a successful undo
@@ -99,7 +173,7 @@ public partial class UndoSystem
 			Name = title,
 			Undo = undo,
 			Redo = redo,
-			Timestamp = DateTime.Now,
+			Timestamp = DateTime.UtcNow,
 		};
 
 		Back.Push( e );

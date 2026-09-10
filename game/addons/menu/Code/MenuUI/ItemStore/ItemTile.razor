@@ -1,85 +1,95 @@
-﻿@using Sandbox;
+@using Sandbox;
 @using Sandbox.UI;
 @inherits Panel
 
-<root>
+<root class="@RootClass" style="border-color: @( CountInCart > 0 ? Item.RarityColor : Item.RarityColorAlpha( 0.25f ) )">
 
-    <div class="left">
-        <img src="@Item.IconUrl" width="100" height="100" />
-    </div>
+    <div class="art-wrap" style="background-image: @Item.RarityWash( 0.4f )">
+        <div class="art" style="background-image: url( @Item.BestIconUrl )"></div>
 
-    <div class="right">
-        <div class="title">@Item.Name</div>
-        <div class="description">@Item.Description</div>
-
-		@if ( Item.SellEnd != null )
-		{
-			var days = (Item.SellEnd.Value-DateTime.UtcNow).TotalDays;
-			var text = $"Leaving in {Math.Floor(days)} days";
-
-			if ( days <= 1.5 )
-			{
-				text = "Leaving Soon!";
-			}
-
-			<div class="enddate">@text</div>
-		}
+        <div class="tags">
+            @if ( Item.LeavingText is string leaving )
+            {
+                <label class="tag leaving @( Item.IsLeavingSoon ? "soon" : "" )">@leaving</label>
+            }
+            @if ( Item.IsOnSale )
+            {
+                <label class="tag sale">-@(Item.DiscountPercent)%</label>
+            }
+        </div>
 
         @if ( Owned > 0 )
         {
-            <div class="owned">You already own this item</div>
+            <label class="owned-pill">@( Owned > 1 ? $"Own {Owned}" : "Owned" )</label>
         }
+    </div>
 
-        <div class="spacer"></div>
+    <div class="body">
+        <label class="name">@Item.Name</label>
+        <label class="rarity" style="color: @Item.RarityColor">@RarityLine</label>
 
-        <div class="bottom">
-            <div class="spacer"></div>
-            <div class="cart">
-
-                <div class="price">@Item.Price </div>
-
-                <div class="adder">
-                <div class="remove" @onclick="@RemoveFromCart">-</div>
-                <div class="count">@NumberValue</div>
-                <div class="add" @onclick="@AddToCart">+</div>
-                </div>
-                
+        <div class="buy">
+            <div class="price">
+                <label class="now">@Item.Price</label>
+                @if ( Item.IsOnSale )
+                {
+                    <label class="was">was @Item.BasePrice</label>
+                }
             </div>
+
+            @if ( CountInCart > 0 )
+            {
+                <div class="adder">
+                    <div class="step" @onclick="@RemoveFromCart"><icon>remove</icon></div>
+                    <TextEntry class="count" Numeric="@true" NumberFormat="0" MinValue="@(0f)" MaxValue="@((float)ShoppingCart.MaxPerItem)"
+                               Value="@CountInCart.ToString()" OnTextEdited="@OnCountEdited" onblur="@( ( PanelEvent e ) => OnCountBlur( e ) )" tooltip="Type how many you want"></TextEntry>
+                    <div class="step" @onclick="@AddToCart"><icon>add</icon></div>
+                </div>
+            }
+            else
+            {
+                <div class="add" @onclick="@AddToCart">
+                    <icon>add_shopping_cart</icon>
+                    <label>Add</label>
+                </div>
+            }
         </div>
     </div>
 
 </root>
 
-@code 
+@code
 {
     public Sandbox.Services.Inventory.ItemDefinition Item { get; set; }
     public ShoppingCart Cart { get; set; }
 
-    void AddToCart()
+    void AddToCart() => Cart.AddToCart( Item );
+    void RemoveFromCart() => Cart.RemoveFromCart( Item );
+
+    // Typed counts apply as you type, but an empty or zero box waits until you click away -
+    // otherwise backspacing to retype would drop the item and swap the stepper for "Add".
+    void OnCountEdited( string text )
     {
-        Cart.AddToCart( Item );
+        if ( int.TryParse( text, out var n ) && n >= 1 )
+            Cart.SetCount( Item, n );
     }
 
-    void RemoveFromCart()
+    void OnCountBlur( PanelEvent e )
     {
-        Cart.RemoveFromCart(Item);
+        if ( e.This is not TextEntry entry ) return;
+
+        if ( !int.TryParse( entry.Value, out var n ) || n < 1 )
+            Cart.RemoveAllFromCart( Item );
     }
 
-    bool IsInCart => Cart.Contains(Item);
-    int CountInCart => Cart.Count(Item);
+    int CountInCart => Cart.Count( Item );
+    int Owned => Sandbox.Services.Inventory.Items.Count( x => x.DefinitionId == Item.Id );
 
+    string RootClass => (CountInCart > 0 ? "in-cart " : "") + (Owned > 0 ? "owned " : "") + (Item.IsOnSale ? "on-sale" : "");
 
-    int Owned => Sandbox.Services.Inventory.Items.Count(x => x.DefinitionId == Item.Id);
-
-    string NumberValue
-    {
-        get => CountInCart.ToString();
-
-        set 
-        {
-
-        }
-    }
+    string RarityLine => Item.RarityGrade == ItemRarity.None
+        ? Item.CategoryLabel
+        : $"{Item.RarityGrade} · {Item.CategoryLabel}";
 
     protected override int BuildHash() => HashCode.Combine( Item.Id, CountInCart, Owned );
 }

@@ -3,6 +3,7 @@
 @using Sandbox.UI;
 @using Sandbox.UI.Navigation;
 @using Sandbox;
+@using Sandbox.Modals;
 @using System;
 @namespace Sandbox.UI
 @inherits Panel
@@ -11,10 +12,8 @@
     <div class="inner">
 
         <div class="left">
-            <PartyDeck WithChat=@true />
+            <PartyDeck />
         </div>
-
-        <div class="grow" />
 
         <div class="right">
 
@@ -34,7 +33,7 @@
                 <separator class="vertical" />
             </div>
 
-            <Button Icon="people" onmouseup=@ShowFriendsModal />
+            <Button @ref="FriendsButton" Icon="people" onmouseup=@ShowFriendsModal />
         </div>
     </div>
 </root>
@@ -42,10 +41,21 @@
 @code {
     public IEnumerable<Friend> ActiveFriends = Enumerable.Empty<Friend>();
 
+    Button FriendsButton;
+
     void ShowFriendsModal()
     {
         MenuUtility.CloseAllModals();
-        ModalSystem.Instance.FriendsList(new Modals.FriendsListModalOptions());
+
+        ModalSystem.Instance?.FriendsList(new FriendsListModalOptions
+        {
+            Anchor = new()
+            {
+                Panel = FriendsButton,
+                Position = ModalAnchorPosition.AboveRight,
+                Offset = 24,
+            },
+        });
     }
 
     TimeSince timeSinceUpdated = 100;
@@ -57,5 +67,6 @@
 
         ActiveFriends = MenuUtility.Friends.Where(x => x.IsPlayingThisGame && !x.IsMe).OrderBy(x => x.Name);
         StateHasChanged();
+        timeSinceUpdated = 0;
     }
 }

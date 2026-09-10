@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace Editor.MovieMaker;
@@ -342,6 +343,83 @@ public sealed partial class Session
 		}
 	}
 
+	public sealed record CreateSequenceResult( MovieResource Resource, MovieTime StartTime = default );
+
+	public CreateSequenceResult CreateSequence( IReadOnlyList<TrackView> trackViews, MovieTimeRange timeRange )
+	{
+		var project = new MovieProject();
+
+		var minTime = MovieTime.MaxValue;
+		var maxTime = MovieTime.MinValue;
+
+		foreach ( var trackView in trackViews )
+		{
+			if ( trackView.Track is not IProjectBlockTrack blockTrack ) continue;
+			if ( blockTrack.Blocks is not { Count: > 0 } blocks ) continue;
+
+			foreach ( var block in blocks )
+			{
+				if ( block.TimeRange.Intersect( timeRange ) is not { } intersection ) continue;
+
+				minTime = MovieTime.Min( intersection.Start, minTime );
+				maxTime = MovieTime.Max( intersection.End, maxTime );
+			}
+		}
+
+		timeRange = timeRange.Clamp( (minTime, maxTime) );
+
+		foreach ( var trackView in trackViews )
+		{
+			if ( trackView.Track is not IProjectPropertyTrack propertyTrack ) continue; // TODO
+
+			if ( propertyTrack.Slice( timeRange ) is not { Count: > 0 } slice ) continue;
+
+			var trackCopy = (IProjectPropertyTrack)project.GetOrAddTrack( trackView.Track );
+
+			trackCopy.SetBlocks( [.. slice.Select( x => x.Shift( -timeRange.Start ) )] );
+		}
+
+		var resource = new MovieResource { EditorData = project.Serialize(), Compiled = project.Compile() };
+
+		return new CreateSequenceResult( resource, timeRange.Start );
+	}
+
+	public bool Delete( IReadOnlyList<TrackView> trackViews, MovieTimeRange timeRange, bool shiftTime, bool removeEmptyTracks )
+	{
+		var changed = false;
+
+		foreach ( var view in trackViews )
+		{
+			if ( view.Track is not IProjectPropertyTrack propertyTrack ) continue;
+
+			var trackChanged = shiftTime ? propertyTrack.Remove( timeRange ) : propertyTrack.Clear( timeRange );
+
+			if ( !trackChanged ) continue;
+
+			changed = true;
+
+			view.MarkValueChanged();
+		}
+
+		if ( !changed ) return false;
+
+		if ( !removeEmptyTracks )
+		{
+			ClipModified();
+
+			return true;
+		}
+
+		foreach ( var view in trackViews.Reverse() )
+		{
+			if ( view.IsEmpty ) view.Remove();
+		}
+
+		ClipModified();
+
+		return true;
+	}
+
 	public void Undo()
 	{
 		if ( History.Undo() )
@@ -482,9 +560,11 @@ public sealed partial class Session
 		}
 	}
 
-	private void ImportMovieFromGameData( string path, MovieTime time = default )
+	private void ImportMovieFromCapture( string fullPath, MovieTime time = default )
 	{
-		if ( ResourceLibrary.TryGet( path, out MovieResource existing ) )
+		var dstPath = Path.Combine( "movies", "captures", Path.GetFileName( fullPath ) );
+
+		if ( ResourceLibrary.TryGet( dstPath, out MovieResource existing ) )
 		{
 			ImportMovie( existing, time );
 			return;
@@ -492,7 +572,7 @@ public sealed partial class Session
 
 		Task.Run( async () =>
 		{
-			var movie = await ImportMovieFromGameDataAsync( path );
+			var movie = await ImportMovieFromCaptureAsync( fullPath, dstPath );
 
 			if ( movie is null ) return;
 
@@ -502,16 +582,16 @@ public sealed partial class Session
 		} );
 	}
 
-	private static async Task<MovieResource?> ImportMovieFromGameDataAsync( string path )
+	private static async Task<MovieResource?> ImportMovieFromCaptureAsync( string srcPath, string dstPath )
 	{
 		try
 		{
-			var assetPath = Path.Combine( Sandbox.Project.Current.GetAssetsPath(), path );
+			var assetPath = Path.Combine( Sandbox.Project.Current.GetAssetsPath(), dstPath );
 			var assetDir = Path.GetDirectoryName( assetPath )!;
 
 			Directory.CreateDirectory( assetDir );
 
-			var json = await Sandbox.FileSystem.Data.ReadAllTextAsync( path );
+			var json = await File.ReadAllTextAsync( srcPath );
 			var node = Json.ParseToJsonObject( json );
 
 			// Don't bother if the movie is empty
@@ -563,19 +643,53 @@ public sealed partial class Session
 
 	private readonly record struct ImportMenuItem( string Path, Action Action );
 
+	private static Regex CaptureNameRegex { get; } = new( @"^(?:(?<game>[^.]+)\.)?(?:(?<map>[^.]+)\.)?(?<date>[0-9]{4}\.[0-9]{2}\.[0-9]{2})\.(?<time>[0-9]{2}\.[0-9]{2}\.[0-9]{2})(?:\.(?<index>[0-9]+))?\.movie$" );
+
+	private static string GetCapturePath( string name )
+	{
+		if ( CaptureNameRegex.Match( name ) is not { Success: true } match )
+		{
+			return name;
+		}
+
+		var path = $"{match.Groups["date"].Value} - {match.Groups["time"].Value}";
+
+		if ( match.Groups["map"].Success )
+		{
+			path = $"{match.Groups["map"].Value}/{path}";
+		}
+
+		if ( match.Groups["game"].Success )
+		{
+			path = $"{match.Groups["game"].Value}/{path}";
+		}
+
+		if ( match.Groups["index"].Success )
+		{
+			path = $"{path} - {match.Groups["index"].Value}";
+		}
+
+		return $"{path}.movie";
+	}
+
 	public void CreateImportMenu( Menu parent, MovieTime time = default )
 	{
-		var existingMovies = ResourceLibrary.GetAll<MovieResource>()
+		var allMovies = new List<ImportMenuItem>();
+
+		allMovies.AddRange( ResourceLibrary.GetAll<MovieResource>()
 			.Where( CanReferenceMovie )
-			.Select( x => new ImportMenuItem( x.ResourcePath, () => ImportMovie( x, time ) ) );
+			.Select( x => new ImportMenuItem( $"Assets/{x.ResourcePath}", () => ImportMovie( x, time ) ) ) );
 
-		var gameDataMovies = Sandbox.FileSystem.Data
-			.FindFile( "/", "*.movie", true )
-			.Select( x => new ImportMenuItem( $"Data/{x}", () => ImportMovieFromGameData( x, time ) ) );
+		var captureDir = new DirectoryInfo( "movies" );
 
-		var allMovies = existingMovies.Concat( gameDataMovies ).ToArray();
+		if ( captureDir.Exists )
+		{
+			allMovies.AddRange( captureDir.EnumerateFiles( "*.movie", SearchOption.AllDirectories )
+				.Select( x => new ImportMenuItem( $"In-Game Captures/{GetCapturePath( x.Name )}",
+					() => ImportMovieFromCapture( x.FullName, time ) ) ) );
+		}
 
-		if ( allMovies.Length == 0 ) return;
+		if ( allMovies.Count == 0 ) return;
 
 		var importMenu = parent.AddMenu( "Import Movie", "sim_card_download" );
 

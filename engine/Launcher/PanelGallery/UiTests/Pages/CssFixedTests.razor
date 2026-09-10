@@ -1,0 +1,42 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+
+@attribute [Title( "CSS Fixed" )]
+@attribute [Description( "Root-viewport floaters with logical ownership" )]
+@attribute [Icon( "picture_in_picture" )]
+@attribute [Order( 24 )]
+
+<root>
+    <h2>Fixed descendants</h2>
+    <label class="description">The blue owner clips, scrolls and rotates its ordinary content. Its orange child remains aligned to the window, above normal content, without reparenting.</label>
+    <div class="controls">
+        <button onclick="@ToggleOwner">@(hidden ? "Show owner" : "Hide owner")</button>
+        <button onclick="@ToggleTransform">Toggle owner transform</button>
+    </div>
+    <div class="owner @(hidden ? "hidden" : "") @(rotated ? "rotated" : "")">
+        <label>Logical owner: overflow scroll + isolation</label>
+        <div class="long-content"><label>Scroll this panel. The floater must not move or enlarge its scroll area.</label></div>
+        <div class="floater">
+            <label class="heading">Fixed child</label>
+            <label>right: 32px; top: 100px</label>
+            <label>Still owned by the blue panel.</label>
+            <button onclick="@ClickFloater">@($"Clicked {clicks} time(s)")</button>
+            <div class="nested-fixed"><label>Nested fixed: bottom 24px</label></div>
+        </div>
+    </div>
+    <div class="ordinary"><label>Normal content, z-index: 9999. Fixed floaters render above this layer.</label></div>
+    <label class="description">Resize the window: right and bottom offsets follow this root's viewport. Hiding the owner also hides both fixed descendants. Existing popup and tooltip controls are unchanged.</label>
+</root>
+
+@code
+{
+    bool hidden;
+    bool rotated = true;
+    int clicks;
+    void ToggleOwner() => hidden = !hidden;
+    void ToggleTransform() => rotated = !rotated;
+    void ClickFloater() => clicks++;
+    protected override int BuildHash() => HashCode.Combine( hidden, rotated, clicks );
+}

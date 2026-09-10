@@ -30,6 +30,14 @@ internal static partial class Rules
 		"System.Private.CoreLib/System.IO.FileLoadException*",
 		"System.Private.CoreLib/System.IO.PathTooLongException*",
 		"System.Private.CoreLib/System.IO.EndOfStreamException*",
+
+		// InvalidDataException - explicit entries (no wildcard). Only adds its 3 ctors; inherited
+		// members are already covered by System.Exception*.
+		"System.Private.CoreLib/System.IO.InvalidDataException",
+		"System.Private.CoreLib/System.IO.InvalidDataException..ctor()",
+		"System.Private.CoreLib/System.IO.InvalidDataException..ctor( System.String )",
+		"System.Private.CoreLib/System.IO.InvalidDataException..ctor( System.String, System.Exception )",
+
 		"System.Private.CoreLib/System.Runtime.CompilerServices.SwitchExpressionException*",
 	};
 }

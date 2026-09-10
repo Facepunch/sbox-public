@@ -1,0 +1,17 @@
+BorderShapeTests
+{
+	.oversized-child
+	{
+		position: absolute;
+		left: -25px;
+		top: 25px;
+		width: 270px;
+		height: 60px;
+		align-items: center;
+		justify-content: center;
+		background-image: linear-gradient( to right, #ff4a6e, #4a9eff );
+		font-size: 18px;
+		font-weight: 700;
+		color: white;
+	}
+}

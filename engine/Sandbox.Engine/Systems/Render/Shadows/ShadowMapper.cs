@@ -28,7 +28,7 @@ internal partial class ShadowMapper
 	[ConVar( "r.shadows.csm.distance", Min = 500, Max = 50000, Help = "Maximum distance from the camera that directional light shadows are rendered." )]
 	public static float CascadeDistance { get; set; } = 15000;
 
-	[ConVar( "r.shadows.debug", Help = "Show shadow debug overlay with memory allocation and budget info." )]
+	[ConVar( "r.shadows.debug", ConVarFlags.Cheat, Help = "Show shadow debug overlay with memory allocation and budget info." )]
 	public static bool DebugEnabled { get; set; } = false;
 
 	[ConVar( "r.shadows.csm.enabled", Help = "Enable directional light (CSM) shadows." )]
@@ -36,6 +36,9 @@ internal partial class ShadowMapper
 
 	[ConVar( "r.shadows.local.enabled", Help = "Enable local light (spot/point) shadows." )]
 	public static bool LocalShadowsEnabled { get; set; } = true;
+
+	[ConVar( "r.shadows.updates", Min = 1, Max = 256, Help = "How many local light shadow maps may be re-rendered per frame. The most stale lights (weighted by screen size) go first; new, moved and resized lights always update." )]
+	public static int MaxUpdatesPerFrame { get; set; } = 8;
 
 	[ConVar( "r.shadows.depthbias", Min = -256, Max = 0, Help = "Rasterizer constant depth bias applied during shadow map rendering. More negative = stronger bias." )]
 	public static int ShadowDepthBias { get; set; } = -1;
@@ -71,9 +74,13 @@ internal partial class ShadowMapper
 
 	ISceneView SceneView { get; set; }
 
+	/// <summary>Directional light for this view.</summary>
+	SceneLight DirectionalLight { get; set; }
+
 	internal void InitForView( ISceneView sceneView )
 	{
 		SceneView = sceneView;
+		DirectionalLight = null;
 
 		// Evict stale shadow maps and clean the texture pool
 		Update();
@@ -83,6 +90,7 @@ internal partial class ShadowMapper
 		GPUProjectedCubeShadows.Clear();
 		GPUDirectionalLightData.CascadeCount = 0;
 		GPUDirectionalLightData.Enabled = false;
+		GPUDirectionalLightData.ShadowMaskTextureIndex = 0;
 		ShadowsAllocated = 0;
 
 		// Save statistics from last frame, then reset
@@ -125,9 +133,76 @@ internal partial class ShadowMapper
 		public int DebugLightIndex;
 		public bool IsCube;
 		public string DebugName;
+		public int CachedTransformVersion;
+
+		// Shadow maps don't depend on the camera: rendered at most once per engine frame, shared by every view that
+		// frame (cube faces, mirrors, VR eyes), and time sliced across frames. 0 = never rendered, must render.
+		public ulong RenderedFrame;
+		public ulong UsedFrame;
+		public bool Scheduled;
+		internal GPUProjectedShadow Projected;
+		internal GPUProjectedCubeShadow Cube;
 	}
 
+	static ulong FrameStamp;
+	static readonly List<LightEntry> Schedule = new();
+
+	/// <summary>
+	/// Higher refreshes sooner. Screen size enters exponentially, so a light near enough to fill part of the
+	/// view outranks a distant one by orders of magnitude instead of by their size ratio.
+	/// </summary>
+	static float Priority( LightEntry e ) => (FrameStamp - e.RenderedFrame) * MathF.Exp( 6f * e.ScreenSize );
+
 	public static ConditionalWeakTable<SceneLight, LightEntry> Cache = new();
+
+	/// <summary>
+	/// Get or create the cache entry for a light, handling resolution changes and
+	/// dropping the static cache if the light moved.
+	/// </summary>
+	static LightEntry GetOrCreateCacheEntry( SceneLight light, int desiredResolution, bool isCube, float flScreenSize )
+	{
+		if ( !Cache.TryGetValue( light, out var entry ) )
+		{
+			entry = new()
+			{
+				ShadowMap = AcquireTexture( desiredResolution, isCube ),
+				CurrentResolution = desiredResolution,
+				IsCube = isCube,
+				DebugName = $"{light}_Shadow",
+			};
+			Cache.AddOrUpdate( light, entry );
+		}
+
+		// Keep track of how big we actually want it, if we run low on budget we can downgrade these out of scope
+		entry.DesiredResolution = desiredResolution;
+		entry.ScreenSize = flScreenSize;
+
+		// A smaller view later in the same frame (probe bake, mirror) keeps the bigger map already rendered this frame
+		if ( entry.RenderedFrame == Application.FrameCount && desiredResolution < entry.CurrentResolution )
+			desiredResolution = entry.CurrentResolution;
+
+		// Do we want a different resolution for this shadow map now?
+		if ( entry.CurrentResolution != desiredResolution )
+		{
+			ReleaseTexture( entry.ShadowMap, entry.CurrentResolution, entry.IsCube );
+			ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
+			entry.ShadowMap = AcquireTexture( desiredResolution, isCube );
+			entry.StaticCache = null;
+			entry.CurrentResolution = desiredResolution;
+			entry.RenderedFrame = 0;
+		}
+
+		// The static cache is only valid for the transform it was rendered at, and a moved light must re-render
+		if ( entry.CachedTransformVersion != light.TransformVersion )
+		{
+			entry.CachedTransformVersion = light.TransformVersion;
+			ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
+			entry.StaticCache = null;
+			entry.RenderedFrame = 0;
+		}
+
+		return entry;
+	}
 
 	public static long MemorySize
 	{
@@ -138,6 +213,9 @@ internal partial class ShadowMapper
 			{
 				if ( kvp.Value.ShadowMap is not null )
 					total += g_pRenderDevice.ComputeTextureMemorySize( kvp.Value.ShadowMap.native );
+
+				if ( kvp.Value.StaticCache is not null )
+					total += g_pRenderDevice.ComputeTextureMemorySize( kvp.Value.StaticCache.native );
 			}
 			return total;
 		}
@@ -199,6 +277,11 @@ internal partial class ShadowMapper
 	/// </summary>
 	public static void Update()
 	{
+		// Once per engine frame, not per view
+		if ( FrameStamp == Application.FrameCount )
+			return;
+
+		FrameStamp = Application.FrameCount;
 		float now = RealTime.Now;
 
 		// Evict stale cache entries
@@ -218,8 +301,10 @@ internal partial class ShadowMapper
 			{
 				if ( Cache.TryGetValue( light, out var entry ) )
 				{
+					ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
 					ReleaseTexture( entry.ShadowMap, entry.CurrentResolution, entry.IsCube );
 					entry.ShadowMap = null;
+					entry.StaticCache = null;
 					Cache.Remove( light );
 				}
 			}
@@ -235,6 +320,20 @@ internal partial class ShadowMapper
 				TotalTexturesDisposed++;
 			}
 		}
+
+		// Time slicing: the update budget goes to the lights that have waited longest, weighted by screen size,
+		// so big lights refresh often and small ones still get a turn. New and moved lights bypass the budget.
+		Schedule.Clear();
+		foreach ( var kvp in Cache )
+		{
+			kvp.Value.Scheduled = false;
+			if ( kvp.Value.UsedFrame == FrameStamp - 1 )
+				Schedule.Add( kvp.Value );
+		}
+
+		Schedule.Sort( static ( a, b ) => Priority( b ).CompareTo( Priority( a ) ) );
+		for ( int i = 0; i < Schedule.Count && i < MaxUpdatesPerFrame; i++ )
+			Schedule[i].Scheduled = true;
 	}
 
 	/// <summary>
@@ -247,24 +346,26 @@ internal partial class ShadowMapper
 
 		ReleaseTexture( entry.ShadowMap, entry.CurrentResolution, entry.IsCube );
 		entry.ShadowMap = null;
+		ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
+		entry.StaticCache = null;
 		Cache.Remove( light );
 	}
 
 	/// <summary>
-	/// Computes a per-light bias scale factor based on the shadow frustum's texel size.
-	/// Wider cones and larger ranges produce bigger shadow map texels in world space,
-	/// requiring proportionally more bias to prevent acne. Matches Unity URP's approach
-	/// of scaling bias by <c>frustumSize / resolution</c>.
+	/// Scale for rasterizer depth bias. Uses texel-to-depth ratio (tanθ / res),
+	/// same idea as CSM Width/Far — not world-space texel size.
+	/// Normalized so a 45° half-angle map at BiasScaleReferenceResolution is 1.0.
 	/// </summary>
+
 	static float ComputeBiasScale( float halfAngleDegrees, float range, int resolution )
 	{
-		float frustumSize = MathF.Tan( halfAngleDegrees * MathF.PI / 180f ) * range;
-		float texelSize = frustumSize / resolution;
+		const int BiasScaleReferenceResolution = 1024;
 
-		// Normalize against a reference texel size so that a typical mid-range spotlight
-		// (e.g. 45° half-angle, 200 range, 1024 res) gets a scale of ~1.0.
-		const float ReferenceTexelSize = 0.2f;
-		return MathF.Max( 1f, texelSize / ReferenceTexelSize );
+		// (tanθ / resolution) / (tan45° / referenceRes) — range is unused (cancels for depth-unit bias).
+		// Cap at 1: scaling *up* for low-res/wide cones only detaches shadows (peter-panning).
+		return Math.Min( 1f, MathF.Tan( halfAngleDegrees * MathF.PI / 180f )
+			* BiasScaleReferenceResolution
+			/ Math.Max( resolution, 1 ) );
 	}
 
 	internal static int GetDesiredResolution( float screenSizePercent, int viewportSize )
@@ -305,6 +406,7 @@ internal partial class ShadowMapper
 
 	internal int DoDirectionalLight( SceneLight sceneObject, ISceneView view )
 	{
+		DirectionalLight = sceneObject;
 		GPUDirectionalLightData.Enabled = true;
 
 		if ( !CSMEnabled )

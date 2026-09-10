@@ -7,7 +7,7 @@ public static partial class Game
 	/// <summary>
 	/// Indicates whether the game is currently running and actively playing a scene.
 	/// </summary>
-	public static bool IsPlaying { get; internal set; }
+	public static bool IsPlaying { get; internal set; } = true;
 
 	/// <summary>
 	/// Indicates whether the game is currently paused.
@@ -76,8 +76,8 @@ public static partial class Game
 			return;
 		}
 
-		ActiveScene.Camera.SceneCamera.EnableEngineOverlays = true;
-		SceneCamera.RecordingCamera = ActiveScene.Camera.SceneCamera;
+		ActiveScene.Camera?.SceneCamera.EnableEngineOverlays = true;
+		SceneCamera.RecordingCamera = ActiveScene.Camera?.SceneCamera;
 
 		ActiveScene.Render( swapChain, default );
 	}

@@ -53,4 +53,23 @@ native class ISceneLayer as NativeEngine.ISceneLayer
     {
         this->m_RenderTargetOutputs.Init( hColor, hDepth );
     }
+
+    // Game overlay (viewmodel) stencil helper, see iscenelayer.h
+    inline void SetOverlayStencil( bool bOverlay )
+    {
+		constexpr uint8 GAME_OVERLAY_STENCIL_MASK = 0x80;
+
+		RsStencilStateOverride_t stencilOverride;
+		stencilOverride.m_nStencilRefValue = bOverlay ? GAME_OVERLAY_STENCIL_MASK : 0;
+		stencilOverride.m_stencilState = RsStencilStateDesc_t(
+			true, bOverlay ? 0 : GAME_OVERLAY_STENCIL_MASK, bOverlay ? GAME_OVERLAY_STENCIL_MASK : 0,
+			RS_STENCIL_OP_KEEP, RS_STENCIL_OP_KEEP, bOverlay ? RS_STENCIL_OP_REPLACE : RS_STENCIL_OP_KEEP, RS_CMP_ALWAYS,
+			RS_STENCIL_OP_KEEP, RS_STENCIL_OP_KEEP, bOverlay ? RS_STENCIL_OP_REPLACE : RS_STENCIL_OP_KEEP, RS_CMP_ALWAYS );
+		if ( !bOverlay )
+		{
+			stencilOverride.m_stencilState.SetFrontStencilFunc( RS_CMP_EQUAL );
+			stencilOverride.m_stencilState.SetBackStencilFunc( RS_CMP_EQUAL );
+		}
+		this->SetStencilStateOverride( stencilOverride );
+	}
 }

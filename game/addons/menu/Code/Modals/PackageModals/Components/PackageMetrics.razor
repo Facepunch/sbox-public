@@ -2,7 +2,7 @@
 @inherits Panel
 @using Sandbox;
 @using Sandbox.UI;
-@using Menu;
+@using SboxMenu;
 @using System;
 @using Sandbox.Network
 
@@ -38,6 +38,8 @@
     <MetricButton Tooltip="Total Sessions" Icon="calendar_month" Value="@Package.Usage.Total.Sessions.ToMetric()" />
 
     <MetricButton Tooltip="Last Updated" Icon="update" Value="@((DateTime.UtcNow - Package.Updated ).Humanize( 1 ))" />
+
+    <MetricButton Interactive style="margin-top: 30px;" Tooltip="Report Abuse" Icon="flag" Value="report" @onclick="@( () => Game.Overlay.ShowReportModal( Package.FullIdent ) )" />
 
 </root>
 

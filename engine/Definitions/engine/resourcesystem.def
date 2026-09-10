@@ -6,12 +6,19 @@ native accessor g_pResourceSystem as NativeEngine.g_pResourceSystem
 	void ReloadSymlinkedResidentResources();
 	void UpdateSimple();
 	bool HasPendingWork();
+	int GetNumPendingStreamingRequests();
 	bool IsShuttingDown();
 
 	inline HResourceManifest LoadResourceInManifest( string name )
 	{
 		ResourceManifestCreationInfo_t info( 1, &name, RESOURCE_MANIFEST_TYPE_DEFAULT, RESOURCE_MANIFEST_LOAD_STREAMING_DATA, name );
 		return g_pResourceSystem->CreateResourceManifest( info );
+	}
+
+	// Reload a resource (and anything it references) from disk, firing reload notifications
+	inline void ReloadResource( string name )
+	{
+		g_pResourceSystem->BlockingReloadResources( 1, &name, RESOURCE_MANIFEST_LOAD_STREAMING_DATA, "Managed ReloadResource" );
 	}
 
 	void DestroyResourceManifest( HResourceManifest manifest );
@@ -27,6 +34,11 @@ native accessor g_pResourceSystem as NativeEngine.g_pResourceSystem
 managed class Sandbox.Resource
 {
 	static void OnResourceReloaded( string name, void* resourceBinding );
+
+	// Called when a resource's file data has been loaded. The header is the
+	// resource file's non-streaming data and is only valid during the call -
+	// copy out anything you want.
+	static void OnResourceLoaded( string name, void* header );
 }
 
 

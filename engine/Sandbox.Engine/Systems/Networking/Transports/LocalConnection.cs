@@ -6,7 +6,6 @@ namespace Sandbox.Network;
 internal class LocalConnection : Connection
 {
 	public override string Address => "local";
-	public override string Name => "local";
 	public override bool IsHost => Networking.System?.IsHost ?? true;
 
 	internal override void InternalClose( int closeCode, string closeReason ) { }
@@ -27,7 +26,6 @@ internal class LocalConnection : Connection
 internal class MockConnection : Connection
 {
 	public override string Address => "";
-	public override string Name => $"{Id}";
 	public override bool IsHost => false;
 
 	internal override void InternalClose( int closeCode, string closeReason ) { }

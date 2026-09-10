@@ -147,6 +147,12 @@ public partial class RenderAttributes
 		attributes.SetIntValue( k, value );
 	}
 
+	public void Set( in StringToken k, in uint value )
+	{
+		if ( !attributes.IsValid ) return;
+		attributes.SetIntValue( k, unchecked((int)value) );
+	}
+
 	public void Set( in StringToken k, in Vector2Int value )
 	{
 		if ( !attributes.IsValid ) return;
@@ -340,6 +346,15 @@ public partial class RenderAttributes
 	}
 
 	/// <summary>
+	/// Get a uint value - else defaultValue if missing
+	/// </summary>
+	public uint GetUInt( in StringToken name, in uint defaultValue = default )
+	{
+		if ( !attributes.IsValid ) return defaultValue;
+		return unchecked((uint)attributes.GetIntValue( name, unchecked((int)defaultValue) ));
+	}
+
+	/// <summary>
 	/// Get a matrix value - else defaultValue if missing
 	/// </summary>
 	public Matrix GetMatrix( in StringToken name, in Matrix defaultValue = default )
@@ -378,6 +393,7 @@ public partial class RenderAttributes
 	public void SetCombo( [StringToken.Convert] in string k, in bool value ) => SetCombo( (StringToken)k, value );
 	public void Set( [StringToken.Convert] in string k, in bool value ) => Set( (StringToken)k, value );
 	public void Set( [StringToken.Convert] in string k, in int value ) => Set( (StringToken)k, value );
+	public void Set( [StringToken.Convert] in string k, in uint value ) => Set( (StringToken)k, value );
 	public void Set( [StringToken.Convert] in string k, in Vector2Int value ) => Set( (StringToken)k, value );
 	public void Set( [StringToken.Convert] in string k, in Vector3Int value ) => Set( (StringToken)k, value );
 	public void Set( [StringToken.Convert] in string k, in Vector4 value ) => Set( (StringToken)k, value );

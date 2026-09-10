@@ -145,6 +145,8 @@ file sealed record BoneProperty( ITrackProperty<BoneAccessor?> Parent, string Na
 [Expose]
 file sealed class BonePropertyFactory : ITrackPropertyFactory<ITrackProperty<BoneAccessor?>, Transform>
 {
+	public string BaseCategoryName => "Bones";
+
 	/// <summary>
 	/// Any property inside a <see cref="BoneAccessor"/> is a bone.
 	/// </summary>
@@ -157,16 +159,6 @@ file sealed class BonePropertyFactory : ITrackPropertyFactory<ITrackProperty<Bon
 		return parent is { IsBound: true, Value.Renderer.Model: { } model }
 			? model.Bones.AllBones.Select( x => x.Name )
 			: [];
-	}
-
-	public string GetCategoryName( ITrackProperty<BoneAccessor?> parent, string name )
-	{
-		var firstSep = name.IndexOf( '_' );
-		var lastSep = name.LastIndexOf( '_' );
-
-		if ( firstSep == lastSep ) return "Bones";
-
-		return $"Bones/{name[..firstSep].ToTitleCase()}";
 	}
 }
 
@@ -197,7 +189,7 @@ file sealed record BoneAccessorProperty( ITrackReference<SkinnedModelRenderer> P
 [Expose]
 file sealed class BoneAccessorPropertyFactory : ITrackPropertyFactory<ITrackReference<SkinnedModelRenderer>, BoneAccessor?>
 {
-	public string GetCategoryName( ITrackReference<SkinnedModelRenderer> parent, string name ) => "Members";
+	public string BaseCategoryName => "Members";
 
 	public IEnumerable<string> GetPropertyNames( ITrackReference<SkinnedModelRenderer> parent ) =>
 		[BoneAccessorProperty.PropertyName];

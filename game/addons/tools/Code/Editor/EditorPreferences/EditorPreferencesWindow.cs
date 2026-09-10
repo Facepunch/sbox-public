@@ -17,7 +17,8 @@ internal class EditorPreferencesWindow : BaseWindow
 	public EditorPreferencesWindow()
 	{
 		SetModal( true, true );
-		Size = new Vector2( 740, 440 );
+		Size = new Vector2( 1024, 768 );
+		MinimumSize = new Vector2( 1024, 768 );
 		MinimumSize = Size;
 		TranslucentBackground = true;
 		NoSystemBackground = true;
@@ -39,6 +40,7 @@ internal class EditorPreferencesWindow : BaseWindow
 		container.AddPage( "Scene View", "videocam", new PageSceneView( this ) );
 		container.AddPage( "Editor Keybinds", "keyboard", new PageKeybinds( this ) );
 		container.AddPage( "Networking", "wifi", new PageNetworking( this ) );
+		container.AddPage( "MCP Server", "smart_toy", new PageMcp( this ) );
 
 		EditorEvent.Run( "editor.preferences", container );
 	}

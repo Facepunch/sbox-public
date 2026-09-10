@@ -5,19 +5,23 @@ public partial class AssetBrowser
 	/// <summary>
 	/// Gets the closest open <see cref="Project"/> to the current focused widget
 	/// </summary>
-	public static LocalAssetBrowser Get()
+	public static WrappedAssetBrowser Get()
 	{
-		LocalAssetBrowser browser;
+		WrappedAssetBrowser browser;
 
 		// 1. try to find one for the current focused window
-		if ( Application.FocusWidget?.GetWindow() is DockWindow dockable )
+		if ( Application.FocusWidget is { } focused )
 		{
-			browser = dockable.DockManager.GetDockWidget( "Asset Browser" ) as LocalAssetBrowser;
+			var manager = focused.GetWindow() is DockWindow dockable
+				? dockable.DockManager
+				: EditorWindow?.DockManager;
+
+			browser = manager?.FindDockWidget( focused )?.Widget as WrappedAssetBrowser;
 			if ( browser.IsValid() ) return browser;
 		}
 
 		// 2. try the primary instance
-		browser = MainAssetBrowser.Instance.Local;
+		browser = MainAssetBrowser.Instance;
 		if ( browser.IsValid() ) return browser;
 
 		return null;
@@ -26,23 +30,31 @@ public partial class AssetBrowser
 	/// <summary>
 	/// Gets the closest open <see cref="Project"/> to the current focused widget, or creates a new one
 	/// </summary>
-	public static LocalAssetBrowser GetOrCreate()
+	private static WrappedAssetBrowser GetOrCreate()
 	{
 		if ( Get() is { } browser )
 			return browser;
 
-		return EditorWindow.DockManager.Create<MainAssetBrowser>().Local;
+		EditorWindow.DockManager.SetDockState( "Asset Browser", true );
+		return MainAssetBrowser.Instance;
 	}
 
 	/// <summary>
 	/// Opens an AssetBrowser to the <paramref name="asset"/>, raising the window into view.
+	/// Clears any active search filter so the asset isn't hidden.
 	/// If no AssetBrowser is open already, a new one will be opened. 
 	/// </summary>
 	public static void OpenTo( Asset asset, bool skipEvents = false )
 	{
-		var browser = GetOrCreate();
-		EditorWindow.DockManager.RaiseDock( browser );
+		var wrapped = GetOrCreate();
+		if ( wrapped is null ) return;
+
+		EditorWindow.DockManager.RaiseDock( wrapped );
+
+		var browser = wrapped.GetBrowser( asset );
+		wrapped.SwitchTo( browser );
 		browser.Focus( true );
+		browser.Search.Clear();
 		browser.FocusOnAsset( asset, skipEvents );
 	}
 
@@ -58,9 +70,15 @@ public partial class AssetBrowser
 			return;
 		}
 
-		var browser = GetOrCreate();
-		EditorWindow.DockManager.RaiseDock( browser );
+		var wrapped = GetOrCreate();
+		if ( wrapped is null ) return;
+
+		EditorWindow.DockManager.RaiseDock( wrapped );
+
+		var browser = wrapped.GetBrowser( entry );
+		wrapped.SwitchTo( browser );
 		browser.Focus( true );
+		browser.Search.Clear();
 		browser.NavigateTo( entry.AbsolutePath );
 	}
 }

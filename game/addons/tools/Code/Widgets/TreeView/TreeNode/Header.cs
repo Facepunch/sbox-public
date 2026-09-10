@@ -48,7 +48,7 @@ public partial class TreeNode
 				Paint.DrawIcon( item.Rect.Grow( 2 ), Icon, 28, TextFlag.RightTop );
 			}
 
-			Paint.SetPen( Theme.Border.WithAlpha( open ? 1.0f : 0.5f ) );
+			Paint.SetPen( Theme.Text.WithAlpha( open ? 1.0f : 0.5f ) );
 			Paint.SetHeadingFont( 10, 450 );
 
 			var textRect = Paint.DrawText( item.Rect, Title.ToUpper(), TextFlag.LeftCenter );

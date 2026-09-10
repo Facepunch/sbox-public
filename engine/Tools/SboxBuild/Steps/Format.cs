@@ -2,7 +2,7 @@
 
 namespace Facepunch.Steps;
 
-internal class Format( string name, Constants.Solutions solution, Format.Mode mode = Format.Mode.Full, bool verifyOnly = false ) : Step( name )
+internal class Format( Constants.Solutions solution, Format.Mode mode = Format.Mode.Full, bool verifyOnly = false )
 {
 	public enum Mode
 	{
@@ -10,7 +10,7 @@ internal class Format( string name, Constants.Solutions solution, Format.Mode mo
 		Whitespace = 1,
 	}
 
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		var solutionDir = Constants.GetSolutionDir( solution );
 

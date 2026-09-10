@@ -11,6 +11,7 @@ internal partial class BytePack
 		public virtual Type TargetType { get; }
 		internal virtual Identifier Header { get; }
 		internal virtual int TypeIdentifier { get; }
+		internal bool UsesCollectionFormat { get; private set; }
 
 		public virtual void Write( ref ByteStream bs, object obj )
 		{
@@ -35,6 +36,10 @@ internal partial class BytePack
 
 			if ( TargetType is not null )
 			{
+				// Collections keep their built-in wire format even if a runtime packer for
+				// the same type was installed while reading a message.
+				UsesCollectionFormat = TargetType.IsBasedOnGenericType( typeof( List<> ) )
+					|| TargetType.IsBasedOnGenericType( typeof( Dictionary<,> ) );
 				parent.types[TargetType] = this;
 			}
 

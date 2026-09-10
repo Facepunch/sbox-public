@@ -2,10 +2,13 @@
 
 namespace Editor.MeshEditor;
 
+/// <summary>
+/// Creates a cylinder fitted to the drawn bounds.
+/// </summary>
 [Title( "Cylinder" ), Icon( "circle" )]
 internal class CylinderPrimitive : PrimitiveBuilder
 {
-	[Title( "Number of sides" )]
+	[Title( "Number of sides" ), WideMode, Description( "Controls how round the cylinder is." )]
 	public int NumberOfSides { get; set; } = 16;
 
 	[Hide] public Vector3 Center { get; set; }
