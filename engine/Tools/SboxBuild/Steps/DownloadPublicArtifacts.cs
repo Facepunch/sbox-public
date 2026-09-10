@@ -37,6 +37,7 @@ internal class DownloadPublicArtifacts( bool nativeBinariesOnly = false )
 			}
 
 			using var httpClient = CreateHttpClient();
+			var requireMatchingNativeInputs = nativeBinariesOnly && !string.IsNullOrEmpty( Environment.GetEnvironmentVariable( "GITHUB_BASE_REF" ) );
 
 			ArtifactManifest manifest = null;
 			foreach ( var candidate in commitCandidates )
@@ -53,13 +54,20 @@ internal class DownloadPublicArtifacts( bool nativeBinariesOnly = false )
 					return ExitCode.Failure;
 				}
 
+				// PR bindings are generated from HEAD, not from the downloaded artifact revision.
+				if ( requireMatchingNativeInputs && !Utility.NativeInputsMatch( candidate ) )
+				{
+					Log.Warning( $"Skipping native artifacts from {candidate}: native inputs differ or could not be verified." );
+					continue;
+				}
+
 				manifest = candidateManifest;
 				break;
 			}
 
 			if ( manifest is null )
 			{
-				Log.Error( $"Unable to locate a manifest within the last {commitCandidates.Count} commit(s)." );
+				Log.Error( $"Unable to locate a compatible manifest within the last {commitCandidates.Count} commit(s)." );
 				return ExitCode.Failure;
 			}
 

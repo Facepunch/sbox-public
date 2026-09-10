@@ -42,7 +42,7 @@ internal partial class ShadowMapper
 		Hud.DrawText( scope, new Vector2( x, y ), TextFlag.LeftTop );
 		y += 14;
 
-		scope.Text = $"Shadow Maps Rendered This Frame: {ShadowMapper.Cache.Where( x => x.Value.LastFrame > (RealTime.Now - 0.01f) ).Count()}";
+		scope.Text = $"Shadow Maps Rendered This Frame: {ShadowMapper.Cache.Where( x => x.Value.RenderedFrame == Application.FrameCount ).Count()} (budget {ShadowMapper.MaxUpdatesPerFrame} + new/moved)";
 		scope.TextColor = new Color( 0.6f, 0.9f, 1f );
 		Hud.DrawText( scope, new Vector2( x, y ), TextFlag.LeftTop );
 		y += 14;

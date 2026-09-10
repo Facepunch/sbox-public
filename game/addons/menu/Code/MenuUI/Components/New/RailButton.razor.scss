@@ -1,8 +1,6 @@
 @import "/styles/_theme.scss";
 @import "/styles/_front.scss";
 
-// The entry itself is a Button, styled by the rail's .nav rules - all this adds is the
-// badge and the box it's positioned against.
 RailButton
 {
 	position: relative;
@@ -13,11 +11,8 @@ RailButton
 	{
 		@include front-count-badge;
 
-		// Sits on the glyph rather than the entry's corner - the entry is the full width
-		// of the rail, so its corner is nowhere near the icon.
 		top: 6px;
 		right: 22px;
-		// Rings the badge in the rail's own fill, so a count over a bright glyph still reads.
 		border: 2px solid $front-card;
 		pointer-events: none;
 	}
@@ -27,8 +22,6 @@ RailButton
 		background-color: $front-reward;
 	}
 
-	// Rides the entry's bottom edge, inset so it reads as belonging to the entry rather than
-	// as a rule between two of them.
 	.progress
 	{
 		position: absolute;
@@ -46,7 +39,6 @@ RailButton
 	{
 		height: 100%;
 		border-radius: 999px;
-		// HDR - the fill blooms, the track behind it stays in range.
 		background-color: $front-primary * 3;
 	}
 
@@ -54,4 +46,57 @@ RailButton
 	{
 		background-color: $front-reward * 3;
 	}
+}
+
+// Under Sidebar .nav so it beats the rail's own icon colours.
+Sidebar .nav RailButton.glow .button icon,
+Sidebar .nav RailButton.glow .button iconpanel
+{
+	color: $front-trophy * 2;
+	text-shadow: 0 0 14px rgba( $front-trophy, 0.7 );
+	animation-name: rail-glow;
+	animation-duration: 2.4s;
+	animation-timing-function: ease-in-out;
+	animation-iteration-count: infinite;
+}
+
+Sidebar .nav RailButton.glow .button label
+{
+	color: $front-heading;
+}
+
+@keyframes rail-glow
+{
+	0%   { color: $front-trophy * 1.5; text-shadow: 0 0 8px rgba( $front-trophy, 0.4 ); }
+	50%  { color: $front-trophy * 3;   text-shadow: 0 0 18px rgba( $front-trophy, 0.9 ); }
+	100% { color: $front-trophy * 1.5; text-shadow: 0 0 8px rgba( $front-trophy, 0.4 ); }
+}
+
+// Under Sidebar .nav so it beats the rail's own padding.
+Sidebar .nav RailButton.has-sub .button
+{
+	height: 80px;
+	padding: 8px 1px 26px 4px;
+}
+
+RailButton .sub
+{
+	position: absolute;
+	left: 0;
+	right: 3px;
+	bottom: 9px;
+	text-align: center;
+	// Poppins has no tabular figures.
+	font-family: $font-default;
+	font-variant-numeric: tabular-nums;
+	font-size: 9.5px;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	color: $front-secondary;
+	pointer-events: none;
+}
+
+RailButton.glow .sub
+{
+	color: $primary-yellow * 2;
 }

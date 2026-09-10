@@ -68,6 +68,14 @@
         for (int i = ShownPanels.Count - 1; i >= 0; i--)
         {
             var entry = ShownPanels[i];
+
+            // Panels that removed themselves must not block the queue.
+            if (!entry.Content.IsValid())
+            {
+                ShownPanels.RemoveAt(i);
+                continue;
+            }
+
             if (entry.Duration > 0 && entry.Since >= entry.Duration)
                 Dismiss(entry.Content);
         }

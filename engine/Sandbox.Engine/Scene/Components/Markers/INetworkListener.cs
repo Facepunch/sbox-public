@@ -43,9 +43,19 @@ public abstract partial class Component
 		}
 
 		/// <summary>
-		/// Called when the host of the game has left - and you are now the new host.
+		/// The host left and you are the new host. The scene is already rebuilt from their snapshot;
+		/// <see cref="OnDisconnected"/> for them follows.
 		/// </summary>
 		void OnBecameHost( Connection previousHost )
+		{
+
+		}
+
+		/// <summary>
+		/// Another player took over as host and the scene was rebuilt from their snapshot. The new
+		/// host gets <see cref="OnBecameHost"/> instead.
+		/// </summary>
+		void OnHostChanged( Connection previousHost, Connection newHost )
 		{
 
 		}

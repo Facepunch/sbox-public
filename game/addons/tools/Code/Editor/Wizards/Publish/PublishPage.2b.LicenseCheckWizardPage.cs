@@ -55,10 +55,16 @@ partial class PublishWizard
 
 		public override async Task OpenAsync()
 		{
+			Rebuild();
+			Visible = true;
+			FetchTask = FetchLicenses();
+			await Task.CompletedTask;
+		}
+
+		public override void Rebuild()
+		{
 			BodyLayout.Clear( true );
 			BodyLayout.Spacing = 12;
-
-			Visible = true;
 
 			// Two-column layout: warnings on the left, asset list on the right
 			var row = Layout.Row();
@@ -116,8 +122,7 @@ partial class PublishWizard
 			AssetList.ItemClicked = OnItemClicked;
 			right.Add( AssetList, 1 );
 
-			// Start fetching license data
-			FetchTask = FetchLicenses();
+			UpdateUI();
 		}
 
 		async Task FetchLicenses()

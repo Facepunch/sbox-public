@@ -15,7 +15,7 @@ internal partial class ShadowMapper
 	internal static int ProjectedShadowsCulledLastFrame { get; set; }
 
 	[StructLayout( LayoutKind.Sequential )]
-	struct GPUProjectedShadow
+	internal struct GPUProjectedShadow
 	{
 		public Matrix WorldToShadowMatrix;
 		public int ShadowMapTextureIndex;
@@ -58,6 +58,10 @@ internal partial class ShadowMapper
 		int desiredResolution = GetDesiredResolution( flScreenSize, (int)Math.Max( mainViewport.Rect.Width, mainViewport.Rect.Height ) );
 
 		var cacheEntry = GetOrCreateCacheEntry( light, desiredResolution, isCube: false, flScreenSize );
+
+		// Already rendered this frame, or not this light's turn. A light filling the view never waits its turn.
+		if ( cacheEntry.RenderedFrame == Application.FrameCount || (cacheEntry.RenderedFrame != 0 && !cacheEntry.Scheduled && cacheEntry.ScreenSize < 1f) )
+			return AddProjectedShadow( cacheEntry );
 
 		Matrix ScaleBias = Matrix.Identity;
 		ScaleBias._numerics[0, 0] = 0.5f;
@@ -122,11 +126,20 @@ internal partial class ShadowMapper
 
 		nativeFrustum.Delete();
 
-		GPUProjectedShadows.Add( shadow );
+		cacheEntry.Projected = shadow;
+		cacheEntry.RenderedFrame = Application.FrameCount;
 		ProjectedShadowsRendered++;
+
+		return AddProjectedShadow( cacheEntry );
+	}
+
+	uint AddProjectedShadow( LightEntry cacheEntry )
+	{
+		GPUProjectedShadows.Add( cacheEntry.Projected );
 		ShadowsAllocated++;
 
 		cacheEntry.LastFrame = RealTime.Now;
+		cacheEntry.UsedFrame = Application.FrameCount;
 
 		// Return the index we just inserted
 		var index = GPUProjectedShadows.Count - 1;

@@ -6,8 +6,8 @@ public partial class ServiceApi
 {
 	public interface ILeaderboardApi
 	{
-		[Get( "/package/leaderboard/2/" )]
-		Task<LeaderboardResponseEx> Query( LeaderboardQuery query );
+		[Get( "/package/{ident}/leaderboard/{stat}/" )]
+		Task<LeaderboardResponseEx> Query( string ident, string stat, LeaderboardQuery query );
 
 		[Get( "/package/leaderboard/1/{package}/{leaderboard}/u/{steamid}/{mode}" )]
 		Task<LeaderboardResponseLegacy> QueryLegacy( string package, string leaderboard, long steamid, string mode, [Query] int take = 20 );

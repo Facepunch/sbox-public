@@ -64,9 +64,18 @@ public class ProjectSettings
 		if ( _cache.TryGetValue( filename, out var result ) && result is T t )
 			return t;
 
-		var txt = EngineFileSystem.ProjectSettings?.ReadAllText( BaseFileSystem.NormalizeFilename( filename ) );
-		var config = new T();
+		var config = Load<T>( EngineFileSystem.ProjectSettings, filename );
 		_cache[filename] = config;
+		return config;
+	}
+
+	/// <summary>
+	/// Read a config from any project's settings folder, defaults if it isn't there.
+	/// </summary>
+	internal static T Load<T>( BaseFileSystem fs, string filename ) where T : ConfigData, new()
+	{
+		var txt = fs?.ReadAllText( BaseFileSystem.NormalizeFilename( filename ) );
+		var config = new T();
 
 		if ( !string.IsNullOrEmpty( txt ) )
 		{

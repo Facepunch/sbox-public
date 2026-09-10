@@ -8,6 +8,21 @@ public partial class TypeLibrary
 {
 	BytePack bytePack;
 
+	/// <summary>
+	/// Prepare an independent serializer on the owning thread. It has no callbacks into the
+	/// library, so a worker can use it even while the library is being rebuilt by hotload.
+	/// Callers must supply every runtime type and only serialize detached data.
+	/// </summary>
+	internal BytePack CreateDetachedSerializer( params Type[] types )
+	{
+		var result = new BytePack();
+		foreach ( var type in types )
+		{
+			result.Add( TryCreatePackerFor( type ) ?? throw new NotSupportedException( $"Unhandled type {type}" ) );
+		}
+		return result;
+	}
+
 	void InitBytePack()
 	{
 		bytePack?.Dispose();

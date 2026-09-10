@@ -110,7 +110,7 @@
           "__guid": "95838789-f87e-41c5-9244-23fd650bb5c8",
           "__enabled": true,
           "Flags": 0,
-          "BackgroundColor": "0.06202,0.11422,0.2186,1",
+          "BackgroundColor": "0.00658,0.02919,0.07442,1",
           "ClearFlags": "All",
           "EnablePostProcessing": true,
           "FieldOfView": 23,
@@ -178,6 +178,7 @@
           "Flags": 0,
           "BackBlur": true,
           "BlurSize": 4,
+          "DebugView": false,
           "FocalDistance": 300,
           "FocusRange": 600,
           "FrontBlur": false,
@@ -345,11 +346,15 @@
                 "ConstantA": "0.21043,0.31001,0.63721,1",
                 "ConstantB": "0.38356,0.64104,0.91628,1"
               },
+              "InitialPitch": 0,
+              "InitialRoll": 0,
+              "InitialScale": 1,
               "InitialVelocity": {
                 "X": 0,
                 "Y": 0,
                 "Z": 0
               },
+              "InitialYaw": 0,
               "Lifetime": {
                 "Type": "Range",
                 "Evaluation": "Seed",
@@ -436,6 +441,7 @@
                 "Evaluation": "Seed",
                 "Constants": "40,80,0,0"
               },
+              "SequenceFitToLifetime": false,
               "SequenceId": 0,
               "SequenceSpeed": 0,
               "SequenceTime": {
@@ -469,6 +475,8 @@
               "BlurAmount": 0.5,
               "BlurOpacity": 0.91,
               "BlurSpacing": 0.73,
+              "CameraFadeFar": 0,
+              "CameraFadeNear": 0,
               "DepthFeather": 0,
               "FaceVelocity": false,
               "FogStrength": 1,
@@ -528,6 +536,7 @@
               "Burst": 10,
               "Delay": 0,
               "DestroyOnEnd": false,
+              "DistanceBias": "1,1,1",
               "Duration": 5,
               "Loop": true,
               "OnComponentDestroy": null,
@@ -537,6 +546,7 @@
               "OnComponentStart": null,
               "OnComponentUpdate": null,
               "OnEdge": false,
+              "OneSidedAxes": "None",
               "Radius": 23.6,
               "Rate": 5,
               "RateOverDistance": 0,
@@ -554,7 +564,7 @@
           "Rotation": "0,0,0,1",
           "Scale": "1,1,1",
           "Tags": "particles",
-          "Enabled": true,
+          "Enabled": false,
           "NetworkMode": 2,
           "NetworkFlags": 0,
           "NetworkOrphaned": 0,
@@ -570,29 +580,32 @@
               "Alpha": {
                 "Type": "Curve",
                 "Evaluation": "Life",
-                "CurveA": [
-                  {
-                    "x": 0,
-                    "y": 0,
-                    "in": -4.0000024,
-                    "out": 4.0000024,
-                    "mode": "Mirrored"
-                  },
-                  {
-                    "x": 0.20812808,
-                    "y": 0.475,
-                    "in": 0,
-                    "out": 0,
-                    "mode": "Mirrored"
-                  },
-                  {
-                    "x": 1,
-                    "y": 0,
-                    "in": 0,
-                    "out": 0,
-                    "mode": "Mirrored"
-                  }
-                ],
+                "CurveA": {
+                  "rangey": "0,0.269444466",
+                  "frames": [
+                    {
+                      "x": 0,
+                      "y": 0,
+                      "in": -4.0000024,
+                      "out": 4.0000024,
+                      "mode": "Mirrored"
+                    },
+                    {
+                      "x": 0.16437808,
+                      "y": 0.9896906,
+                      "in": 0,
+                      "out": 0,
+                      "mode": "Mirrored"
+                    },
+                    {
+                      "x": 1,
+                      "y": 0,
+                      "in": 0,
+                      "out": 0,
+                      "mode": "Mirrored"
+                    }
+                  ]
+                },
                 "CurveB": [
                   {
                     "x": 0.5,
@@ -673,11 +686,15 @@
                   "alpha": []
                 }
               },
+              "InitialPitch": 0,
+              "InitialRoll": 0,
+              "InitialScale": 1,
               "InitialVelocity": {
                 "X": 0,
                 "Y": 0,
                 "Z": 0
               },
+              "InitialYaw": 0,
               "Lifetime": {
                 "Type": "Range",
                 "Evaluation": "Seed",
@@ -764,6 +781,7 @@
                 "Evaluation": "Seed",
                 "Constants": "1,2,0,0"
               },
+              "SequenceFitToLifetime": false,
               "SequenceId": 0,
               "SequenceSpeed": 0,
               "SequenceTime": {
@@ -797,6 +815,8 @@
               "BlurAmount": 1,
               "BlurOpacity": 0.75,
               "BlurSpacing": 0.2534722,
+              "CameraFadeFar": 0,
+              "CameraFadeNear": 0,
               "DepthFeather": 0,
               "FaceVelocity": false,
               "FogStrength": 1,
@@ -856,6 +876,7 @@
               "Burst": 20,
               "Delay": 0,
               "DestroyOnEnd": false,
+              "DistanceBias": "1,1,1",
               "Duration": 1,
               "Loop": true,
               "OnComponentDestroy": null,
@@ -865,6 +886,7 @@
               "OnComponentStart": null,
               "OnComponentUpdate": null,
               "OnEdge": false,
+              "OneSidedAxes": "None",
               "Radius": 34.226192,
               "Rate": 200,
               "RateOverDistance": 0,

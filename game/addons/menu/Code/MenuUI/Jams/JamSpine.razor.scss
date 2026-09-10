@@ -1,0 +1,120 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+JamSpine
+{
+	flex-direction: column;
+	flex-shrink: 0;
+	width: 260px;
+	height: 100%;
+	padding: 6px 0 0 10px;
+
+	.spine-label
+	{
+		@include front-section-label;
+
+		margin-bottom: 22px;
+	}
+
+	.node
+	{
+		position: relative;
+		flex-direction: column;
+		flex-shrink: 0;
+		flex-basis: 0;
+		min-height: 64px;
+		padding: 0 0 12px 22px;
+	}
+
+	.dot
+	{
+		position: absolute;
+		left: 0;
+		top: 7px;
+		width: 9px;
+		height: 9px;
+		border-radius: 50%;
+		background-color: #0C0D0F;
+		border: 1px solid $front-tertiary;
+	}
+
+	.line
+	{
+		position: absolute;
+		left: 4px;
+		top: 18px;
+		bottom: -2px;
+		width: 1px;
+		background-color: rgba( 255, 255, 255, 0.18 );
+
+		.fill
+		{
+			position: absolute;
+			left: 0;
+			top: 0;
+			width: 100%;
+			background-color: $front-primary;
+		}
+
+		.marker
+		{
+			position: absolute;
+			left: -5px;
+			width: 11px;
+			height: 11px;
+			margin-top: -5px;
+			border-radius: 50%;
+			background-color: $front-danger * 5;
+			animation-name: jam-spine-breathe;
+			animation-duration: 2.4s;
+			animation-timing-function: ease-in-out;
+			animation-iteration-count: infinite;
+		}
+	}
+
+	.when
+	{
+		font-size: 10px;
+		font-weight: 700;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: $front-tertiary;
+	}
+
+	.name
+	{
+		font-family: $front-font;
+		font-size: 16px;
+		font-weight: 600;
+		color: $front-secondary;
+	}
+
+	.eta
+	{
+		font-size: 12px;
+		margin-top: 2px;
+		color: $front-tertiary;
+	}
+
+	.node.done
+	{
+		.dot { background-color: $front-primary; border-color: $front-primary; }
+		.line { background-color: $front-primary; }
+		.name { color: $front-body; }
+	}
+
+	.node.now
+	{
+		.dot { background-color: $front-primary; border-color: $front-primary; }
+
+		.name { color: $front-heading; }
+		.eta { color: $front-body; }
+	}
+}
+
+@keyframes jam-spine-breathe
+{
+	0% { background-color: $front-danger * 5; }
+	50% { background-color: $front-danger * 10; }
+	100% { background-color: $front-danger * 5; }
+}

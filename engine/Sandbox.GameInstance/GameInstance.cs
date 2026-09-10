@@ -112,6 +112,9 @@ internal class GameInstance : IGameInstance
 
 		GlobalContext.Current.UISystem.Clear();
 
+		// Destroy resource manifests before unmounting their package or network-backed files.
+		Game.Resources.Clear();
+
 		if ( activePackage != null && !Application.IsStandalone )
 		{
 			Game.Language?.Shutdown();

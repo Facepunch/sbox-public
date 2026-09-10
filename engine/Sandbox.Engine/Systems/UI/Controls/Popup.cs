@@ -37,6 +37,12 @@ public partial class Popup : BasePopup
 	public bool CloseWhenParentIsHidden { get; set; } = false;
 
 	/// <summary>
+	/// What's showing this popup, when it's in an OS window of its own rather than floating in
+	/// the root. Null means the popup positions itself.
+	/// </summary>
+	internal IPopupHost Host { get; private set; }
+
+	/// <summary>
 	/// Dictates where a <see cref="Popup"/> is positioned.
 	/// </summary>
 	public enum PositionMode
@@ -60,6 +66,11 @@ public partial class Popup : BasePopup
 		/// To the right of the source panel, aligned to the bottom.
 		/// </summary>
 		RightBottom,
+
+		/// <summary>
+		/// To the right of the source panel, aligned to the top. Where a submenu goes.
+		/// </summary>
+		RightTop,
 
 		/// <summary>
 		/// Above the source panel, aligned to the left.
@@ -122,12 +133,23 @@ public partial class Popup : BasePopup
 	/// <param name="offset">Offset away from the <paramref name="sourcePanel"/>.</param>
 	public void SetPositioning( Panel sourcePanel, PositionMode position, float offset )
 	{
-		Parent = sourcePanel.FindPopupPanel();
 		PopupSource = sourcePanel;
 		Position = position;
 		PopupSourceOffset = offset;
 
 		AddClass( "popup-panel" );
+
+		// The surface may want popups in windows of their own - then it's the window that's
+		// positioned, and the popup just fills it
+		Host = sourcePanel.UISystem.PopupHost;
+
+		if ( Host is not null )
+		{
+			Host.ShowPopup( this, sourcePanel, position, offset );
+			return;
+		}
+
+		Parent = sourcePanel.FindPopupPanel();
 		PositionMe( true );
 
 		switch ( Position )
@@ -146,6 +168,10 @@ public partial class Popup : BasePopup
 
 			case PositionMode.RightBottom:
 				AddClass( "right-bottom" );
+				break;
+
+			case PositionMode.RightTop:
+				AddClass( "right-top" );
 				break;
 
 			case PositionMode.AboveLeft:
@@ -287,17 +313,41 @@ public partial class Popup : BasePopup
 	{
 		base.Tick();
 
+		if ( !this.IsValid() ) return;
+
 		if ( CloseWhenParentIsHidden && !PopupSource.IsValid() )
 		{
 			Delete();
 			return;
 		}
 
-		PositionMe( false );
+		if ( Host is null ) PositionMe( false );
+	}
+
+	/// <summary>
+	/// Keys the popup doesn't use go to the panel that opened it, and up its tree from there - a
+	/// popup floats in the root, or in a window of its own, so its parent chain isn't its owner's.
+	/// </summary>
+	public override void OnButtonTyped( ButtonEvent e )
+	{
+		if ( PopupSource.IsValid() ) PopupSource.OnButtonTyped( e );
+		else base.OnButtonTyped( e );
+	}
+
+	public override void Delete( bool immediate = false )
+	{
+		// The window it's in goes with it. The host's teardown may delete us again on the way
+		var host = Host;
+		Host = null;
+		host?.HidePopup( this );
+
+		base.Delete( immediate );
 	}
 
 	public override void OnLayout( ref Rect layoutRect )
 	{
+		if ( Host is not null ) return;
+
 		var size = ScreenSurfaceSize;
 		if ( size.x < 1 || size.y < 1 ) return;
 
@@ -359,6 +409,13 @@ public partial class Popup : BasePopup
 					Style.Right = ((w - rect.Left) + PopupSourceOffset);
 					Style.Top = null;
 					Style.Bottom = (h - rect.Bottom);
+					break;
+				}
+			case PositionMode.RightTop:
+				{
+					Style.Right = null;
+					Style.Left = rect.Right + PopupSourceOffset;
+					Style.Top = rect.Top;
 					break;
 				}
 

@@ -373,6 +373,86 @@ namespace Topten.RichTextKit
 		}
 
 		/// <summary>
+		/// Measures the longest segment between permitted line breaks, without changing the current layout.
+		/// Emergency word wrapping and overflow truncation do not affect intrinsic width.
+		/// </summary>
+		/// <param name="availableWidth">Null measures min-content width; NaN measures max-content.
+		/// A finite width measures intrinsic height at that available width.</param>
+		/// <param name="preserveSpaces">Preserve spaces and allow a break after each, as in CSS break-spaces.</param>
+		/// <param name="reserveTrailingLine">Reserve the empty caret line after a trailing newline.</param>
+		public SKSize MeasureMinContent( float? availableWidth = null, bool preserveSpaces = false, bool reserveTrailingLine = false )
+		{
+			if ( Length == 0 ) return SKSize.Empty;
+
+			var block = new TextBlock { FontMapper = FontMapper, BaseDirection = BaseDirection, NoWrap = NoWrap, WordBreak = WordBreak };
+			try
+			{
+				foreach ( var run in StyleRuns )
+					block.AddText( run.CodePoints, run.Style );
+
+				float width = availableWidth is { } constraint && float.IsFinite( constraint )
+					? Math.Max( 0, constraint ) : block.MeasuredWidth;
+				if ( availableWidth is null && !NoWrap )
+				{
+					var breaker = new LineBreaker();
+					breaker.Reset( block.CodePoints.AsSlice() );
+					var breaks = WordBreak == WordBreakMode.Character
+						? block.CaretIndicies.Select( x => new LineBreak( x, x ) ).ToList()
+						: breaker.GetBreaks();
+					if ( preserveSpaces )
+					{
+						var preserved = new List<LineBreak>();
+						foreach ( var br in breaks )
+						{
+							int end = br.PositionMeasure;
+							while ( end < br.PositionWrap && block.CodePoints[end] == ' ' )
+							{
+								end++;
+								preserved.Add( new LineBreak( end, end ) );
+							}
+							if ( end == br.PositionMeasure || end < br.PositionWrap ) preserved.Add( new LineBreak( end, br.PositionWrap, br.Required ) );
+						}
+						breaks = preserved;
+					}
+
+					width = 0;
+					int start = 0;
+					int runIndex = 0;
+					foreach ( var lineBreak in breaks )
+					{
+						float segmentWidth = 0;
+						while ( runIndex < block.FontRuns.Count && block.FontRuns[runIndex].End <= start ) runIndex++;
+						for ( int i = runIndex; i < block.FontRuns.Count; i++ )
+						{
+							var run = block.FontRuns[i];
+							if ( run.Start >= lineBreak.PositionMeasure ) break;
+							var from = Math.Max( start, run.Start );
+							var to = Math.Min( lineBreak.PositionMeasure, run.End );
+							if ( to > from ) segmentWidth += run.LeadingWidth( to ) - run.LeadingWidth( from );
+						}
+						width = Math.Max( width, segmentWidth );
+						start = lineBreak.PositionWrap;
+					}
+				}
+
+				// Match the UI text measure's rounding and one-pixel wrapping allowance. Returning
+				// unwrapped height here would poison layout cache reuse at the intrinsic width.
+				// Return the unconstrained pass's pooled runs before shaping the constrained pass.
+				block.Clear();
+				foreach ( var run in StyleRuns )
+					block.AddText( run.CodePoints, run.Style );
+				block.MaxWidth = MathF.Ceiling( width ) + 1;
+				var height = block.MeasuredHeight;
+				if ( reserveTrailingLine && block.Lines.Count > 0 ) height += block.Lines[^1].Height;
+				return new SKSize( width, height );
+			}
+			finally
+			{
+				block.Clear();
+			}
+		}
+
+		/// <summary>
 		/// Get all font runs for this text block
 		/// </summary>
 		public IReadOnlyList<FontRun> FontRuns

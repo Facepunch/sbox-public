@@ -64,6 +64,9 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 			AddMenuOption( transform, "Align Down Local", "vertical_align_bottom", "mesh.align-down-local", true );
 			AddMenuOption( transform, "Align Down World", "vertical_align_bottom", "mesh.align-down-world", true );
 			AddMenuOption( transform, "Align To Closest Normal", "swap_vert", "mesh.align-to-closest-normal", true );
+			transform.AddSeparator();
+			AddMenuOption( transform, "Flip Horizontal", "swap_horiz", "mesh.flip-horizontal", true );
+			AddMenuOption( transform, "Flip Vertical", "swap_vert", "mesh.flip-vertical", true );
 		}
 
 		if ( hasObjects )
@@ -88,8 +91,7 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 				.WithComponentChanges( _meshes )
 				.Push();
 
-			DuplicateSelection();
-			OnSelectionChanged();
+			DuplicateSelectionKeepingPivot();
 		}
 		else
 		{
@@ -286,8 +288,7 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 		{
 			if ( duplicate )
 			{
-				DuplicateSelection();
-				OnSelectionChanged();
+				DuplicateSelectionKeepingPivot();
 			}
 
 			foreach ( var go in _objects )
@@ -452,6 +453,16 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 			Pivot.Reset();
 	}
 
+	/// <summary>
+	/// Duplicating swaps the selection for copies sat in the same place. That isn't a selection
+	/// change as far as the pivot is concerned, so refresh the cache without resetting it.
+	/// </summary>
+	void DuplicateSelectionKeepingPivot()
+	{
+		DuplicateSelection();
+		RebuildSelectionCache();
+	}
+
 	void RebuildSelectionCache()
 	{
 		_objects = Selection.OfType<GameObject>().ToArray();
@@ -527,6 +538,7 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 	void UpdateSelectionMode()
 	{
 		if ( !Gizmo.HasMouseFocus ) return;
+		if ( !IsAllowedToSelect ) return;
 
 		if ( Gizmo.WasLeftMouseReleased && !Gizmo.Pressed.Any && !IsBoxSelecting )
 		{
@@ -540,6 +552,8 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( to
 	void UpdateHovered()
 	{
 		if ( IsBoxSelecting ) return;
+
+		if ( !IsAllowedToSelect ) return;
 
 		var tr = MeshTrace.Run();
 

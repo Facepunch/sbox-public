@@ -1,4 +1,4 @@
-using Sandbox.Engine;
+﻿using Sandbox.Engine;
 
 namespace Sandbox.Network;
 
@@ -34,6 +34,7 @@ internal partial class NetworkSystem
 			return;
 
 		IsDeveloperHost = msg.IsDeveloperHost;
+		IsHostMigrationEnabled = msg.HostMigration;
 
 		source.UpdateFrom( msg.Host );
 		source.State = Connection.ChannelState.LoadingServerInformation;
@@ -362,21 +363,15 @@ internal partial class NetworkSystem
 
 		log.Trace( $"[{this}] Requesting a snapshot" );
 
-		var snapshot = new SnapshotMsg
+		var handshakeId = source.HandshakeId;
+		if ( GameSystem is not null )
 		{
-			GameObjectSystems = [],
-			NetworkObjects = new( 64 )
-		};
-
-		GameSystem?.GetSnapshot( source, ref snapshot );
-
-		var output = new InitialSnapshotResponse
+			GameSystem.SendSnapshot( source, snapshot => new InitialSnapshotResponse { HandshakeId = handshakeId, Snapshot = snapshot } );
+		}
+		else
 		{
-			HandshakeId = source.HandshakeId,
-			Snapshot = snapshot
-		};
-
-		source.SendMessage( output );
+			source.SendMessage( new InitialSnapshotResponse { HandshakeId = handshakeId, Snapshot = SnapshotMsg.Create() } );
+		}
 		return Task.CompletedTask;
 	}
 

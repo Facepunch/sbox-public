@@ -286,7 +286,7 @@ public abstract class Joint : Component, Component.ExecuteInEditor
 		{
 			// Create a new world reference body if all else fails.
 			// This shouldn't be needed when scenes sets the world reference body.
-			_worldBody = new PhysicsBody( body1.World );
+			_worldBody = body1.World.CreateBody();
 			body2 = _worldBody;
 		}
 

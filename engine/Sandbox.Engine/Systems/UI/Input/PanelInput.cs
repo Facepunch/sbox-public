@@ -93,6 +93,9 @@ internal class PanelInput
 		{
 			SetHovered( null );
 			ClearDropTarget();
+
+			// A press over nothing is still a press - it's what closes an open menu
+			if ( mouseIsActive ) UpdateButtons( inputData, null );
 		}
 	}
 
@@ -181,16 +184,7 @@ internal class PanelInput
 		var leftMousePressed = !MouseStates[0].Pressed && data.Mouse0;
 		var leftMouseReleased = MouseStates[0].Pressed && !data.Mouse0;
 
-		MouseStates[0].Update( data.Mouse0, Hovered );
-		MouseStates[1].Update( data.Mouse2, Hovered );
-		MouseStates[2].Update( data.Mouse1, Hovered );
-		MouseStates[3].Update( data.Mouse3, Hovered );
-		MouseStates[4].Update( data.Mouse4, Hovered );
-
-		Active = null;
-		if ( MouseStates[2].Active != null ) Active = MouseStates[2].Active;
-		if ( MouseStates[1].Active != null ) Active = MouseStates[1].Active;
-		if ( MouseStates[0].Active != null ) Active = MouseStates[0].Active;
+		UpdateButtons( data, Hovered );
 
 		if ( Hovered != null )
 		{
@@ -203,6 +197,20 @@ internal class PanelInput
 		Selection.UpdateSelection( root, Hovered, data.Mouse0, leftMousePressed, leftMouseReleased, data.MousePos );
 
 		return true;
+	}
+
+	void UpdateButtons( InputData data, Panel hovered )
+	{
+		MouseStates[0].Update( data.Mouse0, hovered );
+		MouseStates[1].Update( data.Mouse2, hovered );
+		MouseStates[2].Update( data.Mouse1, hovered );
+		MouseStates[3].Update( data.Mouse3, hovered );
+		MouseStates[4].Update( data.Mouse4, hovered );
+
+		Active = null;
+		if ( MouseStates[2].Active != null ) Active = MouseStates[2].Active;
+		if ( MouseStates[1].Active != null ) Active = MouseStates[1].Active;
+		if ( MouseStates[0].Active != null ) Active = MouseStates[0].Active;
 	}
 
 	bool UpdateHovered( Panel panel, Vector2 pos )
@@ -283,8 +291,14 @@ internal class PanelInput
 		DropTarget = null;
 	}
 
-	bool CheckHover( Panel panel, Vector2 pos, ref Panel current )
+	internal static bool CheckHover( Panel panel, Vector2 pos, ref Panel current )
 	{
+		if ( panel is RootPanel root && root.FindFixedPanelAt( pos, needPointerEvents: true ) is { } overlayHit )
+		{
+			current = overlayHit;
+			return true;
+		}
+
 		bool found = false;
 
 		if ( !panel.IsVisible )
@@ -323,9 +337,11 @@ internal class PanelInput
 		}
 
 		int topIndex = -10000;
+		panel.SortRenderChildren();
 
 		foreach ( var child in CollectionsMarshal.AsSpan( panel._renderChildren ) )
 		{
+			if ( child.IsFixed ) continue;
 			var index = child.GetRenderOrderIndex();
 			if ( index < topIndex ) continue;
 

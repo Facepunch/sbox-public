@@ -20,7 +20,7 @@ internal partial class ShadowMapper
 
 
 	[StructLayout( LayoutKind.Sequential )]
-	struct GPUProjectedCubeShadow
+	internal struct GPUProjectedCubeShadow
 	{
 		public Matrix ShadowViewProjectionMatrix0;
 		public Matrix ShadowViewProjectionMatrix1;
@@ -58,6 +58,13 @@ internal partial class ShadowMapper
 		int desiredResolution = GetDesiredResolution( flScreenSize, (int)Math.Max( mainViewport.Rect.Width, mainViewport.Rect.Height ) );
 
 		var cacheEntry = GetOrCreateCacheEntry( light, desiredResolution, isCube: true, flScreenSize );
+
+		// Already rendered this frame, or not this light's turn. A light filling the view never waits its turn.
+		if ( cacheEntry.RenderedFrame == Application.FrameCount || (cacheEntry.RenderedFrame != 0 && !cacheEntry.Scheduled && cacheEntry.ScreenSize < 1f) )
+			return AddProjectedCubeShadow( cacheEntry );
+
+		// The entry may keep a bigger map than this view asked for
+		desiredResolution = cacheEntry.CurrentResolution;
 
 		GPUProjectedCubeShadow shadow = new();
 
@@ -114,10 +121,20 @@ internal partial class ShadowMapper
 		shadow.InvShadowMapRes = 1.0f / desiredResolution;
 		shadow.ShadowHardness = 1.0f + light.ShadowHardness * 4.0f;
 
-		cacheEntry.LastFrame = RealTime.Now;
+		cacheEntry.Cube = shadow;
+		cacheEntry.RenderedFrame = Application.FrameCount;
+		ProjectedShadowsRendered++;
 
-		GPUProjectedCubeShadows.Add( shadow );
+		return AddProjectedCubeShadow( cacheEntry );
+	}
+
+	uint AddProjectedCubeShadow( LightEntry cacheEntry )
+	{
+		GPUProjectedCubeShadows.Add( cacheEntry.Cube );
 		ShadowsAllocated++;
+
+		cacheEntry.LastFrame = RealTime.Now;
+		cacheEntry.UsedFrame = Application.FrameCount;
 
 		var index = GPUProjectedCubeShadows.Count - 1;
 		cacheEntry.DebugLightIndex = index;

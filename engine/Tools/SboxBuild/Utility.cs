@@ -164,8 +164,6 @@ internal static class Utility
 			return true;
 		}
 
-		var changedFiles = new List<string>();
-
 		// In shallow CI checkouts origin/{baseRef} won't exist until we fetch it.
 		// Fetch enough history to find the merge-base; a depth of 50 is sufficient for
 		// typical PR branch lengths while keeping the fetch fast.
@@ -200,26 +198,7 @@ internal static class Utility
 			diffTarget = "FETCH_HEAD";
 		}
 
-		var success = RunProcess(
-			"git",
-			$"diff --name-only {diffTarget} HEAD",
-			onDataReceived: ( _, e ) =>
-			{
-				if ( !string.IsNullOrWhiteSpace( e.Data ) )
-					changedFiles.Add( e.Data.Trim() );
-			} );
-
-		if ( !success )
-		{
-			Log.Warning( "git diff failed; assuming native code is touched." );
-			return true;
-		}
-
-		// SboxBuild describes the native build, so changing it changes the binaries.
-		var touchesNative = changedFiles.Any( f =>
-			f.StartsWith( "src/", StringComparison.OrdinalIgnoreCase ) ||
-			f.StartsWith( "engine/Definitions/", StringComparison.OrdinalIgnoreCase ) ||
-			f.StartsWith( "engine/Tools/SboxBuild/", StringComparison.OrdinalIgnoreCase ) );
+		var touchesNative = !NativeInputsMatch( diffTarget );
 
 		if ( touchesNative )
 		{
@@ -227,10 +206,32 @@ internal static class Utility
 		}
 		else
 		{
-			Log.Info( $"PR does not touch native code ({changedFiles.Count} file(s) changed); public artifacts will be used." );
+			Log.Info( "PR does not touch native code; public artifacts will be used." );
 		}
 
 		return touchesNative;
+	}
+
+	/// <summary>
+	/// Compares native build inputs at a commit against HEAD. Fails closed on Git errors.
+	/// </summary>
+	public static bool NativeInputsMatch( string commit )
+	{
+		var changed = false;
+		// Include the build tooling and generator as well as the native sources and definitions.
+		var success = RunProcess(
+			"git",
+			$"diff --name-only --no-renames --no-ext-diff {commit} HEAD -- src/ engine/Definitions/ engine/Tools/SboxBuild/ engine/Tools/InteropGen/ engine/manifest.def",
+			onDataReceived: ( _, e ) =>
+			{
+				if ( !string.IsNullOrWhiteSpace( e.Data ) )
+					changed = true;
+			} );
+
+		if ( !success )
+			Log.Warning( $"Unable to compare native inputs from {commit}; native artifacts cannot be reused." );
+
+		return success && !changed;
 	}
 
 	public static string CalculateSha256( string filePath )

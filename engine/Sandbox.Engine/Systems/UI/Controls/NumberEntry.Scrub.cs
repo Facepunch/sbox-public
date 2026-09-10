@@ -21,6 +21,11 @@ public partial class NumberEntry
 	Vector2 _scrubLast;
 
 	/// <summary>
+	/// Called when a numeric drag ends, so an owner can commit the settled value.
+	/// </summary>
+	internal event Action ScrubEnded;
+
+	/// <summary>
 	/// Is this position over the label in front of the number - the part you drag?
 	/// </summary>
 	bool IsOnScrubHandle( Vector2 screenPosition )
@@ -94,6 +99,7 @@ public partial class NumberEntry
 		if ( _scrubbing )
 		{
 			_scrubbing = false;
+			ScrubEnded?.Invoke();
 			e.StopPropagation();
 			return;
 		}

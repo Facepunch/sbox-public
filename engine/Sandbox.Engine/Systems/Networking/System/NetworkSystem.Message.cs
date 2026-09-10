@@ -83,6 +83,16 @@ internal partial class NetworkSystem
 		// This network system only exists in the game.
 		using var gameScope = GameSystem?.Push();
 
+		if ( _connections.Any( c => c.HasPendingSends ) )
+		{
+			// A failed encoder can close a connection while we drain the queue.
+			foreach ( var connection in _connections.ToArray() )
+			{
+				connection.FlushPendingSends();
+			}
+		}
+		Connection?.FlushPendingSends();
+
 		foreach ( var socket in sockets )
 		{
 			socket?.GetIncomingMessages( HandleIncomingMessage );
@@ -119,6 +129,10 @@ internal partial class NetworkSystem
 			: null;
 
 		var type = msg.Data.Read<InternalMessageType>();
+
+		// Leaving host: only acknowledgements matter now
+		if ( _isHandingOff && type != InternalMessageType.Packed )
+			return;
 
 		if ( type == InternalMessageType.HeartbeatPing )
 		{
@@ -195,6 +209,9 @@ internal partial class NetworkSystem
 				Log.Warning( $"Got packed null message from {msg.Source}!" );
 				return;
 			}
+
+			if ( _isHandingOff && obj is not HostHandoffAckMsg and not HostLeavingAckMsg )
+				return;
 
 			if ( responseTo != Guid.Empty )
 			{

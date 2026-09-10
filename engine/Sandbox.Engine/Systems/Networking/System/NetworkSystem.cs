@@ -32,21 +32,6 @@ internal partial class NetworkSystem
 	public HostStats HostStats { get; private set; }
 	public string DebugName { get; }
 
-	/// <summary>
-	/// Whether the host is busy right now. This can be used to determine if
-	/// the host can be changed.
-	/// </summary>
-	internal bool IsHostBusy
-	{
-		get
-		{
-			if ( IsHandshaking() )
-				return false;
-
-			return GameSystem?.IsHostBusy ?? true;
-		}
-	}
-
 	public override string ToString() => DebugName;
 
 	public NetworkSystem( string debugName, TypeLibrary library )
@@ -60,6 +45,7 @@ internal partial class NetworkSystem
 		log.Trace( "Initialized" );
 
 		InstallHandshakeMessages();
+		InstallHostMigrationMessages();
 
 		AddHandler( InternalMessageType.TableSnapshot, TableMessage );
 		AddHandler( InternalMessageType.TableUpdated, TableMessage );
@@ -329,6 +315,8 @@ internal partial class NetworkSystem
 
 		GameSystem?.TickInternal();
 
+		TickHostMigration();
+
 		if ( timeSinceTick >= 1f )
 		{
 			timeSinceTick = 0f;
@@ -438,6 +426,10 @@ internal partial class NetworkSystem
 
 		// Conna: if we're a dedicated server, we don't "join" the game.
 		if ( Application.IsDedicatedServer )
+			return;
+
+		// We already have a player in the scene we're taking over
+		if ( _isBecomingHost )
 			return;
 
 		//

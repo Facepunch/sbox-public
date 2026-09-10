@@ -5,23 +5,23 @@
         {
             "r_texture_stream_max_resolution": "1024.0",
             "r_texture_stream_resolution_bias_min": "0.5",
-            "r_max_anisotropy": "1"
+            "r_max_anisotropy": "4"
         },
         "Medium":
         {
             "r_texture_stream_max_resolution": "2048.0",
             "r_texture_stream_resolution_bias_min": "0.8",
-            "r_max_anisotropy": "2"
+            "r_max_anisotropy": "8"
         },
         "High":
         {
-            "r_texture_stream_max_resolution": "8192.0",
-            "r_texture_stream_resolution_bias_min": "1.0",
-            "r_max_anisotropy": "4"
+            "r_texture_stream_max_resolution": "4096.0",
+            "r_texture_stream_resolution_bias_min": "0.9",
+            "r_max_anisotropy": "16"
         },
         "Ultra":
         {
-            "r_texture_stream_max_resolution": "8192.0",
+            "r_texture_stream_max_resolution": "-1",
             "r_texture_stream_resolution_bias_min": "1.0",
             "r_max_anisotropy": "16"
         }
@@ -136,7 +136,7 @@
             "r_enable_volume_fog": "1",
             "volume_fog_width": "320",
             "volume_fog_height": "200",
-            "volume_fog_depth": "128"
+            "volume_fog_depth": "64"
         }
     },
     "ShadowQuality":
@@ -176,10 +176,10 @@
         },
         "Ultra":
         {
-            "r.shadows.maxresolution": "4096",
-            "r.shadows.csm.maxresolution": "8192",
+            "r.shadows.maxresolution": "2048",
+            "r.shadows.csm.maxresolution": "4096",
             "r.shadows.csm.maxcascades": "4",
-            "r.shadows.csm.distance": "15000",
+            "r.shadows.csm.distance": "20000",
             "r.shadows.quality": "3",
             "r.shadows.contact.enabled": "1",
             "r.shadows.max": "256",

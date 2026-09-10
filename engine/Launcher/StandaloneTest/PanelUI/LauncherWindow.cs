@@ -269,7 +269,8 @@ class LauncherWindow : Panel
 		if ( Window.CanMaximize )
 			WindowButton( bar, "crop_square", null, Window.ToggleMaximized );
 
-		WindowButton( bar, "close", "close", Window.Dispose );
+		if ( Window.CanClose )
+			WindowButton( bar, "close", "close", Window.RequestClose );
 	}
 
 	Sandbox.UI.Label fpsLabel;

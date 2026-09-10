@@ -1,0 +1,59 @@
+CssFixedTests
+{
+	.description { max-width: 600px; font-size: 15px; color: #b7c4d8; margin-bottom: 20px; }
+	.controls { gap: 12px; margin-bottom: 30px; }
+	button
+	{
+		padding: 8px 12px;
+		background-color: #35485f;
+		color: #ffffff;
+		font-size: 14px;
+		border-radius: 3px;
+		pointer-events: all;
+		cursor: pointer;
+		&:hover { background-color: #47617e; }
+	}
+	.owner
+	{
+		width: 320px;
+		height: 200px;
+		padding: 16px;
+		background-color: #1f3550;
+		color: #e6eaf2;
+		flex-direction: column;
+		overflow: scroll;
+		isolation: isolate;
+		font-size: 16px;
+		pointer-events: all;
+		> label { flex-shrink: 0; }
+		&.rotated { transform: rotate(-6deg); }
+		&.hidden { display: none; }
+	}
+	.long-content { height: 500px; flex-shrink: 0; padding-top: 30px; }
+	.floater
+	{
+		position: fixed;
+		right: 32px;
+		top: 100px;
+		width: 280px;
+		padding: 20px;
+		gap: 12px;
+		flex-direction: column;
+		background-color: #e8b04a;
+		color: #1a2330;
+		border-radius: 6px;
+		pointer-events: all;
+		.heading { font-size: 24px; font-weight: 700; }
+	}
+	.nested-fixed
+	{
+		position: fixed;
+		right: 32px;
+		bottom: 24px;
+		padding: 14px;
+		background-color: #4ac2e8;
+		color: #1a2330;
+		border-radius: 4px;
+	}
+	.ordinary { z-index: 9999; margin-top: 40px; margin-bottom: 20px; padding: 20px; background-color: #303540; color: #e6eaf2; }
+}

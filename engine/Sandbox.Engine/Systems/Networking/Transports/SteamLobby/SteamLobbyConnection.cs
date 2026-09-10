@@ -1,4 +1,4 @@
-﻿using NativeEngine;
+using NativeEngine;
 
 namespace Sandbox.Network;
 
@@ -10,8 +10,6 @@ internal unsafe class SteamLobbyConnection : Connection, IValid
 	private readonly SteamLobbySocket Lobby;
 	public Friend Friend { get; private set; }
 	public bool IsValid => true;
-
-	public override bool IsHost => Lobby.HostSteamId == Friend.Id;
 
 	public SteamLobbyConnection( SteamLobbySocket lobby, Friend steamId )
 	{

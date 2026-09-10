@@ -1,7 +1,3 @@
-﻿using NativeEngine;
-using System.Runtime.InteropServices;
-using static Sandbox.PhysicsWorld;
-
 namespace Sandbox;
 
 /// <summary>
@@ -24,323 +20,104 @@ public enum PhysicsSimulationMode
 /// <summary>
 /// A world in which physics objects exist. You can create your own world but you really don't need to. A world for the map is created clientside and serverside automatically.
 /// </summary>
-[Expose, ActionGraphIgnore]
-public sealed partial class PhysicsWorld : IHandle
+[Expose]
+public sealed partial class PhysicsWorld : IValid
 {
-	[SkipHotload]
-	internal static HashSet<PhysicsWorld> All = new HashSet<PhysicsWorld>();
+	internal PhysicsWorldInternal _world;
 
-	internal IPhysicsWorld native => world;
-	internal IPhysicsWorld world;
+	internal PhysicsWorld( PhysicsWorldInternal world )
+	{
+		_world = world;
+		world.SetOwner( this );
+	}
 
-	HashSet<PhysicsBody> bodies = new HashSet<PhysicsBody>();
+	/// <summary>
+	/// Creates a new 3D physics world.
+	/// </summary>
+	public PhysicsWorld()
+	{
+		_world = new PhysicsWorld3d();
+		_world.SetOwner( this );
+	}
+
+	/// <summary>
+	/// Creates a new 3D physics world.
+	/// </summary>
+	[Obsolete( "Use new PhysicsWorld() instead" )]
+	public static PhysicsWorld Create() => new PhysicsWorld();
+
+	public bool IsValid => _world is not null && _world.IsValid;
+
+	/// <summary>
+	/// Create a new physics body in this world.
+	/// </summary>
+	public PhysicsBody CreateBody() => _world.CreateBody();
+
+	internal PhysicsBodyInternal CreateBodyInternal() => _world.CreateBodyInternal();
+
+	/// <summary>
+	/// The world's static reference body, used as a default anchor for joints.
+	/// </summary>
+	public PhysicsBody Body => _world.Body;
 
 	/// <summary>
 	/// All bodies in the world
 	/// </summary>
-	public IEnumerable<PhysicsBody> Bodies => bodies.Where( x => x.IsValid() );
+	public IEnumerable<PhysicsBody> Bodies => _world.Bodies;
 
-	internal int BodyCount => bodies.Count;
-
-	//public Action<int, PhysicsBody, PhysicsBody, Vector3> Internal_OnCollision;
+	internal int BodyCount => _world.BodyCount;
 
 	/// <summary>
 	/// Set or retrieve the collision rules for this <see cref="PhysicsWorld"/>.
 	/// </summary>
-	public CollisionRules CollisionRules { get; set; }
-
-	void IHandle.HandleDestroy()
+	public CollisionRules CollisionRules
 	{
-		world = default;
-		All.Remove( this );
-	}
-	void IHandle.HandleInit( IntPtr ptr )
-	{
-		world = ptr;
-		world.SetWorldReferenceBody( new PhysicsBody( this ) );
-		gravity = world.GetGravity();
-		All.Add( this );
-	}
-	bool IHandle.HandleValid() => world.IsValid;
-	internal PhysicsWorld( HandleCreationData _ ) { }
-
-	internal bool IsTransient { get; set; }
-
-	/// <summary>
-	/// Create a new physics world. You should only do this if you want to simulate an extra world for some reason.
-	/// </summary>
-	public PhysicsWorld()
-	{
-		IsTransient = true;
-
-		using ( var h = IHandle.MakeNextHandle( this ) )
-		{
-			NativeEngine.g_pPhysicsSystem.CreateWorld();
-		}
+		get => _world.CollisionRules;
+		set => _world.CollisionRules = value;
 	}
 
-	/// <summary>
-	/// Temp function for creating model physics until entity system handles it
-	/// </summary>
-	public PhysicsGroup SetupPhysicsFromModel( Model model, PhysicsMotionType motionType )
+	internal bool IsTransient
 	{
-		return native.CreateAggregateInstance( model.native, Transform.Zero, 0, motionType );
+		get => _world.IsTransient;
+		set => _world.IsTransient = value;
 	}
 
-	/// <summary>
-	/// Temp function for creating model physics until entity system handles it
-	/// </summary>
-	public PhysicsGroup SetupPhysicsFromModel( Model model, Transform transform, PhysicsMotionType motionType )
+	internal Scene Scene
 	{
-		return native.CreateAggregateInstance( model.native, transform, 0, motionType );
+		get => _world.Scene;
+		set => _world.Scene = value;
 	}
+
+	internal double CurrentTime => _world.CurrentTime;
+	internal float CurrentDelta => _world.CurrentDelta;
 
 	/// <summary>
 	/// Delete this world and all objects inside. Will throw an exception if you try to delete a world that you didn't manually create.
 	/// </summary>
-	public void Delete()
-	{
-		Assert.True( IsTransient );
-		if ( !world.IsValid ) return;
-		NativeEngine.g_pPhysicsSystem.DestroyWorld( this );
-	}
+	public void Delete() => _world.Delete();
 
 	/// <summary>
 	/// Step simulation of this physics world. You can only do this on physics worlds that you manually create.
 	/// </summary>
-	public void Step( float delta ) => Step( delta, 1 );
-
-	[UnmanagedFunctionPointer( CallingConvention.StdCall )]
-	unsafe delegate void ProcessIntersectionsDelegate_t( VPhysIntersectionNotification_t* notifications, int count );
-
-	internal double CurrentTime;
-	internal float CurrentDelta;
+	public void Step( float delta ) => _world.Step( delta );
 
 	/// <summary>
 	/// Step simulation of this physics world. You can only do this on physics worlds that you manually create.
 	/// </summary>
-	public unsafe void Step( float delta, int subSteps )
-	{
-		CurrentTime += delta;
-		Step( CurrentTime, delta, subSteps * SubSteps );
-	}
+	public void Step( float delta, int subSteps ) => _world.Step( delta, subSteps );
 
 	/// <summary>
 	/// Step simulation of this physics world. You can only do this on physics worlds that you manually create.
 	/// </summary>
-	public void Step( double worldTime, float delta, int subSteps )
-	{
-		Assert.True( IsTransient, "You can only step simulation of physics worlds that you create" );
-		if ( !world.IsValid ) return;
-
-		UpdateCollisionRulesHash();
-
-		CurrentTime = worldTime;
-		CurrentDelta = delta;
-
-		world.StepSimulation( delta, subSteps * SubSteps );
-
-		ProcessIntersections();
-	}
-
-	private int _collisionRulesHash;
-	private void UpdateCollisionRulesHash()
-	{
-		if ( CollisionRules is null )
-			return;
-
-		var hash = CollisionRules.GetHashCode();
-		if ( _collisionRulesHash == hash )
-			return;
-
-		var json = Json.SerializeAsObject( CollisionRules );
-		world.SetCollisionRulesFromJson( json.ToJsonString() );
-		_collisionRulesHash = hash;
-	}
-
-	DelegateFunctionPointer onIntersectionFunctionPointer;
-
-	internal unsafe void ProcessIntersections()
-	{
-		if ( onIntersectionFunctionPointer == DelegateFunctionPointer.Null )
-			onIntersectionFunctionPointer = DelegateFunctionPointer.Get<ProcessIntersectionsDelegate_t>( OnIntersections );
-
-		world.ProcessIntersections( onIntersectionFunctionPointer );
-	}
-
-	//-------------------------------------------------------------------------------------------
-	// This is being done this way to provide a uniform and easy to debug initial API.  Fast paths will be needed.
-	internal struct VPhysIntersectionNotification_t
-	{
-		public IntersectionEventType_t Reason;
-
-		public Side Left;
-		public Side Right;
-
-		public Vector3 ContactPoint;
-		public Vector3 ContactSpeed;
-		public Vector3 SurfaceNormal;
-		public float ContactNormalSpeed;
-		public float Impulse;
-
-		public struct Side
-		{
-			public IPhysicsShape Shape;
-			public IPhysicsBody Body;
-
-			public int SurfaceIndex;
-
-			// HandleIndex values filled by native so we don't have to call back to resolve them
-			public int ShapeManagedIndex;
-			public int BodyManagedIndex;
-		};
-	}
-
-	internal enum IntersectionEventType_t
-	{
-		TouchBegin,
-		TouchEnd,
-		TouchPersists,
-		Hit,
-		TriggerBegin,
-		TriggerEnd,
-	}
-
-	internal Action<PhysicsIntersection> OnIntersectionStart { get; set; }
-	internal Action<PhysicsIntersection> OnIntersectionHit { get; set; }
-	internal Action<PhysicsIntersectionEnd> OnIntersectionEnd { get; set; }
-	internal Action<PhysicsIntersection> OnIntersectionUpdate { get; set; }
-	internal Action<PhysicsBody> OnBodyOutOfBounds { get; set; }
-	internal Action<PhysicsBody> OnBodyFellAsleep { get; set; }
-
-	unsafe void OnIntersections( VPhysIntersectionNotification_t* notifications, int count )
-	{
-		for ( int i = 0; i < count; i++ )
-		{
-			try
-			{
-				var ptr = notifications + i;
-
-				var a = new PhysicsContact.Target( ptr->Left );
-				var b = new PhysicsContact.Target( ptr->Right );
-
-				// A handler earlier in the batch may have deleted one of these, skip the event like native used to
-				if ( !a.Body.IsValid() || !b.Body.IsValid() || !a.Shape.IsValid() || !b.Shape.IsValid() )
-					continue;
-
-				var c = new PhysicsContact( ptr );
-
-				if ( ptr->Reason == IntersectionEventType_t.TouchBegin )
-				{
-					OnIntersectionStart?.InvokeWithWarning( new PhysicsIntersection( a, b, c ) );
-					a.Body.DispatchIntersectionStart( new PhysicsIntersection( a, b, c ) );
-					b.Body.DispatchIntersectionStart( new PhysicsIntersection( b, a, c ) );
-				}
-				else if ( ptr->Reason == IntersectionEventType_t.Hit )
-				{
-					OnIntersectionHit?.InvokeWithWarning( new PhysicsIntersection( a, b, c ) );
-				}
-				else if ( ptr->Reason == IntersectionEventType_t.TouchEnd )
-				{
-					OnIntersectionEnd?.InvokeWithWarning( new PhysicsIntersectionEnd( a, b ) );
-					a.Body.DispatchIntersectionEnd( new PhysicsIntersectionEnd( a, b ) );
-					b.Body.DispatchIntersectionEnd( new PhysicsIntersectionEnd( b, a ) );
-				}
-				else if ( ptr->Reason == IntersectionEventType_t.TouchPersists )
-				{
-					OnIntersectionUpdate?.InvokeWithWarning( new PhysicsIntersection( a, b, c ) );
-					a.Body.DispatchIntersectionUpdate( new PhysicsIntersection( a, b, c ) );
-					b.Body.DispatchIntersectionUpdate( new PhysicsIntersection( b, a, c ) );
-				}
-				else if ( ptr->Reason == IntersectionEventType_t.TriggerBegin )
-				{
-					a.Body.DispatchTriggerBegin( new PhysicsIntersection( a, b, c ) );
-					b.Body.DispatchTriggerBegin( new PhysicsIntersection( b, a, c ) );
-				}
-				else if ( ptr->Reason == IntersectionEventType_t.TriggerEnd )
-				{
-					a.Body.DispatchTriggerEnd( new PhysicsIntersectionEnd( a, b ) );
-					b.Body.DispatchTriggerEnd( new PhysicsIntersectionEnd( b, a ) );
-				}
-			}
-			catch ( System.Exception e )
-			{
-				Log.Error( e );
-			}
-		}
-	}
-
-	Vector3 gravity;
+	public void Step( double worldTime, float delta, int subSteps ) => _world.Step( worldTime, delta, subSteps );
 
 	/// <summary>
 	/// Access the world's current gravity.
 	/// </summary>
-	[ActionGraphInclude]
 	public Vector3 Gravity
 	{
-		get => gravity;
-		set
-		{
-			if ( gravity == value ) return;
-
-			gravity = value;
-			world.SetGravity( gravity );
-		}
-	}
-
-	float airDensity;
-
-	/// <summary>
-	/// Air density of this physics world, for things like air drag.
-	/// </summary>
-	[ActionGraphInclude]
-	public float AirDensity
-	{
-		get => airDensity;
-		set
-		{
-			if ( airDensity == value ) return;
-
-			airDensity = value;
-		}
-	}
-
-	PhysicsBody _cachedWorldBody;
-
-	/// <summary>
-	/// The body of this physics world.
-	/// </summary>
-	[ActionGraphInclude]
-	public PhysicsBody Body
-	{
-		get
-		{
-			if ( !_cachedWorldBody.IsValid() )
-			{
-				_cachedWorldBody = native.GetWorldReferenceBody();
-			}
-
-			return _cachedWorldBody;
-		}
-	}
-
-	PhysicsGroup _cachedGroup;
-
-	/// <summary>
-	/// The physics group of this physics world. A physics world will contain only 1 body.
-	/// </summary>
-	[ActionGraphInclude]
-	public PhysicsGroup Group
-	{
-		get
-		{
-			if ( !_cachedGroup.IsValid() )
-			{
-				_cachedGroup = Body?.PhysicsGroup ?? null;
-			}
-
-			return _cachedGroup;
-		}
+		get => _world.Gravity;
+		set => _world.Gravity = value;
 	}
 
 	/// <summary>
@@ -348,17 +125,13 @@ public sealed partial class PhysicsWorld : IHandle
 	/// </summary>
 	public bool SleepingEnabled
 	{
-		get => world.IsSleepingEnabled();
-		set
-		{
-			if ( value ) world.EnableSleeping();
-			else world.DisableSleeping();
-		}
+		get => _world.SleepingEnabled;
+		set => _world.SleepingEnabled = value;
 	}
 
 	internal float MaximumLinearSpeed
 	{
-		set => world.SetMaximumLinearSpeed( value );
+		set => _world.MaximumLinearSpeed = value;
 	}
 
 	/// <summary>
@@ -366,27 +139,15 @@ public sealed partial class PhysicsWorld : IHandle
 	/// </summary>
 	public PhysicsSimulationMode SimulationMode
 	{
-		get => world.GetSimulation();
-		set => world.SetSimulation( value );
+		get => _world.SimulationMode;
+		set => _world.SimulationMode = value;
 	}
 
 	[Obsolete]
-	public int PositionIterations
-	{
-		get => 0;
-		set
-		{
-		}
-	}
+	public int PositionIterations { get => 0; set { } }
 
 	[Obsolete]
-	public int VelocityIterations
-	{
-		get => 0;
-		set
-		{
-		}
-	}
+	public int VelocityIterations { get => 0; set { } }
 
 	/// <summary>
 	/// If you're seeing objects go through other objects or you have a low tickrate, you might want to increase the number of physics substeps.
@@ -394,89 +155,131 @@ public sealed partial class PhysicsWorld : IHandle
 	/// Be aware that the number of physics ticks per second is going to be tickrate * substeps.
 	/// So if you're ticking at 90 and you have SubSteps set to 1000 then you're going to do 90,000 steps per second. So be careful here.
 	/// </summary>
-	public int SubSteps { get; set; } = 1;
+	public int SubSteps
+	{
+		get => _world.SubSteps;
+		set => _world.SubSteps = value;
+	}
 
 	[Obsolete]
 	public float TimeScale { get; set; }
+
+	/// <summary>
+	/// Air density of this physics world, for things like air drag.
+	/// </summary>
+	public float AirDensity
+	{
+		get => _world.AirDensity;
+		set => _world.AirDensity = value;
+	}
+
+	/// <summary>
+	/// The physics group of this physics world. A physics world will contain only 1 body.
+	/// </summary>
+	public PhysicsGroup Group => _world.Group;
 
 	/// <summary>
 	/// Used internally to set collision rules from gamemode's project settings.
 	/// You shouldn't need to call this yourself.
 	/// </summary>
 	[Obsolete( "Use CollisionRules Property" )]
-	public void SetCollisionRules( CollisionRules rules )
-	{
-		CollisionRules = rules;
-	}
+	public void SetCollisionRules( CollisionRules rules ) => _world.CollisionRules = rules;
 
 	/// <summary>
 	/// Gets the specific collision rule for a pair of tags.
 	/// </summary>
-	public CollisionRules.Result GetCollisionRule( string left, string right )
-	{
-		return CollisionRules.GetCollisionRule( left, right );
-	}
+	public CollisionRules.Result GetCollisionRule( string left, string right ) => _world.GetCollisionRule( left, right );
 
 	/// <summary>
 	/// Raytrace against this world
 	/// </summary>
-	public PhysicsTraceBuilder Trace
-	{
-		get
-		{
-			return new PhysicsTraceBuilder( this );
-		}
-	}
+	public PhysicsTraceBuilder Trace => _world.Trace;
 
 	/// <summary>
 	/// Like calling PhysicsTraceBuilder.Run, except will re-target this world if it's not already the target
 	/// </summary>
-	public PhysicsTraceResult RunTrace( in PhysicsTraceBuilder trace )
-	{
-		var newTrace = Trace;
-		newTrace.request = trace.request;
-		newTrace.targetBody = trace.targetBody;
-		newTrace.filterCallback = trace.filterCallback;
-		return newTrace.Run();
-	}
+	public PhysicsTraceResult RunTrace( in PhysicsTraceBuilder trace ) => _world.RunTrace( trace );
 
 	/// <summary>
 	/// Like calling PhysicsTraceBuilder.RunAll, except will re-target this world if it's not already the target
 	/// </summary>
-	public PhysicsTraceResult[] RunTraceAll( in PhysicsTraceBuilder trace )
+	public PhysicsTraceResult[] RunTraceAll( in PhysicsTraceBuilder trace ) => _world.RunTraceAll( trace );
+
+	/// <summary>
+	/// Find game objects overlapping a sphere.
+	/// </summary>
+	public IEnumerable<GameObject> FindInPhysics( Sphere sphere ) => _world.FindInPhysics( sphere );
+
+	/// <summary>
+	/// Find game objects overlapping a box.
+	/// </summary>
+	public IEnumerable<GameObject> FindInPhysics( BBox box ) => _world.FindInPhysics( box );
+
+	/// <summary>
+	/// Find game objects inside a frustum.
+	/// </summary>
+	public IEnumerable<GameObject> FindInPhysics( Frustum frustum ) => _world.FindInPhysics( frustum );
+
+	/// <summary>
+	/// Temp function for creating model physics until entity system handles it
+	/// </summary>
+	public PhysicsGroup SetupPhysicsFromModel( Model model, PhysicsMotionType motionType ) => _world.SetupPhysicsFromModel( model, motionType );
+
+	/// <summary>
+	/// Temp function for creating model physics until entity system handles it
+	/// </summary>
+	public PhysicsGroup SetupPhysicsFromModel( Model model, Transform transform, PhysicsMotionType motionType ) => _world.SetupPhysicsFromModel( model, transform, motionType );
+
+	/// <summary>
+	/// A SceneWorld where debug SceneObjects exist.
+	/// </summary>
+	[System.ComponentModel.EditorBrowsable( System.ComponentModel.EditorBrowsableState.Never )]
+	public SceneWorld DebugSceneWorld
 	{
-		var newTrace = Trace;
-		newTrace.request = trace.request;
-		newTrace.targetBody = trace.targetBody;
-		newTrace.filterCallback = trace.filterCallback;
-		return newTrace.RunAll();
+		get => _world.DebugSceneWorld;
+		set => _world.DebugSceneWorld = value;
 	}
 
-	internal void RegisterBody( PhysicsBody physicsBody )
-	{
-		bodies.Add( physicsBody );
-	}
+	/// <summary>
+	/// Updates all the SceneObjects in the <see cref="DebugSceneWorld"/>, call once per tick or frame.
+	/// </summary>
+	[System.ComponentModel.EditorBrowsable( System.ComponentModel.EditorBrowsableState.Never )]
+	public void DebugDraw() => _world.DebugDraw();
 
-	internal void UnregisterBody( PhysicsBody physicsBody )
-	{
-		world.RemoveBody( physicsBody );
-		bodies.Remove( physicsBody );
-	}
+	internal void RegisterBody( PhysicsBody body ) => _world.RegisterBody( body._body );
+	internal void UnregisterBody( PhysicsBody body ) => _world.UnregisterBody( body._body );
+	internal void OnBodyDestroyed( PhysicsBody body ) => _world.OnBodyDestroyed( body._body );
 
-	// If a body handle is deleted from native, we can forget it here (empties bodies list of invalid bodies).
-	internal void ForgetBody( PhysicsBody physicsBody ) => bodies.Remove( physicsBody );
+	internal Physics.FixedJoint CreateWeldJoint( PhysicsBody body1, PhysicsBody body2, Transform localFrame1, Transform localFrame2 ) => _world.CreateWeldJoint( body1, body2, localFrame1, localFrame2 );
+	internal Physics.SpringJoint CreateSpringJoint( PhysicsBody body1, PhysicsBody body2, Transform localFrame1, Transform localFrame2 ) => _world.CreateSpringJoint( body1, body2, localFrame1, localFrame2 );
+	internal Physics.HingeJoint CreateRevoluteJoint( PhysicsBody body1, PhysicsBody body2, Transform localFrame1, Transform localFrame2 ) => _world.CreateRevoluteJoint( body1, body2, localFrame1, localFrame2 );
+	internal Physics.SliderJoint CreatePrismaticJoint( PhysicsBody body1, PhysicsBody body2, Transform localFrame1, Transform localFrame2 ) => _world.CreatePrismaticJoint( body1, body2, localFrame1, localFrame2 );
+	internal Physics.BallSocketJoint CreateSphericalJoint( PhysicsBody body1, PhysicsBody body2, Transform localFrame1, Transform localFrame2 ) => _world.CreateSphericalJoint( body1, body2, localFrame1, localFrame2 );
+	internal Physics.ControlJoint CreateMotorJoint( PhysicsBody body1, PhysicsBody body2, Transform localFrame1, Transform localFrame2 ) => _world.CreateMotorJoint( body1, body2, localFrame1, localFrame2 );
+	internal Physics.WheelJoint CreateWheelJoint( PhysicsBody body1, PhysicsBody body2, Transform localFrame1, Transform localFrame2 ) => _world.CreateWheelJoint( body1, body2, localFrame1, localFrame2 );
+	internal Physics.UprightJoint CreateParallelJoint( PhysicsBody body1, PhysicsBody body2, Transform localFrame1, Transform localFrame2 ) => _world.CreateParallelJoint( body1, body2, localFrame1, localFrame2 );
+	internal PhysicsJoint CreateFilterJoint( PhysicsBody body1, PhysicsBody body2 ) => _world.CreateFilterJoint( body1, body2 );
 }
 
 [Expose]
 public readonly unsafe struct PhysicsContact
 {
-	internal PhysicsContact( VPhysIntersectionNotification_t* ptr )
+	internal PhysicsContact( PhysicsWorld3d.VPhysIntersectionNotification_t* ptr )
 	{
 		Point = ptr->ContactPoint;
 		Speed = ptr->ContactSpeed;
 		Normal = ptr->SurfaceNormal;
 		NormalSpeed = ptr->ContactNormalSpeed;
 		Impulse = ptr->Impulse;
+	}
+
+	internal PhysicsContact( Vector3 point, Vector3 normal, float normalSpeed, float impulse )
+	{
+		Point = point;
+		Normal = normal;
+		NormalSpeed = normalSpeed;
+		Speed = normal * normalSpeed;
+		Impulse = impulse;
 	}
 
 	public readonly Vector3 Point;
@@ -488,11 +291,18 @@ public readonly unsafe struct PhysicsContact
 	[Expose]
 	public readonly struct Target
 	{
-		internal Target( in VPhysIntersectionNotification_t.Side o )
+		internal Target( in PhysicsWorld3d.VPhysIntersectionNotification_t.Side o )
 		{
-			Body = HandleIndex.Get<PhysicsBody>( o.BodyManagedIndex );
-			Shape = HandleIndex.Get<PhysicsShape>( o.ShapeManagedIndex );
+			Body = HandleIndex.Get<PhysicsBody3d>( o.BodyManagedIndex )?.Owner;
+			Shape = HandleIndex.Get<PhysicsShape3d>( o.ShapeManagedIndex )?.Owner;
 			Surface = Surface.FindByIndex( o.SurfaceIndex );
+		}
+
+		internal Target( PhysicsBody body, PhysicsShape shape, Surface surface )
+		{
+			Body = body;
+			Shape = shape;
+			Surface = surface;
 		}
 
 		public readonly PhysicsBody Body;

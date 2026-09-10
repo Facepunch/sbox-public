@@ -63,6 +63,12 @@ public abstract partial class BaseStyles
 		["padding"] = new[] { "padding-left", "padding-top", "padding-right", "padding-bottom" },
 		["inset"] = new[] { "top", "right", "bottom", "left" },
 		["gap"] = new[] { "row-gap", "column-gap" },
+		["grid-column"] = new[] { "grid-column-start", "grid-column-end" },
+		["grid-row"] = new[] { "grid-row-start", "grid-row-end" },
+		["grid-area"] = new[] { "grid-row-start", "grid-column-start", "grid-row-end", "grid-column-end" },
+		["grid-template"] = new[] { "grid-template-rows", "grid-template-columns" },
+		["place-items"] = new[] { "align-items", "justify-items" },
+		["place-self"] = new[] { "align-self", "justify-self" },
 		["overflow"] = new[] { "overflow-x", "overflow-y" },
 		["border-radius"] = new[] { "border-top-left-radius", "border-top-right-radius", "border-bottom-right-radius", "border-bottom-left-radius", "border-top-left-radius-v", "border-top-right-radius-v", "border-bottom-right-radius-v", "border-bottom-left-radius-v" },
 		["border-width"] = new[] { "border-top-width", "border-right-width", "border-bottom-width", "border-left-width" },
@@ -154,9 +160,8 @@ public abstract partial class BaseStyles
 		var s = new Styles();
 		s.FillDefaults();
 
-		// FillDefaults only populates nullable members - it skips every string property. Supply the
-		// string defaults explicitly so 'initial'/'unset' on them resolve to the real default rather
-		// than null. (Mirrors the default column in BaseStyles.Generated.tt.)
+		// FillDefaults populates nullable members and grid strings. Supply the legacy string
+		// defaults explicitly for CSS-wide initial/unset without changing their computed defaults.
 		s.FontFamily = "Arial";
 		s.Cursor = "auto";
 		s.MixBlendMode = "default";

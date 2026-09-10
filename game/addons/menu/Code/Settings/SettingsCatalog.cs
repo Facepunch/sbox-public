@@ -427,13 +427,13 @@ public class SettingsCatalog
 			Section = "Quality",
 			Title = "Anti-Aliasing",
 			Description = "Multisampling on geometry edges. Without it foliage and hair fall back to a hard cutout, so 2x is worth having.",
-			Options =
-			[
+			Options = new List<Option>
+			{
 				new( "Off", MultisampleAmount.MultisampleNone ),
 				new( "2x", MultisampleAmount.Multisample2x ),
 				new( "4x", MultisampleAmount.Multisample4x ),
 				new( "8x", MultisampleAmount.Multisample8x )
-			],
+			}.Where( x => RenderSettings.GetSupportedAntiAliasQuality( (MultisampleAmount)x.Value ) == (MultisampleAmount)x.Value ).ToList(),
 			AppliesRenderSettings = true,
 			Read = () => Render.AntiAliasQuality,
 			Write = value => Render.AntiAliasQuality = ToEnum<MultisampleAmount>( value ),

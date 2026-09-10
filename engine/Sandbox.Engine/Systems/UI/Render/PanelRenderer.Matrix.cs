@@ -10,10 +10,10 @@ internal partial class PanelRenderer
 	/// Calculate and store the transform matrix for a panel during build phase.
 	/// The transform is cached on the panel and applied to the global CL during gather.
 	/// </summary>
-	private void BuildTransformState( Panel panel )
+	internal void BuildTransformState( Panel panel )
 	{
-		var globalMat = panel.Parent?.GlobalMatrix;
-		var globalMatInverted = panel.Parent?.GlobalMatrixInverted;
+		var globalMat = panel.VisualParent?.GlobalMatrix;
+		var globalMatInverted = panel.VisualParent?.GlobalMatrixInverted;
 
 		var style = panel.ComputedStyle;
 		Matrix transformMat;

@@ -19,6 +19,8 @@ namespace Sandbox.UI
 			IconPanel
 			{
 				font-family: Material Icons;
+				text-transform: none;
+				letter-spacing: 0px;
 			}
 			""";
 

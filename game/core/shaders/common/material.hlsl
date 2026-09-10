@@ -82,6 +82,7 @@ struct Material
         o.Roughness = ::lerp(a.Roughness, b.Roughness, amount);
         o.Metalness = ::lerp(a.Metalness, b.Metalness, amount);
         o.AmbientOcclusion = ::lerp(a.AmbientOcclusion, b.AmbientOcclusion, amount);
+        o.Transmission = ::lerp(a.Transmission, b.Transmission, amount);
 
         return o;
     }

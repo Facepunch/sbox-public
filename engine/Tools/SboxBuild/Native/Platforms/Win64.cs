@@ -46,6 +46,8 @@ public sealed class Win64 : NativePlatform
 			if ( config.Name == "Debug" ) Debug( module, config, options );
 			else Release( module, config, options );
 		}
+
+		module.ResolvedFiles.Add( new SourceFile { Path = "devtools/engine2.natvis", Kind = FileKind.Natvis } );
 	}
 
 	public override void Generate( List<Module> modules, Options options )
@@ -241,7 +243,7 @@ public sealed class Win64 : NativePlatform
 
 		if ( !module.Msvc.Rtti ) Set( config.Cl, "RuntimeTypeInfo", "false" );
 		if ( module.CompileAsC ) config.Cl["CompileAs"] = "CompileAsC";
-		config.Option( "/std:c++20", "/permissive", "/Zc:__cplusplus", "/Wv:18", "/Gw", "/bigobj" );
+		config.Option( module.CompileAsC ? "/std:c17" : "/std:c++20", "/permissive", "/Zc:__cplusplus", "/Wv:18", "/Gw", "/bigobj" );
 		if ( !module.ThirdParty ) config.Option( "/w14555" );
 
 		Set( config.Cl, "StringPooling", "true" );

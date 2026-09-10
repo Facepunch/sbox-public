@@ -96,6 +96,7 @@ public partial class RootPanel : Panel
 	public override void OnDeleted()
 	{
 		base.OnDeleted();
+		fixedOverlays.Clear();
 
 		UISystem.RemoveRoot( this );
 	}
@@ -204,26 +205,39 @@ public partial class RootPanel : Panel
 		PushRootValues();
 
 		PreLayout( cascade );
+		_ = FixedOverlays;
 	}
 
 	internal void CalculateLayout()
 	{
-		if ( YogaNode == null )
+		if ( LayoutTree == null )
 			return;
 
 		// Dirtiness propagates to the root, so a clean root means nothing to do
-		if ( !YogaNode.IsDirty )
+		if ( !LayoutTree.IsDirty )
 			return;
 
 		using var perfScope = Performance.Scope( "CalculateLayout" );
 		PushRootValues();
-		YogaNode.CalculateLayout();
+		LayoutTree.CalculateLayout();
 	}
 
 	internal void PostLayout()
 	{
 		PushRootValues();
 		FinalLayout( Vector2.Zero );
+		foreach ( var panel in FixedOverlays )
+		{
+			if ( !panel.IsVisible && !panel.HasIntro ) continue;
+			try
+			{
+				panel.FinalLayout( PanelBounds.Position );
+			}
+			catch ( Exception e )
+			{
+				Log.Warning( e );
+			}
+		}
 	}
 
 	internal void PushRootValues()
@@ -231,6 +245,17 @@ public partial class RootPanel : Panel
 		Length.RootSize = new Vector2( PanelBounds.Width, PanelBounds.Height );
 		Length.RootFontSize = ComputedStyle?.FontSize ?? Length.Pixels( 13 ).Value;
 		Length.RootScale = ScaleToScreen;
+	}
+
+	/// <summary>
+	/// Tab and Shift+Tab that nothing below us handled move focus through the tree.
+	/// </summary>
+	public override void OnButtonTyped( ButtonEvent e )
+	{
+		if ( e.Button == "tab" && e.Pressed && UISystem.MoveFocus( UISystem.CurrentFocus, e.HasShift ) )
+			return;
+
+		base.OnButtonTyped( e );
 	}
 
 	public override void OnLayout( ref Rect layoutRect )
@@ -304,65 +329,56 @@ public partial class RootPanel : Panel
 
 		var timer = FastTimer.StartNew();
 		int count = styleRuleUpdates.Count;
-		int locks = 0;
+		_styleRuleChanges = 0;
 
-		var l = new object();
-
-		//
-		// Anything in BuildRules should be thread safe
-		//
-#if true
-		{
-			Parallel.ForEach( styleRuleUpdates, panel =>
-			{
-				try
-				{
-					if ( !panel.IsValid() || panel.Style is null )
-						return;
-
-					if ( panel.Style.BuildRulesInThread() )
-					{
-						lock ( l )
-						{
-							locks++;
-							panel.SetNeedsPreLayout();
-						}
-					}
-
-					panel.MarkStylesRebuilt();
-				}
-				catch ( Exception e )
-				{
-					Log.Warning( e, e.Message );
-				}
-
-			} );
-
-		}
-#else
+		// A handful of panels is quicker inline than through the parallel machinery
+		if ( count < 32 )
 		{
 			foreach ( var panel in styleRuleUpdates )
-			{
-				if ( !panel.IsValid )
-					return;
-
-				if ( panel.Style.BuildRulesInThread() )
-				{
-					lock ( l )
-					{
-						locks++;
-						panel.SetNeedsPreLayout();
-					}
-				}
-			};
+				BuildStyleRule( panel );
 		}
-#endif
+		else
+		{
+			_buildStyleRule ??= BuildStyleRule;
+			Parallel.ForEach( styleRuleUpdates, _buildStyleRule );
+		}
 
 		styleRuleUpdates.Clear();
 
 		if ( timer.ElapsedMilliSeconds > 0.5 )
 		{
-			Log.Trace( $"BuildStyleRules {count:n0} ({locks}) took {timer.ElapsedMilliSeconds}ms" );
+			Log.Trace( $"BuildStyleRules {count:n0} ({_styleRuleChanges}) took {timer.ElapsedMilliSeconds}ms" );
+		}
+	}
+
+	readonly object _styleRuleLock = new();
+	int _styleRuleChanges;
+	Action<Panel> _buildStyleRule;
+
+	/// <summary>
+	/// Re-evaluate one panel's rules. Safe to run from a worker thread.
+	/// </summary>
+	void BuildStyleRule( Panel panel )
+	{
+		try
+		{
+			if ( !panel.IsValid() || panel.Style is null )
+				return;
+
+			if ( panel.Style.BuildRulesInThread() )
+			{
+				lock ( _styleRuleLock )
+				{
+					_styleRuleChanges++;
+					panel.SetNeedsPreLayout();
+				}
+			}
+
+			panel.MarkStylesRebuilt();
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( e, e.Message );
 		}
 	}
 }

@@ -57,14 +57,15 @@ public class GalleryWindow : Panel
 	{
 		var bar = Add.Panel( "titlebar window-drag" );
 
-		bar.Add.Label( "Control Gallery", "gallery-title" );
+		bar.Add.Label( "Panel Gallery", "gallery-title" );
 
 		bar.Add.Panel( "grow" );
 
 		WindowButton( bar, "contrast", null, ToggleTheme );
 		WindowButton( bar, "remove", null, _window.Minimize );
 		WindowButton( bar, "crop_square", null, _window.ToggleMaximized );
-		WindowButton( bar, "close", "close", _window.Dispose );
+		if ( _window.CanClose )
+			WindowButton( bar, "close", "close", _window.RequestClose );
 	}
 
 	static void WindowButton( Panel bar, string icon, string classname, Action onClick )
@@ -78,7 +79,8 @@ public class GalleryWindow : Panel
 
 	void BuildSidebar( Panel body )
 	{
-		_sidebar = body.Add.Panel( "sidebar" );
+		var sidebar = body.Add.Panel( "sidebar" );
+		_sidebar = sidebar.Add.Panel( "nav" );
 
 		Section( "CONTROLS" );
 
@@ -92,6 +94,11 @@ public class GalleryWindow : Panel
 			foreach ( var page in UiTestPages.Pages )
 				NavItem( page );
 		}
+
+		// Pinned under the list - the mock editor is the point of all this
+		_sidebar = sidebar;
+		Section( "APPS" );
+		NavItem( "Mock Editor", "web", () => EditorWindow.Open() );
 	}
 
 	void Section( string title )
@@ -105,13 +112,19 @@ public class GalleryWindow : Panel
 	{
 		var current = page;
 
-		var item = _sidebar.Add.Panel( "navitem" );
-		item.Add.Icon( current.Icon, "icon" );
-		item.Add.Label( current.Title, "label" );
-		item.AddEventListener( "onclick", () => Open( current ) );
+		var item = NavItem( current.Title, current.Icon, () => Open( current ) );
 		item.SetClass( "active", current == _current );
 
 		_navItems[current] = item;
+	}
+
+	Panel NavItem( string title, string icon, Action onClick )
+	{
+		var item = _sidebar.Add.Panel( "navitem" );
+		item.Add.Icon( icon, "icon" );
+		item.Add.Label( title, "label" );
+		item.AddEventListener( "onclick", onClick );
+		return item;
 	}
 
 	void Open( GalleryPageInfo page )

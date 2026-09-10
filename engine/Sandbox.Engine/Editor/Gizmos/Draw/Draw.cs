@@ -47,6 +47,7 @@ public static partial class Gizmo
 		static VertexSceneObject _vertexObject;
 		static string _vertexObjectPath;
 		static Material _vertexObjectMaterial;
+		static Texture _vertexObjectTexture;
 
 		/// <summary>
 		/// Ignore depth when drawing, draw on top of everything
@@ -91,6 +92,7 @@ public static partial class Gizmo
 
 			_vertexObject = default;
 			_vertexObjectPath = default;
+			_vertexObjectTexture = default;
 		}
 
 		/// <summary>

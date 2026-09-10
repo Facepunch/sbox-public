@@ -69,7 +69,7 @@ internal partial class PanelRenderer
 		while ( i < children.Count )
 		{
 			var child = children[i];
-			if ( child?.ComputedStyle == null || !child.IsVisible ) { i++; continue; }
+			if ( child?.ComputedStyle == null || !child.IsVisible || child.IsFixed ) { i++; continue; }
 
 			switch ( child.CachedRenderMode )
 			{
@@ -109,7 +109,7 @@ internal partial class PanelRenderer
 	int CollectBatchedRun( List<Panel> children, int start, CommandList cl )
 	{
 		int groupZ = children[start].ComputedStyle.ZIndex ?? 0;
-		bool groupAbsolute = children[start].ComputedStyle?.Position == PositionMode.Absolute;
+		bool groupAbsolute = children[start].IsOutOfFlow;
 		int end = start;
 
 		int savedDepth = zDepth;
@@ -117,11 +117,11 @@ internal partial class PanelRenderer
 		while ( end < children.Count )
 		{
 			var c = children[end];
-			if ( c?.ComputedStyle == null || !c.IsVisible ) { end++; continue; }
+			if ( c?.ComputedStyle == null || !c.IsVisible || c.IsFixed ) { end++; continue; }
 			if ( c.CachedRenderMode != Panel.RenderMode.Batched ) break;
 
 			int z = c.ComputedStyle.ZIndex ?? 0;
-			bool isAbsolute = c.ComputedStyle?.Position == PositionMode.Absolute;
+			bool isAbsolute = c.IsOutOfFlow;
 
 			if ( z != groupZ || isAbsolute != groupAbsolute )
 			{
@@ -152,7 +152,7 @@ internal partial class PanelRenderer
 		// frame grab across consecutive siblings at the same z-depth.
 		if ( desc.Backdrops.Count > 0 )
 		{
-			if ( deferredInstances.Count > 0 && panel.ComputedStyle?.Position == PositionMode.Absolute )
+			if ( deferredInstances.Count > 0 && panel.IsOutOfFlow )
 			{
 				// Absolute-positioned panels overlap previous content;
 				// flush and re-grab so the backdrop sees the correct framebuffer
@@ -193,7 +193,7 @@ internal partial class PanelRenderer
 		for ( int i = 0; i < children.Count; i++ )
 		{
 			var child = children[i];
-			if ( child?.ComputedStyle == null || !child.IsVisible ) continue;
+			if ( child?.ComputedStyle == null || !child.IsVisible || child.IsFixed ) continue;
 
 			int childZ = child.ComputedStyle.ZIndex ?? 0;
 			zDepth = savedDepth + Math.Max( 0, childZ );

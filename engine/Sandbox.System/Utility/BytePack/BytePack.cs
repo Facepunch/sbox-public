@@ -1,4 +1,4 @@
-﻿namespace Sandbox;
+namespace Sandbox;
 
 /// <summary>
 /// A class that can serialize and deserialize whole objects to and from byte streams, 
@@ -42,7 +42,7 @@ internal partial class BytePack
 		OnCreatePackerFromIdentifier = default;
 	}
 
-	void Add( Packer ti )
+	internal void Add( Packer ti )
 	{
 		ti.Init( this );
 	}
@@ -129,6 +129,17 @@ internal partial class BytePack
 			return;
 		}
 
+		// Snapshot blobs and sync tables are byte buffers. Their element type and wire
+		// header are already known, so avoid reflection, size lookup and array pinning.
+		if ( obj is byte[] bytes )
+		{
+			bs.Write( Identifier.ArrayValue );
+			bs.Write( bytes.Length );
+			bs.Write( Identifier.Byte );
+			bs.Write( bytes );
+			return;
+		}
+
 		if ( obj is Array array )
 		{
 			var element = array.GetType().GetElementType();
@@ -146,6 +157,15 @@ internal partial class BytePack
 		}
 
 		var t = obj.GetType();
+
+		// Most fields use an installed POD/string packer or an already resolved runtime
+		// type. Don't walk their inheritance tree twice looking for List/Dictionary.
+		if ( types.TryGetValue( t, out var cached ) && !cached.UsesCollectionFormat )
+		{
+			cached.WriteTypeIdentifier( ref bs, t );
+			cached.Write( ref bs, obj );
+			return;
+		}
 
 		if ( t.IsBasedOnGenericType( typeof( List<> ) ) )
 		{

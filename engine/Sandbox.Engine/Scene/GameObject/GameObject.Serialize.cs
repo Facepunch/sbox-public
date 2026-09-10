@@ -58,6 +58,9 @@ public partial class GameObject
 		/// </summary>
 		internal bool SerializeForPrefabInstanceToPrefabUpdate { get; set; }
 
+		/// <summary>Capture shallow undo state while preserving existing prefab ownership on restore.</summary>
+		internal bool SerializeForUndo { get; set; }
+
 		/// <summary>
 		/// Don't serialize gameObject children.
 		/// </summary>
@@ -77,6 +80,11 @@ public partial class GameObject
 		/// </summary>
 		internal bool SkipNulls { get; set; }
 
+		/// <summary>
+		/// Keep NetworkMode.Never objects, for a host handoff. NotNetworked and map-spawned objects still stay out.
+		/// </summary>
+		internal bool IncludeLocalObjects { get; set; }
+
 		internal bool ShouldSave( GameObject gameObject )
 		{
 			var shouldIgnoreNotSavedFlag = SingleNetworkObject || SceneForNetwork;
@@ -87,7 +95,7 @@ public partial class GameObject
 			// We're saving for the network.
 			if ( SceneForNetwork || SingleNetworkObject )
 			{
-				if ( gameObject.NetworkMode == NetworkMode.Never ) return false;
+				if ( gameObject.NetworkMode == NetworkMode.Never && (!IncludeLocalObjects || gameObject.IsSpawnedByMap) ) return false;
 				if ( gameObject.Flags.Contains( GameObjectFlags.NotNetworked ) ) return false;
 			}
 
@@ -156,7 +164,7 @@ public partial class GameObject
 
 		if ( !options.ShouldSave( this ) ) return null;
 
-		if ( IsOutermostPrefabInstanceRoot && !options.SerializePrefabForDiff && !options.SingleNetworkObject && !options.SceneForNetwork )
+		if ( IsOutermostPrefabInstanceRoot && !options.SerializePrefabForDiff && !(options.SerializeForUndo && options.IgnoreChildren) && !options.SingleNetworkObject && !options.SceneForNetwork )
 		{
 			return SerializePrefabInstance();
 		}
@@ -216,7 +224,11 @@ public partial class GameObject
 		json.Add( JsonKeys.AlwaysTransmit, AlwaysTransmit );
 		json.Add( JsonKeys.OwnerTransfer, (int)OwnerTransfer );
 
-		if ( (!options.SceneForNetwork && !options.SingleNetworkObject)
+		if ( options.SerializeForUndo && options.IgnoreChildren && IsPrefabInstanceRoot )
+		{
+			json[JsonKeys.EditorSkipPrefabBreakOnRefresh] = true;
+		}
+		else if ( (!options.SceneForNetwork && !options.SingleNetworkObject)
 				&& (IsNestedPrefabInstanceRoot || (IsOutermostPrefabInstanceRoot && options.SerializePrefabForDiff)) )
 		{
 			// For prefab updates all existing nested roots keep their instance data, regardless of depth.

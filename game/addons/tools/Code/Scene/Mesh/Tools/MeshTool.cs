@@ -61,7 +61,8 @@ public partial class MeshTool : EditorTool
 
 	public override void OnUpdate()
 	{
-		AllowGameObjectSelection = CurrentTool?.GetType() == typeof( ObjectSelection );
+		AllowGameObjectSelection = CurrentTool?.GetType() == typeof( ObjectSelection ) &&
+								   (MoveMode?.AllowSceneSelection ?? true);
 
 		DrawBadFaces();
 	}

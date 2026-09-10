@@ -58,7 +58,7 @@ public partial class PanelTransitionTest
 	}
 
 	/// <summary>
-	/// A width transition is fed through yoga every frame, so halfway through the transition
+	/// A width transition is fed through layout every frame, so halfway through the transition
 	/// the laid-out box is halfway between the old and new widths.
 	/// </summary>
 	[TestMethod]

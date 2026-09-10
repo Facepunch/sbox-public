@@ -34,6 +34,7 @@
     <Project Path="Sandbox.Event/Sandbox.Event.csproj" />
     <Project Path="Sandbox.Filesystem/Sandbox.Filesystem.csproj" />
     <Project Path="Sandbox.Hotload/Sandbox.Hotload.csproj" />
+    <Project Path="Sandbox.Layout/Sandbox.Layout.csproj" />
     <Project Path="Sandbox.NetCore/Sandbox.NetCore.csproj" />
     <Project Path="Sandbox.Razor/Sandbox.Razor.csproj" />
     <Project Path="Sandbox.Reflection/Sandbox.Reflection.csproj" />
@@ -68,6 +69,7 @@
     <Project Path="Benchmark/Benchmark.csproj" />
     <Project Path="Tests/Sandbox.Test.Engine/Sandbox.Test.Engine.csproj" />
     <Project Path="Tests/Sandbox.Test.Integration/Sandbox.Test.Integration.csproj" />
+    <Project Path="Tests/Sandbox.Test.Text/Sandbox.Test.Text.csproj" />
     <Project Path="Tests/Sandbox.Test.Unit/Sandbox.Test.Unit.csproj" />
   </Folder>
   <Folder Name="/Tests/Fixtures/">

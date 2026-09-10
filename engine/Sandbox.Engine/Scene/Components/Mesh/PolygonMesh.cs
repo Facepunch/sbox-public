@@ -135,13 +135,26 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 	internal IEnumerable<Vector3> GetFaceVertexNormals()
 	{
+		_faceNormalCache.Clear();
+
 		foreach ( var hFace in Topology.FaceHandles )
 		{
-			ComputeFaceNormal( hFace, out var normal );
-			var vertexCount = Topology.ComputeNumEdgesInFace( hFace );
-			for ( var i = 0; i < vertexCount; ++i )
-				yield return normal;
+			PlaneEquation( hFace, out var n, out _ );
+			_faceNormalCache[hFace] = n;
 		}
+
+		var normals = new List<Vector3>();
+
+		foreach ( var hFace in Topology.FaceHandles )
+		{
+			GetFaceVerticesConnectedToFace( hFace, out var hEdges );
+			foreach ( var hEdge in hEdges )
+				normals.Add( ComputeFaceVertexNormal( hEdge ) );
+		}
+
+		_faceNormalCache.Clear();
+
+		return normals;
 	}
 
 	internal IEnumerable<Vector2> GetFaceVertexTexCoords()

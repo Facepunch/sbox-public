@@ -11,12 +11,15 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 
 	BBox? _box;
 	BBox _startBox;
+	Rotation _rotation = Rotation.Identity;
+
 	Vector3 _dragStartPos;
 	bool _dragStarted;
 	Model _previewModel;
 	bool _resizeDragging;
 	BBox _resizeBefore;
 	int _undoStartCount;
+	int _cameraFacing = -1;
 
 	static float TextSize => 22 * Gizmo.Settings.GizmoScale * Application.DpiScale;
 
@@ -24,6 +27,8 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 
 	public override bool CanBuild => _primitive is not null && _box.HasValue;
 	public override bool InProgress => _dragStarted || CanBuild;
+
+	public override Rotation BuildRotation => _rotation;
 
 	public override PolygonMesh Build()
 	{
@@ -71,6 +76,7 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 
 		_box = null;
 		_dragStarted = false;
+		_rotation = Rotation.Identity;
 	}
 
 	void StartStage( SceneTrace trace )
@@ -101,17 +107,19 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 
 		if ( !tr.Hit ) return;
 
-		tr.EndPosition = GridSnap( tr.EndPosition, tr.Normal );
+		var rotation = Gizmo.IsShiftPressed ? RotationFromNormal( tr.Normal ) : Rotation.Identity;
+
+		tr.EndPosition = rotation * GridSnap( rotation.Inverse * tr.EndPosition, Vector3.Up );
 
 		if ( Gizmo.WasLeftMousePressed )
 		{
-			_dragStartPos = tr.EndPosition;
-			_dragStarted = true;
-
 			if ( _box.HasValue )
 			{
 				Tool.Create();
 			}
+
+			_rotation = rotation;
+			_dragStartPos = rotation.Inverse * tr.EndPosition;
 
 			_box = null;
 			_dragStarted = true;
@@ -122,15 +130,21 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 			var size = 3.0f * Gizmo.Camera.Position.Distance( tr.EndPosition ) / 1000.0f;
 			Gizmo.Draw.Color = Color.White;
 			Gizmo.Draw.SolidSphere( tr.EndPosition, size );
+
+			if ( !rotation.Equals( Rotation.Identity ) )
+			{
+				Gizmo.Draw.Color = Gizmo.Colors.Up;
+				Gizmo.Draw.Line( tr.EndPosition, tr.EndPosition + rotation.Up * size * 8.0f );
+			}
 		}
 	}
 
 	void DraggingStage()
 	{
-		var plane = new Plane( _dragStartPos, Vector3.Up );
-		if ( !plane.TryTrace( Gizmo.CurrentRay, out var point, true ) ) return;
+		var plane = new Plane( _rotation * _dragStartPos, _rotation * Vector3.Up );
+		if ( !plane.TryTrace( Gizmo.CurrentRay, out var worldPoint, true ) ) return;
 
-		point = GridSnap( point, Vector3.Up );
+		var point = GridSnap( _rotation.Inverse * worldPoint, Vector3.Up );
 
 		if ( !Gizmo.IsLeftMouseDown )
 		{
@@ -155,6 +169,9 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 		}
 		else
 		{
+			using var scope = Gizmo.Scope( "drag" );
+			Gizmo.Transform = new Transform( Vector3.Zero, _rotation );
+
 			var box = new BBox( _dragStartPos, point );
 			Gizmo.Draw.IgnoreDepth = true;
 			Gizmo.Draw.LineThickness = 2;
@@ -174,11 +191,11 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 
 			textScope.Text = $"L: {box.Size.y:0.#}";
 			textScope.TextColor = Gizmo.Colors.Left;
-			Gizmo.Draw.ScreenText( textScope, box.Mins.WithY( box.Center.y ), Vector2.Up * 32 );
+			Gizmo.Draw.ScreenText( textScope, _rotation * box.Mins.WithY( box.Center.y ), Vector2.Up * 32 );
 
 			textScope.Text = $"W: {box.Size.x:0.#}";
 			textScope.TextColor = Gizmo.Colors.Forward;
-			Gizmo.Draw.ScreenText( textScope, box.Mins.WithX( box.Center.x ), Vector2.Up * 32 );
+			Gizmo.Draw.ScreenText( textScope, _rotation * box.Mins.WithX( box.Center.x ), Vector2.Up * 32 );
 		}
 	}
 
@@ -194,6 +211,14 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 		{
 			BuildPreview();
 			_activeMaterial = Tool.ActiveMaterial;
+		}
+
+		// Some primitives orient themselves to the camera, so rebuild when the facing direction changes.
+		var facing = CameraFacing;
+		if ( _cameraFacing != facing )
+		{
+			_cameraFacing = facing;
+			BuildPreview();
 		}
 
 		if ( !Gizmo.Pressed.Any )
@@ -218,6 +243,7 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 		_box = null;
 		_dragStarted = false;
 		_resizeDragging = false;
+		_rotation = Rotation.Identity;
 	}
 
 	public override void OnCancel()
@@ -238,6 +264,7 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 
 		using ( Gizmo.Scope( "box" ) )
 		{
+			Gizmo.Transform = new Transform( Vector3.Zero, _rotation );
 			Gizmo.Hitbox.DepthBias = 0.01f;
 
 			if ( !Gizmo.Pressed.Any )
@@ -289,6 +316,10 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 
 		if ( _previewModel.IsValid() && !_previewModel.IsError )
 		{
+			// The preview mesh is built in the block's own space, same as the created object.
+			using var scope = Gizmo.Scope( "preview" );
+			Gizmo.Transform = new Transform( Vector3.Zero, _rotation );
+
 			Gizmo.Draw.Model( _previewModel );
 		}
 	}
@@ -301,6 +332,24 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 		return Gizmo.Snap( point, new Vector3( x ? 0 : 1, y ? 0 : 1, x || y ? 1 : 0 ) );
 	}
 
+	/// <summary>
+	/// Build a frame whose up axis is the given surface normal, keeping the
+	/// other two axes as close to the world axes as possible.
+	/// </summary>
+	static Rotation RotationFromNormal( Vector3 normal )
+	{
+		normal = normal.Normal;
+
+		var dot = normal.Dot( Vector3.Up );
+		if ( dot >= 0.9999f ) return Rotation.Identity;
+		if ( dot <= -0.9999f ) return Rotation.From( 0.0f, 0.0f, 180.0f );
+
+		var right = Vector3.Cross( Vector3.Up, normal ).Normal;
+		var forward = Vector3.Cross( normal, right ).Normal;
+
+		return Rotation.LookAt( forward, normal );
+	}
+
 	public override Widget CreateWidget()
 	{
 		return new BlockEditorWidget( this, BuildPreview );
@@ -310,6 +359,23 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 	{
 		var mesh = Build();
 		_previewModel = mesh?.Rebuild();
+	}
+
+	/// <summary>
+	/// Which horizontal direction the camera is mostly looking down. Used to
+	/// detect when camera-aligned primitives need rebuilding.
+	/// </summary>
+	static int CameraFacing
+	{
+		get
+		{
+			var forward = Gizmo.Camera.Rotation.Forward;
+
+			if ( MathF.Abs( forward.y ) > MathF.Abs( forward.x ) )
+				return forward.y >= 0.0f ? 0 : 1;
+
+			return forward.x >= 0.0f ? 2 : 3;
+		}
 	}
 
 	void PushUndo( string name, BBox? before, BBox? after )
@@ -361,6 +427,10 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 
 			_controlLayout = Layout.AddColumn();
 			BuildControlSheet();
+
+			AddShortcuts(
+				("Align to Surface", "Shift + Drag")
+			);
 		}
 
 		void OnPrimitiveSelected( Type type )

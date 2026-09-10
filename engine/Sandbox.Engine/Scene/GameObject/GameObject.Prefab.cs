@@ -22,7 +22,7 @@ public partial class GameObject
 
 		if ( !IsPrefabInstanceRoot )
 		{
-			Clear();
+			OutermostPrefabInstanceRoot.PrefabInstance.UpdateGameObjectFromPrefab( this );
 			return;
 		}
 
@@ -158,6 +158,11 @@ public partial class GameObject
 	}
 
 	internal bool IsMapInstanceRoot => MapSource is not null;
+
+	/// <summary>
+	/// Created by a MapInstance, directly or via an ancestor; never travels in a snapshot.
+	/// </summary>
+	internal bool IsSpawnedByMap => IsMapInstanceRoot || Components.Get<MapInstance>( FindMode.EverythingInAncestors ) is not null;
 
 	/// <summary>
 	/// Access point for all prefab instance related data.

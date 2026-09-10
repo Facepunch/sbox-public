@@ -39,6 +39,20 @@ partial class PublishWizard
 
 		public override async Task OpenAsync()
 		{
+			// Only initialize the selection when opening, not when rebuilding after hotload.
+			if ( Project.Config.TryGetMeta<string>( "AssetLicense", out var localLicense ) )
+			{
+				SelectedLicense = localLicense;
+			}
+
+			Rebuild();
+			Visible = true;
+			GetPackage();
+			await Task.CompletedTask;
+		}
+
+		public override void Rebuild()
+		{
 			BodyLayout?.Clear( true );
 			BodyLayout.Margin = new Sandbox.UI.Margin( 64, 0 );
 			BodyLayout.Spacing = 16;
@@ -83,12 +97,6 @@ partial class PublishWizard
 					var licenseOptions = packageType.GetAssetLicenseOptions();
 					AvailableLicenses = licenseOptions;
 
-					// Load from local metadata as initial value
-					if ( Project.Config.TryGetMeta<string>( "AssetLicense", out var localLicense ) )
-					{
-						SelectedLicense = localLicense;
-					}
-
 					var pageSo = this.GetSerialized();
 					LicenseDropdown = cs.AddControl<LicenseControlWidget>( pageSo.GetProperty( nameof( SelectedLicense ) ) );
 					LicenseDropdown.SetLicenseOptions( licenseOptions );
@@ -106,10 +114,7 @@ partial class PublishWizard
 
 			BodyLayout.AddStretchCell();
 
-			Visible = true;
-			GetPackage();
-
-			await Task.CompletedTask;
+			UpdateWarnings();
 		}
 
 		public override void ChildValuesChanged( Widget source )
@@ -148,6 +153,11 @@ partial class PublishWizard
 				LicenseLoaded = true;
 			}
 
+			UpdateWarnings();
+		}
+
+		void UpdateWarnings()
+		{
 			ArchivedWarning.Visible = Package?.Archived ?? false;
 			WrongTypeWarning.Visible = Package != null && Package.TypeName != Project.Config.Type;
 

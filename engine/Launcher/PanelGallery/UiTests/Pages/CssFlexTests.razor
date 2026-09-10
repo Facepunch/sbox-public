@@ -1,0 +1,139 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+
+@using Sandbox;
+@using Sandbox.UI;
+
+@attribute [Title( "CSS Flex" )]
+@attribute [Description( "display: flex - axes, sizing, wrapping, and alignment" )]
+@attribute [Icon( "view_column" )]
+@attribute [Order( 19 )]
+
+<root>
+
+    <h2>Direction</h2>
+
+    <div class="cases">
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="flex-direction: row" Note="Items run left to right on the main axis.">
+            <ChildContent><div class="flex row"><div class="item c1">1</div><div class="item c2">2</div><div class="item c3">3</div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="flex-direction: row-reverse" Note="Main-axis order and start edge are reversed.">
+            <ChildContent><div class="flex row-reverse"><div class="item c1">1</div><div class="item c2">2</div><div class="item c3">3</div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="flex-direction: column" Note="Items run top to bottom; the main axis is now vertical.">
+            <ChildContent><div class="flex column"><div class="item c1">1</div><div class="item c2">2</div><div class="item c3">3</div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="flex-direction: column-reverse" Note="Vertical main-axis order and start edge are reversed.">
+            <ChildContent><div class="flex column-reverse"><div class="item c1">1</div><div class="item c2">2</div><div class="item c3">3</div></div></ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Main-axis distribution</h2>
+
+    <div class="cases">
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="justify-content: flex-start" Note="Items collect at main-start.">
+            <ChildContent><div class="flex row start"><div class="item c1">1</div><div class="item c2">2</div><div class="item c3">3</div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="justify-content: center" Note="Free space is split before and after the group.">
+            <ChildContent><div class="flex row center"><div class="item c1">1</div><div class="item c2">2</div><div class="item c3">3</div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="justify-content: flex-end" Note="Items collect at main-end.">
+            <ChildContent><div class="flex row end"><div class="item c1">1</div><div class="item c2">2</div><div class="item c3">3</div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="justify-content: space-between" Note="The first and last items touch the edges; free space sits between items.">
+            <ChildContent><div class="flex row between"><div class="item c1">1</div><div class="item c2">2</div><div class="item c3">3</div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="justify-content: space-around" Note="Every item gets equal space around it, so edge spaces are half-sized.">
+            <ChildContent><div class="flex row around"><div class="item c1">1</div><div class="item c2">2</div><div class="item c3">3</div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="justify-content: space-evenly" Note="All spaces, including the two edge spaces, are equal.">
+            <ChildContent><div class="flex row evenly"><div class="item c1">1</div><div class="item c2">2</div><div class="item c3">3</div></div></ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Cross-axis alignment</h2>
+
+    <div class="cases">
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="align-items: flex-start" Note="Different-height items share the cross-start edge.">
+            <ChildContent><div class="flex row tall cross-start"><div class="item c1 short">1</div><div class="item c2 medium">2</div><div class="item c3 high">3</div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="align-items: center" Note="Different-height items share a cross-axis centre line.">
+            <ChildContent><div class="flex row tall cross-center"><div class="item c1 short">1</div><div class="item c2 medium">2</div><div class="item c3 high">3</div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="align-items: flex-end" Note="Different-height items share the cross-end edge.">
+            <ChildContent><div class="flex row tall cross-end"><div class="item c1 short">1</div><div class="item c2 medium">2</div><div class="item c3 high">3</div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="align-items: stretch" Note="Items with auto cross size stretch to the container height.">
+            <ChildContent><div class="flex row tall stretch"><div class="item auto-height c1">1</div><div class="item auto-height c2">2</div><div class="item auto-height c3">3</div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="align-items: baseline" Note="Text baselines align even when font sizes differ.">
+            <ChildContent><div class="flex row tall baseline"><div class="text-item c1 small-text">small</div><div class="text-item c2 large-text">Large</div><div class="text-item c3 mid-text">middle</div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="align-self: flex-start / center / flex-end" Note="Each item overrides the container's align-items value.">
+            <ChildContent><div class="flex row tall cross-center"><div class="item c1 self-start">start</div><div class="item c2 self-center">center</div><div class="item c3 self-end">end</div></div></ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Flexible sizing</h2>
+
+    <div class="cases">
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="flex-grow: 1" Note="Three equal grow factors divide all available width evenly.">
+            <ChildContent><div class="flex row"><div class="item c1 grow">1</div><div class="item c2 grow">1</div><div class="item c3 grow">1</div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="flex-grow: 1 2 1" Note="The middle item receives twice as much free space as either neighbour.">
+            <ChildContent><div class="flex row"><div class="item c1 grow1">1</div><div class="item c2 grow2">2</div><div class="item c3 grow1">1</div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="width: 100px; flex-shrink: 1 2 1" Note="Three 100px items must fit in 208px; the middle item shrinks twice as aggressively.">
+            <ChildContent><div class="flex row"><div class="item c1 shrink1">1</div><div class="item c2 shrink2">2</div><div class="item c3 shrink1">1</div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="flex-basis: 40px / 80px / 40px; flex-grow: 1" Note="Growth starts from the three explicit bases, preserving the middle item's 40px lead.">
+            <ChildContent><div class="flex row"><div class="item c1 basis40">40</div><div class="item c2 basis80">80</div><div class="item c3 basis40">40</div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="min-width: 70px; max-width: 90px" Note="Growth is clamped by max-width and shrinkage is clamped by min-width.">
+            <ChildContent><div class="flex row"><div class="item c1 bounded grow">70-90</div><div class="item c2 grow">free</div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="flex: 0 0 42px; margin-left: auto" Note="A fixed-basis item stays 42px wide while auto margin consumes the remaining space.">
+            <ChildContent><div class="flex row"><div class="item c1 fixed-basis">fixed</div><div class="item c2 push">auto</div></div></ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Wrapping and line alignment</h2>
+
+    <div class="cases">
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="flex-wrap: wrap; gap: 6px" Note="Four 70px items wrap into two lines in the 208px container.">
+            <ChildContent><div class="flex row wrap tall"><div class="item c1 wrap-item">1</div><div class="item c2 wrap-item">2</div><div class="item c3 wrap-item">3</div><div class="item c4 wrap-item">4</div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="flex-wrap: wrap-reverse; gap: 6px" Note="The same lines stack from cross-end back toward cross-start.">
+            <ChildContent><div class="flex row wrap-reverse tall"><div class="item c1 wrap-item">1</div><div class="item c2 wrap-item">2</div><div class="item c3 wrap-item">3</div><div class="item c4 wrap-item">4</div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="flex-wrap: wrap; align-content: space-between" Note="Two lines are pushed to opposite cross-axis edges.">
+            <ChildContent><div class="flex row wrap lines-between tall"><div class="item c1 wrap-item">1</div><div class="item c2 wrap-item">2</div><div class="item c3 wrap-item">3</div><div class="item c4 wrap-item">4</div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="row-gap: 14px; column-gap: 4px" Note="Wrapped lines and items use independent gap values.">
+            <ChildContent><div class="flex row wrap split-gap tall"><div class="item c1 wrap-item">1</div><div class="item c2 wrap-item">2</div><div class="item c3 wrap-item">3</div><div class="item c4 wrap-item">4</div></div></ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Ordering and composition</h2>
+
+    <div class="cases">
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="order: 2 / -1 / 1" Note="Visual order becomes item 2, then 3, then 1.">
+            <ChildContent><div class="flex row"><div class="item c1 order2">1</div><div class="item c2 order-first">2</div><div class="item c3 order1">3</div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="display: contents on the middle wrapper" Note="The wrapper disappears from layout and its two children participate in the outer flex row.">
+            <ChildContent><div class="flex row"><div class="item c1">1</div><div class="contents"><div class="item c2">2a</div><div class="item c3">2b</div></div><div class="item c4">3</div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="a column flex item grows inside an outer row" Note="The nested flex gets the remaining width and distributes its children vertically.">
+            <ChildContent><div class="flex row tall"><div class="item c1 side">outer</div><div class="flex column nested"><div class="item c2 grow">top</div><div class="item c3 grow2">bottom</div></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="position: absolute; right: 4px; bottom: 4px" Note="The red child leaves flex flow and anchors to the container's bottom-right corner.">
+            <ChildContent><div class="flex row tall"><div class="item c1">1</div><div class="item c2">2</div><div class="absolute">abs</div></div></ChildContent>
+        </UiTestCase>
+    </div>
+
+</root>
+
+@code
+{
+    const string Flex = "width: 208px";
+}

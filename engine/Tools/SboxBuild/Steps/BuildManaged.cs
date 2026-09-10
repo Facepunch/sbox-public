@@ -164,7 +164,15 @@ internal class BuildManaged( bool clean = false )
 
 		var framework = Path.Combine( dotnetRoot, "shared", "Microsoft.NETCore.App" );
 		var source = Directory.Exists( framework )
-			? Directory.GetDirectories( framework ).OrderBy( d => d ).LastOrDefault()
+			? Directory.GetDirectories( framework )
+				// TryParse, not the constructor: prerelease folder names (10.0.0-rc.1.25451.107) are not a
+				// Version and would throw out of the whole enumeration rather than fall through to the
+				// error below.
+				.Select( d => Version.TryParse( Path.GetFileName( d ), out var v ) ? new { Dir = d, Version = v } : null )
+				.Where( x => x is not null && x.Version.Major == 10 )
+				.OrderBy( x => x.Version )
+				.LastOrDefault()
+				?.Dir
 			: null;
 
 		if ( source is null )

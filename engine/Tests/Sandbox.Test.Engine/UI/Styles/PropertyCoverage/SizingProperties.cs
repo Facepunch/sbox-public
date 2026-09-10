@@ -742,7 +742,7 @@ public class SizingPropertiesTest
 	/// <summary>
 	/// A bare 'auto' (or 'none') is a real value, not "unset": when a more specific rule says
 	/// aspect-ratio: auto, it has to beat a less specific 16/9 in the cascade. So it stores NaN -
-	/// which Yoga reads as no ratio - rather than null, which Add() would skip over.
+	/// which layout reads as no ratio - rather than null, which Add() would skip over.
 	/// </summary>
 	[TestMethod]
 	public void AspectRatioAutoClearsInheritedRatioInCascade()

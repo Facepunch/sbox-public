@@ -237,19 +237,38 @@ public sealed class VideoExportWindow : BaseWindow
 
 		_oldTimeRange = TimeRange;
 
-		_ = UpdatePreviewAsync( true, TimeSpan.FromSeconds( 0.5 ) );
+		_ = UpdatePreviewAsync( true, true );
 	}
 
 	private void OnConfigChanged( SerializedProperty property )
 	{
-		_ = UpdatePreviewAsync( false, TimeSpan.FromSeconds( 0.5 ) );
+		_ = UpdatePreviewAsync( false, true );
 
 		_preview.Update();
 		_timeline.Update();
 	}
 
-	public async Task UpdatePreviewAsync( bool fast, TimeSpan delay = default )
+	private static Vector2Int FindPreviewResolution( Vector2Int configResolution, Vector2 previewSize )
 	{
+		if ( previewSize.x > configResolution.x && previewSize.y > configResolution.y )
+		{
+			return configResolution;
+		}
+
+		var configAspect = (float)configResolution.x / configResolution.y;
+		var previewAspect = previewSize.x / previewSize.y;
+
+		return previewAspect > configAspect
+			? new Vector2Int( (int)(configResolution.x * previewSize.y / configResolution.y), (int)previewSize.y )
+			: new Vector2Int( (int)previewSize.x, (int)(configResolution.y * previewSize.x / configResolution.x) );
+	}
+
+	public async Task UpdatePreviewAsync( bool fast, bool delay = false )
+	{
+		// Just in case VideoExportPreview.OnResize triggers this too early
+
+		if ( (VideoExportPreview?)_preview is null ) return;
+
 		if ( _previewCts is { } cts )
 		{
 			await cts.CancelAsync();
@@ -259,7 +278,7 @@ public sealed class VideoExportWindow : BaseWindow
 
 		var config = new VideoExportConfig
 		{
-			Resolution = Config.Resolution,
+			Resolution = FindPreviewResolution( Config.Resolution, _preview.Size ),
 			FrameRate = Config.FrameRate,
 			WarmupFrameCount = 0,
 			Exposure = fast ? Exposure.Instant : Config.Exposure,
@@ -276,9 +295,9 @@ public sealed class VideoExportWindow : BaseWindow
 			_preview.IsUpdating = true;
 			_timeline.Update();
 
-			if ( delay > TimeSpan.Zero )
+			if ( delay )
 			{
-				await Task.Delay( delay, cts.Token );
+				await Task.Delay( TimeSpan.FromSeconds( 0.5 ), cts.Token );
 				await MainThread.Wait();
 			}
 
@@ -529,12 +548,12 @@ public sealed class VideoExportWindow : BaseWindow
 	{
 		if ( pixmap?.Size != resolution )
 		{
-			pixmap = new Pixmap( Config.Resolution );
+			pixmap = new Pixmap( resolution );
 		}
 
 		lock ( pixmap )
 		{
-			pixmap.UpdateFromPixels( pixels, Config.Resolution, ImageFormat.RGBA8888 );
+			pixmap.UpdateFromPixels( pixels, resolution, ImageFormat.RGBA8888 );
 		}
 
 		LastRenderedFrame = pixmap;
@@ -593,6 +612,13 @@ internal sealed class VideoExportPreview : Widget
 		Paint.SetBrush( Color.Black.LerpTo( Color.White, 0.625f ) );
 		Paint.DrawRect( new Rect( 0f, 8f, 8f, 8f ) );
 		Paint.DrawRect( new Rect( 8f, 0f, 8f, 8f ) );
+	}
+
+	protected override void OnResize()
+	{
+		base.OnResize();
+
+		_ = Parent.UpdatePreviewAsync( true, true );
 	}
 
 	protected override void OnPaint()

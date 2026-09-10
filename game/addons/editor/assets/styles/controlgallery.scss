@@ -12,7 +12,8 @@
 
 .gallery-body { flex-grow: 1; flex-direction: row; overflow: hidden; }
 
-.gallery-window .sidebar { width: 220px; flex-shrink: 0; flex-direction: column; padding: 14px 12px; overflow: scroll; }
+.gallery-window .sidebar { width: 220px; flex-shrink: 0; flex-direction: column; padding: 14px 12px; }
+.gallery-window .sidebar .nav { flex-grow: 1; flex-direction: column; overflow: scroll; margin-bottom: 12px; }
 .gallery-window .sectionlabel { flex-direction: row; align-items: center; flex-shrink: 0; margin: 4px 8px 10px 8px; }
 .gallery-window .sectionlabel .rule { flex-grow: 1; height: 1px; background-color: $line; margin-left: 8px; }
 .gallery-window .navitem { flex-direction: row; align-items: center; flex-shrink: 0; padding: 8px 10px; border-radius: 8px; margin-bottom: 2px; cursor: pointer; }
@@ -132,3 +133,256 @@
 .style-light .gallery-page .t-muted { color: $l-text-muted; }
 .style-light .gallery-page .t-faint { color: $l-text-faint; }
 .style-light .gallery-page .swatch { border-color: $l-line; }
+
+//
+// Tooltips page
+//
+.gallery-page .tooltip-group { flex-direction: row; padding: 8px; border-radius: 8px; border: 1px dashed $line; }
+.gallery-page .menu-target { width: 260px; height: 90px; align-items: center; justify-content: center; border-radius: 8px; border: 1px dashed $line; color: $text-muted; pointer-events: all; }
+.gallery-page .row > .menubar { margin-bottom: 6px; }
+.gallery-page .menubar.busy { gap: 6px; }
+.gallery-page .menubar.busy > .iconbutton { width: 26px; height: 26px; }
+.gallery-page .menubar.busy > .bar-search { width: 180px; min-width: 0; height: 26px; }
+.menulist .menu-widget { margin: 2px 6px; min-width: 0; width: auto; }
+.menulist .menu-widget.textentry { height: 26px; }
+.gallery-page .tooltip-edge { justify-content: flex-end; }
+.gallery-page .textentry { min-width: 240px; }
+.os-tooltip .custom-tooltip { flex-direction: row; align-items: center; }
+.os-tooltip .custom-tooltip .icon { margin-right: 6px; color: $accent; }
+
+//
+// Popups page - the stress control
+//
+.gallery-page .popup-stress { flex-direction: column; align-items: flex-start; }
+.gallery-page .popup-stress .metrics { flex-direction: column; margin-top: 12px; }
+.gallery-page .popup-stress .metric { flex-direction: row; margin-bottom: 4px; }
+.gallery-page .popup-stress .metric .name { width: 260px; color: $text-muted; }
+.gallery-page .popup-stress .metric .value { color: $text; }
+.style-light .gallery-page .popup-stress .metric .name { color: $l-text-muted; }
+.style-light .gallery-page .popup-stress .metric .value { color: $l-text; }
+
+//
+// Neon - a menu bar restyled top to bottom. A class on the bar is enough: its menus are styled as
+// descendants of it wherever they open, so one selector chain reaches the lot.
+//
+$neon-a: #3273eb;
+$neon-b: #9b5cff;
+$neon-ground: #101218;
+
+.menubar.neon
+{
+	padding: 5px;
+	border-radius: 100px;
+	background: linear-gradient( 135deg, #171a22, #0d0f14 );
+	border: 1px solid rgba( #ffffff, 0.07 );
+	box-shadow: 0 10px 30px rgba( #000000, 0.45 ), 0 0 0 1px rgba( $neon-a, 0.12 );
+}
+
+.menubar.neon > .menu
+{
+	padding: 7px 16px;
+	border-radius: 100px;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 1.5px;
+	text-transform: uppercase;
+	color: rgba( #ffffff, 0.6 );
+	transition: color 0.12s ease-out, background-color 0.12s ease-out, box-shadow 0.15s ease-out;
+}
+
+.menubar.neon > .menu.active { color: #ffffff; background-color: rgba( #ffffff, 0.06 ); }
+.menubar.neon > .menu.open
+{
+	color: #ffffff;
+	background: linear-gradient( 90deg, $neon-a, $neon-b );
+	box-shadow: 0 0 18px rgba( $neon-a, 0.55 ), 0 0 6px rgba( $neon-b, 0.35 );
+}
+
+.menubar.neon .menulist
+{
+	padding: 8px;
+	min-width: 220px;
+	border-radius: 16px;
+	background: linear-gradient( 160deg, #191c26, $neon-ground );
+	border: 1px solid rgba( #ffffff, 0.08 );
+	box-shadow: 0 24px 60px rgba( #000000, 0.6 ), 0 0 0 1px rgba( $neon-a, 0.15 ), 0 0 40px rgba( $neon-a, 0.12 );
+	color: rgba( #ffffff, 0.85 );
+	font-size: 12.5px;
+}
+
+.menubar.neon .menulist .menu
+{
+	height: 32px;
+	padding: 0 12px 0 6px;
+	border-radius: 10px;
+	transition: background-color 0.1s ease-out, color 0.1s ease-out, transform 0.1s ease-out;
+}
+
+.menubar.neon .menulist .menu > .gutter { width: 28px; }
+.menubar.neon .menulist .menu > .gutter > .icon { color: $neon-a; opacity: 1; }
+.menubar.neon .menulist .menu > .gutter > .check { color: $neon-b; }
+.menubar.neon .menulist .menu > .shortcut
+{
+	opacity: 1;
+	font-size: 10px;
+	letter-spacing: 1px;
+	color: rgba( #ffffff, 0.35 );
+	padding: 2px 6px;
+	border-radius: 6px;
+	background-color: rgba( #ffffff, 0.05 );
+}
+.menubar.neon .menulist .menu > .chevron { color: rgba( #ffffff, 0.35 ); }
+
+.menubar.neon .menulist .menu.active,
+.menubar.neon .menulist .menu.open
+{
+	color: #ffffff;
+	background: linear-gradient( 90deg, rgba( $neon-a, 0.9 ), rgba( $neon-b, 0.9 ) );
+	transform: translateX( 2px );
+}
+
+.menubar.neon .menulist .menu.active > .gutter > .icon,
+.menubar.neon .menulist .menu.active > .gutter > .check,
+.menubar.neon .menulist .menu.active > .chevron { color: #ffffff; }
+.menubar.neon .menulist .menu.active > .shortcut { color: #ffffff; background-color: rgba( #ffffff, 0.15 ); }
+
+.menubar.neon .menulist .menu:active
+{
+	background: linear-gradient( 90deg, $neon-b, $neon-a );
+	transform: translateX( 2px ) scale( 0.98 );
+}
+
+.menubar.neon > .menu:active { transform: scale( 0.95 ); }
+
+.menubar.neon .menulist .menu.disabled { opacity: 0.3; }
+.menubar.neon .menulist .menu.disabled.active,
+.menubar.neon .menulist .menu.disabled:active { background: none; transform: none; }
+
+.menubar.neon .menulist .menu.separator
+{
+	height: 1px;
+	margin: 6px 10px;
+	padding: 0;
+	background: linear-gradient( 90deg, rgba( $neon-a, 0.5 ), rgba( $neon-b, 0.0 ) );
+	transform: none;
+}
+
+//
+// Amiga - Workbench 1.3. Four colours, Topaz, no rounding, no shadows, nothing moves. The
+// highlight is the complement: white on blue becomes blue on white and back.
+//
+$wb-blue: #0055aa;
+$wb-white: #ffffff;
+$wb-black: #000000;
+$wb-orange: #ff8800;
+
+.menubar.amiga
+{
+	height: 22px;
+	padding: 0 2px;
+	gap: 0;
+	background-color: $wb-white;
+	border-bottom: 2px solid $wb-black;
+	font-family: Roboto Mono;
+	font-size: 16px;
+	font-weight: bold;
+	color: $wb-blue;
+}
+
+.menubar.amiga > .menu
+{
+	height: 20px;
+	padding: 0 12px;
+	border-radius: 0;
+	transition: none;
+}
+
+.menubar.amiga > .menu.active,
+.menubar.amiga > .menu:active,
+.menubar.amiga > .menu.open { background-color: $wb-blue; color: $wb-white; }
+
+.menubar.amiga .menulist
+{
+	padding: 2px 0;
+	min-width: 190px;
+	border-radius: 0;
+	background-color: $wb-white;
+	border: 2px solid $wb-black;
+	box-shadow: none;
+	color: $wb-blue;
+	font-family: Roboto Mono;
+	font-size: 16px;
+	font-weight: bold;
+	transition: none;
+}
+
+.menubar.amiga .menulist .menu
+{
+	height: 20px;
+	padding: 0 8px 0 4px;
+	border-radius: 0;
+	transition: none;
+}
+
+.menubar.amiga .menulist .menu > .gutter { width: 22px; }
+.menubar.amiga .menulist .menu > .gutter > .icon { display: none; }
+.menubar.amiga .menulist .menu > .gutter > .check { font-size: 18px; color: $wb-blue; }
+.menubar.amiga .menulist .menu > .shortcut
+{
+	margin-left: 24px;
+	opacity: 1;
+	color: $wb-blue;
+	font-size: 16px;
+}
+.menubar.amiga .menulist .menu > .chevron { margin-left: 8px; opacity: 1; color: $wb-blue; }
+
+.menubar.amiga .menulist .menu.active,
+.menubar.amiga .menulist .menu:active,
+.menubar.amiga .menulist .menu.open
+{
+	background-color: $wb-blue;
+	color: $wb-white;
+	transform: none;
+}
+
+.menubar.amiga .menulist .menu.active > .gutter > .check,
+.menubar.amiga .menulist .menu.active > .shortcut,
+.menubar.amiga .menulist .menu.active > .chevron,
+.menubar.amiga .menulist .menu.open > .chevron { color: $wb-white; }
+
+// Ghosted, the way Intuition greyed things out
+.menubar.amiga .menulist .menu.disabled { opacity: 0.35; }
+.menubar.amiga .menulist .menu.disabled.active,
+.menubar.amiga .menulist .menu.disabled:active { background-color: transparent; color: $wb-blue; }
+
+.menubar.amiga .menulist .menu.separator
+{
+	height: 2px;
+	margin: 3px 0;
+	padding: 0;
+	background-color: $wb-black;
+	transform: none;
+}
+
+// Tree view - the demo tree needs a size; the engine default styles do the rest
+.gallery-page .demo-tree { width: 520px; height: 420px; flex-grow: 0; flex-shrink: 0; border: 1px solid $line; border-radius: 8px; background-color: $surface; }
+.gallery-page .demo-tree .tree-row.section { font-weight: 700; color: $text-faint; }
+.gallery-page .demo-tree .tree-row .tree-icon { color: $text-faint; }
+.gallery-page .demo-tree .tree-row.selected { background-color: rgba( $accent, 0.25 ); }
+.gallery-page .demo-tree .tree-row.drop-target { background-color: rgba( $accent, 0.45 ); }
+.gallery-page .demo-tree .tree-row.highlight { background-color: rgba( $accent, 0.7 ); }
+.gallery-page .demo-tree .tree-row.highlight-fade { background-color: rgba( $accent, 0 ); }
+.gallery-page .demo-tree .tree-row .eye { width: 22px; font-size: 15px; color: $text-faint; opacity: 0; cursor: pointer; margin-right: 4px; }
+.gallery-page .demo-tree .tree-row:hover .eye, .gallery-page .demo-tree .tree-row.hidden .eye { opacity: 1; }
+.gallery-page .demo-tree .tree-row .eye:hover { color: $text; }
+.gallery-page .demo-tree .tree-row.hidden .tree-label, .gallery-page .demo-tree .tree-row.hidden .tree-icon { opacity: 0.4; }
+
+// Windows page - the body of the test window it opens
+.test-window-body { flex-direction: column; padding: 20px; width: 100%; height: 100%; background-color: $surface; }
+.test-window-body .textentry { margin-top: 12px; }
+
+// Mouse capture page - two drag boxes, one that captures and one that doesn't
+.gallery-page .capture-arena { position: relative; width: 400px; height: 240px; flex-shrink: 0; border: 1px solid $line; border-radius: 8px; background-color: $surface; cursor: crosshair; overflow: hidden; }
+.gallery-page .capture-arena.dragging { border-color: $accent; }
+.gallery-page .capture-arena .dot { position: absolute; width: 12px; height: 12px; border-radius: 6px; background-color: $accent; pointer-events: none; }
+.gallery-page .capture-arena .readout { position: absolute; left: 10px; bottom: 8px; color: $text-muted; font-size: 11px; pointer-events: none; }

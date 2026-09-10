@@ -27,12 +27,20 @@ public class EditorWindow : Panel
 	Sandbox.UI.Label statusWarn;
 	Sandbox.UI.Label statusError;
 
-	PanelWindow openMenu;
-	Panel openMenuOwner;
 	Sandbox.UI.Label maximizeIcon;
 	Sandbox.UI.Label windowTitle;
 	Sandbox.UI.Label themeIcon;
 	bool lightMode;
+
+	/// <summary>
+	/// The mock editor in a window of its own.
+	/// </summary>
+	public static PanelWindow Open()
+	{
+		var window = new PanelWindow( "Panel Gallery", new Vector2( 1500, 940 ), new Vector2( -1, -1 ), true );
+		window.Root.AddChild( new EditorWindow( window ) );
+		return window;
+	}
 
 	public EditorWindow( PanelWindow window )
 	{
@@ -58,15 +66,57 @@ public class EditorWindow : Panel
 		bar.Add.Label( "s&", "brand" );
 
 		// Menus live in the title bar, same as the editor's
-		var menus = bar.Add.Panel( "menubar window-nodrag" );
+		var menus = bar.AddChild( new Sandbox.UI.MenuBar() );
+		menus.AddClass( "window-nodrag" );
 
-		Menu( menus, "File", [("New Scene", "Ctrl+N"), ("Open Scene...", "Ctrl+O"), ("Save Scene", "Ctrl+S"), ("Save Scene As...", "Ctrl+Shift+S"), null, ("Quit", "Alt+F4")] );
-		Menu( menus, "Edit", [("Undo", "Ctrl+Z"), ("Redo", "Ctrl+Y"), null, ("Cut", "Ctrl+X"), ("Copy", "Ctrl+C"), ("Paste", "Ctrl+V"), null, ("Delete", "Del")] );
-		Menu( menus, "View", [("Hierarchy", null), ("Inspector", null), ("Console", null), ("Asset Browser", null), null, ("Full Screen", "F11")] );
-		Menu( menus, "Game", [("Play", "F5"), ("Play From Here", null), null, ("Project Settings", null)] );
-		Menu( menus, "Scene", [("Create Object", null), ("Create Camera", null), ("Create Light", null), null, ("Scene Settings", null)] );
-		Menu( menus, "Tools", [("Asset Browser", null), ("Shader Graph", null), null, ("Panel UI", null)] );
-		Menu( menus, "Help", [("Documentation", null), ("About", null)] );
+		var file = menus.AddMenu( "File" );
+		Option( file, "New Scene", "Ctrl+N" );
+		Option( file, "Open Scene...", "Ctrl+O" );
+		Option( file, "Save Scene", "Ctrl+S", () => SceneEditorSession.Active?.Save( false ) );
+		Option( file, "Save Scene As...", "Ctrl+Shift+S", () => SceneEditorSession.Active?.Save( true ) );
+		file.AddSeparator();
+		Option( file, "Quit", "Alt+F4", Window.Dispose );
+
+		var edit = menus.AddMenu( "Edit" );
+		Option( edit, "Undo", "Ctrl+Z", () => SceneEditorSession.Active?.UndoSystem.Undo() );
+		Option( edit, "Redo", "Ctrl+Y", () => SceneEditorSession.Active?.UndoSystem.Redo() );
+		edit.AddSeparator();
+		Option( edit, "Cut", "Ctrl+X" );
+		Option( edit, "Copy", "Ctrl+C" );
+		Option( edit, "Paste", "Ctrl+V" );
+		edit.AddSeparator();
+		Option( edit, "Delete", "Del", () => { if ( SceneEditorSession.Active is { } session ) DeleteSelected( session ); } );
+
+		var view = menus.AddMenu( "View" );
+		view.AddOption( "Hierarchy", on => hierarchyPane.Style.Display = on ? DisplayMode.Flex : DisplayMode.None ).Checked = true;
+		view.AddOption( "Inspector", on => inspectorPane.Style.Display = on ? DisplayMode.Flex : DisplayMode.None ).Checked = true;
+		Option( view, "Console" );
+		Option( view, "Asset Browser" );
+		view.AddSeparator();
+		Option( view, "Full Screen", "F11", () => { Window.ToggleMaximized(); UpdateMaximizeIcon(); } );
+
+		var game = menus.AddMenu( "Game" );
+		Option( game, "Play", "F5" );
+		Option( game, "Play From Here" );
+		game.AddSeparator();
+		Option( game, "Project Settings" );
+
+		var scene = menus.AddMenu( "Scene" );
+		Option( scene, "Create Object", null, CreateObject );
+		Option( scene, "Create Camera" );
+		Option( scene, "Create Light" );
+		scene.AddSeparator();
+		Option( scene, "Scene Settings" );
+
+		var tools = menus.AddMenu( "Tools" );
+		Option( tools, "Asset Browser" );
+		Option( tools, "Shader Graph" );
+		tools.AddSeparator();
+		Option( tools, "Panel UI" );
+
+		var help = menus.AddMenu( "Help" );
+		Option( help, "Documentation" );
+		Option( help, "About" );
 
 		bar.Add.Panel( "grow" );
 
@@ -127,8 +177,6 @@ public class EditorWindow : Panel
 
 	void ApplyTheme()
 	{
-		CloseMenus();
-
 		SetClass( LightModeClass, lightMode );
 
 		themeIcon.Text = lightMode ? "dark_mode" : "light_mode";
@@ -140,70 +188,14 @@ public class EditorWindow : Panel
 		maximizeIcon.Text = Window.IsMaximized ? "filter_none" : "crop_square";
 	}
 
-	void Menu( Panel bar, string title, (string Text, string Shortcut)?[] items )
+	/// <summary>
+	/// A row with a shortcut shown beside it. Rows with nothing to do are just there to look at.
+	/// </summary>
+	static Sandbox.UI.Menu Option( Sandbox.UI.Menu menu, string text, string shortcut = null, Action action = null )
 	{
-		var item = bar.Add.Label( title, "item" );
-
-		Action open = () =>
-		{
-			if ( openMenuOwner == item )
-			{
-				CloseMenus();
-				return;
-			}
-
-			CloseMenus();
-
-			// A menu is its own OS window, so it can hang outside the editor window like any
-			// other native menu does
-			var rect = item.Box.Rect;
-
-			var popup = PanelWindow.Popup( Window, new Vector2( rect.Left, rect.Bottom ) );
-
-			var menu = popup.Root.Add.Panel( "dropdown" );
-			menu.StyleSheet.Load( "/styles/gallery.scss" );
-			menu.SetClass( LightModeClass, lightMode );
-
-			foreach ( var entry in items )
-			{
-				if ( entry is null )
-				{
-					menu.Add.Panel( "separator" );
-					continue;
-				}
-
-				var row = menu.Clickable( "row", CloseMenus );
-				row.Add.Label( entry.Value.Text );
-
-				if ( entry.Value.Shortcut is not null )
-					row.Add.Label( entry.Value.Shortcut, "shortcut" );
-			}
-
-			openMenu = popup;
-			openMenuOwner = item;
-			item.AddClass( "open" );
-		};
-
-		item.AddEventListener( "onclick", open );
-	}
-
-
-
-	void CloseMenus()
-	{
-		if ( openMenu is null ) return;
-
-		openMenuOwner?.RemoveClass( "open" );
-		openMenu.Dispose();
-
-		openMenu = null;
-		openMenuOwner = null;
-	}
-
-	protected override void OnMouseDown( MousePanelEvent e )
-	{
-		CloseMenus();
-		ContextMenu.Close();
+		var option = menu.AddOption( text, action );
+		option.Shortcut = shortcut;
+		return option;
 	}
 
 	//
@@ -349,7 +341,6 @@ public class EditorWindow : Panel
 		search.OnChange = value => tree.SetFilter( value );
 
 		tree.OnSelected = OnSelected;
-		tree.IsLightMode = () => lightMode;
 		return tree;
 	}
 

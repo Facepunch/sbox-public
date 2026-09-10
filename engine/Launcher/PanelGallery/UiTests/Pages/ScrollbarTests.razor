@@ -1,0 +1,280 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+
+@using Sandbox;
+@using Sandbox.UI;
+
+@attribute [Title( "Scrollbars" )]
+@attribute [Description( "scrollbar-width, scrollbar-color and scrollbar-gutter, and what the bars do under stress" )]
+@attribute [Icon( "swap_vert" )]
+@attribute [Order( 66 )]
+
+@*
+    Every box here scrolls. Blue is the box, the red-to-orange gradient is the content that
+    overflows it - top is red, bottom is orange, so you can see where you are. Wheel over a box,
+    drag its thumb, or click its track to page.
+*@
+
+<root>
+
+    <p>
+        A bar appears when a panel has a scrollbar-width and something to scroll. The knobs are the
+        web's, all set on the scrolling panel: scrollbar-width for thickness, scrollbar-color for
+        the thumb and track, and scrollbar-gutter to reserve the bar's space instead of laying it
+        over the content. Wheel, drag the thumb, or click the track.
+    </p>
+
+    <h2>Width</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Frame" Rule="scrollbar-width: none" Note="The default. Scrolls, draws nothing - every existing scroll panel stays as it was.">
+            <ChildContent><div class="box w-none"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="scrollbar-width: thin" Note="8px, like Firefox's thin.">
+            <ChildContent><div class="box w-thin"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="scrollbar-width: auto" Note="12px, between Firefox's and Chrome's.">
+            <ChildContent><div class="box w-auto"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="scrollbar-width: 4px" Note="Any length works. The thumb's insets are a fraction of the width, so it survives being this narrow.">
+            <ChildContent><div class="box w-4"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="scrollbar-width: 16px" Note="Wide. Without a gutter the content underneath is covered, not pushed.">
+            <ChildContent><div class="box w-16"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Colour</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Frame" Rule="scrollbar-color: #4ac2e8 #00000099" Note="Thumb, then track - the web's order.">
+            <ChildContent><div class="box c-blue"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="scrollbar-color: #e84a4a transparent" Note="A thumb with no track.">
+            <ChildContent><div class="box c-red"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="scrollbar-color: rgba( 255, 255, 255, 0.9 ) rgba( 0, 0, 0, 0.5 )" Note="Colour functions, spaces and all.">
+            <ChildContent><div class="box c-fn"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="scrollbar-color: auto" Note="The bar's own look: a translucent white thumb on nothing.">
+            <ChildContent><div class="box c-auto"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="hover and drag" Note="The bar sits dimmed until the content moves or the mouse reaches it. The thumb brightens under the mouse, whatever its colour - hovering the box itself does nothing.">
+            <ChildContent><div class="box c-blue"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Gutter</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Frame" Rule="scrollbar-gutter: auto" Note="The default: the bar lays over the content, which keeps the full width.">
+            <ChildContent><div class="box g-auto"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="scrollbar-gutter: stable" Note="The bar's width is kept free at the right, so the content is squeezed beside it - the blue strip.">
+            <ChildContent><div class="box g-stable"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="scrollbar-gutter: stable both-edges" Note="Space at both edges so the content stays centred. The bar still only draws on the right.">
+            <ChildContent><div class="box g-both"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="stable  (content fits)" Note="Stable means stable: the gutter is there whether or not there's a bar in it, so nothing shifts when one appears.">
+            <ChildContent><div class="box g-stable"><div class="short"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="stable; scrollbar-width: none" Note="No bar, no gutter.">
+            <ChildContent><div class="box g-stable w-none"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="stable; padding: 10px" Note="The gutter is outside the padding: the padding scrolls with the content, the gutter doesn't.">
+            <ChildContent><div class="box g-stable padded10"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="stable; overflow: scroll  (wide and tall)" Note="Only the vertical bar gets a gutter, like the web. The horizontal one still overlays.">
+            <ChildContent><div class="box g-stable both"><div class="big"></div></div></ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Axes</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Frame" Rule="overflow-y: scroll  (tall content)" Note="Vertical only.">
+            <ChildContent><div class="box"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="overflow-x: scroll  (wide content)" Note="Horizontal only. Shift+wheel scrolls it.">
+            <ChildContent><div class="box x"><div class="wide"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="overflow: scroll  (wide and tall)" Note="Both. Each bar stops short of the other's corner.">
+            <ChildContent><div class="box both"><div class="big"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="overflow-y: scroll  (wide and tall)" Note="overflow-y alone still scrolls sideways when the content is wider - it always has - so it gets both bars.">
+            <ChildContent><div class="box"><div class="big"></div></div></ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Content</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Frame" Rule="content fits" Note="Nothing to scroll: no bar at all, not even a hidden one.">
+            <ChildContent><div class="box"><div class="short"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="content 10px taller than the box" Note="The thumb is nearly the whole track.">
+            <ChildContent><div class="box"><div class="barely"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="content 3000px tall" Note="The thumb stops shrinking at 20px so there's always something to grab.">
+            <ChildContent><div class="box"><div class="huge"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="overflow: auto" Note="Same as scroll here.">
+            <ChildContent><div class="box auto"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="rows with :last-child styled" Note="The bar is a child but not a sibling: the real last row is the green one, and the bar takes nothing from it.">
+            <ChildContent>
+                <div class="box rows">
+                    <div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="::after on the scroller" Note="The generated element stays at the end of the content, before the bar - the white marker scrolls into view at the bottom.">
+            <ChildContent><div class="box marked"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="a multiline TextEntry" Note="A textarea: the label grows to its text and the entry scrolls it. Wheel over it, or click in and move the caret with the arrow keys - it pulls the caret into view.">
+            <ChildContent><TextEntry class="box entry" Multiline="@true" Text="@ManyLines"></TextEntry></ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Virtual panels</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Frame" Rule="VirtualGrid; gap: 5px; scrollbar-gutter: stable" Note="The virtual panel lays out its cells itself, including its generated scrollbar chrome.">
+            <ChildContent>
+                <VirtualGrid class="box w-thin c-blue g-stable virtual-grid" Items="@VirtualGridItems" ItemSize="@(new Vector2( 24, 24 ))">
+                    <Item Context="item"><label>@item</label></Item>
+                </VirtualGrid>
+            </ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Reversed axes</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Frame" Rule="flex-direction: column-reverse" Note="A chat-style list anchored at its end: starts scrolled to the bottom, the thumb starts there too.">
+            <ChildContent><div class="box col-rev"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="justify-content: flex-end" Note="Same anchoring by a different route.">
+            <ChildContent><div class="box end"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="flex-direction: row-reverse; overflow-x: scroll" Note="Sideways and reversed - the thumb starts at the right.">
+            <ChildContent><div class="box row-rev"><div class="wide"></div></div></ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Box and clip</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Frame" Rule="border-radius: 24px" Note="The bar is clipped by the corners with everything else.">
+            <ChildContent><div class="box round"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="border: 8px solid" Note="The bar sits inside the border, on the padding box.">
+            <ChildContent><div class="box bordered"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="padding: 12px" Note="Without a gutter, padding doesn't push the bar in: it runs the full padding box, over the padding.">
+            <ChildContent><div class="box padded"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="transform: scale( 0.6 )" Note="Scales with the box, and the mouse still finds it.">
+            <ChildContent><div class="box small"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" class="roomy" Rule="transform: rotate( 12deg )" Note="Rotates with the box. Drag the thumb along the tilted edge.">
+            <ChildContent><div class="box rot"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Nesting and inheritance</h2>
+
+    <div class="cases">
+        <UiTestCase Setup="@Roomy" class="roomy" Rule="a scroller inside a scroller" Note="Wheel over the inner one scrolls it; once it's at its end the outer takes over. Each has its own bar.">
+            <ChildContent>
+                <div class="box outer">
+                    <div class="spacer top"></div>
+                    <div class="box inner"><div class="tall"></div></div>
+                    <div class="spacer"></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Roomy" class="roomy" Rule=".outer { scrollbar-width: 12px }  (inner sets nothing)" Note="scrollbar-width inherits, so the inner box gets the outer's 12px.">
+            <ChildContent>
+                <div class="box outer inherit">
+                    <div class="spacer top"></div>
+                    <div class="box inner"><div class="tall"></div></div>
+                    <div class="spacer"></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Roomy" class="roomy" Rule=".outer { scrollbar-color: ... }  (inner sets nothing)" Note="scrollbar-color inherits too - both bars are green on dark.">
+            <ChildContent>
+                <div class="box outer tinted">
+                    <div class="spacer top"></div>
+                    <div class="box inner"><div class="tall"></div></div>
+                    <div class="spacer"></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Roomy" class="roomy" Rule=".inner { scrollbar-width: none }" Note="And a child can opt back out - the inner still scrolls, with no bar.">
+            <ChildContent>
+                <div class="box outer inherit">
+                    <div class="spacer top"></div>
+                    <div class="box inner w-none"><div class="tall"></div></div>
+                    <div class="spacer"></div>
+                </div>
+            </ChildContent>
+        </UiTestCase>
+    </div>
+
+    <h2>Changing under it</h2>
+
+    <p>These toggle on a timer.</p>
+
+    <div class="cases">
+        <UiTestCase Setup="@Frame" Rule="content grows and shrinks" Note="The bar comes when the content overflows and goes when it fits, thumb sized to match.">
+            <ChildContent><div class="box"><div class="grower"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="content grows and shrinks, with a gutter" Note="Same, but nothing else moves: the gutter was there all along.">
+            <ChildContent><div class="box g-stable"><div class="grower"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="the box resizes" Note="The bar follows the box's edge and re-sizes its thumb.">
+            <ChildContent><div class="box resizer"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="scrollbar-width flips between thin and 14px" Note="The bar re-sizes in place, nothing else moves.">
+            <ChildContent><div class="box rethick"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="scrollbar-width flips between 8px and none" Note="The bar is created and destroyed, not hidden.">
+            <ChildContent><div class="box onoff"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Setup="@Frame" Rule="scrollbar-gutter flips between auto and stable" Note="The content squeezes and relaxes as the gutter comes and goes.">
+            <ChildContent><div class="box regutter"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+    </div>
+
+</root>
+
+@code
+{
+    const string Frame = "width: 120px; height: 110px";
+    const string Roomy = "width: 200px; height: 170px";
+
+    static readonly string ManyLines = string.Join( "\n", Enumerable.Range( 1, 30 ).Select( i => $"line {i}" ) );
+    static readonly List<object> VirtualGridItems = Enumerable.Range( 1, 30 ).Cast<object>().ToList();
+
+    public const float ToggleSeconds = 1.6f;
+
+    RealTimeUntil timeUntilToggle = 0.1f;
+    bool on;
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( !IsVisible ) return;
+
+        if ( timeUntilToggle <= 0 )
+        {
+            timeUntilToggle = ToggleSeconds;
+            on = !on;
+            SetClass( "grown", on );
+        }
+    }
+}

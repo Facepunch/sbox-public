@@ -183,6 +183,7 @@ public partial class TypeLibrary
 		typeof(Sandbox.UI.FlexDirection),
 		typeof(Sandbox.UI.Justify),
 		typeof(Sandbox.UI.DisplayMode),
+		typeof(Sandbox.UI.GridAutoFlow),
 		typeof(Sandbox.UI.PointerEvents),
 		typeof(Sandbox.UI.Wrap),
 		typeof(Sandbox.UI.TextAlign),

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Facepunch.InteropGen.Parsers;
@@ -26,13 +27,16 @@ internal class BaseParser
 	protected Stack<string> fileStack = new();
 	protected bool Finished;
 	protected List<string> Attributes = [];
+	private StringBuilder fullText;
 
 	public void Parse( Definition definition, string text, string filename )
 	{
 		this.definition = definition;
+		fullText = new StringBuilder( definition.FullText );
 		fileStack.Push( filename );
 
 		ParseText( text );
+		definition.FullText = fullText.ToString();
 	}
 
 	private void ParseText( string text )
@@ -50,7 +54,9 @@ internal class BaseParser
 				continue;
 			}
 
-			definition.FullText += $"{line}\n";
+			// Preserve the exact text and LF separators used by the interop hash without
+			// copying every preceding line again for each line in the include tree.
+			fullText.Append( line ).Append( '\n' );
 
 			SubParseLine( line );
 		}

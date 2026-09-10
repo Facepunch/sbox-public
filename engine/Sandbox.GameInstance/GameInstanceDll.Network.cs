@@ -44,6 +44,11 @@ internal partial class GameInstanceDll
 	/// </summary>
 	readonly ReplicatedConvars ReplicatedConvars = new( "ReplicatedConvars" );
 
+	public void OnBecameHost()
+	{
+		ReplicatedConvars.OnBecameHost();
+	}
+
 	private List<FileWatch> FileWatchers { get; set; } = new();
 	private bool DidMountNetworkedFiles { get; set; }
 

@@ -26,7 +26,12 @@ public class MainAssetBrowser : WrappedAssetBrowser
 	private MainAssetBrowser( Widget parent, bool isPrimary ) : base( parent, null )
 	{
 		if ( isPrimary )
+		{
 			Instance ??= this;
+
+			EditorWindow.DockManager.OnStateRestoring -= RegisterSavedDockTypes;
+			EditorWindow.DockManager.OnStateRestoring += RegisterSavedDockTypes;
+		}
 
 		Local.OnAssetHighlight = a => EditorUtility.InspectorObject = a;
 		Local.OnAssetsHighlight = a => EditorUtility.InspectorObject = a;
@@ -42,8 +47,23 @@ public class MainAssetBrowser : WrappedAssetBrowser
 
 	public static MainAssetBrowser CreateFloating()
 	{
+		var manager = EditorWindow.DockManager;
+		var disabled = manager.DockTypes
+			.Select( x => (Info: x, Index: GetSecondaryIndex( x.Title )) )
+			.Where( x => x.Index is not null && !manager.IsDockOpen( x.Info.Title ) )
+			.OrderBy( x => x.Index )
+			.FirstOrDefault();
+
+		if ( disabled.Info is not null )
+		{
+			manager.SetDockState( disabled.Info.Title, true );
+			var existing = manager.FindDockWidget( disabled.Info.Title );
+			existing.DeleteOnClose = true;
+			return existing.Widget as MainAssetBrowser;
+		}
+
 		var (browser, dock) = CreateDock();
-		EditorWindow.DockManager.AddDockFloating( dock );
+		manager.AddDockFloating( dock );
 		return browser;
 	}
 
@@ -74,18 +94,43 @@ public class MainAssetBrowser : WrappedAssetBrowser
 			name = $"{title} {index}";
 
 		var browser = new MainAssetBrowser( EditorWindow, false );
-		manager.RegisterDockType( new DockManager.DockInfo
-		{
-			Title = name,
-			Icon = "folder_open",
-			Area = area,
-			CreateAction = () => new MainAssetBrowser( EditorWindow, false )
-		} );
+		manager.RegisterDockType( CreateDockInfo( name, area ) );
 
 		var dock = manager.CreateDockWidget( name, "folder_open", browser );
 		dock.DeleteOnClose = true;
 
 		return (browser, dock);
+	}
+
+	private static DockManager.DockInfo CreateDockInfo( string name, DockArea area ) => new()
+	{
+		Title = name,
+		Icon = "folder_open",
+		Area = area,
+		CreateAction = () => new MainAssetBrowser( EditorWindow, false )
+	};
+
+	private static void RegisterSavedDockTypes( IReadOnlyCollection<string> dockNames )
+	{
+		var manager = EditorWindow.DockManager;
+
+		foreach ( var name in dockNames )
+		{
+			if ( GetSecondaryIndex( name ) is null )
+				continue;
+
+			manager.RegisterDock( CreateDockInfo( name, DockArea.Bottom ) );
+			manager.FindDockWidget( name ).DeleteOnClose = true;
+		}
+	}
+
+	private static int? GetSecondaryIndex( string name )
+	{
+		const string prefix = "Asset Browser ";
+		if ( !name.StartsWith( prefix, StringComparison.Ordinal ) )
+			return null;
+
+		return int.TryParse( name.AsSpan( prefix.Length ), out var index ) && index >= 2 ? index : null;
 	}
 
 	CancellationTokenSource packageCTS;

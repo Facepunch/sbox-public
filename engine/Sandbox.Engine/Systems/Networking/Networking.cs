@@ -4,6 +4,7 @@ using Sandbox.Utility;
 using Sentry;
 using Steamworks;
 using Steamworks.Data;
+using System.Diagnostics;
 using System.Text;
 using System.Threading;
 using Steam = NativeEngine.Steam;
@@ -26,6 +27,15 @@ public static partial class Networking
 
 	[ConVar( "net_allow_local", ConVarFlags.Protected, Help = "Allow loopback connections for multi-instance testing on one machine (P2P-like)." )]
 	internal static bool AllowLocal { get; set; } = false;
+
+	[ConVar( "net_local_port", ConVarFlags.Protected, Help = "Loopback port local game instances use to join a host on this machine. Change it if Windows has reserved the default." )]
+	internal static int LocalPort { get; set; } = 55333;
+
+	[ConVar( "net_host_handoff_timeout", ConVarFlags.Protected, Help = "How long a leaving host waits for the new host to acknowledge the handoff, in seconds." )]
+	internal static float HostHandoffTimeout { get; set; } = 3f;
+
+	[ConVar( "net_host_migration_timeout", ConVarFlags.Protected, Help = "How long a client waits for the new host to show up before giving up, in seconds." )]
+	internal static float HostMigrationTimeout { get; set; } = 15f;
 
 	internal static Dictionary<string, string> ServerData { get; set; } = new();
 
@@ -215,18 +225,6 @@ public static partial class Networking
 	/// </summary>
 	[Obsolete( "Moved to Connection.Host" )]
 	public static Connection HostConnection => Connection.Host;
-
-	/// <summary>
-	/// Whether the host is busy right now. This can be used to determine if
-	/// the host can be changed.
-	/// </summary>
-	internal static bool IsHostBusy
-	{
-		get
-		{
-			return System?.IsHostBusy ?? true;
-		}
-	}
 
 	/// <summary>
 	/// A list of connections that are currently on this server. If you're not on a server
@@ -484,9 +482,9 @@ public static partial class Networking
 		//
 		// Did the menu want to override the lobby's privacy mode?
 		//
-		if ( LaunchArguments.Privacy != config.Privacy )
+		if ( LaunchArguments.PrivacyOverride is { } privacy )
 		{
-			config.Privacy = LaunchArguments.Privacy;
+			config.Privacy = privacy;
 		}
 
 		_ = CreateLobbyAsync( config, lobbyCts.Token );
@@ -537,7 +535,7 @@ public static partial class Networking
 
 			if ( AllowLocal )
 			{
-				System.AddSocket( new TcpSocket( "127.0.0.1", 55333 ) );
+				System.AddSocket( new TcpSocket( "127.0.0.1", LocalPort ) );
 			}
 
 			return !token.IsCancellationRequested;
@@ -592,27 +590,45 @@ public static partial class Networking
 			return false;
 
 		net.AddSocket( socket );
-
-		//
-		// If runnning in editor, we create a named socket that we can join locally
-		//
-		if ( Application.IsEditor || Application.IsStandalone )
-		{
-			net.AddSocket( new TcpSocket( "127.0.0.1", 55333 ) );
-		}
+		AddLocalListenSocket( net );
 
 		return true;
 	}
 
 	/// <summary>
-	/// Disconnect from current multiplayer session.
+	/// Listen on loopback so local instances can join us.
+	/// </summary>
+	internal static void AddLocalListenSocket( NetworkSystem net )
+	{
+		if ( !Application.IsEditor && !Application.IsStandalone && !Application.IsJoinLocal )
+			return;
+
+		if ( net.Sockets.Any( s => s is TcpSocket ) )
+			return;
+
+		net.AddSocket( new TcpSocket( "127.0.0.1", LocalPort ) );
+	}
+
+	/// <summary>
+	/// Disconnect from current multiplayer session. If we're the host, the game is handed
+	/// to another player first.
 	/// </summary>
 	public static void Disconnect()
+	{
+		Disconnect( true );
+	}
+
+	internal static void Disconnect( bool handoffHost )
 	{
 		lobbyCts?.Cancel();
 		lobbyCts = null;
 
 		if ( System is null ) return;
+
+		if ( handoffHost )
+		{
+			HandoffHost();
+		}
 
 		lock ( NetworkThreadLock )
 		{
@@ -628,9 +644,47 @@ public static partial class Networking
 		}
 	}
 
+	/// <summary>
+	/// Hand the game to a successor before the scene goes. Blocks the main thread with a
+	/// <see cref="HostHandoffTimeout"/> polling budget; capture and message handling can exceed it.
+	/// </summary>
+	static void HandoffHost()
+	{
+		var system = System;
+		if ( system is null || !system.IsHost ) return;
+
+		lock ( NetworkThreadLock )
+		{
+			if ( !system.BeginHostHandoff() ) return;
+		}
+
+		var timer = Stopwatch.StartNew();
+
+		while ( timer.Elapsed.TotalSeconds < HostHandoffTimeout )
+		{
+			lock ( NetworkThreadLock )
+			{
+				system.ProcessMessagesInThread();
+
+				if ( system.PumpHostHandoff() )
+				{
+					Log.Info( $"Host handoff acknowledged in {timer.ElapsedMilliseconds}ms" );
+					return;
+				}
+			}
+
+			Thread.Sleep( 5 );
+		}
+
+		Log.Warning( "Host handoff was not acknowledged in time" );
+	}
+
 	internal static IDisposable DisconnectScope()
 	{
 		if ( System is null ) return default;
+
+		// Hand off now, while the scene still exists
+		HandoffHost();
 
 		System.IsDisconnecting = true;
 
@@ -688,7 +742,7 @@ public static partial class Networking
 					Log.Info( $"Connecting to local client.." );
 
 					System = new( "localclient", IGameInstanceDll.Current.TypeLibrary );
-					System.Connect( new TcpChannel( "127.0.0.1", 55333 ) );
+					System.Connect( new TcpChannel( "127.0.0.1", LocalPort ) );
 				}
 				else
 				{

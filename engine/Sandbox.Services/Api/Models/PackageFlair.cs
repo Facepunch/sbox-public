@@ -70,15 +70,15 @@ public class PackageFlair
 	};
 
 	/// <summary>
-	/// Won a contest category. Always a trophy — winners are picked per category
+	/// Won a jam category. Always a trophy — winners are picked per category
 	/// (there's no 2nd/3rd placement). Tooltip reads e.g. "Won Best Map in Spring Jam, March 2007".
 	/// </summary>
-	public static PackageFlair ContestWinner( string categoryTitle, string contestTitle, DateTimeOffset date ) => new()
+	public static PackageFlair JamWinner( string categoryTitle, string jamTitle, DateTimeOffset date ) => new()
 	{
 		Kind = "contest-winner",
 		Icon = "emoji_events",
 		Style = "background-color: #f5a623; color: #fff;",
-		Tooltip = $"Won {categoryTitle} in {contestTitle}, {date:MMMM yyyy}",
+		Tooltip = $"Won {categoryTitle} in {jamTitle}, {date:MMMM yyyy}",
 	};
 
 	/// <summary>

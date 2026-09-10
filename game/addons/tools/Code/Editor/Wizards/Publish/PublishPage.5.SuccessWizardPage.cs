@@ -27,6 +27,13 @@ partial class PublishWizard
 			// Clear the cache so if we try to use this addon it'll download the latest version
 			EditorUtility.ClearPackageCache();
 
+			Rebuild();
+			Visible = true;
+			await Task.CompletedTask;
+		}
+
+		public override void Rebuild()
+		{
 			BodyLayout?.Clear( true );
 			BodyLayout.Margin = new Sandbox.UI.Margin( 200, 0 );
 
@@ -51,9 +58,6 @@ partial class PublishWizard
 
 
 			BodyLayout.AddStretchCell( 1 );
-			Visible = true;
-
-			await Task.CompletedTask;
 		}
 
 		public override bool CanProceed()

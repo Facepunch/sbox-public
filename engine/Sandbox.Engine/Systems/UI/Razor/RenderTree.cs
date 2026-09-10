@@ -23,7 +23,10 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 		var label = CurrentScope.Element as Label;
 
 		if ( label == null && (contentBuilder.Length > 0 || block.ElementPanel.IsValid()) )
+		{
 			label = block.FindOrCreateElement( "label", CurrentScope.Element ?? Parent ) as Label;
+			if ( label is not null ) label.IsGeneratedText = true;
+		}
 
 		if ( label != null )
 		{

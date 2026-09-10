@@ -170,6 +170,8 @@ public sealed partial class TrackView : IComparable<TrackView>
 			? model.Bones.GetBone( Track.Name )
 			: null;
 
+	public bool IsEnabledTrack => Track is IPropertyTrack<bool> { Name: nameof(GameObject.Enabled) } && Track.Parent is IReferenceTrack;
+
 	/// <summary>
 	/// Invoked when properties of this track are changed.
 	/// </summary>

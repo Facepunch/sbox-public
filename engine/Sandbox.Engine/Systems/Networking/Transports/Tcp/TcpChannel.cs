@@ -19,6 +19,9 @@ internal class TcpChannel : Connection
 
 	public bool IsConnected => client?.Connected ?? false;
 
+	bool _wasConnected;
+	internal override bool IsConnectionLost => _wasConnected && !IsConnected;
+
 	async Task SocketLoop( CancellationToken token )
 	{
 		try
@@ -29,6 +32,7 @@ internal class TcpChannel : Connection
 				token.ThrowIfCancellationRequested();
 			}
 
+			_wasConnected = true;
 			_address = client?.Client?.RemoteEndPoint?.ToString() ?? client?.Client?.LocalEndPoint?.ToString() ?? "Tcp";
 
 			var stream = client.GetStream();
@@ -73,9 +77,6 @@ internal class TcpChannel : Connection
 
 	public bool IsValid => true;
 
-	bool isHost;
-	public override bool IsHost => isHost;
-
 	TcpClient client;
 
 	public TcpChannel( TcpClient client )
@@ -86,7 +87,6 @@ internal class TcpChannel : Connection
 		client.NoDelay = true;
 
 		tokenSource = new();
-		isHost = false;
 
 		_ = Task.Run( () => SocketLoop( tokenSource.Token ), tokenSource.Token );
 	}
@@ -99,7 +99,6 @@ internal class TcpChannel : Connection
 		client.LingerState = new( true, 15 ); // 15 seconds is a long time, but we want reliability
 
 		tokenSource = new();
-		isHost = true;
 
 		_ = Task.Run( () => ConnectAndRunAsync( host, port, tokenSource.Token ) );
 	}

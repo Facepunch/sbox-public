@@ -30,7 +30,6 @@ public class Viewport : Panel
 	Rotation cameraRotation = Rotation.From( 18, -35, 0 );
 
 	bool looking;
-	Vector2 lastCursor;
 	float moveSpeed = 500.0f;
 
 	public Viewport()
@@ -263,9 +262,7 @@ public class Viewport : Panel
 			return;
 		}
 
-		var cursor = MousePosition;
-		var delta = cursor - lastCursor;
-		lastCursor = cursor;
+		var delta = Mouse.Delta;
 
 		if ( delta.Length > 0 )
 		{
@@ -301,8 +298,6 @@ public class Viewport : Panel
 		if ( e.MouseButton == MouseButtons.Right )
 		{
 			looking = true;
-			lastCursor = MousePosition;
-
 			SetMouseCapture( true );
 			return;
 		}

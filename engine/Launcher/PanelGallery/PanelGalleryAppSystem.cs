@@ -23,27 +23,37 @@ public class PanelGalleryAppSystem : PanelAppSystem
 		// The old default - the mock editor straight up, no gallery around it
 		if ( Environment.GetCommandLineArgs().Any( x => x.Equals( "-editor", StringComparison.OrdinalIgnoreCase ) ) )
 		{
-			var editor = new PanelWindow( "Panel Gallery", new Vector2( 1500, 940 ), new Vector2( -1, -1 ), true );
-			editor.Root.AddChild( new EditorWindow( editor ) );
-			_windows.Add( editor );
+			_windows.Add( EditorWindow.Open() );
 			return;
 		}
 
 		RegisterUiTests();
 
-		// Borderless - the title bar in this one is panels, same as everything else
-		var window = new PanelWindow( "Control Gallery", new Vector2( 1280, 860 ), new Vector2( -1, -1 ), true );
+		// Borderless - the title bar in this one is panels, same as everything else. "-width 1600 -height 1400"
+		// overrides the size, for screenshotting a whole page at once.
+		var window = new PanelWindow( "Panel Gallery", new Vector2( IntArg( "-width", 1280 ), IntArg( "-height", 860 ) ), new Vector2( -1, -1 ), true );
 		window.Root.AddChild( new GalleryWindow( window ) );
+		if ( !Environment.GetCommandLineArgs().Any( x => x.Equals( "-width", StringComparison.OrdinalIgnoreCase ) || x.Equals( "-height", StringComparison.OrdinalIgnoreCase ) ) )
+		{
+			window.Maximize();
+		}
 		_windows.Add( window );
+	}
+
+	static int IntArg( string name, int fallback )
+	{
+		var args = Environment.GetCommandLineArgs();
+		var index = Array.FindIndex( args, x => x.Equals( name, StringComparison.OrdinalIgnoreCase ) );
+		return index >= 0 && index + 1 < args.Length && int.TryParse( args[index + 1], out var value ) ? value : fallback;
 	}
 
 	/// <summary>
 	/// The renderer test pages compile into this assembly - the type library finds their
-	/// stylesheet attributes, the mounted folder serves the scss.
+	/// stylesheet attributes, the mounted folder serves the scss the build copied there.
 	/// </summary>
 	void RegisterUiTests()
 	{
-		var path = System.IO.Path.GetFullPath( System.IO.Path.Combine( Environment.CurrentDirectory, "..", "engine", "Launcher", "PanelGallery", "UiTests" ) );
+		var path = System.IO.Path.Combine( Environment.CurrentDirectory, "addons", "editor", "assets", "uitests" );
 
 		RegisterCompiledPanelCode( typeof( PanelGalleryAppSystem ).Assembly, path );
 		UiTestPages.Register( typeof( PanelGalleryAppSystem ).Assembly );

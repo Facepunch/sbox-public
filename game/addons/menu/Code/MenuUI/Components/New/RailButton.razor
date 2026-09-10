@@ -7,13 +7,18 @@
 
 @* A rail entry that can carry a count, a pip, or a progress bar. Button turns its content
    into a label, so both ride alongside it rather than sitting inside it. *@
-<root>
+<root class="@( Glow ? "glow" : "" ) @( string.IsNullOrEmpty( Sub ) ? "" : "has-sub" )">
 
     <Button Href="@Href" Icon="@Icon" Text="@Text" />
 
     @if ( !string.IsNullOrEmpty( Badge ) )
     {
         <div class="badge @BadgeClass"><label>@Badge</label></div>
+    }
+
+    @if ( !string.IsNullOrEmpty( Sub ) )
+    {
+        <label class="sub">@Sub</label>
     }
 
     @* After the Button, so it draws over the entry's hover fill instead of under it. *@
@@ -45,7 +50,13 @@
     /// <summary>How far along, 0 to 1. A bar rides the entry's bottom edge; null draws nothing.</summary>
     [Parameter] public float? Progress { get; set; }
 
+    /// <summary>Light the icon up. For an entry that wants you now, without a count to show.</summary>
+    [Parameter] public bool Glow { get; set; }
+
+    /// <summary>Optional line under the label, e.g. a countdown. Keep it short - the rail is narrow.</summary>
+    [Parameter] public string Sub { get; set; }
+
     string FillWidth => (Math.Clamp( Progress ?? 0f, 0f, 1f ) * 100f).ToString( "0.#", CultureInfo.InvariantCulture ) + "%";
 
-    protected override int BuildHash() => HashCode.Combine( Href, Icon, Text, Badge, BadgeClass, Progress );
+    protected override int BuildHash() => HashCode.Combine( Href, Icon, Text, Badge, BadgeClass, Progress, Glow, Sub );
 }

@@ -46,6 +46,13 @@ UiTestCase
 		padding: 40px;
 	}
 
+	&.layout-case .stage
+	{
+		height: $uitest-stage-height-roomy;
+		padding: 14px;
+		background-color: #1f3550;
+	}
+
 	&.checkered .stage
 	{
 		background-color: #ffffff;

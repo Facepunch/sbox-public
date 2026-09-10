@@ -83,7 +83,8 @@ namespace Sandbox.SolutionGenerator
 					IgnoreFolders = p.Settings.IgnoreFolders.ToList(),
 					IsEditorProject = p.IsEditorProject,
 					IsUnitTestProject = p.IsUnitTestProject,
-					IgnoreFiles = p.IgnoreFiles
+					IgnoreFiles = p.IgnoreFiles,
+					CompilerProperties = p.CompilerProperties
 				};
 
 				foreach ( var proj in p.PackageReferences.Distinct().Order() )
