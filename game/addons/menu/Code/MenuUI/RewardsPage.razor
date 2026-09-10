@@ -20,45 +20,42 @@
 
 				<div class="rewards-aside">
 
-					<h2><WithIcon Icon="redeem" Text="Item drops"></WithIcon></h2>
-					<p>
-						Playing earns you drops. Meet everything on the list, open the drop, and keep
-						one of the items you're offered - no money involved anywhere.
-					</p>
+					<h2><WithIcon Icon="redeem" Text="#rewardspage.title"></WithIcon></h2>
+					<p>#rewardspage.intro</p>
 
 					<div class="block">
-						<label class="section-label">How it works</label>
+						<label class="section-label">#rewardspage.how_it_works</label>
 
 						<div class="step">
 							<icon>sports_esports</icon>
-							<label>Play games. Progress counts itself - there's nothing to turn on.</label>
+							<label>#rewardspage.step1</label>
 						</div>
 
 						<div class="step">
 							<icon>checklist</icon>
-							<label>Every objective has to be met before the drop unlocks.</label>
+							<label>#rewardspage.step2</label>
 						</div>
 
 						<div class="step">
 							<icon>inventory_2</icon>
-							<label>Open it here and choose from what you're offered. What you pick is yours.</label>
+							<label>#rewardspage.step3</label>
 						</div>
 					</div>
 
 					<div class="block">
-						<label class="section-label">Worth knowing</label>
+						<label class="section-label">#rewardspage.worth_knowing</label>
 
 						<div class="note">
 							<icon>cloud</icon>
-							<label>Progress lives on your account, so it follows you to whatever machine you play on.</label>
+							<label>#rewardspage.note1</label>
 						</div>
 
 						<div class="note">
 							<icon>hourglass_bottom</icon>
-							<label>A drop you've opened but not picked from waits for you - come back and finish it.</label>
+							<label>#rewardspage.note2</label>
 						</div>
 
-						<label class="docs-link" onclick=@OpenStore>Browse the item store</label>
+						<label class="docs-link" onclick=@OpenStore>#rewardspage.browse_store</label>
 					</div>
 
 				</div>
@@ -69,8 +66,8 @@
 					{
 						<div class="rewards-empty">
 							<icon>@( IsLoading ? "hourglass_empty" : "redeem" )</icon>
-							<label class="title">@( IsLoading ? "Checking your progress" : "No drop right now" )</label>
-							<label class="hint">@( IsLoading ? "One moment." : "Nothing is being tracked for you at the moment. Play something and check back." )</label>
+							<label class="title">@( Language.GetPhrase( IsLoading ? "rewardspage.checking_progress" : "rewardspage.no_drop" ) )</label>
+							<label class="hint">@( Language.GetPhrase( IsLoading ? "rewardspage.one_moment" : "rewardspage.no_drop_hint" ) )</label>
 						</div>
 					}
 					else
@@ -82,18 +79,18 @@
 								<div class="ring-fill" style="background-image: @RingGradient" />
 								<div class="ring-inner">
 									<label class="percent">@PercentText</label>
-									<label class="percent-label">@( CanOpen ? "ready" : "done" )</label>
+									<label class="percent-label">@( Language.GetPhrase( CanOpen ? "rewardspage.progress_ready" : "rewardspage.progress_done" ) )</label>
 								</div>
 							</div>
 
 							<div class="hero-body">
-								<label class="eyebrow">@( CanOpen ? "Your drop is waiting" : "Next drop" )</label>
+								<label class="eyebrow">@( Language.GetPhrase( CanOpen ? "rewardspage.waiting" : "rewardspage.next_drop" ) )</label>
 								<label class="hero-title">@Title</label>
 								<label class="hero-hint">@StatusText</label>
 
 								<div class="open @( CanOpen ? "reward" : "locked" )" onclick=@OpenReward>
 									<icon>@( CanOpen ? "inventory_2" : "lock" )</icon>
-									<label>@( CanOpen ? "Open your drop" : "Keep playing" )</label>
+									<label>@( Language.GetPhrase( CanOpen ? "rewardspage.open" : "rewardspage.keep_playing" ) )</label>
 								</div>
 							</div>
 
@@ -102,13 +99,13 @@
 						@if ( Facets.Length > 0 )
 						{
 							<div class="section-head">
-								<label class="title">Objectives</label>
-								<label class="count">@MetCount of @Facets.Length met</label>
+								<label class="title">#rewardspage.objectives</label>
+								<label class="count">@Language.GetPhrase( "rewardspage.met_count", new(){ { "met", MetCount }, { "total", Facets.Length } } )</label>
 								<div class="grow" />
 
 								<div class="refresh @( IsLoading ? "busy" : "" )" onclick=@Refresh>
 									<icon>refresh</icon>
-									<label>@( IsLoading ? "Loading" : "Refresh" )</label>
+									<label>@( Language.GetPhrase( IsLoading ? "rewardspage.loading" : "rewardspage.refresh" ) )</label>
 								</div>
 							</div>
 
@@ -169,7 +166,7 @@
 
 	bool Complete => Window?.IsComplete ?? false;
 
-	string Title => string.IsNullOrWhiteSpace( Window?.Title ) ? "Item drop" : Window.Title;
+	string Title => string.IsNullOrWhiteSpace( Window?.Title ) ? Language.GetPhrase( "rewardspage.item_drop" ) : Window.Title;
 
 	/// <summary>Every objective averaged - one arc stands in for all of them.</summary>
 	float Fraction => Window is null ? 0f : (CanOpen ? 1f : Window.Progress);
@@ -180,17 +177,17 @@
 	{
 		get
 		{
-			if ( State?.Pending is not null ) return "You started opening this one - go back and pick your item.";
-			if ( CanOpen ) return "Everything's met. Open it and choose what you keep.";
-			if ( Facets.Length == 0 ) return "Nothing to do here yet.";
+			if ( State?.Pending is not null ) return Language.GetPhrase( "rewardspage.status_started" );
+			if ( CanOpen ) return Language.GetPhrase( "rewardspage.status_ready" );
+			if ( Facets.Length == 0 ) return Language.GetPhrase( "rewardspage.status_empty" );
 
-			return $"{Facets.Length - MetCount} left to go.";
+			return Language.GetPhrase( "rewardspage.status_left", new() { { "count", Facets.Length - MetCount } } );
 		}
 	}
 
 	static string CountText( RewardFacet facet )
 	{
-		return facet.Met ? "Done" : $"{(int)facet.Current}/{(int)facet.Required}";
+		return facet.Met ? Language.GetPhrase( "rewardspage.count_done" ) : $"{(int)facet.Current}/{(int)facet.Required}";
 	}
 
 	/// <summary>Two hard stops - filled arc up to the percentage, empty track the rest of the way.</summary>

@@ -11,7 +11,7 @@
 <root>
     <Card class="changelist-card">
         <ChildContent>
-            <label class="section-label">Changelog</label>
+            <label class="section-label">#packagechangelog.title</label>
             @foreach (var changelist in ChangeLists)
             {
                 <div class="changelist-row" @onclick="@(() => OnChangelogClicked?.Invoke())">

@@ -28,7 +28,7 @@
 				{
 					<div class="action" onclick=@OpenInstall>
 						<icon>download</icon>
-						<label>Install</label>
+						<label>#mountcard.install</label>
 					</div>
 				}
 				else
@@ -109,9 +109,9 @@
 		get
 		{
 			if ( busyLabel is not null ) return busyLabel;
-			if ( Mount.IsMounted ) return $"{Mount.Resources.Count:N0} assets ready to use";
+			if ( Mount.IsMounted ) return Language.GetPhrase( "mountcard.assets_ready", new() { { "count", Mount.Resources.Count.ToString( "N0" ) } } );
 
-			return "Ready to mount";
+			return Language.GetPhrase( "mountcard.ready" );
 		}
 	}
 
@@ -124,7 +124,7 @@
 
 		var enable = !Mount.IsMounted;
 
-		busyLabel = enable ? "Mounting..." : "Unmounting...";
+		busyLabel = Language.GetPhrase( enable ? "mountcard.mounting" : "mountcard.unmounting" );
 		StateHasChanged();
 
 		await Mount.SetMounted( enable );

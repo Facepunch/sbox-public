@@ -6,20 +6,20 @@
 <root>
 
     <div class="info">
-        <label class="eyebrow">Welcome back,</label>
+        <label class="eyebrow">#avatarbutton.welcome_back</label>
         <label class="name">@Sandbox.Utility.Steam.PersonaName</label>
     </div>
 
-    <div class="edit clicky" tooltip="Edit your avatar" @onclick="@OpenAvatarScene">
+    <div class="edit clicky" tooltip="#tooltip.avatarbutton.edit_avatar" @onclick="@OpenAvatarScene">
         <icon>emoji_people</icon>
-        <label>Edit</label>
+        <label>#avatarbutton.edit</label>
     </div>
 
     @if ( StatsLoaded )
     {
         <div class="stats">
             <div class="stat">
-                <label class="stat-label">Achievements</label>
+                <label class="stat-label">#avatarbutton.achievements</label>
                 <div class="stat-value">
                     <icon class="trophy">emoji_events</icon>
                     <label>@AchievementsUnlocked.ToString( "N0" )</label>
@@ -29,7 +29,7 @@
             <div class="grow" />
 
             <div class="stat right">
-                <label class="stat-label">Points</label>
+                <label class="stat-label">#avatarbutton.points</label>
                 <div class="stat-value">
                     <icon class="points">stars</icon>
                     <label>@AchievementScore.ToString( "N0" )</label>

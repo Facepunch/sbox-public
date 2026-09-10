@@ -9,7 +9,7 @@
 
     <div class="return" onclick=@(() => Ancestors.OfType<WorkshopPage>().FirstOrDefault().OnPackageSelected(null))>
         <i>keyboard_return</i>
-        <label>Return To List</label>
+        <label>#avatar.workshop.return_to_list</label>
     </div>
 
     <div class="detail">
@@ -47,9 +47,9 @@
         </div>
 
 
-        <div class="option rating" onclick=@LeaveReview ToolTip="Add a Review">
+        <div class="option rating" onclick=@LeaveReview ToolTip=#tooltip.avatar.workshop.review>
             <i>reviews</i>
-            <label>Review</label>
+            <label>#review</label>
         </div>
 
     </div>

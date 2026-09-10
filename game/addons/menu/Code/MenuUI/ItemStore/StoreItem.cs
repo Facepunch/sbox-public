@@ -42,14 +42,14 @@ public static class StoreItem
 			{
 				var days = item.DaysLeft;
 				if ( days is null ) return null;
-				if ( days <= 0 ) return "Leaving now";
+				if ( days <= 0 ) return Language.GetPhrase( "storeitem.leaving_now" );
 				if ( days < 1 )
 				{
 					var hours = System.Math.Max( 1, (int)(days * 24) );
-					return hours == 1 ? "Leaving in 1 hour" : $"Leaving in {hours} hours";
+					return hours == 1 ? Language.GetPhrase( "storeitem.leaving_one_hour" ) : Language.GetPhrase( "storeitem.leaving_hours", new() { { "hours", hours } } );
 				}
-				if ( days < 2 ) return "Leaving tomorrow";
-				return $"Leaving in {System.Math.Floor( days.Value )} days";
+				if ( days < 2 ) return Language.GetPhrase( "storeitem.leaving_tomorrow" );
+				return Language.GetPhrase( "storeitem.leaving_days", new() { { "days", System.Math.Floor( days.Value ) } } );
 			}
 		}
 
@@ -58,15 +58,23 @@ public static class StoreItem
 		{
 			get
 			{
-				if ( string.IsNullOrEmpty( item.Category ) ) return "Other";
+				if ( string.IsNullOrEmpty( item.Category ) )
+					return Language.GetPhrase( "clothingcategory.other" );
 
-				var sb = new System.Text.StringBuilder();
-				foreach ( var c in item.Category )
+				var key = $"clothingcategory.{item.Category}";  // "HatSpecial" → "clothingcategory.hatspecial";
+				var localized = Language.GetPhrase( key );
+
+				if ( localized == key )
 				{
-					if ( char.IsUpper( c ) && sb.Length > 0 ) sb.Append( ' ' );
-					sb.Append( c );
+					var sb = new System.Text.StringBuilder();
+					foreach ( var c in item.Category )
+					{
+						if ( char.IsUpper( c ) && sb.Length > 0 ) sb.Append( ' ' );
+						sb.Append( c );
+					}
+					return sb.ToString();
 				}
-				return sb.ToString();
+				return localized;
 			}
 		}
 
