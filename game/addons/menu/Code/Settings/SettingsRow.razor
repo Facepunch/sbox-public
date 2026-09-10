@@ -8,12 +8,12 @@
 
 	<div class="line">
 
-		<label class="name">@Item.Title</label>
+		<label class="name">@Localize( $"settings.{Item.Id}.title", Item.Title )</label>
 
 		<div class="control">
 			@if ( Item.Kind == SettingKind.Action )
 			{
-				<Button class="action" onclick=@( () => Item.Invoke?.Invoke() )>@Item.ActionLabel</Button>
+				<Button class="action" onclick=@( () => Item.Invoke?.Invoke() )>@Localize( $"settings.{Item.Id}.action", Item.ActionLabel )</Button>
 			}
 			else if ( Item.Kind == SettingKind.Slider )
 			{
@@ -58,6 +58,12 @@
 
 	string Disabled => Item?.Disabled;
 	string Warning => Item?.Warning?.Invoke();
+
+	string Localize( string key, string originalText )
+	{
+		string localizedText = Language.GetPhrase( key );
+		return localizedText == key ? originalText : localizedText;
+	}
 
 	string RootClass
 	{

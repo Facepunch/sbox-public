@@ -96,6 +96,8 @@
 
     "tooltip.itemtile.count": "Type how many you want",
 
+    "tooltip.packagefilterorder.sort": "Sort",
+
     "tooltip.packagemetrics.favourited": "Favourited",
     "tooltip.packagemetrics.thumbs_up": "Thumbs Up",
     "tooltip.packagemetrics.thumbs_down": "Thumbs Down",
@@ -114,6 +116,8 @@
     "tooltip.pausemodal.stream_connection": "Stream Connection",
 
     "tooltip.rewarddrop.refresh": "Refresh",
+
+    "tooltip.settings.presets.autodetect": "Pick the preset that suits this machine",
     
     "tooltip.menu.notifications": "Notifications",
     "tooltip.menu.mounted_games": "Mounted Games",

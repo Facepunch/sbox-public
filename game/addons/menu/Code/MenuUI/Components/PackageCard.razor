@@ -35,9 +35,7 @@
         @if (Package == null)
         {
             <row>
-                <label class="eyebrow">
-                    We couldn't find that package.
-                </label>
+                <label class="eyebrow">#packagecard.invalid_hint</label>
             </row>
         }
         else
@@ -52,7 +50,7 @@
                 {
                     <div class="package-stat live">
                         <div class="live-dot" />
-                        <label class="eyebrow">@Compact( Package.Usage.UsersNow ) playing</label>
+                        <label class="eyebrow">@Language.GetPhrase( "packagecard.playing", new() { { "count", Compact( Package.Usage.UsersNow ) } } )</label>
                     </div>
                 }
                 else
@@ -212,8 +210,8 @@
 
     string VotePercentage()
     {
-        if (Package == null) return "Unrated";
-        if (Package.VotesUp == 0 && Package.VotesDown == 0) return "Unrated";
+        if (Package == null) return Language.GetPhrase( "packagecard.unrated" );
+        if (Package.VotesUp == 0 && Package.VotesDown == 0) return Language.GetPhrase( "packagecard.unrated" );
         return $"{(int)(Package.VotesUp * 100f / (Package.VotesUp + Package.VotesDown))}%";
     }
 

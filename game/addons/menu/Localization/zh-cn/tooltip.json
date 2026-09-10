@@ -96,6 +96,8 @@
 
     "tooltip.itemtile.count": "输入您想购买的数量",
 
+    "tooltip.packagefilterorder.sort": "排序方式",
+
     "tooltip.packagemetrics.favourited": "收藏",
     "tooltip.packagemetrics.thumbs_up": "推荐",
     "tooltip.packagemetrics.thumbs_down": "不推荐",
@@ -114,6 +116,8 @@
     "tooltip.pausemodal.stream_connection": "直播连接",
 
     "tooltip.rewarddrop.refresh": "刷新",
+
+    "tooltip.settings.presets.autodetect": "选择适合这台机器的预设",
     
     "tooltip.menu.notifications": "通知",
     "tooltip.menu.mounted_games": "已挂载游戏",

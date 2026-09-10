@@ -6,17 +6,17 @@
 
 <root class="actions">
 
-	<Button class="quiet" Icon="restore" onclick=@RestoreDefaults>Restore Defaults</Button>
+	<Button class="quiet" Icon="restore" onclick=@RestoreDefaults>#settings.actions.restore_defaults</Button>
 
 	<div class="grow"></div>
 
 	@if ( Dirty )
 	{
-		<label class="unsaved">Unsaved changes</label>
-		<Button class="quiet" Icon="undo" onclick=@Revert>Revert</Button>
+		<label class="unsaved">#settings.actions.unsaved</label>
+		<Button class="quiet" Icon="undo" onclick=@Revert>#settings.actions.revert</Button>
 	}
 
-	<Button class="primary @(Dirty ? "" : "locked")" Icon="save" onclick=@Apply>Save Changes</Button>
+	<Button class="primary @(Dirty ? "" : "locked")" Icon="save" onclick=@Apply>#settings.actions.save</Button>
 
 </root>
 

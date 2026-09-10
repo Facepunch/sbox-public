@@ -10,7 +10,7 @@
 
 	<div class="rail">
 
-		<TextEntry @ref=SearchEntry class="settings-search" Icon="search" Placeholder="Search settings..." OnTextEdited=@OnSearchEdited></TextEntry>
+		<TextEntry @ref=SearchEntry class="settings-search" Icon="search" Placeholder="#settings.search_placeholder" OnTextEdited=@OnSearchEdited></TextEntry>
 
 		<div class="cats">
 			@foreach ( var cat in Catalog.Categories )
@@ -19,7 +19,7 @@
 
 				<div class="cat @(cat.Id == Category ? "active" : "") @(Searching && matches == 0 ? "dimmed" : "")" onclick=@( () => Select( cat.Id ) )>
 					<i>@cat.Icon</i>
-					<label>@cat.Title</label>
+					<label>@Localize( $"settings.cat.{cat.Id}.title", cat.Title )</label>
 					@if ( Searching && matches > 0 )
 					{
 						<div class="count">@matches</div>
@@ -33,8 +33,8 @@
 	<div class="body">
 
 		<div class="head">
-			<label class="title">@(Searching ? "Search" : Current?.Title)</label>
-			<label class="blurb">@(Searching ? MatchSummary : Current?.Blurb)</label>
+			<label class="title">@(Searching ? Language.GetPhrase( "settings.search" ) : Localize( $"settings.cat.{Current?.Id}.title", Current?.Title ) )</label>
+			<label class="blurb">@(Searching ? MatchSummary :  Localize( $"settings.cat.{Current?.Id}.blurb", Current?.Blurb ) )</label>
 		</div>
 
 		@if ( Searching )
@@ -55,7 +55,7 @@
 				{
 					<div class="empty">
 						<i>search_off</i>
-						<label>Nothing matches "@Query"</label>
+						<label>@Language.GetPhrase( "settings.no_results", new() { { "query", Query } } )</label>
 					</div>
 				}
 			</div>
@@ -92,7 +92,7 @@
 				@foreach ( var section in Catalog.InCategory( Category ).GroupBy( x => x.Section ) )
 				{
 					<div class="section" @key=@section.Key>
-						<label class="section-label">@section.Key</label>
+						<label class="section-label">@Localize( "settings.section." + section.Key.Replace( " ", "_" ), section.Key )</label>
 
 						@if ( section.Key == "Post Processing" )
 						{
@@ -131,6 +131,12 @@
 	/// <summary>The last row the mouse was over.</summary>
 	public SettingItem Focused { get; private set; }
 
+	string Localize( string key, string originalText )
+	{
+		string localizedText = Language.GetPhrase( key );
+		return localizedText == key ? originalText : localizedText;
+	}
+
 	/// <summary>What the pane explains. Falls back to the first row so it never sits empty.</summary>
 	public SettingItem Described
 	{
@@ -165,7 +171,9 @@
 		get
 		{
 			var count = Catalog.Search( Query ).Count();
-			return $"{count} setting{(count == 1 ? "" : "s")} matching \"{Query}\"";
+			var fallback = $"{count} setting{(count == 1 ? "" : "s")} matching \"{Query}\"";
+			var str = Language.GetPhrase( count == 1 ? "settings.match_summary_one" : "settings.match_summary_plural", new() { { "count", count }, { "query", Query } } );
+			return str.StartsWith( "settings.match_summary" ) ? fallback : str;
 		}
 	}
 
@@ -177,6 +185,16 @@
 		{
 			Category = StartCategory;
 		}
+	}
+
+	public override void LanguageChanged()
+	{
+		base.LanguageChanged();
+
+		foreach ( var item in Catalog.Items )
+			item.ClearLocalizationCache();
+
+		Invalidate();
 	}
 
 	public void Invalidate()
@@ -218,7 +236,7 @@
 		return Catalog.Search( Query ).Count( x => x.Category == cat.Id );
 	}
 
-	string TitleOf( string categoryId ) => Catalog.Categories.FirstOrDefault( x => x.Id == categoryId )?.Title ?? categoryId;
+	string TitleOf( string categoryId ) => Localize( $"settings.cat.{categoryId}.title", Catalog.Categories.FirstOrDefault( x => x.Id == categoryId )?.Title ?? categoryId );
 
 	/// <summary>Rebuilds when a row appears or disappears, not when a value changes.</summary>
 	int VisibilityHash()

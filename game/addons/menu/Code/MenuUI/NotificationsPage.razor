@@ -80,7 +80,7 @@
 						<div class="inbox-empty">
 							<icon>@( IsLoading ? "hourglass_empty" : "cloud_off" )</icon>
 							<label class="title">@Language.GetPhrase( IsLoading ? "notificationspage.fetching" : "notificationspage.offline" )</label>
-							<label class="hint">@Language.GetPhrase( IsLoading)? "notificationspage.one_moment" : "notificationspage.offline_hint" )</label>
+							<label class="hint">@Language.GetPhrase( IsLoading ? "notificationspage.one_moment" : "notificationspage.offline_hint" )</label>
 						</div>
 					}
 					else if ( notices.Length == 0 )

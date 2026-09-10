@@ -8,15 +8,15 @@
 <root class="presets">
 
 	<div class="head">
-		<label class="section-label">Quality Preset</label>
-		<label class="hint">Sets everything under Quality in one go. Change any of them and you're on Custom.</label>
+		<label class="section-label">#settings.presets.title</label>
+		<label class="hint">#settings.presets.hint</label>
 	</div>
 
 	<div class="line">
 
-		<div class="tier detect" onclick=@Detect tooltip="Pick the preset that suits this machine">
+		<div class="tier detect" onclick=@Detect tooltip="#tooltip.settings.presets.autodetect">
 			<i>auto_fix_high</i>
-			<label>Auto-Detect</label>
+			<label>#settings.presets.autodetect</label>
 		</div>
 
 		<div class="grow"></div>
@@ -26,14 +26,14 @@
 			@foreach ( var preset in Tiers )
 			{
 				<div class="tier @(Current == preset ? "active" : "")" onclick=@( () => Pick( preset ) )>
-					<label>@preset.ToString()</label>
+					<label>@Localize( "settings.option." + preset.ToString(), preset.ToString() )</label>
 				</div>
 			}
 
 			@if ( Current == GraphicsPreset.Custom )
 			{
 				<div class="tier custom active">
-					<label>Custom</label>
+					<label>#settings.presets.custom</label>
 				</div>
 			}
 		</div>
@@ -49,6 +49,12 @@
 	static readonly GraphicsPreset[] Tiers = [GraphicsPreset.Low, GraphicsPreset.Medium, GraphicsPreset.High, GraphicsPreset.Ultra];
 
 	GraphicsPreset Current => View?.Catalog.StagedPreset ?? GraphicsPreset.Custom;
+
+	string Localize( string key, string originalText )
+	{
+		string localizedText = Language.GetPhrase( key );
+		return localizedText == key ? originalText : localizedText;
+	}
 
 	void Pick( GraphicsPreset preset )
 	{

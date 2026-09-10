@@ -12,8 +12,8 @@
 	<div class="line">
 
 		<div class="preset-head">
-			<label class="name">Quality Preset</label>
-			<label class="hint">Sets every effect below in one go.</label>
+			<label class="name">#settings.post_process_presets.title</label>
+			<label class="hint">#settings.post_process_presets.hint</label>
 		</div>
 
 		<div class="control">
@@ -21,7 +21,7 @@
 				@foreach ( var preset in Tiers )
 				{
 					<div class="tier @(Current == preset ? "active" : "")" onclick=@( () => Pick( preset ) )>
-						<label>@preset.ToString()</label>
+						<label>@Localize( "settings.option." + preset.ToString(), preset.ToString() )</label>
 					</div>
 				}
 
@@ -29,7 +29,7 @@
 				@if ( Current == PostProcessQuality.Custom )
 				{
 					<div class="tier custom active">
-						<label>Custom</label>
+						<label>#settings.post_process_presets.custom</label>
 					</div>
 				}
 			</div>
@@ -47,6 +47,12 @@
 		[PostProcessQuality.Off, PostProcessQuality.Low, PostProcessQuality.Medium, PostProcessQuality.High];
 
 	PostProcessQuality Current => View?.Catalog.StagedPostProcess ?? PostProcessQuality.Custom;
+
+	string Localize( string key, string originalText )
+	{
+		string localizedText = Language.GetPhrase( key );
+		return localizedText == key ? originalText : localizedText;
+	}
 
 	void Pick( PostProcessQuality preset )
 	{

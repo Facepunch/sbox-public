@@ -265,7 +265,7 @@ public class SettingsCatalog
 
 	void AddDisplay()
 	{
-		string EditorLocked() => Sandbox.Game.IsEditor ? "The editor owns the window - run the game to change this." : null;
+		string EditorLocked() => Sandbox.Game.IsEditor ? Language.GetPhrase( "settings.note.editor_locked" ) : null;
 
 		Items.Add( new SettingItem
 		{
@@ -438,7 +438,7 @@ public class SettingsCatalog
 			Read = () => Render.AntiAliasQuality,
 			Write = value => Render.AntiAliasQuality = ToEnum<MultisampleAmount>( value ),
 			Warning = () => StagedUpscaler != UpscalerMode.Off
-				? "Every upscaler renders to a target that can't be multisampled, so this has no effect while one is on."
+				? Language.GetPhrase( "settings.note.aa_multisample" )
 				: null
 		} );
 
@@ -538,8 +538,8 @@ public class SettingsCatalog
 			Write = value => Render.UpscalerMode = ToEnum<UpscalerMode>( value ),
 			Warning = () => StagedUpscaler switch
 			{
-				UpscalerMode.FSR3 => "Temporal upscaler. Can ghost on moving objects and in-world UI.",
-				UpscalerMode.DLSS => "Temporal AI upscaler. Can ghost on moving objects and in-world UI.",
+				UpscalerMode.FSR3 => Language.GetPhrase( "settings.note.upscaler_fsr3" ),
+				UpscalerMode.DLSS => Language.GetPhrase( "settings.note.upscaler_dlss" ),
 				_ => null
 			}
 		} );
