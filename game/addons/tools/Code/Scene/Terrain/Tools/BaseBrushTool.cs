@@ -1,4 +1,4 @@
-using Sandbox;
+﻿using Sandbox;
 
 namespace Editor.TerrainEditor;
 
@@ -241,6 +241,9 @@ public abstract class BaseBrushTool : EditorTool
 
 		// Grow the dirty region (+1 to be conservative of the floor) 
 		_dirtyRegion.Add( new RectInt( x, y, size + 1, size + 1 ) );
+
+		// Heights changed on the GPU - schedule a normal rebake for live feedback
+		terrain.NotifyHeightMapEdited();
 	}
 
 	T[] CopyRegion<T>( T[] data, int stride, RectInt rect ) where T : unmanaged
