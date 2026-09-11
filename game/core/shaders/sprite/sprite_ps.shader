@@ -55,6 +55,7 @@ COMMON
 		float4 BlendSheetUV;
 		float2 Offset;
 		uint CameraFade;
+		int ZIndex;
 	};
 
 	StructuredBuffer<SpriteData> Sprites < Attribute( "Sprites" ); >;

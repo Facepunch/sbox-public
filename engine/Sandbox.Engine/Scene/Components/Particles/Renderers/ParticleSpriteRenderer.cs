@@ -97,6 +97,14 @@ public sealed partial class ParticleSpriteRenderer : ParticleRenderer, Component
 	[Property] public ParticleSortMode SortMode { get; set; }
 
 	/// <summary>
+	/// Sorting layer. Sprites with a higher ZIndex always render on top of lower ones; sprites with the same ZIndex sort by camera distance. Used when sorting is enabled. Clamped to [-128, 127].
+	/// </summary>
+	[Group( "Rendering" )]
+	[Property, Range( -128, 127 )]
+	[ShowIf( nameof( IsSorted ), true )]
+	public int ZIndex { get; set; }
+
+	/// <summary>
 	/// Amount of feathering applied to the depth, softening its intersection with geometry.
 	/// </summary>
 	[Group( "Rendering" )]

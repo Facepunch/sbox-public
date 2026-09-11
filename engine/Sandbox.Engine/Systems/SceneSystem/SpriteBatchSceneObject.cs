@@ -1,4 +1,4 @@
-﻿namespace Sandbox.Rendering;
+namespace Sandbox.Rendering;
 
 using NativeEngine;
 using System.Buffers;
@@ -72,6 +72,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		public Vector4 BlendSheetUV;
 		public Vector2 Offset;
 		public uint CameraFade;     // Two halves: lower 16 bits near distance, upper 16 bits far distance
+		public int ZIndex = 0;
 		public SpriteData()
 		{
 
@@ -184,7 +185,8 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 	GpuBuffer<SpriteVertex> VertexBuffer;
 	GpuBuffer<int> IndexBuffer;
 	GpuBuffer<uint> GPUSortingBuffer;
-	GpuBuffer<float> GPUDistanceBuffer;
+	// Holds sort keys built by sprite_cs: Z index layer (high bits) then camera distance (low bits), as order-preserving uints
+	GpuBuffer<uint> GPUDistanceBuffer;
 
 	SpriteData[] SpriteDataBuffer = null!;
 	bool SpriteDataBufferRented = false;
@@ -452,7 +454,8 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 						DepthFeather = c.DepthFeather,
 						CameraFade = SpriteData.PackCameraFade( c.CameraFadeNear, c.CameraFadeFar ),
 						SamplerIndex = SamplerState.GetBindlessIndex( sampler with { Filter = c.TextureFilter } ),
-						Offset = c.Pivot
+						Offset = c.Pivot,
+						ZIndex = c.ZIndex
 					};
 
 					var pivot = c.Pivot;
