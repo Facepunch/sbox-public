@@ -52,7 +52,9 @@ internal abstract class RenderLayer
 
 		if ( this is ProceduralRenderLayer proceduralRenderLayer )
 		{
-			proceduralRenderLayer.ProceduralCallback = DelegateFunctionPointer.Get<ProceduralRenderLayer.OnRenderCallback>( proceduralRenderLayer.Internal_OnRender );
+			if ( (nint)proceduralRenderLayer.ProceduralCallback == IntPtr.Zero )
+				proceduralRenderLayer.ProceduralCallback = DelegateFunctionPointer.Get<ProceduralRenderLayer.OnRenderCallback>( proceduralRenderLayer.Internal_OnRender );
+
 			nativeLayer = view.AddManagedProceduralLayer( Name, viewport, proceduralRenderLayer.ProceduralCallback, IntPtr.Zero, true );
 		}
 		else
