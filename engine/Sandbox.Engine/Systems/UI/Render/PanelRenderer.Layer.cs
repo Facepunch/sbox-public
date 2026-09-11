@@ -27,6 +27,12 @@ internal partial class PanelRenderer
 
 		PopLayer( panel, cl, DefaultRenderTarget );
 
+		// The blur shaders read the layer's gaussian mip chain rather than tapping it at full res, so build the
+		// chain now everything is in there and before the filter quad below samples it. Drop shadows are made
+		// from alpha, so the chain has to keep it
+		if ( panel.LayerMipCount > 1 )
+			cl.GenerateMipMaps( new RenderTargetHandle { Name = panel.PanelLayerRTName }, Graphics.DownsampleMethod.GaussianBlurAlpha );
+
 		// LayerCommandList was built during Build without knowing the parent RT.
 		// Set it now so InsertList targets the correct render target.
 		if ( LayerStack.TryPeek( out var parent ) )

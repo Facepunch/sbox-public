@@ -4,9 +4,41 @@ namespace Sandbox.UI;
 
 public partial class Panel
 {
-	string PanelLayerRTName => field ??= $"PanelLayer.{GetHashCode()}";
+	internal string PanelLayerRTName => field ??= $"PanelLayer.{GetHashCode()}";
 
 	Vector2? _panelLayerSize;
+
+	/// <summary>
+	/// How many mips the layer's blurs need, 1 for none. ui/blur.hlsl reads the deepest level whose own blur stays
+	/// within GAUSSIAN_BLUR_CHAIN_SHARE of the sigma, so the chain stops there.
+	/// </summary>
+	internal int LayerMipCount { get; private set; } = 1;
+
+	int WantedLayerMipCount( Styles styles )
+	{
+		var sigma = styles.FilterBlur?.GetPixels( 1.0f ) ?? 0.0f;
+
+		foreach ( var shadow in styles.FilterDropShadow )
+			sigma = MathF.Max( sigma, shadow.Blur );
+
+		if ( sigma <= 0.05f ) return 1;
+
+		var mip = 0;
+		while ( LayerChainSigma( mip + 1 ) <= 0.9f * sigma )
+			mip++;
+
+		return mip + 1;
+	}
+
+	/// <summary>
+	/// The blur mip <paramref name="mip"/> of the GaussianBlurAlpha chain carries, in texels of mip 0 - the same sum
+	/// as blur.hlsl's GaussianBlurChainSigma.
+	/// </summary>
+	static float LayerChainSigma( int mip )
+	{
+		var texels = MathF.Pow( 4.0f, mip );
+		return MathF.Sqrt( 2.75f * (texels - 1.0f) + texels / 6.0f );
+	}
 
 	// Cached layer state computed during Build for use during Gather
 	internal Matrix? CachedLayerMatrix;
@@ -31,10 +63,15 @@ public partial class Panel
 			if ( size.y <= 1 ) return;
 
 			_panelLayerSize = size;
+
+			// GenerateMipMaps stops once the short side runs out - a longer chain leaves mips nothing writes
+			var shortSideMips = (int)MathF.Log2( MathF.Min( (int)size.x, (int)size.y ) ) + 1;
+			LayerMipCount = Math.Min( WantedLayerMipCount( styles ), shortSideMips );
 		}
 		else
 		{
 			_panelLayerSize = null;
+			LayerMipCount = 1;
 		}
 	}
 
@@ -69,7 +106,7 @@ public partial class Panel
 		globalCL.Attributes.Set( "TransformMat", Matrix.Identity );
 
 		// 8-bit sRGB so the layer round-trips exactly through the UI shaders' sRGB read/write in both gamma and linear mode. HDR color clamps inside it.
-		var handle = globalCL.GetRenderTarget( PanelLayerRTName, (int)_panelLayerSize.Value.x, (int)_panelLayerSize.Value.y, ImageFormat.RGBA8888, ImageFormat.None );
+		var handle = globalCL.GetRenderTarget( PanelLayerRTName, (int)_panelLayerSize.Value.x, (int)_panelLayerSize.Value.y, ImageFormat.RGBA8888, ImageFormat.None, numMips: LayerMipCount );
 
 		render.PushLayer( this, globalCL, handle, CachedLayerMatrix.Value );
 	}
