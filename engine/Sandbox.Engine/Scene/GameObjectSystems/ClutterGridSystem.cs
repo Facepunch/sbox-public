@@ -17,12 +17,14 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 	private readonly List<ClutterGenerationJob> _pendingJobs = [];
 	private readonly HashSet<ClutterTile> _pendingTiles = [];
 	private readonly HashSet<Terrain> _subscribedTerrains = [];
+	private readonly HashSet<MapInstance> _subscribedMaps = [];
 	private Vector3 _lastCameraPosition;
 
 	// Reused by the update path so an idle scene doesn't allocate.
 	private readonly List<ClutterComponent> _activeInfinite = [];
 	private readonly List<ClutterComponent> _componentsToRemove = [];
 	private readonly List<Terrain> _sceneTerrains = [];
+	private readonly List<MapInstance> _sceneMaps = [];
 	private readonly HashSet<ClutterLayer> _layersToRebuild = [];
 
 	/// <summary>
@@ -51,7 +53,7 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 	public ClutterGridSystem( Scene scene ) : base( scene )
 	{
 		Listen( Stage.FinishUpdate, 0, OnUpdate, "ClutterGridSystem.Update" );
-		Listen( Stage.SceneLoaded, 0, RestorePaintedLayer, "ClutterGridSystem.RestorePainted" );
+		Listen( Stage.SceneLoaded, 0, OnSceneLoaded, "ClutterGridSystem.RestorePainted" );
 	}
 
 	public override void Dispose()
@@ -61,6 +63,14 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 		foreach ( var terrain in _subscribedTerrains )
 			if ( terrain.IsValid() ) terrain.OnTerrainModified -= OnTerrainModified;
 		_subscribedTerrains.Clear();
+
+		foreach ( var map in _subscribedMaps )
+		{
+			if ( !map.IsValid() ) continue;
+			map.OnMapLoaded -= OnWorldGeometryChanged;
+			map.OnMapUnloaded -= OnWorldGeometryChanged;
+		}
+		_subscribedMaps.Clear();
 
 		_painted?.ClearAllTiles();
 		_painted = null;
@@ -83,7 +93,7 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 
 			PublishLodParameters( camera );
 
-			SubscribeToTerrains();
+			SubscribeToWorldGeometry();
 			UpdateInfiniteLayers( _lastCameraPosition );
 			ProcessJobs();
 		}
@@ -103,8 +113,11 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 		}
 	}
 
-	private void RestorePaintedLayer()
+	private void OnSceneLoaded()
 	{
+		// Whatever the scene had before this is gone, and its bounds went with it.
+		ClutterGenerationJob.InvalidateSceneBounds();
+
 		RebuildPaintedLayer();
 		_dirty = false;
 	}
@@ -124,20 +137,47 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 		};
 	}
 
-	private void SubscribeToTerrains()
+	/// <summary>
+	/// Tracks the things that define how tall the world is - terrains and maps - so the cached
+	/// scene bounds used for ground traces can be invalidated when one appears, loads or leaves.
+	/// </summary>
+	private void SubscribeToWorldGeometry()
 	{
 		_sceneTerrains.Clear();
 		Scene.GetAll( _sceneTerrains );
 
 		foreach ( var terrain in _sceneTerrains )
 		{
-			if ( _subscribedTerrains.Add( terrain ) )
-			{
-				terrain.OnTerrainModified += OnTerrainModified;
-			}
+			if ( !_subscribedTerrains.Add( terrain ) )
+				continue;
+
+			terrain.OnTerrainModified += OnTerrainModified;
+			ClutterGenerationJob.InvalidateSceneBounds();
 		}
 
-		_subscribedTerrains.RemoveWhere( t => !t.IsValid() );
+		if ( _subscribedTerrains.RemoveWhere( t => !t.IsValid() ) > 0 )
+			ClutterGenerationJob.InvalidateSceneBounds();
+
+		_sceneMaps.Clear();
+		Scene.GetAll( _sceneMaps );
+
+		foreach ( var map in _sceneMaps )
+		{
+			if ( !_subscribedMaps.Add( map ) )
+				continue;
+
+			map.OnMapLoaded += OnWorldGeometryChanged;
+			map.OnMapUnloaded += OnWorldGeometryChanged;
+			ClutterGenerationJob.InvalidateSceneBounds();
+		}
+
+		if ( _subscribedMaps.RemoveWhere( m => !m.IsValid() ) > 0 )
+			ClutterGenerationJob.InvalidateSceneBounds();
+	}
+
+	private static void OnWorldGeometryChanged()
+	{
+		ClutterGenerationJob.InvalidateSceneBounds();
 	}
 
 	private void UpdateActiveComponents( List<ClutterComponent> components, Vector3 cameraPosition )
@@ -257,6 +297,9 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 
 	private void OnTerrainModified( Terrain.SyncFlags flags, RectInt region )
 	{
+		// Sculpting moves the terrain's vertical extent, which is what ground traces span.
+		ClutterGenerationJob.InvalidateSceneBounds();
+
 		var bounds = TerrainRegionToWorldBounds( _subscribedTerrains.First(), region );
 		InvalidateTilesInBounds( bounds );
 	}

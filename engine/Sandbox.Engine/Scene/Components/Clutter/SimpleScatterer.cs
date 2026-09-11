@@ -24,12 +24,8 @@ public class SimpleScatterer : Scatterer
 	[Property, Group( "Placement" ), ShowIf( nameof( PlaceOnGround ), true )]
 	public bool AlignToNormal { get; set; }
 
-	protected override List<ClutterInstance> Generate( BBox bounds, ClutterDefinition clutter, Scene scene = null )
+	protected override List<ClutterInstance> Generate( BBox bounds, ClutterDefinition clutter, Scene scene, BBox sceneBounds )
 	{
-		scene ??= Game.ActiveScene;
-		if ( scene == null || clutter == null )
-			return [];
-
 		var pointCount = CalculatePointCount( bounds, Density );
 		var points = JitteredGridPoints( bounds, pointCount );
 		var totalPoints = points.Length;
@@ -48,7 +44,7 @@ public class SimpleScatterer : Scatterer
 		}
 
 		using var pooledTraces = PlaceOnGround
-			? RentGroundTraces( scene, points, scene.GetBounds() )
+			? RentGroundTraces( scene, points, sceneBounds )
 			: default;
 		var traces = pooledTraces.Span;
 
