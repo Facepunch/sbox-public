@@ -186,6 +186,22 @@ namespace Sandbox.UI
 
 		public override void Delete( bool immediate = false )
 		{
+			ReleaseRenderResources();
+
+			base.Delete( immediate );
+		}
+
+		public override void OnDeleted()
+		{
+			base.OnDeleted();
+
+			// Deleting a parent only calls OnDeleted on its children, never Delete,
+			// so a ScenePanel inside a deleted tree has to release its scene here too.
+			ReleaseRenderResources();
+		}
+
+		void ReleaseRenderResources()
+		{
 			RenderTexture?.Dispose();
 			RenderTexture = null;
 
@@ -196,8 +212,6 @@ namespace Sandbox.UI
 			}
 
 			_renderScene = null;
-
-			base.Delete( immediate );
 		}
 
 		public override void OnDraw()

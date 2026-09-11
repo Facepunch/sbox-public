@@ -523,6 +523,12 @@ internal partial class UISystem
 			}
 		}
 
+		// A panel that was detached from its parent and queued for deletion is in no
+		// root's tree, so the loop above never reaches it. Nothing will run the pump
+		// after this, so delete them now or they keep whatever they own - scene panels
+		// keep an entire Scene alive.
+		RunDeferredDeletion( true );
+
 		RootPanels.Clear();
 		DeletionList.Clear();
 

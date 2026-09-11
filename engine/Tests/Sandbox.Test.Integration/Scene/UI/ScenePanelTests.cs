@@ -20,6 +20,37 @@ public class ScenePanelTest
 	}
 
 	[TestMethod]
+	public void DeleteParent_DestroysOwnedScene()
+	{
+		var parent = new Panel();
+		var panel = parent.AddChild<ScenePanel>();
+		var ownedScene = panel.RenderScene;
+
+		Assert.IsTrue( ownedScene.IsValid() );
+
+		// Deleting the parent tears down its children without calling their Delete
+		parent.Delete( true );
+
+		Assert.IsFalse( ownedScene.IsValid() );
+		Assert.IsNull( panel.RenderScene );
+	}
+
+	[TestMethod]
+	public void DeleteParent_DoesNotDestroyExternalScene()
+	{
+		var parent = new Panel();
+		var panel = parent.AddChild<ScenePanel>();
+		var externalScene = new Scene();
+
+		panel.RenderScene = externalScene;
+		parent.Delete( true );
+
+		Assert.IsTrue( externalScene.IsValid() );
+
+		externalScene.Destroy();
+	}
+
+	[TestMethod]
 	public void Delete_DoesNotDestroyExternalScene()
 	{
 		var panel = new ScenePanel();
