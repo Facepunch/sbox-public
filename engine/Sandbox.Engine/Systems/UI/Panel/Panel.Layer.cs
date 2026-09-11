@@ -10,13 +10,27 @@ public partial class Panel
 	internal bool HasPanelLayer => _paintCache.Layer is not null;
 
 	/// <summary>
+	/// How many mips the layer's blurs need, 1 for none. ui/blur.hlsl reads the deepest level whose own blur stays
+	/// within GAUSSIAN_BLUR_CHAIN_SHARE of the sigma, so the chain stops there.
+	/// </summary>
+	internal int LayerMipCount => _paintCache.Layer?.MipCount ?? 1;
+
+	/// <summary>
 	/// Called by Render after closing a panel's offscreen target to composite it into the parent destination.
 	/// Applies the cached CSS filter, mask, drop shadows and layer border to the completed subtree.
 	/// </summary>
 	void DrawLayer( Painter painter )
 	{
 		var layer = _paintCache.Layer;
-		painter.Composite( new RenderTargetHandle { Name = PanelLayerRTName }, Box.RectOuter, layer.Filter, layer.Mask,
+		var source = new RenderTargetHandle { Name = PanelLayerRTName };
+
+		// The blur shaders read the layer's gaussian mip chain rather than tapping it at full res, so build the
+		// chain now everything is in there and before the filter quad below samples it. Drop shadows are made
+		// from alpha, so the chain has to keep it
+		if ( layer.MipCount > 1 )
+			painter.GenerateLayerMips( source );
+
+		painter.Composite( source, Box.RectOuter, layer.Filter, layer.Mask,
 			layer.MaskScope, CollectionsMarshal.AsSpan( layer.DropShadows ), layer.BorderWidth, layer.BorderColor );
 	}
 
@@ -28,6 +42,7 @@ public partial class Panel
 		internal ShadowList DropShadows;
 		internal float BorderWidth;
 		internal Color BorderColor;
+		internal int MipCount = 1;
 		Texture _maskImage;
 		Vector2 _maskSize;
 		int _maskVersion;
@@ -74,6 +89,11 @@ public partial class Panel
 
 			MaskScope = style.MaskScope ?? UI.MaskScope.Default;
 			DropShadows = style.FilterDropShadow;
+
+			var sigma = Filter.Blur;
+			foreach ( var shadow in DropShadows )
+				sigma = MathF.Max( sigma, shadow.Blur );
+			MipCount = Painter.LayerMipCount( sigma, panel.Box.RectOuter );
 			BorderWidth = style.FilterBorderWidth.Value.GetPixels( 1 ) * panel.ScaleToScreen;
 			BorderColor = style.FilterBorderColor.Value;
 			_maskImage = style.MaskImage;
