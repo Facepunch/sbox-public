@@ -71,9 +71,11 @@ public class ToolboxItem<T> : Widget where T : Doo.Block, new()
 	{
 		if ( e.LeftMouseButton )
 		{
+			var editor = GetAncestor<DooEditorWidget>();
 			var block = CreateBlock();
-			GetAncestor<DooEditorWidget>().Target.Body.Add( block );
-			GetAncestor<DooEditorWidget>().BlockTree.SelectItem( block );
+			editor.Target.Body.Add( block );
+			editor.NoteDirty();
+			editor.BlockTree.SelectItem( block );
 		}
 	}
 

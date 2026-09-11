@@ -37,15 +37,29 @@ public class DooInspector : Widget
 	}
 
 	Doo.Block _target;
+	SerializedObject _targetSubscription;
 
 	public void SetTarget( Doo.Block target ) // todo support multi-select
 	{
 		if ( _target == target )
 			return;
 
+		if ( _targetSubscription is not null )
+			_targetSubscription.OnPropertyChanged -= OnBlockPropertyChanged;
+
 		_target = target;
 		Target = target?.GetSerialized();
+		_targetSubscription = Target;
+
+		if ( _targetSubscription is not null )
+			_targetSubscription.OnPropertyChanged += OnBlockPropertyChanged;
+
 		RebuildContent();
+	}
+
+	void OnBlockPropertyChanged( SerializedProperty _ )
+	{
+		Editor?.NoteDirty();
 	}
 
 	void RebuildContent()
