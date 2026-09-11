@@ -28,7 +28,8 @@ COMMON
 		GaussianBorder = 2,
 		Max = 3,
 		Min = 4,
-		MinMax = 5
+		MinMax = 5,
+		GaussianBlurAlpha = 6
 	};
 }
 
@@ -38,7 +39,7 @@ CS
 	// Includes -----------------------------------------------------------------------------------------------------------------------------------------------
 
 	// Combos -------------------------------------------------------------------------------------------------------------------------------------------------
-	DynamicCombo( D_DOWNSAMPLE_METHOD, 0..5, Sys( ALL ) );
+	DynamicCombo( D_DOWNSAMPLE_METHOD, 0..6, Sys( ALL ) );
 	
 	// System Textures ----------------------------------------------------------------------------------------------------------------------------------------
 	Texture2D 			MipLevel0 < Attribute( "MipLevel0" ); >;
@@ -226,6 +227,113 @@ CS
 		return float4( BlurVertically(vDispatchId.xy, (vGroupThreadID.y << 3) + vGroupThreadID.x), 1.0f );
 	}
 
+	//-------------------------------------------------------------------------------------------------------------------------------------------------------------
+	//
+	// Gaussian with alpha, for layers that get blurred from their mips (panel filter layers). Same 9-tap binomial as
+	// above, but on all four channels, in linear space like the sampler reads mip 0, and centred: a 2x2 box of the
+	// four parent texels under each child, so mips don't creep up-left. Texels outside the image read as transparent.
+	//
+	//-------------------------------------------------------------------------------------------------------------------------------------------------------------
+	groupshared uint CacheA[128];
+
+	float4 LoadColorAlpha( int2 pixelCoord )
+	{
+		uint width, height;
+		MipLevel0.GetDimensions( width, height );
+		if ( any( pixelCoord < 0 ) || pixelCoord.x >= (int)width || pixelCoord.y >= (int)height )
+			return 0;
+
+		return max( MipLevel0[ pixelCoord ], 0.0f );
+	}
+
+	float4 FilterBoxAlpha( int2 pixelCoord )
+	{
+		int2 vCoord = pixelCoord * 2;
+		return ( LoadColorAlpha( vCoord ) + LoadColorAlpha( vCoord + int2( 1, 0 ) ) + LoadColorAlpha( vCoord + int2( 0, 1 ) ) + LoadColorAlpha( vCoord + int2( 1, 1 ) ) ) * 0.25f;
+	}
+
+	float4 BlurPixelsAlpha( float4 a, float4 b, float4 c, float4 d, float4 e, float4 f, float4 g, float4 h, float4 i )
+	{
+		return Weights[0]*e + Weights[1]*(d+f) + Weights[2]*(c+g) + Weights[3]*(b+h) + Weights[4]*(a+i);
+	}
+
+	void Store2PixelsAlpha( uint index, float4 pixel1, float4 pixel2 )
+	{
+		Store2Pixels( index, pixel1.rgb, pixel2.rgb );
+		CacheA[index] = f32tof16(pixel1.a) | f32tof16(pixel2.a) << 16;
+	}
+
+	void Load2PixelsAlpha( uint index, out float4 pixel1, out float4 pixel2 )
+	{
+		float3 rgb1, rgb2;
+		Load2Pixels( index, rgb1, rgb2 );
+		uint aa = CacheA[index];
+		pixel1 = float4( rgb1, f16tof32( aa ) );
+		pixel2 = float4( rgb2, f16tof32( aa >> 16 ) );
+	}
+
+	void Store1PixelAlpha( uint index, float4 pixel )
+	{
+		Store1Pixel( index, pixel.rgb );
+		CacheA[index] = asuint( pixel.a );
+	}
+
+	void Load1PixelAlpha( uint index, out float4 pixel )
+	{
+		float3 rgb;
+		Load1Pixel( index, rgb );
+		pixel = float4( rgb, asfloat( CacheA[index] ) );
+	}
+
+	void BlurHorizontallyAlpha( uint outIndex, uint leftMostIndex )
+	{
+		float4 s0, s1, s2, s3, s4, s5, s6, s7, s8, s9;
+		Load2PixelsAlpha( leftMostIndex + 0, s0, s1 );
+		Load2PixelsAlpha( leftMostIndex + 1, s2, s3 );
+		Load2PixelsAlpha( leftMostIndex + 2, s4, s5 );
+		Load2PixelsAlpha( leftMostIndex + 3, s6, s7 );
+		Load2PixelsAlpha( leftMostIndex + 4, s8, s9 );
+
+		Store1PixelAlpha( outIndex    , BlurPixelsAlpha( s0, s1, s2, s3, s4, s5, s6, s7, s8 ) );
+		Store1PixelAlpha( outIndex + 1, BlurPixelsAlpha( s1, s2, s3, s4, s5, s6, s7, s8, s9 ) );
+	}
+
+	float4 BlurVerticallyAlpha( uint topMostIndex )
+	{
+		float4 s0, s1, s2, s3, s4, s5, s6, s7, s8;
+		Load1PixelAlpha( topMostIndex     , s0 );
+		Load1PixelAlpha( topMostIndex +  8, s1 );
+		Load1PixelAlpha( topMostIndex + 16, s2 );
+		Load1PixelAlpha( topMostIndex + 24, s3 );
+		Load1PixelAlpha( topMostIndex + 32, s4 );
+		Load1PixelAlpha( topMostIndex + 40, s5 );
+		Load1PixelAlpha( topMostIndex + 48, s6 );
+		Load1PixelAlpha( topMostIndex + 56, s7 );
+		Load1PixelAlpha( topMostIndex + 64, s8 );
+
+		return BlurPixelsAlpha( s0, s1, s2, s3, s4, s5, s6, s7, s8 );
+	}
+
+	float4 FilterGaussianBlurAlpha( uint2 vGroupID, uint2 vGroupThreadID )
+	{
+		// Same layout as FilterGaussianBlur: a 16x16 block of box-filtered texels around the group's 8x8 outputs
+		int2 GroupUL = ( vGroupID.xy << 3 ) - 4;
+		int2 ThreadUL = ( vGroupThreadID.xy << 1 ) + GroupUL;
+
+		int destIdx = vGroupThreadID.x + ( vGroupThreadID.y << 4 );
+		Store2PixelsAlpha( destIdx + 0, FilterBoxAlpha( ThreadUL + int2( 0, 0 ) ), FilterBoxAlpha( ThreadUL + int2( 1, 0 ) ) );
+		Store2PixelsAlpha( destIdx + 8, FilterBoxAlpha( ThreadUL + int2( 0, 1 ) ), FilterBoxAlpha( ThreadUL + int2( 1, 1 ) ) );
+
+		GroupMemoryBarrierWithGroupSync();
+
+		uint row = vGroupThreadID.y << 4;
+		BlurHorizontallyAlpha( row + ( vGroupThreadID.x << 1 ), row + vGroupThreadID.x + ( vGroupThreadID.x & 4 ) );
+
+		GroupMemoryBarrierWithGroupSync();
+
+		return BlurVerticallyAlpha( ( vGroupThreadID.y << 3 ) + vGroupThreadID.x );
+	}
+
 	[numthreads( 8, 8, 1 )]
 	void MainCs( uint2 vGroupID : SV_GroupID, uint2 vGroupThreadID : SV_GroupThreadID, uint2 vDispatchId : SV_DispatchThreadID )
 	{
@@ -241,6 +349,8 @@ CS
 			StoreColor( vDispatchId.xy, float4( FilterMin( vDispatchId.xy ), 1.0f ) );
 		else if( D_DOWNSAMPLE_METHOD == DownsampleMethod::MinMax )
 			StoreColor( vDispatchId.xy, float4( FilterMinMax( vDispatchId.xy ), 0.0f, 1.0f ) );
+		else if( D_DOWNSAMPLE_METHOD == DownsampleMethod::GaussianBlurAlpha )
+			MipLevel1[ vDispatchId.xy ] = FilterGaussianBlurAlpha( vGroupID, vGroupThreadID );
 	}
 	
 }

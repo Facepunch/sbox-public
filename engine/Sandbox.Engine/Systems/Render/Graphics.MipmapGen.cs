@@ -35,6 +35,11 @@ public static partial class Graphics
 		/// Downsamples the texture in red and green channels using a Min/Max filter ( darkest and brightest pixel )
 		/// </summary>
 		MinMax,
+		/// <summary>
+		/// Gaussian filter on all four channels, centred on each texel, with everything outside the texture transparent.
+		/// For textures that get blurred from their mips, like panel filter layers
+		/// </summary>
+		GaussianBlurAlpha,
 		Default = 0,
 		None = -1
 	};
