@@ -252,13 +252,22 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		IMenuDll.Current?.Reset();
 
-		// Run GC and finalizers to clear any native resources held
-		GC.Collect();
-		GC.WaitForPendingFinalizers();
+		// Run GC and finalizers to clear any native resources held. Not the first time
+		// through - there's been no game yet, so there's nothing to clear, and a full
+		// collection during startup is a couple of hundred milliseconds of nothing
+		if ( hasResetBefore )
+		{
+			GC.Collect();
+			GC.WaitForPendingFinalizers();
 
-		// Run the queue one more time, since some finalizers queue tasks
-		MainThread.RunQueues();
+			// Run the queue one more time, since some finalizers queue tasks
+			MainThread.RunQueues();
+		}
+
+		hasResetBefore = true;
 	}
+
+	static bool hasResetBefore;
 
 	/// <summary>
 	/// This method grabs the currently loaded assembly's code archive, strips serverside code and spits it back out into the 
