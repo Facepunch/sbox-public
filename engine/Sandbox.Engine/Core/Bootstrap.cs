@@ -197,7 +197,9 @@ internal static class Bootstrap
 				Settings.RenderSettings.Instance.EnsureFirstRunPreset();
 			}
 
-			if ( !Application.IsHeadless && !Application.IsStandalone )
+			// The menu wants the items before it shows. The editor has no use for them at
+			// startup and shouldn't wait on Steam for them
+			if ( !Application.IsHeadless && !Application.IsStandalone && !Application.IsEditor )
 			{
 				// we really want the items available before we continue
 				// here we'll wait up to 5 seconds for them, but they're
