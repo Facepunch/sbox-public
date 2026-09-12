@@ -937,20 +937,24 @@ public class SettingsCatalog
 		_ => ""
 	};
 
-	static List<Option> resolutionOptions = [];
+	static List<Option> resolutionOptions;
 
+	/// <summary>
+	/// The resolutions the display can do, asked for the first time they're needed. The engine
+	/// keeps the display modes for the process, so this is only ever slow once - and not
+	/// before the main menu is on screen, which is what asking during startup cost on macOS.
+	/// </summary>
 	public static List<Option> ResolutionOptions
 	{
 		get
 		{
-			if ( resolutionOptions.Count == 0 )
+			if ( resolutionOptions is null )
 				FetchResolutions();
 
 			return resolutionOptions;
 		}
 	}
 
-	/// <summary>Asks DXGI what the display can do. Can stutter, so it's done once on startup.</summary>
 	public static void FetchResolutions()
 	{
 		const float smallestAspect = 1.5f;
