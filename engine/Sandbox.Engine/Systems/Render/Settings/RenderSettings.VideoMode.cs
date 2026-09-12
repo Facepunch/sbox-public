@@ -111,17 +111,32 @@ public partial class RenderSettings
 		}
 	}
 
+	static VideoDisplayMode[] cachedFullscreenModes;
+	static VideoDisplayMode[] cachedWindowedModes;
+
+	/// <summary>
+	/// The modes the display can do. Asking the platform is not free - on macOS the first
+	/// enumeration is close to a second on the main thread - so the answer is kept for the
+	/// life of the process, the same way the menu keeps its resolution list.
+	/// </summary>
 	public unsafe VideoDisplayMode[] DisplayModes( bool windowed )
 	{
-		var modes = new VideoDisplayMode[256];
+		ref var cache = ref (windowed ? ref cachedWindowedModes : ref cachedFullscreenModes);
 
-		fixed ( VideoDisplayMode* ptr = modes )
+		if ( cache is null )
 		{
-			var c = NativeEngine.RenderDeviceManager.GetDisplayModes( ptr, modes.Length, windowed );
-			Array.Resize( ref modes, c );
+			var modes = new VideoDisplayMode[256];
+
+			fixed ( VideoDisplayMode* ptr = modes )
+			{
+				var c = NativeEngine.RenderDeviceManager.GetDisplayModes( ptr, modes.Length, windowed );
+				Array.Resize( ref modes, c );
+			}
+
+			cache = modes;
 		}
 
-		return modes;
+		return (VideoDisplayMode[])cache.Clone();
 	}
 
 
