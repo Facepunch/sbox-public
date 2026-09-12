@@ -199,16 +199,38 @@ namespace Sandbox.Generator
 		public override SyntaxNode VisitInvocationExpression( InvocationExpressionSyntax node )
 		{
 			var location = node.GetLocation();
-			var symbolInfo = Model.GetSymbolInfo( node.Expression );
-			node = base.VisitInvocationExpression( node ) as InvocationExpressionSyntax;
 
-			var symlist = symbolInfo.CandidateSymbols;
-			if ( symbolInfo.Symbol is not null ) symlist = ImmutableArray.Create( symbolInfo.Symbol );
+			// Both rewrites below only ever touch a call that passes a string literal - the
+			// cloud asset provider wants exactly one, the token upgrader wants at least one.
+			// Binding the callee is the expensive part: the semantic model enumerates every
+			// extension method in scope for it, and it was asked for on every call in every
+			// file - more time than Roslyn then spent compiling the code. Ask only for the
+			// calls the rewrites can act on.
+			var symlist = ImmutableArray<ISymbol>.Empty;
+			if ( HasStringLiteralArgument( node ) )
+			{
+				var symbolInfo = Model.GetSymbolInfo( node.Expression );
+				symlist = symbolInfo.CandidateSymbols;
+				if ( symbolInfo.Symbol is not null ) symlist = ImmutableArray.Create( symbolInfo.Symbol );
+			}
+
+			node = base.VisitInvocationExpression( node ) as InvocationExpressionSyntax;
 
 			CloudAssetProvider.VisitInvocation( ref node, location, symlist, this );
 			StringTokenUpgrader.VisitInvocation( ref node, location, symlist, this );
 
 			return node;
+		}
+
+		static bool HasStringLiteralArgument( InvocationExpressionSyntax node )
+		{
+			foreach ( var argument in node.ArgumentList.Arguments )
+			{
+				if ( argument.Expression.IsKind( SyntaxKind.StringLiteralExpression ) )
+					return true;
+			}
+
+			return false;
 		}
 
 		public override SyntaxNode VisitIdentifierName( IdentifierNameSyntax node )
