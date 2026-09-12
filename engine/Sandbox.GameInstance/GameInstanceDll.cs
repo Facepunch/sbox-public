@@ -174,7 +174,13 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		Screen.UpdateFromEngine();
 
-		Game.InitTypeLibrary();
+		// Bootstrap built this context's type library moments before the first reset, and
+		// nothing has been added to it since - rebuilding it is a few hundred milliseconds
+		// of reflection for the same result. Later resets follow a game, so they rebuild.
+		if ( hasResetBefore )
+		{
+			Game.InitTypeLibrary();
+		}
 
 		UserPermission.Load();
 
