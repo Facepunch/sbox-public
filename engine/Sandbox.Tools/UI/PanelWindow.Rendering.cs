@@ -179,6 +179,10 @@ public partial class PanelWindow
 		if ( !IsShown )
 		{
 			OnFirstShow();
+
+			if ( OperatingSystem.IsMacOS() )
+				MacOS.DisableShowAnimation( Handle );
+
 			IsShown = Window.Show();
 		}
 
