@@ -2,6 +2,7 @@
 using Sandbox.Engine;
 using Sandbox.UI;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.Threading;
@@ -31,11 +32,29 @@ public class PanelAppSystem : AppSystem
 	{
 		bootTimer = Stopwatch.StartNew();
 
+		// Everything before this point - the runtime coming up, Main - is startup time too,
+		// and it's the part nobody instruments
+		try
+		{
+			var beforeInit = DateTime.Now - Process.GetCurrentProcess().StartTime;
+			log.Info( $"Process start to Init took {beforeInit.TotalMilliseconds:0}ms" );
+		}
+		catch ( Exception )
+		{
+			// Not worth failing boot for
+		}
+
 		base.Init();
 		Phase( "Interop" );
 
 		InitManagedMinimal();
 		Phase( "Managed init" );
+
+		// The type library, the fonts and the stylesheets are all pure managed work that
+		// doesn't need the engine, and the engine's own boot below is native work that
+		// doesn't need them - so they run on the pool while the main thread is in there,
+		// and the two halves of startup take the time of the longer one instead of the sum
+		var warmUp = WarmUp();
 
 		var createInfo = new AppSystemCreateInfo
 		{
@@ -69,9 +88,8 @@ public class PanelAppSystem : AppSystem
 
 		Phase( "Scene systems" );
 
-		// The UI reads fonts from core content, and nothing else in this app loads them
-		FontManager.Instance.LoadAll( EngineFileSystem.CoreContent );
-		Phase( "Fonts" );
+		warmUp.GetAwaiter().GetResult();
+		Phase( "Managed warm-up join" );
 
 		WarmRenderLayers();
 		Phase( "Warm render layers" );
@@ -114,6 +132,9 @@ public class PanelAppSystem : AppSystem
 		Diagnostics.Logging.Enabled = true;
 		Diagnostics.Logging.OnException = ErrorReporter.ReportException;
 
+		// Nothing here hot reloads - no editing, no compiling - so don't pay to watch the disk
+		BaseFileSystem.WatchingEnabled = false;
+
 		EngineFileSystem.Initialize( Environment.CurrentDirectory );
 		EngineFileSystem.InitializeConfigFolder();
 		EngineFileSystem.InitializeDataFolder();
@@ -124,16 +145,65 @@ public class PanelAppSystem : AppSystem
 		FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/core/" );
 		FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/addons/editor/assets/" );
 
-		// Engine controls find their [StyleSheet] attributes through the type library
+		// Engine controls find their [StyleSheet] attributes through the type library. It's
+		// filled in by WarmUp, off the main thread
 		Game.TypeLibrary = new Sandbox.Internal.TypeLibrary();
-		Game.TypeLibrary.AddIntrinsicTypes();
-		Game.TypeLibrary.AddAssembly( typeof( Vector3 ).Assembly, false );
-		Game.TypeLibrary.AddAssembly( typeof( Sandbox.UI.Panel ).Assembly, false );
 
 		Application.TryLoadVersionInfo( Environment.CurrentDirectory );
 
 		ErrorReporter.Initialize();
 	}
+
+	/// <summary>
+	/// The managed half of startup, run on a pool thread while the main thread boots the
+	/// native engine. Nothing in here may touch the engine - it isn't up yet - and nothing
+	/// on the main thread touches any of this until it's joined, before <see cref="OnInitialized"/>.
+	/// </summary>
+	Task WarmUp()
+	{
+		// Three independent jobs, each on its own thread - none of them needs the others, and
+		// the type library alone is longer than the native boot it's hiding behind
+		return Task.WhenAll(
+			Task.Run( () =>
+			{
+				// Reflecting over the engine assembly is the single biggest managed cost of boot
+				Game.TypeLibrary.AddIntrinsicTypes();
+				Game.TypeLibrary.AddAssembly( typeof( Vector3 ).Assembly, false );
+				Game.TypeLibrary.AddAssembly( typeof( Sandbox.UI.Panel ).Assembly, false );
+			} ),
+			Task.Run( () =>
+			{
+				// The UI reads fonts from core content, and nothing else in this app loads them
+				FontManager.Instance.LoadAll( EngineFileSystem.CoreContent );
+			} ),
+			Task.Run( () =>
+			{
+				// Parsed sheets are cached by path, so the windows find theirs ready-made. One
+				// thread for all of them - the cache they go into isn't built for two
+				StyleSheet.FromFile( "/styles/base/rootpanel.scss", failSilently: true );
+
+				foreach ( var sheet in StyleSheetsToWarm )
+				{
+					StyleSheet.FromFile( sheet, failSilently: true );
+				}
+			} ),
+			Task.Run( OnWarmUp ) );
+	}
+
+	/// <summary>
+	/// The app's own share of the warm-up: anything it's going to need in <see cref="OnInitialized"/>
+	/// that doesn't need the engine - settings to read, static state to build. Runs on a pool
+	/// thread while the engine boots, and is finished before <see cref="OnInitialized"/> runs.
+	/// </summary>
+	protected virtual void OnWarmUp()
+	{
+	}
+
+	/// <summary>
+	/// Stylesheets the app's windows are going to load, parsed ahead of time off the main
+	/// thread so the windows don't pay for it. Paths as <see cref="StyleSheet.FromFile"/> takes them.
+	/// </summary>
+	protected virtual IEnumerable<string> StyleSheetsToWarm => [];
 
 	/// <summary>
 	/// The app is up - make your windows. Runs before the first frame.

@@ -80,10 +80,19 @@ public class PanelLauncherAppSystem : PanelAppSystem
 {
 	Editor.PanelWindow window;
 
-	protected override void OnInitialized()
+	protected override IEnumerable<string> StyleSheetsToWarm => ["/styles/editor.scss", "/styles/launcher.scss"];
+
+	protected override void OnWarmUp()
 	{
 		LauncherPreferences.Load();
 
+		// The first Project built runs the static setup behind it - the package manager, its
+		// access rules and their compiled regexes - which is most of what the project list costs
+		System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor( typeof( Project ).TypeHandle );
+	}
+
+	protected override void OnInitialized()
+	{
 		window = new Editor.PanelWindow( "Welcome to the s&box editor", new Vector2( 1100, 660 ), new Vector2( -1, -1 ), borderless: true, vsync: true );
 		window.MinSize = new Vector2( 880, 540 );
 		window.CanMaximize = false;
