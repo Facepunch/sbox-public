@@ -17,10 +17,12 @@ internal class LocalFileSystem : BaseFileSystem
 			Physical = new CaseInsensitivePhysicalFileSystem();
 		}
 		// on sane operating systems with case insensitive filesystems
-		// windows + macos do the normal path
+		// windows + macos do the normal path. On macOS the watchers are FSEvents streams -
+		// .NET's watcher costs 50-100 ms to start there, and the editor starts one for every
+		// folder it mounts
 		else
 		{
-			Physical = new Zio.FileSystems.PhysicalFileSystem();
+			Physical = new FSEventsPhysicalFileSystem();
 		}
 
 		// Everything the physical filesystem hands back is in real on-disk casing, so if we root
