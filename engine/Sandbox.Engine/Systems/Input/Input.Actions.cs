@@ -336,6 +336,107 @@ public static partial class Input
 	public static string GetGroupName( string action ) => FindInputActionByName( action )?.GroupName;
 
 	/// <summary>
+	/// The bind collection that belongs to the currently loaded game.
+	/// </summary>
+	static BindCollection CurrentBinds
+	{
+		get
+		{
+			var ident = Application.GameIdent;
+
+			if ( string.IsNullOrEmpty( ident ) )
+				ident = "common";
+
+			return InputBinds.FindCollection( ident );
+		}
+	}
+
+	/// <summary>
+	/// Get the button combo bound to an action, e.g. <c>"ctrl + a"</c>.
+	/// </summary>
+	/// <remarks>
+	/// Resolution order: the game's bind, then the shared "common" collection (unless
+	/// <paramref name="fallbackToCommon"/> is <see langword="false"/>), then the action's default key.
+	/// Returns <see langword="null"/> when nothing is bound.
+	/// </remarks>
+	public static string GetBind( string actionName, int slot = 0, bool fallbackToCommon = true )
+	{
+		var collection = CurrentBinds;
+		var value = collection.Get( actionName, slot );
+
+		if ( !string.IsNullOrWhiteSpace( value ) )
+			return value;
+
+		if ( fallbackToCommon )
+		{
+			var commonValue = InputBinds.FindCollection( "common" ).Get( actionName, slot );
+
+			if ( !string.IsNullOrWhiteSpace( commonValue ) )
+				return commonValue;
+		}
+
+		var action = FindInputActionByName( actionName );
+		return slot == 0 ? action?.KeyboardCode : null;
+	}
+
+	/// <summary>
+	/// Get every bind for the loaded game, keyed by action name.
+	/// </summary>
+	/// <remarks>
+	/// Each value has two entries, one per slot; empty entries mean unbound. Values can be
+	/// passed straight back to <see cref="SetBind"/>.
+	/// </remarks>
+	public static Dictionary<string, string[]> GetAllBinds()
+	{
+		var collection = CurrentBinds;
+		var result = new Dictionary<string, string[]>( StringComparer.OrdinalIgnoreCase );
+
+		foreach ( var (name, bind) in collection.Actions )
+		{
+			var slots = new string[bind.Slots.Length];
+
+			for ( int i = 0; i < bind.Slots.Length; i++ )
+			{
+				slots[i] = bind.Get( i ).FullString;
+			}
+
+			result[name] = slots;
+		}
+
+		return result;
+	}
+
+	/// <summary>
+	/// Bind the button combo to an action.
+	/// </summary>
+	/// <remarks>
+	/// Takes effect immediately. Use <see cref="SaveBinds"/> to persist across restarts, or
+	/// <see cref="ResetBinds"/> to restore defaults. Pass <see langword="null"/> to clear a slot.
+	/// </remarks>
+	public static void SetBind( string actionName, string buttonName, int slot = 0 )
+	{
+		CurrentBinds.Set( actionName, slot, buttonName );
+	}
+
+	/// <summary>
+	/// Restore every bind to its default and persist it.
+	/// </summary>
+	public static void ResetBinds()
+	{
+		var collection = CurrentBinds;
+		collection.ResetToDefaults();
+		collection.SaveToDisk();
+	}
+
+	/// <summary>
+	/// Persist the binds to disk, so they survive a restart.
+	/// </summary>
+	public static void SaveBinds()
+	{
+		CurrentBinds.SaveToDisk();
+	}
+
+	/// <summary>
 	/// Read the config from this source
 	/// </summary>
 	internal static void ReadConfig( InputSettings inputConfig )
