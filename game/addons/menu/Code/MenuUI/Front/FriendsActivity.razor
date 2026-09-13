@@ -8,7 +8,7 @@
 <root class="@( Friends.Count == 0 ? "hidden" : "" )">
 
     <div class="head">
-        <label class="section-label">Friends activity</label>
+        <label class="section-label">#friendsactivity.title</label>
         <label class="count">(@Friends.Count)</label>
     </div>
 
@@ -22,7 +22,7 @@
 
                 <div class="row-body">
                     <label class="friend-name">@live.Name</label>
-                    <label class="friend-in">in</label>
+                    <label class="friend-in">#friendsactivity.in</label>
                     <label class="friend-game @( live.HasPage ? "clicky" : "" )" @onclick="@(() => OpenGame( live ))">@live.Game</label>
                 </div>
 
@@ -31,13 +31,13 @@
                 @if ( live.Joinable )
                 {
                     <div class="action join clicky" @onclick="@(() => Join( live ))">
-                        <label>Join</label>
+                        <label>#friendsactivity.join</label>
                     </div>
                 }
                 else if ( live.Invitable )
                 {
                     <div class="action clicky" @onclick="@(() => Invite( live ))">
-                        <label>Invite</label>
+                        <label>#friendsactivity.invite</label>
                     </div>
                 }
 

@@ -109,13 +109,14 @@ public class LanguageContainer
 	/// </summary>
 	/// <param name="textToken">The token used to identify the phrase</param>
 	/// <param name="data">Key values of data used by the string. Example: {Variable} -> { "Variable", someVar }</param>
-	/// <returns>If found will return the phrase, else will return the token itself</returns>
-	public string GetPhrase( string textToken, Dictionary<string, object> data = null )
+	/// <param name="returnSegment">If true and the token is not found, returns the last segment of the token instead of the full token</param>
+	/// <returns>If found will return the phrase, else will return the token itself(or its last segment if returnSegment is true)</returns>
+	public string GetPhrase( string textToken, Dictionary<string, object> data = null, bool returnSegment = false )
 	{
 		if ( lang == null || Language.DisplayKeys )
 			return textToken;
 
-		return lang.GetPhrase( textToken, data );
+		return lang.GetPhrase( textToken, data, returnSegment );
 	}
 
 	internal void Shutdown()
@@ -162,7 +163,8 @@ public static class Language
 	/// </summary>
 	/// <param name="textToken">The token used to identify the phrase</param>
 	/// <param name="data">Key values of data used by the string. Example: {Variable} -> { "Variable", someVar }</param>
-	/// <returns>If found will return the phrase, else will return the token itself</returns>
-	public static string GetPhrase( string textToken, Dictionary<string, object> data = null ) => Game.Language.GetPhrase( textToken, data );
+	/// <param name="returnSegment">If true and the token is not found, returns the last segment of the token instead of the full token</param>
+	/// <returns>If found will return the phrase, else will return the token itself(or its last segment if returnSegment is true)</returns>
+	public static string GetPhrase( string textToken, Dictionary<string, object> data = null, bool returnSegment = false ) => Game.Language.GetPhrase( textToken, data, returnSegment );
 
 }

@@ -18,7 +18,7 @@ public static class MountExtensions
 		{
 			var toast = new Toast()
 			{
-				Title = $"{(enabled ? "Mounting" : "Unmounting")} {mount.Title}",
+				Title = Language.GetPhrase( enabled ? "mountextensions.mounting" : "mountextensions.unmounting", new() { { "game", mount.Title } } ),
 				Icon = "album",
 				ExtraClasses = "loading"
 			};
@@ -88,8 +88,8 @@ public static class MountExtensions
 		MenuOverlay.Instance?.BottomRight?.Queue( new Toast()
 		{
 			Title = worked
-				? $"{(enabled ? "Mounted" : "Unmounted")} {mount.Title}"
-				: $"Couldn't {(enabled ? "mount" : "unmount")} {mount.Title}",
+				? Language.GetPhrase( enabled ? "mountextensions.mounted" : "mountextensions.unmounted", new() { { "game", mount.Title } } )
+				: Language.GetPhrase( enabled ? "mountextensions.mount_failed" : "mountextensions.unmount_failed", new() { { "game", mount.Title } } ),
 			Icon = worked ? "download_done" : "error_outline",
 		} );
 	}

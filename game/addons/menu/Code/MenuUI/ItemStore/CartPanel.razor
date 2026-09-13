@@ -5,7 +5,7 @@
 <root class="@( Cart.Items.Count == 0 ? "empty" : "" )">
 
     <div class="head">
-        <label class="section-label">Cart</label>
+        <label class="section-label">#cartpanel.cart</label>
         @if ( Cart.Items.Count > 0 )
         {
             <label class="count">@Cart.Items.Count</label>
@@ -14,7 +14,7 @@
 
     @if ( Cart.Items.Count == 0 )
     {
-        <label class="hint">Nothing in your cart yet. Add items and check out here.</label>
+        <label class="hint">#cartpanel.hint</label>
     }
     else
     {
@@ -30,7 +30,7 @@
                         <label class="name">@item.Name</label>
                         <label class="meta">@( count > 1 ? $"{count} × {item.Price}" : item.Price.ToString() )</label>
                     </div>
-                    <div class="remove" @onclick="@( () => Cart.RemoveAllFromCart( item ) )" tooltip="Remove">
+                    <div class="remove" @onclick="@( () => Cart.RemoveAllFromCart( item ) )" tooltip="#tooltip.cartpanel.remove">
                         <icon>close</icon>
                     </div>
                 </div>
@@ -38,13 +38,13 @@
         </div>
 
         <div class="total">
-            <label class="total-label">Total</label>
+            <label class="total-label">#cartpanel.total</label>
             <label class="total-value">@Cart.CartValue</label>
         </div>
 
         <div class="checkout @( Cart.CheckingOut ? "busy" : "" )" @onclick="@Cart.CheckOut">
             <icon>shopping_cart_checkout</icon>
-            <label>@( Cart.CheckingOut ? "Checking out…" : "Check out" )</label>
+            <label>@( Cart.CheckingOut ? "#cartpanel.checking_out" : "#cartpanel.check_out" )</label>
         </div>
     }
 

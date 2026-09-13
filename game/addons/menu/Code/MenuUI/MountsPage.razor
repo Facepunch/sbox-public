@@ -21,51 +21,47 @@
 
 				<div class="aside">
 
-					<h2><WithIcon Icon="extension" Text="What's a mount?"></WithIcon></h2>
-					<p>
-						A mount lets s&amp;box use the content of a game you already own. Turn one on and it
-						reads that game straight out of its install folder, converting the models, maps,
-						materials and sounds as they're asked for.
-					</p>
+					<h2><WithIcon Icon="extension" Text="#mountspage.title"></WithIcon></h2>
+					<p>#mountspage.intro</p>
 
 					<div class="block">
-						<label class="section-label">How it works</label>
+						<label class="section-label">#mountspage.how_it_works</label>
 
 						<div class="step">
 							<icon>shopping_cart</icon>
-							<label>Own the game on Steam and install it. s&amp;box finds it through your library.</label>
+							<label>#mountspage.step1</label>
 						</div>
 
 						<div class="step">
 							<icon>toggle_on</icon>
-							<label>Turn it on here. It stays on until you turn it off again.</label>
+							<label>#mountspage.step2</label>
 						</div>
 
 						<div class="step">
 							<icon>folder_open</icon>
-							<label>Its content shows up in the asset browser, and in any game that asks for it.</label>
+							<label>#mountspage.step3</label>
 						</div>
 					</div>
 
 					<div class="block">
-						<label class="section-label">Worth knowing</label>
+						<label class="section-label">#mountspage.worth_knowing</label>
 
 						<div class="note">
 							<icon>group</icon>
-							<label>In multiplayer, everyone needs the game installed and mounted too - otherwise they won't see the content.</label>
+							<label>#mountspage.note1</label>
 						</div>
 
 						<div class="note">
 							<icon>memory</icon>
-							<label>Turning a mount off releases everything it loaded, so leave off what you're not using.</label>
+							<label>#mountspage.note2</label>
 						</div>
 
 						<div class="note">
 							<icon>code</icon>
-							<label>Mounts are part of the engine, and anyone can write one for a game that isn't here yet.</label>
+							<label>#mountspage.note3</label>
 						</div>
 
-						<label class="docs-link" onclick=@OpenDocs>Read more about mounts</label>
+						<label class="docs-link" onclick=@OpenDocs>#mountspage.read_more</label>
 					</div>
 
 				</div>
@@ -76,16 +72,16 @@
 					{
 						<div class="empty">
 							<icon>extension_off</icon>
-							<label class="title">No mounts installed</label>
-							<label class="hint">Mounts ship with the engine - if this list is empty something went wrong loading them.</label>
+							<label class="title">#mountspage.empty_title</label>
+							<label class="hint">#mountspage.empty_hint</label>
 						</div>
 					}
 
 					@if ( Installed.Any() )
 					{
 						<div class="section-head">
-							<label class="title">Installed</label>
-							<label class="count">@Installed.Count() games</label>
+							<label class="title">#mountspage.installed</label>
+							<label class="count">@Language.GetPhrase( Installed.Count() == 1 ? "mountspage.installed_one" : "mountspage.installed_plural", new(){ { "count", Installed.Count() } } )</label>
 						</div>
 
 						<div class="grid">
@@ -99,8 +95,8 @@
 					@if ( Owned.Any() )
 					{
 						<div class="section-head quiet">
-							<label class="title">In your library</label>
-							<label class="count">@Owned.Count() games to install</label>
+							<label class="title">#mountspage.in_library</label>
+							<label class="count">@Language.GetPhrase( Owned.Count() == 1 ? "mountspage.install_one" : "mountspage.install_plural", new(){ { "count", Owned.Count() } } )</label>
 						</div>
 
 						<div class="grid">
@@ -114,8 +110,8 @@
 					@if ( Unowned.Any() )
 					{
 						<div class="section-head quiet">
-							<label class="title">Not owned</label>
-							<label class="count">@Unowned.Count() games</label>
+							<label class="title">#mountspage.not_owned</label>
+							<label class="count">@Language.GetPhrase( Unowned.Count() == 1 ? "mountspage.not_owned_one" : "mountspage.not_owned_plural", new(){ { "count", Unowned.Count() } } )</label>
 						</div>
 
 						<div class="grid">

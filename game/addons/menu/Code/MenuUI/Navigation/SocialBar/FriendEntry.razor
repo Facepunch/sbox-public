@@ -15,16 +15,16 @@
 	<div class="actions">
 		@if ( Joinable )
 		{
-            <div class="action primary" onclick=@JoinGame><i>sports_esports</i><span>join</span></div>
+            <div class="action primary" onclick=@JoinGame><i>sports_esports</i><span>#friendentry.join</span></div>
 		}
         else if ( IsGenuinelyFull )
         {
-            <div class="action deny"><i>block</i><span>full</span></div>
+            <div class="action deny"><i>block</i><span>#friendentry.full</span></div>
         }
 
         @if ( CanInviteToParty )
         {
-            <div class="action" onclick=@InviteToParty><i>group_add</i><span>Invite</span></div>
+            <div class="action" onclick=@InviteToParty><i>group_add</i><span>#friendentry.invite</span></div>
         }
     </div>
 </root>
@@ -77,18 +77,18 @@
                 var game = Friend.GetRichPresence("gametitle");
                 var map = Friend.GetRichPresence("map");
 
-                if (string.IsNullOrEmpty(game)) return "[Unknown State]";
-                if (game == "menu") return "Main Menu"; // (Idle)
-                if (string.IsNullOrWhiteSpace(map)) return $"Playing {game}";
-                return $"Playing {game} - {map}";
+                if (string.IsNullOrEmpty(game)) return Language.GetPhrase( "friendentry.unknown_state" );
+                if (game == "menu") return Language.GetPhrase( "friendentry.main_menu" ); // (Idle)
+                if (string.IsNullOrWhiteSpace(map)) return Language.GetPhrase( "friendentry.unknown_map", new() { { "gametitle", game } } );
+                return Language.GetPhrase( "friendentry.playing", new() { { "gametitle", game }, { "maptitle", map } } );
             }
 
-            if (Friend.IsPlayingAGame) return "Playing Other Game";
-            if (Friend.IsAway) return "Away";
-            if (Friend.IsBusy) return "Busy";
-            if (Friend.IsSnoozing) return "Snooze";
-            if (Friend.IsOnline) return "Online";
-            return "Offline";
+            if (Friend.IsPlayingAGame) return Language.GetPhrase( "friendentry.playing_other" );
+            if (Friend.IsAway) return Language.GetPhrase( "friendentry.away" );
+            if (Friend.IsBusy) return Language.GetPhrase( "friendentry.busy" );
+            if (Friend.IsSnoozing) return Language.GetPhrase( "friendentry.snooze" );
+            if (Friend.IsOnline) return Language.GetPhrase( "friendentry.online" );
+            return Language.GetPhrase( "friendentry.offline" );
         }
     }
 

@@ -10,9 +10,9 @@
     var classes = current.Name == null ? "" : "is-active";
 }
 
-<root class="packagefilterfacet @classes" onmousedown="@OpenMenu" Tooltip="Sort">
+<root class="packagefilterfacet @classes" onmousedown="@OpenMenu" Tooltip="#tooltip.packagefilterorder.sort">
     <i>@current.Icon</i>
-    <div>@current.Title</div>
+    <div>@Localize( $"sortorder.{current.Name}", current.Title )</div>
 </root>
 
 @code
@@ -22,6 +22,12 @@
     [Parameter] public Action<string> OnChange { get; set; }
 
     Popup menu;
+
+    string Localize( string key, string originalText )
+    {
+        string localizedText = Language.GetPhrase( key );
+        return localizedText == key ? originalText : localizedText;
+    }
 
     void SwitchTo( Package.SortOrder entry )
     {
@@ -42,7 +48,7 @@
 
         foreach (Package.SortOrder entry in Orders)
         {
-            var o = menu.AddOption(entry.Title, entry.Icon, () => SwitchTo(entry));
+            var o = menu.AddOption( Localize( $"sortorder.{entry.Name}", entry.Title ), entry.Icon, () => SwitchTo(entry));
 
             if (Value == entry.Name)
             {
