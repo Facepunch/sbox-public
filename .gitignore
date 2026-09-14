@@ -56,7 +56,7 @@
 game/config/input/common.json
 *.codegen
 engine/CodeGen.deps.json
-engine/CodeGen.runtimeconfig.json
+*.runtimeconfig.json
 .generated
 game/core/shadercache/vulkan/shaders.cache
 engine/Sandbox.Compiling/EmbeddedRefs/*.xml
