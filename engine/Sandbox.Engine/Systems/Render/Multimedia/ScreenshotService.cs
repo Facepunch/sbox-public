@@ -58,7 +58,7 @@ internal static class ScreenshotService
 
 					pData.CopyTo( bitmap.GetBuffer() );
 
-					var rgbData = bitmap.ToFormat( ImageFormat.RGB888 );
+					var rgbData = bitmap.ToFormat( ImageFormat.Default );
 					Services.Screenshots.AddScreenshotToLibrary( rgbData, width, height );
 
 					var dir = Path.GetDirectoryName( filePath );
