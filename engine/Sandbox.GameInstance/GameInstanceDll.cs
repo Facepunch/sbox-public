@@ -687,6 +687,8 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 				throw new Exception( "GameInstance load failed" );
 			}
 
+			FinishLoadingAssemblies();
+
 			Json.PopulateReflectionCache( Game.TypeLibrary );
 
 			if ( ct.IsCancellationRequested )

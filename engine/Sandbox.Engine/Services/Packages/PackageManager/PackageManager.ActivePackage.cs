@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Net;
 using System.Threading;
 
@@ -311,6 +311,8 @@ internal static partial class PackageManager
 		/// </summary>
 		public void Delete()
 		{
+			PackageLoader.OnPackageUnmounted( this );
+
 			MountedFileSystem.UnMount( FileSystem );
 
 			// Make sure we unmount the package from the global filesystem, so that any other packages that might have been mounted on top of it don't get broken.
