@@ -35,6 +35,7 @@ internal partial class Project
 	public bool TreatWarningsAsErrors = false;
 	public bool IsEditorProject = false;
 	public bool IsUnitTestProject = false;
+	public Dictionary<string, string> CompilerProperties = new();
 
 	public List<string> PropertyGroupExtras
 	{

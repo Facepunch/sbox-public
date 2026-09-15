@@ -1,4 +1,3 @@
-﻿
 using Facepunch.ActionGraphs;
 using System.Text.Json.Nodes;
 
@@ -9,8 +8,6 @@ public partial class GameObject
 	// Set only during the cloning process
 	// We store this on the GameObject to avoid the need reverse lookup table during the clone process
 	private GameObject _cloneOriginal = null;
-	private bool _isCloningPrefab = false;
-	private GameObject _cloneOriginalRoot = null;
 
 	/// <summary>
 	/// Create a unique copy of the passed in GameObject
@@ -31,26 +28,8 @@ public partial class GameObject
 
 		using var batchGroup = CallbackBatch.Isolated();
 
-		// We also need to clone the dependecies that exist within the original hierarchy
-		//
-		// For example:
-		//
-		// OriginalA { OriginalComponentA {}, OriginalComponentB { property pointing to OriginalComponentA } }
-		//
-		// should result in:
-		//
-		// CloneA { CloneComponentA {}, CloneComponentB { property pointing to CloneComponentA } }
-		//
-		// To accomplish that we need to keep track which original object is cloned to which clone object
-		// We use this information to rewire the refrences when we are deserializing Component or GameObject properties in Component.PostClone
-		Dictionary<object, object> originalToClonedObject = new( Children.Count * 4 + Components.Count ); // Rough estimate of hierachy size
-
-		// 2 Step process:
-
-		// First:
-		// Create all GameObejcts and Components.
-		// This ensures we can resolve potential references correctly.
-		// Create root Clone
+		// Create the entire hierarchy before copying properties, so references can resolve to clones.
+		var context = new CloneContext( new( Children.Count * 4 + Components.Count ), this );
 		var clone = new GameObject( false );
 
 		// TODO, this is here for legacy support yeet at some point
@@ -63,33 +42,15 @@ public partial class GameObject
 #pragma warning restore CS0612
 
 
-		var cloneTransform = cloneConfig.Transform;
-		// if we are cloning a prefab preserve the root transform
+		// All clones inherit scale; prefab roots also preserve their position and rotation.
+		var cloneTransform = cloneConfig.Transform.WithScale( cloneConfig.Transform.Scale * LocalScale );
 		if ( this is PrefabScene )
 		{
 			cloneTransform = cloneTransform.WithRotation( cloneConfig.Transform.Rotation * LocalRotation );
-			cloneTransform = cloneTransform.WithScale( cloneConfig.Transform.Scale * LocalScale );
 			cloneTransform = cloneTransform.WithPosition( cloneConfig.Transform.Position + LocalPosition );
 		}
-		else
-		{
-			// The reason why we only keep the scale of the original is historical.
-			cloneTransform = cloneConfig.Transform.WithScale( cloneConfig.Transform.Scale * LocalScale );
-		}
-
-		// Initialize root clone and hierachy
-		clone.InitClone( this, cloneTransform, enabled: false, originalToClonedObject, isCloningPrefab: this is PrefabScene, this );
-
-		Dictionary<Guid, Guid> originalIdToCloneId = new( originalToClonedObject.Count );
-		foreach ( var (original, cloned) in originalToClonedObject )
-		{
-			if ( original is GameObject go )
-				originalIdToCloneId[go.Id] = (cloned as GameObject).Id;
-
-			if ( original is Component comp )
-				originalIdToCloneId[comp.Id] = (cloned as Component).Id;
-		}
-
+		// Initialize root clone and hierarchy
+		clone.InitClone( this, cloneTransform, enabled: false, context );
 
 		// Set config overrides
 		if ( cloneConfig.Parent is not null )
@@ -113,9 +74,8 @@ public partial class GameObject
 		// See https://github.com/Facepunch/sbox/issues/1785
 		clone.Enabled = cloneConfig.StartEnabled;
 
-		// Second:
-		// Copy all component properties from the original to the clone.
-		clone.PostClone( originalToClonedObject, originalIdToCloneId );
+		// Restore prefab state, copy properties, then run load/validation callbacks.
+		clone.PostClone( context );
 
 		// Legacy support for restoring prefab vars
 		if ( prefabVariablesOverride is not null && clone.IsPrefabInstanceRoot )
@@ -126,12 +86,10 @@ public partial class GameObject
 		return clone;
 	}
 
-	private void InitClone( GameObject original, Transform transform, bool enabled, Dictionary<object, object> originalToClonedObject, bool isCloningPrefab, GameObject cloneOriginalRoot )
+	private void InitClone( GameObject original, Transform transform, bool enabled, CloneContext context )
 	{
-		originalToClonedObject[original] = this;
+		context.OriginalToClone[original] = this;
 		_cloneOriginal = original;
-		_isCloningPrefab = isCloningPrefab;
-		_cloneOriginalRoot = cloneOriginalRoot;
 		Flags = original.Flags;
 		Flags |= GameObjectFlags.Deserializing;
 
@@ -167,59 +125,56 @@ public partial class GameObject
 				prefabSource = prefabFile.ResourcePath;
 			}
 
-			var isNested = original.IsNestedPrefabInstanceRoot || (original.IsOutermostPrefabInstanceRoot && _isCloningPrefab);
+			var isNested = original.IsNestedPrefabInstanceRoot || (original.IsOutermostPrefabInstanceRoot && context.IsCloningPrefab);
 			InitPrefabInstance( prefabSource, isNested );
 		}
 
-		if ( original.Components.Count > 0 )
+		var componentCount = original.Components.Count;
+		for ( int i = 0; i < componentCount; i++ )
 		{
-			foreach ( var originalComponent in original.Components.GetAll() )
+			var originalComponent = original.Components[i];
+			if ( originalComponent is null ) continue;
+
+			if ( originalComponent.Flags.Contains( ComponentFlags.NotCloned ) ) continue;
+
+			Component clonedComp;
+			if ( originalComponent is MissingComponent missing )
 			{
-				if ( originalComponent is null ) continue;
-
-				if ( originalComponent.Flags.Contains( ComponentFlags.NotCloned ) ) continue;
-
-				if ( originalComponent is MissingComponent missing )
-				{
-					var clonedMissingComp = new MissingComponent( missing.GetJson() );
-					Components.AddMissing( clonedMissingComp );
-					clonedMissingComp.InitClone( originalComponent, originalToClonedObject );
-
-					continue;
-				}
-
-				var clonedComp = Components.Create( originalComponent.GetType(), originalComponent.Enabled );
-				clonedComp.InitClone( originalComponent, originalToClonedObject );
+				var clonedMissingComp = new MissingComponent( missing.GetJson() );
+				Components.AddMissing( clonedMissingComp );
+				clonedComp = clonedMissingComp;
 			}
+			else
+			{
+				clonedComp = Components.Create( originalComponent.GetType(), originalComponent.Enabled );
+			}
+			clonedComp.InitClone( originalComponent, context );
 		}
 
-		if ( original.Children.Any() )
+		var childCount = original.Children.Count;
+		for ( int i = 0; i < childCount; i++ )
 		{
-			foreach ( var originalChild in original.Children )
-			{
-				if ( originalChild is null )
-					continue;
+			var originalChild = original.Children[i];
+			if ( originalChild is null )
+				continue;
 
-				if ( originalChild.Flags.Contains( GameObjectFlags.NotSaved ) )
-					continue;
+			if ( originalChild.Flags.Contains( GameObjectFlags.NotSaved ) )
+				continue;
 
-				// Child gameobjects that are being destroyed don't want to be serialized
-				if ( originalChild.IsDestroyed )
-					continue;
+			// Child gameobjects that are being destroyed don't want to be serialized
+			if ( originalChild.IsDestroyed )
+				continue;
 
-				var clonedChild = new GameObject( this, false );
+			var clonedChild = new GameObject( this, false );
 
-				clonedChild.InitClone( originalChild, originalChild.LocalTransform, originalChild.Enabled, originalToClonedObject, isCloningPrefab, cloneOriginalRoot );
-			}
+			clonedChild.InitClone( originalChild, originalChild.LocalTransform, originalChild.Enabled, context );
 		}
 	}
 
 	/// <summary>
 	/// Runs after this clone has been created by a cloned GameObject.
 	/// </summary>
-	/// <param name="originalToClonedObject">A mapping of original objects to their clones, used for all reference types.</param>
-	/// <param name="originalIdToCloneId">A mapping of original GUIDs to cloned GUIDs, used for GameObject and Component references in JSON.</param>
-	private void PostClone( Dictionary<object, object> originalToClonedObject, Dictionary<Guid, Guid> originalIdToCloneId )
+	private void PostClone( CloneContext context )
 	{
 		// This can happen if setting a component property creates gameobjects.
 		// But it really shouldn't, so we print a warning.
@@ -230,20 +185,45 @@ public partial class GameObject
 			return;
 		}
 
-		// When cloning prefabs or prefab instances, we need to ensure the prefab lookup references 
-		// of the clone point to the correct prefab rather than the prefab instances.
-		// There are two main scenarios to handle:
+		PostClonePrefab( context );
 
-		// Case 1: Cloning a PrefabScene (direct prefab cloning)
-		if ( _isCloningPrefab && _cloneOriginal is PrefabScene )
+		if ( Components.Count > 0 )
 		{
-			// When cloning a prefab directly, use the original-to-clone mapping as is
-			Dictionary<Guid, Guid> newMapping = originalIdToCloneId;
+			// Action graph delegates deserialized by the JSON fallback bind to this GameObject, push once for all components.
+			using var targetScope = ActionGraph.PushTarget( InputDefinition.Target( typeof( GameObject ), this ) );
+			Components.ForEach( "PostClone", true, c => c.PostClone( context ) );
+		}
 
-			// For a new prefab clone, initialize with an empty patch
-			var instancePatch = new Json.Patch();
-			PrefabInstance.InitLookups( newMapping );
-			PrefabInstance.InitPatch( instancePatch );
+		if ( Children.Count > 0 )
+		{
+			// Need to do numeric iteration because the collection can change (e.g. PropComponent adds a several new components)
+			ForEachChild( "PostClone", true, c =>
+			{
+				// should never happen
+				if ( c.IsDestroyed )
+					throw new InvalidOperationException( "Cloned GameObject was destroyed before cloning was completed" );
+				c.PostClone( context );
+			} );
+		}
+
+		// Kill temp ref
+		_cloneOriginal = null;
+		Flags &= ~GameObjectFlags.Deserializing;
+
+		Components.ForEach( "OnLoadInternal", true, c => c.OnLoadInternal() );
+		Components.ForEach( "OnValidate", true, c => c.Validate() );
+	}
+
+	/// <summary>
+	/// Restore prefab mappings and patches before copying component properties.
+	/// </summary>
+	private void PostClonePrefab( CloneContext context )
+	{
+		// A prefab uses its own GUIDs; an instance must translate through its prefab mappings.
+		if ( context.IsCloningPrefab && _cloneOriginal is PrefabScene )
+		{
+			PrefabInstance.InitLookups( context.OriginalIdToCloneId );
+			PrefabInstance.InitPatch( new Json.Patch() );
 		}
 		// Case 2: Cloning an instance that is a prefab root (but not part of a PrefabScene)
 		else if ( _cloneOriginal.IsPrefabInstanceRoot )
@@ -251,6 +231,7 @@ public partial class GameObject
 			// Create a new mapping based on the original's prefab instance mapping
 			var originalMapping = _cloneOriginal.PrefabInstance.InstanceToPrefabLookup;
 			var newMapping = new Dictionary<Guid, Guid>( originalMapping.Count );
+			var originalIdToCloneId = context.OriginalIdToCloneId;
 
 			// Remap GUIDs to point to the newly cloned instances
 			foreach ( var (originalInstanceGuid, originalPrefabGuid) in originalMapping )
@@ -271,9 +252,9 @@ public partial class GameObject
 			}
 		}
 
-		// when cloning part of an isntance we may need to convert some instances to a full prefab instance
-		var isCloningPartOfPrefabInstance = _cloneOriginal.IsPrefabInstance && !_cloneOriginal.IsOutermostPrefabInstanceRoot && !_isCloningPrefab;
-		if ( _cloneOriginalRoot == _cloneOriginal && isCloningPartOfPrefabInstance )
+		// when cloning part of an instance we may need to convert some instances to a full prefab instance
+		var isCloningPartOfPrefabInstance = _cloneOriginal.IsPrefabInstance && !_cloneOriginal.IsOutermostPrefabInstanceRoot && !context.IsCloningPrefab;
+		if ( context.Root == _cloneOriginal && isCloningPartOfPrefabInstance )
 		{
 			if ( IsNestedPrefabInstanceRoot )
 			{
@@ -284,32 +265,6 @@ public partial class GameObject
 				PrefabInstanceData.ConvertTopLevelNestedToFullPrefabInstances( this );
 			}
 		}
-
-		if ( Components.Count > 0 )
-		{
-			Components.ForEach( "PostClone", true, c => c.PostClone( originalToClonedObject, originalIdToCloneId ) );
-		}
-
-		if ( Children.Any() )
-		{
-			// Need to do numeric iteration because the collection can change (e.g. PropComponent adds a several new components)
-			ForEachChild( "PostClone", true, c =>
-			{
-				// should never happen
-				if ( c.IsDestroyed )
-					throw new InvalidOperationException( "Cloned GameObject was destroyed before cloning was completed" );
-				c.PostClone( originalToClonedObject, originalIdToCloneId );
-			} );
-		}
-
-		// Kill temp ref
-		_cloneOriginal = null;
-		// Reset flag
-		_isCloningPrefab = false;
-		Flags &= ~GameObjectFlags.Deserializing;
-
-		Components.ForEach( "OnLoadInternal", true, c => c.OnLoadInternal() );
-		Components.ForEach( "OnValidate", true, c => c.Validate() );
 	}
 
 	/// <summary>

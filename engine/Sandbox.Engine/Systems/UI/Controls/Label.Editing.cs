@@ -114,10 +114,7 @@ public partial class Label
 	{
 		if ( _textBlock is null ) return;
 
-		var before = caretScroll;
 		_textBlock.ScrollToCaret( CaretPosition, ref caretScroll, Box.RectInner.Size );
-
-		ScrollChanged( before );
 
 		// The parent (a multiline entry) scrolls to the caret in FinalLayout, once the text block is current
 		_caretIntoView = 3;
@@ -145,21 +142,7 @@ public partial class Label
 	{
 		if ( _textBlock is null ) return;
 
-		var before = caretScroll;
 		_textBlock.ClampScroll( ref caretScroll, Box.RectInner.Size );
-
-		ScrollChanged( before );
-	}
-
-	/// <summary>
-	/// The text is drawn at an offset, so moving that offset has to redraw it. Nothing else
-	/// marks this dirty - moving the caret with the arrow keys changes nothing but the scroll.
-	/// </summary>
-	private void ScrollChanged( Vector2 before )
-	{
-		if ( before == caretScroll ) return;
-
-		MarkRenderDirty();
 	}
 
 	/// <summary>

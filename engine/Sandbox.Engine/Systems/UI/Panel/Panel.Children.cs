@@ -1,4 +1,4 @@
-﻿using Sandbox.UI.Construct;
+using Sandbox.UI.Construct;
 
 namespace Sandbox.UI;
 
@@ -15,6 +15,7 @@ public partial class Panel
 
 	internal bool _renderChildrenDirty;
 	internal List<Panel> _renderChildren;
+	List<Panel> _shadowChildren;
 	internal HashSet<Panel> _childrenHash;
 
 	/// <inheritdoc cref="Parent"/>
@@ -112,14 +113,10 @@ public partial class Panel
 		{
 			_children.Remove( p );
 			_renderChildren.Remove( p );
+			_shadowChildren?.Remove( p );
 			_renderChildrenDirty = true;
 
-			(InlineOwner ?? InlineParagraph)?.Invalidate();
-
-			if ( p.LayoutTree is not null )
-			{
-				LayoutTree?.RemoveChild( p.LayoutTree );
-			}
+			LayoutTree?.RemoveChild( p.LayoutTree );
 
 			OnChildRemoved( p );
 			UpdateChildrenIndexes();
@@ -182,7 +179,8 @@ public partial class Panel
 
 		_childrenHash.Add( child );
 		_children.Add( child );
-		_renderChildren.Add( child );
+		if ( child is not ScrollBar )
+			_renderChildren.Add( child );
 		_renderChildrenDirty = true;
 
 		var childCount = _children.Count;

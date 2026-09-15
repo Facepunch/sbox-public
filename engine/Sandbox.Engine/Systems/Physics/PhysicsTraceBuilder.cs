@@ -6,24 +6,7 @@ namespace Sandbox;
 
 public partial struct PhysicsTraceBuilder
 {
-	sealed class TraceResultVector
-	{
-		public CUtlVectorTraceResult Vec = CUtlVectorTraceResult.Create( 32, 32 );
-		~TraceResultVector() => Vec.DeleteThis();
-	}
-
-	[ThreadStatic] static TraceResultVector _threadTraceVec;
-	static CUtlVectorTraceResult ThreadTraceVec
-	{
-		get
-		{
-			_threadTraceVec ??= new TraceResultVector();
-			_threadTraceVec.Vec.RemoveAll();
-			return _threadTraceVec.Vec;
-		}
-	}
-
-	internal PhysicsWorld targetWorld;
+	internal PhysicsWorldInternal targetWorld;
 	internal PhysicsBody targetBody;
 	internal PhysicsTrace.Request request;
 
@@ -32,7 +15,7 @@ public partial struct PhysicsTraceBuilder
 	/// </summary>
 	internal Func<PhysicsShape, bool> filterCallback;
 
-	internal PhysicsTraceBuilder( PhysicsWorld world )
+	internal PhysicsTraceBuilder( PhysicsWorldInternal world )
 	{
 		targetWorld = world;
 		request = default;
@@ -426,101 +409,20 @@ public partial struct PhysicsTraceBuilder
 		return c;
 	}
 
-	[ThreadStatic]
-	static Func<PhysicsShape, bool> _currentfilterCallback;
-
-	[UnmanagedCallersOnly]
-	static byte FilterFunctionInternal( int value )
-	{
-		try
-		{
-			Assert.NotNull( _currentfilterCallback );
-
-			var shape = HandleIndex.Get<PhysicsShape>( value );
-			if ( shape is null ) return 1; // should never happen, just use default behaviour
-
-			if ( _currentfilterCallback( shape ) ) return 1;
-			return 0;
-		}
-		catch ( Exception e )
-		{
-			Log.Warning( e, $"Error in trace filter: {e.Message}" );
-			return 1;
-		}
-	}
-
-	readonly unsafe PhysicsTraceResult[] GetResults()
+	readonly PhysicsTraceResult[] GetResults()
 	{
 		if ( targetWorld is null )
 			throw new InvalidOperationException( "No physics world to trace" );
 
-		if ( targetBody is not null && !targetBody.IsValid() )
-		{
-			throw new InvalidOperationException( "The physics body has been released" );
-		}
-
-		var r = request;
-		r.World = targetWorld.native;
-
-		if ( targetBody.IsValid() )
-		{
-			r.Body = targetBody.native;
-		}
-
-		if ( filterCallback is not null )
-		{
-			r.FilterDelegate = (IntPtr)((delegate* unmanaged< int, byte >)&FilterFunctionInternal);
-			_currentfilterCallback = filterCallback;
-		}
-
-		var nativeResults = ThreadTraceVec;
-		PhysicsTrace.TraceAll( r, nativeResults );
-		var count = nativeResults.Count();
-
-		_currentfilterCallback = default;
-
-		var results = new PhysicsTraceResult[count];
-
-		for ( var i = 0; i < count; i++ )
-		{
-			results[i] = PhysicsTraceResult.From( nativeResults.Element( i ), request.StartShape );
-		}
-
-		return results;
+		return targetWorld.TraceMultiple( in request, targetBody, filterCallback );
 	}
 
-	unsafe readonly PhysicsTraceResult GetResult()
+	readonly PhysicsTraceResult GetResult()
 	{
 		if ( targetWorld is null )
 			throw new InvalidOperationException( "No physics world to trace" );
 
-		if ( targetBody is not null && !targetBody.IsValid() )
-		{
-			throw new InvalidOperationException( "The physics body has been released" );
-		}
-
-		var r = request;
-		r.World = targetWorld.native;
-
-		if ( targetBody.IsValid() )
-		{
-			r.Body = targetBody.native;
-		}
-
-		if ( filterCallback is not null )
-		{
-			r.FilterDelegate = (IntPtr)((delegate* unmanaged< int, byte >)&FilterFunctionInternal);
-			_currentfilterCallback = filterCallback;
-		}
-
-		try
-		{
-			return PhysicsTraceResult.From( PhysicsTrace.Trace( r ), r.StartShape );
-		}
-		finally
-		{
-			_currentfilterCallback = default;
-		}
+		return targetWorld.TraceSingle( in request, targetBody, filterCallback );
 	}
 
 	/// <summary>
@@ -542,39 +444,12 @@ public partial struct PhysicsTraceBuilder
 	/// <summary>
 	/// Run the trace and append every hit to <paramref name="results"/>, returning the hit count.
 	/// </summary>
-	internal readonly unsafe int RunAll( List<PhysicsTraceResult> results )
+	internal readonly int RunAll( List<PhysicsTraceResult> results )
 	{
 		if ( targetWorld is null )
 			throw new InvalidOperationException( "No physics world to trace" );
 
-		if ( targetBody is not null && !targetBody.IsValid() )
-			throw new InvalidOperationException( "The physics body has been released" );
-
-		var r = request;
-		r.World = targetWorld.native;
-
-		if ( targetBody.IsValid() )
-			r.Body = targetBody.native;
-
-		if ( filterCallback is not null )
-		{
-			r.FilterDelegate = (IntPtr)((delegate* unmanaged< int, byte >)&FilterFunctionInternal);
-			_currentfilterCallback = filterCallback;
-		}
-
-		var nativeResults = ThreadTraceVec;
-		PhysicsTrace.TraceAll( r, nativeResults );
-		var count = nativeResults.Count();
-
-		_currentfilterCallback = default;
-
-		// Pre-size once so a large first trace doesn't repeatedly grow/realloc the backing array
-		results.EnsureCapacity( results.Count + count );
-
-		for ( var i = 0; i < count; i++ )
-			results.Add( PhysicsTraceResult.From( nativeResults.Element( i ), request.StartShape ) );
-
-		return count;
+		return targetWorld.TraceMultiple( in request, targetBody, filterCallback, results );
 	}
 
 	/// <summary>

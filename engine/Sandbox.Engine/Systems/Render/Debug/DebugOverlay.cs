@@ -9,8 +9,6 @@ internal static partial class DebugOverlay
 
 	public static CommandList CommandList => _overlay;
 
-	public static HudPainter Hud => new HudPainter( CommandList );
-
 	public static void Reset()
 	{
 		_overlay.Reset();
@@ -50,55 +48,56 @@ internal static partial class DebugOverlay
 
 	public static void Draw()
 	{
+		using var painter = Painter.Begin( CommandList );
 		Vector2 pos = new Vector2( 64, 64 );
 		var activeScene = Application.GetActiveScene();
 
 		// Show current render debug mode on screen when not default
 		if ( ToolsVisualization.mat_toolsvis != SceneCameraDebugMode.Normal )
 		{
-			DebugOverlay.ToolsVisualization.Draw( ref pos );
+			DebugOverlay.ToolsVisualization.Draw( painter, ref pos );
 			pos.y += OverlaySpacing;
 		}
 
 		if ( overlay_network_calls == 1 )
 		{
-			DebugOverlay.NetworkCalls.Draw( ref pos );
+			DebugOverlay.NetworkCalls.Draw( painter, ref pos );
 			pos.y += OverlaySpacing;
 		}
 
 		if ( overlay_network_graph == 1 )
 		{
-			DebugOverlay.NetworkGraph.Draw( ref pos );
+			DebugOverlay.NetworkGraph.Draw( painter, ref pos );
 			pos.y += OverlaySpacing;
 		}
 
 		if ( overlay_fps > 0 )
 		{
-			DebugOverlay.FrameTimeGraph.Draw( ref pos, overlay_fps );
+			DebugOverlay.FrameTimeGraph.Draw( painter, ref pos, overlay_fps );
 			pos.y += OverlaySpacing;
 		}
 
 		if ( overlay_profile == 1 )
 		{
-			DebugOverlay.Profiler.Draw( ref pos );
+			DebugOverlay.Profiler.Draw( painter, ref pos );
 			pos.y += OverlaySpacing;
 		}
 
 		if ( overlay_frame > 0 )
 		{
-			DebugOverlay.Frame.Draw( ref pos, overlay_frame );
+			DebugOverlay.Frame.Draw( painter, ref pos, overlay_frame );
 			pos.y += OverlaySpacing;
 		}
 
 		if ( overlay_pp == 1 )
 		{
-			activeScene?.Camera?.PrintPostProcessDebugOverlay( ref pos, Hud );
+			activeScene?.Camera?.PrintPostProcessDebugOverlay( ref pos, painter );
 			pos.y += OverlaySpacing;
 		}
 
 		if ( overlay_alloc == 1 )
 		{
-			DebugOverlay.Allocations.Draw( ref pos );
+			DebugOverlay.Allocations.Draw( painter, ref pos );
 			pos.y += OverlaySpacing;
 		}
 		else
@@ -112,35 +111,35 @@ internal static partial class DebugOverlay
 
 		if ( overlay_gpu == 1 )
 		{
-			DebugOverlay.GpuProfiler.Draw( ref pos );
+			DebugOverlay.GpuProfiler.Draw( painter, ref pos );
 			pos.y += OverlaySpacing;
 		}
 
 		if ( overlay_resources == 1 )
 		{
-			DebugOverlay.Resources.Draw( ref pos );
+			DebugOverlay.Resources.Draw( painter, ref pos );
 			pos.y += OverlaySpacing;
 		}
 
 		if ( overlay_ui == 1 )
 		{
-			DebugOverlay.UI.Draw( ref pos );
+			DebugOverlay.UI.Draw( painter, ref pos );
 			pos.y += OverlaySpacing;
 		}
 
 		if ( overlay_audio != 0 )
 		{
-			DebugOverlay.Audio.Draw( ref pos );
+			DebugOverlay.Audio.Draw( painter, ref pos );
 			pos.y += OverlaySpacing;
 		}
 
 		if ( overlay_video != 0 )
 		{
-			DebugOverlay.Video.Draw( ref pos );
+			DebugOverlay.Video.Draw( painter, ref pos );
 			pos.y += OverlaySpacing;
 		}
 
 		if ( ShadowMapper.DebugEnabled )
-			ShadowMapper.Draw( ref pos, Hud );
+			ShadowMapper.Draw( ref pos, painter );
 	}
 }

@@ -120,8 +120,7 @@ public static partial class TextRendering
 		/// </returns>
 		public Vector2 Measure()
 		{
-			var block = TextRendering.GetOrCreateTexture( this );
-			return block.Size;
+			return TextRendering.GetOrCreateTextBlock( this, TextFlag.LeftTop )?.Size ?? default;
 		}
 
 		/// <summary>

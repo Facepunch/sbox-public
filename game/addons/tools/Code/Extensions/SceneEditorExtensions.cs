@@ -82,7 +82,7 @@ public static class SceneEditorExtensions
 		var rightMouse = Application.MouseButtons.HasFlag( MouseButtons.Right );
 		var middleMouse = Application.MouseButtons.HasFlag( MouseButtons.Middle );
 
-		if ( ((rightMouse && !camera.Orthographic) || middleMouse) && self.Input.IsHovered )
+		if ( (rightMouse || middleMouse) && self.Input.IsHovered )
 		{
 			EditorShortcuts.AllowShortcuts = false;
 			canvas.Focus();
@@ -142,7 +142,7 @@ public static class SceneEditorExtensions
 				else
 					canvas.PixmapCursor = EyeCursor;
 			}
-			else if ( middleMouse )
+			else if ( middleMouse || (rightMouse && camera.Orthographic) )
 			{
 				cameraVelocity = default;
 				cameraTarget = default;

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components;
 using Sandbox.Html;
 using System.Globalization;
 
@@ -294,7 +294,7 @@ namespace Sandbox.UI
 
 		public override string GetClipboardValue( bool cut )
 		{
-			if ( InlineOwner is not null ) return InlineOwner.SelectedText;
+			if ( LayoutTree?.IsInlineParticipant == true ) return LayoutTree.SelectedInlineText;
 			if ( !HasSelection() )
 				return null;
 
@@ -334,7 +334,6 @@ namespace Sandbox.UI
 			{
 				_textBlock = new TextBlock();
 				_textBlock.LookupStyles = HtmlStyleLookup;
-				_textBlock.OnTextureChanged = TextTextureChanged;
 			}
 
 			_textBlock.NoWrap = !Multiline;
@@ -369,23 +368,6 @@ namespace Sandbox.UI
 		/// Where the text is laid out, which scrolls with the caret in a text entry.
 		/// </summary>
 		Rect TextLayoutRect => new Rect( Box.RectInner.Position - caretScroll, Box.RectInner.Size );
-
-		/// <summary>
-		/// The panel clipping its background to this text holds the texture in its own descriptor,
-		/// so it rebuilds when the text is rerendered.
-		/// </summary>
-		void TextTextureChanged()
-		{
-			MarkRenderDirty();
-
-			if ( !clipsBackgroundToText ) return;
-
-			for ( var panel = VisualParent; panel is not null; panel = panel.VisualParent )
-			{
-				panel.MarkRenderDirty();
-				if ( panel.ComputedStyle?.BackgroundClip == BackgroundClip.Text ) break;
-			}
-		}
 
 		/// <summary>
 		/// The rendered text this label lends to a background-clip: text, and where it sits.
@@ -440,7 +422,7 @@ namespace Sandbox.UI
 		public override void FinalLayout( Vector2 offset )
 		{
 			base.FinalLayout( offset );
-			if ( InlineOwner is not null ) return;
+			if ( LayoutTree?.IsInlineParticipant == true ) return;
 
 			if ( !IsVisible ) return;
 			if ( ComputedStyle is null ) return;
@@ -486,18 +468,18 @@ namespace Sandbox.UI
 			ScrollParentToCaret();
 		}
 
-		public override void OnDraw()
+		public override void OnDraw( Painter painter )
 		{
-			if ( InlineOwner is not null ) return;
-			// Ensure texture is created if we have text but no texture yet
-			if ( _textBlock != null && _textBlock.Texture == null && !string.IsNullOrEmpty( _textBlock.Text ) )
+			if ( LayoutTree?.IsInlineParticipant == true ) return;
+			// Make sure the text is laid out if we have text but no size yet
+			if ( _textBlock != null && _textBlock.BlockSize == default && !string.IsNullOrEmpty( _textBlock.Text ) )
 			{
 				_textBlock.SizeFinalized( Box.RectInner.Width, Box.RectInner.Height );
 			}
 
 			if ( clipsBackgroundToText ) return;
 
-			_textBlock?.BuildDescriptors( CachedDescriptors, CachedOverrideBlendMode, ComputedStyle, TextLayoutRect, CachedRenderOpacity );
+			_textBlock?.Draw( painter, CachedOverrideBlendMode, ComputedStyle, TextLayoutRect, CachedRenderOpacity );
 		}
 
 		public int GetLetterAt( Vector2 pos )

@@ -1,4 +1,4 @@
-﻿using Sandbox.Engine;
+using Sandbox.Engine;
 using Sandbox.Internal;
 using Sandbox.Modals;
 using Sandbox.Rendering;
@@ -11,7 +11,6 @@ namespace Sandbox;
 /// </summary>
 internal partial class UISystem
 {
-	internal PanelRenderer Renderer = new();
 
 	internal PanelInput Input { get; set; } = new();
 
@@ -157,14 +156,8 @@ internal partial class UISystem
 			RunDeferredDeletion();
 		}
 
-		using ( Performance.Scope( "Build Descriptors" ) )
-		{
-			BuildDescriptors();
-		}
-
 		using ( Performance.Scope( "Build Command Lists" ) )
 		{
-			PanelRenderer.Stats.Reset();
 			BuildCommandLists();
 		}
 
@@ -223,26 +216,14 @@ internal partial class UISystem
 		}
 	}
 
-	internal void BuildDescriptors()
-	{
-		for ( int i = 0; i < RootPanels.Count; i++ )
-		{
-			var root = RootPanels[i];
-			if ( !root.IsValid ) continue;
-
-			root.BuildDescriptors();
-		}
-	}
-
 	internal void BuildCommandLists()
 	{
-		Renderer.AdvanceFrame();
+		ThreadSafe.AssertIsMainThread();
 
 		for ( int i = 0; i < RootPanels.Count; i++ )
 		{
 			var root = RootPanels[i];
 			if ( !root.IsValid ) continue;
-			if ( root.RenderedManually && !root.IsWorldPanel ) continue;
 
 			if ( root is Sandbox.UI.WorldPanel { SceneObject: not null } wp )
 			{
@@ -458,8 +439,8 @@ internal partial class UISystem
 		{
 			var p = DeletionList[i];
 
-			// panel might have been turned null by hotloading
-			if ( p is null )
+			// Hotload can clear the reference; an ancestor can finish deletion before this outro.
+			if ( !p.IsValid() )
 			{
 				DeletionList.RemoveAt( i );
 				i--;
@@ -531,7 +512,6 @@ internal partial class UISystem
 		// MouseButtonState, InputEventQueue, etc.
 		Input = new();
 		InputEventQueue = new();
-		Renderer = new();
 		CurrentFocus = null;
 		NextFocus = null;
 	}

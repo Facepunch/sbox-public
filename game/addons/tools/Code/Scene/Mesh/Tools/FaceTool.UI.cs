@@ -199,6 +199,8 @@ partial class FaceTool
 				("Lasso Deselect", "Alt+Ctrl+Drag"),
 				("Grow Selection", "Numpad +"),
 				("Shrink Selection", "Numpad -"),
+				("Hide Faces", EditorShortcuts.GetDisplayKeys( "mesh.hide-faces" )),
+				("Unhide All Faces", EditorShortcuts.GetDisplayKeys( "mesh.unhide-faces" )),
 				("Apply Material", "Shift+T"),
 				("Wrap Material", "Alt+RMB"),
 				("Lift Material", "Shift+RMB")

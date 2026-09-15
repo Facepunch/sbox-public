@@ -4,7 +4,7 @@ namespace Sandbox;
 
 public static partial class Graphics
 {
-	internal static ComputeShader MipMapGeneratorShader = new ComputeShader( "downsample_cs" );
+	static ComputeShader _mipMapGeneratorShader;
 
 	/// <summary>
 	/// Which method to use when downsampling a texture
@@ -83,7 +83,7 @@ public static partial class Graphics
 			attributes.Set( "InvTextureSize", new Vector2( 1.0f / width, 1.0f / height ) );
 
 			// And send to the GPU
-			MipMapGeneratorShader.DispatchWithAttributes( attributes, width, height, 1 );
+			_mipMapGeneratorShader.DispatchWithAttributes( attributes, width, height, 1 );
 
 			RenderAttributes.Pool.Return( attributes );
 

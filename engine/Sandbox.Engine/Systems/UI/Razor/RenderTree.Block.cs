@@ -46,13 +46,15 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 
 		}
 
-		internal void Destroy()
+		internal void Destroy( Panel outroParent = null, bool immediate = false )
 		{
+			var owner = immediate ? null : (IsRootElement ? outroParent : ElementPanel ?? outroParent);
+
 			if ( Children != null )
 			{
 				foreach ( var child in Children )
 				{
-					child?.Destroy();
+					child?.Destroy( owner, immediate );
 				}
 
 				Children = null;
@@ -62,7 +64,7 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 			{
 				foreach ( var panel in MarkupPanels )
 				{
-					panel?.Delete( true );
+					panel?.DeleteFromRenderTree( owner, true );
 				}
 
 				MarkupPanels.Clear();
@@ -70,9 +72,7 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 			}
 
 			if ( !IsRootElement )
-			{
-				ElementPanel?.Delete( false );
-			}
+				ElementPanel?.DeleteFromRenderTree( immediate ? null : outroParent, immediate );
 
 			ElementPanel = null;
 
@@ -191,18 +191,18 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 
 		internal bool DestroyUnseen()
 		{
+			if ( !WasSeen )
+			{
+				Destroy();
+				return true;
+			}
+
 			if ( Children != null )
 			{
 				foreach ( var child in Children.Where( x => x.DestroyUnseen() ).ToArray() )
 				{
 					Children.Remove( child );
 				}
-			}
-
-			if ( !WasSeen )
-			{
-				Destroy();
-				return true;
 			}
 
 			return false;

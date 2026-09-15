@@ -1,18 +1,27 @@
+using System.Diagnostics;
+
 namespace Sandbox.PanelGallery;
 
 /// <summary>
-/// The control gallery - a list of controls down the left, a page of tests for the selected
+/// The control gallery - categories and pages in two columns down the left, a page of tests for the selected
 /// one on the right. This is where UI rendering, styles and input get eyeballed.
 /// </summary>
 public class GalleryWindow : Panel
 {
 	readonly PanelWindow _window;
-	readonly Dictionary<GalleryPageInfo, Panel> _navItems = new();
+	readonly CookieContainer _cookies = new( "panelgallery", noexpire: true );
+	readonly List<GalleryPageInfo> _pages = [];
+	readonly Dictionary<string, Sandbox.UI.Button> _categoryButtons = [];
+	readonly Dictionary<GalleryPageInfo, Sandbox.UI.Button> _pageButtons = [];
 
-	Panel _sidebar;
+	Panel _pageList;
+	string _category;
 	Panel _content;
 	GalleryPageInfo _current;
 	bool _lightMode;
+	Sandbox.UI.Label _frameRate;
+	long _frameSampleStart;
+	long _frameSampleCount;
 
 	public GalleryWindow( PanelWindow window )
 	{
@@ -32,13 +41,47 @@ public class GalleryWindow : Panel
 	}
 
 	/// <summary>
+	/// Updates this root's render rate and CPU statistics twice a second.
+	/// </summary>
+	public override void Tick()
+	{
+		base.Tick();
+
+		var stats = _window.Root.Stats;
+		var frames = stats.RenderCount;
+		if ( frames == 0 ) return;
+		var now = Stopwatch.GetTimestamp();
+		if ( _frameSampleStart == 0 )
+		{
+			_frameSampleStart = now;
+			_frameSampleCount = frames;
+			return;
+		}
+
+		double seconds = Stopwatch.GetElapsedTime( _frameSampleStart, now ).TotalSeconds;
+		if ( seconds < 0.5 ) return;
+		long count = frames - _frameSampleCount;
+		_frameRate.Text = $"{count / seconds:0} FPS · CPU {stats.CpuTime.TotalMilliseconds:0.00} ms · {stats.DrawCalls} draws · {stats.Instances} instances";
+		_frameRate.Tooltip = "Root renders per second; CPU values are from the last render.\n" +
+			$"Layout: {stats.LayoutTime.TotalMilliseconds:0.00} ms\n" +
+			$"Command build: {stats.CommandBuildTime.TotalMilliseconds:0.00} ms\n" +
+			$"Submission: {stats.SubmissionTime.TotalMilliseconds:0.00} ms\n" +
+			$"Panels: {stats.PanelsRendered} rendered, {stats.PanelsCulled} culled subtrees\n" +
+			$"Compositing: {stats.Layers} CSS layers, {stats.FrameGrabs} frame grabs";
+		_frameSampleStart = now;
+		_frameSampleCount = frames;
+	}
+
+	/// <summary>
 	/// The page to open first. "-page Icons" jumps straight to a page, for iterating on it.
 	/// </summary>
-	static GalleryPageInfo StartPage()
+	GalleryPageInfo StartPage()
 	{
-		if ( RequestedPage() is { } wanted )
+		if ( (RequestedPage() ?? _cookies.GetString( "last-page", null )) is { } wanted )
 		{
-			var match = GalleryPageInfo.All.Concat( UiTestPages.Pages ).FirstOrDefault( x => x.Title.Contains( wanted, StringComparison.OrdinalIgnoreCase ) );
+			var match = _pages.FirstOrDefault( x => $"{x.Folder}/{x.Title}".Equals( wanted, StringComparison.OrdinalIgnoreCase ) )
+				?? _pages.FirstOrDefault( x => x.Title.Equals( wanted, StringComparison.OrdinalIgnoreCase ) )
+				?? _pages.FirstOrDefault( x => x.Title.Contains( wanted, StringComparison.OrdinalIgnoreCase ) );
 			if ( match is not null ) return match;
 		}
 
@@ -60,6 +103,8 @@ public class GalleryWindow : Panel
 		bar.Add.Label( "Panel Gallery", "gallery-title" );
 
 		bar.Add.Panel( "grow" );
+		_frameRate = bar.Add.Label( "-- FPS", "gallery-frame-rate" );
+		_frameRate.Tooltip = "Render rate and CPU work for this gallery root. Hover for timings, cache reuse and compositing counts.";
 
 		WindowButton( bar, "contrast", null, ToggleTheme );
 		WindowButton( bar, "remove", null, _window.Minimize );
@@ -77,65 +122,97 @@ public class GalleryWindow : Panel
 		button.AddEventListener( "onclick", onClick );
 	}
 
+
+	static string Category( GalleryPageInfo page ) =>
+		page.Folder.Split( '/', StringSplitOptions.RemoveEmptyEntries ).FirstOrDefault() ?? "Css Styles";
+
+	static int CategoryOrder( string category ) => category switch
+	{
+		"Controls" => 0,
+		"Css Styles" => 1,
+		"Demos" => 2,
+		"Painter" => 3,
+		"Painter Shapes" => 4,
+		"System" => 5,
+		"WorldPanel" => 6,
+		_ => int.MaxValue
+	};
+
 	void BuildSidebar( Panel body )
 	{
-		var sidebar = body.Add.Panel( "sidebar" );
-		_sidebar = sidebar.Add.Panel( "nav" );
+		_pages.AddRange( GalleryPageInfo.All
+			.Concat( UiTestPages.Pages )
+			.Concat( FilterPage.Entries() )
+			.Concat( WorldPanelPage.Pages )
+			.Concat( CameraPainterPage.Pages )
+			.OrderBy( page => CategoryOrder( Category( page ) ) )
+			.ThenBy( Category, StringComparer.OrdinalIgnoreCase )
+			.ThenBy( page => page.Title, StringComparer.OrdinalIgnoreCase ) );
 
-		Section( "CONTROLS" );
-
-		foreach ( var page in GalleryPageInfo.All )
-			NavItem( page );
-
-		if ( UiTestPages.Pages.Count > 0 )
+		var sidebar = body.Add.Panel( "sidebar gallery-categories" );
+		var categories = sidebar.Add.Panel( "nav" );
+		foreach ( var category in _pages.Select( Category ).Distinct() )
 		{
-			Section( "RENDERING" );
-
-			foreach ( var page in UiTestPages.Pages )
-				NavItem( page );
+			var button = new Sandbox.UI.Button( category, CategoryIcon( category ), "navitem",
+				() => Open( _pages.First( page => Category( page ) == category ) ) );
+			categories.AddChild( button );
+			_categoryButtons.Add( category, button );
 		}
 
-		// Pinned under the list - the mock editor is the point of all this
-		_sidebar = sidebar;
-		Section( "APPS" );
-		NavItem( "Mock Editor", "web", () => EditorWindow.Open() );
+		var pages = body.Add.Panel( "sidebar gallery-pages" );
+		_pageList = pages.Add.Panel( "nav" );
 	}
 
-	void Section( string title )
+	static string CategoryIcon( string title ) => title switch
 	{
-		var label = _sidebar.Add.Panel( "sectionlabel" );
-		label.Add.Label( title, "text" );
-		label.Add.Panel( "rule" );
-	}
+		"Controls" => "widgets",
+		"System" => "settings",
+		"Demos" => "play_circle",
+		"Painter" => "brush",
+		"Painter Shapes" => "category",
+		"Css Styles" => "science",
+		"WorldPanel" => "view_in_ar",
+		_ => "folder"
+	};
 
-	void NavItem( GalleryPageInfo page )
+	void SelectCategory( string category )
 	{
-		var current = page;
+		if ( _category == category ) return;
+		_category = category;
+		foreach ( var (name, button) in _categoryButtons )
+			button.Active = name == category;
 
-		var item = NavItem( current.Title, current.Icon, () => Open( current ) );
-		item.SetClass( "active", current == _current );
-
-		_navItems[current] = item;
-	}
-
-	Panel NavItem( string title, string icon, Action onClick )
-	{
-		var item = _sidebar.Add.Panel( "navitem" );
-		item.Add.Icon( icon, "icon" );
-		item.Add.Label( title, "label" );
-		item.AddEventListener( "onclick", onClick );
-		return item;
+		_pageList.DeleteChildren( true );
+		_pageList.ScrollOffset = Vector2.Zero;
+		_pageButtons.Clear();
+		foreach ( var page in _pages.Where( page => Category( page ) == category ) )
+		{
+			var button = new Sandbox.UI.Button( page.Title, page.Icon, "navitem", () => Open( page ) );
+			_pageList.AddChild( button );
+			_pageButtons.Add( page, button );
+		}
 	}
 
 	void Open( GalleryPageInfo page )
 	{
+		if ( _current == page ) return;
 		_current = page;
-
+		SelectCategory( Category( page ) );
+		_cookies.SetString( "last-page", $"{page.Folder}/{page.Title}" );
+		_cookies.Save();
 		_content.DeleteChildren( true );
-		_content.AddChild( page.Create() );
+		var content = page.Create();
+		_content.SetClass( "full-page", content.HasClass( "full-page" ) );
+		_content.AddChild( content );
 
-		foreach ( var (info, item) in _navItems )
-			item.SetClass( "active", info == page );
+		foreach ( var (entry, button) in _pageButtons )
+			button.Active = entry == page;
+	}
+
+	public override void OnDeleted()
+	{
+		_cookies.Dispose();
+		base.OnDeleted();
 	}
 
 	void ToggleTheme()

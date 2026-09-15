@@ -1,0 +1,30 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Text" )]
+@attribute [Title( "font-weight" )]
+@attribute [Description( "Compare font-weight values independently." )]
+@attribute [Icon( "text_fields" )]
+
+<root>
+    <h2>font-weight</h2>
+    <div class="cases">
+        <UiTestCase Setup="@Text" Css="font-weight: 300" Caption="300" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font-weight: 400" Caption="400" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font-weight: 700" Caption="700" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font-weight: 900" Caption="900" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font-weight: 100" Caption="100" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font-weight: 500" Caption="500" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font-weight: 600" Caption="600" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font-weight: 800" Caption="800" Text="@Sample" />
+    </div>
+</root>
+
+@code
+{
+    const string Text = UiTestCase.TextSetup;
+    const string Sample = "Sphinx of black quartz";
+    const string Paragraph = "Sphinx of black quartz, judge my vow. Pack my box with five dozen liquor jugs.";
+    const string Digits = "0123456789 1111 8888";
+}

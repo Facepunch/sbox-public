@@ -97,9 +97,12 @@
     public static int VideoThumbsPerShelf { get; set; } = 2;
     public static int VideoThumbsPerGrid { get; set; } = 6;
     public static float VideoThumbsSeconds { get; set; } = 10f;
+    // Past the card's 0.3s video start + 0.4s fade, so the preview inherits a settled video.
+    const float HoverPreviewDelay = 0.6f;
 	const float VideoActivationDelay = 0.3f;
 	bool showVideo;
 	float? videoRequestedAt;
+	float? hoverStartedAt;
 
 	bool WantsVideo() => HasHovered || (VideoThumbs && (Rotation is null || Rotation.IsPlaying( this )));
 	bool ShowVideo() => showVideo;
@@ -107,6 +110,8 @@
 	public override void Tick()
 	{
 		base.Tick();
+
+		TickHoverPreview();
 
 		if ( !WantsVideo() )
 		{
@@ -130,12 +135,30 @@
 		}
 	}
 
-    string VideoUrl()
-    {
-        var url = Package?.VideoThumb;
-        var quality = Quality == VideoQuality.Auto ? PickQuality() : Quality;
+	void TickHoverPreview()
+	{
+		if ( !HoverPreview || Size == SizeType.List || Package is null || !HasHovered )
+		{
+			hoverStartedAt = null;
+			return;
+		}
 
-        if ( quality == VideoQuality.Thumb || string.IsNullOrEmpty( url ) )
+		hoverStartedAt ??= RealTime.Now;
+
+		if ( RealTime.Now - hoverStartedAt.Value >= HoverPreviewDelay )
+			PackageHoverCard.Show( this, Package, PlayingVideoUrl );
+	}
+
+	/// <summary>The video url this card is showing right now, or null.</summary>
+	public string PlayingVideoUrl => showVideo && !string.IsNullOrEmpty( Package?.VideoThumb ) ? VideoUrl() : null;
+
+    string VideoUrl() => VideoUrl( Package, Quality == VideoQuality.Auto ? PickQuality( Box.Rect.Width ) : Quality );
+
+    public static string VideoUrl( Package package, VideoQuality quality )
+    {
+        var url = package?.VideoThumb;
+
+        if ( quality == VideoQuality.Thumb || quality == VideoQuality.Auto || string.IsNullOrEmpty( url ) )
             return url;
 
         var variant = quality.ToString().ToLowerInvariant();
@@ -145,12 +168,10 @@
             .Replace( "thumb.mp4", $"{variant}.mp4" );
     }
 
-    // Box.Rect is in real screen pixels, so this already accounts for the root panel scaling
+    // Width is in real screen pixels, so this already accounts for the root panel scaling
     // itself by screen height. Zero before first layout - assume a card, not a list row.
-    VideoQuality PickQuality()
+    public static VideoQuality PickQuality( float width )
     {
-        var width = Box.Rect.Width;
-
         if ( width <= 0 ) return VideoQuality.Medium;
         if ( width < 160 ) return VideoQuality.Low;
         if ( width < 900 ) return VideoQuality.Medium;
@@ -194,6 +215,9 @@
     /// Show the package's summary as a quote over the art. Off by default - most cards are too small for it.
     /// </summary>
     [Parameter] public bool ShowSummary { get; set; }
+
+    /// <summary>Open a <see cref="PackageHoverCard"/> after hovering for a moment.</summary>
+    [Parameter] public bool HoverPreview { get; set; } = true;
 
     /// <summary>
     /// Called when the card is clicked

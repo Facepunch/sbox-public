@@ -6,6 +6,7 @@ partial class PublishWizard : BaseWizard
 	PublishConfig Config = new();
 
 	ResourcePublishContext context;
+	bool restartingCompile;
 
 	public override string Title => $"Upload to {Global.BackendTitle}";
 	public override string Icon => "upload_file";
@@ -50,6 +51,36 @@ partial class PublishWizard : BaseWizard
 	public override void OnSave()
 	{
 		EditorUtility.Projects.Updated( Project );
+	}
+
+	[Event( "compile.complete" )]
+	void OnCompileComplete( CompileGroup group )
+	{
+		if ( !IsValid || !group.BuildResult.Success || Config.AssemblyFiles is null ) return;
+
+		var compileStep = Steps.FindIndex( x => x is CompileWizardPage );
+		if ( compileStep < 0 || Steps.IndexOf( Current ) <= compileStep ) return;
+
+		// Only code included in this publish matters; editor-only recompiles don't invalidate it.
+		if ( Config.CompilerOutput is null || !group.BuildResult.Output.Any( output =>
+			Config.CompilerOutput.Any( published => published.Compiler.AssemblyName == output.Compiler.AssemblyName ) ) )
+			return;
+
+		if ( restartingCompile ) return;
+		_ = RestartCompileAsync( Steps[compileStep] );
+	}
+
+	async Task RestartCompileAsync( BaseWizardPage compilePage )
+	{
+		restartingCompile = true;
+		try
+		{
+			await ReturnToPageAsync( compilePage );
+		}
+		finally
+		{
+			restartingCompile = false;
+		}
 	}
 
 	public static PublishWizard Open( Project project, ResourcePublishContext publishContext = default )

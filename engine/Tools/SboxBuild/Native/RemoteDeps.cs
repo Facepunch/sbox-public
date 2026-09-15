@@ -39,36 +39,36 @@ public static class RemoteDeps
 	}
 
 	/// <summary>The platforms that build everything. The others are console or arm only.</summary>
-	private static readonly string[] DESKTOP = ["win64", "linuxsteamrt64"];
+	private static readonly string[] DESKTOP = ["win64", "linuxsteamrt64", "osxarm64"];
 	private static readonly string[] WIN = ["win64"];
 
 	public static readonly Dep[] All =
 	[
 		// schemacompiler and the other devtools link tier0, which needs SDL3 beside them.
 		new( "sdl3", "release-3.4.14", "thirdparty/sdl3" )
-			{ Rebuild = 1, RuntimeDir = ["../game/bin", "devtools/bin"] },
-		new( "dav1d", "1.5.3", "thirdparty/dav1d" ) { Rebuild = 1 },
-		new( "libcurl", "8.12.1", "thirdparty/libcurl" ) { Rebuild = 3 },
-		new( "libopus", "v1.5.2", "thirdparty/libopus" ) { Rebuild = 1 },
-		new( "libvpx", "v1.16.0", "thirdparty/libvpx" ) { Rebuild = 1 },
-		new( "libwebp", "v1.5.0", "thirdparty/libwebp" ) { Rebuild = 1 },
-		new( "libwebm", "1.0.0.32", "thirdparty/libwebm" ) { Rebuild = 1 },
-		new( "libyuv", "4afb965", "thirdparty/libyuv" ) { Rebuild = 1 },
-		new( "svtav1", "v4.1.0", "thirdparty/svtav1" ) { Rebuild = 1 },
-		new( "slang", "v2026.14", "thirdparty/slang" ) { Rebuild = 1 },
-		new( "glslang", "14.3.0", "thirdparty/glslang" ) { Rebuild = 1 },
-		new( "dxc", "v1.9.2607", "thirdparty/dxc" ) { Rebuild = 1 },
-		new( "openexr", "v2.5.8", "thirdparty/openexr" ) { Rebuild = 1 },
-		new( "alembic", "1.7.16", "thirdparty/alembic" ) { Rebuild = 1 },
-		new( "lame", "3.100", "thirdparty/lame" ) { Rebuild = 1 },
-		new( "oidn", "v1.4.3", "thirdparty/oidn" ) { Rebuild = 1, Platforms = DESKTOP },
-		new( "embree", "v3.13.5", "thirdparty/embree" ) { Rebuild = 1, Platforms = DESKTOP },
-		new( "bc7enc", "main", "thirdparty/bc7enc" ) { Rebuild = 1, Platforms = DESKTOP },
-		new( "ispc-texcomp", "master", "thirdparty/ispc-texcomp" ) { Rebuild = 1, Platforms = DESKTOP },
-		new( "openxr-loader", "release-1.1.43", "thirdparty/openxr" ) { Rebuild = 1, Platforms = DESKTOP },
+			{ Rebuild = 2, RuntimeDir = ["../game/bin", "devtools/bin"] },
+		new( "dav1d", "1.5.3", "thirdparty/dav1d" ) { Rebuild = 2 },
+		new( "libcurl", "8.12.1", "thirdparty/libcurl" ) { Rebuild = 6 },
+		new( "libopus", "v1.5.2", "thirdparty/libopus" ) { Rebuild = 2 },
+		new( "libvpx", "v1.16.0", "thirdparty/libvpx" ) { Rebuild = 2 },
+		new( "libwebp", "v1.5.0", "thirdparty/libwebp" ) { Rebuild = 2 },
+		new( "libwebm", "1.0.0.32", "thirdparty/libwebm" ) { Rebuild = 2 },
+		new( "libyuv", "4afb965", "thirdparty/libyuv" ) { Rebuild = 2 },
+		new( "svtav1", "v4.1.0", "thirdparty/svtav1" ) { Rebuild = 2 },
+		new( "slang", "v2026.14", "thirdparty/slang" ) { Rebuild = 2 },
+		new( "glslang", "14.3.0", "thirdparty/glslang" ) { Rebuild = 2 },
+		new( "dxc", "v1.9.2607", "thirdparty/dxc" ) { Rebuild = 2 },
+		new( "openexr", "v2.5.8", "thirdparty/openexr" ) { Rebuild = 2 },
+		new( "alembic", "1.7.16", "thirdparty/alembic" ) { Rebuild = 2 },
+		new( "lame", "3.100", "thirdparty/lame" ) { Rebuild = 2 },
+		new( "oidn", "v1.4.3", "thirdparty/oidn" ) { Rebuild = 2, Platforms = DESKTOP },
+		new( "embree", "v3.13.5", "thirdparty/embree" ) { Rebuild = 2, Platforms = DESKTOP },
+		new( "bc7enc", "main", "thirdparty/bc7enc" ) { Rebuild = 2, Platforms = DESKTOP },
+		new( "ispc-texcomp", "master", "thirdparty/ispc-texcomp" ) { Rebuild = 2, Platforms = DESKTOP },
+		new( "openxr-loader", "release-1.1.43", "thirdparty/openxr" ) { Rebuild = 2, Platforms = DESKTOP },
 		// Qt builds far more than the editor loads. Its release names the shipped set in a
 		// runtime tree, already laid out the way it lands beside the engine.
-		new( "qt5", "master", "thirdparty/qt5" ) { Rebuild = 1, Platforms = DESKTOP, RuntimeTree = "runtime" },
+		new( "qt5", "master", "thirdparty/qt5" ) { Rebuild = 2, Platforms = DESKTOP, RuntimeTree = "runtime" },
 		// The crash handler is an executable, and only Windows builds minidump.cpp.
 		new( "sentry-native", "0.11.3", "thirdparty/sentry" )
 			{ Platforms = WIN, RuntimeExecutables = true },

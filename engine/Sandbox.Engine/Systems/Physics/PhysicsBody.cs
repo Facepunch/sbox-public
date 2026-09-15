@@ -1,846 +1,422 @@
-﻿using NativeEngine;
-using System.Runtime.InteropServices;
-using static Sandbox.PhysicsGroupDescription.BodyPart;
-
 namespace Sandbox;
 
 /// <summary>
 /// Represents a physics object. An entity can have multiple physics objects. See <see cref="PhysicsGroup">PhysicsGroup</see>.
 /// A physics objects consists of one or more <see cref="PhysicsShape">PhysicsShape</see>s.
 /// </summary>
-[Expose, ActionGraphIgnore]
-public sealed partial class PhysicsBody : IHandle
+[Expose]
+public sealed partial class PhysicsBody : IValid
 {
-	#region IHandle
-	//
-	// A pointer to the actual native object
-	//
-	internal IPhysicsBody native;
+	internal PhysicsBodyInternal _body;
 
-	//
-	// IHandle implementation
-	//
-	void IHandle.HandleInit( IntPtr ptr )
+	internal PhysicsBody( PhysicsBodyInternal body )
 	{
-		native = ptr;
-
-		World ??= native.GetWorld();
-		World.RegisterBody( this );
+		_body = body;
+		body.SetOwner( this );
 	}
 
-	void IHandle.HandleDestroy()
-	{
-		World?.ForgetBody( this );
-		native = IntPtr.Zero;
-	}
-
-	bool IHandle.HandleValid() => !native.IsNull;
-	#endregion
-
-	internal PhysicsBody( HandleCreationData _ ) { }
-
+	/// <summary>
+	/// Creates a new physics body in the given world.
+	/// </summary>
 	public PhysicsBody( PhysicsWorld world )
 	{
-		World = world;
+		ArgumentNullException.ThrowIfNull( world );
 
-		using ( var h = IHandle.MakeNextHandle( this ) )
-		{
-			world.world.AddBody();
-		}
+		_body = world.CreateBodyInternal();
+		_body.SetOwner( this );
 	}
 
-	Component _component;
+	/// <summary>
+	/// Creates a new 3D physics body in the given world.
+	/// </summary>
+	[Obsolete( "Use world.CreateBody() instead" )]
+	public static PhysicsBody Create( PhysicsWorld world ) => world.CreateBody();
+
+	public bool IsValid => _body is not null && _body.IsValid;
 
 	/// <summary>
 	/// The GameObject that created this body
 	/// </summary>
-	public GameObject GameObject { get; set; }
+	public GameObject GameObject
+	{
+		get => _body.GameObject;
+		set => _body.GameObject = value;
+	}
 
 	/// <summary>
 	/// The component that created this body
 	/// </summary>
 	public Component Component
 	{
-		get => _component;
-		set
-		{
-			_component = value;
-			GameObject = _component?.GameObject;
-		}
+		get => _body.Component;
+		set => _body.Component = value;
 	}
 
 	[Obsolete( "Use Component property" )]
-	public void SetComponentSource( Component c )
-	{
-		Component = c;
-	}
+	public void SetComponentSource( Component c ) => _body.Component = c;
 
 	[Obsolete( "Use GameObject property" )]
-	public GameObject GetGameObject() => GameObject;
-
-	/// <summary>
-	/// The Hitbox that this physics body represents
-	/// </summary>
-	internal object Hitbox { get; set; }
+	public GameObject GetGameObject() => _body.GameObject;
 
 	/// <summary>
 	/// Position of this body in world coordinates.
 	/// </summary>
 	public Vector3 Position
 	{
-		get => native.GetPosition();
-		set
-		{
-			native.SetPosition( value );
-			Dirty();
-		}
+		get => _body.Position;
+		set => _body.Position = value;
 	}
 
 	/// <summary>
 	/// The physics world this body belongs to.
 	/// </summary>
-	[ActionGraphInclude]
-	public PhysicsWorld World { get; internal set; }
+	public PhysicsWorld World => _body.World?.Owner;
 
 	/// <summary>
 	/// Rotation of the physics body in world space.
 	/// </summary>
 	public Rotation Rotation
 	{
-		get => native.GetOrientation();
-		set
-		{
-			native.SetOrientation( value );
-			Dirty();
-		}
+		get => _body.Rotation;
+		set => _body.Rotation = value;
 	}
 
 	[Obsolete]
-	public float Scale => 1.0f;
+	public float Scale => _body.Scale;
 
 	/// <summary>
 	/// Linear velocity of this body in world space.
 	/// </summary>
-	[ActionGraphInclude]
 	public Vector3 Velocity
 	{
-		get => native.GetLinearVelocity();
-		set => native.SetLinearVelocity( value );
+		get => _body.Velocity;
+		set => _body.Velocity = value;
 	}
 
 	/// <summary>
 	/// Angular velocity of this body in world space.
 	/// </summary>
-	[ActionGraphInclude]
 	public Vector3 AngularVelocity
 	{
-		get => native.GetAngularVelocity();
-		set => native.SetAngularVelocity( value );
+		get => _body.AngularVelocity;
+		set => _body.AngularVelocity = value;
 	}
 
 	/// <summary>
 	/// Center of mass for this physics body in world space coordinates.
 	/// </summary>
-	[ActionGraphInclude]
-	public Vector3 MassCenter
-	{
-		get => native.GetMassCenter();
-	}
+	public Vector3 MassCenter => _body.MassCenter;
 
 	/// <summary>
 	/// Center of mass for this physics body relative to its <see cref="Position">origin</see>.
 	/// </summary>
-	[ActionGraphInclude]
 	public Vector3 LocalMassCenter
 	{
-		get => native.GetLocalMassCenter();
-		set => native.SetLocalMassCenter( value );
+		get => _body.LocalMassCenter;
+		set => _body.LocalMassCenter = value;
 	}
 
 	/// <summary>
 	/// Is this physics body mass calculated or set directly.
 	/// </summary>
-	[ActionGraphInclude]
 	public bool OverrideMassCenter
 	{
-		get => native.GetOverrideMassCenter();
-		set => native.SetOverrideMassCenter( value );
+		get => _body.OverrideMassCenter;
+		set => _body.OverrideMassCenter = value;
 	}
 
 	/// <summary>
 	/// Mass of this physics body.
 	/// </summary>
-	[ActionGraphInclude]
 	public float Mass
 	{
-		get => native.GetMass();
-		set => native.SetMass( value );
+		get => _body.Mass;
+		set => _body.Mass = value;
 	}
 
 	/// <summary>
 	/// Whether gravity is enabled for this body or not.
 	/// </summary>
-	[ActionGraphInclude]
 	public bool GravityEnabled
 	{
-		get => native.IsGravityEnabled();
-		set => native.EnableGravity( value );
+		get => _body.GravityEnabled;
+		set => _body.GravityEnabled = value;
 	}
 
 	/// <summary>
-	/// Whether to play collision sounds 
+	/// Whether to play collision sounds
 	/// </summary>
-	[ActionGraphInclude]
-	public bool EnableCollisionSounds { get; set; } = true;
+	public bool EnableCollisionSounds
+	{
+		get => _body.EnableCollisionSounds;
+		set => _body.EnableCollisionSounds = value;
+	}
 
 	/// <summary>
 	/// Scale the gravity relative to <see cref="PhysicsWorld.Gravity"/>. 2 is double the gravity, etc.
 	/// </summary>
-	[ActionGraphInclude]
 	public float GravityScale
 	{
-		get => native.GetGravityScale();
-		set => native.SetGravityScale( value * DefaultGravityScale );
+		get => _body.GravityScale;
+		set => _body.GravityScale = value;
 	}
 
-	internal float DefaultGravityScale { get; set; } = 1.0f;
-
 	/// <summary>
-	/// If true we'll create a controller for this physics body. This is useful
-	/// for keyframed physics objects that need to push things. The controller will
-	/// sweep as the entity moves, rather than teleporting the object.. which works better
-	/// when pushing dynamic objects etc.
+	/// If true we'll create a controller for this physics body.
 	/// </summary>
-	public bool UseController { get; set; }
+	public bool UseController
+	{
+		get => _body.UseController;
+		set => _body.UseController = value;
+	}
 
 	/// <summary>
 	/// Enables Touch callbacks on all <see cref="PhysicsShape">PhysicsShapes</see> of this body.
-	/// Returns true if ANY of the physics shapes have touch events enabled.
 	/// </summary>
 	public bool EnableTouch
 	{
-		get => native.IsTouchEventEnabled();
-		set
-		{
-			if ( value )
-			{
-				native.EnableTouchEvents();
-			}
-			else
-			{
-				native.DisableTouchEvents();
-			}
-		}
+		get => _body.EnableTouch;
+		set => _body.EnableTouch = value;
 	}
 
 	/// <summary>
 	/// Sets <see cref="PhysicsShape.EnableTouchPersists"/> on all shapes of this body.
-	/// <br/><br/>
-	/// Returns true if ANY of the physics shapes have persistent touch events enabled.
 	/// </summary>
 	public bool EnableTouchPersists
 	{
-		get
-		{
-			foreach ( var body in Shapes )
-			{
-				if ( body.EnableTouchPersists ) return true;
-			}
-
-			return false;
-		}
-		set
-		{
-			foreach ( var shape in Shapes )
-			{
-				shape.EnableTouchPersists = value;
-			}
-		}
+		get => _body.EnableTouchPersists;
+		set => _body.EnableTouchPersists = value;
 	}
 
 	/// <summary>
 	/// Sets <see cref="PhysicsShape.EnableSolidCollisions"/> on all shapes of this body.
-	/// <br/><br/>
-	/// Returns true if ANY of the physics shapes have solid collisions enabled.
 	/// </summary>
 	public bool EnableSolidCollisions
 	{
-		get
-		{
-			foreach ( var body in Shapes )
-			{
-				if ( body.EnableSolidCollisions ) return true;
-			}
-
-			return false;
-		}
-		set
-		{
-			foreach ( var shape in Shapes )
-			{
-				shape.EnableSolidCollisions = value;
-			}
-		}
+		get => _body.EnableSolidCollisions;
+		set => _body.EnableSolidCollisions = value;
 	}
-
-	// cache this, since it's called so much
-	PhysicsBodyType? _bodyType;
 
 	/// <summary>
 	/// Movement type of physics body, either Static, Keyframed, Dynamic
-	/// Note: If this body is networked and dynamic, it will return Keyframed on the client
 	/// </summary>
 	public PhysicsBodyType BodyType
 	{
-		get
-		{
-			if ( !_bodyType.HasValue )
-			{
-				_bodyType = native.GetType_Native();
-			}
-
-			return _bodyType.Value;
-		}
-		set
-		{
-			if ( value == BodyType )
-				return;
-
-			native.SetType( value );
-			_bodyType = default;
-
-			Dirty();
-		}
+		get => _body.BodyType;
+		set => _body.BodyType = value;
 	}
 
 	/// <summary>
-	/// The bodytype may change between edit and game time.
-	/// For navmesh generation we always need to know the bodytype at game time.
-	/// This override can be set to inform the navmesh generation of the correct game time bodytype.
-	/// </summary>
-	internal PhysicsBodyType? NavmeshBodyTypeOverride { get; set; }
-
-	/// <summary>
 	/// Whether this body is allowed to automatically go into "sleep" after a certain amount of time of inactivity.
-	/// <see cref="Sleeping"/> for more info on the sleep mechanic.
 	/// </summary>
 	public bool AutoSleep
 	{
-		set
-		{
-			if ( value ) native.EnableAutoSleeping();
-			else native.DisableAutoSleeping();
-		}
+		set => _body.AutoSleep = value;
 	}
 
 	/// <summary>
 	/// The speed threshold below which this body will be put to sleep. Units per second.
-	/// The default is about 2 units/sec. Increase this to make bodies sleep sooner, which is useful for stacking stability.
 	/// </summary>
 	public float SleepThreshold
 	{
-		get => native.GetSleepThreshold();
-		set => native.SetSleepThreshold( value );
+		get => _body.SleepThreshold;
+		set => _body.SleepThreshold = value;
 	}
 
 	/// <summary>
 	/// Transform of this physics body.
 	/// </summary>
-	[ActionGraphInclude]
 	public Transform Transform
 	{
-		get => native.GetTransform();
-		set
-		{
-			var tx = value.WithScale( 1 );
-			if ( tx.AlmostEqual( Transform ) )
-				return;
-
-			native.SetTransform( tx.Position, tx.Rotation );
-			Dirty();
-		}
+		get => _body.Transform;
+		set => _body.Transform = value;
 	}
 
 	/// <summary>
-	/// Move to a new position. Unlike Transform, if you have `UseController` enabled, this will sweep the shadow
-	/// to the new position, rather than teleporting there.
+	/// Move to a new position, sweeping the shadow if <see cref="UseController"/> is enabled.
 	/// </summary>
-	public void Move( Transform tx, float delta )
-	{
-		if ( UseController )
-		{
-			native.SetTargetTransform( tx.Position, tx.Rotation, delta );
-		}
-		else
-		{
-			bool transformChanged = !tx.AlmostEqual( Transform );
-
-			native.SetTransform( tx.Position, tx.Rotation );
-
-			if ( transformChanged )
-			{
-				Dirty();
-			}
-		}
-	}
+	public void Move( Transform tx, float delta ) => _body.Move( tx, delta );
 
 	/// <summary>
 	/// How many shapes belong to this body.
 	/// </summary>
-	public int ShapeCount => native.GetShapeCount();
+	public int ShapeCount => _body.ShapeCount;
 
 	/// <summary>
 	/// All shapes that belong to this body.
 	/// </summary>
-	[ActionGraphInclude]
-	public IEnumerable<PhysicsShape> Shapes
-	{
-		get
-		{
-			var shapeCount = native.GetShapeCount();
+	public IEnumerable<PhysicsShape> Shapes => _body.Shapes;
 
-			for ( int i = 0; i < shapeCount; ++i )
-			{
-				yield return native.GetShape( i );
-			}
-		}
-	}
+	/// <inheritdoc cref="PhysicsBodyInternal.AddSphereShape(Vector3, float, bool)"/>
+	public PhysicsShape AddSphereShape( Vector3 center, float radius, bool rebuildMass = true ) => _body.AddSphereShape( center, radius, rebuildMass );
 
 	/// <summary>
 	/// Add a sphere shape to this body.
 	/// </summary>
-	/// <param name="center">Center of the sphere, relative to <see cref="Position"/> of this body.</param>
-	/// <param name="radius">Radius of the sphere.</param>
-	/// <param name="rebuildMass">Whether the mass should be <see cref="RebuildMass">recalculated</see> after adding the shape.</param>
-	/// <returns>The newly created shape, if any.</returns>
-	public PhysicsShape AddSphereShape( Vector3 center, float radius, bool rebuildMass = true )
-	{
-		var shape = native.AddSphereShape( center, radius );
-		Dirty();
-		return shape;
-	}
-
-	/// <summary>
-	/// Add a sphere shape to this body.
-	/// </summary>
-	public PhysicsShape AddSphereShape( in Sphere sphere, bool rebuildMass = true )
-	{
-		var shape = native.AddSphereShape( sphere.Center, sphere.Radius );
-		Dirty();
-		return shape;
-	}
+	public PhysicsShape AddSphereShape( in Sphere sphere, bool rebuildMass = true ) => _body.AddSphereShape( sphere, rebuildMass );
 
 	/// <summary>
 	/// Add a capsule shape to this body.
 	/// </summary>
-	/// <param name="center">Point A of the capsule, relative to <see cref="Position"/> of this body.</param>
-	/// <param name="center2">Point B of the capsule, relative to <see cref="Position"/> of this body.</param>
-	/// <param name="radius">Radius of the capsule end caps.</param>
-	/// <param name="rebuildMass">Whether the mass should be <see cref="RebuildMass">recalculated</see> after adding the shape.</param>
-	/// <returns>The newly created shape, or null on failure.</returns>
-	public PhysicsShape AddCapsuleShape( Vector3 center, Vector3 center2, float radius, bool rebuildMass = true )
-	{
-		var shape = native.AddCapsuleShape( center, center2, radius );
-		Dirty();
-		return shape;
-	}
+	public PhysicsShape AddCapsuleShape( Vector3 center, Vector3 center2, float radius, bool rebuildMass = true ) => _body.AddCapsuleShape( center, center2, radius, rebuildMass );
 
 	/// <summary>
 	/// Add a box shape to this body.
 	/// </summary>
-	/// <param name="position">Center of the box, relative to <see cref="Position"/> of this body.</param>
-	/// <param name="rotation">Rotation of the box, relative to <see cref="Rotation"/> of this body.</param>
-	/// <param name="extent">The extents of the box. The box will extend from its center by this much in both negative and positive directions of each axis.</param>
-	/// <param name="rebuildMass">Whether the mass should be <see cref="RebuildMass">recalculated</see> after adding the shape.</param>
-	/// <returns>The newly created shape, or null on failure.</returns>
-	public PhysicsShape AddBoxShape( Vector3 position, Rotation rotation, Vector3 extent, bool rebuildMass = true )
-	{
-		var shape = native.AddBoxShape( position, rotation, extent.Abs() );
-		Dirty();
-		return shape;
-	}
+	public PhysicsShape AddBoxShape( Vector3 position, Rotation rotation, Vector3 extent, bool rebuildMass = true ) => _body.AddBoxShape( position, rotation, extent, rebuildMass );
 
 	/// <summary>
 	/// Add a box shape to this body.
 	/// </summary>
-	public PhysicsShape AddBoxShape( BBox box, Rotation rotation, bool rebuildMass = true )
-	{
-		var shape = native.AddBoxShape( box.Center, rotation, box.Size * 0.5f );
-		Dirty();
-		return shape;
-	}
+	public PhysicsShape AddBoxShape( BBox box, Rotation rotation, bool rebuildMass = true ) => _body.AddBoxShape( box, rotation, rebuildMass );
+
+	/// <summary>
+	/// Add a plane shape to this body.
+	/// </summary>
+	public PhysicsShape AddPlaneShape( Vector3 center, Rotation rotation, Vector2 size, bool rebuildMass = true ) => _body.AddPlaneShape( center, rotation, size, rebuildMass );
 
 	/// <inheritdoc cref="AddHullShape(Vector3, Rotation, Span{Vector3}, bool)"/>
-	public PhysicsShape AddHullShape( Vector3 position, Rotation rotation, List<Vector3> points, bool rebuildMass = true )
-	{
-		return AddHullShape( position, rotation, CollectionsMarshal.AsSpan( points ), rebuildMass );
-	}
+	public PhysicsShape AddHullShape( Vector3 position, Rotation rotation, List<Vector3> points, bool rebuildMass = true ) => _body.AddHullShape( position, rotation, points, rebuildMass );
 
 	/// <summary>
 	/// Add a convex hull shape to this body.
 	/// </summary>
-	/// <param name="position">Center of the hull, relative to <see cref="Position"/> of this body.</param>
-	/// <param name="rotation">Rotation of the hull, relative to <see cref="Rotation"/> of this body.</param>
-	/// <param name="points">Points for the hull. They will be used to generate a convex shape.</param>
-	/// <param name="rebuildMass">Whether the mass should be <see cref="RebuildMass">recalculated</see> after adding the shape.</param>
-	/// <returns>The newly created shape, or null on failure.</returns>
-	public unsafe PhysicsShape AddHullShape( Vector3 position, Rotation rotation, Span<Vector3> points, bool rebuildMass = true )
-	{
-		if ( points.Length == 0 )
-			return null;
-
-		PhysicsShape shape;
-
-		fixed ( Vector3* points_ptr = points )
-		{
-			shape = native.AddHullShape( position, rotation, points.Length, (IntPtr)points_ptr );
-		}
-
-		if ( !shape.IsValid() || shape.ShapeType == PhysicsShapeType.SHAPE_SPHERE )
-		{
-			Log.Warning( "Unable to create hull shape" );
-		}
-
-		Dirty();
-
-		return shape;
-	}
+	public PhysicsShape AddHullShape( Vector3 position, Rotation rotation, Span<Vector3> points, bool rebuildMass = true ) => _body.AddHullShape( position, rotation, points, rebuildMass );
 
 	/// <summary>
 	/// Add a cylinder shape to this body.
 	/// </summary>
-	public PhysicsShape AddCylinderShape( Vector3 position, Rotation rotation, float height, float radius, int slices = 16 )
-	{
-		return AddConeShape( position, rotation, height, radius, radius, slices );
-	}
+	public PhysicsShape AddCylinderShape( Vector3 position, Rotation rotation, float height, float radius, int slices = 16 ) => _body.AddCylinderShape( position, rotation, height, radius, slices );
 
 	/// <summary>
 	/// Add a cone shape to this body.
 	/// </summary>
-	public PhysicsShape AddConeShape( Vector3 position, Rotation rotation, float height, float radius1, float radius2 = 0.0f, int slices = 16 )
-	{
-		slices = slices.Clamp( 4, 128 );
-
-		var vertexCount = 2 * slices;
-		var points = new Vector3[vertexCount];
-
-		var alpha = 0.0f;
-		var deltaAlpha = MathF.PI * 2 / slices;
-		var halfHeight = height * 0.5f;
-
-		for ( int i = 0; i < slices; ++i )
-		{
-			var sinAlpha = MathF.Sin( alpha );
-			var cosAlpha = MathF.Cos( alpha );
-
-			points[2 * i + 0] = new Vector3( -halfHeight, radius1 * cosAlpha, radius1 * sinAlpha );
-			points[2 * i + 1] = new Vector3( halfHeight, radius2 * cosAlpha, radius2 * sinAlpha );
-
-			alpha += deltaAlpha;
-		}
-
-		return AddHullShape( position, rotation, points );
-	}
+	public PhysicsShape AddConeShape( Vector3 position, Rotation rotation, float height, float radius1, float radius2 = 0.0f, int slices = 16 ) => _body.AddConeShape( position, rotation, height, radius1, radius2, slices );
 
 	/// <summary>
 	/// Add a cone shape to this body.
 	/// </summary>
-	public PhysicsShape AddConeShape( Vector3 a, Vector3 b, float radiusA, float radiusB, int slices = 16 )
-	{
-		slices = slices.Clamp( 4, 128 );
-
-		var axis = b - a;
-		var length = axis.Length;
-
-		if ( length <= 0 )
-			return AddSphereShape( a, radiusA );
-
-		var rotation = Rotation.LookAt( axis.Normal );
-		var position = (a + b) * 0.5f;
-
-		return AddConeShape( position, rotation, length, radiusA, radiusB, slices );
-	}
+	public PhysicsShape AddConeShape( Vector3 a, Vector3 b, float radiusA, float radiusB, int slices = 16 ) => _body.AddConeShape( a, b, radiusA, radiusB, slices );
 
 	/// <inheritdoc cref="AddMeshShape(Span{Vector3}, Span{int})"/>
-	public PhysicsShape AddMeshShape( List<Vector3> vertices, List<int> indices )
-	{
-		return AddMeshShape( CollectionsMarshal.AsSpan( vertices ), CollectionsMarshal.AsSpan( indices ) );
-	}
+	public PhysicsShape AddMeshShape( List<Vector3> vertices, List<int> indices ) => _body.AddMeshShape( vertices, indices );
 
 	/// <summary>
 	/// Adds a mesh type shape to this physics body. Mesh shapes cannot be physically simulated!
 	/// </summary>
-	/// <param name="vertices">Vertices of the mesh.</param>
-	/// <param name="indices">Indices of the mesh.</param>
-	/// <returns>The created shape, or null on failure.</returns>
-	public unsafe PhysicsShape AddMeshShape( Span<Vector3> vertices, Span<int> indices )
-	{
-		if ( vertices.Length == 0 )
-			return null;
+	public PhysicsShape AddMeshShape( Span<Vector3> vertices, Span<int> indices ) => _body.AddMeshShape( vertices, indices );
 
-		if ( indices.Length == 0 )
-			return null;
+	/// <summary>
+	/// Adds a heightfield shape to this physics body.
+	/// </summary>
+	public PhysicsShape AddHeightFieldShape( ushort[] heights, byte[] materials, int sizeX, int sizeY, float sizeScale, float heightScale ) => _body.AddHeightFieldShape( heights, materials, sizeX, sizeY, sizeScale, heightScale );
 
-		var vertexCount = vertices.Length;
-
-		foreach ( var i in indices )
-		{
-			if ( i < 0 || i >= vertexCount )
-				throw new ArgumentOutOfRangeException( $"Index ({i}) out of range ({vertexCount - 1})" );
-		}
-
-		PhysicsShape shape;
-
-		fixed ( Vector3* vertices_ptr = vertices )
-		fixed ( int* indices_ptr = indices )
-		{
-			shape = native.AddMeshShape( vertexCount, (IntPtr)vertices_ptr, indices.Length, (IntPtr)indices_ptr, 0 );
-		}
-
-		if ( !shape.IsValid() || shape.ShapeType == PhysicsShapeType.SHAPE_SPHERE )
-		{
-			Log.Warning( "Unable to create mesh shape" );
-		}
-
-		Dirty();
-
-		return shape;
-	}
-
-	public unsafe PhysicsShape AddHeightFieldShape( ushort[] heights, byte[] materials, int sizeX, int sizeY, float sizeScale, float heightScale )
-	{
-		return AddHeightFieldShape( heights, materials, sizeX, sizeY, sizeScale, heightScale, 0 );
-	}
-
-	internal unsafe PhysicsShape AddHeightFieldShape( ushort[] heights, byte[] materials, int sizeX, int sizeY, float sizeScale, float heightScale, int materialCount )
-	{
-		if ( heights == null )
-			throw new ArgumentException( "Height data is null" );
-
-		var cellCount = sizeX * sizeY;
-		if ( cellCount <= 0 )
-			throw new ArgumentOutOfRangeException( "Size needs to be non zero" );
-
-		if ( heights.Length != cellCount )
-			throw new ArgumentOutOfRangeException( $"Height data length is {heights.Length}, should be {cellCount}" );
-
-		if ( materials != null && materials.Length != cellCount )
-			throw new ArgumentOutOfRangeException( $"Material data length is {materials.Length}, should be {cellCount}" );
-
-		fixed ( ushort* pHeights = heights )
-		fixed ( byte* pMaterials = materials )
-		{
-			var shape = native.AddHeightFieldShape(
-				(IntPtr)pHeights,
-				(IntPtr)pMaterials,
-				sizeX, sizeY,
-				sizeScale, heightScale,
-				materialCount );
-
-			Dirty();
-
-			return shape;
-		}
-	}
+	internal PhysicsShape AddHeightFieldShape( ushort[] heights, byte[] materials, int sizeX, int sizeY, float sizeScale, float heightScale, int materialCount ) => _body.AddHeightFieldShape( heights, materials, sizeX, sizeY, sizeScale, heightScale, materialCount );
 
 	[Obsolete]
-	public PhysicsShape AddCloneShape( PhysicsShape shape )
-	{
-		return null;
-	}
+	public PhysicsShape AddCloneShape( PhysicsShape shape ) => null;
+
+	/// <summary>
+	/// Add a shape from a physics hull
+	/// </summary>
+	public PhysicsShape AddShape( PhysicsGroupDescription.BodyPart.HullPart part, Transform transform, bool rebuildMass = true ) => _body.AddShape( part, transform, rebuildMass );
+
+	/// <summary>
+	/// Add a shape from a mesh hull
+	/// </summary>
+	public PhysicsShape AddShape( PhysicsGroupDescription.BodyPart.MeshPart part, Transform transform, bool convertToHull, bool rebuildMass = true ) => _body.AddShape( part, transform, convertToHull, rebuildMass );
 
 	/// <summary>
 	/// Remove all physics shapes, but not the physics body itself.
 	/// </summary>
-	public void ClearShapes()
-	{
-		native.PurgeShapes();
-	}
+	public void ClearShapes() => _body.ClearShapes();
+
+	internal IDisposable TriggerScope() => _body.TriggerScope();
+
+	internal void RemoveShape( PhysicsShape shape ) => _body.RemoveShape( shape );
 
 	/// <summary>
-	/// Called from Shape.Remove()
+	/// Rebuilds mass from all shapes of this body based on their volume and physics properties.
 	/// </summary>
-	internal void RemoveShape( PhysicsShape shape )
-	{
-		if ( !shape.IsValid() )
-			return;
-
-		if ( !this.IsValid() )
-			return;
-
-		if ( !World.IsValid() )
-			return;
-
-		native.RemoveShape( shape );
-	}
-
-	/// <summary>
-	/// Meant to be only used on <b>dynamic</b> bodies, rebuilds mass from all shapes of this body based on their volume and <see cref="Surface">physics properties</see>, for cases where they may have changed.
-	/// </summary>
-	public void RebuildMass() => native.BuildMass();
+	public void RebuildMass() => _body.RebuildMass();
 
 	/// <summary>
 	/// Completely removes this physics body.
 	/// </summary>
-	public void Remove()
-	{
-		if ( !this.IsValid() ) return;
-
-		if ( World.IsValid() )
-		{
-			World.UnregisterBody( this );
-		}
-
-		native = default;
-		World = default;
-	}
+	public void Remove() => _body.Remove();
 
 	/// <summary>
-	/// Applies instant linear impulse (i.e. a bullet impact) to this body at its center of mass.
-	/// For continuous force (i.e. a moving car), use <see cref="ApplyForce"/>
+	/// Applies instant linear impulse to this body at its center of mass.
 	/// </summary>
-	[ActionGraphInclude]
-	public void ApplyImpulse( Vector3 impulse )
-	{
-		native.ApplyLinearImpulse( impulse );
-	}
+	public void ApplyImpulse( Vector3 impulse ) => _body.ApplyImpulse( impulse );
 
 	/// <summary>
-	/// Applies instant linear impulse (i.e. a bullet impact) to this body at given position.
-	/// For continuous force (i.e. a moving car), use <see cref="ApplyForceAt"/>
+	/// Applies instant linear impulse to this body at given position.
 	/// </summary>
-	[ActionGraphInclude]
-	public void ApplyImpulseAt( Vector3 position, Vector3 velocity )
-	{
-		native.ApplyLinearImpulseAtWorldSpace( velocity, position );
-	}
+	public void ApplyImpulseAt( Vector3 position, Vector3 velocity ) => _body.ApplyImpulseAt( position, velocity );
 
 	/// <summary>
-	/// Applies instant angular impulse (i.e. a bullet impact) to this body.
-	/// For continuous force (i.e. a moving car), use <see cref="ApplyTorque"/>
+	/// Applies instant angular impulse to this body.
 	/// </summary>
-	[ActionGraphInclude]
-	public void ApplyAngularImpulse( Vector3 impulse )
-	{
-		native.ApplyAngularImpulse( impulse );
-	}
+	public void ApplyAngularImpulse( Vector3 impulse ) => _body.ApplyAngularImpulse( impulse );
 
 	/// <summary>
 	/// Applies force to this body at the center of mass.
-	/// This force will only be applied on the next physics frame and is scaled with physics timestep.
 	/// </summary>
-	[ActionGraphInclude]
-	public void ApplyForce( Vector3 force ) => native.ApplyForce( force );
+	public void ApplyForce( Vector3 force ) => _body.ApplyForce( force );
 
 	/// <summary>
 	/// Applies force to this body at given position.
-	/// This force will only be applied on the next physics frame and is scaled with physics timestep.
 	/// </summary>
-	[ActionGraphInclude]
-	public void ApplyForceAt( Vector3 position, Vector3 force ) => native.ApplyForceAt( force, position );
+	public void ApplyForceAt( Vector3 position, Vector3 force ) => _body.ApplyForceAt( position, force );
 
 	/// <summary>
 	/// Applies angular velocity to this body.
-	/// This force will only be applied on the next physics frame and is scaled with physics timestep.
 	/// </summary>
-	/// <param name="force"></param>
-	[ActionGraphInclude]
-	public void ApplyTorque( Vector3 force ) => native.ApplyTorque( force );
+	public void ApplyTorque( Vector3 force ) => _body.ApplyTorque( force );
 
 	/// <summary>
-	/// Clear accumulated linear forces (<see cref="ApplyForce"/> and <see cref="ApplyForceAt"/>) during this physics frame that were not yet applied to the physics body.
+	/// Clear accumulated linear forces during this physics frame that were not yet applied.
 	/// </summary>
-	public void ClearForces()
-	{
-		native.ClearForces();
-	}
+	public void ClearForces() => _body.ClearForces();
 
 	/// <summary>
-	/// Clear accumulated torque (angular force, <see cref="ApplyTorque"/>) during this physics frame that were not yet applied to the physics body.
+	/// Clear accumulated torque during this physics frame that was not yet applied.
 	/// </summary>
-	public void ClearTorque()
-	{
-		native.ClearTorque();
-	}
+	public void ClearTorque() => _body.ClearTorque();
 
 	/// <summary>
-	/// Returns the world space velocity of a point of the object. This is useful for objects rotating around their own axis/origin.
+	/// Returns the world space velocity of a point of the object.
 	/// </summary>
-	/// <param name="point">The point to test, in world coordinates.</param>
-	/// <returns>Velocity at the given point.</returns>
-	[ActionGraphInclude, Pure]
-	public Vector3 GetVelocityAtPoint( Vector3 point )
-	{
-		return native.GetVelocityAtPoint( point );
-	}
+	public Vector3 GetVelocityAtPoint( Vector3 point ) => _body.GetVelocityAtPoint( point );
 
 	/// <summary>
-	/// Whether this body is enabled or not. Disables collisions, physics simulation, touch events, trace queries, etc.
+	/// Whether this body is enabled or not.
 	/// </summary>
-	[ActionGraphInclude]
 	public bool Enabled
 	{
-		get => native.IsEnabled();
-		set
-		{
-			if ( native.IsNull )
-				return;
-
-			if ( value ) native.Enable();
-			else native.Disable();
-
-			Dirty();
-		}
+		get => _body.Enabled;
+		set => _body.Enabled = value;
 	}
 
 	/// <summary>
 	/// Controls physics simulation on this body.
 	/// </summary>
-	[ActionGraphInclude]
 	public bool MotionEnabled
 	{
-		get => BodyType == PhysicsBodyType.Dynamic;
-		set
-		{
-			if ( value )
-			{
-				BodyType = PhysicsBodyType.Dynamic;
-
-				return;
-			}
-
-			// Clear velocity when disabling motion.
-			// We do this here (not in BodyType setter) in case preserving velocity is intentional.
-			// Also, disabling motion implies that all motion stops.
-			if ( BodyType == PhysicsBodyType.Dynamic )
-			{
-				Velocity = 0;
-				AngularVelocity = 0;
-			}
-
-			BodyType = PhysicsBodyType.Keyframed;
-		}
+		get => _body.MotionEnabled;
+		set => _body.MotionEnabled = value;
 	}
 
 	/// <summary>
-	/// Physics bodies automatically go to sleep after a certain amount of time of inactivity to save on performance.
 	/// You can use this to wake the body up, or prematurely send it to sleep.
 	/// </summary>
-	[ActionGraphInclude]
 	public bool Sleeping
 	{
-		get => native.IsSleeping();
-
-		set
-		{
-			if ( value ) native.Sleep();
-			else native.Wake();
-		}
+		get => _body.Sleeping;
+		set => _body.Sleeping = value;
 	}
 
-	/// <summary>
-	/// If enabled, this physics body will move slightly ahead each frame based on its velocities.
-	/// </summary>
 	[Obsolete( "No longer exists" )]
 	public bool SpeculativeContactEnabled
 	{
@@ -851,494 +427,245 @@ public sealed partial class PhysicsBody : IHandle
 	/// <summary>
 	/// The physics body we are attached to, if any
 	/// </summary>
-	[ActionGraphInclude]
-	public PhysicsBody Parent { get; set; }
+	public PhysicsBody Parent
+	{
+		get => _body.Parent;
+		set => _body.Parent = value;
+	}
 
 	/// <summary>
 	/// A convenience property, returns <see cref="Parent">Parent</see>, or if there is no parent, returns itself.
 	/// </summary>
-	public PhysicsBody SelfOrParent => Parent ?? this;
+	public PhysicsBody SelfOrParent => _body.SelfOrParent;
 
 	/// <summary>
 	/// The physics group we belong to.
 	/// </summary>
-	[ActionGraphInclude]
-	public PhysicsGroup PhysicsGroup
-	{
-		get
-		{
-			if ( native.IsNull ) return null;
-			return native.GetAggregate();
-		}
-	}
+	public PhysicsGroup PhysicsGroup => _body.PhysicsGroup;
 
 	/// <summary>
 	/// Returns the closest point to the given one between all shapes of this body.
 	/// </summary>
-	/// <param name="vec">Input position.</param>
-	/// <returns>The closest possible position on the surface of the physics body to the given position.</returns>
-	[ActionGraphInclude, Pure]
-	public Vector3 FindClosestPoint( Vector3 vec )
-	{
-		return native.GetClosestPoint( vec );
-	}
+	public Vector3 FindClosestPoint( Vector3 vec ) => _body.FindClosestPoint( vec );
 
 	/// <summary>
 	/// Generic linear damping, i.e. how much the physics body will slow down on its own.
 	/// </summary>
-	[ActionGraphInclude]
 	public float LinearDamping
 	{
-		get => native.GetLinearDamping();
-		set => native.SetLinearDamping( value );
+		get => _body.LinearDamping;
+		set => _body.LinearDamping = value;
 	}
 
 	/// <summary>
 	/// Generic angular damping, i.e. how much the physics body will slow down on its own.
 	/// </summary>
-	[ActionGraphInclude]
 	public float AngularDamping
 	{
-		get => native.GetAngularDamping();
-		set => native.SetAngularDamping( value );
+		get => _body.AngularDamping;
+		set => _body.AngularDamping = value;
 	}
 
 	[Obsolete]
-	public float LinearDrag
-	{
-		get => default;
-		set { }
-	}
+	public float LinearDrag { get => default; set { } }
 
 	[Obsolete]
-	public float AngularDrag
-	{
-		get => default;
-		set { }
-	}
+	public float AngularDrag { get => default; set { } }
 
 	[Obsolete]
-	public bool DragEnabled
-	{
-		get => default;
-		set { }
-	}
+	public bool DragEnabled { get => default; set { } }
 
 	/// <summary>
 	/// The diagonal elements of the local inertia tensor matrix.
 	/// </summary>
-	[ActionGraphInclude]
-	public Vector3 Inertia
-	{
-		get => native.GetLocalInertiaVector();
-	}
+	public Vector3 Inertia => _body.Inertia;
 
 	/// <summary>
 	/// The orientation of the principal axes of local inertia tensor matrix.
 	/// </summary>
-	[ActionGraphInclude]
-	public Rotation InertiaRotation
-	{
-		get => native.GetLocalInertiaOrientation();
-	}
+	public Rotation InertiaRotation => _body.InertiaRotation;
 
 	/// <summary>
 	/// Sets the inertia tensor using the given moments and rotation.
 	/// </summary>
-	/// <param name="inertia">Principal moments (Ixx, Iyy, Izz).</param>
-	/// <param name="rotation">Rotation of the principal axes.</param>
-	public void SetInertiaTensor( Vector3 inertia, Rotation rotation )
-	{
-		native.SetLocalInertia( inertia, rotation );
-	}
+	public void SetInertiaTensor( Vector3 inertia, Rotation rotation ) => _body.SetInertiaTensor( inertia, rotation );
 
 	/// <summary>
 	/// Resets the inertia tensor to its calculated values.
 	/// </summary>
-	public void ResetInertiaTensor()
-	{
-		native.ResetLocalInertia();
-	}
+	public void ResetInertiaTensor() => _body.ResetInertiaTensor();
 
 	/// <summary>
 	/// Returns Axis-Aligned Bounding Box (AABB) of this physics body.
 	/// </summary>
-	[ActionGraphInclude, Pure]
-	public BBox GetBounds()
-	{
-		return native.BuildBounds();
-	}
+	public BBox GetBounds() => _body.GetBounds();
 
 	/// <summary>
-	/// Returns average of densities for all physics shapes of this body. This is based on <see cref="PhysicsShape.SurfaceMaterial"/> of each shape.
+	/// Returns average of densities for all physics shapes of this body.
 	/// </summary>
-	[ActionGraphInclude]
-	public float Density
-	{
-		get => native.GetDensity();
-	}
+	public float Density => _body.Density;
 
 	/// <summary>
 	/// Time since last water splash effect. Used internally.
 	/// </summary>
-	public RealTimeSince LastWaterEffect { get; set; }
+	public RealTimeSince LastWaterEffect
+	{
+		get => _body.LastWaterEffect;
+		set => _body.LastWaterEffect = value;
+	}
 
 	/// <summary>
 	/// Sets <see cref="PhysicsShape.SurfaceMaterial"/> on all child <see cref="PhysicsShape">PhysicsShape</see>s.
 	/// </summary>
-	/// <returns>
-	/// The most commonly occurring surface name between all <see cref="PhysicsShape">PhysicsShape</see>s of this <see cref="PhysicsShape">PhysicsBody</see>.
-	/// </returns>
-	[ActionGraphInclude]
 	public string SurfaceMaterial
 	{
-		get
-		{
-			if ( !Shapes.Any() ) return "default";
-
-			return Shapes.Select( s => s.SurfaceMaterial )
-					.GroupBy( v => v )
-					.OrderByDescending( g => g.Count() )
-					.First().Key;
-		}
-
-		set
-		{
-			native.SetMaterialIndex( value );
-		}
+		get => _body.SurfaceMaterial;
+		set => _body.SurfaceMaterial = value;
 	}
-
-	Surface _surface;
 
 	public Surface Surface
 	{
-		get
-		{
-			// todo - if _surface is null, look up from GetMaterialName()
-			return _surface;
-		}
-		set
-		{
-			if ( _surface == value ) return;
-
-			_surface = value;
-			native.SetMaterialIndex( _surface?.ResourceName );
-		}
+		get => _body.Surface;
+		set => _body.Surface = value;
 	}
 
 	/// <summary>
 	/// Convenience function that returns a <see cref="PhysicsPoint"/> from a position relative to this body.
 	/// </summary>
-	public PhysicsPoint LocalPoint( Vector3 p ) => PhysicsPoint.Local( this, p );
+	public PhysicsPoint LocalPoint( Vector3 p ) => _body.LocalPoint( p );
 
 	/// <summary>
 	/// Convenience function that returns a <see cref="PhysicsPoint"/> for this body from a world space position.
 	/// </summary>
-	public PhysicsPoint WorldPoint( Vector3 p ) => PhysicsPoint.World( this, p );
+	public PhysicsPoint WorldPoint( Vector3 p ) => _body.WorldPoint( p );
 
 	/// <summary>
 	/// Returns a <see cref="PhysicsPoint"/> at the center of mass of this body.
 	/// </summary>
-	public PhysicsPoint MassCenterPoint() => PhysicsPoint.Local( this, LocalMassCenter );
-
+	public PhysicsPoint MassCenterPoint() => _body.MassCenterPoint();
 
 	/// <summary>
 	/// What is this body called in the group?
 	/// </summary>
-	public string GroupName
-	{
-		get
-		{
-			// should we be caching this stuff? When should it invalidate?
-			return PhysicsGroup?.native.GetBodyName( GroupIndex );
-		}
-	}
+	public string GroupName => _body.GroupName;
 
 	/// <summary>
 	/// Return the index of this body in its PhysicsGroup
 	/// </summary>
-	public int GroupIndex
-	{
-		get
-		{
-			// should we be caching this stuff? When should it invalidate?
-			return PhysicsGroup?.native.GetBodyIndex( this ) ?? 0;
-		}
-	}
+	public int GroupIndex => _body.GroupIndex;
 
 	/// <summary>
 	/// Checks if another body overlaps us, ignoring all collision rules
 	/// </summary>
-	public bool CheckOverlap( PhysicsBody body )
-	{
-		if ( !body.IsValid() )
-			return false;
-
-		return CheckOverlap( body, body.Transform );
-	}
+	public bool CheckOverlap( PhysicsBody body ) => _body.CheckOverlap( body );
 
 	/// <summary>
 	/// Checks if another body overlaps us at a given transform, ignoring all collision rules
 	/// </summary>
-	public bool CheckOverlap( PhysicsBody body, Transform transform )
-	{
-		if ( !this.IsValid() || !body.IsValid() )
-			return false;
-
-		return native.CheckOverlap( body, transform );
-	}
+	public bool CheckOverlap( PhysicsBody body, Transform transform ) => _body.CheckOverlap( body, transform );
 
 	/// <summary>
 	/// Finds the smallest move needed to separate us from another body, ignoring all collision rules.
-	/// Returns true if we're overlapping; moving us by <paramref name="direction"/> * <paramref name="distance"/> pushes us clear.
 	/// </summary>
-	public bool ComputePenetration( PhysicsBody body, out Vector3 direction, out float distance )
-	{
-		direction = default;
-		distance = default;
-
-		if ( !body.IsValid() )
-			return false;
-
-		return ComputePenetration( body, body.Transform, out direction, out distance );
-	}
+	public bool ComputePenetration( PhysicsBody body, out Vector3 direction, out float distance ) => _body.ComputePenetration( body, out direction, out distance );
 
 	/// <summary>
-	/// Finds the smallest move needed to separate us from another body placed at a given transform, ignoring
-	/// all collision rules. Returns true if we're overlapping; moving us by <paramref name="direction"/> *
-	/// <paramref name="distance"/> pushes us clear.
+	/// Finds the smallest move needed to separate us from another body placed at a given transform.
 	/// </summary>
-	public bool ComputePenetration( PhysicsBody body, Transform transform, out Vector3 direction, out float distance )
+	public bool ComputePenetration( PhysicsBody body, Transform transform, out Vector3 direction, out float distance ) => _body.ComputePenetration( body, transform, out direction, out distance );
+
+	internal bool IsTouching( PhysicsBody body, bool triggersOnly ) => _body.IsTouching( body, triggersOnly );
+	internal bool IsTouching( PhysicsShape shape, bool triggersOnly ) => _body.IsTouching( shape, triggersOnly );
+
+	public Action<PhysicsIntersection> OnIntersectionStart
 	{
-		direction = default;
-		distance = default;
-
-		if ( !this.IsValid() || !body.IsValid() )
-			return false;
-
-		return native.ComputePenetration( body, transform, out direction, out distance );
+		get => _body.OnIntersectionStart;
+		set => _body.OnIntersectionStart = value;
 	}
+
+	public Action<PhysicsIntersection> OnIntersectionUpdate
+	{
+		get => _body.OnIntersectionUpdate;
+		set => _body.OnIntersectionUpdate = value;
+	}
+
+	public Action<PhysicsIntersectionEnd> OnIntersectionEnd
+	{
+		get => _body.OnIntersectionEnd;
+		set => _body.OnIntersectionEnd = value;
+	}
+
+	internal void DispatchIntersectionStart( PhysicsIntersection c ) => _body.DispatchIntersectionStart( c );
+	internal void DispatchIntersectionUpdate( PhysicsIntersection c ) => _body.DispatchIntersectionUpdate( c );
+	internal void DispatchIntersectionEnd( PhysicsIntersectionEnd c ) => _body.DispatchIntersectionEnd( c );
+	internal void DispatchTriggerBegin( PhysicsIntersection c ) => _body.DispatchTriggerBegin( c );
+	internal void DispatchTriggerEnd( PhysicsIntersectionEnd c ) => _body.DispatchTriggerEnd( c );
 
 	/// <summary>
-	/// Checks if there's any contact points with another body
+	/// Get the lerped transform between physics steps.
 	/// </summary>
-	internal bool IsTouching( PhysicsBody body, bool triggersOnly )
-	{
-		if ( !body.IsValid() )
-			return false;
-
-		return native.IsTouching( body, triggersOnly );
-	}
+	public Transform GetLerpedTransform( double time ) => _body.GetLerpedTransform( time );
 
 	/// <summary>
-	/// Checks if there's any contact points with another shape
+	/// Move body to this position in a way that cooperates with the physics system.
 	/// </summary>
-	internal bool IsTouching( PhysicsShape shape, bool triggersOnly )
-	{
-		if ( !shape.IsValid() )
-			return false;
-
-		return native.IsTouching( shape, triggersOnly );
-	}
+	public void SmoothMove( in Vector3 position, float timeToArrive, float timeDelta ) => _body.SmoothMove( position, timeToArrive, timeDelta );
 
 	/// <summary>
-	/// Add a shape from a physics hull
+	/// Move body to this transform in a way that cooperates with the physics system.
 	/// </summary>
-	public PhysicsShape AddShape( HullPart part, Transform transform, bool rebuildMass = true )
-	{
-		var shape = native.AddHullShape( part.hull, transform );
-
-		if ( !shape.IsValid() || shape.ShapeType == PhysicsShapeType.SHAPE_SPHERE )
-		{
-			Log.Warning( "Unable to create hull shape" );
-		}
-
-		Dirty();
-
-		return shape;
-	}
+	public void SmoothMove( in Transform transform, float smoothTime, float timeDelta ) => _body.SmoothMove( transform, smoothTime, timeDelta );
 
 	/// <summary>
-	/// Add a shape from a mesh hull
+	/// Rotate the body to this orientation in a way that cooperates with the physics system.
 	/// </summary>
-	public PhysicsShape AddShape( MeshPart part, Transform transform, bool convertToHull, bool rebuildMass = true )
-	{
-		PhysicsShape shape;
-
-		if ( convertToHull )
-		{
-			shape = native.AddHullShape( part.mesh, transform );
-		}
-		else
-		{
-			shape = native.AddMeshShape( part.mesh, transform, part.Surfaces is null ? 0 : part.Surfaces.Length );
-		}
-
-		if ( !shape.IsValid() || shape.ShapeType == PhysicsShapeType.SHAPE_SPHERE )
-		{
-			Log.Warning( $"Unable to create {(convertToHull ? "hull" : "mesh")} shape" );
-		}
-
-		Dirty();
-
-		return shape;
-	}
-
-	public Action<PhysicsIntersection> OnIntersectionStart { get; set; }
-	public Action<PhysicsIntersection> OnIntersectionUpdate { get; set; }
-	public Action<PhysicsIntersectionEnd> OnIntersectionEnd { get; set; }
-
-	internal CollisionEventSystem Listener { get; set; }
-
-	internal void DispatchIntersectionStart( PhysicsIntersection c )
-	{
-		Listener?.OnIntersectionStart( c );
-		OnIntersectionStart?.InvokeWithWarning( c );
-	}
-
-	internal void DispatchIntersectionUpdate( PhysicsIntersection c )
-	{
-		Listener?.OnIntersectionUpdate( c );
-		OnIntersectionUpdate?.InvokeWithWarning( c );
-	}
-
-	internal void DispatchIntersectionEnd( PhysicsIntersectionEnd c )
-	{
-		Listener?.OnIntersectionEnd( c );
-		OnIntersectionEnd?.InvokeWithWarning( c );
-	}
-
-	internal void DispatchTriggerBegin( PhysicsIntersection c ) => Listener?.OnTriggerBegin( c );
-	internal void DispatchTriggerEnd( PhysicsIntersectionEnd c ) => Listener?.OnTriggerEnd( c );
-
-	/// <summary>
-	/// Transform, on previous step
-	/// </summary>
-	Transform prevStepTransform;
-	double prevStepTime;
-
-	/// <summary>
-	/// Transform on current step
-	/// </summary>
-	Transform stepTransform;
-	double stepTime;
-
-
-	/// <summary>
-	/// Called on each active body after a "step"
-	/// </summary>
-	internal void OnActive( in Transform transform, in Vector3 velocity, in Vector3 linearVelocity, bool fellAsleep, bool wentOutOfBounds )
-	{
-		prevStepTime = stepTime;
-		prevStepTransform = stepTime > 0 ? stepTransform : transform;
-
-		stepTransform = transform;
-		stepTime = World.CurrentTime;
-
-		Dirty();
-
-		if ( wentOutOfBounds )
-		{
-			World?.OnBodyOutOfBounds?.Invoke( this );
-		}
-
-		if ( fellAsleep )
-		{
-			World?.OnBodyFellAsleep?.Invoke( this );
-		}
-	}
-
-	/// <summary>
-	/// When the physics world is run at a fixed timestep, getting the positions of bodies will not be smooth.
-	/// You can use this function to get the lerped position between steps, to make things super awesome.
-	/// </summary>
-	public Transform GetLerpedTransform( double time )
-	{
-		if ( stepTime == 0 )
-			return Transform;
-
-		// lerp gap is too big
-		if ( stepTime - prevStepTime > 0.5d )
-			return Transform;
-
-		time -= World.CurrentDelta;
-
-		var delta = time.Remap( prevStepTime, stepTime );
-		return Transform.Lerp( prevStepTransform, stepTransform, (float)delta, true );
-	}
-
-	/// <summary>
-	/// Move body to this position in a way that cooperates with the physics system. This is quite
-	/// good for things like grabbing and moving objects.
-	/// </summary>
-	[ActionGraphInclude]
-	public void SmoothMove( in Vector3 position, float timeToArrive, float timeDelta )
-	{
-		var velocity = Velocity;
-		Vector3.SmoothDamp( Position, position, ref velocity, timeToArrive, timeDelta );
-		Velocity = velocity;
-	}
-
-	/// <summary>
-	/// Move body to this position in a way that cooperates with the physics system. This is quite
-	/// good for things like grabbing and moving objects.
-	/// </summary>
-	[ActionGraphInclude]
-	public void SmoothMove( in Transform transform, float smoothTime, float timeDelta )
-	{
-		SmoothMove( transform.Position, smoothTime, timeDelta );
-		SmoothRotate( transform.Rotation, smoothTime, timeDelta );
-	}
-
-	/// <summary>
-	/// Rotate the body to this position in a way that cooperates with the physics system.
-	/// </summary>
-	[ActionGraphInclude]
-	public void SmoothRotate( in Rotation rotation, float smoothTime, float timeDelta )
-	{
-		var angVelocity = AngularVelocity;
-		Rotation.SmoothDamp( Rotation, rotation, ref angVelocity, smoothTime, timeDelta );
-		AngularVelocity = angVelocity;
-	}
-
-	void Dirty()
-	{
-		OnDirty?.Invoke();
-	}
-
-	/// <summary>
-	/// Called when anything significant changed about this physics object. Like its position,
-	/// or its enabled status.
-	/// </summary>
-	internal Action OnDirty;
-
-
-	internal HashSet<Joint> Joints = new HashSet<Joint>();
-
-	internal void AddJoint( Joint joint )
-	{
-		Joints.Add( joint );
-	}
-
-	internal void RemoveJoint( Joint joint )
-	{
-		Joints.Remove( joint );
-	}
-
-	internal void ResetProxy()
-	{
-		native.ResetProxy();
-	}
+	public void SmoothRotate( in Rotation rotation, float smoothTime, float timeDelta ) => _body.SmoothRotate( rotation, smoothTime, timeDelta );
 
 	/// <summary>
 	/// Enable enhanced continuous collision detection (CCD) for this body.
-	/// When enabled, the body performs CCD against dynamic bodies
-	/// (but not against other bodies with enhanced CCD enabled).
-	/// This is useful for fast-moving objects like bullets or rockets
-	/// that need reliable collision detection.
 	/// </summary>
 	public bool EnhancedCcd
 	{
-		set => native.SetBullet( value );
+		set => _body.EnhancedCcd = value;
 	}
+
+	/// <summary>
+	/// Locks individual axes of motion for this body.
+	/// </summary>
+	public PhysicsLock Locking
+	{
+		get => _body.Locking;
+		set => _body.Locking = value;
+	}
+
+	// --- internal surface used by the engine through the public body type ---
+
+	internal object Hitbox
+	{
+		get => _body.Hitbox;
+		set => _body.Hitbox = value;
+	}
+
+	internal PhysicsBodyType? NavmeshBodyTypeOverride
+	{
+		get => _body.NavmeshBodyTypeOverride;
+		set => _body.NavmeshBodyTypeOverride = value;
+	}
+
+	internal float DefaultGravityScale
+	{
+		get => _body.DefaultGravityScale;
+		set => _body.DefaultGravityScale = value;
+	}
+
+	internal CollisionEventSystem Listener
+	{
+		get => _body.Listener;
+		set => _body.Listener = value;
+	}
+
+	internal HashSet<Joint> Joints => _body.Joints;
+	internal void AddJoint( Joint joint ) => _body.AddJoint( joint );
+	internal void RemoveJoint( Joint joint ) => _body.RemoveJoint( joint );
+	internal void ResetProxy() => _body.ResetProxy();
 }

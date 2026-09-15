@@ -12,7 +12,7 @@ using System.Threading.Channels;
 namespace Sandbox.Network;
 
 /// <summary>
-/// A fake socket that wraps around a Steam lobby.
+/// Full mesh over a Steam lobby. The owner is only who a joiner handshakes with; afterwards it follows the host.
 /// </summary>
 internal class SteamLobbySocket : NetworkSocket, ILobby
 {
@@ -21,16 +21,16 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 	internal int NetworkChannel => (int)(Id % int.MaxValue);
 
 	/// <summary>
-	/// The time until we should try to find a new host.
+	/// The connection to the lobby owner. This is who we handshake with when joining.
 	/// </summary>
-	TimeUntil nextTryFindHost;
+	Connection ownerConnection;
 
-	Connection hostConnection;
 	ulong Id => SteamLobby.Id;
-	bool wasHost;
+
+	NetworkSystem System;
 
 	/// <summary>
-	/// The SteamId of the host of this lobby.
+	/// The SteamId of the owner of this lobby.
 	/// </summary>
 	public ulong HostSteamId => Owner.Id;
 
@@ -59,15 +59,14 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 	/// </summary>
 	LobbyConfig config;
 
+	internal override bool SupportsHostMigration => true;
+
 	public SteamLobbySocket( Lobby lobby )
 	{
 		SteamLobby = lobby;
 
 		UpdateConnections();
 		UpdateOwnerFromLobby();
-
-		hostConnection = Connections.Values.FirstOrDefault( x => x.IsHost );
-		wasHost = Owner.IsMe;
 
 		LobbyManager.Register( this );
 		((ILobby)this).OnLobbyUpdated();
@@ -78,7 +77,6 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 		this.config = config;
 
 		SteamLobby.SetData( "destroy_when_host_leaves", config.DestroyWhenHostLeaves.ToString() );
-		SteamLobby.SetData( "auto_switch_host", config.AutoSwitchToBestHost.ToString() );
 
 		if ( !string.IsNullOrEmpty( config.Name ) )
 		{
@@ -93,19 +91,6 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 		}
 
 		SteamLobby.SetData( "hdn", config.Hidden ? "1" : "0" );
-	}
-
-	private void UpdateConfig()
-	{
-		if ( bool.TryParse( SteamLobby.GetData( "destroy_when_host_leaves" ), out var value ) )
-		{
-			config.DestroyWhenHostLeaves = value;
-		}
-
-		if ( bool.TryParse( SteamLobby.GetData( "auto_switch_host" ), out value ) )
-		{
-			config.AutoSwitchToBestHost = value;
-		}
 	}
 
 	public static async Task<SteamLobbySocket> Create( LobbyConfig config )
@@ -188,12 +173,12 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 		var socket = new SteamLobbySocket( lobby );
 		var timeout = Stopwatch.StartNew();
 
-		// Wait 2000ms for a host or time out
+		// Wait for the owner to show up or time out
 		while ( timeout.Elapsed.TotalSeconds < 5f )
 		{
 			SteamNetwork.RunCallbacks();
 
-			if ( socket.hostConnection is not null )
+			if ( socket.ownerConnection is not null )
 				return (result.Response, socket);
 
 			await Task.Delay( 100 );
@@ -205,9 +190,17 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 
 	internal override void Initialize( NetworkSystem networkSystem )
 	{
+		System = networkSystem;
+
 		foreach ( var c in Connections.Values )
 		{
 			OnClientConnect?.Invoke( c );
+		}
+
+		// Joining: the owner is who we handshake with
+		if ( !networkSystem.IsHost && ownerConnection is not null )
+		{
+			networkSystem.SetHostConnection( ownerConnection );
 		}
 	}
 
@@ -227,30 +220,33 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 		SteamLobby.SetData( "map", name );
 	}
 
-	private void ChangeLobbyHost( HostCandidate candidate )
+	internal override void OnHostChanged( Connection newHost )
 	{
-		SteamLobby.SetData( "_ownerid", $"{candidate.Friend.Id}" );
-		SteamLobby.SetOwner( candidate.Friend.Id );
-		Owner = new( candidate.Friend.Id );
+		if ( !Owner.IsMe )
+			return;
+
+		if ( newHost == Connection.Local )
+		{
+			var hostCount = (SteamLobby.GetData( "hostcount" )?.ToInt() ?? 0) + 1;
+			SteamLobby.SetData( "hostcount", hostCount.ToString() );
+			return;
+		}
+
+		if ( newHost is SteamLobbyConnection lobbyConnection )
+		{
+			SetOwner( lobbyConnection.Friend.Id );
+		}
+	}
+
+	private void SetOwner( ulong steamId )
+	{
+		SteamLobby.SetData( "_ownerid", $"{steamId}" );
+		SteamLobby.SetOwner( steamId );
+		Owner = new( steamId );
 	}
 
 	internal override void Dispose()
 	{
-		// If we're the current owner of the lobby, we should try to find another
-		// candidate to pass ownership to.
-		if ( Owner.IsMe )
-		{
-			if ( config.DestroyWhenHostLeaves )
-			{
-				SteamLobby.SetData( "disbanded", "1" );
-			}
-			else if ( TryFindBestHost( out var candidate ) )
-			{
-				Log.Info( $"Disconnected - New Host: {candidate.Friend.Name}" );
-				ChangeLobbyHost( candidate );
-			}
-		}
-
 		LobbyManager.Unregister( this );
 		SteamLobby.Leave();
 	}
@@ -333,7 +329,7 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 	}
 
 	/// <summary>
-	/// Send any queued outgoing messages via Steam Networking API. 
+	/// Send any queued outgoing messages via Steam Networking API.
 	/// </summary>
 	private unsafe void ProcessOutgoingMessage( ISteamNetworkingMessages net, in OutgoingMessage msg )
 	{
@@ -415,137 +411,6 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 		}
 	}
 
-	struct HostCandidate
-	{
-		public Friend Friend { get; set; }
-		public float AveragePing { get; set; }
-		public float AverageQuality { get; set; }
-		public double ScoreDelta { get; set; }
-		public double Score { get; set; }
-	}
-
-	private bool TryFindBestHost( out HostCandidate candidate )
-	{
-		double maxScore = double.MinValue;
-		HostCandidate? bestOption = null;
-
-		const double pingWeight = 0.6f;
-		const double qualityWeight = 0.4f;
-
-		var candidates = new List<HostCandidate>();
-		var ourScore = 0d;
-
-		foreach ( var member in SteamLobby.Members )
-		{
-			if ( !IsValidConnectionState( member.Id ) )
-				continue;
-
-			if ( !float.TryParse( SteamLobby.GetMemberData( member, "average_peer_ping" ), out var averagePing ) )
-				continue;
-
-			if ( !float.TryParse( SteamLobby.GetMemberData( member, "average_peer_quality" ), out var averageQuality ) )
-				continue;
-
-			if ( averageQuality < 0f )
-			{
-				// If our average quality is less than zero, then it probably hasn't
-				// stabilized yet. Assume that it's good for now.
-				averageQuality = 1f;
-			}
-
-			candidates.Add( new()
-			{
-				Friend = new( member ),
-				AveragePing = averagePing,
-				AverageQuality = averageQuality
-			} );
-		}
-
-		if ( candidates.Count > 0 )
-		{
-			var minPing = 0f;
-			var maxPing = 500f;
-
-			foreach ( var c in candidates )
-			{
-				float normalizedPing;
-
-				if ( minPing == maxPing )
-					normalizedPing = 1f;
-				else
-					normalizedPing = 1.0f - (c.AveragePing - minPing) / (maxPing - minPing);
-
-				var score = (pingWeight * normalizedPing) + (qualityWeight * c.AverageQuality);
-				score = score.Clamp( 0f, 1f );
-
-				if ( c.Friend.IsMe )
-				{
-					ourScore = score;
-					continue;
-				}
-
-				if ( score > maxScore )
-				{
-					bestOption = c with { Score = score };
-					maxScore = score;
-				}
-			}
-		}
-
-		if ( bestOption.HasValue )
-		{
-			var c = bestOption.Value;
-			c.ScoreDelta = c.Score - ourScore;
-			candidate = c;
-
-			return true;
-		}
-
-		candidate = default;
-		return false;
-	}
-
-	private bool IsValidConnectionState( ulong steamId )
-	{
-		var state = SteamLobby.GetMemberData( new( steamId ), "connection_state" );
-
-		if ( int.TryParse( state, out var result ) )
-		{
-			return (Connection.ChannelState)result == Connection.ChannelState.Connected;
-		}
-
-		return false;
-	}
-
-	private void UpdateAveragePeerQuality()
-	{
-		var totalPing = 0f;
-		var totalQuality = 0f;
-		var validConnections = Connections
-			.Where( c => IsValidConnectionState( c.Key ) )
-			.Select( c => c.Value );
-
-		var numberOfConnections = validConnections.Count();
-
-		foreach ( var c in validConnections )
-		{
-			var stats = c.Stats;
-			totalPing += stats.Ping;
-			totalQuality += stats.ConnectionQuality;
-		}
-
-		if ( numberOfConnections > 0 )
-		{
-			var averagePing = totalPing / numberOfConnections;
-			var averageQuality = totalQuality / numberOfConnections;
-
-			SteamLobby.SetMemberData( "average_peer_ping", averagePing.ToString() );
-			SteamLobby.SetMemberData( "average_peer_quality", averageQuality.ToString() );
-		}
-
-		SteamLobby.SetMemberData( "connection_state", ((int)Connection.Local.State).ToString() );
-	}
-
 	private void AddConnection( ulong v )
 	{
 		if ( Connections.ContainsKey( v ) )
@@ -565,7 +430,7 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 
 	internal override void Tick( NetworkSystem networkSystem )
 	{
-		UpdateAveragePeerQuality();
+		FollowHost();
 
 		if ( !Owner.IsMe )
 			return;
@@ -580,35 +445,24 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 
 		SteamLobby.SetData( "_ownerid", $"{Utility.Steam.SteamId}" );
 		SteamLobby.SetData( "map", Networking.MapName );
+	}
 
-		if ( config.AutoSwitchToBestHost && nextTryFindHost )
+	/// <summary>
+	/// Steam made us owner but we're not the host: pass ownership to the host.
+	/// </summary>
+	private void FollowHost()
+	{
+		if ( System is null || !Owner.IsMe || System.IsHost )
+			return;
+
+		if ( System.HostConnection is SteamLobbyConnection host )
 		{
-			// Conna: don't auto-switch to best host if we should destroy when the host leaves.
-			if ( config.DestroyWhenHostLeaves )
-				return;
-
-			if ( !Networking.IsHostBusy )
-				return;
-
-			if ( Application.IsEditor )
-				return;
-
-			if ( TryFindBestHost( out var candidate ) && candidate.ScoreDelta > 0.02f )
-			{
-				ChangeLobbyHost( candidate );
-				nextTryFindHost = 5f;
-			}
+			SetOwner( host.Friend.Id );
 		}
 	}
 
 	internal override void OnSessionFailed( SteamId steamId )
 	{
-		/*
-		IGameInstanceDll.Current.Disconnect();
-		IMenuSystem.ShowServerError( "Disconnected", "Invalid Session" );
-		Log.Warning( $"Disconnecting - Invalid Session" );
-		*/
-
 		if ( Connections.TryGetValue( steamId, out var connection ) )
 		{
 			Log.Warning( $"SteamLobbySocket - Invalid Network Session (Recipient: {connection.Name})" );
@@ -640,6 +494,7 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 	void UpdateOwnerFromLobby()
 	{
 		Owner = SteamLobby.Owner;
+		ownerConnection = Owner.IsMe ? Connection.Local : Connections.GetValueOrDefault( Owner.Id );
 	}
 
 	ulong ILobby.Id => SteamLobby.Id;
@@ -665,94 +520,32 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 	{
 		UpdateOwnerFromLobby();
 
-		Connection targetConnection = Connections.Values.FirstOrDefault( x => x.IsHost );
-		UpdateConfig();
-
-		if ( Owner.IsMe )
-		{
-			targetConnection = Connection.Local;
-
-			if ( !wasHost )
-			{
-				if ( !config.DestroyWhenHostLeaves )
-				{
-					// The lobby should keep a count of how many times it changed hosts.
-					var hostCount = (SteamLobby.GetData( "hostcount" )?.ToInt() ?? 0) + 1;
-					SteamLobby.SetData( "hostcount", hostCount.ToString() );
-
-					//
-					// If we're still connecting, try and find another host candidate. If we can't
-					// find one, then mark the lobby as toxic.
-					//
-					if ( Connection.Local.IsConnecting )
-					{
-						if ( TryFindBestHost( out var candidate ) )
-						{
-							Log.Info( $"We were made the host, but we're still connecting. We found a better candidate: {candidate.Friend.Name}" );
-							ChangeLobbyHost( candidate );
-							return;
-						}
-
-						// Marking it as toxic tells everyone else to disconnect and to avoid it.
-						SteamLobby.SetData( "toxic", "1" );
-					}
-				}
-				else
-				{
-					SteamLobby.SetData( "disbanded", "1" );
-				}
-
-				nextTryFindHost = 5f;
-				wasHost = true;
-			}
-		}
-		else
-		{
-			wasHost = false;
-		}
-
-		//
-		// If the lobby is toxic, we need to disconnect from it. It will usually be toxic if someone
-		// became the owner while they were connecting and no other suitable host candidate could be
-		// found.
-		//
-		if ( SteamLobby.GetData( "toxic" ) == "1" )
-		{
-			Networking.Disconnect();
-			IGameInstanceDll.Current.Disconnect( "Inoperable Server State" );
-			return;
-		}
-
-		if ( SteamLobby.GetData( "disbanded" ) == "1" )
-		{
-			Networking.Disconnect();
-			IGameInstanceDll.Current.Disconnect( "Lobby Disbanded" );
-			return;
-		}
-
-		// Conna: let's not call host changed if we have no target connection.
-		if ( targetConnection is null )
+		if ( System is null )
 			return;
 
-		if ( hostConnection == targetConnection )
+		FollowHost();
+
+		if ( System.IsHost )
 			return;
 
-		var previousHost = hostConnection;
-		hostConnection = targetConnection;
-
-		OnHostChanged?.Invoke( new( previousHost, hostConnection ) );
-
+		// Until we're in the game the owner is the host; if they change mid-connect we start over
 		if ( Connection.Local.State == Connection.ChannelState.Connected )
 			return;
 
-		if ( Owner.IsMe )
+		if ( ownerConnection is null || ownerConnection == Connection.Local )
 			return;
 
-		Log.Info( "Restarting Handshake" );
+		if ( System.HostConnection == ownerConnection )
+			return;
 
-		// Restart the handshake process if the host changed while we're
-		// still connecting.
-		Networking.System?.RestartHandshake();
+		var hadHost = System.HostConnection is not null;
+		System.SetHostConnection( ownerConnection );
+
+		if ( !hadHost )
+			return;
+
+		Log.Info( "Lobby owner changed while connecting - restarting handshake" );
+		System.RestartHandshake();
 	}
 
 	void ILobby.OnMemberMessage( Friend friend, ByteStream stream )

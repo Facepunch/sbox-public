@@ -700,4 +700,10 @@ public struct Rotation : System.IEquatable<Rotation>, IParsable<Rotation>, IInte
 	{
 		return a.LerpTo( b, delta );
 	}
+
+	/// <summary>
+	/// Returns true if x, y, z and w are all finite, so neither NaN nor infinity
+	/// </summary>
+	[JsonIgnore]
+	public readonly bool IsFinite => float.IsFinite( x ) && float.IsFinite( y ) && float.IsFinite( z ) && float.IsFinite( w );
 }

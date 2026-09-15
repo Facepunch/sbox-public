@@ -71,7 +71,7 @@ native accessor qApp as Native.QApp
 		#elif defined( POSIX )
 		// xcb is the only platform plugin we ship, so don't leave Qt to pick wayland from the
 		// session and abort. An explicit choice in the environment still wins.
-		if ( qEnvironmentVariableIsEmpty( "QT_QPA_PLATFORM" ) )
+		if ( qEnvironmentVariableIsEmpty( "QT_QPA_PLATFORM" ) && IsPlatformLinux() )
 		{
 			qputenv( "QT_QPA_PLATFORM", "xcb" );
 		}

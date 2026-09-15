@@ -491,7 +491,7 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	{
 		if ( _body.IsValid() ) return;
 
-		_body = new PhysicsBody( Scene.PhysicsWorld );
+		_body = Scene.PhysicsWorld?.CreateBody();
 
 		_body.Component = this;
 		_body.Transform = WorldTransform;
@@ -579,6 +579,10 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 
 		var tx = WorldTransform;
 		var target = _body.Transform.WithScale( tx.Scale );
+
+		if ( Scene.Is2D )
+			target.Position = target.Position.WithZ( tx.Position.z );
+
 		if ( target == tx ) return;
 
 		isUpdatingFromPhysics = true;
@@ -820,7 +824,17 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 		{
 			Gizmo.Draw.IgnoreDepth = true;
 			Gizmo.Draw.Color = Color.White;
-			Gizmo.Draw.LineSphere( _body.MotionEnabled ? _body.LocalMassCenter : MassCenterOverride, 1, 4 );
+
+			var center = _body.MotionEnabled ? _body.LocalMassCenter : MassCenterOverride;
+
+			if ( Scene.Is2D )
+			{
+				Gizmo.Draw.LineCircle( center, Vector3.Up, 1 );
+			}
+			else
+			{
+				Gizmo.Draw.LineSphere( center, 1, 4 );
+			}
 		}
 	}
 	void IGameObjectNetworkEvents.StartControl()

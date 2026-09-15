@@ -1,3 +1,4 @@
+@import "../uitests/styles/_gallery-palette.scss";
 //
 // The control gallery's own chrome and page styles. The controls it shows are styled by
 // editor.scss - this sheet only lays out the window around them.
@@ -9,16 +10,28 @@
 .gallery-window .titlebar { height: 40px; flex-direction: row; align-items: center; padding: 0 6px 0 16px; flex-shrink: 0; }
 .gallery-window .titlebar .grow { flex-grow: 1; }
 .gallery-window .gallery-title { font-weight: 600; color: $text-muted; }
+.gallery-window .gallery-frame-rate { max-width: 60%; min-width: 0; flex-shrink: 1; text-overflow: ellipsis; overflow: hidden; margin-right: 12px; font-family: Roboto Mono; font-size: 11px; color: $text-muted; text-align: right; white-space: nowrap; pointer-events: all; }
+.style-light .gallery-frame-rate { color: $l-text-muted; }
 
 .gallery-body { flex-grow: 1; flex-direction: row; overflow: hidden; }
 
-.gallery-window .sidebar { width: 220px; flex-shrink: 0; flex-direction: column; padding: 14px 12px; }
-.gallery-window .sidebar .nav { flex-grow: 1; flex-direction: column; overflow: scroll; margin-bottom: 12px; }
-.gallery-window .sectionlabel { flex-direction: row; align-items: center; flex-shrink: 0; margin: 4px 8px 10px 8px; }
-.gallery-window .sectionlabel .rule { flex-grow: 1; height: 1px; background-color: $line; margin-left: 8px; }
-.gallery-window .navitem { flex-direction: row; align-items: center; flex-shrink: 0; padding: 8px 10px; border-radius: 8px; margin-bottom: 2px; cursor: pointer; }
-.gallery-window .navitem.loading { opacity: 0.45; cursor: default; pointer-events: none; }
-
+.gallery-window .sidebar { flex-shrink: 0; flex-direction: column; padding: 14px 8px; min-height: 0; border-right: 1px solid $line; }
+.gallery-window .gallery-categories { width: 170px; }
+.gallery-window .gallery-pages { width: 220px; }
+.gallery-window .sidebar .nav { flex-grow: 1; min-height: 0; flex-direction: column; overflow: scroll; }
+.gallery-window .sidebar .navitem { flex-direction: row; justify-content: flex-start; align-items: center; flex-shrink: 0; min-height: 38px; padding: 8px 10px; border: 0; border-radius: 8px; margin-bottom: 2px; cursor: pointer; background-color: transparent; color: $text-muted; font-size: 13px; font-weight: 500; }
+.gallery-window .sidebar .navitem .icon { font-size: 17px; margin-right: 8px; color: $text-faint; }
+.gallery-window .gallery-categories .navitem { font-weight: 600; }
+.gallery-window .sidebar .navitem:hover { color: $text; background-color: $raised; }
+.gallery-window .sidebar .navitem.active { color: $text; background-color: rgba( $accent, 0.14 ); }
+.gallery-window .sidebar .navitem.active .icon { color: $accent; }
+.gallery-window .sidebar .navitem:focus { box-shadow: inset 0 0 0 1px rgba( $accent, 0.5 ); }
+.style-light .sidebar { border-color: $l-line; }
+.style-light .sidebar .navitem { color: $l-text-muted; }
+.style-light .sidebar .navitem .icon { color: $l-text-faint; }
+.style-light .sidebar .navitem:hover { color: $l-text; background-color: $l-raised; }
+.style-light .sidebar .navitem.active { color: $l-text; background-color: rgba( $accent, 0.14 ); }
+.style-light .sidebar .navitem.active .icon { color: $accent; }
 .gallery-content { flex-grow: 1; flex-direction: column; overflow: scroll; padding: 26px 30px; }
 
 // flex-shrink 0 so a tall page overflows into the scroll instead of compressing
@@ -96,6 +109,21 @@
 
 .gallery-page .output { color: $positive; }
 
+// Draw samples keep a fixed background so alpha and colour comparisons survive theme changes.
+.gallery-page .draw-controls { flex-direction: row; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; flex-shrink: 0; }
+.gallery-page .draw-controls label { color: $text-muted; }
+.gallery-page .draw-hud-frame { position: relative; width: 100%; height: 560px; flex-shrink: 0; overflow: hidden; background-color: #151b21; border: 1px solid #354454; border-radius: 12px; }
+.gallery-page .draw-hud { width: 100%; height: 100%; flex-shrink: 0; }
+.gallery-page .draw-card { width: 460px; flex-shrink: 0; flex-direction: column; align-self: flex-start; margin-right: 16px; margin-bottom: 16px; }
+.gallery-page .draw-title { font-weight: 600; margin-bottom: 8px; }
+.gallery-page .draw-frame { width: 460px; height: 300px; flex-shrink: 0; background-color: #18212b; border: 1px solid #354454; border-radius: 12px; }
+.gallery-page .draw-sample { position: relative; width: 100%; height: 100%; flex-shrink: 0; }
+.gallery-page .draw-note { color: $text-muted; font-size: 12px; margin-top: 8px; min-height: 36px; }
+.gallery-page .draw-clipped { overflow: hidden; border-radius: 28px; }
+.gallery-page .draw-overlay { position: absolute; bottom: 5px; left: 0; right: 0; text-align: center; font-size: 12px; color: #ffffff; }
+.style-light .gallery-page .draw-note { color: $l-text-muted; }
+.style-light .gallery-page .draw-controls label { color: $l-text-muted; }
+
 // Icon samples
 .gallery-page iconpanel.s14 { font-size: 14px; }
 .gallery-page iconpanel.s18 { font-size: 18px; }
@@ -126,13 +154,28 @@
 // Light theme
 //
 .style-light .gallery-title { color: $l-text-muted; }
-.style-light .gallery-window .sectionlabel .rule { background-color: $l-line; }
 .style-light .gallery-page .page-blurb { color: $l-text-muted; }
 .style-light .gallery-page .case .case-title { color: $l-text-faint; }
 .style-light .gallery-page iconpanel.tint-muted { color: $l-text-muted; }
 .style-light .gallery-page .t-muted { color: $l-text-muted; }
 .style-light .gallery-page .t-faint { color: $l-text-faint; }
 .style-light .gallery-page .swatch { border-color: $l-line; }
+
+.style-light .gallery-page .demo-split { background-color: $l-surface; border-color: $l-line; }
+.style-light .gallery-page .demo-split label { color: $l-text-muted; }
+.style-light .gallery-page .demo-split .splitter { background-color: $l-line; }
+.style-light .gallery-page .demo-split .splitter:hover { background-color: $accent; }
+
+.style-light .gallery-page .drag-arena { background-color: $l-surface; border-color: $l-line; }
+.style-light .gallery-page .drag-card,
+.style-light .gallery-page .drag-chip { background-color: $l-raised; border-color: $l-line; color: $l-text; }
+.style-light .gallery-page .drag-card .icon,
+.style-light .gallery-page .drag-chip .icon { color: $l-text-muted; }
+.style-light .gallery-page .drop-zone { background-color: $l-surface; border-color: $l-line; color: $l-text-muted; }
+.style-light .gallery-page .drop-zone .icon { color: $l-text-muted; }
+.style-light .gallery-page .drop-zone.armed { background-color: rgba( $accent, 0.08 ); border-color: $accent; color: $l-text; }
+.style-light .gallery-page .drop-zone.armed .icon { color: $accent; }
+.style-light .gallery-page .output { color: $l-positive; }
 
 //
 // Tooltips page
@@ -149,6 +192,8 @@
 .gallery-page .textentry { min-width: 240px; }
 .os-tooltip .custom-tooltip { flex-direction: row; align-items: center; }
 .os-tooltip .custom-tooltip .icon { margin-right: 6px; color: $accent; }
+.style-light .gallery-page .tooltip-group { border-color: $l-line; }
+.style-light .gallery-page .menu-target { border-color: $l-line; color: $l-text-muted; }
 
 //
 // Popups page - the stress control
@@ -376,6 +421,11 @@ $wb-orange: #ff8800;
 .gallery-page .demo-tree .tree-row:hover .eye, .gallery-page .demo-tree .tree-row.hidden .eye { opacity: 1; }
 .gallery-page .demo-tree .tree-row .eye:hover { color: $text; }
 .gallery-page .demo-tree .tree-row.hidden .tree-label, .gallery-page .demo-tree .tree-row.hidden .tree-icon { opacity: 0.4; }
+.style-light .gallery-page .demo-tree { background-color: $l-surface; border-color: $l-line; }
+.style-light .gallery-page .demo-tree .tree-row.section,
+.style-light .gallery-page .demo-tree .tree-row .tree-icon,
+.style-light .gallery-page .demo-tree .tree-row .eye { color: $l-text-muted; }
+.style-light .gallery-page .demo-tree .tree-row .eye:hover { color: $l-text; }
 
 // Windows page - the body of the test window it opens
 .test-window-body { flex-direction: column; padding: 20px; width: 100%; height: 100%; background-color: $surface; }
@@ -386,3 +436,143 @@ $wb-orange: #ff8800;
 .gallery-page .capture-arena.dragging { border-color: $accent; }
 .gallery-page .capture-arena .dot { position: absolute; width: 12px; height: 12px; border-radius: 6px; background-color: $accent; pointer-events: none; }
 .gallery-page .capture-arena .readout { position: absolute; left: 10px; bottom: 8px; color: $text-muted; font-size: 11px; pointer-events: none; }
+.style-light .gallery-page .capture-arena { background-color: $l-surface; border-color: $l-line; }
+.style-light .gallery-page .capture-arena.dragging { border-color: $accent; }
+.style-light .gallery-page .capture-arena .readout { color: $l-text-muted; }
+
+// Gallery tiles: square previews with a title and description underneath.
+.gallery-window .reference-examples,
+.gallery-window .uitest-page .cases,
+.gallery-page .case > .row.reference-examples { flex-direction: row; flex-wrap: wrap; align-items: flex-start; gap: 24px; width: 100%; }
+.gallery-window .reference-row { flex-direction: column; justify-content: flex-start; align-items: stretch; align-self: flex-start; flex-shrink: 0; width: 180px; gap: 10px; padding: 0; border: 0; }
+.gallery-window .reference-description { width: 100%; flex-shrink: 0; flex-direction: column; gap: 5px; }
+.gallery-window .reference-title { font-size: 12px; font-weight: 600; color: $text; }
+.gallery-window .reference-note { width: 100%; font-size: 11px; color: $text-muted; white-space: normal; }
+.gallery-window .reference-row > .reference-result { position: relative; width: 180px; height: 180px; min-height: 180px; flex-grow: 0; flex-shrink: 0; padding: 18px; overflow: hidden; border: 0; border-radius: 6px; background-color: #18212b; flex-direction: column; align-items: center; justify-content: center; }
+.gallery-window .scaled-preview { flex-shrink: 0; flex-direction: column; align-items: center; justify-content: center; transform-origin: 50% 50%; }
+.gallery-window .reference-result .draw-hud-frame { height: 100%; border: 0; border-radius: 6px; }
+.gallery-window .filter-surface { background-color: #46515f; }
+.gallery-window .fixed-result .owner { width: 100%; }
+.gallery-page .case.reference-section { flex-direction: column; gap: 12px; }
+.gallery-page .case.reference-section > .case-title { width: 100%; font-size: 15px; margin: 0; }
+.gallery-window.style-light .reference-title { color: $l-text; }
+.gallery-window.style-light .reference-note { color: $l-text-muted; }
+
+// Immersive examples occupy the entire content viewport.
+.gallery-content.full-page { padding: 0; overflow: hidden; min-width: 0; min-height: 0; }
+.gallery-page.full-page { width: 100%; height: 100%; flex-grow: 1; flex-shrink: 1; min-height: 0; }
+
+.gallery-window .hud-demo .demo-info { flex-shrink: 0; padding: 18px 24px; font-size: 13px; color: $text-muted; }
+.gallery-window .hud-demo .draw-hud { height: 0; min-height: 0; flex-grow: 1; }
+.style-light .hud-demo .demo-info { color: $l-text-muted; }
+
+.gallery-page.mock-editor-demo { max-width: 860px; }
+
+// Interactive control examples.
+.gallery-page .demo-actions { flex-direction: row; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; flex-shrink: 0; }
+.gallery-page .virtual-demo-view { width: 100%; max-width: 960px; height: 440px; flex-shrink: 0; border: 1px solid $line; border-radius: 8px; background-color: $surface; }
+.gallery-page .virtual-demo-item { width: 100%; height: 100%; padding: 8px 14px; gap: 10px; align-items: center; cursor: pointer; border-bottom: 1px solid $line; color: $text-muted; }
+.gallery-page .virtual-demo-item.tile { flex-direction: column; justify-content: center; border: 1px solid $line; border-radius: 8px; }
+.gallery-page .virtual-demo-item.tile .icon { font-size: 30px; color: $accent; }
+.gallery-page .virtual-demo-item:hover { background-color: $raised; color: $text; }
+.gallery-page .virtual-demo-item.active { background-color: rgba( $accent, 0.2 ); color: $text; }
+.gallery-page .scene-control-demo, .gallery-page .web-control-demo { width: 100%; max-width: 1100px; height: 480px; flex-shrink: 0; border: 1px solid $line; border-radius: 10px; overflow: hidden; }
+.gallery-page .validation-result { margin-left: 14px; color: $positive; align-self: center; }
+.gallery-page .validation-result.invalid { color: $danger; }
+.style-light .gallery-page .scene-control-demo,
+.style-light .gallery-page .web-control-demo { border-color: $l-line; }
+.style-light .gallery-page .validation-result { color: $l-positive; }
+.style-light .gallery-page .validation-result.invalid { color: $danger; }
+
+// Every movie uses the same stage and caption geometry so chapters never move the canvas.
+.gallery-page .shape-movie { flex-direction: column; width: 100%; max-width: 1000px; flex-shrink: 0; margin-bottom: 32px; padding: 24px; background-color: $surface; border: 1px solid $line; border-radius: 12px; }
+.gallery-page .movie-heading { font-size: 24px; font-weight: 700; color: $text; margin-bottom: 8px; }
+.gallery-page .movie-description { font-size: 13px; color: $text-muted; min-height: 42px; flex-shrink: 0; }
+.gallery-page .movie-canvas { width: 100%; height: 320px; flex-shrink: 0; overflow: hidden; border-radius: 10px; }
+.gallery-page .movie-track { height: 3px; background-color: $line; margin-top: 10px; flex-shrink: 0; }
+.gallery-page .movie-progress { height: 100%; background-color: $accent; }
+.gallery-page .movie-code { width: 100%; min-height: 80px; margin: 16px 0; padding: 14px; border-radius: 6px; background-color: $ground; color: $text; font-family: Roboto Mono; font-size: 12px; white-space: pre-wrap; flex-shrink: 0; }
+.gallery-page .movie-chapters { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+.gallery-page .movie-chapters .button { font-size: 11px; padding: 7px 10px; }
+.gallery-page .movie-chapters .button.active { background-color: rgba( $accent, 0.2 ); color: $accent; }
+.style-light .shape-movie { background-color: $l-surface; border-color: $l-line; }
+.style-light .shape-movie .movie-heading, .style-light .shape-movie .movie-code { color: $l-text; }
+.style-light .shape-movie .movie-code { background-color: $l-ground; }
+.style-light .shape-movie .movie-description { color: $l-text-muted; }
+.style-light .shape-movie .movie-track { background-color: $l-line; }
+
+// Calculator app.
+.gallery-page .calculator-app { flex-direction: row; flex-wrap: wrap; gap: 28px; align-items: flex-start; max-width: 940px; }
+.gallery-page .calculator { width: 360px; max-width: 100%; padding: 22px; flex-direction: column; border: 1px solid $line; border-radius: 18px; background-color: $surface; }
+.gallery-page .calculator-brand { font-size: 10px; letter-spacing: 2px; color: $accent; margin-bottom: 24px; }
+.gallery-page .calculator-expression { height: 26px; font-size: 13px; color: $text-muted; text-align: right; overflow: hidden; }
+.gallery-page .calculator-display { height: 64px; font-size: 32px; font-family: Roboto Mono; color: $text; text-align: right; overflow: hidden; text-overflow: ellipsis; margin-bottom: 14px; }
+.gallery-page .calculator-display.error { font-size: 18px; color: $danger; }
+.gallery-page .calculator-keypad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.gallery-page .calculator-key { height: 56px; align-items: center; justify-content: center; border-radius: 10px; background-color: $raised; color: $text; font-size: 20px; cursor: pointer; transition: background-color 0.12s ease; }
+.gallery-page .calculator-key:hover { background-color: rgba( $accent, 0.25 ); }
+.gallery-page .calculator-key:active { background-color: rgba( $accent, 0.5 ); }
+.gallery-page .calculator-key.operator { color: $accent; }
+.gallery-page .calculator-key.equals { background-color: $accent; color: white; }
+.gallery-page .calculator-history { width: 360px; max-width: 100%; flex-direction: column; }
+.gallery-page .calculator-history-items { flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.gallery-page .calculator-history-items .button { justify-content: flex-start; }
+.style-light .calculator { background-color: $l-surface; border-color: $l-line; }
+.style-light .calculator-key { background-color: $l-raised; color: $l-text; }
+.style-light .calculator-key:hover { background-color: rgba( $accent, 0.25 ); }
+.style-light .calculator-key:active { background-color: rgba( $accent, 0.5 ); }
+.style-light .calculator-key.operator { color: $accent; }
+.style-light .calculator-key.equals { background-color: $accent; color: white; }
+.style-light .calculator-display { color: $l-text; }
+.style-light .calculator-display.error { color: $danger; }
+.style-light .calculator-expression { color: $l-text-muted; }
+.style-light .virtual-demo-view { background-color: $l-surface; border-color: $l-line; }
+.style-light .gallery-page .virtual-demo-item { color: $l-text; border-color: $l-line; }
+.style-light .virtual-demo-item:hover { background-color: $l-raised; color: $l-text; }
+.style-light .virtual-demo-item.active { background-color: rgba( $accent, 0.2 ); color: $l-text; }
+
+// Embedded SVG illustrations and rasterization comparisons.
+.gallery-page .svg-artwork-grid { flex-direction: row; flex-wrap: wrap; gap: 24px; margin-bottom: 20px; }
+.gallery-page .svg-artwork-card { width: 224px; flex-shrink: 0; flex-direction: column; gap: 8px; }
+.gallery-page .svg-artwork-stage { width: 224px; height: 224px; padding: 20px; background-color: #18212b; border-radius: 12px; }
+.gallery-page .svg-artwork-stage > * { width: 100%; height: 100%; }
+.gallery-page .svg-size-row { flex-direction: row; align-items: flex-end; gap: 32px; margin: 18px 0 30px; }
+.gallery-page .svg-size-item { flex-direction: column; align-items: center; gap: 10px; }
+.gallery-page .svg-tint-row { flex-direction: row; align-items: center; flex-wrap: wrap; gap: 12px; }
+
+.gallery-window .transform-showcase {
+    .transform-stage { position: relative; width: 100%; height: 420px; flex-shrink: 0; align-items: center; justify-content: center; background-color: #18212b; border-radius: 10px; overflow: hidden; }
+    .transform-guide { position: absolute; width: 220px; height: 140px; border: 2px solid rgba(255,255,255,0.15); border-radius: 16px; }
+    .transform-subject { width: 220px; height: 140px; flex-shrink: 0; padding: 20px; flex-direction: column; background-color: $gallery-cyan; border-radius: 16px; color: #16181d; }
+    .transform-title { font-size: 28px; font-weight: 800; }
+    .transform-subtitle { font-size: 13px; }
+    .transform-dots { gap: 8px; margin-top: 12px; }
+    .dot { width: 20px; height: 20px; border-radius: 50%; background-color: #16181d; }
+    .dot-1 { background-color: $gallery-pink; }
+    .dot-2 { background-color: $gallery-lime; }
+}
+
+
+.gallery-page .destination-card { width: 100%; max-width: 900px; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+
+.gallery-page .control-state { flex-direction: column; gap: 10px; min-width: 130px; padding: 16px; background-color: $surface; border-radius: 8px; }
+.gallery-page .focus-current { font-size: 18px; margin: 16px 0; color: $text; }
+.gallery-page .event-log { white-space: pre; min-height: 170px; padding: 16px; background-color: $surface; border-radius: 8px; }
+.style-light .gallery-page .control-state,
+.style-light .gallery-page .event-log { background-color: $l-surface; }
+.style-light .gallery-page .focus-current { color: $l-text; }
+.gallery-window .gallery-page .case { margin-bottom: 20px; }
+
+.gallery-page .planet-label { position: absolute; transform: translate(-50%, 14px); padding: 5px 10px; font-size: 12px; color: $text; background-color: rgba(0,0,0,0.65); border: 1px solid $line; border-radius: 5px; cursor: pointer; }
+.gallery-page .planet-label:hover, .gallery-page .planet-label.selected { border-color: $accent; background-color: $raised; }
+.gallery-page .scene-selection { margin-top: 14px; color: $text-muted; }
+.style-light .gallery-page .scene-selection { color: $l-text-muted; }
+.gallery-page .shape-movie .demo-actions { margin-top: 16px; }
+.gallery-page .complete-example { flex-direction: column; align-items: flex-start; width: 100%; max-height: 420px; flex-shrink: 0; overflow: scroll; scrollbar-width: 8px; pointer-events: all; padding: 16px; border-radius: 6px; background-color: $ground; color: $text; }
+.gallery-page .complete-example-code { flex-shrink: 0; white-space: pre; font-family: Roboto Mono; font-size: 12px; }
+.style-light .shape-movie .complete-example { background-color: $l-ground; color: $l-text; }
+.gallery-page .complete-example.hidden { display: none; }
+
+.gallery-page .scene-control-demo { position: relative; }
+
+.gallery-page .scene-control-demo.orbital-demo { height: 640px; }

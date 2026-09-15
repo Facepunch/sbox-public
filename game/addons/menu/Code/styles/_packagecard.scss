@@ -1,5 +1,62 @@
 @import "/styles/_front.scss";
 
+// Landscape tiles: art fills the tile, title and live count sit over its foot on a scrim.
+// A mixin because "&.default, &.wide" nests as "PackageCard.default, PackageCard.wide column".
+@mixin landscape-tile
+{
+	.image
+	{
+		border-radius: $front-radius;
+	}
+
+	column
+	{
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		flex-direction: row;
+		align-items: center;
+		gap: 8px;
+		padding: 28px 12px 9px 12px;
+		background-color: transparent;
+		background-image: linear-gradient( 0deg, rgba( 0, 0, 0, 0.6 ) 30%, rgba( 0, 0, 0, 0 ) );
+		pointer-events: none;
+	}
+
+	.package-title
+	{
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+		font-size: 13.5px;
+		color: #ffffff;
+		text-shadow: 0 1px 2px rgba( 0, 0, 0, 0.7 );
+	}
+
+	.package-meta
+	{
+		flex-shrink: 0;
+		gap: 0;
+	}
+
+	.package-stat
+	{
+		display: none;
+
+		&.live
+		{
+			display: flex;
+		}
+
+		label
+		{
+			font-size: 11px;
+			text-shadow: 0 1px 2px rgba( 0, 0, 0, 0.7 );
+		}
+	}
+}
+
 //
 // The front page's tile look, applied to the shared PackageCard. PackageCard lives in
 // the base addon and can't import these tokens, so the menu dresses it from here -
@@ -59,31 +116,6 @@ PackageCard
 		}
 	}
 
-	// Top right, not top left. Pinning both edges and right-aligning avoids having to
-	// unset the base component's `left`. Bigger and fully opaque than the web default -
-	// at tile size the 0.7 opacity reads as washed out.
-	PackageFlairBar
-	{
-		top: 8px;
-		left: 8px;
-		right: 8px;
-		justify-content: flex-end;
-		gap: 4px;
-
-		.flair
-		{
-			width: 24px;
-			height: 24px;
-			border-radius: 6px;
-			opacity: 1;
-
-			icon
-			{
-				font-size: 16px;
-			}
-		}
-	}
-
 	// A band below the art, on its own fill - the art stays unobstructed.
 	column
 	{
@@ -103,6 +135,9 @@ PackageCard
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
+
+	&.default { @include landscape-tile; }
+	&.wide { @include landscape-tile; }
 
 	// Icon+number pairs read as one unit, with clear air between the pairs.
 	.package-meta
@@ -148,19 +183,24 @@ PackageCard
 		}
 	}
 
-	// The whole card takes a border - no zoom, so a hovered row stays a row.
-	&:hover
+	// Hover = a small lift. The extra class out-ranks the base :not(.list):hover scale/fill.
+	&.package-card:not(.list):hover
 	{
-		// HDR - blooms.
-		border-color: $front-primary * 10;
-		box-shadow: 0 8px 28px rgba( black, 0.55 );
-		// Undo the base component's scale/glow treatment.
-		transform: none;
+		border-color: transparent;
+		box-shadow: 0 10px 30px rgba( black, 0.6 );
+		transform: scale( 1.03 );
 		background-color: transparent;
+		z-index: 100;
 
+		&::after
+		{
+			display: none;
+		}
+
+		// Tints past 1.0 bloom.
 		.image
 		{
-			background-tint: white * 1.15;
+			background-tint: white;
 		}
 
 		.package-title
@@ -169,9 +209,9 @@ PackageCard
 		}
 	}
 
-	&:active
+	&.package-card:not(.list):active
 	{
-		border-color: $front-link;
+		transform: scale( 1.0 );
 	}
 
 	// A row, not a tile - no art band, no rounding on the image's bottom corners.

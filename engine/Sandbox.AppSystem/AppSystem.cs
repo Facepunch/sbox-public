@@ -289,6 +289,7 @@ public class AppSystem
 		}
 
 		// Shut the engine down (close window etc)
+		Graphics.Shutdown();
 		NativeEngine.EngineGlobal.SourceEngineShutdown( _appSystem, false );
 
 		if ( _appSystem.IsValid )

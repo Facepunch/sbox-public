@@ -49,6 +49,7 @@ internal static partial class Rules
 		"System.Private.CoreLib/System.Type.get_IsClass()",
 		"System.Private.CoreLib/System.Type.get_IsEnum()",
 		"System.Private.CoreLib/System.Type.get_IsGenericType()",
+		"System.Private.CoreLib/System.Type.get_IsPrimitive()", // Boolean classification only; no reflection accessors or handles.
 		"System.Private.CoreLib/System.Type.get_IsValueType()",
 		"System.Private.CoreLib/System.Type.GetEnumNames()",
 		"System.Private.CoreLib/System.Type.GetEnumValues()",

@@ -673,6 +673,25 @@ public static partial class EditorUtility
 	public static RenderSettings RenderSettings => Sandbox.Engine.Settings.RenderSettings.Instance;
 
 	/// <summary>
+	/// The graphics preset this machine should start on.
+	/// </summary>
+	public static GraphicsPreset DetectGraphicsPreset() => Sandbox.Engine.Settings.RenderSettings.DetectPreset();
+
+	/// <summary>
+	/// Which preset the current settings add up to, or Custom if they don't match one.
+	/// </summary>
+	public static GraphicsPreset CurrentGraphicsPreset => RenderSettings.MatchPreset();
+
+	/// <summary>
+	/// Write every setting a graphics preset covers.
+	/// </summary>
+	public static void ApplyGraphicsPreset( GraphicsPreset preset )
+	{
+		RenderSettings.ApplyPreset( preset );
+		RenderSettings.Apply();
+	}
+
+	/// <summary>
 	/// Some assets are kv3, we want to convert them to json
 	/// </summary>
 	public static string KeyValues3ToJson( string kvString )

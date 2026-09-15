@@ -82,6 +82,7 @@ public partial class Scene : GameObject
 			}
 
 			ProcessDeletes();
+			NavMesh.Reset();
 		}
 
 		if ( !IsEditor && options.ShowLoadingScreen )
@@ -212,6 +213,17 @@ public partial class Scene : GameObject
 		json.Add( "GameObjects", children );
 
 		return json;
+	}
+
+	internal void Reload()
+	{
+		var json = Serialize();
+
+		_physicsWorld?.Delete();
+		_physicsWorld = null;
+
+		ReloadSystems();
+		Deserialize( json );
 	}
 
 	public override void Deserialize( JsonObject node, DeserializeOptions option )

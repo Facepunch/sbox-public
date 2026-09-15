@@ -1,34 +1,51 @@
 using Sandbox.Engine;
 using Sandbox.Rendering;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace Sandbox.UI;
 
 public partial class Panel
 {
-	internal BlendMode BackgroundBlendMode;
+	sealed class DrawCallbacks( bool hasCallback )
+	{
+		internal readonly bool HasCallback = hasCallback;
+	}
 
-	internal bool IsRenderDirty = true;
-	internal readonly CommandList LayerCommandList;
+	static readonly ConditionalWeakTable<Type, DrawCallbacks> _drawCallbacks = new();
+	bool _hasDrawCallback;
 
-	internal int _lastScissorHash;
-	internal Matrix? _lastLayerMatrix;
-	internal Matrix? _lastLayerMatrixInverted;
+	void UpdateDrawCallbacks()
+	{
+		_hasDrawCallback = _drawCallbacks.GetValue( GetType(), static type =>
+		{
+			for ( var current = type; current != typeof( Panel ); current = current.BaseType )
+			{
+				foreach ( var method in current.GetMethods( BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly ) )
+				{
+					if ( method.Name == nameof( OnDraw ) && method.GetBaseDefinition().DeclaringType == typeof( Panel ) )
+						return new DrawCallbacks( true );
+				}
+			}
 
-	internal enum RenderMode : byte { Inline, Batched, Layer }
+			return new DrawCallbacks( false );
+		} ).HasCallback;
+	}
 
-	internal int CachedBackgroundVersion;
-	internal RenderLayer CachedDescriptors;
-	internal RenderMode CachedRenderMode;
+	internal Matrix RenderTransform => GlobalMatrixInverted ?? Matrix.Identity;
 	internal float CachedRenderOpacity = 1.0f;
 	internal BlendMode CachedOverrideBlendMode = BlendMode.Normal;
 
+	/// <summary>
+	/// Does nothing. Drawing is regenerated on every command-list build, so there is no dirty state to mark.
+	/// </summary>
+	[Obsolete( "Drawing is regenerated every frame. This does nothing." )]
 	public void MarkRenderDirty()
 	{
-		IsRenderDirty = true;
 	}
 
 	/// <summary>
-	/// Override this to draw custom graphics for this panel using the <see cref="Draw"/> API.
+	/// Legacy custom drawing hook. Prefer overriding <see cref="OnDraw(Painter)"/> and using its supplied painter.
 	/// <example>
 	/// <code>
 	/// public override void OnDraw()
@@ -40,62 +57,27 @@ public partial class Panel
 	/// </code>
 	/// </example>
 	/// </summary>
+	[Obsolete( "Override OnDraw(Painter painter) and use the supplied Painter instead." )]
 	public virtual void OnDraw()
 	{
 	}
 
-	[Obsolete( "Use Draw" )]
-	public virtual void BuildContentCommandList( CommandList commandList, ref RenderState state )
-	{
-	}
+	/// <summary>
+	/// Draws this panel when its render command list is built. Coordinates start at (0, 0); painter.Bounds is the panel's size.
+	/// The default implementation calls OnDraw().
+	/// </summary>
+#pragma warning disable CS0618 // Preserve dispatch to existing parameterless overrides.
+	public virtual void OnDraw( Painter painter ) => OnDraw();
+#pragma warning restore CS0618
 
-	[Obsolete( "Use Draw" )]
-	public virtual void BuildCommandList( CommandList commandList )
-	{
-	}
-
-	[Obsolete( "Use Draw" )]
+	[Obsolete( "Override OnDraw(Painter painter) instead." )]
 	public virtual void DrawContent( ref RenderState state )
 	{
 	}
 
-	[Obsolete( "Use Draw" )]
+	[Obsolete( "Override OnDraw(Painter painter) instead." )]
 	public virtual void DrawBackground( ref RenderState state )
 	{
-	}
-
-	[Obsolete( "Use Draw" )]
-	internal virtual void DrawContent( PanelRenderer renderer, ref RenderState state )
-	{
-	}
-
-	/// <summary>
-	/// Build descriptors for all children. Called during tick phase.
-	/// </summary>
-	internal void BuildDescriptorsForChildren( PanelRenderer render, ref RenderState state )
-	{
-		SortRenderChildren();
-
-		// Content clips short of the scrollbar gutter, the scrollbars clip to the whole padding box
-		using ( render.Clip( this, ContentClipRect ) )
-		{
-			for ( int i = 0; i < _renderChildren.Count; i++ )
-			{
-				if ( !_renderChildren[i].IsFixed && _renderChildren[i] is not ScrollBar )
-					render.BuildDescriptors( _renderChildren[i], state );
-			}
-		}
-
-		if ( ScrollbarCount == 0 ) return;
-
-		using ( render.Clip( this ) )
-		{
-			for ( int i = 0; i < _renderChildren.Count; i++ )
-			{
-				if ( !_renderChildren[i].IsFixed && _renderChildren[i] is ScrollBar )
-					render.BuildDescriptors( _renderChildren[i], state );
-			}
-		}
 	}
 
 }

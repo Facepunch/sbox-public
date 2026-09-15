@@ -1,4 +1,6 @@
 
+@import "/styles/_front.scss";
+
 GameClosedToast
 {
     border-radius: 12px;
@@ -22,6 +24,11 @@ GameClosedToast
     position: relative;
     left: 0px;
     gap: 8px;
+
+    &.with-jam
+    {
+        height: 250px;
+    }
 
     &:intro
     {
@@ -138,6 +145,7 @@ GameClosedToast
 .body
 {
     flex-grow: 1;
+    flex-shrink: 0;
     gap: 8px;
     padding: 0;
 }
@@ -245,6 +253,105 @@ GameClosedToast
 .body .group .option
 {
     border-radius: 0;
+}
+
+.jam
+{
+    flex-shrink: 0;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: linear-gradient( 90deg, rgba( $front-trophy, 0.22 ), rgba( $front-trophy, 0.08 ) );
+    border: 1px solid rgba( $front-trophy, 0.45 );
+    box-shadow: 0 0 16px rgba( $front-trophy, 0.15 );
+
+    .trophy
+    {
+        flex-shrink: 0;
+        font-size: 22px;
+        color: $front-trophy * 1.8;
+    }
+
+    .text
+    {
+        flex-grow: 1;
+        flex-shrink: 1;
+        flex-direction: column;
+        gap: 2px;
+        overflow: hidden;
+
+        .title
+        {
+            font-size: 12px;
+            font-weight: 700;
+            color: $front-heading;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        .hint
+        {
+            font-size: 10px;
+            font-weight: 400;
+            color: $front-trophy * 1.6;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+    }
+
+    .nominate
+    {
+        flex-shrink: 0;
+        align-items: center;
+        gap: 6px;
+        height: 34px;
+        padding: 0 14px;
+        border-radius: 8px;
+        background-color: $front-trophy;
+        color: #1a1204;
+        cursor: pointer;
+        transition: all 0.1s ease;
+
+        i
+        {
+            font-size: 16px;
+        }
+
+        label
+        {
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        &:hover
+        {
+            sound-in: ui.button.over;
+            filter: brightness( 1.15 );
+        }
+
+        &.on
+        {
+            background-color: rgba( $front-trophy, 0.15 );
+            border: 1px solid rgba( $front-trophy, 0.6 );
+            color: $front-trophy;
+        }
+
+        &.busy, &.locked
+        {
+            opacity: 0.5;
+        }
+
+        &.busy
+        {
+            pointer-events: none;
+        }
+
+        &.locked
+        {
+            cursor: default;
+        }
+    }
 }
 
 .close-progress

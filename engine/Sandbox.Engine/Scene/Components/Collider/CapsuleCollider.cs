@@ -73,7 +73,36 @@ public class CapsuleCollider : Collider
 		Gizmo.Draw.IgnoreDepth = true;
 		Gizmo.Draw.LineThickness = 1;
 		Gizmo.Draw.Color = Gizmo.Colors.Green.WithAlpha( Gizmo.IsSelected ? 1.0f : 0.2f );
-		Gizmo.Draw.LineCapsule( new Capsule( Start, End, Radius ) );
+
+		if ( Scene.Is2D )
+		{
+			DrawCapsule2D( Start, End, Radius );
+		}
+		else
+		{
+			Gizmo.Draw.LineCapsule( new Capsule( Start, End, Radius ) );
+		}
+	}
+
+	private static void DrawCapsule2D( Vector3 start, Vector3 end, float radius )
+	{
+		var diff = end - start;
+
+		if ( diff.IsNearZeroLength )
+		{
+			Gizmo.Draw.LineCircle( start, Vector3.Up, radius, sections: 32 );
+			return;
+		}
+
+		var dir = diff.Normal;
+		var perp = new Vector3( -dir.y, dir.x, 0 ) * radius;
+
+		Gizmo.Draw.Line( start + perp, end + perp );
+		Gizmo.Draw.Line( start - perp, end - perp );
+
+		var angle = MathF.Atan2( dir.y, dir.x ).RadianToDegree();
+		Gizmo.Draw.LineCircle( start, Vector3.Up, radius, angle + 90, 180, sections: 16 );
+		Gizmo.Draw.LineCircle( end, Vector3.Up, radius, angle - 90, 180, sections: 16 );
 	}
 
 	internal override void UpdateShape()

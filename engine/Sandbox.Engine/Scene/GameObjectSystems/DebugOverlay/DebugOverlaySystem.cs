@@ -11,6 +11,18 @@ public sealed partial class DebugOverlaySystem : GameObjectSystem<DebugOverlaySy
 		Listen( Stage.FinishFixedUpdate, 10000, EndFixedUpdate, "BuildDebugOverlays" );
 	}
 
+	public override void Dispose()
+	{
+		base.Dispose();
+
+		foreach ( var entry in entries )
+		{
+			entry.Dispose();
+		}
+
+		entries.Clear();
+	}
+
 	void RemoveExpired()
 	{
 		for ( int i = 0; i < entries.Count; i++ )

@@ -21,6 +21,7 @@ internal class ClutterBatchSceneObject : SceneCustomObject
 		public Vector3 CameraPos;
 		public float TanHalfFov;
 		public float ViewportWidth;
+		public float OrthoWidth;
 	}
 
 	internal static LodParams Lod { get; set; } = new() { TanHalfFov = 1.0f, ViewportWidth = 1920.0f };
@@ -213,6 +214,7 @@ internal class ClutterBatchSceneObject : SceneCustomObject
 		Graphics.Attributes.Set( "ClutterLodCameraPos", Lod.CameraPos );
 		Graphics.Attributes.Set( "ClutterLodTanHalfFov", Lod.TanHalfFov );
 		Graphics.Attributes.Set( "ClutterLodViewportWidth", Lod.ViewportWidth );
+		Graphics.Attributes.Set( "ClutterLodOrthoWidth", Lod.OrthoWidth );
 		Graphics.Attributes.Set( "ClutterWorldToProjection", Graphics.SceneView.GetFrustum().GetReverseZViewProjTranspose() );
 
 		_commandList.ExecuteOnRenderThread();

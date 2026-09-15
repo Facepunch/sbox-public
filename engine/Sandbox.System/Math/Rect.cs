@@ -1,5 +1,7 @@
-﻿using Sandbox.UI;
+using Sandbox.UI;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
 using System.Text.Json.Serialization;
 
 namespace Sandbox;
@@ -15,6 +17,9 @@ public struct Rect : System.IEquatable<Rect>
 	private float top;
 	private float right;
 	private float bottom;
+
+	readonly Vector128<float> AsVector128() => Unsafe.BitCast<Rect, Vector128<float>>( this );
+	static Rect FromVector128( Vector128<float> value ) => Unsafe.BitCast<Vector128<float>, Rect>( value );
 
 	/// <summary>
 	/// Initialize a Rect at given position and with given size.
@@ -148,6 +153,19 @@ public struct Rect : System.IEquatable<Rect>
 	}
 
 	/// <summary>
+	/// Returns the intersection of two rectangles without changing either input.
+	/// Touching edges produce a zero dimension; disjoint edges produce a negative dimension.
+	/// The result is not normalized, so an empty intersection stays empty when intersected again.
+	/// </summary>
+	public static Rect Intersect( in Rect a, in Rect b )
+	{
+		var left = a.AsVector128();
+		var right = b.AsVector128();
+		var mask = Vector128.Create( -1, -1, 0, 0 ).AsSingle();
+		return FromVector128( Vector128.ConditionalSelect( mask, Vector128.Max( left, right ), Vector128.Min( left, right ) ) );
+	}
+
+	/// <summary>
 	/// Return true if the passed rect is partially or fully inside this rect.
 	/// </summary>
 	/// <param name="rect">The passed rect to test.</param>
@@ -168,6 +186,12 @@ public struct Rect : System.IEquatable<Rect>
 	}
 
 	/// <summary>
+	/// Return true if the two rects share any area. Rects that only touch along an edge do not overlap.
+	/// </summary>
+	public readonly bool Overlaps( in Rect rect )
+		=> left < rect.right && right > rect.left && top < rect.bottom && bottom > rect.top;
+
+	/// <summary>
 	/// Return true if the passed point is inside this rect.
 	/// </summary>
 	public readonly bool IsInside( in Vector2 pos )
@@ -185,13 +209,7 @@ public struct Rect : System.IEquatable<Rect>
 	/// </summary>
 	public readonly Rect Shrink( in float left, in float top, in float right, in float bottom )
 	{
-		var r = this;
-		r.left += left;
-		r.top += top;
-		r.right -= right;
-		r.bottom -= bottom;
-
-		return r;
+		return FromVector128( AsVector128() + Vector128.Create( left, top, -right, -bottom ) );
 	}
 
 	/// <summary>
@@ -214,13 +232,7 @@ public struct Rect : System.IEquatable<Rect>
 	/// </summary>
 	public readonly Rect Grow( in float left, in float top, in float right, in float bottom )
 	{
-		var r = this;
-		r.left -= left;
-		r.top -= top;
-		r.right += right;
-		r.bottom += bottom;
-
-		return r;
+		return FromVector128( AsVector128() + Vector128.Create( -left, -top, right, bottom ) );
 	}
 
 	/// <summary>
@@ -239,42 +251,27 @@ public struct Rect : System.IEquatable<Rect>
 	public readonly Rect Grow( in float amt ) => Grow( amt, amt, amt, amt );
 
 	/// <summary>
-	/// Returns a Rect with position and size rounded down.
+	/// Returns a Rect with its edges rounded down.
 	/// </summary>
 	public readonly Rect Floor()
 	{
-		var r = this;
-		r.left = MathF.Floor( r.left );
-		r.top = MathF.Floor( r.top );
-		r.right = MathF.Floor( r.right );
-		r.bottom = MathF.Floor( r.bottom );
-		return r;
+		return FromVector128( Vector128.Floor( AsVector128() ) );
 	}
 
 	/// <summary>
-	/// Returns a Rect with position and size rounded to closest integer values.
+	/// Returns a Rect with its edges rounded to the closest integer values.
 	/// </summary>
 	public readonly Rect Round()
 	{
-		var r = this;
-		r.left = MathF.Round( r.left );
-		r.top = MathF.Round( r.top );
-		r.right = MathF.Round( r.right );
-		r.bottom = MathF.Round( r.bottom );
-		return r;
+		return FromVector128( Vector128.Round( AsVector128() ) );
 	}
 
 	/// <summary>
-	/// Returns a Rect with position and size rounded up.
+	/// Returns a Rect with its edges rounded up.
 	/// </summary>
 	public readonly Rect Ceiling()
 	{
-		var r = this;
-		r.left = MathF.Ceiling( r.left );
-		r.top = MathF.Ceiling( r.top );
-		r.right = MathF.Ceiling( r.right );
-		r.bottom = MathF.Ceiling( r.bottom );
-		return r;
+		return FromVector128( Vector128.Ceiling( AsVector128() ) );
 	}
 
 	public static Rect operator +( in Rect a, in Rect b )
@@ -426,16 +423,7 @@ public struct Rect : System.IEquatable<Rect>
 	/// <summary>
 	/// Align to a grid
 	/// </summary>
-	public readonly Rect SnapToGrid()
-	{
-		return new Rect
-		{
-			left = MathF.Floor( left ),
-			top = MathF.Floor( top ),
-			right = MathF.Floor( right ),
-			bottom = MathF.Floor( bottom ),
-		};
-	}
+	public readonly Rect SnapToGrid() => Floor();
 
 	/// <summary>
 	/// Contain a given rectangle (image) within this rectangle (frame), preserving aspect ratio.
@@ -464,8 +452,8 @@ public struct Rect : System.IEquatable<Rect>
 
 	public static bool operator ==( Rect left, Rect right ) => left.Equals( right );
 	public static bool operator !=( Rect left, Rect right ) => !(left == right);
-	public override bool Equals( object obj ) => obj is Rect o && Equals( o );
-	public readonly bool Equals( Rect o ) => (left, right, top, bottom) == (o.left, o.right, o.top, o.bottom);
+	public override readonly bool Equals( object obj ) => obj is Rect o && Equals( o );
+	public readonly bool Equals( Rect o ) => Vector128.EqualsAll( AsVector128(), o.AsVector128() );
 	public readonly override int GetHashCode() => HashCode.Combine( left, right, top, bottom );
 
 	#endregion

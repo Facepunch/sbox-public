@@ -47,6 +47,11 @@ native class CRenderAttributes as NativeEngine.CRenderAttributes
 
 	void SetBufferValue( StringToken nTokenID, RenderBufferHandle_t hRenderBuffer );
 
+	inline void SetGlobalBindlessDescriptorSet()
+	{
+		self->SetDescriptorSetValue( "g_globalLateBoundBindlessSet", g_pRenderDevice->GetGlobalLateBoundBindlessDescriptorSet() );
+	}
+
 	void SetPtrValue( StringToken nTokenID, void* ptr );
 	void DeletePtrValue( StringToken nTokenID );
 

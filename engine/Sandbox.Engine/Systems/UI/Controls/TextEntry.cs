@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components;
 using Sandbox.Diagnostics;
 using System;
 using System.Collections.Generic;
@@ -833,8 +833,10 @@ public partial class TextEntry : BaseControl
 	const float CaretSolidTime = 0.5f;
 	const float CaretBlinkRate = 1.0f;
 
-	public override void OnDraw()
+	public override void OnDraw( Painter painter )
 	{
+		base.OnDraw( painter );
+
 		Label.ShouldDrawSelection = HasFocus;
 
 		if ( !HasFocus )
@@ -864,12 +866,14 @@ public partial class TextEntry : BaseControl
 				var color = ComputedStyle.CaretColor ?? ComputedStyle.FontColor ?? Color.Black;
 				color.a *= (solid || blink) ? 1.0f : 0f;
 
-				Draw.Rect( caret, color );
+				using var scope = painter.Scope();
+				painter.Fill = color;
+				painter.Stroke = Stroke.None;
+				caret.Position -= Box.Rect.Position;
+				painter.Rect( caret );
 			}
 		}
 
-		// Redraw every frame while focused, so the caret blinks
-		MarkRenderDirty();
 	}
 
 	void RealtimeEmojiReplace()

@@ -45,6 +45,23 @@ public class TestBlob : BlobData
 public class BlobSerializationTest
 {
 	[TestMethod]
+	public void DetachedBlobPackingKeepsCapturedData()
+	{
+		var blob = new TestBlob { IntValue = 42, StringValue = "Captured" };
+		byte[] expected;
+		BlobDataSerializer.CapturedBlob[] detached;
+		using ( var context = BlobDataSerializer.Capture() )
+		{
+			BlobDataSerializer.RegisterBlob( blob );
+			expected = context.ToByteArray();
+			detached = context.Detach();
+		}
+		blob.IntValue = 99;
+		var actual = System.Threading.Tasks.Task.Run( () => BlobDataSerializer.PackBlobs( detached ) ).GetAwaiter().GetResult();
+		CollectionAssert.AreEqual( expected, actual );
+	}
+
+	[TestMethod]
 	public void BlobSerializeToNode()
 	{
 		var blob = new TestBlob

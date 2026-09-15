@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 
 namespace Sandbox.Services;
 
@@ -150,6 +150,11 @@ public sealed class Jam
 	public int EntryCount { get; init; }
 
 	/// <summary>
+	/// Seconds a player must have played an entry before they can nominate it.
+	/// </summary>
+	public int MinPlaySeconds { get; init; }
+
+	/// <summary>
 	/// Package search query that lists the entries, e.g. "jam:three".
 	/// </summary>
 	public string Query { get; init; }
@@ -294,6 +299,7 @@ public sealed class Jam
 			Results = x.Results,
 			CommunityVoting = x.CommunityVoting,
 			EntryCount = x.EntryCount,
+			MinPlaySeconds = x.MinPlaySeconds,
 			Query = x.Query,
 			Categories = x.Categories?.Select( From ).ToArray() ?? [],
 			Timeline = x.Timeline?.Select( From ).ToArray() ?? [],

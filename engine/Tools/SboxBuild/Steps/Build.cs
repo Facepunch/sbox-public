@@ -10,43 +10,53 @@ internal static class Build
 		bool skipNative = false,
 		bool skipManaged = false )
 	{
+		foreach ( var stage in GetStages( config, clean, skipNative, skipManaged ) )
+		{
+			if ( stage.Run() != ExitCode.Success )
+				return ExitCode.Failure;
+		}
+
+		return ExitCode.Success;
+	}
+
+	internal static IEnumerable<(string Name, Func<ExitCode> Run)> GetStages(
+		BuildConfiguration config = BuildConfiguration.Developer,
+		bool clean = false,
+		bool skipNative = false,
+		bool skipManaged = false )
+	{
 		var isPublicSource = IsPublicSourceDistribution();
 		var shouldSkipNative = skipNative || isPublicSource;
 
 		if ( isPublicSource )
 		{
-			Log.Info( "Detected public source distribution; downloading public artifacts and skipping native build." );
-			if ( new DownloadPublicArtifacts().Run() != ExitCode.Success )
-				return ExitCode.Failure;
+			yield return ("Artifacts", () =>
+			{
+				Log.Info( "Detected public source distribution; downloading public artifacts and skipping native build." );
+				return new DownloadPublicArtifacts().Run();
+			}
+			);
 		}
 
-		if ( new InteropGen( skipNative: isPublicSource ).Run() != ExitCode.Success )
-			return ExitCode.Failure;
+		yield return ("Bindings", new InteropGen( skipNative: isPublicSource ).Run);
 
-		if ( !isPublicSource && new ShaderProc().Run() != ExitCode.Success )
-			return ExitCode.Failure;
+		if ( !isPublicSource )
+			yield return ("Shader packing", new ShaderProc().Run);
 
 		if ( !shouldSkipNative )
 		{
 			// Public distributions skip this with the rest of the native build - they link
 			// nothing, so they need no third party binaries.
-			if ( new DownloadThirdParty().Run() != ExitCode.Success )
-				return ExitCode.Failure;
-
-			if ( new GenerateSolutions( config ).Run() != ExitCode.Success )
-				return ExitCode.Failure;
-
-			if ( new BuildNative( config, clean ).Run() != ExitCode.Success )
-				return ExitCode.Failure;
+			yield return ("Dependencies", new DownloadThirdParty().Run);
+			yield return ("Solutions", new GenerateSolutions( config ).Run);
+			yield return ("Native", new BuildNative( config, clean ).Run);
 		}
 
-		if ( !skipManaged && new BuildManaged( clean ).Run() != ExitCode.Success )
-			return ExitCode.Failure;
-
-		return ExitCode.Success;
+		if ( !skipManaged )
+			yield return ("Managed", new BuildManaged( clean ).Run);
 	}
 
-	private static bool IsPublicSourceDistribution()
+	internal static bool IsPublicSourceDistribution()
 	{
 		var repoRoot = Path.TrimEndingDirectorySeparator( Path.GetFullPath( Directory.GetCurrentDirectory() ) );
 		var publicDir = Path.Combine( repoRoot, "public" );

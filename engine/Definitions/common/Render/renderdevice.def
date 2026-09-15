@@ -43,6 +43,7 @@ native accessor g_pRenderDevice
 
 	IRenderContext CreateRenderContext( uint flags );
 	void ReleaseRenderContext( IRenderContext context );
+	void BeginSubmittingDisplayLists();
 
 	bool ReadTexturePixels( ITexture hTexture, ref Rect_t pSrcRect, int nSrcSlice, int nSrcMip, ref Rect_t pDstRect, void* pData, ImageFormat dstFormat, int nDstStride );
 

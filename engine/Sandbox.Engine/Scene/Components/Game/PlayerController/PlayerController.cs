@@ -101,6 +101,20 @@ public sealed partial class PlayerController : Component, IScenePhysicsEvents, C
 	/// </summary>
 	public Vector3 Velocity { get; private set; }
 
+	internal Vector3 UpDirection => Scene.Is2D ? Vector2.Up : Vector3.Up;
+
+	internal Vector3 WithoutVertical( Vector3 value )
+	{
+		var up = UpDirection;
+		return value - up * value.Dot( up );
+	}
+
+	internal Vector3 WithVertical( Vector3 value, float vertical )
+	{
+		var up = UpDirection;
+		return value - up * value.Dot( up ) + up * vertical;
+	}
+
 	/// <summary>
 	/// The velocity that the ground underneath us is moving
 	/// </summary>
@@ -151,9 +165,14 @@ public sealed partial class PlayerController : Component, IScenePhysicsEvents, C
 		if ( !Scene.IsEditor )
 		{
 			EyeAngles = WorldRotation.Angles() with { pitch = 0, roll = 0 };
-			WorldRotation = Rotation.Identity;
 
-			if ( Renderer is not null ) Renderer.WorldRotation = new Angles( 0, EyeAngles.yaw, 0 );
+			if ( !Scene.Is2D )
+			{
+				WorldRotation = Rotation.Identity;
+
+				if ( Renderer is not null )
+					Renderer.WorldRotation = new Angles( 0, EyeAngles.yaw, 0 );
+			}
 		}
 	}
 

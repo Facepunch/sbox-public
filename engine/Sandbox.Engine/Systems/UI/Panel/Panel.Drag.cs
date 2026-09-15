@@ -7,7 +7,11 @@ public partial class Panel
 	/// <summary>
 	/// Return true if this panel wants to be dragged
 	/// </summary>
-	public virtual bool WantsDrag => !ScrollSize.IsNearZeroLength && WantsDragScrolling;
+	public virtual bool WantsDrag => (!ScrollSize.IsNearZeroLength || BlocksScrollChaining) && WantsDragScrolling;
+
+	bool BlocksScrollChaining =>
+		(IsScrollContainer( true ) && GetOverscrollBehavior( true ) != OverscrollBehavior.Auto) ||
+		(IsScrollContainer( false ) && GetOverscrollBehavior( false ) != OverscrollBehavior.Auto);
 
 	/// <summary>
 	/// Set this to false if you want to opt out of drag scrolling
@@ -53,10 +57,10 @@ public partial class Panel
 	protected virtual void OnDragStart( DragEvent e )
 	{
 		if ( e.Target != this ) return;
-		if ( ScrollSize.IsNearZeroLength ) return;
+		if ( ScrollSize.IsNearZeroLength && !BlocksScrollChaining ) return;
 		if ( !WantsDragScrolling ) return;
 
-		ScrollVelocity = 0;
+		StopScrollVelocity();
 		e.StopPropagation();
 
 		IsDragScrolling = true;
@@ -76,6 +80,7 @@ public partial class Panel
 		if ( !HasScrollY ) delta.y = 0.0f;
 
 		ScrollVelocity += delta;
+		scrollVelocityVelocity = 0;
 		e.StopPropagation();
 	}
 
@@ -94,41 +99,55 @@ public partial class Panel
 	{
 		if ( e.Target != this ) return;
 
-		if ( ScrollSize.IsNearZeroLength ) return;
+		if ( ScrollSize.IsNearZeroLength && !BlocksScrollChaining ) return;
 		if ( !WantsDragScrolling ) return;
 
 		e.StopPropagation();
 
 		var delta = e.LocalGrabPosition - e.LocalPosition;
 
-		// don't drag in directions we don't overflow in
-		if ( !HasScrollX ) delta.x = 0.0f;
-		if ( !HasScrollY ) delta.y = 0.0f;
+		// Only scroll-container axes participate in dragging or chaining.
+		if ( !IsScrollContainer( true ) ) delta.x = 0.0f;
+		if ( !IsScrollContainer( false ) ) delta.y = 0.0f;
 
-		ScrollOffset += delta;
+		ApplyDragScroll( delta );
+	}
 
-		//
-		// If we overshot, let us drag out of bounds a little bit, but make it feel
-		// tough and resistant to being pulled any more than that.
-		//
+	void ApplyDragScroll( Vector2 delta )
+	{
+		var min = IsScrollAxisReversed ? -ScrollSize : Vector2.Zero;
+		var max = IsScrollAxisReversed ? Vector2.Zero : ScrollSize;
+		var target = ScrollOffset + delta;
+		var overshoot = target - target.Clamp( min, max );
+
+		// Pass only the part of the drag beyond the boundary to the next scroll container.
+		if ( overshoot.x != 0 && GetOverscrollBehavior( true ) == OverscrollBehavior.Auto && FindScrollChainTarget( overshoot.x, true ) is { } parentX )
 		{
-			Vector2 overShoot = 0;
-
-			if ( ScrollOffset.y < 0 ) overShoot.y = ScrollOffset.y;
-			if ( ScrollOffset.x < 0 ) overShoot.x = ScrollOffset.x;
-			if ( ScrollOffset.y > ScrollSize.y ) overShoot.y = ScrollOffset.y - ScrollSize.y;
-			if ( ScrollOffset.x > ScrollSize.x ) overShoot.x = ScrollOffset.x - ScrollSize.x;
-
-			if ( !overShoot.IsNearZeroLength )
-			{
-				float overDrag = 16.0f;
-				float overSize = overShoot.Length / (overDrag * 12.0f);
-				overSize = Easing.EaseOut( overSize.Clamp( 0.0f, 1.0f ) );
-
-				ScrollOffset -= overShoot;
-				ScrollOffset += overShoot.Normal * overSize * overDrag;
-			}
+			parentX.StopScrollVelocity();
+			parentX.ApplyDragScroll( new Vector2( overshoot.x, 0 ) );
+			target.x -= overshoot.x;
 		}
+		if ( overshoot.y != 0 && GetOverscrollBehavior( false ) == OverscrollBehavior.Auto && FindScrollChainTarget( overshoot.y, false ) is { } parentY )
+		{
+			parentY.StopScrollVelocity();
+			parentY.ApplyDragScroll( new Vector2( 0, overshoot.y ) );
+			target.y -= overshoot.y;
+		}
+
+		if ( !HasScrollX || GetOverscrollBehavior( true ) == OverscrollBehavior.None ) target.x = target.x.Clamp( min.x, max.x );
+		if ( !HasScrollY || GetOverscrollBehavior( false ) == OverscrollBehavior.None ) target.y = target.y.Clamp( min.y, max.y );
+		// Original drag resistance, followed by the shared hard outer limit.
+		var overShoot = target - target.Clamp( min, max );
+		if ( !overShoot.IsNearZeroLength )
+		{
+			float overDrag = 16.0f;
+			float overSize = overShoot.Length / (overDrag * 12.0f);
+			overSize = Easing.EaseOut( overSize.Clamp( 0.0f, 1.0f ) );
+			target -= overShoot;
+			target += overShoot.Normal * overSize * overDrag;
+		}
+		ScrollOffset = target.Clamp( min - ScrollBounceLimit, max + ScrollBounceLimit );
+		SetNeedsFinalLayout();
 	}
 
 	/// <summary>

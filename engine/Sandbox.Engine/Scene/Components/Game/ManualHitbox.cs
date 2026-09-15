@@ -94,7 +94,7 @@ public sealed class ManualHitbox : Component, Component.ExecuteInEditor
 		Hitbox?.Dispose();
 		Hitbox = null;
 
-		var body = new PhysicsBody( system.PhysicsWorld );
+		var body = system.PhysicsWorld.CreateBody();
 		var tx = WorldTransform;
 
 		PhysicsShape shape = null;

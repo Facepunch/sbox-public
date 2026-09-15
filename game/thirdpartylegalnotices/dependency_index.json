@@ -77,6 +77,23 @@
 			]
 		},
 		{
+			"Name": "Twemoji Mozilla",
+			"Comment": "COLR emoji font used as a fallback on Linux and macOS. Graphics are Twemoji (CC-BY-4.0).",
+			"UsedBy": [
+				"sbox",
+				"sbox-dev"
+			],
+			"License": "Apache-2.0",
+			"ProjectUrl": "https://github.com/mozilla/twemoji-colr",
+			"Version": "0.7.0",
+			"Linkage": "static",
+			"Modified": true,
+			"Copyright": [
+				"2016-2018 Mozilla Foundation",
+				"2020 Twitter, Inc and other contributors"
+			]
+		},
+		{
 			"Name": "MurmurHash3",
 			"Comment": "Non-cryptographic hash (public domain).",
 			"UsedBy": [
@@ -651,6 +668,23 @@
 			"Linkage": "static",
 			"Copyright": [
 				"2015-2023 The Khronos Group Inc."
+			]
+		},
+		{
+			"Name": "Mesa KosmicKrisp",
+			"Comment": "Mesa Vulkan-on-Metal driver for macOS on Apple Silicon. Loaded as libvulkan_kosmickrisp.dylib in place of a platform Vulkan loader.",
+			"UsedBy": [
+				"rendersystem"
+			],
+			"License": "MIT AND BSD-3-Clause AND SGI-B-2.0",
+			"ProjectUrl": "https://github.com/facepunch/mesa-kosmickrisp",
+			"Version": "26.3.0-devel",
+			"Linkage": "dynamic",
+			"Copyright": [
+				"Mesa contributors",
+				"1999-2007 Brian Paul",
+				"2025 LunarG, Inc.",
+				"2025 Google LLC"
 			]
 		},
 		{

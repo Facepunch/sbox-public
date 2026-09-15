@@ -1,9 +1,7 @@
-﻿using System.Collections.Immutable;
-
 namespace Sandbox.UI;
 
 [SkipHotload]
-internal struct GradientInfo
+internal struct GradientInfo : IEquatable<GradientInfo>
 {
 	/// <summary>The most stops the batched UI shader can evaluate per gradient.</summary>
 	public const int MaxStops = 8;
@@ -26,9 +24,15 @@ internal struct GradientInfo
 	/// </summary>
 	public Corners Corner;
 
-	public ImmutableArray<Styles.GradientColorOffset> ColorOffsets;
+	public GradientStops ColorOffsets;
 
-	public override int GetHashCode()
+	public readonly bool Equals( GradientInfo other ) => Angle.Equals( other.Angle ) && OffsetX.Equals( other.OffsetX )
+		&& OffsetY.Equals( other.OffsetY ) && SizeMode == other.SizeMode && GradientType == other.GradientType
+		&& Circle == other.Circle && Corner == other.Corner && ColorOffsets.Equals( other.ColorOffsets );
+
+	public readonly override bool Equals( object obj ) => obj is GradientInfo other && Equals( other );
+
+	public readonly override int GetHashCode()
 	{
 		if ( ColorOffsets.IsDefaultOrEmpty )
 			return 0;

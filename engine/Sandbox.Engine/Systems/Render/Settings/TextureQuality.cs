@@ -1,5 +1,6 @@
 ﻿namespace Sandbox.Engine.Settings;
 
+[Expose]
 public enum TextureQuality
 {
 	Low = 0,

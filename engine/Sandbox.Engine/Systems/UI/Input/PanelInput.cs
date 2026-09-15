@@ -328,8 +328,14 @@ internal class PanelInput
 			return found;
 		}
 
+		if ( panel.FindScrollbarAt( pos, visibleOnly: true, needPointerEvents: true ) is { } scrollbarHit )
+		{
+			current = scrollbarHit;
+			return true;
+		}
+
 		//
-		// No children
+		// No content children
 		//
 		if ( panel._renderChildren is null || panel._renderChildren.Count == 0 )
 		{

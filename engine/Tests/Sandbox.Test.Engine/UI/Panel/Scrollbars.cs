@@ -1,3 +1,5 @@
+using Sandbox.Internal;
+using Sandbox.Rendering;
 using Sandbox.UI;
 
 namespace UITests.Panels;
@@ -51,9 +53,113 @@ public partial class PanelScrollbarTest
 		}
 	}
 
-	static ScrollBar VerticalBar( Panel scroller ) => scroller.Children.OfType<ScrollBar>().Single( x => x.IsVertical );
+	static ScrollBar VerticalBar( Panel scroller ) => scroller.Children.OfType<ScrollBar>().SingleOrDefault( x => x.IsVertical && !x.IsDeleting );
+
+	static ScrollBar HorizontalBar( Panel scroller ) => scroller.Children.OfType<ScrollBar>().SingleOrDefault( x => !x.IsVertical && !x.IsDeleting );
 
 	static Panel Thumb( ScrollBar bar ) => bar.Children.Single();
+
+	static void AssertPicked( Panel owner, Vector2 point, Panel expected )
+	{
+		Assert.AreSame( expected, ((IPanel)owner).GetPanelAt( point, true, true ) );
+		Assert.AreSame( expected, owner.FindVisualPanelAt( point, true, true ) );
+		Assert.AreSame( expected, UISurface.FindPanelAt( owner, point, null ) );
+		Panel hovered = null;
+		Assert.IsTrue( PanelInput.CheckHover( owner, point, ref hovered ) );
+		Assert.AreSame( expected, hovered );
+	}
+
+	[TestMethod]
+	[DataRow( "auto" )]
+	[DataRow( "stable" )]
+	public void ScrollbarsWinPickingOverHighZContent( string gutter )
+	{
+		var (root, scroller, content) = CreateScroller( $"overflow: scroll; scrollbar-width: 8px; scrollbar-gutter: {gutter}; pointer-events: all;", contentWidth: 1000 );
+		try
+		{
+			content.Style.Set( "z-index: 1000000; pointer-events: all;" );
+			Settle( root );
+
+			foreach ( var bar in new[] { HorizontalBar( scroller ), VerticalBar( scroller ) } )
+			{
+				var thumb = Thumb( bar );
+				var point = thumb.Box.Rect.Center;
+				AssertPicked( root, point, thumb );
+				Assert.AreSame( content, root.FindVisualPanelAt( point, true, true, p => p == content ) );
+				Assert.AreSame( content, UISurface.FindPanelAt( root, point, p => p == content ) );
+			}
+		}
+		finally
+		{
+			root.Delete( true );
+		}
+	}
+
+	[TestMethod]
+	public void ScrollbarPickingSurvivesRemovingTheLastContentChild()
+	{
+		var (root, scroller, content) = CreateScroller( "overflow-y: scroll; scrollbar-width: 8px; pointer-events: all;" );
+		try
+		{
+			var bar = VerticalBar( scroller );
+			var thumb = Thumb( bar );
+			var point = thumb.Box.Rect.Center;
+			content.Delete( true );
+
+			// Before the next layout, the bar still exists even though there's no content to render.
+			Assert.AreEqual( 0, scroller._renderChildren.Count );
+			AssertPicked( root, point, thumb );
+
+			bar.Delete( true );
+			AssertPicked( root, point, scroller );
+		}
+		finally
+		{
+			root.Delete( true );
+		}
+	}
+
+	[TestMethod]
+	[DataRow( "auto" )]
+	[DataRow( "stable both-edges" )]
+	public void ScrollbarsDrawAfterContentWithTheirOwnClip( string gutter )
+	{
+		var (root, scroller, content) = CreateScroller( $"overflow: scroll; scrollbar-width: 8px; scrollbar-gutter: {gutter};", contentWidth: 1000 );
+		var context = new Painter.Context( new CommandList() );
+		try
+		{
+			content.Style.Set( "background-color: red; z-index: 1000000;" );
+			var horizontal = HorizontalBar( scroller );
+			var vertical = VerticalBar( scroller );
+			horizontal.Style.Set( "background-color: #00ff00; box-shadow: 1px 1px 1px black;" );
+			vertical.Style.Set( "background-color: blue; box-shadow: 1px 1px 1px black;" );
+			Settle( root );
+
+			context.Begin( root.PanelBounds );
+			var stats = default( RootPanel.FrameStats );
+			root.Render( context.Painter, ref stats );
+			var instances = context.Batcher.Instances.ToArray();
+			// Scrollbar opacity animates independently of draw order and clipping.
+			var colors = new[] { Color.Red, Color.Green, Color.Blue };
+			var tracksAndContent = instances.Where( x => colors.Contains( x.Color.WithAlpha( 1 ) ) ).ToArray();
+			CollectionAssert.AreEqual( colors, tracksAndContent.Select( x => x.Color.WithAlpha( 1 ) ).ToArray() );
+			Assert.AreEqual( 2, instances.Count( x => x.Color.WithAlpha( 1 ) == Color.Black ), "each scrollbar shadow draws once" );
+
+			var contentClip = context.Batcher.Scissors[tracksAndContent[0].ScissorIndex];
+			Assert.AreEqual( scroller.ContentClipRect.ToVector4(), contentClip.Clips[contentClip.Count - 1].Rect );
+			foreach ( var track in tracksAndContent.Skip( 1 ) )
+			{
+				var clip = context.Batcher.Scissors[track.ScissorIndex];
+				Assert.AreEqual( scroller.Box.ClipRect.ToVector4(), clip.Clips[clip.Count - 1].Rect );
+			}
+		}
+		finally
+		{
+			context.CommandList.Reset();
+			context.Batcher.Dispose();
+			root.Delete( true );
+		}
+	}
 
 	[TestMethod]
 	public void NoScrollbarWithoutTheProperty()
@@ -62,8 +168,8 @@ public partial class PanelScrollbarTest
 
 		Assert.AreEqual( 1, scroller.ChildrenCount );
 		Assert.AreEqual( content, scroller.Children.Single() );
-		Assert.IsNull( scroller.ScrollbarY );
-		Assert.IsNull( scroller.ScrollbarX );
+		Assert.IsNull( VerticalBar( scroller ) );
+		Assert.IsNull( HorizontalBar( scroller ) );
 	}
 
 	[TestMethod]
@@ -77,8 +183,7 @@ public partial class PanelScrollbarTest
 		var bar = VerticalBar( scroller );
 
 		Assert.AreEqual( bar, scroller.Children.Last() );
-		Assert.AreEqual( bar, scroller.ScrollbarY );
-		Assert.IsNull( scroller.ScrollbarX, "overflow-y alone shouldn't get a horizontal bar" );
+		Assert.IsNull( HorizontalBar( scroller ), "overflow-y alone shouldn't get a horizontal bar" );
 
 		Assert.AreEqual( "scrollbar", bar.ElementName );
 		Assert.IsTrue( bar.HasClass( "vertical" ) );
@@ -98,8 +203,8 @@ public partial class PanelScrollbarTest
 
 		Assert.AreEqual( 3, scroller.ChildrenCount );
 
-		var vertical = scroller.ScrollbarY;
-		var horizontal = scroller.ScrollbarX;
+		var vertical = VerticalBar( scroller );
+		var horizontal = HorizontalBar( scroller );
 
 		Assert.IsNotNull( vertical );
 		Assert.IsNotNull( horizontal );
@@ -150,7 +255,7 @@ public partial class PanelScrollbarTest
 		scroller.Style.Set( "scrollbar-width: none" );
 		Settle( root );
 
-		Assert.IsNull( scroller.ScrollbarY );
+		Assert.IsNull( VerticalBar( scroller ) );
 		Assert.IsTrue( bar.IsDeleting );
 	}
 
@@ -210,7 +315,7 @@ public partial class PanelScrollbarTest
 
 		// Nothing to scroll, so there's no bar at all - not even a hidden one
 		Assert.IsFalse( scroller.HasScrollY );
-		Assert.IsNull( scroller.ScrollbarY );
+		Assert.IsNull( VerticalBar( scroller ) );
 		Assert.AreEqual( 1, scroller.ChildrenCount );
 
 		content.Style.Height = 1000;
@@ -223,7 +328,7 @@ public partial class PanelScrollbarTest
 		content.Style.Height = 100;
 		Settle( root );
 
-		Assert.IsNull( scroller.ScrollbarY );
+		Assert.IsNull( VerticalBar( scroller ) );
 		Assert.IsTrue( bar.IsDeleting );
 	}
 
@@ -436,7 +541,7 @@ public partial class PanelScrollbarTest
 	{
 		var (_, scroller, content) = CreateGutterScroller( "scrollbar-gutter: stable;", contentHeight: 100 );
 
-		Assert.IsNull( scroller.ScrollbarY );
+		Assert.IsNull( VerticalBar( scroller ) );
 		Assert.AreEqual( 192, content.Box.Rect.Width, 0.001f, "reserved whether or not there's a bar to put in it" );
 	}
 

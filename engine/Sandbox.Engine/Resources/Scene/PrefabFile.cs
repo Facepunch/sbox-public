@@ -184,6 +184,7 @@ public partial class PrefabFile : GameResource
 			existing.Unregister();
 		}
 
+		Unregister();
 		_objectDictKey = guid;
 		ObjectsById[guid] = this;
 	}

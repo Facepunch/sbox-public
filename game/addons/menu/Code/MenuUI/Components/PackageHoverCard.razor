@@ -1,0 +1,525 @@
+@using System;
+@using System.Collections.Generic;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.Services;
+@using Sandbox.UI;
+@namespace MenuProject.UI
+@inherits Panel
+
+<root class="package-hover-card" @onrightclick=@OpenMenu>
+    <div class="media" style="background-image: url(@(continuedVideo ? VideoUrl() : Package.ThumbWide ?? Package.Thumb ?? "/ui/sbox-logo-square.svg"))" onclick=@OpenDetails>
+        @if ( showVideo && !continuedVideo && !string.IsNullOrEmpty( Package.VideoThumb ) )
+        {
+            <div class="package-video" style="background-image: url(@VideoUrl())" />
+        }
+
+        @if ( !Package.Flair.IsEmpty )
+        {
+            <MenuProject.UI.PackageFlairBar Flair="@Package.Flair" />
+        }
+
+        @if ( Package.Usage.UsersNow > 0 )
+        {
+            <div class="facts">
+                <div class="fact live">
+                    <div class="live-dot" />
+                    <label>@Compact( Package.Usage.UsersNow ) playing</label>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="body">
+        <div class="title-row">
+            <label class="title" onclick=@OpenDetails>@Package.Title</label>
+
+            <div class="fact @ReviewClass()" tooltip="@ReviewText()">
+                <icon>@ReviewIcon()</icon>
+                <label>@ReviewPercentText()</label>
+            </div>
+
+            <div class="fact" tooltip="Players all time">
+                <icon>group</icon>
+                <label>@Compact( Package.Usage.Total.Users )</label>
+            </div>
+        </div>
+
+        <div class="byline">
+            <label>@Byline()</label>
+            @if ( Package.TypeName == "game" && Package.Info.MaxPlayers > 1 )
+            {
+                <label class="sep">·</label>
+                <div class="fact">
+                    <icon>groups</icon>
+                    <label>@PlayersText()</label>
+                </div>
+            }
+
+            <div class="grow" />
+
+            @{ var tags = Tags().ToList(); }
+            @for ( int i = 0; i < tags.Count; i++ )
+            {
+                if ( i > 0 )
+                {
+                    <label class="sep">·</label>
+                }
+                @if ( HasTag( tags[i] ) )
+                {
+                    <a class="tag" href=@TagUrl( tags[i] )>@TagLabel( tags[i] )</a>
+                }
+                else
+                {
+                    <label class="tag plain">@TagLabel( tags[i] )</label>
+                }
+            }
+        </div>
+
+        @if ( !string.IsNullOrWhiteSpace( Package.Summary ) )
+        {
+            <div class="summary">
+                <label>@Package.Summary</label>
+            </div>
+        }
+
+        @if ( ShowJam )
+        {
+            <div class="jam @( _nominated ? "on" : "" )">
+                <icon class="trophy">emoji_events</icon>
+                <div class="text">
+                    <label class="title">@_jam.Title entry</label>
+                    <label class="hint">@JamHint</label>
+                </div>
+                <div class="nominate @( _nominated ? "on" : "" ) @( _busy ? "busy" : "" ) @( CanToggleNomination ? "" : "locked" )" onclick=@( () => _ = ToggleNomination() )>
+                    <icon>@( _nominated ? "check" : CanToggleNomination ? "how_to_vote" : "lock" )</icon>
+                    <label>@( _nominated ? "Nominated" : "Nominate" )</label>
+                </div>
+            </div>
+        }
+
+        <div class="footer">
+            <div class="actions">
+                <div class="group">
+                    <div class="button @( Liked ? "active" : "" )" onclick=@( () => _ = Vote( true ) ) tooltip="Like">
+                        <icon>thumb_up</icon>
+                    </div>
+                    <div class="button @( Disliked ? "active" : "" )" onclick=@( () => _ = Vote( false ) ) tooltip="Dislike">
+                        <icon>thumb_down</icon>
+                    </div>
+                </div>
+                <div class="group">
+                    <div class="button fav @( Package.Interaction.Favourite ? "active" : "" )" onclick=@( () => _ = ToggleFavourite() ) tooltip="@( Package.Interaction.Favourite ? "Remove from favourites" : "Add to favourites" )">
+                        <icon>@( Package.Interaction.Favourite ? "favorite" : "favorite_border" )</icon>
+                    </div>
+                    <div class="button" onclick=@Review tooltip="Write a review">
+                        <icon>rate_review</icon>
+                    </div>
+                </div>
+                @if ( Package.TypeName == "game" )
+                {
+                    <div class="button @( _hiding ? "busy" : "" )" onclick=@( () => _ = Hide() ) tooltip="Hide this game">
+                        <icon>block</icon>
+                    </div>
+                }
+            </div>
+
+            <div class="grow" />
+
+            @if ( Package.TypeName == "game" && MenuHelpers.HasAuthority )
+            {
+                <div class="actions">
+                    <div class="button primary" onclick=@Play>
+                        <icon>play_arrow</icon>
+                        <label>Play</label>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</root>
+
+@code {
+    const float Scale = 1.35f;
+    const float VideoDelay = 0.2f;
+    const float HoverGrace = 0.35f;
+    const float ScreenPadding = 12f;
+
+    public static PackageHoverCard Current { get; private set; }
+
+    public Panel Source { get; private set; }
+    public Package Package { get; private set; }
+
+    float openedAt;
+    bool showVideo;
+    bool continuedVideo;
+    string videoUrl;
+    Rect placed;
+
+    Jam _jam;
+    JamEntryStatus _entry;
+    bool _nominated;
+    bool _busy;
+    bool _hiding;
+
+    bool ShowJam => _jam is not null && _entry.IsEntry;
+    bool CanToggleNomination => _nominated || _entry.CanNominate;
+    string JamHint => _nominated ? "You nominated it for the jam" : CanToggleNomination ? "Liked it? Nominate it for the jam" : _entry.Reason;
+
+    static bool IsShowing( Panel source ) => Current.IsValid() && Current.Source == source;
+
+    // Same video url as the card = same player, so the preview continues the card's video.
+    public static PackageHoverCard Show( Panel source, Package package, string playingVideoUrl = null )
+    {
+        if ( IsShowing( source ) )
+            return Current;
+
+        Current?.Delete( true );
+
+        var card = new PackageHoverCard
+        {
+            Source = source,
+            Package = package,
+            openedAt = RealTime.Now,
+            videoUrl = playingVideoUrl,
+            showVideo = playingVideoUrl is not null,
+            continuedVideo = playingVideoUrl is not null,
+        };
+
+        card.Parent = source.FindPopupPanel();
+        card.Reposition();
+
+        Current = card;
+
+        if ( package.TypeName == "game" )
+            _ = card.LoadJam();
+
+        return card;
+    }
+
+    async Task LoadJam()
+    {
+        var jam = await Jam.GetActive();
+        if ( !this.IsValid() ) return;
+        if ( jam is null || !jam.CommunityVoting || !jam.HasStarted || jam.Now >= jam.NominationsEnd ) return;
+
+        var entry = await jam.GetEntryStatusAsync( Package );
+        if ( !this.IsValid() ) return;
+        if ( entry is not { IsEntry: true } status ) return;
+
+        _jam = jam;
+        _entry = status;
+        _nominated = status.Nominated;
+        StateHasChanged();
+    }
+
+    async Task ToggleNomination()
+    {
+        if ( _busy || !ShowJam || !CanToggleNomination ) return;
+
+        _busy = true;
+        StateHasChanged();
+
+        var removing = _nominated;
+        _nominated = !removing;
+        string reason;
+
+        try
+        {
+            reason = removing ? await _jam.WithdrawNominationAsync( Package ) : await _jam.NominateAsync( Package );
+        }
+        catch ( Exception e )
+        {
+            Log.Warning( e, $"Nominate {Package.FullIdent} failed" );
+            reason = "Couldn't reach the jam right now.";
+        }
+
+        if ( !this.IsValid() ) return;
+
+        _busy = false;
+
+        if ( reason is not null )
+        {
+            _nominated = removing;
+            ShowToast( reason, "how_to_vote" );
+        }
+
+        StateHasChanged();
+    }
+
+    async Task Hide()
+    {
+        if ( _hiding ) return;
+
+        _hiding = true;
+        StateHasChanged();
+
+        var hidden = await MenuHelpers.HidePackage( Source, Package );
+
+        if ( !this.IsValid() ) return;
+
+        _hiding = false;
+
+        if ( hidden )
+            Close();
+        else
+            StateHasChanged();
+    }
+
+    static void ShowToast( string title, string icon ) => MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast() { Title = title, Icon = icon } );
+
+    public void Close()
+    {
+        if ( Current == this )
+            Current = null;
+
+        Delete();
+    }
+
+    public override void OnDeleted()
+    {
+        base.OnDeleted();
+
+        if ( Current == this )
+            Current = null;
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( IsDeleting )
+            return;
+
+        if ( !Source.IsValid() || !Source.IsVisible || Source.Box.Rect.Width <= 0 )
+        {
+            Close();
+            return;
+        }
+
+        var age = RealTime.Now - openedAt;
+
+        if ( age > HoverGrace && !HasHovered && !Source.HasHovered )
+        {
+            Close();
+            return;
+        }
+
+        if ( !showVideo && age >= VideoDelay )
+        {
+            showVideo = true;
+            StateHasChanged();
+        }
+
+        Reposition();
+    }
+
+    // Scale x the card, centred on its art; the intro scales up from there.
+    void Reposition()
+    {
+        var scale = ScaleFromScreen;
+        var src = Source.Box.Rect;
+        var art = Source.Children.FirstOrDefault( x => x.HasClass( "image" ) )?.Box.Rect ?? src;
+
+        var width = src.Width * Scale;
+        var mediaHeight = width * 9f / 16f;
+        var rect = new Rect( src.Center.x - width * 0.5f, art.Center.y - mediaHeight * 0.5f, width, mediaHeight );
+
+        if ( rect.Equals( placed ) )
+            return;
+
+        placed = rect;
+
+        Style.Width = rect.Width * scale;
+        Style.Left = rect.Left * scale;
+        Style.Top = rect.Top * scale;
+        Style.TransformOriginY = rect.Height * 0.5f * scale;
+        Style.Dirty();
+    }
+
+    // Floats in the root, so hand the wheel to the card and let the feed scroll.
+    public override void OnMouseWheel( Vector2 value )
+    {
+        if ( Source.IsValid() )
+            Source.OnMouseWheel( value );
+        else
+            base.OnMouseWheel( value );
+    }
+
+    public override void OnLayout( ref Rect layoutRect )
+    {
+        var size = new Vector2( Screen.Width, Screen.Height );
+        if ( size.x <= 0 || size.y <= 0 ) return;
+
+        var pad = ScreenPadding * ScaleToScreen;
+
+        if ( layoutRect.Right > size.x - pad ) layoutRect.Position -= new Vector2( layoutRect.Right - (size.x - pad), 0 );
+        if ( layoutRect.Bottom > size.y - pad ) layoutRect.Position -= new Vector2( 0, layoutRect.Bottom - (size.y - pad) );
+        if ( pad > layoutRect.Left ) layoutRect.Position += new Vector2( pad - layoutRect.Left, 0 );
+        if ( pad > layoutRect.Top ) layoutRect.Position += new Vector2( 0, pad - layoutRect.Top );
+    }
+
+    string VideoUrl() => videoUrl ??= PackageCard.VideoUrl( Package, PackageCard.PickQuality( Box.Rect.Width ) );
+
+    void OpenDetails()
+    {
+        Package.OpenModal();
+        Close();
+    }
+
+    void Play()
+    {
+        MenuHelpers.PlayGame( Package );
+        Close();
+    }
+
+    void OpenMenu() => MenuHelpers.OpenPackageMenu( this, Package );
+
+    void Review()
+    {
+        Game.Overlay.ShowReviewModal( Package );
+        Close();
+    }
+
+    // Rating: 0 like, 1 dislike, null unrated
+    bool Liked => Package.Interaction.Rating == 0;
+    bool Disliked => Package.Interaction.Rating == 1;
+
+    async Task Vote( bool up )
+    {
+        await Package.SetVoteAsync( up );
+        if ( this.IsValid() ) StateHasChanged();
+    }
+
+    async Task ToggleFavourite()
+    {
+        await Package.SetFavouriteAsync( !Package.Interaction.Favourite );
+        if ( this.IsValid() ) StateHasChanged();
+    }
+
+    static string TagLabel( string tag ) => tag switch
+    {
+        "multiplayer" => "Multiplayer",
+        "singleplayer" => "Singleplayer",
+        _ => GenreLabels.GetValueOrDefault( tag, tag ),
+    };
+
+    // Multiplayer can be inferred from MaxPlayers, so only real tags link
+    bool HasTag( string tag ) => Package.Tags?.Contains( tag, StringComparer.OrdinalIgnoreCase ) ?? false;
+
+    // %2B so the + survives the query-string decode
+    static string TagUrl( string tag ) => $"/games/all?Sort=&Filter=%2B{tag}";
+
+    string Byline()
+    {
+        var org = Package.Org?.Title;
+        var updated = Package.Updated.LocalDateTime.ToRelativeTimeString();
+
+        return string.IsNullOrEmpty( org ) ? $"Updated {updated}" : $"by {org}  ·  Updated {updated}";
+    }
+
+    string PlayersText()
+    {
+        var max = Package.Info.MaxPlayers;
+        var min = Package.Info.MinPlayers;
+        return min > 1 && max > min ? $"{min} - {max}" : $"Up to {max}";
+    }
+
+    // Review stats when there are any, else the up/down votes. -1 = unrated.
+    (int Percent, int Count) Rating()
+    {
+        var reviews = Package.Reviews;
+        if ( reviews.Total > 0 )
+            return ((int)Math.Round( reviews.PositiveRatings * 100.0 / reviews.Total ), reviews.Total);
+
+        var votes = Package.VotesUp + Package.VotesDown;
+        return (votes > 0 ? (int)(Package.VotesUp * 100f / votes) : -1, votes);
+    }
+
+    string ReviewText()
+    {
+        var (pct, count) = Rating();
+        if ( pct == -1 ) return "No reviews yet";
+
+        var verdict = pct switch
+        {
+            >= 80 => "Very Positive",
+            >= 60 => "Positive",
+            >= 40 => "Mixed",
+            _ => "Negative"
+        };
+
+        return $"{verdict} ({Compact( count )})";
+    }
+
+    string ReviewPercentText()
+    {
+        var pct = Rating().Percent;
+        return pct == -1 ? "Unrated" : $"{pct}%";
+    }
+
+    string ReviewClass() => Rating().Percent switch
+    {
+        -1 => "unrated",
+        >= 60 => "positive",
+        >= 40 => "mixed",
+        _ => "negative"
+    };
+
+    string ReviewIcon() => Rating().Percent switch
+    {
+        -1 => "star_outline",
+        >= 60 => "thumb_up",
+        >= 40 => "thumbs_up_down",
+        _ => "thumb_down"
+    };
+
+    // Only genre-like tags are shown; the backend's genre facet isn't on Package yet.
+    static readonly Dictionary<string, string> GenreLabels = new( StringComparer.OrdinalIgnoreCase )
+    {
+        ["shooter"] = "Shooter", ["fps"] = "FPS", ["tps"] = "Third Person Shooter",
+        ["puzzle"] = "Puzzle", ["strategy"] = "Strategy", ["sports"] = "Sports",
+        ["roguelike"] = "Roguelike", ["roguelite"] = "Roguelite", ["horror"] = "Horror",
+        ["racing"] = "Racing", ["survival"] = "Survival", ["sandbox"] = "Sandbox",
+        ["rpg"] = "RPG", ["platformer"] = "Platformer", ["adventure"] = "Adventure",
+        ["simulation"] = "Simulation", ["sim"] = "Simulation", ["action"] = "Action",
+        ["arcade"] = "Arcade", ["party"] = "Party", ["fighting"] = "Fighting",
+        ["rhythm"] = "Rhythm", ["stealth"] = "Stealth", ["towerdefense"] = "Tower Defense",
+        ["socialdeduction"] = "Social Deduction", ["deduction"] = "Social Deduction",
+        ["deathmatch"] = "Deathmatch", ["battleroyale"] = "Battle Royale", ["parkour"] = "Parkour",
+        ["tycoon"] = "Tycoon", ["building"] = "Building", ["roleplay"] = "Roleplay", ["rp"] = "Roleplay",
+        ["minigames"] = "Minigames", ["coop"] = "Co-op", ["pvp"] = "PvP", ["casual"] = "Casual",
+        ["golf"] = "Golf", ["driving"] = "Driving", ["physics"] = "Physics", ["zombies"] = "Zombies",
+    };
+
+    IEnumerable<string> Tags()
+    {
+        var tags = Package.Tags ?? Array.Empty<string>();
+        var genres = tags.Where( x => GenreLabels.ContainsKey( x ) ).Select( x => x.ToLowerInvariant() ).DistinctBy( x => GenreLabels[x] );
+        var mode = PlayerMode();
+
+        return mode is null ? genres.Take( 2 ) : genres.Take( 1 ).Prepend( mode );
+    }
+
+    // Listings carry tags but not the MaxPlayers meta, so check both.
+    string PlayerMode()
+    {
+        var tags = Package.Tags ?? Array.Empty<string>();
+        var max = Package.GetMeta( "MaxPlayers", 0 );
+
+        if ( tags.Contains( "multiplayer" ) || tags.Contains( "coop" ) || tags.Contains( "pvp" ) || max > 1 ) return "multiplayer";
+        if ( tags.Contains( "singleplayer" ) || max == 1 ) return "singleplayer";
+
+        return null;
+    }
+
+    static string Compact( long n )
+    {
+        if ( n >= 1_000_000 ) return $"{n / 1_000_000f:0.#}M";
+        if ( n >= 1_000 ) return $"{n / 1_000f:0.#}K";
+
+        return n.ToString();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Package?.FullIdent, Package?.Usage.UsersNow, showVideo, VideoUrl(), MenuHelpers.HasAuthority, ShowJam, HashCode.Combine( _nominated, _busy, Package?.Interaction.Rating, Package?.Interaction.Favourite ) );
+}

@@ -5,12 +5,34 @@
 import argparse
 import json
 import posixpath
+import subprocess
 import sys
 from pathlib import PurePosixPath
 from typing import Dict, Iterable, List, Optional, Set
 import git_filter_repo as fr
 
 _LFS_POINTER_PREFIX = b"version https://git-lfs.github.com/spec/v1"
+
+SHADER_POLICY_BOUNDARY = "2f5eac37b6314c3ac604fcf867ea42c60da91ebb"
+
+# Frozen from SyncPublicRepo.cs at SHADER_POLICY_BOUNDARY^, not current config.
+# Future visibility expansions also need forward-only boundaries; changing the
+# timeless filename policy alone rewrites already-published history.
+LEGACY_SHADER_ALLOWLIST = (
+    "game/core/shaders/**/vr_*",
+    "game/core/shaders/**/*.hlsl",
+    "game/core/shaders/**/*.shader_c",
+    "game/core/shaders/common.fxc",
+    "game/core/shaders/common_samplers.fxc",
+    "game/core/shaders/descriptor_set_support.fxc",
+    "game/core/shaders/system.fxc",
+    "game/core/shaders/tiled_culling.hlsl",
+    "game/core/shaders/skinning_cs.shader",
+    "game/core/shaders/yuv_resolve.shader",
+    "game/core/shaders/sbox_pixel.fxc",
+    "game/core/shaders/sbox_shared.fxc",
+    "game/core/shaders/sbox_vertex.fxc",
+)
 
 
 class FilenameFilter:
@@ -19,7 +41,6 @@ class FilenameFilter:
     def __init__(self, config: Dict[str, object]) -> None:
         self._include_globs = tuple(_normalise_glob(p) for p in config.get("include_globs", []) or [])
         self._exclude_globs = tuple(_normalise_glob(p) for p in config.get("exclude_globs", []) or [])
-        self._whitelisted_shaders = tuple(_normalise_glob(p) for p in config.get("whitelisted_shaders", []) or [])
 
         renames = config.get("path_renames", {}) or {}
         self._rename_targets: Dict[str, str] = {
@@ -37,9 +58,6 @@ class FilenameFilter:
         if allowed and _matches_any_glob(path, self._exclude_globs):
             allowed = False
 
-        if not allowed and _matches_any_glob(path, self._whitelisted_shaders):
-            allowed = True
-
         if not allowed:
             return None
 
@@ -48,6 +66,79 @@ class FilenameFilter:
             return rename_target.encode("utf-8")
 
         return filename
+
+
+class ShaderPolicyFilter:
+    """Gate shader visibility by original ancestry and import the boundary tree."""
+
+    def __init__(self, filename_filter, boundary=SHADER_POLICY_BOUNDARY) -> None:
+        self._boundary = boundary.encode("ascii")
+        history = subprocess.check_output(
+            ["git", "rev-list", "--reverse", "--topo-order", "--parents", "--all"]
+        ).splitlines()
+        if not any(line.split()[0] == self._boundary for line in history):
+            raise RuntimeError(
+                f"Shader policy boundary {boundary} is not reachable/included in the filter history; "
+                "restore history containing the boundary before filtering."
+            )
+
+        self._modern_commits = set()
+        for line in history:
+            commit, *parents = line.split()
+            # The published history is linear. Cross-policy merges require tree
+            # reconciliation, not just filtering deltas; reject merges up front.
+            if len(parents) > 1:
+                raise RuntimeError(
+                    f"Shader policy filtering does not support merge commits ({commit.decode()}); "
+                    "policy-crossing merges require explicit tree reconciliation."
+                )
+            if commit == self._boundary or any(p in self._modern_commits for p in parents):
+                self._modern_commits.add(commit)
+
+        self._imports = []
+        self._blob_data = {}
+        # Read the complete B tree and its blobs before fast-export/fast-import
+        # start. Unchanged files will not appear in B's delta, and HEAD is wrong.
+        tree = subprocess.check_output(["git", "ls-tree", "-rz", boundary])
+        for entry in tree.split(b"\0"):
+            if not entry:
+                continue
+            info, filename = entry.split(b"\t", 1)
+            mode, kind, oid = info.split()
+            if not self._new_shader(filename):
+                continue
+            target = filename_filter(filename)
+            if target is None:
+                continue
+            if kind != b"blob":
+                raise RuntimeError(f"Unsupported shader tree entry at boundary: {filename!r} ({kind!r})")
+            self._imports.append((target, mode, oid))
+            if oid not in self._blob_data:
+                self._blob_data[oid] = subprocess.check_output(["git", "cat-file", "blob", oid.decode()])
+
+    @staticmethod
+    def _new_shader(filename: bytes) -> bool:
+        path = _normalise_path(filename.decode("utf-8", "ignore"))
+        return path.startswith("game/core/shaders/") and not _matches_any_glob(
+            PurePosixPath(path), LEGACY_SHADER_ALLOWLIST
+        )
+
+    def filter_commit(self, commit, repo_filter) -> None:
+        # Filename callbacks are cached, so they must remain epoch-independent.
+        if commit.original_id not in self._modern_commits:
+            commit.file_changes = [c for c in commit.file_changes if not self._new_shader(c.filename)]
+        elif commit.original_id == self._boundary:
+            marks = {}
+            for oid, data in self._blob_data.items():
+                blob = fr.Blob(data)
+                # Default insertion runs the blob callback, including LFS and
+                # symlink detection. Raw OIDs would bypass mark-based stripping.
+                repo_filter.insert(blob)
+                marks[oid] = blob.id
+            changes = {c.filename: c for c in commit.file_changes}
+            for filename, mode, oid in self._imports:
+                changes[filename] = fr.FileChange(b"M", filename, marks[oid], mode)
+            commit.file_changes = [c for _, c in sorted(changes.items())]
 
 
 class LfsPointerFilter:
@@ -135,19 +226,14 @@ def _matches_any_glob(path: PurePosixPath, patterns: Iterable[str]) -> bool:
     return False
 
 
-def main(argv: Optional[List[str]] = None) -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config", required=True)
-    args = parser.parse_args(argv)
-
-    with open(args.config, "r", encoding="utf-8") as fp:
-        config = json.load(fp)
-
+def filter_repository(config, boundary=SHADER_POLICY_BOUNDARY) -> None:
     filename_filter = FilenameFilter(config)
+    shader_filter = ShaderPolicyFilter(filename_filter, boundary)
     baseline_callback = BaselineCommitCallback()
     lfs_filter = LfsPointerFilter()
 
     def commit_callback(commit, metadata):
+        shader_filter.filter_commit(commit, repo_filter)
         lfs_filter.strip_lfs_from_commit(commit)
         baseline_callback(commit, metadata)
 
@@ -163,6 +249,20 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     repo_filter.run()
     lfs_filter.log_summary()
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", required=True)
+    args = parser.parse_args(argv)
+
+    with open(args.config, "r", encoding="utf-8") as fp:
+        config = json.load(fp)
+
+    try:
+        filter_repository(config)
+    except RuntimeError as ex:
+        parser.exit(1, f"Shader policy filter failed: {ex}\n")
     return 0
 
 if __name__ == "__main__":

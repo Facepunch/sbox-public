@@ -32,21 +32,6 @@ internal partial class NetworkSystem
 	public HostStats HostStats { get; private set; }
 	public string DebugName { get; }
 
-	/// <summary>
-	/// Whether the host is busy right now. This can be used to determine if
-	/// the host can be changed.
-	/// </summary>
-	internal bool IsHostBusy
-	{
-		get
-		{
-			if ( IsHandshaking() )
-				return false;
-
-			return GameSystem?.IsHostBusy ?? true;
-		}
-	}
-
 	public override string ToString() => DebugName;
 
 	public NetworkSystem( string debugName, TypeLibrary library )
@@ -60,6 +45,7 @@ internal partial class NetworkSystem
 		log.Trace( "Initialized" );
 
 		InstallHandshakeMessages();
+		InstallHostMigrationMessages();
 
 		AddHandler( InternalMessageType.TableSnapshot, TableMessage );
 		AddHandler( InternalMessageType.TableUpdated, TableMessage );
@@ -212,7 +198,7 @@ internal partial class NetworkSystem
 	/// <summary>
 	/// We have received a message intended for a different connection.
 	/// </summary>
-	void OnTargetedInternalMessage( TargetedInternalMessage data, Connection source, Guid msgId )
+	void OnTargetedInternalMessage( TargetedInternalMessage data, Connection source, Guid msgId, int depth )
 	{
 		// A targeted message is only trusted from the host or if the sender is saying he's the sender
 		if ( data.SenderId != source.Id && !source.IsHost )
@@ -229,22 +215,7 @@ internal partial class NetworkSystem
 			var senderConnection = Connection.Find( data.SenderId );
 			senderConnection ??= source;
 
-			var msg = new NetworkMessage
-			{
-				Source = senderConnection,
-				Data = ByteStream.CreateReader( data.Data )
-			};
-
-			try
-			{
-				HandleIncomingMessage( msg );
-			}
-			catch ( Exception e )
-			{
-				Log.Warning( e );
-			}
-
-			msg.Data.Dispose();
+			DispatchNested( data.Data, senderConnection, depth );
 		}
 		else
 		{
@@ -257,7 +228,7 @@ internal partial class NetworkSystem
 	/// <summary>
 	/// We have received a message intended for a different connection.
 	/// </summary>
-	void OnTargetedMessage( TargetedMessage data, Connection source, Guid msgId )
+	void OnTargetedMessage( TargetedMessage data, Connection source, Guid msgId, int depth )
 	{
 		// A targeted message is only trusted from the host or if the sender is saying he's the sender
 		if ( data.SenderId != source.Id && !source.IsHost )
@@ -295,13 +266,18 @@ internal partial class NetworkSystem
 				stream.Dispose();
 			}
 
+			if ( messageData is null )
+				return;
+
 			if ( !typeMessageHandlers.TryGetValue( messageData.GetType(), out var h ) )
 				return;
+
+			if ( !CanDispatchAtDepth( depth + 1, source ) ) return;
 
 			try
 			{
 				// We wanna call the message handler for the contained type now, but with the sender's connection instead.
-				h( messageData, senderConnection, msgId );
+				h( messageData, senderConnection, msgId, depth + 1 );
 			}
 			catch ( Exception e )
 			{
@@ -328,6 +304,8 @@ internal partial class NetworkSystem
 		HandleIncomingMessages();
 
 		GameSystem?.TickInternal();
+
+		TickHostMigration();
 
 		if ( timeSinceTick >= 1f )
 		{
@@ -438,6 +416,10 @@ internal partial class NetworkSystem
 
 		// Conna: if we're a dedicated server, we don't "join" the game.
 		if ( Application.IsDedicatedServer )
+			return;
+
+		// We already have a player in the scene we're taking over
+		if ( _isBecomingHost )
 			return;
 
 		//

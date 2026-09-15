@@ -20,7 +20,7 @@ public partial class MoveModeWalk : MoveMode
 
 	public override void AddVelocity()
 	{
-		Controller.WishVelocity = Controller.WishVelocity.WithZ( 0 );
+		Controller.WishVelocity = Controller.WithoutVertical( Controller.WishVelocity );
 		base.AddVelocity();
 	}
 
@@ -43,7 +43,7 @@ public partial class MoveModeWalk : MoveMode
 
 	public override bool IsStandableSurface( in SceneTraceResult result )
 	{
-		if ( Vector3.GetAngle( Vector3.Up, result.Normal ) > GroundAngle )
+		if ( Vector3.GetAngle( Controller.UpDirection, result.Normal ) > GroundAngle )
 			return false;
 
 		return true;
@@ -51,6 +51,9 @@ public partial class MoveModeWalk : MoveMode
 
 	public override Vector3 UpdateMove( Rotation eyes, Vector3 input )
 	{
+		if ( Scene.Is2D )
+			return base.UpdateMove( Rotation.Identity, Vector3.Backward * input.y );
+
 		// ignore pitch when walking
 		eyes = eyes.Angles() with { pitch = 0 };
 

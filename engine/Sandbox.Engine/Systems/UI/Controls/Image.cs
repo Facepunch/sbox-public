@@ -1,6 +1,4 @@
-﻿using Sandbox.Rendering;
-
-namespace Sandbox.UI
+﻿namespace Sandbox.UI
 {
 	/// <summary>
 	/// A generic box that displays a given texture within itself.
@@ -11,7 +9,17 @@ namespace Sandbox.UI
 		/// <summary>
 		/// The texture being displayed by this panel.
 		/// </summary>
-		public Texture Texture { get; set; }
+		public Texture Texture
+		{
+			get;
+			set
+			{
+				if ( field == value ) return;
+				field = value;
+				LayoutTree.MarkDirty();
+				SetNeedsPreLayout();
+			}
+		}
 
 		public Image()
 		{
@@ -26,11 +34,10 @@ namespace Sandbox.UI
 			if ( string.IsNullOrWhiteSpace( name ) ) return;
 			if ( !IsValid ) return;
 
-			Texture = await Texture.LoadAsync( name );
+			var texture = await Texture.LoadAsync( name );
 
 			if ( !IsValid ) return;
-			IsRenderDirty = true;
-			LayoutTree.MarkDirty(); // Update MeasureTexture
+			Texture = texture;
 		}
 
 		float oldScaleToScreen = 1.0f;
@@ -44,20 +51,16 @@ namespace Sandbox.UI
 			}
 		}
 
-		public override void OnDraw()
+		public override void OnDraw( Painter painter )
 		{
-			if ( Texture == null )
-				return;
-
-			var length = ComputedStyle.ObjectFit switch
+			var size = ComputedStyle?.ObjectFit switch
 			{
 				ObjectFit.Contain => Length.Contain,
 				ObjectFit.Cover => Length.Cover,
 				ObjectFit.Fill => Length.Percent( 100 ).Value,
 				_ => Length.Auto,
 			};
-
-			DrawBackgroundTexture( Texture, length );
+			DrawTexture( painter, Texture, size );
 		}
 
 		public override void SetProperty( string name, string value )

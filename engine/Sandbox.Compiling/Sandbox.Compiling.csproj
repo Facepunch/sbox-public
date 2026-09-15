@@ -8,7 +8,7 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <AssemblyName>Sandbox.Compiling</AssemblyName>
     <PackageId>Sandbox.Compiling</PackageId>
-    <NoWarn>1701;1702;1591</NoWarn>
+    <NoWarn>1701;1702;1591;RS2008</NoWarn>
 	<LangVersion>latest</LangVersion>
 	<SatelliteResourceLanguages></SatelliteResourceLanguages>
   </PropertyGroup>

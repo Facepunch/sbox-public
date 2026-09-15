@@ -203,7 +203,8 @@ public static partial class Game
 			// Allow for a 1 second grace period for clients to receive the message
 			await Task.Delay( 1000 );
 
-			Networking.Disconnect();
+			// Clients are following us to the new game, nobody should take over this one
+			Networking.Disconnect( handoffHost: false );
 		}
 
 		// close old game

@@ -11,11 +11,31 @@
 <root>
     @foreach ( var section in Sections )
     {
-        <div class="section">
+        <div class="section @( section.Jam ? "jam" : "" )">
 
             <div class="head">
                 <div class="head-text">
-                    <label class="title">@section.Title</label>
+                    @if ( section.Url is not null )
+                    {
+                        <a class="title-row link" href="@section.Url">
+                            @if ( section.Jam )
+                            {
+                                <icon class="trophy">emoji_events</icon>
+                            }
+                            <label class="title">@section.Title</label>
+                            <icon class="chevron">chevron_right</icon>
+                        </a>
+                    }
+                    else
+                    {
+                        <div class="title-row">
+                            @if ( section.Jam )
+                            {
+                                <icon class="trophy">emoji_events</icon>
+                            }
+                            <label class="title">@section.Title</label>
+                        </div>
+                    }
                     @if ( !string.IsNullOrEmpty( section.Description ) )
                     {
                         <label class="description">@section.Description</label>
@@ -87,7 +107,7 @@
 @code
 {
     // Keep in sync with .row PackageCard width and the gap in FrontPageGames.razor.scss.
-    const float TileWidth = 250f;
+    const float TileWidth = 300f;
     const float TileGap = 8f;
 
     [Parameter] public Package.ListResult Group { get; set; }
@@ -111,6 +131,7 @@
         public string Title;
         public string Description;
         public string Url;
+        public bool Jam;
 
         public bool BigRight;
         public Package Big;
@@ -172,6 +193,7 @@
                 Title = grouping.Title,
                 Description = grouping.Description,
                 Url = GroupUrl( grouping ),
+                Jam = MenuHelpers.IsJamQuery( grouping.QueryString ),
                 Rotation = i < previous.Count ? previous[i].Rotation : new MenuProject.UI.CardVideoRotation(),
             };
 
@@ -216,12 +238,7 @@
 
         foreach ( var section in Sections )
         {
-            // A mosaic shelf carries half again as many cards, so it plays proportionally more.
-            var count = MenuProject.UI.PackageCard.VideoThumbsPerShelf;
-            if ( section.Big is not null )
-                count = (int)MathF.Round( count * 1.5f );
-
-            section.Rotation.Count = count;
+            section.Rotation.Count = MenuProject.UI.PackageCard.VideoThumbsPerShelf;
             section.Rotation.Interval = MenuProject.UI.PackageCard.VideoThumbsSeconds;
             section.Rotation.Tick();
         }
@@ -273,7 +290,28 @@
     /// </summary>
     static Package PickBig( Package[] packages ) => packages.FirstOrDefault( x => !string.IsNullOrEmpty( x?.VideoThumb ) );
 
-    static string GroupUrl( Package.ListResult.Grouping g ) => $"/games/group?Query={g.QueryString}&title={g.Title}&icon={g.Icon}";
+    static string GroupUrl( Package.ListResult.Grouping g ) => MenuHelpers.IsJamQuery( g.QueryString ) ? "/jam" : $"/games/group?Query={g.QueryString}&title={g.Title}&icon={g.Icon}";
+
+    /// <summary>
+    /// Drop a package the player just hid.
+    /// </summary>
+    public void RemovePackage( Package package )
+    {
+        if ( Group?.Groupings is null || package is null )
+            return;
+
+        foreach ( var grouping in Group.Groupings )
+        {
+            if ( grouping.Packages is null || !grouping.Packages.Any( x => x?.FullIdent == package.FullIdent ) )
+                continue;
+
+            grouping.Packages = grouping.Packages.Where( x => x?.FullIdent != package.FullIdent ).ToArray();
+        }
+
+        builtGroup = null;
+        BuildSections();
+        StateHasChanged();
+    }
 
     protected override int BuildHash() => HashCode.Combine( Group, Sections.Count, Columns, BigWidth );
 }

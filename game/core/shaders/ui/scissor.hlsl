@@ -1,6 +1,6 @@
 // UI clipping for shaders that draw one quad at a time --------------------------------------------------------------------------------------------------
 //
-// A stack of up to four rounded rects the pixel must be inside all of, set by PanelRenderer.SetScissorAttributes.
+// A stack of up to four rounded rects the pixel must be inside all of, set by PainterBatcher.SetScissorAttributes.
 // Each rect is left, top, right, bottom in the clipping panel's layout space and its matrix takes screen space
 // there. Coverage is antialiased, so a clipped image or text gets the same edge as the panel clipping it; the
 // batched box shader does the same from a buffer.
@@ -31,10 +31,14 @@ float4x4 TransformMat < Attribute( "TransformMat" ); >;
 
 float ClipShapeCoverage( float2 vScreenPos, float4 vRect, float4 vRadiiH, float4 vRadiiV, float4x4 matToLayout )
 {
-	float2 p = mul( matToLayout, float4( vScreenPos, 0, 1 ) ).xy;
+	float4 q = mul( matToLayout, float4( vScreenPos, 0, 1 ) );
+	float2 p = q.xy / max( q.w, 0.00000001 );
 	float2 vCentre = ( vRect.xy + vRect.zw ) * 0.5;
 	float2 vHalf = ( vRect.zw - vRect.xy ) * 0.5;
-	return SdfCoverage( RoundedRectSdf( p - vCentre, vHalf, vRadiiH, vRadiiV ) );
+	float coverage = SdfCoverage( RoundedRectSdf( p - vCentre, vHalf, vRadiiH, vRadiiV ) );
+	float4 edges = float4( q.xy - vRect.xy * q.w, vRect.zw * q.w - q.xy );
+	if ( any( edges < -0.5 * ( abs( ddx( edges ) ) + abs( ddy( edges ) ) ) ) ) return 0.0;
+	return q.w > 0.0 && all( vRect.zw > vRect.xy ) ? coverage : 0.0;
 }
 
 float SoftwareScissorCoverage( PS_INPUT i )
@@ -42,9 +46,10 @@ float SoftwareScissorCoverage( PS_INPUT i )
 #if D_WORLDPANEL
 	// World panels have no screen space; rebuild the position from the box, then transform like the screen path does
 	float2 vLocal = BoxSize * i.vTexCoord.xy + BoxPosition;
-	float2 vPixelPos = mul( TransformMat, float4( vLocal, 0, 1 ) ).xy;
+	float4 vPanelPos = mul( TransformMat, float4( vLocal, 0, 1 ) );
+	float2 vPixelPos = vPanelPos.xy / vPanelPos.w;
 #else
-	float2 vPixelPos = i.vPositionPanelSpace.xy;
+	float2 vPixelPos = i.vPositionPanelSpace.xy / i.vPositionPanelSpace.w;
 #endif
 
 	float flCoverage = 1.0;

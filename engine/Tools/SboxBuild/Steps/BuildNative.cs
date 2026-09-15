@@ -30,7 +30,7 @@ public enum BuildConfiguration
 /// </summary>
 internal class BuildNative( BuildConfiguration configuration = BuildConfiguration.Developer, bool clean = false )
 {
-	internal ExitCode Run()
+	internal ExitCode Run() => BuildDisplay.Run( "Build native code", () =>
 	{
 		var platform = NativePlatform.Current;
 		var options = new Options
@@ -48,6 +48,7 @@ internal class BuildNative( BuildConfiguration configuration = BuildConfiguratio
 
 		foreach ( var (name, alwaysRebuild) in platform.Solutions( options ) )
 		{
+			BuildDisplay.Status( $"Build {name}" );
 			if ( platform.Build( name, force || alwaysRebuild ) ) continue;
 
 			Log.Error( $"Failed to build {name}." );
@@ -55,5 +56,5 @@ internal class BuildNative( BuildConfiguration configuration = BuildConfiguratio
 		}
 
 		return ExitCode.Success;
-	}
+	} );
 }

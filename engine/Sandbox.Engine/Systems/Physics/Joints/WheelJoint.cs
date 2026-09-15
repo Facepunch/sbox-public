@@ -1,4 +1,4 @@
-﻿namespace Sandbox.Physics;
+namespace Sandbox.Physics;
 
 /// <summary>
 /// The wheel joint can be used to simulate wheels on vehicles.
@@ -9,19 +9,15 @@ internal sealed class WheelJoint : PhysicsJoint
 {
 	const float TorqueScale = 40.0f;
 
-	internal WheelJoint( HandleCreationData _ ) { }
+	internal WheelJoint( PhysicsJointInternal joint ) : base( joint ) { }
 
 	/// <summary>
 	/// Enable or disable the wheel joint spring.
 	/// </summary>
 	public bool EnableSuspension
 	{
-		get => !native.IsNull && native.Wheel_IsSuspensionEnabled();
-		set
-		{
-			if ( native.IsNull ) return;
-			native.Wheel_EnableSuspension( value );
-		}
+		get => _joint?.Wheel_EnableSuspension ?? false;
+		set => _joint?.Wheel_EnableSuspension = value;
 	}
 
 	/// <summary>
@@ -29,12 +25,8 @@ internal sealed class WheelJoint : PhysicsJoint
 	/// </summary>
 	public float SuspensionHertz
 	{
-		get => native.IsNull ? 0.0f : native.Wheel_GetSuspensionHertz();
-		set
-		{
-			if ( native.IsNull ) return;
-			native.Wheel_SetSuspensionHertz( value );
-		}
+		get => _joint?.Wheel_SuspensionHertz ?? 0;
+		set => _joint?.Wheel_SuspensionHertz = value;
 	}
 
 	/// <summary>
@@ -42,12 +34,8 @@ internal sealed class WheelJoint : PhysicsJoint
 	/// </summary>
 	public float SuspensionDampingRatio
 	{
-		get => native.IsNull ? 0.0f : native.Wheel_GetSuspensionDampingRatio();
-		set
-		{
-			if ( native.IsNull ) return;
-			native.Wheel_SetSuspensionDampingRatio( value );
-		}
+		get => _joint?.Wheel_SuspensionDampingRatio ?? 0;
+		set => _joint?.Wheel_SuspensionDampingRatio = value;
 	}
 
 	/// <summary>
@@ -55,12 +43,8 @@ internal sealed class WheelJoint : PhysicsJoint
 	/// </summary>
 	public bool EnableSuspensionLimit
 	{
-		get => !native.IsNull && native.Wheel_IsSuspensionLimitEnabled();
-		set
-		{
-			if ( native.IsNull ) return;
-			native.Wheel_EnableSuspensionLimit( value );
-		}
+		get => _joint?.Wheel_EnableSuspensionLimit ?? false;
+		set => _joint?.Wheel_EnableSuspensionLimit = value;
 	}
 
 	/// <summary>
@@ -68,12 +52,8 @@ internal sealed class WheelJoint : PhysicsJoint
 	/// </summary>
 	public Vector2 SuspensionLimits
 	{
-		get => native.IsNull ? default : new( native.Wheel_GetLowerSuspensionLimit(), native.Wheel_GetUpperSuspensionLimit() );
-		set
-		{
-			if ( native.IsNull ) return;
-			native.Wheel_SetSuspensionLimits( value.x, value.y );
-		}
+		get => _joint is not null ? new( _joint.Wheel_LowerSuspensionLimit, _joint.Wheel_UpperSuspensionLimit ) : default;
+		set => _joint?.Wheel_SetSuspensionLimits( value.x, value.y );
 	}
 
 	/// <summary>
@@ -81,12 +61,8 @@ internal sealed class WheelJoint : PhysicsJoint
 	/// </summary>
 	public bool EnableSpinMotor
 	{
-		get => !native.IsNull && native.Wheel_IsSpinMotorEnabled();
-		set
-		{
-			if ( native.IsNull ) return;
-			native.Wheel_EnableSpinMotor( value );
-		}
+		get => _joint?.Wheel_EnableSpinMotor ?? false;
+		set => _joint?.Wheel_EnableSpinMotor = value;
 	}
 
 	/// <summary>
@@ -94,12 +70,8 @@ internal sealed class WheelJoint : PhysicsJoint
 	/// </summary>
 	public float SpinMotorSpeed
 	{
-		get => native.IsNull ? 0.0f : native.Wheel_GetSpinMotorSpeed().RadianToDegree();
-		set
-		{
-			if ( native.IsNull ) return;
-			native.Wheel_SetSpinMotorSpeed( value.DegreeToRadian() );
-		}
+		get => (_joint?.Wheel_SpinMotorSpeed ?? 0).RadianToDegree();
+		set => _joint?.Wheel_SpinMotorSpeed = value.DegreeToRadian();
 	}
 
 	/// <summary>
@@ -107,25 +79,17 @@ internal sealed class WheelJoint : PhysicsJoint
 	/// </summary>
 	public float MaxSpinTorque
 	{
-		get => native.IsNull ? 0.0f : native.Wheel_GetMaxSpinTorque() / TorqueScale;
-		set
-		{
-			if ( native.IsNull ) return;
-			native.Wheel_SetMaxSpinTorque( value * TorqueScale );
-		}
+		get => (_joint?.Wheel_MaxSpinTorque ?? 0) / TorqueScale;
+		set => _joint?.Wheel_MaxSpinTorque = value * TorqueScale;
 	}
 
 	/// <summary>
-	/// Enable or disable wheel steering. Steering allows the wheel to rotate about the suspension axis.
+	/// Enable or disable wheel steering.
 	/// </summary>
 	public bool EnableSteering
 	{
-		get => !native.IsNull && native.Wheel_IsSteeringEnabled();
-		set
-		{
-			if ( native.IsNull ) return;
-			native.Wheel_EnableSteering( value );
-		}
+		get => _joint?.Wheel_EnableSteering ?? false;
+		set => _joint?.Wheel_EnableSteering = value;
 	}
 
 	/// <summary>
@@ -133,12 +97,8 @@ internal sealed class WheelJoint : PhysicsJoint
 	/// </summary>
 	public float SteeringHertz
 	{
-		get => native.IsNull ? 0.0f : native.Wheel_GetSteeringHertz();
-		set
-		{
-			if ( native.IsNull ) return;
-			native.Wheel_SetSteeringHertz( value );
-		}
+		get => _joint?.Wheel_SteeringHertz ?? 0;
+		set => _joint?.Wheel_SteeringHertz = value;
 	}
 
 	/// <summary>
@@ -146,12 +106,8 @@ internal sealed class WheelJoint : PhysicsJoint
 	/// </summary>
 	public float SteeringDampingRatio
 	{
-		get => native.IsNull ? 0.0f : native.Wheel_GetSteeringDampingRatio();
-		set
-		{
-			if ( native.IsNull ) return;
-			native.Wheel_SetSteeringDampingRatio( value );
-		}
+		get => _joint?.Wheel_SteeringDampingRatio ?? 0;
+		set => _joint?.Wheel_SteeringDampingRatio = value;
 	}
 
 	/// <summary>
@@ -159,12 +115,8 @@ internal sealed class WheelJoint : PhysicsJoint
 	/// </summary>
 	public float MaxSteeringTorque
 	{
-		get => native.IsNull ? 0.0f : native.Wheel_GetMaxSteeringTorque() / TorqueScale;
-		set
-		{
-			if ( native.IsNull ) return;
-			native.Wheel_SetMaxSteeringTorque( value * TorqueScale );
-		}
+		get => (_joint?.Wheel_MaxSteeringTorque ?? 0) / TorqueScale;
+		set => _joint?.Wheel_MaxSteeringTorque = value * TorqueScale;
 	}
 
 	/// <summary>
@@ -172,12 +124,8 @@ internal sealed class WheelJoint : PhysicsJoint
 	/// </summary>
 	public bool EnableSteeringLimit
 	{
-		get => !native.IsNull && native.Wheel_IsSteeringLimitEnabled();
-		set
-		{
-			if ( native.IsNull ) return;
-			native.Wheel_EnableSteeringLimit( value );
-		}
+		get => _joint?.Wheel_EnableSteeringLimit ?? false;
+		set => _joint?.Wheel_EnableSteeringLimit = value;
 	}
 
 	/// <summary>
@@ -185,12 +133,8 @@ internal sealed class WheelJoint : PhysicsJoint
 	/// </summary>
 	public Vector2 SteeringLimits
 	{
-		get => native.IsNull ? 0.0f : native.Wheel_GetLowerSteeringLimit().RadianToDegree();
-		set
-		{
-			if ( native.IsNull ) return;
-			native.Wheel_SetSteeringLimits( value.x.DegreeToRadian(), value.y.DegreeToRadian() );
-		}
+		get => (_joint?.Wheel_LowerSteeringLimit ?? 0).RadianToDegree();
+		set => _joint?.Wheel_SetSteeringLimits( value.x.DegreeToRadian(), value.y.DegreeToRadian() );
 	}
 
 	/// <summary>
@@ -198,31 +142,27 @@ internal sealed class WheelJoint : PhysicsJoint
 	/// </summary>
 	public float TargetSteeringAngle
 	{
-		get => native.IsNull ? 0.0f : native.Wheel_GetTargetSteeringAngle().RadianToDegree();
-		set
-		{
-			if ( native.IsNull ) return;
-			native.Wheel_SetTargetSteeringAngle( value.DegreeToRadian() );
-		}
+		get => (_joint?.Wheel_TargetSteeringAngle ?? 0).RadianToDegree();
+		set => _joint?.Wheel_TargetSteeringAngle = value.DegreeToRadian();
 	}
 
 	/// <summary>
 	/// Gets the current wheel spin speed in degrees per second.
 	/// </summary>
-	public float SpinSpeed => native.IsNull ? 0.0f : native.Wheel_GetSpinSpeed().RadianToDegree();
+	public float SpinSpeed => (_joint?.Wheel_SpinSpeed ?? 0).RadianToDegree();
 
 	/// <summary>
 	/// Gets the current wheel spin torque in newton-meters.
 	/// </summary>
-	public float SpinTorque => native.IsNull ? 0.0f : native.Wheel_GetSpinTorque();
+	public float SpinTorque => _joint?.Wheel_SpinTorque ?? 0;
 
 	/// <summary>
 	/// Gets the current wheel steering angle in degrees.
 	/// </summary>
-	public float SteeringAngle => native.IsNull ? 0.0f : native.Wheel_GetSteeringAngle().RadianToDegree();
+	public float SteeringAngle => (_joint?.Wheel_SteeringAngle ?? 0).RadianToDegree();
 
 	/// <summary>
 	/// Gets the current wheel steering torque in newton-meters.
 	/// </summary>
-	public float SteeringTorque => native.IsNull ? 0.0f : native.Wheel_GetSteeringTorque();
+	public float SteeringTorque => _joint?.Wheel_SteeringTorque ?? 0;
 }

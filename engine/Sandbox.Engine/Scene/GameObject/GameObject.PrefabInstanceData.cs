@@ -1,4 +1,4 @@
-﻿using Sandbox;
+using Sandbox;
 using Sandbox.Hashing;
 using System.Buffers.Binary;
 using System.Collections.ObjectModel;
@@ -46,6 +46,22 @@ internal class PrefabInstanceData
 		_isNested = isNested;
 	}
 
+	internal sealed record OwnershipSnapshot( string Source, bool IsNested, Dictionary<Guid, Guid> Mappings )
+	{
+		internal void Restore( GameObject root )
+		{
+			if ( root.PrefabInstance is not { } instance || instance.PrefabSource != Source )
+			{
+				root.InitPrefabInstance( Source, IsNested );
+				instance = root.PrefabInstance;
+			}
+			instance._isNested = IsNested;
+			instance.UpdateLookups( Mappings );
+		}
+	}
+
+	internal OwnershipSnapshot CaptureOwnership() => new( PrefabSource, IsNested, new( _prefabGuidToInstanceGuid ) );
+
 	/// <summary>
 	/// Deterministically derives a stable instance guid for a prefab object with no persisted mapping
 	/// entry (e.g. one added to a nested prefab after its consumers were saved). Stable across cache
@@ -74,8 +90,8 @@ internal class PrefabInstanceData
 	/// <param name="prefabToInstance">Mapping from prefab GUIDs to instance GUIDs</param>
 	public void InitLookups( Dictionary<Guid, Guid> prefabToInstance )
 	{
-		var validatedLookup = ValidatePrefabToInstanceIdLookup( prefabToInstance, PrefabSource );
-		UpdateLookups( validatedLookup );
+		var validatedLookup = CreateValidatedLookup( prefabToInstance );
+		AdoptLookups( validatedLookup );
 	}
 
 	public bool InitMappingsForNestedInstance( Guid id )
@@ -201,11 +217,7 @@ internal class PrefabInstanceData
 		var prefabScene = (PrefabCacheScene)GetPrefab( PrefabSource );
 		Assert.IsValid( prefabScene );
 
-		var fullPrefabData = prefabScene.FullPrefabInstanceJson;
-
-		var patch = Json.CalculateDifferences( fullPrefabData, instanceData, DiffObjectDefinitions );
-
-		_patch = patch;
+		_patch = prefabScene.CalculateDifferences( instanceData );
 	}
 
 	/// <summary>
@@ -447,7 +459,7 @@ internal class PrefabInstanceData
 		if ( prefabGameObject is null ) return;
 
 		var prefabGameObjectJson = prefabGameObject.Serialize( new SerializeOptions { SerializePrefabForDiff = true } );
-		var validatedLookup = ValidatePrefabToInstanceIdLookup( _prefabGuidToInstanceGuid, PrefabSource );
+		var validatedLookup = CreateValidatedLookup( _prefabGuidToInstanceGuid );
 		UpdateLookups( validatedLookup );
 
 		// Reapply our patch
@@ -592,7 +604,11 @@ internal class PrefabInstanceData
 		var prefabScene = (PrefabCacheScene)prefabGameObject.Scene;
 		prefabScene.ToPrefabFile();
 
-		PrefabInstanceData.ConvertAllPrefabInstancesToNested( go );
+		// Applying to this instance's source must preserve the root's ownership.
+		if ( go == _instanceRoot )
+			ConvertChildPrefabInstancesToNested( go );
+		else
+			ConvertAllPrefabInstancesToNested( go );
 
 		RefreshPatch();
 	}
@@ -735,6 +751,20 @@ internal class PrefabInstanceData
 		}
 	}
 
+	/// <summary>
+	/// Like <see cref="UpdateLookups"/> but takes ownership of <paramref name="prefabToInstance"/> instead of copying it.
+	/// </summary>
+	private void AdoptLookups( Dictionary<Guid, Guid> prefabToInstance )
+	{
+		_prefabGuidToInstanceGuid = prefabToInstance;
+		_instanceGuidToPrefabGuid.Clear();
+		_instanceGuidToPrefabGuid.EnsureCapacity( prefabToInstance.Count );
+		foreach ( var (prefabGuid, instanceGuid) in prefabToInstance )
+		{
+			_instanceGuidToPrefabGuid[instanceGuid] = prefabGuid;
+		}
+	}
+
 	private Component FindPrefabComponentForInstanceId( Guid instanceId )
 	{
 		var prefabGuid = _instanceGuidToPrefabGuid.GetValueOrDefault( instanceId );
@@ -852,7 +882,7 @@ internal class PrefabInstanceData
 
 	public void ValidatePrefabLookup()
 	{
-		var validatedLookup = ValidatePrefabToInstanceIdLookup( _prefabGuidToInstanceGuid, PrefabSource );
+		var validatedLookup = CreateValidatedLookup( _prefabGuidToInstanceGuid );
 		UpdateLookups( validatedLookup );
 	}
 
@@ -860,73 +890,49 @@ internal class PrefabInstanceData
 	/// Ensures the prefab-to-instance GUID mapping is valid by adding missing entries and removing obsolete ones.
 	/// </summary>
 	/// <param name="oldPrefabToInstanceLookup">The existing GUID mapping to validate</param>
-	/// <param name="prefabSource">The source path of the prefab file</param>
-	/// <returns>A validated mapping containing only relevant GUIDs with appropriate instance IDs</returns>
-	private Dictionary<Guid, Guid> ValidatePrefabToInstanceIdLookup( Dictionary<Guid, Guid> oldPrefabToInstanceLookup, string prefabSource )
+	/// <returns>A validated mapping containing only relevant GUIDs with appropriate instance IDs. Always a fresh dictionary the caller owns.</returns>
+	private Dictionary<Guid, Guid> CreateValidatedLookup( Dictionary<Guid, Guid> oldPrefabToInstanceLookup )
 	{
-		var newLookup = new Dictionary<Guid, Guid>( oldPrefabToInstanceLookup );
-		var prefabFile = ResourceLibrary.Get<PrefabFile>( prefabSource );
+		var prefabFile = ResourceLibrary.Get<PrefabFile>( PrefabSource );
 
 		if ( !prefabFile.IsValid() )
 		{
-			Log.Warning( $"Failed to serialize a prefab instance {_instanceRoot}. Prefab file is not valid, did you delete the Prefab {prefabSource}?" );
-			return newLookup;
+			Log.Warning( $"Failed to serialize a prefab instance {_instanceRoot}. Prefab file is not valid, did you delete the Prefab {PrefabSource}?" );
+			return new Dictionary<Guid, Guid>( oldPrefabToInstanceLookup );
 		}
 
-		var prefabScene = (PrefabCacheScene)SceneUtility.GetPrefabScene( prefabFile );
+		var prefabScene = SceneUtility.GetPrefabScene( prefabFile );
 
 		if ( !prefabScene.IsValid() )
 		{
-			Log.Warning( $"Failed to serialize a prefab instance {_instanceRoot}. Prefab scene is not valid, did you delete the Prefab {prefabSource}?" );
-			return newLookup;
+			Log.Warning( $"Failed to serialize a prefab instance {_instanceRoot}. Prefab scene is not valid, did you delete the Prefab {PrefabSource}?" );
+			return new Dictionary<Guid, Guid>( oldPrefabToInstanceLookup );
 		}
 
-		// Collect all required GUIDs from the prefab scene
-		var requiredGuids = GetRequiredPrefabGuids( prefabScene );
-		Assert.True( requiredGuids.Contains( prefabScene.Id ) );
-
-		// Remove obsolete entries
-		foreach ( var (prefabGuid, _) in oldPrefabToInstanceLookup )
-		{
-			if ( !requiredGuids.Contains( prefabGuid ) )
-			{
-				newLookup.Remove( prefabGuid );
-			}
-		}
-
-		// Add missing mappings, derived deterministically so they stay stable across loads.
-		foreach ( var requiredObjId in requiredGuids )
-		{
-			if ( !newLookup.ContainsKey( requiredObjId ) )
-			{
-				newLookup.Add( requiredObjId, DeriveInstanceGuid( _instanceRoot.Id, requiredObjId ) );
-			}
-		}
-
-		return newLookup;
-	}
-
-	/// <summary>
-	/// Gets all required GUIDs from a prefab scene.
-	/// </summary>
-	private static HashSet<Guid> GetRequiredPrefabGuids( PrefabCacheScene prefabScene )
-	{
-		var result = new HashSet<Guid>();
-
-		foreach ( var gameObject in prefabScene.Directory.AllGameObjects )
+		// Build only the mappings the current prefab needs, preserving existing instance IDs.
+		var directory = prefabScene.Directory;
+		var newLookup = new Dictionary<Guid, Guid>( directory.GameObjectCount + directory.ComponentCount + 1 );
+		foreach ( var gameObject in directory.AllGameObjects )
 		{
 			if ( gameObject.IsValid() && !gameObject.Flags.Contains( GameObjectFlags.NotSaved ) )
-				result.Add( gameObject.Id );
+				AddMapping( gameObject.Id );
 		}
-
-		foreach ( var component in prefabScene.Directory.AllComponents )
+		foreach ( var component in directory.AllComponents )
 		{
 			if ( component.IsValid() && !component.Flags.Contains( ComponentFlags.NotSaved ) )
-				result.Add( component.Id );
+				AddMapping( component.Id );
 		}
 
-		result.Add( prefabScene.Id );
-		return result;
+		// The root must always be mapped, even when marked NotSaved.
+		AddMapping( prefabScene.Id );
+		return newLookup;
+
+		void AddMapping( Guid prefabId )
+		{
+			newLookup[prefabId] = oldPrefabToInstanceLookup.TryGetValue( prefabId, out var instanceId )
+				? instanceId
+				: DeriveInstanceGuid( _instanceRoot.Id, prefabId );
+		}
 	}
 
 	/// <summary>

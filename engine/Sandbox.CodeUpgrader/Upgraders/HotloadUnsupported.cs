@@ -29,7 +29,7 @@ public sealed class HotloadUnsupportedAnalyzer : Analyzer
 			return;
 		}
 
-		if ( memberSyntax is PropertyDeclarationSyntax && !IsAutoProperty( context.ContainingSymbol ) )
+		if ( memberSyntax is PropertyDeclarationSyntax && !SymbolHelpers.IsAutoProperty( context.ContainingSymbol ) )
 		{
 			// If this isn't an auto property, we visit any backing fields involved anyway
 
@@ -47,7 +47,7 @@ public sealed class HotloadUnsupportedAnalyzer : Analyzer
 
 		// [SkipHotload] suppresses this warning safely
 
-		if ( HasAttribute( symbol, "Sandbox.SkipHotloadAttribute" ) )
+		if ( SymbolHelpers.HasAttribute( symbol, "Sandbox.SkipHotloadAttribute" ) )
 			return;
 
 		context.ReportDiagnostic( Diagnostic.Create( Rule, memberSyntax.GetLocation() ) );
@@ -116,21 +116,6 @@ public sealed class HotloadUnsupportedAnalyzer : Analyzer
 			""" );
 	}
 
-	private static bool IsAutoProperty( ISymbol? symbol )
-	{
-		if ( symbol is not IPropertySymbol propertySymbol ) return false;
-
-		return propertySymbol.ContainingType
-			.GetMembers()
-			.OfType<IFieldSymbol>()
-			.Any( field => SymbolEqualityComparer.Default.Equals( field.AssociatedSymbol, propertySymbol ) );
-	}
-
-	private static bool HasAttribute( ISymbol symbol, string name )
-	{
-		return symbol.GetAttributes()
-			.Any( y => y.AttributeClass?.ToDisplayString() == name );
-	}
 }
 
 [ExportCodeFixProvider( LanguageNames.CSharp ), Shared]

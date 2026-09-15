@@ -73,6 +73,7 @@ partial class ViewportTools
 
 		menu.AddSeparator();
 		menu.AddOption( new( "Join via new instance", "connected_tv", SpawnProcess ) { Enabled = EditorUtility.Network.Hosting } );
+		menu.AddOption( new( "Migrate host to new instance", "swap_horiz", MigrateHostToNewInstance ) { Enabled = EditorUtility.Network.Hosting } );
 		menu.AddOption( new( "Start dedicated server", "terminal", SpawnDedicatedServer ) );
 		menu.AddSeparator();
 		menu.AddOption( new( "Preferences", "tune", OpenPreferences ) );
@@ -91,10 +92,7 @@ partial class ViewportTools
 		if ( string.IsNullOrWhiteSpace( argumentString ) )
 			return;
 
-		var args = argumentString.Split( ' ',
-			StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries );
-
-		foreach ( var arg in args )
+		foreach ( var arg in argumentString.Split( ' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries ) )
 		{
 			startInfo.ArgumentList.Add( arg );
 		}
@@ -114,32 +112,7 @@ partial class ViewportTools
 		p.Start();
 	}
 
-	void SpawnProcess()
-	{
-		using var p = new Process();
+	void SpawnProcess() => LocalInstances.Spawn();
 
-		p.StartInfo.FileName = "sbox.exe";
-		p.StartInfo.WorkingDirectory = Environment.CurrentDirectory;
-		p.StartInfo.CreateNoWindow = true;
-		p.StartInfo.RedirectStandardOutput = true;
-		p.StartInfo.RedirectStandardError = true;
-		p.StartInfo.UseShellExecute = false;
-
-		p.StartInfo.ArgumentList.Add( "-joinlocal" );
-
-		// Count existing instances and assign the next possible instance id
-		int instanceCount = Process.GetProcessesByName( "sbox" ).Length;
-		p.StartInfo.ArgumentList.Add( "+instanceid" );
-		p.StartInfo.ArgumentList.Add( (instanceCount + 1).ToString() );
-
-		if ( EditorPreferences.WindowedLocalInstances )
-		{
-			p.StartInfo.ArgumentList.Add( "-sw" );
-			p.StartInfo.ArgumentList.Add( "-720" );
-		}
-
-		AddUserCommandLineArgs( p.StartInfo, EditorPreferences.NewInstanceCommandLineArgs );
-
-		p.Start();
-	}
+	void MigrateHostToNewInstance() => _ = LocalInstances.MigrateHostAsync();
 }

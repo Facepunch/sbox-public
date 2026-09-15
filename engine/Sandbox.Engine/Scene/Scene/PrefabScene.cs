@@ -46,6 +46,8 @@ public partial class PrefabScene : Scene, IJsonConvert
 		if ( file.RootObject is null )
 		{
 			file.RootObject = new GameObject( file.ResourceName ).Serialize();
+			// Remove the temporary object before deserializing its persisted identity.
+			Clear();
 		}
 
 		using ( CallbackBatch.Isolated() )
@@ -58,6 +60,8 @@ public partial class PrefabScene : Scene, IJsonConvert
 
 	public PrefabFile ToPrefabFile()
 	{
+		// The resource must remain readable after any caller's blob capture has ended.
+		using var suppressBlobs = BlobDataSerializer.Suppress();
 		var target = (Source as PrefabFile) ?? new PrefabFile();
 
 		// Prefab Scene don't modify anything just write current state to target

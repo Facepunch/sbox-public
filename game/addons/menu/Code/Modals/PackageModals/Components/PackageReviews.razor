@@ -8,6 +8,14 @@
 <root>
     <PackageReviewsHeader Package=@Package />
 
+    <div class="write-review">
+        <div class="text">
+            <label class="title">Played @Package.Title?</label>
+            <label class="hint">Tell everyone what you thought. Reviews decide the verdict up top.</label>
+        </div>
+        <Button class="primary" icon="rate_review" onclick=@WriteReview>Write a review</Button>
+    </div>
+
     <div class="tag-filters">
 
         <label class="eyebrow">Reviews</label>
@@ -112,6 +120,11 @@
 
 @code
 {
+    void WriteReview()
+    {
+        Game.Overlay.ShowReviewModal( Package );
+    }
+
     [Parameter] public Package Package { get; set; }
 
     List<Sandbox.Services.Review> Reviews = new();

@@ -47,8 +47,12 @@ public partial class RenderSettings
 			return value.FromEngine();
 		}
 
-		set => VideoSettings.Set( "aaquality", value.ToEngine() );
+		set => VideoSettings.Set( "aaquality", GetSupportedAntiAliasQuality( value ).ToEngine() );
 	}
+
+	/// <summary>Returns the requested MSAA amount when supported, or the best available amount.</summary>
+	public static MultisampleAmount GetSupportedAntiAliasQuality( MultisampleAmount amount ) =>
+		NativeEngine.RenderDeviceManager.GetBestMultisampleType( amount.ToEngine() ).FromEngine();
 
 	internal struct VideoModeSnapshot
 	{

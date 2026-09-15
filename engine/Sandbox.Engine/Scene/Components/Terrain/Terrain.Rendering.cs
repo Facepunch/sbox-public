@@ -69,7 +69,7 @@ public partial class Terrain
 
 	void CreateClipmapSceneObject()
 	{
-		if ( !Active || Application.IsHeadless )
+		if ( !Active || !Graphics.IsAvailable )
 			return;
 
 		// These get created once
@@ -174,7 +174,7 @@ public partial class Terrain
 	private void UpdateTerrainBuffer()
 	{
 		// No GPU, no GPU buffer..
-		if ( Application.IsHeadless )
+		if ( !Graphics.IsAvailable )
 			return;
 
 		if ( Storage is null )
@@ -215,7 +215,7 @@ public partial class Terrain
 	/// </summary>
 	void RebakeNormalMap()
 	{
-		if ( Application.IsHeadless || Storage is null )
+		if ( !Graphics.IsAvailable || Storage is null )
 			return;
 
 		// Persistent UAV target, reused across bakes so the bindless index stays stable
@@ -261,7 +261,7 @@ public partial class Terrain
 	public unsafe void UpdateMaterialsBuffer()
 	{
 		// No GPU, no GPU buffer..
-		if ( Application.IsHeadless )
+		if ( !Graphics.IsAvailable )
 			return;
 
 		if ( Storage is null )

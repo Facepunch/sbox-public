@@ -1,5 +1,4 @@
-﻿using Sandbox.UI;
-using SkiaSharp;
+using Sandbox.UI;
 
 namespace Sandbox;
 
@@ -15,34 +14,19 @@ public static partial class TextRendering
 		public TextFlag Flags;
 		public Vector2 Clip;
 		public bool IsEmpty;
-		public Rendering.FilterMode FilterMode;
 		internal int CacheKey;
 
-		public RealTimeSince TimeSinceUsed;
+		public ulong LastPreparedFrame;
 
 		Scope _scope;
 		Margin _effectMargin = default;
 
-		public TextBlock( Scope scope, Vector2 clip, TextFlag flag )
-		{
-			Assert.False( Application.IsHeadless );
-
-			Flags = flag;
-			Clip = clip;
-
-			Initialize( scope );
-		}
-
-		public TextBlock()
-		{
-		}
 
 		internal void Initialize( Scope scope )
 		{
 			_scope = scope;
 			IsEmpty = string.IsNullOrEmpty( _scope.Text );
-			FilterMode = scope.FilterMode;
-			TimeSinceUsed = 0;
+			LastPreparedFrame = Application.FrameCount;
 			_effectMargin = default;
 
 			if ( scope.Outline.Enabled && scope.Outline.Size > 0 )
@@ -63,18 +47,18 @@ public static partial class TextRendering
 
 			if ( scope.Shadow.Enabled )
 			{
-				_effectMargin.Left = MathF.Max( _effectMargin.Left, scope.Shadow.Size + -scope.Shadow.Offset.x ).CeilToInt();
-				_effectMargin.Right = MathF.Max( _effectMargin.Right, scope.Shadow.Size + scope.Shadow.Offset.x ).CeilToInt();
-				_effectMargin.Top = MathF.Max( _effectMargin.Top, scope.Shadow.Size + -scope.Shadow.Offset.y ).CeilToInt();
-				_effectMargin.Bottom = MathF.Max( _effectMargin.Bottom, scope.Shadow.Size + scope.Shadow.Offset.y ).CeilToInt();
+				_effectMargin.Left = MathF.Max( _effectMargin.Left, scope.Shadow.Size.Clamp( 0, 512 ) * 3 + -scope.Shadow.Offset.x ).CeilToInt();
+				_effectMargin.Right = MathF.Max( _effectMargin.Right, scope.Shadow.Size.Clamp( 0, 512 ) * 3 + scope.Shadow.Offset.x ).CeilToInt();
+				_effectMargin.Top = MathF.Max( _effectMargin.Top, scope.Shadow.Size.Clamp( 0, 512 ) * 3 + -scope.Shadow.Offset.y ).CeilToInt();
+				_effectMargin.Bottom = MathF.Max( _effectMargin.Bottom, scope.Shadow.Size.Clamp( 0, 512 ) * 3 + scope.Shadow.Offset.y ).CeilToInt();
 			}
 
 			if ( scope.ShadowUnder.Enabled )
 			{
-				_effectMargin.Left = MathF.Max( _effectMargin.Left, scope.ShadowUnder.Size + -scope.ShadowUnder.Offset.x ).CeilToInt();
-				_effectMargin.Right = MathF.Max( _effectMargin.Right, scope.ShadowUnder.Size + scope.ShadowUnder.Offset.x ).CeilToInt();
-				_effectMargin.Top = MathF.Max( _effectMargin.Top, scope.ShadowUnder.Size + -scope.ShadowUnder.Offset.y ).CeilToInt();
-				_effectMargin.Bottom = MathF.Max( _effectMargin.Bottom, scope.ShadowUnder.Size + scope.ShadowUnder.Offset.y ).CeilToInt();
+				_effectMargin.Left = MathF.Max( _effectMargin.Left, scope.ShadowUnder.Size.Clamp( 0, 512 ) * 3 + -scope.ShadowUnder.Offset.x ).CeilToInt();
+				_effectMargin.Right = MathF.Max( _effectMargin.Right, scope.ShadowUnder.Size.Clamp( 0, 512 ) * 3 + scope.ShadowUnder.Offset.x ).CeilToInt();
+				_effectMargin.Top = MathF.Max( _effectMargin.Top, scope.ShadowUnder.Size.Clamp( 0, 512 ) * 3 + -scope.ShadowUnder.Offset.y ).CeilToInt();
+				_effectMargin.Bottom = MathF.Max( _effectMargin.Bottom, scope.ShadowUnder.Size.Clamp( 0, 512 ) * 3 + scope.ShadowUnder.Offset.y ).CeilToInt();
 			}
 
 			// don't let shit get crazy
@@ -99,62 +83,29 @@ public static partial class TextRendering
 			return Topten.RichTextKit.TextAlignment.Left;
 		}
 
-		public void Render( SKCanvas canvas, Rect targetRect )
+		/// <summary>The laid out block, after <see cref="EnsureLayout"/>.</summary>
+		internal Topten.RichTextKit.TextBlock Layout;
+
+		/// <summary>Size of the rendered text including effect margins and glyph overhang - the texture's size.</summary>
+		internal Vector2 Size;
+
+		/// <summary>Where the block's (0,0) sits inside that size.</summary>
+		internal Vector2 BlockOrigin;
+
+		/// <summary>Lay the text out, once.</summary>
+		public Vector2 Measure()
 		{
-			if ( IsEmpty )
-				return;
-
-			var block = new Topten.RichTextKit.TextBlock();
-			block.FontMapper = FontManager.Instance;
-
-			block.Alignment = GetAlignment();
-
-			if ( Flags.Contains( TextFlag.SingleLine ) ) // should we remove any newlines?
-			{
-				block.MaxLines = 1;
-			}
-
-			if ( !Flags.Contains( TextFlag.DontClip ) )
-			{
-				block.MaxWidth = targetRect.Width;
-				block.MaxHeight = targetRect.Height;
-			}
-
-			var style = new Topten.RichTextKit.Style();
-			_scope.ToStyle( style );
-
-			block.AddText( _scope.Text, style );
-
-			var o = new Topten.RichTextKit.TextPaintOptions
-			{
-				Edging = _scope.FontSmooth switch
-				{
-					FontSmooth.Never => SKFontEdging.Alias,
-					_ => SKFontEdging.Antialias,
-				},
-
-				Hinting = SKFontHinting.Full
-			};
-
-			if ( !IsEmpty )
-			{
-				var rect = new Rect( 0, 0, block.MeasuredWidth, block.MeasuredHeight );
-				rect = targetRect.Align( rect.Size, Flags );
-
-				SKPoint drawPosition = new SKPoint( rect.Left, rect.Top );
-
-				block.Paint( canvas, drawPosition, o );
-			}
+			EnsureLayout();
+			return Size;
 		}
 
-		public void MakeReady()
+		internal void EnsureLayout()
 		{
-			TimeSinceUsed = 0;
+			LastPreparedFrame = Application.FrameCount;
+			if ( CacheKey != 0 ) Dictionary.TryAdd( CacheKey, this );
 
-			if ( Texture != null )
+			if ( Layout != null )
 				return;
-
-			// todo - we could probably expose shadows and outlines.. but later down the road.
 
 			var block = new Topten.RichTextKit.TextBlock();
 			block.FontMapper = FontManager.Instance;
@@ -173,17 +124,10 @@ public static partial class TextRendering
 				block.MaxHeight = null;
 			}
 
-			//
-			// Build text block
-			//
 			var style = new Topten.RichTextKit.Style();
 			_scope.ToStyle( style );
 
 			block.AddText( IsEmpty ? "." : _scope.Text, style );
-
-			//
-			// Build Text
-			//
 
 			var pad = block.MeasuredPadding;
 
@@ -201,55 +145,55 @@ public static partial class TextRendering
 			width += marginEdge.x.CeilToInt();
 			height += marginEdge.y.CeilToInt();
 
-			// Straight alpha, like every other texture. Skia's raster pipeline blends into an unpremultiplied
-			// target fine, and over a transparent clear the result is exact.
-			//
-			// HDR colours (any channel > 1) go to an extended-range half float surface — RgbaF16 (not RgbaF16Clamped)
-			// is the one Skia leaves unclamped — so the values reach the shader intact. Everything else stays 8-bit.
-			var isHdr = _scope.IsHdr;
-			var colorType = isHdr ? SkiaSharp.SKColorType.RgbaF16 : SkiaSharp.SKColorType.Bgra8888;
-			var imageFormat = isHdr ? ImageFormat.RGBA16161616F : ImageFormat.BGRA8888;
+			// Nothing to draw for an empty block, but it keeps the size the placeholder measured to
+			if ( IsEmpty )
+				block.Clear();
 
-			using ( var bitmap = new SkiaSharp.SKBitmap( width, height, colorType, SkiaSharp.SKAlphaType.Unpremul ) )
-			using ( var canvas = new SkiaSharp.SKCanvas( bitmap ) )
-			{
-				var o = new Topten.RichTextKit.TextPaintOptions
-				{
-					Edging = _scope.FontSmooth switch
-					{
-						FontSmooth.Never => SKFontEdging.Alias,
-						_ => SKFontEdging.Antialias,
-					},
-
-					Hinting = SKFontHinting.Full
-				};
-
-				if ( !IsEmpty )
-				{
-					SKPoint drawPosition = new SKPoint( margin.Left - pad.Left, margin.Top - pad.Top );
-
-					block.Paint( canvas, drawPosition, o );
-				}
-
-				bitmap.RepairTransparentTexels( style.TextColor );
-
-				// Always use the max number of mips
-				var mips = (int)MathF.Log2( MathF.Min( width, height ) ) + 1;
-				mips = mips.Clamp( 1, 8 );
-
-				Texture = Texture.Create( width, height, imageFormat )
-									.WithName( "textblock" )
-									.WithData( bitmap.GetPixels(), width * height * bitmap.BytesPerPixel )
-									.WithStaticUsage()
-									.WithMips( mips )
-									.Finish();
-			}
-
-			// Re-register so Tick() can evict this block again if it was evicted while
-			// a CommandList still held a reference and triggered a texture rebuild.
-			if ( CacheKey != 0 ) Dictionary.TryAdd( CacheKey, this );
+			Layout = block;
+			Size = new Vector2( width, height );
+			BlockOrigin = new Vector2( margin.Left - pad.Left, margin.Top - pad.Top );
 		}
 
+		public void MakeReady()
+		{
+			EnsureLayout();
+
+			if ( Texture != null )
+				return;
+
+			EnsureLayout();
+
+			Texture = GpuFontText.Render( Layout, BlockOrigin, (int)Size.x, (int)Size.y, _scope.IsHdr, 8, GpuFontText.Options.For( _scope ) );
+		}
+
+		List<GPUBoxInstance> _instances;
+		GpuFontText.Placement _placement;
+
+		/// <summary>
+		/// The block's glyph instances in this frame's shared text buffers, for a quad that composites them per
+		/// pixel straight from the outlines (like particle text). Built once, uploaded once a frame however often it's drawn.
+		/// </summary>
+		internal GpuFontText.Placement Upload()
+		{
+			if ( _placement.Frame == Application.FrameCount )
+				return _placement;
+
+			EnsureLayout();
+
+			if ( _instances is null )
+			{
+				var instances = new List<GPUBoxInstance>();
+				GpuFontText.Build( Layout, BlockOrigin, GpuFontText.Options.For( _scope ), instances );
+				_instances = instances;
+			}
+
+			_placement = GpuFontText.Upload( _instances, (int)Size.x, (int)Size.y );
+
+			// Evicted by Tick while a command list still held us: back in the cache so it can evict us again
+			if ( CacheKey != 0 && !Dictionary.ContainsKey( CacheKey ) ) Dictionary.TryAdd( CacheKey, this );
+
+			return _placement;
+		}
 
 	}
 }

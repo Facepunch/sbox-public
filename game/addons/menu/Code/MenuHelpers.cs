@@ -2,6 +2,7 @@
 using Sandbox.DataModel;
 using Sandbox.Diagnostics;
 using Sandbox.Modals;
+using MenuProject.MenuUI.Front;
 using MenuPanel = MenuProject.UI.MenuPanel;
 
 public static class MenuHelpers
@@ -11,6 +12,16 @@ public static class MenuHelpers
 	/// If we're in a party, only the party owner can start or join games.
 	/// </summary>
 	public static bool HasAuthority => PartyRoom.Current?.Owner.IsMe ?? true;
+
+	/// <summary>
+	/// True when a discovery query lists a jam's entries, e.g. "jam:three type:game".
+	/// </summary>
+	public static bool IsJamQuery( string query )
+	{
+		if ( string.IsNullOrEmpty( query ) ) return false;
+
+		return query.Split( ' ', StringSplitOptions.RemoveEmptyEntries ).Any( x => x.StartsWith( "jam:", StringComparison.OrdinalIgnoreCase ) );
+	}
 
 	/// <summary>
 	/// General-purpose method to play a game package. Handles quickplay, dedicated servers,
@@ -173,10 +184,49 @@ public static class MenuHelpers
 		}
 
 		menu.AddSpacer();
+		var liked = package.Interaction.Rating == 0;
+		var disliked = package.Interaction.Rating == 1;
+		var favourite = package.Interaction.Favourite;
+		menu.AddOption( "thumb_up", liked ? "Liked" : "Like", () => _ = package.SetVoteAsync( true ) );
+		menu.AddOption( "thumb_down", disliked ? "Disliked" : "Dislike", () => _ = package.SetVoteAsync( false ) );
+		menu.AddOption( favourite ? "favorite" : "favorite_border", favourite ? "Remove from Favourites" : "Add to Favourites", () => _ = package.SetFavouriteAsync( !favourite ) );
+
+		menu.AddSpacer();
 		menu.AddOption( "corporate_fare", $"View Creator", () => Game.Overlay.ShowOrganizationModal( package.Org ) );
-		menu.AddOption( "star", "Review Game", () => Game.Overlay.ShowReviewModal( package ) );
+		menu.AddOption( "rate_review", "Review Game", () => Game.Overlay.ShowReviewModal( package ) );
 		menu.AddOption( "flag", "Report Game", () => Game.Overlay.ShowReportModal( package.FullIdent ) );
+		menu.AddOption( "block", "Hide Game", () => _ = HidePackage( source, package ) );
 	}
+
+	/// <summary>
+	/// Hide a game from this player's discovery and search. Toasts the result and drops the
+	/// tile from the front-page shelf it came from.
+	/// </summary>
+	public static async Task<bool> HidePackage( Panel source, Package package )
+	{
+		// Hover cards float in the root; their shelf is behind the hovered card
+		if ( source is MenuProject.UI.PackageHoverCard hoverCard )
+		{
+			source = hoverCard.Source;
+			hoverCard.Close();
+		}
+
+		var hidden = await package.SetHiddenAsync( true );
+
+		if ( hidden )
+		{
+			Toast( $"{package.Title} hidden", "visibility_off" );
+			source?.AncestorsAndSelf.OfType<FrontPageGames>().FirstOrDefault()?.RemovePackage( package );
+		}
+		else
+		{
+			Toast( $"Couldn't hide {package.Title} right now", "visibility_off" );
+		}
+
+		return hidden;
+	}
+
+	static void Toast( string title, string icon ) => MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast() { Title = title, Icon = icon } );
 
 	static void OpenMapMenu( Panel source, Package package )
 	{

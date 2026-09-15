@@ -103,7 +103,8 @@ public class TreeView<T> : BaseTreeView
 	public Action OnSelectionChanged { get; set; }
 
 	/// <summary>
-	/// Double click or enter on an item.
+	/// Double click or enter on an item. A double click opens a closed branch first when
+	/// <see cref="BaseTreeView.ExpandOnDoubleClick"/> is enabled.
 	/// </summary>
 	[Parameter]
 	public Action<T> OnActivate { get; set; }

@@ -27,7 +27,11 @@ public sealed class PanelStyle : Styles
 
 	bool rulesChanged = true;
 
-	public override void Dirty() => isDirty = true;
+	public override void Dirty()
+	{
+		isDirty = true;
+		panel?.SetNeedsPreLayout();
+	}
 	internal bool IsDirty => isDirty;
 
 	internal PanelStyle( Panel panel )
@@ -90,6 +94,7 @@ public sealed class PanelStyle : Styles
 		// yet would leave its children holding rules from the old sheet, so a stylesheet swap only
 		// applied to part of the tree.
 		_styleBlocks = null;
+		panel.StyleSelectorsChanged( false, false );
 
 		foreach ( var child in panel.Children )
 		{
@@ -217,17 +222,14 @@ public sealed class PanelStyle : Styles
 			LastActiveRules ??= new();
 			activeRules ??= new();
 
-			foreach ( var rule in activeRules )
-			{
-				if ( !LastActiveRules.Contains( rule ) )
-					OnRuleAdded( rule );
-			}
+			// Rules are ordered by cascade priority. Only the winning sound rule can trigger.
+			var soundIn = activeRules.LastOrDefault( x => x.Block.Styles.SoundIn != null );
+			if ( soundIn != null && !LastActiveRules.Contains( soundIn ) )
+				OnRuleAdded( soundIn );
 
-			foreach ( var rule in LastActiveRules )
-			{
-				if ( !activeRules.Contains( rule ) )
-					OnRuleRemoved( rule );
-			}
+			var soundOut = LastActiveRules.LastOrDefault( x => x.Block.Styles.SoundOut != null );
+			if ( soundOut != null && !activeRules.Contains( soundOut ) )
+				OnRuleRemoved( soundOut );
 
 			LastActiveRules.Clear();
 			LastActiveRules.AddRange( activeRules );
@@ -287,7 +289,7 @@ public sealed class PanelStyle : Styles
 
 	public override bool Set( string property, string value )
 	{
-		isDirty = true;
+		Dirty();
 
 		return base.Set( property, value );
 	}

@@ -8,7 +8,7 @@ namespace Sandbox.UI;
 /// <see cref="Styles"/> into layout-engine style values and hands the results back as rects.
 /// </summary>
 [SkipHotload]
-internal sealed class PanelLayout
+internal sealed partial class PanelLayout
 {
 	/// <summary>
 	/// Measures a panel's content: returns the content size (excluding padding and border) for the
@@ -73,6 +73,7 @@ internal sealed class PanelLayout
 	{
 		if ( _node is null ) return;
 
+		ReleaseInlineContext();
 		_node.Owner?.RemoveChild( _node );
 		_node.RemoveAllChildren();
 		_node.Context = null;
@@ -140,7 +141,11 @@ internal sealed class PanelLayout
 		return new LayoutSize( size.x, size.y );
 	}
 
-	internal void RemoveChild( PanelLayout child ) => Node.RemoveChild( child.Node );
+	internal void RemoveChild( PanelLayout child )
+	{
+		_inlineContext?.Invalidate();
+		if ( child is not null ) Node.RemoveChild( child.Node );
+	}
 
 	internal void AddChild( PanelLayout child )
 	{

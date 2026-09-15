@@ -72,6 +72,45 @@ PackageReviews
 	padding-top: 12px;
 }
 
+.write-review
+{
+	flex-direction: row;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 16px;
+	padding: 16px 20px;
+	margin: 0 32px 16px 32px;
+	border: 1px solid $default-border;
+	border-radius: $rounding-large;
+	background-color: $default-900;
+
+	.text
+	{
+		flex-grow: 1;
+		flex-direction: column;
+		gap: 2px;
+
+		.title
+		{
+			font-size: 16px;
+			font-weight: 700;
+		}
+
+		.hint
+		{
+			font-size: $text-small;
+			opacity: 0.7;
+		}
+	}
+
+	Button
+	{
+		flex-shrink: 0;
+		padding: 12px 24px;
+		font-size: 14px;
+	}
+}
+
 .tag-filters
 {
 	flex-direction: column;
@@ -90,6 +129,7 @@ PackageReviews
 	{
 		margin-top: 0;
 	}
+
 
 	.tag-filter-group
 	{

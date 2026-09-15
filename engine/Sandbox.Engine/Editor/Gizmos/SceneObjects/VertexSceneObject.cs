@@ -14,6 +14,7 @@ internal class VertexSceneObject : SceneDynamicObject
 	internal bool ConfigApplied;
 	internal Graphics.PrimitiveType ConfigType;
 	internal Material ConfigMaterial;
+	internal Texture ConfigTexture;
 	internal bool ConfigIgnoreDepth;
 	internal bool ConfigCullBackfaces;
 	internal float ConfigLineThickness;

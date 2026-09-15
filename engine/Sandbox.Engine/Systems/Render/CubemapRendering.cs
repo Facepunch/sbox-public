@@ -38,7 +38,7 @@ internal static class CubemapRendering
 	/// <param name="excludeTags">Objects with any of these tags will be excluded from the render.</param>
 	public static void Render( SceneWorld world, Texture cubemapTexture, Transform cubemapTransform, float znear, float zfar, GGXFilterType filterType, ITagSet excludeTags = null )
 	{
-		if ( Application.IsHeadless )
+		if ( !Graphics.IsAvailable )
 			throw new Exception( "Tried to call CubemapRendering.Render from a dedicated server" );
 
 		using var camera = new SceneCamera( "CubemapRendering" );

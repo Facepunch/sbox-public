@@ -330,7 +330,7 @@ public partial class SceneViewportWidget : Widget
 			var targetPos = cameraTargetPosition.Value;
 
 			// If camera position is fucked, just jump to target
-			if ( currentPos.IsNaN || currentPos.IsInfinity )
+			if ( !currentPos.IsFinite )
 			{
 				_activeCamera.WorldPosition = targetPos;
 				cameraTargetPosition = null;
@@ -339,7 +339,7 @@ public partial class SceneViewportWidget : Widget
 			}
 
 			// If target is fucked, just ignore it
-			if ( targetPos.IsNaN || targetPos.IsInfinity )
+			if ( !targetPos.IsFinite )
 			{
 				cameraTargetPosition = null;
 				cameraVelocity = Vector3.Zero;

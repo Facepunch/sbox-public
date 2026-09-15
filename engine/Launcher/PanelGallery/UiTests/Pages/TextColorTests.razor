@@ -1,0 +1,26 @@
+@using Sandbox.PanelGallery;
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Text" )]
+@attribute [Title( "color" )]
+@attribute [Icon( "text_fields" )]
+<root>
+    <h2>Gradient fill</h2>
+
+    <div class="cases">
+        <UiTestCase Caption="Linear gradient / to right" Setup="@Text" Css="@($"color: linear-gradient( to right, {GalleryPalette.CyanHex}, {GalleryPalette.PinkHex} )")" Text="@Sample" />
+        <UiTestCase Caption="Linear gradient / to bottom" Setup="@Text" Css="color: linear-gradient( to bottom, #ffffff, #6f7788 )" Text="@Sample"
+                    Note="Top to bottom across the line box, not per glyph." />
+
+        <UiTestCase Caption="Radial gradient" Setup="@Text" Css="@($"color: radial-gradient( #ffffff, {GalleryPalette.CyanHex} )")" Text="@Sample" />
+    </div>
+
+
+</root>
+@code
+{
+    const string Text = "width: 200px; font-size: 42px; font-weight: 700";
+    const string Sample = "Color";
+}

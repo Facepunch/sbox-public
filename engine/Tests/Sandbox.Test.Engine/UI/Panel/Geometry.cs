@@ -328,6 +328,30 @@ public class PanelGeometryTest
 		Assert.AreEqual( 2.0f, p.ScaleToScreen );
 		Assert.AreEqual( new Rect( 200, 200, 200, 100 ), p.Box.Rect );
 	}
+
+	/// <summary>
+	/// A paint layer on a transformed ancestor doesn't hide that transform from screen-space
+	/// conversions; painting and input share one chain.
+	/// </summary>
+	[TestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void ScreenConversionsCrossPaintLayers( bool layered )
+	{
+		var root = new RootPanel { PanelBounds = new Rect( 0, 0, 1000, 1000 ) };
+		var host = new Panel { Parent = root };
+		host.Style.Set( "position: absolute; left: 0px; top: 0px; width: 200px; height: 100px; transform: translateX(100px);" );
+		if ( layered ) host.Style.Set( "isolation: isolate;" );
+		var child = new Panel { Parent = host };
+		child.Style.Set( "position: absolute; left: 20px; top: 0px; width: 50px; height: 50px;" );
+		root.Layout();
+
+		Assert.AreEqual( layered, host.HasPanelLayer );
+		Assert.AreEqual( host.GlobalMatrix, child.GlobalMatrix );
+		Assert.AreEqual( host.RenderTransform, child.RenderTransform );
+		Assert.AreEqual( new Vector2( 30, 10 ), child.ScreenPositionToPanelPosition( new Vector2( 150, 10 ) ) );
+		Assert.AreEqual( new Vector2( 150, 10 ), child.PanelPositionToScreenPosition( new Vector2( 30, 10 ) ) );
+	}
 }
 
 /// <summary>

@@ -50,7 +50,8 @@ JamPage
 		}
 	}
 
-	.live
+	// Scoped so the cards' own .live pill keeps its style
+	.bar .live
 	{
 		flex-direction: row;
 		flex-shrink: 0;

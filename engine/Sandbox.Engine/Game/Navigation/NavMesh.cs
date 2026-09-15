@@ -1,0 +1,542 @@
+using Sandbox.Navigation.Pathfinding;
+using System.Runtime.CompilerServices;
+using Sandbox.Engine.Resources;
+using Sandbox.Navigation.Generation;
+using Sandbox.Utility;
+
+namespace Sandbox.Navigation;
+
+/// <summary>
+/// Navigation Mesh - allowing AI to navigate a world
+/// </summary>
+[Expose]
+public sealed partial class NavMesh : IDisposable
+{
+	internal NavMeshGraph navmeshInternal;
+
+	internal NavigationSimulation Simulation;
+
+	internal readonly object SyncRoot = new();
+	internal long Generation;
+	private bool disposed;
+
+	internal MeshQuery query;
+
+	// Making this only work from Scene.NavMesh for now. There's no real reason we can't let
+	// then create these and manage them themselves. But for now, early days, I want to lock
+	// it down to only required functionality.
+	internal NavMesh()
+	{
+		navmeshInternal = new NavMeshGraph();
+	}
+
+	~NavMesh()
+	{
+		Dispose();
+	}
+
+	public void Dispose()
+	{
+		lock ( SyncRoot )
+		{
+			if ( disposed ) return;
+			disposed = true;
+			Generation++;
+			Simulation?.Invalidate();
+			Simulation = null;
+			IsEnabled = false;
+			tileCache.Dispose();
+			query = null;
+		}
+
+		GC.SuppressFinalize( this );
+	}
+
+	internal void Reset()
+	{
+		lock ( SyncRoot )
+		{
+			Generation++;
+			Simulation?.Invalidate();
+			Simulation = null;
+			IsEnabled = false;
+			tileCache.Dispose();
+			navmeshInternal = new NavMeshGraph();
+			query = null;
+			_isInitialized = false;
+			IsLoaded = false;
+			IsGenerating = false;
+			IsDirty = false;
+			_bakedDataPath = null;
+		}
+	}
+
+	/// <summary>
+	/// Determines wether the navigation mesh is enabled and should be generated
+	/// </summary>
+	public bool IsEnabled
+	{
+		get; set
+		{
+			field = value;
+			if ( field )
+			{
+				Init();
+			}
+		}
+	} = false;
+
+	/// <summary>
+	/// The navigation mesh is generating
+	/// </summary>
+	[Hide]
+	public bool IsGenerating { get; private set; } = false;
+
+	/// <summary>
+	/// The navigation mesh is dirty and needs a complete rebuild
+	/// </summary>
+	[Hide]
+	public bool IsDirty { get; private set; } = false;
+
+	// Initial load or generation completed
+	internal bool IsLoaded = false;
+
+
+	/// <summary>
+	/// Should the generator include static bodies
+	/// </summary>
+	[Header( "Generation Input" )]
+	public bool IncludeStaticBodies { get; set; } = true;
+
+	/// <summary>
+	/// Should the generator include keyframed bodies
+	/// </summary>
+	public bool IncludeKeyframedBodies { get; set; } = true;
+
+	/// <summary>
+	/// Don't include these bodies in the generation
+	/// </summary>
+	public TagSet ExcludedBodies { get; set; } = new();
+
+	/// <summary>
+	/// If any, we'll only include bodies with this tag
+	/// </summary>
+	public TagSet IncludedBodies { get; set; } = new();
+
+	/// <summary>
+	/// Skip tile generation during scene load. Tiles can then be generated on demand
+	/// via <see cref="GenerateTile"/>, <see cref="RequestTileGeneration"/>, etc.
+	/// </summary>
+	public bool DeferGeneration { get; set; } = false;
+
+	/// <summary>
+	/// By Default , the navmesh will calculate bounds based on the world geometry, but if you want to override that, you can set custom bounds here.
+	/// </summary>
+	[Header( "Bounds" )]
+	public bool CustomBounds { get; set; } = false;
+
+	/// <summary>
+	/// The bounds to generate the navmesh within.
+	/// Won't take effect until regenerated or reloaded.
+	/// </summary>
+	[HideIf( nameof( CustomBounds ), false ), WideMode]
+	public BBox Bounds { get; set; } = default;
+
+	/// <summary>
+	/// Constantly update the navigation mesh in the editor
+	/// </summary>
+	[Header( "Editor" )]
+	public bool EditorAutoUpdate { get; set; } = false;
+
+	/// <summary>
+	/// Draw the navigation mesh in the editor
+	/// </summary>
+	public bool DrawMesh { get; set; }
+
+	/// <summary>
+	/// Height of the agent
+	/// </summary>
+	[Header( "Agent" )]
+	public float AgentHeight { get; set; } = 64.0f;
+
+	/// <summary>
+	/// The radius of the agent. This will change how much gap is left on the edges of surfaces, so they don't clip into walls.
+	/// </summary>
+	public float AgentRadius { get; set; } = 16.0f;
+
+	/// <summary>
+	/// The maximum height an agent can climb (step)
+	/// </summary>
+	public float AgentStepSize { get; set; } = 18.0f;
+
+	/// <summary>
+	/// The maximum slope an agent can walk up (in degrees)
+	/// </summary>
+	public float AgentMaxSlope { get; set; } = 40.0f;
+
+	// Tiling props not exposed until we are sure we want to expose them
+
+	/// <summary>
+	/// The xz-plane cell size to use for fields. [Limit: > 0] [Units: wu] 
+	/// </summary>
+	private float CellSize = 4.0f;
+
+	/// <summary>
+	/// The y-axis cell size to use for fields. [Limit: > 0] [Units: wu]
+	/// </summary>
+	private float CellHeight = 4.0f;
+
+	/// <summary>
+	/// The width/height size of tile's on the xy-plane. [Limit: &gt;= 0] [Units: vx]
+	/// </summary>
+	private int TileSizeXYVoxels { get; set; } = 256;
+
+	private float TileSizeXYWorldSpace { get => TileSizeXYVoxels * CellSize; }
+
+	// We have TILE_BITS(28) bits for tiles and POLY_BITS(20) for poly's, so we can have 2^28 tiles and 2^20 polys
+	internal Vector2Int TileCount { get; set; } = new Vector2Int( 512, 512 ); // Sqrt( 1<< 28 ) = 16384
+
+
+	internal Action OnInit;
+
+	private float TileHeightWorldSpace { get; set; } = 1048576f;
+
+	// The origin of the tile grid
+	private Vector3 TileOrigin
+	{
+		get => -0.5f * TileSizeWorldSpace.WithZ( 0 ) * new Vector3( TileCount.x, TileCount.y ) - new Vector3( 0, 0, 0.5f * TileSizeWorldSpace.z );
+	}
+
+	private Vector3 TileSizeWorldSpace { get => new Vector3( TileSizeXYWorldSpace, TileSizeXYWorldSpace, TileHeightWorldSpace ); }
+
+	/// <summary>
+	/// Set the navgiation a dirty, so it will rebuild over the next few frames.
+	/// If you need an immediate rebuild, call <see cref="Generate(PhysicsWorld)"/> instead.
+	/// </summary>
+	public void SetDirty()
+	{
+		IsDirty = true;
+	}
+
+	private bool _isInitialized = false;
+
+	internal void Init()
+	{
+		ThreadSafe.AssertIsMainThread();
+
+		lock ( SyncRoot )
+		{
+			ObjectDisposedException.ThrowIf( disposed, this );
+			if ( _isInitialized )
+			{
+				return;
+			}
+
+			var navMeshParams = new MeshParameters
+			{
+				tileHeight = TileSizeXYWorldSpace,
+				tileWidth = TileSizeXYWorldSpace,
+				maxTiles = TileCount.x * TileCount.y,
+				orig = ToNav( TileOrigin ),
+			};
+
+			navmeshInternal.Init( navMeshParams, 6 );
+
+			Simulation = new NavigationSimulation( navmeshInternal, SyncRoot, AgentRadius, AgentHeight );
+
+			query = new MeshQuery( navmeshInternal );
+
+			_isInitialized = true;
+		}
+
+		OnInit?.Invoke();
+	}
+
+	internal void InvalidateAllTiles( PhysicsWorld world )
+	{
+		if ( IsGenerating ) return;
+
+		if ( !CustomBounds )
+		{
+			Bounds = CalculateWorldBounds( world );
+		}
+
+		var minMaxBounds = CalculateMinMaxTileCoords( Bounds );
+
+		// request full rebuild for every tile in bounds
+		for ( int x = minMaxBounds.Left; x <= minMaxBounds.Right; x++ )
+		{
+			for ( int y = minMaxBounds.Top; y <= minMaxBounds.Bottom; y++ )
+			{
+				var tile = tileCache.GetOrAddTile( new Vector2Int( x, y ) );
+				tile.RequestFullRebuild();
+			}
+		}
+
+		IsDirty = false;
+	}
+
+	// In the future will handle loading from disk
+	// Right now it's the same as Generate
+	// should probably obsolete generate
+	internal async Task<bool> Load( PhysicsWorld world )
+	{
+		if ( IsGenerating )
+		{
+			Log.Warning( "NavMesh is already generating" );
+			return false;
+		}
+
+		long generation = Generation;
+		try
+		{
+			IsEnabled = true;
+			IsGenerating = true;
+
+			Init();
+
+			if ( !DeferGeneration )
+			{
+				await LoadFromBake();
+				if ( generation != Generation || disposed ) return false;
+
+				if ( !CustomBounds ) Bounds = CalculateWorldBounds( world );
+
+				await GenerateTiles( world, Bounds );
+			}
+			else
+			{
+				if ( !string.IsNullOrEmpty( _bakedDataPath ) )
+				{
+					Log.Warning( "NavMesh: Baked data is ignored when DeferGeneration is enabled" );
+				}
+
+				if ( !CustomBounds ) Bounds = CalculateWorldBounds( world );
+			}
+		}
+		finally
+		{
+			if ( generation == Generation && !disposed )
+			{
+				IsGenerating = false;
+				IsDirty = false;
+				IsLoaded = true;
+			}
+		}
+
+		return true;
+	}
+
+	public async Task<bool> Generate( PhysicsWorld world )
+	{
+		if ( IsGenerating )
+		{
+			Log.Warning( "NavMesh is already generating" );
+			return false;
+		}
+
+		long generation = Generation;
+		try
+		{
+			IsEnabled = true;
+			IsGenerating = true;
+
+			Init();
+
+			if ( !CustomBounds ) Bounds = CalculateWorldBounds( world );
+
+			await GenerateTiles( world, Bounds );
+		}
+		finally
+		{
+			if ( generation == Generation && !disposed )
+			{
+				IsGenerating = false;
+				IsDirty = false;
+				IsLoaded = true;
+			}
+		}
+
+		return true;
+	}
+
+	private BBox CalculateWorldBounds( PhysicsWorld world )
+	{
+		// Iterate over all bodies and create world bounds
+		BBox? result = null;
+		foreach ( var body in world.Bodies )
+		{
+			if ( !IsBodyRelevantForNavmesh( body ) )
+			{
+				continue;
+			}
+
+
+			result = result == null ? body.GetBounds() : result?.AddBBox( body.GetBounds() );
+		}
+
+		if ( result != null )
+		{
+			result?.Grow( CellSize * 2.0f ); // Grow the bounds a bit to make sure we don't have any precission issues with the edges
+
+			return (BBox)result;
+		}
+
+		return new BBox( Vector3.Zero, Vector3.Zero );
+	}
+
+	internal bool IsBodyRelevantForNavmesh( PhysicsBody body )
+	{
+		var navmeshBodyType = body.NavmeshBodyTypeOverride ?? body.BodyType;
+		if ( body.ShapeCount == 0 ) return false;
+		if ( navmeshBodyType == PhysicsBodyType.Dynamic ) return false; // never include dynamic bodies
+		if ( navmeshBodyType == PhysicsBodyType.Static && !IncludeStaticBodies ) return false;
+		if ( navmeshBodyType == PhysicsBodyType.Keyframed && !IncludeKeyframedBodies ) return false;
+
+		// Excluded by tags
+		if ( ExcludedBodies is not null && !ExcludedBodies.IsEmpty && body.Shapes.Any( shape => shape.Tags.HasAny( ExcludedBodies ) ) )
+			return false;
+
+		// Inlcuded by tags
+		if ( IncludedBodies is not null && !IncludedBodies.IsEmpty && !body.Shapes.Any( shape => shape.Tags.HasAny( IncludedBodies ) ) )
+			return false;
+
+		return true;
+	}
+
+	internal int GetPolyCount( Vector2Int tilePosition )
+	{
+		var tile = navmeshInternal.GetTileAt( tilePosition.x, tilePosition.y, 0 );
+		if ( tile == null || tile.data.header == null )
+		{
+			return default;
+		}
+
+		return tile == null ? 0 : tile.data.header.polyCount;
+	}
+
+	internal Poly GetPoly( Vector2Int tilePosition, int index )
+	{
+		var tile = navmeshInternal.GetTileAt( tilePosition.x, tilePosition.y, 0 );
+		if ( tile == null || tile.data.header == null || index >= tile.data.header.polyCount )
+		{
+			return default;
+		}
+
+		return tile.data.polys[index];
+	}
+
+	internal int GetPolyVertCount( Vector2Int tilePosition, int index )
+	{
+		var tile = navmeshInternal.GetTileAt( tilePosition.x, tilePosition.y, 0 );
+		if ( tile == null || tile.data.header == null || index >= tile.data.header.polyCount )
+		{
+			return default;
+		}
+
+		return tile.data.header.vertCount;
+	}
+
+	internal IEnumerable<Vector3> GetPolyVerts( Vector2Int tilePosition, int polyIndex )
+	{
+		var tile = navmeshInternal.GetTileAt( tilePosition.x, tilePosition.y, 0 );
+		if ( tile == null || tile.data.header == null || polyIndex >= tile.data.header.polyCount )
+		{
+			return [];
+		}
+		var poly = tile.data.polys[polyIndex];
+
+		var vertices = new Vector3[poly.vertCount];
+		for ( int i = 0; i < vertices.Length; i++ ) vertices[i] = FromNav( tile.data.verts[poly.verts[i]] );
+		return vertices;
+	}
+
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	internal static Vector3 FromNav( Vector3 v )
+	{
+		return new Vector3( v.x, v.z, v.y );
+	}
+
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	internal static Vector3 ToNav( Vector3 v )
+	{
+		return new Vector3( v.x, v.z, v.y );
+	}
+
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	internal static BBox ToNav( BBox b )
+	{
+		return new BBox( ToNav( b.Mins ), ToNav( b.Maxs ) );
+	}
+
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	internal static Sphere ToNav( Sphere s )
+	{
+		return new Sphere( ToNav( s.Center ), s.Radius );
+	}
+
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	internal static Capsule ToNav( Capsule c )
+	{
+		return new Capsule( ToNav( c.CenterA ), ToNav( c.CenterB ), c.Radius );
+	}
+
+	// Quaternion/Rotation conversion between world space and nav space.
+	// Mapping chosen to match existing position (Vector3) axis swizzle (Y<->Z) plus handedness adjustments:
+	// World (x, y, z, w) -> Nav ( -x, -z,  y, w )
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	internal static Rotation ToNav( Rotation r )
+	{
+		return new Rotation( -r.x, -r.z, -r.y, r.w );
+	}
+
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	internal static Transform ToNav( in Transform t )
+	{
+		return new Transform(
+			ToNav( t.Position ),
+			ToNav( t.Rotation ),
+			ToNav( t.Scale )
+		);
+	}
+
+
+	/// <summary>
+	/// Implement this interface to receive navmesh editor events.
+	/// </summary>
+	public interface IEventListener
+	{
+		/// <summary>
+		/// Called when an area definition has changed or loaded/created.
+		/// </summary>
+		void OnAreaDefinitionChanged() { }
+	}
+
+
+	private NavMeshTileCache tileCache = new();
+
+	internal void AddSpatiaData( NavMeshSpatialAuxiliaryData data )
+	{
+		tileCache.AddSpatiaData( data );
+	}
+
+	internal void UpdateCache( PhysicsWorld physicsWorld )
+	{
+		tileCache.Update( this, physicsWorld );
+	}
+
+	internal int AreaDefinitionToId( NavMeshAreaDefinition areaDefinition )
+	{
+		return tileCache.AreaDefinitionToId( areaDefinition );
+	}
+
+	internal NavMeshAreaDefinition AreaIdToDefinition( int id )
+	{
+		return tileCache.AreaIdToDefinition( id );
+	}
+
+	internal void UpdateAreaIds()
+	{
+		tileCache.UpdateAreaIds();
+	}
+}

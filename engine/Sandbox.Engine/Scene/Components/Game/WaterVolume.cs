@@ -69,9 +69,14 @@ public sealed class WaterVolume : Component
 	/// </summary>
 	Plane GetWaterSurface()
 	{
-		var normal = WorldRotation.Up;
+		var normal = GetSurfaceNormal();
 		var wave = _smoothAmplitude > 0f ? (MathF.Sin( _wavePhase ) - 1f) * 0.5f * _smoothAmplitude : 0f;
 		return new Plane( WorldPosition + normal * (SurfaceOffset + wave), normal );
+	}
+
+	Vector3 GetSurfaceNormal()
+	{
+		return -Scene.PhysicsWorld.Gravity.Normal;
 	}
 
 	protected override void OnFixedUpdate()
@@ -106,32 +111,46 @@ public sealed class WaterVolume : Component
 		var collider = GetComponent<Collider>();
 		if ( !collider.IsValid() ) return;
 
-		var bounds = collider.LocalBounds;
-		var hx = (bounds.Maxs.x - bounds.Mins.x) * 0.5f;
-		var hy = (bounds.Maxs.y - bounds.Mins.y) * 0.5f;
+		var normal = GetSurfaceNormal();
+		var tangent = Vector3.Cross( normal, Vector3.Forward );
+		if ( tangent.LengthSquared < 1e-6f )
+			tangent = Vector3.Cross( normal, Vector3.Right );
+		tangent = tangent.Normal;
+		var bitangent = Vector3.Cross( normal, tangent ).Normal;
+
+		var half = (collider.LocalBounds.Size * WorldScale * 0.5f).Abs();
+		var hx = Vector3.Dot( (WorldRotation.Inverse * tangent).Abs(), half );
+		var hy = Vector3.Dot( (WorldRotation.Inverse * bitangent).Abs(), half );
+
+		var origin = WorldTransform.PointToWorld( collider.LocalBounds.Center );
 		var wave = _smoothAmplitude > 0f ? (MathF.Sin( _wavePhase ) - 1f) * 0.5f * _smoothAmplitude : 0f;
-		var center = new Vector3( 0, 0, SurfaceOffset + wave );
 
-		DrawSurfaceQuad( center, hx, hy );
-
-		if ( WaveAmplitude > 0f )
+		using ( Gizmo.Scope( "WaterSurface" ) )
 		{
-			Gizmo.Draw.Color = GizmoWaveRange;
-			Gizmo.Draw.LineThickness = 1;
-			DrawWireRect( new Vector3( 0, 0, SurfaceOffset ), hx, hy );
-			DrawWireRect( new Vector3( 0, 0, SurfaceOffset - WaveAmplitude ), hx, hy );
-		}
+			Gizmo.Transform = global::Transform.Zero;
 
-		Gizmo.Draw.Color = GizmoLine;
-		Gizmo.Draw.Arrow( center, center + Vector3.Up * 20f, 4f, 2f );
+			var center = origin + normal * (SurfaceOffset + wave);
+			DrawSurfaceQuad( center, tangent, bitangent, hx, hy );
+
+			if ( WaveAmplitude > 0f )
+			{
+				Gizmo.Draw.Color = GizmoWaveRange;
+				Gizmo.Draw.LineThickness = 1;
+				DrawWireRect( origin + normal * SurfaceOffset, tangent, bitangent, hx, hy );
+				DrawWireRect( origin + normal * (SurfaceOffset - WaveAmplitude), tangent, bitangent, hx, hy );
+			}
+
+			Gizmo.Draw.Color = GizmoLine;
+			Gizmo.Draw.Arrow( center, center + normal * 20f, 4f, 2f );
+		}
 	}
 
-	static void DrawSurfaceQuad( Vector3 center, float hx, float hy )
+	static void DrawSurfaceQuad( Vector3 center, Vector3 tangent, Vector3 bitangent, float hx, float hy )
 	{
-		var v0 = center + new Vector3( -hx, -hy, 0 );
-		var v1 = center + new Vector3( hx, -hy, 0 );
-		var v2 = center + new Vector3( hx, hy, 0 );
-		var v3 = center + new Vector3( -hx, hy, 0 );
+		var v0 = center - tangent * hx - bitangent * hy;
+		var v1 = center + tangent * hx - bitangent * hy;
+		var v2 = center + tangent * hx + bitangent * hy;
+		var v3 = center - tangent * hx + bitangent * hy;
 
 		Gizmo.Draw.Color = GizmoFill;
 		Gizmo.Draw.SolidTriangle( v0, v1, v2 );
@@ -145,12 +164,12 @@ public sealed class WaterVolume : Component
 		Gizmo.Draw.Line( v3, v0 );
 	}
 
-	static void DrawWireRect( Vector3 center, float hx, float hy )
+	static void DrawWireRect( Vector3 center, Vector3 tangent, Vector3 bitangent, float hx, float hy )
 	{
-		var v0 = center + new Vector3( -hx, -hy, 0 );
-		var v1 = center + new Vector3( hx, -hy, 0 );
-		var v2 = center + new Vector3( hx, hy, 0 );
-		var v3 = center + new Vector3( -hx, hy, 0 );
+		var v0 = center - tangent * hx - bitangent * hy;
+		var v1 = center + tangent * hx - bitangent * hy;
+		var v2 = center + tangent * hx + bitangent * hy;
+		var v3 = center - tangent * hx + bitangent * hy;
 
 		Gizmo.Draw.Line( v0, v1 );
 		Gizmo.Draw.Line( v1, v2 );

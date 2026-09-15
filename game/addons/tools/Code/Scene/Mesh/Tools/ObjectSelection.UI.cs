@@ -287,6 +287,171 @@ partial class ObjectSelection
 			}
 		}
 
+		[Shortcut( "mesh.flip-horizontal", "CTRL+L", typeof( SceneViewWidget ) )]
+		public void FlipHorizontal() => Flip( true );
+
+		[Shortcut( "mesh.flip-vertical", "CTRL+I", typeof( SceneViewWidget ) )]
+		public void FlipVertical() => Flip( false );
+
+		/// <summary>
+		/// Mirror the selected meshes in place, about the pivot. Like the mirror tool,
+		/// but on a fixed axis and without leaving a copy behind.
+		/// </summary>
+		void Flip( bool horizontal )
+		{
+			if ( _meshes.Length == 0 ) return;
+
+			var pivot = _tool.Pivot.Position;
+
+			var axis = FlipAxis( horizontal, pivot );
+			if ( !axis.HasValue ) return;
+
+			_tool._transformKind = TextureLockTransform.Move;
+			var lockTexture = _tool.ShouldLockTexture();
+
+			using var scope = SceneEditorSession.Scope();
+
+			using ( SceneEditorSession.Active.UndoScope( horizontal ? "Flip Horizontal" : "Flip Vertical" )
+				.WithComponentChanges( _meshes )
+				.Push() )
+			{
+				foreach ( var component in _meshes )
+				{
+					MirrorMesh( component, pivot, axis.Value, lockTexture );
+				}
+			}
+		}
+
+		/// <summary>
+		/// Horizontal and vertical are relative to how the selection looks from where the
+		/// camera is, we build a view basis from the camera to the pivot and take whichever
+		/// world axis is closest to the screen's right or up.
+		/// </summary>
+		static Vector3? FlipAxis( bool horizontal, Vector3 pivot )
+		{
+			var viewport = SceneViewWidget.Current?.LastSelectedViewportWidget;
+			if ( !viewport.IsValid() ) return null;
+
+			var gizmo = viewport.GizmoInstance;
+			if ( gizmo is null ) return null;
+
+			using var gizmoScope = gizmo.Push();
+
+			var forward = (pivot - Gizmo.Camera.Position).Normal;
+
+			var rotation = MathF.Abs( forward.Dot( Vector3.Up ) ) > 0.99f || forward.IsNearlyZero()
+				? Gizmo.Camera.Rotation
+				: Rotation.LookAt( forward, Vector3.Up );
+
+			return NearestAxis( horizontal ? rotation.Right : rotation.Up );
+		}
+
+		static Vector3 NearestAxis( Vector3 direction )
+		{
+			var abs = direction.Abs();
+
+			if ( abs.x >= abs.y && abs.x >= abs.z ) return Vector3.Forward;
+			if ( abs.y >= abs.z ) return Vector3.Left;
+
+			return Vector3.Up;
+		}
+
+		static void MirrorMesh( MeshComponent component, Vector3 pivot, Vector3 axis, bool lockTexture )
+		{
+			var mesh = component.Mesh;
+			if ( mesh is null ) return;
+
+			var transform = component.WorldTransform;
+			var normal = transform.NormalToLocal( axis ).Normal;
+			var origin = transform.PointToLocal( pivot );
+
+			foreach ( var handle in mesh.VertexHandles )
+			{
+				var position = mesh.GetVertexPosition( handle );
+				var distance = Vector3.Dot( position - origin, normal );
+
+				mesh.SetVertexPosition( handle, position - normal * distance * 2.0f );
+			}
+
+			var painted = CaptureVertexPaint( mesh );
+			mesh.FlipAllFaces();
+			RestoreVertexPaint( mesh, painted );
+
+			if ( lockTexture )
+			{
+				MirrorTextureAxes( mesh, axis.Normal, Vector3.Dot( axis.Normal, pivot ) );
+			}
+			else
+			{
+				mesh.ComputeFaceTextureCoordinatesFromParameters();
+			}
+
+			component.RebuildMesh();
+		}
+
+		static Dictionary<(FaceHandle, VertexHandle), (Color32 Color, Color32 Blend)> CaptureVertexPaint( PolygonMesh mesh )
+		{
+			var painted = new Dictionary<(FaceHandle, VertexHandle), (Color32, Color32)>();
+
+			foreach ( var face in mesh.FaceHandles )
+			{
+				if ( !mesh.GetFaceVerticesConnectedToFace( face, out var corners ) )
+					continue;
+
+				foreach ( var corner in corners )
+				{
+					var vertex = mesh.GetVertexConnectedToFaceVertex( corner );
+					painted[(face, vertex)] = (mesh.GetVertexColor( corner ), mesh.GetVertexBlend( corner ));
+				}
+			}
+
+			return painted;
+		}
+
+		static void RestoreVertexPaint( PolygonMesh mesh, Dictionary<(FaceHandle, VertexHandle), (Color32 Color, Color32 Blend)> painted )
+		{
+			foreach ( var face in mesh.FaceHandles )
+			{
+				if ( !mesh.GetFaceVerticesConnectedToFace( face, out var corners ) )
+					continue;
+
+				foreach ( var corner in corners )
+				{
+					var vertex = mesh.GetVertexConnectedToFaceVertex( corner );
+
+					if ( !painted.TryGetValue( (face, vertex), out var paint ) )
+						continue;
+
+					mesh.SetVertexColor( corner, paint.Color );
+					mesh.SetVertexBlend( corner, paint.Blend );
+				}
+			}
+		}
+
+		static void MirrorTextureAxes( PolygonMesh mesh, Vector3 normal, float distance )
+		{
+			foreach ( var face in mesh.FaceHandles )
+			{
+				mesh.GetFaceTextureParameters( face, out var axisU, out var axisV, out var scale );
+
+				mesh.SetFaceTextureParameters( face,
+					MirrorTextureAxis( axisU, normal, distance, scale.x ),
+					MirrorTextureAxis( axisV, normal, distance, scale.y ),
+					scale );
+			}
+		}
+
+		static Vector4 MirrorTextureAxis( Vector4 axis, Vector3 normal, float distance, float scale )
+		{
+			var direction = (Vector3)axis;
+			var dot = Vector3.Dot( direction, normal );
+
+			var mirrored = direction - normal * dot * 2.0f;
+			var offset = axis.w + (scale.AlmostEqual( 0.0f ) ? 0.0f : 2.0f * distance * dot / scale);
+
+			return new Vector4( mirrored, offset );
+		}
+
 		[Shortcut( "mesh.remove-bad-geometry", "", typeof( SceneViewWidget ) )]
 		public void RemoveBadGeometry()
 		{

@@ -2,51 +2,6 @@
 
 public static class SettingsMenus
 {
-	[Menu( "Editor", "Settings/MSAA/Off" )]
-	public static bool MsaaOff
-	{
-		get => EditorUtility.RenderSettings.AntiAliasQuality == MultisampleAmount.MultisampleNone;
-		set
-		{
-			EditorUtility.RenderSettings.AntiAliasQuality = MultisampleAmount.MultisampleNone;
-			EditorUtility.RenderSettings.Apply();
-		}
-	}
-
-	[Menu( "Editor", "Settings/MSAA/2X" )]
-	public static bool Msaa2X
-	{
-		get => EditorUtility.RenderSettings.AntiAliasQuality == MultisampleAmount.Multisample2x;
-		set
-		{
-			EditorUtility.RenderSettings.AntiAliasQuality = MultisampleAmount.Multisample2x;
-			EditorUtility.RenderSettings.Apply();
-		}
-	}
-
-	[Menu( "Editor", "Settings/MSAA/4X" )]
-	public static bool Msaa4X
-	{
-		get => EditorUtility.RenderSettings.AntiAliasQuality == MultisampleAmount.Multisample4x;
-		set
-		{
-			EditorUtility.RenderSettings.AntiAliasQuality = MultisampleAmount.Multisample4x;
-			EditorUtility.RenderSettings.Apply();
-		}
-	}
-
-	[Menu( "Editor", "Settings/MSAA/8X" )]
-	public static bool Msaa8X
-	{
-		get => EditorUtility.RenderSettings.AntiAliasQuality == MultisampleAmount.Multisample8x;
-		set
-		{
-			EditorUtility.RenderSettings.AntiAliasQuality = MultisampleAmount.Multisample8x;
-			EditorUtility.RenderSettings.Apply();
-		}
-	}
-
-
 	[Menu( "Editor", "Settings/Frame Rate Limit/10fps" )]
 	public static bool Frame10
 	{

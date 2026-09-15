@@ -25,8 +25,8 @@ public abstract partial class Collider
 	{
 		foreach ( var shape in Shapes )
 		{
-			shape.native.SetIgnoreTraces( ColliderFlags.Contains( ColliderFlags.IgnoreTraces ) );
-			shape.native.SetHasNoMass( ColliderFlags.Contains( ColliderFlags.IgnoreMass ) );
+			shape.IgnoreTraces = ColliderFlags.Contains( ColliderFlags.IgnoreTraces );
+			shape.HasNoMass = ColliderFlags.Contains( ColliderFlags.IgnoreMass );
 		}
 	}
 }

@@ -28,6 +28,7 @@ internal class UploadBuildArtifacts
 		"thirdpartylegalnotices/**",
 		"bin/win64/**",
 		"bin/linuxsteamrt64/**",
+		"bin/osxarm64/**",
 		"bin/managed/**",
 		"bin/assettypes.txt",
 		"bin/enginetools.txt",

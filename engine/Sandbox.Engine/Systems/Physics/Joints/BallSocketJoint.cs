@@ -1,24 +1,21 @@
-﻿namespace Sandbox.Physics;
+namespace Sandbox.Physics;
 
 /// <summary>
 /// A ballsocket constraint.
 /// </summary>
 public partial class BallSocketJoint : PhysicsJoint
 {
-	internal BallSocketJoint( HandleCreationData _ ) { }
+	internal BallSocketJoint( PhysicsJointInternal joint ) : base( joint ) { }
 
 	Vector2 _swingLimit;
-	bool _swingLimitEnabled;
-
 	Vector2 _twistLimit;
-	bool _twistLimitEnabled;
 
 	/// <summary>
 	/// Constraint friction.
 	/// </summary>
 	public float Friction
 	{
-		set => native.SetFriction( value );
+		set => _joint?.Friction = value;
 	}
 
 	/// <summary>
@@ -31,18 +28,18 @@ public partial class BallSocketJoint : PhysicsJoint
 		{
 			if ( _swingLimit == value ) return;
 			_swingLimit = value;
-			native.SetLimit( "swing", _swingLimit );
+			_joint?.SetLimit( "swing", _swingLimit );
 		}
 	}
 
 	public bool SwingLimitEnabled
 	{
-		get => _swingLimitEnabled;
+		get;
 		set
 		{
-			if ( _swingLimitEnabled == value ) return;
-			_swingLimitEnabled = value;
-			native.SetLimitEnabled( "swing", _swingLimitEnabled );
+			if ( field == value ) return;
+			field = value;
+			_joint?.SetLimitEnabled( "swing", field );
 		}
 	}
 
@@ -53,18 +50,28 @@ public partial class BallSocketJoint : PhysicsJoint
 		{
 			if ( _twistLimit == value ) return;
 			_twistLimit = value;
-			native.SetLimit( "twist", _twistLimit );
+			_joint?.SetLimit( "twist", _twistLimit );
 		}
 	}
 
 	public bool TwistLimitEnabled
 	{
-		get => _twistLimitEnabled;
+		get;
 		set
 		{
-			if ( _twistLimitEnabled == value ) return;
-			_twistLimitEnabled = value;
-			native.SetLimitEnabled( "twist", _twistLimitEnabled );
+			if ( field == value ) return;
+			field = value;
+			_joint?.SetLimitEnabled( "twist", field );
 		}
 	}
+
+	/// <summary>
+	/// Set the target rotation motor (rotation, frequency, damping ratio).
+	/// </summary>
+	public void SetTargetRotation( Rotation rotation, float hertz, float damping ) => _joint?.SetTargetRotation( rotation, hertz, damping );
+
+	/// <summary>
+	/// Set the motor velocity and max torque.
+	/// </summary>
+	public void SetMotorVelocity( Vector3 velocity, float maxTorque ) => _joint?.SetMotorVelocity( velocity, maxTorque );
 }
