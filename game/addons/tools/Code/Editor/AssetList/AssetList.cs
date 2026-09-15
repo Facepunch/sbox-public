@@ -642,7 +642,12 @@ public partial class AssetList : ListView, AssetSystem.IEventListener
 	{
 		Action<string> CreateNew = ( string s ) =>
 		{
-			File.WriteAllText( s, File.ReadAllText( asset.GetSourceFile( true ) ) );
+			var source = asset.GetSourceFile( true );
+			File.WriteAllText( s, File.ReadAllText( source ) );
+
+			var blob = $"{source}_d";
+			if ( File.Exists( blob ) )
+				File.Copy( blob, $"{s}_d", true );
 
 			var copy = AssetSystem.RegisterFile( s );
 			MainAssetBrowser.Instance?.Local.UpdateAssetList();

@@ -190,7 +190,12 @@ public class AssetEntry : IAssetListEntry
 
 	public void Duplicate( string newName = null )
 	{
-		FileInfo.CopyTo( FileInfo.GetNewPath( newName ?? FileInfo.GetDefaultDuplicateName() ) );
+		var newPath = FileInfo.GetNewPath( newName ?? FileInfo.GetDefaultDuplicateName() );
+		FileInfo.CopyTo( newPath );
+
+		var blob = new FileInfo( $"{FileInfo.FullName}_d" );
+		if ( blob.Exists )
+			blob.CopyTo( $"{newPath}_d" );
 	}
 
 	public bool OnDoubleClicked( AssetList list )
