@@ -405,6 +405,16 @@ internal class PanelInput
 					Dragged = true;
 					DragTarget?.CreateEvent( new DragEvent( "ondragstart", DragTarget, StartHoldOffsetLocal, StartHoldOffsetScreen ) );
 
+					// The drag-start handler is user code and may rebuild or delete the
+					// panel that received the mouse-down event. Do not dispatch another
+					// mouse event to an invalid panel after that callback returns.
+					if ( !Active.IsValid() )
+					{
+						Active = null;
+						DragTarget = null;
+						return;
+					}
+
 					// We started dragging - stop active panel being active, no click events
 					{
 						Panel.Switch( PseudoClass.Active, false, Active );
