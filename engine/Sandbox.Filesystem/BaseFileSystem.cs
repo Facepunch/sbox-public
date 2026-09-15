@@ -418,6 +418,14 @@ public class BaseFileSystem
 
 	bool watchUnavailable;
 
+	/// <summary>
+	/// Whether filesystems watch the disk for changes at all. Watching is what hot reloads
+	/// assets and stylesheets, so it's on for the game and the editor. An app that never edits
+	/// anything - the launcher - turns it off: starting a watcher costs the better part of a
+	/// hundred milliseconds on macOS, and it starts one per mounted filesystem.
+	/// </summary>
+	internal static bool WatchingEnabled { get; set; } = true;
+
 	internal FileWatch Watch( string pathglob = null )
 	{
 		// One watcher for the whole filesystem, shared by every FileWatch handed out. It used
@@ -425,7 +433,7 @@ public class BaseFileSystem
 		// expecting: on Linux that means a fresh set of inotify instances per call - one per
 		// mounted filesystem in the aggregate - and the editor watches a stylesheet at a time
 		// until it hits the 128 instance limit and the whole thing falls over.
-		if ( watcher == null && !watchUnavailable )
+		if ( watcher == null && !watchUnavailable && WatchingEnabled )
 		{
 			try
 			{
