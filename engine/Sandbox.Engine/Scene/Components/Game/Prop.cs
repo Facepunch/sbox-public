@@ -339,6 +339,11 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 	public bool IsFlammable => Model?.Data.Flammable ?? false;
 
 	/// <summary>
+	/// True if this prop can be set on fire.
+	/// </summary>
+	public bool IgniteOnAnyDamage  => Model?.Data.IgniteOnAnyDamage ?? false;
+
+	/// <summary>
 	/// True if this prop will explode when destroyed.
 	/// </summary>
 	public bool IsExplosive => Model?.Data.Explosive ?? false;
@@ -394,13 +399,18 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 
 	bool ShouldDamageIgnite( in DamageInfo damage )
 	{
-		// Physics impacts only ignite if they do lots of damage
-		if ( damage.Tags.Contains( "impact" ) )
+		// Props with IgniteOnAnyDamage set in model data ignite from any hit,
+		// but physics impacts only count if they do more than half the prop's health.
+		if ( IgniteOnAnyDamage )
 		{
-			return damage.Damage > Health * 0.5f;
+			if ( damage.Tags.Contains( "impact" ) )
+				return damage.Damage > Health * 0.5f;
+
+			return true;
 		}
 
-		return true;
+		// By default only fire and explosions ignite flammable props.
+		return damage.Tags.Has( "burn" ) || damage.Tags.Has( "explosion" );
 	}
 
 	public void Ignite()
