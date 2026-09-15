@@ -208,9 +208,8 @@ internal static class ManagedTools
 					if ( modifiers.HasFlag( KeyboardModifiers.Ctrl ) && ev.Key != KeyCode.Control ) modifiedKey = "CTRL+" + modifiedKey;
 				}
 
-				// If we're "in game" these will be passed by the InputRouter whilst we're not focused
-				if ( EditorShortcuts._timeSinceGlobalShortcut <= 0.05f && ev.Key >= KeyCode.F1 && ev.Key <= KeyCode.F12 )
-					return false;
+				if ( ev.Key >= KeyCode.F1 && ev.Key <= KeyCode.F12 )
+					EditorShortcuts._timeSinceGlobalShortcut = 0;
 
 				// Try with modifier first.
 				if ( modifiers != KeyboardModifiers.None && EditorShortcuts.Invoke( modifiedKey ) )
