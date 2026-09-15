@@ -57,6 +57,11 @@ public sealed partial class Project
 			{
 				compilerSettings.IgnoreFolders.Add( "editor" );
 				compilerSettings.IgnoreFolders.Add( "unittest" );
+
+				if ( Config.IsStandaloneOnly )
+				{
+					compilerSettings.DefineConstants += ";NO_WHITELIST";
+				}
 			}
 
 			project = generator.AddProject( Config.Type, Config.FullIdent, projectName, GetCodePath(), compilerSettings );
