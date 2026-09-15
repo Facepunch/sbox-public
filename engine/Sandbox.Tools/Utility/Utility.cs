@@ -171,6 +171,8 @@ public static partial class EditorUtility
 		if ( dirA == dirB )
 			return;
 
+		var absoluteBlob = GetBlobFile( asset );
+
 		CopyAssetToDirectory( asset, directory );
 
 		var absoluteSource = asset.GetSourceFile( true );
@@ -181,6 +183,9 @@ public static partial class EditorUtility
 
 		if ( !string.IsNullOrEmpty( absoluteCompiled ) )
 			System.IO.File.Delete( absoluteCompiled );
+
+		if ( !string.IsNullOrEmpty( absoluteBlob ) )
+			System.IO.File.Delete( absoluteBlob );
 	}
 
 	public static void RenameDirectory( string directory, string newDirectory, bool recursive = false )
@@ -239,6 +244,9 @@ public static partial class EditorUtility
 		var sourcePath = asset.GetSourceFile( true );
 		var newSourcePath = sourcePath.Replace( asset.Name, newName );
 
+		var blobPath = GetBlobFile( asset );
+		var newBlobPath = string.IsNullOrEmpty( blobPath ) ? null : $"{newSourcePath}_d";
+
 		if ( string.Equals( asset.Name, newName, StringComparison.OrdinalIgnoreCase ) )
 		{
 			// we've just changed the capitalisation
@@ -258,6 +266,11 @@ public static partial class EditorUtility
 				System.IO.File.Delete( newCompiledPath );
 			}
 
+			if ( !string.IsNullOrEmpty( newBlobPath ) && System.IO.File.Exists( newBlobPath ) )
+			{
+				System.IO.File.Delete( newBlobPath );
+			}
+
 			// moving the asset will register another, so let's delete the old one
 			asset.IsDeleted = true;
 		}
@@ -267,6 +280,9 @@ public static partial class EditorUtility
 
 		if ( !string.IsNullOrEmpty( sourcePath ) )
 			System.IO.File.Move( sourcePath, newSourcePath );
+
+		if ( !string.IsNullOrEmpty( blobPath ) )
+			System.IO.File.Move( blobPath, newBlobPath );
 
 		return true;
 	}
@@ -284,6 +300,24 @@ public static partial class EditorUtility
 
 		if ( !string.IsNullOrEmpty( absoluteSource ) && System.IO.Path.Exists( absoluteSource ) )
 			CopyFileToDirectory( absoluteSource, directory, overwrite );
+
+		var absoluteBlob = GetBlobFile( asset );
+		if ( !string.IsNullOrEmpty( absoluteBlob ) )
+			CopyFileToDirectory( absoluteBlob, directory, overwrite );
+	}
+
+	/// <summary>
+	/// Game resources can have a binary blob companion file sitting next to their source file, using the
+	/// source filename with a "_d" suffix. Returns its absolute path, or null if there isn't one.
+	/// </summary>
+	internal static string GetBlobFile( Asset asset )
+	{
+		var source = asset?.GetSourceFile( true );
+		if ( string.IsNullOrWhiteSpace( source ) )
+			return null;
+
+		var blob = $"{source}_d";
+		return System.IO.File.Exists( blob ) ? blob : null;
 	}
 
 	public static Task<bool> PutAsync( Stream fileStream, string endpoint, Sandbox.Utility.DataProgress.Callback progress = null, CancellationToken token = default )

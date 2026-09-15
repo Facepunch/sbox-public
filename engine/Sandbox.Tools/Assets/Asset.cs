@@ -108,18 +108,22 @@ public abstract partial class Asset
 	}
 
 	/// <summary>
-	/// Delete this asset. Will send the source and compiled files to the recycle bin.
+	/// Delete this asset. Will send the source, compiled and blob companion files to the recycle bin.
 	/// </summary>
 	public void Delete()
 	{
 		var compiled = GetCompiledFile( true );
 		var source = GetSourceFile( true );
+		var blob = EditorUtility.GetBlobFile( this );
 
 		if ( !string.IsNullOrWhiteSpace( compiled ) )
 			EditorUtility.SendToRecycleBin( compiled );
 
 		if ( !string.IsNullOrWhiteSpace( source ) )
 			EditorUtility.SendToRecycleBin( source );
+
+		if ( !string.IsNullOrWhiteSpace( blob ) )
+			EditorUtility.SendToRecycleBin( blob );
 
 		IsDeleted = true;
 	}
