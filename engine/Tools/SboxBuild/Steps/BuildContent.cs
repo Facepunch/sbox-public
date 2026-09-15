@@ -22,7 +22,7 @@ internal class BuildContent
 				return ExitCode.Failure;
 			}
 
-			if ( OperatingSystem.IsLinux() )
+			if ( !OperatingSystem.IsWindows() )
 			{
 				// Restore execute permission for downloaded binaries, including cached artifacts.
 				var mode = File.GetUnixFileMode( contentBuilderPath );
