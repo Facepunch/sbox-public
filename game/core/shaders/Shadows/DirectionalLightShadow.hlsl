@@ -30,6 +30,7 @@ cbuffer DirectionalLightCB
 };
 
 int DirectionalLightDebug < Attribute( "DirectionalLightDebug" ); >;
+float g_flReceiveScreenSpaceShadows < Attribute( "ReceiveScreenSpaceShadows" ); Default( 1.0f ); >;
 
 static const float3 DebugColors[4] = {
     float3( 1.0f, 0.0f, 0.0f ),
@@ -93,7 +94,8 @@ struct DirectionalLightShadow
 
         Texture2D tMask = Bindless::GetTexture2D(g_DirectionalLightScreenSpaceShadowIndex);
         vPositionSs.xy -= g_vViewportOffset.xy;
-		return MSAAUtils::SampleRed( tMask, vPositionSs );
+		float shadow = MSAAUtils::SampleRed( tMask, vPositionSs );
+		return lerp( 1.0f, shadow, saturate( g_flReceiveScreenSpaceShadows ) );
 	}
 
 	static float3 GetOccludedPosition( float3 fragPos )
