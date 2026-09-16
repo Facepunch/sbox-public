@@ -59,11 +59,11 @@ int FindCascade( float3 worldPosition, out float3 posLs )
 
 struct DirectionalLightShadow
 {
-	static float SampleCascade( int cascadeIndex, float3 worldPosition, float2 screenPos )
+	static float SampleCascade( int cascadeIndex, float3 worldPosition, float3 normalWs, float2 screenPos )
     {
 		float4x4 worldToShadow = g_DirectionalLightWorldToShadowViewMatrices[cascadeIndex];
 
-		worldPosition = ApplyShadowNormalOffset( worldPosition, g_DirectionalLightInverseShadowMapSize / length( worldToShadow[0].xyz ), g_DirectionalLightCascadeHardness[cascadeIndex] );
+		worldPosition = ApplyShadowNormalOffset( worldPosition, normalWs, g_DirectionalLightInverseShadowMapSize / length( worldToShadow[0].xyz ), g_DirectionalLightCascadeHardness[cascadeIndex] );
 		
 		float3 positionLs = mul( worldToShadow, float4( worldPosition, 1.0f ) ).xyz;
 
@@ -76,6 +76,13 @@ struct DirectionalLightShadow
         pcfInput.ScreenPos = screenPos;
 
         return SampleShadowPCF( pcfInput );
+    }
+
+    // For callers that have no receiver normal at hand. The normal comes from screen-space derivatives,
+    // so this is only valid in uniform control flow - from inside a per-light loop, use the overload above.
+    static float SampleCascade( int cascadeIndex, float3 worldPosition, float2 screenPos )
+    {
+        return SampleCascade( cascadeIndex, worldPosition, ComputeShadowReceiverNormal( worldPosition ), screenPos );
     }
 
 	// Screen-space (contact) shadows precomputed into a full-screen mask by the ScreenSpaceShadows
@@ -118,7 +125,7 @@ struct DirectionalLightShadow
         return fragPos + zGrad * max( s - posLs.z, 0.0f ) / dot( zGrad, zGrad );
     }
 
-    static float GetVisibility( float3 worldPosition, float4 vPositionSs )
+    static float GetVisibility( float3 worldPosition, float3 normalWs, float4 vPositionSs )
     {
         float ssShadow = SampleScreenSpaceShadow( vPositionSs );
 
@@ -131,7 +138,14 @@ struct DirectionalLightShadow
 		if ( cascade < 0 )
 			return ssShadow;
 
-		return SampleCascade( cascade, worldPosition, vPositionSs.xy ) * ssShadow;
+		return SampleCascade( cascade, worldPosition, normalWs, vPositionSs.xy ) * ssShadow;
+    }
+
+    // For callers that have no receiver normal at hand. The normal comes from screen-space derivatives,
+    // so this is only valid in uniform control flow - from inside a per-light loop, use the overload above.
+    static float GetVisibility( float3 worldPosition, float4 vPositionSs )
+    {
+        return GetVisibility( worldPosition, ComputeShadowReceiverNormal( worldPosition ), vPositionSs );
     }
 
 

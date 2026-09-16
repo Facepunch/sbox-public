@@ -79,17 +79,25 @@ static const float2 g_vPoissonDisk16[16] =
     float2(  0.878554, -0.397416 ),
 };
 
-// Holbert 2011: offset receiver along face normal by ~PCF kernel radius in texels (kills slope acne).
-// ddx/ddy of world pos is quad-safe here — position is computed in uniform control flow.
-float3 ApplyShadowNormalOffset( float3 vPositionWs, float flTexelWorldSize, float flHardness )
+// Face normal of the shadow receiver, from the screen-space derivatives of its world position.
+// Derivatives are only defined in uniform control flow, so compute this once per pixel *before* any
+// per-light loop or branch and pass it down: the clustered light loop diverges between the lanes of a
+// quad wherever neighbouring pixels land in different clusters, and a ddx taken in there is garbage.
+// Non-pixel programs have no derivatives and get no offset.
+float3 ComputeShadowReceiverNormal( float3 vPositionWs )
 {
 #if ( PROGRAM == VFX_PROGRAM_PS )
-    const float3 vNormalWs = normalize( cross( ddy( vPositionWs ), ddx( vPositionWs ) ) );
-    const float flRadiusTexels = 1.5 * min( UserShadowFilterQuality, 3 ) * rcp( max( flHardness, 1.0 ) ) + 1.0; // matches the SampleShadowPCF_* kernels below
-	return vPositionWs + vNormalWs * ( flTexelWorldSize * flRadiusTexels );
+    return normalize( cross( ddy( vPositionWs ), ddx( vPositionWs ) ) );
 #else
-	return vPositionWs;
+    return 0.0f;
 #endif
+}
+
+// Holbert 2011: offset receiver along face normal by ~PCF kernel radius in texels (kills slope acne).
+float3 ApplyShadowNormalOffset( float3 vPositionWs, float3 vNormalWs, float flTexelWorldSize, float flHardness )
+{
+    const float flRadiusTexels = 1.5 * min( UserShadowFilterQuality, 3 ) * rcp( max( flHardness, 1.0 ) ) + 1.0; // matches the SampleShadowPCF_* kernels below
+    return vPositionWs + vNormalWs * ( flTexelWorldSize * flRadiusTexels );
 }
 
 //--------------------------------------------------------------------------------------------------
