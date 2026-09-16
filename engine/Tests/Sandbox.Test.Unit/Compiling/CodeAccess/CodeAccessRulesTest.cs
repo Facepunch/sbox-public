@@ -241,6 +241,8 @@ public class CodeAccessRulesTest
 	[TestMethod]
 	public void RuleCatalog_IsUniqueAndTargetsKnownSymbols()
 	{
+		// Also covers the former Access/DenyRules audit: a typo in a deny pattern must
+		// fail this test rather than silently stop matching (e.g. ArrayPool.Shared).
 		var duplicates = Rules.All
 			.GroupBy( x => x, StringComparer.Ordinal )
 			.Where( x => x.Count() > 1 )
