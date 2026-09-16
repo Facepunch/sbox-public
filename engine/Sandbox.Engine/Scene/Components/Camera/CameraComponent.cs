@@ -921,7 +921,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 			rootPanel.PreLayout( screenRect );
 			rootPanel.CalculateLayout();
 			rootPanel.PostLayout();
-			rootPanel.BuildDescriptors();
+
 
 			rootPanel.BuildCommandList();
 			resized = true;

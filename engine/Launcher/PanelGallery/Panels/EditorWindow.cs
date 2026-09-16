@@ -5,7 +5,7 @@ namespace Sandbox.PanelGallery;
 /// thousand rows of data, an inspector and a console. This is the thing that tells us whether the
 /// panel system is up to being the editor.
 /// </summary>
-public class EditorWindow : Panel
+public partial class EditorWindow : Panel
 {
 	/// <summary>
 	/// The class that turns the light theme on. The light rules in gallery.scss are scoped under it.
@@ -14,9 +14,6 @@ public class EditorWindow : Panel
 
 	readonly PanelWindow Window;
 
-	Panel hierarchyPane;
-	Panel inspectorPane;
-	ContentTabs content;
 	Hierarchy hierarchy;
 	Inspector inspector;
 
@@ -45,6 +42,7 @@ public class EditorWindow : Panel
 	public EditorWindow( PanelWindow window )
 	{
 		Window = window;
+		AddClass( "editor-window" );
 
 		StyleSheet.Load( "/styles/gallery.scss" );
 
@@ -88,10 +86,15 @@ public class EditorWindow : Panel
 		Option( edit, "Delete", "Del", () => { if ( SceneEditorSession.Active is { } session ) DeleteSelected( session ); } );
 
 		var view = menus.AddMenu( "View" );
-		view.AddOption( "Hierarchy", on => hierarchyPane.Style.Display = on ? DisplayMode.Flex : DisplayMode.None ).Checked = true;
-		view.AddOption( "Inspector", on => inspectorPane.Style.Display = on ? DisplayMode.Flex : DisplayMode.None ).Checked = true;
-		Option( view, "Console" );
-		Option( view, "Asset Browser" );
+		Option( view, "Hierarchy", action: () => ShowDock( "hierarchy" ) );
+		Option( view, "Scene", action: () => ShowDock( "scene" ) );
+		Option( view, "Inspector", action: () => ShowDock( "inspector" ) );
+		Option( view, "Console", action: () => ShowDock( "console" ) );
+		Option( view, "Asset Browser", action: () => ShowDock( "assets" ) );
+		view.AddSeparator();
+		Option( view, "Save Layout", action: () => savedLayout = dockWindows.State );
+		Option( view, "Restore Layout", action: () => dockWindows.RestoreState( savedLayout ) );
+		Option( view, "Reset Layout", action: () => dockWindows.RestoreState( defaultLayout ) );
 		view.AddSeparator();
 		Option( view, "Full Screen", "F11", () => { Window.ToggleMaximized(); UpdateMaximizeIcon(); } );
 
@@ -109,7 +112,7 @@ public class EditorWindow : Panel
 		Option( scene, "Scene Settings" );
 
 		var tools = menus.AddMenu( "Tools" );
-		Option( tools, "Asset Browser" );
+		Option( tools, "Asset Browser", action: () => ShowDock( "assets" ) );
 		Option( tools, "Shader Graph" );
 		tools.AddSeparator();
 		Option( tools, "Panel UI" );
@@ -178,6 +181,9 @@ public class EditorWindow : Panel
 	void ApplyTheme()
 	{
 		SetClass( LightModeClass, lightMode );
+		SetClass( "style-light", lightMode );
+		floatingRoots.RemoveAll( x => !x.IsValid );
+		foreach ( var root in floatingRoots ) ApplyFloatingTheme( root );
 
 		themeIcon.Text = lightMode ? "dark_mode" : "light_mode";
 		Window.BackgroundColor = lightMode ? Color.FromBytes( 238, 240, 246 ) : Color.FromBytes( 15, 17, 23 );
@@ -289,56 +295,56 @@ public class EditorWindow : Panel
 	}
 
 	//
-	// Three panes with draggable splitters
+	// One workspace; each editor tool is registered once and survives docking edits.
 	//
 	void BuildBody()
 	{
 		var body = Add.Panel( "body" );
 
-		hierarchyPane = body.Add.Panel( "pane left" );
-		hierarchy = BuildHierarchy( hierarchyPane );
-
-		body.AddChild( new Splitter( hierarchyPane, 160, 460 ) );
-
-		var centre = body.Add.Panel( "pane centre" );
-		content = centre.AddChild( new ContentTabs() );
-		content.OnPicked = item => hierarchy.Select( item );
-
-		// The right hand splitter sits before the pane it resizes, so dragging left grows it
-		var rightSplitter = body.AddChild( new Splitter( null, 240, 680 ) { Inverted = true } );
-
-		inspectorPane = body.Add.Panel( "pane right" );
-		rightSplitter.Target = inspectorPane;
-
-		var inspectorHeader = inspectorPane.Add.Panel( "paneheader" );
-		inspectorHeader.Icon( "tune" );
-		inspectorHeader.Add.Label( "Inspector" );
-		inspectorHeader.Add.Panel( "grow" );
-
-		inspector = inspectorPane.AddChild( new Inspector() );
-		inspector.Show( null );
+		dockHost = body.AddChild( new DockHost() );
+		dockHost.AddClass( "editor-dock-workspace" );
+		dockWindows = new PanelDockWindows( dockHost ) { ConfigureWindow = ConfigureFloatingWindow };
+		ConsolePanel.Hook();
+		dockHost.Register( "scene", "Scene", () => new SceneContent
+		{
+			OnPicked = item => hierarchy?.Select( item )
+		}, canClose: false, icon: "videocam" );
+		dockHost.Register( "hierarchy", "Hierarchy", () =>
+		{
+			var pane = new Panel();
+			pane.AddClass( "editor-dock-pane" );
+			hierarchy = BuildHierarchy( pane );
+			return pane;
+		}, icon: "account_tree" );
+		dockHost.Register( "inspector", "Inspector", () =>
+		{
+			inspector = new Inspector();
+			inspector.Show( null );
+			return inspector;
+		}, icon: "tune" );
+		dockHost.Register( "assets", "Asset Browser", () => new AssetBrowser(), icon: "folder" );
+		dockHost.Register( "console", "Console", () => new ConsolePanel(), icon: "terminal" );
+		dockHost.Dock( "scene" );
+		dockHost.Dock( "hierarchy", position: DockPosition.Left, fraction: 0.18f );
+		dockHost.Dock( "inspector", position: DockPosition.Right, fraction: 0.28f );
+		dockHost.Dock( "assets", "scene", DockPosition.Bottom, 0.34f );
+		dockHost.Dock( "console", "assets" );
+		dockHost.Activate( "assets" );
+		defaultLayout = dockWindows.State;
+		savedLayout = defaultLayout;
 	}
 
 	Sandbox.UI.Label hierarchyCount;
 
 	Hierarchy BuildHierarchy( Panel pane )
 	{
-		var header = pane.Add.Panel( "paneheader" );
-		header.Icon( "list" );
-		header.Add.Label( "Hierarchy" );
-		header.Add.Panel( "grow" );
-		hierarchyCount = header.Add.Label( "0", "badge" );
-
-		var tree = pane.AddChild( new Hierarchy() );
-
 		// The row of tools above the tree, same as the editor's
 		var tools = pane.Add.Panel( "panetools" );
-		pane.SetChildIndex( tools, 1 );
-
 		tools.Clickable( "toolbutton", CreateObject ).Icon( "add" );
-
+		var tree = pane.AddChild( new Hierarchy() );
 		var search = tools.AddChild( new TextInput( "Search", "search" ) );
 		search.OnChange = value => tree.SetFilter( value );
+		hierarchyCount = tools.Add.Label( "0", "mono" );
 
 		tree.OnSelected = OnSelected;
 		return tree;

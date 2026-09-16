@@ -62,7 +62,6 @@ public class WebPanel : Panel
 		// Update with thw new data
 		//
 		sufaceTexture.Update( span, 0, 0, (int)size.x, (int)size.y );
-		MarkRenderDirty();
 	}
 
 	protected override void OnFocus( PanelEvent e ) => Surface.HasKeyFocus = true;

@@ -195,6 +195,12 @@ public partial struct Vector3 : System.IEquatable<Vector3>, IParsable<Vector3>, 
 	public readonly bool IsInfinity => float.IsInfinity( x ) || float.IsInfinity( y ) || float.IsInfinity( z );
 
 	/// <summary>
+	/// Returns true if x, y and z are all finite, so neither NaN nor infinity
+	/// </summary>
+	[JsonIgnore]
+	public readonly bool IsFinite => float.IsFinite( x ) && float.IsFinite( y ) && float.IsFinite( z );
+
+	/// <summary>
 	/// Returns true if the squared length is less than 1e-8 (which is really near zero)
 	/// </summary>
 	[JsonIgnore]

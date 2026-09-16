@@ -525,8 +525,10 @@ public class TextInput : Panel
 	/// <summary>
 	/// The caret, blinking, where the label says it is.
 	/// </summary>
-	public override void OnDraw()
+	public override void OnDraw( Painter painter )
 	{
+		base.OnDraw( painter );
+
 		label.ShouldDrawSelection = HasFocus && label.HasSelection();
 
 		if ( !HasFocus || label.HasSelection() ) return;
@@ -540,10 +542,12 @@ public class TextInput : Panel
 			caret.Left = MathX.FloorToInt( caret.Left );
 			caret.Width = 1;
 
-			Draw.Rect( caret, ComputedStyle?.FontColor ?? Color.White );
+			using var scope = painter.Scope();
+			painter.Fill = ComputedStyle?.FontColor ?? Color.White;
+			painter.Stroke = Stroke.None;
+			caret.Position -= Box.Rect.Position;
+			painter.Rect( caret );
 		}
-
-		MarkRenderDirty();
 	}
 
 	void UpdateText()

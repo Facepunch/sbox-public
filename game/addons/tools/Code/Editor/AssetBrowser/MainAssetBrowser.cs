@@ -1,4 +1,5 @@
 ﻿using System.Threading;
+using Editor.MeshEditor;
 
 namespace Editor;
 
@@ -33,15 +34,15 @@ public class MainAssetBrowser : WrappedAssetBrowser
 			EditorWindow.DockManager.OnStateRestoring += RegisterSavedDockTypes;
 		}
 
-		Local.OnAssetHighlight = a => EditorUtility.InspectorObject = a;
-		Local.OnAssetsHighlight = a => EditorUtility.InspectorObject = a;
+		Local.OnAssetHighlight = InspectAsset;
+		Local.OnAssetsHighlight = InspectAssets;
 		Local.OnAssetSelected = a => a.OpenInEditor();
 		Local.OnFileSelected = f => EditorUtility.OpenFile( f );
 
 		Cloud.OnPackageHighlight = p => _ = InspectPackage( p );
 
-		Mounts.OnAssetHighlight = a => EditorUtility.InspectorObject = a;
-		Mounts.OnAssetsHighlight = a => EditorUtility.InspectorObject = a;
+		Mounts.OnAssetHighlight = InspectAsset;
+		Mounts.OnAssetsHighlight = InspectAssets;
 		Mounts.OnAssetSelected = a => { if ( a.CanOpenInEditor ) a.OpenInEditor(); };
 	}
 
@@ -134,22 +135,63 @@ public class MainAssetBrowser : WrappedAssetBrowser
 	}
 
 	CancellationTokenSource packageCTS;
+	private void InspectAsset( Asset asset )
+	{
+		packageCTS?.Cancel();
+		MaterialSelection.BeginSelection();
+		EditorUtility.InspectorObject = asset;
+		EditorEvent.Run( "asset.highlighted", asset );
+	}
+
+	private void InspectAssets( Asset[] assets )
+	{
+		packageCTS?.Cancel();
+		MaterialSelection.BeginSelection();
+		EditorUtility.InspectorObject = assets;
+	}
+
+	public override void OnDestroyed()
+	{
+		packageCTS?.Cancel();
+		base.OnDestroyed();
+	}
+
 	private async Task InspectPackage( Package package )
 	{
 		packageCTS?.Cancel();
 
-		packageCTS = new CancellationTokenSource();
+		using var request = new CancellationTokenSource();
+		packageCTS = request;
+		var cancel = request.Token;
+		var generation = MaterialSelection.BeginSelection();
 
-		// Get the full package info
-		package = await Package.FetchAsync( package.FullIdent, false );
+		try
+		{
+			// Get the full package info
+			package = await Package.FetchAsync( package.FullIdent, false );
+			if ( package is null || cancel.IsCancellationRequested || !MaterialSelection.IsCurrent( generation ) ) return;
 
-		if ( await TryInspectPrimaryAsset( package, packageCTS.Token ) )
-			return;
-
-		// Show package info
+			await TryInspectPrimaryAsset( package, cancel, generation );
+		}
+		catch ( OperationCanceledException ) when ( cancel.IsCancellationRequested )
+		{
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( e, "Couldn't inspect cloud asset" );
+		}
+		finally
+		{
+			if ( ReferenceEquals( packageCTS, request ) )
+				packageCTS = null;
+		}
 	}
 
-	async Task<bool> TryInspectPrimaryAsset( Package package, CancellationToken cancel )
+	/// <summary>
+	/// Installs and inspects the primary asset unless the selection has been superseded.
+	/// </summary>
+	/// <returns>Whether the asset was inspected, not whether the captured generation is still current.</returns>
+	async Task<bool> TryInspectPrimaryAsset( Package package, CancellationToken cancel, long generation )
 	{
 		if ( package.TypeName == "map" ) return false;
 		if ( package.TypeName == "game" ) return false;
@@ -157,23 +199,21 @@ public class MainAssetBrowser : WrappedAssetBrowser
 		if ( package.TypeName == "addon" ) return false;
 		if ( package.TypeName == "library" ) return false;
 
-		if ( package.GetMeta<string>( "PrimaryAsset" ) is not string assetPath )
+		if ( package.GetMeta<string>( "PrimaryAsset" ) is not string )
 			return false;
 
-		if ( cancel.IsCancellationRequested )
+		if ( cancel.IsCancellationRequested || !MaterialSelection.IsCurrent( generation ) )
 			return false;
 
 		var asset = await AssetSystem.InstallAsync( package.FullIdent, true, null, cancel );
 
-		if ( asset is null )
+		if ( asset is null || cancel.IsCancellationRequested || !MaterialSelection.IsCurrent( generation ) )
 			return false;
 
 		EditorUtility.PlayAssetSound( asset );
 
-		if ( cancel.IsCancellationRequested )
-			return false;
-
-		EditorUtility.InspectorObject = asset;
+		// This cancels our own request and advances the generation; no async work remains.
+		InspectAsset( asset );
 		return true;
 	}
 

@@ -2,18 +2,18 @@
 
 UiTestCase
 {
-	flex-direction: column;
+	flex-direction: row;
 	flex-shrink: 0;
-	width: $uitest-case-width;
-	gap: 6px;
+	width: 100%;
+	gap: 20px;
 
 	.stage
 	{
-		height: $uitest-stage-height;
+		height: 240px;
 		flex-shrink: 0;
-		align-items: flex-start;
-		justify-content: flex-start;
-		padding: 10px;
+		align-items: center;
+		justify-content: center;
+		padding: 12px;
 		border-radius: 4px;
 		border: 1px solid $uitest-hairline;
 		background-color: $uitest-stage;
@@ -28,27 +28,27 @@ UiTestCase
 	.css
 	{
 		font-family: "Roboto Mono";
-		font-size: 11px;
+		font-size: 12px;
 		color: $uitest-code;
 		max-width: 100%;
 	}
 
 	.note
 	{
-		font-size: 11px;
+		font-size: 12px;
 		color: $uitest-dim;
 		max-width: 100%;
 	}
 
 	&.roomy .stage
 	{
-		height: $uitest-stage-height-roomy;
+		height: 360px;
 		padding: 40px;
 	}
 
 	&.layout-case .stage
 	{
-		height: $uitest-stage-height-roomy;
+		height: 360px;
 		padding: 14px;
 		background-color: #1f3550;
 	}
@@ -66,6 +66,6 @@ UiTestCase
 
 	&.wide
 	{
-		width: 340px;
+		width: 100%;
 	}
 }

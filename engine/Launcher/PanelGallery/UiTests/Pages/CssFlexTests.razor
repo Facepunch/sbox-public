@@ -4,10 +4,10 @@
 @using Sandbox;
 @using Sandbox.UI;
 
-@attribute [Title( "CSS Flex" )]
+@attribute [Group( "Layout" )]
+@attribute [Title( "display: flex" )]
 @attribute [Description( "display: flex - axes, sizing, wrapping, and alignment" )]
 @attribute [Icon( "view_column" )]
-@attribute [Order( 19 )]
 
 <root>
 
@@ -126,7 +126,7 @@
         <UiTestCase class="layout-case" Setup="@Flex" Rule="a column flex item grows inside an outer row" Note="The nested flex gets the remaining width and distributes its children vertically.">
             <ChildContent><div class="flex row tall"><div class="item c1 side">outer</div><div class="flex column nested"><div class="item c2 grow">top</div><div class="item c3 grow2">bottom</div></div></div></ChildContent>
         </UiTestCase>
-        <UiTestCase class="layout-case" Setup="@Flex" Rule="position: absolute; right: 4px; bottom: 4px" Note="The red child leaves flex flow and anchors to the container's bottom-right corner.">
+        <UiTestCase class="layout-case" Setup="@Flex" Rule="position: absolute; right: 4px; bottom: 4px" Note="The pink child leaves flex flow and anchors to the container's bottom-right corner.">
             <ChildContent><div class="flex row tall"><div class="item c1">1</div><div class="item c2">2</div><div class="absolute">abs</div></div></ChildContent>
         </UiTestCase>
     </div>

@@ -201,7 +201,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 
 	internal void UpdateSpriteRenderers()
 	{
-		if ( Application.IsHeadless )
+		if ( !Graphics.IsAvailable )
 			return;
 
 		_allSprites.Clear();
@@ -229,9 +229,6 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 			}
 		}
 
-		// Animate all sprites in parallel - AdvanceFrame is uniform cost so no load balancing needed
-		Parallel.For( 0, _allSprites.Count, i => _allSprites[i].AdvanceFrame() );
-
 		// Registered sprites who are not enabled
 		_spritesToRemove.Clear();
 		foreach ( var spriteId in _registeredSpriteRenderers )
@@ -250,7 +247,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 	{
 		using var _ = PerformanceStats.Timings.Render.Scope();
 
-		if ( Application.IsHeadless )
+		if ( !Graphics.IsAvailable )
 			return;
 
 		UpdateSpriteRenderers();

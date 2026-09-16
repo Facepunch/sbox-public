@@ -250,25 +250,4 @@ public class TextEntryScrollTests
 			Assert.IsTrue( caret.Left + 2 <= box.Right + 1, $"after typing '{c}' the caret {caret.Left} is outside the box {box.Right}" );
 		}
 	}
-
-	/// <summary>
-	/// The text is drawn at the scroll offset, so moving that offset has to redraw it. Moving the
-	/// caret with the arrow keys changes nothing else, so without this the text stays put on
-	/// screen while the caret walks off it.
-	/// </summary>
-	[TestMethod]
-	public void ScrollingMarksTheTextForRedraw()
-	{
-		var entry = CreateNarrowEntry( LongText );
-		var label = LabelOf( entry );
-
-		label.SetCaretPosition( 0 );
-
-		// Pretend it has been drawn since
-		label.IsRenderDirty = false;
-
-		label.SetCaretPosition( label.TextLength );
-
-		Assert.IsTrue( label.IsRenderDirty, "scrolling to the caret should redraw the text" );
-	}
 }

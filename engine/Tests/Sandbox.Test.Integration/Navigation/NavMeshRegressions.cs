@@ -1,6 +1,7 @@
 using Sandbox.Navigation;
 using Sandbox.Volumes;
 using System;
+using System.Collections.Generic;
 
 namespace NavigationTests;
 
@@ -511,5 +512,54 @@ public class NavMeshRegressions
 		Assert.IsTrue( agent.GetPath().IsValid );
 		var asyncPath = await scene.NavMesh.CalculatePathAsync( new() { Start = agent.AgentPosition, Target = Vector3.Zero, Agent = agent } );
 		Assert.AreEqual( path.Status, asyncPath.Status );
+	}
+
+	/// <summary>
+	/// Neighbour avoidance and overlap separation must not shove an agent through a wall.
+	/// The navmesh is eroded by AgentRadius, so an agent clamped to the boundary ends up
+	/// flush with the wall; anything past that is body inside geometry.
+	/// </summary>
+	[TestMethod]
+	public async Task CrowdingAgainstAWallNeverPushesAgentsIntoIt()
+	{
+		const float wallFace = 180;
+
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var floor = scene.CreateObject();
+		floor.WorldPosition = new Vector3( 0, 0, -32 );
+		floor.Components.Create<BoxCollider>().Scale = new Vector3( 1400, 1400, 64 );
+
+		var wall = scene.CreateObject();
+		wall.WorldPosition = new Vector3( 200, 0, 64 );
+		wall.Components.Create<BoxCollider>().Scale = new Vector3( 40, 800, 128 );
+
+		Assert.IsTrue( await scene.NavMesh.Generate( scene.PhysicsWorld ), "navmesh should generate" );
+
+		var agents = new List<NavMeshAgent>();
+		for ( int i = 0; i < 8; i++ )
+		{
+			var go = scene.CreateObject();
+			go.WorldPosition = new Vector3( 100 + i % 2 * 30, -300 + i / 2 * 40, 0 );
+			agents.Add( go.Components.Create<NavMeshAgent>() );
+		}
+		// One agent walks the other way so the group is squeezed against the wall.
+		var opposing = scene.CreateObject();
+		opposing.WorldPosition = new Vector3( 150, 300, 0 );
+		agents.Add( opposing.Components.Create<NavMeshAgent>() );
+
+		for ( int i = 0; i < agents.Count - 1; i++ ) agents[i].MoveTo( new Vector3( 150, 300, 0 ) );
+		agents[^1].MoveTo( new Vector3( 150, -300, 0 ) );
+
+		float deepest = float.MinValue;
+		for ( int tick = 0; tick < 400; tick++ )
+		{
+			scene.GameTick();
+			foreach ( var agent in agents ) deepest = MathF.Max( deepest, agent.AgentPosition.x );
+		}
+
+		float flush = wallFace - agents[0].Radius;
+		Assert.IsTrue( deepest <= flush + 0.5f, $"An agent was pushed {deepest - flush:0.0} units into the wall (reached x={deepest:0.0}, flush at {flush:0})" );
 	}
 }

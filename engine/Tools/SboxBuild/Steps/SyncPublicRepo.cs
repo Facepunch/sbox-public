@@ -146,9 +146,13 @@ internal class SyncPublicRepo( bool dryRun = false )
 		{ "public/.github/workflows/pull_request_checks.yml", ".github/workflows/pull_request_checks.yml" },
 		{ "public/.github/workflows/pull_request_formatting.yml", ".github/workflows/pull_request_formatting.yml" },
 		{ "public/README.md", "README.md" },
+		{ "public/AGENTS.md", "AGENTS.md" },
+		{ "public/CLAUDE.md", "CLAUDE.md" },
 		{ "public/LICENSE.md", "LICENSE.md" },
 		{ "public/CONTRIBUTING.md", "CONTRIBUTING.md" },
 		{ "public/SECURITY.md", "SECURITY.md" },
+		{ "public/Setup.bat", "Setup.bat" },
+		{ "public/Setup.sh", "Setup.sh" },
 		{ "public/Bootstrap.bat", "Bootstrap.bat" }
 	};
 

@@ -32,15 +32,21 @@ MenuOverlay
 	gap: 8px;
 }
 
-.popup_canvas_bottomright
+.notification-corner
 {
 	position: absolute;
-	right: 0px;
-	bottom: 50px;
-	justify-content: center;
-	margin: 100px;
-	z-index: 1100;
+	right: 24px;
+	bottom: 24px;
+	z-index: 1101;
+	align-items: flex-end;
 	flex-direction: column;
+	gap: 8px;
+}
+
+.popup_canvas_bottomright
+{
+	flex-direction: column;
+	align-items: flex-end;
 	gap: 8px;
 }
 
@@ -56,7 +62,10 @@ MenuOverlay
 	flex-direction: column;
 	justify-content: flex-end;
 	align-items: center;
+}
 
+.popup_canvas, .popup_canvas_bottomright
+{
 	.popup
 	{
 		background-color: $primary;
@@ -194,6 +203,12 @@ MenuOverlay
 			}
 		}
 	}
+}
+
+.popup_canvas_bottomright .popup
+{
+	position: relative;
+	max-width: 480px;
 }
 
 .tooltip

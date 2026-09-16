@@ -22,6 +22,7 @@ native static class global as NativeEngine.EngineGlobal
 		int nMonitor = ( window != PLAT_WINDOW_INVALID ) ? Plat_GetWindowMonitorIndex( window ) : -1;
 		return ( nMonitor >= 0 ) ? nMonitor : Plat_GetDefaultMonitorIndex();
 	}
+	int Plat_GetMonitorCount();
 	bool Plat_SafeRemoveFile( string file );
 
 	void Plat_SetModuleFilename( string filename );

@@ -36,6 +36,40 @@ FrontPageGames
 			gap: 2px;
 		}
 
+		.title-row
+		{
+			flex-direction: row;
+			align-items: center;
+			gap: 8px;
+
+			.chevron
+			{
+				font-size: 20px;
+				color: $front-secondary;
+				opacity: 0;
+				transition: all 0.1s ease;
+			}
+
+			&.link
+			{
+				cursor: pointer;
+
+				&:hover
+				{
+					.title
+					{
+						color: #ffffff;
+					}
+
+					.chevron
+					{
+						opacity: 1;
+						margin-left: 2px;
+					}
+				}
+			}
+		}
+
 		.title
 		{
 			font-family: $front-font;
@@ -67,6 +101,34 @@ FrontPageGames
 			&:hover
 			{
 				color: $front-heading;
+			}
+		}
+	}
+
+	.section.jam .head
+	{
+		.trophy
+		{
+			font-size: 22px;
+			color: $front-trophy * 2;
+			text-shadow: 0 0 14px rgba( $front-trophy, 0.5 );
+		}
+
+		.title
+		{
+			color: $front-trophy * 2;
+			text-shadow: 0 0 14px rgba( $front-trophy, 0.5 );
+		}
+
+		.view-all
+		{
+			color: $front-trophy * 1.6;
+			border-color: rgba( $front-trophy, 0.5 );
+
+			&:hover
+			{
+				color: $front-trophy * 2.2;
+				border-color: rgba( $front-trophy, 0.9 );
 			}
 		}
 	}

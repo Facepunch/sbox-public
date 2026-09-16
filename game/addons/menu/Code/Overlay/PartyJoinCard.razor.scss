@@ -1,0 +1,100 @@
+PartyJoinCard
+{
+	display: none;
+	position: relative;
+	z-index: 1101;
+	width: 360px;
+	padding: 20px;
+	flex-direction: column;
+	gap: 10px;
+	background-color: #151b28;
+	border: 1px solid #354158;
+	border-radius: 12px;
+	box-shadow: 0 8px 32px #0008;
+	font-family: Poppins;
+	color: #edf2ff;
+	pointer-events: all;
+
+	&.visible
+	{
+		display: flex;
+	}
+
+	.heading
+	{
+		align-items: center;
+		gap: 10px;
+		font-size: 16px;
+		font-weight: 600;
+	}
+
+	.heading i
+	{
+		font-family: Material Icons;
+		font-size: 24px;
+		color: #7aafff;
+	}
+
+	.game
+	{
+		font-size: 13px;
+		color: #b4c2d9;
+	}
+
+	.progress-label
+	{
+		justify-content: space-between;
+		font-size: 12px;
+	}
+
+	.progress-track
+	{
+		height: 6px;
+		background-color: #2c3546;
+		border-radius: 3px;
+		overflow: hidden;
+	}
+
+	.progress-fill
+	{
+		height: 100%;
+		background-color: #79b9ff;
+		border-radius: 3px;
+	}
+
+	.progress-fill.host
+	{
+		background-color: #a999ef;
+	}
+
+	.detail
+	{
+		font-size: 12px;
+		color: #b4c2d9;
+	}
+
+	.actions
+	{
+		gap: 8px;
+		margin-top: 4px;
+	}
+
+	.actions .button
+	{
+		padding: 7px 10px;
+		font-size: 12px;
+		background-color: #2a3446;
+		border-radius: 5px;
+		cursor: pointer;
+	}
+
+	.actions .button:hover
+	{
+		background-color: #3a4b65;
+	}
+
+	.actions .retry
+	{
+		background-color: #356ab3;
+	}
+}

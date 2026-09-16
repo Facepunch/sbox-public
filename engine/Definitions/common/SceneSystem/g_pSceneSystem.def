@@ -112,6 +112,7 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 
     void FinishRenderingViews();
     bool WaitForRenderingToComplete();
+    bool IsRenderingBusy();
 
     inline void SetupPerObjectLighting( CRenderAttributes renderAttributes, CSceneObject pSceneObject, ISceneLayer pSceneLayerInterface )
     {

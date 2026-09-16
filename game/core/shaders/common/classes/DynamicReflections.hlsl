@@ -12,7 +12,7 @@ struct DynamicReflections
             return 0;
 
         uint index = Bindless::GetPipelineTextureIndex(PipelineTextureSlotSSR);
-        Texture2D ReflectionColor = Bindless::GetTexture2D( index );
+        Texture2D ReflectionColor = Bindless::GetTexture2D( UniformIndex( index ) );
 
         // If the texture has mips, we can sample it at a specific level based on roughness.
         // Eg Planar Reflections with mip chain.

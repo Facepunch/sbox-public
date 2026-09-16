@@ -77,8 +77,8 @@
                 var game = Friend.GetRichPresence("gametitle");
                 var map = Friend.GetRichPresence("map");
 
-                if (string.IsNullOrEmpty(game)) return "[Unknown State]";
-                if (game == "menu") return "Main Menu"; // (Idle)
+                // Steam clears gametitle while the friend is in the main menu.
+                if (string.IsNullOrWhiteSpace(game) || game == "menu") return "Main Menu";
                 if (string.IsNullOrWhiteSpace(map)) return $"Playing {game}";
                 return $"Playing {game} - {map}";
             }

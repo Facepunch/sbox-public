@@ -1,0 +1,90 @@
+@using Sandbox;
+@using Sandbox.Menu;
+@using Sandbox.UI;
+@namespace MenuProject
+@inherits Panel
+
+<root class="@(Visible ? "visible" : "")">
+	<div class="heading"><i>group</i><label>@Title</label></div>
+	<label class="game">@GameTitle</label>
+	@if ( Busy && HostProgress is { } host )
+	{
+		<div class="progress-label"><label>Party leader's download</label><label>@($"{host.Percent:0}%")</label></div>
+		<div class="progress-track"><div class="progress-fill host" style="width: @(Percent(host))%;"></div></div>
+	}
+	@if ( Busy && Progress is { } download )
+	{
+		<div class="progress-label"><label>Your download</label><label>@($"{download.Percent:0}%")</label></div>
+		<div class="progress-track"><div class="progress-fill" style="width: @(Percent(download))%;"></div></div>
+		@if ( download.Mbps > 0 )
+		{
+			<label class="detail">@($"{download.Mbps:0.0} Mbps · {download.CalculateETA().ToRemainingTimeString()}")</label>
+		}
+	}
+	<label class="detail">@Detail</label>
+	<div class="actions">
+		@if ( Stage is PartyRoom.JoinStage.Failed or PartyRoom.JoinStage.Cancelled )
+		{
+			<Button class="retry" onclick=@Retry>Retry</Button>
+		}
+		@if ( Busy )
+		{
+			<Button onclick=@Cancel>Cancel join</Button>
+		}
+		else
+		{
+			<Button onclick=@Dismiss>Dismiss</Button>
+		}
+		<Button onclick=@Leave>Leave party</Button>
+	</div>
+</root>
+
+@code
+{
+	[Parameter] public PartyRoom.JoinStage Stage { get; set; }
+	[Parameter] public LoadingProgress? Progress { get; set; }
+	[Parameter] public LoadingProgress? HostProgress { get; set; }
+	[Parameter] public string GameTitle { get; set; }
+	[Parameter] public string Error { get; set; }
+	[Parameter] public bool IsFollower { get; set; }
+	[Parameter] public int SessionId { get; set; }
+	[Parameter] public Action RetryRequested { get; set; }
+	[Parameter] public Action CancelRequested { get; set; }
+	[Parameter] public Action LeaveRequested { get; set; }
+	bool Busy => Stage is PartyRoom.JoinStage.Downloading or PartyRoom.JoinStage.WaitingForHost or PartyRoom.JoinStage.Connecting;
+	bool Visible => IsFollower && Stage is not (PartyRoom.JoinStage.None or PartyRoom.JoinStage.Connected) && Dismissed != Identity;
+	int Identity => HashCode.Combine( SessionId, Stage );
+	int? Dismissed;
+	int LastIdentity;
+	string Title => Stage switch
+	{
+		PartyRoom.JoinStage.Downloading => "Preparing to join your party",
+		PartyRoom.JoinStage.WaitingForHost => "Waiting for the party leader",
+		PartyRoom.JoinStage.Connecting => "Joining your party",
+		PartyRoom.JoinStage.Failed => "Couldn't join your party",
+		PartyRoom.JoinStage.Cancelled => "Party join cancelled",
+		PartyRoom.JoinStage.Unavailable => "Leader's game isn't joinable",
+		_ => "Party"
+	};
+	string Detail => Stage switch
+	{
+		PartyRoom.JoinStage.Downloading => Progress is null ? "Fetching game information…" : "Downloading the game before connecting.",
+		PartyRoom.JoinStage.WaitingForHost => "Your download is ready. Waiting for the leader to start the game.",
+		PartyRoom.JoinStage.Connecting => "Connecting and loading the game…",
+		PartyRoom.JoinStage.Failed => Error,
+		PartyRoom.JoinStage.Cancelled => "You're still in the party. Retry when you're ready.",
+		PartyRoom.JoinStage.Unavailable => "The leader is playing a game without a joinable server.",
+		_ => ""
+	};
+	static string Percent( LoadingProgress progress ) => (Math.Clamp( progress.Fraction, 0, 1 ) * 100).ToString( "0.0", System.Globalization.CultureInfo.InvariantCulture );
+	void Retry() { Dismissed = null; RetryRequested?.Invoke(); }
+	void Cancel() => CancelRequested?.Invoke();
+	void Dismiss() { Dismissed = Identity; }
+	void Leave() => LeaveRequested?.Invoke();
+	protected override int BuildHash() => HashCode.Combine( Identity, Dismissed, GameTitle, Progress, HostProgress, Detail, IsFollower );
+	public override void Tick()
+	{
+		if ( LastIdentity != Identity ) Dismissed = null;
+		LastIdentity = Identity;
+	}
+}

@@ -533,12 +533,15 @@
 
 .style-light .flatbutton { border-color: $l-line; color: $l-text; }
 .style-light .flatbutton:hover { background-color: $l-raised; }
+.style-light .primarybutton.disabled,
+.style-light .flatbutton.disabled { background-color: $l-raised; color: $l-text-muted; }
+.style-light .primarybutton:focus { outline-color: $accent; }
 
 .style-light .textentry { background-color: $l-raised; border-color: $l-raised; }
 .style-light .textentry:focus { border-color: $accent; }
 .style-light .textentry iconpanel { color: $l-text-faint; }
 .style-light .textentry .content-label { color: $l-text; }
-.style-light .textentry .content-label.placeholder { color: $l-text-muted; }
+.style-light .textentry .content-label.placeholder { color: $l-text-muted; opacity: 1; }
 
 .style-light .buttongroup { background-color: $l-raised; border-color: $l-line; }
 .style-light .buttongroup .button { color: $l-text-muted; }
@@ -595,3 +598,12 @@
 .os-tooltip .tooltip .tooltip-title { font-weight: 600; margin-bottom: 4px; }
 .os-tooltip .tooltip .tooltip-detail { color: $text-muted; font-size: 11px; margin-top: 4px; }
 .os-tooltip .tooltip .tooltip-image { width: 128px; height: 128px; margin-top: 6px; }
+
+// Docking belongs to the shared editor theme, including native floating windows.
+$dock-ground: $ground;
+$dock-text: $text;
+$dock-muted: $text-muted;
+$dock-light-ground: $l-ground;
+$dock-light-text: $l-text;
+$dock-light-muted: $l-text-muted;
+@import "_docktheme.scss";

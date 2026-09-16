@@ -1,4 +1,4 @@
-@using Sandbox;
+﻿@using Sandbox;
 @using Sandbox.Services;
 @using Sandbox.UI;
 @using System;
@@ -8,10 +8,17 @@
 <root>
     <MenuProject.UI.PackageCard Package=@Package Clicked=@( () => OnSelected?.Invoke( Package ) ) RightClicked=@( () => OnMenu?.Invoke( Package ) ) />
 
-    @if ( CanNominate )
+    @if ( CanNominate && NeedsPlay )
+    {
+        <div class="nominate play" onclick=@( () => MenuHelpers.LaunchGame( Package.FullIdent ) ) tooltip="@( $"Play for at least {MinPlayText} to nominate" )">
+            <icon>play_arrow</icon>
+            <label>Play</label>
+        </div>
+    }
+    else if ( CanNominate )
     {
         <div class="nominate @( IsNominated ? "on" : "" ) @( _busy ? "busy" : "" )" onclick=@( () => _ = Toggle() )>
-            <div class="ring"></div>
+            <icon>@( IsNominated ? "check" : "how_to_vote" )</icon>
             <label>@( IsNominated ? "Nominated" : "Nominate" )</label>
         </div>
     }
@@ -32,6 +39,11 @@
 
     bool IsNominated => _override ?? Nominated;
 
+    // Mirrors the backend's play-time gate so the card doesn't offer a refused nomination
+    bool NeedsPlay => !IsNominated && Jam is not null && Package is not null && Package.Interaction.Seconds < Jam.MinPlaySeconds;
+
+    string MinPlayText => TimeSpan.FromSeconds( Jam.MinPlaySeconds ).Humanize( 1 );
+
     protected override void OnParametersSet()
     {
         if ( Nominated == _lastNominated ) return;
@@ -48,6 +60,7 @@
         StateHasChanged();
 
         var removing = IsNominated;
+        _override = !removing;
         string reason;
 
         try
@@ -64,17 +77,14 @@
 
         _busy = false;
 
-        if ( reason is null )
+        if ( reason is not null )
         {
-            _override = !removing;
-        }
-        else
-        {
+            _override = removing;
             MenuOverlay.Instance?.BottomRight?.Queue( new Toast() { Title = reason, Icon = "how_to_vote" } );
         }
 
         StateHasChanged();
     }
 
-    protected override int BuildHash() => HashCode.Combine( Package?.FullIdent, CanNominate, IsNominated, _busy );
+    protected override int BuildHash() => HashCode.Combine( Package?.FullIdent, CanNominate, IsNominated, _busy, NeedsPlay );
 }

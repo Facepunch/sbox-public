@@ -113,7 +113,10 @@
 
 	</div>
 
-	<SettingsDetail View=@this />
+	@if ( Searching || Category != "storage" )
+	{
+		<SettingsDetail View=@this />
+	}
 
 </root>
 

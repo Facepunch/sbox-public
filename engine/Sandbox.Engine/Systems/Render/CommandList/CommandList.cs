@@ -55,10 +55,16 @@ public sealed unsafe partial class CommandList
 
 		public StringToken Token;
 
+		// Instance counts remain exact integers.
+		public int Count;
+
 		public Vector4 Data1;
 		public Vector4 Data2;
 		public Vector4 Data3;
+		// Matrix attributes are written across Data1..Data4 through a reinterpret of Data1.
+#pragma warning disable CS0649
 		public Vector4 Data4;
+#pragma warning restore CS0649
 	}
 
 	/// <summary>
@@ -76,16 +82,13 @@ public sealed unsafe partial class CommandList
 		data.Execute = execute;
 
 		lock ( _lock )
+		{
 			_entries.Add( data );
+		}
 	}
 
 	[Obsolete]
 	RenderAttributes attributes => Graphics.Attributes;
-
-	/// <summary>
-	/// Access to simple 2D painting functions to draw shapes and text.
-	/// </summary>
-	public HudPainter Paint => new HudPainter( this );
 
 	/// <summary>
 	/// This lives for the lifetime of the command list and is 
@@ -94,6 +97,7 @@ public sealed unsafe partial class CommandList
 	private class State
 	{
 		public Dictionary<string, RenderTarget> renderTargets = new();
+		public Stack<(RenderTarget Target, NativeEngine.RenderViewport Viewport)> renderTargetStack = new();
 
 		/// <summary>
 		/// Should be called at the end of usage
@@ -103,6 +107,7 @@ public sealed unsafe partial class CommandList
 			// We just clear the list - RenderTargets get freed and 
 			// re-added to the pool automatically.
 			renderTargets.Clear();
+			renderTargetStack.Clear();
 		}
 
 		/// <summary>
@@ -125,7 +130,15 @@ public sealed unsafe partial class CommandList
 		// another thread is mid-execute would corrupt them. The lock makes that safe.
 		lock ( _lock )
 		{
+			if ( _resources is not null )
+			{
+				foreach ( var resource in _resources )
+					resource.Reset();
+			}
+
 			Attributes.ClearRenderTargets();
+			drawAttributeAccess?.ClearRenderTargets();
+			drawAttributes?.Clear( false );
 			_entries.Clear();
 		}
 	}
@@ -435,6 +448,14 @@ public sealed unsafe partial class CommandList
 			// under us on another thread.
 			lock ( other._lock )
 			{
+				// Inserted lists need the same resource preparation as direct execution.
+				// In particular, Painter must invalidate its previous execution's GPU copy.
+				if ( other._resources is not null )
+				{
+					foreach ( var resource in other._resources )
+						resource.BeginExecute();
+				}
+
 				for ( int i = 0; i < other._entries.Count; i++ )
 				{
 					var e = other._entries[i];
@@ -456,34 +477,19 @@ public sealed unsafe partial class CommandList
 		if ( !Enabled )
 			return;
 
-		// lock - we only want to excute this once at a time, because
-		// we have local state (renderTargets). If this turns out to be
-		// a big problem we can probably create a system where we pass the
-		// stat around.
+		// One execution at a time: the render-target stack is per-list state.
 		lock ( _lock )
 		{
-			// Store previous state
-			var lastState = state;
-
-			// Get a new state
-			state = ObjectPool<State>.Get();
-
-			// Begin a debug marker scope so PIX/RenderDoc show this list
+			// Debug marker scope so PIX/RenderDoc show this list
 			Graphics.Context.BeginPixEvent( _markerName );
 
 			// GPU profiler timing scope, closed after execution below. The profiler nests this under its
 			// containing layer by GPU-timestamp containment in the summary - no parent passed here.
 			var perfScope = NativeEngine.CSceneSystem.BeginManagedPerfMarker( Graphics.Context, _debugName ?? "CommandList" );
 
-			// Execute all commands
 			try
 			{
-				var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan( _entries );
-				for ( int i = 0; i < span.Length; i++ )
-				{
-					ref var entry = ref span[i];
-					entry.Execute( ref entry, this );
-				}
+				ExecuteEntries();
 			}
 			catch ( System.Exception e )
 			{
@@ -491,15 +497,7 @@ public sealed unsafe partial class CommandList
 			}
 
 			Graphics.Context.EndPixEvent();
-
 			NativeEngine.CSceneSystem.EndManagedPerfMarker( Graphics.Context, perfScope );
-
-			// Reset the state and return to the pool
-			state.Reset();
-			ObjectPool<State>.Return( state );
-
-			// Restore to the previous state
-			state = lastState;
 		}
 	}
 
@@ -962,6 +960,34 @@ public sealed unsafe partial class CommandList
 		}
 
 		AddEntry( &Execute, new Entry { Object1 = target } );
+	}
+
+	/// <summary>
+	/// Save the render target and viewport active when this command executes.
+	/// </summary>
+	internal void PushRenderTarget()
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			commandList.state.renderTargetStack.Push( (Graphics.RenderTarget, Graphics.Context.GetViewport()) );
+		}
+
+		AddEntry( &Execute, default );
+	}
+
+	/// <summary>
+	/// Restore the most recently saved render target and viewport.
+	/// </summary>
+	internal void PopRenderTarget()
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			var saved = commandList.state.renderTargetStack.Pop();
+			Graphics.RenderTarget = saved.Target;
+			Graphics.Context.SetViewport( saved.Viewport );
+		}
+
+		AddEntry( &Execute, default );
 	}
 
 	/// <summary>
@@ -1441,9 +1467,9 @@ public sealed unsafe partial class CommandList
 	}
 
 	/// <summary>
-	/// Sneaky way for extensions to add an action. This creates an allocation, so it should be used sparingly.
+	/// Records an action to execute on the render thread. Cache the delegate to avoid allocations when recording.
 	/// </summary>
-	private void AddAction( Action a )
+	internal void AddAction( Action a )
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{

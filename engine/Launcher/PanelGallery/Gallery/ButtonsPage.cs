@@ -10,6 +10,17 @@ public class ButtonsPage : GalleryPage
 
 	public ButtonsPage() : base( "Buttons", "Sandbox.UI.Button in the editor stylesheet classes. Every one should react to hover and report its clicks." )
 	{
+		var states = Case( "Button states" );
+		foreach ( var state in new[] { "Normal", "Hovered", "Focused", "Disabled" } )
+		{
+			var specimen = states.Add.Panel( "control-state" );
+			specimen.Add.Label( state, "reference-title" );
+			var button = new Sandbox.UI.Button( "Save", "save", "primarybutton", Clicked );
+			specimen.AddChild( button );
+			if ( state == "Hovered" ) button.Switch( PseudoClass.Hover, true );
+			if ( state == "Focused" ) button.Switch( PseudoClass.Focus, true );
+			if ( state == "Disabled" ) button.Disabled = true;
+		}
 		var row = Case( "Primary" );
 		row.AddChild( new Sandbox.UI.Button( "Create", "add_box", "primarybutton", Clicked ) );
 		row.AddChild( new Sandbox.UI.Button( "Save", null, "primarybutton", Clicked ) );

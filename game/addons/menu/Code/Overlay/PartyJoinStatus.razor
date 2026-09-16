@@ -1,0 +1,22 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject
+@inherits Panel
+
+<root>
+	<PartyJoinCard Stage="@(Party?.JoiningStage ?? PartyRoom.JoinStage.None)"
+		IsFollower="@(Party?.Owner is { IsMe: false })" SessionId="@SessionId"
+		GameTitle="@Party?.PackageTitle" Error="@Party?.JoinError" Progress="@Party?.DownloadProgress"
+		HostProgress="@Party?.HostDownloadProgress"
+		RetryRequested="@Retry" CancelRequested="@Cancel" LeaveRequested="@Leave" />
+</root>
+
+@code
+{
+	PartyRoom Party => PartyRoom.Current;
+	int SessionId => HashCode.Combine( Party, Party?.Owner, Party?.PackageIdent );
+	void Retry() => Party?.RetryJoin();
+	void Cancel() => Party?.CancelJoin();
+	void Leave() => Party?.Leave();
+	protected override int BuildHash() => HashCode.Combine( SessionId, Party?.JoiningStage, Party?.DownloadProgress, Party?.HostDownloadProgress, Party?.JoinError, Party?.PackageTitle );
+}

@@ -52,9 +52,10 @@
     @if ( ShowJam )
     {
         <div class="jam @( IsNominated ? "on" : "" )">
+            <i class="trophy">emoji_events</i>
             <div class="text">
                 <label class="title">@_jam.Title entry</label>
-                <label class="hint">@( IsNominated ? "You nominated this game" : "Liked it? Nominate it" )</label>
+                <label class="hint">@( IsNominated ? "You nominated this entry" : CanToggle ? "Liked it? Nominate it" : _entry.Reason )</label>
             </div>
 
             <div class="nominate @( IsNominated ? "on" : "" ) @( _busy ? "busy" : "" ) @( CanToggle ? "" : "locked" )" onclick=@( () => _ = ToggleNomination() ) ToolTip="@NominateTooltip">
@@ -121,6 +122,7 @@
         StateHasChanged();
 
         var removing = IsNominated;
+        _nominated = !removing;
         string reason;
 
         try
@@ -137,10 +139,11 @@
 
         _busy = false;
 
-        if ( reason is null )
-            _nominated = !removing;
-        else
+        if ( reason is not null )
+        {
+            _nominated = removing;
             MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast() { Title = reason, Icon = "how_to_vote" } );
+        }
 
         StateHasChanged();
     }

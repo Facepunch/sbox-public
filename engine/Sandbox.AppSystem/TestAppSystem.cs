@@ -29,6 +29,7 @@ public class TestAppSystem : AppSystem
 			Flags = AppSystemFlags.IsGameApp | AppSystemFlags.IsUnitTest
 		};
 
-		InitGame( createInfo, "" );
+		// Opt in to the real renderer for bitmap comparisons; ordinary tests stay headless.
+		InitGame( createInfo, Environment.GetEnvironmentVariable( "SBOX_TEST_GRAPHICS" ) == "1" ? "-vulkan -noassert -novr" : "" );
 	}
 }

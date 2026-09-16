@@ -55,7 +55,7 @@ public sealed class ParticleTrailRenderer : ParticleController, Component.Execut
 
 	protected override void OnParticleCreated( Particle p )
 	{
-		if ( Application.IsHeadless )
+		if ( !Graphics.IsAvailable )
 			return;
 
 		p.AddListener( new ParticleTrail( this ), this );

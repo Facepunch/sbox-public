@@ -8,7 +8,7 @@ namespace Facepunch.Steps;
 /// </summary>
 internal class GenerateSolutions( BuildConfiguration configuration = BuildConfiguration.Developer, string module = null, string platform = null )
 {
-	internal ExitCode Run()
+	internal ExitCode Run() => BuildDisplay.Run( "Generate native solutions", () =>
 	{
 		var options = new Options
 		{
@@ -20,6 +20,8 @@ internal class GenerateSolutions( BuildConfiguration configuration = BuildConfig
 
 		if ( options.MemoryDebug ) Log.Info( "Using Memory Debug settings (ASAN + allocation tracking)" );
 
+		BuildDisplay.Status( $"Generate {options.Platform} projects and solutions" );
+		if ( module is not null ) BuildDisplay.Detail( module );
 		return Generate.Run( options, module ) ? ExitCode.Success : ExitCode.Failure;
-	}
+	} );
 }

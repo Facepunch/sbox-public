@@ -45,7 +45,7 @@ internal sealed class PathSearch
 		closest = null;
 		status = Status.Failure | Status.InvalidInput;
 		if ( !mesh.IsValidPolyRef( startPolygon ) || !mesh.IsValidPolyRef( targetPolygon )
-			|| !Geometry.IsFinite( start ) || !Geometry.IsFinite( target ) ) return status;
+			|| !start.IsFinite || !target.IsFinite ) return status;
 		this.filter = filter;
 		this.targetPolygon = targetPolygon;
 		this.target = target;

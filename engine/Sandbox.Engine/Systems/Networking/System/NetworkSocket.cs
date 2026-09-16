@@ -53,7 +53,7 @@ public abstract class NetworkSocket
 	/// Called when a session has failed with a user. Steam Networking Messages will invoke this callback
 	/// if an attempt to send a message to a user failed because of a broken session.
 	/// </summary>
-	internal virtual void OnSessionFailed( SteamId steamId )
+	internal virtual void OnSessionFailed( SteamId steamId, int reasonCode, string reason )
 	{
 
 	}

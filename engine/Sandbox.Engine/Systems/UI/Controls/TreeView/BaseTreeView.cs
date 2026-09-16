@@ -42,6 +42,20 @@ public abstract class BaseTreeView : Panel
 	public float RowHeight { get; set; } = 24;
 
 	/// <summary>
+	/// A plain click opens a closed branch before selecting it. Open branches stay open.
+	/// Ctrl/shift selection and clicks on embedded controls retain their usual behavior.
+	/// </summary>
+	[Parameter]
+	public bool ExpandOnClick { get; set; }
+
+	/// <summary>
+	/// Double-clicking a closed branch opens it before activation. Open branches stay open.
+	/// Disable this when the activation handler manages expansion itself.
+	/// </summary>
+	[Parameter]
+	public bool ExpandOnDoubleClick { get; set; } = true;
+
+	/// <summary>
 	/// Extra left padding per level of depth.
 	/// </summary>
 	[Parameter]
@@ -203,6 +217,10 @@ public abstract class BaseTreeView : Panel
 	{
 		NeedsRebuild = false;
 
+		// Structural changes can put a different item in a slot. End item-specific
+		// interactions, but retain the panel in that slot for the next bind.
+		foreach ( var panel in _active ) panel.Unbind();
+
 		_rows.Clear();
 		_totalHeight = 0;
 		BuildRows();
@@ -325,8 +343,8 @@ public abstract class BaseTreeView : Panel
 		var replace = placementHash != _placementHash;
 		_placementHash = placementHash;
 
-		// Anything bound to stale data goes back to the pool
-		if ( _active.Count > 0 && (_active[0].BindVersion != _bindVersion || pastEnd <= _activeFirst || first >= _activeFirst + _active.Count) )
+		// Recycle the window only when none of its rows remain visible.
+		if ( _active.Count > 0 && (pastEnd <= _activeFirst || first >= _activeFirst + _active.Count) )
 		{
 			for ( int i = 0; i < _active.Count; i++ ) Release( _active[i] );
 			_active.Clear();
@@ -367,9 +385,13 @@ public abstract class BaseTreeView : Panel
 			Bind( _activeFirst + _active.Count - 1, panel );
 		}
 
-		if ( replace )
+		// Refresh visible rows in place. Recycling them for a content update moves hover,
+		// focus and CSS transitions to unrelated entries for a frame.
+		for ( int i = 0; i < _active.Count; i++ )
 		{
-			for ( int i = 0; i < _active.Count; i++ ) Place( _activeFirst + i, _active[i] );
+			var panel = _active[i];
+			if ( panel.BindVersion != _bindVersion ) Bind( _activeFirst + i, panel );
+			else if ( replace ) Place( _activeFirst + i, panel );
 		}
 
 		// Don't hoard panels after the viewport shrinks
@@ -505,9 +527,6 @@ public abstract class BaseTreeView : Panel
 		rect.Height = MathF.Max( extent, rect.Height );
 
 		ConstrainScrolling( rect.Size );
-
-		ScrollbarY?.FinalLayout( offset );
-		ScrollbarX?.FinalLayout( offset );
 	}
 
 	/// <summary>
@@ -534,7 +553,7 @@ public abstract class BaseTreeView : Panel
 		else if ( bottom > scrollY + viewportHeight ) scrollY = bottom - viewportHeight;
 		else return;
 
-		ScrollVelocity = 0;
+		StopScrollVelocity();
 		ScrollOffset = ScrollOffset.WithY( MathF.Max( 0, scrollY ) * ScaleToScreen );
 		SetNeedsFinalLayout();
 	}
@@ -574,11 +593,19 @@ public abstract class BaseTreeView : Panel
 
 	internal void RowClicked( int row, MousePanelEvent e )
 	{
+		if ( row < 0 || row >= _rows.Count ) return;
+		if ( ExpandOnClick && !e.HasCtrl && !e.HasShift && _rows[row].HasChildren && !_rows[row].IsOpen )
+			SetRowOpen( row, true, false );
+
 		SelectRow( row, e.HasCtrl, e.HasShift );
 	}
 
 	internal void RowDoubleClicked( int row )
 	{
+		if ( row < 0 || row >= _rows.Count ) return;
+		if ( ExpandOnDoubleClick && _rows[row].HasChildren && !_rows[row].IsOpen )
+			SetRowOpen( row, true, false );
+
 		OnRowActivated( row );
 	}
 

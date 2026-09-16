@@ -477,7 +477,8 @@ internal partial class NetworkSystem
 			return Task.CompletedTask;
 		}
 
-		IGameInstanceDll.Current.Disconnect( $"Kicked from server.\n\nReason: {msg.Reason}" );
+		FailureReason = $"Kicked from server.\n\nReason: {msg.Reason}";
+		IGameInstanceDll.Current.Disconnect( FailureReason );
 		return Task.CompletedTask;
 	}
 

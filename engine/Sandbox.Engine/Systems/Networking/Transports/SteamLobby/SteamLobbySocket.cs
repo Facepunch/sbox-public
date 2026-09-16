@@ -8,6 +8,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading.Channels;
+using System.Threading;
 
 namespace Sandbox.Network;
 
@@ -28,6 +29,7 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 	ulong Id => SteamLobby.Id;
 
 	NetworkSystem System;
+	bool _disposed;
 
 	/// <summary>
 	/// The SteamId of the owner of this lobby.
@@ -147,27 +149,34 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 		return lobby;
 	}
 
-	public static async Task<(RoomEnter Response, SteamLobbySocket Socket)> Join( ulong lobbyId )
+	public static async Task<(RoomEnter Response, SteamLobbySocket Socket, string Error)> Join( ulong lobbyId, CancellationToken token = default )
 	{
 		var result = await SteamMatchmaking.JoinLobbyAsync( lobbyId );
 		if ( result.Response != RoomEnter.Success || result.Lobby is not { } lobby )
 		{
-			return (result.Response, null);
+			return (result.Response, null, $"Steam could not join the lobby: {result.Response} ({(int)result.Response}).");
+		}
+
+		if ( token.IsCancellationRequested )
+		{
+			lobby.Leave();
+			return default;
 		}
 
 		for ( int i = 0; i < 200; i++ )
 		{
+			if ( token.IsCancellationRequested ) break;
 			if ( LobbyManager.ActiveLobbies.Contains( lobby.Id ) )
 				break;
 
 			await Task.Delay( 10 );
 		}
 
-		if ( !LobbyManager.ActiveLobbies.Contains( lobby.Id ) )
+		if ( token.IsCancellationRequested || !LobbyManager.ActiveLobbies.Contains( lobby.Id ) )
 		{
 			Log.Warning( "Didn't enter lobby in a reasonable time!" );
 			lobby.Leave();
-			return default;
+			return (default, null, "Steam accepted the lobby join, but lobby membership was not confirmed within 2 seconds.");
 		}
 
 		var socket = new SteamLobbySocket( lobby );
@@ -176,16 +185,18 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 		// Wait for the owner to show up or time out
 		while ( timeout.Elapsed.TotalSeconds < 5f )
 		{
+			if ( token.IsCancellationRequested ) break;
 			SteamNetwork.RunCallbacks();
 
 			if ( socket.ownerConnection is not null )
-				return (result.Response, socket);
+				return (result.Response, socket, null);
 
 			await Task.Delay( 100 );
 		}
 
 		Log.Warning( $"Timed out connecting to lobby." );
-		return default;
+		socket.Dispose();
+		return (default, null, "Joined the Steam lobby, but its owner was not available within 5 seconds.");
 	}
 
 	internal override void Initialize( NetworkSystem networkSystem )
@@ -247,8 +258,19 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 
 	internal override void Dispose()
 	{
-		LobbyManager.Unregister( this );
-		SteamLobby.Leave();
+		lock ( Networking.NetworkThreadLock )
+		{
+			if ( _disposed ) return;
+			_disposed = true;
+			LobbyManager.Unregister( this );
+			foreach ( var connection in Connections.Values ) connection.Dispose();
+			Connections.Clear();
+			SteamLobby.Leave();
+			OutgoingMessages.Writer.TryComplete();
+			while ( OutgoingMessages.Reader.TryRead( out _ ) ) { }
+			IncomingMessages.Writer.TryComplete();
+			while ( IncomingMessages.Reader.TryRead( out _ ) ) { }
+		}
 	}
 
 	private struct IncomingMessage
@@ -259,8 +281,7 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 
 	private struct OutgoingMessage
 	{
-		public ulong SteamId { get; set; }
-		public int Channel { get; set; }
+		public SteamLobbyConnection Target { get; set; }
 		public byte[] Data { get; set; }
 		public int Flags { get; set; }
 	}
@@ -269,22 +290,11 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 	private Channel<IncomingMessage> IncomingMessages { get; } = Channel.CreateUnbounded<IncomingMessage>();
 
 	/// <summary>
-	/// Enqueue a message to be sent to a user on a different thread.
+	/// Enqueue a message to be sent on the networking thread.
 	/// </summary>
-	/// <param name="steamId"></param>
-	/// <param name="data"></param>
-	/// <param name="flags"></param>
-	internal void SendMessage( ulong steamId, in byte[] data, int flags )
+	internal void SendMessage( SteamLobbyConnection target, byte[] data, int flags )
 	{
-		var message = new OutgoingMessage
-		{
-			Channel = NetworkChannel,
-			SteamId = steamId,
-			Data = data,
-			Flags = flags
-		};
-
-		OutgoingMessages.Writer.TryWrite( message );
+		OutgoingMessages.Writer.TryWrite( new() { Target = target, Data = data, Flags = flags } );
 	}
 
 	/// <summary>
@@ -333,19 +343,24 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 	/// </summary>
 	private unsafe void ProcessOutgoingMessage( ISteamNetworkingMessages net, in OutgoingMessage msg )
 	{
+		// A queued packet belongs to this connection, even if the same Steam user rejoins.
+		var target = msg.Target;
+		if ( !target.IsValid ) return;
+
 		fixed ( byte* d = msg.Data )
 		{
-			var result = net.SendMessageToUser( msg.SteamId, (IntPtr)d, msg.Data.Length, msg.Flags, NetworkChannel );
+			var result = net.SendMessageToUser( target.Friend.Id, (IntPtr)d, msg.Data.Length, msg.Flags, NetworkChannel );
 			if ( result == 1 )
 			{
-				if ( Connections.TryGetValue( msg.SteamId, out var target ) )
-					target.MessagesSent++;
-
+				target.LastSendError = null;
+				target.MessagesSent++;
 				return;
 			}
 
-			if ( !Networking.Debug ) return;
-			Log.Warning( $"ISteamNetworkingMessages.SendMessageToUser Failed ({result})" );
+			var error = (Result)result;
+			if ( target.LastSendError != error )
+				Log.Warning( $"Steam send to {target.Friend.Id} in lobby {Id} failed: {error} ({result})." );
+			target.LastSendError = error;
 		}
 	}
 
@@ -355,6 +370,7 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 	/// </summary>
 	internal override void ProcessMessagesInThread()
 	{
+		if ( _disposed ) return;
 		var net = Steam.SteamNetworkingMessages();
 		if ( !net.IsValid ) return;
 
@@ -385,7 +401,7 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 
 	void UpdateConnections()
 	{
-		if ( Id == 0 || !LobbyManager.ActiveLobbies.Contains( Id ) )
+		if ( _disposed || Id == 0 || !LobbyManager.ActiveLobbies.Contains( Id ) )
 			return;
 
 		UpdateOwnerFromLobby();
@@ -430,6 +446,7 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 
 	internal override void Tick( NetworkSystem networkSystem )
 	{
+		if ( _disposed ) return;
 		FollowHost();
 
 		if ( !Owner.IsMe )
@@ -461,15 +478,34 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 		}
 	}
 
-	internal override void OnSessionFailed( SteamId steamId )
+	internal override void OnSessionFailed( SteamId steamId, int reasonCode, string reason )
 	{
 		if ( Connections.TryGetValue( steamId, out var connection ) )
 		{
-			Log.Warning( $"SteamLobbySocket - Invalid Network Session (Recipient: {connection.Name})" );
+			connection.SessionFailure = new( ConnectionState.ProblemDetectedLocally, reasonCode, reason );
+			Log.Warning( $"Steam session failed in lobby {Id}, peer {steamId}: {connection.SessionFailure}" );
 			return;
 		}
 
 		Log.Warning( $"SteamLobbySocket - Invalid Network Session (Recipient: {steamId})" );
+	}
+
+	internal string DescribeConnectionFailure( double elapsed )
+	{
+		var peer = System?.HostConnection as SteamLobbyConnection ?? ownerConnection as SteamLobbyConnection;
+		var steamId = peer?.Friend.Id ?? HostSteamId;
+		var status = SteamSessionStatus.Read( steamId );
+		// Steam may already have discarded a failed session; retain the callback's reason.
+		if ( status.State == ConnectionState.None && peer?.SessionFailure is { } failure ) status = failure;
+		var sendError = peer?.LastSendError is { } lastError
+			? $"Last failed Steam send: {lastError} ({(int)lastError})." : null;
+		var message = status.DescribeTimeout( elapsed, sendError );
+		if ( status.Reason == 0 && peer?.SessionFailure is { Reason: not 0 } previousFailure )
+			message += $"\nLast Steam session failure ({previousFailure.Reason}): {previousFailure.Detail}";
+		var relay = Networking.GetSteamRelayStatus( out var relayDetail );
+		Log.Warning( $"Join failed: lobby {Id}, host {steamId}, relay {relay} ({relayDetail}). {message}" );
+		if ( relay != SteamNetworkingAvailability.Current ) message += $"\nSteam relay: {relay}. {relayDetail}";
+		return message;
 	}
 
 	internal override void OnConnectionInfoUpdated( NetworkSystem networkSystem )

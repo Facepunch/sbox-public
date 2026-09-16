@@ -93,6 +93,12 @@ native class IRenderContext as NativeEngine.IRenderContext
 		self->BindRenderTargets( rtDesc );
 	}
 
+	// A target owned by a standalone renderer, without a scene layer.
+	inline void BindRenderTargets( ITexture colorTexture )
+	{
+		self->BindRenderTargets( RenderTargetDesc_t( colorTexture, RENDER_TEXTURE_HANDLE_INVALID, RENDER_LINEAR ) );
+	}
+
 	inline void RestoreRenderTargets( ISceneLayer layer )
 	{
 		self->BindRenderTargets( layer->GetRenderTargetDesc() );

@@ -4,10 +4,10 @@
 @using Sandbox;
 @using Sandbox.UI;
 
-@attribute [Title( "Overflow" )]
+@attribute [Group( "Layout" )]
+@attribute [Title( "overflow" )]
 @attribute [Description( "Clipping, scrolling, and what escapes a box" )]
 @attribute [Icon( "crop" )]
-@attribute [Order( 65 )]
 
 @*
     Every case has a child bigger than, or hanging out of, its parent. The question each time is
@@ -92,20 +92,6 @@
         </UiTestCase>
         <UiTestCase Setup="@Frame" Rule="overflow: scroll; border-radius: 24px" Note="Scrolled content is clipped by the corners as it moves.">
             <ChildContent><div class="clip scroll round"><div class="tall"></div></div></ChildContent>
-        </UiTestCase>
-    </div>
-
-    <h2>Masks</h2>
-
-    <div class="cases">
-        <UiTestCase Setup="@Frame" Rule="mask-image: linear-gradient( to bottom, white, transparent )" Note="A soft mask rather than a hard clip.">
-            <ChildContent><div class="masked fade-mask"></div></ChildContent>
-        </UiTestCase>
-        <UiTestCase Setup="@Frame" Rule="mask-image: radial-gradient( white, transparent )" Note="Radial mask.">
-            <ChildContent><div class="masked round-mask"></div></ChildContent>
-        </UiTestCase>
-        <UiTestCase Setup="@Frame" Rule="mask-image + border-radius" Note="Mask and clip together on one element.">
-            <ChildContent><div class="masked fade-mask round"></div></ChildContent>
         </UiTestCase>
     </div>
 

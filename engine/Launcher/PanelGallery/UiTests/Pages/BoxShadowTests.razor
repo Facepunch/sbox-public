@@ -1,0 +1,27 @@
+@using Sandbox.PanelGallery;
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Effects" )]
+@attribute [Title( "box-shadow" )]
+@attribute [Icon( "check_box_outline_blank" )]
+<root>
+    <h2>box-shadow</h2>
+    <div class="cases">
+        <UiTestCase Caption="0 0 0 8px Cyan" class="roomy" Css="@($"border-radius: 20px; box-shadow: 0 0 0 8px {GalleryPalette.CyanHex}")" Note="Spread with no blur - a hard ring that follows the corner." />
+        <UiTestCase Caption="0 0 20px #000" class="roomy" Css="border-radius: 20px; box-shadow: 0 0 20px #000" />
+        <UiTestCase Caption="8px 8px 12px #000" class="roomy" Css="border-radius: 20px; box-shadow: 8px 8px 12px #000" />
+        <UiTestCase Caption="0 0 10px 6px #000" class="roomy" Css="box-shadow: 0 0 10px 6px #000" Note="Blur and spread together, no radius." />
+        <UiTestCase Caption="0 0 20px #000" class="roomy" Setup="@Wide" Css="border-radius: 50%; box-shadow: 0 0 20px #000" Note="A blurred shadow of an ellipse - the silhouette must match the box, top and bottom." />
+        <UiTestCase Caption="inset 0 0 20px #000" Css="border-radius: 20px; box-shadow: inset 0 0 20px #000" />
+        <UiTestCase Caption="inset 4px 4px 0 6px #000" Css="@($"border-radius: 20px; border: 4px solid {GalleryPalette.CyanHex}; box-shadow: inset 4px 4px 0 6px #000")" Note="Inset shadows are clipped by the padding box, inside the border." />
+        <UiTestCase Caption="0 0 12px #000" class="roomy" Css="border-radius: 0 0 0 100%; box-shadow: 0 0 12px #000" Note="One huge corner - the shadow should hug it all the way round." />
+    </div>
+</root>
+@code
+{
+    const string Wide = $"width: 200px; height: 100px; background-color: {GalleryPalette.LimeHex}";
+
+
+}

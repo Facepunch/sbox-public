@@ -349,7 +349,7 @@ PS
 		else
 		#endif
 		{
-			Texture2D ColorTexture = Bindless::GetTexture2D( sprite.TextureHandle, true );
+			Texture2D ColorTexture = Bindless::GetTexture2DSrgb( sprite.TextureHandle );
 			SamplerState spriteSampler = Bindless::GetSampler( sprite.SamplerIndex );
 
 			textureColor = ColorTexture.Sample( spriteSampler, uv.xy ).rgba;

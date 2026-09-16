@@ -5,7 +5,7 @@ using Sandbox.Network;
 using Steamworks;
 using Steamworks.Data;
 using System.Runtime.CompilerServices;
-using System.Threading;
+using System.Globalization;
 
 namespace Sandbox;
 
@@ -74,14 +74,13 @@ public partial class PartyRoom : ILobby
 
 	public void Leave()
 	{
+		_join?.Dispose();
+		_join = null;
+
 		using ( GlobalContext.MenuScope() )
 		{
 			Event.EventSystem.RunInterface<IEventListener>( x => x.OnLeftParty( Current ) );
 		}
-
-		_preloadCts?.Cancel();
-		_preloadCts = null;
-		_preloadTask = null;
 
 		steamLobby.Leave();
 		steamLobby = default;
@@ -185,14 +184,24 @@ public partial class PartyRoom : ILobby
 	/// </summary>
 	OwnerJoinState DetermineJoinState()
 	{
-		if ( Networking.System is not null && Networking.System.Sockets.OfType<SteamLobbySocket>().FirstOrDefault() is SteamLobbySocket )
-			return OwnerJoinState.Ready;
+		return DetermineJoinState( IGameInstance.Current?.IsLoading ?? LoadingScreen.IsVisible,
+			Networking.IsConnecting, GetGameAddress(), Application.GamePackage is not null && Application.GamePackage is not LocalPackage );
+	}
 
-		// Not LocalPackage -- otherwise the menu gets picked up 
-		if ( Application.GamePackage is not null && Application.GamePackage is not LocalPackage )
-			return OwnerJoinState.Loading;
+	internal static OwnerJoinState DetermineJoinState( bool loading, bool connecting, string address, bool hasGame )
+	{
+		if ( loading || connecting ) return OwnerJoinState.Loading;
+		if ( !string.IsNullOrWhiteSpace( address ) ) return OwnerJoinState.Ready;
+		return hasGame ? OwnerJoinState.Unavailable : OwnerJoinState.None;
+	}
 
-		return OwnerJoinState.None;
+	static string GetGameAddress()
+	{
+		if ( Networking.System?.Sockets.OfType<SteamLobbySocket>().FirstOrDefault() is { } lobby )
+			return lobby.LobbySteamId.ToString();
+		if ( Networking.IsClient && Networking.LastConnectionString != "local" )
+			return Networking.LastConnectionString;
+		return null;
 	}
 
 	internal void Tick()
@@ -208,19 +217,24 @@ public partial class PartyRoom : ILobby
 		if ( Owner.IsMe )
 		{
 			steamLobby.SetData( "api", Protocol.Api.ToString() );
+			_join?.Dispose();
+			_join = null;
 			steamLobby.SetData( "protocol", Protocol.Network.ToString() );
 			steamLobby.SetData( "buildid", $"{Application.Version}" );
 			steamLobby.SetData( "dev", Application.IsEditor ? "1" : "0" );
 			steamLobby.SetData( "_ownerid", Owner.Id.ToString() );
-			steamLobby.SetData( "package", Application.GamePackage?.FullIdent );
+			steamLobby.SetData( "package", Application.GamePackage?.GetIdent( false, true ) );
 			steamLobby.SetData( "packagetitle", Application.GamePackage?.Title );
 
 			var state = DetermineJoinState();
 			steamLobby.SetData( "joinstate", state.ToString() );
+			var progress = state == OwnerJoinState.Loading ? LoadingScreen.Progress : null;
+			steamLobby.SetData( "download_fraction", progress?.Fraction.ToString( "F4", CultureInfo.InvariantCulture ) ?? "" );
+			steamLobby.SetData( "download_title", progress?.Title ?? "" );
 
-			if ( state is OwnerJoinState.Ready && Networking.System.Sockets.OfType<SteamLobbySocket>().FirstOrDefault() is SteamLobbySocket sl )
+			if ( state is OwnerJoinState.Ready )
 			{
-				steamLobby.SetData( "gameaddress", sl.LobbySteamId.ToString() );
+				steamLobby.SetData( "gameaddress", GetGameAddress() );
 			}
 			else
 			{
@@ -229,41 +243,7 @@ public partial class PartyRoom : ILobby
 		}
 		else
 		{
-			var joinState = JoinState;
-			if ( joinState != _lastJoinState )
-			{
-				_lastJoinState = joinState;
-
-				if ( joinState is OwnerJoinState.None )
-				{
-					_preloadCts?.Cancel();
-					_preloadCts = null;
-					_preloadTask = null;
-					_lastConnectString = null;
-					NetworkConsoleCommands.Disconnect();
-				}
-
-				if ( joinState is OwnerJoinState.Loading )
-				{
-					PreloadPackageInBackground( steamLobby.GetData( "package" ) );
-				}
-			}
-
-			// While ready, watch for address changes
-			if ( joinState is OwnerJoinState.Ready )
-			{
-				var address = steamLobby.GetData( "gameaddress" );
-				if ( address != _lastConnectString && !string.IsNullOrWhiteSpace( address ) )
-				{
-					_lastConnectString = address;
-					NetworkConsoleCommands.Disconnect();
-					_ = ConnectAfterPreload( address );
-				}
-			}
-			else
-			{
-				_lastConnectString = null;
-			}
+			UpdateFollowing();
 		}
 	}
 

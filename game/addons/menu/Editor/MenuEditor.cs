@@ -19,8 +19,6 @@ public static class MenuEditorSystem
 
 			CopyAsset( asset, targetFolder );
 		}
-
-		System.IO.File.WriteAllText( targetFolder + "/.gitignore", "!*_c\n" );
 	}
 
 	[Menu( "Editor", "Menu Project/Rebuild All Clothing Icons" )]

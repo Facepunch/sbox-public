@@ -1,4 +1,4 @@
-﻿using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp;
 using Sandbox.Audio;
 using Sandbox.Diagnostics;
 using Sandbox.Internal;
@@ -91,7 +91,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		Event.Run( "app.exit" );
 		Game.Cookies?.Save();
 
-		// Release InputContext references so the UISystem/PanelRenderer
+		// Release InputContext references so the UISystem
 		// chain (and any RenderAttributes it holds) can be collected.
 		if ( InputContext is not null )
 		{
@@ -531,6 +531,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	{
 		if ( !string.IsNullOrEmpty( message ) )
 		{
+			if ( Networking.System is { } system ) system.FailureReason ??= message;
 			Log.Warning( $"Disconnected: {message.Replace( "\n", "" )}" );
 		}
 

@@ -161,10 +161,11 @@ public sealed partial class NavMesh
 					{
 						CompactHeightfield heightField;
 
-						// Use baked heightfield data directly if available, avoiding expensive geometry collection
-						if ( tile.IsBakedHeightField && tile.IsHeightFieldValid )
+						// Use baked heightfield data directly if available, avoiding expensive geometry collection.
+						// A baked tile with no heightfield was excluded on purpose and stays empty.
+						if ( tile.IsBakedHeightField )
 						{
-							heightField = tile.DecompressCachedHeightField();
+							heightField = tile.IsHeightFieldValid ? tile.DecompressCachedHeightField() : null;
 						}
 						else
 						{

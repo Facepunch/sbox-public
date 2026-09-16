@@ -10,6 +10,25 @@ namespace Sandbox;
 /// </summary>
 public static partial class Graphics
 {
+	/// <summary>
+	/// Whether the initialized renderer supports GPU operations. False before initialization,
+	/// after shutdown, and when using the empty renderer.
+	/// </summary>
+	public static bool IsAvailable { get; private set; }
+
+	internal static void Initialize()
+	{
+		IsAvailable = g_pRenderDevice.GetRenderDeviceAPI() != RenderDeviceAPI_t.RENDER_DEVICE_API_EMPTY;
+
+		_mipMapGeneratorShader = IsAvailable ? new ComputeShader( "downsample_cs" ) : null;
+	}
+
+	internal static void Shutdown()
+	{
+		IsAvailable = false;
+		_mipMapGeneratorShader = null;
+	}
+
 	public enum PrimitiveType
 	{
 		Points = NativeEngine.RenderPrimitiveType.RENDER_PRIM_POINTS,
@@ -113,7 +132,7 @@ public static partial class Graphics
 	{
 		get
 		{
-			if ( Application.IsHeadless ) return 0;
+			if ( !Graphics.IsAvailable ) return 0;
 			g_pRenderDevice.GetVideoMemoryInfo( out var budget, out _, out _ );
 			return budget;
 		}
@@ -127,7 +146,7 @@ public static partial class Graphics
 	{
 		get
 		{
-			if ( Application.IsHeadless ) return 0;
+			if ( !Graphics.IsAvailable ) return 0;
 			g_pRenderDevice.GetVideoMemoryInfo( out _, out _, out var rsUsage );
 			return rsUsage;
 		}
@@ -198,6 +217,43 @@ public static partial class Graphics
 	internal ref struct Scope
 	{
 		RenderState _previous;
+		bool standalone;
+		IRenderContext _context;
+		RenderAttributes _attributes;
+
+		/// <summary>
+		/// Begins rendering with no scene view: a fresh render context and attributes with the frame's bindless
+		/// texture set bound, as CSceneSystem::InitializeRenderAttributes does for a view. Disposal submits the context.
+		/// </summary>
+		internal static Scope Create()
+		{
+			ThreadSafe.AssertIsMainThread();
+
+			if ( !IsAvailable )
+				throw new InvalidOperationException( "Graphics is unavailable." );
+
+			if ( IsActive || CSceneSystem.IsRenderingBusy() )
+				throw new InvalidOperationException(
+					"Standalone rendering cannot overlap another render scope or scene recording." );
+
+			// The global descriptor ring relies on present throttling. Standalone
+			// submissions must finish previous GPU work before reusing a slot.
+			g_pRenderDevice.ForceFlushGPU( default );
+
+			var context = g_pRenderDevice.CreateRenderContext( 0 );
+			var attributes = new RenderAttributes();
+			attributes.Get().SetGlobalBindlessDescriptorSet();
+
+			var scope = new Scope { _previous = _state, standalone = true, _context = context, _attributes = attributes };
+			_state = new RenderState { active = true, renderContext = context, attributes = attributes };
+			return scope;
+		}
+
+		/// <summary>The standalone render context, or default inside a scene view.</summary>
+		internal IRenderContext Context => _context;
+
+		/// <summary>The standalone attributes, or null inside a scene view.</summary>
+		internal RenderAttributes Attributes => _attributes;
 
 		public Scope( in ManagedRenderSetup_t setup )
 		{
@@ -223,6 +279,28 @@ public static partial class Graphics
 
 		public void Dispose()
 		{
+			if ( standalone )
+			{
+				try
+				{
+					g_pRenderDevice.BeginSubmittingDisplayLists();
+					_context.Submit();
+				}
+				finally
+				{
+					try
+					{
+						g_pRenderDevice.ReleaseRenderContext( _context );
+						_attributes.Clear();
+					}
+					finally
+					{
+						_state = _previous;
+					}
+				}
+				return;
+			}
+
 			if ( _state.attributes is not null )
 			{
 				_state.attributes.Set( default( CRenderAttributes ) );
@@ -241,6 +319,18 @@ public static partial class Graphics
 				grabbedTextures.Clear();
 			}
 		}
+	}
+
+	/// <summary>Uses private attributes for a drawing pass, preserving its caller's attributes.</summary>
+	internal readonly ref struct AttributeScope
+	{
+		readonly RenderAttributes previous;
+		internal AttributeScope( RenderAttributes attributes )
+		{
+			previous = _state.attributes;
+			_state.attributes = attributes;
+		}
+		public void Dispose() => _state.attributes = previous;
 	}
 
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
@@ -339,6 +429,9 @@ public static partial class Graphics
 			if ( _state.renderTarget == value )
 				return;
 
+			if ( SceneLayer.IsNull && (value?.ColorTarget is null || value.DepthTarget is not null) )
+				throw new InvalidOperationException( "Standalone rendering requires a color target without a depth target." );
+
 			// Going from default render target to custom render target
 			if ( _state.renderTarget == null )
 			{
@@ -363,7 +456,15 @@ public static partial class Graphics
 				return;
 			}
 
-			Context.BindRenderTargets( _state.renderTarget.ColorTarget?.native ?? default, _state.renderTarget.DepthTarget?.native ?? default, SceneLayer );
+			if ( SceneLayer.IsNull )
+			{
+				_state.colorFormat = _state.renderTarget.ColorTarget.ImageFormat;
+				Context.BindRenderTargets( _state.renderTarget.ColorTarget.native );
+			}
+			else
+			{
+				Context.BindRenderTargets( _state.renderTarget.ColorTarget?.native ?? default, _state.renderTarget.DepthTarget?.native ?? default, SceneLayer );
+			}
 			Viewport = new Rect( 0, 0, _state.renderTarget.Width, _state.renderTarget.Height );
 		}
 	}
@@ -460,7 +561,7 @@ public static partial class Graphics
 	/// </summary>
 	public static void FlushGPU()
 	{
-		if ( Application.IsHeadless )
+		if ( !Graphics.IsAvailable )
 			return;
 
 		g_pRenderDevice.ForceFlushGPU( default );

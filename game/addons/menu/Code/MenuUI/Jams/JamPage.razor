@@ -139,7 +139,7 @@
 								else
 								{
 									<div class="entries">
-										<MenuProject.UI.PackageList ShowFilters="@false" Query=@Jam.Query Take=@( 200 ) ItemSize=@( new Vector2( 260, 236 ) )>
+										<MenuProject.UI.PackageList ShowFilters="@false" Query=@Jam.Query Take=@( 200 ) ItemSize=@( new Vector2( 260, 200 ) )>
 											<Item Context="package">
 												<JamEntryCard Jam=@Jam Package=@package CanNominate=@CanNominate Nominated=@Nominated.Contains( package.FullIdent ) OnSelected=@Selected OnMenu=@Menu />
 											</Item>

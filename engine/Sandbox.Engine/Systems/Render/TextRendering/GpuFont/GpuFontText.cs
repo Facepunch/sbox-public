@@ -16,7 +16,6 @@ internal static class GpuFontText
 {
 	const int ModeGlyph = 4;
 	const int ModeLine = 5;
-	internal const int ModeGlyphRun = 6; // a box instance standing in for packed glyphs, see RenderLayer.AddText
 	internal const int FlagAliased = 1; // TEXT_ALIASED in ui/text.hlsl
 	const int FlagGradient = 2;
 	const int TileSize = 16; // TEXT_TILE_SIZE in ui/text.hlsl
@@ -40,18 +39,6 @@ internal static class GpuFontText
 			return options;
 		}
 	}
-
-	/// <summary>A glyph packed into a <see cref="GPUGlyphInstance"/>; gradient text keeps the whole box.</summary>
-	internal static bool IsCompactGlyph( in GPUBoxInstance inst ) => inst.Mode == ModeGlyph && (inst.BorderImageMode & FlagGradient) == 0;
-
-	/// <summary>Stands in for <paramref name="count"/> packed glyphs from <paramref name="start"/> in a layer's Glyphs, covering rect.</summary>
-	internal static GPUBoxInstance GlyphRun( Rect rect, int start, int count ) => new()
-	{
-		Mode = ModeGlyphRun,
-		Rect = new Vector4( rect.Left, rect.Top, rect.Width, rect.Height ),
-		GlyphStart = start,
-		GlyphCount = count,
-	};
 
 	/// <summary>A text instance wants the block's gradient resolved into its TextureIndex.</summary>
 	internal static bool WantsGradient( in GPUBoxInstance inst ) => inst.Mode >= ModeGlyph && (inst.BorderImageMode & FlagGradient) != 0;
@@ -105,11 +92,8 @@ internal static class GpuFontText
 						var color = ToColor( effect.Color );
 						float dilate = effect.Width * 0.5f;
 
-						// A shadow lays its blurred copy down at the offset first, then both kinds draw at the origin
-						if ( effect.BlurSize > 0 )
-							AddEffectPass( run, line, Origin + new Vector2( effect.Offset.X, effect.Offset.Y ), dilate, effect.BlurSize, color );
-
-						AddEffectPass( run, line, Origin, dilate, 0, color );
+						// Each effect is one copy at its offset, including a sharp shadow with zero blur.
+						AddEffectPass( run, line, Origin + new Vector2( effect.Offset.X, effect.Offset.Y ), dilate, effect.BlurSize, color );
 					}
 				}
 			}

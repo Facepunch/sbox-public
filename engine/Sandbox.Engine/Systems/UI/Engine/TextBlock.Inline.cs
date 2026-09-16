@@ -27,7 +27,7 @@ internal sealed partial class TextBlock
 		return Text[from..to];
 	}
 
-	internal void SetInlineRuns( Styles style, IReadOnlyList<InlineParagraph.Run> runs )
+	internal void SetInlineRuns( Styles style, IReadOnlyList<InlineFormattingContext.Run> runs )
 	{
 		_inlineLayout = null;
 		IsInlineParagraph = true;
@@ -68,7 +68,7 @@ internal sealed partial class TextBlock
 		return new LayoutSize( Block.MeasuredWidth, Block.MeasuredHeight );
 	}
 
-	internal InlineContentLayout LayoutInline( float width, IReadOnlyList<InlineParagraph.Run> runs )
+	internal InlineContentLayout LayoutInline( float width, IReadOnlyList<InlineFormattingContext.Run> runs )
 	{
 		var size = MeasureInline( width );
 		if ( _inlineLayout is not null && _inlineLayoutWidth == _inlineWidth ) return _inlineLayout;

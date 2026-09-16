@@ -1,4 +1,4 @@
-﻿using Sandbox.UI;
+using Sandbox.UI;
 
 namespace Sandbox;
 
@@ -16,7 +16,7 @@ public static partial class TextRendering
 		public bool IsEmpty;
 		internal int CacheKey;
 
-		public RealTimeSince TimeSinceUsed;
+		public ulong LastPreparedFrame;
 
 		Scope _scope;
 		Margin _effectMargin = default;
@@ -26,7 +26,7 @@ public static partial class TextRendering
 		{
 			_scope = scope;
 			IsEmpty = string.IsNullOrEmpty( _scope.Text );
-			TimeSinceUsed = 0;
+			LastPreparedFrame = Application.FrameCount;
 			_effectMargin = default;
 
 			if ( scope.Outline.Enabled && scope.Outline.Size > 0 )
@@ -47,18 +47,18 @@ public static partial class TextRendering
 
 			if ( scope.Shadow.Enabled )
 			{
-				_effectMargin.Left = MathF.Max( _effectMargin.Left, scope.Shadow.Size + -scope.Shadow.Offset.x ).CeilToInt();
-				_effectMargin.Right = MathF.Max( _effectMargin.Right, scope.Shadow.Size + scope.Shadow.Offset.x ).CeilToInt();
-				_effectMargin.Top = MathF.Max( _effectMargin.Top, scope.Shadow.Size + -scope.Shadow.Offset.y ).CeilToInt();
-				_effectMargin.Bottom = MathF.Max( _effectMargin.Bottom, scope.Shadow.Size + scope.Shadow.Offset.y ).CeilToInt();
+				_effectMargin.Left = MathF.Max( _effectMargin.Left, scope.Shadow.Size.Clamp( 0, 512 ) * 3 + -scope.Shadow.Offset.x ).CeilToInt();
+				_effectMargin.Right = MathF.Max( _effectMargin.Right, scope.Shadow.Size.Clamp( 0, 512 ) * 3 + scope.Shadow.Offset.x ).CeilToInt();
+				_effectMargin.Top = MathF.Max( _effectMargin.Top, scope.Shadow.Size.Clamp( 0, 512 ) * 3 + -scope.Shadow.Offset.y ).CeilToInt();
+				_effectMargin.Bottom = MathF.Max( _effectMargin.Bottom, scope.Shadow.Size.Clamp( 0, 512 ) * 3 + scope.Shadow.Offset.y ).CeilToInt();
 			}
 
 			if ( scope.ShadowUnder.Enabled )
 			{
-				_effectMargin.Left = MathF.Max( _effectMargin.Left, scope.ShadowUnder.Size + -scope.ShadowUnder.Offset.x ).CeilToInt();
-				_effectMargin.Right = MathF.Max( _effectMargin.Right, scope.ShadowUnder.Size + scope.ShadowUnder.Offset.x ).CeilToInt();
-				_effectMargin.Top = MathF.Max( _effectMargin.Top, scope.ShadowUnder.Size + -scope.ShadowUnder.Offset.y ).CeilToInt();
-				_effectMargin.Bottom = MathF.Max( _effectMargin.Bottom, scope.ShadowUnder.Size + scope.ShadowUnder.Offset.y ).CeilToInt();
+				_effectMargin.Left = MathF.Max( _effectMargin.Left, scope.ShadowUnder.Size.Clamp( 0, 512 ) * 3 + -scope.ShadowUnder.Offset.x ).CeilToInt();
+				_effectMargin.Right = MathF.Max( _effectMargin.Right, scope.ShadowUnder.Size.Clamp( 0, 512 ) * 3 + scope.ShadowUnder.Offset.x ).CeilToInt();
+				_effectMargin.Top = MathF.Max( _effectMargin.Top, scope.ShadowUnder.Size.Clamp( 0, 512 ) * 3 + -scope.ShadowUnder.Offset.y ).CeilToInt();
+				_effectMargin.Bottom = MathF.Max( _effectMargin.Bottom, scope.ShadowUnder.Size.Clamp( 0, 512 ) * 3 + scope.ShadowUnder.Offset.y ).CeilToInt();
 			}
 
 			// don't let shit get crazy
@@ -93,9 +93,16 @@ public static partial class TextRendering
 		internal Vector2 BlockOrigin;
 
 		/// <summary>Lay the text out, once.</summary>
+		public Vector2 Measure()
+		{
+			EnsureLayout();
+			return Size;
+		}
+
 		internal void EnsureLayout()
 		{
-			TimeSinceUsed = 0;
+			LastPreparedFrame = Application.FrameCount;
+			if ( CacheKey != 0 ) Dictionary.TryAdd( CacheKey, this );
 
 			if ( Layout != null )
 				return;
@@ -149,7 +156,7 @@ public static partial class TextRendering
 
 		public void MakeReady()
 		{
-			TimeSinceUsed = 0;
+			EnsureLayout();
 
 			if ( Texture != null )
 				return;

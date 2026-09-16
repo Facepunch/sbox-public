@@ -14,7 +14,7 @@ struct ScreenSpaceAmbientOcclusion
         if ( index == 0 )
             return 1.0f; // Ambient occlusion is disabled
 
-        Texture2D tAO = Bindless::GetTexture2D( index );
+        Texture2D tAO = Bindless::GetTexture2D( UniformIndex( index ) );
 
         return MSAAUtils::SampleRed( tAO, ScreenPosition );
     }

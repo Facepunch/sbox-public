@@ -84,8 +84,11 @@ public sealed partial class NavMesh
 
 		var minMaxTileCoords = CalculateMinMaxTileCoords( Bounds );
 
-		// Need one iteration to find out actual tile count
+		// Every tile in bounds is recorded, empty ones included. Their absence would be
+		// indistinguishable from "not baked" on load, and the tile would be rebuilt from
+		// live geometry, undoing any region the bake deliberately left out.
 		List<NavMeshTile> tiles = new();
+		bool anyHeightField = false;
 
 		for ( int x = minMaxTileCoords.Left; x <= minMaxTileCoords.Right; x++ )
 		{
@@ -93,14 +96,12 @@ public sealed partial class NavMesh
 			{
 				var tileCoords = new Vector2Int( x, y );
 				var tile = tileCache.GetOrAddTile( tileCoords );
-				if ( tile.IsHeightFieldValid )
-				{
-					tiles.Add( tile );
-				}
+				tiles.Add( tile );
+				anyHeightField |= tile.IsHeightFieldValid;
 			}
 		}
 
-		if ( tiles.Count == 0 )
+		if ( !anyHeightField )
 		{
 			EditorAutoUpdate = wasAutoUpdate;
 			return null;

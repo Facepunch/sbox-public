@@ -77,6 +77,23 @@
 			]
 		},
 		{
+			"Name": "Twemoji Mozilla",
+			"Comment": "COLR emoji font used as a fallback on Linux and macOS. Graphics are Twemoji (CC-BY-4.0).",
+			"UsedBy": [
+				"sbox",
+				"sbox-dev"
+			],
+			"License": "Apache-2.0",
+			"ProjectUrl": "https://github.com/mozilla/twemoji-colr",
+			"Version": "0.7.0",
+			"Linkage": "static",
+			"Modified": true,
+			"Copyright": [
+				"2016-2018 Mozilla Foundation",
+				"2020 Twitter, Inc and other contributors"
+			]
+		},
+		{
 			"Name": "MurmurHash3",
 			"Comment": "Non-cryptographic hash (public domain).",
 			"UsedBy": [

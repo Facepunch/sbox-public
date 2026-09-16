@@ -17,45 +17,46 @@ JamEntryCard
 		@include front-pill;
 
 		align-self: flex-end;
-		height: 22px;
-		padding: 0 10px;
+		height: 24px;
+		padding: 0 10px 0 8px;
 		margin-right: 4px;
+		gap: 4px;
+		border-color: rgba( $front-trophy, 0.45 );
+		background-color: rgba( $front-trophy, 0.1 );
 		pointer-events: all;
 		cursor: pointer;
+
+		icon
+		{
+			font-size: 13px;
+			color: $front-trophy * 1.6;
+		}
 
 		label
 		{
 			font-size: 9.5px;
+			color: $front-trophy * 1.6;
 		}
 
-		.ring
+		&:hover
 		{
-			width: 9px;
-			height: 9px;
-			border-radius: 50%;
-			border: 1px solid $front-secondary;
-		}
-
-		&:hover .ring
-		{
-			border-color: $front-heading;
+			background-color: rgba( $front-trophy, 0.2 );
+			border-color: rgba( $front-trophy, 0.8 );
 		}
 
 		&.on
 		{
-			background-color: rgba( $front-reward, 0.14 );
-			border-color: rgba( $front-reward, 0.5 );
+			background-color: $front-trophy;
+			border-color: transparent;
+
+			icon
+			{
+				color: #1a1204;
+			}
 
 			label
 			{
-				color: $front-reward;
-			}
-
-			.ring
-			{
-				background-color: $front-reward;
-				border-color: $front-reward;
-				box-shadow: 0 0 8px rgba( $front-reward, 0.6 );
+				color: #1a1204;
 			}
 		}
 
@@ -63,6 +64,28 @@ JamEntryCard
 		{
 			opacity: 0.5;
 			pointer-events: none;
+		}
+
+		&.play
+		{
+			border-color: $front-hairline;
+			background-color: rgba( 255, 255, 255, 0.06 );
+
+			icon
+			{
+				color: $front-heading;
+			}
+
+			label
+			{
+				color: $front-body;
+			}
+
+			&:hover
+			{
+				background-color: rgba( 255, 255, 255, 0.14 );
+				border-color: rgba( 255, 255, 255, 0.28 );
+			}
 		}
 	}
 }

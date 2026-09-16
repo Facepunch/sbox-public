@@ -89,11 +89,11 @@ internal static class ColorPickerTextures
 	}
 
 	/// <summary>
-	/// Nothing to draw with headless, and the test host crashes making GPU textures.
+	/// GPU textures require an available renderer.
 	/// </summary>
 	static Texture Build( int width, int height, string name, Func<int, int, Color32> pixel )
 	{
-		if ( Application.IsHeadless || Application.IsUnitTest ) return null;
+		if ( !Graphics.IsAvailable ) return null;
 
 		var data = new byte[width * height * 4];
 

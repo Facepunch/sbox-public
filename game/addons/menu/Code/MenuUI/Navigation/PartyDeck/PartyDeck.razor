@@ -26,7 +26,7 @@
 {
 	static PartyRoom Party => PartyRoom.Current;
 
-	public const int MAX_MEMBERS = 8;
+	public const int MAX_MEMBERS = 16;
 
 	public IEnumerable<Friend> Members => Party?.Members ?? Enumerable.Empty<Friend>();
 
@@ -84,41 +84,6 @@
 	public override void Tick()
 	{
 		MenuUtility.SetVoiceListen(Preferences.VoiceMode != VoiceMode.Disabled && (Preferences.VoiceMode == VoiceMode.OpenMicrophone || Input.Down("voice")));
-		UpdateJoinStatus();
-	}
-
-	Toast _toast;
-	void UpdateJoinStatus()
-	{
-		var party = PartyRoom.Current;
-		var shouldShow = party?.JoinState == PartyRoom.OwnerJoinState.Loading && party?.Owner is { IsMe: false };
-
-		if (!shouldShow)
-		{
-			_toast?.Dismiss();
-			_toast = null;
-			return;
-		}
-
-		if (_toast is not null)
-			return;
-
-		var gameTitle = party?.PackageIdent ?? "unknown";
-
-		if (Package.TryGetCached(party?.PackageIdent ?? default, out var pkg))
-		{
-			gameTitle = pkg.Title;
-		}
-
-		_toast = new Toast()
-		{
-			Title = "Party leader is joining a game",
-			Message = $"Downloading {gameTitle}",
-			Icon = "hourglass_top",
-			ExtraClasses = "loading"
-		};
-
-		MenuOverlay.Instance?.BottomRight?.Queue(_toast, duration: 0, clickToDismiss: false);
 	}
 
 }

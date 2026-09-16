@@ -2,7 +2,7 @@
 
 internal partial class ShadowMapper
 {
-	internal static void Draw( ref Vector2 pos, HudPainter Hud )
+	internal static void Draw( ref Vector2 pos, Painter painter )
 	{
 		var x = pos.x;
 		var y = pos.y;
@@ -18,48 +18,48 @@ internal partial class ShadowMapper
 
 		scope.Text = $"Shadow Memory Allocated: {MemorySize.FormatBytes()}";
 		scope.TextColor = new Color( 0.6f, 0.9f, 1f );
-		Hud.DrawText( scope, new Vector2( x, y ), TextFlag.LeftTop );
+		DebugOverlay.DrawText( painter, scope, new Vector2( x, y ), TextFlag.LeftTop );
 		y += 14;
 
 		scope.Text = $"Directional Shadow Memory: {DirectionalShadowMemorySize.FormatBytes()}";
 		scope.TextColor = new Color( 0.6f, 0.9f, 1f );
-		Hud.DrawText( scope, new Vector2( x, y ), TextFlag.LeftTop );
+		DebugOverlay.DrawText( painter, scope, new Vector2( x, y ), TextFlag.LeftTop );
 		y += 14;
 
 		scope.Text = $"Max Resolution: {ShadowMapper.MaxResolution}";
 		scope.TextColor = new Color( 0.6f, 0.9f, 1f );
-		Hud.DrawText( scope, new Vector2( x, y ), TextFlag.LeftTop );
+		DebugOverlay.DrawText( painter, scope, new Vector2( x, y ), TextFlag.LeftTop );
 		y += 14;
 
 		scope.Text = $"Filter Quality: {ShadowMapper.ShadowFilter}";
 		scope.TextColor = new Color( 0.6f, 0.9f, 1f );
-		Hud.DrawText( scope, new Vector2( x, y ), TextFlag.LeftTop );
+		DebugOverlay.DrawText( painter, scope, new Vector2( x, y ), TextFlag.LeftTop );
 		y += 14;
 		y += 14;
 
 		scope.Text = $"Shadow Maps In Cache: {ShadowMapper.Cache.Count()}";
 		scope.TextColor = new Color( 0.6f, 0.9f, 1f );
-		Hud.DrawText( scope, new Vector2( x, y ), TextFlag.LeftTop );
+		DebugOverlay.DrawText( painter, scope, new Vector2( x, y ), TextFlag.LeftTop );
 		y += 14;
 
 		scope.Text = $"Shadow Maps Rendered This Frame: {ShadowMapper.Cache.Where( x => x.Value.RenderedFrame == Application.FrameCount ).Count()} (budget {ShadowMapper.MaxUpdatesPerFrame} + new/moved)";
 		scope.TextColor = new Color( 0.6f, 0.9f, 1f );
-		Hud.DrawText( scope, new Vector2( x, y ), TextFlag.LeftTop );
+		DebugOverlay.DrawText( painter, scope, new Vector2( x, y ), TextFlag.LeftTop );
 		y += 14;
 
 		scope.Text = $"Shadow Maps Used This Frame: {ShadowMapper.Cache.Where( x => x.Value.LastFrame > (RealTime.Now - 0.01f) ).Count()}";
 		scope.TextColor = new Color( 0.6f, 0.9f, 1f );
-		Hud.DrawText( scope, new Vector2( x, y ), TextFlag.LeftTop );
+		DebugOverlay.DrawText( painter, scope, new Vector2( x, y ), TextFlag.LeftTop );
 		y += 14;
 
 		scope.Text = $"Projected Shadows Rendered: {ShadowMapper.ProjectedShadowsRenderedLastFrame}";
 		scope.TextColor = new Color( 0.6f, 1f, 0.6f );
-		Hud.DrawText( scope, new Vector2( x, y ), TextFlag.LeftTop );
+		DebugOverlay.DrawText( painter, scope, new Vector2( x, y ), TextFlag.LeftTop );
 		y += 14;
 
 		scope.Text = $"Projected Shadows Screen Size Culled: {ShadowMapper.ProjectedShadowsCulledLastFrame}";
 		scope.TextColor = new Color( 1f, 0.6f, 0.6f );
-		Hud.DrawText( scope, new Vector2( x, y ), TextFlag.LeftTop );
+		DebugOverlay.DrawText( painter, scope, new Vector2( x, y ), TextFlag.LeftTop );
 		y += 14;
 		y += 14;
 
@@ -78,12 +78,12 @@ internal partial class ShadowMapper
 
 		header.Text = "Texture Pool";
 		header.TextColor = new Color( 1f, 0.85f, 0.4f );
-		Hud.DrawText( header, new Vector2( x, y ), TextFlag.LeftTop );
+		DebugOverlay.DrawText( painter, header, new Vector2( x, y ), TextFlag.LeftTop );
 		y += 14;
 
 		scope.Text = $"Pool Textures: {poolTextureCount} ({poolMemorySize.FormatBytes()})";
 		scope.TextColor = new Color( 0.6f, 0.9f, 1f );
-		Hud.DrawText( scope, new Vector2( x, y ), TextFlag.LeftTop );
+		DebugOverlay.DrawText( painter, scope, new Vector2( x, y ), TextFlag.LeftTop );
 		y += 14;
 
 		// Total textures alive = Created - Disposed. These should be in cache, pool, or in-flight.
@@ -93,18 +93,18 @@ internal partial class ShadowMapper
 		int inFlight = alive - cacheCount - poolTextureCount;
 		scope.Text = $"Alive: {alive}  (cache: {cacheCount}, pool: {poolTextureCount}, in-flight: {inFlight})";
 		scope.TextColor = new Color( 0.6f, 0.9f, 1f );
-		Hud.DrawText( scope, new Vector2( x, y ), TextFlag.LeftTop );
+		DebugOverlay.DrawText( painter, scope, new Vector2( x, y ), TextFlag.LeftTop );
 		y += 14;
 		y += 14;
 
 		header.Text = "Cache";
 		header.TextColor = new Color( 1f, 0.85f, 0.4f );
-		Hud.DrawText( header, new Vector2( x, y ), TextFlag.LeftTop );
+		DebugOverlay.DrawText( painter, header, new Vector2( x, y ), TextFlag.LeftTop );
 		y += 14;
 
 		scope.Text = $"In Cache";
 		scope.TextColor = new Color( 0.6f, 0.9f, 1f );
-		Hud.DrawText( scope, new Vector2( x, y ), TextFlag.LeftTop );
+		DebugOverlay.DrawText( painter, scope, new Vector2( x, y ), TextFlag.LeftTop );
 		y += 14;
 		x += 14;
 
@@ -117,7 +117,7 @@ internal partial class ShadowMapper
 
 			scope.Text = $"{k.GetType().Name} - {v.ShadowMap.Size.x}px {g_pRenderDevice.ComputeTextureMemorySize( v.ShadowMap.native ).FormatBytes()} (Screen Size: {v.ScreenSize * 100:F0}%)";
 			scope.TextColor = textColor;
-			Hud.DrawText( scope, new Vector2( x, y ), TextFlag.LeftTop );
+			DebugOverlay.DrawText( painter, scope, new Vector2( x, y ), TextFlag.LeftTop );
 			y += 14;
 		}
 
@@ -141,7 +141,7 @@ internal partial class ShadowMapper
 
 				// Shadow map preview centered above the light
 				var texRect = new Rect( screenPos.x - previewSize * 0.5f, screenPos.y - previewSize - 8, previewSize, previewSize );
-				Hud.DrawTexture( entry.ShadowMap, texRect );
+				painter.Texture( entry.ShadowMap, texRect, Color.White, FilterMode.Anisotropic );
 
 				// Info text below the preview
 				bool active = entry.LastFrame > RealTime.Now - 0.1f;
@@ -154,17 +154,17 @@ internal partial class ShadowMapper
 				var memSize = g_pRenderDevice.ComputeTextureMemorySize( entry.ShadowMap.native );
 
 				labelScope.Text = $"{lightType} {entry.CurrentResolution}px ({memSize.FormatBytes()})";
-				Hud.DrawText( labelScope, textPos, TextFlag.CenterTop );
+				DebugOverlay.DrawText( painter, labelScope, textPos, TextFlag.CenterTop );
 				textPos.y += 12;
 
 				labelScope.Text = $"R:{light.Radius:F0} Screen:{entry.ScreenSize * 100:F0}% Bias:{light.ShadowBias}";
-				Hud.DrawText( labelScope, textPos, TextFlag.CenterTop );
+				DebugOverlay.DrawText( painter, labelScope, textPos, TextFlag.CenterTop );
 				textPos.y += 12;
 
 				float halfAngle = light.lightNative.GetLightType() == 3 ? light.lightNative.GetPhi() : 45f;
 				float biasScale = ComputeBiasScale( halfAngle, light.Radius, entry.CurrentResolution );
 				labelScope.Text = $"BiasScale:{biasScale:F2} Const:{(int)(ShadowDepthBias * biasScale)} Slope:{ShadowSlopeScale * biasScale:F1}";
-				Hud.DrawText( labelScope, textPos, TextFlag.CenterTop );
+				DebugOverlay.DrawText( painter, labelScope, textPos, TextFlag.CenterTop );
 			}
 		}
 
@@ -181,10 +181,10 @@ internal partial class ShadowMapper
 				if ( info.DepthTexture is null ) continue;
 
 				var texX = margin + i * (size + margin);
-				Hud.DrawTexture( info.DepthTexture, new Rect( texX, texY, size, size ) );
-				Hud.DrawText( $"Cascade {i}", 11, Color.Yellow, new Vector2( texX, texY - 48 ), TextFlag.LeftTop );
-				Hud.DrawText( $"Depth: {info.Near:F0} to {info.Far:F0}", 11, Color.Yellow, new Vector2( texX, texY - 32 ), TextFlag.LeftTop );
-				Hud.DrawText( $"Rect: {info.Width:F0} x {info.Height:F0} units", 11, Color.Yellow, new Vector2( texX, texY - 16 ), TextFlag.LeftTop );
+				painter.Texture( info.DepthTexture, new Rect( texX, texY, size, size ), Color.White, FilterMode.Anisotropic );
+				DebugOverlay.DrawText( painter, $"Cascade {i}", 11, Color.Yellow, new Vector2( texX, texY - 48 ), TextFlag.LeftTop );
+				DebugOverlay.DrawText( painter, $"Depth: {info.Near:F0} to {info.Far:F0}", 11, Color.Yellow, new Vector2( texX, texY - 32 ), TextFlag.LeftTop );
+				DebugOverlay.DrawText( painter, $"Rect: {info.Width:F0} x {info.Height:F0} units", 11, Color.Yellow, new Vector2( texX, texY - 16 ), TextFlag.LeftTop );
 			}
 		}
 	}

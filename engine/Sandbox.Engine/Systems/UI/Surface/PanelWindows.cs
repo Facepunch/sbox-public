@@ -26,6 +26,13 @@ internal static class PanelWindows
 	/// </summary>
 	internal static bool SkipNextCaptureDelta { get; set; }
 
+	/// <summary>
+	/// The one cross-window drag receiving input, if any.
+	/// </summary>
+	internal static IPanelWindowDragSession DragSession { get; set; }
+
+	static bool framingDragSession;
+
 	internal static void Register( IPanelWindow window )
 	{
 		if ( all.Contains( window ) ) return;
@@ -36,6 +43,7 @@ internal static class PanelWindows
 	internal static void Unregister( IPanelWindow window )
 	{
 		all.Remove( window );
+		DragSession?.OnWindowClosing( window );
 	}
 
 	/// <summary>
@@ -174,8 +182,33 @@ internal static class PanelWindows
 	/// </summary>
 	internal static bool FrameAll()
 	{
-		// Called every frame from the engine loop, in games too - where this list is always
-		// empty and this is the whole cost of the feature
+		// Moving a native window can synchronously ask us to draw again.
+		if ( !framingDragSession && DragSession is { } session )
+		{
+			framingDragSession = true;
+			try
+			{
+				session.Frame();
+			}
+			catch ( Exception e )
+			{
+				Log.Warning( e, "Exception advancing a panel window drag" );
+				try
+				{
+					session.Cancel();
+				}
+				catch ( Exception cancelException )
+				{
+					Log.Warning( cancelException, "Exception cancelling a panel window drag" );
+				}
+			}
+			finally
+			{
+				framingDragSession = false;
+			}
+		}
+
+		// Games have no panel windows to present.
 		if ( all.Count == 0 )
 			return false;
 

@@ -6,12 +6,51 @@
 @using System;
 @using Sandbox.Network
 @using Sandbox.Modals
+@using Sandbox.Services
 @using Sandbox.DataModel
 @using Sandbox.UI.Navigation
 
 <root>
 
     <div class="left">
+
+        <div class="group">
+            <div class="pill @( Liked ? "active" : "" )" onclick=@( () => _ = Vote( true ) ) tooltip="Like">
+                <icon>thumb_up</icon>
+                <label>@Package.VotesUp.ToMetric()</label>
+            </div>
+            <div class="pill @( Disliked ? "active" : "" )" onclick=@( () => _ = Vote( false ) ) tooltip="Dislike">
+                <icon>thumb_down</icon>
+                <label>@Package.VotesDown.ToMetric()</label>
+            </div>
+        </div>
+
+        <div class="group">
+            <div class="pill fav @( Package.Interaction.Favourite ? "active" : "" )" onclick=@( () => _ = ToggleFavourite() ) tooltip="@( Package.Interaction.Favourite ? "Remove from favourites" : "Add to favourites" )">
+                <icon>@( Package.Interaction.Favourite ? "favorite" : "favorite_border" )</icon>
+                <label>@Package.Favourited.ToMetric()</label>
+            </div>
+            <div class="pill" onclick=@( () => Game.Overlay.ShowReviewModal( Package ) ) tooltip="@ReviewTooltip">
+                <icon>rate_review</icon>
+                <label>@ReviewText</label>
+            </div>
+        </div>
+
+        <div class="group">
+            <div class="pill" onclick=@( () => _ = Hide() ) tooltip="Hide this game">
+                <icon>block</icon>
+            </div>
+        </div>
+
+        @if ( ShowJam )
+        {
+            <div class="group jam">
+                <div class="pill nominate @( _nominated ? "on" : "" ) @( _jamBusy ? "busy" : "" ) @( CanToggleNomination ? "" : "locked" )" onclick=@( () => _ = ToggleNomination() ) tooltip="@JamTooltip">
+                    <icon>@( _nominated ? "check" : CanToggleNomination ? "emoji_events" : "lock" )</icon>
+                    <label>@( _nominated ? "Nominated" : "Nominate" )</label>
+                </div>
+            </div>
+        }
 
 	    @if ( IsDedicatedServerOnly )
 	    {
@@ -84,7 +123,99 @@
     [Parameter] public Package Package {get;set;}
     [Parameter] public Package MapPackage { get; set; }
 
-    protected override int BuildHash() => System.HashCode.Combine(Package, Modal?.HasFullPackage, IsVrOnly, IsMultiplayerGame, LobbyCount, MenuHelpers.HasAuthority, Streamer.IsActive, Streamer.ViewerCount);
+    protected override int BuildHash() => System.HashCode.Combine(Package, Modal?.HasFullPackage, IsVrOnly, IsMultiplayerGame, LobbyCount, MenuHelpers.HasAuthority, Streamer.IsActive, System.HashCode.Combine( Streamer.ViewerCount, Package.Interaction.Rating, Package.Interaction.Favourite, Package.VotesUp, Package.VotesDown, Package.Favourited, Package.Reviews.Total, System.HashCode.Combine( ShowJam, _nominated, _jamBusy ) ));
+
+    string ReviewText => Package.Reviews.Total > 0 ? Package.Reviews.Score.ToString( "0\\%" ) : "Review";
+    string ReviewTooltip => Package.Reviews.Total > 0 ? $"{Package.Reviews.Score:N0}% from {Package.Reviews.Total} reviews. Write yours" : "Write a review";
+
+    Jam _jam;
+    JamEntryStatus _entry;
+    bool _nominated;
+    bool _jamBusy;
+
+    bool ShowJam => _jam is not null && _entry.IsEntry;
+    bool CanToggleNomination => _nominated || _entry.CanNominate;
+    string JamTooltip => $"{_jam?.Title} entry. " + (_nominated ? "You nominated it for the jam" : CanToggleNomination ? "Liked it? Nominate it for the jam" : _entry.Reason);
+
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        base.OnAfterTreeRender( firstTime );
+
+        if ( firstTime && Package?.TypeName == "game" )
+            _ = LoadJam();
+    }
+
+    async Task LoadJam()
+    {
+        var jam = await Jam.GetActive();
+        if ( !this.IsValid() ) return;
+        if ( jam is null || !jam.CommunityVoting || !jam.HasStarted || jam.Now >= jam.NominationsEnd ) return;
+
+        var entry = await jam.GetEntryStatusAsync( Package );
+        if ( !this.IsValid() ) return;
+        if ( entry is not { IsEntry: true } status ) return;
+
+        _jam = jam;
+        _entry = status;
+        _nominated = status.Nominated;
+        StateHasChanged();
+    }
+
+    async Task ToggleNomination()
+    {
+        if ( _jamBusy || !ShowJam || !CanToggleNomination ) return;
+
+        _jamBusy = true;
+        StateHasChanged();
+
+        var removing = _nominated;
+        _nominated = !removing;
+        string reason;
+
+        try
+        {
+            reason = removing ? await _jam.WithdrawNominationAsync( Package ) : await _jam.NominateAsync( Package );
+        }
+        catch ( Exception e )
+        {
+            Log.Warning( e, $"Nominate {Package.FullIdent} failed" );
+            reason = "Couldn't reach the jam right now.";
+        }
+
+        if ( !this.IsValid() ) return;
+
+        _jamBusy = false;
+
+        if ( reason is not null )
+        {
+            _nominated = removing;
+            MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast() { Title = reason, Icon = "how_to_vote" } );
+        }
+
+        StateHasChanged();
+    }
+
+    // Rating: 0 like, 1 dislike, null unrated
+    bool Liked => Package.Interaction.Rating == 0;
+    bool Disliked => Package.Interaction.Rating == 1;
+
+    async Task Vote( bool up )
+    {
+        await Package.SetVoteAsync( up );
+        if ( this.IsValid() ) StateHasChanged();
+    }
+
+    async Task ToggleFavourite()
+    {
+        await Package.SetFavouriteAsync( !Package.Interaction.Favourite );
+        if ( this.IsValid() ) StateHasChanged();
+    }
+
+    async Task Hide()
+    {
+        if ( await MenuHelpers.HidePackage( this, Package ) )
+            Modal?.CloseModal( false );
+    }
 
     bool IsVrOnly => Package.Info.IsVrOnly;
     bool IsMultiplayerGame => Package.Tags.Contains("multiplayer") || LobbyCount > 0 || Package.Info.MaxPlayers > 1;

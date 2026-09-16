@@ -524,6 +524,126 @@ public class NavigationSimulationTests
 	}
 
 	[TestMethod]
+	public void PassingABlockingNeighbourDoesNotOrbitIt()
+	{
+		var mesh = SyntheticNavMesh.Create();
+		var simulation = new NavigationSimulation( mesh, new object(), 8, 32 );
+		var agent = simulation.Add( new Vector3( 240, 1, 320 ), Settings( mesh ) );
+		simulation.Add( new Vector3( 330, 1, 320 ), Settings( mesh ) );
+		var target = new Vector3( 350, 1, 320 );
+		agent.MoveTo( target );
+		float travelled = 0;
+		int sidestep = 0;
+		var previous = agent.Position;
+		for ( int tick = 0; tick < 2000 && agent.State.Target.HasValue; tick++ )
+		{
+			simulation.Update( 0.02f );
+			travelled += agent.Position.Distance( previous );
+			previous = agent.Position;
+			if ( agent.Position.Distance( target ) > 20 && agent.Velocity.Length > 1 && agent.Velocity.Normal.x < 0.5f ) sidestep++;
+		}
+		Assert.IsTrue( agent.Position.Distance( target ) < 10, agent.State.ToString() );
+		Assert.AreEqual( 0, sidestep, $"Passing a blocker turned the agent away from its goal for {sidestep} ticks" );
+		Assert.IsTrue( travelled < 170, $"Route around one blocker was {travelled:0} units instead of 110" );
+	}
+
+	[TestMethod]
+	public void NeighbourPassedWideDoesNotDivertTheAgent()
+	{
+		var mesh = SyntheticNavMesh.Create();
+		var simulation = new NavigationSimulation( mesh, new object(), 8, 32 );
+		var agent = simulation.Add( new Vector3( 200, 1, 320 ), Settings( mesh ) );
+		simulation.Add( new Vector3( 320, 1, 360 ), Settings( mesh ) );
+		var target = new Vector3( 440, 1, 320 );
+		agent.MoveTo( target );
+		float lateral = 0;
+		for ( int tick = 0; tick < 2000; tick++ )
+		{
+			simulation.Update( 0.02f );
+			lateral = MathF.Max( lateral, MathF.Abs( agent.Position.z - 320 ) );
+		}
+		Assert.IsTrue( agent.Position.Distance( target ) < 1, agent.State.ToString() );
+		Assert.IsTrue( lateral < 1, $"A neighbour cleared by 40 units diverted the agent by {lateral:0.0}" );
+	}
+
+	[TestMethod]
+	[DataRow( 0f )]
+	[DataRow( 0.25f )]
+	[DataRow( 1f )]
+	public void SeparationDoesNotPreventReachingAGoalBesideANeighbour( float separation )
+	{
+		var mesh = SyntheticNavMesh.Create();
+		var simulation = new NavigationSimulation( mesh, new object(), 8, 32 );
+		var settings = Settings( mesh ) with { Separation = separation };
+		simulation.Add( new Vector3( 330, 1, 320 ), settings );
+		var agent = simulation.Add( new Vector3( 240, 1, 320 ), settings );
+		var target = new Vector3( 350, 1, 320 );
+		agent.MoveTo( target );
+		int stalled = 0, worst = 0;
+		for ( int tick = 0; tick < 1500; tick++ )
+		{
+			simulation.Update( 0.02f );
+			if ( agent.State.Navigating && agent.Velocity.Length < 6 ) worst = Math.Max( worst, ++stalled );
+			else stalled = 0;
+		}
+		Assert.IsTrue( worst < 75, $"Separation {separation} stalled the agent for {worst * 0.02f:0.0}s" );
+		Assert.IsTrue( agent.Position.Distance( target ) < 12, $"Separation {separation} left the agent {agent.Position.Distance( target ):0} units short: {agent.State}" );
+	}
+
+	[TestMethod]
+	public void CrossingAgentsPassWithoutStalling()
+	{
+		var mesh = SyntheticNavMesh.Create();
+		var simulation = new NavigationSimulation( mesh, new object(), 8, 32 );
+		var first = simulation.Add( new Vector3( 200, 1, 320 ), Settings( mesh ) );
+		var second = simulation.Add( new Vector3( 320, 1, 200 ), Settings( mesh ) );
+		var firstTarget = new Vector3( 440, 1, 320 );
+		var secondTarget = new Vector3( 320, 1, 440 );
+		first.MoveTo( firstTarget );
+		second.MoveTo( secondTarget );
+		float travelled = 0, closest = float.MaxValue;
+		var previous = first.Position;
+		for ( int tick = 0; tick < 1000; tick++ )
+		{
+			simulation.Update( 0.02f );
+			travelled += first.Position.Distance( previous );
+			previous = first.Position;
+			closest = MathF.Min( closest, first.Position.Distance( second.Position ) );
+		}
+		Assert.IsTrue( closest >= 16, $"Crossing agents overlapped: {closest:0.0}" );
+		Assert.IsTrue( first.Position.Distance( firstTarget ) < 2, first.State.ToString() );
+		Assert.IsTrue( second.Position.Distance( secondTarget ) < 2, second.State.ToString() );
+		Assert.IsTrue( travelled < 300, $"Crossing detour was {travelled:0} units on a 240 unit route" );
+	}
+
+	[TestMethod]
+	public void AgentsOrderedToOnePointPackAroundItWithoutOverlapping()
+	{
+		var mesh = SyntheticNavMesh.Create();
+		var simulation = new NavigationSimulation( mesh, new object(), 8, 32 );
+		var target = new Vector3( 420, 1, 420 );
+		var agents = new List<SimulationAgent>();
+		for ( int i = 0; i < 8; i++ )
+		{
+			var agent = simulation.Add( new Vector3( 120 + i % 4 * 30, 1, 200 + i / 4 * 30 ), Settings( mesh ) );
+			agent.MoveTo( target );
+			agents.Add( agent );
+		}
+		float closest = float.MaxValue;
+		for ( int tick = 0; tick < 1500; tick++ )
+		{
+			simulation.Update( 0.02f );
+			if ( tick < 60 ) continue;
+			for ( int i = 0; i < agents.Count; i++ )
+				for ( int j = i + 1; j < agents.Count; j++ )
+					closest = MathF.Min( closest, agents[i].Position.WithY( 0 ).Distance( agents[j].Position.WithY( 0 ) ) );
+		}
+		Assert.IsTrue( closest > 12.8f, $"A pile-up compressed agents to {closest:0.0} apart, radii sum 16" );
+		foreach ( var agent in agents )
+			Assert.IsTrue( agent.Position.Distance( target ) < 32, $"An agent settled {agent.Position.Distance( target ):0} units from the shared destination: {agent.State}" );
+	}
+
+	[TestMethod]
 	public void HeadOnAgentsPassAndReachTheirTargets()
 	{
 		var mesh = SyntheticNavMesh.Create();

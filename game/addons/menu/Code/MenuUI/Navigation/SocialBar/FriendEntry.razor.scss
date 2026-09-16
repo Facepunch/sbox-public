@@ -108,7 +108,9 @@ FriendEntry {
         span {
             opacity: 0;
             max-width: 0;
-            overflow: hidden;
+            // The rounded action already clips the reveal. A second clip cuts into the glyphs.
+            overflow: visible;
+            flex-shrink: 0;
             white-space: nowrap;
             transition: opacity 0.15s ease-out, max-width 0.2s ease-out;
         }

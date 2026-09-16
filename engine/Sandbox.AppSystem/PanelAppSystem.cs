@@ -1,4 +1,4 @@
-﻿using Editor;
+using Editor;
 using Sandbox.Engine;
 using Sandbox.UI;
 using System;
@@ -60,6 +60,7 @@ public class PanelAppSystem : AppSystem
 			throw new Exception( "SourceEnginePreInit failed" );
 		}
 
+		Graphics.Initialize();
 		Phase( "SourceEnginePreInit" );
 
 		if ( !NativeEngine.EngineGlobal.SourceEnginePanelAppInit( _appSystem ) )
@@ -73,6 +74,7 @@ public class PanelAppSystem : AppSystem
 		FontManager.Instance.LoadAll( EngineFileSystem.CoreContent );
 		Phase( "Fonts" );
 
+		Material.Preload();
 		WarmRenderLayers();
 		Phase( "Warm render layers" );
 
@@ -205,6 +207,7 @@ public class PanelAppSystem : AppSystem
 	protected override bool RunFrame()
 	{
 		var frameStart = Stopwatch.GetTimestamp();
+		Application.FrameCount++;
 
 		// The clocks the UI runs on - EngineLoop drives these in a full app, here it's on us.
 		// Without them every animation and transition sits frozen at time zero
@@ -217,6 +220,14 @@ public class PanelAppSystem : AppSystem
 
 		// Await continuations queue for the main thread - without this pump they'd wait forever
 		Sandbox.Tasks.SyncContext.MainThread?.ProcessQueue();
+
+		// Expire caches and release resources finalized off-thread.
+		NativeResourceCache.Tick();
+		TextRendering.Tick();
+		MainThread.RunQueues();
+
+		// Background videos need the same presentation pump as the full engine UI.
+		Sandbox.TextureLoader.VideoTextureLoader.TickVideoPlayers();
 
 		var presented = PanelWindows.FrameAll();
 

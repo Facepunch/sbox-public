@@ -29,7 +29,9 @@ public partial class MenuOverlay : RootPanel
 		Top = AddChild<ToastArea>( "popup_canvas" );
 		TopCenter = AddChild<ToastArea>( "popup_canvas_top" );
 		TopLeft = AddChild<ToastArea>( "popup_canvas_topleft" );
-		BottomRight = AddChild<ToastArea>( "popup_canvas_bottomright" );
+		var corner = AddChild<Panel>( "notification-corner" );
+		BottomRight = corner.AddChild<ToastArea>( "popup_canvas_bottomright" );
+		corner.AddChild<MenuProject.PartyJoinStatus>();
 
 		AddChild<LoadingOverlay>();
 		AddChild<MicOverlay>();
@@ -70,10 +72,19 @@ public partial class MenuOverlay : RootPanel
 		var options = content.Add.Panel( "options" );
 		content.Add.Panel( "progress-bar" );
 
-		Instance.Top.Queue( content, duration: 10f, clickToDismiss: false );
+		var area = Instance.BottomRight;
+		area.Queue( content, duration: 10f, clickToDismiss: false );
 
-		options.AddChild( new Button( null, "close", null, () => { no?.Invoke(); Instance.Top.Dismiss( content ); } ) );
-		options.AddChild( new Button( null, "done", null, () => { yes?.Invoke(); Instance.Top.Dismiss( content ); } ) );
+		bool answered = false;
+		void Answer( Action action )
+		{
+			if ( answered ) return;
+			answered = true;
+			area.Dismiss( content );
+			action?.Invoke();
+		}
+		options.AddChild( new Button( null, "close", null, () => Answer( no ) ) );
+		options.AddChild( new Button( null, "done", null, () => Answer( yes ) ) );
 	}
 
 	static Panel BuildMessage( string message, string icon )

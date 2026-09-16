@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Text;
 
 namespace Facepunch;
 
@@ -31,6 +32,28 @@ internal static class Utility
 	   DataReceivedEventHandler onDataReceived = null )
 	{
 		using Process process = new Process();
+		var output = Log.IsBootstrapActive && !Log.Verbose ? new StringBuilder() : null;
+		void ReceiveOutput( string text, bool error = false )
+		{
+			if ( output != null )
+			{
+				lock ( output ) output.AppendLine( text );
+			}
+			if ( BuildDisplay.IsActive || Log.IsBootstrapActive ) Log.ProcessOutput( text, error );
+			else if ( error ) Log.Error( text );
+			else if ( onDataReceived != null ) Log.Record( text );
+			else Log.Info( text );
+		}
+
+		void ReportFailure( string reason )
+		{
+			var message = $"{reason}\nCommand: {executablePath} {arguments}\nWorking directory: {Path.GetFullPath( string.IsNullOrEmpty( workingDirectory ) ? Directory.GetCurrentDirectory() : workingDirectory )}";
+			if ( output != null )
+			{
+				lock ( output ) message += "\n" + output.ToString();
+			}
+			Log.Error( message );
+		}
 
 		process.StartInfo.FileName = executablePath;
 		process.StartInfo.Arguments = arguments;
@@ -71,13 +94,11 @@ internal static class Utility
 		{
 			if ( e.Data != null )
 			{
+				ReceiveOutput( e.Data );
+
 				if ( onDataReceived != null )
 				{
 					onDataReceived( sender, e );
-				}
-				else
-				{
-					Log.Info( e.Data );
 				}
 			}
 		};
@@ -86,38 +107,42 @@ internal static class Utility
 		{
 			if ( e.Data != null )
 			{
-				Log.Error( e.Data );
+				ReceiveOutput( e.Data, error: true );
 			}
 		};
 
+		Log.ClearTail();
+		Log.Detail( $"Command: {executablePath} {arguments}" );
+		Log.Detail( $"Working directory: {Path.GetFullPath( string.IsNullOrEmpty( process.StartInfo.WorkingDirectory ) ? Directory.GetCurrentDirectory() : process.StartInfo.WorkingDirectory )}" );
 		process.Start();
 
 		process.BeginOutputReadLine();
 		process.BeginErrorReadLine();
 
-		// Wait for process with optional timeout
-		bool exited;
-		if ( timeoutMs > 0 )
+		// Timed waits do not drain asynchronous output handlers. Always finish with WaitForExit().
+		var timer = Stopwatch.StartNew();
+		while ( !process.WaitForExit( 100 ) )
 		{
-			exited = process.WaitForExit( timeoutMs );
-			if ( !exited )
+			if ( timeoutMs > 0 && timer.ElapsedMilliseconds >= timeoutMs )
 			{
-				Log.Error( $"Process timed out after {timeoutMs}ms" );
-				try { process.Kill(); } catch { }
+				try
+				{
+					process.Kill( entireProcessTree: true );
+					process.WaitForExit();
+				}
+				catch ( InvalidOperationException ) { }
+				catch ( System.ComponentModel.Win32Exception ex ) { Log.Error( $"Unable to stop process: {ex.Message}" ); }
+				ReportFailure( $"Process timed out after {timeoutMs}ms" );
 				return false;
 			}
 		}
-		else
-		{
-			process.WaitForExit();
-			exited = true;
-		}
+		process.WaitForExit();
 
-		bool success = exited && process.ExitCode == successExitCode;
+		bool success = process.ExitCode == successExitCode;
 
 		if ( !success )
 		{
-			Log.Error( $"Process failed with exit code: {process.ExitCode}" );
+			ReportFailure( $"Process failed with exit code: {process.ExitCode}" );
 		}
 
 		Log.Info( "" );

@@ -1,41 +1,40 @@
 //
 // The panel gallery's stylesheet - the mock scene editor, tool windows, menus and controls.
-// Written once against the dark palette below. The light theme redefines the palette at the
-// bottom and repeats just the colour-bearing declarations, scoped under .editor-light-mode -
-// flipping that class on the window is what switches theme, and transitions animate it.
+// Imports the shared editor controls and palette. Only mock-specific layouts and controls live
+// here; their light overrides map to the same shared palette under .editor-light-mode.
 //
 
-$deep: #161d27;
-$window: #1b2431;
-$panel: #1f2937;
-$raised: #2a3644;
-$sunken: #172029;
-$sunken-hover: #1b242e;
-$line: #2b3644;
-$line-soft: #232d3a;
-$edge: #33404f;
-$edge-hover: #455364;
-$bar-a: #161d27;
-$bar-b: #161d27;
-$popup: rgba( #1f2937, 0.98 );
-$text: #c2ccd9;
-$dim: #7d8b9c;
-$faint: #5b6878;
-$bright: #f0f4f9;
-$indigo: #4c8dff;
-$violet: #4c8dff;
-$cyan: #46b8d8;
-$lime: #58c98a;
+@import "editor.scss";
+
+// Names used by the mock's layout-specific controls, mapped to the shared editor palette.
+$deep: $ground;
+$window: $ground;
+$panel: $dock-surface;
+$sunken: $raised;
+$sunken-hover: $raised-hover;
+$line-soft: $line;
+$edge: $line;
+$edge-hover: $text-faint;
+$bar-a: $ground;
+$bar-b: $ground;
+$popup: rgba( $surface, 0.98 );
+$dim: $text-muted;
+$faint: $text-faint;
+$bright: $text;
+$indigo: $accent;
+$violet: $accent;
+$cyan: $accent;
+$lime: $positive;
 $amber: #e0a34a;
-$rose: #ec6a76;
-$accent-text: #8fb8ff;
+$rose: $danger;
+$accent-text: $accent-hover;
 $on-accent-dim: rgba( white, 0.75 );
 $hover-wash: rgba( white, 0.05 );
 $shadow-soft: rgba( black, 0.3 );
 $shadow-heavy: rgba( black, 0.45 );
-$knob: #eef2f8;
-$nub: #8493a5;
-$nub-hover: #c3ccd8;
+$knob: $text;
+$nub: $text-muted;
+$nub-hover: $text;
 
 @keyframes pulse
 {
@@ -69,14 +68,14 @@ $nub-hover: #c3ccd8;
 	100% { opacity: 1; transform: translateY( 0px ); }
 }
 
-EditorWindow
+EditorWindow, .mock-editor-surface
 {
 	width: 100%;
 	height: 100%;
 	flex-direction: column;
 	background-color: $window;
 	color: $text;
-	font-family: Inter;
+	font-family: Poppins;
 	font-size: 12px;
 	font-weight: 450;
 	border: 1px solid $edge;
@@ -99,7 +98,7 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 // Asset browser tab - a search row over the grid
 //
 .assets { flex-direction: column; flex-grow: 1; overflow: hidden; }
-.assets .bar { flex-shrink: 0; flex-direction: row; align-items: center; height: 30px; padding: 0 8px; background-color: $deep; border-bottom: 1px solid $line; }
+.assets .bar { flex-shrink: 0; flex-direction: row; align-items: center; height: 30px; padding: 0 8px; background-color: $panel; border-bottom: 1px solid $line; }
 .assets .bar .searchbox { width: 220px; }
 .assets .bar .grow { flex-grow: 1; }
 .assets .bar .count { color: $faint; font-size: 11px; font-family: Roboto Mono; }
@@ -210,7 +209,7 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 {
 	flex-shrink: 0;
 	height: 1px;
-	background-image: linear-gradient( 90deg, rgba( #4c8dff, 0 ) 0%, rgba( #4c8dff, 0.55 ) 35%, rgba( #4c8dff, 0.15 ) 100% );
+	background-image: linear-gradient( 90deg, rgba( $accent, 0 ) 0%, rgba( $accent, 0.55 ) 35%, rgba( $accent, 0.15 ) 100% );
 }
 
 //
@@ -257,7 +256,7 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 
 .menulist .menu.active, .menulist .menu.open
 {
-	background-image: linear-gradient( 90deg, $indigo 0%, rgba( #4c8dff, 0.55 ) 100% );
+	background-image: linear-gradient( 90deg, $indigo 0%, rgba( $accent, 0.55 ) 100% );
 	color: #fff;
 	padding-left: 8px;
 }
@@ -276,7 +275,7 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 
 	// A popup lives in its own window, so it has no EditorWindow above it to inherit the base
 	// text style from - it has to carry its own
-	font-family: Inter;
+	font-family: Poppins;
 	font-size: 12px;
 	font-weight: 450;
 	color: $text;
@@ -304,7 +303,7 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 
 .dropdown .row:hover
 {
-	background-image: linear-gradient( 90deg, $indigo 0%, rgba( #4c8dff, 0.55 ) 100% );
+	background-image: linear-gradient( 90deg, $indigo 0%, rgba( $accent, 0.55 ) 100% );
 	color: #fff;
 	padding-left: 14px;
 }
@@ -409,9 +408,10 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 	flex-direction: row;
 	align-items: center;
 	width: 230px;
-	height: 28px;
-	padding: 0px 10px;
-	border-radius: 8px;
+	height: 22px;
+	min-width: 0;
+	padding: 0px 6px;
+	border-radius: 3px;
 	background-color: $sunken;
 	border: 1px solid $line;
 	cursor: text;
@@ -422,11 +422,10 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 .searchbox.focused
 {
 	border-color: $indigo;
-	box-shadow: 0px 0px 0px 2px rgba( #4c8dff, 0.2 );
-	width: 280px;
+	box-shadow: 0px 0px 0px 2px rgba( $accent, 0.2 );
 }
 
-.searchbox .icon { font-size: 14px; color: $dim; margin-right: 7px; transition: color 0.18s ease-out; }
+.searchbox .icon { font-size: 14px; color: $dim; margin-right: 4px; transition: color 0.18s ease-out; }
 .searchbox.focused .icon { color: $indigo; }
 .searchbox .value { color: $bright; }
 .searchbox .placeholder { color: $dim; }
@@ -440,6 +439,18 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 .pane.left { width: 260px; flex-shrink: 0; }
 .pane.centre { flex-grow: 1; }
 .pane.right { width: 460px; flex-shrink: 0; }
+
+// Dock content fills its group; it no longer carries a fixed sidebar or viewport size.
+.editor-dock-workspace { min-width: 0; min-height: 0; }
+.editor-dock-pane, .editor-scene-content, .editor-assets-content
+{
+	flex-direction: column;
+	flex-grow: 1;
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+}
+.editor-scene-content > .viewport { height: auto; flex-grow: 1; flex-shrink: 1; min-height: 0; }
 
 .paneheader .icon { font-size: 14px; margin-right: 6px; }
 .paneheader .grow { flex-grow: 1; }
@@ -463,7 +474,7 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 {
 	padding: 1px 7px;
 	border-radius: 8px;
-	background-color: rgba( #4c8dff, 0.13 );
+	background-color: rgba( $accent, 0.13 );
 	color: $accent-text;
 	font-family: Roboto Mono;
 	font-size: 10px;
@@ -544,7 +555,7 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 	transition: all 0.15s ease-out;
 }
 
-.viewport .chip:hover { background-color: rgba( #4c8dff, 0.9 ); color: #fff; transform: translateY( -1px ); }
+.viewport .chip:hover { background-color: rgba( $accent, 0.9 ); color: #fff; transform: translateY( -1px ); }
 .viewport .chip .icon { font-size: 13px; margin-right: 5px; }
 .viewport .chip.live .dot
 {
@@ -582,7 +593,7 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 .treerow:hover { background-color: $raised; }
 .treerow.selected
 {
-	background-image: linear-gradient( 90deg, $indigo 0%, rgba( #4c8dff, 0.35 ) 100% );
+	background-image: linear-gradient( 90deg, $indigo 0%, rgba( $accent, 0.35 ) 100% );
 	color: #fff;
 }
 
@@ -626,7 +637,7 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 .tabbar .tab.active
 {
 	color: $bright;
-	background-image: linear-gradient( 180deg, rgba( #4c8dff, 0.12 ) 0%, $panel 80% );
+	background-image: linear-gradient( 180deg, rgba( $accent, 0.12 ) 0%, $panel 80% );
 	border-bottom-color: $indigo;
 }
 
@@ -644,7 +655,7 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 	transition: all 0.18s ease-out;
 }
 
-.tabbar .tab.active .count { background-color: rgba( #4c8dff, 0.16 ); color: $accent-text; }
+.tabbar .tab.active .count { background-color: rgba( $accent, 0.16 ); color: $accent-text; }
 
 //
 // Table
@@ -679,7 +690,7 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 .tablerow:hover { background-color: $raised; }
 .tablerow.selected
 {
-	background-image: linear-gradient( 90deg, $indigo 0%, rgba( #4c8dff, 0.3 ) 100% );
+	background-image: linear-gradient( 90deg, $indigo 0%, rgba( $accent, 0.3 ) 100% );
 	color: #fff;
 }
 
@@ -731,7 +742,7 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 
 .assetcard:hover
 {
-	border-color: rgba( #4c8dff, 0.55 );
+	border-color: rgba( $accent, 0.55 );
 	transform: translateY( -4px ) scale( 1.03 );
 	box-shadow: 0px 12px 26px $shadow-heavy;
 }
@@ -739,7 +750,7 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 .assetcard.selected
 {
 	border-color: $indigo;
-	box-shadow: 0px 0px 0px 2px rgba( #4c8dff, 0.25 );
+	box-shadow: 0px 0px 0px 2px rgba( $accent, 0.25 );
 }
 
 .assetcard .thumb .gloss
@@ -779,6 +790,7 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 	border-bottom: 1px solid $line;
 }
 
+.scenetabs.empty { display: none; }
 .scenetabs .grow { flex-grow: 1; }
 
 .scenetab
@@ -818,7 +830,7 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 	border-bottom: 1px solid $line-soft;
 }
 
-.panetools .searchbox { flex-grow: 1; margin-left: 4px; }
+.panetools .searchbox { flex-grow: 1; flex-shrink: 1; width: 0; margin: 0 4px; }
 
 .toolbutton
 {
@@ -899,7 +911,7 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 .viewport .axiswidget .arm.z { background-color: #4c8dff; }
 .viewport .axiswidget .arm.x.negative { background-color: rgba( #e05a68, 0.45 ); }
 .viewport .axiswidget .arm.y.negative { background-color: rgba( #64c37d, 0.45 ); }
-.viewport .axiswidget .arm.z.negative { background-color: rgba( #4c8dff, 0.45 ); }
+.viewport .axiswidget .arm.z.negative { background-color: rgba( $accent, 0.45 ); }
 
 //
 // Message counts in the corner, same as the editor has
@@ -929,7 +941,7 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 	flex-shrink: 0;
 	height: 28px;
 	padding: 0 8px;
-	background-color: $deep;
+	background-color: $panel;
 	border-bottom: 1px solid $line;
 }
 
@@ -1259,7 +1271,7 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 }
 
 .textinput:hover { border-color: $edge-hover; }
-.textinput.focused { border-color: $indigo; box-shadow: 0px 0px 0px 2px rgba( #4c8dff, 0.2 ); }
+.textinput.focused { border-color: $indigo; box-shadow: 0px 0px 0px 2px rgba( $accent, 0.2 ); }
 .textinput .value { color: $bright; white-space: nowrap; }
 .textinput .placeholder { color: $faint; white-space: nowrap; }
 
@@ -1294,7 +1306,7 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 }
 
 .numberbox:hover { border-color: $edge-hover; background-color: $sunken-hover; }
-.numberbox.dragging { border-color: $indigo; box-shadow: 0px 0px 0px 2px rgba( #4c8dff, 0.2 ); }
+.numberbox.dragging { border-color: $indigo; box-shadow: 0px 0px 0px 2px rgba( $accent, 0.2 ); }
 .numberbox .axis { width: 13px; font-weight: 700; }
 .numberbox .axis.x { color: $rose; }
 .numberbox .axis.y { color: $lime; }
@@ -1472,40 +1484,40 @@ EditorWindow, .titlebar, .titlebar .subtitle, .menubar, .toolbar, .toolbar .divi
 // Light theme
 //
 
-$deep: #eceff4;
-$window: #f2f4f8;
-$panel: #fafbfd;
-$raised: #e7ebf1;
-$sunken: #ffffff;
-$sunken-hover: #f6f8fb;
-$line: #dde2ea;
-$line-soft: #e9edf3;
-$edge: #ccd3de;
-$edge-hover: #a3adbc;
-$bar-a: #eceff4;
-$bar-b: #eceff4;
-$popup: rgba( #ffffff, 0.99 );
-$text: #46505f;
-$dim: #78828f;
-$faint: #a6aeba;
-$bright: #131a24;
-$indigo: #2f7bf0;
-$violet: #2f7bf0;
-$cyan: #1596b5;
-$lime: #3f9a68;
+$deep: $l-ground;
+$window: $l-ground;
+$panel: $dock-light-surface;
+$raised: $l-raised;
+$sunken: $l-raised;
+$sunken-hover: $l-raised-hover;
+$line: $l-line;
+$line-soft: $l-line;
+$edge: $l-line;
+$edge-hover: $l-text-faint;
+$bar-a: $l-ground;
+$bar-b: $l-ground;
+$popup: rgba( $l-surface, 0.99 );
+$text: $l-text;
+$dim: $l-text-muted;
+$faint: $l-text-faint;
+$bright: $l-text;
+$indigo: $accent;
+$violet: $accent;
+$cyan: $accent;
+$lime: $l-positive;
 $amber: #b57a20;
-$rose: #d94f5c;
-$accent-text: #2f6fd0;
+$rose: $danger;
+$accent-text: $accent;
 $on-accent-dim: rgba( white, 0.85 );
 $hover-wash: rgba( black, 0.04 );
-$shadow-soft: rgba( #1b2233, 0.10 );
-$shadow-heavy: rgba( #1b2233, 0.16 );
-$knob: #ffffff;
-$nub: #ffffff;
-$nub-hover: #ffffff;
+$shadow-soft: rgba( black, 0.10 );
+$shadow-heavy: rgba( black, 0.16 );
+$knob: $l-surface;
+$nub: $l-surface;
+$nub-hover: $l-surface;
 
-EditorWindow.editor-light-mode { background-color: $window; color: $text; border: 1px solid $edge; }
-.editor-light-mode .assets .bar { background-color: $deep; border-bottom: 1px solid $line; }
+EditorWindow.editor-light-mode, .mock-editor-surface.editor-light-mode { background-color: $window; color: $text; border: 1px solid $edge; }
+.editor-light-mode .assets .bar { background-color: $panel; border-bottom: 1px solid $line; }
 .editor-light-mode .assets .bar .count { color: $faint; }
 .editor-light-mode .titlebar { background-image: linear-gradient( 180deg, $bar-b 0%, $bar-a 100% ); border-bottom: 1px solid $line; }
 .editor-light-mode .titlebar .brand { background-image: linear-gradient( 145deg, $cyan 0%, $indigo 60% ); }
@@ -1520,12 +1532,12 @@ EditorWindow.editor-light-mode { background-color: $window; color: $text; border
 .editor-light-mode .menubar > .menu.active { background-color: $raised; color: $bright; }
 .editor-light-mode .menubar > .menu.open { background-color: $indigo; }
 .editor-light-mode .menulist { color: $text; background-color: $popup; border: 1px solid $edge; box-shadow: 0px 18px 44px $shadow-heavy; }
-.editor-light-mode .menulist .menu.active, .editor-light-mode .menulist .menu.open { background-image: linear-gradient( 90deg, $indigo 0%, rgba( #4c8dff, 0.55 ) 100% ); }
+.editor-light-mode .menulist .menu.active, .editor-light-mode .menulist .menu.open { background-image: linear-gradient( 90deg, $indigo 0%, rgba( $accent, 0.55 ) 100% ); }
 .editor-light-mode .menulist .menu > .shortcut { color: $dim; }
 .editor-light-mode .menulist .menu.active > .shortcut { color: $on-accent-dim; }
 .editor-light-mode .menulist .menu.separator { background-color: $line; }
 .editor-light-mode .dropdown { color: $text; background-color: $popup; border: 1px solid $edge; box-shadow: 0px 18px 44px $shadow-heavy; }
-.editor-light-mode .dropdown .row:hover { background-image: linear-gradient( 90deg, $indigo 0%, rgba( #4c8dff, 0.55 ) 100% ); }
+.editor-light-mode .dropdown .row:hover { background-image: linear-gradient( 90deg, $indigo 0%, rgba( $accent, 0.55 ) 100% ); }
 .editor-light-mode .dropdown .row .shortcut { color: $dim; }
 .editor-light-mode .dropdown .row:hover .shortcut { color: $on-accent-dim; }
 .editor-light-mode .dropdown .separator { background-color: $line; }
@@ -1560,7 +1572,7 @@ EditorWindow.editor-light-mode { background-color: $window; color: $text; border
 .editor-light-mode .viewport .chip.live .dot { background-color: $lime; }
 .editor-light-mode .treerow { color: $text; }
 .editor-light-mode .treerow:hover { background-color: $raised; }
-.editor-light-mode .treerow.selected { background-image: linear-gradient( 90deg, $indigo 0%, rgba( #4c8dff, 0.35 ) 100% ); }
+.editor-light-mode .treerow.selected { background-image: linear-gradient( 90deg, $indigo 0%, rgba( $accent, 0.35 ) 100% ); }
 .editor-light-mode .treerow .arrow { color: $dim; }
 .editor-light-mode .treerow .arrow:hover { color: $bright; }
 .editor-light-mode .treerow .kind { color: $faint; }
@@ -1571,14 +1583,14 @@ EditorWindow.editor-light-mode { background-color: $window; color: $text; border
 .editor-light-mode .tabbar { background-color: $deep; border-bottom: 1px solid $line; }
 .editor-light-mode .tabbar .tab { color: $dim; }
 .editor-light-mode .tabbar .tab:hover { color: $text; background-color: $hover-wash; }
-.editor-light-mode .tabbar .tab.active { color: $bright; background-image: linear-gradient( 180deg, rgba( #4c8dff, 0.12 ) 0%, $panel 80% ); border-bottom-color: $indigo; }
+.editor-light-mode .tabbar .tab.active { color: $bright; background-image: linear-gradient( 180deg, rgba( $accent, 0.12 ) 0%, $panel 80% ); border-bottom-color: $indigo; }
 .editor-light-mode .tabbar .tab.active .icon { color: $indigo; }
 .editor-light-mode .tabbar .tab .count { background-color: $raised; color: $dim; }
 .editor-light-mode .tabbar .tab.active .count { color: $accent-text; }
 .editor-light-mode .tablehead { background-color: $raised; border-bottom: 1px solid $line; color: $dim; }
 .editor-light-mode .tablerow { border-bottom: 1px solid $line-soft; color: $text; }
 .editor-light-mode .tablerow:hover { background-color: $raised; }
-.editor-light-mode .tablerow.selected { background-image: linear-gradient( 90deg, $indigo 0%, rgba( #4c8dff, 0.3 ) 100% ); }
+.editor-light-mode .tablerow.selected { background-image: linear-gradient( 90deg, $indigo 0%, rgba( $accent, 0.3 ) 100% ); }
 .editor-light-mode .cell.c-icon { color: $faint; }
 .editor-light-mode .cell.c-type { color: $dim; }
 .editor-light-mode .cell.c-tris { color: $dim; }
@@ -1605,7 +1617,7 @@ EditorWindow.editor-light-mode { background-color: $window; color: $text; border
 .editor-light-mode .statusbar .logcount { color: $dim; }
 .editor-light-mode .statusbar .logcount.warn { color: $amber; }
 .editor-light-mode .statusbar .logcount.error { color: $rose; }
-.editor-light-mode .console .bar { background-color: $deep; border-bottom: 1px solid $line; }
+.editor-light-mode .console .bar { background-color: $panel; border-bottom: 1px solid $line; }
 .editor-light-mode .console .button { color: $dim; border: 1px solid $line; }
 .editor-light-mode .console .button:hover { color: $bright; background-color: $raised; border-color: $edge; }
 .editor-light-mode .console .button.active { color: $bright; background-color: $raised; border-color: $edge-hover; }

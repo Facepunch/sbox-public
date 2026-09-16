@@ -1,5 +1,6 @@
-﻿using Sandbox.Engine;
+using Sandbox.Engine;
 using Sandbox.Rendering;
+using System.Diagnostics;
 
 namespace Sandbox.UI;
 
@@ -26,7 +27,7 @@ public partial class RootPanel : Panel
 
 	/// <summary>
 	/// If set to true this panel won't be rendered to the screen like a normal panel.
-	/// This is true when the panel is drawn via other means (like as a world panel).
+	/// Its command list is still prepared during the UI update for rendering elsewhere.
 	/// </summary>
 	public bool RenderedManually { get; set; }
 
@@ -80,6 +81,8 @@ public partial class RootPanel : Panel
 		Style.Height = Length.Percent( 100 );
 
 		PanelCommandList = new CommandList( $"UI Root: {GetType().Name}" );
+		_onRenderStarted = RenderStarted;
+		_onRenderCompleted = RenderCompleted;
 
 		this.system = system;
 		system.AddRoot( this );
@@ -97,6 +100,8 @@ public partial class RootPanel : Panel
 	{
 		base.OnDeleted();
 		fixedOverlays.Clear();
+		PanelCommandList.Enabled = false;
+		PanelCommandList.Reset();
 
 		UISystem.RemoveRoot( this );
 	}
@@ -179,6 +184,7 @@ public partial class RootPanel : Panel
 
 	internal void PreLayout()
 	{
+		var started = Stopwatch.GetTimestamp();
 		var cascade = new LayoutCascade
 		{
 			Scale = Scale,
@@ -206,6 +212,7 @@ public partial class RootPanel : Panel
 
 		PreLayout( cascade );
 		_ = FixedOverlays;
+		_layoutTime = Stopwatch.GetElapsedTime( started );
 	}
 
 	internal void CalculateLayout()
@@ -217,13 +224,16 @@ public partial class RootPanel : Panel
 		if ( !LayoutTree.IsDirty )
 			return;
 
+		var started = Stopwatch.GetTimestamp();
 		using var perfScope = Performance.Scope( "CalculateLayout" );
 		PushRootValues();
 		LayoutTree.CalculateLayout();
+		_layoutTime += Stopwatch.GetElapsedTime( started );
 	}
 
 	internal void PostLayout()
 	{
+		var started = Stopwatch.GetTimestamp();
 		PushRootValues();
 		FinalLayout( Vector2.Zero );
 		foreach ( var panel in FixedOverlays )
@@ -238,6 +248,8 @@ public partial class RootPanel : Panel
 				Log.Warning( e );
 			}
 		}
+
+		_layoutTime += Stopwatch.GetElapsedTime( started );
 	}
 
 	internal void PushRootValues()
@@ -263,29 +275,16 @@ public partial class RootPanel : Panel
 		layoutRect = PanelBounds;
 	}
 
-	internal void Render( float opacity = 1.0f )
+	internal void Render()
 	{
 		PanelCommandList.ExecuteOnRenderThread();
 	}
 
 	/// <summary>
-	/// Build descriptors for this panel and all children.
-	/// Called during the tick phase, before gathering.
-	/// </summary>
-	internal void BuildDescriptors( float opacity = 1.0f )
-	{
-		UISystem.Renderer.BuildDescriptors( this, opacity );
-	}
-
-	internal void BuildCommandList( float opacity = 1.0f )
-	{
-		UISystem.Renderer.BuildCommandList( this, opacity );
-	}
-
-	/// <summary>
-	/// Render this panel manually. This gives more flexibility to where UI is rendered, to texture for example.
+	/// Execute the command list prepared during the latest UI update in the current render block.
 	/// <see cref="RenderedManually"/> must be set to true.
 	/// </summary>
+	/// <param name="opacity">Opacity multiplier for this execution.</param>
 	public void RenderManual( float opacity = 1.0f )
 	{
 		Graphics.AssertRenderBlock();
@@ -293,8 +292,21 @@ public partial class RootPanel : Panel
 		if ( !RenderedManually && !IsWorldPanel )
 			throw new Exception( $"{nameof( RenderedManually )} must be set to true to render this panel manually." );
 
-		BuildCommandList( opacity );
-		Render( opacity );
+		var attributes = Graphics.Attributes;
+		var previousOpacity = attributes.GetFloat( "UIPanelOpacity", 1 );
+		var previousCombo = attributes.GetComboBool( "D_PANEL_OPACITY" );
+
+		attributes.Set( "UIPanelOpacity", opacity );
+		attributes.SetCombo( "D_PANEL_OPACITY", opacity != 1 );
+		try
+		{
+			Render();
+		}
+		finally
+		{
+			attributes.Set( "UIPanelOpacity", previousOpacity );
+			attributes.SetCombo( "D_PANEL_OPACITY", previousCombo );
+		}
 	}
 
 	[Event( "ui.skiptransitions" )]

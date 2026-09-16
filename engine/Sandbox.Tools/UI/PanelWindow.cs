@@ -770,8 +770,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 
 		foreach ( var child in _all.ToArray() )
 		{
-			if ( child is PopupWindow popup && popup.Parent == this ) popup.Dispose();
-			else if ( child.Owner == this ) child.Dispose();
+			if ( child.ParentWindow == this || child.Owner == this ) child.Dispose();
 		}
 
 		_all.Remove( this );

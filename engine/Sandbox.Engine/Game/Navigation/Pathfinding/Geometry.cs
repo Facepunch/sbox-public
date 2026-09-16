@@ -433,11 +433,6 @@ namespace Sandbox.Navigation.Pathfinding
 			return !float.IsNaN( v ) && !float.IsInfinity( v );
 		}
 
-		public static bool IsFinite( Vector3 v )
-		{
-			return IsFinite( v.x ) && IsFinite( v.y ) && IsFinite( v.z );
-		}
-
 		public static bool IsFinite2D( Vector3 v )
 		{
 			return IsFinite( v.x ) && IsFinite( v.z );

@@ -1,0 +1,27 @@
+@import "/styles/_gallery-palette.scss";
+OpacityTests
+{
+	// Two overlapping children, faded as a group or one at a time
+	.group, .group-fade
+	{
+		position: relative;
+		width: 100px;
+		height: 90px;
+		flex-shrink: 0;
+	}
+
+	.group-fade { opacity: 0.5; }
+
+	.ov
+	{
+		position: absolute;
+		width: 60px;
+		height: 60px;
+	}
+
+	.ov.red { left: 0; top: 0; background-color: $gallery-pink; }
+	.ov.green { left: 30px; top: 25px; background-color: $gallery-lime; }
+
+	.half { opacity: 0.5; }
+	.blurred { filter: blur( 3px ); }
+}

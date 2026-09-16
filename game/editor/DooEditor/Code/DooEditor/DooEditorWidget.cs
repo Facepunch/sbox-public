@@ -42,6 +42,100 @@ public class DooEditorWidget : PopupWidget
 		RebuildUI();
 	}
 
+	int _editDepth;
+	bool _invalidated;
+
+	[EditorEvent.Frame]
+	void ValidateOwner() => ValidateTarget();
+
+	internal bool ValidateTarget()
+	{
+		if ( _invalidated ) return false;
+
+		// Serialized objects cache reference-type targets. Undo or a resource reload can
+		// replace any owner in the chain, leaving both the tree and inspector detached.
+		for ( var obj = SerializedObject; obj is not null; obj = obj.ParentProperty?.Parent )
+		{
+			var target = obj is SerializedCollection collection ? collection.TargetObject : obj.Targets.FirstOrDefault();
+			if ( obj.IsValid() && (obj.ParentProperty is not { } property || property.PropertyType.IsValueType
+				|| ReferenceEquals( property.GetValue<object>(), target ) ) )
+				continue;
+
+			InvalidateTarget();
+			return false;
+		}
+
+		return true;
+	}
+
+	internal void InvalidateTarget()
+	{
+		_invalidated = true;
+		try
+		{
+			Inspector?.UnsubscribeTarget();
+		}
+		finally
+		{
+			Destroy();
+		}
+	}
+
+	public override void OnDestroyed()
+	{
+		_invalidated = true;
+		Inspector?.UnsubscribeTarget();
+		base.OnDestroyed();
+	}
+
+	internal bool StartEdit()
+	{
+		if ( !ValidateTarget() ) return false;
+
+		try
+		{
+			if ( _editDepth++ == 0 && SerializedObject.ParentProperty is { } property )
+				SerializedObject.NoteStartEdit( property );
+		}
+		catch
+		{
+			FinishEdit();
+			throw;
+		}
+		return true;
+	}
+
+	internal void FinishEdit()
+	{
+		if ( _editDepth == 0 ) return;
+
+		if ( --_editDepth == 0 && SerializedObject.ParentProperty is { } property )
+			SerializedObject.NoteFinishEdit( property );
+	}
+
+	internal void NoteChanged()
+	{
+		if ( !ValidateTarget() ) return;
+
+		if ( SerializedObject.ParentProperty is { } property )
+			SerializedObject.NoteChanged( property );
+	}
+
+	internal void Edit( Action mutation )
+	{
+		// These list mutations bypass SerializedProperty, so snapshot the owner first.
+		if ( !StartEdit() ) return;
+		try
+		{
+			mutation();
+			NoteChanged();
+		}
+		finally
+		{
+			FinishEdit();
+		}
+	}
+
 	Layout _rightColumn;
 
 	void RebuildUI()

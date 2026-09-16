@@ -3,6 +3,109 @@ namespace MathTests;
 [TestClass]
 public class RectTest
 {
+	static readonly float[] EdgeValues = [ 0, System.BitConverter.Int32BitsToSingle( int.MinValue ), 1, -1, 0.5f, -0.5f,
+		1.5f, -1.5f, float.Epsilon, float.MaxValue, float.PositiveInfinity, float.NegativeInfinity, float.NaN ];
+
+	static Rect FromEdges( float[] edges ) => new() { Left = edges[0], Top = edges[1], Right = edges[2], Bottom = edges[3] };
+
+	static void AssertFloat( float expected, float actual )
+	{
+		if ( float.IsNaN( expected ) )
+			Assert.IsTrue( float.IsNaN( actual ) );
+		else
+			Assert.AreEqual( System.BitConverter.SingleToInt32Bits( expected ), System.BitConverter.SingleToInt32Bits( actual ) );
+	}
+
+	static void AssertEdges( Rect expected, Rect actual )
+	{
+		AssertFloat( expected.Left, actual.Left );
+		AssertFloat( expected.Top, actual.Top );
+		AssertFloat( expected.Right, actual.Right );
+		AssertFloat( expected.Bottom, actual.Bottom );
+	}
+
+	[TestMethod]
+	public void EqualityAndIntersectionPreserveFloatSemantics()
+	{
+		for ( int edge = 0; edge < 4; edge++ )
+		{
+			foreach ( var left in EdgeValues )
+			{
+				foreach ( var right in EdgeValues )
+				{
+					float[] a = [1, 2, 3, 4];
+					float[] b = [1, 2, 3, 4];
+					a[edge] = left;
+					b[edge] = right;
+					var rectA = FromEdges( a );
+					var rectB = FromEdges( b );
+					Assert.AreEqual( left == right, rectA == rectB );
+					Assert.AreEqual( left != right, rectA != rectB );
+					Assert.AreEqual( left == right, rectA.Equals( (object)rectB ) );
+					if ( rectA == rectB ) Assert.AreEqual( rectA.GetHashCode(), rectB.GetHashCode() );
+
+					var expected = new Rect
+					{
+						Left = System.MathF.Max( a[0], b[0] ),
+						Top = System.MathF.Max( a[1], b[1] ),
+						Right = System.MathF.Min( a[2], b[2] ),
+						Bottom = System.MathF.Min( a[3], b[3] )
+					};
+					AssertEdges( expected, Rect.Intersect( rectA, rectB ) );
+				}
+			}
+		}
+	}
+
+	[TestMethod]
+	public void EdgeArithmeticPreservesFloatSemantics()
+	{
+		foreach ( var edge in EdgeValues )
+		{
+			foreach ( var amount in EdgeValues )
+			{
+				var rect = new Rect { Left = edge, Top = -edge, Right = edge, Bottom = -edge };
+				AssertEdges( new Rect { Left = edge - amount, Top = -edge + amount, Right = edge + amount, Bottom = -edge - amount }, rect.Grow( amount, -amount, amount, -amount ) );
+				AssertEdges( new Rect { Left = edge + amount, Top = -edge - amount, Right = edge - amount, Bottom = -edge + amount }, rect.Shrink( amount, -amount, amount, -amount ) );
+			}
+		}
+	}
+
+	[TestMethod]
+	public void RoundingPreservesFloatSemantics()
+	{
+		for ( int edge = 0; edge < 4; edge++ )
+		{
+			foreach ( var value in EdgeValues )
+			{
+				float[] edges = [0.25f, 0.75f, 1.5f, -1.5f];
+				edges[edge] = value;
+				var rect = FromEdges( edges );
+				var floor = new Rect { Left = System.MathF.Floor( edges[0] ), Top = System.MathF.Floor( edges[1] ), Right = System.MathF.Floor( edges[2] ), Bottom = System.MathF.Floor( edges[3] ) };
+				AssertEdges( floor, rect.Floor() );
+				AssertEdges( floor, rect.SnapToGrid() );
+				AssertEdges( new Rect { Left = System.MathF.Round( edges[0] ), Top = System.MathF.Round( edges[1] ), Right = System.MathF.Round( edges[2] ), Bottom = System.MathF.Round( edges[3] ) }, rect.Round() );
+				AssertEdges( new Rect { Left = System.MathF.Ceiling( edges[0] ), Top = System.MathF.Ceiling( edges[1] ), Right = System.MathF.Ceiling( edges[2] ), Bottom = System.MathF.Ceiling( edges[3] ) }, rect.Ceiling() );
+			}
+		}
+	}
+
+	[TestMethod]
+	public void IntersectionPreservesEmptyBounds()
+	{
+		var a = new Rect( 0, 0, 10, 10 );
+		var b = new Rect( 5, 2, 10, 4 );
+		Assert.AreEqual( new Rect( 5, 2, 5, 4 ), Rect.Intersect( a, b ) );
+		Assert.AreEqual( Rect.Intersect( a, b ), Rect.Intersect( b, a ) );
+		Assert.AreEqual( a, Rect.Intersect( a, a ) );
+		Assert.AreEqual( new Rect( 10, 0, 0, 10 ), Rect.Intersect( a, new Rect( 10, 0, 10, 10 ) ) );
+		var empty = Rect.Intersect( a, new Rect( 20, 20, 10, 10 ) );
+		Assert.IsTrue( empty.Width < 0 && empty.Height < 0 );
+		Assert.AreEqual( empty, Rect.Intersect( empty, new Rect( -100, -100, 200, 200 ) ) );
+		Assert.AreEqual( new Rect( 0, 0, 10, 10 ), a );
+		Assert.AreEqual( new Rect( 5, 2, 10, 4 ), b );
+	}
+
 	/// <summary>
 	/// Constructing from position and size should expose the same values through
 	/// the edge properties and Size/Position accessors.

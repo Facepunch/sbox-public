@@ -19,14 +19,12 @@ public static partial class Graphics
 
 		AssertRenderBlock();
 
-		if ( !SceneLayer.IsValid ) return;
-
 		// Get the layout for this vertex. This will create if not found.
 		var vertexType = VertexLayout.Get<T>();
 		if ( !vertexType.IsValid ) return;
 
 		// Set the material etc
-		if ( !RenderTools.SetRenderState( Context, attributes.Get(), material.native.GetMode( SceneLayer ), vertexType, Graphics.Stats ) )
+		if ( !RenderTools.SetRenderState( Context, attributes.Get(), SceneLayer.IsNull ? material.native.GetMode() : material.native.GetMode( SceneLayer ), vertexType, Graphics.Stats ) )
 			return;
 
 		var totalSize = sizeof( T ) * vertCount;
@@ -298,7 +296,7 @@ public static partial class Graphics
 	/// </summary>
 	public static unsafe void DrawRoundedRectangle( in Rect rect, in Color color, in Vector4 cornerRadius = default, in Vector4 borderWidth = default, in Color borderColor = default )
 	{
-		var radii = UI.BorderRadii.FromPublic( cornerRadius ).Clamped( rect.Width, rect.Height );
+		var radii = BorderRadii.FromPublic( cornerRadius ).Clamped( rect.Width, rect.Height );
 
 		Attributes.Set( "BoxPosition", new Vector2( rect.Left, rect.Top ) );
 		Attributes.Set( "BoxSize", new Vector2( rect.Width, rect.Height ) );

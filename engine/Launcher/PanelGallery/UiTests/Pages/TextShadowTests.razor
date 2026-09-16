@@ -1,0 +1,32 @@
+@using Sandbox.PanelGallery;
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Text" )]
+@attribute [Title( "text-shadow" )]
+@attribute [Description( "text-shadow examples" )]
+@attribute [Icon( "text_fields" )]
+<root>
+    <h2>text-shadow</h2>
+    <div class="cases">
+        <UiTestCase Caption="2px 2px 0 #000" Setup="@Text" Css="text-shadow: 2px 2px 0 #000" Text="@Sample" />
+        <UiTestCase Caption="0 2px 6px #000" Setup="@Text" Css="text-shadow: 0 2px 6px #000" Text="@Sample" />
+        <UiTestCase Caption="0 0 12px Cyan" Setup="@Text" Css="@($"text-shadow: 0 0 12px {GalleryPalette.CyanHex}")" Text="@Sample" Note="A glow - the shadow is the only thing outside the glyphs." />
+        <UiTestCase Caption="2px 2px 0 Pink, -2px -2px 0 Cyan" Setup="@Text" Css="@($"text-shadow: 2px 2px 0 {GalleryPalette.PinkHex}, -2px -2px 0 {GalleryPalette.CyanHex}")" Text="@Sample"
+                    Note="Two shadows, first one on top." />
+        <UiTestCase Caption="0 2px 4px #000" Setup="@Text" Css="text-decoration: underline; text-shadow: 0 2px 4px #000" Text="@Sample"
+                    Note="The underline's shadow must be the shadow colour, not the text colour." />
+        <UiTestCase Caption="0 2px 4px #000" Setup="@Text" Css="color: rgba( 255, 255, 255, 0.4 ); text-shadow: 0 2px 4px #000" Text="@Sample"
+                    Note="Translucent text over its own shadow - no solid copy should show through." />
+        <UiTestCase Caption="0 0 10px #4a9eff * 6" class="dark" Setup="@Text" Css="text-shadow: 0 0 10px #4a9eff * 6" Text="@Sample" Note="HDR glow behind SDR glyphs." />
+    </div>
+</root>
+@code
+{
+    const string Text = "width: 200px; font-size: 52px; font-weight: 700";
+    const string Sample = "Glow";
+    const string Descenders = "puzzling jargon gypsy";
+    const string Paragraph = "Sphinx of black quartz, judge my vow.";
+    const string LongWord = "Pneumonoultramicroscopicsilicovolcanoconiosis";
+}

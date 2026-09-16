@@ -66,7 +66,7 @@ internal static class GpuFontGlyphCache
 		public static ColorTable Load( SKTypeface typeface )
 		{
 			var table = new ColorTable();
-			if ( !typeface.TryGetTableData( 0x434F4C52, out table._colr ) || !typeface.TryGetTableData( 0x4350414C, out table._cpal ) || table._colr.Length < 14 || table._cpal.Length < 14 )
+			if ( (!typeface.TryGetTableData( 0x434F4C52, out table._colr ) && !typeface.TryGetTableData( 0x434F4C58, out table._colr )) || !typeface.TryGetTableData( 0x4350414C, out table._cpal ) || table._colr.Length < 14 || table._cpal.Length < 14 )
 				return table;
 
 			table._baseCount = U16( table._colr, 2 );

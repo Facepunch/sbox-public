@@ -1,4 +1,4 @@
-﻿using Sandbox.Html;
+using Sandbox.Html;
 using Sandbox.Rendering;
 using SkiaSharp;
 using Topten.RichTextKit;
@@ -85,7 +85,7 @@ internal sealed partial class TextBlock : IDisposable
 	Length? WordSpacing;
 	Length? LineHeight;
 	WhiteSpace? WhiteSpace;
-	GradientInfo GradientInfo;
+	TextGradientInfo GradientInfo;
 	FontSmooth Smooth;
 
 	/// <summary>
@@ -182,9 +182,9 @@ internal sealed partial class TextBlock : IDisposable
 	readonly List<GPUBoxInstance> Instances = new();
 
 	/// <summary>
-	/// Emit the text into the target RenderLayer, drawn straight from the glyph outlines every frame.
+	/// Emit the text through Painter, drawn straight from the glyph outlines every frame.
 	/// </summary>
-	internal void BuildDescriptors( RenderLayer target, BlendMode blendMode, Styles currentStyle, Rect textrect, float opacity )
+	internal void Draw( Painter painter, BlendMode blendMode, Styles currentStyle, Rect textrect, float opacity )
 	{
 		if ( !ui_rendertext || Block is null || BlockSize == 0 || Text.Length == 0 ) return;
 		if ( opacity <= 0 ) return;
@@ -194,7 +194,7 @@ internal sealed partial class TextBlock : IDisposable
 
 		Instances.Clear();
 		GpuFontText.Build( Block, GetBlockOrigin( currentStyle, textrect ), options, Instances );
-		target.AddText( Instances, blendMode, HasGradient ? GradientInfo : default );
+		painter.Glyphs( Instances, blendMode, HasGradient ? GradientInfo : default );
 	}
 
 	GpuFontText.Options GetOptions()
@@ -414,7 +414,7 @@ internal sealed partial class TextBlock : IDisposable
 
 		EffectMargin = default;
 
-		HasGradient = !style.TextGradient.ColorOffsets.IsDefaultOrEmpty && style.TextGradient.GradientType != GradientInfo.GradientTypes.Conic;
+		HasGradient = !style.TextGradient.ColorOffsets.IsDefaultOrEmpty && style.TextGradient.GradientType != Sandbox.UI.GradientInfo.GradientTypes.Conic;
 
 		if ( style.TextShadow != null && !style.TextShadow.IsNone )
 		{

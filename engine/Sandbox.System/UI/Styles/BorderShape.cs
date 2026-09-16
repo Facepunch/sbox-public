@@ -23,10 +23,18 @@ public sealed class BorderShape : IEquatable<BorderShape>
 	public const int MaxPoints = 8;
 	public static BorderShape None { get; } = new();
 
-	readonly BorderShapePoint[] _points = [];
+	[System.Runtime.CompilerServices.InlineArray( MaxPoints )]
+	internal struct PointBuffer
+	{
+		BorderShapePoint _element;
+	}
+
+	readonly PointBuffer _points;
+	readonly int _pointCount;
 
 	public BorderShapeKind Kind { get; }
-	public IReadOnlyList<BorderShapePoint> Points => _points;
+	/// <summary>Read-only view of the active polygon points. Access and direct enumeration do not allocate.</summary>
+	public PointCollection Points => new( this );
 	public Length? CircleRadius { get; }
 	public Length CircleCenterX { get; }
 	public Length CircleCenterY { get; }
@@ -37,10 +45,13 @@ public sealed class BorderShape : IEquatable<BorderShape>
 		Kind = BorderShapeKind.None;
 	}
 
-	internal BorderShape( BorderShapePoint[] points )
+	internal BorderShape( ReadOnlySpan<BorderShapePoint> points )
 	{
+		ArgumentOutOfRangeException.ThrowIfLessThan( points.Length, 3 );
+		ArgumentOutOfRangeException.ThrowIfGreaterThan( points.Length, MaxPoints );
 		Kind = BorderShapeKind.Polygon;
-		_points = points;
+		_pointCount = points.Length;
+		for ( int i = 0; i < points.Length; i++ ) _points[i] = points[i];
 	}
 
 	internal BorderShape( Length? radius, Length centerX, Length centerY )
@@ -69,8 +80,8 @@ public sealed class BorderShape : IEquatable<BorderShape>
 			return new BorderShape( radius, x, y );
 		}
 
-		var points = new BorderShapePoint[_points.Length];
-		for ( int i = 0; i < _points.Length; i++ )
+		PointBuffer points = default;
+		for ( int i = 0; i < _pointCount; i++ )
 		{
 			var x = _points[i].X; var y = _points[i].Y;
 			Length.Scale( ref x, amount );
@@ -78,7 +89,7 @@ public sealed class BorderShape : IEquatable<BorderShape>
 			points[i] = new BorderShapePoint( x, y );
 		}
 
-		return new BorderShape( points );
+		return new BorderShape( points[.._pointCount] );
 	}
 
 	public (Vector2 Center, float Radius) ResolveCircle( Rect rect )
@@ -107,9 +118,9 @@ public sealed class BorderShape : IEquatable<BorderShape>
 		if ( other is null || Kind != other.Kind ) return false;
 		if ( Kind == BorderShapeKind.Circle )
 			return CircleRadius == other.CircleRadius && CircleCenterX == other.CircleCenterX && CircleCenterY == other.CircleCenterY;
-		if ( _points.Length != other._points.Length ) return false;
+		if ( _pointCount != other._pointCount ) return false;
 
-		for ( int i = 0; i < _points.Length; i++ )
+		for ( int i = 0; i < _pointCount; i++ )
 		{
 			if ( _points[i] != other._points[i] ) return false;
 		}
@@ -131,8 +142,46 @@ public sealed class BorderShape : IEquatable<BorderShape>
 		}
 		else
 		{
-			foreach ( var point in _points ) hash.Add( point );
+			for ( int i = 0; i < _pointCount; i++ ) hash.Add( _points[i] );
 		}
 		return hash.ToHashCode();
+	}
+
+	/// <summary>A view of a shape's inline points. Converting this value to an interface boxes the view.</summary>
+	public readonly struct PointCollection : IReadOnlyList<BorderShapePoint>
+	{
+		readonly BorderShape _shape;
+		internal PointCollection( BorderShape shape ) => _shape = shape;
+		public int Count => _shape?._pointCount ?? 0;
+		public BorderShapePoint this[int index]
+		{
+			get
+			{
+				ArgumentOutOfRangeException.ThrowIfNegative( index );
+				ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual( index, Count );
+				return _shape._points[index];
+			}
+		}
+
+		public Enumerator GetEnumerator() => new( this );
+		IEnumerator<BorderShapePoint> IEnumerable<BorderShapePoint>.GetEnumerator() => GetEnumerator();
+		System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+
+		public struct Enumerator : IEnumerator<BorderShapePoint>
+		{
+			readonly PointCollection _points;
+			int _index;
+			internal Enumerator( PointCollection points ) { _points = points; _index = -1; }
+			public readonly BorderShapePoint Current => _index >= 0 && _index < _points.Count
+				? _points[_index] : throw new InvalidOperationException( "Enumerator is not positioned on a point." );
+			readonly object System.Collections.IEnumerator.Current => Current;
+			public bool MoveNext()
+			{
+				if ( _index < _points.Count ) _index++;
+				return _index < _points.Count;
+			}
+			public void Reset() => _index = -1;
+			public readonly void Dispose() { }
+		}
 	}
 }

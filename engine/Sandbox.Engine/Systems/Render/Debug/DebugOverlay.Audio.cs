@@ -13,7 +13,7 @@ internal static partial class DebugOverlay
 		static readonly TextRendering.Outline _statusOutline = new() { Color = Color.Black, Size = 3, Enabled = true };
 		static readonly List<SoundHandle> _handles = new();
 
-		internal static void Draw( ref Vector2 pos )
+		internal static void Draw( Painter painter, ref Vector2 pos )
 		{
 			var scene = Application.GetActiveScene();
 			var drawPos = new Vector2( pos.x + 24, pos.y );
@@ -26,29 +26,29 @@ internal static partial class DebugOverlay
 
 			var listener = GetPrimaryListener( scene );
 
-			Header( ref drawPos, "Audio" );
+			Header( painter, ref drawPos, "Audio" );
 
-			Header( ref drawPos, "Mixers" );
+			Header( painter, ref drawPos, "Mixers" );
 			if ( Mixer.Master is { } master )
-				MixerRow( ref drawPos, master, 0 );
+				MixerRow( painter, ref drawPos, master, 0 );
 			drawPos.y += 6;
 
-			Header( ref drawPos, "Performance" );
-			RowStr( ref drawPos, "Sim update", $"{SoundSimulationSystem.LastSimUpdateMs:F2} ms" );
-			RowStr( ref drawPos, "Mix thread", $"{MixingThread.AverageMixTimeMs:F2} ms avg" );
-			RowStr( ref drawPos, "Occ avg wait", $"{SoundSimulationSystem.AvgOccWaitFrames:F1} frames" );
-			RowStr( ref drawPos, "Room avg wait", $"{SoundSimulationSystem.AvgRoomWaitFrames:F1} frames" );
+			Header( painter, ref drawPos, "Performance" );
+			RowStr( painter, ref drawPos, "Sim update", $"{SoundSimulationSystem.LastSimUpdateMs:F2} ms" );
+			RowStr( painter, ref drawPos, "Mix thread", $"{MixingThread.AverageMixTimeMs:F2} ms avg" );
+			RowStr( painter, ref drawPos, "Occ avg wait", $"{SoundSimulationSystem.AvgOccWaitFrames:F1} frames" );
+			RowStr( painter, ref drawPos, "Room avg wait", $"{SoundSimulationSystem.AvgRoomWaitFrames:F1} frames" );
 			drawPos.y += 6;
 
-			Header( ref drawPos, "Sounds" );
-			CountRows( ref drawPos );
+			Header( painter, ref drawPos, "Sounds" );
+			CountRows( painter, ref drawPos );
 			drawPos.y += 6;
 
-			ReverbSection( ref drawPos );
-			SurfaceProbeSection( ref drawPos, scene, listener );
-			SoundTable( ref drawPos, listener );
+			ReverbSection( painter, ref drawPos );
+			SurfaceProbeSection( painter, ref drawPos, scene, listener );
+			SoundTable( painter, ref drawPos, listener );
 
-			DrawStatusOverlay();
+			DrawStatusOverlay( painter );
 
 			pos.y += MathF.Max( 0, drawPos.y - startY );
 		}
@@ -72,45 +72,45 @@ internal static partial class DebugOverlay
 			return null;
 		}
 
-		static void MixerRow( ref Vector2 pos, Mixer mixer, int depth )
+		static void MixerRow( Painter painter, ref Vector2 pos, Mixer mixer, int depth )
 		{
 			var frame = mixer.Meter.Current;
 			var indent = depth * 14;
 			var rect = new Rect( pos, new Vector2( 900, 16 ) );
 			var scope = new TextRendering.Scope( mixer.Name ?? "?", Color.White.WithAlpha( 0.85f ), 13, "Roboto Mono", 600 ) { Outline = _outline };
 
-			Hud.DrawText( scope, rect with { Left = rect.Left + indent, Width = 140 - indent }, TextFlag.LeftCenter );
+			DebugOverlay.DrawText( painter, scope, rect with { Left = rect.Left + indent, Width = 140 - indent }, TextFlag.LeftCenter );
 
 			scope.Text = $"{frame.VoiceCount} voices";
 			scope.TextColor = frame.VoiceCount > 0 ? Color.White : Color.White.WithAlpha( 0.4f );
-			Hud.DrawText( scope, rect with { Left = rect.Left + 148, Width = 80 }, TextFlag.LeftCenter );
+			DebugOverlay.DrawText( painter, scope, rect with { Left = rect.Left + 148, Width = 80 }, TextFlag.LeftCenter );
 
 			scope.Text = LevelBar( frame.MaxLevel, 10 );
 			scope.TextColor = LevelColor( frame.MaxLevel );
-			Hud.DrawText( scope, rect with { Left = rect.Left + 236, Width = 120 }, TextFlag.LeftCenter );
+			DebugOverlay.DrawText( painter, scope, rect with { Left = rect.Left + 236, Width = 120 }, TextFlag.LeftCenter );
 
-			void Prop( float x, string label, float value, bool colorCode = false )
+			void Prop( Painter painter, float x, string label, float value, bool colorCode = false )
 			{
 				scope.Text = $"{label} {value:F2}";
 				scope.TextColor = colorCode
 					? OcclusionColor( value ).WithAlpha( 0.85f )
 					: Color.White.WithAlpha( value < 1f ? 0.9f : 0.5f );
-				Hud.DrawText( scope, rect with { Left = rect.Left + x, Width = 96 }, TextFlag.LeftCenter );
+				DebugOverlay.DrawText( painter, scope, rect with { Left = rect.Left + x, Width = 96 }, TextFlag.LeftCenter );
 			}
 
-			Prop( 368, "Vol", mixer.Volume );
-			Prop( 472, "Spa", mixer.Spatializing );
-			Prop( 576, "Dst", mixer.DistanceAttenuation );
-			Prop( 680, "Occ", mixer.Occlusion, colorCode: true );
-			Prop( 784, "Air", mixer.AirAbsorption );
+			Prop( painter, 368, "Vol", mixer.Volume );
+			Prop( painter, 472, "Spa", mixer.Spatializing );
+			Prop( painter, 576, "Dst", mixer.DistanceAttenuation );
+			Prop( painter, 680, "Occ", mixer.Occlusion, colorCode: true );
+			Prop( painter, 784, "Air", mixer.AirAbsorption );
 
 			pos.y += rect.Height;
 
 			foreach ( var child in mixer.GetChildren() )
-				MixerRow( ref pos, child, depth + 1 );
+				MixerRow( painter, ref pos, child, depth + 1 );
 		}
 
-		static void CountRows( ref Vector2 pos )
+		static void CountRows( Painter painter, ref Vector2 pos )
 		{
 			int total = 0, local = 0, occluded = 0, airAbs = 0;
 
@@ -122,13 +122,13 @@ internal static partial class DebugOverlay
 				if ( h.AirAbsorption ) airAbs++;
 			}
 
-			Row( ref pos, "Total", total );
-			Row( ref pos, "Listen Local", local );
-			Row( ref pos, "Occlusion", occluded );
-			Row( ref pos, "Air Absorption", airAbs );
+			Row( painter, ref pos, "Total", total );
+			Row( painter, ref pos, "Listen Local", local );
+			Row( painter, ref pos, "Occlusion", occluded );
+			Row( painter, ref pos, "Air Absorption", airAbs );
 		}
 
-		static void ReverbSection( ref Vector2 pos )
+		static void ReverbSection( Painter painter, ref Vector2 pos )
 		{
 			var sys = SoundSimulationSystem.Current;
 			if ( sys is null ) return;
@@ -136,63 +136,63 @@ internal static partial class DebugOverlay
 			if ( snap.MfpMeters <= 0f ) return;
 
 			pos.y += 6;
-			Header( ref pos, "Listener Room" );
+			Header( painter, ref pos, "Listener Room" );
 
 			var mt = snap.MaterialTone;
 			float dc = snap.MfpMeters * MathF.Sqrt( snap.MfpMeters / MathF.Max( 90f * snap.DecayTime, 0.001f ) );
-			RowStr( ref pos, "T60 L / M / H", $"{snap.DecayTimeLow:F2}s  /  {snap.DecayTime:F2}s  /  {snap.DecayTimeHigh:F2}s" );
-			RowStr( ref pos, "Critical Distance", $"{dc:F2}m" );
-			RowStr( ref pos, "Mean Free Path", $"{snap.MfpMeters:F2}m" );
-			RowStr( ref pos, "Openness", $"{snap.Openness:F2}" );
-			RowStr( ref pos, "Material Tone L/M/H", $"{mt.Low:F2} / {mt.Mid:F2} / {mt.High:F2}" );
+			RowStr( painter, ref pos, "T60 L / M / H", $"{snap.DecayTimeLow:F2}s  /  {snap.DecayTime:F2}s  /  {snap.DecayTimeHigh:F2}s" );
+			RowStr( painter, ref pos, "Critical Distance", $"{dc:F2}m" );
+			RowStr( painter, ref pos, "Mean Free Path", $"{snap.MfpMeters:F2}m" );
+			RowStr( painter, ref pos, "Openness", $"{snap.Openness:F2}" );
+			RowStr( painter, ref pos, "Material Tone L/M/H", $"{mt.Low:F2} / {mt.Mid:F2} / {mt.High:F2}" );
 			pos.y += 6;
 		}
 
-		internal static void DrawStatusOverlay()
+		internal static void DrawStatusOverlay( Painter painter )
 		{
 			float x = Screen.Width - 440f;
 			float y = 20f;
 			const float LineH = 44f;
 			const int FontSize = 32;
 
-			StatusLine( ref y, x, LineH, FontSize, "Reverb",
+			StatusLine( painter, ref y, x, LineH, FontSize, "Reverb",
 				SoundSimulationSystem.snd_reverb_enable );
-			StatusLine( ref y, x, LineH, FontSize, "Occlusion",
+			StatusLine( painter, ref y, x, LineH, FontSize, "Occlusion",
 				SoundSimulationSystem.snd_occlusion_enable );
-			StatusLine( ref y, x, LineH, FontSize, "Diffraction",
+			StatusLine( painter, ref y, x, LineH, FontSize, "Diffraction",
 				SoundSimulationSystem.snd_diffraction_enable );
 		}
 
-		static void StatusLine( ref float y, float x, float lineH, int fontSize, string label, bool on )
+		static void StatusLine( Painter painter, ref float y, float x, float lineH, int fontSize, string label, bool on )
 		{
 			var rect = new Rect( x, y, 420f, lineH );
 			var color = on ? new Color( 0.35f, 1f, 0.45f ) : new Color( 1f, 0.35f, 0.35f );
 			var scope = new TextRendering.Scope( $"{label}:  {(on ? "ON" : "OFF")}", color, fontSize, "Roboto Mono", 700 ) { Outline = _statusOutline };
-			Hud.DrawText( scope, rect, TextFlag.RightCenter );
+			DebugOverlay.DrawText( painter, scope, rect, TextFlag.RightCenter );
 			y += lineH;
 		}
 
-		static void RowStr( ref Vector2 pos, string label, string value )
+		static void RowStr( Painter painter, ref Vector2 pos, string label, string value )
 		{
 			var rect = new Rect( pos, new Vector2( 560, 15 ) );
 			var scope = new TextRendering.Scope( label, Color.White.WithAlpha( 0.8f ), 13, "Roboto Mono", 600 ) { Outline = _outline };
-			Hud.DrawText( scope, rect with { Width = 160 }, TextFlag.RightCenter );
+			DebugOverlay.DrawText( painter, scope, rect with { Width = 160 }, TextFlag.RightCenter );
 			scope.TextColor = Color.White;
 			scope.Text = value;
-			Hud.DrawText( scope, rect with { Left = rect.Left + 168, Width = 120 }, TextFlag.LeftCenter );
+			DebugOverlay.DrawText( painter, scope, rect with { Left = rect.Left + 168, Width = 120 }, TextFlag.LeftCenter );
 			pos.y += rect.Height;
 		}
 
-		static void SoundTable( ref Vector2 pos, Listener listener )
+		static void SoundTable( Painter painter, ref Vector2 pos, Listener listener )
 		{
-			Header( ref pos, "Active Sounds" );
+			Header( painter, ref pos, "Active Sounds" );
 
 			int count = Math.Min( _handles.Count, 24 );
 			for ( int i = 0; i < count; i++ )
-				SoundRow( ref pos, i + 1, _handles[i], listener );
+				SoundRow( painter, ref pos, i + 1, _handles[i], listener );
 		}
 
-		static void SoundRow( ref Vector2 pos, int index, SoundHandle handle, Listener listener )
+		static void SoundRow( Painter painter, ref Vector2 pos, int index, SoundHandle handle, Listener listener )
 		{
 			var mixerName = handle.GetEffectiveMixer()?.Name ?? "—";
 			var name = string.IsNullOrEmpty( handle.Name ) ? "—" : handle.Name;
@@ -202,18 +202,18 @@ internal static partial class DebugOverlay
 			var tx = handle.OcclusionEnabled && model is not null ? model.SmoothedTransmission : null;
 			var diff = handle.OcclusionEnabled && model is not null ? model.SmoothedDiffraction : null;
 
-			TableRow( ref pos, index.ToString(), name, $"[{mixerName}]", Flags( handle, model ), 12, 400 );
+			TableRow( painter, ref pos, index.ToString(), name, $"[{mixerName}]", Flags( handle, model ), 12, 400 );
 
 			if ( tx.HasValue )
 			{
-				SubRow( ref pos, "Occlusion",
+				SubRow( painter, ref pos, "Occlusion",
 						$"Low {tx.Value.Low:F2}  Mid {tx.Value.Mid:F2}  High {tx.Value.High:F2}  Walls {model.AvgWalls:F1}",
 					OcclusionColor( tx.Value.Mid ) );
 			}
 
 			if ( diff.HasValue )
 			{
-				SubRow( ref pos, "Diffraction",
+				SubRow( painter, ref pos, "Diffraction",
 						$"Low {diff.Value.Low:F2}  Mid {diff.Value.Mid:F2}  High {diff.Value.High:F2}  Probes {model.LastDiffractionProbes}/{model.LastDiffractionRays}",
 					OcclusionColor( diff.Value.Mid ) );
 			}
@@ -225,35 +225,35 @@ internal static partial class DebugOverlay
 				var reverbColor = Color.Lerp( new Color( 0.4f, 1f, 1f ), new Color( 1f, 0.45f, 1f ), decayT );
 				float dc = sourceRoom.MfpMeters * MathF.Sqrt( sourceRoom.MfpMeters / MathF.Max( 90f * sourceRoom.DecayTime, 0.001f ) );
 				float distMeters = listener is not null ? handle.Position.Distance( listener.Position ) / 39.37f : 0f;
-				SubRow( ref pos, "Reverb",
+				SubRow( painter, ref pos, "Reverb",
 					$"T60 {sourceRoom.DecayTimeLow:F2}/{sourceRoom.DecayTime:F2}/{sourceRoom.DecayTimeHigh:F2}s    Dc {dc:F2}m  dist {distMeters:F2}m    Mix {sourceRoom.Mix:F2}",
 					reverbColor );
 			}
 		}
 
-		static void SubRow( ref Vector2 pos, string label, string value, Color color )
+		static void SubRow( Painter painter, ref Vector2 pos, string label, string value, Color color )
 		{
 			var subRect = new Rect( pos, new Vector2( 660, 14 ) );
 			var sub = new TextRendering.Scope( label, color, 12, "Roboto Mono", 600 ) { Outline = _outline };
-			Hud.DrawText( sub, subRect with { Left = subRect.Left + 24, Width = 100 }, TextFlag.LeftCenter );
+			DebugOverlay.DrawText( painter, sub, subRect with { Left = subRect.Left + 24, Width = 100 }, TextFlag.LeftCenter );
 			sub.FontWeight = 400;
 			sub.Text = value;
-			Hud.DrawText( sub, subRect with { Left = subRect.Left + 132, Width = 512 }, TextFlag.LeftCenter );
+			DebugOverlay.DrawText( painter, sub, subRect with { Left = subRect.Left + 132, Width = 512 }, TextFlag.LeftCenter );
 			pos.y += 14;
 		}
 
-		static void TableRow( ref Vector2 pos, string col0, string col1, string col2, string col3,
+		static void TableRow( Painter painter, ref Vector2 pos, string col0, string col1, string col2, string col3,
 			int fontSize, int fontWeight )
 		{
 			var rect = new Rect( pos, new Vector2( 660, 15 ) );
 			var scope = new TextRendering.Scope( "", Color.White.WithAlpha( 0.8f ), fontSize, "Roboto Mono", fontWeight ) { Outline = _outline };
 
-			scope.Text = col0; Hud.DrawText( scope, rect with { Width = 20 }, TextFlag.LeftCenter );
-			scope.Text = col1; Hud.DrawText( scope, rect with { Left = rect.Left + 24, Width = 160 }, TextFlag.LeftCenter );
+			scope.Text = col0; DebugOverlay.DrawText( painter, scope, rect with { Width = 20 }, TextFlag.LeftCenter );
+			scope.Text = col1; DebugOverlay.DrawText( painter, scope, rect with { Left = rect.Left + 24, Width = 160 }, TextFlag.LeftCenter );
 			scope.TextColor = Color.White.WithAlpha( 0.5f );
-			scope.Text = col2; Hud.DrawText( scope, rect with { Left = rect.Left + 192, Width = 80 }, TextFlag.LeftCenter );
+			scope.Text = col2; DebugOverlay.DrawText( painter, scope, rect with { Left = rect.Left + 192, Width = 80 }, TextFlag.LeftCenter );
 			scope.TextColor = Color.White.WithAlpha( 0.6f );
-			scope.Text = col3; Hud.DrawText( scope, rect with { Left = rect.Left + 280, Width = 380 }, TextFlag.LeftCenter );
+			scope.Text = col3; DebugOverlay.DrawText( painter, scope, rect with { Left = rect.Left + 280, Width = 380 }, TextFlag.LeftCenter );
 
 			pos.y += rect.Height;
 		}
@@ -293,26 +293,26 @@ internal static partial class DebugOverlay
 			_ => new Color( 1f, 0.35f, 0.35f )
 		};
 
-		static void Header( ref Vector2 pos, string label )
+		static void Header( Painter painter, ref Vector2 pos, string label )
 		{
 			var rect = new Rect( pos, new Vector2( 560, 18 ) );
 			var scope = new TextRendering.Scope( label, Color.White.WithAlpha( 0.9f ), 13, "Roboto Mono", 700 ) { Outline = _outline };
-			Hud.DrawText( scope, rect, TextFlag.LeftCenter );
+			DebugOverlay.DrawText( painter, scope, rect, TextFlag.LeftCenter );
 			pos.y += 18;
 		}
 
-		static void Row( ref Vector2 pos, string label, int value )
+		static void Row( Painter painter, ref Vector2 pos, string label, int value )
 		{
 			var rect = new Rect( pos, new Vector2( 560, 15 ) );
 			var scope = new TextRendering.Scope( label, Color.White.WithAlpha( 0.8f ), 13, "Roboto Mono", 600 ) { Outline = _outline };
-			Hud.DrawText( scope, rect with { Width = 160 }, TextFlag.RightCenter );
+			DebugOverlay.DrawText( painter, scope, rect with { Width = 160 }, TextFlag.RightCenter );
 			scope.TextColor = value > 0 ? Color.White : Color.White.WithAlpha( 0.5f );
 			scope.Text = value.ToString( "N0" );
-			Hud.DrawText( scope, rect with { Left = rect.Left + 168, Width = 80 }, TextFlag.LeftCenter );
+			DebugOverlay.DrawText( painter, scope, rect with { Left = rect.Left + 168, Width = 80 }, TextFlag.LeftCenter );
 			pos.y += rect.Height;
 		}
 
-		static void SurfaceProbeSection( ref Vector2 pos, Scene scene, Listener listener )
+		static void SurfaceProbeSection( Painter painter, ref Vector2 pos, Scene scene, Listener listener )
 		{
 			if ( listener is null ) return;
 
@@ -327,11 +327,11 @@ internal static partial class DebugOverlay
 				.Run();
 
 			pos.y += 6;
-			Header( ref pos, "Looking At" );
+			Header( painter, ref pos, "Looking At" );
 
 			if ( !tr.Hit )
 			{
-				RowStr( ref pos, "Surface", "(nothing)" );
+				RowStr( painter, ref pos, "Surface", "(nothing)" );
 				return;
 			}
 
@@ -344,12 +344,12 @@ internal static partial class DebugOverlay
 #pragma warning restore CS0618
 			var dist = tr.HitPosition.Distance( origin );
 
-			RowStr( ref pos, "Distance", $"{dist / 39.37f:F2} m" );
-			RowStr( ref pos, "Physics surf", surfName );
-			RowStr( ref pos, "Audio surface", $"{surface}" );
-			RowStr( ref pos, "Tags", tags );
-			RowStr( ref pos, "Transmission", $"Low:{tx.Low:F2}  Mid:{tx.Mid:F2}  High:{tx.High:F2}" );
-			RowStr( ref pos, "Reflectivity", $"Low:{refl.Low:F2}  Mid:{refl.Mid:F2}  High:{refl.High:F2}" );
+			RowStr( painter, ref pos, "Distance", $"{dist / 39.37f:F2} m" );
+			RowStr( painter, ref pos, "Physics surf", surfName );
+			RowStr( painter, ref pos, "Audio surface", $"{surface}" );
+			RowStr( painter, ref pos, "Tags", tags );
+			RowStr( painter, ref pos, "Transmission", $"Low:{tx.Low:F2}  Mid:{tx.Mid:F2}  High:{tx.High:F2}" );
+			RowStr( painter, ref pos, "Reflectivity", $"Low:{refl.Low:F2}  Mid:{refl.Mid:F2}  High:{refl.High:F2}" );
 		}
 	}
 }

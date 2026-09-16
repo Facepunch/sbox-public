@@ -103,8 +103,14 @@ public sealed class Win64 : NativePlatform
 		vsWhere.StartInfo.Arguments = $"-latest -prerelease -version {MinimumVisualStudio} -products Microsoft.VisualStudio.Product.Enterprise Microsoft.VisualStudio.Product.Professional Microsoft.VisualStudio.Product.Community Microsoft.VisualStudio.Product.BuildTools -property installationPath";
 		vsWhere.StartInfo.UseShellExecute = false;
 		vsWhere.StartInfo.RedirectStandardOutput = true;
+		vsWhere.StartInfo.RedirectStandardError = true;
 		vsWhere.StartInfo.CreateNoWindow = true;
+		vsWhere.ErrorDataReceived += ( _, e ) =>
+		{
+			if ( e.Data is not null ) Log.Error( e.Data );
+		};
 		vsWhere.Start();
+		vsWhere.BeginErrorReadLine();
 
 		var installation = vsWhere.StandardOutput.ReadToEnd().Trim();
 		vsWhere.WaitForExit();

@@ -155,7 +155,7 @@ file class ValuePacker<T> : Packer where T : unmanaged
 		bs.Write( (T)obj );
 	}
 
-	public override object Read( ref ByteStream bs )
+	public override object Read( ref ByteStream bs, int depth )
 	{
 		return bs.Read<T>();
 	}
@@ -206,8 +206,9 @@ file class SerializerPacker<T, TResult> : Packer where T : ISerializer
 	/// Read an object from the <see cref="ByteStream"/> through the implementation of <see cref="ISerializer.BytePackRead"/> for this type.
 	/// </summary>
 	/// <param name="bs"></param>
+	/// <param name="depth"></param>
 	/// <returns></returns>
-	public override object Read( ref ByteStream bs )
+	public override object Read( ref ByteStream bs, int depth )
 	{
 		try
 		{
@@ -299,13 +300,13 @@ file class TypePacker<T> : Packer where T : new()
 		}
 	}
 
-	public override object Read( ref ByteStream bs )
+	public override object Read( ref ByteStream bs, int depth )
 	{
 		object t = new T();
 
 		foreach ( var member in members )
 		{
-			var value = Deserialize( ref bs );
+			var value = Deserialize( ref bs, depth + 1 );
 
 			switch ( member )
 			{

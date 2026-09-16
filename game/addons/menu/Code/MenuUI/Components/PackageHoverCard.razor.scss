@@ -120,6 +120,37 @@ PackageHoverCard
 		margin-top: -4px;
 		overflow: hidden;
 
+		.grow
+		{
+			flex-grow: 1;
+		}
+
+		.tag
+		{
+			flex-shrink: 0;
+			font-family: $front-font;
+			font-size: 12px;
+			font-weight: 600;
+			color: $front-secondary;
+			cursor: pointer;
+			transition: color 0.1s ease;
+
+			&:hover
+			{
+				color: $front-heading;
+			}
+
+			&.plain
+			{
+				cursor: default;
+
+				&:hover
+				{
+					color: $front-secondary;
+				}
+			}
+		}
+
 		label, .sep
 		{
 			flex-shrink: 0;
@@ -228,34 +259,130 @@ PackageHoverCard
 		}
 	}
 
+	.jam
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 10px;
+		margin: 8px 0 6px 0;
+		padding: 10px 12px;
+		border-radius: 8px;
+		background: linear-gradient( 90deg, rgba( $front-trophy, 0.22 ), rgba( $front-trophy, 0.08 ) );
+		border: 1px solid rgba( $front-trophy, 0.45 );
+
+		.trophy
+		{
+			flex-shrink: 0;
+			font-size: 22px;
+			color: $front-trophy * 1.8;
+		}
+
+		.text
+		{
+			flex-grow: 1;
+			flex-direction: column;
+			gap: 2px;
+			overflow: hidden;
+
+			.title
+			{
+				font-family: $front-font;
+				font-size: 12px;
+				font-weight: 700;
+				color: $front-heading;
+			}
+
+			.hint
+			{
+				font-family: $front-font;
+				font-size: 10.5px;
+				font-weight: 500;
+				color: $front-trophy * 1.6;
+			}
+		}
+
+		.nominate
+		{
+			flex-direction: row;
+			flex-shrink: 0;
+			align-items: center;
+			gap: 4px;
+			height: 32px;
+			padding: 0 14px 0 10px;
+			border-radius: 999px;
+			background-color: $front-trophy;
+			cursor: pointer;
+			transition: all 0.1s ease;
+
+			icon
+			{
+				font-size: 18px;
+				color: #1a1204;
+			}
+
+			label
+			{
+				font-family: $front-font;
+				font-size: 12px;
+				font-weight: 700;
+				text-transform: uppercase;
+				letter-spacing: 0.07em;
+				color: #1a1204;
+			}
+
+			&:hover
+			{
+				sound-in: "ui.button.over";
+				background-color: $front-trophy * 1.2;
+			}
+
+			&:active
+			{
+				sound-in: "ui.button.press";
+			}
+
+			&.on
+			{
+				background-color: rgba( $front-trophy, 0.15 );
+				border: 1px solid rgba( $front-trophy, 0.6 );
+
+				icon
+				{
+					color: $front-trophy * 1.6;
+				}
+
+				label
+				{
+					color: $front-trophy * 1.6;
+				}
+			}
+
+			&.locked
+			{
+				opacity: 0.45;
+				cursor: default;
+				pointer-events: none;
+			}
+
+			&.busy
+			{
+				opacity: 0.5;
+				pointer-events: none;
+			}
+		}
+	}
+
 	.footer
 	{
 		flex-direction: row;
 		align-items: center;
 		gap: 8px;
-		margin-top: 2px;
-	}
+		margin-top: 8px;
 
-	.tags
-	{
-		flex-direction: row;
-		flex-wrap: nowrap;
-		flex-grow: 1;
-		flex-shrink: 1;
-		gap: 4px;
-		overflow: hidden;
-
-		.tag
+		.grow
 		{
-			flex-shrink: 0;
-			padding: 3px 8px;
-			border-radius: 999px;
-			border: 1px solid $front-hairline;
-			background-color: rgba( 255, 255, 255, 0.05 );
-			font-size: 10px;
-			font-weight: 600;
-			letter-spacing: 0.03em;
-			color: $front-body;
+			flex-grow: 1;
 		}
 	}
 
@@ -263,7 +390,41 @@ PackageHoverCard
 	{
 		flex-direction: row;
 		flex-shrink: 0;
-		gap: 6px;
+		align-items: center;
+		gap: 10px;
+
+		.group
+		{
+			flex-direction: row;
+			flex-shrink: 0;
+			border-radius: 999px;
+			border: 1px solid $front-hairline;
+			background-color: rgba( 255, 255, 255, 0.07 );
+			overflow: hidden;
+
+			.button
+			{
+				width: 38px;
+				border: 0;
+				border-radius: 0;
+				background-color: transparent;
+
+				&:hover
+				{
+					background-color: rgba( 255, 255, 255, 0.12 );
+				}
+
+				&.active
+				{
+					background-color: rgba( $front-primary, 0.28 );
+				}
+
+				&.fav.active
+				{
+					background-color: rgba( #e93b6d, 0.25 );
+				}
+			}
+		}
 
 		.button
 		{
@@ -298,6 +459,28 @@ PackageHoverCard
 				sound-in: "ui.button.press";
 			}
 
+			&.active
+			{
+				border-color: rgba( $front-primary, 0.7 );
+				background-color: rgba( $front-primary, 0.22 );
+
+				icon
+				{
+					color: $front-primary * 1.6;
+				}
+			}
+
+			&.fav.active
+			{
+				border-color: rgba( #e93b6d, 0.7 );
+				background-color: rgba( #e93b6d, 0.2 );
+
+				icon
+				{
+					color: #e93b6d;
+				}
+			}
+
 			&.primary
 			{
 				flex-direction: row;
@@ -329,6 +512,12 @@ PackageHoverCard
 				{
 					background-color: $front-primary * 1.2;
 				}
+			}
+
+			&.busy
+			{
+				opacity: 0.5;
+				pointer-events: none;
 			}
 		}
 	}

@@ -16,6 +16,7 @@ internal class Program
 
 		// Compound commands (handle multiple related steps with flags)
 		AddBuildCommand( rootCommand );
+		AddBootstrapCommand( rootCommand );
 		AddFormatCommand( rootCommand );
 
 		// Individual step commands
@@ -35,14 +36,15 @@ internal class Program
 		AddUploadSteamCommand( rootCommand );
 		AddDiscordPostCommand( rootCommand );
 		AddDownloadPublicArtifactsCommand( rootCommand );
+		AddInstallGitHooksCommand( rootCommand );
 		AddDownloadThirdPartyCommand( rootCommand );
 		AddUploadBuildArtifactsCommand( rootCommand );
 		AddCheckNativeTouchedCommand( rootCommand );
 		AddNotifySlackCommand( rootCommand );
 		AddReportBuildCommand( rootCommand );
 
-		rootCommand.Invoke( args );
-		return Environment.ExitCode;
+		var result = rootCommand.Invoke( args );
+		return result != 0 ? result : Environment.ExitCode;
 	}
 
 	// ── Compound commands ─────────────────────────────────────────────────────
@@ -67,6 +69,18 @@ internal class Program
 			Environment.ExitCode = (int)Build.Run( config, clean, skipNative, skipManaged );
 		}, configOption, cleanOption, skipNativeOption, skipManagedOption );
 
+		rootCommand.Add( cmd );
+	}
+
+	private static void AddBootstrapCommand( RootCommand rootCommand )
+	{
+		var cmd = new Command( "bootstrap", "Set up a full or public source distribution for development" );
+		var verboseOption = new Option<bool>( "--verbose", description: "Show full build output instead of only progress and final diagnostics" );
+		cmd.AddOption( verboseOption );
+		cmd.SetHandler( ( bool verbose ) =>
+		{
+			Environment.ExitCode = (int)Bootstrap.Run( verbose );
+		}, verboseOption );
 		rootCommand.Add( cmd );
 	}
 
@@ -260,6 +274,13 @@ internal class Program
 		{
 			Environment.ExitCode = (int)new DownloadPublicArtifacts( nativeOnly ).Run();
 		}, nativeOnlyOption );
+		rootCommand.Add( cmd );
+	}
+
+	private static void AddInstallGitHooksCommand( RootCommand rootCommand )
+	{
+		var cmd = new Command( "install-git-hooks", "Install git hooks that restore public artifacts and bindings after pull, rebase and checkout. Public source distribution only; fails in a full source checkout" );
+		cmd.SetHandler( () => { Environment.ExitCode = (int)new InstallGitHooks().Run(); } );
 		rootCommand.Add( cmd );
 	}
 

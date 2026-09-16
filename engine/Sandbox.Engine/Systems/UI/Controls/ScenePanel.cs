@@ -117,7 +117,6 @@ namespace Sandbox.UI
 			if ( oldRt != RenderTexture )
 			{
 				shouldRender = true;
-				IsRenderDirty = true;
 			}
 
 			if ( shouldRender )
@@ -214,12 +213,12 @@ namespace Sandbox.UI
 			_renderScene = null;
 		}
 
-		public override void OnDraw()
+		public override void OnDraw( Painter painter )
 		{
 			if ( Box.RectInner.Size.x <= 0 ) return;
 			if ( Box.RectInner.Size.y <= 0 ) return;
 
-			DrawBackgroundTexture( RenderTexture, Length.Contain );
+			DrawTexture( painter, RenderTexture, Length.Contain );
 		}
 
 		public override void SetProperty( string name, string value )
