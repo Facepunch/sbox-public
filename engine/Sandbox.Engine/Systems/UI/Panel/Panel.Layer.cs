@@ -10,13 +10,47 @@ public partial class Panel
 	internal bool HasPanelLayer => _paintCache.Layer is not null;
 
 	/// <summary>
+	/// Where a panel's offscreen layer is rendered and composited: the margin box grown to fit any
+	/// outset box-shadow, which is drawn inside the layer and would otherwise be clipped to it.
+	/// </summary>
+	internal Rect PanelLayerRect
+	{
+		get
+		{
+			var rect = Box.RectOuter;
+			var shadows = ComputedStyle?.BoxShadow;
+
+			if ( shadows is null || shadows.Count == 0 )
+				return rect;
+
+			float left = 0f, top = 0f, right = 0f, bottom = 0f;
+
+			for ( int i = 0; i < shadows.Count; i++ )
+			{
+				var shadow = shadows[i];
+				if ( shadow.Inset || shadow.Color.a <= 0 ) continue;
+
+				// How far this shadow reaches past the box. The offset pushes it one way, so the
+				// opposite side only needs room for whatever blur and spread are left over.
+				var reach = shadow.Blur + shadow.Spread;
+				left = MathF.Max( left, reach - shadow.OffsetX );
+				right = MathF.Max( right, reach + shadow.OffsetX );
+				top = MathF.Max( top, reach - shadow.OffsetY );
+				bottom = MathF.Max( bottom, reach + shadow.OffsetY );
+			}
+
+			return rect.Grow( left, top, right, bottom );
+		}
+	}
+
+	/// <summary>
 	/// Called by Render after closing a panel's offscreen target to composite it into the parent destination.
 	/// Applies the cached CSS filter, mask, drop shadows and layer border to the completed subtree.
 	/// </summary>
 	void DrawLayer( Painter painter )
 	{
 		var layer = _paintCache.Layer;
-		painter.Composite( new RenderTargetHandle { Name = PanelLayerRTName }, Box.RectOuter, layer.Filter, layer.Mask,
+		painter.Composite( new RenderTargetHandle { Name = PanelLayerRTName }, PanelLayerRect, layer.Filter, layer.Mask,
 			layer.MaskScope, CollectionsMarshal.AsSpan( layer.DropShadows ), layer.BorderWidth, layer.BorderColor );
 	}
 
