@@ -149,7 +149,14 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 		if ( id.IsEmpty ) return default;
 
 		var obj = Game.Resources.Get( type, id ) as GameResource;
-		if ( obj != null ) return obj;
+		if ( obj != null )
+		{
+			// We may have found a promise registered by a GUID-only reference, which has no path
+			// and so never had a load kicked off for it. Start one now that we've been handed a
+			// path, or nothing ever loads the file and the GUID never gets reconciled.
+			obj.StartDeferredLoad( id );
+			return obj;
+		}
 
 		// create a new instance of the resource type and register it as a promise
 		obj = System.Activator.CreateInstance( type ) as GameResource;
@@ -189,6 +196,20 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 		}
 
 		_awaitingLoad = true;
+	}
+
+	/// <summary>
+	/// Kick off the load for a pending promise we've just been handed a path for. Only the load is
+	/// started - the path stays a hint, so <see cref="Register"/> still owns our identity and the
+	/// indexes that go with it, and a stale path is still corrected on load.
+	/// </summary>
+	private void StartDeferredLoad( ResourceId id )
+	{
+		if ( !_awaitingLoad ) return;
+		if ( string.IsNullOrEmpty( id.Path ) ) return;
+		if ( !string.IsNullOrEmpty( ResourcePath ) ) return;
+
+		Manifest = AsyncResourceLoader.Load( FixPath( id.Path ) );
 	}
 
 	/// <summary>

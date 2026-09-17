@@ -294,6 +294,42 @@ public class GuidTests
 	}
 
 	/// <summary>
+	/// Only InitPromise kicks off a load, and a GUID-only promise has no path to kick one off for.
+	/// A later reference that does name a path has to start it, or nothing ever reads the file,
+	/// the promise never resolves, and the reference dangles for the lifetime of the session.
+	/// </summary>
+	[TestMethod]
+	public void PathReferenceStartsTheLoadForAGuidOnlyPromise()
+	{
+		var folder = Path.GetFileName( _testPath );
+		var currentPath = $"{folder}/guid_then_path.scene";
+
+		var guid = Guid.NewGuid();
+
+		// referenced by guid alone first: no path, so nothing was queued to load
+		var promise = GameResource.GetPromise( typeof( SceneFile ), new ResourceId { Guid = guid } );
+
+		Assert.IsNotNull( promise );
+		Assert.IsTrue( string.IsNullOrEmpty( promise.ResourcePath ), "nothing has given it a path yet" );
+		Assert.IsNull( promise.Manifest, "and with no path there was nothing to start loading" );
+
+		// the file is there, but nobody has asked for it by path yet
+		WriteScene( currentPath, guid );
+		NativeEngine.g_pResourceSystem.InvalidateDatabase();
+
+		// a reference that knows both: the guid still identifies it, and this must get it loading
+		var withPath = GameResource.GetPromise( typeof( SceneFile ),
+			new ResourceId { Guid = guid, Path = currentPath } );
+
+		Assert.AreSame( promise, withPath, "the guid still identifies the resource" );
+		Assert.IsNotNull( promise.Manifest, "being handed a path must start the load" );
+
+		// the path stays a hint until the load reconciles it - Register owns our identity
+		Assert.IsTrue( string.IsNullOrEmpty( promise.ResourcePath ),
+			"a hinted path must not be adopted before the load confirms it" );
+	}
+
+	/// <summary>
 	/// A GUID reference may carry a stale path (eg. a scene saved before the referenced resource was last renamed).
 	/// Make sure that gets corrected on load.
 	/// </summary>
