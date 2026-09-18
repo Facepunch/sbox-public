@@ -65,11 +65,15 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 		TimeInterval,
 	}
 
+	const int NumCubemapFaces = 6;
+
 	SceneCubemap _sceneObject;
 	Texture _dynamicTexture;
 	int _bouncesLeft;
 	int _queuedFrames;
 	float _queuedTime;
+	int _spreadFace;
+	int _spreadIdleFrames;
 
 	public bool Dirty;
 
@@ -268,6 +272,19 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 	public int FrameInterval { get; set; } = 5;
 
 	/// <summary>
+	/// How many frames a full cubemap update is spread across.
+	/// <list type="bullet">
+	/// <item><b>1</b> All six faces at once. Biggest performance impact</item>
+	/// <item><b>6</b> One face per frame.</item>
+	/// <item><b>12</b> One face every other frame.</item>
+	/// <item><b>24</b> One face every fourth frame. Cheapest, and slowest to catch up.</item>
+	/// </list>
+	/// </summary>
+	[ShowIf( nameof( Mode ), EnvmapProbeMode.Realtime )]
+	[Property, Range( 1, 24 )]
+	public int FrameSpreading { get; set; } = 1;
+
+	/// <summary>
 	/// Minimum amount of reflection bounces to render when first enabled before settling, at cost of extra performance on load
 	/// Often times you don't need this
 	/// </summary>
@@ -311,6 +328,8 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 		Transform.OnTransformChanged -= OnTransformChanged;
 
 		Dirty = false;
+
+		ResetSpread();
 
 		_sceneObject?.Delete();
 		_sceneObject = null;
@@ -485,6 +504,8 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 		if ( _dynamicTexture is not null && _dynamicTexture.Width == cubemapSize && _dynamicTexture.UAVAccess )
 			return;
 
+		ResetSpread();
+
 		// Dispose old texture if it exists
 		_dynamicTexture?.Dispose();
 
@@ -497,6 +518,12 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 
 	internal void RenderCubemap()
 	{
+		if ( FrameSpreading > 1 && (_dynamicTexture?.UAVAccess ?? false) )
+		{
+			RenderCubemapSpread( _dynamicTexture, CubemapRendering.GGXFilterType.Fast, RenderExcludeTags );
+			return;
+		}
+
 		RenderCubemap( _dynamicTexture, CubemapRendering.GGXFilterType.Fast, RenderExcludeTags );
 	}
 
@@ -512,6 +539,44 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 			CubemapRendering.Render( Scene.SceneWorld, target, WorldTransform.WithScale( 1 ), ZNear.Clamp( 1, ZFar ), ZFar.Clamp( ZNear, 1024 * 16 ), filterType, excludeTags );
 		}
 
+		FinishUpdate();
+	}
+
+	/// <summary>
+	/// Renders one face per call, holding <see cref="Dirty"/> so the scene hands this probe another frame until all
+	/// six are done. See <see cref="FrameSpreading"/>.
+	/// </summary>
+	void RenderCubemapSpread( Texture target, CubemapRendering.GGXFilterType filterType, TagSet excludeTags )
+	{
+		int framesPerFace = Math.Max( 1, FrameSpreading / NumCubemapFaces );
+
+		// Idling between faces.
+		if ( _spreadIdleFrames > 0 )
+		{
+			_spreadIdleFrames--;
+			Dirty = true;
+			return;
+		}
+
+		CubemapRendering.RenderSingleFace( Scene.SceneWorld, target, WorldTransform.WithScale( 1 ), ZNear.Clamp( 1, ZFar ), ZFar.Clamp( ZNear, 1024 * 16 ), _spreadFace, filterType, excludeTags );
+
+		_spreadFace++;
+		_spreadIdleFrames = framesPerFace - 1;
+
+		// Mid-sequence (stay dirty so Scene.RenderEnvmaps picks this probe up again).
+		if ( _spreadFace < NumCubemapFaces )
+		{
+			Dirty = true;
+			return;
+		}
+
+		// Sixth face done, and RenderSingleFace has filtered. This update is now indistinguishable from a one-shot.
+		ResetSpread();
+		FinishUpdate();
+	}
+
+	void FinishUpdate()
+	{
 		// Just finished rendering, signal to component that we're done
 		_sceneObject?.RequiresUpdate = false;
 
@@ -523,5 +588,11 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 			_bouncesLeft--;
 
 		Dirty = false;
+	}
+
+	void ResetSpread()
+	{
+		_spreadFace = 0;
+		_spreadIdleFrames = 0;
 	}
 }
