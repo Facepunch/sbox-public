@@ -8,7 +8,13 @@ public partial class Panel
 	string PanelLayerRTName => field ??= $"PanelLayer.{GetHashCode()}";
 
 	internal bool HasPanelLayer => _paintCache.Layer is not null;
-	internal Rect PanelLayerBounds => _paintCache.Layer.Bounds;
+
+	/// <summary>
+	/// The offscreen target's extent, re-measured now rather than read from the paint cache: it
+	/// depends on the whole subtree, and a descendant that resizes - a text-width badge is the
+	/// everyday case - never dirties this panel's own geometry.
+	/// </summary>
+	internal Rect PanelLayerBounds => _paintCache.Layer.Measure( this );
 
 	/// <summary>
 	/// Called by Render after closing a panel's offscreen target to composite it into the parent destination.
@@ -17,7 +23,9 @@ public partial class Panel
 	void DrawLayer( Painter painter )
 	{
 		var layer = _paintCache.Layer;
-		painter.Composite( new RenderTargetHandle { Name = PanelLayerRTName }, PanelLayerBounds, layer.Filter, layer.Mask,
+		// Bounds, not PanelLayerBounds: Render measured the subtree when it opened the target,
+		// and the composite has to land on exactly the rect that was rendered into.
+		painter.Composite( new RenderTargetHandle { Name = PanelLayerRTName }, layer.Bounds, layer.Filter, layer.Mask,
 			layer.MaskScope, CollectionsMarshal.AsSpan( layer.DropShadows ), layer.BorderWidth, layer.BorderColor );
 	}
 
@@ -33,6 +41,12 @@ public partial class Panel
 		Texture _maskImage;
 		Vector2 _maskSize;
 		int _maskVersion;
+
+		/// <summary>
+		/// Re-measure the subtree and remember it, for the composite that follows. Called once a
+		/// frame, from <see cref="Panel.PanelLayerBounds"/>.
+		/// </summary>
+		internal Rect Measure( Panel panel ) => Bounds = CalculateBounds( panel );
 
 		internal bool MaskSizeChanged()
 		{
