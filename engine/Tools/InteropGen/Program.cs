@@ -59,6 +59,11 @@ public static class Program
 	/// </summary>
 	public static bool ProcessManifest( string directory, bool skipNative = false, Action<int, int> progress = null )
 	{
+		System.Globalization.CultureInfo.DefaultThreadCurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
+		System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = System.Globalization.CultureInfo.InvariantCulture;
+		System.Threading.Thread.CurrentThread.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
+		System.Threading.Thread.CurrentThread.CurrentUICulture = System.Globalization.CultureInfo.InvariantCulture;
+
 		string filename = System.IO.Path.Combine( directory, "manifest.def" );
 		if ( !System.IO.File.Exists( filename ) )
 		{
