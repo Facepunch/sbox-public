@@ -56,7 +56,13 @@ public partial class Panel
 		if ( previousSibling.SiblingIndex == SiblingIndex - 1 )
 			return;
 
-		Parent.SetChildIndex( this, previousSibling.SiblingIndex );
+		var targetIndex = previousSibling.SiblingIndex;
+		if ( SiblingIndex > previousSibling.SiblingIndex )
+		{
+			targetIndex++;
+		}
+
+		Parent.SetChildIndex( this, targetIndex );
 	}
 
 	/// <summary>
@@ -83,6 +89,7 @@ public partial class Panel
 		_children.Remove( child );
 		_children.Insert( newIndex, child );
 		UpdateChildrenIndexes();
+		_renderChildrenDirty = true;
 
 		Assert.Equals( child.SiblingIndex, newIndex );
 	}
