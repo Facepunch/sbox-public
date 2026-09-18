@@ -96,7 +96,7 @@ partial class GameObjectNode : TreeNode<GameObject>
 
 		float opacity = 0.9f;
 
-		if ( !Value.Active ) opacity *= 0.5f;
+		if ( !Value.Active || IsAncestorDisabled( Value ) ) opacity *= 0.5f;
 
 		Color pen = Theme.TextControl;
 		string icon = "layers";
@@ -310,14 +310,56 @@ partial class GameObjectNode : TreeNode<GameObject>
 
 		}
 
-		if ( Value.Tags.Has( "hidden" ) )
+		var disabled = !Value.Enabled;
+		if ( disabled || isHovered || selected )
 		{
-			var eyeRect = item.Rect;
-			eyeRect.Right -= 4;
-			eyeRect.Left = eyeRect.Right - 18;
+			var eyeRect = GetEyeRect( item.Rect );
+			float eyeAlpha = disabled ? 1.0f : (isHovered ? 0.7f : 0.4f);
+			Paint.Pen = Theme.TextControl.WithAlphaMultiplied( eyeAlpha );
+			Paint.DrawIcon( eyeRect, disabled ? "visibility_off" : "visibility", 14, TextFlag.Center );
+		}
+	}
 
-			Paint.Pen = Theme.TextControl;
-			Paint.DrawIcon( eyeRect, "visibility_off", 14, TextFlag.Center );
+	static bool IsAncestorDisabled( GameObject go )
+	{
+		for ( var p = go?.Parent; p.IsValid() && p is not Scene; p = p.Parent )
+		{
+			if ( !p.Enabled ) return true;
+		}
+		return false;
+	}
+
+	static Rect GetEyeRect( Rect row )
+	{
+		row.Right -= 4;
+		row.Left = row.Right - 18;
+		return row;
+	}
+
+	public override bool OnItemPressed( VirtualWidget item, MouseEvent e )
+	{
+		if ( e.LeftMouseButton && Value.IsValid() && Value is not Scene )
+		{
+			var eyeRect = GetEyeRect( item.Rect );
+			if ( eyeRect.IsInside( e.LocalPosition ) )
+			{
+				ToggleEnabled();
+				return false;
+			}
+		}
+
+		return base.OnItemPressed( item, e );
+	}
+
+	void ToggleEnabled()
+	{
+		using var scope = SceneEditorSession.Scope();
+
+		using ( SceneEditorSession.Active.UndoScope( Value.Enabled ? "Disable GameObject" : "Enable GameObject" )
+			.WithGameObjectChanges( new[] { Value }, GameObjectUndoFlags.All )
+			.Push() )
+		{
+			Value.Enabled = !Value.Enabled;
 		}
 	}
 
