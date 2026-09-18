@@ -36,6 +36,11 @@ internal unsafe interface IToolsDll
 	/// </summary>
 	public Task LoadProject();
 
+	/// <summary>
+	/// Enroll a runtime package's assemblies into the tools type library.
+	/// </summary>
+	public void LoadPackageAssemblies( Package package );
+
 	public object InspectedObject { get; set; }
 
 	/// <summary>
