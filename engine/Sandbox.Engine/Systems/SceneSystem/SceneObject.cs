@@ -64,6 +64,7 @@ public partial class SceneObject : IHandle
 			var flags = Rendering.SceneObjectFlags.CastShadows | Rendering.SceneObjectFlags.IsLoaded;
 			var typeFlags = ESceneObjectTypeFlags.NONE;
 			MeshSystem.CreateSceneObject( model.native, transform, null, flags, typeFlags, sceneWorld, 0x1 );
+			Tags.RemoveAll();
 			Transform = transform;
 		}
 	}
