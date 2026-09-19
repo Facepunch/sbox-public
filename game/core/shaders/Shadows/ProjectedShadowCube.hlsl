@@ -149,7 +149,7 @@ struct ProjectedShadowCube
 		return shadow.LightPosition + ( fragPos - shadow.LightPosition ) * min( flOccluderViewZ / shadowPosition.w, 1.0f );
 	}
 
-	static float GetVisibility( uint shadowCubeIndex, float3 worldPosition )
+	static float GetVisibility( uint shadowCubeIndex, float3 worldPosition, float3 normalWs )
 	{
 		const uint InvalidShadowIndex = 0xFFFFFFFF;
 
@@ -160,7 +160,7 @@ struct ProjectedShadowCube
 
 		ProjectedShadowCubeStruct shadow = ProjectedCubeShadows[shadowCubeIndex];
 		
-		worldPosition = ApplyShadowNormalOffset( worldPosition, 2.0f * length( shadow.LightPosition - worldPosition ) * shadow.InvShadowMapRes, shadow.ShadowHardness );
+		worldPosition = ApplyShadowNormalOffset( worldPosition, normalWs, 2.0f * length( shadow.LightPosition - worldPosition ) * shadow.InvShadowMapRes, shadow.ShadowHardness );
 
 		float3 worldToLight = shadow.LightPosition - worldPosition;
 		float distance = length( worldToLight );
@@ -240,6 +240,13 @@ struct ProjectedShadowCube
 		shadowVisibility = shadowVisibility * shadowVisibility;
 
 		return saturate( shadowVisibility );
+	}
+
+	// For callers that have no receiver normal at hand. The normal comes from screen-space derivatives,
+	// so this is only valid in uniform control flow - from inside a per-light loop, use the overload above.
+	static float GetVisibility( uint shadowCubeIndex, float3 worldPosition )
+	{
+		return GetVisibility( shadowCubeIndex, worldPosition, ComputeShadowReceiverNormal( worldPosition ) );
 	}
 }
 

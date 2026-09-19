@@ -303,7 +303,7 @@ float3 GetTransmissiveThickness( const FinalCombinerInput_t f, const BinnedLight
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
-void ComputeDirectLightingForLight( const FinalCombinerInput_t f, const BinnedLight lightData, inout float3 vDiffuse, inout float3 vSpecular, inout float3 vTransmissive, bool bBaked = false )
+void ComputeDirectLightingForLight( const FinalCombinerInput_t f, float3 vReceiverNormalWs, const BinnedLight lightData, inout float3 vDiffuse, inout float3 vSpecular, inout float3 vTransmissive, bool bBaked = false )
 {
 	const float2 vDiffuseExponent = ( ( 1.0 - f.vRoughness.xy ) * 0.8 ) + 0.6; // 0.8 and 0.6 are magic numbers;
 
@@ -359,11 +359,11 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, const BinnedLi
 	{
 		if ( lightData.Type == LightType::LightTypePoint )
 		{
-			flShadowScalar = ProjectedShadowCube::GetVisibility( shadowIndex, f.vPositionWs.xyz );
+			flShadowScalar = ProjectedShadowCube::GetVisibility( shadowIndex, f.vPositionWs.xyz, vReceiverNormalWs );
 		}
 		else if ( lightData.Type == LightType::LightTypeSpot )
 		{
-			flShadowScalar = ProjectedShadow::GetVisibility( shadowIndex, f.vPositionWs.xyz, f.vPositionSs.xy );
+			flShadowScalar = ProjectedShadow::GetVisibility( shadowIndex, f.vPositionWs.xyz, vReceiverNormalWs, f.vPositionSs.xy );
 		}
 
 		// Dont do this fancy SSS stuff with shadows disabled else it looks shit, we calculate the thickness from the light surface
@@ -375,7 +375,7 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, const BinnedLi
 	// Directional lights use their own CSM shadow path
 	if ( lightData.Type == LightType::LightTypeDirectional && g_DirectionalLightCascadeCount > 0 )
 	{
-		flShadowScalar = DirectionalLightShadow::GetVisibility( f.vPositionWs.xyz, f.vPositionSs );
+		flShadowScalar = DirectionalLightShadow::GetVisibility( f.vPositionWs.xyz, vReceiverNormalWs, f.vPositionSs );
 	}
 
 	#if ( !S_TRANSMISSIVE )
@@ -404,7 +404,7 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, const BinnedLi
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
-void ComputeDirectionalLight( const FinalCombinerInput_t f, inout float3 vDiffuse, inout float3 vSpecular, inout float3 vTransmissive )
+void ComputeDirectionalLight( const FinalCombinerInput_t f, float3 vReceiverNormalWs, inout float3 vDiffuse, inout float3 vSpecular, inout float3 vTransmissive )
 {
 	if ( !g_DirectionalLightEnabled )
 		return;
@@ -422,7 +422,7 @@ void ComputeDirectionalLight( const FinalCombinerInput_t f, inout float3 vDiffus
 	// Only sample shadows if cascades exist
 	if ( g_DirectionalLightCascadeCount > 0 )
 	{
-		flShadowScalar = DirectionalLightShadow::GetVisibility( f.vPositionWs.xyz, f.vPositionSs );
+		flShadowScalar = DirectionalLightShadow::GetVisibility( f.vPositionWs.xyz, vReceiverNormalWs, f.vPositionSs );
 	}
 
 	float3 vTransmissiveThickness = 1.0f;
@@ -462,11 +462,16 @@ void ComputeDirectLighting( inout LightingTerms_t o, const FinalCombinerInput_t 
 	o.vSpecular 	= float3( 0.0, 0.0, 0.0 );
 	o.vTransmissive = float3( 0.0, 0.0, 0.0 );
 
+	// Receiver normal for the shadow normal offset. It comes from screen-space derivatives, which are only
+	// defined in uniform control flow: take it once here, never inside the per-light loop below, where the
+	// lanes of a quad diverge whenever neighbouring pixels sit in different clusters.
+	const float3 vReceiverNormalWs = ComputeShadowReceiverNormal( f.vPositionWs.xyz );
+
 	// Directional light fast path — skip for baked surfaces since they get the
 	// directional light through the indexed baked light loop with per-texel strength
 	// and CSM shadows are sampled inside ComputeDirectLightingForLight.
 	if ( !LightmappedLight::UsesLightmaps() && !ProbeLight::UsesProbes() )
-		ComputeDirectionalLight( f, o.vDiffuse.rgb, o.vSpecular.rgb, o.vTransmissive.rgb );
+		ComputeDirectionalLight( f, vReceiverNormalWs, o.vDiffuse.rgb, o.vSpecular.rgb, o.vTransmissive.rgb );
 
 	// Cascade debug visualization — always runs regardless of baked/dynamic path
 	if ( DirectionalLightDebug > 0 && g_DirectionalLightCascadeCount > 0 )
@@ -483,12 +488,12 @@ void ComputeDirectLighting( inout LightingTerms_t o, const FinalCombinerInput_t 
 	{
 		const uint index = Cluster::LoadItem( lightRange, i );
 		const BinnedLight lightData = DynamicLightConstantByIndex( index );
-		ComputeDirectLightingForLight( f, lightData, o.vDiffuse.rgb, o.vSpecular.rgb, o.vTransmissive.rgb );
+		ComputeDirectLightingForLight( f, vReceiverNormalWs, lightData, o.vDiffuse.rgb, o.vSpecular.rgb, o.vTransmissive.rgb );
 	}
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
-void CalcBakedLightingForLight( const FinalCombinerInput_t finalCombinerInput, int iLightIndex, float flStrength,
+void CalcBakedLightingForLight( const FinalCombinerInput_t finalCombinerInput, float3 vReceiverNormalWs, int iLightIndex, float flStrength,
 	inout float3 io_vDiffuse, inout float3 io_vSpecular, inout float3 io_vTransmissive )
 {
 	[branch]
@@ -500,7 +505,7 @@ void CalcBakedLightingForLight( const FinalCombinerInput_t finalCombinerInput, i
 		float3 vSpecular = 0;
 		float3 vTransmissive = 0;
 
-		ComputeDirectLightingForLight( finalCombinerInput, lightData, vDiffuse, vSpecular, vTransmissive, true );
+		ComputeDirectLightingForLight( finalCombinerInput, vReceiverNormalWs, lightData, vDiffuse, vSpecular, vTransmissive, true );
 
 		io_vDiffuse += vDiffuse.xyz * flStrength;
 		io_vSpecular += vSpecular.xyz * flStrength;
@@ -563,6 +568,9 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 	bool bHasBakedLighting = true;
 	bool bHasCubeBrightnessNormalization = true;
 
+	// Shadow receiver normal for the baked light loops below. Derivatives are only defined in uniform
+	// control flow, so take it here rather than inside CalcBakedLightingForLight's per-light branch.
+	const float3 vReceiverNormalWs = ComputeShadowReceiverNormal( vPositionWs.xyz );
 
 	if ( LightmappedLight::UsesLightmaps() )
 	{
@@ -609,7 +617,7 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 
 		for ( int j = 0; j < 4; j++ )
 		{
-			CalcBakedLightingForLight( finalCombinerData, vLightIndices[j], vLightStrengths[j],
+			CalcBakedLightingForLight( finalCombinerData, vReceiverNormalWs, vLightIndices[j], vLightStrengths[j],
 				lightingTerms.vDiffuse, lightingTerms.vSpecular, lightingTerms.vTransmissive );
 		}
 	}
@@ -674,7 +682,7 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 
 		for ( int j = 0; j < 4; j++ )
 		{
-			CalcBakedLightingForLight( finalCombinerData, vLightIndices[j], vLightStrengths[j],
+			CalcBakedLightingForLight( finalCombinerData, vReceiverNormalWs, vLightIndices[j], vLightStrengths[j],
 				lightingTerms.vDiffuse, lightingTerms.vSpecular, lightingTerms.vTransmissive );
 		}
 
