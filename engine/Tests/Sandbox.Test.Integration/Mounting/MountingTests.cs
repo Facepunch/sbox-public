@@ -125,4 +125,24 @@ public partial class MountingTest
 		}
 	}
 
+	/// <summary>
+	/// Binary resources keep their registered path (no engine extension) and return the raw bytes.
+	/// </summary>
+	[TestMethod]
+	public async Task BinaryResource()
+	{
+		using var system = new MountHost( Config );
+		system.RegisterTypes( GetType().Assembly );
+		var quake = system.GetSource( "testgame" );
+		await system.Mount( "testgame" );
+
+		var target = quake.Resources.Where( x => x.Type == ResourceType.Binary ).FirstOrDefault();
+
+		Assert.IsNotNull( target, "binary resource is null - no binaries??" );
+		Assert.AreEqual( "maps/testlevel.bsp", target.RelativePath, "Binary paths shouldn't gain an engine extension" );
+
+		var bytes = (byte[])await target.GetOrCreate();
+		CollectionAssert.AreEqual( TestGameBinaryResource.Bytes, bytes );
+	}
+
 }

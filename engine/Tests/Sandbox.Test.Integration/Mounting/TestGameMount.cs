@@ -20,6 +20,7 @@ public partial class TestGameMount : Sandbox.Mounting.BaseGameMount
 	{
 		context.Add( ResourceType.Texture, "/gfx/sprites/mario.png", new TestGameTextureResource() );
 		context.Add( ResourceType.Scene, "/maps/testlevel", new TestGameSceneResource() );
+		context.Add( ResourceType.Binary, "/maps/testlevel.bsp", new TestGameBinaryResource() );
 
 		IsMounted = true;
 		return Task.CompletedTask;
@@ -59,4 +60,12 @@ public class TestGameSceneResource : SceneLoader<TestGameMount>
 		var child = new GameObject( true, "MountedChild" );
 		child.Parent = root;
 	}
+}
+
+
+public class TestGameBinaryResource : ResourceLoader<TestGameMount>
+{
+	public static readonly byte[] Bytes = new byte[] { 1, 2, 3, 4, 5 };
+
+	protected override object Load() => Bytes;
 }
