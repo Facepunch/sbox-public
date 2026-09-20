@@ -9,12 +9,12 @@ struct ScreenSpaceAmbientOcclusion
     // Does depth comparison to find the best sample in MSAA
     static float Sample( float4 ScreenPosition )
     {
-        uint index = Bindless::GetPipelineTextureIndex(PipelineTextureSlotAO);
+        uint index = Bindless::GetPipelineTextureIndex( asDynamicUniform( PipelineTextureSlotAO ) );
 
         if ( index == 0 )
             return 1.0f; // Ambient occlusion is disabled
 
-        Texture2D tAO = Bindless::GetTexture2D( UniformIndex( index ) );
+        Texture2D tAO = Bindless::GetTexture2D( asDynamicUniform( UniformIndex( index ) ) );
 
         return MSAAUtils::SampleRed( tAO, ScreenPosition );
     }
