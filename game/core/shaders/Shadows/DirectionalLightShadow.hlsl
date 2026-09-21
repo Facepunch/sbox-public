@@ -76,6 +76,10 @@ struct DirectionalLightShadow
 		pcfInput.Hardness = g_DirectionalLightCascadeHardness[cascadeIndex];
         pcfInput.ScreenPos = screenPos;
 
+#ifndef FORCE_BILINEAR_PCF_SHADOWS_ONLY
+        if ( UserShadowFilterQuality >= 3 )
+            return SampleDirectionalShadowTent16( pcfInput );
+#endif
         return SampleShadowPCF( pcfInput );
     }
 
