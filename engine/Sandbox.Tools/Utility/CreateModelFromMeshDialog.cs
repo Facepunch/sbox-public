@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Text.Json.Serialization;
 
@@ -67,6 +68,20 @@ public class CreateModelFromMeshDialog : Widget
 		public float ImportScale { get; set; } = 1.0f;
 
 		/// <summary>
+		/// Try generating materials for each material slot in the model. Textures must be named after
+		/// the name of a material slot, otherwise it will be left empty and material won't be generated.
+		/// Texture name suffix must match whatever name is expected by the shader (_color, _normal, etc..) 
+		/// </summary>
+		[Property, Title( "Try Generating Materials" )]
+		public bool GenerateMaterials { get; set; } = false;
+
+		/// <summary>
+		/// Which shader should be used for generated materials
+		/// </summary>
+		[Property, Title( "Material Shader" ), ResourceType( "shader" )]
+		public string MaterialShader { get; set; } = MaterialGenerator.DefaultShader;
+
+		/// <summary>
 		/// Add a material group that overrides every material on the model
 		/// </summary>
 		[Property, Title( "Globally Override Materials" )]
@@ -81,51 +96,159 @@ public class CreateModelFromMeshDialog : Widget
 
 	internal static void ApplyMaterialOverride( ImportOptions options, CModelDoc document )
 	{
+		// generated materials write their own non-global material group
+		if ( options.GenerateMaterials )
+			return;
+
 		if ( !options.GlobalMaterialOverride )
 			return;
 
 		document.AddDefaultMaterialGroup( options.GlobalMaterial );
 	}
 
-	internal class MaterialOverrideRow
+	/// <summary>
+	/// The shader and suffix map to generate materials with, plus cached discovered texture sets
+	/// </summary>
+	internal sealed class MaterialGenerationPlan
+	{
+		public string ShaderPath { get; init; }
+		public Dictionary<string, string> SuffixMap { get; init; }
+
+		readonly Dictionary<string, List<MaterialGenerator.TextureSet>> _setsByRoot = new( StringComparer.OrdinalIgnoreCase );
+
+		// returns null if material generation is disabled, or the shader has no usable texture inputs
+		public static MaterialGenerationPlan Create( ImportOptions options )
+		{
+			if ( !options.GenerateMaterials )
+				return null;
+
+			var shaderPath = string.IsNullOrWhiteSpace( options.MaterialShader )
+				? MaterialGenerator.DefaultShader
+				: options.MaterialShader;
+
+			var suffixMap = MaterialGenerator.GetSuffixMap( shaderPath );
+			if ( suffixMap is null || suffixMap.Count == 0 )
+				return null;
+
+			return new MaterialGenerationPlan { ShaderPath = shaderPath, SuffixMap = suffixMap };
+		}
+
+		public List<MaterialGenerator.TextureSet> SetsFor( string searchRoot )
+		{
+			if ( _setsByRoot.TryGetValue( searchRoot, out var sets ) )
+				return sets;
+
+			sets = MaterialGenerator.DiscoverTextureSets( searchRoot, SuffixMap.Keys );
+			_setsByRoot[searchRoot] = sets;
+			return sets;
+		}
+	}
+
+	/// <summary>
+	/// Generate a material for each of the model's material slots that has matching textures, and
+	/// remap the slot to it. Slots with no match are left empty, user should fix them themselves
+	/// </summary>
+	internal static void ApplyGeneratedMaterials( MaterialGenerationPlan plan, CModelDoc document, string outputPath )
+	{
+		if ( plan is null )
+			return;
+
+		var slots = document.GetInputMaterials()
+			?.Split( '\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries );
+
+		if ( slots is null || slots.Length == 0 )
+			return;
+
+		// attach the group upfront so the model always has one to autofill into
+		var materialGroup = document.FindOrCreateDefaultMaterialGroup();
+		if ( !materialGroup.IsValid )
+			return;
+
+		// explicit remaps and a global override are mutually exclusive
+		materialGroup.SetHasGlobalDefault( false );
+
+		var sets = plan.SetsFor( Path.GetDirectoryName( outputPath ) );
+
+		foreach ( var slot in slots )
+		{
+			if ( materialGroup.FindReplacementIndex( slot ) != -1 )
+				continue;
+
+			var set = MaterialGenerator.FindSetForSlot( sets, slot );
+			if ( set is null )
+				continue;
+
+			var materialPath = MaterialGenerator.GetOrCreateMaterial( set, plan.ShaderPath, plan.SuffixMap );
+			if ( materialPath is null )
+				continue;
+
+			materialGroup.AddRemap( slot, materialPath );
+		}
+	}
+
+	/// <summary>
+	/// Measures the total height of conditional rows and shows/hides them so dialog window size
+	/// stays correct regardless of which properties are visible
+	/// </summary>
+	internal sealed class ConditionalRowGroup
 	{
 		readonly Widget _dialog;
-		readonly Widget _row;
-		float _expandedHeight;
-		float _collapsedHeight;
-		bool _visible = true;
+		readonly List<(Widget Row, Func<bool> IsVisible)> _rows = [];
+		readonly Dictionary<int, float> _heightForMask = [];
+		bool _measured;
 
-		public MaterialOverrideRow( Widget dialog, Widget row )
+		public ConditionalRowGroup( Widget dialog )
 		{
 			_dialog = dialog;
-			_row = row;
 		}
 
-		/// <summary>
-		/// Recalculate window height after material override row is shown or hidden
-		/// </summary>
-		public void Measure( bool visible )
+		public void Add( Widget row, Func<bool> isVisible )
 		{
-			_dialog.AdjustSize();
-			_expandedHeight = _dialog.Height;
-
-			_row.Hidden = true;
-			_dialog.AdjustSize();
-			_collapsedHeight = _dialog.Height;
-
-			_visible = visible;
-			_row.Hidden = !visible;
-			_dialog.FixedHeight = visible ? _expandedHeight : _collapsedHeight;
+			if ( row is not null )
+				_rows.Add( (row, isVisible) );
 		}
 
-		public void Update( bool visible )
+		public void Measure()
 		{
-			if ( _visible == visible )
+			if ( _rows.Count == 0 )
+			{
+				_dialog.AdjustSize();
+				_dialog.FixedHeight = _dialog.Height;
 				return;
+			}
 
-			_visible = visible;
-			_row.Hidden = !visible;
-			_dialog.FixedHeight = visible ? _expandedHeight : _collapsedHeight;
+			for ( var mask = 0; mask < 1 << _rows.Count; mask++ )
+			{
+				Apply( mask );
+				_dialog.AdjustSize();
+				_heightForMask[mask] = _dialog.Height;
+			}
+
+			_measured = true;
+			Update();
+		}
+
+		public void Update()
+		{
+			var mask = 0;
+			for ( var i = 0; i < _rows.Count; i++ )
+			{
+				if ( _rows[i].IsVisible() )
+					mask |= 1 << i;
+			}
+
+			Apply( mask );
+
+			if ( _measured && _heightForMask.TryGetValue( mask, out var height ) )
+				_dialog.FixedHeight = height;
+		}
+
+		void Apply( int mask )
+		{
+			for ( var i = 0; i < _rows.Count; i++ )
+			{
+				_rows[i].Row.Hidden = (mask & (1 << i)) == 0;
+			}
 		}
 	}
 
@@ -137,7 +260,7 @@ public class CreateModelFromMeshDialog : Widget
 	readonly FolderEdit _folderEdit;
 	readonly Widget _fileRow;
 	readonly Widget _folderRow;
-	readonly MaterialOverrideRow _materialRow;
+	readonly ConditionalRowGroup _conditionalRows;
 	readonly SerializedObject _serializedOptions;
 
 	public CreateModelFromMeshDialog( List<Asset> meshFiles ) : base( null )
@@ -174,15 +297,29 @@ public class CreateModelFromMeshDialog : Widget
 
 		_serializedOptions = _options.GetSerialized();
 
+		_conditionalRows = new ConditionalRowGroup( this );
+
 		foreach ( var prop in _serializedOptions )
 		{
 			var row = AddRow( prop.DisplayName, ControlWidget.Create( prop ) );
 
-			if ( prop.Name == nameof( ImportOptions.GlobalMaterial ) )
-				_materialRow = new MaterialOverrideRow( this, row );
+			switch ( prop.Name )
+			{
+				case nameof( ImportOptions.MaterialShader ):
+					_conditionalRows.Add( row, () => _options.GenerateMaterials );
+					break;
+
+				case nameof( ImportOptions.GlobalMaterialOverride ):
+					_conditionalRows.Add( row, () => !_options.GenerateMaterials );
+					break;
+
+				case nameof( ImportOptions.GlobalMaterial ):
+					_conditionalRows.Add( row, () => !_options.GenerateMaterials && _options.GlobalMaterialOverride );
+					break;
+			}
 		}
 
-		_serializedOptions.OnPropertyChanged += _ => _materialRow?.Update( _options.GlobalMaterialOverride );
+		_serializedOptions.OnPropertyChanged += _ => _conditionalRows.Update();
 
 		var defaultDir = Path.GetDirectoryName( meshFiles[0].AbsolutePath );
 		var defaultFile = Path.ChangeExtension( meshFiles[0].AbsolutePath, ".vmdl" );
@@ -216,15 +353,7 @@ public class CreateModelFromMeshDialog : Widget
 
 		FixedWidth = 420;
 
-		if ( _materialRow is not null )
-		{
-			_materialRow.Measure( _options.GlobalMaterialOverride );
-		}
-		else
-		{
-			AdjustSize();
-			FixedHeight = Height;
-		}
+		_conditionalRows.Measure();
 
 		var geo = EditorCookie.GetString( "CreateModelFromMeshDialog.Geometry", null );
 		if ( geo is not null )
@@ -271,13 +400,16 @@ public class CreateModelFromMeshDialog : Widget
 
 		Close();
 
+		// shared across every model in this batch so the asset scan and any materials we create is reused
+		var plan = MaterialGenerationPlan.Create( _options );
+
 		if ( _meshFiles.Count == 1 )
 		{
 			var outputPath = _fileEdit.Text;
 			if ( string.IsNullOrWhiteSpace( outputPath ) )
 				return;
 
-			CreateModel( _meshFiles[0], outputPath );
+			CreateModel( _meshFiles[0], outputPath, plan );
 		}
 		else
 		{
@@ -294,12 +426,12 @@ public class CreateModelFromMeshDialog : Widget
 					continue;
 				}
 
-				CreateModel( mesh, outputPath );
+				CreateModel( mesh, outputPath, plan );
 			}
 		}
 	}
 
-	void CreateModel( Asset mesh, string outputPath )
+	void CreateModel( Asset mesh, string outputPath, MaterialGenerationPlan plan )
 	{
 		if ( !g_pToolFramework2.InitEngineTool( "modeldoc_editor" ) )
 			return;
@@ -309,6 +441,7 @@ public class CreateModelFromMeshDialog : Widget
 		g_pModelDocUtils.InitFromMesh( document, mesh.Path );
 
 		ApplyMaterialOverride( _options, document );
+		ApplyGeneratedMaterials( plan, document, outputPath );
 
 		if ( _options.ImportScale > 0.0f && !_options.ImportScale.AlmostEqual( 1.0f ) )
 		{

@@ -7,6 +7,10 @@ native accessor qApp as Native.QApp
 {
 	void setStyleSheet( qstring style );
 	void beep();
+	inline bool IsApplicationActive()
+	{
+		return qApp->applicationState() == Qt::ApplicationActive;
+	}
 	void alert( QWidget widget, int msec );
 
 	Editor.QtKeyboardModifiers queryKeyboardModifiers();

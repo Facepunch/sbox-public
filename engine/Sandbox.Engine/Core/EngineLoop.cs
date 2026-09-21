@@ -3,7 +3,6 @@ using Sandbox.Audio;
 using Sandbox.Engine;
 using Sandbox.Engine.Settings;
 using Sandbox.Network;
-using Sandbox.Rendering;
 using Sandbox.TextureLoader;
 using Sandbox.UI;
 using Sandbox.Utility;
@@ -16,6 +15,7 @@ namespace Sandbox;
 internal static class EngineLoop
 {
 	static double previousTime;
+	static readonly FramePacer framePacer = new();
 
 	// Loop iterations vs frames that actually rendered. Native skips client output when it can't present.
 	internal static long LoopFrames;
@@ -72,6 +72,15 @@ internal static class EngineLoop
 
 			try
 			{
+				GameWindow.Current?.ApplyPendingMode();
+			}
+			catch ( System.Exception e )
+			{
+				Log.Error( e );
+			}
+
+			try
+			{
 				using ( _frameEnd.Start() )
 				{
 					FrameEnd();
@@ -84,142 +93,26 @@ internal static class EngineLoop
 			}
 		}
 
-		SleepForFrameRateClamp( frameTimer );
+		PerformanceStats.Timings.Idle.AddMilliseconds( framePacer.Wait( FrameRateLimit.FramesPerSecond ) );
+		DebugOverlay.FrameTimeGraph.Sample( frameTimer.ElapsedMilliSeconds );
 
 		previousTime = time;
 	}
 
-	static Superluminal _sleepForFrameCap = new Superluminal( "Sleep For Max FPS", Color.Gray );
-
-	static double GetMaxFrameRate()
+	internal static FrameRateLimit FrameRateLimit
 	{
-		if ( Application.IsBenchmark ) return -1;
-		if ( Application.IsHeadless ) return 60;
-
-		double effectiveFps = RenderSettings.Instance.MaxFrameRate;
-		MaxFrameRateSource = "fps_max";
-
-		// Menu and inactive caps tighten the active cap (and each other), applying even when it's uncapped.
-		if ( Game.IsMainMenuVisible ) effectiveFps = TightenCap( effectiveFps, RenderSettings.Instance.MaxFrameRateMenu, "fps_max_menu" );
-
-		if ( !InputSystem.IsAppActive() ) effectiveFps = TightenCap( effectiveFps, RenderSettings.Instance.MaxFrameRateInactive, "fps_max_inactive" );
-
-		// Under vsync, a cap above the refresh lets the main thread race ahead of the present queue
-		// and stall on it (bimodal frame delivery / judder). Clamp to the refresh instead. No-op when
-		// the cap is already at/below it.
-		if ( RenderSettings.Instance.VSync )
+		get
 		{
-			double refresh = GetDisplayRefreshRate();
-			if ( refresh > 0 && (effectiveFps <= 0 || refresh < effectiveFps) )
+			if ( Application.IsBenchmark ) return new( -1, "benchmark" );
+			if ( Application.IsHeadless ) return new( 60, "headless" );
+
+			if ( GameSurface.Current is { } surface )
 			{
-				effectiveFps = refresh;
-				MaxFrameRateSource = "vsync";
+				var vsync = surface.VSync;
+				return FrameRateLimit.FromSettings( WindowInput.IsAppActive(), vsync, vsync ? surface.RefreshRate : 0 );
 			}
+			return new( -1, "uncapped" );
 		}
-
-		return effectiveFps;
-	}
-
-	// Which cap won, for overlay_fps.
-	internal static string MaxFrameRateSource { get; private set; } = "fps_max";
-
-	// Lower of two fps caps, treating <= 0 as unlimited so a cap still applies when the other is uncapped.
-	static double TightenCap( double current, int candidate, string source )
-	{
-		if ( candidate <= 0 ) return current;
-
-		if ( current <= 0 || candidate < current )
-		{
-			MaxFrameRateSource = source;
-			return candidate;
-		}
-
-		return current;
-	}
-
-	static double cachedRefreshRate;
-	static FastTimer refreshRateTimer = FastTimer.StartNew();
-
-	/// <summary>
-	/// Desktop refresh rate (Hz) of the monitor the game window is on, cached and re-queried every
-	/// couple of seconds so moving the window is picked up. Returns 0 if unknown (treat as "no clamp").
-	/// </summary>
-	static double GetDisplayRefreshRate()
-	{
-		if ( cachedRefreshRate <= 0 || refreshRateTimer.ElapsedSeconds > 2.0 )
-		{
-			int w = 0, h = 0;
-			uint hz = 0;
-			EngineGlobal.Plat_GetDesktopResolution( EngineGlobal.Plat_GetEngineWindowMonitorIndex(), ref w, ref h, ref hz );
-			cachedRefreshRate = hz;
-			refreshRateTimer = FastTimer.StartNew();
-		}
-
-		return cachedRefreshRate;
-	}
-
-	// For overlay_fps.
-	internal static double DisplayRefreshRate => GetDisplayRefreshRate();
-	internal static double EffectiveMaxFrameRate => GetMaxFrameRate();
-
-	// Drift-compensated pacing: wake each frame on an absolute 1/fps grid rather than padding from the
-	// frame's own start, so per-frame overhead doesn't accumulate into drift. Resyncs after a hitch.
-	static FastTimer pacingClock = FastTimer.StartNew();
-	static double nextFrameDeadlineMs;
-
-	static void SleepForFrameRateClamp( FastTimer frameTime )
-	{
-		double frameSleepMs = 0;
-		double maxFps = GetMaxFrameRate();
-
-		double targetMilliseconds = maxFps > 0 ? 1000.0 / maxFps : 0;
-		if ( targetMilliseconds > 100 ) targetMilliseconds = 100; // min is 10fps
-
-		if ( targetMilliseconds <= 0 )
-		{
-			nextFrameDeadlineMs = 0; // uncapped — drop the grid
-		}
-		else
-		{
-			double nowMs = pacingClock.ElapsedMilliSeconds;
-
-			// Next grid point is one period after the previous deadline (not after 'now') — the drift
-			// compensation. Seed from 'now' on the first frame.
-			double deadlineMs = nextFrameDeadlineMs > 0 ? nextFrameDeadlineMs + targetMilliseconds : nowMs + targetMilliseconds;
-
-			// More than a period behind (a hitch)? Resync to 'now' rather than catch up in a burst.
-			if ( nowMs - deadlineMs > targetMilliseconds )
-				deadlineMs = nowMs;
-
-			if ( nowMs < deadlineMs )
-			{
-				using var inst = _sleepForFrameCap.Start();
-
-				double sleepMs = deadlineMs - nowMs;
-
-				if ( sleepMs > 1.0 )
-				{
-					System.Threading.Thread.Sleep( (int)sleepMs );
-				}
-
-				// sleep is inaccurate (to nearest 1ms, we call timeBeginPeriod in engine)
-				// so bleed off any residual fractions of a millisecond
-				while ( pacingClock.ElapsedMilliSeconds < deadlineMs )
-				{
-					// wait
-				}
-
-				// actual time parked this frame, including any oversleep
-				frameSleepMs = pacingClock.ElapsedMilliSeconds - nowMs;
-			}
-
-			nextFrameDeadlineMs = deadlineMs;
-		}
-
-		PerformanceStats.Timings.Idle.AddMilliseconds( frameSleepMs );
-
-		// Feed the on-screen pacing overlay (no-op unless overlay_fps is on).
-		DebugOverlay.FrameTimeGraph.Sample( frameTime.ElapsedMilliSeconds );
 	}
 
 	/// <summary>
@@ -229,7 +122,7 @@ internal static class EngineLoop
 	{
 		using var __ = PerformanceStats.Timings.Input.Scope();
 
-		g_pInputService.Pump();
+		SdlEvents.Poll();
 	}
 
 	internal static void FrameStart()
@@ -372,14 +265,8 @@ internal static class EngineLoop
 		//
 		VRSystem.FrameEnd();
 
-		//
-		// Free strings allocated by Interop shit, and let us know how many
-		//
-		int count = Interop.Free();
-		if ( count > 10 )
-		{
-			//log.Trace( $"Interop Free: {count}" );
-		}
+		// Free strings allocated by interop.
+		Interop.Free();
 
 		//
 		// Run threaded stuff that needed to
@@ -402,7 +289,7 @@ internal static class EngineLoop
 	}
 
 
-	static unsafe void UpdatePerformance()
+	static void UpdatePerformance()
 	{
 		PerformanceStats.Frame();
 		Api.Performance.Frame();
@@ -429,78 +316,8 @@ internal static class EngineLoop
 		}
 	}
 
-	private static Logger nativeLogger = Logging.GetLogger( "Native" );
-
-	static string partial = "";
-
-	internal static void Print( int severity, string logger, string message )
-	{
-		partial += message;
-
-		if ( !partial.Contains( "\n" ) )
-			return;
-
-		if ( partial.EndsWith( '\n' ) )
-		{
-			message = partial;
-			partial = "";
-		}
-		else
-		{
-			var i = partial.LastIndexOf( '\n' );
-			message = partial.Substring( 0, i );
-			partial = partial.Substring( i );
-		}
-
-		message = message.TrimEnd( new[] { '\n', '\r' } );
-		NLog.LogLevel level = severity switch
-		{
-			0 => NLog.LogLevel.Info,
-			1 => NLog.LogLevel.Info,
-			2 => NLog.LogLevel.Warn,
-			3 => NLog.LogLevel.Warn,
-			4 => NLog.LogLevel.Error,
-			5 => NLog.LogLevel.Fatal,
-			_ => NLog.LogLevel.Info,
-		};
-
-		var logName = $"engine/{logger}";
-		nativeLogger.WriteToTargets( level, null, $"{message}", logName );
-	}
-
-	internal static void Print( bool debug, string message )
-	{
-		message = message.TrimEnd( new[] { '\n', '\r' } );
-
-		if ( debug )
-		{
-			nativeLogger.Trace( message );
-		}
-		else
-		{
-			nativeLogger.Info( message );
-		}
-	}
-
-	/// <summary>
-	/// A console command has arrived, or a convar has changed
-	/// </summary>
-	internal static void DispatchConsoleCommand( string name, string args, long flaglong )
-	{
-		var convar = ConVarSystem.Find( name );
-		if ( convar is null )
-		{
-			Log.Warning( $"Unknown Command: {name}" );
-			return;
-		}
-
-		convar.Run( args );
-	}
-
 	static Superluminal _clientOutput = new Superluminal( "OnClientOutput", "#3a6ea5" );
 	static Superluminal _toolsRender = new Superluminal( "Tools Render", "#6e6e3a" );
-	static Superluminal _gameRender = new Superluminal( "Game Render", "#3a6e4d" );
-	static Superluminal _menuRender = new Superluminal( "Menu Render", "#6e3a6e" );
 
 	internal static void OnClientOutput()
 	{
@@ -521,36 +338,7 @@ internal static class EngineLoop
 			return;
 		}
 
-		var engineChain = g_pEngineServiceMgr.GetEngineSwapChain();
-
-		// One view bracket for the whole frame. Every camera, scene panel and overlay
-		// render below joins it, so their scene jobs overlap and we wait once at the end
-		// instead of each render blocking the main thread separately.
-		CSceneSystem.BeginRenderingViews( true );
-
-		try
-		{
-			Sandbox.UI.ScenePanel.RenderPending();
-
-			using ( _gameRender.Start() )
-				IGameInstanceDll.Current?.OnRender( engineChain );
-			using ( _menuRender.Start() )
-				IMenuDll.Current?.OnRender( engineChain );
-		}
-		finally
-		{
-			CSceneSystem.FinishRenderingViews();
-			CSceneSystem.WaitForRenderingToComplete();
-		}
-	}
-
-	/// <summary>
-	/// Called right at the end of a view being submitted, so everything CPU is done and it's handed off to the GPU.
-	/// This is also called for any dependent views.
-	/// </summary>
-	internal static void OnSceneViewSubmitted( ISceneView view )
-	{
-		RenderPipeline.OnSceneViewSubmitted( view );
+		GameWindow.Current?.Render();
 	}
 
 	static Channel<IDisposable> FrameEndDisposables = Channel.CreateUnbounded<IDisposable>();

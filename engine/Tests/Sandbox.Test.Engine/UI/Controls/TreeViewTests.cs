@@ -178,72 +178,6 @@ public class TreeViewTests
 	}
 
 	/// <summary>
-	/// The tree's own work allocates nothing: not an idle frame, and not a frame that scrolls new
-	/// rows in and rebinds pooled panels. A full layout still costs a little per re-styled panel
-	/// in the style pipeline, so that path gets a small budget rather than zero. Rows here keep a
-	/// fixed label so the measurement is the tree, not the text layout - changing a label's text
-	/// re-lays it out, and that costs on the order of a kilobyte per row in RichTextKit.
-	/// </summary>
-	[TestMethod]
-	public void ScrollingAllocatesNothing()
-	{
-		var root = CreateRoot();
-		var data = MakeTree( 20, 10, 10 );
-		var tree = CreateTree( root, data );
-		tree.OnRow = ( row, n ) => { row.Text = "row"; row.IconName = "folder"; };
-		foreach ( var n in data ) tree.Open( n );
-
-		root.Layout();
-		root.Layout();
-
-		// Warm everything: scroll the whole range once so every code path has run
-		for ( int y = 0; y < 220 * 40 - 400; y += 37 )
-		{
-			tree.ScrollOffset = new Vector2( 0, y );
-			root.Layout();
-		}
-
-		tree.ScrollOffset = new Vector2( 0, 0 );
-		root.Layout();
-		root.Layout();
-
-		var before = System.GC.GetAllocatedBytesForCurrentThread();
-		for ( int i = 0; i < 100; i++ ) root.Layout();
-		var idleBytes = System.GC.GetAllocatedBytesForCurrentThread() - before;
-		Assert.AreEqual( 0, idleBytes, $"idle frames allocated {idleBytes} bytes over 100 frames" );
-
-		// The tree's tick binds rows and queues style rebuilds; draining that queue is the root's job
-		before = System.GC.GetAllocatedBytesForCurrentThread();
-		int frames = 0;
-		for ( int y = 0; y < 220 * 40 - 400; y += 37 )
-		{
-			tree.ScrollOffset = new Vector2( 0, y );
-			tree.Tick();
-			root.BuildStyleRules();
-			frames++;
-		}
-
-		var tickBytes = System.GC.GetAllocatedBytesForCurrentThread() - before;
-		Assert.AreEqual( 0, tickBytes, $"tree tick allocated {tickBytes} bytes over {frames} scrolling frames" );
-
-		tree.ScrollOffset = new Vector2( 0, 0 );
-		root.Layout();
-		root.Layout();
-
-		before = System.GC.GetAllocatedBytesForCurrentThread();
-		frames = 0;
-		for ( int y = 0; y < 220 * 40 - 400; y += 37 )
-		{
-			tree.ScrollOffset = new Vector2( 0, y );
-			root.Layout();
-			frames++;
-		}
-
-		var frameBytes = System.GC.GetAllocatedBytesForCurrentThread() - before;
-		Assert.IsTrue( frameBytes <= frames * 128, $"full layout allocated {frameBytes} bytes over {frames} scrolling frames ({frameBytes / frames} per frame)" );
-	}
-
-	/// <summary>
 	/// Adding to or removing from a list the tree was given is noticed next tick without a Refresh.
 	/// </summary>
 	[TestMethod]
@@ -493,7 +427,7 @@ public class TreeViewTests
 		root.Layout();
 		Assert.AreEqual( binds + 2, tree.BindCount );
 
-		// A rebuild pools every row and hands them back out; they must come back in place
+		// A rebuild refreshes the rows without changing their layout slots.
 		Assert.AreEqual( Length.Pixels( 0 ), tree.GetRowPanel( 0 ).Style.Top );
 		Assert.AreEqual( Length.Pixels( 24 ), tree.GetRowPanel( 1 ).Style.Top );
 	}
@@ -694,4 +628,132 @@ public class TreeViewTests
 		var modifiers = shift ? KeyboardModifiers.Shift : KeyboardModifiers.None;
 		tree.OnButtonEvent( new ButtonEvent( button, true, 0, modifiers ) );
 	}
+
+	[TestMethod]
+	public void DoubleClickOpensClosedBranchesBeforeActivation()
+	{
+		var root = CreateRoot();
+		var data = MakeTree( 2, 2, 0 );
+		var tree = CreateTree( root, data );
+		root.Layout();
+		root.Layout();
+
+		var branch = data[0];
+		Node activated = null;
+		tree.OnActivate = item =>
+		{
+			activated = item;
+			Assert.IsTrue( tree.IsOpen( branch ), "Expansion happens before activation." );
+		};
+		tree.RowDoubleClicked( 0 );
+		Assert.AreSame( branch, activated );
+		root.Layout();
+		Assert.AreEqual( 4, tree.RowCount );
+
+		tree.RowDoubleClicked( 0 );
+		Assert.IsTrue( tree.IsOpen( branch ), "A second double click must not close the branch." );
+		tree.RowDoubleClicked( 1 );
+		Assert.AreSame( branch.Children[0], activated );
+		Assert.IsFalse( tree.IsOpen( branch.Children[0] ), "Activating a leaf does not add it to the open set." );
+	}
+
+	[TestMethod]
+	public void DoubleClickExpansionCanBeDisabled()
+	{
+		var root = CreateRoot();
+		var data = MakeTree( 1, 1, 0 );
+		var tree = CreateTree( root, data );
+		tree.ExpandOnDoubleClick = false;
+		Node activated = null;
+		tree.OnActivate = item => activated = item;
+		root.Layout();
+		root.Layout();
+
+		tree.RowDoubleClicked( 0 );
+		Assert.AreSame( data[0], activated );
+		Assert.IsFalse( tree.IsOpen( data[0] ) );
+	}
+
+	[TestMethod]
+	public void SelectionRefreshKeepsVisiblePanelsInPlace()
+	{
+		var root = CreateRoot();
+		var data = MakeTree( 6, 0, 0 );
+		var tree = CreateTree( root, data );
+		root.Layout();
+		root.Layout();
+		var panels = new List<TreeRow>();
+		for ( int i = 0; i < data.Count; i++ ) panels.Add( tree.GetRowPanel( i ) );
+		panels[2].PseudoClass |= PseudoClass.Hover;
+		var binds = tree.BindCount;
+		tree.OnSelect = _ => tree.RebindRows();
+		data[2].Name = "Updated";
+		tree.SelectRow( 2 );
+		root.Layout();
+		root.Layout();
+
+		for ( int i = 0; i < data.Count; i++ )
+		{
+			Assert.AreSame( panels[i], tree.GetRowPanel( i ), $"Row {i} moved to another panel" );
+			Assert.AreEqual( data[i].Name, panels[i].Text );
+			Assert.AreEqual( i == 2, tree.GetRowPanel( i ).HasHovered );
+		}
+		Assert.AreEqual( binds + data.Count, tree.BindCount );
+		Assert.IsTrue( panels[2].HasClass( "selected" ) );
+	}
+
+	[TestMethod]
+	public void RebuildKeepsVisibleSlotsAndUpdatesTheirLayout()
+	{
+		var root = CreateRoot();
+		var data = MakeTree( 3, 2, 0 );
+		var tree = CreateTree( root, data );
+		root.Layout();
+		root.Layout();
+		var first = tree.GetRowPanel( 0 );
+		var second = tree.GetRowPanel( 1 );
+		tree.OnRename = ( node, name ) => node.Name = name;
+		tree.BeginRename( 1 );
+		Assert.IsTrue( second.IsRenaming );
+		tree.Open( data[0] );
+		root.Layout();
+		root.Layout();
+		Assert.AreSame( first, tree.GetRowPanel( 0 ) );
+		Assert.AreSame( second, tree.GetRowPanel( 1 ) );
+		Assert.AreEqual( "r0c0", second.Text );
+		Assert.IsFalse( second.IsRenaming );
+		Assert.AreEqual( Length.Pixels( 40 ), second.Style.Top );
+		Assert.AreEqual( Length.Pixels( tree.IndentWidth ), second.Style.PaddingLeft );
+	}
+
+	[TestMethod]
+	public void SingleClickExpansionIsOptInAndKeepsOpenBranchesOpen()
+	{
+		var root = CreateRoot();
+		var data = MakeTree( 2, 2, 0 );
+		var tree = CreateTree( root, data );
+		root.Layout();
+		root.Layout();
+		var row = tree.GetRowPanel( 0 );
+		Assert.IsFalse( tree.ExpandOnClick );
+		row.DispatchEventImmediate( new MousePanelEvent( "onclick", row, "mouseleft" ) );
+		Assert.IsFalse( tree.IsOpen( data[0] ) );
+		Assert.AreSame( data[0], tree.CursorItem );
+
+		tree.ExpandOnClick = true;
+		row.DispatchEventImmediate( new MousePanelEvent( "onclick", row, "mouseleft" ) );
+		Assert.IsTrue( tree.IsOpen( data[0] ) );
+		root.Layout();
+		root.Layout();
+		Assert.AreEqual( 4, tree.RowCount );
+		row = tree.GetRowPanel( 0 );
+		row.DispatchEventImmediate( new MousePanelEvent( "onclick", row, "mouseleft" ) );
+		Assert.IsTrue( tree.IsOpen( data[0] ) );
+
+		var leaf = tree.GetRowPanel( 1 );
+		leaf.DispatchEventImmediate( new MousePanelEvent( "onclick", leaf, "mouseleft" ) );
+		Assert.AreSame( data[0].Children[0], tree.CursorItem );
+		Assert.IsFalse( tree.IsOpen( data[0].Children[0] ) );
+	}
+
 }

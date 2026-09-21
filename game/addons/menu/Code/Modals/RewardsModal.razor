@@ -1,0 +1,263 @@
+@using Sandbox
+@using Sandbox.UI
+@using System
+@using System.Globalization
+@using System.Linq
+
+@namespace MenuProject.Modals
+@inherits MenuProject.Modals.BaseModal
+
+@* The item drop popup. Sits beside the rail's Rewards entry, like the friends list sits
+   beside the invite button - the drop, then what it still wants from you. *@
+<root class="rewards-modal anchored">
+	<div class="inner" @ref="Inner">
+
+		<div class="header">
+			<i>redeem</i>
+			<h2>Item drops</h2>
+			<div class="grow" />
+
+			@if ( Window is not null )
+			{
+				<div class="refresh @( IsLoading ? "busy" : "" )" onclick=@Refresh>
+					<icon>refresh</icon>
+					<label>@( IsLoading ? "Loading" : "Refresh" )</label>
+				</div>
+			}
+		</div>
+
+		<div class="rewards-list">
+
+			@if ( Window is null )
+			{
+				<div class="rewards-empty">
+					@if ( IsLoading )
+					{
+						<Spinner />
+					}
+					else
+					{
+						<icon>redeem</icon>
+					}
+					<label class="title">@( IsLoading ? "Checking your progress" : "No drop right now" )</label>
+					<label class="hint">@( IsLoading ? "One moment." : "Nothing is being tracked for you at the moment. Play something and check back." )</label>
+				</div>
+			}
+			else
+			{
+				@* The hero - one arc for everything, the same number the rail's bar decides on. *@
+				<div class="hero @( CanOpen ? "done" : "" )">
+
+					<div class="ring">
+						<div class="ring-fill" style="background-image: @RingGradient" />
+						<div class="ring-inner">
+							<label class="percent">@PercentText</label>
+							<label class="percent-label">@( CanOpen ? "ready" : "done" )</label>
+						</div>
+					</div>
+
+					<div class="hero-body">
+						<label class="eyebrow">@( CanOpen ? "Your drop is waiting" : "Next drop" )</label>
+						<label class="hero-title">@Title</label>
+						<label class="hero-hint">@StatusText</label>
+
+						<div class="open @( CanOpen ? "reward" : "locked" )" onclick=@OpenReward>
+							<icon>@( CanOpen ? "inventory_2" : "lock" )</icon>
+							<label>@( CanOpen ? "Open your drop" : "Keep playing" )</label>
+						</div>
+					</div>
+
+				</div>
+
+				@if ( Facets.Length > 0 )
+				{
+					<div class="section-head">
+						<label class="title">Objectives</label>
+						<label class="count">@MetCount of @Facets.Length met</label>
+					</div>
+
+					@foreach ( var facet in Facets )
+					{
+						<div class="objective @( facet.Met ? "met" : "" )">
+
+							<div class="objective-head">
+								<icon>@( facet.Met ? "check_circle" : "radio_button_unchecked" )</icon>
+
+								<div class="objective-body">
+									<label class="objective-title">@facet.Title</label>
+
+									@if ( !string.IsNullOrWhiteSpace( facet.Description ) )
+									{
+										<label class="objective-hint">@facet.Description</label>
+									}
+								</div>
+
+								<label class="objective-count">@CountText( facet )</label>
+							</div>
+
+							<div class="track" style="background-image: @TrackGradient( facet )"></div>
+
+						</div>
+					}
+				}
+			}
+
+		</div>
+
+		<div class="footer">
+			<label class="note">Play games and every objective ticks itself off. Meet them all and the drop unlocks - no money involved.</label>
+			<label class="docs-link" onclick=@OpenStore>Browse the item store</label>
+		</div>
+
+	</div>
+</root>
+
+@code
+{
+	// Mirrors $front-reward and $front-track in _front.scss. Progress is a hard-stopped
+	// gradient set inline, so the colours have to be spelled out here as well.
+	// HDR - a drop is the one thing on screen allowed to glow. The track stays in range so
+	// only the filled part lights up.
+	const string FillColor = "#3fc76a * 3";
+	const string TrackColor = "rgba( 255, 255, 255, 0.13 )";
+
+	/// <summary>Gap between the rail entry and the popup.</summary>
+	const float AnchorOffset = 20f;
+
+	Panel Inner;
+	Panel Anchor;
+
+	RewardState State { get; set; }
+
+	bool IsLoading { get; set; }
+
+	/// <summary>Only one window exists today.</summary>
+	RewardWindow Window => State?.Windows.FirstOrDefault();
+
+	RewardFacet[] Facets => Window?.Facets ?? Array.Empty<RewardFacet>();
+
+	bool CanOpen => Window is not null && (Window.IsEligible || State.Pending is not null);
+
+	int MetCount => Window?.MetCount ?? 0;
+
+	string Title => string.IsNullOrWhiteSpace( Window?.Title ) ? "Item drop" : Window.Title;
+
+	/// <summary>Every objective averaged - one arc stands in for all of them.</summary>
+	float Fraction => Window is null ? 0f : (CanOpen ? 1f : Window.Progress);
+
+	string PercentText => $"{(int)(Fraction * 100f)}%";
+
+	string StatusText
+	{
+		get
+		{
+			if ( State?.Pending is not null ) return "You started opening this one - go back and pick your item.";
+			if ( CanOpen ) return "Everything's met. Open it and choose what you keep.";
+			if ( Facets.Length == 0 ) return "Nothing to do here yet.";
+
+			return $"{Facets.Length - MetCount} left to go.";
+		}
+	}
+
+	public RewardsModal( Panel anchor )
+	{
+		Anchor = anchor;
+	}
+
+	static string CountText( RewardFacet facet )
+	{
+		return facet.Met ? "Done" : $"{(int)facet.Current}/{(int)facet.Required}";
+	}
+
+	/// <summary>Two hard stops - filled arc up to the percentage, empty track the rest of the way.</summary>
+	string RingGradient
+	{
+		get
+		{
+			var pct = (Fraction * 100f).ToString( "0.#", CultureInfo.InvariantCulture );
+
+			return $"conic-gradient( {FillColor} 0%, {FillColor} {pct}%, {TrackColor} {pct}%, {TrackColor} 100% )";
+		}
+	}
+
+	/// <summary>The same two stops along a bar instead of around a circle.</summary>
+	static string TrackGradient( RewardFacet facet )
+	{
+		var pct = (facet.Progress * 100f).ToString( "0.#", CultureInfo.InvariantCulture );
+
+		return $"linear-gradient( 90deg, {FillColor} 0%, {FillColor} {pct}%, {TrackColor} {pct}%, {TrackColor} 100% )";
+	}
+
+	protected override void OnAfterTreeRender( bool firstTime )
+	{
+		base.OnAfterTreeRender( firstTime );
+
+		if ( !firstTime ) return;
+
+		if ( Anchor.IsValid() )
+			PositionBesideAnchor();
+
+		// Fetched every time it opens - progress moves while you're playing.
+		_ = Load();
+	}
+
+	/// <summary>
+	/// Puts <see cref="Inner"/> to the right of <see cref="Anchor"/>, bottom edges aligned, so
+	/// it grows upward from the rail's bottom cluster rather than off the foot of the screen.
+	/// Positioned once - the rail entry doesn't move.
+	/// </summary>
+	void PositionBesideAnchor()
+	{
+		// Derive everything from the anchor's scale rather than our own - at this point we
+		// haven't been laid out yet, so our own Box.Rect isn't valid.
+		var scale = Anchor.ScaleFromScreen;
+		var rect = Anchor.Box.Rect * scale;
+		var h = Screen.Height * scale;
+
+		Inner.Style.Position = PositionMode.Absolute;
+		Inner.Style.Left = rect.Right + AnchorOffset;
+		Inner.Style.Bottom = h - rect.Bottom;
+		Inner.Style.Dirty();
+	}
+
+	void Refresh()
+	{
+		_ = Load();
+	}
+
+	async Task Load()
+	{
+		if ( IsLoading ) return;
+
+		IsLoading = true;
+		StateHasChanged();
+
+		State = await MenuUtility.Rewards.GetRewards();
+
+		if ( !this.IsValid() ) return;
+
+		IsLoading = false;
+		StateHasChanged();
+
+		// The rail's bar and pip are decided by the same state.
+		Sidebar.InvalidateBadges();
+	}
+
+	void OpenReward()
+	{
+		if ( !CanOpen )
+			return;
+
+		CloseModal( true );
+		SceneTransition.Load( "/scenes/reward-unbox.scene" );
+	}
+
+	void OpenStore()
+	{
+		// We live under the overlay, not the navigator, so go through the menu directly.
+		MenuProject.MainMenu.Instance?.Navigator?.Navigate( "/itemstore" );
+		CloseModal( true );
+	}
+
+	protected override int BuildHash() => HashCode.Combine( State, IsLoading, MetCount, Fraction, CanOpen );
+}

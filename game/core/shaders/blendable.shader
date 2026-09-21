@@ -245,7 +245,7 @@ PS
 	//
 	// Structures
 	//
-	struct MaterialMultiblend : Material
+	struct MaterialMultiblend
 	{
 		static Material lerp( Material a, Material b, float fBlendValue, float fBlendMaskB, float fSoftness = 0.5 )
 		{

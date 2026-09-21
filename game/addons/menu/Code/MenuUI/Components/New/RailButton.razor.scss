@@ -52,7 +52,7 @@ RailButton
 Sidebar .nav RailButton.glow .button icon,
 Sidebar .nav RailButton.glow .button iconpanel
 {
-	color: $front-trophy * 2;
+	color: linear-gradient( 180deg, $front-trophy * 3, $front-trophy * 1.4 );
 	text-shadow: 0 0 14px rgba( $front-trophy, 0.7 );
 	animation-name: rail-glow;
 	animation-duration: 2.4s;
@@ -67,9 +67,9 @@ Sidebar .nav RailButton.glow .button label
 
 @keyframes rail-glow
 {
-	0%   { color: $front-trophy * 1.5; text-shadow: 0 0 8px rgba( $front-trophy, 0.4 ); }
-	50%  { color: $front-trophy * 3;   text-shadow: 0 0 18px rgba( $front-trophy, 0.9 ); }
-	100% { color: $front-trophy * 1.5; text-shadow: 0 0 8px rgba( $front-trophy, 0.4 ); }
+	0%   { text-shadow: 0 0 8px rgba( $front-trophy, 0.4 ); }
+	50%  { text-shadow: 0 0 18px rgba( $front-trophy, 0.9 ); }
+	100% { text-shadow: 0 0 8px rgba( $front-trophy, 0.4 ); }
 }
 
 // Under Sidebar .nav so it beats the rail's own padding.

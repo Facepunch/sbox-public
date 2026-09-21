@@ -110,7 +110,7 @@ internal class TcpChannel : Connection
 
 	Channel<byte[]> sendChannel = Channel.CreateUnbounded<byte[]>();
 
-	private ConcurrentQueue<(byte[], RealTimeUntil, NetworkSystem.MessageHandler)> fakeLagIncoming = new();
+	private Queue<(byte[], RealTimeUntil)> fakeLagIncoming = new();
 	private ConcurrentQueue<(byte[], RealTimeUntil)> fakeLagOutgoing = new();
 
 	private async Task ConnectAndRunAsync( string host, int port, CancellationToken token )
@@ -136,18 +136,6 @@ internal class TcpChannel : Connection
 			while ( !token.IsCancellationRequested )
 			{
 				var processedPacket = false;
-
-				if ( fakeLagIncoming.TryPeek( out var i ) )
-				{
-					if ( i.Item2 )
-					{
-						if ( fakeLagIncoming.TryDequeue( out _ ) )
-						{
-							processedPacket = true;
-							InvokeMessageHandler( i.Item3, i.Item1 );
-						}
-					}
-				}
 
 				if ( fakeLagOutgoing.TryPeek( out var o ) )
 				{
@@ -252,20 +240,23 @@ internal class TcpChannel : Connection
 
 	internal override void InternalRecv( NetworkSystem.MessageHandler handler )
 	{
-		while ( incoming.Reader.TryRead( out byte[] data ) )
+		// A message handler can synchronously close this channel (for example, reconnect).
+		while ( !tokenSource.IsCancellationRequested && incoming.Reader.TryRead( out byte[] data ) )
 		{
-			if ( Networking.FakeLag > 0 )
+			if ( Networking.FakeLag > 0 || fakeLagIncoming.Count > 0 )
 			{
-				fakeLagIncoming.Enqueue( (data, Networking.FakeLag / 1000f, handler) );
+				fakeLagIncoming.Enqueue( (data, Networking.FakeLag / 1000f) );
 				continue;
 			}
 
 			OnRawPacketReceived( data, handler );
 		}
-	}
 
-	private void InvokeMessageHandler( NetworkSystem.MessageHandler handler, byte[] data )
-	{
-		OnRawPacketReceived( data, handler );
+		// Delayed packets must use the same tick thread and ordering as normal receives.
+		while ( !tokenSource.IsCancellationRequested && fakeLagIncoming.TryPeek( out var packet ) && packet.Item2 )
+		{
+			fakeLagIncoming.Dequeue();
+			OnRawPacketReceived( packet.Item1, handler );
+		}
 	}
 }

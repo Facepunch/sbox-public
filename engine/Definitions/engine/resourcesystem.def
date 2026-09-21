@@ -5,9 +5,15 @@ native accessor g_pResourceSystem as NativeEngine.g_pResourceSystem
 {
 	void ReloadSymlinkedResidentResources();
 	void UpdateSimple();
+	inline ITexture LoadTexture( string name )
+	{
+		return g_pResourceSystem->BlockingLoadResourceByName< RESOURCE_TYPE_TEXTURE >( CResourceName( name ), "Managed LoadTexture" );
+	}
 	bool HasPendingWork();
 	int GetNumPendingStreamingRequests();
 	bool IsShuttingDown();
+
+	void InvalidateDatabase();
 
 	inline HResourceManifest LoadResourceInManifest( string name )
 	{
@@ -28,6 +34,8 @@ native accessor g_pResourceSystem as NativeEngine.g_pResourceSystem
 	{
 		g_pResourceSystem->GetCodeResourceManifestManager()->GetAllCodeManifests( *values );
 	}
+
+	bool ResolvePathToGuid( string path, out Guid guid );
 }
 
 
@@ -39,8 +47,10 @@ managed class Sandbox.Resource
 	// resource file's non-streaming data and is only valid during the call -
 	// copy out anything you want.
 	static void OnResourceLoaded( string name, void* header );
-}
 
+	static void OnGuidChanged( string name, Guid guid );
+	static void OnResourcePathChanged( Guid guid, string newPath );
+}
 
 native class HResourceManifest__ as HResourceManifest
 {

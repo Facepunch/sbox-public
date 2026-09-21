@@ -13,7 +13,7 @@ internal partial class NetworkSystem
 {
 	internal delegate void MessageHandler( NetworkMessage msg );
 	internal delegate void TypedMessageHandler( InternalMessageType type, NetworkMessage msg );
-	internal delegate void TypdMessageHandler( object t, Connection msg, Guid guid );
+	internal delegate void TypdMessageHandler( object t, Connection msg, Guid guid, int depth );
 	internal delegate void TypedMessageHandler<T>( T message, Connection msg, Guid guid );
 	internal delegate Task TypedMessageHandlerAsync<T>( T message, Connection source, Guid guid );
 
@@ -21,6 +21,40 @@ internal partial class NetworkSystem
 	{
 		public Connection Source;
 		public ByteStream Data;
+
+		// How many times this was unwrapped out of another message. Zero off the wire.
+		public int Depth;
+	}
+
+	// BytePack's depth counter unwinds before a handler runs, so nesting needs its own limit.
+	const int MaxNestedDispatch = 128;
+
+	// Always nest through here - taking the parent depth is what keeps the recursion bounded.
+	internal void DispatchNested( byte[] data, Connection source, int parentDepth )
+	{
+		var msg = new NetworkMessage
+		{
+			Source = source,
+			Data = ByteStream.CreateReader( data ),
+			Depth = parentDepth + 1,
+		};
+
+		try
+		{
+			HandleIncomingMessage( msg );
+		}
+		finally
+		{
+			msg.Data.Dispose();
+		}
+	}
+
+	static bool CanDispatchAtDepth( int depth, Connection source )
+	{
+		if ( depth <= MaxNestedDispatch ) return true;
+
+		Log.Warning( $"Dropping message from {source}: nested {depth} deep, limit is {MaxNestedDispatch} - possible malicious payload" );
+		return false;
 	}
 
 	readonly Dictionary<InternalMessageType, TypedMessageHandler> messageHandlers = new();
@@ -33,12 +67,19 @@ internal partial class NetworkSystem
 
 	internal void AddHandler<T>( Action<T, Connection, Guid> handler )
 	{
-		typeMessageHandlers[(typeof( T ))] = ( o, channel, g ) => handler( (T)o, channel, g );
+		typeMessageHandlers[(typeof( T ))] = ( o, channel, g, _ ) => handler( (T)o, channel, g );
+	}
+
+	// For handlers that re-dispatch their payload, which need the depth to pass on.
+	internal void AddHandler<T>( Action<T, Connection, Guid, int> handler )
+	{
+		typeMessageHandlers[(typeof( T ))] = ( o, channel, g, depth ) => handler( (T)o, channel, g, depth );
 	}
 
 	internal void AddHandler<T>( Func<T, Connection, Guid, Task> handler )
 	{
-		typeMessageHandlers[(typeof( T ))] = ( o, channel, g ) =>
+		// Async handlers yield before they could recurse, so the depth isn't theirs to pass on.
+		typeMessageHandlers[(typeof( T ))] = ( o, channel, g, depth ) =>
 		{
 			_ = ExceptionWrapAsync( async () => await handler( (T)o, channel, g ) );
 		};
@@ -104,6 +145,8 @@ internal partial class NetworkSystem
 	// Outer catch so one bad message can't tear down the dispatch path.
 	internal void HandleIncomingMessage( NetworkMessage msg )
 	{
+		if ( !CanDispatchAtDepth( msg.Depth, msg.Source ) ) return;
+
 		try
 		{
 			HandleIncomingMessageInternal( msg );
@@ -221,7 +264,7 @@ internal partial class NetworkSystem
 
 			if ( typeMessageHandlers.TryGetValue( obj.GetType(), out var h ) )
 			{
-				h( obj, msg.Source, requestGuid );
+				h( obj, msg.Source, requestGuid, msg.Depth );
 				return;
 			}
 

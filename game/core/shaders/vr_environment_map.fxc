@@ -15,7 +15,7 @@ float EnvMapNumLevels( uint nEnvMap )
 {
 	int2 nDim;
 	int nLevels;
-	g_bindless_TextureCube[nEnvMap].GetDimensions( 0, nDim.x, nDim.y, nLevels );
+	Bindless::GetTextureCube( nEnvMap ).GetDimensions( 0, nDim.x, nDim.y, nLevels );
 	return nLevels;
 }
 
@@ -23,7 +23,7 @@ float EnvMapNumLevels( uint nEnvMap )
 
 float4 SampleEnvMapLevel( float3 vReflectionDirWs, float flLevel, uint nEnvMap )
 {
-	return g_bindless_TextureCube[nEnvMap].SampleLevel( g_sTrilinearWrap, vReflectionDirWs.xyz, flLevel * EnvMapNumLevels( nEnvMap ) ).xyzw;
+	return Bindless::GetTextureCube( nEnvMap ).SampleLevel( g_sTrilinearWrap, vReflectionDirWs.xyz, flLevel * EnvMapNumLevels( nEnvMap ) ).xyzw;
 }
 
 float4 EnvMapNormalizationSH( uint nEnvMap )

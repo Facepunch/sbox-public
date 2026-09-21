@@ -31,8 +31,27 @@ News
 		flex-direction: column;
 		align-items: flex-start;
 		gap: 7px;
-		padding: 14px $front-inset;
-		background-image: linear-gradient( 0deg, rgba( 0, 0, 0, 0.88 ), rgba( 0, 0, 0, 0 ) );
+		padding: 72px $front-inset 14px $front-inset;
+		background-image: linear-gradient( 0deg, $front-card-deep, rgba( $front-card-deep, 0.75 ) 45%, rgba( $front-card-deep, 0 ) );
+	}
+
+	.news-head
+	{
+		flex-direction: row;
+		align-items: center;
+		align-self: stretch;
+		gap: 10px;
+
+		.news-title
+		{
+			flex-grow: 1;
+			flex-shrink: 1;
+		}
+
+		.news-when
+		{
+			flex-shrink: 0;
+		}
 	}
 
 	// A chip, not plain text - it has to survive whatever is behind it.
@@ -50,23 +69,21 @@ News
 	{
 		@include front-row-title;
 
-		font-size: 15px;
-		text-transform: uppercase;
-		letter-spacing: 0.03em;
+		font-size: 18px;
 		color: #ffffff;
 	}
 
-	// Three lines max. No text-overflow, it would stop the label wrapping.
+	// Three lines max, ellipsis on the last one that fits.
 	.news-summary
 	{
 		font-size: 12px;
 		font-weight: 500;
-		line-height: 14px;
 		color: $front-body;
 		// Needs a width to wrap inside; the overlay aligns to flex-start.
 		align-self: stretch;
-		max-height: 42px;
+		height: 56px;
 		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	&:hover

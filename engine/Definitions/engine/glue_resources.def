@@ -3,10 +3,10 @@ include "sbox/glue_resources.h"
 
 native static class Glue.Resources as NativeGlue.Resources
 {
-	IMaterial GetMaterial( string name );
-	ITexture GetTexture( string name );
-	IModel GetModel( string name );
-	CPhysicsData GetPhysics( string name );
-	HAnimationGraph GetAnimationGraph( string name );
-	CVfx GetShader( string name );
+	IMaterial GetMaterial( string name, Guid guid );
+	ITexture GetTexture( string name, Guid guid );
+	IModel GetModel( string name, Guid guid );
+	CPhysicsData GetPhysics( string name, Guid guid );
+	HAnimationGraph GetAnimationGraph( string name, Guid guid );
+	CVfx GetShader( string name, Guid guid );
 }

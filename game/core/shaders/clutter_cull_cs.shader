@@ -37,6 +37,7 @@ CS
 	float3 ClutterLodCameraPos     < Attribute( "ClutterLodCameraPos" ); >;
 	float  ClutterLodTanHalfFov    < Attribute( "ClutterLodTanHalfFov" ); >;
 	float  ClutterLodViewportWidth < Attribute( "ClutterLodViewportWidth" ); >;
+	float  ClutterLodOrthoWidth    < Attribute( "ClutterLodOrthoWidth" ); >;
 	int    ClutterLodCount         < Attribute( "ClutterLodCount" ); >;
 	StructuredBuffer<float> ClutterLodSwitchDistances < Attribute( "ClutterLodSwitchDistances" ); >;
 
@@ -90,7 +91,10 @@ CS
 	{
 		float dist = length( worldPos - ClutterLodCameraPos );
 		float tanHalf = max( ClutterLodTanHalfFov, 1e-5 );
-		float screen = saturate( 0.5 / max( dist * tanHalf, 1e-5 ) );
+		// Orthographic coverage depends on the view width, not distance from the camera.
+		float screen = ClutterLodOrthoWidth > 0.0
+			? saturate( 1.0 / ClutterLodOrthoWidth )
+			: saturate( 0.5 / max( dist * tanHalf, 1e-5 ) );
 		float pixels = screen * ClutterLodViewportWidth;
 		float metric = ( pixels > 0.0 ) ? ( 50.0 / pixels ) : 0.0;
 

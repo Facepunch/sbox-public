@@ -1,11 +1,12 @@
 @import "/styles/_theme.scss";
+@import "/styles/_front.scss";
 
 SearchlightTab
 {
-    color: $default-300;
-    font-size: $text-regular;
+    color: $front-secondary;
+    font-size: 13px;
     font-weight: 700;
-    font-family: $font-heading;
+    font-family: $front-font;
     align-items: center;
     padding: 0px 14px 12px 14px;
     border-bottom: 2px solid transparent;
@@ -18,13 +19,13 @@ SearchlightTab
 
 SearchlightTab:hover
 {
-    color: $default-text;
+    color: $front-heading;
     sound-in: "ui.button.over";
 }
 
 .active SearchlightTab
 {
-    color: $default-text;
-    border-bottom: 2px solid $primary-blue;
+    color: $front-heading;
+    border-bottom: 2px solid $front-primary;
     cursor: auto;
 }

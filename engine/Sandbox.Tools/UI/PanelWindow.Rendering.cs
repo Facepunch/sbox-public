@@ -6,7 +6,6 @@ namespace Editor;
 
 public partial class PanelWindow
 {
-	Vector2 _swapChainSize;
 	bool _inFrame;
 
 	/// <summary>
@@ -25,16 +24,26 @@ public partial class PanelWindow
 	/// Simulate and draw. Called once a frame by the engine loop, and again from resize events
 	/// while a drag has the main thread parked in a modal loop.
 	/// </summary>
-	bool IPanelWindow.Frame( bool interactiveResize ) => Frame( interactiveResize );
+	bool IPanelWindow.Frame() => Frame();
 
-	internal bool Frame( bool interactiveResize = false )
+	internal bool Frame()
 	{
+		// SDL mode changes can send resize events before the transition has completed.
+		if ( _applyingFullscreen ) return false;
 		if ( Handle == IntPtr.Zero )
 		{
-			if ( Surface is null || !CreateNativeWindow() ) return false;
+			try
+			{
+				if ( Surface is null || !CreateNativeWindow() ) return false;
+			}
+			catch
+			{
+				Dispose();
+				throw;
+			}
 		}
 
-		if ( PanelWindowNative.IsMinimized( Handle ) ) return false;
+		if ( IsMinimized ) return false;
 
 		// Resize events land mid-frame during a drag, and we draw from those too
 		if ( _inFrame && !AllowNestedFrame ) return false;
@@ -68,11 +77,6 @@ public partial class PanelWindow
 	public bool AllowNestedFrame { get; set; }
 
 	/// <summary>
-	/// Tick, input, layout. Returns false if there's nothing to draw afterwards.
-	/// </summary>
-	bool _relativeMouse;
-
-	/// <summary>
 	/// Whether the panel with the mouse captured is one of ours. While it is, the OS cursor is
 	/// hidden and pinned and <see cref="Mouse.Delta"/> reports the movement.
 	/// </summary>
@@ -80,28 +84,8 @@ public partial class PanelWindow
 
 	void UpdateMouseCapture()
 	{
-		var wants = HasMouseCapture;
-		if ( wants == _relativeMouse ) return;
-
-		SetRelativeMouse( wants );
-	}
-
-	void SetRelativeMouse( bool relative )
-	{
-		_relativeMouse = relative;
-		if ( Handle != IntPtr.Zero ) PanelWindowNative.SetRelativeMouse( Handle, relative );
-
-		if ( relative )
-		{
-			PanelWindows.CaptureWindow = this;
-			PanelWindows.SkipNextCaptureDelta = true;
-		}
-		else if ( PanelWindows.CaptureWindow == this )
-		{
-			PanelWindows.CaptureWindow = null;
-		}
-
-		PanelWindows.CaptureDelta = 0;
+		if ( HasMouseCapture != (PanelWindows.CaptureWindow == this) )
+			PanelWindowInput.SetRelativeMouse( this, HasMouseCapture );
 	}
 
 	/// <summary>
@@ -111,25 +95,20 @@ public partial class PanelWindow
 	void ReleaseMouseCapture()
 	{
 		if ( HasMouseCapture ) Panel.MouseCapture.SetMouseCapture( false );
-		if ( _relativeMouse ) SetRelativeMouse( false );
+		if ( PanelWindows.CaptureWindow == this ) PanelWindowInput.SetRelativeMouse( this, false );
 	}
 
+	/// <summary>
+	/// Tick, input and layout. Returns false if there is nothing to draw afterwards.
+	/// </summary>
 	bool SimulateFrame()
 	{
-		var size = PixelSize;
-		if ( size.x < 1 || size.y < 1 ) return false;
+		if ( !ApplyFullscreen() || Window is null || !Window.UpdateSwapChain() ) return false;
 
 		UpdateMouseCapture();
 
-		if ( size != _swapChainSize )
-			PanelWindowNative.ResizeSwapChain( _swapChain, (int)size.x, (int)size.y );
-
-		// The swap chain is the canvas - lay out and render at whatever size it really is, so
-		// the whole buffer gets painted even when a resize came through another path
-		PanelWindowNative.GetSwapChainSize( _swapChain, out var chainWidth, out var chainHeight );
-		if ( chainWidth > 0 && chainHeight > 0 ) _swapChainSize = new Vector2( chainWidth, chainHeight );
-
-		Surface.Size = _swapChainSize;
+		// Lay out and render at the actual swapchain size, including while a resize is pending.
+		Surface.Size = Window.SwapChainSize;
 
 		// A window that sizes to its contents has nothing to show until it has some - drawing
 		// now would put an empty window on the screen at whatever size it happens to be
@@ -138,7 +117,7 @@ public partial class PanelWindow
 
 		if ( FollowsDisplayScale )
 		{
-			var scale = PanelWindowNative.GetContentsScale( Handle );
+			var scale = DisplayScale;
 
 			// Dragged onto a display that scales differently - the limits the OS is holding were
 			// worked out in the old display's units
@@ -184,24 +163,23 @@ public partial class PanelWindow
 		if ( rect == _imeArea ) return;
 		_imeArea = rect;
 
-		PanelWindowNative.SetTextInputArea( Handle, (int)rect.Left, (int)rect.Top, (int)rect.Width, (int)rect.Height );
+		var area = new Sdl.Rect { X = (int)rect.Left, Y = (int)rect.Top, Width = (int)rect.Width, Height = (int)rect.Height };
+		Sdl.SetTextInputArea( Handle, ref area, 0 );
 	}
 
 	void DrawFrame()
 	{
-		_camera.OnRenderUI = Surface.Render;
-		_camera.AddToRenderList( _swapChain, _swapChainSize );
+		_camera.AddToRenderList( Window.SwapChain, Surface.Size );
 
-		g_pRenderDevice.Present( _swapChain );
+		Window.Present();
 
 		// A window is created hidden so the user never sees it blank at the wrong size - the
 		// first drawn frame is when it appears. Anything asked of it before now, like being
 		// maximized, is applied by SDL as it's shown.
 		if ( !IsShown )
 		{
-			IsShown = true;
 			OnFirstShow();
-			PanelWindowNative.Show( Handle );
+			IsShown = Window.Show();
 		}
 
 		ApplyCursorShape();
@@ -236,10 +214,10 @@ public partial class PanelWindow
 
 		// Compared in window coordinates - they're the only sizes a window can take, and where one
 		// is worth more than a pixel, comparing pixels never settles
-		PanelWindowNative.GetBounds( Handle, out _, out _, out var currentWidth, out var currentHeight );
+		Sdl.GetWindowSize( Handle, out var currentWidth, out var currentHeight );
 		if ( width == currentWidth && height == currentHeight ) return false;
 
-		PanelWindowNative.SetSize( Handle, width, height );
+		Sdl.SetWindowSize( Handle, width, height );
 
 		return true;
 	}

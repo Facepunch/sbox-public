@@ -18,7 +18,8 @@ internal partial class BytePack
 			throw new NotImplementedException();
 		}
 
-		public virtual object Read( ref ByteStream data )
+		// Pass depth + 1 to anything nested, or a hostile payload recurses without bound.
+		public virtual object Read( ref ByteStream data, int depth )
 		{
 			throw new NotImplementedException();
 		}
@@ -71,7 +72,7 @@ internal partial class BytePack
 			return parent.GetOrCreatePacker( type );
 		}
 
-		internal object Deserialize( ref ByteStream bs ) => parent.Deserialize( ref bs );
+		internal object Deserialize( ref ByteStream bs, int depth ) => parent.Deserialize( ref bs, depth );
 		internal void Serialize( ref ByteStream bs, object obj ) => parent.Serialize( ref bs, obj );
 	}
 }

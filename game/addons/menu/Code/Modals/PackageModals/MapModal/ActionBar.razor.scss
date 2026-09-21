@@ -17,22 +17,25 @@ ActionBar > .right
     gap: 6px;
 }
 
+// Same pills as the game modal's action bar.
 Button
 {
-    border-radius: $rounding-default;
+    border-radius: 999px;
     flex-shrink: 0;
-    font-size: $text-regular;
+    font-size: 12.5px;
     font-weight: 700;
     font-family: $font-heading;
-    padding: 6px 14px;
-    border: 1px solid transparent;
-    color: $default-text-light;
-    transition: all 0.15s ease;
+    padding: 8px 16px;
+    border: 1px solid rgba( 255, 255, 255, 0.1 );
+    background-color: rgba( 255, 255, 255, 0.05 );
+    color: #c8cedb;
+    transition: all 0.1s ease;
+    letter-spacing: 0.07em;
 
     &:hover
     {
-        border-color: $default-border;
-        background-color: rgba( $default-500, 0.1 );
+        border-color: rgba( 255, 255, 255, 0.28 );
+        background-color: rgba( 255, 255, 255, 0.11 );
         color: $default-text;
         sound-in: "ui.button.over";
     }
@@ -45,11 +48,11 @@ Button.play
     background-color: $primary-blue;
     border-color: transparent;
     color: white;
-    padding: 6px 20px;
+    padding: 8px 24px;
 
     &:hover
     {
-        filter: brightness( 1.2 );
+        filter: brightness( 1.15 );
         border-color: transparent;
         background-color: $primary-blue;
     }

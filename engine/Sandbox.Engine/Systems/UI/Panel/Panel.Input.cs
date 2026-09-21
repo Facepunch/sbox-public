@@ -1,4 +1,4 @@
-﻿namespace Sandbox.UI;
+namespace Sandbox.UI;
 
 
 public partial class Panel
@@ -63,7 +63,7 @@ public partial class Panel
 	/// <param name="pos">The position to test, in screen coordinates.</param>
 	public bool IsInside( Vector2 pos )
 	{
-		if ( InlineOwner is not null ) return InlineOwner.Contains( this, pos );
+		if ( LayoutTree?.IsInlineParticipant == true ) return LayoutTree.ContainsInlineContent( pos );
 
 		var rect = Box.Rect;
 
@@ -86,7 +86,7 @@ public partial class Panel
 
 		if ( !s.HasBorderRadius ) return true;
 
-		var radii = BorderRadii.FromStyle( s, rect );
+		var radii = _paintCache.OuterRadii;
 
 		pos.x -= rect.Left;
 		pos.y -= rect.Top;
@@ -102,7 +102,7 @@ public partial class Panel
 		return true;
 	}
 
-	static bool IsInsideShapePolygon( Vector2 pos, Vector2 size, IReadOnlyList<BorderShapePoint> points )
+	static bool IsInsideShapePolygon( Vector2 pos, Vector2 size, BorderShape.PointCollection points )
 	{
 		bool inside = false;
 		for ( int i = 0, j = points.Count - 1; i < points.Count; j = i++ )
@@ -241,6 +241,15 @@ public partial class Panel
 	}
 
 	/// <summary>
+	/// Called for a typed character with the modifier keys held when it was received.
+	/// By default, forwards to <see cref="OnKeyTyped(char)"/>.
+	/// </summary>
+	public virtual void OnKeyTyped( char k, KeyboardModifiers modifiers )
+	{
+		OnKeyTyped( k );
+	}
+
+	/// <summary>
 	/// Called when any keyboard button has been typed (pressed) while this panel has input focus. (<see cref="Focus"/>)
 	/// </summary>
 	public virtual void OnButtonTyped( ButtonEvent e )
@@ -262,7 +271,7 @@ public partial class Panel
 	/// </summary>
 	public virtual string GetClipboardValue( bool cut )
 	{
-		if ( InlineOwner is not null ) return InlineOwner.SelectedText;
+		if ( LayoutTree?.IsInlineParticipant == true ) return LayoutTree.SelectedInlineText;
 		if ( AllowChildSelection )
 			return CollectSelectedChildrenText( this );
 
@@ -278,38 +287,78 @@ public partial class Panel
 	/// <param name="value">The scroll wheel delta. Positive values are scrolling down, negative - up.</param>
 	public virtual void OnMouseWheel( Vector2 value )
 	{
-		if ( TryScroll( value ) )
-			return;
-
-		Parent?.OnMouseWheel( value );
+		TryScroll( value, out var remaining );
+		if ( remaining != Vector2.Zero ) Parent?.OnMouseWheel( remaining );
 	}
 
 	/// <summary>
 	/// Called from <see cref="OnMouseWheel"/> to try to scroll.
 	/// </summary>
 	/// <param name="value">The scroll wheel delta. Positive values are scrolling down, negative - up.</param>
-	/// <returns>Return true to NOT propagate the event to the <see cref="Parent"/>.</returns>
-	public bool TryScroll( Vector2 value )
-	{
-		if ( ComputedStyle == null ) return false;
-		if ( !HasScrollY && !HasScrollX ) return false;
+	/// <returns>True if this panel consumes input on either axis. <see cref="OnMouseWheel"/> forwards unconsumed axes to the parent.</returns>
+	public bool TryScroll( Vector2 value ) => TryScroll( value, out _ );
 
-		// If we're not scrolling in the same direction that this panel overflows in, ignore
-		if ( ComputedStyle.OverflowX != OverflowMode.Scroll && value.x != 0 ) return false;
-		if ( ComputedStyle.OverflowY != OverflowMode.Scroll && value.y != 0 ) return false;
+	bool TryScroll( Vector2 value, out Vector2 remaining )
+	{
+		remaining = value;
+		if ( ComputedStyle == null ) return false;
 
 		var velocityAdd = Vector2.Zero;
-
-		if ( ComputedStyle.OverflowX == OverflowMode.Scroll && HasScrollX ) velocityAdd += new Vector2( value.x * -20, 0 );
-		if ( ComputedStyle.OverflowY == OverflowMode.Scroll && HasScrollY ) velocityAdd += new Vector2( 0, value.y * 20 );
+		if ( ConsumeWheelAxis( -value.x, true ) )
+		{
+			remaining.x = 0;
+			if ( HasScrollX ) velocityAdd.x = value.x * -20;
+		}
+		if ( ConsumeWheelAxis( value.y, false ) )
+		{
+			remaining.y = 0;
+			if ( HasScrollY ) velocityAdd.y = value.y * 20;
+		}
 
 		velocityAdd *= (1 + ScrollVelocity.Length / 100.0f);
 		ScrollVelocity += velocityAdd;
+		// Keep pathological event bursts finite without changing ordinary wheel acceleration.
+		var maxVelocity = 1000000.0f * ScaleToScreen;
+		if ( velocityAdd.x != 0 ) ScrollVelocity.x = ScrollVelocity.x.Clamp( -maxVelocity, maxVelocity );
+		if ( velocityAdd.y != 0 ) ScrollVelocity.y = ScrollVelocity.y.Clamp( -maxVelocity, maxVelocity );
 
-		if ( velocityAdd.Length.AlmostEqual( 0 ) )
-			return false;
+		return remaining != value;
+	}
 
-		return true;
+	bool ConsumeWheelAxis( float direction, bool horizontal )
+	{
+		if ( direction == 0 || !IsScrollContainer( horizontal ) ) return false;
+		if ( GetOverscrollBehavior( horizontal ) != OverscrollBehavior.Auto ) return true;
+		if ( CanScrollInDirection( direction, horizontal ) ) return true;
+		if ( FindScrollChainTarget( direction, horizontal ) != null ) return false;
+		// The last scrollable container keeps the local boundary bounce.
+		return horizontal ? HasScrollX : HasScrollY;
+	}
+
+	bool IsScrollContainer( bool horizontal ) => (horizontal ? ComputedStyle?.OverflowX : ComputedStyle?.OverflowY) == OverflowMode.Scroll;
+
+	OverscrollBehavior GetOverscrollBehavior( bool horizontal ) =>
+		(horizontal ? ComputedStyle?.OverscrollBehaviorX : ComputedStyle?.OverscrollBehaviorY) ?? OverscrollBehavior.Auto;
+
+	bool CanScrollInDirection( float direction, bool horizontal )
+	{
+		var extent = horizontal ? ScrollSize.x : ScrollSize.y;
+		if ( extent <= 0 ) return false;
+		var offset = horizontal ? ScrollOffset.x : ScrollOffset.y;
+		var min = IsScrollAxisReversed ? -extent : 0;
+		var max = IsScrollAxisReversed ? 0 : extent;
+		return direction < 0 ? offset > min : offset < max;
+	}
+
+	Panel FindScrollChainTarget( float direction, bool horizontal )
+	{
+		for ( var panel = Parent; panel != null; panel = panel.Parent )
+		{
+			if ( !panel.IsScrollContainer( horizontal ) ) continue;
+			if ( panel.GetOverscrollBehavior( horizontal ) != OverscrollBehavior.Auto || panel.CanScrollInDirection( direction, horizontal ) )
+				return panel;
+		}
+		return null;
 	}
 
 	/// <summary>
@@ -323,7 +372,7 @@ public partial class Panel
 
 		ScrollOffset = new Vector2( ScrollOffset.x, ScrollSize.y );
 		IsScrollAtBottom = true;
-		ScrollVelocity = new Vector2( 0, 0 );
+		StopScrollVelocity();
 		return true;
 	}
 
@@ -337,7 +386,7 @@ public partial class Panel
 
 		offset = Vector2.Max( Vector2.Min( offset, max ), min );
 
-		ScrollVelocity = 0;
+		StopScrollVelocity();
 		IsScrollAtBottom = offset.y >= ScrollSize.y;
 
 		if ( ScrollOffset == offset )
@@ -381,7 +430,7 @@ public partial class Panel
 
 		if ( offset == ScrollOffset ) return false;
 
-		ScrollVelocity = 0;
+		StopScrollVelocity();
 		ScrollOffset = offset;
 		SetNeedsFinalLayout();
 		return true;

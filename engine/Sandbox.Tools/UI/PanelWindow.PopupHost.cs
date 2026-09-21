@@ -13,7 +13,7 @@ public partial class PanelWindow : IPopupHost
 	{
 		// Lives until it's dismissed - see PopupWindow.OnClosing
 #pragma warning disable CA2000
-		var window = (PopupWindow)Popup( this, PopupPosition( source.Box.Rect, MousePosition, position, offset ) );
+		var window = (PopupWindow)Popup( this, PopupPosition( popup.AnchorRect ?? source.Box.Rect, MousePosition, position, offset ), popup.IgnoresInput );
 #pragma warning restore CA2000
 		window.Root.AddClass( "os-menu" );
 
@@ -22,6 +22,9 @@ public partial class PanelWindow : IPopupHost
 
 		foreach ( var sheet in OwnerStyleSheets( source ) )
 		{
+			// A popup can own its theme and replace it while open. Don't leave a second,
+			// stale copy on the window root when it does.
+			if ( popup.StyleSheet.List?.Contains( sheet ) == true ) continue;
 			sheets.Add( sheet );
 		}
 
@@ -35,14 +38,22 @@ public partial class PanelWindow : IPopupHost
 		popup.Style.Right = null;
 		popup.Style.Bottom = null;
 
-		// No taller than the window it came from - a long list scrolls instead
-		popup.Style.MaxHeight = PixelSize.y;
+		// Submenus and documentation can be taller than the popup that opened them.
+		// Bound them by the original window, in the popup's layout units.
+		var sizingWindow = this;
+		while ( sizingWindow is PopupWindow parentPopup ) sizingWindow = parentPopup.Parent;
+		popup.Style.MaxHeight = sizingWindow.PixelSize.y * popup.ScaleFromScreen;
 
 		// The compositor rounds the window's corners. Rounding the popup's own as well shows the
 		// window's background in between - whatever radius its stylesheet asked for.
 		popup.Style.Set( "border-radius", "0" );
 
 		window.HostedPopup = popup;
+	}
+
+	void IPopupHost.UpdatePopup( Sandbox.UI.Popup popup )
+	{
+		if ( FromPanel( popup ) is PopupWindow window ) window.UpdateAnchor();
 	}
 
 	void IPopupHost.HidePopup( Sandbox.UI.Popup popup )

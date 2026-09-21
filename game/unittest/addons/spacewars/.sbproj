@@ -4,6 +4,7 @@
   "Org": "local",
   "Ident": "spacewars",
   "Tags": null,
+  "Resources": "*",
   "Schema": 1,
   "RootNamespace": null,
   "Metadata": {

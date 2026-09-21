@@ -29,7 +29,8 @@ COMMON
 		CastShadows = 0x1,
 		FlipW = 0x2,
 		FlipH = 0x4,
-		SnapToFrame = 0x8
+		SnapToFrame = 0x8,
+		Text = 0x10		// glyph instances instead of a texture, see GpuFontText
 	};
 
 	struct SpriteData
@@ -245,6 +246,9 @@ PS
 {
 	#define CUSTOM_MATERIAL_INPUTS 1
 	#include "common/pixel.hlsl"
+	#if ( D_TEXT )
+		#include "ui/text.hlsl"
+	#endif
 
 	#if ( D_BLEND == 1 ) 
 		RenderState( BlendEnable, true );
@@ -266,6 +270,7 @@ PS
 
 	DynamicCombo( D_BLEND, 0..1, Sys( ALL ) );
 	DynamicCombo( D_OPAQUE, 0..1, Sys( ALL ) );
+	DynamicCombo( D_TEXT, 0..1, Sys( ALL ) );
 
 	float g_FogStrength < Attribute( "g_FogStrength" ); >;
 
@@ -326,16 +331,33 @@ PS
 		float fogStrength, alphaCutoff;
 		UnpackFogAndAlpha( sprite.FogStrengthCutout, fogStrength, alphaCutoff );
 
-		Texture2D ColorTexture = Bindless::GetTexture2D( sprite.TextureHandle, true );
-		SamplerState spriteSampler = Bindless::GetSampler( sprite.SamplerIndex );
+		float2 uv = GetUV(sprite, i.uv.xy);
+		float4 textureColor;
 
-		float2 uv = GetUV(sprite, i.uv.xy); 
-		float4 textureColor = ColorTexture.Sample( spriteSampler, uv.xy ).rgba;
-		if(i.uvBlend > 0.0f)
+		#if ( D_TEXT )
+		if ( ( sprite.RenderFlags & Text ) != 0 )
 		{
-			float4 sampleB = ColorTexture.Sample( spriteSampler, i.uv.zw ).rgba;
-			float4 mixed = lerp(textureColor, sampleB, i.uvBlend);
-			textureColor = mixed;
+			// Text draws straight from its glyph outlines at whatever size it lands on screen. TextureHandle,
+			// SamplerIndex and Sequence carry the block's instance offset, tile offset and tile row width,
+			// SequenceTime its pixel size.
+			int2 size = int2( asuint( sprite.SequenceTime ) & 0xFFFF, asuint( sprite.SequenceTime ) >> 16 );
+			float2 p = uv * size;
+			float ps = TextFootprint( p );
+			textureColor = TextComposite( p, ps, sprite.TextureHandle, sprite.SamplerIndex, sprite.Sequence, size, 0 );
+			textureColor.rgb = SrgbGammaToLinear( textureColor.rgb );
+		}
+		else
+		#endif
+		{
+			Texture2D ColorTexture = Bindless::GetTexture2DSrgb( sprite.TextureHandle );
+			SamplerState spriteSampler = Bindless::GetSampler( sprite.SamplerIndex );
+
+			textureColor = ColorTexture.Sample( spriteSampler, uv.xy ).rgba;
+			if(i.uvBlend > 0.0f)
+			{
+				float4 sampleB = ColorTexture.Sample( spriteSampler, i.uv.zw ).rgba;
+				textureColor = lerp(textureColor, sampleB, i.uvBlend);
+			}
 		}
 
 		// Unpack exponent and flags from packed int

@@ -13,17 +13,19 @@ public partial class PrefabFile : GameResource
 	/// <summary>
 	/// Load a prefab by file path. Also handles mount:// paths
 	/// </summary>
-	public static PrefabFile Load( string path )
-	{
-		if ( string.IsNullOrWhiteSpace( path ) )
-			return null;
+	public static PrefabFile Load( string path ) => Load( (ResourceId)path );
 
-		var existing = ResourceLibrary.Get<PrefabFile>( path );
+	internal static PrefabFile Load( ResourceId id )
+	{
+		var existing = ResourceLibrary.Get<PrefabFile>( id );
 		if ( existing is not null )
 			return existing;
 
-		if ( Mounting.Directory.TryLoad( path, Mounting.ResourceType.PrefabFile, out var mounted ) && mounted is PrefabFile pf )
-			return pf;
+		if ( !string.IsNullOrWhiteSpace( id.Path ) )
+		{
+			if ( Mounting.Directory.TryLoad( id.Path, Mounting.ResourceType.PrefabFile, out var mounted ) && mounted is PrefabFile pf )
+				return pf;
+		}
 
 		return null;
 	}

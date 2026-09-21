@@ -21,7 +21,6 @@ FEATURES
 COMMON
 {
 	#include "ui/common.hlsl"
-    #include "common/Bindless.hlsl"
 }
   
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -34,12 +33,9 @@ VS
 PS
 {
 	#include "ui/pixel.hlsl"
+	#include "ui/text.hlsl"
 	#include "common/classes/Fog.hlsl"
 
-	// Straight alpha, sRGB-encoded. Read raw and decode in the shader (like ui_cssbox_batched) rather than SrgbRead,
-	// because HDR text is rasterized to RGBA16F which has no sRGB view - the hardware would hand it back undecoded.
-	Texture2D g_tTextTexture < Attribute( "Texture" ); SrgbRead( false ); >;
-	int SamplerIndex < Attribute( "SamplerIndex"); >;
 	float g_FogStrength < Attribute( "g_FogStrength" ); >;
 
 	// Always write rgba
@@ -55,12 +51,6 @@ PS
 
 
 	// Main ---------------------------------------------------------------------------------------------------------------------------------------------------
-
-	float2 RotateTexCoord( float2 vTexCoord, float angle, float2 offset = 0.5 )
-	{
-		float2x2 m = float2x2( cos(angle), -sin(angle), sin(angle), cos(angle) );
-		return mul( m, vTexCoord - offset ) + offset ;
-	}
 
 	void ApplyFog( float3 worldPos, float2 screenPos, inout float4 color )
 	{
@@ -91,10 +81,10 @@ PS
 
 		UI_CommonProcessing_Pre( i );
 
-		float2 vTexCoord = i.vTexCoord.xy;
-
-		SamplerState sampler = Bindless::GetSampler( SamplerIndex );
-		float4 vColor = g_tTextTexture.SampleBias( sampler, vTexCoord, -1.5 ); // negative = sharper, positive = blurrier
+		// Composited straight from the glyph outlines at whatever size the quad lands on screen
+		int2 size = int2( TextWidth, TextHeight );
+		float2 p = i.vTexCoord.xy * size;
+		float4 vColor = TextComposite( p, TextFootprint( p ), TextInstanceOffset, TextTileOffset, TextTilesX, size, 0 );
 		vColor.rgb = SrgbGammaToLinear( vColor.rgb );
 
 		o.vColor = vColor;

@@ -22,16 +22,24 @@ internal static class Bootstrap
 	internal static Api.Events.EventRecord StartupTiming;
 
 	/// <summary>
-	/// Called before anything else. This should set up any low level stuff that
-	/// might be relied on if static functions are called.
+	/// Set up application flags, the main thread and filesystems so the startup window can read its settings.
 	/// </summary>
-	internal static void PreInit( CMaterialSystem2AppSystemDict appDict )
+	internal static void InitApplication( CMaterialSystem2AppSystemDict appDict )
 	{
 		Application.Initialize( appDict.IsDedicatedServer(), appDict.IsConsoleApp(), appDict.IsInToolsMode(), appDict.IsInTestMode(), EngineGlobal.IsRetail() );
+		InitFileSystem( EngineGlobal.GetGameRootFolder() );
+	}
 
+	/// <summary>
+	/// Bootstrap managed services after the startup window has been painted.
+	/// </summary>
+	internal static void PreInit( Action initializeWindow = null )
+	{
 		try
 		{
-			InitMinimal( EngineGlobal.GetGameRootFolder() );
+			initializeWindow?.Invoke();
+			InitServices();
+			Graphics.Initialize();
 
 			DLLImportResolver.SetupResolvers();
 
@@ -94,8 +102,15 @@ internal static class Bootstrap
 		}
 		catch ( Exception ex )
 		{
+			// Window creation can fail before services and the exception logger are initialized.
+			try
+			{
+				ErrorReporter.Initialize();
+				ErrorReporter.ReportException( ex );
+				ErrorReporter.Flush();
+			}
+			catch { }
 			Log.Error( ex );
-			ErrorReporter.Flush();
 			EngineGlobal.Plat_MessageBox( "Bootstrap::PreInit Error", $"Failed to bootstrap engine: {ex.Message}\n\n{ex.StackTrace}" );
 			try { NLog.LogManager.Shutdown(); } catch { }
 			EngineGlobal.Plat_ExitProcess( 1 );
@@ -139,6 +154,8 @@ internal static class Bootstrap
 	{
 		try
 		{
+			Material.Preload();
+
 			IToolsDll.Current?.Spin();
 
 #pragma warning disable CS0612 // Type or member is obsolete
@@ -173,6 +190,7 @@ internal static class Bootstrap
 			}
 
 			InitEngineConVars();
+			ConsoleConfig.ExecuteAutoexec();
 
 			// After registration, or the managed half of every quality profile is dropped on the
 			// floor and shadows and post-processing sit at their code defaults.
@@ -192,7 +210,7 @@ internal static class Bootstrap
 			Screen.UpdateFromEngine();
 
 			// Not in RenderSettings' constructor: SystemInfo is only filled in at the tail of SourceEngineInit.
-			if ( !Application.IsHeadless && !Application.IsEditor )
+			if ( Graphics.IsAvailable && !Application.IsEditor )
 			{
 				Settings.RenderSettings.Instance.EnsureFirstRunPreset();
 			}
@@ -289,12 +307,22 @@ internal static class Bootstrap
 
 	internal static void InitMinimal( string rootFolder )
 	{
-		Environment.CurrentDirectory = rootFolder;
+		InitFileSystem( rootFolder );
+		InitServices();
+	}
 
+	static void InitFileSystem( string rootFolder )
+	{
+		Environment.CurrentDirectory = rootFolder;
+		ThreadSafe.MarkMainThread();
+		EngineFileSystem.Initialize( rootFolder );
+		EngineFileSystem.InitializeConfigFolder();
+	}
+
+	static void InitServices()
+	{
 		if ( !Application.IsDedicatedServer )
 			Sandbox.Utility.Steam.InitializeClient();
-
-		ThreadSafe.MarkMainThread();
 
 		ThreadPool.SetMinThreads( Environment.ProcessorCount, Environment.ProcessorCount );
 
@@ -302,9 +330,6 @@ internal static class Bootstrap
 		AppDomain.CurrentDomain.UnhandledException += ( _, args ) => Log.Error( args.ExceptionObject as Exception, "AppDomain unhandled exception" );
 
 		//System.Net.ServicePointManager.ServerCertificateValidationCallback += ( sender, cert, chain, sslPolicyErrors ) => true;
-
-		EngineFileSystem.Initialize( Environment.CurrentDirectory );
-		EngineFileSystem.InitializeConfigFolder();
 
 		if ( !Application.IsStandalone )
 		{

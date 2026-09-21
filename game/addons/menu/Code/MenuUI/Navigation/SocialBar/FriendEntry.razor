@@ -7,26 +7,26 @@
 @namespace MenuProject.Social
 
 <root class="@CssClasses" onclick=@ShowFriendPopup>
-	<div class="avatar" style="background-image: url( avatar:@Friend.Id )" />
+	<div class="avatar round" style="background-image: url( avatar:@Friend.Id )" />
 	<div class="info">
-		<div class="name">@Friend.Name</div>
-		<div class="status">@StateString.Substring(0, Math.Min(StateString.Length, 36))</div>
+		<label class="name">@Friend.Name</label>
+		<label class="status">@StateString.Substring(0, Math.Min(StateString.Length, 36))</label>
 	</div>
 	<div class="actions">
 		@if ( Joinable )
 		{
-            <div class="action primary" onclick=@JoinGame><i>sports_esports</i><span>#friendentry.join</span></div>
+			<div class="action join" onclick=@JoinGame><label>#friendentry.join</label></div>
 		}
-        else if ( IsGenuinelyFull )
-        {
-            <div class="action deny"><i>block</i><span>#friendentry.full</span></div>
-        }
+		else if ( IsGenuinelyFull )
+		{
+			<div class="action deny"><label>#friendentry.full</label></div>
+		}
 
-        @if ( CanInviteToParty )
-        {
-            <div class="action" onclick=@InviteToParty><i>group_add</i><span>#friendentry.invite</span></div>
-        }
-    </div>
+		@if ( CanInviteToParty )
+		{
+			<div class="action" onclick=@InviteToParty><label>#friendentry.invite</label></div>
+		}
+	</div>
 </root>
 
 @code
@@ -77,8 +77,8 @@
                 var game = Friend.GetRichPresence("gametitle");
                 var map = Friend.GetRichPresence("map");
 
-                if (string.IsNullOrEmpty(game)) return Language.GetPhrase( "friendentry.unknown_state" );
-                if (game == "menu") return Language.GetPhrase( "friendentry.main_menu" ); // (Idle)
+                // Steam clears gametitle while the friend is in the main menu.
+                if (string.IsNullOrWhiteSpace(game) || game == "menu") return Language.GetPhrase( "friendentry.main_menu" );
                 if (string.IsNullOrWhiteSpace(map)) return Language.GetPhrase( "friendentry.unknown_map", new() { { "gametitle", game } } );
                 return Language.GetPhrase( "friendentry.playing", new() { { "gametitle", game }, { "maptitle", map } } );
             }

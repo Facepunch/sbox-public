@@ -189,10 +189,16 @@ internal partial class NetworkSystem
 	/// </summary>
 	internal void OnServerDisconnection( int reasonCode, string reasonString )
 	{
+		var message = $"The server connection closed.\nReason: {reasonString} (code {reasonCode}).";
 		if ( Connection.Local.State == Connection.ChannelState.Unconnected )
+		{
+			// Keep diagnostics for a failed join without showing another dialog after teardown.
+			FailureReason ??= message;
 			return;
+		}
 
-		IGameInstanceDll.Current.Disconnect( $"You have been disconnected from the server.\nReason: {reasonString}" );
+		FailureReason = message;
+		IGameInstanceDll.Current.Disconnect( FailureReason );
 	}
 
 	/// <summary>

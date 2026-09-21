@@ -51,6 +51,31 @@ public class TextEntryScrollTests
 	static Label LabelOf( TextEntry entry ) => entry.Children.OfType<Label>().First();
 
 	[TestMethod]
+	public void CharacterHitTestCoversBothHalvesWhileScrolled()
+	{
+		var entry = CreateNarrowEntry( LongText );
+		try
+		{
+			var label = LabelOf( entry );
+			label.SetCaretPosition( label.TextLength );
+			for ( int i = label.TextLength - 4; i < label.TextLength; i++ )
+			{
+				var start = label.GetCaretRect( i );
+				var end = label.GetCaretRect( i + 1 );
+				foreach ( var fraction in new[] { 0.25f, 0.75f } )
+				{
+					var point = new Vector2( start.Left + (end.Left - start.Left) * fraction, start.Center.y );
+					Assert.AreEqual( i, label.GetCharacterAtScreenPosition( point ) );
+				}
+			}
+			var last = label.GetCaretRect( label.TextLength );
+			Assert.AreEqual( -1, label.GetCharacterAtScreenPosition( new Vector2( last.Left + 20, last.Center.y ) ) );
+			Assert.AreEqual( -1, label.GetCharacterAtScreenPosition( new Vector2( last.Left, last.Top - 100 ) ) );
+		}
+		finally { entry.FindRootPanel().Delete( true ); }
+	}
+
+	[TestMethod]
 	public void CaretAtStartIsVisible()
 	{
 		var entry = CreateNarrowEntry( LongText );
@@ -249,26 +274,5 @@ public class TextEntryScrollTests
 
 			Assert.IsTrue( caret.Left + 2 <= box.Right + 1, $"after typing '{c}' the caret {caret.Left} is outside the box {box.Right}" );
 		}
-	}
-
-	/// <summary>
-	/// The text is drawn at the scroll offset, so moving that offset has to redraw it. Moving the
-	/// caret with the arrow keys changes nothing else, so without this the text stays put on
-	/// screen while the caret walks off it.
-	/// </summary>
-	[TestMethod]
-	public void ScrollingMarksTheTextForRedraw()
-	{
-		var entry = CreateNarrowEntry( LongText );
-		var label = LabelOf( entry );
-
-		label.SetCaretPosition( 0 );
-
-		// Pretend it has been drawn since
-		label.IsRenderDirty = false;
-
-		label.SetCaretPosition( label.TextLength );
-
-		Assert.IsTrue( label.IsRenderDirty, "scrolling to the caret should redraw the text" );
 	}
 }

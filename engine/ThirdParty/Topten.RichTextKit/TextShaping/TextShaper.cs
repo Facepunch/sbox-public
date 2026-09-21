@@ -72,7 +72,6 @@ namespace Topten.RichTextKit
 			}
 
 			// Get font metrics for this typeface
-			using ( var paint = new SKPaint() )
 			using ( var font = new SKFont() )
 			{
 				font.Typeface = typeface;

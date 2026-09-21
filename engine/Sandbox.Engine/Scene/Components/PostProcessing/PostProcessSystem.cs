@@ -40,7 +40,7 @@ public sealed partial class PostProcessSystem : GameObjectSystem<PostProcessSyst
 			return;
 		}
 
-		foreach ( var cc in Scene.GetAll<CameraComponent>() )
+		foreach ( var cc in Scene.Query<CameraComponent>() )
 		{
 			UpdateCamera( cc );
 		}

@@ -27,7 +27,7 @@ internal static partial class Logging
 			{
 				var frames = logEvent.StackTrace.GetFrames().Skip( 1 ).Take( 10 ).Where( x => x.GetMethod().DeclaringType.Name != "Logger" );
 				var stack = string.Join( "\n", frames.Select( x => $"\t\t{x.GetMethod()?.DeclaringType?.Name}.{x.GetMethod()?.Name} - {x.GetFileName()}:{x.GetFileLineNumber()}" ) );
-				if ( stack.StartsWith( "\t\tEngineLoop.Print - " ) ) return "";
+				if ( stack.StartsWith( "\t\tLogging.PrintNative - " ) ) return "";
 
 				return $"\n{stack}\n";
 			} );

@@ -170,7 +170,7 @@ internal static class ConvexDecomposition2D
 			var b = verts2d[ib];
 			var c = verts2d[ic];
 
-			if ( !IsFinite( a ) || !IsFinite( b ) || !IsFinite( c ) )
+			if ( !a.IsFinite || !b.IsFinite || !c.IsFinite )
 				continue;
 
 			float area = MathF.Abs( Cross( a, b, c ) ) * 0.5f;
@@ -190,7 +190,7 @@ internal static class ConvexDecomposition2D
 		{
 			var world = transform.PointToWorld( source[i] );
 			var p = new Vector2( world.x, world.y );
-			if ( !IsFinite( p ) )
+			if ( !p.IsFinite )
 				continue;
 
 			destination[count++] = p;
@@ -221,7 +221,6 @@ internal static class ConvexDecomposition2D
 		return true;
 	}
 
-	static bool IsFinite( Vector2 p ) => float.IsFinite( p.x ) && float.IsFinite( p.y );
 
 	static float Cross( Vector2 o, Vector2 a, Vector2 b )
 	{

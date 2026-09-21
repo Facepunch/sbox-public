@@ -26,6 +26,8 @@ public class GalleryTarget
 
 	public float Scale { get; set; } = 1.0f;
 	public int Count { get; set; } = 4;
+	public Curve Response { get; set; } = Curve.Ease;
+	public CurveRange ResponseRange { get; set; } = new( Curve.EaseIn, Curve.EaseOut );
 
 	public Vector2 Offset { get; set; } = new Vector2( 10, 20 );
 	public Vector3 Position { get; set; } = new Vector3( 1, 2, 3 );

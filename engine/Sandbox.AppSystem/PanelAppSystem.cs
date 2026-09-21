@@ -1,4 +1,4 @@
-﻿using Editor;
+using Editor;
 using Sandbox.Engine;
 using Sandbox.UI;
 using System;
@@ -60,6 +60,8 @@ public class PanelAppSystem : AppSystem
 			throw new Exception( "SourceEnginePreInit failed" );
 		}
 
+		WindowInput.Initialize();
+		Graphics.Initialize();
 		Phase( "SourceEnginePreInit" );
 
 		if ( !NativeEngine.EngineGlobal.SourceEnginePanelAppInit( _appSystem ) )
@@ -73,6 +75,7 @@ public class PanelAppSystem : AppSystem
 		FontManager.Instance.LoadAll( EngineFileSystem.CoreContent );
 		Phase( "Fonts" );
 
+		Material.Preload();
 		WarmRenderLayers();
 		Phase( "Warm render layers" );
 
@@ -205,6 +208,7 @@ public class PanelAppSystem : AppSystem
 	protected override bool RunFrame()
 	{
 		var frameStart = Stopwatch.GetTimestamp();
+		Application.FrameCount++;
 
 		// The clocks the UI runs on - EngineLoop drives these in a full app, here it's on us.
 		// Without them every animation and transition sits frozen at time zero
@@ -212,11 +216,19 @@ public class PanelAppSystem : AppSystem
 		Time.Update( RealTime.Now, RealTime.Delta );
 		Sandbox.UI.PanelRealTime.Update();
 
-		// Input lands in the panel windows from inside this - see PanelWindowGlue::HandleEvent
+		SdlEvents.Poll();
 		NativeEngine.EngineGlobal.SourceEnginePanelAppFrame();
 
 		// Await continuations queue for the main thread - without this pump they'd wait forever
 		Sandbox.Tasks.SyncContext.MainThread?.ProcessQueue();
+
+		// Expire caches and release resources finalized off-thread.
+		NativeResourceCache.Tick();
+		TextRendering.Tick();
+		MainThread.RunQueues();
+
+		// Background videos need the same presentation pump as the full engine UI.
+		Sandbox.TextureLoader.VideoTextureLoader.TickVideoPlayers();
 
 		var presented = PanelWindows.FrameAll();
 
@@ -228,6 +240,8 @@ public class PanelAppSystem : AppSystem
 		{
 			loggedFirstFrame = true;
 			Phase( "First frame" );
+			_appSystem.StartBackgroundSystems();
+			SdlGamepads.Initialize();
 
 			// The backend comes up after the window is on screen, so it never costs startup
 			// time. It's an http client - no Steam, no auth needed for public reads
@@ -259,6 +273,6 @@ public class PanelAppSystem : AppSystem
 			if ( elapsed < IdleFrameMs ) Thread.Sleep( IdleFrameMs - elapsed );
 		}
 
-		return PanelWindows.All.Count > 0;
+		return !Application.WantsExit && PanelWindows.All.Count > 0;
 	}
 }

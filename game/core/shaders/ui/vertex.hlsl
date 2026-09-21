@@ -29,11 +29,10 @@ PS_INPUT MainVs( VS_INPUT i )
 	{
 		float4 vMatrix = mul( LayerMat, mul( g_matTransform, float4( vPositionSs.xy, 0, 1 ) ));
 		vPositionSs.xy = vMatrix.xy / vMatrix.w;
-		o.vPositionPs.xy = 2.0 * ( vPositionSs.xy - vViewport.xy ) / ( vViewport.zw ) - float2( 1.0, 1.0 );
+		o.vPositionPs.xy = 2.0 * ( vMatrix.xy - vViewport.xy * vMatrix.w ) / vViewport.zw - vMatrix.w;
 		o.vPositionPs.y *= -1.0;
-		o.vPositionPs.z = 1.0;
-		o.vPositionPs.w = 1.0 + EPSILON;
-		o.vTexCoord.zw = vPositionSs.xy / vViewport.zw;		
+		o.vPositionPs.z = vMatrix.w;
+		o.vPositionPs.w = vMatrix.w * ( 1.0 + EPSILON );
 	}
 	#else
 	{
@@ -54,11 +53,10 @@ PS_INPUT MainVs( VS_INPUT i )
 	
 	o.vPositionSs = o.vPositionPs;
 	o.vPositionPanelSpace = mul( g_matTransform, float4( i.vPositionSs.xy, 0, 1 ) );
-	o.vTexCoord.zw = vPositionSs.xy / vViewport.zw;
 
 	o.vColor.rgb = SrgbGammaToLinear( i.vColor.rgb );
 	o.vColor.a = i.vColor.a;
-	o.vTexCoord.xy = i.vTexCoord.xy;
+	o.vTexCoord = float4( i.vTexCoord.xy, 0, 0 );
 
 	return o;
 }

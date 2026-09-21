@@ -243,7 +243,7 @@ internal class MeshQuery
 		closest = pos;
 		posOverPoly = false;
 
-		if ( !_nav.IsValidPolyRef( refs ) || !Geometry.IsFinite( pos ) )
+		if ( !_nav.IsValidPolyRef( refs ) || !pos.IsFinite )
 		{
 			return Status.Failure | Status.InvalidInput;
 		}
@@ -261,7 +261,7 @@ internal class MeshQuery
 			return Status.Failure | Status.InvalidInput;
 		}
 
-		if ( tile == null || !Geometry.IsFinite( pos ) )
+		if ( tile == null || !pos.IsFinite )
 		{
 			return Status.Failure | Status.InvalidInput;
 		}
@@ -313,7 +313,7 @@ internal class MeshQuery
 			return Status.Failure | Status.InvalidInput;
 		}
 
-		if ( !Geometry.IsFinite( pos ) )
+		if ( !pos.IsFinite )
 		{
 			return Status.Failure | Status.InvalidInput;
 		}
@@ -401,7 +401,7 @@ internal class MeshQuery
 
 	public Status QueryPolygons( Vector3 center, Vector3 halfExtents, TraversalFilter filter, IPolyQuery query )
 	{
-		if ( !Geometry.IsFinite( center ) || !Geometry.IsFinite( halfExtents ) )
+		if ( !center.IsFinite || !halfExtents.IsFinite )
 		{
 			return Status.InvalidInput;
 		}
@@ -520,7 +520,7 @@ internal class MeshQuery
 	{
 		straightPathCount = 0;
 
-		if ( !Geometry.IsFinite( startPos ) || !Geometry.IsFinite( endPos ) ||
+		if ( !startPos.IsFinite || !endPos.IsFinite ||
 			straightPath.IsEmpty ||
 			null == path || pathSize <= 0 || path[0] == 0
 			|| maxStraightPath <= 0 )
@@ -756,8 +756,8 @@ internal class MeshQuery
 		visitedCount = 0;
 
 		// Validate input
-		if ( !_nav.IsValidPolyRef( startRef ) || !Geometry.IsFinite( startPos )
-											|| !Geometry.IsFinite( endPos ) )
+		if ( !_nav.IsValidPolyRef( startRef ) || !startPos.IsFinite
+											|| !endPos.IsFinite )
 		{
 			return Status.Failure | Status.InvalidInput;
 		}
@@ -1097,7 +1097,7 @@ internal class MeshQuery
 		hitNormal = Vector3.Zero;
 
 		// Validate input
-		if ( !_nav.IsValidPolyRef( startRef ) || !Geometry.IsFinite( centerPos ) || maxRadius < 0
+		if ( !_nav.IsValidPolyRef( startRef ) || !centerPos.IsFinite || maxRadius < 0
 			|| !float.IsFinite( maxRadius ) )
 		{
 			return Status.Failure | Status.InvalidInput;

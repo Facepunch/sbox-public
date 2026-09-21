@@ -9,6 +9,72 @@ namespace NavigationTests;
 public class NavigationSimulationTests
 {
 	[TestMethod]
+	public void WallSteeringDoesNotAvoidWallsBeyondTheDestination_11822()
+	{
+		var mesh = SyntheticNavMesh.Create( new() { Doorway = true } );
+		var simulation = new NavigationSimulation( mesh, new object(), 16, 64 );
+		var agent = simulation.Add( new Vector3( 250, 1, 100 ), new( 16, 64, 180, 1200, 0.25f, true, TraversalFilter.Unrestricted ) );
+		agent.Query.FindNearestPoly( agent.Position, new Vector3( 8 ), TraversalFilter.Unrestricted, out var polygon, out _, out _ );
+		Assert.AreNotEqual( 0L, polygon );
+		agent.Path.Add( polygon );
+		var desired = new Vector3( 180, 0, 0 );
+		var goal = new Vector3( 280, 1, 100 );
+		Assert.AreEqual( desired, WallSteering.Steer( agent, desired, goal, agent.Position.Distance( goal ) ), "A wall beyond the destination must not divert a clear approach" );
+	}
+
+	[TestMethod]
+	public void WallSteeringDoesNotPredictPastTheNextRouteCorner_11822()
+	{
+		var mesh = SyntheticNavMesh.Create( new() { Doorway = true } );
+		var simulation = new NavigationSimulation( mesh, new object(), 16, 64 );
+		var agent = simulation.Add( new Vector3( 280, 1, 270 ), new( 16, 64, 180, 1200, 0.25f, true, TraversalFilter.Unrestricted ) );
+		agent.Query.FindNearestPoly( agent.Position, new Vector3( 8 ), TraversalFilter.Unrestricted, out var polygon, out _, out _ );
+		Assert.AreNotEqual( 0L, polygon );
+		agent.Path.Add( polygon );
+		var corner = new Vector3( 300, 1, 280 );
+		var direction = corner - agent.Position;
+		var desired = direction.Normal * 180;
+		var result = WallSteering.Steer( agent, desired, new Vector3( 540, 1, 100 ), direction.Length );
+		Assert.IsTrue( result.Distance( desired ) < 0.01f, $"A clear approach to a route corner was diverted: {result} versus {desired}" );
+	}
+
+	[TestMethod]
+	[DataRow( 100, false )]
+	[DataRow( 540, false )]
+	[DataRow( 100, true )]
+	[DataRow( 540, true )]
+	public void RoomEntryFollowsTheRouteWithoutWideDetours_11822( int z, bool reverse )
+	{
+		var mesh = SyntheticNavMesh.Create( new() { Doorway = true } );
+		var simulation = new NavigationSimulation( mesh, new object(), 16, 64 );
+		var start = new Vector3( reverse ? 540 : 100, 1, z );
+		var target = new Vector3( reverse ? 100 : 540, 1, z );
+		var agent = simulation.Add( start, new( 16, 64, 180, 1200, 0.25f, true, TraversalFilter.Unrestricted ) );
+		agent.MoveTo( target );
+		simulation.Update( 0.02f );
+		var corners = new StraightPath[16];
+		Assert.IsTrue( agent.Query.FindStraightPath( start, target, agent.Path, agent.Path.Count, corners, out int count, corners.Length, 0 ).Succeeded() );
+		float shortest = 0;
+		for ( int i = 1; i < count; i++ ) shortest += corners[i].pos.Distance( corners[i - 1].pos );
+		float traveled = agent.Position.Distance( start ), deviation = 0;
+		int ticks = 1;
+		for ( int tick = 0; tick < 1000 && agent.State.Target.HasValue; tick++ )
+		{
+			var before = agent.Position;
+			simulation.Update( 0.02f );
+			ticks++;
+			traveled += before.Distance( agent.Position );
+			float nearest = float.MaxValue;
+			for ( int i = 1; i < count; i++ ) nearest = MathF.Min( nearest, Geometry.DistancePtSegSqr2D( agent.Position, corners[i - 1].pos, corners[i].pos, out _ ) );
+			deviation = MathF.Max( deviation, MathF.Sqrt( nearest ) );
+		}
+		Console.WriteLine( $"Room entry: length {traveled:F2}, shortest {shortest:F2}, deviation {deviation:F2}, seconds {ticks * 0.02f:F2}, arrived {!agent.State.Target.HasValue}" );
+		Assert.IsNull( agent.State.Target );
+		Assert.IsTrue( deviation <= agent.Options.Radius, $"An unobstructed agent took a wide detour: {deviation:F2}" );
+		Assert.IsTrue( traveled < shortest * 1.1f, $"Route length {traveled:F2} versus {shortest:F2}" );
+	}
+
+	[TestMethod]
 	public void ExternallyDrivenAgentKeepsItsReportedVelocity()
 	{
 		var mesh = SyntheticNavMesh.Create();
@@ -26,7 +92,7 @@ public class NavigationSimulationTests
 	[TestMethod]
 	public void AvoidingANeighbourDoesNotDriveTheAgentIntoAWall_11811()
 	{
-		var mesh = SyntheticNavMesh.Create( doorway: true );
+		var mesh = SyntheticNavMesh.Create( new() { Doorway = true } );
 		var simulation = new NavigationSimulation( mesh, new object(), 8, 32 );
 		var agent = simulation.Add( new Vector3( 294, 1, 100 ), Settings( mesh ) );
 		var neighbour = simulation.Add( new Vector3( 280, 1, 100 ), Settings( mesh ) );
@@ -48,8 +114,8 @@ public class NavigationSimulationTests
 	[TestMethod]
 	public void WallQueryKeepsPartialTilePortalsOpen()
 	{
-		var mesh = SyntheticNavMesh.Create( tileBorders: true );
-		var neighbour = SyntheticNavMesh.Create( minZ: 32, tileBorders: true ).GetTile( 0 ).data;
+		var mesh = SyntheticNavMesh.Create( new() { TileBorders = true } );
+		var neighbour = SyntheticNavMesh.Create( new() { MinZ = 32, TileBorders = true } ).GetTile( 0 ).data;
 		neighbour.header.x = 1;
 		neighbour.header.bmin.x += 640;
 		neighbour.header.bmax.x += 640;
@@ -87,7 +153,7 @@ public class NavigationSimulationTests
 	[DataRow( false )]
 	public void WallAdjacentLinkEntrancesRemainReachable_10146( bool automatic )
 	{
-		var mesh = SyntheticNavMesh.Create( upperFloor: true, link: true );
+		var mesh = SyntheticNavMesh.Create( new() { UpperFloor = true, Link = true } );
 		var data = mesh.GetTile( 0 ).data;
 		data.offMeshCons[0].startPos.x = 639.9f;
 		data.offMeshCons[0].endPos.x = 639.9f;
@@ -123,7 +189,7 @@ public class NavigationSimulationTests
 	[DataRow( 64, true )]
 	public void AgentsReachTargetsThroughDoorway_11811( int count, bool opposing )
 	{
-		var mesh = SyntheticNavMesh.Create( doorway: true );
+		var mesh = SyntheticNavMesh.Create( new() { Doorway = true } );
 		var simulation = new NavigationSimulation( mesh, new object(), 8, 32 );
 		var agents = new List<SimulationAgent>();
 		var targets = new List<Vector3>();
@@ -195,7 +261,7 @@ public class NavigationSimulationTests
 	[TestMethod]
 	public void OverlappingSpawnsReachTheirTargets_11811()
 	{
-		var mesh = SyntheticNavMesh.Create( doorway: true );
+		var mesh = SyntheticNavMesh.Create( new() { Doorway = true } );
 		var simulation = new NavigationSimulation( mesh, new object(), 8, 32 );
 		var agents = new List<SimulationAgent>();
 		for ( int i = 0; i < 16; i++ )
@@ -214,7 +280,7 @@ public class NavigationSimulationTests
 	[DataRow( 0.1f )]
 	public void AgentReachesWallAdjacentTargets( float clearance )
 	{
-		var mesh = SyntheticNavMesh.Create( obstacles: true );
+		var mesh = SyntheticNavMesh.Create( new() { Obstacles = true } );
 		var simulation = new NavigationSimulation( mesh, new object(), 8, 32 );
 		var agent = simulation.Add( new Vector3( 100, 1, 100 ), Settings( mesh ) );
 		var target = new Vector3( 180 - clearance, 1, 500 );
@@ -226,7 +292,7 @@ public class NavigationSimulationTests
 	[TestMethod]
 	public void SpawnedAgentNavigatesAroundObstacles_11811()
 	{
-		var mesh = SyntheticNavMesh.Create( obstacles: true );
+		var mesh = SyntheticNavMesh.Create( new() { Obstacles = true } );
 		var simulation = new NavigationSimulation( mesh, new object(), 8, 32 );
 		var agent = simulation.Add( new Vector3( 100, 1, 100 ), Settings( mesh ) );
 		var target = new Vector3( 500, 1, 500 );
@@ -278,7 +344,7 @@ public class NavigationSimulationTests
 	[TestMethod]
 	public void PartialRouteResumesWhenAConnectionAppears()
 	{
-		var mesh = SyntheticNavMesh.Create( upperFloor: true );
+		var mesh = SyntheticNavMesh.Create( new() { UpperFloor = true } );
 		var simulation = new NavigationSimulation( mesh, new object(), 8, 32 );
 		var agent = simulation.Add( new Vector3( 100, 1, 320 ), Settings( mesh ) );
 		var target = new Vector3( 500, 201, 320 );
@@ -286,7 +352,7 @@ public class NavigationSimulationTests
 		for ( int i = 0; i < 500; i++ ) simulation.Update( 0.02f );
 		Assert.IsTrue( agent.Partial );
 		Assert.AreEqual( (Vector3?)target, agent.State.Target );
-		var connected = SyntheticNavMesh.Create( upperFloor: true, link: true );
+		var connected = SyntheticNavMesh.Create( new() { UpperFloor = true, Link = true } );
 		Assert.IsTrue( mesh.UpdateTile( connected.GetTile( 0 ).data, 0 ).Succeeded() );
 		simulation.Revision++;
 		for ( int i = 0; i < 700; i++ ) simulation.Update( 0.02f );
@@ -321,7 +387,7 @@ public class NavigationSimulationTests
 	[TestMethod]
 	public void StoppingOnALinkReprojectsOntoTheCurrentFloor()
 	{
-		var mesh = SyntheticNavMesh.Create( upperFloor: true, link: true );
+		var mesh = SyntheticNavMesh.Create( new() { UpperFloor = true, Link = true } );
 		var simulation = new NavigationSimulation( mesh, new object(), 8, 32 );
 		var agent = simulation.Add( new Vector3( 320, 1, 320 ), Settings( mesh, false ) );
 		agent.MoveTo( new Vector3( 500, 201, 320 ) );
@@ -356,7 +422,7 @@ public class NavigationSimulationTests
 	[TestMethod]
 	public void VerticalLinkTraversesInBothDirections_10146()
 	{
-		var mesh = SyntheticNavMesh.Create( upperFloor: true, link: true );
+		var mesh = SyntheticNavMesh.Create( new() { UpperFloor = true, Link = true } );
 		var simulation = new NavigationSimulation( mesh, new object(), 8, 32 );
 		var agent = simulation.Add( new Vector3( 100, 1, 320 ), Settings( mesh ) );
 		foreach ( float height in new[] { 201f, 1f } )
@@ -372,7 +438,7 @@ public class NavigationSimulationTests
 	[TestMethod]
 	public void ManualLinkWaitsForCompletion_10146()
 	{
-		var mesh = SyntheticNavMesh.Create( upperFloor: true, link: true );
+		var mesh = SyntheticNavMesh.Create( new() { UpperFloor = true, Link = true } );
 		var simulation = new NavigationSimulation( mesh, new object(), 8, 32 );
 		var agent = simulation.Add( new Vector3( 100, 1, 320 ), Settings( mesh, false ) );
 		agent.MoveTo( new Vector3( 500, 201, 320 ) );
@@ -393,7 +459,7 @@ public class NavigationSimulationTests
 	[DataRow( -120, false )]
 	public void ManualLinkResumesFromActualLanding( int offset, bool ascending )
 	{
-		var mesh = SyntheticNavMesh.Create( upperFloor: true, link: true, obstacles: true );
+		var mesh = SyntheticNavMesh.Create( new() { UpperFloor = true, Link = true, Obstacles = true } );
 		var simulation = new NavigationSimulation( mesh, new object(), 8, 32 );
 		float startHeight = ascending ? 1 : 201, endHeight = ascending ? 201 : 1;
 		var agent = simulation.Add( new Vector3( 320, startHeight, 320 ), Settings( mesh, false ) );
@@ -425,7 +491,7 @@ public class NavigationSimulationTests
 	[TestMethod]
 	public void ManualLinkCompletedOffMeshWaitsForPlacement()
 	{
-		var mesh = SyntheticNavMesh.Create( upperFloor: true, link: true );
+		var mesh = SyntheticNavMesh.Create( new() { UpperFloor = true, Link = true } );
 		var simulation = new NavigationSimulation( mesh, new object(), 8, 32 );
 		var agent = simulation.Add( new Vector3( 320, 1, 320 ), Settings( mesh, false ) );
 		var target = new Vector3( 500, 201, 320 );
@@ -447,7 +513,7 @@ public class NavigationSimulationTests
 	[TestMethod]
 	public void ShortLinkEntryIsPublishedBeforeCompletion()
 	{
-		var mesh = SyntheticNavMesh.Create( upperFloor: true, link: true );
+		var mesh = SyntheticNavMesh.Create( new() { UpperFloor = true, Link = true } );
 		var simulation = new NavigationSimulation( mesh, new object(), 8, 32 );
 		var agent = simulation.Add( new Vector3( 320, 1, 320 ), Settings( mesh ) with { MaxSpeed = 100000 } );
 		agent.MoveTo( new Vector3( 500, 201, 320 ) );
@@ -455,6 +521,126 @@ public class NavigationSimulationTests
 		Assert.IsTrue( agent.State.Link.HasValue, "Substeps must not consume the entry before component callbacks can observe it" );
 		simulation.Update( 0.02f );
 		Assert.IsFalse( agent.State.Link.HasValue );
+	}
+
+	[TestMethod]
+	public void PassingABlockingNeighbourDoesNotOrbitIt()
+	{
+		var mesh = SyntheticNavMesh.Create();
+		var simulation = new NavigationSimulation( mesh, new object(), 8, 32 );
+		var agent = simulation.Add( new Vector3( 240, 1, 320 ), Settings( mesh ) );
+		simulation.Add( new Vector3( 330, 1, 320 ), Settings( mesh ) );
+		var target = new Vector3( 350, 1, 320 );
+		agent.MoveTo( target );
+		float travelled = 0;
+		int sidestep = 0;
+		var previous = agent.Position;
+		for ( int tick = 0; tick < 2000 && agent.State.Target.HasValue; tick++ )
+		{
+			simulation.Update( 0.02f );
+			travelled += agent.Position.Distance( previous );
+			previous = agent.Position;
+			if ( agent.Position.Distance( target ) > 20 && agent.Velocity.Length > 1 && agent.Velocity.Normal.x < 0.5f ) sidestep++;
+		}
+		Assert.IsTrue( agent.Position.Distance( target ) < 10, agent.State.ToString() );
+		Assert.AreEqual( 0, sidestep, $"Passing a blocker turned the agent away from its goal for {sidestep} ticks" );
+		Assert.IsTrue( travelled < 170, $"Route around one blocker was {travelled:0} units instead of 110" );
+	}
+
+	[TestMethod]
+	public void NeighbourPassedWideDoesNotDivertTheAgent()
+	{
+		var mesh = SyntheticNavMesh.Create();
+		var simulation = new NavigationSimulation( mesh, new object(), 8, 32 );
+		var agent = simulation.Add( new Vector3( 200, 1, 320 ), Settings( mesh ) );
+		simulation.Add( new Vector3( 320, 1, 360 ), Settings( mesh ) );
+		var target = new Vector3( 440, 1, 320 );
+		agent.MoveTo( target );
+		float lateral = 0;
+		for ( int tick = 0; tick < 2000; tick++ )
+		{
+			simulation.Update( 0.02f );
+			lateral = MathF.Max( lateral, MathF.Abs( agent.Position.z - 320 ) );
+		}
+		Assert.IsTrue( agent.Position.Distance( target ) < 1, agent.State.ToString() );
+		Assert.IsTrue( lateral < 1, $"A neighbour cleared by 40 units diverted the agent by {lateral:0.0}" );
+	}
+
+	[TestMethod]
+	[DataRow( 0f )]
+	[DataRow( 0.25f )]
+	[DataRow( 1f )]
+	public void SeparationDoesNotPreventReachingAGoalBesideANeighbour( float separation )
+	{
+		var mesh = SyntheticNavMesh.Create();
+		var simulation = new NavigationSimulation( mesh, new object(), 8, 32 );
+		var settings = Settings( mesh ) with { Separation = separation };
+		simulation.Add( new Vector3( 330, 1, 320 ), settings );
+		var agent = simulation.Add( new Vector3( 240, 1, 320 ), settings );
+		var target = new Vector3( 350, 1, 320 );
+		agent.MoveTo( target );
+		int stalled = 0, worst = 0;
+		for ( int tick = 0; tick < 1500; tick++ )
+		{
+			simulation.Update( 0.02f );
+			if ( agent.State.Navigating && agent.Velocity.Length < 6 ) worst = Math.Max( worst, ++stalled );
+			else stalled = 0;
+		}
+		Assert.IsTrue( worst < 75, $"Separation {separation} stalled the agent for {worst * 0.02f:0.0}s" );
+		Assert.IsTrue( agent.Position.Distance( target ) < 12, $"Separation {separation} left the agent {agent.Position.Distance( target ):0} units short: {agent.State}" );
+	}
+
+	[TestMethod]
+	public void CrossingAgentsPassWithoutStalling()
+	{
+		var mesh = SyntheticNavMesh.Create();
+		var simulation = new NavigationSimulation( mesh, new object(), 8, 32 );
+		var first = simulation.Add( new Vector3( 200, 1, 320 ), Settings( mesh ) );
+		var second = simulation.Add( new Vector3( 320, 1, 200 ), Settings( mesh ) );
+		var firstTarget = new Vector3( 440, 1, 320 );
+		var secondTarget = new Vector3( 320, 1, 440 );
+		first.MoveTo( firstTarget );
+		second.MoveTo( secondTarget );
+		float travelled = 0, closest = float.MaxValue;
+		var previous = first.Position;
+		for ( int tick = 0; tick < 1000; tick++ )
+		{
+			simulation.Update( 0.02f );
+			travelled += first.Position.Distance( previous );
+			previous = first.Position;
+			closest = MathF.Min( closest, first.Position.Distance( second.Position ) );
+		}
+		Assert.IsTrue( closest >= 16, $"Crossing agents overlapped: {closest:0.0}" );
+		Assert.IsTrue( first.Position.Distance( firstTarget ) < 2, first.State.ToString() );
+		Assert.IsTrue( second.Position.Distance( secondTarget ) < 2, second.State.ToString() );
+		Assert.IsTrue( travelled < 300, $"Crossing detour was {travelled:0} units on a 240 unit route" );
+	}
+
+	[TestMethod]
+	public void AgentsOrderedToOnePointPackAroundItWithoutOverlapping()
+	{
+		var mesh = SyntheticNavMesh.Create();
+		var simulation = new NavigationSimulation( mesh, new object(), 8, 32 );
+		var target = new Vector3( 420, 1, 420 );
+		var agents = new List<SimulationAgent>();
+		for ( int i = 0; i < 8; i++ )
+		{
+			var agent = simulation.Add( new Vector3( 120 + i % 4 * 30, 1, 200 + i / 4 * 30 ), Settings( mesh ) );
+			agent.MoveTo( target );
+			agents.Add( agent );
+		}
+		float closest = float.MaxValue;
+		for ( int tick = 0; tick < 1500; tick++ )
+		{
+			simulation.Update( 0.02f );
+			if ( tick < 60 ) continue;
+			for ( int i = 0; i < agents.Count; i++ )
+				for ( int j = i + 1; j < agents.Count; j++ )
+					closest = MathF.Min( closest, agents[i].Position.WithY( 0 ).Distance( agents[j].Position.WithY( 0 ) ) );
+		}
+		Assert.IsTrue( closest > 12.8f, $"A pile-up compressed agents to {closest:0.0} apart, radii sum 16" );
+		foreach ( var agent in agents )
+			Assert.IsTrue( agent.Position.Distance( target ) < 32, $"An agent settled {agent.Position.Distance( target ):0} units from the shared destination: {agent.State}" );
 	}
 
 	[TestMethod]

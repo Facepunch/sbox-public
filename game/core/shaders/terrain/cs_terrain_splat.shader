@@ -34,6 +34,7 @@ CS
         float Rotation;
         float FlattenHeight;
         int SplatChannel;
+        float2 PlaneGradient;
     };
     StructuredBuffer<BrushData> BrushSettings < Attribute( "BrushSettings" ); >;
 

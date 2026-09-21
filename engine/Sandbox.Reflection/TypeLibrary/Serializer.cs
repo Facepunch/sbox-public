@@ -91,7 +91,7 @@ public partial class TypeLibrary
 		{
 			if ( type.IsAssignableTo( typeof( ISerializer ) ) )
 			{
-				var packerType = typeof( SerializerPacker<> ).MakeGenericType( type );
+				var packerType = typeof( SerializerPacker<,> ).MakeGenericType( type, GetSerializerReadType( type ) );
 				return (BytePack.Packer)Activator.CreateInstance( packerType, new object[] { t } );
 			}
 			else
@@ -100,6 +100,22 @@ public partial class TypeLibrary
 				return (BytePack.Packer)Activator.CreateInstance( packerType, new object[] { t } );
 			}
 		}
+	}
+
+	private static Type GetSerializerReadType( Type type )
+	{
+		// Use the actual reader implementation, including explicit reimplementations.
+		// An inherited reader can resolve any instance of the type that declares it.
+		var map = type.GetInterfaceMap( typeof( ISerializer ) );
+		for ( var i = 0; i < map.InterfaceMethods.Length; i++ )
+		{
+			if ( map.InterfaceMethods[i].Name == nameof( ISerializer.BytePackRead ) )
+			{
+				return map.TargetMethods[i].DeclaringType;
+			}
+		}
+
+		throw new InvalidOperationException( $"No BytePack reader found for {type}." );
 	}
 
 	private BytePack.Packer TryCreatePackerFor( int type )
@@ -139,7 +155,7 @@ file class ValuePacker<T> : Packer where T : unmanaged
 		bs.Write( (T)obj );
 	}
 
-	public override object Read( ref ByteStream bs )
+	public override object Read( ref ByteStream bs, int depth )
 	{
 		return bs.Read<T>();
 	}
@@ -148,8 +164,9 @@ file class ValuePacker<T> : Packer where T : unmanaged
 /// <summary>
 /// A packer that handles serialization and deserialization for implementations of <see cref="ISerializer"/>.
 /// </summary>
-/// <typeparam name="T"></typeparam>
-file class SerializerPacker<T> : Packer where T : ISerializer
+/// <typeparam name="T">The serialized runtime type.</typeparam>
+/// <typeparam name="TResult">The type declaring the reader implementation.</typeparam>
+file class SerializerPacker<T, TResult> : Packer where T : ISerializer
 {
 	static Logger log = new Logger( $"SerializerPacker<{typeof( T )}>" );
 
@@ -189,12 +206,13 @@ file class SerializerPacker<T> : Packer where T : ISerializer
 	/// Read an object from the <see cref="ByteStream"/> through the implementation of <see cref="ISerializer.BytePackRead"/> for this type.
 	/// </summary>
 	/// <param name="bs"></param>
+	/// <param name="depth"></param>
 	/// <returns></returns>
-	public override object Read( ref ByteStream bs )
+	public override object Read( ref ByteStream bs, int depth )
 	{
 		try
 		{
-			return (T)T.BytePackRead( ref bs, TargetType );
+			return (TResult)T.BytePackRead( ref bs, TargetType );
 		}
 		catch ( System.Exception e )
 		{
@@ -282,13 +300,13 @@ file class TypePacker<T> : Packer where T : new()
 		}
 	}
 
-	public override object Read( ref ByteStream bs )
+	public override object Read( ref ByteStream bs, int depth )
 	{
 		object t = new T();
 
 		foreach ( var member in members )
 		{
-			var value = Deserialize( ref bs );
+			var value = Deserialize( ref bs, depth + 1 );
 
 			switch ( member )
 			{

@@ -67,7 +67,9 @@ public static partial class PerformanceStats
 			if ( All.TryGetValue( stage, out var timing ) )
 				return timing;
 
-			return All.GetOrAdd( stage, f => new Timings( stage, color ?? Color.White ) );
+			// Static lambda with the colour passed as state. A capturing lambda here would allocate its closure on
+			// entry, before the lookup above, so every scope paid for it even on a hit.
+			return All.GetOrAdd( stage, static ( s, c ) => new Timings( s, c ?? Color.White ), color );
 		}
 
 		internal Timings( string name, Color color )

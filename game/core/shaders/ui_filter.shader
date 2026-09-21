@@ -1,4 +1,4 @@
-﻿HEADER
+HEADER
 {
 	DevShader = true;
 	Version = 1;
@@ -35,16 +35,22 @@ PS
 {
 	#include "ui/pixel.hlsl"
 	#include "ui/blur.hlsl"
+	#include "ui/batched_scissor.hlsl"
+
+	int PainterScissorIndex < Default( -1 ); Attribute( "PainterScissorIndex" ); >;
 
 	float4 g_vViewport < Source( Viewport ); >; 
 
 	// Texture Samplers ---------------------------------------------------------------------------------------------------------------------------------------
+	// Painter targets contain color premultiplied in sRGB. Blur those stored values before unpremultiplying.
+	Texture2D g_tPainterColor < Attribute( "Texture" ); SrgbRead( false ); >;
 	Texture2D g_tColor < Attribute( "Texture" ); SrgbRead( true ); >;
 	float4 g_vInvTextureDim < Source( InvTextureDim ); SourceArg( g_tColor ); >;
 
 	//
 	// Filters
 	//
+	bool PainterSourcePremultiplied < Default( 0 ); Attribute( "PainterSourcePremultiplied" ); >;
 	float FilterBrightness< UiType( Slider ); Default( 1.0f ); Attribute( "FilterBrightness" ); >;
 	float FilterHueRotate < UiType( Slider ); Default( 0.0f ); Attribute( "FilterHueRotate" ); >;
 	float FilterBlur < UiType( Color ); Default( 0 ); Attribute( "FilterBlur" ); >;
@@ -172,6 +178,7 @@ PS
 		uv = lerp(-uvAdjust, 1.0 + uvAdjust, uv);
 
 		UI_CommonProcessing_Pre( i );
+		g_flUIClipCoverage *= ScissorCoverage( PainterScissorIndex, i.vPositionPanelSpace.xy / i.vPositionPanelSpace.w );
 
 
 		//uv.x = lerp( uvAdjust, 1 - uvAdjust, uv.x );
@@ -179,7 +186,15 @@ PS
 
 		// filter: blur( r ) - r is the gaussian's standard deviation. Sampled with a border sampler so the blur fades
 		// to nothing past the layer's edge instead of wrapping its far side in
-		o.vColor = GaussianBlurTexture( g_tColor, g_sTrilinearBorder, uv, FilterBlur, g_vInvTextureDim.xy );
+		if ( PainterSourcePremultiplied )
+		{
+			o.vColor = GaussianBlurTexture( g_tPainterColor, g_sTrilinearBorder, uv, FilterBlur, g_vInvTextureDim.xy );
+			o.vColor.rgb = o.vColor.a > 0.00001 ? SrgbGammaToLinear( o.vColor.rgb / o.vColor.a ) : 0;
+		}
+		else
+		{
+			o.vColor = GaussianBlurTexture( g_tColor, g_sTrilinearBorder, uv, FilterBlur, g_vInvTextureDim.xy );
+		}
 		o.vColor = ApplyColorFilters( o.vColor );
 
 		//
@@ -227,6 +242,8 @@ PS
 			}
 		}
 
-		return UI_CommonProcessing_Post( i, o );
+		o = UI_CommonProcessing_Post( i, o );
+		if ( D_BLENDMODE == 3 ) o.vColor.rgb *= o.vColor.a;
+		return o;
 	}
 }

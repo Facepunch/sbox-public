@@ -75,21 +75,26 @@ public partial class StandaloneExporter
 	{
 		Logger.Info( $"Exporting {Project.Config.Title} to {_exportConfig.TargetDir}" );
 
+		ValidateExecutableName( _exportConfig.ExecutableName );
+
 		Logger.Info( $"Compiling assemblies.." );
 		await Compile();
 
 		Logger.Info( $"Building manifest.." );
 		await BuildManifest();
 
+		Logger.Info( $"Writing executable.." );
+		WriteExecutable();
+
 		Logger.Info( $"Copying files.." );
 		await CopyAllFiles();
 
 		Logger.Info( $"Export complete!" );
-		OnFinish();
 	}
 
 	private async Task BuildManifest()
 	{
+		// The compiled game assemblies, into assets/.bin
 		if ( _exportConfig.AssemblyFiles is not null )
 		{
 			foreach ( var f in _exportConfig.AssemblyFiles )
@@ -97,11 +102,6 @@ public partial class StandaloneExporter
 				if ( f.Value is byte[] bytes )
 				{
 					await AddFile( bytes, f.Key );
-				}
-
-				if ( f.Value is string json )
-				{
-					await AddFile( json, f.Key );
 				}
 			}
 		}
@@ -115,19 +115,12 @@ public partial class StandaloneExporter
 		// Make sure we're copying into a directory that exists
 		Directory.CreateDirectory( _exportConfig.TargetDir );
 
-		// Create standalone properties
+		// Create standalone properties - these go into the executable's resources, see WriteExecutable
 		StandaloneManifest = CreateStandaloneManifest( _exportConfig.TargetDir );
-		WriteStandaloneManifest( _exportConfig.TargetDir );
 
 		// Build queue
 		QueueAddonFiles( _exportConfig.TargetDir, BuildStep.CopyProjectAssets );
 		QueueBaseFiles( _exportConfig.TargetDir );
-	}
-
-	private void OnFinish()
-	{
-		if ( !string.IsNullOrEmpty( _exportConfig.TargetIcon ) )
-			IconUpdater.UpdateExeIcon( $"{_exportConfig.TargetDir}/{StandaloneManifest.ExecutableName}.exe", _exportConfig.TargetIcon );
 	}
 
 	private async Task CopyAllFiles()
@@ -137,16 +130,6 @@ public partial class StandaloneExporter
 		{
 			await CopyFileAsync( f );
 		}
-	}
-
-	private void WriteStandaloneManifest( string targetDir )
-	{
-		var gameDataPath = Path.Combine( targetDir, Standalone.GamePath );
-		Directory.CreateDirectory( gameDataPath );
-
-		var serializedProperties = JsonSerializer.Serialize( StandaloneManifest );
-		var manifestPath = Path.Combine( targetDir, Standalone.GamePath, Standalone.ManifestName );
-		File.WriteAllText( manifestPath, serializedProperties );
 	}
 
 	private StandaloneManifest CreateStandaloneManifest( string baseDir )
@@ -242,21 +225,6 @@ public partial class StandaloneExporter
 
 				QueueCopy( sourcePath, targetPath, BuildStep.CopyCode );
 			}
-		}
-
-		//
-		// Copy exe
-		//
-		{
-			QueueCopy( $"{engineDir}/sbox-standalone.exe", $"{baseDir}/{StandaloneManifest.ExecutableName}.exe", BuildStep.FinalizeExecutable );
-		}
-
-		//
-		// Copy sbproj for the addon - ideally we should store this in an embedded resource inside the exe
-		//
-		{
-			var sbprojPath = Path.Combine( baseDir, Standalone.GamePath, ".sbproj" );
-			QueueCopy( $"{_exportConfig.Project.ConfigFilePath}", sbprojPath, BuildStep.CopyMisc );
 		}
 
 		//

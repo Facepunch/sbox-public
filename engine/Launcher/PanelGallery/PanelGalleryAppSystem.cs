@@ -7,6 +7,8 @@ namespace Sandbox.PanelGallery;
 public class PanelGalleryAppSystem : PanelAppSystem
 {
 	readonly List<PanelWindow> _windows = new();
+	int _captureFrame;
+	readonly int _captureAtFrame = Math.Max( 1, IntArg( "-capture-frame", 30 ) );
 
 	protected override void OnInitialized()
 	{
@@ -31,13 +33,49 @@ public class PanelGalleryAppSystem : PanelAppSystem
 
 		// Borderless - the title bar in this one is panels, same as everything else. "-width 1600 -height 1400"
 		// overrides the size, for screenshotting a whole page at once.
-		var window = new PanelWindow( "Panel Gallery", new Vector2( IntArg( "-width", 1280 ), IntArg( "-height", 860 ) ), new Vector2( -1, -1 ), true );
+		var window = new PanelWindow( "Panel Gallery", new Vector2( IntArg( "-width", 1280 ), IntArg( "-height", 860 ) ), null, true );
 		window.Root.AddChild( new GalleryWindow( window ) );
 		if ( !Environment.GetCommandLineArgs().Any( x => x.Equals( "-width", StringComparison.OrdinalIgnoreCase ) || x.Equals( "-height", StringComparison.OrdinalIgnoreCase ) ) )
 		{
 			window.Maximize();
 		}
 		_windows.Add( window );
+	}
+
+	/// <summary>
+	/// Captures the GPU with "-capture path.png" at frame 30, or the frame selected by "-capture-frame".
+	/// </summary>
+	protected override bool RunFrame()
+	{
+		var running = base.RunFrame();
+		if ( !running || ++_captureFrame != _captureAtFrame ) return running;
+
+		var args = Environment.GetCommandLineArgs();
+		var index = Array.FindIndex( args, x => x.Equals( "-capture", StringComparison.OrdinalIgnoreCase ) );
+		if ( index < 0 || index + 1 >= args.Length ) return running;
+
+		var surface = _windows.FirstOrDefault( x => x.IsOpen )?.Surface;
+		if ( surface is null ) return running;
+		var world = new SceneWorld();
+		try
+		{
+			using var camera = new SceneCamera( "Gallery Capture" )
+			{
+				World = world,
+				BackgroundColor = Color.Black,
+				ClearFlags = ClearFlags.All,
+				EnablePostProcessing = false,
+				OnRenderUI = surface.Render,
+			};
+			using var bitmap = new Bitmap( (int)surface.Size.x, (int)surface.Size.y );
+			camera.RenderToBitmap( bitmap );
+			System.IO.File.WriteAllBytes( args[index + 1], bitmap.ToPng() );
+		}
+		finally
+		{
+			world.Delete();
+		}
+		return running;
 	}
 
 	static int IntArg( string name, int fallback )

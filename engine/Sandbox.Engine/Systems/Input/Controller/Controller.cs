@@ -4,7 +4,7 @@ namespace Sandbox;
 
 internal sealed partial class Controller
 {
-	private Color[] ControllerColors = new[]
+	static readonly Color[] ControllerColors = new[]
 	{
 		Color.Red,
 		Color.Green,
@@ -20,30 +20,32 @@ internal sealed partial class Controller
 		Log.Info( $"Detected {Controller.All.Count()} controllers" );
 		foreach ( var controller in Controller.All )
 		{
-			Log.Info( $"\t> {controller.Name}, GlyphSet: {controller.GlyphSet}, Handle: {controller.SDLHandle}, Device ID: {controller.DeviceId}" );
+			Log.Info( $"\t> {controller.Name}, GlyphSet: {controller.GlyphSet}, Device ID: {controller.DeviceId}" );
 			Log.Info( $"\t\t> Color: {controller.LEDColor}, GlyphVendor: {controller.GlyphVendor}" );
 			Log.Info( $"\t\t> Accel: {controller.Accelerometer}, Gyro: {controller.Gyroscope}" );
 		}
 		Log.Info( "---------------------------------------------------------------------------" );
 	}
 
-	public int SDLHandle { get; init; }
 	public int DeviceId { get; init; }
+
+	// Resolve by ID so retained controllers remain safe after disconnection.
+	IntPtr Gamepad => Sdl.GetGamepadFromID( (uint)DeviceId );
 
 	/// <summary>
 	/// The glyph set for this controller, used for icon/prompt selection.
 	/// </summary>
 	public GameControllerGlyphSet GlyphSet { get; init; }
 
-	internal Controller( int joystickHandle, int deviceHandle )
+	internal Controller( int deviceId )
 	{
-		SDLHandle = joystickHandle;
-		DeviceId = deviceHandle;
-		InputContext = Input.Context.Create( $"GameController:{SDLHandle}" );
-		Name = NativeEngine.SDLGameController.GetControllerName( SDLHandle );
-		GlyphSet = NativeEngine.SDLGameController.GetControllerGlyphSet( SDLHandle );
+		DeviceId = deviceId;
+		InputContext = Input.Context.Create( $"GameController:{DeviceId}" );
+		var gamepad = Gamepad;
+		Name = gamepad == IntPtr.Zero ? "Unknown" : Sdl.GetGamepadName( gamepad ) ?? "Unknown";
+		GlyphSet = gamepad == IntPtr.Zero ? GameControllerGlyphSet.Unknown : GetGlyphSet( Sdl.GetRealGamepadType( gamepad ) );
 
-		var id = joystickHandle % 4;
+		var id = deviceId % ControllerColors.Length;
 		LEDColor = ControllerColors[id];
 	}
 
@@ -59,7 +61,7 @@ internal sealed partial class Controller
 	{
 		get
 		{
-			var vec = NativeEngine.SDLGameController.GetGyroscope( SDLHandle );
+			var vec = GetSensorData( Sdl.SensorType.Gyroscope );
 			return new Angles( vec.x, vec.y, vec.z );
 		}
 	}
@@ -67,7 +69,25 @@ internal sealed partial class Controller
 	/// <summary>
 	/// Gets a sensor reading from the device's accelerometer (if it has one)
 	/// </summary>
-	public Vector3 Accelerometer => NativeEngine.SDLGameController.GetAccelerometer( SDLHandle );
+	public Vector3 Accelerometer => GetSensorData( Sdl.SensorType.Accelerometer );
+
+	unsafe Vector3 GetSensorData( Sdl.SensorType sensor )
+	{
+		var gamepad = Gamepad;
+		if ( gamepad == IntPtr.Zero || !Sdl.GamepadHasSensor( gamepad, sensor ) ) return default;
+
+		var data = stackalloc float[3];
+		return Sdl.GetGamepadSensorData( gamepad, sensor, (IntPtr)data, 3 )
+			? new Vector3( data[0], data[1], data[2] ) : default;
+	}
+
+	internal static GameControllerGlyphSet GetGlyphSet( Sdl.GamepadType type ) => type switch
+	{
+		Sdl.GamepadType.Xbox360 or Sdl.GamepadType.XboxOne => GameControllerGlyphSet.Xbox,
+		Sdl.GamepadType.PS3 or Sdl.GamepadType.PS4 or Sdl.GamepadType.PS5 => GameControllerGlyphSet.PlayStation,
+		Sdl.GamepadType.SwitchPro or Sdl.GamepadType.JoyConLeft or Sdl.GamepadType.JoyConRight or Sdl.GamepadType.JoyConPair => GameControllerGlyphSet.Switch,
+		_ => GameControllerGlyphSet.Unknown
+	};
 
 	private Color32 ledColor = Color.White;
 	/// <summary>
@@ -78,7 +98,8 @@ internal sealed partial class Controller
 		get => ledColor;
 		set
 		{
-			if ( NativeEngine.SDLGameController.SetLEDColor( SDLHandle, value.r, value.g, value.b ) )
+			var gamepad = Gamepad;
+			if ( gamepad != IntPtr.Zero && Sdl.SetGamepadLED( gamepad, value.r, value.g, value.b ) )
 			{
 				ledColor = value;
 			}
@@ -111,8 +132,8 @@ internal sealed partial class Controller
 	/// <param name="duration">The duration of the vibration in ms</param>
 	public void Rumble( int leftMotor, int rightMotor, int duration )
 	{
-		// Log.Trace( $"Trying to rumble {leftMotor}, {rightMotor}" );
-		NativeEngine.SDLGameController.Rumble( SDLHandle, leftMotor, rightMotor, duration );
+		var gamepad = Gamepad;
+		if ( gamepad != IntPtr.Zero ) Sdl.RumbleGamepad( gamepad, (ushort)leftMotor, (ushort)rightMotor, (uint)duration );
 	}
 
 	/// <summary>
@@ -123,8 +144,8 @@ internal sealed partial class Controller
 	/// <param name="duration">The duration of the vibration in ms</param>
 	public void RumbleTriggers( int leftTrigger, int rightTrigger, int duration )
 	{
-		// Log.Trace( $"Trying to rumble triggers {leftTrigger}, {rightTrigger}" );
-		NativeEngine.SDLGameController.RumbleTriggers( SDLHandle, leftTrigger, rightTrigger, duration );
+		var gamepad = Gamepad;
+		if ( gamepad != IntPtr.Zero ) Sdl.RumbleGamepadTriggers( gamepad, (ushort)leftTrigger, (ushort)rightTrigger, (uint)duration );
 	}
 
 	/// <summary>
@@ -133,8 +154,8 @@ internal sealed partial class Controller
 	public void StopAllHaptics()
 	{
 		// Calling with 0 intensity stops any rumbling
-		NativeEngine.SDLGameController.Rumble( SDLHandle, 0, 0, 0 );
-		NativeEngine.SDLGameController.RumbleTriggers( SDLHandle, 0, 0, 0 );
+		Rumble( 0, 0, 0 );
+		RumbleTriggers( 0, 0, 0 );
 
 		ActiveHapticEffect = null;
 	}

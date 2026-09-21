@@ -5,6 +5,17 @@ namespace Sandbox;
 
 internal static partial class SandboxEngineExtensions
 {
+	/// <summary>Rounds down to a supported sample count, matching NumSamplesToRenderMultisampleType.</summary>
+	internal static RenderMultisampleType ToEngineMultisampleType( this int samples ) => samples switch
+	{
+		< 2 => RenderMultisampleType.RENDER_MULTISAMPLE_NONE,
+		< 4 => RenderMultisampleType.RENDER_MULTISAMPLE_2X,
+		< 6 => RenderMultisampleType.RENDER_MULTISAMPLE_4X,
+		< 8 => RenderMultisampleType.RENDER_MULTISAMPLE_6X,
+		< 16 => RenderMultisampleType.RENDER_MULTISAMPLE_8X,
+		_ => RenderMultisampleType.RENDER_MULTISAMPLE_16X
+	};
+
 	internal static RenderMultisampleType ToEngine( this MultisampleAmount self )
 	{
 		switch ( self )
@@ -15,7 +26,7 @@ internal static partial class SandboxEngineExtensions
 			case MultisampleAmount.Multisample6x: return RenderMultisampleType.RENDER_MULTISAMPLE_6X;
 			case MultisampleAmount.Multisample8x: return RenderMultisampleType.RENDER_MULTISAMPLE_8X;
 			case MultisampleAmount.Multisample16x: return RenderMultisampleType.RENDER_MULTISAMPLE_16X;
-			default: return RenderService.GetMultisampleType(); // Fall back to what the main swapchain is using
+			default: return CSceneSystem.GetMainSwapChainMultisampleType(); // Fall back to what the main swapchain is using
 		}
 	}
 

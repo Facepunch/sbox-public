@@ -19,7 +19,7 @@ internal static partial class DebugOverlay
 		private static float _smoothedInKbpsIn;
 		private static float _smoothedScale = 10f;
 
-		internal static void Draw( ref Vector2 position )
+		internal static void Draw( Painter painter, ref Vector2 position )
 		{
 			var system = NetworkDebugSystem.Current;
 			if ( system is null || system.Samples.Count == 0 ) return;
@@ -57,7 +57,7 @@ internal static partial class DebugOverlay
 
 			_smoothedScale = _smoothedScale.LerpTo( targetScale, Time.Delta * 5f );
 
-			Hud.DrawRect( new Rect( graphX, graphY, graphWidth, graphHeight ), Color.Black.WithAlpha( 0.2f ), borderWidth: 1, borderColor: Color.White.WithAlpha( 0.1f ) );
+			painter.BorderedRect( new Rect( graphX, graphY, graphWidth, graphHeight ).SnapToGrid(), Color.Black.WithAlpha( 0.2f ), cornerRadius: default, borderWidth: 1, borderColor: Color.White.WithAlpha( 0.1f ) );
 
 			var barWidth = graphWidth / NetworkDebugSystem.MaxSamples;
 			var samples = system.Samples.ToArray();
@@ -83,10 +83,9 @@ internal static partial class DebugOverlay
 						if ( height <= 0f ) break;
 					}
 
-					Hud.DrawRect(
-						new Rect( x, y - height - accumulatedHeight, barWidth, height ),
-						color.WithAlpha( 0.9f )
-					);
+					painter.Fill = color.WithAlpha( 0.9f );
+					painter.Stroke = Stroke.None;
+					painter.Rect( new Rect( x, y - height - accumulatedHeight, barWidth, height ).SnapToGrid() );
 
 					accumulatedHeight += height;
 				}
@@ -124,14 +123,16 @@ internal static partial class DebugOverlay
 				if ( y < graphY )
 					continue;
 
-				Hud.DrawRect( new Rect( graphX, y, graphWidth, 1 ), Color.White.WithAlpha( 0.2f ) );
+				painter.Fill = Color.White.WithAlpha( 0.2f );
+				painter.Stroke = Stroke.None;
+				painter.Rect( new Rect( graphX, y, graphWidth, 1 ).SnapToGrid() );
 
 				scope = new TextRendering.Scope( $"↑ {kb:0.##} KB", Color.White.WithAlpha( 0.8f ), 11, fontName, fontWeight )
 				{
 					Outline = new TextRendering.Outline { Color = Color.Black, Enabled = true, Size = 2 }
 				};
 
-				Hud.DrawText(
+				DebugOverlay.DrawText( painter,
 					scope,
 					new Rect( graphX - rulerTickLabelWidth, y - 5f, 50f, 10f ),
 					TextFlag.RightCenter
@@ -144,14 +145,16 @@ internal static partial class DebugOverlay
 
 			foreach ( var (type, color) in Colors.OrderBy( k => (int)k.Key ) )
 			{
-				Hud.DrawRect( new Rect( legendPos.x, legendPos.y, legendBoxWidth, legendBoxHeight ), color );
+				painter.Fill = color;
+				painter.Stroke = Stroke.None;
+				painter.Rect( new Rect( legendPos.x, legendPos.y, legendBoxWidth, legendBoxHeight ).SnapToGrid() );
 
 				scope = new TextRendering.Scope( $"{type}", Color.White.WithAlpha( 0.8f ), 11, fontName, fontWeight )
 				{
 					Outline = new TextRendering.Outline { Color = Color.Black, Enabled = true, Size = 2 }
 				};
 
-				Hud.DrawText(
+				DebugOverlay.DrawText( painter,
 					scope,
 					new Rect( legendPos.x + legendBoxWidth + 2, legendPos.y - 2, 100f, legendRowHeight ),
 					TextFlag.LeftCenter
@@ -183,7 +186,7 @@ internal static partial class DebugOverlay
 				Outline = new TextRendering.Outline { Color = Color.Black, Enabled = true, Size = 2 }
 			};
 
-			Hud.DrawText(
+			DebugOverlay.DrawText( painter,
 				scope,
 				new Rect( graphX + graphWidth - 80f, graphY + 4f, 80f, 10f ),
 				TextFlag.RightTop
@@ -204,7 +207,7 @@ internal static partial class DebugOverlay
 				Size = 2
 			};
 
-			Hud.DrawText(
+			DebugOverlay.DrawText( painter,
 				scope,
 				new Rect( graphX, graphY + graphHeight + 4f, graphWidth, 16f ),
 				TextFlag.CenterTop

@@ -145,6 +145,7 @@ GameClosedToast
 .body
 {
     flex-grow: 1;
+    flex-shrink: 0;
     gap: 8px;
     padding: 0;
 }
@@ -261,28 +262,41 @@ GameClosedToast
     gap: 10px;
     padding: 8px 12px;
     border-radius: 8px;
-    background: linear-gradient( 90deg, rgba( $front-reward, 0.22 ), rgba( $front-reward, 0.08 ) );
-    border: 1px solid rgba( $front-reward, 0.45 );
-    box-shadow: 0 0 16px rgba( $front-reward, 0.15 );
+    background: linear-gradient( 90deg, rgba( $front-trophy, 0.22 ), rgba( $front-trophy, 0.08 ) );
+    border: 1px solid rgba( $front-trophy, 0.45 );
+    box-shadow: 0 0 16px rgba( $front-trophy, 0.15 );
+
+    .trophy
+    {
+        flex-shrink: 0;
+        font-size: 22px;
+        color: $front-trophy * 1.8;
+    }
 
     .text
     {
         flex-grow: 1;
+        flex-shrink: 1;
         flex-direction: column;
         gap: 2px;
+        overflow: hidden;
 
         .title
         {
             font-size: 12px;
             font-weight: 700;
             color: $front-heading;
+            white-space: nowrap;
+            text-overflow: ellipsis;
         }
 
         .hint
         {
             font-size: 10px;
             font-weight: 400;
-            color: $front-reward;
+            color: $front-trophy * 1.6;
+            white-space: nowrap;
+            text-overflow: ellipsis;
         }
     }
 
@@ -294,8 +308,8 @@ GameClosedToast
         height: 34px;
         padding: 0 14px;
         border-radius: 8px;
-        background-color: $front-reward;
-        color: #0d1a12;
+        background-color: $front-trophy;
+        color: #1a1204;
         cursor: pointer;
         transition: all 0.1s ease;
 
@@ -318,9 +332,9 @@ GameClosedToast
 
         &.on
         {
-            background-color: rgba( $front-reward, 0.15 );
-            border: 1px solid rgba( $front-reward, 0.6 );
-            color: $front-reward;
+            background-color: rgba( $front-trophy, 0.15 );
+            border: 1px solid rgba( $front-trophy, 0.6 );
+            color: $front-trophy;
         }
 
         &.busy, &.locked

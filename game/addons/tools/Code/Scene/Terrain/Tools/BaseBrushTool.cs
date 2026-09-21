@@ -1,4 +1,4 @@
-using Sandbox;
+﻿using Sandbox;
 
 namespace Editor.TerrainEditor;
 
@@ -10,6 +10,7 @@ public struct BrushData
 	public float Rotation;
 	public float FlattenHeight;
 	public int SplatChannel;
+	public Vector2 PlaneGradient;
 }
 
 /// <summary>
@@ -78,15 +79,34 @@ public abstract class BaseBrushTool : EditorTool
 		return terrain.RayIntersects( Gizmo.CurrentRay, Gizmo.RayDepth, out position );
 	}
 
+	/// <summary>
+	/// Create the world space plane a stroke is locked to when it starts.
+	/// </summary>
+	protected virtual Plane CreateStrokePlane( Terrain terrain, Vector3 hitWorldPos )
+	{
+		return new Plane( hitWorldPos, terrain.WorldTransform.Rotation.Up );
+	}
+
+	/// <summary>
+	/// Draw extra tool specific gizmos around the brush at the current hit position.
+	/// </summary>
+	protected virtual void DrawToolPreview( Terrain terrain, Vector3 worldHitPos ) { }
+
 	public override void OnUpdate()
 	{
 		var terrain = GetSelectedComponent<Terrain>() ?? Scene.Get<Terrain>();
 
 		if ( !terrain.IsValid() )
+		{
+			_parent.ClearBrushPreview();
 			return;
+		}
 
 		if ( !GetHitPosition( terrain, out var hitPosition ) )
+		{
+			_parent.ClearBrushPreview();
 			return;
+		}
 
 		var tx = terrain.WorldTransform;
 
@@ -131,7 +151,7 @@ public abstract class BaseBrushTool : EditorTool
 				if ( _parent.BrushSettings.RandomRotation )
 					_parent.BrushSettings.Rotation = Random.Shared.NextSingle() * 360f;
 
-				StrokePlane = new Plane( _lastHitWorldPos, tx.Rotation.Up );
+				StrokePlane = CreateStrokePlane( terrain, _lastHitWorldPos );
 
 				_dragging = true;
 
@@ -163,6 +183,7 @@ public abstract class BaseBrushTool : EditorTool
 		}
 
 		DrawBrushPreviewAt( _lastHitWorldPos, _lastHitTx, terrain );
+		DrawToolPreview( terrain, _lastHitWorldPos );
 	}
 
 	void DrawBrushPreviewAt( Vector3 worldPos, Transform tx, Terrain terrain = null )
@@ -222,6 +243,16 @@ public abstract class BaseBrushTool : EditorTool
 		cs.Attributes.Set( "Heightmap", terrain.HeightMap );
 		cs.Attributes.Set( "ControlMap", terrain.ControlMap );
 
+		// Normalized height change per heightmap texel, so the shader can flatten towards
+		// a tilted stroke plane. Zero when the stroke plane is aligned with the terrain up axis.
+		var strokeNormal = terrain.WorldTransform.NormalToLocal( StrokePlane.Normal );
+		var planeGradient = Vector2.Zero;
+		if ( MathF.Abs( strokeNormal.z ) > 0.001f )
+		{
+			var texelSize = terrain.Storage.TerrainSize / terrain.Storage.Resolution;
+			planeGradient = new Vector2( strokeNormal.x, strokeNormal.y ) / -strokeNormal.z * texelSize / terrain.Storage.TerrainHeight;
+		}
+
 		_brushBuffer ??= new GpuBuffer<BrushData>( 1 );
 		_brushBuffer.SetData( new[] { new BrushData
 		{
@@ -230,6 +261,7 @@ public abstract class BaseBrushTool : EditorTool
 			Size = size,
 			Rotation = paint.BrushSettings.Rotation * MathF.PI / 180f,
 			FlattenHeight = paint.FlattenHeight,
+			PlaneGradient = planeGradient,
 		} } );
 		cs.Attributes.Set( "BrushSettings", _brushBuffer );
 		cs.Attributes.Set( "Brush", paint.Brush.Texture );
@@ -241,6 +273,10 @@ public abstract class BaseBrushTool : EditorTool
 
 		// Grow the dirty region (+1 to be conservative of the floor) 
 		_dirtyRegion.Add( new RectInt( x, y, size + 1, size + 1 ) );
+
+		// Heights changed on the GPU - schedule a normal rebake for live feedback
+		if ( Mode != SculptMode.Hole )
+			terrain.InvalidateHeightMap();
 	}
 
 	T[] CopyRegion<T>( T[] data, int stride, RectInt rect ) where T : unmanaged

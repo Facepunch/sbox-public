@@ -39,6 +39,9 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 	// Implemented by derived classes
 	Texture RenderTexture { get; }
 
+	/// <summary>A text block in this frame's glyph buffers, for text renderers. Default when there's nothing to draw.</summary>
+	GpuFontText.Placement TextSprite => default;
+
 	// Additional properties needed for some renderers
 	BillboardAlignment Alignment { get; }
 
@@ -62,8 +65,12 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 		if ( count == 0 || destinationBuffer.Length < count )
 			return new( 0, 0, default );
 
-		// Get texture from the renderer-specific implementation
+		// Get texture from the renderer-specific implementation, or the text block drawn from its outlines
 		var texture = RenderTexture ?? Texture.White;
+		var textSprite = TextSprite;
+		bool isText = Type == ParticleType.Text;
+		if ( isText && textSprite.Width == 0 )
+			return new( 0, 0, default );
 
 		// Precompute constants
 		var scale = MathF.Abs( (Scale / 2f) * WorldScale.x );
@@ -92,9 +99,17 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 		var origin = Pivot;
 		var renderFlags = SpriteFlags.None;
 		if ( ParticleEffect.SnapToFrame ) renderFlags |= SpriteFlags.SnapToFrame;
+		if ( isText ) renderFlags |= SpriteFlags.Text;
 
-		// Calculate aspect ratio - different for text vs sprite
-		var aspect = texture.Size.x / texture.Size.y;
+		// A text sprite carries its block's placement where a sprite carries its texture, see sprite_ps.shader
+		var size = isText ? new Vector2( textSprite.Width, textSprite.Height ) : texture.Size;
+		var aspect = size.x / size.y;
+		if ( isText )
+		{
+			textureHandle = textSprite.InstanceOffset;
+			samplerIndex = textSprite.TileOffset;
+		}
+		float textSize = BitConverter.Int32BitsToSingle( (int)size.x | ((int)size.y << 16) );
 
 		int validCount = 0;
 		int totalSplotCount = 0;
@@ -138,7 +153,7 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 				var scaleX = p.Size.x * scale;
 				var scaleY = p.Size.y * scale;
 
-				if ( Type == ParticleType.Text || (sequenceData == Vector4.Zero && aspect != 1) )
+				if ( isText || (sequenceData == Vector4.Zero && aspect != 1) )
 				{
 					scaleX *= aspect;
 				}
@@ -189,8 +204,8 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 				spritePtr->SamplerIndex = samplerIndex;
 				spritePtr->Splots = splots;
 				spritePtr->RotationOffset = rotationOffsetValue;
-				spritePtr->Sequence = p.Sequence & 255;
-				spritePtr->SequenceTime = sequenceTime;
+				spritePtr->Sequence = isText ? textSprite.TilesX : p.Sequence & 255;
+				spritePtr->SequenceTime = isText ? textSize : sequenceTime;
 				spritePtr->BlendSheetUV = sequenceData;
 				spritePtr->Offset = origin;
 

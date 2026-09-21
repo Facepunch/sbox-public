@@ -12,7 +12,7 @@
 		<SatelliteResourceLanguages>en</SatelliteResourceLanguages>
 		<NoWarn>1701;1702;1591;NETSDK1138</NoWarn>
 		<LangVersion>14</LangVersion>
-		<OutputPath>..\..\..\game</OutputPath>
+		<OutputPath>..\..\..\game\bin\managed</OutputPath>
 		<OutputType>WinExe</OutputType>
 		<DisableTransitiveProjectReferences>true</DisableTransitiveProjectReferences>
 		<PreserveCompilationReferences>false</PreserveCompilationReferences>

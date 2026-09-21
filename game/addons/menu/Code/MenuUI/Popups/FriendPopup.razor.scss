@@ -1,103 +1,109 @@
-@import '/styles/_theme.scss';
-@import '/styles/mainmenu.scss';
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
 
 FriendPopup.popup-panel
 {
-    background: linear-gradient( to bottom, #1d212f, #1c202d );
-    border-radius: 8px;
-    font-family: Poppins;
-    border: 0px solid black;
-    min-width: 220px;
-    sound-in: "ui.button.over";
-    border-bottom: 3px solid #477fe7;
-    align-items: center;
-    overflow: visible;
-}
+	@include front-card;
 
-FriendPopup row
-{
-    padding: 8px 16px;
-    font-weight: 550;
-    font-size: 14px;
-    color: #d3d9ee;
-    gap: 10px;
-    align-items: center;
-    cursor: pointer;
-    width: 100%;
+	min-width: 260px;
+	padding: 0 0 8px 0;
+	sound-in: "ui.button.over";
 
-    i
-    {
-        color: #4379dd;
-    }
-}
+	.header
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 12px;
+		width: 100%;
+		padding: 14px 16px;
+		margin-bottom: 6px;
+		background-color: $front-card-deep;
+		border-bottom: 1px solid $front-hairline;
 
+		.avatar
+		{
+			@include front-row-media;
 
+			width: 40px;
+			height: 40px;
+			border-radius: 50%;
+		}
 
-FriendPopup row:hover
-{
-    color: white;
-    background-color: #4379dd;
+		.who
+		{
+			flex-direction: column;
+			flex-shrink: 1;
+			min-width: 0;
+		}
 
-    i
-    {
-        color: white;
-    }
-}
+		h2
+		{
+			@include front-row-title;
 
-.header
-{
-    flex-direction: column;
-    width: 100%;
+			font-size: 15px;
+			margin: 0;
+		}
 
-    h2
-    {
-        padding: 8px 16px;
-        font-size: 16px;
-        font-weight: bold;
-        color: white;
-        padding-bottom: 0;
-        margin-bottom: 6px;
-    }
+		h3
+		{
+			@include front-row-meta;
 
-    h3
-    {
-        padding: 4px 16px;
-        padding-top: 0;
-        font-size: 12px;
-    }
-}
+			margin: 2px 0 0 0;
+		}
+	}
 
-row.join
-{
-    color: #b6ff00;
-}
+	> row
+	{
+		flex-shrink: 0;
+		align-items: center;
+		gap: 10px;
+		width: 100%;
+		padding: 8px 16px;
+		cursor: pointer;
+		transition: background-color 0.1s ease;
 
-.arrow
-{
-    color: #477fe7;
-    position: absolute;
-    bottom: -29px;
-    font-size: 48px;
-}
+		i
+		{
+			width: 18px;
+			font-size: 17px;
+			text-align: center;
+			color: $front-secondary;
+		}
 
-// Popup.SetPositioning adds this class for PositionMode.Right - point the arrow back at the
-// source panel (to our left) instead of leaving it stuck below, pointing at nothing, and move the
-// accent border to match (left instead of bottom).
-FriendPopup.popup-panel.right
-{
-    border-bottom: 0px solid transparent;
-    border-left: 3px solid #477fe7;
+		.text-title
+		{
+			font-family: $front-font;
+			font-size: 13px;
+			font-weight: 600;
+			color: $front-body;
+		}
 
-    .arrow
-    {
-        bottom: auto;
-        left: -7px;
-        top: 50%;
-        transform: translate(-50%, -50%) rotate(90deg);
-    }
-}
+		&:hover
+		{
+			background-color: rgba( 255, 255, 255, 0.06 );
 
-.is-party
-{
-    color: #ff55dc;
+			i, .text-title
+			{
+				color: $front-heading;
+			}
+		}
+
+		&.join
+		{
+			i, .text-title
+			{
+				color: $front-accent;
+			}
+		}
+
+		&.is-party
+		{
+			i, .text-title
+			{
+				color: $front-link;
+			}
+		}
+	}
+
 }

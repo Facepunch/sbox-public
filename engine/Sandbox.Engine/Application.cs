@@ -184,7 +184,7 @@ public static class Application
 	/// <summary>
 	/// Is the game window in focus?
 	/// </summary>
-	public static bool IsFocused => NativeEngine.EngineGlobal.IsWindowFocused();
+	public static bool IsFocused => WindowInput.HasMouseFocus();
 
 	internal static bool WantsExit { get; set; }
 

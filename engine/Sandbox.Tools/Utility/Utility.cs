@@ -171,16 +171,8 @@ public static partial class EditorUtility
 		if ( dirA == dirB )
 			return;
 
-		CopyAssetToDirectory( asset, directory );
-
-		var absoluteSource = asset.GetSourceFile( true );
-		var absoluteCompiled = asset.GetCompiledFile( true );
-
-		if ( !string.IsNullOrEmpty( absoluteSource ) )
-			System.IO.File.Delete( absoluteSource );
-
-		if ( !string.IsNullOrEmpty( absoluteCompiled ) )
-			System.IO.File.Delete( absoluteCompiled );
+		string filename = Path.GetFileName( asset.AbsolutePath );
+		MoveAsset( asset, Path.Combine( dirB, filename ) );
 	}
 
 	public static void RenameDirectory( string directory, string newDirectory, bool recursive = false )
@@ -220,53 +212,99 @@ public static partial class EditorUtility
 	}
 
 	/// <summary>
-	/// Moves a file to the same directory but gives it a new name 
+	/// Rename an asset (and related files) to a new name
 	/// </summary>
-	/// <param name="asset"></param>
-	/// <param name="newName"></param>
-	public static bool RenameAsset( Asset asset, string newName )
+	public static bool RenameAsset( Asset asset, string newName, bool overwrite = false )
 	{
-		if ( string.IsNullOrEmpty( newName ) )
+		string newPath = Path.Combine( Path.GetDirectoryName( asset.AbsolutePath ), newName.GetFilenameSafe() );
+		return MoveAsset( asset, newPath, overwrite );
+	}
+
+	/// <summary>
+	/// Moves an asset (and related files) to a new path.
+	/// </summary>
+	public static bool MoveAsset( Asset asset, string path, bool overwrite = false )
+	{
+		path = path?.Trim().NormalizeFilename( false );
+
+		if ( string.IsNullOrEmpty( path ) )
 			return false;
 
-		newName = newName.Trim().GetFilenameSafe();
-		if ( string.IsNullOrEmpty( newName ) )
-			return false;
+		var oldPath = asset.AbsolutePath;
 
-		var compiledPath = asset.GetCompiledFile( true );
-		var newCompiledPath = compiledPath.Replace( asset.Name, newName );
+		if ( oldPath.EndsWith( "_c" ) ) oldPath = oldPath[..^2];
+		if ( path.EndsWith( "_c" ) ) path = path[..^2];
 
-		var sourcePath = asset.GetSourceFile( true );
-		var newSourcePath = sourcePath.Replace( asset.Name, newName );
-
-		if ( string.Equals( asset.Name, newName, StringComparison.OrdinalIgnoreCase ) )
+		if ( string.Equals( oldPath, path, StringComparison.OrdinalIgnoreCase ) )
 		{
-			// we've just changed the capitalisation
-			// nothing's really changed for us as our asset system is case insensitive, so just do OS move
+			// we're just changing the capitalisation
+			overwrite = true;
 		}
-		else
+		else if ( !overwrite )
 		{
-			if ( System.IO.File.Exists( newSourcePath ) )
+			// check if it's gunna succeed first so we don't end up with a half moved asset
+			foreach ( var ext in Asset.RelatedFileExts )
 			{
-				Log.Error( $"Cannot rename asset, '{asset.Name}' already exists!" );
+				if ( !File.Exists( path + ext ) ) continue;
+
+				Log.Error( $"Cannot move asset, '{path + ext}' already exists!" );
 				return false;
 			}
-
-			// if there's a compiled asset of this name already, but NOT a source file, just bin it (?)
-			if ( System.IO.File.Exists( newCompiledPath ) )
-			{
-				System.IO.File.Delete( newCompiledPath );
-			}
-
-			// moving the asset will register another, so let's delete the old one
-			asset.IsDeleted = true;
 		}
 
-		if ( !string.IsNullOrEmpty( compiledPath ) )
-			System.IO.File.Move( compiledPath, newCompiledPath );
+		// TODO: Remove this once we have FileSystem.DeferChanges()
+		FileWatch.SuppressWatchers = RealTime.Now + 999;
 
-		if ( !string.IsNullOrEmpty( sourcePath ) )
-			System.IO.File.Move( sourcePath, newSourcePath );
+		// move all our components: oldpath -> path
+		foreach ( var ext in Asset.RelatedFileExts )
+		{
+			var file = new FileInfo( oldPath + ext );
+			if ( file.Exists ) file.MoveTo( path + ext, overwrite );
+		}
+
+		FileWatch.SuppressWatchers = RealTime.Now;
+
+		return true;
+	}
+
+	/// <summary>
+	/// Create a copy of an asset (and related files) on a new path.
+	/// </summary>
+	public static bool CopyAsset( Asset asset, string path, bool overwrite = false )
+	{
+		path = path?.Trim();
+
+		if ( string.IsNullOrEmpty( path ) )
+			return false;
+
+		var oldPath = asset.AbsolutePath;
+
+		if ( oldPath.EndsWith( "_c" ) ) oldPath = oldPath[..^2];
+		if ( path.EndsWith( "_c" ) ) path = path[..^2];
+
+		if ( !overwrite )
+		{
+			// check if it's gunna succeed first so we don't end up with a half copied asset
+			foreach ( var ext in Asset.RelatedFileExts )
+			{
+				if ( !File.Exists( path + ext ) ) continue;
+
+				Log.Error( $"Cannot copy asset, '{path + ext}' already exists!" );
+				return false;
+			}
+		}
+
+		// TODO: Remove this once we have FileSystem.DeferChanges()
+		FileWatch.SuppressWatchers = RealTime.Now + 999;
+
+		// copy all our components: oldpath -> path
+		foreach ( var ext in Asset.RelatedFileExts )
+		{
+			var file = new FileInfo( oldPath + ext );
+			if ( file.Exists ) file.CopyTo( path + ext, overwrite );
+		}
+
+		FileWatch.SuppressWatchers = RealTime.Now;
 
 		return true;
 	}
@@ -671,6 +709,25 @@ public static partial class EditorUtility
 	/// Access to the client's render settings
 	/// </summary>
 	public static RenderSettings RenderSettings => Sandbox.Engine.Settings.RenderSettings.Instance;
+
+	/// <summary>
+	/// The graphics preset this machine should start on.
+	/// </summary>
+	public static GraphicsPreset DetectGraphicsPreset() => Sandbox.Engine.Settings.RenderSettings.DetectPreset();
+
+	/// <summary>
+	/// Which preset the current settings add up to, or Custom if they don't match one.
+	/// </summary>
+	public static GraphicsPreset CurrentGraphicsPreset => RenderSettings.MatchPreset();
+
+	/// <summary>
+	/// Write every setting a graphics preset covers.
+	/// </summary>
+	public static void ApplyGraphicsPreset( GraphicsPreset preset )
+	{
+		RenderSettings.ApplyPreset( preset );
+		RenderSettings.Apply();
+	}
 
 	/// <summary>
 	/// Some assets are kv3, we want to convert them to json

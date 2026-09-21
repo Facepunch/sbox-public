@@ -41,6 +41,7 @@ public sealed partial class SceneModel : SceneObject
 				throw new System.ArgumentException( "Error creating AnimSceneObject - possible invalid model?" );
 			}
 
+			Tags.RemoveAll();
 			Transform = transform;
 
 			if ( animGraphChangedCallback == DelegateFunctionPointer.Null )

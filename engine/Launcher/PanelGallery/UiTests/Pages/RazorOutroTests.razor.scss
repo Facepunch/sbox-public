@@ -1,0 +1,62 @@
+@import "/styles/_gallery-palette.scss";
+
+RazorOutroTests
+{
+	.phase
+	{
+		color: $gallery-lime;
+		font-size: 14px;
+	}
+
+	.outro-stage
+	{
+		position: relative;
+		width: 620px;
+		height: 150px;
+		padding: 12px;
+		background-color: #23262e;
+		border-radius: 8px;
+	}
+
+	.outro-card
+	{
+		position: absolute;
+		left: 12px;
+		top: 12px;
+		width: 460px;
+		height: 126px;
+		flex-direction: column;
+		padding: 14px;
+		gap: 6px;
+		color: #eef1f6;
+		background-color: #29434d;
+		border: 2px solid $gallery-cyan;
+		border-radius: 8px;
+		transition: opacity 2s linear, transform 2s linear;
+
+		&:outro
+		{
+			opacity: 0;
+			transform: translateX( 120px );
+		}
+	}
+
+	.card-title
+	{
+		font-size: 18px;
+		font-weight: 700;
+	}
+
+	.nested-content
+	{
+		align-items: center;
+		gap: 8px;
+		color: $gallery-lime;
+	}
+
+	.icon
+	{
+		font-family: "Material Icons";
+		font-size: 24px;
+	}
+}

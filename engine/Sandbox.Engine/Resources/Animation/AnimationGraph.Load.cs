@@ -7,11 +7,22 @@ public partial class AnimationGraph
 	/// <summary>
 	/// Load an animation graph from given file.
 	/// </summary>
-	public static AnimationGraph Load( string filename )
+	public static AnimationGraph Load( string filename ) => Load( (ResourceId)filename );
+
+	internal static AnimationGraph Load( ResourceId id )
 	{
 		ThreadSafe.AssertIsMainThread();
 
-		return FromNative( NativeGlue.Resources.GetAnimationGraph( filename ), filename );
+		if ( id.Guid is Guid guid )
+		{
+			if ( Game.Resources.TryGet<AnimationGraph>( guid, out var resource ) )
+				return resource;
+
+			var native = NativeGlue.Resources.GetAnimationGraph( id.Path, guid );
+			return FromNative( native, name: native.IsError() ? id.Path : null );
+		}
+
+		return FromNative( NativeGlue.Resources.GetAnimationGraph( id.Path, Guid.Empty ), id.Path );
 	}
 
 	/// <summary>

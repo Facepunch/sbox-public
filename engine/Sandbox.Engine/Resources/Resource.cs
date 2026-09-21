@@ -20,6 +20,11 @@ public abstract partial class Resource : IValid, IJsonConvert, BytePack.ISeriali
 	internal ulong ResourceIdLong { get; set; }
 
 	/// <summary>
+	/// GUID for this resource, if any.
+	/// </summary>
+	internal Guid Guid { get; set; }
+
+	/// <summary>
 	/// Path to this resource.
 	/// </summary>
 	[Hide, JsonIgnore]
@@ -81,7 +86,7 @@ public abstract partial class Resource : IValid, IJsonConvert, BytePack.ISeriali
 	/// This is intended for runtime/native resources only. Disk-based resources (GameResource)
 	/// should use <see cref="ResourceSystem.Register"/> instead.
 	/// </summary>
-	internal void RegisterWeakResourceId( string resourcePath )
+	internal void RegisterWeakResourceId( string resourcePath, Guid? guid = null )
 	{
 		ResourcePath = FixPath( resourcePath );
 		ResourceName = System.IO.Path.GetFileNameWithoutExtension( ResourcePath );
@@ -91,20 +96,23 @@ public abstract partial class Resource : IValid, IJsonConvert, BytePack.ISeriali
 #pragma warning restore CS0618 // Type or member is obsolete
 		ResourceIdLong = ResourcePath.FastHash64();
 
+		if ( guid is Guid g && g != default )
+			Guid = g;
+
 		Game.Resources.RegisterWeak( this );
 	}
 
 	/// <summary>
 	/// Accessor for loading native resources, not great, doesn't need to handle GameResource
 	/// </summary>
-	internal static Resource Load( Type t, string filename )
+	internal static Resource LoadNative( Type t, ResourceId id )
 	{
-		if ( t == typeof( Material ) ) return Material.Load( filename );
-		if ( t == typeof( Texture ) ) return Texture.Load( filename );
-		if ( t == typeof( Model ) ) return Model.Load( filename );
-		if ( t == typeof( SoundFile ) ) return SoundFile.Load( filename );
-		if ( t == typeof( AnimationGraph ) ) return AnimationGraph.Load( filename );
-		if ( t == typeof( Shader ) ) return Shader.Load( filename );
+		if ( t == typeof( Material ) ) return Material.Load( id );
+		if ( t == typeof( Texture ) ) return Texture.Load( id );
+		if ( t == typeof( Model ) ) return Model.Load( id );
+		if ( t == typeof( SoundFile ) ) return SoundFile.Load( id.Path ); // todo: guid me
+		if ( t == typeof( AnimationGraph ) ) return AnimationGraph.Load( id );
+		if ( t == typeof( Shader ) ) return Shader.Load( id );
 
 		return null;
 	}
@@ -120,10 +128,14 @@ public abstract partial class Resource : IValid, IJsonConvert, BytePack.ISeriali
 	{
 		Log.Trace( $"Resource Reloaded: '{resourceName}'" );
 
-		if ( NativeResourceCache.TryGetValue( nativePointer.ToInt64(), out Resource value ) )
+		if ( NativeResourceCache.TryGetValue( nativePointer.ToInt64(), out Resource resource ) )
 		{
-			Log.Trace( $" - '{value}'" );
-			value?.OnReloaded();
+			var library = Engine.GlobalContext.Game.ResourceSystem ?? Engine.GlobalContext.Menu.ResourceSystem;
+
+			library.MoveResource( resource, resourceName );
+
+			Log.Trace( $" - '{resource}'" );
+			resource?.OnReloaded();
 		}
 	}
 
@@ -153,6 +165,40 @@ public abstract partial class Resource : IValid, IJsonConvert, BytePack.ISeriali
 			?? Engine.GlobalContext.Menu.ResourceSystem.Get( typeof( Resource ), resourceName );
 
 		resource?.OnLoaded( new ResourceLoadContext( resourceName, header ) );
+	}
+
+	/// <summary>
+	/// Native dataabse has updated a GUID for a resource, update this side to match.
+	/// </summary>
+	internal static void OnGuidChanged( string resourceName, Guid guid )
+	{
+		// This fires from the engine frame, outside any context scope - the wrapper
+		// could be registered in either context's resource system, so check both.
+		var lib = Engine.GlobalContext.Game.ResourceSystem ?? Engine.GlobalContext.Menu.ResourceSystem;
+
+		var resource = lib.Get( typeof( Resource ), resourceName );
+		if ( resource.IsValid() )
+		{
+			lib.AssignGuid( resource, guid );
+		}
+	}
+
+	/// <summary>
+	/// Native has discovered that a resident resource's path has changed, update this side to match.
+	/// </summary>
+	internal static void OnResourcePathChanged( Guid guid, string newPath )
+	{
+		// not guaranteed to fire on the main thread - defer the actual index mutation, and
+		// re-resolve the resource at that point rather than capturing it now, so this can't
+		// race a more recent rename/unregister that happens before this runs.
+		MainThread.Queue( () =>
+		{
+			var lib = Engine.GlobalContext.Game.ResourceSystem ?? Engine.GlobalContext.Menu.ResourceSystem;
+			if ( lib.Get<Resource>( guid ) is { } resource )
+			{
+				lib.MoveResource( resource, newPath );
+			}
+		} );
 	}
 
 	public override string ToString()

@@ -1,4 +1,5 @@
 using Sandbox.Engine;
+using System;
 
 namespace Editor;
 
@@ -8,7 +9,10 @@ namespace Editor;
 /// </summary>
 public static class GameMode
 {
-	static Widget _inPlay;
+	static SceneRenderingWidget _inPlay;
+	static IntPtr _playWindow;
+	internal static IntPtr PlayWindow { get; private set; }
+	internal static SceneRenderingWidget PlayWidget => _inPlay.IsValid() ? _inPlay : null;
 
 	/// <summary>
 	/// Is a render widget the active play widget
@@ -23,6 +27,8 @@ public static class GameMode
 	{
 		if ( _inPlay == widget ) return;
 
+		ClearPlayMode();
+
 		// Blur before registering so SDL's fresh wrapper can't snapshot this widget as its
 		// keyboard focus window - relative mouse mode is driven from the main editor window
 		widget.Blur();
@@ -32,8 +38,10 @@ public static class GameMode
 		widget.MouseTracking = true;
 		widget.MouseMove += OnPlayWidgetMouseMove;
 
-		NativeEngine.InputSystem.RegisterWindowWithSDL( widget._widget.winId() );
-		g_pEngineServiceMgr.SetEngineState( widget._widget.winId(), widget.SwapChain );
+		_playWindow = widget._widget.winId();
+		NativeEngine.InputSystem.RegisterWindowWithSDL( _playWindow );
+		PlayWindow = NativeEngine.GameWindowNative.FromNativeHandle( _playWindow );
+		NativeEngine.GameWindowNative.SetRenderTarget( PlayWindow, widget.SwapChain );
 
 		// The play widget is where the game renders, so make it the main window: flip the existing
 		// m_bIsMainWindow flag so GetGPUFrameTimeMS reports the running game's GPU frame time.
@@ -49,19 +57,26 @@ public static class GameMode
 		if ( _inPlay is null )
 			return;
 
-		_inPlay.Blur();
-
-		_inPlay.Focused -= WidgetFocused;
-		_inPlay.Blurred -= WidgetBlurred;
-		_inPlay.MouseMove -= OnPlayWidgetMouseMove;
-		_inPlay.MouseTracking = false;
-
-		NativeEngine.InputSystem.UnregisterWindowFromSDL( _inPlay._widget.winId() );
-
-		if ( _inPlay is SceneRenderingWidget playWidget )
-			g_pRenderDevice.SetSwapChainIsMainWindow( playWidget.SwapChain, false );
-
+		var widget = _inPlay;
 		_inPlay = null;
+
+		widget.Focused -= WidgetFocused;
+		widget.Blurred -= WidgetBlurred;
+		widget.MouseMove -= OnPlayWidgetMouseMove;
+		if ( widget.IsValid() )
+		{
+			widget.Blur();
+			widget.MouseTracking = false;
+		}
+
+		// Teardown also runs after Qt destroys the widget, when winId() is no longer safe.
+		Sandbox.Engine.WindowInput.OnEditorGameFocusChange( _playWindow, false );
+		NativeEngine.GameWindowNative.SetRenderTarget( IntPtr.Zero, default );
+		NativeEngine.InputSystem.UnregisterWindowFromSDL( _playWindow );
+		_playWindow = default;
+		PlayWindow = default;
+
+		g_pRenderDevice.SetSwapChainIsMainWindow( widget.SwapChain, false );
 	}
 
 	/// <summary>
@@ -72,7 +87,7 @@ public static class GameMode
 		if ( _inPlay is null )
 			return;
 
-		NativeEngine.InputSystem.OnEditorGameFocusChange( _inPlay._widget.winId(), true );
+		Sandbox.Engine.WindowInput.OnEditorGameFocusChange( _playWindow, true );
 	}
 
 	/// <summary>
@@ -83,7 +98,7 @@ public static class GameMode
 		if ( _inPlay is null )
 			return;
 
-		NativeEngine.InputSystem.OnEditorGameFocusChange( _inPlay._widget.winId(), false );
+		Sandbox.Engine.WindowInput.OnEditorGameFocusChange( _playWindow, false );
 	}
 
 	private static void OnPlayWidgetMouseMove( Vector2 local )

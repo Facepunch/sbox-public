@@ -1,5 +1,0 @@
-﻿
-native accessor g_pRenderService as NativeEngine.RenderService
-{
-	RenderMultisampleType GetMultisampleType();
-}

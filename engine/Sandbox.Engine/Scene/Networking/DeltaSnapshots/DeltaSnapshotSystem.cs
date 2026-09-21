@@ -553,7 +553,7 @@ internal class DeltaSnapshotSystem
 			ackBs.Write( invalidSnapshotId );
 		}
 
-		System.Send( source, InternalMessageType.DeltaSnapshotClusterAck, ackBs.ToArray(),
+		System.Send( source, InternalMessageType.DeltaSnapshotClusterAck, ackBs.ToSpan(),
 			NetFlags.Unreliable | NetFlags.DiscardOnDelay );
 
 		ackBs.Dispose();
@@ -669,7 +669,7 @@ internal class DeltaSnapshotSystem
 		ackBs.Write( objectId );
 		ackBs.Write( snapshotId );
 
-		System.Send( source, InternalMessageType.DeltaSnapshotAck, ackBs.ToArray(),
+		System.Send( source, InternalMessageType.DeltaSnapshotAck, ackBs.ToSpan(),
 			NetFlags.Unreliable | NetFlags.DiscardOnDelay );
 
 		finalSnapshot.Release();

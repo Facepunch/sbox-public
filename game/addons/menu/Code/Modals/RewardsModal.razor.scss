@@ -1,0 +1,339 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+RewardsModal
+{
+	font-family: $font-default;
+
+	// Anchored beside the rail entry (see PositionBesideAnchor), so don't dim/blur the whole
+	// screen - it should feel like a popup, not a blocking modal.
+	&.anchored
+	{
+		background-color: transparent;
+		backdrop-filter: none;
+
+		// .modal insets itself by -1000px and adds 1000px of padding as a trick to let box-shadow/blur
+		// bleed past the edges of the screen. That's one extra layer of math the anchored Left/Bottom
+		// values would have to account for - reset it to a plain 0..Screen box instead so our
+		// coordinates map 1:1.
+		left: 0;
+		right: 0;
+		top: 0;
+		bottom: 0;
+		padding: 0;
+	}
+
+	.inner
+	{
+		@include front-card;
+
+		width: 440px;
+		max-height: 80%;
+		pointer-events: all;
+		box-shadow: 2px 2px 20px #0005;
+	}
+
+	.header
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 8px;
+		padding: 16px 16px 8px 16px;
+		color: white;
+
+		h2
+		{
+			font-family: $front-font;
+			font-weight: 600;
+			font-size: 16px;
+			margin: 0;
+			color: $front-heading;
+		}
+
+		i
+		{
+			font-size: 20px;
+			color: $front-reward;
+		}
+
+		.grow
+		{
+			flex-grow: 1;
+		}
+	}
+
+	.refresh
+	{
+		@include front-pill;
+
+		pointer-events: all;
+		cursor: pointer;
+
+		&.busy
+		{
+			pointer-events: none;
+			opacity: 0.5;
+		}
+	}
+
+	// More objectives than fit is normal, so the list scrolls rather than pushing the popup
+	// off the top of the screen.
+	.rewards-list
+	{
+		flex-direction: column;
+		flex-shrink: 1;
+		gap: 10px;
+		padding: 4px 12px 12px 12px;
+		overflow-y: scroll;
+
+		> *
+		{
+			flex-shrink: 0;
+		}
+	}
+
+	.section-head
+	{
+		@include front-page-section-head;
+
+		margin-top: 6px;
+
+		.title
+		{
+			font-size: 15px;
+		}
+	}
+
+	.rewards-empty
+	{
+		@include front-page-empty;
+
+		padding: 40px 24px;
+		text-align: center;
+	}
+
+	// The drop itself - the arc beside what it's for, and the one button that matters.
+	.hero
+	{
+		@include front-card;
+
+		flex-direction: row;
+		align-items: center;
+		gap: 18px;
+		padding: 18px;
+	}
+
+	// A ready drop earns the green edge. Nothing else in the popup is allowed it.
+	.hero.done
+	{
+		border-color: rgba( $front-reward, 0.55 );
+		box-shadow: 0 0 30px rgba( $front-reward, 0.16 );
+	}
+
+	// position, or the arc and its punched-out middle resolve against the card instead and
+	// paint straight across it.
+	.ring
+	{
+		position: relative;
+		width: 104px;
+		height: 104px;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.ring-fill
+	{
+		position: absolute;
+		width: 100%;
+		height: 100%;
+		border-radius: 50%;
+	}
+
+	// Punches the middle out of the arc, leaving a ring the percentage sits inside.
+	.ring-inner
+	{
+		position: absolute;
+		left: 9px;
+		top: 9px;
+		right: 9px;
+		bottom: 9px;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		border-radius: 50%;
+		background-color: rgba( 8, 10, 14, 0.92 );
+
+		.percent
+		{
+			font-family: $front-font;
+			font-size: 24px;
+			font-weight: 700;
+			color: $front-heading;
+		}
+
+		.percent-label
+		{
+			font-size: 9.5px;
+			font-weight: 600;
+			text-transform: uppercase;
+			letter-spacing: 0.09em;
+			color: $front-secondary;
+		}
+	}
+
+	.hero.done .ring-inner
+	{
+		.percent, .percent-label
+		{
+			color: $front-reward;
+		}
+	}
+
+	.hero-body
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+		gap: 3px;
+	}
+
+	.eyebrow
+	{
+		font-size: 10px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: $front-label;
+	}
+
+	.hero-title
+	{
+		font-family: $front-font;
+		font-size: 20px;
+		font-weight: 700;
+		color: $front-heading;
+	}
+
+	.hero-hint
+	{
+		font-size: 12px;
+		color: $front-secondary;
+		margin-bottom: 10px;
+	}
+
+	.open
+	{
+		@include front-button;
+
+		align-self: flex-start;
+		padding: 9px 18px;
+		pointer-events: all;
+		cursor: pointer;
+	}
+
+	// One objective. Its own slab, so a long list reads as a checklist.
+	.objective
+	{
+		@include front-card;
+
+		gap: 10px;
+		padding: 12px 14px;
+	}
+
+	.objective-head
+	{
+		flex-direction: row;
+		align-items: center;
+		flex-shrink: 0;
+		gap: 10px;
+
+		icon
+		{
+			flex-shrink: 0;
+			font-size: 20px;
+			color: $front-tertiary;
+		}
+	}
+
+	.objective-body
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+		gap: 2px;
+	}
+
+	.objective-title
+	{
+		font-family: $front-font;
+		font-size: 13px;
+		font-weight: 700;
+		color: $front-heading;
+	}
+
+	.objective-hint
+	{
+		font-size: 11.5px;
+		color: $front-secondary;
+	}
+
+	.objective-count
+	{
+		flex-shrink: 0;
+		font-family: $front-font;
+		font-size: 10.5px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: $front-secondary;
+	}
+
+	.objective.met
+	{
+		.objective-head icon, .objective-count
+		{
+			color: $front-reward;
+		}
+
+		// A met bar at full strength shouts over the one you're actually working on.
+		.track
+		{
+			opacity: 0.45;
+		}
+	}
+
+	.track
+	{
+		@include front-track;
+
+		height: 6px;
+	}
+
+	.footer
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 6px;
+		padding: 10px 16px 14px 16px;
+		border-top: 1px solid $front-hairline;
+
+		.note
+		{
+			font-size: 11.5px;
+			color: $front-secondary;
+		}
+
+		.docs-link
+		{
+			@include front-text-link;
+
+			font-size: 12px;
+			font-weight: 600;
+			flex-shrink: 0;
+		}
+	}
+}

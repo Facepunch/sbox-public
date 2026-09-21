@@ -227,31 +227,25 @@ public class FixedPanelTests
 		Assert.IsFalse( panel.HasPanelLayer );
 		Assert.IsTrue( panel.IsOutOfFlow );
 
-		var renderer = GlobalContext.Current.UISystem.Renderer;
-		renderer.BuildTransformState( host );
+		using var painter = Painter.Begin( new Sandbox.Rendering.CommandList(), root.PanelBounds );
+		using var viewport = painter.ClipDestination( root.PanelBounds, BorderRadii.Zero, Matrix.Identity );
 		Assert.IsNotNull( host.GlobalMatrix );
-		renderer.ResetFixedOverlayState( root.PanelBounds );
-		renderer.BuildTransformState( panel );
 		Assert.IsNull( panel.GlobalMatrix );
 		Assert.IsNull( panel.LocalMatrix );
-		Assert.AreEqual( Matrix.Identity, panel.CachedDescriptors.TransformMat );
-		Assert.AreEqual( 1, renderer.ScissorGPU.Count );
-		Assert.AreEqual( root.PanelBounds, renderer.ScissorGPU.Clips[0].Rect );
-		Assert.AreEqual( Matrix.Identity, renderer.ScissorGPU.Clips[0].Matrix );
+		Assert.AreEqual( Matrix.Identity, panel.RenderTransform );
+		Assert.AreEqual( 1, painter.DestinationClip.Count );
+		Assert.AreEqual( root.PanelBounds, painter.DestinationClip.Clips[0].Rect );
+		Assert.AreEqual( Matrix.Identity, painter.DestinationClip.Clips[0].Matrix );
 
 		panel.Style.Set( "transform: translateX(20px); overflow: hidden;" );
 		root.Layout();
-		renderer.BuildTransformState( panel );
-		renderer.BuildTransformState( child );
 		Assert.IsNotNull( panel.GlobalMatrix );
 		Assert.AreEqual( panel.GlobalMatrix, child.GlobalMatrix );
-		using ( renderer.Clip( panel ) )
+		using ( panel.ClipChildren( painter, panel.Box.ClipRect ) )
 		{
-			Assert.AreNotEqual( root.PanelBounds, renderer.Scissor );
+			Assert.AreEqual( panel.Box.ClipRect, painter.DestinationClip.Clips[painter.DestinationClip.Count - 1].Rect );
 		}
-		renderer.ResetFixedOverlayState( root.PanelBounds );
-		renderer.BuildTransformState( nested );
 		Assert.IsNull( nested.GlobalMatrix );
-		Assert.AreEqual( root.PanelBounds, renderer.Scissor );
+		Assert.AreEqual( root.PanelBounds, painter.DestinationClip.Clips[0].Rect );
 	}
 }

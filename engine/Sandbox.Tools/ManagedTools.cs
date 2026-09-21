@@ -133,6 +133,8 @@ internal static class ManagedTools
 
 		// Panel UI windows and their swap chains, before the render device goes away
 		PanelWindow.DisposeAll();
+		SceneRenderingWidget.ShutdownRendering();
+		EngineLoop.DrainFrameEndDisposables();
 
 		AssetSystem.Shutdown();
 	}
@@ -233,6 +235,8 @@ internal static class ManagedTools
 	{
 		return !EditorShortcuts.AllowShortcuts;
 	}
+
+	internal static void RunConsoleCommand( string command ) => Sandbox.ConVarSystem.Run( command );
 
 	internal static void OnToolCommand( string v )
 	{

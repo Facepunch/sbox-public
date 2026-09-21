@@ -294,6 +294,7 @@ public sealed partial class Session
 		PlaybackFrame();
 
 		EditMode?.Frame();
+		Renderer.Frame();
 
 		if ( _applyNextFrame )
 		{

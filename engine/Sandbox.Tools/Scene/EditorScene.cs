@@ -361,13 +361,11 @@ public static class EditorScene
 
 	internal static void UpdatePrefabInstancesInScene( Scene scene, PrefabFile prefab )
 	{
-		var changedPath = prefab.ResourcePath;
-
 		using ( scene.Push() )
 		{
 			// Copy, because this collection can be modified during prefab updating ( e.g. refreshing/deserializing prefab spawns GOs or components)
 			var prefabInstancesRequiringUpdate = scene.GetAllObjects( false )
-				.Where( x => x.IsPrefabInstanceRoot && x.PrefabInstanceSource == changedPath )
+				.Where( x => x.IsPrefabInstanceRoot && x.PrefabInstance.PrefabSource.Guid == prefab.Guid )
 				.Select( x => x.OutermostPrefabInstanceRoot ) // We always need to update the outermostprefab instance
 				.ToHashSet();
 			foreach ( var obj in prefabInstancesRequiringUpdate )

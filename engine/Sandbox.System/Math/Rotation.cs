@@ -12,6 +12,7 @@ using Sandbox.Interpolation;
 /// </summary>
 [JsonConverter( typeof( Sandbox.Internal.JsonConvert.RotationConverter ) )]
 [StructLayout( LayoutKind.Sequential )]
+[Description( "A quaternion rotation in 3D space. Unlike Angles, it cannot store multiple revolutions around an axis." )]
 public struct Rotation : System.IEquatable<Rotation>, IParsable<Rotation>, IInterpolator<Rotation>
 {
 	internal System.Numerics.Quaternion _quat;
@@ -700,4 +701,10 @@ public struct Rotation : System.IEquatable<Rotation>, IParsable<Rotation>, IInte
 	{
 		return a.LerpTo( b, delta );
 	}
+
+	/// <summary>
+	/// Returns true if x, y, z and w are all finite, so neither NaN nor infinity
+	/// </summary>
+	[JsonIgnore]
+	public readonly bool IsFinite => float.IsFinite( x ) && float.IsFinite( y ) && float.IsFinite( z ) && float.IsFinite( w );
 }

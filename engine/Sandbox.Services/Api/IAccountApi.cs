@@ -6,6 +6,18 @@ public partial class ServiceApi
 {
 	public interface IAccountApi
 	{
+		/// <summary>Get the calling player's explicitly hidden package and organization IDs.</summary>
+		[Get( "/account/hidden/1" )]
+		Task<HiddenContent> GetHiddenContent();
+
+		/// <summary>Hide or unhide a package by full ident. Returns the requested hidden state.</summary>
+		[Post( "/account/hidden/package/1/{packageIdent}" )]
+		Task<bool> SetPackageHidden( string packageIdent, [Query] bool hidden );
+
+		/// <summary>Hide or unhide an organization by ident. Individual package hides are preserved.</summary>
+		[Post( "/account/hidden/organization/1/{orgIdent}" )]
+		Task<bool> SetOrganizationHidden( string orgIdent, [Query] bool hidden );
+
 		[Post( "/account/login/2" )]
 		Task<LoginResult> Login( object logindata );
 

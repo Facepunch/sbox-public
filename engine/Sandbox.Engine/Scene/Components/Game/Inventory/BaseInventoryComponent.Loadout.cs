@@ -37,6 +37,8 @@ public partial class BaseInventoryComponent
 	{
 		if ( UsesLoadout && GiveOnStart && Networking.IsHost )
 			GiveLoadout();
+
+		OnActiveItemChanged( null, ActiveItem );
 	}
 
 	/// <summary>

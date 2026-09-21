@@ -9,7 +9,7 @@ static class NavigationAlgorithmChecks
 {
 	public static void BoundsAndSearch()
 	{
-		var mesh = SyntheticNavMesh.Create( obstacles: true );
+		var mesh = SyntheticNavMesh.Create( new() { Obstacles = true } );
 		var data = mesh.GetTile( 0 ).data;
 		var tree = data.bvTree;
 		var random = new Random( 917 );

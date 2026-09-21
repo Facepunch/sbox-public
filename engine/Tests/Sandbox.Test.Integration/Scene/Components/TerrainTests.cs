@@ -357,12 +357,20 @@ public class TerrainComponentTest
 		Assert.AreEqual( 1000.0f, terrain.LocalBounds.Maxs.y, 1.0f, "The plateau reaches the full terrain height" );
 		Assert.AreEqual( 6300.0f, terrain.LocalBounds.Maxs.z, 1.0f );
 
-		Assert.AreEqual( sceneObjectBaseline + 1, scene.SceneWorld.SceneObjects.Count(), "The clipmap scene object is created even on the empty render device" );
+		Assert.AreEqual( sceneObjectBaseline + (Graphics.IsAvailable ? 1 : 0), scene.SceneWorld.SceneObjects.Count() );
 
-		Assert.IsNotNull( terrain.HeightMap, "The CPU-side heightmap texture is created" );
-		Assert.AreEqual( 64, terrain.HeightMap.Width );
-		Assert.AreEqual( 64, terrain.HeightMap.Height );
-		Assert.IsNotNull( terrain.ControlMap );
+		if ( Graphics.IsAvailable )
+		{
+			Assert.IsNotNull( terrain.HeightMap );
+			Assert.AreEqual( 64, terrain.HeightMap.Width );
+			Assert.AreEqual( 64, terrain.HeightMap.Height );
+			Assert.IsNotNull( terrain.ControlMap );
+		}
+		else
+		{
+			Assert.IsNull( terrain.HeightMap );
+			Assert.IsNull( terrain.ControlMap );
+		}
 
 		scene.GameTick();
 

@@ -56,6 +56,9 @@ internal static class ErrorReporter
 		ev.SetTag( "game", $"{Application.GameIdent}" );
 		ev.SetTag( "gameversion", $"{Application.GamePackage?.Revision?.VersionId}" );
 		ev.SetTag( "host", Application.IsDedicatedServer ? "dedicated" : "game" );
+		ev.SetTag( "hags", SystemInfo.WinHags?.ToString() ?? "unknown" );
+		ev.SetTag( "monitors", $"{SystemInfo.MonitorCount}" );
+		ev.SetTag( "refresh", $"{SystemInfo.DisplayRefreshRate}" );
 
 		ev.Contexts.Gpu.Name = SystemInfo.Gpu;
 		ev.Contexts.Gpu.Version = SystemInfo.GpuVersion;

@@ -20,7 +20,6 @@ internal class UploadBuildArtifacts
 		"sbox",
 		"sbox-dev",
 		"sbox-launcher",
-		"sbox-standalone",
 		"sbox-server",
 		"benchmark",
 		".version",

@@ -7,7 +7,7 @@ namespace Sandbox;
 /// <summary>
 /// Loads the font files under /fonts/ and picks the best face for a text style.
 /// </summary>
-internal class FontManager : FontMapper
+internal class FontManager : FontMapper, ICharacterMatcher
 {
 	public static readonly FontManager Instance = new();
 
@@ -19,6 +19,15 @@ internal class FontManager : FontMapper
 	Dictionary<(string family, int weight, int width, SKFontStyleSlant slant), LoadedFont> _loadedFonts = new();
 	Dictionary<(string family, int weight, bool italic), SKTypeface> _cache = new();
 	List<FileWatch> _watchers = new();
+
+	static FontManager()
+	{
+		// Do a custom glyph matcher for Linux/Mac to custom handle COLRv0 Emojis
+		// They dont ship with vector emoji support on a system level, let's make it find
+		// A font that does.
+		if ( !OperatingSystem.IsWindows() )
+			FontFallback.CharacterMatcher = Instance;
+	}
 
 	/// <summary>
 	/// Every family name we have a face for.
@@ -194,5 +203,17 @@ internal class FontManager : FontMapper
 		{
 			_cache.Clear();
 		}
+	}
+
+	public SKTypeface MatchCharacter( string familyName, int weight, int width, SKFontStyleSlant slant, string[] bcp47, int character )
+	{
+		lock ( _loadedFonts )
+		{
+			foreach ( var font in _loadedFonts.Values )
+				if ( font.Typeface.ContainsGlyph( character ) )
+					return font.Typeface;
+		}
+
+		return SKFontManager.Default.MatchCharacter( familyName, weight, width, slant, bcp47, character );
 	}
 }

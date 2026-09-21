@@ -1,11 +1,11 @@
-﻿using Sandbox.Rendering;
+using Sandbox.Rendering;
 
 namespace Sandbox.UI;
 
 public partial class Panel
 {
 	/// <summary>
-	/// To be used inside <see cref="OnDraw"/> to add custom shapes, textures and text to a panel.
+	/// To be used inside <see cref="OnDraw()"/> to add custom shapes, textures and text to a panel.
 	/// These draw calls will be batched together with the panel's CSS-styled content for efficient rendering.
 	/// <example>
 	/// <code>
@@ -17,6 +17,7 @@ public partial class Panel
 	/// </code>
 	/// </example>
 	/// </summary>
+	[Obsolete( "Override OnDraw(Painter painter) and use the supplied Painter instead." )]
 	public static class Draw
 	{
 		/// <summary>
@@ -27,10 +28,7 @@ public partial class Panel
 		/// <param name="cornerRadius">Uniform corner radius for rounded rectangles. Use the <see cref="Rect(Rect, Color, Vector4)"/> overload for per-corner control.</param>
 		public static void Rect( Rect rect, Color color, float cornerRadius = 0 )
 		{
-			UIDrawBuffer.Current.AddBox( new BoxDrawDescriptor( rect, color )
-			{
-				BorderRadius = new Vector4( cornerRadius ),
-			} );
+			LegacyPaint.Current.Painter.LegacyRect( rect, color, new Vector4( cornerRadius ) );
 		}
 
 		/// <summary>
@@ -41,10 +39,7 @@ public partial class Panel
 		/// <param name="cornerRadius">Corner radii as (bottom-right, top-right, bottom-left, top-left).</param>
 		public static void Rect( Rect rect, Color color, Vector4 cornerRadius )
 		{
-			UIDrawBuffer.Current.AddBox( new BoxDrawDescriptor( rect, color )
-			{
-				BorderRadius = cornerRadius,
-			} );
+			LegacyPaint.Current.Painter.LegacyRect( rect, color, cornerRadius );
 		}
 
 		/// <summary>
@@ -68,13 +63,10 @@ public partial class Panel
 		/// <param name="tint">Optional color tint applied to the texture. Defaults to <see cref="Color.White"/> (no tint).</param>
 		public static void Texture( Texture texture, Rect rect, Color? tint = null )
 		{
-			UIDrawBuffer.Current.AddBox( new BoxDrawDescriptor( rect, Color.Transparent )
-			{
-				BackgroundImage = texture,
-				BackgroundTint = tint ?? Color.White,
-				BackgroundRepeat = BackgroundRepeat.Clamp,
-			} );
+			LegacyPaint.Current.Painter.LegacyTexture( texture, rect, tint ?? Color.White );
 		}
+
+		// Text is built into this and handed straight to the draw buffer, so one list per thread serves every call
 
 		/// <summary>
 		/// Draws a text string within the given rectangle.
@@ -86,29 +78,7 @@ public partial class Panel
 		/// <param name="flags">Text alignment and layout flags. Defaults to <see cref="TextFlag.LeftTop"/>.</param>
 		/// <param name="font">Font family name. Defaults to "Roboto".</param>
 		public static void Text( string text, Rect rect, float size, Color color, TextFlag flags = TextFlag.LeftTop, string font = "Roboto" )
-		{
-			var buf = UIDrawBuffer.Current;
-			var scale = buf.ScaleToScreen;
-
-			var scope = new TextRendering.Scope( text, color, size * scale, font );
-			var tb = TextRendering.GetOrCreateTextBlock( scope, flags, rect.Size == default ? new Vector2( 8096 ) : rect.Size );
-			tb.MakeReady();
-			var texture = tb.Texture;
-			if ( texture is null ) return;
-
-			var textRect = rect.Align( texture.Size, flags ).Floor();
-			var tint = Color.White;
-			tint.a *= buf.Opacity;
-
-			buf.AddBox( new BoxDrawDescriptor( textRect, Color.Transparent )
-			{
-				BackgroundImage = texture,
-				BackgroundRect = new Vector4( 0, 0, textRect.Width, textRect.Height ),
-				BackgroundTint = tint,
-				BackgroundRepeat = BackgroundRepeat.Clamp,
-				FilterMode = FilterMode.Bilinear,
-			} );
-		}
+			=> LegacyPaint.Current.Painter.LegacyText( text, rect, new TextStyle { FontSize = size, Color = color, Alignment = flags, FontName = font } );
 
 		/// <summary>
 		/// Draws a box shadow (drop shadow or inset shadow).
@@ -122,14 +92,7 @@ public partial class Panel
 		/// <param name="inset">If true, draws an inner shadow instead of a drop shadow.</param>
 		public static void Shadow( Rect rect, Color color, float blur = 0, float spread = 0, Vector2 offset = default, float cornerRadius = 0, bool inset = false )
 		{
-			UIDrawBuffer.Current.AddShadow( new ShadowDrawDescriptor( rect, color )
-			{
-				BorderRadius = new Vector4( cornerRadius ),
-				Blur = blur,
-				Spread = spread,
-				Offset = offset,
-				Inset = inset,
-			} );
+			LegacyPaint.Current.Painter.LegacyShadow( rect, color, blur, spread, offset, cornerRadius, inset );
 		}
 
 		/// <summary>
@@ -142,94 +105,8 @@ public partial class Panel
 		/// <param name="offset">Outline offset. Positive values push the outline outward, negative values pull it inward.</param>
 		public static void Outline( Rect rect, Color color, float width, float cornerRadius = 0, float offset = 0 )
 		{
-			UIDrawBuffer.Current.AddOutline( new OutlineDrawDescriptor( rect, color, width )
-			{
-				BorderRadius = new Vector4( cornerRadius ),
-				Offset = offset,
-			} );
+			LegacyPaint.Current.Painter.LegacyOutline( rect, color, width, cornerRadius, offset );
 		}
 	}
 
-	/// <summary>
-	/// Draws a texture using this panel's CSS box styling (border radius, border image, background position/size,
-	/// tint, blend mode, filter mode, etc.) and adds the resulting descriptor to <see cref="CachedDescriptors"/>.
-	/// <para>
-	/// This is intended for controls like <see cref="Image"/>, <see cref="ScenePanel"/>, and <see cref="SvgPanel"/>
-	/// that render a texture as their primary content while respecting the panel's CSS properties.
-	/// For simple texture drawing without CSS styling, use <see cref="Draw.Texture"/> instead.
-	/// </para>
-	/// </summary>
-	/// <param name="texture">The texture to draw. If null or invalid, draws the styled box without a texture.</param>
-	/// <param name="defaultSize">Controls how the texture is sized within the panel (e.g. <see cref="Length.Cover"/>, <see cref="Length.Contain"/>, <see cref="Length.Auto"/>).</param>
-	protected void DrawBackgroundTexture( Texture texture, Length defaultSize )
-	{
-		var style = ComputedStyle;
-		if ( style == null ) return;
-
-		if ( texture == Texture.Invalid )
-			texture = null;
-
-		var opacity = CachedRenderOpacity;
-		var rect = Box.Rect;
-		var size = (rect.Width + rect.Height) * 0.5f;
-
-		var color = style.BackgroundColor.Value;
-		color.a *= opacity;
-
-		var desc = new BoxDrawDescriptor( rect, color )
-		{
-			Radii = BorderRadii.FromStyle( style, rect ),
-			BorderSize = PanelRenderer.GetBorderWidths( style, size ),
-			BorderColorL = style.BorderLeftColor.Value.WithAlphaMultiplied( opacity ),
-			BorderColorT = style.BorderTopColor.Value.WithAlphaMultiplied( opacity ),
-			BorderColorR = style.BorderRightColor.Value.WithAlphaMultiplied( opacity ),
-			BorderColorB = style.BorderBottomColor.Value.WithAlphaMultiplied( opacity ),
-			BackgroundTint = style.BackgroundTint.Value.WithAlphaMultiplied( opacity ),
-			BackgroundRepeat = style.BackgroundRepeat ?? BackgroundRepeat.Repeat,
-			BackgroundAngle = style.BackgroundAngle.Value.GetPixels( 1.0f ),
-			OverrideBlendMode = CachedOverrideBlendMode,
-			FilterMode = (style.ImageRendering ?? ImageRendering.Anisotropic) switch
-			{
-				ImageRendering.Point => FilterMode.Point,
-				ImageRendering.Bilinear => FilterMode.Bilinear,
-				ImageRendering.Trilinear => FilterMode.Trilinear,
-				_ => FilterMode.Anisotropic
-			},
-		};
-		desc.SetBorderShape( style.BorderShape );
-
-		if ( style.BorderImageSource != null )
-		{
-			desc.BorderImageTexture = style.BorderImageSource;
-			desc.BorderImageSlice = new Vector4(
-				style.BorderImageWidthLeft.Value.GetPixels( size ),
-				style.BorderImageWidthTop.Value.GetPixels( size ),
-				style.BorderImageWidthRight.Value.GetPixels( size ),
-				style.BorderImageWidthBottom.Value.GetPixels( size )
-			);
-			desc.BorderImageRepeat = style.BorderImageRepeat ?? BorderImageRepeat.Stretch;
-			desc.BorderImageFill = style.BorderImageFill ?? BorderImageFill.Unfilled;
-			desc.BorderImageTint = style.BorderImageTint.Value.WithAlphaMultiplied( opacity );
-		}
-
-		if ( texture != null )
-		{
-			texture.MarkUsed();
-
-			desc.BackgroundImage = texture;
-			desc.BackgroundRect = ImageRect.Calculate( new ImageRect.Input
-			{
-				ScaleToScreen = ScaleToScreen,
-				Image = texture,
-				PanelRect = rect,
-				DefaultSize = defaultSize,
-				ImagePositionX = style.BackgroundPositionX,
-				ImagePositionY = style.BackgroundPositionY,
-				ImageSizeX = style.BackgroundSizeX,
-				ImageSizeY = style.BackgroundSizeY,
-			} ).Rect;
-		}
-
-		CachedDescriptors.AddBox( desc );
-	}
 }

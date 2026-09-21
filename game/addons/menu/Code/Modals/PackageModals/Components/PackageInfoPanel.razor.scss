@@ -1,4 +1,5 @@
 @import "/styles/_theme.scss";
+@import "/styles/_front.scss";
 
 PackageInfoPanel
 {
@@ -7,170 +8,154 @@ PackageInfoPanel
     overflow-y: scroll;
     flex-grow: 1;
     flex-shrink: 0;
-}
 
-.media-wrapper
-{
-    padding: 10px 10px 0px 10px;
-    flex-shrink: 0;
-}
-
-.panel-media
-{
-    width: 100%;
-    aspect-ratio: 16 / 9;
-    background-size: cover;
-    background-position: center;
-    border-radius: $rounding-large;
-    border: 1px solid $default-border;
-    box-shadow: 0px 4px 20px rgba(0,0,0,0.4);
-}
-
-.panel-header
-{
-    flex-direction: column;
-    padding: 10px 12px 6px 12px;
-    gap: 3px;
-    flex-shrink: 0;
-}
-
-.game-title
-{
-    font-size: $text-medium;
-    font-weight: 700;
-    color: $default-text;
-    font-family: $font-heading;
-}
-
-.game-org
-{
-    flex-direction: row;
-    align-items: center;
-    gap: 5px;
-    font-size: $text-small;
-    color: $default-400;
-    cursor: pointer;
-    font-family: $font-default;
-
-    &:hover .org-name { color: $default-100; }
-}
-
-.org-thumb
-{
-    width: 16px;
-    height: 16px;
-    border-radius: $rounding-small;
-    flex-shrink: 0;
-}
-
-.org-name
-{
-    color: $default-300;
-    font-weight: 600;
-}
-
-.panel-sections
-{
-    flex-direction: column;
-    flex-grow: 1;
-    flex-shrink: 0;
-    padding: 4px 10px 10px 10px;
-    gap: 5px;
-}
-
-// Card content layout — info panel cards and achievements card share these.
-// Flat fill (no gradient) with a hairline border reads cleaner than the default Card.
-PackageInfoPanel Card,
-Card.achievements-card
-{
-    flex-direction: column;
-    padding: 11px 13px;
-    gap: 7px;
-    flex-grow: 0;
-    flex-shrink: 0;
-    background: $default-900;
-    border: 1px solid $default-border;
-    border-radius: $rounding-large;
-}
-
-// The achievements card is a button, so give it a clear interactive state
-Card.achievements-card
-{
-    transition: background-color 120ms $easing, border-color 120ms $easing;
-
-    &:hover
+    .media-wrapper
     {
-        background: $default-800;
-        border-color: rgba( $default-50, 0.18 );
-    }
-}
-
-.section-label
-{
-    font-size: $text-eyebrow;
-    font-weight: 700;
-    letter-spacing: 1.2px;
-    text-transform: uppercase;
-    color: $default-300;
-    font-family: $font-heading;
-    margin-bottom: 3px;
-}
-
-.info-row
-{
-    flex-direction: row;
-    align-items: center;
-    gap: 9px;
-    color: $default-100;
-    font-size: $text-small;
-    font-family: $font-default;
-    font-weight: 500;
-
-    i
-    {
-        font-size: 15px;
-        color: $default-400;
+        padding: 10px 10px 0px 10px;
         flex-shrink: 0;
-        width: 16px;
     }
 
-    label { flex-grow: 1; }
-
-    &.clickable
+    .panel-media
     {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        background-size: cover;
+        background-position: center;
+        border-radius: $front-radius;
+        border: 1px solid $front-border;
+    }
+
+    .panel-header
+    {
+        flex-direction: column;
+        padding: 12px 12px 8px 12px;
+        gap: 3px;
+        flex-shrink: 0;
+    }
+
+    .game-title
+    {
+        font-family: $front-font;
+        font-size: 18px;
+        font-weight: 700;
+        color: $front-heading;
+    }
+
+    .game-org
+    {
+        flex-direction: row;
+        align-items: center;
+        gap: 6px;
         cursor: pointer;
+
+        .org-name
+        {
+            @include front-text-link;
+            font-size: 12.5px;
+            font-weight: 600;
+        }
+    }
+
+    .org-thumb
+    {
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+        flex-shrink: 0;
+    }
+
+    .panel-sections
+    {
+        flex-direction: column;
+        flex-grow: 1;
+        flex-shrink: 0;
+        padding: 4px 10px 10px 10px;
+        gap: 8px;
+    }
+
+    Card,
+    Card.achievements-card
+    {
+        flex-direction: column;
+        padding: 12px 14px;
+        gap: 8px;
+        flex-grow: 0;
+        flex-shrink: 0;
+        background: $front-card-deep;
+        border: 1px solid $front-hairline;
+        border-radius: $front-radius;
+    }
+
+    Card.achievements-card
+    {
+        transition: background-color 120ms $easing, border-color 120ms $easing;
 
         &:hover
         {
-            color: $default-text;
-
-            i { color: $primary-blue; }
+            background: rgba( 255, 255, 255, 0.04 );
+            border-color: rgba( 255, 255, 255, 0.18 );
         }
     }
-}
 
-.tag-list
-{
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 4px;
-}
-
-.tag
-{
-    padding: 3px 8px;
-    background-color: rgba( $default-50, 0.04 );
-    border: 1px solid $default-border;
-    border-radius: $rounding-small;
-    font-size: $text-eyebrow;
-    font-weight: 600;
-    color: $default-200;
-    font-family: $font-default;
-    transition: background-color 120ms $easing, color 120ms $easing;
-
-    &:hover
+    .section-label
     {
-        background-color: rgba( $default-50, 0.09 );
-        color: $default-100;
+        @include front-section-label;
+        margin-bottom: 2px;
+    }
+
+    .info-row
+    {
+        flex-direction: row;
+        align-items: center;
+        gap: 9px;
+        font-size: 12.5px;
+        font-weight: 500;
+        color: $front-body;
+
+        i
+        {
+            font-size: 16px;
+            color: $front-secondary;
+            flex-shrink: 0;
+            width: 16px;
+        }
+
+        label
+        {
+            flex-grow: 1;
+        }
+
+        &.clickable
+        {
+            cursor: pointer;
+
+            &:hover
+            {
+                color: $front-heading;
+
+                i
+                {
+                    color: $front-primary;
+                }
+            }
+        }
+    }
+
+    .tag-list
+    {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 5px;
+    }
+
+    .tag
+    {
+        @include front-pill;
+        padding: 3px 9px;
+        font-size: 10.5px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: $front-body;
     }
 }

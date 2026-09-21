@@ -7,6 +7,7 @@ using System.Text.Json.Serialization;
 
 [JsonConverter( typeof( Sandbox.Internal.JsonConvert.Vector2IntConverter ) )]
 [StructLayout( LayoutKind.Sequential )]
+[Description( "A 2-dimensional vector with integer components." )]
 public struct Vector2Int : IEquatable<Vector2Int>, IParsable<Vector2Int>
 {
 	/// <summary>

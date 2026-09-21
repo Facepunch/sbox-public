@@ -50,7 +50,7 @@ public record ButtonEvent
 	{
 		Button = InputEventQueue.NormalizeButtonName( button.ToString() );
 		Pressed = pressed;
-		VirtualKey = InputSystem.ButtonCodeToVirtualKey( button );
+		VirtualKey = Sandbox.Engine.KeyTranslation.ButtonCodeToVirtualKey( button );
 		KeyboardModifiers = modifiers;
 	}
 

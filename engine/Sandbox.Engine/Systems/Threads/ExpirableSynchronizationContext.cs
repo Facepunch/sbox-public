@@ -463,14 +463,20 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 	{
 		const int WAIT_TIMEOUT = 0x102; // 258
 
-		var totalWait = 0;
+		// A zero timeout is a poll, and invalid timeouts should be rejected by the runtime.
+		if ( millisecondsTimeout != Timeout.Infinite && millisecondsTimeout <= 0 )
+			return base.Wait( waitHandles, waitAll, millisecondsTimeout );
+
+		var started = Stopwatch.GetTimestamp();
 
 		while ( true )
 		{
 			//
-			// Wait for max 2 seconds
+			// Wait for at most 2 milliseconds before pumping queued work.
 			//
-			var val = base.Wait( waitHandles, waitAll, 2 );
+			var waitTime = millisecondsTimeout == Timeout.Infinite ? 2
+				: (int)Math.Clamp( Math.Ceiling( millisecondsTimeout - Stopwatch.GetElapsedTime( started ).TotalMilliseconds ), 0, 2 );
+			var val = base.Wait( waitHandles, waitAll, waitTime );
 
 			//
 			// If we didn't time out, then we probably finished waiting, so just return
@@ -478,14 +484,10 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 			if ( val != WAIT_TIMEOUT ) return val;
 
 			//
-			// Keep track of how long we've waited
+			// Include time spent processing the queue in the timeout.
 			//
-			totalWait += 2;
-
-			//
-			// If the wait wasn't infinite and we surpassed that time, just return as normal
-			//
-			if ( millisecondsTimeout > 0 && totalWait <= millisecondsTimeout )
+			if ( millisecondsTimeout != Timeout.Infinite
+				&& Stopwatch.GetElapsedTime( started ).TotalMilliseconds >= millisecondsTimeout )
 				return val;
 
 			//

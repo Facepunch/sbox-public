@@ -69,7 +69,7 @@
           "OnComponentUpdate": null,
           "Opacity": 1,
           "Scale": 1,
-          "ScaleStrategy": "FollowDesktopScaling",
+          "ScaleStrategy": "ConsistentHeight",
           "TargetCamera": null,
           "Timing": "BeforePostProcess",
           "ZIndex": 100
@@ -233,7 +233,7 @@
           "OnComponentFixedUpdate": null,
           "OnComponentStart": null,
           "OnComponentUpdate": null,
-          "Strength": 4.6907215,
+          "Strength": 2.5,
           "Threshold": 0.742268,
           "Tint": "1,1,1,1"
         },
@@ -343,7 +343,7 @@
               "Gradient": {
                 "Type": "Range",
                 "Evaluation": "Life",
-                "ConstantA": "0.21043,0.31001,0.63721,1",
+                "ConstantA": "0.00294,0.0066,0.0186,1",
                 "ConstantB": "0.38356,0.64104,0.91628,1"
               },
               "InitialPitch": 0,
@@ -515,7 +515,10 @@
                       "LoopEnd": -1,
                       "Frames": [
                         {
-                          "Texture": "textures/particles/smoke/smoke_static_b.vtex",
+                          "Texture": {
+                            "Id": "a548ec64-c563-40c8-9bf0-67a1d637ebfe",
+                            "Path": "textures/particles/smoke/smoke_static_b.vtex"
+                          },
                           "BroadcastMessages": []
                         }
                       ]
@@ -855,7 +858,10 @@
                       "LoopEnd": -1,
                       "Frames": [
                         {
-                          "Texture": "textures/particles/flares/light_glow_01.vtex",
+                          "Texture": {
+                            "Id": "85466df0-a561-4789-9559-0794af62ec78",
+                            "Path": "textures/particles/flares/light_glow_01.vtex"
+                          },
                           "BroadcastMessages": []
                         }
                       ]
@@ -937,6 +943,7 @@
   ],
   "SceneProperties": {
     "NetworkInterpolation": true,
+    "PhysicsMode": "Physics3D",
     "TimeScale": 1,
     "WantsSystemScene": false,
     "Metadata": {

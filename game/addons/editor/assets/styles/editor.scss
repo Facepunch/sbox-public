@@ -4,6 +4,65 @@
 // panel; add "style-light" next to it for the light theme.
 @import "_palette.scss";
 
+// Graph axes share editor styling across all graph controls.
+.editor-window .graphaxis, .os-popup .graphaxis
+{
+	.graph-axis-bound { min-width: 0px; flex-grow: 0; font-family: Roboto; font-size: 10px; font-weight: 400; padding: 0px 5px; background-color: transparent; border: 1px solid transparent; border-radius: 2px; }
+	.graph-axis-bound .content-label { color: rgba( $text, 0.5 ); }
+	.graph-axis-bound:hover { background-color: $raised; border-color: $line; }
+	.graph-axis-bound:focus { background-color: $raised; border-color: $accent; }
+	.graph-axis-bound:hover .content-label, .graph-axis-bound:focus .content-label { color: $text; }
+}
+.editor-window.style-light .graphaxis
+{
+	.graph-axis-bound .content-label { color: rgba( $l-text, 0.5 ); }
+	.graph-axis-bound:hover { background-color: $l-raised; border-color: $l-line; }
+	.graph-axis-bound:focus { background-color: $l-raised; border-color: $accent; }
+	.graph-axis-bound:hover .content-label, .graph-axis-bound:focus .content-label { color: $l-text; }
+}
+
+// Curve editing. The control itself only supplies layout and input behaviour.
+.editor-window .curveeditor, .os-popup .curveeditor
+{
+	width: 100%;
+	background-color: $surface;
+	border-radius: 3px;
+	overflow: hidden;
+	.curve-body > .curve-canvas { background-color: $surface; color: #79c9a0; }
+	> .toolbar { padding: 2px 6px; min-height: 30px; }
+	.curve-inspector { padding: 12px; gap: 12px; background-color: $ground; border-left: 1px solid $line; }
+	.curve-inspector-title { color: $text-muted; font-size: 11px; font-weight: 600; margin-bottom: 4px; }
+	.curve-key-field { gap: 4px; }
+	.curve-key-field > .label { color: $text-muted; font-size: 11px; }
+	.curve-key-field > .textentry { width: 100%; min-width: 0px; flex-grow: 0; height: 28px; padding: 4px 8px; background-color: $raised; border: 1px solid transparent; border-radius: 3px; }
+	.curve-key-field > .textentry:focus { border-color: $accent; }
+	.curve-inspector > .button { width: 100%; height: 28px; padding: 0px 10px; background-color: $raised; border-radius: 3px; }
+	.curve-inspector > .button:hover { background-color: $raised-hover; }
+	.curve-inspector > .curve-tangent-mode { justify-content: space-between; }
+	.curve-inspector > .toolbar-separator { margin: 0px; }
+	.curve-presets { padding: 6px 10px; align-items: center; gap: 4px; flex-wrap: wrap; }
+	.curve-preset { width: 54px; height: 30px; padding: 0px; background-color: $raised; color: #79c9a0; border-radius: 2px; }
+	.curve-preset:hover, .curve-preset:focus { background-color: $raised-hover; color: #79c9a0; }
+}
+.editor-window .curvecontrol { width: 100%; min-width: 0; height: 32px; background-color: $raised; border: 1px solid transparent; border-radius: 4px; color: #79c9a0; }
+.editor-window .curvecontrol:hover { background-color: $raised-hover; }
+.editor-window .curvecontrol:focus { border-color: $accent; }
+.editor-window .curve-editor-popup, .os-popup .curve-editor-popup { padding: 6px; background-color: $surface; border: 1px solid $line; border-radius: 4px; }
+.editor-window.style-light .curvecontrol { background-color: $l-raised; color: #237a51; }
+.editor-window.style-light .curvecontrol:hover { background-color: $l-raised-hover; }
+.editor-window.style-light .curve-editor-popup { background-color: $l-surface; border-color: $l-line; }
+.editor-window.style-light .curveeditor
+{
+	background-color: $l-surface;
+	.curve-body > .curve-canvas { background-color: $l-surface; color: #237a51; }
+	.curve-inspector { background-color: $l-ground; border-color: $l-line; }
+	.curve-key-field > .textentry, .curve-inspector > .button { background-color: $l-surface; }
+	.curve-key-field > .label, .curve-inspector-title { color: $l-text-muted; }
+	.curve-inspector > .button:hover { background-color: $l-raised-hover; }
+	.curve-preset { background-color: $l-surface; color: $l-text-muted; }
+	.curve-preset:hover, .curve-preset:focus { color: #237a51; }
+}
+
 .editor-window
 {
 	// The box the absolute panels inside a window measure against - the backdrop, and anything
@@ -297,6 +356,13 @@
 .textentry .content-label { color: $text; align-self: center; }
 .textentry .content-label.placeholder { color: $text-faint; }
 
+NumberEntry > .content-label
+{
+	flex-grow: 1;
+	min-width: 0;
+	text-align: right;
+}
+
 // A multiline entry is a box of text - it wraps, it starts at the top, and it's as tall as
 // whoever placed it says
 .textentry.is-multiline
@@ -488,6 +554,149 @@
 .dropdown .separator { height: 1px; margin: 5px 4px; background-color: $line; }
 
 //
+// Toolbars - the control owns layout and input; the editor owns its appearance.
+//
+.toolbar
+{
+	padding: 3px 6px;
+	gap: 4px;
+	background-color: $dock-surface;
+	color: $text-muted;
+	border: 0;
+	border-radius: 0;
+}
+
+// Status bars
+.statusbar
+{
+	min-height: 26px;
+	padding: 3px 10px;
+	gap: 12px;
+	background-color: $raised;
+	color: $text-muted;
+	font-size: 11px;
+}
+.status-left, .status-right { gap: 6px; }
+.statusbar .status-separator { width: 1px; height: 12px; margin: 0 6px; background-color: $line; }
+.statusbar .icon, .statusbar iconpanel { font-size: 14px; }
+.statusbar .button
+{
+	padding: 2px 6px;
+	gap: 5px;
+	align-items: center;
+	background-color: transparent;
+	border: 0;
+	border-radius: 3px;
+	color: inherit;
+	font-size: 11px;
+	&:hover { background-color: $raised-hover; color: $text; }
+}
+.style-light .statusbar { background-color: $l-raised; color: $l-text-muted; }
+.style-light .statusbar .status-separator { background-color: $l-line; }
+.style-light .statusbar .button:hover { background-color: $l-raised-hover; color: $l-text; }
+
+// Tabs share their chrome with docking. The controls only supply layout and input.
+.tabbar
+{
+	min-height: 34px;
+	padding: 4px 4px 0 4px;
+	gap: 3px;
+	background-color: $ground;
+}
+.tabbar > .tab
+{
+	position: relative;
+	padding: 4px 6px 4px 10px;
+	gap: 7px;
+	border: 1px solid transparent;
+	border-radius: 5px 5px 0 0;
+	background-color: transparent;
+	color: $text-muted;
+	cursor: pointer;
+	font-size: 12px;
+	&:hover, &.selected { background-color: $dock-surface; color: $text; }
+	&:focus { border-top-color: $accent; }
+	&.dragging { opacity: 0.45; }
+	&.drop-before::before, &.drop-after::after
+	{
+		position: absolute;
+		top: 2px;
+		bottom: 2px;
+		width: 2px;
+		border: 0;
+		border-radius: 0;
+		background-color: $accent;
+		pointer-events: none;
+	}
+	&.drop-before::before { left: 0; }
+	&.drop-after::after { right: 0; }
+	> .tab-icon { font-size: 16px; }
+	> .tab-count
+	{
+		padding: 1px 5px;
+		border-radius: 8px;
+		background-color: $raised;
+		color: $text-muted;
+		font-size: 10px;
+	}
+	&.selected > .tab-count { background-color: rgba( $accent, 0.2 ); color: $accent-hover; }
+	> .tab-close
+	{
+		width: 20px;
+		height: 20px;
+		border-radius: 4px;
+		opacity: 0.4;
+		> .icon { font-size: 14px; }
+		&:hover { background-color: $raised-hover; opacity: 1; }
+	}
+	&.selected > .tab-close, &:hover > .tab-close { opacity: 1; }
+}
+.tabpanel > .tab-body { background-color: $dock-surface; }
+.style-light .tabbar { background-color: $l-ground; }
+.style-light .tabbar > .tab
+{
+	color: $l-text-muted;
+	&:hover, &.selected { background-color: $dock-light-surface; color: $l-text; }
+	> .tab-close:hover { background-color: $l-raised-hover; }
+	> .tab-count { background-color: $l-raised; color: $l-text-muted; }
+	&.selected > .tab-count { background-color: rgba( $accent, 0.13 ); color: $accent-active; }
+}
+.style-light .tabpanel > .tab-body { background-color: $dock-light-surface; }
+
+// Floating viewport tools need their own surface against the scene.
+.toolbar.toolstrip
+{
+	padding: 4px;
+	background-color: rgba( $surface, 0.96 );
+	border: 1px solid $line;
+	border-radius: 6px;
+}
+
+.toolbar > .button
+{
+	gap: 6px;
+	min-width: 30px;
+	min-height: 30px;
+	padding: 5px 8px;
+	margin: 0;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	background-color: transparent;
+	color: inherit;
+	font-size: 12px;
+	cursor: pointer;
+}
+
+.toolbar > .button > .icon { font-size: 18px; margin: 0; }
+.toolbar > .button:hover { background-color: $raised-hover; color: $text; }
+.toolbar > .button:active { background-color: $line; }
+.toolbar > .button.active { background-color: rgba( $accent, 0.2 ); color: $accent-hover; }
+.toolbar > .button:focus { border-color: $accent; }
+.toolbar > .button.disabled { opacity: 0.3; }
+.toolbar > .toolbar-separator { width: 1px; height: 20px; background-color: $line; margin: 0 4px; }
+.toolbar.vertical > .toolbar-separator { width: auto; height: 1px; margin: 4px 0; }
+
+//
 // Empty state
 //
 .empty
@@ -509,6 +718,13 @@
 // dark defaults; these override the color-bearing ones.
 //
 .style-light.editor-window { background-color: $l-ground; color: $l-text; border-color: $l-line; }
+
+.style-light .toolbar { background-color: $dock-light-surface; border-color: $l-line; color: $l-text-muted; }
+.style-light .toolbar.toolstrip { background-color: rgba( $l-surface, 0.96 ); }
+.style-light .toolbar > .button:hover { background-color: $l-raised-hover; color: $l-text; }
+.style-light .toolbar > .button:active { background-color: $l-line; }
+.style-light .toolbar > .button.active { background-color: rgba( $accent, 0.13 ); color: $accent-active; }
+.style-light .toolbar > .toolbar-separator { background-color: $l-line; }
 
 .style-light .titlebar .windowbutton { color: $l-text-muted; }
 .style-light .titlebar .windowbutton:hover { background-color: $l-raised; color: $l-text; }
@@ -533,12 +749,15 @@
 
 .style-light .flatbutton { border-color: $l-line; color: $l-text; }
 .style-light .flatbutton:hover { background-color: $l-raised; }
+.style-light .primarybutton.disabled,
+.style-light .flatbutton.disabled { background-color: $l-raised; color: $l-text-muted; }
+.style-light .primarybutton:focus { outline-color: $accent; }
 
 .style-light .textentry { background-color: $l-raised; border-color: $l-raised; }
 .style-light .textentry:focus { border-color: $accent; }
 .style-light .textentry iconpanel { color: $l-text-faint; }
 .style-light .textentry .content-label { color: $l-text; }
-.style-light .textentry .content-label.placeholder { color: $l-text-muted; }
+.style-light .textentry .content-label.placeholder { color: $l-text-muted; opacity: 1; }
 
 .style-light .buttongroup { background-color: $l-raised; border-color: $l-line; }
 .style-light .buttongroup .button { color: $l-text-muted; }
@@ -595,3 +814,14 @@
 .os-tooltip .tooltip .tooltip-title { font-weight: 600; margin-bottom: 4px; }
 .os-tooltip .tooltip .tooltip-detail { color: $text-muted; font-size: 11px; margin-top: 4px; }
 .os-tooltip .tooltip .tooltip-image { width: 128px; height: 128px; margin-top: 6px; }
+
+// Docking belongs to the shared editor theme, including native floating windows.
+$dock-ground: $ground;
+$dock-text: $text;
+$dock-muted: $text-muted;
+$dock-light-ground: $l-ground;
+$dock-light-text: $l-text;
+$dock-light-muted: $l-text-muted;
+@import "_docktheme.scss";
+
+.editor-window .canvas-selection-box { border: 1px solid #3278ed; background-color: rgba(50,120,237,0.12); border-radius: 0px; }

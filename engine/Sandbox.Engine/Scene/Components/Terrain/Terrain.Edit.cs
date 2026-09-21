@@ -73,6 +73,8 @@ public partial class Terrain
 	/// </summary>
 	public void SyncCPUTexture( SyncFlags flags, RectInt region )
 	{
+		if ( !Graphics.IsAvailable ) return;
+
 		Assert.NotNull( Storage );
 
 		region = ClampToResolution( region );
@@ -107,6 +109,8 @@ public partial class Terrain
 	/// </summary>
 	public void SyncGPUTexture()
 	{
+		if ( !Graphics.IsAvailable ) return;
+
 		HeightMap.Update( new ReadOnlySpan<ushort>( Storage.HeightMap ) );
 		ControlMap.Update( new ReadOnlySpan<UInt32>( Storage.ControlMap ) );
 	}

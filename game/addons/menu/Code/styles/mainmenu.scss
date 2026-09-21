@@ -506,20 +506,6 @@ shrink, .shrink
 	color: $green;
 }
 
-.loading-status
-{
-	width: 100%;
-	justify-content: center;
-	margin: 100px 0px;
-	font-size: 30px;
-	opacity: 0.2;
-
-	i
-	{
-		font-size: 200px;
-	}
-}
-
 CurrentGame
 {
 	LogoAndTitle
@@ -538,33 +524,23 @@ CurrentGame
 
 LoaderFullScreen
 {
+	position: absolute;
+	left: 0;
+	top: 0;
 	width: 100%;
 	height: 100%;
 	justify-content: center;
 	align-items: center;
-	position: absolute;
 	pointer-events: none;
 
-	.indicator
+	Spinner
 	{
-		border: 1px solid #fff2;
-		width: 300px;
-		height: 30px;
-		border-radius: 3px;
-		opacity: 1.0;
-		transition: all 1.0s 0.5s linear;
-		padding: 2px;
+		opacity: 1;
+		transition: all 0.5s 0.4s linear;
 
 		&:intro
 		{
-			opacity: 0.0;
-		}
-
-		.progress
-		{
-			background-color: #fff4;
-			border-radius: 2px;
-			height: 100%;
+			opacity: 0;
 		}
 	}
 }

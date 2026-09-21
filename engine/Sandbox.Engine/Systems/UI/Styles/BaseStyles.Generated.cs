@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Sandbox.UI;
 
@@ -532,6 +532,22 @@ public abstract partial class BaseStyles
 		{
 			if ( _borderbottomwidth == value ) return;
 			_borderbottomwidth = value;
+			Dirty();
+		}
+	}
+
+	internal BorderStyle? _borderstyle;
+	
+	/// <summary>
+	/// Represents the <c>border-style</c> CSS property.
+	/// </summary>
+	public BorderStyle? BorderStyle
+	{
+		get => _borderstyle;
+		set
+		{
+			if ( _borderstyle == value ) return;
+			_borderstyle = value;
 			Dirty();
 		}
 	}
@@ -2568,6 +2584,38 @@ public abstract partial class BaseStyles
 		}
 	}
 
+	internal OverscrollBehavior? _overscrollbehaviorx;
+	
+	/// <summary>
+	/// Represents the <c>overscroll-behavior-x</c> CSS property.
+	/// </summary>
+	public OverscrollBehavior? OverscrollBehaviorX
+	{
+		get => _overscrollbehaviorx;
+		set
+		{
+			if ( _overscrollbehaviorx == value ) return;
+			_overscrollbehaviorx = value;
+			Dirty();
+		}
+	}
+
+	internal OverscrollBehavior? _overscrollbehaviory;
+	
+	/// <summary>
+	/// Represents the <c>overscroll-behavior-y</c> CSS property.
+	/// </summary>
+	public OverscrollBehavior? OverscrollBehaviorY
+	{
+		get => _overscrollbehaviory;
+		set
+		{
+			if ( _overscrollbehaviory == value ) return;
+			_overscrollbehaviory = value;
+			Dirty();
+		}
+	}
+
 	internal ScrollbarGutter? _scrollbargutter;
 	
 	/// <summary>
@@ -2654,6 +2702,7 @@ public abstract partial class BaseStyles
 		if ( a._bordertopwidth != null ) _bordertopwidth = a._bordertopwidth;
 		if ( a._borderrightwidth != null ) _borderrightwidth = a._borderrightwidth;
 		if ( a._borderbottomwidth != null ) _borderbottomwidth = a._borderbottomwidth;
+		if ( a._borderstyle != null ) _borderstyle = a._borderstyle;
 		if ( a._borderleftcolor != null ) _borderleftcolor = a._borderleftcolor;
 		if ( a._bordertopcolor != null ) _bordertopcolor = a._bordertopcolor;
 		if ( a._borderrightcolor != null ) _borderrightcolor = a._borderrightcolor;
@@ -2781,6 +2830,8 @@ public abstract partial class BaseStyles
 		if ( a._outlineoffset != null ) _outlineoffset = a._outlineoffset;
 		if ( a._isolation != null ) _isolation = a._isolation;
 		if ( a._scrollbarwidth != null ) _scrollbarwidth = a._scrollbarwidth;
+		if ( a._overscrollbehaviorx != null ) _overscrollbehaviorx = a._overscrollbehaviorx;
+		if ( a._overscrollbehaviory != null ) _overscrollbehaviory = a._overscrollbehaviory;
 		if ( a._scrollbargutter != null ) _scrollbargutter = a._scrollbargutter;
 		if ( a._scrollbarthumbcolor != null ) _scrollbarthumbcolor = a._scrollbarthumbcolor;
 		if ( a._scrollbartrackcolor != null ) _scrollbartrackcolor = a._scrollbartrackcolor;
@@ -2824,6 +2875,7 @@ public abstract partial class BaseStyles
 		_bordertopwidth = a._bordertopwidth;
 		_borderrightwidth = a._borderrightwidth;
 		_borderbottomwidth = a._borderbottomwidth;
+		_borderstyle = a._borderstyle;
 		_borderleftcolor = a._borderleftcolor;
 		_bordertopcolor = a._bordertopcolor;
 		_borderrightcolor = a._borderrightcolor;
@@ -2951,6 +3003,8 @@ public abstract partial class BaseStyles
 		_outlineoffset = a._outlineoffset;
 		_isolation = a._isolation;
 		_scrollbarwidth = a._scrollbarwidth;
+		_overscrollbehaviorx = a._overscrollbehaviorx;
+		_overscrollbehaviory = a._overscrollbehaviory;
 		_scrollbargutter = a._scrollbargutter;
 		_scrollbarthumbcolor = a._scrollbarthumbcolor;
 		_scrollbartrackcolor = a._scrollbartrackcolor;
@@ -3380,6 +3434,7 @@ public abstract partial class BaseStyles
 		hash.Add( _bordertopwidth );
 		hash.Add( _borderrightwidth );
 		hash.Add( _borderbottomwidth );
+		hash.Add( _borderstyle );
 		hash.Add( _borderleftcolor );
 		hash.Add( _bordertopcolor );
 		hash.Add( _borderrightcolor );
@@ -3507,6 +3562,8 @@ public abstract partial class BaseStyles
 		hash.Add( _outlineoffset );
 		hash.Add( _isolation );
 		hash.Add( _scrollbarwidth );
+		hash.Add( _overscrollbehaviorx );
+		hash.Add( _overscrollbehaviory );
 		hash.Add( _scrollbargutter );
 		hash.Add( _scrollbarthumbcolor );
 		hash.Add( _scrollbartrackcolor );
@@ -3981,6 +4038,7 @@ public abstract partial class BaseStyles
 		copy._bordertopwidth = _bordertopwidth;
 		copy._borderrightwidth = _borderrightwidth;
 		copy._borderbottomwidth = _borderbottomwidth;
+		copy._borderstyle = _borderstyle;
 		copy._borderleftcolor = _borderleftcolor;
 		copy._bordertopcolor = _bordertopcolor;
 		copy._borderrightcolor = _borderrightcolor;
@@ -4108,6 +4166,8 @@ public abstract partial class BaseStyles
 		copy._outlineoffset = _outlineoffset;
 		copy._isolation = _isolation;
 		copy._scrollbarwidth = _scrollbarwidth;
+		copy._overscrollbehaviorx = _overscrollbehaviorx;
+		copy._overscrollbehaviory = _overscrollbehaviory;
 		copy._scrollbargutter = _scrollbargutter;
 		copy._scrollbarthumbcolor = _scrollbarthumbcolor;
 		copy._scrollbartrackcolor = _scrollbartrackcolor;
@@ -4186,6 +4246,7 @@ public abstract partial class BaseStyles
 		if ( !_bordertopwidth.HasValue ) _bordertopwidth = 0;
 		if ( !_borderrightwidth.HasValue ) _borderrightwidth = 0;
 		if ( !_borderbottomwidth.HasValue ) _borderbottomwidth = 0;
+		if ( !_borderstyle.HasValue ) _borderstyle = Sandbox.BorderStyle.Solid;
 		if ( !_borderleftcolor.HasValue ) _borderleftcolor = Color.White;
 		if ( !_bordertopcolor.HasValue ) _bordertopcolor = Color.White;
 		if ( !_borderrightcolor.HasValue ) _borderrightcolor = Color.White;
@@ -4307,6 +4368,8 @@ public abstract partial class BaseStyles
 		if ( !_outlineoffset.HasValue ) _outlineoffset = 0;
 		if ( !_isolation.HasValue ) _isolation = UI.Isolation.Auto;
 		if ( !_scrollbarwidth.HasValue ) _scrollbarwidth = 0;
+		if ( !_overscrollbehaviorx.HasValue ) _overscrollbehaviorx = UI.OverscrollBehavior.Auto;
+		if ( !_overscrollbehaviory.HasValue ) _overscrollbehaviory = UI.OverscrollBehavior.Auto;
 		if ( !_scrollbargutter.HasValue ) _scrollbargutter = UI.ScrollbarGutter.Auto;
 		if ( !_scrollbarthumbcolor.HasValue ) _scrollbarthumbcolor = null;
 		if ( !_scrollbartrackcolor.HasValue ) _scrollbartrackcolor = null;
@@ -4349,6 +4412,7 @@ public abstract partial class BaseStyles
 			case "border-top-width": return (_bordertopwidth == 0);
 			case "border-right-width": return (_borderrightwidth == 0);
 			case "border-bottom-width": return (_borderbottomwidth == 0);
+			case "border-style": return (_borderstyle == Sandbox.BorderStyle.Solid);
 			case "border-left-color": return (_borderleftcolor == Color.White);
 			case "border-top-color": return (_bordertopcolor == Color.White);
 			case "border-right-color": return (_borderrightcolor == Color.White);
@@ -4476,6 +4540,8 @@ public abstract partial class BaseStyles
 			case "outline-offset": return (_outlineoffset == 0);
 			case "isolation": return (_isolation == UI.Isolation.Auto);
 			case "scrollbar-width": return (_scrollbarwidth == 0);
+			case "overscroll-behavior-x": return (_overscrollbehaviorx == UI.OverscrollBehavior.Auto);
+			case "overscroll-behavior-y": return (_overscrollbehaviory == UI.OverscrollBehavior.Auto);
 			case "scrollbar-gutter": return (_scrollbargutter == UI.ScrollbarGutter.Auto);
 			case "scrollbar-thumb-color": return (_scrollbarthumbcolor == null);
 			case "scrollbar-track-color": return (_scrollbartrackcolor == null);

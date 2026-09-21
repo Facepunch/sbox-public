@@ -1,5 +1,6 @@
 ﻿namespace Sandbox.Engine.Settings;
 
+[Expose]
 public enum VolumetricFogQuality
 {
 	/// <summary>No fog volume at all.</summary>

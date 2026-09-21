@@ -300,7 +300,7 @@ public static partial class Input
 	{
 		if ( !down ) return;
 
-		var binding = g_pInputService.GetBinding( code );
+		var binding = Sandbox.Engine.KeyBindings.GetBinding( code );
 		if ( string.IsNullOrEmpty( binding ) ) return;
 
 		ConVarSystem.Run( $"{binding}\n" );
@@ -311,7 +311,13 @@ public static partial class Input
 	/// </summary>
 	private static bool IsControllerContext( Context context )
 	{
-		return Controller.All.Any( c => c.InputContext == context );
+		// Not Any - the predicate would capture context and allocate a closure every call.
+		foreach ( var c in Controller.All )
+		{
+			if ( c.InputContext == context ) return true;
+		}
+
+		return false;
 	}
 
 	internal static InputSettings InputSettings { get; set; }

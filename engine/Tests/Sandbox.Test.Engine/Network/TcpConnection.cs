@@ -3,6 +3,7 @@ using Sandbox.Engine;
 using Sandbox.Internal;
 using Sandbox.Network;
 using System;
+using System.Collections.Generic;
 
 namespace NetworkTests;
 
@@ -46,6 +47,95 @@ public class TcpConnectionTest
 
 		system.InstallTable( table );
 		return table;
+	}
+
+	[TestMethod]
+	[DoNotParallelize]
+	public void Tcp_FakeLagReceivesOnTickThread()
+	{
+		using var listener = new System.Net.Sockets.TcpListener( System.Net.IPAddress.Loopback, 0 );
+		listener.Start();
+		using var peer = new System.Net.Sockets.TcpClient();
+		peer.Connect( (System.Net.IPEndPoint)listener.LocalEndpoint );
+		var channel = new TcpChannel( listener.AcceptTcpClient() );
+		var previousFakeLag = Networking.FakeLag;
+		var received = new System.Collections.Concurrent.ConcurrentQueue<(byte Value, int Thread)>();
+		var tickThread = Environment.CurrentManagedThreadId;
+		NetworkSystem.MessageHandler handler = msg => received.Enqueue( (msg.Data.Read<byte>(), Environment.CurrentManagedThreadId) );
+
+		try
+		{
+			Networking.FakeLag = 100;
+			channel.incoming.Writer.TryWrite( [Connection.FlagRaw, 1] );
+			channel.InternalRecv( handler );
+			Assert.IsTrue( received.IsEmpty );
+
+			// Turning lag off must not let new packets overtake pending packets.
+			Networking.FakeLag = 0;
+			channel.incoming.Writer.TryWrite( [Connection.FlagRaw, 2] );
+			channel.InternalRecv( handler );
+			Assert.IsTrue( received.IsEmpty );
+
+			System.Threading.Thread.Sleep( 300 );
+			Assert.IsTrue( received.IsEmpty, "The fake-lag worker must not dispatch incoming messages" );
+
+			channel.InternalRecv( handler );
+			CollectionAssert.AreEqual( new[] { ((byte)1, tickThread), ((byte)2, tickThread) }, received.ToArray() );
+		}
+		finally
+		{
+			Networking.FakeLag = previousFakeLag;
+			channel.Close( 0, "Test complete" );
+		}
+	}
+
+	[TestMethod]
+	[DoNotParallelize]
+	[DataRow( 0 )]
+	[DataRow( 100 )]
+	public void Tcp_ReceiveStopsWhenCallbackCloses( int fakeLag )
+	{
+		using var listener = new System.Net.Sockets.TcpListener( System.Net.IPAddress.Loopback, 0 );
+		listener.Start();
+		using var peer = new System.Net.Sockets.TcpClient();
+		peer.Connect( (System.Net.IPEndPoint)listener.LocalEndpoint );
+		var channel = new TcpChannel( listener.AcceptTcpClient() );
+		var previousFakeLag = Networking.FakeLag;
+		var received = new List<byte>();
+		var closed = false;
+		NetworkSystem.MessageHandler handler = msg =>
+		{
+			received.Add( msg.Data.Read<byte>() );
+			if ( !closed )
+			{
+				channel.Close( 0, "Closed by callback" );
+				closed = true;
+			}
+		};
+
+		try
+		{
+			Networking.FakeLag = fakeLag;
+			channel.incoming.Writer.TryWrite( [Connection.FlagRaw, 1] );
+			channel.incoming.Writer.TryWrite( [Connection.FlagRaw, 2] );
+			channel.InternalRecv( handler );
+			if ( fakeLag > 0 )
+			{
+				Assert.AreEqual( 0, received.Count );
+				System.Threading.Thread.Sleep( 300 );
+				channel.InternalRecv( handler );
+			}
+
+			CollectionAssert.AreEqual( new byte[] { 1 }, received.ToArray() );
+			channel.incoming.Writer.TryWrite( [Connection.FlagRaw, 3] );
+			channel.InternalRecv( handler );
+			CollectionAssert.AreEqual( new byte[] { 1 }, received.ToArray(), "Closed channels must not resume receiving" );
+		}
+		finally
+		{
+			Networking.FakeLag = previousFakeLag;
+			if ( !closed ) channel.Close( 0, "Test complete" );
+		}
 	}
 
 	[TestMethod]

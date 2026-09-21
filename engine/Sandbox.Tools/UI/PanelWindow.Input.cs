@@ -1,3 +1,4 @@
+using NativeEngine;
 using Sandbox.UI;
 
 namespace Editor;
@@ -41,36 +42,39 @@ public partial class PanelWindow
 		// window too. MouseInside keeps two windows from fighting over it
 		if ( !Surface.MouseInside ) return;
 
-		NativeEngine.InputSystem.SetCursorStandard( Sandbox.Engine.InputRouter.GetStandardCursor( _cursor ) );
+		Sandbox.Engine.SdlCursors.SetCursor( _cursor, allowCustom: false );
 	}
 
 	/// <summary>
 	/// Ask the OS to pick a folder, starting at <paramref name="defaultPath"/>. Null when the
-	/// user cancels. One dialog at a time - asking again while one is open joins the first.
+	/// user cancels or the dialog fails. Call on the main thread. Any pending dialog is joined,
+	/// including requests from other windows or for a different dialog kind.
 	/// </summary>
 	public System.Threading.Tasks.Task<string> PickFolder( string defaultPath = null )
 		=> PanelWindowDialogs.PickFolder( Handle, defaultPath );
 
 	/// <summary>
 	/// Ask the OS for a file to open. The filter is name and extension list pairs, like
-	/// "Scene files|scene;prefab|All files|*". Null when the user cancels.
+	/// "Scene files|scene;prefab|All files|*". Null on cancellation or error. Call on the main thread.
+	/// Joins any pending dialog, including another window or dialog kind.
 	/// </summary>
 	public System.Threading.Tasks.Task<string> PickOpenFile( string defaultPath = null, string filters = null )
 		=> PanelWindowDialogs.PickOpenFile( Handle, defaultPath, filters );
 
 	/// <summary>
 	/// Ask the OS where to save a file. <paramref name="defaultPath"/> can end in a suggested
-	/// file name. Filters as in <see cref="PickOpenFile"/>. Null when the user cancels.
+	/// file name. Filters as in <see cref="PickOpenFile"/>. Null on cancellation or error. Call on the main thread.
+	/// Joins any pending dialog, including another window or dialog kind.
 	/// </summary>
 	public System.Threading.Tasks.Task<string> PickSaveFile( string defaultPath = null, string filters = null )
 		=> PanelWindowDialogs.PickSaveFile( Handle, defaultPath, filters );
 
-	IPanelWindow.WindowHitTest IPanelWindow.HitTest( Vector2 position ) => HitTest( position );
+	Sdl.HitTestResult IPanelWindow.HitTest( Vector2 position ) => HitTest( position );
 
-	internal IPanelWindow.WindowHitTest HitTest( Vector2 position )
+	internal Sdl.HitTestResult HitTest( Vector2 position )
 	{
 		var size = Surface.Size;
-		if ( size.x < 1 || size.y < 1 ) return IPanelWindow.WindowHitTest.Normal;
+		if ( size.x < 1 || size.y < 1 ) return Sdl.HitTestResult.Normal;
 
 		if ( !IsMaximized )
 		{
@@ -81,14 +85,14 @@ public partial class PanelWindow
 			var top = position.y <= border;
 			var bottom = position.y >= size.y - border;
 
-			if ( top && left ) return IPanelWindow.WindowHitTest.ResizeTopLeft;
-			if ( top && right ) return IPanelWindow.WindowHitTest.ResizeTopRight;
-			if ( bottom && left ) return IPanelWindow.WindowHitTest.ResizeBottomLeft;
-			if ( bottom && right ) return IPanelWindow.WindowHitTest.ResizeBottomRight;
-			if ( left ) return IPanelWindow.WindowHitTest.ResizeLeft;
-			if ( right ) return IPanelWindow.WindowHitTest.ResizeRight;
-			if ( top ) return IPanelWindow.WindowHitTest.ResizeTop;
-			if ( bottom ) return IPanelWindow.WindowHitTest.ResizeBottom;
+			if ( top && left ) return Sdl.HitTestResult.ResizeTopLeft;
+			if ( top && right ) return Sdl.HitTestResult.ResizeTopRight;
+			if ( bottom && left ) return Sdl.HitTestResult.ResizeBottomLeft;
+			if ( bottom && right ) return Sdl.HitTestResult.ResizeBottomRight;
+			if ( left ) return Sdl.HitTestResult.ResizeLeft;
+			if ( right ) return Sdl.HitTestResult.ResizeRight;
+			if ( top ) return Sdl.HitTestResult.ResizeTop;
+			if ( bottom ) return Sdl.HitTestResult.ResizeBottom;
 		}
 
 		// The deepest panel at the cursor that says either way. Looking for the classes rather than
@@ -96,8 +100,8 @@ public partial class PanelWindow
 		// title, say - can't turn a button underneath it into a drag handle.
 		var panel = Surface.FindPanelAt( position, x => x.HasClass( "window-drag" ) || x.HasClass( "window-nodrag" ) );
 
-		if ( panel is null ) return IPanelWindow.WindowHitTest.Normal;
+		if ( panel is null ) return Sdl.HitTestResult.Normal;
 
-		return panel.HasClass( "window-nodrag" ) ? IPanelWindow.WindowHitTest.Normal : IPanelWindow.WindowHitTest.Draggable;
+		return panel.HasClass( "window-nodrag" ) ? Sdl.HitTestResult.Normal : Sdl.HitTestResult.Draggable;
 	}
 }

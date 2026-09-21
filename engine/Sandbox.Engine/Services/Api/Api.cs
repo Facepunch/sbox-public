@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Memory;
 using Sandbox.UI;
 using System.Net.Http;
 using System.Threading;
@@ -53,9 +53,14 @@ internal static partial class Api
 			// Try to incldue any convars that could make a meaningful impact on performance
 
 			FpsMax = ConVarSystem.GetInt( "fps_max", 0, true ),
-			MSAA = NativeEngine.RenderService.GetMultisampleType(),
+			MSAA = NativeEngine.CSceneSystem.GetMainSwapChainMultisampleType(),
 			VolumeFogDepth = ConVarSystem.GetInt( "volume_fog_depth", 0, true ),
-			Application.ExceptionCount
+			Application.ExceptionCount,
+
+			// Display mode, so presentation problems can be told apart by how the swapchain was set up
+			Sandbox.Engine.Settings.RenderSettings.Instance.VSync,
+			Sandbox.Engine.Settings.RenderSettings.Instance.Fullscreen,
+			Sandbox.Engine.Settings.RenderSettings.Instance.Borderless
 		};
 	}
 }

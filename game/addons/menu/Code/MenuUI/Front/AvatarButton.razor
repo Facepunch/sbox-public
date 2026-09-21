@@ -1,4 +1,4 @@
-@using System;
+﻿@using System;
 @using Sandbox;
 @using Sandbox.UI;
 @inherits Panel
@@ -44,8 +44,14 @@
 {
     ScenePanel scenePanel;
 
-    /// <summary>Across their recently played games - the same feed the achievements page shows.</summary>
-    int AchievementsUnlocked { get; set; }
+    /// <summary>
+    /// Their lifetime unlock count, from the player overview.
+    /// </summary>
+    long AchievementsUnlocked { get; set; }
+
+    /// <summary>
+    /// Their lifetime gamercore, which we already have from the login.
+    /// </summary>
     int AchievementScore { get; set; }
     bool StatsLoaded { get; set; }
 
@@ -64,13 +70,23 @@
 
     async Task LoadStats()
     {
-        var overviews = await MenuUtility.GetAchievementOverviews( 50 );
+        Sandbox.Services.Players.Overview overview;
 
-        if ( overviews is null )
+        try
+        {
+            overview = await Sandbox.Services.Players.Overview.Get( Sandbox.Utility.Steam.SteamId );
+        }
+        catch ( Exception )
+        {
+            // Offline, or the backend is having a moment - just leave the stats hidden.
+            return;
+        }
+
+        if ( overview is null )
             return;
 
-        AchievementsUnlocked = overviews.Sum( x => x.Unlocked );
-        AchievementScore = overviews.Sum( x => x.Score );
+        AchievementsUnlocked = overview.Achievements;
+        AchievementScore = Sandbox.Services.Players.Profile.Local.Score;
         StatsLoaded = true;
 
         StateHasChanged();
@@ -128,13 +144,99 @@
     public override void Tick()
     {
         base.Tick();
+        UpdateSpin();
         UpdateEyes();
+    }
+
+    /// <summary>
+    /// Degrees of yaw per pixel of drag.
+    /// </summary>
+    const float DragDegreesPerPixel = 0.6f;
+
+    /// <summary>
+    /// How quickly a flick dies off once released. Higher stops sooner.
+    /// </summary>
+    const float SpinFriction = 3.5f;
+
+    float _yaw = -25f;
+    float _yawVelocity;
+    float _lastDragX;
+    bool _dragging;
+
+    /// <summary>
+    /// Degrees of spin added per wheel notch.
+    /// </summary>
+    const float WheelDegreesPerNotch = 140f;
+
+    public override void OnMouseWheel( Vector2 value )
+    {
+        // Each notch gives him a shove, and a run of them stacks into a proper spin.
+        _yawVelocity += value.y * WheelDegreesPerNotch;
+    }
+
+    protected override void OnMouseDown( MousePanelEvent e )
+    {
+        base.OnMouseDown( e );
+
+        if ( e.MouseButton != MouseButtons.Left )
+            return;
+
+        // The edit button is a button - leave its clicks alone.
+        if ( e.Target is Panel target && target.AncestorsAndSelf.Any( x => x.HasClass( "edit" ) ) )
+            return;
+
+        _dragging = true;
+        _lastDragX = MousePosition.x;
+        _yawVelocity = 0f;
+    }
+
+    /// <summary>
+    /// Drag to turn him. While held, yaw follows the cursor and we keep a running estimate of how
+    /// fast it's moving; on release he carries on with that speed and coasts to a stop.
+    /// </summary>
+    void UpdateSpin()
+    {
+        if ( scenePanel is null || !scenePanel.RenderScene.IsValid() )
+            return;
+
+        var renderer = scenePanel.RenderScene.GetAllComponents<SkinnedModelRenderer>().FirstOrDefault();
+        if ( !renderer.IsValid() )
+            return;
+
+        var dt = MathF.Max( RealTime.Delta, 0.001f );
+
+        if ( _dragging && !HasActive )
+            _dragging = false;
+
+        if ( _dragging )
+        {
+            var x = MousePosition.x;
+            var deltaYaw = (x - _lastDragX) * DragDegreesPerPixel;
+            _lastDragX = x;
+
+            _yaw += deltaYaw;
+
+            // Blend toward the instantaneous speed so a jittery frame doesn't set the fling.
+            _yawVelocity = _yawVelocity.LerpTo( deltaYaw / dt, 0.5f );
+        }
+        else
+        {
+            _yaw += _yawVelocity * dt;
+            _yawVelocity *= MathF.Exp( -SpinFriction * dt );
+
+            if ( MathF.Abs( _yawVelocity ) < 0.5f )
+                _yawVelocity = 0f;
+        }
+
+        renderer.GameObject.WorldRotation = Rotation.FromYaw( _yaw );
     }
 
     Vector3 _eyeDirection;
     float _eyeWeight;
 
-    /// <summary>While hovered, the character's eyes follow the cursor.</summary>
+    /// <summary>
+    /// While hovered, the character's eyes follow the cursor.
+    /// </summary>
     void UpdateEyes()
     {
         if ( scenePanel is null || !scenePanel.RenderScene.IsValid() )

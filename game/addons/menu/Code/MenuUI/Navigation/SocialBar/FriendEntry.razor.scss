@@ -1,160 +1,116 @@
 @import "/styles/_theme.scss";
+@import "/styles/_front.scss";
 
-FriendEntry {
-    flex-shrink: 0;
-    max-height: 48px;
-    flex-direction: row;
-    align-items: center;
-    cursor: pointer;
-    padding: 8px;
-    border-radius: 12px;
+FriendEntry
+{
+	flex-shrink: 0;
+	flex-direction: row;
+	align-items: center;
+	gap: 10px;
+	padding: 6px 8px;
+	border-radius: 6px;
+	cursor: pointer;
+	transition: background-color 0.1s ease;
 
-    &:hover {
-        background-color: rgba(255, 255, 255, 0.03);
+	&:hover
+	{
+		background-color: rgba( 255, 255, 255, 0.04 );
+		sound-in: "ui.button.over";
+	}
 
-        &:not(.active) {
-            sound-in: "ui.button.over";
-        }
-    }
+	&.offline
+	{
+		opacity: 0.4;
+	}
 
-    &.offline {
-        opacity: 0.4;
-    }
+	&.away
+	{
+		opacity: 0.7;
+	}
 
-    .avatar {
-        width: 40px;
-        height: 40px;
-        background-size: cover;
-        border-radius: 100%;
-        margin-right: 12px;
-        flex-shrink: 0;
-    }
+	.avatar
+	{
+		@include front-row-media;
+	}
 
-    .info {
-        flex-direction: column;
-        flex-grow: 1;
-        min-width: 0;
-    }
+	.info
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+		gap: 1px;
+	}
 
-    .name {
-        font-size: 14px;
-        color: #fff;
-        font-weight: 600;
-    }
+	.name
+	{
+		@include front-row-title;
+	}
 
-    .status {
-        flex-grow: 0;
-        font-size: 11px;
-        font-weight: 500;
-        color: $default-50;
-        opacity: 0.6;
-        overflow: hidden;
-        white-space: nowrap;
-        text-overflow: ellipsis;
-    }
+	.status
+	{
+		@include front-row-meta;
 
-    &.ingame {
-        .name {
-            color: lighten($primary-green, 40%);
-        }
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+	}
 
-        .status {
-            color: desaturate($primary-green, 20%);
-            opacity: 1;
-        }
-    }
+	&.ingame .status
+	{
+		color: $front-accent;
+	}
 
-    &.online {
-        .name {
-            color: lighten($primary-blue, 40%);
-        }
+	.actions
+	{
+		flex-shrink: 0;
+		align-items: center;
+		gap: 6px;
+	}
 
-        .status {
-            color: desaturate($primary-blue, 20%);
-            opacity: 1;
-        }
-    }
+	.action
+	{
+		@include front-pill;
 
-    .actions {
-        flex-grow: 0;
-        flex-shrink: 0;
-        align-items: center;
-        gap: 8px;
-    }
+		cursor: pointer;
+	}
 
-    .action {
-        flex-direction: row;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        flex-shrink: 0;
-        gap: 0;
-        font-size: 12px;
-        font-weight: 600;
-        height: 28px;
-        width: 28px;
-        padding: 0;
-        color: $default-50;
-        background-color: rgba(255, 255, 255, 0.05);
-        border-radius: 14px;
-        overflow: hidden;
-        transition: width 0.2s ease-out, background-color 0.1s ease-out, color 0.1s ease-out;
+	.action.join
+	{
+		border-color: $front-primary;
+		background-color: $front-primary;
 
-        i {
-            font-size: 14px;
-            flex-shrink: 0;
-        }
+		label
+		{
+			color: white;
+		}
 
-        span {
-            opacity: 0;
-            max-width: 0;
-            overflow: hidden;
-            white-space: nowrap;
-            transition: opacity 0.15s ease-out, max-width 0.2s ease-out;
-        }
+		&:hover
+		{
+			border-color: lighten( $front-primary, 12% );
+			background-color: lighten( $front-primary, 12% );
 
-        &:hover {
-            width: 92px;
-            gap: 6px;
-            color: white;
-            background-color: rgba(255, 255, 255, 0.1);
-            sound-in: "ui.button.over";
+			label
+			{
+				color: white;
+			}
+		}
+	}
 
-            span {
-                opacity: 1;
-                max-width: 56px;
-            }
-        }
+	.action.deny
+	{
+		cursor: default;
+		opacity: 0.5;
 
-        &.primary {
-            color: white;
-            background-color: $primary-blue;
+		&:hover
+		{
+			border-color: $front-hairline;
+			background-color: rgba( 255, 255, 255, 0.05 );
 
-            &:hover {
-                width: 76px;
-                background-color: $primary-blue-dark;
-
-                span {
-                    max-width: 40px;
-                }
-            }
-        }
-
-        &.deny {
-            cursor: default;
-            color: $default-50;
-            opacity: 0.5;
-
-            &:hover {
-                width: 76px;
-                color: $default-50;
-                background-color: rgba(255, 255, 255, 0.05);
-                sound-in: none;
-
-                span {
-                    max-width: 40px;
-                }
-            }
-        }
-    }
+			label
+			{
+				color: $front-body;
+			}
+		}
+	}
 }

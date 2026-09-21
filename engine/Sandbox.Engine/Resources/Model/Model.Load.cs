@@ -9,22 +9,36 @@ public partial class Model
 	/// </summary>
 	/// <param name="filename">The file path to load as a model.</param>
 	/// <returns>The loaded model, or null</returns>
-	public static Model Load( string filename )
+	public static Model Load( string filename ) => Load( (ResourceId)filename );
+
+	internal static Model Load( ResourceId id )
 	{
 		ThreadSafe.AssertIsMainThread();
 
-		if ( string.IsNullOrWhiteSpace( filename ) )
-			return Error;
+		if ( id.Guid is Guid guid )
+		{
+			if ( Game.Resources.TryGet<Model>( guid, out var resource ) )
+				return resource;
 
-		filename = filename?.Replace( ".vmdl_c", ".vmdl" );
+			var native = NativeGlue.Resources.GetModel( id.Path, guid );
+			return FromNative( native,
+				name: native.IsError() ? id.Path : null ); // only use the (possibly stale) path if it failed to load, as feedback
+		}
 
-		if ( Sandbox.Mounting.Directory.TryLoad( filename, ResourceType.Model, out object model ) && model is Model m )
-			return m;
+		if ( !string.IsNullOrWhiteSpace( id.Path ) )
+		{
+			id.Path = id.Path?.Replace( ".vmdl_c", ".vmdl" );
 
-		if ( Game.Resources.TryGet<Model>( filename, out var resource ) )
-			return resource;
+			if ( Sandbox.Mounting.Directory.TryLoad( id.Path, ResourceType.Model, out object model ) && model is Model m )
+				return m;
 
-		return FromNative( NativeGlue.Resources.GetModel( filename ), name: filename );
+			if ( Game.Resources.TryGet<Model>( id.Path, out var resource ) )
+				return resource;
+
+			return FromNative( NativeGlue.Resources.GetModel( id.Path, Guid.Empty ), name: id.Path );
+		}
+
+		return Error;
 	}
 
 	/// <summary>

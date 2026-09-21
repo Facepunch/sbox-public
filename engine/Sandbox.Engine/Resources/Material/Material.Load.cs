@@ -10,9 +10,22 @@ public partial class Material
 	/// </summary>
 	/// <param name="filename">The filepath to load the material from.</param>
 	/// <returns>The loaded material, or null</returns>
-	public static Material Load( string filename )
+	public static Material Load( string filename ) => Load( (ResourceId)filename );
+
+	internal static Material Load( ResourceId id )
 	{
 		ThreadSafe.AssertIsMainThread();
+
+		if ( id.Guid is Guid guid )
+		{
+			if ( Game.Resources.TryGet<Material>( guid, out var resource ) )
+				return resource;
+
+			var native = NativeGlue.Resources.GetMaterial( id.Path, guid );
+			return FromNative( native, name: native.IsError() ? id.Path : null );
+		}
+
+		var filename = id.Path;
 
 		if ( filename.StartsWith( '/' ) || filename.StartsWith( '\\' ) )
 			filename = filename[1..];
@@ -20,7 +33,7 @@ public partial class Material
 		if ( !string.IsNullOrWhiteSpace( filename ) && Directory.TryLoad( filename, ResourceType.Material, out object model ) && model is Material m )
 			return m;
 
-		return FromNative( NativeGlue.Resources.GetMaterial( filename ), filename );
+		return FromNative( NativeGlue.Resources.GetMaterial( filename, Guid.Empty ), filename );
 	}
 
 	/// <summary>
@@ -41,7 +54,7 @@ public partial class Material
 			await manifest.WaitForLoad();
 		}
 
-		return FromNative( NativeGlue.Resources.GetMaterial( filename ) );
+		return FromNative( NativeGlue.Resources.GetMaterial( filename, Guid.Empty ) );
 	}
 
 	/// <summary>

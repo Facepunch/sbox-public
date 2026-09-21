@@ -60,44 +60,59 @@ ItemTile
 	.tags
 	{
 		position: absolute;
-		top: 10px;
-		left: 10px;
+		top: 0;
+		left: 0;
 		flex-direction: column;
 		align-items: flex-start;
-		gap: 5px;
+		gap: 6px;
 	}
 
 	.tag
 	{
-		padding: 3px 8px;
+		height: 20px;
+		padding: 0 8px;
+		align-items: center;
+		justify-content: center;
 		border-radius: 999px;
-		font-family: $front-font;
-		font-size: 10px;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		color: #fff;
 		background-color: rgba( 14, 18, 26, 0.85 );
 		border: 1px solid $front-hairline;
 
+		label
+		{
+			font-family: $front-font;
+			font-size: 10px;
+			font-weight: 700;
+			text-transform: uppercase;
+			letter-spacing: 0.06em;
+			color: #fff;
+		}
+
 		&.leaving
 		{
-			color: $front-trophy;
-			border-color: rgba( 232, 180, 74, 0.35 );
+			height: 24px;
+			gap: 5px;
+			padding: 0 10px 0 8px;
+			border: 0;
+			border-radius: 8px 0 8px 0;
+			background-color: rgba( 14, 18, 26, 0.92 );
+
+			icon
+			{
+				font-size: 13px;
+				color: $front-trophy;
+			}
+
+			label
+			{
+				color: $front-trophy;
+			}
 		}
 
 		&.soon
 		{
-			color: #fff;
 			background-color: $front-trophy;
-			border-color: $front-trophy;
-		}
 
-		&.sale
-		{
-			color: #fff;
-			background-color: $front-reward;
-			border-color: $front-reward;
+			icon, label { color: #2a1d05; }
 		}
 	}
 
@@ -106,21 +121,29 @@ ItemTile
 		position: absolute;
 		right: 10px;
 		bottom: 10px;
-		padding: 3px 8px;
+		height: 20px;
+		padding: 0 8px;
+		align-items: center;
+		justify-content: center;
 		border-radius: 999px;
-		font-family: $front-font;
-		font-size: 10px;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		color: $front-body;
 		background-color: rgba( 14, 18, 26, 0.85 );
 		border: 1px solid $front-hairline;
+
+		label
+		{
+			font-family: $front-font;
+			font-size: 10px;
+			font-weight: 700;
+			text-transform: uppercase;
+			letter-spacing: 0.06em;
+			color: $front-body;
+		}
 	}
 
 	.body
 	{
 		flex-direction: column;
+		flex-grow: 1;
 		flex-shrink: 0;
 		padding: 12px 14px 14px;
 		gap: 2px;
@@ -149,9 +172,10 @@ ItemTile
 	.buy
 	{
 		flex-direction: row;
-		align-items: center;
+		align-items: flex-end;
 		justify-content: space-between;
-		margin-top: 12px;
+		margin-top: auto;
+		padding-top: 12px;
 		gap: 8px;
 	}
 
@@ -160,21 +184,49 @@ ItemTile
 		flex-direction: column;
 		flex-shrink: 1;
 		min-width: 0;
+		gap: 1px;
+	}
+
+	.now-row
+	{
+		flex-direction: row;
+		align-items: center;
+		flex-shrink: 0;
+		gap: 6px;
 	}
 
 	.now
 	{
+		flex-shrink: 0;
+		white-space: nowrap;
 		font-family: $front-font;
 		font-size: 17px;
 		font-weight: 800;
 		color: $front-heading;
 	}
 
+	.off
+	{
+		flex-shrink: 0;
+		white-space: nowrap;
+		padding: 1px 5px;
+		border-radius: 4px;
+		font-family: $front-font;
+		font-size: 10px;
+		font-weight: 700;
+		color: $front-reward;
+		background-color: rgba( 63, 199, 106, 0.14 );
+	}
+
 	.was
 	{
+		flex-shrink: 0;
+		white-space: nowrap;
+		font-family: $front-font;
 		font-size: 11px;
-		font-weight: 500;
+		font-weight: 600;
 		color: $front-tertiary;
+		text-decoration: line-through;
 	}
 
 	// Sale prices go green so the number itself says "deal", not just the tag.

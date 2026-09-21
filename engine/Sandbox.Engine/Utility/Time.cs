@@ -3,6 +3,7 @@ using Sandbox.Utility;
 
 namespace Sandbox;
 
+[Expose]
 public class Time
 {
 	/// <summary>

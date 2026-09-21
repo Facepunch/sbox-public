@@ -22,7 +22,7 @@ COMMON
 {
 	#include "ui/common.hlsl"
 	
-	DynamicCombo( D_LAYERED, 0..1, Sys( PC ) );
+	DynamicCombo( D_PANEL_OPACITY, 0..1, Sys( ALL ) );
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -34,6 +34,10 @@ VS
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 PS
 {
+	#include "ui/batched_scissor.hlsl"
+	int PainterScissorIndex < Default( -1 ); Attribute( "PainterScissorIndex" ); >;
+	float g_flUIPanelOpacity < Attribute( "UIPanelOpacity" ); Default( 1 ); >;
+
 	#include "ui/pixel.hlsl"
 	#include "ui/rounded_rect.hlsl"
 
@@ -75,6 +79,31 @@ PS
 		return saturate(mul(mColorMatrix, color));
 	}
 
+	float3 DoSaturate( float3 vColor, float s )
+	{
+		float3x3 m = float3x3(
+			0.213f + 0.787f * s, 0.715f - 0.715f * s, 0.072f - 0.072f * s,
+			0.213f - 0.213f * s, 0.715f + 0.285f * s, 0.072f - 0.072f * s,
+			0.213f - 0.213f * s, 0.715f - 0.715f * s, 0.072f + 0.928f * s );
+
+		return mul( m, vColor );
+	}
+
+	// https://drafts.csswg.org/filter-effects-1/#elementdef-fecolormatrix - hueRotate
+	float3 DoHueRotate( float3 vColor, float flDegrees )
+	{
+		float c = cos( radians( flDegrees ) );
+		float s = sin( radians( flDegrees ) );
+
+		float3x3 m = float3x3(
+			0.213f + c * 0.787f - s * 0.213f, 0.715f - c * 0.715f - s * 0.715f, 0.072f - c * 0.072f + s * 0.928f,
+			0.213f - c * 0.213f + s * 0.143f, 0.715f + c * 0.285f + s * 0.140f, 0.072f - c * 0.072f - s * 0.283f,
+			0.213f - c * 0.213f - s * 0.787f, 0.715f - c * 0.715f + s * 0.715f, 0.072f + c * 0.928f + s * 0.072f );
+
+		return mul( m, vColor );
+	}
+
+
 	float3 DoColorMatrix( float3 color, float4x4 mColorMatrix )
 	{
 		return mul(mColorMatrix, float4( color, 1.0f )).rgb;
@@ -111,15 +140,10 @@ PS
 		 // Contrast (default 1)
 		backdrop = saturate(lerp(float3(0.5, 0.5, 0.5), backdrop, Contrast));
 
+		backdrop = saturate( DoHueRotate( backdrop, HueRotate ) );
+		backdrop = saturate( DoSaturate( backdrop, Saturate ) );
+		backdrop *= Brightness;
 		backdrop = SrgbGammaToLinear( backdrop );
-
-		float3 hsv = RgbToHsv( backdrop );
-		hsv.r += (HueRotate / 360); // param to normalized degrees
-		hsv.r = hsv.r % 1;
-		hsv.g = lerp( 0, hsv.g, Saturate ); // saturation
-		hsv.b *= Brightness; // value
-		
-		backdrop = HsvToRgb( hsv );
 
 		return float4( backdrop, 1 );
 	}
@@ -134,11 +158,11 @@ PS
 #if D_WORLDPANEL
 		float2 vUV = (i.vPositionPs.xy - g_vViewportOffset) * g_vInvViewportSize;
 #else
-		#if D_LAYERED
-				float2 vUV = ((BoxPosition + i.vPositionPs.xy - g_vViewportOffset) * g_vInvViewportSize);
-		#else
-				float2 vUV = i.vTexCoord.zw;
-		#endif
+		// Interpolated clip position divided by its own w is the exact screen position, perspective included.
+		// It also includes LayerMat and the active target's viewport, so isolated layers
+		// need neither BoxPosition added again nor the parent view's viewport constants.
+		float2 vNdc = i.vPositionSs.xy / i.vPositionSs.w;
+		float2 vUV = float2( vNdc.x, -vNdc.y ) * 0.5 + 0.5;
 #endif
 
 		o.vColor = DoBackdropFilter( vUV );
@@ -146,7 +170,12 @@ PS
 		// The quad may be the box grown by BoxBloat; make texcoords 0..1 across the box itself
 		float2 boxUv = ( i.vTexCoord.xy - 0.5 ) * ( BoxSize + BoxBloat * 2.0 ) / max( BoxSize, 0.0001 ) + 0.5;
 		float edge = SdfCoverage( RoundedRectSdfUv( boxUv, BoxSize, CornerRadius, CornerRadiusV ) );
+		edge *= ScissorCoverage( PainterScissorIndex, i.vPositionPanelSpace.xy / i.vPositionPanelSpace.w );
+		o.vColor.rgb *= i.vColor.rgb;
 		o.vColor.a = edge * i.vColor.a;
+		#if D_PANEL_OPACITY
+			o.vColor.a *= g_flUIPanelOpacity;
+		#endif
 
 		return UI_CommonProcessing_Post( i, o, edge );
 	}

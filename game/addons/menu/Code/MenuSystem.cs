@@ -57,6 +57,8 @@ public partial class MenuSystem : IMenuSystem
 	Package oldGamePackage;
 
 	GameClosing gameClosingPanel;
+	GameStarting gameStartingPanel;
+	GameClosedToast gameClosedToast;
 
 	public void Tick()
 	{
@@ -68,8 +70,13 @@ public partial class MenuSystem : IMenuSystem
 
 			if ( MenuUtility.GamePackage is not null )
 			{
-				var panel = new GameStarting();
-				panel.Parent = MenuOverlay.Instance.TopLeft;
+				// Anything left over from the previous game goes away when a new one starts
+				gameStartingPanel?.Delete( true );
+				gameClosedToast?.Delete( true );
+				gameClosedToast = null;
+
+				gameStartingPanel = new GameStarting();
+				gameStartingPanel.Parent = MenuOverlay.Instance.TopLeft;
 			}
 		}
 
@@ -186,8 +193,9 @@ public partial class MenuSystem : IMenuSystem
 
 	void IMenuSystem.OnPackageClosed( Package package )
 	{
-		var panel = new GameClosedToast() { Package = package };
-		MenuOverlay.Instance.BottomRight.Queue( panel, duration: 0, clickToDismiss: false );
+		gameClosedToast?.Delete( true );
+		gameClosedToast = new GameClosedToast() { Package = package };
+		MenuOverlay.Instance.BottomRight.Queue( gameClosedToast, duration: 0, clickToDismiss: false );
 	}
 
 	/// <summary>Go to a menu url from the console, for driving the menu from a test or tool.</summary>

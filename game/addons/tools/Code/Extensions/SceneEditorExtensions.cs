@@ -38,8 +38,6 @@ public static class SceneEditorExtensions
 		}
 	}
 
-	record struct CameraStorage( Vector3 velocity, Vector3? targetPosition );
-
 	/// <summary>
 	/// Locks the cursor to a specific widget. If we go outside it, this function will
 	/// wrap the cursor around nicely.
@@ -66,6 +64,13 @@ public static class SceneEditorExtensions
 		return (float)Math.Round( value / step ) * step;
 	}
 
+	public static bool IsDraggingCamera => Application.MouseButtons.HasFlag( MouseButtons.Middle );
+
+	public static bool IsPilotingCamera => Application.MouseButtons.HasFlag( MouseButtons.Right )
+		|| EditorToolManager.CurrentModeName == CameraEditorTool.PilotModeName;
+
+	public static bool IsControllingCamera => IsDraggingCamera || IsPilotingCamera;
+
 	/// <summary>
 	/// Helper to easily set up all of the inputs for this camera and widget. This is assuming
 	/// that the passed in widget is the render panel.
@@ -79,8 +84,8 @@ public static class SceneEditorExtensions
 		var cameraVelocity = self.GetValue<Vector3>( "CameraVelocity" );
 
 		bool moved = false;
-		var rightMouse = Application.MouseButtons.HasFlag( MouseButtons.Right );
-		var middleMouse = Application.MouseButtons.HasFlag( MouseButtons.Middle );
+		var rightMouse = IsPilotingCamera;
+		var middleMouse = IsDraggingCamera;
 
 		if ( (rightMouse || middleMouse) && self.Input.IsHovered )
 		{

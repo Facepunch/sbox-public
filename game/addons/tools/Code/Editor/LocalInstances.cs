@@ -34,7 +34,10 @@ public static class LocalInstances
 		if ( windowed ?? EditorPreferences.WindowedLocalInstances )
 		{
 			p.StartInfo.ArgumentList.Add( "-sw" );
-			p.StartInfo.ArgumentList.Add( "-720" );
+			p.StartInfo.ArgumentList.Add( "-w" );
+			p.StartInfo.ArgumentList.Add( "1280" );
+			p.StartInfo.ArgumentList.Add( "-h" );
+			p.StartInfo.ArgumentList.Add( "720" );
 		}
 
 		var extra = EditorPreferences.NewInstanceCommandLineArgs;

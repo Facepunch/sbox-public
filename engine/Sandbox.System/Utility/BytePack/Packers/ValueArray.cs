@@ -24,7 +24,7 @@ internal partial class BytePack
 			bs.WriteValueArray( array );
 		}
 
-		public override object Read( ref ByteStream bs )
+		public override object Read( ref ByteStream bs, int depth )
 		{
 			var len = bs.Read<int>();
 

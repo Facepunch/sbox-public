@@ -327,17 +327,38 @@ public static partial class EditorUtility
 			// Save instance transform for later
 			var instanceTransform = go.LocalTransform;
 
-			// The save dialog gives an absolute path, but a prefab loaded from disk is registered
-			// under its relative asset path - resolve it so we overwrite the live prefab file
-			// instead of building a fresh one that existing instances know nothing about.
-			saveLocation = AssetSystem.FindByPath( saveLocation )?.Path ?? saveLocation;
+			string relativePath = saveLocation.NormalizeFilename( false );
 
-			var prefabFile = ResourceLibrary.Get<PrefabFile>( saveLocation );
+			var asset = AssetSystem.FindByPath( saveLocation );
+			if ( !skipDiskWrite )
+			{
+				// create the asset if it doesn't exist yet, so we have it's GUID + relative path to register the prefab with
+				asset ??= AssetSystem.CreateResource( "prefab", saveLocation );
+			}
+
+			if ( asset is not null )
+			{
+				// The save dialog gives an absolute path, but a prefab loaded from disk is registered
+				// under its relative asset path - resolve it so we overwrite the live prefab file
+				// instead of building a fresh one that existing instances know nothing about.
+				saveLocation = asset.Path;
+				relativePath = asset.RelativePath;
+			}
+			else
+			{
+				if ( FileSystem.Mounted.GetRelativePath( relativePath ) is { } rp )
+					relativePath = rp;
+
+				if ( relativePath[0] == '/' ) relativePath = relativePath[1..];
+			}
+
+			var prefabFile = ResourceLibrary.Get<PrefabFile>( relativePath );
 			if ( !prefabFile.IsValid() )
 			{
 				prefabFile = new PrefabFile();
-				prefabFile.RegisterWeakResourceId( saveLocation );
-				prefabFile.Register( saveLocation );
+
+				prefabFile.RegisterWeakResourceId( relativePath, asset?.Guid );
+				prefabFile.Register( relativePath );
 			}
 
 			Dictionary<Guid, Guid> instanceToPrefabGuid = null;
@@ -410,6 +431,7 @@ public static partial class EditorUtility
 			// TODO this only reason for skipFileWrite exists is because we cannot easily spinup an asset system in tests
 			if ( !skipFileWrite )
 			{
+				// Sol: we're mixing up absolute and relative paths here? wtf?
 				WritePrefabToDisk( prefabFile, prefabFile.ResourcePath );
 			}
 		}
@@ -455,7 +477,7 @@ public static partial class EditorUtility
 				return go;
 
 			// set or change prefab source
-			go.InitPrefabInstance( prefabFile.ResourcePath, false );
+			go.InitPrefabInstance( ResourceId.Get( prefabFile ), false );
 
 			// Invert lookup
 			var prefabToInstanceGuid = new Dictionary<Guid, Guid>( instanceToPrefabGuid.Count );

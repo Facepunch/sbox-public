@@ -1,14 +1,15 @@
-﻿namespace Sandbox.UI;
+﻿using NativeEngine;
+
+namespace Sandbox.UI;
 
 /// <summary>
-/// A window hosting a <see cref="UISurface"/>. The window itself lives in Sandbox.Tools - only the
-/// editor makes OS windows - but SDL delivers its events down here, so the engine needs this much
-/// of it to route them and to draw it each frame.
+/// Engine routing and rendering contract for a <see cref="UISurface"/> window implemented
+/// by Sandbox.Tools, including editor windows and standalone panel applications.
 /// </summary>
 internal interface IPanelWindow
 {
 	/// <summary>
-	/// The OS window handle, which is how an SDL event is traced back to us.
+	/// The SDL_Window pointer used to route SDL events, not a platform window handle.
 	/// </summary>
 	IntPtr Handle { get; }
 
@@ -18,7 +19,7 @@ internal interface IPanelWindow
 	UISurface Surface { get; }
 
 	/// <summary>
-	/// Whether the window still has its OS window and swap chain.
+	/// Whether the window is still open, including popups awaiting native window creation.
 	/// </summary>
 	bool IsOpen { get; }
 
@@ -43,19 +44,14 @@ internal interface IPanelWindow
 	/// Simulate and draw. Called every frame, and again from inside a resize drag - the OS holds
 	/// the thread in a modal loop there and this is the only chance we get. Returns whether
 	/// anything was presented, so a loop paced by vsync knows when to back off instead.
-	/// <para>
-	/// <paramref name="interactiveResize"/> is true for the frames a resize drag drives. A
-	/// vsync'd window presents immediately for those - waiting for the display during a drag
-	/// shows as the contents running a frame behind the window edge.
-	/// </para>
 	/// </summary>
-	bool Frame( bool interactiveResize );
+	bool Frame();
 
 	/// <summary>
 	/// What's under the cursor, so the OS knows whether a click drags the window, resizes it, or
 	/// belongs to the UI. The position is in surface pixels, like every other position down here.
 	/// </summary>
-	WindowHitTest HitTest( Vector2 position );
+	Sdl.HitTestResult HitTest( Vector2 position );
 
 	/// <summary>
 	/// The user clicked the window's close button.
@@ -106,6 +102,11 @@ internal interface IPanelWindow
 	bool IgnoresInput { get; }
 
 	/// <summary>
+	/// Whether keyboard input is redirected to this popup. Mouse input is independent.
+	/// </summary>
+	bool TakesKeyboardFocus => !IgnoresInput;
+
+	/// <summary>
 	/// Let frames run inside a frame that's already running. An outgoing drag blocks in the
 	/// middle of one, and the frames the OS drag loop pulses are the only ones there are.
 	/// </summary>
@@ -122,22 +123,4 @@ internal interface IPanelWindow
 	/// has to keep moving, like a video or a live preview.
 	/// </summary>
 	bool AlwaysFullFrameRate { get; set; }
-
-	/// <summary>
-	/// What's under the cursor in a window, for the OS. Values match SDL_HitTestResult - the
-	/// cast to int happens at the native boundary and nowhere else.
-	/// </summary>
-	internal enum WindowHitTest
-	{
-		Normal = 0,
-		Draggable = 1,
-		ResizeTopLeft = 2,
-		ResizeTop = 3,
-		ResizeTopRight = 4,
-		ResizeRight = 5,
-		ResizeBottomRight = 6,
-		ResizeBottom = 7,
-		ResizeBottomLeft = 8,
-		ResizeLeft = 9,
-	}
 }

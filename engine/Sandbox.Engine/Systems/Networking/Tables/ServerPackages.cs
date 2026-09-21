@@ -255,10 +255,12 @@ internal class UpdateLoadingScreen : ILoadingInterface
 	public void Dispose()
 	{
 		LoadingScreen.Subtitle = "";
+		LoadingScreen.Progress = null;
 	}
 
 	public void LoadingProgress( LoadingProgress progress )
 	{
+		LoadingScreen.Progress = progress;
 		LoadingScreen.Title = $"{progress.Title}";
 		LoadingScreen.Subtitle = progress.Mbps > 0
 			? $"{progress.Percent:n0}% • {progress.Mbps:n0}mbps • {progress.CalculateETA().ToRemainingTimeString()}"

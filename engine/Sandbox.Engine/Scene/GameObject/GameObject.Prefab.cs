@@ -40,11 +40,22 @@ public partial class GameObject
 		return SceneUtility.GetPrefabScene( prefabFile );
 	}
 
+	/// <summary>
+	/// Get the GameObject of a prefab from file path
+	/// </summary>
+	internal static GameObject GetPrefab( ResourceId prefabFilePath )
+	{
+		var prefabFile = PrefabFile.Load( prefabFilePath );
+		if ( prefabFile is null ) return default;
+
+		return SceneUtility.GetPrefabScene( prefabFile );
+	}
+
 	public string PrefabInstanceSource
 	{
 		get
 		{
-			return PrefabInstance?.PrefabSource;
+			return PrefabInstance?.PrefabSource.Path;
 		}
 	}
 
@@ -133,16 +144,16 @@ public partial class GameObject
 	/// <summary>
 	/// Initializes the instance data.
 	/// </summary>
-	internal void InitPrefabInstance( string prefabSource, bool isNested )
+	internal void InitPrefabInstance( ResourceId prefabSource, bool isNested )
 	{
-		if ( string.IsNullOrEmpty( prefabSource ) )
+		if ( prefabSource.IsEmpty )
 		{
 			_prefabInstanceData = null;
 			return;
 		}
 
 		// Added 12th Dec 2023
-		prefabSource = prefabSource.Replace( ".object", ".prefab", StringComparison.OrdinalIgnoreCase );
+		prefabSource.Path = prefabSource.Path.Replace( ".object", ".prefab", StringComparison.OrdinalIgnoreCase );
 
 		_prefabInstanceData = new PrefabInstanceData( prefabSource, this, isNested );
 	}

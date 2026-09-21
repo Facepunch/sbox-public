@@ -30,7 +30,7 @@ internal class NavMeshTile : IDisposable
 	// Honour the length, not the array size: the buffer may be grown past the current payload.
 	public byte[] CopyCompressedHeightField()
 	{
-		lock ( heightfieldGate ) return _compressedHeightField.AsSpan( 0, _compressedHeightFieldLength ).ToArray();
+		lock ( heightfieldGate ) return _compressedHeightField is null ? [] : _compressedHeightField.AsSpan( 0, _compressedHeightFieldLength ).ToArray();
 	}
 
 	private void ClearCompressedHeightField()

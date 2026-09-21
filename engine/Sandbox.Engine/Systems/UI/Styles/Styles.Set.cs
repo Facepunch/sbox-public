@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Text;
 
 namespace Sandbox.UI
@@ -115,19 +115,22 @@ namespace Sandbox.UI
 					return SetCornerRadius( value, v => BorderBottomLeftRadius = v, v => BorderBottomLeftRadiusV = v );
 
 				case "border":
-					return SetBorder( value, w => BorderWidth = w, c => BorderColor = c );
+					return SetBorder( value, w => BorderWidth = w, c => BorderColor = c, s => BorderStyle = s );
 
 				case "border-left":
-					return SetBorder( value, w => BorderLeftWidth = w, c => BorderLeftColor = c );
+					return SetBorder( value, w => BorderLeftWidth = w, c => BorderLeftColor = c, s => BorderStyle = s );
 
 				case "border-right":
-					return SetBorder( value, w => BorderRightWidth = w, c => BorderRightColor = c );
+					return SetBorder( value, w => BorderRightWidth = w, c => BorderRightColor = c, s => BorderStyle = s );
 
 				case "border-top":
-					return SetBorder( value, w => BorderTopWidth = w, c => BorderTopColor = c );
+					return SetBorder( value, w => BorderTopWidth = w, c => BorderTopColor = c, s => BorderStyle = s );
 
 				case "border-bottom":
-					return SetBorder( value, w => BorderBottomWidth = w, c => BorderBottomColor = c );
+					return SetBorder( value, w => BorderBottomWidth = w, c => BorderBottomColor = c, s => BorderStyle = s );
+
+				case "border-style":
+					return SetBorderStyle( value );
 
 				case "border-image":
 					return SetBorderImage( value );
@@ -618,20 +621,21 @@ namespace Sandbox.UI
 			if ( value == null || !value.StartsWith( "polygon(", StringComparison.OrdinalIgnoreCase ) || value[^1] != ')' ) return false;
 
 			var contents = value.Substring( 8, value.Length - 9 );
-			var points = new List<BorderShapePoint>();
+			UI.BorderShape.PointBuffer points = default;
+			int pointCount = 0;
 			int start = 0, depth = 0;
 			for ( int i = 0; i <= contents.Length; i++ )
 			{
 				if ( i < contents.Length ) { if ( contents[i] == '(' ) depth++; else if ( contents[i] == ')' ) depth--; if ( contents[i] != ',' || depth != 0 ) continue; }
-				if ( depth != 0 || points.Count == UI.BorderShape.MaxPoints ) return false;
+				if ( depth != 0 || pointCount == UI.BorderShape.MaxPoints ) return false;
 				var p = new Parse( contents.Substring( start, i - start ) ).SkipWhitespaceAndNewlines();
 				if ( !p.TryReadLength( out var x ) ) return false; p = p.SkipWhitespaceAndNewlines();
 				if ( !p.TryReadLength( out var y ) ) return false; p = p.SkipWhitespaceAndNewlines();
 				if ( !p.IsEnd ) return false;
-				points.Add( new BorderShapePoint( x, y ) ); start = i + 1;
+				points[pointCount++] = new BorderShapePoint( x, y ); start = i + 1;
 			}
-			if ( points.Count < 3 ) return false;
-			BorderShape = new UI.BorderShape( points.ToArray() ); return true;
+			if ( pointCount < 3 ) return false;
+			BorderShape = new UI.BorderShape( points[..pointCount] ); return true;
 		}
 
 		bool SetCircleBorderShape( string contents )
@@ -852,38 +856,45 @@ namespace Sandbox.UI
 			return true;
 		}
 
-		bool SetBorder( string value, Action<Length?> setWidth, Action<Color?> setColor )
+		/// <summary>
+		/// Parses a border shorthand. There is one style shared by all sides, so none and hidden zero the
+		/// side's width instead of hiding every side, and a visible keyword sets the shared style.
+		/// </summary>
+		bool SetBorder( string value, Action<Length?> setWidth, Action<Color?> setColor, Action<BorderStyle> setStyle )
 		{
-			var p = new Parse( value );
-
-			p = p.SkipWhitespaceAndNewlines();
-
+			var p = new Parse( value ).SkipWhitespaceAndNewlines();
+			if ( p.IsEnd ) return false;
+			Length? width = null;
+			Color? color = null;
+			BorderStyle? style = null;
 			while ( !p.IsEnd )
 			{
-				if ( p.TryReadLineStyle( out var lineStyle ) )
+				if ( p.TryReadLineStyle( out var word ) )
 				{
-					if ( lineStyle == "none" )
-					{
-						setWidth( Length.Pixels( 0 ) );
-						return true;
-					}
+					if ( style.HasValue ) return false;
+					style = Enum.Parse<BorderStyle>( word, true );
 				}
-				else if ( p.TryReadLength( out var lengthValue ) )
+				else if ( p.TryReadLength( out var length ) )
 				{
-					setWidth( lengthValue );
+					if ( width.HasValue || (length.Unit != LengthUnit.Expression && length.Value < 0) ) return false;
+					width = length;
 				}
-				else if ( p.TryReadColor( out var colorValue ) )
+				else if ( p.TryReadColor( out var parsedColor ) )
 				{
-					setColor( colorValue );
+					if ( color.HasValue ) return false;
+					color = parsedColor;
 				}
-				else
-				{
-					return false;
-				}
-
+				else return false;
 				p = p.SkipWhitespaceAndNewlines();
 			}
 
+			if ( style is Sandbox.BorderStyle.None or Sandbox.BorderStyle.Hidden ) setWidth( 0 );
+			else
+			{
+				if ( width.HasValue ) setWidth( width );
+				if ( style.HasValue ) setStyle( style.Value );
+			}
+			if ( color.HasValue ) setColor( color );
 			return true;
 		}
 
@@ -3116,8 +3127,8 @@ namespace Sandbox.UI
 
 		bool SetOutline( string value )
 		{
-			// Same behaviour as border
-			return SetBorder( value, v => OutlineWidth = v, c => OutlineColor = c );
+			// Same behaviour as border, minus a line style to set
+			return SetBorder( value, v => OutlineWidth = v, c => OutlineColor = c, _ => { } );
 		}
 
 		Length? GetAngleInDegrees( string value )

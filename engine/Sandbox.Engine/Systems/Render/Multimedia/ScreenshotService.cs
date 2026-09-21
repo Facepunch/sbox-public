@@ -1,4 +1,4 @@
-﻿using NativeEngine;
+using NativeEngine;
 using Sandbox.Engine.Settings;
 using Sandbox.UI;
 using System.Collections.Concurrent;
@@ -124,7 +124,6 @@ internal static class ScreenshotService
 			if ( screenSizeChanged )
 			{
 				Screen.Size = requestedSize;
-				RenderTarget.Flush();
 			}
 
 			camera.CustomSize = requestedSize;
@@ -179,7 +178,6 @@ internal static class ScreenshotService
 			if ( screenSizeChanged )
 			{
 				Screen.Size = previousScreenSize;
-				RenderTarget.Flush();
 				ResizeUI( camera, previousScreenSize );
 			}
 
@@ -224,7 +222,7 @@ internal static class ScreenshotService
 			rootPanel.PreLayout( screenRect );
 			rootPanel.CalculateLayout();
 			rootPanel.PostLayout();
-			rootPanel.BuildDescriptors();
+			rootPanel.BuildCommandList();
 		}
 	}
 }

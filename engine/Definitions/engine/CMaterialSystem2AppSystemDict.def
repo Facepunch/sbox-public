@@ -10,16 +10,7 @@ native class CMaterialSystem2AppSystemDict
 	bool Init();
 	bool InitWithoutMaterialSystem();
 	bool InitFinishSetupMaterialSystem();
-	void* GetAppWindow();
-
-	SwapChainHandle_t GetAppWindowSwapChain();
-
-	void SetAppWindowTitle( string title );
-	void SetAppWindowIcon( string title );
-	void SetInitialAppWindowImage( string vmat );
-	void SetAppWindowDiscardMouseFocusClick( bool discard );
-
-	void DrawInitialWindowImage();
+	void StartBackgroundSystems();
 
 	void SuppressStartupManifestLoad( bool b );
 
@@ -51,8 +42,6 @@ native class CMaterialSystem2AppSystemDict
 
 	bool IsInDeveloperMode();
 	bool IsInVRMode();
-
-	void* CreateAppWindow( string pTitle, int nPlatWindowFlags, int x, int y, int w, int h, int nRefreshRateHz );
 
 	void SuppressCOMInitialization();
 	bool IsRunningOnCustomerMachine();

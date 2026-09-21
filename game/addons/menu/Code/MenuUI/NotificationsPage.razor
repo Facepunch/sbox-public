@@ -78,7 +78,14 @@
 					@if ( notices is null )
 					{
 						<div class="inbox-empty">
-							<icon>@( IsLoading ? "hourglass_empty" : "cloud_off" )</icon>
+							@if ( IsLoading )
+							{
+								<Spinner />
+							}
+							else
+							{
+								<icon>cloud_off</icon>
+							}
 							<label class="title">@Language.GetPhrase( IsLoading ? "notificationspage.fetching" : "notificationspage.offline" )</label>
 							<label class="hint">@Language.GetPhrase( IsLoading ? "notificationspage.one_moment" : "notificationspage.offline_hint" )</label>
 						</div>

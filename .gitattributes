@@ -5,6 +5,8 @@
 game/** text=auto eol=crlf
 # Except c# files, auto that
 game/**/*.cs text=auto
+# Shell scripts must use LF (a CRLF checkout breaks the shebang and every line under sh)
+*.sh text eol=lf
 
 #
 # GitHub linguist overrides (https://github.com/github-linguist/linguist/blob/main/docs/overrides.md)

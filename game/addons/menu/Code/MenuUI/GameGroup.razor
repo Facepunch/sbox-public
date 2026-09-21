@@ -10,10 +10,13 @@
 
     <Page>
 		<Body>
-            <h2>
-                <span>@Icon</span>
-                <span>@Title</span>
-            </h2>
+            <div class="section-head">
+                <label class="title">@Title</label>
+                @if ( !string.IsNullOrWhiteSpace( Subtitle ) )
+                {
+                    <label class="description">@Subtitle</label>
+                }
+            </div>
 			<MenuProject.UI.PackageList ShowFilters="@false" Query=@(GetQuery()) Take=@(200) OnSelected=@Selected OnMenu=@Menu></MenuProject.UI.PackageList>
 		</Body>
 	</Page>
@@ -24,6 +27,9 @@
 
     [Parameter] public string Query { get; set; }
     [Parameter] public string Title { get; set; }
+    [Parameter] public string Subtitle { get; set; }
+
+    // Still passed by older links; the head is text-only now, like the shelves it opens from.
     [Parameter] public string Icon { get; set; }
 
     List<string> SelectedTags = new();
@@ -36,7 +42,7 @@
 
     protected override int BuildHash()
     {
-        return System.HashCode.Combine(GetQuery());
+        return System.HashCode.Combine( GetQuery(), Title, Subtitle );
     }
 
     void Selected( Package package  )

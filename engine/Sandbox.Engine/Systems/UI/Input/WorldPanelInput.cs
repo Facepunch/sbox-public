@@ -1,4 +1,4 @@
-﻿namespace Sandbox.UI;
+namespace Sandbox.UI;
 
 /// <summary>
 /// Simulates PanelInput for world space panels using a ray and inputs.
@@ -86,6 +86,7 @@ internal class WorldPanelInput : PanelInput
 		var leftMousePressed = !MouseStates[0].Pressed && data.Mouse0;
 		if ( leftMousePressed )
 		{
+			SetClickCount( NativeEngine.ButtonCode.MouseLeft, 1 );
 			// Are we a double clicker ( 250ms matches engine )
 			if ( LastClickTimeSince < 0.25f && LastClickRoot == root )
 			{
@@ -95,6 +96,7 @@ internal class WorldPanelInput : PanelInput
 				if ( AltClickDelta.Length < MaxAltClickDelta / root.Scale )
 				{
 					DoubleClicks.Enqueue( "mouseleft" );
+					SetClickCount( NativeEngine.ButtonCode.MouseLeft, 2 );
 				}
 			}
 

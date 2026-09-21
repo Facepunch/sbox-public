@@ -31,10 +31,14 @@ internal static class WallSteering
 	private static readonly Vector3[] Pattern = CreatePattern();
 	private readonly record struct Segment( Vector3 Start, Vector3 End );
 
-	internal static Vector3 Steer( SimulationAgent agent, Vector3 desired, Vector3 goal )
+	internal static Vector3 Steer( SimulationAgent agent, Vector3 desired, Vector3 goal, float distanceToCorner )
 	{
 		float speed = desired.Length;
 		if ( speed < 0.001f ) return desired;
+		// The route turns or ends at the next corner; do not predict straight-line
+		// collisions beyond it.
+		float horizon = MathF.Min( Horizon, distanceToCorner / speed );
+		if ( horizon < 0.0001f ) return desired;
 		float range = MathF.Max( agent.Options.Radius * 16, agent.Options.MaxSpeed );
 		if ( agent.WallRevision != agent.Owner.Revision
 			|| MathF.Abs( agent.Position.y - agent.WallCenter.y ) > agent.Options.Height * 0.25f
@@ -67,7 +71,7 @@ internal static class WallSteering
 		}
 		var walls = segments[..count];
 		var current = agent.Velocity.WithY( 0 );
-		if ( CollisionTime( desired, walls ) >= Horizon && CollisionTime( current, walls ) >= Horizon ) return desired;
+		if ( CollisionTime( desired, walls, horizon ) >= horizon && CollisionTime( current, walls, horizon ) >= horizon ) return desired;
 
 		var direction = desired / speed;
 		var result = desired * 0.4f;
@@ -81,8 +85,8 @@ internal static class WallSteering
 				var offset = new Vector3( direction.x * point.x - direction.z * point.z, 0, direction.z * point.x + direction.x * point.z );
 				var candidate = result + offset * radius;
 				if ( candidate.LengthSquared > (speed + 0.001f) * (speed + 0.001f) ) continue;
-				float impact = MathF.Min( Horizon, CollisionTime( candidate, walls ) );
-				float penalty = 2 * candidate.Distance( desired ) / speed + 0.75f * candidate.Distance( current ) / speed + 2.5f / (0.1f + impact / Horizon);
+				float impact = MathF.Min( horizon, CollisionTime( candidate, walls, horizon ) );
+				float penalty = 2 * candidate.Distance( desired ) / speed + 0.75f * candidate.Distance( current ) / speed + 2.5f / (0.1f + impact / horizon);
 				if ( penalty < bestPenalty ) { bestPenalty = penalty; best = candidate; }
 			}
 			result = best;
@@ -91,7 +95,7 @@ internal static class WallSteering
 		return result;
 	}
 
-	private static float CollisionTime( Vector3 velocity, Span<Segment> walls )
+	private static float CollisionTime( Vector3 velocity, Span<Segment> walls, float horizon )
 	{
 		float earliest = float.PositiveInfinity;
 		foreach ( var wall in walls )
@@ -106,8 +110,8 @@ internal static class WallSteering
 				if ( closest <= 0 && along < 0 || closest >= 1 && along > 0 ) continue;
 				return 0;
 			}
-			if ( Geometry.IntersectSegSeg2D( default, velocity * Horizon, wall.Start, wall.End, out float time, out float edgePosition )
-				&& time >= 0 && time <= 1 && edgePosition >= 0 && edgePosition <= 1 ) earliest = MathF.Min( earliest, time * Horizon );
+			if ( Geometry.IntersectSegSeg2D( default, velocity * horizon, wall.Start, wall.End, out float time, out float edgePosition )
+				&& time >= 0 && time <= 1 && edgePosition >= 0 && edgePosition <= 1 ) earliest = MathF.Min( earliest, time * horizon );
 		}
 		return earliest;
 	}

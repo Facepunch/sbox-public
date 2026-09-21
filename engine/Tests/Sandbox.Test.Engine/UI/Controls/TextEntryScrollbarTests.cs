@@ -56,6 +56,8 @@ public class TextEntryScrollbarTests
 
 	static Label LabelOf( TextEntry entry ) => entry.Children.OfType<Label>().First();
 
+	static ScrollBar VerticalBar( Panel panel ) => panel.Children.OfType<ScrollBar>().SingleOrDefault( x => x.IsVertical && !x.IsDeleting );
+
 	[TestMethod]
 	public void LabelGrowsAndTheEntryScrollsIt()
 	{
@@ -93,14 +95,14 @@ public class TextEntryScrollbarTests
 	{
 		// The editor sheet gives multiline entries a thin bar
 		var (_, entry) = CreateTallEntry();
-		var bar = entry.ScrollbarY;
+		var bar = VerticalBar( entry );
 
 		Assert.IsNotNull( bar );
 		Assert.IsTrue( bar.IsVisible );
 		Assert.AreEqual( entry.Box.Rect.Right - ScrollBar.ThinThickness, bar.Box.Rect.Left, 0.001f );
 
 		var (_, none) = CreateTallEntry( "scrollbar-width: none;" );
-		Assert.IsNull( none.ScrollbarY, "and the entry can opt out" );
+		Assert.IsNull( VerticalBar( none ), "and the entry can opt out" );
 	}
 
 	static ButtonEvent Key( string button ) => new ButtonEvent( button, true, 0, default );
@@ -215,7 +217,7 @@ public class TextEntryScrollbarTests
 	public void TheBarCanBeDraggedWithoutSelectingText()
 	{
 		var (root, entry) = CreateTallEntry( "pointer-events: all;" );
-		var bar = entry.ScrollbarY;
+		var bar = VerticalBar( entry );
 		var thumb = bar.Children.Single();
 		var input = new HandInput();
 
@@ -247,7 +249,7 @@ public class TextEntryScrollbarTests
 	public void TheBarKeepsTheArrowCursor()
 	{
 		var (_, entry) = CreateTallEntry( "cursor: text;" );
-		var bar = entry.ScrollbarY;
+		var bar = VerticalBar( entry );
 
 		Assert.AreEqual( "text", entry.ComputedStyle.Cursor );
 		Assert.AreEqual( "default", bar.ComputedStyle.Cursor, "the bar doesn't inherit the entry's I-beam" );

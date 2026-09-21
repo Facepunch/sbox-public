@@ -168,6 +168,11 @@ internal class GameInstance : IGameInstance
 		LoadingScreen.Title = "Fetching Package Info";
 		_package = await Package.FetchAsync( Ident, false );
 
+		// A newer load may have started while we were fetching. Bail before we
+		// touch the shared loading screen state that now belongs to it.
+		if ( token.IsCancellationRequested )
+			return false;
+
 		if ( !IsDeveloperHost )
 		{
 			if ( Package is null )
@@ -551,10 +556,12 @@ class MenuLoadingScreen : ILoadingInterface
 	public void Dispose()
 	{
 		LoadingScreen.Subtitle = "";
+		LoadingScreen.Progress = null;
 	}
 
 	public void LoadingProgress( LoadingProgress progress )
 	{
+		LoadingScreen.Progress = progress;
 		LoadingScreen.Title = $"{progress.Title}";
 		LoadingScreen.Subtitle = progress.Mbps > 0
 			? $"{progress.Percent:n0}% • {progress.Mbps:n0}mbps • {progress.CalculateETA().ToRemainingTimeString()}"

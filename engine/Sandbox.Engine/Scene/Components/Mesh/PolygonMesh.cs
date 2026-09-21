@@ -2977,6 +2977,21 @@ public sealed partial class PolygonMesh : IJsonConvert
 	{
 		pOutNewEdge = HalfEdgeHandle.Invalid;
 
+		if ( !ResolveFaceVerticesForNewEdge( hFace, hVertexA, hVertexB, out var hFaceVertexA, out var hFaceVertexB ) )
+			return false;
+
+		return Topology.AddEdgeToFace( hFaceVertexA, hFaceVertexB, out pOutNewEdge );
+	}
+
+	/// <summary>
+	/// Find the two incoming half edges of the face that a new edge between these vertices would be
+	/// spliced into.
+	/// </summary>
+	private bool ResolveFaceVerticesForNewEdge( FaceHandle hFace, VertexHandle hVertexA, VertexHandle hVertexB, out HalfEdgeHandle hFaceVertexA, out HalfEdgeHandle hFaceVertexB )
+	{
+		hFaceVertexA = HalfEdgeHandle.Invalid;
+		hFaceVertexB = HalfEdgeHandle.Invalid;
+
 		if ( !hVertexA.IsValid || !hVertexB.IsValid )
 			return false;
 
@@ -2984,8 +2999,8 @@ public sealed partial class PolygonMesh : IJsonConvert
 		if ( hVertexA == hVertexB )
 			return false;
 
-		var hFaceVertexA = Topology.FindEdgeConnectedToFaceEndingAtVertex( hFace, hVertexA );
-		var hFaceVertexB = Topology.FindEdgeConnectedToFaceEndingAtVertex( hFace, hVertexB );
+		hFaceVertexA = Topology.FindEdgeConnectedToFaceEndingAtVertex( hFace, hVertexA );
+		hFaceVertexB = Topology.FindEdgeConnectedToFaceEndingAtVertex( hFace, hVertexB );
 
 		// If either of the vertices is internal the edge must be connected in the correct winding 
 		// order, use the vertex which is not internal to determine the correct winding order.
@@ -3068,7 +3083,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 			}
 		}
 
-		return Topology.AddEdgeToFace( hFaceVertexA, hFaceVertexB, out pOutNewEdge );
+		return true;
 	}
 
 	private bool FindOpenEdgeLoop( HalfEdgeHandle hEdge, out List<HalfEdgeHandle> pOutEdgeList )
