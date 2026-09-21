@@ -1239,6 +1239,9 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		var created = new List<(GameObject, ObjectCreateMsg)>();
 
+		// Keep all blob data alive until CallbackBatch has flushed.
+		using var blobs = BlobDataSerializer.LoadFromMemory( [] );
+
 		using ( CallbackBatch.Batch() )
 		{
 			foreach ( var msg in message.CreateMsgs )
@@ -1254,13 +1257,14 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 					continue;
 				}
 
-				using ( BlobDataSerializer.LoadFromMemory( msg.BlobData ) )
-				{
-					var go = new GameObject();
-					go.Deserialize( JsonNode.Parse( msg.JsonData ).AsObject(), networkDeserializeOptionsCreate );
-					go.NetworkSpawnRemote( msg );
-					created.Add( (go, msg) );
-				}
+				// Fold this object's blobs into the shared scope.
+				blobs.Load( msg.BlobData );
+
+				var go = new GameObject();
+				go.Deserialize( JsonNode.Parse( msg.JsonData ).AsObject(), networkDeserializeOptionsCreate );
+				go.NetworkSpawnRemote( msg );
+
+				created.Add( (go, msg) );
 			}
 		}
 
