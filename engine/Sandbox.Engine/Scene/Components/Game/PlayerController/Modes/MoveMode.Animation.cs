@@ -170,6 +170,9 @@ partial class MoveMode
 	/// </summary>
 	protected virtual void OnRotateRenderBody( SkinnedModelRenderer renderer )
 	{
+		if ( Scene.Is2D )
+			return;
+
 		var eyeAngles = Controller.EyeTransform.Rotation.Angles();
 
 		var targetAngle = Rotation.FromYaw( eyeAngles.yaw );

@@ -7,30 +7,32 @@
 
 <root>
 
-    <div class="arrow"><i>arrow_drop_down</i></div>
-
     <div class="header">
 
-        <h2>@Friend.Name</h2>
+        <div class="avatar" style="background-image: url( avatar:@Friend.Id )" />
 
-        @if (Friend.IsPlayingThisGame)
-        {
-            var gameName = Friend.GetRichPresence("gamename");
-            var gameTitle = Friend.GetRichPresence("gametitle");
+        <div class="who">
+            <h2>@Friend.Name</h2>
 
-            if (!string.IsNullOrWhiteSpace(gameName) && !string.IsNullOrWhiteSpace(gameTitle))
+            @if (Friend.IsPlayingThisGame)
             {
-                <FriendGamePopup Ident="@gameName" Title="@gameTitle"></FriendGamePopup>
+                var gameName = Friend.GetRichPresence("gamename");
+                var gameTitle = Friend.GetRichPresence("gametitle");
+
+                if (!string.IsNullOrWhiteSpace(gameName) && !string.IsNullOrWhiteSpace(gameTitle))
+                {
+                    <FriendGamePopup Ident="@gameName" Title="@gameTitle"></FriendGamePopup>
+                }
+                else
+                {
+                    <h3>Main Menu</h3>
+                }
             }
             else
             {
-                <h3>Main Menu</h3>
+                <h3>@StateText()</h3>
             }
-        }
-        else
-        {
-            <h3>@StateText()</h3>
-        }
+        </div>
 
     </div>
 

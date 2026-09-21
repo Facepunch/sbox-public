@@ -9,6 +9,7 @@ namespace Sandbox;
 /// Represents a rectangle but with whole numbers
 /// </summary>
 [StructLayout( LayoutKind.Sequential )]
+[Description( "A rectangle with an integer position and size in 2D space." )]
 public struct RectInt : System.IEquatable<RectInt>
 {
 	private int left;

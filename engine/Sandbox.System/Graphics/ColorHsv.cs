@@ -4,6 +4,7 @@
 /// A color in <a href="https://upload.wikimedia.org/wikipedia/commons/a/a0/Hsl-hsv_models.svg">Hue-Saturation-Value/Brightness</a> format.
 /// </summary>
 [StructLayout( LayoutKind.Sequential )]
+[Description( "A color described by hue, saturation, brightness and alpha." )]
 public struct ColorHsv : IEquatable<ColorHsv>
 {
 	/// <summary>

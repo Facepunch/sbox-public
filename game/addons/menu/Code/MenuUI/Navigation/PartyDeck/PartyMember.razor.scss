@@ -6,13 +6,9 @@ PartyMember
 	pointer-events: all;
 	cursor: pointer;
 
-	> Avatar
-	{
-		pointer-events: none;
-	}
-
 	> .crown
 	{
+		pointer-events: none;
 		position: absolute;
 		top: -20px;
 		right: 0px;
@@ -23,6 +19,7 @@ PartyMember
 
 	> .talking
 	{
+		pointer-events: none;
 		position: absolute;
 		bottom: -12px;
 		left: 7px;

@@ -83,9 +83,8 @@ public class RectView : Widget
 
 	private void Nudge( Vector2 direction )
 	{
-		var gridCountX = GetGridCountX();
-		var gridCountY = GetGridCountY();
-		var step = new Vector2( 1.0f / gridCountX, 1.0f / gridCountY );
+		var gridCount = GetGridCount();
+		var step = new Vector2( 1.0f / gridCount.x, 1.0f / gridCount.y );
 		var delta = direction * step;
 
 		if ( Session.Settings.IsFastTextureTool )
@@ -122,13 +121,12 @@ public class RectView : Widget
 
 	private Vector2 SnapUVToGrid( Vector2 uv )
 	{
-		var gridCountX = GetGridCountX();
-		var gridCountY = GetGridCountY();
+		var gridCount = GetGridCount();
 
-		var x = (int)(gridCountX * uv.x + 0.5f);
-		var y = (int)(gridCountY * uv.y + 0.5f);
+		var x = MathF.Floor( gridCount.x * uv.x + 0.5f );
+		var y = MathF.Floor( gridCount.y * uv.y + 0.5f );
 
-		return new Vector2( x / (float)gridCountX, y / (float)gridCountY );
+		return new Vector2( x / gridCount.x, y / gridCount.y );
 	}
 
 	private Vector2 PixelToUV_OnGrid( Vector2 vPixel )
@@ -861,18 +859,19 @@ public class RectView : Widget
 		return ViewRect.TopLeft + normalizedPixel * ViewRect.Size;
 	}
 
-	private int GetGridCountX()
+	private Vector2 GetGridCount()
 	{
-		var width = SourceImage is null ? 512 : System.Math.Max( (int)SourceImage.Width, 1 );
-		var gridSize = Math.Max( 1, Session.Settings.GridSize );
-		return width / gridSize;
-	}
+		if ( Session.Settings.IsFastTextureTool && Document.Rectangles.OfType<Document.MeshRectangle>().FirstOrDefault() is { } meshRect )
+		{
+			var (mappingWidth, mappingHeight) = meshRect.GetMaterialWorldScale();
+			var spacing = Math.Max( 0.125f, EditorScene.GizmoSettings.GridSpacing );
+			return new Vector2( mappingWidth / spacing, mappingHeight / spacing );
+		}
 
-	private int GetGridCountY()
-	{
+		var width = SourceImage is null ? 512 : System.Math.Max( (int)SourceImage.Width, 1 );
 		var height = SourceImage is null ? 512 : System.Math.Max( (int)SourceImage.Height, 1 );
 		var gridSize = Math.Max( 1, Session.Settings.GridSize );
-		return height / gridSize;
+		return new Vector2( Math.Max( 1, width / gridSize ), Math.Max( 1, height / gridSize ) );
 	}
 
 	public Document.Rectangle GetFirstRectangleUnderCursor()
@@ -1088,8 +1087,9 @@ public class RectView : Widget
 	{
 		const float gridOpacity = 64 / 255.0f;
 
-		var gridCountX = GetGridCountX();
-		var gridCountY = GetGridCountY();
+		var gridCount = GetGridCount();
+		var gridCountX = gridCount.x;
+		var gridCountY = gridCount.y;
 
 		var stepX = 1.0f / gridCountX;
 		var stepY = 1.0f / gridCountY;
@@ -1154,8 +1154,9 @@ public class RectView : Widget
 	{
 		const float gridOpacity = 64 / 255.0f;
 
-		var gridCountX = GetGridCountX();
-		var gridCountY = GetGridCountY();
+		var gridCount = GetGridCount();
+		var gridCountX = gridCount.x;
+		var gridCountY = gridCount.y;
 
 		var tileSize = baseRect.Size;
 		var viewBounds = LocalRect;

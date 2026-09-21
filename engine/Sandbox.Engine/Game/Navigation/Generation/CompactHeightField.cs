@@ -1,4 +1,4 @@
-﻿using System.Buffers;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 
@@ -118,6 +118,7 @@ internal partial class CompactHeightfield : IDisposable
 	public void CopyTo( CompactHeightfield dest )
 	{
 		dest.Init( Width, Height, SpanCount, WalkableHeight, WalkableClimb, BMin, BMax, CellSize, CellHeight );
+		dest.BMax = BMax;
 
 		Cells.CopyTo( dest.Cells );
 		Spans.CopyTo( dest.Spans );

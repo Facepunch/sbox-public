@@ -49,6 +49,8 @@ partial class VertexTool
 		private readonly List<MeshComponent> _components;
 		readonly VertexTool _tool;
 		readonly ControlWidget _distanceControl;
+		IconButton _connectButton;
+		string _connectToolTip;
 
 		public VertexSelectionWidget( SerializedObject so, VertexTool tool ) : base()
 		{
@@ -106,7 +108,10 @@ partial class VertexTool
 					var row = new Widget { Layout = Layout.Row() };
 					row.Layout.Spacing = 4;
 
-					CreateButton( "Connect", "meshtools/vertex_tools/connect.png", "mesh.connect", Connect, _vertices.Length > 1, row.Layout );
+					_connectButton = CreateButton( "Connect", "meshtools/vertex_tools/connect.png", "mesh.connect", Connect, true, row.Layout );
+					_connectToolTip = _connectButton.ToolTip;
+					RefreshConnectButton();
+
 					CreateButton( "Bevel", "meshtools/vertex_tools/bevel.png", "mesh.bevel", Bevel, _vertices.Length > 0, row.Layout );
 					CreateButton( "Snap To Vertex", "meshtools/vertex_tools/snap_to_vertex.png", "mesh.snap_to_vertex", SnapToVertex, _vertices.Length > 1, row.Layout );
 					CreateButton( "Weld UVs", "meshtools/vertex_tools/weld_uvs.png", "mesh.vertex-weld-uvs", WeldUVs, _vertices.Length > 0, row.Layout );
@@ -137,6 +142,21 @@ partial class VertexTool
 		private void Frame()
 		{
 			_distanceControl?.Enabled = _tool.MergeRangeMode == MergeRange.Fixed;
+		}
+
+		/// <summary>
+		/// The sidebar is only rebuilt when the tool or the selection changes, so operations that edit a
+		/// mesh without touching the selection have to re-check the connect button themselves.
+		/// </summary>
+		private void RefreshConnectButton()
+		{
+			if ( !_connectButton.IsValid() )
+				return;
+
+			var error = GetConnectError();
+
+			_connectButton.Enabled = error is null;
+			_connectButton.ToolTip = error is null ? _connectToolTip : $"{_connectToolTip}<br/> <br/>{error}";
 		}
 
 		[Shortcut( "mesh.select-all", "CTRL+A", typeof( SceneViewWidget ) )]
@@ -170,65 +190,115 @@ partial class VertexTool
 		[Shortcut( "mesh.connect", "V", typeof( SceneViewWidget ) )]
 		private void Connect()
 		{
-			if ( _vertices.Length < 2 )
-				return;
-
 			using var scope = SceneEditorSession.Scope();
 
-			var pairs = new Dictionary<PolygonMesh, List<(VertexHandle, VertexHandle)>>();
+			var pairs = BuildConnectPairs();
+			if ( pairs.Count == 0 )
+				return;
 
 			using ( SceneEditorSession.Active.UndoScope( "Connect Vertices" )
 				.WithComponentChanges( _components )
 				.Push() )
 			{
-				foreach ( var group in _vertexGroups )
+				var changed = new HashSet<PolygonMesh>();
+
+				foreach ( var (mesh, hVertexA, hVertexB) in pairs )
 				{
-					var mesh = group.Key.Mesh;
-					pairs[mesh] = [];
+					if ( mesh.ConnectVertices( hVertexA, hVertexB, out _ ) )
+						changed.Add( mesh );
+				}
 
-					foreach ( var hVertex in group )
+				foreach ( var mesh in changed )
+					mesh.ComputeFaceTextureCoordinatesFromParameters();
+			}
+
+			RefreshConnectButton();
+		}
+
+		/// <summary>
+		/// For every selected vertex, pair it with the next selected vertex found walking around each
+		/// face it belongs to. These are the edges a connect would try to create.
+		/// </summary>
+		private List<(PolygonMesh Mesh, VertexHandle A, VertexHandle B)> BuildConnectPairs()
+		{
+			var pairs = new List<(PolygonMesh, VertexHandle, VertexHandle)>();
+
+			foreach ( var group in _vertexGroups )
+			{
+				if ( !group.Key.IsValid() )
+					continue;
+
+				var mesh = group.Key.Mesh;
+
+				// Handles are only meaningful within their own mesh, so match against this group alone.
+				var selected = group.Select( x => x.Handle ).ToHashSet();
+
+				foreach ( var hVertex in group )
+				{
+					if ( !mesh.GetFacesConnectedToVertex( hVertex.Handle, out var connectedFaces ) )
+						continue;
+
+					foreach ( var hFace in connectedFaces )
 					{
-						mesh.GetFacesConnectedToVertex( hVertex.Handle, out var connectedFaces );
+						var hFaceVertex = mesh.FindFaceVertexConnectedToVertex( hVertex.Handle, hFace );
+						var hNextFaceVertex = mesh.GetNextVertexInFace( hFaceVertex );
 
-						foreach ( var hFace in connectedFaces )
+						while ( hNextFaceVertex != hFaceVertex )
 						{
-							var hFaceVertex = mesh.FindFaceVertexConnectedToVertex( hVertex.Handle, hFace );
-							var hNextFaceVertex = mesh.GetNextVertexInFace( hFaceVertex );
+							var hNextVertex = mesh.GetVertexConnectedToFaceVertex( hNextFaceVertex );
 
-							while ( hNextFaceVertex != hFaceVertex )
+							if ( selected.Contains( hNextVertex ) )
 							{
-								var hNextVertex = mesh.GetVertexConnectedToFaceVertex( hNextFaceVertex );
-
-								if ( _vertices.FirstOrDefault( x => x.Handle == hNextVertex ).IsValid() )
-								{
-									pairs[mesh].Add( (hVertex.Handle, hNextVertex) );
-									break;
-								}
-
-								hNextFaceVertex = mesh.GetNextVertexInFace( hNextFaceVertex );
+								pairs.Add( (mesh, hVertex.Handle, hNextVertex) );
+								break;
 							}
+
+							hNextFaceVertex = mesh.GetNextVertexInFace( hNextFaceVertex );
 						}
 					}
 				}
-
-				foreach ( var group in _vertexGroups )
-				{
-					var mesh = group.Key.Mesh;
-					var vertexPairs = pairs[mesh];
-					var numPairs = vertexPairs.Count;
-
-					if ( vertexPairs.Count == 0 )
-						continue;
-
-					foreach ( var pair in vertexPairs )
-					{
-						mesh.ConnectVertices( pair.Item1, pair.Item2, out _ );
-					}
-
-					mesh.ComputeFaceTextureCoordinatesFromParameters();
-				}
 			}
+
+			return pairs;
 		}
+
+		/// <summary>
+		/// Null if the current selection can be connected, otherwise why it can't.
+		/// </summary>
+		private string GetConnectError()
+		{
+			if ( _vertices.Length < 2 )
+				return "Select at least two vertices.";
+
+			var pairs = BuildConnectPairs();
+			if ( pairs.Count == 0 )
+				return DescribeConnectFailure( PolygonMesh.ConnectVerticesResult.NoSharedFace );
+
+			var failure = PolygonMesh.ConnectVerticesResult.Success;
+
+			foreach ( var (mesh, hVertexA, hVertexB) in pairs )
+			{
+				var result = mesh.CanConnectVertices( hVertexA, hVertexB );
+
+				// Connect is happy as long as a single pair works.
+				if ( result == PolygonMesh.ConnectVerticesResult.Success )
+					return null;
+
+				if ( failure == PolygonMesh.ConnectVerticesResult.Success )
+					failure = result;
+			}
+
+			return DescribeConnectFailure( failure );
+		}
+
+		private static string DescribeConnectFailure( PolygonMesh.ConnectVerticesResult result ) => result switch
+		{
+			PolygonMesh.ConnectVerticesResult.AlreadyConnected => "The selected vertices are already connected by an edge.",
+			PolygonMesh.ConnectVerticesResult.BothVerticesInternal => "Both vertices are inside a face. At least one of them has to be on the edge of a face.",
+			PolygonMesh.ConnectVerticesResult.NoSharedFace => "The selected vertices aren't on the same face, so there's no face to split. Connecting them would leave an edge with no face attached.",
+			PolygonMesh.ConnectVerticesResult.OutsideFace => "The new edge would fall outside the face. This happens when a face is concave.",
+			_ => "The selected vertices can't be connected.",
+		};
 
 		[Shortcut( "mesh.snap_to_vertex", "B", typeof( SceneViewWidget ) )]
 		private void SnapToVertex()
@@ -246,6 +316,8 @@ partial class VertexTool
 				foreach ( var vertex in _vertices )
 					vertex.Component.Mesh.SetVertexPosition( vertex.Handle, vertex.Transform.PointToLocal( position ) );
 			}
+
+			RefreshConnectButton();
 		}
 
 		[Shortcut( "mesh.vertex-weld-uvs", "CTRL+F", typeof( SceneViewWidget ) )]

@@ -71,7 +71,7 @@ public class CreateSingleModelFromMeshDialog : Widget
 
 	readonly List<ParsedMesh> _parsed;
 	readonly CreateModelFromMeshDialog.ImportOptions _options;
-	readonly CreateModelFromMeshDialog.MaterialOverrideRow _materialRow;
+	readonly CreateModelFromMeshDialog.ConditionalRowGroup _conditionalRows;
 	readonly SerializedObject _serializedOptions;
 	readonly LineEdit _fileEdit;
 
@@ -134,15 +134,29 @@ public class CreateSingleModelFromMeshDialog : Widget
 
 		_serializedOptions = _options.GetSerialized();
 
+		_conditionalRows = new CreateModelFromMeshDialog.ConditionalRowGroup( this );
+
 		foreach ( var prop in _serializedOptions )
 		{
 			var row = AddRow( prop.DisplayName, ControlWidget.Create( prop ) );
 
-			if ( prop.Name == nameof( CreateModelFromMeshDialog.ImportOptions.GlobalMaterial ) )
-				_materialRow = new CreateModelFromMeshDialog.MaterialOverrideRow( this, row );
+			switch ( prop.Name )
+			{
+				case nameof( CreateModelFromMeshDialog.ImportOptions.MaterialShader ):
+					_conditionalRows.Add( row, () => _options.GenerateMaterials );
+					break;
+
+				case nameof( CreateModelFromMeshDialog.ImportOptions.GlobalMaterialOverride ):
+					_conditionalRows.Add( row, () => !_options.GenerateMaterials );
+					break;
+
+				case nameof( CreateModelFromMeshDialog.ImportOptions.GlobalMaterial ):
+					_conditionalRows.Add( row, () => !_options.GenerateMaterials && _options.GlobalMaterialOverride );
+					break;
+			}
 		}
 
-		_serializedOptions.OnPropertyChanged += _ => _materialRow?.Update( _options.GlobalMaterialOverride );
+		_serializedOptions.OnPropertyChanged += _ => _conditionalRows.Update();
 
 		var defaultBase = _parsed.FirstOrDefault( m => !m.Skipped )?.BaseName ?? Path.GetFileNameWithoutExtension( meshFiles[0].AbsolutePath );
 		var defaultDir = Path.GetDirectoryName( meshFiles[0].AbsolutePath );
@@ -170,15 +184,7 @@ public class CreateSingleModelFromMeshDialog : Widget
 
 		FixedWidth = 420;
 
-		if ( _materialRow is not null )
-		{
-			_materialRow.Measure( _options.GlobalMaterialOverride );
-		}
-		else
-		{
-			AdjustSize();
-			FixedHeight = Height;
-		}
+		_conditionalRows.Measure();
 
 		var geo = EditorCookie.GetString( "CreateSingleModelFromMeshDialog.Geometry", null );
 		if ( geo is not null )
@@ -264,6 +270,8 @@ public class CreateSingleModelFromMeshDialog : Widget
 		}
 
 		CreateModelFromMeshDialog.ApplyMaterialOverride( _options, document );
+		CreateModelFromMeshDialog.ApplyGeneratedMaterials(
+			CreateModelFromMeshDialog.MaterialGenerationPlan.Create( _options ), document, outputPath );
 
 		if ( _options.ImportScale > 0.0f && !_options.ImportScale.AlmostEqual( 1.0f ) )
 		{

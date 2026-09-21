@@ -1,9 +1,10 @@
+@import "/styles/_gallery-palette.scss";
 // Dark blue is the block container; its children are coloured bars. Grey is a wrapper that shows
 // where a container's own edge ends up. Red is an absolutely positioned child.
 
 $container: #1f3550;
 $host: #3a3f4b;
-$abs: #e84a4a;
+$abs: $gallery-pink;
 
 CssBlockTests
 {
@@ -29,12 +30,12 @@ CssBlockTests
 		}
 	}
 
-	.c1 { background-color: #e8b04a; }
-	.c2 { background-color: #4ac2e8; }
-	.c3 { background-color: #3fc76a; }
-	.c4 { background-color: #c77bd8; }
-	.c5 { background-color: #e88a4a; }
-	.c6 { background-color: #8fa3bf; }
+	.c1 { background-color: $gallery-lime; }
+	.c2 { background-color: $gallery-cyan; }
+	.c3 { background-color: $gallery-lime; }
+	.c4 { background-color: $gallery-pink; }
+	.c5 { background-color: $gallery-pink; }
+	.c6 { background-color: $gallery-cyan; }
 
 	// Flow
 	.w50 { width: 50%; }
@@ -56,7 +57,7 @@ CssBlockTests
 	.host { display: block; width: 100%; background-color: $host; }
 	.auto-height { height: auto; }
 	.pad1 { padding-top: 1px; }
-	.inner { background-color: #2d4a6e; }
+	.inner { background-color: $gallery-cyan; }
 
 	// Mixing with flex
 	.flex-host { flex-direction: row; width: 100%; gap: 6px; }

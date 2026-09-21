@@ -26,6 +26,8 @@ public class GalleryTarget
 
 	public float Scale { get; set; } = 1.0f;
 	public int Count { get; set; } = 4;
+	public Curve Response { get; set; } = Curve.Ease;
+	public CurveRange ResponseRange { get; set; } = new( Curve.EaseIn, Curve.EaseOut );
 
 	public Vector2 Offset { get; set; } = new Vector2( 10, 20 );
 	public Vector3 Position { get; set; } = new Vector3( 1, 2, 3 );
@@ -37,6 +39,13 @@ public class GalleryTarget
 
 	public bool Enabled { get; set; } = true;
 	public Color Colour { get; set; } = Color.Orange;
+
+	// The picker reads these to leave out alpha and HDR brightness
+	[ColorUsage( hasAlpha: false )]
+	public Color Opaque { get; set; } = Color.Orange;
+
+	[ColorUsage( isHDR: false )]
+	public Color Sdr { get; set; } = Color.Orange;
 
 	/// <summary>
 	/// A property of this object, for binding a control to.

@@ -12,6 +12,7 @@ public partial class MirrorTool( string tool ) : EditorTool
 	Vector3 _dragStartP2;
 
 	readonly List<(Transform, GameObject)> _selectedObjects = [];
+	readonly List<(Transform, GameObject)> _mirroredObjects = [];
 
 	private IDisposable _undoScope;
 
@@ -21,6 +22,7 @@ public partial class MirrorTool( string tool ) : EditorTool
 		_plane = default;
 		_point1 = default;
 		_point2 = default;
+		_mirroredObjects.Clear();
 
 		_undoScope?.Dispose();
 		_undoScope = default;
@@ -36,14 +38,37 @@ public partial class MirrorTool( string tool ) : EditorTool
 			.WithGameObjectCreations()
 			.Push();
 
-		foreach ( var go in Selection.OfType<GameObject>() )
+		var selected = Selection.OfType<GameObject>().ToArray();
+		static void RestoreChildTransforms( GameObject original, GameObject copy )
+		{
+			var index = 0;
+			foreach ( var child in original.Children )
+			{
+				// Match InitClone's child filtering, including disabled children.
+				if ( child is null || child.Flags.Contains( GameObjectFlags.NotSaved ) || child.IsDestroyed ) continue;
+
+				var clonedChild = copy.Children[index++];
+				clonedChild.LocalTransform = child.LocalTransform;
+				RestoreChildTransforms( child, clonedChild );
+			}
+		}
+
+		foreach ( var go in selected.Where( go => !selected.Any( other => other != go && go.IsAncestor( other ) ) ) )
 		{
 			var copy = go.Clone( go.WorldTransform );
+			// Clone multiplies root scale and remaps Absolute children through that scaled root.
+			copy.WorldTransform = go.WorldTransform;
+			RestoreChildTransforms( go, copy );
 			_selectedObjects.Add( new( go.WorldTransform, copy ) );
 
-			foreach ( var mc in copy.GetComponentsInChildren<MeshComponent>() )
+			// Reflect every descendant in world space, parent first, not just the group pivot.
+			foreach ( var child in copy.GetAllObjects( false ) )
 			{
-				mc.Mesh = BuildMesh( mc );
+				_mirroredObjects.Add( new( child.WorldTransform, child ) );
+				foreach ( var mc in child.Components.GetAll<MeshComponent>( FindMode.EverythingInSelf ) )
+				{
+					mc.Mesh = BuildMesh( mc );
+				}
 			}
 		}
 
@@ -59,6 +84,7 @@ public partial class MirrorTool( string tool ) : EditorTool
 			mc.Mesh = BuildMesh( group.Key, [.. group.Select( f => f.Handle )] );
 			mc.Enabled = true;
 			_selectedObjects.Add( new( tx, go ) );
+			_mirroredObjects.Add( new( tx, go ) );
 		}
 	}
 
@@ -133,7 +159,7 @@ public partial class MirrorTool( string tool ) : EditorTool
 		var forward = Reflect( world.Rotation.Forward );
 		var up = Reflect( world.Rotation.Up );
 
-		return new Transform( pos, Rotation.LookAt( forward, up ) );
+		return new Transform( pos, Rotation.LookAt( forward, up ), world.Scale );
 	}
 
 	static Vector3 SnapToPlaneGrid( Vector3 point, Vector3 planeNormal )
@@ -169,7 +195,7 @@ public partial class MirrorTool( string tool ) : EditorTool
 
 		if ( _plane.HasValue )
 		{
-			foreach ( var (tx, copy) in _selectedObjects )
+			foreach ( var (tx, copy) in _mirroredObjects )
 			{
 				if ( !copy.IsValid() ) continue;
 

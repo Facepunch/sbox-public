@@ -12,28 +12,30 @@
     {
         var current = Jam.CurrentStepIndex;
 
-        @for ( var i = 0; i < Jam.Timeline.Length; i++ )
-        {
-            var step = Jam.Timeline[i];
-            var state = i < current ? "done" : i == current ? "now" : "";
+        <div class="nodes">
+            @for ( var i = 0; i < Jam.Timeline.Length; i++ )
+            {
+                var step = Jam.Timeline[i];
+                var state = i < current ? "done" : i == current ? "now" : "";
 
-            <div class="node @state" style="flex-grow: @Weight( i )">
-                <div class="dot"></div>
-                @if ( i < Jam.Timeline.Length - 1 )
-                {
-                    <div class="line">
-                        @if ( i == current )
-                        {
-                            <div class="fill" style="height: @Progress%"></div>
-                            <div class="marker" style="top: @Progress%"></div>
-                        }
-                    </div>
-                }
-                <label class="when">@JamFormat.Day( step.At )</label>
-                <label class="name">@step.Name</label>
-                <label class="eta">@Countdown( i, current, step )</label>
-            </div>
-        }
+                <div class="node @state" style="flex-grow: @Weight( i )">
+                    <div class="dot"></div>
+                    @if ( i < Jam.Timeline.Length - 1 )
+                    {
+                        <div class="line">
+                            @if ( i == current )
+                            {
+                                <div class="fill" style="height: @Progress%"></div>
+                                <div class="marker" style="top: @Progress%"></div>
+                            }
+                        </div>
+                    }
+                    <label class="when">@JamFormat.Day( step.At )</label>
+                    <label class="name">@step.Name</label>
+                    <label class="eta">@Countdown( i, current, step )</label>
+                </div>
+            }
+        </div>
     }
 </root>
 

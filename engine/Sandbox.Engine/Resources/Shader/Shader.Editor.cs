@@ -34,6 +34,8 @@ public partial class Shader
 		public string DefaultInputTexture { get; set; }
 		public Vector4 FloatDefault { get; set; }
 		public Vector4 IntDefault { get; set; }
+
+		public string TextureEnding { get; set; }
 	}
 
 	public struct ComboDescription

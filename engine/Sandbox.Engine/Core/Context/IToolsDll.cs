@@ -24,6 +24,16 @@ internal unsafe interface IToolsDll
 	public void RunFrame();
 	public void OnRender();
 
+	/// <summary>
+	/// Hides the editor cursor while the game captures relative mouse input.
+	/// </summary>
+	public void SetRelativeMouseOverride( bool relative );
+
+	/// <summary>
+	/// Whether the editor application is in the foreground, regardless of play-widget focus.
+	/// </summary>
+	public bool IsApplicationActive { get; }
+
 	public void OnFunctionKey( ButtonCode key, KeyboardModifiers modifiers );
 
 	/// <summary>
@@ -42,6 +52,7 @@ internal unsafe interface IToolsDll
 	/// Is the game view visible, or is it in a tab in the background?
 	/// </summary>
 	public bool IsGameViewVisible { get; }
+	public GameSurface GameSurface { get; }
 
 	/// <summary>
 	/// A public interface to the active editor system

@@ -7,26 +7,26 @@
 @namespace MenuProject.Social
 
 <root class="@CssClasses" onclick=@ShowFriendPopup>
-	<div class="avatar" style="background-image: url( avatar:@Friend.Id )" />
+	<div class="avatar round" style="background-image: url( avatar:@Friend.Id )" />
 	<div class="info">
-		<div class="name">@Friend.Name</div>
-		<div class="status">@StateString.Substring(0, Math.Min(StateString.Length, 36))</div>
+		<label class="name">@Friend.Name</label>
+		<label class="status">@StateString.Substring(0, Math.Min(StateString.Length, 36))</label>
 	</div>
 	<div class="actions">
 		@if ( Joinable )
 		{
-            <div class="action primary" onclick=@JoinGame><i>sports_esports</i><span>join</span></div>
+			<div class="action join" onclick=@JoinGame><label>Join</label></div>
 		}
-        else if ( IsGenuinelyFull )
-        {
-            <div class="action deny"><i>block</i><span>full</span></div>
-        }
+		else if ( IsGenuinelyFull )
+		{
+			<div class="action deny"><label>Full</label></div>
+		}
 
-        @if ( CanInviteToParty )
-        {
-            <div class="action" onclick=@InviteToParty><i>group_add</i><span>Invite</span></div>
-        }
-    </div>
+		@if ( CanInviteToParty )
+		{
+			<div class="action" onclick=@InviteToParty><label>Invite</label></div>
+		}
+	</div>
 </root>
 
 @code
@@ -77,8 +77,8 @@
                 var game = Friend.GetRichPresence("gametitle");
                 var map = Friend.GetRichPresence("map");
 
-                if (string.IsNullOrEmpty(game)) return "[Unknown State]";
-                if (game == "menu") return "Main Menu"; // (Idle)
+                // Steam clears gametitle while the friend is in the main menu.
+                if (string.IsNullOrWhiteSpace(game) || game == "menu") return "Main Menu";
                 if (string.IsNullOrWhiteSpace(map)) return $"Playing {game}";
                 return $"Playing {game} - {map}";
             }

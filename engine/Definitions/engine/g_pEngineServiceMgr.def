@@ -1,16 +1,6 @@
-
 #include "engineservicemgr.h"
 
 native accessor g_pEngineServiceMgr
 {
-	SwapChainHandle_t GetEngineSwapChain();
-	void GetEngineSwapChainSize( out int w, out int h );
-
-	inline void SetEngineState( CastTo[OsSpecificWindowHandle_t] IntPtr hWnd, SwapChainHandle_t hSwapChain )
-	{
-		CEngineServiceMgr::SetEngineState( Plat_OsSpecificHandleToPlatWindow( hWnd ), hSwapChain );
-	}
-
 	void ExitMainLoop();
 }
-

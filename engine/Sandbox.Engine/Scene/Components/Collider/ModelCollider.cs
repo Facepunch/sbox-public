@@ -118,25 +118,51 @@ public class ModelCollider : Collider, IHasModel
 				yield return shape;
 			}
 
-			foreach ( var hull in part.Hulls )
+			if ( !Scene.Is2D )
 			{
-				var shape = targetBody.AddShape( hull, bx );
-				Assert.NotNull( shape, "Hull shape was null" );
-				shape.Surface = hull.Surface;
-				shape.BoneIndex = boneIndex;
-				yield return shape;
+				foreach ( var hull in part.Hulls )
+				{
+					var shape = targetBody.AddShape( hull, bx );
+					Assert.NotNull( shape, "Hull shape was null" );
+					shape.Surface = hull.Surface;
+					shape.BoneIndex = boneIndex;
+					yield return shape;
+				}
+
+				foreach ( var mesh in part.Meshes )
+				{
+					var shape = targetBody.AddShape( mesh, bx, false, true );
+					Assert.NotNull( shape, "Mesh shape was null" );
+
+					shape.Surface = mesh.Surface;
+					shape.Surfaces = mesh.Surfaces;
+					shape.BoneIndex = boneIndex;
+
+					yield return shape;
+				}
 			}
-
-			foreach ( var mesh in part.Meshes )
+			else if ( targetBody?._body is PhysicsBody2d body2d )
 			{
-				var shape = targetBody.AddShape( mesh, bx, false, true );
-				Assert.NotNull( shape, "Mesh shape was null" );
+				foreach ( var hull in part.Hulls )
+				{
+					foreach ( var shape in body2d.AddHullPartShapes( hull, bx ) )
+					{
+						shape.Surface = hull.Surface;
+						shape.BoneIndex = boneIndex;
+						yield return shape;
+					}
+				}
 
-				shape.Surface = mesh.Surface;
-				shape.Surfaces = mesh.Surfaces;
-				shape.BoneIndex = boneIndex;
-
-				yield return shape;
+				foreach ( var mesh in part.Meshes )
+				{
+					foreach ( var shape in body2d.AddMeshPartShapes( mesh, bx ) )
+					{
+						shape.Surface = mesh.Surface;
+						shape.Surfaces = mesh.Surfaces;
+						shape.BoneIndex = boneIndex;
+						yield return shape;
+					}
+				}
 			}
 
 			if ( part.Mass > 0 )

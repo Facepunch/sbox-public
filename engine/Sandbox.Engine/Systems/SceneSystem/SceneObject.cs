@@ -64,6 +64,7 @@ public partial class SceneObject : IHandle
 			var flags = Rendering.SceneObjectFlags.CastShadows | Rendering.SceneObjectFlags.IsLoaded;
 			var typeFlags = ESceneObjectTypeFlags.NONE;
 			MeshSystem.CreateSceneObject( model.native, transform, null, flags, typeFlags, sceneWorld, 0x1 );
+			Tags.RemoveAll();
 			Transform = transform;
 		}
 	}
@@ -373,7 +374,8 @@ public partial class SceneObject : IHandle
 	}
 
 	/// <summary>
-	/// This object is not batchable by material for some reason ( example: has dynamic attributes that affect rendering )
+	/// Whether this object may be batched with compatible objects. Different render attribute values
+	/// automatically split batches; objects with equal attributes can still batch together.
 	/// </summary>
 	public bool Batchable
 	{

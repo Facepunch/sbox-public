@@ -12,12 +12,12 @@ internal sealed partial class TextBlock
 	internal float InlineFinalWidth { get; private set; }
 	internal void FinalizeInlineWidth( float width )
 	{
-		if ( InlineFinalWidth != width ) ReleaseTexture();
+		if ( InlineFinalWidth != width ) Invalidate();
 		InlineFinalWidth = width;
 	}
 	internal Topten.RichTextKit.Style InlineStyle => Style.Copy();
 	internal int InlineStyleHash => FontHash;
-	internal void InvalidateInlineSelection() => ReleaseTexture();
+	internal void InvalidateInlineSelection() => Invalidate();
 	internal int InlineCaretCount => Block.CaretIndicies.Count - 1;
 	internal string GetInlineSelectedText( int start, int end )
 	{
@@ -27,7 +27,7 @@ internal sealed partial class TextBlock
 		return Text[from..to];
 	}
 
-	internal void SetInlineRuns( Styles style, IReadOnlyList<InlineParagraph.Run> runs )
+	internal void SetInlineRuns( Styles style, IReadOnlyList<InlineFormattingContext.Run> runs )
 	{
 		_inlineLayout = null;
 		IsInlineParagraph = true;
@@ -50,8 +50,6 @@ internal sealed partial class TextBlock
 				text.Append( runs[i++].Text );
 			Block.AddText( text.ToString(), first.Style );
 		}
-		IsHdr |= runs.Any( r => r.Owner.ComputedStyle.FontColor?.IsHdr == true
-			|| r.Owner.ComputedStyle.TextDecorationColor?.IsHdr == true );
 	}
 
 	private static (string, float, int, bool, FontVariantNumeric, SkiaSharp.SKColorF, UnderlineStyle,
@@ -70,7 +68,7 @@ internal sealed partial class TextBlock
 		return new LayoutSize( Block.MeasuredWidth, Block.MeasuredHeight );
 	}
 
-	internal InlineContentLayout LayoutInline( float width, IReadOnlyList<InlineParagraph.Run> runs )
+	internal InlineContentLayout LayoutInline( float width, IReadOnlyList<InlineFormattingContext.Run> runs )
 	{
 		var size = MeasureInline( width );
 		if ( _inlineLayout is not null && _inlineLayoutWidth == _inlineWidth ) return _inlineLayout;

@@ -80,21 +80,29 @@ LoadingOverlay
 
     .background
     {
-        width: 100%;
-        height: 100%;
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
         background-position: center;
         background-size: cover;
         opacity: 1;
-        transition: all 1.5s linear, transform 20s linear;
-        transform: scale( 1 );
+        transition: all 1.5s linear;
         filter: blur( 0px);
+        animation: loading-background-zoom 20s linear forwards;
     }
 
         .background:intro
         {
             opacity: 0;
             filter: blur( 10px);
-            transform: scale( 1.1 );
+        }
+
+        .background:outro
+        {
+            opacity: 0;
+            transition: all 0.5s linear;
         }
 
     .title
@@ -117,4 +125,10 @@ LoadingOverlay
         {
             opacity: 0;
         }
+}
+
+@keyframes loading-background-zoom
+{
+    from { transform: scale( 1.1 ); }
+    to { transform: scale( 1 ); }
 }

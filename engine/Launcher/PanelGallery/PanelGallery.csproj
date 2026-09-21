@@ -42,7 +42,7 @@
 		<None Include="UiTests\**\*.scss" />
 
 		<!-- The stylesheets the test pages read at runtime -->
-		<UiTestContent Include="UiTests\**\*.scss" />
+		<UiTestContent Include="UiTests\**\*.scss;UiTests\**\*.svg" />
 	</ItemGroup>
 
 	<!-- A checkout serves UiTests straight from source. A Steam install has no source tree, so the

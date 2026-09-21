@@ -83,6 +83,11 @@ public class JamDto
 	public int EntryCount { get; set; }
 
 	/// <summary>
+	/// Seconds a player must have played an entry before they can vote for it.
+	/// </summary>
+	public int MinPlaySeconds { get; set; }
+
+	/// <summary>
 	/// Package search query that lists the entries, e.g. "jam:three". Combine with the
 	/// usual sort and type tokens.
 	/// </summary>

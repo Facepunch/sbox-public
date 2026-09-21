@@ -64,6 +64,58 @@ struct ServerInfo
 	/// are sent via network tables and loading assemblies from the package is not required.
 	/// </summary>
 	public bool IsDeveloperHost { get; set; }
+
+	/// <summary>
+	/// If true the host hands the game to another peer when it leaves.
+	/// </summary>
+	public bool HostMigration { get; set; }
+}
+
+/// <summary>
+/// The host is about to leave. If <see cref="SuccessorId"/> is set that peer takes over,
+/// otherwise the game is over.
+/// </summary>
+[Expose]
+struct HostLeavingMsg
+{
+	public Guid SuccessorId { get; set; }
+}
+
+/// <summary>
+/// Peer received <see cref="HostLeavingMsg"/> and everything sent before it.
+/// </summary>
+[Expose]
+struct HostLeavingAckMsg
+{
+}
+
+/// <summary>
+/// The leaving host gives the successor the game.
+/// </summary>
+[Expose]
+struct HostHandoffMsg
+{
+	public SnapshotMsg Snapshot { get; set; }
+}
+
+[Expose]
+struct HostHandoffAckMsg
+{
+}
+
+/// <summary>
+/// The new host's snapshot for a peer to rebuild from.
+/// </summary>
+[Expose]
+struct HostResyncMsg
+{
+	public Guid PreviousHostId { get; set; }
+	public SnapshotMsg Snapshot { get; set; }
+}
+
+[Expose]
+struct HostResyncDoneMsg
+{
 }
 
 /// <summary>
@@ -146,6 +198,8 @@ public struct SnapshotMsg
 	public byte[] BlobData { get; set; }
 	public List<object> NetworkObjects { get; init; }
 	public List<GameObjectSystemData> GameObjectSystems { get; set; }
+
+	internal static SnapshotMsg Create() => new() { GameObjectSystems = [], NetworkObjects = new( 64 ) };
 
 	[Expose]
 	public struct GameObjectSystemData

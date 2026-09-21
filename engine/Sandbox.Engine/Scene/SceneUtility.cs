@@ -142,7 +142,7 @@ public static class SceneUtility
 
 		if ( template is PrefabScene prefabScene1 )
 		{
-			go.InitPrefabInstance( prefabScene1.Source.ResourcePath, false );
+			go.InitPrefabInstance( ResourceId.Get( prefabScene1.Source ), false );
 		}
 
 		go.Parent = Game.ActiveScene;

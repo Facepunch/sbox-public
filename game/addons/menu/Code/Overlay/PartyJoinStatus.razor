@@ -1,0 +1,48 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject
+@inherits Panel
+
+<root>
+	<PartyJoinCard Stage="@(Party?.JoiningStage ?? PartyRoom.JoinStage.None)"
+		IsFollower="@(Party?.Owner is { IsMe: false })" SessionId="@SessionId"
+		GameTitle="@Party?.PackageTitle" Error="@Party?.JoinError" Progress="@Party?.DownloadProgress"
+		HostProgress="@Party?.HostDownloadProgress" GameThumbnail="@Thumbnail"
+		RetryRequested="@Retry" CancelRequested="@Cancel" LeaveRequested="@Leave" />
+</root>
+
+@code
+{
+	PartyRoom Party => PartyRoom.Current;
+	string ThumbnailIdent;
+	string Thumbnail;
+	int SessionId => HashCode.Combine( Party, Party?.Owner, Party?.PackageIdent );
+	void Retry() => Party?.RetryJoin();
+	void Cancel() => Party?.CancelJoin();
+	void Leave() => Party?.Leave();
+	protected override int BuildHash() => HashCode.Combine( SessionId, Party?.JoiningStage, Party?.DownloadProgress, Party?.HostDownloadProgress, Party?.JoinError, Party?.PackageTitle, Thumbnail );
+
+	public override void Tick()
+	{
+		var ident = Party?.Owner is { IsMe: false } ? Party.PackageIdent : null;
+		if ( ThumbnailIdent == ident ) return;
+		ThumbnailIdent = ident;
+		Thumbnail = null;
+		if ( !string.IsNullOrWhiteSpace( ident ) ) _ = LoadThumbnail( ident );
+	}
+
+	async Task LoadThumbnail( string ident )
+	{
+		try
+		{
+			var package = await Package.FetchAsync( ident, true );
+			if ( !this.IsValid() || ThumbnailIdent != ident ) return;
+			Thumbnail = package?.ThumbWide ?? package?.Thumb;
+			StateHasChanged();
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( $"Couldn't load party game thumbnail: {e.Message}" );
+		}
+	}
+}

@@ -77,6 +77,23 @@
 			]
 		},
 		{
+			"Name": "Twemoji Mozilla",
+			"Comment": "COLR emoji font used as a fallback on Linux and macOS. Graphics are Twemoji (CC-BY-4.0).",
+			"UsedBy": [
+				"sbox",
+				"sbox-dev"
+			],
+			"License": "Apache-2.0",
+			"ProjectUrl": "https://github.com/mozilla/twemoji-colr",
+			"Version": "0.7.0",
+			"Linkage": "static",
+			"Modified": true,
+			"Copyright": [
+				"2016-2018 Mozilla Foundation",
+				"2020 Twitter, Inc and other contributors"
+			]
+		},
+		{
 			"Name": "MurmurHash3",
 			"Comment": "Non-cryptographic hash (public domain).",
 			"UsedBy": [
@@ -495,23 +512,8 @@
 			]
 		},
 		{
-			"Name": "glslang",
-			"Comment": "Khronos reference GLSL/HLSL front end; we build it to obtain SPVRemapper and the SPIR-V tooling libraries.",
-			"UsedBy": [
-				"shaderpreprocessing"
-			],
-			"License": "glslang",
-			"ProjectUrl": "https://github.com/KhronosGroup/glslang",
-			"Linkage": "static",
-			"Copyright": [
-				"2002-2024 The Khronos Group Inc.",
-				"2012-2016 LunarG, Inc.",
-				"2013-2016 Google, Inc."
-			]
-		},
-		{
 			"Name": "SPIRV-Tools",
-			"Comment": "SPIR-V optimization, validation and reflection tooling.",
+			"Comment": "SPIR-V optimization, validation and reflection tooling. Also provides the id canonicalization that glslang's SPVRemapper used to.",
 			"UsedBy": [
 				"shaderpreprocessing"
 			],
@@ -651,6 +653,23 @@
 			"Linkage": "static",
 			"Copyright": [
 				"2015-2023 The Khronos Group Inc."
+			]
+		},
+		{
+			"Name": "Mesa KosmicKrisp",
+			"Comment": "Mesa Vulkan-on-Metal driver for macOS on Apple Silicon. Loaded as libvulkan_kosmickrisp.dylib in place of a platform Vulkan loader.",
+			"UsedBy": [
+				"rendersystem"
+			],
+			"License": "MIT AND BSD-3-Clause AND SGI-B-2.0",
+			"ProjectUrl": "https://github.com/facepunch/mesa-kosmickrisp",
+			"Version": "26.3.0-devel",
+			"Linkage": "dynamic",
+			"Copyright": [
+				"Mesa contributors",
+				"1999-2007 Brian Paul",
+				"2025 LunarG, Inc.",
+				"2025 Google LLC"
 			]
 		},
 		{
@@ -1060,7 +1079,7 @@
 		},
 		{
 			"Name": "FidelityFX SDK",
-			"Comment": "AMD FidelityFX Super Resolution upscaling technologies. Includes FSR1 (spatial) and FSR3 (temporal) used by the rendering pipeline.",
+			"Comment": "AMD FidelityFX Super Resolution upscaling technologies. Includes FSR1 (spatial) and FSR3 (temporal) used by the rendering pipeline. Bundles a glslangValidator binary to build its shaders, licensed separately under licenses/glslang.",
 			"UsedBy": [
 				"engine2"
 			],
@@ -1068,7 +1087,8 @@
 			"ProjectUrl": "https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK",
 			"Linkage": "static",
 			"Copyright": [
-				"2024 Advanced Micro Devices, Inc."
+				"2024 Advanced Micro Devices, Inc.",
+				"glslangValidator: 2002-2024 The Khronos Group Inc., 2012-2016 LunarG, Inc., 2013-2016 Google, Inc."
 			]
 		},
 		{

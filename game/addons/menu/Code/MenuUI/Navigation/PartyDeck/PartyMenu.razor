@@ -1,4 +1,4 @@
-﻿@using System;
+@using System;
 @using Sandbox;
 @using Sandbox.UI;
 @inherits Popup
@@ -6,18 +6,21 @@
 
 <root>
 
-    <div class="arrow"><i>arrow_drop_down</i></div>
+	<div class="header">
+		<i>celebration</i>
+		<h2>@Heading</h2>
+		<div class="grow" />
+		<div class="count">
+			<icon>person</icon>
+			<label>@( Party?.MemberCount ?? 1 ) / @( Party?.MaxMembers ?? PartyDeck.MAX_MEMBERS )</label>
+		</div>
+	</div>
 
-	<span class="header">
-		<label class="heading">@GetTitle()</label>
-		<badge>
-			<icon class="eyebrow">person</icon>
-			<label class="eyebrow">@($"{Party?.MemberCount ?? 1} / {Party?.MaxMembers ?? PartyDeck.MAX_MEMBERS}")</label>
-		</badge>
-	</span>
-
-    <div class="footer">
-		<Button class="clicky primary" Icon="logout" Disabled=@(Party is null) @onmousedown=@Leave>Leave</Button>
+	<div class="footer">
+		<div class="leave @( Party is null ? "locked" : "" )" onmousedown=@Leave>
+			<icon>logout</icon>
+			<label>Leave party</label>
+		</div>
 	</div>
 
 </root>
@@ -28,18 +31,15 @@
 
 	public PartyDeck PartyDeck { get; set; }
 
-	protected override int BuildHash() => System.HashCode.Combine(Party, Party?.MemberCount);
-	
-	string GetTitle()
-	{
-		if (Party is null || Party.Owner.IsMe)
-			return "Your Party";
+	string Heading => Party is null || Party.Owner.IsMe ? "Your Party" : $"{Party.Owner.Name}'s Party";
 
-		return $"{Party.Owner.Name}'s Party";
-	}
+	protected override int BuildHash() => System.HashCode.Combine( Party, Party?.MemberCount, Party?.Owner );
 
 	public void Leave()
 	{
-		Party?.Leave();
+		if ( Party is null ) return;
+
+		Party.Leave();
+		Delete();
 	}
 }

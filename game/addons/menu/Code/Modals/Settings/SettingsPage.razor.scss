@@ -1,4 +1,4 @@
-﻿@import "/styles/_front.scss";
+@import "/styles/_front.scss";
 
 // Just a frame; the view brings its own chrome.
 SettingsPage
@@ -8,11 +8,4 @@ SettingsPage
 	width: 100%;
 	height: 100%;
 	overflow: hidden;
-
-	// Stop above the footer pill rather than under it: this panel ends in a bar of buttons.
-	SettingsView
-	{
-		// 16 gutter + 52 pill + 16 gutter. Literal: the parser silently drops a sum.
-		padding-bottom: 84px;
-	}
 }

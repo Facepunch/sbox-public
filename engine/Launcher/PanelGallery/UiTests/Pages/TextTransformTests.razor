@@ -1,0 +1,26 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Text" )]
+@attribute [Title( "text-transform" )]
+@attribute [Description( "Compare text-transform values independently." )]
+@attribute [Icon( "text_fields" )]
+
+<root>
+    <h2>text-transform</h2>
+    <div class="cases">
+        <UiTestCase Setup="@Text" Css="text-transform: uppercase" Caption="uppercase" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="text-transform: lowercase" Caption="lowercase" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="text-transform: capitalize" Caption="capitalize" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="text-transform: none" Caption="none" Text="@Sample" />
+    </div>
+</root>
+
+@code
+{
+    const string Text = UiTestCase.TextSetup;
+    const string Sample = "Sphinx of black quartz";
+    const string Paragraph = "Sphinx of black quartz, judge my vow. Pack my box with five dozen liquor jugs.";
+    const string Digits = "0123456789 1111 8888";
+}

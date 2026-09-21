@@ -33,15 +33,48 @@ public class TextEntryTests
 	class TestEntry : TextEntry
 	{
 		public Label ContentLabel => Label;
+		public bool ImmediateEvents;
+		public override void CreateEvent( PanelEvent e )
+		{
+			if ( ImmediateEvents ) OnEvent( e ); else base.CreateEvent( e );
+		}
+		public int LastClickCount;
+		public int DoubleClicks;
+		protected override void OnMouseDown( MousePanelEvent e )
+		{
+			LastClickCount = e.ClickCount;
+			base.OnMouseDown( e );
+		}
+		protected override void OnDoubleClick( MousePanelEvent e ) => DoubleClicks++;
 
+		public DropEvent DropAt( string text, int letter, bool isDrop = true )
+		{
+			var drop = new DropEvent( this )
+			{
+				Text = text,
+				Position = ContentLabel.GetCaretRect( letter ).Position,
+				IsDrop = isDrop
+			};
+			OnDrop( drop );
+			return drop;
+		}
+
+		public void DragTo( int start, int end )
+		{
+			OnDragSelect( new SelectionEvent( "ondragselect", this )
+			{
+				StartPoint = ContentLabel.GetCaretRect( start ).Position,
+				EndPoint = ContentLabel.GetCaretRect( end ).Position
+			} );
+		}
 		public void RaiseEvent( string name, object value = null )
 		{
 			OnEvent( new PanelEvent( name ) { Value = value } );
 		}
 
-		public void RaiseMouseEvent( string name, string button, KeyboardModifiers modifiers = default )
+		public void RaiseMouseEvent( string name, string button, KeyboardModifiers modifiers = default, int clickCount = 1 )
 		{
-			OnEvent( new MousePanelEvent( name, this, button ) { KeyboardModifiers = modifiers } );
+			OnEvent( new MousePanelEvent( name, this, button ) { KeyboardModifiers = modifiers, ClickCount = clickCount } );
 		}
 
 		/// <summary>
@@ -50,7 +83,9 @@ public class TextEntryTests
 		public void PointAt( int letter )
 		{
 			var caret = ContentLabel.GetCaretRect( letter );
-			(FindRootPanel() as RootPanel).MousePos = caret.Position + caret.Size * 0.5f;
+			var position = caret.Position + caret.Size * 0.5f;
+			position.x = System.MathF.Max( position.x, Box.Rect.Left );
+			(FindRootPanel() as RootPanel).MousePos = position;
 		}
 	}
 
@@ -78,6 +113,299 @@ public class TextEntryTests
 	static ButtonEvent Key( string button, KeyboardModifiers modifiers = default )
 	{
 		return new ButtonEvent( button, true, 0, modifiers );
+	}
+
+	class TestPointer : PanelInput
+	{
+		public Vector2 Position;
+		internal override Vector2 CursorPosition => Position;
+		internal override Vector2 CursorDelta => Vector2.Zero;
+	}
+
+	[TestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void AffixCanBeRemovedAndAddedAgain( bool suffix )
+	{
+		var entry = CreateLaidOutEntry();
+		if ( suffix ) { entry.Suffix = "old"; entry.Suffix = null; entry.Suffix = "new"; }
+		else { entry.Prefix = "old"; entry.Prefix = null; entry.Prefix = "new"; }
+		entry.UISystem.RunDeferredDeletion( true );
+		var label = suffix ? entry.SuffixLabel : entry.PrefixLabel;
+		Assert.IsTrue( label.IsValid() );
+		Assert.IsFalse( label.IsDeleting );
+		Assert.AreEqual( "new", label.Text );
+	}
+
+	[TestMethod]
+	[DataRow( 0, "betaalpha  gamma", 0 )]
+	[DataRow( 16, "alpha  gammabeta", 12 )]
+	public void MouseDragMovesWordAndKeepsOnlyMovedTextSelected( int destination, string expected, int selectedStart )
+	{
+		var entry = CreateLaidOutEntry( "alpha beta gamma" );
+		entry.PointAt( 7 );
+		entry.RaiseMouseEvent( "onmousedown", "mouseleft", clickCount: 2 );
+		entry.RaiseMouseEvent( "onmouseup", "mouseleft" );
+		entry.RaiseMouseEvent( "onmousedown", "mouseleft" );
+		entry.PointAt( destination );
+		entry.RaiseMouseEvent( "onmousemove", "none" );
+		Assert.AreEqual( destination, entry.DropCaretPosition );
+		Assert.AreEqual( "beta", entry.ContentLabel.GetSelectedText() );
+		Assert.AreEqual( "alpha beta gamma", entry.Text );
+		Assert.IsNull( TextEntry.SelectionDrag.Current, "Local dragging must not publish an OS drag." );
+		entry.DragTo( 7, destination );
+		entry.RaiseMouseEvent( "onmouseup", "mouseleft" );
+		// Selection events already queued on release must not replace the moved selection.
+		entry.DragTo( 7, destination );
+		Assert.AreEqual( expected, entry.Text );
+		Assert.AreEqual( "beta", entry.ContentLabel.GetSelectedText() );
+		Assert.AreEqual( selectedStart, entry.ContentLabel.SelectionStart );
+		Assert.AreEqual( -1, entry.DropCaretPosition );
+		entry.Undo();
+		Assert.AreEqual( "alpha beta gamma", entry.Text );
+		Assert.IsFalse( entry.CanUndo );
+	}
+
+	[TestMethod]
+	public void EscapeCancelsLocalTextDrag()
+	{
+		var entry = CreateLaidOutEntry( "alpha beta gamma" );
+		entry.ContentLabel.SetSelection( 6, 10 );
+		entry.PointAt( 7 );
+		entry.RaiseMouseEvent( "onmousedown", "mouseleft" );
+		entry.PointAt( 16 );
+		entry.RaiseMouseEvent( "onmousemove", "none" );
+		entry.OnButtonTyped( Key( "escape" ) );
+		entry.RaiseMouseEvent( "onmouseup", "mouseleft" );
+		entry.DragTo( 7, 16 );
+		Assert.AreEqual( "alpha beta gamma", entry.Text );
+		Assert.AreEqual( "beta", entry.ContentLabel.GetSelectedText() );
+		Assert.AreEqual( -1, entry.DropCaretPosition );
+		Assert.IsFalse( entry.CanUndo );
+	}
+
+	[TestMethod]
+	[DataRow( 0, "alpha" )]
+	[DataRow( 4, "alpha" )]
+	[DataRow( 6, "beta" )]
+	[DataRow( 9, "beta" )]
+	[DataRow( 10, "beta" )]
+	public void SelectWordAtEdges( int position, string expected )
+	{
+		var entry = CreateLaidOutEntry( "alpha beta" );
+		entry.ContentLabel.SelectWord( position );
+		Assert.AreEqual( expected, entry.ContentLabel.GetSelectedText() );
+	}
+	[TestMethod]
+	public void TripleClickStopsPropagationWithoutReplacingDraggedSelection()
+	{
+		var entry = CreateLaidOutEntry( "alpha beta gamma" );
+		entry.ContentLabel.SetSelection( 6, 16 );
+		var e = new MousePanelEvent( "ontripleclick", entry, "mouseleft" );
+		entry.DispatchEventImmediate( e );
+		Assert.IsFalse( e.Propagate );
+		Assert.AreEqual( "beta gamma", entry.ContentLabel.GetSelectedText() );
+		var right = new MousePanelEvent( "ontripleclick", entry, "mouseright" );
+		entry.DispatchEventImmediate( right );
+		Assert.IsTrue( right.Propagate );
+	}
+
+	[TestMethod]
+	public void SourceClickCountSelectsBeforeReleaseWithoutDispatchingDoubleClick()
+	{
+		var entry = CreateLaidOutEntry( "alpha beta gamma" );
+		entry.PointAt( 7 );
+		entry.ImmediateEvents = true;
+		var input = new TestPointer { Position = entry.ContentLabel.GetCaretRect( 7 ).Position };
+		var left = input.MouseStates[0];
+		left.Update( true, entry );
+		Assert.AreEqual( 1, entry.LastClickCount );
+		left.Update( false, entry );
+		input.AddMouseButton( NativeEngine.ButtonCode.MouseLeft, true, default, 2 );
+		left.Update( true, entry );
+		Assert.AreEqual( 2, entry.LastClickCount );
+		Assert.AreEqual( "beta", entry.ContentLabel.GetSelectedText() );
+		Assert.AreEqual( 0, entry.DoubleClicks );
+		entry.DragTo( 7, 13 );
+		left.Update( false, entry );
+		// The legacy event can still arrive on release without collapsing the word drag.
+		var queue = new InputEventQueue();
+		queue.AddDoubleClick( "mouseleft" );
+		queue.Tick( entry, null );
+		Assert.AreEqual( 1, entry.DoubleClicks );
+		Assert.AreEqual( "beta gamma", entry.ContentLabel.GetSelectedText() );
+		// A new single press at the same position must stay single: PanelInput does not infer clicks.
+		input.AddMouseButton( NativeEngine.ButtonCode.MouseLeft, true, default, 1 );
+		left.Update( true, entry );
+		Assert.AreEqual( 1, entry.LastClickCount );
+		left.Update( false, entry );
+		input.AddMouseButton( NativeEngine.ButtonCode.MouseLeft, true, default, 3 );
+		left.Update( true, entry );
+		Assert.AreEqual( 3, entry.LastClickCount );
+		Assert.AreEqual( "alpha beta gamma", entry.ContentLabel.GetSelectedText() );
+	}
+	[TestMethod]
+	[DataRow( 0 )]
+	[DataRow( 1 )]
+	[DataRow( 4 )]
+	public void DoubleClickSelectsWordBeforeRelease( int letter )
+	{
+		var entry = CreateLaidOutEntry( "alpha beta gamma" );
+		entry.PointAt( letter );
+		entry.RaiseMouseEvent( "onmousedown", "mouseleft", clickCount: 2 );
+		Assert.AreEqual( "alpha", entry.ContentLabel.GetSelectedText() );
+		entry.RaiseMouseEvent( "onmouseup", "mouseleft" );
+		Assert.AreEqual( "alpha", entry.ContentLabel.GetSelectedText() );
+	}
+
+	[TestMethod]
+	public void DoubleClickDragKeepsOriginalWordWhenReversingDirection()
+	{
+		var entry = CreateLaidOutEntry( "alpha beta gamma" );
+		entry.ContentLabel.SetSelection( 0, 16 );
+		entry.PointAt( 7 );
+		entry.RaiseMouseEvent( "onmousedown", "mouseleft", clickCount: 2 );
+		Assert.AreEqual( "beta", entry.ContentLabel.GetSelectedText() );
+		void DragTo( int letter ) => entry.DragTo( 7, letter );
+		DragTo( 13 );
+		Assert.AreEqual( "beta gamma", entry.ContentLabel.GetSelectedText() );
+		DragTo( 2 );
+		Assert.AreEqual( "alpha beta", entry.ContentLabel.GetSelectedText() );
+		DragTo( 6 );
+		Assert.AreEqual( "beta", entry.ContentLabel.GetSelectedText() );
+		entry.RaiseMouseEvent( "onmouseup", "mouseleft" );
+		Assert.AreEqual( "beta", entry.ContentLabel.GetSelectedText() );
+	}
+	[TestMethod]
+	[DataRow( 0, "cdabef", 0 )]
+	[DataRow( 6, "abefcd", 4 )]
+	public void DragSelectionWithinEntryMovesAsOneUndoStep( int destination, string expected, int selectedStart )
+	{
+		var entry = CreateLaidOutEntry( "abcdef" );
+		entry.ContentLabel.SetSelection( 2, 4 );
+		using var drag = new TextEntry.SelectionDrag( entry );
+		var hover = entry.DropAt( drag.Text, destination, false );
+		Assert.AreEqual( DropAction.Move, hover.Action );
+		Assert.AreEqual( "abcdef", entry.Text );
+		var drop = entry.DropAt( drag.Text, destination );
+		drag.Complete( drop.Action );
+		Assert.AreEqual( expected, entry.Text );
+		Assert.AreEqual( selectedStart, entry.ContentLabel.SelectionStart );
+		Assert.AreEqual( "cd", entry.ContentLabel.GetSelectedText() );
+		entry.Undo();
+		Assert.AreEqual( "abcdef", entry.Text );
+		Assert.IsFalse( entry.CanUndo );
+		entry.Redo();
+		Assert.AreEqual( expected, entry.Text );
+	}
+
+	[TestMethod]
+	[DataRow( 2 )]
+	[DataRow( 3 )]
+	[DataRow( 4 )]
+	public void DragSelectionOntoItselfDoesNothing( int destination )
+	{
+		var entry = CreateLaidOutEntry( "abcdef" );
+		entry.ContentLabel.SetSelection( 2, 4 );
+		using var drag = new TextEntry.SelectionDrag( entry );
+		drag.Complete( entry.DropAt( drag.Text, destination ).Action );
+		Assert.AreEqual( "abcdef", entry.Text );
+		Assert.AreEqual( "cd", entry.ContentLabel.GetSelectedText() );
+		Assert.IsFalse( entry.CanUndo );
+	}
+
+	[TestMethod]
+	public void DragBetweenEntriesMovesOriginalRangeAndCanUndoBothEdits()
+	{
+		var source = CreateLaidOutEntry( "abcdef" );
+		var target = CreateLaidOutEntry( "123" );
+		source.ContentLabel.SetSelection( 2, 4 );
+		using var drag = new TextEntry.SelectionDrag( source );
+		// Selection changes during the nested OS loop must not change what gets removed.
+		source.ContentLabel.SetSelection( 0, 1 );
+		var drop = target.DropAt( drag.Text, 1 );
+		Assert.AreEqual( DropAction.Move, drop.Action );
+		drag.Complete( drop.Action );
+		Assert.AreEqual( "abef", source.Text );
+		Assert.AreEqual( "1cd23", target.Text );
+		source.Undo();
+		target.Undo();
+		Assert.AreEqual( "abcdef", source.Text );
+		Assert.AreEqual( "123", target.Text );
+	}
+
+	[TestMethod]
+	public void DragUnicodeSelectionUsesTextElements()
+	{
+		var entry = CreateLaidOutEntry( "a😀e\u0301z" );
+		entry.ContentLabel.SetSelection( 1, 3 );
+		using var drag = new TextEntry.SelectionDrag( entry );
+		drag.Complete( entry.DropAt( drag.Text, 4 ).Action );
+		Assert.AreEqual( "az😀e\u0301", entry.Text );
+		Assert.AreEqual( "😀e\u0301", entry.ContentLabel.GetSelectedText() );
+		entry.Undo();
+		Assert.AreEqual( "a😀e\u0301z", entry.Text );
+	}
+
+	[TestMethod]
+	[DataRow( DropAction.None )]
+	[DataRow( DropAction.Copy )]
+	public void CancelledOrCopiedDragPreservesSource( DropAction action )
+	{
+		var entry = CreateLaidOutEntry( "abcdef" );
+		entry.ContentLabel.SetSelection( 2, 4 );
+		using var drag = new TextEntry.SelectionDrag( entry );
+		drag.Complete( action );
+		Assert.AreEqual( "abcdef", entry.Text );
+		Assert.IsFalse( entry.CanUndo );
+	}
+
+	[TestMethod]
+	public void ReadOnlySourceIsCopiedAndReadOnlyTargetRejectsDrop()
+	{
+		var source = CreateLaidOutEntry( "abcdef" );
+		var target = CreateLaidOutEntry( "123" );
+		source.ReadOnly = true;
+		source.ContentLabel.SetSelection( 2, 4 );
+		using var drag = new TextEntry.SelectionDrag( source );
+		var drop = target.DropAt( drag.Text, 1 );
+		Assert.AreEqual( DropAction.Copy, drop.Action );
+		drag.Complete( DropAction.Move ); // Even an external receiver cannot cut a read-only source.
+		Assert.AreEqual( "abcdef", source.Text );
+		Assert.AreEqual( "1cd23", target.Text );
+		Assert.AreEqual( DropAction.None, source.DropAt( "new", 0 ).Action );
+	}
+
+	[TestMethod]
+	public void TruncatedDropKeepsSourceAndExternalDropIsCopy()
+	{
+		var source = CreateLaidOutEntry( "abcdef" );
+		var target = CreateLaidOutEntry( "123" );
+		target.MaxLength = 4;
+		source.ContentLabel.SetSelection( 2, 4 );
+		using ( var drag = new TextEntry.SelectionDrag( source ) )
+		{
+			var drop = target.DropAt( drag.Text, 1 );
+			Assert.AreEqual( DropAction.Copy, drop.Action );
+			drag.Complete( drop.Action );
+			Assert.AreEqual( "abcdef", source.Text );
+			Assert.AreEqual( "1c23", target.Text );
+		}
+		target = CreateLaidOutEntry( "123" );
+		Assert.AreEqual( DropAction.Copy, target.DropAt( "cd", 1 ).Action );
+		Assert.AreEqual( "1cd23", target.Text );
+	}
+
+	[TestMethod]
+	public void DragDoesNotDeleteFromSourceChangedDuringDrag()
+	{
+		var entry = CreateLaidOutEntry( "abcdef" );
+		entry.ContentLabel.SetSelection( 2, 4 );
+		using var drag = new TextEntry.SelectionDrag( entry );
+		entry.Text = "replacement";
+		drag.Complete( DropAction.Move );
+		Assert.AreEqual( "replacement", entry.Text );
+		Assert.IsFalse( entry.CanUndo );
 	}
 
 	static void Type( TextEntry entry, string text )
@@ -565,7 +893,7 @@ public class TextEntryTests
 	{
 		var entry = CreateLaidOutEntry( "hello world" );
 
-		entry.RaiseMouseEvent( "ontripleclick", "mouseleft" );
+		entry.RaiseMouseEvent( "onmousedown", "mouseleft", clickCount: 3 );
 
 		Assert.AreEqual( "hello world", entry.ContentLabel.GetSelectedText() );
 	}
@@ -581,7 +909,7 @@ public class TextEntryTests
 		var caret = entry.ContentLabel.GetCaretRect( 5 );
 		(entry.FindRootPanel() as RootPanel).MousePos = caret.Position + caret.Size * 0.5f;
 
-		entry.RaiseMouseEvent( "ontripleclick", "mouseleft" );
+		entry.RaiseMouseEvent( "onmousedown", "mouseleft", clickCount: 3 );
 
 		Assert.AreEqual( "two", entry.ContentLabel.GetSelectedText() );
 	}
@@ -748,6 +1076,33 @@ public class TextEntryTests
 
 		Assert.IsTrue( System.MathF.Abs( landed - lineStart ) < 4.0f,
 			$"caret landed at {landed}, wanted the start of the line at {lineStart}" );
+	}
+
+	[TestMethod]
+	public void RichTextOverlayPreservesCaretGeometry()
+	{
+		const string text = "// 👍 & <tag> e\u0301\r\nvar x = 42;\n\treturn x;";
+		var entry = CreateMultiline( text );
+		entry.Style.Set( "padding: 12px; width: 120px; height: 50px; overflow: scroll; overflow-x: scroll; overflow-y: scroll;" );
+		var label = entry.ContentLabel;
+		var surface = entry.AddChild<Panel>();
+		surface.Style.Set( "position: relative; flex-shrink: 0;" );
+		label.Parent = surface;
+		var overlay = surface.AddChild<Label>();
+		overlay.IsRich = true;
+		overlay.Tokenize = false;
+		overlay.Style.Set( "position: absolute; left: 0; top: 0; width: 100%; height: 100%; white-space: pre; color: white; pointer-events: none;" );
+		overlay.Text = text.Replace( "\r\n", "\u2029" ).Replace( '\n', '\u2029' ).HtmlEncode().Replace( "var", "<span style=\"color: blue\">var</span>" );
+		entry.FindRootPanel().Layout();
+		for ( int i = 0; i <= entry.TextLength; i++ )
+			Assert.AreEqual( label.GetCaretRect( i ), overlay.GetCaretRect( i ), $"Caret {i}" );
+		entry.ScrollOffset = new Vector2( 40, 20 );
+		entry.SetNeedsFinalLayout();
+		entry.FindRootPanel().Layout();
+		Assert.IsTrue( entry.ScrollOffset.x > 0 && entry.ScrollOffset.y > 0 );
+		for ( int i = 0; i <= entry.TextLength; i++ )
+			Assert.AreEqual( label.GetCaretRect( i ), overlay.GetCaretRect( i ), $"Scrolled caret {i}" );
+		Assert.AreEqual( text, entry.Text );
 	}
 
 	const string BS = "\n";

@@ -17,11 +17,13 @@ managed static class Editor.ManagedTools
 	bool GlobalShortcutPressed();
 
 	void OnToolCommand( string str );
+	void RunConsoleCommand( string command );
 	void OnQtHeartbeat();
 }
 
 native accessor g_pToolFramework2
 {
+	void SetOverrideCursor( bool hideCursor );
 	void SetWantsFullFrameRate( int frames );
 	void SetStallMonitorMainThreadWindow( QWidget window );
 	void Tools_RunFrame();

@@ -19,14 +19,12 @@ public static partial class Graphics
 
 		AssertRenderBlock();
 
-		if ( !SceneLayer.IsValid ) return;
-
 		// Get the layout for this vertex. This will create if not found.
 		var vertexType = VertexLayout.Get<T>();
 		if ( !vertexType.IsValid ) return;
 
 		// Set the material etc
-		if ( !RenderTools.SetRenderState( Context, attributes.Get(), material.native.GetMode( SceneLayer ), vertexType, Graphics.Stats ) )
+		if ( !RenderTools.SetRenderState( Context, attributes.Get(), SceneLayer.IsNull ? material.native.GetMode() : material.native.GetMode( SceneLayer ), vertexType, Graphics.Stats ) )
 			return;
 
 		var totalSize = sizeof( T ) * vertCount;
@@ -222,12 +220,8 @@ public static partial class Graphics
 	/// </summary>
 	public static Rect DrawText( in Rect position, in TextRendering.Scope scope, TextFlag flags = TextFlag.Center )
 	{
-		var texture = TextRendering.GetOrCreateTexture( scope, flag: flags );
-
-		var rect = position.Align( texture.Size, flags );
-		DrawTextTexture( texture, scope.FilterMode, rect.Floor(), 0 );
-
-		return rect;
+		var block = TextRendering.GetOrCreateTextBlock( scope, flags );
+		return block is null ? position : DrawText( block, position, flags, 0 );
 	}
 
 	/// <summary>
@@ -235,25 +229,26 @@ public static partial class Graphics
 	/// </summary>
 	internal static void DrawText( in Rect position, float angle, in TextRendering.Scope scope, TextFlag flags = TextFlag.Center )
 	{
-		var texture = TextRendering.GetOrCreateTexture( scope, flag: flags );
-
-		var rect = position.Align( texture.Size, flags );
-		DrawTextTexture( texture, scope.FilterMode, rect, angle );
+		var block = TextRendering.GetOrCreateTextBlock( scope, flags );
+		if ( block is not null ) DrawText( block, position, flags, angle );
 	}
 
 	/// <summary>
-	/// Draws a rendered text texture with Material.UI.Text. Sampled clamped so glyphs on one edge
-	/// don't bleed into the other when the quad isn't pixel aligned.
+	/// Draws a text block aligned in position as one quad with Material.UI.Text, composited per pixel from its glyph outlines.
 	/// </summary>
-	internal static void DrawTextTexture( Texture texture, FilterMode filter, in Rect rect, float angle )
+	internal static Rect DrawText( TextRendering.TextBlock block, in Rect position, TextFlag flags, float angle )
 	{
-		Attributes.Set( "Texture", texture );
-		Attributes.Set( "SamplerIndex", SamplerState.GetBindlessIndex( new SamplerState() { Filter = filter, AddressModeU = TextureAddressMode.Clamp, AddressModeV = TextureAddressMode.Clamp } ) );
+		var rect = position.Align( block.Size, flags );
+		if ( block.IsEmpty ) return rect;
+
+		GpuFontText.Bind( Attributes, block.Upload() );
 
 		if ( angle == 0f )
-			DrawQuad( rect, Material.UI.Text, Color.White );
+			DrawQuad( rect.Floor(), Material.UI.Text, Color.White );
 		else
-			DrawQuad( rect, angle, Material.UI.Text, Color.White );
+			DrawQuad( rect.Floor(), angle, Material.UI.Text, Color.White );
+
+		return rect;
 	}
 
 	/// <summary>
@@ -279,9 +274,8 @@ public static partial class Graphics
 	/// </summary>
 	public static Rect MeasureText( in Rect position, in TextRendering.Scope scope, TextFlag flags = TextFlag.Center )
 	{
-		var block = TextRendering.GetOrCreateTexture( scope, position.Size, flags );
-		var rect = new Rect( position.Position, block.Size );
-		return rect;
+		var block = TextRendering.GetOrCreateTextBlock( scope, flags, position.Size );
+		return block is null ? position : new Rect( position.Position, block.Size );
 	}
 
 	/// <summary>
@@ -302,7 +296,7 @@ public static partial class Graphics
 	/// </summary>
 	public static unsafe void DrawRoundedRectangle( in Rect rect, in Color color, in Vector4 cornerRadius = default, in Vector4 borderWidth = default, in Color borderColor = default )
 	{
-		var radii = UI.BorderRadii.FromPublic( cornerRadius ).Clamped( rect.Width, rect.Height );
+		var radii = BorderRadii.FromPublic( cornerRadius ).Clamped( rect.Width, rect.Height );
 
 		Attributes.Set( "BoxPosition", new Vector2( rect.Left, rect.Top ) );
 		Attributes.Set( "BoxSize", new Vector2( rect.Width, rect.Height ) );

@@ -1,0 +1,183 @@
+#include "SDL3/SDL.h"
+#include "sbox/sdl_extensions.h"
+
+native enum SDL_WindowFlags is NativeEngine.Sdl.WindowFlags;
+native enum SDL_SystemCursor is NativeEngine.Sdl.SystemCursor;
+native enum SDL_FlashOperation is NativeEngine.Sdl.FlashOperation;
+native enum SDL_InitFlags is NativeEngine.Sdl.InitFlags;
+
+native enum SDL_GamepadType is NativeEngine.Sdl.GamepadType;
+native enum SDL_SensorType is NativeEngine.Sdl.SensorType;
+
+native struct SDL_DisplayMode is NativeEngine.Sdl.DisplayMode;
+native struct SDL_Rect is NativeEngine.Sdl.Rect;
+native struct SDL_Point is NativeEngine.Sdl.Point;
+native struct SDL_Event is NativeEngine.Sdl.Event;
+native struct SDL_CommonEvent is NativeEngine.Sdl.CommonEvent;
+native struct SDL_KeyboardEvent is NativeEngine.Sdl.KeyboardEvent;
+native struct SDL_TextInputEvent is NativeEngine.Sdl.TextInputEvent;
+native struct SDL_TextEditingEvent is NativeEngine.Sdl.TextEditingEvent;
+native struct SDL_MouseMotionEvent is NativeEngine.Sdl.MouseMotionEvent;
+native struct SDL_MouseButtonEvent is NativeEngine.Sdl.MouseButtonEvent;
+native struct SDL_MouseWheelEvent is NativeEngine.Sdl.MouseWheelEvent;
+native struct SDL_DropEvent is NativeEngine.Sdl.DropEvent;
+native struct SDL_GamepadDeviceEvent is NativeEngine.Sdl.GamepadDeviceEvent;
+native struct SDL_GamepadButtonEvent is NativeEngine.Sdl.GamepadButtonEvent;
+native struct SDL_GamepadAxisEvent is NativeEngine.Sdl.GamepadAxisEvent;
+native struct SDL_ExternalDropCallbacks is NativeEngine.Sdl.ExternalDropCallbacks;
+native struct SDL_DialogFileFilter is NativeEngine.Sdl.DialogFileFilter;
+
+// SDL exports global functions with this prefix.
+[NativePrefix:SDL_]
+native static class globalSdl as NativeEngine.Sdl
+{
+	// Timing and clipboard
+	void DelayPrecise( ulong ns );
+	bool HasClipboardText();
+	bool SetClipboardText( string text );
+	IntPtr GetClipboardText();
+	inline void Free( CastTo[void*] IntPtr mem )
+	{
+		SDL_free( mem );
+	}
+	string GetError();
+
+	// Displays
+	void* GetDisplays( out int count );
+	uint GetPrimaryDisplay();
+	uint GetDisplayForPoint( ref SDL_Point point );
+	float GetDisplayContentScale( uint display );
+	bool GetDisplayBounds( uint display, out SDL_Rect bounds );
+	bool GetDisplayUsableBounds( uint display, out SDL_Rect bounds );
+	void* GetDesktopDisplayMode( uint display );
+	void* GetCurrentDisplayMode( uint display );
+	void* GetFullscreenDisplayModes( uint display, out int count );
+	bool GetClosestFullscreenDisplayMode( uint display, int width, int height, float refreshRate, bool includeHighDensityModes, out SDL_DisplayMode mode );
+	string GetCurrentVideoDriver();
+
+	// Properties
+	uint CreateProperties();
+	void DestroyProperties( uint props );
+	uint GetWindowProperties( CastTo[SDL_Window*] IntPtr window );
+	void* GetPointerProperty( uint properties, string name, CastTo[void*] IntPtr defaultValue );
+	bool SetStringProperty( uint props, string name, string value );
+	bool SetNumberProperty( uint props, string name, long value );
+	bool SetBooleanProperty( uint props, string name, bool value );
+	bool GetBooleanProperty( uint props, string name, bool defaultValue );
+	void* CreateWindowWithProperties( uint props );
+
+	// Windows
+	uint GetDisplayForWindow( CastTo[SDL_Window*] IntPtr window );
+	bool SetWindowFullscreenMode( CastTo[SDL_Window*] IntPtr window, CastTo[SDL_DisplayMode*] IntPtr mode );
+	void* CreateWindow( string title, int width, int height, SDL_WindowFlags flags );
+	void DestroyWindow( CastTo[SDL_Window*] IntPtr window );
+	bool SetHint( string name, string value );
+	bool GetWindowPosition( CastTo[SDL_Window*] IntPtr window, out int x, out int y );
+	bool SetWindowTitle( CastTo[SDL_Window*] IntPtr window, string title );
+	bool ShowWindow( CastTo[SDL_Window*] IntPtr window );
+	bool HideWindow( CastTo[SDL_Window*] IntPtr window );
+	bool MinimizeWindow( CastTo[SDL_Window*] IntPtr window );
+	bool MaximizeWindow( CastTo[SDL_Window*] IntPtr window );
+	bool RestoreWindow( CastTo[SDL_Window*] IntPtr window );
+	bool RaiseWindow( CastTo[SDL_Window*] IntPtr window );
+	bool GetWindowSize( CastTo[SDL_Window*] IntPtr window, out int width, out int height );
+	float GetWindowPixelDensity( CastTo[SDL_Window*] IntPtr window );
+	bool SetWindowMinimumSize( CastTo[SDL_Window*] IntPtr window, int width, int height );
+	bool SetWindowMaximumSize( CastTo[SDL_Window*] IntPtr window, int width, int height );
+	bool SetWindowAlwaysOnTop( CastTo[SDL_Window*] IntPtr window, bool onTop );
+	bool SetWindowOpacity( CastTo[SDL_Window*] IntPtr window, float opacity );
+	bool SetWindowAspectRatio( CastTo[SDL_Window*] IntPtr window, float minAspect, float maxAspect );
+	bool SetWindowParent( CastTo[SDL_Window*] IntPtr window, CastTo[SDL_Window*] IntPtr parent );
+	bool SetWindowModal( CastTo[SDL_Window*] IntPtr window, bool modal );
+	bool FlashWindow( CastTo[SDL_Window*] IntPtr window, SDL_FlashOperation operation );
+	bool SetWindowSize( CastTo[SDL_Window*] IntPtr window, int width, int height );
+	bool GetWindowSizeInPixels( CastTo[SDL_Window*] IntPtr window, out int width, out int height );
+	SDL_WindowFlags GetWindowFlags( CastTo[SDL_Window*] IntPtr window );
+	float GetWindowDisplayScale( CastTo[SDL_Window*] IntPtr window );
+	bool SetWindowPosition( CastTo[SDL_Window*] IntPtr window, int x, int y );
+	bool SetWindowBordered( CastTo[SDL_Window*] IntPtr window, bool bordered );
+	bool SetWindowResizable( CastTo[SDL_Window*] IntPtr window, bool resizable );
+	bool SetWindowFullscreen( CastTo[SDL_Window*] IntPtr window, bool fullscreen );
+	bool SyncWindow( CastTo[SDL_Window*] IntPtr window );
+	void* CreatePopupWindow( CastTo[SDL_Window*] IntPtr parent, int x, int y, int width, int height, SDL_WindowFlags flags );
+
+	// Input subsystem lifetime
+	bool InitSubSystem( SDL_InitFlags flags );
+	void QuitSubSystem( SDL_InitFlags flags );
+	int AddGamepadMappingsFromFile( string path );
+	void SetJoystickEventsEnabled( bool enabled );
+	void SetGamepadEventsEnabled( bool enabled );
+
+	bool DisableScreenSaver();
+	bool EnableScreenSaver();
+
+	// Cursors
+	void* CreateSystemCursor( SDL_SystemCursor type );
+	void* CreateColorCursor( CastTo[SDL_Surface*] IntPtr surface, int x, int y );
+	void DestroyCursor( CastTo[SDL_Cursor*] IntPtr cursor );
+	bool SetCursor( CastTo[SDL_Cursor*] IntPtr cursor );
+	bool ShowCursor();
+	bool HideCursor();
+
+	// Gamepads
+	void* OpenGamepad( uint id );
+	void* GetGamepadFromID( uint id );
+	void CloseGamepad( CastTo[SDL_Gamepad*] IntPtr gamepad );
+	bool SetGamepadSensorEnabled( CastTo[SDL_Gamepad*] IntPtr gamepad, SDL_SensorType sensor, bool enabled );
+
+	string GetGamepadName( CastTo[SDL_Gamepad*] IntPtr gamepad );
+	SDL_GamepadType GetRealGamepadType( CastTo[SDL_Gamepad*] IntPtr gamepad );
+	bool SetGamepadLED( CastTo[SDL_Gamepad*] IntPtr gamepad, byte red, byte green, byte blue );
+	bool RumbleGamepad( CastTo[SDL_Gamepad*] IntPtr gamepad, ushort lowFrequency, ushort highFrequency, uint duration );
+	bool RumbleGamepadTriggers( CastTo[SDL_Gamepad*] IntPtr gamepad, ushort left, ushort right, uint duration );
+	bool GamepadHasSensor( CastTo[SDL_Gamepad*] IntPtr gamepad, SDL_SensorType sensor );
+	bool GetGamepadSensorData( CastTo[SDL_Gamepad*] IntPtr gamepad, SDL_SensorType sensor, CastTo[float*] IntPtr data, int count );
+
+	// Input and events
+	bool PollEvent( out SDL_Event sdlEvent );
+	bool AddEventWatch( CastTo[SDL_EventFilter] IntPtr filter, CastTo[void*] IntPtr userdata );
+	void RemoveEventWatch( CastTo[SDL_EventFilter] IntPtr filter, CastTo[void*] IntPtr userdata );
+	void* GetWindowFromEvent( CastTo[SDL_Event*] IntPtr sdlEvent );
+	bool SetWindowHitTest( CastTo[SDL_Window*] IntPtr window, CastTo[SDL_HitTest] IntPtr callback, CastTo[void*] IntPtr userdata );
+	uint GetMouseState( out float x, out float y );
+	uint GetGlobalMouseState( out float x, out float y );
+	bool CaptureMouse( bool capture );
+	void* GetMouseFocus();
+	void* GetKeyboardFocus();
+	bool SetWindowRelativeMouseMode( CastTo[SDL_Window*] IntPtr window, bool relative );
+	void WarpMouseInWindow( CastTo[SDL_Window*] IntPtr window, float x, float y );
+	uint GetModState();
+	uint GetKeyFromScancode( CastTo[SDL_Scancode] int scan, CastTo[SDL_Keymod] uint modifiers, bool keyEvent );
+	string GetKeyName( CastTo[SDL_Keycode] uint key );
+	void SetModState( CastTo[SDL_Keymod] uint modifiers );
+	bool GetWindowRelativeMouseMode( CastTo[SDL_Window*] IntPtr window );
+	bool StopTextInput( CastTo[SDL_Window*] IntPtr window );
+	bool ClearComposition( CastTo[SDL_Window*] IntPtr window );
+	bool SetTextInputArea( CastTo[SDL_Window*] IntPtr window, ref SDL_Rect rect, int cursor );
+	bool StartTextInput( CastTo[SDL_Window*] IntPtr window );
+
+	// Surfaces and icons
+	void* CreateSurfaceFrom( int width, int height, CastTo[SDL_PixelFormat] uint format, CastTo[void*] IntPtr pixels, int pitch );
+	void DestroySurface( CastTo[SDL_Surface*] IntPtr surface );
+	bool SetWindowIcon( CastTo[SDL_Window*] IntPtr window, CastTo[SDL_Surface*] IntPtr surface );
+
+	// Dialogs
+	void ShowOpenFolderDialogAt( CastTo[SDL_DialogFileCallback] IntPtr callback, CastTo[void*] IntPtr userdata, CastTo[SDL_Window*] IntPtr window, CastTo[char*] IntPtr defaultPath );
+	void ShowOpenFileDialog( CastTo[SDL_DialogFileCallback] IntPtr callback, CastTo[void*] IntPtr userdata, CastTo[SDL_Window*] IntPtr window, CastTo[SDL_DialogFileFilter*] IntPtr filters, int filterCount, CastTo[char*] IntPtr defaultPath, bool allowMany );
+	void ShowSaveFileDialog( CastTo[SDL_DialogFileCallback] IntPtr callback, CastTo[void*] IntPtr userdata, CastTo[SDL_Window*] IntPtr window, CastTo[SDL_DialogFileFilter*] IntPtr filters, int filterCount, CastTo[char*] IntPtr defaultPath );
+
+	// Platform extensions
+	bool SetWindowExternalDropTarget( CastTo[SDL_Window*] IntPtr window, CastTo[SDL_ExternalDropCallbacks*] IntPtr callbacks );
+	int BeginExternalDrag( CastTo[SDL_Window*] IntPtr window, string files, string text );
+	void SetWindowMouseTransparent( CastTo[SDL_Window*] IntPtr window, bool transparent );
+	void SetWindowCanMaximize( CastTo[SDL_Window*] IntPtr window, bool canMaximize );
+	void SetWindowHasShadow( CastTo[SDL_Window*] IntPtr window, bool hasShadow );
+	void SetWindowRoundedCorners( CastTo[SDL_Window*] IntPtr window, bool rounded );
+	void SendWindowToBack( CastTo[SDL_Window*] IntPtr window );
+	void RaiseWindowWithoutFocus( CastTo[SDL_Window*] IntPtr window );
+	void SetWindowInTaskbar( CastTo[SDL_Window*] IntPtr window, bool inTaskbar );
+	void SetWindowCanClose( CastTo[SDL_Window*] IntPtr window, bool canClose );
+	void SetWindowTaskbarOverlayIcon( CastTo[SDL_Window*] IntPtr window, int width, int height, CastTo[const void*] IntPtr pixels, string description );
+
+
+}

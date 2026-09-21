@@ -237,6 +237,37 @@ public class BaseFileSystem
 		}
 	}
 
+	/// <summary>Publish a complete file with a same-directory rename, preserving the previous file on write failure.</summary>
+	internal void WriteAllTextAtomic( string path, string contents )
+	{
+		var temporary = $"{path}.{Guid.NewGuid():N}.tmp";
+		try
+		{
+			using ( var stream = OpenWrite( temporary ) )
+			{
+				using var writer = new StreamWriter( stream, new UTF8Encoding( false ), leaveOpen: true );
+				writer.Write( contents );
+				writer.Flush();
+				if ( stream is FileStream file ) file.Flush( flushToDisk: true );
+			}
+			if ( FileExists( path ) ) system.ReplaceFile( FixPath( temporary ), FixPath( path ), null, false );
+			else system.MoveFile( FixPath( temporary ), FixPath( path ) );
+		}
+		finally
+		{
+			try
+			{
+				if ( FileExists( temporary ) ) DeleteFile( temporary );
+			}
+			catch ( Exception e ) when ( e is IOException or UnauthorizedAccessException )
+			{
+				// A leftover temporary file must not hide the original write failure.
+			}
+		}
+	}
+
+	internal void MoveFile( string source, string destination ) => system.MoveFile( FixPath( source ), FixPath( destination ) );
+
 	/// <summary>
 	/// Write the contents to the path. The file will be over-written if the file exists
 	/// </summary>

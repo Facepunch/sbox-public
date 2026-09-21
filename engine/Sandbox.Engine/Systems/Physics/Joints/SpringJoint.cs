@@ -1,19 +1,19 @@
-﻿namespace Sandbox.Physics;
+namespace Sandbox.Physics;
 
 /// <summary>
 /// A rope-like constraint that is has springy/bouncy.
 /// </summary>
 public partial class SpringJoint : PhysicsJoint
 {
-	internal SpringJoint( HandleCreationData _ ) { }
+	internal SpringJoint( PhysicsJointInternal joint ) : base( joint ) { }
 
 	/// <summary>
 	/// How springy and tight the joint will be
 	/// </summary>
 	public PhysicsSpring SpringLinear
 	{
-		get => native.GetLinearSpring();
-		set => native.SetLinearSpring( value );
+		get => _joint?.SpringLinear ?? default;
+		set => _joint?.SpringLinear = value;
 	}
 
 	/// <summary>
@@ -21,8 +21,8 @@ public partial class SpringJoint : PhysicsJoint
 	/// </summary>
 	public float MaxLength
 	{
-		get => native.GetMaxLength();
-		set => native.SetMaxLength( value );
+		get => _joint?.MaxLength ?? 0;
+		set => _joint?.MaxLength = value;
 	}
 
 	/// <summary>
@@ -30,8 +30,8 @@ public partial class SpringJoint : PhysicsJoint
 	/// </summary>
 	public float MinLength
 	{
-		get => native.GetMinLength();
-		set => native.SetMinLength( value );
+		get => _joint?.MinLength ?? 0;
+		set => _joint?.MinLength = value;
 	}
 
 	/// <summary>
@@ -39,8 +39,8 @@ public partial class SpringJoint : PhysicsJoint
 	/// </summary>
 	public float MaxForce
 	{
-		get => native.GetMaxForce();
-		set => native.SetMaxForce( value );
+		get => _joint?.MaxForce ?? 0;
+		set => _joint?.MaxForce = value;
 	}
 
 	/// <summary>
@@ -48,8 +48,8 @@ public partial class SpringJoint : PhysicsJoint
 	/// </summary>
 	public float MinForce
 	{
-		get => native.GetMinForce();
-		set => native.SetMinForce( value );
+		get => _joint?.MinForce ?? 0;
+		set => _joint?.MinForce = value;
 	}
 
 	[Obsolete( "doesn't exist, not used" )]

@@ -35,9 +35,9 @@ public readonly struct CollisionSource
 		Body = target.Body;
 		Shape = target.Shape;
 		Surface = target.Surface;
-		Collider = target.Shape.Collider;
+		Collider = target.Shape?.Collider;
 		Component = Collider;
-		GameObject = Collider.IsValid() ? Collider.GameObject : Body.GameObject;
+		GameObject = Collider.IsValid() ? Collider.GameObject : Body?.GameObject;
 	}
 
 	public bool IsTrigger => Collider.IsValid() && Collider.IsTrigger;

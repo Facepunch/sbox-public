@@ -371,11 +371,13 @@ public sealed class VideoExportWindow : BaseWindow
 
 		using var writer = EditorUtility.CreateVideoWriter( OutputFile, Config.GetVideoWriterConfig( OutputFile ) );
 
-		await Session.Renderer.RenderAsync( TimeRange, Config, ( time, pixels, innerCt ) =>
+		var timeRange = TimeRange;
+
+		await Session.Renderer.RenderAsync( timeRange, Config, ( time, pixels, innerCt ) =>
 		{
 			OnExportFrame( time, resolution, pixels );
 
-			return Task.Run( () => writer.AddFrame( pixels.AsSpan() ), innerCt );
+			return Task.Run( () => writer.AddFrame( pixels.AsSpan(), TimeSpan.FromSeconds( (time - timeRange.Start).TotalSeconds ) ), innerCt );
 		}, ct );
 
 		await writer.FinishAsync();

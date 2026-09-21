@@ -1,8 +1,5 @@
 
 managed static class Sandbox.EngineLoop
 {
-	void Print( int severitty, string logger, string message );
-	void DispatchConsoleCommand( string name, string args, long flags );
 	void OnClientOutput();
-	void OnSceneViewSubmitted( ISceneView view );
 }

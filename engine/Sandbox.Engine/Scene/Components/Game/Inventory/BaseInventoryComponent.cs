@@ -64,9 +64,18 @@ public partial class BaseInventoryComponent : Component
 	/// </summary>
 	public event Action<BaseInventoryItem, BaseInventoryItem> ActiveItemChanged;
 
+	BaseInventoryItem _equippedItem;
+
 	[Expose]
-	private void OnActiveItemChanged( BaseInventoryItem oldItem, BaseInventoryItem newItem )
+	private void OnActiveItemChanged( BaseInventoryItem _, BaseInventoryItem newItem )
 	{
+		// Initial snapshots don't run Change callbacks. Track what was actually equipped locally.
+		var oldItem = _equippedItem;
+		if ( oldItem == newItem )
+			return;
+
+		_equippedItem = newItem;
+
 		if ( oldItem.IsValid() )
 		{
 			oldItem.GameObject.Enabled = false;

@@ -1,10 +1,12 @@
+@using Sandbox.PanelGallery;
 @namespace PanelGallery.UiTests
 @inherits Panel
 
 @* One case: a sample, captioned with the same string that styled it. *@
 
-<root>
-    <div class="stage">
+<root class="reference-row">
+    <div class="stage reference-result">
+        <Sandbox.PanelGallery.GalleryScaledPreview FitContent="@true" ActualSize="@(Text is not null)" PreviewSize="@(new Vector2( 420, HasClass( "roomy" ) || HasClass( "layout-case" ) ? 360 : 240 ))">
         @if ( Text is not null )
         {
             @* Style goes on the label itself - half of the text properties wouldn't inherit *@
@@ -14,17 +16,23 @@
         {
             <div class="sample" style="@SampleStyle">@ChildContent</div>
         }
+        </Sandbox.PanelGallery.GalleryScaledPreview>
     </div>
 
-    <label class="css">@( Rule ?? Css )</label>
-    @if ( !string.IsNullOrWhiteSpace( Note ) )
-    {
-        <label class="note">@Note</label>
-    }
+    <div class="reference-description">
+        <label class="reference-title">@(Caption ?? (string.IsNullOrWhiteSpace( Css ) ? "Style rule" : Css.Split( ':' )[0]))</label>
+        @if ( !string.IsNullOrWhiteSpace( Note ?? Rule ?? Css ) )
+        {
+            <label class="reference-note">@(Note ?? Rule ?? Css)</label>
+        }
+    </div>
+
 </root>
 
 @code
 {
+    [Parameter] public string Caption { get; set; }
+
     /// <summary>
     /// The CSS being tested. Applied to the sample and shown as its caption.
     /// </summary>
@@ -52,16 +60,17 @@
     [Parameter] public string Note { get; set; }
 
     /// <summary>
-    /// A plain 100x100 block, which is what most cases want.
+    /// A plain 200x200 block, which is what most cases want.
     /// </summary>
-    public const string DefaultSetup = "width: 100px; height: 100px; background-color: #e8b04a";
+    public const string DefaultSetup = $"width: 200px; height: 200px; background-color: {GalleryPalette.LimeHex}";
 
     /// <summary>
     /// What a text case usually wants - readable, and wide enough to show wrapping.
     /// </summary>
     public const string TextSetup = "width: 200px; font-size: 16px; color: #e6eaf2";
 
-    string SampleStyle => string.Join( "; ", new[] { Setup, Css }.Where( x => !string.IsNullOrWhiteSpace( x ) ) );
 
-    protected override int BuildHash() => HashCode.Combine( Css, Setup, Text, Rule, Note );
+    string SampleStyle => string.Join( "; ", new[] { Setup, Css, Text is not null ? "max-width: 144px" : null }.Where( x => !string.IsNullOrWhiteSpace( x ) ) );
+
+    protected override int BuildHash() => HashCode.Combine( Css, Setup, Text, Rule, Note, Caption );
 }

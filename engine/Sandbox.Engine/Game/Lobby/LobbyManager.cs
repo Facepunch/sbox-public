@@ -133,11 +133,16 @@ internal static class LobbyManager
 		}
 	}
 
+	static readonly LobbyInviteFilter _invites = new();
+
 	internal static void OnLobbyInvite( ulong lobbyid, ulong memberid )
 	{
 		Log.Info( $"Got invite to lobby {lobbyid} from {memberid}" );
 
 		if ( IMenuSystem.Current is null )
+			return;
+
+		if ( ActiveLobbies.Contains( lobbyid ) || !_invites.TryReceive( lobbyid, RealTime.Now ) )
 			return;
 
 		var friend = new Friend( memberid );

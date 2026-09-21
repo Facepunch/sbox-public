@@ -69,10 +69,14 @@ partial class TrackBinder
 		{
 			if ( goTrack.Metadata?.PrefabSource is { } prefabSource && GameObject.GetPrefab( prefabSource ) is { } prefab )
 			{
-				var go = prefab.Clone( Transform.Zero, parentGo, name: goTrack.Name );
+				// Start disabled so we can remove unbound children before any scripts run
+
+				var go = prefab.Clone( Transform.Zero, parentGo, name: goTrack.Name, startEnabled: false );
 
 				BindCreatedTarget( target, go, createdTargets );
 				RemoveUnboundTargets( go, goTrack, children, createdTargets );
+
+				go.Enabled = true;
 			}
 			else
 			{

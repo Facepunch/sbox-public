@@ -19,9 +19,15 @@ public static class LaunchArguments
 	public static int MaxPlayers { get; set; }
 
 	/// <summary>
-	/// Default privacy for lobbies created on game start.
+	/// Privacy override for lobbies created on game start. If not explicitly set, lobbies use their own config.
 	/// </summary>
-	public static LobbyPrivacy Privacy { get; set; } = LobbyPrivacy.Public;
+	public static LobbyPrivacy Privacy
+	{
+		get => PrivacyOverride ?? LobbyPrivacy.Public;
+		set => PrivacyOverride = value;
+	}
+
+	internal static LobbyPrivacy? PrivacyOverride { get; private set; }
 
 	/// <summary>
 	/// The game settings to apply on join. These are a list of convars.
@@ -41,7 +47,7 @@ public static class LaunchArguments
 	{
 		GameSettings = default;
 		Map = default;
-		Privacy = default;
+		PrivacyOverride = null;
 		ServerName = default;
 		MaxPlayers = 0;
 	}

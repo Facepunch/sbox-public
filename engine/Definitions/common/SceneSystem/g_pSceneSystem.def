@@ -1,6 +1,5 @@
 
 #include "scenesystem/iscenesystem.h"
-
 native enum SceneSystemRenderTargetSize_t as NativeEngine.SceneSystemRenderTargetSize;
 native enum SceneSystemWellKnownMaterialObjectID_t as NativeEngine.SceneSystemWellKnownMaterialObjectID;
 native enum SceneSystemWellKnownTextureObjectID_t as NativeEngine.SceneSystemWellKnownTextureObjectID;
@@ -66,6 +65,10 @@ native class SceneSystemPerFrameStats_t
 
 native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 {
+	void FrameUpdate();
+	void SetMainSwapChain( SwapChainHandle_t swapChain );
+	RenderMultisampleType GetMainSwapChainMultisampleType();
+
     void DeleteSceneObject( CSceneObject pObj );
     void DeleteSceneObjectAtFrameEnd( CSceneObject pObj );
 
@@ -112,6 +115,7 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 
     void FinishRenderingViews();
     bool WaitForRenderingToComplete();
+    bool IsRenderingBusy();
 
     inline void SetupPerObjectLighting( CRenderAttributes renderAttributes, CSceneObject pSceneObject, ISceneLayer pSceneLayerInterface )
     {

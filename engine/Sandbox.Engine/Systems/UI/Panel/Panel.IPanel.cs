@@ -31,18 +31,24 @@ public partial class Panel
 		point = LocalMatrix?.Transform( point ) ?? point;
 
 		if ( !IsInside( point ) ) return null;
+		if ( FindScrollbarAt( point, visibleOnly, needPointerEvents ) is { } scrollbarHit ) return scrollbarHit;
 
 		Panel bestSelection = this;
 
-		foreach ( var child in Children.OrderByDescending( x => x.GetRenderOrderIndex() ).ThenByDescending( x => x.SiblingIndex ) )
+		SortRenderChildren();
+		if ( _renderChildren is not null )
 		{
-			if ( child.IsFixed ) continue;
-			var p = child.GetPanelAt( point, visibleOnly, needPointerEvents );
+			for ( int i = _renderChildren.Count - 1; i >= 0; i-- )
+			{
+				var child = _renderChildren[i];
+				if ( child.IsFixed ) continue;
+				var p = child.GetPanelAt( point, visibleOnly, needPointerEvents );
 
-			if ( !p.IsValid() ) continue;
+				if ( !p.IsValid() ) continue;
 
-			bestSelection = p;
-			break;
+				bestSelection = p;
+				break;
+			}
 		}
 
 		if ( bestSelection == this && needPointerEvents && !(this as IPanel).WantsPointerEvents )

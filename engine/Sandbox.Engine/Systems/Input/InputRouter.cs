@@ -49,6 +49,11 @@ internal static partial class InputRouter
 	public static bool EscapeWasPressed { get; set; }
 
 	/// <summary>
+	/// Shift+Escape was pressed in editor play mode. Kept separate so game input cannot consume it.
+	/// </summary>
+	internal static bool EditorPauseMenuWasPressed { get; set; }
+
+	/// <summary>
 	/// Time since escape was pressed
 	/// </summary>
 	static RealTimeSince TimeSinceEscapePressed { get; set; }
@@ -92,8 +97,8 @@ internal static partial class InputRouter
 
 	public static void Frame()
 	{
-		var activeMouse = Contexts.Where( x => x.MouseState != InputContext.InputState.Ignore ).FirstOrDefault();
-		var activeKeyboard = Contexts.Where( x => x.KeyboardState != InputContext.InputState.Ignore ).FirstOrDefault();
+		var activeMouse = Contexts.FirstOrDefault( x => x.MouseState != InputContext.InputState.Ignore );
+		var activeKeyboard = Contexts.FirstOrDefault( x => x.KeyboardState != InputContext.InputState.Ignore );
 
 		// Capture mode could either come from being in game (in which case input is sent to the game)
 		// or from a Panel.CaptureMode - in which case input is sent to the panel/ui
@@ -101,7 +106,7 @@ internal static partial class InputRouter
 		mouseCaptureMode = mouseCaptureMode || (activeMouse?.MouseCapture ?? false);
 
 		MouseCursorVisible = !mouseCaptureMode && (activeMouse is not null && activeMouse.MouseState == InputContext.InputState.UI);
-		if ( !InputSystem.HasMouseFocus() ) MouseCursorVisible = true;
+		if ( !WindowInput.HasMouseFocus() ) MouseCursorVisible = true;
 
 		if ( mouseCaptureMode )
 		{
@@ -111,11 +116,11 @@ internal static partial class InputRouter
 				mouseCapturePosition = MouseCursorPosition;
 			}
 
-			NativeEngine.InputSystem.SetRelativeMouseMode( true );
+			WindowInput.SetRelativeMouseMode( true );
 		}
 		else
 		{
-			NativeEngine.InputSystem.SetRelativeMouseMode( false );
+			WindowInput.SetRelativeMouseMode( false );
 
 			// restore cursor position
 			if ( mouseCapturePosition is not null )
@@ -125,29 +130,22 @@ internal static partial class InputRouter
 			}
 		}
 
-		if ( activeMouse is not null )
+		if ( activeMouse is not null && WindowInput.HasMouseFocus() && PanelWindows.Hovering is null && PanelWindows.CaptureWindow is null )
 		{
-			SetCursorType( activeMouse.MouseCursor );
+			SdlCursors.SetCursor( MouseCursorVisible ? activeMouse.MouseCursor : "none" );
 		}
 
-		if ( activeKeyboard is not null )
+		KeyboardFocusPanel = activeKeyboard?.KeyboardFocusPanel;
+		WindowInput.SetIMEAllowed( KeyboardFocusPanel is not null );
+		if ( KeyboardFocusPanel is not null )
 		{
-			KeyboardFocusPanel = activeKeyboard.KeyboardFocusPanel;
-		}
-
-		if ( KeyboardFocusPanel is null )
-		{
-			NativeEngine.InputSystem.SetIMEAllowed( false );
-		}
-		else
-		{
-			NativeEngine.InputSystem.SetIMEAllowed( true );
 			var rect = KeyboardFocusPanel is Panel panel ? panel.ImeCaretRect : KeyboardFocusPanel.Rect;
-			NativeEngine.InputSystem.SetIMETextLocation( (int)rect.Left, (int)rect.Top, (int)rect.Width, (int)rect.Height );
+			WindowInput.SetIMETextLocation( (int)rect.Left, (int)rect.Top, (int)rect.Width, (int)rect.Height );
 		}
 
 		MouseCursorDelta = 0;
 		EscapeWasPressed = false;
+		EditorPauseMenuWasPressed = false;
 
 		// Only the UI that has the mouse gets to show a tooltip - the one underneath it loses its hover
 		foreach ( var context in Contexts )
@@ -158,98 +156,10 @@ internal static partial class InputRouter
 
 	static void SetCursorPosition( Vector2 pos )
 	{
-		if ( !g_pInputService.IsAppActive() ) return;
-		if ( !InputSystem.HasMouseFocus() ) return;
+		if ( !WindowInput.IsAppActive() ) return;
+		if ( !WindowInput.HasMouseFocus() ) return;
 
-		g_pInputService.SetCursorPosition( (int)pos.x, (int)pos.y );
-	}
-
-	static string CursorName { get; set; }
-
-	static readonly CaseInsensitiveDictionary<InputStandardCursor_t> CursorLookup = new()
-	{
-		{ "none", InputStandardCursor_t.None },
-		{ "arrow", InputStandardCursor_t.Arrow },
-		{ "ibeam", InputStandardCursor_t.IBeam },
-		{ "text", InputStandardCursor_t.IBeam },
-		{ "crosshair", InputStandardCursor_t.Crosshair },
-		{ "pointer", InputStandardCursor_t.Hand },
-		{ "hand", InputStandardCursor_t.Hand },
-		{ "progress", InputStandardCursor_t.WaitArrow },
-		{ "wait", InputStandardCursor_t.HourGlass },
-		{ "hourglass", InputStandardCursor_t.HourGlass },
-		{ "move", InputStandardCursor_t.SizeALL },
-		{ "sizenesw", InputStandardCursor_t.SizeNESW },
-		{ "nesw-resize", InputStandardCursor_t.SizeNESW },
-		{ "sizenwse", InputStandardCursor_t.SizeNWSE },
-		{ "nwse-resize", InputStandardCursor_t.SizeNWSE },
-		{ "sizewe", InputStandardCursor_t.SizeWE },
-		{ "ew-resize", InputStandardCursor_t.SizeWE },
-		{ "col-resize", InputStandardCursor_t.SizeWE },
-		{ "sizens", InputStandardCursor_t.SizeNS },
-		{ "ns-resize", InputStandardCursor_t.SizeNS },
-		{ "row-resize", InputStandardCursor_t.SizeNS },
-		{ "not-allowed", InputStandardCursor_t.No },
-	};
-
-	/// <summary>
-	/// The standard cursor for a css cursor name. Arrow when the name is unknown.
-	/// </summary>
-	internal static InputStandardCursor_t GetStandardCursor( string name )
-	{
-		if ( !string.IsNullOrWhiteSpace( name ) && CursorLookup.TryGetValue( name, out var found ) )
-			return found;
-
-		return InputStandardCursor_t.Arrow;
-	}
-
-	static readonly HashSet<string> UserCursors = new();
-
-	static readonly CaseInsensitiveDictionary<string> CursorAliases = new()
-	{
-		{ "text", "ibeam" },
-		{ "pointer", "hand" },
-		{ "hourglass", "wait" },
-		{ "nesw-resize", "sizenesw" },
-		{ "nwse-resize", "sizenwse" },
-		{ "ew-resize", "sizewe" },
-		{ "col-resize", "sizewe" },
-		{ "ns-resize", "sizens" },
-		{ "row-resize", "sizens" },
-	};
-
-	static void SetCursorType( string name )
-	{
-		name = MouseCursorVisible ? string.IsNullOrWhiteSpace( name ) ? "arrow" : name.ToLower() : "none";
-
-		if ( CursorAliases.TryGetValue( name, out var canonical ) )
-			name = canonical;
-
-		if ( name == CursorName )
-			return;
-
-		if ( name == "none" )
-		{
-			InputSystem.SetCursorStandard( InputStandardCursor_t.None );
-		}
-		else if ( UserCursors.Contains( name ) )
-		{
-			InputSystem.SetCursorUser( name );
-		}
-		else if ( CursorLookup.TryGetValue( name, out var found ) )
-		{
-			InputSystem.SetCursorStandard( found );
-		}
-		else
-		{
-			name = "arrow";
-			if ( name == CursorName )
-				return;
-
-			InputSystem.SetCursorStandard( InputStandardCursor_t.Arrow );
-		}
-
-		CursorName = name;
+		WindowInput.SetCursorPosition( (int)pos.x, (int)pos.y, GameWindow.Current?.Handle ?? IntPtr.Zero );
 	}
 
 	internal static void Shutdown()
@@ -262,8 +172,7 @@ internal static partial class InputRouter
 		if ( Application.IsHeadless )
 			return;
 
-		UserCursors.Clear();
-		InputSystem.ShutdownUserCursors();
+		SdlCursors.ShutdownUserCursors();
 	}
 
 	internal static void CreateUserCursor( BaseFileSystem filesystem, string name, string filepath, int hotX, int hotY )
@@ -276,16 +185,13 @@ internal static partial class InputRouter
 		if ( string.IsNullOrWhiteSpace( filepath ) )
 			return;
 
-		if ( UserCursors.Contains( name ) )
+		if ( SdlCursors.HasUserCursor( name ) )
 			return;
 
 		if ( !filesystem.FileExists( filepath ) )
 			return;
 
-		if ( !InputSystem.LoadCursorFromFile( filepath, name, hotX, hotY ) )
-			return;
-
-		UserCursors.Add( name.ToLower() );
+		SdlCursors.LoadCursorFromFile( filepath, name, hotX, hotY );
 	}
 
 	/// <summary>
@@ -342,14 +248,6 @@ internal static partial class InputRouter
 	{
 		if ( state ) PressedControllerButtons.Add( code );
 		else PressedControllerButtons.Remove( code );
-	}
-
-	/// <summary>
-	/// A console command from the engine.
-	/// </summary>
-	internal static void OnConsoleCommand( string v )
-	{
-		ConVarSystem.Run( v );
 	}
 
 	internal static void CloseApplication()

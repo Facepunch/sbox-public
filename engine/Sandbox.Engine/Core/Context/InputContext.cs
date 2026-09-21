@@ -223,7 +223,7 @@ internal sealed class InputContext
 
 		TargetUISystem.InputEventQueue.AddButtonEvent( keyButtonCode, false, modifiers );
 
-		var name = InputSystem.CodeToString( scanButtonCode );
+		var name = Sandbox.Engine.KeyTranslation.CodeToString( scanButtonCode );
 		if ( !string.IsNullOrWhiteSpace( name ) )
 		{
 			OnGameButton?.Invoke( scanButtonCode, name, false );
@@ -234,7 +234,7 @@ internal sealed class InputContext
 	{
 		if ( TrappingKeys )
 		{
-			var name = InputSystem.CodeToString( scanButtonCode );
+			var name = Sandbox.Engine.KeyTranslation.CodeToString( scanButtonCode );
 			if ( !string.IsNullOrWhiteSpace( name ) )
 			{
 				TrappedKeys.Add( name );
@@ -281,12 +281,14 @@ internal sealed class InputContext
 
 		if ( MouseState == InputState.Game || gameToo || !pressed )
 		{
-			var name = InputSystem.CodeToString( button );
+			var name = Sandbox.Engine.KeyTranslation.CodeToString( button );
 			if ( !string.IsNullOrWhiteSpace( name ) )
 			{
 				OnGameButton?.Invoke( button, name, pressed );
 			}
 		}
+
+		int pressClickCount = 1;
 
 		// Slightly dodgy double/triple click handling
 		// lets hope no-one notices you can click with left and then right to double click
@@ -300,8 +302,9 @@ internal sealed class InputContext
 				clickCounter = 0;
 			}
 
-			if ( !pressed )
-				clickCounter++;
+			// Report the next click on press without advancing the release-driven gesture events.
+			if ( pressed ) pressClickCount = clickCounter + 1;
+			else clickCounter++;
 
 			timeSinceClick = 0;
 
@@ -336,7 +339,7 @@ internal sealed class InputContext
 				TargetUISystem.InputEventQueue.AddButtonTyped( button, modifiers );
 			}
 
-			TargetUISystem.Input.AddMouseButton( button, pressed, modifiers );
+			TargetUISystem.Input.AddMouseButton( button, pressed, modifiers, pressClickCount );
 		}
 	}
 
@@ -367,7 +370,7 @@ internal sealed class InputContext
 		// but don't allow new presses
 		if ( KeyboardState == InputState.Game || !down )
 		{
-			var name = InputSystem.CodeToString( scanButtonCode );
+			var name = Sandbox.Engine.KeyTranslation.CodeToString( scanButtonCode );
 			if ( !string.IsNullOrWhiteSpace( name ) )
 			{
 				OnGameButton?.Invoke( scanButtonCode, name, down );

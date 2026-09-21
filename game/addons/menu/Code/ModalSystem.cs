@@ -74,6 +74,25 @@ public class ModalSystem : IModalSystem
 		return false;
 	}
 
+	/// <summary>
+	/// Is a modal of the given type currently open?
+	/// </summary>
+	public bool IsOpen<T>() where T : BaseModal
+	{
+		return OpenModals.Any( x => x.IsValid() && x is T );
+	}
+
+	/// <summary>
+	/// The item drop popup, anchored beside <paramref name="anchor"/> (the rail's Rewards entry).
+	/// Toggles closed if it's already open.
+	/// </summary>
+	public void Rewards( Panel anchor )
+	{
+		if ( CloseExisting<RewardsModal>() ) return;
+
+		Push( new RewardsModal( anchor ) );
+	}
+
 	public void Game( string packageIdent )
 	{
 		if ( string.IsNullOrEmpty( packageIdent ) ) return;

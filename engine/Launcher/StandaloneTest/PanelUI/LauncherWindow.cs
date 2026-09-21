@@ -154,6 +154,7 @@ class LauncherWindow : Panel
 		LinkItem( sidebar, "Documentation", "menu_book", "https://sbox.game/dev/doc/" );
 		LinkItem( sidebar, Global.BackendTitle, "public", Global.BackendUrl );
 		LinkItem( sidebar, "API Reference", "data_object", $"{Global.BackendUrl}/api" );
+		NavItem( sidebar, "Panel Gallery", "widgets", LaunchPanelGallery );
 
 		var gameFolder = Environment.CurrentDirectory;
 		LinkItem( sidebar, "Engine Folder", "folder", gameFolder );
@@ -374,38 +375,11 @@ class LauncherWindow : Panel
 	}
 
 	/// <summary>
-	/// The rail down the right hand side - platform news, once the backend is up. It only
-	/// exists at all when there's news to put in it, so offline costs no space.
+	/// Reserve the news rail immediately, then replace its placeholders once the backend
+	/// is ready so the project list doesn't shift when news arrives.
 	/// </summary>
 	async Task FillNewsAsync( Panel body )
 	{
-		if ( newsCache is null )
-		{
-			await PanelAppSystem.ApiReady;
-
-			try
-			{
-				newsCache = await Backend.News.GetPlatformNews( 4, 0 );
-			}
-			catch ( Exception )
-			{
-				// Offline is fine - there's just no rail
-				return;
-			}
-		}
-
-		var posts = newsCache;
-		if ( !body.IsValid() || posts is null || posts.Length == 0 ) return;
-
-		// The freshest artwork becomes the room's lighting
-		var media = posts.FirstOrDefault( x => !string.IsNullOrEmpty( x.Media ) )?.Media;
-
-		if ( media is not null && backdrop.IsValid() )
-		{
-			backdrop.Style.Set( "background-image", $"url( {media} )" );
-			backdrop.AddClass( "visible" );
-		}
-
 		var rail = body.AddChild<Panel>();
 		rail.AddClass( "rail" );
 
@@ -417,6 +391,51 @@ class LauncherWindow : Panel
 		var newsList = rail.AddChild<Panel>();
 		newsList.AddClass( "news-list" );
 
+		const int newsCount = 4;
+		for ( int i = 0; i < newsCount; i++ )
+		{
+			var card = newsList.Add.Panel( "newscard placeholder" );
+			card.Add.Panel( "image" );
+			var text = card.Add.Panel( "text" );
+			text.Add.Panel( "title-stub" );
+			text.Add.Panel( "date-stub" );
+		}
+
+		if ( newsCache is null )
+		{
+			try
+			{
+				await PanelAppSystem.ApiReady;
+				newsCache = await Backend.News.GetPlatformNews( newsCount, 0 );
+			}
+			catch ( Exception )
+			{
+				if ( !newsList.IsValid() ) return;
+				newsList.DeleteChildren( true );
+				newsList.Add.Label( "News is currently unavailable.", "news-status" );
+				return;
+			}
+		}
+
+		if ( !newsList.IsValid() ) return;
+		newsList.DeleteChildren( true );
+
+		var posts = newsCache;
+		if ( posts is null || posts.Length == 0 )
+		{
+			newsList.Add.Label( "No news yet.", "news-status" );
+			return;
+		}
+
+		// The freshest artwork becomes the room's lighting
+		var media = posts.FirstOrDefault( x => !string.IsNullOrEmpty( x.Media ) )?.Media;
+
+		if ( media is not null && backdrop.IsValid() )
+		{
+			backdrop.Style.Set( "background-image", $"url( {media} )" );
+			backdrop.AddClass( "visible" );
+		}
+
 		foreach ( var post in posts )
 		{
 			var url = post.Url;
@@ -426,11 +445,14 @@ class LauncherWindow : Panel
 			var card = newsList.Add.Panel( "newscard" );
 			card.AddEventListener( "onclick", () => Editor.EditorUtility.OpenFolder( url ) );
 
-			if ( !string.IsNullOrEmpty( post.Media ) )
+			var thumbnail = !string.IsNullOrWhiteSpace( post.ImageThumb ) ? post.ImageThumb
+				: !string.IsNullOrWhiteSpace( post.Image ) ? post.Image : post.Media;
+
+			if ( !string.IsNullOrWhiteSpace( thumbnail ) )
 			{
 				var image = card.AddChild<Panel>();
 				image.AddClass( "image" );
-				image.Style.Set( "background-image", $"url( {post.Media} )" );
+				image.Style.Set( "background-image", $"url( {thumbnail} )" );
 			}
 
 			var text = card.AddChild<Panel>();
@@ -851,6 +873,21 @@ class LauncherWindow : Panel
 			return;
 
 		LaunchProject( project );
+	}
+
+	/// <summary>
+	/// Open the standalone panel controls and layout gallery.
+	/// </summary>
+	void LaunchPanelGallery()
+	{
+		Process.Start( new ProcessStartInfo( NetCore.GetExecutablePath( "bin/managed/panelgallery" ) )
+		{
+			UseShellExecute = OperatingSystem.IsWindows(),
+			CreateNoWindow = true,
+			WorkingDirectory = Environment.CurrentDirectory
+		} );
+
+		if ( LauncherPreferences.CloseOnLaunch ) Window.Dispose();
 	}
 
 	/// <summary>

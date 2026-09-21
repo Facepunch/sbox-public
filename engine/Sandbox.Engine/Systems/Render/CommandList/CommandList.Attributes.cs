@@ -4,6 +4,50 @@ namespace Sandbox.Rendering;
 
 public sealed partial class CommandList
 {
+	RenderAttributes drawAttributes;
+	AttributeAccess drawAttributeAccess;
+
+	/// <summary>Starts a private attribute set for one draw, inheriting the caller's attributes at playback.</summary>
+	internal unsafe AttributeAccess BeginDrawAttributes()
+	{
+		drawAttributes ??= new();
+		drawAttributeAccess ??= new( this, () => drawAttributes );
+		static void Execute( ref Entry entry, CommandList list )
+		{
+			list.drawAttributes.Clear( false );
+			Graphics.Attributes.MergeTo( list.drawAttributes );
+		}
+		AddEntry( &Execute, default );
+		return drawAttributeAccess;
+	}
+
+	internal unsafe void DrawQuad( Rect rect, Material material, Color color, AttributeAccess attributes )
+	{
+		static void Execute( ref Entry entry, CommandList list )
+		{
+			Graphics.DrawQuad( new Rect( entry.Data1.x, entry.Data1.y, entry.Data1.z, entry.Data1.w ),
+				(Material)entry.Object1, new Color( entry.Data2.x, entry.Data2.y, entry.Data2.z, entry.Data2.w ),
+				((AttributeAccess)entry.Object2)._get() );
+		}
+		AddEntry( &Execute, new Entry
+		{
+			Data1 = new Vector4( rect.Left, rect.Top, rect.Width, rect.Height ),
+			Data2 = new Vector4( color.r, color.g, color.b, color.a ),
+			Object1 = material,
+			Object2 = attributes
+		} );
+	}
+
+	internal unsafe void DrawIndexedInstanced( GpuBuffer indices, Material material, int count, AttributeAccess attributes )
+	{
+		static void Execute( ref Entry entry, CommandList list )
+		{
+			Graphics.DrawIndexedInstanced( (GpuBuffer)entry.Object1, (Material)entry.Object2, entry.Count,
+				((AttributeAccess)entry.Object3)._get() );
+		}
+		AddEntry( &Execute, new Entry { Object1 = indices, Object2 = material, Object3 = attributes, Count = count } );
+	}
+
 	public unsafe class AttributeAccess
 	{
 		// Writes (Grab*Texture) and the clear (Reset) happen under the owning CommandList's _lock,
@@ -395,8 +439,6 @@ public sealed partial class CommandList
 	/// </summary>
 	public AttributeAccess Attributes { get; private set; }
 
-	[Obsolete( "Frame attributes are deprecated. Use a local Attributes set or pipeline texture slots instead." )]
-	RenderAttributes GetFrameAttributes() => GetLocalAttributes();
 	RenderAttributes GetLocalAttributes() => Graphics.Attributes;
 
 }

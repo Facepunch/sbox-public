@@ -1,0 +1,524 @@
+@import "/styles/_front.scss";
+
+PackageHoverCard
+{
+	@include front-slab;
+
+	position: absolute;
+	z-index: 1500;
+	flex-direction: column;
+	flex-shrink: 0;
+	overflow: hidden;
+	pointer-events: all;
+	cursor: default;
+	border-radius: $front-radius;
+	border: 1px solid $front-border;
+	box-shadow: 0 18px 48px rgba( black, 0.7 );
+	// Origin y is set from code to the media centre; 0.763 = the card's 1.03 lift / 1.35.
+	transform-origin: 50% 0;
+	transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+
+	icon
+	{
+		font-family: "Material Icons";
+	}
+
+	&:intro
+	{
+		transform: scale( 0.763 );
+	}
+
+	&:outro
+	{
+		transform: scale( 0.92 );
+		opacity: 0;
+		transition: transform 0.12s ease-in, opacity 0.12s ease-in;
+	}
+
+	.media
+	{
+		position: relative;
+		flex-shrink: 0;
+		width: 100%;
+		aspect-ratio: 16 / 9;
+		overflow: hidden;
+		cursor: pointer;
+		background-color: #0B0D14;
+		background-size: cover;
+		background-position: center;
+		background-tint: white;
+
+		.package-video
+		{
+			position: absolute;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			background-size: cover;
+			background-position: center;
+			opacity: 1;
+			transition: opacity 0.4s ease-out;
+
+			&:intro
+			{
+				opacity: 0;
+			}
+		}
+	}
+
+	.body
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 6px;
+		padding: 10px 16px 16px 12px;
+		transition: opacity 0.3s ease-out;
+
+		&:intro
+		{
+			opacity: 0;
+		}
+	}
+
+	.title
+	{
+		font-size: 16px;
+		font-weight: 700;
+		color: $front-heading;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		cursor: pointer;
+
+		&:hover
+		{
+			color: #ffffff;
+		}
+	}
+
+	.title-row
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 10px;
+
+		.title
+		{
+			flex-grow: 1;
+			flex-shrink: 1;
+			min-width: 0;
+		}
+	}
+
+	.byline
+	{
+		flex-direction: row;
+		align-items: center;
+		flex-wrap: nowrap;
+		gap: 6px;
+		margin-top: -4px;
+		overflow: hidden;
+
+		.grow
+		{
+			flex-grow: 1;
+		}
+
+		.tag
+		{
+			flex-shrink: 0;
+			font-family: $front-font;
+			font-size: 12px;
+			font-weight: 600;
+			color: $front-secondary;
+			cursor: pointer;
+			transition: color 0.1s ease;
+
+			&:hover
+			{
+				color: $front-heading;
+			}
+
+			&.plain
+			{
+				cursor: default;
+
+				&:hover
+				{
+					color: $front-secondary;
+				}
+			}
+		}
+
+		label, .sep
+		{
+			flex-shrink: 0;
+			font-size: 11.5px;
+			font-weight: 500;
+			color: $front-tertiary;
+			white-space: nowrap;
+		}
+
+		> label:first-child
+		{
+			flex-shrink: 1;
+			min-width: 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		.fact
+		{
+			gap: 4px;
+
+			icon
+			{
+				font-size: 12px;
+			}
+
+			label
+			{
+				color: $front-secondary;
+			}
+		}
+	}
+
+	// A wrapper clips to two lines; a label alone paints past its max-height.
+	.summary
+	{
+		flex-shrink: 0;
+		height: 36px;
+		overflow: hidden;
+
+		label
+		{
+			font-size: 12px;
+			font-weight: 500;
+			color: $front-body;
+			white-space: normal;
+		}
+	}
+
+	.facts
+	{
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		flex-direction: row;
+		align-items: center;
+		justify-content: flex-end;
+		padding: 30px 12px 9px 12px;
+		background-image: linear-gradient( 0deg, rgba( 0, 0, 0, 0.75 ) 30%, rgba( 0, 0, 0, 0 ) );
+		pointer-events: none;
+
+		label
+		{
+			text-shadow: 0 1px 2px rgba( 0, 0, 0, 0.7 );
+		}
+	}
+
+	.fact
+	{
+		flex-direction: row;
+		align-items: center;
+		flex-shrink: 0;
+		gap: 5px;
+
+		icon
+		{
+			font-size: 13px;
+			color: $front-secondary;
+		}
+
+		label
+		{
+			font-size: 11.5px;
+			font-weight: 500;
+			color: $front-body;
+			white-space: nowrap;
+		}
+
+		&.positive icon { color: $front-link; }
+		&.mixed icon { color: $front-trophy; }
+		&.negative icon { color: $front-danger; }
+
+		.live-dot
+		{
+			width: 6px;
+			height: 6px;
+			border-radius: 3px;
+			background-color: $front-accent;
+		}
+
+		&.live label
+		{
+			color: $front-accent;
+			font-weight: 600;
+		}
+	}
+
+	.jam
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 10px;
+		margin: 8px 0 6px 0;
+		padding: 10px 12px;
+		border-radius: 8px;
+		background: linear-gradient( 90deg, rgba( $front-trophy, 0.22 ), rgba( $front-trophy, 0.08 ) );
+		border: 1px solid rgba( $front-trophy, 0.45 );
+
+		.trophy
+		{
+			flex-shrink: 0;
+			font-size: 22px;
+			color: $front-trophy * 1.8;
+		}
+
+		.text
+		{
+			flex-grow: 1;
+			flex-direction: column;
+			gap: 2px;
+			overflow: hidden;
+
+			.title
+			{
+				font-family: $front-font;
+				font-size: 12px;
+				font-weight: 700;
+				color: $front-heading;
+			}
+
+			.hint
+			{
+				font-family: $front-font;
+				font-size: 10.5px;
+				font-weight: 500;
+				color: $front-trophy * 1.6;
+			}
+		}
+
+		.nominate
+		{
+			flex-direction: row;
+			flex-shrink: 0;
+			align-items: center;
+			gap: 4px;
+			height: 32px;
+			padding: 0 14px 0 10px;
+			border-radius: 999px;
+			background-color: $front-trophy;
+			cursor: pointer;
+			transition: all 0.1s ease;
+
+			icon
+			{
+				font-size: 18px;
+				color: #1a1204;
+			}
+
+			label
+			{
+				font-family: $front-font;
+				font-size: 12px;
+				font-weight: 700;
+				text-transform: uppercase;
+				letter-spacing: 0.07em;
+				color: #1a1204;
+			}
+
+			&:hover
+			{
+				sound-in: "ui.button.over";
+				background-color: $front-trophy * 1.2;
+			}
+
+			&:active
+			{
+				sound-in: "ui.button.press";
+			}
+
+			&.on
+			{
+				background-color: rgba( $front-trophy, 0.15 );
+				border: 1px solid rgba( $front-trophy, 0.6 );
+
+				icon
+				{
+					color: $front-trophy * 1.6;
+				}
+
+				label
+				{
+					color: $front-trophy * 1.6;
+				}
+			}
+
+			&.locked
+			{
+				opacity: 0.45;
+				cursor: default;
+				pointer-events: none;
+			}
+
+			&.busy
+			{
+				opacity: 0.5;
+				pointer-events: none;
+			}
+		}
+	}
+
+	.footer
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 8px;
+		margin-top: 8px;
+
+		.grow
+		{
+			flex-grow: 1;
+		}
+	}
+
+	.actions
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 10px;
+
+		.group
+		{
+			flex-direction: row;
+			flex-shrink: 0;
+			border-radius: 999px;
+			border: 1px solid $front-hairline;
+			background-color: rgba( 255, 255, 255, 0.07 );
+			overflow: hidden;
+
+			.button
+			{
+				width: 38px;
+				border: 0;
+				border-radius: 0;
+				background-color: transparent;
+
+				&:hover
+				{
+					background-color: rgba( 255, 255, 255, 0.12 );
+				}
+
+				&.active
+				{
+					background-color: rgba( $front-primary, 0.28 );
+				}
+
+				&.fav.active
+				{
+					background-color: rgba( #e93b6d, 0.25 );
+				}
+			}
+		}
+
+		.button
+		{
+			flex-shrink: 0;
+			width: 34px;
+			height: 34px;
+			align-items: center;
+			justify-content: center;
+			border-radius: 50%;
+			cursor: pointer;
+			background-color: rgba( 255, 255, 255, 0.07 );
+			border: 1px solid $front-hairline;
+			transition: all 0.1s ease;
+
+			icon
+			{
+				width: 100%;
+				text-align: center;
+				font-size: 17px;
+				color: $front-heading;
+			}
+
+			&:hover
+			{
+				sound-in: "ui.button.over";
+				background-color: rgba( 255, 255, 255, 0.14 );
+				border-color: rgba( 255, 255, 255, 0.28 );
+			}
+
+			&:active
+			{
+				sound-in: "ui.button.press";
+			}
+
+			&.active
+			{
+				border-color: rgba( $front-primary, 0.7 );
+				background-color: rgba( $front-primary, 0.22 );
+
+				icon
+				{
+					color: $front-primary * 1.6;
+				}
+			}
+
+			&.fav.active
+			{
+				border-color: rgba( #e93b6d, 0.7 );
+				background-color: rgba( #e93b6d, 0.2 );
+
+				icon
+				{
+					color: #e93b6d;
+				}
+			}
+
+			&.primary
+			{
+				flex-direction: row;
+				width: auto;
+				gap: 4px;
+				padding: 0 16px 0 10px;
+				border-radius: 999px;
+				border-color: transparent;
+				background-color: $front-primary;
+
+				icon
+				{
+					width: auto;
+					font-size: 20px;
+					color: #ffffff;
+				}
+
+				label
+				{
+					font-family: $front-font;
+					font-size: 12px;
+					font-weight: 700;
+					text-transform: uppercase;
+					letter-spacing: 0.07em;
+					color: #ffffff;
+				}
+
+				&:hover
+				{
+					background-color: $front-primary * 1.2;
+				}
+			}
+
+			&.busy
+			{
+				opacity: 0.5;
+				pointer-events: none;
+			}
+		}
+	}
+}

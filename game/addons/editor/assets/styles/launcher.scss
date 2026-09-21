@@ -243,6 +243,8 @@ LauncherWindow.dropping .projects { background-color: rgba( $accent, 0.06 ); bor
 {
 	flex-shrink: 0;
 	flex-direction: row;
+	flex-wrap: nowrap;
+	white-space: nowrap;
 	align-items: center;
 	height: 26px;
 	padding: 0 10px;
@@ -262,7 +264,9 @@ LauncherWindow.dropping .projects { background-color: rgba( $accent, 0.06 ); bor
 .projectrow:hover .open { opacity: 1; transform: translateX( 0px ); }
 .projectrow .open:hover { background-color: $accent-hover; transform: scale( 1.08 ); }
 .projectrow .open:active { transform: scale( 0.94 ); }
-.projectrow .open .icon { font-size: 13px; margin-right: 4px; }
+.projectrow .open .icon { flex-shrink: 0; font-size: 13px; margin-right: 4px; }
+.projectrow .open .button-right-column { flex-shrink: 0; }
+.projectrow .open .button-label { white-space: nowrap; }
 
 //
 // The rail - platform news down the right hand side
@@ -318,6 +322,24 @@ LauncherWindow.dropping .projects { background-color: rgba( $accent, 0.06 ); bor
 .newscard .text { flex-direction: column; padding: 10px 12px; background-color: $raised; }
 .newscard .title { font-size: 12px; font-weight: 600; }
 .newscard .date { font-size: 10px; color: $text-faint; margin-top: 3px; }
+
+.newscard.placeholder
+{
+	pointer-events: none;
+	cursor: default;
+	animation-name: none;
+}
+
+.newscard.placeholder .title-stub, .newscard.placeholder .date-stub
+{
+	flex-shrink: 0;
+	border-radius: 3px;
+	background-color: $line;
+}
+
+.newscard.placeholder .title-stub { width: 80%; height: 14px; }
+.newscard.placeholder .date-stub { width: 30%; height: 12px; margin-top: 3px; }
+.news-status { color: $text-muted; font-size: 12px; }
 
 //
 // Project creator
@@ -441,6 +463,8 @@ LauncherWindow.style-light .sectionlabel .text { color: $l-text; }
 .style-light .newscard:hover { border-color: $accent; }
 .style-light .newscard .text { background-color: $l-raised; }
 .style-light .newscard .date { color: $l-text-faint; }
+.style-light .newscard.placeholder .title-stub, .style-light .newscard.placeholder .date-stub { background-color: $l-line; }
+.style-light .news-status { color: $l-text-muted; }
 
 .style-light .creator .field > .label { color: $l-text-muted; }
 .style-light .creator .section-heading { color: $l-text; }

@@ -35,6 +35,13 @@ public static class EditorPreferences
 		set => ConVarSystem.SetValue( "hotload_fast", value.ToString(), true );
 	}
 
+	[Description( "Automatically assign a Prop component to all models placed on scene. Works only if model has a valid collider." )]
+	public static bool PlaceModelsAsProp
+	{
+		get => EditorCookie.Get( "PlaceModelsAsProp", true );
+		set => EditorCookie.Set( "PlaceModelsAsProp", value );
+	}
+
 	/// <summary>
 	/// Serve the Model Context Protocol from inside the editor, letting AI agents like Claude Code
 	/// read and drive the open project. Only ever reachable from this machine.

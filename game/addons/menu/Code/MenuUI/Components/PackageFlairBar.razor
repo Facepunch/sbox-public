@@ -4,17 +4,15 @@
 @namespace MenuProject.UI
 @inherits Panel
 
-@* Renders a package's flair (icon + tooltip badges) over its thumbnail.
-   Generic - it just walks the Flair list, so new flair kinds show up
-   without touching this component. Matches the web version. *@
+@* Flair badges over a thumbnail. Unlike the web, the flair colour goes on the glyph, not the badge. *@
 
 @if (Flair.Length > 0)
 {
     <root>
         @foreach (var flair in Flair)
         {
-            <div class="flair flair-@flair.Kind" style="@flair.Style" tooltip="@flair.Tooltip">
-                <icon>@flair.Icon</icon>
+            <div class="flair flair-@flair.Kind" tooltip="@flair.Tooltip">
+                <icon style="@GlyphStyle( flair )">@flair.Icon</icon>
             </div>
         }
     </root>
@@ -22,6 +20,14 @@
 
 @code {
     [Parameter] public ImmutableArray<Package.PackageFlair> Flair { get; set; } = ImmutableArray<Package.PackageFlair>.Empty;
+
+    static readonly System.Text.RegularExpressions.Regex BackgroundColor = new( @"background-color\s*:\s*([^;]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled );
+
+    static string GlyphStyle( Package.PackageFlair flair )
+    {
+        var match = BackgroundColor.Match( flair.Style ?? "" );
+        return match.Success ? $"color: {match.Groups[1].Value.Trim()};" : "";
+    }
 
     protected override int BuildHash() => Flair.Length;
 }

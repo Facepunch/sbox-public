@@ -12,6 +12,23 @@ namespace Sandbox.UI;
 public partial class Popup : BasePopup
 {
 	/// <summary>
+	/// Optional anchor in the source surface's pixels, for a caret or other part of a panel.
+	/// Anchored popups flip above or below this rectangle to fit the available space.
+	/// </summary>
+	public Rect? AnchorRect { get; set; }
+
+	/// <summary>
+	/// Whether a popup window receives keyboard input instead of its source window.
+	/// Disable this for suggestions that should leave typing in the original text entry.
+	/// </summary>
+	public bool TakesKeyboardFocus { get; set; } = true;
+
+	/// <summary>
+	/// Whether a popup window lets mouse and keyboard input pass through, like a tooltip.
+	/// Set before opening the popup.
+	/// </summary>
+	public bool IgnoresInput { get; set; }
+	/// <summary>
 	/// Which panel triggered this popup. Set by <see cref="SetPositioning"/> or the constructor.
 	/// </summary>
 	public Panel PopupSource { get; set; }
@@ -322,6 +339,7 @@ public partial class Popup : BasePopup
 		}
 
 		if ( Host is null ) PositionMe( false );
+		else Host.UpdatePopup( this );
 	}
 
 	/// <summary>
@@ -370,6 +388,18 @@ public partial class Popup : BasePopup
 
 	void PositionMe( bool isInitial )
 	{
+		if ( AnchorRect is { } anchor )
+		{
+			var scale = PopupSource.ScaleFromScreen;
+			var bounds = new Rect( 0, ScreenSurfaceSize * scale );
+			var position = AnchorPosition( anchor * scale, Box.Rect.Size * scale, bounds, Position, PopupSourceOffset );
+			Style.Left = position.x;
+			Style.Top = position.y;
+			Style.MaxWidth = bounds.Width;
+			Style.MaxHeight = bounds.Height;
+			return;
+		}
+
 		var rect = PopupSource.Box.Rect * PopupSource.ScaleFromScreen;
 
 		var surface = ScreenSurfaceSize;

@@ -23,7 +23,7 @@ public sealed class PhysicsGroupDescription : Resource
 		_native = native;
 		Name = native.GetResourceName();
 
-		RegisterWeakResourceId( Name );
+		RegisterWeakResourceId( Name, native.GetGuid() );
 		Refresh();
 	}
 
@@ -91,7 +91,7 @@ public sealed class PhysicsGroupDescription : Resource
 		if ( string.IsNullOrWhiteSpace( path ) )
 			return null;
 
-		return FromNative( NativeGlue.Resources.GetPhysics( path ) );
+		return FromNative( NativeGlue.Resources.GetPhysics( path, Guid.Empty ) );
 	}
 
 	internal void Dispose()

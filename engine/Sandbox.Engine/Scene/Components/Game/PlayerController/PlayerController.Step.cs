@@ -21,7 +21,8 @@ public sealed partial class PlayerController : Component
 		_didstep = false;
 
 		if ( !Body.IsValid() ) return;
-		var velocity = Body.Velocity.WithZ( 0 );
+		var up = UpDirection;
+		var velocity = WithoutVertical( Body.Velocity );
 		if ( velocity.IsNearlyZero() ) return;
 		if ( _timeUntilAllowedGround > 0 ) return;
 
@@ -35,8 +36,9 @@ public sealed partial class PlayerController : Component
 		// Trace forwards, in our current velocity direction
 		//
 		{
-			var a = from - vel.Normal * _skin;
-			var b = from + vel;
+			var traceOffset = Scene.Is2D ? up : 0;
+			var a = from + traceOffset - vel.Normal * _skin;
+			var b = from + traceOffset + vel;
 
 			result = TraceBody( a, b, radiusScale );
 
@@ -59,17 +61,25 @@ public sealed partial class PlayerController : Component
 				DebugOverlay.Line( a, b, duration: 10, color: Color.Green );
 			}
 
-			// Remove the distace travelled from our velocity
-			vel = vel.Normal * (vel.Length - result.Distance);
-			if ( vel.Length <= 0 ) return;
+			var direction = vel.Normal;
+			var remainingDistance = vel.Length - result.Distance;
+			from = result.EndPosition;
+
+			if ( Scene.Is2D )
+			{
+				from -= direction * _skin;
+				remainingDistance = (b - from).Dot( direction );
+			}
+
+			if ( remainingDistance <= 0 ) return;
+			vel = direction * remainingDistance;
 		}
 
 		//
 		// We hit a step, move upwards from this point, one step up
 		//
 		{
-			from = result.EndPosition;
-			var uppoint = from + Vector3.Up * maxDistance;
+			var uppoint = from + up * maxDistance;
 
 			// move up 
 			result = TraceBody( from, uppoint, radiusScale );
@@ -113,7 +123,7 @@ public sealed partial class PlayerController : Component
 		{
 			var dist = result.Distance;
 			var top = result.EndPosition;
-			var bottom = result.EndPosition + Vector3.Down * maxDistance;
+			var bottom = result.EndPosition - up * maxDistance;
 
 			result = TraceBody( top, bottom, radiusScale );
 
@@ -129,17 +139,17 @@ public sealed partial class PlayerController : Component
 				return;
 
 			// didn't step up enough to bother - returning here avoids getting stuck on corners when there's a ceiling above (due to RestoreStep preventing moving forward)
-			if ( result.EndPosition.z.AlmostEqual( Body.WorldPosition.z, 0.015f ) )
+			if ( (result.EndPosition - Body.WorldPosition).Dot( up ).AlmostEqual( 0, 0.015f ) )
 				return;
 
 			_didstep = true;
-			_stepPosition = result.EndPosition + Vector3.Up * _skin;
+			_stepPosition = result.EndPosition + up * _skin;
 
 			Body.WorldPosition = _stepPosition;
 
 			// Kill vertical velocity when stepping
 			// so we don't launch into the air
-			Body.Velocity = Body.Velocity.WithZ( 0 ) * 0.9f;
+			Body.Velocity = WithoutVertical( Body.Velocity ) * 0.9f;
 
 			if ( StepDebug )
 			{

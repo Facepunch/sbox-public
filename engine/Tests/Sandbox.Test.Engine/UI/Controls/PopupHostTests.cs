@@ -33,6 +33,26 @@ public class PopupHostTest
 	}
 
 	[TestMethod]
+	public void CaretPlacementFlipsAndClampsAtSurfaceEdges()
+	{
+		var bounds = new Rect( 0, 0, 800, 600 );
+		var size = new Vector2( 300, 200 );
+		Assert.AreEqual( new Vector2( 100, 124 ), Popup.AnchorPosition( new Rect( 100, 100, 1, 20 ), size, bounds, false, 4 ) );
+		Assert.AreEqual( new Vector2( 500, 356 ), Popup.AnchorPosition( new Rect( 790, 560, 1, 20 ), size, bounds, false, 4 ) );
+		Assert.AreEqual( new Vector2( 100, 44 ), Popup.AnchorPosition( new Rect( 100, 20, 1, 20 ), size, bounds, true, 4 ) );
+		Assert.AreEqual( Vector2.Zero, Popup.AnchorPosition( new Rect( 100, 20, 1, 20 ), new Vector2( 900, 700 ), bounds, true, 4 ) );
+	}
+
+	[TestMethod]
+	public void DetailsFlipToTheLeftWhenTheRightSideIsFull()
+	{
+		var bounds = new Rect( 0, 0, 800, 600 );
+		var size = new Vector2( 200, 50 );
+		Assert.AreEqual( new Vector2( 194, 100 ), Popup.AnchorPosition( new Rect( 100, 100, 90, 290 ), size, bounds, Popup.PositionMode.RightTop, 4 ) );
+		Assert.AreEqual( new Vector2( 496, 100 ), Popup.AnchorPosition( new Rect( 700, 100, 90, 290 ), size, bounds, Popup.PositionMode.RightTop, 4 ) );
+	}
+
+	[TestMethod]
 	public void PopupGoesToTheHostInsteadOfTheRoot()
 	{
 		var source = new Panel { Parent = surface.Root };

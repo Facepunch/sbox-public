@@ -1,11 +1,20 @@
 ﻿using NativeEngine;
 using System;
+using System.IO;
 
 namespace Editor;
 
 [SkipHotload]
 public abstract partial class Asset
 {
+	internal static readonly string[] RelatedFileExts =
+	{
+		"",			// .scene
+		"_c",		// .scene_c
+		"_d",		// .scene_d
+		".meta",	// .scene.meta
+	};
+
 	internal Pixmap thumbnailOverride;
 
 	internal Asset()
@@ -23,6 +32,11 @@ public abstract partial class Asset
 	public AssetTags Tags { get; private set; }
 
 	internal ulong AssetId { get; set; }
+
+	/// <summary>
+	/// Unique GUID for this asset
+	/// </summary>
+	internal Guid Guid { get; set; }
 
 	/// <summary>
 	/// Name of the asset, usually the filename.
@@ -85,7 +99,7 @@ public abstract partial class Asset
 	/// <summary>
 	/// This asset is generated in the transient folder. You don't need to see it, or keep it around. It will re-generate from something else.
 	/// </summary>
-	public virtual bool IsTransient => AbsolutePath.Contains( "/.sbox/transient/" );
+	public virtual bool IsTransient => AbsolutePath.Contains( "/.sbox/transient/" ) || AbsolutePath.Contains( "/addons/menu/transients/" );
 
 	/// <summary>
 	/// This asset is from the cloud, it's in the cloud folder
@@ -108,20 +122,30 @@ public abstract partial class Asset
 	}
 
 	/// <summary>
-	/// Delete this asset. Will send the source and compiled files to the recycle bin.
+	/// Delete this asset. Will send files to the recycle bin.
 	/// </summary>
-	public void Delete()
+	public bool Delete()
 	{
-		var compiled = GetCompiledFile( true );
-		var source = GetSourceFile( true );
+		var path = AbsolutePath;
+		if ( string.IsNullOrEmpty( path ) ) return false;
 
-		if ( !string.IsNullOrWhiteSpace( compiled ) )
-			EditorUtility.SendToRecycleBin( compiled );
+		if ( path.EndsWith( "_c" ) ) path = path[..^2];
 
-		if ( !string.IsNullOrWhiteSpace( source ) )
-			EditorUtility.SendToRecycleBin( source );
+		{
+			// TODO: Remove this once we have FileSystem.DeferChanges()
+			FileWatch.SuppressWatchers = RealTime.Now + 999;
+
+			// remove all components
+			foreach ( var ext in RelatedFileExts )
+			{
+				EditorUtility.SendToRecycleBin( AbsolutePath + ext );
+			}
+
+			FileWatch.SuppressWatchers = RealTime.Now;
+		}
 
 		IsDeleted = true;
+		return true;
 	}
 
 	/// <summary>
@@ -137,6 +161,33 @@ public abstract partial class Asset
 	/// <param name="absolute">Whether the path should be absolute or relative.</param>
 	/// <returns>The source file path, or null if the source files are not present.</returns>
 	public abstract string GetSourceFile( bool absolute = false );
+
+	/// <summary>
+	/// Returns the .meta file path, if enabled for this asset.
+	/// </summary>
+	internal string GetMetadataFile( bool absolute = false )
+	{
+		var f = GetSourceFile( absolute );
+		if ( string.IsNullOrEmpty( f ) ) f = GetCompiledFile( absolute );
+		if ( string.IsNullOrEmpty( f ) ) return null;
+
+		// tony: Don't make metadata for cloud assets.. not my favourite addition ever
+		// we're mounting all the downloaded cloud assets first, and checking their tags, which is making fake metadata
+		// using the wrong paths
+		if ( IsCloud || IsTransient ) return null;
+
+		// no metadata for .meta files for fuck sake
+		if ( f.EndsWith( ".meta" ) ) return null;
+
+		// modelname.vmdl_c -> modelname.vmdl
+		if ( f.EndsWith( "_c" ) )
+			f = f.Substring( 0, f.Length - 2 );
+
+		// modelname.vmdl -> modelname.vmdl.meta
+		f += ".meta";
+
+		return f;
+	}
 
 	internal Pixmap CachedThumbnail;
 	public bool HasCachedThumbnail => CachedThumbnail is not null && CachedThumbnail != AssetType?.Icon256;
@@ -267,21 +318,8 @@ public abstract partial class Asset
 		{
 			if ( _metadata != null ) return _metadata;
 
-			var f = GetSourceFile( true );
-			if ( string.IsNullOrEmpty( f ) ) f = GetCompiledFile( true );
+			var f = GetMetadataFile( true );
 			if ( string.IsNullOrEmpty( f ) ) return null;
-
-			// tony: Don't make metadata for cloud assets.. not my favourite addition ever
-			// we're mounting all the downloaded cloud assets first, and checking their tags, which is making fake metadata
-			// using the wrong paths
-			if ( f.Contains( "/.sbox/cloud/" ) ) return null;
-
-			// modelname.vmdl_c -> modelname.vmdl
-			if ( f.EndsWith( "_c" ) )
-				f = f.Substring( 0, f.Length - 2 );
-
-			// modelname.vmdl -> modelname.vmdl.meta
-			f += ".meta";
 
 			_metadata = new MetaData( f );
 			return _metadata;
@@ -405,7 +443,7 @@ public abstract partial class Asset
 			Compile( false );
 		}
 
-		obj = GameResource.GetPromise( attribute.TargetType, Path );
+		obj = GameResource.GetPromise( attribute.TargetType, new ResourceId() { Guid = Guid, Path = Path } );
 		if ( obj != null && !obj.IsPromise )
 			return true; // already exists and loaded
 

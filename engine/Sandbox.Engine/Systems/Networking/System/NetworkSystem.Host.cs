@@ -5,6 +5,7 @@ internal partial class NetworkSystem
 	public void InitializeHost()
 	{
 		IsHost = true;
+		HostConnection = null;
 		InstallStringTables();
 
 		// Conna: if we're the host then set our state as Connected.

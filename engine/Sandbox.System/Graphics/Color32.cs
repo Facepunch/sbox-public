@@ -18,6 +18,7 @@ internal struct Color24
 /// </summary>
 [JsonConverter( typeof( Sandbox.Internal.JsonConvert.Color32Converter ) )]
 [StructLayout( LayoutKind.Sequential )]
+[Description( "A 32-bit color with red, green, blue and alpha components stored as bytes, in the range 0 to 255." )]
 public struct Color32 : IEquatable<Color32>
 {
 	/// <summary>

@@ -12,6 +12,11 @@
         <div class="header">
             <i>people</i>
             <h2>Friends</h2>
+            <div class="grow" />
+            <div class="count" tooltip="Friends online">
+                <icon>person</icon>
+                <label>@OnlineCount</label>
+            </div>
         </div>
 
 		<div class="friends-list">
@@ -71,7 +76,7 @@
 
             @if( !AllFriends.Any() )
             {
-                <p>Nothing to show!</p>
+                <EmptyState Icon="group_off" Title="No one around" Subtitle="None of your friends are online right now." />
             }
 
 		</div>
@@ -81,6 +86,8 @@
 @code
 {
     public IEnumerable<Friend> AllFriends => MenuUtility.Friends.Where( ShouldShow );
+
+    int OnlineCount => MenuUtility.Friends.Count( x => !x.IsMe && x.IsOnline );
 
     public IEnumerable<Friend> InGameFriends => AllFriends.Where( x => x.IsPlayingThisGame );
     public IEnumerable<Friend> OnlineFriends => AllFriends.Where( x => !x.IsPlayingThisGame && x.IsOnline );

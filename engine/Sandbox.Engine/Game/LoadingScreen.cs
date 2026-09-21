@@ -18,6 +18,7 @@ public static class LoadingScreen
 			//Log.Info( $"Loading: {value}\n{new StackTrace( true ).ToString()}" );
 
 			_loading = value;
+			if ( !value ) Progress = null;
 		}
 	}
 
@@ -30,6 +31,12 @@ public static class LoadingScreen
 	/// A subtitle to show
 	/// </summary>
 	public static string Subtitle { get; set; } = "";
+
+	/// <summary>
+	/// A snapshot of the current download's progress, or null when progress is unavailable.
+	/// Cleared when the loading screen is hidden.
+	/// </summary>
+	public static Menu.LoadingProgress? Progress { get; internal set; }
 
 	/// <summary>
 	/// A URL or filepath to show as the background image.

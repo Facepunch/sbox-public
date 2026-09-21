@@ -337,6 +337,13 @@ public partial class ProjectPublisher
 				await TryAddThumbnail( asset );
 			}
 
+			// .meta
+			var metaPath = asset.GetMetadataFile( true );
+			if ( !string.IsNullOrEmpty( metaPath ) && System.IO.File.Exists( metaPath ) )
+			{
+				await AddFile( metaPath, asset.GetMetadataFile( false ) );
+			}
+
 			return true;
 		}
 

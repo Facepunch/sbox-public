@@ -1,6 +1,9 @@
 @import "/styles/_theme.scss";
 @import "/styles/_front.scss";
 
+$jam-gold-light: #ffd980;
+$jam-gold-deep: #d99a2b;
+
 JamPage
 {
 	position: relative;
@@ -8,57 +11,38 @@ JamPage
 	align-items: center;
 	justify-content: center;
 
-	.jam-body
+	.columns
 	{
-		flex-direction: column;
-		flex-grow: 1;
-		flex-shrink: 1;
-		padding: 0 40px 24px 40px;
-		overflow: hidden;
+		@include front-page-columns;
 	}
 
-	.bar
+	.aside
+	{
+		@include front-page-aside;
+	}
+
+	.head
 	{
 		flex-direction: row;
 		flex-shrink: 0;
 		align-items: center;
-		gap: 16px;
-		height: 56px;
-		padding: 0 4px;
-		border-bottom: 1px solid rgba( 255, 255, 255, 0.18 );
+		gap: 10px;
 
-		label
+		h2
 		{
-			font-size: 11px;
-			font-weight: 600;
-			letter-spacing: 0.08em;
-			text-transform: uppercase;
-			color: $front-secondary;
-		}
-
-		label b, label.strong
-		{
-			color: $front-heading;
-			font-weight: 700;
-		}
-
-		.sep
-		{
-			width: 1px;
-			height: 14px;
-			background-color: $front-hairline;
+			flex-shrink: 1;
 		}
 	}
 
-	.live
+	.head .live-pill
 	{
 		flex-direction: row;
 		flex-shrink: 0;
 		align-items: center;
 		gap: 6px;
-		height: 24px;
-		padding: 0 10px;
-		border-radius: $rounding-default;
+		height: 22px;
+		padding: 0 9px;
+		border-radius: 999px;
 		background-color: $front-danger * 1.2;
 		animation-name: jam-live-breathe;
 		animation-duration: 2.4s;
@@ -68,9 +52,10 @@ JamPage
 		label
 		{
 			font-family: $front-font;
-			font-size: 10px;
+			font-size: 9.5px;
 			font-weight: 800;
 			letter-spacing: 0.14em;
+			text-transform: uppercase;
 			color: #ffffff;
 		}
 
@@ -87,99 +72,51 @@ JamPage
 		}
 	}
 
-	JamCountdown
-	{
-		flex-direction: row;
-		align-items: center;
-		gap: 8px;
-		margin-left: auto;
-
-		.what
-		{
-			font-size: 11px;
-			font-weight: 600;
-			letter-spacing: 0.08em;
-			text-transform: uppercase;
-			color: $front-secondary;
-		}
-
-		// Poppins has no tabular figures.
-		.time
-		{
-			font-family: $font-default;
-			font-variant-numeric: tabular-nums;
-			font-size: 16px;
-			font-weight: 700;
-			letter-spacing: 0.02em;
-			color: $primary-yellow;
-		}
-	}
-
-	.columns
-	{
-		flex-direction: row;
-		flex-grow: 1;
-		flex-shrink: 1;
-		gap: 56px;
-		padding: 36px 4px 0 4px;
-		overflow: hidden;
-	}
-
-	.main
+	.theme
 	{
 		flex-direction: column;
-		flex-grow: 1;
-		flex-shrink: 1;
-		width: 0;
-		overflow: hidden;
+		flex-shrink: 0;
+		gap: 0;
+		margin-top: 16px;
 	}
 
 	.kicker
 	{
 		@include front-section-label;
 
+		flex-shrink: 0;
 		color: $front-primary;
 	}
 
 	.headline
 	{
+		flex-shrink: 0;
 		font-family: $front-font;
-		font-size: 58px;
+		font-size: 32px;
 		font-weight: 800;
-		letter-spacing: -0.03em;
-		line-height: 0.95;
+		letter-spacing: -0.02em;
 		color: $front-heading;
-		margin: 8px 0 8px 0;
-	}
-
-	.sub
-	{
-		font-size: 14px;
-		color: $front-secondary;
 	}
 
 	.blurb
 	{
-		font-size: 14px;
-		color: $front-body;
-		margin: 10px 0 18px 0;
-		max-width: 720px;
+		flex-shrink: 0;
+		font-size: 12.5px;
+		color: $front-secondary;
 	}
 
 	.actions
 	{
-		flex-direction: row;
+		flex-direction: column;
 		flex-shrink: 0;
-		gap: 10px;
-		margin-bottom: 24px;
+		gap: 8px;
+		margin-top: 20px;
 	}
 
 	.action
 	{
 		@include front-button;
 
-		padding: 0 18px;
-		height: 32px;
 		pointer-events: all;
 		cursor: pointer;
 	}
@@ -193,143 +130,357 @@ JamPage
 		{
 			color: $front-body;
 		}
-	}
 
-	.sec
-	{
-		flex-direction: row;
-		flex-shrink: 0;
-		gap: 20px;
-		padding: 20px 0;
-		border-top: 1px solid $front-hairline;
-	}
-
-	.sec.grow
-	{
-		flex-grow: 1;
-		flex-shrink: 1;
-		height: 0;
-		padding-bottom: 0;
-	}
-
-	.sec-label
-	{
-		flex-direction: column;
-		flex-shrink: 0;
-		width: 130px;
-		padding-top: 3px;
-
-		.eyebrow
+		&:hover
 		{
-			@include front-section-label;
-		}
+			filter: none;
+			background-color: rgba( 255, 255, 255, 0.11 );
+			border-color: rgba( 255, 255, 255, 0.28 );
 
-		.name
-		{
-			font-size: 13px;
-			font-weight: 600;
-			color: $front-body;
+			label, icon
+			{
+				color: $front-heading;
+			}
 		}
 	}
 
 	.prize
 	{
 		flex-direction: row;
-		flex-grow: 1;
+		flex-shrink: 0;
 		align-items: center;
-		gap: 16px;
+		gap: 12px;
 	}
 
 	.prize-icon
 	{
 		flex-shrink: 0;
-		font-size: 26px;
+		font-size: 24px;
 	}
 
 	.prize-body
 	{
 		flex-direction: column;
-		flex-shrink: 0;
-		width: 440px;
+		flex-shrink: 1;
 		gap: 1px;
 	}
 
-	.prize-title
+	.block .prize-title
 	{
 		font-family: $front-font;
-		font-size: 16px;
+		font-size: 14px;
 		font-weight: 700;
 		color: $front-heading;
 	}
 
-	.prize-hint
+	.block .prize-hint
 	{
-		font-size: 12.5px;
+		font-size: 12px;
 		color: $front-secondary;
 	}
 
 	.places
 	{
-		flex-direction: row;
+		flex-direction: column;
 		flex-shrink: 0;
-		align-items: flex-end;
-		gap: 56px;
-		margin-left: 40px;
+		margin-top: 4px;
+		border-top: 1px solid $front-hairline;
 	}
 
 	.place
 	{
-		flex-direction: column;
-		align-items: flex-start;
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: space-between;
+		padding: 7px 0;
+		border-bottom: 1px solid $front-hairline;
 
-		.amount
+		&:last-child
+		{
+			border-bottom: 0;
+		}
+	}
+
+	.block .place .ordinal
+	{
+		@include front-section-label;
+	}
+
+	.block .place .amount
+	{
+		font-family: $front-font;
+		font-size: 14px;
+		font-weight: 600;
+		color: $front-body;
+	}
+
+	.block .place.first .amount
+	{
+		font-size: 18px;
+		font-weight: 700;
+		color: linear-gradient( 180deg, $jam-gold-light, $jam-gold-deep );
+	}
+
+	.stack
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		width: 0;
+		gap: $front-chrome-gap;
+		overflow: hidden;
+
+		.list
+		{
+			width: 100%;
+			height: 0;
+		}
+	}
+
+	.hero
+	{
+		@include front-card;
+
+		padding: 20px 28px 20px 28px;
+
+		h2
+		{
+			flex-shrink: 0;
+			font-size: 15px;
+			font-weight: 700;
+			text-transform: uppercase;
+			letter-spacing: 0.06em;
+			color: $front-heading;
+
+			i
+			{
+				color: $front-primary;
+				text-transform: none;
+				font-size: 21px;
+			}
+		}
+
+		p
+		{
+			flex-shrink: 0;
+			color: $front-body;
+			margin: 8px 0 0 0;
+		}
+
+		.theme
+		{
+			margin-top: 6px;
+		}
+
+		.headline
+		{
+			font-size: 34px;
+		}
+
+		.blurb
+		{
+			max-width: 720px;
+		}
+	}
+
+	.hero-row
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: stretch;
+		gap: 40px;
+	}
+
+	.side
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		align-items: flex-end;
+		justify-content: space-between;
+		gap: 16px;
+	}
+
+	.intro
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		width: 0;
+		gap: 4px;
+	}
+
+	.hero .actions
+	{
+		flex-direction: row-reverse;
+		flex-shrink: 0;
+		margin-top: 0;
+		gap: 10px;
+
+		.action
+		{
+			padding: 0 18px;
+			height: 36px;
+		}
+	}
+
+	.prizes
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		align-items: flex-end;
+		gap: 10px;
+
+		.prize-head
+		{
+			flex-direction: row;
+			flex-shrink: 0;
+			align-items: center;
+			gap: 6px;
+		}
+
+		.section-label
+		{
+			@include front-section-label;
+		}
+
+		.prize-icon
+		{
+			font-size: 14px;
+		}
+
+		.prize-hint
+		{
+			font-size: 12px;
+			color: $front-secondary;
+		}
+
+		.places
+		{
+			flex-direction: row;
+			align-items: flex-end;
+			justify-content: flex-end;
+			gap: 40px;
+			margin-top: 0;
+			border-top: 0;
+		}
+
+		.place
+		{
+			flex-direction: column;
+			align-items: flex-start;
+			padding: 0;
+			border-bottom: 0;
+		}
+
+		.place .ordinal
+		{
+			@include front-section-label;
+		}
+
+		.place .amount
 		{
 			font-family: $front-font;
-			font-size: 18px;
+			font-size: 20px;
 			font-weight: 600;
 			color: $front-body;
 		}
 
-		.ordinal
+		.place.first .amount
 		{
-			@include front-section-label;
+			font-weight: 700;
+			color: linear-gradient( 180deg, $jam-gold-light, $jam-gold-deep );
 		}
 	}
 
-	.place.first .amount
+	.list
 	{
-		font-size: 26px;
-		font-weight: 700;
-		color: $front-trophy;
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		width: 0;
+		overflow: hidden;
+		gap: 16px;
+	}
+
+	.section-head
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		padding: 0 4px;
+
+		.title
+		{
+			font-family: $front-font;
+			font-size: 20px;
+			font-weight: 700;
+			color: $front-heading;
+		}
+
+		.description
+		{
+			font-family: $front-font;
+			font-size: 14px;
+			font-weight: 500;
+			color: $front-secondary;
+		}
 	}
 
 	.entries
 	{
 		flex-grow: 1;
 		flex-shrink: 1;
-		width: 0;
-		height: 100%;
+		height: 0;
+		width: 100%;
 
 		PackageList
 		{
 			width: 100%;
 			height: 100%;
+
+			VirtualGrid
+			{
+				padding: 0 4px;
+			}
 		}
 	}
 
 	.jam-empty
 	{
 		@include front-page-empty;
-
-		flex-grow: 1;
-		border: 0;
-		background-color: transparent;
-		background-image: none;
 	}
 
-	.jam-empty.small
+	.schedule
 	{
-		padding: 32px;
+		@include front-card;
+
+		width: 280px;
+		padding: 24px;
+		gap: 20px;
+	}
+
+	JamCountdown
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 2px;
+		padding-bottom: 18px;
+		border-bottom: 1px solid $front-hairline;
+
+		.what
+		{
+			@include front-section-label;
+		}
+
+		.time
+		{
+			font-family: $font-default;
+			font-variant-numeric: tabular-nums;
+			font-size: 22px;
+			font-weight: 700;
+			letter-spacing: 0.02em;
+			color: linear-gradient( 180deg, $jam-gold-light, $jam-gold-deep );
+		}
 	}
 }
 

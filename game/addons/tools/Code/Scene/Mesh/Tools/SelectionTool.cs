@@ -16,6 +16,12 @@ public abstract class SelectionTool( MeshTool tool ) : EditorTool
 {
 	public MeshTool Tool { get; } = tool;
 
+	/// <summary>
+	/// Whether clicking in the scene should change the selection. The move mode can
+	/// be borrowing the cursor for something else, like picking a pivot point.
+	/// </summary>
+	public bool IsAllowedToSelect => Tool?.MoveMode?.AllowSceneSelection ?? true;
+
 	protected TextureLockTransform _transformKind = TextureLockTransform.Move;
 
 	protected enum TextureLockTransform
@@ -432,8 +438,6 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 		SaveCurrentSelection<T>();
 	}
 
-	public bool IsAllowedToSelect => Tool?.MoveMode?.AllowSceneSelection ?? true;
-
 	public override void BuildSceneContextMenu( Menu menu, Ray ray, SceneTraceResult? trace )
 	{
 		bool hasSelection = Selection.OfType<IMeshElement>().Any( x => x.IsValid() );
@@ -744,19 +748,11 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 				{
 					Gizmo.Draw.IgnoreDepth = true;
 					Gizmo.Draw.Color = vertexColor.Darken( 0.3f ).WithAlpha( 0.2f );
-
-					foreach ( var v in mesh.Mesh.GetVisibleVertexPositions() )
-					{
-						Gizmo.Draw.Sprite( v, 8, null, false );
-					}
+					Gizmo.Draw.Sprites( mesh.Mesh.GetVisibleVertexPositions(), 8, worldspace: false );
 
 					Gizmo.Draw.Color = vertexColor;
 					Gizmo.Draw.IgnoreDepth = false;
-
-					foreach ( var v in mesh.Mesh.GetVisibleVertexPositions() )
-					{
-						Gizmo.Draw.Sprite( v, 8, null, false );
-					}
+					Gizmo.Draw.Sprites( mesh.Mesh.GetVisibleVertexPositions(), 8, worldspace: false );
 				}
 			}
 		}

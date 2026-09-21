@@ -62,7 +62,12 @@ Sidebar
 	{
 		background-color: rgba( $front-danger, 0.18 );
 
-		iconpanel, label
+		iconpanel
+		{
+			color: linear-gradient( 180deg, $front-danger * 1.3, $front-danger );
+		}
+
+		label
 		{
 			color: $front-danger;
 		}

@@ -198,12 +198,9 @@ public partial class RenderSettings
 	/// <summary>Window, resolution, vsync, frame rate caps and field of view.</summary>
 	public void ResetDisplayConfig()
 	{
-		int desktopWidth = 0;
-		int desktopHeight = 0;
-		uint desktopRefreshRate = 0;
-		EngineGlobal.Plat_GetDesktopResolution( EngineGlobal.Plat_GetDefaultMonitorIndex(), ref desktopWidth, ref desktopHeight, ref desktopRefreshRate );
-		ResolutionWidth = desktopWidth;
-		ResolutionHeight = desktopHeight;
+		var size = SdlDisplay.GetDesktopSize( SdlDisplay.Current );
+		ResolutionWidth = (int)size.x;
+		ResolutionHeight = (int)size.y;
 
 		Fullscreen = false;
 		Borderless = true;
@@ -262,7 +259,7 @@ public partial class RenderSettings
 		ResolutionWidth = 1920;
 		ResolutionHeight = 1080;
 
-		NativeEngine.RenderDeviceManager.ChangeVideoMode( Fullscreen, Borderless, VSync, ResolutionWidth, ResolutionHeight, AntiAliasQuality.ToEngine() );
+		ApplyVideoMode();
 	}
 
 }

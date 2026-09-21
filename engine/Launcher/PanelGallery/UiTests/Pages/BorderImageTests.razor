@@ -1,0 +1,36 @@
+@using Sandbox.PanelGallery;
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Backgrounds" )]
+@attribute [Title( "border-image" )]
+@attribute [Icon( "science" )]
+<root>
+    <h2>border-image</h2>
+
+    <p>Nine-slice borders preserve their corners while the edges stretch or repeat. Add fill to draw the centre too.</p>
+
+    <div class="cases">
+        <UiTestCase Caption="Stretched edges" Setup="@Plain" Css="border: 20px solid transparent; border-image: url( /assets/border-frame.svg ) 33% / 20px stretch"
+                    Note="Edges stretched between the corners." />
+        <UiTestCase Caption="Repeated edges" Setup="@Plain" Css="border: 20px solid transparent; border-image: url( /assets/border-frame.svg ) 33% / 20px round"
+                    Note="Edges tiled instead, rounded to a whole number of tiles." />
+        <UiTestCase Caption="Fill the centre" Setup="@Plain" Css="border: 20px solid transparent; border-image: url( /assets/border-frame.svg ) 33% / 20px stretch fill"
+                    Note="With fill, the middle slice is drawn too." />
+        <UiTestCase Caption="Wide frame" Setup="@PlainWide" Css="border: 20px solid transparent; border-image: url( /assets/border-frame.svg ) 33% / 20px round"
+                    Note="Non-square box: the corners must stay square while only the edges repeat." />
+        <UiTestCase Caption="Thicker border" Setup="@Plain" Css="border: 30px solid transparent; border-image: url( /assets/border-frame.svg ) 33% / 30px stretch"
+                    Note="Thicker border, same slice, so the corners scale up." />
+    </div>
+
+
+</root>
+@code
+{
+    // A dark plate behind each image, so transparency and letterboxing are visible
+
+    const string Plain = "width: 200px; height: 200px";
+    const string PlainWide = "width: 400px; height: 200px";
+
+}

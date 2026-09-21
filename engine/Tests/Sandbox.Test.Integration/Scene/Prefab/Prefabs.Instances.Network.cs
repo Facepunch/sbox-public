@@ -173,7 +173,7 @@ public partial class InstancesTest
 			SingleNetworkObject = true
 		};
 
-		string originalPrefabSource;
+		ResourceId originalPrefabSource;
 
 		JsonObject serializedData;
 
@@ -187,7 +187,7 @@ public partial class InstancesTest
 
 			originalPrefabSource = instance.PrefabInstance.PrefabSource;
 
-			Assert.IsFalse( string.IsNullOrEmpty( originalPrefabSource ) );
+			Assert.IsFalse( originalPrefabSource.IsEmpty );
 
 			serializedData = instance.Serialize( options );
 		}

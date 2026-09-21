@@ -271,7 +271,7 @@ public sealed class Dresser : Component, Component.ExecuteInEditor
 
 	protected override void OnValidate()
 	{
-		if ( IsProxy )
+		if ( IsProxy || Scene.IsPrefabCacheSceneRoot )
 			return;
 
 		base.OnValidate();

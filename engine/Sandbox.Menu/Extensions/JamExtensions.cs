@@ -1,7 +1,13 @@
-using System;
+﻿using System;
 using Sandbox.Services;
 
 namespace Sandbox;
+
+/// <summary>
+/// Whether a package is an entry in a jam and where the local player's nomination stands.
+/// <see cref="Reason"/> says why they can't nominate, when they can't.
+/// </summary>
+public record struct JamEntryStatus( bool IsEntry, bool CanNominate, bool Nominated, string Reason );
 
 public static partial class SandboxMenuExtensions
 {
@@ -45,8 +51,42 @@ public static partial class SandboxMenuExtensions
 		return result;
 	}
 
+	// Non-entries and eligible entries are cached until a vote changes them. Locked entries
+	// aren't, since playing the game is what unlocks them.
+	static readonly System.Collections.Concurrent.ConcurrentDictionary<string, JamEntryStatus> entryStatus = new();
+
+	static string EntryKey( Jam jam, Package package ) => $"{jam.Ident}/{package.FullIdent}";
+
+	/// <summary>
+	/// Whether this package is an entry in the jam and whether the local player can nominate it
+	/// right now. Null when the backend can't be reached.
+	/// </summary>
+	public static async Task<JamEntryStatus?> GetEntryStatusAsync( this Jam jam, Package package )
+	{
+		if ( entryStatus.TryGetValue( EntryKey( jam, package ), out var cached ) )
+			return cached;
+
+		try
+		{
+			var entry = await Backend.Jam.GetEntry( jam.Ident, package.FullIdent, PreviewDays() );
+			if ( entry is null ) return null;
+
+			var status = new JamEntryStatus( entry.IsEntry, entry.CanVote, entry.VotedCategories?.Length > 0, entry.Reason );
+			if ( !status.IsEntry || status.CanNominate )
+				entryStatus[EntryKey( jam, package )] = status;
+			return status;
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( $"Couldn't read jam entry for {package.FullIdent} ({e.Message})" );
+			return null;
+		}
+	}
+
 	static async Task<string> VoteAsync( Jam jam, Package package, bool remove )
 	{
+		entryStatus.TryRemove( EntryKey( jam, package ), out _ );
+
 		foreach ( var category in jam.Categories.Where( x => x.Community ) )
 		{
 			try

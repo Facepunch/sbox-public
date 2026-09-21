@@ -11,6 +11,7 @@ using System.Text.Json.Serialization;
 /// </summary>
 [JsonConverter( typeof( Sandbox.Internal.JsonConvert.Vector2Converter ) )]
 [StructLayout( LayoutKind.Sequential )]
+[Description( "A 2-dimensional vector. Typically represents a position, size, or direction in 2D space." )]
 public partial struct Vector2 : System.IEquatable<Vector2>, IParsable<Vector2>, IInterpolator<Vector2>
 {
 	internal System.Numerics.Vector2 _vec;
@@ -186,6 +187,12 @@ public partial struct Vector2 : System.IEquatable<Vector2>, IParsable<Vector2>, 
 	/// </summary>
 	[JsonIgnore]
 	public readonly bool IsInfinity => float.IsInfinity( x ) || float.IsInfinity( y );
+
+	/// <summary>
+	/// Returns true if x and y are all finite, so neither NaN nor infinity
+	/// </summary>
+	[JsonIgnore]
+	public readonly bool IsFinite => float.IsFinite( x ) && float.IsFinite( y );
 
 	/// <summary>
 	/// Returns true if the squared length is less than 1e-8 (which is really near zero)

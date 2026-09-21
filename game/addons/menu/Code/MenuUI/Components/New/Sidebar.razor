@@ -36,7 +36,8 @@
             <RailButton Href="@InboxUrl" Icon="notifications" Text="Inbox" Badge="@NotificationBadge" />
         }
 
-        <RailButton Href="/rewards" Icon="redeem" Text="Rewards" Badge="@RewardBadge" BadgeClass="reward" Progress="@RewardProgress" />
+        @* Not a page - it pops up beside the entry, like the friends list does off the party deck. *@
+        <RailButton @ref="RewardsButton" OnPress="@OpenRewards" Active="@RewardsOpen" Icon="redeem" Text="Rewards" Badge="@RewardBadge" BadgeClass="reward" Progress="@RewardProgress" />
 
         <Button Href="/settings" Icon="settings">Settings</Button>
         <Button @onmouseup=@Quit class="quit" Icon="power_settings_new">Quit</Button>
@@ -45,7 +46,7 @@
 </root>
 
 @code {
-    const string FavouritesUrl = "/games/group?Query=type:game sort:favourite&title=Favourite Games&Icon=💖";
+    const string FavouritesUrl = "/games/group?Query=type:game sort:favourite&title=Favourite Games&subtitle=The games you love, all in one place";
 
     const string InboxUrl = "/notifications";
 
@@ -63,6 +64,16 @@
 
     Sandbox.Services.Jam jam;
     RealTimeUntil timeUntilJamPoll = 0;
+
+    RailButton RewardsButton;
+
+    /// <summary>Lit while the drop popup is up, since there's no page for it to match against.</summary>
+    bool RewardsOpen => ModalSystem.Instance?.IsOpen<MenuProject.Modals.RewardsModal>() ?? false;
+
+    void OpenRewards()
+    {
+        ModalSystem.Instance?.Rewards( RewardsButton );
+    }
 
     /// <summary>
     /// Marks the badges as out of date, so the rail re-reads them on its next tick. The
@@ -182,5 +193,5 @@
         ConsoleSystem.Run( "quit" );
     }
 
-    protected override int BuildHash() => HashCode.Combine( ShowInbox, NotificationBadge, RewardBadge, RewardProgress, jam?.Ident, JamLive, JamCountdown );
+    protected override int BuildHash() => HashCode.Combine( ShowInbox, NotificationBadge, RewardBadge, RewardProgress, RewardsOpen, jam?.Ident, JamLive, JamCountdown );
 }

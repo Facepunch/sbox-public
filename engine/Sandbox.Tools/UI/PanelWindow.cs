@@ -1,4 +1,5 @@
-﻿using NativeEngine;
+using NativeEngine;
+using Sandbox.Engine;
 using Sandbox.Engine.Settings;
 using Sandbox.UI;
 using System;
@@ -66,14 +67,14 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		}
 	}
 
-	SwapChainHandle_t _swapChain;
+	private protected SdlWindow Window { get; set; }
 	SceneCamera _camera;
 	SceneWorld _world;
 
 	/// <summary>
 	/// The OS window. Zero until it exists - a popup makes its own at the first frame boundary.
 	/// </summary>
-	internal IntPtr Handle { get; private protected set; }
+	internal IntPtr Handle => Window?.Handle ?? IntPtr.Zero;
 
 	/// <summary>
 	/// A popup - a transient window like a menu, dismissed by a click anywhere else.
@@ -84,6 +85,11 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	/// A window that never takes the keyboard or the mouse.
 	/// </summary>
 	public virtual bool IgnoresInput => false;
+
+	/// <summary>
+	/// Whether a popup redirects typing from its parent window.
+	/// </summary>
+	internal virtual bool TakesKeyboardFocus => !IgnoresInput;
 
 	/// <summary>
 	/// The window this one hangs off, if it's a popup.
@@ -109,6 +115,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	UISurface IPanelWindow.Surface => Surface;
 	bool IPanelWindow.IsPopup => IsPopup;
 	bool IPanelWindow.IgnoresInput => IgnoresInput;
+	bool IPanelWindow.TakesKeyboardFocus => TakesKeyboardFocus;
 	IPanelWindow IPanelWindow.Parent => ParentWindow;
 
 	/// <summary>
@@ -216,7 +223,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		set
 		{
 			field = value;
-			if ( Handle != IntPtr.Zero ) PanelWindowNative.SetTitle( Handle, value ?? "" );
+			Window?.Title = value;
 		}
 	}
 
@@ -238,7 +245,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 			if ( Handle == IntPtr.Zero ) return;
 
 			var window = UiToWindow( value );
-			PanelWindowNative.SetSize( Handle, (int)MathF.Ceiling( window.x ), (int)MathF.Ceiling( window.y ) );
+			Sdl.SetWindowSize( Handle, (int)MathF.Ceiling( window.x ), (int)MathF.Ceiling( window.y ) );
 		}
 	}
 
@@ -247,16 +254,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	/// the surface lays its panels out in. Zero until there's an OS window to measure: a popup
 	/// waits for a frame boundary to make one.
 	/// </summary>
-	internal Vector2 PixelSize
-	{
-		get
-		{
-			if ( Handle == IntPtr.Zero ) return default;
-
-			PanelWindowNative.GetClientSize( Handle, out var w, out var h );
-			return new Vector2( w, h );
-		}
-	}
+	internal Vector2 PixelSize => Window?.PixelSize ?? default;
 
 	//
 	// Three spaces meet at a window, and SDL hands us the one number that isn't obvious:
@@ -275,7 +273,11 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	/// Pixels to one of SDL's window coordinates. One on Windows, two on a retina Mac. This is not
 	/// the display scale - a 1.75x Windows display has a display scale of 1.75 and a density of 1.
 	/// </summary>
-	float PixelDensity => Handle == IntPtr.Zero ? 1.0f : PanelWindowNative.GetPixelDensity( Handle );
+	float PixelDensity => Sandbox.Engine.SdlDisplay.GetPixelDensity( Handle );
+
+	private protected float DisplayScale => Sandbox.Engine.SdlDisplay.GetWindowScale( Handle );
+
+	Sdl.WindowFlags WindowFlags => Window.Flags;
 
 	/// <summary>
 	/// Authored UI units to window coordinates, for handing the OS a size or a size limit. Uses the
@@ -304,7 +306,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		{
 			if ( Handle == IntPtr.Zero ) return default;
 
-			PanelWindowNative.GetBounds( Handle, out var x, out var y, out _, out _ );
+			Sdl.GetWindowPosition( Handle, out var x, out var y );
 			return new Vector2( x, y );
 		}
 
@@ -312,7 +314,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		{
 			if ( Handle == IntPtr.Zero ) return;
 
-			PanelWindowNative.SetPosition( Handle, (int)value.x, (int)value.y );
+			Sdl.SetWindowPosition( Handle, (int)value.x, (int)value.y );
 		}
 	}
 
@@ -354,8 +356,8 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		var min = UiToWindow( MinSize );
 		var max = UiToWindow( MaxSize );
 
-		PanelWindowNative.SetMinSize( Handle, (int)min.x, (int)min.y );
-		PanelWindowNative.SetMaxSize( Handle, (int)max.x, (int)max.y );
+		Sdl.SetWindowMinimumSize( Handle, (int)min.x, (int)min.y );
+		Sdl.SetWindowMaximumSize( Handle, (int)max.x, (int)max.y );
 	}
 
 	/// <summary>
@@ -369,7 +371,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		set
 		{
 			field = value;
-			if ( Handle != IntPtr.Zero ) PanelWindowNative.SetCanMaximize( Handle, value );
+			if ( Handle != IntPtr.Zero ) Sdl.SetWindowCanMaximize( Handle, value );
 		}
 	} = true;
 
@@ -383,7 +385,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		set
 		{
 			field = value;
-			if ( Handle != IntPtr.Zero ) PanelWindowNative.SetDropShadow( Handle, value );
+			if ( Handle != IntPtr.Zero ) Sdl.SetWindowHasShadow( Handle, value );
 		}
 	}
 
@@ -397,19 +399,19 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		set
 		{
 			field = value;
-			if ( Handle != IntPtr.Zero ) PanelWindowNative.SetRoundedCorners( Handle, value );
+			if ( Handle != IntPtr.Zero ) Sdl.SetWindowRoundedCorners( Handle, value );
 		}
 	}
 
 	/// <summary>
-	/// Is the window on screen at all, as opposed to hidden with <see cref="Hide"/> or minimized?
+	/// Whether the native window exists and is not hidden. Minimized windows can still be visible.
 	/// </summary>
-	public bool IsVisible => Handle != IntPtr.Zero && PanelWindowNative.IsVisible( Handle );
+	public bool IsVisible => Handle != IntPtr.Zero && (WindowFlags & Sdl.WindowFlags.Hidden) == 0;
 
 	/// <summary>
 	/// Is the window minimized to the taskbar?
 	/// </summary>
-	public bool IsMinimized => Handle != IntPtr.Zero && PanelWindowNative.IsMinimized( Handle );
+	public bool IsMinimized => Handle != IntPtr.Zero && (WindowFlags & Sdl.WindowFlags.Minimized) != 0;
 
 	/// <summary>
 	/// Keep the window above every window that isn't. Palettes, overlays, a video you want to
@@ -421,7 +423,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		set
 		{
 			field = value;
-			if ( Handle != IntPtr.Zero ) PanelWindowNative.SetAlwaysOnTop( Handle, value );
+			if ( Handle != IntPtr.Zero ) Sdl.SetWindowAlwaysOnTop( Handle, value );
 		}
 	}
 
@@ -434,7 +436,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		set
 		{
 			field = Math.Clamp( value, 0, 1 );
-			if ( Handle != IntPtr.Zero ) PanelWindowNative.SetOpacity( Handle, field );
+			if ( Handle != IntPtr.Zero ) Sdl.SetWindowOpacity( Handle, field );
 		}
 	} = 1;
 
@@ -450,7 +452,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 			if ( field == value ) return;
 
 			field = value;
-			if ( Handle != IntPtr.Zero ) PanelWindowNative.SetShowInTaskbar( Handle, value );
+			if ( Handle != IntPtr.Zero ) Sdl.SetWindowInTaskbar( Handle, value );
 		}
 	} = true;
 
@@ -463,7 +465,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		set
 		{
 			field = value;
-			if ( Handle != IntPtr.Zero ) PanelWindowNative.SetResizable( Handle, value );
+			if ( Handle != IntPtr.Zero ) Sdl.SetWindowResizable( Handle, value );
 		}
 	} = true;
 
@@ -476,8 +478,9 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		get => field;
 		set
 		{
+			if ( field == value ) return;
 			field = value;
-			if ( Handle != IntPtr.Zero ) PanelWindowNative.SetFullscreen( Handle, value, ExclusiveFullscreen );
+			_fullscreenPending = true;
 		}
 	}
 
@@ -491,15 +494,46 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		get => field;
 		set
 		{
+			if ( field == value ) return;
 			field = value;
-			if ( Handle != IntPtr.Zero && Fullscreen ) PanelWindowNative.SetFullscreen( Handle, true, value );
+			if ( Fullscreen ) _fullscreenPending = true;
+		}
+	}
+
+	bool _fullscreenPending;
+	bool _applyingFullscreen;
+
+	bool ApplyFullscreen()
+	{
+		if ( !_fullscreenPending ) return true;
+		_fullscreenPending = false;
+		_applyingFullscreen = true;
+		try
+		{
+			Window.Flush();
+			var desktop = Fullscreen && ExclusiveFullscreen ? SdlDisplay.GetDesktopMode( SdlDisplay.ForWindow( Handle ) ) : default;
+			if ( Window.SetFullscreen( Fullscreen, desktop.Width, desktop.Height, desktop.RefreshRate ) ) return true;
+			_fullscreenPending = true;
+			return false;
+		}
+		catch ( Exception e )
+		{
+			// A rejected request must not leave the property stuck at a mode we never entered.
+			Fullscreen = IsFullscreen;
+			_fullscreenPending = false;
+			Log.Warning( e, "Couldn't change panel window fullscreen mode" );
+			return false;
+		}
+		finally
+		{
+			_applyingFullscreen = false;
 		}
 	}
 
 	/// <summary>
 	/// Is the window fullscreen right now, either way?
 	/// </summary>
-	public bool IsFullscreen => Handle != IntPtr.Zero && PanelWindowNative.IsFullscreen( Handle );
+	public bool IsFullscreen => Handle != IntPtr.Zero && (WindowFlags & Sdl.WindowFlags.Fullscreen) != 0;
 
 	/// <summary>
 	/// The whole of the display the window is on, in the same desktop coordinates as <see cref="Position"/>.
@@ -510,8 +544,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		{
 			if ( Handle == IntPtr.Zero ) return default;
 
-			PanelWindowNative.GetDisplayBounds( Handle, out var x, out var y, out var w, out var h );
-			return new Rect( x, y, w, h );
+			return Sandbox.Engine.SdlDisplay.GetBounds( Sandbox.Engine.SdlDisplay.ForWindow( Handle ) );
 		}
 	}
 
@@ -524,8 +557,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		{
 			if ( Handle == IntPtr.Zero ) return default;
 
-			PanelWindowNative.GetDisplayWorkArea( Handle, out var x, out var y, out var w, out var h );
-			return new Rect( x, y, w, h );
+			return Sandbox.Engine.SdlDisplay.GetBounds( Sandbox.Engine.SdlDisplay.ForWindow( Handle ), usable: true );
 		}
 	}
 
@@ -539,7 +571,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		set
 		{
 			field = value is > 0 ? value : null;
-			if ( Handle != IntPtr.Zero ) PanelWindowNative.SetAspectRatio( Handle, field ?? 0 );
+			if ( Handle != IntPtr.Zero ) Sdl.SetWindowAspectRatio( Handle, field ?? 0, field ?? 0 );
 		}
 	}
 
@@ -555,7 +587,12 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 			if ( value == this ) return;
 
 			field = value;
-			if ( Handle != IntPtr.Zero ) PanelWindowNative.SetOwner( Handle, value?.Handle ?? IntPtr.Zero );
+			if ( Handle != IntPtr.Zero )
+			{
+				Sdl.SetWindowModal( Handle, false );
+				Sdl.SetWindowParent( Handle, value?.Handle ?? IntPtr.Zero );
+				Sdl.SetWindowModal( Handle, Modal && value is not null );
+			}
 		}
 	}
 
@@ -569,7 +606,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		set
 		{
 			field = value;
-			if ( Handle != IntPtr.Zero ) PanelWindowNative.SetModal( Handle, value && Owner is not null );
+			if ( Handle != IntPtr.Zero ) Sdl.SetWindowModal( Handle, value && Owner is not null );
 		}
 	}
 
@@ -584,14 +621,14 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		set
 		{
 			field = value;
-			if ( Handle != IntPtr.Zero ) PanelWindowNative.SetCanClose( Handle, value );
+			if ( Handle != IntPtr.Zero ) Sdl.SetWindowCanClose( Handle, value );
 		}
 	} = true;
 
 	/// <summary>
 	/// Does this window have keyboard focus?
 	/// </summary>
-	public bool IsFocused => Handle != IntPtr.Zero && PanelWindowNative.IsFocused( Handle );
+	public bool IsFocused => Window?.IsFocused ?? false;
 
 	/// <summary>
 	/// Keep drawing at the display's frame rate even when nobody is looking at this window.
@@ -620,7 +657,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	/// <summary>
 	/// Is the window maximized?
 	/// </summary>
-	public bool IsMaximized => Handle != IntPtr.Zero && PanelWindowNative.IsMaximized( Handle );
+	public bool IsMaximized => Handle != IntPtr.Zero && (WindowFlags & Sdl.WindowFlags.Maximized) != 0;
 
 	/// <summary>
 	/// For a window that makes its OS window later - see <see cref="CreateNativeWindow"/>.
@@ -635,15 +672,15 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	/// authored in, the same as <see cref="Size"/> - on a display that scales, the window on the
 	/// desktop comes out that much bigger, so what you asked for is what fits inside it.
 	/// </summary>
-	public PanelWindow( string title, Vector2 size ) : this( title, size, new Vector2( -1, -1 ), false )
+	public PanelWindow( string title, Vector2 size ) : this( title, size, null, false )
 	{
 	}
 
 	/// <summary>
 	/// Open a window at a given desktop position, in the OS's own coordinates - see
-	/// <see cref="Position"/>. Pass -1,-1 to let the OS place it.
+	/// <see cref="Position"/>. Pass null to center it on the primary display.
 	/// </summary>
-	public PanelWindow( string title, Vector2 size, Vector2 position ) : this( title, size, position, false )
+	public PanelWindow( string title, Vector2 size, Vector2? position ) : this( title, size, position, false )
 	{
 	}
 
@@ -651,7 +688,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	/// Open a window. A borderless window has no OS title bar - draw your own, and mark the panels
 	/// that should drag it with the <c>window-drag</c> class.
 	/// </summary>
-	public PanelWindow( string title, Vector2 size, Vector2 position, bool borderless ) : this( title, size, position, borderless, false )
+	public PanelWindow( string title, Vector2 size, Vector2? position, bool borderless ) : this( title, size, position, borderless, false )
 	{
 	}
 
@@ -659,7 +696,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	/// Open a window. With <paramref name="vsync"/> the window's present blocks for the display,
 	/// which is what an app that has nothing else to do wants - the launcher paces itself on it.
 	/// </summary>
-	public PanelWindow( string title, Vector2 size, Vector2 position, bool borderless, bool vsync )
+	public PanelWindow( string title, Vector2 size, Vector2? position, bool borderless, bool vsync )
 	{
 		ThreadSafe.AssertIsMainThread();
 
@@ -670,32 +707,54 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		// The size asked for is in the units the UI is authored in, and the UI is drawn at the
 		// display scale - the window has to carry that same scale or the contents it was sized
 		// for do not fit. There is no window to ask yet, so ask the display it will open on.
-		var displayScale = PanelWindowNative.GetDisplayScaleAt( (int)position.x, (int)position.y );
+		var displayScale = Sandbox.Engine.SdlDisplay.GetScaleAt( position );
 		var width = (int)MathF.Ceiling( size.x * displayScale );
 		var height = (int)MathF.Ceiling( size.y * displayScale );
 
-		Handle = PanelWindowNative.Create( title ?? "", (int)position.x, (int)position.y, width, height, borderless );
-		if ( Handle == IntPtr.Zero )
-			throw new Exception( "Couldn't create the window" );
+		Window = new SdlWindow( CreateWindow( title ?? "", position, width, height, borderless ) );
 
-		if ( borderless )
+		try
 		{
-			PanelWindowNative.EnableCustomChrome( Handle );
-			DropShadow = true;
+			PanelWindowInput.SetupWindow( Handle, customChrome: borderless, dropTarget: true );
+			if ( borderless ) DropShadow = true;
+
+			CreateRenderer( "PanelWindow", VSync );
+
+			var surface = new UISurface();
+
+			// Before the first frame, so anything set on the window between here and then - a size
+			// limit, say - converts against the scale the surface will actually lay out with
+			surface.DpiScale = DisplayScale;
+
+			Attach( surface );
 		}
+		catch
+		{
+			Dispose();
+			throw;
+		}
+	}
 
-		// No MSAA. Panel UI is 2D and alpha blended - it antialiases itself in the shaders, and a
-		// multisampled swapchain costs a resolve every frame plus the multisampled colour and depth
-		// images behind it (23MB for a 1100x660 window at 4x, more than the window's own buffers)
-		CreateRenderer( "PanelWindow", (int)RenderMultisampleType.RENDER_MULTISAMPLE_NONE, VSync );
-
-		var surface = new UISurface();
-
-		// Before the first frame, so anything set on the window between here and then - a size
-		// limit, say - converts against the scale the surface will actually lay out with
-		surface.DpiScale = PanelWindowNative.GetContentsScale( Handle );
-
-		Attach( surface );
+	static IntPtr CreateWindow( string title, Vector2? position, int width, int height, bool borderless )
+	{
+		// Hidden until the first frame is drawn. Set position at creation so SDL selects the right display.
+		var flags = Sdl.WindowFlags.Vulkan | Sdl.WindowFlags.Resizable | Sdl.WindowFlags.HighPixelDensity | Sdl.WindowFlags.Hidden;
+		if ( borderless ) flags |= Sdl.WindowFlags.Borderless;
+		var props = Sdl.CreateProperties();
+		try
+		{
+			Sdl.SetStringProperty( props, "SDL.window.create.title", title );
+			Sdl.SetNumberProperty( props, "SDL.window.create.x", position is { } x ? (int)x.x : Sdl.WindowPositionCentered );
+			Sdl.SetNumberProperty( props, "SDL.window.create.y", position is { } y ? (int)y.y : Sdl.WindowPositionCentered );
+			Sdl.SetNumberProperty( props, "SDL.window.create.width", width );
+			Sdl.SetNumberProperty( props, "SDL.window.create.height", height );
+			Sdl.SetNumberProperty( props, "SDL.window.create.flags", (long)flags );
+			return Sdl.CreateWindowWithProperties( props );
+		}
+		finally
+		{
+			Sdl.DestroyProperties( props );
+		}
 	}
 
 	/// <summary>
@@ -704,6 +763,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	private protected void Attach( UISurface surface )
 	{
 		Surface = surface;
+		if ( _camera is not null ) _camera.OnRenderUI = Surface.Render;
 		Surface.OnCursorChanged = x => _cursor = x;
 		Surface.Tooltips.Host = this;
 		Surface.System.PopupHost = this;
@@ -715,10 +775,10 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	/// <summary>
 	/// The swap chain and the camera that draws the surface into it. Needs <see cref="Handle"/>.
 	/// </summary>
-	private protected void CreateRenderer( string name, int multisample, bool vsync )
+	private protected void CreateRenderer( string name, bool vsync )
 	{
-		_swapChain = PanelWindowNative.CreateSwapChain( Handle, multisample, vsync );
-		_swapChainSize = PixelSize;
+		// Panel UI antialiases in its shaders; MSAA adds attachments and a resolve without improving it.
+		Window.CreateSwapChain( name, RenderMultisampleType.RENDER_MULTISAMPLE_NONE, vsync );
 
 		_world = new SceneWorld();
 
@@ -734,6 +794,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 			// A window is panels and nothing else - it doesn't need the scene pipeline
 			UIOnly = true,
 		};
+		if ( Surface is not null ) _camera.OnRenderUI = Surface.Render;
 	}
 
 	/// <summary>
@@ -741,11 +802,6 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	/// whether there's a window to draw now.
 	/// </summary>
 	private protected virtual bool CreateNativeWindow() => false;
-
-	/// <summary>
-	/// Destroy the OS window, at frame end, after its swap chain.
-	/// </summary>
-	private protected virtual void DestroyNativeWindow( IntPtr window ) => PanelWindowNative.Destroy( window );
 
 	/// <summary>
 	/// The window is closing. Its surface and popups are still there.
@@ -757,7 +813,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	/// </summary>
 	public void Dispose()
 	{
-		if ( Surface is null )
+		if ( Surface is null && Handle == IntPtr.Zero )
 			return;
 
 		// Popups hanging off this window go first. The OS destroys owned windows with their
@@ -766,12 +822,12 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		OnClosing();
 		ReleaseMouseCapture();
 
-		if ( Modal && Handle != IntPtr.Zero ) PanelWindowNative.SetModal( Handle, false );
+		if ( Modal && Handle != IntPtr.Zero ) Sdl.SetWindowModal( Handle, false );
+		if ( Handle != IntPtr.Zero ) Sdl.HideWindow( Handle );
 
 		foreach ( var child in _all.ToArray() )
 		{
-			if ( child is PopupWindow popup && popup.Parent == this ) popup.Dispose();
-			else if ( child.Owner == this ) child.Dispose();
+			if ( child.ParentWindow == this || child.Owner == this ) child.Dispose();
 		}
 
 		_all.Remove( this );
@@ -786,23 +842,18 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		_world?.Delete();
 		_world = null;
 
-		var chain = _swapChain;
-		var window = Handle;
+		var window = Window;
+		Window = null;
 
-		_swapChain = default;
-		Handle = IntPtr.Zero;
-
-		if ( window == IntPtr.Zero )
+		if ( window is null )
 			return;
 
 		// Both go at frame end, the swap chain first - destroying it waits for its last present,
 		// which needs the window it presented to still there
 		EngineLoop.DisposeAtFrameEnd( new Sandbox.Utility.DisposeAction( () =>
 		{
-			if ( chain != default )
-				g_pRenderDevice.DestroySwapChain( chain );
-
-			DestroyNativeWindow( window );
+			PanelWindowInput.DetachWindow( window.Handle );
+			window.Dispose();
 		} ) );
 	}
 
@@ -841,7 +892,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	/// </summary>
 	public void Minimize()
 	{
-		if ( Handle != IntPtr.Zero ) PanelWindowNative.Minimize( Handle );
+		if ( Handle != IntPtr.Zero ) Sdl.MinimizeWindow( Handle );
 	}
 
 	/// <summary>
@@ -852,7 +903,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		if ( Handle == IntPtr.Zero ) return;
 		if ( !CanMaximize ) return;
 
-		PanelWindowNative.Maximize( Handle );
+		Sdl.MaximizeWindow( Handle );
 	}
 
 	/// <summary>
@@ -862,7 +913,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	{
 		if ( Handle == IntPtr.Zero ) return;
 
-		if ( IsMaximized ) PanelWindowNative.Restore( Handle );
+		if ( IsMaximized ) Sdl.RestoreWindow( Handle );
 		else Maximize();
 	}
 
@@ -873,7 +924,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	public void Hide()
 	{
 		if ( Handle == IntPtr.Zero ) return;
-		PanelWindowNative.Hide( Handle );
+		Sdl.HideWindow( Handle );
 	}
 
 	/// <summary>
@@ -881,8 +932,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	/// </summary>
 	public void Show()
 	{
-		if ( Handle == IntPtr.Zero ) return;
-		PanelWindowNative.Show( Handle );
+		Window?.Show();
 	}
 
 	/// <summary>
@@ -891,7 +941,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	public void SendToBack()
 	{
 		if ( Handle == IntPtr.Zero ) return;
-		PanelWindowNative.SendToBack( Handle );
+		Sdl.SendWindowToBack( Handle );
 	}
 
 	/// <summary>
@@ -901,7 +951,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	public void BringToFront()
 	{
 		if ( Handle == IntPtr.Zero ) return;
-		PanelWindowNative.BringToFront( Handle );
+		Sdl.RaiseWindowWithoutFocus( Handle );
 	}
 
 	/// <summary>
@@ -918,19 +968,25 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		{
 			fixed ( Color32* p = pixels )
 			{
-				PanelWindowNative.SetIcon( Handle, icon.Width, icon.Height, (IntPtr)p );
+				// SDL_PIXELFORMAT_RGBA32 is byte-ordered RGBA on either endian.
+				var format = Sdl.PixelFormatRgba32;
+				var surface = Sdl.CreateSurfaceFrom( icon.Width, icon.Height, format, (IntPtr)p, icon.Width * 4 );
+				if ( surface == IntPtr.Zero ) return;
+				try { Sdl.SetWindowIcon( Handle, surface ); }
+				finally { Sdl.DestroySurface( surface ); }
 			}
 		}
 	}
 
 	/// <summary>
-	/// The window's outer rectangle in desktop coordinates.
+	/// The window's content rectangle in desktop coordinates, excluding native borders.
 	/// </summary>
 	Rect DesktopBounds
 	{
 		get
 		{
-			PanelWindowNative.GetBounds( Handle, out var x, out var y, out var w, out var h );
+			Sdl.GetWindowPosition( Handle, out var x, out var y );
+			Sdl.GetWindowSize( Handle, out var w, out var h );
 			return new Rect( x, y, w, h );
 		}
 	}
@@ -975,7 +1031,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	public void FlashTaskbar( bool untilFocused = false )
 	{
 		if ( Handle == IntPtr.Zero ) return;
-		PanelWindowNative.Flash( Handle, untilFocused ? 2 : 1 );
+		Sdl.FlashWindow( Handle, untilFocused ? Sdl.FlashOperation.UntilFocused : Sdl.FlashOperation.Briefly );
 	}
 
 	/// <summary>
@@ -984,7 +1040,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	public void StopFlashing()
 	{
 		if ( Handle == IntPtr.Zero ) return;
-		PanelWindowNative.Flash( Handle, 0 );
+		Sdl.FlashWindow( Handle, Sdl.FlashOperation.Cancel );
 	}
 
 	/// <summary>
@@ -998,7 +1054,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 
 		if ( icon is null )
 		{
-			PanelWindowNative.SetOverlayIcon( Handle, 0, 0, IntPtr.Zero, "" );
+			Sdl.SetWindowTaskbarOverlayIcon( Handle, 0, 0, IntPtr.Zero, "" );
 			return;
 		}
 
@@ -1008,7 +1064,7 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 		{
 			fixed ( Color32* p = pixels )
 			{
-				PanelWindowNative.SetOverlayIcon( Handle, icon.Width, icon.Height, (IntPtr)p, description ?? "" );
+				Sdl.SetWindowTaskbarOverlayIcon( Handle, icon.Width, icon.Height, (IntPtr)p, description ?? "" );
 			}
 		}
 	}
@@ -1018,6 +1074,6 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	/// </summary>
 	public void Focus()
 	{
-		if ( Handle != IntPtr.Zero ) PanelWindowNative.SetForeground( Handle );
+		if ( Handle != IntPtr.Zero ) Sdl.RaiseWindow( Handle );
 	}
 }

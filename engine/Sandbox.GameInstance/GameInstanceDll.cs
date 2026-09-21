@@ -1,4 +1,4 @@
-﻿using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp;
 using Sandbox.Audio;
 using Sandbox.Diagnostics;
 using Sandbox.Internal;
@@ -22,6 +22,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 	private bool _isAssemblyLoadingPaused;
 	private CancellationTokenSource _loadGameCts;
+	private Task<bool> _loadGameTask;
 
 	public void Bootstrap()
 	{
@@ -91,7 +92,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		Event.Run( "app.exit" );
 		Game.Cookies?.Save();
 
-		// Release InputContext references so the UISystem/PanelRenderer
+		// Release InputContext references so the UISystem
 		// chain (and any RenderAttributes it holds) can be collected.
 		if ( InputContext is not null )
 		{
@@ -531,6 +532,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	{
 		if ( !string.IsNullOrEmpty( message ) )
 		{
+			if ( Networking.System is { } system ) system.FailureReason ??= message;
 			Log.Warning( $"Disconnected: {message.Replace( "\n", "" )}" );
 		}
 
@@ -561,20 +563,49 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	}
 
 	/// <summary>
-	/// Loads the game asynchronously
+	/// Loads the game asynchronously. Only one game loads at a time: any load still in
+	/// flight is cancelled, and this one waits for it to finish tearing down before it starts.
 	/// </summary>
 	public async Task<bool> LoadGamePackageAsync( string ident, GameLoadingFlags flags, CancellationToken ct )
 	{
+		ThreadSafe.AssertIsMainThread();
+
+		var previous = _loadGameTask;
+
+		CancelLoad();
+		_loadGameCts = CancellationTokenSource.CreateLinkedTokenSource( ct );
+
+		_loadGameTask = LoadGamePackageInternalAsync( previous, ident, flags, _loadGameCts.Token );
+		return await _loadGameTask;
+	}
+
+	/// <summary>
+	/// Waits for any previous load to finish tearing down, then runs the load and handles its failure.
+	/// </summary>
+	private async Task<bool> LoadGamePackageInternalAsync( Task previous, string ident, GameLoadingFlags flags, CancellationToken token )
+	{
+		if ( previous is { IsCompleted: false } )
+		{
+			try
+			{
+				await previous;
+			}
+			catch ( System.Exception )
+			{
+				// The previous load reports its own failures
+			}
+		}
+
+		// We may have been superseded ourselves while waiting
+		if ( token.IsCancellationRequested )
+			return false;
+
+		// The previous load hid the loading screen on its way out, it's ours now
+		LoadingScreen.IsVisible = true;
+
 		try
 		{
-			ThreadSafe.AssertIsMainThread();
-
-			_loadGameCts?.Cancel();
-			_loadGameCts?.Dispose();
-			_loadGameCts = CancellationTokenSource.CreateLinkedTokenSource( ct );
-
-			var token = _loadGameCts.Token;
-			await LoadGamePackageAsyncInternal( ident, flags, token );
+			await DoLoadGamePackageAsync( ident, flags, token );
 
 			return !token.IsCancellationRequested;
 		}
@@ -605,7 +636,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		return false;
 	}
 
-	public async Task LoadGamePackageAsyncInternal( string ident, GameLoadingFlags flags, CancellationToken ct )
+	private async Task DoLoadGamePackageAsync( string ident, GameLoadingFlags flags, CancellationToken ct )
 	{
 		//
 		// We might not need to reload if this is the same package.
@@ -621,17 +652,22 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 				return;
 		}
 
-		gameInstance?.Shutdown();
-
-		//
-		// If this isn't part of a remote connection, leave any active network session
-		//
-		if ( !flags.Contains( GameLoadingFlags.Remote ) )
+		// Tear down the current game in its own scope. We may have been called from the
+		// menu, and the shutdown clears per-context state.
+		using ( GlobalContext.GameScope() )
 		{
-			Networking.Disconnect();
-		}
+			gameInstance?.Shutdown();
 
-		Application.ClearGame();
+			//
+			// If this isn't part of a remote connection, leave any active network session
+			//
+			if ( !flags.Contains( GameLoadingFlags.Remote ) )
+			{
+				Networking.Disconnect();
+			}
+
+			Application.ClearGame();
+		}
 
 		if ( !Application.IsDedicatedServer && !Application.IsStandalone )
 		{
@@ -706,6 +742,11 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 				GlobalContext.Current.FileOrg.CreateDirectory( package );
 
 				GlobalContext.Current.FileData = FileSystem.OrganizationData.CreateSubSystem( package );
+			}
+			else if ( Application.IsStandalone && ident == Standalone.Manifest.Ident )
+			{
+				GlobalContext.Current.FileOrg = EngineFileSystem.Data;
+				GlobalContext.Current.FileData = EngineFileSystem.Data;
 			}
 			else
 			{

@@ -272,7 +272,8 @@ file sealed class MemberPropertyFactory : ITrackPropertyFactory
 		typeof( SkinnedModelRenderer.ParameterAccessor ),
 		typeof( SkinnedModelRenderer.SequenceAccessor ),
 		typeof( GameTags ),
-		typeof( TagSet )
+		typeof( TagSet ),
+		typeof( RenderOptions )
 	];
 
 	private static Dictionary<Type, HashSet<string>> AllowedComponentProperties { get; } = new()

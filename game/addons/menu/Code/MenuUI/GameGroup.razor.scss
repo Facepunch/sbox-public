@@ -14,16 +14,27 @@ Page
     max-width: $screen-w-xl;
 }
 
-GameGroup h2
+GameGroup .section-head
 {
-	font-family: $front-font;
-	font-size: 20px;
-	font-weight: 700;
-	color: $front-heading;
+	flex-direction: column;
+	flex-shrink: 0;
+	padding: 32px 36px 0 36px;
 
-	padding: 2rem;
-	padding-bottom: 0;
-	gap: 1rem;
+	.title
+	{
+		font-family: $front-font;
+		font-size: 20px;
+		font-weight: 700;
+		color: $front-heading;
+	}
+
+	.description
+	{
+		font-family: $front-font;
+		font-size: 14px;
+		font-weight: 500;
+		color: $front-secondary;
+	}
 }
 
 GameGroup packagelist virtualgrid

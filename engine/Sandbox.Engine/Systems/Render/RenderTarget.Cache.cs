@@ -38,13 +38,20 @@ public sealed partial class RenderTarget
 		if ( depthFormat == ImageFormat.Default )
 			depthFormat = g_pRenderDevice.IsUsing32BitDepthBuffer() ? ImageFormat.D32FS8 : ImageFormat.D24S8;
 
-		int hash = HashCode.Combine( width, height, colorFormat, depthFormat, numMips, msaa == MultisampleAmount.MultisampleScreen ? (MultisampleAmount)RenderService.GetMultisampleType() : msaa, targetName );
+		int hash = HashCode.Combine( width, height, colorFormat, depthFormat, numMips, msaa == MultisampleAmount.MultisampleScreen ? (MultisampleAmount)CSceneSystem.GetMainSwapChainMultisampleType() : msaa, targetName );
 
 		RenderTarget rt = null;
 
 		lock ( _lock )
 		{
-			rt = All.FirstOrDefault( x => !x.Loaned && x.CreationHash == hash );
+			// Not FirstOrDefault - the predicate would capture hash and allocate a closure every call.
+			foreach ( var candidate in All )
+			{
+				if ( candidate.Loaned || candidate.CreationHash != hash ) continue;
+
+				rt = candidate;
+				break;
+			}
 
 			if ( rt == null )
 			{
@@ -144,21 +151,6 @@ public sealed partial class RenderTarget
 
 				All[i].Destroy();
 				All.RemoveAt( i );
-			}
-		}
-	}
-
-	/// <summary>
-	/// Flush all the render targets out. Useful to do when screen size changes.
-	/// </summary>
-	internal static void Flush()
-	{
-		lock ( _lock )
-		{
-			foreach ( var entry in All )
-			{
-				// Defer deletion
-				entry.Loaned = false;
 			}
 		}
 	}

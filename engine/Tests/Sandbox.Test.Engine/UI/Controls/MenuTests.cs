@@ -127,6 +127,35 @@ public class MenuTest
 	}
 
 	[TestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void MenuOpenedFromInsideAPopupKeepsThatPopupUp( bool sourceIsPopup )
+	{
+		var root = CreateRoot();
+		var anchor = new Panel { Parent = root };
+		var popup = new Popup( anchor, Popup.PositionMode.BelowLeft, 0 );
+		var source = sourceIsPopup ? popup : new Panel { Parent = popup };
+		var menu = new Menu( "Layout" );
+		menu.AddOption( "Square" );
+
+		menu.Open( source, Popup.PositionMode.BelowLeft );
+
+		// A click in the list closes everything but the list's chain, and the popup it came from is part of that
+		BasePopup.CloseAll( menu.ListPanel );
+
+		Assert.IsTrue( menu.IsOpen );
+		Assert.IsTrue( popup.IsValid(), "the popup the menu was opened from stays" );
+		Assert.IsFalse( popup.IsDeleting, "the popup must not be queued for deletion" );
+
+		// A click back in the popup closes the menu, not the popup
+		BasePopup.CloseAll( source );
+
+		Assert.IsFalse( menu.IsOpen );
+		Assert.IsTrue( popup.IsValid() );
+		Assert.IsFalse( popup.IsDeleting );
+	}
+
+	[TestMethod]
 	public void CloseDetachesOptionsButKeepsThem()
 	{
 		var root = CreateRoot();

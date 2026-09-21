@@ -17,4 +17,9 @@ internal interface IPopupHost
 	/// The popup is being deleted. Take down whatever was showing it.
 	/// </summary>
 	void HidePopup( Popup popup );
+
+	/// <summary>
+	/// Refresh a popup whose anchor or measured size may have changed.
+	/// </summary>
+	void UpdatePopup( Popup popup ) { }
 }

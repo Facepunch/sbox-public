@@ -26,7 +26,7 @@ managed class Sandbox.Network.SteamNetwork
 	static bool ShouldAcceptConnection( HSteamListenSocket socket, HSteamNetConnection connection );
 	static void OnDisconnection( HSteamNetConnection connection, int reasonCode, string reasonString );
 	static void OnSessionEstablished( ulong steamId );
-	static void OnSessionFailed( HSteamListenSocket socket, ulong steamId );
+	static void OnSessionFailed( HSteamListenSocket socket, ulong steamId, int reasonCode, string reason );
 }
 
 native class Glue.Networking

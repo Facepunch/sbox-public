@@ -83,7 +83,7 @@ file class ProjectTitleButton : Widget
 	{
 		var menu = new Menu( this );
 		menu.AddOption( $"Open in {CodeEditor.Title}", "integration_instructions", CodeEditor.OpenSolution );
-		menu.AddOption( "Open in Explorer", "folder", () => EditorUtility.OpenFolder( Project.GetRootPath() ) );
+		menu.AddOption( $"Open in {(OperatingSystem.IsMacOS() ? "Finder" : "Explorer")}", "folder", () => EditorUtility.OpenFolder( Project.GetRootPath() ) );
 		menu.AddSeparator();
 		menu.AddOption( "Publish..", "backup", () => PublishWizard.Open( Project ) );
 		menu.AddOption( "Export..", "save_alt", () => StandaloneWizard.Open( Project ) );

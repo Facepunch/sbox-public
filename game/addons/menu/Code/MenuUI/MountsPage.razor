@@ -11,9 +11,8 @@
 @page "/mounts"
 @inherits Panel
 
-@* Deliberately not using Page's Left slot - that sidebar is a full-height scrolling slab, right
-   for a long filter column but mostly empty under a fixed block of prose. This page lays out its
-   own two columns so the explainer card can hug its text. *@
+@* Not using Page's Left slot - this page lays out its own two columns so the explainer card
+   and the list share the same gutter. *@
 <root class="root">
 	<Page>
 		<Body>

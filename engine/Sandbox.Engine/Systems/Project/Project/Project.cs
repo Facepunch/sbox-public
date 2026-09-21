@@ -90,6 +90,19 @@ public sealed partial class Project
 	public bool IsBuiltIn { get; internal set; }
 
 	/// <summary>
+	/// If true this project's config didn't come from a .sbproj on disk and is never written back
+	/// to one. An exported standalone game is one of these: its config is embedded in the
+	/// executable and its install folder is not ours to write to.
+	/// </summary>
+	[JsonIgnore]
+	public bool IsReadOnly { get; private set; }
+
+	/// <summary>
+	/// The config JSON a read-only project was created from, in place of reading <see cref="ConfigFilePath"/>.
+	/// </summary>
+	private string _embeddedConfigJson;
+
+	/// <summary>
 	/// Called when the project is about to save
 	/// </summary>
 	internal Action OnSaveProject { get; set; }
@@ -143,6 +156,24 @@ public sealed partial class Project
 	}
 
 	/// <summary>
+	/// A project whose config is handed to us as JSON rather than read from disk, rooted at
+	/// <paramref name="rootDirectory"/>. It gets a synthetic <see cref="ConfigFilePath"/> in that
+	/// folder so everything keyed on the path keeps working, but nothing is ever written there -
+	/// see <see cref="IsReadOnly"/>.
+	/// </summary>
+	internal Project( DirectoryInfo rootDirectory, string configJson ) : this()
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace( configJson );
+
+		IsReadOnly = true;
+		RootDirectory = rootDirectory;
+		ConfigFilePath = NormalizeConfigFilePath( rootDirectory.FullName );
+		_embeddedConfigJson = configJson;
+
+		CreateFileSystems();
+	}
+
+	/// <summary>
 	/// A project is named by its .sbproj, but callers hand us the folder it's in just as often.
 	/// </summary>
 	internal static string NormalizeConfigFilePath( string path )
@@ -177,7 +208,7 @@ public sealed partial class Project
 		{
 			Assert.True( RootDirectory?.Exists ?? false, $"{RootDirectory} does not exist" );
 
-			var text = File.ReadAllText( ConfigFilePath );
+			var text = _embeddedConfigJson ?? File.ReadAllText( ConfigFilePath );
 			Config = JsonSerializer.Deserialize<DataModel.ProjectConfig>( text );
 			Config.Init( ConfigFilePath );
 
@@ -368,7 +399,7 @@ public sealed partial class Project
 		if ( Config == null )
 			return;
 
-		if ( IsTransient )
+		if ( IsTransient || IsReadOnly )
 			return;
 
 		if ( !ConfigFilePath.EndsWith( ".sbproj" ) ) return;

@@ -439,14 +439,14 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		// Also don't hook into render overlays, nor volumetric fog stuff.
 		if ( ClearFlags.Contains( ClearFlags.Color ) )
 		{
-			camera.VolumetricFog.Enabled = Scene.GetAllComponents<VolumetricFogVolume>().Count() > 0;
+			camera.VolumetricFog.Enabled = Scene.Get<VolumetricFogVolume>() is not null;
 			camera.VolumetricFog.DrawDistance = 4096;
 			camera.VolumetricFog.FadeInStart = 64;
 			camera.VolumetricFog.FadeInEnd = 256;
 			camera.VolumetricFog.IndirectStrength = 1.0f;
 			camera.VolumetricFog.Anisotropy = 1;
 			camera.VolumetricFog.Scattering = 1.0f;
-			camera.VolumetricFog.BakedIndirectTexture = Scene.GetAllComponents<VolumetricFogController>().FirstOrDefault()?.BakedFogTexture;
+			camera.VolumetricFog.BakedIndirectTexture = Scene.Get<VolumetricFogController>()?.BakedFogTexture;
 		}
 
 		//
@@ -458,7 +458,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		// Hack because I don't want this to have to be on a camera. This
 		// is hidden from users, so we'll figure out how to square it later
 		//
-		foreach ( var cubemapFog in Scene.GetAllComponents<CubemapFog>() )
+		foreach ( var cubemapFog in Scene.Query<CubemapFog>() )
 		{
 			if ( cubemapFog.Tags.HasAny( RenderExcludeTags ) )
 				continue;
@@ -921,7 +921,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 			rootPanel.PreLayout( screenRect );
 			rootPanel.CalculateLayout();
 			rootPanel.PostLayout();
-			rootPanel.BuildDescriptors();
+
 
 			rootPanel.BuildCommandList();
 			resized = true;

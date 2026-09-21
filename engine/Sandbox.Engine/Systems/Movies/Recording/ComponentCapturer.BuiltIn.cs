@@ -35,6 +35,20 @@ file sealed class CameraCapturer : ComponentCapturer<CameraComponent>
 }
 
 [Expose]
+file sealed class RendererCapturer : ComponentCapturer<Renderer>
+{
+	protected override void OnCapture( IMovieTrackRecorder recorder, Renderer component )
+	{
+		var renderOptions = recorder.Property( nameof( Renderer.RenderOptions ) );
+
+		renderOptions.Property( nameof( RenderOptions.Game ) ).Capture();
+		renderOptions.Property( nameof( RenderOptions.Overlay ) ).Capture();
+		renderOptions.Property( nameof( RenderOptions.Bloom ) ).Capture();
+		renderOptions.Property( nameof( RenderOptions.AfterUI ) ).Capture();
+	}
+}
+
+[Expose]
 file sealed class ModelRendererCapturer : ComponentCapturer<ModelRenderer>
 {
 	protected override void OnCapture( IMovieTrackRecorder recorder, ModelRenderer component )

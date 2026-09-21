@@ -141,42 +141,52 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 	}
 
 	/// <summary>
-	/// Creates an instance of this type that will get loaded into later. This allows us to
+	/// Fetch a loaded resource, or set up a promise that will get loaded into later. This allows us to
 	/// have resources that reference other resources that aren't loaded yet (or are missing).
 	/// </summary>
-	internal static GameResource GetPromise( System.Type type, string filename )
+	internal static GameResource GetPromise( System.Type type, ResourceId id )
 	{
-		var path = FixPath( filename );
-		if ( string.IsNullOrEmpty( path ) ) return default;
+		if ( id.IsEmpty ) return default;
 
-		var obj = Game.Resources.Get( type, path ) as GameResource;
+		var obj = Game.Resources.Get( type, id ) as GameResource;
 		if ( obj != null ) return obj;
 
+		// create a new instance of the resource type and register it as a promise
 		obj = System.Activator.CreateInstance( type ) as GameResource;
-
 		if ( obj is null )
 		{
 			Log.Warning( $"Failed to create '{type.FullName}'" );
 			return default;
 		}
 
-		obj.InternalInitialize( filename );
+		obj.InitPromise( id );
 
 		Game.Resources.Register( obj );
 		return obj;
 	}
 
-	private void InternalInitialize( string filename )
+	private void InitPromise( ResourceId id )
 	{
-		ResourcePath = FixPath( filename );
-		ResourceName = System.IO.Path.GetFileNameWithoutExtension( ResourcePath );
-		// Keep this for backwards compat for now
+		// a GUID-only promise has no path yet, will only become known by something else finding it
+		// by GuidIndex and reconciling it (eg. LoadGameResource loading the real file)
+		if ( !string.IsNullOrEmpty( id.Path ) )
+		{
+			ResourcePath = FixPath( id.Path );
+			ResourceName = System.IO.Path.GetFileNameWithoutExtension( ResourcePath );
+			// Keep this for backwards compat for now
 #pragma warning disable CS0618 // Type or member is obsolete
-		ResourceId = ResourcePath.FastHash();
+			ResourceId = ResourcePath.FastHash();
 #pragma warning restore CS0618 // Type or member is obsolete
-		ResourceIdLong = ResourcePath.FastHash64();
+			ResourceIdLong = ResourcePath.FastHash64();
 
-		Manifest = AsyncResourceLoader.Load( ResourcePath );
+			// Sol: the actual load happens via LoadGameResource, what's this for?
+			Manifest = AsyncResourceLoader.Load( ResourcePath );
+		}
+
+		if ( id.Guid is Guid guid && guid != default )
+		{
+			Game.Resources.AssignGuid( this, guid );
+		}
 
 		_awaitingLoad = true;
 	}

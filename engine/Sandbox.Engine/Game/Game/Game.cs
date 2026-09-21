@@ -30,6 +30,9 @@ namespace Sandbox;
 /// <seealso cref="Application"/>
 public static partial class Game
 {
+	/// <summary>Creates scripts using the current menu or game's exposed types and cached code.</summary>
+	public static ScriptSystem Scripting => GlobalContext.Current.Scripting;
+
 	/// <summary>
 	/// The input context for this context (menu, gamemenu, client)
 	/// </summary>
@@ -203,7 +206,8 @@ public static partial class Game
 			// Allow for a 1 second grace period for clients to receive the message
 			await Task.Delay( 1000 );
 
-			Networking.Disconnect();
+			// Clients are following us to the new game, nobody should take over this one
+			Networking.Disconnect( handoffHost: false );
 		}
 
 		// close old game

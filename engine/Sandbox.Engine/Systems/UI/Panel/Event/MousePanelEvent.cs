@@ -1,4 +1,4 @@
-﻿namespace Sandbox.UI;
+namespace Sandbox.UI;
 
 /// <summary>
 /// Mouse related <see cref="PanelEvent"/>.
@@ -14,6 +14,9 @@ public class MousePanelEvent : PanelEvent
 	/// Which button triggered the event, in string form.
 	/// </summary>
 	public new string Button;
+
+	/// <summary>Click count supplied by the input source for this mouse-down event. Defaults to one.</summary>
+	public int ClickCount { get; set; } = 1;
 
 	/// <summary>
 	/// Which button triggered the event, as a <see cref="MouseButtons"/> enum.

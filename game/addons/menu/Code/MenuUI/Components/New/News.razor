@@ -9,8 +9,10 @@
     <div class="hero" style="@HeroStyle" />
 
     <div class="news-overlay">
-        <label class="news-when">@NewsWhen</label>
-        <label class="news-title">@NewsTitle</label>
+        <div class="news-head">
+            <label class="news-title">@NewsTitle</label>
+            <label class="news-when">@NewsWhen</label>
+        </div>
         @if ( !string.IsNullOrWhiteSpace( NewsSummary ) )
         {
             <label class="news-summary">@NewsSummary</label>

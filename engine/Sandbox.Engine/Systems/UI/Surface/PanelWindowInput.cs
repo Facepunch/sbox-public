@@ -3,15 +3,13 @@ using NativeEngine;
 namespace Sandbox.UI;
 
 /// <summary>
-/// Where input for our own OS windows arrives. Native peels these events off before the engine's
-/// input system sees them (see src/engine2/sbox/panelwindow.cpp), so nothing here can reach the
-/// game, and nothing the game does can reach here.
+/// Routes SDL events for panel windows before the game input system sees them.
 /// <para>
 /// This is also where the routing decisions live - the mouse goes to the window it's over, the
 /// keyboard to the window that's focused.
 /// </para>
 /// </summary>
-internal static class PanelWindowInput
+internal static partial class PanelWindowInput
 {
 	/// <summary>
 	/// The cursor moved. SDL gives the position relative to the window it happened in, which is
@@ -49,8 +47,10 @@ internal static class PanelWindowInput
 		target.MouseInside = false;
 	}
 
-	internal static void OnMouseButton( IntPtr window, ButtonCode button, bool down, int clicks, int ikeymods )
+	internal static void OnMouseButton( IntPtr window, ButtonCode button, bool down, int clicks, KeyboardModifiers modifiers )
 	{
+		if ( PanelWindows.DragSession?.OnMouseButton( window, button, down ) == true ) return;
+
 		// A click that landed on a window that ignores input - on a platform that didn't pass it
 		// through to the window underneath - is a click on nothing. It dismisses the popups and
 		// that's all.
@@ -75,31 +75,37 @@ internal static class PanelWindowInput
 		// A popup window can go with them - a click on nothing in it, say
 		if ( !target.IsOpen ) return;
 
-		var modifiers = ToModifiers( ikeymods );
+		DispatchMouseButton( target.Surface, button, down, clicks, modifiers );
+	}
 
-		target.Surface.SetMouseButton( button, down, modifiers );
+	/// <summary>Deliver an accepted native mouse event, retaining the OS click count and event timing.</summary>
+	internal static void DispatchMouseButton( UISurface surface, ButtonCode button, bool down, int clicks, KeyboardModifiers modifiers )
+	{
+		surface.SetMouseButton( button, down, modifiers, clicks );
 
 		if ( down && clicks >= 2 && ToMouseButton( button ) is { } mouseButton )
 		{
 			// A third click arrives as its own event after the double, so a selection can grow
 			// word then line the way it does everywhere else
-			if ( clicks == 2 ) target.Surface.SetDoubleClick( mouseButton );
-			else if ( clicks == 3 ) target.Surface.SetTripleClick( mouseButton );
+			if ( clicks == 2 ) surface.SetDoubleClick( mouseButton );
+			else if ( clicks == 3 ) surface.SetTripleClick( mouseButton );
 		}
 	}
 
-	internal static void OnMouseWheel( IntPtr window, float x, float y, int ikeymods )
+	internal static void OnMouseWheel( IntPtr window, float x, float y, KeyboardModifiers modifiers )
 	{
 		if ( Target( window ) is not { } target ) return;
 
-		target.Surface.SetMouseWheel( new Vector2( x, y ), ToModifiers( ikeymods ) );
+		target.Surface.SetMouseWheel( new Vector2( x, y ), modifiers );
 	}
 
-	internal static void OnKey( IntPtr window, ButtonCode button, bool down, bool repeating, int ikeymods )
+	internal static void OnKey( IntPtr window, ButtonCode button, bool down, KeyboardModifiers modifiers )
 	{
+		if ( PanelWindows.DragSession?.OnKey( window, button, down ) == true ) return;
+
 		if ( KeyboardTarget( window ) is not { } target ) return;
 
-		target.Surface.SetKey( button, down, ToModifiers( ikeymods ) );
+		target.Surface.SetKey( button, down, modifiers );
 	}
 
 	internal static void OnText( IntPtr window, string text )
@@ -215,6 +221,8 @@ internal static class PanelWindowInput
 
 	internal static void OnFocus( IntPtr window, bool focused )
 	{
+		PanelWindows.DragSession?.OnFocus( window, focused );
+
 		if ( PanelWindows.Find( window ) is not { } target ) return;
 
 		target.FocusChanged( focused );
@@ -247,7 +255,7 @@ internal static class PanelWindowInput
 
 		target.Resized();
 
-		if ( target.Frame( interactiveResize: true ) )
+		if ( target.Frame() )
 		{
 			PanelWindows.FrameEnd();
 		}
@@ -275,14 +283,6 @@ internal static class PanelWindowInput
 	}
 
 	/// <summary>
-	/// What the user picked in the OS dialog. Empty means cancelled.
-	/// </summary>
-	internal static void OnFileDialogResult( IntPtr window, string path )
-	{
-		PanelWindowDialogs.OnResult( string.IsNullOrEmpty( path ) ? null : path );
-	}
-
-	/// <summary>
 	/// What's under the cursor, so the OS knows whether a click drags the window, resizes it, or
 	/// belongs to the UI.
 	/// </summary>
@@ -300,20 +300,6 @@ internal static class PanelWindowInput
 	static IPanelWindow Target( IntPtr window )
 	{
 		return PanelWindows.Hovering ?? PanelWindows.Find( window );
-	}
-
-	/// <summary>
-	/// Engine modifier flags (IE_ShiftPressed and friends) to ours.
-	/// </summary>
-	static KeyboardModifiers ToModifiers( int engine )
-	{
-		var modifiers = KeyboardModifiers.None;
-
-		if ( (engine & 1) != 0 ) modifiers |= KeyboardModifiers.Shift;
-		if ( (engine & 2) != 0 ) modifiers |= KeyboardModifiers.Ctrl;
-		if ( (engine & 4) != 0 ) modifiers |= KeyboardModifiers.Alt;
-
-		return modifiers;
 	}
 
 	static MouseButtons? ToMouseButton( ButtonCode button ) => button switch

@@ -45,6 +45,11 @@ internal unsafe interface IGameInstanceDll
 	GameNetworkSystem CreateGameNetworking( NetworkSystem system );
 	Task<GameNetworkSystem> CreateGameNetworkingAsync( NetworkSystem system );
 	public void InstallNetworkTables( NetworkSystem system );
+
+	/// <summary>
+	/// We took over as host; adopt anything mirrored from the previous host.
+	/// </summary>
+	public void OnBecameHost() { }
 	public Task<bool> LoadNetworkTables( NetworkSystem system );
 
 	/// <summary>

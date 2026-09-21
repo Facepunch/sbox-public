@@ -29,7 +29,8 @@ cbuffer DirectionalLightCB
     float4 g_DirectionalLightShadowBias; // per-cascade depth bias, scaled by cascade size
 };
 
-int DirectionalLightDebug < Attribute( "DirectionalLightDebug" ); >;
+int DirectionalLightDebug < Attribute("DirectionalLightDebug"); >;
+bool DisableScreenSpaceShadows < Attribute("DisableScreenSpaceShadows" ); Default( 0 ); > ;
 
 static const float3 DebugColors[4] = {
     float3( 1.0f, 0.0f, 0.0f ),
@@ -87,6 +88,9 @@ struct DirectionalLightShadow
 		#if ( S_TRANSLUCENT == 1 || PROGRAM != VFX_PROGRAM_PS )
         	return 1.0f;
 		#endif
+
+		if ( DisableScreenSpaceShadows )
+			return 1.0f;
 		
 		if ( g_DirectionalLightScreenSpaceShadowIndex == 0 )
 			return 1.0f;

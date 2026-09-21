@@ -63,6 +63,8 @@ internal sealed class ProjectSettingsWindow : Window
 		WindowTitle = $"Project Settings";
 		Size = new Vector2( 1024, 768 );
 		MinimumSize = new Vector2( 1024, 768 );
+		StartCentered = true;
+		StateCookie = "ProjectSettings";
 
 		Canvas = new Widget( this );
 		Canvas.OnPaintOverride = () =>
@@ -137,11 +139,15 @@ internal sealed class ProjectSettingsWindow : Window
 
 		OnPropertyChanged += _ => HasUnsavedChanges = true;
 
-		// Select the first node by default
-		if ( NodeToCategories.Keys.FirstOrDefault() is TreeNode firstNode )
+		// Restore last selected category, or fall back to first
+		var lastCategory = ProjectCookie.GetString( "ProjectSettings.LastCategory", null );
+		var startNode = NodeToCategories.Keys.FirstOrDefault( n => n.Name == lastCategory )
+			?? NodeToCategories.Keys.FirstOrDefault();
+
+		if ( startNode is not null )
 		{
-			TreeView.SelectItem( firstNode );
-			SelectNode( firstNode );
+			TreeView.SelectItem( startNode );
+			SelectNode( startNode );
 		}
 
 		Show();
@@ -341,6 +347,7 @@ internal sealed class ProjectSettingsWindow : Window
 		using var su = SuspendUpdates.For( Scroller.Canvas );
 
 		CurrentNode = node;
+		ProjectCookie.SetString( "ProjectSettings.LastCategory", node.Name );
 		Scroller.Canvas.Layout.Clear( true );
 
 		// Get all categories for this node

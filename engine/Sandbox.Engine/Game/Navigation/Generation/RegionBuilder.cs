@@ -1,4 +1,4 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 
 namespace Sandbox.Navigation.Generation;
 
@@ -285,7 +285,17 @@ internal static class RegionBuilder
 		var srcRegs = pooledSrcReg.Span;
 		srcRegs.Fill( 0 );
 
-		var nsweeps = Math.Max( chf.Width, chf.Height );
+		// A row can contain multiple disconnected layers per column. Sweep IDs
+		// start at one, so even a single-layer row needs an extra slot.
+		int nsweeps = 1;
+		for ( int y = borderSize; y < h - borderSize; y++ )
+		{
+			if ( w <= borderSize * 2 ) break;
+			var first = chf.Cells[borderSize + y * w];
+			var last = chf.Cells[w - borderSize - 1 + y * w];
+			int rowSpans = last.Index + last.Count - first.Index + 1;
+			nsweeps = Math.Max( nsweeps, rowSpans );
+		}
 		using var pooledSweeps = new PooledSpan<SweepSpan>( nsweeps );
 		var sweeps = pooledSweeps.Span;
 		sweeps.Clear();
@@ -346,6 +356,7 @@ internal static class RegionBuilder
 
 					if ( previd == 0 )
 					{
+						if ( rid >= ContourRegionFlags.BORDER_REG ) return false;
 						previd = rid++;
 						sweeps[previd].Rid = previd;
 						sweeps[previd].Ns = 0;
@@ -387,6 +398,7 @@ internal static class RegionBuilder
 				}
 				else
 				{
+					if ( id >= ContourRegionFlags.BORDER_REG ) return false;
 					sweeps[i].Id = id++;
 				}
 			}

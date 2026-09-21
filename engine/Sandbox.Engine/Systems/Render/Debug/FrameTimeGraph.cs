@@ -1,5 +1,6 @@
 using Sandbox.Diagnostics;
 using Sandbox.Engine.Settings;
+using Sandbox.Engine;
 
 namespace Sandbox;
 
@@ -88,12 +89,15 @@ internal static partial class DebugOverlay
 
 			var rs = RenderSettings.Instance;
 			var displayMode = rs.Fullscreen ? "Exclusive FS" : (rs.Borderless ? "Borderless" : "Windowed");
-			_infoDisplay = $"{displayMode}   VSync {(rs.VSync ? "on" : "off")}   {EngineLoop.DisplayRefreshRate:0}Hz   "
+			var surface = GameSurface.Current;
+			var vsync = surface?.VSync ?? rs.VSync;
+			var refreshRate = surface?.RefreshRate ?? 0;
+			_infoDisplay = $"{displayMode}   VSync {(vsync ? "on" : "off")}   {refreshRate:0}Hz   "
 				+ $"{Screen.Width:0}x{Screen.Height:0}   {rs.AntiAliasQuality}   Upscale {rs.UpscalerMode}";
 
-			var effective = EngineLoop.EffectiveMaxFrameRate;
+			var limit = EngineLoop.FrameRateLimit;
 			_infoCaps = $"fps_max {rs.MaxFrameRate}   fps_max_menu {rs.MaxFrameRateMenu}   fps_max_inactive {rs.MaxFrameRateInactive}   "
-				+ (effective > 0 ? $"-> capped at {effective:0} by {EngineLoop.MaxFrameRateSource}" : "-> uncapped");
+				+ (limit.FramesPerSecond > 0 ? $"-> capped at {limit.FramesPerSecond:0} by {limit.Source}" : "-> uncapped");
 
 			var found = CollectWorst();
 			_infoWorst = "Slowest ms, worst/avg frame of last 60   ";
@@ -151,7 +155,7 @@ internal static partial class DebugOverlay
 			return Bad;
 		}
 
-		internal static void Draw( ref Vector2 position, int verbosity )
+		internal static void Draw( Painter painter, ref Vector2 position, int verbosity )
 		{
 			if ( count == 0 )
 				return;
@@ -202,25 +206,25 @@ internal static partial class DebugOverlay
 			var y = position.y;
 
 			// ---- header stats ----
-			DrawLabel( _infoHeader, new Rect( x, y, graphWidth, headerHeight ), TextFlag.LeftTop, Color.White );
+			DrawLabel( painter, _infoHeader, new Rect( x, y, graphWidth, headerHeight ), TextFlag.LeftTop, Color.White );
 			y += headerHeight + 2f;
 
 			// ---- info lines, built in UpdateInfo ----
 			var rateColor = _notRendered > 0.05 ? Bad : (_notRendered > 0.01 ? Warn : Good);
-			DrawLabel( _infoRates, new Rect( x, y, graphWidth, lineHeight ), TextFlag.LeftTop, rateColor );
+			DrawLabel( painter, _infoRates, new Rect( x, y, graphWidth, lineHeight ), TextFlag.LeftTop, rateColor );
 			y += lineHeight;
 
-			DrawLabel( _infoDisplay, new Rect( x, y, graphWidth, lineHeight ), TextFlag.LeftTop, Dim );
+			DrawLabel( painter, _infoDisplay, new Rect( x, y, graphWidth, lineHeight ), TextFlag.LeftTop, Dim );
 			y += lineHeight;
 
-			DrawLabel( _infoCaps, new Rect( x, y, graphWidth, lineHeight ), TextFlag.LeftTop, Dim );
+			DrawLabel( painter, _infoCaps, new Rect( x, y, graphWidth, lineHeight ), TextFlag.LeftTop, Dim );
 			y += lineHeight;
 
-			DrawLabel( _infoWorst, new Rect( x, y, graphWidth, lineHeight ), TextFlag.LeftTop, Dim );
+			DrawLabel( painter, _infoWorst, new Rect( x, y, graphWidth, lineHeight ), TextFlag.LeftTop, Dim );
 			y += lineHeight + gap;
 
 			var stripRect = new Rect( x, y, graphWidth, stripHeight );
-			Hud.DrawRect( stripRect, Color.Black.WithAlpha( 0.25f ), borderWidth: 1, borderColor: Color.White.WithAlpha( 0.1f ) );
+			painter.BorderedRect( stripRect.SnapToGrid(), Color.Black.WithAlpha( 0.25f ), cornerRadius: default, borderWidth: 1, borderColor: Color.White.WithAlpha( 0.1f ) );
 
 			if ( verbosity < 2 )
 			{
@@ -233,13 +237,17 @@ internal static partial class DebugOverlay
 					var ms = buf[count - 1 - i]; // newest first
 					var h = MathF.Min( stripHeight, (float)(ms / yMax) * stripHeight );
 					var bx = x + graphWidth - (i + 1) * barW;
-					Hud.DrawRect( new Rect( bx, stripBottom - h, MathF.Max( barW, 1f ), h ), ColorFor( ms, median ).WithAlpha( 0.9f ) );
+					painter.Fill = ColorFor( ms, median ).WithAlpha( 0.9f );
+					painter.Stroke = Stroke.None;
+					painter.Rect( new Rect( bx, stripBottom - h, MathF.Max( barW, 1f ), h ).SnapToGrid() );
 				}
 
 				// median (cadence) reference line on the strip
 				var medY = stripBottom - MathF.Min( stripHeight, (float)(median / yMax) * stripHeight );
-				Hud.DrawRect( new Rect( x, medY, graphWidth, 1f ), Color.White.WithAlpha( 0.35f ) );
-				DrawLabel( _labelMedian, new Rect( x + graphWidth - 52f, medY - 11f, 50f, 10f ), TextFlag.RightBottom, Color.White.WithAlpha( 0.7f ) );
+				painter.Fill = Color.White.WithAlpha( 0.35f );
+				painter.Stroke = Stroke.None;
+				painter.Rect( new Rect( x, medY, graphWidth, 1f ).SnapToGrid() );
+				DrawLabel( painter, _labelMedian, new Rect( x + graphWidth - 52f, medY - 11f, 50f, 10f ), TextFlag.RightBottom, Color.White.WithAlpha( 0.7f ) );
 			}
 			else
 			{
@@ -255,10 +263,14 @@ internal static partial class DebugOverlay
 
 				if ( shuttleX + shuttleWidth > graphWidth )
 				{
-					Hud.DrawRect( new Rect( x, y, Math.Min( shuttleX + shuttleWidth - graphWidth, graphWidth ), stripHeight ), shuttleColor );
+					painter.Fill = shuttleColor;
+					painter.Stroke = Stroke.None;
+					painter.Rect( new Rect( x, y, Math.Min( shuttleX + shuttleWidth - graphWidth, graphWidth ), stripHeight ).SnapToGrid() );
 				}
 
-				Hud.DrawRect( new Rect( x + shuttleX, y, Math.Min( shuttleWidth, graphWidth - shuttleX ), stripHeight ), shuttleColor );
+				painter.Fill = shuttleColor;
+				painter.Stroke = Stroke.None;
+				painter.Rect( new Rect( x + shuttleX, y, Math.Min( shuttleWidth, graphWidth - shuttleX ), stripHeight ).SnapToGrid() );
 			}
 
 			y += stripHeight + gap;
@@ -276,7 +288,7 @@ internal static partial class DebugOverlay
 			}
 
 			var histRect = new Rect( x, y, graphWidth, histHeight );
-			Hud.DrawRect( histRect, Color.Black.WithAlpha( 0.25f ), borderWidth: 1, borderColor: Color.White.WithAlpha( 0.1f ) );
+			painter.BorderedRect( histRect.SnapToGrid(), Color.Black.WithAlpha( 0.25f ), cornerRadius: default, borderWidth: 1, borderColor: Color.White.WithAlpha( 0.1f ) );
 
 			var hBarW = graphWidth / buckets;
 			var histBottom = y + histHeight;
@@ -286,28 +298,32 @@ internal static partial class DebugOverlay
 				var h = MathF.Max( 1f, (float)hist[b] / histMaxCount * (histHeight - 2f) );
 				var bx = x + b * hBarW;
 				var msCenter = (b + 0.5) * bucketMs;
-				Hud.DrawRect( new Rect( bx, histBottom - h, MathF.Max( hBarW - 0.5f, 1f ), h ), ColorFor( msCenter, median ).WithAlpha( 0.9f ) );
+				painter.Fill = ColorFor( msCenter, median ).WithAlpha( 0.9f );
+				painter.Stroke = Stroke.None;
+				painter.Rect( new Rect( bx, histBottom - h, MathF.Max( hBarW - 0.5f, 1f ), h ).SnapToGrid() );
 			}
 
 			// median marker on the histogram
 			var medX = x + MathF.Min( graphWidth, (float)(median / yMax) * graphWidth );
-			Hud.DrawRect( new Rect( medX, y, 1f, histHeight ), Color.White.WithAlpha( 0.35f ) );
+			painter.Fill = Color.White.WithAlpha( 0.35f );
+			painter.Stroke = Stroke.None;
+			painter.Rect( new Rect( medX, y, 1f, histHeight ).SnapToGrid() );
 
 			// x-axis labels: 0, median, yMax
-			DrawLabel( "0", new Rect( x, histBottom + 2f, 40f, 10f ), TextFlag.LeftTop, Color.White.WithAlpha( 0.6f ) );
-			DrawLabel( _labelMedian, new Rect( medX - 25f, histBottom + 2f, 50f, 10f ), TextFlag.CenterTop, Color.White.WithAlpha( 0.6f ) );
-			DrawLabel( _labelYMax, new Rect( x + graphWidth - 40f, histBottom + 2f, 40f, 10f ), TextFlag.RightTop, Color.White.WithAlpha( 0.6f ) );
+			DrawLabel( painter, "0", new Rect( x, histBottom + 2f, 40f, 10f ), TextFlag.LeftTop, Color.White.WithAlpha( 0.6f ) );
+			DrawLabel( painter, _labelMedian, new Rect( medX - 25f, histBottom + 2f, 50f, 10f ), TextFlag.CenterTop, Color.White.WithAlpha( 0.6f ) );
+			DrawLabel( painter, _labelYMax, new Rect( x + graphWidth - 40f, histBottom + 2f, 40f, 10f ), TextFlag.RightTop, Color.White.WithAlpha( 0.6f ) );
 
 			position.y += headerHeight + 2f + (infoLines * lineHeight) + stripHeight + gap + histHeight + 16f;
 		}
 
-		static void DrawLabel( string text, Rect rect, TextFlag flags, Color color )
+		static void DrawLabel( Painter painter, string text, Rect rect, TextFlag flags, Color color )
 		{
 			var scope = new TextRendering.Scope( text, color, 11, FontName, FontWeight )
 			{
 				Outline = new TextRendering.Outline { Color = Color.Black, Enabled = true, Size = 2 }
 			};
-			Hud.DrawText( scope, rect, flags );
+			DebugOverlay.DrawText( painter, scope, rect, flags );
 		}
 	}
 }

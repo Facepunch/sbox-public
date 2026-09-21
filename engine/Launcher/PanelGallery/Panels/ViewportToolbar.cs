@@ -5,25 +5,24 @@ namespace Sandbox.PanelGallery;
 /// the ones the gizmos use, and the play buttons start and stop the game - so it stays in step with
 /// the editor's own toolbar.
 /// </summary>
-public class ViewportToolbar : Panel
+public class ViewportToolbar : Toolbar
 {
-	Panel playButton;
-	Sandbox.UI.Label playIcon;
-	Panel pauseButton;
+	Sandbox.UI.Button playButton;
+	Sandbox.UI.Button pauseButton;
 
-	Panel gridSnap;
-	Panel angleSnap;
+	Sandbox.UI.Button gridSnap;
+	Sandbox.UI.Button angleSnap;
+	Sandbox.UI.ButtonGroup space;
 
 	public ViewportToolbar()
 	{
 		AddClass( "viewporttoolbar" );
 
 		BuildLeft();
-		Add.Panel( "grow" );
-		BuildRight();
-
-		// Over the top of the row, so it's centred on the bar rather than on what's left of it
+		AddSpacer();
 		BuildPlay();
+		AddSpacer();
+		BuildRight();
 	}
 
 	/// <summary>
@@ -34,50 +33,48 @@ public class ViewportToolbar : Panel
 
 	void BuildLeft()
 	{
-		this.Segmented( ["Local", "World"], Settings.GlobalSpace ? 1 : 0, index => Settings.GlobalSpace = index == 1 );
+		space = AddChild( new Sandbox.UI.ButtonGroup
+		{
+			Options = [new Sandbox.UI.Option( "Local", "local" ), new Sandbox.UI.Option( "World", "world" )],
+			Value = Settings.GlobalSpace ? "world" : "local",
+			ValueChanged = value => Settings.GlobalSpace = Equals( value, "world" )
+		} );
 
-		Add.Panel( "divider" );
+		AddSeparator();
 
 		// Angle snapping, and how far each notch turns
-		angleSnap = Toggle( "360", () => Settings.SnapToAngles, value => Settings.SnapToAngles = value );
+		angleSnap = AddToggle( null, "360", Settings.SnapToAngles, value => Settings.SnapToAngles = value );
+		angleSnap.Tooltip = "Snap to angles";
 
 		var angle = AddChild( new NumberBox( null, Settings.AngleSpacing, 1.0f ) );
 		angle.OnChange = value => Settings.AngleSpacing = value.Clamp( 0.25f, 180.0f );
 		angle.Add.Label( "°", "unit" );
 
-		Add.Panel( "divider" );
+		AddSeparator();
 
 		// Grid snapping, and how big the squares are
-		gridSnap = Toggle( "grid_on", () => Settings.SnapToGrid, value => Settings.SnapToGrid = value );
+		gridSnap = AddToggle( null, "grid_on", Settings.SnapToGrid, value => Settings.SnapToGrid = value );
+		gridSnap.Tooltip = "Snap to grid";
 
 		var grid = AddChild( new NumberBox( null, Settings.GridSpacing, 1.0f ) );
 		grid.OnChange = value => Settings.GridSpacing = value.Clamp( 0.125f, 128.0f );
 	}
 
-	Panel Toggle( string icon, Func<bool> get, Action<bool> set )
-	{
-		var button = this.IconButton( icon, () => set( !get() ) );
-		button.SetClass( "active", get() );
-
-		return button;
-	}
-
 	void BuildPlay()
 	{
-		var group = Add.Panel( "playcontrols" );
-
-		playButton = group.IconButton( "play_arrow", PlayStop );
-		playIcon = playButton.GetChild( 0 ) as Sandbox.UI.Label;
+		playButton = AddButton( null, "play_arrow", PlayStop );
 		playButton.AddClass( "play" );
+		playButton.Tooltip = "Play";
 
-		pauseButton = group.IconButton( "pause", Pause );
+		pauseButton = AddButton( null, "pause", Pause );
+		pauseButton.Tooltip = "Pause";
 	}
 
 	void BuildRight()
 	{
-		this.IconButton( "wb_sunny", () => { } );
-		this.IconButton( "visibility", () => { } );
-		this.IconButton( "fullscreen", () => { } );
+		AddButton( null, "wb_sunny", () => { } ).Tooltip = "Lighting";
+		AddButton( null, "visibility", () => { } ).Tooltip = "Visibility";
+		AddButton( null, "fullscreen", () => { } ).Tooltip = "Full screen";
 	}
 
 	static SceneEditorSession Session => SceneEditorSession.Active;
@@ -104,17 +101,20 @@ public class ViewportToolbar : Panel
 
 	public override void Tick()
 	{
+		base.Tick();
 		if ( timeSinceUpdate < 0.2f ) return;
 		timeSinceUpdate = 0;
 
 		var playing = Game.IsPlaying;
 
-		playIcon.Text = playing ? "stop" : "play_arrow";
+		playButton.Icon = playing ? "stop" : "play_arrow";
+		playButton.Tooltip = playing ? "Stop" : "Play";
 		playButton.SetClass( "playing", playing );
-		pauseButton.SetClass( "disabled", !playing );
-		pauseButton.SetClass( "active", playing && Game.IsPaused );
+		pauseButton.Disabled = !playing;
+		pauseButton.Active = playing && Game.IsPaused;
 
-		gridSnap.SetClass( "active", Settings.SnapToGrid );
-		angleSnap.SetClass( "active", Settings.SnapToAngles );
+		gridSnap.Active = Settings.SnapToGrid;
+		angleSnap.Active = Settings.SnapToAngles;
+		space.Value = Settings.GlobalSpace ? "world" : "local";
 	}
 }

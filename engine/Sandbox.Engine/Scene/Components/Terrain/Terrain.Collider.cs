@@ -86,18 +86,24 @@ public partial class Terrain
 		if ( !_shape.IsValid() )
 			return;
 
+		if ( _shape?._shape is not PhysicsShape3d shape3d )
+			return;
+
 		fixed ( ushort* heights = &Storage.HeightMap[0] )
 		{
 			var sizeScale = Storage.TerrainSize / Storage.Resolution;
 			var heightScale = Storage.TerrainHeight / ushort.MaxValue;
 
-			_shape.native.UpdateHeightShape( (IntPtr)heights, IntPtr.Zero, x, y, w, h, sizeScale, heightScale );
+			shape3d.native.UpdateHeightShape( (IntPtr)heights, IntPtr.Zero, x, y, w, h, sizeScale, heightScale );
 		}
 	}
 
 	private unsafe void UpdateColliderMaterials( int x, int y, int w, int h )
 	{
 		if ( !_shape.IsValid() )
+			return;
+
+		if ( _shape?._shape is not PhysicsShape3d shape3d )
 			return;
 
 		// Extract base texture IDs from the compact format for the specified region
@@ -130,7 +136,7 @@ public partial class Terrain
 			var sizeScale = Storage.TerrainSize / Storage.Resolution;
 			var heightScale = Storage.TerrainHeight / ushort.MaxValue;
 
-			_shape.native.UpdateHeightShape( IntPtr.Zero, (IntPtr)pMaterials, x, y, w, h, sizeScale, heightScale );
+			shape3d.native.UpdateHeightShape( IntPtr.Zero, (IntPtr)pMaterials, x, y, w, h, sizeScale, heightScale );
 		}
 	}
 }

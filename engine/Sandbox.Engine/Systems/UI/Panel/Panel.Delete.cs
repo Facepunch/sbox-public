@@ -13,6 +13,56 @@ public partial class Panel
 
 
 	private bool IsDeleted { get; set; }
+	HashSet<Panel> renderTreeDeletion;
+	bool renderTreeDeletePending;
+
+	internal void DeleteFromRenderTree( Panel outroParent, bool immediate )
+	{
+		if ( IsDeleted ) return;
+		if ( IsDeleting )
+		{
+			if ( immediate )
+			{
+				// Its virtual Delete already ran when its independent outro started.
+				Parent = null;
+				IsVisible = false;
+				OnDeleteRecursive();
+			}
+			return;
+		}
+
+		if ( outroParent is not null && outroParent != this && IsAncestor( outroParent ) )
+		{
+			// Keep physical content alive, including resources released by virtual Delete overrides.
+			outroParent.renderTreeDeletion ??= new();
+			outroParent.renderTreeDeletion.Add( this );
+			renderTreeDeletePending = true;
+			return;
+		}
+
+		renderTreeDeletePending = false;
+		try
+		{
+			Delete( immediate );
+		}
+		catch ( System.Exception ex )
+		{
+			Log.Error( ex, "Error when deleting a render-tree panel" );
+			// An override may throw before base.Delete. Finish base cleanup without replaying it,
+			// and don't let this panel prevent its siblings or owner from being cleaned up.
+			try
+			{
+				Parent = null;
+				IsVisible = false;
+				IsDeleting = true;
+				OnDeleteRecursive();
+			}
+			catch ( System.Exception cleanupException )
+			{
+				Log.Error( cleanupException, "Error when cleaning up a failed render-tree panel deletion" );
+			}
+		}
+	}
 
 	/// <summary>
 	/// Deletes the panel.
@@ -56,6 +106,7 @@ public partial class Panel
 	/// </summary>
 	internal void OnDeleteRecursive()
 	{
+		if ( IsDeleted ) return;
 		IsDeleted = true;
 
 		try
@@ -65,9 +116,24 @@ public partial class Panel
 
 			Task.Expire();
 
-			foreach ( var child in Children )
+			// Clear logical ownership before physical recursion bypasses children's Delete overrides.
+			renderTree?.Clear( immediate: true );
+			renderTree = null;
+
+			var pending = renderTreeDeletion;
+			renderTreeDeletion = null;
+			if ( pending is not null )
 			{
-				child?.OnDeleteRecursive();
+				foreach ( var panel in pending )
+					panel.DeleteFromRenderTree( null, true );
+			}
+
+			foreach ( var child in Children.ToArray() )
+			{
+				if ( child.renderTreeDeletePending && !child.IsDeleting )
+					child.DeleteFromRenderTree( null, true );
+				else
+					child.OnDeleteRecursive();
 			}
 
 			try
@@ -93,26 +159,11 @@ public partial class Panel
 				SetMouseCapture( false );
 			}
 
-			InlineOwner?.Invalidate();
-			InlineParagraph?.Dispose();
-			InlineParagraph = null;
-			InlineOwner = null;
 			LayoutTree?.Dispose();
 			LayoutTree = null;
 
-			// Destroy the razor render tree — Block.ElementPanel holds strong refs to
-			// dynamically-created child panels whose Style._styleBlocks keep parsed
-			// stylesheet textures (gradients, masks, etc.) alive past shutdown.
-			renderTree?.Clear();
-			renderTree = null;
-
-			if ( CachedDescriptors != null )
-			{
-				RenderLayer.Return( CachedDescriptors );
-				CachedDescriptors = null;
-			}
-
 			ComputedStyle = null;
+			_paintCache = default;
 			StyleSheet = default;
 			GameObject = null;
 

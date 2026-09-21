@@ -24,6 +24,9 @@ public partial class VectorControl : BaseControl
 		{
 			gap: 2px;
 			flex-grow: 1;
+			flex-shrink: 1;
+			flex-basis: 0px;
+			min-width: 0px;
 			flex-direction: row;
 			align-items: center;
 		}
@@ -31,8 +34,10 @@ public partial class VectorControl : BaseControl
 		VectorControl NumberEntry
 		{
 			flex-grow: 1;
+			flex-shrink: 1;
 			flex-basis: 0px;
 			min-width: 0px;
+			overflow: hidden;
 		}
 
 		VectorControl .prefix-label

@@ -55,13 +55,13 @@ public static partial class Input
 		// Use controller's input context
 		using var inputScope = controller.InputContext?.Push();
 
-		var lookX = controller.GetAxis( NativeEngine.GameControllerAxis.RightX ) * Time.Delta * Preferences.ControllerLookYawSpeed;
-		var lookY = controller.GetAxis( NativeEngine.GameControllerAxis.RightY ) * Time.Delta * Preferences.ControllerLookPitchSpeed;
+		var lookX = controller.GetAxis( Sandbox.GameControllerAxis.RightX ) * Time.Delta * Preferences.ControllerLookYawSpeed;
+		var lookY = controller.GetAxis( Sandbox.GameControllerAxis.RightY ) * Time.Delta * Preferences.ControllerLookPitchSpeed;
 
 		AnalogLook += new Angles( lookY, -lookX, 0 );
 
-		var moveX = controller.GetAxis( NativeEngine.GameControllerAxis.LeftX );
-		var moveY = controller.GetAxis( NativeEngine.GameControllerAxis.LeftY );
+		var moveX = controller.GetAxis( Sandbox.GameControllerAxis.LeftX );
+		var moveY = controller.GetAxis( Sandbox.GameControllerAxis.LeftY );
 
 		AnalogMove += new Vector3( -moveY, -moveX, 0 );
 

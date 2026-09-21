@@ -1,4 +1,4 @@
-using Sandbox.Audio;
+﻿using Sandbox.Audio;
 using System.Collections.Generic;
 using System.IO;
 
@@ -511,14 +511,27 @@ public partial class SoundHandle : IValid, IDisposable
 		}
 	}
 
+	// The reload path frees the native source as soon as this returns, and Stop() only sets
+	// Finished, so tear the handles down here instead of leaving the mixers alive.
 	internal static void StopAll( CSfxTable sfx )
 	{
+		var disposedAny = false;
+
 		_tickList.Clear();
 		_tickList.AddRange( active );
 		foreach ( var handle in _tickList )
 		{
 			if ( handle._sfx != sfx ) continue;
-			if ( handle.IsValid ) handle.Stop();
+			if ( !handle.IsValid ) continue;
+
+			handle.Dispose();
+			disposedAny = true;
+		}
+
+		// Draining takes the mix lock, so only pay for it when something was playing
+		if ( disposedAny )
+		{
+			Audio.MixingThread.DrainDisposals();
 		}
 	}
 

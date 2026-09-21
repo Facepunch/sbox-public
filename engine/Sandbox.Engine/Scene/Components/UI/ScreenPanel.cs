@@ -119,7 +119,7 @@ public sealed class ScreenPanel : Component, IRootPanelComponent
 	{
 		if ( !rootPanel.IsValid() ) return;
 
-		rootPanel.RenderManual();
+		rootPanel.Render();
 	}
 }
 

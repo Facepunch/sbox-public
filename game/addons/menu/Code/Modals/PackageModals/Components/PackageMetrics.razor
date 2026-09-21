@@ -8,6 +8,8 @@
 
 <root>
 
+    @if ( ShowRatings )
+    {
     <MetricButton Interactive 
         Active="@Package.Interaction.Favourite"
         @onclick="@ToggleFavourite"
@@ -28,6 +30,7 @@
         Tooltip="Thumbs Down" 
         Icon="thumb_down" 
         Value="@Package.VotesDown.ToMetric()" />
+    }
 
     <MetricButton 
         Tooltip="@($"{Package.Reviews.Score.ToString( "N0" )}% from {Package.Reviews.Total} Reviews")" 
@@ -46,6 +49,9 @@
 @code
 {
     public Package Package {get;set;}
+
+    /// <summary>Favourite and vote buttons; off when the host shows them elsewhere.</summary>
+    public bool ShowRatings { get; set; } = true;
     protected override int BuildHash() => System.HashCode.Combine(Package, Package.Interaction);
 
     async void VoteUp()

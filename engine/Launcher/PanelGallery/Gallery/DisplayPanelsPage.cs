@@ -7,7 +7,7 @@ namespace Sandbox.PanelGallery;
 /// </summary>
 public class DisplayPanelsPage : GalleryPage
 {
-	public DisplayPanelsPage() : base( "Images", "Sandbox.UI.Image and SvgPanel. Panels that draw something of their own." )
+	public DisplayPanelsPage() : base( "Images", "Sandbox.UI.Image. Compare native-sized textures and stretched images." )
 	{
 		// Built here rather than loaded, so the page tests the panel and not whether an asset
 		// resolved. The checks make filtering and stretching obvious
@@ -24,24 +24,13 @@ public class DisplayPanelsPage : GalleryPage
 		stretched.Style.Height = 60;
 		row.AddChild( stretched );
 
-		// Svg is rasterised at its final size, so it stays sharp however big it is
-		row = Case( "Svg" );
-		foreach ( var size in new[] { 24, 48, 96 } )
-		{
-			var svg = row.AddChild<Sandbox.UI.SvgPanel>();
-			svg.Src = "ui/glyphs/default/1.svg";
-			svg.Color = "#ffffff";
-			svg.Style.Width = size;
-			svg.Style.Height = size;
-		}
-
 		Output().Text = "The checks are drawn in code - a blank square means Image is broken, not a missing file.";
 	}
 
 	/// <summary>
 	/// An 8x8 checkerboard, so scaling and filtering are easy to see.
 	/// </summary>
-	static Texture Checkerboard()
+	internal static Texture Checkerboard()
 	{
 		const int size = 8;
 		var data = new byte[size * size * 4];

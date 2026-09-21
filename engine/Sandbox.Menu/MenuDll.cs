@@ -1,4 +1,5 @@
-﻿using Sandbox.Engine;
+﻿using NativeEngine;
+using Sandbox.Engine;
 using Sandbox.Services;
 using Sandbox.Tasks;
 using Sandbox.UI;
@@ -247,9 +248,17 @@ internal sealed class MenuDll : IMenuDll
 		}
 	}
 
-	void LoadResources() => ResourceLoader.LoadAllGameResource( FileSystem.Mounted );
+	void LoadResources()
+	{
+		g_pResourceSystem.InvalidateDatabase();
+		ResourceLoader.LoadAllGameResource( FileSystem.Mounted );
+	}
 
-	Task LoadResourcesAsync() => ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted );
+	Task LoadResourcesAsync()
+	{
+		g_pResourceSystem.InvalidateDatabase();
+		return ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted );
+	}
 
 	public void OnGameEntered()
 	{

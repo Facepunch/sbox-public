@@ -48,12 +48,12 @@ internal static partial class DebugOverlay
 		// Slow-smoothed per-path value used only for sort ordering, to give the row order hysteresis.
 		private static readonly Dictionary<string, float> _sortScore = new();
 
-		internal static void Draw( ref Vector2 pos )
+		internal static void Draw( Painter painter, ref Vector2 pos )
 		{
 			var entries = GpuProfilerStats.Entries;
 			if ( entries.Count == 0 )
 			{
-				DrawNoData( ref pos );
+				DrawNoData( painter, ref pos );
 				return;
 			}
 
@@ -74,7 +74,7 @@ internal static partial class DebugOverlay
 
 			if ( _root.Children.Count == 0 )
 			{
-				DrawNoData( ref pos );
+				DrawNoData( painter, ref pos );
 				return;
 			}
 
@@ -102,20 +102,20 @@ internal static partial class DebugOverlay
 			var colMax = colAvg + ValueWidth;
 			var colShare = colMax + ValueWidth;
 
-			DrawTitle( ref y, x );
-			DrawSummary( ref y, x, layerMs );
-			DrawHeader( ref y, x, colAvg, colMax, colShare );
+			DrawTitle( painter, ref y, x );
+			DrawSummary( painter, ref y, x, layerMs );
+			DrawHeader( painter, ref y, x, colAvg, colMax, colShare );
 
 			foreach ( var n in _root.Children )
 			{
 				var family = PassColors[_colorIndexByPath.GetValueOrDefault( n.Path )];
-				DrawNode( ref y, n, 0, family, shareDenomMs, x, colGauge, colAvg, colMax, colShare );
+				DrawNode( painter, ref y, n, 0, family, shareDenomMs, x, colGauge, colAvg, colMax, colShare );
 			}
 
 			y += 16f;
 
-			DrawMemoryBar( ref y, x );
-			DrawMemorySummary( ref y, x );
+			DrawMemoryBar( painter, ref y, x );
+			DrawMemorySummary( painter, ref y, x );
 
 			pos.y = y;
 		}
@@ -184,7 +184,7 @@ internal static partial class DebugOverlay
 				SortChildren( c );
 		}
 
-		private static void DrawNode( ref float y, Node n, int depth, Color familyColor, float shareDenomMs, float xName, float colGauge, float colAvg, float colMax, float colShare )
+		private static void DrawNode( Painter painter, ref float y, Node n, int depth, Color familyColor, float shareDenomMs, float xName, float colGauge, float colAvg, float colMax, float colShare )
 		{
 			var indent = depth * IndentWidth;
 
@@ -197,30 +197,36 @@ internal static partial class DebugOverlay
 			var barColor = isDim ? new Color( 0.55f, 0.55f, 0.55f ) : shade;
 
 			var nameWeight = Math.Max( 400, 700 - depth * 100 );
-			DrawCell( n.Name, nameColor, xName + indent, y, NameWidth - indent, TextFlag.LeftCenter, nameWeight );
+			DrawCell( painter, n.Name, nameColor, xName + indent, y, NameWidth - indent, TextFlag.LeftCenter, nameWeight );
 
 			var avg = n.Measured ? n.AvgMs : n.SubtreeAvgMs;
 
 			var gauge = new Rect( colGauge, y + 1, GaugeWidth, RowHeight - 2 );
-			Hud.DrawRect( gauge, Color.Black.WithAlpha( 0.1f ) );
+			painter.Fill = Color.Black.WithAlpha( 0.1f );
+			painter.Stroke = Stroke.None;
+			painter.Rect( gauge.SnapToGrid() );
 			if ( n.Measured )
 			{
 				var maxW = MathF.Min( gauge.Width, (n.MaxMs / GaugeScaleMs) * gauge.Width );
-				Hud.DrawRect( new Rect( gauge.Left, gauge.Top, MathF.Max( 1, maxW ), gauge.Height ), barColor.WithAlpha( 0.14f ) );
+				painter.Fill = barColor.WithAlpha( 0.14f );
+				painter.Stroke = Stroke.None;
+				painter.Rect( new Rect( gauge.Left, gauge.Top, MathF.Max( 1, maxW ), gauge.Height ).SnapToGrid() );
 			}
 			var avgW = MathF.Min( gauge.Width, (avg / GaugeScaleMs) * gauge.Width );
-			Hud.DrawRect( new Rect( gauge.Left, gauge.Top, MathF.Max( 1, avgW ), gauge.Height ), barColor.WithAlpha( 0.65f ) );
+			painter.Fill = barColor.WithAlpha( 0.65f );
+			painter.Stroke = Stroke.None;
+			painter.Rect( new Rect( gauge.Left, gauge.Top, MathF.Max( 1, avgW ), gauge.Height ).SnapToGrid() );
 
 			var sharePct = (avg / shareDenomMs) * 100f;
 			var valueColor = Color.White.WithAlpha( 0.85f );
-			DrawCell( $"{avg:F2}ms", valueColor, colAvg, y, ValueWidth, TextFlag.LeftCenter );
-			DrawCell( n.Measured ? $"{n.MaxMs:F2}ms" : "", valueColor, colMax, y, ValueWidth, TextFlag.LeftCenter );
-			DrawCell( $"{sharePct:F1}%", valueColor, colShare, y, ValueWidth, TextFlag.LeftCenter );
+			DrawCell( painter, $"{avg:F2}ms", valueColor, colAvg, y, ValueWidth, TextFlag.LeftCenter );
+			DrawCell( painter, n.Measured ? $"{n.MaxMs:F2}ms" : "", valueColor, colMax, y, ValueWidth, TextFlag.LeftCenter );
+			DrawCell( painter, $"{sharePct:F1}%", valueColor, colShare, y, ValueWidth, TextFlag.LeftCenter );
 
 			y += RowHeight + 1;
 
 			foreach ( var c in n.Children )
-				DrawNode( ref y, c, depth + 1, familyColor, shareDenomMs, xName, colGauge, colAvg, colMax, colShare );
+				DrawNode( painter, ref y, c, depth + 1, familyColor, shareDenomMs, xName, colGauge, colAvg, colMax, colShare );
 		}
 
 		// Only top-level nodes hold a palette slot; keep it stable across frames by dropping slots for paths
@@ -264,14 +270,14 @@ internal static partial class DebugOverlay
 			return _colorRotation;
 		}
 
-		private static void DrawTitle( ref float y, float x )
+		private static void DrawTitle( Painter painter, ref float y, float x )
 		{
 			var scope = new TextRendering.Scope( "GPU Timings", Color.White.WithAlpha( 0.9f ), 11, "Roboto Mono", 700 ) { Outline = _outline };
-			Hud.DrawText( scope, new Rect( x, y, 560, RowHeight ), TextFlag.LeftCenter );
+			DebugOverlay.DrawText( painter, scope, new Rect( x, y, 560, RowHeight ), TextFlag.LeftCenter );
 			y += RowHeight;
 		}
 
-		private static void DrawSummary( ref float y, float x, float totalMs )
+		private static void DrawSummary( Painter painter, ref float y, float x, float totalMs )
 		{
 			// Whole-frame GPU time is authoritative; the per-pass sum over-counts (overlapping groups), so it's only a breakdown total.
 			var gpuFrameMs = PerformanceStats.GpuFrametime;
@@ -291,21 +297,21 @@ internal static partial class DebugOverlay
 			}
 
 			var scope = new TextRendering.Scope( text, color, 11, "Roboto Mono", 700 ) { Outline = _outline };
-			Hud.DrawText( scope, new Rect( x, y, 560, RowHeight ), TextFlag.LeftCenter );
+			DebugOverlay.DrawText( painter, scope, new Rect( x, y, 560, RowHeight ), TextFlag.LeftCenter );
 			y += RowHeight;
 		}
 
-		private static void DrawHeader( ref float y, float colName, float colAvg, float colMax, float colShare )
+		private static void DrawHeader( Painter painter, ref float y, float colName, float colAvg, float colMax, float colShare )
 		{
 			var dim = Color.White.WithAlpha( 0.55f );
-			DrawCell( "pass", dim, colName, y, NameWidth, TextFlag.LeftCenter );
-			DrawCell( "avg", dim, colAvg, y, ValueWidth, TextFlag.LeftCenter );
-			DrawCell( "max", dim, colMax, y, ValueWidth, TextFlag.LeftCenter );
-			DrawCell( "%", dim, colShare, y, ValueWidth, TextFlag.LeftCenter );
+			DrawCell( painter, "pass", dim, colName, y, NameWidth, TextFlag.LeftCenter );
+			DrawCell( painter, "avg", dim, colAvg, y, ValueWidth, TextFlag.LeftCenter );
+			DrawCell( painter, "max", dim, colMax, y, ValueWidth, TextFlag.LeftCenter );
+			DrawCell( painter, "%", dim, colShare, y, ValueWidth, TextFlag.LeftCenter );
 			y += RowHeight;
 		}
 
-		private static void DrawMemorySummary( ref float y, float x )
+		private static void DrawMemorySummary( Painter painter, ref float y, float x )
 		{
 			var usedBytes = (long)GpuProfilerStats.VideoMemoryUsed;
 			var budgetBytes = (long)GpuProfilerStats.VideoMemoryBudget;
@@ -324,11 +330,11 @@ internal static partial class DebugOverlay
 				: $"GPU memory {usedBytes.FormatBytes()} used";
 
 			var scope = new TextRendering.Scope( text, color, 11, "Roboto Mono", 600 ) { Outline = _outline };
-			Hud.DrawText( scope, new Rect( x, y, 560, RowHeight ), TextFlag.LeftCenter );
+			DebugOverlay.DrawText( painter, scope, new Rect( x, y, 560, RowHeight ), TextFlag.LeftCenter );
 			y += RowHeight;
 		}
 
-		private static void DrawMemoryBar( ref float y, float x )
+		private static void DrawMemoryBar( Painter painter, ref float y, float x )
 		{
 			var usedBytes = (long)GpuProfilerStats.VideoMemoryUsed;
 			var budgetBytes = (long)GpuProfilerStats.VideoMemoryBudget;
@@ -344,34 +350,40 @@ internal static partial class DebugOverlay
 			};
 
 			var barRect = new Rect( x, y + 2, 560, 8 );
-			Hud.DrawRect( barRect, Color.Black.WithAlpha( 0.22f ) );
+			painter.Fill = Color.Black.WithAlpha( 0.22f );
+			painter.Stroke = Stroke.None;
+			painter.Rect( barRect.SnapToGrid() );
 
 			var usedWidth = barRect.Width * usedFraction;
 			if ( usedWidth > 0f )
 			{
-				Hud.DrawRect( new Rect( barRect.Left, barRect.Top, usedWidth, barRect.Height ), usedColor.WithAlpha( 0.85f ) );
+				painter.Fill = usedColor.WithAlpha( 0.85f );
+				painter.Stroke = Stroke.None;
+				painter.Rect( new Rect( barRect.Left, barRect.Top, usedWidth, barRect.Height ).SnapToGrid() );
 			}
 
 			if ( freeFraction > 0f )
 			{
 				var freeLeft = barRect.Left + usedWidth;
 				var freeWidth = barRect.Width * freeFraction;
-				Hud.DrawRect( new Rect( freeLeft, barRect.Top, freeWidth, barRect.Height ), Color.White.WithAlpha( 0.15f ) );
+				painter.Fill = Color.White.WithAlpha( 0.15f );
+				painter.Stroke = Stroke.None;
+				painter.Rect( new Rect( freeLeft, barRect.Top, freeWidth, barRect.Height ).SnapToGrid() );
 			}
 
 			y += RowHeight - 4;
 		}
 
-		private static void DrawCell( string text, Color color, float x, float y, float width, TextFlag flag, int weight = 600 )
+		private static void DrawCell( Painter painter, string text, Color color, float x, float y, float width, TextFlag flag, int weight = 600 )
 		{
 			var scope = new TextRendering.Scope( text, color, 11, "Roboto Mono", weight ) { Outline = _outline };
-			Hud.DrawText( scope, new Rect( x, y, width, RowHeight ), flag );
+			DebugOverlay.DrawText( painter, scope, new Rect( x, y, width, RowHeight ), flag );
 		}
 
-		private static void DrawNoData( ref Vector2 pos )
+		private static void DrawNoData( Painter painter, ref Vector2 pos )
 		{
 			var scope = new TextRendering.Scope( "GPU profiler: waiting for data...", Color.White.WithAlpha( 0.6f ), 11, "Roboto Mono", 600 ) { Outline = _outline };
-			Hud.DrawText( scope, new Rect( pos, new Vector2( 320, RowHeight ) ), TextFlag.LeftCenter );
+			DebugOverlay.DrawText( painter, scope, new Rect( pos, new Vector2( 320, RowHeight ) ), TextFlag.LeftCenter );
 			pos.y += RowHeight;
 		}
 

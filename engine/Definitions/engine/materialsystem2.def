@@ -1,5 +1,6 @@
 
 #include "materialsystem2/imaterialsystem2.h"
+#include "materialsystem2/imaterialsystem2utils.h"
 
 native pointer HMaterial as NativeEngine.HMaterial
 
@@ -14,3 +15,7 @@ native accessor g_pMaterialSystem2 as NativeEngine.MaterialSystem2
 	void FrameUpdate();
 }
 
+native accessor g_pMaterialSystem2Utils as NativeEngine.MaterialSystem2Utils
+{
+	void DrawScreenSpaceRectangle( IRenderContext context, IMaterial material, CRenderAttributes attributes, int x, int y, int width, int height, float sourceX0, float sourceY0, float sourceX1, float sourceY1, int textureWidth, int textureHeight );
+}

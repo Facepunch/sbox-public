@@ -43,9 +43,12 @@ native accessor g_pRenderDevice
 
 	IRenderContext CreateRenderContext( uint flags );
 	void ReleaseRenderContext( IRenderContext context );
+	void BeginSubmittingDisplayLists();
 
 	bool ReadTexturePixels( ITexture hTexture, ref Rect_t pSrcRect, int nSrcSlice, int nSrcMip, ref Rect_t pDstRect, void* pData, ImageFormat dstFormat, int nDstStride );
 
+	SwapChainHandle_t CreateSwapChain( CastTo[PlatWindow_t] IntPtr window, RenderDeviceInfo_t mode, string debugName );
+	bool UpdateSwapChain( SwapChainHandle_t swapChain, RenderDeviceInfo_t mode );
 	void DestroySwapChain( SwapChainHandle_t hSwapChain );
 
 	inline string GetGpuStatsSummary()

@@ -136,8 +136,8 @@ public static class Application
 	public static string KeyCodeToString( Editor.KeyCode code )
 	{
 		var virt = CQUtils.GetWindowsVirtualKey( (int)code );
-		var buttonCode = NativeEngine.InputSystem.VirtualKeyToButtonCode( virt );
-		var str = NativeEngine.InputSystem.CodeToString( buttonCode );
+		var buttonCode = Sandbox.Engine.KeyTranslation.VirtualKeyToButtonCode( virt );
+		var str = Sandbox.Engine.KeyTranslation.CodeToString( buttonCode );
 		return str;
 	}
 

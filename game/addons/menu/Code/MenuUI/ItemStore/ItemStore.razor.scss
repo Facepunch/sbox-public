@@ -96,7 +96,7 @@ ItemStore
 	{
 		flex-shrink: 0;
 		flex-direction: row;
-		align-items: baseline;
+		align-items: center;
 		gap: 10px;
 		margin-top: 16px;
 		padding: 0 4px;
@@ -114,6 +114,7 @@ ItemStore
 			font-size: 12px;
 			font-weight: 500;
 			color: $front-secondary;
+			margin-top: 3px;
 		}
 
 		&.owned

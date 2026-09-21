@@ -22,7 +22,7 @@ internal static partial class DebugOverlay
 			}
 		}
 
-		internal static void Draw( ref Vector2 pos )
+		internal static void Draw( Painter painter, ref Vector2 pos )
 		{
 			// Update stats once per second
 			var now = RealTime.Now.FloorToInt();
@@ -53,12 +53,12 @@ internal static partial class DebugOverlay
 			//
 			header.Text = $"ResourceIndex (strong): {_resourceStats.StrongTotal}";
 			header.TextColor = new Color( 0.6f, 0.9f, 1f );
-			Hud.DrawText( header, new Vector2( x, y ), TextFlag.LeftTop );
+			DebugOverlay.DrawText( painter, header, new Vector2( x, y ), TextFlag.LeftTop );
 			y += 16;
 
 			foreach ( var kvp in _resourceStats.StrongIndex.OrderByDescending( x => x.Value ) )
 			{
-				DrawResourceRow( ref y, x, scope, dimScope, kvp.Key, kvp.Value, _maxStrong, new Color( 0.8f, 0.9f, 1f ) );
+				DrawResourceRow( painter, ref y, x, scope, dimScope, kvp.Key, kvp.Value, _maxStrong, new Color( 0.8f, 0.9f, 1f ) );
 			}
 
 			y += 8;
@@ -69,14 +69,14 @@ internal static partial class DebugOverlay
 			var weakDeadEntries = _resourceStats.WeakIndexEntries.GetValueOrDefault( "(dead)" );
 			header.Text = $"WeakIndex (weak): {_resourceStats.WeakTotal}, dead {weakDeadEntries:N0}";
 			header.TextColor = new Color( 0.6f, 1f, 0.7f );
-			Hud.DrawText( header, new Vector2( x, y ), TextFlag.LeftTop );
+			DebugOverlay.DrawText( painter, header, new Vector2( x, y ), TextFlag.LeftTop );
 			y += 16;
 
 			foreach ( var kvp in _resourceStats.WeakIndexEntries.OrderByDescending( x => x.Value ) )
 			{
 				var isDead = kvp.Key == "(dead)";
 				var nameColor = isDead ? new Color( 1f, 0.5f, 0.5f ) : new Color( 0.7f, 1f, 0.7f );
-				DrawResourceRow( ref y, x, scope, dimScope, kvp.Key, kvp.Value, isDead ? null : _maxWeak, nameColor );
+				DrawResourceRow( painter, ref y, x, scope, dimScope, kvp.Key, kvp.Value, isDead ? null : _maxWeak, nameColor );
 			}
 
 			y += 8;
@@ -87,38 +87,38 @@ internal static partial class DebugOverlay
 			var nativeDeadEntries = _nativeCacheStats.Entries.GetValueOrDefault( "(dead)" );
 			header.Text = $"NativeResourceCache (by handle): {_nativeCacheStats.WeakTableTotal} weak, {_nativeCacheStats.MemoryCacheCount} cached, dead {nativeDeadEntries:N0}";
 			header.TextColor = new Color( 1f, 0.9f, 0.6f );
-			Hud.DrawText( header, new Vector2( x, y ), TextFlag.LeftTop );
+			DebugOverlay.DrawText( painter, header, new Vector2( x, y ), TextFlag.LeftTop );
 			y += 16;
 
 			foreach ( var kvp in _nativeCacheStats.Entries.OrderByDescending( x => x.Value ) )
 			{
 				var isDead = kvp.Key == "(dead)";
 				var nameColor = isDead ? new Color( 1f, 0.5f, 0.5f ) : new Color( 1f, 1f, 0.7f );
-				DrawResourceRow( ref y, x, scope, dimScope, kvp.Key, kvp.Value, isDead ? null : _maxNative, nameColor );
+				DrawResourceRow( painter, ref y, x, scope, dimScope, kvp.Key, kvp.Value, isDead ? null : _maxNative, nameColor );
 			}
 
 			pos.y = y;
 		}
 
-		static void DrawResourceRow( ref float y, float x, TextRendering.Scope scope, TextRendering.Scope dimScope, string name, int count, Dictionary<string, int> maxDict, Color nameColor )
+		static void DrawResourceRow( Painter painter, ref float y, float x, TextRendering.Scope scope, TextRendering.Scope dimScope, string name, int count, Dictionary<string, int> maxDict, Color nameColor )
 		{
 			var isDead = name == "(dead)";
 			var countColor = isDead ? new Color( 1f, 0.5f, 0.5f ) : Color.White;
 
 			scope.TextColor = countColor;
 			scope.Text = count.ToString( "N0" );
-			Hud.DrawText( scope, new Rect( x, y, 40, 13 ), TextFlag.RightTop );
+			DebugOverlay.DrawText( painter, scope, new Rect( x, y, 40, 13 ), TextFlag.RightTop );
 
 			if ( maxDict is not null && maxDict.TryGetValue( name, out var max ) )
 			{
 				dimScope.TextColor = max > count ? new Color( 1f, 0.7f, 0.3f ) : Color.White.WithAlpha( 0.6f );
 				dimScope.Text = $"(max {max:N0})";
-				Hud.DrawText( dimScope, new Rect( x + 45, y, 80, 13 ), TextFlag.LeftTop );
+				DebugOverlay.DrawText( painter, dimScope, new Rect( x + 45, y, 80, 13 ), TextFlag.LeftTop );
 			}
 
 			scope.TextColor = nameColor;
 			scope.Text = name;
-			Hud.DrawText( scope, new Vector2( x + 130, y ), TextFlag.LeftTop );
+			DebugOverlay.DrawText( painter, scope, new Vector2( x + 130, y ), TextFlag.LeftTop );
 
 			y += 14;
 		}

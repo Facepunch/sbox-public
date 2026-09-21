@@ -8,6 +8,7 @@ FriendsActivity
 	// instead of stretching the card past the column.
 	flex-shrink: 1;
 	border-top: 1px solid $front-hairline;
+	background-color: $front-card-deep;
 
 	.count
 	{

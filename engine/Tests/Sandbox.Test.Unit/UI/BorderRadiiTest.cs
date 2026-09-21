@@ -5,6 +5,48 @@ namespace UITests;
 [TestClass]
 public class BorderRadiiTest
 {
+	[TestMethod]
+	public void EqualityChecksEveryRadius()
+	{
+		float[] values = [ 0, System.BitConverter.Int32BitsToSingle( int.MinValue ), 1, -1, float.Epsilon,
+			float.PositiveInfinity, float.NegativeInfinity, float.NaN ];
+		for ( int component = 0; component < 8; component++ )
+		{
+			foreach ( var value in values )
+			{
+				var components = new float[8];
+				components[component] = value;
+				var radii = new BorderRadii
+				{
+					TopLeft = new Vector2( components[0], components[1] ),
+					TopRight = new Vector2( components[2], components[3] ),
+					BottomLeft = new Vector2( components[4], components[5] ),
+					BottomRight = new Vector2( components[6], components[7] )
+				};
+				Assert.AreEqual( value == 0, radii.IsZero );
+				Assert.AreEqual( value == 0, radii.Equals( BorderRadii.Zero ) );
+				Assert.AreEqual( !float.IsNaN( value ), radii.Equals( radii ) );
+			}
+		}
+	}
+
+	[TestMethod]
+	public void ClampingScalesEveryRadius()
+	{
+		var radii = new BorderRadii
+		{
+			TopLeft = new Vector2( 10, 40 ),
+			TopRight = new Vector2( 20, 80 ),
+			BottomLeft = new Vector2( 30, 60 ),
+			BottomRight = new Vector2( 40, 40 )
+		}.Clamped( 200, 60 );
+
+		Assert.AreEqual( new Vector2( 5, 20 ), radii.TopLeft );
+		Assert.AreEqual( new Vector2( 10, 40 ), radii.TopRight );
+		Assert.AreEqual( new Vector2( 15, 30 ), radii.BottomLeft );
+		Assert.AreEqual( new Vector2( 20, 20 ), radii.BottomRight );
+	}
+
 	static Styles Radius( string tl, string tr, string bl, string br )
 	{
 		return new Styles
@@ -21,7 +63,7 @@ public class BorderRadiiTest
 	[TestMethod]
 	public void PixelsPassThrough()
 	{
-		var r = BorderRadii.FromStyle( Radius( "8px" ), new Rect( 0, 0, 100, 100 ) );
+		var r = Radius( "8px" ).GetBorderRadii( new Rect( 0, 0, 100, 100 ) );
 
 		Assert.AreEqual( new Vector2( 8, 8 ), r.TopLeft );
 		Assert.AreEqual( new Vector2( 8, 8 ), r.BottomRight );
@@ -34,7 +76,7 @@ public class BorderRadiiTest
 	[TestMethod]
 	public void PercentResolvesPerAxis()
 	{
-		var r = BorderRadii.FromStyle( Radius( "50%" ), new Rect( 0, 0, 200, 100 ) );
+		var r = Radius( "50%" ).GetBorderRadii( new Rect( 0, 0, 200, 100 ) );
 
 		Assert.AreEqual( new Vector2( 100, 50 ), r.TopLeft );
 		Assert.AreEqual( new Vector2( 100, 50 ), r.BottomRight );
@@ -49,7 +91,7 @@ public class BorderRadiiTest
 	[TestMethod]
 	public void OverlapScalesUniformly()
 	{
-		var r = BorderRadii.FromStyle( Radius( "40px" ), new Rect( 0, 0, 100, 50 ) );
+		var r = Radius( "40px" ).GetBorderRadii( new Rect( 0, 0, 100, 50 ) );
 
 		// Left side sums to 80 in a 50 high box: 50/80
 		Assert.AreEqual( 25f, r.TopLeft.x, 0.001f );
@@ -64,20 +106,20 @@ public class BorderRadiiTest
 	[TestMethod]
 	public void AsymmetricRadiiOnlyClampAgainstTheirSides()
 	{
-		var r = BorderRadii.FromStyle( Radius( "30px", "30px", "0", "0" ), new Rect( 0, 0, 100, 40 ) );
+		var r = Radius( "30px", "30px", "0", "0" ).GetBorderRadii( new Rect( 0, 0, 100, 40 ) );
 
 		Assert.AreEqual( new Vector2( 30, 30 ), r.TopLeft );
 		Assert.AreEqual( new Vector2( 30, 30 ), r.TopRight );
 		Assert.AreEqual( Vector2.Zero, r.BottomLeft );
 
-		var single = BorderRadii.FromStyle( Radius( "50px", "0", "0", "0" ), new Rect( 0, 0, 100, 50 ) );
+		var single = Radius( "50px", "0", "0", "0" ).GetBorderRadii( new Rect( 0, 0, 100, 50 ) );
 		Assert.AreEqual( new Vector2( 50, 50 ), single.TopLeft );
 	}
 
 	[TestMethod]
 	public void InnerSubtractsBorderPerSide()
 	{
-		var r = BorderRadii.FromStyle( Radius( "20px" ), new Rect( 0, 0, 100, 100 ) );
+		var r = Radius( "20px" ).GetBorderRadii( new Rect( 0, 0, 100, 100 ) );
 		var inner = r.Inner( new Vector4( 10, 2, 0, 0 ) ); // left 10, top 2
 
 		Assert.AreEqual( new Vector2( 10, 18 ), inner.TopLeft );
@@ -92,7 +134,7 @@ public class BorderRadiiTest
 	[TestMethod]
 	public void InnerGoesSquareWhenBorderExceedsRadius()
 	{
-		var r = BorderRadii.FromStyle( Radius( "5px" ), new Rect( 0, 0, 100, 100 ) );
+		var r = Radius( "5px" ).GetBorderRadii( new Rect( 0, 0, 100, 100 ) );
 		var inner = r.Inner( new Vector4( 10, 0, 0, 0 ) );
 
 		Assert.AreEqual( Vector2.Zero, inner.TopLeft );
@@ -103,7 +145,7 @@ public class BorderRadiiTest
 	[TestMethod]
 	public void GrowFollowsCssSpreadRule()
 	{
-		var r = BorderRadii.FromStyle( Radius( "10px", "0", "2px", "10px" ), new Rect( 0, 0, 100, 100 ) );
+		var r = Radius( "10px", "0", "2px", "10px" ).GetBorderRadii( new Rect( 0, 0, 100, 100 ) );
 		var grown = r.Grow( 5 );
 
 		Assert.AreEqual( 15f, grown.TopLeft.x, 0.001f );
@@ -117,7 +159,7 @@ public class BorderRadiiTest
 	[TestMethod]
 	public void PackingOrders()
 	{
-		var r = BorderRadii.FromStyle( Radius( "1px", "2px", "3px", "4px" ), new Rect( 0, 0, 100, 100 ) );
+		var r = Radius( "1px", "2px", "3px", "4px" ).GetBorderRadii( new Rect( 0, 0, 100, 100 ) );
 
 		Assert.AreEqual( new Vector4( 1, 2, 3, 4 ), r.ToVector4() );
 		Assert.AreEqual( new Vector4( 1, 2, 3, 4 ), r.Horizontal );
@@ -135,7 +177,7 @@ public class BorderRadiiTest
 	[TestMethod]
 	public void HorizontalAndVerticalSplit()
 	{
-		var r = BorderRadii.FromStyle( Radius( "20%" ), new Rect( 0, 0, 200, 100 ) );
+		var r = Radius( "20%" ).GetBorderRadii( new Rect( 0, 0, 200, 100 ) );
 
 		Assert.AreEqual( new Vector4( 40, 40, 40, 40 ), r.Horizontal );
 		Assert.AreEqual( new Vector4( 20, 20, 20, 20 ), r.Vertical );
@@ -150,7 +192,7 @@ public class BorderRadiiTest
 		var style = new Styles();
 		Assert.IsTrue( style.Set( "border-radius", "10px 20px / 5px" ) );
 
-		var r = BorderRadii.FromStyle( style, new Rect( 0, 0, 200, 200 ) );
+		var r = style.GetBorderRadii( new Rect( 0, 0, 200, 200 ) );
 		Assert.AreEqual( new Vector2( 10, 5 ), r.TopLeft );
 		Assert.AreEqual( new Vector2( 20, 5 ), r.TopRight );
 		Assert.AreEqual( new Vector2( 10, 5 ), r.BottomRight );
@@ -158,7 +200,7 @@ public class BorderRadiiTest
 
 		// Setting the shorthand again without a slash makes the corners circular again
 		Assert.IsTrue( style.Set( "border-radius", "8px" ) );
-		r = BorderRadii.FromStyle( style, new Rect( 0, 0, 200, 200 ) );
+		r = style.GetBorderRadii( new Rect( 0, 0, 200, 200 ) );
 		Assert.AreEqual( new Vector2( 8, 8 ), r.TopLeft );
 	}
 
@@ -169,7 +211,7 @@ public class BorderRadiiTest
 		Assert.IsTrue( style.Set( "border-top-left-radius", "40px 20px" ) );
 		Assert.IsTrue( style.Set( "border-bottom-right-radius", "6px" ) );
 
-		var r = BorderRadii.FromStyle( style, new Rect( 0, 0, 200, 200 ) );
+		var r = style.GetBorderRadii( new Rect( 0, 0, 200, 200 ) );
 		Assert.AreEqual( new Vector2( 40, 20 ), r.TopLeft );
 		Assert.AreEqual( new Vector2( 6, 6 ), r.BottomRight );
 
@@ -182,7 +224,7 @@ public class BorderRadiiTest
 		var style = new Styles();
 		Assert.IsTrue( style.Set( "border-radius", "50% / 10%" ) );
 
-		var r = BorderRadii.FromStyle( style, new Rect( 0, 0, 200, 100 ) );
+		var r = style.GetBorderRadii( new Rect( 0, 0, 200, 100 ) );
 		Assert.AreEqual( new Vector2( 100, 10 ), r.TopLeft );
 	}
 
@@ -194,7 +236,7 @@ public class BorderRadiiTest
 
 		style.ApplyScale( 2.0f );
 
-		var r = BorderRadii.FromStyle( style, new Rect( 0, 0, 200, 200 ) );
+		var r = style.GetBorderRadii( new Rect( 0, 0, 200, 200 ) );
 
 		Assert.AreEqual( new Vector2( 16, 16 ), r.TopLeft );
 		Assert.AreEqual( new Vector2( 16, 16 ), r.TopRight );
@@ -210,7 +252,7 @@ public class BorderRadiiTest
 
 		style.ApplyScale( 1.5f );
 
-		var r = BorderRadii.FromStyle( style, new Rect( 0, 0, 400, 400 ) );
+		var r = style.GetBorderRadii( new Rect( 0, 0, 400, 400 ) );
 		Assert.AreEqual( new Vector2( 30, 15 ), r.TopLeft );
 	}
 
@@ -222,7 +264,7 @@ public class BorderRadiiTest
 
 		style.ApplyScale( 2.0f );
 
-		var r = BorderRadii.FromStyle( style, new Rect( 0, 0, 100, 100 ) );
+		var r = style.GetBorderRadii( new Rect( 0, 0, 100, 100 ) );
 		Assert.AreEqual( new Vector2( 50, 50 ), r.TopLeft );
 	}
 }

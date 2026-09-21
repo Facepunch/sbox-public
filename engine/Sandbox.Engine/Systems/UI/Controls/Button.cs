@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components;
 using Sandbox.Diagnostics;
 using System;
 using System.Collections.Generic;
@@ -34,6 +34,14 @@ public class Button : Panel, INavigationEvent
 			}
 		}
 
+		.button > .icon-texture
+		{
+			width: 1em;
+			height: 1em;
+			flex-shrink: 0;
+			object-fit: contain;
+		}
+
 		//  default menu position is below
 		.button-hover-menu
 		{
@@ -58,6 +66,9 @@ public class Button : Panel, INavigationEvent
 	/// The <see cref="IconPanel"/> that displays <see cref="Icon"/>.
 	/// </summary>
 	protected IconPanel IconPanel;
+
+	Image _iconImage;
+	string _icon;
 
 	/// <summary>
 	/// The <see cref="Label"/> that displays <see cref="Help"/>.
@@ -89,7 +100,7 @@ public class Button : Panel, INavigationEvent
 		AddClass( "button" );
 		AcceptsFocus = true;
 
-		IconPanel = AddChild( new IconPanel( "people", "icon" ) );
+		IconPanel = AddChild( new IconPanel( null, "icon" ) );
 		IconPanel.Style.Display = DisplayMode.None;
 
 		RightColumn = AddChild( new Panel( this, "button-right-column" ) );
@@ -213,32 +224,58 @@ public class Button : Panel, INavigationEvent
 	}
 
 	/// <summary>
-	/// Icon for the button.
+	/// Icon glyph for the button. Hidden while <see cref="IconTexture"/> is set.
 	/// </summary>
 	[Parameter]
 	public string Icon
 	{
-		get => IconPanel?.Text;
+		get => _icon;
 		set
 		{
-			if ( string.IsNullOrEmpty( value ) )
-			{
-				IconPanel.Style.Display = DisplayMode.None;
-				return;
-			}
-
-			IconPanel.Style.Display = DisplayMode.Flex;
+			_icon = value;
 			IconPanel.Text = value;
-			SetClass( "has-icon", IconPanel.IsValid() );
+			UpdateIcon();
 		}
 	}
 
 	/// <summary>
-	/// Deletes the <see cref="Icon"/>.
+	/// Texture displayed in place of the icon glyph. Set to null to show <see cref="Icon"/> again.
+	/// The texture is owned by the caller, and is not disposed when this button is deleted.
+	/// </summary>
+	[Parameter]
+	public Texture IconTexture
+	{
+		get => _iconImage?.Texture;
+		set
+		{
+			if ( value is not null && !_iconImage.IsValid() )
+			{
+				_iconImage = AddChild( new Image() );
+				_iconImage.AddClass( "icon icon-texture" );
+				SetChildIndex( _iconImage, 0 );
+			}
+
+			if ( _iconImage.IsValid() ) _iconImage.Texture = value;
+			UpdateIcon();
+		}
+	}
+
+	void UpdateIcon()
+	{
+		var hasTexture = IconTexture is not null;
+		var hasGlyph = !string.IsNullOrEmpty( Icon );
+		IconPanel.Style.Display = !hasTexture && hasGlyph ? DisplayMode.Flex : DisplayMode.None;
+		if ( _iconImage.IsValid() ) _iconImage.Style.Display = hasTexture ? DisplayMode.Flex : DisplayMode.None;
+		SetClass( "has-icon", hasTexture || hasGlyph );
+	}
+
+	/// <summary>
+	/// Clears both the icon glyph and texture.
 	/// </summary>
 	public void DeleteIcon()
 	{
-		IconPanel.Style.Display = DisplayMode.None;
+		Icon = null;
+		IconTexture = null;
 	}
 
 	/// <summary>

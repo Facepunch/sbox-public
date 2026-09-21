@@ -176,6 +176,13 @@ native class CModelMesh
 	}
 }
 
+native class CModelDocDefaultMaterialGroup
+{
+	int AddRemap( string pFrom, string pTo );
+	int FindReplacementIndex( string pFromMaterial );
+	void SetHasGlobalDefault( bool bValue );
+}
+
 native class CModelDoc
 {
 	void DeleteThis(); [delete]
@@ -265,6 +272,70 @@ native class CModelDoc
 			pMaterialGroup->SetGlobalDefaultMaterial( pMaterial );
 		}
 	}
+
+	/// Get the document's DefaultMaterialGroup, create an empty one if it doesn't have one yet.
+	/// Returns null only if the document has no MaterialGroupList to parent it to
+	inline CModelDocDefaultMaterialGroup FindOrCreateDefaultMaterialGroup()
+	{
+		CModelDocMaterialGroupList *pMaterialGroupList = self->FindSingletonNode< CModelDocMaterialGroupList >();
+		if ( !pMaterialGroupList )
+			return (CModelDocDefaultMaterialGroup *)nullptr;
+
+		CUtlVector< CModelDocDefaultMaterialGroup * > defaultMaterialGroups;
+		pMaterialGroupList->GetChildren( &defaultMaterialGroups, MDGN_RECURSE_FULL, MDGN_FLAG_DEFAULT );
+		if ( !defaultMaterialGroups.IsEmpty() )
+			return defaultMaterialGroups[ 0 ];
+
+		return self->CreateNode< CModelDocDefaultMaterialGroup >( "", pMaterialGroupList, MODELDOC_CREATE_NODE_DEFAULT );
+	}
+
+	/// Get the material slot names declared by this document's input meshes
+	inline string GetInputMaterials()
+	{
+		static thread_local CUtlString result;
+		result = "";
+
+		CUtlVector< CModelDocRenderMeshFile * > renderMeshFiles;
+		self->FindNodesByType( &renderMeshFiles );
+
+		IModelDocLoaderUtils *pLoaderUtils = g_pModelDocUtils->LoaderUtils();
+
+		CUtlVector< CUtlString > materials;
+		for ( CModelDocRenderMeshFile *pRenderMeshFile : renderMeshFiles )
+		{
+			CModelMesh tempMesh;
+			CModelDoc tempDoc;
+
+			if ( !pRenderMeshFile->LoadDataIntoMesh( pLoaderUtils, nullptr, &tempMesh, &tempDoc ) )
+				continue;
+
+			for ( int iFaceGroup = 0; iFaceGroup < tempMesh.GetNumFaceGroups(); ++iFaceGroup )
+			{
+				if ( !tempMesh.HasFacesInFaceGroup( iFaceGroup ) )
+					continue;
+
+				const char *pFaceGroupMaterial = tempMesh.GetFaceGroupMaterial( iFaceGroup );
+				if ( !pFaceGroupMaterial || !*pFaceGroupMaterial )
+					continue;
+
+				if ( materials.HasElement( pFaceGroupMaterial ) )
+					continue;
+
+				materials.AddToTail( pFaceGroupMaterial );
+			}
+		}
+
+		for ( int i = 0; i < materials.Count(); ++i )
+		{
+			if ( i > 0 )
+				result += "\n";
+
+			result += materials[ i ];
+		}
+
+		return result;
+	}
+
 }
 
 native static accessor g_pModelDocUtils

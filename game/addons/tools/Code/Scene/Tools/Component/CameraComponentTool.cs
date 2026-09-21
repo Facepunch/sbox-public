@@ -1,4 +1,6 @@
-﻿namespace Editor;
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace Editor;
 
 public class CameraEditorTool : EditorTool<CameraComponent>
 {
@@ -15,15 +17,28 @@ public class CameraEditorTool : EditorTool<CameraComponent>
 		AddOverlay( window, TextFlag.RightBottom, 10 );
 	}
 
+	public const string LookAtModeName = "camera.lookat";
+	public const string PilotModeName = "camera.pilot";
+
 	public override void OnUpdate()
 	{
 		window.ToolUpdate();
-		AllowGameObjectSelection = EditorToolManager.CurrentModeName != "camera.lookat";
+		AllowGameObjectSelection = EditorToolManager.CurrentModeName != LookAtModeName;
 
-		if ( EditorToolManager.CurrentModeName == "camera.lookat" )
-			DoCameraLookAt();
-		else
-			lookAtMousePressed = false; // Reset when not in look-at mode
+		switch ( EditorToolManager.CurrentModeName )
+		{
+			case LookAtModeName:
+				DoCameraLookAt();
+				break;
+
+			case PilotModeName:
+				DoCameraPilot();
+				break;
+
+			default:
+				lookAtMousePressed = false;
+				break;
+		}
 	}
 
 	public override bool ShouldKeepActive()
@@ -33,7 +48,10 @@ public class CameraEditorTool : EditorTool<CameraComponent>
 
 	public override void OnDisabled()
 	{
-
+		if ( EditorToolManager.CurrentModeName == PilotModeName )
+		{
+			ExitCameraToolMode();
+		}
 	}
 
 	public override void OnSelectionChanged()
@@ -42,15 +60,28 @@ public class CameraEditorTool : EditorTool<CameraComponent>
 		window.OnSelectionChanged( camera );
 	}
 
-	void DoCameraLookAt()
+	private bool TryFindSelectedCamera( [NotNullWhen( true )] out CameraComponent camera )
 	{
-		var camera = GetSelectedComponent<CameraComponent>();
+		camera = GetSelectedComponent<CameraComponent>();
 
-		if ( !camera.IsValid() )
+		if ( camera.IsValid() )
 		{
-			EditorToolManager.CurrentModeName = "object";
-			return;
+			return true;
 		}
+
+		ExitCameraToolMode();
+		return false;
+	}
+
+	private void ExitCameraToolMode()
+	{
+		EditorToolManager.CurrentModeName = nameof( ObjectEditorTool );
+		SceneViewWidget.Current?.LastSelectedViewportWidget?.SourceCamera = null;
+	}
+
+	private void DoCameraLookAt()
+	{
+		if ( !TryFindSelectedCamera( out var camera ) ) return;
 
 		using ( Gizmo.ObjectScope( camera, Transform.Zero ) )
 		{
@@ -83,12 +114,43 @@ public class CameraEditorTool : EditorTool<CameraComponent>
 			// Only exit if mouse was pressed AND released during look-at mode
 			if ( lookAtMousePressed && Gizmo.WasLeftMouseReleased )
 			{
-				EditorToolManager.CurrentModeName = "object";
+				ExitCameraToolMode();
 			}
 		}
 	}
-}
 
+	private void DoCameraPilot()
+	{
+		if ( !TryFindSelectedCamera( out var camera ) ) return;
+		if ( SceneViewWidget.Current?.LastSelectedViewportWidget is not { } viewport ) return;
+
+		if ( Application.IsKeyDown( KeyCode.Escape ) )
+		{
+			ExitCameraToolMode();
+			window.OpenWindow();
+			return;
+		}
+
+		viewport.SourceCamera = camera;
+		camera.WorldPosition = viewport.State.CameraPosition;
+		camera.WorldRotation = viewport.State.CameraRotation;
+
+		var viewportSize = viewport.Size;
+		var viewportRect = new Rect( 0f, 0f, viewportSize.x, viewportSize.y );
+		var frameRect = viewportRect.Contain( new Vector2( 1920f, 1080f ), stretch: true );
+		var centerThirdX = new Rect( frameRect.Left + frameRect.Width / 3f, frameRect.Top, frameRect.Width / 3f, frameRect.Height );
+		var centerThirdY = new Rect( frameRect.Left, frameRect.Top + frameRect.Height / 3f, frameRect.Width, frameRect.Height / 3f );
+		var crosshairX = new Rect( frameRect.Center.x - 4f, frameRect.Center.y, 8f, 0f );
+		var crosshairY = new Rect( frameRect.Center.x, frameRect.Center.y - 4f, 0f, 8f );
+
+		Gizmo.Draw.ScreenRect( frameRect.Floor(), Color.Transparent, 0f, Color.White, 1f );
+		Gizmo.Draw.ScreenRect( centerThirdX.Floor(), Color.Transparent, 0f, Color.White.WithAlpha( 0.125f ), 1f, BlendMode.Lighten );
+		Gizmo.Draw.ScreenRect( centerThirdY.Floor(), Color.Transparent, 0f, Color.White.WithAlpha( 0.125f ), 1f, BlendMode.Lighten );
+		Gizmo.Draw.ScreenRect( crosshairX.Floor(), Color.Transparent, 0f, Color.White, 1f );
+		Gizmo.Draw.ScreenRect( crosshairY.Floor(), Color.Transparent, 0f, Color.White, 1f );
+		Gizmo.Draw.ScreenText( "Press Esc to stop piloting", new Vector2( frameRect.Center.x, frameRect.Bottom - 8f ), flags: TextFlag.CenterBottom );
+	}
+}
 
 class CameraToolWindow : WidgetWindow
 {
@@ -98,7 +160,7 @@ class CameraToolWindow : WidgetWindow
 
 	private static CameraComponent PinnedCamera;
 	private static bool IsPinned;
-	static bool IsClosed = false;
+	internal static bool IsClosed = false;
 
 	public CameraToolWindow()
 	{
@@ -129,7 +191,7 @@ class CameraToolWindow : WidgetWindow
 		if ( IsClosed )
 		{
 			var closedRow = Layout.AddRow();
-			closedRow.Add( new IconButton( "photo_camera", () => { IsClosed = false; Rebuild(); } ) { ToolTip = "Open Camera Preview", FixedHeight = HeaderHeight, FixedWidth = HeaderHeight, Background = Theme.ControlBackground } );
+			closedRow.Add( new IconButton( "photo_camera", OpenWindow ) { ToolTip = "Open Camera Preview", FixedHeight = HeaderHeight, FixedWidth = HeaderHeight, Background = Theme.ControlBackground } );
 			return;
 		}
 
@@ -146,6 +208,7 @@ class CameraToolWindow : WidgetWindow
 
 		headerRow.Add( _pinButton );
 		headerRow.Add( new IconButton( "colorize", LookAt ) { ToolTip = "Look At", FixedHeight = HeaderHeight, FixedWidth = HeaderHeight, Background = Theme.ControlBackground } );
+		headerRow.Add( new IconButton( "control_camera", Pilot ) { ToolTip = "Pilot", FixedHeight = HeaderHeight, FixedWidth = HeaderHeight, Background = Theme.ControlBackground } );
 		headerRow.Add( new IconButton( "close", CloseWindow ) { ToolTip = "Close Preview", FixedHeight = HeaderHeight, FixedWidth = HeaderHeight, Background = Theme.ControlBackground } );
 
 		SceneWidget = new SceneWidget( this );
@@ -202,11 +265,35 @@ class CameraToolWindow : WidgetWindow
 		}
 	}
 
-	void LookAt()
+	private void SwitchMode( string modeName )
 	{
-		EditorToolManager.CurrentModeName = "camera.lookat";
+		EditorToolManager.CurrentModeName = modeName;
 		// maintain focus on scene even after clicking the button
 		SceneViewWidget.Current?.LastSelectedViewportWidget?.Focus();
+	}
+
+	void LookAt()
+	{
+		SwitchMode( CameraEditorTool.LookAtModeName );
+	}
+
+	void Pilot()
+	{
+		if ( targetComponent is not { } camera ) return;
+		if ( SceneViewWidget.Current?.LastSelectedViewportWidget is not { } viewport ) return;
+
+		viewport.State.CameraPosition = camera.WorldPosition;
+		viewport.State.CameraRotation = camera.WorldRotation;
+
+		SwitchMode( CameraEditorTool.PilotModeName );
+		Hide();
+	}
+
+	internal void OpenWindow()
+	{
+		IsClosed = false;
+		Rebuild();
+		Show();
 	}
 
 	void CloseWindow()

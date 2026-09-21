@@ -40,7 +40,19 @@ public class CharacterController : Component
 	[Property, Group( "Collision" ), HideIf( nameof( UseCollisionRules ), true )]
 	public TagSet IgnoreLayers { get; set; } = new();
 
-	public BBox BoundingBox => new BBox( new Vector3( -Radius, -Radius, 0 ), new Vector3( Radius, Radius, Height ) );
+	internal Vector3 UpDirection => Scene.Is2D ? Vector2.Up : Vector3.Up;
+
+	public BBox BoundingBox
+	{
+		get
+		{
+			var up = UpDirection;
+			var center = up * Height * 0.5f;
+			var extents = new Vector3( Radius ) + up.Abs() * (Height * 0.5f - Radius);
+
+			return new BBox( center - extents, center + extents );
+		}
+	}
 
 	[Sync]
 	public Vector3 Velocity { get; set; }
@@ -50,6 +62,12 @@ public class CharacterController : Component
 
 	public GameObject GroundObject { get; set; }
 	public Collider GroundCollider { get; set; }
+
+	Vector3 WithoutVertical( Vector3 value )
+	{
+		var up = UpDirection;
+		return value - up * value.Dot( up );
+	}
 
 	protected override void DrawGizmos()
 	{
@@ -111,7 +129,7 @@ public class CharacterController : Component
 	{
 		if ( step && IsOnGround )
 		{
-			Velocity = Velocity.WithZ( 0 );
+			Velocity = WithoutVertical( Velocity );
 		}
 
 		if ( Velocity.Length < 0.001f )
@@ -122,9 +140,11 @@ public class CharacterController : Component
 
 		var pos = GameObject.WorldPosition;
 
-		var mover = new CharacterControllerHelper( BuildTrace( pos, pos ), pos, Velocity );
-		mover.Bounce = Bounciness;
-		mover.MaxStandableAngle = GroundAngle;
+		var mover = new CharacterControllerHelper( BuildTrace( pos, pos ), pos, Velocity )
+		{
+			Bounce = Bounciness,
+			MaxStandableAngle = GroundAngle
+		};
 
 		if ( step && IsOnGround )
 		{
@@ -141,13 +161,13 @@ public class CharacterController : Component
 
 	void CategorizePosition()
 	{
-		var Position = WorldPosition;
-		var point = Position + Vector3.Down * 2;
-		var vBumpOrigin = Position;
+		var position = WorldPosition;
+		var up = UpDirection;
+		var point = position - up * 2;
 		var wasOnGround = IsOnGround;
 
 		// We're flying upwards too fast, never land on ground
-		if ( !IsOnGround && Velocity.z > 40.0f )
+		if ( !IsOnGround && Velocity.Dot( up ) > 40.0f )
 		{
 			ClearGround();
 			return;
@@ -157,15 +177,15 @@ public class CharacterController : Component
 		// trace down one step height if we're already on the ground "step down". If not, search for floor right below us
 		// because if we do StepHeight we'll snap that many units to the ground
 		//
-		point.z -= wasOnGround ? StepHeight : 0.1f;
+		point -= up * (wasOnGround ? StepHeight : 0.1f);
 
 
-		var pm = BuildTrace( vBumpOrigin, point ).Run();
+		var pm = BuildTrace( position, point ).Run();
 
 		//
 		// we didn't hit - or the ground is too steep to be ground
 		//
-		if ( !pm.Hit || Vector3.GetAngle( Vector3.Up, pm.Normal ) > GroundAngle )
+		if ( !pm.Hit || Vector3.GetAngle( up, pm.Normal ) > GroundAngle )
 		{
 			ClearGround();
 			return;
@@ -235,8 +255,10 @@ public class CharacterController : Component
 		var pos = WorldPosition;
 		var delta = targetPosition - pos;
 
-		var mover = new CharacterControllerHelper( BuildTrace( pos, pos ), pos, delta );
-		mover.MaxStandableAngle = GroundAngle;
+		var mover = new CharacterControllerHelper( BuildTrace( pos, pos ), pos, delta )
+		{
+			MaxStandableAngle = GroundAngle
+		};
 
 		if ( useStep )
 		{
@@ -273,12 +295,13 @@ public class CharacterController : Component
 
 		for ( int i = 0; i < AttemptsPerTick; i++ )
 		{
-			var pos = WorldPosition + Vector3.Random.Normal * (((float)_stuckTries) / 2.0f);
+			Vector3 direction = Scene.Is2D ? Vector2.Random.Normal : Vector3.Random.Normal;
+			var pos = WorldPosition + direction * (((float)_stuckTries) / 2.0f);
 
 			// First try the up direction for moving platforms
 			if ( i == 0 )
 			{
-				pos = WorldPosition + Vector3.Up * 2;
+				pos = WorldPosition + UpDirection * 2;
 			}
 
 			result = BuildTrace( pos, pos ).Run();

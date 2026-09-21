@@ -75,7 +75,10 @@ public partial class Package
 
 		// nothing to download
 		if ( downloadQueue.Count <= 0 )
+		{
+			options.Loading?.LoadingProgress( new LoadingProgress { Title = $"Download '{Title}' Complete", Fraction = 1 } );
 			return fs;
+		}
 
 		var progress = LoadingProgress.Create( $"Downloading '{Title}'" );
 
@@ -162,6 +165,8 @@ public partial class Package
 			return null;
 
 		progress.Title = $"Download '{Title}' Complete";
+		progress.Fraction = 1;
+		options.Loading?.LoadingProgress( progress );
 		// Clear subtitle so download stats don't bleed into the next phase (e.g. Compiling).
 		global::Sandbox.LoadingScreen.Subtitle = "";
 

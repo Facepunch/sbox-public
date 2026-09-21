@@ -84,7 +84,7 @@ internal sealed class InterfaceConverter<T> : JsonConverter<T> where T : class
 			if ( data.Value.ValueKind == JsonValueKind.String )
 			{
 				var path = data.Value.GetString();
-				var res = Resource.LoadFromPath( typeof( GameResource ), path );
+				var res = Resource.Load( typeof( GameResource ), path );
 				return res as T;
 			}
 		}

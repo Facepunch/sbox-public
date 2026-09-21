@@ -123,6 +123,7 @@ public partial class TypeLibrary
 	{
 		// System
 		typeof(object),
+		typeof(Math), typeof(MathF),
 		typeof(char), typeof(string),
 		typeof(bool),
 		typeof(byte), typeof(sbyte),
@@ -146,6 +147,7 @@ public partial class TypeLibrary
 		typeof(ValueTuple<,,,,,,,>),
 
 		// Sandbox
+		typeof(RealTime),
 		typeof(Rect),
 		typeof(RectInt),
 		typeof(Rect3D),

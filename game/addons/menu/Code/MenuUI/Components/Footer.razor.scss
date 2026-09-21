@@ -2,7 +2,7 @@
 @import '/styles/_front.scss';
 
 // The stage doesn't reach the left edge of the screen - the rail does - so a full width
-// bar ends in mid air. It's a pill floating over the scene instead, centred on the stage.
+// bar ends in mid air. It's a pill floating over the scene instead, centred on the screen.
 // Out of flow, so the page runs under it rather than being cut short above it - only the
 // pill itself takes clicks.
 Footer {
