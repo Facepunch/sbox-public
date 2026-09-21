@@ -6,7 +6,7 @@
 @inherits Panel
 
 <root>
-    <label class="spine-label">Schedule</label>
+    <label class="spine-label">#jamspine.schedule</label>
 
     @if ( Jam is not null )
     {
@@ -30,7 +30,7 @@
                     </div>
                 }
                 <label class="when">@JamFormat.Day( step.At )</label>
-                <label class="name">@step.Name</label>
+                <label class="name">@JamFormat.PhaseName( step )</label>
                 <label class="eta">@Countdown( i, current, step )</label>
             </div>
         }
@@ -67,7 +67,7 @@
 
     string Countdown( int index, int current, Jam.Step step )
     {
-        if ( index < current ) return "done";
+        if ( index < current ) return Language.GetPhrase( "jamspine.done" );
 
         if ( index == current )
         {
@@ -77,10 +77,10 @@
             var total = Math.Max( 1, (int)Math.Round( (next.At - step.At).TotalDays ) );
             var into = Math.Clamp( (Jam.Now.UtcDateTime.Date - step.At.UtcDateTime.Date).Days + 1, 1, total );
 
-            return $"day {into} of {total}";
+            return Language.GetPhrase( "jamspine.day_of", new() { { "into", into }, { "total", total } } );
         }
 
-        return $"in {JamFormat.Countdown( step.At, Jam.Now )}";
+        return Language.GetPhrase( "jamspine.in", new() { { "time", JamFormat.Countdown( step.At, Jam.Now ) } } );
     }
 
     protected override int BuildHash() => HashCode.Combine( Jam?.Ident, Jam?.CurrentStepIndex, Jam?.Now.Hour );

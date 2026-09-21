@@ -22,8 +22,8 @@
 				{
 					<div class="jam-empty">
 						<icon>@( IsLoading ? "hourglass_empty" : "emoji_events" )</icon>
-						<label class="title">@( IsLoading ? "Checking for a jam" : "No jam right now" )</label>
-						<label class="hint">@( IsLoading ? "One moment." : "Nothing is running at the moment. Check back later." )</label>
+						<label class="title">@( IsLoading ? Language.GetPhrase( "jampage.checking" ) : Language.GetPhrase( "jampage.no_jam" ) )</label>
+						<label class="hint">@( IsLoading ? Language.GetPhrase( "jampage.one_moment" ) : Language.GetPhrase( "jampage.no_jam_hint" ) )</label>
 					</div>
 				}
 				else
@@ -31,7 +31,7 @@
 					<div class="bar">
 						@if ( Jam.IsLive )
 						{
-							<div class="live"><div class="pip"></div><label>Live</label></div>
+							<div class="live"><div class="pip"></div><label>#jampage.live</label></div>
 						}
 
 						<label class="strong">@Jam.Title</label>
@@ -41,13 +41,13 @@
 						@if ( Jam.HasStarted && Jam.Now < Jam.Deadline )
 						{
 							<div class="sep"></div>
-							<label>Entries close @JamFormat.Day( Jam.Deadline )</label>
+							<label>@Language.GetPhrase( "jampage.entries_close", new() { { "date", JamFormat.Day( Jam.Deadline ) } } )</label>
 						}
 
 						@if ( Jam.CommunityVoting && Jam.Now < Jam.NominationsEnd )
 						{
 							<div class="sep"></div>
-							<label>Nominate until @JamFormat.Day( Jam.NominationsEnd )</label>
+							<label>@Language.GetPhrase( "jampage.nominate_until", new() { { "date", JamFormat.Day( Jam.NominationsEnd ) } } )</label>
 						}
 
 						@if ( CountdownTarget is DateTimeOffset target )
@@ -59,7 +59,7 @@
 					<div class="columns">
 						<div class="main">
 
-							<label class="kicker">@( ShowTheme ? "Theme" : "Game jam" )</label>
+							<label class="kicker">@( ShowTheme ? Language.GetPhrase( "jampage.theme" ) : Language.GetPhrase( "jampage.game_jam" ) )</label>
 							<label class="headline">@Headline</label>
 							<label class="sub">@Jam.Description</label>
 							<label class="blurb">@Blurb</label>
@@ -69,13 +69,13 @@
 								{
 									<div class="action" onclick=@EnterGame>
 										<icon>touch_app</icon>
-										<label>Enter your game</label>
+										<label>#jampage.enter_game</label>
 									</div>
 								}
 
 								<div class="action secondary" onclick=@OpenWebsite>
 									<icon>open_in_new</icon>
-									<label>Jam page</label>
+									<label>#jampage.jam_page</label>
 								</div>
 							</div>
 
@@ -83,7 +83,7 @@
 							{
 								<div class="sec">
 									<div class="sec-label">
-										<label class="eyebrow">Prizes</label>
+										<label class="eyebrow">#jampage.prizes</label>
 										<label class="name">@category.Title</label>
 									</div>
 
@@ -114,7 +114,7 @@
 											{
 												<div class="place first">
 													<label class="amount">@category.Prize</label>
-													<label class="ordinal">Prize</label>
+													<label class="ordinal">#jampage.prize</label>
 												</div>
 											}
 										</div>
@@ -124,7 +124,7 @@
 
 							<div class="sec grow">
 								<div class="sec-label">
-									<label class="eyebrow">Entries</label>
+									<label class="eyebrow">#jampage.entries</label>
 									<label class="name">@EntriesText</label>
 								</div>
 
@@ -132,8 +132,8 @@
 								{
 									<div class="jam-empty small">
 										<icon>lock_clock</icon>
-										<label class="title">Theme drops @JamFormat.Day( Jam.Starts )</label>
-										<label class="hint">Entries open the moment it does.</label>
+										<label class="title">@Language.GetPhrase( "jampage.theme_drops", new() { { "date", JamFormat.Day( Jam.Starts ) } } )</label>
+										<label class="hint">#jampage.entries_open_hint</label>
 									</div>
 								}
 								else
@@ -180,18 +180,18 @@
 		get
 		{
 			if ( !Jam.HasStarted )
-				return $"Starts {JamFormat.Day( Jam.Starts )}";
+				return Language.GetPhrase( "jampage.starts", new() { { "date", JamFormat.Day( Jam.Starts ) } } );
 
 			var step = Jam.CurrentStepIndex >= 0 ? Jam.Timeline[Jam.CurrentStepIndex] : null;
 			var next = Jam.NextStep;
 
 			if ( step is null || next is null )
-				return Jam.CurrentPhase.ToString();
+				return JamFormat.PhaseName( Jam.CurrentPhase ) ?? Jam.CurrentPhase.ToString();
 
 			var total = Math.Max( 1, (int)Math.Round( (next.At - step.At).TotalDays ) );
 			var into = Math.Clamp( (Jam.Now.UtcDateTime.Date - step.At.UtcDateTime.Date).Days + 1, 1, total );
 
-			return $"{step.Name} · day {into:00} / {total:00}";
+			return Language.GetPhrase( "jampage.phase_day", new() { { "step", JamFormat.PhaseName( step ) }, { "into", into.ToString( "00" ) }, { "total", total.ToString( "00" ) } } );
 		}
 	}
 
@@ -211,11 +211,11 @@
 	{
 		get
 		{
-			if ( !Jam.HasStarted ) return "Starts in";
-			if ( Jam.Now < Jam.Deadline ) return "Entries close in";
-			if ( Jam.CommunityVoting && Jam.Now < Jam.NominationsEnd ) return "Nominations lock in";
+			if ( !Jam.HasStarted ) return Language.GetPhrase( "jampage.starts_in" );
+			if ( Jam.Now < Jam.Deadline ) return Language.GetPhrase( "jampage.entries_close_in" );
+			if ( Jam.CommunityVoting && Jam.Now < Jam.NominationsEnd ) return Language.GetPhrase( "jampage.nominations_lock_in" );
 
-			return $"{Jam.NextStep?.Name} in";
+			return Language.GetPhrase( "jampage.step_in", new() { { "step", JamFormat.PhaseName( Jam.NextStep ) } } );
 		}
 	}
 
@@ -224,31 +224,29 @@
 		get
 		{
 			if ( !Jam.HasStarted )
-				return Jam.CommunityVoting
-					? "The theme is a secret until the jam starts. Once it does, play the entries and nominate the ones you rate."
-					: "The theme is a secret until the jam starts.";
+				return Language.GetPhrase( Jam.CommunityVoting ? "jampage.blurb_secret_nominate" : "jampage.blurb_secret" );
 
 			if ( CanNominate )
-				return "Play the entries as they land and nominate the ones you rate. Nominations decide who makes the finals.";
+				return Language.GetPhrase( "jampage.blurb_nominate" );
 
 			if ( Jam.CommunityVoting )
-				return "Nominations are closed. The finalists go head to head.";
+				return Language.GetPhrase( "jampage.blurb_closed" );
 
-			return "Play the entries.";
+			return Language.GetPhrase( "jampage.blurb_play" );
 		}
 	}
 
 	string EntriesText => Jam.EntryCount switch
 	{
-		0 => Jam.HasStarted ? "none yet" : "not open yet",
-		1 => "1 so far",
-		_ => $"{Jam.EntryCount} so far",
+		0 => Language.GetPhrase( Jam.HasStarted ? "jampage.entries_none" : "jampage.entries_not_open" ),
+		1 => Language.GetPhrase( "jampage.entries_one" ),
+		_ => Language.GetPhrase( "jampage.entries_plural", new() { { "count", Jam.EntryCount } } ),
 	};
 
 	static string PrizeTitle( Jam.Category category )
 	{
 		if ( category.Places.Length > 1 && !string.IsNullOrWhiteSpace( category.Prize ) )
-			return $"{category.Prize} across {NumberWord( category.Places.Length )} places";
+			return Language.GetPhrase( "jampage.prize_across", new() { { "prize", category.Prize }, { "count", category.Places.Length }, { "word", NumberWord( category.Places.Length ) } } );
 
 		return category.Prize ?? category.Title;
 	}

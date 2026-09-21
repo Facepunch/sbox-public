@@ -53,13 +53,13 @@
     {
         <div class="jam @( IsNominated ? "on" : "" )">
             <div class="text">
-                <label class="title">@_jam.Title entry</label>
-                <label class="hint">@( IsNominated ? "You nominated this game" : "Liked it? Nominate it" )</label>
+                <label class="title">@Language.GetPhrase( "gameclosedtoast.jam_entry", new() { { "title", _jam.Title } } )</label>
+                <label class="hint">@( IsNominated ? Language.GetPhrase( "gameclosedtoast.jam_nominated" ) : Language.GetPhrase( "gameclosedtoast.jam_nominate_hint" ) )</label>
             </div>
 
             <div class="nominate @( IsNominated ? "on" : "" ) @( _busy ? "busy" : "" ) @( CanToggle ? "" : "locked" )" onclick=@( () => _ = ToggleNomination() ) ToolTip="@NominateTooltip">
                 <i>@( IsNominated ? "check" : "how_to_vote" )</i>
-                <label>@( IsNominated ? "Nominated" : "Nominate" )</label>
+                <label>@( IsNominated ? Language.GetPhrase( "jam.nominated" ) : Language.GetPhrase( "jam.nominate" ) )</label>
             </div>
         </div>
     }
@@ -130,7 +130,7 @@
         catch ( Exception e )
         {
             Log.Warning( e, $"Nominate {Package.FullIdent} failed" );
-            reason = "Couldn't reach the jam right now.";
+            reason = Language.GetPhrase( "jam.unreachable" );
         }
 
         if ( !this.IsValid() ) return;

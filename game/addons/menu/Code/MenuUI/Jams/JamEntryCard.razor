@@ -12,7 +12,7 @@
     {
         <div class="nominate @( IsNominated ? "on" : "" ) @( _busy ? "busy" : "" )" onclick=@( () => _ = Toggle() )>
             <div class="ring"></div>
-            <label>@( IsNominated ? "Nominated" : "Nominate" )</label>
+            <label>@( IsNominated ? Language.GetPhrase( "jam.nominated" ) : Language.GetPhrase( "jam.nominate" ) )</label>
         </div>
     }
 </root>
@@ -57,7 +57,7 @@
         catch ( Exception e )
         {
             Log.Warning( e, $"Nominate {Package.FullIdent} failed" );
-            reason = "Couldn't reach the jam right now.";
+            reason = Language.GetPhrase( "jam.unreachable" );
         }
 
         if ( !this.IsValid() ) return;
