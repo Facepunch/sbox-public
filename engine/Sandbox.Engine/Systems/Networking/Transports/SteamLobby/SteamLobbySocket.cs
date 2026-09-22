@@ -32,6 +32,15 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 	bool _disposed;
 
 	/// <summary>
+	/// We've seen ourselves in the member list. Losing that means Steam dropped us, see <see cref="RejoinLobby"/>.
+	/// </summary>
+	bool _isMember;
+	bool _rejoining;
+
+	const int RejoinAttempts = 10;
+	static readonly TimeSpan RejoinDelay = TimeSpan.FromSeconds( 3 );
+
+	/// <summary>
 	/// The SteamId of the owner of this lobby.
 	/// </summary>
 	public ulong HostSteamId => Owner.Id;
@@ -412,18 +421,93 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 
 		for ( var i = 0; i < cc; i++ )
 		{
-			var member = sw.GetLobbyMemberByIndex( Id, i );
-			list.Add( member );
+			list.Add( sw.GetLobbyMemberByIndex( Id, i ) );
+		}
+
+		// Steam only lists the members of a lobby we're in. When it drops us (we lost our connection to Steam)
+		// the list comes back empty, which doesn't mean everyone else left: our connections to them still work.
+		// Keep them and get back into the lobby instead of disconnecting every peer.
+		if ( !list.Contains( SteamClient.SteamId ) )
+		{
+			if ( _isMember ) _ = RejoinLobby();
+			return;
+		}
+
+		_isMember = true;
+
+		foreach ( var member in list )
+		{
 			AddConnection( member );
 		}
 
-		var toRemove = Connections.Values.Where( x => !list.Contains( x.Friend.Id ) ).ToArray();
+		RemoveConnectionsExcept( list );
+	}
+
+	void RemoveConnectionsExcept( List<ulong> members )
+	{
+		var toRemove = Connections.Values.Where( x => !members.Contains( x.Friend.Id ) ).ToArray();
 
 		foreach ( var c in toRemove )
 		{
 			OnClientDisconnect?.Invoke( c );
 			Connections.Remove( c.Friend.Id, out _ );
 			c.Dispose();
+		}
+	}
+
+	/// <summary>
+	/// Steam dropped us from the lobby while we're still playing, usually because we briefly lost our connection
+	/// to Steam. The other members are normally still in it, so get back in. Only if that fails are they gone.
+	/// </summary>
+	async Task RejoinLobby()
+	{
+		if ( _rejoining || _disposed )
+			return;
+
+		_rejoining = true;
+		_isMember = false;
+
+		Log.Warning( $"Steam dropped us from lobby {Id}, rejoining it" );
+
+		try
+		{
+			for ( var attempt = 1; attempt <= RejoinAttempts; attempt++ )
+			{
+				var result = await SteamMatchmaking.JoinLobbyAsync( Id );
+
+				if ( _disposed )
+				{
+					// Shut down while we were rejoining, don't stay in a lobby nobody is using
+					if ( result.Response == RoomEnter.Success )
+						SteamLobby.Leave();
+
+					return;
+				}
+
+				if ( result.Response == RoomEnter.Success )
+				{
+					Log.Info( $"Rejoined lobby {Id}" );
+					UpdateConnections();
+					return;
+				}
+
+				// Everyone else left too, there's nothing to go back to
+				if ( result.Response == RoomEnter.DoesntExist )
+					break;
+
+				Log.Info( $"Couldn't rejoin lobby {Id} ({result.Response}), retrying ({attempt}/{RejoinAttempts})" );
+				await Task.Delay( RejoinDelay );
+
+				if ( _disposed )
+					return;
+			}
+
+			Log.Warning( $"Couldn't rejoin lobby {Id}, disconnecting its members" );
+			RemoveConnectionsExcept( [] );
+		}
+		finally
+		{
+			_rejoining = false;
 		}
 	}
 
