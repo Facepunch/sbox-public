@@ -25,6 +25,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<ProjectReference Include="..\..\Sandbox.AppSystem\Sandbox.AppSystem.csproj" />
 		<ProjectReference Include="..\..\Sandbox.Bind\Sandbox.Bind.csproj" />
 		<ProjectReference Include="..\..\Sandbox.Compiling\Sandbox.Compiling.csproj" />
 		<ProjectReference Include="..\..\Sandbox.Engine\Sandbox.Engine.csproj" />

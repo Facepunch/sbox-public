@@ -7,6 +7,11 @@ namespace Sandbox;
 public static class LauncherEnvironment
 {
 	/// <summary>
+	/// The working directory from which the launcher was invoked.
+	/// </summary>
+	public static string InvocationDirectory { get; private set; }
+
+	/// <summary>
 	/// The folder containing sbox.exe
 	/// </summary>
 	public static string GamePath { get; set; }
@@ -32,6 +37,8 @@ public static class LauncherEnvironment
 
 	public static void Init()
 	{
+		InvocationDirectory = System.IO.Path.GetFullPath( Environment.CurrentDirectory );
+
 		AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
 
 		GamePath = System.IO.Path.TrimEndingDirectorySeparator( AppContext.BaseDirectory );

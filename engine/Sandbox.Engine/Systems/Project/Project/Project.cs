@@ -224,13 +224,18 @@ public sealed partial class Project
 		}
 	}
 
-	internal void Load()
+	internal void Load( bool upgradeConfig = false )
 	{
 		if ( !LoadMinimal() )
 			return;
 
 		try
 		{
+			if ( upgradeConfig && Config.Upgrade() )
+			{
+				UpdateMockPackage();
+			}
+
 			UpdateCompiler();
 		}
 		catch ( System.Exception e )

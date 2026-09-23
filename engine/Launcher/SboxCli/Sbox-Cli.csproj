@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<VersionPrefix>1.0.1</VersionPrefix>
+		<TargetFramework>net10.0</TargetFramework>
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+		<AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<GenerateDocumentationFile>False</GenerateDocumentationFile>
+		<AssemblyName>sbox-cli</AssemblyName>
+		<CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+		<SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+		<NoWarn>1701;1702;1591;NETSDK1138</NoWarn>
+		<LangVersion>14</LangVersion>
+		<OutputPath>..\..\..\game</OutputPath>
+		<OutputType>Exe</OutputType>
+		<DisableTransitiveProjectReferences>true</DisableTransitiveProjectReferences>
+		<PreserveCompilationReferences>false</PreserveCompilationReferences>
+		<PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
+		<PreserveCompilationContext>false</PreserveCompilationContext>
+		<GenerateRuntimeConfigDevFile>false</GenerateRuntimeConfigDevFile>
+		<StartupObject>Sandbox.Program</StartupObject>
+		<ProduceReferenceAssembly>False</ProduceReferenceAssembly>
+		<DebugType>embedded</DebugType>
+		<GenerateDependencyFile>false</GenerateDependencyFile>
+		<CETCompat>false</CETCompat>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\Sandbox.AppSystem\Sandbox.AppSystem.csproj" Private="false" />
+		<ProjectReference Include="..\..\Sandbox.Engine\Sandbox.Engine.csproj" Private="false" />
+	</ItemGroup>
+
+	<Import Project="..\Shared\LaunchShared.projitems" Label="Shared" />
+</Project>

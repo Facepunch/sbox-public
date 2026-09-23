@@ -19,6 +19,7 @@ internal class UploadBuildArtifacts
 		"*.exe",
 		"sbox",
 		"sbox-dev",
+		"sbox-cli",
 		"sbox-launcher",
 		"sbox-server",
 		"benchmark",

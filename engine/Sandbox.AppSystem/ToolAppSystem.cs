@@ -2,6 +2,7 @@
 using Sandbox.Tasks;
 using System;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
@@ -19,9 +20,13 @@ public class ToolAppSystem : AppSystem, IDisposable
 		Shutdown();
 	}
 
-	public ToolAppSystem()
+	public ToolAppSystem() : this( ResolveManagedToolGameRoot() )
 	{
-		InitEnginePaths();
+	}
+
+	internal ToolAppSystem( string gameRoot )
+	{
+		InitEnginePaths( gameRoot );
 
 		Init();
 	}
@@ -49,6 +54,10 @@ public class ToolAppSystem : AppSystem, IDisposable
 	{
 		var commandLine = System.Environment.CommandLine;
 		commandLine = commandLine.Replace( ".dll", ".exe" ); // uck
+		if ( Application.IsAutomation )
+		{
+			commandLine += " -noassert";
+		}
 
 		_appSystem = CMaterialSystem2AppSystemDict.Create( createInfo.ToMaterialSystem2AppSystemDictCreateInfo() );
 		_appSystem.SetModGameSubdir( "core" );
@@ -89,47 +98,70 @@ public class ToolAppSystem : AppSystem, IDisposable
 	/// We want to set current dir to /game/ 
 	/// and add the native dll paths to the path
 	/// </summary>
-	void InitEnginePaths()
+	static string ResolveManagedToolGameRoot()
 	{
 		var exePath = Environment.GetCommandLineArgs()[0];
 		exePath = System.IO.Path.GetDirectoryName( exePath );
 
-		// we're in the managed folder, we can set this shit up
-		if ( exePath.EndsWith( System.IO.Path.Combine( "bin", "managed" ), StringComparison.OrdinalIgnoreCase ) )
-		{
-			var dirInfo = new DirectoryInfo( exePath );
+		if ( exePath is null || !exePath.EndsWith( System.IO.Path.Combine( "bin", "managed" ), StringComparison.OrdinalIgnoreCase ) )
+			throw new Exception( $"Unknown Location - expected to be running from bin/managed, got '{exePath}'" );
 
-			var gameRoot = dirInfo.Parent.Parent;
+		return new DirectoryInfo( exePath ).Parent?.Parent?.FullName
+			?? throw new Exception( $"Couldn't resolve game root from '{exePath}'" );
+	}
 
-			// Interop looks for the native libraries under a path relative to this, so it has to be
-			// set before anything touches them - see NetCore.DefaultNativeDllPath for the per-platform folder.
-			Environment.CurrentDirectory = gameRoot.FullName;
+	/// <summary>
+	/// Set the current directory to the game root and configure native library lookup.
+	/// </summary>
+	static void InitEnginePaths( string gameRoot )
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace( gameRoot );
 
-			// The rest is Windows-only. Elsewhere the loader finds our own libraries from the
-			// interop path and their dependencies through each library's RUNPATH, so there's
-			// nothing to prepend - and PATH wouldn't be the variable to prepend it to anyway.
-			if ( OperatingSystem.IsWindows() )
-			{
-				var nativeDllPath = System.IO.Path.Combine( gameRoot.FullName, "bin", "win64" );
+		gameRoot = System.IO.Path.TrimEndingDirectorySeparator( System.IO.Path.GetFullPath( gameRoot ) );
+		var managedAssembly = System.IO.Path.Combine( gameRoot, "bin", "managed", "Sandbox.Engine.dll" );
+		var nativeDllPath = System.IO.Path.Combine( gameRoot, "bin", GetNativePlatformDirectory() );
 
-				//
-				// If we don't load sentry specifically from this directly, it'll
-				// try to load the one from the managed folder
-				//
-				NativeLibrary.TryLoad( System.IO.Path.Combine( nativeDllPath, "sentry.dll" ), out _ );
+		if ( !File.Exists( managedAssembly ) )
+			throw new DirectoryNotFoundException( $"Game root does not contain bin/managed/Sandbox.Engine.dll: '{gameRoot}'" );
 
-				//
-				// Put our native dll path first so that when looking up native dlls we'll
-				// always use the ones from our folder first
-				//
-				var path = System.Environment.GetEnvironmentVariable( "PATH" );
-				path = $"{nativeDllPath};{path}";
-				System.Environment.SetEnvironmentVariable( "PATH", path );
-			}
+		if ( !Directory.Exists( nativeDllPath ) )
+			throw new DirectoryNotFoundException( $"Game root does not contain the native platform directory: '{nativeDllPath}'" );
 
+		// Interop resolves native libraries relative to this directory.
+		Environment.CurrentDirectory = gameRoot;
+		NetCore.NativeDllPath = nativeDllPath;
+
+		// The rest is Windows-only. Elsewhere the loader finds our own libraries from the
+		// interop path and their dependencies through each library's RUNPATH.
+		if ( !OperatingSystem.IsWindows() )
 			return;
-		}
 
-		throw new Exception( $"Unknown Location - expected to be running from bin/managed, got '{exePath}'" );
+		// If we don't load sentry specifically from this directory, it'll try to load the
+		// copy in the managed folder.
+		NativeLibrary.TryLoad( System.IO.Path.Combine( nativeDllPath, "sentry.dll" ), out _ );
+
+		var path = System.Environment.GetEnvironmentVariable( "PATH" ) ?? string.Empty;
+		var firstPath = path.Split( System.IO.Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries )
+			.FirstOrDefault();
+		var alreadyFirst = firstPath is not null && string.Equals(
+			System.IO.Path.TrimEndingDirectorySeparator( firstPath ),
+			nativeDllPath,
+			StringComparison.OrdinalIgnoreCase );
+
+		if ( !alreadyFirst )
+		{
+			System.Environment.SetEnvironmentVariable(
+				"PATH",
+				$"{nativeDllPath}{System.IO.Path.PathSeparator}{path}" );
+		}
+	}
+
+	static string GetNativePlatformDirectory()
+	{
+		if ( OperatingSystem.IsWindows() ) return "win64";
+		if ( OperatingSystem.IsLinux() ) return "linuxsteamrt64";
+		if ( OperatingSystem.IsMacOS() ) return "osxarm64";
+
+		throw new PlatformNotSupportedException();
 	}
 }
