@@ -22,14 +22,8 @@ public partial class PanelDrawTest : PainterTestBase
 				layer.Clear();
 				PaintStroke = new Stroke( Color.Red, 4 ) { Cap = cap };
 				Paint.Line( new Vector2( 0, 0 ), new Vector2( 20, 0 ) );
-				var data = Primitives( layer );
-				var segment = data.Single( p => p.Kind == UICssBoxBatched.PathPrimitiveKind.Segment );
-				Assert.AreEqual( new Vector4( 0, 0, 20, 0 ), segment.A );
-				Assert.AreEqual( cap == Stroke.LineCap.Square ? UICssBoxBatched.PathCap.SquareStart | UICssBoxBatched.PathCap.SquareEnd : 0, segment.Count );
-				bool pointed = cap == Stroke.LineCap.Triangle || cap == Stroke.LineCap.Arrow;
-				Assert.AreEqual( pointed ? new Vector4( (int)cap, (int)cap, 0, 0 ) : Vector4.Zero, segment.B );
-				Assert.AreEqual( cap == Stroke.LineCap.Round ? 3 : 1, data.Length );
-				CollectionAssert.AreEquivalent( cap == Stroke.LineCap.Round ? new[] { Vector4.Zero, new Vector4( 20, 0, 0, 0 ) } : Array.Empty<Vector4>(), data.Where( p => p.Kind == UICssBoxBatched.PathPrimitiveKind.Disc ).Select( p => p.A ).ToArray() );
+				AssertSimpleLine( layer.Instances.Single(), Vector2.Zero, new Vector2( 20, 0 ), cap );
+				Assert.AreEqual( 0f, layer.Instances.Single().BorderShapeData.Polygon01.w );
 				foreach ( var tile in layer.Instances )
 				{
 					Assert.AreEqual( 4f, tile.BorderShapeData.Circle.z );
@@ -74,7 +68,8 @@ public partial class PanelDrawTest : PainterTestBase
 				layer.Clear();
 				var stroke = new Stroke( Color.White, 2 ) { Cap = cap };
 				PaintStroke = stroke;
-				Paint.Polygon( points );
+				// Exercise general closed-path joins; polygon outlines can share the fill contour instead.
+				Painter.Path.DrawPolyline( PaintContext, points, stroke, closed: true );
 				var expected = Primitives( layer );
 				Assert.AreEqual( 4, expected.Count( p => p.Kind == UICssBoxBatched.PathPrimitiveKind.Segment && p.Count == 0 ) );
 				Assert.IsTrue( expected.Where( p => p.Kind == UICssBoxBatched.PathPrimitiveKind.Segment ).All( p => p.B == Vector4.Zero ), "Closed paths have no pointed caps." );
@@ -82,7 +77,7 @@ public partial class PanelDrawTest : PainterTestBase
 				Assert.AreEqual( 8, expected.Length );
 				layer.Clear();
 				PaintStroke = stroke;
-				Paint.Polygon( [points[0], points[0], points[1], points[1], points[2], points[3], points[0]] );
+				Painter.Path.DrawPolyline( PaintContext, [points[0], points[0], points[1], points[1], points[2], points[3], points[0]], stroke, closed: true );
 				CollectionAssert.AreEquivalent( expected, Primitives( layer ) );
 			}
 			foreach ( var cap in Enum.GetValues<Stroke.LineCap>() )
@@ -149,7 +144,8 @@ public partial class PanelDrawTest : PainterTestBase
 				Assert.AreEqual( new Vector4( 0, 0, (count - 1) * 2, 8 ), polygon.GPU.Rect );
 				Assert.AreEqual( Vector4.Zero, polygon.GPU.BorderSize );
 				Assert.AreEqual( 2f, layer.Instances[1].BorderShapeData.Circle.z );
-				Assert.AreEqual( count, layer.Instances[1].PathData.Primitives.ToArray().Count( p => p.Kind == UICssBoxBatched.PathPrimitiveKind.Segment ) );
+				Assert.AreEqual( UICssBoxBatched.ShapeKind.PolygonStroke, layer.Instances[1].BorderShapeData.Kind );
+				Assert.AreEqual( polygon.GPU.ShapeIndex, layer.Instances[1].BorderShapeData.PolygonStrokeShapeIndex );
 				Assert.AreEqual( count, polygon.PathData.Primitives.Length );
 				Assert.AreEqual( new Vector4( points[count - 1].x, points[count - 1].y, 0, 0 ), polygon.PathData.Primitives[^1].A );
 			}
@@ -283,7 +279,7 @@ public partial class PanelDrawTest : PainterTestBase
 			{
 				layer.Clear();
 				draw();
-				Assert.IsTrue( Primitives( layer ).Length > 0 );
+				AssertStroke( layer.Instances.Last() );
 			}
 			foreach ( var cap in Enum.GetValues<Stroke.LineCap>() )
 				foreach ( var sweep in new[] { 90f, -90f, 360f, -360f, 720f } )

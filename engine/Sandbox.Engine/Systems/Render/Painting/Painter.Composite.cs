@@ -40,7 +40,7 @@ public readonly ref partial struct Painter
 		}
 
 		ResetCompositeAttributes( commands );
-		attributes.Set( "PainterSourcePremultiplied", false );
+		attributes.Set( "PainterSourceGamma", false );
 		attributes.Set( "PainterScissorIndex", -1 );
 		SetFilterAttributes( attributes, bounds, filter, mask, maskScope );
 
@@ -62,7 +62,7 @@ public readonly ref partial struct Painter
 		output.BindScissor( attributes, clip );
 		attributes.Set( "HasScissor", 0 );
 		attributes.Set( "Texture", source.ColorTexture );
-		attributes.Set( "PainterSourcePremultiplied", true );
+		attributes.Set( "PainterSourceGamma", true );
 		attributes.Set( "LayerMat", target.LayerMatrix );
 		attributes.Set( "TransformMat", transform );
 		attributes.SetCombo( "D_WORLDPANEL", target.WorldPanelCombo );

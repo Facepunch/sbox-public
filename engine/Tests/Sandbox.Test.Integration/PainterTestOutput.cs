@@ -25,7 +25,30 @@ internal sealed class PainterTestOutput : IDisposable
 	internal BlendMode BlendMode => Field<BlendMode>( Batcher, "_blendMode" );
 
 	internal readonly record struct Instance( UICssBoxBatched.BoxInstance GPU, UICssBoxBatched.BorderShape BorderShapeData,
-		Painter.Path.Data PathData, UICssBoxBatched.GradientInstance BackgroundGradient, Texture BackgroundImage, Matrix Transform );
+		PathSnapshot PathData, UICssBoxBatched.GradientInstance BackgroundGradient, Texture BackgroundImage, Matrix Transform );
+
+	internal sealed class PathSnapshot( UICssBoxBatched.PathPrimitive[] primitives )
+	{
+		internal ReadOnlySpan<UICssBoxBatched.PathPrimitive> Primitives => primitives;
+	}
+
+	PathSnapshot ReadPath( int shapeIndex )
+	{
+		if ( shapeIndex < 0 ) return null;
+		var shape = Batcher.Shapes[shapeIndex];
+		if ( shape.PathCount == 0 ) return null;
+		if ( shape.Kind == UICssBoxBatched.ShapeKind.PolygonPath && shape.PathNodeCount == -1 )
+		{
+			// Expose contour edges to geometry assertions regardless of their storage format.
+			var points = Batcher.PolygonPoints.Skip( shape.PathOffset ).Take( shape.PathCount ).ToArray();
+			return new( points.Select( ( point, i ) => new UICssBoxBatched.PathPrimitive
+			{
+				Kind = UICssBoxBatched.PathPrimitiveKind.Segment,
+				A = new Vector4( point.x, point.y, points[(i + 1) % points.Length].x, points[(i + 1) % points.Length].y )
+			} ).ToArray() );
+		}
+		return new( Batcher.Paths.Skip( shape.PathOffset ).Take( shape.PathCount ).ToArray() );
+	}
 
 	internal List<Instance> Instances
 	{
@@ -34,12 +57,11 @@ internal sealed class PainterTestOutput : IDisposable
 			var shapes = Batcher.Shapes;
 			var gradients = Batcher.Gradients;
 			var matrices = Batcher.Transforms;
-			var paths = Field<Dictionary<Painter.Path.Data, int>>( Batcher, "_pathLookup" );
 			var textures = Field<IEnumerable>( Batcher, "_textures" ).Cast<object>()
 				.Select( use => (Texture)use.GetType().GetProperty( "Texture" ).GetValue( use ) ).ToArray();
 			return Batcher.Instances.Select( gpu => new Instance( gpu,
 				gpu.ShapeIndex >= 0 ? shapes[gpu.ShapeIndex] : default,
-				paths.FirstOrDefault( pair => pair.Value == gpu.ShapeIndex ).Key,
+				ReadPath( gpu.ShapeIndex ),
 				gpu.TextureIndex < 0 ? gradients[-gpu.TextureIndex - 1] : default,
 				gpu.TextureIndex >= 0 && gpu.BackgroundRect != Vector4.Zero ? textures.FirstOrDefault( texture => texture.Index == gpu.TextureIndex ) : null,
 				matrices[gpu.TransformIndex].Mat ) ).ToList();

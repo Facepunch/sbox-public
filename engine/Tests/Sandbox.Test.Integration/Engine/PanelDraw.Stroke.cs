@@ -53,11 +53,11 @@ public partial class PanelDrawTest : PainterTestBase
 				PaintStroke = stroke;
 				draw();
 				var instance = layer.Instances.Single();
-				Assert.AreEqual( UICssBoxBatched.ShapeKind.StrokePath, instance.BorderShapeData.Kind );
+				AssertStroke( instance );
 				Assert.AreEqual( 4f, instance.BorderShapeData.Circle.z );
 				Assert.AreEqual( Color.Red.WithAlpha( 0.4f ), instance.GPU.Color );
 				Assert.AreEqual( BlendMode.Multiply, layer.BlendMode );
-				Assert.IsTrue( Primitives( layer ).Length > 0 );
+				Assert.IsTrue( Primitives( layer ).Length > 0 || layer.Instances.Any( i => i.BorderShapeData.Kind == UICssBoxBatched.ShapeKind.SimpleLine ) );
 				Assert.AreEqual( stroke, PaintStroke, "Drawing must not change the current stroke." );
 			}
 		} );

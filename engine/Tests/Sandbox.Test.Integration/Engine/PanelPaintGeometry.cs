@@ -39,7 +39,7 @@ public class PanelPaintGeometryTest
 		{
 			root.Layout();
 			root.Layout();
-			Assert.IsTrue( ImagePlacementIsValid( panel ) );
+			Assert.IsTrue( BackgroundHasFill( panel ) );
 			Assert.IsNotNull( panel.GlobalMatrix );
 			Assert.AreEqual( panel.RenderTransform, child.RenderTransform );
 			var cache = Cache( panel );
@@ -106,14 +106,14 @@ public class PanelPaintGeometryTest
 			root.Layout();
 			root.Layout();
 			PanelDrawSnapshot.Build( root );
-			Assert.IsTrue( ImagePlacementIsValid( panel ) );
+			Assert.IsTrue( BackgroundHasFill( panel ) );
 
 			label.Text = "Second";
 			root.PreLayout();
 			Assert.IsFalse( PaintGeometryIsDirty( panel ) );
 			root.CalculateLayout();
 			root.PostLayout();
-			Assert.IsTrue( ImagePlacementIsValid( panel ) );
+			Assert.IsTrue( BackgroundHasFill( panel ) );
 
 			panel.SetNeedsPreLayout();
 			root.PreLayout();
@@ -163,11 +163,11 @@ public class PanelPaintGeometryTest
 		return (bool)cache.GetType().GetField( "_dirty", BindingFlags.Instance | BindingFlags.NonPublic ).GetValue( cache );
 	}
 
-	static bool ImagePlacementIsValid( Panel panel )
+	static bool BackgroundHasFill( Panel panel )
 	{
 		var cache = typeof( Panel ).GetField( "_paintCache", BindingFlags.Instance | BindingFlags.NonPublic ).GetValue( panel );
 		var placement = cache.GetType().GetField( "Background", BindingFlags.Instance | BindingFlags.NonPublic ).GetValue( cache );
-		return (bool)placement.GetType().GetField( "Valid", BindingFlags.Instance | BindingFlags.NonPublic ).GetValue( placement );
+		return (bool)placement.GetType().GetField( "HasFill", BindingFlags.Instance | BindingFlags.NonPublic ).GetValue( placement );
 	}
 
 	[TestMethod]

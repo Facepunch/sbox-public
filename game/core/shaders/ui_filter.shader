@@ -42,7 +42,7 @@ PS
 	float4 g_vViewport < Source( Viewport ); >; 
 
 	// Texture Samplers ---------------------------------------------------------------------------------------------------------------------------------------
-	// Painter targets contain color premultiplied in sRGB. Blur those stored values before unpremultiplying.
+	// Layer targets contain premultiplied color. Sample and blur in their blend space.
 	Texture2D g_tPainterColor < Attribute( "Texture" ); SrgbRead( false ); >;
 	Texture2D g_tColor < Attribute( "Texture" ); SrgbRead( true ); >;
 	float4 g_vInvTextureDim < Source( InvTextureDim ); SourceArg( g_tColor ); >;
@@ -50,7 +50,7 @@ PS
 	//
 	// Filters
 	//
-	bool PainterSourcePremultiplied < Default( 0 ); Attribute( "PainterSourcePremultiplied" ); >;
+	bool PainterSourceGamma < Default( 0 ); Attribute( "PainterSourceGamma" ); >;
 	float FilterBrightness< UiType( Slider ); Default( 1.0f ); Attribute( "FilterBrightness" ); >;
 	float FilterHueRotate < UiType( Slider ); Default( 0.0f ); Attribute( "FilterHueRotate" ); >;
 	float FilterBlur < UiType( Color ); Default( 0 ); Attribute( "FilterBlur" ); >;
@@ -168,6 +168,23 @@ PS
 		return mul( m, vTexCoord - offset ) + offset ;
 	}
 
+	float4 SampleLayer( float2 uv, SamplerState sampler, float blur )
+	{
+		// Painter layers blend in sRGB; CSS panel layers inherit the destination's color space.
+		bool gamma = PainterSourceGamma || g_bUIGammaOutput;
+		float4 color;
+		if ( gamma )
+			color = GaussianBlurTexture( g_tPainterColor, sampler, uv, blur, g_vInvTextureDim.xy );
+		else
+			color = GaussianBlurTexture( g_tColor, sampler, uv, blur, g_vInvTextureDim.xy );
+
+		color.rgb = color.a > 0.00001 ? color.rgb / color.a : 0;
+		if ( gamma )
+			color.rgb = SrgbGammaToLinear( color.rgb );
+
+		return color;
+	}
+
 	PS_OUTPUT MainPs( PS_INPUT i )
 	{
 		PS_OUTPUT o;
@@ -186,15 +203,7 @@ PS
 
 		// filter: blur( r ) - r is the gaussian's standard deviation. Sampled with a border sampler so the blur fades
 		// to nothing past the layer's edge instead of wrapping its far side in
-		if ( PainterSourcePremultiplied )
-		{
-			o.vColor = GaussianBlurTexture( g_tPainterColor, g_sTrilinearBorder, uv, FilterBlur, g_vInvTextureDim.xy );
-			o.vColor.rgb = o.vColor.a > 0.00001 ? SrgbGammaToLinear( o.vColor.rgb / o.vColor.a ) : 0;
-		}
-		else
-		{
-			o.vColor = GaussianBlurTexture( g_tColor, g_sTrilinearBorder, uv, FilterBlur, g_vInvTextureDim.xy );
-		}
+		o.vColor = SampleLayer( uv, g_sTrilinearBorder, FilterBlur );
 		o.vColor = ApplyColorFilters( o.vColor );
 
 		//
@@ -237,7 +246,7 @@ PS
 			{
 				// Sample from original texture, we're using a mask-scope value of "filter"
 				// so we use this for blending
-				float4 origColor = g_tColor.Sample( Bindless::GetSampler( BorderSamplerIndex ), uv );
+				float4 origColor = SampleLayer( uv, Bindless::GetSampler( BorderSamplerIndex ), 0 );
 				o.vColor = lerp( origColor, o.vColor, mask );
 			}
 		}

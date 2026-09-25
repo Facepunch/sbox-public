@@ -30,6 +30,8 @@ public class TestAppSystem : AppSystem
 		};
 
 		// Opt in to the real renderer for bitmap comparisons; ordinary tests stay headless.
-		InitGame( createInfo, Environment.GetEnvironmentVariable( "SBOX_TEST_GRAPHICS" ) == "1" ? "-vulkan -noassert -novr" : "" );
+		InitGame( createInfo, Environment.GetEnvironmentVariable( "SBOX_TEST_GRAPHICS" ) == "1"
+			? "-vulkan -noassert -novr " + Environment.GetEnvironmentVariable( "SBOX_TEST_GRAPHICS_ARGS" )
+			: "" );
 	}
 }

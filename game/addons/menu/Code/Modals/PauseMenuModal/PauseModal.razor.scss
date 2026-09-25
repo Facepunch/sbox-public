@@ -1,3 +1,5 @@
+@import "/styles/_theme.scss";
+
 PauseModal.modal
 {
 	font-family: Poppins;
@@ -13,6 +15,7 @@ PauseModal.modal
 		align-items: center;
 		width: 1920px;
 		height: 1280px;
+		max-height: 100%;
 		position: relative;
 		padding: 4rem;
 		gap: 2rem;
@@ -29,6 +32,7 @@ PauseModal.modal > .inner > .bottom-bar
 {
 	max-width: 1800px;
 	width: 100%;
+	flex-shrink: 0;
 	gap: 2rem;
 	background-color: #111a;
 	backdrop-filter: blur( 20px );
@@ -148,6 +152,9 @@ PauseModal.modal > .inner > .bottom-bar
 PauseModal .tiles-container
 {
 	flex-grow: 1;
+	flex-shrink: 1;
+	flex-basis: 0;
+	min-height: 0;
 	width: 100%;
 	gap: 2rem;
 
@@ -160,6 +167,7 @@ PauseModal .tiles-container
 	& > .right
 	{
 		flex-grow: 1;
+		min-height: 0;
 		overflow: hidden;
 	}
 }
@@ -179,7 +187,13 @@ PauseModal .tiles-container .info > h3
 	font-size: 18px;
 }
 
+// Match the description text in GameModal (MegaCard content + PackageDescription)
 HtmlPanel
 {
 	flex-grow: 1;
+	min-height: 0;
+	overflow-y: scroll;
+	font-family: $font-default;
+	font-size: $text-regular;
+	color: #ADB3CB;
 }

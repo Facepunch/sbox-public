@@ -48,7 +48,7 @@ public partial class PanelDrawTest : PainterTestBase
 				Assert.AreEqual( 2, layer.Instances.Count );
 				Assert.AreEqual( Color.Red.WithAlpha( 0.4f ), layer.Instances[0].GPU.Color );
 				Assert.AreEqual( Color.Blue.WithAlpha( 0.5f ), layer.Instances[1].GPU.Color );
-				Assert.AreEqual( UICssBoxBatched.ShapeKind.StrokePath, layer.Instances[1].BorderShapeData.Kind );
+				AssertStroke( layer.Instances[1] );
 				Assert.AreEqual( fill, PaintFill, "Drawing must not change the current fill." );
 			}
 		} );
@@ -93,7 +93,7 @@ public partial class PanelDrawTest : PainterTestBase
 			Paint.Rect( rect );
 			Assert.AreEqual( 6, layer.Instances.Count );
 			Assert.AreEqual( Color.Green.WithAlpha( 0.5f ), layer.Instances[^1].GPU.Color );
-			Assert.AreEqual( UICssBoxBatched.ShapeKind.StrokePath, layer.Instances[^1].BorderShapeData.Kind );
+			AssertStroke( layer.Instances[^1] );
 			Assert.AreEqual( Fill.None, PaintFill );
 		} );
 	}
@@ -127,7 +127,7 @@ public partial class PanelDrawTest : PainterTestBase
 				draw();
 				var instance = layer.Instances.Single();
 				Assert.AreEqual( Color.Red, instance.GPU.Color );
-				Assert.AreEqual( UICssBoxBatched.ShapeKind.StrokePath, instance.BorderShapeData.Kind );
+				AssertStroke( instance );
 				Assert.AreEqual( fill, PaintFill );
 			}
 		} );

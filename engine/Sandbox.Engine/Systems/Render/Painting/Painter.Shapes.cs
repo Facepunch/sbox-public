@@ -1,5 +1,4 @@
 using System.Buffers;
-using System.Runtime.InteropServices;
 
 using Sandbox.UI;
 
@@ -12,13 +11,19 @@ public readonly ref partial struct Painter
 	/// The path is open. Use Polygon with Fill.None for a closed contour. Subpixel strokes use coverage fading.
 	/// </summary>
 	public void Line( ReadOnlySpan<Vector2> points )
-		=> Path.DrawPolyline( ActiveContext, points, Stroke );
+	{
+		var context = ActiveContext;
+		Path.DrawPolyline( context, points, in context.State.Stroke );
+	}
 
 	/// <summary>
 	/// Draws a line using the current <see cref="Stroke"/> in drawing pixels. Subpixel strokes use coverage fading.
 	/// </summary>
 	public void Line( Vector2 from, Vector2 to )
-		=> Line( [from, to] );
+	{
+		var context = ActiveContext;
+		Path.DrawSimpleLine( context, from, to, in context.State.Stroke );
+	}
 
 	/// <summary>
 	/// Draws a line using <see cref="Stroke"/> and its X/Y coordinates in drawing pixels. Z is ignored.
@@ -34,8 +39,11 @@ public readonly ref partial struct Painter
 	public void Polygon( ReadOnlySpan<Vector2> points )
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThan( points.Length, 3 );
-		if ( !Fill.IsTransparent ) Path.DrawPolygon( ActiveContext, points, Fill );
-		if ( HasStroke( Stroke ) ) Path.DrawPolyline( ActiveContext, points, Stroke, closed: true );
+		var context = ActiveContext;
+		ref var state = ref context.State;
+		if ( Path.TryDrawOutlinedPolygon( context, points ) ) return;
+		if ( !state.Fill.IsTransparent ) Path.DrawPolygon( context, points, in state.Fill );
+		if ( HasStroke( state.Stroke ) ) Path.DrawPolyline( context, points, in state.Stroke, closed: true );
 	}
 
 	/// <summary>
@@ -81,7 +89,7 @@ public readonly ref partial struct Painter
 		var combined = TryGetBoxStroke( state.Stroke, out var border );
 		if ( !state.Fill.IsTransparent || combined )
 		{
-			var desc = state.Fill.CreateDescriptor( rect, context );
+			state.Fill.CreateDescriptor( rect, context, out var desc );
 			desc.Radii = radii;
 			SetBorderShape( ref desc, shape );
 			if ( combined ) desc.Stroke = border.WithAlphaMultiplied( context.InheritedOpacity );
@@ -220,7 +228,11 @@ public readonly ref partial struct Painter
 			Path.DrawArc( ActiveContext, center, innerRadius + width * 0.5f, 0, 360, new Stroke( Fill, width ) );
 		}
 		if ( !HasStroke( Stroke ) ) return;
-		var mask = Stroke.Alignment == Stroke.StrokeAlignment.Center ? null : Path.CircleMask( center, outerRadius, innerRadius );
+		var context = ActiveContext;
+		if ( !context.State.HasArea || context.State.Opacity == 0 ) return;
+		if ( Stroke.Alignment != Stroke.StrokeAlignment.Center && !float.IsFinite( Stroke.Width * 2 ) ) return;
+
+		Path.AlignmentMask? mask = Stroke.Alignment == Stroke.StrokeAlignment.Center ? null : Path.CircleMask( context, center, outerRadius, innerRadius );
 		Path.DrawArc( ActiveContext, center, outerRadius, 0, 360, Stroke, mask );
 		Path.DrawArc( ActiveContext, center, innerRadius, 0, 360, Stroke, mask );
 	}
@@ -311,12 +323,64 @@ public readonly ref partial struct Painter
 	public void Bezier( Vector2 from, Vector2 control1, Vector2 control2, Vector2 to )
 	{
 		if ( !HasStroke( Stroke ) || !from.IsFinite || !control1.IsFinite || !control2.IsFinite || !to.IsFinite ) return;
-		var points = new List<Vector2> { from };
-		FlattenBezier( points, from, control1, control2, to );
-		Line( CollectionsMarshal.AsSpan( points ) );
+		var points = new CurvePoints( from );
+		try
+		{
+			FlattenBezier( ref points, from, control1, control2, to );
+			Line( points.Span );
+		}
+		finally
+		{
+			points.Dispose();
+		}
 	}
 
-	static void FlattenBezier( List<Vector2> points, Vector2 a, Vector2 b, Vector2 c, Vector2 d, int depth = 0 )
+	/// <summary>
+	/// Grows pooled point storage as adaptive subdivision discovers the curve's required resolution.
+	/// </summary>
+	ref struct CurvePoints
+	{
+		Vector2[] _points;
+		int _count;
+
+		/// <summary>
+		/// Starts a curve with its first endpoint.
+		/// </summary>
+		public CurvePoints( Vector2 first )
+		{
+			_points = ArrayPool<Vector2>.Shared.Rent( 16 );
+			_points[0] = first;
+			_count = 1;
+		}
+
+		/// <summary>
+		/// Points appended so far, in subdivision order.
+		/// </summary>
+		public readonly ReadOnlySpan<Vector2> Span => _points.AsSpan( 0, _count );
+
+		/// <summary>
+		/// Appends an endpoint, returning superseded storage to the pool after growth.
+		/// </summary>
+		public void Add( Vector2 point )
+		{
+			if ( _count == _points.Length )
+			{
+				var grown = ArrayPool<Vector2>.Shared.Rent( checked(_count * 2) );
+				_points.AsSpan( 0, _count ).CopyTo( grown );
+				ArrayPool<Vector2>.Shared.Return( _points );
+				_points = grown;
+			}
+
+			_points[_count++] = point;
+		}
+
+		/// <summary>
+		/// Returns the final storage when drawing finishes or exits early.
+		/// </summary>
+		public readonly void Dispose() => ArrayPool<Vector2>.Shared.Return( _points );
+	}
+
+	static void FlattenBezier( ref CurvePoints points, Vector2 a, Vector2 b, Vector2 c, Vector2 d, int depth = 0 )
 	{
 		if ( depth == 12 || (DistanceToSegmentSquared( b, a, d ) <= 0.0625 && DistanceToSegmentSquared( c, a, d ) <= 0.0625) )
 		{
@@ -329,8 +393,8 @@ public readonly ref partial struct Painter
 		var abc = ab * 0.5f + bc * 0.5f;
 		var bcd = bc * 0.5f + cd * 0.5f;
 		var middle = abc * 0.5f + bcd * 0.5f;
-		FlattenBezier( points, a, ab, abc, middle, depth + 1 );
-		FlattenBezier( points, middle, bcd, cd, d, depth + 1 );
+		FlattenBezier( ref points, a, ab, abc, middle, depth + 1 );
+		FlattenBezier( ref points, middle, bcd, cd, d, depth + 1 );
 	}
 
 	/// <summary>
@@ -447,12 +511,12 @@ public readonly ref partial struct Painter
 	{
 		if ( fill.IsTransparent ) return;
 		var radius = rect.Size * 0.5f;
-		var desc = fill.CreateDescriptor( rect, ActiveContext );
+		fill.CreateDescriptor( rect, ActiveContext, out var desc );
 		desc.Radii = new BorderRadii { TopLeft = radius, TopRight = radius, BottomLeft = radius, BottomRight = radius };
 		Add( ActiveContext, desc );
 	}
 
-	internal static BoxStroke ResolveBoxStroke( Stroke stroke )
+	internal static BoxStroke ResolveBoxStroke( in Stroke stroke )
 	{
 		TryGetBoxStroke( stroke, out var result );
 		return result;
@@ -469,7 +533,7 @@ public readonly ref partial struct Painter
 		return px * px + py * py;
 	}
 
-	static bool HasStroke( Stroke stroke ) => !stroke.IsDisabled && float.IsFinite( stroke.Width ) && stroke.Width > 0 && !stroke.Fill.IsTransparent;
+	static bool HasStroke( in Stroke stroke ) => !stroke.IsDisabled && float.IsFinite( stroke.Width ) && stroke.Width > 0 && !Stroke.GetFill( in stroke ).IsTransparent;
 
 	static bool ValidBounds( Rect rect ) => rect.Position.IsFinite
 		&& float.IsFinite( rect.Width ) && float.IsFinite( rect.Height ) && rect.Width > 0 && rect.Height > 0

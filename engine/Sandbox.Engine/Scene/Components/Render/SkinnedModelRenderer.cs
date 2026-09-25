@@ -395,7 +395,7 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 		return SceneModel.IsValid() && SceneModel.HasBoneOverrides();
 	}
 
-	internal bool AnimationUpdate()
+	internal bool AnimationUpdate( bool previewBindPose = false )
 	{
 		if ( !SceneModel.IsValid() )
 			return false;
@@ -404,16 +404,27 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 
 		lock ( this )
 		{
-			// Update physics bones if they exist.
-			Physics?.Update();
+			// Shared volumes are prepared before the parallel animation pass.
+			UpdateDeformations();
 
-			if ( Scene.IsEditor && !CanUpdateInEditor() )
+			if ( Scene.IsEditor && previewBindPose )
 			{
-				SceneModel.UpdateToBindPose( ReadBonesFromGameObjects );
+				// Preview the authored rest pose without applying procedural bone overrides.
+				SceneModel.UpdateToBindPose();
 			}
 			else
 			{
-				SceneModel.Update( Time.Delta, ReadBonesFromGameObjects );
+				// Update physics bones if they exist.
+				Physics?.Update();
+
+				if ( Scene.IsEditor && !CanUpdateInEditor() )
+				{
+					SceneModel.UpdateToBindPose( ReadBonesFromGameObjects );
+				}
+				else
+				{
+					SceneModel.Update( Time.Delta, ReadBonesFromGameObjects );
+				}
 			}
 		}
 
@@ -493,7 +504,10 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 		}
 	}
 
-	private SkinnedModelRenderer RootBoneMergeTarget => BoneMergeTarget.IsValid() ? BoneMergeTarget.RootBoneMergeTarget : this;
+	/// <summary>
+	/// The renderer supplying the root skeleton for this bone-merge family.
+	/// </summary>
+	internal SkinnedModelRenderer RootBoneMergeTarget => BoneMergeTarget.IsValid() ? BoneMergeTarget.RootBoneMergeTarget : this;
 
 	/// <summary>
 	/// For non procedural bones, copy the "parent space" bone from to the GameObject transform. Will

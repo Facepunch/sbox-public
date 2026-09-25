@@ -21,8 +21,8 @@ public readonly ref partial struct Painter
 		get => ActiveContext.State.Stroke;
 		set
 		{
-			if ( !Enum.IsDefined( value.Alignment ) ) throw new ArgumentOutOfRangeException( nameof( value ) );
-			if ( !Enum.IsDefined( value.Style ) ) throw new ArgumentOutOfRangeException( nameof( value ) );
+			if ( (uint)value.Alignment > (uint)Stroke.StrokeAlignment.Outside ) throw new ArgumentOutOfRangeException( nameof( value ) );
+			if ( (uint)value.Style > (uint)BorderStyle.Outset ) throw new ArgumentOutOfRangeException( nameof( value ) );
 			ActiveContext.State.Stroke = value;
 		}
 	}

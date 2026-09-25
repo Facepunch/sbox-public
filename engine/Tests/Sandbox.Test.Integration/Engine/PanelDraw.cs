@@ -19,6 +19,29 @@ public partial class PanelDrawTest : PainterTestBase
 		test( layer );
 	}
 
+	/// <summary>
+	/// Stroke paint can use general paths or one of the analytic representations.
+	/// </summary>
+	static void AssertStroke( PainterTestOutput.Instance instance )
+	{
+		Assert.IsTrue( instance.BorderShapeData.Kind is UICssBoxBatched.ShapeKind.StrokePath
+			or UICssBoxBatched.ShapeKind.SimpleLine or UICssBoxBatched.ShapeKind.PolygonStroke );
+	}
+
+	/// <summary>
+	/// Checks the actual analytic line payload without requiring generated path primitives.
+	/// </summary>
+	static void AssertSimpleLine( PainterTestOutput.Instance instance, Vector2 start, Vector2 end, Stroke.LineCap cap )
+	{
+		var shape = instance.BorderShapeData;
+		Assert.AreEqual( UICssBoxBatched.ShapeKind.SimpleLine, shape.Kind );
+		Assert.AreEqual( start, new Vector2( shape.Circle.x, shape.Circle.y ) );
+		Assert.AreEqual( end, new Vector2( shape.Polygon01.x, shape.Polygon01.y ) );
+		Assert.AreEqual( (float)cap, shape.Circle.w );
+		Assert.AreEqual( (end - start).Length, shape.Polygon01.z, 0.001f );
+		Assert.IsNull( instance.PathData );
+	}
+
 	static void AssertPolygon( PainterTestOutput.Instance instance, Vector2[] points, bool ordered = true )
 	{
 		var min = new Vector2( points.Min( p => p.x ), points.Min( p => p.y ) );
@@ -102,11 +125,9 @@ public partial class PanelDrawTest : PainterTestBase
 					PaintStroke = Stroke.Solid( Color.White, 10 );
 					Paint.Line( reverse ? to : from, reverse ? from : to );
 					var instance = layer.Instances[^1];
-					Assert.AreEqual( 1, instance.PathData.Primitives.Length );
-					var segment = instance.PathData.Primitives[0];
 					var start = reverse ? to : from;
 					var end = reverse ? from : to;
-					Assert.AreEqual( new Vector4( start.x, start.y, end.x, end.y ), segment.A );
+					AssertSimpleLine( instance, start, end, PaintStroke.Cap );
 					Assert.AreEqual( 10f, instance.BorderShapeData.Circle.z );
 					foreach ( var corner in new[] { from + side, to + side, to - side, from - side } )
 						Assert.IsTrue( new Rect( instance.GPU.Rect.x, instance.GPU.Rect.y, instance.GPU.Rect.z, instance.GPU.Rect.w ).Grow( 0.001f ).IsInside( corner ) );
@@ -225,7 +246,7 @@ public partial class PanelDrawTest : PainterTestBase
 					if ( width == 3 )
 					{
 						var stroke = layer.Instances[1];
-						Assert.AreEqual( UICssBoxBatched.ShapeKind.StrokePath, stroke.BorderShapeData.Kind );
+						AssertStroke( stroke );
 						Assert.AreEqual( 3f, stroke.BorderShapeData.Circle.z );
 						Assert.AreEqual( strokeColor.WithAlpha( 0.1f ), stroke.GPU.Color );
 					}

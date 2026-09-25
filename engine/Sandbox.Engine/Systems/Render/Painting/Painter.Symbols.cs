@@ -61,9 +61,13 @@ public readonly ref partial struct Painter
 		if ( !HasStroke( Stroke ) ) return;
 		if ( distance + cutoutRadius <= radius )
 		{
+			var context = ActiveContext;
+			if ( !context.State.HasArea || context.State.Opacity == 0 ) return;
+			if ( Stroke.Alignment != Stroke.StrokeAlignment.Center && !float.IsFinite( Stroke.Width * 2 ) ) return;
+
 			shape.Circle.x = center.x; shape.Circle.y = center.y;
 			shape.Polygon01 = new Vector4( cutout.x, cutout.y, 0, 0 );
-			var mask = new Path.Data( shape, [] );
+			Path.AlignmentMask? mask = Stroke.Alignment == Stroke.StrokeAlignment.Center ? null : new( ActiveContext.Batcher.AddShape( shape ), null );
 			Path.DrawArc( ActiveContext, center, radius, 0, 360, Stroke, mask );
 			Path.DrawArc( ActiveContext, cutout, cutoutRadius, 0, 360, Stroke, mask );
 			return;
@@ -116,7 +120,7 @@ public readonly ref partial struct Painter
 	void SdfFill( Rect bounds, UICssBoxBatched.BorderShape shape )
 	{
 		if ( Fill.IsTransparent || !ValidBounds( bounds ) ) return;
-		var desc = Fill.CreateDescriptor( bounds, ActiveContext );
+		Fill.CreateDescriptor( bounds, ActiveContext, out var desc );
 		desc.BorderShapeData = shape;
 		Add( ActiveContext, desc );
 	}

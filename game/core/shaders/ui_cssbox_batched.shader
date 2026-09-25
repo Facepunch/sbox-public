@@ -25,6 +25,7 @@ COMMON
 	DynamicCombo( D_WORLDPANEL, 0..1, Sys( ALL ) );
 	DynamicCombo( D_NO_ZTEST, 0..1, Sys( ALL ) );
 	DynamicCombo( D_PANEL_OPACITY, 0..1, Sys( ALL ) );
+	DynamicCombo( D_POLYGON_POINTS, 0..1, Sys( ALL ) );
 	float g_flUIPanelOpacity < Attribute( "UIPanelOpacity" ); Default( 1 ); >;
 
 	#define BoxInstanceData TextInstanceData
@@ -79,7 +80,9 @@ COMMON
 	#define UI_SHAPE_CAPSULE 5
 	#define UI_SHAPE_CRESCENT 6
 	#define UI_SHAPE_HEART 7
-	// Kinds from here up are analytic SDF shapes with no path nodes.
+	#define UI_SHAPE_SIMPLE_LINE 8
+	#define UI_SHAPE_POLYGON_STROKE 9
+	// Kinds from here up are analytic shapes with no path nodes.
 	#define UI_SHAPE_FIRST_ANALYTIC UI_SHAPE_CAPSULE
 
 	#define UI_PATH_SEGMENT 0
@@ -112,6 +115,12 @@ COMMON
 		int PathNodeOffset;
 		int PathNodeCount;
 		int Kind;
+
+		// PolygonStroke aliases, matching BorderShape.CreatePolygonStroke on the CPU.
+		int GetPolygonStrokeShapeIndex() { return PolygonCount; }
+		float2 GetPolygonStrokeOriginOffset() { return Circle.xy; }
+		float GetPolygonStrokeWidth() { return Circle.z; }
+		float GetPolygonStrokeAlignmentSign() { return Circle.w; }
 	};
 
 	// Must match GPUPathPrimitive. All fields use four-byte structured-buffer alignment.
@@ -148,6 +157,9 @@ COMMON
 	StructuredBuffer<BorderShapeData> BorderShapeBuffer < Attribute( "BorderShapeBuffer" ); >;
 	StructuredBuffer<PathPrimitiveData> PathBuffer < Attribute( "PathBuffer" ); >;
 	StructuredBuffer<PathNodeData> PathNodeBuffer < Attribute( "PathNodeBuffer" ); >;
+	#if D_POLYGON_POINTS == 1
+	StructuredBuffer<float2> PolygonPointBuffer < Attribute( "PolygonPointBuffer" ); >;
+	#endif
 
 }
 
@@ -207,7 +219,7 @@ VS
 		if ( inst.ShapeIndex >= 0 )
 		{
 			int kind = BorderShapeBuffer[inst.ShapeIndex].Kind;
-			if ( kind == UI_SHAPE_POLYGON_PATH || kind == UI_SHAPE_STROKE_PATH )
+			if ( kind == UI_SHAPE_POLYGON_PATH || kind == UI_SHAPE_STROKE_PATH || kind == UI_SHAPE_SIMPLE_LINE || kind == UI_SHAPE_POLYGON_STROKE )
 				return PathQuad( instanceIndex, corner, inst, instTransform );
 		}
 		o.vPathPosition = float3( 0, 0, 1 );
@@ -459,6 +471,56 @@ PS
 	}
 
 
+	// Reuse the fill's contour, including its hierarchy for polygons with more than eight vertices.
+	float PolygonStrokeCoverage( BorderShapeData stroke, float2 p, float2 pixelX, float2 pixelY )
+	{
+		BorderShapeData polygon = BorderShapeBuffer[stroke.GetPolygonStrokeShapeIndex()];
+		float alignmentSign = stroke.GetPolygonStrokeAlignmentSign();
+		bool aligned = alignmentSign != 0.0;
+		float radius = stroke.GetPolygonStrokeWidth() * 0.5;
+		// Centered outlines only need edges within the stroke's antialiasing footprint.
+		// Bounding the search avoids traversing distant edges for every interior pixel.
+		float maximumDistance = aligned ? 1e15 : radius + length( pixelX ) + length( pixelY );
+		float distance;
+		float2 normal = float2( 1, 0 );
+		if ( polygon.Kind == UI_SHAPE_POLYGON_PATH )
+		{
+			distance = PathPolygonSdf( p, polygon, normal, maximumDistance, aligned );
+		}
+		else
+		{
+			float distanceSquared = maximumDistance * maximumDistance;
+			float sign = 1.0;
+			float2 a = ShapePoint( polygon.Polygon01, polygon.Polygon23, polygon.Polygon45, polygon.Polygon67, polygon.PolygonCount - 1 );
+			for ( int i = 0; i < 8; i++ )
+			{
+				if ( i >= polygon.PolygonCount ) break;
+				float2 b = ShapePoint( polygon.Polygon01, polygon.Polygon23, polygon.Polygon45, polygon.Polygon67, i );
+				float2 e = b - a, w = p - a;
+				float2 nearest = w - e * saturate( dot( w, e ) / max( dot( e, e ), 0.000001 ) );
+				float d = dot( nearest, nearest );
+				if ( d < distanceSquared )
+				{
+					distanceSquared = d;
+					normal = d > 0.00000001 ? UINormal( nearest ) : UINormal( float2( -e.y, e.x ) );
+				}
+				bool3 crossing = bool3( p.y >= a.y, p.y < b.y, e.x * w.y > e.y * w.x );
+				if ( aligned && ( all( crossing ) || all( !crossing ) ) ) sign = -sign;
+				a = b;
+			}
+			distance = sign * sqrt( distanceSquared );
+		}
+
+		// Use the geometric normal rather than derivatives of abs(distance): the latter
+		// collapses on the contour and loses coverage for subpixel strokes.
+		float filterWidth = UIPixelWidth( normal, pixelX, pixelY );
+		float coverage = saturate( 0.5 - ( abs( distance ) - radius ) / filterWidth )
+			- saturate( 0.5 - ( abs( distance ) + radius ) / filterWidth );
+		if ( aligned )
+			coverage = min( coverage, SdfCoverage( distance * alignmentSign ) );
+		return coverage;
+	}
+
 	// Modes 1 and 2. BackgroundRect is the shape as (x, y, w, h) relative to the quad, BackgroundAngle the CSS blur
 	// radius. Outset draws the blurred shape, inset draws what's outside it; the extra scissor keeps each on its side
 	// of the box.
@@ -690,8 +752,20 @@ PS
 		{
 			// Shape coordinates are relative to the box, so the local position is all it takes
 			BorderShapeData shape = BorderShapeBuffer[inst.ShapeIndex];
-			isPath = shape.Kind == UI_SHAPE_POLYGON_PATH || shape.Kind == UI_SHAPE_STROKE_PATH;
-			if ( shape.Kind == UI_SHAPE_STROKE_PATH )
+			isPath = shape.Kind == UI_SHAPE_POLYGON_PATH || shape.Kind == UI_SHAPE_STROKE_PATH || shape.Kind == UI_SHAPE_SIMPLE_LINE || shape.Kind == UI_SHAPE_POLYGON_STROKE;
+			if ( shape.Kind == UI_SHAPE_POLYGON_STROKE )
+			{
+				float2 local = i.vTexCoord.xy * boxSize;
+				pathCoverage = PolygonStrokeCoverage( shape, local + shape.GetPolygonStrokeOriginOffset(), ddx( local ), ddy( local ) );
+				dOuter = -1.0;
+			}
+			else if ( shape.Kind == UI_SHAPE_SIMPLE_LINE )
+			{
+				float2 local = i.vTexCoord.xy * boxSize;
+				pathCoverage = SimpleLineCoverage( shape, local + shape.Polygon45.xy, ddx( local ), ddy( local ) );
+				dOuter = -1.0;
+			}
+			else if ( shape.Kind == UI_SHAPE_STROKE_PATH )
 			{
 				float2 local = i.vTexCoord.xy * boxSize;
 				pathCoverage = PathStrokeCoverage( shape, local + shape.Circle.xy, ddx( local ), ddy( local ) );
@@ -862,7 +936,7 @@ PS
 		if ( inst.ShapeIndex >= 0 )
 		{
 			int kind = BorderShapeBuffer[inst.ShapeIndex].Kind;
-			path = kind == UI_SHAPE_POLYGON_PATH || kind == UI_SHAPE_STROKE_PATH;
+			path = kind == UI_SHAPE_POLYGON_PATH || kind == UI_SHAPE_STROKE_PATH || kind == UI_SHAPE_SIMPLE_LINE || kind == UI_SHAPE_POLYGON_STROKE;
 			if ( path )
 			{
 				// The horizon itself is discarded below; keep its derivative helpers finite.

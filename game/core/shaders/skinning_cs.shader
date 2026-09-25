@@ -39,6 +39,7 @@ CS
 
 	#include "instancing.fxc"
 	#include "morph.fxc"
+	#include "common/classes/Deformation.hlsl"
 
 	DynamicCombo( D_MORPH, 0..1, Sys( ALL ) );
 
@@ -60,6 +61,9 @@ CS
 		uint nDestBufferOffset;
 		uint nTransformBufferOffset_BlendWeightCount;
 		uint nMorphOffset;
+		uint nVolumeOffset;
+		uint nVolumeCount;
+		uint2 padding;
 	};
 
 	cbuffer Instances_t
@@ -186,6 +190,10 @@ CS
 			MorphSubrectData_t morphSubrect = CalculateMorphSubrectData( nTransformBufferOffset );
 			Morph( vPosOs, vNormalOs.xyz, flWrinkle, nVertexId + inst.nMorphOffset, morphSubrect );
 		}
+		#endif
+
+		#if D_DEFORMATION_VOLUME
+		Deformation::Apply( inst.nVolumeOffset, inst.nVolumeCount, vPosOs, vNormalOs, vTangentUOs_flTangentVSign );
 		#endif
 
 		// fetch input indices

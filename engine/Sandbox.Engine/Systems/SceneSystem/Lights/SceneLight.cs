@@ -206,6 +206,10 @@ public class SceneLight : SceneObject
 		if ( cameraId == 0 )
 			return null;
 
+		// Our SSS assumes a perspective light coordinate, so orthographic views get no mask.
+		if ( view.GetFrustum().IsOrthographic() )
+			return null;
+
 		var vp = view.GetMainViewport();
 
 		int width = (int)vp.Rect.Width;

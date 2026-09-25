@@ -14,7 +14,7 @@ public readonly ref partial struct Painter
 		if ( !ValidBounds( rect ) ) return;
 		var context = ActiveContext;
 		if ( context.State.Fill.IsTransparent && !border.HasInk ) return;
-		var desc = context.State.Fill.CreateDescriptor( rect, context );
+		context.State.Fill.CreateDescriptor( rect, context, out var desc );
 		desc.Radii = corners.Resolve( rect );
 		desc.Stroke = border.WithAlphaMultiplied( context.InheritedOpacity );
 		Add( context, desc );
@@ -36,12 +36,12 @@ public readonly ref partial struct Painter
 		};
 	}
 
-	internal static bool TryGetBoxStroke( Stroke stroke, out BoxStroke result )
+	internal static bool TryGetBoxStroke( in Stroke stroke, out BoxStroke result )
 	{
 		result = default;
 		if ( !HasStroke( stroke ) || stroke.Alignment != Stroke.StrokeAlignment.Inside
 			|| stroke.Style is BorderStyle.Dashed or BorderStyle.Dotted
-			|| !stroke.Fill.TryGetSolidColor( out var color ) ) return false;
+			|| !Stroke.GetFill( in stroke ).TryGetSolidColor( out var color ) ) return false;
 		result = ResolveBoxStroke( new Vector4( stroke.Width ), color, color, color, color, stroke.Style );
 		return true;
 	}

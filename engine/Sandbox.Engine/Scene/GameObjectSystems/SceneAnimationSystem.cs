@@ -1,4 +1,5 @@
-﻿using Sandbox.Utility;
+﻿using Editor;
+using Sandbox.Utility;
 using System.Collections.Concurrent;
 
 namespace Sandbox;
@@ -24,6 +25,9 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 	{
 		SkinnedRenderers.Remove( renderer );
 	}
+
+	private readonly HashSet<SkinnedModelRenderer> _editorForceBindPose = [];
+	private readonly HashSet<SkinnedModelRenderer> _editorBindPoseTargets = [];
 
 	private ConcurrentQueue<GameTransform> ChangedTransforms { get; } = new();
 
@@ -62,6 +66,8 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 			if ( SkinnedRenderers.Count == 0 )
 				return;
 
+			CollectEditorBindForcePoses();
+
 			foreach ( var renderer in SkinnedRenderers.EnumerateLocked() )
 			{
 				// Drive viseme morphs from any speaking voice before bones/morphs update
@@ -80,6 +86,8 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 			// Use a load-balanced partitioner: work per root is highly uneven (clothed characters have many
 			// bone-merged children), so static range partitioning would cause severe thread idle time.
 			System.Threading.Tasks.Parallel.ForEach( Partitioner.Create( _rootRenderers, loadBalance: true ), _animParallelOptions, ProcessRenderer );
+
+			_editorForceBindPose.Clear();
 
 			// This is a good time to maintain decode caches
 			// Will copy local caches to the global cache and handle LRU eviction
@@ -104,12 +112,66 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 		}
 	}
 
+	/// <summary>
+	/// Collects all the bind pose previews from the editor selection and adds them to the _editorForceBindPose set.
+	/// </summary>
+	private void CollectEditorBindForcePoses()
+	{
+		_editorForceBindPose.Clear();
+		_editorBindPoseTargets.Clear();
+
+		// Important! editor only!
+		if ( !Scene.IsEditor ) return;
+
+		// And active editor only!
+		if ( Scene.Editor is not { IsActive: true } editor )
+			return;
+
+		foreach ( var selected in editor.Selection )
+		{
+			if ( selected is GameObject gameObject && gameObject.IsValid() )
+			{
+				foreach ( var component in gameObject.Components.GetAll() )
+				{
+					TryAddEditorForceBindPose( component );
+				}
+			}
+			else if ( selected is Component component )
+			{
+				TryAddEditorForceBindPose( component );
+			}
+		}
+
+		foreach ( var target in _editorBindPoseTargets )
+		{
+			if ( !target.IsValid() || target.Scene != Scene || !target.Active )
+			{
+				continue;
+			}
+
+			_editorForceBindPose.Add( target.RootBoneMergeTarget );
+		}
+
+		_editorBindPoseTargets.Clear();
+	}
+
+	void TryAddEditorForceBindPose( Component component )
+	{
+		if ( !component.IsValid() ) return;
+		if ( component.Scene != Scene ) return;
+		if ( component is not ISkinnedModelEditor preview ) return;
+
+		preview.AddBindPosePreviewTargets( _editorBindPoseTargets );
+	}
+
 	void ProcessRenderer( SkinnedModelRenderer renderer )
 	{
 		if ( !renderer.IsValid() || !renderer.Enabled )
 			return;
 
-		if ( renderer.AnimationUpdate() )
+		bool forceBindPose = _editorForceBindPose.Count > 0 && _editorForceBindPose.Contains( renderer.RootBoneMergeTarget );
+
+		if ( renderer.AnimationUpdate( forceBindPose ) )
 		{
 			ChangedTransforms.Enqueue( renderer.Transform );
 		}

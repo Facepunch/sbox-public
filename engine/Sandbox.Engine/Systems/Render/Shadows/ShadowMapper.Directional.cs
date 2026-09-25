@@ -81,6 +81,23 @@ internal partial class ShadowMapper
 
 	private static readonly string[] CascadeNames = ["CSM Cascade 0", "CSM Cascade 1", "CSM Cascade 2", "CSM Cascade 3"];
 
+	internal static float CalculateCascadeHardness( float shadowHardness, float cascadeScale, int shadowFilter )
+	{
+		float hardness = Math.Clamp( shadowHardness, 0.0f, 1.0f );
+		float filterRadius = shadowFilter switch
+		{
+			<= 1 => 1.5f,
+			2 => 3.0f,
+			_ => 4.5f
+		};
+
+		// Preserve the softness control when a cascade's world-space kernel becomes
+		// smaller than a texel. A constant cap makes every hardness setting identical
+		// in distant cascades. The fallback spans the full kernel at 0 and one texel at 1.
+		float maximumHardness = 1.0f + hardness * (filterRadius - 1.0f);
+		return Math.Min( (1.0f + hardness * 4.0f) * cascadeScale, maximumHardness );
+	}
+
 	/// <summary>
 	/// Calculates normalized [0,1] split distances for cascade shadow maps.
 	/// Cascade 0 is fixed to firstCascadeSize world units from the near plane.
@@ -338,12 +355,6 @@ internal partial class ShadowMapper
 		var frustum = CFrustum.Create();
 		var exclusionFrustum = CFrustum.Create();
 		float baseHardness = 1.0f + light.ShadowHardness * 4.0f;
-		float maxHardnessForFullTexel = ShadowFilter switch
-		{
-			<= 1 => 1.5f,
-			2 => 3.0f,
-			_ => 4.5f
-		};
 
 		for ( int i = 0; i < cascades.Length; i++ )
 		{
@@ -367,8 +378,9 @@ internal partial class ShadowMapper
 			gpuShadowData.WorldToShadowMatrices[i] = frustum.GetReverseZViewProjTranspose() * texScaleBiasMat.Transpose();
 			gpuShadowData.ShadowMapIndex[i] = rt.DepthTarget.Index;
 
-			// Make cascades share same perceptual sharpness
-			gpuShadowData.CascadeHardness[i] = baseHardness * (cascade.Width / cascades[0].Width);
+			// Bound the world-space kernel scaling without clamping away the hardness control.
+			gpuShadowData.CascadeHardness[i] = i == 0 ? baseHardness
+				: CalculateCascadeHardness( light.ShadowHardness, cascade.Width / cascades[0].Width, ShadowFilter );
 
 			// Cascade bounding sphere for GPU selection (xyz = center, w = radiusSquared).
 			// Shrink non-last cascades by a PCF margin so the selection boundary stays
@@ -386,10 +398,6 @@ internal partial class ShadowMapper
 			// so the bias in world units stays proportional to texel size across all cascades.
 			float biasScale = (cascade.Width * cascades[0].Far) / (cascades[0].Width * cascade.Far);
 			gpuShadowData.ShadowBias[i] = light.ShadowBias * biasScale;
-
-			// Guarantee that cascades are softer for at least a full texel
-			if ( i > 0 )
-				gpuShadowData.CascadeHardness[i] = Math.Min( gpuShadowData.CascadeHardness[i], maxHardnessForFullTexel );
 
 			// Store cascade debug info for HUD rendering
 			CascadeDebugInfos[i] = new CascadeDebugInfo

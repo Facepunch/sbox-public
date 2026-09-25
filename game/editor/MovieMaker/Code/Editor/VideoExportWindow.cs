@@ -373,11 +373,18 @@ public sealed class VideoExportWindow : BaseWindow
 
 		var timeRange = TimeRange;
 
-		await Session.Renderer.RenderAsync( timeRange, Config, ( time, pixels, innerCt ) =>
+		await Session.Renderer.RenderAsync( timeRange, Config, async ( time, pixels, innerCt ) =>
 		{
 			OnExportFrame( time, resolution, pixels );
 
-			return Task.Run( () => writer.AddFrame( pixels.AsSpan(), TimeSpan.FromSeconds( (time - timeRange.Start).TotalSeconds ) ), innerCt );
+			var timestamp = TimeSpan.FromSeconds( (time - timeRange.Start).TotalSeconds );
+
+			while ( !writer.ReadyForVideoFrame )
+			{
+				await Task.Delay( 10, innerCt );
+			}
+
+			await Task.Run( () => writer.AddFrame( pixels.AsSpan(), timestamp ), innerCt );
 		}, ct );
 
 		await writer.FinishAsync();

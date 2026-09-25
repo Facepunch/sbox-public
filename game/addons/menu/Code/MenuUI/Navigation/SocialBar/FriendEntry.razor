@@ -24,7 +24,7 @@
 
 		@if ( CanInviteToParty )
 		{
-			<div class="action" onclick=@InviteToParty><label>#friendentry.invite</label></div>
+			<div class="action @(InviteOnCooldown ? "disabled" : "")" onclick=@InviteToParty><label>#friendentry.invite</label></div>
 		}
 	</div>
 </root>
@@ -56,6 +56,9 @@
     }
 
     public bool CanInviteToParty => MenuUtility.CanInviteToParty(Friend);
+
+    RealTimeUntil timeUntilCanInvite = 0;
+    bool InviteOnCooldown => timeUntilCanInvite > 0;
 
     public string CssClasses
     {	
@@ -100,16 +103,25 @@
         StateHasChanged();
     }
 
-    public void JoinGame()
+    public void JoinGame( PanelEvent e )
     {
+        e.StopPropagation();
         MenuUtility.JoinFriendGame(Friend);
     }
 
-    async Task InviteToParty()
+    async void InviteToParty( PanelEvent e )
     {
+        e.StopPropagation();
+        if ( InviteOnCooldown ) return;
+
+        Sound.Play( "ui.button.press" );
+        timeUntilCanInvite = 5;
+
         await PartyDeck.EnsureLobbyExists();
         MenuUtility.InviteToParty(Friend.Id);
     }
+
+    protected override int BuildHash() => HashCode.Combine( InviteOnCooldown );
 
     void ShowFriendPopup()
     {

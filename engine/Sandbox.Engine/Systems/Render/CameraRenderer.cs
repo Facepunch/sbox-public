@@ -81,7 +81,7 @@ internal ref struct CameraRenderer
 		Native.ClearRenderTags();
 		Native.ClearExcludeTags();
 
-		foreach ( var tag in camera.RenderTags.TryGetAll() )
+		foreach ( var tag in (config.RenderTags ?? camera.RenderTags).TryGetAll() )
 		{
 			Native.AddRenderTag( StringToken.FindOrCreate( tag ) );
 		}
@@ -89,6 +89,14 @@ internal ref struct CameraRenderer
 		foreach ( var tag in camera.ExcludeTags.TryGetAll() )
 		{
 			Native.AddExcludeTag( StringToken.FindOrCreate( tag ) );
+		}
+
+		if ( config.ExcludeTags is not null )
+		{
+			foreach ( var tag in config.ExcludeTags.TryGetAll() )
+			{
+				Native.AddExcludeTag( StringToken.FindOrCreate( tag ) );
+			}
 		}
 
 		Native.ViewUniqueId = HashCode.Combine( cameraId, config.ViewHash );
@@ -102,8 +110,8 @@ internal ref struct CameraRenderer
 		Native.Ortho = camera.Ortho;
 		Native.ClipSpaceBounds = config.ClipSpaceBounds ?? new Vector4( -1, -1, 1, 1 );
 		Native.EnablePostprocessing = config.EnablePostprocessing ?? camera.EnablePostProcessing;
-		Native.EnableEngineOverlays = camera.EnableEngineOverlays;
-		Native.EnableUI = camera.RenderUI;
+		Native.EnableEngineOverlays = config.EnableDebugOverlays ?? camera.EnableEngineOverlays;
+		Native.EnableUI = config.EnableUI ?? camera.RenderUI;
 		Native.UIOnly = camera.UIOnly;
 		Native.FlipX = config.FlipX ?? false;
 		Native.FlipY = config.FlipY ?? false;

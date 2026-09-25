@@ -505,8 +505,11 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	/// </summary>
 	private bool HasEarlyUI()
 	{
-		if ( commandlists.ContainsKey( Stage.EarlyUI ) )
-			return true;
+		lock ( _commandListLock )
+		{
+			if ( commandlists.TryGetValue( Stage.EarlyUI, out var list ) && list.Count > 0 )
+				return true;
+		}
 
 		foreach ( var c in Scene.renderScreenPanels )
 		{
@@ -780,16 +783,19 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 
 		using var setup = new CameraRenderer( $"{GameObject.Name}.RenderToTexture", sceneCamera._cameraId );
 
+		// The lock only covers reading the scene camera into this call's renderer. A top-level render
+		// waits for the whole frame inside the native call, and a child view rendered through this
+		// camera from the render thread needs the lock during that wait.
 		lock ( this )
 		{
 			setup.Configure( sceneCamera, config );
-
-			//
-			// Adds the views to the scene system
-			//
-			setup.Native.RenderToTexture( target.native, Graphics.SceneView );
-			setup.Native.ClearSceneWorlds();
 		}
+
+		//
+		// Adds the views to the scene system
+		//
+		setup.Native.RenderToTexture( target.native, Graphics.SceneView );
+		setup.Native.ClearSceneWorlds();
 
 
 		return true;

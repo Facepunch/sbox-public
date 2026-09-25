@@ -78,7 +78,7 @@ public partial class PanelDrawTest : PainterTestBase
 			Assert.AreEqual( Color.White.WithAlpha( 0.5f ), line.GPU.BackgroundTint );
 			Assert.AreEqual( new Vector4( -0.5f, -0.5f, 1001, 1 ), line.GPU.Rect );
 			Assert.AreEqual( new Vector4( 0, 0, 1001, 1 ), line.GPU.BackgroundRect );
-			Assert.AreEqual( 1, line.PathData.Primitives.Length );
+			AssertSimpleLine( line, Vector2.Zero, new Vector2( 1000, 0 ), PaintStroke.Cap );
 		} );
 	}
 
@@ -91,8 +91,10 @@ public partial class PanelDrawTest : PainterTestBase
 			foreach ( var pattern in new[] { BorderStyle.Dotted, BorderStyle.Dashed } )
 			{
 				var stroke = new Stroke( Color.White, 1e-20f ) { Style = pattern, DashLength = 1e-20f, Gap = 1e-20f };
+				// The duplicate endpoint selects general path generation. Analytic two-point
+				// lines do not allocate geometry per dash and have no such capacity limit.
 				Action[] draws = [
-					() => Paint.Line( Vector2.Zero, new Vector2( 1000, 0 ) ),
+					() => Paint.Line( [Vector2.Zero, Vector2.Zero, new Vector2( 1000, 0 )] ),
 					() => Paint.Polygon( [Vector2.Zero, new Vector2( 1000, 0 ), new Vector2( 1000, 1000 )] ),
 					() => Paint.Arc( Vector2.Zero, 200, 15, -270 ),
 					() => Paint.Arc( Vector2.Zero, 200, 0, 360 )];
@@ -109,7 +111,8 @@ public partial class PanelDrawTest : PainterTestBase
 				layer.Clear();
 				var accepted = new Stroke( Color.White, 0.125f ) { Style = pattern, DashLength = 0.125f, Gap = 0.125f };
 				PaintStroke = accepted;
-				Paint.Line( Vector2.Zero, new Vector2( 50000 * 0.25f, 0 ) );
+				// Keep this check on generated geometry rather than the analytic line representation.
+				Paint.Line( [Vector2.Zero, Vector2.Zero, new Vector2( 50000 * 0.25f, 0 )] );
 				Assert.AreEqual( pattern == BorderStyle.Dotted ? 50001 : 50000, Primitives( layer ).Length, "An open dotted path includes both endpoints." );
 			}
 		} );

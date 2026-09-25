@@ -2,8 +2,11 @@
 
 public abstract class VolumeComponent : Component, VolumeSystem.IVolume
 {
+	/// <summary>
+	/// Shape and local dimensions of this volume, edited with the shared volume controls.
+	/// </summary>
 	[InlineEditor, Property]
-	public SceneVolume SceneVolume { get; set; } = new SceneVolume();
+	public virtual SceneVolume SceneVolume { get; set; } = new SceneVolume();
 
 	/// <summary>
 	/// True if SceneVolume.Type == SceneVolume.VolumeTypes.Infinite

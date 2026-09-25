@@ -1,6 +1,3 @@
-using System.Buffers;
-using System.Runtime.InteropServices;
-
 namespace Sandbox;
 
 public readonly ref partial struct Painter
@@ -14,24 +11,24 @@ public readonly ref partial struct Painter
 	public void LineSmooth( ReadOnlySpan<Vector2> points )
 	{
 		if ( !HasStroke( Stroke ) || points.Length < 2 ) return;
-		var rented = ArrayPool<Vector2>.Shared.Rent( points.Length );
+		using var pointBuffer = new PooledSpan<Vector2>( points.Length );
+		var clean = pointBuffer.Span;
+		int count = 0;
+		foreach ( var point in points )
+		{
+			if ( !point.IsFinite ) return;
+			if ( count == 0 || point != clean[count - 1] ) clean[count++] = point;
+		}
+		if ( count < 2 ) return;
+		if ( count == 2 )
+		{
+			Line( clean[..count] );
+			return;
+		}
+
+		var curve = new CurvePoints( clean[0] );
 		try
 		{
-			var clean = rented.AsSpan( 0, points.Length );
-			int count = 0;
-			foreach ( var point in points )
-			{
-				if ( !point.IsFinite ) return;
-				if ( count == 0 || point != clean[count - 1] ) clean[count++] = point;
-			}
-			if ( count < 2 ) return;
-			if ( count == 2 )
-			{
-				Line( clean[..count] );
-				return;
-			}
-
-			var curve = new List<Vector2> { clean[0] };
 			for ( int i = 0; i < count - 1; i++ )
 			{
 				var from = clean[i];
@@ -43,14 +40,15 @@ public readonly ref partial struct Painter
 				var control2 = i + 2 == count ? from * (1f / 3f) + to * (2f / 3f)
 					: to - SmoothTangent( from, to, clean[i + 2], interval / 3 );
 				if ( !control1.IsFinite || !control2.IsFinite ) return;
-				FlattenBezier( curve, from, control1, control2, to );
+				FlattenBezier( ref curve, from, control1, control2, to );
 			}
+
 			// One path preserves paint mapping, dash phase and endpoint caps across all segments.
-			Line( CollectionsMarshal.AsSpan( curve ) );
+			Line( curve.Span );
 		}
 		finally
 		{
-			ArrayPool<Vector2>.Shared.Return( rented );
+			curve.Dispose();
 		}
 	}
 

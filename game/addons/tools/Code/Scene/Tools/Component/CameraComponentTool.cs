@@ -135,7 +135,7 @@ public class CameraEditorTool : EditorTool<CameraComponent>
 		camera.WorldPosition = viewport.State.CameraPosition;
 		camera.WorldRotation = viewport.State.CameraRotation;
 
-		var viewportSize = viewport.Size;
+		var viewportSize = Gizmo.Camera.Size;
 		var viewportRect = new Rect( 0f, 0f, viewportSize.x, viewportSize.y );
 		var frameRect = viewportRect.Contain( new Vector2( 1920f, 1080f ), stretch: true );
 		var centerThirdX = new Rect( frameRect.Left + frameRect.Width / 3f, frameRect.Top, frameRect.Width / 3f, frameRect.Height );

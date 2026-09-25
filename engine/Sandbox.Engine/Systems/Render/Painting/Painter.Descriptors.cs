@@ -60,6 +60,8 @@ public readonly ref partial struct Painter
 
 		internal UICssBoxBatched.BorderShape BorderShapeData;
 		internal Painter.Path.Data PathData;
+		// A shape the batcher already holds. Only valid in the batcher that received this immediately submitted descriptor.
+		internal int? ShapeIndex;
 
 		internal readonly bool HasImage => BackgroundImage != null && BackgroundImage != Sandbox.Texture.Invalid;
 		internal readonly bool HasGradient => !BackgroundGradient.ColorOffsets.IsDefaultOrEmpty;
@@ -71,6 +73,9 @@ public readonly ref partial struct Painter
 		/// Packs a polygon with coordinates relative to the box's top-left.
 		/// </summary>
 		internal void SetPolygon( ReadOnlySpan<Vector2> points )
+			=> CreatePolygonShape( points, out BorderShapeData );
+
+		internal static void CreatePolygonShape( ReadOnlySpan<Vector2> points, out UICssBoxBatched.BorderShape shape )
 		{
 			ArgumentOutOfRangeException.ThrowIfLessThan( points.Length, 3 );
 			ArgumentOutOfRangeException.ThrowIfGreaterThan( points.Length, BorderShape.MaxPoints );
@@ -80,7 +85,7 @@ public readonly ref partial struct Painter
 			padded.Clear();
 			points.CopyTo( padded );
 
-			BorderShapeData = new UICssBoxBatched.BorderShape
+			shape = new UICssBoxBatched.BorderShape
 			{
 				Kind = UICssBoxBatched.ShapeKind.Polygon,
 				Polygon01 = Pack( padded, 0 ),

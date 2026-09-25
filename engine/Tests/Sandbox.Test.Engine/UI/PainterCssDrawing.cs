@@ -47,7 +47,7 @@ public class PainterCssDrawingTest
 		_context.BaseTransform = Matrix.CreateTranslation( new Vector3( 100, 200, 0 ) );
 		if ( invalidate ) _context.ResetDrawingState( BlendMode.Multiply );
 
-		var descriptor = fill.CreateDescriptor( rect, 1, BlendMode.Normal, insets );
+		fill.CreateDescriptor( rect, 1, BlendMode.Normal, insets, out var descriptor );
 		descriptor.Radii = corners.Resolve( rect );
 		descriptor.Stroke = Painter.ResolveBoxStroke( stroke );
 		painter.Rect( in descriptor );
@@ -65,7 +65,7 @@ public class PainterCssDrawingTest
 		var rect = new Rect( 20, 30, 120, 80 );
 		var fill = Fill.LinearGradient( Color.Red, Color.Blue );
 		var stroke = Stroke.Solid( Color.Green.WithAlpha( 0.8f ), 3 ).WithAlignment( Stroke.StrokeAlignment.Inside );
-		var descriptor = fill.CreateDescriptor( rect, 1, BlendMode.Normal, default );
+		fill.CreateDescriptor( rect, 1, BlendMode.Normal, default, out var descriptor );
 		descriptor.Stroke = Painter.ResolveBoxStroke( stroke );
 		var original = descriptor;
 
@@ -74,9 +74,9 @@ public class PainterCssDrawingTest
 			_context.InheritedOpacity = opacity;
 			Paint.Rect( in descriptor );
 
-			var expected = fill.CreateDescriptor( rect, opacity, BlendMode.Normal, default );
+			fill.CreateDescriptor( rect, opacity, BlendMode.Normal, default, out var expected );
 			expected.Stroke = Painter.ResolveBoxStroke( stroke ).WithAlphaMultiplied( opacity );
-			var gpu = _context.Batcher.Resolve( expected, Matrix.Identity, -1 );
+			_context.Batcher.Resolve( expected, Matrix.Identity, -1, out var gpu );
 			Assert.AreEqual( gpu, _context.Batcher.Instances[^1] );
 			Assert.AreEqual( original, descriptor );
 		}

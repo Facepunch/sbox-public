@@ -31,7 +31,7 @@ internal record ArtifactManifest
 }
 
 /// <summary>
-/// Syncs the master branch to the public repository by filtering specific paths
+/// Syncs the master branch and tags to the public repository by filtering specific paths
 /// </summary>
 internal class SyncPublicRepo( bool dryRun = false )
 {
@@ -538,7 +538,7 @@ internal class SyncPublicRepo( bool dryRun = false )
 
 	private string PushToPublicRepository( string relativeRepoPath )
 	{
-		Log.Info( "Pushing filtered repository to public..." );
+		Log.Info( "Pushing filtered branch and tags to public..." );
 
 		var token = Environment.GetEnvironmentVariable( "SYNC_GITHUB_TOKEN" );
 		if ( string.IsNullOrEmpty( token ) )
@@ -558,7 +558,9 @@ internal class SyncPublicRepo( bool dryRun = false )
 			}
 		}
 
-		if ( !Utility.RunProcess( "git", $"push public {PUBLIC_BRANCH}", relativeRepoPath ) )
+		// git-filter-repo has already rewritten tag targets to their public commits.
+		// Push both lightweight and annotated tags atomically with the branch.
+		if ( !Utility.RunProcess( "git", $"push --atomic public {PUBLIC_BRANCH} --tags", relativeRepoPath ) )
 		{
 			Log.Error( "Failed to push to public repository" );
 			return null;

@@ -475,6 +475,8 @@ file sealed class LightCapturer : ComponentCapturer<Light>
 			recorder.Property( nameof( Light.ShadowBias ) ).Capture();
 			recorder.Property( nameof( Light.ShadowHardness ) ).Capture();
 		}
+
+		recorder.Property( nameof( Light.Contribution ) ).Capture();
 	}
 }
 
@@ -507,6 +509,7 @@ file sealed class DirectionalLightCapturer : ComponentCapturer<DirectionalLight>
 	protected override void OnCapture( IMovieTrackRecorder recorder, DirectionalLight component )
 	{
 		recorder.Property( nameof( DirectionalLight.SkyColor ) ).Capture();
+		recorder.Property( nameof( DirectionalLight.ContactShadows ) ).Capture();
 
 		if ( component.Shadows )
 		{
@@ -522,6 +525,60 @@ file sealed class AmbientLightCapturer : ComponentCapturer<AmbientLight>
 	protected override void OnCapture( IMovieTrackRecorder recorder, AmbientLight component )
 	{
 		recorder.Property( nameof( AmbientLight.Color ) ).Capture();
+	}
+}
+
+[Expose]
+file sealed class GradientFogCapturer : ComponentCapturer<GradientFog>
+{
+	protected override void OnCapture( IMovieTrackRecorder recorder, GradientFog component )
+	{
+		recorder.Property( nameof( GradientFog.Color ) ).Capture();
+		recorder.Property( nameof( GradientFog.Height ) ).Capture();
+		recorder.Property( nameof( GradientFog.VerticalFalloffExponent ) ).Capture();
+		recorder.Property( nameof( GradientFog.StartDistance ) ).Capture();
+		recorder.Property( nameof( GradientFog.EndDistance ) ).Capture();
+		recorder.Property( nameof( GradientFog.FalloffExponent ) ).Capture();
+	}
+}
+
+[Expose]
+file sealed class CubemapFogCapturer : ComponentCapturer<CubemapFog>
+{
+	protected override void OnCapture( IMovieTrackRecorder recorder, CubemapFog component )
+	{
+		recorder.Property( nameof( CubemapFog.Sky ) ).Capture();
+		recorder.Property( nameof( CubemapFog.Blur ) ).Capture();
+		recorder.Property( nameof( CubemapFog.StartDistance ) ).Capture();
+		recorder.Property( nameof( CubemapFog.EndDistance ) ).Capture();
+		recorder.Property( nameof( CubemapFog.FalloffExponent ) ).Capture();
+		recorder.Property( nameof( CubemapFog.HeightWidth ) ).Capture();
+		recorder.Property( nameof( CubemapFog.HeightStart ) ).Capture();
+		recorder.Property( nameof( CubemapFog.HeightExponent ) ).Capture();
+		recorder.Property( nameof( CubemapFog.Tint ) ).Capture();
+	}
+}
+
+[Expose]
+file sealed class VolumetricFogVolumeCapturer : ComponentCapturer<VolumetricFogVolume>
+{
+	protected override void OnCapture( IMovieTrackRecorder recorder, VolumetricFogVolume component )
+	{
+		recorder.Property( nameof( VolumetricFogVolume.Bounds ) ).Capture();
+		recorder.Property( nameof( VolumetricFogVolume.Strength ) ).Capture();
+		recorder.Property( nameof( VolumetricFogVolume.FalloffExponent ) ).Capture();
+		recorder.Property( nameof( VolumetricFogVolume.Color ) ).Capture();
+	}
+}
+
+[Expose]
+file sealed class SkyBox2DCapturer : ComponentCapturer<SkyBox2D>
+{
+	protected override void OnCapture( IMovieTrackRecorder recorder, SkyBox2D component )
+	{
+		recorder.Property( nameof( SkyBox2D.SkyMaterial ) ).Capture();
+		recorder.Property( nameof( SkyBox2D.Tint ) ).Capture();
+		recorder.Property( nameof( SkyBox2D.SkyIndirectLighting ) ).Capture();
 	}
 }
 

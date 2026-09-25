@@ -12,7 +12,7 @@ public partial class PanelDrawTest : PainterTestBase
 		Vector2[] vertices = [endpoint + outward * size, endpoint + transverse * size, endpoint - transverse * size];
 		foreach ( var point in vertices )
 		{
-			Assert.IsTrue( layer.Instances.Any( tile => tile.PathData.Primitives.Contains( primitive )
+			Assert.IsTrue( layer.Instances.Any( tile => (tile.BorderShapeData.Kind == UICssBoxBatched.ShapeKind.SimpleLine || tile.PathData is not null && tile.PathData.Primitives.Contains( primitive ))
 				&& point.x >= tile.GPU.Rect.x && point.x <= tile.GPU.Rect.x + tile.GPU.Rect.z
 				&& point.y >= tile.GPU.Rect.y && point.y <= tile.GPU.Rect.y + tile.GPU.Rect.w ), $"Missing cap at {point}" );
 		}
@@ -37,11 +37,9 @@ public partial class PanelDrawTest : PainterTestBase
 								var color = Color.Red.WithAlpha( 0.25f );
 								PaintStroke = new Stroke( color, width ) { Cap = cap };
 								Paint.Line( start, end );
-								var segment = Primitives( layer ).Single();
-								Assert.AreEqual( UICssBoxBatched.PathPrimitiveKind.Segment, segment.Kind );
-								Assert.AreEqual( new Vector4( (int)cap, (int)cap, 0, 0 ), segment.B );
-								AssertCapBounds( layer, segment, start, (start - end).Normal, width, cap );
-								AssertCapBounds( layer, segment, end, (end - start).Normal, width, cap );
+								AssertSimpleLine( layer.Instances.Single(), start, end, cap );
+								AssertCapBounds( layer, default, start, (start - end).Normal, width, cap );
+								AssertCapBounds( layer, default, end, (end - start).Normal, width, cap );
 								Assert.IsTrue( layer.Instances.All( tile => tile.GPU.Color == color && tile.BorderShapeData.Circle.z == width ) );
 								Assert.AreEqual( 1, layer.Instances.Count, "A stroke blends its union once." );
 							}

@@ -361,11 +361,12 @@ PS
 		#endif
 
 		// Cluster lights (dynamic + indexed static) — wrap + SSS per light.
-		/*uint lightCount = Light::Count( m.ScreenPosition );
+		/*const float3 vReceiverNormalWs = ComputeShadowReceiverNormal( m.WorldPosition );
+		uint lightCount = Light::Count( m.ScreenPosition );
 		[loop]
 		for ( uint li = 0; li < lightCount; li++ )
 		{
-			Light light = Light::From( m.WorldPosition, m.ScreenPosition, li );
+			Light light = Light::From( m.WorldPosition, m.ScreenPosition, li, m.LightmapUV, vReceiverNormalWs );
 			if ( light.Attenuation <= 0.0 )
 				continue;
 

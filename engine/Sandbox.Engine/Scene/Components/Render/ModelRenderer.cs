@@ -244,7 +244,7 @@ public partial class ModelRenderer : Renderer, ExecuteInEditor, ITintable, IMate
 		_sceneObject.Model = model;
 		_sceneObject.MeshGroupMask = BodyGroups;
 		_sceneObject.Flags.CastShadows = RenderType == ShadowRenderType.On || RenderType == ShadowRenderType.ShadowsOnly;
-		_sceneObject.Flags.IsStatic = GameObject.IsStatic;
+		_sceneObject.Flags.IsStatic = GameObject.IsStatic && !_hasActiveDeformations;
 		_sceneObject.RenderingEnabled = model.HasRenderMeshes();
 
 		if ( _lodOverride.HasValue )
@@ -274,7 +274,7 @@ public partial class ModelRenderer : Renderer, ExecuteInEditor, ITintable, IMate
 
 		var model = Model ?? Model.Load( "models/dev/box.vmdl" );
 
-		_sceneObject = new SceneObject( Scene.SceneWorld, model, WorldTransform );
+		_sceneObject = CreateSceneObject( model );
 		OnSceneObjectCreated( _sceneObject );
 
 		Transform.OnTransformChanged += OnTransformChanged;
@@ -309,6 +309,7 @@ public partial class ModelRenderer : Renderer, ExecuteInEditor, ITintable, IMate
 			BackupRenderAttributes( _sceneObject?.Attributes );
 			_sceneObject?.Delete();
 			_sceneObject = null;
+			ResetDeformations();
 		}
 
 		base.OnDisabledInternal();

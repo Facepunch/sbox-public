@@ -1,5 +1,3 @@
-using System.Runtime.InteropServices;
-
 namespace Sandbox;
 
 public readonly ref partial struct Painter
@@ -24,7 +22,7 @@ public readonly ref partial struct Painter
 			}
 			if ( _data is null ) return;
 			var context = painter.ActiveContext;
-			var descriptor = new Fill( color ).CreateDescriptor( _bounds, context, clipFill: false );
+			new Fill( color ).CreateDescriptor( _bounds, context, out var descriptor, clipFill: false );
 			descriptor.BorderShapeData = _data.Shape;
 			descriptor.PathData = _data;
 			Add( context, descriptor );
@@ -49,7 +47,7 @@ public readonly ref partial struct Painter
 			}
 			if ( _data is null ) return;
 			var context = painter.ActiveContext;
-			var descriptor = new Fill( color ).CreateDescriptor( _bounds, context );
+			new Fill( color ).CreateDescriptor( _bounds, context, out var descriptor );
 			descriptor.BorderShapeData = _data.Shape;
 			descriptor.PathData = _data;
 			Add( context, descriptor );
@@ -62,28 +60,36 @@ public readonly ref partial struct Painter
 		{
 			bounds = default;
 			if ( points.Length < 3 || !GetBounds( points, out bounds ) || bounds.Width <= 0 || bounds.Height <= 0 ) return null;
-			var edges = new UICssBoxBatched.PathPrimitive[points.Length];
+			using var edgeBuffer = new PooledSpan<UICssBoxBatched.PathPrimitive>( points.Length );
+			var edges = edgeBuffer.Span;
+			PolygonEdges( points, bounds, edges );
+			return new Data( new() { Kind = UICssBoxBatched.ShapeKind.PolygonPath }, edges );
+		}
+
+		static void PolygonEdges( ReadOnlySpan<Vector2> points, Rect bounds, Span<UICssBoxBatched.PathPrimitive> edges )
+		{
 			for ( int i = 0; i < points.Length; i++ )
 			{
-				edges[i].Kind = UICssBoxBatched.PathPrimitiveKind.Segment;
-				edges[i].A = Pack( points[i] - bounds.Position, points[(i + 1) % points.Length] - bounds.Position );
+				edges[i] = new() { Kind = UICssBoxBatched.PathPrimitiveKind.Segment, A = Pack( points[i] - bounds.Position, points[(i + 1) % points.Length] - bounds.Position ) };
 			}
-			return new Data( new() { Kind = UICssBoxBatched.ShapeKind.PolygonPath }, edges );
 		}
 
 		internal static Data BuildSolidLine( ReadOnlySpan<Vector2> points, float width, out Rect bounds )
 		{
 			bounds = default;
 			if ( points.Length < 2 || !ValidWidth( width ) || !GetBounds( points, out _ ) ) return null;
-			var primitives = new List<UICssBoxBatched.PathPrimitive>();
-			AddRun( primitives, points, Stroke.Solid( Color.White, width ), false );
+			using var primitiveBuffer = new PooledSpan<UICssBoxBatched.PathPrimitive>( checked(points.Length * 2) );
+			var primitives = primitiveBuffer.Span;
+			int primitiveCount = 0;
+			AddRun( primitives, ref primitiveCount, points, Stroke.Solid( Color.White, width ), false );
+			primitives = primitives[..primitiveCount];
 			if ( !GetPrimitiveBounds( primitives, width * 0.5f, out bounds ) ) return null;
 			var shape = new UICssBoxBatched.BorderShape
 			{
 				Kind = UICssBoxBatched.ShapeKind.StrokePath,
 				Circle = new Vector4( bounds.Left, bounds.Top, width, 0 )
 			};
-			return new Data( shape, CollectionsMarshal.AsSpan( primitives ) );
+			return new Data( shape, primitives );
 		}
 	}
 }

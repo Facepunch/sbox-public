@@ -6,9 +6,9 @@ internal partial class PainterBatcher
 {
 	internal readonly record struct Spatial( Matrix Transform, int ScissorIndex, int TransformIndex );
 
-	internal UICssBoxBatched.BoxInstance Resolve( in Painter.BoxDescriptor desc, Matrix localTransform, int clipIndex )
+	internal void Resolve( in Painter.BoxDescriptor desc, in Matrix localTransform, int clipIndex, out UICssBoxBatched.BoxInstance gpu )
 	{
-		var gpu = UICssBoxBatched.BoxInstance.From( desc );
+		UICssBoxBatched.BoxInstance.From( desc, out gpu );
 		var spatial = Destination.ResolveSpatial( this, localTransform );
 		var backgroundImage = desc.HasImage ? desc.BackgroundImage : null;
 		var borderImage = desc.BorderImage.Texture;
@@ -49,25 +49,22 @@ internal partial class PainterBatcher
 		// Gradient, shape, transform and scissor indices are resolved afresh each frame.
 		if ( backgroundImage is null && desc.HasGradient )
 			gpu.TextureIndex = -GetOrAddGradient( in desc.BackgroundGradient ) - 1;
-		gpu.ShapeIndex = desc.PathData is null ? GetOrAddShape( desc.BorderShapeData ) : GetOrAddPath( desc.PathData );
+		gpu.ShapeIndex = desc.ShapeIndex ?? (desc.PathData is null ? GetOrAddShape( desc.BorderShapeData ) : GetOrAddPath( desc.PathData ));
 		ResolveSpatial( ref gpu, clipIndex, spatial );
-		return gpu;
 	}
 
-	internal UICssBoxBatched.BoxInstance Resolve( in Painter.ShadowDescriptor desc, Matrix localTransform, int clipIndex )
+	internal void Resolve( in Painter.ShadowDescriptor desc, in Matrix localTransform, int clipIndex, out UICssBoxBatched.BoxInstance gpu )
 	{
-		var gpu = UICssBoxBatched.BoxInstance.FromShadow( desc );
+		gpu = UICssBoxBatched.BoxInstance.FromShadow( desc );
 		var spatial = Destination.ResolveSpatial( this, localTransform );
 		ResolveSpatial( ref gpu, clipIndex, spatial );
 		gpu.InverseScissorIndex = GetOrAddScissor( Painter.Scissoring.Single( desc.Rect, desc.Radii, spatial.Transform.Inverted, invert: !desc.Inset ) );
-		return gpu;
 	}
 
-	internal UICssBoxBatched.BoxInstance Resolve( in Painter.OutlineDescriptor desc, Matrix localTransform, int clipIndex )
+	internal void Resolve( in Painter.OutlineDescriptor desc, in Matrix localTransform, int clipIndex, out UICssBoxBatched.BoxInstance gpu )
 	{
-		var gpu = UICssBoxBatched.BoxInstance.FromOutline( desc );
+		gpu = UICssBoxBatched.BoxInstance.FromOutline( desc );
 		ResolveSpatial( ref gpu, clipIndex, Destination.ResolveSpatial( this, localTransform ) );
-		return gpu;
 	}
 
 	void ResolveSpatial( ref UICssBoxBatched.BoxInstance gpu, int clipIndex, in Spatial spatial )

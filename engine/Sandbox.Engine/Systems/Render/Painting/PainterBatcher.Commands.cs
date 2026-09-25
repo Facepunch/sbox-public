@@ -1,4 +1,5 @@
 using Sandbox.Rendering;
+using Sandbox.UI;
 using static Sandbox.Painter;
 
 namespace Sandbox;
@@ -87,7 +88,7 @@ internal partial class PainterBatcher
 			_scissorIndex = previous.Index;
 		}
 
-		internal Spatial ResolveSpatial( PainterBatcher batcher, Matrix localTransform )
+		internal Spatial ResolveSpatial( PainterBatcher batcher, in Matrix localTransform )
 		{
 			_scissorIndex ??= batcher.GetOrAddScissor( Scissor );
 			if ( !_transformIndex.HasValue || _localTransform != localTransform )
@@ -121,7 +122,7 @@ internal partial class PainterBatcher
 	internal PainterBatcher( CommandList commands )
 	{
 		_commands = commands;
-		_tables = [_textTable, _boxTable, _scissorTable, _transformTable, _gradientTable, _shapeTable, _pathTable, _pathNodeTable];
+		_tables = [_textTable, _boxTable, _scissorTable, _transformTable, _gradientTable, _shapeTable, _pathTable, _pathNodeTable, _polygonPointTable];
 	}
 
 	internal void SetViewport( Rect bounds, Matrix? worldMatrix )
@@ -260,20 +261,38 @@ internal partial class PainterBatcher
 
 	internal void Add( in BoxDescriptor descriptor, float opacity, BlendMode blendMode, Matrix? transform = null, int clipIndex = -1 )
 	{
-		var instance = Resolve( descriptor, transform ?? Matrix.Identity, clipIndex );
+		Resolve( descriptor, transform ?? Matrix.Identity, clipIndex, out var instance );
 		instance.ApplyOpacity( opacity );
+		Append( instance, blendMode );
+	}
+
+	/// <summary>
+	/// Resolves and submits a solid painter shape without the image, gradient and border
+	/// fields of a CSS descriptor. Color already includes inherited and drawing opacity.
+	/// </summary>
+	internal void AddSolidShape( Rect bounds, Color color, int shapeIndex, BackgroundClip backgroundClip,
+		in Vector4 fillInsets, in Matrix transform, int clipIndex, BlendMode blendMode )
+	{
+		UICssBoxBatched.BoxInstance instance = default;
+		instance.Rect = new Vector4( bounds.Left, bounds.Top, bounds.Width, bounds.Height );
+		instance.Color = color;
+		instance.ShapeIndex = shapeIndex;
+		instance.InverseScissorIndex = -1;
+		instance.BackgroundClip = (int)backgroundClip;
+		instance.BackgroundClipRect = fillInsets;
+		ResolveSpatial( ref instance, clipIndex, Destination.ResolveSpatial( this, transform ) );
 		Append( instance, blendMode );
 	}
 
 	internal void Add( in ShadowDescriptor descriptor, Matrix? transform = null, int clipIndex = -1 )
 	{
-		var instance = Resolve( descriptor, transform ?? Matrix.Identity, clipIndex );
+		Resolve( descriptor, transform ?? Matrix.Identity, clipIndex, out var instance );
 		Append( instance, descriptor.Inset ? descriptor.OverrideBlendMode : BlendMode.Normal );
 	}
 
 	internal void Add( in OutlineDescriptor descriptor, Matrix? transform = null, int clipIndex = -1 )
 	{
-		var instance = Resolve( descriptor, transform ?? Matrix.Identity, clipIndex );
+		Resolve( descriptor, transform ?? Matrix.Identity, clipIndex, out var instance );
 		Append( instance, descriptor.OverrideBlendMode );
 	}
 

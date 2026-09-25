@@ -308,11 +308,7 @@ public class PanelDirectDrawingTest
 			Assert.IsTrue( panel.DrewOnMainThread );
 			panel.Color = Color.Blue;
 
-			Task.Run( () =>
-			{
-				Assert.IsFalse( ThreadSafe.IsMainThread );
-				DrawToTarget( target, () => system.Render() );
-			} ).GetAwaiter().GetResult();
+			DrawInScene( target, () => system.Render() );
 			using ( var global = target.GetBitmap() )
 			{
 				Assert.AreEqual( manual ? Color.Transparent : Color.Red, global.GetPixel( 32, 32 ) );
@@ -320,7 +316,7 @@ public class PanelDirectDrawingTest
 
 			if ( manual )
 			{
-				Task.Run( () => DrawToTarget( target, () => root.RenderManual() ) ).GetAwaiter().GetResult();
+				DrawInScene( target, () => root.RenderManual() );
 				using var replay = target.GetBitmap();
 				Assert.AreEqual( Color.Red, replay.GetPixel( 32, 32 ) );
 			}
@@ -328,7 +324,7 @@ public class PanelDirectDrawingTest
 			Assert.AreEqual( 1, panel.Draws, "Executing prepared commands must not call OnDraw." );
 			system.LayoutAndBuild();
 			Assert.AreEqual( 2, panel.Draws );
-			Task.Run( () => DrawToTarget( target, () => root.Render() ) ).GetAwaiter().GetResult();
+			DrawInScene( target, () => root.Render() );
 			using var updated = target.GetBitmap();
 			Assert.AreEqual( Color.Blue, updated.GetPixel( 32, 32 ) );
 		}
@@ -362,7 +358,7 @@ public class PanelDirectDrawingTest
 				DrawToTarget( target, () => root.Render() );
 				using var expected = target.GetBitmap();
 				root.BuildCommandList();
-				Task.Run( () => DrawToTarget( target, () => root.RenderManual( opacity ) ) ).GetAwaiter().GetResult();
+				DrawToTarget( target, () => root.RenderManual( opacity ) );
 				using var actual = target.GetBitmap();
 				var expectedBytes = expected.GetBuffer();
 				var actualBytes = actual.GetBuffer();
@@ -398,7 +394,7 @@ public class PanelDirectDrawingTest
 			foreach ( var size in new[] { 64, 96 } )
 			{
 				using var target = Texture.CreateRenderTarget().WithSize( size, size ).Create();
-				Task.Run( () => DrawToTarget( target, () =>
+				DrawInScene( target, () =>
 				{
 					var destination = Graphics.RenderTarget;
 					var viewport = new NativeEngine.RenderViewport( new Rect( 4, 4, size - 8, size - 8 ), 0.2f, 0.8f );
@@ -409,7 +405,7 @@ public class PanelDirectDrawingTest
 					Assert.AreEqual( viewport.Rect, restored.Rect );
 					Assert.AreEqual( viewport.MinZ, restored.MinZ );
 					Assert.AreEqual( viewport.MaxZ, restored.MaxZ );
-				} ) ).GetAwaiter().GetResult();
+				} );
 				using var bitmap = target.GetBitmap();
 				Assert.AreEqual( Color.Red, bitmap.GetPixel( 32, 32 ) );
 				Assert.AreEqual( Color.Transparent, bitmap.GetPixel( 2, 2 ) );
@@ -434,7 +430,7 @@ public class PanelDirectDrawingTest
 		{
 			root.Layout();
 			root.BuildCommandList();
-			Task.Run( () => DrawToTarget( target, () =>
+			DrawInScene( target, () =>
 			{
 				Graphics.Attributes.Set( "UIPanelOpacity", 0.75f );
 				Graphics.Attributes.SetCombo( "D_PANEL_OPACITY", true );
@@ -443,7 +439,7 @@ public class PanelDirectDrawingTest
 				Assert.IsTrue( Graphics.Attributes.GetComboBool( "D_PANEL_OPACITY" ) );
 				Graphics.Clear( Color.Transparent, clearDepth: false, clearStencil: false );
 				root.RenderManual();
-			} ) ).GetAwaiter().GetResult();
+			} );
 			using var bitmap = target.GetBitmap();
 			Assert.AreEqual( Color.Red, bitmap.GetPixel( 32, 32 ) );
 			Assert.AreEqual( 1, panel.Draws );
@@ -558,6 +554,62 @@ public class PanelDirectDrawingTest
 		target.Flags |= TextureFlags.PremultipliedAlpha;
 		DrawToTarget( target, () => root.Render() );
 		return target.GetBitmap();
+	}
+
+	/// <summary>
+	/// Replays prepared UI inside a real scene render callback. Standalone graphics scopes
+	/// are main-thread-only and cannot model a render worker's scene context.
+	/// </summary>
+	static void DrawInScene( Texture target, Action draw )
+	{
+		var world = new SceneWorld();
+		using var cameraTarget = Texture.CreateRenderTarget().WithSize( 64, 64 ).Create();
+		Exception failure = null;
+		int calls = 0;
+		try
+		{
+			var obj = new SceneCustomObject( world );
+			obj.Flags.IsOpaque = false;
+			obj.Flags.IsTranslucent = true;
+			obj.RenderOverride = _ =>
+			{
+				try
+				{
+					// The scene scheduler may execute this callback on a worker or the main thread.
+					Assert.IsTrue( Graphics.IsActive );
+					Graphics.Attributes.Set( "UIGammaOutput", true );
+					Graphics.Attributes.SetCombo( "D_NO_ZTEST", 1 );
+					var previous = Graphics.RenderTarget;
+					try
+					{
+						Graphics.RenderTarget = RenderTarget.From( target );
+						Graphics.Clear( Color.Transparent, clearDepth: false, clearStencil: false );
+						draw();
+						calls++;
+					}
+					finally
+					{
+						Graphics.RenderTarget = previous;
+					}
+				}
+				catch ( Exception e )
+				{
+					failure = e;
+				}
+			};
+			using var camera = new SceneCamera( "Panel replay test" ) { World = world };
+			camera.RenderToTexture( cameraTarget, null, default );
+			g_pRenderDevice.ForceFlushGPU( default );
+			if ( failure is not null )
+			{
+				System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture( failure ).Throw();
+			}
+			Assert.IsTrue( calls > 0, "The scene must execute the prepared UI in a render callback." );
+		}
+		finally
+		{
+			world.Delete();
+		}
 	}
 
 	static void DrawToTarget( Texture target, Action draw )

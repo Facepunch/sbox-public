@@ -141,6 +141,10 @@
 
 @code {
     const float Scale = 1.35f;
+    const float MaxWidth = 420f;
+    const float MinLift = 1.2f;
+    const float IntroTime = 0.3f;
+    const float IntroOverhang = 0.01f;
     const float VideoDelay = 0.2f;
     const float HoverGrace = 0.35f;
     const float ScreenPadding = 12f;
@@ -155,6 +159,7 @@
     bool continuedVideo;
     string videoUrl;
     Rect placed;
+    bool introPending = true;
 
     Jam _jam;
     JamEntryStatus _entry;
@@ -186,7 +191,7 @@
             continuedVideo = playingVideoUrl is not null,
         };
 
-        card.Parent = source.FindPopupPanel();
+        card.Parent = source.Ancestors.FirstOrDefault( x => x.HasClass( "mainmenu" ) ) ?? source.FindPopupPanel();
         card.Reposition();
 
         Current = card;
@@ -268,10 +273,28 @@
 
     static void ShowToast( string title, string icon ) => MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast() { Title = title, Icon = icon } );
 
+    void Grow( Rect art, Rect rest, float t )
+    {
+        var scale = ScaleFromScreen;
+        var transform = new PanelTransform();
+
+        var width = Math.Max( art.Width, art.Height * (16f / 9f) ) * (1f + IntroOverhang * 2f);
+        var from = new Rect( art.Center.x - width * 0.5f, art.Center.y - width * (9f / 16f) * 0.5f, width, width * (9f / 16f) );
+
+        transform.AddTranslate( MathX.Lerp( from.Left - rest.Left, 0f, t ) * scale, MathX.Lerp( from.Top - rest.Top, 0f, t ) * scale );
+        transform.AddScale( MathX.Lerp( from.Width / rest.Width, 1f, t ) );
+
+        Style.Transform = t < 1f ? transform : null;
+        Style.Dirty();
+    }
+
     public void Close()
     {
         if ( Current == this )
             Current = null;
+
+        introPending = false;
+        Style.Transform = null;
 
         Delete();
     }
@@ -321,19 +344,33 @@
         var src = Source.Box.Rect;
         var art = Source.Children.FirstOrDefault( x => x.HasClass( "image" ) )?.Box.Rect ?? src;
 
-        var width = src.Width * Scale;
-        var mediaHeight = width * 9f / 16f;
-        var rect = new Rect( src.Center.x - width * 0.5f, art.Center.y - mediaHeight * 0.5f, width, mediaHeight );
+        var width = Math.Max( Math.Min( src.Width * Scale, MaxWidth * ScaleToScreen ), src.Width * MinLift );
+        var rect = new Rect( src.Center.x - width * 0.5f, art.Center.y - width * (9f / 16f) * 0.5f, width, width * (9f / 16f) );
+
+        var bounds = Bounds().Shrink( ScreenPadding * ScaleToScreen );
+        var height = Math.Max( Box.Rect.Height, rect.Height );
+        var lift = Math.Clamp( rect.Top + height - bounds.Bottom, 0f, Math.Max( rect.Top + height - art.Bottom, 0f ) );
+
+        rect.Position = new Vector2( Math.Clamp( rect.Left, bounds.Left, Math.Max( bounds.Right - rect.Width, bounds.Left ) ), rect.Top - lift );
+
+        if ( introPending )
+        {
+            var t = Math.Clamp( (RealTime.Now - openedAt) / IntroTime, 0f, 1f );
+
+            Grow( art, rect, 1f - (1f - t) * (1f - t) * (1f - t) );
+            introPending = t < 1f;
+        }
 
         if ( rect.Equals( placed ) )
             return;
 
         placed = rect;
 
+        var origin = Parent.IsValid() ? Parent.Box.Rect.Position : Vector2.Zero;
+
         Style.Width = rect.Width * scale;
-        Style.Left = rect.Left * scale;
-        Style.Top = rect.Top * scale;
-        Style.TransformOriginY = rect.Height * 0.5f * scale;
+        Style.Left = (rect.Left - origin.x) * scale;
+        Style.Top = (rect.Top - origin.y) * scale;
         Style.Dirty();
     }
 
@@ -346,17 +383,15 @@
             base.OnMouseWheel( value );
     }
 
-    public override void OnLayout( ref Rect layoutRect )
+    Rect Bounds()
     {
-        var size = new Vector2( Screen.Width, Screen.Height );
-        if ( size.x <= 0 || size.y <= 0 ) return;
+        var bounds = Source.Ancestors.FirstOrDefault( x => x.ComputedStyle?.Overflow is not (null or OverflowMode.Visible) )
+            ?.Box.ClipRect ?? new Rect( 0, 0, Screen.Width, Screen.Height );
 
-        var pad = ScreenPadding * ScaleToScreen;
+        if ( Parent?.Children.OfType<Footer>().FirstOrDefault( x => x.IsVisible ) is { Box.Rect: var dock } )
+            bounds.Bottom = Math.Min( bounds.Bottom, dock.Top );
 
-        if ( layoutRect.Right > size.x - pad ) layoutRect.Position -= new Vector2( layoutRect.Right - (size.x - pad), 0 );
-        if ( layoutRect.Bottom > size.y - pad ) layoutRect.Position -= new Vector2( 0, layoutRect.Bottom - (size.y - pad) );
-        if ( pad > layoutRect.Left ) layoutRect.Position += new Vector2( pad - layoutRect.Left, 0 );
-        if ( pad > layoutRect.Top ) layoutRect.Position += new Vector2( 0, pad - layoutRect.Top );
+        return bounds;
     }
 
     string VideoUrl() => videoUrl ??= PackageCard.VideoUrl( Package, PackageCard.PickQuality( Box.Rect.Width ) );

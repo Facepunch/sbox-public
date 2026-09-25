@@ -2,6 +2,7 @@ using Sandbox.UI;
 using Sandbox.Rendering;
 using System.Linq;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Sandbox;
@@ -104,8 +105,13 @@ internal partial class PainterBatcher
 		if ( shape.Kind == UICssBoxBatched.ShapeKind.None )
 			return -1;
 
-		return _shapeTable.TryGet( shape, out var index ) ? index : _shapeTable.Add( shape, shape );
+		return _shapeTable.GetOrAdd( shape, shape );
 	}
+
+	/// <summary>
+	/// Adds a shape without looking for an equal one. Painter draws rarely repeat a shape, so the lookup costs more than the entry.
+	/// </summary>
+	internal int AddShape( in UICssBoxBatched.BorderShape shape ) => _shapeTable.Add( shape );
 
 	internal int GetOrAddPath( Painter.Path.Data path )
 	{
@@ -130,6 +136,36 @@ internal partial class PainterBatcher
 		return index;
 	}
 
+	/// <summary>
+	/// Submits transient geometry using a retained alignment mask.
+	/// </summary>
+	internal int AddPath( UICssBoxBatched.BorderShape shape, ReadOnlySpan<UICssBoxBatched.PathPrimitive> primitives, Painter.Path.Data alignmentMask )
+	{
+		ArgumentOutOfRangeException.ThrowIfGreaterThan( primitives.Length, Painter.Path.Data.MaxPrimitiveCount );
+		return AddPath( shape, primitives, alignmentMask is null ? 0 : GetOrAddPath( alignmentMask ) + 1 );
+	}
+
+	/// <summary>
+	/// Copies transient geometry directly into the batch and builds its hierarchy in place.
+	/// The returned shape index remains valid until the batcher's tables are cleared.
+	/// Mask indices are one-based references to an already appended shape, or zero for no mask.
+	/// </summary>
+	internal int AddPath( UICssBoxBatched.BorderShape shape, ReadOnlySpan<UICssBoxBatched.PathPrimitive> primitives, int maskIndex = 0 )
+	{
+		ArgumentOutOfRangeException.ThrowIfGreaterThan( primitives.Length, Painter.Path.Data.MaxPrimitiveCount );
+		int nodeCount = checked(Math.Max( 0, primitives.Length * 2 - 1 ));
+		GetBufferCapacity<UICssBoxBatched.PathPrimitive>( (long)_pathTable.Count + primitives.Length );
+		GetBufferCapacity<UICssBoxBatched.PathNode>( (long)_pathNodeTable.Count + nodeCount );
+		if ( maskIndex != 0 ) shape.PolygonCount = maskIndex;
+		shape.PathOffset = _pathTable.Count;
+		shape.PathCount = primitives.Length;
+		shape.PathNodeOffset = _pathNodeTable.Count;
+		shape.PathNodeCount = nodeCount;
+		_pathTable.AddRange( primitives );
+		Painter.Path.Data.BuildNodes( shape, primitives, _pathNodeTable.Append( nodeCount ) );
+		return _shapeTable.Add( shape );
+	}
+
 	internal int GetOrAddTransform( Matrix mat )
 	{
 		return _transformTable.TryGet( mat, out var index ) ? index
@@ -149,6 +185,7 @@ internal partial class PainterBatcher
 		var attributes = _commands.BeginDrawAttributes();
 		attributes.Set( "LayerMat", target.LayerMatrix );
 		if ( target.GammaOutput.HasValue ) attributes.Set( "UIGammaOutput", target.GammaOutput.Value );
+		attributes.SetCombo( "D_POLYGON_POINTS", _polygonPointTable.Count > 0 ? 1 : 0 );
 		foreach ( var table in _tables ) table.Upload( _frameIndex, attributes );
 		GpuFontGlyphCache.Bind( attributes );
 		attributes.Set( "InstanceOffset", offset );
@@ -190,11 +227,19 @@ internal partial class PainterBatcher
 
 		internal int Add( in T item )
 		{
-			_items.Add( item );
+			Append( 1 )[0] = item;
 			return _items.Count - 1;
 		}
 
 		internal void AddRange( ReadOnlySpan<T> items ) => _items.AddRange( items );
+
+		// The caller must fill every element before another table mutation or upload.
+		internal Span<T> Append( int count )
+		{
+			int start = _items.Count;
+			CollectionsMarshal.SetCount( _items, checked(start + count) );
+			return CollectionsMarshal.AsSpan( _items ).Slice( start, count );
+		}
 
 		internal void Rewind( int count )
 		{
@@ -240,6 +285,16 @@ internal partial class PainterBatcher
 
 		internal bool TryGet( in TKey key, out int index ) => _lookup.TryGetValue( key, out index );
 
+		/// <summary>
+		/// Resolves an already constructed value with one dictionary probe, including on insertion.
+		/// </summary>
+		internal int GetOrAdd( in TKey key, in T item )
+		{
+			ref int index = ref CollectionsMarshal.GetValueRefOrAddDefault( _lookup, key, out bool exists );
+			if ( !exists ) index = Add( item );
+			return index;
+		}
+
 		internal int Add( in TKey key, in T item )
 		{
 			var index = Add( item );
@@ -255,7 +310,7 @@ internal partial class PainterBatcher
 	}
 
 	// GpuBuffer uses 32-bit byte offsets. Growth must respect that limit as well as managed indexing.
-	internal static int MaxBufferElements<T>() where T : unmanaged => (int)Math.Min( Array.MaxLength, uint.MaxValue / (long)Marshal.SizeOf<T>() );
+	internal static int MaxBufferElements<T>() where T : unmanaged => (int)Math.Min( Array.MaxLength, uint.MaxValue / (long)Unsafe.SizeOf<T>() );
 
 	internal static int GetBufferCapacity<T>( long required ) where T : unmanaged
 	{

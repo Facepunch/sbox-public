@@ -7,7 +7,11 @@ namespace UITests;
 [TestClass]
 public class PainterGradientBuilderTest
 {
-	static GradientInfo Describe( Fill fill ) => fill.CreateDescriptor( new Rect( 10, 20, 200, 100 ), 1, BlendMode.Normal, Vector4.Zero ).BackgroundGradient;
+	static GradientInfo Describe( Fill fill )
+	{
+		fill.CreateDescriptor( new Rect( 10, 20, 200, 100 ), 1, BlendMode.Normal, Vector4.Zero, out var descriptor );
+		return descriptor.BackgroundGradient;
+	}
 
 	[TestMethod]
 	public void FluentGradientsMatchSpanFactories()

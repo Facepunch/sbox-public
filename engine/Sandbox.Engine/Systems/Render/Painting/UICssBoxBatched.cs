@@ -145,7 +145,7 @@ internal static class UICssBoxBatched
 			};
 		}
 
-		internal static BoxInstance From( in Painter.BoxDescriptor desc )
+		internal static void From( in Painter.BoxDescriptor desc, out BoxInstance gpu )
 		{
 			var hasImage = desc.BackgroundImage != null && desc.BackgroundImage != Texture.Invalid;
 			var hasBorderImage = desc.HasBorderImage;
@@ -165,38 +165,36 @@ internal static class UICssBoxBatched
 			// Style radii are already clamped, user radii aren't
 			var radii = desc.Radii.Clamped( desc.Rect.Width, desc.Rect.Height );
 
-			return new BoxInstance
-			{
-				Rect = new Vector4( desc.Rect.Left, desc.Rect.Top, desc.Rect.Width, desc.Rect.Height ),
-				Color = desc.Color,
-				BorderRadius = radii.Horizontal,
-				BorderRadiusV = radii.Vertical,
-				BorderSize = border.Size,
-				BorderColorL = border.ColorL,
-				BorderColorT = border.ColorT,
-				BorderColorR = border.ColorR,
-				BorderColorB = border.ColorB,
-				TextureIndex = hasImage ? desc.BackgroundImage.Index : 0,
-				SamplerIndex = hasImage ? GetSamplerIndex( desc.BackgroundRepeat, desc.FilterMode ) : 0,
-				BackgroundRepeat = (int)desc.BackgroundRepeat,
-				BackgroundAngle = desc.BackgroundAngle,
-				BackgroundRect = bgRect,
-				BackgroundTint = bgTint,
-				BorderImageIndex = hasBorderImage ? image.Texture.Index : 0,
-				BorderImageSamplerIndex = hasBorderImage ? GetClampSamplerIndex( desc.FilterMode ) : 0,
-				BorderImageMode = hasBorderImage ? (image.Repeat == UI.BorderImageRepeat.Stretch ? 2 : 1) : 0,
-				BorderImageFill = hasBorderImage && image.Fill == UI.BorderImageFill.Filled ? 1 : 0,
-				BorderImageSlice = image.Slices,
-				BorderImageTint = hasBorderImage ? image.Tint : default,
-				BorderStyle = (int)border.Style,
-				InverseScissorIndex = -1,
-				BackgroundClip = (int)desc.BackgroundClip,
-				BackgroundClipRect = desc.BackgroundClip == UI.BackgroundClip.Text ? desc.TextMaskRect : desc.BackgroundClipInset,
-				TextMaskIndex = desc.HasTextMask ? desc.TextMask.Index : 0,
-				TextMaskSamplerIndex = desc.HasTextMask ? GetClampSamplerIndex( FilterMode.Bilinear ) : 0,
-				// The caller resolves this against the batcher's table, like ScissorIndex and TransformIndex
-				ShapeIndex = -1,
-			};
+			gpu = default;
+			gpu.Rect = new Vector4( desc.Rect.Left, desc.Rect.Top, desc.Rect.Width, desc.Rect.Height );
+			gpu.Color = desc.Color;
+			gpu.BorderRadius = radii.Horizontal;
+			gpu.BorderRadiusV = radii.Vertical;
+			gpu.BorderSize = border.Size;
+			gpu.BorderColorL = border.ColorL;
+			gpu.BorderColorT = border.ColorT;
+			gpu.BorderColorR = border.ColorR;
+			gpu.BorderColorB = border.ColorB;
+			gpu.TextureIndex = hasImage ? desc.BackgroundImage.Index : 0;
+			gpu.SamplerIndex = hasImage ? GetSamplerIndex( desc.BackgroundRepeat, desc.FilterMode ) : 0;
+			gpu.BackgroundRepeat = (int)desc.BackgroundRepeat;
+			gpu.BackgroundAngle = desc.BackgroundAngle;
+			gpu.BackgroundRect = bgRect;
+			gpu.BackgroundTint = bgTint;
+			gpu.BorderImageIndex = hasBorderImage ? image.Texture.Index : 0;
+			gpu.BorderImageSamplerIndex = hasBorderImage ? GetClampSamplerIndex( desc.FilterMode ) : 0;
+			gpu.BorderImageMode = hasBorderImage ? (image.Repeat == UI.BorderImageRepeat.Stretch ? 2 : 1) : 0;
+			gpu.BorderImageFill = hasBorderImage && image.Fill == UI.BorderImageFill.Filled ? 1 : 0;
+			gpu.BorderImageSlice = image.Slices;
+			gpu.BorderImageTint = hasBorderImage ? image.Tint : default;
+			gpu.BorderStyle = (int)border.Style;
+			gpu.InverseScissorIndex = -1;
+			gpu.BackgroundClip = (int)desc.BackgroundClip;
+			gpu.BackgroundClipRect = desc.BackgroundClip == UI.BackgroundClip.Text ? desc.TextMaskRect : desc.BackgroundClipInset;
+			gpu.TextMaskIndex = desc.HasTextMask ? desc.TextMask.Index : 0;
+			gpu.TextMaskSamplerIndex = desc.HasTextMask ? GetClampSamplerIndex( FilterMode.Bilinear ) : 0;
+			// The caller resolves this against the batcher's table, like ScissorIndex and TransformIndex
+			gpu.ShapeIndex = -1;
 		}
 
 		internal void ApplyOpacity( float opacity )
@@ -343,7 +341,22 @@ internal static class UICssBoxBatched
 		internal const int Heart = 7;
 
 		/// <summary>
-		/// Kinds from here up are analytic SDF shapes with no path nodes. Keep node-based kinds below it
+		/// Two-point stroke with analytic caps and patterns, without path buffers.
+		/// Circle stores the start, width and cap; Polygon01 stores the end, length and pattern kind.
+		/// Polygon23 stores dash length, period, first run start and last run index (pattern: 0 solid, 1 dashed, 2 dotted).
+		/// Polygon45.xy stores the bounds origin; endpoints use drawing coordinates, like general stroke paths.
+		/// </summary>
+		internal const int SimpleLine = 8;
+
+		/// <summary>
+		/// Round polygon stroke referencing its contour shape through PolygonCount (zero-based).
+		/// Circle stores the stroke-to-fill origin offset, effective width and alignment mask sign.
+		/// The referenced polygon owns the vertices and optional path hierarchy.
+		/// </summary>
+		internal const int PolygonStroke = 9;
+
+		/// <summary>
+		/// Kinds from here up are analytic shapes with no path nodes. Keep node-based kinds below it
 		/// and mirror UI_SHAPE_FIRST_ANALYTIC in ui_cssbox_batched.shader.
 		/// </summary>
 		internal const int FirstAnalytic = Capsule;
@@ -356,6 +369,7 @@ internal static class UICssBoxBatched
 	/// unused slots are zero and the shader only reads the first <see cref="PolygonCount"/> of them.
 	/// Stroke paths instead use PolygonCount for a one-based alignment-mask shape index, and Circle.w
 	/// for its sign (inside +1, outside -1). Circle masks use Circle.w as an optional inner ring radius.
+	/// Simple lines use drawing-space endpoints and pattern parameters as described by <see cref="ShapeKind.SimpleLine"/>.
 	/// </summary>
 	[StructLayout( LayoutKind.Sequential )]
 	internal struct BorderShape : IEquatable<BorderShape>
@@ -366,8 +380,47 @@ internal static class UICssBoxBatched
 		public int PathOffset;
 		public int PathCount;
 		public int PathNodeOffset;
+
+		/// <summary>
+		/// Hierarchy node count. For polygon paths, -1 instead addresses raw float2 points
+		/// through PathOffset and PathCount, without changing the shape record layout.
+		/// </summary>
 		public int PathNodeCount;
+
 		public int Kind;
+
+		/// <summary>
+		/// Creates a round outline referencing a polygon's existing contour. Effective width
+		/// includes the doubled width used by inside/outside strokes before alignment clipping.
+		/// These aliases use existing packed fields without changing the GPU buffer layout.
+		/// </summary>
+		internal static BorderShape CreatePolygonStroke( int polygonIndex, Vector2 originOffset, float effectiveWidth, Stroke.StrokeAlignment alignment ) => new()
+		{
+			Kind = ShapeKind.PolygonStroke,
+			PolygonCount = polygonIndex,
+			Circle = new Vector4( originOffset.x, originOffset.y, effectiveWidth,
+				alignment == Stroke.StrokeAlignment.Center ? 0 : alignment == Stroke.StrokeAlignment.Inside ? 1 : -1 )
+		};
+
+		/// <summary>
+		/// Zero-based contour shape index for a polygon outline.
+		/// </summary>
+		internal readonly int PolygonStrokeShapeIndex => PolygonCount;
+
+		/// <summary>
+		/// Offset from the outline's local origin to the fill's coordinate system.
+		/// </summary>
+		internal readonly Vector2 PolygonStrokeOriginOffset => new( Circle.x, Circle.y );
+
+		/// <summary>
+		/// Effective outline width, before inside/outside alignment clipping.
+		/// </summary>
+		internal readonly float PolygonStrokeWidth => Circle.z;
+
+		/// <summary>
+		/// Alignment mask sign: zero for centered, positive for inside, negative for outside.
+		/// </summary>
+		internal readonly float PolygonStrokeAlignmentSign => Circle.w;
 
 
 		/// <summary>

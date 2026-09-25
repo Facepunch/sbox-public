@@ -64,7 +64,8 @@ CS
     Texture2D DiagonalSRV           < Attribute("DiagonalSRV"); >;
     Texture2D FinalSRV              < Attribute("FinalSRV"); >;
 
-    int Radius                      < Attribute("Radius"); >;
+    float BlurSize                  < Attribute("BlurSize"); >;
+    static int Radius;
     float StepScale                 < Attribute("StepScale"); Default(1.0f); >;
     float FocusPlane                < Attribute("FocusPlane"); >;
     float FocusRange                < Attribute("FocusRange"); Default(10000.0f); >;
@@ -87,7 +88,7 @@ CS
     float MaxBlurPixels() { return Radius * StepScale; }
 
     // Tiles whose blur is under half a pixel aren't worth dispatching
-    float CocThreshold() { return 0.5f / max( MaxBlurPixels(), 1.0f ); }
+    float CocThreshold() { return 0.5f / max( MaxBlurPixels(), 0.5f ); }
 
     uint PackTile( uint2 tile ) { return (tile.x & 0xFFFFu) | (tile.y << 16u); }
     uint2 UnpackTile( uint packed ) { return uint2( packed & 0xFFFFu, packed >> 16u ); }
@@ -238,7 +239,7 @@ CS
             return;
 
         float flMaxBlur = MaxBlurPixels();
-        int nRange = min( 16, (int)ceil( ( 2.0f * flMaxBlur ) / TILE_SIZE ) + 1 );
+        int nRange = (int)ceil( ( 2.0f * flMaxBlur ) / TILE_SIZE ) + 1;
 
         float2 vBudget = 0;     // What can reach this tile
         float2 vPadded = 0;     // What can reach what reaches this tile
@@ -380,6 +381,9 @@ CS
     #endif
     void MainCs( uint3 vDispatch : SV_DispatchThreadID, uint3 vGroupThread : SV_GroupThreadID, uint3 vGroup : SV_GroupID, uint nGroupIndex : SV_GroupIndex )
     {
+        float blurSize = BlurSize * g_vViewportSize.y * ( 1.0f / 1080.0f );
+        Radius = blurSize < 0.5f ? 0 : max( 1, (int)( blurSize / StepScale ) );
+
         #if ( D_PASS == 0 )
             CircleOfConfusionPass( vDispatch.xy, vGroup.xy, nGroupIndex );
         #elif ( D_PASS == 1 )

@@ -205,23 +205,29 @@ struct Light
         return flLightMask;
     }
 
-    float Shadows(float3 vPositionWs, float4 vPositionSs)
+    float Shadows( float3 vPositionWs, float4 vPositionSs, float3 vReceiverNormalWs )
     {
         float flShadowScalar = 1.0;
 
         if (LightData.Type == LightType::LightTypeDirectional)
-            flShadowScalar = DirectionalLightShadow::GetVisibility(vPositionWs, vPositionSs);
+            flShadowScalar = DirectionalLightShadow::GetVisibility( vPositionWs, vReceiverNormalWs, vPositionSs );
         else if (LightData.Type == LightType::LightTypePoint)
-            flShadowScalar = ProjectedShadowCube::GetVisibility(LightData.ShadowMapIndex, vPositionWs);
+            flShadowScalar = ProjectedShadowCube::GetVisibility( LightData.ShadowMapIndex, vPositionWs, vReceiverNormalWs );
         else if (LightData.Type == LightType::LightTypeSpot)
-            flShadowScalar = ProjectedShadow::GetVisibility(LightData.ShadowMapIndex, vPositionWs, vPositionSs.xy);
+            flShadowScalar = ProjectedShadow::GetVisibility( LightData.ShadowMapIndex, vPositionWs, vReceiverNormalWs, vPositionSs.xy );
 
         return flShadowScalar;
     }
 
+    // Derivatives require uniform control flow. Inside a light loop, pass a receiver normal computed before it.
+    float Shadows( float3 vPositionWs, float4 vPositionSs )
+    {
+        return Shadows( vPositionWs, vPositionSs, ComputeShadowReceiverNormal( vPositionWs ) );
+    }
+
     // [mutating] is what lets a member write to its own fields under Slang; DXC ignores it
     [mutating]
-    void Init( float3 vPositionWs, BinnedLight lightData, float4 vPositionSs )
+    void Init( float3 vPositionWs, BinnedLight lightData, float4 vPositionSs, float3 vReceiverNormalWs )
     {
         LightData = lightData;
 
@@ -229,12 +235,19 @@ struct Light
         Direction = GetLightDirection( vPositionWs );
         Position = GetLightPosition();
         Attenuation = GetLightAttenuation( vPositionWs );
-        Visibility = Shadows( vPositionWs, vPositionSs );
+        Visibility = Shadows( vPositionWs, vPositionSs, vReceiverNormalWs );
+    }
+
+    // Compatibility overload for uniform control flow; use the explicit normal overload inside light loops.
+    [mutating]
+    void Init( float3 vPositionWs, BinnedLight lightData, float4 vPositionSs )
+    {
+        Init( vPositionWs, lightData, vPositionSs, ComputeShadowReceiverNormal( vPositionWs ) );
     }
 
     // Lights are addressed as one flat list per pixel: the cluster's dynamic lights first, then up
-    // to StaticLight::Count() baked ones.
-    static Light From( float3 vPositionWs, float4 vPositionSs, uint nLightIndex, float2 vLightMapUV = 0.0f )
+    // to StaticLight::Count() baked ones. Compute vReceiverNormalWs once before entering the light loop.
+    static Light From( float3 vPositionWs, float4 vPositionSs, uint nLightIndex, float2 vLightMapUV, float3 vReceiverNormalWs )
     {
         Light light = {};
 
@@ -244,7 +257,7 @@ struct Light
             uint clusterLocalIndex = min( nLightIndex, range.Count - 1 );
             uint lightIndex = Cluster::LoadItem( range, clusterLocalIndex );
 
-            light.Init( vPositionWs, DynamicLightConstantByIndex( lightIndex ), vPositionSs );
+            light.Init( vPositionWs, DynamicLightConstantByIndex( lightIndex ), vPositionSs, vReceiverNormalWs );
             return light;
         }
 
@@ -252,10 +265,16 @@ struct Light
         if ( !sample.IsValid() )
             return light;
 
-        light.Init( vPositionWs, sample.GetLightData(), vPositionSs );
+        light.Init( vPositionWs, sample.GetLightData(), vPositionSs, vReceiverNormalWs );
         light.Attenuation = sample.Strength;
 
         return light;
+    }
+
+    // Compatibility overload for uniform control flow; use the explicit normal overload inside light loops.
+    static Light From( float3 vPositionWs, float4 vPositionSs, uint nLightIndex, float2 vLightMapUV = 0.0f )
+    {
+        return From( vPositionWs, vPositionSs, nLightIndex, vLightMapUV, ComputeShadowReceiverNormal( vPositionWs ) );
     }
 
     static uint Count( float4 vPositionSs )

@@ -16,6 +16,11 @@
 			Scene Scene { get; }
 
 			/// <summary>
+			/// Whether this is the active editor session. Used for selection-driven previews.
+			/// </summary>
+			bool IsActive => true;
+
+			/// <summary>
 			/// True if this scene has unsaved changes
 			/// </summary>
 			bool HasUnsavedChanges { get; set; }

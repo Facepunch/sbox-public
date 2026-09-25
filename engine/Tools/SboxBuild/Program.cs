@@ -40,6 +40,10 @@ internal class Program
 		AddDownloadThirdPartyCommand( rootCommand );
 		AddUploadBuildArtifactsCommand( rootCommand );
 		AddCheckNativeTouchedCommand( rootCommand );
+		AddShaderSpecializationExperimentCommand( rootCommand );
+		var complexSpecialization = new Command( "test-complex-specialization", "Compare full complex.shader macro/specialized compiles and rendered bent-normal output (requires built engine/tests)" );
+		complexSpecialization.SetHandler( () => Environment.ExitCode = (int)new TestComplexSpecialization().Run() );
+		rootCommand.Add( complexSpecialization );
 		AddNotifySlackCommand( rootCommand );
 		AddReportBuildCommand( rootCommand );
 
@@ -99,6 +103,13 @@ internal class Program
 	}
 
 	// ── Individual step commands ──────────────────────────────────────────────
+
+	private static void AddShaderSpecializationExperimentCommand( RootCommand rootCommand )
+	{
+		var cmd = new Command( "test-shader-specialization", "Build and run the isolated Slang/Vulkan specialization experiment (Windows)" );
+		cmd.SetHandler( () => Environment.ExitCode = (int)new TestShaderSpecialization().Run() );
+		rootCommand.Add( cmd );
+	}
 
 	private static void AddBuildContentCommand( RootCommand rootCommand )
 	{

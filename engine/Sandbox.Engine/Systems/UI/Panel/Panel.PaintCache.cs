@@ -286,7 +286,7 @@ public partial class Panel
 				} ).Rect : default;
 				var fill = new Fill( style.BackgroundColor.Value, texture, gradient, tile, style.BackgroundTint.Value,
 					style.BackgroundRepeat ?? BackgroundRepeat.Repeat, sampling, angle, blend );
-				Descriptor = fill.CreateDescriptor( panel.Box.Rect, 1, BlendMode.Normal, fillInsets );
+				fill.CreateDescriptor( panel.Box.Rect, 1, BlendMode.Normal, fillInsets, out Descriptor );
 				HasFill = !fill.IsTransparent;
 				Texture = texture;
 				_size = texture?.Size ?? default;

@@ -168,7 +168,6 @@ public abstract partial class Asset
 	internal string GetMetadataFile( bool absolute = false )
 	{
 		var f = GetSourceFile( absolute );
-		if ( string.IsNullOrEmpty( f ) ) f = GetCompiledFile( absolute );
 		if ( string.IsNullOrEmpty( f ) ) return null;
 
 		// tony: Don't make metadata for cloud assets.. not my favourite addition ever

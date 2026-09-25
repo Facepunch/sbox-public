@@ -3,6 +3,35 @@
 
 #include "ui/disc_coverage.hlsl"
 
+#if D_POLYGON_POINTS == 1
+// Medium polygons use raw points instead of CPU edge records and hierarchy nodes.
+float PointPolygonSdf( float2 p, BorderShapeData shape, out float2 normal, float maximumDistance, bool signedDistance )
+{
+	float distanceSquared = maximumDistance * maximumDistance;
+	float sign = 1.0;
+	normal = float2( 1, 0 );
+	// Match PolygonEdges' traversal order, including which normal wins an exact distance tie.
+	float2 a = PolygonPointBuffer[shape.PathOffset];
+	[loop]
+	for ( int i = 0; i < shape.PathCount; i++ )
+	{
+		float2 b = PolygonPointBuffer[shape.PathOffset + (i + 1 < shape.PathCount ? i + 1 : 0)];
+		float2 e = b - a, w = p - a;
+		float2 nearest = w - e * saturate( dot( w, e ) / max( dot( e, e ), 0.000001 ) );
+		float d = dot( nearest, nearest );
+		if ( d < distanceSquared )
+		{
+			distanceSquared = d;
+			normal = d > 0.00000001 ? UINormal( nearest ) : UINormal( float2( -e.y, e.x ) );
+		}
+		bool3 crossing = bool3( p.y >= a.y, p.y < b.y, e.x * w.y > e.y * w.x );
+		if ( signedDistance && ( all( crossing ) || all( !crossing ) ) ) sign = -sign;
+		a = b;
+	}
+	return sign * sqrt( distanceSquared );
+}
+#endif
+
 float PathBoxDistance( float2 q, out float2 normal )
 {
 	float2 outside = max( q, 0.0 );
@@ -11,8 +40,49 @@ float PathBoxDistance( float2 q, out float2 normal )
 }
 
 // Traverse only nodes that can contain a nearer edge or cross the even-odd ray.
+float PathPolygonSdf( float2 p, BorderShapeData shape, out float2 normal, float maximumDistance, bool signedDistance )
+{
+	#if D_POLYGON_POINTS == 1
+	if ( shape.PathNodeCount == -1 ) return PointPolygonSdf( p, shape, normal, maximumDistance, signedDistance );
+	#endif
+	float distanceSquared = maximumDistance * maximumDistance;
+	float sign = 1.0;
+	normal = float2( 1, 0 );
+	[loop]
+	for ( int i = 0; i < shape.PathNodeCount; )
+	{
+		PathNodeData node = PathNodeBuffer[shape.PathNodeOffset + i];
+		float2 delta = max( max( node.Bounds.xy - p, p - node.Bounds.zw ), 0.0 );
+		bool ray = signedDistance && p.y >= node.Bounds.y && p.y < node.Bounds.w && p.x < node.Bounds.z;
+		if ( dot( delta, delta ) >= distanceSquared && !ray ) { i = node.Next; continue; }
+		i++;
+		if ( node.Primitive < 0 ) continue;
+		float4 edge = PathBuffer[shape.PathOffset + node.Primitive].A;
+		float2 a = edge.xy, b = edge.zw;
+		float2 e = b - a, w = p - a;
+		float2 nearest = w - e * saturate( dot( w, e ) / max( dot( e, e ), 0.000001 ) );
+		float d = dot( nearest, nearest );
+		if ( d < distanceSquared )
+		{
+			distanceSquared = d;
+			normal = d > 0.00000001 ? UINormal( nearest ) : UINormal( float2( -e.y, e.x ) );
+		}
+		bool3 crossing = bool3( p.y >= a.y, p.y < b.y, e.x * w.y > e.y * w.x );
+		if ( signedDistance && ( all( crossing ) || all( !crossing ) ) ) sign = -sign;
+	}
+	return sign * sqrt( distanceSquared );
+}
+
 float PathPolygonSdf( float2 p, BorderShapeData shape )
 {
+	#if D_POLYGON_POINTS == 1
+	if ( shape.PathNodeCount == -1 )
+	{
+		float2 normal;
+		return PointPolygonSdf( p, shape, normal, 1e15, true );
+	}
+	#endif
+	// Keep the fill traversal independent of the outline's normal and distance limit.
 	float distanceSquared = 1e30;
 	float sign = 1.0;
 	[loop]
@@ -223,6 +293,97 @@ float PathRoundJoinDistance( float2 p, PathPrimitiveData primitive, float radius
 	return distance;
 }
 
+// Shared by simple lines and path segments, so cap and thin-stroke coverage cannot drift apart.
+float SegmentCoverage( float2 q, float2 delta, float width, float2 caps, int squareCaps, float2 pixelX, float2 pixelY )
+{
+	float segmentLength = length( delta );
+	float2 tangent = delta / max( segmentLength, 0.000001 );
+	float2 transverse = float2( -tangent.y, tangent.x );
+	float u = dot( q, tangent ), v = dot( q, transverse );
+	float radius = width * 0.5;
+	float distance;
+	float2 normal;
+	if ( caps.x == UI_CAP_TRIANGLE || caps.x == UI_CAP_ARROW || caps.y == UI_CAP_TRIANGLE || caps.y == UI_CAP_ARROW )
+	{
+		distance = PathPointedSegmentDistance( float2( u, v ), segmentLength, radius, caps, normal );
+		normal = normal.x * tangent + normal.y * transverse;
+	}
+	else
+	{
+		float left = -u - ( ( squareCaps & UI_CAP_SQUARE_START ) ? radius : 0.0 );
+		float right = u - segmentLength - ( ( squareCaps & UI_CAP_SQUARE_END ) ? radius : 0.0 );
+		float2 boxNormal;
+		distance = PathBoxDistance( float2( max( left, right ), abs( v ) - radius ), boxNormal );
+		normal = boxNormal.x * tangent * ( left > right ? -1.0 : 1.0 ) + boxNormal.y * transverse * ( v < 0.0 ? -1.0 : 1.0 );
+	}
+	float filterWidth = UIPixelWidth( normal, pixelX, pixelY );
+	float coverage = saturate( 0.5 - distance / filterWidth ) - saturate( 0.5 - ( distance + width ) / filterWidth );
+	if ( caps.x == UI_CAP_ROUND ) coverage = max( coverage, UIDiscCoverage( q, width, pixelX, pixelY ) );
+	if ( caps.y == UI_CAP_ROUND ) coverage = max( coverage, UIDiscCoverage( q - delta, width, pixelX, pixelY ) );
+	return coverage;
+}
+
+// Locate only runs whose bounds can cover this pixel, without CPU-generated dash geometry or a hierarchy.
+float SimpleLineCoverage( BorderShapeData shape, float2 p, float2 pixelX, float2 pixelY )
+{
+	float2 from = shape.Circle.xy, delta = shape.Polygon01.xy - from;
+	float width = shape.Circle.z, cap = shape.Circle.w;
+	int squareCaps = cap == UI_CAP_SQUARE ? UI_CAP_SQUARE_START | UI_CAP_SQUARE_END : 0;
+	if ( shape.Polygon01.w == 0.0 )
+		return SegmentCoverage( p - from, delta, width, cap.xx, squareCaps, pixelX, pixelY );
+
+	float lineLength = shape.Polygon01.z;
+	float2 axis = delta / max( lineLength, 0.000001 );
+	float along = dot( p - from, axis );
+	float dash = shape.Polygon23.x, period = shape.Polygon23.y;
+	float first = shape.Polygon23.z, last = shape.Polygon23.w;
+	// Include cap reach and the pixel footprint. Looking at just the nearest run misses wide arrow
+	// shoulders and the anisotropic coverage of thin, skewed strokes.
+	float reach = width * ( cap == UI_CAP_ARROW ? 1.0 : cap == UI_CAP_SQUARE ? 0.70710678 : 0.5 );
+	float margin = dot( abs( axis ), abs( pixelX ) + abs( pixelY ) + reach );
+	float runLength = shape.Polygon01.w == 2.0 ? 0.0 : dash;
+	float begin = max( 0.0, ceil( ( along - margin - runLength - first ) / period ) );
+	float endIndex = min( last, floor( ( along + margin - first ) / period ) );
+	float coverage = 0.0;
+	float2 pixelMargin = abs( pixelX ) + abs( pixelY );
+	[loop]
+	for ( float index = begin; index <= endIndex; )
+	{
+		float start = first + index * period;
+		if ( shape.Polygon01.w == 2.0 )
+		{
+			float2 q = p - ( from + delta * ( start / lineLength ) );
+			if ( all( abs( q ) <= width * 0.5 + pixelMargin ) )
+				coverage = max( coverage, UIDiscCoverage( q, width, pixelX, pixelY ) );
+		}
+		else
+		{
+			float end = min( start + dash, lineLength );
+			start = max( start, 0.0 );
+			precise float2 a = from + delta * ( start / lineLength );
+			precise float2 b = from + delta * ( end / lineLength );
+			float radius = width * 0.5;
+			float grow = cap == UI_CAP_SQUARE ? radius * 1.41421356 : radius;
+			float2 low = min( a, b ) - grow, high = max( a, b ) + grow;
+			if ( cap == UI_CAP_TRIANGLE || cap == UI_CAP_ARROW )
+			{
+				float size = cap == UI_CAP_ARROW ? width : radius;
+				float2 wing = abs( float2( -axis.y, axis.x ) ) * size;
+				low = min( low, min( min( a, b ) - wing, min( a - axis * size, b + axis * size ) ) );
+				high = max( high, max( max( a, b ) + wing, max( a - axis * size, b + axis * size ) ) );
+			}
+			// Match the general path's per-primitive rejection as well as its coverage.
+			if ( end > start && all( p >= low - pixelMargin ) && all( p <= high + pixelMargin ) )
+				coverage = max( coverage, SegmentCoverage( p - a, b - a, width, cap.xx, squareCaps, pixelX, pixelY ) );
+		}
+		if ( coverage >= 1.0 ) break;
+		float next = index + 1.0;
+		if ( next <= index ) break;
+		index = next;
+	}
+	return coverage;
+}
+
 float PathStrokeCoverage( BorderShapeData shape, float2 p, float2 pixelX, float2 pixelY )
 {
 	float coverage = 0.0;
@@ -241,40 +402,16 @@ float PathStrokeCoverage( BorderShapeData shape, float2 p, float2 pixelX, float2
 			coverage = max( coverage, UIDiscCoverage( q, shape.Circle.z, pixelX, pixelY ) );
 			continue;
 		}
-		float2 normal = UINormal( q );
-		float2 tangent = float2( 0, 1 );
-		float segmentLength = 0.0;
 		if ( primitive.Kind == UI_PATH_SEGMENT )
 		{
-			float2 delta = primitive.A.zw - primitive.A.xy;
-			segmentLength = length( delta );
-			tangent = delta / max( segmentLength, 0.000001 );
-			normal = float2( -tangent.y, tangent.x );
+			coverage = max( coverage, SegmentCoverage( q, primitive.A.zw - primitive.A.xy, shape.Circle.z, primitive.B.xy, primitive.Count, pixelX, pixelY ) );
+			continue;
 		}
 
+		float2 normal = UINormal( q );
 		float radius = shape.Circle.z * 0.5;
 		float distance;
-		if ( primitive.Kind == UI_PATH_SEGMENT )
-		{
-			float u = dot( q, tangent ), v = dot( q, normal );
-			float2 transverse = normal;
-			bool pointedStart = primitive.B.x == UI_CAP_TRIANGLE || primitive.B.x == UI_CAP_ARROW;
-			bool pointedEnd = primitive.B.y == UI_CAP_TRIANGLE || primitive.B.y == UI_CAP_ARROW;
-			if ( pointedStart || pointedEnd )
-			{
-				distance = PathPointedSegmentDistance( float2( u, v ), segmentLength, radius, primitive.B.xy, normal );
-				normal = normal.x * tangent + normal.y * transverse;
-			}
-			else
-			{
-				float left = -u - ( ( primitive.Count & UI_CAP_SQUARE_START ) ? radius : 0.0 );
-				float right = u - segmentLength - ( ( primitive.Count & UI_CAP_SQUARE_END ) ? radius : 0.0 );
-				float2 boxNormal;
-				distance = PathBoxDistance( float2( max( left, right ), abs( v ) - radius ), boxNormal );
-				normal = boxNormal.x * tangent * ( left > right ? -1.0 : 1.0 ) + boxNormal.y * transverse * ( v < 0.0 ? -1.0 : 1.0 );
-			}
-		}
-		else if ( primitive.Kind == UI_PATH_JOIN )
+		if ( primitive.Kind == UI_PATH_JOIN )
 			distance = PathJoinDistance( q, primitive, radius, normal );
 		else if ( primitive.Kind == UI_PATH_ROUND_JOIN )
 			distance = PathRoundJoinDistance( q, primitive, radius, normal );

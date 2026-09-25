@@ -171,13 +171,13 @@ public readonly partial struct Fill
 		return _texture is null && _gradient.ColorOffsets.IsDefaultOrEmpty;
 	}
 
-	internal Painter.BoxDescriptor CreateDescriptor( Rect bounds, Painter.Context buffer, bool clipFill = true )
+	internal void CreateDescriptor( Rect bounds, Painter.Context buffer, out Painter.BoxDescriptor descriptor, bool clipFill = true )
 	{
 		ref var state = ref buffer.State;
-		return CreateDescriptor( bounds, buffer.InheritedOpacity, state.OverrideBlendMode, state.FillInsets, state.FillMask, state.FillMaskRect, clipFill );
+		CreateDescriptor( bounds, buffer.InheritedOpacity, state.OverrideBlendMode, state.FillInsets, out descriptor, state.FillMask, state.FillMaskRect, clipFill );
 	}
 
-	internal Painter.BoxDescriptor CreateDescriptor( Rect bounds, float opacity, BlendMode blendMode, in Vector4 fillInsets, Texture fillMask = null, Rect fillMaskRect = default, bool clipFill = true )
+	internal void CreateDescriptor( Rect bounds, float opacity, BlendMode blendMode, in Vector4 fillInsets, out Painter.BoxDescriptor descriptor, Texture fillMask = null, Rect fillMaskRect = default, bool clipFill = true )
 	{
 		var hasImage = _texture != null;
 		var hasBackground = hasImage || !_gradient.ColorOffsets.IsDefaultOrEmpty;
@@ -187,21 +187,23 @@ public readonly partial struct Fill
 		var backgroundGradient = _gradient;
 		_gradientCoordinates?.Resolve( bounds, ref backgroundGradient, out backgroundRect );
 
-		return new Painter.BoxDescriptor( bounds, hasBackground ? Background.WithAlphaMultiplied( opacity ) : _color.WithAlphaMultiplied( opacity ) )
-		{
-			BackgroundImage = _texture,
-			BackgroundAngle = Rotation,
-			BackgroundBlendMode = BackgroundBlend,
-			BackgroundClip = clipFill && fillMask is not null ? BackgroundClip.Text : clipFill && fillInsets != Vector4.Zero ? BackgroundClip.ContentBox : BackgroundClip.BorderBox,
-			BackgroundClipInset = fillInsets,
-			TextMask = clipFill ? fillMask : null,
-			TextMaskRect = new Vector4( fillMaskRect.Left - bounds.Left, fillMaskRect.Top - bounds.Top, fillMaskRect.Width, fillMaskRect.Height ),
-			BackgroundGradient = backgroundGradient,
-			BackgroundRect = backgroundRect,
-			BackgroundTint = hasBackground ? _color.WithAlphaMultiplied( opacity ) : Color.Transparent,
-			BackgroundRepeat = _repeat,
-			FilterMode = _filter,
-			OverrideBlendMode = blendMode,
-		};
+		// Write directly to the caller's storage. This descriptor contains managed references,
+		// so copying an initializer temporary also requires a GC write barrier.
+		descriptor = default;
+		descriptor.Rect = bounds;
+		descriptor.Color = hasBackground ? Background.WithAlphaMultiplied( opacity ) : _color.WithAlphaMultiplied( opacity );
+		descriptor.BackgroundImage = _texture;
+		descriptor.BackgroundAngle = Rotation;
+		descriptor.BackgroundBlendMode = BackgroundBlend;
+		descriptor.BackgroundClip = clipFill && fillMask is not null ? BackgroundClip.Text : clipFill && fillInsets != Vector4.Zero ? BackgroundClip.ContentBox : BackgroundClip.BorderBox;
+		descriptor.BackgroundClipInset = fillInsets;
+		descriptor.TextMask = clipFill ? fillMask : null;
+		descriptor.TextMaskRect = new Vector4( fillMaskRect.Left - bounds.Left, fillMaskRect.Top - bounds.Top, fillMaskRect.Width, fillMaskRect.Height );
+		descriptor.BackgroundGradient = backgroundGradient;
+		descriptor.BackgroundRect = backgroundRect;
+		descriptor.BackgroundTint = hasBackground ? _color.WithAlphaMultiplied( opacity ) : Color.Transparent;
+		descriptor.BackgroundRepeat = _repeat;
+		descriptor.FilterMode = _filter;
+		descriptor.OverrideBlendMode = blendMode;
 	}
 }

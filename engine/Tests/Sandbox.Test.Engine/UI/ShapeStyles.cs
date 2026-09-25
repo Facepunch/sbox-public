@@ -139,11 +139,13 @@ public class ShapeStylesTest : PainterTestBase
 	public void PathHierarchyFindsEveryCandidate()
 	{
 		var random = new Random( 17 );
-		var bounds = Enumerable.Range( 0, 2000 ).Select( i => new Rect( random.Next( 1000 ), random.Next( 1000 ), random.Next( 30 ), random.Next( 30 ) ) ).ToArray();
-		var edges = bounds.Select( rect => new UICssBoxBatched.PathPrimitive
+		// Primitives follow the path, as the painter emits them. The hierarchy relies on that order.
+		static Vector2 Spiral( int i ) => new Vector2( 500, 500 ) + new Vector2( MathF.Cos( i * 0.05f ), MathF.Sin( i * 0.05f ) ) * (50 + i * 0.2f);
+		var bounds = Enumerable.Range( 0, 2000 ).Select( i => Rect.FromPoints( Spiral( i ), Spiral( i + 1 ) ) ).ToArray();
+		var edges = Enumerable.Range( 0, 2000 ).Select( i => new UICssBoxBatched.PathPrimitive
 		{
 			Kind = UICssBoxBatched.PathPrimitiveKind.Segment,
-			A = new Vector4( rect.Left, rect.Top, rect.Right, rect.Bottom ),
+			A = new Vector4( Spiral( i ).x, Spiral( i ).y, Spiral( i + 1 ).x, Spiral( i + 1 ).y ),
 		} ).ToArray();
 		var path = new Painter.Path.Data( new UICssBoxBatched.BorderShape { Kind = UICssBoxBatched.ShapeKind.PolygonPath }, edges );
 		Assert.AreEqual( bounds.Length * 2 - 1, path.Nodes.Length );
@@ -223,6 +225,65 @@ public class ShapeStylesTest : PainterTestBase
 			Assert.AreEqual( 0, batcher.Shapes.Count );
 			(first, second) = (second, first);
 		}
+	}
+
+	/// <summary>
+	/// Transient submission owns its buffer contents and matches cached geometry, including local BVH indices.
+	/// </summary>
+	[TestMethod]
+	public void TransientPathsMatchCachedPaths()
+	{
+		var shape = new UICssBoxBatched.BorderShape { Kind = UICssBoxBatched.ShapeKind.StrokePath, Circle = new Vector4( 0, 0, 2, 1 ) };
+		var mask = new Painter.Path.Data( new()
+		{
+			Kind = UICssBoxBatched.ShapeKind.Circle,
+			Circle = new Vector4( 0, 0, 100, 0 )
+		}, [] );
+		var primitives = Enumerable.Range( 0, 150 ).Select( i => new UICssBoxBatched.PathPrimitive
+		{
+			Kind = UICssBoxBatched.PathPrimitiveKind.Segment,
+			A = new Vector4( i, i % 7, i + 1, i % 7 + 2 )
+		} ).ToArray();
+		var cached = new Painter.Path.Data( shape, primitives, mask );
+		var batcher = new PainterBatcher( new Sandbox.Rendering.CommandList() );
+		for ( int frame = 0; frame < 2; frame++ )
+		{
+			// First reserve a nonzero offset, then compare both submission routes.
+			batcher.AddPath( shape, primitives.AsSpan( 0, 1 ) );
+			var direct = batcher.Shapes[batcher.AddPath( shape, primitives, mask )];
+			var retained = batcher.Shapes[batcher.GetOrAddPath( cached )];
+			Assert.AreEqual( retained with { PathOffset = direct.PathOffset, PathNodeOffset = direct.PathNodeOffset }, direct );
+			CollectionAssert.AreEqual( cached.Primitives.ToArray(), batcher.Paths.Skip( direct.PathOffset ).Take( direct.PathCount ).ToArray() );
+			CollectionAssert.AreEqual( cached.Nodes.ToArray(), batcher.PathNodes.Skip( direct.PathNodeOffset ).Take( direct.PathNodeCount ).ToArray() );
+			Assert.AreEqual( batcher.GetOrAddPath( mask ) + 1, direct.PolygonCount );
+			Assert.AreEqual( 1 + primitives.Length * 2, batcher.Paths.Count );
+			batcher.AdvanceFrame();
+		}
+
+		var submitted = batcher.Shapes[batcher.AddPath( shape, primitives )];
+		primitives[0] = default;
+		Assert.AreEqual( cached.Primitives[0], batcher.Paths[submitted.PathOffset] );
+		Assert.AreEqual( 0, batcher.GpuBufferCount );
+	}
+
+	[TestMethod]
+	public void TransientPathSubmissionDoesNotAllocateAfterWarmup()
+	{
+		var batcher = new PainterBatcher( new Sandbox.Rendering.CommandList() );
+		var shape = new UICssBoxBatched.BorderShape { Kind = UICssBoxBatched.ShapeKind.StrokePath, Circle = new Vector4( 0, 0, 2, 0 ) };
+		UICssBoxBatched.PathPrimitive[] primitives = [new() { Kind = UICssBoxBatched.PathPrimitiveKind.Segment, A = new Vector4( 0, 0, 10, 10 ) }];
+		for ( int i = 0; i < 10; i++ )
+		{
+			batcher.AddPath( shape, primitives );
+			batcher.AdvanceFrame();
+		}
+		long before = GC.GetAllocatedBytesForCurrentThread();
+		for ( int i = 0; i < 1000; i++ )
+		{
+			batcher.AddPath( shape, primitives );
+			batcher.AdvanceFrame();
+		}
+		Assert.AreEqual( 0L, GC.GetAllocatedBytesForCurrentThread() - before );
 	}
 
 	[TestMethod]

@@ -5,7 +5,7 @@ PackageHoverCard
 	@include front-slab;
 
 	position: absolute;
-	z-index: 1500;
+	z-index: 500;
 	flex-direction: column;
 	flex-shrink: 0;
 	overflow: hidden;
@@ -14,18 +14,12 @@ PackageHoverCard
 	border-radius: $front-radius;
 	border: 1px solid $front-border;
 	box-shadow: 0 18px 48px rgba( black, 0.7 );
-	// Origin y is set from code to the media centre; 0.763 = the card's 1.03 lift / 1.35.
-	transform-origin: 50% 0;
-	transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+	transform-origin: 0 0;
+	transition: opacity 0.3s ease-out;
 
 	icon
 	{
 		font-family: "Material Icons";
-	}
-
-	&:intro
-	{
-		transform: scale( 0.763 );
 	}
 
 	&:outro
