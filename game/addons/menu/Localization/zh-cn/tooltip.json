@@ -1,6 +1,17 @@
 {
     "tooltip.achievementlist.unlocked": "有多少名玩家解锁该成就",
 
+    "tooltip.actionbar.like": "点赞",
+    "tooltip.actionbar.dislike": "点踩",
+    "tooltip.actionbar.add_favourites": "加入收藏",
+    "tooltip.actionbar.remove_favourites": "取消收藏",
+    "tooltip.actionbar.hide_game": "隐藏此游戏",
+    "tooltip.actionbar.review": "撰写评价",
+    "tooltip.actionbar.review_rated": "{total} 篇评价中有 {score}% 的好评，留下你的评价吧",
+    "tooltip.actionbar.jam": "{title} 参赛作品，{hint}",
+    "tooltip.actionbar.jam_hint_nominated": "您已为此作品提名",
+    "tooltip.actionbar.jam_hint_nominate": "觉得不错？为它提名吧",
+
     "tooltip.avatar.workshop.review": "添加评测",
 
     "tooltip.avatarbutton.edit_avatar": "编辑你的形象",
@@ -87,6 +98,8 @@
     "tooltip.clothingitemselector.facialhair.sideburns": "鬓角",
     "tooltip.clothingitemselector.facialhair.goatee": "山羊胡",
 
+    "tooltip.friendslistmodal.friends_online": "在线好友",
+
     "tooltip.gameclosedtoast.view_information": "查看详情",
     "tooltip.gameclosedtoast.remove_favourites": "取消收藏",
     "tooltip.gameclosedtoast.add_favourites": "加入收藏",
@@ -97,6 +110,14 @@
     "tooltip.itemtile.count": "输入您想购买的数量",
 
     "tooltip.packagefilterorder.sort": "排序方式",
+
+    "tooltip.packagehovercard.like": "点赞",
+    "tooltip.packagehovercard.dislike": "点踩",
+    "tooltip.packagehovercard.players_all_time": "累计玩家数",
+    "tooltip.packagehovercard.add_favourites": "加入收藏",
+    "tooltip.packagehovercard.remove_favourites": "取消收藏",
+    "tooltip.packagehovercard.write_review": "撰写评测",
+    "tooltip.packagehovercard.hide_game": "隐藏此游戏",
 
     "tooltip.packagemetrics.favourited": "收藏",
     "tooltip.packagemetrics.thumbs_up": "推荐",

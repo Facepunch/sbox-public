@@ -10,10 +10,10 @@
 
     <div class="write-review">
         <div class="text">
-            <label class="title">Played @Package.Title?</label>
-            <label class="hint">Tell everyone what you thought. Reviews decide the verdict up top.</label>
+            <label class="title">@Language.GetPhrase( "packagereviews.played", new() { { "title", Package.Title } } )</label>
+            <label class="hint">#packagereviews.hint</label>
         </div>
-        <Button class="primary" icon="rate_review" onclick=@WriteReview>Write a review</Button>
+        <Button class="primary" icon="rate_review" onclick=@WriteReview>#packagereviews.write_review</Button>
     </div>
 
     <div class="tag-filters">

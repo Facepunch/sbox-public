@@ -14,14 +14,14 @@
 
 		<div class="header">
 			<i>redeem</i>
-			<h2>Item drops</h2>
+			<h2>#rewardsmodal.title</h2>
 			<div class="grow" />
 
 			@if ( Window is not null )
 			{
 				<div class="refresh @( IsLoading ? "busy" : "" )" onclick=@Refresh>
 					<icon>refresh</icon>
-					<label>@( IsLoading ? "Loading" : "Refresh" )</label>
+					<label>@Language.GetPhrase( IsLoading ? "rewardsmodal.loading" : "rewardsmodal.refresh" )</label>
 				</div>
 			}
 		</div>
@@ -39,8 +39,8 @@
 					{
 						<icon>redeem</icon>
 					}
-					<label class="title">@( IsLoading ? "Checking your progress" : "No drop right now" )</label>
-					<label class="hint">@( IsLoading ? "One moment." : "Nothing is being tracked for you at the moment. Play something and check back." )</label>
+					<label class="title">@Language.GetPhrase( IsLoading ? "rewardsmodal.checking_progress" : "rewardsmodal.no_drop" )</label>
+					<label class="hint">@Language.GetPhrase( IsLoading ? "rewardsmodal.one_moment" : "rewardsmodal.no_drop_hint" )</label>
 				</div>
 			}
 			else
@@ -52,18 +52,18 @@
 						<div class="ring-fill" style="background-image: @RingGradient" />
 						<div class="ring-inner">
 							<label class="percent">@PercentText</label>
-							<label class="percent-label">@( CanOpen ? "ready" : "done" )</label>
+							<label class="percent-label">@Language.GetPhrase( CanOpen ? "rewardsmodal.progress_ready" : "rewardsmodal.progress_done" )</label>
 						</div>
 					</div>
 
 					<div class="hero-body">
-						<label class="eyebrow">@( CanOpen ? "Your drop is waiting" : "Next drop" )</label>
+						<label class="eyebrow">@Language.GetPhrase( CanOpen ? "rewardsmodal.waiting" : "rewardsmodal.next_drop" )</label>
 						<label class="hero-title">@Title</label>
 						<label class="hero-hint">@StatusText</label>
 
 						<div class="open @( CanOpen ? "reward" : "locked" )" onclick=@OpenReward>
 							<icon>@( CanOpen ? "inventory_2" : "lock" )</icon>
-							<label>@( CanOpen ? "Open your drop" : "Keep playing" )</label>
+							<label>@Language.GetPhrase( CanOpen ? "rewardsmodal.open" : "rewardsmodal.keep_playing" )</label>
 						</div>
 					</div>
 
@@ -72,8 +72,8 @@
 				@if ( Facets.Length > 0 )
 				{
 					<div class="section-head">
-						<label class="title">Objectives</label>
-						<label class="count">@MetCount of @Facets.Length met</label>
+						<label class="title">#rewardsmodal.objectives</label>
+						<label class="count">@Language.GetPhrase( "rewardsmodal.met_count", new() { { "met", MetCount }, { "total", Facets.Length } } )</label>
 					</div>
 
 					@foreach ( var facet in Facets )
@@ -105,8 +105,8 @@
 		</div>
 
 		<div class="footer">
-			<label class="note">Play games and every objective ticks itself off. Meet them all and the drop unlocks - no money involved.</label>
-			<label class="docs-link" onclick=@OpenStore>Browse the item store</label>
+			<label class="note">#rewardsmodal.note3</label>
+			<label class="docs-link" onclick=@OpenStore>#rewardsmodal.browse_store</label>
 		</div>
 
 	</div>
@@ -140,7 +140,7 @@
 
 	int MetCount => Window?.MetCount ?? 0;
 
-	string Title => string.IsNullOrWhiteSpace( Window?.Title ) ? "Item drop" : Window.Title;
+	string Title => string.IsNullOrWhiteSpace( Window?.Title ) ? Language.GetPhrase( "rewardsmodal.item_drop" ) : Window.Title;
 
 	/// <summary>Every objective averaged - one arc stands in for all of them.</summary>
 	float Fraction => Window is null ? 0f : (CanOpen ? 1f : Window.Progress);
@@ -151,11 +151,11 @@
 	{
 		get
 		{
-			if ( State?.Pending is not null ) return "You started opening this one - go back and pick your item.";
-			if ( CanOpen ) return "Everything's met. Open it and choose what you keep.";
-			if ( Facets.Length == 0 ) return "Nothing to do here yet.";
+			if ( State?.Pending is not null ) return Language.GetPhrase( "rewardsmodal.status_started" );
+			if ( CanOpen ) return Language.GetPhrase( "rewardsmodal.status_ready" );
+			if ( Facets.Length == 0 ) return Language.GetPhrase( "rewardsmodal.status_empty" );
 
-			return $"{Facets.Length - MetCount} left to go.";
+			return Language.GetPhrase( "rewardsmodal.status_left", new() { { "count", Facets.Length - MetCount } } );
 		}
 	}
 
@@ -166,7 +166,7 @@
 
 	static string CountText( RewardFacet facet )
 	{
-		return facet.Met ? "Done" : $"{(int)facet.Current}/{(int)facet.Required}";
+		return facet.Met ? Language.GetPhrase( "rewardsmodal.count_done" ) : $"{(int)facet.Current}/{(int)facet.Required}";
 	}
 
 	/// <summary>Two hard stops - filled arc up to the percentage, empty track the rest of the way.</summary>

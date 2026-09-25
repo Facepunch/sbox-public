@@ -29,8 +29,8 @@
 						{
 							<icon>emoji_events</icon>
 						}
-						<label class="title">@( IsLoading ? "Checking for a jam" : "No jam right now" )</label>
-						<label class="hint">@( IsLoading ? "One moment." : "Nothing is running at the moment. Check back later." )</label>
+						<label class="title">@( IsLoading ? Language.GetPhrase( "jampage.checking" ) : Language.GetPhrase( "jampage.no_jam" ) )</label>
+						<label class="hint">@( IsLoading ? Language.GetPhrase( "jampage.one_moment" ) : Language.GetPhrase( "jampage.no_jam_hint" ) )</label>
 					</div>
 				</div>
 			}
@@ -50,12 +50,12 @@
 
 										@if ( Jam.IsLive )
 										{
-											<div class="live-pill"><div class="pip"></div><label>Live</label></div>
+											<div class="live-pill"><div class="pip"></div><label>#jampage.live</label></div>
 										}
 									</div>
 
 									<div class="theme">
-										<label class="kicker">@( ShowTheme ? "Theme" : "Game jam" )</label>
+										<label class="kicker">@( ShowTheme ? Language.GetPhrase( "jampage.theme" ) : Language.GetPhrase( "jampage.game_jam" ) )</label>
 										<label class="headline">@Headline</label>
 									</div>
 
@@ -90,7 +90,7 @@
 												<div class="places">
 													<div class="place first">
 														<label class="amount">@category.Prize</label>
-														<label class="ordinal">Prize</label>
+														<label class="ordinal">#jampage.prize</label>
 													</div>
 												</div>
 											}
@@ -107,13 +107,13 @@
 										{
 											<div class="action" onclick=@EnterGame>
 												<icon>touch_app</icon>
-												<label>Enter your game</label>
+												<label>#jampage.enter_game</label>
 											</div>
 										}
 
 										<div class="action secondary" onclick=@OpenWebsite>
 											<icon>open_in_new</icon>
-											<label>Jam page</label>
+											<label>#jampage.jam_page</label>
 										</div>
 									</div>
 								</div>
@@ -125,7 +125,7 @@
 						<div class="list">
 
 							<div class="section-head">
-								<label class="title">Entries</label>
+								<label class="title">#jampage.entries</label>
 								<label class="description">@EntriesText</label>
 							</div>
 
@@ -133,8 +133,8 @@
 							{
 								<div class="jam-empty">
 									<icon>lock_clock</icon>
-									<label class="title">Theme drops @JamFormat.Day( Jam.Starts )</label>
-									<label class="hint">Entries open the moment it does.</label>
+									<label class="title">@Language.GetPhrase( "jampage.theme_drops", new() { { "date", JamFormat.Day( Jam.Starts ) } } )</label>
+									<label class="hint">#jampage.entries_open_hint</label>
 								</div>
 							}
 							else
@@ -176,12 +176,12 @@
 
 							@if ( Jam.IsLive )
 							{
-								<div class="live-pill"><div class="pip"></div><label>Live</label></div>
+								<div class="live-pill"><div class="pip"></div><label>#jampage.live</label></div>
 							}
 						</div>
 
 						<div class="theme">
-							<label class="kicker">@( ShowTheme ? "Theme" : "Game jam" )</label>
+							<label class="kicker">@( ShowTheme ? Language.GetPhrase( "jampage.theme" ) : Language.GetPhrase( "jampage.game_jam" ) )</label>
 							<label class="headline">@Headline</label>
 						</div>
 
@@ -193,20 +193,20 @@
 							{
 								<div class="action" onclick=@EnterGame>
 									<icon>touch_app</icon>
-									<label>Enter your game</label>
+									<label>#jampage.enter_game</label>
 								</div>
 							}
 
 							<div class="action secondary" onclick=@OpenWebsite>
 								<icon>open_in_new</icon>
-								<label>Jam page</label>
+								<label>#jampage.jam_page</label>
 							</div>
 						</div>
 
 						@foreach ( var category in Jam.Categories )
 						{
 							<div class="block">
-								<label class="section-label">@( $"Prizes · {category.Title}" )</label>
+								<label class="section-label">@Language.GetPhrase( "jampage.prizes_title", new() { { "title", category.Title } } )</label>
 
 								<div class="prize">
 									<label class="prize-icon">@category.Icon</label>
@@ -237,7 +237,7 @@
 								{
 									<div class="places">
 										<div class="place first">
-											<label class="ordinal">Prize</label>
+											<label class="ordinal">#jampage.prize</label>
 											<label class="amount">@category.Prize</label>
 										</div>
 									</div>
@@ -250,7 +250,7 @@
 					<div class="list">
 
 						<div class="section-head">
-							<label class="title">Entries</label>
+							<label class="title">#jampage.entries</label>
 							<label class="description">@EntriesText</label>
 						</div>
 
@@ -258,8 +258,8 @@
 						{
 							<div class="jam-empty">
 								<icon>lock_clock</icon>
-								<label class="title">Theme drops @JamFormat.Day( Jam.Starts )</label>
-								<label class="hint">Entries open the moment it does.</label>
+								<label class="title">@Language.GetPhrase( "jampage.theme_drops", new() { { "date", JamFormat.Day( Jam.Starts ) } } )</label>
+								<label class="hint">#jampage.entries_open_hint</label>
 							</div>
 						}
 						else
@@ -354,9 +354,9 @@
 
 	string EntriesText => Jam.EntryCount switch
 	{
-		0 => Jam.HasStarted ? "none yet" : "not open yet",
-		1 => "There is only 1 so far",
-		_ => $"There are {Jam.EntryCount} entries so far",
+		0 => Language.GetPhrase( Jam.HasStarted ? "jampage.entries_none" : "jampage.entries_not_open" ),
+		1 => Language.GetPhrase( "jampage.entries_one" ),
+		_ => Language.GetPhrase( "jampage.entries_plural", new() { { "count", Jam.EntryCount } } ),
 	};
 
 	static string PrizeTitle( Jam.Category category )

@@ -15,12 +15,12 @@
 	</div>
 	@if ( Busy && HostProgress is { } host )
 	{
-		<div class="progress-label"><label>Party leader's download</label><label>@($"{host.Percent:0}%")</label></div>
+		<div class="progress-label"><label>#partyjoincard.host_download</label><label>@($"{host.Percent:0}%")</label></div>
 		<div class="progress-track"><div class="progress-fill host" style="width: @(Percent(host))%;"></div></div>
 	}
 	@if ( Busy && Progress is { } download )
 	{
-		<div class="progress-label"><label>Your download</label><label>@($"{download.Percent:0}%")</label></div>
+		<div class="progress-label"><label>#partyjoincard.your_download</label><label>@($"{download.Percent:0}%")</label></div>
 		<div class="progress-track"><div class="progress-fill" style="width: @(Percent(download))%;"></div></div>
 		@if ( download.Mbps > 0 )
 		{
@@ -31,17 +31,17 @@
 	<div class="actions">
 		@if ( Stage is PartyRoom.JoinStage.Failed or PartyRoom.JoinStage.Cancelled )
 		{
-			<Button class="retry" onclick=@Retry>Retry</Button>
+			<Button class="retry" onclick=@Retry>#partyjoincard.retry</Button>
 		}
 		@if ( Busy )
 		{
-			<Button onclick=@Cancel>Cancel join</Button>
+			<Button onclick=@Cancel>#partyjoincard.cancel_join</Button>
 		}
 		else
 		{
-			<Button onclick=@Dismiss>Dismiss</Button>
+			<Button onclick=@Dismiss>#partyjoincard.dismiss</Button>
 		}
-		<Button onclick=@Leave>Leave party</Button>
+		<Button onclick=@Leave>#partyjoincard.leave</Button>
 	</div>
 </root>
 
@@ -65,22 +65,22 @@
 	int LastIdentity;
 	string Title => Stage switch
 	{
-		PartyRoom.JoinStage.Downloading => "Preparing to join your party",
-		PartyRoom.JoinStage.WaitingForHost => "Waiting for the party leader",
-		PartyRoom.JoinStage.Connecting => "Joining your party",
-		PartyRoom.JoinStage.Failed => "Couldn't join your party",
-		PartyRoom.JoinStage.Cancelled => "Party join cancelled",
-		PartyRoom.JoinStage.Unavailable => "Leader's game isn't joinable",
-		_ => "Party"
+		PartyRoom.JoinStage.Downloading => Language.GetPhrase( "partyjoincard.title_downloading" ),
+		PartyRoom.JoinStage.WaitingForHost => Language.GetPhrase( "partyjoincard.title_waiting" ),
+		PartyRoom.JoinStage.Connecting => Language.GetPhrase( "partyjoincard.title_connecting" ),
+		PartyRoom.JoinStage.Failed => Language.GetPhrase( "partyjoincard.title_failed" ),
+		PartyRoom.JoinStage.Cancelled => Language.GetPhrase( "partyjoincard.title_cancelled" ),
+		PartyRoom.JoinStage.Unavailable => Language.GetPhrase( "partyjoincard.title_unavailable" ),
+		_ => Language.GetPhrase( "partyjoincard.title" )
 	};
 	string Detail => Stage switch
 	{
-		PartyRoom.JoinStage.Downloading => Progress is null ? "Fetching game information…" : "Downloading the game before connecting.",
-		PartyRoom.JoinStage.WaitingForHost => "Your download is ready. Waiting for the leader to start the game.",
-		PartyRoom.JoinStage.Connecting => "Connecting and loading the game…",
+		PartyRoom.JoinStage.Downloading => Language.GetPhrase( Progress is null ? "partyjoincard.detail_fetching" : "partyjoincard.detail_downloading" ),
+		PartyRoom.JoinStage.WaitingForHost => Language.GetPhrase( "partyjoincard.detail_waiting" ),
+		PartyRoom.JoinStage.Connecting => Language.GetPhrase( "partyjoincard.detail_connecting" ),
 		PartyRoom.JoinStage.Failed => Error,
-		PartyRoom.JoinStage.Cancelled => "You're still in the party. Retry when you're ready.",
-		PartyRoom.JoinStage.Unavailable => "The leader is playing a game without a joinable server.",
+		PartyRoom.JoinStage.Cancelled => Language.GetPhrase( "partyjoincard.detail_cancelled" ),
+		PartyRoom.JoinStage.Unavailable => Language.GetPhrase( "partyjoincard.detail_unavailable" ),
 		_ => ""
 	};
 	static string Percent( LoadingProgress progress ) => (Math.Clamp( progress.Fraction, 0, 1 ) * 100).ToString( "0.0", System.Globalization.CultureInfo.InvariantCulture );

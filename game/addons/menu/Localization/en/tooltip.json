@@ -1,6 +1,17 @@
 {
     "tooltip.achievementlist.unlocked": "How many people unlocked this",
 
+    "tooltip.actionbar.like": "Like",
+    "tooltip.actionbar.dislike": "Dislike",
+    "tooltip.actionbar.add_favourites": "Add to favourites",
+    "tooltip.actionbar.remove_favourites": "Remove from favourites",
+    "tooltip.actionbar.hide_game": "Hide this game",
+    "tooltip.actionbar.review": "Write a review",
+    "tooltip.actionbar.review_rated": "{score}% from {total} reviews. Write yours",
+    "tooltip.actionbar.jam": "{title} entry. {hint}",
+    "tooltip.actionbar.jam_hint_nominated": "You nominated it for the jam",
+    "tooltip.actionbar.jam_hint_nominate": "Liked it? Nominate it for the jam",
+
     "tooltip.avatar.workshop.review": "Add a Review",
 
     "tooltip.avatarbutton.edit_avatar": "Edit your avatar",
@@ -87,6 +98,8 @@
     "tooltip.clothingitemselector.facialhair.sideburns": "Sideburns",
     "tooltip.clothingitemselector.facialhair.goatee": "Goatee",
 
+    "tooltip.friendslistmodal.friends_online": "Friends online",
+
     "tooltip.gameclosedtoast.view_information": "View More Information",
     "tooltip.gameclosedtoast.remove_favourites": "Remove from Favourites",
     "tooltip.gameclosedtoast.add_favourites": "Add to Favourites",
@@ -97,6 +110,14 @@
     "tooltip.itemtile.count": "Type how many you want",
 
     "tooltip.packagefilterorder.sort": "Sort",
+
+    "tooltip.packagehovercard.like": "Like",
+    "tooltip.packagehovercard.dislike": "Dislike",
+    "tooltip.packagehovercard.players_all_time": "Players all time",
+    "tooltip.packagehovercard.add_favourites": "Add to favourites",
+    "tooltip.packagehovercard.remove_favourites": "Remove from favourites",
+    "tooltip.packagehovercard.write_review": "Write a review",
+    "tooltip.packagehovercard.hide_game": "Hide this game",
 
     "tooltip.packagemetrics.favourited": "Favourited",
     "tooltip.packagemetrics.thumbs_up": "Thumbs Up",

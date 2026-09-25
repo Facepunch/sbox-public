@@ -24,7 +24,7 @@
             <div class="facts">
                 <div class="fact live">
                     <div class="live-dot" />
-                    <label>@Compact( Package.Usage.UsersNow ) playing</label>
+                    <label>@Language.GetPhrase( "packagehovercard.playing", new() { { "count", Compact( Package.Usage.UsersNow ) } } )</label>
                 </div>
             </div>
         }
@@ -39,7 +39,7 @@
                 <label>@ReviewPercentText()</label>
             </div>
 
-            <div class="fact" tooltip="Players all time">
+            <div class="fact" tooltip="#tooltip.packagehovercard.players_all_time">
                 <icon>group</icon>
                 <label>@Compact( Package.Usage.Total.Users )</label>
             </div>
@@ -88,12 +88,12 @@
             <div class="jam @( _nominated ? "on" : "" )">
                 <icon class="trophy">emoji_events</icon>
                 <div class="text">
-                    <label class="title">@_jam.Title entry</label>
+                    <label class="title">@Language.GetPhrase( "packagehovercard.entry_title", new() { { "title", _jam.Title } } )</label>
                     <label class="hint">@JamHint</label>
                 </div>
                 <div class="nominate @( _nominated ? "on" : "" ) @( _busy ? "busy" : "" ) @( CanToggleNomination ? "" : "locked" )" onclick=@( () => _ = ToggleNomination() )>
                     <icon>@( _nominated ? "check" : CanToggleNomination ? "how_to_vote" : "lock" )</icon>
-                    <label>@( _nominated ? "Nominated" : "Nominate" )</label>
+                    <label>@Language.GetPhrase( _nominated ? "packagehovercard.nominated" : "packagehovercard.nominate" )</label>
                 </div>
             </div>
         }
@@ -101,24 +101,24 @@
         <div class="footer">
             <div class="actions">
                 <div class="group">
-                    <div class="button @( Liked ? "active" : "" )" onclick=@( () => _ = Vote( true ) ) tooltip="Like">
+                    <div class="button @( Liked ? "active" : "" )" onclick=@( () => _ = Vote( true ) ) tooltip="#tooltip.packagehovercard.like">
                         <icon>thumb_up</icon>
                     </div>
-                    <div class="button @( Disliked ? "active" : "" )" onclick=@( () => _ = Vote( false ) ) tooltip="Dislike">
+                    <div class="button @( Disliked ? "active" : "" )" onclick=@( () => _ = Vote( false ) ) tooltip="#tooltip.packagehovercard.dislike">
                         <icon>thumb_down</icon>
                     </div>
                 </div>
                 <div class="group">
-                    <div class="button fav @( Package.Interaction.Favourite ? "active" : "" )" onclick=@( () => _ = ToggleFavourite() ) tooltip="@( Package.Interaction.Favourite ? "Remove from favourites" : "Add to favourites" )">
+                    <div class="button fav @( Package.Interaction.Favourite ? "active" : "" )" onclick=@( () => _ = ToggleFavourite() ) tooltip="@( Package.Interaction.Favourite ? "#tooltip.packagehovercard.remove_favourites" : "#tooltip.packagehovercard.add_favourites" )">
                         <icon>@( Package.Interaction.Favourite ? "favorite" : "favorite_border" )</icon>
                     </div>
-                    <div class="button" onclick=@Review tooltip="Write a review">
+                    <div class="button" onclick=@Review tooltip="#tooltip.packagehovercard.write_review">
                         <icon>rate_review</icon>
                     </div>
                 </div>
                 @if ( Package.TypeName == "game" )
                 {
-                    <div class="button @( _hiding ? "busy" : "" )" onclick=@( () => _ = Hide() ) tooltip="Hide this game">
+                    <div class="button @( _hiding ? "busy" : "" )" onclick=@( () => _ = Hide() ) tooltip="#tooltip.packagehovercard.hide_game">
                         <icon>block</icon>
                     </div>
                 }
@@ -131,7 +131,7 @@
                 <div class="actions">
                     <div class="button primary" onclick=@Play>
                         <icon>play_arrow</icon>
-                        <label>Play</label>
+                        <label>#packagehovercard.play</label>
                     </div>
                 </div>
             }
@@ -164,7 +164,7 @@
 
     bool ShowJam => _jam is not null && _entry.IsEntry;
     bool CanToggleNomination => _nominated || _entry.CanNominate;
-    string JamHint => _nominated ? "You nominated it for the jam" : CanToggleNomination ? "Liked it? Nominate it for the jam" : _entry.Reason;
+    string JamHint => _nominated ? Language.GetPhrase( "packagehovercard.hint_nominated" ) : CanToggleNomination ? Language.GetPhrase( "packagehovercard.hint_nominate" ) : _entry.Reason;
 
     static bool IsShowing( Panel source ) => Current.IsValid() && Current.Source == source;
 
@@ -231,7 +231,7 @@
         catch ( Exception e )
         {
             Log.Warning( e, $"Nominate {Package.FullIdent} failed" );
-            reason = "Couldn't reach the jam right now.";
+            reason = Language.GetPhrase( "packagehovercard.unreachable" );
         }
 
         if ( !this.IsValid() ) return;
@@ -397,11 +397,17 @@
         if ( this.IsValid() ) StateHasChanged();
     }
 
+    static string Localize( string key, string originalText )
+    {
+        string localizedText = Language.GetPhrase( key );
+        return localizedText == key ? originalText : localizedText;
+    }
+
     static string TagLabel( string tag ) => tag switch
     {
-        "multiplayer" => "Multiplayer",
-        "singleplayer" => "Singleplayer",
-        _ => GenreLabels.GetValueOrDefault( tag, tag ),
+        "multiplayer" => Language.GetPhrase( "packagehovercard.tag_multiplayer" ),
+        "singleplayer" => Language.GetPhrase( "packagehovercard.tag_singleplayer" ),
+        _ => Localize( "packagehovercard.genre." + tag, GenreLabels.GetValueOrDefault( tag, tag ) ),
     };
 
     // Multiplayer can be inferred from MaxPlayers, so only real tags link
@@ -415,14 +421,14 @@
         var org = Package.Org?.Title;
         var updated = Package.Updated.LocalDateTime.ToRelativeTimeString();
 
-        return string.IsNullOrEmpty( org ) ? $"Updated {updated}" : $"by {org}  ·  Updated {updated}";
+        return string.IsNullOrEmpty( org ) ? Language.GetPhrase( "packagehovercard.updated", new() { { "updated", updated } } ) : Language.GetPhrase( "packagehovercard.byline", new() { { "org", org }, { "updated", updated } } );
     }
 
     string PlayersText()
     {
         var max = Package.Info.MaxPlayers;
         var min = Package.Info.MinPlayers;
-        return min > 1 && max > min ? $"{min} - {max}" : $"Up to {max}";
+        return min > 1 && max > min ? $"{min} - {max}" : Language.GetPhrase( "packagehovercard.up_to", new() { { "max", max } } );
     }
 
     // Review stats when there are any, else the up/down votes. -1 = unrated.
@@ -439,14 +445,14 @@
     string ReviewText()
     {
         var (pct, count) = Rating();
-        if ( pct == -1 ) return "No reviews yet";
+        if ( pct == -1 ) return Language.GetPhrase( "packagehovercard.no_reviews" );
 
         var verdict = pct switch
         {
-            >= 80 => "Very Positive",
-            >= 60 => "Positive",
-            >= 40 => "Mixed",
-            _ => "Negative"
+            >= 80 => Language.GetPhrase( "packagehovercard.very_positive" ),
+            >= 60 => Language.GetPhrase( "packagehovercard.positive" ),
+            >= 40 => Language.GetPhrase( "packagehovercard.mixed" ),
+            _ => Language.GetPhrase( "packagehovercard.negative" )
         };
 
         return $"{verdict} ({Compact( count )})";
@@ -455,7 +461,7 @@
     string ReviewPercentText()
     {
         var pct = Rating().Percent;
-        return pct == -1 ? "Unrated" : $"{pct}%";
+        return pct == -1 ? Language.GetPhrase( "packagehovercard.unrated" ) : $"{pct}%";
     }
 
     string ReviewClass() => Rating().Percent switch
