@@ -79,7 +79,7 @@ namespace Sandbox.SolutionGenerator
 					WarningsAsErrors = p.Settings.WarningsAsErrors,
 					TreatWarningsAsErrors = p.Settings.TreatWarningsAsErrors,
 					DefineConstants = p.Settings.DefineConstants,
-					Unsafe = p.Type == "tool",
+					Unsafe = p.Settings.Unsafe,
 					IgnoreFolders = p.Settings.IgnoreFolders.ToList(),
 					IsEditorProject = p.IsEditorProject,
 					IsUnitTestProject = p.IsUnitTestProject,
