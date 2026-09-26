@@ -291,6 +291,64 @@ public class ComponentListWidget : Widget
 			menu.AddSeparator();
 		}
 
+
+		static int FindComponentIndex( ComponentList list, Component component )
+		{
+			var index = 0;
+			foreach ( var element in list.GetAll() )
+			{
+				if ( component == element )
+				{
+					break;
+				}
+				index += 1;
+			}
+
+			return index;
+		}
+
+		var insertAbove = menu.AddMenu( "Insert Component Above", "vertical_align_top" );
+		insertAbove.AddWidget( new MenuComponentTypeSelectorWidget( insertAbove )
+		{
+			OnComponentSelect = ( t ) =>
+			{
+				var session = SceneEditorSession.Resolve( gameObject );
+				using var scene = session.Scene.Push();
+				using ( session.UndoScope( $"Insert {component.GetType().Name} Component Above" ).WithComponentCreations().Push() )
+				{
+					var go = component.GameObject;
+					var index = FindComponentIndex( go.Components, component );
+					var delta = index - go.Components.Count;
+					var newComponent = go.Components.Create( t );
+					if ( delta < 0 )
+					{
+						go.Components.Move( newComponent, delta );
+					}
+				}
+			}
+		} );
+
+		var insertBelow = menu.AddMenu( "Insert Component Below", "vertical_align_bottom" );
+		insertBelow.AddWidget( new MenuComponentTypeSelectorWidget( insertBelow )
+		{
+			OnComponentSelect = ( t ) =>
+			{
+				var session = SceneEditorSession.Resolve( gameObject );
+				using var scene = session.Scene.Push();
+				using ( session.UndoScope( $"Insert {component.GetType().Name} Component Below" ).WithComponentCreations().Push() )
+				{
+					var go = component.GameObject;
+					var index = FindComponentIndex( go.Components, component );
+					var delta = index - go.Components.Count + 1;
+					var newComponent = go.Components.Create( t );
+					if ( delta < 0 )
+					{
+						go.Components.Move( newComponent, delta );
+					}
+				}
+			}
+		} );
+
 		menu.AddOption( "Remove Component", "remove", action: () =>
 		{
 			var session = SceneEditorSession.Resolve( gameObject );
