@@ -10,18 +10,18 @@ public static partial class Inventory
 		internal int DefinitionId;
 
 		public int Id => DefinitionId;
-		public string Name { get; private set; }
-		public string Description { get; private set; }
-		public string DescriptionWithMeta { get; private set; }
-		public string IconUrl { get; private set; }
-		public string IconUrlLarge { get; private set; }
-		public string PackageIdent { get; private set; }
-		public string Category { get; private set; }
-		public bool StoreHidden { get; private set; }
-		public string Asset { get; private set; }
-		public string Rarity { get; private set; }
-		public DateTime? SellStart { get; private set; }
-		public DateTime? SellEnd { get; private set; }
+		public string Name { get { EnsureProperties(); return field; } private set; }
+		public string Description { get { EnsureProperties(); return field; } private set; }
+		public string DescriptionWithMeta { get { EnsureProperties(); return field; } private set; }
+		public string IconUrl { get { EnsureProperties(); return field; } private set; }
+		public string IconUrlLarge { get { EnsureProperties(); return field; } private set; }
+		public string PackageIdent { get { EnsureProperties(); return field; } private set; }
+		public string Category { get { EnsureProperties(); return field; } private set; }
+		public bool StoreHidden { get { EnsureProperties(); return field; } private set; }
+		public string Asset { get { EnsureProperties(); return field; } private set; }
+		public string Rarity { get { EnsureProperties(); return field; } private set; }
+		public DateTime? SellStart { get { EnsureProperties(); return field; } private set; }
+		public DateTime? SellEnd { get { EnsureProperties(); return field; } private set; }
 
 		/// <summary>
 		/// If we're for sale, this is our price
@@ -38,6 +38,19 @@ public static partial class Inventory
 		public ItemDefinition( int id )
 		{
 			DefinitionId = id;
+		}
+
+		bool propertiesLoaded;
+
+		/// <summary>
+		/// Every property is a call into Steam, a dozen per definition, and there are hundreds
+		/// of definitions - about a second all told, on the main thread, for items most
+		/// sessions never look at. So they're read the first time something asks.
+		/// </summary>
+		void EnsureProperties()
+		{
+			if ( propertiesLoaded ) return;
+			propertiesLoaded = true;
 
 			UpdateProperties();
 		}
