@@ -149,7 +149,7 @@ partial class Compiler
 		//
 		// Syntax trees
 		//
-		GetSyntaxTree( archive, parseOptions );
+		GetSyntaxTree( archive, parseOptions, output );
 
 		if ( GetGeneratedCode( output.Version, parseOptions ) is SyntaxTree generated )
 		{
@@ -188,6 +188,12 @@ partial class Compiler
 			.. archive.SyntaxTrees, // from source files
 			.. ProcessRazorFiles(archive, output) // processed razor files
 		];
+
+		// Missing source files, don't build an incomplete assembly
+		if ( output.Diagnostics.Any( x => x.Severity == DiagnosticSeverity.Error ) )
+		{
+			return;
+		}
 
 		List<SyntaxTree> modifiedSyntaxTrees;
 		if ( incrementalState.HasState )
