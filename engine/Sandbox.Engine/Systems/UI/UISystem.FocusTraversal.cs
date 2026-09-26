@@ -11,8 +11,8 @@ partial class UISystem
 	/// </summary>
 	internal bool MoveFocus( Panel from, bool backwards )
 	{
-		var root = from?.FindRootPanel() ?? RootPanels.FirstOrDefault();
-		if ( root is null ) return false;
+		var root = from?.FindRootPanel() ?? GetActiveRoots().FirstOrDefault();
+		if ( root is null || !root.IsActive ) return false;
 
 		var order = new List<Panel>();
 		CollectTabOrder( root, from, order );

@@ -9,6 +9,12 @@ public partial class Scene : GameObject
 	public bool IsEditor { get; private set; }
 
 	/// <summary>
+	/// Pause scene updates, rendering, UI and spatial audio without destroying their state.
+	/// Overlays, local audio and external async work remain active.
+	/// </summary>
+	internal bool IsSuspended { get; set; }
+
+	/// <summary>
 	/// A snapshot is currently creating objects whose map content it already supplies.
 	/// </summary>
 	internal bool IsLoadingSnapshot { get; private set; }
@@ -310,6 +316,8 @@ public partial class Scene : GameObject
 
 	internal void Render( SwapChainHandle_t swapChain, Vector2? size )
 	{
+		if ( IsSuspended ) return;
+
 		using var _renderScope = _renderTimer.Start();
 
 		PreCameraRender();
@@ -328,6 +336,8 @@ public partial class Scene : GameObject
 
 	internal void RenderEnvmaps()
 	{
+		if ( IsSuspended ) return;
+
 		// Can't render envmaps while already inside a render pass
 		if ( Graphics.IsActive )
 		{

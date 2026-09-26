@@ -145,6 +145,8 @@ static class MixingThread
 
 		foreach ( var listener in Listener.ActiveList )
 		{
+			if ( listener.Scene?.IsSuspended == true ) continue;
+
 			listener.MixTransform = listener.Transform;
 			snapshot.Listeners.Add( new ListenerState
 			{

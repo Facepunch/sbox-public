@@ -790,8 +790,6 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 				LoadingScreen.Title = flags.Contains( GameLoadingFlags.Host ) ? "Starting Game" : "Joining Game..";
 				await Task.Yield();
-
-				IMenuDll.Current?.OnGameEntered();
 			}
 		}
 		finally

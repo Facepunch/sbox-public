@@ -168,11 +168,6 @@ public static partial class Game
 			// exit whole app
 			Application.Exit();
 		}
-		else
-		{
-			// return to menu
-			IMenuDll.Current?.OnGameExited();
-		}
 	}
 
 	/// <summary>

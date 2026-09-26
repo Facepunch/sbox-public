@@ -59,7 +59,7 @@ public partial class Scene : GameObject
 	{
 		// Only tick here if we're an editor scene
 		// The game will tick a game scene!
-		if ( !IsEditor || !IsValid )
+		if ( !IsEditor || !IsValid || IsSuspended )
 			return;
 
 		TimeNow = timeNow;
@@ -300,6 +300,8 @@ public partial class Scene : GameObject
 
 	public void GameTick( double timeDelta = 0.1 )
 	{
+		if ( IsSuspended ) return;
+
 		UpdateTime( timeDelta );
 
 		if ( Camera is not null )

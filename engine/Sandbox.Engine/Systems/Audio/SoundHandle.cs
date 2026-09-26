@@ -449,6 +449,9 @@ public partial class SoundHandle : IValid, IDisposable
 		if ( _destroyed ) return false;
 		if ( Finished ) { Dispose(); return false; }
 		if ( Paused ) return false;
+
+		// Local sounds include overlay UI and shared music, which outlive the scene.
+		if ( !ListenLocal && Scene?.IsSuspended == true ) return false;
 		UpdateFollower();
 		return true;
 	}
