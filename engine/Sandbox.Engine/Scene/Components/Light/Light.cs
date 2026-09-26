@@ -276,7 +276,7 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 		if ( !_sceneObject.IsValid() )
 			return;
 
-		_sceneObject.Transform = WorldTransform;
+		_sceneObject.Transform = Transform.InterpolatedWorld;
 	}
 
 	/// <summary>
