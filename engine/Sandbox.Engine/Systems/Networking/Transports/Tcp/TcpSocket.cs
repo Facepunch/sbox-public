@@ -80,6 +80,7 @@ internal class TcpSocket : NetworkSocket, IValid
 		}
 	}
 
+	[SkipHotload]
 	CancellationTokenSource tokenSource;
 
 	public bool IsValid => true;

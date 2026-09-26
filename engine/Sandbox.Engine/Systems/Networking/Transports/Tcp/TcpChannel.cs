@@ -11,6 +11,7 @@ namespace Sandbox.Network;
 /// </summary>
 internal class TcpChannel : Connection
 {
+	[SkipHotload]
 	internal readonly Channel<byte[]> incoming = Channel.CreateUnbounded<byte[]>();
 
 	string _address = "Tcp";
@@ -73,10 +74,13 @@ internal class TcpChannel : Connection
 		}
 	}
 
+	// Socket cancellation registrations contain runtime-owned callbacks, not hotloaded game code.
+	[SkipHotload]
 	readonly CancellationTokenSource tokenSource;
 
 	public bool IsValid => true;
 
+	[SkipHotload]
 	TcpClient client;
 
 	public TcpChannel( TcpClient client )
@@ -108,6 +112,7 @@ internal class TcpChannel : Connection
 		tokenSource?.Cancel();
 	}
 
+	[SkipHotload]
 	Channel<byte[]> sendChannel = Channel.CreateUnbounded<byte[]>();
 
 	private Queue<(byte[], RealTimeUntil)> fakeLagIncoming = new();
