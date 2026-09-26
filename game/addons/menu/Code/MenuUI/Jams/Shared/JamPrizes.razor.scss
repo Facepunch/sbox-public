@@ -1,0 +1,63 @@
+@import "/styles/_front.scss";
+
+JamPrizes
+{
+	flex-direction: column;
+	flex-shrink: 0;
+	align-items: flex-end;
+	gap: 10px;
+
+	.prize-head
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 6px;
+	}
+
+	.section-label, .ordinal
+	{
+		@include front-section-label;
+	}
+
+	.prize-icon
+	{
+		flex-shrink: 0;
+		font-size: 14px;
+	}
+
+	.prize-hint
+	{
+		font-size: 12px;
+		color: $front-secondary;
+	}
+
+	.places
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: flex-end;
+		justify-content: flex-end;
+		gap: 40px;
+	}
+
+	.place
+	{
+		flex-direction: column;
+		align-items: flex-start;
+
+		.amount
+		{
+			font-family: $front-font;
+			font-size: 20px;
+			font-weight: 600;
+			color: $front-body;
+		}
+
+		&.first .amount
+		{
+			font-weight: 700;
+			color: linear-gradient( 180deg, #ffd980, #d99a2b );
+		}
+	}
+}

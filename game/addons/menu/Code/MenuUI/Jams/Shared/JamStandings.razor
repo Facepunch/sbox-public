@@ -1,0 +1,127 @@
+@using System;
+@using System.Collections.Generic;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.Services;
+@using Sandbox.UI;
+@namespace MenuProject.MenuUI.Jams
+@inherits Panel
+
+<root>
+	<div class="heading">
+		<label class="title">Standings</label>
+		@if ( Nominations is not null && Voting.Error is null )
+		{
+			<label class="live">● Live</label>
+		}
+	</div>
+
+	@if ( Nominations is null )
+	{
+		<label class="hint">@(Voting?.Error is null ? "Loading standings…" : "Standings unavailable")</label>
+	}
+	else if ( Category is not null )
+	{
+		@if ( Standings.Length == 0 )
+		{
+			<label class="hint">No nominations yet. Play an entry and nominate your favourites.</label>
+		}
+		else
+		{
+			<div class="standings @(Expanded ? "expanded" : "")">
+				@for ( var i = 0; i < VisibleCount; i++ )
+				{
+					var entry = Standings[i];
+					var rank = Array.FindIndex( Standings, x => x.Value == entry.Value ) + 1;
+					@if ( i == Category.Slots )
+					{
+						<label class="cutoff">Top @Category.Slots cutoff@(TiedAtCutoff ? " · tied" : "")</label>
+					}
+					<div class="entry" onclick=@(() => Game.Overlay.ShowPackageModal( entry.Key ))>
+						<label class="rank">@rank</label>
+						<div class="game">
+							<label class="name">@Package.GetCachedTitle( entry.Key )</label>
+							@if ( Category.MyNominations.Contains( entry.Key ) )
+							{
+								<label class="nominated">✓ Your nomination</label>
+							}
+						</div>
+						<label class="votes">@entry.Value.ToString( "N0" )</label>
+					</div>
+				}
+			</div>
+			@if ( Standings.Length > Category.Slots + 1 )
+			{
+				<Button class="view-all" Text=@(Expanded ? "Show fewer" : $"View all {Standings.Length:N0} entries") onclick=@(() => Expanded = !Expanded) />
+			}
+		}
+	}
+	else
+	{
+		<label class="hint">No open nomination categories.</label>
+	}
+</root>
+
+@code
+{
+	/// <summary>
+	/// The jam whose live nomination standings are displayed.
+	/// </summary>
+	[Parameter] public Jam Jam { get; set; }
+
+	GameJamSystem Voting => GameJamSystem.Get( Scene );
+	JamNominationSummary Nominations => Voting?.ActiveJam?.Ident == Jam?.Ident ? Voting?.Nominations : null;
+	JamNominationCategory Category => Nominations?.Categories.FirstOrDefault( x => x.Id == CategoryId ) ?? Nominations?.Categories.FirstOrDefault();
+	List<Option> CategoryOptions => Nominations.Categories.Select( x => new Option( x.Title, x.Id.ToString() ) ).ToList();
+	KeyValuePair<string, int>[] Standings = [];
+	int CategoryId;
+	int VotingVersion = -1;
+	bool Expanded;
+
+	int VisibleCount => Expanded ? Standings.Length : Math.Min( Standings.Length, (Category?.Slots ?? 0) + 1 );
+	bool TiedAtCutoff => Category is { Slots: > 0 } && Standings.Length > Category.Slots
+		&& Standings[Category.Slots - 1].Value == Standings[Category.Slots].Value;
+
+	/// <summary>
+	/// Reorders the standings when the shared snapshot receives a new tally.
+	/// </summary>
+	public override void Tick()
+	{
+		base.Tick();
+		if ( VotingVersion == (Voting?.Version ?? -1) ) return;
+
+		VotingVersion = Voting?.Version ?? -1;
+		UpdateStandings();
+	}
+
+	protected override void OnParametersSet() => UpdateStandings();
+
+	void SetCategory( string value )
+	{
+		if ( !int.TryParse( value, out CategoryId ) ) return;
+
+		Expanded = false;
+		UpdateStandings();
+	}
+
+	void UpdateStandings()
+	{
+		Standings = Category?.Counts.Where( x => x.Value > 0 )
+			.OrderByDescending( x => x.Value ).ThenBy( x => x.Key, StringComparer.OrdinalIgnoreCase ).ToArray() ?? [];
+		StateHasChanged();
+	}
+
+	protected override int BuildHash()
+	{
+		var hash = new HashCode();
+		hash.Add( VotingVersion );
+		hash.Add( CategoryId );
+		hash.Add( Expanded );
+		hash.Add( Voting?.Error );
+
+		// The entry browser fills the package cache. Pick up titles without issuing another search.
+		foreach ( var entry in Standings.Take( VisibleCount ) ) hash.Add( Package.GetCachedTitle( entry.Key ) );
+
+		return hash.ToHashCode();
+	}
+}

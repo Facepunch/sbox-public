@@ -31,6 +31,7 @@ public partial class ServiceApi
 		/// the live counts, and the caller's own votes. Poll it while a voting screen is open.
 		/// </summary>
 		[Get( "/jam/{ident}/voting" )]
+		[Headers( "Cache-Control: no-cache" )]
 		Task<JamVotingDto> GetVoting( string ident, int? days = null, [AliasAs( "as" )] string @as = null );
 
 		/// <summary>

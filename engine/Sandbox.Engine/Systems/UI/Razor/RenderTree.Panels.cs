@@ -116,8 +116,10 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 			return;
 		}
 
-		int theirOldValue = -1;
-		int ourOldValue = -1;
+		// Null until the first sync. A sentinel hash would collide with a real value - (-1).GetHashCode() is -1,
+		// so a bound -1 never reached the control.
+		int? theirOldValue = null;
+		int? ourOldValue = null;
 
 		Func<bool> check = () =>
 		{

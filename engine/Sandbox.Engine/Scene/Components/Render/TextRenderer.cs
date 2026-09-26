@@ -431,6 +431,7 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 		public TextSceneObject( SceneWorld world ) : base( world )
 		{
 			RenderLayer = SceneRenderLayer.Default;
+			Flags.IsTranslucent = true;
 		}
 
 		static readonly Matrix PanelMatrix = Matrix.CreateRotation( Rotation.From( 0, -90, 90 ) );

@@ -32,4 +32,14 @@ public enum MessageId : ushort
 
 	ClientAccountEdited = 9000,
 	ClientServiceLinked = 9001,
+
+	/// <summary>
+	/// The live tally for a game jam category and round changed.
+	/// </summary>
+	JamVotesChanged = 10000,
+
+	/// <summary>
+	/// One news post became publicly available.
+	/// </summary>
+	NewsPublished = 11000,
 }

@@ -459,6 +459,19 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 					};
 
 					var pivot = c.Pivot;
+					if ( c.Billboard == SpriteRenderer.BillboardMode.None )
+					{
+						var right = transform.Rotation.Right;
+						var up = transform.Rotation.Up;
+						var center = spritePos
+							+ right * ((pivot.x - 0.5f) * 2.0f * spriteScale.x)
+							+ up * ((pivot.y - 0.5f) * 2.0f * spriteScale.y);
+						var extent = right.Abs() * spriteScale.x
+							+ up.Abs() * spriteScale.y
+							+ transform.Rotation.Forward.Abs() * 0.01f;
+						return (Vector3.Min( local.mins, center - extent ), Vector3.Max( local.maxs, center + extent ));
+					}
+
 					float halfSize = MathF.Max(
 						MathF.Max( pivot.x, 1f - pivot.x ) * 2f * spriteScale.x,
 						MathF.Max( pivot.y, 1f - pivot.y ) * 2f * spriteScale.y

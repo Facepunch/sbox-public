@@ -37,6 +37,7 @@
                     <MenuProject.UI.PackageCard RightClicked=@(() => OnMenu?.Invoke(package))
                                  Clicked=@(() => OnSelected?.Invoke(package))
                                  Rotation=@Rotation
+                                 ShowNominations=@ShowNominations
                                  Package=@package></MenuProject.UI.PackageCard>
 					}
                 }
@@ -58,6 +59,11 @@
     [Parameter] public System.Action<Package> OnSelected { get; set; }
     [Parameter] public Action<string> OnFilterChanged { get; set; }
 	[Parameter] public Package[] Packages { get; set; }
+
+	/// <summary>
+	/// Shows jam nomination counts on the package cards.
+	/// </summary>
+	[Parameter] public bool ShowNominations { get; set; }
 
 	[Parameter] public RenderFragment<Package> Item { get; set; }
 

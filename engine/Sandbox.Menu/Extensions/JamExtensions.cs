@@ -4,13 +4,170 @@ using Sandbox.Services;
 namespace Sandbox;
 
 /// <summary>
+/// A public tally update received through <see cref="IBackendListener.OnJamVotesChanged"/>.
+/// Counts are absolute and contain no information about the local player's votes.
+/// </summary>
+/// <param name="JamIdent">The jam's URL name.</param>
+/// <param name="CategoryId">The category whose count changed.</param>
+/// <param name="Round">The voting round; zero means nominations.</param>
+/// <param name="PackageIdent">The entry whose count changed.</param>
+/// <param name="TotalVotes">Total votes in this category and round.</param>
+/// <param name="Votes">Current votes for this entry, including zero after removal.</param>
+public readonly record struct JamVoteUpdate( string JamIdent, int CategoryId, int Round, string PackageIdent, int TotalVotes, int Votes );
+
+/// <summary>
 /// Whether a package is an entry in a jam and where the local player's nomination stands.
 /// <see cref="Reason"/> says why they can't nominate, when they can't.
 /// </summary>
 public record struct JamEntryStatus( bool IsEntry, bool CanNominate, bool Nominated, string Reason );
 
+/// <summary>
+/// Live nomination standings and the qualifying cutoff for one community category.
+/// </summary>
+public sealed class JamNominationCategory
+{
+	/// <summary>
+	/// Copies the category's nomination snapshot, keeping its counts separate from other categories.
+	/// </summary>
+	public JamNominationCategory( JamCategoryVotingDto category )
+	{
+		Id = category.Id;
+		Title = category.Title;
+		Slots = category.Slots;
+		MyNominations.UnionWith( category.MyVotes );
+
+		foreach ( var tally in category.Tally )
+		{
+			if ( !string.IsNullOrEmpty( tally.Package ) ) Counts[tally.Package] = tally.Votes;
+		}
+	}
+
+	/// <summary>
+	/// The category's backend identifier.
+	/// </summary>
+	public int Id { get; }
+
+	/// <summary>
+	/// The category's display name.
+	/// </summary>
+	public string Title { get; }
+
+	/// <summary>
+	/// How many entries advance when nominations lock.
+	/// </summary>
+	public int Slots { get; }
+
+	/// <summary>
+	/// Nomination counts keyed by package ident, updated by the shared summary.
+	/// </summary>
+	public Dictionary<string, int> Counts { get; } = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// Entries nominated by the local player in this category.
+	/// </summary>
+	public HashSet<string> MyNominations { get; } = new( StringComparer.OrdinalIgnoreCase );
+}
+
+/// <summary>
+/// The nominations used to filter and order the jam's entry browser.
+/// Only open nomination categories contribute; finals votes are never included.
+/// </summary>
+public sealed class JamNominationSummary
+{
+	readonly string ident;
+	readonly Dictionary<int, JamNominationCategory> categories = new();
+
+	/// <summary>
+	/// Open nomination categories, including their individual tallies and qualifying cutoffs.
+	/// </summary>
+	public IReadOnlyCollection<JamNominationCategory> Categories => categories.Values;
+
+	/// <summary>
+	/// Builds the nomination counts and personal selections from an authoritative snapshot.
+	/// Finals and closed categories do not contribute.
+	/// </summary>
+	public JamNominationSummary( JamVotingDto voting )
+	{
+		ident = voting.Ident;
+
+		foreach ( var category in voting.Categories.Where( x => x.Mode == JamVotingMode.Nominating ) )
+		{
+			var nominations = new JamNominationCategory( category );
+			MyNominations.UnionWith( nominations.MyNominations );
+			categories.Add( category.Id, nominations );
+
+			foreach ( var tally in nominations.Counts )
+			{
+				Counts[tally.Key] = Counts.GetValueOrDefault( tally.Key ) + tally.Value;
+			}
+		}
+	}
+
+	/// <summary>
+	/// Replaces one category's package count and adjusts the combined nomination total.
+	/// Returns whether the count changed. Other jams, finals and unknown categories are ignored.
+	/// Personal nominations can only be updated by a fresh authenticated snapshot.
+	/// </summary>
+	public bool Apply( JamVoteUpdate update )
+	{
+		if ( !string.Equals( ident, update.JamIdent, StringComparison.OrdinalIgnoreCase ) || update.Round != 0 ) return false;
+		if ( string.IsNullOrEmpty( update.PackageIdent ) || update.Votes < 0 ) return false;
+		if ( !categories.TryGetValue( update.CategoryId, out var category ) ) return false;
+
+		var counts = category.Counts;
+		var previous = counts.GetValueOrDefault( update.PackageIdent );
+		if ( previous == update.Votes ) return false;
+
+		counts[update.PackageIdent] = update.Votes;
+		var total = Counts.GetValueOrDefault( update.PackageIdent ) + update.Votes - previous;
+
+		if ( total == 0 )
+		{
+			Counts.Remove( update.PackageIdent );
+		}
+		else
+		{
+			Counts[update.PackageIdent] = total;
+		}
+
+		return true;
+	}
+
+	/// <summary>
+	/// Entries nominated by the local player in any open community category.
+	/// </summary>
+	public HashSet<string> MyNominations { get; } = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// Nomination totals across the open community categories, keyed by full package ident.
+	/// An entry absent from this dictionary has no nominations.
+	/// </summary>
+	public Dictionary<string, int> Counts { get; } = new( StringComparer.OrdinalIgnoreCase );
+}
+
 public static partial class SandboxMenuExtensions
 {
+	/// <summary>
+	/// Reads the local player's nominations and the counts used by the entry browser.
+	/// Returns null when the voting snapshot cannot be read, rather than treating a failure
+	/// as an empty selection or zero nominations.
+	/// </summary>
+	public static async Task<JamNominationSummary> GetNominationSummaryAsync( this Jam jam )
+	{
+		try
+		{
+			var voting = await Backend.Jam.GetVoting( jam.Ident, days: PreviewDays() );
+			if ( voting is null ) return null;
+
+			return new JamNominationSummary( voting );
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( $"Couldn't read jam nominations ({e.Message})" );
+			return null;
+		}
+	}
+
 	/// <summary>
 	/// Nominate a package in every open community category of this jam. Null on success,
 	/// otherwise the backend's reason as a sentence to show the player.
@@ -28,27 +185,8 @@ public static partial class SandboxMenuExtensions
 	/// </summary>
 	public static async Task<HashSet<string>> GetMyNominationsAsync( this Jam jam )
 	{
-		var result = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
-
-		try
-		{
-			var voting = await Backend.Jam.GetVoting( jam.Ident, days: PreviewDays() );
-			if ( voting is null ) return result;
-
-			foreach ( var category in voting.Categories )
-			{
-				if ( category.Mode != JamVotingMode.Nominating ) continue;
-
-				foreach ( var ident in category.MyVotes )
-					result.Add( ident );
-			}
-		}
-		catch ( Exception e )
-		{
-			Log.Warning( $"Couldn't read jam nominations ({e.Message})" );
-		}
-
-		return result;
+		var summary = await jam.GetNominationSummaryAsync();
+		return summary?.MyNominations ?? new HashSet<string>( StringComparer.OrdinalIgnoreCase );
 	}
 
 	// Non-entries and eligible entries are cached until a vote changes them. Locked entries
@@ -92,9 +230,13 @@ public static partial class SandboxMenuExtensions
 			try
 			{
 				if ( remove )
+				{
 					await Backend.Jam.Unvote( jam.Ident, category.Id, package.FullIdent, PreviewDays() );
+				}
 				else
+				{
 					await Backend.Jam.Vote( jam.Ident, category.Id, package.FullIdent, PreviewDays() );
+				}
 			}
 			catch ( Refit.ApiException e )
 			{
@@ -105,6 +247,11 @@ public static partial class SandboxMenuExtensions
 				Log.Warning( $"Jam vote failed ({e.Message})" );
 				return "Couldn't reach the jam right now.";
 			}
+
+			// A listener failure must not change a successful vote's result or prevent
+			// the remaining listeners and categories from being processed.
+			Event.EventSystem.RunInterface<IBackendListener>( x =>
+				new Action<string>( x.OnJamNominationsChanged ).InvokeWithWarning( jam.Ident ) );
 		}
 
 		return null;

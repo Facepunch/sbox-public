@@ -70,6 +70,31 @@ PackageCard
 {
 	font-family: $front-font;
 
+	.package-nominations
+	{
+		position: absolute;
+		top: 8px;
+		left: 8px;
+		align-items: center;
+		gap: 5px;
+		padding: 4px 7px;
+		border-radius: 5px;
+		background-color: $front-tile-bar;
+		color: $front-heading;
+
+		icon
+		{
+			font-size: 14px;
+			color: $front-trophy;
+		}
+
+		label
+		{
+			font-size: 11px;
+			font-weight: 600;
+		}
+	}
+
 	// Reserved so the hover border costs no layout shift.
 	border: 2px solid transparent;
 	border-radius: $front-radius;

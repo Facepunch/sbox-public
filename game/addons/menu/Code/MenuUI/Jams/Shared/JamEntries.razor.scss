@@ -1,0 +1,66 @@
+@import "/styles/_front.scss";
+
+JamEntries
+{
+	flex-direction: column;
+	flex-grow: 1;
+	flex-shrink: 1;
+	width: 100%;
+	height: 0;
+	overflow: hidden;
+	gap: 16px;
+
+	.section-head
+	{
+		flex-direction: row;
+		align-items: baseline;
+		flex-shrink: 0;
+		gap: 12px;
+		padding: 0 4px;
+
+		.title
+		{
+			font-family: $front-font;
+			font-size: 20px;
+			font-weight: 700;
+			color: $front-heading;
+		}
+
+		.description
+		{
+			font-family: $front-font;
+			font-size: 14px;
+			font-weight: 500;
+			color: $front-secondary;
+		}
+	}
+
+	.entries
+	{
+		flex-grow: 1;
+		flex-shrink: 1;
+		height: 0;
+		width: 100%;
+
+		PackageList
+		{
+			width: 100%;
+			height: 0;
+
+			VirtualGrid
+			{
+				// VirtualGrid includes the scrollbar track in its content width: 8px track + 8px gap.
+				padding: 0 16px 0 4px;
+				scrollbar-width: thin;
+				scrollbar-color: $front-secondary transparent;
+				// Reserve the track so filtering doesn't change the number of columns.
+				scrollbar-gutter: stable;
+			}
+		}
+	}
+
+	.jam-empty
+	{
+		@include front-page-empty;
+	}
+}

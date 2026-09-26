@@ -1,0 +1,66 @@
+@using MenuProject.MenuUI.Components
+@using Sandbox;
+@using Sandbox.Services;
+@using Sandbox.UI;
+@namespace MenuProject.MenuUI.Jams
+@inherits Panel
+
+<root>
+	<div class="hero-row">
+		<div class="intro">
+			<div class="head">
+				<h2><WithIcon Icon="emoji_events" Text=@Jam.Title /></h2>
+				@if ( Jam.IsLive )
+				{
+					<div class="live-pill"><div class="pip"></div><label>Live</label></div>
+				}
+			</div>
+			<div class="theme">
+				<label class="kicker">@(ShowTheme ? "Theme" : "Game jam")</label>
+				<label class="headline">@(ShowTheme ? Jam.Theme : Jam.Title)</label>
+			</div>
+			<p>@Jam.Description</p>
+			<label class="blurb">@Blurb</label>
+		</div>
+		<div class="side">
+			@foreach ( var category in Jam.Categories )
+			{
+				<JamPrizes Category=@category />
+			}
+			<div class="actions">
+				@if ( Jam.AcceptingEntries )
+				{
+					<div class="action" onclick=@EnterGame>
+						<icon>touch_app</icon>
+						<label>Enter your game</label>
+					</div>
+				}
+				<div class="action secondary" onclick=@OpenWebsite>
+					<icon>open_in_new</icon>
+					<label>Jam page</label>
+				</div>
+			</div>
+		</div>
+	</div>
+</root>
+
+@code
+{
+	/// <summary>
+	/// The jam's title, theme, prizes and entry link.
+	/// </summary>
+	[Parameter] public Jam Jam { get; set; }
+
+	/// <summary>
+	/// Guidance supplied by the current phase.
+	/// </summary>
+	[Parameter] public string Blurb { get; set; }
+
+	bool ShowTheme => Jam.HasStarted && !string.IsNullOrWhiteSpace( Jam.Theme );
+
+	void EnterGame() => MenuUtility.OpenUrl( $"{Jam.Url}/submit" );
+
+	void OpenWebsite() => MenuUtility.OpenUrl( Jam.Url );
+
+	protected override int BuildHash() => System.HashCode.Combine( Jam, ShowTheme, Jam.AcceptingEntries, Blurb );
+}

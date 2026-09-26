@@ -1,0 +1,47 @@
+@using Sandbox;
+@using Sandbox.Services;
+@using Sandbox.UI;
+@using System;
+@namespace MenuProject.MenuUI.Jams
+@inherits Panel
+
+<root>
+	<div class="stack">
+		<JamHeader Jam=@Jam Blurb=@Blurb />
+		@Content
+	</div>
+	<JamSchedule Jam=@Jam CountdownTarget=@CountdownTarget CountdownLabel=@CountdownLabel CountdownStatus=@CountdownStatus />
+</root>
+
+@code
+{
+	/// <summary>
+	/// The jam whose shared header and schedule are displayed.
+	/// </summary>
+	[Parameter] public Jam Jam { get; set; }
+
+	/// <summary>
+	/// Guidance supplied by the current phase.
+	/// </summary>
+	[Parameter] public string Blurb { get; set; }
+
+	/// <summary>
+	/// The next phase deadline, or null when there is no countdown.
+	/// </summary>
+	[Parameter] public DateTimeOffset? CountdownTarget { get; set; }
+
+	/// <summary>
+	/// Describes the deadline shown above the schedule.
+	/// </summary>
+	[Parameter] public string CountdownLabel { get; set; }
+
+	/// <summary>
+	/// Optional status to display in place of the clock while waiting for a server transition.
+	/// </summary>
+	[Parameter] public string CountdownStatus { get; set; }
+
+	/// <summary>
+	/// The current phase's main content, below the shared header.
+	/// </summary>
+	[Parameter] public RenderFragment Content { get; set; }
+}

@@ -34,7 +34,7 @@ struct Normals
             return Normals::SampleFromDepth(screenPos);
 
         // Load normals from DepthNormals G-buffer
-        Texture2DMS<float4> tDepthNormals = Bindless::GetTexture2DMS(NormalsTextureIndex);
+        Texture2DMS<float4> tDepthNormals = Bindless::GetTexture2DMS( asDynamicUniform( UniformIndex( NormalsTextureIndex ) ) );
         float3 normals = tDepthNormals.Load( screenPos + g_vViewportOffset, msaaSampleIndex ).xyz;
 
         // Rebuild from depth if the normal is invalid
@@ -51,7 +51,7 @@ struct Roughness
     static float Sample(int2 screenPos, uint msaaSampleIndex = 0 )
     {
         // Load roughness from DepthNormals G-buffer
-        Texture2DMS<float4> tDepthNormals = Bindless::GetTexture2DMS(NormalsTextureIndex);
+        Texture2DMS<float4> tDepthNormals = Bindless::GetTexture2DMS( asDynamicUniform( UniformIndex( NormalsTextureIndex ) ) );
         float roughness = tDepthNormals.Load( screenPos + g_vViewportOffset, msaaSampleIndex ).w;
 
         return roughness;

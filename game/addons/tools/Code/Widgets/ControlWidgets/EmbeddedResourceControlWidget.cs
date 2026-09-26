@@ -251,6 +251,9 @@ public class EmbeddedResourceControlWidget : StickyPopupControlWidget
 
 	public static EmbeddedResourceControlWidget CreateWidget( SerializedProperty target )
 	{
+		if ( target.IsMultipleDifferentValues )
+			return new EmbeddedResourceControlWidget( target );
+
 		var customType = EditorTypeLibrary.GetTypes( typeof( EmbeddedResourceControlWidget ) )
 			.FirstOrDefault( x =>
 			{

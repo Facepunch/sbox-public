@@ -1,18 +1,13 @@
-@using MenuProject.MenuUI.Components
-@using MenuProject.MenuUI.ContentBlock
 @using MenuProject.MenuUI.Layout
 @using Sandbox;
 @using Sandbox.Services;
 @using Sandbox.UI;
 @using Sandbox.UI.Navigation;
 @using System;
-@using System.Collections.Generic;
-@using System.Linq;
 @namespace MenuProject.MenuUI.Jams
-
 @page "/jam"
 @inherits Panel
-@implements Sandbox.UI.Navigation.INavigatorPage
+@implements INavigatorPage
 
 <root class="root">
 	<Page>
@@ -29,264 +24,38 @@
 						{
 							<icon>emoji_events</icon>
 						}
-						<label class="title">@( IsLoading ? Language.GetPhrase( "jampage.checking" ) : Language.GetPhrase( "jampage.no_jam" ) )</label>
-						<label class="hint">@( IsLoading ? Language.GetPhrase( "jampage.one_moment" ) : Language.GetPhrase( "jampage.no_jam_hint" ) )</label>
+						<label class="title">@(IsLoading ? "Checking for a jam" : "No jam right now")</label>
+						<label class="hint">@(IsLoading ? "One moment." : "Nothing is running at the moment. Check back later.")</label>
 					</div>
-				</div>
-			}
-			else if ( Horizontal )
-			{
-				<div class="columns">
-
-					<div class="stack">
-
-						<div class="hero">
-
-							<div class="hero-row">
-
-								<div class="intro">
-									<div class="head">
-										<h2><WithIcon Icon="emoji_events" Text=@Jam.Title></WithIcon></h2>
-
-										@if ( Jam.IsLive )
-										{
-											<div class="live-pill"><div class="pip"></div><label>#jampage.live</label></div>
-										}
-									</div>
-
-									<div class="theme">
-										<label class="kicker">@( ShowTheme ? Language.GetPhrase( "jampage.theme" ) : Language.GetPhrase( "jampage.game_jam" ) )</label>
-										<label class="headline">@Headline</label>
-									</div>
-
-									<p>@Jam.Description</p>
-									<label class="blurb">@Blurb</label>
-								</div>
-
-								<div class="side">
-
-									@foreach ( var category in Jam.Categories )
-									{
-										<div class="prizes">
-											<div class="prize-head">
-												<label class="prize-icon">@category.Icon</label>
-												<label class="section-label">@( $"{category.Title} · {PrizeTitle( category )}" )</label>
-											</div>
-
-											@if ( category.Places.Length > 0 )
-											{
-												<div class="places">
-													@for ( var i = 0; i < category.Places.Length; i++ )
-													{
-														<div class="place @( i == 0 ? "first" : "" )">
-															<label class="amount">@category.Places[i]</label>
-															<label class="ordinal">@JamFormat.Ordinal( i + 1 )</label>
-														</div>
-													}
-												</div>
-											}
-											else if ( !string.IsNullOrWhiteSpace( category.Prize ) )
-											{
-												<div class="places">
-													<div class="place first">
-														<label class="amount">@category.Prize</label>
-														<label class="ordinal">#jampage.prize</label>
-													</div>
-												</div>
-											}
-
-											@if ( !string.IsNullOrWhiteSpace( category.Description ) )
-											{
-												<label class="prize-hint">@category.Description</label>
-											}
-										</div>
-									}
-
-									<div class="actions">
-										@if ( Jam.AcceptingEntries )
-										{
-											<div class="action" onclick=@EnterGame>
-												<icon>touch_app</icon>
-												<label>#jampage.enter_game</label>
-											</div>
-										}
-
-										<div class="action secondary" onclick=@OpenWebsite>
-											<icon>open_in_new</icon>
-											<label>#jampage.jam_page</label>
-										</div>
-									</div>
-								</div>
-
-							</div>
-
-						</div>
-
-						<div class="list">
-
-							<div class="section-head">
-								<label class="title">#jampage.entries</label>
-								<label class="description">@EntriesText</label>
-							</div>
-
-							@if ( !Jam.HasStarted )
-							{
-								<div class="jam-empty">
-									<icon>lock_clock</icon>
-									<label class="title">@Language.GetPhrase( "jampage.theme_drops", new() { { "date", JamFormat.Day( Jam.Starts ) } } )</label>
-									<label class="hint">#jampage.entries_open_hint</label>
-								</div>
-							}
-							else
-							{
-								<div class="entries">
-									<MenuProject.UI.PackageList ShowFilters="@false" Query=@Jam.Query Take=@( 200 )>
-										<Item Context="package">
-											<MenuProject.UI.PackageCard Package=@package Clicked=@( () => Selected( package ) ) RightClicked=@( () => Menu( package ) ) />
-										</Item>
-									</MenuProject.UI.PackageList>
-								</div>
-							}
-
-						</div>
-
-					</div>
-
-					<div class="schedule">
-
-						@if ( CountdownTarget is DateTimeOffset target )
-						{
-							<JamCountdown class="countdown" Jam=@Jam Label=@CountdownLabel Target=@target />
-						}
-
-						<JamSpine Jam=@Jam />
-
-					</div>
-
 				</div>
 			}
 			else
 			{
-				<div class="columns">
-
-					<div class="aside">
-
-						<div class="head">
-							<h2><WithIcon Icon="emoji_events" Text=@Jam.Title></WithIcon></h2>
-
-							@if ( Jam.IsLive )
-							{
-								<div class="live-pill"><div class="pip"></div><label>#jampage.live</label></div>
-							}
-						</div>
-
-						<div class="theme">
-							<label class="kicker">@( ShowTheme ? Language.GetPhrase( "jampage.theme" ) : Language.GetPhrase( "jampage.game_jam" ) )</label>
-							<label class="headline">@Headline</label>
-						</div>
-
-						<p>@Jam.Description</p>
-						<label class="blurb">@Blurb</label>
-
-						<div class="actions">
-							@if ( Jam.AcceptingEntries )
-							{
-								<div class="action" onclick=@EnterGame>
-									<icon>touch_app</icon>
-									<label>#jampage.enter_game</label>
-								</div>
-							}
-
-							<div class="action secondary" onclick=@OpenWebsite>
-								<icon>open_in_new</icon>
-								<label>#jampage.jam_page</label>
-							</div>
-						</div>
-
-						@foreach ( var category in Jam.Categories )
-						{
-							<div class="block">
-								<label class="section-label">@Language.GetPhrase( "jampage.prizes_title", new() { { "title", category.Title } } )</label>
-
-								<div class="prize">
-									<label class="prize-icon">@category.Icon</label>
-
-									<div class="prize-body">
-										<label class="prize-title">@PrizeTitle( category )</label>
-
-										@if ( !string.IsNullOrWhiteSpace( category.Description ) )
-										{
-											<label class="prize-hint">@category.Description</label>
-										}
-									</div>
-								</div>
-
-								@if ( category.Places.Length > 0 )
-								{
-									<div class="places">
-										@for ( var i = 0; i < category.Places.Length; i++ )
-										{
-											<div class="place @( i == 0 ? "first" : "" )">
-												<label class="ordinal">@JamFormat.Ordinal( i + 1 )</label>
-												<label class="amount">@category.Places[i]</label>
-											</div>
-										}
-									</div>
-								}
-								else if ( !string.IsNullOrWhiteSpace( category.Prize ) )
-								{
-									<div class="places">
-										<div class="place first">
-											<label class="ordinal">#jampage.prize</label>
-											<label class="amount">@category.Prize</label>
-										</div>
-									</div>
-								}
-							</div>
-						}
-
-					</div>
-
-					<div class="list">
-
-						<div class="section-head">
-							<label class="title">#jampage.entries</label>
-							<label class="description">@EntriesText</label>
-						</div>
-
-						@if ( !Jam.HasStarted )
-						{
-							<div class="jam-empty">
-								<icon>lock_clock</icon>
-								<label class="title">@Language.GetPhrase( "jampage.theme_drops", new() { { "date", JamFormat.Day( Jam.Starts ) } } )</label>
-								<label class="hint">#jampage.entries_open_hint</label>
-							</div>
-						}
-						else
-						{
-							<div class="entries">
-								<MenuProject.UI.PackageList ShowFilters="@false" Query=@Jam.Query Take=@( 200 )>
-									<Item Context="package">
-										<MenuProject.UI.PackageCard Package=@package Clicked=@( () => Selected( package ) ) RightClicked=@( () => Menu( package ) ) />
-									</Item>
-								</MenuProject.UI.PackageList>
-							</div>
-						}
-
-					</div>
-
-					<div class="schedule">
-
-						@if ( CountdownTarget is DateTimeOffset target )
-						{
-							<JamCountdown class="countdown" Jam=@Jam Label=@CountdownLabel Target=@target />
-						}
-
-						<JamSpine Jam=@Jam />
-
-					</div>
-
-				</div>
+				@switch ( CurrentPhase )
+				{
+					case Jam.Phase.Upcoming:
+					case Jam.Phase.Teased:
+						<Phase00Upcoming Jam=@Jam />
+						break;
+					case Jam.Phase.Building:
+						<Phase01Building Jam=@Jam />
+						break;
+					case Jam.Phase.Judging:
+						<Phase02Judging Jam=@Jam />
+						break;
+					case Jam.Phase.Nominations:
+						<Phase03Nominations Jam=@Jam />
+						break;
+					case Jam.Phase.Finals:
+						<Phase04Finals Jam=@Jam />
+						break;
+					case Jam.Phase.GrandFinal:
+						<Phase05GrandFinal Jam=@Jam />
+						break;
+					case Jam.Phase.Crowned:
+						<Phase06Crowned Jam=@Jam />
+						break;
+				}
 			}
 		</Body>
 	</Page>
@@ -294,124 +63,28 @@
 
 @code
 {
-	Jam Jam { get; set; }
+	GameJamSystem Voting => GameJamSystem.Get( Scene );
+	Jam Jam => Voting?.ActiveJam;
+	bool IsLoading => Voting?.IsLoading == true;
 
-	bool IsLoading { get; set; }
-
-	/// <summary>
-	/// Info in a card across the top of the entries, rather than in a column beside them.
-	/// </summary>
-	static bool Horizontal = true;
-
-	bool ShowTheme => Jam.HasStarted && !string.IsNullOrWhiteSpace( Jam.Theme );
-
-	string Headline => ShowTheme ? Jam.Theme : Jam.Title;
-
-	bool CanNominate => CanNominateIn( Jam );
-
-	static bool CanNominateIn( Jam jam ) => jam is not null && jam.CommunityVoting && jam.HasStarted && jam.Now < jam.NominationsEnd;
-
-	DateTimeOffset? CountdownTarget
+	// The timeline follows the jam's preview clock and advances without reopening the page.
+	Jam.Phase CurrentPhase
 	{
 		get
 		{
-			if ( !Jam.HasStarted ) return Jam.Starts;
-			if ( Jam.Now < Jam.Deadline ) return Jam.Deadline;
-			if ( Jam.CommunityVoting && Jam.Now < Jam.NominationsEnd ) return Jam.NominationsEnd;
+			if ( Jam is null ) return Jam.Phase.Upcoming;
 
-			return Jam.NextStep?.At;
+			// The schedule can remain on nominations between lock and the first round.
+			// Show the reveal in that gap, while the voting snapshot owns the slate and round status.
+			if ( Jam.CommunityVoting && Jam.Now >= Jam.NominationsEnd && Jam.Now < Jam.FinalsStart )
+				return Jam.Phase.Finals;
+
+			var index = Jam.CurrentStepIndex;
+			return index >= 0 ? Jam.Timeline[index].Phase : Jam.CurrentPhase;
 		}
 	}
 
-	string CountdownLabel
-	{
-		get
-		{
-			if ( !Jam.HasStarted ) return Language.GetPhrase( "jampage.starts_in" );
-			if ( Jam.Now < Jam.Deadline ) return Language.GetPhrase( "jampage.entries_close_in" );
-			if ( Jam.CommunityVoting && Jam.Now < Jam.NominationsEnd ) return Language.GetPhrase( "jampage.nominations_lock_in" );
+	void INavigatorPage.OnNavigationOpen() => Voting?.Refresh();
 
-			return Language.GetPhrase( "jampage.step_in", new() { { "step", JamFormat.PhaseName( Jam.NextStep ) } } );
-		}
-	}
-
-	string Blurb
-	{
-		get
-		{
-			if ( !Jam.HasStarted )
-				return Language.GetPhrase( Jam.CommunityVoting ? "jampage.blurb_secret_nominate" : "jampage.blurb_secret" );
-
-			if ( CanNominate )
-				return Language.GetPhrase( "jampage.blurb_nominate" );
-
-			if ( Jam.CommunityVoting )
-				return Language.GetPhrase( "jampage.blurb_closed" );
-
-			return Language.GetPhrase( "jampage.blurb_play" );
-		}
-	}
-
-	string EntriesText => Jam.EntryCount switch
-	{
-		0 => Language.GetPhrase( Jam.HasStarted ? "jampage.entries_none" : "jampage.entries_not_open" ),
-		1 => Language.GetPhrase( "jampage.entries_one" ),
-		_ => Language.GetPhrase( "jampage.entries_plural", new() { { "count", Jam.EntryCount } } ),
-	};
-
-	static string PrizeTitle( Jam.Category category )
-	{
-		if ( category.Places.Length > 1 && !string.IsNullOrWhiteSpace( category.Prize ) )
-			return Language.GetPhrase( "jampage.prize_across", new() { { "prize", category.Prize }, { "count", category.Places.Length }, { "word", NumberWord( category.Places.Length ) } } );
-
-		return category.Prize ?? category.Title;
-	}
-
-	static string NumberWord( int n ) => n switch
-	{
-		2 => "two", 3 => "three", 4 => "four", 5 => "five", 6 => "six", 7 => "seven", 8 => "eight", 9 => "nine", 10 => "ten",
-		_ => n.ToString(),
-	};
-
-	void Sandbox.UI.Navigation.INavigatorPage.OnNavigationOpen()
-	{
-		_ = Load();
-	}
-
-	async Task Load()
-	{
-		if ( IsLoading ) return;
-
-		IsLoading = true;
-		StateHasChanged();
-
-		var jam = await Jam.GetActive();
-		if ( !this.IsValid() ) return;
-
-		Jam = jam;
-		IsLoading = false;
-		StateHasChanged();
-	}
-
-	void EnterGame()
-	{
-		MenuUtility.OpenUrl( $"{Jam.Url}/submit" );
-	}
-
-	void OpenWebsite()
-	{
-		MenuUtility.OpenUrl( Jam.Url );
-	}
-
-	void Selected( Package package )
-	{
-		ContentBlocks.OnLaunch( package );
-	}
-
-	void Menu( Package package )
-	{
-		ContentBlocks.OnMenu( this, package );
-	}
-
-	protected override int BuildHash() => HashCode.Combine( Jam?.Ident, Jam?.CurrentPhase, Jam?.EntryCount, IsLoading, Horizontal, Jam?.Now.Hour );
+	protected override int BuildHash() => HashCode.Combine( Jam, CurrentPhase, Jam?.EntryCount, IsLoading );
 }

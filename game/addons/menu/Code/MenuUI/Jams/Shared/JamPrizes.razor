@@ -1,0 +1,57 @@
+@using Sandbox;
+@using Sandbox.Services;
+@using Sandbox.UI;
+@namespace MenuProject.MenuUI.Jams
+@inherits Panel
+
+<root>
+	<div class="prize-head">
+		<label class="prize-icon">@Category.Icon</label>
+		<label class="section-label">@( $"{Category.Title} · {PrizeTitle}" )</label>
+	</div>
+
+	@if ( Category.Places.Length > 0 )
+	{
+		<div class="places">
+			@for ( var i = 0; i < Category.Places.Length; i++ )
+			{
+				<div class="place @(i == 0 ? "first" : "")">
+					<label class="amount">@Category.Places[i]</label>
+					<label class="ordinal">@JamFormat.Ordinal( i + 1 )</label>
+				</div>
+			}
+		</div>
+	}
+	else if ( !string.IsNullOrWhiteSpace( Category.Prize ) )
+	{
+		<div class="places">
+			<div class="place first">
+				<label class="amount">@Category.Prize</label>
+				<label class="ordinal">Prize</label>
+			</div>
+		</div>
+	}
+
+	@if ( !string.IsNullOrWhiteSpace( Category.Description ) )
+	{
+		<label class="prize-hint">@Category.Description</label>
+	}
+</root>
+
+@code
+{
+	/// <summary>
+	/// The category and its prizes, in finishing order.
+	/// </summary>
+	[Parameter] public Jam.Category Category { get; set; }
+
+	string PrizeTitle => Category.Places.Length > 1 && !string.IsNullOrWhiteSpace( Category.Prize )
+		? $"{Category.Prize} across {NumberWord( Category.Places.Length )} places"
+		: Category.Prize ?? Category.Title;
+
+	static string NumberWord( int n ) => n switch
+	{
+		2 => "two", 3 => "three", 4 => "four", 5 => "five", 6 => "six", 7 => "seven", 8 => "eight", 9 => "nine", 10 => "ten",
+		_ => n.ToString(),
+	};
+}

@@ -88,6 +88,15 @@ JamSpine
 		color: $front-tertiary;
 	}
 
+	.step-heading
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 8px;
+	}
+
 	.name
 	{
 		font-family: $front-font;
@@ -98,8 +107,9 @@ JamSpine
 
 	.eta
 	{
+		flex-shrink: 0;
 		font-size: 12px;
-		margin-top: 2px;
+		white-space: nowrap;
 		color: $front-tertiary;
 	}
 

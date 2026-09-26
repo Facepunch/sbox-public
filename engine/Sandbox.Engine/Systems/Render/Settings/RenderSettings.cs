@@ -30,7 +30,7 @@ public partial class RenderSettings
 
 	public int MaxFrameRate
 	{
-		get => ConVarSystem.GetInt( "fps_max", 100, true );
+		get => ConVarSystem.GetInt( "fps_max", 0, true );
 		set => ConVarSystem.SetInt( "fps_max", value, true );
 	}
 
@@ -42,7 +42,7 @@ public partial class RenderSettings
 
 	public int MaxFrameRateMenu
 	{
-		get => ConVarSystem.GetInt( "fps_max_menu", 120, true );
+		get => ConVarSystem.GetInt( "fps_max_menu", 0, true );
 		set => ConVarSystem.SetInt( "fps_max_menu", value, true );
 	}
 
@@ -205,10 +205,10 @@ public partial class RenderSettings
 		Fullscreen = false;
 		Borderless = true;
 		VSync = true;
-		MaxFrameRate = 300;
-		MaxFrameRateInactive = 60;
-		MaxFrameRateMenu = 120;
-		DefaultFOV = 75;
+		MaxFrameRate = 0;
+		MaxFrameRateInactive = 90;
+		MaxFrameRateMenu = 0;
+		DefaultFOV = 90;
 
 		VideoSettings.Save();
 	}

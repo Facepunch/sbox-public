@@ -1,0 +1,16 @@
+@import "/styles/_front.scss";
+
+JamPhaseLayout
+{
+	@include front-page-columns;
+
+	.stack
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		width: 0;
+		gap: $front-chrome-gap;
+		overflow: hidden;
+	}
+}

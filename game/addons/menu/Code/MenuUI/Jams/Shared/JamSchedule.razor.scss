@@ -1,0 +1,89 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+JamSchedule
+{
+	@include front-card;
+
+	width: 260px;
+	padding: 16px;
+	gap: 16px;
+	overflow-y: scroll;
+
+	.countdown, .countdown-status
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 2px;
+		padding-bottom: 18px;
+		border-bottom: 1px solid $front-hairline;
+	}
+
+	JamCountdown, .countdown-status
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+
+		.what
+		{
+			@include front-section-label;
+		}
+
+		.time
+		{
+			font-family: $font-default;
+			font-variant-numeric: tabular-nums;
+			font-size: 22px;
+			font-weight: 700;
+			letter-spacing: 0.02em;
+			color: linear-gradient( 180deg, #ffd980, #d99a2b );
+		}
+	}
+
+	.hint
+	{
+		margin-top: 10px;
+		font-size: 12px;
+		color: $front-secondary;
+	}
+
+	JamSpine
+	{
+		// Use the space left by the countdown and standings, rather than growing past the card.
+		flex-shrink: 1;
+		min-height: 0;
+		height: 0;
+
+		.spine-label
+		{
+			flex-shrink: 0;
+			margin-bottom: 10px;
+		}
+
+		.nodes
+		{
+			// Fill the available height; long schedules can still scroll when space is tight.
+			flex-grow: 1;
+			min-height: 0;
+			height: 0;
+			overflow-y: scroll;
+		}
+
+		.node
+		{
+			flex-basis: auto;
+			min-height: 40px;
+			padding: 0 0 6px 18px;
+		}
+
+		.name
+		{
+			font-size: 13px;
+		}
+
+		.eta
+		{
+			font-size: 11px;
+		}
+	}
+}

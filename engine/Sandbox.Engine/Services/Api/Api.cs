@@ -79,7 +79,8 @@ public class CachingHandler : DelegatingHandler
 
 	protected override async Task<HttpResponseMessage> SendAsync( HttpRequestMessage request, CancellationToken cancellationToken )
 	{
-		if ( request.Method != HttpMethod.Get )
+		// Mutable snapshots such as jam nominations need a fresh response after a vote.
+		if ( request.Method != HttpMethod.Get || request.Headers.CacheControl?.NoCache == true )
 		{
 			return await base.SendAsync( request, cancellationToken );
 		}

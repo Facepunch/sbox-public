@@ -696,6 +696,12 @@ public partial class GameObject
 
 		if ( options.IsRefreshing )
 		{
+			// Editor snapshots omit generated bone/attachment identity, which survives an in-place refresh.
+			if ( !options.IsNetworkRefresh )
+			{
+				inFlags |= Flags & (GameObjectFlags.Bone | GameObjectFlags.Attachment);
+			}
+
 			Flags = inFlags;
 			return;
 		}

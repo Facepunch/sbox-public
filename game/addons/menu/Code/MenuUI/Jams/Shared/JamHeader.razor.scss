@@ -1,0 +1,210 @@
+@import "/styles/_front.scss";
+
+JamHeader
+{
+	@include front-card;
+
+	padding: 20px 28px;
+
+	.hero-row
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: stretch;
+		gap: 40px;
+	}
+
+	.intro
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		width: 0;
+		gap: 4px;
+	}
+
+	.side
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		align-items: flex-end;
+		justify-content: space-between;
+		gap: 16px;
+	}
+
+	.head
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 10px;
+	}
+
+	h2
+	{
+		flex-shrink: 0;
+		font-size: 15px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: $front-heading;
+
+		i
+		{
+			color: $front-primary;
+			text-transform: none;
+			font-size: 21px;
+		}
+	}
+
+	.live-pill
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 6px;
+		height: 22px;
+		padding: 0 9px;
+		border-radius: 999px;
+		background-color: $front-danger * 1.2;
+		animation-name: jam-live-breathe;
+		animation-duration: 2.4s;
+		animation-timing-function: ease-in-out;
+		animation-iteration-count: infinite;
+
+		label
+		{
+			font-family: $front-font;
+			font-size: 9.5px;
+			font-weight: 800;
+			letter-spacing: 0.14em;
+			text-transform: uppercase;
+			color: #ffffff;
+		}
+
+		.pip
+		{
+			width: 6px;
+			height: 6px;
+			border-radius: 50%;
+			background-color: #ffffff * 3;
+			animation-name: jam-live-pulse;
+			animation-duration: 1.2s;
+			animation-timing-function: ease-in-out;
+			animation-iteration-count: infinite;
+		}
+	}
+
+	.theme
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 0;
+		margin-top: 6px;
+	}
+
+	.kicker
+	{
+		@include front-section-label;
+
+		flex-shrink: 0;
+		color: $front-primary;
+	}
+
+	.headline
+	{
+		flex-shrink: 0;
+		font-family: $front-font;
+		font-size: 34px;
+		font-weight: 800;
+		letter-spacing: -0.02em;
+		color: $front-heading;
+	}
+
+	p
+	{
+		flex-shrink: 0;
+		color: $front-body;
+		margin: 8px 0 0 0;
+	}
+
+	.blurb
+	{
+		flex-shrink: 0;
+		font-size: 12.5px;
+		color: $front-secondary;
+		max-width: 720px;
+	}
+
+	.actions
+	{
+		flex-direction: row-reverse;
+		flex-shrink: 0;
+		gap: 10px;
+	}
+
+	.action
+	{
+		@include front-button;
+
+		pointer-events: all;
+		cursor: pointer;
+		padding: 0 18px;
+		height: 36px;
+
+		&.secondary
+		{
+			background-color: rgba( 255, 255, 255, 0.06 );
+			border: 1px solid $front-hairline;
+
+			label, icon
+			{
+				color: $front-body;
+			}
+
+			&:hover
+			{
+				filter: none;
+				background-color: rgba( 255, 255, 255, 0.11 );
+				border-color: rgba( 255, 255, 255, 0.28 );
+
+				label, icon
+				{
+					color: $front-heading;
+				}
+			}
+		}
+	}
+}
+
+@keyframes jam-live-pulse
+{
+	0%
+	{
+		background-color: #ffffff * 1.5;
+	}
+	50%
+	{
+		background-color: #ffffff * 8;
+	}
+	100%
+	{
+		background-color: #ffffff * 1.5;
+	}
+}
+
+@keyframes jam-live-breathe
+{
+	0%
+	{
+		background-color: $front-danger * 1.1;
+	}
+	50%
+	{
+		background-color: $front-danger * 1.7;
+	}
+	100%
+	{
+		background-color: $front-danger * 1.1;
+	}
+}

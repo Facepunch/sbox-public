@@ -301,42 +301,58 @@ internal partial class GameInstanceDll
 			return;
 		}
 
-		if ( !fs.FileExists( filename ) )
-			return;
+		AddNetworkFile( fs, EngineFileSystem.Mounted, filename, NetworkedSmallFiles, NetworkedLargeFiles );
+	}
 
-		var fullPath = fs.GetFullPath( filename );
-		var size = fs.FileSize( filename );
-
-		if ( !ShouldUseLargeDownload( filename, size ) )
+	internal static void AddNetworkFile( BaseFileSystem source, BaseFileSystem mounted, string filename,
+		SmallNetworkFiles smallFiles, LargeNetworkFiles largeFiles )
+	{
+		// Native formats always go large. Only check that the candidate exists in the source;
+		// its size and checksum must come from the mount that actually serves client requests.
+		if ( ShouldUseLargeDownload( filename, 0 ) )
 		{
-			var bytes = fs.ReadAllBytes( filename );
-			var wasAdded = NetworkedSmallFiles.AddFile( fs, filename, bytes.ToArray() );
+			if ( !source.FileExists( filename ) ) return;
+			AddLargeFile();
+			return;
+		}
 
-			if ( wasAdded )
+		Stream stream;
+		try
+		{
+			stream = source.OpenRead( filename );
+		}
+		catch ( FileNotFoundException )
+		{
+			return;
+		}
+		catch ( DirectoryNotFoundException )
+		{
+			return;
+		}
+
+		if ( stream is null ) return;
+		using ( stream )
+		{
+			var size = stream.Length;
+			if ( !ShouldUseLargeDownload( filename, size ) )
 			{
+				var bytes = new byte[size];
+				stream.ReadExactly( bytes );
+				smallFiles.AddFile( filename, bytes );
+
 				if ( AssetDownloadCache.DebugNetworkFiles )
 					Log.Info( $"Adding Small File {filename} ({size.FormatBytes()})" );
-			}
-			else
-			{
-				Log.Warning( $"File '{filename}' ('{fullPath}') doesn't exist - skipping" );
+				return;
 			}
 		}
-		else
+
+		AddLargeFile();
+
+		void AddLargeFile()
 		{
-			var wasAdded = NetworkedLargeFiles.AddFile( filename );
-
-			if ( wasAdded )
-			{
-				if ( AssetDownloadCache.DebugNetworkFiles )
-					Log.Info( $"Adding LARGE File {filename} ({size.FormatBytes()})" );
-			}
-			else
-			{
-				Log.Warning( $"File '{filename}' ('{fullPath}') doesn't exist - skipping" );
-			}
+			if ( !largeFiles.AddFile( mounted, filename ) )
+				Log.Warning( $"File '{filename}' ('{source.GetFullPath( filename )}') doesn't exist - skipping" );
 		}
-
 	}
 
 	/// <summary>

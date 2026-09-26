@@ -1,0 +1,199 @@
+@import "/styles/_front.scss";
+
+Phase04Finals
+{
+	.finalist-browser
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		height: 0;
+		gap: 16px;
+		overflow: hidden;
+	}
+
+	.view-tabs, .category-tabs
+	{
+		flex-shrink: 0;
+		flex-wrap: wrap;
+		gap: 8px;
+
+		.button
+		{
+			@include front-pill;
+
+			&.active
+			{
+				background-color: $front-primary;
+				border-color: $front-primary;
+
+				label
+				{
+					color: $front-heading;
+				}
+			}
+		}
+	}
+
+	.finalist-scroll
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		height: 0;
+		gap: 16px;
+		padding: 0 4px 8px;
+		overflow-y: scroll;
+	}
+
+	.section-head
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+	}
+
+	.title
+	{
+		font-family: $front-font;
+		font-size: 20px;
+		font-weight: 700;
+		color: $front-heading;
+	}
+
+	.description
+	{
+		font-size: 12.5px;
+		color: $front-secondary;
+	}
+
+	.finalist-grid
+	{
+		flex-shrink: 0;
+		flex-wrap: wrap;
+		gap: 16px;
+	}
+
+	.finalist
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		width: calc(33.333% - 11px);
+		min-width: 220px;
+		gap: 8px;
+	}
+
+	.artwork
+	{
+		position: relative;
+		width: 100%;
+		aspect-ratio: 16 / 9;
+		flex-shrink: 0;
+
+		PackageCard
+		{
+			width: 100%;
+			height: 100%;
+
+			.image
+			{
+				height: 100%;
+			}
+		}
+	}
+
+	// The original server seed survives withdrawals; do not renumber the remaining cards.
+	.seed
+	{
+		position: absolute;
+		left: 10px;
+		top: 10px;
+		padding: 4px 8px;
+		border-radius: 4px;
+		background-color: $front-card-deep;
+		color: $front-heading;
+		font-size: 11px;
+		font-weight: 600;
+		pointer-events: none;
+	}
+
+	.game-actions
+	{
+		align-items: center;
+		flex-shrink: 0;
+		flex-wrap: wrap;
+		gap: 8px;
+
+		.button
+		{
+			@include front-pill;
+		}
+
+		.play
+		{
+			background-color: $front-primary;
+			border-color: $front-primary;
+
+			label, icon
+			{
+				color: $front-heading;
+			}
+		}
+
+		.locked
+		{
+			background-color: transparent;
+			border-color: transparent;
+		}
+
+		.eliminated
+		{
+			color: $front-secondary;
+			font-size: 11px;
+		}
+	}
+
+	.missing-package
+	{
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		width: 100%;
+		height: 100%;
+		gap: 8px;
+		border-radius: $front-radius;
+		background-color: $front-card-deep;
+		color: $front-secondary;
+	}
+
+	.voting-status
+	{
+		flex-shrink: 0;
+		gap: 12px;
+		padding: 4px 0;
+		color: $front-secondary;
+
+		> div
+		{
+			flex-direction: column;
+		}
+
+		.status-title
+		{
+			color: $front-body;
+			font-weight: 600;
+		}
+	}
+
+	.load-error
+	{
+		flex-shrink: 0;
+		align-items: center;
+		gap: 12px;
+		color: $front-secondary;
+
+		.button
+		{
+			@include front-pill;
+		}
+	}
+}

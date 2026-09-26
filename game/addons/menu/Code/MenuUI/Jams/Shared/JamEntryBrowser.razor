@@ -1,0 +1,295 @@
+@using System;
+@using System.Collections.Generic;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.Services;
+@using Sandbox.UI;
+@using MenuProject.MenuUI.ContentBlock;
+@inherits Panel
+@namespace MenuProject.MenuUI.Jams
+
+<root>
+
+	<div class="entry-controls">
+		<div class="entry-tabs">
+			@foreach ( var filter in PlayFilters )
+			{
+				<Button class="entry-filter" Text=@($"{filter.Title} ({FilterCount( filter.Value?.ToString() )})") Active=@(EntryFilter == filter.Value?.ToString()) onclick=@(() => SetFilter( filter.Value )) />
+			}
+
+			@if ( ShowNominations )
+			{
+				<Button class="entry-filter" Text=@($"My Nominations ({FilterCount( "nominations" )})") Active=@(EntryFilter == "nominations") onclick=@(() => SetFilter( "nominations" )) />
+			}
+		</div>
+
+		<div class="entry-order">
+			<label>Order</label>
+			<DropDown Options=@Orders Value=@Order ValueChanged=@SetOrder />
+		</div>
+	</div>
+
+	@if ( Error is not null )
+	{
+		<div class="load-error">
+			<label>@Error</label>
+			<Button onclick=@Retry>Retry</Button>
+		</div>
+	}
+
+	@if ( EntriesError is not null && Entries is null )
+	{
+		<EmptyState Icon="cloud_off" Title="Entries unavailable" Subtitle="Try again in a moment." />
+	}
+	else if ( Entries is null || ( NeedsNominations && Nominations is null && Error is null ) )
+	{
+		<MenuProject.UI.LoaderFullScreen />
+	}
+	else if ( NeedsNominations && Nominations is null )
+	{
+		<EmptyState Icon="cloud_off" Title="Nominations unavailable" Subtitle="Try again, or browse all entries." />
+	}
+	else
+	{
+		<MenuProject.UI.PackageList Packages=@VisibleEntries ShowNominations=@true OnSelected=@Selected OnMenu=@OpenMenu />
+	}
+
+</root>
+
+@code
+{
+	/// <summary>
+	/// The jam whose entries, play history and nominations are being browsed.
+	/// </summary>
+	[Parameter]
+	public Jam Jam { get; set; }
+
+	static readonly List<Option> PlayFilters =
+	[
+		new( "All", "all" ),
+		new( "Played", "played" ),
+		new( "Unplayed", "unplayed" )
+	];
+
+	[SkipHotload]
+	static readonly List<Option> DefaultOrders =
+	[
+		new( "Discovery", "discovery" ),
+		new( "Active players", "active-players" ) { Tooltip = "Most players currently playing" },
+		new( "Thumbs up", "thumbs-up" ) { Tooltip = "Most positive votes" },
+		new( "Newest", "newest" ),
+		new( "Name A–Z", "name" )
+	];
+
+	[SkipHotload]
+	static readonly List<Option> NominationOrders =
+	[
+		new( "Discovery", "discovery" ),
+		new( "Most nominations", "nominations" ) { Tooltip = "Total nominations across community categories" },
+		new( "Active players", "active-players" ) { Tooltip = "Most players currently playing" },
+		new( "Thumbs up", "thumbs-up" ) { Tooltip = "Most positive votes" },
+		new( "Newest", "newest" ),
+		new( "Name A–Z", "name" )
+	];
+
+	List<Option> Orders => ShowNominations ? NominationOrders : DefaultOrders;
+
+	string EntryFilter = "all";
+	string Order = "newest";
+	bool Loading;
+	string LoadedJam;
+	string EntriesError;
+	Package[] Entries;
+	Package[] VisibleEntries;
+	int VotingVersion = -1;
+
+	GameJamSystem Voting => GameJamSystem.Get( Scene );
+	JamNominationSummary Nominations => Voting?.ActiveJam?.Ident == Jam?.Ident ? Voting?.Nominations : null;
+	string Error => EntriesError ?? (ShowNominations ? Voting?.Error : null);
+
+	// Assign each entry one discovery position for this browser's lifetime. Refreshes,
+	// filter changes and nomination updates must not reshuffle the cards.
+	readonly Dictionary<string, Guid> DiscoveryOrder = new( StringComparer.OrdinalIgnoreCase );
+
+	bool ShowNominations => Jam is { CommunityVoting: true, HasStarted: true } && Jam.Now < Jam.NominationsEnd;
+	bool NeedsNominations => ShowNominations && (EntryFilter == "nominations" || Order == "nominations");
+
+	protected override async Task OnParametersSetAsync()
+	{
+		if ( LoadedJam == Jam?.Ident ) return;
+
+		LoadedJam = Jam?.Ident;
+		Entries = null;
+		VisibleEntries = null;
+		EntriesError = null;
+		DiscoveryOrder.Clear();
+		EntryFilter = "all";
+		Order = "newest";
+
+		await Load();
+	}
+
+	/// <summary>
+	/// Updates filters and ordering when the shared voting state changes.
+	/// </summary>
+	public override void Tick()
+	{
+		base.Tick();
+
+		if ( !ShowNominations && (EntryFilter == "nominations" || Order == "nominations") )
+		{
+			if ( EntryFilter == "nominations" ) EntryFilter = "all";
+			if ( Order == "nominations" ) Order = "newest";
+
+			ApplyFilters();
+		}
+
+		var version = Voting?.Version ?? -1;
+		if ( VotingVersion != version )
+		{
+			VotingVersion = version;
+			ApplyFilters();
+		}
+	}
+
+	protected override void OnVisibilityChanged()
+	{
+		base.OnVisibilityChanged();
+
+		// Refresh recorded plays when returning to an existing browser.
+		if ( IsVisible && Entries is not null ) _ = Load();
+	}
+
+	void Retry()
+	{
+		if ( EntriesError is not null ) _ = Load();
+		if ( Voting?.Error is not null ) Voting.Refresh();
+	}
+
+	async Task Load()
+	{
+		if ( Loading || Jam is null ) return;
+
+		Loading = true;
+		var jam = Jam;
+		EntriesError = null;
+		StateHasChanged();
+
+		try
+		{
+			// Fetch every page before filtering. Otherwise Played/My Nominations could
+			// report an empty list just because the matching game is on a later page.
+			var entries = await LoadEntries( jam );
+			if ( !this.IsValid() || Jam?.Ident != jam.Ident ) return;
+
+			Entries = entries;
+
+			foreach ( var entry in Entries )
+			{
+				DiscoveryOrder.TryAdd( entry.FullIdent, Guid.NewGuid() );
+			}
+
+			ApplyFilters();
+		}
+		catch ( Exception e )
+		{
+			if ( !this.IsValid() || Jam?.Ident != jam.Ident ) return;
+
+			Log.Warning( $"Couldn't load jam entries ({e.Message})" );
+			EntriesError = "Couldn't refresh entries. Try again in a moment.";
+		}
+		finally
+		{
+			Loading = false;
+
+			if ( this.IsValid() )
+			{
+				if ( Jam?.Ident != jam.Ident ) _ = Load();
+
+				StateHasChanged();
+			}
+		}
+	}
+
+	static async Task<Package[]> LoadEntries( Jam jam )
+	{
+		var entries = new List<Package>();
+		int total;
+
+		do
+		{
+			// A stable server order keeps pagination independent of the local shuffle.
+			var page = await Package.FindAsync( $"{jam.Query} sort:newest", 200, entries.Count );
+			if ( page?.Packages is null ) throw new InvalidOperationException( "No entry results." );
+
+			total = page.TotalCount;
+			if ( page.Packages.Length == 0 && (entries.Count > 0 || total > 0 || jam.EntryCount > 0) )
+			{
+				throw new InvalidOperationException( "Incomplete entry results." );
+			}
+
+			entries.AddRange( page.Packages );
+		}
+		while ( entries.Count < total );
+
+		return entries.DistinctBy( x => x.FullIdent, StringComparer.OrdinalIgnoreCase ).ToArray();
+	}
+
+	void SetFilter( object value )
+	{
+		EntryFilter = value?.ToString() ?? "all";
+		ApplyFilters();
+	}
+
+	void SetOrder( string value )
+	{
+		Order = value;
+		ApplyFilters();
+	}
+
+	bool MatchesFilter( Package entry, string filter ) => filter switch
+	{
+		"played" => entry.Interaction.Used,
+		"unplayed" => !entry.Interaction.Used,
+		"nominations" when ShowNominations => Nominations?.MyNominations.Contains( entry.FullIdent ) == true,
+		_ => true
+	};
+
+	string FilterCount( string filter )
+	{
+		if ( Entries is null ) return filter == "nominations" ? "0" : "..";
+
+		return Entries.Count( x => MatchesFilter( x, filter ) ).ToString( "N0" );
+	}
+
+	void ApplyFilters()
+	{
+		if ( Entries is null ) return;
+
+		IEnumerable<Package> entries = Entries.Where( x => MatchesFilter( x, EntryFilter ) );
+
+		entries = Order switch
+		{
+			"nominations" when ShowNominations => entries.OrderByDescending( x => Nominations?.Counts.GetValueOrDefault( x.FullIdent ) ?? 0 ).ThenBy( x => DiscoveryOrder[x.FullIdent] ),
+			"active-players" => entries.OrderByDescending( x => x.Usage.UsersNow ).ThenBy( x => DiscoveryOrder[x.FullIdent] ),
+			"thumbs-up" => entries.OrderByDescending( x => x.VotesUp ).ThenBy( x => DiscoveryOrder[x.FullIdent] ),
+			"newest" => entries.OrderByDescending( x => x.Created ).ThenBy( x => x.FullIdent, StringComparer.OrdinalIgnoreCase ),
+			"name" => entries.OrderBy( x => x.Title, StringComparer.OrdinalIgnoreCase ).ThenBy( x => x.FullIdent, StringComparer.OrdinalIgnoreCase ),
+			_ => entries.OrderBy( x => DiscoveryOrder[x.FullIdent] )
+		};
+
+		var visibleEntries = entries.ToArray();
+		if ( VisibleEntries is null || !VisibleEntries.SequenceEqual( visibleEntries ) )
+		{
+			VisibleEntries = visibleEntries;
+		}
+
+		StateHasChanged();
+	}
+
+	void Selected( Package package ) => ContentBlocks.OnLaunch( package );
+
+	void OpenMenu( Package package ) => ContentBlocks.OnMenu( this, package );
+
+	protected override int BuildHash() => HashCode.Combine( VisibleEntries, EntryFilter, Order, ShowNominations, Nominations, Error, Loading );
+}

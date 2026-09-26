@@ -1,5 +1,6 @@
 ﻿@using Sandbox;
 @using Sandbox.UI;
+@using MenuProject;
 @using System.Globalization
 @namespace MenuProject.UI
 @inherits Panel
@@ -16,6 +17,14 @@
         {
             <MenuProject.UI.PackageFlairBar Flair="@Package.Flair" />
         }
+
+		@if ( NominationCount is int nominations )
+		{
+			<div class="package-nominations" tooltip="Total nominations across community categories">
+				<icon>how_to_vote</icon>
+				<label>@nominations.ToString("N0")</label>
+			</div>
+		}
 
         @* Overlaid on the art as a pull quote - the mark is its own label so it can be set big. *@
         @if ( ShowSummary && !string.IsNullOrWhiteSpace( Package?.Summary ) )
@@ -180,6 +189,13 @@
     [Parameter] public Package Package { get; set; }
     [Parameter] public SizeType Size { get; set; }
 
+	/// <summary>
+	/// Displays this package's nomination count from the menu's shared jam state.
+	/// </summary>
+	[Parameter] public bool ShowNominations { get; set; }
+
+	int? NominationCount => ShowNominations ? GameJamSystem.GetNominations( Package?.FullIdent ) : null;
+
     /// <summary>
     /// Takes turns with the other cards sharing it, so only a few play at once.
     /// </summary>
@@ -258,5 +274,5 @@
     };
 
     // ShowVideo mounts the video layer, so hover/convar changes have to re-render.
-    protected override int BuildHash() => System.HashCode.Combine(Package?.FullIdent, Package?.Usage.UsersNow, Package?.Flair.Length, ShowVideo(), ShowSummary, VideoUrl());
+    protected override int BuildHash() => System.HashCode.Combine(Package?.FullIdent, Package?.Usage.UsersNow, Package?.Flair.Length, ShowVideo(), ShowSummary, VideoUrl(), NominationCount);
 }

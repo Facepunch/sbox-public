@@ -1,0 +1,140 @@
+@import "/styles/_front.scss";
+
+JamStandings
+{
+	flex-direction: column;
+	flex-shrink: 0;
+	padding-bottom: 20px;
+	border-bottom: 1px solid $front-hairline;
+
+	.heading
+	{
+		align-items: center;
+		justify-content: space-between;
+	}
+
+	.title
+	{
+		font-size: 18px;
+		font-weight: 700;
+		color: $front-heading;
+	}
+
+	.live
+	{
+		font-size: 11px;
+		color: $front-accent;
+	}
+
+	.category, .hint
+	{
+		font-size: 12px;
+		color: $front-secondary;
+	}
+
+	.qualifying
+	{
+		margin-top: 16px;
+		margin-bottom: 6px;
+		font-size: 12px;
+		font-weight: 600;
+		color: $front-trophy;
+	}
+
+	.standings
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+
+		// Keep the collapse control and schedule reachable for jams with hundreds of entries.
+		&.expanded
+		{
+			max-height: 400px;
+			overflow-y: scroll;
+		}
+	}
+
+	.entry
+	{
+		flex-shrink: 0;
+		align-items: center;
+		gap: 10px;
+		padding: 10px 0;
+		border-bottom: 1px solid $front-hairline;
+		cursor: pointer;
+
+		&:hover .name
+		{
+			color: $front-link-hover;
+		}
+	}
+
+	.rank
+	{
+		// Leave room for multi-digit ranks without breaking them across lines.
+		min-width: 28px;
+		flex-shrink: 0;
+		font-size: 11px;
+		font-variant-numeric: tabular-nums;
+		text-align: right;
+		white-space: nowrap;
+		color: $front-secondary;
+	}
+
+	.game
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+	}
+
+	.name
+	{
+		font-size: 12px;
+		font-weight: 600;
+		color: $front-heading;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+		overflow: hidden;
+	}
+
+	.nominated
+	{
+		font-size: 10px;
+		color: $front-link;
+	}
+
+	.votes
+	{
+		flex-shrink: 0;
+		font-size: 12px;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+		color: $front-heading;
+	}
+
+	.cutoff
+	{
+		@include front-section-label;
+		flex-shrink: 0;
+		color: $front-trophy;
+		padding: 8px 0;
+		border-bottom: 1px dashed $front-trophy;
+	}
+
+	.view-all
+	{
+		@include front-text-link;
+		justify-content: center;
+		margin-top: 12px;
+		font-size: 12px;
+		background-color: transparent;
+	}
+
+	.hint
+	{
+		margin-top: 12px;
+	}
+}

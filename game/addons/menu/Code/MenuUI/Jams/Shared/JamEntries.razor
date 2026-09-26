@@ -1,0 +1,49 @@
+@using Sandbox;
+@using Sandbox.Services;
+@using Sandbox.UI;
+@namespace MenuProject.MenuUI.Jams
+@inherits Panel
+
+<root>
+	<div class="section-head">
+		<label class="title">Entries</label>
+		<label class="description">@EntriesText</label>
+	</div>
+
+	@if ( Locked )
+	{
+		<div class="jam-empty">
+			<icon>lock_clock</icon>
+			<label class="title">Theme drops @JamFormat.Day( Jam.Starts )</label>
+			<label class="hint">Entries open the moment it does.</label>
+		</div>
+	}
+	else
+	{
+		<div class="entries">
+			<JamEntryBrowser Jam=@Jam />
+		</div>
+	}
+</root>
+
+@code
+{
+	/// <summary>
+	/// The jam whose entry count and browser are displayed.
+	/// </summary>
+	[Parameter] public Jam Jam { get; set; }
+
+	/// <summary>
+	/// Shows the pre-start placeholder instead of loading the entry browser.
+	/// </summary>
+	[Parameter] public bool Locked { get; set; }
+
+	string EntriesText => Jam.EntryCount switch
+	{
+		0 => Jam.HasStarted ? "none yet" : "not open yet",
+		1 => "1 so far",
+		_ => $"{Jam.EntryCount:N0} so far",
+	};
+
+	protected override int BuildHash() => System.HashCode.Combine( Jam, Jam.EntryCount, Locked );
+}

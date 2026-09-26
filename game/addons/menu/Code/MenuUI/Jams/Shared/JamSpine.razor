@@ -31,8 +31,10 @@
                         </div>
                     }
                     <label class="when">@JamFormat.Day( step.At )</label>
-                    <label class="name">@JamFormat.PhaseName( step )</label>
-                    <label class="eta">@Countdown( i, current, step )</label>
+                    <div class="step-heading">
+                        <label class="name">@JamFormat.PhaseName( step )</label>
+                        <label class="eta">@Countdown( i, current, step )</label>
+                    </div>
                 </div>
             }
         </div>
@@ -41,6 +43,9 @@
 
 @code
 {
+    /// <summary>
+    /// The jam whose phase dates and progress are displayed.
+    /// </summary>
     [Parameter] public Jam Jam { get; set; }
 
     string Progress

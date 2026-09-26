@@ -1,0 +1,58 @@
+@using Sandbox;
+@using Sandbox.Services;
+@using Sandbox.UI;
+@using System;
+@namespace MenuProject.MenuUI.Jams
+@inherits Panel
+
+<root>
+	@if ( !string.IsNullOrEmpty( CountdownStatus ) )
+	{
+		<div class="countdown-status">
+			<label class="what">@CountdownLabel</label>
+			<label class="time">@CountdownStatus</label>
+		</div>
+	}
+	else if ( CountdownTarget is DateTimeOffset target )
+	{
+		<div class="countdown">
+			<JamCountdown Jam=@Jam Label=@CountdownLabel Target=@target />
+			@if ( ShowStandings && Jam.AcceptingEntries && Jam.NominationsEnd > Jam.Deadline )
+			{
+				<label class="hint">Nominations stay open for @JamFormat.Until( Jam.NominationsEnd, Jam.Deadline ) after entries close.</label>
+			}
+		</div>
+	}
+	@if ( ShowStandings )
+	{
+		<JamStandings Jam=@Jam />
+	}
+	<JamSpine Jam=@Jam />
+</root>
+
+@code
+{
+	bool ShowStandings => Jam is { CommunityVoting: true, HasStarted: true } && Jam.Now < Jam.NominationsEnd;
+
+	/// <summary>
+	/// The jam whose timeline is shown.
+	/// </summary>
+	[Parameter] public Jam Jam { get; set; }
+
+	/// <summary>
+	/// The current phase's deadline; null hides the countdown.
+	/// </summary>
+	[Parameter] public DateTimeOffset? CountdownTarget { get; set; }
+
+	/// <summary>
+	/// Describes what happens at the deadline.
+	/// </summary>
+	[Parameter] public string CountdownLabel { get; set; }
+
+	/// <summary>
+	/// A server-transition status, shown instead of the numeric countdown when provided.
+	/// </summary>
+	[Parameter] public string CountdownStatus { get; set; }
+
+	protected override int BuildHash() => HashCode.Combine( Jam, CountdownTarget, CountdownLabel, CountdownStatus, ShowStandings, Jam?.AcceptingEntries );
+}
