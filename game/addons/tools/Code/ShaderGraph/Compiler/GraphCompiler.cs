@@ -905,7 +905,7 @@ public sealed partial class GraphCompiler
 		}
 		else
 		{
-			var editorAttribute = property.GetCustomAttribute<BaseNode.EditorAttribute>();
+			var editorAttribute = property.GetCustomAttribute<BaseNode.NodeValueEditorAttribute>();
 			if ( editorAttribute == null )
 				return null;
 
@@ -1097,7 +1097,7 @@ public sealed partial class GraphCompiler
 			}
 			else
 			{
-				var editorAttribute = property.GetCustomAttribute<BaseNode.EditorAttribute>();
+				var editorAttribute = property.GetCustomAttribute<BaseNode.NodeValueEditorAttribute>();
 				if ( editorAttribute == null )
 					continue;
 
