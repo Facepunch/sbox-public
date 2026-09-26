@@ -56,10 +56,14 @@ public static class ChangeCallback
 			// A synced value arriving while a networked object spawns is a real change from that
 			// state though - hold on to it until the object has finished spawning.
 			if ( Sandbox.Network.NetworkTable.IsReadingChanges )
-				Defer( p.Object, property, method, methodWithoutParams, functionName, oldValue );
+				Defer( component, property, method, methodWithoutParams, functionName, oldValue );
 
 			return;
 		}
+
+		// We're calling back about the latest value now, so a deferred callback would repeat it
+		if ( _deferred.Count > 0 && p.Object is Component c )
+			_deferred.RemoveAll( d => d.Target == c && d.Property == property );
 
 		Invoke( p.Object, property, method, methodWithoutParams, functionName, oldValue, p.Value );
 	}
@@ -93,16 +97,16 @@ public static class ChangeCallback
 		}
 	}
 
-	record struct DeferredCallback( object Target, PropertyDescription Property, MethodDescription Method, MethodDescription MethodWithoutParams, string FunctionName, object OldValue );
+	record struct DeferredCallback( Component Target, PropertyDescription Property, MethodDescription Method, MethodDescription MethodWithoutParams, string FunctionName, object OldValue );
 
 	static readonly List<DeferredCallback> _deferred = new();
 
-	static void Defer( object target, PropertyDescription property, MethodDescription method, MethodDescription methodWithoutParams, string functionName, object oldValue )
+	static void Defer( Component target, PropertyDescription property, MethodDescription method, MethodDescription methodWithoutParams, string functionName, object oldValue )
 	{
 		// Keep the first old value if the same property is written more than once while spawning
 		foreach ( var d in _deferred )
 		{
-			if ( ReferenceEquals( d.Target, target ) && d.Property == property )
+			if ( d.Target == target && d.Property == property )
 				return;
 		}
 
@@ -111,21 +115,21 @@ public static class ChangeCallback
 
 	/// <summary>
 	/// Invoke [Change] callbacks for synced values that were received while their object was
-	/// being spawned from the network. Called once the spawned objects are fully set up.
+	/// being spawned from the network. Called once the spawned objects in <paramref name="scene"/>
+	/// are fully set up - anything still loading, or in another scene, stays queued.
 	/// </summary>
-	internal static void FlushDeferred()
+	internal static void FlushDeferred( Scene scene )
 	{
+		_deferred.RemoveAll( d => !d.Target.IsValid() );
+
 		if ( _deferred.Count == 0 )
 			return;
 
-		var pending = _deferred.ToArray();
-		_deferred.Clear();
+		var pending = _deferred.Where( d => d.Target.Scene == scene && !IsLoading( d.Target ) ).ToArray();
+		_deferred.RemoveAll( pending.Contains );
 
 		foreach ( var d in pending )
 		{
-			if ( d.Target is Component c && !c.IsValid() )
-				continue;
-
 			var newValue = d.Property.GetValue( d.Target );
 			if ( Equals( newValue, d.OldValue ) )
 				continue;

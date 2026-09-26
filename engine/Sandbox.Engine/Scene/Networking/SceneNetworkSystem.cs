@@ -651,13 +651,15 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		LoadingScreen.Title = null;
 
+		var scene = Game.ActiveScene;
+
 		// Wait for loading to finish
-		if ( Game.ActiveScene is not null )
+		if ( scene is not null )
 		{
-			await Game.ActiveScene.WaitForLoading();
+			await scene.WaitForLoading();
 		}
 
-		ReapplyCreateTables( createdNetworkObjects );
+		ReapplyCreateTables( scene, createdNetworkObjects );
 
 		if ( Game.ActiveScene.IsValid() )
 		{
@@ -890,7 +892,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		}
 
 		ReadGameObjectSystems( scene, msg );
-		ReapplyCreateTables( created );
+		ReapplyCreateTables( scene, created );
 	}
 
 	private static readonly GameObject.DeserializeOptions _hostOnlyRefreshOptions = new() { IsRefreshing = true, IsNetworkRefresh = true, ClearAbsentFields = true };
@@ -936,14 +938,14 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	}
 
 	// Lifecycle callbacks may have overwritten synced values; the host's win
-	static void ReapplyCreateTables( List<(GameObject go, ObjectCreateMsg msg)> created )
+	static void ReapplyCreateTables( Scene scene, List<(GameObject go, ObjectCreateMsg msg)> created )
 	{
 		foreach ( var (go, msg) in created )
 		{
 			go._net?.ReapplyCreateTable( msg );
 		}
 
-		ChangeCallback.FlushDeferred();
+		ChangeCallback.FlushDeferred( scene );
 	}
 
 	private void ResetForNewHost( Connection previousHost, Connection newHost )
@@ -1266,7 +1268,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			}
 		}
 
-		ReapplyCreateTables( created );
+		ReapplyCreateTables( scene, created );
 	}
 
 	private void OnObjectCreate( ObjectCreateMsg message, Connection source, Guid msgId )
@@ -1305,7 +1307,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		}
 
 		go._net?.ReapplyCreateTable( message );
-		ChangeCallback.FlushDeferred();
+		ChangeCallback.FlushDeferred( scene );
 	}
 
 	private void OnNetworkTableChanges( SceneNetworkTableMsg message, Connection source, Guid msgId )
