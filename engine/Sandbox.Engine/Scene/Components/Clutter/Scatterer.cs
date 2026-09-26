@@ -26,9 +26,10 @@ public abstract class Scatterer
 	/// </summary>
 	/// <param name="bounds">World-space bounds to scatter within</param>
 	/// <param name="clutter">The clutter containing objects to scatter</param>
-	/// <param name="scene">Scene to use for tracing (null falls back to Game.ActiveScene)</param>
+	/// <param name="scene">Scene to use for tracing</param>
+	/// <param name="sceneBounds">World bounds of the scene, used as the vertical span of ground traces</param>
 	/// <returns>Collection of clutter instances to spawn</returns>
-	protected abstract List<ClutterInstance> Generate( BBox bounds, ClutterDefinition clutter, Scene scene = null );
+	protected abstract List<ClutterInstance> Generate( BBox bounds, ClutterDefinition clutter, Scene scene, BBox sceneBounds );
 
 	/// <summary>
 	/// Public entry point for scattering. Creates Random from seed and calls Generate().
@@ -36,13 +37,18 @@ public abstract class Scatterer
 	/// <param name="bounds">World-space bounds to scatter within</param>
 	/// <param name="clutter">The clutter containing objects to scatter</param>
 	/// <param name="seed">Seed for deterministic random generation</param>
-	/// <param name="scene">Scene to use for tracing (required in editor mode)</param>
-	/// <returns>Collection of clutter instances to spawn</returns>
-	public List<ClutterInstance> Scatter( BBox bounds, ClutterDefinition clutter, int seed, Scene scene = null )
+	/// <param name="scene">Scene to use for tracing (null falls back to Game.ActiveScene)</param>
+	/// <param name="sceneBounds">Scene vertical bounds for ground traces. Pass a cached value if possible.</param>
+	/// <returns>Clutter instances to spawn</returns>
+	public List<ClutterInstance> Scatter( BBox bounds, ClutterDefinition clutter, int seed, Scene scene = null, BBox? sceneBounds = null )
 	{
+		scene ??= Game.ActiveScene;
+		if ( scene is null || clutter is null || clutter.IsEmpty )
+			return [];
+
 		Random = new Random( seed );
 
-		return Generate( bounds, clutter, scene );
+		return Generate( bounds, clutter, scene, sceneBounds ?? scene.GetBounds() );
 	}
 
 	/// <summary>
