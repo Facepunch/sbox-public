@@ -1,18 +1,14 @@
-﻿using System.Numerics;
+﻿namespace Sandbox.Audio;
 
-namespace Sandbox.Audio;
-
-/// <summary>
-/// Just a test - don't count on this sticking around
-/// </summary>
 [Expose]
 public sealed class LowPassProcessor : AudioProcessor<LowPassProcessor.State>
 {
 	/// <summary>
-	/// Cutoff frequency for the low-pass filter (normalized 0 to 1).
+	/// Cutoff frequency for the low-pass filter.
 	/// </summary>
-	[Range( 0, 1 )]
-	public float Cutoff { get; set; } = 0.5f;
+	[Range( 0, 12000 )]
+	public float Cutoff { get; set; } = 3400f;
+
 
 	public class State : ListenerState
 	{
@@ -22,35 +18,21 @@ public sealed class LowPassProcessor : AudioProcessor<LowPassProcessor.State>
 	/// <summary>
 	/// Processes a single audio channel with a low-pass filter.
 	/// </summary>
-	protected override unsafe void ProcessSingleChannel( AudioChannel channel, Span<float> input )
+	protected override void ProcessSingleChannel( AudioChannel channel, Span<float> input )
 	{
-		float alpha = Cutoff; // Simple smoothing factor
-		float previous = CurrentState.PreviousSample.Get( channel );
+		float rc = 1f / (2f * MathF.PI * Cutoff);
+		float dt = 1f / AudioEngine.SamplingRate;
+		float alpha = dt / (rc + dt);
 
-		int vectorSize = Vector<float>.Count;
-		int i = 0;
+		float prevOutput = CurrentState.PreviousSample.Get( channel );
 
-		if ( input.Length >= vectorSize )
+		for ( int i = 0; i < input.Length; i++ )
 		{
-			var alphaVec = new Vector<float>( alpha );
-			var prevVec = new Vector<float>( previous );
-
-			for ( ; i <= input.Length - vectorSize; i += vectorSize )
-			{
-				var inputVec = new Vector<float>( input.Slice( i, vectorSize ) );
-				prevVec = prevVec + alphaVec * (inputVec - prevVec);
-				prevVec.CopyTo( input.Slice( i, vectorSize ) );
-			}
-			previous = prevVec[vectorSize - 1]; // Store last processed value
+			float output = prevOutput + (alpha * (input[i] - prevOutput));
+			input[i] = output;
+			prevOutput = output;
 		}
 
-		// Process remaining elements
-		for ( ; i < input.Length; i++ )
-		{
-			previous = previous + alpha * (input[i] - previous);
-			input[i] = previous;
-		}
-
-		CurrentState.PreviousSample.Set( channel, previous );
+		CurrentState.PreviousSample.Set( channel, prevOutput );
 	}
 }
