@@ -150,6 +150,10 @@ class Launcher
 
 			Commands.Finish( result );
 		}
+		catch ( Exception ex )
+		{
+			Commands.Error( $"{ex.GetType().Name}: {ex.Message}".ReplaceLineEndings( " " ) );
+		}
 		finally
 		{
 			// Signal the main thread to exit

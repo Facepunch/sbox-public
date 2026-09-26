@@ -627,16 +627,19 @@ public sealed class EtwConverterToFirefox : IDisposable
 			.Where( module => !_mapModuleFileIndexToFirefox.ContainsKey( module.ModuleFile.ModuleFileIndex ) )
 			.ToList();
 
-		// Parallel symbol loading - the slow part
-		var loadedModules = new ConcurrentBag<(TraceLoadedModule module, FirefoxProfiler.Lib lib)>();
-		var processedCount = 0;
-
-		Parallel.ForEach( modulesToLoad, module =>
+		// SymbolReader and TraceCodeAddresses aren't thread safe, so load symbols one module at a time
+		for ( int i = 0; i < modulesToLoad.Count; i++ )
 		{
-			var currentCount = Interlocked.Increment( ref processedCount );
-			Commands.Log( $"Loading Symbols [{currentCount}/{modulesToLoad.Count}] for Module `{module.Name}`" );
+			var module = modulesToLoad[i];
+			Commands.Log( $"Loading Symbols [{i + 1}/{modulesToLoad.Count}] for Module `{module.Name}`" );
 
-			var lib = new FirefoxProfiler.Lib
+			_traceLog!.CodeAddresses.LookupSymbolsForModule( _symbolReader, module.ModuleFile );
+
+			if ( _mapModuleFileIndexToFirefox.ContainsKey( module.ModuleFile.ModuleFileIndex ) )
+				continue;
+
+			_mapModuleFileIndexToFirefox.Add( module.ModuleFile.ModuleFileIndex, _profile.Libs.Count );
+			_profile.Libs.Add( new FirefoxProfiler.Lib
 			{
 				Name = module.Name,
 				AddressStart = module.ImageBase,
@@ -646,22 +649,7 @@ public sealed class EtwConverterToFirefox : IDisposable
 				DebugName = module.ModuleFile.PdbName,
 				BreakpadId = $"0x{module.ModuleID:X16}",
 				Arch = "x64" // TODO
-			};
-
-			// Symbol lookup is the expensive operation - done in parallel
-			_traceLog!.CodeAddresses.LookupSymbolsForModule( _symbolReader, module.ModuleFile );
-
-			loadedModules.Add( (module, lib) );
-		} );
-
-		// Add to profile in a single-threaded manner to maintain order consistency
-		foreach ( var (module, lib) in loadedModules )
-		{
-			if ( !_mapModuleFileIndexToFirefox.ContainsKey( module.ModuleFile.ModuleFileIndex ) )
-			{
-				_mapModuleFileIndexToFirefox.Add( module.ModuleFile.ModuleFileIndex, _profile.Libs.Count );
-				_profile.Libs.Add( lib );
-			}
+			} );
 		}
 	}
 
