@@ -6,13 +6,13 @@
 @if (Package is not null )
 {
     <root class="clicky" onmousedown="@( () => Package.OpenModal() )">
-        <label>@($"Playing {Package.Title}")</label>
+        <label>@Language.GetPhrase( "friendgamepopup.playing", new() { { "title", Package.Title } } )</label>
     </root>
 }
 else
 {
     <root>
-        <label>@($"Playing {Title}")</label>
+        <label>@Language.GetPhrase( "friendgamepopup.playing", new() { { "title", Package.Title } } )</label>
     </root>
 }
 

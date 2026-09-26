@@ -5,16 +5,16 @@
 <root>
 
 	<div class="body-left">
-		<div class="title">Workshop</div>
-		<div class="subtitle">You can preview community created cosmetic items from the workshop. You can use the voting and review features to help us decide which items we should add to the store.</div>
+		<div class="title">#avatar.workshop</div>
+		<div class="subtitle">#avatar.workshop.desc</div>
 
-		<FormRow Label="Preview Model">
+		<FormRow Label=#avatar.workshop.preview_model>
 			<Content>
 
 				<ButtonGroup Value:bind="@Manager.CitizenActive" class="bg-round">
 					<ChildContent>
-						<Button Text="Human" Value="@false"></Button>
-						<Button Text="Citizen" Value="@true"></Button>
+						<Button Text=#avatar.human Value="@false"></Button>
+						<Button Text=#avatar.citizen Value="@true"></Button>
 					</ChildContent>
 				</ButtonGroup>
 

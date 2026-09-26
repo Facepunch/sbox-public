@@ -8,20 +8,20 @@
 
 	@if ( Item is not null )
 	{
-		<label class="title">@Item.Title</label>
+		<label class="title">@Localize( $"settings.{Item.Id}.title", Item.Title )</label>
 
 		@if ( Item.Section is not null )
 		{
-			<label class="meta">@Item.Section</label>
+			<label class="meta">@Localize( "settings.section." + Item.Section.Replace( " ", "_" ), Item.Section )</label>
 		}
 
-		<label class="body">@Item.Description</label>
+		<label class="body">@Localize( $"settings.{Item.Id}.desc", Item.Description )</label>
 	}
 	else
 	{
 		<div class="hint">
 			<i>info</i>
-			<label>Hover a setting to read what it does.</label>
+			<label>#settings.detail.hint</label>
 		</div>
 	}
 
@@ -32,6 +32,12 @@
 	[Parameter] public SettingsView View { get; set; }
 
 	SettingItem Item => View?.Described;
+
+	string Localize( string key, string originalText )
+	{
+		string localizedText = Language.GetPhrase( key );
+		return localizedText == key ? originalText : localizedText;
+	}
 
 	protected override int BuildHash() => HashCode.Combine( Item?.Id );
 }

@@ -8,7 +8,7 @@
 
 <root>
 	<div class="members">
-		<Button class="party" onmousedown="@OpenMenu" Icon="celebration" Tooltip="Party" />
+		<Button class="party" onmousedown="@OpenMenu" Icon="celebration" Tooltip="#tooltip.menu.party" />
 		<separator class="vertical" />
 		<PartyMember Friend="@(new Friend(Connection.Local.SteamId))" />
 		@foreach (var member in Members.Where( x => !x.IsMe ) )
@@ -17,7 +17,7 @@
 		}
 		@if ( Party is null || Party.MemberCount < Party.MaxMembers )
 		{
-			<Button @ref="InviteButton" class="empty-slot" onmouseup="@InviteSomeone" Tooltip="Invite a friend" Icon="add"/>
+			<Button @ref="InviteButton" class="empty-slot" onmouseup="@InviteSomeone" Tooltip="#tooltip.menu.invite_friend" Icon="add"/>
 		}
     </div>
 </root>
@@ -53,12 +53,12 @@
 		if ( PartyRoom.Current is not null )
 			return;
 
-		var party = await PartyRoom.Create( MAX_MEMBERS, $"{Connection.Local.Name}'s Party", false );
+		var party = await PartyRoom.Create( MAX_MEMBERS, Language.GetPhrase( "partydeck.room_name", new() { { "owner", Connection.Local.Name } } ), false );
 		if ( party is null )
 		{
 			MenuOverlay.Instance?.BottomRight?.Queue( new Toast()
 			{
-				Title = "Failed to create party",
+				Title = Language.GetPhrase( "partydeck.create_failed" ),
 				Icon = "cancel",
 			});
 		}

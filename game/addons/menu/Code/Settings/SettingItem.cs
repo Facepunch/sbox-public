@@ -86,7 +86,32 @@ public class SettingItem
 
 	public string Disabled => DisabledReason?.Invoke();
 
-	public List<Option> CurrentOptions => OptionsBuilder is not null ? OptionsBuilder() : Options;
+	List<Option> _localized;
+
+	public List<Option> CurrentOptions
+	{
+		get
+		{
+			if ( OptionsBuilder is not null )
+				return TranslateOptions( OptionsBuilder() );
+
+			return _localized ??= TranslateOptions( Options );
+		}
+	}
+
+	static List<Option> TranslateOptions( List<Option> options )
+	{
+		if ( options is null ) return null;
+
+		var list = new List<Option>( options.Count );
+		foreach ( var option in options )
+		{
+			var key = "settings.option." + option.Title.Trim().Replace( ' ', '_' );
+			var str = Language.GetPhrase( key );
+			list.Add( new Option( str == key ? option.Title : str, option.Icon, option.Value ) { Tooltip = option.Tooltip, Subtitle = option.Subtitle } );
+		}
+		return list;
+	}
 
 	// Backed by convars that may not be registered and devices that may not exist. A throwing
 	// row is logged and left blank rather than taking the whole screen down.
@@ -165,7 +190,37 @@ public class SettingItem
 	string searchText;
 
 	/// <summary>Everything a search looks at, lowercased once and kept.</summary>
-	public string SearchText => searchText ??= $"{Title} {Description} {Section} {Category}".ToLowerInvariant();
+	public string SearchText => searchText ??= BuildSearchText();
+
+	string BuildSearchText()
+	{
+		var titleKey = $"settings.{Id}.title";
+		var descKey = $"settings.{Id}.desc";
+		var sectionKey = "settings.section." + Section.Replace( " ", "_" );
+		var categoryKey = $"settings.{Category}.title";
+
+		var title = Language.GetPhrase( titleKey );
+		var desc = Language.GetPhrase( descKey );
+		var section = Language.GetPhrase( sectionKey );
+		var category = Language.GetPhrase( categoryKey );
+
+		var sb = $"{Title} {Description} {Section} {Category}".ToLowerInvariant();
+		foreach ( var (phrase, key) in new[] { (title, titleKey), (desc, descKey), (section, sectionKey), (category, categoryKey) } )
+			if ( phrase != key ) sb += " " + phrase.ToLowerInvariant();
+
+		return sb;
+	}
 
 	public bool Matches( string query ) => SearchText.Contains( query );
+
+	/// <summary>
+	/// Clears cached localization - the translated option list and the search text both
+	/// hold the language they were built in. Called when the language changes in-game,
+	/// so the next render rebuilds them in the new language.
+	/// </summary>
+	public void ClearLocalizationCache()
+	{
+		_localized = null;
+		searchText = null;
+	}
 }

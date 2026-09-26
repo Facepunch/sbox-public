@@ -22,7 +22,7 @@
 
             @if ( Notice.Count > 1 )
             {
-                <label class="times">@Notice.Count times</label>
+                <label class="times">@Language.GetPhrase( "notificationcard.times", new() { { "count", Notice.Count } } )</label>
             }
         </div>
     </div>

@@ -19,7 +19,7 @@
 	<div class="footer">
 		<div class="leave @( Party is null ? "locked" : "" )" onmousedown=@Leave>
 			<icon>logout</icon>
-			<label>Leave party</label>
+			<label>#party.leave</label>
 		</div>
 	</div>
 
@@ -31,7 +31,7 @@
 
 	public PartyDeck PartyDeck { get; set; }
 
-	string Heading => Party is null || Party.Owner.IsMe ? "Your Party" : $"{Party.Owner.Name}'s Party";
+	string Heading => Party is null || Party.Owner.IsMe ? Language.GetPhrase( "party.owner" ) : Language.GetPhrase( "party.membership", new() { { "owner", Party.Owner.Name } } );
 
 	protected override int BuildHash() => System.HashCode.Combine( Party, Party?.MemberCount, Party?.Owner );
 

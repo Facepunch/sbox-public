@@ -14,24 +14,24 @@
 				<div class="storage-overview-heading">
 					<div class="storage-drive"><i>storage</i></div>
 					<div class="storage-overview-title">
-						<label class="storage-heading">Downloaded content</label>
-						<label class="storage-secondary">Kept on this device so your games load faster.</label>
+						<label class="storage-heading">#settings.storage.downloaded_content</label>
+						<label class="storage-secondary">#settings.storage.downloaded_desc</label>
 					</div>
 					<div class="storage-total">
-						<label class="storage-value">@(HasSnapshot ? FormatSize( Size ) : "Calculating…")</label>
-						<label class="storage-secondary">@(HasSnapshot ? "used by downloads" : "Reading your cache")</label>
+						<label class="storage-value">@(HasSnapshot ? FormatSize( Size ) : Language.GetPhrase( "settings.storage.calculating" ))</label>
+						<label class="storage-secondary">@Language.GetPhrase( HasSnapshot ? "settings.storage.used_by_downloads" : "settings.storage.reading_cache" )</label>
 					</div>
 				</div>
 
 				<div class="storage-usage-bar">
 					@foreach ( var entry in SizeBreakdown.OrderByDescending( x => x.Value ) )
 					{
-						<div class="storage-segment file-type-@Slug( entry.Key )" style="flex-grow: @entry.Value;" title="@($"{entry.Key}: {FormatSize( entry.Value )}")"></div>
+						<div class="storage-segment file-type-@Slug( entry.Key )" style="flex-grow: @entry.Value;" title="@($"{Language.GetPhrase( "settings.storage." + entry.Key )}: {FormatSize( entry.Value )}")"></div>
 					}
 				</div>
 				<div class="storage-overview-footer">
-					<label class="storage-secondary">@(IsRefreshing ? $"Scanning… {ScannedFiles:N0} files" : $"{Files:N0} cached files")</label>
-					<Button class="storage-refresh" Disabled=@Busy onclick=@TryRefresh>Refresh</Button>
+					<label class="storage-secondary">@Language.GetPhrase( IsRefreshing ? "settings.storage.scanning" : "settings.storage.cached_files", new() { { "files", (IsRefreshing ? ScannedFiles : Files).ToString( "N0" ) } } )</label>
+					<Button class="storage-refresh" Disabled=@Busy onclick=@TryRefresh>#settings.storage.refresh</Button>
 				</div>
 			</div>
 
@@ -43,57 +43,57 @@
 			@if ( HasSnapshot )
 			{
 				<div class="storage-section">
-					<label class="storage-section-title">Recommendations</label>
+					<label class="storage-section-title">#settings.storage.recommendations</label>
 					<div class="storage-group storage-cleanup">
 						<div class="storage-recommendation">
 							<div class="storage-cleanup-icon"><i>@(OldSize > 0 ? "auto_delete" : "check_circle")</i></div>
 							<div class="storage-recommendation-copy">
-								<label class="storage-heading">@(OldSize > 0 ? "Remove unused downloads" : "You're up to date")</label>
-								<label class="storage-secondary">@(OldSize > 0 ? $"Free up to {FormatSize( OldSize )}. These files haven't been accessed in {DaysAgo} days." : $"All cached content has been accessed in the last {DaysAgo} days.")</label>
+								<label class="storage-heading">@Language.GetPhrase( OldSize > 0 ? "settings.storage.remove_unused" : "settings.storage.up_to_date" )</label>
+								<label class="storage-secondary">@( OldSize > 0 ? Language.GetPhrase( "settings.storage.free_up", new() { { "size", FormatSize( OldSize ) }, { "days", DaysAgo } } ) : Language.GetPhrase( "settings.storage.all_recent", new() { { "days", DaysAgo } } ) )</label>
 							</div>
 							@if ( OldSize > 0 )
 							{
-								<Button class="storage-action" Disabled=@(!CanClear || ConfirmCleanup) onclick=@RequestCleanup>@(IsClearing ? "Removing…" : "Remove…")</Button>
+								<Button class="storage-action" Disabled=@(!CanClear || ConfirmCleanup) onclick=@RequestCleanup>@Language.GetPhrase( IsClearing ? "settings.storage.removing" : "settings.storage.remove" )</Button>
 							}
 						</div>
 						@if ( ConfirmCleanup )
 						{
 							<div class="storage-confirmation">
-								<label class="storage-heading">Remove @FormatSize( OldSize ) of unused downloads?</label>
-								<label class="storage-secondary">Your saved data won't be touched. Games may take longer to load while removed content downloads again.</label>
+								<label class="storage-heading">@Language.GetPhrase( "settings.storage.confirm_remove", new() { { "size", FormatSize( OldSize ) } } )</label>
+								<label class="storage-secondary">#settings.storage.confirm_hint</label>
 								<div class="storage-confirmation-actions">
-									<Button class="storage-action" onclick=@CancelCleanup>Cancel</Button>
-									<Button class="storage-action storage-destructive" Disabled=@(!CanClear) onclick=@ClearUnused>Remove Downloads</Button>
+									<Button class="storage-action" onclick=@CancelCleanup>#settings.storage.cancel</Button>
+									<Button class="storage-action storage-destructive" Disabled=@(!CanClear) onclick=@ClearUnused>#settings.storage.remove_downloads</Button>
 								</div>
 							</div>
 						}
 					</div>
-					<label class="storage-footnote">Removed content downloads again when you need it. Saved data is not affected.</label>
+					<label class="storage-footnote">#settings.storage.footnote_removed</label>
 				</div>
 
 				<div class="storage-section">
 					<div class="storage-section-heading">
-						<label class="storage-section-title">Content by type</label>
-						<label class="storage-secondary">Largest first</label>
+						<label class="storage-section-title">#settings.storage.by_type</label>
+						<label class="storage-secondary">#settings.storage.largest_first</label>
 					</div>
 					<div class="storage-group storage-rows">
 						@foreach ( var entry in SizeBreakdown.OrderByDescending( x => x.Value ) )
 						{
 							<div class="storage-type-row">
 								<div class="storage-type-icon file-type-@Slug( entry.Key )"><i>@TypeIcon( entry.Key )</i></div>
-								<label class="storage-type-name">@entry.Key</label>
+								<label class="storage-type-name">@Language.GetPhrase( "settings.storage." + entry.Key )</label>
 								<label class="storage-type-size">@FormatSize( entry.Value )</label>
 							</div>
 						}
 						@if ( Files == 0 )
 						{
 							<div class="storage-empty">
-								<label class="storage-heading">No downloaded content</label>
-								<label class="storage-secondary">Content will appear here as you play.</label>
+								<label class="storage-heading">#settings.storage.no_content</label>
+								<label class="storage-secondary">#settings.storage.no_content_hint</label>
 							</div>
 						}
 					</div>
-					<label class="storage-footnote">This includes downloaded content only, not the s&amp;box installation or your saved data.</label>
+					<label class="storage-footnote">#settings.storage.footnote_types</label>
 				</div>
 			}
 		</div>
@@ -153,7 +153,7 @@
 		}
 		catch ( Exception e )
 		{
-			ErrorMessage = $"Couldn't remove unused files: {e.Message}";
+			ErrorMessage = Language.GetPhrase( "settings.storage.error_remove", new() { { "error", e.Message } } );
 		}
 		finally
 		{
@@ -208,7 +208,7 @@
 		}
 		catch ( Exception e )
 		{
-			ErrorMessage = $"Couldn't read storage: {e.Message}";
+			ErrorMessage = Language.GetPhrase( "settings.storage.error_read", new() { { "error", e.Message } } );
 		}
 		finally
 		{

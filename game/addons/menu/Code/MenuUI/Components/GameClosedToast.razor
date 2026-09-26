@@ -9,7 +9,7 @@
 
     <div class="close" @onclick="@Close"><i>close</i></div>
 
-    <div class="top" @onclick="@OpenModal" ToolTip="View More Information">
+    <div class="top" @onclick="@OpenModal" ToolTip="#tooltip.gameclosedtoast.view_information">
 
         <div class="left">
             <div  class="game-icon" style="background-image: url( @( Package.Thumb ) )"></div>
@@ -25,26 +25,26 @@
 
     <div class="body">
 
-        <div class="option favourite @(IsFavourite ? "active" : "")" ToolTip="@(IsFavourite ? "Remove from Favourites" : "Add to Favourites")" onclick=@ToggleFavourite>
+        <div class="option favourite @(IsFavourite ? "active" : "")" ToolTip="@(IsFavourite ? "#tooltip.gameclosedtoast.remove_favourites" : "#tooltip.gameclosedtoast.add_favourites")" onclick=@ToggleFavourite>
             <i>favorite</i>
             <label>@(Package.Favourited.KiloFormat())</label>
         </div>
 
         <div class="group">
-            <div class="option voteup @((Package.Interaction.Rating ?? 1) <= 0 ? "active" : "")" onclick=@VoteUp ToolTip="Vote Up">
+            <div class="option voteup @((Package.Interaction.Rating ?? 1) <= 0 ? "active" : "")" onclick=@VoteUp ToolTip="#tooltip.gameclosedtoast.vote_up">
                 <i>thumb_up</i>
                 <label>@(Package.VotesUp.KiloFormat())</label>
             </div>
 
-            <div class="option votedown @((Package.Interaction.Rating ?? 0) > 0 ? "active" : "")" onclick=@VoteDown ToolTip="Vote Down">
+            <div class="option votedown @((Package.Interaction.Rating ?? 0) > 0 ? "active" : "")" onclick=@VoteDown ToolTip="#tooltip.gameclosedtoast.vote_down">
                 <i>thumb_down</i>
                 <label>@(Package.VotesDown.KiloFormat())</label>
             </div>
         </div>
 
-        <div class="option rating" onclick=@LeaveReview ToolTip="Add a Review">
+        <div class="option rating" onclick=@LeaveReview ToolTip="#tooltip.gameclosedtoast.add_review">
             <i>reviews</i>
-            <label>Review</label>
+            <label>#gameclosedtoast.review</label>
         </div>
 
     </div>
@@ -54,13 +54,13 @@
         <div class="jam @( IsNominated ? "on" : "" )">
             <i class="trophy">emoji_events</i>
             <div class="text">
-                <label class="title">@_jam.Title entry</label>
-                <label class="hint">@( IsNominated ? "You nominated this entry" : CanToggle ? "Liked it? Nominate it" : _entry.Reason )</label>
+                <label class="title">@Language.GetPhrase( "gameclosedtoast.jam_entry", new() { { "title", _jam.Title } } )</label>
+                <label class="hint">@( IsNominated ? Language.GetPhrase( "gameclosedtoast.jam_nominated" ) : CanToggle ? Language.GetPhrase( "gameclosedtoast.jam_nominate_hint" ) : _entry.Reason )</label>
             </div>
 
             <div class="nominate @( IsNominated ? "on" : "" ) @( _busy ? "busy" : "" ) @( CanToggle ? "" : "locked" )" onclick=@( () => _ = ToggleNomination() ) ToolTip="@NominateTooltip">
                 <i>@( IsNominated ? "check" : "how_to_vote" )</i>
-                <label>@( IsNominated ? "Nominated" : "Nominate" )</label>
+                <label>@( IsNominated ? Language.GetPhrase( "jam.nominated" ) : Language.GetPhrase( "jam.nominate" ) )</label>
             </div>
         </div>
     }
@@ -132,7 +132,7 @@
         catch ( Exception e )
         {
             Log.Warning( e, $"Nominate {Package.FullIdent} failed" );
-            reason = "Couldn't reach the jam right now.";
+            reason = Language.GetPhrase( "jam.unreachable" );
         }
 
         if ( !this.IsValid() ) return;

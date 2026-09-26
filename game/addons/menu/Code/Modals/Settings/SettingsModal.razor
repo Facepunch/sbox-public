@@ -11,9 +11,9 @@
 
 		<div class="topbar">
 			<i>settings</i>
-			<label class="title">Settings</label>
+			<label class="title">#settings.title</label>
 			<div class="grow"></div>
-			<Button class="close" Icon="close" onclick=@( () => CloseModal( true ) )>Close</Button>
+			<Button class="close" Icon="close" onclick=@( () => CloseModal( true ) )>#settings.close</Button>
 		</div>
 
 		<SettingsView StartCategory=@Category />

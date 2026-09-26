@@ -11,9 +11,9 @@
 
         <div class="header">
             <i>people</i>
-            <h2>Friends</h2>
+            <h2>#friendslistmodal.friends</h2>
             <div class="grow" />
-            <div class="count" tooltip="Friends online">
+            <div class="count" tooltip="#tooltip.friendslistmodal.friends_online">
                 <icon>person</icon>
                 <label>@OnlineCount</label>
             </div>
@@ -23,7 +23,7 @@
             @if ( InGameFriends.Any() )
             {
                 <div class="group-label">
-                    <span class="text">In Game</span>
+                    <span class="text">#friendslistmodal.in_game</span>
                     <span class="count">@InGameFriends.Count()</span>
                     <separator class="horizontal" />
                 </div>
@@ -49,7 +49,7 @@
             @if ( OnlineFriends.Any() )
             {
                 <div class="group-label">
-                    <span class="text">Online</span>
+                    <span class="text">#friendslistmodal.online</span>
                     <span class="count">@OnlineFriends.Count()</span>
                     <separator class="horizontal" />
                 </div>
@@ -63,7 +63,7 @@
             @if ( OfflineFriends.Any() )
             {
                 <div class="group-label">
-                    <span class="text">Offline</span>
+                    <span class="text">#friendslistmodal.offline</span>
                     <span class="count">@OfflineFriends.Count()</span>
                     <separator class="horizontal" />
                 </div>
@@ -76,7 +76,7 @@
 
             @if( !AllFriends.Any() )
             {
-                <EmptyState Icon="group_off" Title="No one around" Subtitle="None of your friends are online right now." />
+                <EmptyState Icon="group_off" Title="#friendslistmodal.nothing" Subtitle="#friendslistmodal.nothing_hint" />
             }
 
 		</div>

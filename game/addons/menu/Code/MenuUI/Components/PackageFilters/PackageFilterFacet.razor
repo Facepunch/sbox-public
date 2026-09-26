@@ -10,7 +10,7 @@
     var classes = current == null ? "" : "is-active";
 }
 
-<root class="packagefilterfacet @classes" onmousedown="@OpenMenu" Tooltip="@Facet.Title">
+<root class="packagefilterfacet @classes" onmousedown="@OpenMenu" Tooltip="@Localize( $"category.{Facet.Name}", Facet.Title )">
 	@{
 		var icon = current?.Icon ?? Facet.Entries.FirstOrDefault()?.Icon;
 		@if ( icon is not null )
@@ -21,12 +21,12 @@
 
     @if ( current != null )
 	{
-        <div>@current.Title</div>
+        <div>@Localize( $"category.{Facet.Name}.{current.Name}", current.Title )</div>
         <div class="addon-button clear-button" @onmousedown="@OnClear"><i>clear</i></div>
     }
     else
     {
-        <div>@Facet.Title</div>
+        <div>@Localize( $"category.{Facet.Name}", Facet.Title )</div>
         <div class="addon-button"><i>arrow_drop_down</i></div>
     }
 
@@ -39,6 +39,16 @@
 	[Parameter] public Action<Package.Facet, string> OnChange { get; set; }
 
 	Popup menu;
+
+	string Localize( string key, string originalText )
+	{
+		if ( key == "category.size" )
+			key = "category.mapsize";
+
+		string normalized = key.Replace( " ", "" ).Replace( "#", "" ).Replace( "/", "_" );
+		string localizedText = Language.GetPhrase( normalized );
+		return localizedText == normalized ? originalText : localizedText;
+	}
 
 	void SwitchTo( Package.Facet.Entry entry )
 	{
@@ -70,7 +80,7 @@
 
         foreach (var entry in Facet.Entries)
         {
-            var o = menu.AddOption(entry.Title, entry.Icon, () => SwitchTo(entry));
+            var o = menu.AddOption( Localize( $"category.{Facet.Name}.{entry.Name}", entry.Title ), entry.Icon, () => SwitchTo(entry));
 
             o.AddChild(new Label() { Classes = "count", Text = $"{entry.Count:n0}" });
 

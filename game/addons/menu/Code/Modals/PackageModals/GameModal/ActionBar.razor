@@ -15,18 +15,18 @@
     <div class="left">
 
         <div class="group">
-            <div class="pill @( Liked ? "active" : "" )" onclick=@( () => _ = Vote( true ) ) tooltip="Like">
+            <div class="pill @( Liked ? "active" : "" )" onclick=@( () => _ = Vote( true ) ) tooltip="#tooltip.actionbar.like">
                 <icon>thumb_up</icon>
                 <label>@Package.VotesUp.ToMetric()</label>
             </div>
-            <div class="pill @( Disliked ? "active" : "" )" onclick=@( () => _ = Vote( false ) ) tooltip="Dislike">
+            <div class="pill @( Disliked ? "active" : "" )" onclick=@( () => _ = Vote( false ) ) tooltip="#tooltip.actionbar.dislike">
                 <icon>thumb_down</icon>
                 <label>@Package.VotesDown.ToMetric()</label>
             </div>
         </div>
 
         <div class="group">
-            <div class="pill fav @( Package.Interaction.Favourite ? "active" : "" )" onclick=@( () => _ = ToggleFavourite() ) tooltip="@( Package.Interaction.Favourite ? "Remove from favourites" : "Add to favourites" )">
+            <div class="pill fav @( Package.Interaction.Favourite ? "active" : "" )" onclick=@( () => _ = ToggleFavourite() ) tooltip="@( Package.Interaction.Favourite ? "#tooltip.actionbar.remove_favourites" : "#tooltip.actionbar.add_favourites" )">
                 <icon>@( Package.Interaction.Favourite ? "favorite" : "favorite_border" )</icon>
                 <label>@Package.Favourited.ToMetric()</label>
             </div>
@@ -37,7 +37,7 @@
         </div>
 
         <div class="group">
-            <div class="pill" onclick=@( () => _ = Hide() ) tooltip="Hide this game">
+            <div class="pill" onclick=@( () => _ = Hide() ) tooltip="#tooltip.actionbar.hide_game">
                 <icon>block</icon>
             </div>
         </div>
@@ -47,18 +47,22 @@
             <div class="group jam">
                 <div class="pill nominate @( _nominated ? "on" : "" ) @( _jamBusy ? "busy" : "" ) @( CanToggleNomination ? "" : "locked" )" onclick=@( () => _ = ToggleNomination() ) tooltip="@JamTooltip">
                     <icon>@( _nominated ? "check" : CanToggleNomination ? "emoji_events" : "lock" )</icon>
-                    <label>@( _nominated ? "Nominated" : "Nominate" )</label>
+                    <label>@Language.GetPhrase( _nominated ? "actionbar.nominated" : "actionbar.nominate" )</label>
                 </div>
             </div>
         }
 
 	    @if ( IsDedicatedServerOnly )
 	    {
-		    <Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>@LobbyCount Servers</Button>
+		    <Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>
+			@Language.GetPhrase( "actionbar.servers", new() { { "servercount", LobbyCount } } )
+		</Button>
 	    }
 	    else if ( IsMultiplayerGame )
         {
-			<Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>@LobbyCount Lobbies</Button>
+			<Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>
+				@Language.GetPhrase( "actionbar.lobbies", new() { { "lobbycount", LobbyCount } } )
+			</Button>
         }
 
     </div>
@@ -71,7 +75,7 @@
             {
                 @if (MapPackage is null)
                 {
-                    <Button icon="map" onclick=@SelectMap>Select Map</Button>
+                    <Button icon="map" onclick=@SelectMap>#actionbar.select_map</Button>
                 }
                 else
                 {
@@ -81,37 +85,37 @@
 
             @if ( Package.Info.IsStreamerGame )
             {
-                var text = Streamer.IsActive ? $"{Streamer.ViewerCount} Viewers" : "Stream Setup";
+                var text = Streamer.IsActive ? Language.GetPhrase( "actionbar.stream_viewers", new() { { "count", Streamer.ViewerCount } } ) : Language.GetPhrase( "actionbar.stream_setup" );
 
                 <Button Active=@Streamer.IsActive Text="@text" Icon="settings_input_antenna" class="streaming" @onclick="@(() => Game.Overlay.ShowServiceConnector())"></Button>
             }
 
             @if (IsVrOnly && !Application.IsVR)
             {
-                <Button icon="panorama_photosphere" class="play disabled">VR Only</Button>
+                <Button icon="panorama_photosphere" class="play disabled">#actionbar.vr_only</Button>
             }
             else
             {
 	            @if ( IsDedicatedServerOnly )
 	            {
-					<Button icon="auto_awesome" class="play" Disabled=@(!MenuHelpers.HasAuthority) onclick=@OpenLobbyList>View Servers</Button>
+					<Button icon="auto_awesome" class="play" Disabled=@(!MenuHelpers.HasAuthority) onclick=@OpenLobbyList>#actionbar.view_servers</Button>
 	            }
 	            else
 	            {
-		            var text = ((!IsMultiplayerGame || IsQuickPlayGame) ? "Play Game" : "New Game");
+		            var text = ((!IsMultiplayerGame || IsQuickPlayGame) ? "#actionbar.play_game" : "#actionbar.new_game");
 
                     <Button Icon="play_arrow" class="play" Text=@text Disabled=@(!MenuHelpers.HasAuthority || !IsReady()) onclick=@OnPlay />
 
 		            @if (IsMultiplayerGame && !IsQuickPlayGame)
 		            {
-                        <Button icon="auto_awesome" class="play" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OnJoinGame Text="Join Game"></Button>
+                        <Button icon="auto_awesome" class="play" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OnJoinGame Text="#actionbar.join_game"></Button>
 		            }
 	            }
             }
         }
         else
         {
-            <Button Icon="play_arrow" class="play disabled">Play Game</Button>
+            <Button Icon="play_arrow" class="play disabled">#actionbar.play_game</Button>
         }
     </div>
 
@@ -125,8 +129,8 @@
 
     protected override int BuildHash() => System.HashCode.Combine(Package, Modal?.HasFullPackage, IsVrOnly, IsMultiplayerGame, LobbyCount, MenuHelpers.HasAuthority, Streamer.IsActive, System.HashCode.Combine( Streamer.ViewerCount, Package.Interaction.Rating, Package.Interaction.Favourite, Package.VotesUp, Package.VotesDown, Package.Favourited, Package.Reviews.Total, System.HashCode.Combine( ShowJam, _nominated, _jamBusy ) ));
 
-    string ReviewText => Package.Reviews.Total > 0 ? Package.Reviews.Score.ToString( "0\\%" ) : "Review";
-    string ReviewTooltip => Package.Reviews.Total > 0 ? $"{Package.Reviews.Score:N0}% from {Package.Reviews.Total} reviews. Write yours" : "Write a review";
+    string ReviewText => Package.Reviews.Total > 0 ? Package.Reviews.Score.ToString( "0\\%" ) : Language.GetPhrase( "actionbar.review" );
+    string ReviewTooltip => Package.Reviews.Total > 0 ? Language.GetPhrase( "tooltip.actionbar.review_rated", new() { { "score", Package.Reviews.Score.ToString( "N0" ) }, { "total", Package.Reviews.Total } } ) : Language.GetPhrase( "tooltip.actionbar.review" );
 
     Jam _jam;
     JamEntryStatus _entry;
@@ -135,7 +139,18 @@
 
     bool ShowJam => _jam is not null && _entry.IsEntry;
     bool CanToggleNomination => _nominated || _entry.CanNominate;
-    string JamTooltip => $"{_jam?.Title} entry. " + (_nominated ? "You nominated it for the jam" : CanToggleNomination ? "Liked it? Nominate it for the jam" : _entry.Reason);
+    string JamTooltip
+    {
+        get
+        {
+            string hint = _nominated
+            ? Language.GetPhrase( "tooltip.actionbar.jam_hint_nominated" )
+            : CanToggleNomination ? Language.GetPhrase( "tooltip.actionbar.jam_hint_nominate" )
+            : _entry.Reason;
+
+            return Language.GetPhrase( "tooltip.actionbar.jam", new() { { "title", _jam?.Title }, { "hint", hint } } );
+        }
+    }
 
     protected override void OnAfterTreeRender( bool firstTime )
     {
@@ -179,7 +194,7 @@
         catch ( Exception e )
         {
             Log.Warning( e, $"Nominate {Package.FullIdent} failed" );
-            reason = "Couldn't reach the jam right now.";
+            reason = Language.GetPhrase( "actionbar.unreachable" );
         }
 
         if ( !this.IsValid() ) return;
@@ -240,15 +255,15 @@
     async Task<bool> OnJoinGame()
     {
         LoadingScreen.IsVisible = true;
-        LoadingScreen.Title = "Finding Game..";
-        LoadingScreen.Subtitle = "Please wait while we find a game for you to join.";
+        LoadingScreen.Title = "#actionbar.loadingscreen.title";
+        LoadingScreen.Subtitle = "#actionbar.loadingscreen.subtitle";
 
         bool success = await MenuUtility.TryJoinLobby(Package.FullIdent);
         if (success)
             return true;
             
         LoadingScreen.IsVisible = false;
-        ModalSystem.Instance.Notice( "Join Game Failed", "Couldn't join any available games", "search_off" );
+        ModalSystem.Instance.Notice( "#actionbar.loadingscreen.failed_title", "#actionbar.loadingscreen.failed_tip", "search_off" );
         return false;
     }
 

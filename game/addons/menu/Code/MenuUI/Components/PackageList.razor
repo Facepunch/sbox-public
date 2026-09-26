@@ -10,7 +10,7 @@
     @if ( ShowFilters )
     {
         <MenuProject.UI.PackageFilters Result=@Result Query=@Query OnChange=@OnQueryUpdated></MenuProject.UI.PackageFilters>
-    }
+    }	
 
     @if ( FoundPackages == null )
     {
@@ -19,7 +19,7 @@
     else if (FoundPackages.Count() == 0 )
     {
         <div class="empty-wrap">
-            <EmptyState Icon="search_off" Title="Nothing found" Subtitle="Nothing matches that. Try a different search, or loosen the filters." />
+            <EmptyState Icon="search_off" Title="#packagenews.nothing_found" Subtitle="#packagenews.nothing_found_hint" />
         </div>
     }
     else

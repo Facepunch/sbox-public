@@ -3,7 +3,6 @@
 @inherits Panel
 
 <root class="@RootClass" style="border-color: @( CountInCart > 0 ? Item.RarityColor : Item.RarityColorAlpha( 0.25f ) )">
-
     <div class="art-wrap" style="background-image: @Item.RarityWash( 0.4f )">
         <div class="art" style="background-image: url( @Item.BestIconUrl )"></div>
 
@@ -16,7 +15,7 @@
 
         @if ( Owned > 0 )
         {
-            <div class="owned-pill"><label>@( Owned > 1 ? $"Own {Owned}" : "Owned" )</label></div>
+            <div class="owned-pill"><label>@( Owned > 1 ?  Language.GetPhrase( "itemtile.owned_many", new() { { "count", Owned } } ) : Language.GetPhrase( "itemtile.owned" ) )</label></div>
         }
     </div>
 
@@ -28,7 +27,7 @@
             <div class="price">
                 @if ( Item.IsOnSale )
                 {
-                    <label class="was">@Item.BasePrice</label>
+                    <label class="was">@Language.GetPhrase( "itemtile.original_price", new() { { "price", Item.BasePrice } } )</label>
                 }
                 <div class="now-row">
                     <label class="now">@Item.Price</label>
@@ -44,7 +43,7 @@
                 <div class="adder">
                     <div class="step" @onclick="@RemoveFromCart"><icon>remove</icon></div>
                     <TextEntry class="count" Numeric="@true" NumberFormat="0" MinValue="@(0f)" MaxValue="@((float)ShoppingCart.MaxPerItem)"
-                               Value="@CountInCart.ToString()" OnTextEdited="@OnCountEdited" onblur="@( ( PanelEvent e ) => OnCountBlur( e ) )" tooltip="Type how many you want"></TextEntry>
+                               Value="@CountInCart.ToString()" OnTextEdited="@OnCountEdited" onblur="@( ( PanelEvent e ) => OnCountBlur( e ) )" tooltip="#tooltip.itemtile.count"></TextEntry>
                     <div class="step" @onclick="@AddToCart"><icon>add</icon></div>
                 </div>
             }
@@ -52,7 +51,7 @@
             {
                 <div class="add" @onclick="@AddToCart">
                     <icon>add_shopping_cart</icon>
-                    <label>Add</label>
+                    <label>#itemtile.add</label>
                 </div>
             }
         </div>
