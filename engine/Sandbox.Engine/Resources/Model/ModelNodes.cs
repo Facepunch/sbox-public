@@ -49,6 +49,13 @@ public class ModelPropData
 	public bool Flammable { get; set; }
 
 	/// <summary>
+	/// If true, any damage (including bullets and melee) will ignite this prop, not just fire and explosions.
+	/// Requires Flammable to be enabled.
+	/// </summary>
+	[JsonPropertyName( "ignite_on_any_damage" )]
+	public bool IgniteOnAnyDamage { get; set; }
+
+	/// <summary>
 	/// If true we'll explode this prop when it's destroyed
 	/// </summary>
 	public bool Explosive { get; set; }
