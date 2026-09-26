@@ -24,7 +24,7 @@ internal class Format( Constants.Solutions solution, Format.Mode mode = Format.M
 			return ExitCode.Failure;
 		}
 
-		Log.Error( $"Format completed successfully for {solution} in mode {mode}" );
+		Log.Info( $"Format completed successfully for {solution} in mode {mode}" );
 		return ExitCode.Success;
 	}
 }
