@@ -23,6 +23,7 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo( "panelgallery" )]
 [assembly: InternalsVisibleTo( "sbox-server" )]
 [assembly: InternalsVisibleTo( "sbox-dev" )]
+[assembly: InternalsVisibleTo( "sbox-cli" )]
 [assembly: InternalsVisibleTo( "sbox" )]
 [assembly: InternalsVisibleTo( "sbox-standalone" )]
 [assembly: InternalsVisibleTo( "sbox-profiler" )]

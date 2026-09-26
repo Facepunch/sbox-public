@@ -57,6 +57,11 @@ internal struct PackageLoadOptions
 	public bool ReloadResources { get; set; } = true;
 
 	/// <summary>
+	/// Throw when a remote package's code archive cannot be compiled instead of logging a warning.
+	/// </summary>
+	public bool ThrowOnCompileFailure { get; set; }
+
+	/// <summary>
 	/// Loading progress callbacks
 	/// </summary>
 	internal ILoadingInterface Loading { get; set; }

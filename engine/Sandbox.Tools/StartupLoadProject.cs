@@ -135,39 +135,9 @@ static class StartupLoadProject
 			LibrarySystem.InitializeFromProject( project );
 		}
 
-		//
-		// We want to load all the built in projects before anything else. This gives us a baseline.
-		// Then if our "parentpackage" has a "base" package, it'll hotload over our baseline.
-		//
-		Step( "Loading built-in projects" );
-		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: Builtin Projects" ) )
-		{
-			await PackageManager.InstallProjects( Project.All.Where( x => x.IsBuiltIn ).ToArray() );
-		}
-
-		//
-		// Load the dlls etc from our parent package
-		//
-		if ( project.Config.Type == "addon" && !string.IsNullOrWhiteSpace( parentPackage ) )
-		{
-			Step( $"Loading parent package ({parentPackage})" );
-			using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: ParentPackage" ) )
-			{
-				await PackageManager.InstallAsync( new PackageLoadOptions( parentPackage, "tools" ) );
-			}
-		}
-
-		//
-		// This should really only load our current project, that we're editing right now
-		//
-		Step( "Syncing package manager" );
-		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: Sync PackageManager" ) )
-		{
-			await Project.SyncWithPackageManager();
-		}
-
-		// This double Load shit is stupid, creates the compilers properly now that we've installed any dependant packages
-		project.Load();
+		// Install built-ins, the optional parent package and active local projects before
+		// reloading the project's compilers against those dependencies.
+		await Project.PrepareForCompileAsync( project, Step, ct );
 
 		ExportSettings( project );
 

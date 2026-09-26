@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
 
 namespace Sandbox;
 
@@ -107,21 +108,21 @@ public partial class Project
 	/// <summary>
 	/// Initializes all the base projects
 	/// </summary>
-	internal static async Task InitializeBuiltIn( bool syncPackageManager = true )
+	internal static async Task InitializeBuiltIn( bool syncPackageManager = true, bool saveUpgradedConfigs = true )
 	{
 		if ( !Application.IsStandalone && !Application.IsHeadless )
 		{
-			AddFromFileBuiltIn( "addons/menu/.sbproj" );
+			AddFromFileBuiltIn( "addons/menu/.sbproj", saveUpgradedConfigs );
 		}
 
 		if ( Application.IsEditor || Application.IsUnitTest )
 		{
-			AddFromFileBuiltIn( "addons/tools/.sbproj" );
-			AddFromFileBuiltIn( "editor/ShaderGraph/.sbproj" );
-			AddFromFileBuiltIn( "editor/ActionGraph/.sbproj" );
-			AddFromFileBuiltIn( "editor/MovieMaker/.sbproj" );
-			AddFromFileBuiltIn( "editor/Hammer/.sbproj" );
-			AddFromFileBuiltIn( "editor/DooEditor/DooEditor.sbproj" );
+			AddFromFileBuiltIn( "addons/tools/.sbproj", saveUpgradedConfigs );
+			AddFromFileBuiltIn( "editor/ShaderGraph/.sbproj", saveUpgradedConfigs );
+			AddFromFileBuiltIn( "editor/ActionGraph/.sbproj", saveUpgradedConfigs );
+			AddFromFileBuiltIn( "editor/MovieMaker/.sbproj", saveUpgradedConfigs );
+			AddFromFileBuiltIn( "editor/Hammer/.sbproj", saveUpgradedConfigs );
+			AddFromFileBuiltIn( "editor/DooEditor/DooEditor.sbproj", saveUpgradedConfigs );
 		}
 
 		if ( syncPackageManager )
@@ -137,9 +138,139 @@ public partial class Project
 	/// Removes packages that are no longer active. If nothing changed then this should
 	/// do nothing.
 	/// </summary>
-	internal static Task SyncWithPackageManager()
+	internal static Task SyncWithPackageManager( CancellationToken cancellationToken = default, bool throwOnFailure = false )
 	{
-		return PackageManager.InstallProjects( All.Where( x => x.Active ).ToArray() );
+		return PackageManager.InstallProjects( All.Where( x => x.Active ).ToArray(), cancellationToken, throwOnFailure );
+	}
+
+	/// <summary>
+	/// Add projects found directly beneath a project's Libraries folder. This only registers the
+	/// projects; editor-specific content and native filesystem mounts remain the editor's concern.
+	/// </summary>
+	internal static IReadOnlyList<Project> AddLocalLibraries( Project project, bool throwOnInvalid = false, bool saveUpgradedConfigs = true )
+	{
+		ArgumentNullException.ThrowIfNull( project );
+
+		var librariesPath = Path.Combine( project.GetRootPath(), "Libraries" );
+		if ( !Directory.Exists( librariesPath ) )
+			return Array.Empty<Project>();
+
+		var libraries = new List<Project>();
+		var folders = Directory.EnumerateDirectories( librariesPath )
+			.OrderBy( x => Path.GetFileName( x ), StringComparer.OrdinalIgnoreCase )
+			.ThenBy( x => Path.GetFileName( x ), StringComparer.Ordinal );
+
+		foreach ( var folder in folders )
+		{
+			var configs = Directory.EnumerateFiles( folder, "*.sbproj", SearchOption.TopDirectoryOnly )
+				.OrderBy( x => Path.GetFileName( x ), StringComparer.OrdinalIgnoreCase )
+				.ThenBy( x => Path.GetFileName( x ), StringComparer.Ordinal )
+				.ToArray();
+
+			if ( configs.Length != 1 )
+			{
+				var message = $"Library folder '{folder}' must contain exactly one .sbproj file; found {configs.Length}.";
+				if ( throwOnInvalid )
+					throw new InvalidDataException( message );
+
+				Log.Warning( message );
+				continue;
+			}
+
+			var configPath = NormalizeConfigFilePath( configs[0] );
+			var wasAlreadyRegistered = All.Any( x => x.ConfigFilePath == configPath );
+			Project library;
+			try
+			{
+				library = AddFromFile( configs[0], saveUpgradedConfig: saveUpgradedConfigs );
+			}
+			catch ( Exception e ) when ( !throwOnInvalid )
+			{
+				Log.Warning( e, $"Couldn't load library project '{configs[0]}': {e.Message}" );
+				continue;
+			}
+			catch ( Exception e )
+			{
+				throw new InvalidDataException( $"Couldn't load library project '{configs[0]}'.", e );
+			}
+
+			if ( !string.Equals( library.Config.Type, "library", StringComparison.Ordinal ) )
+			{
+				var message = $"Project '{configs[0]}' has type '{library.Config.Type}', but projects beneath Libraries must have type 'library'.";
+				if ( !wasAlreadyRegistered )
+					Remove( library );
+
+				if ( throwOnInvalid )
+					throw new InvalidDataException( message );
+
+				Log.Warning( message );
+				continue;
+			}
+
+			libraries.Add( library );
+		}
+
+		return libraries;
+	}
+
+	/// <summary>
+	/// Install the packages needed to compile a loaded active project, then reload it so its
+	/// compilers can resolve those dependencies. This deliberately excludes editor UI, assets,
+	/// solution generation and native filesystem mounts.
+	/// </summary>
+	internal static async Task PrepareForCompileAsync(
+		Project project,
+		Action<string> reportProgress = null,
+		CancellationToken cancellationToken = default,
+		bool throwOnPackageFailure = false )
+	{
+		ArgumentNullException.ThrowIfNull( project );
+
+		if ( !All.Contains( project ) )
+			throw new InvalidOperationException( "The project must be registered before it can be prepared for compilation." );
+
+		if ( Current != project )
+			throw new InvalidOperationException( "The project must be current before it can be prepared for compilation." );
+
+		if ( !project.Active )
+			throw new InvalidOperationException( "The project must be active before it can be prepared for compilation." );
+
+		cancellationToken.ThrowIfCancellationRequested();
+		reportProgress?.Invoke( "Loading built-in projects" );
+		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( "Load Project: Builtin Projects" ) )
+		{
+			await PackageManager.InstallProjects(
+				All.Where( x => x.IsBuiltIn ).ToArray(),
+				cancellationToken,
+				throwOnPackageFailure );
+		}
+
+		var parentPackage = project.Config.GetMetaOrDefault<string>( "ParentPackage", null );
+		if ( project.Config.Type == "addon" && !string.IsNullOrWhiteSpace( parentPackage ) )
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			reportProgress?.Invoke( $"Loading parent package ({parentPackage})" );
+			using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( "Load Project: ParentPackage" ) )
+			{
+				await PackageManager.InstallAsync( new PackageLoadOptions( parentPackage, "tools", cancellationToken )
+				{
+					ThrowOnCompileFailure = throwOnPackageFailure
+				} );
+			}
+		}
+
+		cancellationToken.ThrowIfCancellationRequested();
+		reportProgress?.Invoke( "Syncing package manager" );
+		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( "Load Project: Sync PackageManager" ) )
+		{
+			await SyncWithPackageManager( cancellationToken, throwOnPackageFailure );
+		}
+
+		cancellationToken.ThrowIfCancellationRequested();
+		project.Load( upgradeConfig: true );
+
+		if ( throwOnPackageFailure && project.Broken )
+			throw new InvalidDataException( $"Project '{project.ConfigFilePath}' could not be reloaded after installing its dependencies." );
 	}
 
 	/// <summary>
@@ -252,9 +383,9 @@ public partial class Project
 		BuiltIn = 1 << 0,
 	}
 
-	internal static Project AddFromFileBuiltIn( string path ) => AddFromFile( path, flags: ProjectLoadFlags.BuiltIn );
+	internal static Project AddFromFileBuiltIn( string path, bool saveUpgradedConfig = true ) => AddFromFile( path, flags: ProjectLoadFlags.BuiltIn, saveUpgradedConfig: saveUpgradedConfig );
 
-	internal static Project AddFromFile( string path, bool active = true, ProjectLoadFlags flags = ProjectLoadFlags.None )
+	internal static Project AddFromFile( string path, bool active = true, ProjectLoadFlags flags = ProjectLoadFlags.None, bool saveUpgradedConfig = true )
 	{
 		// Need an project file
 		var cleanPath = NormalizeConfigFilePath( path );
@@ -276,11 +407,19 @@ public partial class Project
 			throw new System.Exception( $"Couldn't add project." );
 		}
 
-		// If the schema needs upgrading then upgrade it and save before
-		// the engine loads it, so it's up to date at that point.
+		// Upgrade the schema in memory before the engine uses it. Interactive callers
+		// persist that upgrade; automation can opt out of changing the source project.
 		if ( project.Config.Upgrade() )
 		{
-			project.Save();
+			if ( saveUpgradedConfig )
+			{
+				project.Save();
+			}
+			else
+			{
+				project.UpdateMockPackage();
+				project.UpdateCompiler();
+			}
 		}
 
 		All.Add( project );

@@ -32,6 +32,9 @@ public class AppSystem
 		// AVX is on any sane CPU since 2011
 		if ( !Avx.IsSupported )
 		{
+			if ( Application.IsAutomation )
+				throw new PlatformNotSupportedException( "AVX instructions are required to run s&box project automation." );
+
 			MessageBox( IntPtr.Zero, "Your CPU needs to support AVX instructions to run this game.", "Unsupported CPU", 0x10 );
 			Environment.Exit( 1 );
 		}

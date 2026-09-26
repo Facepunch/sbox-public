@@ -83,6 +83,7 @@ internal class BuildManaged( bool clean = false )
 				{
 					"Sbox/Sbox.csproj",
 					"SboxDev/Sbox-Dev.csproj",
+					"SboxCli/Sbox-Cli.csproj",
 					"StandaloneTest/Sbox-Launcher.csproj",
 					"SboxServer/Sbox-Server.csproj",
 					"SboxBench/SboxBench.csproj"
@@ -117,9 +118,11 @@ internal class BuildManaged( bool clean = false )
 					{
 						"Sbox/Sbox.csproj" => "sbox",
 						"SboxDev/Sbox-Dev.csproj" => "sbox-dev",
+						"SboxCli/Sbox-Cli.csproj" => "sbox-cli",
 						"StandaloneTest/Sbox-Launcher.csproj" => "sbox-launcher",
 						"SboxServer/Sbox-Server.csproj" => "sbox-server",
-						_ => "benchmark"
+						"SboxBench/SboxBench.csproj" => "benchmark",
+						_ => throw new ArgumentOutOfRangeException( nameof( project ), project, "Unknown launcher project" )
 					};
 					var extension = OperatingSystem.IsWindows() ? ".exe" : "";
 					File.Copy( Path.Combine( output, name + extension ), Path.Combine( rootDir, "game", name + extension ), true );
@@ -133,7 +136,7 @@ internal class BuildManaged( bool clean = false )
 
 				// delete any old .runtimeconfig.json that are hanging around
 				BuildDisplay.Status( "Remove old launcher files" );
-				var staleFiles = new[] { "sbox", "sbox-dev", "sbox-launcher", "sbox-server", "benchmark" }
+				var staleFiles = new[] { "sbox", "sbox-dev", "sbox-cli", "sbox-launcher", "sbox-server", "benchmark" }
 					.SelectMany( name => new[] { $"{name}.dll", $"{name}.runtimeconfig.json" } )
 					// sbox-standalone belongs in bin/managed; a copy in the root would match the depot's *.exe
 					.Concat( ["sbox-standalone", "sbox-standalone.exe", "sbox-standalone.dll", "sbox-standalone.runtimeconfig.json"] );

@@ -58,7 +58,7 @@ internal static class Bootstrap
 
 			Logging.Enabled = true;
 			Logging.OnException = ErrorReporter.ReportException;
-			Logging.PrintToConsole = Application.IsHeadless;
+			Logging.PrintToConsole = Application.IsHeadless && !Application.IsAutomation;
 
 			{
 				using var timerFs = StartupTiming?.ScopeTimer( "FilesystemInit" );
@@ -102,6 +102,9 @@ internal static class Bootstrap
 		}
 		catch ( Exception ex )
 		{
+			if ( Application.IsAutomation )
+				throw;
+
 			// Window creation can fail before services and the exception logger are initialized.
 			try
 			{
@@ -287,6 +290,9 @@ internal static class Bootstrap
 		}
 		catch ( Exception ex )
 		{
+			if ( Application.IsAutomation )
+				throw;
+
 			Log.Error( ex );
 
 			var diagnostics = string.Join( "\n", Project.GetCompileDiagnostics()?.Where( x => x.Severity > Microsoft.CodeAnalysis.DiagnosticSeverity.Warning )

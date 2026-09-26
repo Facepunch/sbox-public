@@ -98,7 +98,13 @@ internal static partial class PackageManager
 				options.Loading?.LoadingProgress( LoadingProgress.Create( $"Compiling {package.Title}" ) );
 
 				if ( !await ap.CompileCodeArchive() )
-					Log.Warning( $"There were errors when compiling {package.FullIdent}!" );
+				{
+					var message = $"There were errors when compiling {package.FullIdent}!";
+					if ( options.ThrowOnCompileFailure )
+						throw new InvalidOperationException( message );
+
+					Log.Warning( message );
+				}
 			}
 			else if ( package.TypeName == "game" )
 			{
@@ -171,18 +177,35 @@ internal static partial class PackageManager
 	/// <summary>
 	/// Install all of the projects as packages
 	/// </summary>
-	internal static async Task InstallProjects( Project[] projects, CancellationToken token = default )
+	internal static async Task InstallProjects( Project[] projects, CancellationToken token = default, bool throwOnFailure = false )
 	{
 		foreach ( var project in projects )
 		{
 			try
 			{
+				token.ThrowIfCancellationRequested();
+
 				// install this package
-				await InstallAsync( new PackageLoadOptions() { PackageIdent = project.Package.FullIdent, ContextTag = "local", CancellationToken = token, AllowLocalPackages = true } );
+				await InstallAsync( new PackageLoadOptions()
+				{
+					PackageIdent = project.Package.FullIdent,
+					ContextTag = "local",
+					CancellationToken = token,
+					AllowLocalPackages = true,
+					ThrowOnCompileFailure = throwOnFailure
+				} );
+
+				token.ThrowIfCancellationRequested();
+			}
+			catch ( OperationCanceledException ) when ( token.IsCancellationRequested )
+			{
+				throw;
 			}
 			catch ( Exception ex )
 			{
 				log.Warning( ex, $"Error installing local package {project.Package.FullIdent}: {ex.Message}" );
+				if ( throwOnFailure )
+					throw;
 			}
 		}
 

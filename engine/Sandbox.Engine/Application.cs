@@ -25,6 +25,11 @@ public static class Application
 	public static bool IsUnitTest { get; internal set; }
 
 	/// <summary>
+	/// True while a non-interactive, one-shot automation command owns the engine lifecycle.
+	/// </summary>
+	internal static bool IsAutomation { get; set; }
+
+	/// <summary>
 	/// True if running without a graphics window, such as in a terminal.
 	/// </summary>
 	public static bool IsHeadless { get; private set; }
@@ -123,6 +128,7 @@ public static class Application
 	internal static void Shutdown()
 	{
 		IsInitialized = false;
+		IsAutomation = false;
 	}
 
 	internal static void TryLoadVersionInfo( string gameFolder )
