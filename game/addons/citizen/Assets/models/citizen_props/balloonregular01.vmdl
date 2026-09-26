@@ -174,22 +174,6 @@
 							parent_bodygroup_value = 0
 						}
 					},
-					{
-						_class = "BreakCommand"
-						game_class = "break_create_particle"
-						game_keys = 
-						{
-							name = resource:"particles/break/break.cardboard.vpcf"
-							cp0_model = resource:""
-							cp0_snapshot = resource:""
-							damage_position_cp = -1
-							damage_direction_cp = -1
-							velocity_cp = -1
-							angular_velocity_cp = -1
-							local_gravity_cp = -1
-							tint_cp = -1
-						}
-					},
 				]
 			},
 		]
