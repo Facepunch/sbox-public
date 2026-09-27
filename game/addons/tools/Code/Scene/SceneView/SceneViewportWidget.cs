@@ -684,7 +684,7 @@ public partial class SceneViewportWidget : Widget
 			using ( Gizmo.Scope( "grid" ) )
 			{
 				Gizmo.Draw.IgnoreDepth = State.Is2D;
-				Gizmo.Draw.Grid( State.GridAxis, Gizmo.Settings.GridSpacing, State.GridOpacity );
+				Gizmo.Draw.Grid( State.GridAxis, Gizmo.Settings.GridSpacing, State.GridOpacity, size: (float)State.GridMaxWidth );
 			}
 		}
 

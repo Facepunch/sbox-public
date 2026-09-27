@@ -26,6 +26,20 @@ public partial class SceneViewportWidget
 		Flat2d
 	}
 
+	/// <summary>
+	/// Maximum width of the viewport grid. Each value is the width in world units.
+	/// </summary>
+	public enum GridSizeLimit
+	{
+		Unlimited = 0,
+		[Title( "16k" )]
+		Size16k = 16384,
+		[Title( "32k" )]
+		Size32k = 32768,
+		[Title( "64k" )]
+		Size64k = 65536,
+	}
+
 	public class ViewportState
 	{
 		public Vector3 CameraPosition { get; set; }
@@ -83,6 +97,12 @@ public partial class SceneViewportWidget
 		/// </summary>
 		[Range( 0.0f, 1.0f )]
 		public float GridOpacity { get; set; } = 0.2f;
+
+		/// <summary>
+		/// Width of the grid, centered on the world origin.
+		/// </summary>
+		[Title( "Grid Max Size" )]
+		public GridSizeLimit GridMaxWidth { get; set; } = GridSizeLimit.Unlimited;
 
 		/// <summary>
 		/// The plane the grid is shown on
