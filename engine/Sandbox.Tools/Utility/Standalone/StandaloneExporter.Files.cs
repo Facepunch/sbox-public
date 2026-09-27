@@ -63,6 +63,9 @@ partial class StandaloneExporter
 
 		// Config files
 		"cfg/*",
+
+		// Surfaces
+		"surfaces/*.surface_c",
 	];
 
 	private IEnumerable<string> GetCoreFiles( string engineDir )

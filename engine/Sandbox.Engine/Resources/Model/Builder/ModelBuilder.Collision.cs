@@ -305,7 +305,7 @@ namespace Sandbox
 		/// <param name="surface">The surface to add. Null uses the default surface.</param>
 		public ModelBuilder AddSurface( Surface surface )
 		{
-			surface ??= Surface.FindByName( "default" );
+			surface ??= Surface.FindByName( "default" ) ?? Surface.FindByIndex( 0 );
 			_surfaces.Add( surface.Index );
 			return this;
 		}
