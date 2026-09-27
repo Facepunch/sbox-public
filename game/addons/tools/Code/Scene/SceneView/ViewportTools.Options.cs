@@ -1,4 +1,4 @@
-﻿namespace Editor;
+namespace Editor;
 
 partial class ViewportTools
 {
@@ -39,13 +39,7 @@ partial class ViewportTools
 		var menu = new ContextMenu( this );
 
 		{
-			var widget = new Widget( menu );
-			widget.OnPaintOverride = () =>
-			{
-				Paint.SetBrushAndPen( Theme.WidgetBackground.WithAlpha( 0.5f ) );
-				Paint.DrawRect( widget.LocalRect.Shrink( 2 ), 2 );
-				return true;
-			};
+			var widget = new ViewSettingsPanel( menu );
 
 			var cs = new ControlSheet();
 
@@ -123,5 +117,26 @@ partial class ViewportTools
 		}
 
 		menu.OpenAtCursor();
+	}
+
+	/// <summary>
+	/// Hosts the view settings controls inside the menu. Mouse releases that a child control doesn't
+	/// consume (text inputs, step buttons) would otherwise reach the menu and close it.
+	/// </summary>
+	private class ViewSettingsPanel : Widget
+	{
+		public ViewSettingsPanel( Widget parent ) : base( parent ) { }
+
+		protected override void OnPaint()
+		{
+			Paint.SetBrushAndPen( Theme.WidgetBackground.WithAlpha( 0.5f ) );
+			Paint.DrawRect( LocalRect.Shrink( 2 ), 2 );
+		}
+
+		protected override void OnMouseReleased( MouseEvent e )
+		{
+			base.OnMouseReleased( e );
+			e.Accepted = true;
+		}
 	}
 }
