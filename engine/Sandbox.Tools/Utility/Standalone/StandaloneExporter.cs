@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Text.Json;
 using System.Threading;
@@ -192,23 +192,6 @@ public partial class StandaloneExporter
 
 			// Fetch all the DLLs we need to run the engine
 			QueueFrom( GetDllFiles( engineDir ) );
-		}
-
-		//
-		// Copy core compiled files
-		//
-		{
-			// Get all core files - only the ones we absolutely need, because everything else should
-			// already have been copied into the addon itself.
-			// This is mainly stuff like dev textures that are necessary for the engine to run.
-			foreach ( var file in GetCoreFiles( engineDir ) )
-			{
-				var relativePath = Path.GetRelativePath( engineDir, file );
-				var targetPath = Path.Combine( baseDir, relativePath );
-
-				if ( Path.GetExtension( file ).EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) )
-					QueueCopy( file, targetPath, BuildStep.CopyCoreAssets );
-			}
 		}
 
 		//
