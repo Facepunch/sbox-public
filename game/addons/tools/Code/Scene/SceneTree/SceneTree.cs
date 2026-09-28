@@ -35,20 +35,32 @@ public partial class SceneTreeWidget : Widget
 		SubHeader.Margin = new Sandbox.UI.Margin( 0, 2 );
 		SubHeader.Alignment = TextFlag.LeftCenter;
 
-		var add = SubHeader.Add( new AddButton( "add" ) );
+		var add = SubHeader.Add( new HeaderButton( "add" ) );
 		add.MouseLeftPress = CreateGameObjectMenu;
 
-		Search = SubHeader.Add( new LineEdit(), 1 );
+		// The box holds the advanced filter's chips ahead of the text, so every active filter shows
+		// where the search is, each with an X to remove it.
+		var searchBox = SubHeader.Add( new SearchBox(), 1 );
+		searchBox.Layout = Layout.Row();
+		searchBox.Layout.Margin = new Sandbox.UI.Margin( 3, 0, 0, 0 );
+		searchBox.Layout.Spacing = 3;
+
+		_chips = searchBox.Layout.AddRow();
+		_chips.Spacing = 3;
+		RebuildChips();
+
+		Search = searchBox.Layout.Add( new LineEdit(), 1 );
 		Search.PlaceholderText = "⌕  Search";
-		Search.Layout = Layout.Row();
-		Search.Layout.AddStretchCell( 1 );
+		Search.SetStyles( "background-color: transparent; border: 0px;" );
 		Search.TextChanged += x => queryDirty = true;
 		Search.FixedHeight = Theme.RowHeight;
 
-		SearchClear = Search.Layout.Add( new ToolButton( string.Empty, "clear", this ) );
+		SearchClear = searchBox.Layout.Add( new ToolButton( string.Empty, "clear", this ) );
+		SearchClear.ToolTip = "Clear the search and filters";
 		SearchClear.MouseLeftPress = () =>
 		{
 			Search.Text = string.Empty;
+			ClearFilters();
 			Rebuild();
 
 			// make sure we're open to the stuff we picked from search
@@ -65,6 +77,9 @@ public partial class SceneTreeWidget : Widget
 			}
 		};
 		SearchClear.Visible = false;
+
+		var filter = SubHeader.Add( new HeaderButton( "filter_list" ) { ToolTip = "Advanced filter" } );
+		filter.MouseLeftPress = () => OpenFilterPopup( filter );
 
 		TreeView = new TreeView();
 		TreeView.MultiSelect = true;
@@ -194,7 +209,7 @@ public partial class SceneTreeWidget : Widget
 		if ( session is null )
 			return;
 
-		bool hasSearch = !string.IsNullOrEmpty( Search.Text );
+		bool hasSearch = !string.IsNullOrEmpty( Search.Text ) || Filters.Count > 0;
 		SearchClear.Visible = hasSearch;
 
 		var scene = session.Scene;
@@ -229,6 +244,9 @@ public partial class SceneTreeWidget : Widget
 					continue;
 
 				if ( !go.Name.Contains( search, StringComparison.OrdinalIgnoreCase ) )
+					continue;
+
+				if ( !PassesFilters( go ) )
 					continue;
 
 				if ( tokens.TryGetValue( "t", out string typeFilter ) )
@@ -292,11 +310,11 @@ public partial class SceneTreeWidget : Widget
 	}
 }
 
-file class AddButton : Widget
+file class HeaderButton : Widget
 {
 	public string Icon;
 
-	public AddButton( string icon ) : base( null )
+	public HeaderButton( string icon ) : base( null )
 	{
 		Icon = icon;
 
@@ -330,5 +348,23 @@ file class AddButton : Widget
 		Paint.SetPen( Theme.Primary );
 
 		Paint.DrawIcon( LocalRect, Icon, 14, TextFlag.Center );
+	}
+}
+
+/// <summary>
+/// Draws the search input's background, so the filter chips and the text read as one field.
+/// </summary>
+file class SearchBox : Widget
+{
+	public SearchBox() : base( null )
+	{
+		FixedHeight = Theme.RowHeight;
+	}
+
+	protected override void OnPaint()
+	{
+		Paint.ClearPen();
+		Paint.SetBrush( Theme.ControlBackground );
+		Paint.DrawRect( LocalRect, Theme.ControlRadius );
 	}
 }
