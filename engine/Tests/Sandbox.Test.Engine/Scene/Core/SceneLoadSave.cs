@@ -16,6 +16,14 @@ public class LoadSavePersistComponent : Component
 }
 
 /// <summary>
+/// Component with a clock-relative property, whose serialized value follows the scene clock.
+/// </summary>
+public class LoadSaveTimerComponent : Component
+{
+	[Property] public TimeSince SinceReset { get; set; }
+}
+
+/// <summary>
 /// Component recording the <see cref="ISceneLoadingEvents"/> callbacks it receives
 /// during a scene load.
 /// </summary>
@@ -332,6 +340,32 @@ public class SceneLoadSaveTest : SceneTest
 
 		scene.Destroy();
 		restored.Destroy();
+	}
+
+	/// <summary>
+	/// A TimeSince serializes from the scene clock. Files created at one clock reading agree however
+	/// far the scene has ticked in between, and the scene's own clock is left where it was.
+	/// </summary>
+	[TestMethod]
+	public void SceneFileAtFixedTimeIgnoresClock()
+	{
+		var scene = new Scene();
+		scene.WantsSystemScene = false;
+		scene.UpdateTime( 10 );
+
+		using ( scene.Push() )
+			scene.CreateObject().Components.Create<LoadSaveTimerComponent>().SinceReset = 0;
+
+		var at = scene.TimeNow;
+		var before = scene.CreateSceneFile( at ).Serialize().ToJsonString();
+		scene.UpdateTime( 40 );
+		var now = scene.TimeNow;
+
+		Assert.AreEqual( before, scene.CreateSceneFile( at ).Serialize().ToJsonString() );
+		Assert.AreEqual( now, scene.TimeNow );
+		Assert.AreNotEqual( before, scene.CreateSceneFile().Serialize().ToJsonString(), "An unpinned file follows the clock" );
+
+		scene.Destroy();
 	}
 
 	/// <summary>

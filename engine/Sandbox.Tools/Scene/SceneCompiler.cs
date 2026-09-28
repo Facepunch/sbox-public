@@ -171,7 +171,10 @@ internal static partial class SceneCompiler
 		await Task.Delay( 1, session.Cancel );
 		var snapshot = SceneCompileCache.Capture( sourceAsset );
 		var sourcePath = sourceAsset.GetSourceFile( true );
-		var sourceFile = scene.CreateSceneFile();
+		// TimeSince and friends serialize relative to the scene clock, which keeps running while
+		// we compile. Re-serialize at this same reading so only real changes show up.
+		var sourceTime = scene.TimeNow;
+		var sourceFile = scene.CreateSceneFile( sourceTime );
 		var jsonOptions = new JsonSerializerOptions( JsonSerializerOptions.Default ) { MaxDepth = 512 };
 		var sourceJson = sourceFile.Serialize().ToJsonString( jsonOptions );
 		var sourceBlob = sourceFile.BinaryData?.ToArray() ?? [];
@@ -192,7 +195,7 @@ internal static partial class SceneCompiler
 			if ( !string.Equals( sourcePath, sourceAsset.GetSourceFile( true ), StringComparison.OrdinalIgnoreCase ) )
 				throw new InvalidOperationException( "The scene moved while compiling. Use Scene > Compile Scene again at its new location." );
 
-			var current = scene.CreateSceneFile();
+			var current = scene.CreateSceneFile( sourceTime );
 			var currentJson = current.Serialize();
 			if ( currentJson.ToJsonString( jsonOptions ) != sourceJson )
 			{

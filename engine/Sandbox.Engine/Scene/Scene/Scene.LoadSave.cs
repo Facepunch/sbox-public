@@ -404,6 +404,25 @@ public partial class Scene : GameObject
 	}
 
 	/// <summary>
+	/// Create a new SceneFile from this scene as if the scene clock read <paramref name="timeNow"/>.
+	/// Time-relative values such as <see cref="TimeSince"/> serialize from the clock, so two files
+	/// created at the same time only differ where the scene itself does.
+	/// </summary>
+	internal SceneFile CreateSceneFile( double timeNow )
+	{
+		var now = TimeNow;
+		TimeNow = timeNow;
+		try
+		{
+			return CreateSceneFile();
+		}
+		finally
+		{
+			TimeNow = now;
+		}
+	}
+
+	/// <summary>
 	/// Save the contents of this scene to the SceneFile
 	/// </summary>
 	internal void ToSceneFile( SceneFile target )
