@@ -195,6 +195,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		}
 
 		Sound.Clear();
+		Microphone.Reset();
 		Application.ClearGame();
 
 		ReflectionQueryCache.ClearTypeCache();

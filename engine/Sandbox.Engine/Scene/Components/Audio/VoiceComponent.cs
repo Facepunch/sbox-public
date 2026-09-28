@@ -130,9 +130,9 @@ public class Voice : Component
 
 	internal override void OnEnabledInternal()
 	{
-		VoiceManager.OnCompressedVoiceData += OnVoice;
+		Microphone.OnCompressedDataInternal += OnVoice;
 
-		soundStream = new SoundStream( VoiceManager.SampleRate );
+		soundStream = new SoundStream( Microphone.SampleRate );
 
 		// Ensure that the Mixer selected is a Voice mixer
 		var currentMixer = targetMixer.GetOrDefault();
@@ -148,11 +148,11 @@ public class Voice : Component
 	{
 		base.OnDisabledInternal();
 
-		VoiceManager.OnCompressedVoiceData -= OnVoice;
+		Microphone.OnCompressedDataInternal -= OnVoice;
 
 		if ( recording )
 		{
-			VoiceManager.StopRecording();
+			Microphone.StopRecording();
 			recording = false;
 		}
 
@@ -233,14 +233,14 @@ public class Voice : Component
 			sound = null;
 		}
 
-		if ( !VoiceManager.IsValid )
+		if ( !Microphone.IsAvailable )
 			return;
 
 		if ( IsListening )
 		{
 			if ( !recording )
 			{
-				VoiceManager.StartRecording();
+				Microphone.StartRecording();
 				recording = true;
 				singleRecorder = this;
 			}
@@ -249,7 +249,7 @@ public class Voice : Component
 		{
 			if ( singleRecorder == this )
 			{
-				VoiceManager.StopRecording();
+				Microphone.StopRecording();
 			}
 
 			recording = false;
@@ -272,7 +272,7 @@ public class Voice : Component
 		return true;
 	}
 
-	private void OnVoice( Memory<byte> compressed )
+	private void OnVoice( ReadOnlyMemory<byte> compressed )
 	{
 		if ( IsProxy ) return;
 		if ( singleRecorder != this ) return;
@@ -341,7 +341,7 @@ public class Voice : Component
 		if ( soundStream is null )
 			return;
 
-		VoiceManager.Uncompress( buffer, samples =>
+		Microphone.Decompress( buffer, samples =>
 		{
 			if ( !sound.IsValid() )
 			{

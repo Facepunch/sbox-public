@@ -9,14 +9,15 @@
     {
         get
         {
-
-            if (Application.IsMicrophoneRecording) return "active recording";
-            if (Application.IsMicrophoneListening) return "active";
-
-            return "inactive";
+            switch ( Microphone.Indicator )
+            {
+                case Microphone.IndicatorState.Capturing: return "active recording";
+                case Microphone.IndicatorState.Open: return "active";
+                default: return "inactive";
+            }
         }
     }
 
-    protected override int BuildHash() => System.HashCode.Combine( Application.IsMicrophoneListening , Application.IsMicrophoneRecording );
+    protected override int BuildHash() => System.HashCode.Combine( Microphone.Indicator );
 
 }
