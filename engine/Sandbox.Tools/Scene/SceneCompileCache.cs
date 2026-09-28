@@ -507,13 +507,17 @@ internal static partial class SceneCompileCache
 
 		foreach ( var (name, hash) in compilation.Source.Inputs )
 		{
-			// An absent sidecar can resolve to a different mod's file in the native search path.
-			// Keep tracking its absence in the manifest, without registering a fictitious native input.
+			// Native resolves a sidecar through its owner's resource path. Sourceless owners (generated
+			// textures, compiled-only resources) are commonly shipped by several mounts at once, e.g. core,
+			// addons, cloud downloads and the project all carry the default textures, so native can hash
+			// another mount's copy, possibly an absent one, on every check and recompile the scene forever.
+			// Keep tracking those in the manifest, without a native input.
+			var input = InputPath( source, name );
 			if ( hash == Missing || name.EndsWith( "_c", StringComparison.OrdinalIgnoreCase )
-				|| name.EndsWith( ".meta", StringComparison.OrdinalIgnoreCase ) && !File.Exists( InputPath( source, name ) ) )
+				|| name.EndsWith( ".meta", StringComparison.OrdinalIgnoreCase ) && !HasSourceOwner( input ) )
 				continue;
 
-			context.AddCompileReference( InputPath( source, name ) );
+			context.AddCompileReference( input );
 		}
 
 		foreach ( var name in compilation.Outputs.Keys )
@@ -549,6 +553,15 @@ internal static partial class SceneCompileCache
 		json = runtime.ToJsonString( JsonOptions );
 		compiled = true;
 		return true;
+	}
+
+	/// <summary>
+	/// Whether <paramref name="meta"/> exists beside its owner's source file, rather than a generated or compiled one.
+	/// </summary>
+	static bool HasSourceOwner( string meta )
+	{
+		var owner = meta[..^".meta".Length];
+		return File.Exists( meta ) && !owner.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) && File.Exists( owner );
 	}
 
 	static Asset ResolveGuidReference( JsonObject obj, ValidationScope scope )
