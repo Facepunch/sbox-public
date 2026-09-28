@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Sandbox;
 
 namespace Editor;
@@ -186,14 +187,21 @@ internal static partial class SceneCompiler
 				throw new InvalidOperationException( "Play mode started while compiling. Stop playing, then compile again." );
 
 			if ( scene.Editor is null || scene.Editor.HasUnsavedChanges )
-				throw new InvalidOperationException( "The scene changed while compiling. Save the scene, then use Scene > Compile Scene again." );
+				throw new InvalidOperationException( "The scene was edited while compiling. Save the scene, then use Scene > Compile Scene again." );
 
 			if ( !string.Equals( sourcePath, sourceAsset.GetSourceFile( true ), StringComparison.OrdinalIgnoreCase ) )
 				throw new InvalidOperationException( "The scene moved while compiling. Use Scene > Compile Scene again at its new location." );
 
 			var current = scene.CreateSceneFile();
-			if ( current.Serialize().ToJsonString( jsonOptions ) != sourceJson || !(current.BinaryData ?? []).AsSpan().SequenceEqual( sourceBlob ) )
-				throw new InvalidOperationException( "The scene changed while compiling. Save the scene, then use Scene > Compile Scene again." );
+			var currentJson = current.Serialize();
+			if ( currentJson.ToJsonString( jsonOptions ) != sourceJson )
+			{
+				var change = FirstDifference( JsonNode.Parse( sourceJson, documentOptions: new JsonDocumentOptions { MaxDepth = 512 } ), currentJson, "Scene" );
+				throw new InvalidOperationException( $"The scene changed while compiling without being edited: {change}. A component running in the editor is probably rewriting that property." );
+			}
+
+			if ( !(current.BinaryData ?? []).AsSpan().SequenceEqual( sourceBlob ) )
+				throw new InvalidOperationException( "The scene's binary data changed while compiling. Save the scene, then use Scene > Compile Scene again." );
 		}
 
 		var frame = FastTimer.StartNew();
@@ -424,6 +432,44 @@ internal static partial class SceneCompiler
 		finally
 		{
 			compiled.Destroy();
+		}
+	}
+
+	/// <summary>
+	/// The first place two serializations of a scene disagree, as a path through GameObject and
+	/// component names, so whatever is changing the scene behind the editor's back can be found.
+	/// </summary>
+	static string FirstDifference( JsonNode before, JsonNode after, string path )
+	{
+		if ( JsonNode.DeepEquals( before, after ) )
+			return null;
+
+		if ( before is JsonObject a && after is JsonObject b )
+		{
+			foreach ( var key in a.Select( x => x.Key ).Union( b.Select( x => x.Key ) ) )
+			{
+				a.TryGetPropertyValue( key, out var x );
+				b.TryGetPropertyValue( key, out var y );
+				if ( FirstDifference( x, y, $"{path}.{key}" ) is { } found )
+					return found;
+			}
+		}
+		else if ( before is JsonArray l && after is JsonArray r && l.Count == r.Count )
+		{
+			for ( int i = 0; i < l.Count; i++ )
+			{
+				var name = l[i] is JsonObject o && (o["Name"] ?? o["__type"]) is JsonValue label && label.TryGetValue<string>( out var text ) ? text : null;
+				if ( FirstDifference( l[i], r[i], name is null ? $"{path}[{i}]" : $"{path}[{name}]" ) is { } found )
+					return found;
+			}
+		}
+
+		return $"{path} went from {Describe( before )} to {Describe( after )}";
+
+		static string Describe( JsonNode node )
+		{
+			var text = node?.ToJsonString() ?? "nothing";
+			return text.Length <= 80 ? text : text[..77] + "...";
 		}
 	}
 
