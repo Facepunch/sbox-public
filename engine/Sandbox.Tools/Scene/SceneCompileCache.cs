@@ -123,8 +123,7 @@ internal static partial class SceneCompileCache
 	}
 
 	/// <summary>
-	/// Root the native asset system puts on an input whose owner isn't mounted this session,
-	/// e.g. a cloud download, in place of the owner's real folder.
+	/// Placeholder root native gives an input whose owner isn't mounted, e.g. a cloud download.
 	/// </summary>
 	const string UnmountedRoot = "external/PersistantModNames/";
 
@@ -507,11 +506,8 @@ internal static partial class SceneCompileCache
 
 		foreach ( var (name, hash) in compilation.Source.Inputs )
 		{
-			// Native resolves a sidecar through its owner's resource path. Sourceless owners (generated
-			// textures, compiled-only resources) are commonly shipped by several mounts at once, e.g. core,
-			// addons, cloud downloads and the project all carry the default textures, so native can hash
-			// another mount's copy, possibly an absent one, on every check and recompile the scene forever.
-			// Keep tracking those in the manifest, without a native input.
+			// Several mounts ship the same sourceless sidecars (e.g. default textures) and native may hash a
+			// different copy each check, recompiling forever. Track those in the manifest only.
 			var input = InputPath( source, name );
 			if ( hash == Missing || name.EndsWith( "_c", StringComparison.OrdinalIgnoreCase )
 				|| name.EndsWith( ".meta", StringComparison.OrdinalIgnoreCase ) && !HasSourceOwner( input ) )
@@ -556,7 +552,7 @@ internal static partial class SceneCompileCache
 	}
 
 	/// <summary>
-	/// Whether <paramref name="meta"/> exists beside its owner's source file, rather than a generated or compiled one.
+	/// Whether <paramref name="meta"/> sits beside a real source file, not a generated or compiled one.
 	/// </summary>
 	static bool HasSourceOwner( string meta )
 	{
@@ -667,9 +663,8 @@ internal static partial class SceneCompileCache
 				snapshot.Inputs.Add( key, scope.InputHash( path ) );
 		}
 
-		// Native names an input by its owner's root plus the path inside it. An owner that isn't
-		// mounted here gets a placeholder root; the path behind it is the same mount-relative
-		// path the resource compiler reads, so resolve that instead.
+		// An unmounted owner's inputs arrive rooted at a placeholder. The rest of the path is the
+		// same mount-relative path the resource compiler reads.
 		static (string Absolute, string Relative) Resolve( string path )
 		{
 			if ( Path.IsPathRooted( path ) )

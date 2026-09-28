@@ -15,9 +15,6 @@ public class LoadSavePersistComponent : Component
 	[Property] public int Number { get; set; }
 }
 
-/// <summary>
-/// Component with a clock-relative property, whose serialized value follows the scene clock.
-/// </summary>
 public class LoadSaveTimerComponent : Component
 {
 	[Property] public TimeSince SinceReset { get; set; }
@@ -343,8 +340,7 @@ public class SceneLoadSaveTest : SceneTest
 	}
 
 	/// <summary>
-	/// A TimeSince serializes from the scene clock. Files created at one clock reading agree however
-	/// far the scene has ticked in between, and the scene's own clock is left where it was.
+	/// Files created at one clock reading match however far the scene ticks, and the clock is left alone.
 	/// </summary>
 	[TestMethod]
 	public void SceneFileAtFixedTimeIgnoresClock()

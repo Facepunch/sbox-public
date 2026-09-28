@@ -171,8 +171,7 @@ internal static partial class SceneCompiler
 		await Task.Delay( 1, session.Cancel );
 		var snapshot = SceneCompileCache.Capture( sourceAsset );
 		var sourcePath = sourceAsset.GetSourceFile( true );
-		// TimeSince and friends serialize relative to the scene clock, which keeps running while
-		// we compile. Re-serialize at this same reading so only real changes show up.
+		// TimeSince/TimeUntil serialize against the running clock, so take both snapshots at one reading.
 		var sourceTime = scene.TimeNow;
 		var sourceFile = scene.CreateSceneFile( sourceTime );
 		var jsonOptions = new JsonSerializerOptions( JsonSerializerOptions.Default ) { MaxDepth = 512 };
@@ -439,8 +438,7 @@ internal static partial class SceneCompiler
 	}
 
 	/// <summary>
-	/// The first place two serializations of a scene disagree, as a path through GameObject and
-	/// component names, so whatever is changing the scene behind the editor's back can be found.
+	/// Path to the first place two scene serializations disagree.
 	/// </summary>
 	static string FirstDifference( JsonNode before, JsonNode after, string path )
 	{

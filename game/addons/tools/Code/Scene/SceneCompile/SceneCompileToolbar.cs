@@ -112,7 +112,7 @@ sealed class SceneCompileToolbar : Widget, AssetSystem.IEventListener
 			_wasRunning = _session.Running;
 			_invalidated = true;
 
-			// Cancel only exists while running, so rebuild an open menu rather than leave it stale.
+			// Rebuild an open menu so it shows or hides Cancel.
 			var reopen = _menu.IsValid() && _menu.Visible;
 			_menu?.Close();
 			if ( reopen )
@@ -263,9 +263,6 @@ sealed class SceneCompileToolbar : Widget, AssetSystem.IEventListener
 		await SceneCompileSession.Current.StartAsync();
 	}
 
-	/// <summary>
-	/// Compile from the toolbar button and show its progress, rather than making the user open the menu.
-	/// </summary>
 	async void CompileAndShow()
 	{
 		if ( Game.IsPlaying )
@@ -274,9 +271,8 @@ sealed class SceneCompileToolbar : Widget, AssetSystem.IEventListener
 		if ( !(_menu.IsValid() && _menu.Visible) )
 			ShowMenu();
 
-		// Starting scans the whole scene on this thread. Let the click and the popup settle first, or
-		// the queued mouse release lands on a popup shown after the stall and closes it. The menu is
-		// rebuilt when the compile starts and finishes, so it picks up Cancel and the final result.
+		// Starting scans the whole scene on this thread. Let the click settle first, or its queued
+		// mouse release closes the popup shown after the stall.
 		await Task.Delay( 1 );
 		Compile();
 	}

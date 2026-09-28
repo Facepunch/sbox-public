@@ -404,9 +404,8 @@ public partial class Scene : GameObject
 	}
 
 	/// <summary>
-	/// Create a new SceneFile from this scene as if the scene clock read <paramref name="timeNow"/>.
-	/// Time-relative values such as <see cref="TimeSince"/> serialize from the clock, so two files
-	/// created at the same time only differ where the scene itself does.
+	/// Create a SceneFile as if the scene clock read <paramref name="timeNow"/>, so clock-relative
+	/// values such as <see cref="TimeSince"/> don't drift between two files.
 	/// </summary>
 	internal SceneFile CreateSceneFile( double timeNow )
 	{
