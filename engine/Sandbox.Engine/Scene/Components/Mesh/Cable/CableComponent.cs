@@ -40,6 +40,7 @@ public sealed class CableComponent : Component, Component.ExecuteInEditor
 	bool _isEditingNodes;
 	RealTimeSince _timeSinceNodeChange;
 	RealTimeSince _timeSincePreviewRebuild;
+	readonly List<CablePathSample> _nodeData = new();
 
 	[Property, Hide]
 	public Vector3[] ControlPoints
@@ -224,20 +225,18 @@ public sealed class CableComponent : Component, Component.ExecuteInEditor
 		if ( !IsCableOrNodeSelected( nodeData ) )
 			return;
 
-		var localPoints = nodeData.Select( x => x.Position ).ToArray();
-
 		Gizmo.Draw.IgnoreDepth = true;
 		Gizmo.Draw.LineThickness = 2;
 		Gizmo.Draw.Color = Color.Yellow;
 
-		for ( int i = 0; i < localPoints.Length - 1; i++ )
+		for ( int i = 0; i < nodeData.Count - 1; i++ )
 		{
-			Gizmo.Draw.Line( localPoints[i], localPoints[i + 1] );
+			Gizmo.Draw.Line( nodeData[i].Position, nodeData[i + 1].Position );
 		}
 
-		for ( int i = 0; i < localPoints.Length; i++ )
+		for ( int i = 0; i < nodeData.Count; i++ )
 		{
-			var local = localPoints[i];
+			var local = nodeData[i].Position;
 			var world = LocalToWorld( local );
 			var size = 3.0f * Gizmo.Camera.Position.Distance( world ) / 1000.0f;
 
@@ -495,9 +494,14 @@ public sealed class CableComponent : Component, Component.ExecuteInEditor
 		return Math.Max( 1.0f, size );
 	}
 
+	/// <summary>
+	/// Fills and returns a shared buffer. Called every frame, so it must not allocate.
+	/// The result is only valid until the next call.
+	/// </summary>
 	List<CablePathSample> GetNodeData()
 	{
-		var nodes = new List<CablePathSample>();
+		var nodes = _nodeData;
+		nodes.Clear();
 		foreach ( var child in GameObject.Children )
 		{
 			var node = child.GetComponent<CableNodeComponent>();
