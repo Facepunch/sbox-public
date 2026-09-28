@@ -122,6 +122,12 @@ internal static partial class SceneCompileCache
 		return File.Exists( ManifestPath( source ) ) ? source : null;
 	}
 
+	/// <summary>
+	/// Root the native asset system puts on an input whose owner isn't mounted this session,
+	/// e.g. a cloud download, in place of the owner's real folder.
+	/// </summary>
+	const string UnmountedRoot = "external/PersistantModNames/";
+
 	static bool IsScene( Asset asset ) => asset?.AssetType?.FileExtension == "scene";
 	static string DataFolder( string source ) => Path.ChangeExtension( source, null ) + "_scene_data";
 	static string ManifestPath( string source ) => Path.Combine( DataFolder( source ), "compiled", ".scene-compile.json" );
@@ -648,12 +654,19 @@ internal static partial class SceneCompileCache
 				snapshot.Inputs.Add( key, scope.InputHash( path ) );
 		}
 
-		string Resolve( string path )
+		// Native names an input by its owner's root plus the path inside it. An owner that isn't
+		// mounted here gets a placeholder root; the path behind it is the same mount-relative
+		// path the resource compiler reads, so resolve that instead.
+		static (string Absolute, string Relative) Resolve( string path )
 		{
 			if ( Path.IsPathRooted( path ) )
-				return path;
+				return (path, path);
 
-			return FileSystem.Mounted.GetFullPath( path );
+			var relative = path.Replace( '\\', '/' );
+			if ( relative.StartsWith( UnmountedRoot, StringComparison.OrdinalIgnoreCase ) )
+				relative = relative[UnmountedRoot.Length..];
+
+			return FileSystem.Mounted.GetFullPath( relative ) is { Length: > 0 } absolute ? (absolute, relative) : default;
 		}
 
 		void AddDependency( Asset dependency )
@@ -702,12 +715,12 @@ internal static partial class SceneCompileCache
 
 			foreach ( var input in dependency.GetInputDependencies().Concat( dependency.GetAdditionalContentFiles() ) )
 			{
-				var resolved = Resolve( input );
+				var (resolved, relative) = Resolve( input );
 				if ( string.IsNullOrEmpty( resolved ) )
 					throw new InvalidDataException( $"Cannot resolve compile input '{input}' for '{dependency.Path}'" );
 
 				AddFile( resolved );
-				if ( AssetSystem.FindByPath( input ) is { } inputAsset )
+				if ( AssetSystem.FindByPath( relative ) is { } inputAsset )
 					AddDependency( inputAsset );
 			}
 		}
