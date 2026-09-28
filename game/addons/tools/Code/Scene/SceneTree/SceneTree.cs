@@ -19,6 +19,11 @@ public partial class SceneTreeWidget : Widget
 	/// </summary>
 	HashSet<object> _openBeforeSearch;
 
+	/// <summary>
+	/// What the current search lists, or null when the whole hierarchy is shown.
+	/// </summary>
+	GameObjectSearchNode.Results _searchResults;
+
 	public static SceneTreeWidget Current { get; private set; }
 
 	public SceneTreeWidget( Widget parent ) : base( parent )
@@ -216,6 +221,7 @@ public partial class SceneTreeWidget : Widget
 
 		bool hasSearch = !string.IsNullOrEmpty( Search.Text ) || Filters.Count > 0;
 		SearchClear.Visible = hasSearch;
+		_searchResults = null;
 
 		// Searching opens every parent of a match. Put the tree back as it was when the search ends.
 		if ( hasSearch )
@@ -302,6 +308,7 @@ public partial class SceneTreeWidget : Widget
 			}
 
 			var results = new GameObjectSearchNode.Results( matches, shown );
+			_searchResults = results;
 			foreach ( var root in scene.Children.Where( shown.Contains ) )
 			{
 				TreeView.AddItem( new GameObjectSearchNode( root, results ) );
@@ -335,6 +342,33 @@ public partial class SceneTreeWidget : Widget
 				// Add it to the current selection
 				TreeView.Selection.Add( go );
 			}
+		}
+	}
+
+	/// <summary>
+	/// Ctrl+A with the hierarchy focused. While a search or filter is active, select only what it
+	/// matched (not the dimmed parents shown for context), rather than everything in the scene.
+	/// </summary>
+	[Shortcut( "editor.select-all", "CTRL+A" )]
+	void SelectAllShown()
+	{
+		if ( _searchResults is null )
+		{
+			EditorScene.SelectAll();
+			return;
+		}
+
+		var session = SceneEditorSession.Active;
+		if ( session is null )
+			return;
+
+		using ( session.UndoScope( "Select All" ).Push() )
+		{
+			session.Selection.Clear();
+
+			// Scene order, so the selection reads top to bottom like the tree; skips anything deleted since.
+			foreach ( var go in session.Scene.GetAllObjects( false ).Where( _searchResults.Matches.Contains ) )
+				session.Selection.Add( go );
 		}
 	}
 
