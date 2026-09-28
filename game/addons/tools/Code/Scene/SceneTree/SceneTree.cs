@@ -242,7 +242,7 @@ public partial class SceneTreeWidget : Widget
 		var scene = session.Scene;
 		if ( hasSearch )
 		{
-			// search view: the matches, under the parents they sit in
+			// search view: the matches, flat or under the parents they sit in
 			var matches = new HashSet<GameObject>();
 
 			var tokens = Regex.Matches( Search.Text, @"(\w+):(\S+)" )
@@ -293,25 +293,38 @@ public partial class SceneTreeWidget : Widget
 				matches.Add( go );
 			}
 
-			// Everything on the way down to a match, opened so the matches are in view.
-			var shown = new HashSet<GameObject>( matches );
-			foreach ( var match in matches )
+			if ( !ShowParents )
 			{
-				for ( var parent = match.Parent; parent is not null && parent.Parent is not null; parent = parent.Parent )
+				// Flat: the matches alone, in hierarchy order, with nothing nested under them.
+				var flat = new GameObjectSearchNode.Results( matches, [] );
+				_searchResults = flat;
+				foreach ( var match in scene.GetAllObjects( false ).Where( matches.Contains ) )
 				{
-					TreeView.Open( parent );
-
-					// Already walked from here, or will be as a match of its own.
-					if ( !shown.Add( parent ) )
-						break;
+					TreeView.AddItem( new GameObjectSearchNode( match, flat ) );
 				}
 			}
-
-			var results = new GameObjectSearchNode.Results( matches, shown );
-			_searchResults = results;
-			foreach ( var root in scene.Children.Where( shown.Contains ) )
+			else
 			{
-				TreeView.AddItem( new GameObjectSearchNode( root, results ) );
+				// Everything on the way down to a match, opened so the matches are in view.
+				var shown = new HashSet<GameObject>( matches );
+				foreach ( var match in matches )
+				{
+					for ( var parent = match.Parent; parent is not null && parent.Parent is not null; parent = parent.Parent )
+					{
+						TreeView.Open( parent );
+
+						// Already walked from here, or will be as a match of its own.
+						if ( !shown.Add( parent ) )
+							break;
+					}
+				}
+
+				var results = new GameObjectSearchNode.Results( matches, shown );
+				_searchResults = results;
+				foreach ( var root in scene.Children.Where( shown.Contains ) )
+				{
+					TreeView.AddItem( new GameObjectSearchNode( root, results ) );
+				}
 			}
 		}
 		else

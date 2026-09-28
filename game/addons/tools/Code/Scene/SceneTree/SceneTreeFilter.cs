@@ -91,6 +91,10 @@ internal sealed class SceneTreeFilterPopup : PopupWidget
 		disabled.ToolTip = "List objects that are disabled, or sit under a disabled parent";
 		disabled.Toggled = () => tree.IncludeDisabled = disabled.Value;
 
+		var parents = Layout.Add( new Checkbox( "Show parents" ) { Value = tree.ShowParents } );
+		parents.ToolTip = "List results under the parents they sit in, instead of as a flat list";
+		parents.Toggled = () => tree.ShowParents = parents.Value;
+
 		var footer = Layout.AddRow();
 		footer.AddStretchCell();
 		footer.Add( new Button( "Clear filters", "filter_alt_off" ) { Clicked = tree.ClearFilters } );
@@ -548,6 +552,7 @@ partial class SceneTreeWidget
 {
 	readonly List<SceneTreeFilter> _filters = new();
 	bool _includeDisabled = true;
+	bool _showParents;
 	Layout _chips;
 
 	/// <summary>
@@ -559,6 +564,22 @@ partial class SceneTreeWidget
 	/// Raised when a filter is added, removed or cleared.
 	/// </summary>
 	public event Action FiltersChanged;
+
+	/// <summary>
+	/// Whether search results sit under their parents, or are listed flat.
+	/// </summary>
+	public bool ShowParents
+	{
+		get => _showParents;
+		set
+		{
+			if ( _showParents == value )
+				return;
+
+			_showParents = value;
+			queryDirty = true;
+		}
+	}
 
 	/// <summary>
 	/// Whether filtered results list disabled objects, or ones under a disabled parent.
