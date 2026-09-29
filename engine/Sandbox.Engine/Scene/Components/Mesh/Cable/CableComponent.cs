@@ -190,6 +190,10 @@ public sealed class CableComponent : Component, Component.ExecuteInEditor
 
 	protected override void OnUpdate()
 	{
+		// A static cable in game keeps the mesh it was saved with
+		if ( !Scene.IsEditor && GameObject.IsStatic )
+			return;
+
 		EnsureNodesFromLegacyPoints();
 		DetectNodeChanges();
 
