@@ -115,7 +115,8 @@ internal partial class ShadowMapper
 			if ( v.LastFrame < RealTime.Now - 0.1f )
 				textColor = Color.White.Darken( 0.4f );
 
-			scope.Text = $"{k.GetType().Name} - {v.ShadowMap.Size.x}px {g_pRenderDevice.ComputeTextureMemorySize( v.ShadowMap.native ).FormatBytes()} (Screen Size: {v.ScreenSize * 100:F0}%)";
+			var memory = v.ShadowMap is { HasTexture: true } map ? g_pRenderDevice.ComputeTextureMemorySize( map.Texture.native ).FormatBytes() : "-";
+			scope.Text = $"{k.GetType().Name} - {v.CurrentResolution}px {memory} (Screen Size: {v.ScreenSize * 100:F0}%)";
 			scope.TextColor = textColor;
 			DebugOverlay.DrawText( painter, scope, new Vector2( x, y ), TextFlag.LeftTop );
 			y += 14;
@@ -133,15 +134,15 @@ internal partial class ShadowMapper
 
 			foreach ( var (light, entry) in ShadowMapper.Cache )
 			{
-				if ( entry.ShadowMap is null ) continue;
-				if ( !light.IsValid() ) continue;
+				if ( entry.ShadowMap is not { HasTexture: true } ) continue;
+				if ( light is SceneLight sceneLight && !sceneLight.IsValid() ) continue;
 
-				var screenPos = camera.PointToScreenPixels( light.Position, out bool isBehind );
+				var screenPos = camera.PointToScreenPixels( entry.Position, out bool isBehind );
 				if ( isBehind ) continue;
 
 				// Shadow map preview centered above the light
 				var texRect = new Rect( screenPos.x - previewSize * 0.5f, screenPos.y - previewSize - 8, previewSize, previewSize );
-				painter.Texture( entry.ShadowMap, texRect, Color.White, FilterMode.Anisotropic );
+				painter.Texture( entry.ShadowMap.Texture, texRect, Color.White, FilterMode.Anisotropic );
 
 				// Info text below the preview
 				bool active = entry.LastFrame > RealTime.Now - 0.1f;
@@ -150,19 +151,19 @@ internal partial class ShadowMapper
 
 				var textPos = new Vector2( screenPos.x, texRect.Bottom + 4 );
 
-				string lightType = light.lightNative.GetLightType() switch { 1 => "Point", 3 => "Spot", _ => "Light" };
-				var memSize = g_pRenderDevice.ComputeTextureMemorySize( entry.ShadowMap.native );
+				string lightType = entry.Type switch { ShadowLightType.Point => "Point", ShadowLightType.Spot => "Spot", _ => "Light" };
+				var memSize = g_pRenderDevice.ComputeTextureMemorySize( entry.ShadowMap.Texture.native );
 
 				labelScope.Text = $"{lightType} {entry.CurrentResolution}px ({memSize.FormatBytes()})";
 				DebugOverlay.DrawText( painter, labelScope, textPos, TextFlag.CenterTop );
 				textPos.y += 12;
 
-				labelScope.Text = $"R:{light.Radius:F0} Screen:{entry.ScreenSize * 100:F0}% Bias:{light.ShadowBias}";
+				labelScope.Text = $"R:{entry.Radius:F0} Screen:{entry.ScreenSize * 100:F0}% Bias:{entry.Bias}";
 				DebugOverlay.DrawText( painter, labelScope, textPos, TextFlag.CenterTop );
 				textPos.y += 12;
 
-				float halfAngle = light.lightNative.GetLightType() == 3 ? light.lightNative.GetPhi() : 45f;
-				float biasScale = ComputeBiasScale( halfAngle, light.Radius, entry.CurrentResolution );
+				float halfAngle = entry.Type == ShadowLightType.Spot ? entry.ConeOuter : 45f;
+				float biasScale = ComputeBiasScale( halfAngle, entry.Radius, entry.CurrentResolution );
 				labelScope.Text = $"BiasScale:{biasScale:F2} Const:{(int)(ShadowDepthBias * biasScale)} Slope:{ShadowSlopeScale * biasScale:F1}";
 				DebugOverlay.DrawText( painter, labelScope, textPos, TextFlag.CenterTop );
 			}
@@ -178,10 +179,10 @@ internal partial class ShadowMapper
 			for ( int i = 0; i < CascadeDebugCount; i++ )
 			{
 				var info = CascadeDebugInfos[i];
-				if ( info.DepthTexture is null ) continue;
+				if ( info.DepthTexture is not { HasTexture: true } ) continue;
 
 				var texX = margin + i * (size + margin);
-				painter.Texture( info.DepthTexture, new Rect( texX, texY, size, size ), Color.White, FilterMode.Anisotropic );
+				painter.Texture( info.DepthTexture.Texture, new Rect( texX, texY, size, size ), Color.White, FilterMode.Anisotropic );
 				DebugOverlay.DrawText( painter, $"Cascade {i}", 11, Color.Yellow, new Vector2( texX, texY - 48 ), TextFlag.LeftTop );
 				DebugOverlay.DrawText( painter, $"Depth: {info.Near:F0} to {info.Far:F0}", 11, Color.Yellow, new Vector2( texX, texY - 32 ), TextFlag.LeftTop );
 				DebugOverlay.DrawText( painter, $"Rect: {info.Width:F0} x {info.Height:F0} units", 11, Color.Yellow, new Vector2( texX, texY - 16 ), TextFlag.LeftTop );

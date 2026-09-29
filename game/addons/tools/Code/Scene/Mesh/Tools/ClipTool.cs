@@ -421,6 +421,7 @@ public partial class ClipTool : EditorTool
 		var go = new GameObject( true, mesh.GameObject.Name );
 		go.MakeNameUnique();
 		go.WorldTransform = mesh.WorldTransform;
+		go.IsStatic = mesh.GameObject.IsStatic;
 
 		var mc = go.Components.Create<MeshComponent>( false );
 		mc.Mesh = newMesh;

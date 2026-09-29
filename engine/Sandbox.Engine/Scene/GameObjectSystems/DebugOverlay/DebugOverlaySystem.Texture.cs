@@ -56,7 +56,7 @@ file class ScreenTextureSceneObject : SceneCustomObject
 
 	static bool ToScreenWithDirection( Vector3 world, out Vector2 screen )
 	{
-		var frustum = Graphics.SceneView.GetFrustum();
+		var frustum = Graphics.ViewFrustum;
 		var behind = frustum.ScreenTransform( world, out var result );
 		var x = (result.x + 1f) / 2f;
 		var y = ((result.y * -1f) + 1f) / 2f;

@@ -1,7 +1,6 @@
-@import "/styles/_theme.scss";
 @import "/styles/_front.scss";
 
-JamSpine
+JamPage JamSpine
 {
 	flex-direction: column;
 	flex-grow: 1;
@@ -11,8 +10,6 @@ JamSpine
 
 	.spine-label
 	{
-		@include front-section-label;
-
 		margin-bottom: 18px;
 	}
 
@@ -115,6 +112,8 @@ JamSpine
 
 	.node.done
 	{
+		opacity: 0.5;
+
 		.dot { background-color: $front-primary; border-color: $front-primary; }
 		.line { background-color: $front-primary; }
 		.name { color: $front-body; }

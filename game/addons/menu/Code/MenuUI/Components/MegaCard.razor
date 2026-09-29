@@ -58,4 +58,12 @@
     [Parameter] public RenderFragment Tabs { get; set; }
     [Parameter] public RenderFragment Metrics { get; set; }
     [Parameter] public RenderFragment Content { get; set; }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        // Centred, unless the party deck's up in the bottom right - then lifted clear of it
+        SetClass( "clear-deck", Sandbox.UI.Footer.Current is not null );
+    }
 }

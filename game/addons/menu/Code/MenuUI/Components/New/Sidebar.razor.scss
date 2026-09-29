@@ -16,6 +16,7 @@ Sidebar
 	// and its marker bar can reach the edge. The logo insets itself instead.
 	padding: 14px 0;
 	pointer-events: all;
+	box-shadow: $front-rail-shadow;
 
 	Logo
 	{

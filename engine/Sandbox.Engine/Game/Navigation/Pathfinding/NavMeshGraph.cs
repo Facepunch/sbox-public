@@ -43,6 +43,14 @@ internal class NavMeshGraph
 	private readonly SortedSet<int> freeTiles = new();
 	private readonly Dictionary<(int X, int Y), List<MeshTile>> tileLocations = new();
 
+	// Polygons in different islands can never reach each other, keyed by allowed areas.
+	private readonly object islandGate = new();
+	private volatile bool islandsDirty = true;
+	private readonly Dictionary<uint, IslandMap> islandMaps = new();
+	private int[] islandTileBase = [];
+	private int islandPolyCount;
+	private Vector3 islandMin, islandMax;
+
 	public Status Init( MeshParameters param, int maxVertsPerPoly )
 	{
 		_orig = param.orig;
@@ -55,8 +63,67 @@ internal class NavMeshGraph
 		_tiles.Clear();
 		freeTiles.Clear();
 		tileLocations.Clear();
+		islandsDirty = true;
 
 		return Status.Success;
+	}
+
+	public IslandMap GetIslands( TraversalFilter filter )
+	{
+		lock ( islandGate )
+		{
+			if ( islandsDirty )
+			{
+				islandMaps.Clear();
+				islandTileBase = new int[_tiles.Count];
+				islandPolyCount = 0;
+				islandMin = float.MaxValue;
+				islandMax = float.MinValue;
+				foreach ( var tile in _tiles )
+				{
+					islandTileBase[tile.index] = islandPolyCount;
+					if ( tile.data is null ) continue;
+					islandPolyCount += tile.data.header.polyCount;
+					islandMin = Vector3.Min( islandMin, tile.data.header.bmin );
+					islandMax = Vector3.Max( islandMax, tile.data.header.bmax );
+				}
+				islandsDirty = false;
+			}
+			if ( !islandMaps.TryGetValue( filter.AllowedAreas, out var map ) )
+				islandMaps.Add( filter.AllowedAreas, map = BuildIslands( filter ) );
+			return map;
+		}
+	}
+
+	private IslandMap BuildIslands( TraversalFilter filter )
+	{
+		var parent = new int[islandPolyCount];
+		for ( int i = 0; i < parent.Length; i++ ) parent[i] = i;
+		// Union-find over links in both directions so one-way connections join islands.
+		foreach ( var tile in _tiles )
+		{
+			if ( tile.data is null ) continue;
+			for ( int p = 0; p < tile.data.header.polyCount; p++ )
+			{
+				if ( !filter.Allows( tile.data.polys[p].area ) ) continue;
+				for ( int l = tile.data.polys[p].firstLink; l != NULL_LINK; l = tile.links[l].next )
+				{
+					if ( tile.links[l].refs == 0 ) continue;
+					DecodePolyId( tile.links[l].refs, out _, out var nt, out var np );
+					if ( !filter.Allows( _tiles[nt].data.polys[np].area ) ) continue;
+					int a = FindIsland( parent, islandTileBase[tile.index] + p ), b = FindIsland( parent, islandTileBase[nt] + np );
+					if ( a != b ) parent[Math.Max( a, b )] = Math.Min( a, b );
+				}
+			}
+		}
+		for ( int i = 0; i < parent.Length; i++ ) parent[i] = FindIsland( parent, i );
+		return new IslandMap( parent, islandTileBase, islandMin, islandMax );
+	}
+
+	private static int FindIsland( int[] parent, int i )
+	{
+		while ( parent[i] != i ) i = parent[i] = parent[parent[i]];
+		return i;
 	}
 
 	public int GetMaxTiles()
@@ -270,6 +337,7 @@ internal class NavMeshGraph
 		}
 
 		result = GetTileRef( tile );
+		islandsDirty = true;
 		return Status.Success;
 	}
 
@@ -335,6 +403,7 @@ internal class NavMeshGraph
 
 		// Add to free list.
 		freeTiles.Add( tile.index );
+		islandsDirty = true;
 		return GetTileRef( tile );
 	}
 
@@ -1060,6 +1129,27 @@ internal class NavMeshGraph
 		return _maxVertPerPoly;
 	}
 
+}
+
+internal sealed class IslandMap
+{
+	private readonly int[] labels;
+	private readonly int[] tileBase;
+	internal readonly Vector3 Min, Max;
+
+	internal IslandMap( int[] labels, int[] tileBase, Vector3 min, Vector3 max )
+	{
+		this.labels = labels;
+		this.tileBase = tileBase;
+		Min = min;
+		Max = max;
+	}
+
+	internal int Of( long refs )
+	{
+		DecodePolyId( refs, out _, out var it, out var ip );
+		return labels[tileBase[it] + ip];
+	}
 }
 
 internal static class MeshConstants

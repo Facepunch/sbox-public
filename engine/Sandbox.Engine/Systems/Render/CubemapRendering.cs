@@ -8,7 +8,9 @@ namespace Sandbox;
 /// </summary>
 internal static class CubemapRendering
 {
-	static ComputeShader EnvmapFilter = new( "envmap_filtering_cs" );
+	// Made in Render, before rendering. As a static initializer it was first reached from Filter, in the cube camera's render
+	// stage hook, during rendering, where Material.Create throws: the type failed to initialize, and every render after threw.
+	static ComputeShader EnvmapFilter;
 
 	/// <summary>
 	/// Specifies the quality level for GGX filtering of environment maps.
@@ -40,6 +42,8 @@ internal static class CubemapRendering
 	{
 		if ( !Graphics.IsAvailable )
 			throw new Exception( "Tried to call CubemapRendering.Render from a dedicated server" );
+
+		EnvmapFilter ??= new ComputeShader( "envmap_filtering_cs" );
 
 		using var camera = new SceneCamera( "CubemapRendering" );
 		camera.FieldOfView = 90;

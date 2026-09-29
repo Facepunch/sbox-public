@@ -1,49 +1,17 @@
 @import "/styles/_front.scss";
 
-Phase04Finals
+JamPage Phase04Finals
 {
-	.finalist-browser
+	&.elimination-phase
 	{
-		flex-direction: column;
-		flex-grow: 1;
-		flex-shrink: 1;
-		height: 0;
-		gap: 16px;
-		overflow: hidden;
-	}
-
-	.view-tabs, .category-tabs
-	{
-		flex-shrink: 0;
-		flex-wrap: wrap;
-		gap: 8px;
-
-		.button
+		.finalist-scroll
 		{
-			@include front-pill;
-
-			&.active
-			{
-				background-color: $front-primary;
-				border-color: $front-primary;
-
-				label
-				{
-					color: $front-heading;
-				}
-			}
+			// Keep the gallery inside the viewport and clear the fixed party dock.
+			padding-bottom: 72px;
+			gap: 8px;
+			overflow: hidden;
+			min-height: 0;
 		}
-	}
-
-	.finalist-scroll
-	{
-		flex-direction: column;
-		flex-grow: 1;
-		flex-shrink: 1;
-		height: 0;
-		gap: 16px;
-		padding: 0 4px 8px;
-		overflow-y: scroll;
 	}
 
 	.section-head
@@ -69,7 +37,7 @@ Phase04Finals
 	.finalist-grid
 	{
 		flex-shrink: 0;
-		flex-wrap: wrap;
+		flex-wrap: nowrap;
 		gap: 16px;
 	}
 
@@ -77,9 +45,58 @@ Phase04Finals
 	{
 		flex-direction: column;
 		flex-shrink: 0;
-		width: calc(33.333% - 11px);
-		min-width: 220px;
+		// Keep the full finalist slate on one row.
+		width: calc(20% - 12.8px);
+		min-width: 0;
 		gap: 8px;
+	}
+
+	.finalist-stats
+	{
+		flex-direction: row;
+		align-items: baseline;
+		gap: 6px;
+		padding: 8px 0;
+
+		.vote-count
+		{
+			font-family: $front-font;
+			font-size: 24px;
+			font-weight: 700;
+			color: $front-heading;
+		}
+	}
+
+	.game-details
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		height: 114px;
+		gap: 6px;
+		padding-top: 4px;
+
+		.game-title
+		{
+			flex-shrink: 0;
+			font-family: $front-font;
+			font-size: 18px;
+			font-weight: 700;
+			line-height: 22px;
+			max-height: 44px;
+			color: $front-heading;
+			text-overflow: ellipsis;
+			overflow: hidden;
+		}
+
+		.game-summary
+		{
+			font-size: 14px;
+			line-height: 20px;
+			max-height: 60px;
+			color: $front-body;
+			text-overflow: ellipsis;
+			overflow: hidden;
+		}
 	}
 
 	.artwork
@@ -98,22 +115,12 @@ Phase04Finals
 			{
 				height: 100%;
 			}
-		}
-	}
 
-	// The original server seed survives withdrawals; do not renumber the remaining cards.
-	.seed
-	{
-		position: absolute;
-		left: 10px;
-		top: 10px;
-		padding: 4px 8px;
-		border-radius: 4px;
-		background-color: $front-card-deep;
-		color: $front-heading;
-		font-size: 11px;
-		font-weight: 600;
-		pointer-events: none;
+			.package-title
+			{
+				display: none;
+			}
+		}
 	}
 
 	.game-actions
@@ -123,13 +130,12 @@ Phase04Finals
 		flex-wrap: wrap;
 		gap: 8px;
 
-		.button
-		{
-			@include front-pill;
-		}
-
 		.play
 		{
+			width: 100%;
+			height: 40px;
+			justify-content: center;
+			border-radius: 6px;
 			background-color: $front-primary;
 			border-color: $front-primary;
 
@@ -137,18 +143,16 @@ Phase04Finals
 			{
 				color: $front-heading;
 			}
-		}
 
-		.locked
-		{
-			background-color: transparent;
-			border-color: transparent;
-		}
+			label
+			{
+				font-size: 13px;
+			}
 
-		.eliminated
-		{
-			color: $front-secondary;
-			font-size: 11px;
+			icon
+			{
+				font-size: 18px;
+			}
 		}
 	}
 
@@ -168,32 +172,55 @@ Phase04Finals
 	.voting-status
 	{
 		flex-shrink: 0;
-		gap: 12px;
-		padding: 4px 0;
-		color: $front-secondary;
+		align-items: center;
+		justify-content: center;
+		gap: 16px;
+		margin-top: 8px;
+		padding: 24px;
+		background-color: $front-card;
+		border: 1px solid rgba( 232, 180, 74, 0.25 );
+		border-radius: $front-radius;
+
+		> icon
+		{
+			font-size: 32px;
+			color: $front-trophy;
+		}
 
 		> div
 		{
 			flex-direction: column;
+			align-items: center;
+			text-align: center;
+			gap: 4px;
 		}
 
 		.status-title
 		{
-			color: $front-body;
-			font-weight: 600;
+			font-family: $front-font;
+			font-size: 22px;
+			color: $front-heading;
+			font-weight: 700;
 		}
-	}
 
-	.load-error
-	{
-		flex-shrink: 0;
-		align-items: center;
-		gap: 12px;
-		color: $front-secondary;
-
-		.button
+		.description
 		{
-			@include front-pill;
+			font-size: 14px;
+		}
+
+		JamCountdown
+		{
+			align-items: center;
+			gap: 10px;
+			margin-top: 10px;
+
+			.time
+			{
+				font-size: 24px;
+				font-weight: 700;
+				font-variant-numeric: tabular-nums;
+				color: $front-trophy;
+			}
 		}
 	}
 }

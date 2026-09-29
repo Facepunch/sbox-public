@@ -36,7 +36,7 @@ internal unsafe interface IGameInstanceDll
 	// Scene
 	//
 	public IDisposable PushScope();
-	public void EditorPlay(); // play game button pressed in editor
+	public bool EditorPlay(); // play game button pressed in editor
 
 	//
 	// Network

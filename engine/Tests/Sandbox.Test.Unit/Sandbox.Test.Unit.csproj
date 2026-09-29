@@ -33,6 +33,7 @@
 		<ProjectReference Include="..\..\Sandbox.Hotload\Sandbox.Hotload.csproj" />
 		<ProjectReference Include="..\..\Sandbox.Layout\Sandbox.Layout.csproj" />
 		<ProjectReference Include="..\..\Sandbox.Reflection\Sandbox.Reflection.csproj" />
+		<ProjectReference Include="..\..\Sandbox.SceneRenderer\Sandbox.SceneRenderer.csproj" />
 		<ProjectReference Include="..\..\Sandbox.System\Sandbox.System.csproj" />
 		<ProjectReference Include="..\..\Sandbox.Tools\Sandbox.Tools.csproj" />
 		<ProjectReference Include="..\..\Tools\InteropGen\InteropGen.csproj" />

@@ -103,7 +103,7 @@ public partial class PanelWindow
 	/// </summary>
 	bool SimulateFrame()
 	{
-		if ( !ApplyFullscreen() || Window is null || !Window.UpdateSwapChain() ) return false;
+		if ( !ApplyFullscreen() || Window is null || !Window.UpdateSwapChain( vsync: VSync ) ) return false;
 
 		UpdateMouseCapture();
 
@@ -169,6 +169,7 @@ public partial class PanelWindow
 
 	void DrawFrame()
 	{
+		OnRenderBackground( Window.SwapChain, Surface.Size );
 		_camera.AddToRenderList( Window.SwapChain, Surface.Size );
 
 		Window.Present();
@@ -183,6 +184,23 @@ public partial class PanelWindow
 		}
 
 		ApplyCursorShape();
+	}
+
+	/// <summary>
+	/// Draw into the swap chain before the panels do - they're drawn over it. Turn
+	/// <see cref="ClearsBackground"/> off and whatever this draws shows through the panels
+	/// wherever they're transparent.
+	/// </summary>
+	private protected virtual void OnRenderBackground( SwapChainHandle_t swapChain, Vector2 size ) { }
+
+	/// <summary>
+	/// Whether the swap chain is cleared to <see cref="BackgroundColor"/> before the panels draw.
+	/// Off for a window that fills it itself in <see cref="OnRenderBackground"/>.
+	/// </summary>
+	private protected bool ClearsBackground
+	{
+		get => _camera is null || (_camera.ClearFlags & ClearFlags.Color) != 0;
+		set { if ( _camera is not null ) _camera.ClearFlags = value ? ClearFlags.All : ClearFlags.All & ~ClearFlags.Color; }
 	}
 
 	/// <summary>

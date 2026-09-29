@@ -42,9 +42,17 @@ RailButton
 		background-color: $front-primary * 3;
 	}
 
+	// The rewards bar blooms - brighter than white, so it clears the bloom threshold (1.05), which
+	// nothing else on the rail does. The track doesn't clip it here, so the glow spills past the bar
+	.progress.reward
+	{
+		overflow: visible;
+	}
+
 	.progress.reward .progress-fill
 	{
-		background-color: $front-reward * 3;
+		background-color: $front-reward * 4.5;
+		box-shadow: 0 0 6px $front-reward * 2.25;
 	}
 }
 

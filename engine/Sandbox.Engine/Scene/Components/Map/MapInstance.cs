@@ -431,6 +431,14 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		if ( sceneFile is null )
 			return false;
 
+		var loadOptions = new SceneLoadOptions();
+		using var runtimePreparation = loadOptions.RuntimePreparationScope();
+		loadOptions.SetScene( sceneFile );
+		if ( !loadOptions.PrepareRuntime() )
+			return false;
+
+		sceneFile = loadOptions.GetSceneFile();
+
 		// Wouldn't this be nice? Doesn't make sense within a MapInstance, but when we switch away
 		// SceneLoadOptions options = new() { IsAdditive = true };
 		// options.SetScene( sceneFile );
@@ -439,7 +447,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		using var optionsScope = ActionGraph.PushSerializationOptions( sceneFile.SerializationOptions with { ForceUpdateCached = Scene.IsEditor } );
 		using var sceneScope = Scene.Push();
 		// Set up a blob context to resolve binary data in the map scene.
-		using var blobs = BlobDataSerializer.Load( sceneFile.BinaryData, path );
+		using var blobs = sceneFile.LoadBlobData();
 		using var batchGroup = CallbackBatch.Batch();
 
 		foreach ( var json in sceneFile.GameObjects )

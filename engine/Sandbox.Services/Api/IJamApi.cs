@@ -39,6 +39,7 @@ public partial class ServiceApi
 		/// play session ends.
 		/// </summary>
 		[Get( "/jam/{ident}/entry/{package}" )]
+		[Headers( "Cache-Control: no-cache" )]
 		Task<JamEntryVoteDto> GetEntry( string ident, string package, int? days = null, [AliasAs( "as" )] string @as = null );
 
 		/// <summary>

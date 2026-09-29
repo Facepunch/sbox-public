@@ -106,6 +106,7 @@ internal sealed class ProcessClientEnvironment : INetworkClientEnvironment
 		}
 
 		LoadingScreen.IsVisible = false;
+		Api.Activity.LoadFinished();
 	}
 
 	public void Disconnect( NetworkSystem system, string reason )

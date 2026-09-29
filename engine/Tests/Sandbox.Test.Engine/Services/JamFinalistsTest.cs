@@ -10,6 +10,60 @@ namespace Services;
 public class JamFinalistsTest
 {
 	/// <summary>
+	/// Voting requires an open snapshot and stops exactly at its advertised deadline.
+	/// </summary>
+	[TestMethod]
+	public void VotingWindowHonorsModeAndDeadline()
+	{
+		var deadline = DateTimeOffset.UtcNow;
+		var dto = new JamCategoryVotingDto { Mode = JamVotingMode.Voting, RoundEnds = deadline };
+		var category = new JamFinalistCategory( dto );
+		Assert.IsTrue( category.IsVotingAt( deadline.AddTicks( -1 ) ) );
+		Assert.IsFalse( category.IsVotingAt( deadline ) );
+		Assert.IsFalse( category.IsVotingAt( deadline.AddTicks( 1 ) ) );
+
+		dto.RoundEnds = null;
+		Assert.IsTrue( new JamFinalistCategory( dto ).IsVotingAt( deadline ) );
+
+		dto.Mode = JamVotingMode.Closed;
+		dto.NextRoundOpens = deadline.AddSeconds( -1 );
+		Assert.IsFalse( new JamFinalistCategory( dto ).IsVotingAt( deadline ) );
+	}
+
+	/// <summary>
+	/// A tied final retains the server's winner and places, and ignores late live updates.
+	/// </summary>
+	[TestMethod]
+	public void DecidedFinalPreservesAuthoritativeTieBreak()
+	{
+		var category = new JamFinalistCategory( new JamCategoryVotingDto
+		{
+			Id = 7,
+			Mode = JamVotingMode.Decided,
+			Winner = "test.second",
+			Nominees =
+			[
+				new() { Package = "test.first", Seed = 1, Place = 2 },
+				new() { Package = "test.second", Seed = 2, Place = 1 }
+			],
+			Tally = [new() { Package = "test.first", Votes = 50 }, new() { Package = "test.second", Votes = 50 }]
+		} );
+
+		Assert.IsTrue( category.Decided );
+		Assert.IsFalse( category.VotingOpen );
+		Assert.IsNull( category.Round );
+		Assert.AreEqual( "test.second", category.Winner );
+		Assert.IsTrue( category.GrandFinal );
+		Assert.AreEqual( 2, category.Contenders.Count );
+		Assert.AreEqual( "test.second", category.GetFinalistAtPlace( 1 )?.PackageIdent );
+		Assert.AreEqual( "test.first", category.GetFinalistAtPlace( 2 )?.PackageIdent );
+		CollectionAssert.AreEqual( new[] { 2, 1 }, category.Nominees.Select( x => x.Place ).ToArray() );
+		Assert.IsFalse( category.Apply( new( "jam", 7, 4, "test.first", 110, 60 ) ) );
+		Assert.AreEqual( 100, category.TotalVotes );
+		Assert.AreEqual( 50, category.Counts["test.first"] );
+	}
+
+	/// <summary>
 	/// Small slates remain small, including an empty category or a single automatic winner.
 	/// </summary>
 	[TestMethod]
@@ -29,7 +83,65 @@ public class JamFinalistsTest
 		} );
 
 		Assert.AreEqual( count, category.Nominees.Count );
+		Assert.AreEqual( count, category.Contenders.Count );
+		Assert.AreEqual( count == 2, category.GrandFinal );
 		Assert.IsFalse( category.Nominees.Any( x => x.PackageIdent == "test.outside-slate" ) );
+	}
+
+	/// <summary>
+	/// The decided final retains its runner-up in seed order even without explicit places.
+	/// </summary>
+	[TestMethod]
+	public void DecidedFinalRetainsPairAndEliminationPlaces()
+	{
+		var category = new JamFinalistCategory( new JamCategoryVotingDto
+		{
+			Mode = JamVotingMode.Decided,
+			Winner = "test.winner",
+			Nominees =
+			[
+				new() { Package = "test.runner-up", Seed = 1, EliminatedRound = 2 },
+				new() { Package = "test.winner", Seed = 2 },
+				new() { Package = "test.third", Seed = 3, EliminatedRound = 1 },
+				new() { Package = "test.withdrawn", Seed = 4, Withdrawn = true }
+			]
+		} );
+
+		Assert.IsTrue( category.GrandFinal );
+		CollectionAssert.AreEqual( new[] { "test.runner-up", "test.winner" }, category.Contenders.Select( x => x.PackageIdent ).ToArray() );
+		Assert.AreEqual( "test.winner", category.GetFinalistAtPlace( 1 )?.PackageIdent );
+		Assert.AreEqual( "test.runner-up", category.GetFinalistAtPlace( 2 )?.PackageIdent );
+		Assert.AreEqual( "test.third", category.GetFinalistAtPlace( 3 )?.PackageIdent );
+		Assert.IsNull( category.GetFinalistAtPlace( 0 ) );
+		Assert.IsNull( category.GetFinalistAtPlace( 4 ) );
+	}
+
+	/// <summary>
+	/// A final's live tally cannot resolve places, including tied earlier eliminations.
+	/// </summary>
+	[TestMethod]
+	public void LiveFinalDoesNotInventPlacesFromCountsOrTime()
+	{
+		var category = new JamFinalistCategory( new JamCategoryVotingDto
+		{
+			Mode = JamVotingMode.Voting,
+			RoundEnds = DateTimeOffset.UtcNow.AddMinutes( -1 ),
+			Nominees =
+			[
+				new() { Package = "test.first", Seed = 1 },
+				new() { Package = "test.second", Seed = 2 },
+				new() { Package = "test.third", Seed = 3, EliminatedRound = 1 },
+				new() { Package = "test.fourth", Seed = 4, EliminatedRound = 1 }
+			],
+			Tally = [new() { Package = "test.first", Votes = 100 }]
+		} );
+
+		Assert.IsTrue( category.GrandFinal );
+		Assert.AreEqual( 2, category.Contenders.Count );
+		for ( var place = 1; place <= 4; place++ )
+		{
+			Assert.IsNull( category.GetFinalistAtPlace( place ) );
+		}
 	}
 
 	/// <summary>
@@ -80,5 +192,50 @@ public class JamFinalistsTest
 		var decided = new JamFinalistCategory( dto );
 		Assert.IsTrue( decided.Decided );
 		Assert.IsFalse( decided.VotingOpen );
+	}
+
+	/// <summary>
+	/// Public updates replace absolute counts without changing personal votes or applying another round.
+	/// </summary>
+	[TestMethod]
+	public void LiveCountsAreRoundScopedAndPreserveSelection()
+	{
+		var category = new JamFinalistCategory( new JamCategoryVotingDto
+		{
+			Id = 7,
+			Mode = JamVotingMode.Voting,
+			Round = 2,
+			MyVotes = ["test.first"],
+			Nominees = [new() { Package = "test.first", Seed = 1 }, new() { Package = "test.second", Seed = 2 }],
+			Tally = [new() { Package = "test.first", Votes = 10 }]
+		} );
+
+		Assert.IsFalse( category.Apply( new( "jam", 7, 1, "test.first", 100, 100 ) ) );
+		Assert.IsFalse( category.Apply( new( "jam", 8, 2, "test.first", 100, 100 ) ) );
+		Assert.IsTrue( category.Apply( new( "jam", 7, 2, "test.second", 14, 4 ) ) );
+		Assert.IsTrue( category.Apply( new( "jam", 7, 2, "test.second", 14, 4 ) ) );
+		Assert.AreEqual( 4, category.Counts["test.second"] );
+		Assert.AreEqual( 14, category.TotalVotes );
+		CollectionAssert.AreEqual( new[] { "test.first" }, category.MyVotes.ToArray() );
+		Assert.AreEqual( "test.first", category.Nominees[0].PackageIdent );
+	}
+
+	/// <summary>
+	/// A new snapshot owns the next round's empty counts and personal selection.
+	/// </summary>
+	[TestMethod]
+	public void NewRoundStartsWithoutPreviousVotes()
+	{
+		var category = new JamFinalistCategory( new JamCategoryVotingDto
+		{
+			Mode = JamVotingMode.Voting,
+			Round = 3,
+			Nominees = [new() { Package = "test.first", Seed = 1, EliminatedRound = 2 }, new() { Package = "test.second", Seed = 2 }]
+		} );
+
+		Assert.AreEqual( 0, category.TotalVotes );
+		Assert.AreEqual( 0, category.Counts.Count );
+		Assert.AreEqual( 0, category.MyVotes.Count );
+		Assert.AreEqual( 2, category.Nominees[0].EliminatedRound );
 	}
 }

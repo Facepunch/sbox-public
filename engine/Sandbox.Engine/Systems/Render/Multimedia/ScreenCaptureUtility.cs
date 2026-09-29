@@ -14,14 +14,14 @@ internal static class ScreenCaptureUtility
 	/// </summary>
 	internal static void CaptureFrame()
 	{
-		var colorTarget = Graphics.SceneLayer.GetColorTarget();
+		var colorTarget = Graphics.GetColorTarget( out var owned );
 
 		if ( colorTarget.IsNull )
 			return;
 
 		try
 		{
-			if ( !colorTarget.IsStrongHandleValid() )
+			if ( owned && !colorTarget.IsStrongHandleValid() )
 				return;
 
 			if ( ScreenRecorder.IsRecording() )
@@ -43,7 +43,7 @@ internal static class ScreenCaptureUtility
 		}
 		finally
 		{
-			colorTarget.DestroyStrongHandle();
+			if ( owned ) colorTarget.DestroyStrongHandle();
 		}
 	}
 

@@ -28,6 +28,10 @@ internal class GameInstance : IGameInstance
 	public void OnLoadingFinished()
 	{
 		_loadingFinished = true;
+
+		// A joining client isn't in the game until the host activates it
+		if ( flags.Contains( GameLoadingFlags.Host ) )
+			Api.Activity.LoadFinished();
 	}
 
 	public bool IsLoading => !_loadingFinished;
@@ -166,6 +170,7 @@ internal class GameInstance : IGameInstance
 		SentrySdk.AddBreadcrumb( $"Loading Game {Ident}", "gameinstance.load" );
 
 		LoadingScreen.Title = "Fetching Package Info";
+		Api.Activity.LoadStage( "fetch" );
 		_package = await Package.FetchAsync( Ident, false );
 
 		// A newer load may have started while we were fetching. Bail before we
@@ -205,11 +210,14 @@ internal class GameInstance : IGameInstance
 			throw new Exception( $"Package {Ident} is not a game" );
 		}
 
-		var achievementTask = _package.GetAchievements();
+		// Starts the backend fetch. The game doesn't wait for it: unlocks asked for before it lands are queued.
+		_ = _package.GetAchievements();
 
 		Log.Trace( $"Install Async {Package.Title}" );
 		LoadingScreen.Title = $"Installing {Package.Title}";
+		Api.Activity.LoadStage( "install" );
 		LoadingScreen.Media = Package.LoadingScreen.MediaUrl;
+		LoadingScreen.Package = Package;
 
 		var identWithVersion = Package.FullIdent;
 
@@ -221,6 +229,9 @@ internal class GameInstance : IGameInstance
 			identWithVersion = $"{identWithVersion}#{Package.Revision.VersionId}";
 
 		using var loadingScreen = new MenuLoadingScreen();
+
+		// The map is mounted after the game package, but its downloads can run alongside
+		var mapPrefetch = string.IsNullOrWhiteSpace( LaunchArguments.Map ) ? null : PrefetchMapAsync( LaunchArguments.Map, token );
 
 		var downloadOptions = new PackageLoadOptions()
 		{
@@ -244,7 +255,9 @@ internal class GameInstance : IGameInstance
 
 		Log.Trace( $"Loading package {Package.Title}" );
 		LoadingScreen.Title = $"Loading {Package.Title}";
-		await Task.Delay( 5, token ); // make frame
+		Api.Activity.LoadStage( "assemblies" );
+		await Task.Yield(); // make frame
+		token.ThrowIfCancellationRequested();
 
 		try
 		{
@@ -273,8 +286,9 @@ internal class GameInstance : IGameInstance
 		{
 			var map = LaunchArguments.Map;
 			Application.Map = map;
+			Api.Activity.LoadStage( "map" );
 
-			await LoadMapPackage( map, token );
+			await LoadMapPackage( map, mapPrefetch, token );
 			Application.MapPackage = _mapPackage;
 		}
 
@@ -287,7 +301,9 @@ internal class GameInstance : IGameInstance
 		}
 
 		LoadingScreen.Title = $"Loading Resources";
-		await Task.Delay( 5, token ); // make frame
+		Api.Activity.LoadStage( "resources" );
+		await Task.Yield(); // make frame
+		token.ThrowIfCancellationRequested();
 
 		Log.Trace( $"All Loaded" );
 
@@ -307,14 +323,10 @@ internal class GameInstance : IGameInstance
 			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted, token );
 		}
 
-		if ( !achievementTask.IsCompleted )
-		{
-			LoadingScreen.Title = $"Loading Achievements";
-			await achievementTask;
-		}
-
 		LoadingScreen.Title = $"Loading Fonts";
-		await Task.Delay( 5, token ); // make frame
+		Api.Activity.LoadStage( "fonts" );
+		await Task.Yield(); // make frame
+		token.ThrowIfCancellationRequested();
 
 		Log.Trace( $"Loading Fonts" );
 		FontManager.Instance.LoadAll( FileSystem.Mounted );
@@ -348,7 +360,20 @@ internal class GameInstance : IGameInstance
 		return true;
 	}
 
-	private async Task<bool> LoadMapPackage( string map, CancellationToken token )
+	/// <summary>
+	/// The map's package info, manifest and files, so mounting it later finds everything cached.
+	/// </summary>
+	static async Task<Package> PrefetchMapAsync( string map, CancellationToken token )
+	{
+		var package = await Package.FetchAsync( map, false );
+
+		if ( package is { IsRemote: true } )
+			await PackageManager.PrefetchAsync( package, true, false, token );
+
+		return package;
+	}
+
+	private async Task<bool> LoadMapPackage( string map, Task<Package> prefetch, CancellationToken token )
 	{
 		if ( _mapPackage is not null )
 		{
@@ -356,7 +381,7 @@ internal class GameInstance : IGameInstance
 			_mapPackage = default;
 		}
 
-		_mapPackage = await Package.FetchAsync( map, false );
+		_mapPackage = prefetch is not null ? await prefetch : await Package.FetchAsync( map, false );
 
 		if ( _mapPackage is null ) return false;
 		if ( _mapPackage.TypeName != "map" ) return false;
@@ -529,6 +554,10 @@ internal class GameInstance : IGameInstance
 			options.IsAdditive = true;
 
 			if ( !options.SetScene( startupScene ) )
+				return false;
+
+			using var runtimePreparation = options.RuntimePreparationScope();
+			if ( !options.PrepareRuntime() )
 				return false;
 
 			Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnHostPreInitialize( options.GetSceneFile() ) );

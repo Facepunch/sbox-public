@@ -139,6 +139,12 @@ internal static partial class DebugOverlay
 			pos.y += OverlaySpacing;
 		}
 
+		if ( overlay_scene_plan > 0 )
+		{
+			DebugOverlay.ScenePlan.Draw( painter, ref pos, overlay_scene_plan );
+			pos.y += OverlaySpacing;
+		}
+
 		if ( ShadowMapper.DebugEnabled )
 			ShadowMapper.Draw( ref pos, painter );
 	}

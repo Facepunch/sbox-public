@@ -28,8 +28,14 @@ partial class PublishWizard : BaseWizard
 			CanUploadSourceFiles = context?.CanIncludeSourceFiles ?? true
 		} );
 
-		// Show license warnings for games/maps/scenes that reference cloud assets
 		var projectType = Project.Config.Type;
+
+		if ( projectType == "game" )
+		{
+			AddStep( new PlayersWizardPage() { Project = Project, PublishConfig = Config } );
+		}
+
+		// Show license warnings for games/maps/scenes that reference cloud assets
 		if ( projectType is "game" or "map" && CloudAsset.GetAssetReferences( true ).Count > 0 )
 		{
 			AddStep( new LicenseCheckWizardPage() { Project = Project, PublishConfig = Config } );

@@ -107,6 +107,12 @@ float3 SampleEnvironmentMapLevel(float3 vReflectionDirWs, float flLevel = 0.0f)
     return vColor;
 }
 
+// Constant-index select; dynamic vector indexing spills to scratch memory
+float GetComponent( float3 v, int i )
+{
+	return i == 0 ? v.x : ( i == 1 ? v.y : v.z );
+}
+
 void AdjustIdAndMipLevel(inout int3 id, inout int mip_level)
 {
 	uint offset = 0;
@@ -195,7 +201,7 @@ void FilterCubemapFast( uint3 DispatchThreadID )
 		const int otherAxis0 = 1 - ( axis & 1 ) - ( axis >> 1 );
 		const int otherAxis1 = 2 - ( axis >> 1 );
 
-		float frameweight = ( max( adir[otherAxis0], adir[otherAxis1] ) - .75f ) / .25f;
+		float frameweight = ( max( GetComponent( adir, otherAxis0 ), GetComponent( adir, otherAxis1 ) ) - .75f ) / .25f;
 		if ( frameweight > 0 )
 		{
 			// determine frame
@@ -217,9 +223,9 @@ void FilterCubemapFast( uint3 DispatchThreadID )
 			float3 frameY = cross( frameZ, frameX );
 
 			// calculate parametrization for polynomial
-			float Nx = dir[otherAxis0];
-			float Ny = dir[otherAxis1];
-			float Nz = adir[axis];
+			float Nx = GetComponent( dir, otherAxis0 );
+			float Ny = GetComponent( dir, otherAxis1 );
+			float Nz = GetComponent( adir, axis );
 
 			float NmaxXY = max( abs( Ny ), abs( Nx ) );
 			Nx /= NmaxXY;

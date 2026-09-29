@@ -5,57 +5,117 @@
 @using SboxMenu;
 @using System;
 
+@*
+    The column beside a game's page, laid out like Steam's: the capsule, the name, what it is in a
+    line or two, then the facts as label and value - how it's reviewed, its latest update, when it
+    came out, who made it, how many play it. Achievements under that, and the tags at the
+    bottom.
+*@
+
 <root>
 
-    <div class="media-wrapper">
-        <div class="panel-media" style="background-image: url(@(Package.ThumbWide ?? Package.Thumb))"></div>
-    </div>
+    @* What it is - stays put at the top; everything under it scrolls *@
+    <div class="panel-top">
+        <div class="media-wrapper">
+            <div class="panel-media" style="background-image: url(@(Package.ThumbWide ?? Package.Thumb))"></div>
+        </div>
 
-    <div class="panel-header">
-        <label class="game-title">@Package.Title</label>
-        @if (Package.Org != null)
+        <div class="panel-header">
+            <label class="game-title">@Package.Title</label>
+
+            @if (!string.IsNullOrWhiteSpace(Package.Summary))
+            {
+                <label class="game-summary">@Package.Summary</label>
+            }
+        </div>
+
+        @* How it's played - on your own, together, against each other - up where you can't miss it,
+           with how many can play. Nothing when the tags don't say *@
+        @if (PlayerModes.For(Package) is { Label: { } modeLabel } modes)
         {
-            <div class="game-org" onclick=@OrgClicked>
-                <img class="org-thumb" src="@Package.Org.Thumb" />
-                <label class="org-name">@Package.Org.Title</label>
+            <div class="play-mode @(modes.Multiplayer ? "multiplayer" : "solo")">
+                <div class="mode-icon"><i>@modes.Icon</i></div>
+                <div class="mode-text">
+                    <label class="mode-label">@modeLabel</label>
+                    <label class="mode-hint">@ModeHint(modes)</label>
+                </div>
             </div>
         }
     </div>
 
+    <div class="panel-scroll">
     <div class="panel-sections">
 
-        @if (Package.LatestChangeLists.Length > 0)
+        @* Label on the left, value on the right - one per line *@
+        <div class="facts">
+            <div class="fact @(Package.Reviews.Total > 0 ? "clickable" : "")" @onclick="@(() => { if ( Package.Reviews.Total > 0 ) OnReviewsClicked?.Invoke(); })">
+                <label class="key">Reviews</label>
+                <div class="value">
+                    <label class="rating @RatingClass()">@RatingText()</label>
+                    @if (Package.Reviews.Total > 0)
+                    {
+                        <label class="muted">(@Package.Reviews.Total.ToString("N0"))</label>
+                    }
+                </div>
+            </div>
+
+            @* The update itself is under the gallery on the Overview - here, just when, and a way to
+               the Changes tab if there's a changelog *@
+            <div class="fact @(LatestChange is not null ? "clickable" : "")" @onclick="@(() => { if ( LatestChange is not null ) OnChangelogClicked?.Invoke(); })">
+                <label class="key">Updated</label>
+                <div class="value"><label>@MenuHelpers.TimeAgo( Package.Updated )</label></div>
+            </div>
+
+            @if (Package.Created != default)
+            {
+                <div class="fact">
+                    <label class="key">Released</label>
+                    <div class="value"><label>@Package.Created.ToLocalTime().ToString("d MMM yyyy")</label></div>
+                </div>
+            }
+
+            @if (Package.Org != null)
+            {
+                <div class="fact clickable" @onclick=@OrgClicked>
+                    <label class="key">Creator</label>
+                    <div class="value">
+                        <img class="org-thumb" src="@Package.Org.Thumb" />
+                        <label class="link creator-name" tooltip="@Package.Org.Title">@Package.Org.Title</label>
+                    </div>
+                </div>
+            }
+
+            <div class="fact">
+                <label class="key">Players</label>
+                <div class="value">
+                    <div class="stat" tooltip="Players all time">
+                        <i>group</i>
+                        <label>@Package.Usage.Total.Users.ToMetric()</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @if (achList is not null)
         {
-            <PackageChangeLog Package="@Package" OnChangelogClicked="@OnChangelogClicked" />
+            <PortalButton Portal=@Portal>
+                <Button>
+                    <Card class="achievements-card">
+                        <ChildContent>
+                            <PackageAchievementSummary Package="@Package" Header=@true />
+                        </ChildContent>
+                    </Card>
+                </Button>
+                <Content>
+                    <AchievementList Package="@Package"></AchievementList>
+                </Content>
+            </PortalButton>
         }
 
-        <Card>
-            <ChildContent>
-                <label class="section-label">Package</label>
-                <div class="info-row"><i>videogame_asset</i><label>Game</label></div>
-                @if (Package.Created != default)
-                {
-                    <div class="info-row"><i>calendar_today</i><label>Created @((DateTime.UtcNow - Package.Created).Humanize(1)) ago</label></div>
-                }
-                <div class="info-row"><i>update</i><label>Updated @((DateTime.UtcNow - Package.Updated).Humanize(1)) ago</label></div>
-                @if (Package.Reviews.Total > 0)
-                {
-                    <div class="info-row clickable" @onclick="@(() => OnReviewsClicked?.Invoke())"><i>reviews</i><label>@Package.Reviews.Score.ToString("0\\%") from @Package.Reviews.Total reviews</label></div>
-                }
-            </ChildContent>
-        </Card>
-
-        <Card>
-            <ChildContent>
-                <label class="section-label">Usage Stats</label>
-                <div class="info-row"><i>group</i><label>@Package.Usage.Total.Users.ToMetric() players</label></div>
-                <div class="info-row"><i>calendar_month</i><label>@Package.Usage.Total.Sessions.ToMetric() sessions</label></div>
-            </ChildContent>
-        </Card>
-
+        @* Last of all, at the very bottom *@
         @if (Package.Tags?.Length > 0)
         {
-            <Card>
+            <Card class="tags-card">
                 <ChildContent>
                     <label class="section-label">Tags</label>
                     <div class="tag-list">
@@ -67,25 +127,8 @@
                 </ChildContent>
             </Card>
         }
-		
 
-        @if (achList is not null)
-        {
-            <PortalButton Portal=@Portal>
-                <Button>
-                    <Card class="achievements-card">
-                        <ChildContent>
-                            <Label class="section-label">Achievements</Label>
-                            <PackageAchievementSummary Package="@Package" />
-                        </ChildContent>
-                    </Card>
-                </Button>
-                <Content>
-                    <AchievementList Package="@Package"></AchievementList>
-                </Content>
-            </PortalButton>
-        }
-
+    </div>
     </div>
 
 </root>
@@ -95,13 +138,62 @@
 	[Parameter] public Package Package { get; set; }
 	[Parameter] public PortalTarget Portal { get; set;  }
 
-	/// <summary>Called when a changelog row in the side box is clicked - opens the Changes tab.</summary>
+	/// <summary>Called when the latest update is clicked - opens the Changes tab.</summary>
 	[Parameter] public Action OnChangelogClicked { get; set; }
 
 	/// <summary>Called when the reviews row is clicked - opens the Reviews tab.</summary>
 	[Parameter] public Action OnReviewsClicked { get; set; }
 
 	AchievementCollection achList;
+
+	/// <summary>
+	/// The mode's own sentence, and how many can play when the full package says - "Team up with
+	/// friends · up to 8 players".
+	/// </summary>
+	string ModeHint( MenuProject.PlayerModes modes )
+	{
+		var max = Package?.Info.MaxPlayers ?? 0;
+		return modes.Multiplayer && max > 1 ? $"{modes.Hint} · up to {max} players" : modes.Hint;
+	}
+
+	Package.ChangeListSummary? LatestChange => Package?.LatestChangeLists is { Length: > 0 } lists
+		? lists.OrderByDescending( x => x.Created ).First()
+		: null;
+
+	/// <summary>
+	/// Steam's words for a review score - how positive, and how sure (how many reviews) it is.
+	/// Under ten reviews there's not enough to say.
+	/// </summary>
+	string RatingText()
+	{
+		var total = Package.Reviews.Total;
+		var score = Package.Reviews.Score;
+
+		if ( total <= 0 ) return "No reviews yet";
+		if ( total < 10 ) return $"{total} review{(total == 1 ? "" : "s")}";
+
+		if ( score >= 80 )
+		{
+			if ( score >= 95 && total >= 500 ) return "Overwhelmingly Positive";
+			return total >= 50 ? "Very Positive" : "Positive";
+		}
+
+		if ( score >= 70 ) return "Mostly Positive";
+		if ( score >= 40 ) return "Mixed";
+		if ( score >= 20 ) return "Mostly Negative";
+		if ( total >= 500 ) return "Overwhelmingly Negative";
+		return total >= 50 ? "Very Negative" : "Negative";
+	}
+
+	string RatingClass()
+	{
+		if ( Package.Reviews.Total < 10 ) return "none";
+
+		var score = Package.Reviews.Score;
+		if ( score >= 70 ) return "positive";
+		if ( score >= 40 ) return "mixed";
+		return "negative";
+	}
 
 	protected override int BuildHash() => System.HashCode.Combine(Package);
 

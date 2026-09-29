@@ -17,6 +17,8 @@ public partial class ServiceApi : IDisposable
 	public IStorageApi Storage { get; }
 	public IUtilityApi Utility { get; }
 	public ICodeApi Code { get; }
+	public IForumApi Forum { get; }
+	public IPlatformApi Platform { get; }
 
 	HttpClient client;
 
@@ -47,6 +49,8 @@ public partial class ServiceApi : IDisposable
 		Storage = RestService.For<IStorageApi>( client, refitSettings );
 		Utility = RestService.For<IUtilityApi>( client, refitSettings );
 		Code = RestService.For<ICodeApi>( client, refitSettings );
+		Forum = RestService.For<IForumApi>( client, refitSettings );
+		Platform = RestService.For<IPlatformApi>( client, refitSettings );
 	}
 
 	public void SetApiKey( string apiKey )

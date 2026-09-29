@@ -643,10 +643,14 @@ public partial class SceneViewportWidget : Widget
 				Renderer.Cursor = CursorShape.None;
 			}
 
-			State.CameraPosition = _activeCamera.WorldPosition;
-			State.CameraRotation = _activeCamera.WorldRotation;
 			State.CameraOrthoHeight = _activeCamera.OrthographicHeight;
 		}
+
+		// Framing smooths the camera over several frames, and it has to keep what it moved even
+		// when the editor isn't the active window - otherwise every frame starts over from the
+		// same stale state and the camera jitters on the spot until the viewport is focused again.
+		State.CameraPosition = _activeCamera.WorldPosition;
+		State.CameraRotation = _activeCamera.WorldRotation;
 
 		if ( WantOrtho )
 		{

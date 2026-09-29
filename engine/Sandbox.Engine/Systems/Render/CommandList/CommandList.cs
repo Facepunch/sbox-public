@@ -10,15 +10,21 @@ public sealed unsafe partial class CommandList
 	readonly Lock _lock = new Lock();
 
 	private string _debugName;
-	private string _markerName = "CommandList";
+	private ProfilingSampler _sampler = DefaultSampler;
+
+	static readonly ProfilingSampler DefaultSampler = new( "CommandList" );
 
 	public string DebugName
 	{
 		get => _debugName;
 		set
 		{
+			// Building a sampler encodes the name for native, so don't redo it for the same value
+			if ( _debugName == value )
+				return;
+
 			_debugName = value;
-			_markerName = string.IsNullOrEmpty( value ) ? "CommandList" : string.Concat( "CommandList: ", value );
+			_sampler = string.IsNullOrEmpty( value ) ? DefaultSampler : new ProfilingSampler( value );
 		}
 	}
 
@@ -98,6 +104,7 @@ public sealed unsafe partial class CommandList
 	{
 		public Dictionary<string, RenderTarget> renderTargets = new();
 		public Stack<(RenderTarget Target, NativeEngine.RenderViewport Viewport)> renderTargetStack = new();
+		public Stack<OpenScope> openScopes = new();
 
 		/// <summary>
 		/// Should be called at the end of usage
@@ -108,6 +115,9 @@ public sealed unsafe partial class CommandList
 			// re-added to the pool automatically.
 			renderTargets.Clear();
 			renderTargetStack.Clear();
+
+			// Execution closes these itself, this is only here so a pooled state never carries one forward
+			openScopes.Clear();
 		}
 
 		/// <summary>
@@ -480,12 +490,7 @@ public sealed unsafe partial class CommandList
 		// One execution at a time: the render-target stack is per-list state.
 		lock ( _lock )
 		{
-			// Debug marker scope so PIX/RenderDoc show this list
-			Graphics.Context.BeginPixEvent( _markerName );
-
-			// GPU profiler timing scope, closed after execution below. The profiler nests this under its
-			// containing layer by GPU-timestamp containment in the summary - no parent passed here.
-			var perfScope = NativeEngine.CSceneSystem.BeginManagedPerfMarker( Graphics.Context, _debugName ?? "CommandList" );
+			var listScope = OpenScopeFor( _sampler );
 
 			try
 			{
@@ -495,9 +500,10 @@ public sealed unsafe partial class CommandList
 			{
 				Log.Warning( e, $"Error when executing CommandList {_debugName}" );
 			}
-
-			Graphics.Context.EndPixEvent();
-			NativeEngine.CSceneSystem.EndManagedPerfMarker( Graphics.Context, perfScope );
+			finally
+			{
+				CloseScope( Graphics.Context, listScope );
+			}
 		}
 	}
 

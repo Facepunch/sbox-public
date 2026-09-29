@@ -57,6 +57,18 @@ public static class Preferences
 	[ConVar( "voip_mode", ConVarFlags.Protected, Help = "Voice chat mode: PushToTalk, OpenMicrophone, or Disabled", Saved = true )]
 	public static VoiceMode VoiceMode { get; internal set; } = VoiceMode.PushToTalk;
 
+	/// <summary>
+	/// Name of the microphone used for voice chat, empty for the system default.
+	/// </summary>
+	[ConVar( "voip_device", ConVarFlags.Protected, Help = "Microphone used for voice chat, empty for the system default", Saved = true )]
+	public static string VoiceDevice { get; internal set; } = "";
+
+	/// <summary>
+	/// Voice is only sent while the microphone is louder than this, in decibels.
+	/// </summary>
+	[ConVar( "voip_threshold", ConVarFlags.Protected, Help = "Voice is only sent while the microphone is louder than this, in decibels", Min = -96.0f, Max = 0.0f, Saved = true )]
+	public static float VoiceThreshold { get; internal set; } = -50.0f;
+
 	[ConVar( "platform.chat.enabled", ConVarFlags.Saved, Help = "Do we want to enable the platform level chat system? The game also has to have it enabled." )]
 	public static bool ChatEnabled { get; set; } = true;
 

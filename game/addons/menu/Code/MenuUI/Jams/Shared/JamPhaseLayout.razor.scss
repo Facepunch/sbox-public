@@ -1,9 +1,7 @@
 @import "/styles/_front.scss";
 
-JamPhaseLayout
+JamPage JamPhaseLayout
 {
-	@include front-page-columns;
-
 	.stack
 	{
 		flex-direction: column;

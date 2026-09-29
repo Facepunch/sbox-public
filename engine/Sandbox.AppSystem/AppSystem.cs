@@ -155,6 +155,8 @@ public class AppSystem
 
 		try { ErrorReporter.Flush(); } catch { }
 
+		try { Api.Activity.SetExitReason( "crash" ); } catch { }
+
 		try { Api.Shutdown(); } catch { }
 
 		try { NLog.LogManager.Shutdown(); } catch { }
@@ -166,6 +168,8 @@ public class AppSystem
 	{
 		// Tag crash reports during shutdown so they can be filtered in Sentry
 		NativeErrorReporter.SetTag( "shutdown_crash", "true" );
+
+		Api.Activity.SetExitReason( "quit" );
 
 		// Make sure game instance is closed
 		IGameInstanceDll.Current?.CloseGame();
@@ -249,6 +253,9 @@ public class AppSystem
 
 		// Renderpipeline may hold onto native resources, clear them out
 		RenderPipeline.Shutdown();
+
+		// So may the managed scene renderer, if r_managed_scene loaded it
+		Rendering.ManagedSceneRendering.Shutdown();
 
 		// Destroy all cached render targets immediately — must happen before
 		// GlobalContext.Shutdown() so ResourceSystem is still alive for Unregister calls.
@@ -390,7 +397,9 @@ public class AppSystem
 		}
 
 		gameWindow?.InitializeRendering();
+		gameWindow?.UpdateStartupProgress( 0.5f );
 		Bootstrap.Init();
+		gameWindow?.UpdateStartupProgress( 1.0f );
 	}
 
 	protected void SetWindowTitle( string title )

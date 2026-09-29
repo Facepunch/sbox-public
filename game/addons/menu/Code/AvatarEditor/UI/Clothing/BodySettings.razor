@@ -4,10 +4,6 @@
 
 <root>
 
-    <div>
-        <TextEntry placeholder="Avatar Name" Value:bind="@Manager.DisplayName"></TextEntry>
-    </div>
-
     <FormRow Label="Model">
         <Content>
 
@@ -38,15 +34,10 @@
             </Content>
         </FormRow>
 
-        /* 
-        We could load the material and sample this shit, and have a load of swatches instead. Would look nicer in the UI.
-
-        */
-
         <FormRow Label="Skin">
             <Content>
 
-                <ColorSwatchPicker Value:bind="@Manager.Tint" Swatches="@GetLoadSkinSwatches()"></ColorSwatchPicker>
+                <ColorSwatchPicker Value:bind="@Manager.Tint" Gradient="@GetSkinGradient()"></ColorSwatchPicker>
 
             </Content>
         </FormRow>
@@ -65,6 +56,60 @@
                     }
                 </div>
 
+            </Content>
+        </FormRow>
+    }
+
+    @if ( Manager.CitizenActive )
+    {
+        <FormRow Label="Eye Color">
+            <Content>
+                <ColorSwatchPicker Value:bind="@Manager.EyeColor" Gradient="@Dresser.EyeColorGradient" />
+            </Content>
+        </FormRow>
+
+        <FormRow Label="Eye Alignment">
+            <Content>
+                <SliderControl class="simple" Value:bind="@Manager.EyeAlign" Min="@(0f)" Max="@(1f)" Step="@(0.01f)" />
+            </Content>
+        </FormRow>
+    }
+
+    @if ( Manager.CitizenActive )
+    {
+        <FormRow Label="Neck Size">
+            <Content>
+                <SliderControl class="simple" Value:bind="@Manager.NeckSize" Min="@(0f)" Max="@(1f)" Step="@(0.01f)" />
+            </Content>
+        </FormRow>
+
+        <FormRow Label="Waist Size">
+            <Content>
+                <SliderControl class="simple" Value:bind="@Manager.WaistSize" Min="@(0f)" Max="@(1f)" Step="@(0.01f)" />
+            </Content>
+        </FormRow>
+
+        <FormRow Label="Chest Size">
+            <Content>
+                <SliderControl class="simple" Value:bind="@Manager.ChestSize" Min="@(0f)" Max="@(1f)" Step="@(0.01f)" />
+            </Content>
+        </FormRow>
+
+        <FormRow Label="Head Shape">
+            <Content>
+                <SliderControl class="simple" Value:bind="@Manager.HeadShape" Min="@(0f)" Max="@(1f)" Step="@(0.01f)" />
+            </Content>
+        </FormRow>
+
+        <FormRow Label="Nose Size">
+            <Content>
+                <SliderControl class="simple" Value:bind="@Manager.NoseSize" Min="@(0f)" Max="@(1f)" Step="@(0.01f)" />
+            </Content>
+        </FormRow>
+
+        <FormRow Label="Chin Size">
+            <Content>
+                <SliderControl class="simple" Value:bind="@Manager.ChinSize" Min="@(0f)" Max="@(1f)" Step="@(0.01f)" />
             </Content>
         </FormRow>
     }
@@ -98,37 +143,51 @@
     [Parameter]
     public AvatarEditManager Manager { get; set; }
 
-    protected override int BuildHash() => HashCode.Combine(Manager.CitizenActive, Manager.Container.Clothing.Select( x => x.GetHashCode() ) );
-
-    static Bitmap lookupTexture;
-
-    ColorSwatch[] GetLoadSkinSwatches()
+    protected override int BuildHash()
     {
+        var hash = new HashCode();
+        hash.Add( Manager.CitizenActive );
+        hash.Add( Manager.EyeColor );
+        hash.Add( Manager.EyeAlign );
 
-        if (lookupTexture == null)
+        foreach ( var entry in Manager.Container.Clothing )
+            hash.Add( entry );
+
+        hash.Add( Manager.NeckSize );
+        hash.Add( Manager.WaistSize );
+        hash.Add( Manager.ChestSize );
+        hash.Add( Manager.HeadShape );
+        hash.Add( Manager.NoseSize );
+        hash.Add( Manager.ChinSize );
+
+        return hash.ToHashCode();
+    }
+
+    static Gradient? skinGradient;
+
+    Gradient GetSkinGradient()
+    {
+        if ( skinGradient.HasValue )
+            return skinGradient.Value;
+
+        var skinMaterial = Material.Load( "models/citizen/skin/citizen_skin01.vmat" );
+        var texture = skinMaterial.GetTexture( "g_tTintLookup" );
+        if ( texture is null )
+            return new Gradient();
+
+        using var bitmap = texture.GetBitmap( 0 );
+        var gradient = new Gradient();
+
+        // CSS gradients support eight stops. Include both ends of the skin lookup.
+        for ( int i = 0; i < 8; i++ )
         {
-            var skinMaterial = Material.Load("models/citizen/skin/citizen_skin01.vmat");
-
-            var tex = skinMaterial.GetTexture("g_tTintLookup");
-            if (tex is null) return new ColorSwatch[ 0 ];
-
-            lookupTexture = tex.GetBitmap(0);
+            var position = i / 7f;
+            var x = ((int)(position * bitmap.Width)).Clamp( 0, bitmap.Width - 1 );
+            gradient.AddColor( position, bitmap.GetPixel( x, 8 ) );
         }
 
-        float swatchCount = 32;
-        float delta = 1.0f / swatchCount;
-
-        List<ColorSwatch> swatches = new List<ColorSwatch>();
-
-        for (float f = 0; f <= 1.0f; f += delta)
-        {
-            var x = (int)(f * lookupTexture.Width);
-            x = x.Clamp(0, lookupTexture.Width - 1);
-            var color = lookupTexture.GetPixel(x, 8 );
-            swatches.Add(new ColorSwatch { Value = f, Color = color });
-        }
-
-        return swatches.ToArray();
+        skinGradient = gradient;
+        return gradient;
     }
 
     void Clicked( Clothing x )

@@ -117,9 +117,9 @@ public partial class ModelRenderer : Renderer, ExecuteInEditor, ITintable, IMate
 	private int? _lodOverride;
 
 	/// <summary>
-	/// Force a level of detail.
+	/// Force a level of detail. Unset uses automatic LOD.
 	/// </summary>
-	[Property, Hide]
+	[Property, Title( "LOD Override" )]
 	public int? LodOverride
 	{
 		get => _lodOverride;

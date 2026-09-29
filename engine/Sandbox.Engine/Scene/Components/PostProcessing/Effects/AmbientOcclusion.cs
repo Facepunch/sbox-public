@@ -130,6 +130,15 @@ public sealed partial class AmbientOcclusion : BasePostProcess<AmbientOcclusion>
 
 	private static ComputeShader GtaoCs = new ComputeShader( "gtao_cs" );
 
+	/// <summary>
+	/// Reads the normals and roughness G-buffer the depth-normals prepass writes (<c>NormalsGBuffer</c>), which the managed
+	/// scene renderer draws only for cameras with an effect that needs it.
+	/// </summary>
+	internal override bool NeedsDepthNormals => true;
+
+	// GTAO is compute dispatches and barriers from the depth chain and normals into its own targets
+	internal override bool AsyncCompute => true;
+
 	public override void Render()
 	{
 		if ( UserQuality <= 0 )

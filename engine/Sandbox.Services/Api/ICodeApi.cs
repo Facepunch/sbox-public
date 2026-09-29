@@ -11,10 +11,12 @@ public partial class ServiceApi
 		/// words; a query wrapped in double quotes, or containing any symbol, matches that exact
 		/// code sequence - e.g. <c>.DrawSomething(</c> finds calls, not just the word. Optional
 		/// filters narrow to one package, type, code kind or publish year. Only open-source code
-		/// from publicly listed packages is returned.
+		/// from publicly listed packages is returned unless adminmode is enabled by an authenticated
+		/// administrator. Admin mode also includes private source from listed packages.
 		/// </summary>
 		[Get( "/code/search/1" )]
 		Task<CodeSearchResult> Search( [Query] string q, [Query] int take = 30, [Query] int skip = 0,
-			[Query] string ident = null, [Query] string type = null, [Query] string kind = null, [Query] int? year = null );
+			[Query] string ident = null, [Query] string type = null, [Query] string kind = null, [Query] int? year = null,
+			[Query] bool adminmode = false );
 	}
 }

@@ -4,6 +4,7 @@
 @using System.Threading
 @namespace MenuProject.UI
 @inherits Panel
+@implements IDiscoverySurface
 
 <root class="package-list">
 
@@ -59,6 +60,20 @@
     [Parameter] public System.Action<Package> OnSelected { get; set; }
     [Parameter] public Action<string> OnFilterChanged { get; set; }
 	[Parameter] public Package[] Packages { get; set; }
+
+	/// <summary>
+	/// Names this list for discovery tracking, e.g. "search". Defaults to the page url.
+	/// </summary>
+	[Parameter] public string Surface { get; set; }
+	[Parameter] public string Shelf { get; set; }
+
+	public DiscoveryContext DiscoveryContext => new()
+	{
+		Surface = Surface ?? Discovery.PageSurface( this ),
+		Shelf = Shelf,
+		Query = Packages is null ? Query : null,
+		Packages = FoundPackages,
+	};
 
 	/// <summary>
 	/// Shows jam nomination counts on the package cards.

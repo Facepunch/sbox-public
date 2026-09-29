@@ -1,140 +1,115 @@
 @import '/styles/_Theme.scss';
 @import '/styles/_front.scss';
 
-// The stage doesn't reach the left edge of the screen - the rail does - so a full width
-// bar ends in mid air. It's a pill floating over the scene instead, centred on the screen.
-// Out of flow, so the page runs under it rather than being cut short above it - only the
-// pill itself takes clicks.
+// The party deck. Covers the screen but takes no clicks - the card inside is placed by code,
+// over the band at the bottom of the friends rail or in the bottom right corner.
+//
+// Most of the time it's in the menu page, under the page's popups (2000) so a right click menu
+// opens over it. While a modal covers the page it's up in the menu overlay instead, above the
+// modal stack (modals start at 1010 and climb by 10).
 Footer {
     position: absolute;
     left: 0;
+    top: 0;
     right: 0;
     bottom: 0;
-    align-items: center;
-    justify-content: center;
-    padding: 0 24px $front-chrome-gap 24px;
     z-index: 1000;
     pointer-events: none;
 
+    &.in-overlay {
+        z-index: 5000;
+    }
+
+    // Where it sits, the lift out over modals and the bounce between states - all set from code
+    // every frame (see Footer.razor). No transitions here: any style change restarts a panel's
+    // transitions, so they'd never finish.
     > .inner {
-        pointer-events: all;
-        @include front-slab;
+        position: absolute;
+        pointer-events: none;
 
-        flex-shrink: 0;
-        gap: 16px;
-        align-items: center;
-        padding: 8px 14px;
-        border-radius: 999px;
-        border: 1px solid $front-border;
-        box-shadow: 0 14px 36px rgba( 0, 0, 0, 0.5 );
-    }
-
-    .friends {
-        align-items: center;
-        gap: 8px;
-    }
-
-    .friends-button {
-        @include border;
-        padding: 8px 10px;
-        padding-left: 12px;
-        pointer-events: all;
-        align-items: center;
-        gap: 6px;
-        background-color: $default-950;
-        border-radius: $rounding-large;
-
-        &:active {
-            sound-in: "ui.button.press";
-        }
-
-        &:hover {
-            sound-in: "ui.button.over";
-            cursor: pointer;
-            background-color: $default-800;
-        }
-
-        Label {
-            font-weight: 700;
-            color: $default-text-light;
-        }
-
-        icon {
-            font-size: $text-large;
-            font-weight: 700;
-            color: $default-text-light;
-        }
-
-        .friend-count {
-            font-size: $text-regular;
-            border-radius: $rounding-default;
-            background-color: black;
-            padding: 2px 6px;
+        // Leaving the party removes this layer - code has let go of it by then, so a fade here is safe
+        &:outro {
+            opacity: 0;
+            transition: opacity 0.12s ease;
         }
     }
 
+    // Fading in and out, and nothing else - so skipping the face's transitions never skips this.
+    .fader {
+        width: 100%;
+        height: 100%;
+        opacity: 1;
+        transition: opacity 0.15s ease;
 
-    Button {
-        padding: 8px 10px;
+        // On a page it doesn't belong on (settings, the jam...) - kept, just faded out quickly
+        &.hidden {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.1s ease;
+
+            .face {
+                pointer-events: none;
+            }
+        }
+
+        // Fades in when a party's made, like a tooltip. The rise in comes from code, and the fade
+        // out when it's left is on the layer above.
+        &:intro {
+            opacity: 0;
+        }
+    }
+
+    // How it looks, docked or lifted. Code never writes to it, so its fades run cleanly - and while
+    // it's out of sight they're skipped, so it comes back already looking right.
+    //
+    // Floating - a card of its own. That's what it bubbles out into when a modal covers the rail,
+    // and how it sits on pages without the rail.
+    .face {
+        @include front-card;
+
+        width: 100%;
+        height: 100%;
         pointer-events: all;
-        align-items: center;
-        gap: 6px;
-        border: 1px solid transparent; // Avoid layout shifts
+        box-shadow: 0 16px 40px rgba( 0, 0, 0, 0.55 );
+        transition: border-radius 0.25s ease-out, background-color 0.2s ease, border-color 0.2s ease,
+            box-shadow 0.25s ease;
 
-        &:active {
-            sound-in: "ui.button.press";
+        // Docked in the rail - flat and see-through, so the rail card behind it (and its divider)
+        // reads as its background. It's the rail's bottom band, not a card on top of it.
+        &.docked {
+            background-color: rgba( 0, 0, 0, 0 );
+            background-image: none;
+            backdrop-filter: blur( 0px );
+            border-color: rgba( 0, 0, 0, 0 );
+            border-radius: 0;
+            box-shadow: 0 0 0 rgba( 0, 0, 0, 0 );
         }
 
-        &:hover {
-            sound-in: "ui.button.over";
-            border: 1px solid $default-border;
-            cursor: pointer;
-            border-radius: $rounding-default;
-            background-color: rgba( $default-500, 0.1 );
-            backdrop-filter: blur( 10px );
+        // On our way into the leader's game - lit up green, docked or not. A wash from the bottom
+        // corner over the card's usual colour, so the text still reads.
+        &.joining, &.docked.joining {
+            background-color: $front-card;
+            background-image: linear-gradient( 20deg, rgba( $front-reward, 0.32 ), rgba( $front-reward-deep, 0.12 ) 55%, rgba( $front-reward, 0 ) );
+            border-color: rgba( $front-reward, 0.4 );
         }
 
-        &.close {
-            &:hover {
-                background-color: rgba( red, 0.1 );
-
-                iconpanel, Label {
-                    color: $default-text;
-                }
-            }
+        // Joining went wrong - a faint red instead
+        &.failed, &.docked.failed {
+            background-color: $front-card;
+            background-image: linear-gradient( 20deg, rgba( $front-danger, 0.22 ), rgba( $front-danger, 0 ) 60% );
+            border-color: rgba( $front-danger, 0.35 );
         }
 
-        &.active {
-            border-radius: $rounding-default;
-            background-color: rgba( $default-500, 0.1 );
-
-            Label, iconpanel {
-                color: $default-text;
-            }
+        // Lit up in the rail, it fills the rail card's bottom band - round off with that card's corners
+        &.docked.joining, &.docked.failed {
+            border-radius: 0 0 $front-radius $front-radius;
         }
 
-        Label {
-            font-weight: 700;
-            color: $default-text-light;
-        }
-
-        iconpanel {
-            font-size: $text-large;
-            font-weight: 700;
-            color: $default-text-light;
-        }
-
-        &.unread {
-            &::after {
-                position: absolute;
-                top: 0;
-                right: 0;
-                width: 6px;
-                height: 6px;
-                background-color: $primary-blue;
-                border-radius: 500%;
-                animation: Pulse 5s infinite;
-            }
+        // Its own natural height - the card is sized from it, so it mustn't stretch to the card
+        PartyDeck {
+            flex-grow: 0;
+            flex-shrink: 0;
+            align-self: flex-start;
         }
     }
 }

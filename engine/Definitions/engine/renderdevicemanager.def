@@ -12,4 +12,10 @@ native static class Glue.RenderDeviceManager as NativeEngine.RenderDeviceManager
 	// enum from rendersystem/iupscaler.h (UPSCALER_NONE=0, UPSCALER_AMD_FSR3=2, UPSCALER_NVIDIA_DLSS=3).
 	// Returns false for DLSS on non-NVIDIA hardware.
 	bool IsUpscalerSupported( int nUpscalerType );
+
+	// Whether the device has a queue for async compute work (RCFLAG_ASYNC_COMPUTE_QUEUE)
+	inline bool SupportsAsyncCompute()
+	{
+		return g_pRenderHardwareConfig->SupportsAsyncCompute();
+	}
 }

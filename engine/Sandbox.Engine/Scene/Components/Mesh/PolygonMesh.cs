@@ -6508,7 +6508,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 	}
 
 	[StructLayout( LayoutKind.Sequential )]
-	struct MeshVertex( Vector3 position, Vector3 normal, Vector4 tangent, Vector2 texcoord, Color32 blend, Color32 color )
+	internal struct MeshVertex( Vector3 position, Vector3 normal, Vector4 tangent, Vector2 texcoord, Color32 blend, Color32 color )
 	{
 		[VertexLayout.Position] public Vector3 Position = position;
 		[VertexLayout.Normal] public Vector3 Normal = normal;

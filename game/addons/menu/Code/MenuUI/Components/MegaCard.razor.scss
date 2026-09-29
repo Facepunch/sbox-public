@@ -6,9 +6,20 @@ $right-panel-width: 300px;
 
 .megacard
 {
-    width: 1300px;
-    max-width: 1300px;
-    height: 78%;
+    // A fifth narrower than it was (1300) - the gallery's 16:9, so narrower's shorter too, and the
+    // description under it comes up onto the page
+    width: 1040px;
+    max-width: 1040px;
+
+    height: 77%;
+    transition: margin-bottom 0.2s ease-out;
+
+    // The party deck's up in the bottom right - lifted clear of it (the margin's taken out of the
+    // space it's centred in, so it rides up by half of it). Centred the rest of the time
+    &.clear-deck
+    {
+        margin-bottom: 110px;
+    }
     font-family: $font-default;
 }
 
@@ -55,6 +66,23 @@ $right-panel-width: 300px;
 {
     flex-grow: 1;
     overflow: hidden;
+    position: relative;
+
+    // Fades the page on the left out along its bottom, like the info column beside it. Here, not
+    // on the page - that's the thing scrolling, and it'd scroll away with it. The page's own colour,
+    // sampled - clear to solid
+    &::after
+    {
+        content: "";
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        right: $right-panel-width;
+        height: 56px;
+        background-image: linear-gradient( to bottom, rgba( 17, 19, 25, 0 ), rgb( 17, 19, 25 ) );
+        pointer-events: none;
+        z-index: 10;
+    }
 }
 
 // Main content area - LEFT
@@ -78,7 +106,24 @@ $right-panel-width: 300px;
     flex-shrink: 0;
     width: $right-panel-width;
     overflow: hidden;
-    border-left: 1px solid $front-hairline;
+    border-left: $front-border-width solid $front-hairline;
+    position: relative;
+
+    // Fades the column out along its bottom, so it reads as more below. On this box, not the
+    // scrolling one inside - it stays put while the column scrolls under it. The card's own bottom
+    // colour, clear to solid, so it fades into the card rather than through grey
+    &::after
+    {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 56px;
+        background-image: linear-gradient( to bottom, rgba( 23, 26, 33, 0 ), $front-card-bottom );
+        pointer-events: none;
+        z-index: 10;
+    }
 }
 
 .megacard > .body-outer > .body > .row > .left > label.eyebrow
@@ -90,6 +135,6 @@ $right-panel-width: 300px;
 {
     flex-shrink: 0;
     padding: 14px 20px;
-    border-top: 1px solid $front-hairline;
+    border-top: $front-border-width solid $front-hairline;
     background-color: rgba( 0, 0, 0, 0.15 );
 }

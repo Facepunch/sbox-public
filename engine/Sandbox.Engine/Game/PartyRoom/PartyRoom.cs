@@ -214,6 +214,8 @@ public partial class PartyRoom : ILobby
 		if ( timeSinceUpdate < 0.5f ) return;
 		timeSinceUpdate = 0;
 
+		ShareMemberStatus();
+
 		if ( Owner.IsMe )
 		{
 			steamLobby.SetData( "api", Protocol.Api.ToString() );
@@ -411,7 +413,8 @@ public partial class PartyRoom : ILobby
 
 	void ILobby.OnMemberUpdated( Friend friend )
 	{
-		Log.Info( $"Party member updated {friend}" );
+		// Members share their join progress through this every half second - trace, not info
+		Log.Trace( $"Party member updated {friend}" );
 	}
 
 	void ILobby.OnLobbyUpdated()

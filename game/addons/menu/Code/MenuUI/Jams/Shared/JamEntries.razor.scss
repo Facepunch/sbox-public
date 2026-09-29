@@ -1,6 +1,6 @@
 @import "/styles/_front.scss";
 
-JamEntries
+JamPage JamEntries
 {
 	flex-direction: column;
 	flex-grow: 1;
@@ -57,10 +57,5 @@ JamEntries
 				scrollbar-gutter: stable;
 			}
 		}
-	}
-
-	.jam-empty
-	{
-		@include front-page-empty;
 	}
 }

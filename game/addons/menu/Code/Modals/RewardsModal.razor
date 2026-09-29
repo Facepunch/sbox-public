@@ -162,6 +162,10 @@
 	public RewardsModal( Panel anchor )
 	{
 		Anchor = anchor;
+
+		// Before the first layout, not on first render - otherwise the base .modal styles land first
+		// and it visibly transitions out of them (the dim and blur fading off) as it appears
+		AddClass( "anchored" );
 	}
 
 	static string CountText( RewardFacet facet )
@@ -194,29 +198,46 @@
 
 		if ( !firstTime ) return;
 
-		if ( Anchor.IsValid() )
-			PositionBesideAnchor();
+		PositionBesideAnchor();
 
 		// Fetched every time it opens - progress moves while you're playing.
 		_ = Load();
 	}
 
+	public override void Tick()
+	{
+		base.Tick();
+
+		// Keeps up with the resolution changing while it's open
+		PositionBesideAnchor();
+	}
+
+	int _placedFor;
+
 	/// <summary>
 	/// Puts <see cref="Inner"/> to the right of <see cref="Anchor"/>, bottom edges aligned, so
 	/// it grows upward from the rail's bottom cluster rather than off the foot of the screen.
-	/// Positioned once - the rail entry doesn't move.
 	/// </summary>
 	void PositionBesideAnchor()
 	{
-		// Derive everything from the anchor's scale rather than our own - at this point we
-		// haven't been laid out yet, so our own Box.Rect isn't valid.
-		var scale = Anchor.ScaleFromScreen;
-		var rect = Anchor.Box.Rect * scale;
-		var h = Screen.Height * scale;
+		if ( !Anchor.IsValid() || !Inner.IsValid() || Parent is null ) return;
+
+		// The anchor's in the menu and we're in the overlay, and the two scale differently with
+		// resolution - so work in screen pixels (the anchor's rect already is) and turn them into
+		// our units with our parent's scale, which is laid out already even though we aren't yet.
+		// The gap's in the rail's units, so it stays the same distance from the rail at any size.
+		var anchor = Anchor.Box.Rect;
+		var gap = AnchorOffset * Anchor.ScaleToScreen;
+		var scale = Parent.ScaleFromScreen;
+
+		// Only when something's moved - setting a style restarts its transitions
+		var placed = HashCode.Combine( anchor, gap, scale, Screen.Height );
+		if ( placed == _placedFor ) return;
+		_placedFor = placed;
 
 		Inner.Style.Position = PositionMode.Absolute;
-		Inner.Style.Left = rect.Right + AnchorOffset;
-		Inner.Style.Bottom = h - rect.Bottom;
+		Inner.Style.Left = (anchor.Right + gap) * scale;
+		Inner.Style.Bottom = (Screen.Height - anchor.Bottom) * scale;
 		Inner.Style.Dirty();
 	}
 

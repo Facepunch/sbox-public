@@ -7,6 +7,7 @@ partial class ViewportTools
 		{
 			var group = AddGroup();
 
+			group.Layout.Add( new SceneCompileToolbar( group ) );
 			group.Layout.Add( new ViewportButton( "wifi", OpenNetworkSettings ) { ToolTip = "Network settings" } );
 
 			layout.Add( group );

@@ -8,16 +8,47 @@
 
 <root>
 
+    @* What you thought of it, bottom left - the same pills as the game modal: the votes, favourite
+       and review, hide *@
     <div class="left">
 
-        @if ( LobbyCount > 0 )
-        {
-			<Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>@LobbyCount Lobbies</Button>
-        }
+        <div class="group">
+            <div class="pill @( Liked ? "active" : "" )" onclick=@( () => _ = Vote( true ) ) tooltip="Like">
+                <icon>thumb_up</icon>
+                <label>@Package.VotesUp.ToMetric()</label>
+            </div>
+            <div class="pill @( Disliked ? "active" : "" )" onclick=@( () => _ = Vote( false ) ) tooltip="Dislike">
+                <icon>thumb_down</icon>
+                <label>@Package.VotesDown.ToMetric()</label>
+            </div>
+        </div>
+
+        <div class="group">
+            <div class="pill fav @( Package.Interaction.Favourite ? "active" : "" )" onclick=@( () => _ = ToggleFavourite() ) tooltip="@( Package.Interaction.Favourite ? "Remove from favourites" : "Add to favourites" )">
+                <icon>@( Package.Interaction.Favourite ? "favorite" : "favorite_border" )</icon>
+                <label>@Package.Favourited.ToMetric()</label>
+            </div>
+            <div class="pill" onclick=@( () => Game.Overlay.ShowReviewModal( Package ) ) tooltip="@ReviewTooltip">
+                <icon>rate_review</icon>
+                <label>@ReviewText</label>
+            </div>
+        </div>
+
+        <div class="group">
+            <div class="pill" onclick=@( () => _ = Hide() ) tooltip="Hide this map">
+                <icon>block</icon>
+            </div>
+        </div>
 
     </div>
 
     <div class="right">
+
+        @* By the launch button, like the game modal's *@
+        @if ( LobbyCount > 0 )
+        {
+			<Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>@LobbyCount Lobbies</Button>
+        }
 
 		@if (Modal.HasFullPackage)
 		{
@@ -50,7 +81,32 @@
     public static Package MapPackage { get; set; } = null;
     private static string _gamePackageInitializedFor;
 
-    protected override int BuildHash () => System.HashCode.Combine( Package, Modal?.HasFullPackage, LobbyCount, MenuHelpers.HasAuthority );
+    protected override int BuildHash () => System.HashCode.Combine( Package, Modal?.HasFullPackage, LobbyCount, MenuHelpers.HasAuthority, Package?.Interaction );
+
+    // Rating: 0 like, 1 dislike, null unrated
+    bool Liked => Package.Interaction.Rating == 0;
+    bool Disliked => Package.Interaction.Rating == 1;
+
+    string ReviewText => Package.Reviews.Total > 0 ? Package.Reviews.Score.ToString( "0\\%" ) : "Review";
+    string ReviewTooltip => Package.Reviews.Total > 0 ? $"{Package.Reviews.Score:N0}% from {Package.Reviews.Total} reviews. Write yours" : "Write a review";
+
+    async Task Vote( bool up )
+    {
+        await Package.SetVoteAsync( up );
+        if ( this.IsValid() ) StateHasChanged();
+    }
+
+    async Task ToggleFavourite()
+    {
+        await Package.SetFavouriteAsync( !Package.Interaction.Favourite );
+        if ( this.IsValid() ) StateHasChanged();
+    }
+
+    async Task Hide()
+    {
+        if ( await MenuHelpers.HidePackage( this, Package ) )
+            Modal?.CloseModal( false );
+    }
 
     int LobbyCount => Modal?.Lobbies?.Count() ?? 0;
 

@@ -36,6 +36,8 @@ internal sealed class GameCategory : ProjectSettingsWindow.Category
 
 	LaunchModes LaunchMode { get; set; }
 
+	MapSettings maps;
+
 	public override void OnInit( Project project )
 	{
 		StartupScene = Project.Config.GetMetaOrDefault( "StartupScene", "start.scene" );
@@ -61,6 +63,18 @@ internal sealed class GameCategory : ProjectSettingsWindow.Category
 			ListenForChanges( so );
 		}
 
+		StartSection( "Maps" );
+
+		{
+			maps = WebsiteGameConfig.Maps( project );
+
+			var so = maps.GetSerialized();
+			ListenForChanges( so );
+
+			var sheet = new ControlSheet();
+			sheet.AddObject( so );
+			BodyLayout.Add( sheet );
+		}
 	}
 
 	public override void OnSave()
@@ -71,6 +85,7 @@ internal sealed class GameCategory : ProjectSettingsWindow.Category
 		Project.Config.SetMeta( "DedicatedServerStartupScene", string.IsNullOrEmpty( ServerStartupScene ) ? null : ServerStartupScene );
 		Project.Config.SetMeta( "SystemScene", string.IsNullOrEmpty( SystemScene ) ? null : SystemScene );
 		Project.Config.SetMeta( "UsesStreamerFeatures", UsesStreamerFeatures ? UsesStreamerFeatures : null );
+		Project.Config.SetMeta( "MapSettings", maps );
 
 		base.OnSave();
 	}

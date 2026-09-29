@@ -86,6 +86,8 @@ public sealed unsafe partial class CommandList
 		}
 		finally
 		{
+			CloseLeakedScopes();
+
 			state.Reset();
 			ObjectPool<State>.Return( state );
 			state = previous;

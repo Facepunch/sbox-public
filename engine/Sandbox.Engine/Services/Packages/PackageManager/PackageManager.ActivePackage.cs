@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using Sandbox.Utility;
 using System.Net;
 using System.Threading;
 
@@ -164,7 +165,7 @@ internal static partial class PackageManager
 				token.ThrowIfCancellationRequested();
 				LoadingScreen.Subtitle = System.IO.Path.GetFileName( file.Path );
 
-				var bytes = await Sandbox.Utility.Web.GrabFile( file.Url, token );
+				var bytes = await GetCachedDllAsync( file, token );
 				if ( bytes is not null )
 				{
 					memFs.WriteAllBytes( System.IO.Path.GetFileName( file.Path ), bytes );
@@ -173,6 +174,31 @@ internal static partial class PackageManager
 
 			LoadingScreen.Subtitle = null;
 			return memFs;
+		}
+
+		/// <summary>
+		/// The dll's bytes from the download cache, fetched into it first when they aren't there or
+		/// don't match the manifest's crc. The bytes still go through access control before they load.
+		/// </summary>
+		private static async Task<byte[]> GetCachedDllAsync( ManifestSchema.File file, CancellationToken token )
+		{
+			var crc = Convert.ToUInt64( file.Crc, 16 );
+			var cachePath = AssetDownloadCache.GetAbsolutePath( file.Path, crc );
+
+			if ( System.IO.File.Exists( cachePath ) )
+			{
+				var cached = await System.IO.File.ReadAllBytesAsync( cachePath, token );
+				if ( Crc64.FromBytes( cached ) == crc )
+					return cached;
+			}
+
+			var bytes = await Sandbox.Utility.Web.GrabFile( file.Url, token );
+			if ( bytes is not null && Crc64.FromBytes( bytes ) == crc )
+			{
+				AssetDownloadCache.StoreFile( file.Path, crc, bytes );
+			}
+
+			return bytes;
 		}
 
 		internal bool HasPrecompiledDlls()

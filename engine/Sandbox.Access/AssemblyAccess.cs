@@ -219,6 +219,11 @@ internal partial class AssemblyAccess
 			Touch( $"System.Private.CoreLib/System.Runtime.InteropServices.ComImportAttribute", "attribute" );
 		}
 
+		if ( type.FullName == IgnoresAccessChecksTo )
+		{
+			Touch( $"System.Private.CoreLib/{IgnoresAccessChecksTo}", "attribute" );
+		}
+
 		TestAttributes( type.CustomAttributes );
 
 		if ( type.IsArray )
@@ -387,8 +392,17 @@ internal partial class AssemblyAccess
 
 	}
 
+	/// <summary>
+	/// The runtime honours this attribute by name from any assembly and skips visibility checks against the
+	/// assemblies it names, so a self-defined copy would let a package call engine internals.
+	/// </summary>
+	const string IgnoresAccessChecksTo = "System.Runtime.CompilerServices.IgnoresAccessChecksToAttribute";
+
 	private void TestAttribute( CustomAttribute attr )
 	{
+		if ( attr.AttributeType.FullName == IgnoresAccessChecksTo )
+			Touch( $"System.Private.CoreLib/{IgnoresAccessChecksTo}", "attribute" );
+
 		Touch( attr.AttributeType );
 
 		foreach ( var arg in attr.ConstructorArguments )

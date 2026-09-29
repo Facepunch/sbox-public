@@ -21,11 +21,17 @@ internal static class Web
 		catch ( OperationCanceledException ) { }
 	}
 
+	// A read that goes this long without a byte is a stalled edge. Retrying beats waiting out the client timeout.
+	static readonly TimeSpan StallTimeout = TimeSpan.FromSeconds( 15 );
+
 	// h2 so downloads share connections, ALPN falls back to 1.1
 	static HttpClient client = new HttpClient( new SocketsHttpHandler
 	{
 		// Opens another connection if the server's stream limit is below MaxParallelDownloads
 		EnableMultipleHttp2Connections = true,
+
+		// The cdn compresses text-like assets when asked. Files land on disk decompressed, so sizes still match the manifest.
+		AutomaticDecompression = DecompressionMethods.Brotli | DecompressionMethods.GZip,
 	} )
 	{
 		Timeout = TimeSpan.FromMinutes( 120 ),
@@ -56,8 +62,11 @@ internal static class Web
 		{
 			tries++;
 
+			using var stall = CancellationTokenSource.CreateLinkedTokenSource( cancelToken );
+			stall.CancelAfter( StallTimeout );
+
 			// Headers only, so the body streams to disk instead of buffering in memory
-			using var response = await client.GetAsync( url, HttpCompletionOption.ResponseHeadersRead, cancelToken );
+			using var response = await client.GetAsync( url, HttpCompletionOption.ResponseHeadersRead, stall.Token );
 
 			if ( !response.IsSuccessStatusCode )
 			{
@@ -82,7 +91,7 @@ internal static class Web
 			if ( !path.Exists ) path.Create();
 
 			using var fileStream = new FileStream( tempName, FileMode.Create );
-			using var bodyStream = await response.Content.ReadAsStreamAsync( cancelToken );
+			using var bodyStream = await response.Content.ReadAsStreamAsync( stall.Token );
 
 			// Not HttpContentStream: it's for request bodies, wants a seekable stream, and drops the token
 			using var buffer = MemoryPool<byte>.Shared.Rent( 64 * 1024 );
@@ -98,8 +107,14 @@ internal static class Web
 				MainThread.Queue( () => progress.Invoke( tick ) );
 			}
 
-			while ( (read = await bodyStream.ReadAsync( buffer.Memory, cancelToken )) > 0 )
+			while ( true )
 			{
+				stall.CancelAfter( StallTimeout );
+				read = await bodyStream.ReadAsync( buffer.Memory, stall.Token );
+				if ( read <= 0 ) break;
+
+				// Only the network counts towards a stall, not a slow disk
+				stall.CancelAfter( Timeout.InfiniteTimeSpan );
 				await fileStream.WriteAsync( buffer.Memory[..read], cancelToken );
 
 				transferred += read;
@@ -109,6 +124,18 @@ internal static class Web
 			}
 
 			Report();
+		}
+		catch ( OperationCanceledException ) when ( !cancelToken.IsCancellationRequested && tries < DownloadAttempts )
+		{
+			Log.Warning( $"Error downloading {url} (stalled for {StallTimeout.TotalSeconds}s) - retrying" );
+			await RetryDelay( tries, cancelToken );
+			goto retry;
+		}
+		catch ( OperationCanceledException ) when ( !cancelToken.IsCancellationRequested )
+		{
+			Log.Warning( $"Error downloading {url} (stalled for {StallTimeout.TotalSeconds}s)" );
+			SentrySdk.AddBreadcrumb( $"Error downloading {url} (stalled)", "download.failed" );
+			return Fail();
 		}
 		catch ( OperationCanceledException )
 		{

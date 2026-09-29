@@ -114,12 +114,7 @@ internal partial class RenderPipeline
 		{
 			RenderViewport quarterViewport = viewport / 4;
 
-			var bloomRt = RenderTarget.GetTemporary(
-				(int)quarterViewport.Rect.Width,
-				(int)quarterViewport.Rect.Height,
-				colorFormat: ImageFormat.RGBA1010102,
-				depthFormat: ImageFormat.D32,
-				numMips: (int)Math.Log2( Math.Max( quarterViewport.Rect.Width, quarterViewport.Rect.Height ) ) );
+			var bloomRt = BloomLayer.GetTarget( (int)quarterViewport.Rect.Width, (int)quarterViewport.Rect.Height );
 
 			QuarterDepthDownsampleLayer.Setup( view, quarterViewport, rtDepth, msaa != MultisampleAmount.MultisampleNone, bloomRt );
 			QuarterDepthDownsampleLayer.AddToView( view, quarterViewport );

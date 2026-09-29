@@ -15,7 +15,10 @@ public enum SettingKind
 	Slider,
 
 	/// <summary>A button that acts immediately, not a stored value.</summary>
-	Action
+	Action,
+
+	/// <summary>A one-off control, made by <see cref="SettingItem.CreateControl"/>.</summary>
+	Custom
 }
 
 /// <summary>
@@ -56,6 +59,9 @@ public class SettingItem
 	public Action<object> Write { get; init; }
 
 	public Action Invoke { get; init; }
+
+	/// <summary>Makes the control for a <see cref="SettingKind.Custom"/> row. It reads and writes <see cref="Value"/> itself.</summary>
+	public Func<SettingItem, Panel> CreateControl { get; init; }
 
 	/// <summary>Action button label. The row already carries the name.</summary>
 	public string ActionLabel { get; init; } = "Run";

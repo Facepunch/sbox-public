@@ -243,9 +243,9 @@ public sealed partial class CommandList
 						{
 							var attrAccess = (AttributeAccess)entry.Object4;
 
-							var handle = Graphics.SceneLayer.GetColorTarget();
+							var handle = Graphics.GetColorTarget( out var owned );
 							attrAccess.attributes.Set( entry.Token, handle );
-							if ( !handle.IsNull ) handle.DestroyStrongHandle();
+							if ( owned && !handle.IsNull ) handle.DestroyStrongHandle();
 						}
 						list.AddEntry( &Execute, new Entry { Token = token, Object4 = this } );
 					}
@@ -257,9 +257,9 @@ public sealed partial class CommandList
 						{
 							var attrAccess = (AttributeAccess)entry.Object4;
 
-							var handle = Graphics.SceneLayer.GetDepthTarget();
+							var handle = Graphics.GetDepthTarget( out var owned );
 							attrAccess.attributes.Set( entry.Token, handle );
-							if ( !handle.IsNull ) handle.DestroyStrongHandle();
+							if ( owned && !handle.IsNull ) handle.DestroyStrongHandle();
 						}
 						list.AddEntry( &Execute, new Entry { Token = token, Object4 = this } );
 					}

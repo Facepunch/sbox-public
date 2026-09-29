@@ -71,7 +71,7 @@ public static partial class Game
 		/// Play a track. Whatever is playing fades out over <paramref name="fade"/> seconds while this fades in.
 		/// <paramref name="volume"/> is for this track only, on top of <see cref="Volume"/> - use it to tame a loud file.
 		/// Looping is gapless if the sound has loop points (tick Loop in the sound editor), otherwise the track
-		/// restarts when it ends. Playing the track that's already playing does nothing.
+		/// restarts when it ends. Playing the track that's already playing updates its volume without restarting it.
 		/// </summary>
 		public static void Play( SoundFile track, float fade = 1.0f, bool loop = true, float volume = 1.0f )
 		{
@@ -82,7 +82,11 @@ public static partial class Game
 			}
 
 			if ( IsPlaying && Track == track )
+			{
+				trackVolume = volume.Clamp( 0, 1 );
+				ApplyVolume();
 				return;
+			}
 
 			Stop( fade );
 

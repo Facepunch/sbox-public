@@ -1,51 +1,292 @@
-﻿@using System;
+@using System;
 @using Sandbox;
+@using Sandbox.Menu;
 @using Sandbox.UI;
-@using Sandbox.Modals;
 @using MenuProject;
 @inherits Panel
 @namespace MenuProject
 
-<root>
-	<div class="members">
-		<Button class="party" onmousedown="@OpenMenu" Icon="celebration" Tooltip="Party" />
-		<separator class="vertical" />
-		<PartyMember Friend="@(new Friend(Connection.Local.SteamId))" />
-		@foreach (var member in Members.Where( x => !x.IsMe ) )
-        {
-			<PartyMember Friend="@member" />
-		}
-		@if ( Party is null || Party.MemberCount < Party.MaxMembers )
+@*
+    Who's in your party, and what everyone's up to. Inviting happens from the friends list above.
+    While you're following the leader into a game the header becomes that - what's happening, how far
+    along, and a way out.
+*@
+<root class="@(Activity() ?? "")">
+	@* The game we're headed into, faded right back behind everything *@
+	@if ( Status is { ShowGame: true } && !string.IsNullOrWhiteSpace( GameArt ) )
+	{
+		<div class="game-art" style="background-image: url( @GameArt );"></div>
+	}
+
+	@if ( Status is { } status )
+	{
+		<div class="head status">
+			@if ( status.ShowGame && !string.IsNullOrWhiteSpace( GameThumb ) )
+			{
+				<div class="status-icon game" style="background-image: url( @GameThumb );"></div>
+			}
+			else
+			{
+				<div class="status-icon"><icon>@status.Icon</icon></div>
+			}
+			<div class="status-text">
+				<label class="status-title">@status.Title</label>
+				@if ( !string.IsNullOrWhiteSpace( status.Detail ) )
+				{
+					<label class="status-detail">@status.Detail</label>
+				}
+			</div>
+
+			@if ( status.Progress is { } fraction )
+			{
+				<label class="status-percent">@($"{fraction * 100:0}%")</label>
+			}
+
+			@if ( status.CanRetry )
+			{
+				<div class="status-button retry" onmouseup="@Retry"><icon>refresh</icon><label>Retry</label></div>
+			}
+
+			@if ( status.CanCancel )
+			{
+				<div class="icon-button cancel" onmouseup="@Cancel" tooltip="Stop joining - you'll stay in the party"><icon>close</icon></div>
+			}
+
+			<div class="icon-button leave" onmouseup="@Leave" tooltip="Leave party">
+				<icon>logout</icon>
+			</div>
+		</div>
+
+		@if ( status.Progress is { } bar )
 		{
-			<Button @ref="InviteButton" class="empty-slot" onmouseup="@InviteSomeone" Tooltip="Invite a friend" Icon="add"/>
+			<div class="status-track"><div class="status-fill" style="width: @(Percent( bar ))%;"></div></div>
 		}
-    </div>
+	}
+	else
+	{
+		<div class="head">
+			<label class="title">@Heading</label>
+			<div class="count" tooltip="@($"{MemberCount} of {MaxMembers} players")">
+				<icon>group</icon>
+				<label>@MemberCount</label>
+			</div>
+
+			<div class="grow" />
+
+			<div class="icon-button voice @VoiceClass" tooltip="@VoiceTooltip">
+				<icon>@(Preferences.VoiceMode == VoiceMode.Disabled ? "mic_off" : "mic")</icon>
+			</div>
+
+			<div class="icon-button leave" onmouseup="@Leave" tooltip="Leave party">
+				<icon>logout</icon>
+			</div>
+		</div>
+	}
+
+	@* Roomy faces while the party's small, smaller ones once it fills up - 16 fit in two rows of 8 *@
+	<div class="members @(SeatsTaken > 5 ? "compact" : "")">
+		<PartyMember Friend="@Me" Status="@StatusOf( Me )" />
+		@foreach ( var member in Members.Where( x => !x.IsMe ) )
+		{
+			<PartyMember Friend="@member" Status="@StatusOf( member )" />
+		}
+
+		@* Asked in, not here yet - their seat's held, greyed out, until they turn up or it lapses.
+		   Clicking one lets it go (the invite itself is already with them). *@
+		@foreach ( var invited in PartyInvites.Pending )
+		{
+			<div class="pending-seat" tooltip="@PendingTooltip( invited )" onmouseup="@( () => PartyInvites.Dismiss( invited.Id ) )">
+				<Avatar UserId="@((long)invited.Id)" ShowStatus="@false" />
+				<div class="pending-badge"><icon class="waiting">hourglass_top</icon><icon class="dismiss">close</icon></div>
+			</div>
+		}
+
+		@if ( SeatsTaken < MaxMembers )
+		{
+			@* Docked in the rail, the friends list is right there above it, so this just shows there's
+			   room. Popped out (over a modal, or on a page without the rail) it opens the friends list. *@
+			<div class="open-seat @(Lifted ? "clickable" : "")" onmouseup="@OpenFriends" tooltip="@(Lifted ? "Invite a friend" : null)"><icon>add</icon></div>
+		}
+	</div>
 </root>
 
 @code
 {
-	static PartyRoom Party => PartyRoom.Current;
-
 	public const int MAX_MEMBERS = 16;
 
-	public IEnumerable<Friend> Members => Party?.Members ?? Enumerable.Empty<Friend>();
+	// Everything goes through PartyView, so party_mock can fill the deck with made up data
+	public IEnumerable<Friend> Members => PartyView.Members;
 
-	protected override int BuildHash() => System.HashCode.Combine( Party, Members.Count(), Party?.Owner );
+	static Friend Me => PartyView.Me;
 
-	PartyMenu menuPopup;
-	Button InviteButton;
+	int MemberCount => PartyView.MemberCount;
+	int MaxMembers => PartyView.MaxMembers;
 
-	void OpenMenu()
+	/// <summary>
+	/// Everyone in, plus everyone asked who hasn't answered - their seats are spoken for.
+	/// </summary>
+	int SeatsTaken => MemberCount + PartyInvites.Pending.Count;
+
+	static string PendingTooltip( Friend invited )
 	{
-		if (menuPopup.IsValid())
-		{
-			menuPopup.Delete();
-			return;
-		}
+		var seconds = (int)PartyInvites.SecondsSince( invited.Id );
+		var ago = seconds < 60 ? $"{seconds}s ago" : $"{seconds / 60}m ago";
+		return $"{invited.Name} - invite sent {ago}. Click to stop waiting";
+	}
 
-		menuPopup = new PartyMenu();
-		menuPopup.PartyDeck = this;
-		menuPopup.SetPositioning(this, Popup.PositionMode.AboveLeft, 32);
+	string Heading => PartyView.OwnerIsMe ? "Your party" : $"{PartyView.Owner.Name}'s party";
+
+	static PartyRoom.MemberStatus StatusOf( Friend member ) => PartyView.StatusOf( member );
+
+	/// <summary>
+	/// What we're doing about following the leader, when it's worth the header.
+	/// </summary>
+	/// <param name="ShowGame">Show the game's thumbnail as the icon, and its art behind the card. Off for
+	/// the stages where what went wrong matters more than what the game is.</param>
+	record JoinStatus( string Icon, string Title, string Detail, double? Progress, bool CanCancel, bool CanRetry, bool ShowGame = true );
+
+	JoinStatus Status => Describe();
+
+	/// <summary>
+	/// "joining" while we're on our way into the leader's game, "failed" if that went wrong, null otherwise.
+	/// The party card lights up to match.
+	/// </summary>
+	public static string Activity()
+	{
+		if ( !PartyView.Exists || PartyView.OwnerIsMe ) return null;
+
+		return PartyView.JoiningStage switch
+		{
+			PartyRoom.JoinStage.Downloading or PartyRoom.JoinStage.WaitingForHost or PartyRoom.JoinStage.Connecting => "joining",
+			PartyRoom.JoinStage.Failed => "failed",
+			_ => null
+		};
+	}
+
+	static JoinStatus Describe()
+	{
+		if ( !PartyView.Exists || PartyView.OwnerIsMe ) return null;
+
+		var leader = PartyView.Owner.Name;
+		var game = string.IsNullOrWhiteSpace( PartyView.PackageTitle ) ? "the game" : PartyView.PackageTitle;
+		var download = PartyView.DownloadProgress;
+
+		return PartyView.JoiningStage switch
+		{
+			// The game's the headline - the verb and the numbers are the small print
+			PartyRoom.JoinStage.Downloading when download is { } d => new JoinStatus( "download", game, Speed( d ), d.Fraction, true, false ),
+			PartyRoom.JoinStage.Downloading => new JoinStatus( "download", game, "Getting it ready", null, true, false ),
+
+			// Ours is done - if the leader's still loading, show theirs instead
+			PartyRoom.JoinStage.WaitingForHost when PartyView.HostDownloadProgress is { } host =>
+				new JoinStatus( "hourglass_top", $"Waiting for {leader}", $"{leader} is still loading {game}", host.Fraction, true, false ),
+
+			// The leader's in, but there's no lobby to follow them into yet - not a problem, we'll go
+			// as soon as there is
+			PartyRoom.JoinStage.WaitingForHost when PartyView.LeaderState == PartyRoom.OwnerJoinState.Unavailable =>
+				new JoinStatus( "schedule", $"Waiting for {leader}", "You'll join once a lobby has been made", null, true, false ),
+
+			PartyRoom.JoinStage.WaitingForHost => new JoinStatus( "hourglass_top", $"Waiting for {leader}", $"Ready to join {game}", null, true, false ),
+
+			PartyRoom.JoinStage.Connecting => new JoinStatus( "login", $"Joining {leader}", $"Loading into {game}", download?.Fraction, true, false ),
+
+			PartyRoom.JoinStage.Failed => new JoinStatus( "error", $"Couldn't join {leader}", PartyView.JoinError, null, false, true, false ),
+			PartyRoom.JoinStage.Cancelled => new JoinStatus( "block", "Stopped joining", $"You're still in {leader}'s party", null, false, true, false ),
+			// Not a failure - the leader's in a game with nothing to join yet, and we'll follow them in
+			// as soon as they open a lobby
+			PartyRoom.JoinStage.Unavailable => new JoinStatus( "schedule", $"Waiting for {leader}", "You'll join once a lobby has been made", null, false, false ),
+
+			_ => null
+		};
+	}
+
+	/// <summary>
+	/// The small print under the game's name. Time left goes first - it's what you want to know,
+	/// and the end of the line is what gets cut off. Once we know it, "Downloading" can go: the bar
+	/// and the percentage already say that.
+	/// </summary>
+	static string Speed( LoadingProgress progress )
+	{
+		if ( progress.Mbps <= 0 ) return "Downloading";
+
+		var speed = $"{progress.Mbps:0} Mbps";
+		var eta = progress.CalculateETA();
+
+		if ( eta == TimeSpan.MaxValue || eta <= TimeSpan.Zero )
+			return $"Downloading · {speed}";
+
+		return $"{TimeLeft( eta )} left · {speed}";
+	}
+
+	/// <summary>
+	/// "2h 5m", "1m 20s", "45s" - short enough to always fit.
+	/// </summary>
+	static string TimeLeft( TimeSpan span )
+	{
+		if ( span.TotalHours >= 1 ) return $"{(int)span.TotalHours}h {span.Minutes}m";
+		if ( span.TotalMinutes >= 1 ) return $"{span.Minutes}m {span.Seconds}s";
+		return $"{Math.Max( 1, span.Seconds )}s";
+	}
+
+	//
+	// The game's thumbnail and art, fetched once per game
+	//
+
+	string _artIdent;
+	string GameThumb;
+	string GameArt;
+
+	void UpdateGameArt()
+	{
+		var ident = Status is { ShowGame: true } ? PartyView.PackageIdent : null;
+		if ( _artIdent == ident ) return;
+
+		_artIdent = ident;
+		GameThumb = null;
+		GameArt = null;
+
+		if ( !string.IsNullOrWhiteSpace( ident ) )
+			_ = LoadGameArt( ident );
+	}
+
+	async Task LoadGameArt( string ident )
+	{
+		try
+		{
+			// Full details, not partial - the screenshots only come with those
+			var package = await Package.FetchAsync( ident, false );
+			if ( !this.IsValid() || _artIdent != ident ) return;
+
+			GameThumb = package?.Thumb;
+			GameArt = PackageArt.Background( package );
+			StateHasChanged();
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( $"Couldn't load the party's game art: {e.Message}" );
+		}
+	}
+
+	static string Percent( double fraction ) => (Math.Clamp( fraction, 0, 1 ) * 100).ToString( "0.0", System.Globalization.CultureInfo.InvariantCulture );
+
+	bool Talking => Preferences.VoiceMode == VoiceMode.OpenMicrophone || (Preferences.VoiceMode == VoiceMode.PushToTalk && Input.Down( "voice" ));
+
+	string VoiceClass => Preferences.VoiceMode == VoiceMode.Disabled ? "disabled" : Talking ? "talking" : "";
+
+	string VoiceTooltip => Preferences.VoiceMode switch
+	{
+		VoiceMode.Disabled => "Voice chat is turned off",
+		VoiceMode.OpenMicrophone => "Open mic - your party can hear you",
+		_ => "Hold push to talk to speak to your party"
+	};
+
+	protected override int BuildHash()
+	{
+		var members = new HashCode();
+		foreach ( var member in Members )
+			members.Add( StatusOf( member ) );
+
+		return System.HashCode.Combine( PartyView.Exists, MemberCount, PartyView.Owner, VoiceClass, Lifted, Status, members.ToHashCode(), HashCode.Combine( GameThumb, GameArt, PartyInvites.Hash ) );
 	}
 
 	public async static Task EnsureLobbyExists()
@@ -64,26 +305,46 @@
 		}
 	}
 
-	async Task InviteSomeone()
-	{
-		await EnsureLobbyExists();
+	/// <summary>
+	/// Popped out of the rail - see <see cref="Sandbox.UI.Footer"/>.
+	/// </summary>
+	[Parameter] public bool Lifted { get; set; }
 
-		ModalSystem.Instance.FriendsList(new FriendsListModalOptions
+	void OpenFriends()
+	{
+		if ( !Lifted ) return;
+
+		ModalSystem.Instance.FriendsList( new Sandbox.Modals.FriendsListModalOptions
 		{
 			ShowOnlineMembers = true,
 			ShowOfflineMembers = false,
 			Anchor = new()
 			{
-				Panel = InviteButton,
-				Position = ModalAnchorPosition.AboveLeft,
-				Offset = 24,
+				// Above the whole card as it's drawn, lined up with its right edge, with a clear gap
+				Panel = Sandbox.UI.Footer.Anchor ?? this,
+				Position = Sandbox.Modals.ModalAnchorPosition.AboveRight,
+				Offset = 16,
 			},
-		});
-    }
+		} );
+
+		// The deck floats above every modal, but this one's the deck's own popover - it has to go
+		// over the deck, not under it
+		if ( MenuOverlay.Instance?.Children.OfType<MenuProject.Modals.FriendsListModal>().LastOrDefault() is { } list )
+			list.Style.ZIndex = Sandbox.UI.Footer.ZIndex + 10;
+	}
+
+	void Retry() => PartyView.Retry();
+
+	void Cancel() => PartyView.Cancel();
+
+	void Leave()
+	{
+		PartyView.Leave();
+	}
 
 	public override void Tick()
 	{
-		MenuUtility.SetVoiceListen(Preferences.VoiceMode != VoiceMode.Disabled && (Preferences.VoiceMode == VoiceMode.OpenMicrophone || Input.Down("voice")));
+		MenuUtility.SetVoiceListen( Talking );
+		UpdateGameArt();
 	}
-
 }

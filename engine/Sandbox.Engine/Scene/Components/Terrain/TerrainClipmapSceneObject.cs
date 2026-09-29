@@ -18,6 +18,11 @@ internal sealed class TerrainClipmapSceneObject : SceneCustomObject
 	private Frustum _cullFrustum;
 	private Vector2 _clipCameraLocal;
 
+	// What the visible meshlets were culled for, so a view's later passes - its prepass, then its opaque pass - reuse them
+	// Native records a view's passes on job threads at once, so one culls while the others wait for it
+	private (Frustum Frustum, Vector2 Camera, Transform Transform, float UnitsPerTexel, float HeightScale, int BlockSize)? _culledFor;
+	private readonly System.Threading.Lock _cullLock = new();
+
 	private Tier[] _tiers = [];
 
 	private struct Tier
@@ -69,6 +74,7 @@ internal sealed class TerrainClipmapSceneObject : SceneCustomObject
 			tiers.Add( GenerateTierMesh( farMeshlets, 1, blockSize, material ) );
 
 		_tiers = [.. tiers];
+		lock ( _cullLock ) _culledFor = null;
 	}
 
 	internal void UpdateClipCamera( Vector3 cameraWorld )
@@ -80,13 +86,24 @@ internal sealed class TerrainClipmapSceneObject : SceneCustomObject
 
 	private void UpdateView( Frustum frustum, Vector3 cameraWorld )
 	{
-		_cullFrustum = frustum;
-
 		var cameraLocal = Transform.PointToLocal( cameraWorld );
-		_clipCameraLocal = new Vector2( cameraLocal.x, cameraLocal.y );
+		var clipCamera = new Vector2( cameraLocal.x, cameraLocal.y );
 
-		foreach ( ref var tier in _tiers.AsSpan() )
-			Cull( ref tier );
+		// A view's passes all see the same meshlets: cull them once, not per pass
+		var key = (frustum, clipCamera, Transform, UnitsPerTexel, HeightScale, BlockSize);
+
+		lock ( _cullLock )
+		{
+			if ( _culledFor == key ) return;
+
+			_cullFrustum = frustum;
+			_clipCameraLocal = clipCamera;
+
+			foreach ( ref var tier in _tiers.AsSpan() )
+				Cull( ref tier );
+
+			_culledFor = key;
+		}
 	}
 
 	public override void RenderSceneObject()

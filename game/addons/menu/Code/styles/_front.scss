@@ -38,6 +38,13 @@ $front-track: rgba( 255, 255, 255, 0.13 );
 
 $front-border: rgba( 255, 255, 255, 0.07 );
 
+// How thick the outline round a panel is - the rail, cards, popovers. One place, so they all match.
+$front-border-width: 0.75px;
+
+// A whisper of a shadow under the rails - the left rail, the right-hand column - just enough to lift
+// them off the scene behind.
+$front-rail-shadow: 0 2px 10px rgba( 0, 0, 0, 0.22 );
+
 // The strip under a tile's art. Opaque enough to carry small text over the 3D backdrop.
 $front-tile-bar: rgba( 14, 18, 26, 0.88 );
 
@@ -64,6 +71,31 @@ $front-chrome-gap: 16px;
 	color: $front-label;
 }
 
+// How strong the texture over every slab is - 0 turns it off.
+$front-grain-opacity: 0.033;
+
+// A paper finish over a surface - a soft grain with faint fibres through it, repeating - so it
+// reads as a material rather than a flat fill. Its own layer behind the content (z-index -1), so
+// it never sits on top of text.
+@mixin front-grain
+{
+	&::after
+	{
+		content: "";
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		background-image: url( "/ui/panel-paper.png" );
+		background-repeat: repeat;
+		background-size: 512px 512px;
+		opacity: $front-grain-opacity;
+		pointer-events: none;
+		z-index: -1;
+	}
+}
+
 // The fill every chrome surface shares - cards, the rail, popovers. Sets the family
 // once here so everything inside inherits it instead of restating it per rule.
 @mixin front-slab
@@ -72,6 +104,8 @@ $front-chrome-gap: 16px;
 	background-color: $front-card;
 	background-image: linear-gradient( 180deg, $front-card-top, $front-card-bottom );
 	backdrop-filter: blur( 8px );
+
+	@include front-grain;
 }
 
 // A slab in the right-hand column. Rounded, hairlined, blurred over the 3D backdrop.
@@ -83,7 +117,7 @@ $front-chrome-gap: 16px;
 	flex-shrink: 0;
 	overflow: hidden;
 	border-radius: $front-radius;
-	border: 1px solid $front-border;
+	border: $front-border-width solid $front-border;
 }
 
 // A section inside a card - full bleed sides come from the card, so pad here.
@@ -104,7 +138,7 @@ $front-chrome-gap: 16px;
 	gap: 5px;
 	padding: 4px 11px;
 	border-radius: 999px;
-	border: 1px solid $front-hairline;
+	border: $front-border-width solid $front-hairline;
 	background-color: rgba( 255, 255, 255, 0.05 );
 	transition: all 0.1s ease;
 
@@ -634,7 +668,7 @@ $front-chrome-gap: 16px;
 	{
 		background-image: none;
 		background-color: rgba( 255, 255, 255, 0.06 );
-		border: 1px solid $front-hairline;
+		border: $front-border-width solid $front-hairline;
 		cursor: default;
 
 		label, icon

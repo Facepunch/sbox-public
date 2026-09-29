@@ -11,6 +11,7 @@ public static partial class MenuUtility
 	public static void OpenGame( string ident, bool allowLaunchOverride = true, Dictionary<string, string> gameSettings = null )
 	{
 		CloseAllModals();
+		Api.Activity.GameRequested( new( "menu", ident ), replace: false );
 
 		if ( gameSettings is not null ) LaunchArguments.GameSettings = gameSettings;
 		_ = LoadAsync( ident, allowLaunchOverride );
@@ -55,6 +56,7 @@ public static partial class MenuUtility
 		try
 		{
 			_isJoiningLobby = true;
+			Api.Activity.GameRequested( new( "quickplay", ident ), replace: false );
 
 			Log.Info( "Searching for games.." );
 			var lobbies = await Networking.QueryLobbies( ident );

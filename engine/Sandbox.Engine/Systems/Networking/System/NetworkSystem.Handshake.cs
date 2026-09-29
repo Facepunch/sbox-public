@@ -418,6 +418,7 @@ internal partial class NetworkSystem
 		}
 
 		FailureReason = $"Kicked from server.\n\nReason: {msg.Reason}";
+		Api.Activity.SetExitReason( "kicked", msg.Reason );
 		Environment.Disconnect( this, FailureReason );
 		return Task.CompletedTask;
 	}

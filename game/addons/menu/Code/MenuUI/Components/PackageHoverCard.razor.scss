@@ -12,7 +12,7 @@ PackageHoverCard
 	pointer-events: all;
 	cursor: default;
 	border-radius: $front-radius;
-	border: 1px solid $front-border;
+	border: $front-border-width solid $front-border;
 	box-shadow: 0 18px 48px rgba( black, 0.7 );
 	transform-origin: 0 0;
 	transition: opacity 0.3s ease-out;
@@ -160,6 +160,61 @@ PackageHoverCard
 			min-width: 0;
 			overflow: hidden;
 			text-overflow: ellipsis;
+		}
+
+		// How it's played, in a chip ahead of the genres - quiet for singleplayer, green for
+		// anything you can play with other people. Browses to that tag.
+		.mode
+		{
+			flex-direction: row;
+			flex-shrink: 0;
+			align-items: center;
+			gap: 4px;
+			height: 20px;
+			padding: 0 8px 0 6px;
+			border-radius: 999px;
+			border: 1px solid rgba( 255, 255, 255, 0.1 );
+			background-color: rgba( 255, 255, 255, 0.05 );
+			cursor: pointer;
+			transition: all 0.1s ease;
+
+			icon
+			{
+				font-size: 13px;
+				color: $front-secondary;
+			}
+
+			label
+			{
+				font-family: $front-font;
+				font-size: 11.5px;
+				font-weight: 700;
+				color: $front-secondary;
+			}
+
+			&:hover
+			{
+				border-color: rgba( 255, 255, 255, 0.25 );
+				background-color: rgba( 255, 255, 255, 0.1 );
+
+				icon, label { color: $front-heading; }
+			}
+
+			&.multiplayer
+			{
+				border-color: rgba( $front-accent, 0.35 );
+				background-color: rgba( $front-accent, 0.12 );
+
+				icon, label { color: $front-accent; }
+
+				&:hover
+				{
+					border-color: rgba( $front-accent, 0.7 );
+					background-color: rgba( $front-accent, 0.22 );
+
+					icon, label { color: $front-accent * 1.5; }
+				}
+			}
 		}
 
 		.fact
@@ -392,7 +447,7 @@ PackageHoverCard
 			flex-direction: row;
 			flex-shrink: 0;
 			border-radius: 999px;
-			border: 1px solid $front-hairline;
+			border: $front-border-width solid $front-hairline;
 			background-color: rgba( 255, 255, 255, 0.07 );
 			overflow: hidden;
 
@@ -430,7 +485,7 @@ PackageHoverCard
 			border-radius: 50%;
 			cursor: pointer;
 			background-color: rgba( 255, 255, 255, 0.07 );
-			border: 1px solid $front-hairline;
+			border: $front-border-width solid $front-hairline;
 			transition: all 0.1s ease;
 
 			icon

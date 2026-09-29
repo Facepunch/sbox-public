@@ -1,3 +1,4 @@
+@using System.Globalization;
 @using Sandbox;
 @using Sandbox.Services;
 @using Sandbox.UI;
@@ -16,21 +17,22 @@
             @for ( var i = 0; i < Jam.Timeline.Length; i++ )
             {
                 var step = Jam.Timeline[i];
-                var state = i < current ? "done" : i == current ? "now" : "";
+                var done = i < current || (step.Phase == Jam.Phase.Nominations && NominationsClosed);
+                var state = done ? "done" : i == current ? "now" : "";
 
                 <div class="node @state" style="flex-grow: @Weight( i )">
                     <div class="dot"></div>
                     @if ( i < Jam.Timeline.Length - 1 )
                     {
                         <div class="line">
-                            @if ( i == current )
+                            @if ( i == current && !done )
                             {
                                 <div class="fill" style="height: @Progress%"></div>
                                 <div class="marker" style="top: @Progress%"></div>
                             }
                         </div>
                     }
-                    <label class="when">@JamFormat.Day( step.At )</label>
+                    <label class="when">@step.At.UtcDateTime.ToString( "ddd d MMM", CultureInfo.InvariantCulture )</label>
                     <div class="step-heading">
                         <label class="name">@step.Name</label>
                         <label class="eta">@Countdown( i, current, step )</label>
@@ -47,6 +49,9 @@
     /// The jam whose phase dates and progress are displayed.
     /// </summary>
     [Parameter] public Jam Jam { get; set; }
+
+    // Nominations can end before the first finals round begins.
+    bool NominationsClosed => Jam is { CommunityVoting: true } && Jam.Now >= Jam.NominationsEnd;
 
     string Progress
     {
@@ -74,7 +79,7 @@
 
     string Countdown( int index, int current, Jam.Step step )
     {
-        if ( index < current ) return "done";
+        if ( index < current || (step.Phase == Jam.Phase.Nominations && NominationsClosed) ) return "done";
 
         if ( index == current )
         {
@@ -87,8 +92,8 @@
             return $"day {into} of {total}";
         }
 
-        return $"in {JamFormat.Countdown( step.At, Jam.Now )}";
+        return $"in {(step.At - Jam.Now).ToCountdownString( includeSeconds: false )}";
     }
 
-    protected override int BuildHash() => HashCode.Combine( Jam?.Ident, Jam?.CurrentStepIndex, Jam?.Now.Hour );
+    protected override int BuildHash() => HashCode.Combine( Jam?.Ident, Jam?.CurrentStepIndex, Jam?.Now.ToUnixTimeSeconds() / 60, NominationsClosed );
 }

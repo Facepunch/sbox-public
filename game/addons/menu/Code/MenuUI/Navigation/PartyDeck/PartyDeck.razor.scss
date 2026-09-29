@@ -1,26 +1,418 @@
-﻿@import '/styles/_Theme.scss';
+@import '/styles/_Theme.scss';
+@import '/styles/_front.scss';
 
+// The party card in the bottom right. Reads like the friends list above it - same title,
+// same round faces - with what you can do on the header and who's in it underneath.
 PartyDeck
 {
-	gap: 16px;
-	align-items: center;
+	position: relative;
+	flex-direction: column;
+	justify-content: flex-start;
+	gap: 14px;
+	padding: 14px $front-inset;
 
+	// The game we're headed into, behind everything - just a wash on the left under its thumbnail.
+	// The card clips it to its corners.
+	> .game-art
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		pointer-events: none;
+		z-index: -1;
+		background-size: cover;
+		background-position: center;
+		// Half strength at the left edge, gone just past halfway across.
+		// White shows, black hides - same as the player list's mask
+		opacity: 0.5;
+		mask-image: linear-gradient( 90deg, white 0%, black 60% );
+	}
+
+	.grow
+	{
+		flex-grow: 1;
+	}
+
+	.head
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 6px;
+
+		.title
+		{
+			font-size: 15px;
+			font-weight: 700;
+			color: $front-heading;
+			margin-right: 2px;
+		}
+
+		// How many are in it - a users glyph and the number
+		.count
+		{
+			flex-direction: row;
+			flex-shrink: 0;
+			align-items: center;
+			gap: 4px;
+			height: 20px;
+			padding: 0 8px 0 6px;
+			border-radius: 999px;
+			border: $front-border-width solid $front-hairline;
+			background-color: rgba( 255, 255, 255, 0.05 );
+
+			icon
+			{
+				font-size: 13px;
+				color: $front-secondary;
+			}
+
+			label
+			{
+				font-size: 11px;
+				font-weight: 700;
+				color: $front-body;
+			}
+		}
+
+		// Following the leader - the header's what's happening instead
+		&.status
+		{
+			gap: 10px;
+		}
+
+		// Neutral for stopped / can't join, green on the way in, red when it went wrong
+		.status-icon
+		{
+			flex-shrink: 0;
+			width: 30px;
+			height: 30px;
+			align-items: center;
+			justify-content: center;
+			border-radius: 50%;
+			background-color: rgba( 255, 255, 255, 0.08 );
+
+			icon
+			{
+				width: 100%;
+				text-align: center;
+				font-size: 17px;
+				color: $front-secondary;
+			}
+
+			// The game itself - a rounded square, like games are everywhere else in the menu
+			&.game
+			{
+				width: 34px;
+				height: 34px;
+				border-radius: 6px;
+				background-size: cover;
+				background-position: center;
+				background-color: rgba( 0, 0, 0, 0.35 );
+				box-shadow: 0 2px 8px rgba( 0, 0, 0, 0.4 );
+			}
+		}
+
+		// Exactly the space that's left, whatever's in it - so a changing speed or time remaining
+		// never moves where the game's name gets cut off
+		.status-text
+		{
+			flex-direction: column;
+			flex-grow: 1;
+			flex-shrink: 1;
+			width: 0;
+			min-width: 0;
+		}
+
+		.status-title
+		{
+			@include front-row-title;
+			font-size: 14px;
+		}
+
+		.status-detail
+		{
+			font-size: 11px;
+			font-weight: 500;
+			color: $front-secondary;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		// Room for "100%" whatever it says, right aligned, so the number ticking up doesn't nudge the text
+		.status-percent
+		{
+			flex-shrink: 0;
+			width: 44px;
+			text-align: right;
+			font-size: 14px;
+			font-weight: 700;
+			color: $front-heading;
+		}
+
+		.status-button
+		{
+			@include front-pill;
+
+			cursor: pointer;
+		}
+	}
+
+	&.joining .head .status-icon
+	{
+		background-color: rgba( $front-reward, 0.2 );
+
+		icon
+		{
+			color: $front-reward;
+		}
+	}
+
+	&.failed .head .status-icon
+	{
+		background-color: rgba( $front-danger, 0.18 );
+
+		icon
+		{
+			color: $front-danger;
+		}
+	}
+
+	// Right under the status - how far along we are
+	.status-track
+	{
+		@include front-track;
+
+		height: 5px;
+		margin-top: -6px;
+
+		.status-fill
+		{
+			height: 100%;
+			border-radius: 999px;
+			background-image: linear-gradient( 90deg, $front-reward-deep, $front-reward );
+			transition: width 0.3s ease-out;
+		}
+	}
+
+	// Square, quiet, glyph only - the mic state and leaving
+	.icon-button
+	{
+		flex-shrink: 0;
+		width: 28px;
+		height: 28px;
+		align-items: center;
+		justify-content: center;
+		border-radius: 6px;
+		border: 1px solid transparent;
+		transition: all 0.1s ease;
+
+		icon
+		{
+			width: 100%;
+			text-align: center;
+			font-size: 17px;
+			color: $front-secondary;
+		}
+
+		&.voice
+		{
+			&.talking
+			{
+				background-color: rgba( $primary-green, 0.15 );
+				border-color: rgba( $primary-green, 0.35 );
+
+				icon
+				{
+					color: $primary-green;
+				}
+			}
+
+			&.disabled icon
+			{
+				color: $front-tertiary;
+			}
+		}
+
+		&.leave
+		{
+			cursor: pointer;
+
+			&:hover
+			{
+				border-color: rgba( $front-danger, 0.45 );
+				background-color: rgba( $front-danger, 0.12 );
+				sound-in: "ui.button.over";
+
+				icon
+				{
+					color: $front-danger;
+				}
+			}
+		}
+
+		// Stop following the leader - stays in the party
+		&.cancel
+		{
+			cursor: pointer;
+
+			&:hover
+			{
+				border-color: $front-hairline;
+				background-color: rgba( 255, 255, 255, 0.08 );
+				sound-in: "ui.button.over";
+
+				icon
+				{
+					color: $front-heading;
+				}
+			}
+		}
+	}
+
+	// Wraps, so a full party of 16 is two rows of 8 compact faces
 	.members
 	{
-		height: 32px;
-		gap: 8px;
-		justify-content: flex-start;
+		flex-direction: row;
+		flex-wrap: wrap;
 		align-items: center;
+		gap: 8px;
 
-		> .empty-slot
+		PartyMember Avatar .avatar, .open-seat, .pending-seat Avatar .avatar
 		{
-			height: 32px;
-			aspect-ratio: 1;
-			outline: 1px solid $default-border;
-			border-radius: 4px;
-			background-color: rgba( black, 0.1 );
-			padding: 0;
+			width: 44px;
+			height: 44px;
+		}
+
+		&.compact
+		{
+			gap: 6px;
+
+			PartyMember Avatar .avatar, .open-seat, .pending-seat Avatar .avatar
+			{
+				width: 38px;
+				height: 38px;
+			}
+		}
+	}
+
+	// Asked in, not here yet - their face, greyed right back inside a dashed ring, with an hourglass.
+	// Pointing at it offers to stop waiting.
+	.pending-seat
+	{
+		position: relative;
+		flex-shrink: 0;
+		pointer-events: all;
+		cursor: pointer;
+
+		Avatar .avatar, Avatar .avatar.online, Avatar .avatar.ingame
+		{
+			// A border, not an outline - outlines don't do dashed
+			border-radius: 50%;
+			border: 2px dashed rgba( 255, 255, 255, 0.3 );
+			background-color: rgba( 0, 0, 0, 0.35 );
+			opacity: 0.45;
+			filter: saturate( 0 );
+			transition: all 0.1s ease;
+		}
+
+		.pending-badge
+		{
+			pointer-events: none;
+			position: absolute;
+			bottom: -5px;
+			left: 50%;
+			transform: translateX( -50% );
+			width: 18px;
+			height: 16px;
+			align-items: center;
 			justify-content: center;
+			border-radius: 999px;
+			border: 1px solid $front-card-deep;
+			background-color: $front-secondary;
+			transition: background-color 0.1s ease;
+
+			icon
+			{
+				font-size: 11px;
+				color: $front-card-deep;
+			}
+
+			.dismiss
+			{
+				display: none;
+			}
+		}
+
+		&:hover
+		{
+			Avatar .avatar, Avatar .avatar.online, Avatar .avatar.ingame
+			{
+				opacity: 0.7;
+				border-color: rgba( $front-danger, 0.7 );
+			}
+
+			.pending-badge
+			{
+				background-color: $front-danger;
+
+				icon { color: #ffffff; }
+				.waiting { display: none; }
+				.dismiss { display: flex; }
+			}
+		}
+	}
+
+	// An open seat - same size and shape as a face, dashed so it reads as empty. Not a button:
+	// inviting is done from the friends list above.
+	.open-seat
+	{
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: center;
+		border-radius: 50%;
+		border: 1px dashed rgba( 255, 255, 255, 0.22 );
+		pointer-events: none;
+		transition: all 0.1s ease;
+
+		icon
+		{
+			width: 100%;
+			text-align: center;
+			font-size: 18px;
+			color: $front-tertiary;
+		}
+
+		// Popped out of the rail, where the friends list isn't to hand - now it opens one
+		&.clickable
+		{
+			pointer-events: all;
+			cursor: pointer;
+			border-color: rgba( 255, 255, 255, 0.35 );
+
+			icon
+			{
+				color: $front-secondary;
+			}
+
+			&:hover
+			{
+				border: 1px solid rgba( $front-primary, 0.8 );
+				background-color: rgba( $front-primary, 0.15 );
+				sound-in: "ui.button.over";
+
+				icon
+				{
+					color: $front-heading;
+				}
+			}
+
+			&:active
+			{
+				sound-in: "ui.button.press";
+			}
 		}
 	}
 }

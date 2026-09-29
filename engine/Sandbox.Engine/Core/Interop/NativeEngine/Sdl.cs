@@ -53,6 +53,8 @@ internal static partial class Sdl
 		DropFile = 0x1000,
 		DropText = 0x1001,
 		DropComplete = 0x1003,
+		AudioDeviceAdded = 0x1100,
+		AudioDeviceRemoved = 0x1101,
 	}
 
 	[Flags]

@@ -76,7 +76,7 @@ partial class Graphics
 		var layout = GetVertexLayout<T>();
 
 		attributes ??= Attributes;
-		return RenderTools.SetRenderState( Context, attributes.Get(), SceneLayer.IsNull ? material.native.GetMode() : material.native.GetMode( SceneLayer ), layout, Stats );
+		return RenderTools.SetRenderState( Context, attributes.Get(), ModeFor( material ), layout, Stats );
 	}
 
 	private static bool SetRenderState( Material material, RenderAttributes attributes )
@@ -84,7 +84,7 @@ partial class Graphics
 		ValidateMaterial( material );
 
 		attributes ??= Attributes;
-		return RenderTools.SetRenderState( Context, attributes.Get(), SceneLayer.IsNull ? material.native.GetMode() : material.native.GetMode( SceneLayer ), default, Stats );
+		return RenderTools.SetRenderState( Context, attributes.Get(), ModeFor( material ), default, Stats );
 	}
 
 	/// <summary>

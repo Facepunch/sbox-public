@@ -161,6 +161,8 @@ public static partial class MenuUtility
 		var connectString = friend.GetRichPresence( "connect" );
 		if ( string.IsNullOrWhiteSpace( connectString ) ) return;
 
+		Api.Activity.GameRequested( new( "friend" ), replace: false );
+
 		connectString = connectString.Replace( "+connect", "" );
 		connectString = connectString.Replace( " ", "" );
 
@@ -247,6 +249,7 @@ public static partial class MenuUtility
 	public static void Connect( ulong lobbyId )
 	{
 		CloseAllModals();
+		Api.Activity.GameRequested( new( "server" ), replace: false );
 		Networking.Connect( lobbyId );
 	}
 
@@ -315,11 +318,11 @@ public static partial class MenuUtility
 
 	/// <summary>
 	/// Whether this friend can be invited to your current (or about-to-be-created) party -
-	/// ie. they're online, not you, and not already in it.
+	/// ie. not you, and not already in it. Offline doesn't rule them out: people set to appear
+	/// offline in Steam are often really there, and still get the invite.
 	/// </summary>
 	public static bool CanInviteToParty( Friend friend )
 	{
-		if ( !friend.IsOnline ) return false;
 		if ( friend.IsMe ) return false;
 		if ( PartyRoom.Current is not null && PartyRoom.Current.Members.Contains( friend ) ) return false;
 

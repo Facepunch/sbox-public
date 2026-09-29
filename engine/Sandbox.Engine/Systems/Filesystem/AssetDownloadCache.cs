@@ -130,29 +130,52 @@ static class AssetDownloadCache
 		return $"{path.ToLowerInvariant().Md5()}.{crc}.cache";
 	}
 
-	internal static bool TryMount( RedirectFileSystem fs, string path, ulong crc )
+	/// <summary>
+	/// Is this file in the game cache, core content or the download cache, without mounting it
+	/// </summary>
+	internal static bool IsCached( string path, ulong crc )
+	{
+		var gc = "/gamecache/" + CreateGameCacheFilename( path, crc.ToString( "x" ) );
+		return EngineFileSystem.Root.FileExists( gc ) || IsFileDownloaded( path, crc, out _ );
+	}
+
+	/// <summary>
+	/// <see cref="ResolveCached"/>'s answer for a file core content already has, so nothing needs mounting.
+	/// </summary>
+	internal static readonly string CoreContent = "core";
+
+	/// <summary>
+	/// Where a cached copy of this file is: the absolute path in the game or download cache,
+	/// <see cref="CoreContent"/>, or null when it has to be downloaded. Only reads, safe off the main thread.
+	/// </summary>
+	internal static string ResolveCached( string path, ulong crc )
 	{
 		var gc = "/gamecache/" + CreateGameCacheFilename( path, crc.ToString( "x" ) );
 		if ( EngineFileSystem.Root.FileExists( gc ) )
-		{
-			//Log.Info( $"GAMECACHE: [{path}]" );
-			fs.AddAbsFile( path.NormalizeFilename( true ), EngineFileSystem.Root.GetFullPath( gc ) );
-			return true;
-		}
+			return EngineFileSystem.Root.GetFullPath( gc );
 
-		if ( IsFileDownloaded( path, crc, out var wasCoreContent ) )
-		{
-			if ( !wasCoreContent )
-			{
-				var cachePath = GetAbsolutePath( path, crc );
-				//Log.Info( $"DOWNLOAD: [{path}]" );
-				fs.AddAbsFile( path.NormalizeFilename( true ), cachePath );
-				return true;
-			}
+		if ( !IsFileDownloaded( path, crc, out var wasCoreContent ) )
+			return null;
 
-			return true;
-		}
+		return wasCoreContent ? CoreContent : GetAbsolutePath( path, crc );
+	}
 
-		return false;
+	internal static bool TryMount( RedirectFileSystem fs, string path, ulong crc )
+	{
+		var resolved = ResolveCached( path, crc );
+		if ( resolved is null ) return false;
+
+		Mount( fs, path, resolved );
+		return true;
+	}
+
+	/// <summary>
+	/// Mount a file at what <see cref="ResolveCached"/> found for it.
+	/// </summary>
+	internal static void Mount( RedirectFileSystem fs, string path, string resolved )
+	{
+		if ( ReferenceEquals( resolved, CoreContent ) ) return;
+
+		fs.AddAbsFile( path.NormalizeFilename( true ), resolved );
 	}
 }

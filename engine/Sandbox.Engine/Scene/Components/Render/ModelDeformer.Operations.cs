@@ -63,7 +63,7 @@ public sealed partial class ModelDeformer
 	public float StretchRatio
 	{
 		get;
-		set => field = float.IsFinite( value ) ? Math.Clamp( value, 0, 2 ) : 1;
+		set => field = float.IsFinite( value ) ? value : 1;
 	} = 1.25f;
 
 	/// <summary>
@@ -74,7 +74,7 @@ public sealed partial class ModelDeformer
 	public float Inflation
 	{
 		get;
-		set => field = float.IsFinite( value ) ? Math.Clamp( value, -1, 1 ) : 0;
+		set => field = float.IsFinite( value ) ? value : 0;
 	} = 1;
 
 	/// <summary>

@@ -5,9 +5,28 @@ namespace Sandbox.Diagnostics;
 /// </summary>
 public static class GpuProfilerStats
 {
-	private static readonly List<string> _entries = new();
-	private static readonly Dictionary<string, float> _smoothedDurations = new();
-	private static readonly Dictionary<string, float> _maxDurations = new();
+	internal struct Row
+	{
+		public string Name;
+		public int Parent;
+		public uint StableId;
+		public bool Measured;
+
+		public bool Unparented;
+	}
+
+	private static readonly List<Row> _rows = new();
+	private static readonly Dictionary<uint, Sample> _samples = new();
+	private static readonly List<uint> _prune = new();
+
+	private struct Sample
+	{
+		public float Smoothed;
+		public float Max;
+		public int LastSeenFrame;
+	}
+
+	private static int _frame;
 	private static bool _enabled;
 	private static RealTimeSince _lastMemoryStatsUpdate;
 	private static bool _hasMemoryStats;
@@ -28,8 +47,8 @@ public static class GpuProfilerStats
 
 			if ( !value )
 			{
-				_smoothedDurations.Clear();
-				_maxDurations.Clear();
+				_samples.Clear();
+				_paths = null;
 			}
 		}
 	}
@@ -54,32 +73,18 @@ public static class GpuProfilerStats
 	/// </summary>
 	public static float VideoMemoryUsageFraction { get; private set; }
 
-	/// <summary>
-	/// Full '/'-separated paths of the current GPU timing scopes (split to build the tree).
-	/// </summary>
-	public static IReadOnlyList<string> Entries => _entries;
+	internal static int RowCount => _rows.Count;
+	internal static Row GetRow( int index ) => _rows[index];
 
-	/// <summary>
-	/// Get a smoothed duration for a given name (for display purposes)
-	/// </summary>
-	public static float GetSmoothedDuration( string name )
-	{
-		return _smoothedDurations.GetValueOrDefault( name, 0f );
-	}
-
-	/// <summary>
-	/// Get a decayed max duration for a given name (for display purposes)
-	/// </summary>
-	public static float GetMaxDuration( string name )
-	{
-		return _maxDurations.GetValueOrDefault( name, 0f );
-	}
+	internal static float GetSmoothedDuration( uint stableId ) => _samples.TryGetValue( stableId, out var s ) ? s.Smoothed : 0f;
+	internal static float GetMaxDuration( uint stableId ) => _samples.TryGetValue( stableId, out var s ) ? s.Max : 0f;
 
 	internal static void Update()
 	{
 		if ( !_enabled )
 		{
-			_entries.Clear();
+			_rows.Clear();
+			_paths = null;
 			return;
 		}
 
@@ -88,41 +93,70 @@ public static class GpuProfilerStats
 			UpdateMemoryStats();
 		}
 
-		_entries.Clear();
+		_frame++;
+		_rows.Clear();
+		_paths = null;
+
 		NativeEngine.CSceneSystem.RefreshGpuTimestampSnapshot();
+
 		int count = NativeEngine.CSceneSystem.GetGpuTimestampCount();
 		for ( int i = 0; i < count; i++ )
 		{
-			var path = NativeEngine.CSceneSystem.GetGpuTimestampPath( i );
+			var row = new Row
+			{
+				Name = NativeEngine.CSceneSystem.GetGpuTimestampName( i ),
+				Parent = NativeEngine.CSceneSystem.GetGpuTimestampParent( i ),
+				StableId = NativeEngine.CSceneSystem.GetGpuTimestampStableId( i ),
+				Measured = NativeEngine.CSceneSystem.GetGpuTimestampMeasured( i ),
+				Unparented = NativeEngine.CSceneSystem.GetGpuTimestampUnparented( i ),
+			};
 
-			if ( string.IsNullOrEmpty( path ) )
+			_rows.Add( row );
+
+			if ( !row.Measured )
 				continue;
 
-			float duration = NativeEngine.CSceneSystem.GetGpuTimestampDuration( i );
+			var duration = NativeEngine.CSceneSystem.GetGpuTimestampDuration( i );
 
-			// Smooth the duration for display
-			if ( _smoothedDurations.TryGetValue( path, out var smoothed ) )
+			if ( _samples.TryGetValue( row.StableId, out var sample ) )
 			{
-				smoothed = MathX.LerpTo( smoothed, duration, Time.Delta );
+				sample.Smoothed = MathX.LerpTo( sample.Smoothed, duration, Time.Delta );
+				sample.Max = duration > sample.Max ? duration : MathX.LerpTo( sample.Max, duration, Time.Delta * 0.25f );
 			}
 			else
 			{
-				smoothed = duration;
+				sample.Smoothed = duration;
+				sample.Max = duration;
 			}
-			_smoothedDurations[path] = smoothed;
 
-			if ( _maxDurations.TryGetValue( path, out var maxDuration ) )
-			{
-				maxDuration = duration > maxDuration ? duration : MathX.LerpTo( maxDuration, duration, Time.Delta * 0.25f );
-			}
-			else
-			{
-				maxDuration = duration;
-			}
-			_maxDurations[path] = maxDuration;
-
-			_entries.Add( path );
+			sample.LastSeenFrame = _frame;
+			_samples[row.StableId] = sample;
 		}
+
+		PruneSamples();
+	}
+
+	/// <summary>
+	/// Drop rows that no longer appear for more than 120 frames, so when this scope shows up again it doesn't use 
+	/// smoothened value from the last sample it used before
+	/// </summary>
+	private static void PruneSamples()
+	{
+		const int window = 120;
+
+		if ( _frame % window != 0 )
+			return;
+
+		_prune.Clear();
+
+		foreach ( var kv in _samples )
+		{
+			if ( _frame - kv.Value.LastSeenFrame > window )
+				_prune.Add( kv.Key );
+		}
+
+		foreach ( var key in _prune )
+			_samples.Remove( key );
 	}
 
 	private static void UpdateMemoryStats()
@@ -136,5 +170,61 @@ public static class GpuProfilerStats
 
 		_lastMemoryStatsUpdate = 0;
 		_hasMemoryStats = true;
+	}
+
+	// Path-based access, kept for compatibility. Nothing in the engine uses it, the overlay walks the rows
+	// directly, so the strings are only built if something actually asks for them.
+	private static List<string> _paths;
+	private static Dictionary<string, uint> _pathIds;
+
+	private static void EnsurePaths()
+	{
+		if ( _paths is not null )
+			return;
+
+		_paths = new List<string>( _rows.Count );
+		_pathIds ??= new Dictionary<string, uint>();
+		_pathIds.Clear();
+
+		for ( int i = 0; i < _rows.Count; i++ )
+		{
+			var path = _rows[i].Name;
+
+			for ( int p = _rows[i].Parent; p >= 0; p = _rows[p].Parent )
+				path = string.Concat( _rows[p].Name, "/", path );
+
+			_paths.Add( path );
+			_pathIds[path] = _rows[i].StableId;
+		}
+	}
+
+	/// <summary>
+	/// Full '/'-separated paths of the current GPU timing scopes (split to build the tree).
+	/// </summary>
+	public static IReadOnlyList<string> Entries
+	{
+		get
+		{
+			EnsurePaths();
+			return _paths;
+		}
+	}
+
+	/// <summary>
+	/// Get a smoothed duration for a given name (for display purposes)
+	/// </summary>
+	public static float GetSmoothedDuration( string name )
+	{
+		EnsurePaths();
+		return _pathIds.TryGetValue( name, out var id ) ? GetSmoothedDuration( id ) : 0f;
+	}
+
+	/// <summary>
+	/// Get a decayed max duration for a given name (for display purposes)
+	/// </summary>
+	public static float GetMaxDuration( string name )
+	{
+		EnsurePaths();
+		return _pathIds.TryGetValue( name, out var id ) ? GetMaxDuration( id ) : 0f;
 	}
 }

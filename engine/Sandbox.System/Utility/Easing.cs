@@ -68,6 +68,27 @@ public static class Easing
 	/// <returns>Output in range 0 to 1.</returns>
 	public static float QuadraticInOut( float f ) => (f *= 2.0f) < 1.0f ? 0.5f * f * f : -0.5f * ((f -= 1f) * (f - 2f) - 1f);
 
+	/// <summary>
+	/// Cubic ease in.
+	/// </summary>
+	/// <param name="f">Input in range of 0 to 1.</param>
+	/// <returns>Output in range 0 to 1.</returns>
+	public static float CubicIn( float f ) => f * f * f;
+
+	/// <summary>
+	/// Cubic ease out.
+	/// </summary>
+	/// <param name="f">Input in range of 0 to 1.</param>
+	/// <returns>Output in range 0 to 1.</returns>
+	public static float CubicOut( float f ) => 1f - MathF.Pow( 1f - f, 3f );
+
+	/// <summary>
+	/// Cubic ease in and out.
+	/// </summary>
+	/// <param name="f">Input in range of 0 to 1.</param>
+	/// <returns>Output in range 0 to 1.</returns>
+	public static float CubicInOut( float f ) => f < 0.5f ? CubicIn( f * 2f ) * 0.5f : CubicOut( (f - 0.5f) * 2f ) * 0.5f + 0.5f;
+
 
 	/// <summary>
 	/// Exponential ease in.

@@ -159,17 +159,21 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 		}
 	}
 
+	private const float OpenEdgeHashLength = 12.0f;
+	private const float OpenEdgeHashSpacing = 20.0f;
+
+	private static float ScreenSize( Vector3 position, float scale )
+	{
+		return scale * Gizmo.Camera.Position.Distance( position ) / 1000.0f;
+	}
+
 	private static void DrawOpenEdge( MeshEdge edge )
 	{
 		var mesh = edge.Component.Mesh;
 		var hFace = mesh.GetHalfEdgeFace( edge.Handle );
-		var spacing = 1.5f;
 
 		if ( !hFace.IsValid )
-		{
 			hFace = mesh.GetHalfEdgeFace( mesh.GetOppositeHalfEdge( edge.Handle ) );
-			spacing *= -1.0f;
-		}
 
 		if ( !hFace.IsValid )
 			return;
@@ -179,24 +183,38 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 		var b = edge.Transform.PointToWorld( line.End );
 		var length = a.Distance( b );
 
+		if ( length <= 0.0f )
+			return;
+
 		mesh.ComputeFaceNormal( hFace, out var normal );
+		normal = edge.Transform.NormalToWorld( normal );
+
 		var direction = (b - a).Normal;
 		var tangent = normal.Cross( direction );
 
-		var cameraDistance = Gizmo.Camera.Position.Distance( (a + b) * 0.5f );
-		var visualScale = (cameraDistance * 0.008f).Clamp( 0.05f, 3f );
+		if ( tangent.IsNearlyZero( 0.0001f ) )
+			return;
 
-		spacing *= visualScale;
+		tangent = tangent.Normal;
 
-		var hashSpacing = (2.5f * visualScale).Clamp( 0.5f, 50f );
-		var numHashes = Math.Max( 3, (int)(length / hashSpacing) );
+		var faceCenter = edge.Transform.PointToWorld( mesh.GetFaceCenter( hFace ) );
 
-		for ( int i = 0; i < numHashes; i++ )
+		if ( tangent.Dot( faceCenter - (a + b) * 0.5f ) < 0.0f )
+			tangent = -tangent;
+
+		var travelled = 0.0f;
+
+		for ( int i = 0; i < 256; i++ )
 		{
-			var t = i / (float)(numHashes - 1);
-			var position = Vector3.Lerp( a, b, t );
-			var hashEnd = position + tangent * spacing;
+			var position = Vector3.Lerp( a, b, travelled / length );
+			var hashEnd = position + tangent * ScreenSize( position, OpenEdgeHashLength );
 			Gizmo.Draw.Line( position, hashEnd );
+
+			if ( travelled >= length )
+				break;
+
+			var step = MathF.Min( ScreenSize( position, OpenEdgeHashSpacing ), length * 0.5f );
+			travelled = MathF.Min( travelled + MathF.Max( step, 0.01f ), length );
 		}
 	}
 

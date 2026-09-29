@@ -195,11 +195,11 @@ CS
             }
             else if ( EnableBack )
             {
-                // No samples behind the focus plane - this texel is fully foreground.
-                // Store its colour with zero CoC rather than black, so the bicubic upsample
-                // in the composite (and the blur's centre sample) don't bleed a dark line
-                // along the foreground edge.
-                OutColor0[vDispatch] = float4( min( colorAll / samplesAll, HALF_MAX ), -1 );
+                // No samples behind the focus plane, so we output a negative weighting to avoid sampling this tile in the blur pass
+                // We use the hardware bilinear filter on compositing to weight the blur towards valid samples.
+                // Needs to be a huge negative value to account for bright pixels
+                const float bilinearNegativeWeighting = -HALF_MAX;
+                OutColor0[vDispatch] = float4( min( colorAll / samplesAll, HALF_MAX ), bilinearNegativeWeighting );
             }
 
             if ( EnableFront )

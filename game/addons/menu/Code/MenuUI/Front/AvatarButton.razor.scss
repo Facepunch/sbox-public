@@ -7,26 +7,43 @@ AvatarButton
 	flex-direction: column;
 	height: 250px;
 	padding: 0 $front-inset;
-	// Double size scaled back down by half: the scene renders at 2x panel
-	// resolution and the downscale anti-aliases the model.
-	.render
+	// Your backdrop, behind your citizen - full strength across the right where they stand, only
+	// fading off once it's past them, under your name. White shows, black hides.
+	.backdrop
 	{
 		position: absolute;
 		left: 0;
 		top: 0;
-		width: 200%;
-		height: 200%;
-		transform: scale( 0.5 );
-		transform-origin: 0% 0%;
+		right: 0;
+		bottom: 0;
+		z-index: 0;
+		pointer-events: none;
+		background-image: url( "/ui/citizen-backdrop.webp" );
+		background-size: cover;
+		background-position: center;
+		opacity: 1;
+		mask-image: linear-gradient( 270deg, white 0%, white 45%, black 100% );
+	}
+
+	// Your citizen, over the backdrop, filling the card - see CitizenPreview
+	.portrait
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
 		z-index: 0;
 	}
-	// Text column over the left half - the character render sits in the right half.
+	// Text column over the left half - the character render sits in the right half. Lets the mouse
+	// through, so you can grab the citizen anywhere on the card.
 	.info
 	{
 		flex-direction: column;
 		flex-grow: 1;
 		padding-top: 18px;
 		z-index: 5;
+		pointer-events: none;
 	}
 
 	.eyebrow
@@ -59,59 +76,5 @@ AvatarButton
 		right: $front-inset;
 		z-index: 10;
 		background-color: rgba( 8, 10, 14, 0.6 );
-	}
-	// No rule above - it would cut straight across the character render behind it.
-	.stats
-	{
-		flex-direction: row;
-		align-items: flex-end;
-		flex-shrink: 0;
-		padding: 12px 0 14px 0;
-		z-index: 5;
-	}
-
-	.stat
-	{
-		flex-direction: column;
-		gap: 4px;
-
-		&.right
-		{
-			align-items: flex-end;
-		}
-	}
-
-	.stat-label
-	{
-		@include front-section-label;
-	}
-
-	.stat-value
-	{
-		flex-direction: row;
-		align-items: center;
-		gap: 7px;
-
-		label
-		{
-			font-size: 20px;
-			font-weight: 700;
-			color: $front-heading;
-		}
-
-		icon
-		{
-			font-size: 20px;
-		}
-
-		.trophy
-		{
-			color: $front-trophy;
-		}
-
-		.points
-		{
-			color: $front-points;
-		}
 	}
 }

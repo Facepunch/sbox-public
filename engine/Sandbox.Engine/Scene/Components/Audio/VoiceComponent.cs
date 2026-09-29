@@ -334,30 +334,28 @@ public class Voice : Component
 		sceneModel.Morphs.ApplyVisemes( visemes, MorphScale, MorphSmoothTime );
 	}
 
-	private unsafe void OnVoice( byte[] buffer )
+	private void OnVoice( byte[] buffer )
 	{
 		if ( buffer.Length < 2 )
 			return;
 		if ( soundStream is null )
 			return;
 
-		VoiceManager.Uncompress( buffer, samples =>
+		if ( !sound.IsValid() )
 		{
-			if ( !sound.IsValid() )
-			{
-				sound = soundStream.Play();
-				sound.TargetMixer = TargetMixer;
-				sound.Distance = Distance;
-				sound.Falloff = Falloff;
-				sound.LipSync.Enabled = LipSync && Renderer.IsValid();
-				sound.IsVoice = true;
-			}
+			sound = soundStream.Play();
+			sound.TargetMixer = TargetMixer;
+			sound.Distance = Distance;
+			sound.Falloff = Falloff;
+			sound.LipSync.Enabled = LipSync && Renderer.IsValid();
+			sound.IsVoice = true;
+		}
 
-			soundStream.WriteData( samples.Span );
+		if ( soundStream.WriteVoiceData( buffer ) <= 0 )
+			return;
 
-			LastPlayed = 0;
-			UpdateSound();
-		} );
+		LastPlayed = 0;
+		UpdateSound();
 	}
 
 	[AttributeUsage( AttributeTargets.Property )]

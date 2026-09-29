@@ -235,7 +235,6 @@ public partial class BaseChair : Component, Component.IPressable, ISitTarget
 		renderer.Set( "sit", (int)SitPose );
 		renderer.Set( "sit_offset_height", SitHeight * 12.0f );
 		renderer.Set( "b_grounded", true );
-		renderer.Set( "b_climbing", false );
 		renderer.Set( "b_swim", false );
 		renderer.Set( "duck", false );
 
@@ -296,7 +295,6 @@ public partial class BaseChair : Component, Component.IPressable, ISitTarget
 		so.SetAnimParameter( "sit", (int)SitPose );
 		so.SetAnimParameter( "sit_offset_height", SitHeight * 12.0f );
 		so.SetAnimParameter( "b_grounded", true );
-		so.SetAnimParameter( "b_climbing", false );
 		so.SetAnimParameter( "b_swim", false );
 		so.SetAnimParameter( "duck", false );
 		so.Update( RealTime.Delta * 10.0f );

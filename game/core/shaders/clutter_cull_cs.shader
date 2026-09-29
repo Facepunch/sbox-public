@@ -129,6 +129,8 @@ CS
 			return;
 
 		float4 sphere = AllInstanceSpheres[id]; // xyz = world center, w = world radius
+		if ( sphere.w < 0.0 ) // Free tile slot.
+			return;
 
 		if ( !SphereInFrustum( sphere.xyz, sphere.w ) )
 			return;

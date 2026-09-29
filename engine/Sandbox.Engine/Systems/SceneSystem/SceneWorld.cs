@@ -14,6 +14,41 @@ public sealed partial class SceneWorld : IHandle
 	internal static HashSet<SceneWorld> All = new HashSet<SceneWorld>();
 
 	internal HashSet<SceneObject> InternalSceneObjects { get; set; } = new();
+
+	/// <summary>
+	/// Told about every change to this world's scene objects - the managed scene renderer's mirror of it, when
+	/// <c>r_managed_scene</c> is on. Null otherwise.
+	/// </summary>
+	internal Rendering.ISceneObjectListener ChangeListener { get; set; }
+
+	/// <summary>
+	/// This world's fog volumes, in the order native's world lists them (<c>CSceneWorld::m_VolumetricFogVolumes</c>: added at
+	/// the end, removed by moving the last into the gap), for the managed scene renderer. <see cref="FogVolumesVersion"/> goes
+	/// up with every change.
+	/// </summary>
+	internal List<SceneFogVolume> FogVolumes { get; } = new();
+
+	/// <summary>
+	/// Goes up whenever <see cref="FogVolumes"/> changes, or one of them does.
+	/// </summary>
+	internal int FogVolumesVersion { get; private set; }
+
+	internal void AddFogVolume( SceneFogVolume volume )
+	{
+		FogVolumes.Add( volume );
+		FogVolumesVersion++;
+	}
+
+	internal void RemoveFogVolume( SceneFogVolume volume )
+	{
+		// As CUtlVector::FastRemove
+		var index = FogVolumes.IndexOf( volume );
+		if ( index < 0 ) return;
+
+		FogVolumes[index] = FogVolumes[^1];
+		FogVolumes.RemoveAt( FogVolumes.Count - 1 );
+		FogVolumesVersion++;
+	}
 	internal HashSet<SceneMap> InternalSceneMaps { get; set; } = new();
 	internal HashSet<SceneSkybox3D> InternalSkyboxWorlds { get; set; } = new();
 	internal IPVS ActivePVS { get; private set; }
@@ -99,6 +134,7 @@ public sealed partial class SceneWorld : IHandle
 
 		InternalSceneMaps.Clear();
 
+		Rendering.ManagedSceneRendering.Forget( this );
 		CSceneSystem.DestroyWorld( this );
 		native = IntPtr.Zero;
 		ActivePVS = default;
@@ -113,6 +149,7 @@ public sealed partial class SceneWorld : IHandle
 
 	internal void OnNativeDestroy()
 	{
+		Rendering.ManagedSceneRendering.Forget( this );
 		native = IntPtr.Zero;
 		ActivePVS = default;
 		All.Remove( this );

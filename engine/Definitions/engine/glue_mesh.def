@@ -157,6 +157,11 @@ native static class MeshGlue as NativeEngine.MeshGlue
 	int GetModelNumIndices( IModel model );
 	void GetModelIndices( IModel model, CastTo[uint32*] void* indices, uint numIndices );
 
+	int GetDrawCallVertexCount( IModel model, int mesh, int drawCall );
+	int GetDrawCallIndexCount( IModel model, int mesh, int drawCall );
+	int GetDrawCallStreams( IModel model, int mesh, int drawCall );
+	bool ReadDrawCall( IModel model, int mesh, int drawCall, CastTo[SboxVertex_t*] void* vertices, uint numVertices, CastTo[uint32*] void* indices, uint numIndices, out uint usedVertices );
+
 	int GetModelIndexCount( IModel model, int drawCall );
 	int GetModelIndexStart( IModel model, int drawCall );
 	int GetModelBaseVertex( IModel model, int drawCall );

@@ -5,6 +5,39 @@ namespace MathTests;
 [TestClass]
 public class EasingTest
 {
+	/// <summary>
+	/// Cubic curves preserve endpoints, progress monotonically and mirror their opposing direction.
+	/// </summary>
+	[TestMethod]
+	public void CubicEasingCurves()
+	{
+		foreach ( var easing in new Easing.Function[] { Easing.CubicIn, Easing.CubicOut, Easing.CubicInOut } )
+		{
+			Assert.AreEqual( 0f, easing( 0f ) );
+			Assert.AreEqual( 1f, easing( 1f ) );
+
+			var previous = 0f;
+
+			for ( var i = 1; i <= 100; i++ )
+			{
+				var value = easing( i / 100f );
+				Assert.IsTrue( value >= previous && value <= 1f );
+				previous = value;
+			}
+		}
+
+		Assert.AreEqual( 0.125f, Easing.CubicIn( 0.5f ) );
+		Assert.AreEqual( 0.875f, Easing.CubicOut( 0.5f ) );
+		Assert.AreEqual( 0.5f, Easing.CubicInOut( 0.5f ) );
+
+		for ( var i = 0; i <= 100; i++ )
+		{
+			var progress = i / 100f;
+			Assert.AreEqual( Easing.CubicIn( progress ), 1f - Easing.CubicOut( 1f - progress ), 0.000001f );
+			Assert.AreEqual( Easing.CubicInOut( progress ), 1f - Easing.CubicInOut( 1f - progress ), 0.000001f );
+		}
+	}
+
 	[TestMethod]
 	public void CubicBezierEndpoints()
 	{
