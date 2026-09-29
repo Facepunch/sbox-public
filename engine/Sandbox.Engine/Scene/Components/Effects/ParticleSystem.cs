@@ -78,7 +78,7 @@ public class LegacyParticleSystem : Component, Component.ExecuteInEditor
 
 		_sceneObject = new SceneParticles( Scene.SceneWorld, _particles );
 		_sceneObject.PhysicsWorld = Scene.PhysicsWorld;
-		_sceneObject.Transform = WorldTransform;
+		_sceneObject.Transform = Transform.InterpolatedWorld;
 		_sceneObject.Tags.SetFrom( Tags );
 	}
 
@@ -153,7 +153,7 @@ public class LegacyParticleSystem : Component, Component.ExecuteInEditor
 	private void OnTransformChanged()
 	{
 		if ( _sceneObject.IsValid() )
-			_sceneObject.Transform = WorldTransform;
+			_sceneObject.Transform = Transform.InterpolatedWorld;
 	}
 
 	protected override void OnTagsChanged()

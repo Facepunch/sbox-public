@@ -118,12 +118,8 @@ internal partial class UISystem
 
 	internal void Simulate( bool allowMouseInput )
 	{
-		using ( Performance.Scope( "Update Screen Size" ) )
-		{
-			Screen.UpdateFromEngine();
-			Size = Screen.Size;
-			DpiScale = Screen.DesktopScale;
-		}
+		Size = Screen.Size;
+		DpiScale = Screen.DesktopScale;
 
 		using ( Performance.Scope( "Tick Panels" ) )
 		{

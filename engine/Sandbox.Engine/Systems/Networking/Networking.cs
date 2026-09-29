@@ -17,7 +17,11 @@ namespace Sandbox;
 public static partial class Networking
 {
 	internal const int ReceiveBatchSize = 32;
-	internal static NetworkSystem System;
+	internal static NetworkSystem System
+	{
+		get => GlobalContext.Current.Network.System;
+		set => GlobalContext.Current.Network.System = value;
+	}
 
 	[ConVar( "net_max_outgoing", ConVarFlags.Protected, Help = "Maximum outgoing messages to send per tick. 0 = unlimited." )]
 	internal static int MaxOutgoingMessagesPerTick { get; set; } = 1024;
@@ -37,7 +41,11 @@ public static partial class Networking
 	[ConVar( "net_host_migration_timeout", ConVarFlags.Protected, Help = "How long a client waits for the new host to show up before giving up, in seconds." )]
 	internal static float HostMigrationTimeout { get; set; } = 15f;
 
-	internal static Dictionary<string, string> ServerData { get; set; } = new();
+	internal static Dictionary<string, string> ServerData
+	{
+		get => GlobalContext.Current.Network.ServerData;
+		set => GlobalContext.Current.Network.ServerData = value;
+	}
 
 	/// <summary>
 	/// Set data about the current server or lobby. Other players can query this
@@ -71,21 +79,18 @@ public static partial class Networking
 		return ServerData.GetValueOrDefault( key, defaultValue );
 	}
 
-	private static string _serverName;
-	private static string _mapName;
-
 	/// <summary>
 	/// The name of the server you are currently connected to.
 	/// </summary>
 	public static string ServerName
 	{
-		get => _serverName;
+		get => GlobalContext.Current.Network.ServerName;
 		set
 		{
-			if ( _serverName == value )
+			if ( GlobalContext.Current.Network.ServerName == value )
 				return;
 
-			_serverName = value;
+			GlobalContext.Current.Network.ServerName = value;
 
 			if ( !IsHost || System is null )
 				return;
@@ -105,13 +110,13 @@ public static partial class Networking
 	/// </summary>
 	public static string MapName
 	{
-		get => _mapName;
+		get => GlobalContext.Current.Network.MapName;
 		internal set
 		{
-			if ( _mapName == value )
+			if ( GlobalContext.Current.Network.MapName == value )
 				return;
 
-			_mapName = value;
+			GlobalContext.Current.Network.MapName = value;
 
 			if ( !IsHost || System is null )
 				return;
@@ -129,7 +134,11 @@ public static partial class Networking
 	/// <summary>
 	/// The maximum number of players allowed on the server you're connected to.
 	/// </summary>
-	public static int MaxPlayers { get; internal set; }
+	public static int MaxPlayers
+	{
+		get => GlobalContext.Current.Network.MaxPlayers;
+		internal set => GlobalContext.Current.Network.MaxPlayers = value;
+	}
 
 	/// <summary>
 	/// The last connection string used to connect to a server.
@@ -193,7 +202,11 @@ public static partial class Networking
 
 	// Wire-level network stats for this machine, aggregated across all non-local connections.
 	// Post-compression, post-framing bytes as reported by the transport layer.
-	internal static ConnectionStats LocalStats { get; private set; }
+	internal static ConnectionStats LocalStats
+	{
+		get => GlobalContext.Current.Network.LocalStats;
+		private set => GlobalContext.Current.Network.LocalStats = value;
+	}
 
 	/// <summary>
 	/// True if we can be considered the host of this session. Either we're not connected to a server, or we are host of a server.
@@ -273,7 +286,7 @@ public static partial class Networking
 	/// <param name="name"></param>
 	internal static void UpdateServerName( string name )
 	{
-		_serverName = name;
+		GlobalContext.Current.Network.ServerName = name;
 	}
 
 	/// <summary>

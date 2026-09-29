@@ -198,7 +198,7 @@ internal partial class NetworkSystem
 		}
 
 		FailureReason = message;
-		IGameInstanceDll.Current.Disconnect( FailureReason );
+		Environment.Disconnect( this, FailureReason );
 	}
 
 	/// <summary>

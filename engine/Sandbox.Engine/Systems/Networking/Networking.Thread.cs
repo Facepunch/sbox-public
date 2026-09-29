@@ -1,4 +1,5 @@
-﻿using System.Threading;
+﻿using Sandbox.Engine;
+using System.Threading;
 
 namespace Sandbox;
 
@@ -32,7 +33,7 @@ public static partial class Networking
 		{
 			while ( !_isClosing )
 			{
-				var system = System;
+				var system = GlobalContext.Game.Network.System;
 
 				if ( system is not null )
 				{

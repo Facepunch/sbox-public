@@ -74,6 +74,10 @@ internal unsafe interface IGameInstanceDll
 	/// Load the assemblies from this package into the current game instance
 	/// </summary>
 	public Task LoadPackageAssembliesAsync( Package package );
+
+	public int CodeVersion => 0;
+
+	public IReadOnlyList<(string Name, byte[] Bytes)> GetGameAssemblies() => null;
 }
 
 [Flags]

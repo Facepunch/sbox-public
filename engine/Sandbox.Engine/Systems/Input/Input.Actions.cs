@@ -228,6 +228,7 @@ public static partial class Input
 
 			foreach ( var e in Contexts )
 			{
+				if ( !ReceivesDeviceInput( e ) ) continue;
 				e.AccumKeysPressed.Add( code );
 			}
 		}
@@ -235,6 +236,7 @@ public static partial class Input
 		{
 			foreach ( var e in Contexts )
 			{
+				if ( !ReceivesDeviceInput( e ) ) continue;
 				e.AccumKeysReleased.Add( code );
 			}
 
@@ -270,7 +272,7 @@ public static partial class Input
 			{
 				foreach ( var e in Contexts )
 				{
-					if ( IsControllerContext( e ) )
+					if ( IsControllerContext( e ) || !ReceivesDeviceInput( e ) )
 						continue;
 
 					e.AccumActionsPressed |= 1UL << i;
@@ -280,7 +282,7 @@ public static partial class Input
 			{
 				foreach ( var e in Contexts )
 				{
-					if ( IsControllerContext( e ) )
+					if ( IsControllerContext( e ) || !ReceivesDeviceInput( e ) )
 						continue;
 
 					e.AccumActionsReleased |= 1UL << i;

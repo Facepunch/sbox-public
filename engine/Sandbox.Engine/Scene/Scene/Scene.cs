@@ -322,8 +322,7 @@ public partial class Scene : GameObject
 
 		PreCameraRender();
 
-		// Get all cameras sorted by render priority
-		var cameras = Cameras.OrderBy( x => x.Priority );
+		var cameras = Cameras.OrderBy( x => x.IsMainCamera ? 1 : 0 ).ThenBy( x => x.Priority );
 		foreach ( var cc in cameras )
 		{
 			if ( cc.Active == false ) continue;

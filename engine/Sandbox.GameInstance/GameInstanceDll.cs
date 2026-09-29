@@ -7,6 +7,7 @@ using Sandbox.UI;
 using Sandbox.Utility;
 using Sandbox.VR;
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace Sandbox;
@@ -104,8 +105,22 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 	static int Counter;
 
+	public int CodeVersion { get; private set; }
+
+	public IReadOnlyList<(string Name, byte[] Bytes)> GetGameAssemblies()
+	{
+		if ( AssemblyEnroller is null )
+			return null;
+
+		return AssemblyEnroller.GetLoadedAssemblies()
+			.Where( x => !x.IsEditorAssembly && x.Assembly is not null )
+			.Select( x => (x.Name, x.CompiledAssemblyBytes) )
+			.ToArray();
+	}
+
 	void OnAfterHotload()
 	{
+		CodeVersion++;
 		GlobalContext.Current.OnHotload();
 		Game.ActiveScene?.OnHotload();
 		Event.Run( "hotloaded" );
@@ -226,6 +241,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			}
 
 			ReplicatedConvars.OnAssembliesLoaded();
+			CodeVersion++;
 		};
 
 		AssemblyEnroller.OnAssemblyRemoved += ( a ) =>
@@ -241,6 +257,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			JsonUpgrader.UpdateUpgraders( TypeLibrary );
 
 			CodeArchiveTable.Remove( a.Name );
+			CodeVersion++;
 		};
 
 		AssemblyEnroller.OnAssemblyFastHotload += ( a ) =>
@@ -518,7 +535,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		using ( Game.ActiveScene?.Push() )
 		{
 			Game.Language?.Tick();
-			GlobalContext.Current.UISystem.Simulate( mouseIsAllowed );
+			GlobalContext.Current.UISystem.Simulate( mouseIsAllowed && InputRouter.FocusedWorld is null );
 
 			Game.ActiveScene?.ProcessDeletes();
 		}
@@ -1006,6 +1023,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		if ( !Networking.IsActive ) return false;
 		if ( Networking.IsHost ) return false;
+		if ( !Networking.System.Environment.ReadsReplicatedConVars ) return ReplicatedConvars.TryGetHostValue( name, out value );
 
 		return ReplicatedConvars.TryGetValue( name, out value );
 	}

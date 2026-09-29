@@ -68,6 +68,7 @@ public static partial class Input
 	{
 		foreach ( var e in Contexts )
 		{
+			if ( !ReceivesDeviceInput( e ) ) continue;
 			e.AccumMouseDelta += delta;
 		}
 	}
@@ -76,6 +77,7 @@ public static partial class Input
 	{
 		foreach ( var e in Contexts )
 		{
+			if ( !ReceivesDeviceInput( e ) ) continue;
 			e.AccumMouseWheel += delta;
 		}
 	}
@@ -122,20 +124,28 @@ public static partial class Input
 	/// </summary>
 	internal static void Process()
 	{
-		// Reset suppression flag
-		Suppressed = false;
-
 		// Flip all controller input contexts
 		foreach ( var controller in Controller.All )
 		{
 			controller.InputContext?.Flip();
 		}
 
+		ProcessContext();
+	}
+
+	internal static void ProcessContext()
+	{
+		// Reset suppression flag
+		Suppressed = false;
+
 		CurrentContext.MouseCursorVisible = InputRouter.MouseCursorVisible;
 
 		// Compute analogs
 		ComputeAnalogLook();
 		ComputeAnalogMove();
+
+		if ( !ReceivesDeviceInput( CurrentContext ) )
+			return;
 
 		// Overlay controller analogs
 		ProcessControllerInput();

@@ -362,6 +362,15 @@ public static class EditorPreferences
 		set => ProjectCookie.Set( "NewInstance.Windowed", value );
 	}
 
+	[Title( "In-Process Clients" )]
+	[Description( "How many in-process clients join the editor's session when you press play." )]
+	[Range( 0, 8 ), Step( 1 )]
+	public static int InProcessClients
+	{
+		get => ProjectCookie.Get( "InProcessClients.Count", 0 );
+		set => ProjectCookie.Set( "InProcessClients.Count", Math.Clamp( value, 0, 8 ) );
+	}
+
 	/// <summary>
 	/// Command-line arguments for new game instances spawned by the editor.
 	/// </summary>

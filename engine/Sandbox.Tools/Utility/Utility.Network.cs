@@ -36,6 +36,12 @@ public static partial class EditorUtility
 		/// </summary>
 		public static void Disconnect() => Networking.Disconnect();
 
+		public static int InProcessClientCount => LocalClients.Count;
+
+		public static void AddInProcessClient() => LocalClients.Add();
+
+		public static void RemoveInProcessClients() => LocalClients.RemoveAll();
+
 		/// <summary>
 		/// Connenct to a network address
 		/// </summary>

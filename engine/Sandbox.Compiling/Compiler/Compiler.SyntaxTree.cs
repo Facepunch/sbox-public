@@ -14,18 +14,29 @@ partial class Compiler
 	/// <summary>
 	/// Collect all of the code that should compiled into this assembly
 	/// </summary>
-	private void GetSyntaxTree( CodeArchive archive, CSharpParseOptions options )
+	private void GetSyntaxTree( CodeArchive archive, CSharpParseOptions options, CompilerOutput output )
 	{
 		try
 		{
 			foreach ( var location in SourceLocations )
 			{
-				CollectFromFilesystem( location, archive, options );
+				CollectFromFilesystem( location, archive, options, output );
 			}
 		}
 		catch ( System.Exception e )
 		{
 			Log.Warning( e, e.Message );
+			AddCollectError( output, $"Error collecting source files: {e.Message}" );
+		}
+	}
+
+	private static void AddCollectError( CompilerOutput output, string message )
+	{
+		var desc = new DiagnosticDescriptor( "SB1001", "Source Error", message, "compiler", DiagnosticSeverity.Error, true );
+
+		lock ( output.Diagnostics )
+		{
+			output.Diagnostics.Add( Diagnostic.Create( desc, null ) );
 		}
 	}
 
@@ -87,7 +98,7 @@ partial class Compiler
 		return null;
 	}
 
-	void CollectFromFilesystem( BaseFileSystem filesystem, CodeArchive targetArchive, CSharpParseOptions options )
+	void CollectFromFilesystem( BaseFileSystem filesystem, CodeArchive targetArchive, CSharpParseOptions options, CompilerOutput output )
 	{
 		var files = filesystem.FindFile( "/", "*.*", true );
 
@@ -120,7 +131,12 @@ partial class Compiler
 			var physicalPath = filesystem.GetFullPath( localPath ) ?? localPath;
 			var contents = filesystem is MemoryFileSystem ? filesystem.ReadAllText( localPath ) : ReadTextForgiving( physicalPath );
 
-			if ( contents is null ) return;
+			// Leaving the file out would build an assembly missing its types, and hotload would null their instances
+			if ( contents is null )
+			{
+				AddCollectError( output, $"Couldn't read {localPath}" );
+				return;
+			}
 
 			var hash = contents.FastHash64();
 

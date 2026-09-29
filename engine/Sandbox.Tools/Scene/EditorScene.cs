@@ -328,6 +328,8 @@ public static class EditorScene
 
 		Game.IsClosing = true;
 
+		LocalClients.RemoveAll();
+
 		SceneEditorSession.Playing?.StopPlaying();
 
 		Game.IsPlaying = false;

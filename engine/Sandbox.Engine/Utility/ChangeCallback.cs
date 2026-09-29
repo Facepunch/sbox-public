@@ -50,39 +50,91 @@ public static class ChangeCallback
 		if ( isTheSame )
 			return;
 
-		if ( p.Object is Component component )
+		if ( p.Object is Component component && IsLoading( component ) )
 		{
-			if ( component.Flags.HasFlag( ComponentFlags.Deserializing ) )
-			{
-				// Do nothing if the component is deserializing. This should be the first
-				// time the property is loaded, so we don't want to invoke a callback.
-				return;
-			}
+			// Values loaded from disk are the initial state, so there's nothing to call back about.
+			// A synced value arriving while a networked object spawns is a real change from that
+			// state though - hold on to it until the object has finished spawning.
+			if ( Sandbox.Network.NetworkTable.IsReadingChanges )
+				Defer( component, property, method, methodWithoutParams, functionName, oldValue );
 
-			var go = component.GameObject;
-			if ( go.IsValid()
-				 && (go.Flags.HasFlag( GameObjectFlags.Deserializing )
-					 || go.Flags.HasFlag( GameObjectFlags.Loading )) )
-			{
-				// Do nothing if the component's GameObject is deserializing or
-				// we're loading.
-				return;
-			}
+			return;
 		}
 
+		// We're calling back about the latest value now, so a deferred callback would repeat it
+		if ( _deferred.Count > 0 && p.Object is Component c )
+			_deferred.RemoveAll( d => d.Target == c && d.Property == property );
+
+		Invoke( p.Object, property, method, methodWithoutParams, functionName, oldValue, p.Value );
+	}
+
+	static bool IsLoading( Component component )
+	{
+		if ( component.Flags.HasFlag( ComponentFlags.Deserializing ) )
+			return true;
+
+		var go = component.GameObject;
+		return go.IsValid()
+			   && (go.Flags.HasFlag( GameObjectFlags.Deserializing )
+				   || go.Flags.HasFlag( GameObjectFlags.Loading ));
+	}
+
+	static void Invoke( object target, PropertyDescription property, MethodDescription method, MethodDescription methodWithoutParams, string functionName, object oldValue, object newValue )
+	{
 		try
 		{
 			if ( method is not null )
-				method.Invoke( p.Object, new[] { oldValue, p.Value } );
+				method.Invoke( target, new[] { oldValue, newValue } );
 			else if ( methodWithoutParams is not null )
-				methodWithoutParams.Invoke( p.Object );
+				methodWithoutParams.Invoke( target );
 			else
 				Log.Warning(
-					$"{type.Name}.{property.Name} has [Change] but we can not find {functionName}( {property.PropertyType} oldValue, {property.PropertyType} newValue )" );
+					$"{property.TypeDescription.Name}.{property.Name} has [Change] but we can not find {functionName}( {property.PropertyType} oldValue, {property.PropertyType} newValue )" );
 		}
 		catch ( Exception e )
 		{
 			Log.Error( e );
+		}
+	}
+
+	record struct DeferredCallback( Component Target, PropertyDescription Property, MethodDescription Method, MethodDescription MethodWithoutParams, string FunctionName, object OldValue );
+
+	static readonly List<DeferredCallback> _deferred = new();
+
+	static void Defer( Component target, PropertyDescription property, MethodDescription method, MethodDescription methodWithoutParams, string functionName, object oldValue )
+	{
+		// Keep the first old value if the same property is written more than once while spawning
+		foreach ( var d in _deferred )
+		{
+			if ( d.Target == target && d.Property == property )
+				return;
+		}
+
+		_deferred.Add( new DeferredCallback( target, property, method, methodWithoutParams, functionName, oldValue ) );
+	}
+
+	/// <summary>
+	/// Invoke [Change] callbacks for synced values that were received while their object was
+	/// being spawned from the network. Called once the spawned objects in <paramref name="scene"/>
+	/// are fully set up - anything still loading, or in another scene, stays queued.
+	/// </summary>
+	internal static void FlushDeferred( Scene scene )
+	{
+		_deferred.RemoveAll( d => !d.Target.IsValid() );
+
+		if ( _deferred.Count == 0 )
+			return;
+
+		var pending = _deferred.Where( d => d.Target.Scene == scene && !IsLoading( d.Target ) ).ToArray();
+		_deferred.RemoveAll( pending.Contains );
+
+		foreach ( var d in pending )
+		{
+			var newValue = d.Property.GetValue( d.Target );
+			if ( Equals( newValue, d.OldValue ) )
+				continue;
+
+			Invoke( d.Target, d.Property, d.Method, d.MethodWithoutParams, d.FunctionName, d.OldValue, newValue );
 		}
 	}
 }

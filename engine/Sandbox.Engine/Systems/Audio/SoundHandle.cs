@@ -326,6 +326,10 @@ public partial class SoundHandle : IValid, IDisposable
 	/// </summary>
 	private readonly WeakReference<Scene> _sceneRef;
 
+	private readonly Engine.GlobalContext _owner;
+
+	internal Mixer OwnerMixer => _owner?.AudioRoot;
+
 	/// <summary>
 	/// Scene this sound belongs to. May return null if the scene has been collected.
 	/// </summary>
@@ -337,6 +341,7 @@ public partial class SoundHandle : IValid, IDisposable
 
 		_sfx = soundHandle;
 		_sceneRef = new WeakReference<Scene>( Game.ActiveScene );
+		_owner = Engine.GlobalContext.Current;
 
 		var tempSound = _sfx.GetSound();
 		SampleRate = tempSound.m_rate();
@@ -368,6 +373,7 @@ public partial class SoundHandle : IValid, IDisposable
 	internal bool IsTargettingMixer( Mixer mixer )
 	{
 		if ( _destroyed ) return false;
+		if ( OwnerMixer is { } ownerMixer ) return ownerMixer == mixer;
 		if ( WantsDefaultMixer() && Mixer.Default == mixer ) return true;
 		if ( TargetMixer is null ) return false;
 		if ( string.IsNullOrEmpty( mixer.Name ) ) return false;
@@ -383,7 +389,7 @@ public partial class SoundHandle : IValid, IDisposable
 	internal Mixer GetEffectiveMixer()
 	{
 		if ( _destroyed ) return null;
-		return TargetMixer ?? Mixer.Default;
+		return OwnerMixer ?? TargetMixer ?? Mixer.Default;
 	}
 
 	/// <summary>
@@ -484,7 +490,8 @@ public partial class SoundHandle : IValid, IDisposable
 		_tickList.AddRange( active );
 		foreach ( var handle in _tickList )
 		{
-			if ( mixer is not null && handle.TargetMixer != mixer ) continue;
+			if ( mixer is not null && handle.TargetMixer != mixer && handle.OwnerMixer != mixer ) continue;
+			if ( mixer is null && handle.OwnerMixer != Engine.GlobalContext.Current.AudioRoot ) continue;
 			if ( handle.IsValid ) handle.Stop( fade );
 		}
 	}
@@ -601,7 +608,7 @@ public partial class SoundHandle : IValid, IDisposable
 			SpacialBlend = SpacialBlend,
 			Position = Position,
 			Scene = Scene,
-			TargetMixer = TargetMixer,
+			TargetMixer = OwnerMixer ?? TargetMixer,
 			CreatedTime = _CreatedTime,
 			SourceOffset = sourceOffset,
 			SourceCount = snap.AllModels.Count - sourceOffset,
@@ -626,7 +633,7 @@ public partial class SoundHandle : IValid, IDisposable
 			Loopback = Loopback,
 			IsVoice = IsVoice,
 			Scene = Scene,
-			TargetMixer = TargetMixer,
+			TargetMixer = OwnerMixer ?? TargetMixer,
 			CreatedTime = _CreatedTime,
 			SourceOffset = 0,
 			SourceCount = 0,

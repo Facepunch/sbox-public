@@ -94,6 +94,18 @@ internal class ReplicatedConvars
 		// TODO - if we have a notice flag, broadcast to the game somehow
 	}
 
+	public bool TryGetHostValue( string name, out string value )
+	{
+		if ( StringTable.Entries.TryGetValue( name, out var entry ) )
+		{
+			value = entry.ReadAsString();
+			return true;
+		}
+
+		value = null;
+		return false;
+	}
+
 	void OnTableEntryRemoved( StringTable.Entry entry )
 	{
 		_values.Remove( entry.Name );

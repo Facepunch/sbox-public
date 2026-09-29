@@ -32,6 +32,7 @@ internal partial class GlobalContext
 	{
 		Game = new GlobalContext();
 		Menu = new GlobalContext();
+		Menu.Network = Game.Network;
 
 		_current.Value = Game;
 	}

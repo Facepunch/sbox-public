@@ -12,6 +12,7 @@ static class Commands
 	private static StreamReader _reader;
 	public static Action<string, string> OnResponse;
 	private static bool _listening;
+	private static readonly object _writeLock = new();
 
 	public static void Init( string pipeName )
 	{
@@ -68,8 +69,11 @@ static class Commands
 
 		try
 		{
-			_writer.WriteLine( commandName + " " + contents );
-			_pipeClient.Flush();
+			lock ( _writeLock )
+			{
+				_writer.WriteLine( commandName + " " + contents );
+				_pipeClient.Flush();
+			}
 		}
 		catch ( Exception ex )
 		{
@@ -84,4 +88,10 @@ static class Commands
 	}
 
 	public static void Finish( string outputFile ) => Send( "FINISH", outputFile );
+
+	public static void Error( string message )
+	{
+		Console.WriteLine( message );
+		Send( "ERROR", message );
+	}
 }

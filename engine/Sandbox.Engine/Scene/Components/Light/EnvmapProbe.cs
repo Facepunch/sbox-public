@@ -298,7 +298,7 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 		Assert.True( !_sceneObject.IsValid() );
 		Assert.NotNull( Scene );
 
-		_sceneObject = new SceneCubemap( Scene.SceneWorld, null, Bounds, WorldTransform, TintColor, Feathering, (int)Projection );
+		_sceneObject = new SceneCubemap( Scene.SceneWorld, null, Bounds, Transform.InterpolatedWorld, TintColor, Feathering, (int)Projection );
 		_sceneObject.Tags.SetFrom( Tags );
 		_sceneObject.Priority = Priority;
 
@@ -350,7 +350,7 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 		if ( !_sceneObject.IsValid() )
 			return;
 
-		var tx = WorldTransform;
+		var tx = Transform.InterpolatedWorld;
 		var bounds = Bounds;
 
 		if ( Mode == EnvmapProbeMode.Realtime )

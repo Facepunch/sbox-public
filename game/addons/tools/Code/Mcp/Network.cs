@@ -2,7 +2,7 @@
 
 namespace Editor.Mcp;
 
-[McpToolset( "network", "Multiplayer from the editor - host a lobby, spawn local client instances, watch connections and trigger a host handoff" )]
+[McpToolset( "network", "Multiplayer from the editor - host a lobby, spawn in-process or local client instances, watch connections and trigger a host handoff" )]
 public static class NetworkTools
 {
 	/// <summary>
@@ -18,6 +18,7 @@ public static class NetworkTools
 			IsHost = Networking.IsActive && Networking.IsHost,
 			IsClient = Networking.IsClient,
 			IsConnecting = Networking.IsConnecting,
+			InProcessClientCount = EditorUtility.Network.InProcessClientCount,
 			LocalId = Connection.Local?.Id ?? default,
 			HostId = Connection.Host?.Id ?? default,
 			Connections = Connection.All.Select( c => new ConnectionState
@@ -98,12 +99,28 @@ public static class NetworkTools
 		};
 	}
 
+	/// <summary>
+	/// Add a client inside the editor process, docked as an in-process client tab. This shares the
+	/// editor's engine process while keeping the local client's game code isolated. Check
+	/// network_status to confirm the client count and connection state.
+	/// </summary>
+	[McpTool( "network_spawn_in_process_client" )]
+	public static NetworkState SpawnInProcessClient()
+	{
+		if ( !EditorUtility.Network.Hosting )
+			throw new Exception( "Not hosting - network_start_hosting first" );
+
+		EditorUtility.Network.AddInProcessClient();
+		return NetworkStatus();
+	}
+
 	public class NetworkState
 	{
 		public bool IsActive { get; set; }
 		public bool IsHost { get; set; }
 		public bool IsClient { get; set; }
 		public bool IsConnecting { get; set; }
+		public int InProcessClientCount { get; set; }
 
 		public Guid LocalId { get; set; }
 		public Guid HostId { get; set; }

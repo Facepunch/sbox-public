@@ -1,4 +1,5 @@
-﻿using Sandbox.Network;
+﻿using Sandbox.Engine;
+using Sandbox.Network;
 
 namespace Sandbox;
 
@@ -9,7 +10,11 @@ public abstract partial class Connection
 	/// locally etc.
 	/// </summary>
 	[ActionGraphInclude]
-	public static Connection Local { get; internal set; } = new LocalConnection( Guid.NewGuid() );
+	public static Connection Local
+	{
+		get => GlobalContext.Current.Network.LocalConnection;
+		internal set => GlobalContext.Current.Network.LocalConnection = value;
+	}
 
 	/// <summary>
 	/// A list of connections that are currently on this server. If you're not on a server

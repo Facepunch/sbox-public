@@ -135,6 +135,11 @@ internal class EtwLogger
 		}
 		finally
 		{
+			if ( _isRunning )
+			{
+				Log.Warning( "Profiler exited before finishing." );
+			}
+
 			CleanUp();
 		}
 	}
@@ -149,6 +154,11 @@ internal class EtwLogger
 
 			case "FINISH":
 				ProcessProfilerOutput( data );
+				break;
+
+			case "ERROR":
+				_isRunning = false;
+				Log.Error( $"[ETW Profiler] Failed: {data}" );
 				break;
 		}
 	}

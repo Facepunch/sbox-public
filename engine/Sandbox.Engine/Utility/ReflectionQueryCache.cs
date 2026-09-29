@@ -46,6 +46,25 @@ internal static class ReflectionQueryCache
 		_clonePlanCache.Clear();
 	}
 
+	public static void RemoveAssembly( Assembly assembly )
+	{
+		Prune( _isTypeCloneableByCopy, assembly );
+		Prune( _isICloneableSafe, assembly );
+		Prune( _isResourceType, assembly );
+		Prune( _orderedMemberCache, assembly );
+		Prune( _clonePlanCache, assembly );
+		Prune( _requiredComponentMemberCache, assembly );
+		Prune( _syncVarMemberCache, assembly );
+	}
+
+	static void Prune<TValue>( Dictionary<Type, TValue> cache, Assembly assembly )
+	{
+		foreach ( var key in cache.Keys.Where( x => x.Assembly == assembly ).ToArray() )
+		{
+			cache.Remove( key );
+		}
+	}
+
 	/// <summary>
 	/// Returns true if this type's ICloneable.Clone() is safe to call during cloning,
 	/// meaning the type declares its own Clone() rather than inheriting a shallow-copy

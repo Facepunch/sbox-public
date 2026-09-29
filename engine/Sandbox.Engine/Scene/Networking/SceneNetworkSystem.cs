@@ -12,7 +12,11 @@ namespace Sandbox;
 [Expose]
 public partial class SceneNetworkSystem : GameNetworkSystem
 {
-	internal static SceneNetworkSystem Instance { get; set; }
+	internal static SceneNetworkSystem Instance
+	{
+		get => GlobalContext.Current.Network.SceneSystem;
+		set => GlobalContext.Current.Network.SceneSystem = value;
+	}
 	internal DeltaSnapshotSystem DeltaSnapshots { get; private set; }
 
 	private List<NetworkObject> BatchSpawnList { get; set; } = [];
@@ -272,12 +276,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		var loadedMsg = new SceneLoadedMsg { SceneId = msg.SceneId, Id = msg.Id };
 		connection.SendMessage( loadedMsg, NetFlags.Reliable );
 
-		if ( Application.IsEditor )
-		{
-			IToolsDll.Current?.SetPlaying();
-		}
-
-		LoadingScreen.IsVisible = false;
+		NetworkSystem.Environment.OnActivated( NetworkSystem );
 	}
 
 	/// <summary>
@@ -651,19 +650,21 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		LoadingScreen.Title = null;
 
+		var scene = Game.ActiveScene;
+
 		// Wait for loading to finish
-		if ( Game.ActiveScene is not null )
+		if ( scene is not null )
 		{
-			await Game.ActiveScene.WaitForLoading();
+			await scene.WaitForLoading();
 		}
 
-		ReapplyCreateTables( createdNetworkObjects );
+		ReapplyCreateTables( scene, createdNetworkObjects );
 
-		if ( Game.ActiveScene.IsValid() )
+		if ( scene.IsValid() )
 		{
-			Game.ActiveScene.Signal( GameObjectSystem.Stage.SceneLoaded );
+			scene.Signal( GameObjectSystem.Stage.SceneLoaded );
 
-			Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnClientInitialize() );
+			scene.RunEvent<ISceneStartup>( x => x.OnClientInitialize() );
 		}
 
 		Game.IsPlaying = true;
@@ -890,7 +891,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		}
 
 		ReadGameObjectSystems( scene, msg );
-		ReapplyCreateTables( created );
+		ReapplyCreateTables( scene, created );
 	}
 
 	private static readonly GameObject.DeserializeOptions _hostOnlyRefreshOptions = new() { IsRefreshing = true, IsNetworkRefresh = true, ClearAbsentFields = true };
@@ -936,12 +937,14 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	}
 
 	// Lifecycle callbacks may have overwritten synced values; the host's win
-	static void ReapplyCreateTables( List<(GameObject go, ObjectCreateMsg msg)> created )
+	static void ReapplyCreateTables( Scene scene, List<(GameObject go, ObjectCreateMsg msg)> created )
 	{
 		foreach ( var (go, msg) in created )
 		{
 			go._net?.ReapplyCreateTable( msg );
 		}
+
+		ChangeCallback.FlushDeferred( scene );
 	}
 
 	private void ResetForNewHost( Connection previousHost, Connection newHost )
@@ -1264,7 +1267,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			}
 		}
 
-		ReapplyCreateTables( created );
+		ReapplyCreateTables( scene, created );
 	}
 
 	private void OnObjectCreate( ObjectCreateMsg message, Connection source, Guid msgId )
@@ -1303,6 +1306,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		}
 
 		go._net?.ReapplyCreateTable( message );
+		ChangeCallback.FlushDeferred( scene );
 	}
 
 	private void OnNetworkTableChanges( SceneNetworkTableMsg message, Connection source, Guid msgId )

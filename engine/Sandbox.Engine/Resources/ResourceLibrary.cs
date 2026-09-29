@@ -24,6 +24,8 @@ public class ResourceSystem
 	/// network deserialization when a resource hasn't been loaded on the client yet.
 	private Dictionary<ulong, string> PathIndex { get; } = new();
 
+	internal ResourceSystem Fallback { get; init; }
+
 	// Used to register resources path for use in networking
 	internal void RegisterPath( string path )
 	{
@@ -284,6 +286,11 @@ public class ResourceSystem
 
 	internal Resource Get( System.Type t, ResourceId id )
 	{
+		return GetLocal( t, id ) ?? Fallback?.Get( t, id );
+	}
+
+	Resource GetLocal( System.Type t, ResourceId id )
+	{
 		// try to load by GUID first
 		if ( id.Guid is Guid guid && guid != default )
 		{
@@ -344,7 +351,7 @@ public class ResourceSystem
 		if ( WeakIndex.TryGetValue( identifier, out var weakRef ) && weakRef.TryGetTarget( out var weakResource ) )
 			return weakResource as T;
 
-		return default;
+		return Fallback?.Get<T>( identifier );
 	}
 
 	// Internal use only — do not expose ulong IDs publicly.
@@ -356,7 +363,7 @@ public class ResourceSystem
 		if ( WeakIndexLong.TryGetValue( idLong, out var weakRef ) && weakRef.TryGetTarget( out var weakResource ) )
 			return weakResource as T;
 
-		return default;
+		return Fallback?.GetByIdLong<T>( idLong );
 	}
 
 	/// <summary>
@@ -372,12 +379,12 @@ public class ResourceSystem
 		if ( WeakGuidIndex.TryGetValue( id, out var weakRef ) && weakRef.TryGetTarget( out var weakResource ) )
 			return weakResource as T;
 
-		return default;
+		return Fallback?.Get<T>( id );
 	}
 
 	internal string LookupPath( ulong idLong )
 	{
-		return PathIndex.GetValueOrDefault( idLong );
+		return PathIndex.GetValueOrDefault( idLong ) ?? Fallback?.LookupPath( idLong );
 	}
 
 	/// <summary>
@@ -433,7 +440,12 @@ public class ResourceSystem
 	/// <typeparam name="T">Resource type to get.</typeparam>
 	public IEnumerable<T> GetAll<T>()
 	{
-		return ResourceIndex.Values.OfType<T>().Distinct();
+		var all = ResourceIndex.Values.OfType<T>().Distinct();
+
+		if ( Fallback is not null )
+			all = all.Concat( Fallback.GetAll<T>() ).Distinct();
+
+		return all;
 	}
 
 	/// <summary>
@@ -446,7 +458,7 @@ public class ResourceSystem
 	{
 		filepath = filepath.Replace( '\\', '/' );
 		if ( !filepath.EndsWith( "/" ) ) filepath += "/";
-		return ResourceIndex.Values.OfType<T>().Distinct().Where( x =>
+		return GetAll<T>().Where( x =>
 		{
 			if ( x.ResourcePath.StartsWith( filepath ) )
 			{

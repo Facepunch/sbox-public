@@ -6,13 +6,15 @@ internal partial class NetworkSystem
 {
 	readonly HashSet<StringTable> tables = new();
 
+	internal IEnumerable<StringTable> Tables => tables;
+
 	/// <summary>
 	/// String tables should all get installed at this point.
 	/// </summary>
 	void InstallStringTables()
 	{
 		InstallTable( ConnectionInfo.StringTable );
-		IGameInstanceDll.Current?.InstallNetworkTables( this );
+		Environment.InstallNetworkTables( this );
 	}
 
 	/// <summary>

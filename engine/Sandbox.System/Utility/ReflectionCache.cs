@@ -4,11 +4,43 @@ using System.Reflection;
 
 namespace Sandbox;
 
+internal abstract class ReflectionCache
+{
+	static readonly List<WeakReference<ReflectionCache>> _all = new();
+
+	protected static void Register( ReflectionCache cache )
+	{
+		lock ( _all )
+		{
+			_all.Add( new WeakReference<ReflectionCache>( cache ) );
+		}
+	}
+
+	internal static void RemoveAssembly( Assembly assembly )
+	{
+		lock ( _all )
+		{
+			for ( var i = _all.Count - 1; i >= 0; i-- )
+			{
+				if ( !_all[i].TryGetTarget( out var cache ) )
+				{
+					_all.RemoveAt( i );
+					continue;
+				}
+
+				cache.Prune( assembly );
+			}
+		}
+	}
+
+	protected abstract void Prune( Assembly assembly );
+}
+
 /// <summary>
 /// Lazily performs expensive reflection, caching the result.
 /// Clears itself during hotloads.
 /// </summary>
-internal sealed class ReflectionCache<TKey, TValue> : IHotloadManaged
+internal sealed class ReflectionCache<TKey, TValue> : ReflectionCache, IHotloadManaged
 	where TKey : MemberInfo
 {
 	[SkipHotload]
@@ -28,6 +60,20 @@ internal sealed class ReflectionCache<TKey, TValue> : IHotloadManaged
 		_defaultItems = defaultItems;
 
 		AddDefaultItems();
+		Register( this );
+	}
+
+	protected override void Prune( Assembly assembly )
+	{
+		foreach ( var key in _cache.Keys )
+		{
+			var owner = key is Type type ? type.Assembly : key.DeclaringType?.Assembly;
+
+			if ( owner == assembly )
+			{
+				_cache.TryRemove( key, out _ );
+			}
+		}
 	}
 
 	/// <summary>

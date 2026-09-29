@@ -30,6 +30,8 @@ public class SceneRenderingWidget : Frame
 
 	public bool EnableEngineOverlays { get; set; } = false;
 
+	internal Func<IDisposable> RenderScope { get; set; }
+
 	// Track if we've locked this widget's size for recording
 	private bool _sizeLockedForRecording;
 	private Vector2 _savedMinSize;
@@ -190,6 +192,8 @@ public class SceneRenderingWidget : Frame
 		if ( !Visible ) return;
 
 		if ( SwapChain == default ) return;
+
+		using var renderScope = RenderScope?.Invoke();
 
 		using ( Scene.Push() )
 		{

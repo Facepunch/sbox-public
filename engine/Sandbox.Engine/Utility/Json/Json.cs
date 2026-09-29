@@ -25,7 +25,9 @@ public static partial class Json
 	/// Should be called on startup and when hotloading. 
 	/// The reason for doing on hotloading is to clear all the types in JsonSerializableFactory
 	/// </summary>
-	internal static void Initialize()
+	internal static void Initialize() => Initialize( true );
+
+	internal static void Initialize( bool updateProcessDefaults )
 	{
 		var typeLibrary = Game.TypeLibrary;
 
@@ -53,6 +55,9 @@ public static partial class Json
 		options.AddActionGraphConverters( () =>
 			Game.NodeLibrary ?? throw new InvalidOperationException(
 				$"{nameof( Game.NodeLibrary )} not set when deserializing." ) );
+
+		if ( !updateProcessDefaults )
+			return;
 
 		BaseFileSystem.JsonSerializerOptions = options;
 

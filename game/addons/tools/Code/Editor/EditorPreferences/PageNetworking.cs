@@ -23,6 +23,14 @@ internal class PageNetworking : Widget
 				Layout.Add( sheet );
 			}
 
+			Layout.Add( new Label( "In-Process Clients" ) );
+			{
+				var sheet = new ControlSheet();
+
+				sheet.AddProperty( () => EditorPreferences.InProcessClients );
+				Layout.Add( sheet );
+			}
+
 			Layout.Add( new Label( "Dedicated Server" ) );
 			{
 				var sheet = new ControlSheet();

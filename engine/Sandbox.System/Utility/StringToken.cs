@@ -41,7 +41,7 @@ public struct StringToken : IEquatable<StringToken>
 		if ( value.Length == 0 ) return 0;
 
 		var token = value.MurmurHash2( true );
-		CacheReverse[token] = value;
+		CacheReverse[token] = value.ToLowerInvariant();
 		return token;
 	}
 

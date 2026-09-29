@@ -7,7 +7,7 @@ namespace Sandbox.Engine;
 /// </summary>
 internal readonly record struct GameSurface( IntPtr Window, SwapChainHandle_t SwapChain, bool? VSyncOverride = null )
 {
-	internal static GameSurface? Current => GameWindow.Current?.Surface ?? IToolsDll.Current?.GameSurface;
+	internal static GameSurface? Current => GlobalContext.Current.Surface ?? GameWindow.Current?.Surface ?? IToolsDll.Current?.GameSurface;
 	internal bool VSync => VSyncOverride ?? (SwapChain != default && g_pRenderDevice.GetSwapChainInfo( SwapChain ).m_bWaitForVSync != 0);
 	internal uint Display => SdlDisplay.ForWindow( Window );
 	/// <summary>

@@ -87,6 +87,8 @@ public static class GameMode
 		if ( _inPlay is null )
 			return;
 
+		LocalClients.Focus( null );
+
 		Sandbox.Engine.WindowInput.OnEditorGameFocusChange( _playWindow, true );
 	}
 
@@ -99,6 +101,22 @@ public static class GameMode
 			return;
 
 		Sandbox.Engine.WindowInput.OnEditorGameFocusChange( _playWindow, false );
+	}
+
+	internal static void RegisterInputWindow( IntPtr window )
+	{
+		NativeEngine.InputSystem.RegisterWindowWithSDL( window );
+	}
+
+	internal static void UnregisterInputWindow( IntPtr window )
+	{
+		Sandbox.Engine.WindowInput.OnEditorGameFocusChange( window, false );
+		NativeEngine.InputSystem.UnregisterWindowFromSDL( window );
+	}
+
+	internal static void SetInputWindowFocus( IntPtr window, bool focused )
+	{
+		Sandbox.Engine.WindowInput.OnEditorGameFocusChange( window, focused );
 	}
 
 	private static void OnPlayWidgetMouseMove( Vector2 local )

@@ -62,39 +62,8 @@ internal partial class NetworkSystem
 		log.Trace( $"Game Package is {msg.GamePackage}" );
 		log.Trace( $"My Client ID is {Connection.Local.Id}" );
 
-		// This is a bit of a mess, it needs a good cleaning up. If they have a menu package, then load it first.
-		if ( !string.IsNullOrEmpty( msg.GamePackage ) )
-		{
-			LoadingScreen.Title = $"Loading {msg.GamePackage}";
-
-			log.Trace( $"Loading menu package.. {msg.GamePackage}" );
-
-			var flags = GameLoadingFlags.Remote | GameLoadingFlags.Reload;
-			if ( IsDeveloperHost ) flags |= GameLoadingFlags.Developer;
-
-			if ( !Application.IsStandalone )
-			{
-				LaunchArguments.Map = msg.Map;
-
-				bool success = await IGameInstanceDll.Current.LoadGamePackageAsync( msg.GamePackage, flags, default );
-				if ( !success )
-				{
-					// Failed to load the game package, we can't continue
-					Networking.Disconnect();
-					return;
-				}
-			}
-		}
-		else
-		{
-			log.Trace( $"No game package - must be a developer" );
-		}
-
-		if ( IGameInstanceDll.Current is not null )
-		{
-			// TypeLibrary was probably rebuilt, keep it up to date
-			TypeLibrary = IGameInstanceDll.Current.TypeLibrary;
-		}
+		if ( !await Environment.LoadGamePackageAsync( this, msg ) )
+			return;
 
 		foreach ( var (k, v) in msg.ServerData )
 		{
@@ -105,38 +74,13 @@ internal partial class NetworkSystem
 		Networking.ServerName = msg.ServerName;
 		Networking.MapName = msg.MapName;
 
-		//
-		// Check any required mount for this map
-		//
-		if ( Mounting.MountUtility.TryParse( msg.Map, out string ident ) )
-		{
-			// make sure the mount exists and is mounted
-			var mount = Mounting.Directory.Get( ident );
-			if ( mount is null || !mount.IsInstalled )
-			{
-				IGameInstanceDll.Current.Disconnect( $"Mount is not available: {ident}" );
-				Networking.Disconnect();
-				return;
-			}
-
-			LoadingScreen.Title = $"Mounting {mount.Title}";
-			await Mounting.Directory.Mount( ident );
-
-			// load the scene now so that it's ready by the time we get to snapshot
-			// which may/will reference procedural resources and could be out of order from the MapInstance doing it's thing (woof)
-			var scenefile = SceneFile.Load( msg.MapName );
-			if ( scenefile is null )
-			{
-				IGameInstanceDll.Current.Disconnect( $"Map not found: {msg.MapName}" );
-				Networking.Disconnect();
-				return;
-			}
-		}
+		if ( !await Environment.MountMapAsync( this, msg ) )
+			return;
 
 		//
 		// Tell me what I need
 		//
-		LoadingScreen.Title = "Fetching Server Data";
+		Environment.SetLoadingTitle( "Fetching Server Data" );
 
 		InstallStringTables();
 		log.Trace( $"Fetching Server Data.." );
@@ -264,16 +208,12 @@ internal partial class NetworkSystem
 
 		log.Trace( "Welcome!" );
 
-		LoadingScreen.Title = "Loading Network Tables";
-		if ( !await IGameInstanceDll.Current?.LoadNetworkTables( this ) )
-		{
-			// code archive compile failed or something
-			Networking.Disconnect();
+		Environment.SetLoadingTitle( "Loading Network Tables" );
+		if ( !await Environment.LoadNetworkTablesAsync( this ) )
 			return;
-		}
 
-		LoadingScreen.Title = "Init Game System";
-		await InitializeGameSystemAsync();
+		Environment.SetLoadingTitle( "Init Game System" );
+		await Environment.InitializeGameSystemAsync( this );
 
 		log.Trace( $"Game Network System: {GameSystem}" );
 
@@ -281,7 +221,7 @@ internal partial class NetworkSystem
 		// Here would be a goodish place to send a bunch of CRC's of the loaded state, so
 		// the server can compare and reject if we're loading assemblies wrong (cheater)
 		//
-		LoadingScreen.Title = "Fetching Snapshot";
+		Environment.SetLoadingTitle( "Fetching Snapshot" );
 
 		var output = new RequestMountedVPKs { HandshakeId = msg.HandshakeId };
 		source.SendMessage( output );
@@ -393,7 +333,7 @@ internal partial class NetworkSystem
 
 		Connection.Local.State = Connection.ChannelState.Snapshot;
 
-		LoadingScreen.Title = "Loading Snapshot";
+		Environment.SetLoadingTitle( "Loading Snapshot" );
 		Log.Trace( $"[{this}] Got a snapshot" );
 
 		//
@@ -410,7 +350,7 @@ internal partial class NetworkSystem
 			catch ( Exception e )
 			{
 				Log.Error( e );
-				IGameInstanceDll.Current.Disconnect( "Error Deserializing Snapshot" );
+				Environment.Disconnect( this, "Error Deserializing Snapshot" );
 				return;
 			}
 		}
@@ -479,7 +419,7 @@ internal partial class NetworkSystem
 
 		FailureReason = $"Kicked from server.\n\nReason: {msg.Reason}";
 		Api.Activity.SetExitReason( "kicked", msg.Reason );
-		IGameInstanceDll.Current.Disconnect( FailureReason );
+		Environment.Disconnect( this, FailureReason );
 		return Task.CompletedTask;
 	}
 
@@ -494,14 +434,8 @@ internal partial class NetworkSystem
 		if ( msg.HandshakeId != Connection.Local.HandshakeId )
 			return Task.CompletedTask;
 
-		if ( Application.IsEditor )
-		{
-			IToolsDll.Current?.SetPlaying();
-		}
-
 		Log.Trace( $"[{this}] I am spawning into the game!" );
-		LoadingScreen.IsVisible = false;
-		Api.Activity.LoadFinished();
+		Environment.OnActivated( this );
 
 		Connection.Local.State = Connection.ChannelState.Connected;
 		source.State = Connection.ChannelState.Connected;

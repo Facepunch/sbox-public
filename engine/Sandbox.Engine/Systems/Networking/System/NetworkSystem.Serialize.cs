@@ -6,7 +6,7 @@ namespace Sandbox.Network;
 
 internal partial class NetworkSystem
 {
-	internal TypeLibrary TypeLibrary { get; private set; }
+	internal TypeLibrary TypeLibrary { get; set; }
 
 	internal void Serialize<T>( T data, ref ByteStream bs )
 	{

@@ -284,6 +284,8 @@ internal class ToolsDll : IToolsDll
 		// close progress windows if compile has finished
 		CompileStatus.CloseProgress();
 
+		LocalClients.Tick();
+
 		// Make sure we agree about Time.Now during editor events while in play mode
 		if ( Game.IsPlaying && Game.ActiveScene is { } scene )
 		{
