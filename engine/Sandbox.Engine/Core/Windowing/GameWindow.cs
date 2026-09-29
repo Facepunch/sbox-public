@@ -75,8 +75,7 @@ internal sealed partial class GameWindow : IDisposable
 					pendingMode = mode;
 					ApplyPendingMode();
 				}
-				try { DrawStartupImage(); }
-				catch ( Exception e ) { Log.Warning( e, "Couldn't draw the startup image" ); }
+				UpdateStartupProgress( 0.02f );
 				if ( !fullscreen ) window.Show();
 			}
 		}

@@ -68,9 +68,17 @@ public partial class Material
 		var instanceId = native.GetBindingPtr().ToInt64();
 		if ( NativeResourceCache.TryGetValue<Material>( instanceId, out var material ) )
 		{
-			// The already loaded Material has it's own strong handle, we need to destroy the one just given to us to prevent leak.
-			native.DestroyStrongHandle();
-			return material;
+			// A destroyed wrapper at a reused address isn't this material: replace it, as Texture does
+			if ( !material.IsValid )
+			{
+				NativeResourceCache.Remove( instanceId );
+			}
+			else
+			{
+				// The already loaded Material has it's own strong handle, we need to destroy the one just given to us to prevent leak.
+				native.DestroyStrongHandle();
+				return material;
+			}
 		}
 
 		material = new Material( native, name ?? native.GetName() );

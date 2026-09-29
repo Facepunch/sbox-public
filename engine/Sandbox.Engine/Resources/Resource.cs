@@ -113,6 +113,7 @@ public abstract partial class Resource : IValid, IJsonConvert, BytePack.ISeriali
 		if ( t == typeof( SoundFile ) ) return SoundFile.Load( id.Path ); // todo: guid me
 		if ( t == typeof( AnimationGraph ) ) return AnimationGraph.Load( id );
 		if ( t == typeof( Shader ) ) return Shader.Load( id );
+		if ( t == typeof( PhysicsGroupDescription ) ) return PhysicsGroupDescription.Load( id );
 
 		return null;
 	}
@@ -157,14 +158,20 @@ public abstract partial class Resource : IValid, IJsonConvert, BytePack.ISeriali
 	/// and hand it the file data via <see cref="OnLoaded"/>. Runs on the main
 	/// thread, fires on reloads too.
 	/// </summary>
-	internal static void OnResourceLoaded( string resourceName, IntPtr header )
+	internal static void OnResourceLoaded( string resourceName, IntPtr header, ulong dataSize )
 	{
+		if ( dataSize > int.MaxValue )
+		{
+			Log.Warning( $"Cannot read managed resource blocks from '{resourceName}': loaded data exceeds the supported size." );
+			return;
+		}
+
 		// This fires from the engine frame, outside any context scope - the wrapper
 		// could be registered in either context's resource system, so check both.
 		var resource = Engine.GlobalContext.Game.ResourceSystem.Get( typeof( Resource ), resourceName )
 			?? Engine.GlobalContext.Menu.ResourceSystem.Get( typeof( Resource ), resourceName );
 
-		resource?.OnLoaded( new ResourceLoadContext( resourceName, header ) );
+		resource?.OnLoaded( new ResourceLoadContext( resourceName, header, (int)dataSize ) );
 	}
 
 	/// <summary>

@@ -50,15 +50,13 @@ public partial class ViewportTools : Widget
 
 		var left = toolbar.AddRow( 1 );
 		left.Spacing = Spacing;
-		left.Alignment = TextFlag.LeftCenter;
 
-		var center = toolbar.AddRow( 1 );
+		var center = toolbar.AddRow();
 		center.Spacing = Spacing;
 		center.Alignment = TextFlag.Center;
 
 		var right = toolbar.AddRow( 1 );
 		right.Spacing = Spacing;
-		right.Alignment = TextFlag.RightCenter;
 
 		// These only get built for game view mode, clear them.
 		FrameTimeLabel = null;
@@ -77,12 +75,13 @@ public partial class ViewportTools : Widget
 			BuildToolExtensionToolbar( left );
 		}
 
-		toolbar.AddStretchCell();
+		left.AddStretchCell( 1 );
 
 		PlayToolbar = center.Add( AddGroup() );
 		PlayToolbar.Layout.Spacing = Spacing;
 		BuildPlayToolbar( PlayToolbar.Layout );
 
+		right.AddStretchCell( 1 );
 		BuildToolbarRight( right );
 
 		Layout.AddStretchCell();

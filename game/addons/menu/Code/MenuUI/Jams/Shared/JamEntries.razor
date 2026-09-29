@@ -1,3 +1,4 @@
+@using System.Globalization;
 @using Sandbox;
 @using Sandbox.Services;
 @using Sandbox.UI;
@@ -14,7 +15,7 @@
 	{
 		<div class="jam-empty">
 			<icon>lock_clock</icon>
-			<label class="title">Theme drops @JamFormat.Day( Jam.Starts )</label>
+			<label class="title">Theme drops @Jam.Starts.UtcDateTime.ToString( "ddd d MMM", CultureInfo.InvariantCulture )</label>
 			<label class="hint">Entries open the moment it does.</label>
 		</div>
 	}

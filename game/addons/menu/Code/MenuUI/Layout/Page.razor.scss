@@ -38,6 +38,7 @@ Page > .inner > .sidebar
     gap: 8px;
     margin: $front-chrome-gap;
     padding: 24px;
+    box-shadow: $front-rail-shadow;
 }
 
 // width 0 + grow: take the leftover space, never the content's width - otherwise a wide

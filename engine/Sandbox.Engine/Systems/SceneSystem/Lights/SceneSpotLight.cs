@@ -15,7 +15,7 @@ public sealed class SceneSpotLight : SceneLight
 	public float ConeInner
 	{
 		get { return lightNative.GetTheta(); }
-		set { lightNative.SetTheta( value ); }
+		set { lightNative.SetTheta( value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
 	}
 
 	/// <summary>
@@ -24,13 +24,13 @@ public sealed class SceneSpotLight : SceneLight
 	public float ConeOuter
 	{
 		get { return lightNative.GetPhi(); }
-		set { lightNative.SetPhi( value ); }
+		set { lightNative.SetPhi( value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
 	}
 
 	public float FallOff
 	{
 		get { return lightNative.GetFallOff(); }
-		set { lightNative.SetFallOff( value ); }
+		set { lightNative.SetFallOff( value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
 	}
 
 	public SceneSpotLight( SceneWorld world, Vector3 position, Color color ) : base()

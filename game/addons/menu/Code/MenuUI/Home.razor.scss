@@ -99,24 +99,16 @@ Home
 		gap: 16px;
 	}
 
-	// Right-hand column - two cards, the tall profile slab and the news hero.
+	// Right-hand column - one card: your avatar, your stats, then your friends,
+	// split by hairlines rather than gaps.
 	.aside
 	{
 		flex-shrink: 0;
 		width: 400px;
 		flex-direction: column;
-		gap: 16px;
 		padding: $front-chrome-gap $front-chrome-gap $front-chrome-gap 0;
 		overflow: hidden;
 
-		// News keeps its natural height - only the profile card flexes.
-		> *
-		{
-			flex-shrink: 0;
-		}
-
-		// Takes every pixel the news card doesn't, so the column reaches the
-		// bottom of the screen instead of trailing off into empty space.
 		.profile-card
 		{
 			@include front-card;
@@ -124,17 +116,38 @@ Home
 			flex-grow: 1;
 			flex-shrink: 1;
 			height: 0;
+			box-shadow: $front-rail-shadow;
 
-			News
+			// The avatar and stats keep their natural height - the friends list takes the
+			// rest, so the card reaches the bottom of the screen and scrolls inside.
+			> *
 			{
 				flex-shrink: 0;
-				border-radius: 0;
-				border-width: 0;
-				border-top: 1px solid $front-hairline;
+			}
 
-				&:hover
+			> ProfileStats, > FriendsRail, > .party-slot
+			{
+				border-top: $front-border-width solid $front-hairline;
+			}
+
+			> FriendsRail
+			{
+				flex-grow: 1;
+				flex-shrink: 1;
+				height: 0;
+			}
+
+			// The bottom band, room for the party deck. The deck floats over it from the menu
+			// overlay (so it can stay above modals), and sets this height to its own as the
+			// party grows - see Footer.razor.
+			> .party-slot
+			{
+				flex-shrink: 0;
+				height: 120px;
+
+				&.hidden
 				{
-					border-color: $front-hairline;
+					display: none;
 				}
 			}
 		}

@@ -117,14 +117,14 @@
         Sound.Play( "ui.button.press" );
         timeUntilCanInvite = 5;
 
-        await PartyDeck.EnsureLobbyExists();
-        MenuUtility.InviteToParty(Friend.Id);
+        // Through PartyInvites, so the deck holds them a seat and the friends list shows it's pending
+        await PartyInvites.Invite( Friend.Id );
     }
 
     protected override int BuildHash() => HashCode.Combine( InviteOnCooldown );
 
     void ShowFriendPopup()
     {
-        FriendPopup.Show(this, Friend, Popup.PositionMode.Right, 28.0f);
+        FriendCard.Show(this, Friend, Popup.PositionMode.Right, 20);
     }
 }

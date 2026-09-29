@@ -105,6 +105,10 @@ internal static class SdlEvents
 				break;
 			case Sdl.EventType.GamepadAdded: SdlGamepads.Connect( e.GamepadDevice.Which ); break;
 			case Sdl.EventType.GamepadRemoved: SdlGamepads.Disconnect( e.GamepadDevice.Which ); break;
+			case Sdl.EventType.AudioDeviceAdded:
+			case Sdl.EventType.AudioDeviceRemoved:
+				VoiceManager.OnAudioDevicesChanged();
+				break;
 			case Sdl.EventType.GamepadButtonDown:
 			case Sdl.EventType.GamepadButtonUp:
 				InputRouter.OnGameControllerButton( (int)e.GamepadButton.Which, (GameControllerCode)e.GamepadButton.Button, e.Type == Sdl.EventType.GamepadButtonDown );

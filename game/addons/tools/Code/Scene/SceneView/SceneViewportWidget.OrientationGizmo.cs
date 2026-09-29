@@ -94,7 +94,7 @@ public partial class SceneViewportWidget
 		var suppressGizmoHover = cameraDragActive || _gizmoCameraDragWasActive;
 		_gizmoCameraDragWasActive = cameraDragActive;
 
-		_gizmoHovered = appActive && !suppressGizmoHover && (interacting || overBody || _gizmoHoveredAxis >= 0);
+		_gizmoHovered = appActive && !suppressGizmoHover && (interacting || hasMouseFocus && (overBody || _gizmoHoveredAxis >= 0));
 
 		var leftDown = Application.MouseButtons.HasFlag( MouseButtons.Left );
 

@@ -85,7 +85,7 @@ public sealed partial class ModelDeformer : VolumeComponent, Component.ExecuteIn
 	/// <summary>
 	/// Whether this volume can change any vertices.
 	/// </summary>
-	internal bool IsActive => Weight > 0 && (Operation switch
+	internal bool IsActive => Weight != 0 && (Operation switch
 	{
 		OperationType.Transform => Translation != Vector3.Zero || RotationOffset != Angles.Zero || ScaleFactor != Vector3.One,
 		OperationType.SquashStretch => StretchRatio != 1,
@@ -134,18 +134,18 @@ public sealed partial class ModelDeformer : VolumeComponent, Component.ExecuteIn
 	public float Falloff
 	{
 		get;
-		set => field = float.IsFinite( value ) ? Math.Clamp( value, 0, 1 ) : 0.5f;
+		set => field = float.IsFinite( value ) ? value : 0.5f;
 	} = 0.5f;
 
 	/// <summary>
 	/// Blend from the original shape at zero to the full effect at one.
-	/// Lower this to soften the result, or animate it to bring the effect in and out.
+	/// Negative values reverse the displacement; values above one amplify it.
 	/// </summary>
-	[Property, Order( 101 ), Title( "Value" ), Range( 0, 1 )]
+	[Property, Order( 101 ), Title( "Value" ), Range( -1, 1 )]
 	public float Weight
 	{
 		get;
-		set => field = float.IsFinite( value ) ? Math.Clamp( value, 0, 1 ) : 0;
+		set => field = float.IsFinite( value ) ? value : 0;
 	} = 1;
 
 	/// <summary>
@@ -163,7 +163,7 @@ public sealed partial class ModelDeformer : VolumeComponent, Component.ExecuteIn
 	public float NormalSmoothingRadius
 	{
 		get;
-		set => field = float.IsFinite( value ) ? Math.Max( 0.01f, value ) : 1;
+		set => field = float.IsFinite( value ) ? value : 1;
 	} = 1;
 
 	/// <summary>
@@ -235,14 +235,6 @@ public sealed partial class ModelDeformer : VolumeComponent, Component.ExecuteIn
 	internal SceneDeformationVolumeData CreateDeformationData( Transform placement )
 	{
 		GetShapeParameters( out var center, out var size, out var radius );
-		ValidateDeformation( center, size, radius );
-
-		var scaleVolume = placement.Scale.x * placement.Scale.y * placement.Scale.z;
-		if ( !placement.Position.IsFinite || !placement.Scale.IsFinite || !placement.Rotation.IsFinite ||
-			!float.IsFinite( scaleVolume ) || MathF.Abs( scaleVolume ) < 1e-8f )
-		{
-			throw new ArgumentException( "Volume placement must be finite and invertible.", nameof( placement ) );
-		}
 
 		var data = Data;
 		if ( !_hasPackedData || !_packedPlacement.Equals( placement ) )
@@ -271,32 +263,19 @@ public sealed partial class ModelDeformer : VolumeComponent, Component.ExecuteIn
 		data.CenterShape = new Vector4( center.x, center.y, center.z, (int)SceneVolume.Type );
 		PackOperation( ref data );
 
+		// Allow any authored range, but never pass NaN or infinity to the renderer.
 		if ( !data.ModelToVolumeRow0.IsFinite || !data.ModelToVolumeRow1.IsFinite || !data.ModelToVolumeRow2.IsFinite ||
-			!data.VolumeToModelRow0.IsFinite || !data.VolumeToModelRow1.IsFinite || !data.VolumeToModelRow2.IsFinite )
+			!data.VolumeToModelRow0.IsFinite || !data.VolumeToModelRow1.IsFinite || !data.VolumeToModelRow2.IsFinite ||
+			!data.TransformRow0.IsFinite || !data.TransformRow1.IsFinite || !data.TransformRow2.IsFinite ||
+			!data.SizeRadius.IsFinite || !data.AmountFalloff.IsFinite || !data.WeightOperation.IsFinite || !data.CenterShape.IsFinite )
 		{
-			throw new ArgumentException( "Volume placement must produce finite transform matrices.", nameof( placement ) );
+			throw new ArgumentException( "Deformation parameters must produce finite renderer data." );
 		}
 
 		Data = data;
 		_packedPlacement = placement;
 		_hasPackedData = true;
 		return data;
-	}
-
-	/// <summary>
-	/// Checks parameters before passing them across the native boundary.
-	/// </summary>
-	private void ValidateDeformation( Vector3 center, Vector3 size, float radius )
-	{
-		if ( !Enum.IsDefined( SceneVolume.Type ) || !Enum.IsDefined( Operation ) || !Enum.IsDefined( NormalMode ) ||
-			!float.IsFinite( NormalSmoothingRadius ) || NormalSmoothingRadius < 0 ||
-			(NormalMode == NormalModeType.Smooth && NormalSmoothingRadius < 0.01f) || !center.IsFinite || !size.IsFinite ||
-			!float.IsFinite( radius ) || radius < 0 ||
-			!float.IsFinite( Falloff ) || Falloff < 0 || Falloff > 1 || !float.IsFinite( Weight ) || Weight < 0 || Weight > 1 ||
-			(SceneVolume.Type == SceneVolume.VolumeTypes.Box && (size.x < 0 || size.y < 0 || size.z < 0)) )
-		{
-			throw new ArgumentException( "Deformation parameters must be finite, with nonnegative shape dimensions, falloff in [0,1] and weight in [0,1]." );
-		}
 	}
 
 	private void GetShapeParameters( out Vector3 center, out Vector3 size, out float radius )

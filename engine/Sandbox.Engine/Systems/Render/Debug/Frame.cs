@@ -1,4 +1,5 @@
 using Sandbox.Diagnostics;
+using Sandbox.Rendering;
 
 namespace Sandbox;
 
@@ -13,6 +14,7 @@ internal static partial class DebugOverlay
 		private static int _histCount;
 		private static uint _lastGpuFrameNo;
 		private static readonly TextRendering.Outline _outline = new() { Color = Color.Black, Size = 2, Enabled = true };
+		private static readonly TextRendering.Outline _bannerOutline = new() { Color = Color.Black, Size = 4, Enabled = true };
 
 		// I pulled these out of my ass based on vibes
 		private const double DrawCallsGreen = 1500;
@@ -49,6 +51,10 @@ internal static partial class DebugOverlay
 		private static readonly Color ColCrit = new( 1.0f, 0.30f, 0.30f );
 		private static readonly Color ColDim = Color.White.WithAlpha( 0.75f );
 
+		// Which renderer drew the frame
+		private static readonly Color ColManagedRenderer = new( 0.35f, 1.0f, 0.55f );
+		private static readonly Color ColNativeRenderer = new( 1.0f, 0.62f, 0.20f );
+
 		// Composition-bar colours
 		private static readonly Color BarBase = new( 0.40f, 0.70f, 1.00f );
 		private static readonly Color BarAnim = new( 0.95f, 0.65f, 0.30f );
@@ -70,6 +76,9 @@ internal static partial class DebugOverlay
 			var drawPos = new Vector2( pos.x + 24, pos.y );
 			var startY = drawPos.y;
 
+			DrawRendererBanner( painter, ref drawPos );
+			drawPos.y += 6;
+
 			float cpuMs = (float)(PerformanceStats.FrameTime * 1000.0);
 			float gpuMs = PerformanceStats.GpuFrametime;
 			uint gpuFrameNo = PerformanceStats.GpuFrameNumber;
@@ -88,24 +97,49 @@ internal static partial class DebugOverlay
 			drawPos.y += 6;
 
 			var f = FrameStats.Current;
+			var managed = f.Managed;
+			var isManaged = managed.Renders > 0;
 
 			DrawSectionHeader( painter, ref drawPos, "Geometry" );
 			drawPos.y += 4;
 
 			double totalObjPrim = f.BaseObjectDraws + f.AnimatableObjectDraws + f.AggregateObjectDraws;
-			Row( painter, ref drawPos, "Objects", f.ObjectsRendered, $"{f.BaseObjectDraws:N0} base, {f.AnimatableObjectDraws:N0} anim, {f.AggregateObjectDraws:N0} agg" );
+			if ( isManaged )
+				Row( painter, ref drawPos, "Objects", f.ObjectsRendered, $"{managed.Instances:N0} instances, {managed.ObjectsSizeCulled:N0} too small" );
+			else
+				Row( painter, ref drawPos, "Objects", f.ObjectsRendered, $"{f.BaseObjectDraws:N0} base, {f.AnimatableObjectDraws:N0} anim, {f.AggregateObjectDraws:N0} agg" );
 
 			double trisPerDraw = SafeRatio( f.TrianglesRendered, f.DrawCalls );
 			Row( painter, ref drawPos, "Draw Calls", f.DrawCalls, $"{trisPerDraw:N0} tris/draw", valueColor: ColourForDrawCalls( f.DrawCalls ) );
 			Row( painter, ref drawPos, "Triangles", f.TrianglesRendered, valueColor: ColourForTrisPerDraw( trisPerDraw ) );
 			if ( f.AggregateObjectDrawCalls > 0 )
-				Row( painter, ref drawPos, "Aggregate Draws", f.AggregateObjectDrawCalls, $"{SafeRatio( f.AggregateObjectDraws, f.AggregateObjectDrawCalls ):N1} frags/draw, {f.AggregateObjectsFullyCulled:N0} fully culled" );
+			{
+				// Everything an indirect submit covered, plus the fragments that drew one at a time
+				double fragments = f.AggregateIndirectFragments + (f.AggregateObjectDrawCalls - f.AggregateIndirectSubmits);
+				Row( painter, ref drawPos, "Aggregate Draws", f.AggregateObjectDrawCalls, $"{SafeRatio( fragments, f.AggregateObjectDrawCalls ):N1} frags/draw, {f.AggregateObjectsFullyCulled:N0} fully culled" );
+			}
 			if ( f.ObjectsFading > 0 ) Row( painter, ref drawPos, "Objects Fading", f.ObjectsFading );
 			Row( painter, ref drawPos, "Display Lists", f.DisplayLists );
 			Row( painter, ref drawPos, "Views", f.SceneViewsRendered );
 			Row( painter, ref drawPos, "Resolves", f.RenderTargetResolves );
 
-			if ( verbosity >= 2 )
+			if ( isManaged )
+			{
+				drawPos.y += 8;
+				DrawManaged( painter, ref drawPos, managed, verbosity );
+			}
+
+			if ( verbosity >= 2 && isManaged )
+			{
+				drawPos.y += 8;
+				DrawSectionHeader( painter, ref drawPos, "Culling" );
+				drawPos.y += 4;
+
+				double sizePct = SafePercent( f.ObjectsCulledByScreenSize, f.ObjectsTested );
+				Row( painter, ref drawPos, "Too small", f.ObjectsCulledByScreenSize, $"{f.ObjectsTested:N0} tested  ·  size {sizePct:N1}%" );
+				Note( painter, ref drawPos, "Batching and material counters are native's: the managed renderer's draws aren't in them" );
+			}
+			else if ( verbosity >= 2 )
 			{
 				drawPos.y += 8;
 				DrawSectionHeader( painter, ref drawPos, "Batching" );
@@ -152,12 +186,16 @@ internal static partial class DebugOverlay
 				Row( painter, ref drawPos, "Contexts", f.PrimaryContexts + f.SecondaryContexts, $"{f.PrimaryContexts:N0} primary, {f.SecondaryContexts:N0} secondary" );
 			}
 
-			drawPos.y += 8;
-			DrawSectionHeader( painter, ref drawPos, "Lights" );
-			drawPos.y += 4;
-			Row( painter, ref drawPos, "Shadowed Lights", f.ShadowedLightsInView );
-			Row( painter, ref drawPos, "Unshadowed Lights", f.UnshadowedLightsInView );
-			Row( painter, ref drawPos, "Shadow Maps", f.ShadowMaps, $"{SafeRatio( f.ShadowMaps, f.ShadowedLightsInView ):N1} maps per shadowed light" );
+			// Native's light counters: the managed renderer's lights are in its own section
+			if ( !isManaged )
+			{
+				drawPos.y += 8;
+				DrawSectionHeader( painter, ref drawPos, "Lights" );
+				drawPos.y += 4;
+				Row( painter, ref drawPos, "Shadowed Lights", f.ShadowedLightsInView );
+				Row( painter, ref drawPos, "Unshadowed Lights", f.UnshadowedLightsInView );
+				Row( painter, ref drawPos, "Shadow Maps", f.ShadowMaps, $"{SafeRatio( f.ShadowMaps, f.ShadowedLightsInView ):N1} maps per shadowed light" );
+			}
 
 			drawPos.y += 8;
 			DrawSectionHeader( painter, ref drawPos, "Memory" );
@@ -187,6 +225,53 @@ internal static partial class DebugOverlay
 			}
 
 			pos.y += MathF.Max( 0, drawPos.y - startY );
+		}
+
+		/// <summary>
+		/// Which renderer drew last frame, in big letters: the managed scene renderer (<c>r_managed_scene</c>) when it rendered a
+		/// camera, native otherwise.
+		/// </summary>
+		static void DrawRendererBanner( Painter painter, ref Vector2 pos )
+		{
+			var managed = ManagedSceneRendering.LastFrame;
+			var isManaged = managed.Renders > 0;
+
+			var rect = new Rect( pos, new Vector2( 560, 38 ) );
+			var scope = new TextRendering.Scope( isManaged ? "MANAGED RENDERER" : "NATIVE RENDERER", isManaged ? ColManagedRenderer : ColNativeRenderer, 32, "Roboto Mono", 800 ) { Outline = _bannerOutline };
+			DebugOverlay.DrawText( painter, scope, rect, TextFlag.LeftCenter );
+			pos.y += rect.Height;
+
+			var detail = isManaged ? $"{managed.Renders} camera {(managed.Renders == 1 ? "frame" : "frames")} through Sandbox.SceneRenderer"
+				: ManagedSceneRendering.Enabled ? "r_managed_scene is on, but no camera rendered through it" : null;
+			if ( detail is not null ) Note( painter, ref pos, detail );
+		}
+
+		/// <summary>
+		/// The managed scene renderer's frame: its draws by pass, and where its main thread time went.
+		/// </summary>
+		static void DrawManaged( Painter painter, ref Vector2 pos, in ManagedFrameCounters m, int verbosity )
+		{
+			DrawSectionHeader( painter, ref pos, "Managed Renderer" );
+			pos.y += 4;
+
+			Row( painter, ref pos, "Draws", m.TotalDraws, $"{m.Draws:N0} fwd ({m.TranslucentDraws:N0} transl.), {m.DepthDraws:N0} depth, {m.ShadowDraws:N0} shadow, {m.CustomDraws:N0} custom", valueColor: ColourForDrawCalls( m.TotalDraws ) );
+			Row( painter, ref pos, "Shadow Views", m.ShadowViews );
+			Row( painter, ref pos, "Lights", m.Lights, "binned" );
+			Row( painter, ref pos, "Main Thread", m.MainThreadMs, $"collect {m.CollectMs:F2}, prepare {m.PrepareMs:F2}, record {m.RecordMs:F2}", valueText: $"{m.MainThreadMs:F2}ms" );
+
+			if ( verbosity < 2 ) return;
+
+			Row( painter, ref pos, "Record", m.RecordMs, $"{m.RecordWaitMs:F2}ms waiting, workers {m.WorkerRecordMs:F2}ms", valueText: $"{m.RecordMs:F2}ms" );
+			var other = m.SyncMs + m.SetupMs + m.SubmitMs;
+			Row( painter, ref pos, "Other", other, $"sync {m.SyncMs:F2}, setup {m.SetupMs:F2}, submit {m.SubmitMs:F2}", valueText: $"{other:F2}ms" );
+		}
+
+		static void Note( Painter painter, ref Vector2 pos, string text )
+		{
+			var rect = new Rect( pos.x, pos.y, 560, 14 );
+			var scope = new TextRendering.Scope( text, ColDim, 11, "Roboto Mono", 500 ) { Outline = _outline };
+			DebugOverlay.DrawText( painter, scope, rect, TextFlag.LeftCenter );
+			pos.y += rect.Height;
 		}
 
 		static void DrawMultilineBlock( Painter painter, ref Vector2 pos, string block )

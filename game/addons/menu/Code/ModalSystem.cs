@@ -24,6 +24,18 @@ public class ModalSystem : IModalSystem
 		return OpenModals.Any( x => x.WantsMouseInput() );
 	}
 
+	/// <summary>
+	/// A modal that dims and blurs everything behind it is open. Anchored ones (the rewards drop,
+	/// the friends list off a button) are popups that leave the page as it is, so they don't count.
+	/// </summary>
+	public bool HasBlockingModalsOpen()
+	{
+		if ( IsPauseMenuOpen )
+			return true;
+
+		return OpenModals.Any( x => x.WantsMouseInput() && !x.HasClass( "anchored" ) );
+	}
+
 	public void CloseAll( bool immediate = false )
 	{
 		foreach ( var modal in OpenModals )

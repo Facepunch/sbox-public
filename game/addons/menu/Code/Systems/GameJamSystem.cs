@@ -4,10 +4,10 @@ using Sandbox.Services;
 namespace MenuProject;
 
 /// <summary>
-/// Owns the menu's active jam and shared nomination state. UI reads this state;
+/// Owns the menu's active jam, nominations and finalist voting state. UI reads this state;
 /// snapshot requests and backend notifications are handled once for the scene.
 /// </summary>
-public sealed class GameJamSystem : GameObjectSystem<GameJamSystem>, IBackendListener
+public sealed partial class GameJamSystem : GameObjectSystem<GameJamSystem>, IBackendListener
 {
 	/// <summary>
 	/// Creates the menu's jam state and listens for backend updates until the scene closes.
@@ -30,7 +30,7 @@ public sealed class GameJamSystem : GameObjectSystem<GameJamSystem>, IBackendLis
 	public JamNominationSummary Nominations { get; private set; }
 
 	/// <summary>
-	/// Changes when jam or nomination state changes, so lists can update their filters.
+	/// Changes when jam, nomination or finalist state changes, so views can update.
 	/// </summary>
 	public int Version { get; private set; }
 
@@ -67,7 +67,11 @@ public sealed class GameJamSystem : GameObjectSystem<GameJamSystem>, IBackendLis
 	/// <summary>
 	/// Requests a fresh snapshot, coalescing requests made before the next update.
 	/// </summary>
-	public void Refresh() => refreshRequested = true;
+	public void Refresh()
+	{
+		refreshRequested = true;
+		RefreshFinalists();
+	}
 
 	void Tick()
 	{
@@ -78,6 +82,7 @@ public sealed class GameJamSystem : GameObjectSystem<GameJamSystem>, IBackendLis
 			previewDays = Jam.PreviewDays;
 			ActiveJam = null;
 			Nominations = null;
+			ResetFinalists();
 			Error = null;
 			refreshRequested = true;
 			Version++;
@@ -93,6 +98,8 @@ public sealed class GameJamSystem : GameObjectSystem<GameJamSystem>, IBackendLis
 		{
 			_ = RefreshAsync();
 		}
+
+		TickFinalists();
 	}
 
 	async Task RefreshAsync()
@@ -106,7 +113,11 @@ public sealed class GameJamSystem : GameObjectSystem<GameJamSystem>, IBackendLis
 			var jam = await Jam.GetActive();
 			if ( !Scene.IsValid() || days != Jam.PreviewDays ) return;
 
-			if ( ActiveJam?.Ident != jam?.Ident ) Nominations = null;
+			if ( ActiveJam?.Ident != jam?.Ident )
+			{
+				Nominations = null;
+				ResetFinalists();
+			}
 			ActiveJam = jam;
 
 			var nominations = NominationsOpen ? await jam.GetNominationSummaryAsync() : null;
@@ -143,12 +154,20 @@ public sealed class GameJamSystem : GameObjectSystem<GameJamSystem>, IBackendLis
 	}
 
 	/// <summary>
-	/// Applies an absolute public tally to the shared nomination state.
+	/// Applies public tallies to shared nominations or finalists without changing personal selections.
 	/// </summary>
 	public void OnJamVotesChanged( JamVoteUpdate update )
 	{
-		if ( Jam.PreviewDays != 0 || !NominationsOpen || update.Round != 0 ) return;
+		if ( Jam.PreviewDays != 0 || ActiveJam is null ) return;
 		if ( !string.Equals( ActiveJam.Ident, update.JamIdent, StringComparison.OrdinalIgnoreCase ) ) return;
+
+		if ( update.Round != 0 )
+		{
+			ApplyFinalistVotes( update );
+			return;
+		}
+
+		if ( !NominationsOpen ) return;
 
 		// Reconcile an overlapping snapshot instead of replaying possibly older pushes over it.
 		if ( loading ) Refresh();
@@ -160,6 +179,7 @@ public sealed class GameJamSystem : GameObjectSystem<GameJamSystem>, IBackendLis
 	/// </summary>
 	public override void Dispose()
 	{
+		ResetFinalists();
 		IBackendListener.Unregister( this );
 		base.Dispose();
 	}

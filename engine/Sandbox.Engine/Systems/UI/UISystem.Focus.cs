@@ -10,7 +10,7 @@ partial class UISystem
 	/// </summary>
 	internal bool SetFocus( Panel panel )
 	{
-		if ( panel is null ) return false;
+		if ( panel is null || panel.Scene?.IsSuspended == true ) return false;
 		if ( NextFocus == panel ) return true;
 
 		//
@@ -93,7 +93,7 @@ partial class UISystem
 		//
 		// Don't swap to an ineligible panel
 		//
-		if ( FocusPendingChange && NextFocus is not null && !NextFocus.AcceptsFocus )
+		if ( FocusPendingChange && NextFocus is not null && (!NextFocus.AcceptsFocus || NextFocus.Scene?.IsSuspended == true) )
 		{
 			NextFocus = null;
 			FocusPendingChange = false;
@@ -124,7 +124,7 @@ partial class UISystem
 
 	static bool IsEligibleForFocus( Panel panel )
 	{
-		if ( !panel.IsVisible ) return false;
+		if ( !panel.IsVisible || panel.Scene?.IsSuspended == true ) return false;
 		if ( !panel.AcceptsFocus ) return false;
 
 		return true;

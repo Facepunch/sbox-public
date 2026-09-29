@@ -4,6 +4,7 @@
 @using Sandbox.UI;
 @using Sandbox.UI.Navigation;
 @using System;
+@using System.Linq;
 @namespace MenuProject.MenuUI.Jams
 @page "/jam"
 @inherits Panel
@@ -59,6 +60,10 @@
 			}
 		</Body>
 	</Page>
+	@if ( Jam.IsEditorPreview && Jam is not null )
+	{
+		<JamPreviewHelper Jam=@Jam />
+	}
 </root>
 
 @code
@@ -66,25 +71,95 @@
 	GameJamSystem Voting => GameJamSystem.Get( Scene );
 	Jam Jam => Voting?.ActiveJam;
 	bool IsLoading => Voting?.IsLoading == true;
+	Jam.Phase? PreviousPhase;
+	string PreviousJam;
+	Sandbox.JamFinalistCategory[] PreviousCategories;
 
-	// The timeline follows the jam's preview clock and advances without reopening the page.
-	Jam.Phase CurrentPhase
+	/// <summary>
+	/// Announces phase changes to players who stay on the page as a deadline passes.
+	/// </summary>
+	public override void Tick()
 	{
-		get
+		base.Tick();
+		if ( Jam is null )
 		{
-			if ( Jam is null ) return Jam.Phase.Upcoming;
+			PreviousJam = null;
+			PreviousPhase = null;
+			PreviousCategories = null;
+			return;
+		}
 
-			// The schedule can remain on nominations between lock and the first round.
-			// Show the reveal in that gap, while the voting snapshot owns the slate and round status.
-			if ( Jam.CommunityVoting && Jam.Now >= Jam.NominationsEnd && Jam.Now < Jam.FinalsStart )
-				return Jam.Phase.Finals;
+		if ( IsVisible && PreviousJam == Jam.Ident )
+		{
+			var phaseChanged = PreviousPhase.HasValue && PreviousPhase != CurrentPhase;
+			// Round announcements already explain transitions within community finals.
+			var roundTransition = Jam.CommunityVoting && PreviousPhase >= Jam.Phase.Finals
+				&& CurrentPhase is Jam.Phase.Finals or Jam.Phase.GrandFinal;
 
-			var index = Jam.CurrentStepIndex;
-			return index >= 0 ? Jam.Timeline[index].Phase : Jam.CurrentPhase;
+			if ( phaseChanged && !roundTransition ) AnnouncePhase();
+			AnnounceRounds();
+		}
+
+		PreviousCategories = IsVisible ? Voting.Finalists : null;
+		PreviousJam = Jam.Ident;
+		PreviousPhase = CurrentPhase;
+	}
+
+	void AnnouncePhase()
+	{
+		var title = CurrentPhase switch
+		{
+			Jam.Phase.Finals => "The knockout begins",
+			Jam.Phase.GrandFinal => "It's time for the grand final",
+			Jam.Phase.Crowned => "The results are in",
+			_ => Jam.CurrentStepIndex >= 0 ? $"{Jam.Timeline[Jam.CurrentStepIndex].Name} begins" : "The jam is coming"
+		};
+		var detail = CurrentPhase switch
+		{
+			Jam.Phase.Finals => "Meet the contenders. Every round starts fresh.",
+			Jam.Phase.GrandFinal => "The final showdown is here.",
+			Jam.Phase.Crowned => "Meet the winners of this jam.",
+			_ => "The next stage is now open."
+		};
+		MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast()
+		{
+			Title = title,
+			Message = detail,
+			Icon = "emoji_events"
+		} );
+	}
+
+	void AnnounceRounds()
+	{
+		foreach ( var current in Voting.Finalists ?? [] )
+		{
+			var previous = PreviousCategories?.FirstOrDefault( x => x.Id == current.Id );
+			if ( previous is null || ReferenceEquals( previous, current ) ) continue;
+
+			var eliminated = current.Nominees.Where( x => x.EliminatedRound.HasValue
+				&& previous.Nominees.Any( p => p.PackageIdent == x.PackageIdent && !p.EliminatedRound.HasValue ) ).ToArray();
+			var opened = current.IsVotingAt( Jam.Now )
+				&& (!previous.VotingOpen || current.Round > previous.Round);
+			if ( eliminated.Length == 0 && !opened ) continue;
+
+			var title = eliminated.Length == 1 ? $"{Package.GetCachedTitle( eliminated[0].PackageIdent )} is knocked out"
+				: eliminated.Length > 1 ? $"{eliminated.Length} games are knocked out"
+				: current.GrandFinal ? "The grand final is open" : $"Round {current.Round} is open";
+			var detail = current.Decided ? "The final result is confirmed."
+				: opened ? current.GrandFinal ? "Pick your winner." : $"{current.Contenders.Count} remain. Choose your favourite again."
+				: "Voting is closed. Waiting for the next round.";
+			MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast()
+			{
+				Title = title,
+				Message = detail,
+				Icon = "emoji_events"
+			}, duration: 5 );
 		}
 	}
 
+	Jam.Phase CurrentPhase => Voting?.Phase ?? Jam.Phase.Upcoming;
+
 	void INavigatorPage.OnNavigationOpen() => Voting?.Refresh();
 
-	protected override int BuildHash() => HashCode.Combine( Jam, CurrentPhase, Jam?.EntryCount, IsLoading );
+	protected override int BuildHash() => HashCode.Combine( Jam, CurrentPhase, Jam?.EntryCount, IsLoading, Jam.IsEditorPreview );
 }

@@ -150,6 +150,12 @@
     public FriendsListModal(FriendsListModalOptions options)
     {
         Options = options;
+
+        // Before the first layout, not on first render - otherwise the base .modal styles land first
+        // and it visibly transitions out of them (the blur fading, the box sliding in from its
+        // -1000px insets) as it appears.
+        if ( IsAnchored )
+            AddClass( "anchored" );
     }
 
     protected override void OnAfterTreeRender( bool firstTime )

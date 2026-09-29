@@ -1,4 +1,4 @@
-﻿@namespace MenuProject.Modals.PackageModalComponents
+@namespace MenuProject.Modals.PackageModalComponents
 @inherits Panel
 @using Sandbox;
 @using Sandbox.UI;
@@ -6,66 +6,108 @@
 @using System;
 @using Sandbox.Network
 
-@if (collection is null || collection.All.Count() == 0)
+@*
+    The Achievements tab. How far through you are up top - a gold bar, how many and the points -
+    then the achievements in three groups: what you've got, what you're partway through, and the
+    rest. Each a row: its icon, name and what to do, a bar if it counts something, and on the end
+    its points and how rare it is. Hidden ones stay hidden until they're got.
+*@
+
+@if (collection is null)
     return;
 
 <root>
 
-    <div class="achievement-list">
-        @foreach (Achievement a in collection.All.OrderBy(x => x.IsUnlocked))
+
+    @if (Total == 0)
+    {
+        <div class="state">This game doesn't have any achievements.</div>
+    }
+    else
+    {
+        @* How far through you are *@
+        <div class="summary">
+            <i class="trophy">emoji_events</i>
+            <div class="summary-text">
+                <div class="summary-top">
+                    <label class="got">@UnlockedCount</label>
+                    <label class="of">of @Total unlocked</label>
+                    <div class="grow"></div>
+                    <label class="points">@EarnedPoints / @TotalPoints points</label>
+                </div>
+                <div class="bar" style="background-image: @(BarFill( SummaryFraction ));"></div>
+            </div>
+        </div>
+
+        @foreach ( var group in Groups )
         {
-            string tooltip = $"{a.Title} - {a.Description}";
-            string icon = a.Icon;
-            if (string.IsNullOrEmpty(icon)) icon = "https://files.facepunch.com/garry/ae277f80-8a5d-4d54-833e-e7d6f11580fc.png";
-            string clss = "achievement";
-            if (!a.IsUnlocked) clss += " locked";
-            else clss += " unlocked";
+            <div class="group @group.Kind">
+                <div class="group-head">
+                    <label class="group-title">@group.Title</label>
+                    <label class="group-count">@group.Items.Count</label>
+                </div>
+                <div class="rows">
+                    @foreach ( var a in group.Items )
+                    {
+                        var hidden = !a.IsVisible && !a.IsUnlocked;
+                        var counts = !a.IsUnlocked && a.HasProgression && a.Range.y > 0;
 
-            <div class="@clss" tooltip="@tooltip">
+                        <div class="row @(a.IsUnlocked ? "got" : "") @(hidden ? "hidden" : "")">
 
-                <img src="@icon" />
-
-                <div class="right">
-
-                    <div class="toprow">
-
-                        <div class="title">@a.Title</div>
-                        <div class="score">+@a.Score</div>
-
-                        <div class="meta">
-                            <div class="global" tooltip="How many people unlocked this"><i>person</i> @a.GlobalUnlocked.ToMetric( 1 )</div>
-
-                            @if (a.IsUnlocked)
+                            @if ( hidden )
                             {
-                                <div class="unlocked"><i>event</i>@a.UnlockTimestamp.Value.Humanize()</div>
+                                <div class="icon mystery"><i>lock</i></div>
+                            }
+                            else
+                            {
+                                <div class="icon" style="background-image: url( @(string.IsNullOrEmpty( a.Icon ) ? DefaultIcon : a.Icon) );">
+                                    @if ( a.IsUnlocked )
+                                    {
+                                        <div class="tick"><i>check</i></div>
+                                    }
+                                </div>
                             }
 
-                        </div>
-                    </div>
+                            @* The name and what to do beside the points and rarity, then the bar under both -
+                               the full width, its count ending on the same edge as the points *@
+                            <div class="main">
+                                <div class="head">
+                                    <div class="body">
+                                        <label class="name">@(hidden ? "Hidden achievement" : a.Title)</label>
+                                        <label class="description">@(hidden ? "Keep playing to find out what it is." : a.Description)</label>
+                                    </div>
 
-                    <div class="description">@a.Description</div>
+                                    <div class="side">
+                                        @if ( a.Score > 0 )
+                                        {
+                                            <label class="score">+@a.Score</label>
+                                        }
+                                        @if ( a.IsUnlocked && a.UnlockTimestamp is { } when )
+                                        {
+                                            <label class="when">@MenuHelpers.TimeAgo( when )</label>
+                                        }
+                                        else if ( !hidden && a.GlobalFraction > 0 )
+                                        {
+                                            <label class="rarity @(a.GlobalFraction < 0.05f ? "rare" : "")" tooltip="@($"{a.GlobalUnlocked.ToMetric( 1 )} players have it")">@RarityText( a.GlobalFraction )</label>
+                                        }
+                                    </div>
+                                </div>
 
-                    @if (a.HasProgression && !a.IsUnlocked)
-                    {
-                        var pct = 0.0f;
-                        if (a.IsUnlocked) pct = 100;
-                        else if (a.HasProgression) pct = a.ProgressionFraction.Clamp(0, 1) * 100;
-
-                        var pctWidth = $"width: {pct}%";
-                        var progressText = $"{a.CurrentValue.ToMetric( 1 )} / {a.Range.y.ToMetric( 1 )}";
-
-                        <div class="progress">
-                            <div class="bar">
-                                <div class="inner" style="@pctWidth"></div>
+                                @if ( counts )
+                                {
+                                    <div class="progress">
+                                        <div class="bar" style="background-image: @(BarFill( a.ProgressionFraction ));"></div>
+                                        <label class="progress-text">@($"{a.CurrentValue.ToMetric( 1 )} / {a.Range.y.ToMetric( 1 )}")</label>
+                                    </div>
+                                }
                             </div>
-                            <div class="text">@progressText</div>
+
                         </div>
                     }
                 </div>
-
             </div>
         }
-    </div>
+    }
 
 </root>
 
@@ -73,15 +115,69 @@
 {
     [Parameter, EditorRequired] public Package Package { get; set; }
 
-    AchievementCollection collection;
+    const string DefaultIcon = "https://files.facepunch.com/garry/ae277f80-8a5d-4d54-833e-e7d6f11580fc.png";
 
-    protected override int BuildHash() => System.HashCode.Combine(Package, collection);
+    AchievementCollection collection;
+    int _recounts;
+
+    int Total => collection?.All.Count ?? 0;
+    int UnlockedCount => collection?.All.Count( x => x.IsUnlocked ) ?? 0;
+    int TotalPoints => collection?.All.Sum( x => x.Score ) ?? 0;
+    int EarnedPoints => collection?.All.Where( x => x.IsUnlocked ).Sum( x => x.Score ) ?? 0;
+
+    /// <summary>Got - newest first.</summary>
+    IEnumerable<Achievement> Unlocked => collection.All.Where( x => x.IsUnlocked ).OrderByDescending( x => x.UnlockTimestamp );
+
+    /// <summary>Counting up and some way along - furthest first.</summary>
+    IEnumerable<Achievement> InProgress => collection.All
+        .Where( x => !x.IsUnlocked && x.HasProgression && x.ProgressionFraction > 0 )
+        .OrderByDescending( x => x.ProgressionFraction );
+
+    /// <summary>Not started - the ones most players have first, the hidden ones last.</summary>
+    IEnumerable<Achievement> Locked => collection.All
+        .Where( x => !x.IsUnlocked && !(x.HasProgression && x.ProgressionFraction > 0) )
+        .OrderBy( x => x.IsVisible ? 0 : 1 )
+        .ThenByDescending( x => x.GlobalFraction );
+
+    record Section( string Title, string Kind, List<Achievement> Items );
+
+    /// <summary>The groups with anything in them, in order.</summary>
+    IEnumerable<Section> Groups => new[]
+    {
+        new Section( "Unlocked", "group-unlocked", Unlocked.ToList() ),
+        new Section( "In progress", "group-progress", InProgress.ToList() ),
+        new Section( "Locked", "group-locked", Locked.ToList() ),
+    }.Where( x => x.Items.Count > 0 );
+
+    static string RarityText( float fraction )
+    {
+        var pct = fraction * 100;
+        return pct < 1 ? "<1% of players" : $"{pct:0}% of players";
+    }
+
+    float SummaryFraction => Total > 0 ? (float)UnlockedCount / Total : 0;
+
+    /// <summary>
+    /// A bar's fill as one gradient across the track - gold up to how far along, the track's own
+    /// grey after, a hard edge between. The track's rounding clips the lot, so both ends round
+    /// together; a separate fill piece inside it had its own corners, and a sliver of progress
+    /// came out as a lozenge.
+    /// </summary>
+    static string BarFill( float f )
+    {
+        var p = Percent( f );
+        return $"linear-gradient( 90deg, #b07a1f 0%, #ffd980 {p}%, rgba( 255, 255, 255, 0.08 ) {p}%, rgba( 255, 255, 255, 0.08 ) 100% )";
+    }
+    static string Percent( float f ) => (Math.Clamp( f, 0, 1 ) * 100).ToString( "0.#", System.Globalization.CultureInfo.InvariantCulture );
+
+    protected override int BuildHash() => System.HashCode.Combine( Package, collection, _recounts );
 
     protected override async Task OnParametersSetAsync()
     {
         collection = await this.Package.GetAchievements();
         StateHasChanged();
         await collection.RecountProgression();
+        _recounts++;
         StateHasChanged();
     }
 }

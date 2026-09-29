@@ -135,4 +135,9 @@ public class PackageReviewDto
 	/// Negative tags for this review
 	/// </summary>
 	public ReviewNegativeTags Negatives { get; set; }
+
+	/// <summary>
+	/// The reviewer is a member of the organization that published the package. Shown, but not counted in the score.
+	/// </summary>
+	public bool IsDeveloper { get; set; }
 }

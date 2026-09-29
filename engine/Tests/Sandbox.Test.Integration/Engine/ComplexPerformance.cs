@@ -169,8 +169,22 @@ public class ComplexPerformanceTest
 					double wallMs = timer.Elapsed.TotalMilliseconds;
 					CSceneSystem.RefreshGpuTimestampSnapshot();
 					var gpu = new Dictionary<string, float>();
-					for ( int j = 0; j < CSceneSystem.GetGpuTimestampCount(); ++j )
-						gpu[CSceneSystem.GetGpuTimestampPath( j )] = CSceneSystem.GetGpuTimestampDuration( j );
+					int count = CSceneSystem.GetGpuTimestampCount();
+					var names = new string[count];
+					var parents = new int[count];
+					for ( int j = 0; j < count; ++j )
+					{
+						names[j] = CSceneSystem.GetGpuTimestampName( j );
+						parents[j] = CSceneSystem.GetGpuTimestampParent( j );
+					}
+					for ( int j = 0; j < count; ++j )
+					{
+						if ( !CSceneSystem.GetGpuTimestampMeasured( j ) ) continue;
+						var path = names[j];
+						for ( int p = parents[j]; p >= 0; p = parents[p] )
+							path = names[p] + "/" + path;
+						gpu[path] = CSceneSystem.GetGpuTimestampDuration( j );
+					}
 					Assert.IsTrue( gpu.Count > 0, "GPU timestamp collection failed." );
 					var invalid = gpu.Where( x => !float.IsFinite( x.Value ) || x.Value < 0 ).ToArray();
 					Assert.AreEqual( 0, invalid.Length, "Invalid timestamps: " + JsonSerializer.Serialize( invalid ) );

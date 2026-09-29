@@ -10,6 +10,7 @@ internal static class Analytics
 	static string gameVersion;
 	static string mapIdent;
 	static string[] contentIdent;
+	static object net;
 
 	static int lastHash;
 
@@ -34,6 +35,8 @@ internal static class Analytics
 								.Where( x => x.Package is RemotePackage )
 								.Select( x => x.Package.FullIdent )
 								.ToArray();
+
+		net = SampleNetwork();
 
 		CheckHash();
 		TryUpdateActivity();
@@ -63,6 +66,22 @@ internal static class Analytics
 
 		timeUntilNextUpdate = 60.0f * 1.0f;
 
-		Task.Run( () => Api.Activity.UpdateActivity( gameIdent, gameVersion, mapIdent, contentIdent ) );
+		Task.Run( () => Api.Activity.UpdateActivity( gameIdent, gameVersion, mapIdent, contentIdent, net ) );
+	}
+
+	/// <summary>
+	/// Solo, hosting or joined, and how many others were there - playing alone is the norm for new players.
+	/// </summary>
+	static object SampleNetwork()
+	{
+		if ( !Networking.IsActive )
+			return new { mode = "solo", players = 1, max = 1 };
+
+		return new
+		{
+			mode = Networking.IsHost ? "host" : "client",
+			players = Connection.All.Count( x => x.State == Connection.ChannelState.Connected ),
+			max = Networking.MaxPlayers,
+		};
 	}
 }

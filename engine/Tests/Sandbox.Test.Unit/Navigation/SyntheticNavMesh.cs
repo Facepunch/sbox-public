@@ -17,6 +17,7 @@ internal static class SyntheticNavMesh
 		public int MinZ { get; init; }
 		public bool TileBorders { get; init; }
 		public bool Corner { get; init; }
+		public bool AreaStrip { get; init; }
 	}
 
 	internal static NavMeshGraph Create( Options options = default )
@@ -39,7 +40,7 @@ internal static class SyntheticNavMesh
 					areas.AddRange( new[] { Constants.WALKABLE_AREA, Constants.WALKABLE_AREA } );
 					continue;
 				}
-				field.AddOrMergeSpan( x, z, 0, 1, Constants.WALKABLE_AREA, 0 );
+				field.AddOrMergeSpan( x, z, 0, 1, options.AreaStrip && x >= 30 && x < 34 ? 2 : Constants.WALKABLE_AREA, 0 );
 				if ( options.UpperFloor ) field.AddOrMergeSpan( x, z, 200, 201, Constants.WALKABLE_AREA, 0 );
 			}
 		if ( options.Rasterized ) Rasterization.RasterizeTriangles( vertices.ToArray(), indices.ToArray(), areas.ToArray(), field, 0 );

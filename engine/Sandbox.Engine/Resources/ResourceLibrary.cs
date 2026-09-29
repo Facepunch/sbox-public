@@ -1,5 +1,6 @@
 ﻿using NativeEngine;
 using Sandbox.Engine;
+using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using static Sandbox.ResourceLibrary;
@@ -505,31 +506,27 @@ public class ResourceSystem
 	{
 		fixed ( byte* ptr = data )
 		{
-			return EngineGlue.ReadCompiledResourceFileJson( (IntPtr)ptr );
+			return EngineGlue.ReadCompiledResourceFileJson( (IntPtr)ptr, data.Length )
+				?? throw new InvalidDataException( "Compiled resource has invalid JSON data or an invalid container." );
 		}
 	}
 
 	/// <summary>
 	/// Read compiled resource as JSON from the provided file path.
 	/// </summary>
-	internal unsafe string ReadCompiledResourceJson( BaseFileSystem fs, string fileName )
+	internal string ReadCompiledResourceJson( BaseFileSystem fs, string fileName )
 	{
 		if ( !fs.FileExists( fileName ) )
 			return string.Empty;
 
-		var data = fs.ReadAllBytes( fileName );
-
-		fixed ( byte* ptr = data )
-		{
-			return EngineGlue.ReadCompiledResourceFileJson( (IntPtr)ptr );
-		}
+		return ReadCompiledResourceJson( fs.ReadAllBytes( fileName ) );
 	}
 
 	internal unsafe byte[] ReadCompiledResourceBlock( string blockName, Span<byte> data )
 	{
 		fixed ( byte* ptr = data )
 		{
-			IntPtr blockData = EngineGlue.ReadCompiledResourceFileBlock( blockName, (IntPtr)ptr, out var size );
+			IntPtr blockData = EngineGlue.ReadCompiledResourceFileBlock( blockName, (IntPtr)ptr, data.Length, out var size );
 			if ( blockData == IntPtr.Zero || size <= 0 )
 				return null;
 

@@ -52,7 +52,7 @@ public class PanelAppSystem : AppSystem
 		// device. No VR - nothing here renders in stereo. -panelapp tells the engine nobody here
 		// is drawing a scene, so the fixed buffers and atlases that exist for one are sized down
 		// to what a scene panel might want instead of what a map needs.
-		var commandLine = Environment.CommandLine.Replace( ".dll", ".exe" ) + " -nosteam -novr -panelapp";
+		var commandLine = Environment.CommandLine.Replace( ".dll", ".exe" ) + " -nosteam -novr" + (DrawsScenes ? "" : " -panelapp");
 
 		// Tools mode creates the render device but no window - our windows are our own
 		if ( !NativeEngine.EngineGlobal.SourceEnginePreInit( commandLine, _appSystem ) )
@@ -64,7 +64,7 @@ public class PanelAppSystem : AppSystem
 		Graphics.Initialize();
 		Phase( "SourceEnginePreInit" );
 
-		if ( !NativeEngine.EngineGlobal.SourceEnginePanelAppInit( _appSystem ) )
+		if ( !NativeEngine.EngineGlobal.SourceEnginePanelAppInit( _appSystem, DrawsScenes ) )
 		{
 			throw new Exception( "SourceEnginePanelAppInit failed" );
 		}
@@ -137,6 +137,13 @@ public class PanelAppSystem : AppSystem
 
 		ErrorReporter.Initialize();
 	}
+
+	/// <summary>
+	/// Whether this app draws whole scenes, not just UI - then the engine keeps its scene buffers (the
+	/// transform and instance id buffers, atlases) at the size a map needs rather than shrinking them, and
+	/// loads the native modules a game does (world renderer, physics, animation, sound), so maps load.
+	/// </summary>
+	protected virtual bool DrawsScenes => false;
 
 	/// <summary>
 	/// The app is up - make your windows. Runs before the first frame.

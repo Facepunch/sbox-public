@@ -32,15 +32,18 @@
         Value="@Package.VotesDown.ToMetric()" />
     }
 
-    <MetricButton 
-        Tooltip="@($"{Package.Reviews.Score.ToString( "N0" )}% from {Package.Reviews.Total} Reviews")" 
-        Icon="reviews" 
+    @if ( ShowStats )
+    {
+    <MetricButton
+        Tooltip="@($"{Package.Reviews.Score.ToString( "N0" )}% from {Package.Reviews.Total} Reviews")"
+        Icon="reviews"
         Value="@Package.Reviews.Score.ToString( "0\\%" )" />
 
     <MetricButton Tooltip="Total Players" Icon="sports_kabaddi" Value="@Package.Usage.Total.Users.ToMetric()" />
     <MetricButton Tooltip="Total Sessions" Icon="calendar_month" Value="@Package.Usage.Total.Sessions.ToMetric()" />
 
     <MetricButton Tooltip="Last Updated" Icon="update" Value="@((DateTime.UtcNow - Package.Updated ).Humanize( 1 ))" />
+    }
 
     <MetricButton Interactive style="margin-top: 30px;" Tooltip="Report Abuse" Icon="flag" Value="report" @onclick="@( () => Game.Overlay.ShowReportModal( Package.FullIdent ) )" />
 
@@ -52,6 +55,9 @@
 
     /// <summary>Favourite and vote buttons; off when the host shows them elsewhere.</summary>
     public bool ShowRatings { get; set; } = true;
+
+    /// <summary>Reviews, players, sessions, last updated; off when the host shows them elsewhere.</summary>
+    public bool ShowStats { get; set; } = true;
     protected override int BuildHash() => System.HashCode.Combine(Package, Package.Interaction);
 
     async void VoteUp()

@@ -1,0 +1,117 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.Services;
+@using Sandbox.UI;
+@namespace MenuProject.MenuUI.Jams
+@inherits Panel
+
+@if ( !Jam.IsEditorPreview || Jam is null ) return;
+
+<root>
+	<div class="preview-info">
+		<div class="heading"><icon>science</icon><label>@($"Editor preview · +{Jam.PreviewDays}d")</label><label class="phase">@PhaseText</label></div>
+		<label class="date">@Jam.Now.ToString( "ddd d MMM · HH:mm:ss 'UTC'" )</label>
+	</div>
+	<div class="actions">
+		<Button Text=@(InKnockout ? "Next round" : "Next phase") Disabled=@(StageEnd is null) onclick=@NextStage />
+		<Button Text=@(InKnockout ? "Round ends in 10s" : "Phase ends in 10s") Disabled=@(StageEnd is null) onclick=@RehearseStage />
+		@if ( InKnockout )
+		{
+			<Button Text="Skip to next phase" Disabled=@(Jam.NextStep is null) onclick=@NextPhase />
+		}
+	</div>
+	<div class="actions">
+		<Button Text="− Day" onclick=@(() => Seek( Jam.Now.AddDays( -1 ) )) />
+		<Button Text="+ Day" onclick=@(() => Seek( Jam.Now.AddDays( 1 ) )) />
+		<Button Text="Reset clock" onclick=@Reset />
+	</div>
+</root>
+
+@code
+{
+	/// <summary>
+	/// The active jam whose local clock is being rehearsed.
+	/// </summary>
+	[Parameter] public Jam Jam { get; set; }
+
+	GameJamSystem Voting => GameJamSystem.Get( Scene );
+	JamFinalistCategory Category => Voting?.Finalists?.FirstOrDefault();
+	bool InKnockout => Voting?.Phase == Jam.Phase.Finals && Jam.Now >= Jam.FinalsStart;
+	bool InReveal => Jam.CommunityVoting && Jam.Now >= Jam.NominationsEnd && Jam.Now < Jam.FinalsStart;
+	string PhaseText
+	{
+		get
+		{
+			if ( InReveal ) return "Finalist reveal";
+
+			if ( InKnockout )
+			{
+				return Category?.Round is int round
+					? $"Knockout · round {round} of {Math.Max( 1, Category.Nominees.Count - 2 )}"
+					: "Knockout";
+			}
+
+			return Voting?.Phase switch
+			{
+				Jam.Phase.GrandFinal => Jam.Now >= Jam.Results ? "Final result hold" : "Grand final",
+				Jam.Phase.Crowned => "Winners and entries",
+				_ => Jam.CurrentStepIndex >= 0 ? Jam.Timeline[Jam.CurrentStepIndex].Name : "Upcoming"
+			};
+		}
+	}
+
+	// Rehearse the boundary currently on screen. Seeking to the end of the whole
+	// knockout phase would close earlier rounds immediately and skip their countdowns.
+	DateTimeOffset? StageEnd
+	{
+		get
+		{
+			if ( Voting?.Phase == Jam.Phase.GrandFinal )
+			{
+				return Jam.Now < Jam.Results ? Category?.RoundEnds ?? Jam.Results : Voting.FinalResultsUntil;
+			}
+
+			if ( InReveal ) return Jam.FinalsStart;
+			if ( InKnockout ) return Category?.RoundEnds;
+
+			if ( Jam.CommunityVoting && Jam.Now < Jam.NominationsEnd && Jam.NextStep?.At > Jam.NominationsEnd )
+			{
+				return Jam.NominationsEnd;
+			}
+
+			return Jam.NextStep?.At;
+		}
+	}
+
+	void Seek( DateTimeOffset target )
+	{
+		if ( !Jam.IsEditorPreview ) return;
+		Jam.SeekEditorPreview( target );
+		Voting?.Refresh();
+	}
+
+	void NextPhase()
+	{
+		if ( Jam.NextStep is { } next ) Seek( next.At );
+	}
+
+	void RehearseStage()
+	{
+		if ( StageEnd is { } end ) Seek( end.AddSeconds( -10 ) );
+	}
+
+	void NextStage()
+	{
+		if ( StageEnd is { } end ) Seek( end );
+	}
+
+	void Reset()
+	{
+		if ( !Jam.IsEditorPreview ) return;
+		Jam.ResetEditorPreview();
+		Voting?.Refresh();
+	}
+
+	protected override int BuildHash() => HashCode.Combine( Jam, Jam.IsEditorPreview, Jam.PreviewDays, Jam?.Now.ToUnixTimeSeconds() );
+}

@@ -1,11 +1,11 @@
 @import "/styles/_front.scss";
 
-JamStandings
+JamPage JamStandings
 {
 	flex-direction: column;
 	flex-shrink: 0;
 	padding-bottom: 20px;
-	border-bottom: 1px solid $front-hairline;
+	border-bottom: $front-border-width solid $front-hairline;
 
 	.heading
 	{
@@ -26,19 +26,16 @@ JamStandings
 		color: $front-accent;
 	}
 
-	.category, .hint
+	.closed
 	{
-		font-size: 12px;
+		font-size: 11px;
 		color: $front-secondary;
 	}
 
-	.qualifying
+	.hint
 	{
-		margin-top: 16px;
-		margin-bottom: 6px;
 		font-size: 12px;
-		font-weight: 600;
-		color: $front-trophy;
+		color: $front-secondary;
 	}
 
 	.standings
@@ -54,18 +51,40 @@ JamStandings
 		}
 	}
 
+	.entry.clickable, .view-all
+	{
+		pointer-events: all;
+		cursor: pointer;
+		color: $front-link;
+		transition: color 0.15s ease;
+		// Colour only - the engine draws text-decoration in a fixed white, which reads
+		// as a stray line rather than an underline on a coloured link.
+		&:hover
+		{
+			sound-in: "ui.button.over";
+			color: $front-link-hover;
+			transition: color 0.01s ease-out;
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+	}
+
 	.entry
 	{
 		flex-shrink: 0;
 		align-items: center;
 		gap: 10px;
 		padding: 10px 0;
-		border-bottom: 1px solid $front-hairline;
-		cursor: pointer;
-
-		&:hover .name
+		border-bottom: $front-border-width solid $front-hairline;
+		&.clickable
 		{
-			color: $front-link-hover;
+			&:hover .name
+			{
+				color: $front-link-hover;
+			}
 		}
 	}
 
@@ -89,11 +108,15 @@ JamStandings
 		min-width: 0;
 	}
 
-	.name
+	.name, .unknown
 	{
 		font-size: 12px;
 		font-weight: 600;
 		color: $front-heading;
+	}
+
+	.name
+	{
 		white-space: nowrap;
 		text-overflow: ellipsis;
 		overflow: hidden;
@@ -117,7 +140,6 @@ JamStandings
 
 	.cutoff
 	{
-		@include front-section-label;
 		flex-shrink: 0;
 		color: $front-trophy;
 		padding: 8px 0;
@@ -126,7 +148,6 @@ JamStandings
 
 	.view-all
 	{
-		@include front-text-link;
 		justify-content: center;
 		margin-top: 12px;
 		font-size: 12px;
@@ -136,5 +157,98 @@ JamStandings
 	.hint
 	{
 		margin-top: 12px;
+	}
+
+	// Knockout places share the nomination rows, adding prizes and unresolved-place feedback.
+	&.knockout
+	{
+		padding-bottom: 8px;
+
+		.heading
+		{
+			margin-bottom: 8px;
+		}
+
+		.entry
+		{
+			padding: 9px 0;
+		}
+
+		.rank
+		{
+			font-weight: 700;
+			text-align: left;
+		}
+
+		.game
+		{
+			gap: 3px;
+		}
+
+		.first .rank
+		{
+			color: $front-trophy;
+		}
+
+		.confirmed .name
+		{
+			animation: jam-place-reveal 0.6s ease-out 1;
+		}
+	}
+
+	.unknown
+	{
+		gap: 3px;
+
+		label
+		{
+			animation: jam-place-working 1.6s ease-in-out infinite;
+		}
+	}
+
+	.prize
+	{
+		font-size: 11px;
+		font-weight: 600;
+		color: $front-trophy;
+	}
+
+	.locked
+	{
+		flex-shrink: 0;
+		font-size: 12px;
+		color: $front-tertiary;
+	}
+}
+
+@keyframes jam-place-working
+{
+	0%, 100%
+	{
+		opacity: 0.3;
+		transform: translateY(0);
+		color: $front-secondary;
+	}
+
+	45%
+	{
+		opacity: 1;
+		transform: translateY(-2px);
+		color: $front-heading * 1.3;
+	}
+}
+
+@keyframes jam-place-reveal
+{
+	0%
+	{
+		opacity: 0;
+		transform: translateX(6px);
+	}
+
+	100%
+	{
+		opacity: 1;
+		transform: translateX(0);
 	}
 }

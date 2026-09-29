@@ -22,6 +22,7 @@ internal static class SteamCallbacks
 	private static void SteamFriends_OnGameRichPresenceJoinRequested( Steamworks.Friend friend, string connectStr )
 	{
 		using var scope = GlobalContext.MenuScope();
+		Api.Activity.GameRequested( new( "invite" ) );
 		ConsoleSystem.Run( "connect", connectStr.Split( ' ' ).Last() );
 	}
 
@@ -51,6 +52,7 @@ internal static class SteamCallbacks
 		}
 
 		PartyRoom.Current?.Leave();
+		Api.Activity.GameRequested( new( "invite" ) );
 		ConsoleSystem.Run( "connect", steamId.Value );
 	}
 

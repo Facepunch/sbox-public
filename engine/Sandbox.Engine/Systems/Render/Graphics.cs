@@ -58,8 +58,7 @@ public static partial class Graphics
 	{
 		public bool active;
 		public IRenderContext renderContext;
-		public ISceneLayer sceneLayer;
-		public ISceneView sceneView;
+		public IFrameView view;
 		public SceneLayerType layerType;
 		public RenderAttributes attributes;
 		internal SceneSystemPerFrameStats_t stats;
@@ -69,14 +68,18 @@ public static partial class Graphics
 		internal RenderTarget renderTarget;
 		internal float defaultMinZ;
 		internal float defaultMaxZ;
+		internal bool computeQueue;
 	}
 
 	[ThreadStatic]
 	private static RenderState _state;
 
 	internal static IRenderContext Context => _state.renderContext;
-	internal static ISceneLayer SceneLayer => _state.sceneLayer;
-	internal static ISceneView SceneView => _state.sceneView;
+
+	/// <summary>
+	/// Whether the block records into an async compute context (<see cref="ManagedView.ComputeQueue"/>): compute and copies only.
+	/// </summary>
+	internal static bool OnComputeQueue => _state.computeQueue;
 	internal static ImageFormat IdealColorFormat => _state.colorFormat;
 	internal static MultisampleAmount IdealMsaaLevel => _state.msaaLevel;
 	internal static SceneSystemPerFrameStats_t Stats => _state.stats;
@@ -156,7 +159,7 @@ public static partial class Graphics
 	/// <summary>
 	/// The field of view of the currently rendering camera view, in degrees.
 	/// </summary>
-	public static float FieldOfView => _state.sceneView.GetFrustum().GetCameraFOV();
+	public static float FieldOfView => ViewFrustum.GetCameraFOV();
 
 	/// <summary>
 	/// The frustum of the currently rendering camera view.
@@ -167,7 +170,7 @@ public static partial class Graphics
 		{
 			AssertRenderBlock();
 
-			var cf = _state.sceneView.GetFrustum();
+			var cf = ViewFrustum;
 
 			// Native planes are camera-relative.
 			cf.GetPlane( 0, out var rn, out var rd );
@@ -255,6 +258,32 @@ public static partial class Graphics
 		/// <summary>The standalone attributes, or null inside a scene view.</summary>
 		internal RenderAttributes Attributes => _attributes;
 
+		/// <summary>
+		/// A render block over a managed frame (<see cref="ManagedView"/>): <paramref name="context"/> is recording it, and
+		/// its own attributes are the block's, as a native view's are - draws fall back to them for what they don't set.
+		/// The view's targets are bound.
+		/// </summary>
+		internal Scope( IRenderContext context, ManagedView view )
+		{
+			_previous = _state;
+			_state = new RenderState
+			{
+				active = true,
+				renderContext = context,
+				view = view,
+				layerType = view.LayerType,
+				colorFormat = view.ColorFormat,
+				msaaLevel = view.Msaa,
+				cameraTransform = new Transform( view.Frustum.GetCameraPosition(), view.Frustum.GetCameraAngles() ),
+				computeQueue = view.ComputeQueue,
+			};
+
+			_state.attributes = ObjectPool<RenderAttributes>.Get();
+			_state.attributes.Set( context.GetAttributesPtrForModify() );
+
+			view.Bind( context );
+		}
+
 		public Scope( in ManagedRenderSetup_t setup )
 		{
 			_previous = _state;
@@ -264,8 +293,7 @@ public static partial class Graphics
 			var frustum = setup.sceneView.GetFrustum();
 
 			_state.active = true;
-			_state.sceneLayer = setup.sceneLayer;
-			_state.sceneView = setup.sceneView;
+			_state.view = NativeFrameView.Get( setup.sceneView, setup.sceneLayer );
 			_state.renderContext = setup.renderContext;
 			_state.layerType = setup.sceneLayer.LayerEnum;
 			_state.colorFormat = setup.colorImageFormat;
@@ -306,6 +334,8 @@ public static partial class Graphics
 				_state.attributes.Set( default( CRenderAttributes ) );
 				ObjectPool<RenderAttributes>.Return( _state.attributes );
 			}
+
+			if ( _state.view is NativeFrameView native ) native.Return();
 
 			_state = _previous;
 
@@ -350,7 +380,14 @@ public static partial class Graphics
 		Assert.NotNull( targetAttributes );
 		Assert.IsValid( obj );
 
-		NativeEngine.CSceneSystem.SetupPerObjectLighting( targetAttributes.Get(), obj, SceneLayer );
+		if ( _state.view is { } view )
+		{
+			view.SetupLighting( obj, targetAttributes );
+			return;
+		}
+
+		// A standalone block has no layer to light from
+		NativeEngine.CSceneSystem.SetupPerObjectLighting( targetAttributes.Get(), obj, default );
 	}
 
 	/// <summary>
@@ -429,7 +466,8 @@ public static partial class Graphics
 			if ( _state.renderTarget == value )
 				return;
 
-			if ( SceneLayer.IsNull && (value?.ColorTarget is null || value.DepthTarget is not null) )
+			var view = _state.view;
+			if ( view is null && (value?.ColorTarget is null || value.DepthTarget is not null) )
 				throw new InvalidOperationException( "Standalone rendering requires a color target without a depth target." );
 
 			// Going from default render target to custom render target
@@ -446,24 +484,18 @@ public static partial class Graphics
 			// Resetting to default render target
 			if ( _state.renderTarget == null )
 			{
-				// alex: if we don't restore min/max Z values properly when setting back to
-				// the default render target, we get a lot of weird depth issues.
-				// This mainly only applies to things like worldpanels when we render filtered
-				// elements, but could probably happen in other places too?
-				var viewport = new RenderViewport( SceneLayer.m_viewport.Rect, _state.defaultMinZ, _state.defaultMaxZ );
-				Context.SetViewport( viewport );
-				Context.RestoreRenderTargets( SceneLayer );
+				view?.RestoreTargets( Context, _state.defaultMinZ, _state.defaultMaxZ );
 				return;
 			}
 
-			if ( SceneLayer.IsNull )
+			if ( view is not null )
 			{
-				_state.colorFormat = _state.renderTarget.ColorTarget.ImageFormat;
-				Context.BindRenderTargets( _state.renderTarget.ColorTarget.native );
+				view.BindTarget( Context, _state.renderTarget );
 			}
 			else
 			{
-				Context.BindRenderTargets( _state.renderTarget.ColorTarget?.native ?? default, _state.renderTarget.DepthTarget?.native ?? default, SceneLayer );
+				_state.colorFormat = _state.renderTarget.ColorTarget.ImageFormat;
+				Context.BindRenderTargets( _state.renderTarget.ColorTarget.native );
 			}
 			Viewport = new Rect( 0, 0, _state.renderTarget.Width, _state.renderTarget.Height );
 		}

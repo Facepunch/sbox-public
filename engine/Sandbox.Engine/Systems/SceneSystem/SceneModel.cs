@@ -114,6 +114,7 @@ public sealed partial class SceneModel : SceneObject
 		OOBChecks.ThrowIfBoneOutOfBounds( boneIndex, Model?.BoneCount ?? 0, nameof( boneIndex ) );
 
 		animNative.SetWorldSpaceRenderBoneTransform( boneIndex, transform );
+		NotifyChanged( Rendering.SceneObjectChange.Bones );
 	}
 
 	/// <summary>
@@ -234,6 +235,7 @@ public sealed partial class SceneModel : SceneObject
 	public void SetBodyGroup( string name, int value )
 	{
 		animNative.SetBodyGroup( name, value );
+		NotifyChanged( Rendering.SceneObjectChange.Material );
 	}
 
 	/// <summary>

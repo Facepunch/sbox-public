@@ -233,23 +233,9 @@
           "OnComponentFixedUpdate": null,
           "OnComponentStart": null,
           "OnComponentUpdate": null,
-          "Strength": 2.5,
-          "Threshold": 0.742268,
+          "Strength": 1.25,
+          "Threshold": 0.9,
           "Tint": "1,1,1,1"
-        },
-        {
-          "__type": "Sandbox.ChromaticAberration",
-          "__guid": "1f227e12-8294-48c5-b4b4-fe7476b2245c",
-          "__enabled": true,
-          "Flags": 0,
-          "Offset": "6,2,4",
-          "OnComponentDestroy": null,
-          "OnComponentDisabled": null,
-          "OnComponentEnabled": null,
-          "OnComponentFixedUpdate": null,
-          "OnComponentStart": null,
-          "OnComponentUpdate": null,
-          "Scale": 0.007968128
         }
       ],
       "Children": [

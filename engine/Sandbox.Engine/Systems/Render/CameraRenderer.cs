@@ -136,6 +136,10 @@ internal ref struct CameraRenderer
 		if ( camera.ExcludeFromTextureStreaming )
 			Native.SceneViewFlags |= NativeEngine.SceneViewFlags.SVF_NO_TEXTURE_STREAMING;
 
+		// Native's bit (1 << 1): the managed enum's members aren't bit values, so SVF_TOOL_VIEW there is native's SVF_DEBUG_LAYERS
+		if ( camera.ToolsView )
+			Native.SceneViewFlags |= (NativeEngine.SceneViewFlags)(1 << 1);
+
 		//
 		// add worlds
 		//

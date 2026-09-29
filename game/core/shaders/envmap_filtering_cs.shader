@@ -38,7 +38,7 @@ CS
 		DownsampleCubemap( vDispatchId );
 	}
 #else
-	[numthreads( 128, 6, 1 )]
+	[numthreads( 64, 1, 1 )]
 	void MainCs( uint3 vDispatchId : SV_DispatchThreadID )
 	{
 		FilterCubemapFast( vDispatchId );

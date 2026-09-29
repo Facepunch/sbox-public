@@ -1,72 +1,494 @@
 @using MenuProject
-@using MenuProject.Social
 @using Sandbox.UI;
-@using Sandbox.UI.Navigation;
 @using Sandbox;
-@using Sandbox.Modals;
 @using System;
 @namespace Sandbox.UI
 @inherits Panel
 
-<root>
-    <div class="inner">
+@*
+    The party deck - its own card in the bottom right, under the friends list.
 
-        <div class="left">
-            <PartyDeck />
-        </div>
-
-        <div class="right">
-
-            <div class="friends">
-                @{
-
-                    foreach( var friend in ActiveFriends.Take( 12 ) )
-                    {
-                        if (PartyRoom.Current != null && PartyRoom.Current.Members.Contains(friend))
-                            continue;
-
-                        <Avatar class="large" UserId="@((long)friend.Id)" />
-                    }
-
-                }
-
-                <separator class="vertical" />
+    It lives in the menu page, just under its popups (right click menus and so on), and moves up into
+    the menu overlay only while a modal's covering the page - that's the one time it needs to sit on
+    top of everything. Everything it knows about where it is, it keeps in screen pixels, so moving
+    between the two doesn't budge it.
+*@
+<root class="@(InOverlay ? "in-overlay" : "")">
+    @* Built once per party and kept - pages it shouldn't be on just fade it out, so coming back
+       doesn't rebuild it and wait on every avatar loading again. *@
+    @if ( InParty )
+    {
+        @* Layers on purpose. Code moves the outer one every frame, and any style change restarts a
+           panel's transitions - so the fades live below it. The fader fades it in and out; the face
+           is how it looks docked or lifted, and has its transitions skipped while it's out of sight. *@
+        <div class="inner" @ref="Card">
+            <div class="fader @(Visible ? "" : "hidden")">
+                <div class="face @State @(Activity ?? "")" @ref="Face">
+                    <PartyDeck @ref="Deck" Lifted="@(State == "lifted")" />
+                </div>
             </div>
-
-            <Button @ref="FriendsButton" Icon="people" onmouseup=@ShowFriendsModal />
         </div>
-    </div>
+    }
 </root>
 
 @code {
-    public IEnumerable<Friend> ActiveFriends = Enumerable.Empty<Friend>();
+    /// <summary>
+    /// The deck, if it's showing - lets other panels keep clear of it.
+    /// </summary>
+    public static Footer Current { get; private set; }
 
-    Button FriendsButton;
+    /// <summary>
+    /// The one deck there is, showing or not. The menu overlay makes a new one if this goes away.
+    /// </summary>
+    public static Footer Instance { get; private set; }
 
-    void ShowFriendsModal()
+    /// <summary>
+    /// Up in the overlay, above the modal stack (modals start at 1010 and climb by 10). Matches the stylesheet.
+    /// </summary>
+    public const int ZIndex = 5000;
+
+    /// <summary>
+    /// Where the deck sits when there's no slot to line up with - the same corner the front page
+    /// puts it in. In the menu page's units, like everything in the deck.
+    /// </summary>
+    const float Margin = 16;
+    const float FallbackWidth = 384;
+
+    Panel Card;
+    Panel Face;
+    PartyDeck Deck;
+    float _slotHeight;
+
+    public Footer()
     {
-        MenuUtility.CloseAllModals();
-
-        ModalSystem.Instance?.FriendsList(new FriendsListModalOptions
-        {
-            Anchor = new()
-            {
-                Panel = FriendsButton,
-                Position = ModalAnchorPosition.AboveRight,
-                Offset = 24,
-            },
-        });
+        Instance = this;
     }
 
-    TimeSince timeSinceUpdated = 100;
+    /// <summary>
+    /// In a party, on the main menu (not in a game, or the avatar editor), and on one of the pages
+    /// you'd pick something to play from - not settings, the jam and so on. A modal doesn't change
+    /// the page underneath it, so the deck stays up over a game you opened from the list.
+    /// </summary>
+    bool Visible => InParty && (OnPartyPage || Activity is not null);
+
+    /// <summary>
+    /// "joining" on our way into the leader's game, "failed" if that went wrong. The card lights up
+    /// for it, and shows on every page while it's going on - you shouldn't lose track of a download
+    /// because you opened settings.
+    /// </summary>
+    static string Activity => PartyDeck.Activity();
+
+    /// <summary>
+    /// In a party, on the main menu - the deck exists, even if this page has it faded out.
+    /// </summary>
+    static bool InParty => PartyView.Exists && !Game.InGame && !MenuProject.LoadingView.IsVisible &&MenuProject.MainMenu.Instance.IsValid() && MenuProject.MainMenu.Instance.Active;
+
+    bool _wasVisible;
+    RealTimeSince _timeSinceShown;
+
+    /// <summary>
+    /// For a moment after it comes back into view (the page it lands on takes a frame or two to lay
+    /// out), it takes on whatever look that page wants straight away - it wasn't on screen, so it
+    /// shouldn't animate as if it had been docked or lifted all along.
+    /// </summary>
+    const float ReappearGrace = 0.15f;
+
+    /// <summary>
+    /// Out of sight, or only just back - state changes land instantly, without a bounce.
+    /// </summary>
+    bool Unseen => !Visible || _timeSinceShown < ReappearGrace;
+
+    static readonly string[] PartyPages = { "/home", "/games", "/maps" };
+
+    static bool OnPartyPage
+    {
+        get
+        {
+            var url = MenuProject.MainMenu.Instance?.Navigator?.CurrentUrl;
+            if ( string.IsNullOrEmpty( url ) ) return false;
+
+            // The page and anything under it - "/games/all", "/home?Tab=trending" - but not "/gamesomething"
+            return PartyPages.Any( page => url == page || url.StartsWith( page + "/" ) || url.StartsWith( page + "?" ) );
+        }
+    }
+
+    /// <summary>
+    /// "docked" - sitting in the bottom of the friends rail, flat, part of that card.
+    /// "lifted" - bubbled out of the rail into a card of its own: a modal's covering the rail, or
+    /// we're on a page without one. Both look and move exactly the same.
+    /// </summary>
+    string State = "";
 
     public override void Tick()
     {
-        if (timeSinceUpdated < 3)
-            return;
+        Current = Visible ? this : null;
 
-        ActiveFriends = MenuUtility.Friends.Where(x => x.IsPlayingThisGame && !x.IsMe).OrderBy(x => x.Name);
-        StateHasChanged();
-        timeSinceUpdated = 0;
+        Rehome();
+
+        // Coming back from a page it was hidden on - start in place again and rise in with the
+        // fade, rather than sliding over from wherever it was last
+        if ( Visible && !_wasVisible )
+        {
+            _placed = false;
+            _timeSinceShown = 0;
+        }
+
+        _wasVisible = Visible;
+
+        if ( Card.IsValid() && Deck.IsValid() )
+        {
+            Position();
+
+            // Nobody's watching - let its look snap to whatever it should be, so it fades in as that
+            if ( Unseen && Face.IsValid() )
+                Face.SkipTransitions();
+        }
+        else
+        {
+            // Gone - next time it shows it starts fresh where it's meant to be, rather than
+            // sliding in from wherever it was last
+            _placed = false;
+        }
+
+        KeepToastsClear();
     }
+
+    //
+    // Where it lives
+    //
+
+    /// <summary>
+    /// Up in the menu overlay, over the modal stack.
+    /// </summary>
+    bool InOverlay => Parent == MenuOverlay.Instance;
+
+    /// <summary>
+    /// In the menu page's own root, just under its popups, so a right click menu opens over us.
+    /// Up in the overlay while a modal covers the page, so we're still there on top of it. Parked in
+    /// the overlay while we're not showing, too - the page can be torn down (the avatar editor) and
+    /// we'd go with it.
+    /// </summary>
+    void Rehome()
+    {
+        var page = MenuProject.MainMenu.Instance.IsValid() ? MenuProject.MainMenu.Instance.Panel?.FindPopupPanel() : null;
+        var home = Visible && !ModalOpen && page.IsValid() ? page : MenuOverlay.Instance;
+
+        if ( !home.IsValid() || Parent == home ) return;
+
+        Parent = home;
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Something that blurs the page is covering the rail. Anchored popups (rewards, the friends list)
+    /// leave the page visible, so the deck stays docked for those.
+    /// </summary>
+    static bool ModalOpen => global::ModalSystem.Instance?.HasBlockingModalsOpen() ?? false;
+
+    string _pendingState;
+    RealTimeSince _timeSincePendingState;
+    RealTimeSince _timeSinceBounce = 10;
+
+    /// <summary>
+    /// Only settle on a new state once it's held for a moment - while a modal is closing, or a page
+    /// is swapping, the conditions can flicker for a few frames, and every change of state bounces.
+    /// </summary>
+    const float StateHold = 0.05f;
+
+    /// <summary>
+    /// Don't start another bounce while the last one's still going.
+    /// </summary>
+    const float BounceCooldown = 0.4f;
+
+    void SetState( string state )
+    {
+        if ( State == state )
+        {
+            _pendingState = null;
+            return;
+        }
+
+        // Where it first starts, or while it's out of sight - just take the new state, no waiting,
+        // no bounce
+        var instant = !_placed || Unseen;
+
+        if ( !instant )
+        {
+            if ( _pendingState != state )
+            {
+                _pendingState = state;
+                _timeSincePendingState = 0;
+                return;
+            }
+
+            if ( _timeSincePendingState < StateHold )
+                return;
+        }
+
+        _pendingState = null;
+        State = state;
+        StateHasChanged();
+
+        // A little bounce on every change of state - docking, lifting out, floating off
+        if ( !instant && _timeSinceBounce > BounceCooldown )
+        {
+            _timeSinceBounce = 0;
+            _pulseVelocity += PulseKick;
+        }
+    }
+
+    //
+    // Everything that moves is animated here rather than in the stylesheet, so it stays fluid
+    // however it's interrupted - navigating mid-lift, the party growing while it docks. The
+    // stylesheet only fades the looks (background, border, corners, shadow) between states.
+    //
+
+    /// <summary>
+    /// How quickly the card chases where it wants to be. Higher is snappier.
+    /// </summary>
+    const float Follow = 16f;
+
+    /// <summary>
+    /// How far it pops out of the rail when a modal opens, in page units.
+    /// </summary>
+    const float LiftDistance = 16f;
+
+    /// <summary>
+    /// Springs for the lift and the bounce. Under-damped, so both overshoot a touch and settle.
+    /// </summary>
+    const float LiftStiffness = 260f;
+    const float LiftDamping = 20f;
+    const float PulseStiffness = 420f;
+    const float PulseDamping = 16f;
+    const float PulseKick = 1.1f;
+
+    /// <summary>
+    /// How far below its spot it starts when it first appears, in page units - it rises into place.
+    /// </summary>
+    const float IntroRise = 12f;
+
+    bool _placed;
+
+    // All in screen pixels - they have to survive us moving between the page and the overlay,
+    // which don't share units
+    Rect _rect;
+    Vector2 _lift, _liftVelocity;
+    float _pulse, _pulseVelocity;
+
+    // Where the front page's rail last had the deck
+    bool _hasSlot;
+    float _slotLeft, _slotBottom, _slotWidth;
+
+    /// <summary>
+    /// The deck's laid out in the menu page's units and scaled to match the page wherever we are -
+    /// otherwise, up in the overlay, it'd look a size too small next to the friends list. It sits
+    /// over the slot the front page keeps for it, lifting out when a modal covers it - and on pages
+    /// without the rail it lifts out from where the rail had it, the same way.
+    /// </summary>
+    void Position()
+    {
+        var page = MenuProject.MainMenu.Instance?.Panel;
+        var pageScale = page.IsValid() ? page.ScaleToScreen : ScaleToScreen;
+        var scale = ScaleToScreen > 0 ? pageScale / ScaleToScreen : 1f;
+
+        var deckTransform = new PanelTransform();
+        deckTransform.AddScale( new Vector3( scale, scale, 1 ) );
+        Deck.Style.Transform = deckTransform;
+        Deck.Style.TransformOriginX = 0;
+        Deck.Style.TransformOriginY = 0;
+
+        // How tall the deck wants to be for the people in it. The transform doesn't change layout,
+        // so this is the unscaled height - in page units, and on screen once scaled.
+        var deckHeightPage = Deck.Box.Rect.Height * ScaleFromScreen;
+        var deckHeight = deckHeightPage * pageScale;
+
+        Rect target;
+
+        if ( MenuProject.MenuUI.Home.PartySlot is { IsVisible: true } slot && slot.Box.Rect.Width > 0 )
+        {
+            // Grow the slot with the party, so the friends list above makes room
+            if ( deckHeightPage > 0 && MathF.Abs( deckHeightPage - _slotHeight ) > 0.5f )
+            {
+                _slotHeight = deckHeightPage;
+                slot.Style.Height = deckHeightPage;
+            }
+
+            var rect = slot.Box.Rect;
+            target = new Rect( rect.Left, rect.Top, rect.Width, deckHeight );
+
+            // Remember where the rail keeps it, for the pages that don't have one
+            _slotLeft = target.Left;
+            _slotBottom = target.Bottom;
+            _slotWidth = target.Width;
+            _hasSlot = true;
+
+            SetState( ModalOpen ? "lifted" : "docked" );
+        }
+        else
+        {
+            // No rail on this page (or it's hidden) - sit exactly where the rail had it and lift
+            // out, just like a modal opening over it. Bottom-anchored so a growing party grows up.
+            // Never been on the front page? The same corner the rail would put it in.
+            var screen = Box.Rect;
+            var width = _hasSlot ? _slotWidth : FallbackWidth * pageScale;
+            var left = _hasSlot ? _slotLeft : screen.Right - Margin * pageScale - width;
+            var bottom = _hasSlot ? _slotBottom : screen.Bottom - Margin * pageScale;
+
+            target = new Rect( left, bottom - deckHeight, width, deckHeight );
+
+            SetState( "lifted" );
+        }
+
+        Deck.Style.Width = target.Width / pageScale;
+
+        var dt = MathF.Min( RealTime.Delta, 0.05f );
+        var liftTarget = State == "lifted" ? new Vector2( -LiftDistance, -LiftDistance ) * pageScale : Vector2.Zero;
+
+        if ( !_placed )
+        {
+            // First frame it's been laid out - start in place, just below it, and rise in with the fade
+            _placed = deckHeight > 0;
+            _rect = target;
+            _lift = liftTarget + new Vector2( 0, IntroRise * pageScale );
+            _liftVelocity = Vector2.Zero;
+            _pulse = 0;
+            _pulseVelocity = 0;
+        }
+        else if ( !Visible )
+        {
+            // Hidden - keep it where it belongs, so nothing's mid-flight when it comes back
+            _rect = target;
+            _lift = liftTarget;
+            _liftVelocity = Vector2.Zero;
+        }
+        else
+        {
+            var t = 1f - MathF.Exp( -Follow * dt );
+            _rect = new Rect(
+                Approach( _rect.Left, target.Left, t ),
+                Approach( _rect.Top, target.Top, t ),
+                Approach( _rect.Width, target.Width, t ),
+                Approach( _rect.Height, target.Height, t ) );
+        }
+
+        // Springs - lift towards where it should sit, bounce back to its normal size. Once they're
+        // close enough to rest, put them there and stop, rather than wobbling by fractions of a pixel.
+        _liftVelocity += ((liftTarget - _lift) * LiftStiffness - _liftVelocity * LiftDamping) * dt;
+        _lift += _liftVelocity * dt;
+
+        if ( (_lift - liftTarget).Length < 0.1f && _liftVelocity.Length < 1f )
+        {
+            _lift = liftTarget;
+            _liftVelocity = Vector2.Zero;
+        }
+
+        _pulseVelocity += (-_pulse * PulseStiffness - _pulseVelocity * PulseDamping) * dt;
+        _pulse += _pulseVelocity * dt;
+
+        if ( MathF.Abs( _pulse ) < 0.0005f && MathF.Abs( _pulseVelocity ) < 0.01f )
+        {
+            _pulse = 0;
+            _pulseVelocity = 0;
+        }
+
+        // Screen pixels into whichever panel we're living in right now
+        var toLocal = ScaleFromScreen;
+
+        Card.Style.Left = _rect.Left * toLocal;
+        Card.Style.Top = _rect.Top * toLocal;
+        Card.Style.Width = _rect.Width * toLocal;
+        Card.Style.Height = _rect.Height * toLocal;
+
+        var transform = new PanelTransform();
+        transform.AddTranslate( _lift.x * toLocal, _lift.y * toLocal );
+        transform.AddScale( new Vector3( 1 + _pulse, 1 + _pulse, 1 ) );
+        Card.Style.Transform = transform;
+        Card.Style.TransformOriginX = Length.Percent( 50 );
+        Card.Style.TransformOriginY = Length.Percent( 50 );
+
+        UpdatePopoverAnchor();
+    }
+
+    //
+    // Things that line up against us
+    //
+
+    Panel _popoverAnchor;
+
+    /// <summary>
+    /// Where the card actually is on screen, lift and all, for popovers off the deck (the friends list)
+    /// to line up against - layout boxes don't include transforms. It lives in the overlay with the
+    /// modals it anchors, whichever panel we're in.
+    /// </summary>
+    public static Panel Anchor => Current?._popoverAnchor;
+
+    void UpdatePopoverAnchor()
+    {
+        var overlay = MenuOverlay.Instance;
+        if ( !overlay.IsValid() ) return;
+
+        if ( !_popoverAnchor.IsValid() || _popoverAnchor.Parent != overlay )
+        {
+            _popoverAnchor?.Delete( true );
+            _popoverAnchor = overlay.AddChild<Panel>( "party-popover-anchor" );
+            _popoverAnchor.Style.Position = PositionMode.Absolute;
+            _popoverAnchor.Style.PointerEvents = PointerEvents.None;
+        }
+
+        var toOverlay = overlay.ScaleFromScreen;
+        _popoverAnchor.Style.Left = (_rect.Left + _lift.x) * toOverlay;
+        _popoverAnchor.Style.Top = (_rect.Top + _lift.y) * toOverlay;
+        _popoverAnchor.Style.Width = _rect.Width * toOverlay;
+        _popoverAnchor.Style.Height = _rect.Height * toOverlay;
+    }
+
+    float? _cornerBottom = -1;
+
+    /// <summary>
+    /// The bottom right toasts (the post-game popup and friends) share our corner - while we're
+    /// showing, sit them on top of us rather than underneath.
+    /// </summary>
+    void KeepToastsClear()
+    {
+        var corner = MenuOverlay.Instance?.NotificationCorner;
+        if ( !corner.IsValid() ) return;
+
+        float? bottom = null;
+
+        if ( Visible && _placed && Card.IsValid() )
+        {
+            var cardTop = _rect.Top + _lift.y;
+            bottom = MathF.Round( (Box.Rect.Bottom - cardTop) * corner.ScaleFromScreen + 12 );
+        }
+
+        // Only when it moves - a style change every frame is wasted work
+        if ( bottom == _cornerBottom ) return;
+
+        _cornerBottom = bottom;
+        corner.Style.Bottom = bottom;
+    }
+
+    /// <summary>
+    /// Ease towards a value, and land on it once we're within a fraction of a pixel - an
+    /// exponential ease never quite arrives on its own, and creeps visibly for seconds.
+    /// </summary>
+    static float Approach( float from, float to, float t )
+    {
+        var value = from.LerpTo( to, t );
+        return MathF.Abs( value - to ) < 0.25f ? to : value;
+    }
+
+    public override void OnDeleted()
+    {
+        if ( Current == this ) Current = null;
+        if ( Instance == this ) Instance = null;
+
+        _popoverAnchor?.Delete( true );
+
+        // Nobody else puts the toasts back
+        if ( MenuOverlay.Instance?.NotificationCorner is { } corner && corner.IsValid() )
+            corner.Style.Bottom = null;
+    }
+
+    protected override int BuildHash() => HashCode.Combine( InParty, Visible, State, Activity, InOverlay );
 }

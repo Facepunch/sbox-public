@@ -74,6 +74,7 @@ public partial class PrimitiveTool( MeshTool tool ) : EditorTool
 			var go = new GameObject( true, name );
 			go.WorldPosition = rotation * bounds.Center;
 			go.WorldRotation = rotation;
+			go.IsStatic = true;
 			var c = go.Components.Create<MeshComponent>( false );
 			c.Mesh = mesh;
 			c.SmoothingAngle = 40.0f;

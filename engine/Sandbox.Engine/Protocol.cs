@@ -13,7 +13,7 @@ public static class Protocol
 	/// <summary>
 	/// We cannot talk to servers or clients with a network protocol different to this.
 	/// </summary>
-	public static int Network => 1104;
+	public static int Network => 1105;
 }
 
 // Api Versions
@@ -30,6 +30,7 @@ public static class Protocol
 
 
 // Network Versions
+// 1105. 27th September 2026 - Voice is captured with SDL and encoded with Opus instead of Steam voice
 // 1104. 04th September 2026 - Host migration handoff messages, HostMigration in ServerInfo
 // 1103. 29th June 2026 - Failed attempt to switch xxhash3 to System.IO.Hashing
 // 1102. 14th May 2026 - Connection display names are resolved locally

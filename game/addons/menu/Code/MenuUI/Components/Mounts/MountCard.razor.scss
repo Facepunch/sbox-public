@@ -126,7 +126,7 @@ MountCard
 		height: 22px;
 		border-radius: 999px;
 		background-color: $front-track;
-		border: 1px solid $front-hairline;
+		border: $front-border-width solid $front-hairline;
 		transition: all 0.15s ease;
 
 		.knob

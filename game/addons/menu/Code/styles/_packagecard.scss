@@ -2,11 +2,22 @@
 
 // Landscape tiles: art fills the tile, title and live count sit over its foot on a scrim.
 // A mixin because "&.default, &.wide" nests as "PackageCard.default, PackageCard.wide column".
-@mixin landscape-tile
+@mixin landscape-band
 {
+	// The art is the whole card - no outline round it, which just reads as a see-through rim
+	border-width: 0;
+
 	.image
 	{
 		border-radius: $front-radius;
+	}
+
+	// Out-ranks the card's own hover below. No grow - it lifts: up a few pixels, its shadow
+	// deepening under it as if it's come off the page. The title goes white
+	&.package-card:not(.list):hover
+	{
+		transform: translateY( -4px );
+		box-shadow: 0 14px 30px rgba( black, 0.65 );
 	}
 
 	column
@@ -22,6 +33,11 @@
 		background-color: transparent;
 		background-image: linear-gradient( 0deg, rgba( 0, 0, 0, 0.6 ) 30%, rgba( 0, 0, 0, 0 ) );
 		pointer-events: none;
+
+		&::after
+		{
+			display: none;
+		}
 	}
 
 	.package-title
@@ -40,6 +56,7 @@
 		gap: 0;
 	}
 
+	// Only the live count - the rating and all-time players are on the hover card
 	.package-stat
 	{
 		display: none;
@@ -95,8 +112,8 @@ PackageCard
 		}
 	}
 
-	// Reserved so the hover border costs no layout shift.
-	border: 2px solid transparent;
+	// The rails' outline - the same hairline round every panel
+	border: $front-border-width solid $front-border;
 	border-radius: $front-radius;
 	overflow: hidden;
 	transition: all 0.12s ease;
@@ -141,14 +158,19 @@ PackageCard
 		}
 	}
 
-	// A band below the art, on its own fill - the art stays unobstructed.
+	// A band below the art - the art stays unobstructed. The rails' fill and paper texture, so the
+	// cards read as the same material as the panels round them
 	column
 	{
+		position: relative;
 		flex-direction: column;
 		flex-shrink: 0;
 		gap: 4px;
 		padding: 9px 12px 11px 12px;
-		background-color: $front-tile-bar;
+		background-color: $front-card;
+		background-image: linear-gradient( 180deg, $front-card-top, $front-card-bottom );
+
+		@include front-grain;
 	}
 
 	.package-title
@@ -161,8 +183,8 @@ PackageCard
 		text-overflow: ellipsis;
 	}
 
-	&.default { @include landscape-tile; }
-	&.wide { @include landscape-tile; }
+	&.default { @include landscape-band; }
+	&.wide { @include landscape-band; }
 
 	// Icon+number pairs read as one unit, with clear air between the pairs.
 	.package-meta
@@ -208,19 +230,23 @@ PackageCard
 		}
 	}
 
+	// The base card's grey hover plate (its ::after) - gone for good, not just while hovered. Hidden
+	// only on hover, it came back the moment the pointer left and faded out from grey, a flash of
+	// background behind the card on every unhover
+	&.package-card:not(.list)::after
+	{
+		display: none;
+	}
+
 	// Hover = a small lift. The extra class out-ranks the base :not(.list):hover scale/fill.
 	&.package-card:not(.list):hover
 	{
-		border-color: transparent;
+		border-color: rgba( 255, 255, 255, 0.16 );
 		box-shadow: 0 10px 30px rgba( black, 0.6 );
-		transform: scale( 1.03 );
+		// No grow for now - out-ranks the base card's scale up too
+		transform: none;
 		background-color: transparent;
 		z-index: 100;
-
-		&::after
-		{
-			display: none;
-		}
 
 		// Tints past 1.0 bloom.
 		.image
@@ -252,9 +278,18 @@ PackageCard
 		column
 		{
 			background-color: transparent;
+			background-image: none;
 			padding: 0;
 			justify-content: center;
+
+			&::after
+			{
+				display: none;
+			}
 		}
+
+		// A row sits in a list, not on its own - no outline until it's pointed at
+		border-color: transparent;
 
 		&:hover
 		{

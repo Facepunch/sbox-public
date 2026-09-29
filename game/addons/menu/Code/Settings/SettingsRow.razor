@@ -19,6 +19,10 @@
 			{
 				<SliderControl Value:bind=@Item.FloatValue Min=@Item.Min Max=@Item.Max Step=@Item.Step NumberFormat=@Item.NumberFormat ShowTextEntry=@true></SliderControl>
 			}
+			else if ( Item.Kind == SettingKind.Custom )
+			{
+				<div class="custom" @ref="CustomHost"></div>
+			}
 			else if ( Item.Kind == SettingKind.Dropdown )
 			{
 				<DropDown Value:bind=@Item.Value BuildOptions=@( () => Item.CurrentOptions )></DropDown>
@@ -56,6 +60,8 @@
 	/// <summary>The search that turned this row up.</summary>
 	[Parameter] public string Highlight { get; set; }
 
+	Panel CustomHost;
+
 	string Disabled => Item?.Disabled;
 	string Warning => Item?.Warning?.Invoke();
 
@@ -70,6 +76,14 @@
 
 			return classes;
 		}
+	}
+
+	protected override void OnAfterTreeRender( bool firstTime )
+	{
+		base.OnAfterTreeRender( firstTime );
+
+		if ( firstTime && CustomHost is not null && Item.CreateControl is not null )
+			Item.CreateControl( Item ).Parent = CustomHost;
 	}
 
 	// A class rather than a rebuild, so dragging a slider outside its row doesn't tear it out.

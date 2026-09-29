@@ -13,7 +13,8 @@
 
     <MegaCard>
         <Metrics>
-            <PackageMetrics Package="@Package" />
+            @* Just report - rating's along the bottom now, the rest is in the info column *@
+            <PackageMetrics Package="@Package" ShowRatings="@false" ShowStats="@false" />
         </Metrics>
         <Tabs>
 

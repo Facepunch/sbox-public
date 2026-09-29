@@ -478,6 +478,7 @@ internal partial class NetworkSystem
 		}
 
 		FailureReason = $"Kicked from server.\n\nReason: {msg.Reason}";
+		Api.Activity.SetExitReason( "kicked", msg.Reason );
 		IGameInstanceDll.Current.Disconnect( FailureReason );
 		return Task.CompletedTask;
 	}
@@ -500,6 +501,7 @@ internal partial class NetworkSystem
 
 		Log.Trace( $"[{this}] I am spawning into the game!" );
 		LoadingScreen.IsVisible = false;
+		Api.Activity.LoadFinished();
 
 		Connection.Local.State = Connection.ChannelState.Connected;
 		source.State = Connection.ChannelState.Connected;

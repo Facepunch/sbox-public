@@ -42,6 +42,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 	private readonly HashSet<Guid> _currentEnabledSprites = new();
 	private readonly List<Guid> _spritesToRemove = new();
 	private readonly List<Guid> _keysToRemoveScratch = new();
+	private readonly HashSet<ulong> _isolatedRenderGroups = [];
 
 	internal unsafe void UpdateParticleSprites()
 	{
@@ -259,31 +260,9 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		}
 	}
 
-	private static ulong GetRenderGroupKey( ISpriteRenderGroup component, GameTags tags, RenderOptions renderOptions )
+	private static ulong GetRenderGroupKey( ISpriteRenderGroup component, GameTags tags, RenderOptions renderOptions, Guid isolatedComponent = default )
 	{
-		var flags = InstanceGroupFlags.None;
-
-		// Non-opaque and sorted needs transparency
-		if ( !component.Opaque && component.IsSorted )
-		{
-			flags |= InstanceGroupFlags.Transparent;
-		}
-
-		// Shadows
-		if ( component.Shadows && !component.Additive )
-		{
-			flags |= InstanceGroupFlags.CastShadow;
-		}
-
-		if ( component.Additive )
-		{
-			flags |= InstanceGroupFlags.Additive;
-		}
-
-		if ( component.Opaque )
-		{
-			flags |= InstanceGroupFlags.Opaque;
-		}
+		var flags = GetRenderGroupFlags( component );
 
 		byte renderLayerFlags = (byte)(
 			(renderOptions.Game ? 1 : 0) |
@@ -293,11 +272,12 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		);
 
 		var tokens = tags.GetTokens();
-		// Single buffer: [4 bytes flags][1 byte renderLayer][4*N bytes tokens] - bounded to 261 bytes by the guard.
-		Span<byte> buf = tokens.Count <= 64 ? stackalloc byte[5 + tokens.Count * 4] : new byte[5 + tokens.Count * 4];
+		// Single buffer: [4 bytes flags][1 byte renderLayer][16 bytes isolated component][4*N bytes tokens].
+		Span<byte> buf = tokens.Count <= 64 ? stackalloc byte[21 + tokens.Count * 4] : new byte[21 + tokens.Count * 4];
 		MemoryMarshal.Write( buf, in flags );
 		buf[4] = renderLayerFlags;
-		var tokenSlice = MemoryMarshal.Cast<byte, uint>( buf[5..] );
+		MemoryMarshal.Write( buf[5..], in isolatedComponent );
+		var tokenSlice = MemoryMarshal.Cast<byte, uint>( buf[21..] );
 		int i = 0;
 		foreach ( var token in tokens ) tokenSlice[i++] = token;
 		MemoryExtensions.Sort( tokenSlice );
@@ -305,15 +285,20 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		return XxHash3.HashToUInt64( buf );
 	}
 
-	private static RenderGroupConfig BuildConfig( ISpriteRenderGroup component, GameTags tags, RenderOptions renderOptions )
+	private static InstanceGroupFlags GetRenderGroupFlags( ISpriteRenderGroup component )
 	{
 		var flags = InstanceGroupFlags.None;
-		if ( !component.Opaque && component.IsSorted ) flags |= InstanceGroupFlags.Transparent;
+		if ( !component.Opaque ) flags |= InstanceGroupFlags.Transparent;
+		if ( !component.Opaque && component.IsSorted ) flags |= InstanceGroupFlags.Sorted;
 		if ( component.Shadows && !component.Additive ) flags |= InstanceGroupFlags.CastShadow;
 		if ( component.Additive ) flags |= InstanceGroupFlags.Additive;
 		if ( component.Opaque ) flags |= InstanceGroupFlags.Opaque;
+		return flags;
+	}
 
-		return new RenderGroupConfig( flags, renderOptions.Clone(), tags.GetTokens().ToFrozenSet() );
+	private static RenderGroupConfig BuildConfig( ISpriteRenderGroup component, GameTags tags, RenderOptions renderOptions )
+	{
+		return new RenderGroupConfig( GetRenderGroupFlags( component ), renderOptions.Clone(), tags.GetTokens().ToFrozenSet() );
 	}
 
 	/// <summary>
@@ -347,29 +332,41 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 	private void RemoveFromRenderGroup( Guid componentId, ulong renderGroup )
 	{
 		Assert.True( IsPresentInRenderGroup( componentId, renderGroup ) );
-		RenderGroups[renderGroup].UnregisterSprite( componentId );
+
+		var group = RenderGroups[renderGroup];
+		group.UnregisterSprite( componentId );
+
+		if ( group.Components.Count > 0 || !_isolatedRenderGroups.Remove( renderGroup ) )
+			return;
+
+		group.Delete();
+		RenderGroups.Remove( renderGroup );
 	}
 
-	private SpriteBatchSceneObject CreateRenderGroup( ulong key, RenderGroupConfig config )
+	private SpriteBatchSceneObject CreateRenderGroup( ulong key, RenderGroupConfig config, bool isolated = false )
 	{
 		var renderGroupObject = new SpriteBatchSceneObject( Scene );
 		renderGroupObject.Flags.CastShadows = (config.Flags & InstanceGroupFlags.CastShadow) != 0;
 		renderGroupObject.Flags.ExcludeGameLayer = (config.Flags & InstanceGroupFlags.CastOnlyShadow) != 0;
-		renderGroupObject.Sorted = (config.Flags & InstanceGroupFlags.Transparent) != 0;
+		renderGroupObject.Flags.IsTranslucent = (config.Flags & InstanceGroupFlags.Transparent) != 0;
+		renderGroupObject.Flags.IsOpaque = (config.Flags & InstanceGroupFlags.Opaque) != 0;
+		renderGroupObject.Sorted = (config.Flags & InstanceGroupFlags.Sorted) != 0;
 		renderGroupObject.Additive = (config.Flags & InstanceGroupFlags.Additive) != 0;
 		renderGroupObject.Opaque = (config.Flags & InstanceGroupFlags.Opaque) != 0;
 		renderGroupObject.Tags.SetFrom( new TagSet( config.Tags.Select( StringToken.GetValue ) ) );
 		config.RenderOptions.Apply( renderGroupObject );
 
 		RenderGroups.Add( key, renderGroupObject );
+		if ( isolated ) _isolatedRenderGroups.Add( key );
 		return renderGroupObject;
 	}
 
 	internal void RegisterSprite( Guid componentId, SpriteRenderer component )
 	{
-		var key = GetRenderGroupKey( component, component.Tags as GameTags, component.RenderOptions );
+		var isolatedComponent = GetIsolatedComponent( component );
+		var key = GetRenderGroupKey( component, component.Tags as GameTags, component.RenderOptions, isolatedComponent );
 		if ( !RenderGroups.ContainsKey( key ) )
-			CreateRenderGroup( key, BuildConfig( component, component.Tags as GameTags, component.RenderOptions ) );
+			CreateRenderGroup( key, BuildConfig( component, component.Tags as GameTags, component.RenderOptions ), isolatedComponent != default );
 
 		InsertInRenderGroup( componentId, component, key );
 	}
@@ -379,7 +376,8 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		// If found in old renderGroup, we unregister it and register it in the new one
 		if ( FindCurrentRenderGroup( componentId ) is ulong oldRenderGroup )
 		{
-			var newRenderGroup = GetRenderGroupKey( component, (GameTags)component.Tags, component.RenderOptions );
+			var isolatedComponent = GetIsolatedComponent( component );
+			var newRenderGroup = GetRenderGroupKey( component, (GameTags)component.Tags, component.RenderOptions, isolatedComponent );
 			if ( !oldRenderGroup.Equals( newRenderGroup ) )
 			{
 				RemoveFromRenderGroup( componentId, oldRenderGroup );
@@ -398,11 +396,16 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		}
 	}
 
+	private static Guid GetIsolatedComponent( SpriteRenderer component )
+	{
+		return !component.Opaque && component.Billboard == SpriteRenderer.BillboardMode.None ? component.Id : default;
+	}
+
 	internal void UnregisterSprite( Guid componentId )
 	{
 		if ( FindCurrentRenderGroup( componentId ) is ulong rg )
 		{
-			RenderGroups[rg].UnregisterSprite( componentId );
+			RemoveFromRenderGroup( componentId, rg );
 		}
 	}
 
@@ -414,6 +417,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		CastOnlyShadow = 1 << 1,
 		Transparent = 1 << 2,
 		Additive = 1 << 3,
-		Opaque = 1 << 4
+		Opaque = 1 << 4,
+		Sorted = 1 << 5
 	}
 }

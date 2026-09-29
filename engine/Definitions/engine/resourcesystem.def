@@ -46,7 +46,7 @@ managed class Sandbox.Resource
 	// Called when a resource's file data has been loaded. The header is the
 	// resource file's non-streaming data and is only valid during the call -
 	// copy out anything you want.
-	static void OnResourceLoaded( string name, void* header );
+	static void OnResourceLoaded( string name, void* header, ulong dataSize );
 
 	static void OnGuidChanged( string name, Guid guid );
 	static void OnResourcePathChanged( Guid guid, string newPath );

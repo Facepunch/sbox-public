@@ -325,6 +325,13 @@ internal static class EngineLoop
 
 		using var _outputScope = _clientOutput.Start();
 
+		// Flush envmaps in their own view scope before we do any view rendering
+		foreach ( var scene in Scene.All.Where( x => x.Active ) )
+			scene.RenderEnvmaps();
+
+		// r_managed_scene_compare renders to a bitmap, which has to happen before any views are rendering
+		Rendering.ManagedSceneRendering.BeforeRenderingViews();
+
 		// UI windows own their own swap chains, they're not part of anyone's view
 		Sandbox.UI.PanelWindows.FrameAll();
 

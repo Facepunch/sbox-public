@@ -1,0 +1,73 @@
+@using System;
+@using System.Collections.Generic;
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.MenuUI.Jams
+@inherits Panel
+
+<root>
+	<div class="entry-controls">
+		<div class="entry-tabs">@Filters</div>
+		<TextEntry class="entry-search" Placeholder="Search entries…" Value=@Search HasClearButton=@true OnTextEdited=@SearchChanged />
+		@if ( ShowOrder )
+		{
+			<div class="entry-order">
+				<label>Order</label>
+				<DropDown Options=@Orders Value=@Order ValueChanged=@OrderChanged />
+			</div>
+		}
+	</div>
+</root>
+
+@code
+{
+	/// <summary>
+	/// Filter buttons supplied by the entry browser.
+	/// </summary>
+	[Parameter] public RenderFragment Filters { get; set; }
+
+	/// <summary>
+	/// Text used to filter the entry collection.
+	/// </summary>
+	[Parameter] public string Search { get; set; }
+
+	/// <summary>
+	/// Applies edits to the entry search immediately.
+	/// </summary>
+	[Parameter] public Action<string> SearchChanged { get; set; }
+
+	/// <summary>
+	/// Sort choices available in this browser.
+	/// </summary>
+	[Parameter] public List<Option> Orders { get; set; } = DefaultOrders;
+
+	/// <summary>
+	/// The selected sort value.
+	/// </summary>
+	[Parameter] public string Order { get; set; }
+
+	/// <summary>
+	/// Whether the current view supports sorting its entries.
+	/// </summary>
+	[Parameter] public bool ShowOrder { get; set; } = true;
+
+	/// <summary>
+	/// Applies a new sort selection to the owning browser.
+	/// </summary>
+	[Parameter] public Action<string> OrderChanged { get; set; }
+
+	/// <summary>
+	/// Common package sorting choices for jam entry browsers.
+	/// </summary>
+	[SkipHotload]
+	public static readonly List<Option> DefaultOrders =
+	[
+		new( "Discovery", "discovery" ),
+		new( "Active players", "active-players" ) { Tooltip = "Most players currently playing" },
+		new( "Thumbs up", "thumbs-up" ) { Tooltip = "Most positive votes" },
+		new( "Newest", "newest" ),
+		new( "Name A–Z", "name" )
+	];
+
+	protected override int BuildHash() => HashCode.Combine( Filters, Orders, Order, ShowOrder, Search );
+}

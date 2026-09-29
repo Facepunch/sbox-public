@@ -40,6 +40,7 @@ internal static class Bootstrap
 			initializeWindow?.Invoke();
 			InitServices();
 			Graphics.Initialize();
+			GameWindow.Current?.UpdateStartupProgress( 0.1f );
 
 			DLLImportResolver.SetupResolvers();
 
@@ -77,6 +78,7 @@ internal static class Bootstrap
 			}
 
 			Api.Init();
+			GameWindow.Current?.UpdateStartupProgress( 0.2f );
 
 			if ( Application.IsStandalone )
 			{
@@ -99,6 +101,8 @@ internal static class Bootstrap
 
 				Mounting.Directory.LoadAssemblies();
 			}
+
+			GameWindow.Current?.UpdateStartupProgress( 0.4f );
 		}
 		catch ( Exception ex )
 		{
@@ -155,6 +159,7 @@ internal static class Bootstrap
 		try
 		{
 			Material.Preload();
+			GameWindow.Current?.UpdateStartupProgress( 0.55f );
 
 			IToolsDll.Current?.Spin();
 
@@ -175,6 +180,7 @@ internal static class Bootstrap
 
 			ReflectionUtility.RunAllStaticConstructors( "Sandbox.System" );
 			ReflectionUtility.RunAllStaticConstructors( "Sandbox.Engine" );
+			GameWindow.Current?.UpdateStartupProgress( 0.6f );
 
 			//log.Trace( "Bootstrap::Init" );
 			//log.Trace( $"Current Directory is {System.IO.Directory.GetCurrentDirectory()}" );
@@ -188,6 +194,8 @@ internal static class Bootstrap
 			{
 				SyncContext.RunBlocking( Project.InitializeBuiltIn() );
 			}
+
+			GameWindow.Current?.UpdateStartupProgress( 0.7f );
 
 			InitEngineConVars();
 			ConsoleConfig.ExecuteAutoexec();
@@ -224,17 +232,23 @@ internal static class Bootstrap
 				SyncContext.RunBlocking( Services.Inventory.WaitForSteamInventoryItems( timeout.Token ) );
 			}
 
+			GameWindow.Current?.UpdateStartupProgress( 0.8f );
+
 			if ( IMenuDll.Current is not null )
 			{
 				using var x = StartupTiming?.ScopeTimer( $"MenuBootstrap" );
 				SyncContext.RunBlocking( IMenuDll.Current.Initialize() );
 			}
 
+			GameWindow.Current?.UpdateStartupProgress( 0.9f );
+
 			if ( IGameInstanceDll.Current is not null )
 			{
 				using var x = StartupTiming?.ScopeTimer( $"IGameMenuDll Bootstrap" );
 				SyncContext.RunBlocking( IGameInstanceDll.Current.Initialize() );
 			}
+
+			GameWindow.Current?.UpdateStartupProgress( 0.95f );
 
 			if ( SteamClient.IsValid && ErrorReporter.IsUsingSentry )
 			{

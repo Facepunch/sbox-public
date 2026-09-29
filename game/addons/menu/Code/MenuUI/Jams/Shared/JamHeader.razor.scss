@@ -1,17 +1,15 @@
 @import "/styles/_front.scss";
 
-JamHeader
+JamPage JamHeader
 {
-	@include front-card;
-
-	padding: 20px 28px;
+	padding: 12px 24px;
 
 	.hero-row
 	{
 		flex-direction: row;
 		flex-shrink: 0;
 		align-items: stretch;
-		gap: 40px;
+		gap: 24px;
 	}
 
 	.intro
@@ -20,16 +18,16 @@ JamHeader
 		flex-grow: 1;
 		flex-shrink: 1;
 		width: 0;
-		gap: 4px;
+		gap: 2px;
 	}
 
 	.side
 	{
 		flex-direction: column;
-		flex-shrink: 0;
+		flex-shrink: 1;
 		align-items: flex-end;
-		justify-content: space-between;
-		gap: 16px;
+		max-width: 40%;
+		gap: 8px;
 	}
 
 	.head
@@ -38,6 +36,7 @@ JamHeader
 		flex-shrink: 0;
 		align-items: center;
 		gap: 10px;
+		min-height: 22px;
 	}
 
 	h2
@@ -95,19 +94,14 @@ JamHeader
 		}
 	}
 
-	.theme
-	{
-		flex-direction: column;
-		flex-shrink: 0;
-		gap: 0;
-		margin-top: 6px;
-	}
-
 	.kicker
 	{
-		@include front-section-label;
-
-		flex-shrink: 0;
+		flex-shrink: 1;
+		min-width: 0;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		line-height: 100%;
 		color: $front-primary;
 	}
 
@@ -115,64 +109,62 @@ JamHeader
 	{
 		flex-shrink: 0;
 		font-family: $front-font;
-		font-size: 34px;
+		font-size: 30px;
 		font-weight: 800;
 		letter-spacing: -0.02em;
 		color: $front-heading;
 	}
 
-	p
-	{
-		flex-shrink: 0;
-		color: $front-body;
-		margin: 8px 0 0 0;
-	}
-
 	.blurb
 	{
 		flex-shrink: 0;
+		flex-wrap: wrap;
+		column-gap: 4px;
 		font-size: 12.5px;
+		line-height: 100%;
 		color: $front-secondary;
 		max-width: 720px;
-	}
 
-	.actions
-	{
-		flex-direction: row-reverse;
-		flex-shrink: 0;
-		gap: 10px;
+		.blurb-lead
+		{
+			color: $front-trophy;
+			font-weight: 600;
+		}
 	}
 
 	.action
 	{
-		@include front-button;
-
-		pointer-events: all;
-		cursor: pointer;
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		align-self: center;
 		padding: 0 18px;
 		height: 36px;
+		border-radius: 6px;
+		background-color: $front-primary;
+		transition: all 0.1s ease;
 
-		&.secondary
+		label
 		{
-			background-color: rgba( 255, 255, 255, 0.06 );
-			border: 1px solid $front-hairline;
+			font-family: $front-font;
+			font-size: 12.5px;
+			font-weight: 700;
+			text-transform: uppercase;
+			letter-spacing: 0.07em;
+			color: #ffffff;
+		}
 
-			label, icon
-			{
-				color: $front-body;
-			}
+		icon
+		{
+			font-size: 17px;
+			color: #ffffff;
+		}
 
-			&:hover
-			{
-				filter: none;
-				background-color: rgba( 255, 255, 255, 0.11 );
-				border-color: rgba( 255, 255, 255, 0.28 );
-
-				label, icon
-				{
-					color: $front-heading;
-				}
-			}
+		&:hover
+		{
+			filter: brightness( 1.15 );
 		}
 	}
 }

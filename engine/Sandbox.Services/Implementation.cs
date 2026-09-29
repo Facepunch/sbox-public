@@ -22,6 +22,9 @@ public static class Backend
 	public static IStorageApi Storage { get; private set; }
 	public static IUtilityApi Utility { get; private set; }
 	public static IJamApi Jam { get; private set; }
+	public static ICodeApi Code { get; private set; }
+	public static IForumApi Forum { get; private set; }
+	public static IPlatformApi Platform { get; private set; }
 
 	private static HttpClient httpClient = null;
 
@@ -49,6 +52,9 @@ public static class Backend
 		Storage = RestService.For<IStorageApi>( httpClient, refitSettings );
 		Utility = RestService.For<IUtilityApi>( httpClient, refitSettings );
 		Jam = RestService.For<IJamApi>( httpClient, refitSettings );
+		Code = RestService.For<ICodeApi>( httpClient, refitSettings );
+		Forum = RestService.For<IForumApi>( httpClient, refitSettings );
+		Platform = RestService.For<IPlatformApi>( httpClient, refitSettings );
 	}
 
 	static RefitSettings BuildSettings( string url )

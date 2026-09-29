@@ -148,6 +148,8 @@ public static partial class Game
 		// Be aware that this could be called from the GameDll or the MenuDll
 		// So anything here needs to be safe to call from either
 
+		Api.Activity.SetExitReason( "menu" );
+
 		if ( IGameInstance.Current is not null )
 		{
 			IGameInstance.Current.Close();
@@ -167,11 +169,6 @@ public static partial class Game
 		{
 			// exit whole app
 			Application.Exit();
-		}
-		else
-		{
-			// return to menu
-			IMenuDll.Current?.OnGameExited();
 		}
 	}
 

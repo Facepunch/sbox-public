@@ -22,6 +22,13 @@ public sealed class AchievementCollection
 	/// </summary>
 	public Achievement Get( string name ) => _entries.GetValueOrDefault( name );
 
+	/// <summary>
+	/// Manual unlocks asked for before the backend list arrived. The game can start before the
+	/// fetch finishes, so they wait here and go through once the list is in.
+	/// </summary>
+	List<string> _pendingManualUnlocks;
+	bool _fetched;
+
 	internal async Task FetchFromBackend()
 	{
 		var list = await Backend.Achievements.GetList( packageIdent );
@@ -30,6 +37,16 @@ public sealed class AchievementCollection
 		{
 			var entry = new Achievement( ach );
 			_entries[entry.Name] = entry;
+		}
+
+		_fetched = true;
+
+		if ( _pendingManualUnlocks is not null )
+		{
+			foreach ( var name in _pendingManualUnlocks )
+				ManualUnlock( name );
+
+			_pendingManualUnlocks = null;
 		}
 
 		await RecountProgression();
@@ -59,6 +76,13 @@ public sealed class AchievementCollection
 	/// </summary>
 	internal void ManualUnlock( string name )
 	{
+		if ( !_fetched )
+		{
+			_pendingManualUnlocks ??= new();
+			_pendingManualUnlocks.Add( name );
+			return;
+		}
+
 		if ( !_entries.TryGetValue( name, out Achievement entry ) ) return;
 		if ( entry.IsUnlocked ) return;
 		if ( !entry.IsUnlockedManually ) return;

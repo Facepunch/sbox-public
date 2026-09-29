@@ -25,9 +25,11 @@ class ClutterLayer
 
 	private readonly Dictionary<ClutterBatchKey, ClutterBatchSceneObject> _batches = [];
 
-	private readonly Dictionary<ClutterBatchKey, List<Transform>> _instancesByModel = [];
-	private readonly HashSet<ClutterBatchKey> _activeModels = [];
-	private readonly List<ClutterBatchKey> _staleModels = [];
+	private readonly Dictionary<Vector2Int, Dictionary<ClutterBatchKey, ClutterBatchSceneObject.PreparedInstances>> _preparedTiles = [];
+	private readonly Dictionary<ClutterBatchKey, List<ClutterBatchSceneObject.PreparedInstances>> _instancesByModel = [];
+	private readonly HashSet<Vector2Int> _renderDirtyTiles = [];
+	private readonly HashSet<ClutterBatchKey> _changedModels = [];
+	private readonly List<ClutterBatchSceneObject.PreparedInstances> _retiredPrepared = [];
 
 	private readonly HashSet<Vector2Int> _activeCoords = [];
 	private readonly List<Vector2Int> _coordsToRemove = [];
@@ -154,6 +156,7 @@ class ClutterLayer
 	public void ClearTileModelInstances( Vector2Int tileCoord )
 	{
 		ModelInstancesByTile.Remove( tileCoord );
+		_renderDirtyTiles.Add( tileCoord );
 		RemoveBodies( tileCoord );
 	}
 
@@ -171,8 +174,35 @@ class ClutterLayer
 		}
 
 		instances.Add( instance );
+		_renderDirtyTiles.Add( tileCoord );
 
 		TryCreateBody( tileCoord, instance );
+	}
+
+	public void ReserveModelInstances( Vector2Int tileCoord, int additionalCount )
+	{
+		if ( additionalCount == 0 )
+			return;
+
+		if ( !ModelInstancesByTile.TryGetValue( tileCoord, out var instances ) )
+		{
+			ModelInstancesByTile[tileCoord] = new List<ClutterInstance>( additionalCount );
+			return;
+		}
+
+		instances.EnsureCapacity( instances.Count + additionalCount );
+	}
+
+	/// <summary>
+	/// Takes ownership of a generated tile's model instances without copying its backing array.
+	/// </summary>
+	internal void AdoptModelInstances( Vector2Int tileCoord, List<ClutterInstance> instances )
+	{
+		ModelInstancesByTile[tileCoord] = instances;
+		_renderDirtyTiles.Add( tileCoord );
+
+		foreach ( var instance in instances )
+			TryCreateBody( tileCoord, instance );
 	}
 
 	/// <summary>
@@ -193,7 +223,7 @@ class ClutterLayer
 
 			foreach ( var instance in storage.GetInstances( modelPath ) )
 			{
-				AddModelInstance( Vector2Int.Zero, new ClutterInstance
+				AddModelInstance( WorldToTile( instance.Position ), new ClutterInstance
 				{
 					Transform = new Transform( instance.Position, instance.Rotation, instance.Scale ),
 					Entry = new ClutterEntry { Model = model }
@@ -248,56 +278,103 @@ class ClutterLayer
 	public void RebuildBatches()
 	{
 		// Don't build batch list on headless. We only care about collisions.
-		if ( !Graphics.IsAvailable ) { _dirty = false; return; }
+		if ( !Graphics.IsAvailable )
+		{
+			_dirty = false;
+			return;
+		}
 
 		var scene = ParentObject?.Scene ?? GridSystem?.Scene;
-		if ( scene?.SceneWorld == null ) { _dirty = false; return; }
-
-		foreach ( var list in _instancesByModel.Values )
-			list.Clear();
-
-		_activeModels.Clear();
-
-		foreach ( var (tileCoord, instances) in ModelInstancesByTile )
+		if ( scene?.SceneWorld == null )
 		{
+			_dirty = false;
+			return;
+		}
+
+		_changedModels.Clear();
+		_retiredPrepared.Clear();
+
+		foreach ( var tileCoord in _renderDirtyTiles )
+		{
+			if ( _preparedTiles.Remove( tileCoord, out var previous ) )
+			{
+				foreach ( var (key, tile) in previous )
+				{
+					_instancesByModel[key].Remove( tile );
+					_changedModels.Add( key );
+					_retiredPrepared.Add( tile );
+				}
+			}
+
+			if ( !ModelInstancesByTile.TryGetValue( tileCoord, out var instances ) || instances.Count == 0 )
+				continue;
+
+			var countsByModel = new Dictionary<ClutterBatchKey, int>();
 			foreach ( var instance in instances )
 			{
-				if ( instance.Entry?.Model == null ) continue;
+				if ( instance.Entry?.Model == null )
+					continue;
 
 				var key = new ClutterBatchKey( instance.Entry.Model, instance.Entry.CastShadows );
-				_activeModels.Add( key );
+				countsByModel.TryGetValue( key, out var count );
+				countsByModel[key] = count + 1;
+			}
 
+			var prepared = new Dictionary<ClutterBatchKey, ClutterBatchSceneObject.PreparedInstances>( countsByModel.Count );
+			foreach ( var (key, count) in countsByModel )
+				prepared[key] = new ClutterBatchSceneObject.PreparedInstances( key.Model, count );
+
+			foreach ( var instance in instances )
+			{
+				if ( instance.Entry?.Model == null )
+					continue;
+
+				var key = new ClutterBatchKey( instance.Entry.Model, instance.Entry.CastShadows );
+				prepared[key].Add( instance.Transform );
+			}
+
+			_preparedTiles[tileCoord] = prepared;
+
+			foreach ( var (key, tile) in prepared )
+			{
+				_changedModels.Add( key );
 				if ( !_instancesByModel.TryGetValue( key, out var list ) )
 				{
 					list = [];
 					_instancesByModel[key] = list;
 				}
-
-				list.Add( instance.Transform );
+				list.Add( tile );
 			}
 		}
 
-		foreach ( var key in _activeModels )
+		_renderDirtyTiles.Clear();
+
+		foreach ( var key in _changedModels )
 		{
+			var tiles = _instancesByModel[key];
+			if ( tiles.Count == 0 )
+			{
+				if ( _batches.Remove( key, out var emptyBatch ) )
+					emptyBatch.Delete();
+
+				_instancesByModel.Remove( key );
+				continue;
+			}
+
 			if ( !_batches.TryGetValue( key, out var batch ) )
 			{
 				batch = new ClutterBatchSceneObject( scene.SceneWorld, key.Model, key.CastShadows );
 				_batches[key] = batch;
 			}
 
-			batch.SetInstances( _instancesByModel[key] );
+			batch.SetInstances( tiles );
 		}
 
-		// Remove batches whose key no longer has any instances.
-		_staleModels.Clear();
-		foreach ( var key in _batches.Keys )
-			if ( !_activeModels.Contains( key ) ) _staleModels.Add( key );
+		// Batches must release the old tile references before their buffers can be reused.
+		foreach ( var tile in _retiredPrepared )
+			tile.Dispose();
 
-		foreach ( var key in _staleModels )
-		{
-			_batches[key].Delete();
-			_batches.Remove( key );
-		}
+		_retiredPrepared.Clear();
 
 		_dirty = false;
 	}
@@ -312,6 +389,17 @@ class ClutterLayer
 
 		Tiles.Clear();
 		ModelInstancesByTile.Clear();
+
+		foreach ( var prepared in _preparedTiles.Values )
+		{
+			foreach ( var tile in prepared.Values )
+				tile.Dispose();
+		}
+
+		_preparedTiles.Clear();
+		_renderDirtyTiles.Clear();
+		_changedModels.Clear();
+		_retiredPrepared.Clear();
 
 		// Copied out first, RemoveBodies mutates the dictionary.
 		_coordsToRemove.Clear();

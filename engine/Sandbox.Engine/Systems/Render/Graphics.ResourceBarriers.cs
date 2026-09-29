@@ -212,5 +212,16 @@ public static partial class Graphics
 				dstStageFlags = RenderBarrierPipelineStageFlags_t.DrawIndirectBit;
 				break;
 		}
+
+		// A compute queue has no graphics stages: what a pixel shader will read, compute reads there, and the graphics queue
+		// waits for it in every stage
+		if ( OnComputeQueue )
+		{
+			dstStageFlags &= ComputeQueueStages;
+			if ( dstStageFlags == 0 ) dstStageFlags = RenderBarrierPipelineStageFlags_t.ComputeShaderBit;
+		}
 	}
+
+	const RenderBarrierPipelineStageFlags_t ComputeQueueStages = RenderBarrierPipelineStageFlags_t.DrawIndirectBit | RenderBarrierPipelineStageFlags_t.ComputeShaderBit
+		| RenderBarrierPipelineStageFlags_t.TransferBit | RenderBarrierPipelineStageFlags_t.TopOfPipeBit | RenderBarrierPipelineStageFlags_t.BottomOfPipeBit;
 }

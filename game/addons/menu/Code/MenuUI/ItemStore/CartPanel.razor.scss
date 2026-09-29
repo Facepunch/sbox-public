@@ -110,7 +110,7 @@ CartPanel
 		align-items: flex-end;
 		justify-content: space-between;
 		padding-top: 10px;
-		border-top: 1px solid $front-hairline;
+		border-top: $front-border-width solid $front-hairline;
 	}
 
 	.total-label

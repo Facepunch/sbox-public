@@ -175,10 +175,6 @@ public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEdito
 		var forward = Target.WorldRotation.Forward.Dot( dir );
 		var sideward = Target.WorldRotation.Right.Dot( dir );
 
-		var angle = MathF.Atan2( sideward, forward ).RadianToDegree().NormalizeDegrees();
-
-		Target.Set( "move_direction", angle );
-		Target.Set( "move_speed", Velocity.Length );
 		Target.Set( "move_groundspeed", Velocity.WithZ( 0 ).Length );
 		Target.Set( "move_y", sideward );
 		Target.Set( "move_x", forward );
@@ -197,10 +193,6 @@ public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEdito
 		var forward = Target.WorldRotation.Forward.Dot( dir );
 		var sideward = Target.WorldRotation.Right.Dot( dir );
 
-		var angle = MathF.Atan2( sideward, forward ).RadianToDegree().NormalizeDegrees();
-
-		Target.Set( "wish_direction", angle );
-		Target.Set( "wish_speed", Velocity.Length );
 		Target.Set( "wish_groundspeed", Velocity.WithZ( 0 ).Length );
 		Target.Set( "wish_y", sideward );
 		Target.Set( "wish_x", forward );
@@ -208,7 +200,7 @@ public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEdito
 	}
 
 	/// <summary>
-	/// Where are we aiming?
+	/// Sets the world-space body aim direction, including pitch and yaw.
 	/// </summary>
 	public Rotation AimAngle
 	{
@@ -220,7 +212,7 @@ public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEdito
 			var ang = value.Angles();
 
 			Target.Set( "aim_body_pitch", ang.pitch );
-			Target.Set( "aim_body_yaw", ang.yaw );
+			Target.Set( "aim_body", value.Forward );
 		}
 	}
 
@@ -318,12 +310,14 @@ public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEdito
 	}
 
 	/// <summary>
-	/// Are we climbing?
+	/// Retained for compatibility. Climbing no longer controls an animation parameter.
+	/// Always returns false; assignments have no effect.
 	/// </summary>
+	[Obsolete( "Climbing no longer controls an animation parameter. This property has no effect." )]
 	public bool IsClimbing
 	{
-		get => Target?.GetBool( "b_climbing" ) ?? false;
-		set => Target?.Set( "b_climbing", value );
+		get => false;
+		set { }
 	}
 
 	/// <summary>
@@ -337,13 +331,36 @@ public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEdito
 	}
 
 	/// <summary>
-	/// Is the weapon lowered? By default, this'll happen when the character hasn't been shooting for a while.
+	/// Requests the relaxed pose for a two-handed pistol, rifle, shotgun, RPG or physgun.
+	/// Applies while standing still on the ground; actions and movement take priority.
 	/// </summary>
 	[Property, JsonIgnore, Feature( "Weapon", Icon = "sports_martial_arts" )]
 	public bool IsWeaponLowered
 	{
 		get => Target?.GetBool( "b_weapon_lower" ) ?? false;
 		set => Target?.Set( "b_weapon_lower", value );
+	}
+
+	/// <summary>
+	/// Requests a randomized weaponless idle pose while standing still.
+	/// An explicit holdtype pose takes priority over this request.
+	/// </summary>
+	[Property, JsonIgnore, Group( "Movement" )]
+	public bool IsLongIdle
+	{
+		get => Target?.GetBool( "b_long_idle" ) ?? false;
+		set => Target?.Set( "b_long_idle", value );
+	}
+
+	/// <summary>
+	/// Multiplies reload animation playback speed. One uses the authored speed and two doubles it.
+	/// This does not change gameplay reload timers. Values are limited to 0.05 through 5.
+	/// </summary>
+	[Property, JsonIgnore, Feature( "Weapon", Icon = "sports_martial_arts" )]
+	public float ReloadSpeed
+	{
+		get => Target?.GetFloat( "speed_reload" ) ?? 1.0f;
+		set => Target?.Set( "speed_reload", value.Clamp( 0.05f, 5.0f ) );
 	}
 
 	public enum HoldTypes

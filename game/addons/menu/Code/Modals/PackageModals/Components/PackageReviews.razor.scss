@@ -1,5 +1,7 @@
 @import "/styles/_theme.scss";
 
+// The same insets as the other tabs - 24 round the sides and top, the heading and each block after
+// it spaced by the column's gap rather than margins of their own
 PackageReviews
 {
 	flex-direction: column;
@@ -7,6 +9,23 @@ PackageReviews
 	max-width: 100%;
 	overflow-y: scroll;
 	flex-shrink: 0;
+	padding: 24px 24px 64px 24px;
+	gap: 16px;
+
+	PackageTabHeader
+	{
+		margin-bottom: 4px;
+	}
+
+	PackageReviewsHeader, .write-review, .tag-filters
+	{
+		margin: 0;
+	}
+
+	.review-list
+	{
+		padding: 0;
+	}
 }
 
 .review-list

@@ -148,6 +148,7 @@ ActionBar .group.jam
 ActionBar > .right
 {
 	justify-content: flex-end;
+	align-items: center;
 	gap: 6px;
 }
 
@@ -203,6 +204,51 @@ Button.play
 	{
 		opacity: 0.25;
 		pointer-events: none;
+	}
+}
+
+// New Game and Join Game as one pill, split down the middle like the vote pair - the halves lose
+// their own rounding, the pair takes it
+.play-split
+{
+	flex-direction: row;
+	flex-shrink: 0;
+	align-items: stretch;
+	border-radius: 999px;
+	overflow: hidden;
+
+	Button
+	{
+		border-radius: 0;
+		border-width: 0;
+	}
+
+	.split
+	{
+		width: 1px;
+		flex-shrink: 0;
+		background-color: rgba( 0, 0, 0, 0.35 );
+	}
+
+	// New Game's the one lit up in blue; Join's the quiet half - the same grey as the other
+	// pills, so when there's nothing to join it just dims, rather than being a murky blue
+	Button.join
+	{
+		padding: 8px 20px;
+		background-color: rgba( 255, 255, 255, 0.08 );
+		color: $default-text;
+
+		&:hover
+		{
+			background-color: rgba( 255, 255, 255, 0.15 );
+		}
+
+		&.disabled
+		{
+			background-color: rgba( 255, 255, 255, 0.05 );
+			color: rgba( 255, 255, 255, 0.3 );
+			opacity: 1;
+		}
 	}
 }
 

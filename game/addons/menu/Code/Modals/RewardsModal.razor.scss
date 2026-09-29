@@ -111,6 +111,18 @@ RewardsModal
 
 		padding: 40px 24px;
 		text-align: center;
+
+		// Its own size, stated here - without one it's got no height in this popup, and its ring
+		// (which fills it) paints over the text under it instead of pushing it down
+		Spinner
+		{
+			position: relative;
+			flex-shrink: 0;
+			width: 48px;
+			height: 48px;
+			min-height: 48px;
+			margin-bottom: 10px;
+		}
 	}
 
 	// The drop itself - the arc beside what it's for, and the one button that matters.
@@ -319,7 +331,7 @@ RewardsModal
 		flex-shrink: 0;
 		gap: 6px;
 		padding: 10px 16px 14px 16px;
-		border-top: 1px solid $front-hairline;
+		border-top: $front-border-width solid $front-hairline;
 
 		.note
 		{

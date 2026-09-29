@@ -24,7 +24,7 @@ public static partial class Graphics
 		if ( !vertexType.IsValid ) return;
 
 		// Set the material etc
-		if ( !RenderTools.SetRenderState( Context, attributes.Get(), SceneLayer.IsNull ? material.native.GetMode() : material.native.GetMode( SceneLayer ), vertexType, Graphics.Stats ) )
+		if ( !RenderTools.SetRenderState( Context, attributes.Get(), ModeFor( material ), vertexType, Graphics.Stats ) )
 			return;
 
 		var totalSize = sizeof( T ) * vertCount;
@@ -147,16 +147,11 @@ public static partial class Graphics
 	public static void Render( SceneObject obj, Transform? transform = null, Color? color = null, Material material = null )
 	{
 		AssertRenderBlock();
-		if ( !SceneLayer.IsValid ) return;
+
 		if ( !obj.IsValid() ) return;
 
-		var tx = transform ?? obj.Transform;
-		var cl = color ?? Color.White;
-		var mat = material?.native ?? default;
-
-		var attributes = Attributes;
-
-		RenderTools.DrawSceneObject( Context, SceneLayer, obj, tx, cl, mat, attributes.Get() );
+		// Native draws it through its layer's view; a managed frame (r_managed_scene) draws it from its own copy of the object
+		_state.view?.RenderSceneObject( Context, obj, transform ?? obj.Transform, color ?? Color.White, material, Attributes );
 	}
 
 	/// <summary>

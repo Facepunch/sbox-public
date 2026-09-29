@@ -650,9 +650,10 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	readonly bool _borderless;
 
 	/// <summary>
-	/// Does this window's present wait for the display?
+	/// Does this window's present wait for the display? Changing it takes effect at the start of the
+	/// window's next frame, when the swap chain is matched to the window.
 	/// </summary>
-	public bool VSync { get; }
+	public bool VSync { get; set; }
 
 	/// <summary>
 	/// Is the window maximized?
@@ -773,12 +774,18 @@ public partial class PanelWindow : IDisposable, IPanelWindow
 	}
 
 	/// <summary>
+	/// The swap chain's sample count. None: panel UI antialiases in its shaders, and MSAA adds attachments and a resolve
+	/// without improving it. A window drawing a scene into it may want some (SceneLab's <c>-swapchain-msaa</c>). Read while
+	/// the base constructor runs, so an override can't use the derived class's fields.
+	/// </summary>
+	internal virtual RenderMultisampleType SwapChainMultisample => RenderMultisampleType.RENDER_MULTISAMPLE_NONE;
+
+	/// <summary>
 	/// The swap chain and the camera that draws the surface into it. Needs <see cref="Handle"/>.
 	/// </summary>
 	private protected void CreateRenderer( string name, bool vsync )
 	{
-		// Panel UI antialiases in its shaders; MSAA adds attachments and a resolve without improving it.
-		Window.CreateSwapChain( name, RenderMultisampleType.RENDER_MULTISAMPLE_NONE, vsync );
+		Window.CreateSwapChain( name, SwapChainMultisample, vsync );
 
 		_world = new SceneWorld();
 

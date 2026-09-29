@@ -32,6 +32,12 @@ public partial class RootPanel : Panel
 	public bool RenderedManually { get; set; }
 
 	/// <summary>
+	/// Whether this root participates in UI updates, rendering and input.
+	/// Roots without a scene, such as overlays, remain active when a scene is suspended.
+	/// </summary>
+	internal bool IsActive => IsValid && Scene?.IsSuspended != true;
+
+	/// <summary>
 	/// True if this is a world panel, so should be skipped when determining cursor visibility etc
 	/// </summary>
 	public virtual bool IsWorldPanel { get; set; }
@@ -277,6 +283,8 @@ public partial class RootPanel : Panel
 
 	internal void Render()
 	{
+		if ( !IsActive ) return;
+
 		PanelCommandList.ExecuteOnRenderThread();
 	}
 

@@ -84,6 +84,12 @@ public class ScreenSpaceReflections : BasePostProcess<ScreenSpaceReflections>
 		Frame = 0;
 	}
 
+	/// <summary>
+	/// Reads the normals and roughness G-buffer the depth-normals prepass writes (<c>NormalsGBuffer</c>), which the managed
+	/// scene renderer draws only for cameras with an effect that needs it.
+	/// </summary>
+	internal override bool NeedsDepthNormals => true;
+
 	public override void Render()
 	{
 		cmd.Reset();

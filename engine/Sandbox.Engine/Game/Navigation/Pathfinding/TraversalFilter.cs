@@ -13,6 +13,7 @@ internal readonly struct TraversalFilter
 		this.areaCosts = areaCosts;
 	}
 
+	internal uint AllowedAreas => allowedAreas;
 	internal bool Allows( int area ) => (allowedAreas & (1u << area)) != 0;
 	internal float CostMultiplier( int area ) => areaCosts?[area] ?? 1;
 	internal float Cost( Vector3 from, Vector3 to, int area ) => Vector3.DistanceBetween( from, to ) * CostMultiplier( area );

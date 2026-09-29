@@ -482,7 +482,7 @@ public abstract partial class Asset
 	/// <summary>
 	/// Try to get the raw Json string, for a managed asset type (a GameResource)
 	/// </summary>
-	public unsafe string ReadJson()
+	public string ReadJson()
 	{
 		// Don't bother
 		if ( !AssetType.IsGameResource )
@@ -500,10 +500,7 @@ public abstract partial class Asset
 				filename = GetCompiledFile( true );
 				var data = System.IO.File.ReadAllBytes( filename );
 
-				fixed ( byte* ptr = data )
-				{
-					return EngineGlue.ReadCompiledResourceFileJson( (IntPtr)ptr );
-				}
+				return Game.Resources.ReadCompiledResourceJson( data );
 			}
 			else
 			{
@@ -553,6 +550,12 @@ public abstract partial class Asset
 		if ( obj == null )
 			return false;
 
+		if ( obj is SceneFile { IsCompiled: true } )
+		{
+			Log.Error( "Cannot save a compiled runtime scene over its source. Open the .scene for editing instead." );
+			return false;
+		}
+
 		var filename = GetSourceFile( true );
 
 		if ( string.IsNullOrWhiteSpace( filename ) )
@@ -575,7 +578,8 @@ public abstract partial class Asset
 				obj.SaveToDisk( filename, jsonString );
 
 				Compile( false );
-				obj.Register( Path );
+				if ( obj is not SceneFile { IsSourceSnapshot: true } )
+					obj.Register( Path );
 				return true;
 			}
 			catch ( System.Exception e )

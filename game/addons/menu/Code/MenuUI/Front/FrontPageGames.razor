@@ -61,7 +61,7 @@
                     @* The wrapper owns the width - PackageCard sets its own root class/style, so
                        anything passed straight to it gets clobbered. *@
                     <div class="big" style="width: @( (int)BigWidth )px;">
-                        <MenuProject.UI.PackageCard Package=@section.Big ShowSummary=@true
+                        <MenuProject.UI.PackageCard Package=@section.Big ShowSummary=@true DiscoveryContext=@section.Discovery
                                      Rotation=@section.Rotation
                                      Clicked="@(() => section.Big.OpenModal())"
                                      RightClicked="@(() => MenuHelpers.OpenPackageMenu( this, section.Big ))" />
@@ -71,7 +71,7 @@
                         <div class="row">
                             @foreach ( var package in section.RowOne )
                             {
-                                <MenuProject.UI.PackageCard Package=@package style="@section.RowOneStyle"
+                                <MenuProject.UI.PackageCard Package=@package style="@section.RowOneStyle" DiscoveryContext=@section.Discovery
                                              Rotation=@section.Rotation
                                              Clicked="@(() => package.OpenModal())"
                                              RightClicked="@(() => MenuHelpers.OpenPackageMenu( this, package ))" />
@@ -82,7 +82,7 @@
                             <div class="row">
                                 @foreach ( var package in section.RowTwo )
                                 {
-                                    <MenuProject.UI.PackageCard Package=@package style="@section.RowTwoStyle"
+                                    <MenuProject.UI.PackageCard Package=@package style="@section.RowTwoStyle" DiscoveryContext=@section.Discovery
                                                  Rotation=@section.Rotation
                                                  Clicked="@(() => package.OpenModal())"
                                                  RightClicked="@(() => MenuHelpers.OpenPackageMenu( this, package ))" />
@@ -98,7 +98,7 @@
                     <div class="row">
                         @foreach ( var package in section.RowOne )
                         {
-                            <MenuProject.UI.PackageCard Package=@package style="@section.RowOneStyle"
+                            <MenuProject.UI.PackageCard Package=@package style="@section.RowOneStyle" DiscoveryContext=@section.Discovery
                                          Rotation=@section.Rotation
                                          Clicked="@(() => package.OpenModal())"
                                          RightClicked="@(() => MenuHelpers.OpenPackageMenu( this, package ))" />
@@ -148,6 +148,7 @@
         public string RowTwoStyle = "";
 
         public MenuProject.UI.CardVideoRotation Rotation;
+        public DiscoveryContext Discovery;
     }
 
     List<Section> Sections { get; set; } = new();
@@ -236,6 +237,14 @@
                 // tile widths instead of one card stretching across the whole shelf.
                 section.RowOneStyle = section.RowOne.Count < Columns ? ShortRowTileStyle : "";
             }
+
+            section.Discovery = new DiscoveryContext
+            {
+                Surface = "home",
+                Shelf = grouping.Title,
+                List = Group.RequestId,
+                Packages = new[] { section.Big }.Where( x => x is not null ).Concat( section.RowOne ).Concat( section.RowTwo ).ToArray(),
+            };
 
             Sections.Add( section );
         }

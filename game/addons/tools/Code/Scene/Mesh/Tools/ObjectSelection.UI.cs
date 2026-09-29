@@ -143,6 +143,7 @@ partial class ObjectSelection
 					{
 						var go = new GameObject( meshComponent.GameObject.Name );
 						go.WorldTransform = meshComponent.WorldTransform;
+						go.IsStatic = meshComponent.GameObject.IsStatic;
 						go.MakeNameUnique();
 
 						meshComponent.GameObject.AddSibling( go, false );

@@ -1,10 +1,8 @@
 @import "/styles/_theme.scss";
 @import "/styles/_front.scss";
 
-JamSchedule
+JamPage JamSchedule
 {
-	@include front-card;
-
 	width: 260px;
 	padding: 16px;
 	gap: 16px;
@@ -16,18 +14,13 @@ JamSchedule
 		flex-shrink: 0;
 		gap: 2px;
 		padding-bottom: 18px;
-		border-bottom: 1px solid $front-hairline;
+		border-bottom: $front-border-width solid $front-hairline;
 	}
 
 	JamCountdown, .countdown-status
 	{
 		flex-direction: column;
 		flex-shrink: 0;
-
-		.what
-		{
-			@include front-section-label;
-		}
 
 		.time
 		{

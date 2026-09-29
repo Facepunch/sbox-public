@@ -1,4 +1,4 @@
-﻿using NativeEngine;
+using NativeEngine;
 using System.Numerics;
 using System.Runtime.InteropServices;
 
@@ -34,7 +34,7 @@ internal partial class ShadowMapper
 	/// Finds a cached shadow map or creates a new one.
 	/// This is for a single shadow map like a spot light
 	/// </summary>
-	internal unsafe uint FindOrCreateProjectedShadowMap( SceneLight light, ISceneView view, float flScreenSize )
+	internal unsafe uint FindOrCreateProjectedShadowMap( in ShadowLight light, float flScreenSize )
 	{
 		// Cull shadows below the screen size threshold
 		if ( flScreenSize < (SizeCullThreshold / 100.0f) )
@@ -50,12 +50,11 @@ internal partial class ShadowMapper
 			return InvalidShadowIndex;
 		}
 
-		bool isBakedLight = (light.lightNative.GetLightFlags() & 32) != 0; // LIGHTTYPE_FLAGS_BAKED
-		bool isStaticLight = light.GameObject.IsValid() && light.GameObject.IsStatic;
+		bool isBakedLight = light.Baked;
+		bool isStaticLight = light.Static;
 
 		// How big do we want it, it's okay if our cached is bigger, but not if it's smaller
-		var mainViewport = view.GetMainViewport();
-		int desiredResolution = GetDesiredResolution( flScreenSize, (int)Math.Max( mainViewport.Rect.Width, mainViewport.Rect.Height ) );
+		int desiredResolution = GetDesiredResolution( flScreenSize, (int)Math.Max( View.ViewportSize.x, View.ViewportSize.y ) );
 
 		var cacheEntry = GetOrCreateCacheEntry( light, desiredResolution, isCube: false, flScreenSize );
 
@@ -69,10 +68,20 @@ internal partial class ShadowMapper
 		ScaleBias._numerics[0, 3] = 0.5f;
 		ScaleBias._numerics[1, 3] = 0.5f;
 
-		CFrustum nativeFrustum = CFrustum.Create();
-		nativeFrustum.BuildFrustumFromVectors( light.Position, 1.0f, light.Radius, 2.0f * light.lightNative.GetPhi(), 1.0f, light.Rotation.Forward, light.Rotation.Left, light.Rotation.Up );
+		float biasScale = ComputeBiasScale( light.ConeOuter, light.Radius, cacheEntry.CurrentResolution );
 
-		float biasScale = ComputeBiasScale( light.lightNative.GetPhi(), light.Radius, cacheEntry.CurrentResolution );
+		var shadowView = new ShadowViewDesc
+		{
+			Name = cacheEntry.DebugName,
+			Position = light.Position,
+			Rotation = light.Rotation,
+			FieldOfView = 2.0f * light.ConeOuter,
+			ZNear = 1.0f,
+			ZFar = light.Radius,
+			Resolution = cacheEntry.CurrentResolution,
+			DepthBias = (int)(ShadowDepthBias * biasScale),
+			SlopeScaledDepthBias = ShadowSlopeScale * biasScale,
+		};
 
 		// Static lights render their static casters once into a cache that gets copied in
 		// each frame, and only dynamic casters are re-rendered on top.
@@ -81,50 +90,34 @@ internal partial class ShadowMapper
 			cacheEntry.StaticCache = AcquireTexture( cacheEntry.CurrentResolution, isCube: false );
 
 			// Render static objects to the static cache, once
-			CSceneSystem.AddShadowView( cacheEntry.DebugName + "_StaticCache",
-				view,
-				nativeFrustum,
-				new( 0, 0, cacheEntry.CurrentResolution, cacheEntry.CurrentResolution ),
-				cacheEntry.StaticCache.native,
-				0,
-				requiredFlags: SceneObjectFlags.StaticObject,
-				excludedFlags: SceneObjectFlags.None,
-				(int)(ShadowDepthBias * biasScale),
-				ShadowSlopeScale * biasScale );
+			var staticView = shadowView;
+			staticView.Name = cacheEntry.DebugName + "_StaticCache";
+			staticView.Target = cacheEntry.StaticCache;
+			staticView.RequiredFlags = SceneObjectFlags.StaticObject;
+			Renderer.RenderShadowView( staticView );
 		}
 
 		bool useStaticCache = cacheEntry.StaticCache is not null;
 
 		// Baked lights exclude static objects from shadow maps, their static shadows come from lightmaps.
 		// Cached lights exclude them too - their static shadows come from the static cache.
-		var excludeFlags = isBakedLight || useStaticCache
+		shadowView.Target = cacheEntry.ShadowMap;
+		shadowView.ExcludedFlags = isBakedLight || useStaticCache
 			? SceneObjectFlags.StaticObject
 			: SceneObjectFlags.None;
+		shadowView.CachedStatic = useStaticCache ? cacheEntry.StaticCache : null;
 
-		RenderViewport viewport = new( 0, 0, cacheEntry.CurrentResolution, cacheEntry.CurrentResolution );
-
-		CSceneSystem.AddShadowView( cacheEntry.DebugName,
-							view,
-							nativeFrustum,
-							viewport,
-							cacheEntry.ShadowMap.native,
-							0,
-							SceneObjectFlags.None,
-							excludeFlags,
-							(int)(ShadowDepthBias * biasScale),
-							ShadowSlopeScale * biasScale,
-							cachedShadowTexture: useStaticCache ? cacheEntry.StaticCache.native : default );
+		Matrix viewProjection = Renderer.RenderShadowView( shadowView );
 
 		// Render targets don't use texture streaming surely, is this needed?
-		cacheEntry.ShadowMap.MarkUsed( 2048 );
+		if ( cacheEntry.ShadowMap.HasTexture )
+			cacheEntry.ShadowMap.Texture.MarkUsed( 2048 );
 
 		GPUProjectedShadow shadow;
-		shadow.WorldToShadowMatrix = ScaleBias * nativeFrustum.GetReverseZViewProj();
-		shadow.ShadowMapTextureIndex = cacheEntry.ShadowMap.Index;
-		shadow.ShadowHardness = 1.0f + light.ShadowHardness * 4.0f;
-		shadow.InvShadowMapRes = 1.0f / (float)cacheEntry.ShadowMap.Width;
-
-		nativeFrustum.Delete();
+		shadow.WorldToShadowMatrix = ScaleBias * viewProjection.Transpose();
+		shadow.ShadowMapTextureIndex = 0; // filled in by ResolveTextureIndices
+		shadow.ShadowHardness = 1.0f + light.Hardness * 4.0f;
+		shadow.InvShadowMapRes = 1.0f / (float)cacheEntry.ShadowMap.Resolution;
 
 		cacheEntry.Projected = shadow;
 		cacheEntry.RenderedFrame = Application.FrameCount;
@@ -136,6 +129,7 @@ internal partial class ShadowMapper
 	uint AddProjectedShadow( LightEntry cacheEntry )
 	{
 		GPUProjectedShadows.Add( cacheEntry.Projected );
+		ProjectedShadowMaps.Add( cacheEntry.ShadowMap );
 		ShadowsAllocated++;
 
 		cacheEntry.LastFrame = RealTime.Now;

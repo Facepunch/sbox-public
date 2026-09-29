@@ -178,6 +178,24 @@ class ClutterGenerationJob
 		var isComponentOwned = Ownership == ClutterOwnership.Component;
 		var tileCoord = Tile?.Coordinates ?? Vector2Int.Zero;
 
+		if ( !isComponentOwned && Tile != null && Layer != null && instances.TrueForAll( static instance => instance.IsModel ) )
+		{
+			Layer.AdoptModelInstances( tileCoord, instances );
+			return;
+		}
+
+		if ( Layer != null )
+		{
+			int modelCount = 0;
+			foreach ( var instance in instances )
+			{
+				if ( instance.IsModel )
+					modelCount++;
+			}
+
+			Layer.ReserveModelInstances( tileCoord, modelCount );
+		}
+
 		using ( Parent.Scene.Push() )
 		{
 			foreach ( var instance in instances )

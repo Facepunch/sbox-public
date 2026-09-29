@@ -347,8 +347,16 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 	{
 		using ( PushSerializationScope() )
 		{
+			OnJsonDeserialize( jso );
 			Json.DeserializeToObject( this, jso );
 		}
+	}
+
+	/// <summary>
+	/// Called before deserialization, allowing optional state to be reset when its fields are absent.
+	/// </summary>
+	protected virtual void OnJsonDeserialize( JsonObject node )
+	{
 	}
 
 	/// <summary>
@@ -460,4 +468,3 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 		}
 	}
 }
-

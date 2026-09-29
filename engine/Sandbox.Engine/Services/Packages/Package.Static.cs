@@ -162,10 +162,27 @@ public partial class Package
 			return null;
 		}
 
+		var packageIdent = $"{ident.org}.{ident.package}";
+		if ( ident.version is not null ) packageIdent += $"#{ident.version}";
+
+		// A fetch already in flight for this ident answers everyone who asks meanwhile
+		var fetch = Fetching.GetOrAdd( packageIdent, _ => FetchFromBackendAsync( identString, packageIdent, ident.version, package ) );
 		try
 		{
-			var packageIdent = $"{ident.org}.{ident.package}";
-			if ( ident.version is not null ) packageIdent += $"#{ident.version}";
+			return await fetch;
+		}
+		finally
+		{
+			Fetching.TryRemove( new KeyValuePair<string, Task<Package>>( packageIdent, fetch ) );
+		}
+	}
+
+	static readonly ConcurrentDictionary<string, Task<Package>> Fetching = new( StringComparer.OrdinalIgnoreCase );
+
+	static async Task<Package> FetchFromBackendAsync( string identString, string packageIdent, int? version, Package package )
+	{
+		try
+		{
 			var result = await Backend.Package.Get( packageIdent );
 			if ( result is null ) return null;
 
@@ -198,7 +215,7 @@ public partial class Package
 
 		if ( package is not null )
 		{
-			Cache( package, false, ident.version );
+			Cache( package, false, version );
 		}
 		else
 		{

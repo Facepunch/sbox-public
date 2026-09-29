@@ -17,7 +17,7 @@
                     <label class="description">@Subtitle</label>
                 }
             </div>
-			<MenuProject.UI.PackageList ShowFilters="@false" Query=@(GetQuery()) Take=@(200) OnSelected=@Selected OnMenu=@Menu></MenuProject.UI.PackageList>
+			<MenuProject.UI.PackageList Surface="group" Shelf=@Title ShowFilters="@false" Query=@(GetQuery()) Take=@(200) OnSelected=@Selected OnMenu=@Menu></MenuProject.UI.PackageList>
 		</Body>
 	</Page>
 </root>

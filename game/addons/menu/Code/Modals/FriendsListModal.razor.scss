@@ -97,7 +97,7 @@ FriendsListModal
 		margin: 4px 0;
 		padding: 4px;
 		border-radius: 8px;
-		border: 1px solid $front-hairline;
+		border: $front-border-width solid $front-hairline;
 		background-color: $front-card-deep;
 	}
 

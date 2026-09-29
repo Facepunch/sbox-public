@@ -597,6 +597,7 @@ partial class FaceTool
 				{
 					var go = session.Scene.CreateObject();
 					go.Name = "Pasted Mesh";
+					go.IsStatic = true;
 
 					if ( options.RelativeToLast && allPasted.Count > 0 )
 					{
@@ -695,6 +696,7 @@ partial class FaceTool
 
 					var go = new GameObject( entry.Name );
 					go.WorldTransform = entry.WorldTransform;
+					go.IsStatic = entry.IsStatic;
 					go.MakeNameUnique();
 
 					entry.AddSibling( go, false );

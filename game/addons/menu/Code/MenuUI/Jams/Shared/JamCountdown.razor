@@ -7,7 +7,7 @@
 
 <root>
     <label class="what">@Label</label>
-    <label class="time">@JamFormat.Countdown( Target, Jam.Now, ticking: true )</label>
+    <label class="time">@((Target - Jam.Now).ToCountdownString())</label>
 </root>
 
 @code

@@ -681,6 +681,7 @@ public class SettingsCatalog
 
 		AddVolume( "audio.volume", "Master", "Everything, all at once.", "volume" );
 		AddVolume( "audio.music", "Music", "Menu music and whatever a game plays as music.", "music_volume" );
+		AddVolume( "audio.menu_music", "Menu Music", "Music in the menu, loading screens and avatar editor.", "music_volume_menu" );
 		AddVolume( "audio.voice", "Voice Chat", "How loud other players are when they talk.", "voip_volume" );
 
 		Items.Add( new SettingItem
@@ -698,6 +699,39 @@ public class SettingsCatalog
 			],
 			Read = () => Enum.TryParse<VoiceMode>( ConsoleSystem.GetValue( "voip_mode" ), true, out var mode ) ? mode : VoiceMode.PushToTalk,
 			Write = value => ConsoleSystem.SetValue( "voip_mode", (int)ToEnum<VoiceMode>( value ) )
+		} );
+
+		Items.Add( new SettingItem
+		{
+			Id = "audio.microphone",
+			Category = "audio",
+			Section = "Voice",
+			Title = "Microphone",
+			Description = "What voice chat records from. Follows Windows' default unless you pick something here.",
+			Kind = SettingKind.Dropdown,
+			OptionsBuilder = MicrophoneOptions,
+			Read = ReadMicrophone,
+			Write = value => ConsoleSystem.SetValue( "voip_device", value?.ToString() ?? "" ),
+			Warning = () => IsMicrophoneMissing( Find( "audio.microphone" )?.Value?.ToString() )
+				? "This microphone isn't connected, so voice chat is using the default one."
+				: null
+		} );
+
+		Items.Add( new SettingItem
+		{
+			Id = "audio.threshold",
+			Category = "audio",
+			Section = "Voice",
+			Title = "Voice Threshold",
+			Description = "Voice is only sent while your microphone is louder than the line. Talk and drag it so the light comes on when you speak, but not from background noise.",
+			Kind = SettingKind.Custom,
+			CreateControl = item => new MicrophoneMeter
+			{
+				Item = item,
+				Device = () => Find( "audio.microphone" )?.Value?.ToString()
+			},
+			Read = () => ConsoleSystem.GetValue( "voip_threshold" ).ToFloat(),
+			Write = value => ConsoleSystem.SetValue( "voip_threshold", ToFloat( value ) )
 		} );
 
 		Items.Add( new SettingItem
@@ -877,6 +911,42 @@ public class SettingsCatalog
 		} );
 	}
 
+	/// <summary>Refreshed when the dropdown builds, so the warning doesn't ask SDL every frame.</summary>
+	List<string> microphones;
+
+	List<Option> MicrophoneOptions()
+	{
+		microphones = Sandbox.Internal.AudioSettings.GetRecordingDevices().ToList();
+
+		// The system default is one entry that follows Windows, rather than also listing that device on its own
+		var systemDefault = Sandbox.Internal.AudioSettings.GetDefaultRecordingDevice();
+		var options = new List<Option> { new( string.IsNullOrEmpty( systemDefault ) ? "Default" : $"{systemDefault} (Default)", "" ) };
+		options.AddRange( microphones.Where( x => x != systemDefault ).Select( x => new Option( x, x ) ) );
+
+		// Keep the saved one listed, so the dropdown shows what's picked rather than nothing
+		var saved = ConsoleSystem.GetValue( "voip_device" );
+		if ( IsMicrophoneMissing( saved ) )
+			options.Add( new Option( $"{saved} (not connected)", saved ) );
+
+		return options;
+	}
+
+	/// <summary>A saved device that's now the system default shows as the merged default entry.</summary>
+	static object ReadMicrophone()
+	{
+		var saved = ConsoleSystem.GetValue( "voip_device" ) ?? "";
+		return saved == Sandbox.Internal.AudioSettings.GetDefaultRecordingDevice() ? "" : saved;
+	}
+
+	bool IsMicrophoneMissing( string name )
+	{
+		if ( string.IsNullOrEmpty( name ) )
+			return false;
+
+		microphones ??= Sandbox.Internal.AudioSettings.GetRecordingDevices().ToList();
+		return !microphones.Contains( name );
+	}
+
 	static void RestoreAudioDefaults()
 	{
 		var devices = Sandbox.Internal.AudioSettings.GetAudioDevices();
@@ -886,8 +956,11 @@ public class SettingsCatalog
 		ConsoleSystem.SetValue( "snd_simulation_enable", true );
 		ConsoleSystem.SetValue( "volume", 1.0f );
 		ConsoleSystem.SetValue( "music_volume", 1.0f );
+		ConsoleSystem.SetValue( "music_volume_menu", 1.0f );
 		ConsoleSystem.SetValue( "voip_volume", 1.0f );
 		ConsoleSystem.SetValue( "voip_mode", (int)VoiceMode.PushToTalk );
+		ConsoleSystem.SetValue( "voip_device", "" );
+		ConsoleSystem.SetValue( "voip_threshold", -50.0f );
 		ConsoleSystem.SetValue( "snd_mute_losefocus", false );
 		ConsoleSystem.SetValue( "snd_subtitles", false );
 	}

@@ -34,6 +34,7 @@ internal sealed class PathSearch
 	private Vector3 target;
 	private SearchNode closest;
 	private float closestDistance;
+	private bool retargeted;
 	private Status status;
 
 	internal PathSearch( NavMeshGraph mesh, MeshQuery geometry ) { this.mesh = mesh; this.geometry = geometry; }
@@ -47,6 +48,15 @@ internal sealed class PathSearch
 		if ( !mesh.IsValidPolyRef( startPolygon ) || !mesh.IsValidPolyRef( targetPolygon )
 			|| !start.IsFinite || !target.IsFinite ) return status;
 		this.filter = filter;
+		// Searching for a target on another island would exhaust the start's island.
+		var islands = mesh.GetIslands( filter );
+		int island = islands.Of( startPolygon );
+		retargeted = island != islands.Of( targetPolygon );
+		if ( retargeted )
+		{
+			long nearest = geometry.FindNearestPolyInIsland( target, islands, island, filter, out var nearestPoint );
+			if ( nearest != 0 ) { targetPolygon = nearest; target = nearestPoint; }
+		}
 		this.targetPolygon = targetPolygon;
 		this.target = target;
 		closest = nodes.GetNode( startPolygon );
@@ -77,10 +87,14 @@ internal sealed class PathSearch
 				// Different entry sides into a tile need distinct search nodes.
 				var next = nodes.GetNode( reference, link.side == 0xff ? 0 : link.side >> 1 );
 				var position = next.pos;
-				var edgeStatus = reference == targetPolygon
-					? geometry.GetEdgeIntersectionPoint( current.pos, current.id, ref polygon, tile, target, reference, ref nextPolygon, nextTile, ref position )
-					: geometry.GetEdgeMidPoint( current.id, ref polygon, tile, reference, ref nextPolygon, nextTile, ref position );
-				if ( edgeStatus.Failed() ) continue;
+				// Like Detour, a node's portal position is fixed by its first visit.
+				if ( next.flags == 0 )
+				{
+					var edgeStatus = reference == targetPolygon
+						? geometry.GetEdgeIntersectionPoint( current.pos, current.id, ref polygon, tile, target, reference, ref nextPolygon, nextTile, ref position )
+						: geometry.GetEdgeMidPoint( current.id, ref polygon, tile, reference, ref nextPolygon, nextTile, ref position );
+					if ( edgeStatus.Failed() ) continue;
+				}
 				float cost = current.cost + filter.Cost( current.pos, position, polygon.area );
 				float distance = Vector3.DistanceBetween( position, target );
 				if ( reference == targetPolygon ) cost += filter.Cost( position, target, nextPolygon.area );
@@ -113,7 +127,31 @@ internal sealed class PathSearch
 		}
 		if ( node is not null ) { path.Clear(); return Status.Failure; }
 		path.Reverse();
-		return closest.id == targetPolygon ? Status.Success : Status.Success | Status.Partial;
+		return closest.id == targetPolygon && !retargeted ? Status.Success : Status.Success | Status.Partial;
+	}
+
+	// Replaces the corridor up to the furthest polygon the search reached, like Detour's partial finalize.
+	internal bool FinishJoin( List<long> scratch, List<long> corridor )
+	{
+		if ( status.Failed() ) return false;
+		for ( int k = corridor.Count - 1; k >= 0; k-- )
+		{
+			var node = nodes.Find( corridor[k] );
+			// Joining at the start node would leave the corridor unchanged.
+			if ( node is null || node.pidx == 0 ) continue;
+			scratch.Clear();
+			for ( int remaining = nodes.GetNodeCount(); node is not null && remaining > 0; remaining-- )
+			{
+				scratch.Add( node.id );
+				node = nodes.GetNodeAtIdx( node.pidx );
+			}
+			if ( node is not null ) return false;
+			scratch.Reverse();
+			corridor.RemoveRange( 0, k + 1 );
+			corridor.InsertRange( 0, scratch );
+			return true;
+		}
+		return false;
 	}
 }
 
@@ -154,25 +192,23 @@ internal class SearchNode
 // Reuses search nodes and hash storage between queries.
 internal class SearchNodePool
 {
-	private const int HashSize = 1024; // power of two
-
 	private SearchNode[] _nodes;
 	private int[] _next;
-	private readonly int[] _first;
+	private int[] _first; // power of two, grown with the node count to keep chains short
 	private int _nodeCount;
 
 	public SearchNodePool()
 	{
 		_nodes = new SearchNode[128];
 		_next = new int[128];
-		_first = new int[HashSize];
+		_first = new int[1024];
 		Array.Fill( _first, -1 );
 	}
 
-	private static int HashRef( long id )
+	private int HashRef( long id )
 	{
 		ulong h = (ulong)id * 0x9E3779B97F4A7C15UL;
-		return (int)(h >> 32) & (HashSize - 1);
+		return (int)(h >> 32) & (_first.Length - 1);
 	}
 
 	public void Clear()
@@ -189,6 +225,13 @@ internal class SearchNodePool
 	public int GetNodeCount()
 	{
 		return _nodeCount;
+	}
+
+	public SearchNode Find( long id )
+	{
+		for ( int i = _first[HashRef( id )]; i != -1; i = _next[i] )
+			if ( _nodes[i].id == id ) return _nodes[i];
+		return null;
 	}
 
 	public SearchNode GetNode( long id, int state )
@@ -211,6 +254,18 @@ internal class SearchNodePool
 		{
 			Array.Resize( ref _nodes, _nodes.Length * 2 );
 			Array.Resize( ref _next, _next.Length * 2 );
+		}
+		if ( _nodeCount >= _first.Length )
+		{
+			_first = new int[_first.Length * 2];
+			Array.Fill( _first, -1 );
+			for ( int n = 0; n < _nodeCount; n++ )
+			{
+				int b = HashRef( _nodes[n].id );
+				_next[n] = _first[b];
+				_first[b] = n;
+			}
+			bucket = HashRef( id );
 		}
 
 		int i = _nodeCount++;

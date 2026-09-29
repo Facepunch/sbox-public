@@ -10,11 +10,11 @@ public partial class ServiceApi
 		[Get( "/account/hidden/1" )]
 		Task<HiddenContent> GetHiddenContent();
 
-		/// <summary>Hide or unhide a package by full ident. Returns the requested hidden state.</summary>
+		/// <summary>Hide or unhide a package. Returns the requested hidden state.</summary>
 		[Post( "/account/hidden/package/1/{packageIdent}" )]
 		Task<bool> SetPackageHidden( string packageIdent, [Query] bool hidden );
 
-		/// <summary>Hide or unhide an organization by ident. Individual package hides are preserved.</summary>
+		/// <summary>Hide or unhide an organization. Individual package hides are preserved.</summary>
 		[Post( "/account/hidden/organization/1/{orgIdent}" )]
 		Task<bool> SetOrganizationHidden( string orgIdent, [Query] bool hidden );
 

@@ -8,7 +8,7 @@ ItemTile
 	@include front-card;
 
 	width: 232px;
-	border-width: 1px;
+	border-width: $front-border-width;
 	transition: all 0.15s ease;
 	cursor: default;
 
@@ -75,7 +75,7 @@ ItemTile
 		justify-content: center;
 		border-radius: 999px;
 		background-color: rgba( 14, 18, 26, 0.85 );
-		border: 1px solid $front-hairline;
+		border: $front-border-width solid $front-hairline;
 
 		label
 		{
@@ -127,7 +127,7 @@ ItemTile
 		justify-content: center;
 		border-radius: 999px;
 		background-color: rgba( 14, 18, 26, 0.85 );
-		border: 1px solid $front-hairline;
+		border: $front-border-width solid $front-hairline;
 
 		label
 		{
@@ -147,7 +147,7 @@ ItemTile
 		flex-shrink: 0;
 		padding: 12px 14px 14px;
 		gap: 2px;
-		border-top: 1px solid $front-hairline;
+		border-top: $front-border-width solid $front-hairline;
 	}
 
 	.name

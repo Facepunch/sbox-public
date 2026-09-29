@@ -80,6 +80,7 @@ public partial class MirrorTool( string tool ) : EditorTool
 			var go = new GameObject( true, group.Key.GameObject.Name );
 			go.MakeNameUnique();
 			go.WorldTransform = tx;
+			go.IsStatic = group.Key.GameObject.IsStatic;
 			var mc = go.Components.Create<MeshComponent>( false );
 			mc.Mesh = BuildMesh( group.Key, [.. group.Select( f => f.Handle )] );
 			mc.Enabled = true;

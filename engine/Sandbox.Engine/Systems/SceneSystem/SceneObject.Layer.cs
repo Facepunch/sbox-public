@@ -75,11 +75,15 @@ public partial class SceneObject
 			if ( !SceneRenderLayerHelper.Names.TryGetValue( value, out var layer ) )
 			{
 				native.SetLayerMatchID( null );
+				NotifyChanged( Rendering.SceneObjectChange.Flags );
 				return;
 			}
 
 			_renderLayer = value;
 			native.SetLayerMatchID( layer );
+
+			// The layers that take it changed, as a flag changing does
+			NotifyChanged( Rendering.SceneObjectChange.Flags );
 		}
 	}
 

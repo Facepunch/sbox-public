@@ -39,7 +39,7 @@ COMMON
     // Set per draw: shadow passes skip vertex displacement (small relief isn't worth the extra taps there).
     bool g_bTerrainShadowPass < Attribute( "TerrainShadowPass" ); Default( 0 ); >;
 
-    // Whether any hole is painted on the terrain; hole-free terrains skip control-map work in depth passes.
+    // Hole-free terrains skip the control-map gather in the vertex shader.
     bool g_bTerrainHasHoles < Attribute( "TerrainHasHoles" ); Default( 1 ); >;
 }
 
@@ -57,6 +57,8 @@ struct PixelInput
 
     #if ( PROGRAM == VFX_PROGRAM_VS )
         float4 PixelPosition : SV_Position;
+        // Positive keeps the vertex. The rasterizer cuts the triangle; the pixel shader does not discard.
+        float ClipDistance : SV_ClipDistance0;
     #endif
 
     #if ( PROGRAM == VFX_PROGRAM_PS )
@@ -139,8 +141,28 @@ VS
         }
     #endif
 
+        // Outside the heightmap, and painted holes. Both are a signed distance so the
+        // rasterizer cuts the triangle instead of the pixel shader discarding.
+        float2 uv = Terrain::LocalToUV( o.LocalPosition.xy );
+        float flKeep = min( min( uv.x, 1.0 - uv.x ), min( uv.y, 1.0 - uv.y ) );
+
+    #if ( D_GRID == 0 )
+        if ( g_bTerrainHasHoles && Terrain::Get().ControlMapTexture != 0 && flKeep >= 0.0 )
+        {
+            float4 holeWeights;
+            uint4 holeBits = Terrain::GatherControlQuad( uv, holeWeights );
+            float holeBlend = 0.0;
+            if ( CompactTerrainMaterial::Decode( holeBits.x ).IsHole ) holeBlend += holeWeights.x;
+            if ( CompactTerrainMaterial::Decode( holeBits.y ).IsHole ) holeBlend += holeWeights.y;
+            if ( CompactTerrainMaterial::Decode( holeBits.z ).IsHole ) holeBlend += holeWeights.z;
+            if ( CompactTerrainMaterial::Decode( holeBits.w ).IsHole ) holeBlend += holeWeights.w;
+            flKeep = min( flKeep, 0.5 - holeBlend );
+        }
+    #endif
+
         o.WorldPosition = mul( Terrain::Get().Transform, float4( o.LocalPosition, 1.0 ) ).xyz;
         o.PixelPosition = Position3WsToPs( o.WorldPosition.xyz );
+        o.ClipDistance = flKeep;
         o.LodLevel = (uint)flLodLevel;
 
 		return o;
@@ -164,48 +186,13 @@ PS
 	{
         float2 uv = Terrain::LocalToUV( i.LocalPosition.xy );
 
-        // Clip any of the clipmap that exceeds the heightmap bounds
-        if ( uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0 )
-        {
-            clip( -1 );
-            return float4( 0, 0, 0, 0 );
-        }
-
-    #if ( S_MODE_DEPTH )
-        // Hole-free terrain: depth passes only need the bounds clip above
-        if ( !g_bTerrainHasHoles )
-            return 1;
-    #endif
-
     #if ( D_GRID == 0 )
-        // Compact format: simple base/overlay blending
         bool bHasControlMap = Terrain::Get().ControlMapTexture != 0;
         uint4 controlBits = 0;
         float4 quadWeights = 0;
 
         if ( bHasControlMap )
-        {
             controlBits = Terrain::GatherControlQuad( uv, quadWeights );
-
-            // Check for holes - blend hole values
-            float holeBlend = 0.0;
-            if ( CompactTerrainMaterial::Decode( controlBits.x ).IsHole ) holeBlend += quadWeights.x;
-            if ( CompactTerrainMaterial::Decode( controlBits.y ).IsHole ) holeBlend += quadWeights.y;
-            if ( CompactTerrainMaterial::Decode( controlBits.z ).IsHole ) holeBlend += quadWeights.z;
-            if ( CompactTerrainMaterial::Decode( controlBits.w ).IsHole ) holeBlend += quadWeights.w;
-
-            // Clip if predominantly a hole
-            if ( holeBlend > 0.5 )
-            {
-                clip( -1 );
-                return float4( 0, 0, 0, 0 );
-            }
-        }
-    #endif
-
-    #if ( S_MODE_DEPTH )
-        // Depth passes only need the clips above - keep everything Material-shaped below this line
-        return 1;
     #endif
 
         Material p = Material::Init();
@@ -215,9 +202,7 @@ PS
         Terrain_ProcGrid( i.LocalPosition.xy, p.Albedo, p.Roughness );
     #else
         if ( bHasControlMap )
-        {
             p = Terrain::Sample( i.LocalPosition.xy, ddx( i.LocalPosition.xy ), ddy( i.LocalPosition.xy ), controlBits, quadWeights );
-        }
     #endif
 
         Terrain::ApplyGeometricNormals( p, uv );
@@ -226,10 +211,12 @@ PS
         p.WorldPositionWithOffset = i.WorldPosition - g_vHighPrecisionLightingOffsetWs.xyz;
         p.ScreenPosition = i.ScreenPosition;
 
-        if ( g_nDebugView != 0 )
-        {
-            // return Terrain_Debug( i.LodLevel, p.TextureCoords );
-        }
+        // The prepass only stores normal and roughness. Lighting the pixel and discarding the color
+        // was most of this pass.
+    #if ( S_MODE_DEPTH )
+        Decals::Apply( p.WorldPosition, p );
+        return DepthNormals::Output( p.Normal, p.Roughness, p.Opacity );
+    #endif
 
 	    return ShadingModelStandard::Shade( p );
 	}

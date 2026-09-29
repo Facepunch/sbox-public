@@ -51,7 +51,7 @@ native static class global as NativeEngine.EngineGlobal
 	bool SourceEngineUnitTestInit();
 	bool SourceEnginePreInit( string lpCmdLine, CMaterialSystem2AppSystemDict appDict );
 	bool SourceEngineInit( CMaterialSystem2AppSystemDict appDict );
-	bool SourceEnginePanelAppInit( CMaterialSystem2AppSystemDict appDict );
+	bool SourceEnginePanelAppInit( CMaterialSystem2AppSystemDict appDict, bool drawsScenes );
 	void SourceEnginePanelAppFrame();
 	bool SourceEngineFrame( CMaterialSystem2AppSystemDict appDict, double currentTime, double previousTime );
 	void SourceEngineShutdown( CMaterialSystem2AppSystemDict appDict, bool forced );

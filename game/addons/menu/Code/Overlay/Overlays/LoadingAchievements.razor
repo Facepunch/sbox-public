@@ -1,0 +1,63 @@
+@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject;
+@inherits Panel
+
+@*
+    Beside the game's name on its loading screen - how many of its achievements you've got. Nothing
+    at all for a game without any.
+*@
+
+@if ( Collection is null || Total == 0 )
+    return;
+
+<root>
+    @* 🏆 12 / 30 - gold all over once they're all got *@
+    <icon class="trophy">emoji_events</icon>
+    <div class="count @(Unlocked == Total ? "complete" : "")">
+        <label class="got">@Unlocked</label>
+        <label class="of">/ @Total</label>
+    </div>
+</root>
+
+@code
+{
+    [Parameter] public Package Package { get; set; }
+
+    AchievementCollection Collection { get; set; }
+    string _ident;
+
+    int Total => Collection?.All.Count ?? 0;
+    int Unlocked => Collection?.All.Count( x => x.IsUnlocked ) ?? 0;
+
+    protected override void OnParametersSet()
+    {
+        var ident = Package?.FullIdent;
+        if ( ident == _ident ) return;
+
+        _ident = ident;
+        Collection = null;
+        _ = Load( Package, ident );
+    }
+
+    async Task Load( Package package, string ident )
+    {
+        if ( package is null ) return;
+
+        try
+        {
+            var collection = await package.GetAchievements();
+            if ( ident != _ident ) return;
+
+            Collection = collection;
+            StateHasChanged();
+        }
+        catch ( Exception e )
+        {
+            Log.Warning( $"Loading screen couldn't get achievements for {ident}: {e.Message}" );
+        }
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Collection, Unlocked );
+}

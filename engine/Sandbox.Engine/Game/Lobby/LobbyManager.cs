@@ -148,12 +148,10 @@ internal static class LobbyManager
 		var friend = new Friend( memberid );
 		var lobby = new Steamworks.Data.Lobby( lobbyid );
 
-		// TODO - store pending invites somewhere, or something?
-		// What if they're in a game?
-
+		// Up to the menu how it's shown - see IMenuSystem.OnPartyInvite
 		using ( IMenuDll.Current?.PushScope() )
 		{
-			IMenuSystem.Current.Question( $"{friend.Name} invited you to a party!", "celebration", () => _ = PartyRoom.Join( lobby ), null );
+			IMenuSystem.Current.OnPartyInvite( friend, () => _ = PartyRoom.Join( lobby ), null );
 		}
 	}
 
