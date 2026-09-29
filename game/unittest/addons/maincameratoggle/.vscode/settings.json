@@ -1,0 +1,19 @@
+{
+  "files.associations": {
+    "*.shader": "slang",
+    "*.hlsl": "slang"
+  },
+  "slang.additionalSearchPaths": [
+    "D:\\sbox-public\\game\\core\\shaders",
+    "D:\\sbox-public\\game\\addons\\menu\\Assets\\shaders",
+    "D:\\sbox-public\\game\\addons\\tools\\Assets\\shaders",
+    "D:\\sbox-public\\game\\editor\\ShaderGraph\\Assets\\shaders",
+    "D:\\sbox-public\\game\\editor\\ActionGraph\\Assets\\shaders",
+    "D:\\sbox-public\\game\\editor\\MovieMaker\\Assets\\shaders",
+    "D:\\sbox-public\\game\\editor\\Hammer\\Assets\\shaders",
+    "D:\\sbox-public\\game\\editor\\DooEditor\\Assets\\shaders",
+    "D:\\sbox-public\\game\\unittest\\addons\\maincameratoggle\\Assets\\shaders"
+  ],
+  "slang.predefinedMacros": [],
+  "slang.workspaceFlavor": "vfx"
+}

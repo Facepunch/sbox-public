@@ -1,0 +1,17 @@
+{
+  "convars": {
+    "dsp_volume": "0.8",
+    "fps_max": "0",
+    "fps_max_inactive": "90",
+    "fps_max_menu": "0",
+    "model_default_preview_sequence_name": "",
+    "r_dlss_quality": "1",
+    "r_fsr3_quality": "1",
+    "r_fsr3_sharpness": "0.5",
+    "r_fsr_rcas_sharpness": "0.25",
+    "r_max_anisotropy": "16",
+    "r_upscaler_render_scale": "0.75",
+    "r_upscaling": "0",
+    "vr_spectator_show_left_eye": "0"
+  }
+}
