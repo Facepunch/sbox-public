@@ -41,6 +41,23 @@ internal static partial class SceneCompileCache
 	}
 
 	/// <summary>
+	/// Manifests parsed once for the lifetime of their owner. A generation folder's files all consult the
+	/// same manifest, which lists every output, so re-reading it per file is quadratic. Only an explicit
+	/// scene compile writes manifests; a publication that outlives one is caught by its final validation.
+	/// </summary>
+	internal sealed class ManifestSnapshot
+	{
+		readonly Dictionary<string, Compilation> _manifests = new( StringComparer.OrdinalIgnoreCase );
+
+		internal Compilation Read( string source )
+		{
+			if ( !_manifests.TryGetValue( source, out var compilation ) )
+				_manifests.Add( source, compilation = JsonSerializer.Deserialize<Compilation>( File.ReadAllText( ManifestPath( source ) ), JsonOptions ) );
+			return compilation;
+		}
+	}
+
+	/// <summary>
 	/// Reuse byte fingerprints only within one synchronous validation, never across a compile or await.
 	/// </summary>
 	internal sealed class ValidationScope
@@ -48,7 +65,7 @@ internal static partial class SceneCompileCache
 		readonly Dictionary<string, string> _files = new( StringComparer.OrdinalIgnoreCase );
 		readonly Dictionary<string, string> _inputs = new( StringComparer.OrdinalIgnoreCase );
 		readonly Dictionary<string, bool> _history = new( StringComparer.OrdinalIgnoreCase );
-		readonly Dictionary<string, Compilation> _compilations = new( StringComparer.OrdinalIgnoreCase );
+		internal ManifestSnapshot Manifests { get; } = new();
 		Dictionary<Guid, Asset> _assets;
 		internal HashSet<string> Paths { get; } = new( StringComparer.OrdinalIgnoreCase );
 		internal HashSet<Asset> Assets { get; } = new();
@@ -97,13 +114,6 @@ internal static partial class SceneCompileCache
 			if ( !_history.TryGetValue( source, out var history ) )
 				_history.Add( source, history = SceneCompileCache.HasHistory( source ) );
 			return history;
-		}
-
-		internal Compilation ReadCompilation( string source )
-		{
-			if ( !_compilations.TryGetValue( source, out var compilation ) )
-				_compilations.Add( source, compilation = JsonSerializer.Deserialize<Compilation>( File.ReadAllText( ManifestPath( source ) ), JsonOptions ) );
-			return compilation;
 		}
 	}
 
@@ -237,7 +247,7 @@ internal static partial class SceneCompileCache
 	/// Only compiler-owned generations are filtered. Other assets in the scene data folder remain
 	/// ordinary publishable content. Source packages also omit compiled runtime scenes.
 	/// </summary>
-	internal static bool ShouldPublishFile( string path, bool sourcePackage, ValidationScope scope = null )
+	internal static bool ShouldPublishFile( string path, bool sourcePackage, ManifestSnapshot manifests, ValidationScope scope = null )
 	{
 		if ( string.IsNullOrEmpty( path ) )
 			return true;
@@ -268,9 +278,7 @@ internal static partial class SceneCompileCache
 		if ( !File.Exists( ManifestPath( source ) ) )
 			return false;
 
-		var compilation = scope is null
-			? JsonSerializer.Deserialize<Compilation>( File.ReadAllText( ManifestPath( source ) ), JsonOptions )
-			: scope.ReadCompilation( source );
+		var compilation = manifests.Read( source );
 		if ( compilation is null || compilation.Version != Version || compilation.Outputs is null || !Guid.TryParseExact( compilation.Generation, "N", out _ ) )
 			throw new InvalidDataException( Error( source, "has an invalid or incompatible manifest" ) );
 
@@ -430,7 +438,7 @@ internal static partial class SceneCompileCache
 			if ( !File.Exists( ManifestPath( source ) ) )
 				throw new InvalidDataException( "is missing its generated cache" );
 
-			compilation = scope.ReadCompilation( source );
+			compilation = scope.Manifests.Read( source );
 			if ( compilation is null || compilation.Version != Version || !Guid.TryParseExact( compilation.Generation, "N", out _ )
 				|| compilation.Source?.Inputs is null || compilation.Source.Inputs.Count == 0 || compilation.Outputs is null
 				|| !compilation.Outputs.ContainsKey( SceneJson ) || !compilation.Outputs.ContainsKey( SceneBlob ) )
