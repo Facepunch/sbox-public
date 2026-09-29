@@ -1,5 +1,6 @@
 ﻿using System;
-using System.Text.Json;
+using System.Collections.Concurrent;
+using System.IO;
 using System.Text.Json.Nodes;
 using System.Threading;
 
@@ -297,29 +298,9 @@ public class CloudAsset
 		var gr = AssetSystem.All.Where( x => x.AssetType.IsGameResource && (!currentProjectOnly || validAssetPaths.Any( path => x.AbsolutePath.StartsWith( path, StringComparison.OrdinalIgnoreCase ) )) );
 		foreach ( var r in gr )
 		{
-			string json = null;
-			try
+			foreach ( var packageIdent in GetGameResourceReferences( r ) )
 			{
-				json = r.ReadJson();
-				if ( string.IsNullOrWhiteSpace( json ) ) continue;
-
-				if ( JsonNode.Parse( json ) is not JsonObject jso ) continue;
-				if ( jso["__references"] is not JsonArray refs ) continue;
-				if ( refs.Count == 0 ) continue;
-
-				foreach ( var jsonNode in refs )
-				{
-					AddReference( jsonNode.ToString(), r );
-				}
-			}
-			catch ( JsonException e )
-			{
-				Log.Info( $"{r.AbsolutePath} - {e.Message}" );
-				Log.Info( json );
-			}
-			catch ( Exception e )
-			{
-				Log.Info( $"{r.AbsolutePath} - {e.Message}" );
+				AddReference( packageIdent, r );
 			}
 		}
 
@@ -347,5 +328,57 @@ public class CloudAsset
 		}
 
 		return references;
+	}
+
+	readonly record struct CachedReferences( DateTime WriteTime, long Length, string[] Packages );
+
+	/// <summary>
+	/// Parsed <c>__references</c> per resource file, so repeated scans only re-read files that changed.
+	/// </summary>
+	static readonly ConcurrentDictionary<string, CachedReferences> _referenceCache = new( StringComparer.OrdinalIgnoreCase );
+
+	static string[] GetGameResourceReferences( Asset asset )
+	{
+		// Same file ReadJson reads: source if present, compiled otherwise
+		var file = asset.GetSourceFile( true );
+		if ( string.IsNullOrWhiteSpace( file ) )
+			file = asset.GetCompiledFile( true );
+
+		if ( string.IsNullOrWhiteSpace( file ) )
+			return [];
+
+		return GetCachedReferences( file, asset.ReadJson );
+	}
+
+	/// <summary>
+	/// The top level <c>__references</c> of a resource's json, re-read only when the file's write time or
+	/// length changes. Length catches two saves landing on the same write time.
+	/// </summary>
+	internal static string[] GetCachedReferences( string file, Func<string> readJson )
+	{
+		var info = new FileInfo( file );
+		var writeTime = info.Exists ? info.LastWriteTimeUtc : default;
+		var length = info.Exists ? info.Length : 0;
+
+		if ( _referenceCache.TryGetValue( file, out var cached ) && cached.WriteTime == writeTime && cached.Length == length )
+			return cached.Packages;
+
+		string[] packages = [];
+		try
+		{
+			var json = readJson();
+			if ( !string.IsNullOrWhiteSpace( json ) && JsonNode.Parse( json ) is JsonObject jso && jso["__references"] is JsonArray refs )
+			{
+				packages = refs.Select( x => x?.ToString() ).ToArray();
+			}
+		}
+		catch ( Exception e )
+		{
+			// Cached below, so this only fires again once the file changes
+			Log.Warning( e, $"Couldn't read cloud references from {file}: {e.Message}" );
+		}
+
+		_referenceCache[file] = new CachedReferences( writeTime, length, packages );
+		return packages;
 	}
 }
