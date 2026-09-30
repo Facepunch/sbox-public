@@ -382,17 +382,21 @@ public class AssetType
 
 		var lookup = gameResourceExtensions.GetAlternateLookup<ReadOnlySpan<char>>();
 
-		foreach ( var file in FileSystem.Content.FindFile( "/", "*", true ) )
+		// Same matching as HasExtension: strip the dot and a trailing _c, case-insensitive
+		bool IsGameResourceFile( string file )
 		{
-			// Same matching as HasExtension: strip the dot and a trailing _c, case-insensitive
 			var ext = System.IO.Path.GetExtension( file.AsSpan() );
-			if ( ext.Length < 2 ) continue;
+			if ( ext.Length < 2 ) return false;
 
 			ext = ext[1..];
 			if ( ext.EndsWith( "_c", StringComparison.Ordinal ) ) ext = ext[..^2];
-			if ( !lookup.Contains( ext ) ) continue;
+			return lookup.Contains( ext );
+		}
 
-			AssetSystem.RegisterFile( FileSystem.Content.GetFullPath( file ) );
+		// Full paths come from the enumeration, GetFullPath would search every content filesystem again per file
+		foreach ( var (_, fullPath) in FileSystem.Content.FindFileWithFullPath( "/", IsGameResourceFile ) )
+		{
+			AssetSystem.RegisterFile( fullPath );
 		}
 
 		if ( sw.Elapsed.TotalSeconds > 1 )
