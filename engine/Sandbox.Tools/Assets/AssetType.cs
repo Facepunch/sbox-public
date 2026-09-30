@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Reflection;
 
@@ -372,12 +372,25 @@ public class AssetType
 	{
 		var sw = Stopwatch.StartNew();
 
+		// Game resource extensions (no dot, no _c), built once instead of a scan per file
+		var gameResourceExtensions = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+		foreach ( var type in AssetTypeCache.Values )
+		{
+			if ( type.IsGameResource && type.FileExtension is not null )
+				gameResourceExtensions.Add( type.FileExtension );
+		}
+
+		var lookup = gameResourceExtensions.GetAlternateLookup<ReadOnlySpan<char>>();
+
 		foreach ( var file in FileSystem.Content.FindFile( "/", "*", true ) )
 		{
-			var ext = System.IO.Path.GetExtension( file );
-			var t = FromExtension( ext );
-			if ( t is null ) continue;
-			if ( !t.IsGameResource ) continue;
+			// Same matching as HasExtension: strip the dot and a trailing _c, case-insensitive
+			var ext = System.IO.Path.GetExtension( file.AsSpan() );
+			if ( ext.Length < 2 ) continue;
+
+			ext = ext[1..];
+			if ( ext.EndsWith( "_c", StringComparison.Ordinal ) ) ext = ext[..^2];
+			if ( !lookup.Contains( ext ) ) continue;
 
 			AssetSystem.RegisterFile( FileSystem.Content.GetFullPath( file ) );
 		}
