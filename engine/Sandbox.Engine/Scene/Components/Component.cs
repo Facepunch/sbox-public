@@ -119,6 +119,12 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 		get => _enabledState;
 	}
 
+	/// <summary>
+	/// True once OnEnabled has been dispatched for the current enable. <see cref="Active"/> turns true first,
+	/// while the scene is still loading and OnEnabled is waiting in the callback batch.
+	/// </summary>
+	internal bool HasRunOnEnabled => _onEnabled;
+
 	public bool IsValid => GameObject is not null && Scene is not null;
 
 	/// <summary>

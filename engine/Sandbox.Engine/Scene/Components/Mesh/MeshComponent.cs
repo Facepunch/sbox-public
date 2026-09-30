@@ -189,6 +189,10 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 		if ( !Scene.IsEditor ) return;
 		if ( Mesh is null ) return;
 
+		// Setting the mesh while the scene is still loading - OnEnabledInternal builds the
+		// render mesh and collider right after, building them here too doubles the load
+		if ( !HasRunOnEnabled ) return;
+
 		if ( forceRebuild || Mesh.IsDirty )
 		{
 			RebuildRenderMesh();
