@@ -2,12 +2,23 @@ BodySettings
 {
     flex-direction: column;
     gap: 8px;
-}
+    overflow-y: scroll;
+    padding-right: 16px;
+    padding: 16px;
+    background-color: #0002;
+    pointer-events: all;
+    border-radius: 16px;
 
-TextEntry
-{
-    font-size: 32px;
-    margin-bottom: 32px;
+    // Keep controls at their intended size when the list needs to scroll.
+    > *
+    {
+        flex-shrink: 0;
+    }
+
+    FormRow > .label
+    {
+        width: 120px;
+    }
 }
 
 .skin-items

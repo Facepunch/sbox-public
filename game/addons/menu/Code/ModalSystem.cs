@@ -1,4 +1,4 @@
-using MenuProject.Modals;
+﻿using MenuProject.Modals;
 using MenuProject.Modals.PauseMenuModal;
 using Sandbox;
 using Sandbox.Modals;
@@ -22,6 +22,18 @@ public class ModalSystem : IModalSystem
 			return true;
 
 		return OpenModals.Any( x => x.WantsMouseInput() );
+	}
+
+	/// <summary>
+	/// A modal that dims and blurs everything behind it is open. Anchored ones (the rewards drop,
+	/// the friends list off a button) are popups that leave the page as it is, so they don't count.
+	/// </summary>
+	public bool HasBlockingModalsOpen()
+	{
+		if ( IsPauseMenuOpen )
+			return true;
+
+		return OpenModals.Any( x => x.WantsMouseInput() && !x.HasClass( "anchored" ) );
 	}
 
 	public void CloseAll( bool immediate = false )
@@ -72,6 +84,25 @@ public class ModalSystem : IModalSystem
 		}
 
 		return false;
+	}
+
+	/// <summary>
+	/// Is a modal of the given type currently open?
+	/// </summary>
+	public bool IsOpen<T>() where T : BaseModal
+	{
+		return OpenModals.Any( x => x.IsValid() && x is T );
+	}
+
+	/// <summary>
+	/// The item drop popup, anchored beside <paramref name="anchor"/> (the rail's Rewards entry).
+	/// Toggles closed if it's already open.
+	/// </summary>
+	public void Rewards( Panel anchor )
+	{
+		if ( CloseExisting<RewardsModal>() ) return;
+
+		Push( new RewardsModal( anchor ) );
 	}
 
 	public void Game( string packageIdent )
@@ -150,7 +181,19 @@ public class ModalSystem : IModalSystem
 
 	public void Settings( string page = "" )
 	{
-		Push( new SettingsModal( page ) );
+		var category = MenuProject.Settings.SettingsCatalog.ResolveCategory( page );
+
+		// In a game there's no menu to navigate, so the same view goes up full bleed instead.
+		if ( !Sandbox.Game.InGame && MenuProject.MainMenu.Instance?.Navigator is not null )
+		{
+			CloseExisting<SettingsModal>();
+			MenuProject.MainMenu.Instance.Navigator.Navigate( string.IsNullOrEmpty( category ) ? "/settings" : $"/settings?Category={category}" );
+			return;
+		}
+
+		if ( CloseExisting<SettingsModal>() ) return;
+
+		Push( new SettingsModal( category ) );
 	}
 
 	public void ServiceConnector()

@@ -40,6 +40,7 @@ native class CCameraRenderer
 	bool EnablePostprocessing;
 	bool EnableEngineOverlays;
 	bool EnableUI;
+	bool UIOnly;
 
 	bool Ortho;
 	float OrthoSize;

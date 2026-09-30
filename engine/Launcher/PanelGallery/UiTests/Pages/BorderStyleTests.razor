@@ -1,0 +1,41 @@
+@using Sandbox.PanelGallery;
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+
+@attribute [Group( "Borders" )]
+@attribute [Title( "border-style" )]
+@attribute [Description( "Solid, patterned, double and shaded borders" )]
+@attribute [Icon( "border_style" )]
+
+<root>
+    <h2>Border styles</h2>
+    <p>One style applies to the whole border. Borders remain solid when the style is omitted.</p>
+    <div class="cases">
+        <UiTestCase Caption="solid" Setup="@Sample" Css="border-style: solid" />
+        <UiTestCase Caption="dashed" Setup="@Sample" Css="border-style: dashed" />
+        <UiTestCase Caption="dotted" Setup="@Sample" Css="border-style: dotted" />
+        <UiTestCase Caption="double" Setup="@Sample" Css="border-style: double" />
+        <UiTestCase Caption="groove" Setup="@Sample" Css="border-style: groove" />
+        <UiTestCase Caption="ridge" Setup="@Sample" Css="border-style: ridge" />
+        <UiTestCase Caption="inset" Setup="@Sample" Css="border-style: inset" />
+        <UiTestCase Caption="outset" Setup="@Sample" Css="border-style: outset" />
+        <UiTestCase Caption="none" Setup="@Sample" Css="border-style: none" Note="No border or border layout space." />
+        <UiTestCase Caption="hidden" Setup="@Sample" Css="border-style: hidden" Note="Same as none for panels." />
+    </div>
+
+    <h2>Corners and shapes</h2>
+    <div class="cases">
+        <UiTestCase Caption="28px" Setup="@Sample" Css="@($"border: 6px dashed {GalleryPalette.CyanHex}; border-radius: 28px")" />
+        <UiTestCase Caption="50%" Setup="@Sample" Css="@($"border: 6px dotted {GalleryPalette.CyanHex}; border-radius: 50%")" />
+        <UiTestCase Caption="32px / 16px" Setup="@Sample" Css="@($"border: 9px double {GalleryPalette.CyanHex}; border-radius: 32px / 16px")" />
+        <UiTestCase Caption="circle()" Setup="@Sample" Css="@($"border: 5px dotted {GalleryPalette.CyanHex}; border-shape: circle()")" />
+        <UiTestCase Caption="polygon( 25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50% )" Setup="@Sample" Css="@($"border: 5px dashed {GalleryPalette.CyanHex}; border-shape: polygon( 25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50% )")" />
+        <UiTestCase Caption="64px / 12px" Setup="@Sample" Css="@($"border: 8px dotted {GalleryPalette.CyanHex}; border-radius: 64px / 12px")" Note="Dots remain round along flat elliptical corners." />
+        <UiTestCase Caption="12px" Setup="@Sample" Css="@($"border: 1px dotted {GalleryPalette.CyanHex}; border-radius: 12px")" />
+    </div>
+</root>
+
+@code
+{
+    const string Sample = $"width: 144px; height: 96px; background-color: #243348; border: 9px {GalleryPalette.CyanHex}";
+}

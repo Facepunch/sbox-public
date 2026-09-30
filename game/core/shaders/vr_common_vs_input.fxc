@@ -26,9 +26,7 @@ float4 vNormalOs : NORMAL < Semantic( OptionallyCompressedTangentFrame ); >;
 #endif
 
 #if ( VS_INPUT_HAS_TANGENT_BASIS )
-	#if ( !D_COMPRESSED_NORMALS_AND_TANGENTS )
-		float4 vTangentUOs_flTangentVSign : TANGENT	< Semantic( TangentU_SignV ); >;
-	#endif
+	float4 vTangentUOs_flTangentVSign : TANGENT	< Semantic( TangentU_SignV ); >;
 #endif
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------

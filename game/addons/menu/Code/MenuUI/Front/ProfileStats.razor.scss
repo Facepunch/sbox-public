@@ -1,0 +1,137 @@
+@import "/styles/_front.scss";
+
+// Achievements and points, a band of their own between the avatar and the friends list.
+ProfileStats
+{
+	flex-direction: row;
+	flex-shrink: 0;
+	align-items: center;
+	padding: 12px $front-inset;
+	gap: $front-inset;
+
+	&.hidden
+	{
+		display: none;
+	}
+
+	.stat
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-basis: 0;
+		gap: 2px;
+	}
+
+	.stat-label
+	{
+		@include front-section-label;
+	}
+
+	// A fixed height, so the number and its loading placeholder take exactly the same room and nothing
+	// moves when one replaces the other
+	.stat-value
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 7px;
+		height: 24px;
+
+		label
+		{
+			height: 24px;
+			line-height: 24px;
+			font-size: 20px;
+			font-weight: 700;
+			color: $front-heading;
+		}
+
+		icon
+		{
+			font-size: 20px;
+		}
+
+		.trophy
+		{
+			color: $front-trophy;
+		}
+
+		.points
+		{
+			color: $front-points;
+		}
+
+		// Where the number goes while it's on its way - about the size of one, gently pulsing
+		.skeleton
+		{
+			width: 64px;
+			height: 18px;
+			border-radius: 4px;
+			background-color: rgba( 255, 255, 255, 0.1 );
+			animation-name: stats-skeleton-pulse;
+			animation-duration: 1.2s;
+			animation-timing-function: ease;
+			animation-iteration-count: infinite;
+			animation-direction: alternate;
+		}
+	}
+
+	// Someone else's private profile - a lock and a line saying so, in the space the numbers would take
+	.private
+	{
+		flex-direction: row;
+		flex-grow: 1;
+		align-items: center;
+		gap: 12px;
+		min-height: 44px;
+
+		> icon
+		{
+			flex-shrink: 0;
+			width: 32px;
+			height: 32px;
+			border-radius: 50%;
+			background-color: rgba( 255, 255, 255, 0.06 );
+			text-align: center;
+			line-height: 32px;
+			font-size: 17px;
+			color: $front-secondary;
+		}
+
+		.private-text
+		{
+			flex-direction: column;
+			min-width: 0;
+		}
+
+		.private-title
+		{
+			font-size: 13px;
+			font-weight: 700;
+			color: $front-body;
+		}
+
+		.private-hint
+		{
+			@include front-row-meta;
+		}
+	}
+
+	// Loading - the glyphs wait with the placeholders rather than showing off on their own
+	&.loading .stat-value icon
+	{
+		opacity: 0.35;
+	}
+}
+
+@keyframes stats-skeleton-pulse
+{
+	0%
+	{
+		opacity: 0.5;
+	}
+
+	100%
+	{
+		opacity: 1;
+	}
+}

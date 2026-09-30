@@ -15,6 +15,11 @@ partial class ModelRenderer
 
 	internal virtual BBox GetLocalBoundsInternal()
 	{
+		if ( _sceneObject is SceneModel model )
+		{
+			return model.animNative.m_localBounds;
+		}
+
 		if ( Model is null )
 			return BBox.FromPositionAndSize( WorldPosition, 16 );
 

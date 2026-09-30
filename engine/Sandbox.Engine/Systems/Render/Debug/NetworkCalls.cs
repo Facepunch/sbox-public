@@ -20,19 +20,19 @@ internal static partial class DebugOverlay
 			return shortName;
 		}
 
-		internal static void Draw( ref Vector2 position )
+		internal static void Draw( Painter painter, ref Vector2 position )
 		{
 			var system = NetworkDebugSystem.Current;
 			if ( system is null )
 				return;
 
-			if ( DrawStats( "Inbound Network Calls", system.InboundStats, ref position ) )
+			if ( DrawStats( painter, "Inbound Network Calls", system.InboundStats, ref position ) )
 				position.y += 18;
 
-			DrawStats( "Inbound Sync Vars", system.SyncVarInboundStats, ref position );
+			DrawStats( painter, "Inbound Sync Vars", system.SyncVarInboundStats, ref position );
 		}
 
-		private static bool DrawStats( string title, Dictionary<string, NetworkDebugSystem.MessageStats> stats, ref Vector2 position )
+		private static bool DrawStats( Painter painter, string title, Dictionary<string, NetworkDebugSystem.MessageStats> stats, ref Vector2 position )
 		{
 			if ( stats is not { Count: > 0 } )
 				return false;
@@ -48,7 +48,7 @@ internal static partial class DebugOverlay
 				Outline = new TextRendering.Outline { Color = Color.Black, Enabled = true, Size = 2 }
 			};
 
-			Hud.DrawText( header, new Rect( x, y, 300f, 14f ), TextFlag.LeftTop );
+			DebugOverlay.DrawText( painter, header, new Rect( x, y, 300f, 14f ), TextFlag.LeftTop );
 			y += 24;
 
 			var biggestNameWidth = 0f;
@@ -82,15 +82,15 @@ internal static partial class DebugOverlay
 				Text = "NAME"
 			};
 
-			Hud.DrawText( headerScope, new Rect( colName, y, colNameWidth, 12f ), TextFlag.LeftCenter );
+			DebugOverlay.DrawText( painter, headerScope, new Rect( colName, y, colNameWidth, 12f ), TextFlag.LeftCenter );
 			headerScope.Text = "CALLS";
-			Hud.DrawText( headerScope, new Rect( colCalls, y, colCallsWidth, 12f ), TextFlag.RightCenter );
+			DebugOverlay.DrawText( painter, headerScope, new Rect( colCalls, y, colCallsWidth, 12f ), TextFlag.RightCenter );
 			headerScope.Text = "TOTAL";
-			Hud.DrawText( headerScope, new Rect( colKB, y, colKBWidth, 12f ), TextFlag.RightCenter );
+			DebugOverlay.DrawText( painter, headerScope, new Rect( colKB, y, colKBWidth, 12f ), TextFlag.RightCenter );
 			headerScope.Text = "SHARE";
-			Hud.DrawText( headerScope, new Rect( colPercent, y, colPercentWidth, 12f ), TextFlag.RightCenter );
+			DebugOverlay.DrawText( painter, headerScope, new Rect( colPercent, y, colPercentWidth, 12f ), TextFlag.RightCenter );
 			headerScope.Text = "B/MSG";
-			Hud.DrawText( headerScope, new Rect( colBPerMsg, y, colBPerMsgWidth, 12f ), TextFlag.RightCenter );
+			DebugOverlay.DrawText( painter, headerScope, new Rect( colBPerMsg, y, colBPerMsgWidth, 12f ), TextFlag.RightCenter );
 
 			y += 14;
 
@@ -109,10 +109,9 @@ internal static partial class DebugOverlay
 				var barWidth = barMaxWidth * pct;
 				var rowHeight = 14f;
 
-				Hud.DrawRect(
-					new Rect( x, y + (rowHeight / 2f) - (barHeight / 2f), barWidth, barHeight ),
-					color.WithAlpha( 0.4f )
-				);
+				painter.Fill = color.WithAlpha( 0.4f );
+				painter.Stroke = Stroke.None;
+				painter.Rect( new Rect( x, y + (rowHeight / 2f) - (barHeight / 2f), barWidth, barHeight ).SnapToGrid() );
 
 				var shortName = GetShortName( name );
 				var outline = new TextRendering.Outline
@@ -123,19 +122,19 @@ internal static partial class DebugOverlay
 				};
 
 				var scope = new TextRendering.Scope( shortName, color, 11, FontName, FontWeight ) { Outline = outline };
-				Hud.DrawText( scope, new Rect( colName, y, colNameWidth, rowHeight ), TextFlag.LeftCenter );
+				DebugOverlay.DrawText( painter, scope, new Rect( colName, y, colNameWidth, rowHeight ), TextFlag.LeftCenter );
 
 				scope = new TextRendering.Scope( $"{stat.TotalCalls:N0}x", color, 11, FontName, FontWeight ) { Outline = outline };
-				Hud.DrawText( scope, new Rect( colCalls, y, colCallsWidth, rowHeight ), TextFlag.RightCenter );
+				DebugOverlay.DrawText( painter, scope, new Rect( colCalls, y, colCallsWidth, rowHeight ), TextFlag.RightCenter );
 
 				scope = new TextRendering.Scope( $"{stat.TotalBytes / 1024f:0.0} KB", color, 11, FontName, FontWeight ) { Outline = outline };
-				Hud.DrawText( scope, new Rect( colKB, y, colKBWidth, rowHeight ), TextFlag.RightCenter );
+				DebugOverlay.DrawText( painter, scope, new Rect( colKB, y, colKBWidth, rowHeight ), TextFlag.RightCenter );
 
 				scope = new TextRendering.Scope( $"{pct * 100f:0.0}%", color, 11, FontName, FontWeight ) { Outline = outline };
-				Hud.DrawText( scope, new Rect( colPercent, y, colPercentWidth, rowHeight ), TextFlag.RightCenter );
+				DebugOverlay.DrawText( painter, scope, new Rect( colPercent, y, colPercentWidth, rowHeight ), TextFlag.RightCenter );
 
 				scope = new TextRendering.Scope( $"{stat.BytesPerMessage} B/msg", color, 11, FontName, FontWeight ) { Outline = outline };
-				Hud.DrawText( scope, new Rect( colBPerMsg, y, colBPerMsgWidth, rowHeight ), TextFlag.RightCenter );
+				DebugOverlay.DrawText( painter, scope, new Rect( colBPerMsg, y, colBPerMsgWidth, rowHeight ), TextFlag.RightCenter );
 
 				y += rowHeight;
 			}

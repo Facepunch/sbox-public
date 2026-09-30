@@ -16,6 +16,7 @@ public class AppSystem
 {
 	protected Logger log = new Logger( "AppSystem" );
 	internal CMaterialSystem2AppSystemDict _appSystem { get; set; }
+	GameWindow gameWindow;
 
 	[DllImport( "user32.dll", CharSet = CharSet.Unicode )]
 	private static extern int MessageBox( IntPtr hWnd, string text, string caption, uint type );
@@ -38,13 +39,23 @@ public class AppSystem
 		// check core count, ram, os?
 		// rendersystemvulkan ends up checking gpu, driver, vram later on
 
-		MissingDependancyDiagnosis.Run();
 	}
 
 	public virtual void Init()
 	{
 		GCSettings.LatencyMode = GCLatencyMode.SustainedLowLatency;
-		NetCore.InitializeInterop( Environment.CurrentDirectory );
+		try
+		{
+			NetCore.InitializeInterop( Environment.CurrentDirectory );
+		}
+		catch
+		{
+			if ( OperatingSystem.IsWindows() )
+			{
+				MissingDependancyDiagnosis.Run();
+			}
+			throw;
+		}
 	}
 
 	void SetupEnvironment()
@@ -144,6 +155,8 @@ public class AppSystem
 
 		try { ErrorReporter.Flush(); } catch { }
 
+		try { Api.Activity.SetExitReason( "crash" ); } catch { }
+
 		try { Api.Shutdown(); } catch { }
 
 		try { NLog.LogManager.Shutdown(); } catch { }
@@ -155,6 +168,8 @@ public class AppSystem
 	{
 		// Tag crash reports during shutdown so they can be filtered in Sentry
 		NativeErrorReporter.SetTag( "shutdown_crash", "true" );
+
+		Api.Activity.SetExitReason( "quit" );
 
 		// Make sure game instance is closed
 		IGameInstanceDll.Current?.CloseGame();
@@ -195,6 +210,7 @@ public class AppSystem
 		// Flush mount utility preview cache — holds strong refs to textures
 		Mounting.MountUtility.FlushCache();
 
+		ConsoleConfig.Shutdown();
 		ConVarSystem.ClearNativeCommands();
 
 		// Whatever package still exists needs to fuck off
@@ -238,6 +254,9 @@ public class AppSystem
 		// Renderpipeline may hold onto native resources, clear them out
 		RenderPipeline.Shutdown();
 
+		// So may the managed scene renderer, if r_managed_scene loaded it
+		Rendering.ManagedSceneRendering.Shutdown();
+
 		// Destroy all cached render targets immediately — must happen before
 		// GlobalContext.Shutdown() so ResourceSystem is still alive for Unregister calls.
 		RenderTarget.Shutdown();
@@ -278,8 +297,15 @@ public class AppSystem
 			log.Warning( $"Leaked scene {leakedScene.Id} during shutdown." );
 		}
 
-		// Shut the engine down (close window etc)
+		// Stop rendering before disposing the game window and its swap chain.
+		Graphics.Shutdown();
+		WindowInput.Shutdown();
+		SdlGamepads.Shutdown();
 		NativeEngine.EngineGlobal.SourceEngineShutdown( _appSystem, false );
+		// Qt window destruction during PreShutdown can enqueue more frame-end cleanup.
+		EngineLoop.DrainFrameEndDisposables();
+		gameWindow?.Dispose();
+		gameWindow = null;
 
 		if ( _appSystem.IsValid )
 		{
@@ -348,7 +374,17 @@ public class AppSystem
 			throw new System.Exception( "SourceEnginePreInit failed" );
 		}
 
-		Bootstrap.PreInit( _appSystem );
+		Bootstrap.InitApplication( _appSystem );
+		Bootstrap.PreInit( () =>
+		{
+			WindowInput.Initialize();
+			if ( createInfo.WantsGameWindow )
+				gameWindow = new GameWindow( createInfo.WindowTitle );
+
+			// Show the startup image before services initialize, and overlap their work with pipeline-cache loading.
+			_appSystem.StartBackgroundSystems();
+			SdlGamepads.Initialize();
+		} );
 
 		if ( createInfo.Flags.HasFlag( AppSystemFlags.IsStandaloneGame ) )
 		{
@@ -360,12 +396,15 @@ public class AppSystem
 			throw new System.Exception( "SourceEngineInit returned false" );
 		}
 
+		gameWindow?.InitializeRendering();
+		gameWindow?.UpdateStartupProgress( 0.5f );
 		Bootstrap.Init();
+		gameWindow?.UpdateStartupProgress( 1.0f );
 	}
 
 	protected void SetWindowTitle( string title )
 	{
-		_appSystem.SetAppWindowTitle( title );
+		gameWindow?.Title = title;
 	}
 
 	IntPtr steamApiDll = IntPtr.Zero;

@@ -1,0 +1,29 @@
+@using Sandbox.PanelGallery;
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Effects" )]
+@attribute [Title( "mask-image" )]
+@attribute [Icon( "science" )]
+<root>
+    <h2>Masks</h2>
+
+    <div class="cases">
+        <UiTestCase Caption="Linear fade" Setup="@Frame" Rule="mask-image: url( /assets/mask-linear.svg ); mask-mode: alpha" Note="A soft mask rather than a hard clip.">
+            <ChildContent><div class="masked fade-mask"></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Caption="Radial fade" Setup="@Frame" Rule="mask-image: url( /assets/mask-radial.svg ); mask-mode: alpha" Note="Radial mask.">
+            <ChildContent><div class="masked round-mask"></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Caption="Mask and rounded corners" Setup="@Frame" Rule="mask-image + border-radius" Note="Mask and clip together on one element.">
+            <ChildContent><div class="masked fade-mask round"></div></ChildContent>
+        </UiTestCase>
+    </div>
+
+
+</root>
+@code
+{
+    const string Frame = "width: 160px; height: 160px";
+}

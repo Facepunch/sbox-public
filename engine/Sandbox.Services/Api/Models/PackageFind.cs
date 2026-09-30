@@ -33,6 +33,12 @@ public struct FindPackageQuery
 	public string InCollection;
 
 	/// <summary>
+	/// Only return games players of this one also played, strongest first. Reads the nightly co-play
+	/// table, so it is a behavioural "more like this" rather than a text or tag match.
+	/// </summary>
+	public string SimilarToPackage;
+
+	/// <summary>
 	/// True if we want the total
 	/// </summary>
 	public bool GetTotalCount;
@@ -68,9 +74,9 @@ public struct FindPackageQuery
 	public List<string> WithoutTag;
 
 	/// <summary>
-	/// In contest
+	/// In jam
 	/// </summary>
-	public string InContest;
+	public string InJam;
 
 	/// <summary>
 	/// Content created for this game, specifically
@@ -94,7 +100,7 @@ public struct FindPackageQuery
 
 	/// <summary>
 	/// Hide games/maps tagged "incomplete" in the index (low-effort, near-empty storefront).
-	/// Set by the "is:complete" query token — used by curated shelves like Up and Coming.
+	/// Set by the "is:complete" query token, used by curated shelves like Up and Coming.
 	/// </summary>
 	public bool RequireComplete;
 
@@ -136,6 +142,9 @@ public struct FindPackageQuery
 		SpawnsWeek,
 		SpawnsMonth,
 
+		/// <summary>
+		/// Order by live player count, highest first.
+		/// </summary>
 		PlayersNow,
 
 		/// <summary>
@@ -143,19 +152,19 @@ public struct FindPackageQuery
 		/// </summary>
 		None,
 
-		/// <summary>Sort by Wilson lower bound on review proportion — "best rated".</summary>
+		/// <summary>Sort by Wilson lower bound on review proportion.</summary>
 		BestRated,
 
-		/// <summary>Sort by total review count — "most reviewed".</summary>
+		/// <summary>Sort by total review count.</summary>
 		MostReviewed,
 
-		/// <summary>Composite quality score — popularity, reviews, engagement, freshness.</summary>
+		/// <summary>Composite quality score.</summary>
 		Quality,
 
 		/// <summary>Well-reviewed but low-traffic packages.</summary>
 		HiddenGem,
 
-		/// <summary>"Because you played X" — packages co-played by users with similar history.</summary>
+		/// <summary>Packages co-played by users with similar history.</summary>
 		Recommended,
 
 		/// <summary>
@@ -168,7 +177,7 @@ public struct FindPackageQuery
 	public static FindPackageQuery Parse( string query, long steamid )
 	{
 		if ( string.IsNullOrWhiteSpace( query ) )
-			return default;
+			return new FindPackageQuery { SteamId = steamid };
 
 		var find = new FindPackageQuery
 		{
@@ -252,12 +261,19 @@ public struct FindPackageQuery
 				find.PrimaryAsset = value.ToLower();
 				return true;
 
+			// "contest:" is the old name for this filter. It is in the docs, in saved
+			// searches and in shipped game clients, so it keeps working.
+			case "jam":
 			case "contest":
-				find.InContest = value;
+				find.InJam = value;
 				return true;
 
 			case "in":
 				find.InCollection = value;
+				return true;
+
+			case "similar":
+				find.SimilarToPackage = value;
 				return true;
 
 			case "target":

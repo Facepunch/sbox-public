@@ -161,6 +161,8 @@ public static partial class MenuUtility
 		var connectString = friend.GetRichPresence( "connect" );
 		if ( string.IsNullOrWhiteSpace( connectString ) ) return;
 
+		Api.Activity.GameRequested( new( "friend" ), replace: false );
+
 		connectString = connectString.Replace( "+connect", "" );
 		connectString = connectString.Replace( " ", "" );
 
@@ -215,6 +217,22 @@ public static partial class MenuUtility
 	public static RenderSettings RenderSettings => Sandbox.Engine.Settings.RenderSettings.Instance;
 
 	/// <summary>
+	/// The graphics preset this machine should start on.
+	/// </summary>
+	public static GraphicsPreset DetectGraphicsPreset() => Sandbox.Engine.Settings.RenderSettings.DetectPreset();
+
+	/// <summary>
+	/// What a graphics preset writes, keyed by setting name. Lets the settings menu tell which
+	/// preset unsaved edits add up to without keeping its own copy of the preset tables.
+	/// </summary>
+	public static IReadOnlyDictionary<string, string> GraphicsPresetValues( GraphicsPreset preset ) =>
+		Sandbox.Engine.Settings.RenderSettings.SettingsFor( preset );
+
+	/// <summary>What a post-processing preset writes, keyed by setting name.</summary>
+	public static IReadOnlyDictionary<string, string> PostProcessPresetValues( PostProcessQuality preset ) =>
+		Sandbox.Engine.Settings.RenderSettings.SettingsFor( preset );
+
+	/// <summary>
 	/// Listen to the voice
 	/// </summary>
 	public static void SetVoiceListen( bool b )
@@ -231,6 +249,7 @@ public static partial class MenuUtility
 	public static void Connect( ulong lobbyId )
 	{
 		CloseAllModals();
+		Api.Activity.GameRequested( new( "server" ), replace: false );
 		Networking.Connect( lobbyId );
 	}
 
@@ -299,11 +318,11 @@ public static partial class MenuUtility
 
 	/// <summary>
 	/// Whether this friend can be invited to your current (or about-to-be-created) party -
-	/// ie. they're online, not you, and not already in it.
+	/// ie. not you, and not already in it. Offline doesn't rule them out: people set to appear
+	/// offline in Steam are often really there, and still get the invite.
 	/// </summary>
 	public static bool CanInviteToParty( Friend friend )
 	{
-		if ( !friend.IsOnline ) return false;
 		if ( friend.IsMe ) return false;
 		if ( PartyRoom.Current is not null && PartyRoom.Current.Members.Contains( friend ) ) return false;
 

@@ -1,0 +1,167 @@
+@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@using System.Threading
+@namespace MenuProject.UI
+@inherits Panel
+@implements IDiscoverySurface
+
+<root class="package-list">
+
+    @if ( ShowFilters )
+    {
+        <MenuProject.UI.PackageFilters Result=@Result Query=@Query OnChange=@OnQueryUpdated></MenuProject.UI.PackageFilters>
+    }
+
+    @if ( FoundPackages == null )
+    {
+        <MenuProject.UI.LoaderFullScreen></MenuProject.UI.LoaderFullScreen>
+    }
+    else if (FoundPackages.Count() == 0 )
+    {
+        <div class="empty-wrap">
+            <EmptyState Icon="search_off" Title="Nothing found" Subtitle="Nothing matches that. Try a different search, or loosen the filters." />
+        </div>
+    }
+    else
+    {
+        <VirtualGrid Items=@( FoundPackages ) ItemSize=@ItemSize OnLastCell=@( () => { _ = FetchMore(); } )>
+            <Item Context="item">
+                @if (item is Package package)
+                {
+					@if (Item != null)
+					{
+						@Item(package)
+					}
+					else
+					{
+                    <MenuProject.UI.PackageCard RightClicked=@(() => OnMenu?.Invoke(package))
+                                 Clicked=@(() => OnSelected?.Invoke(package))
+                                 Rotation=@Rotation
+                                 ShowNominations=@ShowNominations
+                                 Package=@package></MenuProject.UI.PackageCard>
+					}
+                }
+            </Item>
+        </VirtualGrid>
+    }
+
+</root>
+
+@code
+{
+    [Parameter] public string Query { get; set; }
+    [Parameter] public int Take { get; set; } = 100;
+    [Parameter] public bool ShowFilters { get; set; } = false;
+    /// <summary>Base cell size. Cells stretch to fill the row, so this only sets the aspect.</summary>
+    [Parameter] public Vector2 ItemSize { get; set; } = new Vector2( 300, 169 );
+
+    [Parameter] public System.Action<Package> OnMenu { get; set; }
+    [Parameter] public System.Action<Package> OnSelected { get; set; }
+    [Parameter] public Action<string> OnFilterChanged { get; set; }
+	[Parameter] public Package[] Packages { get; set; }
+
+	/// <summary>
+	/// Names this list for discovery tracking, e.g. "search". Defaults to the page url.
+	/// </summary>
+	[Parameter] public string Surface { get; set; }
+	[Parameter] public string Shelf { get; set; }
+
+	public DiscoveryContext DiscoveryContext => new()
+	{
+		Surface = Surface ?? Discovery.PageSurface( this ),
+		Shelf = Shelf,
+		Query = Packages is null ? Query : null,
+		Packages = FoundPackages,
+	};
+
+	/// <summary>
+	/// Shows jam nomination counts on the package cards.
+	/// </summary>
+	[Parameter] public bool ShowNominations { get; set; }
+
+	[Parameter] public RenderFragment<Package> Item { get; set; }
+
+    [Parameter] public List<Package> FoundPackages { get; set; }
+
+    public Package.FindResult Result;
+
+    // Virtualized, so this only ever sees the cards currently on screen.
+    CardVideoRotation Rotation { get; } = new();
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        Rotation.Count = PackageCard.VideoThumbsPerGrid;
+        Rotation.Interval = PackageCard.VideoThumbsSeconds;
+        Rotation.Tick();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Packages is not null)
+        {
+            FoundPackages = new();
+            FoundPackages.AddRange(Packages);
+            StateHasChanged();
+            return;
+        }
+
+        FoundPackages = null;
+
+        Query ??= "";
+
+        await RunQuery();
+    }
+
+    async Task RunQuery()
+    {
+        var query = Query;
+
+        Result = await Package.FindAsync(Query, Take, 0);
+
+        if ( query != Query )
+            return;
+
+        if (Result != null)
+        {
+            FoundPackages = new();
+            FoundPackages.AddRange(Result.Packages);
+        }
+
+        StateHasChanged();
+    }
+
+    async Task FetchMore()
+    {
+        if (Result == null) return;
+        if (FoundPackages.Count() >= Result.TotalCount) return;
+
+        var query = Query;
+
+        var result = await Package.FindAsync( Query, Take, FoundPackages.Count() );
+
+        if (query != Query)
+            return;
+
+        if (result != null)
+        {
+            FoundPackages.AddRange(result.Packages);
+            FoundPackages = FoundPackages.ToList(); // need to make a new reference so the grid notices
+            StateHasChanged();
+        }
+    }
+
+    void OnQueryUpdated( string newQuery )
+    {
+        if (Query == newQuery)
+            return;
+
+        Query = newQuery;
+
+        _ = RunQuery();
+
+        OnFilterChanged?.Invoke(newQuery);
+    }
+}

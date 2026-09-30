@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Text;
 
 namespace Sandbox.UI
@@ -102,6 +102,9 @@ namespace Sandbox.UI
 				case "border-radius":
 					return SetBorderRadius( value );
 
+				case "border-shape":
+					return SetBorderShape( value );
+
 				case "border-top-left-radius":
 					return SetCornerRadius( value, v => BorderTopLeftRadius = v, v => BorderTopLeftRadiusV = v );
 				case "border-top-right-radius":
@@ -112,19 +115,22 @@ namespace Sandbox.UI
 					return SetCornerRadius( value, v => BorderBottomLeftRadius = v, v => BorderBottomLeftRadiusV = v );
 
 				case "border":
-					return SetBorder( value, w => BorderWidth = w, c => BorderColor = c );
+					return SetBorder( value, w => BorderWidth = w, c => BorderColor = c, s => BorderStyle = s );
 
 				case "border-left":
-					return SetBorder( value, w => BorderLeftWidth = w, c => BorderLeftColor = c );
+					return SetBorder( value, w => BorderLeftWidth = w, c => BorderLeftColor = c, s => BorderStyle = s );
 
 				case "border-right":
-					return SetBorder( value, w => BorderRightWidth = w, c => BorderRightColor = c );
+					return SetBorder( value, w => BorderRightWidth = w, c => BorderRightColor = c, s => BorderStyle = s );
 
 				case "border-top":
-					return SetBorder( value, w => BorderTopWidth = w, c => BorderTopColor = c );
+					return SetBorder( value, w => BorderTopWidth = w, c => BorderTopColor = c, s => BorderStyle = s );
 
 				case "border-bottom":
-					return SetBorder( value, w => BorderBottomWidth = w, c => BorderBottomColor = c );
+					return SetBorder( value, w => BorderBottomWidth = w, c => BorderBottomColor = c, s => BorderStyle = s );
+
+				case "border-style":
+					return SetBorderStyle( value );
 
 				case "border-image":
 					return SetBorderImage( value );
@@ -184,6 +190,35 @@ namespace Sandbox.UI
 				case "align-items":
 					AlignItems = GetAlign( value );
 					return AlignItems.HasValue;
+
+				case "justify-items":
+					JustifyItems = GetAlign( value );
+					return JustifyItems.HasValue;
+
+				case "justify-self":
+					JustifySelf = GetAlign( value );
+					return JustifySelf.HasValue;
+
+				case "place-items":
+					return SetPlace( value, v => AlignItems = v, v => JustifyItems = v );
+
+				case "place-self":
+					return SetPlace( value, v => AlignSelf = v, v => JustifySelf = v );
+
+				case "grid-auto-flow":
+					return SetGridAutoFlow( value );
+
+				case "grid-column":
+					return SetGridLine( value, v => GridColumnStart = v, v => GridColumnEnd = v );
+
+				case "grid-row":
+					return SetGridLine( value, v => GridRowStart = v, v => GridRowEnd = v );
+
+				case "grid-area":
+					return SetGridArea( value );
+
+				case "grid-template":
+					return SetGridTemplate( value );
 
 				case "text-align":
 					return SetTextAlign( value );
@@ -577,6 +612,51 @@ namespace Sandbox.UI
 			return true;
 		}
 
+		bool SetBorderShape( string value )
+		{
+			value = value?.Trim();
+			if ( string.Equals( value, "none", StringComparison.OrdinalIgnoreCase ) ) { BorderShape = UI.BorderShape.None; return true; }
+			if ( value != null && value.StartsWith( "circle(", StringComparison.OrdinalIgnoreCase ) && value[^1] == ')' )
+				return SetCircleBorderShape( value.Substring( 7, value.Length - 8 ) );
+			if ( value == null || !value.StartsWith( "polygon(", StringComparison.OrdinalIgnoreCase ) || value[^1] != ')' ) return false;
+
+			var contents = value.Substring( 8, value.Length - 9 );
+			UI.BorderShape.PointBuffer points = default;
+			int pointCount = 0;
+			int start = 0, depth = 0;
+			for ( int i = 0; i <= contents.Length; i++ )
+			{
+				if ( i < contents.Length ) { if ( contents[i] == '(' ) depth++; else if ( contents[i] == ')' ) depth--; if ( contents[i] != ',' || depth != 0 ) continue; }
+				if ( depth != 0 || pointCount == UI.BorderShape.MaxPoints ) return false;
+				var p = new Parse( contents.Substring( start, i - start ) ).SkipWhitespaceAndNewlines();
+				if ( !p.TryReadLength( out var x ) ) return false; p = p.SkipWhitespaceAndNewlines();
+				if ( !p.TryReadLength( out var y ) ) return false; p = p.SkipWhitespaceAndNewlines();
+				if ( !p.IsEnd ) return false;
+				points[pointCount++] = new BorderShapePoint( x, y ); start = i + 1;
+			}
+			if ( pointCount < 3 ) return false;
+			BorderShape = new UI.BorderShape( points[..pointCount] ); return true;
+		}
+
+		bool SetCircleBorderShape( string contents )
+		{
+			var p = new Parse( contents ).SkipWhitespaceAndNewlines();
+			Length? radius = null; Length cx = Length.Percent( 50 ).Value; Length cy = cx;
+			if ( p.IsEnd ) { BorderShape = new UI.BorderShape( radius, cx, cy ); return true; }
+			if ( !p.Is( "at", 0, true ) )
+			{
+				if ( !p.TryReadLength( out var r ) || (r.Unit != LengthUnit.Expression && r.Value < 0) ) return false;
+				radius = r; p = p.SkipWhitespaceAndNewlines();
+				if ( p.IsEnd ) { BorderShape = new UI.BorderShape( radius, cx, cy ); return true; }
+			}
+			if ( !p.Is( "at", 0, true ) ) return false;
+			p.Pointer += 2; if ( !p.IsEnd && !p.IsWhitespace && !p.IsNewline ) return false; p = p.SkipWhitespaceAndNewlines();
+			if ( !p.TryReadLength( out cx ) ) return false; p = p.SkipWhitespaceAndNewlines();
+			if ( !p.TryReadLength( out cy ) ) return false; p = p.SkipWhitespaceAndNewlines();
+			if ( !p.IsEnd ) return false;
+			BorderShape = new UI.BorderShape( radius, cx, cy ); return true;
+		}
+
 		bool SetBorderWidth( string value )
 		{
 			var p = new Parse( value );
@@ -776,38 +856,45 @@ namespace Sandbox.UI
 			return true;
 		}
 
-		bool SetBorder( string value, Action<Length?> setWidth, Action<Color?> setColor )
+		/// <summary>
+		/// Parses a border shorthand. There is one style shared by all sides, so none and hidden zero the
+		/// side's width instead of hiding every side, and a visible keyword sets the shared style.
+		/// </summary>
+		bool SetBorder( string value, Action<Length?> setWidth, Action<Color?> setColor, Action<BorderStyle> setStyle )
 		{
-			var p = new Parse( value );
-
-			p = p.SkipWhitespaceAndNewlines();
-
+			var p = new Parse( value ).SkipWhitespaceAndNewlines();
+			if ( p.IsEnd ) return false;
+			Length? width = null;
+			Color? color = null;
+			BorderStyle? style = null;
 			while ( !p.IsEnd )
 			{
-				if ( p.TryReadLineStyle( out var lineStyle ) )
+				if ( p.TryReadLineStyle( out var word ) )
 				{
-					if ( lineStyle == "none" )
-					{
-						setWidth( Length.Pixels( 0 ) );
-						return true;
-					}
+					if ( style.HasValue ) return false;
+					style = Enum.Parse<BorderStyle>( word, true );
 				}
-				else if ( p.TryReadLength( out var lengthValue ) )
+				else if ( p.TryReadLength( out var length ) )
 				{
-					setWidth( lengthValue );
+					if ( width.HasValue || (length.Unit != LengthUnit.Expression && length.Value < 0) ) return false;
+					width = length;
 				}
-				else if ( p.TryReadColor( out var colorValue ) )
+				else if ( p.TryReadColor( out var parsedColor ) )
 				{
-					setColor( colorValue );
+					if ( color.HasValue ) return false;
+					color = parsedColor;
 				}
-				else
-				{
-					return false;
-				}
-
+				else return false;
 				p = p.SkipWhitespaceAndNewlines();
 			}
 
+			if ( style is Sandbox.BorderStyle.None or Sandbox.BorderStyle.Hidden ) setWidth( 0 );
+			else
+			{
+				if ( width.HasValue ) setWidth( width );
+				if ( style.HasValue ) setStyle( style.Value );
+			}
+			if ( color.HasValue ) setColor( color );
 			return true;
 		}
 
@@ -1194,10 +1281,149 @@ namespace Sandbox.UI
 				case "contents":
 					Display = DisplayMode.Contents;
 					return true;
+				case "block":
+				case "flow-root":
+					Display = DisplayMode.Block;
+					return true;
+				case "grid":
+					Display = DisplayMode.Grid;
+					return true;
+				case "inline":
+					Display = DisplayMode.Inline;
+					return true;
 				default:
 					Log.Warning( $"Unhandled display property: {value}" );
 					return false;
 			}
+		}
+
+		bool SetGridAutoFlow( string value )
+		{
+			var row = false;
+			var column = false;
+			var dense = false;
+
+			foreach ( var part in value.Split( ' ', StringSplitOptions.RemoveEmptyEntries ) )
+			{
+				switch ( part )
+				{
+					case "row": row = true; break;
+					case "column": column = true; break;
+					case "dense": dense = true; break;
+					default:
+						Log.Warning( $"Unhandled grid-auto-flow property: {value}" );
+						return false;
+				}
+			}
+
+			if ( row && column )
+			{
+				Log.Warning( $"Unhandled grid-auto-flow property: {value}" );
+				return false;
+			}
+
+			GridAutoFlow = column ? (dense ? UI.GridAutoFlow.ColumnDense : UI.GridAutoFlow.Column) : (dense ? UI.GridAutoFlow.RowDense : UI.GridAutoFlow.Row);
+			return true;
+		}
+
+		/// <summary>
+		/// <c>place-items</c> / <c>place-self</c>: align value, then an optional justify value.
+		/// </summary>
+		bool SetPlace( string value, Action<Align?> setAlign, Action<Align?> setJustify )
+		{
+			var parts = value.Split( ' ', StringSplitOptions.RemoveEmptyEntries );
+			if ( parts.Length is 0 or > 2 ) return false;
+
+			var align = GetAlign( parts[0] );
+			var justify = parts.Length == 2 ? GetAlign( parts[1] ) : align;
+			if ( !align.HasValue || !justify.HasValue ) return false;
+
+			setAlign( align );
+			setJustify( justify );
+			return true;
+		}
+
+		/// <summary>
+		/// <c>grid-column</c> / <c>grid-row</c>: <c>start [ / end ]</c>. A lone named line applies to both
+		/// edges, any other lone value leaves the end <c>auto</c> (css-grid-1 §8.4).
+		/// </summary>
+		bool SetGridLine( string value, Action<string> setStart, Action<string> setEnd )
+		{
+			var parts = value.Split( '/' );
+			if ( parts.Length > 2 ) return false;
+
+			var start = parts[0].Trim();
+			if ( start.Length == 0 ) return false;
+
+			string end;
+			if ( parts.Length == 2 )
+			{
+				end = parts[1].Trim();
+				if ( end.Length == 0 ) return false;
+			}
+			else
+			{
+				end = IsCustomIdent( start ) ? start : "auto";
+			}
+
+			setStart( start );
+			setEnd( end );
+			return true;
+		}
+
+		/// <summary>
+		/// <c>grid-area</c>: <c>row-start / column-start / row-end / column-end</c>, omitted values copying
+		/// the matching named line or falling back to <c>auto</c>.
+		/// </summary>
+		bool SetGridArea( string value )
+		{
+			var parts = value.Split( '/' );
+			if ( parts.Length is 0 or > 4 ) return false;
+
+			for ( int i = 0; i < parts.Length; i++ )
+			{
+				parts[i] = parts[i].Trim();
+				if ( parts[i].Length == 0 ) return false;
+			}
+
+			var rowStart = parts[0];
+			var columnStart = parts.Length > 1 ? parts[1] : (IsCustomIdent( rowStart ) ? rowStart : "auto");
+			var rowEnd = parts.Length > 2 ? parts[2] : (IsCustomIdent( rowStart ) ? rowStart : "auto");
+			var columnEnd = parts.Length > 3 ? parts[3] : (IsCustomIdent( columnStart ) ? columnStart : "auto");
+
+			GridRowStart = rowStart;
+			GridColumnStart = columnStart;
+			GridRowEnd = rowEnd;
+			GridColumnEnd = columnEnd;
+			return true;
+		}
+
+		/// <summary>
+		/// <c>grid-template</c>: <c>none</c> or <c>rows / columns</c>. Area strings aren't supported.
+		/// </summary>
+		bool SetGridTemplate( string value )
+		{
+			if ( value == "none" )
+			{
+				GridTemplateRows = "none";
+				GridTemplateColumns = "none";
+				return true;
+			}
+
+			var parts = value.Split( '/' );
+			if ( parts.Length != 2 ) return false;
+
+			GridTemplateRows = parts[0].Trim();
+			GridTemplateColumns = parts[1].Trim();
+			return true;
+		}
+
+		static bool IsCustomIdent( string s )
+		{
+			if ( s.Length == 0 || char.IsDigit( s[0] ) || s[0] == '-' ) return false;
+			if ( s is "auto" or "span" ) return false;
+			foreach ( var c in s ) if ( !(char.IsLetterOrDigit( c ) || c == '-' || c == '_') ) return false;
+			return true;
 		}
 
 		bool SetPointerEvents( string value )
@@ -1228,6 +1454,9 @@ namespace Sandbox.UI
 					return true;
 				case "absolute":
 					Position = PositionMode.Absolute;
+					return true;
+				case "fixed":
+					Position = PositionMode.Fixed;
 					return true;
 				case "relative":
 					Position = PositionMode.Relative;
@@ -1336,9 +1565,11 @@ namespace Sandbox.UI
 				case "flex-start":
 				case "start":
 				case "left":
+					JustifyContent = UI.Justify.FlexStart;
+					return true;
 				case "normal":
 				case "stretch":
-					JustifyContent = UI.Justify.FlexStart;
+					JustifyContent = UI.Justify.Stretch;
 					return true;
 				case "center":
 					JustifyContent = UI.Justify.Center;
@@ -2896,8 +3127,8 @@ namespace Sandbox.UI
 
 		bool SetOutline( string value )
 		{
-			// Same behaviour as border
-			return SetBorder( value, v => OutlineWidth = v, c => OutlineColor = c );
+			// Same behaviour as border, minus a line style to set
+			return SetBorder( value, v => OutlineWidth = v, c => OutlineColor = c, _ => { } );
 		}
 
 		Length? GetAngleInDegrees( string value )

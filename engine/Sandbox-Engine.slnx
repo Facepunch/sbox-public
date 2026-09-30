@@ -17,12 +17,14 @@
   </Folder>
   <Folder Name="/Engine/Exe/">
     <Project Path="Launcher/CrashReporter/CrashReporter.csproj" Id="652c4b4b-7f21-4884-9ad5-6a9032ce4ef9" />
+    <Project Path="Launcher/PanelGallery/PanelGallery.csproj" />
     <Project Path="Launcher/Sbox/Sbox.csproj" />
     <Project Path="Launcher/SboxBench/SboxBench.csproj" />
     <Project Path="Launcher/SboxDev/Sbox-Dev.csproj" />
     <Project Path="Launcher/SboxProfiler/SboxProfiler.csproj" />
     <Project Path="Launcher/SboxServer/Sbox-Server.csproj" />
     <Project Path="Launcher/SboxStandalone/Sbox-Standalone.csproj" />
+    <Project Path="Launcher/SceneLab/SceneLab.csproj" />
     <Project Path="Launcher/Shared/LaunchShared.shproj" />
     <Project Path="Launcher/StandaloneTest/Sbox-Launcher.csproj" />
   </Folder>
@@ -33,6 +35,7 @@
     <Project Path="Sandbox.Event/Sandbox.Event.csproj" />
     <Project Path="Sandbox.Filesystem/Sandbox.Filesystem.csproj" />
     <Project Path="Sandbox.Hotload/Sandbox.Hotload.csproj" />
+    <Project Path="Sandbox.Layout/Sandbox.Layout.csproj" />
     <Project Path="Sandbox.NetCore/Sandbox.NetCore.csproj" />
     <Project Path="Sandbox.Razor/Sandbox.Razor.csproj" />
     <Project Path="Sandbox.Reflection/Sandbox.Reflection.csproj" />
@@ -58,6 +61,7 @@
     <Project Path="Sandbox.AppSystem/Sandbox.AppSystem.csproj" />
     <Project Path="Sandbox.GameInstance/Sandbox.GameInstance.csproj" />
     <Project Path="Sandbox.Menu/Sandbox.Menu.csproj" />
+    <Project Path="Sandbox.SceneRenderer/Sandbox.SceneRenderer.csproj" />
     <Project Path="Sandbox.Tools/Sandbox.Tools.csproj" />
   </Folder>
   <Folder Name="/Solution Items/">
@@ -67,6 +71,7 @@
     <Project Path="Benchmark/Benchmark.csproj" />
     <Project Path="Tests/Sandbox.Test.Engine/Sandbox.Test.Engine.csproj" />
     <Project Path="Tests/Sandbox.Test.Integration/Sandbox.Test.Integration.csproj" />
+    <Project Path="Tests/Sandbox.Test.Text/Sandbox.Test.Text.csproj" />
     <Project Path="Tests/Sandbox.Test.Unit/Sandbox.Test.Unit.csproj" />
   </Folder>
   <Folder Name="/Tests/Fixtures/">

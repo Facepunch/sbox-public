@@ -66,7 +66,7 @@ public static class Assert
 	/// <exception cref="System.Exception">Thrown when 2 given objects are not equal</exception>
 	public static void AreEqual<T>( T a, T b, string message = null )
 	{
-		if ( !object.Equals( a, b ) )
+		if ( !EqualityComparer<T>.Default.Equals( a, b ) )
 			throw new System.Exception( $"Assert: AreEqual {message}" );
 	}
 
@@ -75,7 +75,7 @@ public static class Assert
 	/// </summary>
 	public static void AreNotEqual<T>( T a, T b, string message = null )
 	{
-		if ( object.Equals( a, b ) )
+		if ( EqualityComparer<T>.Default.Equals( a, b ) )
 			throw new System.Exception( $"Assert: AreNotEqual {message}" );
 	}
 

@@ -11,13 +11,15 @@ internal partial class BytePack
 		public virtual Type TargetType { get; }
 		internal virtual Identifier Header { get; }
 		internal virtual int TypeIdentifier { get; }
+		internal bool UsesCollectionFormat { get; private set; }
 
 		public virtual void Write( ref ByteStream bs, object obj )
 		{
 			throw new NotImplementedException();
 		}
 
-		public virtual object Read( ref ByteStream data )
+		// Pass depth + 1 to anything nested, or a hostile payload recurses without bound.
+		public virtual object Read( ref ByteStream data, int depth )
 		{
 			throw new NotImplementedException();
 		}
@@ -35,6 +37,10 @@ internal partial class BytePack
 
 			if ( TargetType is not null )
 			{
+				// Collections keep their built-in wire format even if a runtime packer for
+				// the same type was installed while reading a message.
+				UsesCollectionFormat = TargetType.IsBasedOnGenericType( typeof( List<> ) )
+					|| TargetType.IsBasedOnGenericType( typeof( Dictionary<,> ) );
 				parent.types[TargetType] = this;
 			}
 
@@ -66,7 +72,7 @@ internal partial class BytePack
 			return parent.GetOrCreatePacker( type );
 		}
 
-		internal object Deserialize( ref ByteStream bs ) => parent.Deserialize( ref bs );
+		internal object Deserialize( ref ByteStream bs, int depth ) => parent.Deserialize( ref bs, depth );
 		internal void Serialize( ref ByteStream bs, object obj ) => parent.Serialize( ref bs, obj );
 	}
 }

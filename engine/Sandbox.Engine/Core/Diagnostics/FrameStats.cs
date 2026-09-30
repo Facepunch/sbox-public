@@ -18,6 +18,8 @@ public struct FrameStats
 		AggregateObjectDraws = stats.m_nAggregateSceneObjectPrimDraws;
 		AggregateObjectsFullyCulled = stats.m_nAggregateSceneObjectsFullyCulled;
 		AggregateObjectDrawCalls = stats.m_nAggregateSceneObjectDrawCalls;
+		AggregateIndirectSubmits = stats.m_nAggregateSceneObjectIndirectSubmits;
+		AggregateIndirectFragments = stats.m_nAggregateSceneObjectIndirectFragments;
 		RenderBatchDraws = stats.m_nRenderBatchDraws;
 		TrianglesRendered = stats.m_nTrianglesRendered;
 		DrawCalls = stats.m_nDrawCalls;
@@ -59,6 +61,29 @@ public struct FrameStats
 		TexturePoolNonEvictableBytes = texturePoolNonEvictableBytes;
 	}
 
+	/// <summary>
+	/// Add what the managed scene renderer drew (<c>r_managed_scene</c>), which native's counters don't see: its objects,
+	/// draws, triangles, views and size culling.
+	/// </summary>
+	internal void AddManaged( in Rendering.ManagedFrameCounters managed )
+	{
+		Managed = managed;
+		if ( managed.Renders == 0 ) return;
+
+		ObjectsRendered += managed.ObjectsVisible;
+		ObjectsPreCull += managed.Objects;
+		ObjectsTested += managed.Objects;
+		ObjectsCulledByScreenSize += managed.ObjectsSizeCulled;
+		DrawCalls += managed.TotalDraws;
+		TrianglesRendered += managed.Triangles;
+		SceneViewsRendered += managed.Renders + managed.ShadowViews;
+	}
+
+	/// <summary>
+	/// What the managed scene renderer did in the frame these stats are from - nothing rendered when <c>Renders</c> is 0.
+	/// </summary>
+	internal Rendering.ManagedFrameCounters Managed;
+
 	/// <summary>Number of objects that passed all cull checks and were rendered.</summary>
 	public double ObjectsRendered { get; set; }
 
@@ -82,6 +107,12 @@ public struct FrameStats
 
 	/// <summary>Native draw calls issued from aggregate scene objects.</summary>
 	public double AggregateObjectDrawCalls { get; set; }
+
+	/// <summary>Multi-draw indirect submissions from aggregate scene objects. Each one is a single draw call covering every visible fragment of an aggregate.</summary>
+	public double AggregateIndirectSubmits { get; set; }
+
+	/// <summary>Fragments covered by those indirect submissions.</summary>
+	public double AggregateIndirectFragments { get; set; }
 
 	/// <summary>Number of render batch draw lists submitted.</summary>
 	public double RenderBatchDraws { get; set; }

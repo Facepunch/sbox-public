@@ -1,30 +1,19 @@
 ﻿using Sandbox.Engine;
-using System.IO;
-using System.Text.Json;
+using System;
 using System.Threading.Tasks;
 
 namespace Sandbox;
 
 public class StandaloneAppSystem : AppSystem
 {
-	private StandaloneManifest LoadManifest()
-	{
-		// Load game info from file
-		var manifestPath = Path.Combine( Standalone.GamePath, Standalone.ManifestName );
-		var manifestContents = File.ReadAllText( manifestPath );
-		var properties = JsonSerializer.Deserialize<StandaloneManifest>( manifestContents );
-
-		return properties;
-	}
-
 	public override void Init()
 	{
 		LoadSteamDll();
 
 		base.Init();
 
-		// Standalone setup
-		Standalone.SetupFromManifest( LoadManifest() );
+		// Everything about which game this is was written into the executable's resources by the exporter
+		Standalone.LoadFromExecutable();
 
 		Application.IsStandalone = true;
 		Application.AppId = Standalone.Manifest.AppId;
@@ -45,7 +34,7 @@ public class StandaloneAppSystem : AppSystem
 		LoadStandaloneGame();
 	}
 
-	private Task _standaloneLoadTask;
+	private Task<bool> _standaloneLoadTask;
 
 	private void LoadStandaloneGame()
 	{
@@ -61,8 +50,21 @@ public class StandaloneAppSystem : AppSystem
 		{
 			if ( _standaloneLoadTask.IsCompleted )
 			{
-				_standaloneLoadTask.GetAwaiter().GetResult();
+				var loaded = _standaloneLoadTask.GetAwaiter().GetResult();
 				_standaloneLoadTask = null;
+
+				if ( !loaded )
+				{
+					log.Error( $"Failed to load standalone game {Standalone.Manifest.Ident}" );
+
+					// A test run has to see this as a failure, not a clean exit after a broken load.
+					// Shut down normally though - the native engine is still running under us.
+					if ( Utility.CommandLine.HasSwitch( "-test-standalone" ) )
+					{
+						Environment.ExitCode = 1;
+						Game.Close();
+					}
+				}
 			}
 		}
 		// Quit next loop after load, if we are testing

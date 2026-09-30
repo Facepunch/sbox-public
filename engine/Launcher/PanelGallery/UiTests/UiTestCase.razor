@@ -1,0 +1,76 @@
+@using Sandbox.PanelGallery;
+@namespace PanelGallery.UiTests
+@inherits Panel
+
+@* One case: a sample, captioned with the same string that styled it. *@
+
+<root class="reference-row">
+    <div class="stage reference-result">
+        <Sandbox.PanelGallery.GalleryScaledPreview FitContent="@true" ActualSize="@(Text is not null)" PreviewSize="@(new Vector2( 420, HasClass( "roomy" ) || HasClass( "layout-case" ) ? 360 : 240 ))">
+        @if ( Text is not null )
+        {
+            @* Style goes on the label itself - half of the text properties wouldn't inherit *@
+            <label class="sample" style="@SampleStyle">@Text</label>
+        }
+        else
+        {
+            <div class="sample" style="@SampleStyle">@ChildContent</div>
+        }
+        </Sandbox.PanelGallery.GalleryScaledPreview>
+    </div>
+
+    <div class="reference-description">
+        <label class="reference-title">@(Caption ?? (string.IsNullOrWhiteSpace( Css ) ? "Style rule" : Css.Split( ':' )[0]))</label>
+        @if ( !string.IsNullOrWhiteSpace( Note ?? Rule ?? Css ) )
+        {
+            <label class="reference-note">@(Note ?? Rule ?? Css)</label>
+        }
+    </div>
+
+</root>
+
+@code
+{
+    [Parameter] public string Caption { get; set; }
+
+    /// <summary>
+    /// The CSS being tested. Applied to the sample and shown as its caption.
+    /// </summary>
+    [Parameter] public string Css { get; set; }
+
+    /// <summary>
+    /// CSS the sample needs but that isn't being tested - a size, a fill. Kept out of the caption.
+    /// </summary>
+    [Parameter] public string Setup { get; set; } = DefaultSetup;
+
+    /// <summary>
+    /// Makes the sample a label with this text in it, for anything text related.
+    /// </summary>
+    [Parameter] public string Text { get; set; }
+
+    /// <summary>
+    /// CSS to print instead of <see cref="Css"/>, for a case whose rule lives in a stylesheet
+    /// rather than on the element - selectors, transitions, anything with state.
+    /// </summary>
+    [Parameter] public string Rule { get; set; }
+
+    /// <summary>
+    /// What to look for, when the CSS alone doesn't say it.
+    /// </summary>
+    [Parameter] public string Note { get; set; }
+
+    /// <summary>
+    /// A plain 200x200 block, which is what most cases want.
+    /// </summary>
+    public const string DefaultSetup = $"width: 200px; height: 200px; background-color: {GalleryPalette.LimeHex}";
+
+    /// <summary>
+    /// What a text case usually wants - readable, and wide enough to show wrapping.
+    /// </summary>
+    public const string TextSetup = "width: 200px; font-size: 16px; color: #e6eaf2";
+
+
+    string SampleStyle => string.Join( "; ", new[] { Setup, Css, Text is not null ? "max-width: 144px" : null }.Where( x => !string.IsNullOrWhiteSpace( x ) ) );
+
+    protected override int BuildHash() => HashCode.Combine( Css, Setup, Text, Rule, Note, Caption );
+}

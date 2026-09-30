@@ -10,7 +10,7 @@ namespace Sandbox.UI;
 public partial class Styles : BaseStyles
 {
 	internal Dictionary<string, IStyleBlock.StyleProperty> RawValues = new Dictionary<string, IStyleBlock.StyleProperty>( StringComparer.OrdinalIgnoreCase );
-	internal GradientInfo TextGradient;
+	internal TextGradientInfo TextGradient;
 
 	/// <summary>
 	/// A background linear-gradient, evaluated in the pixel shader rather than baked
@@ -93,10 +93,10 @@ public partial class Styles : BaseStyles
 	{
 		get
 		{
-			if ( BorderTopWidth.HasValue && BorderTopWidth.Value.Value > 0 ) return true;
-			if ( BorderRightWidth.HasValue && BorderRightWidth.Value.Value > 0 ) return true;
-			if ( BorderBottomWidth.HasValue && BorderBottomWidth.Value.Value > 0 ) return true;
-			if ( BorderLeftWidth.HasValue && BorderLeftWidth.Value.Value > 0 ) return true;
+			if ( UsedBorderTopWidth.HasValue && UsedBorderTopWidth.Value.Value > 0 ) return true;
+			if ( UsedBorderRightWidth.HasValue && UsedBorderRightWidth.Value.Value > 0 ) return true;
+			if ( UsedBorderBottomWidth.HasValue && UsedBorderBottomWidth.Value.Value > 0 ) return true;
+			if ( UsedBorderLeftWidth.HasValue && UsedBorderLeftWidth.Value.Value > 0 ) return true;
 
 			return false;
 		}
@@ -121,7 +121,7 @@ public partial class Styles : BaseStyles
 
 	public Margin GetInset( Vector2 size )
 	{
-		var border = Sandbox.UI.Margin.GetEdges( size, BorderLeftWidth, BorderTopWidth, BorderRightWidth, BorderBottomWidth );
+		var border = Sandbox.UI.Margin.GetEdges( size, UsedBorderLeftWidth, UsedBorderTopWidth, UsedBorderRightWidth, UsedBorderBottomWidth );
 		var padding = Sandbox.UI.Margin.GetEdges( size, PaddingLeft, PaddingTop, PaddingRight, PaddingBottom );
 
 		return border + padding;

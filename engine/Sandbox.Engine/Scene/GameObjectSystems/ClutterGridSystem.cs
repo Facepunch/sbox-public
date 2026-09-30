@@ -121,6 +121,10 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 			CameraPos = camera.WorldPosition,
 			TanHalfFov = MathF.Tan( camera.FieldOfView.DegreeToRadian() * 0.5f ),
 			ViewportWidth = sceneCamera is not null ? sceneCamera.Size.x : 1920f,
+			// Before SceneCamera is created, use its initial square aspect rather than perspective coverage.
+			OrthoWidth = camera.Orthographic
+				? camera.OrthographicHeight * (sceneCamera is not null ? sceneCamera.Size.x / MathF.Max( sceneCamera.Size.y, 1f ) : 1f)
+				: 0f,
 		};
 	}
 

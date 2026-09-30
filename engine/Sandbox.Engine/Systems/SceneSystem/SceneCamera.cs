@@ -13,7 +13,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	// these systems into systems that are configurable per camera and from addon code.
 	// For example, volumetricFog should hold the render state. The addon code should hold
 	// the volumes. Tonemapping should hold the render state for this camera only.
-	internal ToneMapping ToneMapping = Application.IsHeadless ? null : new ToneMapping();
+	internal ToneMapping ToneMapping = Graphics.IsAvailable ? new ToneMapping() : null;
 	internal VolumetricFog VolumetricFogImpl = null;
 
 	/// <summary>
@@ -67,6 +67,35 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	/// Keep hidden! CommandBuffers only!!
 	/// </summary>
 	internal Action<Rendering.Stage, SceneCamera> OnRenderStageHook;
+
+	/// <summary>
+	/// Whether the camera component's post processing reads the depth-normals G-buffer.
+	/// </summary>
+	internal Func<bool> WantsDepthNormalsHook;
+
+	/// <summary>
+	/// Whether something in this camera's frame reads the normals and roughness G-buffer of the depth-normals prepass
+	/// (AO, SSR). Native always draws it; the managed scene renderer only when this says so.
+	/// </summary>
+	internal bool WantsDepthNormals => WantsDepthNormalsHook?.Invoke() ?? false;
+
+	/// <summary>
+	/// Whether the camera component has effects at a stage that can run on the async compute queue, and running them.
+	/// </summary>
+	internal Func<Rendering.Stage, bool> HasAsyncComputeHook;
+	internal Action<Rendering.Stage> RenderAsyncComputeHook;
+
+	/// <summary>
+	/// Whether something at <paramref name="stage"/> can run on the async compute queue ahead of the stage
+	/// (<see cref="BasePostProcess.AsyncCompute"/>: AO at <c>AfterDepthPrepass</c>), for the managed scene renderer.
+	/// </summary>
+	internal bool HasAsyncCompute( Rendering.Stage stage ) => HasAsyncComputeHook?.Invoke( stage ) ?? false;
+
+	/// <summary>
+	/// Run what <see cref="HasAsyncCompute"/> found, inside a <see cref="Graphics"/> block on the compute queue. The stage then
+	/// skips it.
+	/// </summary>
+	internal void RenderAsyncCompute( Rendering.Stage stage ) => RenderAsyncComputeHook?.Invoke( stage );
 
 	/// <summary>
 	/// Called when rendering the transparent pass
@@ -469,6 +498,12 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	/// </summary>
 	internal bool ExcludeFromTextureStreaming { get; set; }
 
+	/// <summary>
+	/// Render as a tools view (<c>SVF_TOOL_VIEW</c>), as native's tools render theirs: tools materials draw in the pipeline's
+	/// ToolsUtil layers. Off by default, as every camera has been.
+	/// </summary>
+	internal bool ToolsView { get; set; }
+
 	private static WeakReference<SceneCamera> _recordingCamera;
 
 	/// <summary>
@@ -511,6 +546,14 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 		get => Attributes.GetBool( "indirectLighting" );
 		set => Attributes.Set( "indirectLighting", value );
 	}
+
+	/// <summary>
+	/// This camera only draws UI - skip the scene rendering pipeline entirely and put the UI
+	/// straight onto its target. For a window that is nothing but panels, which is what a
+	/// launcher window is: the pipeline's passes and render targets are all for a scene that
+	/// isn't there.
+	/// </summary>
+	internal bool UIOnly { get; set; }
 
 	/// <summary>
 	/// Should be called before a render
@@ -856,6 +899,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 		//
 		var setup = new CameraRenderer( "RenderToCubeTexture", _cameraId );
 		setup.Configure( this, config );
+		setup.Native.EnableUI = false;
 
 		for ( int i = 0; i < CubeRotations.Length; i++ )
 		{

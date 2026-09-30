@@ -13,6 +13,56 @@ public partial class Panel
 
 
 	private bool IsDeleted { get; set; }
+	HashSet<Panel> renderTreeDeletion;
+	bool renderTreeDeletePending;
+
+	internal void DeleteFromRenderTree( Panel outroParent, bool immediate )
+	{
+		if ( IsDeleted ) return;
+		if ( IsDeleting )
+		{
+			if ( immediate )
+			{
+				// Its virtual Delete already ran when its independent outro started.
+				Parent = null;
+				IsVisible = false;
+				OnDeleteRecursive();
+			}
+			return;
+		}
+
+		if ( outroParent is not null && outroParent != this && IsAncestor( outroParent ) )
+		{
+			// Keep physical content alive, including resources released by virtual Delete overrides.
+			outroParent.renderTreeDeletion ??= new();
+			outroParent.renderTreeDeletion.Add( this );
+			renderTreeDeletePending = true;
+			return;
+		}
+
+		renderTreeDeletePending = false;
+		try
+		{
+			Delete( immediate );
+		}
+		catch ( System.Exception ex )
+		{
+			Log.Error( ex, "Error when deleting a render-tree panel" );
+			// An override may throw before base.Delete. Finish base cleanup without replaying it,
+			// and don't let this panel prevent its siblings or owner from being cleaned up.
+			try
+			{
+				Parent = null;
+				IsVisible = false;
+				IsDeleting = true;
+				OnDeleteRecursive();
+			}
+			catch ( System.Exception cleanupException )
+			{
+				Log.Error( cleanupException, "Error when cleaning up a failed render-tree panel deletion" );
+			}
+		}
+	}
 
 	/// <summary>
 	/// Deletes the panel.
@@ -40,7 +90,7 @@ public partial class Panel
 		IsDeleting = true;
 		Transitions.Clear(); // stop any intros
 		Switch( PseudoClass.Outro, true );
-		GlobalContext.Current.UISystem.AddDeferredDeletion( this );
+		UISystem.AddDeferredDeletion( this );
 	}
 
 	/// <summary>
@@ -56,6 +106,7 @@ public partial class Panel
 	/// </summary>
 	internal void OnDeleteRecursive()
 	{
+		if ( IsDeleted ) return;
 		IsDeleted = true;
 
 		try
@@ -65,9 +116,24 @@ public partial class Panel
 
 			Task.Expire();
 
-			foreach ( var child in Children )
+			// Clear logical ownership before physical recursion bypasses children's Delete overrides.
+			renderTree?.Clear( immediate: true );
+			renderTree = null;
+
+			var pending = renderTreeDeletion;
+			renderTreeDeletion = null;
+			if ( pending is not null )
 			{
-				child?.OnDeleteRecursive();
+				foreach ( var panel in pending )
+					panel.DeleteFromRenderTree( null, true );
+			}
+
+			foreach ( var child in Children.ToArray() )
+			{
+				if ( child.renderTreeDeletePending && !child.IsDeleting )
+					child.DeleteFromRenderTree( null, true );
+				else
+					child.OnDeleteRecursive();
 			}
 
 			try
@@ -80,11 +146,12 @@ public partial class Panel
 				Log.Error( ex, "Error when calling OnDeleted" );
 			}
 
-			// Clear any focus we may have
+			// Clear any focus we may have. UISystem is null for a panel that's already detached
+			// in a context with no global fallback system, e.g. a panel window app.
 			// TODO: Ideally this would cascade to parents who accept focus, but we'd need to change how Panels are removed.
-			if ( InputFocus.Current == this )
+			if ( UISystem is { } system && system.CurrentFocus == this )
 			{
-				InputFocus.Clear( this );
+				system.ClearFocus( this );
 			}
 
 			if ( MouseCapture == this )
@@ -92,26 +159,15 @@ public partial class Panel
 				SetMouseCapture( false );
 			}
 
-			YogaNode?.Dispose();
-			YogaNode = null;
-
-			// Destroy the razor render tree — Block.ElementPanel holds strong refs to
-			// dynamically-created child panels whose Style.StyleBlocks keep parsed
-			// stylesheet textures (gradients, masks, etc.) alive past shutdown.
-			renderTree?.Clear();
-			renderTree = null;
-
-			if ( CachedDescriptors != null )
-			{
-				RenderLayer.Return( CachedDescriptors );
-				CachedDescriptors = null;
-			}
+			LayoutTree?.Dispose();
+			LayoutTree = null;
 
 			ComputedStyle = null;
+			_paintCache = default;
 			StyleSheet = default;
 			GameObject = null;
 
-			// Drop the PanelStyle — its StyleBlocks[] cache holds StyleBlock refs
+			// Drop the PanelStyle — its _styleBlocks cache holds StyleBlock refs
 			// whose Styles._backgroundImage/_maskImage keep textures alive.
 			Style = null;
 

@@ -1,4 +1,4 @@
-using Sandbox;
+﻿using Sandbox;
 using System;
 using System.IO;
 
@@ -37,6 +37,38 @@ public class DeepNestingTest : BaseRoundTrip
 
 		var ex = Assert.ThrowsException<Exception>( () => Deserialize( payload ) );
 		StringAssert.Contains( ex.Message, "depth" );
+	}
+
+	// A dead end only because DictionaryPacker leaves TargetType null, so MakeGenericType rejects
+	// it before recursing. Pinned so giving it one can't quietly open the path up.
+	static byte[] BuildNestedDictionary( int depth )
+	{
+		using var ms = new MemoryStream();
+		using var w = new BinaryWriter( ms );
+
+		// Deserialize eats this one, then hands off to DictionaryPacker.Read.
+		w.Write( (byte)BytePack.Identifier.Dictionary );
+
+		for ( int i = 0; i < depth; i++ )
+		{
+			w.Write( 1 );                                        // one entry
+			w.Write( (byte)BytePack.Identifier.Int );            // key handler
+			w.Write( (byte)BytePack.Identifier.Dictionary );     // value handler - would recurse
+			w.Write( 0 );                                        // the key itself
+		}
+
+		w.Write( 0 );
+		w.Write( (byte)BytePack.Identifier.Int );
+		w.Write( (byte)BytePack.Identifier.Int );
+
+		w.Flush();
+		return ms.ToArray();
+	}
+
+	[TestMethod]
+	public void NestedDictionary_IsRejectedBeforeRecursing()
+	{
+		Assert.ThrowsException<ArgumentNullException>( () => Deserialize( BuildNestedDictionary( 10_000 ) ) );
 	}
 
 	[TestMethod]

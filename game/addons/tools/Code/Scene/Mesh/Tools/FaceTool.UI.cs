@@ -75,6 +75,7 @@ partial class FaceTool
 			}
 
 			this.AddPivotGroup( tool );
+			this.AddPivotButtons( tool, _faces.Length > 0 );
 
 			{
 				var group = AddGroup( "Operations", collapsible: true );
@@ -198,6 +199,8 @@ partial class FaceTool
 				("Lasso Deselect", "Alt+Ctrl+Drag"),
 				("Grow Selection", "Numpad +"),
 				("Shrink Selection", "Numpad -"),
+				("Hide Faces", EditorShortcuts.GetDisplayKeys( "mesh.hide-faces" )),
+				("Unhide All Faces", EditorShortcuts.GetDisplayKeys( "mesh.unhide-faces" )),
 				("Apply Material", "Shift+T"),
 				("Wrap Material", "Alt+RMB"),
 				("Lift Material", "Shift+RMB")
@@ -302,20 +305,31 @@ partial class FaceTool
 		private static void HideFaces( MeshFace[] faces )
 		{
 			var selection = SceneEditorSession.Active.Selection;
+			var components = new HashSet<MeshComponent>();
 
 			foreach ( var face in faces.Where( x => x.IsValid() ) )
 			{
 				face.Component.Mesh.SetFaceHidden( face.Handle, true );
 				selection.Remove( face );
+				components.Add( face.Component );
 			}
+
+			foreach ( var component in components )
+				component.RebuildMesh();
 		}
 
 		private static void UnhideFaces( MeshFace[] faces )
 		{
+			var components = new HashSet<MeshComponent>();
+
 			foreach ( var face in faces.Where( x => x.IsValid() ) )
 			{
 				face.Component.Mesh.SetFaceHidden( face.Handle, false );
+				components.Add( face.Component );
 			}
+
+			foreach ( var component in components )
+				component.RebuildMesh();
 		}
 
 		[Shortcut( "mesh.open-clipping-tool", "SHIFT+X", typeof( SceneViewWidget ) )]
@@ -583,6 +597,7 @@ partial class FaceTool
 				{
 					var go = session.Scene.CreateObject();
 					go.Name = "Pasted Mesh";
+					go.IsStatic = true;
 
 					if ( options.RelativeToLast && allPasted.Count > 0 )
 					{
@@ -681,6 +696,7 @@ partial class FaceTool
 
 					var go = new GameObject( entry.Name );
 					go.WorldTransform = entry.WorldTransform;
+					go.IsStatic = entry.IsStatic;
 					go.MakeNameUnique();
 
 					entry.AddSibling( go, false );

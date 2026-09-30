@@ -32,10 +32,22 @@ public partial class Shader
 	/// </summary>
 	/// <param name="filename">The file path to load as a shader.</param>
 	/// <returns>The loaded shader, or null</returns>
-	public static Shader Load( string filename )
+	public static Shader Load( string filename ) => Load( (ResourceId)filename );
+
+	internal static Shader Load( ResourceId id )
 	{
 		ThreadSafe.AssertIsMainThread();
-		return FromNative( NativeGlue.Resources.GetShader( filename ), filename );
+
+		if ( id.Guid is Guid guid )
+		{
+			if ( Game.Resources.TryGet<Shader>( guid, out var resource ) )
+				return resource;
+
+			var native = NativeGlue.Resources.GetShader( id.Path, guid );
+			return FromNative( native, name: native.IsError() ? id.Path : null );
+		}
+
+		return FromNative( NativeGlue.Resources.GetShader( id.Path, Guid.Empty ), id.Path );
 	}
 
 }

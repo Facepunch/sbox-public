@@ -1,0 +1,37 @@
+﻿@using Sandbox
+@using Sandbox.UI
+@using System
+@namespace MenuProject.Settings
+@inherits Panel
+
+<root class="detail">
+
+	@if ( Item is not null )
+	{
+		<label class="title">@Item.Title</label>
+
+		@if ( Item.Section is not null )
+		{
+			<label class="meta">@Item.Section</label>
+		}
+
+		<label class="body">@Item.Description</label>
+	}
+	else
+	{
+		<div class="hint">
+			<i>info</i>
+			<label>Hover a setting to read what it does.</label>
+		</div>
+	}
+
+</root>
+
+@code
+{
+	[Parameter] public SettingsView View { get; set; }
+
+	SettingItem Item => View?.Described;
+
+	protected override int BuildHash() => HashCode.Combine( Item?.Id );
+}

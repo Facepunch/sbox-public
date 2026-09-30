@@ -16,3 +16,4 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo( "Sandbox.GameInstance" )]
 [assembly: InternalsVisibleTo( "Sandbox.Engine" )]
 [assembly: InternalsVisibleTo( "Sandbox.Compiling" )]
+[assembly: InternalsVisibleTo( "Sandbox.AppSystem" )]

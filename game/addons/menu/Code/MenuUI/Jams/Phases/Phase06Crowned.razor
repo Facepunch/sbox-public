@@ -1,0 +1,67 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.Services;
+@using Sandbox.UI;
+@namespace MenuProject.MenuUI.Jams
+@inherits JamFinalistPhasePanel
+
+<root class="jam-phase">
+	<JamPhaseLayout Jam=@Jam PhaseTitle="Meet the winners" PhaseSubtitle="Final results" BlurbLead="Thanks for playing." Blurb="Celebrate the winners, then discover everything made for the jam.">
+		<StandingsContent>
+			@if ( Category is not null )
+			{
+				<JamStandings Jam=@Jam Finalists=@Category Packages=@Packages WinnerIdent=@Category.GetFinalistAtPlace(1)?.PackageIdent />
+			}
+		</StandingsContent>
+		<Content>
+			<div class="results-content">
+				@if ( Error is not null )
+				{
+					<div class="load-error"><label>@Error</label><Button Text="Retry" onclick=@RequestRefresh /></div>
+				}
+				@if ( Categories is { Length: > 1 } )
+				{
+					<div class="category-tabs">
+						@foreach ( var category in Categories )
+						{
+							<Button Text=@category.Title Active=@(Category?.Id == category.Id) onclick=@(() => CategoryId = category.Id) />
+						}
+					</div>
+				}
+				@if ( Category is not null )
+				{
+					<div class="winners">
+						@foreach ( var place in Enumerable.Range( 1, Math.Min( 5, Category.Nominees.Count ) ) )
+						{
+							var finalist = Category.GetFinalistAtPlace( place );
+							var package = GetPackage( finalist?.PackageIdent );
+							<div class="winner @(place == 1 ? "champion" : "")">
+								<div class="placing"><label>@place.FormatWithSuffix()</label><label>@Prize( place )</label></div>
+								@if ( package is not null )
+								{
+									<MenuProject.UI.PackageCard Package=@package Size=@MenuProject.UI.PackageCard.SizeType.Wide Clicked=@(() => Play( package )) RightClicked=@(() => OpenMenu( package )) />
+								}
+								else
+								{
+									<EmptyState Icon="emoji_events" Title=@(finalist is null ? "Result pending" : Package.GetCachedTitle( finalist.PackageIdent )) Subtitle=@(finalist is null ? "Awaiting confirmation" : "Game unavailable") />
+								}
+							</div>
+						}
+					</div>
+				}
+				<JamEntries Jam=@Jam />
+			</div>
+		</Content>
+	</JamPhaseLayout>
+</root>
+
+@code
+{
+	string Prize( int place )
+	{
+		var category = Jam.Categories.FirstOrDefault( x => x.Id == Category?.Id );
+		return category?.Places is { } prizes && place <= prizes.Length ? prizes[place - 1]
+			: place == 1 ? category?.Prize : null;
+	}
+}

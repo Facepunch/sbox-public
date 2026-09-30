@@ -79,17 +79,25 @@ static const float2 g_vPoissonDisk16[16] =
     float2(  0.878554, -0.397416 ),
 };
 
-// Holbert 2011: offset receiver along face normal by ~PCF kernel radius in texels (kills slope acne).
-// ddx/ddy of world pos is quad-safe here — position is computed in uniform control flow.
-float3 ApplyShadowNormalOffset( float3 vPositionWs, float flTexelWorldSize, float flHardness )
+// Face normal of the shadow receiver, from the screen-space derivatives of its world position.
+// Derivatives are only defined in uniform control flow, so compute this once per pixel *before* any
+// per-light loop or branch and pass it down: the clustered light loop diverges between the lanes of a
+// quad wherever neighbouring pixels land in different clusters, and a ddx taken in there is garbage.
+// Non-pixel programs have no derivatives and get no offset.
+float3 ComputeShadowReceiverNormal( float3 vPositionWs )
 {
 #if ( PROGRAM == VFX_PROGRAM_PS )
-    const float3 vNormalWs = normalize( cross( ddy( vPositionWs ), ddx( vPositionWs ) ) );
-    const float flRadiusTexels = 1.5 * min( UserShadowFilterQuality, 3 ) * rcp( max( flHardness, 1.0 ) ) + 1.0; // matches the SampleShadowPCF_* kernels below
-	return vPositionWs + vNormalWs * ( flTexelWorldSize * flRadiusTexels );
+    return normalize( cross( ddy( vPositionWs ), ddx( vPositionWs ) ) );
 #else
-	return vPositionWs;
+    return 0.0f;
 #endif
+}
+
+// Holbert 2011: offset receiver along face normal by ~PCF kernel radius in texels (kills slope acne).
+float3 ApplyShadowNormalOffset( float3 vPositionWs, float3 vNormalWs, float flTexelWorldSize, float flHardness )
+{
+    const float flRadiusTexels = 1.5 * min( UserShadowFilterQuality, 3 ) * rcp( max( flHardness, 1.0 ) ) + 1.0; // matches the SampleShadowPCF_* kernels below
+    return vPositionWs + vNormalWs * ( flTexelWorldSize * flRadiusTexels );
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -195,6 +203,52 @@ float SampleShadowPCF_Poisson16( ShadowPCFInput i )
     }
 
     return flShadow / 16.0;
+}
+
+// Morph the original soft Poisson kernel into an elongated tent as hardness increases.
+// Interpolate sample positions and weights instead of evaluating both filters (16 taps total).
+float SampleDirectionalShadowTent16( ShadowPCFInput i )
+{
+    if ( i.Hardness <= 1.0 )
+    {
+        i.Hardness = rcp( i.Hardness );
+        return SampleShadowPCF_Poisson16( i );
+    }
+
+    float hardness = saturate( ( i.Hardness - 1.0 ) / 3.5 );
+    float transition = smoothstep( 0.0, 1.0, hardness );
+    float sine, cosine;
+    sincos( ShadowNoise( i.ScreenPos ) * 6.283185307, sine, cosine );
+    float2x2 rotation = float2x2( cosine, -sine, sine, cosine );
+    float poissonRadius = 4.5 * rcp( i.Hardness ) * i.InvShadowMapRes;
+    float2 texelPosition = i.ShadowPos.xy / i.InvShadowMapRes - 0.5;
+    float2 baseTexel = floor( texelPosition ) - float2( 1.0, 7.0 );
+    float2 phase = frac( texelPosition );
+    float visibility = 0.0;
+    float totalWeight = 0.0;
+    [unroll]
+    for ( int y = 0; y < 8; ++y )
+    {
+        float y0 = max( 0.0, 8.0 - abs( 2.0 * y - 7.0 - phase.y ) );
+        float y1 = max( 0.0, 8.0 - abs( 2.0 * y - 6.0 - phase.y ) );
+        float wy = y0 + y1;
+        [unroll]
+        for ( int x = 0; x < 2; ++x )
+        {
+            float x0 = max( 0.0, 2.0 - abs( 2.0 * x - 1.0 - phase.x ) );
+            float x1 = max( 0.0, 2.0 - abs( 2.0 * x - 0.0 - phase.x ) );
+            float wx = x0 + x1;
+            float2 uv = ( baseTexel + float2( 2.0 * x + x1 / wx, 2.0 * y + y1 / wy ) + 0.5 ) * i.InvShadowMapRes;
+            float2 poissonUv = i.ShadowPos.xy + mul( rotation, g_vPoissonDisk16[y * 2 + x] ) * poissonRadius;
+            uv = lerp( poissonUv, uv, transition );
+            // The tent's axis sums are 4 and 64, giving a total weight of 256.
+            float weight = lerp( 1.0 / 16.0, wx * wy / 256.0, transition );
+            visibility += weight * i.ShadowMap.SampleCmpLevelZero( ShadowDepthPCFSampler, uv, saturate( i.ShadowPos.z + i.Bias ) );
+            totalWeight += weight;
+        }
+    }
+    visibility /= totalWeight;
+    return lerp( visibility, smoothstep( 0.40, 0.60, visibility ), hardness );
 }
 
 //--------------------------------------------------------------------------------------------------

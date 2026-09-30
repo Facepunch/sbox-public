@@ -658,6 +658,40 @@ public sealed class BinderTest : SceneTestBase
 		Assert.IsNull( go.GetComponent<PlayerController>() );
 	}
 
+
+	/// <summary>
+	/// Assume that <see cref="MapInstance"/> will create its own child objects, don't
+	/// create them with <see cref="TrackBinder.CreateTargets(IMovieClip,GameObject)"/>.
+	/// </summary>
+	[TestMethod]
+	public void SkipCreatingMapInstanceChildTargets()
+	{
+		var mapObjTrack = MovieClip.RootGameObject( "Map" );
+		var mapInstTrack = mapObjTrack.Component<MapInstance>();
+		var childObjTrack = mapObjTrack.GameObject( "Example Child" );
+
+		var clip = MovieClip.FromTracks( mapInstTrack, childObjTrack );
+
+		var binder = new TrackBinder();
+
+		var mapInstRef = binder.Get( mapInstTrack );
+		var childObjRef = binder.Get( childObjTrack );
+
+		// There are no game objects in the scene, these tracks shouldn't be bound to anything
+
+		Assert.IsFalse( mapInstRef.IsBound );
+		Assert.IsFalse( childObjRef.IsBound );
+
+		// Create any objects needed to play the clip
+
+		binder.CreateTargets( clip );
+
+		// MapInstance should be bound now, but the child object shouldn't
+
+		Assert.IsTrue( mapInstRef.IsBound );
+		Assert.IsFalse( childObjRef.IsBound );
+	}
+
 	/// <summary>
 	/// Test (de)serializing a <see cref="TrackBinder"/>.
 	/// </summary>

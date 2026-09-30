@@ -11,7 +11,7 @@ native enum VPhysicsMotionType_t is Sandbox.PhysicsMotionType;
 delegate ProcessIntersectionsDelegate_t;
 delegate DebugDrawDelegate_t;
 
-[Handle:Sandbox.PhysicsWorld]
+[Handle:Sandbox.PhysicsWorld3d]
 native class IPhysicsWorld
 {
 	// Bodies

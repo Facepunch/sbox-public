@@ -3,6 +3,35 @@
 public class SceneLoadOptions
 {
 	SceneFile scene;
+	SceneFile runtimeScene;
+
+	internal void FinishRuntimePreparation() => runtimeScene = null;
+
+	internal IDisposable RuntimePreparationScope() => Sandbox.Utility.DisposeAction.Create( FinishRuntimePreparation );
+
+	internal bool PrepareRuntime()
+	{
+		var prepared = runtimeScene ?? scene;
+		if ( runtimeScene is null && prepared is not null && SceneFile.ResolveRuntimeScene is { } resolve )
+			prepared = resolve( prepared );
+
+		if ( !prepared.IsValid() )
+		{
+			FinishRuntimePreparation();
+			Log.Error( "No valid runtime Scene was found in SceneLoadOptions." );
+			return false;
+		}
+
+		if ( !string.IsNullOrEmpty( prepared.CompileError ) )
+		{
+			FinishRuntimePreparation();
+			Log.Error( prepared.CompileError );
+			return false;
+		}
+
+		runtimeScene = prepared;
+		return true;
+	}
 
 	/// <summary>
 	/// Internal property to mark this scene as being a system scene. It should only be set in
@@ -19,11 +48,12 @@ public class SceneLoadOptions
 	public bool DeleteEverything { get; set; } = false;
 	public Transform Offset { get; set; } = Transform.Zero;
 
-	public SceneFile GetSceneFile() => scene;
+	public SceneFile GetSceneFile() => runtimeScene ?? scene;
 
 	public bool SetScene( SceneFile sceneFile )
 	{
 		scene = sceneFile;
+		FinishRuntimePreparation();
 		return true;
 	}
 

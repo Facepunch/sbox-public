@@ -45,6 +45,23 @@ native class CVfx as NativeEngine.CVfx
 	bool WriteCombo( ShaderProgramType programType, ulong staticId, ulong dynamicId, VfxCompiledShaderInfo_t shaderInfo );
 
 	string GetPropertiesJson();
+
+	// Query editor visibility for a material feature selection. Uses the same
+	// channel dependency traversal as the native material editor.
+	inline bool IsUiVariableActive( string variableName, string featureName, int value )
+	{
+		VfxComboValueVector_t values;
+		values.SetCount( self->FeatureArray().Count() );
+		for ( int i = 0; i < values.Count(); ++i ) values[i] = self->Feature( i ).m_nMin;
+		int feature = self->FindFeatureByName( featureName );
+		if ( feature < 0 || value < self->Feature( feature ).m_nMin || value > self->Feature( feature ).m_nMax ) return false;
+		values[feature] = (VfxComboValue_t)value;
+		CUtlVector<CVfxVariableDescription> descriptions;
+		CUtlVector<int> indices;
+		self->ComputeUiVariableListAndFeatureVariableIndices( descriptions, indices, values );
+		for ( int index : indices ) if ( !V_strcmp( descriptions[index].m_szName, variableName ) ) return true;
+		return false;
+	}
 }
 
 native static class ShaderTools

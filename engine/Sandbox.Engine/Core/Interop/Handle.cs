@@ -124,26 +124,26 @@ namespace Sandbox
 			if ( type == Types.SceneLightProbeVolumeObject ) return New<SceneLightProbe>( ptr, ( h ) => new SceneLightProbe( h ) );
 			if ( type == Types.DecalSceneObject ) return New<DecalSceneObject>( ptr, ( h ) => new DecalSceneObject( h ) );
 
-			if ( type == Types.PhysicsWorld ) return New<PhysicsWorld>( ptr, ( h ) => new PhysicsWorld( h ) );
-			if ( type == Types.PhysicsBody ) return New<PhysicsBody>( ptr, ( h ) => new PhysicsBody( h ) );
-			if ( type == Types.PhysicsShape ) return New<PhysicsShape>( ptr, ( h ) => new PhysicsShape( h ) );
+			if ( type == Types.PhysicsWorld ) return New<PhysicsWorld3d>( ptr, ( h ) => new PhysicsWorld3d( h ) );
+			if ( type == Types.PhysicsBody ) return New<PhysicsBody3d>( ptr, ( h ) => new PhysicsBody3d( h ) );
+			if ( type == Types.PhysicsShape ) return New<PhysicsShape3d>( ptr, ( h ) => new PhysicsShape3d( h ) );
 			if ( type == Types.PhysicsAggregate ) return New<PhysicsGroup>( ptr, ( h ) => new PhysicsGroup( h ) );
 
-			if ( type == Types.PhysicsWeldJoint ) return New( ptr, ( h ) => new Sandbox.Physics.FixedJoint( h ) );
-			if ( type == Types.PhysicsSpringJoint ) return New( ptr, ( h ) => new Sandbox.Physics.SpringJoint( h ) );
-			if ( type == Types.PhysicsRevoluteJoint ) return New( ptr, ( h ) => new Sandbox.Physics.HingeJoint( h ) );
-			if ( type == Types.PhysicsPrismaticJoint ) return New( ptr, ( h ) => new Sandbox.Physics.SliderJoint( h ) );
-			if ( type == Types.PhysicsSphericalJoint ) return New( ptr, ( h ) => new Sandbox.Physics.BallSocketJoint( h ) );
-			if ( type == Types.PhysicsPulleyJoint ) return New( ptr, ( h ) => new Sandbox.Physics.PulleyJoint( h ) );
-			if ( type == Types.PhysicsMotorJoint ) return New( ptr, ( h ) => new Sandbox.Physics.ControlJoint( h ) );
-			if ( type == Types.PhysicsWheelJoint ) return New( ptr, ( h ) => new Sandbox.Physics.WheelJoint( h ) );
-			if ( type == Types.PhysicsParallelJoint ) return New( ptr, ( h ) => new Sandbox.Physics.UprightJoint( h ) );
-			if ( type == Types.PhysicsFilterJoint ) return New( ptr, ( h ) => new Sandbox.Physics.PhysicsJoint( h ) );
-			if ( type == Types.PhysicsJoint ) return New( ptr, ( h ) => new Sandbox.Physics.PhysicsJoint( h ) );
+			if ( type == Types.PhysicsWeldJoint ) return New( ptr, ( h ) => new Sandbox.Physics.PhysicsJoint3d( h ) );
+			if ( type == Types.PhysicsSpringJoint ) return New( ptr, ( h ) => new Sandbox.Physics.PhysicsJoint3d( h ) );
+			if ( type == Types.PhysicsRevoluteJoint ) return New( ptr, ( h ) => new Sandbox.Physics.PhysicsJoint3d( h ) );
+			if ( type == Types.PhysicsPrismaticJoint ) return New( ptr, ( h ) => new Sandbox.Physics.PhysicsJoint3d( h ) );
+			if ( type == Types.PhysicsSphericalJoint ) return New( ptr, ( h ) => new Sandbox.Physics.PhysicsJoint3d( h ) );
+			if ( type == Types.PhysicsPulleyJoint ) return New( ptr, ( h ) => new Sandbox.Physics.PhysicsJoint3d( h ) );
+			if ( type == Types.PhysicsMotorJoint ) return New( ptr, ( h ) => new Sandbox.Physics.PhysicsJoint3d( h ) );
+			if ( type == Types.PhysicsWheelJoint ) return New( ptr, ( h ) => new Sandbox.Physics.PhysicsJoint3d( h ) );
+			if ( type == Types.PhysicsParallelJoint ) return New( ptr, ( h ) => new Sandbox.Physics.PhysicsJoint3d( h ) );
+			if ( type == Types.PhysicsFilterJoint ) return New( ptr, ( h ) => new Sandbox.Physics.PhysicsJoint3d( h ) );
+			if ( type == Types.PhysicsJoint ) return New( ptr, ( h ) => new Sandbox.Physics.PhysicsJoint3d( h ) );
 
-			if ( type == Types.PhysicsConicalJoint ) return New( ptr, ( h ) => new Sandbox.Physics.PhysicsJoint( h ) );
-			if ( type == Types.PhysicsGenericJoint ) return New( ptr, ( h ) => new Sandbox.Physics.PhysicsJoint( h ) );
-			if ( type == Types.PhysicsNullJoint ) return New( ptr, ( h ) => new Sandbox.Physics.PhysicsJoint( h ) );
+			if ( type == Types.PhysicsConicalJoint ) return New( ptr, ( h ) => new Sandbox.Physics.PhysicsJoint3d( h ) );
+			if ( type == Types.PhysicsGenericJoint ) return New( ptr, ( h ) => new Sandbox.Physics.PhysicsJoint3d( h ) );
+			if ( type == Types.PhysicsNullJoint ) return New( ptr, ( h ) => new Sandbox.Physics.PhysicsJoint3d( h ) );
 
 			if ( type == Types.AudioStream ) return New( ptr, ( h ) => new SoundStream( h ) );
 

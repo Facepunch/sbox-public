@@ -10,6 +10,7 @@ using System.Text.Json.Serialization;
 /// </summary>
 [JsonConverter( typeof( Sandbox.Internal.JsonConvert.ColorConverter ) )]
 [StructLayout( LayoutKind.Sequential )]
+[Description( "A color with red, green, blue and alpha components stored as floats, normally in the range 0 to 1." )]
 public partial struct Color : IEquatable<Color>
 {
 	/// <summary>

@@ -4,7 +4,6 @@
 @using System.Collections.Generic
 @namespace MenuProject.Settings
 @inherits Panel
-@page "/settings/about"
 
 <root class="page-inner">
 
@@ -56,6 +55,14 @@
 				</div>
 			}
 		}
+		else if ( Loaded )
+		{
+			@* MenuDll mounts /thirdpartylegalnotices/ only when the menu boots as the menu. *@
+			<div class="empty">
+				<div>Couldn't read the third-party component list.</div>
+				<div class="hint">@(Exists ? "dependency_index.json is mounted but couldn't be parsed." : "dependency_index.json isn't mounted - this list only works in the real menu, not in the editor.")</div>
+			</div>
+		}
 		else
 		{
 			<div>Loading third-party component data...</div>
@@ -67,6 +74,8 @@
 @code
 {
     private DependencyIndex IndexData { get; set; }
+    private bool Loaded { get; set; }
+    private bool Exists { get; set; }
     private List<DependencyComponent> Components { get; set; }
     private Dictionary<string, List<string>> LicenseTextChunks { get; set; } = new Dictionary<string, List<string>>();
     private const int LinesPerChunk = 150;
@@ -83,7 +92,9 @@
 
     private void LoadThirdPartyData()
     {
-        IndexData = FileSystem.Mounted.ReadJson<DependencyIndex>("dependency_index.json");
+        Exists = FileSystem.Mounted.FileExists("dependency_index.json");
+        IndexData = Exists ? FileSystem.Mounted.ReadJson<DependencyIndex>("dependency_index.json") : null;
+        Loaded = true;
         // Sort components alphabetically by name
         if (IndexData?.Components != null)
         {

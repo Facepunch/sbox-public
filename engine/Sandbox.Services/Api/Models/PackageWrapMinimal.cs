@@ -16,6 +16,7 @@ public class PackageWrapMinimal
 	public string Thumb { get; set; }
 	public string ThumbWide { get; set; }
 	public string ThumbTall { get; set; }
+	public PackageThumbnailSet Thumbnails { get; set; }
 	public string VideoThumb { get; set; }
 	public string TypeName { get; set; }
 	public DateTimeOffset Updated { get; set; }

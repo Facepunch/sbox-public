@@ -1,0 +1,39 @@
+@using Sandbox.PanelGallery;
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+
+@using Sandbox;
+@using Sandbox.UI;
+
+@attribute [Group( "Text" )]
+@attribute [Title( "text-decoration" )]
+@attribute [Description( "Underline, overline and strikethrough" )]
+@attribute [Icon( "format_underlined" )]
+
+<root>
+
+    <h2>Decoration</h2>
+
+    <div class="cases">
+        <UiTestCase Caption="underline" Setup="@Text" Css="text-decoration: underline" Text="@Sample" />
+        <UiTestCase Caption="overline" Setup="@Text" Css="text-decoration: overline" Text="@Sample" />
+        <UiTestCase Caption="line-through" Setup="@Text" Css="text-decoration: line-through" Text="@Sample" />
+        <UiTestCase Caption="Cyan" Setup="@Text" Css="@($"text-decoration: underline; text-decoration-color: {GalleryPalette.CyanHex}")" Text="@Sample" />
+        <UiTestCase Caption="3px" Setup="@Text" Css="text-decoration: underline; text-decoration-thickness: 3px" Text="@Sample" />
+        <UiTestCase Caption="4px" Setup="@Text" Css="text-decoration: underline; text-underline-offset: 4px" Text="@Sample" />
+        <UiTestCase Caption="all" Setup="@Text" Css="text-decoration: underline; text-decoration-skip-ink: all" Text="@Descenders"
+                    Note="The line breaks around descenders." />
+        <UiTestCase Caption="none" Setup="@Text" Css="text-decoration: underline; text-decoration-skip-ink: none" Text="@Descenders"
+                    Note="Straight through them instead." />
+        <UiTestCase Caption="none" Setup="@Text" Css="text-decoration: none" Text="@Sample" Note="Explicitly none - it used to be ignored." />
+    </div>
+
+</root>
+
+@code
+{
+    const string Text = UiTestCase.TextSetup;
+
+    const string Sample = "Sphinx of black quartz";
+    const string Descenders = "puzzling jargon gypsy";
+}

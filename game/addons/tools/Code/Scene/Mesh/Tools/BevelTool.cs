@@ -21,11 +21,11 @@ public record struct BevelParameters
 	[Title( "Shape" ), Range( 0.0f, 1.0f ), WideMode]
 	public float Shape { get; set; } = 1.0f;
 
-	[Title( "Width" ), Range( 0.0625f, 256.0f ), WideMode, DefaultValue( 8.0f )]
+	[Title( "Width" ), Range( 0.0625f, 256.0f, clamped: false ), WideMode, DefaultValue( 8.0f )]
 	public float Width
 	{
-		readonly get => Math.Clamp( _width, 0.0625f, 256.0f );
-		set => _width = Math.Clamp( value, 0.0625f, 256.0f );
+		readonly get => Math.Max( _width, 0.0625f );
+		set => _width = Math.Max( value, 0.0625f );
 	}
 
 	[Title( "Soft Edges" ), WideMode]

@@ -52,7 +52,6 @@ internal abstract class RenderLayer
 
 		if ( this is ProceduralRenderLayer proceduralRenderLayer )
 		{
-			proceduralRenderLayer.ProceduralCallback = DelegateFunctionPointer.Get<ProceduralRenderLayer.OnRenderCallback>( proceduralRenderLayer.Internal_OnRender );
 			nativeLayer = view.AddManagedProceduralLayer( Name, viewport, proceduralRenderLayer.ProceduralCallback, IntPtr.Zero, true );
 		}
 		else
@@ -91,8 +90,12 @@ internal abstract class ProceduralRenderLayer : RenderLayer
 	[UnmanagedFunctionPointer( CallingConvention.StdCall )]
 	internal delegate void OnRenderCallback( ManagedRenderSetup_t setup );
 
-	// If we're a procedural layer, keep the delegate callback so GC doesn't eat us
-	internal DelegateFunctionPointer ProceduralCallback;
+	internal readonly DelegateFunctionPointer ProceduralCallback;
+
+	protected ProceduralRenderLayer()
+	{
+		ProceduralCallback = DelegateFunctionPointer.Get<OnRenderCallback>( Internal_OnRender );
+	}
 
 	internal void Internal_OnRender( ManagedRenderSetup_t setup )
 	{

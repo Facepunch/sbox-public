@@ -155,8 +155,6 @@ public static partial class Networking
 		q = q.WithKeyValue( "lobby_type", "scene" );
 		q = q.WithKeyValue( "protocol", $"{Protocol.Network}" );
 		q = q.WithKeyValue( "api", $"{Protocol.Api}" );
-		q = q.WithNotEqual( "toxic", 1 );
-		q = q.WithNotEqual( "disbanded", 1 );
 
 		foreach ( var filter in filters )
 		{

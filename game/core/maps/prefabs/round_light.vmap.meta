@@ -1,0 +1,21 @@
+{
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "round_light",
+      "Type": "map",
+      "Org": "local",
+      "Ident": "round_light",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": [],
+      "EditorReferences": [],
+      "IsWhitelistDisabled": false,
+      "Metadata": {
+        "SingleAssetSource": "maps/prefabs/round_light.vmap"
+      }
+    }
+  },
+  "guid": "5db9de3f-7254-49c2-ae7e-e23f30fa5d70"
+}

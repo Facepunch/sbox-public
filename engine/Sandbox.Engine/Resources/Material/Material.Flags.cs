@@ -27,6 +27,11 @@ public partial class Material
 			return this.material.native.GetFloatAttributeOrDefault( name, defaultValue );
 		}
 
+		public bool GetBool( string name, bool defaultValue = false )
+		{
+			return this.material.native.GetBoolAttributeOrDefault( name, defaultValue );
+		}
+
 		public bool IsSky => GetInt( "sky" ) != 0;
 		public bool IsTranslucent => GetInt( "translucent" ) != 0;
 		public bool IsAlphaTest => GetInt( "alphatest" ) != 0;

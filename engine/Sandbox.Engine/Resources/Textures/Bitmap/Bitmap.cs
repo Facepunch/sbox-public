@@ -1,4 +1,5 @@
 ﻿using SkiaSharp;
+using System.Runtime.InteropServices;
 
 namespace Sandbox;
 
@@ -22,7 +23,8 @@ public sealed partial class Bitmap : IDisposable, IValid
 
 	public Vector2 Center => new Vector2( Width, Height ) * 0.5f;
 
-	public bool IsFloatingPoint { get; init; }
+	/// <summary>Whether the backing pixels use half-float RGBA storage.</summary>
+	public bool IsFloatingPoint => GetColorType() == SKColorType.RgbaF16;
 
 	public bool IsValid => _bitmap is not null && _canvas is not null;
 
@@ -35,13 +37,13 @@ public sealed partial class Bitmap : IDisposable, IValid
 
 		if ( width > MaxDimension || height > MaxDimension )
 			throw new ArgumentOutOfRangeException( $"Dimensions cannot exceed {MaxDimension}." );
+		_ = checked(width * height * (floatingPoint ? 8 : 4));
 
-		IsFloatingPoint = floatingPoint;
-		var colorType = IsFloatingPoint ? SKColorType.RgbaF16 : SKColorType.Rgba8888;
+		var colorType = floatingPoint ? SKColorType.RgbaF16 : SKColorType.Rgba8888;
 		var info = new SKImageInfo( width, height, colorType, SKAlphaType.Unpremul );
 
 		_bitmap = new SKBitmap( info );
-		_canvas = new SKCanvas( _bitmap );
+		InitializeCanvas();
 	}
 
 	/// <summary>
@@ -49,9 +51,23 @@ public sealed partial class Bitmap : IDisposable, IValid
 	/// </summary>
 	internal Bitmap( SKBitmap bitmap )
 	{
-		IsFloatingPoint = bitmap.ColorType == SKColorType.RgbaF16;
+		ArgumentNullException.ThrowIfNull( bitmap );
 		_bitmap = bitmap;
-		_canvas = new SKCanvas( _bitmap );
+		InitializeCanvas();
+	}
+
+	void InitializeCanvas()
+	{
+		try
+		{
+			_ = GetBuffer();
+			_canvas = new SKCanvas( _bitmap );
+		}
+		catch
+		{
+			Dispose();
+			throw;
+		}
 	}
 
 	public void Dispose()
@@ -72,112 +88,75 @@ public sealed partial class Bitmap : IDisposable, IValid
 		_canvas.Clear( color.ToSkF() );
 	}
 
+	/// <summary>Imports pixels in this bitmap's format, converting premultiplied input during the copy.</summary>
+	internal unsafe void SetPixelData( ReadOnlySpan<byte> pixels, bool premultiplied )
+	{
+		var destination = GetBuffer();
+		if ( pixels.Length != destination.Length )
+			throw new ArgumentException( "Pixel data must match the bitmap allocation.", nameof( pixels ) );
+		if ( !premultiplied )
+		{
+			pixels.CopyTo( destination );
+			return;
+		}
+
+		fixed ( byte* source = pixels )
+		{
+			using var pixmap = new SKPixmap( _bitmap.Info.WithAlphaType( SKAlphaType.Premul ), (IntPtr)source, _bitmap.RowBytes );
+			if ( !pixmap.ReadPixels( _bitmap.Info, _bitmap.GetPixels(), _bitmap.RowBytes ) )
+				throw new InvalidOperationException( "Could not import premultiplied bitmap pixels." );
+		}
+	}
+
 	/// <summary>
 	/// Retrieves the pixel data of the bitmap as an array of colors.
 	/// </summary>
 	public Color[] GetPixels()
 	{
-		if ( IsFloatingPoint )
-		{
-			unsafe
-			{
-				int pixelCount = _bitmap.Width * _bitmap.Height;
-				var raw = new Span<Color.Rgba16>( (void*)_bitmap.GetPixels(), pixelCount );
+		var buffer = GetBuffer();
+		if ( !IsFloatingPoint ) return _bitmap.Pixels.Select( p => p.FromSk() ).ToArray();
 
-				// Allocate the final Color array
-				var colors = new Color[pixelCount];
-
-				// Convert each HalfColor to Color
-				for ( int i = 0; i < pixelCount; i++ )
-				{
-					colors[i] = raw[i].ToColor();
-				}
-
-				return colors;
-			}
-		}
-		else
-		{
-			return _bitmap.Pixels.Select( p => p.FromSk() ).ToArray();
-		}
+		var raw = MemoryMarshal.Cast<byte, Color.Rgba16>( buffer );
+		var colors = new Color[raw.Length];
+		for ( int i = 0; i < raw.Length; i++ ) colors[i] = raw[i].ToColor();
+		return colors;
 	}
 
-	/// <summary>
-	/// Retrieves the pixel data of the bitmap as an array of colors.
-	/// </summary>
+	/// <summary>Retrieves the pixel data as half-float colors.</summary>
 	public Color.Rgba16[] GetPixels16()
 	{
-		if ( IsFloatingPoint )
-		{
-			unsafe
-			{
-				int pixelCount = _bitmap.Width * _bitmap.Height;
-				var raw = new Span<Color.Rgba16>( (void*)_bitmap.GetPixels(), pixelCount );
-				return raw.ToArray();
-			}
-		}
-		else
-		{
-			return _bitmap.Pixels.Select( p => (Color.Rgba16)p.FromSk() ).ToArray();
-		}
+		var buffer = GetBuffer();
+		if ( IsFloatingPoint ) return MemoryMarshal.Cast<byte, Color.Rgba16>( buffer ).ToArray();
+		return _bitmap.Pixels.Select( p => (Color.Rgba16)p.FromSk() ).ToArray();
 	}
 
-	/// <summary>
-	/// Retrieves the pixel data of the bitmap as an array of colors.
-	/// </summary>
+	/// <summary>Retrieves the pixel data as 32-bit colors.</summary>
 	public Color32[] GetPixels32()
 	{
-		if ( IsFloatingPoint )
-		{
-			unsafe
-			{
-				int pixelCount = _bitmap.Width * _bitmap.Height;
-				var raw = new Span<Color.Rgba16>( (void*)_bitmap.GetPixels(), pixelCount );
+		var buffer = GetBuffer();
+		if ( !IsFloatingPoint ) return _bitmap.Pixels.Select( p => (Color32)p.FromSk() ).ToArray();
 
-				// Allocate the final Color array
-				var colors = new Color32[pixelCount];
-
-				// Convert each HalfColor to Color
-				for ( int i = 0; i < pixelCount; i++ )
-				{
-					colors[i] = raw[i].ToColor();
-				}
-
-				return colors;
-			}
-		}
-		else
-		{
-			return _bitmap.Pixels.Select( p => (Color32)p.FromSk() ).ToArray();
-		}
+		var raw = MemoryMarshal.Cast<byte, Color.Rgba16>( buffer );
+		var colors = new Color32[raw.Length];
+		for ( int i = 0; i < raw.Length; i++ ) colors[i] = raw[i].ToColor();
+		return colors;
 	}
 
 	public void SetPixels( Color[] colors )
 	{
-		if ( colors is null || colors.Length != _bitmap.Width * _bitmap.Height )
-		{
+		var buffer = GetBuffer();
+		if ( colors is null || colors.Length != checked(Width * Height) )
 			throw new ArgumentException( "Colors array must match the size of the bitmap." );
-		}
 
 		if ( IsFloatingPoint )
 		{
-			unsafe
-			{
-				int pixelCount = _bitmap.Width * _bitmap.Height;
-				var rawPixels = new Span<Color.Rgba16>( (void*)_bitmap.GetPixels(), pixelCount );
-				for ( int i = 0; i < pixelCount; i++ )
-				{
-					rawPixels[i] = new Color.Rgba16( colors[i] );
-				}
-			}
+			var raw = MemoryMarshal.Cast<byte, Color.Rgba16>( buffer );
+			for ( int i = 0; i < raw.Length; i++ ) raw[i] = new Color.Rgba16( colors[i] );
 		}
 		else
 		{
 			var skColors = new SKColor[colors.Length];
-			for ( int i = 0; i < colors.Length; i++ )
-			{
-				skColors[i] = colors[i].ToSk();
-			}
+			for ( int i = 0; i < colors.Length; i++ ) skColors[i] = colors[i].ToSk();
 			_bitmap.Pixels = skColors;
 		}
 	}
@@ -192,6 +171,8 @@ public sealed partial class Bitmap : IDisposable, IValid
 	{
 		AssertBounds( x, y, 1, 1 );
 
+		var buffer = GetBuffer();
+		if ( IsFloatingPoint ) return MemoryMarshal.Cast<byte, Color.Rgba16>( buffer )[checked(y * Width + x)].ToColor();
 		return _bitmap.GetPixel( x, y ).FromSk();
 	}
 
@@ -205,14 +186,10 @@ public sealed partial class Bitmap : IDisposable, IValid
 	{
 		AssertBounds( x, y, 1, 1 );
 
-		if ( _bitmap.ColorType == SKColorType.RgbaF16 )
+		var buffer = GetBuffer();
+		if ( IsFloatingPoint )
 		{
-			unsafe
-			{
-				int index = y * _bitmap.Width + x;
-				var rawPixels = new Span<Color.Rgba16>( (void*)_bitmap.GetPixels(), _bitmap.Width * _bitmap.Height );
-				rawPixels[index] = new Color.Rgba16( color );
-			}
+			MemoryMarshal.Cast<byte, Color.Rgba16>( buffer )[checked(y * Width + x)] = new Color.Rgba16( color );
 		}
 		else
 		{
@@ -223,16 +200,37 @@ public sealed partial class Bitmap : IDisposable, IValid
 	/// <summary>
 	/// Low level, get a span of the bitmap data.
 	/// </summary>
-	internal unsafe Span<byte> GetBuffer()
+	internal Span<byte> GetBuffer()
 	{
-		return new Span<byte>( (void*)_bitmap.GetPixels(), ByteCount );
+		var colorType = GetColorType();
+		int bytesPerPixel = colorType == SKColorType.RgbaF16 ? 8 : 4;
+		int rowBytes = checked(Width * bytesPerPixel);
+		int requiredBytes = checked(rowBytes * Height);
+		if ( Width <= 0 || Height <= 0 || _bitmap.BytesPerPixel != bytesPerPixel
+			|| _bitmap.RowBytes != rowBytes || requiredBytes > _bitmap.ByteCount || _bitmap.GetPixels() == IntPtr.Zero )
+			throw new InvalidOperationException( "Bitmap storage does not match its pixel format and dimensions." );
+
+		var pixels = _bitmap.GetPixelSpan();
+		if ( pixels.Length < requiredBytes )
+			throw new InvalidOperationException( "Bitmap pixel allocation is smaller than its dimensions." );
+		return pixels[..requiredBytes];
 	}
 
-	/// <summary>
-	/// Super low level, get a pointer to the bitmap data.
-	/// </summary>
+	SKColorType GetColorType()
+	{
+		ObjectDisposedException.ThrowIf( _bitmap is null, this );
+		return _bitmap.ColorType switch
+		{
+			SKColorType.Rgba8888 => SKColorType.Rgba8888,
+			SKColorType.RgbaF16 => SKColorType.RgbaF16,
+			_ => throw new InvalidOperationException( $"Unsupported bitmap pixel format: {_bitmap.ColorType}." )
+		};
+	}
+
+	/// <summary>Gets the pointer after validating the backing pixel allocation.</summary>
 	internal unsafe void* GetPointer()
 	{
+		_ = GetBuffer();
 		return (void*)_bitmap.GetPixels();
 	}
 
@@ -246,7 +244,9 @@ public sealed partial class Bitmap : IDisposable, IValid
 	/// <param name="height">The height of the region to check.</param>
 	private void AssertBounds( int x, int y, int width, int height )
 	{
-		if ( x < 0 || y < 0 || x + width > _bitmap.Width || y + height > _bitmap.Height )
+		ObjectDisposedException.ThrowIf( !IsValid, this );
+		if ( x < 0 || y < 0 || width < 0 || height < 0 || width > Width || height > Height
+			|| x > Width - width || y > Height - height )
 		{
 			throw new ArgumentOutOfRangeException( nameof( x ), "Specified region is out of bounds." );
 		}
@@ -266,64 +266,25 @@ public sealed partial class Bitmap : IDisposable, IValid
 	/// Returns true if this bitmap is completely opaque (no alpha)
 	/// This does a pixel by pixel search, so it's not the fastest.
 	/// </summary>
-	public unsafe bool IsOpaque()
+	public bool IsOpaque()
 	{
-		if ( _bitmap.AlphaType == SKAlphaType.Opaque )
-			return true;
+		var buffer = GetBuffer();
+		if ( _bitmap.AlphaType == SKAlphaType.Opaque ) return true;
 
-		int height = _bitmap.Height;
-		int width = _bitmap.Width;
-		int rowBytes = _bitmap.RowBytes;
-		IntPtr pixels = _bitmap.GetPixels();
-
-		if ( _bitmap.ColorType == SKColorType.RgbaF16 )
+		if ( IsFloatingPoint )
 		{
-			float* ptr = (float*)pixels;
-			bool opaque = true;
-
-			Parallel.For( 0, height, ( y, state ) =>
+			foreach ( var pixel in MemoryMarshal.Cast<byte, Color.Rgba16>( buffer ) )
 			{
-				float* row = ptr + (y * (rowBytes / sizeof( float )));
-
-				for ( int x = 0; x < width; x++ )
-				{
-					float alpha = row[x * 4 + 3]; // Alpha is the 4th channel
-					if ( alpha < 1.0f ) // Check if alpha is not fully opaque
-					{
-						opaque = false;
-						state.Stop(); // Stop all threads
-						return;
-					}
-				}
-			} );
-
-			return opaque;
-
+				if ( (float)pixel.a < 1.0f ) return false;
+			}
 		}
-
-		if ( _bitmap.ColorType == SKColorType.Rgba8888 )
+		else
 		{
-			bool opaque = true;
-
-			Parallel.For( 0, height, ( y, state ) =>
+			for ( int i = 3; i < buffer.Length; i += 4 )
 			{
-				byte* ptr = (byte*)pixels + (y * rowBytes);
-
-				for ( int x = 0; x < width; x++ )
-				{
-					if ( ptr[(x * 4) + 3] != 255 )
-					{
-						opaque = false;
-						state.Stop(); // Stop all threads
-						return;
-					}
-				}
-			} );
-
-			return opaque;
+				if ( buffer[i] != 255 ) return false;
+			}
 		}
-
-		// we can't determin that it's opaque so say it's not
-		return false;
+		return true;
 	}
 }

@@ -21,7 +21,7 @@ public static class Qt
 	{
 		if ( !module.Qt ) return;
 
-		if ( !NativePlatform.Current.IsWindows ) { ApplyLinux( module ); return; }
+		if ( !NativePlatform.Current.IsWindows ) { ApplyPosix( module ); return; }
 
 		var moc = Paths.Relative( module.Dir, $"{Root}/bin/{Paths.Platform}/moc.exe" );
 		var arguments = string.Join( ' ', Defines.Select( d => $"-D{d}" ) )
@@ -115,13 +115,13 @@ public static class Qt
 	}
 
 	/// <summary>
-	/// The Linux path. The Windows one above speaks MSBuild - $(ProjectDir), %(FullPath), backslashes and a
-	/// moc.exe - which the makefile generator cannot consume. This emits the same moc/uic/rcc steps as plain
-	/// CustomBuild whose Command, Inputs and Outputs are shell ready, src-relative paths; Makefile.cs turns
-	/// each into a rule. The two paths are kept apart rather than branched line by line so neither has to
-	/// carry the other's quirks.
+	/// The posix path, Linux and macOS both. The Windows one above speaks MSBuild - $(ProjectDir),
+	/// %(FullPath), backslashes and a moc.exe - which the makefile generator cannot consume. This emits the
+	/// same moc/uic/rcc steps as plain CustomBuild whose Command, Inputs and Outputs are shell ready,
+	/// src-relative paths; Makefile.cs turns each into a rule. The two paths are kept apart rather than
+	/// branched line by line so neither has to carry the other's quirks.
 	/// </summary>
-	private static void ApplyLinux( Module module )
+	private static void ApplyPosix( Module module )
 	{
 		// The downloaded Qt5 lays its tools out as bin/<platform>/moc, without the .exe.
 		var moc = $"{Root}/bin/{Paths.Platform}/moc";
@@ -130,10 +130,17 @@ public static class Qt
 
 		// WIN32/UNICODE would send Qt's headers down their Windows path while moc parses them, so drop them.
 		var defines = Defines.Where( d => d is not "WIN32" and not "UNICODE" ).Select( d => $"-D{d}" );
+
+		// moc does not define the host's Q_OS_* macros. Without this the macOS build mocs the X11 shape
+		// of anything a header declares under Q_OS_UNIX && !Q_OS_MACOS, and the output does not compile.
+		if ( NativePlatform.Current.IsOsx ) defines = defines.Append( "-DQ_OS_MACOS" );
 		var includes = Includes.Select( i => $"-I{$"{Root}/include/{i}".TrimEnd( '/' )}" ).Append( $"-I{module.Dir}" ).Append( "-I." );
 		var arguments = string.Join( ' ', defines ) + " " + string.Join( ' ', includes );
 
 		string Out( string rel ) => $"{module.Dir}/{Generated}/{rel}";
+
+		// $ORIGIN on Linux, @loader_path on macOS. Only Posix platforms reach here.
+		var origin = ((Posix)NativePlatform.Current).RpathOrigin;
 
 		foreach ( var config in module.Configs ) config.Include( $"{module.Dir}/{Generated}", $"{module.Dir}/ui" );
 		module.ReleaseConfig.Define( "QT_NO_DEBUG" );
@@ -150,7 +157,7 @@ public static class Qt
 			config.Define( "QT_VISIBILITY_AVAILABLE" );
 			config.LinkLibs.AddRange( ["Qt5Core", "Qt5Gui", "Qt5Widgets"] );
 			config.LibDirs.Add( $"{Root}/lib/{Paths.Platform}" );
-			config.LinkOptions.Add( $"-Wl,-rpath,$ORIGIN/{Paths.Relative( "../game/bin/" + Paths.Platform, $"{Root}/lib/{Paths.Platform}" ).Replace( '\\', '/' )}" );
+			config.LinkOptions.Add( $"-Wl,-rpath,{origin}/{Paths.Relative( "../game/bin/" + Paths.Platform, $"{Root}/lib/{Paths.Platform}" ).Replace( '\\', '/' )}" );
 		}
 
 		// .ui -> ui/ui_<name>.h, included by name.

@@ -14,7 +14,7 @@ public static partial class Input
 			if ( Application.IsHeadless ) return false;
 			if ( Suppressed ) return false;
 
-			var code = NativeEngine.InputSystem.StringToButtonCode( keyName );
+			var code = Sandbox.Engine.KeyTranslation.StringToButtonCode( keyName );
 			if ( code == ButtonCode.BUTTON_CODE_INVALID ) return false;
 
 			return CurrentContext.KeysCurrent.Contains( code );
@@ -28,7 +28,7 @@ public static partial class Input
 			if ( Application.IsHeadless ) return false;
 			if ( Suppressed ) return false;
 
-			var code = NativeEngine.InputSystem.StringToButtonCode( keyName );
+			var code = Sandbox.Engine.KeyTranslation.StringToButtonCode( keyName );
 			if ( code == ButtonCode.BUTTON_CODE_INVALID ) return false;
 
 			return !CurrentContext.KeysPrevious.Contains( code ) && Down( keyName );
@@ -42,7 +42,7 @@ public static partial class Input
 			if ( Application.IsHeadless ) return false;
 			if ( Suppressed ) return false;
 
-			var code = NativeEngine.InputSystem.StringToButtonCode( keyName );
+			var code = Sandbox.Engine.KeyTranslation.StringToButtonCode( keyName );
 			if ( code == ButtonCode.BUTTON_CODE_INVALID ) return false;
 
 			return CurrentContext.KeysPrevious.Contains( code ) && !Down( keyName );

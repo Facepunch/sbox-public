@@ -31,11 +31,16 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 	bool Lighting { get; }
 	Vector2 Pivot { get; }
 	float DepthFeather { get; }
+	float CameraFadeNear { get; }
+	float CameraFadeFar { get; }
 	float FogStrength { get; }
 	FilterMode TextureFilter { get; }
 
 	// Implemented by derived classes
 	Texture RenderTexture { get; }
+
+	/// <summary>A text block in this frame's glyph buffers, for text renderers. Default when there's nothing to draw.</summary>
+	GpuFontText.Placement TextSprite => default;
 
 	// Additional properties needed for some renderers
 	BillboardAlignment Alignment { get; }
@@ -60,14 +65,19 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 		if ( count == 0 || destinationBuffer.Length < count )
 			return new( 0, 0, default );
 
-		// Get texture from the renderer-specific implementation
+		// Get texture from the renderer-specific implementation, or the text block drawn from its outlines
 		var texture = RenderTexture ?? Texture.White;
+		var textSprite = TextSprite;
+		bool isText = Type == ParticleType.Text;
+		if ( isText && textSprite.Width == 0 )
+			return new( 0, 0, default );
 
 		// Precompute constants
 		var scale = MathF.Abs( (Scale / 2f) * WorldScale.x );
 		var objectAngles = WorldRotation;
 		var billboardModeUint = (uint)(SpriteRenderer.BillboardMode)Alignment;
 		var isObjectAlignment = Alignment == BillboardAlignment.Object;
+		var needVelocityAlignmentFix = Alignment == BillboardAlignment.LookAtCamera || Alignment == BillboardAlignment.RotateToCamera;
 
 		var blurAmountRemapped = BlurAmount.Remap( 0, 1, 0, 6, false );
 		var blurSpacingRemapped = BlurSpacing.Remap( 0, 1, 0, 1, false );
@@ -84,13 +94,22 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 
 		var packedFogAndAlpha = SpriteData.PackFogAndAlphaCutout( this.FogStrength, 0.001f );
 		var depthFeather = DepthFeather;
+		var packedCameraFade = SpriteData.PackCameraFade( CameraFadeNear, CameraFadeFar );
 		var blurOpacity = BlurOpacity;
 		var origin = Pivot;
 		var renderFlags = SpriteFlags.None;
 		if ( ParticleEffect.SnapToFrame ) renderFlags |= SpriteFlags.SnapToFrame;
+		if ( isText ) renderFlags |= SpriteFlags.Text;
 
-		// Calculate aspect ratio - different for text vs sprite
-		var aspect = texture.Size.x / texture.Size.y;
+		// A text sprite carries its block's placement where a sprite carries its texture, see sprite_ps.shader
+		var size = isText ? new Vector2( textSprite.Width, textSprite.Height ) : texture.Size;
+		var aspect = size.x / size.y;
+		if ( isText )
+		{
+			textureHandle = textSprite.InstanceOffset;
+			samplerIndex = textSprite.TileOffset;
+		}
+		float textSize = BitConverter.Int32BitsToSingle( (int)size.x | ((int)size.y << 16) );
 
 		int validCount = 0;
 		int totalSplotCount = 0;
@@ -134,7 +153,7 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 				var scaleX = p.Size.x * scale;
 				var scaleY = p.Size.y * scale;
 
-				if ( Type == ParticleType.Text || (sequenceData == Vector4.Zero && aspect != 1) )
+				if ( isText || (sequenceData == Vector4.Zero && aspect != 1) )
 				{
 					scaleX *= aspect;
 				}
@@ -156,12 +175,22 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 				// we are packing the exponent in the second half of the lighting flag
 				uint packedExponent = (uint)((byte)lightingValue | rgbe.a << 16);
 
+				var velocity = vel;
+				if ( needVelocityAlignmentFix )
+				{
+					// Keep the last orientation when the particle stops moving, matches the shader's velocity threshold
+					if ( velocity.LengthSquared > 0.001f )
+						p.LastVelocity = velocity;
+					else
+						velocity = p.LastVelocity;
+				}
+
 				var spritePtr = destinationPtr + validCount;
 
 				spritePtr->Position = new Vector3( pos.x, pos.y, pos.z );
 				spritePtr->Rotation = new Vector3( angles.pitch, angles.yaw, angles.roll );
 				spritePtr->Scale = new Vector2( scaleX, scaleY );
-				spritePtr->Velocity = new Vector3( vel.x, vel.y, vel.z );
+				spritePtr->Velocity = velocity;
 				spritePtr->MotionBlur = new Vector4( leadingTrailMultiplier, blurAmountRemapped, blurSpacingRemapped, blurOpacity );
 				spritePtr->TextureHandle = textureHandle;
 				spritePtr->TintColor = tintColor.RawInt;
@@ -171,11 +200,12 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 				spritePtr->FogStrengthCutout = packedFogAndAlpha;
 				spritePtr->Lighting = packedExponent;
 				spritePtr->DepthFeather = depthFeather;
+				spritePtr->CameraFade = packedCameraFade;
 				spritePtr->SamplerIndex = samplerIndex;
 				spritePtr->Splots = splots;
 				spritePtr->RotationOffset = rotationOffsetValue;
-				spritePtr->Sequence = p.Sequence & 255;
-				spritePtr->SequenceTime = sequenceTime;
+				spritePtr->Sequence = isText ? textSprite.TilesX : p.Sequence & 255;
+				spritePtr->SequenceTime = isText ? textSize : sequenceTime;
 				spritePtr->BlendSheetUV = sequenceData;
 				spritePtr->Offset = origin;
 

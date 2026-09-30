@@ -185,14 +185,22 @@ public class HomeWidget : Widget
 		using var suspend = SuspendUpdates.For( this );
 
 		List<Project> sampleProjects = new List<Project>();
-		foreach ( var dir in System.IO.Directory.EnumerateDirectories( "samples/" ) )
+		// An install that never got the content depot has no samples folder at all
+		try
 		{
-			var projFile = System.IO.Directory.EnumerateFiles( dir, "*.sbproj" ).FirstOrDefault();
-			if ( projFile is null ) continue;
-			var project = ProjectList.TryAddFromFile( projFile );
-			if ( project is null ) continue;
+			foreach ( var dir in System.IO.Directory.EnumerateDirectories( "samples/" ) )
+			{
+				var projFile = System.IO.Directory.EnumerateFiles( dir, "*.sbproj" ).FirstOrDefault();
+				if ( projFile is null ) continue;
+				var project = ProjectList.TryAddFromFile( projFile );
+				if ( project is null ) continue;
 
-			sampleProjects.Add( project );
+				sampleProjects.Add( project );
+			}
+		}
+		catch ( Exception e )
+		{
+			Log.Info( $"Couldn't read the samples folder: {e.Message}" );
 		}
 
 		//

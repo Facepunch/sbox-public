@@ -156,11 +156,11 @@ public static partial class SceneExtensions
 
 	public static void EnableEditorPhysics( this Scene scene, bool enabled )
 	{
-		var system = scene.GetSystem<ScenePhysicsSystem>();
-		if ( system is null )
-			return;
+		if ( scene.GetSystem<ScenePhysicsSystem>() is { } system )
+			system.Enabled = enabled;
 
-		system.Enabled = enabled;
+		if ( scene.GetSystem<ScenePhysics2dSystem>() is { } system2d )
+			system2d.Enabled = enabled;
 	}
 
 	public static void SetTargetTransform( this Rigidbody body, Transform? tx )

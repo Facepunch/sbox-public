@@ -19,7 +19,7 @@ partial class MoviePlayer
 			field = value;
 			UpdatePosition();
 		}
-	}
+	} = true;
 
 	internal GameObject? CreatedTargetsRoot { get; private set; }
 

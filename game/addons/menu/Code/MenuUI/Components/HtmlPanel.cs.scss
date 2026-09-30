@@ -14,6 +14,14 @@ HtmlPanel div
     flex-shrink: 0;
 }
 
+// Don't stretch images to the container width - show them at their natural size, capped to fit
+HtmlPanel image
+{
+    flex-shrink: 0;
+    align-self: center;
+    max-width: 100%;
+}
+
 HtmlPanel strong
 {
     font-weight: bolder;

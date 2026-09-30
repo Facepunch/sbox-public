@@ -1,0 +1,23 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Text" )]
+@attribute [Title( "word-break" )]
+@attribute [Description( "word-break examples" )]
+@attribute [Icon( "text_fields" )]
+<root>
+    <h2>word-break</h2>
+    <div class="cases">
+        <UiTestCase Setup="@Text" Css="word-break: normal" Caption="Normal" Text="@LongWord" />
+        <UiTestCase Caption="break-all" Setup="@Text" Css="word-break: break-all" Text="@LongWord" Note="Breaks mid-word to fit." />
+    </div>
+</root>
+@code
+{
+    const string Text = UiTestCase.TextSetup;
+    const string Sample = "Sphinx of black quartz";
+    const string Descenders = "puzzling jargon gypsy";
+    const string Paragraph = "Sphinx of black quartz, judge my vow.";
+    const string LongWord = "Small extraordinary adventures await.";
+}

@@ -25,7 +25,7 @@ internal partial class BytePack
 			bs.Write( str );
 		}
 
-		public override object Read( ref ByteStream bs )
+		public override object Read( ref ByteStream bs, int depth )
 		{
 			return bs.Read<string>();
 		}

@@ -4,6 +4,7 @@ using Sandbox;
 /// <summary>
 /// A struct describing an origin and direction
 /// </summary>
+[Description( "A ray described by an origin and a direction." )]
 public struct Ray : IEquatable<Ray>
 {
 	private Vector3 _origin;

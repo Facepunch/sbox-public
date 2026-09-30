@@ -162,7 +162,12 @@ public class AsyncTaskTest
 
 		var counterValue = _counter;
 
-		Assert.IsFalse( task.Wait( 1000 ) );
+		// Check that the task stalls without pumping engine continuations. The engine
+		// synchronization context deliberately processes its queue during timed waits.
+		using ( SyncContext.Scope( null ) )
+		{
+			Assert.IsFalse( task.Wait( 1000 ) );
+		}
 		Assert.IsTrue( _counter <= counterValue + 1 );
 	}
 

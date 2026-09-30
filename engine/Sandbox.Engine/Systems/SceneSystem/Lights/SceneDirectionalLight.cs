@@ -37,13 +37,13 @@ public sealed class SceneDirectionalLight : SceneLight
 	public int ShadowCascadeCount
 	{
 		get { return lightNative.GetShadowCascades(); }
-		set { lightNative.SetShadowCascades( value ); }
+		set { lightNative.SetShadowCascades( value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
 	}
 
 	public float ShadowCascadeSplitRatio
 	{
 		get { return lightNative.GetShadowCascadeSplitRatio(); }
-		set { lightNative.SetShadowCascadeSplitRatio( value ); }
+		set { lightNative.SetShadowCascadeSplitRatio( value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
 	}
 
 	/// <summary>
@@ -51,6 +51,6 @@ public sealed class SceneDirectionalLight : SceneLight
 	/// </summary>
 	public void SetCascadeDistanceScale( float distance )
 	{
-		lightNative.SetCascadeDistanceScale( distance );
+		lightNative.SetCascadeDistanceScale( distance ); NotifyChanged( Rendering.SceneObjectChange.Settings );
 	}
 }

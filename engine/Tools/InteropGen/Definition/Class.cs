@@ -151,6 +151,9 @@ public class Class
 
 			// Get a pointer to the binding
 			AddHandleFunction( "GetBindingPtr", new ArgPointer(), $"return (({strong}*) self)->GetBinding();", true );
+
+			// Get the GUID of this resource
+			AddHandleFunction( "GetGuid", new ArgGuid(), $"return (({strong}*)self)->GetGuid();", true );
 		}
 	}
 

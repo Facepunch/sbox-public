@@ -1,6 +1,5 @@
 
 #include "scenesystem/iscenesystem.h"
-
 native enum SceneSystemRenderTargetSize_t as NativeEngine.SceneSystemRenderTargetSize;
 native enum SceneSystemWellKnownMaterialObjectID_t as NativeEngine.SceneSystemWellKnownMaterialObjectID;
 native enum SceneSystemWellKnownTextureObjectID_t as NativeEngine.SceneSystemWellKnownTextureObjectID;
@@ -21,6 +20,8 @@ native class SceneSystemPerFrameStats_t
 	uint m_nAggregateSceneObjectPrimDraws;
 	uint m_nAggregateSceneObjectsFullyCulled;
 	uint m_nAggregateSceneObjectDrawCalls;
+	uint m_nAggregateSceneObjectIndirectSubmits;
+	uint m_nAggregateSceneObjectIndirectFragments;
 	uint m_nNumMaterialCompute;
 	uint m_nNumMaterialSet;
 	uint m_nNumSimilarMaterialSet;
@@ -66,6 +67,10 @@ native class SceneSystemPerFrameStats_t
 
 native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 {
+	void FrameUpdate();
+	void SetMainSwapChain( SwapChainHandle_t swapChain );
+	RenderMultisampleType GetMainSwapChainMultisampleType();
+
     void DeleteSceneObject( CSceneObject pObj );
     void DeleteSceneObjectAtFrameEnd( CSceneObject pObj );
 
@@ -112,6 +117,7 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 
     void FinishRenderingViews();
     bool WaitForRenderingToComplete();
+    bool IsRenderingBusy();
 
     inline void SetupPerObjectLighting( CRenderAttributes renderAttributes, CSceneObject pSceneObject, ISceneLayer pSceneLayerInterface )
     {
@@ -192,6 +198,9 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 	// (used by AO/SSR so shaders read a fixed descriptor binding instead of a racy attribute).
 	void SetPipelineTextureIndex( int nSlot, int nBindlessIndex );
 
+	// Upload the slots as they are now into a context's stream, for a renderer that submits before frame end does
+	void UploadPipelineTextureIndices( IRenderContext pRenderContext );
+
 	// Ray Tracing
 	IRayTraceSceneWorld CreateRayTraceWorld( string pWorldDebugName, int nMaxRayTypes );
 	void DestroyRayTraceWorld( IRayTraceSceneWorld pRayTraceSceneWorld );
@@ -215,13 +224,36 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 		return g_pSceneSystem->GetTimestampSnapshotDurationMs( index );
 	}
 
-	inline string GetGpuTimestampPath( int index )
+	inline string GetGpuTimestampName( int index )
 	{
-		return g_pSceneSystem->GetTimestampSnapshotPath( index );
+		return g_pSceneSystem->GetTimestampSnapshotName( index );
 	}
 
-	// Begin returns a scope handle to pass to End. No parent: the tree is rebuilt by containment in the summary.
-	void* BeginManagedPerfMarker( IRenderContext ctx, string markerName );
+	inline int GetGpuTimestampParent( int index )
+	{
+		return g_pSceneSystem->GetTimestampSnapshotParent( index );
+	}
+
+	inline uint GetGpuTimestampStableId( int index )
+	{
+		return g_pSceneSystem->GetTimestampSnapshotStableId( index );
+	}
+
+	inline bool GetGpuTimestampMeasured( int index )
+	{
+		return g_pSceneSystem->GetTimestampSnapshotMeasured( index );
+	}
+
+	inline bool GetGpuTimestampUnparented( int index )
+	{
+		return g_pSceneSystem->GetTimestampSnapshotUnparented( index );
+	}
+
+	// begin returns a scope handle to pass to end
+	inline void* BeginManagedPerfMarker( IRenderContext ctx, void* markerName )
+	{
+		return g_pSceneSystem->BeginManagedPerfMarker( (IRenderContext*)ctx, (const char*)markerName );
+	}
 	void EndManagedPerfMarker( IRenderContext ctx, void* scope );
 
 	inline void SetNextRenderTime( float flNextTime )
@@ -230,5 +262,11 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 		{
 			g_pSceneSystem->SetNextRenderTime( flNextTime );
 		}
+	}
+
+	// The time this frame's views render at (g_flTime), latched from SetNextRenderTime when views begin rendering
+	inline float GetCurrentRenderTime()
+	{
+		return g_pSceneSystem ? g_pSceneSystem->GetCurrentRenderTime() : 0.0f;
 	}
 }

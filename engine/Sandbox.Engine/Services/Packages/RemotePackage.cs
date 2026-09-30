@@ -93,7 +93,7 @@ internal sealed class RemotePackage : Package
 		Thumb = p.Thumb;
 		ThumbWide = p.ThumbWide ?? p.Thumb;
 		ThumbTall = p.ThumbTall ?? p.Thumb;
-		VideoThumb = VideoThumb ?? p.Screenshots?.Where( x => x.IsVideo ).Select( x => x.Thumb ).FirstOrDefault();
+		VideoThumb = VideoThumb ?? p.Screenshots?.Where( x => x.IsVideo ).Select( x => x.Url ).FirstOrDefault();
 		Updated = p.Updated;
 		Created = p.Created;
 		Tags = p.Tags;

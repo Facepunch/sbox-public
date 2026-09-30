@@ -1,0 +1,23 @@
+@using Sandbox.UI;
+@namespace Sandbox.UI
+@inherits Panel
+
+@* Nothing to show here. A card with an icon, a title and a line of why. *@
+
+<root>
+    <icon>@Icon</icon>
+    <label class="title">@Title</label>
+    @if ( !string.IsNullOrWhiteSpace( Subtitle ) )
+    {
+        <label class="hint">@Subtitle</label>
+    }
+</root>
+
+@code
+{
+    [Parameter] public string Icon { get; set; } = "search_off";
+    [Parameter] public string Title { get; set; } = "Nothing found";
+    [Parameter] public string Subtitle { get; set; }
+
+    protected override int BuildHash() => System.HashCode.Combine( Icon, Title, Subtitle );
+}

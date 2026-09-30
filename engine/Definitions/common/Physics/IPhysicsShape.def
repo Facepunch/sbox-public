@@ -13,7 +13,7 @@ native class CQueryResult as NativeEngine.CQueryResult
 	void RemoveAll();
 }
 
-[Handle:Sandbox.PhysicsShape]
+[Handle:Sandbox.PhysicsShape3d]
 native class IPhysicsShape as NativeEngine.IPhysicsShape
 {
 	void AddCollisionFunctionMask( byte nMask );

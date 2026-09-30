@@ -135,13 +135,26 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 	internal IEnumerable<Vector3> GetFaceVertexNormals()
 	{
+		_faceNormalCache.Clear();
+
 		foreach ( var hFace in Topology.FaceHandles )
 		{
-			ComputeFaceNormal( hFace, out var normal );
-			var vertexCount = Topology.ComputeNumEdgesInFace( hFace );
-			for ( var i = 0; i < vertexCount; ++i )
-				yield return normal;
+			PlaneEquation( hFace, out var n, out _ );
+			_faceNormalCache[hFace] = n;
 		}
+
+		var normals = new List<Vector3>();
+
+		foreach ( var hFace in Topology.FaceHandles )
+		{
+			GetFaceVerticesConnectedToFace( hFace, out var hEdges );
+			foreach ( var hEdge in hEdges )
+				normals.Add( ComputeFaceVertexNormal( hEdge ) );
+		}
+
+		_faceNormalCache.Clear();
+
+		return normals;
 	}
 
 	internal IEnumerable<Vector2> GetFaceVertexTexCoords()
@@ -2964,6 +2977,21 @@ public sealed partial class PolygonMesh : IJsonConvert
 	{
 		pOutNewEdge = HalfEdgeHandle.Invalid;
 
+		if ( !ResolveFaceVerticesForNewEdge( hFace, hVertexA, hVertexB, out var hFaceVertexA, out var hFaceVertexB ) )
+			return false;
+
+		return Topology.AddEdgeToFace( hFaceVertexA, hFaceVertexB, out pOutNewEdge );
+	}
+
+	/// <summary>
+	/// Find the two incoming half edges of the face that a new edge between these vertices would be
+	/// spliced into.
+	/// </summary>
+	private bool ResolveFaceVerticesForNewEdge( FaceHandle hFace, VertexHandle hVertexA, VertexHandle hVertexB, out HalfEdgeHandle hFaceVertexA, out HalfEdgeHandle hFaceVertexB )
+	{
+		hFaceVertexA = HalfEdgeHandle.Invalid;
+		hFaceVertexB = HalfEdgeHandle.Invalid;
+
 		if ( !hVertexA.IsValid || !hVertexB.IsValid )
 			return false;
 
@@ -2971,8 +2999,8 @@ public sealed partial class PolygonMesh : IJsonConvert
 		if ( hVertexA == hVertexB )
 			return false;
 
-		var hFaceVertexA = Topology.FindEdgeConnectedToFaceEndingAtVertex( hFace, hVertexA );
-		var hFaceVertexB = Topology.FindEdgeConnectedToFaceEndingAtVertex( hFace, hVertexB );
+		hFaceVertexA = Topology.FindEdgeConnectedToFaceEndingAtVertex( hFace, hVertexA );
+		hFaceVertexB = Topology.FindEdgeConnectedToFaceEndingAtVertex( hFace, hVertexB );
 
 		// If either of the vertices is internal the edge must be connected in the correct winding 
 		// order, use the vertex which is not internal to determine the correct winding order.
@@ -3055,7 +3083,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 			}
 		}
 
-		return Topology.AddEdgeToFace( hFaceVertexA, hFaceVertexB, out pOutNewEdge );
+		return true;
 	}
 
 	private bool FindOpenEdgeLoop( HalfEdgeHandle hEdge, out List<HalfEdgeHandle> pOutEdgeList )
@@ -6480,7 +6508,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 	}
 
 	[StructLayout( LayoutKind.Sequential )]
-	struct MeshVertex( Vector3 position, Vector3 normal, Vector4 tangent, Vector2 texcoord, Color32 blend, Color32 color )
+	internal struct MeshVertex( Vector3 position, Vector3 normal, Vector4 tangent, Vector2 texcoord, Color32 blend, Color32 color )
 	{
 		[VertexLayout.Position] public Vector3 Position = position;
 		[VertexLayout.Normal] public Vector3 Normal = normal;

@@ -6,7 +6,7 @@ internal static partial class InputRouter
 {
 	static RealTimeSince timeSinceWindowActive;
 
-	internal static void OnMouseButton( ButtonCode button, bool down, int ikeymods )
+	internal static void OnMouseButton( ButtonCode button, bool down )
 	{
 		SetButtonState( button, down );
 
@@ -89,7 +89,7 @@ internal static partial class InputRouter
 	{
 		MouseCursorPosition = new Vector2( x, y );
 
-		if ( InputSystem.GetRelativeMouseMode() )
+		if ( WindowInput.GetRelativeMouseMode() )
 		{
 			dx = dy = 0;
 		}
@@ -205,9 +205,9 @@ internal static partial class InputRouter
 		OnGamepadCode( deviceId, code, ((float)value).Remap( 0, Controller.AXIS_RANGE.y, 0, 1 ) >= triggerDeadzone );
 	}
 
-	internal static void OnGameControllerConnected( int joystickId, int deviceId )
+	internal static void OnGameControllerConnected( int deviceId )
 	{
-		var controller = new Controller( joystickId, deviceId );
+		var controller = new Controller( deviceId );
 		Log.Info( $"New {controller} controller detected" );
 
 		Controller.All.Add( controller );
@@ -215,7 +215,7 @@ internal static partial class InputRouter
 
 	internal static void OnGameControllerDisconnected( int joystickId )
 	{
-		var controller = Controller.All.FirstOrDefault( x => x.SDLHandle == joystickId );
+		var controller = Controller.All.FirstOrDefault( x => x.DeviceId == joystickId );
 		if ( controller is not null )
 		{
 			Log.Info( $"{controller} controller removed" );
@@ -227,7 +227,7 @@ internal static partial class InputRouter
 		}
 	}
 
-	internal static void OnKey( ButtonCode scanButtonCode, ButtonCode keyButtonCode, bool down, bool repeat, int ikeymods )
+	internal static void OnKey( ButtonCode scanButtonCode, ButtonCode keyButtonCode, bool down, bool repeat )
 	{
 		if ( !repeat )
 		{
@@ -240,6 +240,14 @@ internal static partial class InputRouter
 		{
 			if ( repeat )
 				return;
+
+			// Reserve Shift+Escape for the platform menu while testing in the editor.
+			// Capture the chord now, before Shift can be released or game UI can consume Escape.
+			if ( down && Application.IsEditor && Game.IsPlaying && modifiers.Contains( KeyboardModifiers.Shift ) )
+			{
+				EditorPauseMenuWasPressed = true;
+				return;
+			}
 
 			OnEscapePressed( down );
 			return;
@@ -254,7 +262,7 @@ internal static partial class InputRouter
 
 			IToolsDll.Current?.OnFunctionKey( scanButtonCode, modifiers );
 
-			var bind = g_pInputService.GetBinding( scanButtonCode );
+			var bind = Sandbox.Engine.KeyBindings.GetBinding( scanButtonCode );
 			if ( string.IsNullOrEmpty( bind ) ) return;
 
 			ConVarSystem.Run( bind );
@@ -296,16 +304,16 @@ internal static partial class InputRouter
 		}
 	}
 
-	internal static void OnText( uint key )
+	internal static void OnText( string text )
 	{
 		var keyboard = Contexts.FirstOrDefault( x => x.KeyboardState == InputContext.InputState.UI );
 		if ( keyboard is not null )
 		{
-			keyboard.IN_Text( (char)key );
+			keyboard.IN_Text( text );
 		}
 	}
 
-	internal static void OnMouseWheel( int x, int y, int ikeymods )
+	internal static void OnMouseWheel( float x, float y )
 	{
 		var value = new Vector2( x, y );
 		var mouse = Contexts.FirstOrDefault( x => x.MouseState != InputContext.InputState.Ignore );
@@ -328,47 +336,41 @@ internal static partial class InputRouter
 		}
 	}
 
-	internal static void OnImeStart()
+	internal static void OnImeComposition( string text )
 	{
 		var keyboard = Contexts.FirstOrDefault( x => x.KeyboardState != InputContext.InputState.Ignore );
 		if ( keyboard is not null )
 		{
-			keyboard.IN_ImeStart();
+			keyboard.IN_ImeComposition( text );
 		}
 	}
 
-	internal static void OnImeComposition( string text, bool final )
+	// Gathered as the OS hands over an in-flight drop, delivered together on OnDropComplete
+	static List<string> _dropFiles;
+	static string _dropText;
+
+	internal static void OnDropFile( string path )
 	{
-		var keyboard = Contexts.FirstOrDefault( x => x.KeyboardState != InputContext.InputState.Ignore );
-		if ( keyboard is not null )
-		{
-			keyboard.IN_ImeComposition( text, final );
-		}
+		_dropFiles ??= new();
+		_dropFiles.Add( path );
 	}
 
-	internal static void OnImeEnd()
+	internal static void OnDropText( string text )
 	{
-		var keyboard = Contexts.FirstOrDefault( x => x.KeyboardState != InputContext.InputState.Ignore );
-		if ( keyboard is not null )
-		{
-			keyboard.IN_ImeEnd();
-		}
+		_dropText = text;
 	}
 
-	/// <summary>
-	/// Convert engine (IE_ShiftPressed etc) to our KeyboardModifiers enum
-	/// </summary>
-	static KeyboardModifiers EngineToModifier( int engine )
+	internal static void OnDropComplete( float x, float y )
 	{
-		KeyboardModifiers m = KeyboardModifiers.None;
+		var files = _dropFiles;
+		var text = _dropText;
+		_dropFiles = null;
+		_dropText = null;
 
-		if ( (engine & 1) == 1 ) m |= KeyboardModifiers.Shift;
-		if ( (engine & 2) == 2 ) m |= KeyboardModifiers.Ctrl;
-		if ( (engine & 4) == 4 ) m |= KeyboardModifiers.Alt;
-		//if ( (m_nData2 & 8) == 8 ) m |= KeyboardModifiers.Windows;
-		//if ( (m_nData2 & 16) == 8 ) m |= KeyboardModifiers.Finger;
+		if ( files is null && string.IsNullOrEmpty( text ) ) return;
 
-		return m;
+		var mouse = Contexts.FirstOrDefault( c => c.MouseState != InputContext.InputState.Ignore );
+		mouse?.IN_Drop( files, text, new Vector2( x, y ) );
 	}
 
 	/// <summary>

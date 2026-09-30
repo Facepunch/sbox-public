@@ -345,7 +345,13 @@ static class StartupLoadProject
 			EditorSplashScreen.SetMessage( $"Compiling shader {i + 1}/{gr.Length} {gr[i].RelativePath}" );
 			StepProgress( (float)i / gr.Length );
 
-			await ShaderCompile.Compile( gr[i].AbsolutePath, gr[i].RelativePath, options, default );
+			var result = await ShaderCompile.Compile( gr[i].AbsolutePath, gr[i].RelativePath, options, default );
+			if ( result.Success && !result.Skipped )
+			{
+				// Resident shaders may still have combo offsets from before the compiled file was rewritten.
+				// Reload them before any further asset loading can use those offsets against the new file.
+				ConsoleSystem.Run( $"mat_reloadshaders \"{gr[i].RelativePath}\"" );
+			}
 		}
 		if ( sw.Elapsed.TotalSeconds > 2 )
 		{

@@ -34,6 +34,24 @@ internal class ReplicatedConvars
 		}
 	}
 
+	/// <summary>
+	/// Adopt the table's values so we and every peer keep the previous host's settings.
+	/// </summary>
+	public void OnBecameHost()
+	{
+		foreach ( var (name, entry) in StringTable.Entries )
+		{
+			var value = entry.ReadAsString();
+			var convar = ConVarSystem.Find( name );
+			if ( convar is null || !convar.IsReplicated ) continue;
+			if ( convar.Value == value ) continue;
+
+			ConVarSystem.SetValue( name, value, true );
+		}
+
+		_values.Clear();
+	}
+
 	public void Reset()
 	{
 		StringTable.Reset();

@@ -21,7 +21,7 @@ $front-danger: #ff5d6a;
 
 // Game names and other in-card links.
 $front-link: #5b9ee8;
-$front-link-hover: #94c6ff * 6;
+$front-link-hover: #94c6ff * 4;
 
 // The reward green - emerald, deliberately not $front-accent, so a claimable
 // reward is the one loud thing in the column.
@@ -36,23 +36,27 @@ $front-points: #4f9bf0;
 $front-hairline: rgba( 255, 255, 255, 0.1 );
 $front-track: rgba( 255, 255, 255, 0.13 );
 
-// The outline *around* a panel. Brighter than a hairline and cool-tinted rather than
-// neutral, so a card edge reads as a defined box against the 3D backdrop.
-$front-border: rgba( 174, 196, 238, 0.3 );
+$front-border: rgba( 255, 255, 255, 0.07 );
+
+// How thick the outline round a panel is - the rail, cards, popovers. One place, so they all match.
+$front-border-width: 0.75px;
+
+// A whisper of a shadow under the rails - the left rail, the right-hand column - just enough to lift
+// them off the scene behind.
+$front-rail-shadow: 0 2px 10px rgba( 0, 0, 0, 0.22 );
 
 // The strip under a tile's art. Opaque enough to carry small text over the 3D backdrop.
 $front-tile-bar: rgba( 14, 18, 26, 0.88 );
 
-// Sidebar cards - a slab the character render and rows sit inside. Lit from the top,
-// but only just: the fall to the bottom is a shade, not a fade to black.
-$front-card: rgba( 24, 30, 44, 0.9 );
-$front-card-top: rgba( 34, 43, 62, 0.92 );
-$front-card-bottom: rgba( 21, 27, 40, 0.94 );
+$front-card: rgba( 26, 29, 37, 0.96 );
+$front-card-top: rgba( 30, 33, 42, 0.97 );
+$front-card-bottom: rgba( 23, 26, 33, 0.98 );
+$front-card-deep: #14171d;
 
 // Hairlines and body copy sit this far in from the panel edge; media may bleed past it.
 $front-inset: 16px;
 
-$front-radius: 14px;
+$front-radius: 8px;
 
 // Chrome - the left rail and the top bar float over the scene with this much air around them.
 $front-rail-width: 92px;
@@ -67,6 +71,31 @@ $front-chrome-gap: 16px;
 	color: $front-label;
 }
 
+// How strong the texture over every slab is - 0 turns it off.
+$front-grain-opacity: 0.033;
+
+// A paper finish over a surface - a soft grain with faint fibres through it, repeating - so it
+// reads as a material rather than a flat fill. Its own layer behind the content (z-index -1), so
+// it never sits on top of text.
+@mixin front-grain
+{
+	&::after
+	{
+		content: "";
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		background-image: url( "/ui/panel-paper.png" );
+		background-repeat: repeat;
+		background-size: 512px 512px;
+		opacity: $front-grain-opacity;
+		pointer-events: none;
+		z-index: -1;
+	}
+}
+
 // The fill every chrome surface shares - cards, the rail, popovers. Sets the family
 // once here so everything inside inherits it instead of restating it per rule.
 @mixin front-slab
@@ -75,6 +104,8 @@ $front-chrome-gap: 16px;
 	background-color: $front-card;
 	background-image: linear-gradient( 180deg, $front-card-top, $front-card-bottom );
 	backdrop-filter: blur( 8px );
+
+	@include front-grain;
 }
 
 // A slab in the right-hand column. Rounded, hairlined, blurred over the 3D backdrop.
@@ -86,7 +117,7 @@ $front-chrome-gap: 16px;
 	flex-shrink: 0;
 	overflow: hidden;
 	border-radius: $front-radius;
-	border: 1px solid $front-border;
+	border: $front-border-width solid $front-border;
 }
 
 // A section inside a card - full bleed sides come from the card, so pad here.
@@ -107,7 +138,7 @@ $front-chrome-gap: 16px;
 	gap: 5px;
 	padding: 4px 11px;
 	border-radius: 999px;
-	border: 1px solid $front-hairline;
+	border: $front-border-width solid $front-hairline;
 	background-color: rgba( 255, 255, 255, 0.05 );
 	transition: all 0.1s ease;
 
@@ -145,7 +176,7 @@ $front-chrome-gap: 16px;
 	pointer-events: all;
 	cursor: pointer;
 	color: $front-link;
-	transition: color 0.6s ease;
+	transition: color 0.15s ease;
 	// Colour only - the engine draws text-decoration in a fixed white, which reads
 	// as a stray line rather than an underline on a coloured link.
 	&:hover
@@ -279,14 +310,14 @@ $front-chrome-gap: 16px;
 	// both re-measure on re-render, and a bad frame otherwise resizes the entry and
 	// shunts every entry below it down the rail.
 	height: 68px;
-	padding: 10px 4px;
 	// Square and full bleed - the active entry's fill runs edge to edge and butts
 	// straight into the marker bar, so neither may be rounded.
 	border-radius: 0;
 	// The marker is a border, reserved transparent on every entry. A pseudo-element
 	// would be a real child here, and it lays out in flow for the frame before its
 	// absolute positioning lands - which jumps the whole rail on navigation.
-	border-right: 3px solid transparent;
+	border-right: 2px solid transparent;
+	padding: 10px 1px 10px 4px;
 	transition: all 0.1s ease;
 
 	// Explicit box, not one measured from the glyph. Icon is set as a Razor parameter,
@@ -298,7 +329,7 @@ $front-chrome-gap: 16px;
 		height: 23px;
 		text-align: center;
 		font-size: 23px;
-		color: $front-secondary;
+		color: linear-gradient( 180deg, #8e97a8, #3e4553 );
 	}
 
 	label
@@ -313,7 +344,12 @@ $front-chrome-gap: 16px;
 	{
 		background-color: rgba( 255, 255, 255, 0.06 );
 
-		icon, iconpanel, label
+		icon, iconpanel
+		{
+			color: linear-gradient( 180deg, #ffffff, #9aa3b5 );
+		}
+
+		label
 		{
 			color: $front-heading;
 		}
@@ -321,12 +357,13 @@ $front-chrome-gap: 16px;
 
 	&.active
 	{
-		background-color: rgba( $front-primary, 0.14 );
-		border-right: 3px solid $front-primary;
+		background-color: rgba( $front-primary, 0.06 );
+		background-image: linear-gradient( 90deg, rgba( $front-primary, 0.0 ), rgba( $front-primary, 0.26 ) );
+		border-right: 2px solid $front-primary;
 
 		icon, iconpanel
 		{
-			color: $front-primary;
+			color: linear-gradient( 180deg, #7fb4ff, $front-primary );
 		}
 
 		label
@@ -413,14 +450,10 @@ $front-chrome-gap: 16px;
 	overflow: hidden;
 }
 
-// The explainer. align-self so the card ends with its text instead of running the full
-// height; it still scrolls if the text outgrows the screen.
 @mixin front-page-aside
 {
 	@include front-card;
 
-	align-self: flex-start;
-	max-height: 100%;
 	width: 360px;
 	padding: 24px;
 	gap: 8px;
@@ -531,7 +564,7 @@ $front-chrome-gap: 16px;
 {
 	flex-shrink: 0;
 	flex-direction: row;
-	align-items: baseline;
+	align-items: center;
 	gap: 10px;
 	margin-top: 12px;
 	padding: 0 4px;
@@ -635,7 +668,7 @@ $front-chrome-gap: 16px;
 	{
 		background-image: none;
 		background-color: rgba( 255, 255, 255, 0.06 );
-		border: 1px solid $front-hairline;
+		border: $front-border-width solid $front-hairline;
 		cursor: default;
 
 		label, icon
@@ -660,4 +693,3 @@ $front-chrome-gap: 16px;
 	background-color: $front-track;
 	overflow: hidden;
 }
-

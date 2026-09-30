@@ -18,8 +18,21 @@ public static class LoadingScreen
 			//Log.Info( $"Loading: {value}\n{new StackTrace( true ).ToString()}" );
 
 			_loading = value;
+
+			if ( !value )
+			{
+				Progress = null;
+				Package = null;
+			}
 		}
 	}
+
+	/// <summary>
+	/// The game being loaded, once it's been looked up - so the loading screen can show its name, its
+	/// art and what's new in it. Null before then, and when what's loading isn't a game.
+	/// Cleared when the loading screen is hidden.
+	/// </summary>
+	public static Package Package { get; internal set; }
 
 	/// <summary>
 	/// A title to show
@@ -30,6 +43,12 @@ public static class LoadingScreen
 	/// A subtitle to show
 	/// </summary>
 	public static string Subtitle { get; set; } = "";
+
+	/// <summary>
+	/// A snapshot of the current download's progress, or null when progress is unavailable.
+	/// Cleared when the loading screen is hidden.
+	/// </summary>
+	public static Menu.LoadingProgress? Progress { get; internal set; }
 
 	/// <summary>
 	/// A URL or filepath to show as the background image.

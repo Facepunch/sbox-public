@@ -1,4 +1,4 @@
-﻿using NativeEngine;
+using NativeEngine;
 
 namespace Sandbox
 {
@@ -36,7 +36,7 @@ namespace Sandbox
 		/// The world in which this group belongs
 		/// </summary>
 		[ActionGraphInclude]
-		public PhysicsWorld World => native.GetWorld();
+		public PhysicsWorld World => native.GetWorld()?.Owner;
 
 		/// <summary>
 		/// Returns position of the first physics body of this group, or zero vector if it has none.
@@ -233,7 +233,7 @@ namespace Sandbox
 		/// </summary>
 		/// <param name="groupIndex">Index for the body to look up, in range from 0 to <see cref="BodyCount"/>.</param>
 		[ActionGraphInclude, Pure]
-		public PhysicsBody GetBody( int groupIndex ) => native.GetBodyHandle( groupIndex ); // Throw on OOB
+		public PhysicsBody GetBody( int groupIndex ) => native.GetBodyHandle( groupIndex )?.Owner; // Throw on OOB
 
 		/// <summary>
 		/// Returns a <see cref="PhysicsBody"/> by its <see cref="PhysicsBody.GroupName"/> within this group.
@@ -241,7 +241,7 @@ namespace Sandbox
 		/// <param name="groupName">Name of the physics body to look up.</param>
 		/// <returns>The physics body, or null if body with given name is not found.</returns>
 		[ActionGraphInclude, Pure]
-		public PhysicsBody GetBody( string groupName ) => native.FindBodyByName( groupName );
+		public PhysicsBody GetBody( string groupName ) => native.FindBodyByName( groupName )?.Owner;
 
 		/// <summary>
 		/// Any and all joints that are attached to any body in this group.
@@ -253,15 +253,15 @@ namespace Sandbox
 			{
 				var jointCount = native.GetJointCount();
 				for ( int i = 0; i < jointCount; ++i )
-					yield return native.GetJointHandle( i );
+					yield return native.GetJointHandle( i )?.Owner;
 			}
 		}
 
 		internal void RemoveJoint( PhysicsJoint joint )
 		{
-			if ( joint.IsValid() )
+			if ( joint.IsValid() && joint._joint is PhysicsJoint3d joint3d )
 			{
-				native.RemoveJoint( joint );
+				native.RemoveJoint( joint3d );
 			}
 		}
 

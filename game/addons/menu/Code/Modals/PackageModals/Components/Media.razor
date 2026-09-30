@@ -2,7 +2,7 @@
 @inherits Panel
 @using Sandbox;
 @using Sandbox.UI;
-@using Menu;
+@using SboxMenu;
 @using System;
 @using Sandbox.Network
 
@@ -14,6 +14,10 @@
     <div class="main">
         @if (selectedShot is not null)
         {
+            @* The shot again, blurred and darkened, filling the frame behind it - so a shot that
+               isn't 16:9 sits on its own colours rather than in black bars *@
+            <div class="backdrop" style="background-image: url( @BackdropOf( selectedShot ) );"></div>
+
             if ( selectedShot.IsVideo)
             {
                 <VideoPanel Controls=@true Source="@selectedShot.Url" />
@@ -27,17 +31,20 @@
 
     @if (Package.Screenshots.Count() > 1)
     {
+        @* The strip, in a box that holds the fade on its right end still while the strip scrolls *@
+        <div class="strip">
         <div class="list">
-            @foreach (var screenshot in Package.Screenshots.OrderBy(x => x.IsVideo ? -1 : 1))
+            @foreach (var screenshot in Shots)
             {
                 <div class="screenshot @(screenshot == selectedShot ? "selected" : "")" onclick=@(() => SelectScreenshot(screenshot))>
                     <img src="@screenshot.Thumb" />
                     @if (screenshot.IsVideo)
                     {
-                        <i>play_arrow</i>
+                        <div class="play-badge"><i>play_arrow</i></div>
                     }
                 </div>
             }
+        </div>
         </div>
     }
 </root>
@@ -48,11 +55,29 @@
 
     protected override int BuildHash() => System.HashCode.Combine(Package, Package.Screenshots);
 
+    /// <summary>
+    /// Videos first, then the stills - the order the strip shows them in, and what's up first. The
+    /// selection indexes this, not the package's own order: it used to index that, so the strip
+    /// had the video first but the big view opened on whatever the package listed first.
+    /// </summary>
+    List<Package.Screenshot> Shots => Package?.Screenshots?.OrderBy( x => x.IsVideo ? 0 : 1 ).ToList() ?? new();
+
+    // 0 - the video, when there is one, which plays by itself as soon as it's up
     int SelectedScreenshot = 0;
-    Package.Screenshot selectedShot => Package?.Screenshots?.ElementAtOrDefault(SelectedScreenshot);
+    Package.Screenshot selectedShot => Shots.ElementAtOrDefault(SelectedScreenshot);
+
+    /// <summary>
+    /// What to blur behind a shot - its thumbnail (small's plenty, it's blurred), or for a video
+    /// without one, the game's own art rather than the video file.
+    /// </summary>
+    string BackdropOf( Package.Screenshot shot )
+    {
+        if ( !string.IsNullOrEmpty( shot.Thumb ) ) return shot.Thumb;
+        return shot.IsVideo ? (Package.ThumbWide ?? Package.Thumb) : shot.Url;
+    }
 
     void SelectScreenshot(Package.Screenshot screenshot)
     {
-        SelectedScreenshot = Package.Screenshots.ToList().IndexOf(screenshot);
+        SelectedScreenshot = Shots.IndexOf(screenshot);
     }
 }

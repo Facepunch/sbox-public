@@ -624,22 +624,29 @@ public static partial class UiTools
 
 	static List<Panel> RootPanels()
 	{
-		var scene = Game.ActiveScene ?? throw new Exception( "No scene is running - play_start first" );
-
 		var panels = new List<Panel>();
 
-		foreach ( var screen in scene.GetAllComponents<ScreenPanel>() )
+		// Panel UI windows come first - they're up whether or not a scene is running
+		foreach ( var window in PanelWindow.All )
 		{
-			if ( screen.GetPanel() is { } root ) panels.Add( root );
+			if ( window.Root is { } windowRoot ) panels.Add( windowRoot );
 		}
 
-		foreach ( var world in scene.GetAllComponents<Sandbox.WorldPanel>() )
+		if ( Game.ActiveScene is { } scene )
 		{
-			if ( world.GetPanel() is { } root ) panels.Add( root );
+			foreach ( var screen in scene.GetAllComponents<ScreenPanel>() )
+			{
+				if ( screen.GetPanel() is { } root ) panels.Add( root );
+			}
+
+			foreach ( var world in scene.GetAllComponents<Sandbox.WorldPanel>() )
+			{
+				if ( world.GetPanel() is { } root ) panels.Add( root );
+			}
 		}
 
 		if ( panels.Count == 0 )
-			throw new Exception( "The scene has no UI - a ScreenPanel or WorldPanel builds its panel when the scene runs" );
+			throw new Exception( "Nothing has UI - open a panel UI window, or play_start a scene with a ScreenPanel" );
 
 		return panels;
 	}

@@ -1,0 +1,31 @@
+@using Sandbox.PanelGallery;
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Backgrounds" )]
+@attribute [Title( "background-position" )]
+@attribute [Icon( "science" )]
+<root>
+    <h2>Position</h2>
+
+    <div class="cases">
+        <UiTestCase Caption="center" Setup="@Plate" Css="background-image: url( /ui/sbox_ident_default.svg ); background-size: 40px 40px; background-repeat: no-repeat; background-position: center" />
+        <UiTestCase Caption="right bottom" Setup="@Plate" Css="background-image: url( /ui/sbox_ident_default.svg ); background-size: 40px 40px; background-repeat: no-repeat; background-position: right bottom" />
+        <UiTestCase Caption="left top" Setup="@Plate" Css="background-image: url( /ui/sbox_ident_default.svg ); background-size: 40px 40px; background-repeat: no-repeat; background-position: left top" />
+        <UiTestCase Caption="10px 30px" Setup="@Plate" Css="background-image: url( /ui/sbox_ident_default.svg ); background-size: 40px 40px; background-repeat: no-repeat; background-position: 10px 30px" />
+        <UiTestCase Caption="75% 25%" Setup="@Plate" Css="background-image: url( /ui/sbox_ident_default.svg ); background-size: 40px 40px; background-repeat: no-repeat; background-position: 75% 25%"
+                    Note="A percentage lines that point of the image up with the same point of the box - it isn't an offset." />
+        <UiTestCase Caption="center" Setup="@Plate" Css="background-image: url( /ui/sbox_ident_default.svg ); background-size: 40px 40px; background-position: center"
+                    Note="Repeating is anchored to the position, so tiles land either side of centre." />
+    </div>
+
+
+</root>
+@code
+{
+    // A dark plate behind each image, so transparency and letterboxing are visible
+    const string Plate = "width: 200px; height: 200px; background-color: #23262e";
+
+
+}

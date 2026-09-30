@@ -56,9 +56,6 @@ internal static partial class PackageManager
 	/// </summary>
 	internal static async Task<ActivePackage> InstallAsync( PackageLoadOptions options )
 	{
-		if ( options.PackageIdent == "local.base" )
-			options.PackageIdent = "local.base#local";
-
 		//
 		// If this package exists then mark it with our tag and move on
 		//
@@ -83,12 +80,32 @@ internal static partial class PackageManager
 		}
 
 		//
-		// If this package has dependencies then download them first
+		// Dependencies install one at a time and before this package, so they mount in a fixed order.
+		// Their files and ours all download at once in the background, and each install finds them cached.
 		//
-		await InstallDependencies( package, options );
+		using var prefetchCancel = CancellationTokenSource.CreateLinkedTokenSource( options.CancellationToken );
+		var prefetch = options.IsDependency || options.SkipAssetDownload || !package.EnumerateInstallDependencies().Any()
+			? Task.CompletedTask
+			: PrefetchAsync( package, true, options.AllowLocalPackages, prefetchCancel.Token );
 
-		var ap = await ActivePackage.Create( package, options.CancellationToken, options );
-		options.CancellationToken.ThrowIfCancellationRequested();
+		ActivePackage ap;
+
+		try
+		{
+			//
+			// If this package has dependencies then download them first
+			//
+			await InstallDependencies( package, options with { IsDependency = true } );
+
+			ap = await ActivePackage.Create( package, options.CancellationToken, options );
+			options.CancellationToken.ThrowIfCancellationRequested();
+		}
+		finally
+		{
+			// Everything it would fetch is installed by now, or we failed and don't want it
+			prefetchCancel.Cancel();
+			await prefetch;
+		}
 
 		//
 		// Prefer precompiled dlls (backend-compiled, downloaded from the manifest). If a
@@ -99,6 +116,7 @@ internal static partial class PackageManager
 			if ( ap.HasCodeArchives() )
 			{
 				options.Loading?.LoadingProgress( LoadingProgress.Create( $"Compiling {package.Title}" ) );
+				Api.Activity.LoadStage( "compile" );
 
 				if ( !await ap.CompileCodeArchive() )
 					Log.Warning( $"There were errors when compiling {package.FullIdent}!" );
@@ -150,8 +168,6 @@ internal static partial class PackageManager
 	{
 		HashSet<string> dependancies = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
 
-		bool hasLocalBase = false;
-
 		//
 		// This is the right way to reference packages. We should move everything else
 		// to use this.
@@ -159,23 +175,6 @@ internal static partial class PackageManager
 		foreach ( var i in package.EnumerateInstallDependencies() )
 		{
 			dependancies.Add( i );
-
-			// if we have a gamemode reference - then that contains the base library!
-			if ( package.TypeName == "game" )
-			{
-				hasLocalBase = true;
-			}
-		}
-
-		if ( package is LocalPackage packageLocal )
-		{
-			//
-			// Hack Sadface: If this is a local game then include the base as a dependency
-			//
-			if ( !hasLocalBase && packageLocal.NeedsLocalBasePackage() )
-			{
-				dependancies.Add( "local.base#local" );
-			}
 		}
 
 		//
@@ -188,6 +187,42 @@ internal static partial class PackageManager
 		}
 
 		options.CancellationToken.ThrowIfCancellationRequested();
+	}
+
+	/// <summary>
+	/// Download the files of everything a package depends on into the asset cache, all at once, and the
+	/// package's own files with <paramref name="includeRoot"/>. Nothing is mounted. Never throws, the
+	/// installs report any failure.
+	/// </summary>
+	internal static async Task PrefetchAsync( Package root, bool includeRoot, bool allowLocalPackages, CancellationToken token )
+	{
+		var seen = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+		bool Unseen( string ident ) { lock ( seen ) return seen.Add( ident ); }
+
+		async Task Prefetch( Package package, bool own )
+		{
+			var dependencies = package.EnumerateInstallDependencies().Where( Unseen ).ToArray();
+
+			var fetches = dependencies.Select( async ident =>
+			{
+				if ( Find( ident, allowLocalPackages ) is not null ) return;
+				if ( await FetchPackageAsync( ident, allowLocalPackages ) is Package dependency )
+					await Prefetch( dependency, true );
+			} );
+
+			var files = own && package.IsRemote ? package.Prefetch( token ) : Task.CompletedTask;
+			await Task.WhenAll( fetches.Append( files ) );
+		}
+
+		try
+		{
+			await Prefetch( root, includeRoot );
+		}
+		catch ( OperationCanceledException ) { }
+		catch ( Exception e )
+		{
+			log.Trace( $"Prefetching {root.FullIdent} failed: {e.Message}" );
+		}
 	}
 
 	/// <summary>

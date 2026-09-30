@@ -1,0 +1,27 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Text" )]
+@attribute [Title( "display: inline" )]
+@attribute [Icon( "format_color_text" )]
+<root>
+    <h2>One paragraph, shared wrapping</h2>
+    <p>Change the width to see the coloured spans wrap together. Select across colours, or click the link.</p>
+    <div class="inline-controls">
+        <button onclick="@(() => narrow = !narrow)">@(narrow ? "Make wider" : "Make narrower")</button>
+        <label>@(clicks == 0 ? "Try the inline link" : $"Link clicked {clicks} times")</label>
+    </div>
+    <div class="inline-stage">
+        <Panel class="paragraph" style="@(narrow ? "width: 280px" : "width: 540px")" AllowChildSelection="@true" AcceptsFocus="@true">
+            <span>Build something </span><span class="reward">beautiful</span><span> with panels. Inline text shares </span><span class="cool">one continuous paragraph</span><span>, even when its colour changes. </span><span class="inline-link" onclick="@(() => clicks++)">Click this link</span><span> and keep reading on the same line.</span>
+        </Panel>
+    </div>
+    <p>display: inline; — each span continues where the previous one ends.</p>
+</root>
+@code
+{
+    bool narrow;
+    int clicks;
+    protected override int BuildHash() => HashCode.Combine( narrow, clicks );
+}

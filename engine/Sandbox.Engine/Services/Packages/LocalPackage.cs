@@ -50,20 +50,6 @@ internal sealed class LocalPackage : Package
 		return Project.Config.GetMetaOrDefault( keyName, defaultValue );
 	}
 
-	/// <summary>
-	/// Return true if we need the "base" package including. There are a few situations:
-	/// 
-	/// 1. We're the root gamemode
-	/// 
-	/// </summary>
-	public bool NeedsLocalBasePackage()
-	{
-		if ( Project.Config.Type != "game" )
-			return false;
-
-		return true;
-	}
-
 	internal override IEnumerable<string> EnumerateInstallDependencies()
 	{
 		if ( (Project.Config.Type == "game" || Project.Config.Type == "addon") && !Project.IsBuiltIn )

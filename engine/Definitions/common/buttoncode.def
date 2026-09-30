@@ -1,0 +1,3 @@
+#include "inputsystem/buttoncode.h"
+
+native enum ButtonCode_t is NativeEngine.ButtonCode;

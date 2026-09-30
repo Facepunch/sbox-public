@@ -1,5 +1,7 @@
 @import "/styles/_theme.scss";
 
+// The same insets as the other tabs - 24 round the sides and top, the heading and each block after
+// it spaced by the column's gap rather than margins of their own
 PackageReviews
 {
 	flex-direction: column;
@@ -7,6 +9,23 @@ PackageReviews
 	max-width: 100%;
 	overflow-y: scroll;
 	flex-shrink: 0;
+	padding: 24px 24px 64px 24px;
+	gap: 16px;
+
+	PackageTabHeader
+	{
+		margin-bottom: 4px;
+	}
+
+	PackageReviewsHeader, .write-review, .tag-filters
+	{
+		margin: 0;
+	}
+
+	.review-list
+	{
+		padding: 0;
+	}
 }
 
 .review-list
@@ -72,6 +91,45 @@ PackageReviews
 	padding-top: 12px;
 }
 
+.write-review
+{
+	flex-direction: row;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 16px;
+	padding: 16px 20px;
+	margin: 0 32px 16px 32px;
+	border: 1px solid $default-border;
+	border-radius: $rounding-large;
+	background-color: $default-900;
+
+	.text
+	{
+		flex-grow: 1;
+		flex-direction: column;
+		gap: 2px;
+
+		.title
+		{
+			font-size: 16px;
+			font-weight: 700;
+		}
+
+		.hint
+		{
+			font-size: $text-small;
+			opacity: 0.7;
+		}
+	}
+
+	Button
+	{
+		flex-shrink: 0;
+		padding: 12px 24px;
+		font-size: 14px;
+	}
+}
+
 .tag-filters
 {
 	flex-direction: column;
@@ -90,6 +148,7 @@ PackageReviews
 	{
 		margin-top: 0;
 	}
+
 
 	.tag-filter-group
 	{

@@ -19,6 +19,8 @@ native class IAsset
 	string GetFriendlyName_Transient();
 	string GetRelativePath_Transient( AssetLocation_t source );
 	string GetAbsolutePath_Transient( AssetLocation_t source );
+	Guid GetGuid();
+
 	bool HasAnyFiles();
 	bool IsCached();
 	bool CanReload();

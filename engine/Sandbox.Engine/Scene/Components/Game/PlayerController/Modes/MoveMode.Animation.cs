@@ -85,8 +85,6 @@ partial class MoveMode
 
 			smoothed = GetLocalVelocity( rot, smoothed );
 
-			renderer.Set( "move_direction", GetAngle( smoothed ) );
-			renderer.Set( "move_speed", smoothed.Length );
 			renderer.Set( "move_groundspeed", smoothed.WithZ( 0f ).Length );
 			renderer.Set( "move_x", smoothed.x );
 			renderer.Set( "move_y", smoothed.y );
@@ -97,8 +95,6 @@ partial class MoveMode
 		{
 			var local = GetLocalVelocity( rot, wishVel );
 
-			renderer.Set( "wish_direction", GetAngle( local ) );
-			renderer.Set( "wish_speed", wishVel.Length );
 			renderer.Set( "wish_groundspeed", wishVel.WithZ( 0f ).Length );
 			renderer.Set( "wish_x", local.x );
 			renderer.Set( "wish_y", local.y );
@@ -124,11 +120,6 @@ partial class MoveMode
 		return new Vector3( forward, sideward, worldVelocity.z );
 	}
 
-	private static float GetAngle( Vector3 localVelocity )
-	{
-		return MathF.Atan2( localVelocity.y, localVelocity.x ).RadianToDegree().NormalizeDegrees();
-	}
-
 	#endregion
 
 	/// <summary>
@@ -139,7 +130,6 @@ partial class MoveMode
 	{
 		renderer.Set( "sit", 0 );
 		renderer.Set( "b_swim", Controller.IsSwimming );
-		renderer.Set( "b_climbing", Controller.IsClimbing );
 		renderer.Set( "b_grounded", Controller.IsOnGround || Controller.IsClimbing );
 
 		var duck = Controller.Headroom.Remap( 25, 0, 0, 0.5f, true );
@@ -170,6 +160,9 @@ partial class MoveMode
 	/// </summary>
 	protected virtual void OnRotateRenderBody( SkinnedModelRenderer renderer )
 	{
+		if ( Scene.Is2D )
+			return;
+
 		var eyeAngles = Controller.EyeTransform.Rotation.Angles();
 
 		var targetAngle = Rotation.FromYaw( eyeAngles.yaw );

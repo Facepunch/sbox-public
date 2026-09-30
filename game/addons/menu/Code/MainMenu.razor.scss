@@ -50,8 +50,6 @@ NavigationHost {
 }
 
 .stage {
-    // The floating footer hangs off this, not the whole screen, so it centres on the
-    // page rather than under the rail.
     position: relative;
     flex-direction: column;
     flex-grow: 1;

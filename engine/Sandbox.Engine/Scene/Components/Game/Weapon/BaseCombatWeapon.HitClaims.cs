@@ -85,13 +85,13 @@ public partial class BaseCombatWeapon
 			if ( !pellet.HitObject.IsValid() )
 				continue;
 
-			if ( pellet.Origin.IsNaN || pellet.Origin.IsInfinity )
+			if ( !pellet.Origin.IsFinite )
 				continue;
 
-			if ( pellet.Position.IsNaN || pellet.Position.IsInfinity )
+			if ( !pellet.Position.IsFinite )
 				continue;
 
-			if ( pellet.Direction.IsNaN || pellet.Direction.IsInfinity )
+			if ( !pellet.Direction.IsFinite )
 				continue;
 
 			// Normalized so a huge-but-finite claimed direction can't multiply the impulse past any

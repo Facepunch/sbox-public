@@ -38,7 +38,7 @@ sealed class DDGIVolumeSystem : GameObjectSystem<DDGIVolumeSystem>
 	{
 		using var _ = PerformanceStats.Timings.Render.Scope();
 
-		if ( Application.IsHeadless )
+		if ( !Graphics.IsAvailable )
 			return;
 
 		if ( Scene?.RenderAttributes is null )

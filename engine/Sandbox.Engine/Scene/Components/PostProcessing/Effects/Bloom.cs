@@ -43,9 +43,9 @@ public class Bloom : BasePostProcess<Bloom>
 
 	CommandList command = new CommandList( "Bloom" );
 
-	private static Material Shader = Material.FromShader( "postprocess_bloom.shader" );
+	private static Material Shader = Material.FromShader( "shaders/postprocess/postprocess_bloom.shader" );
 
-	private static ComputeShader ShaderCs = new ComputeShader( "postprocess_bloom_cs" );
+	private static ComputeShader ShaderCs = new ComputeShader( "postprocess/postprocess_bloom_cs" );
 
 	// Half res down to 1/64th res
 	const int MipCount = 6;

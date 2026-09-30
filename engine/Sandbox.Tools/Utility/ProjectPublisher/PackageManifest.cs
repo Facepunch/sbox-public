@@ -39,7 +39,6 @@ public partial class ProjectPublisher
 
 		public List<ProjectFile> Assets { get; set; } = new();
 
-
 		public async Task BuildFromAssets( Project project, IProgress progress = null, CancellationToken cancel = default )
 		{
 			Assets.Clear();
@@ -85,20 +84,6 @@ public partial class ProjectPublisher
 			{
 				await IncludeFiles( rootFolder, "ProjectSettings/*", cancel );
 				await IncludeCursorImages();
-			}
-
-			await Task.Delay( 10 );
-			cancel.ThrowIfCancellationRequested();
-
-			//
-			// If we're a game, include content from /addons/base/code/
-			// This versions things like the styles and dev ui, which is only
-			// going to work with the shipped base code.
-			//
-			if ( project.Config.Type == "game" )
-			{
-				progress?.SetProgressMessage( "Collecting base code assets" );
-				await IncludeFiles( FileSystem.Root.GetFullPath( "/addons/base/code/" ), "*", cancel );
 			}
 
 			await Task.Delay( 10 );
@@ -245,22 +230,37 @@ public partial class ProjectPublisher
 			}
 		}
 
+		HashSet<Asset> CollectAssetsAndReferences( IEnumerable<Asset> roots, CancellationToken cancel )
+		{
+			HashSet<Asset> assets = new();
+			var pending = new Queue<Asset>( roots );
+
+			while ( pending.TryDequeue( out var asset ) )
+			{
+				cancel.ThrowIfCancellationRequested();
+				if ( !assets.Add( asset ) )
+					continue;
+
+				foreach ( var a in asset.GetReferences( false ) )
+					pending.Enqueue( a );
+			}
+
+			return assets;
+		}
+
 		private async Task CollectAssets( List<Asset> assets, CancellationToken cancel )
 		{
-			HashSet<Asset> AddedAssets = new();
+			var addedAssets = CollectAssetsAndReferences( assets, cancel );
+
+			foreach ( var asset in addedAssets )
+			{
+				cancel.ThrowIfCancellationRequested();
+				await CollectInputDependencies( asset );
+			}
 
 			foreach ( var asset in assets )
 			{
 				cancel.ThrowIfCancellationRequested();
-
-				AddedAssets.Add( asset );
-
-				foreach ( var a in asset.GetReferences( true ) )
-				{
-					AddedAssets.Add( a );
-					await CollectInputDependencies( a );
-				}
-
 				foreach ( var file in asset.GetAdditionalContentFiles() )
 				{
 					if ( !IncludeSourceFiles && !file.EndsWith( ".rect" ) )
@@ -284,25 +284,26 @@ public partial class ProjectPublisher
 					}
 				}
 
-				progress?.SetProgressMessage( $"Found {AddedAssets.Count:n0}" );
+				progress?.SetProgressMessage( $"Found {addedAssets.Count:n0}" );
 			}
 
 			List<Task> tasks = new List<Task>();
 			int i = 0;
-			foreach ( var a in AddedAssets )
+			foreach ( var a in addedAssets )
 			{
 				cancel.ThrowIfCancellationRequested();
 
-				progress?.SetProgress( i++, AddedAssets.Count );
-				progress?.SetProgressMessage( $"Adding Asset {i:n0} of {AddedAssets.Count:n0} - {a.RelativePath}" );
+				progress?.SetProgress( i++, addedAssets.Count );
+				progress?.SetProgressMessage( $"Adding Asset {i:n0} of {addedAssets.Count:n0} - {a.RelativePath}" );
 
 
 				tasks.Add( AddAsset( a ) );
 
 				while ( tasks.Count > 8 )
 				{
-					await Task.WhenAny( tasks.ToArray() );
-					tasks.RemoveAll( x => x.IsCompleted );
+					var completed = await Task.WhenAny( tasks );
+					await completed;
+					tasks.Remove( completed );
 				}
 			}
 
@@ -384,43 +385,13 @@ public partial class ProjectPublisher
 			await AddFile( png, thumbName );
 		}
 
-		private async Task AddFile( string absPath, string relativePath )
+		private Task AddFile( string absPath, string relativePath )
 		{
-			if ( !System.IO.File.Exists( absPath ) )
+			return AddFile( new ProjectFile
 			{
-				Errors.Add( $"File not found \"{absPath}\" ({relativePath})" );
-				return;
-			}
-
-			relativePath = relativePath.NormalizeFilename( false, false ).TrimStart( '/' );
-
-			//
-			// already added
-			//
-			if ( Assets.Any( x => string.Equals( x.Name, relativePath, StringComparison.OrdinalIgnoreCase ) ) )
-				return;
-
-			var info = new System.IO.FileInfo( absPath );
-
-			var e = new ProjectFile
-			{
-				Name = relativePath,
-				Size = (int)info.Length,
+				Name = relativePath?.NormalizeFilename( false, false ).TrimStart( '/' ),
 				AbsolutePath = absPath
-			};
-
-			// run in a thread to make it happen in the background
-			await Task.Run( async () =>
-			{
-				using ( var stream = info.OpenRead() )
-				{
-					e.Hash = (await Sandbox.Utility.Crc64.FromStreamAsync( stream )).ToString( "x" );
-				}
 			} );
-
-			scannedBytes += (ulong)e.Size;
-
-			Assets.Add( e );
 		}
 
 		internal async Task IncludeCursorImages()
@@ -509,32 +480,39 @@ public partial class ProjectPublisher
 			await AddFile( bytes, relativePath );
 		}
 
-		internal async Task AddFile( byte[] contents, string relativePath )
+		internal Task AddFile( byte[] contents, string relativePath )
 		{
-			//
-			// already added
-			//
-			if ( Assets.Any( x => string.Equals( x.Name, relativePath, StringComparison.OrdinalIgnoreCase ) ) )
-				return;
-
-			var e = new ProjectFile
+			return AddFile( new ProjectFile
 			{
 				Name = relativePath,
-				Size = (int)contents.Length,
 				Contents = contents
-			};
+			} );
+		}
 
-			// run in a thread to make it super fast
+		private async Task AddFile( ProjectFile file )
+		{
+			if ( FindAsset( file.Name ) is not null )
+				return;
+
+			if ( file.Contents is null && !File.Exists( file.AbsolutePath ) )
+			{
+				Errors.Add( $"File not found \"{file.AbsolutePath}\" ({file.Name})" );
+				return;
+			}
+
 			await Task.Run( async () =>
 			{
-				using ( var stream = new MemoryStream( contents ) )
-				{
-					e.Hash = (await Sandbox.Utility.Crc64.FromStreamAsync( stream )).ToString( "x" );
-				}
+				using Stream stream = file.Contents is not null ? new MemoryStream( file.Contents ) : File.OpenRead( file.AbsolutePath );
+				file.Size = checked((int)stream.Length);
+				file.Hash = (await Sandbox.Utility.Crc64.FromStreamAsync( stream )).ToString( "x" );
 			} );
 
-			scannedBytes += (ulong)e.Size;
-			Assets.Add( e );
+			// Another add may have completed while this file was being hashed.
+			if ( FindAsset( file.Name ) is not null )
+				return;
+
+			scannedBytes += (ulong)file.Size;
+			Assets.Add( file );
 		}
 
 		/// <summary>
@@ -590,12 +568,8 @@ public partial class ProjectPublisher
 
 			CodePackageReferences.Add( package.ToLower() );
 
-			await AddAsset( asset );
-
-			foreach ( var a in asset.GetReferences( true ) )
-			{
+			foreach ( var a in CollectAssetsAndReferences( [asset], default ) )
 				await AddAsset( a );
-			}
 		}
 	}
 }

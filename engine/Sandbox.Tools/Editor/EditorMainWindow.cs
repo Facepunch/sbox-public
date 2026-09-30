@@ -335,7 +335,7 @@ public class EditorMainWindow : DockWindow, IUndoSystemProvider
 		// holds OS focus when wrapped, so register right after showing - before the layout restore below
 		// hands focus to a native dock child (e.g. a viewport).
 		NativeEngine.InputSystem.RegisterWindowWithSDL( _widget.winId() );
-		NativeEngine.InputSystem.SetEditorMainWindow( _widget.winId() );
+		Sandbox.Engine.WindowInput.SetEditorMainWindow( _widget.winId() );
 
 		// This will attempt to restore the last used layout (or default layout if first time)
 		// Which means it will create dock widgets and move them around
@@ -421,7 +421,8 @@ public class EditorMainWindow : DockWindow, IUndoSystemProvider
 
 		foreach ( var tool in EngineTools.All )
 		{
-			var option = AppsMenu.AddOption( tool.Name, tool.Icon, () => EngineTools.ShowTool( tool.Name ) );
+			var option = AppsMenu.AddOption( tool.Name, tool.Icon, () => EngineTools.ShowTool( tool ) );
+			option.Enabled = EngineTools.IsAvailable( tool.Library );
 			option.StatusTip = tool.Description;
 			option.ToolTip = $"{tool.Name} - {tool.Description}";
 		}

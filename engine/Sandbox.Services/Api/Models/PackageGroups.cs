@@ -3,7 +3,7 @@ namespace Sandbox.Services;
 public class PackageGroups
 {
 	public string Title { get; set; }
-	public List<Grouping> Groupings { get; set; }
+	public List<Grouping> Groupings { get; set; } = new();
 	public double Milliseconds { get; set; }
 
 	public struct Grouping

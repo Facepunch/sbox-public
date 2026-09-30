@@ -90,11 +90,11 @@ public partial class SceneViewportWidget
 		var overBody = Vector2.DistanceBetween( MousePosition, center ) <= radius + ballRadius;
 		var interacting = _gizmoMouseDown || _gizmoDragging;
 		var appActive = IsActiveWindow || (Overlay.IsValid() && Overlay.IsActiveWindow);
-		var cameraDragActive = Application.MouseButtons.HasFlag( MouseButtons.Right ) || Application.MouseButtons.HasFlag( MouseButtons.Middle );
+		var cameraDragActive = SceneEditorExtensions.IsControllingCamera;
 		var suppressGizmoHover = cameraDragActive || _gizmoCameraDragWasActive;
 		_gizmoCameraDragWasActive = cameraDragActive;
 
-		_gizmoHovered = appActive && !suppressGizmoHover && (interacting || overBody || _gizmoHoveredAxis >= 0);
+		_gizmoHovered = appActive && !suppressGizmoHover && (interacting || hasMouseFocus && (overBody || _gizmoHoveredAxis >= 0));
 
 		var leftDown = Application.MouseButtons.HasFlag( MouseButtons.Left );
 

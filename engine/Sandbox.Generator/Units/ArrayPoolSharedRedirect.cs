@@ -36,12 +36,44 @@ static class ArrayPoolSharedRedirect
 			return null;
 		}
 
-		// Fast syntactic pre-check before touching the semantic model
-		if ( !ExpressionEndsWithName( memberAccess.Expression, "ArrayPool" ) )
+		return Redirect( originalNode, memberAccess, worker );
+	}
+
+	// using static ArrayPool<T> brings Shared in bare, with no member access to catch it.
+	internal static ExpressionSyntax VisitIdentifierName( IdentifierNameSyntax node, Worker worker )
+	{
+		if ( !worker.CorelibPolyfillsEnabled )
 		{
 			return null;
 		}
 
+		if ( !node.Identifier.ValueText.Equals( "Shared", StringComparison.Ordinal ) )
+		{
+			return null;
+		}
+
+		// The name half belongs to the path that owns the whole expression.
+		if ( node.Parent is MemberAccessExpressionSyntax memberAccess && memberAccess.Name == node )
+		{
+			return null;
+		}
+
+		if ( node.Parent is MemberBindingExpressionSyntax memberBinding && memberBinding.Name == node )
+		{
+			return null;
+		}
+
+		if ( node.Parent is QualifiedNameSyntax qualified && qualified.Right == node )
+		{
+			return null;
+		}
+
+		return Redirect( node, node, worker );
+	}
+
+	// Decided on the symbol, not the spelling: an alias or a derived type binds here too.
+	private static ExpressionSyntax Redirect( ExpressionSyntax originalNode, ExpressionSyntax currentNode, Worker worker )
+	{
 		var semanticModel = worker.Model;
 		if ( semanticModel == null )
 		{
@@ -84,13 +116,11 @@ static class ArrayPoolSharedRedirect
 					SyntaxFactory.SingletonSeparatedList<TypeSyntax>(
 						SyntaxFactory.ParseTypeName( elementTypeName ) ) ) ) );
 
-		var replacement = SyntaxFactory.MemberAccessExpression(
+		return SyntaxFactory.MemberAccessExpression(
 				SyntaxKind.SimpleMemberAccessExpression,
 				publicArrayPoolType,
 				sharedName )
-			.WithTriviaFrom( memberAccess );
-
-		return replacement;
+			.WithTriviaFrom( currentNode );
 	}
 
 	private static bool IsArrayPoolType( INamedTypeSymbol type )
@@ -108,18 +138,4 @@ static class ArrayPoolSharedRedirect
 		var ns = type.ContainingNamespace?.ToDisplayString();
 		return ns == "System.Buffers";
 	}
-
-	/// <summary>
-	/// Returns true if the rightmost identifier of <paramref name="expr"/> matches <paramref name="name"/>.
-	/// Used as a cheap syntactic pre-filter before invoking the semantic model.
-	/// </summary>
-	private static bool ExpressionEndsWithName( ExpressionSyntax expr, string name ) => expr switch
-	{
-		GenericNameSyntax g => g.Identifier.ValueText.Equals( name, StringComparison.Ordinal ),
-		IdentifierNameSyntax i => i.Identifier.ValueText.Equals( name, StringComparison.Ordinal ),
-		MemberAccessExpressionSyntax m => m.Name.Identifier.ValueText.Equals( name, StringComparison.Ordinal ),
-		AliasQualifiedNameSyntax a => a.Name.Identifier.ValueText.Equals( name, StringComparison.Ordinal ),
-		QualifiedNameSyntax q => q.Right.Identifier.ValueText.Equals( name, StringComparison.Ordinal ),
-		_ => false,
-	};
 }

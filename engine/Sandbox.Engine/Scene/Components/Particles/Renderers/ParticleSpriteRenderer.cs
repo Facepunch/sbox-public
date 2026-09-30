@@ -103,6 +103,19 @@ public sealed partial class ParticleSpriteRenderer : ParticleRenderer, Component
 	[Property, Range( 0, 50 )] public float DepthFeather { get; set; } = 0.0f;
 
 	/// <summary>
+	/// Sprites closer to the camera than this are completely invisible.
+	/// </summary>
+	[Group( "Rendering" )]
+	[Property, Range( 0, 64 )] public float CameraFadeNear { get; set; } = 0.0f;
+
+	/// <summary>
+	/// Sprites further from the camera than this are fully opaque. Between this and
+	/// <see cref="CameraFadeNear"/> they fade out. Leave at zero to disable the fade.
+	/// </summary>
+	[Group( "Rendering" )]
+	[Property, Range( 0, 256 )] public float CameraFadeFar { get; set; } = 0.0f;
+
+	/// <summary>
 	/// The strength of the fog effect applied to the sprite. This determines how much the sprite blends with any fog in the scene.
 	/// </summary>
 	[Group( "Rendering" )]

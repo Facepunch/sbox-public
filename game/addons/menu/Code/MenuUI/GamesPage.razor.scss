@@ -10,12 +10,9 @@ GamesPage
 Page
 {
     width: 100%;
-    max-width: $screen-w-xl;
 }
 
 GamesPage packagelist virtualgrid
 {
-    padding: 32px;
     padding-bottom: 132px;
-    gap: 16px;
 }

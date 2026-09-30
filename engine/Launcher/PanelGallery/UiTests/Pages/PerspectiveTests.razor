@@ -1,0 +1,79 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox
+@using Sandbox.UI
+@using System
+@using System.Linq
+
+@attribute [Group( "Effects" )]
+@attribute [Title( "perspective" )]
+@attribute [Description( "Six CSS panels arranged into a box using 3D transforms" )]
+@attribute [Icon( "view_in_ar" )]
+
+<root>
+    <h2>Six faces, one box</h2>
+    <p>Each face is an ordinary panel. Each face combines perspective, the box rotation, and its own rotateX / rotateY and translateZ. The boxes rock within the same viewing angle so face order stays correct; UI panels do not depth-sort like a 3D scene.</p>
+    <div class="cases">
+        @foreach ( var example in Examples )
+        {
+            <UiTestCase Caption="@example.Title" Note="@example.Note" Setup="width: 144px; height: 144px; background-color: transparent" Rule="@($"transform: perspective({example.Distance}px) rotateX(-22deg) rotateY(-32deg)")">
+                <ChildContent>
+                    <div class="@($"cube {example.Class}")" >
+                        @foreach ( var face in Faces )
+                        {
+                            <div class="@($"face {face.Name}")" style="@($"transform: perspective({example.Distance}px) rotateX(-22deg) rotateY(-32deg) {face.Rotation} translateZ({(example.Class == "separated" ? 52 : 50)}px)")">@face.Name.ToUpperInvariant()</div>
+                        }
+                    </div>
+                </ChildContent>
+            </UiTestCase>
+        }
+    </div>
+</root>
+
+@code
+{
+    RealTimeSince animationTime = 0;
+    Panel[] animatedFaces;
+
+    public override void Tick()
+    {
+        base.Tick();
+        if ( !IsVisible ) return;
+
+        if ( animatedFaces is null )
+        {
+            var faces = Descendants.Where( panel => panel.HasClass( "face" ) ).ToArray();
+            if ( faces.Length != Examples.Length * Faces.Length ) return;
+            animatedFaces = faces;
+        }
+
+        float time = animationTime;
+        float pitch = -22 + MathF.Sin( time * 0.7f ) * 10;
+        float yaw = -32 + MathF.Sin( time * 0.5f ) * 18;
+        for ( int exampleIndex = 0; exampleIndex < Examples.Length; exampleIndex++ )
+        {
+            var example = Examples[exampleIndex];
+            float distance = example.Class == "separated" ? 52 + MathF.Sin( time * 0.9f ) * 6 : 50;
+            for ( int faceIndex = 0; faceIndex < Faces.Length; faceIndex++ )
+            {
+                animatedFaces[exampleIndex * Faces.Length + faceIndex].Style.Set( "transform",
+                    FormattableString.Invariant( $"perspective({example.Distance}px) rotateX({pitch}deg) rotateY({yaw}deg) {Faces[faceIndex].Rotation} translateZ({distance}px)" ) );
+            }
+        }
+    }
+
+    static readonly (string Name, string Rotation)[] Faces =
+    [
+        ( "back", "rotateY(180deg)" ), ( "left", "rotateY(-90deg)" ),
+        ( "bottom", "rotateX(-90deg)" ), ( "right", "rotateY(90deg)" ),
+        ( "top", "rotateX(90deg)" ), ( "front", "" )
+    ];
+
+    static readonly (string Title, string Note, string Class, int Distance)[] Examples =
+    [
+        ( "CSS box", "Six 100px faces, each translated 50px from the centre.", "", 500 ),
+        ( "Close perspective", "A shorter 240px viewing distance exaggerates the depth.", "", 240 ),
+        ( "Translucent faces", "See all six panels and how their edges meet.", "translucent", 500 ),
+        ( "Separated faces", "The faces expand and contract as the box turns, exposing the construction.", "separated", 500 )
+    ];
+}

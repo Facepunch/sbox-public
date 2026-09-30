@@ -1,9 +1,9 @@
 ﻿using Sandbox.MovieMaker;
 using Sandbox.MovieMaker.Compiled;
+using Sandbox.MovieMaker.Properties;
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Nodes;
-using Sandbox.MovieMaker.Properties;
 
 namespace MovieMakerTests;
 
@@ -243,6 +243,69 @@ public sealed class RecorderTest : SceneTestBase
 		Assert.IsNull( clip.GetProperty<bool>( parent.Name, child.Name, nameof( GameObject.Tags ), "foo" ) );
 	}
 
+	[TestMethod]
+	public void EnableTrackRecording_Control()
+	{
+		var obj = new GameObject( "Control" );
+
+		var options = new MovieRecorderOptions()
+			.WithCaptureGameObject( obj );
+
+		var clip = Record( options, 1.0 );
+
+		Assert.IsNotNull( clip.GetProperty<bool>( obj.Name, nameof( GameObject.Enabled ) ) );
+	}
+
+	[TestMethod]
+	[DataRow( GameObjectFlags.Static )]
+	[DataRow( GameObjectFlags.DontDestroyOnLoad )]
+	public void EnableTrackRecording_Flags( GameObjectFlags flag )
+	{
+		var obj = new GameObject( "Flagged" ) { Flags = flag };
+
+		var options = new MovieRecorderOptions()
+			.WithCaptureGameObject( obj );
+
+		var clip = Record( options, 1.0 );
+
+		Assert.IsNotNull( clip.GetReference<GameObject>( obj.Name ) );
+		Assert.IsNull( clip.GetProperty<bool>( obj.Name, nameof( GameObject.Enabled ) ) );
+	}
+
+	[TestMethod]
+	public void EnableTrackRecording_MapInstance()
+	{
+		var mapInst = new GameObject( "Map" )
+			.AddComponent<MapInstance>();
+
+		var options = new MovieRecorderOptions()
+			.WithDefaultComponentCapturers()
+			.WithCaptureComponent( mapInst );
+
+		var clip = Record( options, 1.0 );
+
+		Assert.IsNotNull( clip.GetReference<MapInstance>( mapInst.GameObject.Name, nameof( MapInstance ) ) );
+		Assert.IsNull( clip.GetProperty<bool>( mapInst.GameObject.Name, nameof( GameObject.Enabled ) ) );
+		Assert.IsNull( clip.GetProperty<bool>( mapInst.GameObject.Name, nameof( MapInstance ), nameof( MapInstance.Enabled ) ) );
+	}
+
+	[TestMethod]
+	public void EnableTrackRecording_StaticDisabled()
+	{
+		var obj = new GameObject( "Static" ) { Flags = GameObjectFlags.Static };
+
+		var options = new MovieRecorderOptions()
+			.WithCaptureGameObject( obj );
+
+		var clip = Record( options, 1.0, time =>
+		{
+			obj.Enabled = time < 0.25 || time > 0.75;
+		} );
+
+		Assert.IsNotNull( clip.GetReference<GameObject>( obj.Name ) );
+		Assert.IsNotNull( clip.GetProperty<bool>( obj.Name, nameof( GameObject.Enabled ) ) );
+	}
+
 	/// <summary>
 	/// Capture a game object's <see cref="GameObjectFlags.Absolute"/>.
 	/// </summary>
@@ -269,6 +332,52 @@ public sealed class RecorderTest : SceneTestBase
 		Assert.IsTrue( flagTrack.TryGetValue( 0.5, out flag ) && !flag );
 		Assert.IsTrue( flagTrack.TryGetValue( 1.5, out flag ) && flag );
 		Assert.IsTrue( flagTrack.TryGetValue( 2.5, out flag ) && !flag );
+	}
+
+	/// <summary>
+	/// Capture <see cref="Renderer.RenderOptions"/>.
+	/// </summary>
+	[TestMethod]
+	public void RecordRenderOptions()
+	{
+		var renderer = new GameObject( "Example" )
+			.AddComponent<ModelRenderer>();
+
+		var options = new MovieRecorderOptions()
+			.WithDefaultComponentCapturers()
+			.WithCaptureComponent( renderer );
+
+		var clip = Record( options, 3.0,
+			(1.0, () =>
+			{
+				renderer.RenderOptions.Game = false;
+				renderer.RenderOptions.Overlay = true;
+			}
+		),
+			(2.0, () =>
+			{
+				renderer.RenderOptions.Game = true;
+				renderer.RenderOptions.Overlay = false;
+			}
+		) );
+
+		Console.WriteLine( Json.Serialize( clip ) );
+
+		var gameTrack = clip.GetProperty<bool>( renderer.GameObject.Name, nameof( ModelRenderer ), nameof( Renderer.RenderOptions ), nameof( RenderOptions.Game ) );
+		var overlayTrack = clip.GetProperty<bool>( renderer.GameObject.Name, nameof( ModelRenderer ), nameof( Renderer.RenderOptions ), nameof( RenderOptions.Overlay ) );
+
+		Assert.IsNotNull( gameTrack );
+		Assert.IsNotNull( overlayTrack );
+
+		bool flag;
+
+		Assert.IsTrue( gameTrack.TryGetValue( 0.5, out flag ) && flag );
+		Assert.IsTrue( gameTrack.TryGetValue( 1.5, out flag ) && !flag );
+		Assert.IsTrue( gameTrack.TryGetValue( 2.5, out flag ) && flag );
+
+		Assert.IsTrue( overlayTrack.TryGetValue( 0.5, out flag ) && !flag );
+		Assert.IsTrue( overlayTrack.TryGetValue( 1.5, out flag ) && flag );
+		Assert.IsTrue( overlayTrack.TryGetValue( 2.5, out flag ) && !flag );
 	}
 
 	[TestMethod]

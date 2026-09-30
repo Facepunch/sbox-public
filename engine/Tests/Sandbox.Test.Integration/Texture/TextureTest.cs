@@ -1,10 +1,95 @@
-﻿using System;
+using System;
+using Sandbox.UI;
 
 namespace TextureTests;
 
 [TestClass]
 public class TextureTest
 {
+	[TestMethod]
+	public void VideoPresentationTrackingOverridesNativeUse()
+	{
+		using var player = new VideoPlayer();
+		var frame = Application.FrameCount;
+
+		try
+		{
+			player.TrackPresentation( false );
+			Application.FrameCount += 3;
+			player.Texture.MarkUsed();
+			Assert.IsTrue( player.LastPresented > 2 );
+
+			player.TrackPresentation( true );
+			Assert.AreEqual( 0, player.LastPresented );
+		}
+		finally
+		{
+			Application.FrameCount = frame;
+		}
+	}
+
+	[TestMethod]
+	public void BackgroundPlaybackStateControlsPresentation()
+	{
+		using var automaticVisible = new VideoPlayer();
+		using var automaticOffscreen = new VideoPlayer();
+		using var pausedVisible = new VideoPlayer();
+		using var runningOffscreen = new VideoPlayer();
+		var panel = new Panel();
+		panel.Box.Rect = new Rect( 0, 0, 100, 100 );
+		var scissor = Painter.Scissoring.Single( new Rect( 0, 0, 200, 200 ), BorderRadii.Zero, Matrix.Identity );
+		var frame = Application.FrameCount;
+
+		try
+		{
+			Application.FrameCount += 3;
+			bool? onScreen = null;
+			PainterBatcher.MarkPresented( automaticVisible.Texture, panel.Box.Rect, Matrix.Identity, scissor, ref onScreen );
+			Assert.AreEqual( 0, automaticVisible.LastPresented );
+
+			panel.Box.Rect = new Rect( 300, 0, 100, 100 );
+			onScreen = null;
+			PainterBatcher.MarkPresented( automaticOffscreen.Texture, panel.Box.Rect, Matrix.Identity, scissor, ref onScreen );
+			Assert.IsTrue( automaticOffscreen.LastPresented > 2 );
+
+			panel.Box.Rect = new Rect( 0, 0, 100, 100 );
+			onScreen = null;
+			PainterBatcher.MarkPresented( pausedVisible.Texture, panel.Box.Rect, Matrix.Identity, scissor, ref onScreen, playbackPaused: true );
+			Assert.IsTrue( pausedVisible.LastPresented > 2 );
+
+			panel.Box.Rect = new Rect( 300, 0, 100, 100 );
+			onScreen = null;
+			PainterBatcher.MarkPresented( runningOffscreen.Texture, panel.Box.Rect, Matrix.Identity, scissor, ref onScreen, playbackPaused: false );
+			Assert.AreEqual( 0, runningOffscreen.LastPresented );
+		}
+		finally
+		{
+			Application.FrameCount = frame;
+			panel.Delete( true );
+		}
+	}
+
+	[TestMethod]
+	public void AnimatedImageDoesNotUseVideoVisibilityPolicy()
+	{
+		using var texture = Texture.Create( 1, 1 ).Finish();
+		texture.IsAnimated = true;
+		var panel = new Panel();
+		panel.Box.Rect = new Rect( 300, 0, 100, 100 );
+		var scissor = Painter.Scissoring.Single( new Rect( 0, 0, 200, 200 ), BorderRadii.Zero, Matrix.Identity );
+		bool? onScreen = null;
+
+		try
+		{
+			PainterBatcher.MarkPresented( texture, panel.Box.Rect, Matrix.Identity, scissor, ref onScreen );
+			Assert.IsNull( onScreen );
+		}
+		finally
+		{
+			panel.Delete( true );
+		}
+	}
+
 	[TestMethod]
 	public void Copy()
 	{

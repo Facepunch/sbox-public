@@ -102,7 +102,14 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 			if ( _showRecursive == value ) return;
 			_showRecursive = value;
 
-			watcher.IncludeSubdirectories = value;
+			try
+			{
+				watcher.IncludeSubdirectories = value;
+			}
+			catch ( IOException e )
+			{
+				Log.Warning( $"Couldn't update the file watcher for {CurrentLocation?.Path} ({e.Message})" );
+			}
 
 			UpdateAssetList();
 			SaveSettings();

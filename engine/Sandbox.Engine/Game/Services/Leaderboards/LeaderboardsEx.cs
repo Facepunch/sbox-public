@@ -134,7 +134,7 @@ public static partial class Leaderboards
 			try
 			{
 				var targetId = TargetSteamId != 0 ? TargetSteamId : (long)Steamworks.SteamClient.SteamId.Value;
-				var result = await Backend.Leaderboards.Query( query );
+				var result = await Backend.Leaderboards.Query( query.PackageIdent, query.Stat, query );
 
 				if ( result is null )
 					return;

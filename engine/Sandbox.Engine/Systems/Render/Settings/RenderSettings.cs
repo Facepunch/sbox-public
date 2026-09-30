@@ -16,14 +16,21 @@ public partial class RenderSettings
 	public event Action OnVideoSettingsChanged;
 	internal RenderQualityProfiles Config { get; } = new();
 
-	internal RenderSettings()
+	/// <summary>
+	/// Push the stored quality levels into their convars. Separate from the constructor because
+	/// the instance gets built the first time anything reads a setting, which is well before the
+	/// managed convars are registered.
+	/// </summary>
+	internal void ApplyQualityProfiles()
 	{
-		Config.SetDefaults( this );
+		MigratePostProcessSettings();
+
+		Config.ApplyAll( this );
 	}
 
 	public int MaxFrameRate
 	{
-		get => ConVarSystem.GetInt( "fps_max", 100, true );
+		get => ConVarSystem.GetInt( "fps_max", 0, true );
 		set => ConVarSystem.SetInt( "fps_max", value, true );
 	}
 
@@ -35,7 +42,7 @@ public partial class RenderSettings
 
 	public int MaxFrameRateMenu
 	{
-		get => ConVarSystem.GetInt( "fps_max_menu", 120, true );
+		get => ConVarSystem.GetInt( "fps_max_menu", 0, true );
 		set => ConVarSystem.SetInt( "fps_max_menu", value, true );
 	}
 
@@ -65,16 +72,6 @@ public partial class RenderSettings
 		}
 	}
 
-	public PostProcessQuality PostProcessQuality
-	{
-		get => VideoSettings.Get<PostProcessQuality>( "postprocess.quality", PostProcessQuality.High );
-		set
-		{
-			VideoSettings.Set<PostProcessQuality>( "postprocess.quality", value );
-			Config.SetGroupConVars( "PostProcessQuality", value.ToString() );
-		}
-	}
-
 	public ShadowQuality ShadowQuality
 	{
 		get => VideoSettings.Get<ShadowQuality>( "shadow.quality", ShadowQuality.High );
@@ -91,7 +88,7 @@ public partial class RenderSettings
 		set
 		{
 			VideoSettings.Set<float>( "motionblur.scale", value );
-			MotionBlur.UserScale = value;
+			ApplyMotionBlur();
 		}
 	}
 
@@ -194,27 +191,40 @@ public partial class RenderSettings
 
 	public void ResetVideoConfig()
 	{
-		int desktopWidth = 0;
-		int desktopHeight = 0;
-		uint desktopRefreshRate = 0;
-		EngineGlobal.Plat_GetDesktopResolution( EngineGlobal.Plat_GetDefaultMonitorIndex(), ref desktopWidth, ref desktopHeight, ref desktopRefreshRate );
-		ResolutionWidth = desktopWidth;
-		ResolutionHeight = desktopHeight;
+		ResetDisplayConfig();
+		ResetGraphicsConfig();
+	}
+
+	/// <summary>Window, resolution, vsync, frame rate caps and field of view.</summary>
+	public void ResetDisplayConfig()
+	{
+		var size = SdlDisplay.GetDesktopSize( SdlDisplay.Current );
+		ResolutionWidth = (int)size.x;
+		ResolutionHeight = (int)size.y;
 
 		Fullscreen = false;
 		Borderless = true;
 		VSync = true;
-		AntiAliasQuality = MultisampleAmount.Multisample8x;
-		MaxFrameRate = 300;
-		MaxFrameRateInactive = 60;
-		MaxFrameRateMenu = 120;
-		DefaultFOV = 75;
+		MaxFrameRate = 0;
+		MaxFrameRateInactive = 90;
+		MaxFrameRateMenu = 0;
+		DefaultFOV = 90;
+
+		VideoSettings.Save();
+	}
+
+	/// <summary>Quality and upscaling, back to whatever this machine detects.</summary>
+	public void ResetGraphicsConfig()
+	{
 		UpscalerMode = UpscalerMode.Off;
 		UpscalerRenderScale = 0.75f;
 		Fsr1Sharpness = 0.25f;
 		Fsr3UpscalerQuality = Fsr3UpscalerQuality.Performance;
 		Fsr3Sharpness = 0.5f;
 		DlssQuality = DlssQuality.Performance;
+		MotionBlurScale = 1.0f;
+
+		ApplyPreset( DetectPreset() );
 
 		VideoSettings.Save();
 	}
@@ -236,6 +246,9 @@ public partial class RenderSettings
 	{
 		ResetVideoConfig();
 
+		// Fixed rung, so runs are comparable across machines.
+		ApplyPreset( GraphicsPreset.High );
+
 		Fullscreen = false;
 		Borderless = false;
 		VSync = false;
@@ -246,7 +259,7 @@ public partial class RenderSettings
 		ResolutionWidth = 1920;
 		ResolutionHeight = 1080;
 
-		NativeEngine.RenderDeviceManager.ChangeVideoMode( Fullscreen, Borderless, VSync, ResolutionWidth, ResolutionHeight, AntiAliasQuality.ToEngine() );
+		ApplyVideoMode();
 	}
 
 }

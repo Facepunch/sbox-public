@@ -9,7 +9,7 @@ GameTag
     font-size: 15px;
     justify-content: center;
     border-radius: 48px;
-    opacity: 0.1;
+    opacity: 0.3;
 
     .tag
     {
@@ -24,12 +24,12 @@ GameTag
     &:hover
     {
         sound-in: "ui.button.over";
-        opacity: 0.4;
+        opacity: 0.8;
     }
 
     &.active
     {
-        opacity: 0.8;
+        opacity: 1;
     }
 
 

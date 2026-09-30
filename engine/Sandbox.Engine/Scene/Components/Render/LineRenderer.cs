@@ -83,7 +83,7 @@ public sealed class LineRenderer : Renderer, Component.ExecuteInEditor
 
 	protected override void OnEnabled()
 	{
-		if ( Application.IsHeadless )
+		if ( !Graphics.IsAvailable )
 			return;
 
 		// Legacy support for old texture based renderers

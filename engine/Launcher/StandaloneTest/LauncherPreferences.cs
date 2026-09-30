@@ -19,6 +19,12 @@ internal class LauncherPreferences
 		set => _cookie.SetString( "DefaultProjectLocation", value );
 	}
 
+	public static bool LightTheme
+	{
+		get => _cookie.Get( "LightTheme", false );
+		set => _cookie.Set( "LightTheme", value );
+	}
+
 	public static void Load()
 	{
 		_cookie = new CookieContainer( "launcher" );

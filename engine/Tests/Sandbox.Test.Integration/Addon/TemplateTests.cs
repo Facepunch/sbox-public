@@ -41,8 +41,6 @@ namespace AddonTests
 
 				if ( proj.Type == "game" )
 				{
-					var baseCodePath = Path.Combine( Environment.CurrentDirectory, "addons", "base", "code" );
-					compiler.AddSourcePath( baseCodePath );
 					compiler.GeneratedCode.AppendLine( $"global using static Sandbox.Internal.GlobalGameNamespace;" );
 				}
 			}

@@ -41,8 +41,13 @@ public partial class Texture
 		}
 	}
 
-	public unsafe Bitmap GetBitmap( int mip )
+	/// <summary>
+	/// Reads the texture into an owned Bitmap, blocking until the GPU has finished.
+	/// Premultiplied texture pixels are converted to straight alpha.
+	/// </summary>
+	public unsafe Bitmap GetBitmap( int mip = 0 )
 	{
+		if ( !IsValid ) throw new ObjectDisposedException( nameof( Texture ) );
 		mip = Math.Clamp( mip, 0, Mips - 1 );
 		var d = 1 << mip;
 
@@ -65,30 +70,43 @@ public partial class Texture
 		}
 
 		var bitmap = new Bitmap( width, height * depth, floatingPoint );
-		var data = bitmap.GetBuffer();
-
-		if ( data.Length != targetMemoryRequired )
+		byte[] scratch = null;
+		try
 		{
-			throw new System.Exception( $"Buffer isn't big enough {data.Length} != {targetMemoryRequired}" );
-		}
+			if ( bitmap.ByteCount != targetMemoryRequired )
+				throw new InvalidOperationException( $"Buffer isn't big enough {bitmap.ByteCount} != {targetMemoryRequired}" );
 
-		fixed ( byte* pData = data )
+			bool premultiplied = Flags.HasFlag( TextureFlags.PremultipliedAlpha );
+			if ( premultiplied ) scratch = ArrayPool<byte>.Shared.Rent( bitmap.ByteCount );
+			var data = scratch is null ? bitmap.GetBuffer() : scratch.AsSpan( 0, bitmap.ByteCount );
+			fixed ( byte* pData = data )
+			{
+				if ( depth > 1 )
+				{
+					GetPixels3D( (0, 0, 0, width, height, depth), mip, data, outputFormat );
+				}
+				else
+				{
+					var rect = new NativeRect( 0, 0, width, height );
+					if ( !g_pRenderDevice.ReadTexturePixels( native, ref rect, 0, mip, ref rect, (IntPtr)pData, outputFormat, 0 ) )
+					{
+						bitmap.Dispose();
+						return null;
+					}
+				}
+			}
+			if ( premultiplied ) bitmap.SetPixelData( data, premultiplied: true );
+			return bitmap;
+		}
+		catch
 		{
-			if ( depth > 1 )
-			{
-				GetPixels3D( (0, 0, 0, width, height, depth), mip, data, outputFormat );
-			}
-			else
-			{
-				var rect = new NativeRect( 0, 0, width, height );
-
-				if ( !g_pRenderDevice.ReadTexturePixels( native, ref rect, 0, mip, ref rect, (IntPtr)pData, outputFormat, 0 ) )
-					return null;
-			}
-
+			bitmap.Dispose();
+			throw;
 		}
-
-		return bitmap;
+		finally
+		{
+			if ( scratch is not null ) ArrayPool<byte>.Shared.Return( scratch );
+		}
 	}
 
 	private static int GetImageFormatSize( ImageFormat format )
@@ -569,7 +587,7 @@ public partial class Texture
 	/// <remarks>
 	/// This operation is asynchronous and won't block the calling thread while data is downloaded from the GPU.
 	/// Unlike the other async methods, the Bitmap provided to the callback is valid beyond the callback's scope
-	/// as it owns its memory.
+	/// as it owns its memory. Premultiplied textures are converted to the bitmap's straight-alpha format during readback.
 	/// </remarks>
 	public void GetBitmapAsync( Action<Bitmap> callback, int mip = 0 )
 	{
@@ -581,22 +599,36 @@ public partial class Texture
 		var width = desc.m_nWidth / d;
 		var height = desc.m_nHeight / d;
 		var dstFormat = floatingPoint ? ImageFormat.RGBA16161616F : ImageFormat.RGBA8888;
+		var premultiplied = Flags.HasFlag( TextureFlags.PremultipliedAlpha );
 
 		var context = g_pRenderDevice.CreateRenderContext( 0 );
 
 		context.ReadTextureAsync( this, ( readData, readFormat, readMip, readWidth, readHeight, doneWithData ) =>
 		{
 			var bitmap = new Bitmap( width, height, floatingPoint );
-			var bitmapData = bitmap.GetBuffer();
-
-			if ( dstFormat != readFormat )
+			byte[] converted = null;
+			try
 			{
-				var byteSpan = MemoryMarshal.Cast<byte, byte>( bitmapData );
-				ConvertImageDataTo( readData, readFormat, byteSpan, dstFormat, width, height );
+				if ( dstFormat != readFormat )
+				{
+					converted = ArrayPool<byte>.Shared.Rent( bitmap.ByteCount );
+					var pixels = converted.AsSpan( 0, bitmap.ByteCount );
+					ConvertImageDataTo( readData, readFormat, pixels, dstFormat, width, height );
+					bitmap.SetPixelData( pixels, premultiplied );
+				}
+				else
+				{
+					bitmap.SetPixelData( readData, premultiplied );
+				}
 			}
-			else
+			catch
 			{
-				readData.CopyTo( bitmapData );
+				bitmap.Dispose();
+				throw;
+			}
+			finally
+			{
+				if ( converted is not null ) ArrayPool<byte>.Shared.Return( converted );
 			}
 			doneWithData();
 

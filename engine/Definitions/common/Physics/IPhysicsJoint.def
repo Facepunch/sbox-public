@@ -2,7 +2,7 @@
 #include "vphysics2/iphysicsbody.h"
 #include "vphysics2/iphysicsjoint.h"
 
-[Handle:Sandbox.Physics.PhysicsJoint]
+[Handle:Sandbox.Physics.PhysicsJoint3d]
 native class IPhysicsJoint as NativeEngine.IPhysicsJoint
 {
 	IPhysicsWorld GetWorld();

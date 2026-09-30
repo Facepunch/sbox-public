@@ -1,4 +1,5 @@
 using Sandbox.Rendering;
+using Sandbox.UI;
 using static Sandbox.IBatchedParticleSpriteRenderer;
 
 namespace Sandbox;
@@ -24,6 +25,19 @@ public sealed class ParticleTextRenderer : ParticleRenderer, Component.ExecuteIn
 
 	[Group( "Rendering" ), Order( 1 )]
 	[Property, Range( 0, 50 )] public float DepthFeather { get; set; } = 0.0f;
+
+	/// <summary>
+	/// Sprites closer to the camera than this are completely invisible.
+	/// </summary>
+	[Group( "Rendering" ), Order( 1 )]
+	[Property, Range( 0, 64 )] public float CameraFadeNear { get; set; } = 0.0f;
+
+	/// <summary>
+	/// Sprites further from the camera than this are fully opaque. Between this and
+	/// <see cref="CameraFadeNear"/> they fade out. Leave at zero to disable the fade.
+	/// </summary>
+	[Group( "Rendering" ), Order( 1 )]
+	[Property, Range( 0, 256 )] public float CameraFadeFar { get; set; } = 0.0f;
 
 	[Group( "Rendering" )]
 	[Property, Range( 0, 1 )] public float FogStrength { get; set; } = 1.0f;
@@ -114,11 +128,28 @@ public sealed class ParticleTextRenderer : ParticleRenderer, Component.ExecuteIn
 	public bool IsSorted => SortMode != ParticleSortMode.Unsorted;
 
 	/// <summary>
-	/// Provides texture for rendering the sprite
+	/// Text particles draw from the glyph outlines on the GPU, so there is no atlas texture any more.
 	/// </summary>
-	public Texture RenderTexture => TextRendering.GetOrCreateTexture( Text, 4096 ) ?? Texture.White;
+	[Obsolete( "Text particles render from glyph outlines - there is no render texture. Use TextRendering.GetOrCreateTexture if you want a rasterized copy of the text." )]
+	public Texture RenderTexture => null;
 
 	ParticleType IBatchedParticleSpriteRenderer.Type => ParticleType.Text;
+	GpuFontText.Placement IBatchedParticleSpriteRenderer.TextSprite => _textSprite;
+	GpuFontText.Placement _textSprite;
+
+	/// <summary>
+	/// Lay the text out and put its glyph instances in this frame's buffers, so every particle draws it straight
+	/// from the outlines. Once a frame, before the particles are processed.
+	/// </summary>
+	internal void PrepareText()
+	{
+		_textSprite = default;
+
+		var block = TextRendering.GetOrCreateTextBlock( Text, TextFlag.LeftTop, 4096 );
+		if ( block is null || block.IsEmpty ) return;
+
+		_textSprite = block.Upload();
+	}
 
 	protected override void OnAwake()
 	{

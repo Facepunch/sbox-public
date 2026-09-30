@@ -78,6 +78,30 @@ public sealed partial class SoundStream : IHandle, IDisposable
 		}
 	}
 
+	IntPtr voiceDecoder;
+
+	/// <summary>
+	/// Decode a voice packet and queue it. Each stream has its own decoder, so use one stream
+	/// per speaker, created at <see cref="Sound.VoiceSampleRate"/>. Returns the number of samples written.
+	/// </summary>
+	public int WriteVoiceData( ReadOnlySpan<byte> data )
+	{
+		if ( !native.IsValid || data.Length < 2 )
+			return 0;
+
+		if ( voiceDecoder == IntPtr.Zero )
+			voiceDecoder = VoiceManager.CreateDecoder();
+
+		var output = System.Buffers.ArrayPool<short>.Shared.Rent( VoiceManager.MaxPacketSamples );
+
+		var samples = VoiceManager.Decode( voiceDecoder, data, output );
+		if ( samples > 0 )
+			WriteData( output.AsSpan( 0, samples ) );
+
+		System.Buffers.ArrayPool<short>.Shared.Return( output );
+		return samples;
+	}
+
 	/// <summary>
 	/// Close the stream: signals that no more data will be written.
 	/// Once the internal buffer drains, <see cref="SoundHandle.IsPlaying"/> will become <c>false</c>.
@@ -89,6 +113,12 @@ public sealed partial class SoundStream : IHandle, IDisposable
 
 	public void Dispose()
 	{
+		if ( voiceDecoder != IntPtr.Zero )
+		{
+			VoiceManager.DestroyDecoder( voiceDecoder );
+			voiceDecoder = IntPtr.Zero;
+		}
+
 		if ( !native.IsValid ) return;
 
 		GC.SuppressFinalize( this );

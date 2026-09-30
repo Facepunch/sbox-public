@@ -10,9 +10,22 @@ public partial class Material
 	/// </summary>
 	/// <param name="filename">The filepath to load the material from.</param>
 	/// <returns>The loaded material, or null</returns>
-	public static Material Load( string filename )
+	public static Material Load( string filename ) => Load( (ResourceId)filename );
+
+	internal static Material Load( ResourceId id )
 	{
 		ThreadSafe.AssertIsMainThread();
+
+		if ( id.Guid is Guid guid )
+		{
+			if ( Game.Resources.TryGet<Material>( guid, out var resource ) )
+				return resource;
+
+			var native = NativeGlue.Resources.GetMaterial( id.Path, guid );
+			return FromNative( native, name: native.IsError() ? id.Path : null );
+		}
+
+		var filename = id.Path;
 
 		if ( filename.StartsWith( '/' ) || filename.StartsWith( '\\' ) )
 			filename = filename[1..];
@@ -20,7 +33,7 @@ public partial class Material
 		if ( !string.IsNullOrWhiteSpace( filename ) && Directory.TryLoad( filename, ResourceType.Material, out object model ) && model is Material m )
 			return m;
 
-		return FromNative( NativeGlue.Resources.GetMaterial( filename ), filename );
+		return FromNative( NativeGlue.Resources.GetMaterial( filename, Guid.Empty ), filename );
 	}
 
 	/// <summary>
@@ -41,7 +54,7 @@ public partial class Material
 			await manifest.WaitForLoad();
 		}
 
-		return FromNative( NativeGlue.Resources.GetMaterial( filename ) );
+		return FromNative( NativeGlue.Resources.GetMaterial( filename, Guid.Empty ) );
 	}
 
 	/// <summary>
@@ -55,9 +68,17 @@ public partial class Material
 		var instanceId = native.GetBindingPtr().ToInt64();
 		if ( NativeResourceCache.TryGetValue<Material>( instanceId, out var material ) )
 		{
-			// The already loaded Material has it's own strong handle, we need to destroy the one just given to us to prevent leak.
-			native.DestroyStrongHandle();
-			return material;
+			// A destroyed wrapper at a reused address isn't this material: replace it, as Texture does
+			if ( !material.IsValid )
+			{
+				NativeResourceCache.Remove( instanceId );
+			}
+			else
+			{
+				// The already loaded Material has it's own strong handle, we need to destroy the one just given to us to prevent leak.
+				native.DestroyStrongHandle();
+				return material;
+			}
 		}
 
 		material = new Material( native, name ?? native.GetName() );

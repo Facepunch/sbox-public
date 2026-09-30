@@ -20,7 +20,6 @@ internal class UploadBuildArtifacts
 		"sbox",
 		"sbox-dev",
 		"sbox-launcher",
-		"sbox-standalone",
 		"sbox-server",
 		"benchmark",
 		".version",
@@ -28,6 +27,7 @@ internal class UploadBuildArtifacts
 		"thirdpartylegalnotices/**",
 		"bin/win64/**",
 		"bin/linuxsteamrt64/**",
+		"bin/osxarm64/**",
 		"bin/managed/**",
 		"bin/assettypes.txt",
 		"bin/enginetools.txt",
@@ -80,7 +80,13 @@ internal class UploadBuildArtifacts
 		"core/**/*.meta",
 		"core/debug/**/*.tga",
 		"core/dev/**/*.tga",
-		"core/materials/**/*.png",
+		// Keep directly loaded gizmo and editor tool PNGs; exclude material compiler inputs.
+		"core/materials/default/**/*.png",
+		"core/materials/dev/**/*.png",
+		"core/materials/editor/**/*.png",
+		"core/materials/models/**/*.png",
+		"core/materials/postprocess/**/*.png",
+		"core/materials/tools/new/**/*.png",
 		"core/textures/**/*.png",
 
 		// core/sounds - allow core/sounds/editor/*.wav, strip the rest of the raws

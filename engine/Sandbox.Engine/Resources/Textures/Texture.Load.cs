@@ -86,6 +86,24 @@ public partial class Texture
 	/// </summary>
 	public static Texture Load( string path_or_url, bool warnOnMissing = true ) => LoadInternal( GlobalContext.Current.FileMount, path_or_url, warnOnMissing );
 
+	internal static Texture Load( ResourceId id, bool warnOnMissing = true )
+	{
+		ThreadSafe.AssertIsMainThread();
+
+		if ( id.Guid is Guid guid )
+		{
+			if ( Game.Resources.TryGet<Texture>( guid, out var resource ) )
+				return resource;
+
+			var textureHandle = NativeGlue.Resources.GetTexture( id.Path, guid );
+			var t = FromNative( textureHandle );
+			t?.RegisterWeakResourceId( id.Path, guid );
+			return t;
+		}
+
+		return LoadInternal( GlobalContext.Current.FileMount, id.Path, warnOnMissing );
+	}
+
 	/// <summary>
 	/// Load avatar image of a Steam user (with a certain size if supplied).
 	/// </summary>
@@ -206,9 +224,9 @@ public partial class Texture
 		// Try to load from engine, which will worst case give us an error texture
 		//
 		ThreadSafe.AssertIsMainThread();
-		var textureHandle = NativeGlue.Resources.GetTexture( filepath );
+		var textureHandle = NativeGlue.Resources.GetTexture( filepath, Guid.Empty );
 		var t = FromNative( textureHandle );
-		t?.RegisterWeakResourceId( filepath );
+		t?.RegisterWeakResourceId( filepath, t.native.GetGuid() );
 		return t;
 	}
 

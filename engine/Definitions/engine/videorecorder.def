@@ -7,6 +7,7 @@ native class CVideoRecorder as NativeEngine.CVideoRecorder
 	void Destroy(); [delete]
 
 	void Stop();
+	bool ReadyForVideoFrame();
 	void AddVideoFrame( CastTo[uint8*] void* rgbaData, long captureTimeMicroS );
 	void AddAudioSamples( CAudioMixDeviceBuffers );
 

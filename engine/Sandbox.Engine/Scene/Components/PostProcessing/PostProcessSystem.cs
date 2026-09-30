@@ -40,7 +40,7 @@ public sealed partial class PostProcessSystem : GameObjectSystem<PostProcessSyst
 			return;
 		}
 
-		foreach ( var cc in Scene.GetAll<CameraComponent>() )
+		foreach ( var cc in Scene.Query<CameraComponent>() )
 		{
 			UpdateCamera( cc );
 		}
@@ -160,11 +160,11 @@ public sealed partial class PostProcessSystem : GameObjectSystem<PostProcessSyst
 		if ( !EnablePostProcess )
 			return;
 
-		if ( Graphics.SceneView.GetPostProcessEnabled() == false )
+		if ( Graphics.PostProcessEnabled == false )
 			return;
 
 		// Don't run explicit post process effects if we're in ToolsVis, other command lists like SSR/SSAO should still run
-		if ( Graphics.SceneView.GetToolsVisMode() != (int)SceneCameraDebugMode.Normal &&
+		if ( Graphics.ToolsVisMode != (int)SceneCameraDebugMode.Normal &&
 				stage >= Rendering.Stage.BeforePostProcess &&
 				stage <= Rendering.Stage.AfterPostProcess )
 			return;

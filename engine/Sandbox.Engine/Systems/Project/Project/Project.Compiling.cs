@@ -36,11 +36,6 @@ public partial class Project
 	/// </summary>
 	bool CacheAssemblies => IsBuiltIn && Application.IsRetail && Application.IsEditor;
 
-	/// <summary>
-	/// These package types should reference package.base
-	/// </summary>
-	private static HashSet<string> BaseReferencingTypes { get; } = new HashSet<string> { "game", "addon", "library" };
-
 	private void UpdateCompiler()
 	{
 		// Menu can be precompiled, load that and don't bother making a compiler if so
@@ -100,17 +95,11 @@ public partial class Project
 			var compilerName = $"{Config.Org}.{Config.Ident}".Trim( '.' );
 			var codePath = GetCodePath();
 
-			if ( compilerName == "local.base" ) compilerName = "base";
 			if ( compilerName == "local.toolbase" ) compilerName = "toolbase";
 
 			Log.Trace( $"Create Compiler `{compilerName}`" );
 
 			Compiler = CompileGroup.CreateCompiler( compilerName, codePath, compilerSettings );
-
-			if ( BaseReferencingTypes.Contains( Config.Type ) && compilerName != "base" )
-			{
-				Compiler.AddBaseReference();
-			}
 
 			Compiler.GeneratedCode.AppendLine( $"global using Microsoft.AspNetCore.Components;" );
 			Compiler.GeneratedCode.AppendLine( $"global using Microsoft.AspNetCore.Components.Rendering;" );
@@ -266,20 +255,6 @@ public partial class Project
 
 			AssemblyFileSystem.CreateDirectory( "/.bin" );
 
-			if ( Config.FullIdent == "local.base" )
-			{
-				// package.base gets sent to clients, so we need to have a .cll
-				string cllPath = Path.Combine( directory, $"{compiler.AssemblyName}.cll" );
-				if ( !File.Exists( cllPath ) )
-					return false;
-
-				byte[] cllBytes = File.ReadAllBytes( cllPath );
-				if ( cllBytes is null )
-					return false;
-
-				AssemblyFileSystem.WriteAllBytes( $"/.bin/{compiler.AssemblyName}.cll", cllBytes );
-			}
-
 			// All good, swap in the assembly
 			compiler.UpdateFromAssembly( bytes );
 			AssemblyFileSystem.WriteAllBytes( $"/.bin/{compiler.AssemblyName}.dll", bytes );
@@ -341,7 +316,6 @@ public partial class Project
 			EditorCompiler.AddReference( Compiler );
 		}
 
-		EditorCompiler.AddBaseReference();
 		EditorCompiler.AddToolBaseReference();
 
 		EditorCompiler.AddReference( "Sandbox.Tools" );

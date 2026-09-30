@@ -47,7 +47,8 @@ public class PositionEditorTool : EditorTool
 		var nonSceneGos = Selection.OfType<GameObject>().Where( go => go.GetType() != typeof( Sandbox.Scene ) );
 		if ( nonSceneGos.Count() == 0 ) return;
 
-		var bbox = BBox.FromPoints( nonSceneGos.Select( x => x.WorldPosition ) );
+		var positions = nonSceneGos.Select( x => x.WorldPosition ).ToArray();
+		var centroid = positions.Aggregate( Vector3.Zero, ( sum, p ) => sum + p ) / positions.Length;
 		var handleRotation = Gizmo.Settings.GlobalSpace ? Rotation.Identity : nonSceneGos.FirstOrDefault().WorldRotation;
 
 		if ( !Gizmo.Pressed.Any && Gizmo.HasMouseFocus )
@@ -56,12 +57,12 @@ public class PositionEditorTool : EditorTool
 
 			startPoints.Clear();
 			moveDelta = default;
-			handlePosition = bbox.Center;
+			handlePosition = centroid;
 			undoScope?.Dispose();
 			undoScope = null;
 		}
 
-		using ( Gizmo.Scope( "Tool", new Transform( bbox.Center ) ) )
+		using ( Gizmo.Scope( "Tool", new Transform( centroid ) ) )
 		{
 			Gizmo.Hitbox.DepthBias = 0.01f;
 
@@ -85,13 +86,22 @@ public class PositionEditorTool : EditorTool
 
 				var alignToSurface = Gizmo.IsAltPressed && surfaceNormal.HasValue;
 
+				var alignAsGroup = alignToSurface && nonSceneGos.Count() > 1 && Gizmo.Settings.GlobalSpace;
+
 				foreach ( var entry in startPoints )
 				{
 					var transform = entry.Value.Add( offset, true );
 
 					if ( alignToSurface )
 					{
-						transform = transform.WithRotation( Rotation.FromToRotation( Vector3.Up, surfaceNormal.Value ) * entry.Value.Rotation );
+						var alignRotation = Rotation.FromToRotation( Vector3.Up, surfaceNormal.Value );
+						var rotation = alignRotation * entry.Value.Rotation;
+
+						var position = alignAsGroup
+							? handlePosition + offset + alignRotation * (entry.Value.Position - handlePosition)
+							: transform.Position;
+
+						transform = new Transform( position, rotation, entry.Value.Scale );
 					}
 
 					OnMoveObject( entry.Key, transform );

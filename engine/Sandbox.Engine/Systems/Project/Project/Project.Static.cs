@@ -109,8 +109,6 @@ public partial class Project
 	/// </summary>
 	internal static async Task InitializeBuiltIn( bool syncPackageManager = true )
 	{
-		AddFromFileBuiltIn( "addons/base/.sbproj" );
-
 		if ( !Application.IsStandalone && !Application.IsHeadless )
 		{
 			AddFromFileBuiltIn( "addons/menu/.sbproj" );
@@ -283,6 +281,31 @@ public partial class Project
 		if ( project.Config.Upgrade() )
 		{
 			project.Save();
+		}
+
+		All.Add( project );
+
+		return project;
+	}
+
+	/// <summary>
+	/// Add a project from config JSON rather than a .sbproj on disk, rooted at <paramref name="rootPath"/>.
+	/// This is how an exported standalone game loads itself: the config was embedded in its
+	/// executable at export time, so it's read-only and never upgraded or saved here.
+	/// </summary>
+	internal static Project AddFromEmbeddedConfig( string configJson, string rootPath )
+	{
+		var root = new DirectoryInfo( Path.GetFullPath( rootPath ) );
+
+		if ( All.FirstOrDefault( a => a.RootDirectory?.FullName == root.FullName ) is Project existing )
+			return existing;
+
+		var project = new Project( root, configJson ) { Active = true };
+		project.Load();
+
+		if ( project.Broken )
+		{
+			throw new System.Exception( $"Couldn't add embedded project rooted at {root.FullName}" );
 		}
 
 		All.Add( project );

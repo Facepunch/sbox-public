@@ -34,10 +34,10 @@ public static class LauncherEnvironment
 	{
 		AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
 
-		GamePath = AppContext.BaseDirectory;
+		GamePath = System.IO.Path.TrimEndingDirectorySeparator( AppContext.BaseDirectory );
 
-		// this exe is in the bin folder
-		if ( GamePath.EndsWith( System.IO.Path.Combine( "bin", PlatformName ) ) )
+		// this exe is in a folder inside bin - bin/win64, bin/managed
+		if ( System.IO.Path.GetFileName( System.IO.Path.GetDirectoryName( GamePath ) ) == "bin" )
 		{
 			// go up two folders
 			GamePath = System.IO.Path.GetDirectoryName( GamePath );

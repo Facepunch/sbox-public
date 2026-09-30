@@ -13,8 +13,8 @@ namespace Sandbox.UI;
 public partial class Panel : IPanel, IValid, IComponent
 {
 	/// <summary>
-	/// The element name. If you've created this Panel via a template this will be whatever the element
-	/// name is on there. If not then it'll be the name of the class (ie Panel, Button)
+	/// The element name used by stylesheet selectors. Set from the tag name when created from razor,
+	/// otherwise the lowercased class name (ie panel, button).
 	/// </summary>
 	[Property]
 	public string ElementName { get; set; }
@@ -106,15 +106,21 @@ public partial class Panel : IPanel, IValid, IComponent
 	public bool HasOutro => (PseudoClass & PseudoClass.Outro) != 0;
 
 
+	/// <summary>
+	/// The UI system this panel belongs to. Asked of our parent, and answered by the root - a panel
+	/// that hasn't been added to anything yet says the game's, which is where an orphan would end up.
+	/// </summary>
+	internal virtual UISystem UISystem => Parent?.UISystem ?? Sandbox.Engine.GlobalContext.Current.UISystem;
+
 	public Panel()
 	{
 		InitializeEvents();
+		UpdateDrawCallbacks();
 
-		YogaNode = new YogaWrapper( this );
+		LayoutTree = new PanelLayout( this );
 		Style = new PanelStyle( this );
 		StyleSheet = new StyleSheetCollection( this );
 		Transitions = new Transitions( this );
-		LayerCommandList = new CommandList( $"UI Layer: {GetType().Name}" );
 
 		ElementName = GetType().Name.ToLower();
 		Switch( PseudoClass.Empty, true );
@@ -151,6 +157,8 @@ public partial class Panel : IPanel, IValid, IComponent
 	{
 		LoadStyleSheet();
 		InitializeEvents();
+		_drawCallbacks.Remove( GetType() );
+		UpdateDrawCallbacks();
 
 		// If the checksum changed on our render tree, then we have to assume that everthing
 		// about it changed. Lets destroy it and start from scratch.
@@ -195,7 +203,7 @@ public partial class Panel : IPanel, IValid, IComponent
 	{
 		get
 		{
-			foreach ( var p in AncestorsAndSelf )
+			for ( var p = this; p is not null; p = p.StyleParent )
 			{
 				if ( p.StyleSheet.List == null ) continue;
 
@@ -204,6 +212,13 @@ public partial class Panel : IPanel, IValid, IComponent
 			}
 		}
 	}
+
+	/// <summary>
+	/// The panel this one is styled under - whose stylesheets apply, whose selectors it's a
+	/// descendant of, whose font and colour it inherits. Normally the parent. A popup that floats
+	/// somewhere else in the tree, or in a window of its own, styles itself under what opened it.
+	/// </summary>
+	internal virtual Panel StyleParent => Parent;
 
 	/// <summary>
 	/// Switch a pseudo class on or off.
@@ -322,13 +337,13 @@ public partial class Panel : IPanel, IValid, IComponent
 			var didBuildRenderTree = false;
 			var isFirstRender = renderTree == null;
 
-			if ( HasRenderTree || templateBindsChanged )
+			if ( HasRenderTree || parametersChanged )
 			{
 				InternalTreeBinds();
 
-				if ( templateBindsChanged )
+				if ( parametersChanged )
 				{
-					templateBindsChanged = false;
+					parametersChanged = false;
 					razorTreeDirty = true;
 					ParametersChanged( true );
 				}
@@ -342,6 +357,8 @@ public partial class Panel : IPanel, IValid, IComponent
 
 			// keep before and after updated
 			UpdateBeforeAfterElements();
+
+			UpdateScrollbars();
 
 			//
 			// If our style is dirty, or we're animating/transitioning then make sure we get layed out
@@ -376,11 +393,16 @@ public partial class Panel : IPanel, IValid, IComponent
 			}
 
 			RunPendingEvents();
+
+			// A child's event can delete this panel
+			if ( IsDeleted ) return;
+
 			Tick();
 			RunPendingEvents();
 
 			AddScrollVelocity();
 			RunClassBinds();
+			_paintCache.CheckTextures( this );
 
 
 		}
@@ -469,18 +491,20 @@ public partial class Panel : IPanel, IValid, IComponent
 	}
 
 	/// <summary>
-	/// Allow selecting child text
+	/// Allows drag selection of descendant text. Text in an inline paragraph is selected and copied
+	/// as one continuous string, without adding separators between spans.
 	/// </summary>
 	[Category( "Selection" )]
 	public bool AllowChildSelection { get; set; }
 
 	[Hide]
-	public bool IsValid => YogaNode is not null;
+	public bool IsValid => LayoutTree is not null;
 
 	string CollectSelectedChildrenText( Panel p )
 	{
 		if ( !p.IsVisible )
 			return null;
+		if ( p.LayoutTree?.HasInlineContent == true ) return p.LayoutTree.SelectedInlineText;
 
 		if ( p is Sandbox.UI.Label label )
 		{
@@ -511,6 +535,7 @@ public partial class Panel : IPanel, IValid, IComponent
 		if ( AllowChildSelection )
 		{
 			e.StopPropagation();
+			if ( LayoutTree?.SelectInlineText( e.StartPoint, e.EndPoint ) == true ) return;
 
 			foreach ( var child in Children )
 			{
@@ -520,10 +545,11 @@ public partial class Panel : IPanel, IValid, IComponent
 	}
 
 	/// <summary>
-	/// If AllowChildSelection is enabled, we'll try to select all children text
+	/// Selects all descendant text, including the complete logical text of inline paragraphs.
 	/// </summary>
 	public void SelectAllInChildren()
 	{
+		if ( LayoutTree?.SetInlineSelection( 0, int.MaxValue ) == true ) return;
 		if ( this is Sandbox.UI.Label label )
 		{
 			label.ShouldDrawSelection = true;
@@ -539,10 +565,11 @@ public partial class Panel : IPanel, IValid, IComponent
 	}
 
 	/// <summary>
-	/// Clear any selection in children
+	/// Clears text selection in descendant labels and inline paragraphs.
 	/// </summary>
 	public void UnselectAllInChildren()
 	{
+		if ( LayoutTree?.SetInlineSelection( 0, 0 ) == true ) return;
 		if ( this is Sandbox.UI.Label label )
 		{
 			label.ShouldDrawSelection = false;
@@ -557,6 +584,7 @@ public partial class Panel : IPanel, IValid, IComponent
 
 	void UpdateSelection( Panel p, SelectionEvent e )
 	{
+		if ( p.LayoutTree?.SelectInlineText( e.StartPoint, e.EndPoint ) == true ) return;
 		var rect = e.SelectionRect;
 
 		// child is outside of selection vertically

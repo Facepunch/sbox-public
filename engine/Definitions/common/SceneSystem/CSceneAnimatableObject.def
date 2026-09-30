@@ -1,6 +1,8 @@
 
 #include "scenesystem/sceneanimatableobject.h"
 
+native struct SceneDeformationVolumeData_t is Sandbox.SceneDeformationVolumeData;
+
 delegate SboxAnimationEventCallback;
 delegate SboxAnimTagEventCallback;
 delegate SboxAnimGraphChangedCallback;
@@ -8,6 +10,11 @@ delegate SboxAnimGraphChangedCallback;
 [Handle:Sandbox.SceneModel]
 native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSceneObject
 {
+	inline void SetDeformationVolumes( int count, void* volumes )
+	{
+		self->SetDeformationVolumes( count, static_cast<const SceneDeformationVolumeData_t *>( volumes ) );
+	}
+
 	[nogc]
 	void SetWorldSpaceRenderBoneTransform( int nBoneIndex, Transform pRenderWorldTransform );
 	[nogc]

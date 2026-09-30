@@ -1,0 +1,95 @@
+@import "/styles/_front.scss";
+
+JamPage JamPreviewHelper
+{
+	position: absolute;
+	left: 16px;
+	right: 16px;
+	bottom: 0;
+	z-index: 1000;
+	height: 52px;
+	flex-direction: row;
+	align-items: center;
+	gap: 16px;
+	padding: 8px 12px;
+	background-color: #171c26;
+	border: 1px solid rgba( $front-trophy, 0.4 );
+	border-bottom: 0;
+	border-radius: 8px 8px 0 0;
+	box-shadow: 0 0 24px rgba( black, 0.6 );
+	font-family: $front-font;
+	font-size: 11px;
+	color: $front-body;
+
+	.preview-info
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+		gap: 2px;
+	}
+
+	.heading
+	{
+		align-items: center;
+		gap: 6px;
+		color: $front-trophy;
+		font-weight: 700;
+		white-space: nowrap;
+
+		icon
+		{
+			font-size: 14px;
+		}
+	}
+
+	.date
+	{
+		font-size: 11px;
+		color: $front-heading;
+		white-space: nowrap;
+	}
+
+	.phase
+	{
+		color: $front-secondary;
+		font-weight: 400;
+		margin-left: 8px;
+		flex-shrink: 1;
+		text-overflow: ellipsis;
+		overflow: hidden;
+	}
+
+	.actions
+	{
+		gap: 6px;
+		flex-shrink: 0;
+
+		+ .actions
+		{
+			padding-left: 16px;
+			border-left: $front-border-width solid $front-hairline;
+		}
+
+		.button
+		{
+			flex-shrink: 0;
+			height: 30px;
+			padding: 0 10px;
+			border-radius: 4px;
+
+			label
+			{
+				font-size: 10px;
+				text-transform: none;
+				letter-spacing: 0;
+			}
+
+			&.disabled
+			{
+				opacity: 0.35;
+			}
+		}
+	}
+}

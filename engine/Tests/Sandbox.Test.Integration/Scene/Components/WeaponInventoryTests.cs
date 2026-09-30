@@ -204,6 +204,44 @@ public class InventoryComponentTest
 		Assert.AreEqual( 1, b.Holsters );
 	}
 
+	[TestMethod]
+	public void InitialActiveItemEquipsOnStart()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var inventory = CreateInventory( scene );
+		var item = CreateItem( scene );
+		inventory.Add( item );
+
+		inventory.Flags |= ComponentFlags.Deserializing;
+		inventory.Switch( item );
+		inventory.Flags &= ~ComponentFlags.Deserializing;
+		Assert.AreEqual( item, inventory.ActiveItem );
+		Assert.AreEqual( 0, item.Equips, "initial deserialization still suppresses Change callbacks" );
+
+		inventory.InternalOnStart();
+		Assert.AreEqual( 1, item.Equips );
+		Assert.IsTrue( item.GameObject.Enabled );
+
+		inventory.Switch( null, allowHolster: true );
+		Assert.AreEqual( 1, item.Holsters );
+	}
+
+	[TestMethod]
+	public void LiveActiveItemBeforeStartIsNotEquippedTwice()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var inventory = CreateInventory( scene );
+		var item = CreateItem( scene );
+		inventory.Add( item );
+		inventory.Switch( item );
+
+		inventory.InternalOnStart();
+		Assert.AreEqual( 1, item.Equips );
+		Assert.AreEqual( 0, item.Holsters );
+	}
+
 	/// <summary>
 	/// PickupWorldItem takes an item lying in the world and makes it active when nothing else is -
 	/// but won't re-take something this inventory just dropped.

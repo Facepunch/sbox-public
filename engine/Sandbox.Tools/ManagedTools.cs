@@ -62,7 +62,7 @@ internal static class ManagedTools
 
 		// Same for the fonts, which is what bit: this folder is really called Assets, so
 		// enumerating a spelled-out path found nothing and Qt never got a font.
-		const string fontFolder = "/addons/base/assets/fonts";
+		const string fontFolder = "/core/fonts";
 
 		foreach ( var file in FileSystem.Root.FindFile( fontFolder, "*.ttf" ) )
 		{
@@ -130,6 +130,11 @@ internal static class ManagedTools
 	public static void Shutdown()
 	{
 		stylesWatcher?.Dispose();
+
+		// Panel UI windows and their swap chains, before the render device goes away
+		PanelWindow.DisposeAll();
+		SceneRenderingWidget.ShutdownRendering();
+		EngineLoop.DrainFrameEndDisposables();
 
 		AssetSystem.Shutdown();
 	}
@@ -230,6 +235,8 @@ internal static class ManagedTools
 	{
 		return !EditorShortcuts.AllowShortcuts;
 	}
+
+	internal static void RunConsoleCommand( string command ) => Sandbox.ConVarSystem.Run( command );
 
 	internal static void OnToolCommand( string v )
 	{

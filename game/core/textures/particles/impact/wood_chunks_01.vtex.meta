@@ -1,0 +1,21 @@
+{
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "Wood Chunks 01",
+      "Type": "vtex",
+      "Org": "local",
+      "Ident": "woodchunks01",
+      "Schema": 0,
+      "IncludeSourceFiles": true,
+      "Resources": null,
+      "PackageReferences": null,
+      "EditorReferences": null,
+      "IsWhitelistDisabled": false,
+      "Metadata": {
+        "SingleAssetSource": "particles/surfaces/wood_chunks_01.vtex"
+      }
+    }
+  },
+  "guid": "568799fe-11e8-48ca-b2d0-fcba2089035e"
+}

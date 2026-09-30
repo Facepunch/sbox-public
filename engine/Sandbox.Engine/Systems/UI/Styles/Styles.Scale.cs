@@ -52,10 +52,13 @@
 
 			Length.Scale( ref _outlinewidth, scale );
 			Length.Scale( ref _outlineoffset, scale );
+			Length.Scale( ref _scrollbarwidth, scale );
 
 			Length.Scale( ref _transformoriginx, scale );
 			Length.Scale( ref _transformoriginy, scale );
 			Scale( ref _transform, scale );
+
+			_bordershape = _bordershape?.Scale( scale );
 
 			Scale( BoxShadow, scale );
 			Scale( TextShadow, scale );

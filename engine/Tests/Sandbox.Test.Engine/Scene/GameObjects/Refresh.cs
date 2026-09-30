@@ -473,25 +473,36 @@ public class RefreshTest : SceneTest
 		Assert.AreEqual( originalIds["GrandChild2A"], refreshedGrandChild2A.Id, "GrandChild2A ID should be preserved" );
 	}
 
-	// A refresh applies flags verbatim. A plain (disk-style) snapshot has runtime flags stripped, so a refresh
-	// from it keeps the persisted flags and drops the runtime ones (which then get re-derived at runtime).
 	[TestMethod]
-	public void RefreshFromPlainSnapshotAppliesFlagsVerbatim()
+	public void RefreshPreservesBoneIdentityUnlessNetworkRefresh()
 	{
 		using var scope = new Scene().Push();
 
 		var go = new GameObject( true, "Object" );
-		go.Flags |= GameObjectFlags.Hidden;
+		const GameObjectFlags identityFlags = GameObjectFlags.Bone | GameObjectFlags.Attachment;
+		go.Flags = identityFlags | GameObjectFlags.ProceduralBone;
 
-		var json = go.Serialize(); // plain: strips runtime flags
+		var json = go.Serialize( new GameObject.SerializeOptions { SerializeForUndo = true } );
+		Assert.AreEqual( (long)GameObjectFlags.ProceduralBone, json["Flags"].GetValue<long>() );
 
-		// Runtime flag set on the live object after the snapshot was taken.
-		go.Flags |= GameObjectFlags.Loading;
+		go.Flags = identityFlags | GameObjectFlags.Hidden | GameObjectFlags.Loading | GameObjectFlags.Error;
+		var redo = go.Serialize( new GameObject.SerializeOptions { SerializeForUndo = true } );
 
 		go.Deserialize( json, new GameObject.DeserializeOptions { IsRefreshing = true } );
+		Assert.AreEqual( identityFlags | GameObjectFlags.ProceduralBone, go.Flags,
+			"Undo must preserve bone/attachment identity without retaining unrelated runtime flags" );
 
-		Assert.IsTrue( go.Flags.Contains( GameObjectFlags.Hidden ), "persisted flag should be applied" );
-		Assert.IsFalse( go.Flags.Contains( GameObjectFlags.Loading ), "verbatim refresh from a plain snapshot clears runtime flags" );
+		go.Flags |= GameObjectFlags.Loading | GameObjectFlags.Error;
+		go.Deserialize( redo, new GameObject.DeserializeOptions { IsRefreshing = true } );
+		Assert.AreEqual( identityFlags | GameObjectFlags.Hidden, go.Flags,
+			"Redo must preserve bone/attachment identity while clearing procedural and unrelated runtime flags" );
+
+		go.Flags = GameObjectFlags.Hidden | GameObjectFlags.Loading;
+		var network = go.Serialize( new GameObject.SerializeOptions { SingleNetworkObject = true } );
+		go.Flags = identityFlags | GameObjectFlags.Error | GameObjectFlags.ProceduralBone;
+		go.Deserialize( network, new GameObject.DeserializeOptions { IsRefreshing = true, IsNetworkRefresh = true } );
+		Assert.AreEqual( GameObjectFlags.Hidden | GameObjectFlags.Loading, go.Flags,
+			"Network refresh must still replace all flags with the authoritative snapshot" );
 	}
 
 	// Helper method to find a child object in the JSON by name

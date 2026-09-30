@@ -273,6 +273,11 @@ internal static class ReflectionUtility
 							if ( method.IsAbstract ) continue;
 							if ( method.ContainsGenericParameters ) continue;
 
+							// Preparing a p/invoke resolves its native library right here, which
+							// throws for anything that isn't shipped on this platform. There's no
+							// managed code to JIT anyway, so there's nothing to gain by trying.
+							if ( (method.Attributes & MethodAttributes.PinvokeImpl) != 0 ) continue;
+
 							try
 							{
 								System.Runtime.CompilerServices.RuntimeHelpers.PrepareMethod( method.MethodHandle );

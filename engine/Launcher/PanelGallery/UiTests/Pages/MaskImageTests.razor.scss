@@ -1,0 +1,16 @@
+@import "/styles/_gallery-palette.scss";
+MaskImageTests {
+	.masked
+	{
+		mask-mode: alpha;
+		mask-size: 100% 100%;
+		width: 144px;
+		height: 144px;
+		flex-shrink: 0;
+		background-image: linear-gradient( 45deg, $gallery-cyan, $gallery-pink );
+	}
+
+	.fade-mask { mask-image: url( /assets/mask-linear.svg ); }
+	.round-mask { mask-image: url( /assets/mask-radial.svg ); }
+	.round { border-radius: 24px; }
+}

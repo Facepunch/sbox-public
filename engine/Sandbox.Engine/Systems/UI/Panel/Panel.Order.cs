@@ -30,11 +30,11 @@ public partial class Panel
 
 		foreach ( var child in _children.OrderBy( x => x.LastOrder ?? 0 ).ThenBy( x => x.SiblingIndex ) )
 		{
-			if ( child.YogaNode is null )
+			if ( child.LayoutTree is null )
 				continue;
 
-			YogaNode.RemoveChild( child.YogaNode );
-			YogaNode.AddChild( child.YogaNode );
+			LayoutTree.RemoveChild( child.LayoutTree );
+			LayoutTree.AddChild( child.LayoutTree );
 		}
 	}
 
@@ -72,10 +72,10 @@ public partial class Panel
 
 		newIndex = Math.Clamp( newIndex, 0, _children.Count - 1 );
 
-		if ( child.YogaNode != null )
+		if ( child.LayoutTree != null )
 		{
-			YogaNode?.RemoveChild( child.YogaNode );
-			YogaNode?.AddChild( newIndex, child.YogaNode );
+			LayoutTree?.RemoveChild( child.LayoutTree );
+			LayoutTree?.AddChild( newIndex, child.LayoutTree );
 		}
 
 		// Log.Info( $"{child.ElementName} Set Index To {newIndex} [si:{child.SiblingIndex}] [i:{_children.IndexOf( child )}]" );

@@ -58,7 +58,14 @@
 		/// </summary>
 		public float MaxInteractionDistance { get; set; }
 
-		public WorldPanel( SceneWorld world )
+		public WorldPanel( SceneWorld world ) : this( world, Sandbox.Engine.GlobalContext.Current.UISystem )
+		{
+		}
+
+		/// <summary>
+		/// A world panel hosted by an independent UI surface, such as an editor window.
+		/// </summary>
+		internal WorldPanel( SceneWorld world, UISystem system ) : base( system )
 		{
 			ArgumentNullException.ThrowIfNull( world, "world" );
 

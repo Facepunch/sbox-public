@@ -1,11 +1,11 @@
-﻿namespace Microsoft.AspNetCore.Components
+namespace Microsoft.AspNetCore.Components
 {
 
 	namespace CompilerServices
 	{
 		public static class RuntimeHelpers
 		{
-			public static T TypeCheck<T>( T value ) => throw null;
+			public static T TypeCheck<T>( T value ) => value;
 		}
 	}
 

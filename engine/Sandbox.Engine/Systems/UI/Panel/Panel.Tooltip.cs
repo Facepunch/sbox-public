@@ -19,11 +19,19 @@ public partial class Panel
 	public string TooltipClass { get; set; }
 
 	/// <summary>
+	/// Build a richer tooltip than a line of text. Called with the tooltip panel as it's about to be
+	/// shown - add whatever it should contain: labels, images, anything. If <see cref="Tooltip"/> is
+	/// set too, that text is already in there as the first child.
+	/// </summary>
+	[Parameter]
+	public Action<Panel> OnTooltip { get; set; }
+
+	/// <summary>
 	/// You should override and return true if you're overriding <see cref="CreateTooltipPanel"/>.
-	/// Otherwise this will return true if <see cref="Tooltip"/> is not empty.
+	/// Otherwise this will return true if <see cref="Tooltip"/> or <see cref="OnTooltip"/> is set.
 	/// </summary>
 	[Hide]
-	public virtual bool HasTooltip => !string.IsNullOrWhiteSpace( Tooltip );
+	public virtual bool HasTooltip => !string.IsNullOrWhiteSpace( Tooltip ) || OnTooltip is not null;
 
 	/// <summary>
 	/// Pushes the global context to whatever is suitable for this panel.
@@ -32,9 +40,13 @@ public partial class Panel
 	/// </summary>
 	IDisposable PushGlobalContext()
 	{
-		var rootPanel = FindRootPanel();
-		var isMenu = GlobalContext.Menu.UISystem?.RootPanels.Contains( rootPanel ); // assume game context
-		return isMenu == true ? GlobalContext.MenuScope() : GlobalContext.GameScope();
+		var host = UISystem;
+
+		if ( host is not null && host == GlobalContext.Menu?.UISystem ) return GlobalContext.MenuScope();
+		if ( host is not null && host == GlobalContext.Game?.UISystem ) return GlobalContext.GameScope();
+
+		// A surface of its own, like an editor window - whatever context we're in is the right one
+		return null;
 	}
 
 	/// <summary>
@@ -43,7 +55,7 @@ public partial class Panel
 	/// </summary>
 	protected virtual Panel CreateTooltipPanel()
 	{
-		if ( string.IsNullOrWhiteSpace( Tooltip ) )
+		if ( string.IsNullOrWhiteSpace( Tooltip ) && OnTooltip is null )
 			return null;
 
 		using var scope = PushGlobalContext();
@@ -53,15 +65,38 @@ public partial class Panel
 		p.AddClass( TooltipClass );
 		p.SetProperty( "style", "position: absolute; pointer-events: none; z-index: 10000;" );
 
-		var textContents = new Label
+		if ( !string.IsNullOrWhiteSpace( Tooltip ) )
 		{
-			Parent = p,
-			Text = Tooltip
-		};
+			var textContents = new Label
+			{
+				Parent = p,
+				Text = Tooltip
+			};
+		}
+
+		OnTooltip?.Invoke( p );
 
 		p.Parent = FindRootPanel();
 
 		return p;
 	}
 
+	/// <summary>
+	/// The tooltip system's way in to <see cref="CreateTooltipPanel"/>.
+	/// </summary>
+	internal Panel BuildTooltip() => CreateTooltipPanel();
+
+	/// <summary>
+	/// If the tooltip text changed while the tooltip is up, we'll update it here. Only the plain
+	/// text tooltip - a tooltip built by hand is whatever it was built as.
+	/// </summary>
+	internal void UpdateTooltip( Panel tooltipPanel )
+	{
+		if ( OnTooltip is not null ) return;
+		if ( !tooltipPanel.HasChildren ) return;
+		if ( tooltipPanel.ChildrenCount != 1 ) return;
+		if ( tooltipPanel.Children.First() is not Label textPanel ) return;
+
+		textPanel.Text = Tooltip;
+	}
 }

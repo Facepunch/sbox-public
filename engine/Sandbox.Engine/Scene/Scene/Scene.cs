@@ -8,6 +8,24 @@ public partial class Scene : GameObject
 {
 	public bool IsEditor { get; private set; }
 
+	/// <summary>
+	/// Pause scene updates, rendering, UI and spatial audio without destroying their state.
+	/// Overlays, local audio and external async work remain active.
+	/// </summary>
+	internal bool IsSuspended { get; set; }
+
+	/// <summary>
+	/// A snapshot is currently creating objects whose map content it already supplies.
+	/// </summary>
+	internal bool IsLoadingSnapshot { get; private set; }
+
+	internal IDisposable LoadingSnapshotScope()
+	{
+		var previous = IsLoadingSnapshot;
+		IsLoadingSnapshot = true;
+		return new DisposeAction( () => IsLoadingSnapshot = previous );
+	}
+
 	bool _destroyed;
 	SceneWorld _sceneWorld;
 
@@ -79,24 +97,71 @@ public partial class Scene : GameObject
 	public RenderAttributes RenderAttributes { get; }
 
 	private PhysicsWorld _physicsWorld;
+	private ScenePhysicsMode _physicsMode;
+
+	/// <summary>
+	/// Which physics simulation this scene runs. The physics world is built for one mode, so this
+	/// is chosen once when the scene is authored and can't be changed while the scene is running.
+	/// </summary>
+	[Property]
+	public ScenePhysicsMode PhysicsMode
+	{
+		get => _physicsMode;
+		set
+		{
+			if ( _physicsMode == value )
+				return;
+
+			// The editor picks this up through ReloadHash and rebuilds the scene. At runtime nothing
+			// reloads, and tearing down a live world would take every body in the scene with it.
+			if ( HasPhysicsWorld && !IsEditor )
+			{
+				Log.Warning( $"Can't change {nameof( PhysicsMode )} once the physics world exists - reload the scene instead" );
+				return;
+			}
+
+			_physicsMode = value;
+		}
+	}
+
+	internal bool Is2D => PhysicsMode == ScenePhysicsMode.Physics2D;
+
+	/// <summary>
+	/// Hash of scene settings that require a world reload when changed.
+	/// </summary>
+	internal int ReloadHash => HashCode.Combine( PhysicsMode );
 
 	public PhysicsWorld PhysicsWorld => _physicsWorld ??= CreatePhysicsWorld();
 
-	private PhysicsWorld CreatePhysicsWorld()
+	/// <summary>
+	/// Creates the physics world for this scene, matching <see cref="PhysicsMode"/>.
+	/// </summary>
+	PhysicsWorld CreatePhysicsWorld()
 	{
-		var world = new PhysicsWorld
+		if ( PhysicsMode == ScenePhysicsMode.Physics2D )
 		{
-			DebugSceneWorld = DebugSceneWorld,
-			Gravity = Vector3.Down * 850,
-			SimulationMode = PhysicsSimulationMode.Continuous,
-			CollisionRules = ProjectSettings.Collision,
-			Scene = this
-		};
+			var world = new PhysicsWorld2d
+			{
+				Gravity = Vector2.Down * 850,
+				Scene = this,
+				CollisionRules = ProjectSettings.Collision,
+			};
 
-		// the physics system steps the world and forwards its collision events
-		GetSystem<ScenePhysicsSystem>()?.OnPhysicsWorldCreated( world );
+			return world.Owner;
+		}
+		else
+		{
+			var world = new PhysicsWorld3d
+			{
+				Gravity = Vector3.Down * 850,
+				SimulationMode = PhysicsSimulationMode.Continuous,
+				DebugSceneWorld = DebugSceneWorld,
+				Scene = this,
+				CollisionRules = ProjectSettings.Collision,
+			};
 
-		return world;
+			return world.Owner;
+		}
 	}
 
 	protected Scene( bool isEditor ) : base( true, "Scene" )
@@ -251,6 +316,8 @@ public partial class Scene : GameObject
 
 	internal void Render( SwapChainHandle_t swapChain, Vector2? size )
 	{
+		if ( IsSuspended ) return;
+
 		using var _renderScope = _renderTimer.Start();
 
 		PreCameraRender();
@@ -269,6 +336,8 @@ public partial class Scene : GameObject
 
 	internal void RenderEnvmaps()
 	{
+		if ( IsSuspended ) return;
+
 		// Can't render envmaps while already inside a render pass
 		if ( Graphics.IsActive )
 		{
@@ -303,12 +372,10 @@ public partial class Scene : GameObject
 			cc.InitializeRendering();
 		}
 
-		RenderEnvmaps();
-
 		// Alpha is used to lerp between IBL and fixed ambient light
 		Color ambientLight = Color.Transparent;
 
-		foreach ( var light in GetAllComponents<DirectionalLight>() )
+		foreach ( var light in Query<DirectionalLight>() )
 		{
 			if ( Camera.IsValid() && light.Tags.HasAny( Camera.RenderExcludeTags ) )
 				continue;

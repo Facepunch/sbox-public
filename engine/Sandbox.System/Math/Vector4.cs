@@ -12,6 +12,7 @@ using System.Text.Json.Serialization;
 [DataContract]
 [JsonConverter( typeof( Sandbox.Internal.JsonConvert.Vector4Converter ) )]
 [StructLayout( LayoutKind.Explicit, Pack = 16, Size = 16 )]
+[Description( "A 4-dimensional vector or point." )]
 public struct Vector4 : System.IEquatable<Vector4>, IParsable<Vector4>
 {
 	[FieldOffset( 0 )]
@@ -141,6 +142,12 @@ public struct Vector4 : System.IEquatable<Vector4>, IParsable<Vector4>
 	/// </summary>
 	[JsonIgnore]
 	public readonly bool IsInfinity => float.IsInfinity( x ) || float.IsInfinity( y ) || float.IsInfinity( z ) || float.IsInfinity( w );
+
+	/// <summary>
+	/// Returns true if x, y, z and w are all finite, so neither NaN nor infinity
+	/// </summary>
+	[JsonIgnore]
+	public readonly bool IsFinite => float.IsFinite( x ) && float.IsFinite( y ) && float.IsFinite( z ) && float.IsFinite( w );
 
 	/// <summary>
 	/// Whether length of this vector is nearly zero.

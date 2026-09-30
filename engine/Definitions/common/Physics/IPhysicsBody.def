@@ -4,7 +4,7 @@
 //
 // Native Type
 //
-[Handle:Sandbox.PhysicsBody]
+[Handle:Sandbox.PhysicsBody3d]
 native class IPhysicsBody as NativeEngine.IPhysicsBody
 {
 	IPhysicsWorld GetWorld();

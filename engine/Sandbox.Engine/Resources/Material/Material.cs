@@ -34,7 +34,7 @@ public sealed partial class Material : Resource
 		this.native = native;
 		this.Name = name;
 
-		RegisterWeakResourceId( name );
+		RegisterWeakResourceId( name, native.GetGuid() );
 
 		CRenderAttributes attributes = this.native.GetRenderAttributes();
 		Attributes = new RenderAttributes( attributes );
@@ -51,6 +51,10 @@ public sealed partial class Material : Resource
 		{
 			var n = native;
 			native = default;
+
+			// Evict from NativeResourceCache, as Texture does, so a material native makes later at the same address gets a
+			// wrapper of its own rather than this dead one
+			NativeResourceCache.Remove( n.GetBindingPtr().ToInt64() );
 
 			MainThread.Queue( () => n.DestroyStrongHandle() );
 		}

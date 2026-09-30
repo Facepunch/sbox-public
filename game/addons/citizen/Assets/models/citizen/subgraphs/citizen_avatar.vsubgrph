@@ -1,0 +1,504 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:animgraph2:version{0f7898b8-5471-45c4-9867-cd9c46bcfdb5} -->
+{
+	_class = "CAnimationSubGraph"
+	m_nodeManager =
+	{
+		_class = "CAnimNodeManager"
+		m_nodes =
+		[
+			{
+				key =
+				{
+					m_id = 7803029
+				}
+				value =
+				{
+					_class = "CGroupAnimNode"
+					m_sName = "(HACK) Fix human eye positions"
+					m_vecPosition = [ 0.0, 176.0 ]
+					m_nNodeID =
+					{
+						m_id = 7803029
+					}
+					m_sNote = ""
+					m_inputNodeID =
+					{
+						m_id = 1685710359
+					}
+					m_outputNodeID =
+					{
+						m_id = 1787165141
+					}
+					m_inputConnectionMap =
+					[
+						{
+							key =
+							{
+								m_id = 1083653546
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 148920691
+								}
+								m_outputID =
+								{
+									m_id = 1820648742
+								}
+							}
+						},
+					]
+					m_nodeManager =
+					{
+						_class = "CAnimNodeManager"
+						m_nodes =
+						[
+							{
+								key =
+								{
+									m_id = 704657103
+								}
+								value =
+								{
+									_class = "CSingleFrameAnimNode"
+									m_sName = "Unnamed"
+									m_vecPosition = [ -192.0, 64.0 ]
+									m_nNodeID =
+									{
+										m_id = 704657103
+									}
+									m_sNote = ""
+									m_sequenceName = "bindPose"
+									m_nFrameIndex = 0
+									m_tagSpans = [  ]
+								}
+							},
+							{
+								key =
+								{
+									m_id = 1233329946
+								}
+								value =
+								{
+									_class = "CBoneMaskAnimNode"
+									m_sName = "Unnamed"
+									m_vecPosition = [ 96.0, 0.0 ]
+									m_nNodeID =
+									{
+										m_id = 1233329946
+									}
+									m_sNote = ""
+									m_weightListName = "Only_Eyes"
+									m_inputConnection1 =
+									{
+										m_nodeID =
+										{
+											m_id = 1685710359
+										}
+										m_outputID =
+										{
+											m_id = 1083653546
+										}
+									}
+									m_inputConnection2 =
+									{
+										m_nodeID =
+										{
+											m_id = 704657103
+										}
+										m_outputID =
+										{
+											m_id = 4294967295
+										}
+									}
+									m_blendSpace = "BlendSpace_Parent"
+									m_bUseBlendScale = false
+									m_blendValueSource = "Parameter"
+									m_blendParameter =
+									{
+										m_id = 4294967295
+									}
+									m_timingBehavior = "UseChild2"
+									m_flTimingBlend = 0.5
+									m_flRootMotionBlend = 0.0
+									m_footMotionTiming = "Child1"
+									m_bResetChild1 = true
+									m_bResetChild2 = true
+								}
+							},
+							{
+								key =
+								{
+									m_id = 1685710359
+								}
+								value =
+								{
+									_class = "CGroupInputAnimNode"
+									m_sName = "Pose inputs"
+									m_vecPosition = [ -384.0, -16.0 ]
+									m_nNodeID =
+									{
+										m_id = 1685710359
+									}
+									m_sNote = ""
+									m_proxyItems =
+									[
+										{
+											m_name = "Out"
+											m_outputID =
+											{
+												m_id = 1083653546
+											}
+											m_inputConnection =
+											{
+												m_nodeID =
+												{
+													m_id = 4294967295
+												}
+												m_outputID =
+												{
+													m_id = 4294967295
+												}
+											}
+										},
+									]
+								}
+							},
+							{
+								key =
+								{
+									m_id = 1787165141
+								}
+								value =
+								{
+									_class = "CGroupOutputAnimNode"
+									m_sName = "Pose outputs"
+									m_vecPosition = [ 368.0, 0.0 ]
+									m_nNodeID =
+									{
+										m_id = 1787165141
+									}
+									m_sNote = ""
+									m_proxyItems =
+									[
+										{
+											m_name = "In"
+											m_outputID =
+											{
+												m_id = 1346653541
+											}
+											m_inputConnection =
+											{
+												m_nodeID =
+												{
+													m_id = 1233329946
+												}
+												m_outputID =
+												{
+													m_id = 4294967295
+												}
+											}
+										},
+									]
+								}
+							},
+						]
+					}
+				}
+			},
+			{
+				key =
+				{
+					m_id = 148920691
+				}
+				value =
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Avatar-menu poses"
+					m_vecPosition = [ 64.0, 0.0 ]
+					m_nNodeID =
+					{
+						m_id = 148920691
+					}
+					m_sNote = ""
+					m_inputNodeID =
+					{
+						m_id = 1522200401
+					}
+					m_outputNodeID =
+					{
+						m_id = 299353088
+					}
+					m_inputConnectionMap =
+					[
+						{
+							key =
+							{
+								m_id = 2125272507
+							}
+							value =
+							{
+								m_nodeID =
+								{
+									m_id = 2100000009
+								}
+								m_outputID =
+								{
+									m_id = 2100000021
+								}
+							}
+						},
+					]
+					m_subGraphFilename = "models/citizen/subgraphs/citizen_avatar_menu.vsubgrph"
+				}
+			},
+			{
+				key =
+				{
+					m_id = 212423388
+				}
+				value =
+				{
+					_class = "CSelectorAnimNode"
+					m_sName = "Character type corrections"
+					m_vecPosition = [ 416.0, 0.0 ]
+					m_nNodeID =
+					{
+						m_id = 212423388
+					}
+					m_sNote = ""
+					m_children =
+					[
+						{
+							m_nodeID =
+							{
+								m_id = 148920691
+							}
+							m_outputID =
+							{
+								m_id = 1820648742
+							}
+						},
+						{
+							m_nodeID =
+							{
+								m_id = 7803029
+							}
+							m_outputID =
+							{
+								m_id = 1346653541
+							}
+						},
+						{
+							m_nodeID =
+							{
+								m_id = 1444073158
+							}
+							m_outputID =
+							{
+								m_id = 4294967295
+							}
+						},
+					]
+					m_tags =
+					[
+						{
+							m_id = 4294967295
+						},
+						{
+							m_id = 4294967295
+						},
+						{
+							m_id = 4294967295
+						},
+					]
+					m_selectionSource = "SelectionSource_Enum"
+					m_boolParamID =
+					{
+						m_id = 4294967295
+					}
+					m_enumParamID =
+					{
+						m_id = 736115688
+					}
+					m_intParamID =
+					{
+						m_id = 4294967295
+					}
+					m_intParamMinValue = 0
+					m_intParamMaxValue = 2
+					m_blendDuration = 0.0
+					m_tagBehavior = "SelectorTagBehavior_OffWhenFinished"
+					m_bResetOnChange = true
+					m_bSyncCyclesOnChange = false
+					m_blendCurve =
+					{
+						m_vControlPoint1 = [ 0.5, 0.0 ]
+						m_vControlPoint2 = [ 0.5, 1.0 ]
+					}
+					m_intParamNames = [  ]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 1444073158
+				}
+				value =
+				{
+					_class = "CAddAnimNode"
+					m_sName = "Female character pose correction"
+					m_vecPosition = [ 304.0, 208.0 ]
+					m_nNodeID =
+					{
+						m_id = 1444073158
+					}
+					m_sNote = ""
+					m_baseInput =
+					{
+						m_nodeID =
+						{
+							m_id = 7803029
+						}
+						m_outputID =
+						{
+							m_id = 1346653541
+						}
+					}
+					m_additiveInput =
+					{
+						m_nodeID =
+						{
+							m_id = 1763771071
+						}
+						m_outputID =
+						{
+							m_id = 4294967295
+						}
+					}
+					m_timingBehavior = "UseChild2"
+					m_flTimingBlend = 0.5
+					m_footMotionTiming = "Child1"
+					m_bResetBase = false
+					m_bResetAdditive = false
+					m_bApplyChannelsSeparately = true
+					m_bModelSpace = false
+				}
+			},
+			{
+				key =
+				{
+					m_id = 1763771071
+				}
+				value =
+				{
+					_class = "CSingleFrameAnimNode"
+					m_sName = "Female character correction pose"
+					m_vecPosition = [ 48.0, 240.0 ]
+					m_nNodeID =
+					{
+						m_id = 1763771071
+					}
+					m_sNote = ""
+					m_sequenceName = "SkeletonDelta_f_delta"
+					m_nFrameIndex = 0
+					m_tagSpans = [  ]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 2100000009
+				}
+				value =
+				{
+					_class = "CGroupInputAnimNode"
+					m_sName = "Stage inputs"
+					m_vecPosition = [ -448.0, 0.0 ]
+					m_nNodeID =
+					{
+						m_id = 2100000009
+					}
+					m_sNote = ""
+					m_proxyItems =
+					[
+						{
+							m_name = "Movement pose / In"
+							m_outputID =
+							{
+								m_id = 2100000021
+							}
+							m_inputConnection =
+							{
+								m_nodeID =
+								{
+									m_id = 4294967295
+								}
+								m_outputID =
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key =
+				{
+					m_id = 2100000015
+				}
+				value =
+				{
+					_class = "CGroupOutputAnimNode"
+					m_sName = "Stage outputs"
+					m_vecPosition = [ 928.0, 0.0 ]
+					m_nNodeID =
+					{
+						m_id = 2100000015
+					}
+					m_sNote = ""
+					m_proxyItems =
+					[
+						{
+							m_name = "Character pose"
+							m_outputID =
+							{
+								m_id = 2100000044
+							}
+							m_inputConnection =
+							{
+								m_nodeID =
+								{
+									m_id = 212423388
+								}
+								m_outputID =
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+		]
+	}
+	m_localParameters =
+	[
+		{
+			_class = "CEnumAnimParameter"
+			m_name = "_character_type"
+			m_id =
+			{
+				m_id = 736115688
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_defaultValue = 0
+			m_enumOptions = [ "citizen", "human_m", "human_f" ]
+		},
+	]
+	m_localTags = [  ]
+}

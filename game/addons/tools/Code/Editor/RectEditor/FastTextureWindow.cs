@@ -93,7 +93,6 @@ public class FastTextureWindow : Window
 		}
 
 		Settings.FastTextureSettings.Load();
-		Settings.GridSize = Settings.FastTextureSettings.GridSize;
 
 		var savedMin = Settings.FastTextureSettings.SavedRectMin;
 		var savedMax = Settings.FastTextureSettings.SavedRectMax;
@@ -314,7 +313,6 @@ public class FastTextureWindow : Window
 			Settings.FastTextureSettings.SavedRectMax = meshRect.Max;
 		}
 
-		Settings.FastTextureSettings.GridSize = Settings.GridSize;
 		Settings.FastTextureSettings.Save();
 
 		_undoScope?.Dispose();

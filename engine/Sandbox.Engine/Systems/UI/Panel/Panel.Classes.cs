@@ -13,6 +13,21 @@ public partial class Panel
 	internal string _classes;
 
 	/// <summary>
+	/// Order-independent hash of the class set, for cheap change detection without building <see cref="Classes"/>.
+	/// </summary>
+	internal int ClassHash
+	{
+		get
+		{
+			if ( _class is null ) return 0;
+
+			int hash = 0;
+			foreach ( var c in _class ) hash += c.GetHashCode();
+			return hash;
+		}
+	}
+
+	/// <summary>
 	/// All CSS classes applied to this panel, separated with spaces.
 	/// </summary>
 	[Property]

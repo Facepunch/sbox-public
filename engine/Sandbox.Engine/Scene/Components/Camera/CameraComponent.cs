@@ -227,6 +227,9 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		sceneCamera = new( GameObject.Name );
 
 		sceneCamera.OnRenderStageHook = ExecuteCommandLists;
+		sceneCamera.WantsDepthNormalsHook = WantsDepthNormals;
+		sceneCamera.HasAsyncComputeHook = HasAsyncCompute;
+		sceneCamera.RenderAsyncComputeHook = RenderAsyncCompute;
 	}
 
 	protected override void OnAwake()
@@ -238,6 +241,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	protected override void OnDestroy()
 	{
 		Scene.Cameras.Remove( this );
+		Rendering.ManagedSceneRendering.Forget( this );
 		sceneCamera?.Dispose();
 		sceneCamera = null;
 	}
@@ -383,6 +387,11 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	/// <summary>
 	/// Update a SceneCamera with the settings from this component
 	/// </summary>
+	Action<Stage, SceneCamera> executeCommandListsHook;
+	Func<bool> wantsDepthNormalsHook;
+	Func<Stage, bool> hasAsyncComputeHook;
+	Action<Stage> renderAsyncComputeHook;
+
 	public void UpdateSceneCamera( SceneCamera camera, bool includeTags = true )
 	{
 		if ( Scene is null )
@@ -439,26 +448,30 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		// Also don't hook into render overlays, nor volumetric fog stuff.
 		if ( ClearFlags.Contains( ClearFlags.Color ) )
 		{
-			camera.VolumetricFog.Enabled = Scene.GetAllComponents<VolumetricFogVolume>().Count() > 0;
+			camera.VolumetricFog.Enabled = Scene.Get<VolumetricFogVolume>() is not null;
 			camera.VolumetricFog.DrawDistance = 4096;
 			camera.VolumetricFog.FadeInStart = 64;
 			camera.VolumetricFog.FadeInEnd = 256;
 			camera.VolumetricFog.IndirectStrength = 1.0f;
 			camera.VolumetricFog.Anisotropy = 1;
 			camera.VolumetricFog.Scattering = 1.0f;
-			camera.VolumetricFog.BakedIndirectTexture = Scene.GetAllComponents<VolumetricFogController>().FirstOrDefault()?.BakedFogTexture;
+			camera.VolumetricFog.BakedIndirectTexture = Scene.Get<VolumetricFogController>()?.BakedFogTexture;
 		}
 
 		//
-		// Child camera executes command lists from this camera
+		// Child camera executes command lists from this camera. The delegates are made once: this runs every frame, and a
+		// method group assigned here allocated a delegate each time
 		//
-		camera.OnRenderStageHook = ExecuteCommandLists;
+		camera.OnRenderStageHook = executeCommandListsHook ??= ExecuteCommandLists;
+		camera.WantsDepthNormalsHook = wantsDepthNormalsHook ??= WantsDepthNormals;
+		camera.HasAsyncComputeHook = hasAsyncComputeHook ??= HasAsyncCompute;
+		camera.RenderAsyncComputeHook = renderAsyncComputeHook ??= RenderAsyncCompute;
 
 		//
 		// Hack because I don't want this to have to be on a camera. This
 		// is hidden from users, so we'll figure out how to square it later
 		//
-		foreach ( var cubemapFog in Scene.GetAllComponents<CubemapFog>() )
+		foreach ( var cubemapFog in Scene.Query<CubemapFog>() )
 		{
 			if ( cubemapFog.Tags.HasAny( RenderExcludeTags ) )
 				continue;
@@ -505,8 +518,11 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	/// </summary>
 	private bool HasEarlyUI()
 	{
-		if ( commandlists.ContainsKey( Stage.EarlyUI ) )
-			return true;
+		lock ( _commandListLock )
+		{
+			if ( commandlists.TryGetValue( Stage.EarlyUI, out var list ) && list.Count > 0 )
+				return true;
+		}
 
 		foreach ( var c in Scene.renderScreenPanels )
 		{
@@ -576,6 +592,10 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		using ( Scene.Push() )
 		{
 			InitializeRendering();
+
+			// r_managed_scene: the managed scene renderer takes the whole frame
+			if ( Rendering.ManagedSceneRendering.TryRender( this, swapChain, CustomSize ?? size ) )
+				return;
 
 			if ( RenderTarget is not null && RenderTarget.native.IsValid )
 			{
@@ -780,16 +800,19 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 
 		using var setup = new CameraRenderer( $"{GameObject.Name}.RenderToTexture", sceneCamera._cameraId );
 
+		// The lock only covers reading the scene camera into this call's renderer. A top-level render
+		// waits for the whole frame inside the native call, and a child view rendered through this
+		// camera from the render thread needs the lock during that wait.
 		lock ( this )
 		{
 			setup.Configure( sceneCamera, config );
-
-			//
-			// Adds the views to the scene system
-			//
-			setup.Native.RenderToTexture( target.native, Graphics.SceneView );
-			setup.Native.ClearSceneWorlds();
 		}
+
+		//
+		// Adds the views to the scene system
+		//
+		setup.Native.RenderToTexture( target.native, Graphics.SceneView );
+		setup.Native.ClearSceneWorlds();
 
 
 		return true;
@@ -921,7 +944,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 			rootPanel.PreLayout( screenRect );
 			rootPanel.CalculateLayout();
 			rootPanel.PostLayout();
-			rootPanel.BuildDescriptors();
+
 
 			rootPanel.BuildCommandList();
 			resized = true;

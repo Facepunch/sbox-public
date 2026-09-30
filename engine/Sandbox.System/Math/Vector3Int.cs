@@ -7,6 +7,7 @@ using System.Text.Json.Serialization;
 
 [JsonConverter( typeof( Sandbox.Internal.JsonConvert.Vector3IntConverter ) )]
 [StructLayout( LayoutKind.Sequential )]
+[Description( "A 3-dimensional vector with integer components." )]
 public struct Vector3Int : IEquatable<Vector3Int>, IParsable<Vector3Int>
 {
 	/// <summary>

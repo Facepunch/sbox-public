@@ -115,8 +115,8 @@ public struct PhysicsTraceResult
 
 			// TODO - maybe we populate these on access?
 			Surface = Surface.FindByIndex( result.SurfaceProperty ),
-			Body = HandleIndex.Get<PhysicsBody>( result.PhysicsBodyHandle )?.SelfOrParent,
-			Shape = HandleIndex.Get<PhysicsShape>( result.PhysicsShapeHandle ),
+			Body = HandleIndex.Get<PhysicsBody3d>( result.PhysicsBodyHandle )?.SelfOrParent,
+			Shape = HandleIndex.Get<PhysicsShape3d>( result.PhysicsShapeHandle )?.Owner,
 
 			StartShape = shape
 		};

@@ -1,4 +1,4 @@
-using Microsoft.CodeAnalysis;
+﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using System.Collections.Generic;
 
@@ -168,6 +168,19 @@ namespace CompilingTests
 			var code = BuildRazorFile( "data/codegen/RenderFragmentTest.razor" );
 			Assert.IsTrue( code.Contains( "__builder.SetRenderFragment" ) );
 			Assert.IsTrue( code.Contains( "__builder ) =>" ) );
+		}
+
+		/// <summary>
+		/// A generic TreeView with a Row template: the T attribute closes the generic and the
+		/// template becomes a typed render fragment whose context is the row's item.
+		/// </summary>
+		[TestMethod]
+		public void RenderFragment_TreeViewRowTemplate()
+		{
+			var code = BuildRazorFile( "data/codegen/TreeViewTemplate.razor" );
+			Assert.IsTrue( code.Contains( "TreeView<string>" ) );
+			Assert.IsTrue( code.Contains( "x.Row = y" ) );
+			Assert.IsTrue( code.Contains( "( item ) =>" ) );
 		}
 
 		[TestMethod]

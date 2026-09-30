@@ -40,7 +40,7 @@ public abstract partial class MoveMode : Component
 		// If we're standing still on a peice of ground, turn off gravity until
 		// we move again. This stops us slowly slipping down surfaces.
 		if ( !Controller.IsOnGround ) wantsGravity = true;
-		if ( Controller.Velocity.Length > 1 ) wantsGravity = true;
+		if ( Controller.WithoutVertical( Controller.Velocity ).Length > 1 ) wantsGravity = true;
 		if ( Controller.GroundVelocity.Length > 1 ) wantsGravity = true;
 		if ( Controller.GroundIsDynamic ) wantsGravity = true;
 
@@ -63,7 +63,7 @@ public abstract partial class MoveMode : Component
 		var groundFriction = 0.25f + Controller.GroundFriction * 10;
 		var groundVelocity = Controller.GroundVelocity;
 
-		var z = body.Velocity.z;
+		var vertical = body.Velocity.Dot( Controller.UpDirection );
 
 		var velocity = (body.Velocity - Controller.GroundVelocity);
 		var speed = velocity.Length;
@@ -88,7 +88,7 @@ public abstract partial class MoveMode : Component
 
 		if ( Controller.IsOnGround )
 		{
-			velocity.z = z;
+			velocity = Controller.WithVertical( velocity, vertical );
 		}
 
 		body.Velocity = velocity;

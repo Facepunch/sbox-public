@@ -12,8 +12,17 @@
     readonly List<Entry> ShownPanels = new();
 
     /// <summary>
+    /// How many are waiting behind what's showing - so it can show there's more to come.
+    /// </summary>
+    public int QueuedCount => PendingQueue.Count( x => x.Content.IsValid() );
+
+    /// <summary>
     /// Queues a simple toast with a title, message, and icon.
     /// </summary>
+    /// <param name="title">The notification's primary message.</param>
+    /// <param name="message">Supporting detail displayed beneath the title.</param>
+    /// <param name="icon">Optional Material icon.</param>
+    /// <param name="duration">Seconds to display the toast once it reaches the front of the queue.</param>
     public Panel QueueToast(string title, string message, string icon = null, float duration = 4f)
     {
         var toast = new Toast()
@@ -61,6 +70,21 @@
         return content;
     }
 
+    /// <summary>
+    /// Disposes queued notifications when their host closes.
+    /// </summary>
+    public override void OnDeleted()
+    {
+        foreach (var entry in PendingQueue)
+        {
+            entry.Content.Delete(true);
+        }
+
+        PendingQueue.Clear();
+        ShownPanels.Clear();
+        base.OnDeleted();
+    }
+
     public override void Tick()
     {
         base.Tick();
@@ -68,6 +92,14 @@
         for (int i = ShownPanels.Count - 1; i >= 0; i--)
         {
             var entry = ShownPanels[i];
+
+            // Panels that removed themselves must not block the queue.
+            if (!entry.Content.IsValid())
+            {
+                ShownPanels.RemoveAt(i);
+                continue;
+            }
+
             if (entry.Duration > 0 && entry.Since >= entry.Duration)
                 Dismiss(entry.Content);
         }
@@ -120,5 +152,15 @@
 
         ShownPanels.RemoveAll(e => e.Content == panel);
         panel.Delete();
+    }
+
+    /// <summary>
+    /// Let the next one show now, without deleting this - for a panel that plays its own way out
+    /// and deletes itself when it's done.
+    /// </summary>
+    public void Release(Panel panel)
+    {
+        ShownPanels.RemoveAll(e => e.Content == panel);
+        ShowNext();
     }
 }

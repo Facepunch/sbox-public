@@ -40,7 +40,7 @@ public static class ClipboardTools
 				}
 				else
 				{
-					prop.SetValue( Json.Deserialize( property["Value"].ToString(), typeof( object ) ) );
+					prop.SetValue( Json.Deserialize( property["Value"].ToString(), prop.PropertyType ) );
 				}
 			}
 		}

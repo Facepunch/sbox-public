@@ -34,6 +34,7 @@ internal partial class NetworkSystem
 			return;
 
 		IsDeveloperHost = msg.IsDeveloperHost;
+		IsHostMigrationEnabled = msg.HostMigration;
 
 		source.UpdateFrom( msg.Host );
 		source.State = Connection.ChannelState.LoadingServerInformation;
@@ -362,21 +363,15 @@ internal partial class NetworkSystem
 
 		log.Trace( $"[{this}] Requesting a snapshot" );
 
-		var snapshot = new SnapshotMsg
+		var handshakeId = source.HandshakeId;
+		if ( GameSystem is not null )
 		{
-			GameObjectSystems = [],
-			NetworkObjects = new( 64 )
-		};
-
-		GameSystem?.GetSnapshot( source, ref snapshot );
-
-		var output = new InitialSnapshotResponse
+			GameSystem.SendSnapshot( source, snapshot => new InitialSnapshotResponse { HandshakeId = handshakeId, Snapshot = snapshot } );
+		}
+		else
 		{
-			HandshakeId = source.HandshakeId,
-			Snapshot = snapshot
-		};
-
-		source.SendMessage( output );
+			source.SendMessage( new InitialSnapshotResponse { HandshakeId = handshakeId, Snapshot = SnapshotMsg.Create() } );
+		}
 		return Task.CompletedTask;
 	}
 
@@ -483,7 +478,9 @@ internal partial class NetworkSystem
 			return Task.CompletedTask;
 		}
 
-		IGameInstanceDll.Current.Disconnect( $"Kicked from server.\n\nReason: {msg.Reason}" );
+		FailureReason = $"Kicked from server.\n\nReason: {msg.Reason}";
+		Api.Activity.SetExitReason( "kicked", msg.Reason );
+		IGameInstanceDll.Current.Disconnect( FailureReason );
 		return Task.CompletedTask;
 	}
 
@@ -500,6 +497,7 @@ internal partial class NetworkSystem
 
 		Log.Trace( $"[{this}] I am spawning into the game!" );
 		LoadingScreen.IsVisible = false;
+		Api.Activity.LoadFinished();
 
 		Connection.Local.State = Connection.ChannelState.Connected;
 		source.State = Connection.ChannelState.Connected;

@@ -1,0 +1,20 @@
+﻿@namespace Sandbox.Test.Generated
+@using Sandbox.UI
+
+<root>
+
+    <TreeView T="string" Roots=@Items RowHeight=@( 20 ) OnSelect=@Selected>
+        <Row Context="item">
+            <i class="tree-icon">folder</i>
+            <span>@item</span>
+        </Row>
+    </TreeView>
+
+</root>
+
+@code
+{
+    List<string> Items = new() { "one", "two" };
+
+    void Selected( string item ) { }
+}

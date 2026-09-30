@@ -1,0 +1,24 @@
+@using Sandbox.PanelGallery;
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Text" )]
+@attribute [Title( "text-stroke" )]
+@attribute [Icon( "text_fields" )]
+<root>
+    <h2>text-stroke</h2>
+    <div class="cases">
+        <UiTestCase Setup="@Text" Css="@($"text-stroke: 0px {GalleryPalette.PinkHex}")" Caption="0px stroke" Text="Aa" />
+        <UiTestCase Setup="@Text" Css="@($"text-stroke: 1px {GalleryPalette.PinkHex}")" Caption="1px stroke" Text="Aa" />
+        <UiTestCase Setup="@Text" Css="@($"text-stroke: 2px {GalleryPalette.PinkHex}")" Caption="2px stroke" Text="Aa" />
+        <UiTestCase Setup="@Text" Css="@($"text-stroke: 4px {GalleryPalette.PinkHex}")" Caption="4px stroke" Text="Aa" />
+        <UiTestCase Setup="@Text" Css="@($"color: #16181d; text-stroke: 2px {GalleryPalette.CyanHex}")" Caption="Outline" Text="Aa" />
+        <UiTestCase Setup="@Text" Css="@($"text-stroke: 2px {GalleryPalette.PinkHex}; text-shadow: 4px 4px 0 {GalleryPalette.CyanHex}")" Caption="Stroke and shadow" Text="Aa" />
+        <UiTestCase Caption="2px #4a9eff * 6" class="dark" Setup="@Text" Css="text-stroke: 2px #4a9eff * 6" Text="Aa" />
+    </div>
+</root>
+@code
+{
+    const string Text = $"width: 200px; font-size: 72px; font-weight: 800; color: {GalleryPalette.LimeHex}";
+}

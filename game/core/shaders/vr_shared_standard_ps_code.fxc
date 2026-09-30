@@ -15,6 +15,18 @@
 #ifndef VR_SHARED_PS_CODE_FXC
 #define VR_SHARED_PS_CODE_FXC
 
+// Undefined optional features default off. ShaderConstant combo names are defined
+// by VFX but remain language constants, so use normal if/switch expressions.
+#ifndef S_SCALE_NORMAL_MAP
+#define S_SCALE_NORMAL_MAP 0
+#endif
+#ifndef S_USE_BENT_NORMALS
+#define S_USE_BENT_NORMALS 0
+#endif
+#ifndef S_DETAIL_TEXTURE
+#define S_DETAIL_TEXTURE 0
+#endif
+
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 //
@@ -118,7 +130,10 @@ CreateInputTexture2D( TextureTranslucency, Linear, 8, "", "_trans", "Translucent
 		Texture2D g_tNormal < Channel( RGBA, HemiOctIsoRoughness_RG_B( TextureNormal, TextureRoughness ), Linear ); OutputFormat( BC7 ); SrgbRead( false ); > ;
 	#endif
 	
-	Texture2D g_tBentNormal < Channel( RG, HemiOctIsoRoughness_RG_B( TextureBentNormal ), Linear );  OutputFormat( ATI2N ); SrgbRead( false ); >;
+	#ifndef BENT_NORMAL_ACTIVE_IF
+	#define BENT_NORMAL_ACTIVE_IF
+	#endif
+	Texture2D g_tBentNormal < Channel( RG, HemiOctIsoRoughness_RG_B( TextureBentNormal ), Linear );  OutputFormat( ATI2N ); SrgbRead( false ); BENT_NORMAL_ACTIVE_IF >;
 
 	float g_flNormalMapScaleFactor < Default( 1.0 ); Range( 0.0, 1.0 ); UiGroup( "Normal" ); >;
 	float g_flRoughnessScaleFactor < Default( 1.0 ); Range( 0.0, 2.0 ); UiGroup( "Roughness" ); >;
@@ -195,7 +210,7 @@ CreateInputTexture2D( TextureAmbientOcclusion, Linear, 8, "", "_ao", "Ambient Oc
 #endif
 
 // Detail Texture
-#if ( S_DETAIL_TEXTURE )
+#if S_DETAIL_TEXTURE
 	CreateInputTexture2D( TextureDetail, Linear, 8, "Mod2XCenter", "_detail", "Detail Texture,80/10", Default4( 1.0, 1.0, 1.0, 1.0 ) );
 	CreateInputTexture2D( TextureNormalDetail, Linear, 8, "NormalizeNormals", "_normal", "Detail Texture,80/10", Default3( 0.5, 0.5, 1.0 ) );
 	CreateInputTexture2D( TextureDetailMask, Linear, 8, "", "_detailmask", "Detail Texture,80/40", Default4( 1.0, 1.0, 1.0, 1.0 ) );
@@ -426,7 +441,8 @@ FinalCombinerInput_t PS_SharedStandardProcessing( const PS_INPUT i )
 	// Get detail mask here - needed for normals and albedo
 	//
 	float flDetailMask = 0.0;
-	#if	( S_DETAIL_TEXTURE )
+	#if S_DETAIL_TEXTURE
+	if ( S_DETAIL_TEXTURE != 0 )
 	{
 		float2 vDetailMaskUVs = GetUVDefault2( g_bUseSecondaryUvForDetailMask, i.vTextureCoords );
 		flDetailMask = max( Tex2DS( g_tDetailMask, g_sAniso, vDetailMaskUVs.xy ).r, g_flDetailBlendToFull ) * g_flDetailBlendFactor;
@@ -474,19 +490,19 @@ FinalCombinerInput_t PS_SharedStandardProcessing( const PS_INPUT i )
 		//
 		// Optional scale down
 		//
-		#if ( S_SCALE_NORMAL_MAP )
+		if ( S_SCALE_NORMAL_MAP != 0 )
 		{
 			vNormalTS = lerp( float3( 0.0f, 0.0f, 1.0f ), vNormalTS, g_flNormalMapScaleFactor );
 			vNormalTS = normalize( vNormalTS );
 		}
-		#endif
 
 		#if ( !S_UNLIT )
 		{
 			//
 			// Blend in detail normal texture
 			//
-			#if ( ( S_DETAIL_TEXTURE == 3 ) || ( S_DETAIL_TEXTURE == 4 ) )
+			#if S_DETAIL_TEXTURE
+			if ( S_DETAIL_TEXTURE == 3 || S_DETAIL_TEXTURE == 4 )
 			{
 				float4 vNormalDetailTexel = Tex2DS( g_tNormalDetail, g_sAniso, i.vDetailTextureCoords.xy );
 				float3 vNormalDetailTs = DecodeHemiOctahedronNormal( vNormalDetailTexel.rg );
@@ -498,7 +514,7 @@ FinalCombinerInput_t PS_SharedStandardProcessing( const PS_INPUT i )
 		}
 		#endif
 
-		#if ( S_USE_BENT_NORMALS )
+		if ( S_USE_BENT_NORMALS != 0 )
 		{
 			float4 vBentNormalTexel = Tex2DS( g_tBentNormal, g_sAniso, i.vTextureCoords.xy );
 			float3 vBentNormalTs = DecodeHemiOctahedronNormal( vBentNormalTexel.rg );
@@ -509,7 +525,6 @@ FinalCombinerInput_t PS_SharedStandardProcessing( const PS_INPUT i )
 			o.vBentNormalWs.xyz = normalize( Vec3TsToWs( vBentShadingNormalTs.xyz, vBentNormalWs.xyz, o.vTangentUWs.xyz, o.vTangentVWs.xyz ) );
 			o.bUseBentNormalsForIndirect = true;
 		}
-		#endif
 	}
 	#endif
 		
@@ -528,23 +543,22 @@ FinalCombinerInput_t PS_SharedStandardProcessing( const PS_INPUT i )
 	//
 	// Detail Texture
 	//
-	#if ( S_DETAIL_TEXTURE )
+	#if S_DETAIL_TEXTURE
+	if ( S_DETAIL_TEXTURE == 1 || S_DETAIL_TEXTURE == 2 || S_DETAIL_TEXTURE == 4 )
 	{
 		float3 vDetailTexel = Tex2DS( g_tDetail, g_sAniso, i.vDetailTextureCoords.xy ).rgb;
 
 		// Mod2X
-		#if ( S_DETAIL_TEXTURE == 1 ) 
+		if ( S_DETAIL_TEXTURE == 1 )
 		{
 			vAlbedo.rgb *= lerp( float3( 1.0, 1.0, 1.0 ), MOD2X_SCALAR * vDetailTexel.rgb, flDetailMask );
 		}
-		#endif
 
 		// Photoshop Overlay
-		#if ( ( S_DETAIL_TEXTURE == 2 ) || ( S_DETAIL_TEXTURE == 4 ) ) 
+		if ( S_DETAIL_TEXTURE == 2 || S_DETAIL_TEXTURE == 4 )
 		{
 			vAlbedo.rgb = PhotoshopOverlay( vAlbedo.rgb, vDetailTexel.rgb, flDetailMask );
 		}
-		#endif
 	}
 	#endif
 

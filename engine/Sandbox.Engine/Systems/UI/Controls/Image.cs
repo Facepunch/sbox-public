@@ -1,6 +1,4 @@
-﻿using Sandbox.Rendering;
-
-namespace Sandbox.UI
+﻿namespace Sandbox.UI
 {
 	/// <summary>
 	/// A generic box that displays a given texture within itself.
@@ -8,14 +6,29 @@ namespace Sandbox.UI
 	[Library( "image" ), Alias( "img" ), Expose]
 	public partial class Image : Panel
 	{
+		Vector2 _textureSize;
+		int _textureVersion;
+
 		/// <summary>
 		/// The texture being displayed by this panel.
 		/// </summary>
-		public Texture Texture { get; set; }
+		public Texture Texture
+		{
+			get;
+			set
+			{
+				if ( field == value ) return;
+				field = value;
+				_textureSize = value.IsValid() ? value.Size : default;
+				_textureVersion = value?.DirtyVersion ?? 0;
+				LayoutTree.MarkDirty();
+				SetNeedsPreLayout();
+			}
+		}
 
 		public Image()
 		{
-			YogaNode.SetMeasureFunction( MeasureTexture );
+			LayoutTree.SetMeasureFunction( MeasureTexture );
 		}
 
 		/// <summary>
@@ -26,11 +39,26 @@ namespace Sandbox.UI
 			if ( string.IsNullOrWhiteSpace( name ) ) return;
 			if ( !IsValid ) return;
 
-			Texture = await Texture.LoadAsync( name );
+			var texture = await Texture.LoadAsync( name );
 
 			if ( !IsValid ) return;
-			IsRenderDirty = true;
-			YogaNode.MarkDirty(); // Update MeasureTexture
+			Texture = texture;
+		}
+
+		public override void Tick()
+		{
+			base.Tick();
+
+			// Loading can replace the contents of the same cached Texture wrapper.
+			if ( Texture is null || Texture.DirtyVersion == _textureVersion ) return;
+			_textureVersion = Texture.DirtyVersion;
+
+			var size = Texture.IsValid() ? Texture.Size : default;
+			if ( size == _textureSize ) return;
+			_textureSize = size;
+
+			LayoutTree.MarkDirty();
+			SetNeedsPreLayout();
 		}
 
 		float oldScaleToScreen = 1.0f;
@@ -40,24 +68,20 @@ namespace Sandbox.UI
 
 			if ( ScaleToScreen != oldScaleToScreen )
 			{
-				YogaNode.MarkDirty();
+				LayoutTree.MarkDirty();
 			}
 		}
 
-		public override void OnDraw()
+		public override void OnDraw( Painter painter )
 		{
-			if ( Texture == null )
-				return;
-
-			var length = ComputedStyle.ObjectFit switch
+			var size = ComputedStyle?.ObjectFit switch
 			{
 				ObjectFit.Contain => Length.Contain,
 				ObjectFit.Cover => Length.Cover,
 				ObjectFit.Fill => Length.Percent( 100 ).Value,
 				_ => Length.Auto,
 			};
-
-			DrawBackgroundTexture( Texture, length );
+			DrawTexture( painter, Texture, size );
 		}
 
 		public override void SetProperty( string name, string value )
@@ -67,15 +91,15 @@ namespace Sandbox.UI
 			if ( name == "src" ) SetTexture( value );
 		}
 
-		internal Vector2 MeasureTexture( YGNodeRef node, float width, YGMeasureMode widthMode, float height, YGMeasureMode heightMode )
+		internal Vector2 MeasureTexture( float width, Sandbox.Layout.MeasureMode widthMode, float height, Sandbox.Layout.MeasureMode heightMode )
 		{
 			if ( !Texture.IsValid() ) return default;
 
 			try
 			{
 				var (w, h) = (Texture.Width, Texture.Height);
-				var exact = YGMeasureMode.YGMeasureModeExactly;
-				var atMost = YGMeasureMode.YGMeasureModeAtMost;
+				var exact = Sandbox.Layout.MeasureMode.Exactly;
+				var atMost = Sandbox.Layout.MeasureMode.AtMost;
 
 				oldScaleToScreen = ScaleToScreen;
 				var ideal = new Vector2( w * ScaleToScreen, h * ScaleToScreen );

@@ -37,6 +37,10 @@ internal partial class Project
 		{
 			sb.AppendLine( $"		{entry}" );
 		}
+		foreach ( var (key, value) in CompilerProperties )
+		{
+			sb.AppendLine( $"		<{key}>{System.Security.SecurityElement.Escape( value )}</{key}>" );
+		}
 		sb.AppendLine( $"	</PropertyGroup>" );
 		sb.AppendLine( $"" );
 
@@ -82,6 +86,11 @@ internal partial class Project
 			sb.AppendLine( $"	<ItemGroup>" );
 			sb.AppendLine( $"		<Analyzer Include=\"{ManagedRoot}/Sandbox.CodeUpgrader.dll\"/> " );
 			sb.AppendLine( $"		<Analyzer Include=\"{ManagedRoot}/Sandbox.Generator.dll\"/> " );
+
+			foreach ( var key in CompilerProperties.Keys )
+			{
+				sb.AppendLine( $"		<CompilerVisibleProperty Include=\"{key}\" />" );
+			}
 
 			foreach ( var entry in References )
 			{

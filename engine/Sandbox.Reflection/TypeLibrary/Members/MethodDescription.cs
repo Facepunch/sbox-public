@@ -7,7 +7,7 @@ namespace Sandbox;
 ///
 /// Returned by <see cref="Internal.TypeLibrary"/> and <see cref="Sandbox.TypeDescription"/>.
 /// </summary>
-public sealed class MethodDescription : MemberDescription
+public sealed partial class MethodDescription : MemberDescription
 {
 	/// <summary>
 	/// Returns true - because this is a method
@@ -56,6 +56,7 @@ public sealed class MethodDescription : MemberDescription
 		IsFamily = x.IsFamily;
 		IsVirtual = x.IsVirtual;
 		IsSpecialName = x.IsSpecialName;
+		OperatorKind = ClassifyOperator( x );
 		parameters = x.GetParameters();
 
 		base.Init( x );

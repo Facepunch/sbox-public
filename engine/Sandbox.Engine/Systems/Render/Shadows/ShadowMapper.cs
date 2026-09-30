@@ -1,12 +1,19 @@
 using NativeEngine;
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 namespace Sandbox.Rendering;
 
 /// <summary>
-/// ShadowMapper 
-/// It is owned by a CLightBinnerStandard in c++ which are pooled and reinitialized with CLightBinnerStandard::InitForView
-/// We then also get called by CLightBinnerStandard::UploadLightingToGPU
+/// ShadowMapper works out a view's shadows: which lights get shadow maps, at what size, which ones re-render
+/// this frame, how the sun's cascades fit the view, and the GPU data the lighting shaders read.
+///
+/// It doesn't render anything itself - it asks its <see cref="Renderer"/> for each shadow view. The native
+/// scenesystem's renderer (<see cref="NativeShadowRenderer"/>) is one, the managed scene renderer is another,
+/// so both share the same cache, time slicing and cascade fitting.
+///
+/// Native mappers are owned by a CLightBinnerStandard in c++, which are pooled and reinitialized with
+/// CLightBinnerStandard::InitForView. We then also get called by CLightBinnerStandard::UploadLightingToGPU.
 /// </summary>
 internal partial class ShadowMapper
 {
@@ -37,13 +44,16 @@ internal partial class ShadowMapper
 	[ConVar( "r.shadows.local.enabled", Help = "Enable local light (spot/point) shadows." )]
 	public static bool LocalShadowsEnabled { get; set; } = true;
 
+	[ConVar( "r.shadows.updates", Min = 1, Max = 256, Help = "How many local light shadow maps may be re-rendered per frame. The most stale lights (weighted by screen size) go first; new, moved and resized lights always update." )]
+	public static int MaxUpdatesPerFrame { get; set; } = 8;
+
 	[ConVar( "r.shadows.depthbias", Min = -256, Max = 0, Help = "Rasterizer constant depth bias applied during shadow map rendering. More negative = stronger bias." )]
 	public static int ShadowDepthBias { get; set; } = -1;
 
 	[ConVar( "r.shadows.slopescale", Min = -16.0f, Max = 0.0f, Help = "Rasterizer slope-scaled depth bias applied during shadow map rendering. More negative = stronger bias on angled surfaces." )]
 	public static float ShadowSlopeScale { get; set; } = -1.5f;
 
-	const uint InvalidShadowIndex = 0xFFFFFFFF;
+	internal const uint InvalidShadowIndex = 0xFFFFFFFF;
 
 	// Absolute upper limits, no harm in increasing these
 	const int ProjectedShadowBufferSize = 512;
@@ -60,31 +70,40 @@ internal partial class ShadowMapper
 	internal static long TotalTexturesReleased { get; private set; }
 	internal static long TotalTexturesDisposed { get; private set; }
 
+	/// <summary>
+	/// Renders the shadow views this mapper asks for.
+	/// </summary>
+	internal IShadowRenderer Renderer { get; set; }
 
-	public ShadowMapper()
+	/// <summary>
+	/// The view the shadows are for - set before asking for any.
+	/// </summary>
+	internal ShadowViewInfo View;
+
+	/// <summary>
+	/// The shadow map behind each entry in <see cref="GPUProjectedShadows"/>, <see cref="GPUProjectedCubeShadows"/>
+	/// and the sun's cascades, so their bindless indices can be filled in once the textures exist
+	/// (<see cref="ResolveTextureIndices"/>).
+	/// </summary>
+	readonly List<ShadowMap> ProjectedShadowMaps = new();
+	readonly List<ShadowMap> ProjectedCubeShadowMaps = new();
+	readonly ShadowMap[] CascadeShadowMaps = new ShadowMap[4];
+	int CascadeShadowMapCount;
+
+	/// <summary>
+	/// Start a view: evict stale shadow maps, and clear the last view's shadows.
+	/// </summary>
+	internal void InitForView()
 	{
-		// This ties our buffers to a specific lightbinner.
-		// They're all the same size at the end of the day, we could pool them normally.
-		GPUProjectedShadowsBuffer = new( ProjectedShadowBufferSize );
-		GPUProjectedCubeShadowsBuffer = new( ProjectedCubeShadowBufferSize );
-	}
-
-	ISceneView SceneView { get; set; }
-
-	/// <summary>Directional light for this view.</summary>
-	SceneLight DirectionalLight { get; set; }
-
-	internal void InitForView( ISceneView sceneView )
-	{
-		SceneView = sceneView;
-		DirectionalLight = null;
-
 		// Evict stale shadow maps and clean the texture pool
 		Update();
 
 		// Reset all our lists
 		GPUProjectedShadows.Clear();
 		GPUProjectedCubeShadows.Clear();
+		ProjectedShadowMaps.Clear();
+		ProjectedCubeShadowMaps.Clear();
+		CascadeShadowMapCount = 0;
 		GPUDirectionalLightData.CascadeCount = 0;
 		GPUDirectionalLightData.Enabled = false;
 		GPUDirectionalLightData.ShadowMaskTextureIndex = 0;
@@ -97,10 +116,46 @@ internal partial class ShadowMapper
 		ProjectedShadowsCulled = 0;
 	}
 
+	/// <summary>
+	/// Fill in each shadow's bindless texture index, creating any textures that don't exist yet. Before the
+	/// shadow data goes to the GPU.
+	/// </summary>
+	internal unsafe void ResolveTextureIndices()
+	{
+		var projected = CollectionsMarshal.AsSpan( GPUProjectedShadows );
+		for ( int i = 0; i < projected.Length; i++ )
+			projected[i].ShadowMapTextureIndex = ProjectedShadowMaps[i].Texture.Index;
+
+		var cubes = CollectionsMarshal.AsSpan( GPUProjectedCubeShadows );
+		for ( int i = 0; i < cubes.Length; i++ )
+			cubes[i].ShadowMapTextureCubeIndex = (uint)ProjectedCubeShadowMaps[i].Texture.Index;
+
+		for ( int i = 0; i < CascadeShadowMapCount; i++ )
+			GPUDirectionalLightData.ShadowMapIndex[i] = CascadeShadowMaps[i].Texture.Index;
+	}
+
+	/// <summary>
+	/// This view's spot light shadows, as the <c>ProjectedShadows</c> buffer holds them.
+	/// </summary>
+	internal ReadOnlySpan<GPUProjectedShadow> ProjectedShadowData => CollectionsMarshal.AsSpan( GPUProjectedShadows );
+
+	/// <summary>
+	/// This view's point light shadows, as the <c>ProjectedCubeShadows</c> buffer holds them.
+	/// </summary>
+	internal ReadOnlySpan<GPUProjectedCubeShadow> ProjectedCubeShadowData => CollectionsMarshal.AsSpan( GPUProjectedCubeShadows );
+
+	/// <summary>
+	/// The sun and its cascades, as <c>DirectionalLightCB</c> holds them.
+	/// </summary>
+	internal ref GPUDirectionalLight DirectionalLightData => ref GPUDirectionalLightData;
+
 	internal void SetShaderAttributes( RenderAttributes attributes )
 	{
 		if ( attributes is null )
 			return;
+
+		ResolveTextureIndices();
+		EnsureBuffers();
 
 		attributes.Set( "ProjectedShadows", GPUProjectedShadowsBuffer );
 		attributes.Set( "ProjectedCubeShadows", GPUProjectedCubeShadowsBuffer );
@@ -115,15 +170,33 @@ internal partial class ShadowMapper
 	/// </summary>
 	internal void UploadToGPU()
 	{
+		ResolveTextureIndices();
+		EnsureBuffers();
+
 		GPUProjectedShadowsBuffer.SetData( GPUProjectedShadows );
 		GPUProjectedCubeShadowsBuffer.SetData( GPUProjectedCubeShadows );
 	}
 
+	/// <summary>
+	/// This ties our buffers to a specific lightbinner. They're all the same size at the end of the day, we
+	/// could pool them normally. Created on first use, so a mapper can work shadows out without a GPU.
+	/// </summary>
+	void EnsureBuffers()
+	{
+		GPUProjectedShadowsBuffer ??= new( ProjectedShadowBufferSize );
+		GPUProjectedCubeShadowsBuffer ??= new( ProjectedCubeShadowBufferSize );
+	}
+
 	public class LightEntry
 	{
+		/// <summary>
+		/// The light this is for, held weakly like the <see cref="Cache"/> key.
+		/// </summary>
+		internal WeakReference<object> Light;
+
 		public float LastFrame;
-		public Texture StaticCache;
-		public Texture ShadowMap;
+		public ShadowMap StaticCache;
+		public ShadowMap ShadowMap;
 		public float ScreenSize;
 		public int CurrentResolution;
 		public int DesiredResolution;
@@ -131,31 +204,75 @@ internal partial class ShadowMapper
 		public bool IsCube;
 		public string DebugName;
 		public int CachedTransformVersion;
+
+		// The light as it was last seen, for the debug overlay
+		public ShadowLightType Type;
+		public Vector3 Position;
+		public float Radius;
+		public float Bias;
+		public float ConeOuter;
+
+		// Shadow maps don't depend on the camera: rendered at most once per engine frame, shared by every view that
+		// frame (cube faces, mirrors, VR eyes), and time sliced across frames. 0 = never rendered, must render.
+		public ulong RenderedFrame;
+		public ulong UsedFrame;
+		public bool Scheduled;
+		internal GPUProjectedShadow Projected;
+		internal GPUProjectedCubeShadow Cube;
 	}
 
-	public static ConditionalWeakTable<SceneLight, LightEntry> Cache = new();
+	static ulong FrameStamp;
+	static readonly List<LightEntry> Schedule = new();
+
+	/// <summary>
+	/// Higher refreshes sooner. Screen size enters exponentially, so a light near enough to fill part of the
+	/// view outranks a distant one by orders of magnitude instead of by their size ratio.
+	/// </summary>
+	static float Priority( LightEntry e ) => (FrameStamp - e.RenderedFrame) * MathF.Exp( 6f * e.ScreenSize );
+
+	/// <summary>
+	/// Shadow maps by light - a <see cref="SceneLight"/>, or another renderer's light.
+	/// </summary>
+	public static ConditionalWeakTable<object, LightEntry> Cache = new();
+
+	/// <summary>
+	/// Every entry in <see cref="Cache"/>, to walk each frame without allocating an enumerator.
+	/// </summary>
+	static readonly List<LightEntry> Entries = new();
 
 	/// <summary>
 	/// Get or create the cache entry for a light, handling resolution changes and
 	/// dropping the static cache if the light moved.
 	/// </summary>
-	static LightEntry GetOrCreateCacheEntry( SceneLight light, int desiredResolution, bool isCube, float flScreenSize )
+	static LightEntry GetOrCreateCacheEntry( in ShadowLight light, int desiredResolution, bool isCube, float flScreenSize )
 	{
-		if ( !Cache.TryGetValue( light, out var entry ) )
+		if ( !Cache.TryGetValue( light.Key, out var entry ) )
 		{
 			entry = new()
 			{
+				Light = new WeakReference<object>( light.Key ),
 				ShadowMap = AcquireTexture( desiredResolution, isCube ),
 				CurrentResolution = desiredResolution,
 				IsCube = isCube,
-				DebugName = $"{light}_Shadow",
+				DebugName = $"{light.Key}_Shadow",
 			};
-			Cache.AddOrUpdate( light, entry );
+			Cache.AddOrUpdate( light.Key, entry );
+			Entries.Add( entry );
 		}
+
+		entry.Type = light.Type;
+		entry.Position = light.Position;
+		entry.Radius = light.Radius;
+		entry.Bias = light.Bias;
+		entry.ConeOuter = light.ConeOuter;
 
 		// Keep track of how big we actually want it, if we run low on budget we can downgrade these out of scope
 		entry.DesiredResolution = desiredResolution;
 		entry.ScreenSize = flScreenSize;
+
+		// A smaller view later in the same frame (probe bake, mirror) keeps the bigger map already rendered this frame
+		if ( entry.RenderedFrame == Application.FrameCount && desiredResolution < entry.CurrentResolution )
+			desiredResolution = entry.CurrentResolution;
 
 		// Do we want a different resolution for this shadow map now?
 		if ( entry.CurrentResolution != desiredResolution )
@@ -165,14 +282,16 @@ internal partial class ShadowMapper
 			entry.ShadowMap = AcquireTexture( desiredResolution, isCube );
 			entry.StaticCache = null;
 			entry.CurrentResolution = desiredResolution;
+			entry.RenderedFrame = 0;
 		}
 
-		// The static cache is only valid for the transform it was rendered at
+		// The static cache is only valid for the transform it was rendered at, and a moved light must re-render
 		if ( entry.CachedTransformVersion != light.TransformVersion )
 		{
 			entry.CachedTransformVersion = light.TransformVersion;
 			ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
 			entry.StaticCache = null;
+			entry.RenderedFrame = 0;
 		}
 
 		return entry;
@@ -185,11 +304,11 @@ internal partial class ShadowMapper
 			long total = 0;
 			foreach ( var kvp in Cache )
 			{
-				if ( kvp.Value.ShadowMap is not null )
-					total += g_pRenderDevice.ComputeTextureMemorySize( kvp.Value.ShadowMap.native );
+				if ( kvp.Value.ShadowMap is { HasTexture: true } shadowMap )
+					total += g_pRenderDevice.ComputeTextureMemorySize( shadowMap.Texture.native );
 
-				if ( kvp.Value.StaticCache is not null )
-					total += g_pRenderDevice.ComputeTextureMemorySize( kvp.Value.StaticCache.native );
+				if ( kvp.Value.StaticCache is { HasTexture: true } staticCache )
+					total += g_pRenderDevice.ComputeTextureMemorySize( staticCache.Texture.native );
 			}
 			return total;
 		}
@@ -197,7 +316,7 @@ internal partial class ShadowMapper
 
 	struct PooledTexture
 	{
-		public Texture Texture;
+		public ShadowMap Texture;
 		public float ReturnedAt;
 	}
 
@@ -215,21 +334,17 @@ internal partial class ShadowMapper
 	/// </summary>
 	const float PoolDisposeTime = 10.0f;
 
-	static Texture AcquireTexture( int resolution, bool isCube )
+	static ShadowMap AcquireTexture( int resolution, bool isCube )
 	{
 		var key = new PoolKey( resolution, isCube );
 		if ( TexturePool.TryGetValue( key, out var queue ) && queue.Count > 0 )
 			return queue.Dequeue().Texture;
 
 		TotalTexturesCreated++;
-
-		if ( isCube )
-			return Texture.CreateCube( resolution, resolution, LocalShadowDepthFormat ).AsRenderTarget().Finish();
-
-		return Texture.CreateRenderTarget( $"ShadowPool_{resolution}", LocalShadowDepthFormat, new Vector2( resolution ) );
+		return new ShadowMap( resolution, isCube, LocalShadowDepthFormat );
 	}
 
-	static void ReleaseTexture( Texture texture, int resolution, bool isCube )
+	static void ReleaseTexture( ShadowMap texture, int resolution, bool isCube )
 	{
 		if ( texture is null )
 			return;
@@ -251,32 +366,29 @@ internal partial class ShadowMapper
 	/// </summary>
 	public static void Update()
 	{
+		// Once per engine frame, not per view
+		if ( FrameStamp == Application.FrameCount )
+			return;
+
+		FrameStamp = Application.FrameCount;
 		float now = RealTime.Now;
 
-		// Evict stale cache entries
-		List<SceneLight> toEvict = null;
-		foreach ( var kvp in Cache )
+		// Evict stale cache entries, and those whose light is gone
+		for ( int i = Entries.Count - 1; i >= 0; i-- )
 		{
-			if ( now - kvp.Value.LastFrame < CacheEvictionTime )
+			var entry = Entries[i];
+			var alive = entry.Light.TryGetTarget( out var light );
+			if ( alive && now - entry.LastFrame < CacheEvictionTime )
 				continue;
 
-			toEvict ??= new();
-			toEvict.Add( kvp.Key );
-		}
+			ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
+			ReleaseTexture( entry.ShadowMap, entry.CurrentResolution, entry.IsCube );
+			entry.ShadowMap = null;
+			entry.StaticCache = null;
+			if ( alive ) Cache.Remove( light );
 
-		if ( toEvict is not null )
-		{
-			foreach ( var light in toEvict )
-			{
-				if ( Cache.TryGetValue( light, out var entry ) )
-				{
-					ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
-					ReleaseTexture( entry.ShadowMap, entry.CurrentResolution, entry.IsCube );
-					entry.ShadowMap = null;
-					entry.StaticCache = null;
-					Cache.Remove( light );
-				}
-			}
+			Entries[i] = Entries[^1];
+			Entries.RemoveAt( Entries.Count - 1 );
 		}
 
 		// Dispose pooled textures that have been idle for too long
@@ -289,12 +401,50 @@ internal partial class ShadowMapper
 				TotalTexturesDisposed++;
 			}
 		}
+
+		// Time slicing: the update budget goes to the lights that have waited longest, weighted by screen size,
+		// so big lights refresh often and small ones still get a turn. New and moved lights bypass the budget.
+		Schedule.Clear();
+		foreach ( var entry in Entries )
+		{
+			entry.Scheduled = false;
+			if ( entry.UsedFrame == FrameStamp - 1 )
+				Schedule.Add( entry );
+		}
+
+		Schedule.Sort( static ( a, b ) => Priority( b ).CompareTo( Priority( a ) ) );
+		for ( int i = 0; i < Schedule.Count && i < MaxUpdatesPerFrame; i++ )
+			Schedule[i].Scheduled = true;
+	}
+
+	/// <summary>
+	/// Drop every cached shadow map and pooled texture - for tests, so one test's lights going stale can't
+	/// be evicted in the middle of another's.
+	/// </summary>
+	internal static void ResetCache()
+	{
+		foreach ( var entry in Entries )
+		{
+			entry.ShadowMap?.Dispose();
+			entry.StaticCache?.Dispose();
+			if ( entry.Light.TryGetTarget( out var light ) ) Cache.Remove( light );
+		}
+
+		foreach ( var queue in TexturePool.Values )
+		{
+			while ( queue.Count > 0 )
+				queue.Dequeue().Texture?.Dispose();
+		}
+
+		Entries.Clear();
+		Schedule.Clear();
+		LastCascades = default;
 	}
 
 	/// <summary>
 	/// Called when a light is removed from the scene. Returns its shadow map to the pool.
 	/// </summary>
-	public static void OnLightRemoved( SceneLight light )
+	public static void OnLightRemoved( object light )
 	{
 		if ( !Cache.TryGetValue( light, out var entry ) )
 			return;
@@ -304,6 +454,7 @@ internal partial class ShadowMapper
 		ReleaseTexture( entry.StaticCache, entry.CurrentResolution, entry.IsCube );
 		entry.StaticCache = null;
 		Cache.Remove( light );
+		Entries.Remove( entry );
 	}
 
 	/// <summary>
@@ -311,8 +462,7 @@ internal partial class ShadowMapper
 	/// same idea as CSM Width/Far — not world-space texel size.
 	/// Normalized so a 45° half-angle map at BiasScaleReferenceResolution is 1.0.
 	/// </summary>
-
-	static float ComputeBiasScale( float halfAngleDegrees, float range, int resolution )
+	internal static float ComputeBiasScale( float halfAngleDegrees, float range, int resolution )
 	{
 		const int BiasScaleReferenceResolution = 1024;
 
@@ -336,10 +486,10 @@ internal partial class ShadowMapper
 	}
 
 	/// <summary>
-	/// Find a cached shadow map or create a new one for the light and view.
+	/// Find a cached shadow map or create a new one for a local light and the current <see cref="View"/>.
 	/// Returns an index to the shadow maps structured buffer
 	/// </summary>
-	internal unsafe uint FindOrCreateShadowMaps( SceneLight sceneObject, ISceneView view, float flScreenSize )
+	internal uint FindOrCreateShadowMaps( in ShadowLight light, float flScreenSize )
 	{
 		if ( !LocalShadowsEnabled )
 			return InvalidShadowIndex;
@@ -351,23 +501,22 @@ internal partial class ShadowMapper
 			return InvalidShadowIndex;
 		}
 
-		return sceneObject.lightNative.GetLightType() switch
+		return light.Type switch
 		{
-			3 => FindOrCreateProjectedShadowMap( sceneObject, view, flScreenSize ),
-			1 => FindOrCreateProjectedCubeShadowMap( sceneObject, view, flScreenSize ),
+			ShadowLightType.Spot => FindOrCreateProjectedShadowMap( light, flScreenSize ),
+			ShadowLightType.Point => FindOrCreateProjectedCubeShadowMap( light, flScreenSize ),
 			_ => InvalidShadowIndex
 		};
 	}
 
-	internal int DoDirectionalLight( SceneLight sceneObject, ISceneView view )
+	internal int DoDirectionalLight( in ShadowLight light )
 	{
-		DirectionalLight = sceneObject;
 		GPUDirectionalLightData.Enabled = true;
 
 		if ( !CSMEnabled )
 			return 0;
 
-		FindOrCreateDirectionalShadowMaps( sceneObject, view );
+		FindOrCreateDirectionalShadowMaps( light );
 		return 0;
 	}
 

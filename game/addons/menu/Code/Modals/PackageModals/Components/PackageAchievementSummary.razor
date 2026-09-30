@@ -1,18 +1,34 @@
-﻿@namespace MenuProject.Modals.PackageModalComponents
+@namespace MenuProject.Modals.PackageModalComponents
 @inherits Panel
 @using Sandbox;
 @using Sandbox.UI;
-@using Menu;
+@using SboxMenu;
 @using System;
 @using Sandbox.Network
 
 @if (collection is null || collection.All.Count() == 0)
     return;
 
-<root>
+<root class="@(Header ? "with-header" : "")">
 
-    <div class="achievement-buttons">
-        @foreach (Achievement a in collection.All.OrderBy(x => !x.IsUnlocked).Take(4))
+    @* With a header: the section's name, and how many you've got at the right end of it - the
+       icons then have the whole row *@
+    @if (Header)
+    {
+        <div class="ach-head">
+            <label class="section-label">Achievements</label>
+            <div class="grow"></div>
+            <div class="ach-count">
+                <i>emoji_events</i>
+                <label>@Unlocked / @Total</label>
+            </div>
+        </div>
+    }
+
+    @* As many as fit across, unlocked first - and if they don't all fit, the last spot says how
+       many more there are *@
+    <div class="achievement-buttons" @ref=Row>
+        @foreach (Achievement a in Shown)
         {
             string tooltip = $"{a.Title} - {a.Description}";
             string icon = a.Icon;
@@ -22,13 +38,21 @@
 
             <div src="@icon" class="@clss" tooltip="@tooltip" style="background-image: url( @icon );"></div>
         }
+
+        @if (Hidden > 0)
+        {
+            <div class="achievement-icon more" tooltip="@($"{Hidden} more")"><label>+@Hidden</label></div>
+        }
     </div>
 
-	<badge>
-        <label class="unlocked">@collection.All.Where(x => x.IsUnlocked).Count()</label>
-        <label class="splitter">of</label>
-        <label class="total">@collection.All.Count()</label>
-	</badge>
+    @if (!Header)
+    {
+	    <badge>
+            <label class="unlocked">@Unlocked</label>
+            <label class="splitter">of</label>
+            <label class="total">@Total</label>
+	    </badge>
+    }
 
 </root>
 
@@ -36,9 +60,56 @@
 {
     [Parameter, EditorRequired] public Package Package { get; set; }
 
-    AchievementCollection collection;
+    /// <summary>
+    /// Draw its own "Achievements" heading with the count on the end of it, instead of the count
+    /// in a badge beside the icons.
+    /// </summary>
+    [Parameter] public bool Header { get; set; }
 
-    protected override int BuildHash() => System.HashCode.Combine(Package, collection);
+    int Unlocked => collection?.All.Count( x => x.IsUnlocked ) ?? 0;
+
+    AchievementCollection collection;
+    Panel Row;
+
+    /// <summary>
+    /// An icon's width plus the gap after it - see .achievement-icon and .achievement-buttons.
+    /// </summary>
+    const float Slot = 36 + 4;
+
+    /// <summary>
+    /// How many icons fit across the row, worked out from its width once it's laid out.
+    /// </summary>
+    int _fits = 5;
+
+    int Total => collection?.All.Count() ?? 0;
+
+    /// <summary>
+    /// All of them if they fit, otherwise one spot fewer - that spot's the +N.
+    /// </summary>
+    int ShownCount => Total <= _fits ? Total : Math.Max( _fits - 1, 0 );
+
+    int Hidden => Total - ShownCount;
+
+    IEnumerable<Achievement> Shown => collection.All.OrderBy( x => !x.IsUnlocked ).Take( ShownCount );
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( !Row.IsValid() ) return;
+
+        // The row's width in UI units - its box is in screen pixels
+        var width = Row.Box.Rect.Width * Row.ScaleFromScreen;
+        if ( width <= 0 ) return;
+
+        var fits = Math.Max( (int)((width + 4) / Slot), 1 );
+        if ( fits == _fits ) return;
+
+        _fits = fits;
+        StateHasChanged();
+    }
+
+    protected override int BuildHash() => System.HashCode.Combine(Package, collection, _fits, Unlocked, Header);
 
     protected override async Task OnParametersSetAsync()
     {

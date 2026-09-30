@@ -320,11 +320,11 @@ public sealed class BallJoint : Joint
 				break;
 
 			case MotorMode.TargetRotation:
-				_joint.native.SetTargetRotation( TargetRotation, Frequency, DampingRatio );
+				_joint.SetTargetRotation( TargetRotation, Frequency, DampingRatio );
 				break;
 
 			case MotorMode.TargetVelocity:
-				_joint.native.SetMotorVelocity( TargetVelocity, MaxTorque );
+				_joint.SetMotorVelocity( TargetVelocity, MaxTorque );
 				break;
 		}
 	}

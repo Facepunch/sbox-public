@@ -20,7 +20,7 @@ public sealed class RotateMode : MoveMode
 	{
 		_moveDelta = Rotation.Identity;
 		_basis = tool.CalculateSelectionBasis();
-		_origin = tool.Pivot;
+		_origin = tool.Pivot.Position;
 	}
 
 	protected override void OnUpdate( SelectionTool tool )

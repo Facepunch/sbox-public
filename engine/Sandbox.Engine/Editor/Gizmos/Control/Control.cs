@@ -1,4 +1,6 @@
-﻿namespace Sandbox;
+﻿using System.ComponentModel;
+
+namespace Sandbox;
 
 public static partial class Gizmo
 {
@@ -150,6 +152,14 @@ public static partial class Gizmo
 			return true;
 		}
 
+		// PAINDAY - #5562 added the centerRaycast parameter. Adding a parameter is a binary break, so
+		// already-compiled packages still reference the old 5 argument signature. Keep it around and forward.
+		[EditorBrowsable( EditorBrowsableState.Never ), Obsolete( "Use the overload with a centerRaycast callback" )]
+		public bool Position( string name, Vector3 position, out Vector3 newPos, Rotation? axisRotation, float squareSize )
+		{
+			return Position( name, position, out newPos, axisRotation, squareSize, null );
+		}
+
 		static void DrawPositionCenter()
 		{
 			Sandbox.Gizmo.Draw.LineThickness = 2.0f;
@@ -285,8 +295,9 @@ public static partial class Gizmo
 
 			var localCameraRot = Transform.RotationToLocal( Camera.Rotation );
 
-			var delta = Sandbox.Gizmo.GetMouseDelta( 0, Rotation.FromAxis( localCameraRot.Forward, 0 ).Forward );
-			movement = Vector3.One.Dot( delta );
+			var delta = Sandbox.Gizmo.GetMouseDelta( 0, localCameraRot.Forward );
+			// Dragging right or up grows uniformly, independent of the view and gizmo rotation.
+			movement = (localCameraRot.Right + localCameraRot.Up).Dot( delta );
 
 			// Optional: Debug drawing
 			if ( Hitbox.Debug && Sandbox.Gizmo.IsHovered )

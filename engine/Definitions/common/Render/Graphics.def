@@ -11,13 +11,9 @@ managed static class Sandbox.Graphics
 	void OnLayer( int renderHookStage, ManagedRenderSetup_t setup );
 }
 
-managed static class Sandbox.RenderTarget
-{
-	void Flush();
-}
-
 managed static class Sandbox.Rendering.RenderPipeline
 {
+	void OnSceneViewSubmitted( ISceneView view );
 	void InternalAddLayersToView( ISceneView view, RenderViewport viewport, HSceneViewRenderTarget hColor, HSceneViewRenderTarget hDepth, RenderMultisampleType nMSAA, CRenderAttributes pipelineAttributes, RenderViewport screenDimensions );
 	void InternalPipelineEnd( ISceneView view, RenderViewport viewport, HSceneViewRenderTarget hColor, HSceneViewRenderTarget hDepth, RenderMultisampleType nMSAA, CRenderAttributes pipelineAttributes, RenderViewport screenDimensions );
 }

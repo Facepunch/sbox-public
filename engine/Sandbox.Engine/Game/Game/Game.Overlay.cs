@@ -160,8 +160,10 @@ public static partial class Game
 		}
 
 		/// <summary>
-		/// Opens a modal that lets you modify your settings
-		/// Optionally, you can specify a page to open directly to: "keybinds", "video", "input", "audio", "game", "storage", "developer"
+		/// Opens the settings. In the menu that's a tab; in a game it goes up over the top.
+		/// Optionally, you can specify a category to open directly to: "display", "graphics",
+		/// "audio", "controls", "keybinds", "game", "storage", "developer", "about".
+		/// The old page names "video" and "input" still work, and land on display and controls.
 		/// </summary>
 		public static void ShowSettingsModal( string page = "" )
 		{
@@ -250,7 +252,8 @@ public static partial class Game
 		}
 
 		/// <summary>
-		/// Opens the pause menu overlay. This is the same menu that appears when pressing ESC.
+		/// Opens the pause menu overlay. This is the same menu that appears when pressing Escape,
+		/// or Shift+Escape in editor play mode.
 		/// </summary>
 		public static void ShowPauseMenu()
 		{

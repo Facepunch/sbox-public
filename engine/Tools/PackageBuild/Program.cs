@@ -24,7 +24,7 @@ namespace Facepunch.PackageBuild;
 ///                   Defaults to this tool's own directory (the build's bin/managed).
 /// </code>
 ///
-/// stdout: one JSON object — <c>{ success, dlls: [{ assemblyName, file }], errors: [] }</c>.
+/// stdout: one JSON object — <c>{ success, dlls: [{ assemblyName, file }], errors: [], internalErrors: [] }</c>.
 /// stderr: human-readable progress/diagnostics. Exit code 0 = success, 1 = failure or bad args.
 /// </summary>
 static class Program
@@ -37,7 +37,7 @@ static class Program
 		}
 		catch ( Exception e )
 		{
-			return Fail( $"PackageBuild crashed: {e}" );
+			return Fail( e );
 		}
 	}
 
@@ -82,10 +82,12 @@ static class Program
 			if ( !File.Exists( path ) )
 				return Fail( $"Archive not found: {path}" );
 
-			archives.Add( new ArchiveEntry
-			{
-				Archive = new CodeArchive( await File.ReadAllBytesAsync( path ) )
-			} );
+			var archive = new CodeArchive( await File.ReadAllBytesAsync( path ) );
+
+			// package.base was removed in protocol 29, but archives authored before then still declare it.
+			archive.References.Remove( "package.base" );
+
+			archives.Add( new ArchiveEntry { Archive = archive } );
 		}
 
 		Console.Error.WriteLine( $"Compiling {archives.Count} archive(s) against {refDirs.Count} reference dir(s)..." );
@@ -97,7 +99,10 @@ static class Program
 			foreach ( var error in result.Errors )
 				Console.Error.WriteLine( $"  {error}" );
 
-			WriteResult( new CompileResult { Success = false, Errors = result.Errors } );
+			foreach ( var error in result.InternalErrors )
+				Console.Error.WriteLine( $"  {error.AssemblyName}: {error.Exception}" );
+
+			WriteResult( new CompileResult { Success = false, Errors = result.Errors, InternalErrors = result.InternalErrors } );
 			return 1;
 		}
 
@@ -133,6 +138,24 @@ static class Program
 		return 1;
 	}
 
+	static int Fail( Exception exception )
+	{
+		Console.Error.WriteLine( exception );
+		WriteResult( new CompileResult
+		{
+			Success = false,
+			InternalErrors =
+			[
+				new InternalBuildError
+				{
+					Message = exception.Message,
+					Exception = exception.ToString()
+				}
+			]
+		} );
+		return 1;
+	}
+
 	static readonly JsonSerializerOptions JsonOpts = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
 	static void WriteResult( CompileResult result )
@@ -160,9 +183,21 @@ static class Program
 				.Select( FormatDiagnostic )
 				.ToList();
 
-			// A build exception (e.g. a missing reference) isn't a compile diagnostic; don't report success-with-no-output.
-			if ( result.Errors.Count == 0 )
-				result.Errors.Add( "Build failed with an internal build exception (no compile diagnostics)" );
+			result.InternalErrors = group.Compilers
+				.Where( x => x.Output?.Exception is not null )
+				.Select( x => new InternalBuildError
+				{
+					AssemblyName = x.AssemblyName,
+					Message = x.Output.Exception.Message,
+					Exception = x.Output.Exception.ToString()
+				} )
+				.ToList();
+
+			if ( result.Errors.Count == 0 && result.InternalErrors.Count == 0 )
+				result.InternalErrors.Add( new InternalBuildError
+				{
+					Message = "Build failed without diagnostics or a captured compiler exception"
+				} );
 
 			return result;
 		}
@@ -233,7 +268,8 @@ class CompilationOutput
 {
 	public List<CompiledFile> Files { get; set; } = [];
 	public List<string> Errors { get; set; } = [];
-	public bool Success => Errors.Count == 0;
+	public List<InternalBuildError> InternalErrors { get; set; } = [];
+	public bool Success => Errors.Count == 0 && InternalErrors.Count == 0;
 }
 
 class CompiledFile
@@ -247,6 +283,14 @@ class CompileResult
 	public bool Success { get; set; }
 	public List<CompiledDll> Dlls { get; set; } = [];
 	public List<string> Errors { get; set; } = [];
+	public List<InternalBuildError> InternalErrors { get; set; } = [];
+}
+
+class InternalBuildError
+{
+	public string AssemblyName { get; set; }
+	public string Message { get; set; }
+	public string Exception { get; set; }
 }
 
 class CompiledDll

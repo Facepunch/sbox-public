@@ -12,6 +12,11 @@
         <div class="header">
             <i>people</i>
             <h2>Friends</h2>
+            <div class="grow" />
+            <div class="count" tooltip="Friends online">
+                <icon>person</icon>
+                <label>@OnlineCount</label>
+            </div>
         </div>
 
 		<div class="friends-list">
@@ -71,7 +76,7 @@
 
             @if( !AllFriends.Any() )
             {
-                <p>Nothing to show!</p>
+                <EmptyState Icon="group_off" Title="No one around" Subtitle="None of your friends are online right now." />
             }
 
 		</div>
@@ -81,6 +86,8 @@
 @code
 {
     public IEnumerable<Friend> AllFriends => MenuUtility.Friends.Where( ShouldShow );
+
+    int OnlineCount => MenuUtility.Friends.Count( x => !x.IsMe && x.IsOnline );
 
     public IEnumerable<Friend> InGameFriends => AllFriends.Where( x => x.IsPlayingThisGame );
     public IEnumerable<Friend> OnlineFriends => AllFriends.Where( x => !x.IsPlayingThisGame && x.IsOnline );
@@ -143,6 +150,12 @@
     public FriendsListModal(FriendsListModalOptions options)
     {
         Options = options;
+
+        // Before the first layout, not on first render - otherwise the base .modal styles land first
+        // and it visibly transitions out of them (the blur fading, the box sliding in from its
+        // -1000px insets) as it appears.
+        if ( IsAnchored )
+            AddClass( "anchored" );
     }
 
     protected override void OnAfterTreeRender( bool firstTime )

@@ -42,7 +42,7 @@ native class fpxr::ApplicationConfig as Facepunch.XR.ApplicationConfig
 
 native class fpxr::EventManager as Facepunch.XR.EventManager
 {
-    inline XRResult PumpEvent( out Event ev )
+    inline XRResult PumpEvent( out fpxr::Event ev )
     {
         return this->PumpEvent( *ev );
     }

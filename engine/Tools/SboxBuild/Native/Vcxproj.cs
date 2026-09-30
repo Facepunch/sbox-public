@@ -178,6 +178,7 @@ public static class Vcxproj
 					FileKind.Compile => "ClCompile",
 					FileKind.Include => "ClInclude",
 					FileKind.Resource => "ResourceCompile",
+					FileKind.Natvis => "Natvis",
 					_ => "None"
 				};
 

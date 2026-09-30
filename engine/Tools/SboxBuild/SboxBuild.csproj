@@ -24,9 +24,19 @@
   <ItemGroup>
 	<PackageReference Include="AWSSDK.S3" Version="4.0.25.3" />
 	<PackageReference Include="JetBrains.Refasmer" Version="2.0.3" />
+	<PackageReference Include="Spectre.Console" Version="0.49.1" />
 	<PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
 	<PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" Version="10.0.0" />
+	<!-- Keep in sync with System.Globalization.AppLocalIcu in Launcher/Directory.Build.targets. -->
+	<PackageReference Include="Microsoft.ICU.ICU4C.Runtime.linux-x64" Version="72.1.0.3" GeneratePathProperty="true" ExcludeAssets="all" PrivateAssets="all" />
   </ItemGroup>
+
+	<ItemGroup>
+		<None Include="$(PkgMicrosoft_ICU_ICU4C_Runtime_linux-x64)/runtimes/linux-x64/native/*"
+			Link="icu/linux-x64/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+		<None Include="$(PkgMicrosoft_ICU_ICU4C_Runtime_linux-x64)/LICENSE"
+			Link="icu/linux-x64/ICU-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+	</ItemGroup>
 
   <ItemGroup>
 	<ProjectReference Include="..\InteropGen\InteropGen.csproj" />

@@ -42,23 +42,26 @@
 					}
 					else
 					{
-						<PackageList Query=@($"type:game {CurrentTab.Query}") Take=@(60) OnSelected=@Selected OnMenu=@Menu></PackageList>
+						<MenuProject.UI.PackageList Surface="home" Shelf=@CurrentTab.Name Query=@($"type:game {CurrentTab.Query}") Take=@(60) OnSelected=@Selected OnMenu=@Menu></MenuProject.UI.PackageList>
 					}
 				</div>
 
 				<div class="aside">
 
 					@*
-						Friends in game right now, then what everyone's been up to lately.
-						The feed is what fills the card out on a quiet night.
+						One card - avatar, stats, your friends taking the rest of the column, and your
+						party along the bottom when you're in one.
 					*@
 					<div class="profile-card">
 						<AvatarButton />
-						<FriendsActivity />
-						<ActivityFeed Activity="@Activity" />
-					</div>
+						<ProfileStats />
+						<FriendsRail />
 
-					<News />
+						@* Room for the party deck, which floats over this from the menu overlay (so it can stay
+						   above modals) and sets its height - see Footer.razor. Always here, just hidden when
+						   there's no party, so the deck's reference to it never goes stale. *@
+						<div class="party-slot @(PartyView.Exists ? "" : "hidden")" @ref="PartySlot"></div>
+					</div>
 
 				</div>
 
@@ -121,33 +124,16 @@
 		}
 	}
 
+	/// <summary>
+	/// The space at the bottom of the rail the party deck lines itself up with.
+	/// </summary>
+	public static Panel PartySlot { get; private set; }
+
 	Package.ListResult Result;
-
-	Sandbox.Services.Feed[] Activity { get; set; } = System.Array.Empty<Sandbox.Services.Feed>();
-
-	RealTimeUntil timeUntilRefresh = 0;
 
 	protected override async Task OnParametersSetAsync()
 	{
 		Result = await Package.ListAsync( ContentGroupId );
-		StateHasChanged();
-	}
-
-	public override void Tick()
-	{
-		base.Tick();
-
-		if ( !IsVisible ) return;
-		if ( timeUntilRefresh > 0 ) return;
-
-		timeUntilRefresh = 60 * 3;
-
-		_ = UpdateActivity();
-	}
-
-	async Task UpdateActivity()
-	{
-		Activity = await MenuUtility.GetPlayerFeed( 30 ) ?? System.Array.Empty<Sandbox.Services.Feed>();
 		StateHasChanged();
 	}
 
@@ -161,5 +147,5 @@
 		ContentBlocks.OnMenu( this, package );
 	}
 
-	protected override int BuildHash() => System.HashCode.Combine( Result, Activity.Length, CurrentTab );
+	protected override int BuildHash() => System.HashCode.Combine( Result, CurrentTab, PartyView.Exists );
 }

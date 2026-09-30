@@ -41,8 +41,8 @@ public class ProjectList
 	}
 
 	/// <summary>
-	/// Tries to add a project from a file. Returns true if it was added, or already existed.
-	/// Project list is saved if it was added.
+	/// Tries to add a project from a file. Returns the project, or the existing entry if it was
+	/// already in the list, or null if it didn't load. Doesn't save the list - call SaveList.
 	/// </summary>
 	public Project TryAddFromFile( string path )
 	{

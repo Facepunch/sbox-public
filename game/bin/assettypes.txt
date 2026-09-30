@@ -877,16 +877,6 @@
 			m_bHideTypeByDefault = true
 		},
 		{
-			_class = "CSimpleAssetTypeInfo"
-			m_Name = "asset_metadata"
-			m_FriendlyName = "Metadata"
-			m_Ext = "meta"
-			m_IconLg = "toolimages:assettypes/generic_lg.png"
-			m_IconSm = "toolimages:assettypes/generic_sm.png"
-			m_bHideTypeByDefault = true
-			m_bContentFileIsText = true
-		},
-		{
 			_class = "CShaderAssetTypeInfo"
 			m_Name = "shader_asset"
 			m_FriendlyName = "Shader"

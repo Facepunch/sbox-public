@@ -7,6 +7,7 @@ partial class ViewportTools
 		{
 			var group = AddGroup();
 
+			group.Layout.Add( new SceneCompileToolbar( group ) );
 			group.Layout.Add( new ViewportButton( "wifi", OpenNetworkSettings ) { ToolTip = "Network settings" } );
 
 			layout.Add( group );
@@ -20,6 +21,7 @@ partial class ViewportTools
 			if ( sceneViewWidget.CurrentView != SceneViewWidget.ViewMode.Game )
 				group.Layout.Add( new ViewportButton( "tune", OpenViewSettings ) { ToolTip = "View Settings" } );
 
+			group.Layout.Add( new ViewportButton( "speed", OpenQualityMenu ) { ToolTip = "Graphics Quality" } );
 			group.Layout.Add( new ViewportButton( "grid_view", OpenSceneViewModeMenu ) { ToolTip = "Layout" } );
 			group.Layout.Add( new ViewportButton( "crop_free", ToggleFullscreen ) { ToolTip = "Toggle Fullscreen" } );
 

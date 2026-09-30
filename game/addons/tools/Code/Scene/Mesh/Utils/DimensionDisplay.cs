@@ -22,7 +22,7 @@ public static class DimensionDisplay
 
 		Gizmo.Draw.LineThickness = 2;
 
-		var cameraPos = Gizmo.Camera.Position;
+		var cameraPos = Gizmo.LocalCameraTransform.Position;
 		var boxCenter = box.Center;
 
 		if ( box.Size.x > 0.01f )
@@ -78,10 +78,12 @@ public static class DimensionDisplay
 	}
 
 	/// <summary>
-	/// Draw a dimension label at a world position that always faces the camera
+	/// Draw a dimension label at a position in the current gizmo space that always faces the camera
 	/// </summary>
-	private static void DrawDimensionLabel( Vector3 worldPosition, string text, Color color, float textSize )
+	private static void DrawDimensionLabel( Vector3 localPosition, string text, Color color, float textSize )
 	{
+		var worldPosition = Gizmo.Transform.PointToWorld( localPosition );
+
 		// ScreenText is already camera-aligned, so we just need to position it correctly
 		var textOffset = Vector2.Up * 32; // Offset upward in screen space
 

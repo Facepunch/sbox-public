@@ -23,7 +23,7 @@ public sealed class ScaleMode : MoveMode
 		_basis = tool.CalculateSelectionBasis();
 		var bounds = tool.CalculateLocalBounds();
 		_size = bounds.Size;
-		_origin = tool.Pivot;
+		_origin = tool.Pivot.Position;
 
 		if ( _size.x < 0.1f ) _size.x = 0;
 		if ( _size.y < 0.1f ) _size.y = 0;

@@ -16,9 +16,24 @@
 
 @code
 {
+    /// <summary>
+    /// The notification's primary message.
+    /// </summary>
     [Parameter] public string Title { get; set; }
+
+    /// <summary>
+    /// Supporting detail displayed beneath the title.
+    /// </summary>
     [Parameter] public string Message { get; set; }
+
+    /// <summary>
+    /// Material icon identifying the notification.
+    /// </summary>
     [Parameter] public string Icon { get; set; }
+
+    /// <summary>
+    /// Presentation variants from the shared toast stylesheet.
+    /// </summary>
     [Parameter] public string ExtraClasses { get; set; }
 
     internal ToastArea Area;
@@ -28,5 +43,5 @@
     /// </summary>
     public void Dismiss() => Area?.Dismiss( this );
 
-    protected override int BuildHash() => HashCode.Combine( Title, Message, Icon );
+    protected override int BuildHash() => HashCode.Combine( Title, Message, Icon, ExtraClasses );
 }

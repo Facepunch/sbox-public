@@ -6,7 +6,7 @@ namespace Facepunch.ShaderProc
 {
 	public class Program
 	{
-		public static void Process( string directory )
+		public static void Process( string directory, Action<string> log = null )
 		{
 			var defPath = Path.Combine( directory, "Definitions", "shaders.def" );
 			var defs = Definition.FromFile( defPath );
@@ -21,7 +21,7 @@ namespace Facepunch.ShaderProc
 			var outPutDir = Path.Combine( directory, defs.InteropOutput );
 			WriteOutputToFile( outPutDir, cppShaders.ToString() );
 
-			Console.WriteLine( $"Packed {shaders.Count} shader source files to {outPutDir}" );
+			(log ?? Console.WriteLine)( $"Packed {shaders.Count} shader source files to {outPutDir}" );
 		}
 
 		static List<ShaderCode> ProcessFolder( string directory, Definition defs )

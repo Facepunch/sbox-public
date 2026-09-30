@@ -225,18 +225,32 @@ public partial class Window : DockWindow, IAssetEditor
 	[Shortcut( "grid.increase-grid-size", "]" )]
 	private void BiggerGrid()
 	{
-		GridPower = Math.Max( GridPower - 1, 1 );
+		if ( Settings.IsFastTextureTool )
+		{
+			EditorScene.GizmoSettings.GridSpacing = Math.Min( EditorScene.GizmoSettings.GridSpacing * 2, 128f );
+		}
+		else
+		{
+			GridPower = Math.Max( GridPower - 1, 1 );
+			UpdateGridSize();
+		}
 
-		UpdateGridSize();
 		Update();
 	}
 
 	[Shortcut( "grid.decrease-grid-size", "[" )]
 	private void SmallerGrid()
 	{
-		GridPower = Math.Min( GridPower + 1, 8 );
+		if ( Settings.IsFastTextureTool )
+		{
+			EditorScene.GizmoSettings.GridSpacing = Math.Max( EditorScene.GizmoSettings.GridSpacing / 2, 0.125f );
+		}
+		else
+		{
+			GridPower = Math.Min( GridPower + 1, 8 );
+			UpdateGridSize();
+		}
 
-		UpdateGridSize();
 		Update();
 	}
 

@@ -1,0 +1,21 @@
+{
+  "publish": {
+    "Enabled": false,
+    "ProjectConfig": {
+      "Title": "gutter_tileset_square",
+      "Type": "map",
+      "Org": "local",
+      "Ident": "gutter_tileset_square",
+      "Schema": 0,
+      "IncludeSourceFiles": false,
+      "Resources": null,
+      "PackageReferences": [],
+      "EditorReferences": [],
+      "IsWhitelistDisabled": false,
+      "Metadata": {
+        "SingleAssetSource": "maps/tilesets/gutter_tileset_square.vmap"
+      }
+    }
+  },
+  "guid": "e5df8bbc-3255-4b97-8dfe-4d5951271972"
+}

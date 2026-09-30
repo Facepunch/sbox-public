@@ -2,7 +2,7 @@
 @inherits MenuProject.Modals.BaseModal
 @using Sandbox;
 @using Sandbox.UI;
-@using Menu;
+@using SboxMenu;
 @using System;
 @using Sandbox.Network
 @using MenuProject.Modals.GameModalComponents;
@@ -12,7 +12,8 @@
 
     <MegaCard>
         <Metrics>
-            <PackageMetrics Package="@Package"/>
+            @* Just report - the rest is in the info column *@
+            <PackageMetrics Package="@Package" ShowRatings="@false" ShowStats="@false"/>
         </Metrics>
         <Tabs>
 
@@ -22,7 +23,9 @@
                 </Button>
                 <Content>
                     <Media Package=@Package></Media>
-                    <PackageDescription Package=@Package />
+
+                    @* Under the gallery, the newest update - not the long description *@
+                    <PackageChanges Package=@Package Embedded=@true />
                 </Content>
             </PortalButton>
 
@@ -59,14 +62,18 @@
                 </PortalButton>
             }
 
-            <PortalButton Portal=@Portal>
-                <Button>
-                    <SearchlightTab Title="Achievements" Icon="emoji_events" />
-                </Button>
-                <Content>
-					<AchievementList Package=@Package />
-                </Content>
-            </PortalButton>
+            @* Only for a game that has some - no empty tab *@
+            @if (HasAchievements)
+            {
+                <PortalButton Portal=@Portal>
+                    <Button>
+                        <SearchlightTab Title="Achievements" Icon="emoji_events" />
+                    </Button>
+                    <Content>
+					    <AchievementList Package=@Package />
+                    </Content>
+                </PortalButton>
+            }
 
         </Tabs>
         <Left>
@@ -122,7 +129,31 @@
         HasFullPackage = true;
 
         await RefreshLobbies();
+        await CheckAchievements();
     }
 
-    protected override int BuildHash() => System.HashCode.Combine(Package);
+    /// <summary>
+    /// Whether it has any achievements at all - the tab's only there if it does.
+    /// </summary>
+    bool HasAchievements { get; set; }
+
+    async Task CheckAchievements()
+    {
+        if ( Package is null ) return;
+
+        try
+        {
+            var achievements = await Package.GetAchievements();
+            HasAchievements = achievements?.All.Count > 0;
+        }
+        catch ( Exception e )
+        {
+            Log.Warning( $"Couldn't check {PackageIdent}'s achievements: {e.Message}" );
+            HasAchievements = false;
+        }
+
+        StateHasChanged();
+    }
+
+    protected override int BuildHash() => System.HashCode.Combine(Package, HasAchievements);
 }

@@ -25,9 +25,15 @@ partial class EdgeCutTool
 
 	void Apply()
 	{
-		if ( _cutPoints.Count <= 1 )
+		if ( _cutPoints.Count == 0 )
 		{
 			Cancel();
+			return;
+		}
+
+		if ( _cutPoints.Count == 1 )
+		{
+			ApplySingleCutPoint( _cutPoints[0] );
 			return;
 		}
 
@@ -62,6 +68,51 @@ partial class EdgeCutTool
 				selection.Add( new MeshFace( component, faceB ) );
 			}
 		}
+
+		ClearCut();
+		_editUndo.Clear();
+
+		if ( !LoopMode )
+		{
+			_activationUndo.Clear();
+			GoBack();
+		}
+	}
+
+	/// <summary>
+	/// A cut needs two points to make an edge, but a single point sat on an edge is still
+	/// useful, split the edge there and select the new vertex.
+	/// </summary>
+	void ApplySingleCutPoint( MeshCutPoint cutPoint )
+	{
+		var edge = cutPoint.Edge;
+		var component = edge.Component;
+
+		if ( !cutPoint.IsValid() || !edge.IsValid() || !component.IsValid() )
+		{
+			Cancel();
+			return;
+		}
+
+		using var undoScope = SceneEditorSession.Active.UndoScope( "Add Vertex To Edge" )
+			.WithComponentChanges( component )
+			.Push();
+
+		var mesh = component.Mesh;
+		var edgeTable = new SortedSet<HalfEdgeHandle>( HalfEdgeHandleComparer.Instance );
+		var hVertex = AddCutToEdge( edge, cutPoint.BasePosition, edgeTable );
+
+		if ( !hVertex.IsValid )
+		{
+			Cancel();
+			return;
+		}
+
+		mesh.ComputeFaceTextureCoordinatesFromParameters();
+
+		var selection = SceneEditorSession.Active.Selection;
+		selection.Clear();
+		selection.Add( new MeshVertex( component, hVertex ) );
 
 		ClearCut();
 		_editUndo.Clear();

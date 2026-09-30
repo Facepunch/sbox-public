@@ -246,6 +246,14 @@ public partial class ClothingContainer
 			Age,
 			Tint,
 			PrefersHuman,
+			EyeColor,
+			EyeAlign,
+			NeckSize,
+			WaistSize,
+			ChestSize,
+			HeadShape,
+			NoseSize,
+			ChinSize,
 		};
 
 		var options = new JsonSerializerOptions( JsonSerializerOptions.Default ) { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
@@ -258,6 +266,14 @@ public partial class ClothingContainer
 	public void Deserialize( string json )
 	{
 		Clothing.Clear();
+		NeckSize = AvatarDefaults.NeckSize;
+		WaistSize = AvatarDefaults.WaistSize;
+		ChestSize = AvatarDefaults.ChestSize;
+		HeadShape = AvatarDefaults.HeadShape;
+		NoseSize = AvatarDefaults.NoseSize;
+		ChinSize = AvatarDefaults.ChinSize;
+		EyeColor = AvatarDefaults.EyeColor;
+		EyeAlign = AvatarDefaults.EyeAlign;
 
 		if ( string.IsNullOrWhiteSpace( json ) )
 			return;
@@ -278,7 +294,16 @@ public partial class ClothingContainer
 				DisplayName = (string)(jso["DisplayName"]);
 				Age = (float)(jso["Age"] ?? 0.0f);
 				Tint = (float)(jso["Tint"] ?? 0.0f);
+				EyeColor = (float)(jso["EyeColor"] ?? AvatarDefaults.EyeColor);
+				EyeAlign = (float)(jso["EyeAlign"] ?? AvatarDefaults.EyeAlign);
 				PrefersHuman = (bool)(jso["PrefersHuman"] ?? false);
+
+				NeckSize = (float)(jso["NeckSize"] ?? AvatarDefaults.NeckSize);
+				WaistSize = (float)(jso["WaistSize"] ?? AvatarDefaults.WaistSize);
+				ChestSize = (float)(jso["ChestSize"] ?? AvatarDefaults.ChestSize);
+				HeadShape = (float)(jso["HeadShape"] ?? AvatarDefaults.HeadShape);
+				NoseSize = (float)(jso["NoseSize"] ?? AvatarDefaults.NoseSize);
+				ChinSize = (float)(jso["ChinSize"] ?? AvatarDefaults.ChinSize);
 			}
 		}
 		catch ( System.Exception e )

@@ -182,7 +182,7 @@ public partial class GameObject
 
 				Components.ForEach( "DrawGizmos", false, c =>
 				{
-					if ( c.OverridesDrawGizmos && !c.Flags.Contains( ComponentFlags.Hidden ) )
+					if ( c.OverridesDrawGizmos && !c.Flags.Contains( ComponentFlags.Hidden ) && Gizmo.Settings.IsGizmoEnabled( c.GetType() ) )
 					{
 						using var scope = Gizmo.Scope();
 						c.DrawGizmosInternal();
@@ -256,6 +256,12 @@ public partial class GameObject
 			Gizmo.Draw.Sprite( 0, 0.4f, Texture.White );
 
 			Gizmo.Hitbox.Sphere( new Sphere( 0, 0.4f ) );
+
+			if ( Gizmo.IsHovered || Gizmo.IsSelected )
+			{
+				var textPos = Gizmo.Transform.Position + Gizmo.CameraTransform.Up * 0.8f;
+				Gizmo.Draw.Text( Name, Gizmo.Transform.ToLocal( new Transform( textPos ) ), flags: TextFlag.Center );
+			}
 
 			if ( Gizmo.WasClicked )
 				GizmoSelect();

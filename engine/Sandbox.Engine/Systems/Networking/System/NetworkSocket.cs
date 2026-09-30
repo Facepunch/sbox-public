@@ -4,13 +4,25 @@ public abstract class NetworkSocket
 {
 	internal Action<Connection> OnClientConnect;
 	internal Action<Connection> OnClientDisconnect;
-	internal Action<(Connection previous, Connection current)> OnHostChanged;
 
 	/// <summary>
 	/// Whether this socket should be disposed automatically when the network system
 	/// it belongs to is disconnected.
 	/// </summary>
 	internal bool AutoDispose { get; set; } = true;
+
+	/// <summary>
+	/// Whether peers on this socket can take over as host when the host leaves.
+	/// </summary>
+	internal virtual bool SupportsHostMigration => false;
+
+	/// <summary>
+	/// Move whatever represents the host on this transport, e.g. the Steam lobby owner.
+	/// </summary>
+	internal virtual void OnHostChanged( Connection newHost )
+	{
+
+	}
 
 	internal abstract void Dispose();
 	internal abstract void GetIncomingMessages( NetworkSystem.MessageHandler handler );
@@ -41,7 +53,7 @@ public abstract class NetworkSocket
 	/// Called when a session has failed with a user. Steam Networking Messages will invoke this callback
 	/// if an attempt to send a message to a user failed because of a broken session.
 	/// </summary>
-	internal virtual void OnSessionFailed( SteamId steamId )
+	internal virtual void OnSessionFailed( SteamId steamId, int reasonCode, string reason )
 	{
 
 	}

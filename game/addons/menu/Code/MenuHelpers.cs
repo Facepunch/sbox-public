@@ -2,6 +2,8 @@
 using Sandbox.DataModel;
 using Sandbox.Diagnostics;
 using Sandbox.Modals;
+using MenuProject.MenuUI.Front;
+using MenuPanel = MenuProject.UI.MenuPanel;
 
 public static class MenuHelpers
 {
@@ -10,6 +12,16 @@ public static class MenuHelpers
 	/// If we're in a party, only the party owner can start or join games.
 	/// </summary>
 	public static bool HasAuthority => PartyRoom.Current?.Owner.IsMe ?? true;
+
+	/// <summary>
+	/// True when a discovery query lists a jam's entries, e.g. "jam:three type:game".
+	/// </summary>
+	public static bool IsJamQuery( string query )
+	{
+		if ( string.IsNullOrEmpty( query ) ) return false;
+
+		return query.Split( ' ', StringSplitOptions.RemoveEmptyEntries ).Any( x => x.StartsWith( "jam:", StringComparison.OrdinalIgnoreCase ) );
+	}
 
 	/// <summary>
 	/// General-purpose method to play a game package. Handles quickplay, dedicated servers,
@@ -26,9 +38,7 @@ public static class MenuHelpers
 		// QuickPlay: try to join an existing lobby first
 		if ( package.Info.IsQuickPlay )
 		{
-			LoadingScreen.IsVisible = true;
-			LoadingScreen.Title = "Finding Game..";
-			LoadingScreen.Subtitle = "Please wait while we find a game for you to join.";
+			await PrepareForLoad( "Finding Game..", "Please wait while we find a game for you to join." );
 
 			if ( await MenuUtility.TryJoinLobby( package.FullIdent ) )
 				return;
@@ -46,7 +56,7 @@ public static class MenuHelpers
 		// Show create game modal if the package requires it
 		if ( ShouldUseCreateGameModal( package ) )
 		{
-			Game.Overlay.CreateGame( new CreateGameOptions( package, x =>
+			Game.Overlay.CreateGame( new CreateGameOptions( package, async x =>
 			{
 				if ( x.MaxPlayers > 0 ) LaunchArguments.MaxPlayers = x.MaxPlayers;
 
@@ -54,6 +64,9 @@ public static class MenuHelpers
 					LaunchArguments.ServerName = x.ServerName;
 
 				LaunchArguments.Privacy = x.Privacy;
+
+				// The create game modal's the one closing now - let it go before the load holds things up
+				await PrepareForLoad();
 
 				if ( !string.IsNullOrEmpty( x.Map ) )
 					MenuUtility.OpenGameWithMap( package.FullIdent, x.Map, x.GameSettings );
@@ -64,10 +77,7 @@ public static class MenuHelpers
 		}
 
 		// Direct launch
-		MenuUtility.CloseAllModals();
-		LoadingScreen.IsVisible = true;
-		LoadingScreen.Title = "Loading..";
-		LoadingScreen.Subtitle = "";
+		await PrepareForLoad();
 
 		if ( mapPackage is null )
 		{
@@ -88,6 +98,28 @@ public static class MenuHelpers
 		{
 			MenuUtility.OpenGame( package.FullIdent, true );
 		}
+	}
+
+	/// <summary>
+	/// How long the screen gets to settle before a load starts - see <see cref="PrepareForLoad"/>.
+	/// </summary>
+	const int LoadWarmUpMilliseconds = 200;
+
+	/// <summary>
+	/// Get the screen ready for a load before starting it - modals closed, the loading screen up,
+	/// then a moment for both to actually draw. The first steps of a load can hold the main thread
+	/// for a while, and anything still animating when it does (a modal halfway through closing)
+	/// freezes on screen until it lets go.
+	/// </summary>
+	public static async Task PrepareForLoad( string title = "Loading..", string subtitle = "" )
+	{
+		MenuUtility.CloseAllModals();
+
+		LoadingScreen.IsVisible = true;
+		LoadingScreen.Title = title;
+		LoadingScreen.Subtitle = subtitle;
+
+		await Task.Delay( LoadWarmUpMilliseconds );
 	}
 
 	static bool ShouldUseCreateGameModal( Package package )
@@ -112,6 +144,31 @@ public static class MenuHelpers
 		if ( days < 0 ) days = 0;
 		return $"{days}d";
 	}
+
+	/// <summary>
+	/// "3 days ago", "2 weeks ago", "5 months ago", "2 years ago" - the biggest unit that fits, so
+	/// half a year reads as months, not 26 weeks.
+	/// </summary>
+	public static string TimeAgo( System.DateTimeOffset time )
+	{
+		var span = System.DateTimeOffset.UtcNow - time;
+		if ( span.TotalSeconds < 0 ) span = System.TimeSpan.Zero;
+
+		static string Plural( int n, string unit ) => $"{n} {unit}{(n == 1 ? "" : "s")} ago";
+
+		if ( span.TotalMinutes < 1 ) return "just now";
+		if ( span.TotalHours < 1 ) return Plural( (int)span.TotalMinutes, "minute" );
+		if ( span.TotalDays < 1 ) return Plural( (int)span.TotalHours, "hour" );
+		if ( span.TotalDays < 7 ) return Plural( (int)span.TotalDays, "day" );
+		if ( span.TotalDays < 30 ) return Plural( (int)(span.TotalDays / 7), "week" );
+		if ( span.TotalDays < 365 ) return Plural( System.Math.Max( (int)(span.TotalDays / 30.44), 1 ), "month" );
+		return Plural( (int)(span.TotalDays / 365.25), "year" );
+	}
+
+	/// <summary>
+	/// <see cref="TimeAgo(System.DateTimeOffset)"/> for a UTC <see cref="System.DateTime"/>.
+	/// </summary>
+	public static string TimeAgo( System.DateTime utc ) => TimeAgo( new System.DateTimeOffset( System.DateTime.SpecifyKind( utc, System.DateTimeKind.Utc ) ) );
 
 	public static MenuPanel OpenFriendMenu( Panel source, Friend friend )
 	{
@@ -172,10 +229,49 @@ public static class MenuHelpers
 		}
 
 		menu.AddSpacer();
+		var liked = package.Interaction.Rating == 0;
+		var disliked = package.Interaction.Rating == 1;
+		var favourite = package.Interaction.Favourite;
+		menu.AddOption( "thumb_up", liked ? "Liked" : "Like", () => _ = package.SetVoteAsync( true ) );
+		menu.AddOption( "thumb_down", disliked ? "Disliked" : "Dislike", () => _ = package.SetVoteAsync( false ) );
+		menu.AddOption( favourite ? "favorite" : "favorite_border", favourite ? "Remove from Favourites" : "Add to Favourites", () => _ = package.SetFavouriteAsync( !favourite ) );
+
+		menu.AddSpacer();
 		menu.AddOption( "corporate_fare", $"View Creator", () => Game.Overlay.ShowOrganizationModal( package.Org ) );
-		menu.AddOption( "star", "Review Game", () => Game.Overlay.ShowReviewModal( package ) );
+		menu.AddOption( "rate_review", "Review Game", () => Game.Overlay.ShowReviewModal( package ) );
 		menu.AddOption( "flag", "Report Game", () => Game.Overlay.ShowReportModal( package.FullIdent ) );
+		menu.AddOption( "block", "Hide Game", () => _ = HidePackage( source, package ) );
 	}
+
+	/// <summary>
+	/// Hide a game from this player's discovery and search. Toasts the result and drops the
+	/// tile from the front-page shelf it came from.
+	/// </summary>
+	public static async Task<bool> HidePackage( Panel source, Package package )
+	{
+		// Hover cards float in the root; their shelf is behind the hovered card
+		if ( source is MenuProject.UI.PackageHoverCard hoverCard )
+		{
+			source = hoverCard.Source;
+			hoverCard.Close();
+		}
+
+		var hidden = await package.SetHiddenAsync( true );
+
+		if ( hidden )
+		{
+			Toast( $"{package.Title} hidden", "visibility_off" );
+			source?.AncestorsAndSelf.OfType<FrontPageGames>().FirstOrDefault()?.RemovePackage( package );
+		}
+		else
+		{
+			Toast( $"Couldn't hide {package.Title} right now", "visibility_off" );
+		}
+
+		return hidden;
+	}
+
+	static void Toast( string title, string icon ) => MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast() { Title = title, Icon = icon } );
 
 	static void OpenMapMenu( Panel source, Package package )
 	{

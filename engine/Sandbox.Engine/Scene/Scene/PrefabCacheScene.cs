@@ -16,7 +16,11 @@ internal partial class PrefabCacheScene : PrefabScene
 	/// Contains the the JSON for the prefab after loading it's cached scene and expanding all prefab instances.
 	/// We cache this since we use this quite often to resolve nested prefab instance overrides.
 	/// </summary>
-	internal JsonObject FullPrefabInstanceJson { get; set; }
+	internal JsonObject FullPrefabInstanceJson { get; private set; }
+
+	private Func<JsonObject, Json.Patch> calculateDifferences;
+
+	internal Json.Patch CalculateDifferences( JsonObject instance ) => calculateDifferences( instance );
 
 	/// <summary>
 	/// Contains all the prefab files that are referenced by this prefab scene.
@@ -25,34 +29,14 @@ internal partial class PrefabCacheScene : PrefabScene
 
 	public override bool Load( GameResource resource )
 	{
-		Assert.NotNull( resource );
-
-		Clear();
-
-		if ( resource is not PrefabFile file )
-		{
-			Log.Warning( "Resource is not a PrefabFile" );
+		if ( !base.Load( resource ) )
 			return false;
-		}
 
-		Source = file;
-
-		using var sourceScope = ActionGraph.PushSerializationOptions( file.SerializationOptions with { ForceUpdateCached = IsEditor } );
-		using var sceneScope = Push();
-
-		if ( file.RootObject is null )
-		{
-			file.RootObject = new GameObject( file.ResourceName ).Serialize();
-			// Need to clear again because GO will be added to the scene, leading to id conflicts when deserializing it.
-			Clear();
-		}
-
-		using ( CallbackBatch.Isolated() )
-		{
-			Deserialize( file.RootObject );
-		}
-
+		// The cached snapshot outlives both the resource's loading scope and any ambient capture.
+		using var sourceScope = ActionGraph.PushSerializationOptions( resource.SerializationOptions with { ForceUpdateCached = IsEditor } );
+		using var suppressBlobs = BlobDataSerializer.Suppress();
 		FullPrefabInstanceJson = Serialize( new SerializeOptions { SerializePrefabForDiff = true } );
+		calculateDifferences = Json.CreateDifferenceCalculator( FullPrefabInstanceJson, DiffObjectDefinitions );
 
 		// Iterate all gameobjects in scene and find prefab instances, add them to reference set
 		referencedPrefabs = GetAllObjects( false ).Where( o => o.IsPrefabInstanceRoot ).Select( p => ResourceLibrary.Get<PrefabFile>( p.PrefabInstanceSource ) ).ToHashSet();
@@ -77,18 +61,35 @@ internal partial class PrefabCacheScene : PrefabScene
 	private void UpdateDependencies( PrefabFile file )
 	{
 		var dependantSet = new HashSet<PrefabFile>();
-		BuildDependantSet( file, dependantSet );
+		BuildDependantSet( file, dependantSet, ResourceLibrary.GetAll<PrefabFile>().ToArray() );
 
-		foreach ( var dependant in dependantSet )
+		// Expanded hierarchies reference transitive dependencies too. Discovery order is not
+		// load order: only rebuild a consumer once all of its affected dependencies are current.
+		var ordered = new List<PrefabFile>( dependantSet.Count );
+		while ( dependantSet.Count > 0 )
+		{
+			var ready = dependantSet.Where( x => !x.CachedScene.referencedPrefabs.Overlaps( dependantSet ) ).ToArray();
+			if ( ready.Length == 0 )
+			{
+				Log.Warning( $"Cyclic prefab dependencies while refreshing {file.ResourceName}" );
+				return;
+			}
+
+			foreach ( var dependant in ready )
+			{
+				dependantSet.Remove( dependant );
+				ordered.Add( dependant );
+			}
+		}
+
+		foreach ( var dependant in ordered )
 		{
 			dependant.CachedScene?.Load( dependant );
 		}
 	}
 
-	private void BuildDependantSet( PrefabFile file, HashSet<PrefabFile> prefabScenesRequiringUpdate )
+	private void BuildDependantSet( PrefabFile file, HashSet<PrefabFile> prefabScenesRequiringUpdate, PrefabFile[] prefabFiles )
 	{
-		var prefabFiles = ResourceLibrary.GetAll<PrefabFile>().ToArray();
-
 		foreach ( var pf in prefabFiles )
 		{
 			if ( prefabScenesRequiringUpdate.Contains( pf ) )
@@ -122,7 +123,7 @@ internal partial class PrefabCacheScene : PrefabScene
 
 			prefabScenesRequiringUpdate.Add( pf );
 
-			BuildDependantSet( pf, prefabScenesRequiringUpdate );
+			BuildDependantSet( pf, prefabScenesRequiringUpdate, prefabFiles );
 		}
 	}
 }

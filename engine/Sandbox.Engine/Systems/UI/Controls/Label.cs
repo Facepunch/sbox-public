@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components;
 using Sandbox.Html;
 using System.Globalization;
 
@@ -19,6 +19,7 @@ namespace Sandbox.UI
 		internal string _text;
 		internal Rect _textRect;
 		internal TextBlock _textBlock;
+		internal bool IsGeneratedText;
 
 		int layoutStateHash;
 		bool sizeFinalized;
@@ -104,7 +105,7 @@ namespace Sandbox.UI
 		public Label()
 		{
 			AddClass( "label" );
-			YogaNode.SetMeasureFunction( MeasureText );
+			LayoutTree.SetMeasureFunction( MeasureText );
 		}
 
 		public Label( string text, string classname = null ) : this()
@@ -113,11 +114,16 @@ namespace Sandbox.UI
 			AddClass( classname );
 		}
 
-		Vector2 MeasureText( YGNodeRef node, float width, YGMeasureMode widthMode, float height, YGMeasureMode heightMode )
+		Vector2 MeasureText( float width, Sandbox.Layout.MeasureMode widthMode, float height, Sandbox.Layout.MeasureMode heightMode )
 		{
 			try
 			{
 				if ( _textBlock == null ) return new Vector2( 2, 10 );
+
+				if ( widthMode == Sandbox.Layout.MeasureMode.MinContent )
+					return _textBlock.MeasureMinContent();
+				if ( heightMode == Sandbox.Layout.MeasureMode.MinContent )
+					return _textBlock.MeasureMinContent( widthMode == Sandbox.Layout.MeasureMode.Undefined ? float.NaN : width );
 
 				availableSpace = new Vector2( width, height );
 
@@ -172,8 +178,10 @@ namespace Sandbox.UI
 					return;
 
 				_text = value;
+				ClearStyleSpans();
 				StringInfo.String = value ?? string.Empty;
 				CaretSantity();
+				LayoutTree?.MarkDirty();
 				SetNeedsPreLayout();
 			}
 		}
@@ -208,10 +216,29 @@ namespace Sandbox.UI
 			Text = value ?? "";
 		}
 
+		private int _caretPosition;
+
 		/// <summary>
 		/// Position of the text cursor/caret within the text, at which newly typed characters are inserted.
+		/// Setting it keeps it inside the text and scrolls to put it on screen - everything that moves
+		/// the caret goes through here, so nothing has to remember to do either.
 		/// </summary>
-		public int CaretPosition { get; set; }
+		public int CaretPosition
+		{
+			get => _caretPosition;
+			set
+			{
+				value = value.Clamp( 0, TextLength );
+				if ( _caretPosition == value ) return;
+
+				_caretPosition = value;
+
+				// Moving the caret any other way gives up the x that up and down were aiming for
+				if ( !_movingLine ) _desiredCaretX = null;
+
+				ScrollToCaret();
+			}
+		}
 
 		/// <summary>
 		/// Amount of characters in the text of the text entry. Not bytes.
@@ -223,6 +250,13 @@ namespace Sandbox.UI
 		/// </summary>
 		protected void CaretSantity()
 		{
+			// Nothing to clamp on a label nobody is editing, and counting text elements allocates
+			if ( CaretPosition == 0 && SelectionStart == 0 && SelectionEnd == 0 )
+			{
+				ClampScroll();
+				return;
+			}
+
 			if ( CaretPosition > TextLength )
 			{
 				CaretPosition = TextLength;
@@ -238,6 +272,9 @@ namespace Sandbox.UI
 				SelectionEnd = TextLength;
 				ScrollToCaret();
 			}
+
+			// The text can shrink out from under the scroll offset without the caret moving at all
+			ClampScroll();
 		}
 
 		/// <summary>
@@ -258,6 +295,7 @@ namespace Sandbox.UI
 
 		public override string GetClipboardValue( bool cut )
 		{
+			if ( LayoutTree?.IsInlineParticipant == true ) return LayoutTree.SelectedInlineText;
 			if ( !HasSelection() )
 				return null;
 
@@ -297,11 +335,10 @@ namespace Sandbox.UI
 			{
 				_textBlock = new TextBlock();
 				_textBlock.LookupStyles = HtmlStyleLookup;
-				_textBlock.OnTextureChanged = TextTextureChanged;
 			}
 
 			_textBlock.NoWrap = !Multiline;
-			clipsBackgroundToText = cascade.ClipBackgroundToText || ComputedStyle.BackgroundClip == BackgroundClip.Text;
+			clipsBackgroundToText = (!IsFixed && cascade.ClipBackgroundToText) || ComputedStyle.BackgroundClip == BackgroundClip.Text;
 
 			if ( IsRich )
 			{
@@ -321,9 +358,11 @@ namespace Sandbox.UI
 				sizeFinalized = false;
 			}
 
+			_textBlock.StyleSpans = styleSpans;
+			_textBlock.StyleSpanScale = ScaleToScreen;
 			if ( _textBlock.UpdateStyles( ComputedStyle ) )
 			{
-				YogaNode.MarkDirty();
+				LayoutTree.MarkDirty();
 				sizeFinalized = false;
 			}
 		}
@@ -332,23 +371,6 @@ namespace Sandbox.UI
 		/// Where the text is laid out, which scrolls with the caret in a text entry.
 		/// </summary>
 		Rect TextLayoutRect => new Rect( Box.RectInner.Position - caretScroll, Box.RectInner.Size );
-
-		/// <summary>
-		/// The panel clipping its background to this text holds the texture in its own descriptor,
-		/// so it rebuilds when the text is rerendered.
-		/// </summary>
-		void TextTextureChanged()
-		{
-			MarkRenderDirty();
-
-			if ( !clipsBackgroundToText ) return;
-
-			for ( var panel = Parent; panel is not null; panel = panel.Parent )
-			{
-				panel.MarkRenderDirty();
-				if ( panel.ComputedStyle?.BackgroundClip == BackgroundClip.Text ) break;
-			}
-		}
 
 		/// <summary>
 		/// The rendered text this label lends to a background-clip: text, and where it sits.
@@ -403,6 +425,7 @@ namespace Sandbox.UI
 		public override void FinalLayout( Vector2 offset )
 		{
 			base.FinalLayout( offset );
+			if ( LayoutTree?.IsInlineParticipant == true ) return;
 
 			if ( !IsVisible ) return;
 			if ( ComputedStyle is null ) return;
@@ -412,7 +435,7 @@ namespace Sandbox.UI
 			if ( !sizeFinalized )
 			{
 				sizeFinalized = true;
-				YogaNode.MarkDirty();
+				LayoutTree.MarkDirty();
 			}
 
 			_textRect = Box.RectInner;
@@ -436,19 +459,30 @@ namespace Sandbox.UI
 			}
 
 			_textRect.Size = _textBlock.BlockSize;
+
+			// Scrolling measures against the visible size, so a resize puts the caret back on screen.
+			// After the text rect is placed, because the caret rect comes from it.
+			if ( _scrolledSize != Box.RectInner.Size )
+			{
+				_scrolledSize = Box.RectInner.Size;
+				ScrollToCaret();
+			}
+
+			ScrollParentToCaret();
 		}
 
-		public override void OnDraw()
+		public override void OnDraw( Painter painter )
 		{
-			// Ensure texture is created if we have text but no texture yet
-			if ( _textBlock != null && _textBlock.Texture == null && !string.IsNullOrEmpty( _textBlock.Text ) )
+			if ( LayoutTree?.IsInlineParticipant == true ) return;
+			// Make sure the text is laid out if we have text but no size yet
+			if ( _textBlock != null && _textBlock.BlockSize == default && !string.IsNullOrEmpty( _textBlock.Text ) )
 			{
 				_textBlock.SizeFinalized( Box.RectInner.Width, Box.RectInner.Height );
 			}
 
 			if ( clipsBackgroundToText ) return;
 
-			_textBlock?.BuildDescriptors( CachedDescriptors, CachedOverrideBlendMode, ComputedStyle, TextLayoutRect, CachedRenderOpacity );
+			_textBlock?.Draw( painter, CachedOverrideBlendMode, ComputedStyle, TextLayoutRect, CachedRenderOpacity );
 		}
 
 		public int GetLetterAt( Vector2 pos )
@@ -459,6 +493,13 @@ namespace Sandbox.UI
 		}
 
 		public int GetLetterAtScreenPosition( Vector2 pos ) => GetLetterAt( ScreenPositionToTextRectPosition( pos ) );
+
+		/// <summary>
+		/// Returns the text element under a screen position, or -1 outside the text.
+		/// Unlike caret hit testing, both halves of a character return the same index.
+		/// </summary>
+		public int GetCharacterAtScreenPosition( Vector2 pos ) =>
+			_textBlock?.GetCharacterAt( ScreenPositionToTextRectPosition( pos ) ) ?? -1;
 
 		Vector2 ScreenPositionToTextRectPosition( Vector2 pos )
 		{

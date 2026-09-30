@@ -1,4 +1,3 @@
-
 #include "engine2.h"
 #include "tier0/platform_extra.h"
 #include "sbox/media/mediainterface.h"
@@ -10,8 +9,6 @@ native static class global as NativeEngine.EngineGlobal
 	void Plat_ScreenToWindowCoords( CastTo[PlatWindow_t] IntPtr hwnd, cref ref int x, cref ref int y );
 	void Plat_WindowToScreenCoords( CastTo[PlatWindow_t] IntPtr hwnd, cref ref int x, cref ref int y );
 	void Plat_MessageBox( string title, string message );
-	bool Plat_GetDesktopResolution( int nMonitorIndex, ref int pWidth, ref int pHeight, ref uint pRefreshRate );
-	int Plat_GetDefaultMonitorIndex();
 	bool Plat_SafeRemoveFile( string file );
 
 	void Plat_SetModuleFilename( string filename );
@@ -20,17 +17,6 @@ native static class global as NativeEngine.EngineGlobal
 	void Plat_SetCurrentFrame( ulong nFrame );
 	void Plat_ChangeCurrentFrame( long nDelta );
 	bool Plat_IsRunningOnCustomerMachine();
-
-	bool Plat_HasClipboardText();
-	void Plat_SetClipboardText( string text );
-	string Plat_GetClipboardText();
-	void Plat_ClearClipboardText();
-
-	inline bool IsWindowFocused()
-	{
-		PlatWindow_t window = g_pEngineServiceMgr->GetEngineWindow();
-		return Plat_IsWindowFocused( window );
-	}
 
 	inline bool IsRetail()
 	{
@@ -65,16 +51,12 @@ native static class global as NativeEngine.EngineGlobal
 	bool SourceEngineUnitTestInit();
 	bool SourceEnginePreInit( string lpCmdLine, CMaterialSystem2AppSystemDict appDict );
 	bool SourceEngineInit( CMaterialSystem2AppSystemDict appDict );
+	bool SourceEnginePanelAppInit( CMaterialSystem2AppSystemDict appDict, bool drawsScenes );
+	void SourceEnginePanelAppFrame();
 	bool SourceEngineFrame( CMaterialSystem2AppSystemDict appDict, double currentTime, double previousTime );
 	void SourceEngineShutdown( CMaterialSystem2AppSystemDict appDict, bool forced );
-
-	inline float GetDiagonalDpi()
-	{
-		return Plat_GetDPI();
-	}
 
 	bool AppIsDedicatedServer();
 
 	void ToolsStallMonitor_IndicateActivity();
 }
-

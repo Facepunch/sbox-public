@@ -430,8 +430,9 @@ public partial class ProjectPublisher
 			//
 			while ( tasks.Count > 8 )
 			{
-				await Task.WhenAny( tasks.ToArray() );
-				tasks.RemoveAll( x => x.IsCompleted );
+				var completed = await Task.WhenAny( tasks );
+				await completed;
+				tasks.Remove( completed );
 			}
 		}
 
@@ -443,14 +444,13 @@ public partial class ProjectPublisher
 	{
 		file.SizeUploaded = 1;
 
-		if ( file.Contents is not null )
+		var contents = file.Contents;
+		if ( contents is null && file.AbsolutePath is not null )
+			contents = await System.IO.File.ReadAllBytesAsync( file.AbsolutePath );
+
+		if ( contents is not null )
 		{
-			var r = await Project.Package.UploadFile( file.Contents, file.Name, p => { file.SizeUploaded = p.ProgressBytes; TriggerProgessChanged(); } );
-			if ( r ) file.Skip = true;
-		}
-		else if ( file.AbsolutePath is not null )
-		{
-			var r = await Project.Package.UploadFile( file.AbsolutePath, file.Name, p => { file.SizeUploaded = p.ProgressBytes; TriggerProgessChanged(); } );
+			var r = await Project.Package.UploadFile( contents, file.Name, p => { file.SizeUploaded = p.ProgressBytes; TriggerProgessChanged(); } );
 			if ( r ) file.Skip = true;
 		}
 		else
@@ -515,9 +515,7 @@ public partial class ProjectPublisher
 	/// </summary>
 	public static bool CanPublishFile( Asset a )
 	{
-		// Core/base shaders should never be uploaded
-		// Ideally I'd just check against mod_base and mod_core but we have weird c# filesystem
-		if ( a.AbsolutePath.Contains( "/addons/base/assets/shaders/", StringComparison.OrdinalIgnoreCase ) ) return false;
+		// Core shaders should never be uploaded
 		if ( a.AbsolutePath.Contains( "/core/shaders/", StringComparison.OrdinalIgnoreCase ) ) return false;
 
 		return true;

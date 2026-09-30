@@ -12,10 +12,13 @@ public partial class ServiceApi : IDisposable
 	public IAchievementApi Achievements { get; }
 	public IPlayerApi Player { get; }
 	public INewsApi News { get; }
+	public IJamApi Jam { get; }
 	public INotificationApi Notification { get; }
 	public IStorageApi Storage { get; }
 	public IUtilityApi Utility { get; }
 	public ICodeApi Code { get; }
+	public IForumApi Forum { get; }
+	public IPlatformApi Platform { get; }
 
 	HttpClient client;
 
@@ -41,10 +44,13 @@ public partial class ServiceApi : IDisposable
 		Achievements = RestService.For<IAchievementApi>( client, refitSettings );
 		Player = RestService.For<IPlayerApi>( client, refitSettings );
 		News = RestService.For<INewsApi>( client, refitSettings );
+		Jam = RestService.For<IJamApi>( client, refitSettings );
 		Notification = RestService.For<INotificationApi>( client, refitSettings );
 		Storage = RestService.For<IStorageApi>( client, refitSettings );
 		Utility = RestService.For<IUtilityApi>( client, refitSettings );
 		Code = RestService.For<ICodeApi>( client, refitSettings );
+		Forum = RestService.For<IForumApi>( client, refitSettings );
+		Platform = RestService.For<IPlatformApi>( client, refitSettings );
 	}
 
 	public void SetApiKey( string apiKey )

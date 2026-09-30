@@ -97,6 +97,32 @@ public class PanelGeometryTest
 		Assert.IsFalse( p.IsInside( new Vector2( 101, 199 ) ) );
 	}
 
+	[TestMethod]
+	public void PointInsideRespectsPolygonBorderShape()
+	{
+		var root = new RootPanel { PanelBounds = new Rect( 0, 0, 1000, 1000 ) };
+		var p = new Panel { Parent = root };
+		p.Style.Set( "position: absolute; left: 100px; top: 100px; width: 100px; height: 100px; border-shape: polygon(50% 0%, 100% 100%, 0% 100%);" );
+		root.Layout();
+
+		Assert.IsTrue( p.IsInside( new Vector2( 150, 150 ) ) );
+		Assert.IsFalse( p.IsInside( new Vector2( 105, 105 ) ) );
+		Assert.IsTrue( p.IsInside( new Vector2( 150, 105 ) ) );
+	}
+
+	[TestMethod]
+	public void PointInsideRespectsCircleBorderShape()
+	{
+		var root = new RootPanel { PanelBounds = new Rect( 0, 0, 1000, 1000 ) };
+		var p = new Panel { Parent = root };
+		p.Style.Set( "position: absolute; left: 100px; top: 100px; width: 200px; height: 100px; border-shape: circle(40px at 25% 50%);" );
+		root.Layout();
+
+		Assert.IsTrue( p.IsInside( new Vector2( 150, 150 ) ) );
+		Assert.IsTrue( p.IsInside( new Vector2( 190, 150 ) ) );
+		Assert.IsFalse( p.IsInside( new Vector2( 250, 150 ) ) );
+	}
+
 	/// <summary>
 	/// A percent radius resolves per axis, so on a non-square panel the corner is a
 	/// quarter ellipse and IsInside has to follow the same shape it draws.
@@ -257,6 +283,34 @@ public class PanelGeometryTest
 		Assert.IsTrue( child.IsVisible );
 	}
 
+	/// <summary>Reparenting into an already hidden panel hides descendants, and moving back restores visibility.</summary>
+	[TestMethod]
+	[DataRow( "display: none;" )]
+	[DataRow( "opacity: 0;" )]
+	public void ReparentingIntoHiddenPanelUpdatesVisibility( string hiddenStyle )
+	{
+		var root = UiTesting.CreateRoot();
+		var hidden = new Panel { Parent = root };
+		hidden.Style.Set( hiddenStyle );
+		var panel = new Panel { Parent = root };
+		var child = new Panel { Parent = panel };
+		root.Layout();
+		root.Layout();
+		Assert.IsFalse( hidden.IsVisible );
+		Assert.IsTrue( panel.IsVisible );
+		Assert.IsTrue( child.IsVisible );
+
+		panel.Parent = hidden;
+		root.Layout();
+		Assert.IsFalse( panel.IsVisible );
+		Assert.IsFalse( child.IsVisible );
+
+		panel.Parent = root;
+		root.Layout();
+		Assert.IsTrue( panel.IsVisible );
+		Assert.IsTrue( child.IsVisible );
+	}
+
 	/// <summary>
 	/// Screen/panel position conversion offsets by the panel's rect, and the
 	/// delta conversion normalises into 0-1 across the panel's size.
@@ -301,6 +355,30 @@ public class PanelGeometryTest
 
 		Assert.AreEqual( 2.0f, p.ScaleToScreen );
 		Assert.AreEqual( new Rect( 200, 200, 200, 100 ), p.Box.Rect );
+	}
+
+	/// <summary>
+	/// A paint layer on a transformed ancestor doesn't hide that transform from screen-space
+	/// conversions; painting and input share one chain.
+	/// </summary>
+	[TestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void ScreenConversionsCrossPaintLayers( bool layered )
+	{
+		var root = new RootPanel { PanelBounds = new Rect( 0, 0, 1000, 1000 ) };
+		var host = new Panel { Parent = root };
+		host.Style.Set( "position: absolute; left: 0px; top: 0px; width: 200px; height: 100px; transform: translateX(100px);" );
+		if ( layered ) host.Style.Set( "isolation: isolate;" );
+		var child = new Panel { Parent = host };
+		child.Style.Set( "position: absolute; left: 20px; top: 0px; width: 50px; height: 50px;" );
+		root.Layout();
+
+		Assert.AreEqual( layered, host.HasPanelLayer );
+		Assert.AreEqual( host.GlobalMatrix, child.GlobalMatrix );
+		Assert.AreEqual( host.RenderTransform, child.RenderTransform );
+		Assert.AreEqual( new Vector2( 30, 10 ), child.ScreenPositionToPanelPosition( new Vector2( 150, 10 ) ) );
+		Assert.AreEqual( new Vector2( 150, 10 ), child.PanelPositionToScreenPosition( new Vector2( 30, 10 ) ) );
 	}
 }
 

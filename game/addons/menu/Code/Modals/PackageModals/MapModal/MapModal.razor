@@ -2,7 +2,7 @@
 @inherits MenuProject.Modals.BaseModal
 @using Sandbox;
 @using Sandbox.UI;
-@using Menu;
+@using SboxMenu;
 @using System;
 @using Sandbox.Network
 @using MenuProject.Modals.MapModalComponents;
@@ -13,7 +13,8 @@
 
     <MegaCard>
         <Metrics>
-            <PackageMetrics Package="@Package" />
+            @* Just report - rating's along the bottom now, the rest is in the info column *@
+            <PackageMetrics Package="@Package" ShowRatings="@false" ShowStats="@false" />
         </Metrics>
         <Tabs>
 

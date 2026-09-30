@@ -419,9 +419,22 @@ namespace CompilingTests
 			Assert.IsFalse( rewritten.Contains( "global::Sandbox.Internal.PublicArrayPool<int>.Shared" ), "Engine compilation should not inject PublicArrayPool helper" );
 		}
 
-		private string RunArrayPoolRewrite( bool asSourceGenerator )
+		[DataTestMethod]
+		[DataRow( "using AP = System.Buffers.ArrayPool<int>; public static class C { public static int[] M() => AP.Shared.Rent( 1 ); }" )]
+		[DataRow( "using static System.Buffers.ArrayPool<int>; public static class C { public static int[] M() => Shared.Rent( 1 ); }" )]
+		[DataRow( "using B = System.Buffers; public static class C { public static int[] M() => B.ArrayPool<int>.Shared.Rent( 1 ); }" )]
+		[DataRow( "using System.Buffers; public class D : ArrayPool<int> { public override int[] Rent( int n ) => null; public override void Return( int[] a, bool c = false ) { } } public static class C { public static int[] M() => D.Shared.Rent( 1 ); }" )]
+		public void ArrayPoolSharedIsRedirectedWhateverTheSpelling( string source )
 		{
-			const string Source = """
+			var rewritten = RunArrayPoolRewrite( asSourceGenerator: false, source );
+
+			Assert.IsTrue( rewritten.Contains( "global::Sandbox.Internal.PublicArrayPool<int>.Shared" ),
+				$"Expected the redirect to fire, got:\n{rewritten}" );
+		}
+
+		private string RunArrayPoolRewrite( bool asSourceGenerator, string source = null )
+		{
+			const string DefaultSource = """
 	using System.Buffers;
 
 	public static class ArrayPoolConsumer
@@ -439,7 +452,7 @@ namespace CompilingTests
 			};
 
 			var compiler = BuildString(
-				Source,
+				source ?? DefaultSource,
 				assemblyName: "array_pool_test",
 				asSourceGenerator: asSourceGenerator,
 				configureProcessor: processor => processor.EnableCorelibPolyfills = !asSourceGenerator,

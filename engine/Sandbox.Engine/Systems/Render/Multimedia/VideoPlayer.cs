@@ -91,6 +91,23 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 	/// </summary>
 	public int Height => native.GetHeight();
 
+	// Overlay stats. Monotonic totals - the reader derives a rate over its own window - plus
+	// the queue depths that say whether a decoder is keeping up or starved.
+	internal double VideoDecodeSeconds => native.GetVideoDecodeSeconds();
+	internal double AudioDecodeSeconds => native.GetAudioDecodeSeconds();
+	internal int DecodedFrames => native.GetDecodedFrameCount();
+	internal int PacketQueueDepth => native.GetPacketQueueDepth();
+	internal int FrameQueueDepth => native.GetFrameQueueDepth();
+	ulong _lastPresentedFrame;
+	bool _tracksPresentation;
+	internal int LastPresented => _tracksPresentation ? (int)Math.Min( Application.FrameCount - _lastPresentedFrame, 1000UL ) : Texture.LastUsed;
+
+	internal void TrackPresentation( bool presented )
+	{
+		_tracksPresentation = true;
+		if ( presented ) _lastPresentedFrame = Application.FrameCount;
+	}
+
 	uint IWeakInteropHandle.InteropHandle { get; set; }
 
 	private SoundHandle Sound;

@@ -50,7 +50,7 @@ public record ButtonEvent
 	{
 		Button = InputEventQueue.NormalizeButtonName( button.ToString() );
 		Pressed = pressed;
-		VirtualKey = InputSystem.ButtonCodeToVirtualKey( button );
+		VirtualKey = Sandbox.Engine.KeyTranslation.ButtonCodeToVirtualKey( button );
 		KeyboardModifiers = modifiers;
 	}
 
@@ -58,6 +58,14 @@ public record ButtonEvent
 	{
 		Button = InputEventQueue.NormalizeButtonName( button.ToString() );
 		Pressed = pressed;
+	}
+
+	internal ButtonEvent( string button, bool pressed, int virtualKey, KeyboardModifiers modifiers )
+	{
+		Button = InputEventQueue.NormalizeButtonName( button );
+		Pressed = pressed;
+		VirtualKey = virtualKey;
+		KeyboardModifiers = modifiers;
 	}
 
 	public override string ToString() => $"{Button} {(Pressed ? "pressed" : "released")}";

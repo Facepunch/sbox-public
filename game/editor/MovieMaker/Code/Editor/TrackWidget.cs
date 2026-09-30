@@ -122,7 +122,11 @@ public partial class TrackWidget : Widget
 					View.TrackList.Session.Player.UpdateTargets();
 				} );
 
-			_controlWidget = new GameObjectControlWidget( property ) { ShowFullName = false };
+			_controlWidget = new GameObjectControlWidget( property )
+			{
+				ShowFullName = false,
+				MissingName = View.Name
+			};
 		}
 		else
 		{

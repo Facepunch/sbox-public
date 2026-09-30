@@ -43,6 +43,8 @@ public class SceneSkyBox : SceneObject
 		{
 			CSceneSystem.CreateSkyBox( skyMaterial.native, world );
 		}
+
+		Material = skyMaterial;
 	}
 
 	internal override void OnNativeInit( CSceneObject ptr )
@@ -63,8 +65,18 @@ public class SceneSkyBox : SceneObject
 	/// </summary>
 	public Material SkyMaterial
 	{
-		set => skyboxNative.SetMaterial( value?.native ?? default );
+		set
+		{
+			skyboxNative.SetMaterial( value?.native ?? default );
+			Material = value;
+			NotifyChanged( Rendering.SceneObjectChange.Settings );
+		}
 	}
+
+	/// <summary>
+	/// The sky material last set, for the managed scene renderer's mirror - <see cref="SkyMaterial"/> has no getter.
+	/// </summary>
+	internal Material Material { get; private set; }
 
 	/// <summary>
 	/// Skybox color tint.
@@ -72,7 +84,7 @@ public class SceneSkyBox : SceneObject
 	public Color SkyTint
 	{
 		get => skyboxNative.GetSkyTint();
-		set => skyboxNative.SetSkyTint( value );
+		set { skyboxNative.SetSkyTint( value ); NotifyChanged( Rendering.SceneObjectChange.Settings ); }
 	}
 
 	/// <summary>
@@ -93,6 +105,7 @@ public class SceneSkyBox : SceneObject
 		{
 			skyboxNative.SetFogType( (int)value.FogType );
 			skyboxNative.SetAngularFogParams( value.FogMinStart, value.FogMinEnd, value.FogMaxStart, value.FogMaxEnd );
+			NotifyChanged( Rendering.SceneObjectChange.Settings );
 		}
 	}
 

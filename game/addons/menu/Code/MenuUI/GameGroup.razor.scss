@@ -1,4 +1,5 @@
 @import "/styles/_theme.scss";
+@import "/styles/_front.scss";
 
 GameGroup
 {
@@ -13,13 +14,27 @@ Page
     max-width: $screen-w-xl;
 }
 
-GameGroup h2
+GameGroup .section-head
 {
-    font-size: 2rem;
-    font-weight: 650;
-    padding: 2rem;
-    padding-bottom: 0;
-    gap: 1rem;
+	flex-direction: column;
+	flex-shrink: 0;
+	padding: 32px 36px 0 36px;
+
+	.title
+	{
+		font-family: $front-font;
+		font-size: 20px;
+		font-weight: 700;
+		color: $front-heading;
+	}
+
+	.description
+	{
+		font-family: $front-font;
+		font-size: 14px;
+		font-weight: 500;
+		color: $front-secondary;
+	}
 }
 
 GameGroup packagelist virtualgrid

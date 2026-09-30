@@ -407,23 +407,23 @@ public class FlexLayoutPropertiesTest
 		Assert.AreEqual( Justify.FlexEnd, s.JustifyContent );
 	}
 
+	/// <summary>
+	/// normal is the initial value: flex-start behaviour in flex containers, stretched auto tracks in grid.
+	/// </summary>
 	[TestMethod]
 	public void JustifyContent_Normal()
 	{
 		var s = new Styles();
 		Assert.IsTrue( s.Set( "justify-content", "normal" ) );
-		Assert.AreEqual( Justify.FlexStart, s.JustifyContent );
+		Assert.AreEqual( Justify.Stretch, s.JustifyContent );
 	}
 
-	/// <summary>
-	/// justify-content: stretch falls back to flex-start for flex layout.
-	/// </summary>
 	[TestMethod]
 	public void JustifyContent_Stretch()
 	{
 		var s = new Styles();
 		Assert.IsTrue( s.Set( "justify-content", "stretch" ) );
-		Assert.AreEqual( Justify.FlexStart, s.JustifyContent );
+		Assert.AreEqual( Justify.Stretch, s.JustifyContent );
 	}
 
 	// =====================================================================

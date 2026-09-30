@@ -161,6 +161,9 @@ public abstract partial class EditMode
 	internal void DragItems( IReadOnlyList<IMovieDraggable> items, MovieTime delta ) => OnDragItems( items, delta );
 	protected virtual void OnDragItems( IReadOnlyList<IMovieDraggable> items, MovieTime delta ) { }
 
+	internal void EndDragItems( IReadOnlyList<IMovieDraggable> items ) => OnEndDragItems( items );
+	protected virtual void OnEndDragItems( IReadOnlyList<IMovieDraggable> items ) { }
+
 	internal void KeyPress( KeyEvent e ) => OnKeyPress( e );
 	protected virtual void OnKeyPress( KeyEvent e ) { }
 	internal void KeyRelease( KeyEvent e ) => OnKeyRelease( e );

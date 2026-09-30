@@ -13,6 +13,7 @@ native enum RenderBarrierPipelineStageFlags_t is NativeEngine.RenderBarrierPipel
 native pointer VertexBufferHandle_t as NativeEngine.VertexBufferHandle_t
 native pointer IndexBufferHandle_t as NativeEngine.IndexBufferHandle_t
 native pointer RenderShaderHandle_t as NativeEngine.RenderShaderHandle_t
+native pointer RenderSemaphoreHandle_t as NativeEngine.RenderSemaphoreHandle_t
 
 native enum RenderImageLayout_t is NativeEngine.RenderImageLayout_t;
 
@@ -32,6 +33,10 @@ native class IRenderContext as NativeEngine.IRenderContext
 	void DrawIndexedInstanced( RenderPrimitiveType type, int nFirstIndex, int nIndexCountPerInstance, int nInstanceCount, int nMaxVertexCount, int nBaseVertex );
 	void DrawInstancedIndirect( RenderPrimitiveType type, RenderBufferHandle_t hDrawArgBuffer, uint nBufferOffset, uint nDrawCount, uint nStride );
 	void DrawIndexedInstancedIndirect( RenderPrimitiveType type, RenderBufferHandle_t hDrawArgBuffer, uint nBufferOffset, uint nDrawCount, uint nStride );
+
+	// Async compute: signal at the end of this context, once; wait at the start of another context, once
+	RenderSemaphoreHandle_t SemaphoreSignalAtEnd();
+	void SemaphoreWaitAtBegin( RenderSemaphoreHandle_t hSemaphoreObject );
 
 	inline void TextureBarrierTransition( ITexture hSrc, int mips, RenderBarrierPipelineStageFlags_t srcStage, RenderBarrierPipelineStageFlags_t dstStage, RenderImageLayout_t layout, RenderBarrierAccessFlags_t srcFlags, RenderBarrierAccessFlags_t dstFlags )
 	{
@@ -93,6 +98,12 @@ native class IRenderContext as NativeEngine.IRenderContext
 		self->BindRenderTargets( rtDesc );
 	}
 
+	// A target owned by a standalone renderer, without a scene layer.
+	inline void BindRenderTargets( ITexture colorTexture )
+	{
+		self->BindRenderTargets( RenderTargetDesc_t( colorTexture, RENDER_TEXTURE_HANDLE_INVALID, RENDER_LINEAR ) );
+	}
+
 	inline void RestoreRenderTargets( ISceneLayer layer )
 	{
 		self->BindRenderTargets( layer->GetRenderTargetDesc() );
@@ -125,6 +136,7 @@ native class IRenderContext as NativeEngine.IRenderContext
 	}
 
 	void Submit();
+	void ForceFlushGPU();
 
 	inline void BindRenderTargets( SwapChainHandle_t swapChain, bool color, bool depth )
 	{
@@ -182,7 +194,10 @@ native class IRenderContext as NativeEngine.IRenderContext
 	void ReadBuffer( RenderBufferHandle_t hBuffer, IReadBufferCallback pCallback, int nOffset, int nBytesToRead, bool bDeleteCallbackWhenFinished );
 	
 	// PIX/RenderDoc markers
-	void BeginPixEvent( string name );
+	inline void BeginPixEvent( void* name )
+	{
+		self->BeginPixEvent( (const char*)name );
+	}
 	void EndPixEvent();
 	void PixSetMarker( string name );
 }

@@ -73,12 +73,23 @@ internal static class VideoTextureLoader
 		return player.Texture;
 	}
 
-	static readonly Superluminal superluminal = new( "TickVideoPlayers", "#2c3541" );
+	// Presenting is false once nothing has presented the texture for a few frames.
+	internal record struct ActivePlayer( string Url, VideoPlayer Player, bool Presenting );
+
+	internal static void GetActive( List<ActivePlayer> output )
+	{
+		foreach ( var entry in ActivePlayers )
+		{
+			if ( !entry.Value.TryGetTarget( out var texture ) )
+				continue;
+
+			if ( texture.ParentObject is VideoPlayer player )
+				output.Add( new ActivePlayer( entry.Key, player, player.LastPresented <= 2 ) );
+		}
+	}
 
 	public static void TickVideoPlayers()
 	{
-		using var _ = superluminal.Start();
-
 		foreach ( var entry in ActivePlayers )
 		{
 			if ( !entry.Value.TryGetTarget( out var texture ) )
@@ -88,13 +99,20 @@ internal static class VideoTextureLoader
 				continue;
 			}
 
-			if ( texture.LastUsed > 2 )
+			if ( texture.ParentObject is not VideoPlayer player )
 				continue;
 
-			if ( texture.ParentObject is VideoPlayer player )
+			// Nothing has presented this for a few frames. Left running it decodes and throws away
+			// every frame forever - the clock keeps advancing past them, so they always read as
+			// late and the queue never fills to block the decoder. Pausing freezes the clock.
+			if ( player.LastPresented > 2 )
 			{
-				player.Present();
+				player.Pause();
+				continue;
 			}
+
+			player.Resume();
+			player.Present();
 		}
 	}
 }

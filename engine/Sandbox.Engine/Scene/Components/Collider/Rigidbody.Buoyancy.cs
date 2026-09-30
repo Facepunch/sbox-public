@@ -15,10 +15,11 @@ partial class Rigidbody
 	/// </summary>
 	public void ApplyBuoyancy( Plane plane, float fluidDensity, float linearDrag, float angularDrag, Vector3 fluidVelocity, float dt )
 	{
-		if ( !PhysicsBody.IsValid() ) return;
+		if ( !PhysicsBody.IsValid() )
+			return;
 
 		var gravity = Scene.PhysicsWorld.Gravity;
 
-		PhysicsBody.native.ApplyBuoyancyImpulse( plane.Position, plane.Normal, fluidDensity, linearDrag, angularDrag, fluidVelocity, gravity, dt );
+		PhysicsBody._body.ApplyBuoyancy( plane, fluidDensity, linearDrag, angularDrag, fluidVelocity, gravity, dt );
 	}
 }

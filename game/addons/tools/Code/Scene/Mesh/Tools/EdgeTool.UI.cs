@@ -41,6 +41,7 @@ partial class EdgeTool
 			_components = _edgeGroups.Select( x => x.Key ).ToList();
 
 			this.AddPivotGroup( tool );
+			this.AddPivotButtons( tool, _edges.Length > 0 );
 
 			{
 				var group = AddGroup( "Modify" );
@@ -970,11 +971,11 @@ partial class EdgeTool
 
 				var originalMesh = new PolygonMesh();
 				originalMesh.Transform = mesh.Transform;
-				originalMesh.MergeMesh( mesh, Transform.Zero, out _, out _, out _ );
+				originalMesh.MergeMesh( mesh, Transform.Zero, out _, out var newEdges, out _ );
 
 				var openEdges = group
 					.Where( x => x.IsOpen )
-					.Select( x => x.Handle.Index )
+					.Select( x => newEdges[x.Handle].Index )
 					.ToList();
 
 				if ( openEdges.Count > 0 )

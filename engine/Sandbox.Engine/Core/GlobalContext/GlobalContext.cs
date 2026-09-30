@@ -45,7 +45,29 @@ internal partial class GlobalContext
 
 			return _typeLibrary;
 		}
-		set => _typeLibrary = value;
+		set
+		{
+			if ( _typeLibrary == value ) return;
+			DisposeScripting();
+			_typeLibrary = value;
+		}
+	}
+
+	private ScriptSystem scripting;
+
+	internal ScriptSystem Scripting
+	{
+		get
+		{
+			_ = TypeLibrary;
+			return scripting ??= new ScriptSystem( this );
+		}
+	}
+
+	private void DisposeScripting()
+	{
+		scripting?.Dispose();
+		scripting = null;
 	}
 
 	/// <summary>
@@ -125,6 +147,7 @@ internal partial class GlobalContext
 	/// </summary>
 	public void Reset()
 	{
+		DisposeScripting();
 		var oldCts = CancellationTokenSource;
 		CancellationTokenSource = new CancellationTokenSource();
 
@@ -155,6 +178,7 @@ internal partial class GlobalContext
 	/// </summary>
 	public void Shutdown()
 	{
+		DisposeScripting();
 		CancellationTokenSource?.Cancel();
 		CancellationTokenSource?.Dispose();
 		CancellationTokenSource = null;
@@ -194,6 +218,7 @@ internal partial class GlobalContext
 
 	internal void OnHotload()
 	{
+		scripting?.InvalidateBindings();
 		ReflectionQueryCache.ClearTypeCache();
 
 		if ( !Application.IsUnitTest )

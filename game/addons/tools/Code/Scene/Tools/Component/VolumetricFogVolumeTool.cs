@@ -8,6 +8,12 @@ public class VolumetricFogVolumeTool : EditorTool<VolumetricFogVolume>
 
 	public override void OnUpdate()
 	{
+		if ( !Gizmo.Pressed.Any )
+		{
+			_componentUndoScope?.Dispose();
+			_componentUndoScope = null;
+		}
+
 		var volumetricFogVolume = GetSelectedComponent<VolumetricFogVolume>();
 		if ( volumetricFogVolume == null )
 			return;
@@ -18,17 +24,10 @@ public class VolumetricFogVolumeTool : EditorTool<VolumetricFogVolume>
 		{
 			if ( Gizmo.Control.BoundingBox( "Bounds", currentBounds, out var newBounds ) )
 			{
-				if ( Gizmo.WasLeftMousePressed )
-				{
-					_componentUndoScope = SceneEditorSession.Active.UndoScope( "Resize Volumetric Fog Volume Bounds" ).WithComponentChanges( volumetricFogVolume ).Push();
-				}
-				volumetricFogVolume.Bounds = newBounds;
-			}
+				_componentUndoScope ??= SceneEditorSession.Active.UndoScope( "Resize Volumetric Fog Volume Bounds" )
+					.WithComponentChanges( volumetricFogVolume ).Push();
 
-			if ( Gizmo.WasLeftMouseReleased )
-			{
-				_componentUndoScope?.Dispose();
-				_componentUndoScope = null;
+				volumetricFogVolume.Bounds = newBounds;
 			}
 		}
 	}

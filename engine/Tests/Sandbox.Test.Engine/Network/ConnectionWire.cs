@@ -3,6 +3,9 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using Sandbox.Compression;
+using Sandbox.Internal;
+using Sandbox.Network;
+using System.Text.Json.Nodes;
 
 namespace NetworkTests;
 
@@ -12,6 +15,50 @@ namespace NetworkTests;
 [DoNotParallelize]
 public class ConnectionWireTest
 {
+	[TestMethod]
+	public void WorkerSnapshotRoundTripsThroughChunkReceiver()
+	{
+		var library = new TypeLibrary();
+		library.AddAssembly( typeof( Scene ).Assembly, false );
+		var capture = new SnapshotCapture { SceneJson = new Lazy<string>( () => "{}" ) };
+		capture.AddObject( new JsonObject { ["Name"] = "Worker snapshot" } );
+		var table = new byte[400 * 1024];
+		new Random( 42 ).NextBytes( table );
+		capture.Snapshot.NetworkObjects.Add( new ObjectCreateMsg { TableData = table } );
+		var serializer = library.CreateDetachedSerializer( typeof( InitialSnapshotResponse ), typeof( SnapshotMsg ),
+			typeof( SnapshotMsg.GameObjectSystemData ), typeof( ObjectCreateMsg ) );
+		var packets = Task.Run( () => capture.Encode( serializer, s => new InitialSnapshotResponse { Snapshot = s }, NetFlags.Reliable ) ).GetAwaiter().GetResult();
+		serializer.Dispose();
+		Assert.IsTrue( packets.Length > 1 );
+		byte[] received = null;
+		var connection = new StubConnection();
+		foreach ( var packet in packets )
+		{
+			connection.OnRawPacketReceived( packet, m => received = m.Data.ToArray() );
+		}
+		Assert.IsNotNull( received );
+		var stream = ByteStream.Create( 1024 );
+		try
+		{
+			stream.Write( InternalMessageType.Packed );
+			library.ToBytes( new InitialSnapshotResponse { Snapshot = capture.Materialize() }, ref stream );
+			CollectionAssert.AreEqual( stream.ToArray(), received );
+		}
+		finally
+		{
+			stream.Dispose();
+		}
+	}
+
+	[TestMethod]
+	public void ExactChunkSizeDoesNotProduceInvalidSingleChunk()
+	{
+		var encoded = new byte[Connection.MaxChunkSize];
+		var packets = Connection.CreatePackets( encoded, NetFlags.Reliable );
+		Assert.AreEqual( 1, packets.Length );
+		Assert.AreSame( encoded, packets[0] );
+	}
+
 	[TestMethod]
 	public void RoundTrip_SmallPayload_UsesRawFlag()
 	{

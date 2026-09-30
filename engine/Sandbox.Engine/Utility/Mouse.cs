@@ -34,7 +34,7 @@ public static class Mouse
 
 		set
 		{
-			if ( !g_pInputService.IsAppActive() ) return;
+			if ( !WindowInput.IsAppActive() ) return;
 
 			value.x = MathX.Clamp( value.x.Floor(), 0, Screen.Width - 1 );
 			value.y = MathX.Clamp( value.y.Floor(), 0, Screen.Height - 1 );
@@ -48,7 +48,7 @@ public static class Mouse
 	/// Change in local clients' cursor position since last frame.
 	/// </summary>
 	[ActionGraphNode( "input.mouse.delta" ), Title( "Mouse Delta" ), Category( "Input" ), Icon( "mouse" )]
-	public static Vector2 Delta => InputRouter.MouseCursorDelta;
+	public static Vector2 Delta => UI.PanelWindows.CaptureWindow is not null ? UI.PanelWindows.CaptureDelta : InputRouter.MouseCursorDelta;
 
 
 	/// <summary>

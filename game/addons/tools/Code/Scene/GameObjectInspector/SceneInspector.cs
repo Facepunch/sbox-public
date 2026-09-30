@@ -10,6 +10,7 @@ public class SceneInspector : InspectorWidget
 
 		cs.AddRow( SerializedObject.GetProperty( nameof( Scene.TimeScale ) ) );
 		cs.AddRow( SerializedObject.GetProperty( nameof( Scene.WantsSystemScene ) ) );
+		cs.AddRow( SerializedObject.GetProperty( nameof( Scene.PhysicsMode ) ) );
 
 		Layout = Layout.Column();
 		Layout.Add( cs );

@@ -113,7 +113,7 @@ public sealed class ModelHitboxes : Component, Component.ExecuteInEditor
 
 			anim.TryGetBoneTransform( hb.Bone, out var tx );
 
-			var body = new PhysicsBody( system.PhysicsWorld );
+			var body = system.PhysicsWorld.CreateBody();
 			PhysicsShape shape = null;
 
 			var hitbox = new Hitbox( Target ?? GameObject, hb.Bone, hb.Tags, body );

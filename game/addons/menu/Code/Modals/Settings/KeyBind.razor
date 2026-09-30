@@ -53,7 +53,7 @@
         if ( string.IsNullOrEmpty( input ) )
             yield break;
 
-        var keys = input.Split( new[] { " + " }, StringSplitOptions.RemoveEmptyEntries );
+        var keys = input.Split( '+', StringSplitOptions.RemoveEmptyEntries );
         foreach ( var key in keys )
         {
             yield return key.Trim();

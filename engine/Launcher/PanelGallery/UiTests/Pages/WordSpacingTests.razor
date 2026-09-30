@@ -1,0 +1,26 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Text" )]
+@attribute [Title( "word-spacing" )]
+@attribute [Description( "Compare word-spacing values independently." )]
+@attribute [Icon( "text_fields" )]
+
+<root>
+    <h2>word-spacing</h2>
+    <div class="cases">
+        <UiTestCase Setup="@Text" Css="word-spacing: 8px" Caption="8px" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="word-spacing: 0px" Caption="0px" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="word-spacing: -2px" Caption="-2px" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="word-spacing: 16px" Caption="16px" Text="@Sample" />
+    </div>
+</root>
+
+@code
+{
+    const string Text = UiTestCase.TextSetup;
+    const string Sample = "Sphinx of black quartz";
+    const string Paragraph = "Sphinx of black quartz, judge my vow. Pack my box with five dozen liquor jugs.";
+    const string Digits = "0123456789 1111 8888";
+}

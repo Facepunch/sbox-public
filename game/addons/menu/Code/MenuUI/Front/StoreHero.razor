@@ -2,7 +2,7 @@
 @using Sandbox.UI;
 @using Sandbox.UI.Navigation;
 @inherits Panel
-@namespace Menu
+@namespace SboxMenu
 
 @if (def == null)
     return;
@@ -38,7 +38,7 @@
 
     void OpenStore()
     {
-        this.Navigate( "/itemstore" );
+		Sandbox.UI.Navigation.NavigationExtensions.Navigate( this, "/itemstore" );
     }
 
     // Include inventory count in hash so the UI updates after purchases

@@ -21,11 +21,20 @@ public abstract partial class RenderTreeBuilder
 	public abstract void OpenElement<T>( int sequence, object key ) where T : IComponent, new();
 	public abstract void AddBind<T>( int sequence, string propertyName, Func<T> get, Action<T> set );
 
-	// These aren't used by our system, they're only used by intellisense and VS
-	public void OpenComponent<T>( int sequence ) where T : IComponent { }
-	public void CloseComponent() { }
-	public void AddComponentParameter( int sequence, string parameterName, object value ) { }
-	public void AddComponentParameter( int sequence, string parameterName, Action value ) { }
-	public void AddComponentParameter( int sequence, string parameterName, Func<Task> value ) { }
+	//
+	// The stock razor compiler emits these instead of the typed calls our own razor emits.
+	// They bridge into the same machinery, so components compiled either way render.
+	//
+	public void OpenComponent<T>( int sequence ) where T : IComponent, new() => OpenElement<T>( sequence, null );
+	public void CloseComponent() => CloseElement();
+	public void AddComponentParameter( int sequence, string parameterName, object value ) => SetComponentParameter( sequence, parameterName, value );
+	public void AddComponentParameter( int sequence, string parameterName, Action value ) => SetComponentParameter( sequence, parameterName, value );
+	public void AddComponentParameter( int sequence, string parameterName, Func<Task> value ) => SetComponentParameter( sequence, parameterName, value );
 	public void SetKey( object value ) { }
+
+	/// <summary>
+	/// A component parameter set by name rather than through a typed setter - how the stock
+	/// razor compiler does it.
+	/// </summary>
+	protected virtual void SetComponentParameter( int sequence, string parameterName, object value ) { }
 }

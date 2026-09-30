@@ -1,4 +1,5 @@
-﻿using Sandbox.Engine;
+﻿using NativeEngine;
+using Sandbox.Engine;
 using Sandbox.Services;
 using Sandbox.Tasks;
 using Sandbox.UI;
@@ -23,7 +24,6 @@ internal sealed class MenuDll : IMenuDll
 	private PackageLoader Loader { get; set; }
 	private PackageLoader.Enroller Enroller { get; set; }
 	private Task AccountUpdateTask { get; set; }
-	private bool SceneDestroyedForGame { get; set; }
 
 	public Scene Scene => MenuScene.Scene;
 
@@ -57,30 +57,27 @@ internal sealed class MenuDll : IMenuDll
 		//
 		GlobalContext.Current.FileMount = new AggregateFileSystem();
 		{
-			if ( Application.IsStandalone )
+			// No menu or citizen addon in standalone
+			if ( !Application.IsStandalone )
 			{
-				// No menu or citizen addon in standalone
-				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, $"/base/code" );
-				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, $"/base/Assets" );
-			}
-			else
-			{
-				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, "/base/code/" );
-				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, "/base/Assets/" );
-				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, "/menu/Code/" );
-				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, "/menu/Assets/" );
-				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, "/citizen/Assets/" );
+				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/addons/menu/Code/" );
+				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/addons/menu/Assets/" );
+				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/addons/citizen/Assets/" );
 			}
 
 			FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/core/" );
 			FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/thirdpartylegalnotices/" );
+
+			// The editor's UI assets - stylesheets and the like - are visible while editing
+			if ( Application.IsEditor )
+				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/addons/editor/assets/" );
 		}
 
 		//
 		// Localization from menu 
 		//
 		Game.Language = new LanguageContainer();
-		Game.Language.FileSystem.CreateAndMount( EngineFileSystem.Addons, "/menu/localization/" );
+		Game.Language.FileSystem.CreateAndMount( EngineFileSystem.Root, "/addons/menu/localization/" );
 
 
 		//
@@ -250,48 +247,16 @@ internal sealed class MenuDll : IMenuDll
 		}
 	}
 
-	void LoadResources() => ResourceLoader.LoadAllGameResource( FileSystem.Mounted );
-
-	Task LoadResourcesAsync() => ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted );
-
-	public void OnGameEntered()
+	void LoadResources()
 	{
-		if ( Application.IsEditor )
-			return;
-
-		// Already destroyed (e.g. switching between games without returning to menu)
-		if ( SceneDestroyedForGame )
-			return;
-
-		using var scope = PushScope();
-
-		// Destroy the entire menu scene to free all resources
-		// (models, textures, lights, cameras, particles, etc.).
-		// The overlay UI (loading screen, pause menu, popups) lives in the
-		// menu's UISystem as RootPanels, not in the scene, so it survives.
-		if ( MenuScene.Scene is not null )
-		{
-			MenuScene.Scene.Destroy();
-			MenuScene.Scene = null;
-		}
-
-		SceneDestroyedForGame = true;
+		g_pResourceSystem.InvalidateDatabase();
+		ResourceLoader.LoadAllGameResource( FileSystem.Mounted );
 	}
 
-	public void OnGameExited()
+	Task LoadResourcesAsync()
 	{
-		if ( Application.IsEditor )
-			return;
-
-		if ( !SceneDestroyedForGame )
-			return;
-
-		using var scope = PushScope();
-
-		SceneDestroyedForGame = false;
-
-		// Recreate the menu scene from scratch
-		SetupMenuScene();
+		g_pResourceSystem.InvalidateDatabase();
+		return ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted );
 	}
 
 	private void SetupMenuScene()
@@ -306,42 +271,7 @@ internal sealed class MenuDll : IMenuDll
 	private void OnMessageFromBackend( Messaging.Message message )
 	{
 		using var scope = PushScope();
-
-		if ( message.Data is Protobuf.ClientMsg.AchievementUnlocked msg )
-		{
-			var data = new IBackendListener.AchievementUnlock
-			{
-				Title = msg.Title,
-				Description = msg.Description,
-				Icon = msg.Icon,
-				ScoreAdded = msg.ScoreAdded,
-				TotalPlayerScore = msg.PlayerScore,
-				TotalPackageScore = msg.PackageScore
-			};
-
-			Event.EventSystem.RunInterface<IBackendListener>( x => x.OnAchievementUnlocked( data ) );
-		}
-
-		if ( message.Data is Protobuf.ClientMsg.Notice notice )
-		{
-			var data = new IBackendListener.Notice
-			{
-				Title = notice.Title,
-				Icon = notice.Icon,
-				Type = notice.Type,
-				Text = notice.Text,
-				Link = notice.Link
-			};
-
-			Event.EventSystem.RunInterface<IBackendListener>( x => x.OnNotice( data ) );
-		}
-
-		if ( message.Data is Protobuf.ClientMsg.ServiceLinked serviceLinked )
-		{
-			var data = new LinkedService( serviceLinked.Service, serviceLinked.Id, serviceLinked.Name, serviceLinked.Avatar );
-
-			Event.EventSystem.RunInterface<IBackendListener>( x => x.OnServiceLinked( data, serviceLinked.Linked ) );
-		}
+		BackendMessageDispatcher.Dispatch( message.Data, Event.EventSystem );
 	}
 
 	public IDisposable PushScope()
@@ -358,6 +288,11 @@ internal sealed class MenuDll : IMenuDll
 
 	public void Tick()
 	{
+		if ( MenuScene.Scene is { } menuScene )
+		{
+			menuScene.IsSuspended = !Game.IsMainMenuVisible;
+		}
+
 		using var _ = PushScope();
 
 		try
@@ -532,39 +467,4 @@ internal sealed class MenuDll : IMenuDll
 		GlobalContext.Current.UISystem = uiSystem;
 		GlobalContext.Current.InputContext = input;
 	}
-}
-
-
-public interface IBackendListener
-{
-	public struct AchievementUnlock
-	{
-		public string Title { get; internal set; }
-		public string Description { get; internal set; }
-		public string Icon { get; internal set; }
-		public int ScoreAdded { get; internal set; }
-		public int TotalPackageScore { get; internal set; }
-		public int TotalPlayerScore { get; internal set; }
-	}
-
-	void OnAchievementUnlocked( AchievementUnlock data );
-
-	public struct Notice
-	{
-		public string Type { get; set; }
-		public string Title { get; set; }
-		public string Text { get; set; }
-		public string Icon { get; set; }
-		public string Link { get; set; }
-	}
-
-	void OnNotice( Notice data );
-
-	/// <summary>
-	/// A third-party service (eg Twitch) was linked to - or unlinked from - the player's account.
-	/// Pushed from the backend when the player completes the flow started by
-	/// <see cref="MenuUtility.BeginServiceLink"/>, so the UI can update without polling.
-	/// <paramref name="linked"/> is false when the service was unlinked.
-	/// </summary>
-	void OnServiceLinked( LinkedService service, bool linked ) { }
 }

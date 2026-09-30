@@ -1,6 +1,8 @@
+// The same insets as the other tabs - 24 round the sides and top, the heading 20 above the list
 PackageNews
 {
-    padding: 2rem;
+    padding: 24px 24px 64px 24px;
+    gap: 20px;
     flex-direction: column;
     overflow: hidden;
     max-width: 100%;
@@ -8,11 +10,19 @@ PackageNews
     flex-shrink: 0;
 }
 
+PackageNews PackageTabHeader
+{
+    margin-bottom: 0;
+}
+
+// Its hover fill reaches past the text by its own padding - pulled out by the same, so the
+// picture and the words still line up with the heading
 PackageNews .entry
 {
     gap: 2rem;
     cursor: pointer;
-    padding: 1rem;
+    padding: 12px;
+    margin: 0 -12px;
     opacity: 0.8;
     flex-shrink: 0;
 }

@@ -8,15 +8,6 @@ namespace Sandbox.MovieMaker;
 #nullable enable
 
 [Expose]
-file sealed class ComponentCapturer : ComponentCapturer<Component>
-{
-	protected override void OnCapture( IMovieTrackRecorder recorder, Component component )
-	{
-		recorder.Property( nameof( Component.Enabled ) ).Capture();
-	}
-}
-
-[Expose]
 file sealed class CameraCapturer : ComponentCapturer<CameraComponent>
 {
 	protected override void OnCapture( IMovieTrackRecorder recorder, CameraComponent component )
@@ -40,6 +31,20 @@ file sealed class CameraCapturer : ComponentCapturer<CameraComponent>
 		recorder.Property( nameof( CameraComponent.ZFar ) ).Capture();
 		recorder.Property( nameof( CameraComponent.RenderTags ) ).Capture( component.RenderTags );
 		recorder.Property( nameof( CameraComponent.RenderExcludeTags ) ).Capture( component.RenderExcludeTags );
+	}
+}
+
+[Expose]
+file sealed class RendererCapturer : ComponentCapturer<Renderer>
+{
+	protected override void OnCapture( IMovieTrackRecorder recorder, Renderer component )
+	{
+		var renderOptions = recorder.Property( nameof( Renderer.RenderOptions ) );
+
+		renderOptions.Property( nameof( RenderOptions.Game ) ).Capture();
+		renderOptions.Property( nameof( RenderOptions.Overlay ) ).Capture();
+		renderOptions.Property( nameof( RenderOptions.Bloom ) ).Capture();
+		renderOptions.Property( nameof( RenderOptions.AfterUI ) ).Capture();
 	}
 }
 
@@ -391,6 +396,8 @@ file sealed class ParticleSpriteRendererCapturer : ComponentCapturer<ParticleSpr
 		recorder.Property( nameof( ParticleSpriteRenderer.Alignment ) ).Capture();
 		recorder.Property( nameof( ParticleSpriteRenderer.SortMode ) ).Capture();
 		recorder.Property( nameof( ParticleSpriteRenderer.DepthFeather ) ).Capture();
+		recorder.Property( nameof( ParticleSpriteRenderer.CameraFadeNear ) ).Capture();
+		recorder.Property( nameof( ParticleSpriteRenderer.CameraFadeFar ) ).Capture();
 		recorder.Property( nameof( ParticleSpriteRenderer.FogStrength ) ).Capture();
 		recorder.Property( nameof( ParticleSpriteRenderer.FaceVelocity ) ).Capture();
 		recorder.Property( nameof( ParticleSpriteRenderer.RotationOffset ) ).Capture();
@@ -412,6 +419,8 @@ file sealed class ParticleTextRendererCapturer : ComponentCapturer<ParticleTextR
 		recorder.Property( nameof( ParticleTextRenderer.Pivot ) ).Capture();
 		recorder.Property( nameof( ParticleTextRenderer.Scale ) ).Capture();
 		recorder.Property( nameof( ParticleTextRenderer.DepthFeather ) ).Capture();
+		recorder.Property( nameof( ParticleTextRenderer.CameraFadeNear ) ).Capture();
+		recorder.Property( nameof( ParticleTextRenderer.CameraFadeFar ) ).Capture();
 		recorder.Property( nameof( ParticleTextRenderer.FogStrength ) ).Capture();
 		recorder.Property( nameof( ParticleTextRenderer.Additive ) ).Capture();
 		recorder.Property( nameof( ParticleTextRenderer.Shadows ) ).Capture();
@@ -466,6 +475,8 @@ file sealed class LightCapturer : ComponentCapturer<Light>
 			recorder.Property( nameof( Light.ShadowBias ) ).Capture();
 			recorder.Property( nameof( Light.ShadowHardness ) ).Capture();
 		}
+
+		recorder.Property( nameof( Light.Contribution ) ).Capture();
 	}
 }
 
@@ -498,6 +509,7 @@ file sealed class DirectionalLightCapturer : ComponentCapturer<DirectionalLight>
 	protected override void OnCapture( IMovieTrackRecorder recorder, DirectionalLight component )
 	{
 		recorder.Property( nameof( DirectionalLight.SkyColor ) ).Capture();
+		recorder.Property( nameof( DirectionalLight.ContactShadows ) ).Capture();
 
 		if ( component.Shadows )
 		{
@@ -513,6 +525,60 @@ file sealed class AmbientLightCapturer : ComponentCapturer<AmbientLight>
 	protected override void OnCapture( IMovieTrackRecorder recorder, AmbientLight component )
 	{
 		recorder.Property( nameof( AmbientLight.Color ) ).Capture();
+	}
+}
+
+[Expose]
+file sealed class GradientFogCapturer : ComponentCapturer<GradientFog>
+{
+	protected override void OnCapture( IMovieTrackRecorder recorder, GradientFog component )
+	{
+		recorder.Property( nameof( GradientFog.Color ) ).Capture();
+		recorder.Property( nameof( GradientFog.Height ) ).Capture();
+		recorder.Property( nameof( GradientFog.VerticalFalloffExponent ) ).Capture();
+		recorder.Property( nameof( GradientFog.StartDistance ) ).Capture();
+		recorder.Property( nameof( GradientFog.EndDistance ) ).Capture();
+		recorder.Property( nameof( GradientFog.FalloffExponent ) ).Capture();
+	}
+}
+
+[Expose]
+file sealed class CubemapFogCapturer : ComponentCapturer<CubemapFog>
+{
+	protected override void OnCapture( IMovieTrackRecorder recorder, CubemapFog component )
+	{
+		recorder.Property( nameof( CubemapFog.Sky ) ).Capture();
+		recorder.Property( nameof( CubemapFog.Blur ) ).Capture();
+		recorder.Property( nameof( CubemapFog.StartDistance ) ).Capture();
+		recorder.Property( nameof( CubemapFog.EndDistance ) ).Capture();
+		recorder.Property( nameof( CubemapFog.FalloffExponent ) ).Capture();
+		recorder.Property( nameof( CubemapFog.HeightWidth ) ).Capture();
+		recorder.Property( nameof( CubemapFog.HeightStart ) ).Capture();
+		recorder.Property( nameof( CubemapFog.HeightExponent ) ).Capture();
+		recorder.Property( nameof( CubemapFog.Tint ) ).Capture();
+	}
+}
+
+[Expose]
+file sealed class VolumetricFogVolumeCapturer : ComponentCapturer<VolumetricFogVolume>
+{
+	protected override void OnCapture( IMovieTrackRecorder recorder, VolumetricFogVolume component )
+	{
+		recorder.Property( nameof( VolumetricFogVolume.Bounds ) ).Capture();
+		recorder.Property( nameof( VolumetricFogVolume.Strength ) ).Capture();
+		recorder.Property( nameof( VolumetricFogVolume.FalloffExponent ) ).Capture();
+		recorder.Property( nameof( VolumetricFogVolume.Color ) ).Capture();
+	}
+}
+
+[Expose]
+file sealed class SkyBox2DCapturer : ComponentCapturer<SkyBox2D>
+{
+	protected override void OnCapture( IMovieTrackRecorder recorder, SkyBox2D component )
+	{
+		recorder.Property( nameof( SkyBox2D.SkyMaterial ) ).Capture();
+		recorder.Property( nameof( SkyBox2D.Tint ) ).Capture();
+		recorder.Property( nameof( SkyBox2D.SkyIndirectLighting ) ).Capture();
 	}
 }
 

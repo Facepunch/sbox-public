@@ -1,0 +1,37 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+
+@attribute [Group( "Layout" )]
+@attribute [Title( "position: fixed" )]
+@attribute [Description( "Root-viewport floaters with logical ownership" )]
+@attribute [Icon( "picture_in_picture" )]
+
+<root>
+    <div class="cases"><div class="reference-row">
+    <div class="reference-description"><label class="reference-title">Fixed descendants</label><label class="reference-note">The fixed child stays anchored to the viewport while its owner scrolls.</label></div>
+    <div class="reference-result fixed-result"><Sandbox.PanelGallery.GalleryScaledPreview PreviewSize="@(new Vector2( 420, 320 ))">
+    <div class="owner rotated">
+        <label>Logical owner: overflow scroll + isolation</label>
+        <div class="long-content"><label>Scroll this panel. The floater must not move or enlarge its scroll area.</label></div>
+        <div class="floater">
+            <label class="heading">Fixed child</label>
+            <label>right: 32px; top: 100px</label>
+            <label>Still owned by the blue panel.</label>
+            <button onclick="@ClickFloater">@($"Clicked {clicks} time(s)")</button>
+            <div class="nested-fixed"><label>Nested fixed: bottom 24px</label></div>
+        </div>
+    </div>
+    </Sandbox.PanelGallery.GalleryScaledPreview></div>
+    </div></div>
+    <div class="ordinary"><label>Normal content, z-index: 9999. Fixed floaters render above this layer.</label></div>
+    <label class="description">Resize the window: right and bottom offsets follow this root's viewport. Existing popup and tooltip controls are unchanged.</label>
+</root>
+
+@code
+{
+    int clicks;
+    void ClickFloater() => clicks++;
+    protected override int BuildHash() => clicks;
+}

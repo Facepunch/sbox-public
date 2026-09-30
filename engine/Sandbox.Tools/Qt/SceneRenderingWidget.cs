@@ -11,6 +11,7 @@ public class SceneRenderingWidget : Frame
 	private static readonly HashSet<SceneRenderingWidget> All = new();
 
 	internal SwapChainHandle_t SwapChain;
+	bool renderingStopped;
 
 	/// <summary>
 	/// The active scene that we're rendering
@@ -55,17 +56,42 @@ public class SceneRenderingWidget : Frame
 		All.Add( this );
 	}
 
+	internal override void OnDestroyingLater()
+	{
+		ReleaseSwapChain();
+		base.OnDestroyingLater();
+	}
+
+	internal override void NativeDestroying() => ReleaseSwapChain();
+
+	internal static void ShutdownRendering()
+	{
+		foreach ( var widget in All.ToArray() )
+			widget.ReleaseSwapChain();
+	}
+
+	void ReleaseSwapChain()
+	{
+		if ( renderingStopped ) return;
+		renderingStopped = true;
+
+		if ( GameMode.IsPlayWidget( this ) )
+			GameMode.ClearPlayMode();
+
+		RenderSettings.Instance.OnVideoSettingsChanged -= HandleVideoChanged;
+
+		if ( SwapChain == default ) return;
+		// Finish outstanding rendering while the native window is still alive.
+		g_pRenderDevice.Flush();
+		g_pRenderDevice.ForceFlushGPU( SwapChain );
+		g_pRenderDevice.DestroySwapChain( SwapChain );
+		SwapChain = default;
+	}
+
 	internal override void NativeShutdown()
 	{
 		base.NativeShutdown();
-
 		All.Remove( this );
-		RenderSettings.Instance.OnVideoSettingsChanged -= HandleVideoChanged;
-
-		// The swapchain might still be in use by native, so defer its destruction until the end of the frame.
-		// Otherwise, a race condition could occur where render targets are accessed after destruction, causing a delayed crash.
-		EngineLoop.DisposeAtFrameEnd( new Sandbox.Utility.DisposeAction( () => g_pRenderDevice.DestroySwapChain( SwapChain ) ) );
-		SwapChain = default;
 
 		GizmoInstance?.Dispose();
 		GizmoInstance = default;
@@ -174,6 +200,8 @@ public class SceneRenderingWidget : Frame
 			}
 		}
 
+		if ( SwapChain == default ) return;
+
 		if ( GameMode.IsPlayWidget( this ) )
 		{
 			CCameraRenderer.RenderOverlay( SwapChain );
@@ -245,6 +273,7 @@ public class SceneRenderingWidget : Frame
 
 	internal void HandleVideoChanged()
 	{
+		if ( renderingStopped ) return;
 		var msaaAmount = RenderSettings.Instance.AntiAliasQuality.ToEngine();
 
 		if ( SwapChain == default )

@@ -69,8 +69,12 @@ public partial class PrimitiveTool( MeshTool tool ) : EditorTool
 			var bounds = mesh.CalculateBounds();
 			mesh.ApplyTransform( new Transform( -bounds.Center ) );
 
+			var rotation = Editor.BuildRotation;
+
 			var go = new GameObject( true, name );
-			go.WorldPosition = bounds.Center;
+			go.WorldPosition = rotation * bounds.Center;
+			go.WorldRotation = rotation;
+			go.IsStatic = true;
 			var c = go.Components.Create<MeshComponent>( false );
 			c.Mesh = mesh;
 			c.SmoothingAngle = 40.0f;

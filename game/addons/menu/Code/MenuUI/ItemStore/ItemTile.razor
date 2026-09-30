@@ -10,17 +10,13 @@
         <div class="tags">
             @if ( Item.LeavingText is string leaving )
             {
-                <label class="tag leaving @( Item.IsLeavingSoon ? "soon" : "" )">@leaving</label>
-            }
-            @if ( Item.IsOnSale )
-            {
-                <label class="tag sale">-@(Item.DiscountPercent)%</label>
+                <div class="tag leaving @( Item.IsLeavingSoon ? "soon" : "" )"><icon>schedule</icon><label>@leaving</label></div>
             }
         </div>
 
         @if ( Owned > 0 )
         {
-            <label class="owned-pill">@( Owned > 1 ? $"Own {Owned}" : "Owned" )</label>
+            <div class="owned-pill"><label>@( Owned > 1 ? $"Own {Owned}" : "Owned" )</label></div>
         }
     </div>
 
@@ -30,11 +26,17 @@
 
         <div class="buy">
             <div class="price">
-                <label class="now">@Item.Price</label>
                 @if ( Item.IsOnSale )
                 {
-                    <label class="was">was @Item.BasePrice</label>
+                    <label class="was">@Item.BasePrice</label>
                 }
+                <div class="now-row">
+                    <label class="now">@Item.Price</label>
+                    @if ( Item.IsOnSale )
+                    {
+                        <label class="off">-@(Item.DiscountPercent)%</label>
+                    }
+                </div>
             </div>
 
             @if ( CountInCart > 0 )

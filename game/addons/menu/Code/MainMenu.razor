@@ -1,8 +1,8 @@
-@using Sandbox.UI;
+﻿@using Sandbox.UI;
 @using Sandbox.UI.Navigation;
 @using Sandbox;
 @using System;
-@using Menu;
+@using SboxMenu;
 @using MenuProject.Modals;
 @inherits PanelComponent
 
@@ -21,8 +21,6 @@
                         <OfflineMode />
                     </div>
                 </div>
-
-                <Footer />
 
             </div>
 
@@ -45,8 +43,8 @@
 
         Instance = this;
 
-        // Fetch resolutions now so opening the settings modal doesn't stutter later.
-        MenuProject.Settings.VideoSettings.FetchResolutions();
+        // Fetch resolutions now so opening the settings doesn't stutter later.
+        MenuProject.Settings.SettingsCatalog.FetchResolutions();
 
         _ = ShowStartupModalsIfNeeded();
     }

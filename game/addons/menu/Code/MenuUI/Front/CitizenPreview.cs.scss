@@ -1,0 +1,33 @@
+// A citizen portrait - the front page's avatar card and the friend card both use it.
+CitizenPreview
+{
+	position: relative;
+	pointer-events: none;
+
+	// The front page's can be spun and watches the cursor
+	&.interactive
+	{
+		pointer-events: all;
+	}
+
+	// Double size, scaled back down by half - renders at 2x and the downscale anti-aliases the model
+	.render
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		width: 200%;
+		height: 200%;
+		transform: scale( 0.5 );
+		transform-origin: 0% 0%;
+		opacity: 1;
+		transition: opacity 0.2s ease;
+
+		// Skipping the intro - hidden while the pose plays through, then faded in already stood in it
+		&.settling
+		{
+			opacity: 0;
+			transition: none;
+		}
+	}
+}

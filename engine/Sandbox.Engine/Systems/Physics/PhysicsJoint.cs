@@ -1,97 +1,66 @@
-﻿
 namespace Sandbox.Physics;
 
 /// <summary>
 /// A physics constraint.
 /// </summary>
-public partial class PhysicsJoint : IHandle
+public partial class PhysicsJoint : IValid
 {
-	#region IHandle
-	//
-	// A pointer to the actual native object
-	//
-	internal NativeEngine.IPhysicsJoint native;
+	internal PhysicsJointInternal _joint;
 
-	//
-	// IHandle implementation
-	//
-	void IHandle.HandleInit( IntPtr ptr )
-	{
-		native = ptr;
-
-		World = native.GetWorld();
-	}
-	void IHandle.HandleDestroy()
-	{
-		native = IntPtr.Zero;
-
-		World = null;
-	}
-	bool IHandle.HandleValid() => !native.IsNull;
-	#endregion
+	public bool IsValid => _joint is not null && _joint.IsValid;
 
 	internal PhysicsJoint() { }
-	internal PhysicsJoint( HandleCreationData _ ) { }
 
-	internal PhysicsJointType JointType => native.GetType_Native();
+	internal PhysicsJoint( PhysicsJointInternal joint )
+	{
+		_joint = joint;
+		_joint.SetOwner( this );
+	}
+
+	internal PhysicsJointType JointType => _joint?.JointType ?? default;
 
 	/// <summary>
 	/// Removes this joint.
 	/// </summary>
 	public void Remove()
 	{
-		if ( native.IsNull ) return;
-		if ( World == null ) return;
-
-		World.native.RemoveJoint( this );
+		_joint?.Remove();
 	}
 
 	internal void InternalJointBroken()
 	{
-		onBreak?.Invoke();
+		_joint?.InternalJointBroken();
 	}
 
 	internal void WakeBodies()
 	{
-		if ( Body1.IsValid() )
-		{
-			Body1.native.Wake();
-		}
-
-		if ( Body2.IsValid() )
-		{
-			Body2.native.Wake();
-		}
+		_joint?.WakeBodies();
 	}
-
-	event Action onBreak;
 
 	/// <summary>
 	/// Called when the joint breaks.
 	/// </summary>
 	public event Action OnBreak
 	{
-		add
-		{
-			onBreak += value;
-		}
-		remove => onBreak -= value;
+		add => _joint.OnBreak += value;
+		remove => _joint.OnBreak -= value;
 	}
 
 	/// <summary>
 	/// The <see cref="PhysicsWorld"/> this joint belongs to.
 	/// </summary>
-	public PhysicsWorld World { get; private set; }
+	public PhysicsWorld World => _joint?.World?.Owner;
 
 	/// <summary>
 	/// The source physics body this joint is attached to.
 	/// </summary>
-	public PhysicsBody Body1 => native.IsValid ? native.GetBody1() : null;
+	public PhysicsBody Body1 => _joint?.Body1;
 
 	/// <summary>
 	/// The target physics body this joint is constraining.
 	/// </summary>
-	public PhysicsBody Body2 => native.IsValid ? native.GetBody2() : null;
+	public PhysicsBody Body2 => _joint?.Body2;
+
 	/// <summary>
 	/// A specific point this joint is attached at on <see cref="Body1"/>
 	/// </summary>
@@ -99,10 +68,11 @@ public partial class PhysicsJoint : IHandle
 	{
 		get
 		{
-			native.GetLocalFrameA( out var position, out var rotation );
-			return new( native.GetBody1(), position, rotation );
+			if ( _joint is null ) return default;
+			_joint.GetLocalFrameA( out var position, out var rotation );
+			return new( _joint.Body1, position, rotation );
 		}
-		set => native.SetLocalFrameA( value.LocalPosition, value.LocalRotation );
+		set => _joint?.SetLocalFrameA( value.LocalPosition, value.LocalRotation );
 	}
 
 	/// <summary>
@@ -112,20 +82,18 @@ public partial class PhysicsJoint : IHandle
 	{
 		get
 		{
-			native.GetLocalFrameB( out var position, out var rotation );
-			return new( native.GetBody2(), position, rotation );
+			if ( _joint is null ) return default;
+			_joint.GetLocalFrameB( out var position, out var rotation );
+			return new( _joint.Body2, position, rotation );
 		}
-		set => native.SetLocalFrameB( value.LocalPosition, value.LocalRotation );
+		set => _joint?.SetLocalFrameB( value.LocalPosition, value.LocalRotation );
 	}
 
 	[Obsolete]
 	public bool IsActive
 	{
 		get => true;
-		set
-		{
-
-		}
+		set { }
 	}
 
 	/// <summary>
@@ -133,8 +101,8 @@ public partial class PhysicsJoint : IHandle
 	/// </summary>
 	public bool Collisions
 	{
-		get => native.IsCollisionEnabled();
-		set => native.SetEnableCollision( value );
+		get => _joint?.Collisions ?? false;
+		set => _joint?.Collisions = value;
 	}
 
 	/// <summary>
@@ -142,8 +110,8 @@ public partial class PhysicsJoint : IHandle
 	/// </summary>
 	public float Strength
 	{
-		get => native.GetMaxLinearImpulse();
-		set => native.SetMaxLinearImpulse( value );
+		get => _joint?.Strength ?? 0;
+		set => _joint?.Strength = value;
 	}
 
 	/// <summary>
@@ -151,29 +119,29 @@ public partial class PhysicsJoint : IHandle
 	/// </summary>
 	public float AngularStrength
 	{
-		get => native.GetMaxAngularImpulse();
-		set => native.SetMaxAngularImpulse( value );
+		get => _joint?.AngularStrength ?? 0;
+		set => _joint?.AngularStrength = value;
 	}
 
-	internal float LinearImpulse => native.GetLinearImpulse();
-	internal float AngularImpulse => native.GetAngularImpulse();
+	internal float LinearImpulse => _joint?.LinearImpulse ?? 0;
+	internal float AngularImpulse => _joint?.AngularImpulse ?? 0;
+
+	static void ValidateCreate( PhysicsBody a, PhysicsBody b )
+	{
+		ArgumentNullException.ThrowIfNull( a, nameof( a ) );
+		ArgumentNullException.ThrowIfNull( b, nameof( b ) );
+
+		Assert.AreEqual( a.World, b.World );
+		Assert.AreNotEqual( a, b );
+	}
 
 	/// <summary>
 	/// Creates an almost solid constraint between two physics bodies.
 	/// </summary>
 	public static FixedJoint CreateFixed( PhysicsPoint a, PhysicsPoint b )
 	{
-		ArgumentNullException.ThrowIfNull( a.Body, nameof( a ) );
-		ArgumentNullException.ThrowIfNull( b.Body, nameof( b ) );
-
-		Assert.AreEqual( a.Body.World, b.Body.World );
-		Assert.AreNotEqual( a.Body, b.Body );
-
-		var joint = a.Body.World.world.AddWeldJoint( a.Body, b.Body, a.LocalTransform, b.LocalTransform ) as FixedJoint;
-		if ( !joint.IsValid() )
-			throw new Exception( $"Unable to create joint" );
-
-		return joint;
+		ValidateCreate( a.Body, b.Body );
+		return a.Body.World.CreateWeldJoint( a.Body, b.Body, a.LocalTransform, b.LocalTransform );
 	}
 
 	/// <summary>
@@ -181,16 +149,9 @@ public partial class PhysicsJoint : IHandle
 	/// </summary>
 	public static SpringJoint CreateLength( PhysicsPoint a, PhysicsPoint b, float maxLength )
 	{
-		ArgumentNullException.ThrowIfNull( a.Body, nameof( a ) );
-		ArgumentNullException.ThrowIfNull( b.Body, nameof( b ) );
+		ValidateCreate( a.Body, b.Body );
 
-		Assert.AreEqual( a.Body.World, b.Body.World );
-		Assert.AreNotEqual( a.Body, b.Body );
-
-		var joint = a.Body.World.world.AddSpringJoint( a.Body, b.Body, a.LocalTransform, b.LocalTransform ) as SpringJoint;
-		if ( !joint.IsValid() )
-			throw new Exception( $"Unable to create joint" );
-
+		var joint = a.Body.World.CreateSpringJoint( a.Body, b.Body, a.LocalTransform, b.LocalTransform );
 		joint.MaxLength = maxLength;
 		joint.MinLength = 0;
 
@@ -202,16 +163,9 @@ public partial class PhysicsJoint : IHandle
 	/// </summary>
 	public static SpringJoint CreateSpring( PhysicsPoint a, PhysicsPoint b, float minLength, float maxLength )
 	{
-		ArgumentNullException.ThrowIfNull( a.Body, nameof( a ) );
-		ArgumentNullException.ThrowIfNull( b.Body, nameof( b ) );
+		ValidateCreate( a.Body, b.Body );
 
-		Assert.AreEqual( a.Body.World, b.Body.World );
-		Assert.AreNotEqual( a.Body, b.Body );
-
-		var joint = a.Body.World.world.AddSpringJoint( a.Body, b.Body, a.LocalTransform, b.LocalTransform ) as SpringJoint;
-		if ( !joint.IsValid() )
-			throw new Exception( $"Unable to create joint" );
-
+		var joint = a.Body.World.CreateSpringJoint( a.Body, b.Body, a.LocalTransform, b.LocalTransform );
 		joint.MaxLength = maxLength;
 		joint.MinLength = minLength;
 
@@ -220,26 +174,13 @@ public partial class PhysicsJoint : IHandle
 
 	public static HingeJoint CreateHinge( PhysicsPoint a, PhysicsPoint b )
 	{
-		ArgumentNullException.ThrowIfNull( a.Body, nameof( a ) );
-		ArgumentNullException.ThrowIfNull( b.Body, nameof( b ) );
-
-		Assert.AreEqual( a.Body.World, b.Body.World );
-		Assert.AreNotEqual( a.Body, b.Body );
-
-		var joint = a.Body.World.world.AddRevoluteJoint( a.Body, b.Body, a.LocalTransform, b.LocalTransform ) as HingeJoint;
-		if ( !joint.IsValid() )
-			throw new Exception( $"Unable to create joint" );
-
-		return joint;
+		ValidateCreate( a.Body, b.Body );
+		return a.Body.World.CreateRevoluteJoint( a.Body, b.Body, a.LocalTransform, b.LocalTransform );
 	}
 
 	public static HingeJoint CreateHinge( PhysicsBody body1, PhysicsBody body2, Transform localFrame1, Transform localFrame2 )
 	{
-		ArgumentNullException.ThrowIfNull( body1, nameof( body1 ) );
-		ArgumentNullException.ThrowIfNull( body2, nameof( body2 ) );
-
-		Assert.AreEqual( body1.World, body2.World );
-		Assert.AreNotEqual( body1, body2 );
+		ValidateCreate( body1, body2 );
 
 		if ( !body2.MotionEnabled && body1.MotionEnabled )
 		{
@@ -247,11 +188,7 @@ public partial class PhysicsJoint : IHandle
 			(localFrame1, localFrame2) = (localFrame2, localFrame1);
 		}
 
-		var joint = body1.World.world.AddRevoluteJoint( body1, body2, localFrame1, localFrame2 ) as HingeJoint;
-		if ( !joint.IsValid() )
-			throw new Exception( $"Unable to create joint" );
-
-		return joint;
+		return body1.World.CreateRevoluteJoint( body1, body2, localFrame1, localFrame2 );
 	}
 
 	/// <summary>
@@ -259,16 +196,9 @@ public partial class PhysicsJoint : IHandle
 	/// </summary>
 	public static SliderJoint CreateSlider( PhysicsPoint a, PhysicsPoint b, float minLength, float maxLength )
 	{
-		ArgumentNullException.ThrowIfNull( a.Body, nameof( a ) );
-		ArgumentNullException.ThrowIfNull( b.Body, nameof( b ) );
+		ValidateCreate( a.Body, b.Body );
 
-		Assert.AreEqual( a.Body.World, b.Body.World );
-		Assert.AreNotEqual( a.Body, b.Body );
-
-		var joint = a.Body.World.world.AddPrismaticJoint( a.Body, b.Body, a.LocalTransform, b.LocalTransform ) as SliderJoint;
-		if ( !joint.IsValid() )
-			throw new Exception( $"Unable to create joint" );
-
+		var joint = a.Body.World.CreatePrismaticJoint( a.Body, b.Body, a.LocalTransform, b.LocalTransform );
 		joint.MaxLength = maxLength;
 		joint.MinLength = minLength;
 
@@ -278,112 +208,60 @@ public partial class PhysicsJoint : IHandle
 	/// <summary>
 	/// Creates a ball socket constraint.
 	/// </summary>
-	/// <param name="body1">The source physics body.</param>
-	/// <param name="body2">The target physics body to constrain to.</param>
-	/// <param name="origin">The origin of the hinge in world coordinates. The 2 bodies will rotate around this point.</param>
-	/// <returns>The created ball socket joint.</returns>
 	public static BallSocketJoint CreateBallSocket( PhysicsBody body1, PhysicsBody body2, Vector3 origin )
 	{
-		ArgumentNullException.ThrowIfNull( body1, nameof( body1 ) );
-		ArgumentNullException.ThrowIfNull( body2, nameof( body2 ) );
-
-		Assert.AreEqual( body1.World, body2.World );
-		Assert.AreNotEqual( body1, body2 );
+		ValidateCreate( body1, body2 );
 
 		var anchor = new Transform( origin );
 		var localFrame1 = anchor.ToLocal( body1.Transform );
 		var localFrame2 = anchor.ToLocal( body2.Transform );
 
-		var joint = body1.World.world.AddSphericalJoint( body1, body2, localFrame1, localFrame2 ) as BallSocketJoint;
-		if ( !joint.IsValid() )
-			throw new Exception( $"Unable to create joint" );
-
-		return joint;
+		return body1.World.CreateSphericalJoint( body1, body2, localFrame1, localFrame2 );
 	}
 
 	/// <summary>
 	/// Creates a ball socket constraint.
 	/// </summary>
-	/// <param name="a">The source physics body.</param>
-	/// <param name="b">The target physics body to constrain to.</param>
-	/// <returns>The created ball socket joint.</returns>
 	public static BallSocketJoint CreateBallSocket( PhysicsPoint a, PhysicsPoint b )
 	{
-		ArgumentNullException.ThrowIfNull( a.Body, nameof( a ) );
-		ArgumentNullException.ThrowIfNull( b.Body, nameof( b ) );
-
-		Assert.AreEqual( a.Body.World, b.Body.World );
-		Assert.AreNotEqual( a.Body, b.Body );
-
-		var joint = a.Body.World.world.AddSphericalJoint( a.Body, b.Body, a.LocalTransform, b.LocalTransform ) as BallSocketJoint;
-		if ( !joint.IsValid() ) throw new Exception( $"Unable to create joint" );
-
-		return joint;
+		ValidateCreate( a.Body, b.Body );
+		return a.Body.World.CreateSphericalJoint( a.Body, b.Body, a.LocalTransform, b.LocalTransform );
 	}
 
 	public static ControlJoint CreateControl( PhysicsPoint a, PhysicsPoint b )
 	{
-		ArgumentNullException.ThrowIfNull( a.Body, nameof( a ) );
-		ArgumentNullException.ThrowIfNull( b.Body, nameof( b ) );
-
-		Assert.AreEqual( a.Body.World, b.Body.World );
-		Assert.AreNotEqual( a.Body, b.Body );
-
-		var joint = a.Body.World.world.AddMotorJoint( a.Body, b.Body, a.LocalTransform, b.LocalTransform ) as ControlJoint;
-		if ( !joint.IsValid() )
-			throw new Exception( $"Unable to create joint" );
-
-		return joint;
+		ValidateCreate( a.Body, b.Body );
+		return a.Body.World.CreateMotorJoint( a.Body, b.Body, a.LocalTransform, b.LocalTransform );
 	}
 
 	internal static WheelJoint CreateWheel( PhysicsPoint a, PhysicsPoint b )
 	{
-		ArgumentNullException.ThrowIfNull( a.Body, nameof( a ) );
-		ArgumentNullException.ThrowIfNull( b.Body, nameof( b ) );
-
-		Assert.AreEqual( a.Body.World, b.Body.World );
-		Assert.AreNotEqual( a.Body, b.Body );
-
-		var joint = a.Body.World.world.AddWheelJoint( a.Body, b.Body, a.LocalTransform, b.LocalTransform ) as WheelJoint;
-		return !joint.IsValid() ? throw new Exception( $"Unable to create joint" ) : joint;
+		ValidateCreate( a.Body, b.Body );
+		return a.Body.World.CreateWheelJoint( a.Body, b.Body, a.LocalTransform, b.LocalTransform );
 	}
 
-	internal static PhysicsJoint CreateFilter( PhysicsBody a, PhysicsBody b )
+	public static PhysicsJoint CreateFilter( PhysicsBody a, PhysicsBody b )
 	{
-		ArgumentNullException.ThrowIfNull( a, nameof( a ) );
-		ArgumentNullException.ThrowIfNull( b, nameof( b ) );
-
-		Assert.AreEqual( a.World, b.World );
-		Assert.AreNotEqual( a, b );
-
-		var joint = a.World.world.AddFilterJoint( a, b );
-		return !joint.IsValid() ? throw new Exception( $"Unable to create joint" ) : joint;
+		ValidateCreate( a, b );
+		return a.World.CreateFilterJoint( a, b );
 	}
 
 	public static UprightJoint CreateUpright( PhysicsPoint a, PhysicsPoint b )
 	{
-		ArgumentNullException.ThrowIfNull( a.Body, nameof( a ) );
-		ArgumentNullException.ThrowIfNull( b.Body, nameof( b ) );
-
-		Assert.AreEqual( a.Body.World, b.Body.World );
-		Assert.AreNotEqual( a.Body, b.Body );
-
-		var joint = a.Body.World.world.AddParallelJoint( a.Body, b.Body, a.LocalTransform, b.LocalTransform ) as UprightJoint;
-		return !joint.IsValid() ? throw new Exception( $"Unable to create joint" ) : joint;
+		ValidateCreate( a.Body, b.Body );
+		return a.Body.World.CreateParallelJoint( a.Body, b.Body, a.LocalTransform, b.LocalTransform );
 	}
 
 	[Obsolete]
 	public static HingeJoint CreateHinge( PhysicsBody body1, PhysicsBody body2, Vector3 center, Vector3 axis )
 	{
 		throw new Exception( $"Unable to create joint" );
-
 	}
 
 	[Obsolete]
 	public static SliderJoint CreateSlider( PhysicsBody body1, PhysicsBody body2, Vector3 origin1, Vector3 origin2, Vector3 axis, float minLength, float maxLength )
 	{
 		throw new Exception( $"Unable to create joint" );
-
 	}
 
 	[Obsolete]

@@ -124,6 +124,7 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 				var panel = Game.TypeLibrary.Create<Panel>( "label", false ) ?? new Panel();
 				panel.Parent = parent;
 				panel.SetContent( content );
+				if ( panel is Label label ) label.IsGeneratedText = true;
 
 				return panel;
 			}

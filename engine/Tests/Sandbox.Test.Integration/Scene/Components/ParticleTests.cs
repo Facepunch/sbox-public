@@ -519,6 +519,48 @@ public class ParticleEffectTest
 	}
 
 	/// <summary>
+	/// InitialScale is evaluated once at emit and multiplied with the per-frame Scale, so a
+	/// constant initial scale of 2 with a linear life curve gives a size of twice the LifeDelta.
+	/// InitialPitch is added to the per-frame Pitch.
+	/// </summary>
+	[TestMethod]
+	public void InitialScaleAndRotation_CombinedWithOverLife()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var go = scene.CreateObject();
+		var effect = go.Components.Create<ParticleEffect>();
+		effect.Lifetime = 1.0f;
+		effect.ApplyShape = true;
+		effect.InitialScale = 2.0f;
+		effect.Scale = new ParticleFloat
+		{
+			Type = ParticleFloat.ValueType.Curve,
+			CurveA = Curve.Linear,
+			Evaluation = ParticleFloat.EvaluationType.Life
+		};
+		effect.ApplyRotation = true;
+		effect.InitialPitch = 90.0f;
+		effect.Pitch = new ParticleFloat
+		{
+			Type = ParticleFloat.ValueType.Curve,
+			CurveA = Curve.Linear,
+			Evaluation = ParticleFloat.EvaluationType.Life
+		};
+
+		effect.Emit( Vector3.Zero, 0.0f );
+
+		for ( int i = 0; i < 10; i++ ) scene.GameTick();
+
+		var p = effect.Particles.Single();
+		Assert.IsTrue( p.LifeDelta > 0.0f && p.LifeDelta < 1.0f, $"Particle should be mid-life, got {p.LifeDelta}" );
+
+		Assert.AreEqual( p.LifeDelta * 2.0f, p.Size.x, 0.04f, "Size should be the life curve times the initial scale" );
+		Assert.AreEqual( 90.0f + p.LifeDelta, p.Angles.pitch, 0.02f, "Pitch should be the life curve plus the initial pitch" );
+	}
+
+	/// <summary>
 	/// Pins the pure-managed ParticleFloat evaluation modes: constants ignore the inputs,
 	/// Life ranges lerp by the delta, Seed ranges lerp by the fixed random, curves sample
 	/// the keyframes, and IsNearlyZero only reports true for zero constants.

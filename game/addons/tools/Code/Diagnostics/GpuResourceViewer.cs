@@ -761,7 +761,8 @@ public partial class GpuResourceViewer : Widget
 				if ( _mode == PreviewMode.Depth && _previewTex is { IsValid: true } )
 				{
 					var size = _render.Size * _render.DpiScale;
-					_cam.Hud.DrawTexture( _previewTex, new Rect( 0, 0, size.x, size.y ) );
+					using var painter = _cam.BeginHud();
+					painter.Texture( _previewTex, new Rect( 0, 0, size.x, size.y ) );
 				}
 			}
 		}

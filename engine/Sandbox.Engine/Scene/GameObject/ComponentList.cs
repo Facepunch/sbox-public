@@ -166,7 +166,9 @@ public class ComponentList
 			return null;
 
 		using var batch = CallbackBatch.Batch();
-		var t = (Component)Activator.CreateInstance( type );
+
+		// TypeLibrary caches a compiled parameterless factory, much cheaper than Activator.CreateInstance
+		var t = Game.TypeLibrary?.GetType( type )?.Create<Component>() ?? (Component)Activator.CreateInstance( type );
 
 		t.GameObject = go;
 		_list.Add( t );

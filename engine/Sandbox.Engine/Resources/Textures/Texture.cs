@@ -21,9 +21,11 @@ public partial class Texture : Resource, IDisposable
 	internal object ParentObject;
 
 	/// <summary>
-	/// Has the native handle changed?
+	/// Bumped when the native handle is swapped, so the size may have changed. A version, not
+	/// a flag - one texture can be shared by many panels, and a flag is consumed by whichever
+	/// one happens to rebuild first, leaving the rest stale.
 	/// </summary>
-	internal bool IsDirty;
+	internal int DirtyVersion;
 
 	/// <summary>
 	/// Whether this texture is an error or invalid or not.
@@ -93,7 +95,7 @@ public partial class Texture : Resource, IDisposable
 		gotdesc = false;
 		_desc = default;
 
-		IsDirty = true;
+		DirtyVersion++;
 	}
 
 	internal CTextureDesc Desc

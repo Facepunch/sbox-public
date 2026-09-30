@@ -1,19 +1,46 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
 Spinner
 {
-    width: 48px;
-    aspect-ratio: 1;
-    border: 5px solid #FFF;
-    border-bottom-color: transparent;
-    border-radius: 100%;
-    animation: rotation 1s linear infinite;
+	position: relative;
+	flex-shrink: 0;
+	flex-grow: 0;
+	align-self: center;
+	width: 48px;
+	height: 48px;
+	pointer-events: none;
+
+	.ring
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		border-radius: 50%;
+		border: 3px solid rgba( 255, 255, 255, 0.08 );
+		border-top-color: $front-primary;
+		animation-name: spinner-turn;
+		animation-duration: 0.9s;
+		animation-timing-function: linear;
+		animation-iteration-count: infinite;
+	}
+
+	&.large
+	{
+		width: 96px;
+		height: 96px;
+
+		.ring
+		{
+			border-width: 4px;
+		}
+	}
 }
 
-@keyframes rotation {
-    0% {
-        transform: rotate(0deg);
-    }
-
-    100% {
-        transform: rotate(360deg);
-    }
-} 
+@keyframes spinner-turn
+{
+	0% { transform: rotate( 0deg ); }
+	100% { transform: rotate( 360deg ); }
+}

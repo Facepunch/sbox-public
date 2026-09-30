@@ -28,6 +28,7 @@ native accessor g_pRenderDevice
 	void AsyncSetTextureData2( ITexture hTexture, void* pData, int nDataSize, Rect3D rect );
 
 	ITexture GetSwapChainTexture( SwapChainHandle_t swapChain, SwapChainBuffer bufferType );
+	ITexture GetSheetMetaDataTexture();
 	bool GetGPUFrameTimeMS( SwapChainHandle_t swapChain, out float pGPUFrameTimeMSOut, out uint pFrameNumberOut );
 	
 	asref cast CTextureDesc GetTextureDesc( ITexture hTexture );
@@ -43,9 +44,15 @@ native accessor g_pRenderDevice
 
 	IRenderContext CreateRenderContext( uint flags );
 	void ReleaseRenderContext( IRenderContext context );
+	void BeginSubmittingDisplayLists();
+
+	// Starts a swap chain's frame for GPU timing (GetGPUFrameTimeMS) - call before the frame's first submit
+	void BeginSubmittingDisplayLists( SwapChainHandle_t hSwapChain );
 
 	bool ReadTexturePixels( ITexture hTexture, ref Rect_t pSrcRect, int nSrcSlice, int nSrcMip, ref Rect_t pDstRect, void* pData, ImageFormat dstFormat, int nDstStride );
 
+	SwapChainHandle_t CreateSwapChain( CastTo[PlatWindow_t] IntPtr window, RenderDeviceInfo_t mode, string debugName );
+	bool UpdateSwapChain( SwapChainHandle_t swapChain, RenderDeviceInfo_t mode );
 	void DestroySwapChain( SwapChainHandle_t hSwapChain );
 
 	inline string GetGpuStatsSummary()
@@ -95,6 +102,8 @@ native accessor g_pRenderDevice
 	bool IsTextureRenderTarget( ITexture texture );
 
 	bool IsRayTracingSupported();
+
+	bool AreDebugMarkersEnabled();
 
 	inline RenderBufferHandle_t CreateGPUBuffer( RenderBufferType_t nType, BufferDesc_t desc, RenderBufferFlags_t usage, string pDebugName )
 	{
