@@ -95,6 +95,9 @@ public partial class Asset
 
 		suppressTagSaving = true;
 
+		// Tags are refreshed when the asset changes, so read the publish settings again for @published
+		_publishSettingsAbsent = false;
+
 		foreach ( var tag in AssetTagSystem.All.Where( x => x.AutoTag ) )
 		{
 			if ( tag.Filter( this ) )
