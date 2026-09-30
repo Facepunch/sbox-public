@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 
 namespace FilesystemTests;
@@ -164,6 +165,50 @@ public class FileSystemTest
 
 		fs.WriteAllText( "crc.txt", "version two" );
 		Assert.AreNotEqual( first, fs.GetCrc( "crc.txt" ) );
+	}
+
+	/// <summary>
+	/// FindFileWithFullPath lists the same files as FindFile and gives each the path GetFullPath
+	/// resolves it to - including which mount wins for a file that several have, and files that
+	/// only a nested aggregate has.
+	/// </summary>
+	[TestMethod]
+	public void FindFileWithFullPathMatchesGetFullPath()
+	{
+		var root = Path.Combine( Path.GetTempPath(), $"fs-fullpath-{Guid.NewGuid()}" );
+		var low = Path.Combine( root, "low" );
+		var high = Path.Combine( root, "high" );
+		var nested = Path.Combine( root, "nested" );
+		foreach ( var dir in new[] { low, high, nested } )
+			Directory.CreateDirectory( Path.Combine( dir, "sub" ) );
+
+		File.WriteAllText( Path.Combine( low, "shared.txt" ), "" );
+		File.WriteAllText( Path.Combine( high, "shared.txt" ), "" );
+		File.WriteAllText( Path.Combine( low, "sub", "low.txt" ), "" );
+		File.WriteAllText( Path.Combine( nested, "sub", "nested.json" ), "" );
+
+		try
+		{
+			var inner = new AggregateFileSystem();
+			inner.Mount( new LocalFileSystem( nested ) );
+
+			var fs = new AggregateFileSystem();
+			fs.Mount( new LocalFileSystem( low ) );
+			fs.Mount( inner );
+			fs.Mount( new LocalFileSystem( high ) );
+
+			var expected = fs.FindFile( "/", "*", true ).Select( x => (x, fs.GetFullPath( x )) ).ToList();
+			Assert.AreEqual( 3, expected.Count );
+			CollectionAssert.AreEqual( expected, fs.FindFileWithFullPath( "/" ) );
+
+			var json = fs.FindFileWithFullPath( "/", x => x.EndsWith( ".json" ) );
+			Assert.AreEqual( 1, json.Count );
+			Assert.AreEqual( ("sub/nested.json", fs.GetFullPath( "sub/nested.json" )), json[0] );
+		}
+		finally
+		{
+			Directory.Delete( root, true );
+		}
 	}
 
 	class TestPayload
