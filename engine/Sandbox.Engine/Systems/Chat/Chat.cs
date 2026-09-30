@@ -1,3 +1,5 @@
+using Sandbox.Engine;
+
 namespace Sandbox.Platform;
 
 /// <summary>
@@ -50,7 +52,14 @@ public static class Chat
 
 		if ( Networking.IsHost )
 		{
-			OnHostReceive( new ChatMsg { Message = message }, Connection.Host, Connection.Host.Id );
+			// The chat overlay calls Say from menu scope. Clients' messages reach OnHostReceive via the
+			// network handler in game scope, but the host's own is handled right here - so without this
+			// IChatEvent would dispatch to the menu's scene and the game would never see (or suppress) it.
+			using ( GlobalContext.GameScope() )
+			{
+				OnHostReceive( new ChatMsg { Message = message }, Connection.Host, Connection.Host.Id );
+			}
+
 			return;
 		}
 
