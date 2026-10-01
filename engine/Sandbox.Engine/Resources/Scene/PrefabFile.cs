@@ -31,9 +31,87 @@ public partial class PrefabFile : GameResource
 	}
 
 	/// <summary>
-	/// Contains the original JSON read from File.
+	/// Contains the original JSON read from File. JSON that matches the compiled file on disk is released
+	/// once the prefab's cache scene has been built from it - a big prefab's JSON is tens of megabytes and
+	/// nothing reads it after that in normal use - and read back from disk (and kept) the next time it's read.
 	/// </summary>
-	public JsonObject RootObject { get; set; }
+	public JsonObject RootObject
+	{
+		get
+		{
+			// Kept once read back - it's released again the next time the cache scene is rebuilt
+			if ( _rootObjectReleased && ReadRootObjectFromDisk() is { } root )
+			{
+				_rootObject = root;
+				_rootObjectReleased = false;
+			}
+
+			return _rootObject;
+		}
+		set
+		{
+			_rootObject = value;
+			_rootObjectReleased = false;
+			_rootObjectMatchesDisk = false;
+		}
+	}
+
+	JsonObject _rootObject;
+	bool _rootObjectMatchesDisk;
+	bool _rootObjectReleased;
+
+	/// <summary>
+	/// Whether this prefab has data, without reading a released <see cref="RootObject"/> back from disk.
+	/// </summary>
+	internal bool HasRootObject => _rootObjectReleased || _rootObject is not null;
+
+	internal override bool LoadFromResource( Span<byte> data )
+	{
+		// RootObject was just deserialized from this compiled file, so it can be read back from it
+		_rootObjectMatchesDisk = true;
+		return base.LoadFromResource( data );
+	}
+
+	/// <summary>
+	/// Release the JSON once the cache scene has been built from it, if it can be read back from disk.
+	/// JSON set in memory (an applied but unsaved prefab edit, a mounted prefab) is always kept.
+	/// </summary>
+	void ReleaseRootObject()
+	{
+		if ( !_rootObjectMatchesDisk || _rootObject is null || string.IsNullOrEmpty( ResourcePath ) )
+			return;
+
+		_rootObject = null;
+		_rootObjectReleased = true;
+	}
+
+	JsonObject ReadRootObjectFromDisk()
+	{
+		try
+		{
+			// Deserialize into a throwaway resource so the json gets the same upgrades as a normal load
+			var json = Game.Resources.ReadCompiledResourceJson( FileSystem.Mounted, ResourcePath + "_c" );
+			if ( string.IsNullOrEmpty( json ) )
+			{
+				Log.Warning( $"Prefab '{ResourcePath}' is no longer on disk" );
+				return null;
+			}
+
+			var copy = new PrefabFile();
+			copy.LoadFromJson( json );
+
+			var root = copy._rootObject;
+			if ( root is not null && root[GameObject.JsonKeys.Name]?.GetValue<string>() != ResourceName )
+				root[GameObject.JsonKeys.Name] = ResourceName;
+
+			return root;
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( e, $"Couldn't read prefab '{ResourcePath}' back from disk: {e.Message}" );
+			return null;
+		}
+	}
 
 	public override int ResourceVersion => 2;
 
@@ -62,6 +140,7 @@ public partial class PrefabFile : GameResource
 		};
 
 		CachedScene.Load( this );
+		ReleaseRootObject();
 		return CachedScene;
 	}
 
@@ -83,6 +162,9 @@ public partial class PrefabFile : GameResource
 		}
 
 		Register();
+
+		if ( CachedScene is not null )
+			ReleaseRootObject();
 	}
 
 	protected override void PostReload()
@@ -101,6 +183,9 @@ public partial class PrefabFile : GameResource
 		}
 
 		Register();
+
+		if ( CachedScene is not null )
+			ReleaseRootObject();
 	}
 
 	protected override void OnDestroy()

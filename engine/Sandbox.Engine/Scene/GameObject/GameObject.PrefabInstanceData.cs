@@ -206,7 +206,7 @@ internal class PrefabInstanceData
 
 		// Prefab file is missing or not yet loaded — preserve the last known patch so the scene
 		// can still be saved and round-tripped. The data will be fully restored when the file returns.
-		if ( prefabFile is null || prefabFile.IsPromise || prefabFile.RootObject is null )
+		if ( prefabFile is null || prefabFile.IsPromise || !prefabFile.HasRootObject )
 		{
 			Log.Warning( $"Prefab '{PrefabSource}' is missing. Preserving last known patch for serialization." );
 			return;
