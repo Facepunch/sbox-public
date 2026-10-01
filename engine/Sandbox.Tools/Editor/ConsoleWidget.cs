@@ -321,6 +321,7 @@ internal class ConsoleWidget : Widget
 
 	void AddConsoleMessage( LogEvent e )
 	{
+		e.Arguments = WeakArguments( e.Arguments );
 		Events.Add( e );
 
 		if ( e.Level == LogLevel.Trace && Message.Button.IsValid() ) Message.Button.Text = GetCount( ++Message.Count );
@@ -340,6 +341,25 @@ internal class ConsoleWidget : Widget
 		{
 			Events.RemoveAt( 0 );
 		}
+	}
+
+	/// <summary>
+	/// Logged objects stay inspectable from their console link, but only weakly - the history keeps
+	/// 10,000 events, and a strong reference to e.g. a component keeps its closed scene alive with it.
+	/// </summary>
+	static object[] WeakArguments( object[] arguments )
+	{
+		if ( arguments is null || arguments.Length == 0 )
+			return arguments;
+
+		var result = new object[arguments.Length];
+		for ( int i = 0; i < arguments.Length; i++ )
+		{
+			var argument = arguments[i];
+			result[i] = argument is null || argument is string || argument.GetType().IsValueType ? argument : new WeakReference( argument );
+		}
+
+		return result;
 	}
 
 	void OnConsoleMessage( LogEvent e )
@@ -705,7 +725,10 @@ internal class ConsoleWidget : Widget
 				var i = anchor[4..].ToInt();
 				if ( i >= ev.Arguments.Length ) return false;
 
-				EditorUtility.InspectorObject = ev.Arguments[i];
+				var argument = ev.Arguments[i] is WeakReference weak ? weak.Target : ev.Arguments[i];
+				if ( argument is null ) return false;
+
+				EditorUtility.InspectorObject = argument;
 			}
 			else if ( Uri.TryCreate( anchor, UriKind.RelativeOrAbsolute, out var uri ) )
 			{
