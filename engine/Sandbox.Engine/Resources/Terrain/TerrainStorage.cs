@@ -207,7 +207,7 @@ public partial class TerrainStorage : GameResource
 
 	protected override void PostLoad()
 	{
-		if ( Maps.HeightMap.Length == 0 || Maps.SplatMap.Length == 0 )
+		if ( Maps.HeightMapLength == 0 || Maps.SplatMapLength == 0 )
 		{
 			SetResolution( Resolution > 0 ? Resolution : 512 );
 		}
@@ -233,29 +233,89 @@ public partial class TerrainStorage : GameResource
 	{
 		public override int Version => 1;
 
-		public ushort[] HeightMap { get; set; } = Array.Empty<ushort>();
-		public uint[] SplatMap { get; set; } = Array.Empty<uint>();
+		// Every terrain asset loads at startup, but only the ones a scene uses need their maps:
+		// inflated, each costs Resolution² elements. Keep the stored data until first access.
+		protected override bool LoadOnDemand => true;
+
+		ushort[] _heightMap = Array.Empty<ushort>();
+		uint[] _splatMap = Array.Empty<uint>();
+		int _storedHeightMapLength, _storedSplatMapLength;
+
+		// Deserialize assigns the fields directly - it runs inside EnsureLoaded
+		public ushort[] HeightMap
+		{
+			get { EnsureLoaded(); return _heightMap; }
+			set { EnsureLoaded(); _heightMap = value; }
+		}
+
+		public uint[] SplatMap
+		{
+			get { EnsureLoaded(); return _splatMap; }
+			set { EnsureLoaded(); _splatMap = value; }
+		}
+
+		/// <summary>Element counts, without loading the maps.</summary>
+		public int HeightMapLength => IsLoaded ? _heightMap?.Length ?? 0 : _storedHeightMapLength;
+		public int SplatMapLength => IsLoaded ? _splatMap?.Length ?? 0 : _storedSplatMapLength;
+
+		/// <summary>
+		/// A blob holding already deflate-compressed maps, each <paramref name="length"/> elements once
+		/// inflated - stored as is and only inflated when first used.
+		/// </summary>
+		public static TerrainMapBlob FromCompressed( byte[] heightMap, byte[] splatMap, int length )
+		{
+			var stream = ByteStream.Create( heightMap.Length + splatMap.Length + 64 );
+			try
+			{
+				var blob = new TerrainMapBlob();
+				stream.Write( blob.Version );
+				stream.Write( 2 ); // map_count
+				WriteMap( ref stream, "heightmap", sizeof( ushort ), length, heightMap );
+				WriteMap( ref stream, "splatmap", sizeof( uint ), length, splatMap );
+
+				if ( !blob.TryDeferLoad( stream.ToArray() ) )
+					throw new InvalidOperationException( "TerrainMapBlob always loads on demand" );
+
+				return blob;
+			}
+			finally
+			{
+				stream.Dispose();
+			}
+		}
 
 		// BlobData — binary serialization into the _d sidecar / scene_d file
 		public override void Serialize( ref Writer writer )
 		{
 			writer.Stream.Write( 2 ); // map_count
+			WriteMap( ref writer.Stream, "heightmap", sizeof( ushort ), _heightMap.Length, Compress<ushort>( _heightMap ) );
+			WriteMap( ref writer.Stream, "splatmap", sizeof( uint ), _splatMap.Length, Compress<uint>( _splatMap ) );
+		}
 
-			// heightmap
-			var heightmapBytes = Compress<ushort>( HeightMap );
-			writer.Stream.Write( "heightmap" );
-			writer.Stream.Write( (byte)sizeof( ushort ) );
-			writer.Stream.Write( HeightMap.Length );
-			writer.Stream.Write( heightmapBytes.Length );
-			writer.Stream.Write( heightmapBytes );
+		static void WriteMap( ref ByteStream stream, string name, byte elementSize, int length, byte[] compressed )
+		{
+			stream.Write( name );
+			stream.Write( elementSize );
+			stream.Write( length );
+			stream.Write( compressed.Length );
+			stream.Write( compressed );
+		}
 
-			// splatmap
-			var splatmapBytes = Compress<uint>( SplatMap );
-			writer.Stream.Write( "splatmap" );
-			writer.Stream.Write( (byte)sizeof( uint ) );
-			writer.Stream.Write( SplatMap.Length );
-			writer.Stream.Write( splatmapBytes.Length );
-			writer.Stream.Write( splatmapBytes );
+		protected override void ReadSummary( ref Reader reader )
+		{
+			int mapCount = reader.Stream.Read<int>();
+
+			for ( int i = 0; i < mapCount; i++ )
+			{
+				var name = reader.Stream.Read<string>();
+				reader.Stream.Read<byte>(); // elementSize
+				int length = reader.Stream.Read<int>();
+				int compressedLength = reader.Stream.Read<int>();
+				reader.Stream.Position += compressedLength;
+
+				if ( name == "heightmap" ) _storedHeightMapLength = length;
+				else if ( name == "splatmap" ) _storedSplatMapLength = length;
+			}
 		}
 
 		public override void Deserialize( ref Reader reader )
@@ -274,10 +334,10 @@ public partial class TerrainStorage : GameResource
 				switch ( name )
 				{
 					case "heightmap":
-						HeightMap = Decompress<ushort>( compressed ).ToArray();
+						_heightMap = Decompress<ushort>( compressed ).ToArray();
 						break;
 					case "splatmap":
-						SplatMap = Decompress<uint>( compressed ).ToArray();
+						_splatMap = Decompress<uint>( compressed ).ToArray();
 						break;
 						// Unknown map type: skip (forward compatibility)
 				}
