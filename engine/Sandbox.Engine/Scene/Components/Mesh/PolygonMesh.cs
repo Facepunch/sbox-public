@@ -4450,9 +4450,10 @@ public sealed partial class PolygonMesh : IJsonConvert
 	}
 
 	/// <summary>
-	/// Triangulate the polygons into a model
+	/// Triangulate the polygons into a model. Only the physics representation for
+	/// <paramref name="collision"/> is built - a hull nobody uses still costs native memory per mesh.
 	/// </summary>
-	public Model Rebuild()
+	public Model Rebuild( MeshComponent.CollisionType collision = MeshComponent.CollisionType.Mesh )
 	{
 		var faceCount = Topology.FaceCount;
 		var halfEdgeCount = Topology.HalfEdgeCount;
@@ -4516,8 +4517,11 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 		if ( _meshVertices.Count >= 3 && _meshIndices.Count >= 3 )
 		{
-			builder.AddCollisionHull( _meshVertices );
-			builder.AddCollisionMesh( _meshVertices, _meshIndices, _meshTriangleMaterials );
+			if ( collision == MeshComponent.CollisionType.Hull )
+				builder.AddCollisionHull( _meshVertices );
+			else if ( collision == MeshComponent.CollisionType.Mesh )
+				builder.AddCollisionMesh( _meshVertices, _meshIndices, _meshTriangleMaterials );
+
 			builder.AddTraceMesh( _meshVertices, _meshIndices );
 		}
 

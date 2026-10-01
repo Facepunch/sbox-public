@@ -42,6 +42,11 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 
 			field = value;
 
+			// The model only carries the physics representation for the current type, so it has to
+			// be rebuilt before the collider. Before the first enable, OnEnabledInternal builds both.
+			if ( !HasRunOnEnabled ) return;
+
+			RebuildRenderMesh();
 			RebuildImmediately();
 		}
 	} = CollisionType.Mesh;
@@ -279,7 +284,7 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 
 		Mesh.Transform = WorldTransform;
 		Mesh.SetSmoothingAngle( SmoothingAngle );
-		Model = Mesh.Rebuild();
+		Model = Mesh.Rebuild( Collision );
 
 		if ( Model is null || Model.MeshCount == 0 )
 		{
