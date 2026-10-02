@@ -31,7 +31,7 @@ internal static class PlayWidgetCursor
 		// so that centre lands on the game's hotspot without moving the visible image.
 		var paddedWidth = 2 * Math.Max( hotX, width - 1 - hotX ) + 1;
 		var paddedHeight = 2 * Math.Max( hotY, height - 1 - hotY ) + 1;
-		var padded = new byte[checked( paddedWidth * paddedHeight * 4 )];
+		var padded = new byte[checked(paddedWidth * paddedHeight * 4)];
 		var offsetX = paddedWidth / 2 - hotX;
 		var offsetY = paddedHeight / 2 - hotY;
 		for ( var y = 0; y < height; y++ )
