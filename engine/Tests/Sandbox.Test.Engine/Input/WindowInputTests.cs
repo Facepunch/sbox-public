@@ -14,7 +14,7 @@ public unsafe class WindowInputTests
 	static bool relative, failCapture;
 	static int screensaverDisables, screensaverEnables;
 	static int creates, destroys, shows, hides, overrideCalls, stops, starts;
-	static IntPtr relativeWindow, textWindow, selected;
+	static IntPtr relativeWindow, textWindow, selected, sdlSelected;
 	static int nativeFocus;
 	static bool appActive;
 	static IntPtr keyboardFocus;
@@ -153,6 +153,9 @@ public unsafe class WindowInputTests
 		Assert.IsTrue( SdlCursors.CreateCursor( "ibeam", new byte[16], 2, 2, 0, 0 ) );
 		SdlCursors.SetCursor( "text" );
 		Assert.AreEqual( (IntPtr)600, selected, "Custom cursors take precedence after alias resolution." );
+		selected = (IntPtr)100; // Simulate Qt replacing the native cursor without mouse movement.
+		SdlCursors.Restore();
+		Assert.AreEqual( (IntPtr)600, selected, "Restoring must redraw even when SDL has cached the same cursor." );
 		SdlCursors.SetCursor( "text", allowCustom: false );
 		Assert.AreEqual( (IntPtr)101, selected );
 		SdlCursors.SetCursor( "unknown" );
@@ -309,6 +312,7 @@ public unsafe class WindowInputTests
 			failColor = false;
 			relative = failCapture = false;
 			creates = destroys = shows = hides = overrideCalls = stops = starts = 0;
+			sdlSelected = IntPtr.Zero;
 			WindowInput.Initialize();
 			WindowInput.SetEditorMainWindow( 10 );
 			WindowInput.UpdateApplicationState();
@@ -374,7 +378,14 @@ public unsafe class WindowInputTests
 	[UnmanagedCallersOnly] static IntPtr Identity( IntPtr hwnd ) => hwnd;
 	[UnmanagedCallersOnly] static IntPtr CreateCursor( long type ) { creates++; return (IntPtr)(100 + type); }
 	[UnmanagedCallersOnly] static void DestroyCursor( IntPtr cursor ) => destroys++;
-	[UnmanagedCallersOnly] static int SetCursor( IntPtr cursor ) { selected = cursor; return 1; }
+	[UnmanagedCallersOnly]
+	static int SetCursor( IntPtr cursor )
+	{
+		if ( cursor != IntPtr.Zero && cursor == sdlSelected ) return 1;
+		if ( cursor != IntPtr.Zero ) sdlSelected = cursor;
+		selected = sdlSelected;
+		return 1;
+	}
 	[UnmanagedCallersOnly] static int Show() { shows++; return 1; }
 	[UnmanagedCallersOnly] static int Hide() { hides++; return 1; }
 	[UnmanagedCallersOnly] static int GetRelative( IntPtr window ) => relative && relativeWindow == window ? 1 : 0;

@@ -40,6 +40,7 @@ public static class GameMode
 
 		_playWindow = widget._widget.winId();
 		NativeEngine.InputSystem.RegisterWindowWithSDL( _playWindow );
+		PlayWidgetCursorHook.Install( _playWindow );
 		PlayWindow = NativeEngine.GameWindowNative.FromNativeHandle( _playWindow );
 		NativeEngine.GameWindowNative.SetRenderTarget( PlayWindow, widget.SwapChain );
 
@@ -59,6 +60,8 @@ public static class GameMode
 
 		var widget = _inPlay;
 		_inPlay = null;
+		PlayWidgetCursorHook.Remove();
+		PlayWidgetCursor.Clear();
 
 		widget.Focused -= WidgetFocused;
 		widget.Blurred -= WidgetBlurred;
