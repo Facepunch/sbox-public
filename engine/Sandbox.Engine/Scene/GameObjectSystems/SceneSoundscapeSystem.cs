@@ -26,7 +26,7 @@ sealed class SceneSoundscapeSystem : GameObjectSystem<SceneSoundscapeSystem>
 
 		timeSinceUpdate = 0;
 
-		var head = Sound.Listener;
+		var head = GetListener( Scene );
 
 		// Find the closest soundscape, sphere and box take priority over point.
 		var best = Scene.GetAllComponents<SoundscapeTrigger>()
@@ -48,5 +48,16 @@ sealed class SceneSoundscapeSystem : GameObjectSystem<SceneSoundscapeSystem>
 			active.Playing = true;
 
 
+	}
+
+	/// <summary>
+	/// Where soundscapes are heard from. Like post process volumes, this is the camera's
+	/// <see cref="CameraComponent.PostProcessAnchor"/> when it has one, the sound listener otherwise.
+	/// </summary>
+	internal static Transform GetListener( Scene scene )
+	{
+		var anchor = scene.Camera.IsValid() ? scene.Camera.PostProcessAnchor : null;
+
+		return anchor.IsValid() ? anchor.WorldTransform : Sound.Listener;
 	}
 }
