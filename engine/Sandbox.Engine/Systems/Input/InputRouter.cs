@@ -133,6 +133,9 @@ internal static partial class InputRouter
 		if ( activeMouse is not null && WindowInput.HasMouseFocus() && PanelWindows.Hovering is null && PanelWindows.CaptureWindow is null )
 		{
 			SdlCursors.SetCursor( MouseCursorVisible ? activeMouse.MouseCursor : "none" );
+
+			// Qt can replace the native cursor on click without changing our cached selection.
+			if ( IToolsDll.Current is not null ) SdlCursors.Restore();
 		}
 
 		KeyboardFocusPanel = activeKeyboard?.KeyboardFocusPanel;
