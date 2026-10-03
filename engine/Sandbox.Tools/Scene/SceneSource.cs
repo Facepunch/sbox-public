@@ -36,8 +36,15 @@ internal static class SceneSource
 		}
 	}
 
-	internal static SceneFile LoadForEditing( Asset asset )
+	internal static SceneFile LoadForEditing( Asset asset, SceneEditorSession editor = null )
 	{
+		if ( editor is not null )
+		{
+			var snapshot = editor.Scene.CreateSceneFile();
+			snapshot.InitializeSource( asset.Path, asset.Guid );
+			return snapshot;
+		}
+
 		var path = asset.GetSourceFile( true );
 		var json = ReadJson( path );
 		var blobPath = path + "_d";
@@ -61,11 +68,11 @@ internal static class SceneSource
 				return file;
 
 			Log.Warning( $"Scene compilation data for '{asset.Path}' is missing. Using the editable scene." );
-			return editor is not null ? editor.Scene.CreateSceneFile() : LoadForEditing( asset );
+			return LoadForEditing( asset, editor );
 		}
 
 		if ( editor?.CompilationDirty == true || SceneCompileCache.IsDirty( asset ) )
-			return editor is not null ? editor.Scene.CreateSceneFile() : LoadForEditing( asset );
+			return LoadForEditing( asset, editor );
 
 		if ( !SceneCompileCache.ValidateOutput( asset, out var error ) )
 		{
