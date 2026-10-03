@@ -51,14 +51,6 @@ public partial class AccessControl
 		}
 
 		//
-		// We only resolve certain named dlls from disk - and certainly not package.
-		//
-		if ( !name.Name.StartsWith( "Sandbox.", StringComparison.OrdinalIgnoreCase ) &&
-			 !name.Name.StartsWith( "System.", StringComparison.OrdinalIgnoreCase ) &&
-			 name.Name != "Microsoft.AspNetCore.Components" )
-			throw NotResolved( name );
-
-		//
 		// Now look at our System. and Sandbox. assemblies
 		//
 		if ( GlobalAssemblyCache.TryGetValue( name, out var systemAssembly ) )
