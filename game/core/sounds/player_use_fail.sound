@@ -2,7 +2,7 @@
 	"volume": 0.500000,
 	"sounds":
 	[
-		"sounds/tools/sfm/denyundo.vsnd"
+		"sounds/kenney/ui/error_005.vsnd"
 	],
 	"VolumeRandom": 0.000000,
 	"Pitch": 1.000000,
