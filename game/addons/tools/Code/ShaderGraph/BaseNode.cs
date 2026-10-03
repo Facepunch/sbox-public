@@ -371,6 +371,11 @@ public class PlugInfo
 		{
 			info.Name = titleAttr.Value;
 		}
+		var descriptionAttr = property.GetCustomAttribute<DescriptionAttribute>();
+		if ( descriptionAttr is not null )
+		{
+			info.Description = descriptionAttr.Value;
+		}
 		DisplayInfo = info;
 		Property = property;
 	}
