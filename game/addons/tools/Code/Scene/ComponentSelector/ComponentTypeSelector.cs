@@ -15,9 +15,12 @@ public class ComponentTypeSelector : PopupWidget
 
 	ComponentTypeSelectorWidget Widget { get; set; }
 
-	public ComponentTypeSelector( Widget parent ) : base( parent )
+	/// <param name="parent">The widget that owns the popup.</param>
+	/// <param name="findExisting">Pick a type to look for rather than one to add: also lists hidden
+	/// and abstract types (which match their subclasses), and offers no "New Component".</param>
+	public ComponentTypeSelector( Widget parent, bool findExisting = false ) : base( parent )
 	{
-		Widget = new ComponentTypeSelectorWidget( this );
+		Widget = new ComponentTypeSelectorWidget( this, findExisting );
 		Widget.OnFinished = Destroy;
 
 		Layout = Layout.Column();
@@ -61,8 +64,14 @@ internal partial class ComponentTypeSelectorWidget : AdvancedDropdownWidget
 	}
 	bool _flatView = EditorCookie.Get<bool>( "ComponentSelector.FlatView", false );
 
-	public ComponentTypeSelectorWidget( Widget parent ) : base( parent )
+	/// <summary>
+	/// Picking a type to find, not to add. See <see cref="ComponentTypeSelector(Widget, bool)"/>.
+	/// </summary>
+	readonly bool _findExisting;
+
+	public ComponentTypeSelectorWidget( Widget parent, bool findExisting = false ) : base( parent )
 	{
+		_findExisting = findExisting;
 		SearchPlaceholderText = "Search Components";
 		RootTitle = "Component";
 
@@ -85,17 +94,23 @@ internal partial class ComponentTypeSelectorWidget : AdvancedDropdownWidget
 
 	void BuildComponentTree( AdvancedDropdownItem root )
 	{
+		// Adding lists only what can be added by hand. Finding also needs components the tools
+		// create themselves ([Hide], e.g. MeshComponent) and base types like Collider.
 		var types = EditorTypeLibrary.GetTypes<Component>()
-			.Where( x => !x.IsAbstract && !x.HasAttribute<HideAttribute>() && !x.HasAttribute<ObsoleteAttribute>() );
+			.Where( x => !x.HasAttribute<ObsoleteAttribute>() )
+			.Where( x => _findExisting || (!x.IsAbstract && !x.HasAttribute<HideAttribute>()) );
 
 		if ( HideBaseComponents )
 		{
 			types = types.Where( x => !x.FullName.StartsWith( "Sandbox." ) );
 		}
 
-		// "New Component" entry at the top
-		var newComponentItem = new AdvancedDropdownItem( "New Component", "note_add" );
-		root.Add( newComponentItem );
+		if ( !_findExisting )
+		{
+			// "New Component" entry at the top
+			var newComponentItem = new AdvancedDropdownItem( "New Component", "note_add" );
+			root.Add( newComponentItem );
+		}
 
 		if ( FlatView )
 		{
@@ -210,6 +225,9 @@ internal partial class ComponentTypeSelectorWidget : AdvancedDropdownWidget
 
 	protected override void OnBuildSearchResults( AdvancedDropdownPanel panel, string searchText )
 	{
+		if ( _findExisting )
+			return;
+
 		panel.AddEntry( new ItemEntry( panel )
 		{
 			Text = $"New Component '{searchText}'",

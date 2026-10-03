@@ -14,6 +14,16 @@ public partial class SceneTreeWidget : Widget
 
 	IDisposable _selectionUndoScope = null;
 
+	/// <summary>
+	/// Which items were open before the current search, restored when it's cleared.
+	/// </summary>
+	HashSet<object> _openBeforeSearch;
+
+	/// <summary>
+	/// What the current search lists, or null when the whole hierarchy is shown.
+	/// </summary>
+	GameObjectSearchNode.Results _searchResults;
+
 	public static SceneTreeWidget Current { get; private set; }
 
 	public SceneTreeWidget( Widget parent ) : base( parent )
@@ -35,20 +45,32 @@ public partial class SceneTreeWidget : Widget
 		SubHeader.Margin = new Sandbox.UI.Margin( 0, 2 );
 		SubHeader.Alignment = TextFlag.LeftCenter;
 
-		var add = SubHeader.Add( new AddButton( "add" ) );
+		var add = SubHeader.Add( new HeaderButton( "add" ) );
 		add.MouseLeftPress = CreateGameObjectMenu;
 
-		Search = SubHeader.Add( new LineEdit(), 1 );
+		// The box holds the advanced filter's chips ahead of the text, so every active filter shows
+		// where the search is, each with an X to remove it.
+		var searchBox = SubHeader.Add( new SearchBox(), 1 );
+		searchBox.Layout = Layout.Row();
+		searchBox.Layout.Margin = new Sandbox.UI.Margin( 3, 0, 0, 0 );
+		searchBox.Layout.Spacing = 3;
+
+		_chips = searchBox.Layout.AddRow();
+		_chips.Spacing = 3;
+		RebuildChips();
+
+		Search = searchBox.Layout.Add( new LineEdit(), 1 );
 		Search.PlaceholderText = "⌕  Search";
-		Search.Layout = Layout.Row();
-		Search.Layout.AddStretchCell( 1 );
+		Search.SetStyles( "background-color: transparent; border: 0px;" );
 		Search.TextChanged += x => queryDirty = true;
 		Search.FixedHeight = Theme.RowHeight;
 
-		SearchClear = Search.Layout.Add( new ToolButton( string.Empty, "clear", this ) );
+		SearchClear = searchBox.Layout.Add( new ToolButton( string.Empty, "clear", this ) );
+		SearchClear.ToolTip = "Clear the search and filters";
 		SearchClear.MouseLeftPress = () =>
 		{
 			Search.Text = string.Empty;
+			ClearFilters();
 			Rebuild();
 
 			// make sure we're open to the stuff we picked from search
@@ -65,6 +87,9 @@ public partial class SceneTreeWidget : Widget
 			}
 		};
 		SearchClear.Visible = false;
+
+		var filter = SubHeader.Add( new HeaderButton( "filter_list" ) { ToolTip = "Advanced filter" } );
+		filter.MouseLeftPress = () => OpenFilterPopup( filter );
 
 		TreeView = new TreeView();
 		TreeView.MultiSelect = true;
@@ -194,13 +219,31 @@ public partial class SceneTreeWidget : Widget
 		if ( session is null )
 			return;
 
-		bool hasSearch = !string.IsNullOrEmpty( Search.Text );
+		bool hasSearch = !string.IsNullOrEmpty( Search.Text ) || Filters.Count > 0;
 		SearchClear.Visible = hasSearch;
+		_searchResults = null;
+
+		// Searching opens every parent of a match. Put the tree back as it was when the search ends.
+		if ( hasSearch )
+		{
+			_openBeforeSearch ??= TreeView.OpenItems.ToHashSet();
+		}
+		else if ( _openBeforeSearch is not null )
+		{
+			foreach ( var item in TreeView.OpenItems.ToArray() )
+				TreeView.Close( item );
+
+			foreach ( var item in _openBeforeSearch.Where( x => x is not GameObject go || go.IsValid() ) )
+				TreeView.Open( item );
+
+			_openBeforeSearch = null;
+		}
 
 		var scene = session.Scene;
 		if ( hasSearch )
 		{
-			// flat search view
+			// search view: the matches, flat or under the parents they sit in
+			var matches = new HashSet<GameObject>();
 
 			var tokens = Regex.Matches( Search.Text, @"(\w+):(\S+)" )
 			  .ToDictionary( m => m.Groups[1].Value, m => m.Groups[2].Value );
@@ -231,6 +274,9 @@ public partial class SceneTreeWidget : Widget
 				if ( !go.Name.Contains( search, StringComparison.OrdinalIgnoreCase ) )
 					continue;
 
+				if ( !PassesFilters( go ) )
+					continue;
+
 				if ( tokens.TryGetValue( "t", out string typeFilter ) )
 				{
 					var types = go.Components.GetAll().Select( x => EditorTypeLibrary.GetType( x.GetType() ) );
@@ -244,7 +290,41 @@ public partial class SceneTreeWidget : Widget
 						continue;
 				}
 
-				TreeView.AddItem( new GameObjectSearchNode( go ) );
+				matches.Add( go );
+			}
+
+			if ( !ShowParents )
+			{
+				// Flat: the matches alone, in hierarchy order, with nothing nested under them.
+				var flat = new GameObjectSearchNode.Results( matches, [] );
+				_searchResults = flat;
+				foreach ( var match in scene.GetAllObjects( false ).Where( matches.Contains ) )
+				{
+					TreeView.AddItem( new GameObjectSearchNode( match, flat ) );
+				}
+			}
+			else
+			{
+				// Everything on the way down to a match, opened so the matches are in view.
+				var shown = new HashSet<GameObject>( matches );
+				foreach ( var match in matches )
+				{
+					for ( var parent = match.Parent; parent is not null && parent.Parent is not null; parent = parent.Parent )
+					{
+						TreeView.Open( parent );
+
+						// Already walked from here, or will be as a match of its own.
+						if ( !shown.Add( parent ) )
+							break;
+					}
+				}
+
+				var results = new GameObjectSearchNode.Results( matches, shown );
+				_searchResults = results;
+				foreach ( var root in scene.Children.Where( shown.Contains ) )
+				{
+					TreeView.AddItem( new GameObjectSearchNode( root, results ) );
+				}
 			}
 		}
 		else
@@ -278,6 +358,33 @@ public partial class SceneTreeWidget : Widget
 		}
 	}
 
+	/// <summary>
+	/// Ctrl+A with the hierarchy focused. While a search or filter is active, select only what it
+	/// matched (not the dimmed parents shown for context), rather than everything in the scene.
+	/// </summary>
+	[Shortcut( "editor.select-all", "CTRL+A" )]
+	void SelectAllShown()
+	{
+		if ( _searchResults is null )
+		{
+			EditorScene.SelectAll();
+			return;
+		}
+
+		var session = SceneEditorSession.Active;
+		if ( session is null )
+			return;
+
+		using ( session.UndoScope( "Select All" ).Push() )
+		{
+			session.Selection.Clear();
+
+			// Scene order, so the selection reads top to bottom like the tree; skips anything deleted since.
+			foreach ( var go in session.Scene.GetAllObjects( false ).Where( _searchResults.Matches.Contains ) )
+				session.Selection.Add( go );
+		}
+	}
+
 	public void OnInspect( EditorUtility.OnInspectArgs args )
 	{
 		foreach ( var item in TreeView.Selection )
@@ -292,11 +399,11 @@ public partial class SceneTreeWidget : Widget
 	}
 }
 
-file class AddButton : Widget
+file class HeaderButton : Widget
 {
 	public string Icon;
 
-	public AddButton( string icon ) : base( null )
+	public HeaderButton( string icon ) : base( null )
 	{
 		Icon = icon;
 
@@ -330,5 +437,23 @@ file class AddButton : Widget
 		Paint.SetPen( Theme.Primary );
 
 		Paint.DrawIcon( LocalRect, Icon, 14, TextFlag.Center );
+	}
+}
+
+/// <summary>
+/// Draws the search input's background, so the filter chips and the text read as one field.
+/// </summary>
+file class SearchBox : Widget
+{
+	public SearchBox() : base( null )
+	{
+		FixedHeight = Theme.RowHeight;
+	}
+
+	protected override void OnPaint()
+	{
+		Paint.ClearPen();
+		Paint.SetBrush( Theme.ControlBackground );
+		Paint.DrawRect( LocalRect, Theme.ControlRadius );
 	}
 }
