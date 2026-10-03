@@ -200,6 +200,9 @@ public class Viewport : Panel
 	/// </summary>
 	void DrawGizmos( SceneEditorSession session )
 	{
+		// Share the editor's settings, so the toolbar's grid spacing and snapping apply to this view.
+		// Assigned each frame because EditorScene swaps the instance when it loads saved settings.
+		gizmo.Settings = EditorScene.GizmoSettings;
 		gizmo.Input.Camera = scene.Camera;
 		gizmo.Input.IsHovered = false; // we only draw - picking is a plain trace
 		gizmo.Input.CursorPosition = MousePosition;
@@ -211,7 +214,7 @@ public class Viewport : Panel
 			using ( gizmo.Push() )
 			using ( Gizmo.Scope( "grid" ) )
 			{
-				Gizmo.Draw.Grid( Gizmo.GridAxis.XY, 64.0f, 0.3f );
+				Gizmo.Draw.Grid( Gizmo.GridAxis.XY, Gizmo.Settings.GridSpacing, 0.3f );
 			}
 
 			return;
@@ -224,7 +227,7 @@ public class Viewport : Panel
 		{
 			using ( Gizmo.Scope( "grid" ) )
 			{
-				Gizmo.Draw.Grid( Gizmo.GridAxis.XY, Gizmo.Settings?.GridSpacing ?? 64.0f, 0.3f );
+				Gizmo.Draw.Grid( Gizmo.GridAxis.XY, Gizmo.Settings.GridSpacing, 0.3f );
 			}
 
 			// Components draw their own gizmos here - light cones, camera frustums, colliders
