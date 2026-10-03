@@ -182,27 +182,16 @@ public partial class StandaloneExporter
 			// Get all core files - only the ones we absolutely need, because everything else should
 			// already have been copied into the addon itself.
 			// This is mainly stuff like dev textures that are necessary for the engine to run.
-			QueueFrom( GetCoreFiles( engineDir ) );
+			var coreFiles = GetCoreFiles( engineDir );
+			QueueFrom( coreFiles );
+
+			foreach ( var resource in GetSurfaceReferences( coreFiles ) )
+			{
+				QueueCopy( resource.AbsolutePath, Path.Combine( baseDir, "core", resource.RelativePath ), BuildStep.CopyCoreAssets );
+			}
 
 			// Fetch all the DLLs we need to run the engine
 			QueueFrom( GetDllFiles( engineDir ) );
-		}
-
-		//
-		// Copy core compiled files
-		//
-		{
-			// Get all core files - only the ones we absolutely need, because everything else should
-			// already have been copied into the addon itself.
-			// This is mainly stuff like dev textures that are necessary for the engine to run.
-			foreach ( var file in GetCoreFiles( engineDir ) )
-			{
-				var relativePath = Path.GetRelativePath( engineDir, file );
-				var targetPath = Path.Combine( baseDir, relativePath );
-
-				if ( Path.GetExtension( file ).EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) )
-					QueueCopy( file, targetPath, BuildStep.CopyCoreAssets );
-			}
 		}
 
 		//
