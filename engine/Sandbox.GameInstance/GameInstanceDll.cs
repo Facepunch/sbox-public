@@ -75,7 +75,11 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 	public async Task Initialize()
 	{
-		ResetEnvironment();
+		using ( GlobalContext.GameScope() )
+		{
+			SetupEnvironment();
+		}
+
 		Networking.StartThread();
 
 		if ( !Application.IsStandalone )
@@ -122,7 +126,9 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	}
 
 	/// <summary>
-	/// This should reset our environment to a clean state.
+	/// Take the environment back to a clean state after a game: tear down what the game left in it,
+	/// then set it up again for the next one. Startup doesn't come through here - Bootstrap has just
+	/// built the environment and no game has used it, so Initialize only does the setup half.
 	/// </summary>
 	public void ResetEnvironment()
 	{
@@ -130,7 +136,17 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		Log.Trace( "Game Menu - ResetEnvironment" );
 
+		TearDownEnvironment();
+		SetupEnvironment();
+	}
 
+	/// <summary>
+	/// Undo a game's use of the environment: the package loader and enroller its assemblies came in through,
+	/// the files it mounted, its fonts, tables and watchers, the type library its assemblies were added to,
+	/// the caches its resources sit in - and then a collection, so the native resources it held are released.
+	/// </summary>
+	void TearDownEnvironment()
+	{
 		// Use a new package loader for every game if we're not in editor
 		// The editor is only going to load 1 game and ToolsDll has a reference to it
 		if ( !PackageLoader.ToolsMode )
@@ -173,27 +189,9 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		NetworkedFileSystem?.Dispose();
 		NetworkedFileSystem = null;
 
-		Screen.UpdateFromEngine();
-
 		Game.InitTypeLibrary();
 
-		UserPermission.Load();
-
-		Input.ReadConfig( null );
-		StyleSheet.ResetStyleSheets();
-		Networking.Reset();
-		Connection.Reset();
-		GlobalContext.Current.Reset();
 		NativeResourceCache.Clear();
-		Speech.Recognition.Reset();
-		Json.Initialize();
-		VRSystem.Reset();
-
-		if ( !Application.IsEditor )
-		{
-			Mixer.ResetToDefault();
-		}
-
 		Sound.Clear();
 		Application.ClearGame();
 
@@ -204,6 +202,41 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		ProjectSettings.ClearCache();
 		ErrorReporter.ResetCounters();
+
+		IMenuDll.Current?.Reset();
+
+		// Run GC and finalizers to clear any native resources held
+		GC.Collect();
+		GC.WaitForPendingFinalizers();
+
+		// Run the queue one more time, since some finalizers queue tasks
+		MainThread.RunQueues();
+	}
+
+	/// <summary>
+	/// Set a clean environment up for a game: settings and input read fresh, the shared systems reset, and an
+	/// enroller ready to take the game's assemblies into the type library. Runs on the environment Bootstrap
+	/// built at startup, and on one TearDownEnvironment has just cleaned.
+	/// </summary>
+	void SetupEnvironment()
+	{
+		Screen.UpdateFromEngine();
+
+		UserPermission.Load();
+
+		Input.ReadConfig( null );
+		StyleSheet.ResetStyleSheets();
+		Networking.Reset();
+		Connection.Reset();
+		GlobalContext.Current.Reset();
+		Speech.Recognition.Reset();
+		Json.Initialize();
+		VRSystem.Reset();
+
+		if ( !Application.IsEditor )
+		{
+			Mixer.ResetToDefault();
+		}
 
 		AssemblyEnroller = PackageLoader.CreateEnroller( $"gamedll{Counter++}" );
 
@@ -250,15 +283,6 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 				AddArchiveToCodeArchiveTable( a );
 			}
 		};
-
-		IMenuDll.Current?.Reset();
-
-		// Run GC and finalizers to clear any native resources held
-		GC.Collect();
-		GC.WaitForPendingFinalizers();
-
-		// Run the queue one more time, since some finalizers queue tasks
-		MainThread.RunQueues();
 	}
 
 	/// <summary>
