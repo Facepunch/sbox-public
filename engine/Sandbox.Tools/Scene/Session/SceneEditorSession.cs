@@ -388,7 +388,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 				MarkCompilationDirty();
 
 			if ( CompilationDirty )
-			SceneCompileCache.WriteSetting( asset, SceneCompileCache.DirtyProperty, JsonValue.Create( true ) );
+				SceneCompileCache.WriteSetting( asset, SceneCompileCache.DirtyProperty, JsonValue.Create( true ) );
 		}
 
 		// Update this scene's path
