@@ -314,7 +314,8 @@ public class CloudAsset
 		var nativeResources = AssetSystem.All.Where( x => !x.AssetType.IsGameResource && (!currentProjectOnly || validAssetPaths.Any( path => x.AbsolutePath.StartsWith( path, StringComparison.OrdinalIgnoreCase ) )) ).ToArray();
 		foreach ( var r in nativeResources )
 		{
-			var config = r?.Publishing?.ProjectConfig;
+			// Not Publishing: that creates and keeps default settings for every asset without any, which never have references
+			var config = r?.GetPublishSettings( false )?.ProjectConfig;
 			if ( config is null ) continue;
 
 			if ( config.EditorReferences is not null )
