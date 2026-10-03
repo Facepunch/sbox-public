@@ -83,7 +83,9 @@ internal readonly struct AnimVariant
 
 	public override string ToString() => $"{Type} {{ {GetValue()} }}";
 
-	public static implicit operator AnimVariant( bool value ) => new( new Vector4( value ? BitConverter.Int32BitsToSingle( 1 ) : 0f, 0f, 0f, 0f ), AnimParamType.Bool );
+	// Select integer bits before reinterpreting them: when denormals are treated as zero,
+	// the JIT can fold a float conditional between Int32BitsToSingle( 1 ) and 0f to zero.
+	public static implicit operator AnimVariant( bool value ) => new( new Vector4( BitConverter.Int32BitsToSingle( value ? 1 : 0 ), 0f, 0f, 0f ), AnimParamType.Bool );
 	public static implicit operator AnimVariant( byte value ) => new( new Vector4( BitConverter.Int32BitsToSingle( value ), 0f, 0f, 0f ), AnimParamType.Enum );
 	public static implicit operator AnimVariant( int value ) => new( new Vector4( BitConverter.Int32BitsToSingle( value ), 0f, 0f, 0f ), AnimParamType.Int );
 	public static implicit operator AnimVariant( float value ) => new( new Vector4( value, 0f, 0f, 0f ), AnimParamType.Float );
