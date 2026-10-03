@@ -33,6 +33,12 @@ internal static class LogBuffer
 
 	static void OnLog( LogEvent e )
 	{
+		// This ring holds 2000 events from editor start - it must not own what they logged, or a
+		// component logged as context keeps its whole closed scene alive. read_console only reads the
+		// text, and the stack is already a string on the event, so the exception isn't kept either.
+		e = e.WithWeakArguments();
+		e.Exception = null;
+
 		lock ( sync )
 		{
 			events.Enqueue( new Entry( ++sequence, e ) );

@@ -28,6 +28,12 @@ public static partial class MenuUtility
 		Sandbox.Diagnostics.Logging.OnMessage -= logger;
 	}
 
+	/// <summary>
+	/// For loggers that keep events: a copy that holds the logged objects weakly, so keeping the
+	/// event doesn't keep them (or a closed scene they belong to) alive.
+	/// </summary>
+	public static LogEvent WithWeakArguments( LogEvent e ) => e.WithWeakArguments();
+
 	public static void AddChatListener( Action<ChatMessageEvent> listener )
 	{
 		Platform.Chat.OnMessage += listener;
