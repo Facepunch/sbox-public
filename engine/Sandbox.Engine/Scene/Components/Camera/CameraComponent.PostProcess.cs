@@ -34,7 +34,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	public bool EnablePostProcessing { get; set; } = true;
 
 	/// <summary>
-	/// If set then we'll trigger post process volumes from this position, instead of the camera's position.
+	/// If set then we'll trigger post process volumes and soundscapes from this position, instead of the camera's position.
 	/// </summary>
 	[Property]
 	public GameObject PostProcessAnchor { get; set; }
