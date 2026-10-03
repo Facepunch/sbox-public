@@ -50,6 +50,10 @@ internal static class BlobDataSerializer
 	/// </summary>
 	private static byte[] SerializeBlob( BlobData blob )
 	{
+		// Never loaded: its stored bytes are its serialization, no deserialize/serialize round trip
+		if ( blob.PendingData is { } pending )
+			return pending;
+
 		var stream = ByteStream.Create( DefaultStreamSize );
 		try
 		{
@@ -97,6 +101,18 @@ internal static class BlobDataSerializer
 		if ( Activator.CreateInstance( expectedType ) is not BlobData instance )
 			return null;
 
+		if ( !instance.TryDeferLoad( blobData ) )
+			LoadInto( instance, blobData );
+
+		return instance;
+	}
+
+	/// <summary>
+	/// Deserialize stored blob data (version prefix + payload) into <paramref name="instance"/>,
+	/// upgrading it if it's an older version.
+	/// </summary>
+	internal static void LoadInto( BlobData instance, byte[] blobData )
+	{
 		var stream = ByteStream.CreateReader( blobData );
 		try
 		{
@@ -112,8 +128,6 @@ internal static class BlobDataSerializer
 		{
 			stream.Dispose();
 		}
-
-		return instance;
 	}
 
 	internal readonly record struct CapturedBlob( Guid Id, int Version, byte[] Data );
