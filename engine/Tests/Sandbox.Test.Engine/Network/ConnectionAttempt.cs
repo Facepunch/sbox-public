@@ -11,6 +11,58 @@ namespace NetworkTests;
 [DoNotParallelize]
 public class ConnectionAttemptTest
 {
+	public class GameCloseRecorder : DispatchProxy
+	{
+		public int CloseCalls { get; private set; }
+
+		protected override object Invoke( MethodInfo method, object[] args )
+		{
+			Assert.AreEqual( nameof( IGameInstanceDll.CloseGame ), method.Name );
+			CloseCalls++;
+			IGameInstance.Current = null;
+			return null;
+		}
+	}
+
+	[DataTestMethod]
+	[DataRow( true )]
+	[DataRow( false )]
+	public void LeavingForAConnectionPreservesOnlyStandalonePackages( bool standalone )
+	{
+		var previousStandalone = Application.IsStandalone;
+		var previousInstance = IGameInstance.Current;
+		var previousDll = IGameInstanceDll.Current;
+		var previousSystem = Networking.System;
+		var previousLocal = Connection.Local;
+		try
+		{
+			Application.IsStandalone = standalone;
+			var instance = new GameInstance( "test.game", GameLoadingFlags.Host );
+			IGameInstance.Current = instance;
+			var dll = DispatchProxy.Create<IGameInstanceDll, GameCloseRecorder>();
+			IGameInstanceDll.Current = dll;
+			var session = new NetworkSystem( "previous-session", new TypeLibrary() );
+			Networking.System = session;
+			Connection.Local = new LocalConnection( Guid.NewGuid() );
+
+			var method = typeof( Networking ).GetMethod( "LeaveCurrentGame", BindingFlags.NonPublic | BindingFlags.Static );
+			method.Invoke( null, null );
+
+			Assert.IsTrue( session.IsDisconnected, "Both kinds of game must leave the previous session" );
+			Assert.IsNull( Networking.System );
+			Assert.AreEqual( standalone ? 0 : 1, ((GameCloseRecorder)dll).CloseCalls );
+			Assert.AreSame( standalone ? instance : null, IGameInstance.Current );
+		}
+		finally
+		{
+			Application.IsStandalone = previousStandalone;
+			IGameInstance.Current = previousInstance;
+			IGameInstanceDll.Current = previousDll;
+			Networking.System = previousSystem;
+			Connection.Local = previousLocal;
+		}
+	}
+
 	public class DisconnectRecorder : DispatchProxy
 	{
 		public Action<string> OnDisconnect { get; set; }

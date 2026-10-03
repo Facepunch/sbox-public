@@ -1,15 +1,154 @@
 @import '/styles/_Theme.scss';
 @import '/styles/_front.scss';
 
-// The party card in the bottom right. Reads like the friends list above it - same title,
-// same round faces - with what you can do on the header and who's in it underneath.
 PartyDeck
+{
+	position: absolute;
+	left: 0;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	pointer-events: none;
+	z-index: 500;
+
+	.floating-window
+	{
+		@include front-card;
+
+		color: $front-body;
+		box-shadow: $front-rail-shadow;
+
+		.floating-window-header
+		{
+			background: radial-gradient( circle at 10% 10%, rgba( $front-primary, 0.2 ) 25%, rgba( $front-primary, 0.02 ) 60% );
+		}
+
+		.floating-window-icon, .floating-window-title, .floating-window-control, .floating-window-restore
+		{
+			color: $front-heading;
+		}
+
+		// Minimized - a round pill like the reaction pills' active one: the party emoji on a blue wash,
+		// a fine outline. The engine docks it overhanging the screen's foot
+		&.minimized
+		{
+			border-radius: 999px;
+			border: 1px solid rgba( $front-primary, 0.55 );
+			background-color: $front-card;
+			background-image: linear-gradient( 180deg, rgba( $front-primary, 0.38 ), rgba( $front-primary, 0.12 ) );
+			box-shadow: 0 8px 24px rgba( 0, 0, 0, 0.5 ), 0 0 18px rgba( $front-primary, 0.22 );
+			transition: border-color 0.1s ease, box-shadow 0.1s ease;
+
+			&:hover
+			{
+				border-color: rgba( $front-primary, 0.9 );
+				box-shadow: 0 8px 24px rgba( 0, 0, 0, 0.5 ), 0 0 22px rgba( $front-primary, 0.4 );
+			}
+		}
+
+		.floating-window-restore
+		{
+			// Centred in the part that's on screen
+			padding: 0 0 12px 0;
+			border-radius: 999px;
+			transition: background-color 0.1s ease;
+
+			.button-text
+			{
+				font-size: 26px;
+			}
+
+			&:hover
+			{
+				sound-in: "ui.button.over";
+				background-color: rgba( $front-primary, 0.18 );
+			}
+
+			&:active
+			{
+				sound-in: "ui.button.press";
+			}
+		}
+
+		.floating-window-title
+		{
+			min-width: 0;
+			flex-shrink: 1;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+	}
+
+	FloatingWindow.joining
+	{
+		background-color: $front-card;
+		background-image: linear-gradient( 20deg, rgba( $front-reward, 0.32 ), rgba( $front-reward-deep, 0.12 ) 55%, rgba( $front-reward, 0 ) );
+		border-color: rgba( $front-reward, 0.4 );
+	}
+
+	FloatingWindow.failed
+	{
+		background-color: $front-card;
+		background-image: linear-gradient( 20deg, rgba( $front-danger, 0.22 ), rgba( $front-danger, 0 ) 60% );
+		border-color: rgba( $front-danger, 0.35 );
+	}
+}
+
+PartyDeck .party-deck-content
 {
 	position: relative;
 	flex-direction: column;
+	flex-grow: 0;
+	flex-shrink: 0;
 	justify-content: flex-start;
 	gap: 14px;
 	padding: 14px $front-inset;
+
+	.party-play
+	{
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 8px;
+		padding-top: 12px;
+		border-top: 1px solid $front-hairline;
+
+		.play-hint
+		{
+			width: 100%;
+			flex-grow: 1;
+			flex-shrink: 1;
+			font-size: 11px;
+			color: $front-secondary;
+		}
+
+		.configure-button
+		{
+			@include front-pill;
+			padding: 8px 12px;
+			flex-grow: 1;
+			justify-content: center;
+		}
+
+		.play-button
+		{
+			@include front-button;
+
+			padding: 8px 12px;
+		}
+
+		.ready-button
+		{
+			@include front-pill;
+
+			padding: 8px 12px;
+
+			label, iconpanel
+			{
+				color: $front-reward;
+			}
+		}
+	}
 
 	// The game we're headed into, behind everything - just a wash on the left under its thumbnail.
 	// The card clips it to its corners.
@@ -30,9 +169,79 @@ PartyDeck
 		mask-image: linear-gradient( 90deg, white 0%, black 60% );
 	}
 
-	.grow
+	.toolbar.divided
+	{
+		border-bottom: 1px solid $front-hairline;
+		padding-bottom: 12px;
+	}
+
+	.current-game
 	{
 		flex-grow: 1;
+		flex-shrink: 1;
+		width: 0;
+		border-radius: 4px;
+		align-items: center;
+		gap: 8px;
+		min-width: 0;
+
+		&.editable
+		{
+			cursor: pointer;
+			&:hover { background-color: rgba( 255, 255, 255, 0.04 ); }
+		}
+
+		&.empty label { color: $front-secondary; }
+
+		.game-summary
+		{
+			flex-direction: column;
+			flex-grow: 1;
+			flex-shrink: 1;
+			min-width: 0;
+		}
+
+		.game-thumb, icon
+		{
+			width: 28px;
+			height: 28px;
+			flex-shrink: 0;
+		}
+
+		.game-thumb
+		{
+			border-radius: 4px;
+			background-size: cover;
+			background-position: center;
+		}
+
+		icon
+		{
+			font-family: "Material Icons";
+			font-size: 22px;
+			align-items: center;
+			justify-content: center;
+			color: $front-secondary;
+		}
+
+		label
+		{
+			min-width: 0;
+			flex-shrink: 1;
+			font-size: 12px;
+			font-weight: 600;
+			color: $front-heading;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		.game-capacity
+		{
+			font-size: 10px;
+			font-weight: 400;
+			color: $front-secondary;
+		}
 	}
 
 	.head
@@ -40,41 +249,6 @@ PartyDeck
 		flex-direction: row;
 		align-items: center;
 		gap: 6px;
-
-		.title
-		{
-			font-size: 15px;
-			font-weight: 700;
-			color: $front-heading;
-			margin-right: 2px;
-		}
-
-		// How many are in it - a users glyph and the number
-		.count
-		{
-			flex-direction: row;
-			flex-shrink: 0;
-			align-items: center;
-			gap: 4px;
-			height: 20px;
-			padding: 0 8px 0 6px;
-			border-radius: 999px;
-			border: $front-border-width solid $front-hairline;
-			background-color: rgba( 255, 255, 255, 0.05 );
-
-			icon
-			{
-				font-size: 13px;
-				color: $front-secondary;
-			}
-
-			label
-			{
-				font-size: 11px;
-				font-weight: 700;
-				color: $front-body;
-			}
-		}
 
 		// Following the leader - the header's what's happening instead
 		&.status
@@ -197,24 +371,25 @@ PartyDeck
 		}
 	}
 
-	// Square, quiet, glyph only - the mic state and leaving
+	.settings-error
+	{
+		color: $front-danger;
+		font-size: 12px;
+	}
+
+	// Small controls alongside the game.
 	.icon-button
 	{
-		flex-shrink: 0;
+		@include front-icon-button;
+
 		width: 28px;
 		height: 28px;
-		align-items: center;
-		justify-content: center;
-		border-radius: 6px;
-		border: 1px solid transparent;
-		transition: all 0.1s ease;
+		background-color: transparent;
+		padding: 0;
 
-		icon
+		icon, iconpanel
 		{
-			width: 100%;
-			text-align: center;
 			font-size: 17px;
-			color: $front-secondary;
 		}
 
 		&.voice
@@ -236,20 +411,27 @@ PartyDeck
 			}
 		}
 
-		&.leave
+		&.settings, &.privacy
 		{
 			cursor: pointer;
+			&.disabled { cursor: default; pointer-events: none; }
+
+			.icon
+			{
+				font-size: 20px;
+			}
 
 			&:hover
 			{
-				border-color: rgba( $front-danger, 0.45 );
-				background-color: rgba( $front-danger, 0.12 );
 				sound-in: "ui.button.over";
+			}
 
-				icon
-				{
-					color: $front-danger;
-				}
+			&.active
+			{
+				border-color: rgba( $front-primary, 0.5 );
+				background-color: rgba( $front-primary, 0.18 );
+
+				.icon { color: $front-link; }
 			}
 		}
 
@@ -260,19 +442,12 @@ PartyDeck
 
 			&:hover
 			{
-				border-color: $front-hairline;
-				background-color: rgba( 255, 255, 255, 0.08 );
 				sound-in: "ui.button.over";
-
-				icon
-				{
-					color: $front-heading;
-				}
 			}
 		}
 	}
 
-	// Wraps, so a full party of 16 is two rows of 8 compact faces
+	// Larger parties wrap into rows of compact faces.
 	.members
 	{
 		flex-direction: row;
@@ -365,16 +540,16 @@ PartyDeck
 		}
 	}
 
-	// An open seat - same size and shape as a face, dashed so it reads as empty. Not a button:
-	// inviting is done from the friends list above.
+	// An open seat invites another friend into the party.
 	.open-seat
 	{
 		flex-shrink: 0;
 		align-items: center;
 		justify-content: center;
 		border-radius: 50%;
-		border: 1px dashed rgba( 255, 255, 255, 0.22 );
-		pointer-events: none;
+		border: 1px dashed rgba( 255, 255, 255, 0.35 );
+		pointer-events: all;
+		cursor: pointer;
 		transition: all 0.1s ease;
 
 		icon
@@ -382,37 +557,24 @@ PartyDeck
 			width: 100%;
 			text-align: center;
 			font-size: 18px;
-			color: $front-tertiary;
+			color: $front-secondary;
 		}
 
-		// Popped out of the rail, where the friends list isn't to hand - now it opens one
-		&.clickable
+		&:hover
 		{
-			pointer-events: all;
-			cursor: pointer;
-			border-color: rgba( 255, 255, 255, 0.35 );
+			border: 1px solid rgba( $front-primary, 0.8 );
+			background-color: rgba( $front-primary, 0.15 );
+			sound-in: "ui.button.over";
 
 			icon
 			{
-				color: $front-secondary;
+				color: $front-heading;
 			}
+		}
 
-			&:hover
-			{
-				border: 1px solid rgba( $front-primary, 0.8 );
-				background-color: rgba( $front-primary, 0.15 );
-				sound-in: "ui.button.over";
-
-				icon
-				{
-					color: $front-heading;
-				}
-			}
-
-			&:active
-			{
-				sound-in: "ui.button.press";
-			}
+		&:active
+		{
+			sound-in: "ui.button.press";
 		}
 	}
 }

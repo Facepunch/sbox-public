@@ -321,7 +321,7 @@ public class PanelWindowDragTests
 		}
 		var data = input.GetInputData();
 		Assert.IsFalse( data.Mouse0 || data.Mouse1 || data.Mouse2 || data.Mouse3 || data.Mouse4 );
-		CollectionAssert.AreEqual( new[] { "ondragleave" }, panel.Events );
+		CollectionAssert.AreEqual( new[] { "ondragleave", "ondragcancel" }, panel.Events, "the drag source hears once that its drag was called off" );
 		surface.System.InputEventQueue.TickFocused( surface.Focus );
 		Assert.AreEqual( "f5", panel.LastKey );
 

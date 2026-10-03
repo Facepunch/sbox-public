@@ -282,6 +282,7 @@ PS
 	#include "ui/rounded_rect.hlsl"
 	#include "ui/batched_scissor.hlsl"
 	#include "ui/shape_path.hlsl"
+	#include "ui/lighting.hlsl"
 
 	// Scissor is now per-instance via ScissorIndex into ScissorBuffer (defined in COMMON)
 
@@ -948,6 +949,7 @@ PS
 
 		float flCoverage;
 		float4 col = RenderInstance( i, flCoverage );
+		col = UI_ApplyLighting( i.vPositionPs, col );
 
 		// Clip last, so nothing taking screen derivatives runs after the discard
 		float flClip = InstanceClipCoverage( inst, i );

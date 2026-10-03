@@ -1,0 +1,74 @@
+@namespace MenuProject.Modals.PackageModalComponents
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.Modals;
+
+@*
+    One of a package's pages - its reviews, who's in it with you, its changes, news or achievements.
+    The same page wherever it's opened from: a tab on the game page (PackageTabs), or the pause
+    menu's body (PausePage). A new page is one more entry in All and one more case here, and it's in
+    both.
+*@
+<root>
+    @switch ( Page )
+    {
+        case Reviews:
+            <PackageReviews Package=@Package />
+            break;
+
+        case Players:
+            <PlayerList Inset=@true />
+            break;
+
+        case Changes:
+            <PackageChanges Package=@Package />
+            break;
+
+        case News:
+            <PackageNews Package=@Package />
+            break;
+
+        case Achievements:
+            <AchievementList Package=@Package />
+            break;
+    }
+</root>
+
+@code
+{
+    public const string Reviews = "reviews";
+    public const string Players = "players";
+    public const string Changes = "changes";
+    public const string News = "news";
+    public const string Achievements = "achievements";
+
+    /// <summary>
+    /// A page's name and glyph, for its tab or its window's title.
+    /// </summary>
+    public readonly record struct Info( string Id, string Title, string Icon );
+
+    /// <summary>
+    /// Every page, in the order the tabs show them.
+    /// </summary>
+    public static readonly Info[] All =
+    {
+        new( Reviews, "Reviews", "reviews" ),
+        new( Players, "Players", "groups" ),
+        new( Changes, "Changes", "history" ),
+        new( News, "News", "newspaper" ),
+        new( Achievements, "Achievements", "emoji_events" ),
+    };
+
+    public static Info Find( string id ) => All.FirstOrDefault( x => x.Id == id );
+
+
+    [Parameter] public Package Package { get; set; }
+
+    /// <summary>
+    /// Which page - one of the constants above.
+    /// </summary>
+    [Parameter] public string Page { get; set; }
+
+    protected override int BuildHash() => HashCode.Combine( Package, Page );
+}

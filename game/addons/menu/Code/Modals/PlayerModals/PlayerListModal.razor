@@ -17,22 +17,8 @@
 
 		<div class="content">
 			<div class="list">
-				@foreach ( var user in Connection.All.OrderBy( x => x.DisplayName ) )
-				{
-					<PlayerListRow User=@user />
-				}
+				<PlayerList />
 			</div>
 		</div>
 	</div>
 </root>
-
-@code
-{
-	protected override int BuildHash()
-	{
-		//
-		// Update player list every second
-		//
-		return HashCode.Combine( RealTime.Now.CeilToInt() );
-	}
-}

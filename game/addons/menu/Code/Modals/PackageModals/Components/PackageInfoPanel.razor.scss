@@ -1,6 +1,9 @@
 @import "/styles/_theme.scss";
 @import "/styles/_front.scss";
 
+// A party that isn't what the game's made for
+$mode-warning: #f5a623;
+
 // The column's own height, not its content's - the top stays, the rest scrolls inside it
 PackageInfoPanel
 {
@@ -77,7 +80,8 @@ PackageInfoPanel
             color: $front-secondary;
         }
 
-        &.multiplayer
+        // Your party's what it's made for - go
+        &.fits
         {
             background-color: rgba( $front-accent, 0.08 );
             border-color: rgba( $front-accent, 0.35 );
@@ -92,6 +96,30 @@ PackageInfoPanel
             .mode-label
             {
                 color: $front-accent;
+            }
+        }
+
+        // It isn't - and the hint says why
+        &.mismatch
+        {
+            background-color: rgba( $mode-warning, 0.08 );
+            border-color: rgba( $mode-warning, 0.4 );
+
+            .mode-icon
+            {
+                background-color: rgba( $mode-warning, 0.18 );
+
+                i { color: $mode-warning; }
+            }
+
+            .mode-label
+            {
+                color: $mode-warning;
+            }
+
+            .mode-hint
+            {
+                color: $front-body;
             }
         }
     }

@@ -32,6 +32,22 @@ internal static class SteamCallbacks
 		_ = TryJoinLobby( steamId );
 	}
 
+	/// <summary>
+	/// Steam launches the game with <c>+connect_lobby &lt;id&gt;</c> when an invite is accepted while it isn't
+	/// running - the launch equivalent of <see cref="SteamFriends_OnGameLobbyJoinRequested"/>.
+	/// </summary>
+	[MenuConCmd( "connect_lobby", ConVarFlags.Protected )]
+	public static void ConnectLobby( string lobbyId )
+	{
+		if ( !ulong.TryParse( lobbyId, out var id ) )
+		{
+			Log.Warning( $"connect_lobby: '{lobbyId}' isn't a lobby id" );
+			return;
+		}
+
+		_ = TryJoinLobby( id );
+	}
+
 	private static async Task TryJoinLobby( Sandbox.SteamId steamId )
 	{
 		using var scope = GlobalContext.MenuScope();

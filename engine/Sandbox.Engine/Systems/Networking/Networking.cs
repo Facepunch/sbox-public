@@ -481,12 +481,9 @@ public static partial class Networking
 		}
 
 		//
-		// Did the menu want to override the lobby's privacy mode?
+		// Did the menu ask for a privacy mode? The more private of it and the game's own wins
 		//
-		if ( LaunchArguments.PrivacyOverride is { } privacy )
-		{
-			config.Privacy = privacy;
-		}
+		config.Privacy = LaunchArguments.ResolvePrivacy( config.Privacy );
 
 		_ = CreateLobbyAsync( config, lobbyCts.Token );
 	}
@@ -706,10 +703,39 @@ public static partial class Networking
 		_ = TryConnect( target );
 	}
 
+	/// <summary>
+	/// Leave the previous session before connecting. Platform games unload their package too;
+	/// standalone games keep the package that their handshake expects to already be loaded.
+	/// </summary>
+	static void LeaveCurrentGame()
+	{
+		// Standalone joins reuse the loaded package: their handshake does not load it again.
+		if ( !Application.IsStandalone && IGameInstance.Current is not null )
+		{
+			IGameInstanceDll.Current.CloseGame();
+		}
+
+		Disconnect();
+	}
+
 	internal static async Task<bool> TryConnect( string target, int retries = 30, CancellationToken token = default, Action<string> onFailure = null )
 	{
+		var request = Api.Activity.PendingRequest;
+		var success = false;
+		try
+		{
+			return success = await TryConnectInternal( target, retries, token, onFailure );
+		}
+		finally
+		{
+			if ( !success && !IsMatchmaking ) Api.Activity.CancelRequest( request );
+		}
+	}
+
+	static async Task<bool> TryConnectInternal( string target, int retries, CancellationToken token, Action<string> onFailure )
+	{
 		token.ThrowIfCancellationRequested();
-		Disconnect();
+		LeaveCurrentGame();
 
 		if ( string.IsNullOrWhiteSpace( target ) )
 		{
@@ -822,12 +848,24 @@ public static partial class Networking
 		IGameInstanceDll.Current.Disconnect( onFailure is null ? message : null );
 	}
 
-	public static Task<bool> TryConnectSteamId( SteamId steamId, int retries = 30 ) => TryConnectSteamIdInternal( steamId, retries );
+	public static async Task<bool> TryConnectSteamId( SteamId steamId, int retries = 30 )
+	{
+		var request = Api.Activity.PendingRequest;
+		var success = false;
+		try
+		{
+			return success = await TryConnectSteamIdInternal( steamId, retries );
+		}
+		finally
+		{
+			if ( !success && !IsMatchmaking ) Api.Activity.CancelRequest( request );
+		}
+	}
 
 	static async Task<bool> TryConnectSteamIdInternal( SteamId steamId, int retries, CancellationToken token = default, Action<string> onFailure = null )
 	{
 		token.ThrowIfCancellationRequested();
-		Disconnect();
+		LeaveCurrentGame();
 
 		SentrySdk.AddBreadcrumb( $"Connect to '{steamId}'", "network.connect" );
 		Assert.IsNull( System );
@@ -1023,7 +1061,10 @@ public static partial class Networking
 	/// </summary>
 	internal static async Task<bool> ClientReconnect( ReconnectMsg data )
 	{
-		IGameInstanceDll.Current?.CloseGame();
+		var sameGame = data.Game is null || string.Equals( Game.Ident?.Split( '#' )[0], data.Game.Split( '#' )[0], StringComparison.OrdinalIgnoreCase );
+		Api.Activity.GameRequested( new( sameGame ? "reload" : "game", data.Game ) );
+
+		LeaveCurrentGame();
 
 		string address = LastConnectionString;
 		if ( string.IsNullOrWhiteSpace( address ) )
@@ -1031,8 +1072,6 @@ public static partial class Networking
 			IGameInstanceDll.Current.Disconnect( "Reconnect failed, missing target address." );
 			return false;
 		}
-
-		Disconnect();
 
 		Log.Info( $"Reconnecting to {address}" );
 

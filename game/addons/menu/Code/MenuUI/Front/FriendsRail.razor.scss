@@ -108,6 +108,8 @@ FriendsRail
 		> .cell
 		{
 			flex-direction: column;
+			// A section folding shrinks its cells shorter than their rows - cut the rows off, don't spill
+			overflow: hidden;
 		}
 	}
 
@@ -125,6 +127,13 @@ FriendsRail
 		{
 			font-size: 16px;
 			color: $front-tertiary;
+			transition: transform 0.15s ease-out;
+		}
+
+		// Folded, the chevron points at the section instead of down into it
+		&.collapsed icon
+		{
+			transform: rotate( -90deg );
 		}
 
 		.group-title

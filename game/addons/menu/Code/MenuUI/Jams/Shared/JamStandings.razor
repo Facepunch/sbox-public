@@ -12,7 +12,7 @@
 		<label class="title">@(IsKnockout ? "Standings" : "Nominations")</label>
 		@if ( IsKnockout )
 		{
-			<label class="live">@(WinnerIdent is not null || Finalists.Decided && !HoldFinalResult ? "Final" : "Live")</label>
+			<label class="@(Finalists.IsVotingAt( Jam.Now ) ? "live" : "closed")">@(WinnerIdent is not null || Finalists.Decided && !HoldFinalResult ? "Final" : Finalists.IsVotingAt( Jam.Now ) ? "Live" : JamVotingPresentation.Waiting( Finalists ) ? "Waiting" : "Closed")</label>
 		}
 		else if ( Entries is not null )
 		{
@@ -128,7 +128,7 @@
 	record StandingRow( int Rank, string PackageIdent, int? Votes = null, bool Nominated = false,
 		bool Pending = false, bool Confirmed = false, string Prize = null );
 
-	GameJamSystem Voting => GameJamSystem.Get( Scene );
+	GameJamSystem Voting => GameJamSystem.For( this );
 	JamNominationSummary Nominations => Voting?.ActiveJam?.Ident == Jam?.Ident ? Voting?.Nominations : null;
 	JamNominationCategory Category => Nominations?.Categories.FirstOrDefault();
 	StandingRow[] Rows = [];
@@ -190,6 +190,7 @@
 	{
 		if ( ident is null ) return;
 
+		Discovery.Clicked( new DiscoveryContext { Surface = "jams" }, ident );
 		Game.Overlay.ShowGameModal( ident );
 	}
 
@@ -204,6 +205,7 @@
 		hash.Add( Finalists );
 		hash.Add( WinnerIdent );
 		hash.Add( HoldFinalResult );
+		hash.Add( Finalists?.IsVotingAt( Jam.Now ) );
 
 		// The entry browser fills the package cache. Pick up titles without issuing another search.
 		foreach ( var entry in Rows.Take( VisibleCount ) )

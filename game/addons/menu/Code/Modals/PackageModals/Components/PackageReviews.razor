@@ -5,115 +5,141 @@
 @using SboxMenu;
 @using static Sandbox.Services.Review
 
+@* The Reviews tab - the verdict up top with a way to write your own (PackageReviewsHeader), what
+   players liked and didn't across all of them, then the reviews themselves - all, or just one
+   verdict's - a card each, a page of them at a time. Only the cards near what's on screen are built,
+   the rest keep their room (NearScreen). *@
 <root>
 
-    <PackageReviewsHeader Package=@Package />
+    <PackageReviewsHeader Package=@Package OnWriteReview=@WriteReview />
 
-    <div class="write-review">
-        <div class="text">
-            <label class="title">Played @Package.Title?</label>
-            <label class="hint">Tell everyone what you thought. Reviews decide the verdict up top.</label>
-        </div>
-        <Button class="primary" icon="rate_review" onclick=@WriteReview>Write a review</Button>
-    </div>
-
-    <div class="tag-filters">
-
-        <label class="eyebrow">Reviews</label>
-
-        <div class="tag-filter-group">
-            <Badge Type="positive" Number=@Package.Reviews.PositiveRatings Text="Recommended"></Badge>
-            <Badge Type="positive" Number=@Package.Reviews.PromiseRatings Text="Shows Promise"></Badge>
-            <Badge Type="positive" Number=@Package.Reviews.NegativeRatings Text="Needs Work"></Badge>
-        </div>
-
-        @if (Package.Reviews.PositiveTags.Sum(x => x.Value) > 0)
-        {
-            
-
-            <label class="eyebrow">Positives</label>
-
-            <div class="tag-filter-group">
-
-                @foreach (var tag in Package.Reviews.PositiveTags.Where(x => x.Value > 0).OrderByDescending(x => x.Value))
-                {                    
-                    var di = Game.TypeLibrary.GetEnumDescription( tag.Key );
-
-                    <Badge Type="positive" Number=@tag.Value Icon="@di.Icon" Text="@di.Title"></Badge>
-                }
-            </div>
-        }
-
-        @if (Package.Reviews.NegativeTags.Sum(x => x.Value) > 0)
-        {
-            <label class="eyebrow">Negatives</label>
-
-            <div class="tag-filter-group">
-                @foreach (var tag in Package.Reviews.NegativeTags.Where(x => x.Value > 0).OrderByDescending(x => x.Value))
-                {
-                    var di = Game.TypeLibrary.GetEnumDescription(tag.Key);
-
-                    <Badge Type="negative" Number=@tag.Value Icon="@di.Icon" Text="@di.Title"></Badge>
-                }
-            </div>
-        }
-    </div>
-
-    <div class="review-list">
-        @if (Reviews.Count == 0 && TotalCount == 0)
-        {
-            <div class="no-reviews">No reviews yet. Be the first to write one!</div>
-        }
-        else
-        {
-            @if (TotalPages > 1)
+    @* What they liked, and didn't - each with how many said so *@
+    @if ( HasLiked || HasDisliked )
+    {
+        <div class="tags">
+            @if ( HasLiked )
             {
-                <div class="pagination">
-                    <Button class="pagination-button" Icon="chevron_left" Disabled=@(!HasPreviousPage) @onmousedown="@PreviousPage" />
-                    @foreach (var page in GetPageNumbers())
-                    {
-                        <Button class="@GetPageButtonClass(page)" Text=@(page.ToString()) @onmousedown="@(() => GoToPage(page))" />
-                    }
-                    <Button class="pagination-button" Icon="chevron_right" Disabled=@(!HasNextPage) @onmousedown="@NextPage" />
+                <div class="tag-group">
+                    <div class="eyebrow"><icon>thumb_up</icon><label>Liked</label></div>
+                    <div class="chips">
+                        @foreach ( var tag in Package.Reviews.PositiveTags.Where( x => x.Value > 0 ).OrderByDescending( x => x.Value ) )
+                        {
+                            var di = Game.TypeLibrary.GetEnumDescription( tag.Key );
+                            <div class="chip good"><icon>@di.Icon</icon><label>@di.Title</label><label class="n">@tag.Value</label></div>
+                        }
+                    </div>
                 </div>
             }
 
-            @foreach (var review in Reviews)
+            @if ( HasDisliked )
             {
+                <div class="tag-group">
+                    <div class="eyebrow bad"><icon>thumb_down</icon><label>Disliked</label></div>
+                    <div class="chips">
+                        @foreach ( var tag in Package.Reviews.NegativeTags.Where( x => x.Value > 0 ).OrderByDescending( x => x.Value ) )
+                        {
+                            var di = Game.TypeLibrary.GetEnumDescription( tag.Key );
+                            <div class="chip bad"><icon>@di.Icon</icon><label>@di.Title</label><label class="n">@tag.Value</label></div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    @* Which of them - all, or just one verdict's, each with how many there are *@
+    @if ( Package.Reviews.Total > 0 )
+    {
+        <div class="filters">
+            <div class="filter @(Filter is null ? "active" : "")" onclick=@( () => _ = SetFilter( null ) )><label>All</label><label class="n">@Package.Reviews.Total</label></div>
+            <div class="filter good @(Filter == ReviewScore.Positive ? "active" : "")" onclick=@( () => _ = SetFilter( ReviewScore.Positive ) )><icon>thumb_up</icon><label>Recommended</label><label class="n">@Package.Reviews.PositiveRatings</label></div>
+            <div class="filter meh @(Filter == ReviewScore.Promise ? "active" : "")" onclick=@( () => _ = SetFilter( ReviewScore.Promise ) )><icon>thumbs_up_down</icon><label>Shows promise</label><label class="n">@Package.Reviews.PromiseRatings</label></div>
+            <div class="filter bad @(Filter == ReviewScore.Negative ? "active" : "")" onclick=@( () => _ = SetFilter( ReviewScore.Negative ) )><icon>thumb_down</icon><label>Needs work</label><label class="n">@Package.Reviews.NegativeRatings</label></div>
+        </div>
+    }
+
+    <div class="review-list" @ref="ReviewList">
+        @if ( _fetching )
+        {
+            @* Still coming - the shape of a few review cards, breathing *@
+            @for ( var i = 0; i < 3; i++ )
+            {
+                <div class="review-skeleton">
+                    <div class="bone avatar"></div>
+                    <div class="lines">
+                        <div class="bone line top"></div>
+                        <div class="bone line"></div>
+                        <div class="bone line"></div>
+                        <div class="bone line short"></div>
+                    </div>
+                </div>
+            }
+        }
+        else if ( Reviews.Count == 0 && TotalCount == 0 )
+        {
+            <div class="no-reviews">@(Filter is null ? "No reviews yet - be the first to write one." : "No reviews like that yet.")</div>
+        }
+        else
+        {
+            @for ( var i = 0; i < Reviews.Count; i++ )
+            {
+                var review = Reviews[i];
+
+                @if ( !Near.IsBuilt( i ) )
+                {
+                    @* Off screen - just its room *@
+                    <div class="review-placeholder" style="height: @Near.HeightOf( i, Estimate( review ) )px;"></div>
+                    continue;
+                }
+
                 <UserComment Player="@review.Player" Date="@review.Updated" TimePlayed="@( $"Played for {review.PlayTime.Humanize(1)}" )" class="@GetReviewClass(review.Score)">
                     <TopBar>
-                        @if (review.Score == ReviewScore.Positive)
+                        @if ( review.Score == ReviewScore.Positive )
                         {
-                            <Badge Type="positive" class="clear" Icon="thumb_up" Text="Recommended"></Badge>
+                            <div class="verdict-pill good"><icon>thumb_up</icon><label>Recommended</label></div>
                         }
-                        else if (review.Score == ReviewScore.Negative)
+                        else if ( review.Score == ReviewScore.Negative )
                         {
-                            <Badge Type="negative" class="clear" Icon="thumb_down" Text="Needs Work"></Badge>
+                            <div class="verdict-pill bad"><icon>thumb_down</icon><label>Needs work</label></div>
                         }
-                        else if (review.Score == ReviewScore.Promise)
+                        else if ( review.Score == ReviewScore.Promise )
                         {
-                            <Badge Type="promise" class="clear" Icon="thumbs_up_down" Text="Promise"></Badge>
+                            <div class="verdict-pill meh"><icon>thumbs_up_down</icon><label>Shows promise</label></div>
                         }
                     </TopBar>
                     <Content>
                         <label class="review-content">@review.Content</label>
 
-                        @if (review.Positives != Sandbox.Services.Review.PositiveTags.None || review.Negatives != Sandbox.Services.Review.NegativeTags.None)
+                        @if ( review.Positives != Sandbox.Services.Review.PositiveTags.None || review.Negatives != Sandbox.Services.Review.NegativeTags.None )
                         {
-                            <div class="review-tags">
-
-                                @foreach (var flag in GetPositiveFlags(review.Positives))
+                            <div class="chips">
+                                @foreach ( var flag in GetPositiveFlags( review.Positives ) )
                                 {
-                                    <Badge Type="positive" Text="@flag"></Badge>
+                                    var di = Game.TypeLibrary.GetEnumDescription( flag );
+                                    <div class="chip good small"><icon>@di.Icon</icon><label>@di.Title</label></div>
                                 }
-                                @foreach (var flag in GetNegativeFlags(review.Negatives))
+                                @foreach ( var flag in GetNegativeFlags( review.Negatives ) )
                                 {
-                                    <Badge Type="negative" Text="@flag"></Badge>
+                                    var di = Game.TypeLibrary.GetEnumDescription( flag );
+                                    <div class="chip bad small"><icon>@di.Icon</icon><label>@di.Title</label></div>
                                 }
                             </div>
                         }
                     </Content>
                 </UserComment>
+            }
+
+            @* More than a page of them - which one, at the foot *@
+            @if ( TotalPages > 1 )
+            {
+                <div class="pagination">
+                    <div class="page-button @(HasPreviousPage ? "" : "disabled")" onclick=@( () => _ = PreviousPage() )><icon>chevron_left</icon></div>
+                    @foreach ( var page in GetPageNumbers() )
+                    {
+                        <div class="page-button @(page == CurrentPage ? "current" : "")" onclick=@( () => _ = GoToPage( page ) )><label>@page</label></div>
+                    }
+                    <div class="page-button @(HasNextPage ? "" : "disabled")" onclick=@( () => _ = NextPage() )><icon>chevron_right</icon></div>
+                </div>
             }
         }
     </div>
@@ -128,76 +154,132 @@
 
     [Parameter] public Package Package { get; set; }
 
+    bool HasLiked => Package?.Reviews.PositiveTags.Any( x => x.Value > 0 ) ?? false;
+    bool HasDisliked => Package?.Reviews.NegativeTags.Any( x => x.Value > 0 ) ?? false;
+
     List<Sandbox.Services.Review> Reviews = new();
 
     int CurrentPage = 1;
     int TotalCount = 0;
+
+    /// <summary>
+    /// Just the reviews with this verdict - all of them, null.
+    /// </summary>
+    ReviewScore? Filter;
     const int PageSize = 30;
 
-    int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize);
+    int TotalPages => (int)Math.Ceiling( (double)TotalCount / PageSize );
     bool HasPreviousPage => CurrentPage > 1;
     bool HasNextPage => CurrentPage < TotalPages;
 
     protected override async Task OnParametersSetAsync()
     {
         CurrentPage = 1;
+        Filter = null;
         await FetchReviews();
     }
 
-    async Task FetchReviews()
+    async Task SetFilter( ReviewScore? filter )
     {
-        var skip = (CurrentPage - 1) * PageSize;
-        var page = await Sandbox.Services.Review.FetchEx(Package.FullIdent, PageSize, skip);
-        Reviews = page.Posts?.ToList() ?? new();
-        TotalCount = page.Count;
+        if ( Filter == filter ) return;
+        Filter = filter;
+        CurrentPage = 1;
+        await FetchReviews();
     }
 
-    async Task GoToPage(int page)
+    // Waiting on a page of them - the skeleton's up, not "none yet"
+    bool _fetching;
+
+    async Task FetchReviews()
     {
-        if (page < 1 || page > TotalPages) return;
+        _fetching = true;
+        Reviews = new();
+        Near.Reset();
+        StateHasChanged();
+
+        var skip = (CurrentPage - 1) * PageSize;
+        var page = await Sandbox.Services.Review.FetchEx( Package.FullIdent, PageSize, skip, Filter );
+        Reviews = page.Posts?.ToList() ?? new();
+        TotalCount = page.Count;
+        _fetching = false;
+        Near.Reset();
+        StateHasChanged();
+    }
+
+    //
+    // Only the reviews near the screen, built
+    //
+
+    Panel ReviewList;
+    readonly MenuProject.UI.NearScreen Near = new();
+
+    /// <summary>
+    /// Near enough a review's height before it's been built - its top line, its words at about a
+    /// hundred and forty characters a line, its tags if it gave any.
+    /// </summary>
+    static float Estimate( Sandbox.Services.Review review )
+    {
+        var lines = Math.Max( 1, (int)Math.Ceiling( (review.Content?.Length ?? 0) / 140f ) );
+        var tags = review.Positives != Sandbox.Services.Review.PositiveTags.None || review.Negatives != Sandbox.Services.Review.NegativeTags.None;
+
+        return 34 + 28 + lines * 20 + (tags ? 36 : 0);
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        // The review's card, once it's a real one rather than its room
+        if ( Near.Update( this, ReviewList, Reviews.Count, row => row.HasClass( "review-placeholder" ) ? null : row ) )
+            StateHasChanged();
+    }
+
+    async Task GoToPage( int page )
+    {
+        if ( page < 1 || page > TotalPages || page == CurrentPage ) return;
         CurrentPage = page;
         await FetchReviews();
     }
 
-    async Task PreviousPage() => await GoToPage(CurrentPage - 1);
-    async Task NextPage() => await GoToPage(CurrentPage + 1);
+    async Task PreviousPage() => await GoToPage( CurrentPage - 1 );
+    async Task NextPage() => await GoToPage( CurrentPage + 1 );
 
     IEnumerable<int> GetPageNumbers()
     {
         const int maxVisible = 5;
-        int start = Math.Max(1, CurrentPage - maxVisible / 2);
-        int end = Math.Min(TotalPages, start + maxVisible - 1);
-        start = Math.Max(1, end - maxVisible + 1);
+        int start = Math.Max( 1, CurrentPage - maxVisible / 2 );
+        int end = Math.Min( TotalPages, start + maxVisible - 1 );
+        start = Math.Max( 1, end - maxVisible + 1 );
 
-        for (int i = start; i <= end; i++)
+        for ( int i = start; i <= end; i++ )
             yield return i;
     }
 
-    string GetPageButtonClass(int page) => page == CurrentPage ? "pagination-button current" : "pagination-button";
-
-    static IEnumerable<string> GetPositiveFlags(Sandbox.Services.Review.PositiveTags tags)
+    static IEnumerable<Sandbox.Services.Review.PositiveTags> GetPositiveFlags( Sandbox.Services.Review.PositiveTags tags )
     {
-        foreach (Sandbox.Services.Review.PositiveTags value in Enum.GetValues(typeof(Sandbox.Services.Review.PositiveTags)))
+        foreach ( Sandbox.Services.Review.PositiveTags value in Enum.GetValues( typeof( Sandbox.Services.Review.PositiveTags ) ) )
         {
-            if (value != Sandbox.Services.Review.PositiveTags.None && tags.HasFlag(value))
-                yield return value.ToString();
+            if ( value != Sandbox.Services.Review.PositiveTags.None && tags.HasFlag( value ) )
+                yield return value;
         }
     }
 
-    static IEnumerable<string> GetNegativeFlags(Sandbox.Services.Review.NegativeTags tags)
+    static IEnumerable<Sandbox.Services.Review.NegativeTags> GetNegativeFlags( Sandbox.Services.Review.NegativeTags tags )
     {
-        foreach (Sandbox.Services.Review.NegativeTags value in Enum.GetValues(typeof(Sandbox.Services.Review.NegativeTags)))
+        foreach ( Sandbox.Services.Review.NegativeTags value in Enum.GetValues( typeof( Sandbox.Services.Review.NegativeTags ) ) )
         {
-            if (value != Sandbox.Services.Review.NegativeTags.None && tags.HasFlag(value))
-                yield return value.ToString();
+            if ( value != Sandbox.Services.Review.NegativeTags.None && tags.HasFlag( value ) )
+                yield return value;
         }
     }
 
-    string GetReviewClass(Sandbox.Services.Review.ReviewScore score) => score switch
+    string GetReviewClass( Sandbox.Services.Review.ReviewScore score ) => score switch
     {
         Sandbox.Services.Review.ReviewScore.Positive => "positive",
         Sandbox.Services.Review.ReviewScore.Negative => "negative",
         Sandbox.Services.Review.ReviewScore.Promise => "promise",
         _ => ""
     };
+
+    protected override int BuildHash() => HashCode.Combine( Package, Reviews.Count, CurrentPage, TotalCount, Filter, Near.Hash, _fetching );
 }

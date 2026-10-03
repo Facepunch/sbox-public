@@ -21,6 +21,11 @@
 	[Parameter]
 	public Action<string> OnValueChanged { get; set; }
 
+	/// <summary>
+	/// Called after opening the map picker so its owner can track the selection being edited.
+	/// </summary>
+	[Parameter] public Action OnSelectorOpened { get; set; }
+
 
 	public Texture Thumb
 	{
@@ -56,6 +61,7 @@
 
 			OnValueChanged?.Invoke(pkg);
 		}, Map );
+		OnSelectorOpened?.Invoke();
 	}
 
 	public async Task OnMapChanged( string map )

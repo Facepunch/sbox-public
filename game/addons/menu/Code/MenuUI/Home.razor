@@ -31,14 +31,8 @@
 
 					@if ( CurrentTab.IsDiscover )
 					{
-						@if (Result is null)
-						{
-							<LoadingPanel></LoadingPanel>
-						}
-						else
-						{
-							<FrontPageGames Group="@Result" />
-						}
+						@* Shelves of placeholders until the result's in *@
+						<FrontPageGames Group="@Result" />
 					}
 					else
 					{
@@ -49,18 +43,12 @@
 				<div class="aside">
 
 					@*
-						One card - avatar, stats, your friends taking the rest of the column, and your
-						party along the bottom when you're in one.
+						One card - avatar, stats, and your friends taking the rest of the column.
 					*@
 					<div class="profile-card">
 						<AvatarButton />
 						<ProfileStats />
 						<FriendsRail />
-
-						@* Room for the party deck, which floats over this from the menu overlay (so it can stay
-						   above modals) and sets its height - see Footer.razor. Always here, just hidden when
-						   there's no party, so the deck's reference to it never goes stale. *@
-						<div class="party-slot @(PartyView.Exists ? "" : "hidden")" @ref="PartySlot"></div>
 					</div>
 
 				</div>
@@ -94,6 +82,7 @@
 		new( "newest", "Newest", "sort:newest" ),
 		new( "updated", "Updated", "sort:updated" ),
 		new( "gems", "Hidden Gems", "sort:hiddengem" ),
+		new( "favourites", "Your Favourites", "sort:favourites" ),
 	];
 
 	/// <summary>Genre feeds, shown after the main tabs. Best-rated first within each genre.</summary>
@@ -124,11 +113,6 @@
 		}
 	}
 
-	/// <summary>
-	/// The space at the bottom of the rail the party deck lines itself up with.
-	/// </summary>
-	public static Panel PartySlot { get; private set; }
-
 	Package.ListResult Result;
 
 	protected override async Task OnParametersSetAsync()
@@ -147,5 +131,5 @@
 		ContentBlocks.OnMenu( this, package );
 	}
 
-	protected override int BuildHash() => System.HashCode.Combine( Result, CurrentTab, PartyView.Exists );
+	protected override int BuildHash() => System.HashCode.Combine( Result, CurrentTab );
 }

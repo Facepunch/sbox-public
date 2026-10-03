@@ -273,7 +273,7 @@ internal class ToolsDll : IToolsDll
 	public void Spin()
 	{
 		BindSystem?.Tick();
-		g_pToolFramework2.Spin();
+		Editor.Application.Spin();
 		EngineLoop.RunAsyncTasks();
 
 		NativeEngine.EngineGlobal.ToolsStallMonitor_IndicateActivity();

@@ -1,0 +1,105 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.Modals;
+@namespace MenuProject
+@inherits Panel
+
+<root class="@(Draft?.Creating == true ? "creating" : "")">
+	<div class="settings-row">
+		<label class="field-title">Name</label>
+		@if ( CanEdit )
+		{
+			<TextEntry Value=@Name OnTextEdited=@EditName MaxLength=@PartyRoom.MaxNameLength Placeholder="Name your party" onsubmit=@SaveName onblur=@SaveName disabled=@(Draft?.Creating == true) />
+		}
+		else
+		{
+			<label class="party-name">@PartyView.Name</label>
+		}
+	</div>
+
+	<div class="settings-row">
+		<label class="field-title">Max members</label>
+		@if ( CanEdit )
+		{
+			<SliderControl Value=@((float)MaxMembers) OnValueChanged=@SetMaxMembers Min=@((float)Math.Max( 1, MemberCount )) Max=@((float)PartyDeck.MAX_MEMBERS) Step=@(1f) ShowTextEntry=@true />
+		}
+		else
+		{
+			<label>@MaxMembers</label>
+		}
+	</div>
+
+	<div class="game-row">
+		<Button class="game-choice" Text="@(HasGame ? SelectedGameTitle : CanEdit ? "Choose game" : "No game selected")" IconTexture=@GameThumbnail Icon="@(GameBusy ? "hourglass_empty" : "sports_esports")" disabled=@(!CanEdit || GameBusy) onclick=@ChooseGame tooltip="@(CanEdit ? "Choose game" : SelectedGameTitle)" />
+		@if ( HasGame && CanEdit )
+		{
+			<Button class="game-action" disabled=@GameBusy onclick=@ClearGame tooltip="Clear game choice" Icon="close" />
+		}
+	</div>
+
+	@if ( CanShowGameSettings )
+	{
+		<div class="game-setup-summary">
+			@if ( GameSummary is { } summary )
+			{
+				@if ( summary.NeedsMap )
+				{
+					<div><icon>map</icon><label>@summary.MapTitle</label></div>
+				}
+				<div><icon>@summary.PrivacyIcon</icon><label>@($"{summary.PrivacyTitle} · {summary.MaxPlayers} server slots")</label></div>
+			}
+			else
+			{
+				<label>Game setup hasn't been saved yet.</label>
+			}
+			<Button class="configure-game" Icon="tune" Text="@(CanEdit ? "Configure game" : "View game setup")" disabled=@(Draft?.Creating == true) onclick=@ConfigureGame />
+		</div>
+	}
+
+	@if ( GameTooSmall )
+	{
+		<label class="settings-error">@($"This game only supports {SelectedPackage.Info.MaxPlayers} players.")</label>
+	}
+
+	@if ( !string.IsNullOrEmpty( Error ) )
+	{
+		<label class="settings-error">@Error</label>
+	}
+	@if ( Draft is not null )
+	{
+		<Button class="create-party" disabled=@(!CanCreate) onclick=@CreateParty Text="@(Draft.Creating ? "Creating…" : "Create")" />
+	}
+</root>
+
+@code
+{
+	string Name = PartyView.Name;
+	string Error;
+
+	bool CanSave => Draft is null && CanEdit && !string.IsNullOrWhiteSpace( Name ) && Name.Trim() != PartyView.Name;
+
+	void EditName( string name )
+	{
+		Name = name;
+		if ( Draft is not null ) Draft.Name = name;
+		Error = null;
+	}
+
+	void SaveName()
+	{
+		if ( !CanSave ) return;
+
+		try
+		{
+			PartyView.Rename( Name );
+			Name = PartyView.Name;
+			Error = null;
+		}
+		catch ( Exception e )
+		{
+			Error = e.Message;
+		}
+	}
+
+	protected override int BuildHash() => HashCode.Combine( Name, Error, PartyView.Name, CanEdit, Draft, Draft?.Creating, HashCode.Combine( MaxMembers, MemberCount, SelectedGameIdent, SelectedGameTitle, SelectedPackage, GameBusy, GameSummary, GameSummary?.MapTitle ) );
+}

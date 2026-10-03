@@ -11,13 +11,7 @@ public sealed partial class GameJamSystem
 	public JamFinalistCategory[] Finalists { get; private set; }
 
 	/// <summary>
-	/// Play eligibility for one category, keyed by package ident. Null until loaded.
-	/// </summary>
-	public IReadOnlyDictionary<string, JamEntryStatus?> GetFinalistEligibility( int categoryId )
-		=> finalistEligibility.GetValueOrDefault( categoryId );
-
-	/// <summary>
-	/// The latest finalist refresh or eligibility error, while retaining the last confirmed slate.
+	/// The latest finalist refresh error, while retaining the last confirmed slate.
 	/// </summary>
 	public string FinalistsError { get; private set; }
 
@@ -36,13 +30,15 @@ public sealed partial class GameJamSystem
 	/// </summary>
 	public bool IsSubmittingFinalistVote { get; private set; }
 
-	readonly Dictionary<int, Dictionary<string, JamEntryStatus?>> finalistEligibility = new();
+	readonly List<JamVoteUpdate> pendingFinalistVotes = new();
 	readonly Dictionary<(int Category, int? Round), float> finalistVoteCooldowns = new();
 	JamFinalistSource finalistSource;
 	bool finalistsLoading;
 	bool finalistsRefreshRequested = true;
-	bool finalistsWasFocused;
-	RealTimeUntil nextFinalistsRefresh;
+	DateTimeOffset? nextFinalistsRefresh;
+	int finalistVoteVersion;
+	RealTimeUntil nextPreviewVote;
+	int previewVoteBatch;
 
 	bool HasFinalists => ActiveJam is not null
 		&& ActiveJam.Now >= (ActiveJam.CommunityVoting ? ActiveJam.NominationsEnd : ActiveJam.FinalsStart);
@@ -62,7 +58,7 @@ public sealed partial class GameJamSystem
 			if ( ActiveJam is null ) return Jam.Phase.Upcoming;
 
 			var index = ActiveJam.CurrentStepIndex;
-			var scheduled = index >= 0 ? ActiveJam.Timeline[index].Phase : ActiveJam.CurrentPhase;
+			var scheduled = index >= 0 ? ActiveJam.Timeline[index].Phase : Jam.Phase.Upcoming;
 			if ( !ActiveJam.CommunityVoting || ActiveJam.Now < ActiveJam.NominationsEnd ) return scheduled;
 			if ( ActiveJam.Now < ActiveJam.FinalsStart ) return Jam.Phase.Finals;
 			if ( Finalists is null ) return scheduled >= Jam.Phase.GrandFinal ? Jam.Phase.GrandFinal : Jam.Phase.Finals;
@@ -88,7 +84,7 @@ public sealed partial class GameJamSystem
 	}
 
 	/// <summary>
-	/// Requests one shared finalist refresh, coalescing reconnect, focus and UI requests.
+	/// Requests one shared finalist refresh, coalescing reconnect, transition and UI requests.
 	/// </summary>
 	public void RefreshFinalists() => finalistsRefreshRequested = true;
 
@@ -98,11 +94,14 @@ public sealed partial class GameJamSystem
 		Finalists = null;
 		FinalistsError = null;
 		FinalistVoteError = null;
-		finalistEligibility.Clear();
+		pendingFinalistVotes.Clear();
 		finalistVoteCooldowns.Clear();
+		nextFinalistsRefresh = null;
 		finalistsLoading = false;
 		IsSubmittingFinalistVote = false;
 		finalistsRefreshRequested = true;
+		nextPreviewVote = 0;
+		previewVoteBatch = 0;
 	}
 
 	bool IsCurrentFinalists( JamFinalistSource source ) => Scene.IsValid() && finalistSource == source;
@@ -110,14 +109,47 @@ public sealed partial class GameJamSystem
 	void TickFinalists()
 	{
 		if ( !HasFinalists ) return;
+		TickPreviewVotes();
 
-		if ( Application.IsFocused && !finalistsWasFocused ) RefreshFinalists();
-		finalistsWasFocused = Application.IsFocused;
+		if ( nextFinalistsRefresh <= ActiveJam.Now )
+		{
+			nextFinalistsRefresh = null;
+			RefreshFinalists();
+		}
 
-		if ( !finalistsLoading && !IsSubmittingFinalistVote && (finalistsRefreshRequested || nextFinalistsRefresh <= 0) )
+		if ( !finalistsLoading && !IsSubmittingFinalistVote && finalistsRefreshRequested )
 		{
 			_ = RefreshFinalistsAsync();
 		}
+	}
+
+	/// <summary>
+	/// Rehearses incoming final tallies in the shared state, so the shelf and jam page animate
+	/// the same updates. These are local preview votes and never reach the backend.
+	/// </summary>
+	void TickPreviewVotes()
+	{
+		if ( !Jam.IsEditorPreview || finalistSource is not JamFinalistPreview || Finalists is null
+			|| finalistsLoading || IsSubmittingFinalistVote || nextPreviewVote > 0 ) return;
+
+		var finals = Finalists.Where( x => x.GrandFinal && x.Round.HasValue && x.IsVotingAt( ActiveJam.Now ) ).ToArray();
+		if ( finals.Length == 0 ) return;
+
+		nextPreviewVote = 1.2f;
+		foreach ( var category in finals )
+		{
+			var contenders = category.Contenders.Where( x => x.PackageIdent is not null ).ToArray();
+			for ( var i = 0; i < contenders.Length; i++ )
+			{
+				var ident = contenders[i].PackageIdent;
+				var boost = (previewVoteBatch / 5) % 2 == i ? 24 : 0;
+				var added = previewVoteBatch == 0 ? 800 + i * 35 : 8 + (previewVoteBatch * 17 + i * 11) % 23 + boost;
+				category.Apply( new JamVoteUpdate( ActiveJam.Ident, category.Id, category.Round.Value, ident,
+					category.TotalVotes + added, category.Counts.GetValueOrDefault( ident ) + added ) );
+			}
+		}
+		previewVoteBatch++;
+		Version++;
 	}
 
 	async Task RefreshFinalistsAsync()
@@ -126,28 +158,25 @@ public sealed partial class GameJamSystem
 		finalistsRefreshRequested = false;
 		var jam = ActiveJam;
 		var source = finalistSource ??= JamFinalistSource.Create( jam );
+		var voteVersion = finalistVoteVersion;
+		var requestedAt = jam.Now;
 
 		try
 		{
 			var categories = await source.ReadAsync();
 			if ( !IsCurrentFinalists( source ) ) return;
 
-			Finalists = categories;
-			finalistEligibility.Clear();
-			FinalistsError = null;
-			Version++;
-
-			var checks = new List<Task>();
-			foreach ( var category in categories.Where( x => x.IsVotingAt( jam.Now ) ) )
+			// Voting remains available during a read. Don't overwrite a vote accepted since it began.
+			if ( IsSubmittingFinalistVote || voteVersion != finalistVoteVersion )
 			{
-				finalistEligibility[category.Id] = new( StringComparer.OrdinalIgnoreCase );
-				foreach ( var entry in category.Contenders.Where( x => x.PackageIdent is not null ) )
-				{
-					checks.Add( LoadFinalistEligibility( source, category.Id, entry.PackageIdent ) );
-				}
+				RefreshFinalists();
+				return;
 			}
 
-			await Task.WhenAll( checks );
+			Finalists = categories;
+			FinalistsError = null;
+			ScheduleFinalistsRefresh( requestedAt );
+			Version++;
 		}
 		catch ( Exception e )
 		{
@@ -156,39 +185,37 @@ public sealed partial class GameJamSystem
 			Log.Warning( $"Couldn't refresh jam finalists ({e.Message})" );
 			FinalistsError = Finalists is null ? "Couldn't load finalists. You can still browse all entries."
 				: "Couldn't refresh finalists. Showing the last confirmed slate.";
+			nextFinalistsRefresh = jam.Now.AddSeconds( 15 );
 		}
 		finally
 		{
 			if ( IsCurrentFinalists( source ) )
 			{
 				finalistsLoading = false;
-
-				// Wake at the next advertised transition, then poll while awaiting confirmation.
-				var deadline = Finalists?.Where( x => !x.Decided )
-					.Select( x => x.VotingOpen ? x.RoundEnds : x.NextRoundOpens ).Min();
-				var remaining = (deadline - jam.Now)?.TotalSeconds ?? 20;
-				nextFinalistsRefresh = (float)(remaining > 0 ? Math.Min( 20, remaining ) : 2);
+				ApplyPendingFinalistVotes();
 				Version++;
 			}
 		}
 	}
 
-	async Task LoadFinalistEligibility( JamFinalistSource source, int categoryId, string ident )
+	/// <summary>
+	/// Reads again at the next scheduled transition. Vote totals arrive through backend messages.
+	/// </summary>
+	void ScheduleFinalistsRefresh( DateTimeOffset requestedAt )
 	{
-		try
-		{
-			var status = await source.GetEntryStatusAsync( categoryId, ident );
-			if ( !IsCurrentFinalists( source ) ) return;
+		// Include deadlines crossed while the request was in flight so they are handled next tick.
+		nextFinalistsRefresh = (Finalists ?? []).Where( x => !x.Decided )
+			.Select( x => x.VotingOpen ? x.RoundEnds : x.NextRoundOpens )
+			.Concat( new DateTimeOffset?[] { ActiveJam.FinalsStart, ActiveJam.GrandFinal, ActiveJam.Results } )
+			.Where( x => x > requestedAt ).Min();
 
-			finalistEligibility[categoryId][ident] = status;
-			if ( status is null ) FinalistsError = "Couldn't check voting eligibility for every finalist. Try again.";
-		}
-		catch ( Exception e )
+		// Round transitions can reach us before the backend has opened the next round. Retry the
+		// closed/expired snapshot instead of waiting until the next day's scheduled phase.
+		if ( (Finalists ?? []).Any( x => !x.Decided && (x.VotingOpen ? !x.IsVotingAt( ActiveJam.Now )
+			: !x.NextRoundOpens.HasValue || x.NextRoundOpens <= ActiveJam.Now) ) )
 		{
-			if ( !IsCurrentFinalists( source ) ) return;
-
-			Log.Warning( $"Couldn't check finalist eligibility ({e.Message})" );
-			FinalistsError = "Couldn't check voting eligibility for every finalist. Try again.";
+			var retry = ActiveJam.Now.AddSeconds( 15 );
+			if ( !nextFinalistsRefresh.HasValue || nextFinalistsRefresh > retry ) nextFinalistsRefresh = retry;
 		}
 	}
 
@@ -196,34 +223,48 @@ public sealed partial class GameJamSystem
 	{
 		if ( !HasFinalists || finalistSource?.ReceivesUpdates != true ) return;
 
-		var category = Finalists?.FirstOrDefault( x => x.Id == update.CategoryId );
-		if ( category?.RoundEnds <= ActiveJam.Now )
+		if ( finalistsLoading || IsSubmittingFinalistVote )
 		{
-			RefreshFinalists();
-			return;
+			pendingFinalistVotes.Add( update );
 		}
 
-		if ( finalistsLoading || IsSubmittingFinalistVote || category?.Round != update.Round ) RefreshFinalists();
+		var category = Finalists?.FirstOrDefault( x => x.Id == update.CategoryId );
+		if ( category?.Decided != true && (category?.Round is null || category.Round < update.Round) ) RefreshFinalists();
 		if ( category?.Apply( update ) == true ) Version++;
 	}
 
 	/// <summary>
-	/// Moves the current round's vote once, with a five-second lock after acceptance.
-	/// Rejects stale snapshots, duplicate selections and ineligible entries before submitting to the source.
+	/// Preserves live tally messages received while a snapshot or vote response was in flight.
+	/// </summary>
+	void ApplyPendingFinalistVotes()
+	{
+		if ( finalistsLoading || IsSubmittingFinalistVote ) return;
+
+		foreach ( var update in pendingFinalistVotes )
+		{
+			ApplyFinalistVotes( update );
+		}
+
+		pendingFinalistVotes.Clear();
+	}
+
+	/// <summary>
+	/// Submits the player's choice and displays the backend's reason if it is rejected.
+	/// Eligibility is decided by the backend without a separate preflight request.
+	/// An accepted vote starts a five-second cooldown before it can be changed.
 	/// </summary>
 	public async Task SubmitFinalistVoteAsync( JamFinalistCategory category, string ident )
 	{
-		if ( !HasFinalists || category is null || string.IsNullOrEmpty( ident ) || IsSubmittingFinalistVote || IsLoadingFinalists ) return;
-		if ( Finalists?.Contains( category ) != true || GetFinalistVoteCooldown( category.Id ) > 0 ) return;
-		if ( !category.IsVotingAt( ActiveJam.Now ) || category.MyVotes.Contains( ident ) ) return;
-		if ( !category.Contenders.Any( x => string.Equals( x.PackageIdent, ident, StringComparison.OrdinalIgnoreCase ) ) ) return;
-		if ( GetFinalistEligibility( category.Id )?.GetValueOrDefault( ident )?.CanNominate != true ) return;
+		if ( ActiveJam is null || category is null || string.IsNullOrEmpty( ident ) || IsSubmittingFinalistVote ) return;
+		if ( GetFinalistVoteCooldown( category.Id ) > 0 ) return;
 
 		IsSubmittingFinalistVote = true;
+		finalistVoteVersion++;
 		FinalistVoteError = null;
 		Version++;
 		var jam = ActiveJam;
 		var source = finalistSource ??= JamFinalistSource.Create( jam );
+		var requestedAt = jam.Now;
 
 		try
 		{
@@ -232,6 +273,7 @@ public sealed partial class GameJamSystem
 
 			Finalists = Finalists.Select( x => x.Id == updated.Id ? updated : x ).ToArray();
 			finalistVoteCooldowns[(updated.Id, updated.Round)] = RealTime.Now + 5;
+			ScheduleFinalistsRefresh( requestedAt );
 		}
 		catch ( Exception e )
 		{
@@ -245,7 +287,7 @@ public sealed partial class GameJamSystem
 			if ( IsCurrentFinalists( source ) )
 			{
 				IsSubmittingFinalistVote = false;
-				RefreshFinalists();
+				ApplyPendingFinalistVotes();
 				Version++;
 			}
 		}

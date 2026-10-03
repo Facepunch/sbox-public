@@ -1,80 +1,138 @@
 @import "/styles/_front.scss";
 
+$stage-w: 270px;
+$stage-h: 320px;
+
 AvatarButton
 {
 	position: relative;
 	flex-shrink: 0;
 	flex-direction: column;
-	height: 250px;
-	padding: 0 $front-inset;
-	// Your backdrop, behind your citizen - full strength across the right where they stand, only
-	// fading off once it's past them, under your name. White shows, black hides.
+	justify-content: flex-end;
+	height: 300px;
+	overflow: hidden;
+
+	// Your backdrop, full bleed but blurred and dimmed - it's set dressing, your citizen is the subject.
+	// Pushed out past the edges so the blur doesn't pull transparency in round the border.
 	.backdrop
 	{
 		position: absolute;
-		left: 0;
-		top: 0;
-		right: 0;
-		bottom: 0;
+		left: -20px;
+		top: -20px;
+		right: -20px;
+		bottom: -20px;
 		z-index: 0;
 		pointer-events: none;
 		background-image: url( "/ui/citizen-backdrop.webp" );
 		background-size: cover;
 		background-position: center;
-		opacity: 1;
-		mask-image: linear-gradient( 270deg, white 0%, white 45%, black 100% );
+		filter: blur( 8px ) brightness( 0.45 );
+		mask-image: linear-gradient( to bottom, white 0%, white 50%, black 100% );
 	}
 
-	// Your citizen, over the backdrop, filling the card - see CitizenPreview
-	.portrait
+	// Behind their head and shoulders - lifts the backdrop just there so their outline reads.
+	.glow
 	{
 		position: absolute;
-		left: 0;
-		top: 0;
-		right: 0;
-		bottom: 0;
-		z-index: 0;
+		top: -10px;
+		left: 50%;
+		width: 320px;
+		height: 260px;
+		margin-left: -160px;
+		z-index: 1;
+		pointer-events: none;
+		background-image: radial-gradient( rgba( 255, 255, 255, 0.16 ) 0%, rgba( 255, 255, 255, 0.06 ) 40%, rgba( 255, 255, 255, 0 ) 70% );
 	}
-	// Text column over the left half - the character render sits in the right half. Lets the mouse
-	// through, so you can grab the citizen anywhere on the card.
+
+	// Spans the card and centres the portrait - flex rather than a negative margin, so there's no
+	// sizing maths to drift out of true. Lets the mouse through either side of them.
+	.citizen-stage
+	{
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		height: $stage-h;
+		justify-content: center;
+		z-index: 2;
+		pointer-events: none;
+	}
+
+	// Room either side for their arms as they spin. The fade to their feet goes on the scene render
+	// itself, not a wrapper round it - masking the wrapper left their legs solid.
+	.portrait
+	{
+		flex-shrink: 0;
+		width: $stage-w;
+		height: $stage-h;
+
+		.render
+		{
+			mask-image: linear-gradient( to bottom, white 0%, white 58%, black 92% );
+		}
+	}
+
+	// Name and edit on one line across the bottom, over where your citizen fades out. Lets the mouse
+	// through, so the citizen can still be grabbed behind it.
+	.footer
+	{
+		flex-direction: row;
+		align-items: flex-end;
+		gap: 12px;
+		padding: 0 $front-inset 18px $front-inset;
+		z-index: 5;
+		pointer-events: none;
+	}
+
 	.info
 	{
 		flex-direction: column;
 		flex-grow: 1;
-		padding-top: 18px;
-		z-index: 5;
-		pointer-events: none;
+		flex-shrink: 1;
+		min-width: 0;
 	}
 
 	.eyebrow
 	{
 		font-size: 10.5px;
-		font-weight: 600;
+		font-weight: 700;
 		text-transform: uppercase;
-		letter-spacing: 0.09em;
+		letter-spacing: 0.14em;
 		color: $front-label;
 	}
 
 	.name
 	{
-		font-size: 26px;
-		font-weight: 700;
+		font-size: 30px;
+		font-weight: 800;
 		color: $front-heading;
-		margin-top: 2px;
-		max-width: 60%;
+		margin-top: -4px;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
-	// Floats over the render, top right - the card itself is no longer clickable.
+
 	.edit
 	{
 		@include front-pill;
 
-		position: absolute;
-		top: 16px;
-		right: $front-inset;
-		z-index: 10;
+		gap: 6px;
+		padding: 8px 16px;
+		margin-bottom: 4px;
+		pointer-events: all;
 		background-color: rgba( 8, 10, 14, 0.6 );
+
+		label
+		{
+			font-size: 11.5px;
+			font-weight: 700;
+			letter-spacing: 0.1em;
+			color: $front-heading;
+		}
+
+		icon
+		{
+			color: $front-heading;
+		}
 	}
 }

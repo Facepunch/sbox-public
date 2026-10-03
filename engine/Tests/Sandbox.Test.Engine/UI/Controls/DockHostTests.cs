@@ -136,7 +136,6 @@ public partial class DockHostTests
 		MoveTo( title.Box.Rect.Center );
 		Assert.AreSame( tab, surface.Hovered, "the title is hit through, not the close button" );
 		MouseButton( true );
-		Assert.AreSame( tab, surface.Focus );
 		MoveTo( destination );
 		Assert.IsTrue( tab.HasClass( "dragging" ), "real mouse input crossed the drag threshold" );
 		Frame();
@@ -996,6 +995,25 @@ public partial class DockHostTests
 			Assert.AreEqual( "Close panel", actions[0].Tooltip );
 			Assert.AreEqual( "close", actions[0].Children.OfType<IconPanel>().Single().Text );
 		}
+	}
+
+	/// <summary>Escape cancels a drag without the dragged tab having focus - the drag belongs to the pointer.</summary>
+	[TestMethod]
+	public void EscapeCancelsTabDragWithoutFocus()
+	{
+		OpenTabs();
+		var tab = Tab( host, "a" );
+		BeginDrag( tab, new Vector2( host.Box.Rect.Right - 5, host.Box.Rect.Center.y ) );
+		Assert.AreNotSame( tab, surface.Focus, "pressing a tab doesn't focus it" );
+		var before = host.State;
+		surface.SetKey( "escape", true );
+		Frame();
+		surface.SetKey( "escape", false );
+		Frame();
+		Assert.IsFalse( tab.HasClass( "dragging" ) );
+		Assert.IsFalse( host.Descendants.Single( x => x.HasClass( "dock-targets" ) ).IsVisible );
+		MouseButton( false );
+		Assert.AreEqual( before, host.State );
 	}
 
 	/// <summary>Escape cancels a pending drop through the surface's real keyboard route.</summary>

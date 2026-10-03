@@ -357,4 +357,148 @@ public class FocusTraversalTests
 
 		Assert.IsTrue( checkbox.Checked );
 	}
+
+	/// <summary>
+	/// A panel the mouse can land on, sized so it can be hit.
+	/// </summary>
+	T Clickable<T>( Panel parent = null ) where T : Panel, new()
+	{
+		var panel = new T { Parent = parent ?? surface.Root };
+		panel.Style.Set( "width: 100px; height: 40px; pointer-events: all;" );
+		return panel;
+	}
+
+	/// <summary>
+	/// Press and release the left mouse button over a panel, letting the focus change land.
+	/// </summary>
+	void Click( Panel panel )
+	{
+		surface.MouseInside = true;
+		surface.MouseMoved( panel.Box.Rect.Center );
+		UiTesting.Frame( surface );
+		surface.MouseMoved( panel.Box.Rect.Center );
+		var hovered = surface.Hovered;
+		Assert.IsTrue( hovered == panel || hovered?.Ancestors.Contains( panel ) == true, "the click lands on the panel" );
+
+		surface.Input.AddMouseButton( NativeEngine.ButtonCode.MouseLeft, true, default );
+		UiTesting.Frame( surface );
+		surface.Input.AddMouseButton( NativeEngine.ButtonCode.MouseLeft, false, default );
+		UiTesting.Frame( surface );
+		UiTesting.Frame( surface );
+	}
+
+	[TestMethod]
+	public void ClickingATextEntryFocusesIt()
+	{
+		var entry = Clickable<TextEntry>();
+		Layout();
+
+		Click( entry );
+
+		Assert.AreSame( entry, surface.Focus );
+	}
+
+	[TestMethod]
+	public void ClickingAButtonDoesNotFocusIt()
+	{
+		var button = Clickable<Button>();
+		Layout();
+
+		Click( button );
+
+		Assert.IsNull( surface.Focus );
+	}
+
+	[TestMethod]
+	public void EnterAfterClickingAButtonDoesNotClickItAgain()
+	{
+		var clicks = 0;
+		var button = Clickable<Button>();
+		button.AddEventListener( "onclick", () => clicks++ );
+		Layout();
+
+		Click( button );
+		Press( "enter" );
+
+		Assert.AreEqual( 1, clicks );
+	}
+
+	[TestMethod]
+	public void ClickingAButtonFinishesEditing()
+	{
+		var blurs = 0;
+		var entry = Clickable<TextEntry>();
+		entry.AddEventListener( "onblur", () => blurs++ );
+		var button = Clickable<Button>();
+		Layout();
+
+		Click( entry );
+		Assert.AreSame( entry, surface.Focus );
+		Click( button );
+
+		Assert.IsNull( surface.Focus );
+		Assert.AreEqual( 1, blurs );
+	}
+
+	[TestMethod]
+	public void ClickingEmptySpaceClearsFocus()
+	{
+		var entry = Clickable<TextEntry>();
+		var empty = Clickable<Panel>();
+		Layout();
+
+		Click( entry );
+		Assert.AreSame( entry, surface.Focus );
+		Click( empty );
+
+		Assert.IsNull( surface.Focus );
+	}
+
+	[TestMethod]
+	public void ClickingAButtonFocusesTheFocusablePanelItsIn()
+	{
+		var container = Clickable<Panel>();
+		container.AcceptsFocus = true;
+		container.Style.Set( "width: 300px; height: 200px;" );
+		var button = Clickable<Button>( container );
+		Layout();
+
+		Click( button );
+
+		Assert.AreSame( container, surface.Focus );
+	}
+
+	/// <summary>
+	/// A suggestion is inside the entry's own popup, so clicking it keeps the entry focused - rather
+	/// than blurring and refocusing it, which would reopen the popup it just closed.
+	/// </summary>
+	[TestMethod]
+	public void ClickingASuggestionKeepsTheEntryFocused()
+	{
+		var entry = Clickable<TextEntry>();
+		entry.AutoComplete = _ => new object[] { "hello" };
+		var blurs = 0;
+		entry.AddEventListener( "onblur", () => blurs++ );
+		Layout();
+
+		Click( entry );
+		UiTesting.Frame( surface );
+		Assert.AreSame( entry, surface.Focus );
+		Assert.IsNotNull( entry.AutoCompletePanel );
+
+		// No stylesheet here, so give the popup and its option something to hit
+		var popup = entry.AutoCompletePanel;
+		var option = popup.GetChild( 0 );
+		popup.Style.Set( "pointer-events: all;" );
+		option.Style.Set( "width: 100px; height: 20px; pointer-events: all;" );
+		UiTesting.Frame( surface );
+		UiTesting.Frame( surface );
+
+		Click( option );
+
+		Assert.AreEqual( "hello", entry.Text );
+		Assert.AreSame( entry, surface.Focus );
+		Assert.AreEqual( 0, blurs );
+		Assert.IsNull( entry.AutoCompletePanel );
+	}
 }

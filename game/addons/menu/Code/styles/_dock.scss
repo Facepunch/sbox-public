@@ -1,0 +1,88 @@
+@import "/styles/_front.scss";
+
+// Keep component appearance here; pages should only size and arrange their docks.
+MenuShell .dockhost
+{
+	background-color: transparent;
+
+	.dock-group
+	{
+		background-color: transparent;
+	}
+
+	.dock-splitter
+	{
+		position: relative;
+		width: $front-chrome-gap;
+		background-color: transparent;
+
+		// Keep the full gap easy to grab, but only highlight its centre line.
+		&::after
+		{
+			position: absolute;
+			left: 7px;
+			top: 0;
+			bottom: 0;
+			width: 2px;
+			border-radius: 1px;
+			background-color: transparent;
+			pointer-events: none;
+		}
+
+		&:hover::after
+		{
+			background-color: $front-primary;
+		}
+	}
+
+	.dock-splitter:hover, .dock-split.resizing > .dock-splitter
+	{
+		background-color: transparent;
+	}
+
+	.dock-split.resizing > .dock-splitter::after
+	{
+		background-color: $front-primary;
+	}
+
+	.dock-split.vertical > .dock-splitter
+	{
+		height: $front-chrome-gap;
+
+		&::after
+		{
+			left: 0;
+			right: 0;
+			top: 7px;
+			bottom: auto;
+			width: auto;
+			height: 2px;
+		}
+	}
+
+	.dock-tabs
+	{
+		@include front-tabs;
+	}
+
+	.dock-body
+	{
+		@include front-card;
+		flex-shrink: 1;
+	}
+
+	// The dock owns the shared surface; its content must not stack another slab or grain over it.
+	.dock-content > *
+	{
+		background-color: transparent;
+		background-image: none;
+		backdrop-filter: none;
+		border: 0;
+		border-radius: 0;
+
+		&::after
+		{
+			display: none;
+		}
+	}
+}

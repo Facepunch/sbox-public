@@ -1,4 +1,5 @@
 using NativeEngine;
+using Sandbox.Modals;
 
 namespace Sandbox.Engine;
 
@@ -136,6 +137,18 @@ internal static partial class InputRouter
 			var escapeTarget = Contexts.FirstOrDefault( x => x.KeyboardState != InputContext.InputState.Ignore && x.KeyboardFocusPanel is not null );
 			if ( escapeTarget is not null && escapeTarget.In_Escape() )
 			{
+				return;
+			}
+
+			// The menu's up over the game - the pause menu, or something opened from it. Escape is the
+			// menu's, to close it with, before the game can take it: F1 opens the pause menu even in a
+			// game that keeps escape for itself, and there'd be no other way back out
+			if ( IGameInstance.Current is not null && !Application.IsEditor && IModalSystem.Current?.IsModalOpen == true )
+			{
+				EscapeWasPressed = false;
+
+				using var scope = GlobalContext.MenuScope();
+				IModalSystem.Current?.PauseMenu();
 				return;
 			}
 

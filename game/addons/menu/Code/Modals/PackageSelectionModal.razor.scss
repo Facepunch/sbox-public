@@ -1,67 +1,422 @@
 @import "/styles/_theme.scss";
 
-.modal.package-selection-modal
+.modal.package-picker-modal
 {
-
-    .window
-    {
-		position: relative;
-		width: 1700px;
-		height: 1000px;
-		font-family: Poppins;
+	.window
+	{
+		width: 1440px;
+		max-width: 94vw;
+		height: 860px;
+		max-height: 90vh;
+		flex-direction: column;
 		background-color: $default-900;
 		border: 1px solid $default-border;
-		border-radius: $rounding-large * 2;
-		box-shadow: 0px 0px 120px 60px rgba( $default-950, 0.8 );
-		flex-direction: column;
+		border-radius: 12px;
 		overflow: hidden;
 		pointer-events: all;
+		font-family: $font-default;
+	}
 
-        packageselector
-        {
-            padding: 0px;
-            margin: 0px;
-            width: 100%;
-            height: 100%;
-        }
+	.picker-header
+	{
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: space-between;
+		padding: 24px 28px 20px;
 
-		packagefilters
+		.heading
 		{
-			padding: 32px;
+			flex-direction: column;
+			gap: 6px;
 		}
 
-        packagefilterfacet, packagefilterorder, textentry
-        {
-            border-radius: 16px;
-        }
+		.picker-title
+		{
+			font-family: $font-heading;
+			font-size: 26px;
+			font-weight: 700;
+			color: $default-text;
+		}
 
-        .card-package
-        {
-            .orgrow
-            {
-                color: white;
-            }
+		.picker-subtitle
+		{
+			color: $default-200;
+			font-size: 14px;
+		}
 
-            .body-meta
-            {
-                color: white;
-            }
-        }
+		.close-button
+		{
+			width: 36px;
+			height: 36px;
+			flex-shrink: 0;
+			align-items: center;
+			justify-content: center;
+			padding: 0;
+			border-radius: 6px;
+			font-size: 24px;
+			color: $default-200;
 
-        h2
-        {
-            margin-bottom: 16px;
-            font-weight: bold;
-            text-transform: uppercase;
-            color: white;
-            font-size: 28px;
-            flex-shrink: 0;
-        }
-    }
+			&:hover
+			{
+				background-color: $default-800;
+				color: white;
+			}
+		}
+	}
 
-    packagelist virtualgrid
-    {
-        padding: 32px;
-        gap: 16px;
-    }
+	.picker-toolbar
+	{
+		flex-shrink: 0;
+		align-items: center;
+		gap: 12px;
+		padding: 0 28px 24px;
+		border-bottom: 1px solid $default-border;
+	}
+
+	.package-search
+	{
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+		height: 44px;
+		padding: 0 36px 0 14px;
+		gap: 10px;
+		align-items: center;
+		font-size: 15px;
+		color: $default-text;
+		background-color: $default-950;
+		border: 1px solid $default-border;
+		border-radius: 6px;
+
+		&::before
+		{
+			content: "search";
+			font-family: Material Icons;
+			font-size: 22px;
+			color: $default-300;
+			flex-shrink: 0;
+			pointer-events: none;
+		}
+
+		&:focus
+		{
+			border-color: $primary-blue;
+		}
+
+		.placeholder
+		{
+			color: $default-300;
+		}
+	}
+
+	.picker-button
+	{
+		flex-grow: 0;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: flex-start;
+		padding: 10px 12px;
+		gap: 10px;
+		font-size: 14px;
+		font-weight: 500;
+		color: $default-100;
+		border-radius: 6px;
+		background-color: transparent;
+		cursor: pointer;
+
+		.iconpanel
+		{
+			font-size: 20px;
+		}
+
+		&:hover
+		{
+			color: white;
+			background-color: rgba( white, 0.05 );
+		}
+
+		&.active
+		{
+			color: #a9cdff;
+			background-color: rgba( $primary-blue, 0.18 );
+		}
+	}
+
+	.multiplayer-filter
+	{
+		height: 44px;
+		border: 1px solid $default-border;
+
+		&.active
+		{
+			border-color: rgba( $primary-blue, 0.4 );
+		}
+	}
+
+	.picker-body
+	{
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-height: 0;
+	}
+
+	.picker-sidebar
+	{
+		width: 248px;
+		flex-shrink: 0;
+		flex-direction: column;
+		padding: 20px 16px;
+		gap: 24px;
+		overflow-y: scroll;
+		background-color: rgba( $default-950, 0.4 );
+		border-right: 1px solid $default-border;
+	}
+
+	.filter-section
+	{
+		width: 100%;
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 8px;
+	}
+
+	.section-title
+	{
+		flex-shrink: 0;
+		padding: 0 12px 4px;
+		font-size: 11px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 1px;
+		color: $default-300;
+	}
+
+	.browse-options
+	{
+		gap: 3px;
+	}
+
+	.browse-option
+	{
+		width: 100%;
+		height: 38px;
+
+		.button-label
+		{
+			min-width: 0;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+		}
+	}
+
+	.mount-source
+	{
+		.button-label
+		{
+			flex-shrink: 1;
+			min-width: 0;
+		}
+
+		.mount-icon
+		{
+			flex-shrink: 0;
+			font-family: Material Icons;
+			font-size: 20px;
+		}
+
+		.mount-count
+		{
+			flex-shrink: 0;
+			margin-left: auto;
+			min-width: 28px;
+			padding: 1px 5px;
+			border-radius: 5px;
+			font-size: 11px;
+			font-weight: 500;
+			text-align: center;
+			white-space: nowrap;
+			color: $default-200;
+			background-color: rgba( white, 0.06 );
+		}
+	}
+
+	PackagePropertyFilter, PackageTagFilter
+	{
+		gap: 6px;
+		justify-content: flex-start;
+		font-size: 12px;
+	}
+
+	PackageCategoryFilter
+	{
+		padding-left: 0;
+		font-size: 12px;
+		gap: 3px;
+
+		.option
+		{
+			min-height: 32px;
+			flex-shrink: 0;
+			padding: 6px 8px;
+			gap: 8px;
+			color: $default-100;
+
+			&.active
+			{
+				color: #a9cdff;
+				background-color: rgba( $primary-blue, 0.18 );
+			}
+		}
+
+		WithIcon
+		{
+			flex-grow: 1;
+			flex-shrink: 1;
+			min-width: 0;
+
+			.inner
+			{
+				min-width: 0;
+				flex-grow: 1;
+				font-family: $font-default;
+				font-weight: 500;
+			}
+
+			i
+			{
+				flex-shrink: 0;
+				font-size: 16px;
+			}
+
+			span
+			{
+				min-width: 0;
+				white-space: nowrap;
+				text-overflow: ellipsis;
+			}
+		}
+
+		.count
+		{
+			// Reserve the count's width so long category names can't split its digits.
+			flex-shrink: 0;
+			min-width: 28px;
+			margin-left: auto;
+			justify-content: center;
+			white-space: nowrap;
+			font-size: 11px;
+			font-weight: 500;
+			color: $default-200;
+			background-color: rgba( white, 0.06 );
+		}
+	}
+
+	.picker-results
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+		min-height: 0;
+		width: 0;
+	}
+
+	.results-header
+	{
+		flex-shrink: 0;
+		align-items: center;
+		gap: 12px;
+		height: 60px;
+		padding: 12px 24px;
+	}
+
+	.results-title
+	{
+		font-size: 16px;
+		font-weight: 600;
+		color: $default-text;
+	}
+
+	.results-count
+	{
+		font-size: 12px;
+		color: $default-300;
+	}
+
+	.clear-filters
+	{
+		margin-left: auto;
+		font-size: 12px;
+		padding: 6px 8px;
+	}
+
+	packagelist
+	{
+		min-height: 0;
+		width: 100%;
+
+		VirtualGrid
+		{
+			padding: 8px 24px 24px;
+			gap: 16px;
+
+			PackageCard
+			{
+				align-self: flex-start;
+				padding: 8px;
+				border-radius: 8px;
+
+				// Use the card's own padding for the hover background.
+				&:not(.list)::after
+				{
+					display: none;
+				}
+
+				&:not(.list):hover
+				{
+					transform: none;
+					background-color: $default-800;
+				}
+
+				// Keep the artwork full width, with room below for the title and stats.
+				.image, column
+				{
+					flex-shrink: 0;
+				}
+
+				.image
+				{
+					border-radius: 4px;
+				}
+
+				column
+				{
+					padding: 8px 2px 0;
+				}
+
+				.package-title
+				{
+					white-space: nowrap;
+				}
+			}
+		}
+	}
+
+	.mounted-map-grid
+	{
+		width: 100%;
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-height: 0;
+		padding: 8px 24px 24px;
+		gap: 18px;
+	}
+
+	.mounted-maps-empty
+	{
+		flex-grow: 1;
+		align-items: center;
+		justify-content: center;
+		padding: 32px;
+	}
 }

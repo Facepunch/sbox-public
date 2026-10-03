@@ -154,6 +154,7 @@ internal static partial class SceneCompiler
 		SceneCompilerSettings settings, SceneCompileSession session, string generation )
 	{
 		var outputFolder = $"/compiled/{generation}";
+		var resourceFolder = $"{System.IO.Path.ChangeExtension( sourceAsset.Path, null )}_scene_data{outputFolder}";
 		var discovered = DiscoverSources( compiled ).ToArray();
 		var meshes = Gather<MeshComponent>( discovered ).ToArray();
 		var props = Gather<ModelRenderer>( discovered ).ToArray();
@@ -191,9 +192,9 @@ internal static partial class SceneCompiler
 
 		for ( int i = 0; i < plans.Length; i++ )
 		{
-			var (model, fragments) = Build( plans[i], statistics );
+			var (model, fragments) = Build( plans[i], $"{resourceFolder}/aggregate_{i}.vmdl", statistics );
 
-			model = Model.Load( Write( sceneFolder, $"{outputFolder}/aggregate_{i}.vmdl_c", model.SaveToVmdl() ) );
+			model = WriteModel( sceneFolder, $"{outputFolder}/aggregate_{i}.vmdl_c", model );
 			if ( !model.IsValid() || model.IsError )
 				throw new InvalidOperationException( $"Could not load compiled aggregate model {i}." );
 
@@ -218,7 +219,7 @@ internal static partial class SceneCompiler
 			session.Phase( $"Converting {leftovers.Length} meshes" );
 			await Task.Delay( 1, session.Cancel );
 
-			converted = await ConvertMeshes( compiled, leftovers, sceneFolder, outputFolder, statistics, Step );
+			converted = await ConvertMeshes( compiled, leftovers, sceneFolder, outputFolder, resourceFolder, statistics, Step );
 			processed.UnionWith( leftovers.Select( mesh => mesh.Id ) );
 		}
 
@@ -329,6 +330,12 @@ internal static partial class SceneCompiler
 		NativeEngine.g_pResourceSystem.ReloadResource( name );
 
 		return written;
+	}
+
+	static Model WriteModel( SceneFolder folder, string path, Model model )
+	{
+		var name = Resource.FixPath( Write( folder, path, model.SaveToVmdl() ) );
+		return Model.FromNative( NativeGlue.Resources.GetModel( name, Guid.Empty ), name: name );
 	}
 
 	static IEnumerable<T> Gather<T>( IEnumerable<Source> sources ) where T : Component => sources

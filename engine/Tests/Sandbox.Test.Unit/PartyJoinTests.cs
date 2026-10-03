@@ -178,7 +178,7 @@ public class PartyJoinTests
 			( _, _, _ ) => { connects++; return Task.CompletedTask; }, () => { } );
 		join.Update( Ready(), 0 );
 		var pending = join.PendingTask;
-		join.Update( new( 1, PartyRoom.OwnerJoinState.None, "", "" ), 1 );
+		join.Update( new( PartyRoom.OwnerJoinState.None, "", "" ), 1 );
 		download.SetResult();
 		await pending;
 		Assert.AreEqual( 0, connects );
@@ -239,8 +239,8 @@ public class PartyJoinTests
 		Assert.AreEqual( PartyRoom.JoinStage.Connected, join.Stage );
 	}
 
-	static PartyJoinController.Target Loading( string package = "test.game#1", ulong owner = 1 ) => new( owner, PartyRoom.OwnerJoinState.Loading, package, "" );
-	static PartyJoinController.Target Ready( string address = "server", string package = "test.game#1", ulong owner = 1 ) => new( owner, PartyRoom.OwnerJoinState.Ready, package, address );
+	static PartyJoinController.Target Loading( string package = "test.game#1" ) => new( PartyRoom.OwnerJoinState.Loading, package, "" );
+	static PartyJoinController.Target Ready( string address = "server", string package = "test.game#1" ) => new( PartyRoom.OwnerJoinState.Ready, package, address );
 
 	[TestMethod]
 	public async Task CachedDownloadClosesPreviousGameBeforeConnecting()
@@ -280,7 +280,7 @@ public class PartyJoinTests
 	}
 
 	[TestMethod]
-	public async Task HostChangeInvalidatesOldDownloadAndProgress()
+	public async Task TargetChangeInvalidatesOldDownloadAndProgress()
 	{
 		var oldDownload = new TaskCompletionSource();
 		Action<LoadingProgress?> oldProgress = null;
@@ -293,7 +293,7 @@ public class PartyJoinTests
 		join.Update( Loading( "old.game" ), 0 );
 		join.Update( Ready( "old-server", "old.game" ), 1 );
 		var oldTask = join.PendingTask;
-		join.Update( Ready( "new-server", owner: 2 ), 2 );
+		join.Update( Ready( "new-server" ), 2 );
 		await join.PendingTask;
 		oldProgress( new() { Fraction = 0.5 } );
 		oldDownload.SetResult();
@@ -301,6 +301,20 @@ public class PartyJoinTests
 		Assert.AreEqual( "new-server", connected );
 		Assert.AreEqual( PartyRoom.JoinStage.Connected, join.Stage );
 		Assert.IsNull( join.Progress );
+	}
+
+	[TestMethod]
+	public async Task LeaderReturningToMenuLeavesJoinedFollowersInTheGame()
+	{
+		var stops = 0;
+		using var join = new PartyJoinController( ( _, _, _ ) => Task.CompletedTask, ( _, _, _ ) => Task.CompletedTask, () => stops++ );
+		join.Update( Ready(), 0 );
+		await join.PendingTask;
+
+		join.Update( new( PartyRoom.OwnerJoinState.None, "", "" ), 1 );
+
+		Assert.AreEqual( 1, stops ); // Only the teardown before the original connect.
+		Assert.AreEqual( PartyRoom.JoinStage.None, join.Stage );
 	}
 
 	[TestMethod]

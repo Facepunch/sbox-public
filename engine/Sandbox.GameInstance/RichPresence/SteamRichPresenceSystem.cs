@@ -36,6 +36,8 @@ internal sealed class SteamRichPresenceSystem : IRichPresenceSystem
 			SetValue( "party_owner", $"{party.Owner.Id}" );
 			SetValue( "party_size", $"{party.MemberCount}" );
 			SetValue( "party_max", $"{party.MaxMembers}" );
+			// Cap the roster to fit Steam's 256-byte value limit.
+			SetValue( "party_members", string.Join( ",", party.Members.Select( x => x.Id ).Order().Take( 12 ) ) );
 		}
 		else
 		{
@@ -43,6 +45,7 @@ internal sealed class SteamRichPresenceSystem : IRichPresenceSystem
 			SetValue( "party_owner", null );
 			SetValue( "party_size", null );
 			SetValue( "party_max", null );
+			SetValue( "party_members", null );
 		}
 
 		SetValue( "in_editor", Application.IsEditor ? "1" : "0" );

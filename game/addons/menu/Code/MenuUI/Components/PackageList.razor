@@ -10,12 +10,18 @@
 
     @if ( ShowFilters )
     {
-        <MenuProject.UI.PackageFilters Result=@Result Query=@Query OnChange=@OnQueryUpdated></MenuProject.UI.PackageFilters>
+        <MenuProject.UI.PackageFilters @ref="Filters" Result=@Result Query=@Query ShowSearch=@ShowSearch OnChange=@OnQueryUpdated></MenuProject.UI.PackageFilters>
     }
 
+    @* Still looking - the grid it'll be, in blank tiles pulsing where the packages will go, laid out
+       by the same grid at the same size so nothing moves when they land *@
     @if ( FoundPackages == null )
     {
-        <MenuProject.UI.LoaderFullScreen></MenuProject.UI.LoaderFullScreen>
+        <VirtualGrid class="skeleton" Items=@SkeletonCells ItemSize=@ItemSize>
+            <Item Context="item">
+                <div class="skeleton-tile"></div>
+            </Item>
+        </VirtualGrid>
     }
     else if (FoundPackages.Count() == 0 )
     {
@@ -39,6 +45,7 @@
                                  Clicked=@(() => OnSelected?.Invoke(package))
                                  Rotation=@Rotation
                                  ShowNominations=@ShowNominations
+                                 HoverPreview=@HoverPreview
                                  Package=@package></MenuProject.UI.PackageCard>
 					}
                 }
@@ -53,8 +60,29 @@
     [Parameter] public string Query { get; set; }
     [Parameter] public int Take { get; set; } = 100;
     [Parameter] public bool ShowFilters { get; set; } = false;
+
+    /// <summary>
+    /// Shows a package preview popup when hovering over a card.
+    /// </summary>
+    [Parameter] public bool HoverPreview { get; set; } = true;
+
+    /// <summary>
+    /// The filters' own search box - off where the list's in something with a search of its own,
+    /// which passes what's typed to <see cref="Search"/>.
+    /// </summary>
+    [Parameter] public bool ShowSearch { get; set; } = true;
+
+    PackageFilters Filters;
+
+    /// <summary>
+    /// Search the list for this, as if it had been typed in the filters' own box.
+    /// </summary>
+    public void Search( string text ) => Filters?.Search( text );
     /// <summary>Base cell size. Cells stretch to fill the row, so this only sets the aspect.</summary>
     [Parameter] public Vector2 ItemSize { get; set; } = new Vector2( 300, 169 );
+
+    /// <summary>Enough blank tiles to fill the first screen or so while it's looking.</summary>
+    static readonly object[] SkeletonCells = Enumerable.Range( 0, 12 ).Cast<object>().ToArray();
 
     [Parameter] public System.Action<Package> OnMenu { get; set; }
     [Parameter] public System.Action<Package> OnSelected { get; set; }

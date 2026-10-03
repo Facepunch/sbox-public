@@ -40,9 +40,14 @@
 	/// </summary>
 	public PartyRoom.MemberStatus Status { get; set; }
 
+	/// <summary>
+	/// Whether this member is ready to start the party's selected game.
+	/// </summary>
+	public bool Ready { get; set; }
+
 	string Name => Friend.IsMe ? "You" : Friend.Name;
 
-	string Badge => Status.Stage switch
+	string Badge => Ready ? "check" : Status.Stage switch
 	{
 		PartyRoom.JoinStage.Downloading => "download",
 		PartyRoom.JoinStage.WaitingForHost => "check",
@@ -52,7 +57,7 @@
 		_ => null
 	};
 
-	string StatusClass => Status.Stage switch
+	string StatusClass => Ready ? "ready" : Status.Stage switch
 	{
 		PartyRoom.JoinStage.Downloading or PartyRoom.JoinStage.Connecting => "busy",
 		PartyRoom.JoinStage.WaitingForHost or PartyRoom.JoinStage.Connected => "ready",
@@ -60,7 +65,7 @@
 		_ => ""
 	};
 
-	string StatusTooltip => Status.Stage switch
+	string StatusTooltip => Ready ? $"{Name} - ready to start" : Status.Stage switch
 	{
 		PartyRoom.JoinStage.Downloading when Status.Progress is { } p => $"{Name} - downloading, {p * 100:0}%",
 		PartyRoom.JoinStage.Downloading => $"{Name} - downloading",
@@ -78,7 +83,7 @@
 	private SoundStream soundStream;
 	private SoundHandle soundHandle;
 
-	protected override int BuildHash() => System.HashCode.Combine( IsOwner, IsTalking, Status );
+	protected override int BuildHash() => System.HashCode.Combine( IsOwner, IsTalking, Status, Ready );
 
 	//
 	// A bounce when their status changes - finished downloading, joined, fell over - so your eye

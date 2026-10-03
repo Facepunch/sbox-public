@@ -9,55 +9,80 @@
 @using Sandbox.Services
 @using Sandbox.DataModel
 @using Sandbox.UI.Navigation
+@using MenuProject.Modals.PackageModalComponents
 
 <root>
 
-    <div class="left">
-
-        <div class="group">
-            <div class="pill @( Liked ? "active" : "" )" onclick=@( () => _ = Vote( true ) ) tooltip="Like">
-                <icon>thumb_up</icon>
-                <label>@Package.VotesUp.ToMetric()</label>
-            </div>
-            <div class="pill @( Disliked ? "active" : "" )" onclick=@( () => _ = Vote( false ) ) tooltip="Dislike">
-                <icon>thumb_down</icon>
-                <label>@Package.VotesDown.ToMetric()</label>
-            </div>
-        </div>
-
-        <div class="group">
-            <div class="pill fav @( Package.Interaction.Favourite ? "active" : "" )" onclick=@( () => _ = ToggleFavourite() ) tooltip="@( Package.Interaction.Favourite ? "Remove from favourites" : "Add to favourites" )">
-                <icon>@( Package.Interaction.Favourite ? "favorite" : "favorite_border" )</icon>
-                <label>@Package.Favourited.ToMetric()</label>
-            </div>
-            <div class="pill" onclick=@( () => Game.Overlay.ShowReviewModal( Package ) ) tooltip="@ReviewTooltip">
-                <icon>rate_review</icon>
-                <label>@ReviewText</label>
-            </div>
-        </div>
-
-        <div class="group">
-            <div class="pill" onclick=@( () => _ = Hide() ) tooltip="Hide this game">
-                <icon>block</icon>
-            </div>
-        </div>
-
-        @if ( ShowJam )
-        {
-            <div class="group jam">
-                <div class="pill nominate @( _nominated ? "on" : "" ) @( _jamBusy ? "busy" : "" ) @( CanToggleNomination ? "" : "locked" )" onclick=@( () => _ = ToggleNomination() ) tooltip="@JamTooltip">
-                    <icon>@( _nominated ? "check" : CanToggleNomination ? "emoji_events" : "lock" )</icon>
-                    <label>@( _nominated ? "Nominated" : "Nominate" )</label>
+    @* Setting up a new game - what it'll be at a glance, and the button that starts it *@
+    @if ( Modal?.Setup is { } setup )
+    {
+        <div class="left setup-summary">
+            @if ( setup.NeedsMap )
+            {
+                @* Its picture behind the glyph, fading out a way in - and another picked from it, like the map row's *@
+                <div class="chip map" onclick=@( () => PickMap( setup ) )>
+                    <div class="art" @ref="MapArt"></div>
+                    <i>map</i>
+                    <label>@setup.MapTitle</label>
                 </div>
-            </div>
-        }
+            }
 
+            @if ( setup.IsMultiplayer )
+            {
+                <div class="chip">
+                    <i>@setup.PrivacyIcon</i>
+                    <label>@setup.PrivacyTitle</label>
+                </div>
+
+                @if ( setup.HasPlayerRange )
+                {
+                    <div class="chip">
+                        <i>group</i>
+                        <label>@setup.MaxPlayers players</label>
+                    </div>
+                }
+            }
+        </div>
+
+        <div class="right">
+            @if ( Modal.PartySetup )
+            {
+                <Button Text="Cancel" onclick=@Modal.CancelSetup />
+                @if ( !Modal.SetupReadOnly )
+                {
+                    <Button Icon="@(Modal.EditingPartyDraft ? "arrow_forward" : "save")" class="play" Text=@Modal.SaveSetupText Disabled=@(!Modal.CanApplySetup) onclick=@Modal.SavePartySetup />
+                }
+            }
+            else if ( Modal.CanCreateParty )
+            {
+                <Button Icon="group_add" Text="Create party…" Disabled=@(!Modal.CanApplySetup) onclick=@Modal.CreatePartyFromSetup />
+            }
+            @if ( !Modal.PartySetup )
+            {
+                <Button Icon="play_arrow" class="play" Text=@Modal.StartSetupText Disabled=@(!Modal.CanStartSetup) onclick=@Modal.StartSetup />
+            }
+        </div>
+    }
+    else if ( Modal?.IsSettingUp == true )
+    {
+        <div class="left"></div>
+        <div class="right"><Button Text="Cancel" onclick=@Modal.CancelSetup /></div>
+    }
+    else
+    {
+
+    <div class="left">
+        <PackageReactions Package=@Package OnHidden=@(() => Modal?.CloseModal( false )) />
     </div>
 
     <div class="right">
 
         @* On the right, by the play buttons - it's another way in *@
-	    @if ( IsDedicatedServerOnly )
+	    @* Not while they're up already *@
+	    @if ( Modal?.IsBrowsingSessions == true )
+	    {
+	    }
+	    else if ( IsDedicatedServerOnly )
 	    {
 		    <Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>@LobbyCount Servers</Button>
 	    }
@@ -120,6 +145,7 @@
             <Button Icon="play_arrow" class="play disabled">Play Game</Button>
         }
     </div>
+    }
 
 </root>
 
@@ -129,99 +155,31 @@
     [Parameter] public Package Package {get;set;}
     [Parameter] public Package MapPackage { get; set; }
 
-    protected override int BuildHash() => System.HashCode.Combine(Package, Modal?.HasFullPackage, IsVrOnly, IsMultiplayerGame, LobbyCount, MenuHelpers.HasAuthority, Streamer.IsActive, System.HashCode.Combine( Streamer.ViewerCount, Package.Interaction.Rating, Package.Interaction.Favourite, Package.VotesUp, Package.VotesDown, Package.Favourited, Package.Reviews.Total, System.HashCode.Combine( ShowJam, _nominated, _jamBusy ) ));
+    Panel MapArt;
+    Texture _mapArt;
 
-    string ReviewText => Package.Reviews.Total > 0 ? Package.Reviews.Score.ToString( "0\\%" ) : "Review";
-    string ReviewTooltip => Package.Reviews.Total > 0 ? $"{Package.Reviews.Score:N0}% from {Package.Reviews.Total} reviews. Write yours" : "Write a review";
-
-    Jam _jam;
-    JamEntryStatus _entry;
-    bool _nominated;
-    bool _jamBusy;
-
-    bool ShowJam => _jam is not null && _entry.IsEntry;
-    bool CanToggleNomination => _nominated || _entry.CanNominate;
-    string JamTooltip => $"{_jam?.Title} entry. " + (_nominated ? "You nominated it for the jam" : CanToggleNomination ? "Liked it? Nominate it for the jam" : _entry.Reason);
-
-    protected override void OnAfterTreeRender( bool firstTime )
+    void PickMap( GameSetup setup )
     {
-        base.OnAfterTreeRender( firstTime );
-
-        if ( firstTime && Package?.TypeName == "game" )
-            _ = LoadJam();
-    }
-
-    async Task LoadJam()
-    {
-        var jam = await Jam.GetActive();
-        if ( !this.IsValid() ) return;
-        if ( jam is null || !jam.CommunityVoting || !jam.HasStarted || jam.Now >= jam.NominationsEnd ) return;
-
-        var entry = await jam.GetEntryStatusAsync( Package );
-        if ( !this.IsValid() ) return;
-        if ( entry is not { IsEntry: true } status ) return;
-
-        _jam = jam;
-        _entry = status;
-        _nominated = status.Nominated;
-        StateHasChanged();
-    }
-
-    async Task ToggleNomination()
-    {
-        if ( _jamBusy || !ShowJam || !CanToggleNomination ) return;
-
-        _jamBusy = true;
-        StateHasChanged();
-
-        var removing = _nominated;
-        _nominated = !removing;
-        string reason;
-
-        try
+        if ( Modal.SetupReadOnly ) return;
+        Game.Overlay.ShowMapSelector( map =>
         {
-            reason = removing ? await _jam.WithdrawNominationAsync( Package ) : await _jam.NominateAsync( Package );
-        }
-        catch ( Exception e )
-        {
-            Log.Warning( e, $"Nominate {Package.FullIdent} failed" );
-            reason = "Couldn't reach the jam right now.";
-        }
-
-        if ( !this.IsValid() ) return;
-
-        _jamBusy = false;
-
-        if ( reason is not null )
-        {
-            _nominated = removing;
-            MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast() { Title = reason, Icon = "how_to_vote" } );
-        }
-
-        StateHasChanged();
+            if ( IsValid && Modal.Setup == setup && !Modal.SetupReadOnly ) setup.Map = map;
+        }, setup.Map );
     }
 
-    // Rating: 0 like, 1 dislike, null unrated
-    bool Liked => Package.Interaction.Rating == 0;
-    bool Disliked => Package.Interaction.Rating == 1;
-
-    async Task Vote( bool up )
+    public override void Tick()
     {
-        await Package.SetVoteAsync( up );
-        if ( this.IsValid() ) StateHasChanged();
+        base.Tick();
+
+        // A texture rather than a url (a mounted scene's has none), so it's set here rather than in a style
+        var art = Modal?.Setup?.MapThumb;
+        if ( art == _mapArt || !MapArt.IsValid() ) return;
+
+        _mapArt = art;
+        MapArt.Style.SetBackgroundImage( art );
     }
 
-    async Task ToggleFavourite()
-    {
-        await Package.SetFavouriteAsync( !Package.Interaction.Favourite );
-        if ( this.IsValid() ) StateHasChanged();
-    }
-
-    async Task Hide()
-    {
-        if ( await MenuHelpers.HidePackage( this, Package ) )
-            Modal?.CloseModal( false );
-    }
+    protected override int BuildHash() => System.HashCode.Combine(Package, Modal?.HasFullPackage, IsVrOnly, IsMultiplayerGame, LobbyCount, MenuHelpers.HasAuthority, System.HashCode.Combine( Streamer.IsActive, Streamer.ViewerCount, Modal?.Setup, System.HashCode.Combine( Modal?.Setup?.MapTitle, Modal?.Setup?.MapThumb, Modal?.Setup?.Privacy, Modal?.Setup?.MaxPlayers ) ), HashCode.Combine( Modal?.SetupReadOnly, Modal?.CanApplySetup, Modal?.StartSetupText, Modal?.IsSettingUp, Modal?.IsBrowsingSessions ));
 
     bool IsVrOnly => Package.Info.IsVrOnly;
     bool IsMultiplayerGame => Package.Tags.Contains("multiplayer") || LobbyCount > 0 || Package.Info.MaxPlayers > 1;
@@ -240,16 +198,26 @@
 
     void OnPlay()
     {
-		Discovery.Launching( Package, "gamepage" );
-		MenuHelpers.PlayGame( Package, MapPackage );
+		MenuHelpers.PlayGame( Package, MapPackage, "gamepage" );
     }
 
     async Task<bool> OnJoinGame()
     {
+        // Your party isn't what it's made for - say so first, joining only if you want to anyway
+        if ( !MenuHelpers.ConfirmPartyFit( Package, () => _ = JoinGame() ) )
+            return false;
+
+        return await JoinGame();
+    }
+
+    async Task<bool> JoinGame()
+    {
+        // The preview must still be open when the play action is recorded.
+        Discovery.Launching( Package, "gamepage-join" );
+
         // Out of the way first - joining can hold things up, and the modal would freeze mid-close
         await MenuHelpers.PrepareForLoad( "Finding Game..", "Please wait while we find a game for you to join." );
 
-        Discovery.Launching( Package, "gamepage-join" );
         bool success = await MenuUtility.TryJoinLobby(Package.FullIdent);
         if (success)
             return true;
@@ -259,10 +227,8 @@
         return false;
     }
 
-    void OpenLobbyList()
-    {
-        Game.Overlay.ShowServerList(new Sandbox.Modals.ServerListConfig(Package.FullIdent));
-    }
+    // Them in this window, in the page's place - not a list of its own over it
+    void OpenLobbyList() => Modal?.OpenSessions();
 
     bool NeedsMap()
     {

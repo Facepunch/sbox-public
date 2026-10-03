@@ -251,6 +251,8 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 
 	private void SetOwner( ulong steamId )
 	{
+		// The new host publishes its own location once it owns the lobby.
+		SteamLobby.DeleteData( LobbyPing.MetadataKey );
 		SteamLobby.SetData( "_ownerid", $"{steamId}" );
 		SteamLobby.SetOwner( steamId );
 		Owner = new( steamId );
@@ -444,13 +446,44 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 		OnClientConnect?.Invoke( c );
 	}
 
+	RealTimeUntil timeUntilPingLocationUpdate;
+	ulong pingLocationOwner;
+
+	/// <summary>
+	/// Refreshes the host's relay marker periodically, retrying sooner while Steam is still measuring.
+	/// </summary>
+	void UpdatePingLocation()
+	{
+		if ( pingLocationOwner == Owner.Id && timeUntilPingLocationUpdate > 0 )
+			return;
+
+		pingLocationOwner = Owner.Id;
+		var utils = Steam.SteamNetworkingUtils();
+		var location = utils.IsValid ? utils.GetLocalPingLocationString() : null;
+		var metadata = LobbyPing.CreateMetadata( Owner.Id, location );
+
+		if ( metadata is null )
+		{
+			SteamLobby.DeleteData( LobbyPing.MetadataKey );
+			timeUntilPingLocationUpdate = 5;
+		}
+		else
+		{
+			SteamLobby.SetData( LobbyPing.MetadataKey, metadata );
+			timeUntilPingLocationUpdate = 60;
+		}
+	}
+
 	internal override void Tick( NetworkSystem networkSystem )
 	{
 		if ( _disposed ) return;
 		FollowHost();
 
 		if ( !Owner.IsMe )
+		{
+			pingLocationOwner = 0;
 			return;
+		}
 
 		// Should we automatically update the name of this lobby? Should be the case
 		// if a lobby name was not provided during creation.
@@ -462,6 +495,7 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 
 		SteamLobby.SetData( "_ownerid", $"{Utility.Steam.SteamId}" );
 		SteamLobby.SetData( "map", Networking.MapName );
+		UpdatePingLocation();
 	}
 
 	/// <summary>

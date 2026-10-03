@@ -54,8 +54,8 @@ public partial class MenuOverlay : RootPanel
 		AddChild<SubtitleOverlay>();
 		AddChild<ChatOverlay>();
 
-		// The party deck. It moves itself between here and the menu page - see Footer.razor
-		AddChild<Sandbox.UI.Footer>();
+		// The party view owns its window and moves between here and the menu page.
+		AddChild<MenuProject.PartyDeck>();
 	}
 
 	public override void Tick()
@@ -64,8 +64,8 @@ public partial class MenuOverlay : RootPanel
 
 		// The deck spends most of its time living in the menu page, and goes with it if the page is
 		// torn down (the avatar editor swaps the scene) - bring a new one back
-		if ( !Sandbox.UI.Footer.Instance.IsValid() )
-			AddChild<Sandbox.UI.Footer>();
+		if ( !MenuProject.PartyDeck.Instance.IsValid() )
+			AddChild<MenuProject.PartyDeck>();
 	}
 
 	// No UpdateScale override - the root panel's own sizes things by screen height (1080 tall is 1:1),

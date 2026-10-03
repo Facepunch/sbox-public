@@ -7,6 +7,7 @@ DynamicCombo( D_DEFORMATION_VOLUME, 0..1, Sys( ALL ) );
 #include "common/classes/DeformationVolume.hlsl"
 
 StructuredBuffer<DeformationVolume> g_deformationVolumes < Attribute( "DeformationVolumes" ); >;
+StructuredBuffer<float4> g_deformationAnchors < Attribute( "DeformationAnchors" ); >;
 
 // Ordered model-space stack, evaluated after morphs and before bone skinning.
 struct Deformation
@@ -70,6 +71,25 @@ struct Deformation
 			// The next operation evaluates both its mask and its shape at this new position.
 			position += mul( toModel, delta );
 		}
+	}
+
+	// Moves a vertex as the stack moves its bones' anchors, blended by its weights, so the mesh follows the deformation
+	// without being reshaped by it. Its tangent frame is unchanged.
+	static void ApplyRigid( uint volumeOffset, uint volumeCount, uint anchorOffset, uint4 bones, float4 weights, uint weightCount,
+		inout float3 position )
+	{
+		// One weight is its first bone alone, whatever the weight, as skinning takes it
+		float3 anchor = 0;
+		for ( uint i = 0; i < weightCount; ++i )
+		{
+			anchor += ( weightCount == 1 ? 1.0 : weights[i] ) * g_deformationAnchors[anchorOffset + bones[i]].xyz;
+		}
+
+		float3 moved = anchor;
+		float3 normal = float3( 0, 0, 1 );
+		float4 tangent = float4( 1, 0, 0, 1 );
+		Apply( volumeOffset, volumeCount, moved, normal, tangent );
+		position += moved - anchor;
 	}
 };
 #endif

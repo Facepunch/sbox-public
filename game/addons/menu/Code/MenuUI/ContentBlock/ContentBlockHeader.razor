@@ -34,7 +34,7 @@
 
     string Icon => IsJam ? "emoji_events" : Group.Icon;
 
-    string url => IsJam ? "/jam" : $"/games/group?Query={Group.QueryString}&title={Group.Title}&subtitle={Group.Description}";
+	string url => IsJam ? "/jam" : $"/home/group?Query={Group.QueryString}&title={Group.Title}&subtitle={Group.Description}";
 
     protected override int BuildHash() => System.HashCode.Combine( Group?.Title, Group?.Icon, HasQuery, IsJam );
 }

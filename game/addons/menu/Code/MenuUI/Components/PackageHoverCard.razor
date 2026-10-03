@@ -47,18 +47,11 @@
 
         <div class="byline">
             <label>@Byline()</label>
+        </div>
 
-            <div class="grow" />
-
-            @* How it's played gets its own chip, so multiplayer stands out from the genres *@
-            @if ( PlayerModes.For( Package ) is { Label: { } modeLabel } modes )
-            {
-                <a class="mode @(modes.Multiplayer ? "multiplayer" : "")" href=@TagUrl( ModeTag( modes ) ) tooltip="@modes.Hint">
-                    <icon>@modes.Icon</icon>
-                    <label>@modeLabel</label>
-                </a>
-            }
-
+        @* What kind of game and how it's played, on a line of their own under who made it - sharing
+           that line, a long name or a long genre cut the other short. Just says so - none of it's a link *@
+        <div class="tags">
             @{ var tags = Tags().ToList(); }
             @for ( int i = 0; i < tags.Count; i++ )
             {
@@ -66,14 +59,18 @@
                 {
                     <label class="sep">·</label>
                 }
-                @if ( HasTag( tags[i] ) )
-                {
-                    <a class="tag" href=@TagUrl( tags[i] )>@TagLabel( tags[i] )</a>
-                }
-                else
-                {
-                    <label class="tag plain">@TagLabel( tags[i] )</label>
-                }
+                <label class="tag">@TagLabel( tags[i] )</label>
+            }
+
+            @* After the genres, how it's played gets its own chip, so multiplayer stands out from them *@
+            @if ( PlayerModes.For( Package ) is { Label: { } modeLabel } modes )
+            {
+                var fit = modes.FitFor( PlayerModes.PartySize );
+
+                <div class="mode @(fit.Fit == PlayerModes.FitKind.Poor ? "mismatch" : modes.Multiplayer ? "multiplayer" : "")" tooltip="@(fit.Why ?? modes.Hint)">
+                    <icon>@modes.Icon</icon>
+                    <label>@modeLabel</label>
+                </div>
             }
         </div>
 
@@ -175,8 +172,13 @@
 
     static bool IsShowing( Panel source ) => Current.IsValid() && Current.Source == source;
 
+    /// <summary>
+    /// Its video at all - off for a card with its own off, so hovering doesn't start one either.
+    /// </summary>
+    bool videos = true;
+
     // Same video url as the card = same player, so the preview continues the card's video.
-    public static PackageHoverCard Show( Panel source, Package package, string playingVideoUrl = null )
+    public static PackageHoverCard Show( Panel source, Package package, string playingVideoUrl = null, bool videos = true )
     {
         if ( IsShowing( source ) )
             return Current;
@@ -191,9 +193,12 @@
             videoUrl = playingVideoUrl,
             showVideo = playingVideoUrl is not null,
             continuedVideo = playingVideoUrl is not null,
+            videos = videos,
         };
 
-        card.Parent = source.Ancestors.FirstOrDefault( x => x.HasClass( "mainmenu" ) ) ?? source.FindPopupPanel();
+        // In whichever menu or modal it's in - the pause menu and the pickers are modals up in the
+        // overlay, and the overlay's own root would put the card under them
+        card.Parent = source.Ancestors.FirstOrDefault( x => x.HasClass( "mainmenu" ) || x is MenuProject.Modals.BaseModal ) ?? source.FindPopupPanel();
         card.Reposition();
 
         Current = card;
@@ -307,6 +312,9 @@
 
         if ( Current == this )
             Current = null;
+
+        if ( hoverReported )
+            Discovery.PreviewClosed( "hovercard", Package?.FullIdent );
     }
 
     public override void Tick()
@@ -334,10 +342,12 @@
         if ( !hoverReported && age >= IntroTime )
         {
             hoverReported = true;
-            Discovery.Hovered( Source, Package );
+
+            var context = Discovery.Find( Source );
+            Discovery.PreviewOpened( "hovercard", Package.FullIdent, context, context.PositionOf( Package ) );
         }
 
-        if ( !showVideo && age >= VideoDelay )
+        if ( videos && !showVideo && age >= VideoDelay )
         {
             showVideo = true;
             StateHasChanged();
@@ -398,7 +408,7 @@
             ?.Box.ClipRect ?? new Rect( 0, 0, Screen.Width, Screen.Height );
 
         // Keep clear of the party deck in the bottom right, if we'd run into it
-        if ( Footer.Current?.Children.FirstOrDefault() is { Box.Rect: var dock } && dock.Left < Source.Box.Rect.Right && dock.Right > Source.Box.Rect.Left )
+        if ( PartyDeck.Current?.Window is { Box.Rect: var dock } && dock.Left < Source.Box.Rect.Right && dock.Right > Source.Box.Rect.Left )
             bounds.Bottom = Math.Min( bounds.Bottom, dock.Top );
 
         return bounds;
@@ -408,14 +418,14 @@
 
     void OpenDetails()
     {
+        Discovery.Clicked( Source, Package );
         Package.OpenModal();
         Close();
     }
 
     void Play()
     {
-        Discovery.Launching( Package, "hovercard", Source );
-        MenuHelpers.PlayGame( Package );
+        MenuHelpers.PlayGame( Package, via: "hovercard", source: Source );
         Close();
     }
 
@@ -449,12 +459,6 @@
         "singleplayer" => "Singleplayer",
         _ => GenreLabels.GetValueOrDefault( tag, tag ),
     };
-
-    // Multiplayer can be inferred from MaxPlayers, so only real tags link
-    bool HasTag( string tag ) => Package.Tags?.Contains( tag, StringComparer.OrdinalIgnoreCase ) ?? false;
-
-    // %2B so the + survives the query-string decode
-    static string TagUrl( string tag ) => $"/games/all?Sort=&Filter=%2B{tag}";
 
     string Byline()
     {
@@ -545,18 +549,6 @@
 
     static readonly HashSet<string> ModeTags = new( StringComparer.OrdinalIgnoreCase ) { "singleplayer", "multiplayer", "coop", "versus", "pvp" };
 
-    /// <summary>
-    /// The tag the mode chip browses to - the most specific one the game actually has.
-    /// </summary>
-    string ModeTag( PlayerModes modes )
-    {
-        if ( modes.Coop ) return "coop";
-        if ( modes.Versus ) return HasTag( "versus" ) ? "versus" : "pvp";
-        if ( modes.Multiplayer ) return "multiplayer";
-
-        return "singleplayer";
-    }
-
     static string Compact( long n )
     {
         if ( n >= 1_000_000 ) return $"{n / 1_000_000f:0.#}M";
@@ -565,5 +557,5 @@
         return n.ToString();
     }
 
-    protected override int BuildHash() => HashCode.Combine( Package?.FullIdent, Package?.Usage.UsersNow, showVideo, VideoUrl(), MenuHelpers.HasAuthority, ShowJam, HashCode.Combine( _nominated, _busy, Package?.Interaction.Rating, Package?.Interaction.Favourite ) );
+    protected override int BuildHash() => HashCode.Combine( Package?.FullIdent, Package?.Usage.UsersNow, showVideo, VideoUrl(), MenuHelpers.HasAuthority, ShowJam, HashCode.Combine( _nominated, _busy, Package?.Interaction.Rating, Package?.Interaction.Favourite, PlayerModes.PartySize ) );
 }

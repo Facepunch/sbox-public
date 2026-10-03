@@ -1,0 +1,139 @@
+@using Sandbox;
+@using MenuProject.Multiplayer;
+@using Sandbox.UI
+@inherits Panel
+
+<root>
+	<Sandbox.UI.Toolbar>
+		<ChildContent>
+			<TextEntry class="toolbar-search" Placeholder="Search parties" Value:bind=@search HasClearButton=@true />
+			<div class="pill-group">
+				<Button class="refresh icon-only" Icon="refresh" disabled=@loading onclick=@Refresh title="Refresh parties" tooltip="Refresh parties" />
+			</div>
+		</ChildContent>
+	</Sandbox.UI.Toolbar>
+	@if ( !string.IsNullOrEmpty( error ?? PartyService.Error ) )
+	{
+		<div class="party-error">@(error ?? PartyService.Error)</div>
+	}
+	@if ( VisibleParties.Length == 0 )
+	{
+		<div class="party-empty">
+			<icon>group_add</icon>
+			<label>@(loading && !loaded ? "Looking for parties…" : string.IsNullOrWhiteSpace( search ) ? "No open parties right now" : "No matching parties")</label>
+			<span>@(string.IsNullOrWhiteSpace( search ) ? "Start a party, invite friends, and find something to play." : "Try another party, host, or game name.")</span>
+			@if ( !string.IsNullOrWhiteSpace( search ) )
+			{
+				<Button class="clear-search" onclick=@(() => search = "")>Clear search</Button>
+			}
+		</div>
+	}
+	else
+	{
+		<VirtualList class="party-list" Items=@(VisibleParties.Cast<object>()) ItemHeight=@MultiplayerListRow.Height>
+			<Item Context="item">
+				@if ( item is PartyRow party )
+				{
+					<MultiplayerListRow Title=@party.Name Image=@($"avatar:{party.OwnerId}")
+						Subtitle=@(string.IsNullOrWhiteSpace( party.GameTitle ) ? "Deciding together" : party.GameTitle)
+						PlayerCount=@party.Members CountCaption=@(party.IsCurrentParty ? "Your party" : null)>
+						<Actions>
+							@if ( !party.IsCurrentParty )
+							{
+								<Button disabled=@party.JoinDisabled onclick=@(() => PartyService.Join( party.Id )) tooltip="@(PartyRoom.Current is null ? "Join this party" : "Leave your current party before joining another")">Join</Button>
+							}
+						</Actions>
+					</MultiplayerListRow>
+				}
+			</Item>
+		</VirtualList>
+	}
+	@if ( PartyRoom.Current is null )
+	{
+		<Button class="create-party" Icon="add" disabled=@PartyService.Busy onclick=@PartyService.Create>Create a party</Button>
+	}
+</root>
+
+@code
+{
+	PartyRoom.Entry[] parties = [];
+	PartyRoom lastParty;
+
+	/// <summary>
+	/// Snapshot every displayed value, including join availability. Steam entries compare by lobby ID,
+	/// so passing them directly to VirtualList leaves existing rows unchanged after a refresh.
+	/// </summary>
+	record PartyRow( ulong Id, long OwnerId, string Name, string GameTitle, int Members, bool IsCurrentParty, bool JoinDisabled );
+
+	bool loading;
+	bool loaded;
+	string error;
+	string search = "";
+	double nextRefresh;
+
+	PartyRow[] VisibleParties => parties
+		.Where( MatchesSearch )
+		.Select( x => new PartyRow( x.Id, x.OwnerId, x.Name, x.GameTitle, x.Members,
+			x.Id == PartyRoom.Current?.Id.ValueUnsigned, PartyService.Busy || PartyRoom.Current is not null ) )
+		.ToArray();
+
+	/// <summary>
+	/// Match the visible party details, including a host or game name.
+	/// </summary>
+	bool MatchesSearch( PartyRoom.Entry party )
+	{
+		var query = search.Trim();
+
+		return query.Length == 0
+			|| party.Name.Contains( query, StringComparison.OrdinalIgnoreCase )
+			|| new Friend( party.OwnerId ).Name?.Contains( query, StringComparison.OrdinalIgnoreCase ) == true
+			|| party.GameTitle?.Contains( query, StringComparison.OrdinalIgnoreCase ) == true;
+	}
+
+	/// <summary>
+	/// Refresh open parties while this component is visible.
+	/// </summary>
+	public override void Tick()
+	{
+		base.Tick();
+
+		// Refresh discovery when we create, join, or leave a party.
+		if ( lastParty != PartyRoom.Current )
+		{
+			lastParty = PartyRoom.Current;
+			nextRefresh = 0;
+		}
+
+		if ( IsVisible && !loading && RealTime.Now >= nextRefresh ) _ = Refresh();
+	}
+
+	async Task Refresh()
+	{
+		if ( loading ) return;
+
+		loading = true;
+		nextRefresh = RealTime.Now + 15;
+
+		try
+		{
+			var found = await PartyService.FindOpenParties();
+			if ( !IsValid || IsDeleting ) return;
+
+			parties = found;
+			loaded = true;
+			error = null;
+		}
+		catch ( Exception e )
+		{
+			error = $"Could not load parties: {e.Message}";
+		}
+		finally
+		{
+			loading = false;
+			if ( IsValid && !IsDeleting ) StateHasChanged();
+		}
+	}
+
+	protected override int BuildHash() => HashCode.Combine( parties, loading, error, search, PartyService.Error, PartyService.Busy,
+		HashCode.Combine( PartyRoom.Current?.Id, PartyRoom.Current?.SelectedGameTitle ) );
+}

@@ -163,9 +163,10 @@ internal sealed partial class SceneLabWindow : PanelWindow
 
 	/// <summary>
 	/// <c>-swapchain-msaa N</c>: a multisampled window, which the managed renderer draws into through a multisampled HDR target,
-	/// and native's bitmap renders - the GameObject presets' compare - take the sample count of.
+	/// and native's bitmap renders - the GameObject presets' compare - take the sample count of. 4x unless it says otherwise;
+	/// <c>-swapchain-msaa 1</c> turns it off.
 	/// </summary>
-	internal override RenderMultisampleType SwapChainMultisample => Args.Int( "-swapchain-msaa", 1 ) switch
+	internal override RenderMultisampleType SwapChainMultisample => Args.Int( "-swapchain-msaa", 4 ) switch
 	{
 		2 => RenderMultisampleType.RENDER_MULTISAMPLE_2X,
 		4 => RenderMultisampleType.RENDER_MULTISAMPLE_4X,

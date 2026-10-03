@@ -12,7 +12,11 @@ internal static partial class Api
 	{
 		static int ActivityCount;
 		static string[] lastAddons;
-		static int sessionHashCode;
+		static string sessionGame;
+		static Dictionary<string, object> sessionLoad;
+		static Origin sessionOrigin;
+		static readonly Lock updateLock = new();
+		static Task queuedUpdate = Task.CompletedTask;
 
 		static SemaphoreSlim ActivityMutex = new SemaphoreSlim( 1, 1 );
 
@@ -34,16 +38,22 @@ internal static partial class Api
 		public static float SessionSeconds => IsSessionActive ? (float)SessionTimer.ElapsedSeconds : 0.0f;
 		public static FastTimer SessionTimer;
 
+		/// <summary>Keep main-thread snapshots in order, including a close followed by a fast reload.</summary>
+		internal static void QueueUpdate( string game, string gameVersion, string map, string[] addons, object net = null )
+		{
+			var (load, origin) = PeekCompletedLoad( game );
+			lock ( updateLock )
+			{
+				queuedUpdate = queuedUpdate.ContinueWith( _ => UpdateActivity( game, gameVersion, map, addons, net, load, origin ), TaskScheduler.Default ).Unwrap();
+			}
+		}
+
 		/// <summary>
 		/// Heartbeat for the current game. <paramref name="net"/> is the network state sampled on the
 		/// main thread: mode, players, max.
 		/// </summary>
-		public static async Task UpdateActivity( string game, string gameVersion, string map, string[] addons, object net = null )
+		static async Task UpdateActivity( string game, string gameVersion, string map, string[] addons, object net, Dictionary<string, object> load, Origin origin )
 		{
-			var shc = HashCode.Combine( game );
-			bool newSessionHash = shc != sessionHashCode;
-			sessionHashCode = shc;
-
 			try
 			{
 				await ActivityMutex.WaitAsync();
@@ -58,6 +68,8 @@ internal static partial class Api
 				}
 
 				ReportUncleanSession();
+				game = game?.Trim().ToLowerInvariant();
+				bool newSessionHash = !string.Equals( game, sessionGame, StringComparison.Ordinal );
 
 				//
 				// Start new session hash if not set
@@ -65,6 +77,7 @@ internal static partial class Api
 				if ( newSessionHash )
 				{
 					await CloseActivity( performanceData );
+					sessionGame = game;
 
 					if ( game == null || game.Contains( "#local" ) || game.StartsWith( "local." ) )
 						return;
@@ -84,6 +97,11 @@ internal static partial class Api
 				}
 
 				lastAddons = addons;
+				if ( load is not null )
+				{
+					sessionLoad = load;
+					sessionOrigin = origin;
+				}
 
 				// Something went wrong
 				if ( !IsSessionActive )
@@ -104,14 +122,17 @@ internal static partial class Api
 				data.Add( "i", ActivityCount++ );
 				data.Add( "net", net );
 
-				var (load, origin) = TakeCompletedLoad( game );
-				if ( load is not null ) data.Add( "load", load );
-				if ( origin is not null ) data.Add( "origin", origin.ToData() );
+				if ( sessionLoad is not null ) data.Add( "load", sessionLoad );
+				if ( sessionOrigin is not null ) data.Add( "origin", sessionOrigin.ToData() );
 
 				if ( newSessionHash )
 					data.Add( "open", 1 );
 
-				await Sandbox.Backend.Account?.Activity( data );
+				if ( Sandbox.Backend.Account is not { } account ) return;
+				await account.Activity( data );
+				AcknowledgeCompletedLoad( sessionLoad );
+				sessionLoad = null;
+				sessionOrigin = null;
 
 			}
 			catch ( System.Exception e )
@@ -149,10 +170,16 @@ internal static partial class Api
 
 		internal static async Task Shutdown()
 		{
-			if ( !IsSessionActive ) return;
-
-			var performanceData = Performance.Flip();
-			await CloseActivity( performanceData );
+			Task pending;
+			lock ( updateLock ) pending = queuedUpdate;
+			await pending.ConfigureAwait( false );
+			await ActivityMutex.WaitAsync().ConfigureAwait( false );
+			try
+			{
+				if ( !IsSessionActive ) return;
+				await CloseActivity( Performance.Flip() ).ConfigureAwait( false );
+			}
+			finally { ActivityMutex.Release(); }
 		}
 
 		static async Task CloseActivity( object performanceData )
@@ -160,7 +187,7 @@ internal static partial class Api
 			if ( !IsSessionActive ) return;
 
 			// wait for the stats to flush first - we need the session hash!
-			await Stats.ForceFlushAsync();
+			await Stats.ForceFlushAsync().ConfigureAwait( false );
 
 			var data = new Dictionary<string, object>();
 			data.Add( "game", "" );
@@ -173,10 +200,16 @@ internal static partial class Api
 			data.Add( "hardware", Engine.SystemInfo.AsObject() );
 			data.Add( "close", 1 );
 			data.Add( "exit", TakeExitReason() );
+			if ( sessionLoad is not null ) data.Add( "load", sessionLoad );
+			if ( sessionOrigin is not null ) data.Add( "origin", sessionOrigin.ToData() );
 
 			try
 			{
-				await Sandbox.Backend.Account?.Activity( data );
+				if ( Sandbox.Backend.Account is { } account )
+				{
+					await account.Activity( data ).ConfigureAwait( false );
+					AcknowledgeCompletedLoad( sessionLoad );
+				}
 			}
 			catch ( System.Exception e )
 			{
@@ -187,6 +220,8 @@ internal static partial class Api
 			SessionTimer = default;
 			ActivityCount = -1;
 			lastAddons = null;
+			sessionLoad = null;
+			sessionOrigin = null;
 
 			try { EngineFileSystem.Config.DeleteFile( OpenSessionFile ); } catch { }
 		}

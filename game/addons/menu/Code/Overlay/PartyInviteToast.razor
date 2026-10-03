@@ -130,6 +130,9 @@
     {
         e.StopPropagation();
         OnAccept?.Invoke();
+
+        // Taken up rather than turned away - it fizzles out where it is instead of swiping off
+        _accepted = true;
         Close();
     }
 
@@ -160,6 +163,11 @@
 
     bool _leaving;
     RealTimeSince _sinceLeaving;
+
+    /// <summary>
+    /// It went because you joined - it fizzles out rather than swiping off.
+    /// </summary>
+    bool _accepted;
 
     /// <summary>
     /// There was another waiting when it went - it swipes off over that one, rather than the pile
@@ -329,8 +337,7 @@
 
     /// <summary>
     /// The party they're asking you into, when they're in one - from rich presence, the same as the
-    /// friends list groups them: everyone we're friends with who shares their party_id, and whoever
-    /// leads it even if we're not. Anyone else only counts towards the size. Null on their own.
+    /// friends list groups them, including the roster they share for people we aren't friends with.
     /// </summary>
     InviteParty PartyOf()
     {
@@ -343,6 +350,11 @@
             .ToList();
 
         members.Insert( 0, From );
+
+		foreach ( var member in RailPresence.MembersOf( From ) )
+		{
+			if ( !members.Any( x => x.Id == member.Id ) ) members.Add( member );
+		}
 
         var owner = RailPresence.Get( From, "party_owner" ).ToULong( 0 );
         if ( owner != 0 && !members.Any( x => x.Id == owner ) && !new Friend( owner ).IsMe )
@@ -374,6 +386,7 @@
         if ( Queued > 0 ) classes.Add( $"queued queued-{Math.Min( Queued, 3 )}" );
         if ( Continuing ) classes.Add( "continuing" );
         if ( _leaving ) classes.Add( _hadNext ? "leaving" : "leaving last" );
+        if ( _accepted ) classes.Add( "accepted" );
         if ( _released ) classes.Add( "handed-off" );
 
         return string.Join( " ", classes );
@@ -384,5 +397,5 @@
     /// </summary>
     static int Queued => Area?.QueuedCount ?? 0;
 
-    protected override int BuildHash() => HashCode.Combine( From.Id, PartyView.Exists, Party?.Size, Queued, _leaving, _released, Continuing );
+    protected override int BuildHash() => HashCode.Combine( From.Id, PartyView.Exists, Party?.Size, Queued, _leaving, _released, Continuing, _accepted );
 }

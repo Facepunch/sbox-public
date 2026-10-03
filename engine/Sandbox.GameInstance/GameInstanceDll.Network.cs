@@ -269,7 +269,7 @@ internal partial class GameInstanceDll
 	}
 
 	static string[] _interestingExtensions = new[] { "_c", ".scss", ".ttf" };
-	static string[] _engineAssets = new[] { "vtex_c", "vmat_c", "vsnd_c", "vmdl_c", "vpk", "vanmgrph_c", "shader_c" }; // anything the native engine loads from disk has to be a LARGE download
+	static string[] _engineAssets = new[] { "vtex_c", "vmat_c", "vsnd_c", "vmdl_c", "vphys_c", "vpk", "vanmgrph_c", "shader_c" }; // anything the native engine loads from disk has to be a LARGE download
 	List<string> _netIncludePaths = new(); // wildcard-supported paths we also want to include content of
 
 	// Small files only live in an in-memory filesystem, which native loaders can't read - engine assets must be a real file on disk.

@@ -59,7 +59,7 @@
 								{
 									@if ( ShowGallery )
 									{
-										<JamEliminationGallery Jam=@Jam Category=@Category Packages=@Packages Eligibility=@Eligibility Busy=@(Submitting || Loading) CooldownSeconds=@VoteCooldownSeconds Version=@Voting.Version Vote=@SubmitVote />
+										<JamEliminationGallery Jam=@Jam Category=@Category Packages=@Packages Submitting=@Submitting CooldownSeconds=@VoteCooldownSeconds Version=@Voting.Version Vote=@SubmitVote />
 									}
 									else if ( Category.Nominees.Count == 0 )
 									{
@@ -132,7 +132,7 @@
 {
 	bool ShowGallery => Category is not null && (Category.VotingOpen || Category.Decided
 		|| Category.Nominees.Any( x => x.EliminatedRound.HasValue ));
-	string RoundTitle => !VotingOpen
+	string RoundTitle => JamVotingPresentation.Waiting( Category ) ? $"{Number( Category.Contenders.Count )} remain. Next round coming up." : !VotingOpen
 		? "Round closed. Results incoming."
 		: $"{Number( Category.Contenders.Count )} remain. {Number( Math.Max( 0, Category.Contenders.Count - 1 ) )} go through.";
 	static string Number( int value ) => value switch { 1 => "One", 2 => "Two", 3 => "Three", 4 => "Four", 5 => "Five", _ => value.ToString() };

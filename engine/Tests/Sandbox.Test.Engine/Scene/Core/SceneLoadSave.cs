@@ -3,6 +3,7 @@ using System.Buffers.Binary;
 using System.IO;
 using System.Text;
 using Sandbox.Resources;
+using Sandbox.Engine;
 
 namespace SceneTests.Core;
 
@@ -80,6 +81,49 @@ public class SceneLoadSaveTest : SceneTest
 
 		options.SetScene( file );
 		return options;
+	}
+
+	[DataTestMethod]
+	[DataRow( true )]
+	[DataRow( false )]
+	public void ChangeScenePreservesGameAndPersistentObjects( bool standalone )
+	{
+		var previousStandalone = Application.IsStandalone;
+		var previousInstance = IGameInstance.Current;
+		var previousSystem = Networking.System;
+		var previousScene = Game.ActiveScene;
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		try
+		{
+			Application.IsStandalone = standalone;
+			var instance = new GameInstance( "test.game", GameLoadingFlags.Host );
+			IGameInstance.Current = instance;
+			Networking.System = null;
+			Game.ActiveScene = scene;
+			var library = Game.TypeLibrary;
+			var doomed = scene.CreateObject();
+			var survivor = scene.CreateObject();
+			survivor.Flags |= GameObjectFlags.DontDestroyOnLoad;
+
+			var file = MakeSceneFile( "change_scene_preserves_game.scene", "New Scene Object" );
+			Assert.IsTrue( Game.ChangeScene( MakeOptions( file ) ) );
+
+			Assert.AreSame( instance, IGameInstance.Current );
+			Assert.AreSame( library, Game.TypeLibrary );
+			Assert.AreSame( scene, Game.ActiveScene );
+			Assert.IsTrue( survivor.IsValid );
+			Assert.IsFalse( doomed.IsValid );
+			Assert.AreEqual( 1, scene.Directory.FindByName( "New Scene Object" ).Count() );
+		}
+		finally
+		{
+			scene.Destroy();
+			Game.ActiveScene = previousScene;
+			Application.IsStandalone = previousStandalone;
+			IGameInstance.Current = previousInstance;
+			Networking.System = previousSystem;
+		}
 	}
 
 	/// <summary>

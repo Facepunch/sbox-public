@@ -1,17 +1,59 @@
-﻿using Sandbox;
+using Sandbox;
 using Sandbox.DataModel;
 using Sandbox.Diagnostics;
 using Sandbox.Modals;
 using MenuProject.MenuUI.Front;
+using MenuProject.Modals.GameModalComponents;
 using MenuPanel = MenuProject.UI.MenuPanel;
 
 public static class MenuHelpers
 {
 	/// <summary>
+	/// <c>menu_mock_new_account 1</c> - treat this account as under a week old, to see the menu without
+	/// anything for sale.
+	/// </summary>
+	[MenuConVar( "menu_mock_new_account", Help = "Treat this account as under a week old - no item store, no unowned store items: 0 or 1" )]
+	public static bool MockNewAccount { get; set; }
+
+	/// <summary>
+	/// How old an account has to be before anything's offered for sale.
+	/// </summary>
+	public static readonly TimeSpan MicrotransactionsMinimumAccountAge = TimeSpan.FromDays( 7 );
+
+	/// <summary>
+	/// The item store and everything else that sells - not until the account's a week old. The s&amp;box
+	/// account, from when the backend first saw it, not the Steam account. Not known yet (not logged in)
+	/// counts as new.
+	/// </summary>
+	public static bool ShowMicrotransactions
+	{
+		get
+		{
+			if ( MockNewAccount ) return false;
+
+			var firstSeen = Sandbox.MenuEngine.Account.FirstSeen;
+			return firstSeen != default && DateTimeOffset.UtcNow - firstSeen >= MicrotransactionsMinimumAccountAge;
+		}
+	}
+
+	/// <summary>
 	/// Do we have authority to start or join games.
 	/// If we're in a party, only the party owner can start or join games.
 	/// </summary>
 	public static bool HasAuthority => PartyRoom.Current?.Owner.IsMe ?? true;
+
+	/// <summary>
+	/// Go to one of the menu's pages, in whichever menu's showing - the pause menu's, mid-game with it
+	/// up, or the main menu's. For things that live over the pages rather than in them (popups, modals),
+	/// which have no navigator of their own to find.
+	/// </summary>
+	public static void Navigate( string url )
+	{
+		if ( MenuProject.Modals.PauseMenuModal.PauseModal.Open?.Navigate( url ) ?? false )
+			return;
+
+		MenuProject.MainMenu.Instance?.Navigator?.Navigate( url );
+	}
 
 	/// <summary>
 	/// True when a discovery query lists a jam's entries, e.g. "jam:three type:game".
@@ -26,18 +68,39 @@ public static class MenuHelpers
 	/// <summary>
 	/// General-purpose method to play a game package. Handles quickplay, dedicated servers,
 	/// create-game modal, VR-only checks, default map fetching, and direct launch.
+	/// <para>
+	/// Reports the play to <see cref="Discovery"/> when it's given the button that was pressed
+	/// (<paramref name="via"/>, and the tile it was on, <paramref name="source"/>) - as it goes, or for a
+	/// game with something to set up first, once that's started (see GameModal.StartSetup). Not when
+	/// the button's pressed and the setup's only opened: backed out of, it was never played.
+	/// </para>
 	/// </summary>
-	public static async void PlayGame( Package package, Package mapPackage = null )
+	public static async void PlayGame( Package package, Package mapPackage = null, string via = null, Panel source = null, bool fitChecked = false )
 	{
 		Assert.True( HasAuthority, "You do not have authority to start a game, only the party owner can do that." );
+
+		// Your party isn't what it's made for - say so, and only go on if you want to
+		if ( !fitChecked && !ConfirmPartyFit( package, () => PlayGame( package, mapPackage, via, source, fitChecked: true ) ) )
+			return;
 
 		// VR-only game but not in VR
 		if ( package.Info.IsVrOnly && !Application.IsVR )
 			return;
 
+		var party = PartyRoom.Current;
+		if ( !package.Info.IsDedicatedServerOnly && party?.IsGameSelected( package ) == true && party.SelectedGameSettings is not null )
+		{
+			ModalSystem.Instance?.OpenGameSetup( package, via, source );
+			return;
+		}
+
 		// QuickPlay: try to join an existing lobby first
 		if ( package.Info.IsQuickPlay )
 		{
+			// A lobby search is a go at playing it, whether it finds one or makes its own after
+			ReportPlay( package, via, source );
+			via = null;
+
 			await PrepareForLoad( "Finding Game..", "Please wait while we find a game for you to join." );
 
 			if ( await MenuUtility.TryJoinLobby( package.FullIdent ) )
@@ -53,30 +116,16 @@ public static class MenuHelpers
 			return;
 		}
 
-		// Show create game modal if the package requires it
-		if ( ShouldUseCreateGameModal( package ) )
+		// Something to set up first - on its game page, then started from there, the play reported then
+		if ( NeedsSetup( package ) )
 		{
-			Game.Overlay.CreateGame( new CreateGameOptions( package, async x =>
-			{
-				if ( x.MaxPlayers > 0 ) LaunchArguments.MaxPlayers = x.MaxPlayers;
-
-				if ( !string.IsNullOrEmpty( x.ServerName ) )
-					LaunchArguments.ServerName = x.ServerName;
-
-				LaunchArguments.Privacy = x.Privacy;
-
-				// The create game modal's the one closing now - let it go before the load holds things up
-				await PrepareForLoad();
-
-				if ( !string.IsNullOrEmpty( x.Map ) )
-					MenuUtility.OpenGameWithMap( package.FullIdent, x.Map, x.GameSettings );
-				else
-					MenuUtility.OpenGame( package.FullIdent, true, x.GameSettings );
-			} ) );
+			ModalSystem.Instance?.OpenGameSetup( package, via, source, initialMap: mapPackage?.FullIdent );
 			return;
 		}
 
 		// Direct launch
+		ReportPlay( package, via, source );
+
 		await PrepareForLoad();
 
 		if ( mapPackage is null )
@@ -90,6 +139,8 @@ public static class MenuHelpers
 			}
 		}
 
+		if ( PartyRoom.Current is { } currentParty ) LaunchArguments.ServerName = currentParty.Name;
+
 		if ( mapPackage is not null )
 		{
 			MenuUtility.OpenGameWithMap( package.FullIdent, mapPackage.FullIdent );
@@ -98,6 +149,85 @@ public static class MenuHelpers
 		{
 			MenuUtility.OpenGame( package.FullIdent, true );
 		}
+	}
+
+	internal static async Task StartConfiguredGame( Package package, CreateGameResults settings, PartyRoom party = null )
+	{
+		if ( !HasAuthority ) return;
+		var startingParty = PartyRoom.Current;
+
+		await PrepareForLoad();
+
+		// Party membership or settings may change while the loading screen settles.
+		var serverSlots = GameSetup.ClampServerSlots( package, settings.MaxPlayers );
+		if ( PartyRoom.Current != startingParty )
+		{
+			LoadingScreen.IsVisible = false;
+			throw new InvalidOperationException( "Your party has changed. Check the game setup and try again." );
+		}
+
+		if ( party is not null && (PartyRoom.Current != party || !party.Owner.IsMe || !party.IsGameSelected( package )
+			|| party.SelectedGameSettings is not { } currentSettings || !GameSetup.SettingsEqual( settings, currentSettings )
+			|| serverSlots < party.MemberCount) )
+		{
+			LoadingScreen.IsVisible = false;
+			throw new InvalidOperationException( "The party or game setup changed. Check the game settings and try again." );
+		}
+
+		if ( !HasAuthority )
+		{
+			LoadingScreen.IsVisible = false;
+			return;
+		}
+
+		LaunchArguments.MaxPlayers = serverSlots;
+
+		if ( !string.IsNullOrEmpty( settings.ServerName ) ) LaunchArguments.ServerName = settings.ServerName;
+		LaunchArguments.Privacy = settings.Privacy;
+		LaunchArguments.Map = null;
+
+		if ( !string.IsNullOrEmpty( settings.Map ) )
+		{
+			MenuUtility.OpenGameWithMap( package.FullIdent, settings.Map, settings.GameSettings ?? new() );
+		}
+		else
+		{
+			MenuUtility.OpenGame( package.FullIdent, true, settings.GameSettings ?? new() );
+		}
+	}
+
+	/// <summary>
+	/// Whether your party's what the game's made for - true to go straight on. If it isn't, pops up why,
+	/// with Play anyway (which runs <paramref name="playAnyway"/>) and Return, and gives false.
+	/// </summary>
+	public static bool ConfirmPartyFit( Package package, Action playAnyway )
+	{
+		var size = MenuProject.PlayerModes.PartySize;
+		var modes = MenuProject.PlayerModes.For( package );
+		var (fit, why) = modes.FitFor( size );
+		if ( fit != MenuProject.PlayerModes.FitKind.Poor ) return true;
+
+		// Short of what it's made for, or past it - singleplayer, a full lobby, more than it's for
+		var tooSmall = modes.Multiplayer && modes.RecommendedMin > size && (modes.MaxPlayers <= 0 || size <= modes.MaxPlayers);
+
+		ModalSystem.Instance?.Open( new MenuProject.Modals.QuestionModal
+		{
+			Color = Color.Parse( "#f5a623" ) ?? Color.Orange,
+			Title = tooSmall ? "Your party is too small" : "Your party is too big",
+			Message = why,
+			ConfirmText = "Play anyway",
+			ConfirmIcon = "play_arrow",
+			CancelText = "Return",
+			OnConfirm = playAnyway
+		} );
+
+		return false;
+	}
+
+	static void ReportPlay( Package package, string via, Panel source )
+	{
+		if ( via is not null )
+			Discovery.Launching( package, via, source );
 	}
 
 	/// <summary>
@@ -122,8 +252,11 @@ public static class MenuHelpers
 		await Task.Delay( LoadWarmUpMilliseconds );
 	}
 
-	static bool ShouldUseCreateGameModal( Package package )
+	static bool NeedsSetup( Package package )
 	{
+		if ( package.Tags.Contains( "multiplayer" ) || package.Info.MaxPlayers > 1 )
+			return true;
+
 		if ( package.Info.UsesCreateGameModal )
 			return true;
 
@@ -143,6 +276,23 @@ public static class MenuHelpers
 		var days = (int)System.Math.Floor( (System.DateTimeOffset.UtcNow - time).TotalDays );
 		if ( days < 0 ) days = 0;
 		return $"{days}d";
+	}
+
+	/// <summary>
+	/// How long something's been played - in minutes under an hour, hours to a decimal place past that,
+	/// Steam's way: "Under a minute", "23 minutes", "4.6 hours".
+	/// </summary>
+	public static string PlayTime( System.TimeSpan time )
+	{
+		if ( time.TotalHours >= 1 )
+		{
+			var hours = System.Math.Floor( time.TotalHours * 10 ) / 10;
+			return $"{hours:0.#} hour{(hours == 1 ? "" : "s")}";
+		}
+
+		var minutes = (int)time.TotalMinutes;
+		if ( minutes < 1 ) return "Under a minute";
+		return $"{minutes} minute{(minutes == 1 ? "" : "s")}";
 	}
 
 	/// <summary>
@@ -209,7 +359,11 @@ public static class MenuHelpers
 	{
 		var menu = MenuPanel.Open( source );
 
-		menu.AddOption( "play_arrow", "Open Game", () => LaunchGame( package.FullIdent ) );
+		menu.AddOption( "play_arrow", "Open Game", () =>
+		{
+			Discovery.Clicked( source, package );
+			LaunchGame( package.FullIdent );
+		} );
 
 		if ( package.Tags.Contains( "maplaunch" ) )
 		{
@@ -260,8 +414,16 @@ public static class MenuHelpers
 
 		if ( hidden )
 		{
-			Toast( $"{package.Title} hidden", "visibility_off" );
-			source?.AncestorsAndSelf.OfType<FrontPageGames>().FirstOrDefault()?.RemovePackage( package );
+			var putBack = source?.AncestorsAndSelf.OfType<FrontPageGames>().FirstOrDefault()?.RemovePackage( package );
+
+			// Hid the wrong one - a way straight back, on the toast saying so
+			MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast
+			{
+				Title = $"{package.Title} hidden",
+				Icon = "visibility_off",
+				ActionText = "Undo",
+				OnAction = () => _ = UnhidePackage( package, putBack )
+			}, duration: UndoSeconds );
 		}
 		else
 		{
@@ -269,6 +431,31 @@ public static class MenuHelpers
 		}
 
 		return hidden;
+	}
+
+	/// <summary>
+	/// How long the hidden toast stays up - longer than most, it's got an Undo on it.
+	/// </summary>
+	const float UndoSeconds = 7f;
+
+	/// <summary>
+	/// Show a hidden game again - and put it back on the shelf it came off, if there's a way to.
+	/// </summary>
+	public static async Task<bool> UnhidePackage( Package package, Action putBack = null )
+	{
+		var shown = await package.SetHiddenAsync( false );
+
+		if ( shown )
+		{
+			putBack?.Invoke();
+			Toast( $"{package.Title} is back", "visibility" );
+		}
+		else
+		{
+			Toast( $"Couldn't unhide {package.Title} right now", "visibility" );
+		}
+
+		return shown;
 	}
 
 	static void Toast( string title, string icon ) => MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast() { Title = title, Icon = icon } );
@@ -294,7 +481,7 @@ public static class MenuHelpers
 			{
 				if ( lobby.IsFull ) continue;
 
-				if ( await Networking.TryConnectSteamId( lobby.LobbyId ) )
+				if ( await MenuUtility.TryJoinLobby( lobby.LobbyId ) )
 					return;
 			}
 
@@ -322,31 +509,6 @@ public static class MenuHelpers
 		menu.AddOption( "star", "Rate Map", () => Game.Overlay.ShowReviewModal( package ) );
 	}
 
-	public static async void LoadMap( Package package )
-	{
-		Assert.True( HasAuthority, "You do not have authority to start a game, only the party owner can do that." );
-
-		LaunchArguments.Map = null;
-
-		var filters = new Dictionary<string, string>
-		{
-			{ "game", SANDBOX_IDENT },
-			{ "map", package.FullIdent },
-		};
-
-		var lobbies = await Networking.QueryLobbies( filters );
-
-		foreach ( var lobby in lobbies ) // TODO - order by most attractive
-		{
-			if ( lobby.IsFull ) continue;
-
-			if ( await Networking.TryConnectSteamId( lobby.LobbyId ) )
-				return;
-		}
-
-		CreateGameWithMap( SANDBOX_IDENT, package );
-	}
-
 	public static void CreateGameWithMap( string gameIdent, Package mapPackage )
 	{
 		Assert.True( HasAuthority, "You do not have authority to start a game, only the party owner can do that." );
@@ -355,7 +517,10 @@ public static class MenuHelpers
 		MenuUtility.OpenGame( gameIdent, false );
 	}
 
-	public static void LaunchGame( string gameIdent, bool allowLaunchOverride = true )
+	/// <summary>
+	/// Opens a game's menu page, or launches it directly in VR.
+	/// </summary>
+	public static void LaunchGame( string gameIdent )
 	{
 		// alex: in VR we don't show modals properly (this needs some thought as to how we're going to do it)
 		// so for the purposes of being able to play tech jam games, we'll just launch games directly

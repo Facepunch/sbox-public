@@ -69,6 +69,8 @@ public sealed class DockItem
 
 /// <summary>
 /// Tabbed panel docking with nested splits. Registered content is owned until this host is deleted or transfers it.
+/// Splits respect the content's pixel min/max width and height where space allows. Tab groups reserve the largest
+/// minimum and allow the largest maximum of their tabs. If constraints cannot fit, the available space is shared.
 /// </summary>
 [Library( "dockhost" )]
 [StyleSheet.Inline( "dockhost", Styles )]

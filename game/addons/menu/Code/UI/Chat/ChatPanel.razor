@@ -1,5 +1,6 @@
 ﻿@using Sandbox;
 @using Sandbox.UI;
+@using MenuProject.MenuUI.Popups;
 @inherits Panel
 @namespace MenuProject.UI
 
@@ -10,14 +11,16 @@
 		{
 			var fadeClass = !ShowInput && entry.TimeSinceAdded > MessageFadeTime ? "faded" : "";
 
-			<div class="chat-entry @fadeClass @entry.ExtraClass @entry.Channel" onmousedown=@( ( e ) => OnEntryMouseDown( e, entry ) )>
+			<div class="chat-entry @fadeClass @entry.ExtraClass @entry.Channel">
 				@if ( entry.SteamId > 0 )
 				{
-					<div class="avatar" style="background-image: url( avatar:@entry.SteamId )"></div>
+					<div class="avatar" style="background-image: url( avatar:@entry.SteamId )"
+						onclick=@(e => OpenUserMenu( e, entry )) onrightclick=@(e => OpenUserMenu( e, entry ))></div>
 				}
 				@if ( !string.IsNullOrEmpty( entry.Name ) )
 				{
-					<span class="name">@entry.Name</span>
+					<span class="name @(entry.SteamId > 0 ? "clickable" : "")" onclick=@(e => OpenUserMenu( e, entry ))
+						onrightclick=@(e => OpenUserMenu( e, entry ))>@entry.Name</span>
 				}
 				@if ( entry.Channel == "party" && ShowChannelLabel )
 				{
@@ -178,34 +181,19 @@
 			Entries.RemoveAt( 0 );
 	}
 
-	Popup EntryMenu;
-
-	void OnEntryMouseDown( PanelEvent e, ChatLine entry )
+	void OpenUserMenu( PanelEvent e, ChatLine entry )
 	{
 		if ( entry.SteamId <= 0 ) return;
 
-		var friend = new Friend( entry.SteamId );
-
-		if ( e is MousePanelEvent mouse && mouse.Button == "mouseright" )
-		{
-			e.StopPropagation();
-
-			if ( EntryMenu.IsValid() )
-			{
-				EntryMenu.Delete();
-				return;
-			}
-
-			EntryMenu = new Popup( this, Popup.PositionMode.UnderMouse, 0 );
-			EntryMenu.AddOption( "View Profile", () => friend.OpenInOverlay() );
-			return;
-		}
-
-		friend.OpenInOverlay();
+		FriendCard.ShowFromClick( e, new Friend( entry.SteamId ) );
 	}
 
 	protected override int BuildHash()
 	{
-		return System.HashCode.Combine( ShowInput, InputPrefix, Entries.Count, (int)(Time.Now / 1f) );
+		// Rebuilt as each one's due to fade - by its own real time since it came in. Time.Now is the
+		// menu scene's clock, which stands still while a game's running, so a message that came in
+		// then (someone joining) never faded until something else rebuilt it
+		var faded = Entries.Count( x => x.TimeSinceAdded > MessageFadeTime );
+		return System.HashCode.Combine( ShowInput, InputPrefix, Entries.Count, faded );
 	}
 }

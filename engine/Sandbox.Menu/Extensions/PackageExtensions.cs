@@ -90,21 +90,10 @@ public static partial class SandboxMenuExtensions
 	}
 
 	/// <summary>
-	/// Hide this package from the local player's discovery and search. False if the backend refused.
+	/// Hide this package from the local player's discovery and search, or show it again. False if the
+	/// backend refused. Kept in <see cref="MenuUtility.Hidden"/> too.
 	/// </summary>
-	public static async Task<bool> SetHiddenAsync( this Package package, bool hidden )
-	{
-		try
-		{
-			await Sandbox.Backend.Account.SetPackageHidden( package.FullIdent, hidden );
-			return true;
-		}
-		catch ( Exception e )
-		{
-			Log.Warning( $"Couldn't hide {package.FullIdent} ({e.Message})" );
-			return false;
-		}
-	}
+	public static Task<bool> SetHiddenAsync( this Package package, bool hidden ) => MenuUtility.Hidden.SetPackageHidden( package.FullIdent, hidden );
 
 	/// <summary>
 	/// Open a modal for the specific package. This will open the correct modal

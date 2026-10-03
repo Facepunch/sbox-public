@@ -10,7 +10,7 @@
 @if (Flair.Length > 0)
 {
     <root>
-        @foreach (var flair in Flair)
+        @foreach (var flair in Shown())
         {
             <div class="flair flair-@flair.Kind" tooltip="@flair.Tooltip" style="@BadgeStyle( flair )">
                 <icon>@IconOf( flair )</icon>
@@ -21,6 +21,22 @@
 
 @code {
     [Parameter] public ImmutableArray<Package.PackageFlair> Flair { get; set; } = ImmutableArray<Package.PackageFlair>.Empty;
+
+    /// <summary>At most this many badges, the most relevant first. Tiles pass 2; the hover card shows all.</summary>
+    [Parameter] public int Limit { get; set; } = int.MaxValue;
+
+    // What's about you comes first, then what's notable about the game, then the generic nudges.
+    static int Priority( Package.PackageFlair flair ) => flair.Kind switch
+    {
+        "favourited" => 0,
+        "updated-since-played" => 1,
+        "contest-winner" => 2,
+        "new" => 3,
+        "workshop-approved" => 4,
+        _ => 5
+    };
+
+    IEnumerable<Package.PackageFlair> Shown() => Flair.OrderBy( Priority ).Take( Limit );
 
     static readonly System.Text.RegularExpressions.Regex BackgroundColor = new( @"background-color\s*:\s*([^;]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled );
 
@@ -45,5 +61,5 @@
         return match.Success ? $"background-color: {match.Groups[1].Value.Trim()};" : "";
     }
 
-    protected override int BuildHash() => Flair.Length;
+    protected override int BuildHash() => System.HashCode.Combine( Flair.Length, Limit );
 }

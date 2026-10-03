@@ -1,0 +1,101 @@
+@namespace MenuProject.Modals.PackageModalComponents
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.Modals;
+
+@*
+    A package's tabs - the game page's and the map page's. Whoever uses it gives it its Overview; the
+    rest are its pages (PackagePage, the same ones the pause menu opens in a window): Reviews, who's in
+    it with you (in a game), Changes and News when there are any, Achievements when it has some. The
+    tabs sit straight in the row it's put in.
+*@
+<root>
+
+    <PortalButton @ref=OverviewTab StartActive Portal=@Portal>
+        <Button><SearchlightTab Title="Overview" Icon="people" /></Button>
+        <Content>@Overview</Content>
+    </PortalButton>
+
+    @foreach ( var entry in PackagePage.All )
+    {
+        if ( !Shows( entry.Id ) ) continue;
+
+        <PortalButton Name=@entry.Id Portal=@Portal>
+            <Button><SearchlightTab Title=@entry.Title Icon=@entry.Icon /></Button>
+            <Content><PackagePage Package=@Package Page=@entry.Id /></Content>
+        </PortalButton>
+    }
+
+</root>
+
+@code
+{
+    [Parameter] public Package Package { get; set; }
+    [Parameter] public PortalTarget Portal { get; set; }
+
+    /// <summary>
+    /// The first tab's page - different on the game page and in the pause menu.
+    /// </summary>
+    [Parameter] public RenderFragment Overview { get; set; }
+
+    /// <summary>
+    /// A Players tab - in a game with other people in it, that doesn't keep its players to itself.
+    /// </summary>
+    [Parameter] public bool ShowPlayers { get; set; }
+
+    /// <summary>
+    /// A Reviews tab.
+    /// </summary>
+    [Parameter] public bool ShowReviews { get; set; } = true;
+
+    PortalButton OverviewTab;
+
+    /// <summary>
+    /// Whether it gets a tab - only the pages it has something for, no empty ones.
+    /// </summary>
+    bool Shows( string page ) => page switch
+    {
+        PackagePage.Reviews => ShowReviews,
+        PackagePage.Players => ShowPlayers,
+        PackagePage.Changes => Package.LatestChangeLists.Length > 0,
+        PackagePage.News => Package.LatestNewsPost is not null,
+        PackagePage.Achievements => HasAchievements,
+        _ => false
+    };
+
+    /// <summary>
+    /// The Overview's the one showing - or nothing's been picked yet, which will be it.
+    /// </summary>
+    public bool OnOverview => Portal?.Source is not { } source || source == OverviewTab;
+
+    /// <summary>
+    /// Show one of its pages - one of PackagePage's constants - if it has a tab for it.
+    /// </summary>
+    public void Open( string page ) => Children.OfType<PortalButton>().FirstOrDefault( x => x.Name == page )?.ActivatePage();
+
+    public void OpenReviews() => Open( PackagePage.Reviews );
+    public void OpenChanges() => Open( PackagePage.Changes );
+
+    bool HasAchievements { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if ( Package is null ) return;
+
+        try
+        {
+            var achievements = await Package.GetAchievements();
+            HasAchievements = achievements?.All.Count > 0;
+        }
+        catch ( Exception e )
+        {
+            Log.Warning( $"Couldn't check {Package.FullIdent}'s achievements: {e.Message}" );
+            HasAchievements = false;
+        }
+
+        StateHasChanged();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Package, Portal, ShowPlayers, ShowReviews, HasAchievements );
+}

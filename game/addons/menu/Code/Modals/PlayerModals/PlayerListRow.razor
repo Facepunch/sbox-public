@@ -5,111 +5,141 @@
 @inherits Panel
 @namespace MenuProject.Modals
 
-@if ( User is null )
+@*
+    One player in the game with you - laid out like a row of the friends list: their face, their name
+    and what they are to you under it, then their ping, or Host for whoever's running the server.
+    Someone who isn't a friend yet gets the friends list's add button on the end when you point at
+    them. Click for their s&box card, right click for the rest.
+*@
+
+@if ( Player is null )
 	return;
 
-<root class=@PlayerClasses>
+<root class="@RowClass">
 
-	<img class="avatar" src="avatar:@User.SteamId" />
-	<div class="name">@User.DisplayName</div>
+	<div class="avatar" style="background-image: url( avatar:@Player.SteamId )"></div>
 
-	@if (IsHost)
+	<div class="info">
+		<label class="name">@Player.Name</label>
+		<label class="status">@StatusText</label>
+	</div>
+
+	<div class="grow"></div>
+
+	@if ( !Player.IsMe && !Player.IsFriend )
 	{
-		<i>dns</i>
+		<div class="add" tooltip="Send a friend request" onclick=@( ( e ) => AddFriend( e ) )><i>person_add</i></div>
 	}
-	else if (IsFriend)
+
+	@* The host's ping is always nothing - its pill says whose server it is instead *@
+	@if ( Player.IsHost )
 	{
-		<i>group</i>
+		<div class="ping host" tooltip="Running the server">
+			<i>dns</i>
+			<label>Host</label>
+		</div>
+	}
+	else
+	{
+		<div class="ping @PingClass" tooltip="Ping">
+			<i>signal_cellular_alt</i>
+			<label>@($"{Player.Ping:0} ms")</label>
+		</div>
 	}
 
-	<div class="divider" />
-
-	<span>
-		<i>signal_cellular_alt</i>
-		<label class="ping">@User.Ping</label>
-	</span>
 </root>
 
 @code
 {
-	public Connection User { get; set; }
-	public bool IsHost { get; set; }
-	public bool IsFriend { get; set; }
+	public PlayerList.Player Player { get; set; }
 
-	public string PlayerClasses
+	Friend Friend => new Friend( Player.SteamId );
+
+	/// <summary>
+	/// What they are to you - the friends list's status line.
+	/// </summary>
+	string StatusText
 	{
 		get
 		{
-			if ( IsFriend ) return "is-friend";
-			if ( IsHost ) return "is-host";
-			return "";
+			if ( Player.IsMe ) return "You";
+			return Player.IsFriend ? "Friend" : "Player";
 		}
 	}
 
-	Friend friend;
-	Popup menu;
-
-	protected override void OnAfterTreeRender( bool firstTime )
+	string RowClass
 	{
-		if ( firstTime )
+		get
 		{
-			friend = new Friend( User.SteamId );
-
-			IsFriend = friend.IsFriend;
-			IsHost = Connection.Host.Equals( User );
+			if ( Player.IsMe ) return "me";
+			return Player.IsFriend ? "friend" : "";
 		}
 	}
 
-	protected override int BuildHash()
+	/// <summary>
+	/// Green, amber or red - how their connection's holding up.
+	/// </summary>
+	string PingClass
 	{
-		if ( User is null ) return 0;
-		return HashCode.Combine( User.SteamId, User.Ping );
+		get
+		{
+			if ( Player.Ping >= 120 ) return "bad";
+			if ( Player.Ping >= 60 ) return "ok";
+			return "good";
+		}
+	}
+
+	Popup menu;
+	MenuProject.MenuUI.Popups.FriendCard card;
+
+	protected override int BuildHash() => HashCode.Combine( Player );
+
+	void AddFriend( PanelEvent e )
+	{
+		e.StopPropagation();
+		Friend.OpenAddFriendOverlay();
 	}
 
 	protected override void OnRightClick( MousePanelEvent e )
 	{
-		if (menu.IsValid())
+		if ( menu.IsValid() )
 		{
 			menu.Delete();
 			return;
 		}
 
-		menu = new Popup(this, Popup.PositionMode.UnderMouse, 0);
+		menu = new Popup( this, Popup.PositionMode.UnderMouse, 0 );
 
-		//
-		// Options
-		//
+		// Their Steam profile - their s&box one is the card a click brings up
+		var friend = Friend;
+		menu.AddOption( "View Profile", () => friend.OpenInOverlay() );
 
-		menu.AddOption("View Profile", () => friend.OpenInOverlay());
-
-		//
-		// Anything below is for non-local players
-		//
-
-		if (friend.IsMe)
-		{
+		// Anything below is for other players
+		if ( Player.IsMe )
 			return;
-		}
 
-		if (!friend.IsFriend)
-		{
-			menu.AddOption("Send Friend Request", () => friend.OpenAddFriendOverlay());
-		}
+		if ( !Player.IsFriend )
+			menu.AddOption( "Send Friend Request", () => friend.OpenAddFriendOverlay() );
 
-		//
-		// Host options
-		//
-
-		if (!Networking.IsHost)
-		{
+		// Only the host can kick - and only someone who's really here
+		if ( !Networking.IsHost || Player.Connection is not { } connection )
 			return;
-		}
 
-		menu.AddOption("Kick", "", () => User.Kick("Kicked"));
+		menu.AddOption( "Kick", "", () => connection.Kick( "Kicked" ) );
 	}
 
-	protected override void OnClick(MousePanelEvent e)
+	/// <summary>
+	/// Their s&box card - the friends list's, where you point - or shut it on a second click.
+	/// </summary>
+	protected override void OnClick( MousePanelEvent e )
 	{
-		friend.OpenInOverlay();
+		if ( card.IsValid() )
+		{
+			card.Delete();
+			card = null;
+			return;
+		}
+
+		card = MenuProject.MenuUI.Popups.FriendCard.Show( this, Friend, Popup.PositionMode.UnderMouse, 0 );
 	}
 }

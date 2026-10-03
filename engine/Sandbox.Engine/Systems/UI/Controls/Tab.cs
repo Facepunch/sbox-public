@@ -94,6 +94,7 @@ public class Tab : Panel
 	{
 		AddClass( "tab" );
 		AcceptsFocus = true;
+		FocusOnClick = false;
 		CanDragScroll = false;
 		_icon = Add.Icon( null, "tab-icon" );
 		_image = AddChild( new Image() );
@@ -161,22 +162,11 @@ public class Tab : Panel
 	}
 	protected override void OnDrag( DragEvent e ) { e.StopPropagation(); Bar?.UpdateReorder( e.ScreenPosition ); }
 	protected override void OnDragEnd( DragEvent e ) { e.StopPropagation(); Bar?.EndReorder( e.ScreenPosition ); }
-	protected override void OnEscape( PanelEvent e )
-	{
-		if ( Bar?.IsReordering == true )
-		{
-			Bar.CancelReorder();
-			e.StopPropagation();
-			return;
-		}
-		base.OnEscape( e );
-	}
-	protected override void OnBlur( PanelEvent e ) { Bar?.CancelReorder(); base.OnBlur( e ); }
+	protected override void OnDragCancel( DragEvent e ) { e.StopPropagation(); Bar?.CancelReorder(); }
 
 	/// <inheritdoc/>
 	public override void OnButtonTyped( ButtonEvent e )
 	{
-		if ( e.Button == "escape" && Bar?.IsReordering == true ) { Bar.CancelReorder(); e.StopPropagation = true; return; }
 		if ( TryClickFromKeyboard( e ) ) return;
 		base.OnButtonTyped( e );
 	}

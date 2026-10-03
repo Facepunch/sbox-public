@@ -184,6 +184,33 @@ public class TabTests
 	}
 
 	[TestMethod]
+	public void EscapeCancelsMouseReorder()
+	{
+		var bar = pages.TabBar;
+		bar.AllowReorder = true;
+		var a = pages.AddTab( "First tab", new Panel() );
+		var b = pages.AddTab( "Second tab", new Panel() );
+		Frame();
+
+		void MoveTo( Vector2 position ) { surface.MouseMoved( position ); Frame(); surface.MouseMoved( position ); }
+		MoveTo( a.Box.Rect.Center );
+		surface.Input.AddMouseButton( NativeEngine.ButtonCode.MouseLeft, true, default );
+		Frame();
+		MoveTo( new Vector2( b.Box.Rect.Right - 1, b.Box.Rect.Center.y ) );
+		Assert.IsTrue( bar.IsReordering, "real mouse input started a reorder" );
+		Assert.AreNotSame( a, surface.Focus, "pressing a tab doesn't focus it" );
+
+		surface.SetKey( "escape", true );
+		Frame();
+		surface.SetKey( "escape", false );
+		surface.Input.AddMouseButton( NativeEngine.ButtonCode.MouseLeft, false, default );
+		Frame();
+
+		Assert.IsFalse( bar.IsReordering );
+		Assert.AreSame( a, bar.Tabs[0] );
+	}
+
+	[TestMethod]
 	public void CloseButtonDoesNotSelectInactivePage()
 	{
 		var a = pages.AddTab( "A", new Panel() );

@@ -30,14 +30,18 @@
         </div>
 
         @* How it's played - on your own, together, against each other - up where you can't miss it,
-           with how many can play. Nothing when the tags don't say *@
+           with how many it's for. Green when your party's what it's made for, orange when it isn't (the
+           why's for the popup when you go to play), plain when the game doesn't say. Nothing when it
+           says nothing at all *@
         @if (PlayerModes.For(Package) is { Label: { } modeLabel } modes)
         {
-            <div class="play-mode @(modes.Multiplayer ? "multiplayer" : "solo")">
-                <div class="mode-icon"><i>@modes.Icon</i></div>
+            var fit = modes.FitFor( PlayerModes.PartySize );
+
+            <div class="play-mode @FitClass( fit.Fit )">
+                <div class="mode-icon"><i>@(fit.Fit == PlayerModes.FitKind.Poor ? "group_off" : modes.Icon)</i></div>
                 <div class="mode-text">
                     <label class="mode-label">@modeLabel</label>
-                    <label class="mode-hint">@ModeHint(modes)</label>
+                    <label class="mode-hint">@ModeHint( modes )</label>
                 </div>
             </div>
         }
@@ -48,16 +52,19 @@
 
         @* Label on the left, value on the right - one per line *@
         <div class="facts">
-            <div class="fact @(Package.Reviews.Total > 0 ? "clickable" : "")" @onclick="@(() => { if ( Package.Reviews.Total > 0 ) OnReviewsClicked?.Invoke(); })">
-                <label class="key">Reviews</label>
-                <div class="value">
-                    <label class="rating @RatingClass()">@RatingText()</label>
-                    @if (Package.Reviews.Total > 0)
-                    {
-                        <label class="muted">(@Package.Reviews.Total.ToString("N0"))</label>
-                    }
+            @if (ShowReviews)
+            {
+                <div class="fact @(Package.Reviews.Total > 0 ? "clickable" : "")" @onclick="@(() => { if ( Package.Reviews.Total > 0 ) OnReviewsClicked?.Invoke(); })">
+                    <label class="key">Reviews</label>
+                    <div class="value">
+                        <label class="rating @RatingClass( Package )">@RatingText( Package )</label>
+                        @if (Package.Reviews.Total > 0)
+                        {
+                            <label class="muted">(@Package.Reviews.Total.ToString("N0"))</label>
+                        }
+                    </div>
                 </div>
-            </div>
+            }
 
             @* The update itself is under the gallery on the Overview - here, just when, and a way to
                the Changes tab if there's a changelog *@
@@ -95,6 +102,12 @@
                 </div>
             </div>
         </div>
+
+        @* You and it - your time, against everyone's, and what you've got to show for it. Once you've played it *@
+        @if (Package.Interaction.Used)
+        {
+            <PackageYourRecord Package=@Package />
+        }
 
         @if (achList is not null)
         {
@@ -144,17 +157,33 @@
 	/// <summary>Called when the reviews row is clicked - opens the Reviews tab.</summary>
 	[Parameter] public Action OnReviewsClicked { get; set; }
 
+
+	/// <summary>How it's reviewed, first of the facts - not in the pause menu.</summary>
+	[Parameter] public bool ShowReviews { get; set; } = true;
+
 	AchievementCollection achList;
 
 	/// <summary>
 	/// The mode's own sentence, and how many can play when the full package says - "Team up with
 	/// friends · up to 8 players".
 	/// </summary>
+	/// <summary>
+	/// What it's like, and how many it's for - what it's made for when it says, the lobby's limit if not.
+	/// </summary>
 	string ModeHint( MenuProject.PlayerModes modes )
 	{
+		if ( modes.PlayersText is { } players ) return $"{modes.Hint} · {players}";
+
 		var max = Package?.Info.MaxPlayers ?? 0;
 		return modes.Multiplayer && max > 1 ? $"{modes.Hint} · up to {max} players" : modes.Hint;
 	}
+
+	static string FitClass( MenuProject.PlayerModes.FitKind fit ) => fit switch
+	{
+		MenuProject.PlayerModes.FitKind.Good => "fits",
+		MenuProject.PlayerModes.FitKind.Poor => "mismatch",
+		_ => ""
+	};
 
 	Package.ChangeListSummary? LatestChange => Package?.LatestChangeLists is { Length: > 0 } lists
 		? lists.OrderByDescending( x => x.Created ).First()
@@ -162,12 +191,12 @@
 
 	/// <summary>
 	/// Steam's words for a review score - how positive, and how sure (how many reviews) it is.
-	/// Under ten reviews there's not enough to say.
+	/// Under ten reviews there's not enough to say. The pause menu's Overview says it too.
 	/// </summary>
-	string RatingText()
+	public static string RatingText( Package package )
 	{
-		var total = Package.Reviews.Total;
-		var score = Package.Reviews.Score;
+		var total = package.Reviews.Total;
+		var score = package.Reviews.Score;
 
 		if ( total <= 0 ) return "No reviews yet";
 		if ( total < 10 ) return $"{total} review{(total == 1 ? "" : "s")}";
@@ -185,17 +214,21 @@
 		return total >= 50 ? "Very Negative" : "Negative";
 	}
 
-	string RatingClass()
+	/// <summary>
+	/// "positive", "mixed" or "negative" for colouring <see cref="RatingText"/> - "none" under ten reviews.
+	/// </summary>
+	public static string RatingClass( Package package )
 	{
-		if ( Package.Reviews.Total < 10 ) return "none";
+		if ( package.Reviews.Total < 10 ) return "none";
 
-		var score = Package.Reviews.Score;
+		var score = package.Reviews.Score;
 		if ( score >= 70 ) return "positive";
 		if ( score >= 40 ) return "mixed";
 		return "negative";
 	}
 
-	protected override int BuildHash() => System.HashCode.Combine(Package);
+	// The party's size too - the play mode card goes green or orange with it, while the page is open
+	protected override int BuildHash() => System.HashCode.Combine(Package, Package?.Interaction.Used, ShowReviews, PlayerModes.PartySize);
 
 	protected override async Task OnParametersSetAsync()
 	{

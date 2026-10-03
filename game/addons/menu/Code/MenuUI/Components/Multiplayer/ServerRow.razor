@@ -2,9 +2,74 @@
 @using Sandbox;
 @using Sandbox.Network;
 
-<root class="row @RowClass" onclick=@OpenServerModal>
+@* A server - who's hosting it and which of your friends are in it, what it's on, how full it is, its
+   ping, and anything worth knowing before you go (an old version, the editor, friends only). The
+   whole row joins it: under the pointer a Join button - just its glyph - comes in over its end to say
+   so (or that it's full). *@
+<root class="row @RowClass" onclick=@Join>
 
-	<div class="title">@Server.Name</div>
+	@* Its map's art, faded in behind the row's end - when it's on a published one *@
+	@if ( MapArt is { } art )
+	{
+		<div class="map-art" style="background-image: url( @art );"></div>
+	}
+
+	<div class="title">
+		<div class="host" style="background-image: url( avatar:@Server.OwnerId );" tooltip="@HostTooltip"></div>
+
+		<div class="names">
+			<div class="name-line">
+				<label class="server-name">@Server.Name</label>
+
+				@if ( AutoNamed && HostIsFriend )
+				{
+					<label class="tag friend">Friend</label>
+				}
+				@if ( IsOldVersion )
+				{
+					<div class="tag warn" tooltip="Running an older version of the game"><i>update</i><label>Outdated</label></div>
+				}
+				@if ( IsEditor )
+				{
+					<label class="tag" tooltip="Hosted from the editor">Editor</label>
+				}
+				@if ( PrivacyIcon is { } privacy )
+				{
+					<i class="privacy" tooltip="@PrivacyTooltip">@privacy</i>
+				}
+			</div>
+
+			<div class="sub-line">
+				@* Named by its host - who's hosting it, since the name doesn't say *@
+				@if ( !AutoNamed && !string.IsNullOrWhiteSpace( HostName ) && HostName != Server.Name )
+				{
+					<div class="hosted" tooltip="Host"><i>person</i><label>@HostName</label></div>
+					@if ( HostIsFriend )
+					{
+						<label class="tag friend">Friend</label>
+					}
+				}
+
+				@if ( !string.IsNullOrWhiteSpace( Server.Map ) )
+				{
+					<div class="server-map" onclick=@OpenMapInfo><i>map</i><label>@(MapPackage?.Title ?? Server.Map)</label></div>
+				}
+
+				@* Your friends in it - their faces, and who *@
+				@if ( FriendsIn.Count > 0 )
+				{
+					<div class="friends" tooltip="@string.Join( ", ", FriendsIn.Select( x => x.Name ) )">
+						@foreach ( var friend in FriendsIn.Take( 3 ) )
+						{
+							<div class="face" style="background-image: url( avatar:@friend.Id );"></div>
+						}
+						<label>@FriendsText</label>
+					</div>
+				}
+			</div>
+		</div>
+	</div>
+
 	<div class="map" onclick=@OpenMapInfo>
 		@if ( MapPackage is not null || !string.IsNullOrEmpty( Server.Map ) )
 		{
@@ -20,21 +85,38 @@
 			<label>@(MapPackage?.Title ?? Server.Map)</label>
 		}
 	</div>
-	<div class="members">
-		<div class="current">@Server.Members</div>
-		<div class="sep">/</div>
-		<div class="maxmembers">@Server.MaxMembers</div>
+
+	@* How full - a seat each for a small game, the count in a pill for a bigger one *@
+	<div class="members" tooltip="@($"{Server.Members} of {Server.MaxMembers} players")">
+		@if ( Server.MaxMembers > 0 && Server.MaxMembers < MaxSeats )
+		{
+			<div class="seats">
+				@for ( var i = 0; i < Server.MaxMembers; i++ )
+				{
+					<div class="seat @(i < Server.Members ? "taken" : "")"></div>
+				}
+			</div>
+		}
+		else
+		{
+			<div class="count">
+				<div class="current">@Server.Members</div>
+				<div class="sep">/</div>
+				<div class="maxmembers">@Server.MaxMembers</div>
+			</div>
+		}
 	</div>
+
 	<div class="ping-icon @PingClass">
 		@if ( Server.Ping >= 0 )
 		{
 			<i>@PingIcon</i>
 		}
 	</div>
-	<div class="ping-value @PingClass">
+	<div class="ping-value @PingClass" tooltip="@PingTooltip">
 		@if ( Server.Ping >= 0 )
 		{
-			<label>@(Server.Ping)</label>
+			<label>@(Server.IsPingEstimated ? "~" : "")@Server.Ping</label>
 		}
 		else
 		{
@@ -42,50 +124,154 @@
 		}
 	</div>
 
+	<div class="join" tooltip="@(Server.IsFull ? "Server full" : "Join")">
+		<i>@(Server.IsFull ? "block" : "play_arrow")</i>
+	</div>
+
 </root>
 
 @code
 {
-    public LobbyInformation Server { get; set; }
+	/// <summary>
+	/// Latest server details supplied by the live server list.
+	/// </summary>
+	public LobbyInformation Server { get; set; }
 
-    Package MapPackage;
+	Package MapPackage;
+	Package GamePackage;
+	string loadedMap;
+	string loadedGame;
 
-    protected override void OnAfterTreeRender( bool firstTime )
-    {
-        base.OnAfterTreeRender( firstTime );
+	/// <summary>
+	/// Under this many, a seat each - this many and up, the count in a pill.
+	/// </summary>
+	const int MaxSeats = 8;
 
-        if ( firstTime )
-        {
-            GetThumbnails();
-        }
-    }
+	protected override async Task OnParametersSetAsync()
+	{
+		RefreshFriends();
 
-    void OpenServerModal()
-    {
-        ModalSystem.Instance.Server( Server );
-    }
+		if ( loadedGame != Server.Game )
+		{
+			loadedGame = Server.Game;
+			GamePackage = null;
 
-    void OpenMapInfo()
-    {
-        if ( MapPackage is null ) return;
-
-        Game.Overlay.ShowMapModal( MapPackage.FullIdent );
-    }
-
-    async void GetThumbnails()
-    {
-        if ( Server.Map.Contains( "." ) && !Server.Map.Contains( ".vmap" ) )
-        {
-			var mapPackage = await Package.FetchAsync( Server.Map, true );
-			if ( mapPackage?.Public ?? false )
+			var game = Server.Game;
+			if ( !string.IsNullOrEmpty( game ) )
 			{
-				MapPackage = mapPackage;
-                StateHasChanged();
+				var package = await Package.FetchAsync( game, true );
+				if ( IsValid && !IsDeleting && game == Server.Game ) GamePackage = package;
 			}
+		}
+
+		if ( loadedMap == Server.Map ) return;
+		loadedMap = Server.Map;
+		MapPackage = null;
+
+		if ( string.IsNullOrEmpty( Server.Map ) || !Server.Map.Contains( '.' ) || Server.Map.Contains( ".vmap" ) ) return;
+
+		var map = Server.Map;
+		var mapPackage = await Package.FetchAsync( map, true );
+		if ( IsValid && !IsDeleting && map == Server.Map && (mapPackage?.Public ?? false) )
+		{
+			MapPackage = mapPackage;
 		}
 	}
 
-	protected override int BuildHash() => System.HashCode.Combine( MapPackage?.Thumb, Server.Members, Server.Ping );
+	//
+	// Who's there - its host, and your friends in it
+	//
+
+	Friend Host => new( Server.OwnerId );
+	string HostName => Server.OwnerId != 0 ? Host.Name : null;
+	bool HostIsFriend => Server.OwnerId != 0 && Host.IsFriend;
+	string HostTooltip => string.IsNullOrWhiteSpace( HostName ) ? "Host" : $"Hosted by {HostName}";
+
+	/// <summary>
+	/// Named after its host automatically - the name's who's hosting it, so it isn't said twice.
+	/// </summary>
+	bool AutoNamed => Server.Get( "auto_name" ) == "1";
+
+	List<Friend> FriendsIn = new();
+	RealTimeSince _friendsChecked;
+
+	/// <summary>
+	/// Friends whose presence says they're in this lobby - not you, not its host (already shown).
+	/// </summary>
+	void RefreshFriends()
+	{
+		_friendsChecked = 0;
+		var id = Server.LobbyId.ToString();
+		FriendsIn = MenuUtility.Friends
+			.Where( x => !x.IsMe && x.Id != Host.Id && x.GetRichPresence( "steam_player_group" ) == id )
+			.OrderBy( x => x.Name )
+			.ToList();
+	}
+
+	string FriendsText => FriendsIn.Count switch
+	{
+		1 => FriendsIn[0].Name,
+		_ => $"{FriendsIn[0].Name} + {FriendsIn.Count - 1}"
+	};
+
+	public override void Tick()
+	{
+		base.Tick();
+
+		// Presence moves on its own - a look every couple of seconds
+		if ( _friendsChecked > 2 )
+		{
+			var before = FriendsIn.Count;
+			RefreshFriends();
+			if ( FriendsIn.Count != before ) StateHasChanged();
+		}
+	}
+
+	//
+	// Anything worth knowing before you go
+	//
+
+	/// <summary>
+	/// Running an older version of the game than the one that's out.
+	/// </summary>
+	bool IsOldVersion => long.TryParse( Server.Get( "revision" ), out var theirs ) && theirs > 0
+		&& GamePackage?.Revision is { } latest && latest.VersionId > 0 && theirs < latest.VersionId;
+
+	bool IsEditor => Server.Get( "dev" ) == "1";
+
+	string PrivacyIcon => Server.Get( "access_level" ) switch
+	{
+		nameof( LobbyPrivacy.FriendsOnly ) => "group",
+		nameof( LobbyPrivacy.Private ) => "lock",
+		_ => null
+	};
+
+	string PrivacyTooltip => Server.Get( "access_level" ) == nameof( LobbyPrivacy.Private ) ? "Invite only" : "Friends only";
+
+	string MapArt => !string.IsNullOrEmpty( MapPackage?.ThumbWide ) ? MapPackage.ThumbWide : MapPackage?.Thumb;
+
+	/// <summary>
+	/// Straight into it - and out of whatever window it's listed in.
+	/// </summary>
+	void Join()
+	{
+		if ( Server.IsFull || !MenuHelpers.HasAuthority ) return;
+
+		MenuUtility.Connect( Server.LobbyId );
+		Ancestors.OfType<MenuProject.Modals.BaseModal>().FirstOrDefault()?.CloseModal( true );
+	}
+
+	void OpenMapInfo( PanelEvent e )
+	{
+		if ( MapPackage is null ) return;
+
+		e.StopPropagation();
+		ModalSystem.Instance.Map( MapPackage.FullIdent );
+	}
+
+	protected override int BuildHash() => System.HashCode.Combine( Server.Name, Server.Map, Server.Members, Server.MaxMembers, Server.Ping, MapPackage?.Thumb, MapPackage?.Title, HashCode.Combine( FriendsIn.Count, GamePackage?.Revision?.VersionId, Server.OwnerId ) );
+
+	string PingTooltip => Server.Ping < 0 ? "Latency unavailable" : Server.IsPingEstimated ? $"About {Server.Ping} ms - estimated from Steam's relays" : $"{Server.Ping} ms latency";
 
 	string RowClass => Server.IsFull ? "full" : Server.Members == 0 ? "empty" : "";
 

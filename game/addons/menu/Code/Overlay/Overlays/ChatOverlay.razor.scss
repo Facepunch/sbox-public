@@ -1,9 +1,10 @@
 @import "/styles/_theme.scss";
+@import "/styles/_front.scss";
 
 ChatOverlay
 {
 	position: absolute;
-	left: 50px;
+	left: calc( $front-rail-width + $front-chrome-gap + $front-chrome-gap );
 	bottom: 96px;
 	width: 570px;
 	flex-direction: column;
@@ -17,6 +18,17 @@ ChatOverlay
 		width: 600px;
 	}
 
+	&:not( .open )
+	{
+		ChatPanel .messages .chat-entry
+		{
+			align-self: flex-start;
+			max-width: 100%;
+			background-color: rgba( black, 0.3 );
+			backdrop-filter: blur( 10px );
+		}
+	}
+
 	&.open
 	{
 		pointer-events: all;
@@ -24,6 +36,7 @@ ChatOverlay
 		ChatPanel
 		{
 			background-color: rgba( $default-900, 0.9 );
+			backdrop-filter: blur( 10px );
 			border-radius: $rounding-large;
 			outline: 1px solid rgba( black, 0.3 );
 		}

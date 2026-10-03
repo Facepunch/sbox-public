@@ -1,0 +1,59 @@
+@using Sandbox
+@using Sandbox.UI
+
+@namespace MenuProject.Modals
+@inherits MenuProject.Modals.BaseModal
+
+@* A yes-or-no question in a box in the middle of the screen, on the rail's paper - a glow through it
+   in the question's colour, the question, then the two answers. Escape or a click off it is Cancel.
+   Without a CancelText it's just something to be told, with the one button - a notice. *@
+<root>
+    <div class="window">
+        <div class="wash" style="background-image: radial-gradient( @Color.WithAlpha( 0.2f ).Rgba 0%, @Color.WithAlpha( 0f ).Rgba 70% );"></div>
+
+        <label class="title">@Title</label>
+
+        @if ( !string.IsNullOrEmpty( Message ) )
+        {
+            <label class="message">@Message</label>
+        }
+
+        <div class="buttons">
+            @if ( !string.IsNullOrEmpty( CancelText ) )
+            {
+                <Button class="cancel" Text="@CancelText" onclick=@( () => CloseModal( false ) ) />
+            }
+            <Button class="confirm" Icon="@ConfirmIcon" Text="@ConfirmText" style="background-color: @Color.WithAlpha( 0.85f ).Rgba; border-color: @Color.Rgba;" onclick=@Confirm />
+        </div>
+    </div>
+</root>
+
+@code
+{
+    /// <summary>
+    /// The glow and the confirm button - red for something you can't take back.
+    /// </summary>
+    public Color Color { get; set; } = Color.Parse( "#2f7ff0" ) ?? Color.White;
+
+    public string Title { get; set; }
+
+    public string Message { get; set; }
+
+    public string ConfirmText { get; set; } = "Ok";
+    public string ConfirmIcon { get; set; }
+    /// <summary>
+    /// Null for no cancel button - just the one, for a notice.
+    /// </summary>
+    public string CancelText { get; set; } = "Cancel";
+
+    /// <summary>
+    /// Called after it's closed, when the confirm button's pressed.
+    /// </summary>
+    public Action OnConfirm { get; set; }
+
+    void Confirm()
+    {
+        CloseModal( true );
+        OnConfirm?.Invoke();
+    }
+}

@@ -64,6 +64,11 @@ internal class PanelInput
 	{
 		var dropTarget = DropTarget;
 		var dragSource = MouseStates[0].DragTarget;
+		var cancelled = MouseStates
+			.Where( x => x.Dragged && x.DragTarget is not null )
+			.DistinctBy( x => x.DragTarget )
+			.Select( x => new DragEvent( "ondragcancel", x.DragTarget, x.StartHoldOffsetLocal, x.StartHoldOffsetScreen ) )
+			.ToList();
 
 		mousebuttons.Clear();
 		Panel.Switch( PseudoClass.Active, false, Active );
@@ -78,6 +83,25 @@ internal class PanelInput
 		// Clear capture before notifying user code, which can delete panels or reenter input.
 		if ( dropTarget is { IsValid: true, IsDeleting: false } )
 			dropTarget.CreateEvent( new PanelEvent( "ondragleave", dragSource ) );
+
+		foreach ( var e in cancelled )
+		{
+			if ( e.Target is { IsValid: true, IsDeleting: false } )
+				e.Target.CreateEvent( e );
+		}
+	}
+
+	/// <summary>
+	/// Call off a drag in progress, like pressing Escape does - nothing is dropped, and the source
+	/// gets <c>ondragcancel</c>. Returns false if nothing was being dragged.
+	/// </summary>
+	internal bool CancelDrag()
+	{
+		if ( !MouseStates.Any( x => x.Dragged && x.DragTarget is not null ) )
+			return false;
+
+		CancelPointerInteraction();
+		return true;
 	}
 
 	internal virtual void Tick( IEnumerable<RootPanel> panels, bool mouseIsActive )
@@ -545,7 +569,7 @@ internal class PanelInput
 				}
 			}
 
-			Active.Focus();
+			Active.UISystem.SetFocusFromClick( Active );
 
 			MouseDownEvent = new MousePanelEvent( "onmousedown", Active, GetMouseButtonName( MouseButton ) ) { KeyboardModifiers = Input.MouseModifiers, ClickCount = ClickCount };
 			ClickCount = 1;

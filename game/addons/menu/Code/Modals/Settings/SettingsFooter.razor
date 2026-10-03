@@ -24,7 +24,7 @@
     [Parameter] public Action OnApply { get; set; }
 
     bool Dirty;
-    TimeUntil TimeUntilEnabled = 0.1f;
+    RealTimeUntil TimeUntilEnabled = 0.1f;
 
     protected override void OnAfterTreeRender(bool firstTime)
     {

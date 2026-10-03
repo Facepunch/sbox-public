@@ -1,0 +1,69 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+HomeGroup
+{
+	background-color: transparent;
+	align-items: center;
+	justify-content: center;
+}
+
+Page
+{
+    width: 100%;
+    max-width: $screen-w-xl;
+}
+
+HomeGroup .section-nav
+{
+	padding-bottom: 16px;
+
+	.see-more
+	{
+		@include front-pill;
+		padding: 3px 9px;
+		cursor: pointer;
+		font-family: $front-font;
+		font-size: 10px;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: $front-secondary;
+		flex-grow: 0;
+
+		&:hover
+		{
+			color: $front-heading;
+		}
+	}
+}
+
+HomeGroup .section-head
+{
+	flex-direction: column;
+	flex-shrink: 0;
+	padding: 32px 36px 0 36px;
+
+	.title
+	{
+		font-family: $front-font;
+		font-size: 20px;
+		font-weight: 700;
+		color: $front-heading;
+	}
+
+	.description
+	{
+		font-family: $front-font;
+		font-size: 14px;
+		font-weight: 500;
+		color: $front-secondary;
+	}
+}
+
+HomeGroup packagelist virtualgrid
+{
+	padding: 32px;
+	padding-bottom: 132px;
+	gap: 16px;
+}

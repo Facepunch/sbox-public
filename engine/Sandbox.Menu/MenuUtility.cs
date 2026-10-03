@@ -82,6 +82,11 @@ public static partial class MenuUtility
 	/// </summary>
 	public static Package GamePackage => Application.GamePackage;
 
+	/// <summary>
+	/// How long the current game session has been running, or zero when there isn't one.
+	/// </summary>
+	public static TimeSpan SessionTime => TimeSpan.FromSeconds( Api.Activity.SessionSeconds );
+
 
 	public static SceneWorld CreateSceneWorld()
 	{
@@ -161,7 +166,7 @@ public static partial class MenuUtility
 		var connectString = friend.GetRichPresence( "connect" );
 		if ( string.IsNullOrWhiteSpace( connectString ) ) return;
 
-		Api.Activity.GameRequested( new( "friend" ), replace: false );
+		Api.Activity.GameRequested( new( "friend" ) );
 
 		connectString = connectString.Replace( "+connect", "" );
 		connectString = connectString.Replace( " ", "" );
@@ -194,12 +199,16 @@ public static partial class MenuUtility
 	/// </summary>
 	public static string StartupGameIdent => Utility.CommandLine.GetSwitch( "-rungame", null );
 
+	/// <summary>The external hostname carried by the website's Play button, when the browser supplied one.</summary>
+	public static string StartupWebReferrer => Api.Activity.NormalizeWebReferrer( Utility.CommandLine.GetSwitch( "-webreferrer", null ) );
+
 	/// <summary>
 	/// This is called when the cancel button is pressed when loading. 
 	/// We should disconnect and leave the game.
 	/// </summary>
 	public static void CancelLoading()
 	{
+		Api.Activity.CancelRequest( Api.Activity.PendingRequest );
 		IGameInstanceDll.Current.Disconnect();
 	}
 
@@ -249,8 +258,17 @@ public static partial class MenuUtility
 	public static void Connect( ulong lobbyId )
 	{
 		CloseAllModals();
-		Api.Activity.GameRequested( new( "server" ), replace: false );
+		Api.Activity.GameRequested( new( "server" ) );
 		Networking.Connect( lobbyId );
+	}
+
+	/// <summary>
+	/// Try to join one lobby, e.g. an open session on a map.
+	/// </summary>
+	public static Task<bool> TryJoinLobby( ulong lobbyId )
+	{
+		Api.Activity.GameRequested( new( "quickplay" ), replace: false );
+		return Networking.TryConnectSteamId( lobbyId );
 	}
 
 	/// <summary>
@@ -314,6 +332,21 @@ public static partial class MenuUtility
 	public static void InviteToParty( SteamId steamid )
 	{
 		PartyRoom.Current?.InviteFriend( steamid );
+	}
+
+	/// <summary>
+	/// The party members shared by this friend, including people outside our friends list.
+	/// Older clients may not share a roster. Requests missing Steam names as they are encountered.
+	/// </summary>
+	public static Friend[] GetPartyMembers( Friend friend )
+	{
+		if ( string.IsNullOrEmpty( friend.GetRichPresence( "party_id" ) ) ) return [];
+		var members = (friend.GetRichPresence( "party_members" ) ?? "").Split( ',' ).Take( 12 )
+			.Select( x => ulong.TryParse( x, out var id ) ? id : 0 ).Where( x => x != 0 ).Distinct()
+			.Select( x => new Friend( x ) ).ToArray();
+		foreach ( var member in members )
+			Steamworks.SteamFriends.RequestUserInformation( member.Id );
+		return members;
 	}
 
 	/// <summary>

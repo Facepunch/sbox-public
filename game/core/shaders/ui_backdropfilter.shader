@@ -38,6 +38,7 @@ PS
 	int PainterScissorIndex < Default( -1 ); Attribute( "PainterScissorIndex" ); >;
 	float g_flUIPanelOpacity < Attribute( "UIPanelOpacity" ); Default( 1 ); >;
 
+	#define UI_SKIP_LIGHTING
 	#include "ui/pixel.hlsl"
 	#include "ui/rounded_rect.hlsl"
 

@@ -155,7 +155,11 @@ public partial class TextEntry : BaseControl
 
 			// Straight through to the label rather than waiting for a tick - this decides
 			// whether the text wraps, and a frame of wrapped text is a frame of wrong layout
-			if ( Label.IsValid() ) Label.Multiline = value;
+			if ( Label.IsValid() )
+			{
+				Label.Multiline = value;
+				Label.Style.WhiteSpace = LabelWhiteSpace;
+			}
 			SetClass( "is-multiline", value );
 		}
 	}
@@ -256,9 +260,15 @@ public partial class TextEntry : BaseControl
 
 		Label = Add.Label( "", "content-label" );
 		Label.Tokenize = false;
-		Label.Style.WhiteSpace = WhiteSpace.Pre;
+		Label.Style.WhiteSpace = LabelWhiteSpace;
 		Label.Multiline = _multiline;
 	}
+
+	/// <summary>
+	/// What's typed is kept as typed - its spaces and its line breaks. A multiline entry wraps at its
+	/// edge too, like a textarea; pre never wraps, so a single line scrolls instead.
+	/// </summary>
+	WhiteSpace LabelWhiteSpace => _multiline ? WhiteSpace.PreWrap : WhiteSpace.Pre;
 
 	public override void OnPaste( string text )
 	{

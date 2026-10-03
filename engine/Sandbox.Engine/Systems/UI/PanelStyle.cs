@@ -269,7 +269,13 @@ public sealed class PanelStyle : Styles
 		Final.From( Cached );
 		Final.ResolveCssWide( cascade.ParentStyles );
 		cascade.ApplyCascading( Final );
+		var needsDefaultFontSize = !Final.FontSize.HasValue;
 		Final.FillDefaults();
+
+		// Defaults are filled after scaling. Scale the fallback font too, but leave inherited
+		// and explicitly styled fonts alone - they're already in screen pixels.
+		if ( needsDefaultFontSize )
+			Length.Scale( ref Final._fontsize, cascade.Scale, true );
 
 		if ( Final.HasCurrentColor )
 			Final.ResolveCurrentColor( cascade.ParentStyles );

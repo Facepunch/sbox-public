@@ -388,27 +388,46 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		using var scope = GlobalContext.GameScope();
 
-		ConVarSystem.SaveAll();
-
-		// Scope disconnect so we can shutdown game before disconnect and stop game objects from sending network destroy,
-		// orphaned action should take care of it.
-		using ( Networking.DisconnectScope() )
-		{
-			gameInstance.Shutdown();
-			gameInstance = null;
-			IGameInstance.Current = null;
-		}
-
-		Application.ClearGame();
+		LeaveGame( disconnect: true );
 
 		LoadingScreen.IsVisible = false;
 		LoadingScreen.Media = null;
 
-		Sound.StopAll( 0.2f );
-
 		ResetEnvironment();
 
 		Mounting.MountUtility.TickPreviewRenders();
+	}
+
+	/// <summary>
+	/// Shut the running game down so nothing of it carries over: its scene, its sounds, its settings and,
+	/// unless we're joining a session that's already open, its network session.
+	/// </summary>
+	private void LeaveGame( bool disconnect )
+	{
+		Analytics.GameClosed();
+		using var scope = GlobalContext.GameScope();
+
+		if ( gameInstance is not null )
+		{
+			ConVarSystem.SaveAll();
+
+			// Scope disconnect so we can shutdown game before disconnect and stop game objects from sending network destroy,
+			// orphaned action should take care of it.
+			using ( disconnect ? Networking.DisconnectScope() : null )
+			{
+				gameInstance.Shutdown();
+				gameInstance = null;
+				IGameInstance.Current = null;
+			}
+
+			Sound.StopAll( 0.2f );
+		}
+		else if ( disconnect )
+		{
+			Networking.Disconnect();
+		}
+
+		Application.ClearGame();
 	}
 
 	internal Input.Context _perFrameInput = Input.Context.Create( "ClientPerFrame" );
@@ -544,6 +563,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		}
 
 		Api.Activity.SetExitReason( string.IsNullOrEmpty( message ) ? "leave" : "disconnect", message );
+		Api.Activity.CancelRequest( Api.Activity.PendingRequest );
 		Api.Activity.LoadAbandoned( string.IsNullOrEmpty( message ) ? null : message );
 
 		// cancel any in-progress load right now instead of waiting for tick
@@ -668,23 +688,10 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 				return;
 		}
 
-		// Tear down the current game in its own scope. We may have been called from the
-		// menu, and the shutdown clears per-context state.
+		// Leave the current game first, fully. If this is part of a remote connection the
+		// session we're on is the one we're joining, so that stays.
 		Api.Activity.LoadStage( "teardown" );
-		using ( GlobalContext.GameScope() )
-		{
-			gameInstance?.Shutdown();
-
-			//
-			// If this isn't part of a remote connection, leave any active network session
-			//
-			if ( !flags.Contains( GameLoadingFlags.Remote ) )
-			{
-				Networking.Disconnect();
-			}
-
-			Application.ClearGame();
-		}
+		LeaveGame( disconnect: !flags.Contains( GameLoadingFlags.Remote ) );
 
 		if ( !Application.IsDedicatedServer && !Application.IsStandalone )
 		{

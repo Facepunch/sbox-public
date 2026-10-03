@@ -18,6 +18,8 @@ internal sealed class ScenePanelObject : SceneCustomObject
 	/// </summary>
 	public RootPanel Panel { get; private set; }
 
+	public bool Lighting { get; set; }
+
 	private readonly CommandList _commandList = new( "ScenePanel" );
 
 	public ScenePanelObject( SceneWorld world, RootPanel Panel ) : base( world )
@@ -50,11 +52,23 @@ internal sealed class ScenePanelObject : SceneCustomObject
 
 		_commandList.Attributes.SetCombo( "D_WORLDPANEL", 1 );
 		_commandList.Attributes.Set( "WorldMat", BuildPanelToWorldMatrix( Transform ) );
+		_commandList.Attributes.Set( "WorldPanelLighting", Lighting );
+		_commandList.Attributes.Set( "g_bNonDirectionalDiffuseLighting", true );
 	}
 
 	public override void RenderSceneObject()
 	{
-		_commandList.ExecuteOnRenderThread();
-		Panel?.Render();
+		var attributes = RenderAttributes.Pool.Get();
+		try
+		{
+			Graphics.Attributes.MergeTo( attributes );
+			using var scope = new Graphics.AttributeScope( attributes );
+			_commandList.ExecuteOnRenderThread();
+			Panel?.Render();
+		}
+		finally
+		{
+			RenderAttributes.Pool.Return( attributes );
+		}
 	}
 }

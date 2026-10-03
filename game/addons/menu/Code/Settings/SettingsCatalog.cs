@@ -679,8 +679,8 @@ public class SettingsCatalog
 			Write = value => Sandbox.Internal.AudioSettings.SetActiveDevice( value?.ToString() )
 		} );
 
-		AddVolume( "audio.volume", "Master", "Everything, all at once.", "volume" );
-		AddVolume( "audio.music", "Music", "Menu music and whatever a game plays as music.", "music_volume" );
+		AddVolume( "audio.volume", "Master", "All sounds and music.", "volume" );
+		AddVolume( "audio.music", "Music", "Music played by games.", "music_volume" );
 		AddVolume( "audio.menu_music", "Menu Music", "Music in the menu, loading screens and avatar editor.", "music_volume_menu" );
 		AddVolume( "audio.voice", "Voice Chat", "How loud other players are when they talk.", "voip_volume" );
 

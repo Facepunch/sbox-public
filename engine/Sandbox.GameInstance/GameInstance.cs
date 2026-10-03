@@ -228,9 +228,23 @@ internal class GameInstance : IGameInstance
 		if ( Package.Revision is not null )
 			identWithVersion = $"{identWithVersion}#{Package.Revision.VersionId}";
 
+		// The game and its map, and everything they pull in (libraries, the cloud assets they use), sized
+		// up before any of it starts - so the loading screen's bar has room for the whole load from the
+		// start, rather than the game and then a pile of extras after it
+		await LoadingScreen.ReserveDownloads( new[] { identWithVersion, LaunchArguments.Map }, token, withReferences: true );
+
 		using var loadingScreen = new MenuLoadingScreen();
 
-		// The map is mounted after the game package, but its downloads can run alongside
+		// The game itself first, on its own - then everything else together: its references (the install
+		// below prefetches them, finding the game already cached) and the map alongside them. One thing,
+		// then a batch, rather than the game sharing its bandwidth with a pile of small packages
+		if ( _package.IsRemote )
+		{
+			await _package.Prefetch( token, new PackageLoadOptions { Loading = loadingScreen } );
+			token.ThrowIfCancellationRequested();
+		}
+
+		// The map is mounted after the game package, but its downloads can run alongside the references
 		var mapPrefetch = string.IsNullOrWhiteSpace( LaunchArguments.Map ) ? null : PrefetchMapAsync( LaunchArguments.Map, token );
 
 		var downloadOptions = new PackageLoadOptions()

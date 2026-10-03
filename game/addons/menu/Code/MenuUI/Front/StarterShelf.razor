@@ -1,0 +1,146 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.UI;
+@inherits Panel
+
+@if ( steps.Count == 0 ) return;
+
+<root class="@(AllDone ? "complete" : "")">
+    <div class="guide-blueprint-background" />
+    <div class="guide-top">
+        <label>Getting started</label>
+        <Button class="guide-dismiss" Text="Yeah, yeah, I got it" Icon="close" onclick=@(() => Dismissed?.Invoke()) />
+    </div>
+    <div class="guide-content">
+        <div class="guide-intro">
+            <div class="guide-title">
+                <label>Welcome</label>
+                <label>to s&box.</label>
+            </div>
+            <label class="guide-description">Everything here is made by the community. Nothing to install or subscribe to. Click a game and you're playing. Here are four good places to start.</label>
+            <div class="guide-progress">
+                <div class="progress-marks">
+                    @foreach ( var step in steps )
+                    {
+                        <div class="progress-mark @(step.Done ? "done" : "")" />
+                    }
+                </div>
+                <label>@DoneCount / @steps.Count games tried</label>
+            </div>
+        </div>
+        <div class="guide-games">
+            @foreach ( var step in steps )
+            {
+                var done = step.Done;
+                <div class="guide-step @step.Style @(done ? "done" : "")">
+                    <div class="step-heading"><icon>@step.Icon</icon><label>@step.Title</label></div>
+                    <div class="step-art">
+                        <MenuProject.UI.PackageCard Package=@step.Package DiscoveryContext=@discovery Rotation=@rotation
+                                     Clicked=@(() => step.Package.OpenModal())
+                                     RightClicked=@(() => MenuHelpers.OpenPackageMenu( this, step.Package )) />
+                        @if ( done )
+                        {
+                            <div class="step-stamp"><icon>check</icon><label>Played</label></div>
+                        }
+                    </div>
+                    <div class="step-body">
+                        <label class="step-game">@step.Package.Title</label>
+                        <label class="step-description">@step.Task</label>
+                        <Button class="step-open" Text="@(done ? "Play again" : "Check it out")" Icon="arrow_forward" onclick=@(() => step.Package.OpenModal()) />
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="guide-foot">
+        <div class="creator-icon"><icon>construction</icon></div>
+        <div class="creator-copy"><label class="creator-title">Create your own game.</label><label class="creator-description">The editor is included. We’ll help you get started.</label></div>
+        <a class="guide-learn" onclick=@(() => MenuUtility.OpenUrl( "https://sbox.game/learn" ))><label>Learn to create</label><icon>arrow_outward</icon></a>
+    </div>
+</root>
+
+@code
+{
+    [Parameter] public Action Dismissed { get; set; }
+
+    /// <summary>
+    /// Each pick introduces a different side of s&box.
+    /// </summary>
+    readonly (string Ident, string Title, string Task, string Icon, string Style)[] Guide =
+    {
+        ( "jco.drill", "Go solo", "Make another run and beat your best in this singleplayer shooter.", "person", "solo" ),
+        ( "glag.ex_zone", "Team up", "Grab your friends and head out on a co-op mission.", "groups", "together" ),
+        ( "priceless.deliveryhopper", "Take it easy", "Hop across busy roads and get dinner to the door while it's hot.", "weekend", "casual" ),
+        ( "facepunch.blockparty", "Just one more", "Dodge deadly blocks and chase a new best in this 2D platformer.", "sports_esports", "twod" ),
+    };
+
+    record Step( Package Package, string Title, string Task, string Icon, string Style )
+    {
+        public bool Done => Package.Interaction.Seconds > 0;
+    }
+
+    List<Step> steps = new();
+    DiscoveryContext discovery;
+    readonly MenuProject.UI.CardVideoRotation rotation = new();
+
+    int DoneCount => steps.Count( x => x.Done );
+    bool AllDone => steps.Count > 0 && DoneCount == steps.Count;
+
+    bool refreshing;
+    float nextRefresh;
+    int revision;
+    bool deleted;
+
+    public override void Tick()
+    {
+        base.Tick();
+        SetClass( "compact", Box.Rect.Width * ScaleFromScreen < 1100 );
+
+        rotation.Count = MenuProject.UI.PackageCard.VideoThumbsPerShelf;
+        rotation.Interval = MenuProject.UI.PackageCard.VideoThumbsSeconds;
+        rotation.Tick();
+
+        if ( IsVisible && !refreshing && RealTime.Now >= nextRefresh ) _ = Refresh();
+    }
+
+    /// <summary>
+    /// Fetch the guide's packages fresh, so a step ticks off once the player has been in the game.
+    /// </summary>
+    async Task Refresh()
+    {
+        refreshing = true;
+        try
+        {
+            var fetched = new List<Step>();
+            foreach ( var (ident, title, task, icon, style) in Guide )
+            {
+                var package = await Package.FetchAsync( ident, false );
+                if ( package is null || (package.Info.IsVrOnly && !Application.IsVR) ) continue;
+                fetched.Add( new Step( package, title, task, icon, style ) );
+            }
+
+            steps = fetched;
+            discovery = new DiscoveryContext { Surface = "home", Shelf = "starter", Packages = steps.Select( x => x.Package ).ToArray() };
+        }
+        catch ( Exception e )
+        {
+            Log.Warning( $"Couldn't refresh the starter games ({e.Message})" );
+        }
+        finally
+        {
+            refreshing = false;
+            nextRefresh = RealTime.Now + 60;
+            revision++;
+            if ( !deleted ) StateHasChanged();
+        }
+    }
+
+    public override void OnDeleted()
+    {
+        deleted = true;
+        base.OnDeleted();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( revision, Application.IsVR );
+}

@@ -9,7 +9,7 @@ namespace Sandbox;
 /// </summary>
 internal sealed class PartyJoinController : IDisposable
 {
-	internal readonly record struct Target( ulong Owner, PartyRoom.OwnerJoinState State, string Package, string Address );
+	internal readonly record struct Target( PartyRoom.OwnerJoinState State, string Package, string Address );
 
 	readonly Func<string, CancellationToken, Action<LoadingProgress?>, Task> _download;
 	readonly Func<string, CancellationToken, Action<LoadingProgress?>, Task> _connect;
@@ -41,7 +41,7 @@ internal sealed class PartyJoinController : IDisposable
 		_now = now;
 		var wasPreparing = _target.State is PartyRoom.OwnerJoinState.Loading or PartyRoom.OwnerJoinState.Unavailable;
 		var isFollowing = target.State is PartyRoom.OwnerJoinState.Loading or PartyRoom.OwnerJoinState.Unavailable or PartyRoom.OwnerJoinState.Ready;
-		var changed = !_hasTarget || target.Owner != _target.Owner || target.Package != _target.Package
+		var changed = !_hasTarget || target.Package != _target.Package
 			|| (target.State != _target.State && !(wasPreparing && isFollowing))
 			|| (target.State == PartyRoom.OwnerJoinState.Ready && _target.State == PartyRoom.OwnerJoinState.Ready && target.Address != _target.Address);
 

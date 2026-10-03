@@ -181,6 +181,7 @@
 
     void OpenModal()
     {
+        Discovery.Clicked( new DiscoveryContext { Surface = "gameclosed" }, Package );
         Game.Overlay.ShowGameModal(Package.FullIdent);
         Close();
     }

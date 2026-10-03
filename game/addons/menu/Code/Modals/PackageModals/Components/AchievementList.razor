@@ -21,11 +21,16 @@
 
     @if (Total == 0)
     {
-        <div class="state">This game doesn't have any achievements.</div>
+        @if (Closest == 0)
+        {
+            <div class="state">This game doesn't have any achievements.</div>
+        }
     }
     else
     {
-        @* How far through you are *@
+        @* How far through you are - not when it's just the closest few, beside a summary of its own *@
+        @if (Closest == 0)
+        {
         <div class="summary">
             <i class="trophy">emoji_events</i>
             <div class="summary-text">
@@ -38,6 +43,7 @@
                 <div class="bar" style="background-image: @(BarFill( SummaryFraction ));"></div>
             </div>
         </div>
+        }
 
         @foreach ( var group in Groups )
         {
@@ -115,6 +121,12 @@
 {
     [Parameter, EditorRequired] public Package Package { get; set; }
 
+    /// <summary>
+    /// Just the few you're closest to - the ones under way, furthest first, then the rest you can see
+    /// that the most players have. One group, no summary: the pause menu's Overview.
+    /// </summary>
+    [Parameter] public int Closest { get; set; }
+
     const string DefaultIcon = "https://files.facepunch.com/garry/ae277f80-8a5d-4d54-833e-e7d6f11580fc.png";
 
     AchievementCollection collection;
@@ -141,12 +153,17 @@
 
     record Section( string Title, string Kind, List<Achievement> Items );
 
-    /// <summary>The groups with anything in them, in order.</summary>
-    IEnumerable<Section> Groups => new[]
+    /// <summary>The groups with anything in them, in order - or just the closest few.</summary>
+    IEnumerable<Section> Groups => Closest > 0 ? ClosestGroup : new[]
     {
         new Section( "Unlocked", "group-unlocked", Unlocked.ToList() ),
         new Section( "In progress", "group-progress", InProgress.ToList() ),
         new Section( "Locked", "group-locked", Locked.ToList() ),
+    }.Where( x => x.Items.Count > 0 );
+
+    IEnumerable<Section> ClosestGroup => new[]
+    {
+        new Section( "Almost there", "group-progress", InProgress.Concat( Locked.Where( x => x.IsVisible ) ).Take( Closest ).ToList() ),
     }.Where( x => x.Items.Count > 0 );
 
     static string RarityText( float fraction )
@@ -170,7 +187,7 @@
     }
     static string Percent( float f ) => (Math.Clamp( f, 0, 1 ) * 100).ToString( "0.#", System.Globalization.CultureInfo.InvariantCulture );
 
-    protected override int BuildHash() => System.HashCode.Combine( Package, collection, _recounts );
+    protected override int BuildHash() => System.HashCode.Combine( Package, collection, _recounts, Closest );
 
     protected override async Task OnParametersSetAsync()
     {

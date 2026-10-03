@@ -68,7 +68,7 @@
 
 @code
 {
-	GameJamSystem Voting => GameJamSystem.Get( Scene );
+	GameJamSystem Voting => GameJamSystem.For( this );
 	Jam Jam => Voting?.ActiveJam;
 	bool IsLoading => Voting?.IsLoading == true;
 	Jam.Phase? PreviousPhase;
@@ -110,14 +110,14 @@
 		var title = CurrentPhase switch
 		{
 			Jam.Phase.Finals => "The knockout begins",
-			Jam.Phase.GrandFinal => "It's time for the grand final",
+			Jam.Phase.GrandFinal => WaitingForFinal ? "The grand finalists are confirmed" : "It's time for the grand final",
 			Jam.Phase.Crowned => "The results are in",
 			_ => Jam.CurrentStepIndex >= 0 ? $"{Jam.Timeline[Jam.CurrentStepIndex].Name} begins" : "The jam is coming"
 		};
 		var detail = CurrentPhase switch
 		{
 			Jam.Phase.Finals => "Meet the contenders. Every round starts fresh.",
-			Jam.Phase.GrandFinal => "The final showdown is here.",
+			Jam.Phase.GrandFinal => WaitingForFinal ? "Play the final pair before voting reopens." : "The final showdown is here.",
 			Jam.Phase.Crowned => "Meet the winners of this jam.",
 			_ => "The next stage is now open."
 		};
@@ -158,6 +158,7 @@
 	}
 
 	Jam.Phase CurrentPhase => Voting?.Phase ?? Jam.Phase.Upcoming;
+	bool WaitingForFinal => Voting?.Finalists?.Any( x => x.GrandFinal && JamVotingPresentation.Waiting( x ) ) == true;
 
 	void INavigatorPage.OnNavigationOpen() => Voting?.Refresh();
 

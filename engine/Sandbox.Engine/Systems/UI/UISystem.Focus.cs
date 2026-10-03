@@ -29,6 +29,27 @@ partial class UISystem
 	}
 
 	/// <summary>
+	/// Focus for a mouse press, the way a browser does it: the nearest panel, from the one pressed
+	/// outwards, that takes focus from a click. Panels that don't want <see cref="Panel.FocusOnClick"/>
+	/// are passed over. With nothing to take it, focus is cleared - so clicking away from a field
+	/// finishes editing it, and keys stop going to whatever was focused before. The search follows
+	/// <see cref="Panel.FocusOwner"/>, so a click in a popup carries on to the panel that opened it.
+	/// </summary>
+	internal void SetFocusFromClick( Panel panel )
+	{
+		for ( var target = panel; target is not null; target = target.FocusOwner )
+		{
+			if ( target.AcceptsFocus && target.FocusOnClick )
+			{
+				SetFocus( target );
+				return;
+			}
+		}
+
+		ClearFocus();
+	}
+
+	/// <summary>
 	/// Take focus away from this panel, giving it to its parent if that'll have it.
 	/// </summary>
 	internal bool ClearFocus( Panel panel )
@@ -42,11 +63,11 @@ partial class UISystem
 	}
 
 	/// <summary>
-	/// Take focus away from whatever has it.
+	/// Take focus away from whatever has it, or is about to.
 	/// </summary>
 	internal bool ClearFocus()
 	{
-		if ( CurrentFocus is null )
+		if ( CurrentFocus is null && NextFocus is null )
 			return false;
 
 		NextFocus = null;

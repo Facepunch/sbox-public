@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using NativeEngine;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 
 namespace Sandbox;
@@ -6,73 +7,62 @@ namespace Sandbox;
 public sealed partial class SkinnedModelRenderer
 {
 	/// <summary>
+	/// Anim parameter values can either be stored as the native representation (AnimVariant)
+	/// or as a string option name for enum parameters. We might be storing the value before
+	/// we know which anim graph it targets, so we'll have to resolve the option name later.
+	/// </summary>
+	/// <param name="Variant">Native representation of the value.</param>
+	/// <param name="OptionName">Enum option name to be looked up later.</param>
+	private readonly record struct AnimParamValue( AnimVariant Variant = default, string OptionName = null );
+
+	/// <summary>
 	/// If something sets parameters before the model is spawned, then we store them
 	/// and apply them when it does spawn. This isn't ideal, but it is what it is.
-	/// Stored per-type so setting a value type every frame doesn't box.
 	/// </summary>
-	Dictionary<string, float> _floatParams;
-	Dictionary<string, int> _intParams;
-	Dictionary<string, bool> _boolParams;
-	Dictionary<string, Vector3> _vectorParams;
-	Dictionary<string, Rotation> _rotationParams;
-	Dictionary<string, string> _enumParams;
+	Dictionary<string, AnimParamValue> _params;
 
-	// A parameter can be reached through more than one overload - an enum by index or by option
-	// name, a bool by float. Every write drops the other stores' entry for the name, so the last
-	// write wins when the stored parameters reapply.
+	public void Set( string v, bool value ) => SetCore( v, value );
+	public void Set( string v, int value ) => SetCore( v, value );
+	public void Set( string v, float value ) => SetCore( v, value );
+	public void Set( string v, Vector3 value ) => SetCore( v, value );
+	public void Set( string v, Rotation value ) => SetCore( v, value );
 
-	public void Set( string v, Vector3 value )
-	{
-		ClearParameter( v );
-		(_vectorParams ??= new( StringComparer.OrdinalIgnoreCase ))[v] = value;
-		SceneModel?.SetAnimParameter( v, value );
-	}
+	private void SetCore( string v, AnimVariant value ) => SetCore( v, new AnimParamValue( Variant: value ) );
 
-	public void Set( string v, int value )
+	private void SetCore( string v, AnimParamValue value )
 	{
-		ClearParameter( v );
-		(_intParams ??= new( StringComparer.OrdinalIgnoreCase ))[v] = value;
-		SceneModel?.SetAnimParameter( v, value );
-	}
+		_params ??= new Dictionary<string, AnimParamValue>( StringComparer.OrdinalIgnoreCase );
+		_params[v] = value;
 
-	public void Set( string v, float value )
-	{
-		ClearParameter( v );
-		(_floatParams ??= new( StringComparer.OrdinalIgnoreCase ))[v] = value;
-		SceneModel?.SetAnimParameter( v, value );
-	}
-	public void Set( string v, bool value )
-	{
-		ClearParameter( v );
-		(_boolParams ??= new( StringComparer.OrdinalIgnoreCase ))[v] = value;
-		SceneModel?.SetAnimParameter( v, value );
-	}
-
-	public void Set( string v, Rotation value )
-	{
-		ClearParameter( v );
-		(_rotationParams ??= new( StringComparer.OrdinalIgnoreCase ))[v] = value;
-		SceneModel?.SetAnimParameter( v, value );
+		ApplyAnimParameterToModel( v, value );
 	}
 
 	/// <summary>
 	/// Set an enum parameter by option name (e.g. Set( "holdtype", "pistol" )).
 	/// </summary>
-	public void Set( string v, string option )
+	public void Set( string v, string option ) => SetCore( v, new AnimParamValue( OptionName: option ) );
+
+	private void ApplyAnimParameterToModel( string v, AnimParamValue value )
 	{
-		ClearParameter( v );
-		(_enumParams ??= new( StringComparer.OrdinalIgnoreCase ))[v] = option;
-		SceneModel?.SetAnimParameter( v, option );
+		if ( !string.IsNullOrEmpty( value.OptionName ) )
+		{
+			SceneModel?.SetAnimParameter( v, value.OptionName );
+		}
+		else if ( value.Variant.Type != AnimParamType.Unknown )
+		{
+			SceneModel?.SetAnimParameter( v, value.Variant );
+		}
 	}
 
 	void ApplyStoredAnimParameters()
 	{
-		if ( _vectorParams is not null ) foreach ( var p in _vectorParams ) SceneModel.SetAnimParameter( p.Key, p.Value );
-		if ( _floatParams is not null ) foreach ( var p in _floatParams ) SceneModel.SetAnimParameter( p.Key, p.Value );
-		if ( _intParams is not null ) foreach ( var p in _intParams ) SceneModel.SetAnimParameter( p.Key, p.Value );
-		if ( _boolParams is not null ) foreach ( var p in _boolParams ) SceneModel.SetAnimParameter( p.Key, p.Value );
-		if ( _rotationParams is not null ) foreach ( var p in _rotationParams ) SceneModel.SetAnimParameter( p.Key, p.Value );
-		if ( _enumParams is not null ) foreach ( var p in _enumParams ) SceneModel.SetAnimParameter( p.Key, p.Value );
+		if ( _params is not null )
+		{
+			foreach ( var p in _params )
+			{
+				ApplyAnimParameterToModel( p.Key, p.Value );
+			}
+		}
 
 		// Tick the animation by a frame so we're fully up to date on the first frame.
 		if ( Scene.IsEditor && !CanUpdateInEditor() )
@@ -90,12 +80,7 @@ public sealed partial class SkinnedModelRenderer
 	/// </summary>
 	public void ClearParameters()
 	{
-		_floatParams?.Clear();
-		_intParams?.Clear();
-		_boolParams?.Clear();
-		_vectorParams?.Clear();
-		_rotationParams?.Clear();
-		_enumParams?.Clear();
+		_params?.Clear();
 
 		if ( SceneModel.IsValid() )
 		{
@@ -105,28 +90,34 @@ public sealed partial class SkinnedModelRenderer
 
 	internal void ClearParameter( string name )
 	{
-		_floatParams?.Remove( name );
-		_intParams?.Remove( name );
-		_boolParams?.Remove( name );
-		_vectorParams?.Remove( name );
-		_rotationParams?.Remove( name );
-		_enumParams?.Remove( name );
+		ResetParameter( name );
+
+		_params?.Remove( name );
+	}
+
+	private void ResetParameter( string name )
+	{
+		if ( !SceneModel.IsValid() || SceneModel.AnimationGraph is not { IsValid: true } graph )
+			return;
+
+		var parameter = graph.GetParameterFromList( name );
+		if ( parameter.IsNull )
+			return;
+
+		SetCore( name, parameter.GetDefaultValue() );
 	}
 
 	internal bool ContainsParameter( string name )
 	{
-		return (_floatParams?.ContainsKey( name ) ?? false)
-			|| (_intParams?.ContainsKey( name ) ?? false)
-			|| (_boolParams?.ContainsKey( name ) ?? false)
-			|| (_vectorParams?.ContainsKey( name ) ?? false)
-			|| (_rotationParams?.ContainsKey( name ) ?? false)
-			|| (_enumParams?.ContainsKey( name ) ?? false);
+		return _params?.ContainsKey( name ) ?? false;
 	}
 
 	/// <summary>Total number of stored (modified) anim-graph parameters across all types.</summary>
-	internal int StoredParameterCount => (_floatParams?.Count ?? 0) + (_intParams?.Count ?? 0) + (_boolParams?.Count ?? 0) + (_vectorParams?.Count ?? 0) + (_rotationParams?.Count ?? 0) + (_enumParams?.Count ?? 0);
+	internal int StoredParameterCount => _params?.Count ?? 0;
 
 	//	public void Set( string v, Enum value ) => _sceneObject.SetAnimParameter( v, value );
+
+	// TODO: fall back to checking _params if we don't have a SceneModel?
 
 	public bool GetBool( string v ) => SceneModel?.GetBool( v ) ?? false;
 	public int GetInt( string v ) => SceneModel?.GetInt( v ) ?? 0;
@@ -178,20 +169,11 @@ public sealed partial class SkinnedModelRenderer
 		Set( $"ik.{name}.enabled", false );
 	}
 
-	ParameterAccessor _parameters;
-
 	/// <summary>
 	/// Access to the animgraph parameters for this model
 	/// </summary>
 	[Property, Group( "Parameters", StartFolded = true ), ShowIf( nameof( ShouldShowParametersEditor ), true )]
-	public ParameterAccessor Parameters
-	{
-		get
-		{
-			_parameters ??= new( this );
-			return _parameters;
-		}
-	}
+	public ParameterAccessor Parameters => field ??= new ParameterAccessor( this );
 
 	public bool ShouldShowParametersEditor
 	{
@@ -208,84 +190,42 @@ public sealed partial class SkinnedModelRenderer
 		}
 	}
 
+	/// <summary>
+	/// Wraps accessing animgraph parameters for a <see cref="SkinnedModelRenderer"/>,
+	/// and handles (de)serializing overridden values when the renderer is saved or loaded.
+	/// </summary>
 	public sealed class ParameterAccessor : IJsonPopulator
 	{
-		public AnimationGraph Graph => _renderer.IsValid() && _renderer.SceneModel.IsValid() ?
-			_renderer.SceneModel.AnimationGraph : null;
+		public AnimationGraph Graph => _renderer.IsValid() && _renderer.SceneModel.IsValid()
+			? _renderer.SceneModel.AnimationGraph
+			: null;
 
 		readonly SkinnedModelRenderer _renderer;
-		readonly Dictionary<string, bool> _bools = new( StringComparer.OrdinalIgnoreCase );
-		readonly Dictionary<string, int> _ints = new( StringComparer.OrdinalIgnoreCase );
-		readonly Dictionary<string, float> _floats = new( StringComparer.OrdinalIgnoreCase );
-		readonly Dictionary<string, Vector3> _vectors = new( StringComparer.OrdinalIgnoreCase );
-		readonly Dictionary<string, Rotation> _rotations = new( StringComparer.OrdinalIgnoreCase );
 
 		internal ParameterAccessor( SkinnedModelRenderer renderer )
 		{
 			_renderer = renderer;
 		}
 
-		public void Clear()
-		{
-			_bools.Clear();
-			_ints.Clear();
-			_floats.Clear();
-			_vectors.Clear();
-			_rotations.Clear();
+		/// <summary>
+		/// Clear all override values for animation graph parameters.
+		/// </summary>
+		public void Clear() => _renderer.ClearParameters();
 
-			_renderer.ClearParameters();
-		}
+		/// <summary>
+		/// Set the override value of the named animation graph parameter to its default value, if it exists.
+		/// </summary>
+		public void Reset( string name ) => _renderer.ResetParameter( name );
 
-		public void Reset( string name )
-		{
-			var parameter = Graph.GetParameterFromList( name );
-			if ( parameter.IsNull )
-				return;
+		/// <summary>
+		/// Remove the override value of the named animation graph parameter, if it exists.
+		/// </summary>
+		public void Clear( string name ) => _renderer.ClearParameter( name );
 
-			var defaultValue = parameter.GetDefaultValue();
-
-			switch ( parameter.GetParameterType() )
-			{
-				case NativeEngine.AnimParamType.Float:
-					Set( name, defaultValue.GetValue<float>() );
-					break;
-				case NativeEngine.AnimParamType.Int:
-					Set( name, defaultValue.GetValue<int>() );
-					break;
-				case NativeEngine.AnimParamType.Enum:
-					Set( name, defaultValue.GetValue<byte>() );
-					break;
-				case NativeEngine.AnimParamType.Bool:
-					Set( name, defaultValue.GetValue<bool>() );
-					break;
-				case NativeEngine.AnimParamType.Vector:
-					Set( name, defaultValue.GetValue<Vector3>() );
-					break;
-				case NativeEngine.AnimParamType.Rotation:
-					Set( name, defaultValue.GetValue<Rotation>() );
-					break;
-				default:
-					throw new NotSupportedException( $"Unsupported parameter type: {parameter.GetParameterType()}" );
-			}
-		}
-
-		public void Clear( string name )
-		{
-			Reset( name );
-
-			_bools.Remove( name );
-			_ints.Remove( name );
-			_floats.Remove( name );
-			_vectors.Remove( name );
-			_rotations.Remove( name );
-
-			_renderer.ClearParameter( name );
-		}
-
-		public bool Contains( string name )
-		{
-			return _renderer.ContainsParameter( name );
-		}
+		/// <summary>
+		/// Do we have an override value for the named animation graph parameter?
+		/// </summary>
+		public bool Contains( string name ) => _renderer.ContainsParameter( name );
 
 		public bool GetBool( string v ) => _renderer.GetBool( v );
 		public int GetInt( string v ) => _renderer.GetInt( v );
@@ -293,78 +233,91 @@ public sealed partial class SkinnedModelRenderer
 		public Vector3 GetVector( string v ) => _renderer.GetVector( v );
 		public Rotation GetRotation( string v ) => _renderer.GetRotation( v );
 
-		public void Set( string v, Vector3 value )
-		{
-			_vectors[v] = value;
-			_renderer.Set( v, value );
-		}
+		public void Set( string v, bool value ) => _renderer.Set( v, value );
+		public void Set( string v, int value ) => _renderer.Set( v, value );
+		public void Set( string v, float value ) => _renderer.Set( v, value );
+		public void Set( string v, Vector3 value ) => _renderer.Set( v, value );
+		public void Set( string v, Rotation value ) => _renderer.Set( v, value );
+		public void Set( string v, string option ) => _renderer.Set( v, option );
 
-		public void Set( string v, int value )
-		{
-			_ints[v] = value;
-			_renderer.Set( v, value );
-		}
+		// We group parameters by type when serializing:
+		// {
+		//   "bools": { "param1": true, "param2": false },
+		//   "ints": { "param3": 42 },
+		//   "floats": { "param4": 3.14 }
+		// }
 
-		public void Set( string v, float value )
+		private static class GroupName
 		{
-			_floats[v] = value;
-			_renderer.Set( v, value );
-		}
-
-		public void Set( string v, bool value )
-		{
-			_bools[v] = value;
-			_renderer.Set( v, value );
-		}
-
-		public void Set( string v, Rotation value )
-		{
-			_rotations[v] = value;
-			_renderer.Set( v, value );
+			public const string Bools = "bools";
+			public const string Ints = "ints";
+			public const string Floats = "floats";
+			public const string Vectors = "vectors";
+			public const string Rotations = "rotations";
+			public const string Options = "options";
 		}
 
 		JsonNode IJsonPopulator.Serialize()
 		{
 			var obj = new JsonObject();
 
-			var boolsObj = new JsonObject();
-			var intsObj = new JsonObject();
-			var floatsObj = new JsonObject();
-			var vectorsObj = new JsonObject();
-			var rotationsObj = new JsonObject();
-
-			foreach ( var value in _bools )
+			if ( _renderer._params is not { Count: > 0 } parameters )
 			{
-				boolsObj.Add( value.Key, value.Value );
+				return obj;
 			}
 
-			foreach ( var value in _ints )
+			foreach ( var param in parameters )
 			{
-				intsObj.Add( value.Key, value.Value );
-			}
+				if ( !string.IsNullOrEmpty( param.Value.OptionName ) )
+				{
+					WriteParameter( GroupName.Options, param.Key, param.Value.OptionName );
+					continue;
+				}
 
-			foreach ( var value in _floats )
-			{
-				floatsObj.Add( value.Key, value.Value );
-			}
+				var value = param.Value.Variant;
 
-			foreach ( var value in _vectors )
-			{
-				vectorsObj.Add( value.Key, JsonSerializer.SerializeToNode( value.Value ) );
-			}
+				switch ( value.Type )
+				{
+					case AnimParamType.Bool:
+						WriteParameter( GroupName.Bools, param.Key, (bool)value );
+						break;
 
-			foreach ( var value in _rotations )
-			{
-				rotationsObj.Add( value.Key, JsonSerializer.SerializeToNode( value.Value ) );
-			}
+					case AnimParamType.Enum:
+						// Enums can only be 1 byte long, the rest could be uninitialized
+						// if this comes from native so we truncate here.
+						WriteParameter( GroupName.Ints, param.Key, (int)(byte)value );
+						break;
 
-			obj.Add( "bools", boolsObj );
-			obj.Add( "ints", intsObj );
-			obj.Add( "floats", floatsObj );
-			obj.Add( "vectors", vectorsObj );
-			obj.Add( "rotations", rotationsObj );
+					case AnimParamType.Int:
+						WriteParameter( GroupName.Ints, param.Key, (int)value );
+						break;
+
+					case AnimParamType.Float:
+						WriteParameter( GroupName.Floats, param.Key, (float)value );
+						break;
+
+					case AnimParamType.Vector:
+						WriteParameter( GroupName.Vectors, param.Key, (Vector3)value );
+						break;
+
+					case AnimParamType.Rotation:
+						WriteParameter( GroupName.Rotations, param.Key, (Rotation)value );
+						break;
+				}
+			}
 
 			return obj;
+
+			void WriteParameter<T>( string groupName, string name, T value )
+			{
+				if ( !obj.TryGetPropertyValue( groupName, out var node ) || node is not JsonObject groupObj )
+				{
+					groupObj = new JsonObject();
+					obj[groupName] = groupObj;
+				}
+
+				groupObj[name] = JsonSerializer.SerializeToNode( value );
+			}
 		}
 
 		void IJsonPopulator.Deserialize( JsonNode e )
@@ -372,49 +325,25 @@ public sealed partial class SkinnedModelRenderer
 			if ( e is not JsonObject jso )
 				return;
 
-			_bools.Clear();
-			_ints.Clear();
-			_floats.Clear();
-			_vectors.Clear();
-			_rotations.Clear();
+			_renderer.ClearParameters();
 
-			if ( jso.TryGetPropertyValue( "bools", out var boolsNode ) && boolsNode is JsonObject boolsObj )
-			{
-				foreach ( var o in boolsObj )
-				{
-					Set( o.Key, o.Value.GetValue<bool>() );
-				}
-			}
+			ReadParameterGroup<bool>( GroupName.Bools, Set );
+			ReadParameterGroup<int>( GroupName.Ints, Set );
+			ReadParameterGroup<float>( GroupName.Floats, Set );
+			ReadParameterGroup<Vector3>( GroupName.Vectors, Set );
+			ReadParameterGroup<Rotation>( GroupName.Rotations, Set );
+			ReadParameterGroup<string>( GroupName.Options, Set );
 
-			if ( jso.TryGetPropertyValue( "ints", out var intsNode ) && intsNode is JsonObject intsObj )
-			{
-				foreach ( var o in intsObj )
-				{
-					Set( o.Key, o.Value.GetValue<int>() );
-				}
-			}
+			return;
 
-			if ( jso.TryGetPropertyValue( "floats", out var floatsNode ) && floatsNode is JsonObject floatsObj )
+			void ReadParameterGroup<T>( string groupName, Action<string, T> setAction )
 			{
-				foreach ( var o in floatsObj )
+				if ( jso.TryGetPropertyValue( groupName, out var groupNode ) && groupNode is JsonObject groupObj )
 				{
-					Set( o.Key, o.Value.GetValue<float>() );
-				}
-			}
-
-			if ( jso.TryGetPropertyValue( "vectors", out var vectorsNode ) && vectorsNode is JsonObject vectorsObj )
-			{
-				foreach ( var o in vectorsObj )
-				{
-					Set( o.Key, JsonSerializer.Deserialize<Vector3>( o.Value ) );
-				}
-			}
-
-			if ( jso.TryGetPropertyValue( "rotations", out var rotationsNode ) && rotationsNode is JsonObject rotationsObj )
-			{
-				foreach ( var o in rotationsObj )
-				{
-					Set( o.Key, JsonSerializer.Deserialize<Rotation>( o.Value ) );
+					foreach ( var o in groupObj )
+					{
+						setAction( o.Key, o.Value.Deserialize<T>() );
+					}
 				}
 			}
 		}

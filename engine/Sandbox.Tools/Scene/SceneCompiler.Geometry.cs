@@ -661,7 +661,7 @@ partial class SceneCompiler
 	/// Concatenate a plan's chunks into the single mesh an aggregate draws from, giving each chunk
 	/// its own draw call so it can be culled and drawn as a fragment.
 	/// </summary>
-	static (Model Model, List<AggregateFragmentInfo> Fragments) Build( AggregatePlan plan, SceneCompileStatistics statistics )
+	static (Model Model, List<AggregateFragmentInfo> Fragments) Build( AggregatePlan plan, string resourcePath, SceneCompileStatistics statistics )
 	{
 		var material = plan.Material;
 		var chunks = plan.Chunks;
@@ -776,7 +776,7 @@ partial class SceneCompiler
 		if ( !plan.Translucent )
 			statistics.FragmentCount += fragments.Count;
 
-		return (Model.Builder.AddMesh( mesh ).Create(), fragments);
+		return (Model.Builder.WithName( resourcePath ).AddMesh( mesh ).Create(), fragments);
 	}
 
 	/// <summary>

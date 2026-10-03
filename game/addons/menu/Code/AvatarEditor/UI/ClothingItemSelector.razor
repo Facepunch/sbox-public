@@ -92,8 +92,6 @@
     AvatarClothingCategory.Category main = null;
     AvatarClothingCategory.SubCategory sub = null;
 
-    Clothing selectedItem = null;
-
     override protected void OnParametersSet()
     {
         SelectCategory( Category.Categories.First() );
@@ -138,12 +136,7 @@
         if (sub == null)
             return Manager.GetAllClothing();
 
-        return Manager.GetAllClothing().Where(x => sub.Categories.Contains( x.Category ) && ShouldShow( x ) );
-    }
-
-    bool ShouldShow( Clothing x )
-    {
-        return true;
+        return Manager.GetAllClothing().Where(x => sub.Categories.Contains( x.Category ) );
     }
 
     //
@@ -152,17 +145,6 @@
     void Clicked(Clothing x)
     {
         Manager.OnClothingToggle(x);
-        selectedItem = null;
-    }
-
-    void Modify( Clothing x )
-    {
-        selectedItem = x;
-    }
-
-    void Unselect()
-    {
-        selectedItem = null;
     }
 
     Clothing _lastHovered;

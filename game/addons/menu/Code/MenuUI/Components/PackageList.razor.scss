@@ -46,4 +46,32 @@
             height: auto;
         }
     }
+
+    // Still looking - a tile's shape, pulsing
+    .skeleton-tile
+    {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        border-radius: 8px;
+        background-color: rgba( 255, 255, 255, 0.05 );
+        animation: package-list-bone 1.2s ease-in-out infinite alternate;
+    }
+
+    VirtualGrid.skeleton
+    {
+        pointer-events: none;
+    }
+}
+
+@keyframes package-list-bone
+{
+    0%
+    {
+        opacity: 0.55;
+    }
+
+    100%
+    {
+        opacity: 1;
+    }
 }

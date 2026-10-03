@@ -2,6 +2,8 @@ using Sandbox.Diagnostics;
 using Sandbox.Engine;
 using System;
 using System.IO;
+using System.Reflection;
+using System.Text.Json.Nodes;
 
 namespace ResourceTests;
 
@@ -162,6 +164,162 @@ public class GuidTests
 		var resource = Model.Load( id );
 		Assert.IsNotNull( resource, "Couldn't find resource" );
 		Assert.AreEqual( resource.Guid, Guid.Parse( "8288cd80-e793-44ba-a9d6-10503d715b7f" ) );
+	}
+
+	[DataTestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void BakedModelReferencesRoundTrip( bool unknownGuids )
+	{
+		var folder = Path.GetFileName( _testPath );
+		var paths = new[] { $"{folder}/aggregate_0.vmdl", $"{folder}/aggregate_1.vmdl" };
+		var guids = new[] { Guid.NewGuid(), Guid.NewGuid() };
+		var json = new string[2];
+		var bytes = new byte[2][];
+		var models = new Model[2];
+
+		for ( int i = 0; i < models.Length; i++ )
+		{
+			WriteMeta( paths[i], guids[i] );
+			File.WriteAllBytes( Path.Combine( _assetsPath, paths[i] + "_c" ), CreateAggregateModel( i + 2 ).SaveToVmdl() );
+		}
+
+		NativeEngine.g_pResourceSystem.InvalidateDatabase();
+
+		for ( int i = 0; i < models.Length; i++ )
+		{
+			var model = Model.Load( new ResourceId { Guid = guids[i], Path = $"{folder}/stale_{i}.vmdl" } );
+			models[i] = model;
+
+			Assert.IsNotNull( model );
+			Assert.IsFalse( model.IsError );
+			Assert.IsFalse( model.IsProcedural );
+			Assert.AreEqual( "sbox_procedural_model.vmdl", model.native.GetModelName() );
+			Assert.AreEqual( paths[i], model.ResourcePath );
+			Assert.AreEqual( paths[i].FastHash64(), model.ResourceIdLong );
+			Assert.AreEqual( guids[i], model.Guid );
+			Assert.AreEqual( i + 2, model.MeshInfo.TotalDrawCalls );
+			Assert.AreSame( model, Model.Load( paths[i] ) );
+
+			var reference = JsonNode.Parse( Json.Serialize( model ) ).AsObject();
+			Assert.AreEqual( paths[i], reference["Path"].GetValue<string>() );
+			Assert.AreEqual( guids[i], reference["Id"].GetValue<Guid>() );
+			if ( unknownGuids )
+				reference["Id"] = Guid.NewGuid();
+			json[i] = reference.ToJsonString();
+			bytes[i] = Game.TypeLibrary.ToBytes( model );
+			Game.Resources.RegisterPath( paths[i] );
+		}
+
+		Assert.AreNotEqual( models[0].ResourceIdLong, models[1].ResourceIdLong );
+		Assert.IsFalse( bytes[0].SequenceEqual( bytes[1] ) );
+
+		for ( int i = 0; i < models.Length; i++ )
+			UnloadModel( models[i] );
+
+		for ( int i = 0; i < models.Length; i++ )
+		{
+			Assert.IsFalse( Game.Resources.TryGet<Model>( paths[i], out _ ) );
+			var restored = Json.Deserialize<Model>( json[i] );
+			Assert.AreNotSame( models[i], restored );
+			Assert.AreEqual( paths[i], restored.ResourcePath );
+			AssertAggregateModel( restored, i + 2 );
+			UnloadModel( restored );
+		}
+
+		for ( int i = 0; i < models.Length; i++ )
+		{
+			Assert.IsFalse( Game.Resources.TryGet<Model>( paths[i], out _ ) );
+			var restored = Game.TypeLibrary.FromBytes<Model>( bytes[i] );
+			Assert.IsNotNull( restored );
+			Assert.AreEqual( paths[i], restored.ResourcePath );
+			AssertAggregateModel( restored, i + 2 );
+			Assert.AreSame( restored, Game.TypeLibrary.FromBytes<Model>( bytes[i] ) );
+		}
+	}
+
+	[TestMethod]
+	public void SceneCompilerReloadsNamedModelFromDisk()
+	{
+		var folder = Path.GetFileName( _testPath );
+		var path = $"{folder}/named_aggregate.vmdl";
+		var temporary = CreateAggregateModel( 3, path );
+		Assert.AreSame( temporary, Model.Load( path ) );
+
+		var method = typeof( Editor.SceneCompiler ).GetMethod( "WriteModel", BindingFlags.Static | BindingFlags.NonPublic );
+		Assert.IsNotNull( method );
+		var writeModel = method.CreateDelegate<Func<Editor.SceneFolder, string, Model, Model>>();
+		var saved = writeModel( new ModelOutputFolder( _assetsPath, folder ), "named_aggregate.vmdl_c", temporary );
+
+		Assert.AreNotSame( temporary, saved );
+		Assert.IsFalse( saved.IsProcedural );
+		Assert.AreEqual( path, saved.ResourcePath );
+		Assert.AreEqual( path, saved.native.GetModelName() );
+		UnloadModel( temporary );
+		Assert.AreSame( saved, Model.Load( path ) );
+		AssertAggregateModel( saved, 3 );
+	}
+
+	static Model CreateAggregateModel( int drawCalls, string name = null )
+	{
+		var material = Material.Load( "materials/default/white.vmat" );
+		var mesh = new Mesh( material );
+		mesh.CreateVertexBuffer( 3, new Vertex[]
+		{
+			new() { Position = new Vector3( 0, 0, 0 ), Normal = Vector3.Up },
+			new() { Position = new Vector3( 32, 0, 0 ), Normal = Vector3.Up },
+			new() { Position = new Vector3( 0, 32, 0 ), Normal = Vector3.Up }
+		} );
+		mesh.CreateIndexBuffer( 3, new[] { 0, 1, 2 } );
+		mesh.Bounds = new BBox( Vector3.Zero, new Vector3( 32, 32, 0 ) );
+		for ( int i = 1; i < drawCalls; i++ )
+			mesh.AddSubMesh( material, 0, 3, 0, 3 );
+
+		return Model.Builder.WithName( name ).AddMesh( mesh ).Create();
+	}
+
+	static void AssertAggregateModel( Model model, int drawCalls )
+	{
+		Assert.IsNotNull( model );
+		Assert.IsFalse( model.IsError );
+		Assert.AreEqual( drawCalls, model.MeshInfo.TotalDrawCalls );
+
+		var world = new SceneWorld();
+		try
+		{
+			var fragments = Enumerable.Range( 0, drawCalls ).Select( i => new AggregateFragment
+			{
+				Transform = Transform.Zero,
+				BoundsMin = Vector3.Zero,
+				BoundsMax = new Vector3( 32, 32, 0 ),
+				Tint = Color.White,
+				DrawDescriptorIndex = i
+			} ).ToArray();
+			var aggregate = new SceneAggregateObject( world, model, fragments, true );
+			Assert.IsTrue( aggregate.IsValid() );
+			aggregate.Delete();
+		}
+		finally
+		{
+			world.Delete();
+		}
+	}
+
+	static void UnloadModel( Model model )
+	{
+		Game.Resources.Unregister( model );
+		NativeResourceCache.Remove( model.native.GetBindingPtr().ToInt64() );
+		model.Destroy();
+	}
+
+	sealed class ModelOutputFolder( string assetsPath, string folder ) : Editor.SceneFolder
+	{
+		public override string WriteFile( string filename, byte[] data )
+		{
+			var path = $"{folder}/{filename}";
+			File.WriteAllBytes( Path.Combine( assetsPath, path ), data );
+			return path;
+		}
 	}
 
 

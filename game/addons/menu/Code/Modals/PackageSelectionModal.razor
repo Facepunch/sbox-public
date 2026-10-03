@@ -1,27 +1,125 @@
-﻿@namespace MenuProject.Modals
-@inherits MenuProject.Modals.BaseModal
 @using Sandbox;
-@using SboxMenu;
-@using System;
+@using Sandbox.UI;
+@using MenuProject.UI;
+@using MenuProject.MenuUI.Components;
+@using MenuProject.Modals.MapSelect;
+@using Sandbox.Mounting;
+@using MountDirectory = Sandbox.Mounting.Directory;
+@namespace MenuProject.Modals
+@inherits BaseModal
 
-<root class="package-selection-modal">
-
+<root class="package-picker-modal">
 	<div class="window">
-		<PackageSelector Query=@PackageQuery OnPackageSelected="@OnSelect" OnFilterChanged="@OnFilterChanged"></PackageSelector>
+		<div class="picker-header">
+			<div class="heading">
+				<label class="picker-title">Choose a @PackageNoun</label>
+				<label class="picker-subtitle">Select a @PackageNoun to continue.</label>
+			</div>
+			<Button class="close-button" Icon="close" onclick=@(() => CloseModal( false )) tooltip="Close" />
+		</div>
+
+		<div class="picker-toolbar">
+			<TextEntry class="package-search" Text=@searchText Placeholder=@($"Search {PackageNoun}s...") OnTextEdited=@OnSearchEdited />
+			@if ( IsGamePicker )
+			{
+				<Button class="picker-button multiplayer-filter" Active=@selectedTags.Contains( "multiplayer" ) Icon="groups" Text="Multiplayer only" onclick=@ToggleMultiplayer />
+			}
+		</div>
+
+		<div class="picker-body">
+			<div class="picker-sidebar">
+				@if ( ShowMapSources )
+				{
+					<div class="filter-section browse-options">
+						<label class="section-title">Source</label>
+						<Button class="picker-button browse-option" Active=@(!IsMountedSource) Icon="business_center" Text="Workshop" onclick=@(() => SelectSource( null )) />
+						@foreach ( var mount in MountDirectory.GetAll().Where( mount => mount.Mounted ).OrderBy( mount => mount.Title ) )
+						{
+							var mapCount = GetMountMaps( mount.Ident ).Count();
+							if ( mapCount == 0 ) continue;
+
+							<button class="picker-button browse-option mount-source @(selectedMount == mount.Ident ? "active" : "")" tooltip=@($"{mount.Title} — {mapCount:N0} maps") onclick=@(() => SelectSource( mount.Ident ))>
+								<icon class="mount-icon">sports_esports</icon>
+								<label class="button-label">@mount.Title</label>
+								<label class="mount-count">@mapCount.ToString( "N0" )</label>
+							</button>
+						}
+					</div>
+				}
+
+				@if ( !IsMountedSource )
+				{
+					<div class="filter-section browse-options">
+						<label class="section-title">Browse</label>
+						@foreach ( var order in SortOrders )
+						{
+							<Button class="picker-button browse-option" Active=@(sortOrder == order.Name) Icon=@order.Icon Text=@order.Title onclick=@(() => sortOrder = order.Name) />
+						}
+					</div>
+
+					@if ( Result?.Properties is { Length: > 0 } )
+					{
+						<div class="filter-section">
+							<label class="section-title">Features</label>
+							<PackagePropertyFilter Result=@Result Selected=@selectedTags />
+						</div>
+					}
+
+					@if ( Result?.Facets is not null )
+					{
+						@foreach ( var facet in Result.Facets )
+						{
+							<div class="filter-section">
+								<label class="section-title">@facet.Title</label>
+								<PackageCategoryFilter Result=@Result Selected=@selectedCategories Facet=@facet />
+							</div>
+						}
+					}
+
+					<div class="filter-section">
+						<label class="section-title">Tags</label>
+						<PackageTagFilter Result=@Result Selected=@selectedTags />
+					</div>
+				}
+			</div>
+			<div class="picker-results">
+				<div class="results-header">
+					<label class="results-title">@(IsMountedSource ? selectedMountTitle : ResultsTitle)</label>
+					@if ( IsMountedSource )
+					{
+						<label class="results-count">@mountedMaps.Length.ToString( "N0" ) maps</label>
+					}
+					else if ( packageList?.FoundPackages is not null && Result is not null )
+					{
+						<label class="results-count">@Result.TotalCount.ToString( "N0" ) results</label>
+					}
+					@if ( IsMountedSource ? !string.IsNullOrEmpty( searchText ) : HasFilters )
+					{
+						<Button class="picker-button clear-filters" Icon="filter_alt_off" Text="Clear filters" onclick=@ClearFilters />
+					}
+				</div>
+				@if ( !IsMountedSource )
+				{
+					<MenuProject.UI.PackageList @ref=packageList Surface="package-picker" Query=@SearchQuery OnSelected=@SelectPackage Take=@(100) ItemSize=@(new Vector2( 250, 190 )) HoverPreview=@false />
+				}
+				else if ( mountedMaps.Length == 0 )
+				{
+					<div class="mounted-maps-empty">
+						<EmptyState Icon="search_off" Title="No maps found" Subtitle="Try a different search or choose another source." />
+					</div>
+				}
+				else
+				{
+					<VirtualGrid class="mounted-map-grid" Items=@mountedMaps ItemSize=@(new Vector2( 260, 200 ))>
+						<Item Context="item">
+							@if ( item is ResourceLoader scene )
+							{
+								<MapTile Title=@scene.Name Thumbnail=@((scene as IThumbnailProvider)?.Thumbnail) Tooltip=@scene.Path OnSelect=@(() => SelectMountedMap( scene.Path )) />
+							}
+						</Item>
+					</VirtualGrid>
+				}
+			</div>
+		</div>
 	</div>
-                
 </root>
-
-@code
-{
-    public string PackageQuery { get; set; }
-
-    public Action<Package> OnPackageSelected { get; set; }
-    public Action<string> OnFilterChanged { get; set; }
-
-    void OnSelect( Package package )
-    {
-        CloseModal( true );
-        OnPackageSelected?.Invoke( package );
-    }
-}

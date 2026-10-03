@@ -202,6 +202,7 @@ internal sealed class MenuDll : IMenuDll
 		{
 			// Shutdown menu system
 			IMenuSystem.Current?.Shutdown();
+			Discovery.Shutdown();
 			IMenuSystem.Current = null;
 
 			// Unregister messaging

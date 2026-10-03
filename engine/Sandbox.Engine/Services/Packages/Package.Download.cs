@@ -34,6 +34,42 @@ public partial class Package
 	}
 
 	/// <summary>
+	/// The files in a revision's manifest a download fetches - the legal ones, and with
+	/// <paramref name="skipAssets"/> only the compiled code.
+	/// </summary>
+	static ManifestSchema.File[] DownloadableFiles( IRevision rev, bool skipAssets )
+	{
+		var entries = (rev.Manifest?.Files ?? Array.Empty<ManifestSchema.File>()).Where( FilterFileDownloads );
+
+		if ( skipAssets )
+			entries = entries.Where( x => x.Path.StartsWith( ".bin" ) );
+
+		return entries.ToArray();
+	}
+
+	/// <summary>
+	/// How much downloading this package would fetch, in bytes - its files that aren't in the download
+	/// cache already. Fetches the manifest if it hasn't been. 0 when it's all cached, -1 when it can't be
+	/// told (no revision, no manifest).
+	/// </summary>
+	internal async Task<long> GetDownloadSizeAsync( bool skipAssets = false, CancellationToken token = default )
+	{
+		if ( Revision is not { } rev )
+			return -1;
+
+		await rev.DownloadManifestAsync( token );
+		if ( rev.Manifest == null ) return -1;
+
+		var entries = DownloadableFiles( rev, skipAssets );
+
+		// A few file stats each - all at once, off the main thread, like the download's own check
+		return await Task.Run( () => entries
+			.AsParallel()
+			.Where( x => AssetDownloadCache.ResolveCached( x.Path, Convert.ToUInt64( x.Crc, 16 ) ) is null )
+			.Sum( x => x.Size ), token );
+	}
+
+	/// <summary>
 	/// Download a package to a temporary location and return a filesystem with its contents
 	/// </summary>
 	internal async Task<PackageFileSystem> Download( CancellationToken token = default, PackageLoadOptions options = default )
@@ -73,15 +109,8 @@ public partial class Package
 
 		if ( rev.Manifest == null ) return false;
 
-		var entries = rev.Manifest.Files ?? Array.Empty<ManifestSchema.File>();
-
 		// filter out files we're never going to download
-		entries = entries.Where( FilterFileDownloads ).ToArray();
-
-		if ( options.SkipAssetDownload )
-		{
-			entries = entries.Where( x => x.Path.StartsWith( ".bin" ) ).ToArray();
-		}
+		var entries = DownloadableFiles( rev, options.SkipAssetDownload );
 
 		var downloadQueue = new ConcurrentBag<FileDownloadEntry>();
 
@@ -103,9 +132,15 @@ public partial class Package
 		}
 
 
+		// Its place among the load's downloads - unless another download of it's already filling that in
+		var tracked = global::Sandbox.LoadingScreen.TrackDownload( FullIdent, Title );
+		if ( tracked is { IsDownloading: true } ) tracked = null;
+
 		// nothing to download
 		if ( downloadQueue.Count <= 0 )
 		{
+			if ( tracked is not null ) tracked.IsComplete = true;
+
 			options.Loading?.LoadingProgress( new LoadingProgress { Title = $"Download '{Title}' Complete", Fraction = 1 } );
 			Api.Activity.CurrentLoad?.Downloaded( 0, 0, 0 );
 			return true;
@@ -124,6 +159,14 @@ public partial class Package
 		progress.TotalSize = totalSize;
 
 		options.Loading?.LoadingProgress( progress );
+
+		if ( tracked is not null )
+		{
+			tracked.TotalSize = totalSize;
+			tracked.Downloaded = 0;
+			tracked.IsComplete = false;
+			tracked.IsDownloading = true;
+		}
 
 		var metric = new Api.Events.EventRecord( "package.download" );
 		metric.SetValue( "ident", FullIdent );
@@ -196,6 +239,12 @@ public partial class Package
 				progress.Fraction = frac;
 
 				options.Loading?.LoadingProgress( progress );
+
+				if ( tracked is not null )
+				{
+					tracked.Downloaded = downloadedSize;
+					tracked.Mbps = mbps;
+				}
 			}
 
 			await Task.Delay( 16 );
@@ -204,10 +253,23 @@ public partial class Package
 		// Wait for the cancelled workers to finish writing
 		await task;
 
+		// Not coming down any more, however it ended
+		if ( tracked is not null )
+		{
+			tracked.IsDownloading = false;
+			tracked.Mbps = 0;
+		}
+
 		token.ThrowIfCancellationRequested();
 
 		if ( hasError )
 			return false;
+
+		if ( tracked is not null )
+		{
+			tracked.Downloaded = totalSize;
+			tracked.IsComplete = true;
+		}
 
 		if ( fs is not null ) MountDownloaded();
 

@@ -9,16 +9,34 @@
 
 <root>
 
-    @* Double click the mark for the UI test section. Deliberately undiscoverable. *@
-    <Logo />
+    @* Mid-game, the mark's place is the game you're in - a tab of its own, its icon, for its page in
+       the pause menu, lit like any other entry when you're on it. Off it, out in the menu's own pages,
+       it calls you back - glowing, pulsing, "Back to game" under it - so it's plain you're still in a game *@
+    @if ( Game.InGame && InGamePackage is { } game )
+    {
+        <div class="game-tab @(OnGamePage ? "active" : "calling")" tooltip="@(OnGamePage ? game.Title : $"Back to {game.Title}")" onclick=@( () => this.Navigate( GamePageUrl ) )>
+            <div class="game-icon" style="background-image: url( @game.Thumb );"></div>
+            @* Always there, so going back to the game can slide it up into the icon rather than drop it *@
+            <label class="back">Back to game</label>
+        </div>
+    }
+    else
+    {
+        @* Double click the mark for the UI test section. Deliberately undiscoverable. *@
+        <Logo />
+    }
 
     <div class="nav">
+
         <Button Href="/home" Icon="home">#menu.home</Button>
         <Button Href="/games/all?Sort=trending&Filter=" Icon="sports_esports">Games</Button>
-        <Button Href="/maps/all" Icon="map">#menu.maps</Button>
-        <Button Href="@FavouritesUrl" Icon="favorite">Favourites</Button>
+        <Button Href="/multiplayer" Icon="forum">Multiplayer</Button>
         <Button Href="/mounts" Icon="extension">Mounts</Button>
-        <Button Href="/itemstore" Icon="shopping_cart">#menu.store</Button>
+        @* Not for an account under a week old - nothing's for sale to it yet *@
+        @if ( MenuHelpers.ShowMicrotransactions )
+        {
+            <Button Href="/itemstore" Icon="shopping_cart">#menu.store</Button>
+        }
 
         @if ( jam is not null )
         {
@@ -36,19 +54,29 @@
             <RailButton Href="@InboxUrl" Icon="notifications" Text="Inbox" Badge="@NotificationBadge" />
         }
 
-        @* Not a page - it pops up beside the entry, like the friends list does off the party deck. *@
-        <RailButton @ref="RewardsButton" OnPress="@OpenRewards" Active="@RewardsOpen" Icon="redeem" Text="Rewards" Badge="@RewardBadge" BadgeClass="reward" Progress="@RewardProgress" />
+        @* Not a page - it pops up beside the entry, like the friends list does off the party deck.
+           Not mid-game either: opening a drop loads the unboxing scene, which would pull you out of it. *@
+        @if ( !Game.InGame )
+        {
+            <RailButton @ref="RewardsButton" OnPress="@OpenRewards" Active="@RewardsOpen" Icon="redeem" Text="Rewards" Badge="@RewardBadge" BadgeClass="reward" Progress="@RewardProgress" />
+        }
 
         <Button Href="/settings" Icon="settings">Settings</Button>
+        @* Out of s&box - mid-game too. Leaving just the game you're in is on its page, in the pause menu *@
         <Button @onmouseup=@Quit class="quit" Icon="power_settings_new">Quit</Button>
     </div>
 
 </root>
 
 @code {
-    const string FavouritesUrl = "/games/group?Query=type:game sort:favourite&title=Favourite Games&subtitle=The games you love, all in one place";
-
     const string InboxUrl = "/notifications";
+
+    /// <summary>The game the pause menu's for, when it's up - first on the rail.</summary>
+    static Package InGamePackage => MenuProject.Modals.PauseMenuModal.PauseModal.CurrentGame;
+
+    const string GamePageUrl = MenuProject.Modals.PauseMenuModal.PauseHome.Url;
+
+    bool OnGamePage => this.GetNavigator()?.CurrentUrl == GamePageUrl;
 
     // Both counts come off the backend, so they're polled rather than watched. The pages
     // themselves fetch their own copy - this only feeds the badges.
@@ -88,7 +116,7 @@
     /// The inbox is only offered when something's waiting - except while you're reading it,
     /// since opening the page marks everything read and the entry would vanish under you.
     /// </summary>
-    bool ShowInbox => notificationCount > 0 || MainMenu.Instance?.Navigator?.CurrentUrl == InboxUrl;
+    bool ShowInbox => notificationCount > 0 || this.GetNavigator()?.CurrentUrl == InboxUrl;
 
     /// <summary>Unread notifications, capped so a big number can't widen the badge off the rail.</summary>
     string NotificationBadge => notificationCount switch
@@ -188,10 +216,21 @@
         StateHasChanged();
     }
 
+    /// <summary>
+    /// Out to the desktop - it asks first.
+    /// </summary>
     void Quit()
     {
-        ConsoleSystem.Run( "quit" );
+        ModalSystem.Instance?.Open( new MenuProject.Modals.QuestionModal
+        {
+            Color = Color.Parse( "#ff5d6a" ) ?? Color.Red,
+            Title = "Quit to Desktop?",
+            Message = "Are you sure you want to close s&box?",
+            ConfirmText = "Quit to Desktop",
+            ConfirmIcon = "power_settings_new",
+            OnConfirm = () => ConsoleSystem.Run( "quit" )
+        } );
     }
 
-    protected override int BuildHash() => HashCode.Combine( ShowInbox, NotificationBadge, RewardBadge, RewardProgress, RewardsOpen, jam?.Ident, JamLive, JamCountdown );
+    protected override int BuildHash() => HashCode.Combine( ShowInbox, NotificationBadge, RewardBadge, RewardProgress, RewardsOpen, jam?.Ident, JamLive, HashCode.Combine( JamCountdown, Game.InGame, InGamePackage, OnGamePage, MenuHelpers.ShowMicrotransactions ) );
 }

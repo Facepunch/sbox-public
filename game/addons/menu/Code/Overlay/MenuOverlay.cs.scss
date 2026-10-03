@@ -2,6 +2,7 @@
 @import "/styles/_vars.scss";
 @import "/styles/_modal.scss";
 @import '/styles/_button.scss';
+@import '/styles/_popup.scss';
 
 MenuOverlay
 {
@@ -17,7 +18,7 @@ MenuOverlay
 	right: 0px;
 	justify-content: center;
 	margin: 100px;
-	z-index: 5100; // above the party deck (5000), which is above modals
+	z-index: 5100; // Notifications stay above windows and modals.
 	gap: 8px;
 }
 

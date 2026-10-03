@@ -8,45 +8,55 @@
 
 @if (Package is null) return;
 
-@if (_posting)
-{
-    <root class="posting">
-        <i>outgoing_mail</i>
-    </root>
-    return;
-}
-
+@*
+    Reporting a game or map for breaking the rules - what's wrong with it, and the details. The review
+    window's look (front-form-modal), in the danger red.
+*@
 <root>
+    <div class="window">
 
-    <h1>Reporting @(Package.Title)?</h1>
+        <div class="head">
+            <div class="text">
+                <label class="eyebrow">Report a problem</label>
+                <label class="title">Reporting @Package.Title</label>
+            </div>
+            <div class="grow"></div>
+            <div class="close" onclick=@( () => CloseModal( false ) ) tooltip="Close"><i>close</i></div>
+        </div>
 
-    <div class="inner">
+        <div class="body">
 
-        <div class="container">
-
-            <p>Tell us why you think this violates the s&amp;box Terms of Service</p>
-            <p>We're fine with most things — please only report content that is genuinely against our rules. Reports made because you simply don't like it will be rejected.</p>
-
-            <div class="tag-entry">
-
-                <div class="tagcolumn positive-tags">
-                    <label>What is the problem? Select all that apply.</label>
-                    <TagSelector Value:bind=@Reasons />
+            @* What counts, before anything else *@
+            <div class="notice">
+                <i>gavel</i>
+                <div class="notice-text">
+                    <label class="notice-title">Tell us why you think this breaks the s&amp;box Terms of Service</label>
+                    <label class="notice-body">We're fine with most things - please only report content that's genuinely against our rules. Reports made because you simply don't like it will be rejected.</label>
                 </div>
-
             </div>
 
-            <div>
-                <TextEntry @ref=_textEntry Value:bind=@Message Multiline="@true" Placeholder="Give details about your report.."></TextEntry>
+            <div class="tags negative">
+                <div class="tags-head">
+                    <label class="section-label">What's the problem?</label>
+                    <label class="hint">Select all that apply</label>
+                </div>
+                <TagSelector Value:bind=@Reasons />
             </div>
 
-            <div class="footer">
-                <Button @onclick="@Post" Disabled="@(string.IsNullOrWhiteSpace(Message))" Icon="send" Text="Submit Report"></Button>
+            <div class="words">
+                <label class="section-label">Details</label>
+                <TextEntry @ref=_textEntry Value:bind=@Message Multiline="@true" Placeholder="What's wrong with it, and where..." />
             </div>
 
         </div>
-    </div>
 
+        <div class="footer">
+            <div class="grow"></div>
+            <Button class="cancel" Text="Cancel" onclick=@( () => CloseModal( false ) ) />
+            <Button class="post danger" Icon="flag" Text="@(_posting ? "Sending..." : "Submit report")" Disabled=@( !CanPost ) onclick=@Post />
+        </div>
+
+    </div>
 </root>
 
 @code
@@ -60,7 +70,9 @@
     TextEntry _textEntry = default;
     bool _posting;
 
-    protected override int BuildHash() => System.HashCode.Combine(Package);
+    bool CanPost => !_posting && !string.IsNullOrWhiteSpace( Message );
+
+    protected override int BuildHash() => System.HashCode.Combine( Package, CanPost, _posting );
 
     protected override async Task OnParametersSetAsync()
     {
@@ -77,7 +89,7 @@
 
     async Task Post()
     {
-        if (string.IsNullOrWhiteSpace(Message)) return;
+        if ( !CanPost ) return;
 
         _posting = true;
         StateHasChanged();

@@ -51,30 +51,40 @@ internal class StartupFailedPopup : BaseWindow
 		Log.Warning( $"Errors when loading '{project}'" );
 
 		var popup = new StartupFailedPopup( project );
-		popup.SetParent( EditorSplashScreen.Singleton );
+
+		// The splash is an SDL window, so it can't be the parent of a Qt dialog.
+		// Hide it while the application-modal error dialog owns startup.
+		EditorSplashScreen.Singleton?.Hide();
 		popup.SetModal( true, true );
+		popup.CenterWindow();
 		popup.Show();
 
-		Native.QApp.alert( popup.Parent._widget, 5000 ); // flash for 5 sec
+		Native.QApp.alert( popup._widget, 5000 ); // flash for 5 sec
 
 		g_pToolFramework2.SetStallMonitorMainThreadWindow( popup._widget );
 
-		while ( !popup.ContinueLoadTask.IsCompleted )
+		try
 		{
-			// we're calling this from a blocking task on the startup flow, so manually keep UI alive and responsive
-			Application.Spin();
-			Native.QApp.processEvents();
+			while ( !popup.ContinueLoadTask.IsCompleted )
+			{
+				// we're calling this from a blocking task on the startup flow, so manually keep UI alive and responsive
+				Application.Spin();
+				Native.QApp.processEvents();
 
-			// monitor for code changes, so we can recompile and reevaluate the state of things
-			FileWatch.Tick();
-			Project.Tick();
+				// monitor for code changes, so we can recompile and reevaluate the state of things
+				FileWatch.Tick();
+				Project.Tick();
 
-			await Task.Yield();
+				await Task.Yield();
+			}
+
+			return await popup.ContinueLoadTask;
 		}
-
-		g_pToolFramework2.SetStallMonitorMainThreadWindow( EditorSplashScreen.Singleton._widget );
-
-		return await popup.ContinueLoadTask;
+		finally
+		{
+			EditorSplashScreen.Singleton?.Show();
+			EditorSplashScreen.RestoreStallMonitor();
+		}
 	}
 
 	void Refresh()

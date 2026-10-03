@@ -509,15 +509,21 @@ public sealed partial class Session
 
 		while ( refQueue.TryDequeue( out var next ) )
 		{
-			var refs = next.EditorData?["References"]?.Deserialize<ImmutableHashSet<string>>()
-				?? ImmutableHashSet<string>.Empty;
+			IReadOnlyList<MovieResource?> refs;
 
-			foreach ( var moviePath in refs )
+			try
 			{
-				if ( ResourceLibrary.Get<MovieResource>( moviePath ) is not { } reference )
-				{
-					continue;
-				}
+				refs = next.EditorData?["References"]?.Deserialize<IReadOnlyList<MovieResource?>>( EditorJsonOptions ) ?? [];
+			}
+			catch ( Exception ex )
+			{
+				Log.Warning( ex );
+				continue;
+			}
+
+			foreach ( var reference in refs )
+			{
+				if ( reference is null ) continue;
 
 				if ( references.Add( reference ) )
 				{

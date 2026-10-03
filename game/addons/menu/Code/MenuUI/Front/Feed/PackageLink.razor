@@ -21,6 +21,7 @@
     {
         e.StopPropagation();
 
+        Discovery.Clicked( new DiscoveryContext { Surface = "feed" }, Target );
         Target?.OpenModal();
     }
 }

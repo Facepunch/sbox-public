@@ -14,6 +14,9 @@
 
         foreach (var entry in enumType)
         {
+            // "None" is having picked nothing, not something to pick
+            if ( entry.IntegerValue == 0 ) continue;
+
             var active = (((int)Value) & entry.IntegerValue) != 0;
 
             <div @onclick=@( () => Clicked( (int) entry.IntegerValue ) ) class="tag @(active ? "active" : "")">@entry.Title</div>

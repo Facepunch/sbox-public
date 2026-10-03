@@ -1,0 +1,58 @@
+@using MenuProject.Multiplayer;
+@using MenuProject.MenuUI.Components.Multiplayer;
+@using Chat = MenuProject.Multiplayer.GlobalChatService;
+@inherits Panel
+
+<root>
+	<div class="global-conversation">
+		<div class="conversation-heading"><div><label>Who's up for a game?</label><span>@(Chat.Channel is null ? "Connecting to global chat…" : $"{Chat.Channel.MemberCount} here · say hello or share your party")</span></div></div>
+		@if ( Chat.Connecting )
+		{
+			<div class="chat-notice">Joining global chat…</div>
+		}
+		@if ( !string.IsNullOrEmpty( Chat.Error ) )
+		{
+			<div class="chat-notice error">@Chat.Error</div>
+		}
+		@if ( !string.IsNullOrEmpty( PartyService.Error ) )
+		{
+			<div class="chat-notice error">@PartyService.Error</div>
+		}
+		<div class="chat-messages" @ref="messageList">
+			@if ( Chat.Messages.Count == 0 )
+			{
+				<div class="chat-empty"><icon>forum</icon><label>Say hello. Find your next group.</label></div>
+			}
+			@foreach ( var message in Chat.Messages )
+			{
+				<ChatMessage Sender=@message.Sender Text=@message.Text PartyId=@message.PartyId />
+			}
+		</div>
+		<ChatComposer OnMessageSent=@OnMessageSent />
+	</div>
+	<ChatMemberList />
+</root>
+
+@code
+{
+	Panel messageList;
+	bool scrollAfterRender;
+
+	void OnMessageSent()
+	{
+		scrollAfterRender = true;
+		StateHasChanged();
+	}
+
+	protected override void OnAfterTreeRender( bool firstTime )
+	{
+		base.OnAfterTreeRender( firstTime );
+
+		// Pin after layout changes the scroll height, unless the user has scrolled up.
+		messageList.PreferScrollToBottom = true;
+		if ( firstTime || scrollAfterRender ) messageList.TryScrollToBottom();
+		scrollAfterRender = false;
+	}
+
+	protected override int BuildHash() => HashCode.Combine( Chat.Revision, Chat.Connecting, Chat.Error, PartyService.Error, Chat.Channel?.MemberCount );
+}

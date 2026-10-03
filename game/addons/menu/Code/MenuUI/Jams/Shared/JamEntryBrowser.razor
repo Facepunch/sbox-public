@@ -122,7 +122,7 @@
 	Package[] VisibleEntries;
 	int VotingVersion = -1;
 
-	GameJamSystem Voting => GameJamSystem.Get( Scene );
+	GameJamSystem Voting => GameJamSystem.For( this );
 	JamNominationSummary Nominations => Voting?.ActiveJam?.Ident == Jam?.Ident ? Voting?.Nominations : null;
 	string Error => EntriesError ?? (ShowNominations ? Voting?.Error : null);
 

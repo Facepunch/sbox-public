@@ -1,0 +1,218 @@
+@namespace MenuProject.Modals
+@inherits Panel
+
+@using Sandbox;
+@using Sandbox.UI;
+@using System;
+
+@*
+    Everyone in the game with you - the friends list's way: a search along the top, how they're sorted
+    (lowest ping first, to start with) and a way to ask your friends in, then a heading with how many
+    and a row each in a box
+    split by hairlines. Click one for their card, right click for the rest. The player list popup's,
+    and the game page's Players tab.
+*@
+<root class="@(Inset ? "inset" : "")">
+
+	<div class="toolbar">
+		@* The friends list's search - the magnifier, the text, a clear button on the end *@
+		<div class="search">
+			<i>search</i>
+			<TextEntry Placeholder="Search players.." HasClearButton=@true OnTextEdited=@OnSearchEdited />
+		</div>
+
+		@* How they're ordered, as one split pill - the game page's footer pills *@
+		<div class="sort">
+			<div class="option @(Sort == SortBy.Name ? "active" : "")" tooltip="By name" onclick=@( () => SetSort( SortBy.Name ) )>
+				<i>sort_by_alpha</i>
+				<label>Name</label>
+			</div>
+			<div class="option @(Sort == SortBy.Ping ? "active" : "")" tooltip="@PingTooltip" onclick=@( () => SetSort( SortBy.Ping ) )>
+				<i>signal_cellular_alt</i>
+				<label>Ping</label>
+				@* Always there, just unseen until it's picked - so picking it doesn't widen the pill and
+				   shove everything along *@
+				<i class="direction @(Sort == SortBy.Ping ? "" : "unseen")">@(PingDescending ? "arrow_downward" : "arrow_upward")</i>
+			</div>
+		</div>
+
+		@* Your friends, to ask in - the friends list, under the button; a friend's card has the invite *@
+		<div class="invite" @ref="InviteButton" onclick=@OpenFriends>
+			<i>person_add</i>
+			<label>Invite friends</label>
+		</div>
+	</div>
+
+	@if ( Groups.Count == 0 )
+	{
+		<div class="empty">
+			<label>@EmptyText</label>
+		</div>
+	}
+
+	@foreach ( var group in Groups )
+	{
+		<div class="group">
+			<div class="group-head">
+				<label class="group-title">@group.Title</label>
+				<label class="group-count">@group.Players.Count</label>
+			</div>
+
+			<div class="rows">
+				@foreach ( var player in group.Players )
+				{
+					<PlayerListRow Player=@player />
+				}
+			</div>
+		</div>
+	}
+
+</root>
+
+@code
+{
+	Panel InviteButton;
+
+	/// <summary>
+	/// The friends list, under the button - pick someone for their card, and its "Invite to game".
+	/// </summary>
+	void OpenFriends()
+	{
+		ModalSystem.Instance?.FriendsList( new Sandbox.Modals.FriendsListModalOptions
+		{
+			ShowOnlineMembers = true,
+			ShowOfflineMembers = false,
+			Anchor = new()
+			{
+				Panel = InviteButton,
+				Position = Sandbox.Modals.ModalAnchorPosition.BelowRight,
+				Offset = 8,
+			},
+		} );
+	}
+
+	/// <summary>
+	/// With the insets of a tab page round it - its stylesheet's the only one that reaches it there.
+	/// </summary>
+	[Parameter] public bool Inset { get; set; }
+
+	/// <summary>
+	/// One player, however we know about them - off a connection, or made up for the mock.
+	/// </summary>
+	public record Player( ulong SteamId, string Name, float Ping, bool IsHost, bool IsFriend, bool IsMe, Connection Connection );
+
+	record Group( string Title, List<Player> Players );
+
+	string Search;
+	bool Searching => !string.IsNullOrWhiteSpace( Search );
+
+	string EmptyText => Searching ? "No players called " + Search : "Nobody's here";
+
+	void OnSearchEdited( string text )
+	{
+		Search = text?.Trim();
+		StateHasChanged();
+	}
+
+	/// <summary>
+	/// Who's in the game - or who we're pretending is, with <c>menu_mock_player_list</c> on.
+	/// </summary>
+	static List<Player> Everyone => _mock ?? Connection.All.Select( Of ).ToList();
+
+	static Player Of( Connection c )
+	{
+		var friend = new Friend( (ulong)c.SteamId );
+		return new Player( (ulong)c.SteamId, c.DisplayName, c.Ping, Connection.Host == c, friend.IsFriend, friend.IsMe, c );
+	}
+
+	enum SortBy { Name, Ping }
+
+	/// <summary>
+	/// Lowest ping first, to start with.
+	/// </summary>
+	SortBy Sort = SortBy.Ping;
+
+	/// <summary>
+	/// Worst ping first - Ping picked again while it's already picked flips it.
+	/// </summary>
+	bool PingDescending;
+
+	string PingTooltip => Sort == SortBy.Ping ? (PingDescending ? "Worst ping first - click for best" : "Best ping first - click for worst") : "By ping, best first";
+
+	void SetSort( SortBy sort )
+	{
+		if ( sort == SortBy.Ping && Sort == SortBy.Ping )
+			PingDescending = !PingDescending;
+		else if ( sort == SortBy.Ping )
+			PingDescending = false;
+
+		Sort = sort;
+		StateHasChanged();
+	}
+
+	/// <summary>
+	/// Everyone in one list, by ping or by name - just the ones that match while searching, and no
+	/// list at all with nobody in it.
+	/// </summary>
+	List<Group> Groups
+	{
+		get
+		{
+			var shown = Everyone.Where( x => !Searching || x.Name.Contains( Search, StringComparison.OrdinalIgnoreCase ) ).ToList();
+			var groups = new List<Group>();
+
+			var sorted = Sort == SortBy.Name
+				? shown.OrderBy( x => x.Name ).ToList()
+				: PingDescending
+					? shown.OrderByDescending( x => x.Ping ).ThenBy( x => x.Name ).ToList()
+					: shown.OrderBy( x => x.Ping ).ThenBy( x => x.Name ).ToList();
+
+			if ( sorted.Count > 0 ) groups.Add( new Group( "In this game", sorted ) );
+			return groups;
+		}
+	}
+
+	// Once a second, for who's come and gone and their pings
+	protected override int BuildHash() => HashCode.Combine( RealTime.Now.CeilToInt(), Inset, Search, _mock, Sort, PingDescending );
+
+	//
+	// The mock - a load of your friends, some of them passed off as strangers
+	//
+
+	static List<Player> _mock;
+
+	/// <summary>
+	/// Showing made up players rather than who's really here.
+	/// </summary>
+	public static bool IsMocking => _mock is not null;
+
+	/// <summary>
+	/// <c>menu_mock_player_list</c> - fill the player list with your friends, you hosting, every third one
+	/// passed off as someone you don't know, so friends-first can be seen against everyone else.
+	/// <c>menu_mock_player_list off</c> puts it back.
+	/// </summary>
+	[MenuConCmd( "menu_mock_player_list", Help = "Fill the player list with your friends, some passed off as strangers - menu_mock_player_list off to stop" )]
+	public static void Mock( string state = null )
+	{
+		if ( state == "off" )
+		{
+			_mock = null;
+			return;
+		}
+
+		var random = new Random();
+		var list = new List<Player>
+		{
+			new( (ulong)Sandbox.Utility.Steam.SteamId, Sandbox.Utility.Steam.PersonaName, 0, true, false, true, null ),
+		};
+
+		var i = 0;
+		foreach ( var friend in MenuUtility.Friends.Where( x => !x.IsMe ).Take( 16 ) )
+		{
+			var passedOff = i++ % 3 == 2;
+			list.Add( new Player( friend.Id, friend.Name, random.Next( 18, 190 ), false, !passedOff, false, null ) );
+		}
+
+		_mock = list;
+	}
+}

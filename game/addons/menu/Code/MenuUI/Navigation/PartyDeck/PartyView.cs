@@ -1,36 +1,99 @@
 using Sandbox;
 using Sandbox.Menu;
+using Sandbox.Modals;
 
 namespace MenuProject;
 
 /// <summary>
-/// What the party deck shows - the real <see cref="PartyRoom"/>, or made up data while <c>party_mock</c>
-/// or <c>friends_mock</c> is set, so every state can be looked at without a second account and a slow
+/// What the party deck shows - the real <see cref="PartyRoom"/>, or made up data while <c>menu_mock_party</c>
+/// or <c>menu_mock_friends</c> is set, so every state can be looked at without a second account and a slow
 /// download. The made up party is the friends list's (<see cref="MenuUI.Front.RailPresence"/>), so the
 /// deck and the list always show the same people.
 /// </summary>
 public static class PartyView
 {
 	/// <summary>
-	/// The states <c>party_mock</c> understands.
+	/// The states <c>menu_mock_party</c> understands.
 	/// </summary>
 	public static readonly string[] MockStates = { "off", "idle", "downloading", "fetching", "waiting", "connecting", "failed", "cancelled", "unavailable", "full" };
 
-	[MenuConVar( "party_mock", Help = "Fill the party deck with made up data: off, idle, downloading, fetching, waiting, connecting, failed, cancelled, unavailable, full" )]
+	[MenuConVar( "menu_mock_party", Help = "Fill the party deck with made up data: off, idle, downloading, fetching, waiting, connecting, failed, cancelled, unavailable, full" )]
 	public static string Mock { get; set; } = "off";
 
 	/// <summary>
-	/// <c>party_mock</c> is set to one of its states.
+	/// <c>menu_mock_party</c> is set to one of its states.
 	/// </summary>
 	public static bool IsMockingJoin => !string.IsNullOrWhiteSpace( Mock ) && Mock != "off" && MockStates.Contains( Mock );
 
 	/// <summary>
-	/// Showing made up data instead of the real party - a <c>party_mock</c> state, or <c>friends_mock</c>'s
+	/// Showing made up data instead of the real party - a <c>menu_mock_party</c> state, or <c>menu_mock_friends</c>'s
 	/// party sat idle.
 	/// </summary>
 	public static bool IsMocking => IsMockingJoin || MenuUI.Front.RailPresence.Mocking;
 
 	static PartyRoom Party => PartyRoom.Current;
+	static string mockName;
+	static bool mockPublic;
+	static int mockMaxMembers = PartyDeck.MAX_MEMBERS;
+	static Package mockGame;
+	static CreateGameResults? mockGameSettings;
+	static bool mockReady;
+
+	/// <summary>
+	/// The last name saved for one of your parties, reused when creating a new party.
+	/// </summary>
+	[MenuConVar( "party_name", Help = "Default name for new parties. Leave empty to use your Steam name.", Saved = true )]
+	public static string DefaultName { get; set; } = "";
+
+	/// <summary>
+	/// The stored name for party creation, or a name based on your Steam profile until you choose one.
+	/// </summary>
+	internal static string NameForNewParty => string.IsNullOrWhiteSpace( DefaultName ) ? $"{Sandbox.Utility.Steam.PersonaName}'s Party" : DefaultName;
+
+	/// <summary>
+	/// The party name, with the local player's chat filter applied.
+	/// </summary>
+	public static string Name => IsMocking ? Sandbox.Utility.Steam.FilterChat( mockName ?? $"{Owner.Name}'s Party", Owner.Id ) : Party?.Name ?? "Party";
+
+	/// <summary>
+	/// Whether anyone can discover and join the party.
+	/// </summary>
+	public static bool IsPublic => IsMocking ? mockPublic : Party?.IsPublic ?? false;
+
+	/// <summary>
+	/// Change the party's name as its leader, including when previewing the party UI.
+	/// </summary>
+	public static void Rename( string name )
+	{
+		if ( !Exists || !OwnerIsMe ) return;
+
+		if ( IsMocking )
+		{
+			mockName = name.Trim();
+		}
+		else
+		{
+			Party.Name = name;
+			ConsoleSystem.SetValue( "party_name", name.Trim() );
+		}
+	}
+
+	/// <summary>
+	/// Change who can join the party as its leader, including when previewing the party UI.
+	/// </summary>
+	public static void SetPublic( bool isPublic )
+	{
+		if ( !Exists || !OwnerIsMe ) return;
+
+		if ( IsMocking )
+		{
+			mockPublic = isPublic;
+		}
+		else
+		{
+			Party.SetPublic( isPublic );
+		}
+	}
 
 	/// <summary>
 	/// There's a party to show - a real one, or a mock.
@@ -43,11 +106,123 @@ public static class PartyView
 
 	public static int MemberCount => IsMocking ? MockMembers.Count : Party?.MemberCount ?? 1;
 
-	public static int MaxMembers => IsMocking ? PartyDeck.MAX_MEMBERS : Party?.MaxMembers ?? PartyDeck.MAX_MEMBERS;
+	/// <summary>
+	/// The maximum number of players allowed in the party.
+	/// </summary>
+	public static int MaxMembers => IsMocking ? mockMaxMembers : Party?.MaxMembers ?? PartyDeck.MAX_MEMBERS;
+
+	/// <summary>
+	/// Change the party's capacity without removing existing members.
+	/// </summary>
+	internal static void SetMaxMembers( int count )
+	{
+		if ( !Exists || !OwnerIsMe ) return;
+		if ( count < Math.Max( 1, MemberCount ) || count > PartyDeck.MAX_MEMBERS ) return;
+
+		if ( IsMocking )
+		{
+			mockMaxMembers = count;
+		}
+		else
+		{
+			Party.MaxMembers = count;
+		}
+	}
+
+	/// <summary>
+	/// The game selected to play next, independent of any game already being played.
+	/// </summary>
+	internal static string SelectedGameIdent => IsMocking ? mockGame?.FullIdent : Party?.SelectedGameIdent;
+
+	/// <summary>
+	/// Whether this package matches the party's current game choice.
+	/// </summary>
+	internal static bool IsGameSelected( Package package ) => IsMocking ? package is not null && package.FullIdent == mockGame?.FullIdent : Party?.IsGameSelected( package ) ?? false;
+
+	/// <summary>
+	/// The selected game's display title.
+	/// </summary>
+	internal static string SelectedGameTitle => IsMocking ? mockGame?.Title : Party?.SelectedGameTitle;
+
+	/// <summary>
+	/// The setup shared by the leader for the selected game.
+	/// </summary>
+	internal static CreateGameResults? SelectedGameSettings => IsMocking ? mockGameSettings : Party?.SelectedGameSettings;
+
+	/// <summary>
+	/// Choose the game to play next, or clear the choice with null.
+	/// </summary>
+	internal static void SelectGame( Package package )
+	{
+		if ( !Exists || !OwnerIsMe ) return;
+
+		if ( IsMocking )
+		{
+			if ( mockGame?.FullIdent != package?.FullIdent )
+			{
+				mockGameSettings = null;
+				mockReady = false;
+			}
+			mockGame = package;
+		}
+		else
+		{
+			Party.SelectGame( package );
+		}
+	}
+
+	/// <summary>
+	/// Save a setup only while its game is still selected.
+	/// </summary>
+	internal static void ConfigureGame( string gameIdent, CreateGameResults settings )
+	{
+		if ( !Exists || !OwnerIsMe ) return;
+
+		if ( IsMocking )
+		{
+			if ( gameIdent == SelectedGameIdent )
+			{
+				if ( !Modals.GameModalComponents.GameSetup.SettingsEqual( mockGameSettings, settings ) ) mockReady = false;
+				mockGameSettings = settings;
+			}
+		}
+		else
+		{
+			Party.ConfigureGame( gameIdent, settings );
+		}
+	}
 
 	public static Friend Owner => IsMocking ? MockMembers.FirstOrDefault( x => x.Id == MenuUI.Front.RailPresence.MockPartyOwner, Me ) : Party?.Owner ?? Me;
 
 	public static bool OwnerIsMe => Owner.IsMe;
+
+	/// <summary>
+	/// Whether this member has agreed to start with the current game setup.
+	/// </summary>
+	internal static bool IsMemberReady( Friend member )
+	{
+		if ( LeaderState != PartyRoom.OwnerJoinState.None ) return false;
+		return IsMocking
+			? member.Id != Owner.Id && (member.IsMe ? mockReady : SelectedGameSettings is not null)
+			: Party?.IsMemberReady( member ) ?? false;
+	}
+
+	/// <summary>
+	/// Change the local member's ready vote, including in the party preview.
+	/// </summary>
+	internal static void SetReady( bool ready )
+	{
+		if ( !Exists || OwnerIsMe ) return;
+
+		if ( IsMocking )
+		{
+			mockReady = ready;
+		}
+		else
+		{
+			Party.SetReady( ready );
+		}
+	}
 
 	public static PartyRoom.JoinStage JoiningStage => IsMocking ? MockStage : Party?.JoiningStage ?? PartyRoom.JoinStage.None;
 
@@ -60,12 +235,15 @@ public static class PartyView
 
 	public static LoadingProgress? HostDownloadProgress => IsMocking ? MockHostDownload : Party?.HostDownloadProgress;
 
-	public static string PackageTitle => IsMocking ? "Sandbox" : Party?.PackageTitle;
+	/// <summary>
+	/// The title of the game the leader is currently playing, if any.
+	/// </summary>
+	public static string PackageTitle => IsMocking ? MockLeaderState == PartyRoom.OwnerJoinState.None ? null : "Sandbox" : Party?.PackageTitle;
 
 	/// <summary>
 	/// The game the leader's playing - for its thumbnail and art.
 	/// </summary>
-	public static string PackageIdent => IsMocking ? "facepunch.sandbox" : Party?.PackageIdent;
+	public static string PackageIdent => IsMocking ? MockLeaderState == PartyRoom.OwnerJoinState.None ? null : "facepunch.sandbox" : Party?.PackageIdent;
 
 	public static string JoinError => IsMocking ? "The server didn't respond in time." : Party?.JoinError;
 
@@ -89,6 +267,12 @@ public static class PartyView
 		if ( IsMocking )
 		{
 			Mock = "off";
+			mockName = null;
+			mockPublic = false;
+			mockMaxMembers = PartyDeck.MAX_MEMBERS;
+			mockGame = null;
+			mockGameSettings = null;
+			mockReady = false;
 			MenuUI.Front.RailPresence.Mock = "off";
 			return;
 		}
@@ -138,7 +322,7 @@ public static class PartyView
 
 	/// <summary>
 	/// You and some of your friends - real names and avatars, so it looks like the real thing. The same
-	/// party the friends list shows under <c>friends_mock</c>.
+	/// party the friends list shows under <c>menu_mock_friends</c>.
 	/// </summary>
 	static List<Friend> MockMembers => MenuUI.Front.RailPresence.MockPartyMembers.ToList();
 

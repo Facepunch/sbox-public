@@ -17,7 +17,7 @@ native static class RenderTools as NativeEngine.RenderTools
 	bool GetModelMeshSkinningBones( IModel hModel, int nMesh, CastTo[matrix3x4_t*] void* pInvBindPoses, CastTo[int*] void* pMasterBones, int nBones );
 	int AllocateVertexCache( int nVertexCount );
 	RenderBufferHandle_t GetVertexCacheBuffer();
-	bool DispatchModelMeshSkinning( IRenderContext renderContext, IMaterialMode materialMode, IModel hModel, int nMesh, RenderBufferHandle_t hTransformBuffer, CastTo[int*] void* pTransformSlots, CastTo[int*] void* pVertexCacheOffsets, int nInstances, int nBlendWeightCount, RenderBufferHandle_t hVolumeBuffer, CastTo[int*] void* pVolumeOffsets, CastTo[int*] void* pVolumeCounts, bool bMorph );
+	bool DispatchModelMeshSkinning( IRenderContext renderContext, IMaterialMode materialMode, IModel hModel, int nMesh, RenderBufferHandle_t hTransformBuffer, CastTo[int*] void* pTransformSlots, CastTo[int*] void* pVertexCacheOffsets, int nInstances, int nBlendWeightCount, RenderBufferHandle_t hVolumeBuffer, CastTo[int*] void* pVolumeOffsets, CastTo[int*] void* pVolumeCounts, RenderBufferHandle_t hAnchorBuffer, CastTo[int*] void* pAnchorOffsets, bool bMorph );
 	bool BindModelDrawCallVertexIds( IRenderContext renderContext, IModel hModel, int nMesh, int nDrawCall, int nFirstStream );
 	void BindDepthTarget( IRenderContext renderContext, ITexture hDepth, int nSlice );
 	void BindColorAndDepthTarget( IRenderContext renderContext, ITexture hColor, ITexture hDepth, bool bSrgbWrite );

@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using NativeEngine;
 
 namespace SceneTests.Components;
 
@@ -675,5 +677,55 @@ public class SkinnedRendererTest
 		}
 
 		Assert.AreEqual( closest, headBone.Index, "the native answer matches a managed scan" );
+	}
+
+	public static IEnumerable<object[]> AnimVariantConversionData => ((IEnumerable<AnimVariant[]>)
+	[
+		// boolean to int/float/byte
+		[false, 0],
+		[true, 1],
+		[false, 0f],
+		[true, 1f],
+		[false, (byte)0],
+		[true, (byte)1],
+
+		// int to boolean/float/byte
+		[0, false],
+		[1, true],
+		[100, 100f],
+		[100, (byte)100],
+
+		// float to boolean/int/byte
+		[0f, false],
+		[1f, true],
+		[100f, 100],
+		[100f, (byte)100],
+
+		// byte to boolean/int/float
+		[(byte)0, false],
+		[(byte)1, true],
+		[(byte)100, 100],
+		[(byte)100, 100f]
+	]).Select( object[] ( x ) => [x[0], x[1]] );
+
+	/// <summary>
+	/// Tests converting <see cref="AnimVariant"/>s between scalar types.
+	/// </summary>
+	[TestMethod]
+	[DynamicData( nameof( AnimVariantConversionData ) )]
+	public void AnimVariantScalarConversion( object source, object expected )
+	{
+		var sourceVariant = (AnimVariant)source;
+		var expectedVariant = (AnimVariant)expected;
+
+		try
+		{
+			Assert.IsTrue( sourceVariant.TryConvertTo( expectedVariant.Type, out var convertedVariant ), $"Failed to convert {sourceVariant.Type} to {expectedVariant.Type}." );
+			Assert.AreEqual( expectedVariant, convertedVariant, $"Conversion result for {sourceVariant.Type} to {expectedVariant.Type} does not match expected value." );
+		}
+		catch ( Exception ex )
+		{
+			Assert.Fail( $"Exception occurred during conversion from {sourceVariant.Type} to {expectedVariant.Type}: {ex.Message}" );
+		}
 	}
 }

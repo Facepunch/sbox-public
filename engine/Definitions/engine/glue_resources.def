@@ -6,6 +6,17 @@ native static class Glue.Resources as NativeGlue.Resources
 	IMaterial GetMaterial( string name, Guid guid );
 	ITexture GetTexture( string name, Guid guid );
 	IModel GetModel( string name, Guid guid );
+
+	inline string GetModelResourceName( IModel model )
+	{
+		if ( ResourceIsAnonymous( model.GetBinding() ) )
+			return model->GetModelName();
+
+		static thread_local CBufferString name;
+		model.GetResourceName( &name );
+		return name.String();
+	}
+
 	CPhysicsData GetPhysics( string name, Guid guid );
 	HAnimationGraph GetAnimationGraph( string name, Guid guid );
 	CVfx GetShader( string name, Guid guid );

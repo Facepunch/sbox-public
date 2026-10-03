@@ -38,6 +38,7 @@ public static class Application
 	public static void Spin()
 	{
 		g_pToolFramework2.Spin();
+		EditorSplashScreen.Pump();
 	}
 
 	public static float DpiScale

@@ -310,6 +310,7 @@ PS
 
 		// Premultiplied content already sits in the target's space, see ui/gamma.hlsl
 		#if ( D_BLENDMODE == 3 )
+			o.vColor = UI_ApplyLighting( i.vPositionPs, o.vColor );
 			o.vColor = UI_ApplyClip( o.vColor, true );
 			return o;
 		#else

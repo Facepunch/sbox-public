@@ -10,6 +10,8 @@
 	<ItemGroup>
 		<Compile Remove="Data\**\*.cs" />
 		<None Include="Data\**\*.*" CopyToOutputDirectory="Always" />
+		<!-- Exercise the menu's pure party grouping without Steam or the UI runtime. -->
+		<Compile Include="..\..\..\game\addons\menu\Code\MenuUI\Front\FriendPartyGrouping.cs" Link="Menu\FriendPartyGrouping.cs" />
 	</ItemGroup>
 
 	<ItemGroup>

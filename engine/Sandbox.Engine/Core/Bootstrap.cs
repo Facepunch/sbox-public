@@ -275,6 +275,10 @@ internal static class Bootstrap
 				LoadingFinished();
 			}
 
+			// Steam starts us with a friend's "connect" rich presence when joining them from Steam
+			if ( CommandLine.HasSwitch( "+connect" ) )
+				Api.Activity.GameRequested( new( "invite" ) );
+
 			// Run any commands
 			foreach ( var sw in CommandLine.GetSwitches() )
 			{
@@ -296,6 +300,7 @@ internal static class Bootstrap
 
 			if ( Application.IsJoinLocal )
 			{
+				Api.Activity.GameRequested( new( "local" ) );
 				NetworkConsoleCommands.ConnectToServer( "local" );
 			}
 		}

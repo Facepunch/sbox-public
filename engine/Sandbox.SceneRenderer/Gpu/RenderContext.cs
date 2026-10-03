@@ -468,19 +468,23 @@ internal sealed class RenderContext : IDisposable
 
 	/// <summary>
 	/// Compute-skin a model mesh's instances into native vertex-cache blocks (<c>skinning_cs</c>).
-	/// Optional per-instance volume ranges enable deformation; dispatch deformed and undeformed instances separately.
+	/// Optional per-instance volume ranges enable deformation; dispatch deformed and undeformed instances separately. Deformed
+	/// instances read their anchors, per mesh bone, from their offset into <paramref name="anchors"/> - 0 for none.
 	/// </summary>
 	public unsafe bool DispatchSkinning( Material skinningShader, RenderMesh mesh, int modelMesh, GpuBuffer transforms, ReadOnlySpan<int> slots, ReadOnlySpan<int> vertexCacheOffsets, int blendWeights,
-		GpuBuffer volumes = null, ReadOnlySpan<int> volumeOffsets = default, ReadOnlySpan<int> volumeCounts = default, bool morph = false )
+		GpuBuffer volumes = null, ReadOnlySpan<int> volumeOffsets = default, ReadOnlySpan<int> volumeCounts = default, GpuBuffer anchors = null, ReadOnlySpan<int> anchorOffsets = default, bool morph = false )
 	{
 		fixed ( int* s = slots )
 		fixed ( int* o = vertexCacheOffsets )
 		fixed ( int* vo = volumeOffsets )
 		fixed ( int* vc = volumeCounts )
+		fixed ( int* ao = anchorOffsets )
 		{
-			RenderBufferHandle_t volumeBuffer = volumes is null ? IntPtr.Zero : volumes.native;
+			var deformed = volumes is not null && anchors is not null;
+			RenderBufferHandle_t volumeBuffer = deformed ? volumes.native : IntPtr.Zero;
+			RenderBufferHandle_t anchorBuffer = deformed ? anchors.native : IntPtr.Zero;
 			return RenderTools.DispatchModelMeshSkinning( context, skinningShader.native.GetMode(), mesh.Model.native, modelMesh, transforms.native, (IntPtr)s, (IntPtr)o, slots.Length, blendWeights,
-				volumeBuffer, volumes is null ? IntPtr.Zero : (IntPtr)vo, volumes is null ? IntPtr.Zero : (IntPtr)vc, morph );
+				volumeBuffer, deformed ? (IntPtr)vo : IntPtr.Zero, deformed ? (IntPtr)vc : IntPtr.Zero, anchorBuffer, deformed ? (IntPtr)ao : IntPtr.Zero, morph );
 		}
 	}
 

@@ -362,6 +362,8 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 			// Native bounds include deformation padding.
 			var volumes = model.DeformationVolumes;
 			if ( !volumes.SequenceEqual( mesh.DeformationVolumes ) ) mesh.DeformationVolumes = volumes.ToArray();
+			var anchors = model.DeformationAnchors;
+			if ( !anchors.SequenceEqual( mesh.DeformationAnchors ) ) mesh.DeformationAnchors = anchors.ToArray();
 
 			mesh.LocalBounds = ToLocal( model.Bounds, mesh.Transform );
 		}

@@ -121,6 +121,18 @@
 			{
 				@* Nothing to do to yourself but look *@
 			}
+			else if ( CanInviteToGame )
+			{
+				@* Mid-game, into the game you're in - before the party, that's what you're here for *@
+				@if ( _gameInvited )
+				{
+					<div class="button done"><icon>check</icon><label>Game invite sent</label></div>
+				}
+				else
+				{
+					<div class="button primary" onmousedown=@InviteToGame><icon>sports_esports</icon><label>Invite to game</label></div>
+				}
+			}
 			else if ( InMyParty )
 			{
 				<div class="button done"><icon>check</icon><label>In your party</label></div>
@@ -141,7 +153,7 @@
 			{
 				@foreach ( var extra in extras )
 				{
-					<div class="button @(extra.Danger ? "danger" : "")" onmousedown=@extra.Click><icon>@extra.Icon</icon><label>@extra.Label</label></div>
+					<div class="button @(extra.Danger ? "danger" : "")" tooltip=@extra.Tooltip onmousedown=@extra.Click><icon>@extra.Icon</icon><label>@extra.Label</label></div>
 				}
 			}
 		</div>
@@ -149,10 +161,10 @@
 		@* The less common stuff underneath, when there's too much for one row *@
 		@if ( SplitRows )
 		{
-			<div class="action-row">
+			<div class="action-row secondary">
 				@foreach ( var extra in extras )
 				{
-					<div class="button @(extra.Danger ? "danger" : "")" onmousedown=@extra.Click><icon>@extra.Icon</icon><label>@extra.Label</label></div>
+					<div class="button @(extra.Danger ? "danger" : "")" tooltip=@extra.Tooltip onmousedown=@extra.Click><icon>@extra.Icon</icon><label>@extra.Label</label></div>
 				}
 			</div>
 		}
@@ -164,6 +176,16 @@
 	public Friend Friend { get; set; }
 
 	/// <summary>
+	/// Open the user menu from a clicked name or avatar, replacing any existing popup.
+	/// </summary>
+	public static void ShowFromClick( PanelEvent e, Friend friend )
+	{
+		e.StopPropagation();
+		Popup.CloseAll();
+		Show( e.This, friend, PositionMode.AboveCenter, 8 );
+	}
+
+	/// <summary>
 	/// Open a card for this person beside <paramref name="source"/>.
 	/// </summary>
 	public static FriendCard Show( Panel source, Friend friend, PositionMode mode = PositionMode.Left, float offset = 18 )
@@ -171,12 +193,36 @@
 		var card = new FriendCard { Friend = friend };
 		card.SetPositioning( source, mode, offset );
 
-		// Opened from the party deck while it's up in the overlay over a modal - popups sit under
-		// the deck there, so lift this one over it
-		if ( card.Parent == MenuOverlay.Instance )
-			card.Style.ZIndex = Sandbox.UI.Footer.ZIndex + 20;
-
 		return card;
+	}
+
+	/// <summary>
+	/// Keep avatar cards on screen, flipping below the avatar when there isn't room above it.
+	/// Use the measured size so loading profile details can't push the card outside the viewport.
+	/// </summary>
+	public override void OnLayout( ref Rect layoutRect )
+	{
+		if ( Position != PositionMode.AboveCenter || !PopupSource.IsValid() )
+		{
+			base.OnLayout( ref layoutRect );
+			return;
+		}
+
+		var bounds = FindRootPanel().Box.Rect;
+		var anchor = PopupSource.Box.Rect;
+		var margin = 12 * ScaleToScreen;
+		var gap = PopupSourceOffset * PopupSource.ScaleToScreen;
+		var above = anchor.Top - bounds.Top - margin - gap;
+		var below = bounds.Bottom - margin - anchor.Bottom - gap;
+		var top = above < layoutRect.Height && below > above
+			? anchor.Bottom + gap
+			: anchor.Top - gap - layoutRect.Height;
+
+		layoutRect.Position = new Vector2(
+			Math.Clamp( anchor.Center.x - layoutRect.Width * 0.5f, bounds.Left + margin,
+				Math.Max( bounds.Left + margin, bounds.Right - margin - layoutRect.Width ) ),
+			Math.Clamp( top, bounds.Top + margin,
+				Math.Max( bounds.Top + margin, bounds.Bottom - margin - layoutRect.Height ) ) );
 	}
 
 	//
@@ -244,6 +290,7 @@
 
 	void OpenPackage( Package package )
 	{
+		Discovery.Clicked( new DiscoveryContext { Surface = "friendcard" }, package );
 		package?.OpenModal();
 		Delete();
 	}
@@ -274,9 +321,19 @@
 	/// </summary>
 	const float ProfileTimeout = 8f;
 
+	/// <summary>
+	/// Constrain avatar cards to the viewport and stop loading profiles known to be private.
+	/// </summary>
 	public override void Tick()
 	{
 		base.Tick();
+
+		if ( Position == PositionMode.AboveCenter )
+		{
+			var size = FindRootPanel().Box.Rect.Size * ScaleFromScreen;
+			Style.MaxWidth = Math.Max( 0, size.x - 24 );
+			Style.MaxHeight = Math.Max( 0, size.y - 24 );
+		}
 
 		// The stats box asks about the same player and knows first when nothing's coming - no point
 		// waiting on our own request to find out the hard way
@@ -359,7 +416,7 @@
 	/// </summary>
 	bool CanManage => !IsMe && InMyParty && PartyView.OwnerIsMe;
 
-	record ExtraAction( string Icon, string Label, Action Click, bool Danger = false );
+	record ExtraAction( string Icon, string Label, Action Click, bool Danger = false, string Tooltip = null );
 
 	/// <summary>
 	/// The less common buttons - add friend, make leader, kick, leave.
@@ -372,7 +429,7 @@
 
 		if ( CanManage )
 		{
-			extras.Add( new( "shield", "Make leader", MakeLeader ) );
+			extras.Add( new( "shield", "Promote", MakeLeader, Tooltip: "Make leader of party" ) );
 			extras.Add( new( "person_remove", "Kick", Kick, true ) );
 		}
 
@@ -381,7 +438,7 @@
 		return extras;
 	}
 
-	int MainCount => 1 + (CanJoin || (!IsMe && (InMyParty || Invited || MenuUtility.CanInviteToParty( Friend ))) ? 1 : 0);
+	int MainCount => 1 + (CanJoin || (!IsMe && (CanInviteToGame || InMyParty || Invited || MenuUtility.CanInviteToParty( Friend ))) ? 1 : 0);
 
 	/// <summary>
 	/// Two buttons fit a row with their labels - past that, the extras get a row of their own.
@@ -499,6 +556,24 @@
 		Delete();
 	}
 
+	/// <summary>
+	/// In a game others can join - one with a way in for them (its connect presence) - and this isn't you.
+	/// </summary>
+	bool CanInviteToGame => !IsMe && Game.InGame && !string.IsNullOrWhiteSpace( new Friend( Game.SteamId ).GetRichPresence( "connect" ) );
+
+	bool _gameInvited;
+
+	/// <summary>
+	/// Into the game you're in - a Steam invite, with its way in.
+	/// </summary>
+	void InviteToGame()
+	{
+		if ( !CanInviteToGame ) return;
+
+		_gameInvited = MenuUtility.InviteFriendGame( Friend );
+		StateHasChanged();
+	}
+
 	async Task Invite()
 	{
 		// Makes the party if there isn't one, and doesn't send anything real while it's mocked
@@ -506,9 +581,12 @@
 		StateHasChanged();
 	}
 
+	/// <summary>
+	/// Their Steam profile - this card's their s&box one.
+	/// </summary>
 	void ViewProfile()
 	{
-		Game.Overlay.ShowPlayer( Friend.Id );
+		Friend.OpenInOverlay();
 		Delete();
 	}
 
@@ -547,9 +625,10 @@
 		if ( !Package.TryGetCached( GameIdent, out var package ) )
 			package = await Package.Fetch( GameIdent, false );
 
+		Discovery.Clicked( new DiscoveryContext { Surface = "friendcard" }, package );
 		package?.OpenModal();
 		Delete();
 	}
 
-	protected override int BuildHash() => HashCode.Combine( Friend, AvatarJson, GameThumb, HashCode.Combine( GameTitle, GameArt, _recent, _profileLoaded ), Invited, InMyParty, HashCode.Combine( StateText, CanManage ) );
+	protected override int BuildHash() => HashCode.Combine( Friend, AvatarJson, GameThumb, HashCode.Combine( GameTitle, GameArt, _recent, _profileLoaded ), Invited, InMyParty, HashCode.Combine( StateText, CanManage, CanInviteToGame, _gameInvited ) );
 }

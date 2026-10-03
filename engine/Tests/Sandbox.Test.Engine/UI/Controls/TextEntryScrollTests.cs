@@ -50,6 +50,34 @@ public class TextEntryScrollTests
 
 	static Label LabelOf( TextEntry entry ) => entry.Children.OfType<Label>().First();
 
+	/// <summary>
+	/// A multiline entry wraps at its edge rather than running past it - its label is pre-wrap, not
+	/// pre, which never wraps. (Review and report boxes ran off the end once pre stopped wrapping.)
+	/// </summary>
+	[TestMethod]
+	public void MultilineEntryWrapsAtItsEdge()
+	{
+		var root = new RootPanel();
+		root.PanelBounds = new Rect( 0, 0, 1000, 1000 );
+		root.Style.Set( "flex-direction: row; align-items: flex-start;" );
+
+		var entry = root.AddChild<TextEntry>();
+		entry.Multiline = true;
+		entry.Style.Set( "font-size: 16px; width: 120px;" );
+		entry.Text = LongText;
+
+		try
+		{
+			root.Layout();
+
+			var label = LabelOf( entry );
+			Assert.AreEqual( WhiteSpace.PreWrap, label.Style.WhiteSpace );
+			Assert.IsTrue( label.Box.Rect.Height > 16 * 2.5f, $"Expected several lines, got a label {label.Box.Rect.Height} tall" );
+			Assert.IsTrue( label.Box.Rect.Width <= entry.Box.Rect.Width + 1, $"Label {label.Box.Rect.Width} wide ran past its {entry.Box.Rect.Width} wide entry" );
+		}
+		finally { root.Delete( true ); }
+	}
+
 	[TestMethod]
 	public void CharacterHitTestCoversBothHalvesWhileScrolled()
 	{
