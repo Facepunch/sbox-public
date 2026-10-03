@@ -4553,8 +4553,22 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 		IsDirty = false;
 
+		var model = builder.Create();
+
+		// Only the build reads these and the builder copied them, so don't keep them per mesh.
+		// _triangleFaces stays: TriangleToFace resolves trace hits on the built model to faces.
+		_meshVertices.Clear();
+		_meshVertices.TrimExcess();
+		_meshIndices.Clear();
+		_meshIndices.TrimExcess();
+		_meshTriangleMaterials.Clear();
+		_meshTriangleMaterials.TrimExcess();
+		_meshFaces.Clear();
+		_meshFaces.TrimExcess();
 		_faceNormalCache.Clear();
-		return builder.Create();
+		_faceNormalCache.TrimExcess();
+
+		return model;
 	}
 
 	private int AddMaterial( Material material )
