@@ -10,6 +10,7 @@ partial class MeshTool
 	public bool OverlaySelection { get; set; } = true;
 	public bool LassoPartialSelection { get; set; } = true;
 	public bool SelectionThrough { get; set; } = true;
+	public bool ConvertSelection { get; set; } = false;
 
 	public bool TextureLock { get; set; } = true;
 	public bool TextureLockScale { get; set; } = false;
@@ -94,6 +95,9 @@ partial class MeshTool
 
 		AddCheckboxOption( menu, "Backface Selection", "flip_to_back", "Allow selection of backfacing elements",
 			EditorPreferences.BackfaceSelection, ( v ) => { EditorPreferences.BackfaceSelection = v; } );
+
+		AddCheckboxOption( menu, "Convert Selection", "swap_horizontal_circle", "Convert current selection when changing between tools.",
+			ConvertSelection, ( v ) => { ConvertSelection = v; } );
 
 		menu.OpenAtCursor();
 	}
