@@ -149,4 +149,43 @@ public class CloudAssetTest
 			System.IO.File.Delete( file );
 		}
 	}
+
+	/// <summary>
+	/// The cache is saved with the project, so the next session's scan gets unchanged files' references
+	/// without reading them again, while files changed in between are still read.
+	/// </summary>
+	[TestMethod]
+	public void SavedReferenceCacheSkipsUnchangedFilesNextSession()
+	{
+		var unchanged = WriteTempResource( """{ "__references": [ "facepunch.props" ] }""" );
+		var changed = WriteTempResource( """{ "__references": [] }""" );
+		var storeFolder = System.IO.Path.Combine( System.IO.Path.GetTempPath(), $"cloudasset_{System.Guid.NewGuid():N}" );
+		System.IO.Directory.CreateDirectory( storeFolder );
+
+		try
+		{
+			var store = new LocalFileSystem( storeFolder );
+			CloudAsset.LoadReferenceCache( store );
+			References( unchanged );
+			References( changed );
+			CloudAsset.SaveReferenceCache( store, new( System.StringComparer.OrdinalIgnoreCase ) { unchanged, changed } );
+
+			System.IO.File.WriteAllText( changed, """{ "__references": [ "garry.tools" ] }""" );
+
+			// Next session, nothing in memory
+			CloudAsset.LoadReferenceCache( null );
+			CloudAsset.LoadReferenceCache( new LocalFileSystem( storeFolder ) );
+
+			var unchangedRefs = CloudAsset.GetCachedReferences( unchanged, () => throw new System.InvalidOperationException( "Unchanged file was read again" ) );
+			CollectionAssert.AreEqual( new[] { "facepunch.props" }, unchangedRefs );
+			CollectionAssert.AreEqual( new[] { "garry.tools" }, References( changed ) );
+		}
+		finally
+		{
+			CloudAsset.LoadReferenceCache( null );
+			System.IO.File.Delete( unchanged );
+			System.IO.File.Delete( changed );
+			System.IO.Directory.Delete( storeFolder, true );
+		}
+	}
 }
