@@ -39,6 +39,9 @@ public abstract class GameMount : BaseGameMount
 
 				var path = Path.GetRelativePath( appDir, fullPath ).Replace( '\\', '/' );
 
+				if ( ext is not ".cfg" and not ".sav" and not ".dem" and not ".log" and not ".hpk" || path.EndsWith( "/skill.cfg", System.StringComparison.OrdinalIgnoreCase ) )
+					context.Add( ResourceType.Binary, path, new RawFileLoader( fullPath ) );
+
 				if ( ext == ".wad" )
 				{
 					try
