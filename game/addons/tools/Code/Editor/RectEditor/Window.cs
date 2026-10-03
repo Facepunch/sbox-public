@@ -215,7 +215,7 @@ public partial class Window : DockWindow, IAssetEditor
 	}
 
 	[Shortcut( "grid.toggle-grid", "CTRL+G" )]
-	private void SetGridEnabled( bool enabled )
+	internal void SetGridEnabled( bool enabled )
 	{
 		GridEnabled = enabled;
 
@@ -223,7 +223,7 @@ public partial class Window : DockWindow, IAssetEditor
 	}
 
 	[Shortcut( "grid.increase-grid-size", "]" )]
-	private void BiggerGrid()
+	internal void BiggerGrid()
 	{
 		if ( Settings.IsFastTextureTool )
 		{
@@ -239,7 +239,7 @@ public partial class Window : DockWindow, IAssetEditor
 	}
 
 	[Shortcut( "grid.decrease-grid-size", "[" )]
-	private void SmallerGrid()
+	internal void SmallerGrid()
 	{
 		if ( Settings.IsFastTextureTool )
 		{
