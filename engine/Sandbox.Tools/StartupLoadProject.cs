@@ -171,11 +171,11 @@ static class StartupLoadProject
 
 		ExportSettings( project );
 
+		// The solution is for the IDE, nothing here reads it, and writing it is most of a
+		// second of walking every project's code. It goes on the pool and the load carries
+		// on; the projects are all known by now and it only reads them
 		Step( "Generating solution" );
-		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: Generate Solution" ) )
-		{
-			await Project.GenerateSolution();
-		}
+		_ = Task.Run( Project.GenerateSolution );
 
 		Step( "Creating filesystem" );
 		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: Update ProjectFilesystem" ) )
