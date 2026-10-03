@@ -32,31 +32,35 @@ internal class NativeAsset : Asset
 		AbsoluteCompiledPath = Sandbox.CaseInsensitivePhysicalFileSystem.ResolveNativeCasing( native.GetAbsolutePath_Transient( AssetLocation_t.Game ).NormalizeFilename( false, false ) ); // invalid means get any
 		IsDeleted = string.IsNullOrEmpty( AbsolutePath );
 
-		if ( MetaData is { } meta && (!meta.TryGet<Guid>( "guid", out var existingGuid ) || existingGuid != Guid) )
+		// The guid check, user tags and the @published auto tag all read the meta file - parse it once
+		using ( MetaData.CacheReads( MetaData ) )
 		{
-			// update the guid in the metadata if it doesn't match the native asset's guid
-			// (it would be nice if we could plumb back from the native DB when we assign a new guid, instead of reading to check,
-			// but there's no guarantee this is the first time we're resolving this path - or that an asset exists when we do)
-			MetaData.Set( "guid", Guid );
+			if ( MetaData is { } meta && (!meta.TryGet<Guid>( "guid", out var existingGuid ) || existingGuid != Guid) )
+			{
+				// update the guid in the metadata if it doesn't match the native asset's guid
+				// (it would be nice if we could plumb back from the native DB when we assign a new guid, instead of reading to check,
+				// but there's no guarantee this is the first time we're resolving this path - or that an asset exists when we do)
+				MetaData.Set( "guid", Guid );
+			}
+
+			if ( AssetSystem.CloudDirectory is not null )
+			{
+				Package = AssetSystem.CloudDirectory.FindPackage( AbsolutePath, RelativePath );
+			}
+
+			// If we need a dependency update at this point, then this has taken a weird path through AssetSystem.AssetChanged
+			// And will be resolved on the very next tick
+			// The weird path it's taking was calling these below methods which resolving unresolved references before those assets had a chance to register...
+			// I don't have a better solution that doesn't involve ripping it all up
+			if ( native.NeedAnyDependencyUpdate_Virtual() )
+				return;
+
+			IsTrivialChild = native.IsTrivialChildAsset();
+
+			// Reload all tags.
+			LoadUserTags();
+			UpdateAutoTags();
 		}
-
-		if ( AssetSystem.CloudDirectory is not null )
-		{
-			Package = AssetSystem.CloudDirectory.FindPackage( AbsolutePath, RelativePath );
-		}
-
-		// If we need a dependency update at this point, then this has taken a weird path through AssetSystem.AssetChanged
-		// And will be resolved on the very next tick
-		// The weird path it's taking was calling these below methods which resolving unresolved references before those assets had a chance to register...
-		// I don't have a better solution that doesn't involve ripping it all up
-		if ( native.NeedAnyDependencyUpdate_Virtual() )
-			return;
-
-		IsTrivialChild = native.IsTrivialChildAsset();
-
-		// Reload all tags.
-		LoadUserTags();
-		UpdateAutoTags();
 
 		if ( compileImmediately && !IsCompiled && AssetType.IsGameResource )
 		{

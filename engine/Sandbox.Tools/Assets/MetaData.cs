@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 
 namespace Editor
@@ -20,11 +21,72 @@ namespace Editor
 			FilePath = sourceFile;
 		}
 
+		// The file a ReadScope on this thread is reusing one parse of, and that parse
+		[ThreadStatic] static MetaData _scopeOwner;
+		[ThreadStatic] static JsonElement? _scopeRoot;
+		[ThreadStatic] static bool _scopeRead;
+
 		/// <summary>
-		/// Note - not caching anything here, and reading the whole json file
-		/// every time. Lets see how this turns out.
+		/// Until disposed, reads of <paramref name="meta"/> on the calling thread parse the file once
+		/// and reuse that. Asset updates look up several keys in a row; each lookup otherwise opens the
+		/// file again, or checks it exists when there is no meta file at all.
+		/// </summary>
+		internal static ReadScope CacheReads( MetaData meta ) => new ReadScope( meta );
+
+		internal readonly struct ReadScope : IDisposable
+		{
+			readonly MetaData _owner;
+			readonly MetaData _previousOwner;
+			readonly JsonElement? _previousRoot;
+			readonly bool _previousRead;
+
+			internal ReadScope( MetaData owner )
+			{
+				_owner = owner;
+				_previousOwner = _scopeOwner;
+				_previousRoot = _scopeRoot;
+				_previousRead = _scopeRead;
+
+				if ( owner is null )
+					return;
+
+				_scopeOwner = owner;
+				_scopeRoot = null;
+				_scopeRead = false;
+			}
+
+			public void Dispose()
+			{
+				if ( _owner is null )
+					return;
+
+				_scopeOwner = _previousOwner;
+				_scopeRoot = _previousRoot;
+
+				// A nested scope on the same file may have written it; the outer parse can't be trusted
+				_scopeRead = _previousRead && _previousOwner != _owner;
+			}
+		}
+
+		/// <summary>
+		/// Note - not caching anything here beyond a <see cref="ReadScope"/>, and reading the whole
+		/// json file every time. Lets see how this turns out.
 		/// </summary>
 		JsonElement? Read()
+		{
+			if ( _scopeOwner != this )
+				return ReadFromDisk();
+
+			if ( !_scopeRead )
+			{
+				_scopeRoot = ReadFromDisk();
+				_scopeRead = true;
+			}
+
+			return _scopeRoot;
+		}
+
+		JsonElement? ReadFromDisk()
 		{
 			if ( !System.IO.File.Exists( FilePath ) )
 				return null;
@@ -60,6 +122,10 @@ namespace Editor
 
 		void Save( JsonObject obj )
 		{
+			// A scoped read of this file is stale now, read it again on the next lookup
+			if ( _scopeOwner == this )
+				_scopeRead = false;
+
 			const int retries = 10;
 			for ( var i = 0; i < retries; i++ )
 			{
