@@ -126,7 +126,7 @@ public readonly ref partial struct Painter
 		}
 	}
 
-	internal TargetScope Target( string name, Rect bounds ) => new( this, name, bounds );
+	internal TargetScope Target( string name, Rect bounds, int numMips = 1 ) => new( this, name, bounds, numMips );
 
 	internal ref struct TargetScope
 	{
@@ -134,7 +134,7 @@ public readonly ref partial struct Painter
 		readonly long _recording;
 		readonly int _index;
 
-		internal TargetScope( Painter painter, string name, Rect bounds )
+		internal TargetScope( Painter painter, string name, Rect bounds, int numMips )
 		{
 			_context = painter.GetActiveContext();
 			_recording = _context.Recording;
@@ -146,7 +146,7 @@ public readonly ref partial struct Painter
 			try
 			{
 				commands.PushRenderTarget();
-				var handle = commands.GetRenderTarget( name, (int)bounds.Width, (int)bounds.Height, ImageFormat.RGBA8888, ImageFormat.None );
+				var handle = commands.GetRenderTarget( name, (int)bounds.Width, (int)bounds.Height, ImageFormat.RGBA8888, ImageFormat.None, numMips: numMips );
 				commands.SetRenderTarget( handle );
 				commands.Clear( Color.Transparent );
 				output.Destination.Layered = true;

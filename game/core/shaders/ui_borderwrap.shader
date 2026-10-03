@@ -61,7 +61,8 @@ PS
 
 	float SampleAlpha( float2 uv )
 	{
-		return g_tColor.Sample( g_sTrilinearBorder, uv ).a;
+		// Mip 0 - a blurred layer carries a mip chain, and a scaled-down panel would otherwise read into it
+		return g_tColor.SampleLevel( g_sTrilinearBorder, uv, 0 ).a;
 	}
 
 	float GetBorder( float2 uv )
