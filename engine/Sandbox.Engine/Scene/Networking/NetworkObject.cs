@@ -121,6 +121,8 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 
 		_initialized = true;
 
+		CreateDataTable();
+
 		if ( owner is not null )
 		{
 			Creator = owner.Id;
@@ -131,8 +133,6 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 			Creator = Guid.Empty;
 			Owner = Guid.Empty;
 		}
-
-		CreateDataTable();
 
 		// Keep track of us
 		GameObject.Scene.RegisterNetworkedObject( this );
@@ -195,10 +195,11 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 
 		_initialized = true;
 
+		CreateDataTable();
+
 		Creator = msg.Creator;
 		Owner = msg.Owner;
 
-		CreateDataTable();
 		OnCreateMessage( msg );
 
 		GameObject.Scene.RegisterNetworkedObject( this );
