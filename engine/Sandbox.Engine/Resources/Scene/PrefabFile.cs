@@ -31,65 +31,53 @@ public partial class PrefabFile : GameResource
 	}
 
 	/// <summary>
-	/// Contains the original JSON read from File. JSON that matches the compiled file on disk is released
-	/// once the prefab's cache scene has been built from it - a big prefab's JSON is tens of megabytes and
-	/// nothing reads it after that in normal use - and read back from disk (and kept) the next time it's read.
+	/// Contains the original JSON read from File. JSON loaded from the compiled file is only held while it's
+	/// being used - loading, then building the cache scene - and dropped after each use: a big prefab's JSON is
+	/// tens of megabytes and every prefab in a project is loaded at startup, spawned or not. It is read back
+	/// from disk the next time it's read.
 	/// </summary>
 	public JsonObject RootObject
 	{
-		get
-		{
-			// Kept once read back - it's released again the next time the cache scene is rebuilt
-			if ( _rootObjectReleased && ReadRootObjectFromDisk() is { } root )
-			{
-				_rootObject = root;
-				_rootObjectReleased = false;
-			}
-
-			return _rootObject;
-		}
+		get => _rootObject ??= _rootObjectOnDisk ? ReadRootObjectFromDisk() : null;
 		set
 		{
 			_rootObject = value;
-			_rootObjectReleased = false;
-			_rootObjectMatchesDisk = false;
+			_rootObjectOnDisk = false;
 		}
 	}
 
 	JsonObject _rootObject;
-	bool _rootObjectMatchesDisk;
-	bool _rootObjectReleased;
 
 	/// <summary>
-	/// Whether this prefab has data, without reading a released <see cref="RootObject"/> back from disk.
+	/// <see cref="RootObject"/> came from the compiled file and hasn't been replaced since, so it can be read back from it.
 	/// </summary>
-	internal bool HasRootObject => _rootObjectReleased || _rootObject is not null;
+	bool _rootObjectOnDisk;
+
+	/// <summary>
+	/// Whether this prefab has data, without reading a dropped <see cref="RootObject"/> back from disk.
+	/// </summary>
+	internal bool HasRootObject => _rootObject is not null || _rootObjectOnDisk;
 
 	internal override bool LoadFromResource( Span<byte> data )
 	{
-		// RootObject was just deserialized from this compiled file, so it can be read back from it
-		_rootObjectMatchesDisk = true;
+		_rootObjectOnDisk = _rootObject is not null && !string.IsNullOrEmpty( ResourcePath );
 		return base.LoadFromResource( data );
 	}
 
 	/// <summary>
-	/// Release the JSON once the cache scene has been built from it, if it can be read back from disk.
+	/// Drop the JSON after it has been used, if it can be read back from disk.
 	/// JSON set in memory (an applied but unsaved prefab edit, a mounted prefab) is always kept.
 	/// </summary>
-	void ReleaseRootObject()
+	internal void ReleaseRootObject()
 	{
-		if ( !_rootObjectMatchesDisk || _rootObject is null || string.IsNullOrEmpty( ResourcePath ) )
-			return;
-
-		_rootObject = null;
-		_rootObjectReleased = true;
+		if ( _rootObjectOnDisk )
+			_rootObject = null;
 	}
 
 	JsonObject ReadRootObjectFromDisk()
 	{
 		try
 		{
-			// Deserialize into a throwaway resource so the json gets the same upgrades as a normal load
 			var json = Game.Resources.ReadCompiledResourceJson( FileSystem.Mounted, ResourcePath + "_c" );
 			if ( string.IsNullOrEmpty( json ) )
 			{
@@ -97,20 +85,26 @@ public partial class PrefabFile : GameResource
 				return null;
 			}
 
+			// Load into a throwaway resource so the json gets the same upgrades as a normal load
 			var copy = new PrefabFile();
 			copy.LoadFromJson( json );
-
-			var root = copy._rootObject;
-			if ( root is not null && root[GameObject.JsonKeys.Name]?.GetValue<string>() != ResourceName )
-				root[GameObject.JsonKeys.Name] = ResourceName;
-
-			return root;
+			SyncRootObjectName( copy._rootObject );
+			return copy._rootObject;
 		}
 		catch ( Exception e )
 		{
 			Log.Warning( e, $"Couldn't read prefab '{ResourcePath}' back from disk: {e.Message}" );
 			return null;
 		}
+	}
+
+	/// <summary>
+	/// Keep the root object's name consistent with the file name, in case of renames or duplicated prefabs.
+	/// </summary>
+	void SyncRootObjectName( JsonObject root )
+	{
+		if ( root is not null && root[GameObject.JsonKeys.Name]?.GetValue<string>() != ResourceName )
+			root[GameObject.JsonKeys.Name] = ResourceName;
 	}
 
 	public override int ResourceVersion => 2;
@@ -146,11 +140,7 @@ public partial class PrefabFile : GameResource
 
 	protected override void PostLoad()
 	{
-		// Make sure our RootObjects name is consistent with the file name.
-		if ( RootObject is not null && RootObject[GameObject.JsonKeys.Name]?.GetValue<string>() != ResourceName )
-		{
-			RootObject[GameObject.JsonKeys.Name] = ResourceName;
-		}
+		SyncRootObjectName( _rootObject );
 
 		// If loaded while promise, refresh now that all resources are available.
 		// Also need to update dependants
@@ -162,19 +152,12 @@ public partial class PrefabFile : GameResource
 		}
 
 		Register();
-
-		if ( CachedScene is not null )
-			ReleaseRootObject();
+		ReleaseRootObject();
 	}
 
 	protected override void PostReload()
 	{
-		// Make sure our RootObjects name is consistent with the file name.
-		// In case of renames or duplicated prefabs.
-		if ( RootObject is not null && RootObject[GameObject.JsonKeys.Name]?.GetValue<string>() != ResourceName )
-		{
-			RootObject[GameObject.JsonKeys.Name] = ResourceName;
-		}
+		SyncRootObjectName( _rootObject );
 
 		// On hot-reload, refresh the cache and update dependencies
 		if ( CachedScene is PrefabCacheScene cachedScene )
@@ -183,9 +166,7 @@ public partial class PrefabFile : GameResource
 		}
 
 		Register();
-
-		if ( CachedScene is not null )
-			ReleaseRootObject();
+		ReleaseRootObject();
 	}
 
 	protected override void OnDestroy()
