@@ -106,7 +106,9 @@ public static partial class Input
 			MouseWheel = AccumMouseWheel;
 			AccumMouseWheel = default;
 
-			// previous actions are current
+			// previous actions are current. The set leaving KeysPrevious isn't referenced anywhere
+			// after this, so it becomes the next accumulation set instead of allocating one every flip.
+			var recycledKeys = KeysPrevious;
 			ActionsPrevious = SavedActions;
 			KeysPrevious = SavedKeys;
 
@@ -123,7 +125,13 @@ public static partial class Input
 			AccumActionsReleased = default;
 
 			// Remove released keys
-			AccumKeysPressed = AccumKeysPressed.Except( AccumKeysReleased ).ToHashSet();
+			if ( ReferenceEquals( recycledKeys, KeysPrevious ) || ReferenceEquals( recycledKeys, KeysCurrent ) )
+				recycledKeys = new();
+
+			recycledKeys.Clear();
+			recycledKeys.UnionWith( AccumKeysPressed );
+			recycledKeys.ExceptWith( AccumKeysReleased );
+			AccumKeysPressed = recycledKeys;
 			AccumKeysReleased.Clear();
 		}
 
