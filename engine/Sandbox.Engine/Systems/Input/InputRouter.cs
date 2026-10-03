@@ -74,23 +74,48 @@ internal static partial class InputRouter
 	public static float EscapeTime => EscapeIsDown ? TimeSinceEscapePressed.Relative : 0;
 
 	/// <summary>
-	/// Return the input contexts of each context, in order of priority
+	/// Return the input contexts of each context, in order of priority. A struct, because
+	/// <see cref="Frame"/> walks it three times every frame and input events walk it too.
 	/// </summary>
-	static IEnumerable<InputContext> Contexts
+	static RouterContexts Contexts => default;
+
+	readonly struct RouterContexts
 	{
-		get
+		public Enumerator GetEnumerator() => default;
+
+		public InputContext FirstOrDefault( Func<InputContext, bool> predicate )
 		{
-			if ( IMenuDll.Current is not null )
+			foreach ( var context in this )
 			{
-				var menu = IMenuDll.Current.InputContext;
-				if ( menu is not null ) yield return menu;
+				if ( predicate( context ) ) return context;
 			}
 
-			// if we even have a game menu!
-			if ( IGameInstance.Current is not null )
+			return null;
+		}
+
+		public struct Enumerator
+		{
+			int _next;
+
+			public InputContext Current { get; private set; }
+
+			public bool MoveNext()
 			{
-				var gamemenu = IGameInstanceDll.Current.InputContext;
-				if ( gamemenu is not null ) yield return gamemenu;
+				// Looked up as we go, like the iterator did: the menu first, then the game (if we even have a game menu!)
+				while ( _next < 2 )
+				{
+					var context = _next++ == 0
+						? IMenuDll.Current?.InputContext
+						: (IGameInstance.Current is not null ? IGameInstanceDll.Current.InputContext : null);
+
+					if ( context is null ) continue;
+
+					Current = context;
+					return true;
+				}
+
+				Current = null;
+				return false;
 			}
 		}
 	}
@@ -199,8 +224,7 @@ internal static partial class InputRouter
 	/// </summary>
 	internal static void SetCursorPosition( InputContext inputContext, Vector2 vector2 )
 	{
-		var activeMouse = Contexts.Where( x => x.MouseState != InputContext.InputState.Ignore )
-							.FirstOrDefault();
+		var activeMouse = Contexts.FirstOrDefault( x => x.MouseState != InputContext.InputState.Ignore );
 
 		if ( activeMouse != inputContext )
 			return;
