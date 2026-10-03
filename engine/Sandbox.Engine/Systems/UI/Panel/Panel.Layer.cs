@@ -8,7 +8,13 @@ public partial class Panel
 	string PanelLayerRTName => field ??= $"PanelLayer.{GetHashCode()}";
 
 	internal bool HasPanelLayer => _paintCache.Layer is not null;
-	internal Rect PanelLayerBounds => _paintCache.Layer.Bounds;
+
+	/// <summary>
+	/// The offscreen target's extent, re-measured now rather than read from the paint cache: it
+	/// depends on the whole subtree, and a descendant that resizes - a text-width badge is the
+	/// everyday case - never dirties this panel's own geometry.
+	/// </summary>
+	internal Rect PanelLayerBounds => _paintCache.Layer.Measure( this );
 
 	/// <summary>
 	/// Called by Render after closing a panel's offscreen target to composite it into the parent destination.
@@ -17,7 +23,9 @@ public partial class Panel
 	void DrawLayer( Painter painter )
 	{
 		var layer = _paintCache.Layer;
-		painter.Composite( new RenderTargetHandle { Name = PanelLayerRTName }, PanelLayerBounds, layer.Filter, layer.Mask,
+		// Bounds, not PanelLayerBounds: Render measured the subtree when it opened the target,
+		// and the composite has to land on exactly the rect that was rendered into.
+		painter.Composite( new RenderTargetHandle { Name = PanelLayerRTName }, layer.Bounds, layer.Filter, layer.Mask,
 			layer.MaskScope, CollectionsMarshal.AsSpan( layer.DropShadows ), layer.BorderWidth, layer.BorderColor );
 	}
 
@@ -33,6 +41,12 @@ public partial class Panel
 		Texture _maskImage;
 		Vector2 _maskSize;
 		int _maskVersion;
+
+		/// <summary>
+		/// Re-measure the subtree and remember it, for the composite that follows. Called once a
+		/// frame, from <see cref="Panel.PanelLayerBounds"/>.
+		/// </summary>
+		internal Rect Measure( Panel panel ) => Bounds = CalculateBounds( panel );
 
 		internal bool MaskSizeChanged()
 		{
@@ -85,11 +99,30 @@ public partial class Panel
 		}
 
 		/// <summary>
-		/// Fits the margin box and outset shadows inside an integer-sized offscreen target.
+		/// Fits the margin box, its outset shadows and anything the subtree paints outside that
+		/// box inside an integer-sized offscreen target.
 		/// </summary>
 		static Rect CalculateBounds( Panel panel )
 		{
+			var bounds = InkBounds( panel );
+
+			// Round outward to integer target pixels without clipping fractional shadows.
+			bounds.Left = MathF.Floor( bounds.Left );
+			bounds.Top = MathF.Floor( bounds.Top );
+			bounds.Right = MathF.Ceiling( bounds.Right );
+			bounds.Bottom = MathF.Ceiling( bounds.Bottom );
+			return bounds;
+		}
+
+		/// <summary>
+		/// What this panel and its unclipped descendants actually paint. Children routinely draw
+		/// outside their parent - a badge hung off a corner at a negative offset is the everyday
+		/// case - and the target has to hold them, or they land outside it and are cut away.
+		/// </summary>
+		static Rect InkBounds( Panel panel )
+		{
 			var bounds = panel.Box.RectOuter;
+
 			foreach ( var shadow in panel.ComputedStyle.BoxShadow )
 			{
 				if ( shadow.Inset || shadow.Color.a <= 0 ) continue;
@@ -99,11 +132,17 @@ public partial class Panel
 				bounds.Add( shape.Grow( MathF.Ceiling( shadow.Blur * 1.5f ) ) );
 			}
 
-			// Round outward to integer target pixels without clipping fractional shadows.
-			bounds.Left = MathF.Floor( bounds.Left );
-			bounds.Top = MathF.Floor( bounds.Top );
-			bounds.Right = MathF.Ceiling( bounds.Right );
-			bounds.Bottom = MathF.Ceiling( bounds.Bottom );
+			// A panel that clips its own children keeps whatever they overhang to itself.
+			if ( panel._paintCache.ClipsChildren || panel._children is null )
+				return bounds;
+
+			foreach ( var child in panel._children )
+			{
+				if ( child is null || !child.IsVisible || child.ComputedStyle is null ) continue;
+
+				bounds.Add( InkBounds( child ) );
+			}
+
 			return bounds;
 		}
 	}
