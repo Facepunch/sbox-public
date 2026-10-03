@@ -20,6 +20,7 @@ public partial class RenderAttributes
 {
 	private CRenderAttributes attributes;
 	private bool manuallyAllocated;
+	private bool finalizeSuppressed;
 
 	internal static RenderAttributePool Pool = new();
 
@@ -44,6 +45,11 @@ public partial class RenderAttributes
 	internal RenderAttributes( CRenderAttributes attr )
 	{
 		Set( attr );
+
+		// This wrapper doesn't own the native block and has no strong texture handles,
+		// so the finalizer would do nothing. Skip it, there are a lot of these.
+		GC.SuppressFinalize( this );
+		finalizeSuppressed = true;
 	}
 
 	~RenderAttributes()
