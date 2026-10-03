@@ -131,7 +131,7 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 		}
 	}
 
-	private FileSystemWatcher watcher;
+	private FolderWatcher watcher;
 
 	public AssetBrowser( Widget parent ) : this( parent, null )
 	{
@@ -216,7 +216,7 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 			Search.AssetTypes.Enabled = false;
 		}
 
-		watcher = new FileSystemWatcher();
+		watcher = new FolderWatcher();
 		watcher.Changed += OnExternalChanges;
 		watcher.Created += OnExternalChanges;
 		watcher.Deleted += OnExternalChanges;

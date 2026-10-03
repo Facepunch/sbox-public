@@ -9,8 +9,7 @@ partial class FolderNode
 	/// <summary>
 	/// Tells folder nodes when the contents of their folder change.
 	///
-	/// This exists so we don't spam FileSystemWatcher and shit our pants.
-	/// This is the only place we use FileSystemWatcher, we should really try to use Zio instead.
+	/// This exists so we don't spam watchers and shit our pants.
 	/// </summary>
 	static class DirectoryWatcher
 	{
@@ -20,7 +19,7 @@ partial class FolderNode
 		sealed class Root
 		{
 			public string Path;
-			public FileSystemWatcher Watcher;
+			public FolderWatcher Watcher;
 		}
 
 		/// <summary>
@@ -81,7 +80,7 @@ partial class FolderNode
 
 			try
 			{
-				var watcher = new FileSystemWatcher( path ) { IncludeSubdirectories = true };
+				var watcher = new FolderWatcher( path ) { IncludeSubdirectories = true };
 
 				watcher.Created += OnChanged;
 				watcher.Deleted += OnChanged;
