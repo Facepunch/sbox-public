@@ -198,6 +198,26 @@ public static class EditorScene
 			Stop();
 	}
 
+	[Shortcut( "editor.toggle-pause", "F7", ShortcutType.Window )]
+	public static void TogglePause()
+	{
+		EditorShortcuts.ReleaseAll();
+		if ( Game.IsPlaying )
+		{
+			if ( !Game.IsPaused )
+			{
+				Game.IsPaused = true;
+				EditorEvent.Run( "scene.pause" );
+			}
+			else
+			{
+				Game.IsPaused = false;
+				EditorEvent.Run( "scene.resume" );
+			}
+		}
+	}
+
+
 	static JsonObject _mixerStore;
 
 	/// <summary>
