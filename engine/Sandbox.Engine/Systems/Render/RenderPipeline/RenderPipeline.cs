@@ -8,6 +8,11 @@ namespace Sandbox.Rendering;
 /// </summary>
 internal partial class RenderPipeline
 {
+	/// <summary>
+	/// View attribute set when the view draws the depth normal prepass, so opaque passes know an earlier pass in the
+	/// same view already drew every prepass object.
+	/// </summary>
+	internal const string DepthNormalPrepassAttribute = "HasDepthNormalPrepass";
 
 	DepthNormalPrepassLayer[] DepthNormalPrepasses { get; } =
 	[
@@ -82,6 +87,7 @@ internal partial class RenderPipeline
 			// Pass that DepthNormals are enabled to the rest of the pipeline
 			view.GetRenderAttributesPtr().SetIntValue( "NormalsTextureIndex", gbufferColor.ColorTarget.Index );
 			view.GetRenderAttributesPtr().SetTextureValue( "NormalsGBuffer", gbufferColor.ColorTarget.native, -1 );
+			view.GetRenderAttributesPtr().SetBoolValue( DepthNormalPrepassAttribute, true );
 		}
 
 		// Compute Async: Depth downscale, clustered culling

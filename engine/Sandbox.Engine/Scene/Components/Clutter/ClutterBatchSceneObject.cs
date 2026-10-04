@@ -42,7 +42,9 @@ internal class ClutterBatchSceneObject : SceneCustomObject
 
 	private readonly int[] _drawCallCounts;
 
-	private readonly CommandList _commandList = new( "ClutterBatch" );
+	// Culling fills the visible buffers once per view; the draws replay in every pass that draws the batch.
+	private readonly CommandList _cullCommands = new( "ClutterCull" );
+	private readonly CommandList _drawCommands = new( "ClutterBatch" );
 
 	private GpuBuffer<GpuInstanceTransform>[] _visible;
 
@@ -321,55 +323,73 @@ internal class ClutterBatchSceneObject : SceneCustomObject
 	}
 
 	/// <summary>
-	/// Bakes the cull dispatch and indirect draws into <see cref="_commandList"/> for the current
-	/// instance set. Per-view inputs are pushed through Graphics.Attributes in RenderSceneObject.
+	/// Bakes the cull dispatch into <see cref="_cullCommands"/> and the indirect draws into <see cref="_drawCommands"/>
+	/// for the current instance set. Per-view cull inputs are pushed through Graphics.Attributes in RenderSceneObject.
 	/// </summary>
 	private void BuildCommandList()
 	{
-		_commandList.Reset();
+		_cullCommands.Reset();
+		_drawCommands.Reset();
 
 		if ( _instances == null || _count == 0 )
 			return;
 
-		_commandList.Attributes.Set( "AllInstances", _instances );
-		_commandList.Attributes.Set( "AllInstanceSpheres", _spheres );
-		_commandList.Attributes.Set( "InstanceCount", _count );
-		_commandList.Attributes.Set( "ClutterModelRadius", _modelRadius );
-		_commandList.Attributes.Set( "DisableScreenSpaceShadows", Flags.CastShadows ? 0 : 1 );
-		_commandList.Attributes.Set( "ClutterLodCount", _lodCount );
-		_commandList.Attributes.Set( "ClutterLodSwitchDistances", _lodDistances );
+		_cullCommands.Attributes.Set( "AllInstances", _instances );
+		_cullCommands.Attributes.Set( "AllInstanceSpheres", _spheres );
+		_cullCommands.Attributes.Set( "InstanceCount", _count );
+		_cullCommands.Attributes.Set( "ClutterModelRadius", _modelRadius );
+		_cullCommands.Attributes.Set( "ClutterLodCount", _lodCount );
+		_cullCommands.Attributes.Set( "ClutterLodSwitchDistances", _lodDistances );
 
 		for ( int slot = 0; slot < MaxLods; slot++ )
-			_commandList.Attributes.Set( $"VisibleLod{slot}", _visible[slot < _lodCount ? slot : 0] );
+			_cullCommands.Attributes.Set( $"VisibleLod{slot}", _visible[slot < _lodCount ? slot : 0] );
 
 		for ( int lod = 0; lod < _lodCount; lod++ )
 		{
-			_commandList.ResourceBarrierTransition( _visible[lod], ResourceState.UnorderedAccess );
-			_commandList.SetCounterValue( _visible[lod], 0 );
+			_cullCommands.ResourceBarrierTransition( _visible[lod], ResourceState.UnorderedAccess );
+			_cullCommands.SetCounterValue( _visible[lod], 0 );
 		}
 
-		_commandList.DispatchCompute( CullShader, _count, 1, 1 );
+		_cullCommands.DispatchCompute( CullShader, _count, 1, 1 );
 
 		// Appends must complete before reading each bucket's count.
 		for ( int lod = 0; lod < _lodCount; lod++ )
-			_commandList.UavBarrier( _visible[lod] );
+			_cullCommands.UavBarrier( _visible[lod] );
 
 		for ( int lod = 0; lod < _lodCount; lod++ )
 		{
-			_commandList.ResourceBarrierTransition( _args[lod], ResourceState.CopyDestination );
+			_cullCommands.ResourceBarrierTransition( _args[lod], ResourceState.CopyDestination );
 
 			// Every draw call at this LOD draws the same visible-instance set, just a different
 			// material's index range, so the same counter is replicated into each entry's InstanceCount.
 			for ( int d = 0; d < _drawCallCounts[lod]; d++ )
-				_commandList.CopyStructureCount( _visible[lod], _args[lod], d * ArgsStride + ArgsInstanceCountOffset );
+				_cullCommands.CopyStructureCount( _visible[lod], _args[lod], d * ArgsStride + ArgsInstanceCountOffset );
 		}
 
 		for ( int lod = 0; lod < _lodCount; lod++ )
 		{
-			_commandList.ResourceBarrierTransition( _visible[lod], ResourceState.GenericRead );
-			_commandList.ResourceBarrierTransition( _args[lod], ResourceState.IndirectArgument );
-			_commandList.DrawModelInstancedIndirect( _model, _visible[lod], _args[lod], 0, lod );
+			_cullCommands.ResourceBarrierTransition( _visible[lod], ResourceState.GenericRead );
+			_cullCommands.ResourceBarrierTransition( _args[lod], ResourceState.IndirectArgument );
 		}
+
+		_drawCommands.Attributes.Set( "DisableScreenSpaceShadows", Flags.CastShadows ? 0 : 1 );
+
+		for ( int lod = 0; lod < _lodCount; lod++ )
+			_drawCommands.DrawModelInstancedIndirect( _model, _visible[lod], _args[lod], 0, lod );
+	}
+
+	/// <summary>
+	/// Whether this pass must cull before drawing. The depth normal prepass culls for its view, and the view's opaque
+	/// passes run after it on the GPU, so they draw what it culled. Shadow views and views without the prepass cull themselves.
+	/// Native records a view's passes on job threads at once, so this is decided from the view, not from recording order.
+	/// </summary>
+	private static bool PassNeedsCull()
+	{
+		if ( Graphics.LayerType != SceneLayerType.Opaque )
+			return true;
+
+		var view = Graphics.SceneView;
+		return !view.IsValid || !view.GetRenderAttributesPtr().GetBoolValue( RenderPipeline.DepthNormalPrepassAttribute, false );
 	}
 
 	public override void RenderSceneObject()
@@ -377,15 +397,20 @@ internal class ClutterBatchSceneObject : SceneCustomObject
 		if ( _instances == null || _count == 0 )
 			return;
 
-		// Per-view inputs, read by the cull dispatch during replay.
-		Graphics.Attributes.Set( "ClutterFrustumScale", CullFrustumScale );
-		Graphics.Attributes.Set( "ClutterLodCameraPos", Lod.CameraPos );
-		Graphics.Attributes.Set( "ClutterLodTanHalfFov", Lod.TanHalfFov );
-		Graphics.Attributes.Set( "ClutterLodViewportWidth", Lod.ViewportWidth );
-		Graphics.Attributes.Set( "ClutterLodOrthoWidth", Lod.OrthoWidth );
-		Graphics.Attributes.Set( "ClutterWorldToProjection", Graphics.ViewFrustum.GetReverseZViewProjTranspose() );
+		if ( PassNeedsCull() )
+		{
+			// Per-view inputs, read by the cull dispatch during replay.
+			Graphics.Attributes.Set( "ClutterFrustumScale", CullFrustumScale );
+			Graphics.Attributes.Set( "ClutterLodCameraPos", Lod.CameraPos );
+			Graphics.Attributes.Set( "ClutterLodTanHalfFov", Lod.TanHalfFov );
+			Graphics.Attributes.Set( "ClutterLodViewportWidth", Lod.ViewportWidth );
+			Graphics.Attributes.Set( "ClutterLodOrthoWidth", Lod.OrthoWidth );
+			Graphics.Attributes.Set( "ClutterWorldToProjection", Graphics.ViewFrustum.GetReverseZViewProjTranspose() );
 
-		_commandList.ExecuteOnRenderThread();
+			_cullCommands.ExecuteOnRenderThread();
+		}
+
+		_drawCommands.ExecuteOnRenderThread();
 	}
 
 	private void DisposeBuffers()
