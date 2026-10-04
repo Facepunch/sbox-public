@@ -68,6 +68,14 @@ internal sealed class ClutterBatch
 		public BBox Bounds { get; private set; }
 		public int Count { get; }
 
+		/// <summary>
+		/// Bounds of the instance sphere centers, and the range of their radii. The renderer works out which LODs a
+		/// view can pick from these without touching the instances.
+		/// </summary>
+		public BBox CenterBounds { get; private set; }
+		public float RadiusMin { get; private set; }
+		public float RadiusMax { get; private set; }
+
 		private int _next;
 		private readonly BBox _modelBounds;
 		private readonly float _modelRadius;
@@ -88,8 +96,13 @@ internal sealed class ClutterBatch
 			var radius = _modelRadius * MathF.Max( scale.x, MathF.Max( scale.y, scale.z ) );
 			Transforms[_next] = GpuInstanceTransform.From( transform );
 			Spheres[_next] = new Vector4( center.x, center.y, center.z, radius );
+
 			var bounds = _modelBounds.Transform( transform );
-			Bounds = _next == 0 ? bounds : Bounds.AddBBox( bounds );
+			bool first = _next == 0;
+			Bounds = first ? bounds : Bounds.AddBBox( bounds );
+			CenterBounds = first ? new BBox( center, center ) : CenterBounds.AddPoint( center );
+			RadiusMin = first ? radius : MathF.Min( RadiusMin, radius );
+			RadiusMax = first ? radius : MathF.Max( RadiusMax, radius );
 			_next++;
 		}
 

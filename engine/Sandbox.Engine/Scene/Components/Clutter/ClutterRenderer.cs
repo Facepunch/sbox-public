@@ -434,6 +434,8 @@ internal sealed class ClutterRenderer : SceneCustomObject
 		if ( PassNeedsCull() )
 			Cull( shadow );
 
+		var view = new ViewBounds( shadow );
+
 		foreach ( var batch in _batches )
 		{
 			if ( batch.InstanceCount == 0 )
@@ -443,10 +445,129 @@ internal sealed class ClutterRenderer : SceneCustomObject
 			if ( shadow && !castShadows )
 				continue;
 
+			// Each LOD draw costs full material setup on the CPU even when the GPU culled it to zero instances,
+			// so skip the LODs no tile in this view can reach.
+			int lods = view.ReachableLods( batch );
+			if ( lods == 0 )
+				continue;
+
 			Graphics.Attributes.Set( "DisableScreenSpaceShadows", castShadows ? 0 : 1 );
 
 			for ( int lod = 0; lod < batch.LodCount; lod++ )
-				Graphics.DrawModelInstancedIndirect( batch.Model, _visible, _args, batch.ArgsBase[lod] * ArgsStride, lod );
+			{
+				if ( (lods & (1 << lod)) != 0 )
+					Graphics.DrawModelInstancedIndirect( batch.Model, _visible, _args, batch.ArgsBase[lod] * ArgsStride, lod );
+			}
+		}
+	}
+
+	/// <summary>
+	/// The current view as the cull shader sees it, reduced to what can be tested per tile on the CPU. Every test is at
+	/// least as loose as the shader's, so a skipped LOD is one the GPU culled to zero instances anyway.
+	/// </summary>
+	private readonly ref struct ViewBounds
+	{
+		// Distance and scale are widened by this much, so float differences against the GPU can't skip a live LOD.
+		private const float Slack = 0.01f;
+
+		private readonly Plane _left, _right, _top, _bottom;
+		private readonly bool _testPlanes;
+		private readonly float _maxDistance;
+		private readonly LodParams _lod;
+
+		public ViewBounds( bool shadow )
+		{
+			// Only the side planes: the shader skips near and far for orthographic views, and side planes alone are
+			// looser everywhere else. A frustum scale below 1 widens the shader's planes past the view's.
+			var frustum = Graphics.Frustum;
+			_left = frustum.LeftPlane;
+			_right = frustum.RightPlane;
+			_top = frustum.TopPlane;
+			_bottom = frustum.BottomPlane;
+			_testPlanes = CullFrustumScale >= 1.0f;
+
+			_maxDistance = shadow ? EffectiveShadowDistance : 0.0f;
+			_lod = Lod;
+		}
+
+		/// <summary>
+		/// Bit mask of the LODs any of the batch's instances in this view can pick.
+		/// </summary>
+		public int ReachableLods( ClutterBatch batch )
+		{
+			int mask = 0;
+			int all = (1 << batch.LodCount) - 1;
+
+			foreach ( var tile in batch.Tiles.Keys )
+			{
+				float nearest = DistanceTo( tile.CenterBounds, _lod.CameraPos );
+				if ( _maxDistance > 0.0f && nearest - tile.RadiusMax > _maxDistance * (1.0f + Slack) )
+					continue;
+
+				float farthest = FarthestDistance( tile.CenterBounds, _lod.CameraPos );
+
+				// Every sphere in the tile lies inside its center bounds grown by the largest radius. The extra margin
+				// grows with distance, covering sub-pixel jitter the shader's projection may carry and this test doesn't.
+				var spheres = tile.CenterBounds.Grow( tile.RadiusMax * (1.0f + Slack) + farthest * Slack );
+				if ( _testPlanes && !(_left.IsInFront( spheres, true ) && _right.IsInFront( spheres, true ) && _top.IsInFront( spheres, true ) && _bottom.IsInFront( spheres, true )) )
+					continue;
+
+				float scaleMin = Scale( batch, tile.RadiusMin );
+				float scaleMax = Scale( batch, tile.RadiusMax );
+
+				// Farther and smaller instances pick coarser LODs, so the nearest, largest and the farthest, smallest
+				// instance possible bound every LOD in the tile.
+				int finest = ComputeLod( batch, nearest * (1.0f - Slack), scaleMax * (1.0f + Slack) );
+				int coarsest = ComputeLod( batch, farthest * (1.0f + Slack), scaleMin * (1.0f - Slack) );
+
+				mask |= ((1 << (coarsest + 1)) - 1) & ~((1 << finest) - 1);
+				if ( mask == all )
+					break;
+			}
+
+			return mask;
+		}
+
+		private static float Scale( ClutterBatch batch, float radius ) => batch.ModelRadius > 1e-6f ? radius / batch.ModelRadius : 1.0f;
+
+		/// <summary>
+		/// Matches ComputeLod in clutter_cull_cs.shader.
+		/// </summary>
+		private int ComputeLod( ClutterBatch batch, float distance, float scale )
+		{
+			float tanHalf = MathF.Max( _lod.TanHalfFov, 1e-5f );
+			float screen = _lod.OrthoWidth > 0.0f
+				? Math.Clamp( 1.0f / _lod.OrthoWidth, 0.0f, 1.0f )
+				: Math.Clamp( 0.5f / MathF.Max( distance * tanHalf, 1e-5f ), 0.0f, 1.0f );
+			float pixels = screen * _lod.ViewportWidth;
+			float metric = pixels > 0.0f ? 50.0f / pixels : 0.0f;
+
+			int lod = Math.Max( batch.LodCount - 1, 0 );
+			while ( lod > 0 )
+			{
+				float d = batch.LodSwitchDistances[lod] * scale;
+				if ( d > 0.0f && d < metric )
+					break;
+
+				lod--;
+			}
+
+			return lod;
+		}
+
+		private static float DistanceTo( in BBox box, Vector3 point )
+		{
+			var closest = Vector3.Max( box.Mins, Vector3.Min( point, box.Maxs ) );
+			return point.Distance( closest );
+		}
+
+		private static float FarthestDistance( in BBox box, Vector3 point )
+		{
+			var far = new Vector3(
+				MathF.Abs( point.x - box.Mins.x ) > MathF.Abs( point.x - box.Maxs.x ) ? box.Mins.x : box.Maxs.x,
+				MathF.Abs( point.y - box.Mins.y ) > MathF.Abs( point.y - box.Maxs.y ) ? box.Mins.y : box.Maxs.y,
+				MathF.Abs( point.z - box.Mins.z ) > MathF.Abs( point.z - box.Maxs.z ) ? box.Mins.z : box.Maxs.z );
+			return point.Distance( far );
 		}
 	}
 
