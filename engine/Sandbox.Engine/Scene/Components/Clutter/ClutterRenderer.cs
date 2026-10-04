@@ -44,6 +44,10 @@ internal sealed class ClutterRenderer : SceneCustomObject
 
 	private static readonly int ArgsStride = Marshal.SizeOf<GpuBuffer.IndirectDrawIndexedArguments>();
 
+	// Rows in the GPU profiler overlay and markers in graphics debuggers.
+	private static readonly ProfilingSampler CullSampler = new( "ClutterCull" );
+	private static readonly ProfilingSampler DrawSampler = new( "ClutterBatch" );
+
 	/// <summary>
 	/// Matches ClutterBatch_t in clutter_cull_cs.shader.
 	/// </summary>
@@ -432,8 +436,17 @@ internal sealed class ClutterRenderer : SceneCustomObject
 		bool shadow = Graphics.LayerType == SceneLayerType.Shadow;
 
 		if ( PassNeedsCull() )
-			Cull( shadow );
+		{
+			using ( CommandList.ProfileImmediate( CullSampler ) )
+				Cull( shadow );
+		}
 
+		using ( CommandList.ProfileImmediate( DrawSampler ) )
+			Draw( shadow );
+	}
+
+	private void Draw( bool shadow )
+	{
 		var view = new ViewBounds( shadow );
 
 		foreach ( var batch in _batches )
