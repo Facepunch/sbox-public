@@ -18,6 +18,16 @@ internal class ClutterBatchSceneObject : SceneCustomObject
 	[ConVar( "r_clutter_shadows", ConVarFlags.Saved, Help = "Enable or disable shadows cast by clutter." )]
 	internal static bool ShadowsEnabled { get; set; } = true;
 
+	[ConVar( "r_clutter_shadow_distance", ConVarFlags.Saved, Min = 0, Help = "Clutter farther than this from the camera casts no shadows. 0 = r.shadows.csm.distance." )]
+	internal static float ShadowDistance { get; set; } = 0.0f;
+
+	/// <summary>
+	/// Shadows end at the cascade distance anyway, so the clutter limit never goes past it.
+	/// </summary>
+	private static float EffectiveShadowDistance => ShadowDistance > 0.0f
+		? MathF.Min( ShadowDistance, ShadowMapper.CascadeDistance )
+		: ShadowMapper.CascadeDistance;
+
 	private const int MaxLods = 4; // dont think we need more than that
 	private const uint EmptySphereBits = 0xBF800000; // -1.0f radius marks an unused slot.
 
@@ -406,6 +416,7 @@ internal class ClutterBatchSceneObject : SceneCustomObject
 			Graphics.Attributes.Set( "ClutterLodViewportWidth", Lod.ViewportWidth );
 			Graphics.Attributes.Set( "ClutterLodOrthoWidth", Lod.OrthoWidth );
 			Graphics.Attributes.Set( "ClutterWorldToProjection", Graphics.ViewFrustum.GetReverseZViewProjTranspose() );
+			Graphics.Attributes.Set( "ClutterMaxDistance", Graphics.LayerType == SceneLayerType.Shadow ? EffectiveShadowDistance : 0.0f );
 
 			_cullCommands.ExecuteOnRenderThread();
 		}

@@ -44,6 +44,9 @@ CS
 	// Debug: >1 narrows the cull frustum so culling is visible on-screen.
 	float ClutterFrustumScale < Attribute( "ClutterFrustumScale" ); >;
 
+	// Instances whose bounds are entirely farther than this from the LOD camera are dropped. 0 disables the limit.
+	float ClutterMaxDistance < Attribute( "ClutterMaxDistance" ); >;
+
 	// Plain float4x4: attribute matrices are stored raw and read column-major, so the CPU uploads
 	// the transpose and we consume it as mul( M, pos ). A row_major qualifier here breaks the planes.
 	float4x4 ClutterWorldToProjection < Attribute( "ClutterWorldToProjection" ); >;
@@ -133,6 +136,9 @@ CS
 			return;
 
 		if ( !SphereInFrustum( sphere.xyz, sphere.w ) )
+			return;
+
+		if ( ClutterMaxDistance > 0.0 && length( sphere.xyz - ClutterLodCameraPos ) - sphere.w > ClutterMaxDistance )
 			return;
 
 		// Only the full transform is fetched once an instance survives.
