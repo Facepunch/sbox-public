@@ -23,13 +23,18 @@ class ClutterLayer
 	/// </summary>
 	private readonly record struct ClutterBatchKey( Model Model, bool CastShadows );
 
-	private readonly Dictionary<ClutterBatchKey, ClutterBatchSceneObject> _batches = [];
+	private readonly Dictionary<ClutterBatchKey, ClutterBatch> _batches = [];
 
-	private readonly Dictionary<Vector2Int, Dictionary<ClutterBatchKey, ClutterBatchSceneObject.PreparedInstances>> _preparedTiles = [];
-	private readonly Dictionary<ClutterBatchKey, List<ClutterBatchSceneObject.PreparedInstances>> _instancesByModel = [];
+	/// <summary>
+	/// The scene's renderer, which owns and draws this layer's batches.
+	/// </summary>
+	private ClutterRenderer _renderer;
+
+	private readonly Dictionary<Vector2Int, Dictionary<ClutterBatchKey, ClutterBatch.PreparedInstances>> _preparedTiles = [];
+	private readonly Dictionary<ClutterBatchKey, List<ClutterBatch.PreparedInstances>> _instancesByModel = [];
 	private readonly HashSet<Vector2Int> _renderDirtyTiles = [];
 	private readonly HashSet<ClutterBatchKey> _changedModels = [];
-	private readonly List<ClutterBatchSceneObject.PreparedInstances> _retiredPrepared = [];
+	private readonly List<ClutterBatch.PreparedInstances> _retiredPrepared = [];
 
 	private readonly HashSet<Vector2Int> _activeCoords = [];
 	private readonly List<Vector2Int> _coordsToRemove = [];
@@ -284,8 +289,8 @@ class ClutterLayer
 			return;
 		}
 
-		var scene = ParentObject?.Scene ?? GridSystem?.Scene;
-		if ( scene?.SceneWorld == null )
+		_renderer ??= GridSystem?.Renderer;
+		if ( _renderer == null )
 		{
 			_dirty = false;
 			return;
@@ -320,9 +325,9 @@ class ClutterLayer
 				countsByModel[key] = count + 1;
 			}
 
-			var prepared = new Dictionary<ClutterBatchKey, ClutterBatchSceneObject.PreparedInstances>( countsByModel.Count );
+			var prepared = new Dictionary<ClutterBatchKey, ClutterBatch.PreparedInstances>( countsByModel.Count );
 			foreach ( var (key, count) in countsByModel )
-				prepared[key] = new ClutterBatchSceneObject.PreparedInstances( key.Model, count );
+				prepared[key] = new ClutterBatch.PreparedInstances( key.Model, count );
 
 			foreach ( var instance in instances )
 			{
@@ -355,7 +360,7 @@ class ClutterLayer
 			if ( tiles.Count == 0 )
 			{
 				if ( _batches.Remove( key, out var emptyBatch ) )
-					emptyBatch.Delete();
+					_renderer.RemoveBatch( emptyBatch );
 
 				_instancesByModel.Remove( key );
 				continue;
@@ -363,11 +368,11 @@ class ClutterLayer
 
 			if ( !_batches.TryGetValue( key, out var batch ) )
 			{
-				batch = new ClutterBatchSceneObject( scene.SceneWorld, key.Model, key.CastShadows );
+				batch = _renderer.CreateBatch( key.Model, key.CastShadows );
 				_batches[key] = batch;
 			}
 
-			batch.SetInstances( tiles );
+			_renderer.SetInstances( batch, tiles );
 		}
 
 		// Batches must release the old tile references before their buffers can be reused.
@@ -377,15 +382,6 @@ class ClutterLayer
 		_retiredPrepared.Clear();
 
 		_dirty = false;
-	}
-
-	/// <summary>
-	/// Re-applies the clutter shadow convar to every batch in this layer.
-	/// </summary>
-	public void UpdateShadows()
-	{
-		foreach ( var batch in _batches.Values )
-			batch.UpdateShadows();
 	}
 
 	public void ClearAllTiles()
@@ -419,7 +415,7 @@ class ClutterLayer
 			RemoveBodies( coord );
 
 		foreach ( var batch in _batches.Values )
-			batch.Delete();
+			_renderer?.RemoveBatch( batch );
 
 		_batches.Clear();
 		_instancesByModel.Clear();

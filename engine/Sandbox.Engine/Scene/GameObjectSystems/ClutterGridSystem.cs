@@ -18,7 +18,7 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 	private readonly HashSet<ClutterTile> _pendingTiles = [];
 	private readonly HashSet<Terrain> _subscribedTerrains = [];
 	private Vector3 _lastCameraPosition;
-	private bool _shadowsEnabled = ClutterBatchSceneObject.ShadowsEnabled;
+	private bool _shadowsEnabled = ClutterRenderer.ShadowsEnabled;
 
 	// Reused by the update path so an idle scene doesn't allocate.
 	private readonly List<ClutterComponent> _activeInfinite = [];
@@ -47,6 +47,22 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 	/// </summary>
 	private ClutterLayer _painted;
 
+	private ClutterRenderer _renderer;
+
+	/// <summary>
+	/// Draws every layer's batches. Created with the first batch, so headless and empty scenes never make one.
+	/// </summary>
+	internal ClutterRenderer Renderer
+	{
+		get
+		{
+			if ( _renderer is null && Graphics.IsAvailable && Scene?.SceneWorld is { } world )
+				_renderer = new ClutterRenderer( world );
+
+			return _renderer;
+		}
+	}
+
 	private bool _dirty = false;
 
 	public ClutterGridSystem( Scene scene ) : base( scene )
@@ -70,6 +86,9 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 			layer.ClearAllTiles();
 
 		_componentToLayer.Clear();
+
+		_renderer?.Delete();
+		_renderer = null;
 	}
 
 	/// <summary>
@@ -95,13 +114,10 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 			_dirty = false;
 		}
 
-		if ( _shadowsEnabled != ClutterBatchSceneObject.ShadowsEnabled )
+		if ( _shadowsEnabled != ClutterRenderer.ShadowsEnabled )
 		{
-			_shadowsEnabled = ClutterBatchSceneObject.ShadowsEnabled;
-			_painted?.UpdateShadows();
-
-			foreach ( var layer in _componentToLayer.Values )
-				layer.UpdateShadows();
+			_shadowsEnabled = ClutterRenderer.ShadowsEnabled;
+			_renderer?.UpdateShadows();
 		}
 
 		_painted?.RebuildIfDirty();
@@ -126,7 +142,7 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 	{
 		var sceneCamera = camera.SceneCamera;
 
-		ClutterBatchSceneObject.Lod = new ClutterBatchSceneObject.LodParams
+		ClutterRenderer.Lod = new ClutterRenderer.LodParams
 		{
 			CameraPos = camera.WorldPosition,
 			TanHalfFov = MathF.Tan( camera.FieldOfView.DegreeToRadian() * 0.5f ),
