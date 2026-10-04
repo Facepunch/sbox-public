@@ -18,6 +18,7 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 	private readonly HashSet<ClutterTile> _pendingTiles = [];
 	private readonly HashSet<Terrain> _subscribedTerrains = [];
 	private Vector3 _lastCameraPosition;
+	private bool _shadowsEnabled = ClutterBatchSceneObject.ShadowsEnabled;
 
 	// Reused by the update path so an idle scene doesn't allocate.
 	private readonly List<ClutterComponent> _activeInfinite = [];
@@ -92,6 +93,15 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 		{
 			RebuildPaintedLayer();
 			_dirty = false;
+		}
+
+		if ( _shadowsEnabled != ClutterBatchSceneObject.ShadowsEnabled )
+		{
+			_shadowsEnabled = ClutterBatchSceneObject.ShadowsEnabled;
+			_painted?.UpdateShadows();
+
+			foreach ( var layer in _componentToLayer.Values )
+				layer.UpdateShadows();
 		}
 
 		_painted?.RebuildIfDirty();

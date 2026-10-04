@@ -379,6 +379,15 @@ class ClutterLayer
 		_dirty = false;
 	}
 
+	/// <summary>
+	/// Re-applies the clutter shadow convar to every batch in this layer.
+	/// </summary>
+	public void UpdateShadows()
+	{
+		foreach ( var batch in _batches.Values )
+			batch.UpdateShadows();
+	}
+
 	public void ClearAllTiles()
 	{
 		foreach ( var tile in Tiles.Values )

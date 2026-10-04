@@ -15,6 +15,9 @@ internal class ClutterBatchSceneObject : SceneCustomObject
 	[ConVar( "clutter_cull_frustum_scale", ConVarFlags.Cheat )]
 	internal static float CullFrustumScale { get; set; } = 1.0f;
 
+	[ConVar( "r_clutter_shadows", ConVarFlags.Saved, Help = "Enable or disable shadows cast by clutter." )]
+	internal static bool ShadowsEnabled { get; set; } = true;
+
 	private const int MaxLods = 4; // dont think we need more than that
 	private const uint EmptySphereBits = 0xBF800000; // -1.0f radius marks an unused slot.
 
@@ -34,6 +37,7 @@ internal class ClutterBatchSceneObject : SceneCustomObject
 	private readonly Model _model;
 	private readonly int _lodCount;
 	private readonly float _modelRadius;
+	private readonly bool _wantsShadows;
 	private readonly GpuBuffer<float> _lodDistances;
 
 	private readonly int[] _drawCallCounts;
@@ -130,8 +134,22 @@ internal class ClutterBatchSceneObject : SceneCustomObject
 
 		Flags.IsOpaque = true;
 		Flags.IsTranslucent = false;
-		Flags.CastShadows = castShadows;
+		_wantsShadows = castShadows;
+		Flags.CastShadows = castShadows && ShadowsEnabled;
 		Flags.WantsPrePass = true;
+	}
+
+	/// <summary>
+	/// Re-applies <see cref="ShadowsEnabled"/> to this batch. Rebuilds the command list if the shadow state changed.
+	/// </summary>
+	public void UpdateShadows()
+	{
+		var castShadows = _wantsShadows && ShadowsEnabled;
+		if ( Flags.CastShadows == castShadows )
+			return;
+
+		Flags.CastShadows = castShadows;
+		BuildCommandList();
 	}
 
 	/// <summary>
