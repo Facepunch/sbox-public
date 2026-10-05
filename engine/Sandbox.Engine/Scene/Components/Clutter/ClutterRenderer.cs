@@ -9,7 +9,8 @@ namespace Sandbox.Clutter;
 /// </summary>
 internal sealed class ClutterRenderer : SceneCustomObject
 {
-	private static ComputeShader CullShader = new( "shaders/clutter_cull_cs.shader" );
+	// Created by the first renderer: a static initializer would run in headless scenes too.
+	private static ComputeShader CullShader;
 
 	[ConVar( "clutter_cull_frustum_scale", ConVarFlags.Cheat )]
 	internal static float CullFrustumScale { get; set; } = 1.0f;
@@ -99,6 +100,8 @@ internal sealed class ClutterRenderer : SceneCustomObject
 
 	public ClutterRenderer( SceneWorld world ) : base( world )
 	{
+		CullShader ??= new( "shaders/clutter_cull_cs.shader" );
+
 		Flags.IsOpaque = true;
 		Flags.IsTranslucent = false;
 		Flags.CastShadows = false;
