@@ -523,7 +523,7 @@ public partial class Panel : IPanel, IValid, IComponent
 	[Hide]
 	public bool IsValid => LayoutTree is not null;
 
-	string CollectSelectedChildrenText( Panel p )
+	internal string CollectSelectedChildrenText( Panel p )
 	{
 		if ( !p.IsVisible )
 			return null;
@@ -572,6 +572,7 @@ public partial class Panel : IPanel, IValid, IComponent
 	/// </summary>
 	public void SelectAllInChildren()
 	{
+		if ( this is BaseVirtualPanel list ) list.ClearSelectionState();
 		if ( LayoutTree?.SetInlineSelection( 0, int.MaxValue ) == true ) return;
 		if ( this is Sandbox.UI.Label label )
 		{
@@ -592,6 +593,7 @@ public partial class Panel : IPanel, IValid, IComponent
 	/// </summary>
 	public void UnselectAllInChildren()
 	{
+		if ( this is BaseVirtualPanel list ) list.ClearSelectionState();
 		if ( LayoutTree?.SetInlineSelection( 0, 0 ) == true ) return;
 		if ( this is Sandbox.UI.Label label )
 		{
