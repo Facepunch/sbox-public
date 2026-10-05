@@ -486,10 +486,15 @@ internal sealed class ClutterRenderer : SceneCustomObject
 
 	/// <summary>
 	/// Works out which LODs each tile's instances can pick from the LOD camera. LOD depends only on that camera, not on
-	/// the view, so this runs once per frame after the camera moves, and each view only tests its planes per tile.
+	/// the view, so this runs once per frame, and each view only tests its planes per tile.
 	/// </summary>
 	public void UpdateLods()
 	{
+		// Tiles that changed since already got their masks for this camera in RebuildCulls. It has to be exactly the
+		// same camera: Draw only trusts the masks when Lod still equals the one they were computed for.
+		if ( Lod == _tileLod )
+			return;
+
 		_tileLod = Lod;
 		var lod = _tileLod;
 		foreach ( var batch in _batches )
