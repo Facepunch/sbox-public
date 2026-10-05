@@ -101,6 +101,40 @@ public class VirtualPanelTest
 	}
 
 	/// <summary>
+	/// Scrolling a VirtualList creates rows containing nested Razor panels: their children are
+	/// built and their styles computed in the same frame they enter view, without another tick.
+	/// </summary>
+	[TestMethod]
+	public void NewlyVisibleRowsBuildTheirContentInTheSameFrame()
+	{
+		var root = CreateRoot();
+		var list = new VirtualList { Parent = root, ItemHeight = 20 };
+		list.Style.Set( "width: 200px; height: 100px;" );
+		var rows = new Dictionary<int, TestComponents.NestedPanel>();
+		list.OnCreateCell = ( cell, data ) =>
+		{
+			rows[(int)data] = new TestComponents.NestedPanel { Parent = cell };
+		};
+		list.Items = MakeItems( 1000 );
+		root.Layout();
+		root.Layout();
+
+		for ( var frame = 1; frame <= 5; frame++ )
+		{
+			var first = frame * 10;
+			list.ScrollOffset = new Vector2( 0, first * list.ItemHeight );
+			root.Layout();
+
+			for ( var index = first; index < first + 5; index++ )
+			{
+				Assert.IsTrue( rows[index].ChildrenCount > 0, $"Row {index} must render on the frame it enters view." );
+				Assert.IsNotNull( rows[index].ComputedStyle );
+			}
+		}
+		root.Delete( true );
+	}
+
+	/// <summary>
 	/// ItemHeight is clamped to a minimum of 1 and otherwise round-trips through the layout.
 	/// </summary>
 	[TestMethod]
