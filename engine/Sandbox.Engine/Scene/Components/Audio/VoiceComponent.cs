@@ -38,9 +38,15 @@ public class Voice : Component
 	[Description( "Play the sound of your own voice" )]
 	[Property] public bool Loopback { get; set; } = false;
 
+	/// <summary>
+	/// Analyze the voice for viseme weights while it plays. See <see cref="Visemes"/>.
+	/// </summary>
 	[Property, ToggleGroup( "LipSync", Label = "Lip Sync" )]
 	public bool LipSync { get; set; } = true;
 
+	/// <summary>
+	/// Optional renderer whose viseme morphs are driven by the voice.
+	/// </summary>
 	[Property, Group( "LipSync" )]
 	public SkinnedModelRenderer Renderer { get; set; }
 
@@ -124,7 +130,7 @@ public class Voice : Component
 	}
 
 	/// <summary>
-	/// A list of 15 lipsync viseme weights. Requires <see cref="LipSync"/> to be enabled.
+	/// A list of 15 lipsync viseme weights. Requires <see cref="LipSync"/> to be enabled, doesn't need a <see cref="Renderer"/>.
 	/// </summary>
 	public IReadOnlyList<float> Visemes => sound.IsValid() ? sound.LipSync.Visemes : Array.Empty<float>();
 
@@ -202,6 +208,9 @@ public class Voice : Component
 
 		sound.Volume = Volume;
 		sound.Loopback = !IsProxy && !Loopback;
+
+		// Applied every frame so toggling LipSync affects the live voice
+		sound.LipSync.Enabled = LipSync;
 
 		if ( WorldspacePlayback )
 		{
@@ -347,7 +356,7 @@ public class Voice : Component
 			sound.TargetMixer = TargetMixer;
 			sound.Distance = Distance;
 			sound.Falloff = Falloff;
-			sound.LipSync.Enabled = LipSync && Renderer.IsValid();
+			sound.LipSync.Enabled = LipSync;
 			sound.IsVoice = true;
 		}
 
