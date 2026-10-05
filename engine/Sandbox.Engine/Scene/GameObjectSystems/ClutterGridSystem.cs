@@ -127,6 +127,9 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 			if ( component.IsValid() && !component.Infinite )
 				layer.RebuildIfDirty();
 		}
+
+		// After this frame's rebuilds and LOD camera, so every tile's LOD range matches what the cull will compute.
+		_renderer?.UpdateLods();
 	}
 
 	private void RestorePaintedLayer()

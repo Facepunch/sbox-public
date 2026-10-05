@@ -37,6 +37,23 @@ internal sealed class ClutterBatch
 	/// </summary>
 	internal Dictionary<PreparedInstances, ClutterRenderer.Slot> Tiles { get; } = [];
 
+	/// <summary>
+	/// <see cref="Tiles"/> as a flat array of what each view tests, so the per-pass loop doesn't walk the dictionary.
+	/// </summary>
+	internal TileCull[] Culls { get; set; } = [];
+
+	internal struct TileCull
+	{
+		public BBox CenterBounds;
+		public float RadiusMin;
+		public float RadiusMax;
+
+		// Refreshed for the LOD camera once per frame by ClutterRenderer.UpdateLods.
+		public BBox Spheres;
+		public float Nearest;
+		public int LodMask;
+	}
+
 	internal int InstanceCount { get; set; }
 	internal BBox Bounds { get; set; }
 
