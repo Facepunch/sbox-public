@@ -58,11 +58,6 @@ void AdjustAlphaToCoverage( inout Material m )
 {
     #if ( S_ALPHA_TEST )
     {
-        float eps = 1.0f/255.0f;
-        
-        // Clip first to try to kill the wave if we're in an area of all zero
-        clip(m.Opacity - eps);
-
         // Shaders with custom material inputs have no known alpha texture, so no mip compensation.
         #ifdef MATERIAL_ALPHA_TEXTURE
             float2 vAlphaTextureSize = float2( TextureDimensions2DS( MATERIAL_ALPHA_TEXTURE, 0 ) );
@@ -70,9 +65,13 @@ void AdjustAlphaToCoverage( inout Material m )
             float2 vAlphaTextureSize = float2( 1.0f, 1.0f );
         #endif
 
+        // Clip only once the coverage is computed. It takes ddx/fwidth, which read the neighbouring
+        // lanes of the quad, and a lane killed before that leaves them undefined. RDNA2 reads garbage
+        // there, speckling coverage along every alpha-tested edge.
+        float flRawOpacity = m.Opacity;
         m.Opacity = AdjustOpacityForAlphaToCoverage( m.Opacity, g_flAlphaTestReference, g_flAntiAliasedEdgeStrength, m.TextureCoords.xy, vAlphaTextureSize );
 
-        clip(m.Opacity - 0.000001); // Second clipping pass after alpha to coverage adjustment
+        clip( min( flRawOpacity - 1.0f / 255.0f, m.Opacity - 0.000001 ) );
     }
     #endif
 }
