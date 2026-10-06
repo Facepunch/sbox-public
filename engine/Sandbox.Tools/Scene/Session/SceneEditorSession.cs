@@ -358,7 +358,21 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		var asset = AssetSystem.CreateResource( extension, saveLocation );
 		Assert.NotNull( asset, $"Failed to CreateResource for {fileType} at {saveLocation}" );
 
-		GameResource resource = Scene is PrefabScene prefabScene ? prefabScene.ToPrefabFile() : Scene.CreateSceneFile();
+		GameResource resource;
+		if ( Scene is PrefabScene prefabScene )
+		{
+			resource = prefabScene.ToPrefabFile();
+		}
+		else if ( Scene.Source is SceneFile existing && existing.ResourcePath == Resource.FixPath( asset.Path ) )
+		{
+			Scene.ToSceneFile( existing );
+			resource = existing;
+		}
+		else
+		{
+			resource = Scene.CreateSceneFile();
+		}
+
 		if ( resource is SceneFile sceneFile )
 			sceneFile.InitializeSource( asset.Path, asset.Guid );
 
