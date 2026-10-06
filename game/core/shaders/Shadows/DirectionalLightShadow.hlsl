@@ -39,7 +39,20 @@ static const float3 DebugColors[4] = {
     float3( 1.0f, 1.0f, 0.0f )
 };
 
-int FindCascade( float3 worldPosition, out float3 posLs )
+// Camera-relative position to shadow space. The large translation and camera offset are folded first to keep precision.
+float3 CascadeShadowPosition( int cascadeIndex, float3 positionWithOffsetWs )
+{
+	float4x4 worldToShadow = g_DirectionalLightWorldToShadowViewMatrices[cascadeIndex];
+	float3 origin = g_vHighPrecisionLightingOffsetWs.xyz;
+	float3 translation = float3(
+		worldToShadow[0].w + dot( worldToShadow[0].xyz, origin ),
+		worldToShadow[1].w + dot( worldToShadow[1].xyz, origin ),
+		worldToShadow[2].w + dot( worldToShadow[2].xyz, origin ) );
+
+	return mul( (float3x3)worldToShadow, positionWithOffsetWs ) + translation;
+}
+
+int FindCascadeWithOffset( float3 positionWithOffsetWs, out float3 posLs )
 {
 	posLs = 0;
 	[unroll]
@@ -48,29 +61,34 @@ int FindCascade( float3 worldPosition, out float3 posLs )
 		if ( i >= g_DirectionalLightCascadeCount )
 			break;
 
-		float3 toCenter = worldPosition - g_DirectionalLightCascadeSpheres[i].xyz;
+		float3 toCenter = positionWithOffsetWs - ( g_DirectionalLightCascadeSpheres[i].xyz - g_vHighPrecisionLightingOffsetWs.xyz );
 		if ( dot( toCenter, toCenter ) < g_DirectionalLightCascadeSpheres[i].w )
 		{
-			posLs = mul( g_DirectionalLightWorldToShadowViewMatrices[i], float4( worldPosition, 1 ) ).xyz;
+			posLs = CascadeShadowPosition( i, positionWithOffsetWs );
 			return i;
 		}
 	}
 	return -1;
 }
 
+// Absolute-position version, kept for existing callers.
+int FindCascade( float3 worldPosition, out float3 posLs )
+{
+	return FindCascadeWithOffset( worldPosition - g_vHighPrecisionLightingOffsetWs.xyz, posLs );
+}
+
 struct DirectionalLightShadow
 {
-	static float SampleCascade( int cascadeIndex, float3 worldPosition, float3 normalWs, float2 screenPos )
+	// Camera-relative position (vPositionWithOffsetWs).
+	static float SampleCascadeWithOffset( int cascadeIndex, float3 positionWithOffsetWs, float3 normalWs, float2 screenPos )
     {
 		float4x4 worldToShadow = g_DirectionalLightWorldToShadowViewMatrices[cascadeIndex];
 
-		worldPosition = ApplyShadowNormalOffset( worldPosition, normalWs, g_DirectionalLightInverseShadowMapSize / length( worldToShadow[0].xyz ), g_DirectionalLightCascadeHardness[cascadeIndex] );
-		
-		float3 positionLs = mul( worldToShadow, float4( worldPosition, 1.0f ) ).xyz;
+		positionWithOffsetWs = ApplyShadowNormalOffset( positionWithOffsetWs, normalWs, g_DirectionalLightInverseShadowMapSize / length( worldToShadow[0].xyz ), g_DirectionalLightCascadeHardness[cascadeIndex] );
 
         ShadowPCFInput pcfInput;
         pcfInput.ShadowMap = Bindless::GetTexture2D( g_DirectionalLightShadowMapTextureIndex[cascadeIndex] );
-        pcfInput.ShadowPos = positionLs;
+        pcfInput.ShadowPos = CascadeShadowPosition( cascadeIndex, positionWithOffsetWs );
         pcfInput.InvShadowMapRes = g_DirectionalLightInverseShadowMapSize;
         pcfInput.Bias = g_DirectionalLightShadowBias[cascadeIndex];
 		pcfInput.Hardness = g_DirectionalLightCascadeHardness[cascadeIndex];
@@ -81,6 +99,12 @@ struct DirectionalLightShadow
             return SampleDirectionalShadowTent16( pcfInput );
 #endif
         return SampleShadowPCF( pcfInput );
+    }
+
+	// Absolute-position versions, kept for existing callers.
+	static float SampleCascade( int cascadeIndex, float3 worldPosition, float3 normalWs, float2 screenPos )
+    {
+		return SampleCascadeWithOffset( cascadeIndex, worldPosition - g_vHighPrecisionLightingOffsetWs.xyz, normalWs, screenPos );
     }
 
     // For callers that have no receiver normal at hand. The normal comes from screen-space derivatives,
@@ -117,12 +141,12 @@ struct DirectionalLightShadow
             return fragPos;
 
 		float3 posLs;
-		int cascade = FindCascade( fragPos, posLs );
+		int cascade = FindCascadeWithOffset( fragPos - g_vHighPrecisionLightingOffsetWs.xyz, posLs );
 
 		if ( cascade < 0 )
 		{
 			cascade = (int)g_DirectionalLightCascadeCount - 1;
-			posLs = mul( g_DirectionalLightWorldToShadowViewMatrices[cascade], float4( fragPos, 1 ) ).xyz;
+			posLs = CascadeShadowPosition( cascade, fragPos - g_vHighPrecisionLightingOffsetWs.xyz );
 		}
 
 		float s = Bindless::GetTexture2D( g_DirectionalLightShadowMapTextureIndex[cascade] ).SampleLevel( g_sPointClamp, posLs.xy, 0 ).r;
@@ -133,7 +157,7 @@ struct DirectionalLightShadow
         return fragPos + zGrad * max( s - posLs.z, 0.0f ) / dot( zGrad, zGrad );
     }
 
-    static float GetVisibility( float3 worldPosition, float3 normalWs, float4 vPositionSs )
+    static float GetVisibilityWithOffset( float3 positionWithOffsetWs, float3 normalWs, float4 vPositionSs )
     {
         float ssShadow = SampleScreenSpaceShadow( vPositionSs );
 
@@ -141,16 +165,26 @@ struct DirectionalLightShadow
             return ssShadow;
 
 		float3 posLs;
-		int cascade = FindCascade( worldPosition, posLs );
+		int cascade = FindCascadeWithOffset( positionWithOffsetWs, posLs );
 
 		if ( cascade < 0 )
 			return ssShadow;
 
-		return SampleCascade( cascade, worldPosition, normalWs, vPositionSs.xy ) * ssShadow;
+		return SampleCascadeWithOffset( cascade, positionWithOffsetWs, normalWs, vPositionSs.xy ) * ssShadow;
     }
 
     // For callers that have no receiver normal at hand. The normal comes from screen-space derivatives,
     // so this is only valid in uniform control flow - from inside a per-light loop, use the overload above.
+    static float GetVisibilityWithOffset( float3 positionWithOffsetWs, float4 vPositionSs )
+    {
+        return GetVisibilityWithOffset( positionWithOffsetWs, ComputeShadowReceiverNormal( positionWithOffsetWs ), vPositionSs );
+    }
+
+    static float GetVisibility( float3 worldPosition, float3 normalWs, float4 vPositionSs )
+    {
+        return GetVisibilityWithOffset( worldPosition - g_vHighPrecisionLightingOffsetWs.xyz, normalWs, vPositionSs );
+    }
+
     static float GetVisibility( float3 worldPosition, float4 vPositionSs )
     {
         return GetVisibility( worldPosition, ComputeShadowReceiverNormal( worldPosition ), vPositionSs );
