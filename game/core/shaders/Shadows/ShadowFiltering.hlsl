@@ -80,6 +80,7 @@ static const float2 g_vPoissonDisk16[16] =
 };
 
 // Face normal of the shadow receiver, from the screen-space derivatives of its world position.
+// Prefer the camera-relative position: far from the origin the derivatives can round to 0 (no offset then).
 // Derivatives are only defined in uniform control flow, so compute this once per pixel *before* any
 // per-light loop or branch and pass it down: the clustered light loop diverges between the lanes of a
 // quad wherever neighbouring pixels land in different clusters, and a ddx taken in there is garbage.
@@ -87,7 +88,9 @@ static const float2 g_vPoissonDisk16[16] =
 float3 ComputeShadowReceiverNormal( float3 vPositionWs )
 {
 #if ( PROGRAM == VFX_PROGRAM_PS )
-    return normalize( cross( ddy( vPositionWs ), ddx( vPositionWs ) ) );
+    float3 vNormal = cross( ddy( vPositionWs ), ddx( vPositionWs ) );
+    float flLengthSq = dot( vNormal, vNormal );
+    return flLengthSq > 0.0f ? vNormal * rsqrt( flLengthSq ) : 0.0f;
 #else
     return 0.0f;
 #endif

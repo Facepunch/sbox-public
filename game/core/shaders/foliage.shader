@@ -355,7 +355,7 @@ PS
 			{
 				float3 sunDir = -normalize( g_DirectionalLightDirection.xyz );
 				float3 sunColor = g_DirectionalLightColor.rgb;
-				float sunVis = DirectionalLightShadow::GetVisibility( m.WorldPosition, m.ScreenPosition );
+				float sunVis = DirectionalLightShadow::GetVisibilityWithOffset( m.WorldPositionWithOffset, m.ScreenPosition );
 				ApplyFoliageLighting( m, sunDir, sunColor, 1.0, sunVis, viewDir, transmissiveColor, true );
 			}
 		#endif
