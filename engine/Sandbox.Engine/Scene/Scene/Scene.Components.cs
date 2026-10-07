@@ -13,7 +13,8 @@ public partial class Scene : GameObject
 	{
 		AddObjectToDirectory( c );
 
-		pendingStartComponents.Add( c );
+		if ( !c.StartCalled )
+			pendingStartComponents.Add( c );
 	}
 
 	internal void UnregisterComponent( Component c )
