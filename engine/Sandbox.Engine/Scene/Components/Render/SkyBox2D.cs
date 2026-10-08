@@ -48,9 +48,6 @@ public class SkyBox2D : Component, Component.ExecuteInEditor
 			if ( field == value ) return;
 			if ( value.native.IsNull ) return;
 
-			// Only allow sky materials
-			if ( !value.ShaderName.Contains( "sky" ) ) return;
-
 			field = value;
 
 			_sceneObject?.SkyMaterial = value;
