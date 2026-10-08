@@ -384,7 +384,7 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, float3 vReceiv
 	// Directional lights use their own CSM shadow path
 	if ( lightData.Type == LightType::LightTypeDirectional && g_DirectionalLightCascadeCount > 0 )
 	{
-		flShadowScalar = DirectionalLightShadow::GetVisibility( f.vPositionWs.xyz, vReceiverNormalWs, f.vPositionSs );
+		flShadowScalar = DirectionalLightShadow::GetVisibilityWithOffset( f.vPositionWithOffsetWs.xyz, vReceiverNormalWs, f.vPositionSs );
 	}
 
 	#if ( !S_TRANSMISSIVE )
@@ -431,7 +431,7 @@ void ComputeDirectionalLight( const FinalCombinerInput_t f, float3 vReceiverNorm
 	// Only sample shadows if cascades exist
 	if ( g_DirectionalLightCascadeCount > 0 )
 	{
-		flShadowScalar = DirectionalLightShadow::GetVisibility( f.vPositionWs.xyz, vReceiverNormalWs, f.vPositionSs );
+		flShadowScalar = DirectionalLightShadow::GetVisibilityWithOffset( f.vPositionWithOffsetWs.xyz, vReceiverNormalWs, f.vPositionSs );
 	}
 
 	float3 vTransmissiveThickness = 1.0f;
@@ -474,7 +474,7 @@ void ComputeDirectLighting( inout LightingTerms_t o, const FinalCombinerInput_t 
 	// Receiver normal for the shadow normal offset. It comes from screen-space derivatives, which are only
 	// defined in uniform control flow: take it once here, never inside the per-light loop below, where the
 	// lanes of a quad diverge whenever neighbouring pixels sit in different clusters.
-	const float3 vReceiverNormalWs = ComputeShadowReceiverNormal( f.vPositionWs.xyz );
+	const float3 vReceiverNormalWs = ComputeShadowReceiverNormal( f.vPositionWithOffsetWs.xyz );
 
 	// Directional light fast path — skip for baked surfaces since they get the
 	// directional light through the indexed baked light loop with per-texel strength
@@ -579,7 +579,7 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 
 	// Shadow receiver normal for the baked light loops below. Derivatives are only defined in uniform
 	// control flow, so take it here rather than inside CalcBakedLightingForLight's per-light branch.
-	const float3 vReceiverNormalWs = ComputeShadowReceiverNormal( vPositionWs.xyz );
+	const float3 vReceiverNormalWs = ComputeShadowReceiverNormal( vPositionWithOffsetWs.xyz );
 
 	if ( LightmappedLight::UsesLightmaps() )
 	{
