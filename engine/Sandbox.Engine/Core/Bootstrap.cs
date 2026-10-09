@@ -227,7 +227,9 @@ internal static class Bootstrap
 				Settings.RenderSettings.Instance.EnsureFirstRunPreset();
 			}
 
-			if ( !Application.IsHeadless && !Application.IsStandalone )
+			// The menu wants the items before it shows. The editor has no use for them at
+			// startup and shouldn't wait on Steam for them
+			if ( !Application.IsHeadless && !Application.IsStandalone && !Application.IsEditor )
 			{
 				using var timeout = new CancellationTokenSource( 5000 );
 				SyncContext.RunBlocking( Services.Inventory.WaitForSteamInventoryItems( timeout.Token ) );
