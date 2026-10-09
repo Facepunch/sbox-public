@@ -9,8 +9,6 @@ public partial class Component
 	/// </summary>
 	void CheckRequireComponent()
 	{
-		var type = Game.TypeLibrary.GetType( GetType() );
-
 		foreach ( var prop in ReflectionQueryCache.RequiredComponentMembers( GetType() ) )
 		{
 			if ( prop.PropertyType.IsAssignableTo( typeof( Component ) ) )

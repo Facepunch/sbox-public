@@ -714,3 +714,14 @@ public enum ScrollbarGutter
 	/// <summary>Space is reserved at both edges, so the content stays centred.</summary>
 	StableBothEdges = 2
 }
+
+/// <summary>Controls scroll chaining and boundary bounce on a scroll container.</summary>
+public enum OverscrollBehavior
+{
+	/// <summary>Allow scroll chaining and boundary bounce.</summary>
+	Auto,
+	/// <summary>Allow boundary bounce but prevent scroll chaining.</summary>
+	Contain,
+	/// <summary>Prevent both scroll chaining and boundary bounce.</summary>
+	None
+}

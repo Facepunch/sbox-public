@@ -39,7 +39,21 @@ public class VariantControlWidget : ControlWidget
 
 		if ( t != null )
 		{
-			var custom = _value.GetCustomizable();
+			var valueProperty = _value;
+			if ( t.IsEnum )
+			{
+				// Enum controls write integers; keep the boxed value an enum so the Variant retains its type.
+				if ( variant.Value is null )
+					_value.SetValue( Activator.CreateInstance( t ) );
+
+				valueProperty = TypeLibrary.CreateProperty( "Value", () => _value.GetValue<object>(), value =>
+				{
+					if ( Translation.TryConvert( value, t, out var converted ) )
+						_value.SetValue( converted );
+				}, parent: _value.Parent );
+			}
+
+			var custom = valueProperty.GetCustomizable();
 			custom.SetPropertyType( t );
 			var editor = ControlWidget.Create( custom );
 			if ( editor != null )

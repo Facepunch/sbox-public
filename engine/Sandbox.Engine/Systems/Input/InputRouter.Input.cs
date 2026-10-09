@@ -1,4 +1,5 @@
 using NativeEngine;
+using Sandbox.Modals;
 
 namespace Sandbox.Engine;
 
@@ -6,7 +7,7 @@ internal static partial class InputRouter
 {
 	static RealTimeSince timeSinceWindowActive;
 
-	internal static void OnMouseButton( ButtonCode button, bool down, int ikeymods )
+	internal static void OnMouseButton( ButtonCode button, bool down )
 	{
 		SetButtonState( button, down );
 
@@ -89,7 +90,7 @@ internal static partial class InputRouter
 	{
 		MouseCursorPosition = new Vector2( x, y );
 
-		if ( InputSystem.GetRelativeMouseMode() )
+		if ( WindowInput.GetRelativeMouseMode() )
 		{
 			dx = dy = 0;
 		}
@@ -136,6 +137,18 @@ internal static partial class InputRouter
 			var escapeTarget = Contexts.FirstOrDefault( x => x.KeyboardState != InputContext.InputState.Ignore && x.KeyboardFocusPanel is not null );
 			if ( escapeTarget is not null && escapeTarget.In_Escape() )
 			{
+				return;
+			}
+
+			// The menu's up over the game - the pause menu, or something opened from it. Escape is the
+			// menu's, to close it with, before the game can take it: F1 opens the pause menu even in a
+			// game that keeps escape for itself, and there'd be no other way back out
+			if ( IGameInstance.Current is not null && !Application.IsEditor && IModalSystem.Current?.IsModalOpen == true )
+			{
+				EscapeWasPressed = false;
+
+				using var scope = GlobalContext.MenuScope();
+				IModalSystem.Current?.PauseMenu();
 				return;
 			}
 
@@ -205,9 +218,9 @@ internal static partial class InputRouter
 		OnGamepadCode( deviceId, code, ((float)value).Remap( 0, Controller.AXIS_RANGE.y, 0, 1 ) >= triggerDeadzone );
 	}
 
-	internal static void OnGameControllerConnected( int joystickId, int deviceId )
+	internal static void OnGameControllerConnected( int deviceId )
 	{
-		var controller = new Controller( joystickId, deviceId );
+		var controller = new Controller( deviceId );
 		Log.Info( $"New {controller} controller detected" );
 
 		Controller.All.Add( controller );
@@ -215,7 +228,7 @@ internal static partial class InputRouter
 
 	internal static void OnGameControllerDisconnected( int joystickId )
 	{
-		var controller = Controller.All.FirstOrDefault( x => x.SDLHandle == joystickId );
+		var controller = Controller.All.FirstOrDefault( x => x.DeviceId == joystickId );
 		if ( controller is not null )
 		{
 			Log.Info( $"{controller} controller removed" );
@@ -227,7 +240,7 @@ internal static partial class InputRouter
 		}
 	}
 
-	internal static void OnKey( ButtonCode scanButtonCode, ButtonCode keyButtonCode, bool down, bool repeat, int ikeymods )
+	internal static void OnKey( ButtonCode scanButtonCode, ButtonCode keyButtonCode, bool down, bool repeat )
 	{
 		if ( !repeat )
 		{
@@ -240,6 +253,14 @@ internal static partial class InputRouter
 		{
 			if ( repeat )
 				return;
+
+			// Reserve Shift+Escape for the platform menu while testing in the editor.
+			// Capture the chord now, before Shift can be released or game UI can consume Escape.
+			if ( down && Application.IsEditor && Game.IsPlaying && modifiers.Contains( KeyboardModifiers.Shift ) )
+			{
+				EditorPauseMenuWasPressed = true;
+				return;
+			}
 
 			OnEscapePressed( down );
 			return;
@@ -254,7 +275,7 @@ internal static partial class InputRouter
 
 			IToolsDll.Current?.OnFunctionKey( scanButtonCode, modifiers );
 
-			var bind = g_pInputService.GetBinding( scanButtonCode );
+			var bind = Sandbox.Engine.KeyBindings.GetBinding( scanButtonCode );
 			if ( string.IsNullOrEmpty( bind ) ) return;
 
 			ConVarSystem.Run( bind );
@@ -305,7 +326,7 @@ internal static partial class InputRouter
 		}
 	}
 
-	internal static void OnMouseWheel( float x, float y, int ikeymods )
+	internal static void OnMouseWheel( float x, float y )
 	{
 		var value = new Vector2( x, y );
 		var mouse = Contexts.FirstOrDefault( x => x.MouseState != InputContext.InputState.Ignore );
@@ -363,22 +384,6 @@ internal static partial class InputRouter
 
 		var mouse = Contexts.FirstOrDefault( c => c.MouseState != InputContext.InputState.Ignore );
 		mouse?.IN_Drop( files, text, new Vector2( x, y ) );
-	}
-
-	/// <summary>
-	/// Convert engine (IE_ShiftPressed etc) to our KeyboardModifiers enum
-	/// </summary>
-	static KeyboardModifiers EngineToModifier( int engine )
-	{
-		KeyboardModifiers m = KeyboardModifiers.None;
-
-		if ( (engine & 1) == 1 ) m |= KeyboardModifiers.Shift;
-		if ( (engine & 2) == 2 ) m |= KeyboardModifiers.Ctrl;
-		if ( (engine & 4) == 4 ) m |= KeyboardModifiers.Alt;
-		//if ( (m_nData2 & 8) == 8 ) m |= KeyboardModifiers.Windows;
-		//if ( (m_nData2 & 16) == 8 ) m |= KeyboardModifiers.Finger;
-
-		return m;
 	}
 
 	/// <summary>

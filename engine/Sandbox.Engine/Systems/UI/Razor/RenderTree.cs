@@ -249,9 +249,9 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 	/// <summary>
 	/// Delete all of the elements created by this render tree
 	/// </summary>
-	internal void Clear()
+	internal void Clear( bool immediate = false )
 	{
-		RootBlock?.Destroy();
+		RootBlock?.Destroy( immediate: immediate );
 
 		RootBlock = new Block();
 		RootBlock.ElementPanel = Parent;

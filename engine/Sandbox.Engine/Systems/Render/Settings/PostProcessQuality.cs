@@ -4,6 +4,7 @@
 /// Controls the quality level of post processing effects such as:
 /// ambient occlusion, depth of field, motion blur and more
 /// </summary>
+[Expose]
 public enum PostProcessQuality
 {
 	/// <summary>The individual effects don't match any preset.</summary>

@@ -1,0 +1,166 @@
+@using Sandbox
+@using Sandbox.UI
+@using System
+@using System.Linq
+@namespace MenuProject.Settings
+@inherits Panel
+
+@*
+    What you've hidden, and the way to bring it back - at the end of the settings' Game tab, in its own
+    sections and rows: the games you've hidden one by one, and the creators you've hidden everything
+    from. A row opens the game's page or the creator's; Unhide on the end shows it again.
+*@
+<root>
+
+	@if ( !MenuUtility.Hidden.IsLoaded || (MenuUtility.Hidden.Packages.Count == 0 && MenuUtility.Hidden.Organizations.Count == 0) )
+	{
+		<div class="section">
+			<div class="section-label"><icon>visibility_off</icon><label>Hidden</label></div>
+			<div class="row hidden-note">
+				<div class="line">
+					<label class="note-text">@NoteText</label>
+				</div>
+			</div>
+		</div>
+	}
+	else
+	{
+		@if ( MenuUtility.Hidden.Packages.Count > 0 )
+		{
+			<div class="section">
+				<div class="section-label"><icon>visibility_off</icon><label>Hidden Games</label></div>
+
+				@foreach ( var ident in MenuUtility.Hidden.Packages.OrderBy( TitleOf, StringComparer.OrdinalIgnoreCase ) )
+				{
+					_packages.TryGetValue( ident, out var package );
+
+					<div class="row hidden-row" @key=@ident onclick=@( () => package?.OpenModal() )>
+						<div class="line">
+							<div class="thumb" style="background-image: url( @package?.Thumb );"></div>
+							<div class="text">
+								<label class="name">@TitleOf( ident )</label>
+								<label class="meta">@(package?.Org?.Title is { } by ? $"by {by}" : ident)</label>
+							</div>
+							<div class="action" onclick=@( ( PanelEvent e ) => { e.StopPropagation(); _ = UnhidePackage( ident ); } )><label>Unhide</label></div>
+						</div>
+					</div>
+				}
+			</div>
+		}
+
+		@if ( MenuUtility.Hidden.Organizations.Count > 0 )
+		{
+			<div class="section">
+				<div class="section-label"><icon>visibility_off</icon><label>Hidden Creators</label></div>
+
+				@foreach ( var ident in MenuUtility.Hidden.Organizations.OrderBy( OrgTitleOf, StringComparer.OrdinalIgnoreCase ) )
+				{
+					_organizations.TryGetValue( ident, out var org );
+
+					<div class="row hidden-row" @key=@ident onclick=@( () => OpenOrganization( ident ) )>
+						<div class="line">
+							<div class="thumb logo" style="background-image: url( @org?.Thumb );"></div>
+							<div class="text">
+								<label class="name">@OrgTitleOf( ident )</label>
+								<label class="meta">Everything they make is hidden</label>
+							</div>
+							<div class="action" onclick=@( ( PanelEvent e ) => { e.StopPropagation(); _ = UnhideOrganization( ident ); } )><label>Unhide</label></div>
+						</div>
+					</div>
+				}
+			</div>
+		}
+	}
+
+</root>
+
+@code
+{
+	readonly Dictionary<string, Package> _packages = new( StringComparer.OrdinalIgnoreCase );
+	readonly Dictionary<string, Sandbox.Services.Organization> _organizations = new( StringComparer.OrdinalIgnoreCase );
+
+	bool _failed;
+
+	string NoteText => !MenuUtility.Hidden.IsLoaded
+		? _failed ? "Couldn't get what you've hidden right now." : "Getting what you've hidden…"
+		: "Nothing hidden. Games and creators you hide stay out of your feeds and search - they'll be here so you can bring them back.";
+
+	string TitleOf( string ident ) => _packages.TryGetValue( ident, out var package ) ? package.Title : ident;
+
+	string OrgTitleOf( string ident ) => _organizations.TryGetValue( ident, out var org ) && org is not null ? org.Title : ident;
+
+	protected override void OnAfterTreeRender( bool firstTime )
+	{
+		base.OnAfterTreeRender( firstTime );
+
+		if ( firstTime )
+			_ = Load();
+	}
+
+	/// <summary>
+	/// The list afresh - it may have changed on another device - then each one's name and picture.
+	/// </summary>
+	async Task Load()
+	{
+		_failed = !await MenuUtility.Hidden.Refresh();
+		if ( !this.IsValid() ) return;
+		StateHasChanged();
+
+		var packages = MenuUtility.Hidden.Packages.ToList().Select( async ident =>
+		{
+			if ( await Package.Fetch( ident, true ) is { } package )
+				_packages[ident] = package;
+		} );
+
+		var organizations = MenuUtility.Hidden.Organizations.ToList().Select( async ident =>
+		{
+			if ( await Sandbox.Services.Organization.Get( ident ) is { } org )
+				_organizations[ident] = org;
+		} );
+
+		await Task.WhenAll( packages.Concat( organizations ) );
+		if ( this.IsValid() ) StateHasChanged();
+	}
+
+	/// <summary>
+	/// The creator's page - from what was fetched about them, or just their ident if that never came.
+	/// </summary>
+	void OpenOrganization( string ident )
+	{
+		_organizations.TryGetValue( ident, out var org );
+
+		Game.Overlay.ShowOrganizationModal( new Package.Organization
+		{
+			Ident = ident,
+			Title = org?.Title ?? ident,
+			Thumb = org?.Thumb,
+			Description = org?.Summary,
+		} );
+	}
+
+	async Task UnhidePackage( string ident )
+	{
+		if ( _packages.TryGetValue( ident, out var package ) )
+		{
+			await MenuHelpers.UnhidePackage( package );
+			return;
+		}
+
+		// Its details never came - still unhidden by its ident
+		await MenuUtility.Hidden.SetPackageHidden( ident, false );
+	}
+
+	async Task UnhideOrganization( string ident )
+	{
+		var title = OrgTitleOf( ident );
+		var shown = await MenuUtility.Hidden.SetOrganizationHidden( ident, false );
+
+		MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast
+		{
+			Title = shown ? $"Everything by {title} is back" : $"Couldn't unhide {title} right now",
+			Icon = "visibility"
+		} );
+	}
+
+	protected override int BuildHash() => HashCode.Combine( MenuUtility.Hidden.Revision, MenuUtility.Hidden.IsLoaded, _failed, _packages.Count, _organizations.Count );
+}

@@ -13,7 +13,8 @@ class InputEventQueue
 	Queue<string> DoubleClicks = new();
 	Queue<string> TripleClicks = new();
 	Queue<ButtonEvent> ButtonTyped = new();
-	Queue<char> KeyTyped = new();
+	Queue<(char Character, KeyboardModifiers Modifiers)> KeyTyped = new();
+	KeyboardModifiers _keyboardModifiers;
 
 	Vector2 MouseMovement;
 
@@ -45,7 +46,7 @@ class InputEventQueue
 
 		while ( KeyTyped.TryDequeue( out var e ) )
 		{
-			focused?.OnKeyTyped( e );
+			focused?.OnKeyTyped( e.Character, e.Modifiers );
 		}
 
 		while ( ButtonTyped.TryDequeue( out var e ) )
@@ -107,27 +108,31 @@ class InputEventQueue
 
 	internal void AddButtonEvent( ButtonCode button, bool down, KeyboardModifiers modifiers )
 	{
+		_keyboardModifiers = modifiers;
 		var e = new ButtonEvent( button, down, modifiers );
 		ButtonEvents.Enqueue( e );
 	}
 
 	internal void AddButtonEvent( string button, bool down, int virtualKey, KeyboardModifiers modifiers )
 	{
+		_keyboardModifiers = modifiers;
 		ButtonEvents.Enqueue( new ButtonEvent( button, down, virtualKey, modifiers ) );
 	}
 
 	internal void AddButtonTyped( string button, int virtualKey, KeyboardModifiers modifiers )
 	{
+		_keyboardModifiers = modifiers;
 		ButtonTyped.Enqueue( new ButtonEvent( button, true, virtualKey, modifiers ) );
 	}
 
 	internal void AddKeyTyped( char c )
 	{
-		KeyTyped.Enqueue( c );
+		KeyTyped.Enqueue( (c, _keyboardModifiers) );
 	}
 
 	internal void AddButtonTyped( ButtonCode button, KeyboardModifiers modifiers )
 	{
+		_keyboardModifiers = modifiers;
 		if ( AddClipboardShortcut( button, modifiers ) )
 			return;
 
@@ -158,11 +163,11 @@ class InputEventQueue
 
 		if ( button == ButtonCode.KEY_V )
 		{
-			if ( NativeEngine.EngineGlobal.SDL_HasClipboardText() )
+			if ( NativeEngine.Sdl.HasClipboardText() )
 			{
-				var ptr = NativeEngine.EngineGlobal.SDL_GetClipboardText();
+				var ptr = NativeEngine.Sdl.GetClipboardText();
 				var text = System.Runtime.InteropServices.Marshal.PtrToStringUTF8( ptr );
-				NativeEngine.EngineGlobal.SDL_free( ptr );
+				NativeEngine.Sdl.Free( ptr );
 
 				if ( !string.IsNullOrEmpty( text ) )
 				{

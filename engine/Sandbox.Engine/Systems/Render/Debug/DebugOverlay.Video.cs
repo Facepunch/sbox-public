@@ -28,7 +28,7 @@ internal static partial class DebugOverlay
 
 		const float SampleInterval = 0.25f;
 
-		internal static void Draw( ref Vector2 pos )
+		internal static void Draw( Painter painter, ref Vector2 pos )
 		{
 			var drawPos = new Vector2( pos.x + 24, pos.y );
 			var startY = drawPos.y;
@@ -58,23 +58,23 @@ internal static partial class DebugOverlay
 			var cores = Math.Max( 1, Environment.ProcessorCount );
 			var wastedShare = busy > 0f ? idleBusy / busy * 100f : 0f;
 
-			Header( ref drawPos, "Video" );
-			RowStr( ref drawPos, "Players", $"{_players.Count} ({presenting} presenting)" );
-			RowStr( ref drawPos, "Threads", $"{_players.Count * 3}" );
+			Header( painter, ref drawPos, "Video" );
+			RowStr( painter, ref drawPos, "Players", $"{_players.Count} ({presenting} presenting)" );
+			RowStr( painter, ref drawPos, "Threads", $"{_players.Count * 3}" );
 
 			// CPU-milliseconds burnt per second of wall time, and what that is out of the box.
-			RowStr( ref drawPos, "Decode CPU", $"{busy * 1000f:F0} ms/s  ({busy:F2} cores)" );
-			RowStr( ref drawPos, "Share of CPU", $"{busy / cores * 100f:F1}% of {cores} logical" );
+			RowStr( painter, ref drawPos, "Decode CPU", $"{busy * 1000f:F0} ms/s  ({busy:F2} cores)" );
+			RowStr( painter, ref drawPos, "Share of CPU", $"{busy / cores * 100f:F1}% of {cores} logical" );
 
 			// Decoding for players nothing is drawing.
-			RowStr( ref drawPos, "Wasted", $"{idleBusy * 1000f:F0} ms/s  ({wastedShare:F0}% of decode)" );
+			RowStr( painter, ref drawPos, "Wasted", $"{idleBusy * 1000f:F0} ms/s  ({wastedShare:F0}% of decode)" );
 			drawPos.y += 6;
 
-			Header( ref drawPos, "Per Player" );
+			Header( painter, ref drawPos, "Per Player" );
 
 			foreach ( var entry in _players )
 			{
-				PlayerRow( ref drawPos, entry );
+				PlayerRow( painter, ref drawPos, entry );
 			}
 
 			pos.y += MathF.Max( 0, drawPos.y - startY );
@@ -119,7 +119,7 @@ internal static partial class DebugOverlay
 			}
 		}
 
-		static void PlayerRow( ref Vector2 pos, VideoTextureLoader.ActivePlayer entry )
+		static void PlayerRow( Painter painter, ref Vector2 pos, VideoTextureLoader.ActivePlayer entry )
 		{
 			var player = entry.Player;
 
@@ -135,11 +135,11 @@ internal static partial class DebugOverlay
 
 			var rect = new Rect( pos, new Vector2( 760, 15 ) );
 			var scope = new TextRendering.Scope( ShortName( entry.Url ), Color.White.WithAlpha( 0.8f ), 13, "Roboto Mono", 600 ) { Outline = _outline };
-			Hud.DrawText( scope, rect with { Width = 220 }, TextFlag.RightCenter );
+			DebugOverlay.DrawText( painter, scope, rect with { Width = 220 }, TextFlag.RightCenter );
 
 			scope.TextColor = entry.Presenting ? Color.White : new Color( 1f, 0.55f, 0.35f );
 			scope.Text = value;
-			Hud.DrawText( scope, rect with { Left = rect.Left + 228, Width = 520 }, TextFlag.LeftCenter );
+			DebugOverlay.DrawText( painter, scope, rect with { Left = rect.Left + 228, Width = 520 }, TextFlag.LeftCenter );
 
 			pos.y += rect.Height;
 		}
@@ -154,22 +154,22 @@ internal static partial class DebugOverlay
 			return parts.Length >= 2 ? $"{parts[^2]}/{parts[^1]}" : parts[^1];
 		}
 
-		static void Header( ref Vector2 pos, string label )
+		static void Header( Painter painter, ref Vector2 pos, string label )
 		{
 			var rect = new Rect( pos, new Vector2( 560, 18 ) );
 			var scope = new TextRendering.Scope( label, Color.White.WithAlpha( 0.9f ), 13, "Roboto Mono", 700 ) { Outline = _outline };
-			Hud.DrawText( scope, rect, TextFlag.LeftCenter );
+			DebugOverlay.DrawText( painter, scope, rect, TextFlag.LeftCenter );
 			pos.y += 18;
 		}
 
-		static void RowStr( ref Vector2 pos, string label, string value )
+		static void RowStr( Painter painter, ref Vector2 pos, string label, string value )
 		{
 			var rect = new Rect( pos, new Vector2( 560, 15 ) );
 			var scope = new TextRendering.Scope( label, Color.White.WithAlpha( 0.8f ), 13, "Roboto Mono", 600 ) { Outline = _outline };
-			Hud.DrawText( scope, rect with { Width = 160 }, TextFlag.RightCenter );
+			DebugOverlay.DrawText( painter, scope, rect with { Width = 160 }, TextFlag.RightCenter );
 			scope.TextColor = Color.White;
 			scope.Text = value;
-			Hud.DrawText( scope, rect with { Left = rect.Left + 168, Width = 300 }, TextFlag.LeftCenter );
+			DebugOverlay.DrawText( painter, scope, rect with { Left = rect.Left + 168, Width = 300 }, TextFlag.LeftCenter );
 			pos.y += rect.Height;
 		}
 	}

@@ -131,7 +131,23 @@ public abstract class BasePostProcess : Component, Component.ExecuteInEditor, Co
 		layer.Order = order;
 		layer.CommandList = cl;
 		layer.Name = debugName;
+		layer.NeedsDepthNormals = NeedsDepthNormals;
+		layer.AsyncCompute = AsyncCompute && stage == Sandbox.Rendering.Stage.AfterDepthPrepass;
 	}
+
+	/// <summary>
+	/// Whether its command list is compute only - dispatches, barriers, temporary targets, attributes and pipeline textures, no
+	/// draws or clears - over the prepass's depth chain and normals, so that at <c>AfterDepthPrepass</c> the managed scene renderer
+	/// may run it on the async compute queue, beside the shadow maps (<c>r_managed_async_compute</c>), before the stage's other
+	/// command lists. Native runs it at the stage as always.
+	/// </summary>
+	internal virtual bool AsyncCompute => false;
+
+	/// <summary>
+	/// Whether the effect reads the normals and roughness G-buffer the depth-normals prepass writes. Native always draws
+	/// that prepass; the managed scene renderer (<c>r_managed_scene</c>) draws depth only unless a camera's effect needs it.
+	/// </summary>
+	internal virtual bool NeedsDepthNormals => false;
 }
 
 /// <summary>
@@ -147,16 +163,15 @@ public abstract class BasePostProcess<T> : BasePostProcess where T : BasePostPro
 		U v = defaultVal;
 		var lerper = Interpolator.GetDefault<U>();
 
-		int i = 0;
-		foreach ( var e in context.Components )
+		var components = context.Components;
+		for ( int i = 0; i < components.Count; i++ )
 		{
+			var e = components[i];
 			var target = value( (T)e.Effect );
 			v = lerper.Interpolate( v, target, e.Weight );
 
 			if ( onlyLerpBetweenVolumes && i == 0 )
 				v = target;
-
-			i++;
 		}
 
 		return v;

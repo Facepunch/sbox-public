@@ -10,7 +10,7 @@ partial class UISystem
 	/// </summary>
 	internal bool SetFocus( Panel panel )
 	{
-		if ( panel is null ) return false;
+		if ( panel is null || panel.Scene?.IsSuspended == true ) return false;
 		if ( NextFocus == panel ) return true;
 
 		//
@@ -29,6 +29,27 @@ partial class UISystem
 	}
 
 	/// <summary>
+	/// Focus for a mouse press, the way a browser does it: the nearest panel, from the one pressed
+	/// outwards, that takes focus from a click. Panels that don't want <see cref="Panel.FocusOnClick"/>
+	/// are passed over. With nothing to take it, focus is cleared - so clicking away from a field
+	/// finishes editing it, and keys stop going to whatever was focused before. The search follows
+	/// <see cref="Panel.FocusOwner"/>, so a click in a popup carries on to the panel that opened it.
+	/// </summary>
+	internal void SetFocusFromClick( Panel panel )
+	{
+		for ( var target = panel; target is not null; target = target.FocusOwner )
+		{
+			if ( target.AcceptsFocus && target.FocusOnClick )
+			{
+				SetFocus( target );
+				return;
+			}
+		}
+
+		ClearFocus();
+	}
+
+	/// <summary>
 	/// Take focus away from this panel, giving it to its parent if that'll have it.
 	/// </summary>
 	internal bool ClearFocus( Panel panel )
@@ -42,16 +63,34 @@ partial class UISystem
 	}
 
 	/// <summary>
-	/// Take focus away from whatever has it.
+	/// Take focus away from whatever has it, or is about to.
 	/// </summary>
 	internal bool ClearFocus()
 	{
-		if ( CurrentFocus is null )
+		if ( CurrentFocus is null && NextFocus is null )
 			return false;
 
 		NextFocus = null;
 		FocusPendingChange = true;
 		return true;
+	}
+
+	/// <summary>
+	/// Releases current and pending focus before a subtree leaves this system. The blur event travels with the panel.
+	/// </summary>
+	internal void ReleaseFocusSubtree( Panel subtree )
+	{
+		if ( NextFocus?.AncestorsAndSelf.Contains( subtree ) == true )
+		{
+			NextFocus = null;
+			FocusPendingChange = false;
+		}
+
+		if ( CurrentFocus?.AncestorsAndSelf.Contains( subtree ) != true ) return;
+		var focused = CurrentFocus;
+		CurrentFocus = null;
+		Panel.Switch( PseudoClass.Focus, false, focused );
+		focused.CreateEvent( new PanelEvent( "onblur", focused ) );
 	}
 
 	/// <summary>
@@ -75,7 +114,7 @@ partial class UISystem
 		//
 		// Don't swap to an ineligible panel
 		//
-		if ( FocusPendingChange && NextFocus is not null && !NextFocus.AcceptsFocus )
+		if ( FocusPendingChange && NextFocus is not null && (!NextFocus.AcceptsFocus || NextFocus.Scene?.IsSuspended == true) )
 		{
 			NextFocus = null;
 			FocusPendingChange = false;
@@ -91,7 +130,6 @@ partial class UISystem
 				{
 					Panel.Switch( PseudoClass.Focus, false, CurrentFocus, NextFocus );
 					CurrentFocus.CreateEvent( new PanelEvent( "onblur", CurrentFocus ) );
-					CurrentFocus.MarkRenderDirty();
 				}
 
 				CurrentFocus = NextFocus;
@@ -99,8 +137,6 @@ partial class UISystem
 				Panel.Switch( PseudoClass.Focus, true, CurrentFocus, null );
 				CurrentFocus?.CreateEvent( new PanelEvent( "onfocus", CurrentFocus ) );
 
-				// OnDraw can depend on HasFocus (TextEntry's caret), so both sides repaint
-				CurrentFocus?.MarkRenderDirty();
 			}
 		}
 
@@ -109,7 +145,7 @@ partial class UISystem
 
 	static bool IsEligibleForFocus( Panel panel )
 	{
-		if ( !panel.IsVisible ) return false;
+		if ( !panel.IsVisible || panel.Scene?.IsSuspended == true ) return false;
 		if ( !panel.AcceptsFocus ) return false;
 
 		return true;

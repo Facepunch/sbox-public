@@ -7,7 +7,7 @@ public class BorderPropertiesTest
 {
 	// ------------------------------------------------------------------
 	// border (shorthand) -> per-side width + per-side color
-	// The style keyword (solid/dashed/...) is parsed then ignored.
+	// The style keyword is retained alongside width and color.
 	// ------------------------------------------------------------------
 
 	[TestMethod]
@@ -188,14 +188,14 @@ public class BorderPropertiesTest
 	}
 
 	/// <summary>
-	/// Non-solid border styles (dashed/dotted/double/etc) are accepted; the keyword is consumed (we
-	/// don't render the style) so the width and colour still apply.
+	/// Non-solid border styles retain the style, width and color.
 	/// </summary>
 	[TestMethod]
 	public void Border_NonSolidStyle()
 	{
 		var s = new Styles();
 		Assert.IsTrue( s.Set( "border", "1px dashed red" ) );
+		Assert.AreEqual( BorderStyle.Dashed, s.BorderStyle );
 		Assert.IsTrue( s.BorderTopWidth.HasValue );
 		Assert.AreEqual( 1, s.BorderTopWidth.Value.Value );
 		Assert.AreEqual( new Color( 1, 0, 0, 1 ), s.BorderTopColor.Value );

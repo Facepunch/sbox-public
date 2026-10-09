@@ -19,6 +19,7 @@
     <ProjectReference Include="..\Sandbox.Generator\Sandbox.Generator.csproj" />
     <ProjectReference Include="..\Sandbox.System\Sandbox.System.csproj" />
     <ProjectReference Include="..\Sandbox.Engine\Sandbox.Engine.csproj" />
+    <ProjectReference Include="..\Sandbox.SceneRenderer\Sandbox.SceneRenderer.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,4 +1,10 @@
 <Project>
+	<!-- StageLinuxRuntime ships this ICU version beside CoreCLR, in the host's native search path.
+	     The Steam runtime need not provide ICU. Keep in sync with SboxBuild's ICU package reference. -->
+	<ItemGroup Condition="'$(RuntimeIdentifier)' == 'linux-x64'">
+		<RuntimeHostConfigurationOption Include="System.Globalization.AppLocalIcu" Value="72.1.0.3" />
+	</ItemGroup>
+
 	<PropertyGroup Condition="'$(PublishSingleFile)' == 'true'">
 		<NoWarn>$(NoWarn);IL3000</NoWarn>
 		<_SuppressSingleFileAnalysisWarnings>true</_SuppressSingleFileAnalysisWarnings>

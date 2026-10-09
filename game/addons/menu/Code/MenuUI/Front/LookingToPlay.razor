@@ -1,0 +1,249 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.Multiplayer;
+@inherits Panel
+
+<root class="@(Collapsed ? "collapsed" : "")">
+    <div class="looking-head">
+        <div class="section-toggle" onclick=@ToggleCollapsed>
+            <icon>expand_more</icon>
+            <label class="title">Looking to play</label>
+            <label class="count">@Rows.Length</label>
+        </div>
+        @if ( Rows.Length > 0 )
+        {
+            <div class="party-strip">
+                @foreach ( var row in Rows )
+                {
+                    <div class="party-peek" @key="row.Id" onclick=@ToggleCollapsed tooltip="@($"{row.Name} · {row.GameTitle} · {row.Members}/{row.MaxMembers}")">
+                        <div class="game-thumb @(Thumbnail( row ) is null ? "no-art" : "")" style="background-image: url( @Thumbnail( row ) )"><icon>sports_esports</icon></div>
+                        <div class="host-face" style="background-image: url( avatar:@row.OwnerId )" />
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="looking-fold" @ref="FoldPanel">
+    <div class="looking-body" @ref="BodyPanel">
+        @if ( Rows.Length == 0 )
+        {
+            <label class="empty-state">@(Loading && !Loaded ? "Looking for open parties…" : "No open parties right now.")</label>
+        }
+        else
+        {
+            <div class="looking-rows" style="height: @(Math.Min( Rows.Length, 3 ) * 76)px;">
+                @foreach ( var row in Rows )
+                {
+                    var current = row.Id == PartyRoom.Current?.Id.ValueUnsigned;
+                    <div class="party @(current ? "mine" : "") @(CanJoin ? "joinable" : "")" @key="row.Id" onclick=@( () => Join( row ) )>
+                        @if ( Artwork( row ) is { } art )
+                        {
+                            <div class="game-art" style="background-image: url( @art )" />
+                        }
+                        <div class="party-main">
+                            <div class="party-title" tooltip="@row.Name">
+                                <label class="party-name">@row.Name</label>
+                                <label class="sep">·</label>
+                                <label class="game">@row.GameTitle</label>
+                            </div>
+                            <div class="party-avatars">
+                                @foreach ( var member in row.Faces.Take( 5 ) )
+                                {
+                                    <div class="avatar" style="background-image: url( avatar:@member )" tooltip="@(new Friend( member ).Name)" />
+                                }
+                                @if ( row.Members > Math.Min( 5, row.Faces.Length ) )
+                                {
+                                    <label class="more">+@(row.Members - Math.Min( 5, row.Faces.Length ))</label>
+                                }
+                                <label class="party-size">@(row.Members)/@row.MaxMembers</label>
+                            </div>
+                        </div>
+                        @if ( CanJoin )
+                        {
+                            <div class="action join" tooltip="Join this open party"><icon>play_arrow</icon></div>
+                        }
+                        else
+                        {
+                            <label class="party-state">@(current ? "Your party" : "Open")</label>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        @if ( (Error ?? PartyService.Error) is { } error )
+        {
+            <label class="error">@error</label>
+        }
+    </div>
+    </div>
+</root>
+
+@code
+{
+    // Snapshot lobby values: Steam entries compare by ID even when membership or game changes.
+    record PartyRow( ulong Id, long OwnerId, string Name, string GameTitle, string Package, int Members, int MaxMembers, ulong[] Faces );
+    PartyRow[] Rows = [];
+    public static bool Collapsed { get; set; }
+    PartyRoom LastParty;
+    bool Loading;
+    bool Loaded;
+    string Error;
+    double NextRefresh;
+
+    Panel FoldPanel;
+    Panel BodyPanel;
+    const float ToggleTime = 0.2f;
+    bool FoldTarget = Collapsed;
+    float FoldAmount = Collapsed ? 0f : 1f;
+    float FoldFrom = Collapsed ? 0f : 1f;
+    RealTimeSince FoldStarted = ToggleTime;
+
+    void UpdateFold()
+    {
+        if ( FoldTarget != Collapsed )
+        {
+            FoldTarget = Collapsed;
+            FoldFrom = FoldAmount;
+            FoldStarted = 0;
+        }
+
+        // Same quadratic ease-out as the friends list. Reverse from the current amount if clicked
+        // again mid-fold, and measure the unclipped body so empty/error states fold correctly too.
+        var t = Math.Clamp( FoldStarted / ToggleTime, 0f, 1f );
+        var eased = 1f - (1f - t) * (1f - t);
+        FoldAmount = FoldFrom + ((Collapsed ? 0f : 1f) - FoldFrom) * eased;
+        if ( FoldPanel is not null && BodyPanel is not null )
+            FoldPanel.Style.Height = BodyPanel.Box.Rect.Height * BodyPanel.ScaleFromScreen * FoldAmount;
+    }
+
+    [MenuConVar( "menu_mock_open_parties", Help = "Preview open parties for different games in the home sidebar" )]
+    public static bool MockOpenParties { get; set; }
+    bool LastMock;
+
+    static PartyRow[] MockRows()
+    {
+        var owners = MenuUtility.Friends.Where( x => !x.IsMe ).Take( 5 ).Select( x => (long)x.Id ).ToArray();
+        var names = new[] { "Goofball gang", "Co-op and chill", "One more round", "Building something weird", "Egg enjoyers" };
+        var games = new[] { "Goofball", "Dead 4 Left", "Roundabout", "Sandbox", "Eggsistential" };
+        var packages = new[] { "tripp.goofball", "", "brax.roundabout", "facepunch.sandbox", "vjdanov.eggsistential" };
+        var sizes = new[] { 2, 3, 1, 4, 2 };
+        var max = new[] { 4, 4, 8, 16, 6 };
+        return names.Select( (name, i) => new PartyRow( (ulong)(i + 1), owners.Length > 0 ? owners[i % owners.Length] : (long)Game.SteamId,
+            name, games[i], packages[i], sizes[i], max[i], Enumerable.Range( 0, sizes[i] ).Select( j => owners.Length > 0 ? (ulong)owners[(i + j) % owners.Length] : (ulong)Game.SteamId ).ToArray() ) ).ToArray();
+    }
+
+    static Task Join( PartyRow row )
+    {
+        if ( !CanJoin ) return System.Threading.Tasks.Task.CompletedTask;
+        if ( !MockOpenParties ) return PartyService.Join( row.Id );
+        Log.Info( $"menu_mock_open_parties: would join {row.Name}" );
+        return System.Threading.Tasks.Task.CompletedTask;
+    }
+
+    static bool CanJoin => !PartyService.Busy && PartyRoom.Current is null;
+
+    readonly Dictionary<string, (string Background, string Thumb)> Art = new();
+    readonly HashSet<string> ArtLoading = new();
+    string Artwork( PartyRow row ) => GetArt( row.Package ).Background;
+    string Thumbnail( PartyRow row ) => GetArt( row.Package ).Thumb;
+
+    (string Background, string Thumb) GetArt( string ident )
+    {
+        if ( string.IsNullOrWhiteSpace( ident ) ) return default;
+        if ( Art.TryGetValue( ident, out var art ) ) return art;
+        if ( ArtLoading.Add( ident ) ) _ = LoadArt( ident );
+        return default;
+    }
+
+    async Task LoadArt( string ident )
+    {
+        try
+        {
+            var package = await Package.FetchAsync( ident, false );
+            Art[ident] = (PackageArt.Background( package ), package?.Thumb ?? package?.ThumbWide);
+        }
+        catch ( Exception ) { Art[ident] = default; }
+        finally
+        {
+            ArtLoading.Remove( ident );
+            if ( IsValid && !IsDeleting ) StateHasChanged();
+        }
+    }
+
+    static ulong[] Faces( PartyRoom.Entry party )
+    {
+        var host = new Friend( party.OwnerId );
+        var roster = host.GetRichPresence( "party_id" ) == party.Id.ToString() ? MenuUtility.GetPartyMembers( host ) : Enumerable.Empty<Friend>();
+        return new[] { (ulong)party.OwnerId }.Concat( roster.Select( x => x.Id ) ).Distinct().Take( Math.Max( 1, party.Members ) ).ToArray();
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+        if ( LastMock != MockOpenParties )
+        {
+            LastMock = MockOpenParties;
+            NextRefresh = 0;
+            if ( MockOpenParties ) Collapsed = false;
+        }
+        if ( LastParty != PartyRoom.Current )
+        {
+            LastParty = PartyRoom.Current;
+            NextRefresh = 0;
+        }
+
+        UpdateFold();
+        if ( IsVisible && !Loading && RealTime.Now >= NextRefresh ) _ = Refresh();
+    }
+
+    async Task Refresh()
+    {
+        if ( Loading ) return;
+        Loading = true;
+        NextRefresh = RealTime.Now + 15;
+
+        try
+        {
+            if ( MockOpenParties )
+            {
+                Rows = MockRows();
+                Loaded = true;
+                Error = null;
+                return;
+            }
+
+            var parties = await PartyService.FindOpenParties();
+            if ( !IsValid || IsDeleting ) return;
+
+            // The preview may have been enabled while discovery was in flight.
+            if ( MockOpenParties )
+            {
+                NextRefresh = 0;
+                return;
+            }
+
+            Rows = parties.Select( x => new PartyRow( x.Id, x.OwnerId, x.Name,
+                string.IsNullOrWhiteSpace( x.GameTitle ) ? "Deciding together" : x.GameTitle, x.Package, x.Members, x.MaxMembers, Faces( x ) ) ).ToArray();
+            Loaded = true;
+            Error = null;
+        }
+        catch ( Exception e )
+        {
+            Error = $"Could not load parties: {e.Message}";
+        }
+        finally
+        {
+            Loading = false;
+            if ( IsValid && !IsDeleting ) StateHasChanged();
+        }
+    }
+
+    void ToggleCollapsed()
+    {
+        Collapsed = !Collapsed;
+        StateHasChanged();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Rows, Loading, Error, Collapsed, PartyService.Busy, PartyService.Error, PartyRoom.Current?.Id );
+}

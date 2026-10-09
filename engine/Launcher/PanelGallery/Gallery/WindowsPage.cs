@@ -79,7 +79,7 @@ public class WindowsPage : GalleryPage
 		}
 
 		var parent = PanelWindow.FromPanel( this );
-		var position = parent is null ? new Vector2( -1, -1 ) : parent.Position + new Vector2( 80, 80 );
+		Vector2? position = parent is null ? null : parent.Position + new Vector2( 80, 80 );
 
 		window = new PanelWindow( "Test window", new Vector2( 420, 260 ), position );
 		window.OnCloseRequested = () => { Say( window.HideOnClose ? "close asked - hiding, Show brings it back" : "close asked - disposing" ); if ( !window.HideOnClose ) window = null; return true; };

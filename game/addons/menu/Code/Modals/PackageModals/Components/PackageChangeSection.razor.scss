@@ -1,30 +1,46 @@
 @import "/styles/_theme.scss";
+@import "/styles/_front.scss";
 
+// One kind of change in an update - a coloured heading, then its entries. The colour comes from
+// the kind (see the bottom), and paints the icon, the title and every entry's dot
 PackageChangeSection
 {
     flex-direction: column;
     flex-shrink: 0;
-    margin-bottom: 1.5rem;
+    gap: 8px;
 
     .header
     {
         flex-direction: row;
         flex-shrink: 0;
         align-items: center;
-        gap: 0.5rem;
-        padding-bottom: 0.5rem;
+        gap: 6px;
 
-        .emoji
+        .kind-icon
         {
-            font-size: 1.1rem;
+            flex-shrink: 0;
+            width: 15px;
+            height: 15px;
+            font-family: "Material Icons";
+            font-size: 15px;
+            text-align: center;
         }
 
         .section-title
         {
-            font-size: 1.2rem;
-            font-weight: 550;
-            color: $default-text;
-            font-family: $font-heading;
+            @include front-section-label;
+            font-size: 11px;
+        }
+
+        .count
+        {
+            flex-shrink: 0;
+            padding: 0 6px;
+            border-radius: 999px;
+            background-color: rgba( 255, 255, 255, 0.07 );
+            font-size: 10px;
+            font-weight: 700;
+            color: $front-secondary;
         }
     }
 
@@ -32,8 +48,8 @@ PackageChangeSection
     {
         flex-direction: column;
         flex-shrink: 0;
-        gap: 3px;
-        padding-left: 6px;
+        gap: 6px;
+        padding-left: 2px;
     }
 
     .entry
@@ -41,32 +57,57 @@ PackageChangeSection
         flex-direction: row;
         flex-shrink: 0;
         align-items: flex-start;
-        gap: 8px;
-        color: $default-100;
-        font-size: $text-regular;
-        font-family: $font-default;
+        gap: 10px;
 
+        // A dot on the first line of the text, not a bullet character
         .bullet
         {
             flex-shrink: 0;
-            color: rgba( $default-50, 0.33 );
+            width: 5px;
+            height: 5px;
+            margin-top: 8px;
+            border-radius: 50%;
+            background-color: $front-tertiary;
         }
 
+        // Whatever's left after the bullet, wrapping inside it
         .text
         {
             flex-grow: 1;
+            flex-shrink: 1;
+            flex-basis: 0;
+            min-width: 0;
+            font-family: $front-font;
+            font-size: 13.5px;
+            font-weight: 500;
+            color: $front-body;
 
             &.link
             {
-                color: $primary-blue;
+                color: $front-link;
                 cursor: pointer;
 
                 &:hover
                 {
-                    color: $default-text;
-                    text-decoration: underline;
+                    color: $front-link-hover;
                 }
             }
         }
     }
+
+    // The kinds, each its own colour
+    &.add .kind-icon, &.add .section-title { color: $front-reward; }
+    &.add .bullet { background-color: rgba( $front-reward, 0.7 ); }
+
+    &.improve .kind-icon, &.improve .section-title { color: $front-link; }
+    &.improve .bullet { background-color: rgba( $front-link, 0.7 ); }
+
+    &.fix .kind-icon, &.fix .section-title { color: $front-trophy; }
+    &.fix .bullet { background-color: rgba( $front-trophy, 0.7 ); }
+
+    &.remove .kind-icon, &.remove .section-title { color: $front-danger; }
+    &.remove .bullet { background-color: rgba( $front-danger, 0.7 ); }
+
+    &.knownissue .kind-icon, &.knownissue .section-title { color: #f08a3c; }
+    &.knownissue .bullet { background-color: rgba( #f08a3c, 0.7 ); }
 }

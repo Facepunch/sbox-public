@@ -1,156 +1,83 @@
+@import "/styles/_formmodal.scss";
 
-ReviewModal.modal
+ReviewModal
 {
-    flex-shrink: 0;
-    font-family: Poppins;
-    font-size: 24px;
+	@include front-form-modal;
 
-    h1
-    {
-        white-space: nowrap;
-        overflow: hidden;
-        font-weight: 700;
-    }
+	// Three big choices side by side - each lit in its own colour once it's picked
+	.ratings
+	{
+		flex-direction: row;
+		gap: 10px;
+	}
 
-    .inner
-    {
-        width: 1000px;
-        max-height: 800px;
-        flex-shrink: 1;
-        flex-grow: 1;
-        overflow: hidden;        
-        flex-direction: column;
-    }
-}
+	.rating
+	{
+		flex-grow: 1;
+		flex-basis: 0;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		height: 86px;
+		border-radius: $front-radius;
+		border: 1px solid rgba( 255, 255, 255, 0.1 );
+		background-color: rgba( 255, 255, 255, 0.04 );
+		cursor: pointer;
+		transition: all 0.12s ease;
 
-.container
-{
-    padding: 32px;
-    flex-direction: column;
-    align-items: center;
-    gap: 64px;
-    gap: 64px;
-}
+		i
+		{
+			font-size: 26px;
+			color: $front-secondary;
+		}
 
+		label
+		{
+			font-size: 13.5px;
+			font-weight: 700;
+			color: $front-body;
+		}
 
-ReviewModal.modal UserComment
-{
-    width: 100%;
-    pointer-events: all;
+		&:hover
+		{
+			sound-in: "ui.button.over";
+			background-color: rgba( 255, 255, 255, 0.08 );
+			border-color: rgba( 255, 255, 255, 0.2 );
 
-    TextEntry
-    {
-        flex-grow: 1;
-        max-height: 400px;
-        min-height: 200px;
-    }
-}
+			i, label
+			{
+				color: $front-heading;
+			}
+		}
 
-.footer
-{
-    width: 100%;
-    justify-content: flex-end;
-    flex-grow: 0;
-    flex-shrink: 0;
-}
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
 
-.footer .button
-{
-    background-color: #457be0;
-    border-radius: 8px;
-    padding: 1rem 2rem;
-    font-weight: 600;
-    gap: 1rem;
-    pointer-events: all;
-}
+		&.bad.active
+		{
+			background-color: rgba( $front-danger, 0.16 );
+			border-color: rgba( $front-danger, 0.6 );
 
-.footer .button.disabled
-{
-    opacity: 0.2;
-    cursor: default;
-}
+			i, label { color: $front-danger; }
+		}
 
-.ratings
-{
-    gap: 1rem;
-}
+		&.meh.active
+		{
+			background-color: rgba( $front-trophy, 0.14 );
+			border-color: rgba( $front-trophy, 0.6 );
 
-.ratings .rating
-{
-    flex-direction: row;
-    justify-content: center;
-    align-items: center;
-    gap: 1rem;
-    pointer-events: all;
-    opacity: 0.5;
-    cursor: pointer;
-    font-size: 1.3rem;
-    font-weight: bold;
-    padding: 2rem;
-}
+			i, label { color: $front-trophy; }
+		}
 
-.ratings-outline
-{
-    border-radius: 16px;
-    border: 1px solid #aaa2;
-    pointer-events: none;
-    background-color: #2225;
-    overflow: hidden;
-}
+		&.good.active
+		{
+			background-color: rgba( $front-reward, 0.16 );
+			border-color: rgba( $front-reward, 0.6 );
 
-.ratings .rating:hover
-{
-    opacity: 1;
-    background-color: #457be044;
-}
-
-.ratings .rating.active
-{
-    opacity: 1;
-    background-color: #457be0aa;
-}
-
-.ratings .rating .icon
-{
-    font-size: 2rem;
-}
-
-.posting i
-{
-    font-size: 256px;
-    animation: progress 0.2s infinite alternate ease;
-}
-
-.tag-entry
-{
-    width: 100%;
-
-    .tagcolumn
-    {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-        align-items: center;
-        
-        TagSelector
-        {
-            margin: 2rem;
-            margin-bottom: 2rem;
-        }
-    }
-}
-
-@keyframes progress
-{
-    0%
-    {
-        opacity: 0.8;
-        transform: scale( 0.95 );
-    }
-
-    100%
-    {
-        opacity: 1;
-        transform: scale( 1 );
-    }
+			i, label { color: $front-reward; }
+		}
+	}
 }

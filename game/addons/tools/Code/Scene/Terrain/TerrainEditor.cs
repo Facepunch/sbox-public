@@ -48,6 +48,11 @@ public partial class TerrainEditorTool : EditorTool
 
 	public override void OnDisabled()
 	{
+		ClearBrushPreview();
+	}
+
+	internal void ClearBrushPreview()
+	{
 		_previewObject?.Delete();
 		_previewObject = null;
 	}
@@ -84,6 +89,13 @@ public partial class TerrainEditorTool : EditorTool
 			rot.Enabled = !BrushSettings.RandomRotation;
 			var rndRot = group.Add( ControlSheetRow.Create( so.GetProperty( nameof( BrushSettings.RandomRotation ) ) ) );
 			group.Add( ControlSheetRow.Create( so.GetProperty( nameof( BrushSettings.ShowGridPreview ) ) ) );
+
+			// Flatten only option, the sidebar is rebuilt whenever the subtool changes
+			if ( CurrentTool is FlattenTool flatten )
+			{
+				var flattenSo = flatten.GetSerialized();
+				group.Add( ControlSheetRow.Create( flattenSo.GetProperty( nameof( FlattenTool.AlignToSurface ) ) ) );
+			}
 
 			so.OnPropertyChanged += ( prop ) =>
 			{
@@ -241,10 +253,9 @@ public partial class TerrainEditorTool : EditorTool
 				_previewObject.CellSize = 0f;
 			}
 		}
-		else if ( _previewObject != null )
+		else
 		{
-			_previewObject.Delete();
-			_previewObject = null;
+			ClearBrushPreview();
 		}
 
 		var size = BrushSettings.Size;

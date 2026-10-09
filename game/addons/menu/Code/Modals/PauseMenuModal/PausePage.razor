@@ -1,0 +1,58 @@
+@using Sandbox
+@using Sandbox.UI
+@using MenuProject.Modals.PackageModalComponents
+@inherits Panel
+
+@*
+    One of the game's pages in the pause menu, in its body beside the list (GameMenu) - its Game info
+    (PauseOverview), or its changes, news, achievements, who's in it with you. Straight on the game,
+    no card round it, scrolling - fading out along its foot while there's more of it down there. No
+    heading of its own, the list says which it is.
+*@
+<root>
+    <div class="content @(MoreBelow ? "more" : "")" @ref="Content">
+        @if ( IsOverview )
+        {
+            <PauseOverview Package=@Package />
+        }
+        else
+        {
+            <PackagePage Package=@Package Page=@Page />
+        }
+    </div>
+</root>
+
+@code
+{
+    [Parameter] public Package Package { get; set; }
+
+    /// <summary>
+    /// Which of the pages it's showing - one of PackagePage's constants, or anything else for Game info.
+    /// </summary>
+    [Parameter] public string Page { get; set; }
+
+    bool IsOverview => PackagePage.Find( Page ).Id is null;
+
+    Panel Content;
+
+    /// <summary>
+    /// The page runs on past the screen's foot - the fade says so. Scrolled to the end, or a page that
+    /// fits, there's nothing under it to fade, so it's gone and the last of the page is clear.
+    /// </summary>
+    bool MoreBelow;
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( !Content.IsValid() ) return;
+
+        var more = Content.ScrollSize.y - Content.ScrollOffset.y > 2;
+        if ( more == MoreBelow ) return;
+
+        MoreBelow = more;
+        StateHasChanged();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Package, Page, MoreBelow );
+}

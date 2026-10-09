@@ -1,13 +1,17 @@
 using System;
+using Side = Editor.MeshEditor.BlockPrimitive.Side;
 
 namespace Editor.MeshEditor;
 
 /// <summary>
-/// Creates a wall section with a centered rectangular doorway.
+/// Creates a wall section with a centered doorway and selectable outer faces.
 /// </summary>
 [Title( "Doorway" ), Icon( "door_front" )]
 public sealed class DoorwayPrimitive : PrimitiveBuilder
 {
+	[Title( "Outer Faces" ), Editor( "horizontal-box-sides" ), WideMode, Description( "Choose which outer wall faces are created. The doorway jambs and inner arch are kept." )]
+	public Side OuterSides { get; set; } = Side.All;
+
 	[Title( "Door Width" ), Range( 1, 1024, slider: false ), WideMode, Description( "Width of the doorway opening." )]
 	public float DoorWidth { get; set; } = 56.0f;
 
@@ -134,15 +138,34 @@ public sealed class DoorwayPrimitive : PrimitiveBuilder
 			mesh.AddFace( vertices );
 		}
 
+		void AddOuterFace( Side side, params Vector3[] vertices )
+		{
+			// Keep the face controls aligned with the box widget's axes after camera alignment.
+			if ( swapAxes )
+			{
+				side = side switch
+				{
+					Side.Left => Side.Back,
+					Side.Right => Side.Front,
+					Side.Back => Side.Left,
+					Side.Front => Side.Right,
+					_ => side
+				};
+			}
+
+			if ( (OuterSides & side) != 0 )
+				AddFace( vertices );
+		}
+
 		// Front of wall.
-		AddFace(
+		AddOuterFace( Side.Left,
 			new Vector3( x0, y0, z0 ),
 			new Vector3( x0, doorLeft, z0 ),
 			new Vector3( x0, doorLeft, springLine ),
 			new Vector3( x0, y0, springLine )
 		);
 
-		AddFace(
+		AddOuterFace( Side.Left,
 			new Vector3( x0, y0, springLine ),
 			new Vector3( x0, doorLeft, springLine ),
 			new Vector3( x0, doorLeft, z1 ),
@@ -157,7 +180,7 @@ public sealed class DoorwayPrimitive : PrimitiveBuilder
 		{
 			for ( var i = 0; i < crown; i++ )
 			{
-				AddFace(
+				AddOuterFace( Side.Left,
 					new Vector3( x0, doorLeft, z1 ),
 					new Vector3( x0, arch[i].y, arch[i].z ),
 					new Vector3( x0, arch[i + 1].y, arch[i + 1].z )
@@ -166,14 +189,14 @@ public sealed class DoorwayPrimitive : PrimitiveBuilder
 
 			for ( var i = crown; i < archSegments; i++ )
 			{
-				AddFace(
+				AddOuterFace( Side.Left,
 					new Vector3( x0, doorRight, z1 ),
 					new Vector3( x0, arch[i].y, arch[i].z ),
 					new Vector3( x0, arch[i + 1].y, arch[i + 1].z )
 				);
 			}
 
-			AddFace(
+			AddOuterFace( Side.Left,
 				new Vector3( x0, doorLeft, z1 ),
 				new Vector3( x0, arch[crown].y, arch[crown].z ),
 				new Vector3( x0, doorRight, z1 )
@@ -181,7 +204,7 @@ public sealed class DoorwayPrimitive : PrimitiveBuilder
 		}
 		else
 		{
-			AddFace(
+			AddOuterFace( Side.Left,
 				new Vector3( x0, doorLeft, springLine ),
 				new Vector3( x0, doorRight, springLine ),
 				new Vector3( x0, doorRight, z1 ),
@@ -189,14 +212,14 @@ public sealed class DoorwayPrimitive : PrimitiveBuilder
 			);
 		}
 
-		AddFace(
+		AddOuterFace( Side.Left,
 			new Vector3( x0, doorRight, z0 ),
 			new Vector3( x0, y1, z0 ),
 			new Vector3( x0, y1, springLine ),
 			new Vector3( x0, doorRight, springLine )
 		);
 
-		AddFace(
+		AddOuterFace( Side.Left,
 			new Vector3( x0, doorRight, springLine ),
 			new Vector3( x0, y1, springLine ),
 			new Vector3( x0, y1, z1 ),
@@ -204,14 +227,14 @@ public sealed class DoorwayPrimitive : PrimitiveBuilder
 		);
 
 		// Back of wall.
-		AddFace(
+		AddOuterFace( Side.Right,
 			new Vector3( x1, doorLeft, z0 ),
 			new Vector3( x1, y0, z0 ),
 			new Vector3( x1, y0, springLine ),
 			new Vector3( x1, doorLeft, springLine )
 		);
 
-		AddFace(
+		AddOuterFace( Side.Right,
 			new Vector3( x1, doorLeft, springLine ),
 			new Vector3( x1, y0, springLine ),
 			new Vector3( x1, y0, z1 ),
@@ -222,7 +245,7 @@ public sealed class DoorwayPrimitive : PrimitiveBuilder
 		{
 			for ( var i = 0; i < crown; i++ )
 			{
-				AddFace(
+				AddOuterFace( Side.Right,
 					new Vector3( x1, doorLeft, z1 ),
 					new Vector3( x1, arch[i + 1].y, arch[i + 1].z ),
 					new Vector3( x1, arch[i].y, arch[i].z )
@@ -231,14 +254,14 @@ public sealed class DoorwayPrimitive : PrimitiveBuilder
 
 			for ( var i = crown; i < archSegments; i++ )
 			{
-				AddFace(
+				AddOuterFace( Side.Right,
 					new Vector3( x1, doorRight, z1 ),
 					new Vector3( x1, arch[i + 1].y, arch[i + 1].z ),
 					new Vector3( x1, arch[i].y, arch[i].z )
 				);
 			}
 
-			AddFace(
+			AddOuterFace( Side.Right,
 				new Vector3( x1, doorRight, z1 ),
 				new Vector3( x1, arch[crown].y, arch[crown].z ),
 				new Vector3( x1, doorLeft, z1 )
@@ -246,7 +269,7 @@ public sealed class DoorwayPrimitive : PrimitiveBuilder
 		}
 		else
 		{
-			AddFace(
+			AddOuterFace( Side.Right,
 				new Vector3( x1, doorRight, springLine ),
 				new Vector3( x1, doorLeft, springLine ),
 				new Vector3( x1, doorLeft, z1 ),
@@ -254,14 +277,14 @@ public sealed class DoorwayPrimitive : PrimitiveBuilder
 			);
 		}
 
-		AddFace(
+		AddOuterFace( Side.Right,
 			new Vector3( x1, y1, z0 ),
 			new Vector3( x1, doorRight, z0 ),
 			new Vector3( x1, doorRight, springLine ),
 			new Vector3( x1, y1, springLine )
 		);
 
-		AddFace(
+		AddOuterFace( Side.Right,
 			new Vector3( x1, y1, springLine ),
 			new Vector3( x1, doorRight, springLine ),
 			new Vector3( x1, doorRight, z1 ),
@@ -269,14 +292,14 @@ public sealed class DoorwayPrimitive : PrimitiveBuilder
 		);
 
 		// Outer left side.
-		AddFace(
+		AddOuterFace( Side.Back,
 			new Vector3( x1, y0, z0 ),
 			new Vector3( x0, y0, z0 ),
 			new Vector3( x0, y0, springLine ),
 			new Vector3( x1, y0, springLine )
 		);
 
-		AddFace(
+		AddOuterFace( Side.Back,
 			new Vector3( x1, y0, springLine ),
 			new Vector3( x0, y0, springLine ),
 			new Vector3( x0, y0, z1 ),
@@ -284,14 +307,14 @@ public sealed class DoorwayPrimitive : PrimitiveBuilder
 		);
 
 		// Outer right side.
-		AddFace(
+		AddOuterFace( Side.Front,
 			new Vector3( x0, y1, z0 ),
 			new Vector3( x1, y1, z0 ),
 			new Vector3( x1, y1, springLine ),
 			new Vector3( x0, y1, springLine )
 		);
 
-		AddFace(
+		AddOuterFace( Side.Front,
 			new Vector3( x0, y1, springLine ),
 			new Vector3( x1, y1, springLine ),
 			new Vector3( x1, y1, z1 ),
@@ -299,21 +322,21 @@ public sealed class DoorwayPrimitive : PrimitiveBuilder
 		);
 
 		// Top of wall.
-		AddFace(
+		AddOuterFace( Side.Top,
 			new Vector3( x0, y0, z1 ),
 			new Vector3( x0, doorLeft, z1 ),
 			new Vector3( x1, doorLeft, z1 ),
 			new Vector3( x1, y0, z1 )
 		);
 
-		AddFace(
+		AddOuterFace( Side.Top,
 			new Vector3( x0, doorLeft, z1 ),
 			new Vector3( x0, doorRight, z1 ),
 			new Vector3( x1, doorRight, z1 ),
 			new Vector3( x1, doorLeft, z1 )
 		);
 
-		AddFace(
+		AddOuterFace( Side.Top,
 			new Vector3( x0, doorRight, z1 ),
 			new Vector3( x0, y1, z1 ),
 			new Vector3( x1, y1, z1 ),
@@ -321,14 +344,14 @@ public sealed class DoorwayPrimitive : PrimitiveBuilder
 		);
 
 		// Bottom of the two wall legs.
-		AddFace(
+		AddOuterFace( Side.Bottom,
 			new Vector3( x1, y0, z0 ),
 			new Vector3( x1, doorLeft, z0 ),
 			new Vector3( x0, doorLeft, z0 ),
 			new Vector3( x0, y0, z0 )
 		);
 
-		AddFace(
+		AddOuterFace( Side.Bottom,
 			new Vector3( x1, doorRight, z0 ),
 			new Vector3( x1, y1, z0 ),
 			new Vector3( x0, y1, z0 ),

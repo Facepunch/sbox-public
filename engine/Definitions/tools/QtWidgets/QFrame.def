@@ -10,5 +10,5 @@ native class CFrame
 
 managed class Editor.Frame : Editor.Widget
 {
-    
+	void NativeDestroying();
 }

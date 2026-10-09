@@ -1,0 +1,460 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+FriendCard.popup-panel
+{
+	@include front-card;
+
+	width: 300px;
+	sound-in: "ui.button.over";
+
+	&.above-center
+	{
+		// OnLayout centers and clamps these cards using their measured size.
+		transform: none;
+		overflow: scroll;
+	}
+
+	// Their face and name on the left, their citizen stood on the right
+	.hero
+	{
+		position: relative;
+		flex-shrink: 0;
+		height: 132px;
+		border-radius: $front-radius $front-radius 0 0;
+		overflow: hidden;
+		background-image: linear-gradient( 180deg, #3a4150, $front-card-deep );
+		border-bottom: $front-border-width solid $front-hairline;
+
+		// The game they're in, behind their citizen - the party card's look, mirrored: strongest on the
+		// right where they're stood, fading off all the way across to the left. White shows, black hides.
+		.game-art
+		{
+			position: absolute;
+			left: 0;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			pointer-events: none;
+			background-size: cover;
+			background-position: center;
+			opacity: 0.75;
+			mask-image: linear-gradient( 270deg, white 0%, black 100% );
+		}
+
+		// The front page avatar's backdrop: blurred and dimmed so their citizen stands out.
+		// Extend past the clipped hero edges so the blur doesn't pull transparency into the border.
+		.backdrop
+		{
+			position: absolute;
+			left: -20px;
+			top: -20px;
+			right: -20px;
+			bottom: -20px;
+			pointer-events: none;
+			background-image: url( "/ui/citizen-backdrop.webp" );
+			background-size: cover;
+			background-position: center;
+			filter: blur( 8px ) brightness( 0.45 );
+			mask-image: linear-gradient( to bottom, white 0%, white 50%, black 100% );
+		}
+
+		// In the editor - a blue grid where a game's screenshot would go, faded the same way
+		.editor-art
+		{
+			position: absolute;
+			left: 0;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			pointer-events: none;
+			background-image: url( "/ui/blueprint.svg" );
+			background-size: cover;
+			background-position: right center;
+			opacity: 0.75;
+			mask-image: linear-gradient( 270deg, white 0%, black 100% );
+		}
+
+		CitizenPreview
+		{
+			position: absolute;
+			top: 0;
+			right: 0;
+			width: 150px;
+			height: 100%;
+		}
+
+		// The whole card wide, so long names can run on over their citizen before they get cut off - a
+		// fixed width, since the name needs a real one to ellipsize against or it collapses to nothing
+		.who
+		{
+			flex-direction: column;
+			justify-content: flex-end;
+			flex-shrink: 0;
+			width: 100%;
+			height: 100%;
+			gap: 2px;
+			padding: 16px;
+			z-index: 5;
+		}
+
+		.avatar
+		{
+			@include front-row-media;
+
+			width: 44px;
+			height: 44px;
+			border-radius: 50%;
+			margin-bottom: 8px;
+			border: 2px solid rgba( 255, 255, 255, 0.2 );
+		}
+
+		.display-name
+		{
+			flex-shrink: 0;
+			width: 100%;
+			font-size: 20px;
+			font-weight: 700;
+			color: $front-heading;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			text-shadow: 0 1px 3px rgba( 0, 0, 0, 0.6 );
+		}
+
+		.state
+		{
+			flex-direction: row;
+			align-items: center;
+			gap: 6px;
+
+			.dot
+			{
+				width: 6px;
+				height: 6px;
+				border-radius: 50%;
+				background-color: $front-tertiary;
+			}
+
+			label
+			{
+				font-size: 11.5px;
+				font-weight: 600;
+				color: $front-secondary;
+			}
+
+			&.ingame .dot { background-color: $front-accent; }
+			&.ingame label { color: $front-accent; }
+			&.online .dot { background-color: $front-link; }
+			&.online label { color: $front-link; }
+		}
+	}
+
+	// The shared stats box - it looks after itself, the card just draws the line under it
+	ProfileStats
+	{
+		border-bottom: $front-border-width solid $front-hairline;
+	}
+
+	.playing
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 10px;
+		padding: 14px 16px;
+		border-bottom: $front-border-width solid $front-hairline;
+
+		.section-label
+		{
+			@include front-section-label;
+			color: $front-accent;
+		}
+
+		.game
+		{
+			flex-direction: row;
+			align-items: center;
+			gap: 12px;
+			border-radius: 6px;
+
+			&.clickable
+			{
+				cursor: pointer;
+
+				&:hover .game-title
+				{
+					color: $front-link-hover;
+				}
+			}
+		}
+
+		.thumb
+		{
+			flex-shrink: 0;
+			width: 72px;
+			height: 40px;
+			border-radius: 4px;
+			background-size: cover;
+			background-position: center;
+			background-color: rgba( 0, 0, 0, 0.35 );
+		}
+
+		.game-info
+		{
+			flex-direction: column;
+			flex-shrink: 1;
+			min-width: 0;
+		}
+
+		.game-title
+		{
+			@include front-row-title;
+		}
+
+		.game-detail
+		{
+			@include front-row-meta;
+		}
+
+		// Recently / most played - not live, so not green
+		.section-label.quiet
+		{
+			color: $front-label;
+		}
+
+		// Placeholders while we find out what they last played - the same shapes as the real thing
+		.skeleton
+		{
+			background-color: rgba( 255, 255, 255, 0.1 );
+			animation-name: card-skeleton-pulse;
+			animation-duration: 1.2s;
+			animation-timing-function: ease;
+			animation-iteration-count: infinite;
+			animation-direction: alternate;
+		}
+
+		.thumb.skeleton
+		{
+			background-image: none;
+		}
+
+		.game-info .line
+		{
+			height: 11px;
+			border-radius: 4px;
+
+			&.title
+			{
+				width: 120px;
+				margin-bottom: 7px;
+			}
+
+			&.meta
+			{
+				width: 90px;
+				height: 9px;
+			}
+		}
+
+		// "34h · 12 · 3d ago", each with a little glyph
+		.game-meta
+		{
+			flex-direction: row;
+			align-items: center;
+			gap: 10px;
+
+			.meta-part
+			{
+				flex-direction: row;
+				align-items: center;
+				gap: 3px;
+
+				icon
+				{
+					font-size: 12px;
+					color: $front-tertiary;
+				}
+
+				label
+				{
+					@include front-row-meta;
+				}
+			}
+		}
+
+		.friends-here
+		{
+			flex-direction: row;
+			align-items: center;
+			gap: 8px;
+
+			.faces
+			{
+				flex-direction: row;
+			}
+
+			.face
+			{
+				width: 20px;
+				height: 20px;
+				margin-right: -5px;
+				border-radius: 50%;
+				background-size: cover;
+				border: 2px solid $front-card;
+			}
+
+			label
+			{
+				margin-left: 5px;
+				font-size: 11.5px;
+				color: $front-secondary;
+			}
+		}
+	}
+
+	// The main things to do on top, the less common ones in a row of their own beneath when they
+	// won't all fit on one
+	.actions
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 8px;
+		padding: 12px 16px 14px 16px;
+
+		.action-row
+		{
+			flex-direction: row;
+			gap: 8px;
+		}
+
+		// Leave room for all three secondary actions without cutting off their labels.
+		.action-row.secondary
+		{
+			gap: 6px;
+
+			.button
+			{
+				flex-shrink: 0;
+				gap: 4px;
+				padding: 0 6px;
+
+				label
+				{
+					flex-shrink: 0;
+					font-size: 11px;
+					font-weight: 600;
+				}
+
+				icon
+				{
+					font-size: 14px;
+				}
+			}
+		}
+
+		// Side by side, each as wide as its label and sharing whatever's left over - so the longer
+		// "Invite to party" gets the room it needs. Labels never wrap.
+		.button
+		{
+			flex-direction: row;
+			flex-grow: 1;
+			flex-shrink: 1;
+			align-items: center;
+			justify-content: center;
+			gap: 6px;
+			height: 34px;
+			padding: 0 10px;
+			white-space: nowrap;
+			border-radius: 6px;
+			border: $front-border-width solid $front-hairline;
+			background-color: rgba( 255, 255, 255, 0.05 );
+			cursor: pointer;
+			transition: all 0.1s ease;
+
+			label
+			{
+				flex-shrink: 1;
+				min-width: 0;
+				font-size: 12px;
+				font-weight: 700;
+				color: $front-body;
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+
+			icon
+			{
+				flex-shrink: 0;
+				font-size: 15px;
+				color: $front-secondary;
+			}
+
+			&:hover
+			{
+				background-color: rgba( 255, 255, 255, 0.1 );
+				border-color: rgba( 255, 255, 255, 0.25 );
+				sound-in: "ui.button.over";
+
+				label, icon { color: $front-heading; }
+			}
+
+			&:active
+			{
+				sound-in: "ui.button.press";
+			}
+
+			// The thing you probably came here to do
+			&.primary
+			{
+				background-color: rgba( $front-reward, 0.18 );
+				border-color: rgba( $front-reward, 0.55 );
+
+				label, icon { color: $front-reward; }
+
+				&:hover
+				{
+					background-color: rgba( $front-reward, 0.3 );
+					border-color: $front-reward;
+
+					label, icon { color: $front-reward * 2; }
+				}
+			}
+
+			&.done
+			{
+				cursor: default;
+
+				label, icon { color: $front-accent; }
+
+				&:hover
+				{
+					background-color: rgba( 255, 255, 255, 0.05 );
+					border-color: $front-hairline;
+				}
+			}
+
+			// Leaving, kicking - goes red when you point at it
+			&.danger:hover
+			{
+				border-color: rgba( $front-danger, 0.5 );
+				background-color: rgba( $front-danger, 0.12 );
+
+				label, icon { color: $front-danger; }
+			}
+		}
+	}
+}
+
+@keyframes card-skeleton-pulse
+{
+	0%
+	{
+		opacity: 0.5;
+	}
+
+	100%
+	{
+		opacity: 1;
+	}
+}

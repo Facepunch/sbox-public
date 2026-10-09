@@ -4,10 +4,10 @@
 @using Sandbox;
 @using Sandbox.UI;
 
-@attribute [Title( "CSS Grid" )]
+@attribute [Group( "Layout" )]
+@attribute [Title( "display: grid" )]
 @attribute [Description( "display: grid - tracks, placement, alignment" )]
 @attribute [Icon( "grid_view" )]
-@attribute [Order( 20 )]
 
 @*
     Every stage holds one grid container with numbered, coloured items. The caption is the
@@ -157,7 +157,7 @@
                 </div>
             </ChildContent>
         </UiTestCase>
-        <UiTestCase class="layout-case" Setup="@Grid" Rule="position: absolute; grid-column: 2 / 4; grid-row: 2; inset: 4px  (red)" Note="An absolutely positioned child uses its grid area as the containing block - the red box fills cells 2-3 of row 2, inset by 4px, on top of the flow items.">
+        <UiTestCase class="layout-case" Setup="@Grid" Rule="position: absolute; grid-column: 2 / 4; grid-row: 2; inset: 4px  (red)" Note="An absolutely positioned child uses its grid area as the containing block - the pink box fills cells 2-3 of row 2, inset by 4px, on top of the flow items.">
             <ChildContent>
                 <div class="grid three tallrows">
                     <div class="item c1"><label>1</label></div><div class="item c2"><label>2</label></div><div class="item c3"><label>3</label></div>
@@ -166,7 +166,7 @@
                 </div>
             </ChildContent>
         </UiTestCase>
-        <UiTestCase class="layout-case" Setup="@Grid" Rule="position: absolute; right: 4px; bottom: 4px  (no grid placement)" Note="Without a placement the containing block is the grid's padding box, so the red box hugs the bottom-right corner.">
+        <UiTestCase class="layout-case" Setup="@Grid" Rule="position: absolute; right: 4px; bottom: 4px  (no grid placement)" Note="Without a placement the containing block is the grid's padding box, so the pink box hugs the bottom-right corner.">
             <ChildContent>
                 <div class="grid three tallrows">
                     <div class="item c1"><label>1</label></div><div class="item c2"><label>2</label></div><div class="item c3"><label>3</label></div>

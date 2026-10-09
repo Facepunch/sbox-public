@@ -1,0 +1,207 @@
+@using Sandbox
+@using Sandbox.UI
+@using Sandbox.Modals
+@using MenuProject.Modals.PackageModalComponents
+@inherits Panel
+
+@*
+    Down the left of the game's page in the pause menu - everything you can do about the game you're
+    in. Up top the game itself (GameSummary) - its name, play time and the pills to like it.
+    Under it what you can do, as buttons: back to the game, another map, streaming, and leaving it -
+    the game's own are on its Game info (GameActions). Then its pages, a list like the rail's - its
+    Overview, who's here, its achievements, reviews, news and changes - each opening in the body
+    beside it (PauseHome), the one showing lit up. On its foot, reporting it. Quitting s&box is the
+    rail's.
+*@
+<root>
+
+    @* The game itself, up top - its name, what it is, play time *@
+    @if ( ThisGame is { } summarised )
+    {
+        <GameSummary Package=@summarised />
+    }
+
+    @* What you can do, under it - back to the game and out of it first, another map and streaming
+       under. The game's own are on its Game info (GameActions) *@
+    <div class="actions">
+        @* Back to the game, and out of it beside - just its glyph, it asks first *@
+        <div class="first">
+            <div class="action resume" onclick=@( () => Modal?.Resume() )>
+                <i>play_arrow</i>
+                <label>Resume game</label>
+            </div>
+
+            <div class="action leave" onclick=@Leave tooltip="Leave game">
+                <i>logout</i>
+            </div>
+        </div>
+
+        @if ( CanChangeMap )
+        {
+            <div class="action" onclick=@ChangeMap>
+                <i>map</i>
+                <label>Change map</label>
+            </div>
+        }
+
+        @if ( IsStreamerGame )
+        {
+            <div class="action @(Streamer.IsActive ? "on" : "")" onclick=@( () => Game.Overlay.ShowServiceConnector() )>
+                <i>settings_input_antenna</i>
+                <label>Stream</label>
+            </div>
+        }
+    </div>
+
+    @* Its pages, under the buttons - each in the body, in place of the one there *@
+    @if ( ThisGame is { } game )
+    {
+        <div class="pages">
+            <div class="entry @Active( null )" onclick=@( () => PauseHome.Show( null ) )>
+                <i>info</i>
+                <label>Information</label>
+            </div>
+
+            @if ( PauseHome.ShowPlayers )
+            {
+                <div class="entry @Active( PackagePage.Players )" onclick=@( () => PauseHome.Show( PackagePage.Players ) )>
+                    <i>group</i>
+                    <label>Players</label>
+                </div>
+            }
+
+            @if ( HasAchievements )
+            {
+                <div class="entry @Active( PackagePage.Achievements )" onclick=@( () => PauseHome.Show( PackagePage.Achievements ) )>
+                    <i>emoji_events</i>
+                    <label>Achievements</label>
+                </div>
+            }
+
+            <div class="entry @Active( PackagePage.Reviews )" onclick=@( () => PauseHome.Show( PackagePage.Reviews ) )>
+                <i>reviews</i>
+                <label>Reviews</label>
+            </div>
+
+            @if ( game.LatestNewsPost is not null )
+            {
+                <div class="entry @Active( PackagePage.News )" onclick=@( () => PauseHome.Show( PackagePage.News ) )>
+                    <i>newspaper</i>
+                    <label>News</label>
+                </div>
+            }
+
+            @if ( game.LatestChangeLists.Length > 0 )
+            {
+                <div class="entry @Active( PackagePage.Changes )" onclick=@( () => PauseHome.Show( PackagePage.Changes ) )>
+                    <i>history</i>
+                    <label>Changes</label>
+                </div>
+            }
+        </div>
+
+        <div class="grow"></div>
+
+        @* Last of all, on the card's foot under a hairline - just a line of text, it's rarely what
+           you're here for *@
+        <div class="footer">
+            <div class="report" onclick=@( () => Game.Overlay.ShowReportModal( game.FullIdent ) )>
+                <i>flag</i>
+                <label>Report this game</label>
+            </div>
+        </div>
+    }
+
+</root>
+
+@code
+{
+    static Package ThisGame => PauseModal.CurrentGame;
+
+    PauseModal Modal => Ancestors.OfType<PauseModal>().FirstOrDefault();
+
+    /// <summary>
+    /// The page showing in the body beside us - null for the Overview.
+    /// </summary>
+    string Page => PackagePage.Find( Ancestors.OfType<PauseHome>().FirstOrDefault()?.Page ).Id;
+
+    string Active( string page ) => Page == page ? "active" : "";
+
+    static bool IsStreamerGame => ThisGame?.Info.IsStreamerGame ?? false;
+
+    static bool CanChangeMap => (!Networking.IsActive || Networking.IsHost) && (ThisGame?.Info.ShowsChangeMap ?? false);
+
+    /// <summary>
+    /// Straight to the map picker - pick one and the game reloads on it.
+    /// </summary>
+    void ChangeMap()
+    {
+        Game.Overlay.ShowMapSelector( OnMapSelected, LaunchArguments.Map );
+    }
+
+    void OnMapSelected( string map )
+    {
+        if ( string.IsNullOrEmpty( map ) ) return;
+        if ( Networking.IsActive && !Networking.IsHost ) return;
+
+        LaunchArguments.Map = map;
+        Game.Load( Game.Ident, true );
+
+        Modal?.CloseModal( true );
+    }
+
+    /// <summary>
+    /// Out of the game and back to the menu - it asks first, it's the game's unsaved progress.
+    /// </summary>
+    void Leave()
+    {
+        ModalSystem.Instance?.Open( new MenuProject.Modals.QuestionModal
+        {
+            Color = Color.Parse( "#ff5d6a" ) ?? Color.Red,
+            Title = "Leave Game?",
+            Message = "Any unsaved progress will be lost.",
+            ConfirmText = "Leave",
+            ConfirmIcon = "logout",
+            OnConfirm = () => Game.Close()
+        } );
+    }
+
+    //
+    // Whether it has achievements - a fetch, once for each game, for its entry
+    //
+
+    Package _achievementsFor;
+    bool HasAchievements;
+
+    async Task CheckAchievements( Package game )
+    {
+        HasAchievements = false;
+        if ( game is null ) return;
+
+        try
+        {
+            var achievements = await game.GetAchievements();
+
+            // Still the game it was asked for
+            if ( game == _achievementsFor )
+                HasAchievements = achievements?.All.Count > 0;
+        }
+        catch ( Exception e )
+        {
+            Log.Warning( $"Couldn't check {game.FullIdent}'s achievements: {e.Message}" );
+        }
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( ThisGame != _achievementsFor )
+        {
+            _achievementsFor = ThisGame;
+            _ = CheckAchievements( ThisGame );
+        }
+    }
+
+    protected override int BuildHash() => HashCode.Combine( ThisGame, CanChangeMap, Streamer.IsActive, PauseHome.ShowPlayers, Page, HasAchievements, ThisGame?.LatestNewsPost, ThisGame?.LatestChangeLists.Length );
+}

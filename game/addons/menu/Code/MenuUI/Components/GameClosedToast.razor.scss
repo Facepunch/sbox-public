@@ -1,266 +1,378 @@
+@import "/styles/_front.scss";
 
+// The menu's card - the slab, hairline, rounding - in the bottom right corner. Everything's scoped
+// under it: stylesheets are global, and a bare .head or .close would restyle half the menu.
 GameClosedToast
 {
-    border-radius: 12px;
-    color: #fff;
-    font-family: "poppins";
-    font-size: 18px;
-    font-weight: 600;
-    pointer-events: all;
-    box-shadow: 5px 5px 20px rgba( black, 0.8 );
-    opacity: 1;
-    transition: all 0.2s ease-out;
-    sound-in: "ui.popup.message.open";
-    overflow: hidden;
-    flex-direction: column;
-    background-color: #1b202c;
-    border: 1px solid #8e9ec244;
-    padding: 16px;
-    margin-bottom: 16px;
-    height: 190px;
-    width: 350px;
-    position: relative;
-    left: 0px;
-    gap: 8px;
+	@include front-card;
 
-    &:intro
-    {
-        left: 1000px;
-        height: 0px;
-        margin-bottom: 0px;
-        opacity: 0;
-        padding: 0px;
-    }
+	position: relative;
+	width: 360px;
+	top: 0px;
+	color: $front-body;
+	pointer-events: all;
+	box-shadow: 0 12px 40px rgba( 0, 0, 0, 0.5 );
+	transition: all 0.2s ease-out;
+	sound-in: "ui.popup.message.open";
 
-    &:outro
-    {
-        left: 100px;
-        height: 0px;
-        opacity: 0;
-        transition: all 0.2s ease-in;
-    }
+	// Rises up from the bottom edge it sits on, and sinks back into it
+	&:intro
+	{
+		top: 40px;
+		opacity: 0;
+	}
 
-    .left
-    {
-        .game-icon
-        {
-            width: 70px;
-            height: 70px;
-            background-size: cover;
-            border-radius: 10px;
-            cursor: pointer;
-        }
-    }
+	&:outro
+	{
+		top: 40px;
+		opacity: 0;
+		transition: all 0.2s ease-in;
+	}
 
-    .right
-    {
-        flex-direction: column;
-        font-size: 11px;
-        padding: 4px 16px;
-        justify-content: center;
-        gap: 8px;
+	i
+	{
+		font-family: "Material Icons";
+	}
 
-        .game-title
-        {
-            font-size: 17px;
-            font-weight: bold;
-            line-height: 70%;
-        }
+	//
+	// The game
+	//
 
-        .game-author
-        {
-            justify-content: flex-start;
-            color: #86b0ff;
-            font-weight: 400;
-        }
+	.head
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 14px;
+		padding: 16px 12px 14px $front-inset;
+	}
 
-        .now-playing, .more-info
-        {
-            color: #86b0ff;
-        }
+	.game-icon
+	{
+		flex-shrink: 0;
+		width: 56px;
+		height: 56px;
+		border-radius: 8px;
+		background-size: cover;
+		background-position: center;
+		background-color: rgba( 0, 0, 0, 0.35 );
+		cursor: pointer;
+		transition: all 0.1s ease;
 
-        .now-playing
-        {
-            margin-bottom: 8px;
-        }
+		&:hover
+		{
+			filter: brightness( 1.15 );
+			sound-in: "ui.button.over";
+		}
+	}
 
-        .more-info
-        {
-            font-size: 9px;
-            justify-content: flex-start;
-            align-items: center;
-            margin-top: 8px;
-            height: 32px;
-            gap: 4px;
-            animation-name: loader-spin;
-            animation-duration: 0.8s;
-            animation-timing-function: ease;
-            animation-iteration-count: 1;
-            animation-delay: 1.0s;
-            animation-fill-mode: both;
-        }
-    }
+	.head-text
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+		cursor: pointer;
 
-    .button
-    {
-        background-color: white;
-        padding: 1px 4px;
-        border-radius: 4px;
-        box-shadow: 2px 2px 5px #0003;
-    }
+		&:hover .game-title
+		{
+			color: #ffffff;
+		}
+	}
 
-    &:hover
-    {
-        > .close-progress
-        {
-            > .inner
-            {
-                background-color: #8e9ec244;
-            }
-        }
-    }
-}
+	.eyebrow
+	{
+		@include front-section-label;
+		margin-bottom: 2px;
+	}
 
-.top
-{
-    width: 100%;
-    border-radius: 8px;
-    cursor: pointer;
-    flex-shrink: 0;
+	.game-title
+	{
+		font-size: 15px;
+		font-weight: 700;
+		color: $front-heading;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		transition: color 0.1s ease;
+	}
 
-    &:hover
-    {
-        color: white;
-        filter: brightness( 2 );
-    }
-}
+	.game-org
+	{
+		font-size: 12px;
+		font-weight: 500;
+		color: $front-secondary;
+	}
 
-.body
-{
-    flex-grow: 1;
-    gap: 8px;
-    padding: 0;
-}
+	// Top right, level with the eyebrow
+	.close
+	{
+		@include front-icon-button;
 
-.close
-{
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    padding: 8px;
-    cursor: pointer;
-    z-index: 10;
-    border-radius: 8px;
+		align-self: flex-start;
+		width: 28px;
+		height: 28px;
+		margin-top: -6px;
 
-    &:hover
-    {
-        background-color: #fff1;
-    }
-}
+		i
+		{
+			width: 100%;
+			text-align: center;
+			font-size: 16px;
+			color: $front-secondary;
+		}
 
+		&:hover i
+		{
+			color: $front-heading;
+		}
+	}
 
-@keyframes loader-spin
-{
-    0%
-    {
-        height: 1px;
-        opacity: 0;
-    }
+	//
+	// What you thought - pills along a hairlined band
+	//
 
-    50%
-    {
-        height: 16px;
-        opacity: 0.25;
-    }
+	.actions
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 8px;
+		padding: 12px $front-inset 16px $front-inset;
+		border-top: $front-border-width solid $front-hairline;
 
+		.grow
+		{
+			flex-grow: 1;
+		}
+	}
 
-    80%
-    {
-        height: 16px;
-        opacity: 0.5;
-    }
+	.action
+	{
+		@include front-pill;
 
+		height: 30px;
+		padding: 0 12px 0 10px;
+		cursor: pointer;
 
-    90%
-    {
-        opacity: 1;
-        height: 16px;
-    }
+		i
+		{
+			font-size: 15px;
+			color: $front-secondary;
+		}
 
-    100%
-    {
-        opacity: 1;
-        height: 16px;
-    }
-}
+		label
+		{
+			font-size: 11px;
+			font-weight: 700;
+			letter-spacing: 0.04em;
+			text-transform: none;
+			color: $front-body;
+		}
 
+		&:hover
+		{
+			sound-in: "ui.button.over";
 
-.body .option
-{
-    flex-grow: 1;
-    flex-shrink: 0;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    gap: 1rem;
-    font-size: 11px;
-    cursor: pointer;
-    color: #b2bfd8;
-    background-color: #b2bfd805;
-    padding: 1rem;
-    border-radius: 8px;
+			i
+			{
+				color: $front-heading;
+			}
+		}
 
-    &:hover
-    {		
-		sound-in: ui.button.over;
-        background-color: #b2bfd822;
-    }
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
 
-    &.active
-    {
-		sound-in: ui.button.over;
-        color: white;
-    }
-}
+		// Yours - lit in the colour of what it means
+		&.favourite.active
+		{
+			border-color: rgba( #e93b6d, 0.55 );
+			background-color: rgba( #e93b6d, 0.14 );
 
-.body .option i
-{
-    font-size: 18px;
-}
+			i { color: #ff5b8a; }
+			label { color: $front-heading; }
+		}
 
-.body .option.favourite.active i
-{
-    color: #e93b6d;
-}
+		&.up.active
+		{
+			background-color: rgba( $front-reward, 0.16 );
 
+			i { color: $front-reward; }
+			label { color: $front-heading; }
+		}
 
-.body .group
-{
-    border-radius: 8px;
-    overflow: hidden;
-    flex-grow: 2;
-    gap: 1px;
-}
+		&.down.active
+		{
+			background-color: rgba( $front-danger, 0.16 );
 
-.body .group .option
-{
-    border-radius: 0;
-}
+			i { color: $front-danger; }
+			label { color: $front-heading; }
+		}
+	}
 
-.close-progress
-{
-    height: 5px;
-    border-radius: 2px;
-    overflow: hidden;
-    left: 0px;
-    right: 0px;
-    background-color: black;
-    z-index: 10;
-    flex-shrink: 0;
+	// Up and down as one pill, split down the middle - the halves lose their own edges and
+	// rounding, the pair takes them
+	.votes
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		height: 30px;
+		border-radius: 999px;
+		border: $front-border-width solid $front-hairline;
+		overflow: hidden;
 
-    .inner
-    {
-        background-color: #467de4;
-        width: 30%;
-    }
+		.action
+		{
+			height: 100%;
+			border-width: 0;
+			border-radius: 0;
+			background-color: rgba( 255, 255, 255, 0.05 );
+
+			&:hover
+			{
+				background-color: rgba( 255, 255, 255, 0.11 );
+			}
+		}
+
+		.split
+		{
+			width: 1px;
+			height: 100%;
+			background-color: $front-hairline;
+		}
+	}
+
+	//
+	// A jam entry - nominate it while you're still thinking about it
+	//
+
+	.jam
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 10px;
+		margin: -4px $front-inset 16px $front-inset;
+		padding: 8px 8px 8px 12px;
+		border-radius: 8px;
+		background: linear-gradient( 90deg, rgba( $front-trophy, 0.2 ), rgba( $front-trophy, 0.06 ) );
+		border: 1px solid rgba( $front-trophy, 0.4 );
+
+		.trophy
+		{
+			flex-shrink: 0;
+			font-size: 22px;
+			color: $front-trophy * 1.8;
+		}
+
+		.text
+		{
+			flex-grow: 1;
+			flex-shrink: 1;
+			flex-direction: column;
+			min-width: 0;
+			gap: 1px;
+
+			.title
+			{
+				font-size: 12px;
+				font-weight: 700;
+				color: $front-heading;
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+
+			.hint
+			{
+				font-size: 10.5px;
+				font-weight: 500;
+				color: $front-trophy * 1.6;
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+		}
+
+		.nominate
+		{
+			flex-direction: row;
+			flex-shrink: 0;
+			align-items: center;
+			gap: 6px;
+			height: 30px;
+			padding: 0 12px 0 10px;
+			border-radius: 999px;
+			background-color: $front-trophy;
+			color: #1a1204;
+			cursor: pointer;
+			transition: all 0.1s ease;
+
+			i
+			{
+				font-size: 15px;
+			}
+
+			label
+			{
+				font-size: 11px;
+				font-weight: 700;
+			}
+
+			&:hover
+			{
+				sound-in: "ui.button.over";
+				filter: brightness( 1.15 );
+			}
+
+			&.on
+			{
+				background-color: rgba( $front-trophy, 0.15 );
+				border: 1px solid rgba( $front-trophy, 0.6 );
+				color: $front-trophy;
+			}
+
+			&.busy, &.locked
+			{
+				opacity: 0.5;
+			}
+
+			&.busy
+			{
+				pointer-events: none;
+			}
+
+			&.locked
+			{
+				cursor: default;
+			}
+		}
+	}
+
+	//
+	// Time left - a hairline along the very bottom edge, running down
+	//
+
+	.timer
+	{
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		height: 2px;
+
+		.fill
+		{
+			height: 100%;
+			background-color: rgba( $front-primary, 0.8 );
+			transition: background-color 0.2s ease;
+		}
+	}
+
+	// Paused while you're on it - dimmed so it reads as stopped
+	&:hover .timer .fill
+	{
+		background-color: rgba( 255, 255, 255, 0.2 );
+	}
 }

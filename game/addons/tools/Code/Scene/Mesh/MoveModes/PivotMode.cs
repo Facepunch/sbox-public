@@ -79,6 +79,8 @@ public sealed class PivotMode : MoveMode
 		{
 			Gizmo.Hitbox.DepthBias = 0.01f;
 
+			DrawPivotMarker( origin );
+
 			if ( !Gizmo.Control.Position( "position", Vector3.Zero, out var delta, _basis ) )
 				return;
 
@@ -181,6 +183,19 @@ public sealed class PivotMode : MoveMode
 		return scale * Gizmo.Camera.Position.Distance( position ) / 1000.0f;
 	}
 
+	private static void DrawPivotMarker( Vector3 origin )
+	{
+		var radius = ScreenSize( origin, 18.0f );
+
+		Gizmo.Draw.IgnoreDepth = true;
+		Gizmo.Draw.LineThickness = 1.5f;
+		Gizmo.Draw.Color = Theme.Yellow;
+
+		Gizmo.Draw.LineCircle( Vector3.Zero, Vector3.Up, radius, sections: 4 );
+		Gizmo.Draw.LineCircle( Vector3.Zero, Vector3.Forward, radius, sections: 4 );
+		Gizmo.Draw.LineCircle( Vector3.Zero, Vector3.Left, radius, sections: 4 );
+	}
+
 	private static void DrawVertexSnap( Vector3 vertex, float screenDistance )
 	{
 		var color = screenDistance < SnapScreenDistance ? Theme.Green : Theme.Red;
@@ -214,7 +229,7 @@ public sealed class PivotMode : MoveMode
 			Gizmo.Draw.Line( Vector3.Zero, Vector3.Left * 16 );
 
 			Gizmo.Draw.Color = Color.White;
-			Gizmo.Draw.SolidSphere( Vector3.Zero, ScreenSize( tool.Pivot.Position, 5.0f ) );
+			DrawPivotMarker( tool.Pivot.Position );
 		}
 	}
 }

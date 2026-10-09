@@ -38,6 +38,7 @@ var Members = new Dictionary<string, (string TypeName, string DefaultValue, bool
 	{ "BorderTopWidth",				("Length?",				"0",							false)},
 	{ "BorderRightWidth",			("Length?",				"0",							false)},
 	{ "BorderBottomWidth",			("Length?",				"0",							false)},
+	{ "BorderStyle",				("BorderStyle?",		"Sandbox.BorderStyle.Solid",		false)},
 	{ "BorderLeftColor",			("Color?",				"Color.White",					false)},
 	{ "BorderTopColor",				("Color?",				"Color.White",					false)},
 	{ "BorderRightColor",			("Color?",				"Color.White",					false)},
@@ -166,6 +167,8 @@ var Members = new Dictionary<string, (string TypeName, string DefaultValue, bool
 	{ "OutlineOffset",				("Length?",				"0",							false)},
 	{ "Isolation",					("Isolation?",			"UI.Isolation.Auto",			false)},
 	{ "ScrollbarWidth",				("Length?",				"0",							true)},
+	{ "OverscrollBehaviorX", ("OverscrollBehavior?", "UI.OverscrollBehavior.Auto", false)},
+	{ "OverscrollBehaviorY", ("OverscrollBehavior?", "UI.OverscrollBehavior.Auto", false)},
 	{ "ScrollbarGutter",			("ScrollbarGutter?",	"UI.ScrollbarGutter.Auto",		false)},
 	{ "ScrollbarThumbColor",		("Color?",				"null",							true)},
 	{ "ScrollbarTrackColor",		("Color?",				"null",							true)}
@@ -421,6 +424,7 @@ foreach ( var member in Members )
 	else if ( member.Value.TypeName == "string" && member.Key.StartsWith( "Grid" ) )
 	{
 #>
+
 		_<#=member.Key.ToLowerInvariant()#> ??= <#=member.Value.DefaultValue#>;
 <#
 	}

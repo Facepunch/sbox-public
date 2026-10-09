@@ -80,6 +80,31 @@ public class PlayerAchievementProgress
 
 public struct StorageEntry
 {
+	/// <summary>
+	/// Stable record ID.
+	/// </summary>
+	public long Id { get; set; }
+
+	/// <summary>
+	/// Optional group containing the record.
+	/// </summary>
+	public string GroupKey { get; set; }
+
+	/// <summary>
+	/// Whether the record is readable by other players and anonymous callers.
+	/// </summary>
+	public bool PublicRead { get; set; }
+
+	/// <summary>
+	/// Time the record was created.
+	/// </summary>
+	public DateTimeOffset CreatedAt { get; set; }
+
+	/// <summary>
+	/// Opaque concurrency token required by the record update and delete endpoints.
+	/// </summary>
+	public string Revision { get; set; }
+
 	public DateTimeOffset Updated { get; set; }
 	public long SteamId { get; set; }
 	public string Key { get; set; }

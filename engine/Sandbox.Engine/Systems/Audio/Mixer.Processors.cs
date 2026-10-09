@@ -19,14 +19,14 @@ public partial class Mixer
 		ThreadSafe.AssertIsMainThread();
 		var old = _processorList;
 		_processorList = [];
-		foreach ( var p in old ) p.OnRemovedInternal();
+		foreach ( var p in old ) MixingThread.QueueProcessorRemoval( p );
 	}
 
 	public void RemoveProcessor( AudioProcessor ap )
 	{
 		ThreadSafe.AssertIsMainThread();
-		ap.OnRemovedInternal();
 		_processorList = [.. _processorList.Where( p => p != ap )];
+		MixingThread.QueueProcessorRemoval( ap );
 	}
 
 	[Hide]

@@ -1,0 +1,149 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.Services;
+@using Sandbox.UI;
+@namespace MenuProject.MenuUI.Jams
+@inherits JamFinalistPhasePanel
+
+<root class="jam-phase @(ShowGallery ? "elimination-phase" : "")">
+	<JamPhaseLayout Jam=@Jam PhaseTitle=@(ShowGallery ? RoundTitle : null) PhaseSubtitle=@($"Knockout · Round {Category?.Round}") BlurbLead=@(ShowGallery ? "Every vote counts." : "Nominations are closed.") Blurb=@(ShowGallery ? "Back your favourite. Votes reset each round." : "Meet the finalists and play them before the first voting round opens.") CountdownTarget=@CountdownTarget CountdownLabel=@CountdownLabel CountdownStatus=@CountdownStatus>
+		<StandingsContent>
+			<JamStandings Jam=@Jam Finalists=@(ShowGallery ? Category : null) Entries=@(ShowGallery ? null : StandingsEntries) Packages=@Packages />
+		</StandingsContent>
+		<Content>
+			<div class="finalist-browser">
+				<JamEntryBrowser Jam=@Jam NominationCounts=@(Category?.NominationCounts) FeaturedTitle="Knockout">
+					<FeaturedContent>
+						<div class="finalist-scroll">
+							@if ( !ShowGallery )
+							{
+								<div class="section-head">
+									<label class="title">Knockout</label>
+									<label class="description">Play the finalists before you pick your favourite.</label>
+								</div>
+							}
+
+							@if ( Error is not null )
+							{
+								<div class="load-error">
+									<label>@Error</label>
+									<Button Text="Retry" onclick=@RequestRefresh />
+								</div>
+							}
+
+							@if ( Categories is null )
+							{
+								@if ( Error is null )
+								{
+									<Spinner />
+								}
+							}
+							else if ( Categories.Length == 0 )
+							{
+								<EmptyState Icon="emoji_events" Title="No community finalists" Subtitle="You can still play every game in All entries." />
+							}
+							else
+							{
+								@if ( Categories.Length > 1 )
+								{
+									<div class="category-tabs">
+										@foreach ( var category in Categories )
+										{
+											<Button Text=@($"{category.Title} ({category.Nominees.Count})") Active=@(Category?.Id == category.Id) onclick=@(() => CategoryId = category.Id) />
+										}
+									</div>
+								}
+
+								@if ( Category is not null )
+								{
+									@if ( ShowGallery )
+									{
+										<JamEliminationGallery Jam=@Jam Category=@Category Packages=@Packages Submitting=@Submitting CooldownSeconds=@VoteCooldownSeconds Version=@Voting.Version Vote=@SubmitVote />
+									}
+									else if ( Category.Nominees.Count == 0 )
+									{
+										<EmptyState Icon="emoji_events" Title="No finalists confirmed" Subtitle="The confirmed slate will appear here when it is available." />
+									}
+									else
+									{
+										<div class="finalist-grid">
+											@foreach ( var finalist in Category.Nominees )
+											{
+												var package = GetPackage( finalist.PackageIdent );
+												<div class="finalist">
+													<div class="artwork">
+														@if ( package is not null )
+														{
+															<MenuProject.UI.PackageCard Package=@package Clicked=@(() => Play( package )) RightClicked=@(() => OpenMenu( package )) />
+														}
+														else
+														{
+															<div class="missing-package">
+																<icon>videogame_asset_off</icon>
+																<label>@(Loading ? "Loading game…" : "Game unavailable")</label>
+															</div>
+														}
+													</div>
+													<div class="game-details">
+														<label class="game-title">@(package?.Title ?? "Game unavailable")</label>
+														@if ( !string.IsNullOrWhiteSpace( package?.Summary ) )
+														{
+															<label class="game-summary">@package.Summary</label>
+														}
+													</div>
+													<div class="finalist-stats">
+														<label class="vote-count">@NominationVotes( finalist )</label>
+														<label class="description">nominations</label>
+													</div>
+													<div class="game-actions">
+														<Button class="play" Icon="play_arrow" Text="Play" Disabled=@(package is null) onclick=@(() => Play( package )) />
+													</div>
+												</div>
+											}
+										</div>
+									}
+
+									@if ( !ShowGallery )
+									{
+										<div class="voting-status">
+											<icon>@(Category.VotingOpen ? "how_to_vote" : "lock_clock")</icon>
+											<div>
+												<label class="status-title">@StatusTitle</label>
+												<label class="description">@StatusDescription</label>
+												@if ( CountdownTarget is DateTimeOffset target && target > Jam.Now )
+												{
+													<JamCountdown Jam=@Jam Label=@CountdownLabel Target=@target />
+												}
+											</div>
+										</div>
+									}
+								}
+							}
+						</div>
+					</FeaturedContent>
+				</JamEntryBrowser>
+			</div>
+		</Content>
+	</JamPhaseLayout>
+</root>
+
+@code
+{
+	bool ShowGallery => Category is not null && (Category.VotingOpen || Category.Decided
+		|| Category.Nominees.Any( x => x.EliminatedRound.HasValue ));
+	string RoundTitle => JamVotingPresentation.Waiting( Category ) ? $"{Number( Category.Contenders.Count )} remain. Next round coming up." : !VotingOpen
+		? "Round closed. Results incoming."
+		: $"{Number( Category.Contenders.Count )} remain. {Number( Math.Max( 0, Category.Contenders.Count - 1 ) )} go through.";
+	static string Number( int value ) => value switch { 1 => "One", 2 => "Two", 3 => "Three", 4 => "Four", 5 => "Five", _ => value.ToString() };
+	DateTimeOffset? CountdownTarget => Category?.VotingOpen == true ? Category.RoundEnds : Category?.NextRoundOpens;
+	string CountdownLabel => ShowGallery ? Category?.VotingOpen == true ? $"Round {Category.Round} ends in" : "Next round opens in" : "First round opens in";
+	string CountdownStatus => CountdownTarget <= Jam.Now ? Category?.VotingOpen == true ? "Counting votes" : "Opening soon" : null;
+	string StatusTitle => CountdownStatus ?? "Voting hasn’t opened yet";
+	string StatusDescription => Category?.ClosedReason ?? "Each round starts fresh. Nominations do not carry over.";
+
+	string NominationVotes( JamFinalist finalist ) => finalist.PackageIdent is not null
+		&& Category.NominationCounts.TryGetValue( finalist.PackageIdent, out var count ) ? count.ToString( "N0" ) : "Unavailable";
+
+	protected override int BuildHash() => HashCode.Combine( base.BuildHash(), ShowGallery, RoundTitle, CountdownTarget, CountdownStatus );
+}

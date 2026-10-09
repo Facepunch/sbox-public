@@ -1,29 +1,10 @@
-﻿using Sandbox.Audio;
+using Sandbox.Audio;
 
 namespace Sandbox.UI;
 
 public partial class Panel
 {
 	internal PanelLayout LayoutTree;
-	internal InlineParagraph InlineParagraph;
-	internal InlineParagraph InlineOwner;
-
-	private void UpdateInlineParagraph()
-	{
-		if ( Sandbox.UI.InlineParagraph.CanFormat( this ) )
-		{
-			InlineParagraph ??= new InlineParagraph( this );
-			InlineParagraph.Update();
-			LayoutTree.Node.InlineContent = InlineParagraph;
-		}
-		else if ( InlineParagraph is not null )
-		{
-			LayoutTree.Node.InlineContent = null;
-			InlineParagraph.Dispose();
-			InlineParagraph = null;
-			MarkRenderDirty();
-		}
-	}
 
 	/// <summary>
 	/// Access to various bounding boxes of this panel.
@@ -32,7 +13,7 @@ public partial class Panel
 	public Box Box { get; init; } = new Box();
 
 	/// <summary>
-	/// If true, calls <see cref="DrawContent(PanelRenderer, ref RenderState)"/>.
+	/// Whether the panel has content to draw.
 	/// </summary>
 	[Hide, Obsolete( "Use Draw" )]
 	public virtual bool HasContent => false;
@@ -120,19 +101,16 @@ public partial class Panel
 	/// The computed style has a non-default backdrop filter property
 	/// </summary>
 	[Hide]
-	internal bool HasBackdropFilter { get; private set; }
+	internal bool HasBackdropFilter => _paintCache.HasBackdrop;
 
 	[Hide]
-	internal bool HasFilter { get; private set; }
-
-	[Hide]
-	internal bool HasCustomDraw => CachedDescriptors?.CustomEntries.Count > 0;
+	internal bool HasFilter => _paintCache.HasFilter;
 
 	/// <summary>
 	/// The computed style has a renderable background
 	/// </summary>
 	[Hide]
-	internal bool HasBackground { get; private set; }
+	internal bool HasBackground => _paintCache.HasBackground;
 
 	internal void UpdateVisibility()
 	{
@@ -192,8 +170,9 @@ public partial class Panel
 	/// <summary>
 	/// Request the final layout pass without a style rebuild. Enough for anything that
 	/// only moves content - like scrolling - where styles and layout are unaffected.
+	/// Call this when custom content bounds used by <see cref="FinalLayoutChildren"/> change.
 	/// </summary>
-	internal void SetNeedsFinalLayout()
+	protected internal void SetNeedsFinalLayout()
 	{
 		if ( needsFinalLayout ) return;
 
@@ -241,6 +220,9 @@ public partial class Panel
 		ScaleToScreen = cascade.Scale;
 		if ( this is RootPanel root ) root.PushRootValues();
 
+		if ( changed || LayoutTree.ReferenceSizeChanged || (cascade.ParentChanged && _paintCache.InheritedStylesChanged( this )) )
+			_paintCache.Invalidate( this );
+
 		var previousOpacity = Opacity;
 		Opacity = ComputedStyle.Opacity.Value * (Parent?.Opacity ?? 1.0f);
 		UpdateVisibility();
@@ -256,48 +238,12 @@ public partial class Panel
 			UpdateLayoutStyle();
 		}
 
-		if ( Opacity != previousOpacity )
-		{
-			IsRenderDirty = true;
-		}
-
 		if ( changed )
 		{
-			IsRenderDirty = true;
-
 			if ( Parent is not null )
 			{
 				Parent._renderChildrenDirty = true;
 			}
-
-			HasBackdropFilter = !ComputedStyle.IsDefault( "backdrop-filter-blur" )
-				|| !ComputedStyle.IsDefault( "backdrop-filter-contrast" )
-				|| !ComputedStyle.IsDefault( "backdrop-filter-saturate" )
-				|| !ComputedStyle.IsDefault( "backdrop-filter-sepia" )
-				|| !ComputedStyle.IsDefault( "backdrop-filter-invert" )
-				|| !ComputedStyle.IsDefault( "backdrop-filter-hue-rotate" )
-				|| !ComputedStyle.IsDefault( "backdrop-filter-brightness" );
-
-			HasFilter = !ComputedStyle.IsDefault( "filter-saturate" )
-				|| !ComputedStyle.IsDefault( "filter-brightness" )
-				|| !ComputedStyle.IsDefault( "filter-contrast" )
-				|| !ComputedStyle.IsDefault( "filter-blur" )
-				|| !ComputedStyle.IsDefault( "filter-sepia" )
-				|| !ComputedStyle.IsDefault( "filter-hue-rotate" )
-				|| !ComputedStyle.IsDefault( "filter-invert" )
-				|| !ComputedStyle.IsDefault( "filter-tint" )
-				|| !ComputedStyle.IsDefault( "filter-border-width" );
-
-			HasBackground = ComputedStyle.BackgroundColor.Value.a > 0f
-				|| ComputedStyle.BorderImageSource is not null
-				|| !ComputedStyle.BackgroundGradient.ColorOffsets.IsDefaultOrEmpty
-				|| (ComputedStyle.BackgroundImage is not null && ComputedStyle.BackgroundImage != Texture.Invalid)
-				|| (ComputedStyle.BorderLeftColor.Value.a > 0f && ComputedStyle.BorderLeftWidth.Value.GetPixels( 1.0f ) > 0f)
-				|| (ComputedStyle.BorderTopColor.Value.a > 0f && ComputedStyle.BorderTopWidth.Value.GetPixels( 1.0f ) > 0f)
-				|| (ComputedStyle.BorderRightColor.Value.a > 0f && ComputedStyle.BorderRightWidth.Value.GetPixels( 1.0f ) > 0f)
-				|| (ComputedStyle.BorderBottomColor.Value.a > 0f && ComputedStyle.BorderBottomWidth.Value.GetPixels( 1.0f ) > 0f);
-
-			UpdateLayer( ComputedStyle );
 		}
 
 		UpdateOrder();
@@ -305,13 +251,13 @@ public partial class Panel
 		if ( LayoutCount > 0 && !IsVisibleSelf )
 		{
 			// display:none must release ownership even though child style traversal is skipped.
-			if ( ComputedStyle.Display == DisplayMode.None ) UpdateInlineParagraph();
+			if ( ComputedStyle.Display == DisplayMode.None ) LayoutTree.PrepareInlineContent();
 			return;
 		}
 
 		if ( _children == null || _children.Count == 0 )
 		{
-			UpdateInlineParagraph();
+			LayoutTree.PrepareInlineContent();
 			return;
 		}
 
@@ -332,7 +278,7 @@ public partial class Panel
 		// if so, tell the layout tree about the new order
 		//
 		SortChildrenOrder();
-		UpdateInlineParagraph();
+		LayoutTree.PrepareInlineContent();
 	}
 
 	private int layoutStyleHash;
@@ -360,10 +306,10 @@ public partial class Panel
 		AddLength( style.PaddingRight );
 		AddLength( style.PaddingTop );
 		AddLength( style.PaddingBottom );
-		AddLength( style.BorderLeftWidth );
-		AddLength( style.BorderRightWidth );
-		AddLength( style.BorderTopWidth );
-		AddLength( style.BorderBottomWidth );
+		AddLength( style.UsedBorderLeftWidth );
+		AddLength( style.UsedBorderRightWidth );
+		AddLength( style.UsedBorderTopWidth );
+		AddLength( style.UsedBorderBottomWidth );
 		AddLength( style.FlexBasis );
 		AddLength( style.RowGap );
 		AddLength( style.ColumnGap );
@@ -434,10 +380,10 @@ public partial class Panel
 		LayoutTree.PaddingTop = ComputedStyle.PaddingTop;
 		LayoutTree.PaddingBottom = ComputedStyle.PaddingBottom;
 
-		LayoutTree.BorderLeftWidth = ComputedStyle.BorderLeftWidth;
-		LayoutTree.BorderTopWidth = ComputedStyle.BorderTopWidth;
-		LayoutTree.BorderRightWidth = ComputedStyle.BorderRightWidth;
-		LayoutTree.BorderBottomWidth = ComputedStyle.BorderBottomWidth;
+		LayoutTree.BorderLeftWidth = ComputedStyle.UsedBorderLeftWidth;
+		LayoutTree.BorderTopWidth = ComputedStyle.UsedBorderTopWidth;
+		LayoutTree.BorderRightWidth = ComputedStyle.UsedBorderRightWidth;
+		LayoutTree.BorderBottomWidth = ComputedStyle.UsedBorderBottomWidth;
 
 		LayoutTree.PositionType = ComputedStyle.Position;
 		LayoutTree.AspectRatio = ComputedStyle.AspectRatio;
@@ -506,7 +452,17 @@ public partial class Panel
 		if ( IsFixed && FindRootPanel() is { } root ) offset = root.PanelBounds.Position;
 
 		var hash = HashCode.Combine( offset, ScrollOffset, ScrollVelocity, ComputedStyle?.Transform, Opacity, ComputedStyle.Display );
-		if ( layoutHash == hash && !needsFinalLayout && !LayoutTree.HasNewLayout ) return;
+		if ( layoutHash == hash && !needsFinalLayout && !LayoutTree.HasNewLayout )
+		{
+			if ( !_paintCache.NeedsUpdate( this ) ) return;
+			_paintCache.Update( this );
+			if ( ComputedStyle.Display != DisplayMode.None && Opacity > 0 )
+			{
+				FinalLayoutChildren( Box.Rect.Position - _laidOutScrollOffset );
+				FinalLayoutScrollbars( Box.Rect.Position - _laidOutScrollOffset );
+			}
+			return;
+		}
 
 		needsFinalLayout = false;
 		layoutHash = hash;
@@ -535,21 +491,12 @@ public partial class Panel
 			Box.RectInner = Box.Rect.Shrink( LayoutTree.Padding.Left, LayoutTree.Padding.Top, LayoutTree.Padding.Right, LayoutTree.Padding.Bottom );
 			Box.ClipRect = Box.Rect.Shrink( Box.Border.Left, Box.Border.Top, Box.Border.Right, Box.Border.Bottom );
 
-			UpdateLayer( ComputedStyle );
-
 			Box.Rect = Box.Rect.Floor();
 			Box.RectOuter = Box.RectOuter.Floor();
 			Box.RectInner = Box.RectInner.Floor();
 			Box.ClipRect = Box.ClipRect.Floor();
 
-			// Build the matrix that is generated from "transform" etc. We do this here after we have the size of the
-			// panel - which should be super duper fine.
-			TransformMatrix = ComputedStyle.BuildTransformMatrix( Box.Rect.Size );
-
-			if ( previousRect != Box.Rect )
-			{
-				IsRenderDirty = true;
-			}
+			_paintCache.Update( this );
 		}
 
 		//
@@ -578,7 +525,8 @@ public partial class Panel
 		_laidOutScrollOffset = ScrollOffset.SnapToGrid( 1.0f );
 		offset = Box.Rect.Position - _laidOutScrollOffset;
 		FinalLayoutChildren( offset );
-		InlineParagraph?.FinalizeLayout();
+		FinalLayoutScrollbars( offset );
+		LayoutTree.FinalizeInlineContent();
 
 		if ( wasScrollatBottom )
 		{
@@ -623,9 +571,11 @@ public partial class Panel
 	public bool IsDragScrolling { get; private set; }
 
 	/// <summary>
-	/// Layout the children of this panel.
+	/// Lay out this panel's content and update its scroll bounds.
+	/// Override to lay out custom or virtualized content, then call <see cref="ConstrainScrolling"/>
+	/// with its total bounds. Scrollbar layout runs automatically after this method returns.
 	/// </summary>
-	/// <param name="offset">The parent's position.</param>
+	/// <param name="offset">The content origin in screen pixels, including the panel's position and scroll offset.</param>
 	protected virtual void FinalLayoutChildren( Vector2 offset )
 	{
 		if ( !HasChildren )
@@ -635,7 +585,7 @@ public partial class Panel
 		{
 			try
 			{
-				if ( _children[i].IsFixed ) continue;
+				if ( _children[i].IsFixed || _children[i] is ScrollBar ) continue;
 				_children[i].FinalLayout( offset );
 			}
 			catch ( System.Exception e )
@@ -731,11 +681,18 @@ public partial class Panel
 		ScrollOffset = new Vector2( ScrollOffset.x, ScrollSize.y );
 		IsScrollAtBottom = true;
 		ScrollVelocity.y = 0;
+		scrollVelocityVelocity.y = 0;
 
 	}
 
 	bool isScrolling;
 	Vector2 scrollVelocityVelocity;
+
+	internal void StopScrollVelocity()
+	{
+		ScrollVelocity = 0;
+		scrollVelocityVelocity = 0;
+	}
 
 	protected virtual void AddScrollVelocity()
 	{
@@ -750,6 +707,7 @@ public partial class Panel
 		// Bring it to a stop
 		if ( ScrollVelocity.y.AlmostEqual( 0, 0.01f ) ) ScrollVelocity.y = 0;
 		if ( ScrollVelocity.x.AlmostEqual( 0, 0.01f ) ) ScrollVelocity.x = 0;
+
 	}
 
 	/// <summary>
@@ -758,8 +716,12 @@ public partial class Panel
 	internal bool IsScrollAxisReversed => ComputedStyle.JustifyContent == Justify.FlexEnd || ComputedStyle.FlexDirection == FlexDirection.RowReverse || ComputedStyle.FlexDirection == FlexDirection.ColumnReverse;
 
 	/// <summary>
-	/// Constrain <see cref="ScrollOffset">scrolling</see> to the given size.
+	/// Update <see cref="ScrollSize"/> and constrain <see cref="ScrollOffset"/> to the given total bounds.
+	/// Custom layouts can call this from <see cref="FinalLayoutChildren"/> to include content
+	/// that has no panel, such as offscreen rows in a virtual list.
 	/// </summary>
+	/// <param name="size">Total scrollable bounds in screen pixels, including the viewport.
+	/// Each axis should be at least <c>Box.Rect.Size</c>; the viewport is subtracted to obtain the scroll range.</param>
 	protected virtual void ConstrainScrolling( Vector2 size )
 	{
 		if ( IsDragScrolling )
@@ -779,6 +741,7 @@ public partial class Panel
 		if ( overflow == OverflowMode.Visible || overflow == OverflowMode.Hidden )
 		{
 			ScrollOffset = 0;
+			StopScrollVelocity();
 			return;
 		}
 
@@ -792,26 +755,28 @@ public partial class Panel
 		IsScrollAtBottom = so.y + ScrollVelocity.y >= size.y;
 		if ( ScrollVelocity.y > 0 && IsScrollAtBottom ) so.y += heightChange;
 
-		//
-		// TODO - a style to let them turn springy mode off ?
-		//
-
+		// Preserve the original spring and inertia; only constrain its outermost extent.
+		var min = axisReversed ? -ScrollSize : Vector2.Zero;
+		var max = axisReversed ? Vector2.Zero : ScrollSize;
 		var constrainSpeed = RealTime.SmoothDelta * 100.0f;
+		so.x = so.x.LerpTo( so.x.Clamp( min.x, max.x ), constrainSpeed );
+		so.y = so.y.LerpTo( so.y.Clamp( min.y, max.y ), constrainSpeed );
 
-		if ( axisReversed )
+		var limit = ScrollBounceLimit;
+		if ( ComputedStyle.OverscrollBehaviorX == OverscrollBehavior.None ) limit.x = 0;
+		if ( ComputedStyle.OverscrollBehaviorY == OverscrollBehavior.None ) limit.y = 0;
+		var constrained = so.Clamp( min - limit, max + limit );
+		if ( (constrained.x <= min.x - limit.x && ScrollVelocity.x < 0) || (constrained.x >= max.x + limit.x && ScrollVelocity.x > 0) )
 		{
-			if ( so.y > 0 ) so.y = so.y.LerpTo( 0, constrainSpeed );
-			if ( so.x > 0 ) so.x = so.x.LerpTo( 0, constrainSpeed );
-			if ( so.y < -ScrollSize.y ) so.y = so.y.LerpTo( -ScrollSize.y, constrainSpeed );
-			if ( so.x < -ScrollSize.x ) so.x = so.x.LerpTo( -ScrollSize.x, constrainSpeed );
+			ScrollVelocity.x = 0;
+			scrollVelocityVelocity.x = 0;
 		}
-		else
+		if ( (constrained.y <= min.y - limit.y && ScrollVelocity.y < 0) || (constrained.y >= max.y + limit.y && ScrollVelocity.y > 0) )
 		{
-			if ( so.y < 0 ) so.y = so.y.LerpTo( 0, constrainSpeed );
-			if ( so.x < 0 ) so.x = so.x.LerpTo( 0, constrainSpeed );
-			if ( so.y > ScrollSize.y ) so.y = so.y.LerpTo( ScrollSize.y, constrainSpeed );
-			if ( so.x > ScrollSize.x ) so.x = so.x.LerpTo( ScrollSize.x, constrainSpeed );
+			ScrollVelocity.y = 0;
+			scrollVelocityVelocity.y = 0;
 		}
+		so = constrained;
 
 		if ( ScrollOffset == so )
 			return;
@@ -819,6 +784,9 @@ public partial class Panel
 		ScrollOffset = so;
 		isScrolling = true;
 	}
+
+	// Screen-space limits: 20% of each viewport axis, capped at 150 UI pixels.
+	Vector2 ScrollBounceLimit => Vector2.Min( Box.Rect.Size * 0.2f, new Vector2( 150, 150 ) * ScaleToScreen );
 
 	/// <summary>
 	/// Play a sound from this panel.

@@ -68,7 +68,7 @@ public partial class Panel
 	/// <param name="ancestors">Also re-evaluate all ancestor panels. (for <c>:has()</c>)</param>
 	/// <param name="descendants">Also re-evaluate all child panels. (for parent selectors)</param>
 	/// <param name="root">Root panel cache so we don't need to keep looking it up.</param>
-	protected void StyleSelectorsChanged( bool ancestors, bool descendants, RootPanel root = null )
+	protected internal void StyleSelectorsChanged( bool ancestors, bool descendants, RootPanel root = null )
 	{
 		root ??= FindRootPanel();
 		if ( root == null )

@@ -130,6 +130,25 @@ public sealed partial class AmbientOcclusion : BasePostProcess<AmbientOcclusion>
 
 	private static ComputeShader GtaoCs = new ComputeShader( "gtao_cs" );
 
+	/// <summary>
+	/// Reads the normals and roughness G-buffer the depth-normals prepass writes (<c>NormalsGBuffer</c>), which the managed
+	/// scene renderer draws only for cameras with an effect that needs it.
+	/// </summary>
+	internal override bool NeedsDepthNormals => true;
+
+	// GTAO is compute dispatches and barriers from the depth chain and normals into its own targets
+	internal override bool AsyncCompute => true;
+
+	static readonly ProfilingSampler DepthProfile = new( "GTAO view depth chain" );
+	static readonly ProfilingSampler MainProfile = new( "GTAO main pass" );
+	static readonly ProfilingSampler[] DenoiseProfiles =
+	[
+		new( "GTAO denoise 1" ),
+		new( "GTAO denoise 2" ),
+		new( "GTAO denoise 3" )
+	];
+	static readonly ProfilingSampler UpsampleProfile = new( "GTAO bilateral upsample" );
+
 	public override void Render()
 	{
 		if ( UserQuality <= 0 )
@@ -167,6 +186,7 @@ public sealed partial class AmbientOcclusion : BasePostProcess<AmbientOcclusion>
 
 		// View depth chain — always at full resolution so MIP0 has pixel-exact
 		// view-space depth for the bilateral upsampler's edge detection.
+		using ( commands.ProfileScope( DepthProfile ) )
 		{
 			commands.Attributes.Set( "ResolutionScale", 1 );
 			commands.Attributes.SetCombo( "D_PASS", GTAOPasses.ViewDepthChain );
@@ -178,6 +198,7 @@ public sealed partial class AmbientOcclusion : BasePostProcess<AmbientOcclusion>
 		commands.ResourceBarrierTransition( ViewDepthChainTexture, ResourceState.NonPixelShaderResource );
 
 		// Main pass
+		using ( commands.ProfileScope( MainProfile ) )
 		{
 			commands.Attributes.SetCombo( "D_PASS", GTAOPasses.MainPass );
 			commands.DispatchCompute( GtaoCs, AOTextureCurrent.Size );
@@ -195,6 +216,7 @@ public sealed partial class AmbientOcclusion : BasePostProcess<AmbientOcclusion>
 
 			for ( int pass = 0; pass < passes; pass++ )
 			{
+				using var denoiseScope = commands.ProfileScope( DenoiseProfiles[pass] );
 				commands.ResourceBarrierTransition( spatialOut, ResourceState.UnorderedAccess );
 				commands.Attributes.Set( "SpatialIn", spatialIn.ColorTexture );
 				commands.Attributes.Set( "SpatialOut", spatialOut.ColorTexture );
@@ -218,6 +240,7 @@ public sealed partial class AmbientOcclusion : BasePostProcess<AmbientOcclusion>
 		//
 		if ( scale > 1 )
 		{
+			using var upsampleScope = commands.ProfileScope( UpsampleProfile );
 			commands.ResourceBarrierTransition( AOTextureCurrent, ResourceState.NonPixelShaderResource );
 
 			RenderTargetHandle UpsampledAO = commands.GetRenderTarget( "UpsampledAO", ImageFormat.A8 );

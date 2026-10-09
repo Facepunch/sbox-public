@@ -288,7 +288,6 @@ public class LabelTextTest
 	[DataRow( "small extraordinary words", "extraordinary", "letter-spacing: 2px;", false )]
 	[DataRow( "WWWWW", "W", "word-break: break-all;", false )]
 	[DataRow( "small extraordinary words", "extraordinary", "text-overflow: ellipsis;", false )]
-	[DataRow( "a \u05d0\u05d1\u05d2\u05d3\u05d4 words", "words", "", false )]
 	public void MinContentUsesUnbreakableShapedText( string text, string longest, string style, bool rich )
 	{
 		var root = CreateRoot();
@@ -318,6 +317,26 @@ public class LabelTextTest
 		label.Style.FontSize = 1;
 		root.Layout();
 		Assert.IsTrue( label._textBlock.MeasureMinContent().x < intrinsic.x );
+	}
+
+	[TestMethod]
+	public void BidiMinContentUsesWidestShapedWord()
+	{
+		var root = CreateRoot();
+		root.Style.FontSize = 16;
+		var label = root.AddChild<Label>();
+		label.Text = "a \u05d0\u05d1\u05d2\u05d3\u05d4 words";
+		var words = label.Text.Split( ' ' ).Select( text =>
+		{
+			var word = root.AddChild<Label>();
+			word.Text = text;
+			return word;
+		} ).ToArray();
+		root.Layout();
+
+		// Font fallback can make either the Hebrew or Latin word widest.
+		var expected = words.Max( word => word._textBlock.Measure( float.NaN, float.NaN ).x );
+		Assert.AreEqual( expected, label._textBlock.MeasureMinContent().x, 1f );
 	}
 
 	[DataTestMethod]

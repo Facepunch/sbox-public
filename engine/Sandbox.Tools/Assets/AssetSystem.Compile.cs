@@ -84,7 +84,7 @@ public static partial class AssetSystem
 		return map.TryGetValue( extension, out var found ) ? found : null;
 	}
 
-	static void CompileGameResource( ResourceCompileContext context )
+	internal static void CompileGameResource( ResourceCompileContext context )
 	{
 		// Get the json contents
 		var jsonString = System.IO.File.ReadAllText( context.AbsolutePath );

@@ -29,17 +29,7 @@ public class VisualStudio : ICodeEditor
 	/// </summary>
 	private static void Launch( string arguments )
 	{
-		string exe = $"{Environment.CurrentDirectory}/bin/win64/vsopen.exe";
-		var args = $"\"{FindVisualStudio()}\" {arguments}";
-
-		var startInfo = new System.Diagnostics.ProcessStartInfo
-		{
-			CreateNoWindow = true,
-			Arguments = args,
-			FileName = exe
-		};
-
-		System.Diagnostics.Process.Start( startInfo );
+		CodeEditorLocator.Launch( $"{Environment.CurrentDirectory}/bin/win64/vsopen.exe", $"\"{FindVisualStudio()}\" {arguments}" );
 	}
 
 	static string VisualStudioPath;
@@ -48,9 +38,13 @@ public class VisualStudio : ICodeEditor
 	/// Uses vswhere (https://github.com/microsoft/vswhere) to find where Visual Studio is installed.
 	/// This will return the most latest version, as well as one with .NET SDK installed.
 	/// </summary>
-	/// <returns>The full installation path of devenv.exe or an empty string.</returns>
+	/// <returns>The full installation path of devenv.exe, or null when there isn't one.</returns>
 	static string FindVisualStudio()
 	{
+		// Windows only, and vswhere.exe only ships in the win64 bin
+		if ( !OperatingSystem.IsWindows() )
+			return null;
+
 		if ( VisualStudioPath != null )
 		{
 			return VisualStudioPath;

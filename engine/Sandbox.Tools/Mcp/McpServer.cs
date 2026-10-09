@@ -222,6 +222,7 @@ public static class McpServer
 		- The coordinate system is Source engine convention, like Half-Life 2: one unit is one inch, +x is forward, +y is left, +z is up. Angles are degrees.
 		- Game objects and components are identified by guid. Assets are identified by the relative path asset_search returns.
 		- Every tool that edits the scene pushes an undo step, so the user can ctrl+z your changes like their own.
+		- Hammer maps (.vmap) aren't scenes - the scene tools don't see them. Work on the map open in Hammer with the hammer_ tools, which identify map nodes by integer node id.
 		""";
 
 	/// <summary>

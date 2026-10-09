@@ -1,8 +1,26 @@
 namespace EngineTests;
 
 [TestClass]
+[DoNotParallelize]
 public class ScreenTest
 {
+	[TestMethod]
+	public void ScreenUpdateKeepsLastSizeWithoutAGameView()
+	{
+		ThreadSafe.MarkMainThread();
+		var oldSize = Screen.Size;
+		try
+		{
+			Screen.Size = new Vector2( 1920, 1080 );
+			Screen.UpdateFromEngine();
+			Assert.AreEqual( new Vector2( 1920, 1080 ), Screen.Size );
+		}
+		finally
+		{
+			Screen.Size = oldSize;
+		}
+	}
+
 	[TestMethod]
 	public void AspectIsFiniteBeforeScreenSizeIsKnown()
 	{

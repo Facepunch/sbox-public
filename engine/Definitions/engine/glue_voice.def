@@ -1,0 +1,21 @@
+
+include "sbox/glue_voice.h"
+
+native static class VoiceGlue as NativeEngine.VoiceGlue
+{
+	int GetRecordingDeviceCount();
+	string GetRecordingDeviceName( int index );
+	string GetDefaultRecordingDeviceName();
+
+	void* OpenCapture( string deviceName, int sampleRate );
+	void CloseCapture( void* capture );
+	int ReadCapture( void* capture, void* samples, int maxSamples );
+
+	void* CreateEncoder( int sampleRate, int bitrate );
+	void DestroyEncoder( void* encoder );
+	int Encode( void* encoder, void* samples, int frameSamples, void* dest, int destCapacity );
+
+	void* CreateDecoder( int sampleRate );
+	void DestroyDecoder( void* decoder );
+	int Decode( void* decoder, void* data, int dataLength, void* samples, int maxSamples );
+}

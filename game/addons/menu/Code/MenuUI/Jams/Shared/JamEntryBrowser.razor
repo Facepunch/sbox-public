@@ -1,0 +1,341 @@
+@using System;
+@using System.Collections.Generic;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.Services;
+@using Sandbox.UI;
+@using MenuProject.MenuUI.ContentBlock;
+@inherits Panel
+@namespace MenuProject.MenuUI.Jams
+
+<root>
+
+	<JamEntryControls Orders=@Orders Order=@Order OrderChanged=@SetOrder ShowOrder=@(EntryFilter != "featured") Search=@Search SearchChanged=@SetSearch>
+		<Filters>
+			@if ( FeaturedContent is not null )
+			{
+				<Button class="entry-filter" Text=@FeaturedTitle Active=@(EntryFilter == "featured") onclick=@(() => SetFilter( "featured" )) />
+				<div class="filter-divider"></div>
+			}
+			@foreach ( var filter in PlayFilters )
+			{
+				<Button class="entry-filter" Text=@($"{(FeaturedContent is not null && filter.Value?.ToString() == "all" ? "All entries" : filter.Title)} ({FilterCount( filter.Value?.ToString() )})") Active=@(EntryFilter == filter.Value?.ToString()) onclick=@(() => SetFilter( filter.Value )) />
+			}
+
+			@if ( ShowNominations )
+			{
+				<Button class="entry-filter" Text=@($"My Nominations ({FilterCount( "nominations" )})") Active=@(EntryFilter == "nominations") onclick=@(() => SetFilter( "nominations" )) />
+			}
+		</Filters>
+	</JamEntryControls>
+
+	@if ( Error is not null )
+	{
+		<div class="load-error">
+			<label>@Error</label>
+			<Button onclick=@Retry>Retry</Button>
+		</div>
+	}
+
+	@if ( EntryFilter == "featured" && FeaturedContent is not null )
+	{
+		@FeaturedContent
+	}
+	else if ( EntriesError is not null && Entries is null )
+	{
+		<EmptyState Icon="cloud_off" Title="Entries unavailable" Subtitle="Try again in a moment." />
+	}
+	else if ( Entries is null || ( NeedsNominations && Nominations is null && Error is null ) )
+	{
+		<MenuProject.UI.LoaderFullScreen />
+	}
+	else if ( NeedsNominations && Nominations is null )
+	{
+		<EmptyState Icon="cloud_off" Title="Nominations unavailable" Subtitle="Try again, or browse all entries." />
+	}
+	else if ( Order == "nominations" && !ShowNominations && NominationCounts?.Count is not > 0 )
+	{
+		<EmptyState Icon="how_to_vote" Title="Nomination totals unavailable" Subtitle="Choose another order to browse the entries." />
+	}
+	else if ( VisibleEntries is { Length: 0 } && !string.IsNullOrWhiteSpace( Search ) )
+	{
+		<EmptyState Icon="search_off" Title="No matching entries" Subtitle="Try a different search or play filter." />
+	}
+	else
+	{
+		<MenuProject.UI.PackageList Surface="jam" Packages=@VisibleEntries ShowNominations=@true OnSelected=@Selected OnMenu=@OpenMenu />
+	}
+
+</root>
+
+@code
+{
+	/// <summary>
+	/// The jam whose entries, play history and nominations are being browsed.
+	/// </summary>
+	[Parameter]
+	public Jam Jam { get; set; }
+
+	/// <summary>
+	/// Optional finalist view alongside the filters for the complete entry collection.
+	/// </summary>
+	[Parameter] public RenderFragment FeaturedContent { get; set; }
+
+	/// <summary>
+	/// The current voting stage displayed on the featured tab.
+	/// </summary>
+	[Parameter] public string FeaturedTitle { get; set; } = "Knockout";
+
+	/// <summary>
+	/// Closed nomination totals supplied by the phase. Missing counts are unknown, not zero.
+	/// </summary>
+	[Parameter] public IReadOnlyDictionary<string, int> NominationCounts { get; set; }
+
+	static readonly List<Option> PlayFilters =
+	[
+		new( "All", "all" ),
+		new( "Played", "played" ),
+		new( "Unplayed", "unplayed" )
+	];
+
+	[SkipHotload]
+	static readonly List<Option> NominationOrders =
+	[
+		new( "Discovery", "discovery" ),
+		new( "Most nominations", "nominations" ) { Tooltip = "Highest nomination counts first" },
+		new( "Active players", "active-players" ) { Tooltip = "Most players currently playing" },
+		new( "Thumbs up", "thumbs-up" ) { Tooltip = "Most positive votes" },
+		new( "Newest", "newest" ),
+		new( "Name A–Z", "name" )
+	];
+
+	bool CanSortByNominations => ShowNominations || NominationCounts is not null;
+	List<Option> Orders => CanSortByNominations ? NominationOrders : JamEntryControls.DefaultOrders;
+
+	string EntryFilter = "all";
+	string Order = "newest";
+	string Search = "";
+	bool Loading;
+	string LoadedJam;
+	string EntriesError;
+	Package[] Entries;
+	Package[] VisibleEntries;
+	int VotingVersion = -1;
+
+	GameJamSystem Voting => GameJamSystem.For( this );
+	JamNominationSummary Nominations => Voting?.ActiveJam?.Ident == Jam?.Ident ? Voting?.Nominations : null;
+	string Error => EntriesError ?? (ShowNominations ? Voting?.Error : null);
+
+	// Assign each entry one discovery position for this browser's lifetime. Refreshes,
+	// filter changes and nomination updates must not reshuffle the cards.
+	readonly Dictionary<string, Guid> DiscoveryOrder = new( StringComparer.OrdinalIgnoreCase );
+
+	bool ShowNominations => Jam is { CommunityVoting: true, HasStarted: true } && Jam.Now < Jam.NominationsEnd;
+	bool NeedsNominations => ShowNominations && (EntryFilter == "nominations" || Order == "nominations");
+
+	protected override async Task OnParametersSetAsync()
+	{
+		if ( LoadedJam == Jam?.Ident )
+		{
+			ApplyFilters();
+			return;
+		}
+
+		LoadedJam = Jam?.Ident;
+		Entries = null;
+		VisibleEntries = null;
+		EntriesError = null;
+		DiscoveryOrder.Clear();
+		EntryFilter = FeaturedContent is not null ? "featured" : "all";
+		Order = "newest";
+		Search = "";
+
+		await Load();
+	}
+
+	/// <summary>
+	/// Updates filters and ordering when the shared voting state changes.
+	/// </summary>
+	public override void Tick()
+	{
+		base.Tick();
+
+		if ( (!ShowNominations && EntryFilter == "nominations") || (!CanSortByNominations && Order == "nominations") )
+		{
+			if ( EntryFilter == "nominations" ) EntryFilter = "all";
+			if ( !CanSortByNominations && Order == "nominations" ) Order = "newest";
+
+			ApplyFilters();
+		}
+
+		var version = Voting?.Version ?? -1;
+		if ( VotingVersion != version )
+		{
+			VotingVersion = version;
+			ApplyFilters();
+		}
+	}
+
+	protected override void OnVisibilityChanged()
+	{
+		base.OnVisibilityChanged();
+
+		// Refresh recorded plays when returning to an existing browser.
+		if ( IsVisible && Entries is not null ) _ = Load();
+	}
+
+	void Retry()
+	{
+		if ( EntriesError is not null ) _ = Load();
+		if ( Voting?.Error is not null ) Voting.Refresh();
+	}
+
+	async Task Load()
+	{
+		if ( Loading || Jam is null ) return;
+
+		Loading = true;
+		var jam = Jam;
+		EntriesError = null;
+		StateHasChanged();
+
+		try
+		{
+			// Fetch every page before filtering. Otherwise Played/My Nominations could
+			// report an empty list just because the matching game is on a later page.
+			var entries = await LoadEntries( jam );
+			if ( !this.IsValid() || Jam?.Ident != jam.Ident ) return;
+
+			Entries = entries;
+
+			foreach ( var entry in Entries )
+			{
+				DiscoveryOrder.TryAdd( entry.FullIdent, Guid.NewGuid() );
+			}
+
+			ApplyFilters();
+		}
+		catch ( Exception e )
+		{
+			if ( !this.IsValid() || Jam?.Ident != jam.Ident ) return;
+
+			Log.Warning( $"Couldn't load jam entries ({e.Message})" );
+			EntriesError = "Couldn't refresh entries. Try again in a moment.";
+		}
+		finally
+		{
+			Loading = false;
+
+			if ( this.IsValid() )
+			{
+				if ( Jam?.Ident != jam.Ident ) _ = Load();
+
+				StateHasChanged();
+			}
+		}
+	}
+
+	static async Task<Package[]> LoadEntries( Jam jam )
+	{
+		var entries = new List<Package>();
+		int total;
+
+		do
+		{
+			// A stable server order keeps pagination independent of the local shuffle.
+			var page = await Package.FindAsync( $"{jam.Query} sort:newest", 200, entries.Count );
+			if ( page?.Packages is null ) throw new InvalidOperationException( "No entry results." );
+
+			total = page.TotalCount;
+			if ( page.Packages.Length == 0 && (entries.Count > 0 || total > 0 || jam.EntryCount > 0) )
+			{
+				throw new InvalidOperationException( "Incomplete entry results." );
+			}
+
+			entries.AddRange( page.Packages );
+		}
+		while ( entries.Count < total );
+
+		return entries.DistinctBy( x => x.FullIdent, StringComparer.OrdinalIgnoreCase ).ToArray();
+	}
+
+	void SetFilter( object value )
+	{
+		EntryFilter = value?.ToString() ?? "all";
+		ApplyFilters();
+	}
+
+	void SetOrder( string value )
+	{
+		Order = value;
+		if ( EntryFilter == "featured" ) EntryFilter = "all";
+		ApplyFilters();
+	}
+
+	void SetSearch( string value )
+	{
+		Search = value ?? "";
+		if ( EntryFilter == "featured" && !string.IsNullOrWhiteSpace( Search ) ) EntryFilter = "all";
+		ApplyFilters();
+	}
+
+	bool MatchesSearch( Package entry )
+	{
+		var query = Search.Trim();
+		return query.Length == 0
+			|| entry.Title?.Contains( query, StringComparison.OrdinalIgnoreCase ) == true
+			|| entry.Org?.Title?.Contains( query, StringComparison.OrdinalIgnoreCase ) == true
+			|| entry.FullIdent?.Contains( query, StringComparison.OrdinalIgnoreCase ) == true;
+	}
+
+	bool MatchesFilter( Package entry, string filter ) => filter switch
+	{
+		"played" => entry.Interaction.Used,
+		"unplayed" => !entry.Interaction.Used,
+		"nominations" when ShowNominations => Nominations?.MyNominations.Contains( entry.FullIdent ) == true,
+		_ => true
+	};
+
+	string FilterCount( string filter )
+	{
+		if ( Entries is null ) return filter == "nominations" ? "0" : "..";
+
+		return Entries.Count( x => MatchesFilter( x, filter ) && MatchesSearch( x ) ).ToString( "N0" );
+	}
+
+	void ApplyFilters()
+	{
+		if ( Entries is null ) return;
+
+		IEnumerable<Package> entries = Entries.Where( x => MatchesFilter( x, EntryFilter ) && MatchesSearch( x ) );
+
+		entries = Order switch
+		{
+			"nominations" when CanSortByNominations => entries.OrderByDescending( NominationCount ).ThenBy( x => DiscoveryOrder[x.FullIdent] ),
+			"active-players" => entries.OrderByDescending( x => x.Usage.UsersNow ).ThenBy( x => DiscoveryOrder[x.FullIdent] ),
+			"thumbs-up" => entries.OrderByDescending( x => x.VotesUp ).ThenBy( x => DiscoveryOrder[x.FullIdent] ),
+			"newest" => entries.OrderByDescending( x => x.Created ).ThenBy( x => x.FullIdent, StringComparer.OrdinalIgnoreCase ),
+			"name" => entries.OrderBy( x => x.Title, StringComparer.OrdinalIgnoreCase ).ThenBy( x => x.FullIdent, StringComparer.OrdinalIgnoreCase ),
+			_ => entries.OrderBy( x => DiscoveryOrder[x.FullIdent] )
+		};
+
+		var visibleEntries = entries.ToArray();
+		if ( VisibleEntries is null || !VisibleEntries.SequenceEqual( visibleEntries ) )
+		{
+			VisibleEntries = visibleEntries;
+		}
+
+		StateHasChanged();
+	}
+
+	void Selected( Package package ) => ContentBlocks.OnLaunch( package );
+
+	int? NominationCount( Package package ) => ShowNominations
+		? Nominations?.Counts.GetValueOrDefault( package.FullIdent )
+		: NominationCounts is not null && NominationCounts.TryGetValue( package.FullIdent, out var count ) ? count : null;
+
+	void OpenMenu( Package package ) => ContentBlocks.OnMenu( this, package );
+
+	protected override int BuildHash() => HashCode.Combine( VisibleEntries, EntryFilter, Order, ShowNominations, Nominations, Error, Loading,
+		HashCode.Combine( FeaturedContent, NominationCounts, FeaturedTitle, Search ) );
+}

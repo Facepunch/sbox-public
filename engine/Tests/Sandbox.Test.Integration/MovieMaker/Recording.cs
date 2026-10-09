@@ -334,6 +334,52 @@ public sealed class RecorderTest : SceneTestBase
 		Assert.IsTrue( flagTrack.TryGetValue( 2.5, out flag ) && !flag );
 	}
 
+	/// <summary>
+	/// Capture <see cref="Renderer.RenderOptions"/>.
+	/// </summary>
+	[TestMethod]
+	public void RecordRenderOptions()
+	{
+		var renderer = new GameObject( "Example" )
+			.AddComponent<ModelRenderer>();
+
+		var options = new MovieRecorderOptions()
+			.WithDefaultComponentCapturers()
+			.WithCaptureComponent( renderer );
+
+		var clip = Record( options, 3.0,
+			(1.0, () =>
+			{
+				renderer.RenderOptions.Game = false;
+				renderer.RenderOptions.Overlay = true;
+			}
+		),
+			(2.0, () =>
+			{
+				renderer.RenderOptions.Game = true;
+				renderer.RenderOptions.Overlay = false;
+			}
+		) );
+
+		Console.WriteLine( Json.Serialize( clip ) );
+
+		var gameTrack = clip.GetProperty<bool>( renderer.GameObject.Name, nameof( ModelRenderer ), nameof( Renderer.RenderOptions ), nameof( RenderOptions.Game ) );
+		var overlayTrack = clip.GetProperty<bool>( renderer.GameObject.Name, nameof( ModelRenderer ), nameof( Renderer.RenderOptions ), nameof( RenderOptions.Overlay ) );
+
+		Assert.IsNotNull( gameTrack );
+		Assert.IsNotNull( overlayTrack );
+
+		bool flag;
+
+		Assert.IsTrue( gameTrack.TryGetValue( 0.5, out flag ) && flag );
+		Assert.IsTrue( gameTrack.TryGetValue( 1.5, out flag ) && !flag );
+		Assert.IsTrue( gameTrack.TryGetValue( 2.5, out flag ) && flag );
+
+		Assert.IsTrue( overlayTrack.TryGetValue( 0.5, out flag ) && !flag );
+		Assert.IsTrue( overlayTrack.TryGetValue( 1.5, out flag ) && flag );
+		Assert.IsTrue( overlayTrack.TryGetValue( 2.5, out flag ) && !flag );
+	}
+
 	[TestMethod]
 	public void RecordTextRenderer()
 	{

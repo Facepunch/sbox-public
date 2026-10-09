@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Formats.Tar;
 using System.IO.Compression;
 using System.Net;
@@ -17,7 +18,9 @@ internal class DownloadThirdParty( bool force = false )
 	private const string Repo = "Facepunch/sbox-thirdparty";
 	private const int MaxDownloadAttempts = 5;
 
-	internal ExitCode Run()
+	internal ExitCode Run() => BuildDisplay.Run( "Restore third-party dependencies", Restore );
+
+	private ExitCode Restore()
 	{
 		var platform = NativePlatform.Current.DirectoryName;
 		var downloaded = 0;
@@ -27,11 +30,13 @@ internal class DownloadThirdParty( bool force = false )
 		{
 			using var httpClient = CreateHttpClient();
 
-			foreach ( var dep in RemoteDeps.All )
+			var dependencies = RemoteDeps.All.Where( dep => dep.SupportsPlatform( platform ) ).ToArray();
+			for ( var index = 0; index < dependencies.Length; index++ )
 			{
-				if ( !dep.SupportsPlatform( platform ) )
-					continue;
-
+				var dep = dependencies[index];
+				var status = $"Dependency {index + 1}/{dependencies.Length}: {dep.Tag} ({platform})";
+				BuildDisplay.Status( $"{status} - checking installation" );
+				BuildDisplay.Progress( 0, 0, "Checking installed files" );
 				var targetDir = Paths.Absolute( dep.Dir );
 
 				// Per dependency, not per directory: several share game/bin. The platform is
@@ -41,15 +46,17 @@ internal class DownloadThirdParty( bool force = false )
 
 				if ( !force && IsCurrent( marker, stamp ) )
 				{
+					Log.Detail( $"{dep.Tag} ({platform}) is already current." );
 					skipped++;
 					continue;
 				}
 
-				Log.Info( $"Downloading {dep.Tag} ({platform})..." );
+				Log.Detail( $"Downloading {dep.Tag} ({platform})..." );
 
-				if ( !Fetch( httpClient, dep, platform, targetDir, out var written ) )
+				if ( !Fetch( httpClient, dep, platform, targetDir, status, out var written ) )
 					return ExitCode.Failure;
 
+				BuildDisplay.Status( $"{status} - recording installation" );
 				WriteMarker( marker, stamp, written );
 				downloaded++;
 			}
@@ -60,7 +67,7 @@ internal class DownloadThirdParty( bool force = false )
 			return ExitCode.Failure;
 		}
 
-		Log.Info( $"Third party dependencies up to date ({downloaded} downloaded, {skipped} already current)." );
+		Log.Summary( $"Third party dependencies up to date ({downloaded} downloaded, {skipped} already current)." );
 		return ExitCode.Success;
 	}
 
@@ -96,7 +103,7 @@ internal class DownloadThirdParty( bool force = false )
 		File.WriteAllLines( marker, manifest.Prepend( stamp ) );
 	}
 
-	private static bool Fetch( HttpClient httpClient, RemoteDeps.Dep dep, string platform, string targetDir,
+	private static bool Fetch( HttpClient httpClient, RemoteDeps.Dep dep, string platform, string targetDir, string status,
 		out List<string> written )
 	{
 		written = [];
@@ -120,17 +127,21 @@ internal class DownloadThirdParty( bool force = false )
 		{
 			Directory.CreateDirectory( tempRoot );
 
-			if ( !Download( httpClient, cdnUrl, archive ) )
+			if ( !Download( httpClient, cdnUrl, archive, status ) )
 			{
+				BuildDisplay.Status( $"{status} - looking up GitHub API fallback" );
+				Log.Detail( $"CDN download unavailable for {asset}; trying the GitHub release API." );
 				var apiUrl = ResolveAssetUrl( httpClient, dep.Tag, asset );
 
-				if ( apiUrl is null || !Download( httpClient, apiUrl, archive ) )
+				if ( apiUrl is null || !Download( httpClient, apiUrl, archive, status ) )
 				{
 					Log.Error( $"Unable to download {asset} from {Repo}. Has its workflow published {dep.Tag}?" );
 					return false;
 				}
 			}
 
+			BuildDisplay.Status( $"{status} - extracting {asset}" );
+			BuildDisplay.Progress( 0, 0, "Archive downloaded; extracting files" );
 			Directory.CreateDirectory( extracted );
 
 			if ( isZip )
@@ -144,6 +155,8 @@ internal class DownloadThirdParty( bool force = false )
 				TarFile.ExtractToDirectory( gzip, extracted, overwriteFiles: true );
 			}
 
+			BuildDisplay.Status( $"{status} - installing" );
+			BuildDisplay.Progress( 0, 0, "Installing extracted files" );
 			// Clear the previous release first, or files it had and this one does not will
 			// survive.
 			foreach ( var stale in new[]
@@ -215,6 +228,7 @@ internal class DownloadThirdParty( bool force = false )
 	private static string ResolveAssetUrl( HttpClient httpClient, string tag, string asset )
 	{
 		var releaseUrl = $"https://api.github.com/repos/{Repo}/releases/tags/{tag}";
+		Log.Detail( $"Looking up release: {releaseUrl}" );
 
 		using var request = new HttpRequestMessage( HttpMethod.Get, releaseUrl );
 		request.Headers.Accept.Add( new MediaTypeWithQualityHeaderValue( "application/vnd.github+json" ) );
@@ -248,12 +262,16 @@ internal class DownloadThirdParty( bool force = false )
 		return null;
 	}
 
-	private static bool Download( HttpClient httpClient, string url, string destination )
+	private static bool Download( HttpClient httpClient, string url, string destination, string status )
 	{
+		var archiveName = Path.GetFileName( destination );
+		Log.Detail( $"Downloading {archiveName} from {url}" );
 		for ( var attempt = 1; attempt <= MaxDownloadAttempts; attempt++ )
 		{
 			try
 			{
+				BuildDisplay.Status( $"{status} - downloading {archiveName} (attempt {attempt}/{MaxDownloadAttempts})" );
+				BuildDisplay.Progress( 0, 0, "Connecting" );
 				using var request = new HttpRequestMessage( HttpMethod.Get, url );
 				request.Headers.Accept.Add( new MediaTypeWithQualityHeaderValue( "application/octet-stream" ) );
 
@@ -265,7 +283,8 @@ internal class DownloadThirdParty( bool force = false )
 
 				if ( RateLimitDelay( response ) is { } delay )
 				{
-					Log.Warning( $"GitHub rate limited {url}, waiting {delay.TotalSeconds:0}s (attempt {attempt} of {MaxDownloadAttempts})." );
+					Log.Warning( $"GitHub rate limited {archiveName}, waiting {delay.TotalSeconds:0}s (attempt {attempt} of {MaxDownloadAttempts})." );
+					BuildDisplay.Status( $"{status} - rate limited; retry wait {delay.TotalSeconds:0}s" );
 					Thread.Sleep( delay );
 					continue;
 				}
@@ -274,16 +293,52 @@ internal class DownloadThirdParty( bool force = false )
 
 				using var stream = response.Content.ReadAsStream();
 				using var target = File.Create( destination );
-				stream.CopyTo( target );
+				var length = response.Content.Headers.ContentLength;
+				long received = 0;
+				var clock = Stopwatch.StartNew();
+				var lastReport = TimeSpan.Zero;
+				var buffer = new byte[81920];
+				ReportProgress( false );
+				int read;
+				while ( (read = stream.Read( buffer, 0, buffer.Length )) > 0 )
+				{
+					target.Write( buffer, 0, read );
+					received += read;
+					if ( clock.Elapsed - lastReport >= TimeSpan.FromMilliseconds( 100 ) )
+					{
+						ReportProgress( false );
+						lastReport = clock.Elapsed;
+					}
+				}
+
+				if ( length.HasValue && received != length.Value )
+					throw new IOException( $"Downloaded {archiveName} has {received} bytes, expected {length.Value}." );
+
+				target.Flush();
+				ReportProgress( true );
 				return true;
+
+				void ReportProgress( bool complete )
+				{
+					var bytes = length.HasValue
+						? $"{Utility.FormatSize( received )} / {Utility.FormatSize( length.Value )} ({received:N0} / {length.Value:N0} bytes)"
+						: $"{Utility.FormatSize( received )} received ({received:N0} bytes, size unknown)";
+					var speed = received / Math.Max( clock.Elapsed.TotalSeconds, 0.001 );
+					var detail = $"{bytes} | {Utility.FormatSize( (long)speed )}/s" + (complete ? " | Download complete" : "");
+					BuildDisplay.Progress( length > 0 ? complete ? received : Math.Min( received, length.Value * 0.99 ) : 0,
+						length.GetValueOrDefault(), detail );
+				}
 			}
 			catch ( Exception ex )
 			{
-				Log.Warning( $"Download attempt {attempt} for {url} failed: {ex.Message}" );
+				Log.Warning( $"Download attempt {attempt} for {archiveName} failed: {ex.Message}" );
 
 				// Backing off in seconds rather than milliseconds, with jitter, so a whole build
 				// matrix retrying at once does not line up on the same instant.
-				Thread.Sleep( TimeSpan.FromSeconds( attempt * attempt ) + TimeSpan.FromMilliseconds( Random.Shared.Next( 500 ) ) );
+				var delay = TimeSpan.FromSeconds( attempt * attempt ) + TimeSpan.FromMilliseconds( Random.Shared.Next( 500 ) );
+				BuildDisplay.Status( $"{status} - attempt {attempt} failed; retry wait {delay.TotalSeconds:0.0}s" );
+				BuildDisplay.Progress( 0, 0, "Waiting after failed download" );
+				Thread.Sleep( delay );
 			}
 		}
 

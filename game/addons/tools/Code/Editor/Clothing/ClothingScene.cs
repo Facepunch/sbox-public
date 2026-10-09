@@ -30,6 +30,9 @@ public class ClothingScene
 
 	List<SceneModel> clothingModels = new();
 
+	/// <summary>
+	/// Dresses the preview body and applies the clothing's icon setup.
+	/// </summary>
 	public void InstallClothing( Clothing clothing )
 	{
 		iconSetup = clothing.Icon;
@@ -57,9 +60,12 @@ public class ClothingScene
 		ClothingContainer container = new ClothingContainer();
 		container.Add( clothing );
 
-		container.Apply( Body );
+		var dresser = Dresser.GetOrCreate( Body );
+		container.Normalize();
+		dresser.UpdateAppearance( container );
+		dresser.Apply( container );
 
-		// Remove any extra clothes (underwear) that was added by the ClothingContainer
+		// Remove any extra clothes (underwear) that were added by the Dresser.
 		foreach ( var child in Body.GameObject.Children.ToArray() )
 		{
 			if ( !child.Tags.Has( "clothing" ) ) continue;

@@ -22,20 +22,28 @@ internal sealed class PackageRevision : Package.IRevision
 	public string Changes { get; set; }
 
 	ManifestSchema _manifest;
+	Task _manifestDownload;
 
 	/// <summary>
-	/// The manifest might not be immediately available until you've downloaded it
+	/// The manifest might not be immediately available until you've downloaded it. Callers that
+	/// overlap, like a prefetch and the install it runs ahead of, share the one download. A download
+	/// that fails leaves no manifest, so the next caller tries again instead of installing nothing.
 	/// </summary>
-	public async Task DownloadManifestAsync( CancellationToken token )
+	public Task DownloadManifestAsync( CancellationToken token )
 	{
 		if ( _manifest != null )
-			return;
+			return Task.CompletedTask;
 
-		// empty manifest fallback
-		_manifest = new ManifestSchema();
+		return _manifestDownload ??= DownloadManifestInternalAsync();
+	}
 
+	async Task DownloadManifestInternalAsync()
+	{
 		if ( string.IsNullOrEmpty( ManifestUrl ) )
+		{
+			_manifest = new ManifestSchema();
 			return;
+		}
 
 		try
 		{
@@ -44,6 +52,10 @@ internal sealed class PackageRevision : Package.IRevision
 		catch ( System.Exception e )
 		{
 			Log.Warning( e, $"Manifest: Couldn't deserialize schema ({e.Message})" );
+		}
+		finally
+		{
+			_manifestDownload = null;
 		}
 	}
 

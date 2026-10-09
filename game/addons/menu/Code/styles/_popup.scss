@@ -1,3 +1,44 @@
+@import '/styles/_front.scss';
+
+// DropDown uses a stretched Popup, shared by all menu forms.
+.popup-panel.below-stretch.flat-top
+{
+	@include front-card;
+	padding: 4px;
+	gap: 2px;
+	border-color: $front-hairline;
+	border-top-left-radius: 0;
+	border-top-right-radius: 0;
+	box-shadow: 0 6px 20px rgba( black, 0.35 );
+	color: $front-body;
+	font-size: 13px;
+	overflow-y: scroll;
+
+	> .button
+	{
+		align-items: center;
+		justify-content: flex-start;
+		flex-shrink: 0;
+		min-height: 32px;
+		padding: 6px 8px;
+		gap: 8px;
+		border: 0;
+		border-radius: 4px;
+		background-color: transparent;
+		color: $front-body;
+		font-size: 13px;
+		font-weight: 500;
+		cursor: pointer;
+
+		> .icon { width: 18px; flex-shrink: 0; font-size: 16px; }
+		.button-right-column { min-width: 0; flex-grow: 1; }
+		.button-text { text-align: left; }
+
+		&:hover, &:focus { background-color: rgba( white, 0.08 ); color: $front-heading; }
+		&.active { background-color: rgba( $front-primary, 0.2 ); color: $front-heading; }
+	}
+}
+
 .popup
 {
 	background-color: rgba( #222, 0.95 );

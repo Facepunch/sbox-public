@@ -1,0 +1,273 @@
+@using System;
+@using System.Collections.Generic;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.Services;
+@using Sandbox.UI;
+@using MenuProject.MenuUI.ContentBlock;
+@namespace MenuProject.MenuUI.Jams
+@inherits Panel
+
+<root class="@(IsGrandFinal ? "grand-final" : "") @(Waiting ? "waiting" : "")">
+	@if ( Waiting )
+	{
+		<div class="waiting-banner">
+			<icon>lock_clock</icon>
+			<div>
+				<label class="waiting-title">@(IsGrandFinal ? "The grand final is lined up" : "The next round is lined up")</label>
+				<label>Voting is paused. Play the contenders while you wait — votes reset when the round opens.</label>
+			</div>
+		</div>
+	}
+	<div class="round-heading">
+		<div class="round-summary">
+			@if ( VotingOpen )
+			{
+				<div class="live-dot" @ref=LiveDot />
+			}
+			<label class="round-meta">@(Waiting ? $"{Standing.Length} confirmed finalists · {Category.Title}" : $"{Category.TotalVotes:N0} {(WinnerIdent is not null ? "final" : VotingOpen ? "live" : "recorded")} votes · {Category.Title}")</label>
+		</div>
+		<div class="round-tools">
+			<label class="selection" tooltip="@(Waiting ? "A fresh vote opens with the next round." : "Choose another game to move your vote before voting closes.")">@SelectionText</label>
+			@if ( CooldownSeconds > 0 )
+			{
+				<label class="round-meta">Change vote in @(CooldownSeconds)s</label>
+			}
+		</div>
+	</div>
+	<div class="gallery-grid">
+		@foreach ( var finalist in Standing )
+		{
+			var ident = finalist.PackageIdent;
+			var package = PackageFor( ident );
+			var selected = !Waiting && ident is not null && Category.MyVotes.Contains( ident );
+			var lowest = IsLowest( finalist );
+			<div class="gallery-card @CardClass( ident ) @(lowest ? "lowest" : "")">
+				@if ( !Waiting )
+				{
+					<JamVoteBar Votes=@Count( finalist ) VoteShare=@($"{Share( finalist )} of votes") Maximum=@ChartMaximum Lowest=@lowest Selected=@selected Live=@VotingOpen GrandFinal=@IsGrandFinal Urgent=@Urgent Winner=@(WinnerIdent is not null && WinnerIdent == ident) LeadChange=@(VotingOpen && LeadNoticeUntil > 0 && Leader == ident) Identity=@($"{RoundIdentity}/{ident}") Seed=@finalist.Seed />
+				}
+				<div class="gallery-art" tooltip="Click the artwork to play">
+					@if ( package is not null )
+					{
+						<MenuProject.UI.PackageCard Package=@package AlwaysPlayVideo=@true Clicked=@(() => Play( package )) RightClicked=@(() => ContentBlocks.OnMenu( this, package )) />
+					}
+					else
+					{
+						<div class="unavailable"><icon>videogame_asset_off</icon><label>Game unavailable</label></div>
+					}
+				</div>
+				<div class="gallery-details">
+					<label class="game-name" tooltip=@Title( ident )>@Title( ident )</label>
+					<div class="creator-row">
+						<label class="creator">@(package?.Org?.Title ?? ident)</label>
+						<label>·</label>
+						<label class="position">@PositionText( finalist )</label>
+					</div>
+				</div>
+				<div class="card-actions">
+					@if ( Waiting )
+					{
+						<Button class="play-action" Icon="play_arrow" Text="Play" Disabled=@(package is null) onclick=@(() => Play( package )) />
+					}
+					<Button class="vote-action" IconTexture=@(selected ? Avatar : null) Text=@VoteText( selected ) Disabled=@(Submitting || CooldownSeconds > 0 || selected || !VotingOpen || ident is null) onclick=@(() => Vote?.Invoke( ident )) />
+				</div>
+			</div>
+		}
+		@if ( IsGrandFinal && Standing.Length == 2 && !Waiting )
+		{
+			<JamFinalDuel Live=@VotingOpen Counting=@(!VotingOpen && WinnerIdent is null) Winner=@WinnerIdent SecondsLeft=@SecondsLeft LeadNotice=@(VotingOpen && LeadNoticeUntil > 0 ? "LEAD CHANGE" : null) />
+		}
+	</div>
+	@if ( Standing.Length == 0 )
+	{
+		<EmptyState Icon="emoji_events" Title="No finalists available" Subtitle="The next confirmed slate will appear here." />
+	}
+</root>
+
+@code
+{
+	/// <summary>
+	/// The jam whose round is shown.
+	/// </summary>
+	[Parameter] public Jam Jam { get; set; }
+
+	/// <summary>
+	/// The current round snapshot.
+	/// </summary>
+	[Parameter] public JamFinalistCategory Category { get; set; }
+
+	/// <summary>
+	/// Resolved artwork and metadata, keyed by package ident.
+	/// </summary>
+	[Parameter] public IReadOnlyDictionary<string, Package> Packages { get; set; }
+
+	/// <summary>
+	/// Whether a vote is awaiting a response, preventing duplicate submissions.
+	/// </summary>
+	[Parameter] public bool Submitting { get; set; }
+
+	/// <summary>
+	/// Seconds remaining before this category's vote can be changed again.
+	/// </summary>
+	[Parameter] public int CooldownSeconds { get; set; }
+
+	/// <summary>
+	/// Changes when a tally or personal selection changes.
+	/// </summary>
+	[Parameter] public int Version { get; set; }
+
+	/// <summary>
+	/// Casts a vote for a game, replacing any previous selection.
+	/// </summary>
+	[Parameter] public Action<string> Vote { get; set; }
+
+	/// <summary>
+	/// Confirmed winner shown after the result hold, or null while voting/counting.
+	/// </summary>
+	[Parameter] public string WinnerIdent { get; set; }
+
+	readonly Dictionary<(string Jam, int Category, int Seed), Guid> displayOrder = new();
+	JamFinalistCategory orderedCategory;
+	JamFinalist[] Standing = [];
+	Panel LiveDot;
+	Texture VoterAvatar;
+	Texture Avatar => VoterAvatar ??= Texture.LoadAvatar( (long)Game.SteamId );
+	string LastLeader;
+	string LeadRound;
+	RealTimeUntil LeadNoticeUntil;
+
+	/// <summary>
+	/// Keeps the live indicator in time with the chart highlights without rebuilding the gallery.
+	/// </summary>
+	public override void Tick()
+	{
+		base.Tick();
+		var round = RoundIdentity;
+		if ( LeadRound != round )
+		{
+			LeadRound = round;
+			LastLeader = Leader;
+			LeadNoticeUntil = 0;
+		}
+		else if ( IsGrandFinal && VotingOpen && Leader is { } leader )
+		{
+			if ( LastLeader is not null && LastLeader != leader ) LeadNoticeUntil = 3;
+			LastLeader = leader;
+		}
+
+		if ( LiveDot.IsValid() )
+		{
+			LiveDot.Style.Opacity = 0.45f + JamVoteBar.Heartbeat * 0.55f;
+		}
+	}
+
+	protected override void OnParametersSet()
+	{
+		if ( orderedCategory == Category ) return;
+
+		orderedCategory = Category;
+		Standing = Category.Contenders.OrderBy( DisplayOrder ).ToArray();
+	}
+
+	bool Waiting => JamVotingPresentation.Waiting( Category );
+	string Selected => Waiting ? null : Category.MyVotes.FirstOrDefault();
+	bool IsGrandFinal => Category.GrandFinal;
+	// A decided snapshot may omit Round. Keep final bars in place while the result is revealed.
+	string RoundIdentity => $"{Jam.Ident}/{Category.Id}/{(IsGrandFinal ? "final" : Category.Round?.ToString())}";
+	int SecondsLeft => Category.RoundEnds is { } end ? (int)Math.Ceiling( (end - Jam.Now).TotalSeconds ) : int.MaxValue;
+	bool Urgent => IsGrandFinal && VotingOpen && SecondsLeft <= 60;
+	string Leader
+	{
+		get
+		{
+			if ( Standing.Length != 2 ) return null;
+
+			var comparison = Count( Standing[0] ).CompareTo( Count( Standing[1] ) );
+			return comparison == 0 ? null : Standing[comparison > 0 ? 0 : 1].PackageIdent;
+		}
+	}
+	bool VotingOpen => Category.IsVotingAt( Jam.Now );
+	int Minimum => Standing.Select( Count ).DefaultIfEmpty().Min();
+	int LowestCount => Standing.Count( x => Count( x ) == Minimum );
+	int ChartMaximum => Math.Max( 10, (int)Math.Ceiling( Standing.Select( Count ).DefaultIfEmpty().Max() / 100.0 ) * 100 );
+
+	/// <summary>
+	/// Gives each game a random position for this gallery's lifetime, stable across vote snapshots and rounds.
+	/// </summary>
+	Guid DisplayOrder( JamFinalist finalist )
+	{
+		var key = (Jam.Ident, Category.Id, finalist.Seed);
+		if ( !displayOrder.TryGetValue( key, out var order ) )
+		{
+			order = Guid.NewGuid();
+			displayOrder.Add( key, order );
+		}
+
+		return order;
+	}
+
+	Package PackageFor( string ident ) => ident is null ? null : Packages.GetValueOrDefault( ident );
+	string Title( string ident ) => PackageFor( ident )?.Title ?? ident ?? "Game unavailable";
+	int Count( JamFinalist finalist ) => finalist.PackageIdent is null ? 0 : Category.Counts.GetValueOrDefault( finalist.PackageIdent );
+	int Rank( JamFinalist finalist ) => 1 + Standing.Count( x => Count( x ) > Count( finalist ) );
+	bool IsLowest( JamFinalist finalist ) => VotingOpen && Category.TotalVotes > 0 && Count( finalist ) == Minimum;
+	string Share( JamFinalist finalist ) => (Category.TotalVotes > 0 ? 100.0 * Count( finalist ) / Category.TotalVotes : 0).ToString( "0.0" ) + "%";
+
+	string SelectionText
+	{
+		get
+		{
+			if ( WinnerIdent is not null ) return "Winner confirmed";
+			if ( Waiting ) return "Voting opens soon";
+			if ( !VotingOpen && IsGrandFinal ) return "Verifying the final result";
+			if ( Selected is not null ) return $"Your vote: {Title( Selected )}";
+
+			return IsGrandFinal ? "Pick your winner" : "Pick your favourite";
+		}
+	}
+
+	string CardClass( string ident )
+	{
+		if ( WinnerIdent is not null ) return WinnerIdent == ident ? "winner" : "runner-up";
+		if ( Selected is null ) return "";
+
+		return Category.MyVotes.Contains( ident ) ? "selected" : "unselected";
+	}
+
+	string PositionText( JamFinalist finalist )
+	{
+		if ( WinnerIdent is not null ) return WinnerIdent == finalist.PackageIdent ? "Champion" : "Runner-up";
+		if ( Waiting ) return "Finalist";
+
+		if ( IsGrandFinal )
+		{
+			if ( LowestCount > 1 ) return "Tied";
+
+			return Rank( finalist ) == 1 ? "Leading" : "Trailing";
+		}
+
+		if ( IsLowest( finalist ) ) return LowestCount > 1 ? "Tied lowest" : "Lowest";
+
+		return $"Rank {Rank( finalist )}";
+	}
+
+	string VoteText( bool selected )
+	{
+		if ( Waiting ) return "Voting opens soon";
+		if ( selected ) return "You Voted";
+		if ( !VotingOpen ) return "Voting closed";
+		if ( Submitting ) return "Submitting vote…";
+		if ( CooldownSeconds > 0 ) return $"Vote in {CooldownSeconds}s";
+
+		return "Vote";
+	}
+
+	void Play( Package package )
+	{
+		if ( package is not null ) ContentBlocks.OnLaunch( package );
+	}
+
+	protected override int BuildHash() => HashCode.Combine( Category, Version, Submitting, Packages.Count, VotingOpen, CooldownSeconds,
+		HashCode.Combine( WinnerIdent, LeadNoticeUntil > 0, Urgent, Urgent ? SecondsLeft : 0, Waiting ) );
+}

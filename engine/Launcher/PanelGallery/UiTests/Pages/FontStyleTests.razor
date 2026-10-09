@@ -1,0 +1,24 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Text" )]
+@attribute [Title( "font-style" )]
+@attribute [Description( "font-style examples" )]
+@attribute [Icon( "text_fields" )]
+<root>
+    <h2>font-style</h2>
+    <div class="cases">
+        <UiTestCase Setup="@Text" Css="font-style: normal" Caption="Normal" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font-style: italic" Caption="Italic" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font-style: italic; font-weight: 700" Caption="Bold italic" Text="@Sample" Note="Both styles combine without clipping the glyphs." />
+    </div>
+</root>
+@code
+{
+    const string Text = UiTestCase.TextSetup;
+    const string Sample = "Sphinx of black quartz";
+    const string Descenders = "puzzling jargon gypsy";
+    const string Paragraph = "Sphinx of black quartz, judge my vow.";
+    const string LongWord = "Pneumonoultramicroscopicsilicovolcanoconiosis";
+}

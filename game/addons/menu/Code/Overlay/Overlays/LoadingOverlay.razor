@@ -1,53 +1,520 @@
-﻿@using Sandbox;
+@using System;
+@using System.Text.RegularExpressions;
+@using Sandbox;
 @using Sandbox.UI;
+@using MenuProject;
 @inherits Panel
 
+@*
+    Loading a game - its art full screen, what it is up in the corner, what's new in it bottom left,
+    and how the load's going bottom right. The card's always the same shape, every row always there
+    and empty when it's got nothing to say - loading's synchronous, frames come in lumps, and a card
+    opening and folding as downloads come and go only stuttered and flickered.
+*@
 <root>
 
-    @if (!string.IsNullOrWhiteSpace(LoadingScreen.Media))
+    @if ( Background is { } background )
     {
-        <div class="background" style="background-image: url( @LoadingScreen.Media );"></div>
-    }
-    else
-    {
-        <div class="title">loading</div>
+        <div class="background" style="background-image: url( @background );"></div>
     }
 
-    <div class="loading-panel">       
+    <div class="scrim"></div>
 
-        <div class="loading-info">
+	<div class="content">
+		@* What it is - top left, straight on the art *@
+		@if ( Package is { } package )
+		{
+			<div class="corner">
+				<div class="game">
+					<div class="game-icon" style="background-image: url( @package.Thumb );"></div>
+					<div class="game-text">
+						@* The name, and how many of its achievements you've got on the end of it *@
+						<div class="game-title-row">
+							<label class="game-title">@package.Title</label>
+							<LoadingAchievements Package=@package />
+						</div>
+						@if ( !string.IsNullOrWhiteSpace( package.Org?.Title ) )
+						{
+							<label class="game-org">@package.Org.Title</label>
+						}
+					</div>
+				</div>
+			</div>
+		}
 
-            @if (string.IsNullOrWhiteSpace(LoadingScreen.Title ))
-            {
-                <div class="status">@LoadingScreen.Tasks.FirstOrDefault()?.Title</div>
-                @if (LoadingScreen.Tasks.Count > 1)
-                {
-                    var str = $"and {LoadingScreen.Tasks.Count-1} other tasks..";
-                    <div class="eta">@str</div>
-                }
-            }
-            else
-            {
-                <div class="status">@LoadingScreen.Title</div>
-                @if ( !string.IsNullOrWhiteSpace( LoadingScreen.Subtitle ) )
-                {
-                    <div class="eta">@LoadingScreen.Subtitle</div>
-                }
-            }
+		@* What's new in it bottom left, how the load's going bottom right *@
+		<div class="footer">
+			@* The latest post's headline and its summary *@
+			@if ( Package?.LatestNewsPost is { } news && !string.IsNullOrWhiteSpace( news.Title ) )
+			{
+				<div class="news">
+					<div class="news-eyebrow">
+						<div class="eyebrow"><icon>campaign</icon><label>Latest update</label></div>
+						<div class="ago"><icon>schedule</icon><label>@Ago( news.Created )</label></div>
+					</div>
+					<label class="news-title">@news.Title</label>
+					@if ( !string.IsNullOrWhiteSpace( news.Summary ) )
+					{
+						<label class="news-summary">@news.Summary</label>
+					}
+				</div>
+			}
+			<div class="grow"></div>
 
-        </div>
+			<div class="progress card @(Completing ? "complete" : "")">
+				@* Finished - a quick green wipe across the whole card, the bar filling it, behind everything *@
+				@if ( Completing )
+				{
+					<div class="wipe"></div>
+				}
 
-        <div class="cancel-button" onclick=@MenuUtility.CancelLoading>Cancel</div>
-    </div>
+				<div class="progress-head">
+					@* What's happening, and under it in smaller type whatever the loader's saying - the line
+					   always there, so the title never moves for it. Never empty: an empty label collapses,
+					   line and all, so it holds a space when there's nothing to say *@
+					<div class="head-text">
+						<label class="status-text">@StatusText</label>
+						<label class="detail">@(HeadDetail ?? "\u00A0")</label>
+					</div>
+					@if ( Completing )
+					{
+						@* Pops in where the percentage was *@
+						<div class="done-badge"><icon>check</icon><label>Done</label></div>
+					}
+					else
+					{
+						<label class="percent">@(ShowBar ? $"{BatchFraction * 100:0}%" : "")</label>
+					}
+				</div>
+
+				@* One bar for everything coming down - a segment each, sized by what it's fetching, each
+				   filling as its own download goes. Always there: empty with nothing coming down. A shine
+				   sweeping along and a pulse through what's filling, so it always looks hard at work *@
+				<div class="track @(ShowBar ? "busy" : "idle")">
+					@if ( ShowBar )
+					{
+						@foreach ( var segment in Segments() )
+						{
+							<div class="segment @(segment.Download.Complete ? "done" : "")" style="flex-grow: @Num( segment.Share );">
+								<div class="fill" style="width: @Num( segment.Download.Fraction * 100 )%;">
+									<div class="pulse"></div>
+									<div class="shine"></div>
+								</div>
+							</div>
+						}
+					}
+				</div>
+
+				@* Under the bar, always there: how fast, how much of all of it is down riding along with the
+				   fill, lit like it, and the total sat at the far end - where the fill's headed. Only while
+				   it's coming down - all gone at once the moment it's done, not left behind for the finish.
+				   Empty when the sizes aren't known *@
+				<div class="marker-row">
+					@if ( Downloading && BatchSize > 0 )
+					{
+						@if ( BatchMbps > 0 )
+						{
+							<div class="stat speed"><icon>speed</icon><label class="num">@($"{BatchMbps:0}")</label><label class="unit">Mbps</label></div>
+						}
+						<div class="stat done" style="left: @MarkerLeft()%;">
+							<icon>download</icon>
+							<label>@SizeIn( BatchSize * BatchFraction, BatchSize )</label>
+						</div>
+						<div class="stat total">
+							<label>@Size( BatchSize )</label>
+						</div>
+					}
+				</div>
+
+				@* How long it's got left, on the left of the way out - when there's a download with a speed
+				   to work it out from *@
+				<div class="progress-foot">
+					@if ( Eta is { } eta )
+					{
+						<div class="eta"><icon>schedule</icon><label>@eta</label></div>
+					}
+					<div class="grow"></div>
+					<div class="cancel" onclick=@LoadingView.Cancel><icon>close</icon><label>Cancel</label></div>
+				</div>
+			</div>
+		</div>
+	</div>
 
 </root>
 
 @code
 {
-    protected override int BuildHash() => System.HashCode.Combine(LoadingScreen.IsVisible, LoadingScreen.Title, LoadingScreen.Subtitle, LoadingScreen.Media, LoadingScreen.Tasks.Count, LoadingScreen.Tasks.FirstOrDefault()?.Title);
+    static Package Package => LoadingView.Package;
+
+    //
+    // What's coming down - all of the load's downloads as one batch, one bar
+    //
+
+    static IReadOnlyList<LoadingView.Download> Batch => LoadingView.Downloads;
+
+    /// <summary>
+    /// Something in the batch is still coming down.
+    /// </summary>
+    static bool Downloading => Batch.Any( x => !x.Complete );
+
+    /// <summary>
+    /// The bar's showing the batch - while it's coming down, and full while it has its moment.
+    /// </summary>
+    bool ShowBar => Downloading || Completing;
+
+    /// <summary>
+    /// All of it, in bytes - 0 when any of it isn't known, and then there's no amounts under the bar.
+    /// </summary>
+    static double BatchSize => Batch.All( x => x.Size > 0 ) ? Batch.Sum( x => x.Size ) : 0;
+
+    /// <summary>
+    /// How far through all of it, 0 to 1 - by bytes when they're known, by downloads when they aren't.
+    /// </summary>
+    static double BatchFraction
+    {
+        get
+        {
+            if ( Batch.Count == 0 ) return 0;
+
+            var size = BatchSize;
+            return size > 0
+                ? Batch.Sum( x => x.Size * Math.Clamp( x.Fraction, 0, 1 ) ) / size
+                : Batch.Average( x => Math.Clamp( x.Fraction, 0, 1 ) );
+        }
+    }
+
+    /// <summary>
+    /// How fast it's all coming down together.
+    /// </summary>
+    static double BatchMbps => Batch.Where( x => !x.Complete ).Sum( x => x.Mbps );
+
+    /// <summary>
+    /// The speed, eased - what the time left's worked out from, so it doesn't jump about with every wobble.
+    /// </summary>
+    double _easedMbps;
+
+    /// <summary>
+    /// How long what's left will take at the speed it's coming down - "2 minutes remaining". Null without
+    /// a download whose size and speed are known.
+    /// </summary>
+    string Eta
+    {
+        get
+        {
+            if ( !Downloading || BatchSize <= 0 || _easedMbps <= 0 ) return null;
+
+            // Mbps as the engine counts it - megabytes of 1024 x 1024, times eight
+            var left = BatchSize * (1 - BatchFraction);
+            var seconds = left / (_easedMbps * 1024 * 1024 / 8);
+
+            return TimeSpan.FromSeconds( Math.Max( 1, Math.Round( seconds ) ) ).ToRemainingTimeString();
+        }
+    }
+
+    void TickSpeed()
+    {
+        var mbps = Downloading ? BatchMbps : 0;
+
+        // Snaps to nothing when it stops; eases towards the rest
+        _easedMbps = mbps <= 0 ? 0 : _easedMbps <= 0 ? mbps : _easedMbps + (mbps - _easedMbps) * 0.05;
+    }
+
+    /// <summary>
+    /// The smallest share of the bar a segment's given, in percent - so a tiny package still has a
+    /// sliver to fill rather than vanishing next to a big one.
+    /// </summary>
+    const float MinShare = 2f;
+
+    record struct Segment( LoadingView.Download Download, float Share );
+
+    /// <summary>
+    /// The bar's segments, in the order the downloads became known - each its share of the bytes, held
+    /// to at least <see cref="MinShare"/>. Laid out by flex-grow, so the gaps between them come out of
+    /// the bar's width rather than spilling over it.
+    /// </summary>
+    static IEnumerable<Segment> Segments()
+    {
+        var size = BatchSize;
+        foreach ( var download in Batch )
+        {
+            var share = size > 0 ? (float)(download.Size / size * 100) : 100f / Batch.Count;
+            yield return new Segment( download, Math.Max( MinShare, share ) );
+        }
+    }
+
+    /// <summary>
+    /// Small print under the title. While a batch is coming down, what's coming down right now; the
+    /// rest of the time whatever the loader's saying. The loader flicks that on and off many times a step
+    /// (a file name, nothing, the next file name), so once there's been some it sticks, still saying the
+    /// last thing, until the title changes - rather than blinking every time it comes and goes.
+    /// </summary>
+    string HeadDetail
+    {
+        get
+        {
+            if ( ShowBar )
+            {
+                _detailFor = null;
+                _stickyDetail = null;
+
+                if ( !Downloading ) return null;
+
+                // The game's in the title - what's coming with it here. Then, once it's down, what of the
+                // rest is coming down right now
+                var extras = PackagesToCome.Count;
+                if ( MainDownloading is not null )
+                    return extras switch { 0 => null, 1 => "and 1 package", _ => $"and {extras} packages" };
+
+                return extras > 1 ? InProgressText : null;
+            }
+
+            var status = StatusText;
+            if ( status != _detailFor )
+            {
+                _detailFor = status;
+                _stickyDetail = null;
+            }
+
+            if ( !string.IsNullOrWhiteSpace( DetailText ) )
+                _stickyDetail = DetailText;
+
+            return _stickyDetail;
+        }
+    }
+
+    string _detailFor;
+    string _stickyDetail;
+
+    /// <summary>
+    /// The packages besides the game and its map still to come down - what the grouped title counts. The
+    /// bar keeps what's already down (a join's second batch adds to it, the first batch's segments full),
+    /// but the title's about what's left.
+    /// </summary>
+    static List<LoadingView.Download> PackagesToCome => Batch.Where( x => !x.Complete && !IsGameOrMap( x ) ).ToList();
+
+    /// <summary>
+    /// The game or its map, while it's still coming down - it gets the title to itself until it's down.
+    /// </summary>
+    static string MainDownloading => Batch.FirstOrDefault( x => !x.Complete && IsGameOrMap( x ) ) is { Title: { } title } ? title : null;
+
+    /// <summary>
+    /// What of the packages is coming down right now - the biggest under way, and how many more are with it.
+    /// </summary>
+    static string InProgressText
+    {
+        get
+        {
+            var going = Batch.Where( x => !x.Complete && x.Fraction > 0 && !IsGameOrMap( x ) ).OrderByDescending( x => x.Size ).ToList();
+            if ( going.Count == 0 ) return null;
+
+            return going.Count == 1 ? going[0].Title : $"{going[0].Title} and {going.Count - 1} more";
+        }
+    }
+
+    //
+    // Finishing - the bar fills, flashes and says it's done for a moment, then empties for whatever comes
+    // next. Once the whole batch is down, and only if the game or its map was in it: a game pulls in
+    // models and materials as packages too, and celebrating those just flickered
+    //
+
+    /// <summary>
+    /// How long a finished batch stays up, celebrated, before the bar empties.
+    /// </summary>
+    const float CompleteHold = 0.6f;
+
+    RealTimeSince _sinceComplete;
+
+    /// <summary>
+    /// The downloads seen finish - so each is only noticed finishing once.
+    /// </summary>
+    readonly HashSet<string> _finished = new();
+
+    /// <summary>
+    /// The game or its map finished coming down - celebrated once the rest of the batch is down too.
+    /// </summary>
+    bool _celebrate;
+
+    /// <summary>
+    /// The batch has just finished, and it's having its moment.
+    /// </summary>
+    bool Completing { get; set; }
+
+    void TickCompletion()
+    {
+        if ( !LoadingView.IsVisible )
+        {
+            Completing = false;
+            _celebrate = false;
+            _finished.Clear();
+            return;
+        }
+
+        foreach ( var download in Batch )
+        {
+            if ( download.Complete && _finished.Add( download.Ident ?? download.Title ?? "" ) && IsGameOrMap( download ) )
+                _celebrate = true;
+        }
+
+        if ( Completing )
+        {
+            if ( _sinceComplete > CompleteHold ) Completing = false;
+            return;
+        }
+
+        if ( _celebrate && !Downloading && Batch.Count > 0 )
+        {
+            _celebrate = false;
+            Completing = true;
+            _sinceComplete = 0;
+        }
+    }
+
+    /// <summary>
+    /// A download of the game itself, or the map it's starting on.
+    /// </summary>
+    static bool IsGameOrMap( LoadingView.Download download )
+    {
+        if ( Package is { } game && (download.Ident == game.FullIdent || download.Title == game.Title) )
+            return true;
+
+        return !string.IsNullOrEmpty( LaunchArguments.Map )
+            && Sandbox.Package.TryGetCached( LaunchArguments.Map, out var map )
+            && (download.Ident == map.FullIdent || download.Title == map.Title);
+    }
+
+    /// <summary>
+    /// The game's own loading art, or failing that a shot of it.
+    /// </summary>
+    static string Background => !string.IsNullOrWhiteSpace( LoadingView.Media )
+        ? LoadingView.Media
+        : Package is { } package ? PackageArt.Background( package ) : null;
+
+    /// <summary>
+    /// What's happening - "Downloading Sandbox", "Downloading 12 packages", "Loading Resources".
+    /// While a batch is coming down it says so itself: the engine's title names whichever download
+    /// reported last, which jumps about when several come down at once. The game or its map has the
+    /// title to itself while it's coming down; the packages after it get one between them.
+    /// </summary>
+    string StatusText
+    {
+        get
+        {
+            if ( ShowBar )
+            {
+                // Down - named for the game if it was in it
+                if ( Completing )
+                {
+                    var done = Batch.FirstOrDefault( IsGameOrMap );
+                    if ( done.Title is not null ) return $"Downloaded {done.Title}";
+                }
+
+                if ( MainDownloading is { } main )
+                    return $"Downloading {main}";
+
+                var packages = PackagesToCome;
+                return packages.Count == 1 ? $"Downloading {packages[0].Title}" : $"Downloading {packages.Count} packages";
+            }
+
+            // A download's own title left behind ("Download 'Sandbox' Complete") says nothing now
+            var title = LoadingView.Title;
+            if ( string.IsNullOrWhiteSpace( title ) || Regex.IsMatch( title, "^(Downloading|Download|Fetching) " ) )
+                title = LoadingView.FirstTask ?? "Loading";
+
+            return Regex.Replace( title, "'([^']+)'", "$1" );
+        }
+    }
+
+    /// <summary>
+    /// The small print when nothing's coming down - whatever the loader's saying about the file or task
+    /// it's on.
+    /// </summary>
+    static string DetailText
+    {
+        get
+        {
+            if ( !string.IsNullOrWhiteSpace( LoadingView.Title ) )
+                return LoadingView.Subtitle;
+
+            return LoadingView.TaskCount > 1 ? $"and {LoadingView.TaskCount - 1} other tasks" : null;
+        }
+    }
+
+    /// <summary>
+    /// Where the downloaded amount's middle sits along the bar, as a percentage - on the end of the
+    /// fill, but held clear of the speed at the start of the row and stopping just short of the total
+    /// at the far end. In a 520 card the track's 476 wide: the speed ("104 Mbps" and its icon, ~70)
+    /// plus a gap takes the first ~17%, the downloaded text (~62) is ~6.5% either side of its middle,
+    /// and the total ("1.1 GB", right aligned) plus a gap takes the last ~11%. A total in megabytes
+    /// ("570 MB") is wider, so it stops further short of it.
+    /// </summary>
+    const float MarkerMin = 24f;
+    const float MarkerMaxGB = 84.5f;
+    const float MarkerMaxMB = 80.5f;
+
+    static string MarkerLeft()
+    {
+        var max = BatchSize >= 1_000_000_000 ? MarkerMaxGB : MarkerMaxMB;
+        return Num( Math.Clamp( BatchFraction * 100, MarkerMin, max ) );
+    }
+
+    static string Num( double value ) => value.ToString( "0.##", System.Globalization.CultureInfo.InvariantCulture );
+
+    /// <summary>
+    /// "420 MB", "1.2 GB" - as short as it goes.
+    /// </summary>
+    static string Size( double bytes )
+    {
+        if ( bytes >= 1_000_000_000 ) return $"{bytes / 1_000_000_000:0.#} GB";
+        if ( bytes >= 1_000_000 ) return $"{bytes / 1_000_000:0} MB";
+        return $"{bytes / 1_000:0} KB";
+    }
+
+    /// <summary>
+    /// How much of <paramref name="total"/> is down, in the same unit the total's shown in - so a
+    /// 1.1 GB download reads "0.51 GB", not "510 MB". Gigabytes get a second decimal, so it's seen
+    /// going up rather than sitting on the same tenth for ages.
+    /// </summary>
+    static string SizeIn( double bytes, double total )
+    {
+        if ( total >= 1_000_000_000 ) return $"{bytes / 1_000_000_000:0.00} GB";
+        if ( total >= 1_000_000 ) return $"{bytes / 1_000_000:0} MB";
+        return $"{bytes / 1_000:0} KB";
+    }
+
+    static string Ago( DateTimeOffset when )
+    {
+        var span = DateTimeOffset.UtcNow - when;
+
+        if ( span.TotalHours < 1 ) return "just now";
+        if ( span.TotalDays < 1 ) return $"{(int)span.TotalHours}h ago";
+        if ( span.TotalDays < 2 ) return "yesterday";
+        if ( span.TotalDays < 30 ) return $"{(int)span.TotalDays} days ago";
+        if ( span.TotalDays < 365 ) return $"{(int)(span.TotalDays / 30)} months ago";
+        return when.ToLocalTime().ToString( "MMM yyyy" );
+    }
+
+    int _hash;
+
+    protected override int BuildHash()
+    {
+        // Put away - it fades out still showing what it was, rather than emptying out under the fade
+        // (the art fading on its own, the game and bar gone) as the load's cleared
+        if ( !LoadingView.IsVisible ) return _hash;
+
+        // Settle whether the batch has just finished before anything's drawn from it
+        TickCompletion();
+
+        var batch = 0;
+        foreach ( var download in Batch )
+            batch = HashCode.Combine( batch, download.Fraction, download.Complete, download.Mbps );
+
+        return _hash = HashCode.Combine( StatusText, HeadDetail, Background, Package?.FullIdent, batch, Batch.Count, HashCode.Combine( LoadingView.TaskCount, Completing, Eta ) );
+    }
 
     public override void Tick()
     {
-        SetClass( "visible", LoadingScreen.IsVisible );
+        SetClass( "visible", LoadingView.IsVisible );
+        TickCompletion();
+        TickSpeed();
     }
 }

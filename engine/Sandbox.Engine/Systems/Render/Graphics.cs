@@ -10,6 +10,25 @@ namespace Sandbox;
 /// </summary>
 public static partial class Graphics
 {
+	/// <summary>
+	/// Whether the initialized renderer supports GPU operations. False before initialization,
+	/// after shutdown, and when using the empty renderer.
+	/// </summary>
+	public static bool IsAvailable { get; private set; }
+
+	internal static void Initialize()
+	{
+		IsAvailable = g_pRenderDevice.GetRenderDeviceAPI() != RenderDeviceAPI_t.RENDER_DEVICE_API_EMPTY;
+
+		_mipMapGeneratorShader = IsAvailable ? new ComputeShader( "downsample_cs" ) : null;
+	}
+
+	internal static void Shutdown()
+	{
+		IsAvailable = false;
+		_mipMapGeneratorShader = null;
+	}
+
 	public enum PrimitiveType
 	{
 		Points = NativeEngine.RenderPrimitiveType.RENDER_PRIM_POINTS,
@@ -39,8 +58,7 @@ public static partial class Graphics
 	{
 		public bool active;
 		public IRenderContext renderContext;
-		public ISceneLayer sceneLayer;
-		public ISceneView sceneView;
+		public IFrameView view;
 		public SceneLayerType layerType;
 		public RenderAttributes attributes;
 		internal SceneSystemPerFrameStats_t stats;
@@ -50,14 +68,18 @@ public static partial class Graphics
 		internal RenderTarget renderTarget;
 		internal float defaultMinZ;
 		internal float defaultMaxZ;
+		internal bool computeQueue;
 	}
 
 	[ThreadStatic]
 	private static RenderState _state;
 
 	internal static IRenderContext Context => _state.renderContext;
-	internal static ISceneLayer SceneLayer => _state.sceneLayer;
-	internal static ISceneView SceneView => _state.sceneView;
+
+	/// <summary>
+	/// Whether the block records into an async compute context (<see cref="ManagedView.ComputeQueue"/>): compute and copies only.
+	/// </summary>
+	internal static bool OnComputeQueue => _state.computeQueue;
 	internal static ImageFormat IdealColorFormat => _state.colorFormat;
 	internal static MultisampleAmount IdealMsaaLevel => _state.msaaLevel;
 	internal static SceneSystemPerFrameStats_t Stats => _state.stats;
@@ -113,7 +135,7 @@ public static partial class Graphics
 	{
 		get
 		{
-			if ( Application.IsHeadless ) return 0;
+			if ( !Graphics.IsAvailable ) return 0;
 			g_pRenderDevice.GetVideoMemoryInfo( out var budget, out _, out _ );
 			return budget;
 		}
@@ -127,7 +149,7 @@ public static partial class Graphics
 	{
 		get
 		{
-			if ( Application.IsHeadless ) return 0;
+			if ( !Graphics.IsAvailable ) return 0;
 			g_pRenderDevice.GetVideoMemoryInfo( out _, out _, out var rsUsage );
 			return rsUsage;
 		}
@@ -137,7 +159,7 @@ public static partial class Graphics
 	/// <summary>
 	/// The field of view of the currently rendering camera view, in degrees.
 	/// </summary>
-	public static float FieldOfView => _state.sceneView.GetFrustum().GetCameraFOV();
+	public static float FieldOfView => ViewFrustum.GetCameraFOV();
 
 	/// <summary>
 	/// The frustum of the currently rendering camera view.
@@ -148,7 +170,7 @@ public static partial class Graphics
 		{
 			AssertRenderBlock();
 
-			var cf = _state.sceneView.GetFrustum();
+			var cf = ViewFrustum;
 
 			// Native planes are camera-relative.
 			cf.GetPlane( 0, out var rn, out var rd );
@@ -198,6 +220,69 @@ public static partial class Graphics
 	internal ref struct Scope
 	{
 		RenderState _previous;
+		bool standalone;
+		IRenderContext _context;
+		RenderAttributes _attributes;
+
+		/// <summary>
+		/// Begins rendering with no scene view: a fresh render context and attributes with the frame's bindless
+		/// texture set bound, as CSceneSystem::InitializeRenderAttributes does for a view. Disposal submits the context.
+		/// </summary>
+		internal static Scope Create()
+		{
+			ThreadSafe.AssertIsMainThread();
+
+			if ( !IsAvailable )
+				throw new InvalidOperationException( "Graphics is unavailable." );
+
+			if ( IsActive || CSceneSystem.IsRenderingBusy() )
+				throw new InvalidOperationException(
+					"Standalone rendering cannot overlap another render scope or scene recording." );
+
+			// The global descriptor ring relies on present throttling. Standalone
+			// submissions must finish previous GPU work before reusing a slot.
+			g_pRenderDevice.ForceFlushGPU( default );
+
+			var context = g_pRenderDevice.CreateRenderContext( 0 );
+			var attributes = new RenderAttributes();
+			attributes.Get().SetGlobalBindlessDescriptorSet();
+
+			var scope = new Scope { _previous = _state, standalone = true, _context = context, _attributes = attributes };
+			_state = new RenderState { active = true, renderContext = context, attributes = attributes };
+			return scope;
+		}
+
+		/// <summary>The standalone render context, or default inside a scene view.</summary>
+		internal IRenderContext Context => _context;
+
+		/// <summary>The standalone attributes, or null inside a scene view.</summary>
+		internal RenderAttributes Attributes => _attributes;
+
+		/// <summary>
+		/// A render block over a managed frame (<see cref="ManagedView"/>): <paramref name="context"/> is recording it, and
+		/// its own attributes are the block's, as a native view's are - draws fall back to them for what they don't set.
+		/// The view's targets are bound.
+		/// </summary>
+		internal Scope( IRenderContext context, ManagedView view )
+		{
+			_previous = _state;
+			_state = new RenderState
+			{
+				active = true,
+				renderContext = context,
+				view = view,
+				layerType = view.LayerType,
+				colorFormat = view.ColorFormat,
+				msaaLevel = view.Msaa,
+				cameraTransform = new Transform( view.Frustum.GetCameraPosition(), view.Frustum.GetCameraAngles() ),
+				computeQueue = view.ComputeQueue,
+			};
+
+			_state.attributes = ObjectPool<RenderAttributes>.Get();
+			_state.attributes.Set( context.GetAttributesPtrForModify() );
+
+			view.Bind( context );
+		}
 
 		public Scope( in ManagedRenderSetup_t setup )
 		{
@@ -208,8 +293,7 @@ public static partial class Graphics
 			var frustum = setup.sceneView.GetFrustum();
 
 			_state.active = true;
-			_state.sceneLayer = setup.sceneLayer;
-			_state.sceneView = setup.sceneView;
+			_state.view = NativeFrameView.Get( setup.sceneView, setup.sceneLayer );
 			_state.renderContext = setup.renderContext;
 			_state.layerType = setup.sceneLayer.LayerEnum;
 			_state.colorFormat = setup.colorImageFormat;
@@ -223,11 +307,35 @@ public static partial class Graphics
 
 		public void Dispose()
 		{
+			if ( standalone )
+			{
+				try
+				{
+					g_pRenderDevice.BeginSubmittingDisplayLists();
+					_context.Submit();
+				}
+				finally
+				{
+					try
+					{
+						g_pRenderDevice.ReleaseRenderContext( _context );
+						_attributes.Clear();
+					}
+					finally
+					{
+						_state = _previous;
+					}
+				}
+				return;
+			}
+
 			if ( _state.attributes is not null )
 			{
 				_state.attributes.Set( default( CRenderAttributes ) );
 				ObjectPool<RenderAttributes>.Return( _state.attributes );
 			}
+
+			if ( _state.view is NativeFrameView native ) native.Return();
 
 			_state = _previous;
 
@@ -241,6 +349,18 @@ public static partial class Graphics
 				grabbedTextures.Clear();
 			}
 		}
+	}
+
+	/// <summary>Uses private attributes for a drawing pass, preserving its caller's attributes.</summary>
+	internal readonly ref struct AttributeScope
+	{
+		readonly RenderAttributes previous;
+		internal AttributeScope( RenderAttributes attributes )
+		{
+			previous = _state.attributes;
+			_state.attributes = attributes;
+		}
+		public void Dispose() => _state.attributes = previous;
 	}
 
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
@@ -260,7 +380,14 @@ public static partial class Graphics
 		Assert.NotNull( targetAttributes );
 		Assert.IsValid( obj );
 
-		NativeEngine.CSceneSystem.SetupPerObjectLighting( targetAttributes.Get(), obj, SceneLayer );
+		if ( _state.view is { } view )
+		{
+			view.SetupLighting( obj, targetAttributes );
+			return;
+		}
+
+		// A standalone block has no layer to light from
+		NativeEngine.CSceneSystem.SetupPerObjectLighting( targetAttributes.Get(), obj, default );
 	}
 
 	/// <summary>
@@ -339,6 +466,10 @@ public static partial class Graphics
 			if ( _state.renderTarget == value )
 				return;
 
+			var view = _state.view;
+			if ( view is null && (value?.ColorTarget is null || value.DepthTarget is not null) )
+				throw new InvalidOperationException( "Standalone rendering requires a color target without a depth target." );
+
 			// Going from default render target to custom render target
 			if ( _state.renderTarget == null )
 			{
@@ -353,17 +484,19 @@ public static partial class Graphics
 			// Resetting to default render target
 			if ( _state.renderTarget == null )
 			{
-				// alex: if we don't restore min/max Z values properly when setting back to
-				// the default render target, we get a lot of weird depth issues.
-				// This mainly only applies to things like worldpanels when we render filtered
-				// elements, but could probably happen in other places too?
-				var viewport = new RenderViewport( SceneLayer.m_viewport.Rect, _state.defaultMinZ, _state.defaultMaxZ );
-				Context.SetViewport( viewport );
-				Context.RestoreRenderTargets( SceneLayer );
+				view?.RestoreTargets( Context, _state.defaultMinZ, _state.defaultMaxZ );
 				return;
 			}
 
-			Context.BindRenderTargets( _state.renderTarget.ColorTarget?.native ?? default, _state.renderTarget.DepthTarget?.native ?? default, SceneLayer );
+			if ( view is not null )
+			{
+				view.BindTarget( Context, _state.renderTarget );
+			}
+			else
+			{
+				_state.colorFormat = _state.renderTarget.ColorTarget.ImageFormat;
+				Context.BindRenderTargets( _state.renderTarget.ColorTarget.native );
+			}
 			Viewport = new Rect( 0, 0, _state.renderTarget.Width, _state.renderTarget.Height );
 		}
 	}
@@ -460,7 +593,7 @@ public static partial class Graphics
 	/// </summary>
 	public static void FlushGPU()
 	{
-		if ( Application.IsHeadless )
+		if ( !Graphics.IsAvailable )
 			return;
 
 		g_pRenderDevice.ForceFlushGPU( default );

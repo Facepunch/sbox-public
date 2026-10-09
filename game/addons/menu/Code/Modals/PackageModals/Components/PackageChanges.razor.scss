@@ -1,14 +1,22 @@
 @import "/styles/_theme.scss";
+@import "/styles/_front.scss";
 
+// The Changes tab - a timeline of update cards, newest first
 PackageChanges
 {
     flex-direction: column;
-    padding: 1.5rem 2rem;
-    gap: 1.5rem;
+    // The same insets as the other tabs
+    padding: 24px 24px 64px 24px;
+    gap: 20px;
     overflow: hidden;
     max-width: 100%;
     overflow-y: scroll;
     flex-shrink: 0;
+
+    i
+    {
+        font-family: "Material Icons";
+    }
 
     .state
     {
@@ -16,66 +24,280 @@ PackageChanges
         align-items: center;
         justify-content: center;
         padding: 4rem;
-        color: $default-400;
+        color: $front-secondary;
         font-size: $text-regular;
     }
-    // A single changelist: sticky meta column on the left, categorised entries on the right.
-    .changelistgroup
+
+    .timeline
+    {
+        flex-direction: column;
+        flex-shrink: 0;
+    }
+
+    // One update - a dot on the line down the left, its card beside it
+    .update
     {
         flex-direction: row;
         flex-shrink: 0;
-        gap: 1.5rem;
-        padding-bottom: 1.5rem;
-        border-bottom: 1px solid $default-border;
-
-        &:last-child
-        {
-            border-bottom-width: 0;
-        }
+        gap: 16px;
     }
 
-    .meta-column
+    .rail
     {
         flex-direction: column;
-        flex-grow: 0;
         flex-shrink: 0;
-        width: 180px;
-        align-items: flex-start;
-        gap: 8px;
+        align-items: center;
+        width: 12px;
 
-        .title
+        // Level with the card's title
+        .dot
         {
             flex-shrink: 0;
-            font-size: 1.3rem;
-            font-weight: 700;
-            color: $default-text;
-            font-family: $font-heading;
+            width: 10px;
+            height: 10px;
+            margin-top: 20px;
+            border-radius: 50%;
+            background-color: $front-tertiary;
+            border: 2px solid $front-card-deep;
         }
 
-        .created
+        // Runs from this dot on down to the next one - on past its own row into the next, as that one's
+        // dot sits 20 down from its top, so it stops the same 4 short of it as it starts under this one
+        .line
         {
-            flex-shrink: 0;
-            color: $default-400;
-            font-size: $text-small;
-        }
-
-        .version
-        {
-            flex-shrink: 0;
-            padding: 2px 14px;
-            border-radius: $rounding-large;
-            color: $default-text;
-            font-weight: 600;
-            font-size: $text-small;
-            background-image: linear-gradient( 45deg, rgba( $primary-blue, 0.4 ), rgba( $primary-blue, 0.7 ), rgba( $primary-blue, 0.4 ) );
-            border: 1px solid rgba( $primary-blue, 0.5 );
+            flex-grow: 1;
+            width: 2px;
+            margin-top: 4px;
+            margin-bottom: -16px;
+            background-color: $front-hairline;
         }
     }
 
-    .changes
+    // The newest - its dot lit in the menu blue
+    .update.latest .rail .dot
+    {
+        background-color: $front-primary;
+        box-shadow: 0 0 0 3px rgba( $front-primary, 0.25 );
+    }
+
+    // Nothing after the last one - the line stops at its dot
+    .update.last .rail .line
+    {
+        background-color: transparent;
+    }
+
+    // A card swapped for its room or back - gone at once, rather than beside the other for a frame
+    .update > .card:outro
+    {
+        display: none;
+    }
+
+    .card
     {
         flex-direction: column;
         flex-grow: 1;
+        flex-shrink: 1;
+        flex-basis: 0;
+        min-width: 0;
+        margin-bottom: 16px;
+        padding: 16px 20px 18px 20px;
+        gap: 16px;
+        border-radius: $front-radius;
+        background-color: $front-card-deep;
+        border: $front-border-width solid $front-hairline;
+    }
+
+    //
+    // The update's name, version and when
+    //
+
+    // One line - the name on the left, when on the right end of it, rather than a line of its own
+    .card-head
+    {
+        flex-direction: row;
         flex-shrink: 0;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .title-row
+    {
+        flex-direction: row;
+        flex-grow: 1;
+        flex-shrink: 1;
+        min-width: 0;
+        align-items: center;
+        gap: 10px;
+    }
+
+    // One line, cut off with an ellipsis rather than wrapping - the whole of it on hover. It takes the
+    // rest of the line rather than sizing itself (a clipped label left to size itself measures as
+    // nothing and draws just its ellipsis), so the tags after it sit over on the right
+    .update-name
+    {
+        flex-grow: 1;
+        flex-shrink: 1;
+        flex-basis: 0;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-family: $front-font;
+        font-size: 17px;
+        font-weight: 700;
+        color: $front-heading;
+    }
+
+    .latest-pill
+    {
+        flex-shrink: 0;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background-color: rgba( $front-primary, 0.2 );
+        font-family: $front-font;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: $front-link;
+    }
+
+    .meta-row
+    {
+        flex-direction: row;
+        flex-shrink: 0;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .version
+    {
+        flex-shrink: 0;
+        padding: 1px 7px;
+        border-radius: 4px;
+        background-color: rgba( 255, 255, 255, 0.07 );
+        font-family: Inter;
+        font-size: 11px;
+        font-weight: 600;
+        color: $front-body;
+    }
+
+    .when
+    {
+        flex-shrink: 0;
+        font-family: $front-font;
+        font-size: 12px;
+        font-weight: 500;
+        color: $front-secondary;
+    }
+
+    // "3 months ago" in a pill, a clock in front - like the loading screen's latest update
+    .ago
+    {
+        @include front-meta-pill;
+    }
+
+    //
+    // Embedded on the Overview - under the gallery, part of that page's scroll rather than its own,
+    // no timeline line (there's only the one)
+    //
+
+    &.embedded
+    {
+        overflow: visible;
+        overflow-y: visible;
+
+        // 9, plus the thumbnail strip's own 3 under it - 12 off the gallery, the same as the gap
+        // inside the gallery between its big view and the strip
+        padding: 9px 24px 64px 24px;
+        gap: 10px;
+
+        .rail
+        {
+            display: none;
+        }
+
+        .update
+        {
+            gap: 0;
+        }
+
+        .card
+        {
+            margin-bottom: 0;
+        }
+    }
+
+    //
+    // Loading - grey bars in the shape of an update card, breathing
+    //
+
+    .update.skeleton .rail .dot
+    {
+        background-color: $front-tertiary;
+        box-shadow: none;
+    }
+
+    .bone
+    {
+        flex-shrink: 0;
+        height: 12px;
+        border-radius: 999px;
+        background-color: rgba( 255, 255, 255, 0.07 );
+        animation: changes-bone 1.2s ease-in-out infinite alternate;
+    }
+
+    .title-bone
+    {
+        width: 42%;
+        height: 16px;
+    }
+
+    .pill-bone
+    {
+        width: 90px;
+        height: 20px;
+        margin-left: auto;
+    }
+
+    .bone-section
+    {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .heading-bone
+    {
+        width: 80px;
+        height: 10px;
+    }
+
+    .line-bone
+    {
+        width: 88%;
+
+        &.short { width: 70%; }
+        &.shorter { width: 52%; }
+    }
+
+    // The kinds of change, evenly spaced - there are no empty ones to leave gaps
+    .sections
+    {
+        flex-direction: column;
+        flex-shrink: 0;
+        gap: 16px;
+    }
+}
+
+@keyframes changes-bone
+{
+    0%
+    {
+        opacity: 0.55;
+    }
+
+    100%
+    {
+        opacity: 1;
     }
 }

@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Components;
+using System.Globalization;
+using Microsoft.AspNetCore.Components;
 using Sandbox.Diagnostics;
 using System;
 using System.Collections.Generic;
@@ -76,7 +77,7 @@ public partial class TextEntry
 		if ( CharacterRegex != null )
 		{
 			// oof
-			foreach ( var chr in Text )
+			foreach ( var chr in Text.EnumerateRunes() )
 			{
 				HasValidationErrors = HasValidationErrors || !System.Text.RegularExpressions.Regex.IsMatch( chr.ToString(), CharacterRegex );
 			}
@@ -106,15 +107,27 @@ public partial class TextEntry
 
 		if ( Numeric )
 		{
-			if ( char.IsDigit( c ) ) return true;
-
-			// One decimal separator, and a minus only when negatives are allowed at all
-			if ( c == '.' || c == ',' ) return !WholeNumbers && !Text.Contains( '.' ) && !Text.Contains( ',' );
-			if ( c == '-' ) return !Text.Contains( '-' ) && (MinValue is null || MinValue < 0);
-
-			return false;
+			var context = Text ?? "";
+			if ( Label.HasSelection() )
+			{
+				var indices = StringInfo.ParseCombiningCharacters( context );
+				var start = Math.Min( Label.SelectionStart, Label.SelectionEnd );
+				var end = Math.Max( Label.SelectionStart, Label.SelectionEnd );
+				var from = start < indices.Length ? indices[start] : context.Length;
+				var to = end < indices.Length ? indices[end] : context.Length;
+				context = context.Remove( from, to - from );
+			}
+			return CanEnterNumericCharacter( c, context );
 		}
 
 		return true;
+	}
+
+	bool CanEnterNumericCharacter( char c, string context )
+	{
+		if ( char.IsDigit( c ) ) return true;
+		if ( c == '.' || c == ',' ) return !WholeNumbers && !context.Contains( '.' ) && !context.Contains( ',' );
+		if ( c == '-' ) return !context.Contains( '-' ) && (MinValue is null || MinValue < 0);
+		return false;
 	}
 }

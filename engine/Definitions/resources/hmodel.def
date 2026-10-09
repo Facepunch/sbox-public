@@ -45,6 +45,7 @@ native class CModel as NativeEngine.IModel
 
 	int GetNumMeshGroups();
 	ulong GetDefaultMeshGroupMask();
+	ulong GetMeshGroupMaskForMesh( int iMesh );
 
 	inline string GetBodyPartMeshName( int nPart, int nMesh )
 	{

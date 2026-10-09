@@ -31,34 +31,25 @@
 
 					@if ( CurrentTab.IsDiscover )
 					{
-						@if (Result is null)
-						{
-							<LoadingPanel></LoadingPanel>
-						}
-						else
-						{
-							<FrontPageGames Group="@Result" />
-						}
+						@* Shelves of placeholders until the result's in *@
+						<FrontPageGames Group="@Result" />
 					}
 					else
 					{
-						<MenuProject.UI.PackageList Query=@($"type:game {CurrentTab.Query}") Take=@(60) OnSelected=@Selected OnMenu=@Menu></MenuProject.UI.PackageList>
+						<MenuProject.UI.PackageList Surface="home" Shelf=@CurrentTab.Name Query=@($"type:game {CurrentTab.Query}") Take=@(60) OnSelected=@Selected OnMenu=@Menu></MenuProject.UI.PackageList>
 					}
 				</div>
 
 				<div class="aside">
 
 					@*
-						Friends in game right now, then what everyone's been up to lately.
-						The feed is what fills the card out on a quiet night.
+						One card - avatar, stats, and your friends taking the rest of the column.
 					*@
 					<div class="profile-card">
 						<AvatarButton />
-						<FriendsActivity />
-						<ActivityFeed Activity="@Activity" />
+						<ProfileStats />
+						<FriendsRail />
 					</div>
-
-					<News />
 
 				</div>
 
@@ -91,6 +82,7 @@
 		new( "newest", "Newest", "sort:newest" ),
 		new( "updated", "Updated", "sort:updated" ),
 		new( "gems", "Hidden Gems", "sort:hiddengem" ),
+		new( "favourites", "Your Favourites", "sort:favourites" ),
 	];
 
 	/// <summary>Genre feeds, shown after the main tabs. Best-rated first within each genre.</summary>
@@ -123,31 +115,9 @@
 
 	Package.ListResult Result;
 
-	Sandbox.Services.Feed[] Activity { get; set; } = System.Array.Empty<Sandbox.Services.Feed>();
-
-	RealTimeUntil timeUntilRefresh = 0;
-
 	protected override async Task OnParametersSetAsync()
 	{
 		Result = await Package.ListAsync( ContentGroupId );
-		StateHasChanged();
-	}
-
-	public override void Tick()
-	{
-		base.Tick();
-
-		if ( !IsVisible ) return;
-		if ( timeUntilRefresh > 0 ) return;
-
-		timeUntilRefresh = 60 * 3;
-
-		_ = UpdateActivity();
-	}
-
-	async Task UpdateActivity()
-	{
-		Activity = await MenuUtility.GetPlayerFeed( 30 ) ?? System.Array.Empty<Sandbox.Services.Feed>();
 		StateHasChanged();
 	}
 
@@ -161,5 +131,5 @@
 		ContentBlocks.OnMenu( this, package );
 	}
 
-	protected override int BuildHash() => System.HashCode.Combine( Result, Activity.Length, CurrentTab );
+	protected override int BuildHash() => System.HashCode.Combine( Result, CurrentTab );
 }

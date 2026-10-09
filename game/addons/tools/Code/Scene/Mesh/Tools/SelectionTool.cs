@@ -16,6 +16,12 @@ public abstract class SelectionTool( MeshTool tool ) : EditorTool
 {
 	public MeshTool Tool { get; } = tool;
 
+	/// <summary>
+	/// Whether clicking in the scene should change the selection. The move mode can
+	/// be borrowing the cursor for something else, like picking a pivot point.
+	/// </summary>
+	public bool IsAllowedToSelect => Tool?.MoveMode?.AllowSceneSelection ?? true;
+
 	protected TextureLockTransform _transformKind = TextureLockTransform.Move;
 
 	protected enum TextureLockTransform
@@ -431,8 +437,6 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 
 		SaveCurrentSelection<T>();
 	}
-
-	public bool IsAllowedToSelect => Tool?.MoveMode?.AllowSceneSelection ?? true;
 
 	public override void BuildSceneContextMenu( Menu menu, Ray ray, SceneTraceResult? trace )
 	{

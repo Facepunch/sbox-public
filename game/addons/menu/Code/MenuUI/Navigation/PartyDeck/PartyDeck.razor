@@ -1,124 +1,487 @@
-﻿@using System;
+@using System;
 @using Sandbox;
+@using Sandbox.Menu;
 @using Sandbox.UI;
-@using Sandbox.Modals;
 @using MenuProject;
 @inherits Panel
 @namespace MenuProject
 
+@*
+    Who's in your party, and what everyone's up to. The open seat opens the friend picker.
+    While you're following the leader into a game the header becomes that - what's happening, how far
+    along, and a way out.
+*@
 <root>
-	<div class="members">
-		<Button class="party" onmousedown="@OpenMenu" Icon="celebration" Tooltip="Party" />
-		<separator class="vertical" />
-		<PartyMember Friend="@(new Friend(Connection.Local.SteamId))" />
-		@foreach (var member in Members.Where( x => !x.IsMe ) )
-        {
-			<PartyMember Friend="@member" />
-		}
-		@if ( Party is null || Party.MemberCount < Party.MaxMembers )
-		{
-			<Button @ref="InviteButton" class="empty-slot" onmouseup="@InviteSomeone" Tooltip="Invite a friend" Icon="add"/>
-		}
-    </div>
+	@if ( InParty )
+	{
+		<FloatingWindow @ref="Window" Title="@(Draft is not null ? "Create party" : PartyView.Name)" Icon="🎉" KeepOnScreen="@(true)" ShowMinimizeButton="@(true)" ShowCloseButton="@(true)" OnCloseRequested="@Leave" class="@(Activity() ?? "")">
+			<ChildContent>
+				<div class="party-deck-content @(Activity() ?? "")">
+					<div class="head toolbar @(SettingsOpen ? "" : "divided")">
+						<div class="current-game @(HasDisplayGame || CanChangeSettings ? "editable" : "") @(HasDisplayGame ? "" : "empty")" onclick=@OpenGameInfo tooltip="@(HasDisplayGame ? "View game details" : CanChangeSettings ? "Party settings" : "")">
+							@if ( !string.IsNullOrWhiteSpace( GameThumb ) )
+							{
+								<div class="game-thumb" style="background-image: url( @GameThumb );" />
+							}
+							else
+							{
+								<icon>sports_esports</icon>
+							}
+							<div class="game-summary">
+								<label>@(HasDisplayGame ? DisplayGameTitle : "No game selected")</label>
+								@if ( GameSummaryText is { } summary )
+								{
+									<label class="game-capacity" tooltip=@summary>@summary</label>
+								}
+							</div>
+						</div>
+						<Button class="icon-button privacy" Icon="@(IsPublic ? "lock_open" : "lock")" disabled="@(!CanChangeSettings)" onclick="@TogglePrivacy" tooltip="@PrivacyTooltip" />
+						@if ( Draft is null )
+						{
+							<div class="icon-button voice @VoiceClass" tooltip="@VoiceTooltip">
+								<icon>@(Preferences.VoiceMode == VoiceMode.Disabled ? "mic_off" : "mic")</icon>
+							</div>
+							<Button class="icon-button settings" Active=@SettingsOpen Icon="settings" onclick="@ToggleSettings" tooltip="@(SettingsOpen ? "Back to party" : "Party settings")" />
+						}
+					</div>
+
+					@if ( !string.IsNullOrEmpty( SettingsError ) )
+					{
+						<label class="settings-error">@SettingsError</label>
+					}
+
+					@if ( SettingsOpen )
+					{
+						<PartySettings Draft=@Draft />
+					}
+					else
+					{
+						@* The game we're headed into, faded right back behind everything *@
+						@if ( Status is { ShowGame: true } && !string.IsNullOrWhiteSpace( GameArt ) )
+						{
+							<div class="game-art" style="background-image: url( @GameArt );"></div>
+						}
+
+						@if ( Status is { } status )
+						{
+							<div class="head status">
+								@if ( status.ShowGame && !string.IsNullOrWhiteSpace( GameThumb ) )
+								{
+									<div class="status-icon game" style="background-image: url( @GameThumb );"></div>
+								}
+								else
+								{
+									<div class="status-icon"><icon>@status.Icon</icon></div>
+								}
+								<div class="status-text">
+									<label class="status-title">@status.Title</label>
+									@if ( !string.IsNullOrWhiteSpace( status.Detail ) )
+									{
+										<label class="status-detail">@status.Detail</label>
+									}
+								</div>
+
+								@if ( status.Progress is { } fraction )
+								{
+									<label class="status-percent">@($"{fraction * 100:0}%")</label>
+								}
+
+								@if ( status.CanRetry )
+								{
+									<Button class="status-button retry" onclick=@Retry Icon="refresh" Text="Retry" />
+								}
+
+								@if ( status.CanCancel )
+								{
+									<Button class="icon-button cancel" onclick=@Cancel tooltip="Stop joining - you'll stay in the party" Icon="close" />
+								}
+
+							</div>
+
+							@if ( status.Progress is { } bar )
+							{
+								<div class="status-track"><div class="status-fill" style="width: @(Percent( bar ))%;"></div></div>
+							}
+						}
+
+						@* Roomy faces while the party's small, smaller ones that wrap as it fills up *@
+						<div class="members @(SeatsTaken > 5 ? "compact" : "")">
+							<PartyMember Friend="@Me" Status="@StatusOf( Me )" Ready="@PartyView.IsMemberReady( Me )" />
+							@foreach ( var member in Members.Where( x => !x.IsMe ) )
+							{
+								<PartyMember Friend="@member" Status="@StatusOf( member )" Ready="@PartyView.IsMemberReady( member )" />
+							}
+
+							@* Asked in, not here yet - their seat's held, greyed out, until they turn up or it lapses.
+							   Clicking one lets it go (the invite itself is already with them). *@
+							@foreach ( var invited in PartyInvites.Pending )
+							{
+								<div class="pending-seat" tooltip="@PendingTooltip( invited )" onmouseup="@( () => PartyInvites.Dismiss( invited.Id ) )">
+									<Avatar UserId="@((long)invited.Id)" ShowStatus="@false" />
+									<div class="pending-badge"><icon class="waiting">hourglass_top</icon><icon class="dismiss">close</icon></div>
+								</div>
+							}
+
+							@if ( SeatsTaken < MaxMembers )
+							{
+								<div class="open-seat" onmouseup="@OpenFriends" tooltip="Invite a friend"><icon>add</icon></div>
+							}
+						</div>
+					}
+
+					@if ( ShowPlayControls )
+					{
+						<div class="party-play">
+							<label class="play-hint">@PlayHint</label>
+							@if ( !SettingsOpen )
+							{
+								<Button class="configure-button" Icon="tune" Text="@(PartyView.OwnerIsMe ? "Configure game" : "View game setup")" onclick=@ConfigureGame />
+							}
+							@if ( PartyView.OwnerIsMe )
+							{
+								<Button class="play-button" Icon="play_arrow" disabled="@(!CanStartGame)" onclick="@StartGame">Start Game</Button>
+							}
+							else
+							{
+								<Button class="@(IsReady ? "ready-button" : "play-button")" Icon="@(IsReady ? "check" : "check_circle")" disabled="@(!IsReady && SetupProblem is not null)" onclick="@ToggleReady">@(IsReady ? "Not ready" : "Ready")</Button>
+							}
+						</div>
+					}
+				</div>
+			</ChildContent>
+		</FloatingWindow>
+	}
 </root>
 
 @code
 {
-	static PartyRoom Party => PartyRoom.Current;
+	/// <summary>
+	/// The maximum number of members allowed in a party.
+	/// </summary>
+	public const int MAX_MEMBERS = 32;
 
-	public const int MAX_MEMBERS = 8;
+	/// <summary>
+	/// The current party members, including preview data when party_mock is enabled.
+	/// </summary>
+	public IEnumerable<Friend> Members => PartyView.Members;
 
-	public IEnumerable<Friend> Members => Party?.Members ?? Enumerable.Empty<Friend>();
+	static Friend Me => PartyView.Me;
 
-	protected override int BuildHash() => System.HashCode.Combine( Party, Members.Count(), Party?.Owner );
+	int MemberCount => Draft is not null ? 1 : PartyView.MemberCount;
+	int MaxMembers => Draft?.MaxMembers ?? PartyView.MaxMembers;
 
-	PartyMenu menuPopup;
-	Button InviteButton;
+	/// <summary>
+	/// Everyone in, plus everyone asked who hasn't answered - their seats are spoken for.
+	/// </summary>
+	int SeatsTaken => MemberCount + PartyInvites.Pending.Count;
 
-	void OpenMenu()
+	static string PendingTooltip( Friend invited )
 	{
-		if (menuPopup.IsValid())
-		{
-			menuPopup.Delete();
-			return;
-		}
-
-		menuPopup = new PartyMenu();
-		menuPopup.PartyDeck = this;
-		menuPopup.SetPositioning(this, Popup.PositionMode.AboveLeft, 32);
+		var seconds = (int)PartyInvites.SecondsSince( invited.Id );
+		var ago = seconds < 60 ? $"{seconds}s ago" : $"{seconds / 60}m ago";
+		return $"{invited.Name} - invite sent {ago}. Click to stop waiting";
 	}
 
-	public async static Task EnsureLobbyExists()
-	{
-		if ( PartyRoom.Current is not null )
-			return;
 
-		var party = await PartyRoom.Create( MAX_MEMBERS, $"{Connection.Local.Name}'s Party", false );
-		if ( party is null )
+	static PartyRoom.MemberStatus StatusOf( Friend member ) => PartyView.StatusOf( member );
+
+	/// <summary>
+	/// What we're doing about following the leader, when it's worth the header.
+	/// </summary>
+	/// <param name="ShowGame">Show the game's thumbnail as the icon, and its art behind the card. Off for
+	/// the stages where what went wrong matters more than what the game is.</param>
+	record JoinStatus( string Icon, string Title, string Detail, double? Progress, bool CanCancel, bool CanRetry, bool ShowGame = true );
+
+	JoinStatus Status => Describe();
+
+	/// <summary>
+	/// "joining" while we're on our way into the leader's game, "failed" if that went wrong, null otherwise.
+	/// The party card lights up to match.
+	/// </summary>
+	public static string Activity()
+	{
+		if ( !PartyView.Exists || PartyView.OwnerIsMe ) return null;
+
+		return PartyView.JoiningStage switch
 		{
-			MenuOverlay.Instance?.BottomRight?.Queue( new Toast()
+			PartyRoom.JoinStage.Downloading or PartyRoom.JoinStage.WaitingForHost or PartyRoom.JoinStage.Connecting => "joining",
+			PartyRoom.JoinStage.Failed => "failed",
+			_ => null
+		};
+	}
+
+	static JoinStatus Describe()
+	{
+		if ( !PartyView.Exists || PartyView.OwnerIsMe ) return null;
+
+		var leader = PartyView.Owner.Name;
+		var game = string.IsNullOrWhiteSpace( PartyView.PackageTitle ) ? "the game" : PartyView.PackageTitle;
+		var download = PartyView.DownloadProgress;
+
+		return PartyView.JoiningStage switch
+		{
+			// The game's the headline - the verb and the numbers are the small print
+			PartyRoom.JoinStage.Downloading when download is { } d => new JoinStatus( "download", game, Speed( d ), d.Fraction, true, false ),
+			PartyRoom.JoinStage.Downloading => new JoinStatus( "download", game, "Getting it ready", null, true, false ),
+
+			// Ours is done - if the leader's still loading, show theirs instead
+			PartyRoom.JoinStage.WaitingForHost when PartyView.HostDownloadProgress is { } host =>
+				new JoinStatus( "hourglass_top", $"Waiting for {leader}", $"{leader} is still loading {game}", host.Fraction, true, false ),
+
+			// The leader's in, but there's no lobby to follow them into yet - not a problem, we'll go
+			// as soon as there is
+			PartyRoom.JoinStage.WaitingForHost when PartyView.LeaderState == PartyRoom.OwnerJoinState.Unavailable =>
+				new JoinStatus( "schedule", $"Waiting for {leader}", "You'll join once a lobby has been made", null, true, false ),
+
+			PartyRoom.JoinStage.WaitingForHost => new JoinStatus( "hourglass_top", $"Waiting for {leader}", $"Ready to join {game}", null, true, false ),
+
+			PartyRoom.JoinStage.Connecting => new JoinStatus( "login", $"Joining {leader}", $"Loading into {game}", download?.Fraction, true, false ),
+
+			PartyRoom.JoinStage.Failed => new JoinStatus( "error", $"Couldn't join {leader}", PartyView.JoinError, null, false, true, false ),
+			PartyRoom.JoinStage.Cancelled => new JoinStatus( "block", "Stopped joining", $"You're still in {leader}'s party", null, false, true, false ),
+			// Not a failure - the leader's in a game with nothing to join yet, and we'll follow them in
+			// as soon as they open a lobby
+			PartyRoom.JoinStage.Unavailable => new JoinStatus( "schedule", $"Waiting for {leader}", "You'll join once a lobby has been made", null, false, false ),
+
+			_ => null
+		};
+	}
+
+	/// <summary>
+	/// The small print under the game's name. Time left goes first - it's what you want to know,
+	/// and the end of the line is what gets cut off. Once we know it, "Downloading" can go: the bar
+	/// and the percentage already say that.
+	/// </summary>
+	static string Speed( LoadingProgress progress )
+	{
+		if ( progress.Mbps <= 0 ) return "Downloading";
+
+		var speed = $"{progress.Mbps:0} Mbps";
+		var eta = progress.CalculateETA();
+
+		if ( eta == TimeSpan.MaxValue || eta <= TimeSpan.Zero )
+			return $"Downloading · {speed}";
+
+		return $"{TimeLeft( eta )} left · {speed}";
+	}
+
+	/// <summary>
+	/// "2h 5m", "1m 20s", "45s" - short enough to always fit.
+	/// </summary>
+	static string TimeLeft( TimeSpan span )
+	{
+		if ( span.TotalHours >= 1 ) return $"{(int)span.TotalHours}h {span.Minutes}m";
+		if ( span.TotalMinutes >= 1 ) return $"{span.Minutes}m {span.Seconds}s";
+		return $"{Math.Max( 1, span.Seconds )}s";
+	}
+
+	//
+	// The game's thumbnail and art, fetched once per game
+	//
+
+	string _artIdent;
+	string GameThumb;
+	string GameArt;
+	Package DisplayGamePackage;
+	string mapIdent;
+	string MapTitle;
+
+	// Show what the leader is playing, or the game chosen in party settings while idle.
+	string DisplayGameIdent => Draft is not null ? Draft.Game?.FullIdent : string.IsNullOrWhiteSpace( PartyView.PackageIdent ) ? PartyView.SelectedGameIdent : PartyView.PackageIdent;
+	string DisplayGameTitle => Draft is not null ? Draft.Game?.Title : string.IsNullOrWhiteSpace( PartyView.PackageIdent ) ? PartyView.SelectedGameTitle : PartyView.PackageTitle;
+	bool HasDisplayGame => !string.IsNullOrWhiteSpace( DisplayGameIdent );
+
+	Sandbox.Modals.CreateGameResults? DisplayGameSettings
+	{
+		get
+		{
+			if ( _artIdent != DisplayGameIdent || DisplayGamePackage is not { } package || package.Info.IsDedicatedServerOnly ) return null;
+			if ( Draft is not null ) return Draft.GameSettings;
+			if ( !PartyView.IsGameSelected( package ) || !string.IsNullOrWhiteSpace( PartyView.PackageIdent ) ) return null;
+			return PartyView.SelectedGameSettings;
+		}
+	}
+
+	string GameSummaryText
+	{
+		get
+		{
+			var capacity = GameCapacityText;
+			var map = mapIdent == DisplayGameSettings?.Map ? MapTitle : null;
+			if ( string.IsNullOrWhiteSpace( map ) ) return capacity;
+			return string.IsNullOrWhiteSpace( capacity ) ? map : $"{capacity} · {map}";
+		}
+	}
+
+	string GameCapacityText
+	{
+		get
+		{
+			if ( !HasDisplayGame || _artIdent != DisplayGameIdent || DisplayGamePackage is not { } package || package.Info.MaxPlayers <= 0 ) return null;
+
+			if ( DisplayGameSettings is { } configured )
 			{
-				Title = "Failed to create party",
-				Icon = "cancel",
-			});
+				var players = MenuProject.Modals.GameModalComponents.GameSetup.ClampServerSlots( package, configured.MaxPlayers );
+				return $"{players} server {(players == 1 ? "slot" : "slots")}";
+			}
+
+			return $"Up to {package.Info.MaxPlayers} {(package.Info.MaxPlayers == 1 ? "player" : "players")}";
 		}
 	}
 
-	async Task InviteSomeone()
+	void OpenGameInfo()
 	{
-		await EnsureLobbyExists();
+		if ( !HasDisplayGame )
+		{
+			OpenSettings();
+			return;
+		}
 
-		ModalSystem.Instance.FriendsList(new FriendsListModalOptions
+		Game.Overlay.ShowGameModal( DisplayGameIdent );
+	}
+
+	void UpdateGameArt()
+	{
+		var ident = DisplayGameIdent;
+		if ( _artIdent == ident ) return;
+
+		_artIdent = ident;
+		GameThumb = null;
+		GameArt = null;
+		DisplayGamePackage = null;
+
+		if ( !string.IsNullOrWhiteSpace( ident ) )
+			_ = LoadGameArt( ident );
+	}
+
+	async Task LoadGameArt( string ident )
+	{
+		try
+		{
+			// Full details, not partial - the screenshots only come with those
+			var package = await Package.FetchAsync( ident, false );
+			if ( !this.IsValid() || _artIdent != ident ) return;
+
+			DisplayGamePackage = package;
+			GameThumb = package?.Thumb;
+			GameArt = PackageArt.Background( package );
+			StateHasChanged();
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( $"Couldn't load the party's game art: {e.Message}" );
+		}
+	}
+
+	void UpdateMapTitle()
+	{
+		var map = DisplayGameSettings?.Map;
+		if ( mapIdent == map ) return;
+
+		mapIdent = map;
+		MapTitle = null;
+		if ( !string.IsNullOrWhiteSpace( map ) ) _ = LoadMapTitle( map );
+	}
+
+	async Task LoadMapTitle( string map )
+	{
+		try
+		{
+			// Mounted maps have local metadata; workshop maps use their package title.
+			var title = Sandbox.Mounting.Directory.GetMetadata( map )?.Name;
+			if ( string.IsNullOrWhiteSpace( title ) ) title = (await Package.FetchAsync( map, true ))?.Title;
+			if ( !IsValid || mapIdent != map || DisplayGameSettings?.Map != map ) return;
+
+			MapTitle = title;
+			StateHasChanged();
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( $"Couldn't load the party's map name: {e.Message}" );
+		}
+	}
+
+	static string Percent( double fraction ) => (Math.Clamp( fraction, 0, 1 ) * 100).ToString( "0.0", System.Globalization.CultureInfo.InvariantCulture );
+
+	bool Talking => Preferences.VoiceMode == VoiceMode.OpenMicrophone || (Preferences.VoiceMode == VoiceMode.PushToTalk && Input.Down( "voice" ));
+
+	string VoiceClass => Preferences.VoiceMode == VoiceMode.Disabled ? "disabled" : Talking ? "talking" : "";
+
+	string VoiceTooltip => Preferences.VoiceMode switch
+	{
+		VoiceMode.Disabled => "Voice chat is turned off",
+		VoiceMode.OpenMicrophone => "Open mic - your party can hear you",
+		_ => "Hold push to talk to speak to your party"
+	};
+
+	protected override int BuildHash()
+	{
+		var members = new HashCode();
+		foreach ( var member in Members )
+		{
+			members.Add( StatusOf( member ) );
+			members.Add( PartyView.IsMemberReady( member ) );
+		}
+		members.Add( HashCode.Combine( ShowPlayControls, CanStartGame, PlayHint, IsReady ) );
+
+		return System.HashCode.Combine( PartyView.Exists, MemberCount, PartyView.Owner, VoiceClass, Status, members.ToHashCode(), HashCode.Combine( GameThumb, GameArt, PartyInvites.Hash, InParty, DisplayGameIdent, DisplayGameTitle, GameSummaryText ), HashCode.Combine( PartyView.Name, IsPublic, SettingsOpen, SettingsError, MaxMembers, Draft, Draft?.Creating ) );
+	}
+
+	/// <summary>
+	/// Open party setup and wait for Create or cancellation before continuing.
+	/// </summary>
+	public static Task<bool> EnsurePartyExists( bool isPublic = false )
+	{
+		if ( PartyRoom.Current is not null ) return System.Threading.Tasks.Task.FromResult( true );
+		if ( !Instance.IsValid() ) throw new InvalidOperationException( "Party settings are not available yet." );
+		return Instance.BeginCreate( isPublic );
+	}
+
+	void OpenFriends()
+	{
+		ModalSystem.Instance.FriendsList( new Sandbox.Modals.FriendsListModalOptions
 		{
 			ShowOnlineMembers = true,
 			ShowOfflineMembers = false,
 			Anchor = new()
 			{
-				Panel = InviteButton,
-				Position = ModalAnchorPosition.AboveLeft,
-				Offset = 24,
+				Panel = Window,
+				Position = Sandbox.Modals.ModalAnchorPosition.AboveRight,
+				Offset = 16,
 			},
-		});
-    }
+		} );
+	}
 
+	void Retry() => PartyView.Retry();
+
+	void Cancel() => PartyView.Cancel();
+
+	void Leave()
+	{
+		SaveWindowPosition();
+		if ( Draft is not null )
+		{
+			Draft.Cancel();
+			return;
+		}
+
+		PartyView.Leave();
+	}
+
+	/// <summary>
+	/// Update the party window, voice state, and game artwork while the party is visible.
+	/// </summary>
 	public override void Tick()
 	{
-		MenuUtility.SetVoiceListen(Preferences.VoiceMode != VoiceMode.Disabled && (Preferences.VoiceMode == VoiceMode.OpenMicrophone || Input.Down("voice")));
-		UpdateJoinStatus();
-	}
+		base.Tick();
+		UpdateSettings();
+		UpdateWindow();
 
-	Toast _toast;
-	void UpdateJoinStatus()
-	{
-		var party = PartyRoom.Current;
-		var shouldShow = party?.JoinState == PartyRoom.OwnerJoinState.Loading && party?.Owner is { IsMe: false };
-
-		if (!shouldShow)
+		if ( InParty )
 		{
-			_toast?.Dismiss();
-			_toast = null;
-			return;
+			if ( Draft is null ) MenuUtility.SetVoiceListen( Talking );
+			UpdateGameArt();
+			UpdateMapTitle();
 		}
-
-		if (_toast is not null)
-			return;
-
-		var gameTitle = party?.PackageIdent ?? "unknown";
-
-		if (Package.TryGetCached(party?.PackageIdent ?? default, out var pkg))
-		{
-			gameTitle = pkg.Title;
-		}
-
-		_toast = new Toast()
-		{
-			Title = "Party leader is joining a game",
-			Message = $"Downloading {gameTitle}",
-			Icon = "hourglass_top",
-			ExtraClasses = "loading"
-		};
-
-		MenuOverlay.Instance?.BottomRight?.Queue(_toast, duration: 0, clickToDismiss: false);
 	}
-
 }

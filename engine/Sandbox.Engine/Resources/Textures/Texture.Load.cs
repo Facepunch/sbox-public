@@ -61,7 +61,7 @@ public partial class Texture
 
 		filepath = filepath.Replace( ".vtex_c", ".vtex" );
 
-		if ( Sandbox.Mounting.Directory.TryLoad( filepath, ResourceType.Texture, out object model ) && model is Texture m )
+		if ( Sandbox.Mounting.Directory.TryLoad( filepath, out object model ) && model is Texture m )
 			return m;
 
 		if ( !TextureLoader.ImageUrl.IsAppropriate( filepath ) && !TextureLoader.ImageDataUri.IsAppropriate( filepath ) )
@@ -77,6 +77,9 @@ public partial class Texture
 		if ( tex == null )
 			return null;
 
+		if ( !TextureLoader.ImageDataUri.IsAppropriate( filepath ) )
+			tex.RegisterWeakResourceId( filepath, tex.native.GetGuid() );
+
 		return tex;
 	}
 
@@ -85,6 +88,24 @@ public partial class Texture
 	/// Try to load a texture.
 	/// </summary>
 	public static Texture Load( string path_or_url, bool warnOnMissing = true ) => LoadInternal( GlobalContext.Current.FileMount, path_or_url, warnOnMissing );
+
+	internal static Texture Load( ResourceId id, bool warnOnMissing = true )
+	{
+		ThreadSafe.AssertIsMainThread();
+
+		if ( id.Guid is Guid guid )
+		{
+			if ( Game.Resources.TryGet<Texture>( guid, out var resource ) )
+				return resource;
+
+			var textureHandle = NativeGlue.Resources.GetTexture( id.Path, guid );
+			var t = FromNative( textureHandle );
+			t?.RegisterWeakResourceId( id.Path, guid );
+			return t;
+		}
+
+		return LoadInternal( GlobalContext.Current.FileMount, id.Path, warnOnMissing );
+	}
 
 	/// <summary>
 	/// Load avatar image of a Steam user (with a certain size if supplied).
@@ -114,17 +135,7 @@ public partial class Texture
 
 	internal static void Hotload( BaseFileSystem filesystem, string filepath )
 	{
-		var existing = Game.Resources.Get<Texture>( filepath );
-		if ( existing is not null )
-		{
-			existing.TryReload( filesystem, existing.ResourcePath );
-		}
-		else if ( filepath.StartsWith( "/" ) && TextureLoader.Image.IsAppropriate( filepath ) )
-		{
-			// Image might have been loaded without '/' so try again without it
-			Hotload( filesystem, filepath[1..] );
-		}
-		else if ( TextureLoader.SvgLoader.IsAppropriate( filepath ) )
+		if ( TextureLoader.SvgLoader.IsAppropriate( filepath ) )
 		{
 			// SVGs can have query parameters appended to them, find the ones
 			// that match and reload with the same parameters
@@ -133,7 +144,12 @@ public partial class Texture
 			{
 				svgTarget.TryReload( filesystem, svgTarget.ResourcePath );
 			}
+
+			return;
 		}
+
+		if ( Game.Resources.Get<Texture>( filepath ) is { } existing )
+			existing.TryReload( filesystem, existing.ResourcePath );
 	}
 
 	internal static Texture TryToLoad( BaseFileSystem filesystem, string filepath, bool warnOnMissing = true )
@@ -206,10 +222,8 @@ public partial class Texture
 		// Try to load from engine, which will worst case give us an error texture
 		//
 		ThreadSafe.AssertIsMainThread();
-		var textureHandle = NativeGlue.Resources.GetTexture( filepath );
-		var t = FromNative( textureHandle );
-		t?.RegisterWeakResourceId( filepath );
-		return t;
+		var textureHandle = NativeGlue.Resources.GetTexture( filepath, Guid.Empty );
+		return FromNative( textureHandle );
 	}
 
 	/// <summary>

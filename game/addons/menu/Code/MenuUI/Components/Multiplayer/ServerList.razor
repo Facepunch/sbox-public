@@ -1,24 +1,54 @@
-﻿@using Sandbox.Modals
+@using Sandbox.Modals
 @using Sandbox
 @using Sandbox.Network
 @using Sandbox.UI
 
 <root>
-    @if ( busy )
+    @if ( scopedGame is not null && ShowGameHeader )
     {
+        <GameGroupRow GameIdent="@scopedGame"
+                      TotalPlayers="@VisiblePlayerCount"
+                      ServerCount="@VisibleServerCount"
+                      Friends=@playingFriends FriendsOnly=@friendsOnly OnFriendsClick=@ToggleFriends>
+            <Navigation>
+                @if ( string.IsNullOrWhiteSpace( Config.GamePackageFilter ) )
+                {
+                    <Button class="back-to-games" Icon="arrow_back" onclick=@BackToGames>All games</Button>
+                }
+            </Navigation>
+        </GameGroupRow>
+    }
+
+    @Toolbar
+
+    @if ( !string.IsNullOrEmpty( error ) )
+    {
+        <div class="notice">@error</div>
+    }
+    @if ( busy && !HasResults )
+    {
+        @* Still looking - the shape of a few rows, breathing *@
         <div class="loading">
-            <Spinner/>
+            @for ( var i = 0; i < 5; i++ )
+            {
+                <div class="row skeleton">
+                    <div class="bone name"></div>
+                    <div class="bone map"></div>
+                    <div class="bone members"></div>
+                    <div class="bone ping"></div>
+                </div>
+            }
         </div>
     }
-    else if ( viewMode == ViewMode.GameGroup )
+    else if ( viewMode == ViewMode.GameGroup && HasResults )
     {
         @if ( gameGroups.Count == 0 )
         {
-            <div class="notice">Sorry - no servers were found 😔</div>
+            <div class="notice">No matching servers right now. Try another search, or create a lobby to get a game going.</div>
         }
         else
         {
-            <VirtualList Items=@(gameGroups.Cast<object>()) ItemHeight=@(56)>
+            <VirtualList class="game-groups" Items=@(gameGroups.Cast<object>()) ItemHeight=@MultiplayerListRow.Height>
                 <Item Context="item">
                     @if ( item is GameGroup group )
                     {
@@ -31,44 +61,45 @@
             </VirtualList>
         }
     }
-    else
+    else if ( HasResults )
     {
-        @if ( scopedGame is not null )
-        {
-            <GameGroupRow GameIdent="@scopedGroup.GameIdent"
-                          TotalPlayers="@scopedGroup.TotalPlayers"
-                          ServerCount="@scopedGroup.ServerCount"
-                          OnGroupClick=@BackToGames>
-                            <Left>
-            @if (string.IsNullOrWhiteSpace(Config.GamePackageFilter))
-            {
-                <i>arrow_back</i>
-            }
-            </Left>
-            </GameGroupRow>
-        }
-
         @if ( serverLobbies.Count == 0 )
         {
-            <div class="notice">Sorry - no servers were found 😔</div>
+            <div class="notice">@(friendsOnly ? "No friends' servers match the current filters. Their servers may be private or unlisted. Click the friends filter above to show all servers." : "No matching servers right now. Try another search, or create a lobby to get a game going.")</div>
         }
         else
         {
             <div class="header row">
-                <h2 class="title" onclick="@(() => SetSort( "name" ))">Name</h2>
-                <h2 class="map" onclick="@(() => SetSort( "map" ))">Map</h2>
-                <h2 class="members" onclick="@(() => SetSort( "members" ))">Players</h2>
+                <h2 class="title" onclick="@(() => SetSort( "name" ))">Name @SortIndicator( "name" )</h2>
+                <h2 class="map" onclick="@(() => SetSort( "map" ))">Map @SortIndicator( "map" )</h2>
+                <h2 class="members" onclick="@(() => SetSort( "members" ))">Players @SortIndicator( "members" )</h2>
                 <h2 class="ping-icon" />
-                <h2 class="ping-value" onclick="@(() => SetSort("ping"))">Ping</h2>
+                <h2 class="ping-value" onclick="@(() => SetSort("ping"))">Ping @SortIndicator( "ping" )</h2>
             </div>
-            <VirtualList Items=@GetServerData() ItemHeight=@(48)>
-                <Item Context="item">
-                    @if ( item is LobbyInformation lobby )
+            @if ( Virtual )
+            {
+                <VirtualList class="server-rows" Items=@GetServerData() ItemHeight=@(60)>
+                    <Item Context="item">
+                        @if ( item is LobbyInformation lobby )
+                        {
+                            <ServerRow Server="@lobby"></ServerRow>
+                        }
+                    </Item>
+                </VirtualList>
+            }
+            else
+            {
+                @* Just the rows, as tall as they come - for inside something that scrolls them itself *@
+                <div class="server-rows plain">
+                    @foreach ( var item in GetServerData() )
                     {
-                        <ServerRow Server="@lobby"></ServerRow>
+                        @if ( item is LobbyInformation lobby )
+                        {
+                            <ServerRow Server="@lobby"></ServerRow>
+                        }
                     }
-                </Item>
-            </VirtualList>
+                </div>
+            }
         }
     }
 </root>
@@ -79,6 +110,9 @@
 
     record GameGroup( string GameIdent, int TotalPlayers, int ServerCount );
 
+    /// <summary>
+    /// Optional package filters for the server browser.
+    /// </summary>
     [Parameter]
     public ServerListConfig Config { get; set; } = default;
 
@@ -87,15 +121,131 @@
     /// </summary>
     [Parameter] public Func<LobbyInformation, bool> Filter { get; set; }
 
+    /// <summary>
+    /// Search and filter controls, placed below the selected game's header.
+    /// </summary>
+    [Parameter] public RenderFragment Toolbar { get; set; }
+
+    /// <summary>
+    /// The selected game's header over its servers - its name, how many are playing, the friends filter.
+    /// Off where the game's already named, like its own page.
+    /// </summary>
+    [Parameter] public bool ShowGameHeader { get; set; } = true;
+
+    /// <summary>
+    /// Only the rows on screen built, the list scrolling itself - for every game's servers, which can be
+    /// a lot. Off, they're all built and it's as tall as they are, for inside something that scrolls
+    /// (a game's own page, where there are a handful). A virtual list there has no height to show in.
+    /// </summary>
+    [Parameter] public bool Virtual { get; set; } = true;
+
+    /// <summary>
+    /// Opens a game outside this list. When unset, games open within the list.
+    /// </summary>
+    [Parameter] public Action<string> OnGameSelected { get; set; }
+
+    /// <summary>
+    /// The game currently being browsed, or null when showing all games.
+    /// </summary>
+    public string SelectedGame => scopedGame;
+
     bool busy;
+    string error;
     List<LobbyInformation> lobbies = new();
+
+	/// <summary>
+	/// Adapt the server columns when the browser is docked in a narrow pane.
+	/// </summary>
+	public override void Tick()
+	{
+		base.Tick();
+		SetClass( "compact", Box.Rect.Width * ScaleFromScreen < 680 );
+
+		if ( IsVisible && RealTime.Now >= nextFriendsRefresh )
+		{
+			RefreshFriends();
+		}
+	}
+
+    /// <summary>
+    /// Players reported by the last successful query, including full servers.
+    /// </summary>
+    public int PlayerCount => lobbies.Sum( x => x.Members );
+
+    /// <summary>
+    /// Servers returned before applying the local view filters.
+    /// </summary>
+    public int ServerCount => lobbies.Count;
+
+	/// <summary>
+	/// Servers matching the current search, toggles and selected game.
+	/// </summary>
+	public int VisibleServerCount => serverLobbies.Count;
+
+	/// <summary>
+	/// Players in the servers matching the current view.
+	/// </summary>
+	public int VisiblePlayerCount => serverLobbies.Sum( x => x.Members );
+
+    /// <summary>
+    /// Whether the query has completed successfully at least once.
+    /// </summary>
+    public bool HasResults { get; private set; }
+
+    /// <summary>
+    /// Whether a server refresh is in progress.
+    /// </summary>
+    public bool IsRefreshing => busy;
 
     string sortBy;
     bool sortDescending;
 
     ViewMode viewMode;
     string scopedGame;
-    GameGroup scopedGroup;
+	bool initialized;
+	string lastGameFilter;
+	string lastMapFilter;
+	bool friendsOnly;
+	double nextFriendsRefresh;
+	List<Friend> playingFriends = new();
+	HashSet<ulong> friendServerIds = new();
+
+	void ToggleFriends()
+	{
+		friendsOnly = !friendsOnly;
+		StateHasChanged();
+	}
+
+	/// <summary>
+	/// Snapshot presence independently of search results so the active filter can always be cleared.
+	/// </summary>
+	void RefreshFriends()
+	{
+		nextFriendsRefresh = RealTime.Now + 1;
+		var friends = MenuUtility.Friends
+			.Where( x => scopedGame is not null && !x.IsMe && x.IsOnline && x.IsPlayingThisGame
+				&& x.GetRichPresence( "in_editor" ) != "1"
+				&& !string.IsNullOrEmpty( x.GetRichPresence( "gametitle" ) )
+				&& x.GetRichPresence( "gamename" ) == scopedGame )
+			.OrderBy( x => x.Id )
+			.ToList();
+
+		var serverIds = new HashSet<ulong>();
+		foreach ( var friend in friends )
+		{
+			// Steam lobby and relay-server presence publish the ID used by the server list.
+			if ( ulong.TryParse( friend.GetRichPresence( "steam_player_group" ), out var id ) && id != 0 )
+			{
+				serverIds.Add( id );
+			}
+		}
+
+		if ( playingFriends.SequenceEqual( friends ) && friendServerIds.SetEquals( serverIds ) ) return;
+
+		playingFriends = friends;
+		friendServerIds = serverIds;
+		StateHasChanged();
+	}
 
     List<LobbyInformation> filteredLobbies => lobbies is null ? [] :
         Filter is not null
@@ -116,6 +266,11 @@
                 ? filteredLobbies.Where( x => x.Game == scopedGame )
                 : filteredLobbies;
 
+			if ( friendsOnly )
+			{
+				source = source.Where( x => friendServerIds.Contains( x.LobbyId ) );
+			}
+
             return ApplySort( source ).ToList();
         }
     }
@@ -127,12 +282,20 @@
         if ( sortBy is null )
             return source.OrderByDescending( x => x.Members );
 
+        // Unknown pings are -1, keep them last in either direction
+        if ( sortBy == "ping" )
+        {
+            var known = source.OrderBy( x => x.Ping < 0 );
+            return sortDescending
+                ? known.ThenByDescending( x => x.Ping )
+                : known.ThenBy( x => x.Ping );
+        }
+
         Func<LobbyInformation, object> key = sortBy switch
         {
             "name" => x => x.Name,
             "map" => x => x.Map,
             "members" => x => x.Members,
-            "ping" => x => x.Ping,
             _ => x => x.Members
         };
 
@@ -141,10 +304,19 @@
             : source.OrderBy( key );
     }
 
+    string SortIndicator( string column )
+    {
+        if ( sortBy is null ) return column == "members" ? "↓" : "";
+
+        return sortBy == column ? (sortDescending ? "↓" : "↑") : "";
+    }
+
     void SetSort( string column )
     {
         if ( sortBy == column )
+        {
             sortDescending = !sortDescending;
+        }
         else
         {
             sortBy = column;
@@ -156,9 +328,16 @@
 
     void ScopeToGame( GameGroup group )
     {
+        if ( OnGameSelected is not null )
+        {
+            OnGameSelected( group.GameIdent );
+            return;
+        }
+
         scopedGame = group.GameIdent;
-        scopedGroup = group;
         viewMode = ViewMode.ServerList;
+		friendsOnly = false;
+		RefreshFriends();
         StateHasChanged();
     }
 
@@ -168,47 +347,67 @@
             return; // single-game enforced
 
         scopedGame = null;
-        scopedGroup = null;
         viewMode = ViewMode.GameGroup;
+		friendsOnly = false;
+		RefreshFriends();
         StateHasChanged();
     }
 
     protected override async Task OnParametersSetAsync()
     {
+        // Local search and live counts re-render the parent. Only a new remote scope
+        // should reset navigation or issue a new Steam query.
+        if ( initialized && lastGameFilter == Config.GamePackageFilter && lastMapFilter == Config.MapPackageFilter ) return;
+        initialized = true;
+        lastGameFilter = Config.GamePackageFilter;
+        lastMapFilter = Config.MapPackageFilter;
+
         // If an external game filter is applied, skip the grouped view
         viewMode = string.IsNullOrEmpty( Config.GamePackageFilter )
             ? ViewMode.GameGroup
             : ViewMode.ServerList;
 
-        scopedGame = null;
-        scopedGroup = null;
+        scopedGame = string.IsNullOrEmpty( Config.GamePackageFilter ) ? null : Config.GamePackageFilter;
+		friendsOnly = false;
+		RefreshFriends();
 
         await RefreshLobbies();
     }
 
+    /// <summary>
+    /// Refresh available servers while preserving the selected game.
+    /// </summary>
     public async Task RefreshLobbies()
     {
-        lobbies = default;
-        StateHasChanged();
-
+        if ( busy ) return;
         busy = true;
-
-        var filters = new Dictionary<string, string>
-        {
-            { "game", Config.GamePackageFilter },
-            { "map", Config.MapPackageFilter },
-        };
-
-        lobbies = await Networking.QueryLobbies( filters );
-
-        busy = false;
-
-        if (viewMode == ViewMode.ServerList && !string.IsNullOrWhiteSpace(Config.GamePackageFilter))
-        {
-            scopedGame = Config.GamePackageFilter;
-            scopedGroup = new GameGroup( Config.GamePackageFilter, lobbies.Sum(x => x.Members), lobbies.Count );
-        }
-
+        error = null;
         StateHasChanged();
+
+        try
+        {
+            var filters = new Dictionary<string, string>
+            {
+                { "game", Config.GamePackageFilter },
+                { "map", Config.MapPackageFilter },
+            };
+
+            lobbies = await Networking.QueryLobbies( filters );
+            HasResults = true;
+
+            if ( viewMode == ViewMode.ServerList )
+            {
+                scopedGame ??= Config.GamePackageFilter;
+            }
+        }
+        catch ( Exception e )
+        {
+            error = $"Could not load servers: {e.Message}";
+        }
+        finally
+        {
+            busy = false;
+            if ( IsValid && !IsDeleting ) StateHasChanged();
+        }
     }
 }

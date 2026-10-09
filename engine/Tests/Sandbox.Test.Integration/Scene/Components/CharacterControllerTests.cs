@@ -344,6 +344,65 @@ public class CharacterControllerTest
 	}
 
 	/// <summary>
+	/// Grounded Move must attempt stepping after a collision with default bounciness.
+	/// Unlike MoveTo, its bounce traces can accumulate a full fraction without reaching the target.
+	/// </summary>
+	[DataTestMethod]
+	[DataRow( 1f, 18f, true )]
+	[DataRow( 10f, 18f, true )]
+	[DataRow( 10f, 5f, false )]
+	[DataRow( 1f, 0f, false )]
+	[DataRow( 1f, 0.5f, false )]
+	[DataRow( 30f, 18f, false )]
+	public void GroundedMoveRespectsStepHeight( float ledgeHeight, float stepHeight, bool shouldClimb )
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		using var timeScope = Time.Scope( 1.0, 0.02 );
+
+		try
+		{
+			CreateFloor( scene );
+
+			var ledge = scene.CreateObject();
+			ledge.Name = "Ledge";
+			ledge.WorldPosition = new Vector3( 80, 0, ledgeHeight * 0.5f );
+			var ledgeBox = ledge.Components.Create<BoxCollider>();
+			ledgeBox.Scale = new Vector3( 40, 200, ledgeHeight );
+			ledgeBox.Static = true;
+
+			var cc = CreateController( scene, Vector3.Up );
+			cc.StepHeight = stepHeight;
+			cc.Move();
+			Assert.IsTrue( cc.IsOnGround );
+
+			for ( int i = 0; i < 40; i++ )
+			{
+				cc.Velocity = new Vector3( 100, 0, 0 );
+				cc.Move();
+			}
+
+			var position = cc.WorldPosition;
+			Assert.IsTrue( cc.IsOnGround, $"should remain grounded: {position}" );
+
+			if ( shouldClimb )
+			{
+				Assert.AreEqual( 80f, position.x, 1f, $"should climb {ledgeHeight} units with StepHeight={stepHeight}: {position}" );
+				Assert.AreEqual( ledgeHeight, position.z, 0.5f, $"should stand on the ledge: {position}" );
+			}
+			else
+			{
+				Assert.IsTrue( position.x < 45f, $"StepHeight={stepHeight} should block a {ledgeHeight} unit ledge: {position}" );
+				Assert.AreEqual( 0f, position.z, 0.5f, $"should remain on the floor: {position}" );
+			}
+		}
+		finally
+		{
+			scene.Destroy();
+		}
+	}
+
+	/// <summary>
 	/// TraceDirection sweeps the controller's bounding box, so it reports what the
 	/// hull would hit - and changing Height changes what it collides with.
 	/// </summary>

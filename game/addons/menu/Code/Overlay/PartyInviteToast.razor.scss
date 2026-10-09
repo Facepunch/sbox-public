@@ -1,0 +1,422 @@
+@import "/styles/_front.scss";
+
+// A friend asking you into their party - the menu's card, over everything, where questions pop up.
+// Its face, who's asking, their party's faces, and the friends list's no thanks and Join buttons
+PartyInviteToast
+{
+	// Just a holder - the card's inside it, with the pile of any more waiting peeking out below. The
+	// card clips what's in it, so the pile has to live out here.
+	//
+	// Pinned rather than laid out, so two can sit in exactly the same spot - the one going swipes off
+	// over the one taking over. 40 up from the bottom of the screen (the area's 150 up), lower than
+	// the other popups here, out of the way of the page; centred on it
+	position: absolute;
+	bottom: -110px;
+	left: 50%;
+	margin-left: -200px;
+	flex-direction: column;
+	flex-shrink: 0;
+	width: 400px;
+	pointer-events: all;
+
+	// Room under the card for a full pile, always - so the card sits in the same place however many
+	// are waiting, and the next one coming up off the pile lands exactly where this one was
+	padding-bottom: 25px;
+	sound-in: "ui.popup.message.open";
+
+	transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+
+	// The first rises up into place, pile, glow and all
+	&:intro
+	{
+		opacity: 0;
+		transform: translateY( 24px );
+	}
+
+	// One following straight on from another doesn't - the pile and glow never went. Its card grows
+	// up off the pile instead, from code (see Grow)
+	&.continuing:intro
+	{
+		opacity: 1;
+		transform: none;
+	}
+
+	// Done with - answered or run out - the card alone swipes off to the left, like one flicked off
+	// the top of the pile. LeaveTime in code matches
+	&.leaving .card
+	{
+		opacity: 0;
+		transform: translateX( -420px ) rotate( -6deg );
+		transition: opacity 0.25s ease-in, transform 0.25s ease-in;
+	}
+
+	// Joined - no flick away for that: the card fizzles out where it is, swelling a touch as it blurs
+	// and fades, like it's been taken up. Same time as the swipe
+	&.leaving.accepted .card
+	{
+		opacity: 0;
+		filter: blur( 12px );
+		transform: scale( 1.06 );
+		transition: opacity 0.25s ease-out, transform 0.25s ease-out, filter 0.25s ease-out;
+	}
+
+	// Handed over to the next - it's on top of the next now, just its card swiping off over it. Its
+	// pile and glow go at once, or they'd sit over the next one's card; the next has its own
+	&.handed-off .halo,
+	&.handed-off .peek
+	{
+		display: none;
+	}
+
+	// The last one going - nothing's coming up after it, so the pile and glow fade away with it
+	// rather than vanishing when it's gone
+	&.leaving.last
+	{
+		opacity: 0;
+		transition: opacity 0.25s ease-in;
+	}
+
+	// The glow behind it - a wide ellipse centred on the bottom edge of the screen, so only its top
+	// half shows, rising up behind the card. The card sits 40 up from the edge, so the ellipse's
+	// middle is its height's half plus 40 below the holder's foot. Breathes with the card's glow
+	.halo
+	{
+		position: absolute;
+		left: -300px;
+		right: -300px;
+		height: 440px;
+		bottom: -260px;
+		pointer-events: none;
+		z-index: -1;
+		background-image: radial-gradient( rgba( 47, 127, 240, 0.55 ) 0%, rgba( 47, 127, 240, 0.22 ) 40%, rgba( 47, 127, 240, 0 ) 70% );
+		animation: party-invite-halo 1.8s ease-in-out infinite alternate;
+	}
+
+	.card
+	{
+		@include front-card;
+
+		flex-direction: row;
+		align-items: center;
+		gap: 14px;
+		width: 100%;
+		padding: 14px 14px 14px 16px;
+
+		// Picked out from everything round it - a thick bright blue edge, and a glow that breathes
+		// while it's waiting on you. The edge is past 1, so it catches the bloom
+		border: 2px solid $front-primary * 2.6;
+		box-shadow: 0 16px 40px rgba( 0, 0, 0, 0.7 ), 0 0 24px rgba( $front-primary, 0.5 );
+		animation: party-invite-glow 1.8s ease-in-out infinite alternate;
+
+		// Blue all over, not the page's grey - a deep blue fill, brightening towards the buttons, so
+		// it can't pass for one of the game tiles or panels round it
+		background-color: #14223d;
+		background-image: linear-gradient( 270deg, rgba( $front-primary, 0.45 ), rgba( $front-primary, 0.12 ) 75% );
+	}
+
+	// Light sweeping across the card, left to right, then a pause - on a loop. Behind the content,
+	// clipped to the card
+	.card .sheen
+	{
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		left: -45%;
+		width: 45%;
+		pointer-events: none;
+		background-image: linear-gradient( 90deg, rgba( 150, 190, 255, 0 ) 0%, rgba( 150, 190, 255, 0.16 ) 50%, rgba( 150, 190, 255, 0 ) 100% );
+		animation: party-invite-sheen 3.2s ease-in-out infinite;
+	}
+
+	//
+	// More waiting - the next cards on the pile, each the card's full size, just further down and a
+	// little narrower, their edges lit in the menu blue like the card's, fading as they go back. Full
+	// size, so when the top card swipes off there's a whole card under it, not a stub
+	//
+
+	.peek
+	{
+		position: absolute;
+		border-radius: $front-radius;
+
+		// The card's own blue, so the top of the pile turning into the next card is seamless
+		background-color: #14223d;
+		background-image: linear-gradient( 180deg, rgba( $front-primary, 0.15 ), rgba( $front-primary, 0.3 ) );
+		border: 1px solid rgba( $front-primary, 0.75 );
+		box-shadow: 0 8px 18px rgba( 0, 0, 0, 0.5 );
+	}
+
+	// Each further back is the card's box moved down (11, then 7 more each) and in (10 each side,
+	// then 10 more) - the card fills the holder above its 25 of padding
+	.peek-1
+	{
+		top: 11px;
+		bottom: 14px;
+		left: 10px;
+		right: 10px;
+	}
+
+	.peek-2
+	{
+		top: 18px;
+		bottom: 7px;
+		left: 20px;
+		right: 20px;
+		opacity: 0.75;
+	}
+
+	.peek-3
+	{
+		top: 25px;
+		bottom: 0;
+		left: 30px;
+		right: 30px;
+		opacity: 0.5;
+	}
+
+	i
+	{
+		font-family: "Material Icons";
+	}
+
+	.avatar
+	{
+		flex-shrink: 0;
+		width: 44px;
+		height: 44px;
+		border-radius: 50%;
+		background-size: cover;
+		background-position: center;
+		background-color: rgba( 0, 0, 0, 0.35 );
+
+		&.small
+		{
+			width: 26px;
+			height: 26px;
+		}
+	}
+
+	// Their face with a party badge on its corner
+	.face
+	{
+		position: relative;
+		flex-shrink: 0;
+		align-self: flex-start;
+
+		.badge
+		{
+			position: absolute;
+			right: -3px;
+			bottom: -3px;
+			width: 20px;
+			height: 20px;
+			align-items: center;
+			justify-content: center;
+			border-radius: 50%;
+			background-color: $front-primary;
+			border: 2px solid #14223d;
+
+			i
+			{
+				width: 11px;
+				height: 11px;
+				font-size: 11px;
+				text-align: center;
+				color: white;
+			}
+		}
+	}
+
+	.body
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		flex-basis: 0;
+		min-width: 0;
+		gap: 3px;
+	}
+
+	// Who, bold, then what they want under it, softer. Names of their own - bare .name and .text
+	// are common enough that something else's global rule could catch them
+	.invite-name
+	{
+		flex-shrink: 0;
+		font-size: 14px;
+		font-weight: 700;
+		color: #ffffff;
+	}
+
+	.invite-text
+	{
+		flex-shrink: 0;
+		font-size: 13px;
+		font-weight: 500;
+		color: #d6e2f7;
+	}
+
+	.faces
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 4px;
+		margin-top: 6px;
+
+		.more
+		{
+			flex-shrink: 0;
+			align-items: center;
+			justify-content: center;
+			min-width: 26px;
+			height: 26px;
+			padding: 0 6px;
+			border-radius: 999px;
+			background-color: rgba( 255, 255, 255, 0.07 );
+			font-size: 11px;
+			font-weight: 700;
+			color: $front-secondary;
+			text-align: center;
+		}
+	}
+
+	.note
+	{
+		margin-top: 2px;
+		font-size: 11px;
+		font-weight: 500;
+		color: $front-secondary;
+	}
+
+	//
+	// No thanks and Join - the friends list's square buttons, red and green
+	//
+
+	.actions
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		gap: 6px;
+	}
+
+	.action
+	{
+		width: 34px;
+		height: 34px;
+		align-items: center;
+		justify-content: center;
+		border-radius: 8px;
+		cursor: pointer;
+		transition: all 0.12s ease;
+
+		i
+		{
+			width: 100%;
+			text-align: center;
+			font-size: 19px;
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+	}
+
+	.decline
+	{
+		border: 1px solid rgba( $front-danger, 0.45 );
+		background-color: rgba( $front-danger, 0.12 );
+		box-shadow: 0 0 10px rgba( $front-danger, 0.3 );
+
+		i
+		{
+			color: $front-danger * 1.6;
+			text-shadow: 0 0 6px rgba( $front-danger, 0.8 );
+		}
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+			border-color: $front-danger * 1.6;
+			background-color: $front-danger;
+			box-shadow: 0 0 16px rgba( $front-danger, 0.6 );
+
+			i
+			{
+				color: #ffffff;
+				text-shadow: none;
+			}
+		}
+	}
+
+	.join
+	{
+		border: 1px solid rgba( $front-reward, 0.45 );
+		background-color: rgba( $front-reward, 0.12 );
+		box-shadow: 0 0 10px rgba( $front-reward, 0.35 );
+
+		i
+		{
+			color: $front-reward * 2;
+			text-shadow: 0 0 6px rgba( $front-reward, 0.9 );
+		}
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+			border-color: $front-reward * 2;
+			background-color: $front-reward;
+			box-shadow: 0 0 16px rgba( $front-reward, 0.7 );
+
+			i
+			{
+				color: #ffffff;
+				text-shadow: none;
+			}
+		}
+	}
+}
+
+@keyframes party-invite-glow
+{
+	0%
+	{
+		box-shadow: 0 16px 40px rgba( 0, 0, 0, 0.7 ), 0 0 22px rgba( 47, 127, 240, 0.55 );
+	}
+
+	100%
+	{
+		box-shadow: 0 16px 40px rgba( 0, 0, 0, 0.7 ), 0 0 48px rgba( 47, 127, 240, 1 );
+	}
+}
+
+@keyframes party-invite-halo
+{
+	0%
+	{
+		opacity: 0.65;
+	}
+
+	100%
+	{
+		opacity: 1;
+	}
+}
+
+// Across and off the far side in the first half, then waits out of sight for the rest
+@keyframes party-invite-sheen
+{
+	0%
+	{
+		left: -45%;
+	}
+
+	55%
+	{
+		left: 110%;
+	}
+
+	100%
+	{
+		left: 110%;
+	}
+}

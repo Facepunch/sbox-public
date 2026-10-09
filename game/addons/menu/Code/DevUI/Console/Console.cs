@@ -105,6 +105,9 @@ public class Console : Panel
 
 	void AddEvent( LogEvent e )
 	{
+		// Only the text is shown. Logged objects (e.g. a component as message context) would otherwise
+		// keep their whole scene alive for as long as the entry stays in this list.
+		e.Arguments = null;
 		Entries.Add( e );
 
 		if ( ShouldShowEvent( e ) )

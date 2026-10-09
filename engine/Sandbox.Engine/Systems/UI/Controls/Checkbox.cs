@@ -85,6 +85,7 @@ public class Checkbox : Panel
 	{
 		AddClass( "checkbox" );
 		AcceptsFocus = true;
+		FocusOnClick = false;
 		CheckMark = Add.Icon( "check", "checkmark" );
 	}
 

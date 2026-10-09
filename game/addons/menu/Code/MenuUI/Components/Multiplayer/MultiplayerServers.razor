@@ -1,0 +1,126 @@
+@using Sandbox;
+@using Sandbox.Network;
+@using Sandbox.Modals;
+@inherits Panel
+
+<root class="servers">
+	<GameServerBackdrop GameIdent=@servers?.SelectedGame />
+	<ServerList @ref="servers" Config=@(new ServerListConfig( GameIdent )) Filter=@Matches OnGameSelected=@OnGameSelected>
+		<Toolbar>
+			<Sandbox.UI.Toolbar>
+				<ChildContent>
+					<TextEntry class="toolbar-search" Placeholder="@(servers?.SelectedGame is null ? "Search games, servers or maps" : "Search servers or maps")" Value:bind=@search HasClearButton=@true />
+					<div class="pill-group">
+						<Button class="filter icon-only" Icon="event_seat" Active=@HideFullServers onclick=@(() => HideFullServers = !HideFullServers) title="Only show servers with available slots" tooltip="Only show servers with available slots" />
+						<Button class="filter icon-only" Icon="groups" Active=@HideEmptyServers onclick=@(() => HideEmptyServers = !HideEmptyServers) title="Only show servers with players online" tooltip="Only show servers with players online" />
+					</div>
+					<div class="pill-group">
+						<Button class="refresh icon-only" Icon="refresh" disabled=@(servers?.IsRefreshing == true) onclick=@RefreshServers title="Refresh servers" tooltip="Refresh servers" />
+					</div>
+				</ChildContent>
+			</Sandbox.UI.Toolbar>
+		</Toolbar>
+	</ServerList>
+	<Sandbox.UI.StatusBar @ref="statusBar" />
+</root>
+
+@code
+{
+	/// <summary>
+	/// Restricts a dedicated server tab to this game. Null shows the active game list.
+	/// </summary>
+	[Parameter] public string GameIdent { get; set; }
+
+	/// <summary>
+	/// Opens a selected game in the owning page's docking host.
+	/// </summary>
+	[Parameter] public Action<string> OnGameSelected { get; set; }
+
+	/// <summary>
+	/// Only show servers that have space for another player.
+	/// </summary>
+	[Parameter] public bool HideFullServers { get; set; }
+
+	/// <summary>
+	/// Only show servers with players online.
+	/// </summary>
+	[Parameter] public bool HideEmptyServers { get; set; } = true;
+
+	ServerList servers;
+	Sandbox.UI.StatusBar statusBar;
+	Panel statusDot;
+	Label statusLabel;
+	Label updateLabel;
+	string search = "";
+	double nextRefresh;
+
+	string StatusText
+	{
+		get
+		{
+			if ( servers?.HasResults != true ) return "Finding live servers…";
+			var players = servers.VisiblePlayerCount;
+			var count = servers.VisibleServerCount;
+			return $"{players:N0} {(players == 1 ? "player" : "players")} · {count:N0} {(count == 1 ? "server" : "servers")}";
+		}
+	}
+
+	protected override void OnAfterTreeRender( bool firstTime )
+	{
+		base.OnAfterTreeRender( firstTime );
+		// The predicate captures our filters, but its delegate stays the same when they change.
+		// Rebuild the list immediately instead of waiting for the next server refresh.
+		servers?.StateHasChanged();
+
+		if ( !statusLabel.IsValid() )
+		{
+			statusDot = statusBar.AddLeft( new Panel() );
+			statusDot.AddClass( "status-dot" );
+			statusLabel = statusBar.AddLeft( new Label(), stretch: 1 );
+			updateLabel = statusBar.AddRight( new Label() );
+		}
+
+		statusDot.SetClass( "refreshing", servers?.IsRefreshing == true );
+		statusLabel.Text = StatusText;
+		updateLabel.Text = servers?.IsRefreshing == true ? "Updating…" : "Updates automatically";
+	}
+
+	/// <summary>
+	/// Total players reported by the server query, including full servers.
+	/// </summary>
+	public int PlayerCount => servers?.PlayerCount ?? 0;
+
+	/// <summary>
+	/// Whether the server query has returned its first result.
+	/// </summary>
+	public bool HasResults => servers?.HasResults ?? false;
+
+	bool Matches( LobbyInformation server )
+	{
+		if ( HideFullServers && server.IsFull ) return false;
+		if ( HideEmptyServers && server.Members == 0 ) return false;
+		if ( string.IsNullOrWhiteSpace( search ) ) return true;
+
+		var text = $"{server.Name} {server.Game} {server.Map}";
+		if ( Package.TryGetCached( server.Game, out var package, true ) ) text += $" {package.Title}";
+		return text.Contains( search.Trim(), StringComparison.OrdinalIgnoreCase );
+	}
+
+	async Task RefreshServers()
+	{
+		nextRefresh = RealTime.Now + 30;
+		if ( servers.IsValid() ) await servers.RefreshLobbies();
+	}
+
+	/// <summary>
+	/// Keep live activity current while this section is visible.
+	/// </summary>
+	public override void Tick()
+	{
+		base.Tick();
+		if ( IsVisible && servers?.IsRefreshing == false && RealTime.Now >= nextRefresh ) _ = RefreshServers();
+	}
+
+	protected override int BuildHash() => HashCode.Combine( search, HideFullServers, HideEmptyServers, PlayerCount, servers?.ServerCount, HasResults, servers?.IsRefreshing,
+		HashCode.Combine( servers?.VisiblePlayerCount, servers?.VisibleServerCount, servers?.SelectedGame, GameIdent ) );
+}

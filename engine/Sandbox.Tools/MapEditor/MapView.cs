@@ -64,6 +64,79 @@ public partial class MapView : IHandle
 	}
 
 	/// <summary>
+	/// True for the 2D views (top, front, side), false for 3D perspective views.
+	/// </summary>
+	public bool IsOrthographic => native.GetCamera().IsOrthographic();
+
+	/// <summary>
+	/// Where this view's camera is.
+	/// </summary>
+	public Vector3 CameraPosition
+	{
+		get => native.GetCamera().GetOrigin();
+		set
+		{
+			native.GetCamera().SetOrigin( value );
+			native.MarkHudDirty();
+		}
+	}
+
+	/// <summary>
+	/// Which way this view's camera is looking.
+	/// </summary>
+	public Angles CameraAngles
+	{
+		get => native.GetCamera().GetAngles();
+		set
+		{
+			native.GetCamera().SetAngles( value );
+			native.MarkHudDirty();
+		}
+	}
+
+	/// <summary>
+	/// The camera's field of view in degrees. Meaningless for orthographic views.
+	/// </summary>
+	public float FieldOfView => native.GetCamera().GetCameraFOV();
+
+	/// <summary>
+	/// The view's size in pixels.
+	/// </summary>
+	public Vector2 Size => new( native.GetCamera().GetWidth(), native.GetCamera().GetHeight() );
+
+	/// <summary>
+	/// Render the map from any camera into the bitmap, with this view's draw settings - the same
+	/// rendering Hammer's screenshot dialog uses. Doesn't move this view's camera.
+	/// </summary>
+	public unsafe void RenderToBitmap( Bitmap bitmap, Vector3 position, Angles angles, float fieldOfView )
+	{
+		ArgumentNullException.ThrowIfNull( bitmap );
+		if ( bitmap.IsFloatingPoint ) throw new ArgumentException( "Bitmap must be 8 bit RGBA" );
+
+		var width = bitmap.Width;
+		var height = bitmap.Height;
+		var rgb = new byte[width * height * 3];
+
+		fixed ( byte* pixels = rgb )
+		{
+			if ( !native.RenderToPixels( position, angles, fieldOfView, width, height, (IntPtr)pixels ) )
+				throw new InvalidOperationException( "This view has no editor session to render with" );
+		}
+
+		var rgba = new byte[width * height * 4];
+
+		for ( int i = 0, j = 0; i < rgb.Length; i += 3, j += 4 )
+		{
+			rgba[j] = rgb[i];
+			rgba[j + 1] = rgb[i + 1];
+			rgba[j + 2] = rgb[i + 2];
+			rgba[j + 3] = 255;
+		}
+
+		bitmap.SetPixelData( rgba, false );
+	}
+
+	/// <summary>
 	/// Builds a ray from the mouse cursor
 	/// </summary>
 	public void BuildRay( out Vector3 startRay, out Vector3 endRay )

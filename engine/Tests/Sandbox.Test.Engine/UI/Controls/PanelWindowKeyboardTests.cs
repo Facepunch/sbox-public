@@ -35,6 +35,23 @@ public class PanelWindowKeyboardTest
 	}
 
 	[TestMethod]
+	public void InteractiveSuggestionsLeaveTypingInTheEditor()
+	{
+		PanelWindows.DismissPopups();
+		var suggestions = new FakePanelWindow { IsPopup = true, Parent = main, KeepKeyboardInParent = true };
+		PanelWindows.Register( suggestions );
+		try
+		{
+			Assert.IsFalse( suggestions.IgnoresInput );
+			Assert.AreEqual( main, PanelWindows.KeyboardTarget( main ) );
+		}
+		finally
+		{
+			PanelWindows.Unregister( suggestions );
+		}
+	}
+
+	[TestMethod]
 	public void KeysGoToTheDeepestOpenPopup()
 	{
 		Assert.AreEqual( submenu, PanelWindows.KeyboardTarget( main ) );

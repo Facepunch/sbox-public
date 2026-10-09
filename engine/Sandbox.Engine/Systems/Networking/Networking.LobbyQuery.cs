@@ -155,8 +155,6 @@ public static partial class Networking
 		q = q.WithKeyValue( "lobby_type", "scene" );
 		q = q.WithKeyValue( "protocol", $"{Protocol.Network}" );
 		q = q.WithKeyValue( "api", $"{Protocol.Api}" );
-		q = q.WithNotEqual( "toxic", 1 );
-		q = q.WithNotEqual( "disbanded", 1 );
 
 		foreach ( var filter in filters )
 		{
@@ -204,7 +202,8 @@ public static partial class Networking
 			var item = new LobbyInformation();
 			item.LobbyId = l.Id;
 			item.OwnerId = l.Owner.Id;
-			item.Ping = -1;
+			item.Ping = LobbyPing.Estimate( item.OwnerId, l.GetData( LobbyPing.MetadataKey ) );
+			item.IsPingEstimated = item.Ping >= 0;
 
 			item.MaxMembers = l.MaxMembers;
 			item.Members = l.MemberCount;

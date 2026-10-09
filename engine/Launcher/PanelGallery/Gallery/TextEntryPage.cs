@@ -3,7 +3,7 @@ namespace Sandbox.PanelGallery;
 /// <summary>
 /// Text entries - the text and the caret should sit centered in the box.
 /// </summary>
-public class TextEntryPage : GalleryPage
+public partial class TextEntryPage : GalleryPage
 {
 	readonly Sandbox.UI.Label _output;
 
@@ -19,6 +19,8 @@ public class TextEntryPage : GalleryPage
 
 		row = Case( "With an icon" );
 		row.AddChild( new Sandbox.UI.TextEntry { Placeholder = "Search", Icon = "search" } );
+
+		AddAutocompleteExamples();
 
 		// Longer than the box, so it has to scroll sideways to follow the caret. Home and End,
 		// ctrl+arrows and click-drag past the edge all get exercised here
@@ -53,6 +55,8 @@ public class TextEntryPage : GalleryPage
 
 		row = Case( "Max length" );
 		row.AddChild( new Sandbox.UI.TextEntry { MaxLength = 8, Placeholder = "8 characters" } );
+
+		AddValidationExamples();
 
 		// Typing :fire: turns into the emoji - and the caret should land after it, not inside it
 		row = Case( "Emoji" );

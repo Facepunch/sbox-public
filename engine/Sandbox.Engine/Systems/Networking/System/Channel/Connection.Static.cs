@@ -56,10 +56,7 @@ public abstract partial class Connection
 			if ( Networking.System.IsHost )
 				return Local;
 
-			if ( Networking.System.Connection is not null && Networking.System.Connection.IsHost )
-				return Networking.System.Connection;
-
-			return Networking.System.Connections is null ? null : Networking.System.Connections.FirstOrDefault( x => x.IsHost );
+			return Networking.System.HostConnection;
 		}
 	}
 

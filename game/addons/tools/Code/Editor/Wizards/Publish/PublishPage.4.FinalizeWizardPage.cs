@@ -19,6 +19,14 @@ partial class PublishWizard
 
 		public override async Task OpenAsync()
 		{
+			ChangeTitle ??= $"Changes on {DateTime.UtcNow.ToString( "yyyy-MM-dd" )}";
+			Rebuild();
+			Visible = true;
+			await Task.CompletedTask;
+		}
+
+		public override void Rebuild()
+		{
 			BodyLayout?.Clear( true );
 			BodyLayout.Margin = new Sandbox.UI.Margin( 64, 0 );
 
@@ -27,8 +35,6 @@ partial class PublishWizard
 			//
 			BodyLayout.AddSpacingCell( 16 );
 			BodyLayout.AddStretchCell();
-
-			ChangeTitle = $"Changes on {DateTime.UtcNow.ToString( "yyyy-MM-dd" )}";
 
 			{
 				var sheet = new ControlSheet();
@@ -42,9 +48,6 @@ partial class PublishWizard
 			}
 
 			BodyLayout.AddStretchCell();
-			Visible = true;
-
-			await Task.CompletedTask;
 		}
 
 		public override async Task<bool> FinishAsync()

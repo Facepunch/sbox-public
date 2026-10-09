@@ -43,7 +43,7 @@
 				@foreach ( var group in Catalog.Search( Query ).GroupBy( x => x.Category ) )
 				{
 					<div class="section" @key=@group.Key>
-						<label class="section-label">@TitleOf( group.Key )</label>
+						<div class="section-label"><label>@TitleOf( group.Key )</label></div>
 						@foreach ( var item in group )
 						{
 							<SettingsRow @key=@item.Id Item=@item View=@this Highlight=@Query />
@@ -92,7 +92,7 @@
 				@foreach ( var section in Catalog.InCategory( Category ).GroupBy( x => x.Section ) )
 				{
 					<div class="section" @key=@section.Key>
-						<label class="section-label">@section.Key</label>
+						<div class="section-label"><label>@section.Key</label></div>
 
 						@if ( section.Key == "Post Processing" )
 						{
@@ -106,6 +106,12 @@
 					</div>
 				}
 
+				@* What you've hidden, and the way to bring it back - after the game settings *@
+				@if ( Category == "game" )
+				{
+					<HiddenSettings />
+				}
+
 			</div>
 
 			<SettingsActions View=@this />
@@ -113,7 +119,10 @@
 
 	</div>
 
-	<SettingsDetail View=@this />
+	@if ( Searching || Category != "storage" )
+	{
+		<SettingsDetail View=@this />
+	}
 
 </root>
 

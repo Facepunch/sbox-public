@@ -1,5 +1,4 @@
 using NativeEngine;
-using Sandbox.Engine.Settings;
 using Sandbox.UI;
 using System;
 
@@ -29,6 +28,8 @@ internal sealed class PopupWindow : PanelWindow
 	/// </summary>
 	internal Popup HostedPopup { get; set; }
 
+	internal override bool TakesKeyboardFocus => !IgnoresInput && (HostedPopup?.TakesKeyboardFocus ?? true);
+
 	public override bool IsPopup => true;
 	internal override IPanelWindow ParentWindow => Parent;
 
@@ -55,9 +56,13 @@ internal sealed class PopupWindow : PanelWindow
 		// Start as big as the parent and let FitToContents take it down. Starting small would make
 		// the contents lay out against a width they're about to lose, and it's that first layout
 		// FitToContents measures.
-		_initialSize = parent.PixelsToWindow( parent.PixelSize );
+		// A submenu can be wider than its parent menu. Measure against the original window
+		// so a narrow suggestion list doesn't force its documentation to wrap prematurely.
+		var sizingWindow = parent;
+		while ( sizingWindow is PopupWindow popupParent ) sizingWindow = popupParent.Parent;
+		_initialSize = parent.PixelsToWindow( sizingWindow.PixelSize );
 
-		var surface = new UISurface { DpiScale = parent.Surface.DpiScale, Size = parent.PixelSize };
+		var surface = new UISurface { DpiScale = parent.Surface.DpiScale, Size = sizingWindow.PixelSize };
 
 		// The OS draws this window's edge - styles keyed on this drop the border and shadow they
 		// would draw floating in a root
@@ -91,38 +96,36 @@ internal sealed class PopupWindow : PanelWindow
 		// Hidden until the first frame has been drawn - a popup born visible flashes a blank
 		// window at its starting size before the UI sizes and fills it.
 		//
-		var flags = SdlWindowFlags.PopupMenu | SdlWindowFlags.Vulkan | SdlWindowFlags.HighPixelDensity | SdlWindowFlags.Hidden;
+		var flags = Sdl.WindowFlags.PopupMenu | Sdl.WindowFlags.Vulkan | Sdl.WindowFlags.HighPixelDensity | Sdl.WindowFlags.Hidden;
 
 		// A window that ignores input never takes keyboard focus either - so a tooltip appearing
 		// doesn't pull the caret out of a text entry. Not SDL_WINDOW_TOOLTIP: a swap chain on one
 		// of those never presents. A menu popup flagged not focusable is what SDL documents for
 		// this anyway.
-		if ( IgnoresInput )
-			flags |= SdlWindowFlags.NotFocusable;
+		if ( !TakesKeyboardFocus )
+			flags |= Sdl.WindowFlags.NotFocusable;
 
-		var window = EngineGlobal.SDL_CreatePopupWindow( Parent.Handle, x, y, width, height, (ulong)flags );
+		var window = Sdl.CreatePopupWindow( Parent.Handle, x, y, width, height, flags );
 
-		if ( window == IntPtr.Zero )
-			throw new Exception( $"Couldn't create the popup: {EngineGlobal.SDL_GetError()}" );
+		Window = new Sandbox.Engine.SdlWindow( window );
 
 		// The mouse falls straight through to the window underneath, which keeps its hover
 		if ( IgnoresInput )
-			EngineGlobal.SDL_SetWindowMouseTransparent( window, true );
+			Sdl.SetWindowMouseTransparent( window, true );
 
-		PanelWindowNative.Setup( window );
-		Handle = window;
+		PanelWindowInput.SetupWindow( window );
 
 		// What was asked of the window before it existed
-		if ( RoundedCorners ) PanelWindowNative.SetRoundedCorners( window, true );
-		if ( DropShadow ) PanelWindowNative.SetDropShadow( window, true );
+		if ( RoundedCorners ) Sdl.SetWindowRoundedCorners( window, true );
+		if ( DropShadow ) Sdl.SetWindowHasShadow( window, true );
 
 		// A popup can open on a display that scales differently to the window that spawned it
-		Surface.DpiScale = PanelWindowNative.GetContentsScale( window );
+		Surface.DpiScale = DisplayScale;
 
 		// Opaque - the compositor rounds the window's corners itself. Windows doesn't composite
 		// swapchain alpha, so drawing our own round corners isn't an option - the corner pixels
 		// come out as uninitialized garbage.
-		CreateRenderer( "PanelWindow Popup", (int)RenderSettings.Instance.AntiAliasQuality.ToEngine(), vsync: false );
+		CreateRenderer( "PanelWindow Popup", vsync: false );
 
 		return true;
 	}
@@ -140,7 +143,31 @@ internal sealed class PopupWindow : PanelWindow
 	/// </summary>
 	private protected override void OnFirstShow()
 	{
-		PanelWindowNative.SetPosition( Handle, (int)_position.x, (int)_position.y );
+		Sdl.SetWindowPosition( Handle, (int)_position.x, (int)_position.y );
+		_anchorPosition = null;
+		UpdateAnchor();
+	}
+
+	Vector2? _anchorPosition;
+
+	/// <summary>
+	/// Place caret popups using their measured size, within the monitor's work area.
+	/// Coordinates passed to SDL are relative to the parent window.
+	/// </summary>
+	internal void UpdateAnchor()
+	{
+		if ( Handle == IntPtr.Zero || HostedPopup?.AnchorRect is not { } anchor ) return;
+		var bounds = Parent.DisplayWorkArea;
+		// SDL reports popup positions relative to their parent window.
+		for ( var ancestor = Parent; ancestor is not null; ancestor = (ancestor as PopupWindow)?.Parent )
+			bounds.Position -= ancestor.Position;
+		var source = new Rect( Parent.PixelsToWindow( anchor.Position ), Parent.PixelsToWindow( anchor.Size ) );
+		var position = Sandbox.UI.Popup.AnchorPosition( source, PixelsToWindow( PixelSize ), bounds,
+			HostedPopup.Position, Parent.PixelsToWindow( new Vector2( HostedPopup.PopupSourceOffset * HostedPopup.PopupSource.ScaleToScreen ) ).x );
+		position = new Vector2( (int)position.x, (int)position.y );
+		if ( _anchorPosition == position ) return;
+		_anchorPosition = position;
+		Sdl.SetWindowPosition( Handle, (int)position.x, (int)position.y );
 	}
 
 	/// <summary>
@@ -157,19 +184,4 @@ internal sealed class PopupWindow : PanelWindow
 			popup.Delete( true );
 		}
 	}
-
-	private protected override void DestroyNativeWindow( IntPtr window ) => PanelWindowNative.DestroyPopup( window );
-}
-
-/// <summary>
-/// SDL_WindowFlags, the ones a popup needs. Values are SDL3's.
-/// </summary>
-[Flags]
-enum SdlWindowFlags : ulong
-{
-	Hidden = 0x8,
-	HighPixelDensity = 0x2000,
-	PopupMenu = 0x80000,
-	Vulkan = 0x10000000,
-	NotFocusable = 0x80000000,
 }

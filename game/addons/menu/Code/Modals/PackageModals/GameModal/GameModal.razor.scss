@@ -1,0 +1,101 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+GameModal
+{
+	// Who's playing it - the server list, with the tabs' insets, as tall as its rows, the content
+	// scrolling it
+	.sessions
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		padding: 24px 24px 64px 24px;
+
+		ServerList
+		{
+			flex-shrink: 0;
+			overflow: visible;
+		}
+	}
+
+	.setup-loading
+	{
+		padding: 32px;
+		color: $front-secondary;
+		font-family: $front-font;
+		font-size: 14px;
+	}
+
+	// The page and its tabs, while a new game's being set up in their place - kept, not shown
+	&.setting-up
+	{
+		PackageTabs, PortalTarget
+		{
+			display: none;
+		}
+	}
+
+	// Where the tabs go while setting up - back to the game, and where you are, sat on the tabs' line
+	// with the one you're on underlined like the tab you're on
+	.setup-trail
+	{
+		flex-direction: row;
+		align-items: flex-end;
+		pointer-events: all;
+		font-family: $front-font;
+
+		.back, .sep, .here
+		{
+			padding: 0 14px 12px 14px;
+			border-bottom: 2px solid transparent;
+		}
+
+		.back
+		{
+			flex-direction: row;
+			align-items: center;
+			gap: 6px;
+			cursor: pointer;
+
+			i
+			{
+				font-family: "Material Icons";
+				font-size: 16px;
+				color: $front-secondary;
+			}
+
+			label
+			{
+				font-size: 13px;
+				font-weight: 700;
+				color: $front-secondary;
+			}
+
+			&:hover
+			{
+				sound-in: "ui.button.over";
+
+				i, label
+				{
+					color: $front-heading;
+				}
+			}
+		}
+
+		.sep
+		{
+			padding-left: 0;
+			padding-right: 0;
+			font-size: 13px;
+			color: $front-tertiary;
+		}
+
+		.here
+		{
+			font-size: 13px;
+			font-weight: 700;
+			color: $front-heading;
+			border-bottom-color: $front-primary;
+		}
+	}
+}

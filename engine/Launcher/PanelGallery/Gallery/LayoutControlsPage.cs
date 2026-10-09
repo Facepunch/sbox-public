@@ -41,6 +41,9 @@ public class LayoutControlsPage : GalleryPage
 		form.AddHeader( "Transform", "open_with" );
 		form.AddRow( "Position", new Sandbox.UI.VectorControl { Property = _target.Property( "Position" ) } );
 		form.AddRow( "Scale", new Sandbox.UI.NumberEntry { Property = _target.Property( "Scale" ) } );
+		form.AddHeader( "Animation", "timeline" );
+		form.AddRow( "Response", new Sandbox.UI.CurveControl { Property = _target.Property( nameof( GalleryTarget.Response ) ) } );
+		form.AddRow( "Response range", new Sandbox.UI.CurveRangeControl { Property = _target.Property( nameof( GalleryTarget.ResponseRange ) ) } );
 		form.AddHeader( "Appearance", "palette" );
 		form.AddRow( "Colour", new Sandbox.UI.ColorControl { Property = _target.Property( "Colour" ) } );
 		form.AddRow( "Detail", new Sandbox.UI.EnumControl { Property = _target.Property( "Detail" ) } );

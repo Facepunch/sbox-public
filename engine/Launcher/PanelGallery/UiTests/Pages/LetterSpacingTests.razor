@@ -1,0 +1,22 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Text" )]
+@attribute [Title( "letter-spacing" )]
+@attribute [Icon( "text_fields" )]
+<root>
+    <h2>letter-spacing</h2>
+    <div class="cases">
+        <UiTestCase Setup="width: 200px; font-size: 28px" Css="letter-spacing: -4px" Caption="-4px" Text="GAP" />
+        <UiTestCase Setup="width: 200px; font-size: 28px" Css="letter-spacing: -2px" Caption="-2px" Text="GAP" />
+        <UiTestCase Setup="width: 200px; font-size: 28px" Css="letter-spacing: 0px" Caption="0px" Text="GAP" />
+        <UiTestCase Setup="width: 200px; font-size: 28px" Css="letter-spacing: 4px" Caption="4px" Text="GAP" />
+        <UiTestCase Setup="width: 200px; font-size: 28px" Css="letter-spacing: 8px" Caption="8px" Text="GAP" />
+        <UiTestCase Setup="width: 200px; font-size: 28px" Css="letter-spacing: 16px" Caption="16px" Text="GAP" />
+    </div>
+</root>
+@code
+{
+
+}

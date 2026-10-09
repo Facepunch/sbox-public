@@ -5,19 +5,22 @@
 @using SboxMenu;
 @using System;
 @using Sandbox.Network
+@using MenuProject.Modals.PackageModalComponents
 
 <root>
 
+    @* What you thought of it, bottom left - the game page's pills *@
     <div class="left">
+        <PackageReactions Package=@Package OnHidden=@(() => Modal?.CloseModal( false )) />
+    </div>
 
+    <div class="right">
+
+        @* By the launch button, like the game modal's *@
         @if ( LobbyCount > 0 )
         {
 			<Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>@LobbyCount Lobbies</Button>
         }
-
-    </div>
-
-    <div class="right">
 
 		@if (Modal.HasFullPackage)
 		{
@@ -50,7 +53,7 @@
     public static Package MapPackage { get; set; } = null;
     private static string _gamePackageInitializedFor;
 
-    protected override int BuildHash () => System.HashCode.Combine( Package, Modal?.HasFullPackage, LobbyCount, MenuHelpers.HasAuthority );
+    protected override int BuildHash () => System.HashCode.Combine( Package, Modal?.HasFullPackage, LobbyCount, MenuHelpers.HasAuthority, Package?.Interaction );
 
     int LobbyCount => Modal?.Lobbies?.Count() ?? 0;
 

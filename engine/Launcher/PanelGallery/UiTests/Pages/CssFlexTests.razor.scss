@@ -1,4 +1,5 @@
-$abs: #e84a4a;
+@import "/styles/_gallery-palette.scss";
+$abs: $gallery-pink;
 
 CssFlexTests
 {
@@ -22,10 +23,10 @@ CssFlexTests
 		color: rgba( 0, 0, 0, 0.75 );
 	}
 
-	.c1 { background-color: #e8b04a; }
-	.c2 { background-color: #4ac2e8; }
-	.c3 { background-color: #3fc76a; }
-	.c4 { background-color: #c77bd8; }
+	.c1 { background-color: $gallery-lime; }
+	.c2 { background-color: $gallery-cyan; }
+	.c3 { background-color: $gallery-lime; }
+	.c4 { background-color: $gallery-pink; }
 
 	.row { flex-direction: row; }
 	.row-reverse { flex-direction: row-reverse; }

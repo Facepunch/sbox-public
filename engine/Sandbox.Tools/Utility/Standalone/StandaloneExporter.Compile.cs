@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace Editor;
 
 partial class StandaloneExporter
@@ -19,14 +17,9 @@ partial class StandaloneExporter
 
 		Dictionary<string, object> extrafiles = new();
 
-		var orderedList = generated.Select( x => x.Compiler.AssemblyName ).ToList();
-		var json = JsonSerializer.Serialize( orderedList, new JsonSerializerOptions { WriteIndented = true } );
-
 		foreach ( var assembly in generated )
 		{
 			extrafiles[$".bin/{assembly.Compiler.AssemblyName}.dll"] = assembly.AssemblyData;
-			extrafiles[$".bin/{assembly.Compiler.AssemblyName}.xml"] = assembly.XmlDocumentation;
-			extrafiles[$".bin/{assembly.Compiler.AssemblyName}.cll"] = assembly.Archive.Serialize();
 			Logger.Info( $"Adding: {assembly.Compiler.AssemblyName}.dll" );
 
 			PeekAssembly( assembly.Compiler.AssemblyName, assembly.AssemblyData );

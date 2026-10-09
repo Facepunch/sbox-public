@@ -8,10 +8,13 @@ internal class GameCache
 	{
 		string rootDir = Directory.GetCurrentDirectory();
 		string exePath = Path.Combine( rootDir, "engine", "Tools", "CreateGameCache", "bin", "CreateGameCache.exe" );
+		string gameDir = Path.Combine( rootDir, "game" );
 
 		try
 		{
-			Utility.RunProcess( exePath, "--quiet", null );
+			if ( !Utility.RunProcess( exePath, $"\"{gameDir}\"", null ) )
+				return ExitCode.Failure;
+
 			Console.WriteLine( "GameCache operations completed successfully!" );
 			return ExitCode.Success;
 		}

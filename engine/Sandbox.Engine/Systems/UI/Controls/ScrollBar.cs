@@ -27,7 +27,6 @@ public sealed class ScrollBar : Panel
 		{
 			position: absolute;
 			pointer-events: all;
-			z-index: 10000;
 			opacity: 0.5;
 			transition: opacity 0.15s ease-out;
 			cursor: default;
@@ -98,8 +97,6 @@ public sealed class ScrollBar : Panel
 		return MathF.Max( 0, MathF.Round( pixels ) );
 	}
 
-	float ShownThickness => _shown == true ? _thickness : 0;
-
 	float Axis( Vector2 v ) => _vertical ? v.y : v.x;
 
 	public override void Tick()
@@ -164,8 +161,8 @@ public sealed class ScrollBar : Panel
 		}
 
 		// Leave the corner free when the other axis has a bar too
-		var other = _vertical ? owner.ScrollbarX : owner.ScrollbarY;
-		var inset = other?.ShownThickness ?? 0;
+		var otherAxisScrolls = _vertical ? owner.HasScrollX : owner.HasScrollY;
+		var inset = otherAxisScrolls ? thickness : 0;
 
 		if ( _cornerInset != inset || _laidOutClip != owner.Box.ClipRect )
 		{

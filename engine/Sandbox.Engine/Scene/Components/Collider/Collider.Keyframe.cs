@@ -19,7 +19,7 @@ public abstract partial class Collider
 
 	void DestroyKeyframe()
 	{
-		if ( Scene.Is2D )
+		if ( Scene?.Is2D == true )
 			Scene?.GetSystem<ScenePhysics2dSystem>()?.RemoveKeyframe( this );
 		else
 			ScenePhysicsSystem.Current?.RemoveKeyframe( this );

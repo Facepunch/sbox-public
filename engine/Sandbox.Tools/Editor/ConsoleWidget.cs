@@ -321,6 +321,7 @@ internal class ConsoleWidget : Widget
 
 	void AddConsoleMessage( LogEvent e )
 	{
+		e = e.WithWeakArguments();
 		Events.Add( e );
 
 		if ( e.Level == LogLevel.Trace && Message.Button.IsValid() ) Message.Button.Text = GetCount( ++Message.Count );
@@ -702,10 +703,10 @@ internal class ConsoleWidget : Widget
 			// if an arg link, try to inspect arg
 			if ( anchor.StartsWith( "arg:" ) )
 			{
-				var i = anchor[4..].ToInt();
-				if ( i >= ev.Arguments.Length ) return false;
+				var argument = ev.GetArgument( anchor[4..].ToInt() );
+				if ( argument is null ) return false;
 
-				EditorUtility.InspectorObject = ev.Arguments[i];
+				EditorUtility.InspectorObject = argument;
 			}
 			else if ( Uri.TryCreate( anchor, UriKind.RelativeOrAbsolute, out var uri ) )
 			{

@@ -1,0 +1,28 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Text" )]
+@attribute [Title( "font-size" )]
+@attribute [Description( "Compare font-size values independently." )]
+@attribute [Icon( "text_fields" )]
+
+<root>
+    <h2>font-size</h2>
+    <div class="cases">
+        <UiTestCase Setup="@Text" Css="font-size: 8px" Caption="8px" Text="@Sample" Note="Small text is where hinting and gamma show up first." />
+        <UiTestCase Setup="@Text" Css="font-size: 11px" Caption="11px" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font-size: 16px" Caption="16px" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font-size: 32px" Caption="32px" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font-size: 13.5px" Caption="13.5px" Text="@Sample" Note="Fractional sizes round to a 32nd internally - they shouldn't jitter." />
+        <UiTestCase Setup="@Text" Css="font-size: 64px" Caption="64px" Text="Aa" Note="Large type, with enough room to see the glyphs clearly." />
+    </div>
+</root>
+
+@code
+{
+    const string Text = UiTestCase.TextSetup;
+    const string Sample = "Sphinx of black quartz";
+    const string Paragraph = "Sphinx of black quartz, judge my vow. Pack my box with five dozen liquor jugs.";
+    const string Digits = "0123456789 1111 8888";
+}

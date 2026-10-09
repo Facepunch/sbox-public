@@ -1,220 +1,105 @@
 ﻿@using Sandbox.Modals
 @using Sandbox
 @using Sandbox.UI
-@using MenuProject.Social
+@using MenuProject.MenuUI.Front
 
 @namespace MenuProject.Modals
 @inherits MenuProject.Modals.BaseModal
 
+@*
+    The friends list as a popup - the home page's own list (FriendsRail), the same search, groups, party
+    cards and rows, in a card of its own. Off the party deck it sits over it at the deck's width, so the
+    two line up as one column.
+*@
 <root class="friendslist-modal @(IsAnchored ? "anchored" : "")">
 	<div class="inner" @ref="Inner">
-
-        <div class="header">
-            <i>people</i>
-            <h2>Friends</h2>
-        </div>
-
-		<div class="friends-list">
-            @if ( InGameFriends.Any() )
-            {
-                <div class="group-label">
-                    <span class="text">In Game</span>
-                    <span class="count">@InGameFriends.Count()</span>
-                    <separator class="horizontal" />
-                </div>
-
-                @foreach ( var group in GroupForDisplay( InGameFriends ) )
-                {
-                    if ( group.IsParty )
-                    {
-                        <div class="party-cluster">
-                            @foreach ( var friend in group.Members )
-                            {
-                                <FriendEntry Friend=@friend></FriendEntry>
-                            }
-                        </div>
-                    }
-                    else
-                    {
-                        <FriendEntry Friend=@group.Members[0]></FriendEntry>
-                    }
-                }
-            }
-
-            @if ( OnlineFriends.Any() )
-            {
-                <div class="group-label">
-                    <span class="text">Online</span>
-                    <span class="count">@OnlineFriends.Count()</span>
-                    <separator class="horizontal" />
-                </div>
-
-                @foreach ( var friend in OnlineFriends.OrderBy( x => x.Name ) )
-                {
-                    <FriendEntry Friend=@friend></FriendEntry>
-                }
-            }
-
-            @if ( OfflineFriends.Any() )
-            {
-                <div class="group-label">
-                    <span class="text">Offline</span>
-                    <span class="count">@OfflineFriends.Count()</span>
-                    <separator class="horizontal" />
-                </div>
-
-                @foreach ( var friend in OfflineFriends )
-                {
-                    <FriendEntry Friend=@friend></FriendEntry>
-                }
-            }
-
-            @if( !AllFriends.Any() )
-            {
-                <p>Nothing to show!</p>
-            }
-
-		</div>
+		<FriendsRail />
 	</div>
 </root>
 
 @code
 {
-    public IEnumerable<Friend> AllFriends => MenuUtility.Friends.Where( ShouldShow );
-
-    public IEnumerable<Friend> InGameFriends => AllFriends.Where( x => x.IsPlayingThisGame );
-    public IEnumerable<Friend> OnlineFriends => AllFriends.Where( x => !x.IsPlayingThisGame && x.IsOnline );
-
-    public IEnumerable<Friend> OfflineFriends => AllFriends.Where( x => !x.IsOnline )
-        .OrderBy( x => x.Name );
-
-    private static bool IsJoinable( Friend friend ) => !string.IsNullOrEmpty( friend.GetRichPresence( "connect" ) );
-
-    /// <summary>
-    /// The Steam lobby id of whatever party this friend is currently in, or null if they're not in one.
-    /// Friends sharing the same (non-null) value are in a party together.
-    /// </summary>
-    private static string PartyKey( Friend friend )
-    {
-        var id = friend.GetRichPresence( "party_id" );
-        return string.IsNullOrEmpty( id ) ? null : id;
-    }
-
-    /// <summary>
-    /// A cluster of friends to render together - either a single friend on their own, or
-    /// several friends who share a party (see <see cref="PartyKey"/>).
-    /// </summary>
-    private record FriendGroup( string PartyId, IReadOnlyList<Friend> Members )
-    {
-        public bool IsParty => PartyId is not null && Members.Count > 1;
-    }
-
-    /// <summary>
-    /// Groups friends who are in the same party together, with joinable friends/parties bubbled
-    /// to the top. Friends with no party (or the only one of our friends in a given party) each
-    /// get their own singleton group - only real, shared parties get clustered together.
-    /// </summary>
-    private IEnumerable<FriendGroup> GroupForDisplay( IEnumerable<Friend> friends )
-    {
-        var groups = new List<FriendGroup>();
-
-        foreach ( var g in friends.GroupBy( PartyKey ) )
-        {
-            if ( g.Key is not null && g.Count() > 1 )
-            {
-                groups.Add( new FriendGroup( g.Key, g.OrderByDescending( IsJoinable ).ThenBy( x => x.Name ).ToList() ) );
-            }
-            else
-            {
-                foreach ( var friend in g )
-                    groups.Add( new FriendGroup( null, new[] { friend } ) );
-            }
-        }
-
-        return groups
-            .OrderByDescending( g => g.IsParty )
-            .ThenByDescending( g => g.Members.Any( IsJoinable ) )
-            .ThenBy( g => g.Members[0].Name );
-    }
-
     FriendsListModalOptions Options;
     Panel Inner;
+    int placementHash;
 
     public FriendsListModal(FriendsListModalOptions options)
     {
         Options = options;
+
+        // Before the first layout, not on first render - otherwise the base .modal styles land first
+        // and it visibly transitions out of them (the blur fading, the box sliding in from its
+        // -1000px insets) as it appears.
+        if ( IsAnchored )
+            AddClass( "anchored" );
     }
 
-    protected override void OnAfterTreeRender( bool firstTime )
+    /// <summary>
+    /// Follow the anchor and keep the friends list inside the current viewport after resizing or docking.
+    /// </summary>
+    public override void Tick()
     {
-        base.OnAfterTreeRender( firstTime );
+        base.Tick();
 
-        if ( firstTime && IsAnchored )
+        if ( IsAnchored && Inner.IsValid() )
             PositionAnchored( Options.Anchor.Value.Panel, Options.Anchor.Value.Position, Options.Anchor.Value.Offset );
     }
 
     bool IsAnchored => Options.Anchor.HasValue && Options.Anchor.Value.Panel.IsValid();
 
-    private bool ShouldShow(Friend friend)
-    {
-        if (friend.IsMe) return false;
-
-        if (friend.IsOnline && friend.IsPlayingThisGame)
-            return true;
-
-        if (Options.ShowOnlineMembers && friend.IsOnline)
-            return true;
-
-        if (Options.ShowOfflineMembers && !friend.IsOnline)
-            return true;
-
-        return false;
-    }
+    /// <summary>
+    /// As narrow as it goes, anchored - names and what they're doing still read at this.
+    /// </summary>
+    const float MinWidth = 384;
 
     /// <summary>
-    /// Anchors <see cref="Inner"/> next to <paramref name="source"/>, on the side given by
-    /// <paramref name="position"/>. Positioned once - assumes <paramref name="source"/> doesn't
-    /// move after this is called (eg. a docked button).
+    /// Prefer the requested side, flip when the other side has more room, and constrain the
+    /// scrolling list to the available space. All coordinates are local to this modal.
     /// </summary>
     void PositionAnchored( Panel source, ModalAnchorPosition position, float offset = 8.0f )
     {
-        // Derive everything from the source panel's scale rather than our own - at this point we
-        // haven't been added to the panel tree yet, so our own Box.Rect isn't valid.
-        var scale = source.ScaleFromScreen;
+        if ( Box.Rect.Width <= 0 || Box.Rect.Height <= 0 ) return;
+
+        const float margin = 12;
+        var scale = ScaleFromScreen;
         var rect = source.Box.Rect * scale;
-        var w = Screen.Width * scale;
-        var h = Screen.Height * scale;
+        var bounds = Box.Rect * scale;
+        var hash = HashCode.Combine( rect, bounds, position, offset );
+        if ( hash == placementHash ) return;
+        placementHash = hash;
 
-        switch ( position )
+        // The anchor's width - the party deck's, so the two line up - but never narrower than a list
+        // wants, off something small like a button
+        var width = Math.Min( Math.Max( rect.Width, MinWidth ), Math.Max( 0, bounds.Width - margin * 2 ) );
+        var above = Math.Max( 0, rect.Top - bounds.Top - offset - margin );
+        var below = Math.Max( 0, bounds.Bottom - rect.Bottom - offset - margin );
+        var preferAbove = position is ModalAnchorPosition.AboveLeft or ModalAnchorPosition.AboveRight;
+        var alignRight = position is ModalAnchorPosition.AboveRight or ModalAnchorPosition.BelowRight;
+
+        // A long friends list should use the larger side instead of disappearing above the screen.
+        if ( preferAbove ? above < 560 && below > above : below < 560 && above > below )
         {
-            case ModalAnchorPosition.BelowLeft:
-                Inner.Style.Left = rect.Left;
-                Inner.Style.Top = rect.Bottom + offset;
-                break;
+            preferAbove = !preferAbove;
+        }
 
-            case ModalAnchorPosition.BelowRight:
-                Inner.Style.Right = w - rect.Right;
-                Inner.Style.Top = rect.Bottom + offset;
-                break;
+        var height = Math.Min( 560, preferAbove ? above : below );
+        var left = (alignRight ? rect.Right - width : rect.Left) - bounds.Left;
+        Inner.Style.Width = width;
+        Inner.Style.MaxHeight = height;
+        Inner.Style.Left = Math.Clamp( left, margin, Math.Max( margin, bounds.Width - width - margin ) );
+        Inner.Style.Right = null;
 
-            case ModalAnchorPosition.AboveLeft:
-                Inner.Style.Left = rect.Left;
-                Inner.Style.Bottom = h - rect.Top + offset;
-                break;
-
-            case ModalAnchorPosition.AboveRight:
-                Inner.Style.Right = w - rect.Right;
-                Inner.Style.Bottom = h - rect.Top + offset;
-                break;
+        if ( preferAbove )
+        {
+            Inner.Style.Top = null;
+            Inner.Style.Bottom = Math.Clamp( bounds.Bottom - rect.Top + offset, margin, Math.Max( margin, bounds.Height - height - margin ) );
+        }
+        else
+        {
+            Inner.Style.Bottom = null;
+            Inner.Style.Top = Math.Clamp( rect.Bottom - bounds.Top + offset, margin, Math.Max( margin, bounds.Height - height - margin ) );
         }
 
         Inner.Style.Position = PositionMode.Absolute;
-        Inner.Style.Dirty();
-    }
-
-    [Event("friend.change")]
-    public void SteamFriends_OnPersonaStateChange(Friend friend)
-    {
-        StateHasChanged();
     }
 }

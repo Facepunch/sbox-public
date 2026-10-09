@@ -1,0 +1,78 @@
+@import "/styles/_front.scss";
+
+ChatComposer
+{
+	flex-direction: column;
+	flex-shrink: 0;
+
+	.chat-composer
+	{
+		margin: 0 $front-inset;
+		gap: 8px;
+		flex-shrink: 0;
+	}
+
+	.chat-composer textentry
+	{
+		width: 0;
+		min-width: 0;
+		flex-grow: 1;
+		padding: 14px;
+		background-color: $front-card-deep;
+		border: 1px solid $front-border;
+		border-radius: $front-radius;
+
+		&:focus
+		{
+			border-color: $front-primary;
+		}
+	}
+
+	.chat-actions
+	{
+		flex-wrap: wrap;
+		padding: $front-inset;
+		gap: 12px;
+		align-items: center;
+		flex-shrink: 0;
+		font-size: 13px;
+		color: $front-secondary;
+	}
+
+	button
+	{
+		cursor: pointer;
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+	}
+
+	.chat-actions button
+	{
+		@include front-pill;
+
+		iconpanel
+		{
+			font-size: 14px;
+		}
+	}
+
+	.chat-composer button
+	{
+		@include front-icon-button;
+		align-self: center;
+	}
+
+	button.disabled
+	{
+		opacity: 0.3;
+		pointer-events: none;
+	}
+}

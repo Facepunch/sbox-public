@@ -7,6 +7,7 @@ public static class Launcher
 		var appSystem = new StandaloneAppSystem();
 		appSystem.Run();
 
-		return 0;
+		// Non-zero when a -test-standalone run failed to load the game
+		return System.Environment.ExitCode;
 	}
 }

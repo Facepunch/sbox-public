@@ -58,7 +58,7 @@ public class Drag
 
 		try
 		{
-			return (DropAction)NativeEngine.PanelWindowNative.BeginDrag( window?.Handle ?? IntPtr.Zero, string.Join( '\n', _files ), _text ?? "" );
+			return (DropAction)NativeEngine.Sdl.BeginExternalDrag( window?.Handle ?? IntPtr.Zero, string.Join( '\n', _files ), _text ?? "" );
 		}
 		finally
 		{

@@ -47,12 +47,12 @@ sealed class HitboxSystem : GameObjectSystem<HitboxSystem>, GameObjectSystem.ITr
 
 			// these could be foreach parallel!!
 
-			foreach ( var group in Scene.GetAllComponents<ModelHitboxes>() )
+			foreach ( var group in Scene.Query<ModelHitboxes>() )
 			{
 				group.UpdatePositions();
 			}
 
-			foreach ( var group in Scene.GetAllComponents<ManualHitbox>() )
+			foreach ( var group in Scene.Query<ManualHitbox>() )
 			{
 				group.UpdatePositions();
 			}

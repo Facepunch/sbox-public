@@ -1,0 +1,195 @@
+@using Sandbox
+@using Sandbox.UI
+@using SboxMenu
+@using System
+@using MenuProject.Modals.PackageModalComponents
+@inherits Panel
+
+@*
+    The pause menu's Overview - its Game info page, in the body (PausePage) like its other pages; the
+    game itself - its name, what it is - is down the left (GameSummary, in GameMenu). Across the
+    top, a card each: what's new - its latest news post with its latest changelog under it, or with no
+    news its latest changelog on its own - and how far through its achievements you are, at a glance,
+    each opening the whole of it in its place; and last, always, how long you've played it. Under
+    them, the game's own buttons (GameActions).
+*@
+<root>
+
+    @* Across the top, a card each - what's new, and how far through its achievements you are *@
+    <div class="tiles">
+        @* What's new - the loading screen's headline, its look and all *@
+        @if ( Package.LatestNewsPost is { } news )
+        {
+            @* The post - and its latest changelog under it, if it has one *@
+            <div class="latest" onclick=@OpenNews>
+                <div class="latest-text">
+                    <div class="headline">
+                        <div class="news-eyebrow">
+                            <div class="eyebrow"><icon>campaign</icon><label>Latest news</label></div>
+                            <div class="ago"><icon>schedule</icon><label>@MenuHelpers.TimeAgo( news.Created )</label></div>
+                        </div>
+                        <label class="news-title">@news.Title</label>
+                        @if ( !string.IsNullOrWhiteSpace( news.Summary ) )
+                        {
+                            <label class="news-summary">@news.Summary</label>
+                        }
+                    </div>
+
+                    @if ( LatestUpdate is { } update )
+                    {
+                        @* Its own way in - to the changes, not the news the card opens *@
+                        <div class="changelog" onclick=@( ( e ) => { e.StopPropagation(); OpenChanges(); } )>
+                            <i>history</i>
+                            <label class="changelog-title">@UpdateTitle( update )</label>
+                            <i class="go">chevron_right</i>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+        else if ( LatestUpdate is { } update )
+        {
+            @* No news - the changelog is the news *@
+            <div class="latest" onclick=@OpenChanges>
+                <div class="latest-text">
+                    <div class="headline">
+                        <div class="news-eyebrow">
+                            <div class="eyebrow"><icon>campaign</icon><label>Latest update</label></div>
+                            <div class="ago"><icon>schedule</icon><label>@MenuHelpers.TimeAgo( update.Created )</label></div>
+                        </div>
+                        <label class="news-title">@UpdateTitle( update )</label>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @* How far through them you are, at a glance *@
+        @if ( Achievements is { Count: > 0 } all )
+        {
+            <div class="achievements" onclick=@( () => PauseHome.Show( PackagePage.Achievements ) )>
+                @* Headed like the news up top, how many you've got out of how many on the end *@
+                <div class="head">
+                    <div class="eyebrow"><icon>emoji_events</icon><label>Achievements</label></div>
+                    <div class="grow"></div>
+                    <label class="count">@Unlocked of @all.Count</label>
+                </div>
+
+                @* Unlocked first, as many as fit - the last spot says how many more *@
+                <div class="icons">
+                    @foreach ( var a in ShownAchievements )
+                    {
+                        <div class="icon @(a.IsUnlocked ? "unlocked" : "")" style="background-image: url( @IconOf( a ) );"></div>
+                    }
+
+                    @if ( all.Count > ShownIcons )
+                    {
+                        <div class="icon more"><label>+@(all.Count - ShownIcons)</label></div>
+                    }
+                </div>
+
+                <div class="track"><div class="fill" style="width: @Percent( Unlocked, all.Count )%;"></div></div>
+            </div>
+        }
+
+        @* Last, always - how long you've played it, all told and this time round, like Steam's *@
+        <div class="playtime">
+            <div class="stat">
+                <div class="eyebrow"><icon>schedule</icon><label>Play time</label></div>
+                <label class="stat-value">@MenuHelpers.PlayTime( TotalPlayTime )</label>
+            </div>
+
+            @if ( MenuUtility.SessionTime > TimeSpan.Zero )
+            {
+                <div class="stat">
+                    <div class="eyebrow"><icon>timer</icon><label>This session</label></div>
+                    <label class="stat-value">@MenuHelpers.PlayTime( MenuUtility.SessionTime )</label>
+                </div>
+            }
+        </div>
+    </div>
+
+    @* Under them, the game's own buttons - not there for a game without any *@
+    <GameActions />
+
+</root>
+
+@code
+{
+    [Parameter] public Package Package { get; set; }
+
+    /// <summary>
+    /// The backend's total plus this session, so it climbs while you play.
+    /// </summary>
+    TimeSpan TotalPlayTime => TimeSpan.FromSeconds( Package.Interaction.Seconds ) + MenuUtility.SessionTime;
+
+    Package.ChangeListSummary? LatestUpdate => Package.LatestChangeLists.Length > 0
+        ? Package.LatestChangeLists.MaxBy( x => x.Created )
+        : null;
+
+    void OpenNews() => PauseHome.Show( PackagePage.News );
+    void OpenChanges() => PauseHome.Show( PackagePage.Changes );
+
+    // Its title, falling back to its version, then the day it came out
+    static string UpdateTitle( Package.ChangeListSummary update )
+    {
+        if ( !string.IsNullOrWhiteSpace( update.Title ) ) return update.Title;
+        if ( !string.IsNullOrWhiteSpace( update.Version ) ) return update.Version;
+        return update.Created.LocalDateTime.ToString( "d MMMM yyyy" );
+    }
+
+    /// <summary>
+    /// A row's worth across its card - past that, a "+N".
+    /// </summary>
+    const int ShownIcons = 5;
+
+    List<Achievement> Achievements;
+
+    int Unlocked => Achievements?.Count( x => x.IsUnlocked ) ?? 0;
+
+    /// <summary>
+    /// The ones still to get first - what you're working towards - the nearest to done first; then the
+    /// ones you've got, the latest of them first. As many as fit in the row.
+    /// </summary>
+    IEnumerable<Achievement> ShownAchievements => Achievements
+        .OrderBy( x => x.IsUnlocked )
+        .ThenByDescending( x => x.IsUnlocked ? x.UnlockTimestamp ?? default : default )
+        .ThenByDescending( x => x.IsUnlocked ? 0f : x.ProgressionFraction )
+        .ThenBy( x => x.Title, StringComparer.Ordinal )
+        .Take( Achievements.Count > ShownIcons ? ShownIcons : Achievements.Count );
+
+    static string IconOf( Achievement a ) => string.IsNullOrEmpty( a.Icon )
+        ? "https://files.facepunch.com/garry/ae277f80-8a5d-4d54-833e-e7d6f11580fc.png"
+        : a.Icon;
+
+    static string Percent( int part, int whole ) => (whole > 0 ? part * 100f / whole : 0f).ToString( "0.0", System.Globalization.CultureInfo.InvariantCulture );
+
+    // The last game's, kept - this page is built fresh each time it's shown, and starting it empty
+    // until the fetch came back had its card pop in, shoving the others along the row
+    static Package _cachedFor;
+    static List<Achievement> _cached;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Achievements = Package is not null && Package == _cachedFor ? _cached : null;
+        if ( Package is null ) return;
+
+        try
+        {
+            // The hidden ones stay hidden until they're had
+            var collection = await Package.GetAchievements();
+            Achievements = collection?.All.Where( x => x.IsVisible || x.IsUnlocked ).ToList();
+
+            _cachedFor = Package;
+            _cached = Achievements;
+        }
+        catch ( Exception e )
+        {
+            Log.Warning( $"Couldn't fetch {Package.FullIdent}'s achievements: {e.Message}" );
+        }
+
+        StateHasChanged();
+    }
+
+    // The session's minutes, so its time ticks over while the menu's up
+    protected override int BuildHash() => HashCode.Combine( Package, Package?.LatestNewsPost, Achievements?.Count, Unlocked, (int)MenuUtility.SessionTime.TotalMinutes );
+}

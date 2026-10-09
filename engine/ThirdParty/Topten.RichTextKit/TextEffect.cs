@@ -26,11 +26,7 @@ namespace Topten.RichTextKit
 		public SKColorF Color { get; set; }
 		public SKPoint Offset { get; set; }
 		public float Width { get; set; }
-		public SKPaintStyle PaintStyle { get; set; }
-		public SKBlurStyle BlurStyle { get; set; }
 		public float BlurSize { get; set; }
-		public SKStrokeJoin StrokeJoin { get; set; }
-		public float StrokeMiter { get; set; }
 
 		public static TextEffect DropShadow( SKColorF sKColor, float x, float y, float blurSize )
 		{
@@ -40,10 +36,8 @@ namespace Topten.RichTextKit
 			{
 				Color = sKColor,
 				Offset = new SKPoint( x, y ),
-				BlurStyle = SKBlurStyle.Normal,
 				BlurSize = blurSize,
 				Width = 0.0f,
-				PaintStyle = SKPaintStyle.StrokeAndFill
 			};
 		}
 
@@ -56,9 +50,6 @@ namespace Topten.RichTextKit
 				Color = sKColor,
 				Offset = new SKPoint( 0, 0 ),
 				Width = size,
-				PaintStyle = SKPaintStyle.StrokeAndFill,
-				StrokeMiter = 0.5f,
-				StrokeJoin = SKStrokeJoin.Round
 			};
 		}
 	}

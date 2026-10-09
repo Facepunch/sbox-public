@@ -105,6 +105,51 @@ public class AudioTest
 	}
 
 	/// <summary>
+	/// Scene suspension pauses spatial voices while local UI and music remain usable.
+	/// Explicitly paused sounds must still stay paused after the scene resumes.
+	/// </summary>
+	[TestMethod]
+	public void SuspendedScenePausesSpatialSoundsButKeepsLocalAudio()
+	{
+		var soundFile = CreateTestTone();
+		if ( soundFile is null )
+		{
+			Assert.Inconclusive( "Native sound system can't create sounds on this machine" );
+		}
+
+		var scene = new Scene();
+		using var scope = scene.Push();
+		var handle = Sound.PlayFile( soundFile );
+
+		try
+		{
+			Assert.IsTrue( handle.IsValid() );
+			Assert.IsTrue( handle.PreTick() );
+
+			scene.IsSuspended = true;
+			Assert.IsFalse( handle.PreTick() );
+			Assert.IsTrue( handle.IsValid() );
+
+			handle.ListenLocal = true;
+			Assert.IsTrue( handle.PreTick() );
+
+			handle.ListenLocal = false;
+			scene.IsSuspended = false;
+			Assert.IsTrue( handle.PreTick() );
+
+			handle.Paused = true;
+			scene.IsSuspended = true;
+			scene.IsSuspended = false;
+			Assert.IsFalse( handle.PreTick() );
+		}
+		finally
+		{
+			handle?.Dispose();
+			scene.Destroy();
+		}
+	}
+
+	/// <summary>
 	/// Plays a tone on a child mixer and returns the probe installed on Master. Master has no
 	/// voices of its own, so everything the probe sees arrived from the child.
 	/// </summary>

@@ -8,6 +8,26 @@
 public struct ViewSetup
 {
 	/// <summary>
+	/// Overrides shader time (g_flTime), in seconds, for this view and its child views.
+	/// Null inherits the parent view's time, or the normal frame time for a top-level view.
+	/// </summary>
+	public float? Time;
+
+	/// <summary>
+	/// Overrides the camera's inclusion tags for this view. Null inherits the camera's filter;
+	/// an empty set includes all tags, subject to exclusions. This does not change the camera.
+	/// When used in a command list, keep the set unchanged while the list can execute.
+	/// </summary>
+	public TagSet RenderTags;
+
+	/// <summary>
+	/// Additional tags to exclude from this view, alongside the camera's existing exclusions.
+	/// Null or an empty set adds no exclusions. This does not change the camera's tags.
+	/// When used in a command list, keep the set unchanged while the list can execute.
+	/// </summary>
+	public TagSet ExcludeTags;
+
+	/// <summary>
 	/// Overrides the camera's position and rotation
 	/// </summary>
 	public Transform? Transform;
@@ -73,6 +93,17 @@ public struct ViewSetup
 	/// Whether post processing should be enabled for this view. If null it will use the camera's setting.
 	/// </summary>
 	public bool? EnablePostprocessing;
+
+	/// <summary>
+	/// Whether UI should be rendered in this view. Null inherits the camera's setting.
+	/// </summary>
+	public bool? EnableUI;
+
+	/// <summary>
+	/// Whether engine debug overlays should be rendered in this view. Null inherits the camera's setting.
+	/// This controls engine overlays, not scene geometry such as editor gizmos.
+	/// </summary>
+	public bool? EnableDebugOverlays;
 
 	/// <summary>
 	/// If you're rendering a subview this will allow the renderer to find the same view again next frame

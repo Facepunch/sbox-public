@@ -1,4 +1,4 @@
-﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Sandbox.Utility;
@@ -84,11 +84,6 @@ namespace Sandbox.Generator
 			Model = Compilation.GetSemanticModel( tree );
 			AddonFileMap = map;
 		}
-
-		/// <summary>
-		/// Keep track of what classes we visited this run, so we don't end up putting duplicate DescriptionAttributes on partial classes
-		/// </summary>
-		internal static List<string> VisitedClasses = new List<string>();
 
 		/// <summary>
 		/// Runs in the thread pool, processes the syntax tree and returns
@@ -314,6 +309,46 @@ namespace Sandbox.Generator
 			return node;
 		}
 
+		public override SyntaxNode VisitStructDeclaration( StructDeclarationSyntax original )
+		{
+			var symbol = Model.GetDeclaredSymbol( original ) as INamedTypeSymbol;
+			var node = (StructDeclarationSyntax)base.VisitStructDeclaration( original );
+			Description.VisitType( ref node, original, symbol, this );
+			return node;
+		}
+
+		public override SyntaxNode VisitRecordDeclaration( RecordDeclarationSyntax original )
+		{
+			var symbol = Model.GetDeclaredSymbol( original ) as INamedTypeSymbol;
+			var node = (RecordDeclarationSyntax)base.VisitRecordDeclaration( original );
+			Description.VisitType( ref node, original, symbol, this );
+			return node;
+		}
+
+		public override SyntaxNode VisitInterfaceDeclaration( InterfaceDeclarationSyntax original )
+		{
+			var symbol = Model.GetDeclaredSymbol( original ) as INamedTypeSymbol;
+			var node = (InterfaceDeclarationSyntax)base.VisitInterfaceDeclaration( original );
+			Description.VisitType( ref node, original, symbol, this );
+			return node;
+		}
+
+		public override SyntaxNode VisitEnumDeclaration( EnumDeclarationSyntax original )
+		{
+			var symbol = Model.GetDeclaredSymbol( original ) as INamedTypeSymbol;
+			var node = (EnumDeclarationSyntax)base.VisitEnumDeclaration( original );
+			Description.VisitType( ref node, original, symbol, this );
+			return node;
+		}
+
+		public override SyntaxNode VisitDelegateDeclaration( DelegateDeclarationSyntax original )
+		{
+			var symbol = Model.GetDeclaredSymbol( original ) as INamedTypeSymbol;
+			var node = (DelegateDeclarationSyntax)base.VisitDelegateDeclaration( original );
+			Description.VisitType( ref node, original, symbol, this );
+			return node;
+		}
+
 		public override SyntaxNode VisitClassDeclaration( ClassDeclarationSyntax _node )
 		{
 			var symbol = Model.GetDeclaredSymbol( _node ) as INamedTypeSymbol;
@@ -332,7 +367,7 @@ namespace Sandbox.Generator
 			{
 				node = base.VisitClassDeclaration( _node ) as ClassDeclarationSyntax;
 
-				Description.VisitClass( ref node, symbol, this );
+				Description.VisitType( ref node, _node, symbol, this );
 				node = ClassFileLocation.VisitNode( node, _node, symbol, this, TreeInput ) as ClassDeclarationSyntax;
 
 				//

@@ -142,6 +142,9 @@ public struct FindPackageQuery
 		SpawnsWeek,
 		SpawnsMonth,
 
+		/// <summary>
+		/// Order by live player count, highest first.
+		/// </summary>
 		PlayersNow,
 
 		/// <summary>
@@ -174,7 +177,7 @@ public struct FindPackageQuery
 	public static FindPackageQuery Parse( string query, long steamid )
 	{
 		if ( string.IsNullOrWhiteSpace( query ) )
-			return default;
+			return new FindPackageQuery { SteamId = steamid };
 
 		var find = new FindPackageQuery
 		{

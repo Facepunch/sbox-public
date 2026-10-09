@@ -64,7 +64,8 @@ public class ToolAppSystem : AppSystem, IDisposable
 
 		_appSystem.AddSystem( "resourcecompiler", "ResourceCompilerSystem001" );
 
-		Bootstrap.PreInit( _appSystem );
+		Bootstrap.InitApplication( _appSystem );
+		Bootstrap.PreInit();
 
 		//Bootstrap.Init();
 	}

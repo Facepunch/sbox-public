@@ -10,6 +10,8 @@
 	<ItemGroup>
 		<Compile Remove="Data\**\*.cs" />
 		<None Include="Data\**\*.*" CopyToOutputDirectory="Always" />
+		<!-- Exercise the menu's pure party grouping without Steam or the UI runtime. -->
+		<Compile Include="..\..\..\game\addons\menu\Code\MenuUI\Front\FriendPartyGrouping.cs" Link="Menu\FriendPartyGrouping.cs" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -33,6 +35,7 @@
 		<ProjectReference Include="..\..\Sandbox.Hotload\Sandbox.Hotload.csproj" />
 		<ProjectReference Include="..\..\Sandbox.Layout\Sandbox.Layout.csproj" />
 		<ProjectReference Include="..\..\Sandbox.Reflection\Sandbox.Reflection.csproj" />
+		<ProjectReference Include="..\..\Sandbox.SceneRenderer\Sandbox.SceneRenderer.csproj" />
 		<ProjectReference Include="..\..\Sandbox.System\Sandbox.System.csproj" />
 		<ProjectReference Include="..\..\Sandbox.Tools\Sandbox.Tools.csproj" />
 		<ProjectReference Include="..\..\Tools\InteropGen\InteropGen.csproj" />

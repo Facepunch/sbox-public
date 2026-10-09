@@ -39,8 +39,13 @@ sealed class DspVolumeGameSystem : GameObjectSystem<DspVolumeGameSystem>
 		string found = default;
 		MixerHandle foundMixer = default;
 
-		foreach ( var volume in Scene.Volumes.FindAll<DspVolume>( Sound.Listener.Position ) )
+		// VolumeSystem.FindAll without its iterator - same volumes, same order
+		var listenerPosition = Sound.Listener.Position;
+		foreach ( var volume in Scene.Query<DspVolume>() )
 		{
+			if ( !((Volumes.VolumeSystem.IVolume)volume).Test( listenerPosition ) )
+				continue;
+
 			int priority = volume.Priority;
 
 			if ( priority < lastPriority )
@@ -77,10 +82,21 @@ sealed class DspVolumeGameSystem : GameObjectSystem<DspVolumeGameSystem>
 			entry.Value.processor.Mix = entry.Value.processor.Mix.Approach( mixTarget, Time.Delta );
 		}
 
-		foreach ( var entry in _entries.Where( x => x.Value.processor.Mix <= 0 ).ToArray() )
+		_finished.Clear();
+		foreach ( var entry in _entries )
+		{
+			if ( entry.Value.processor.Mix <= 0 )
+				_finished.Add( entry );
+		}
+
+		foreach ( var entry in _finished )
 		{
 			entry.Value.mixerHandle.Get()?.RemoveProcessor( entry.Value.processor );
 			_entries.Remove( entry.Key );
 		}
+
+		_finished.Clear();
 	}
+
+	readonly List<KeyValuePair<(string effect, MixerHandle mixer), Entry>> _finished = new();
 }

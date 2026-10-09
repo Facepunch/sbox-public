@@ -5,24 +5,41 @@
 
 <root>
 
-    <div class="thumb" style="left: @(Value* Box.RectInner.Width*ScaleFromScreen)px">
+    <div class="thumb" style="left: @(Value * 100)%">
         <i class="top">play_arrow</i>
         <i class="bottom">play_arrow</i>
     </div>
 
-    <div class="swatches">
-        @foreach (var c in Swatches)
-        {
-            <div class="swatch" style="background-color: @c.Color.Hex"></div>
-        }
-    </div>
+    <div class="track" style="@GradientStyle"></div>
 
 </root>
 
 @code
 {
-    [Parameter] public ColorSwatch[] Swatches { get; set; } = [];
+    /// <summary>
+    /// The colour ramp displayed behind the slider.
+    /// </summary>
+    [Parameter] public Gradient Gradient { get; set; } = new();
+
+    /// <summary>
+    /// The selected position on the ramp, from zero to one.
+    /// </summary>
     [Parameter] public float Value { get; set; }
+
+    string GradientStyle
+    {
+        get
+        {
+            if ( Gradient.Colors is not { Count: > 0 } )
+                return "background: transparent;";
+
+            if ( Gradient.Colors.Count == 1 )
+                return $"background: {Gradient.Colors[0].Value.Hex};";
+
+            var stops = Gradient.Colors.Select( x => FormattableString.Invariant( $"{x.Value.Hex} {x.Time * 100}%" ) );
+            return $"background: linear-gradient( to right, {string.Join( ", ", stops )} );";
+        }
+    }
 
     protected override void OnMouseMove(MousePanelEvent e)
     {
@@ -31,6 +48,7 @@
         if ( HasActive )
         {
             PickValue();
+            e.StopPropagation();
         }
     }
 
@@ -39,6 +57,9 @@
         base.OnMouseDown(e);
 
         PickValue();
+
+        // Keep this drag on the color picker instead of starting the parent's scroll drag.
+        e.StopPropagation();
     }
 
     void PickValue()

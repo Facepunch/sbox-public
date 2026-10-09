@@ -144,10 +144,17 @@ internal class ServerPackages
 
 		Log.Info( $"Installing {entries.Count} server packages.." );
 
-		if ( entries.Count > 0 )
-			LoadingScreen.Title = "Installing Packages";
-
 		var sw = System.Diagnostics.Stopwatch.StartNew();
+
+		// What's coming down, all of it sized up before the first byte - so the loading screen can show
+		// it as one bar, room made for each, rather than one download after another
+		if ( entries.Count > 0 )
+		{
+			LoadingScreen.Title = "Checking Packages";
+			await LoadingScreen.ReserveDownloads( entries.Keys );
+
+			LoadingScreen.Title = "Installing Packages";
+		}
 
 		// Install all packages without triggering a resource reload per-package,
 		// then do a single reload at the end.
@@ -255,10 +262,12 @@ internal class UpdateLoadingScreen : ILoadingInterface
 	public void Dispose()
 	{
 		LoadingScreen.Subtitle = "";
+		LoadingScreen.Progress = null;
 	}
 
 	public void LoadingProgress( LoadingProgress progress )
 	{
+		LoadingScreen.Progress = progress;
 		LoadingScreen.Title = $"{progress.Title}";
 		LoadingScreen.Subtitle = progress.Mbps > 0
 			? $"{progress.Percent:n0}% • {progress.Mbps:n0}mbps • {progress.CalculateETA().ToRemainingTimeString()}"

@@ -36,6 +36,7 @@ internal static class ErrorReporter
 			config.DetectStartupTime = StartupTimeDetectionMode.None;
 		} );
 
+		ManagedExceptionReporting.Initialize();
 		Logging.OnException = ReportException;
 	}
 
@@ -44,6 +45,7 @@ internal static class ErrorReporter
 		if ( !IsUsingSentry ) return;
 
 		SentrySdk.Flush();
+		ManagedExceptionReporting.Flush();
 	}
 
 	private static SentryEvent BeforeSend( SentryEvent ev, SentryHint hint )
@@ -56,6 +58,9 @@ internal static class ErrorReporter
 		ev.SetTag( "game", $"{Application.GameIdent}" );
 		ev.SetTag( "gameversion", $"{Application.GamePackage?.Revision?.VersionId}" );
 		ev.SetTag( "host", Application.IsDedicatedServer ? "dedicated" : "game" );
+		ev.SetTag( "hags", SystemInfo.WinHags?.ToString() ?? "unknown" );
+		ev.SetTag( "monitors", $"{SystemInfo.MonitorCount}" );
+		ev.SetTag( "refresh", $"{SystemInfo.DisplayRefreshRate}" );
 
 		ev.Contexts.Gpu.Name = SystemInfo.Gpu;
 		ev.Contexts.Gpu.Version = SystemInfo.GpuVersion;
@@ -70,6 +75,7 @@ internal static class ErrorReporter
 		ev.Contexts.Device.StorageSize = SystemInfo.StorageSizeTotal;
 		ev.Contexts.Device.FreeStorage = SystemInfo.StorageSizeAvailable;
 
+		ManagedExceptionReporting.Copy( ev );
 		return ev;
 	}
 

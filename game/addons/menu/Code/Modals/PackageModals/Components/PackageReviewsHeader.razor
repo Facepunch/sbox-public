@@ -1,48 +1,72 @@
 @namespace MenuProject.Modals.PackageModalComponents
 @using Sandbox
 
-@if (Package?.Reviews is null || Package?.Reviews.Total == 0)
-    return;
-
+@*
+    The top of the Reviews tab - the verdict, in its colour like the Achievements tab's gold summary,
+    in three rows: the score, big, and the word for it with how many; the split of the three ratings a
+    review can give with a count for each; and a way to write your own. With none yet, just that way in.
+*@
 @{
-    var stats = Package.Reviews;
+    var stats = Package?.Reviews ?? default;
     var total = stats.PositiveRatings + stats.PromiseRatings + stats.NegativeRatings;
-
-    var positivePct = (int)Math.Round(stats.PositiveRatings * 100.0 / total);
-    var promisePct = (int)Math.Round(stats.PromiseRatings * 100.0 / total);
-    var negativePct = (int)Math.Round(stats.NegativeRatings * 100.0 / total);
-
-    var (verdict, sentiment, icon) = positivePct switch
-    {
-        >= 80 => ("Very Positive", "recommended", "☺️"),
-        >= 60 => ("Positive", "recommended", "☺️"),
-        >= 40 => ("Mixed", "mixed", "😐"),
-        _ => ("Negative", "negative", "☹️")
-    };
 }
 
-<root>
-    <div class="main">
-        <div class="verdict @sentiment">
-            <div class="icon">@icon</div>
+<root class="@(total == 0 ? "none" : PackageInfoPanel.RatingClass( Package ))">
 
-            <div>
-                <div class="title">@verdict</div>
-                <div class="count">@total reviews</div>
+    @if ( total == 0 )
+    {
+        <div class="rating">
+            <i class="glyph">rate_review</i>
+            <div class="words">
+                <label class="title">No reviews yet</label>
+                <label class="count">Played @Package?.Title? Be the first to say what you thought.</label>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="rating">
+            <label class="score">@stats.Score.ToString( "0\\%" )</label>
+            <div class="words">
+                <label class="title">@PackageInfoPanel.RatingText( Package )</label>
+                <label class="count">@total.ToString( "N0" ) review@(total == 1 ? "" : "s")</label>
             </div>
         </div>
 
-        <div class="bar" title="@($"{positivePct}% recommended, {promisePct}% shows promise, {negativePct}% needs work")">
-            <div class="segment recommended" style="width:@positivePct%"></div>
-            <div class="segment promise" style="width:@promisePct%"></div>
-            <div class="segment negative" style="width:@negativePct%"></div>
-        </div>
-    </div>
-</root>
+        @* The three, at their share - and what each is, how many, under it *@
+        <div class="split">
+            <div class="bar">
+                @if ( stats.PositiveRatings > 0 ) { <div class="part good" style="flex-grow: @stats.PositiveRatings;"></div> }
+                @if ( stats.PromiseRatings > 0 ) { <div class="part meh" style="flex-grow: @stats.PromiseRatings;"></div> }
+                @if ( stats.NegativeRatings > 0 ) { <div class="part bad" style="flex-grow: @stats.NegativeRatings;"></div> }
+            </div>
 
+            <div class="legend">
+                <div class="key good"><div class="dot"></div><label>Recommended</label><label class="n">@stats.PositiveRatings</label></div>
+                <div class="key meh"><div class="dot"></div><label>Shows promise</label><label class="n">@stats.PromiseRatings</label></div>
+                <div class="key bad"><div class="dot"></div><label>Needs work</label><label class="n">@stats.NegativeRatings</label></div>
+            </div>
+        </div>
+    }
+
+    @if ( OnWriteReview is not null )
+    {
+        <div class="write" onclick=@OnWriteReview>
+            <i>rate_review</i>
+            <label>Write a review</label>
+        </div>
+    }
+
+</root>
 
 @code
 {
-    [Parameter]
-    public Package Package { get; set; }
+    [Parameter] public Package Package { get; set; }
+
+    /// <summary>
+    /// Writing one - its button on the end. None, no button.
+    /// </summary>
+    [Parameter] public Action OnWriteReview { get; set; }
+
+    protected override int BuildHash() => HashCode.Combine( Package, Package?.Reviews.Total, Package?.Reviews.PositiveRatings, Package?.Reviews.PromiseRatings, Package?.Reviews.NegativeRatings );
 }

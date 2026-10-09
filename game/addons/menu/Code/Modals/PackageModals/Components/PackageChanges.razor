@@ -6,52 +6,116 @@
 @using System;
 @using System.Collections.Immutable;
 
-@* Full "Changes" tab - mirrors the web layout: each changelist is a two-column group with a
-   sticky meta column (title / version / date) on the left and the categorised entries on the right. *@
+@* The Changes tab - a timeline, newest first. Each update is a card on a line down the left: its
+   name, version and when, then what's in it by kind - added, improved, fixed, removed, known
+   issues - each kind with its own colour. Kinds with nothing in them aren't shown at all.
 
-<root>
-    <PackageTabHeader Title="Changes" Subtitle="@($"What's changed in {Package?.Title} with each update.")" />
+   Embedded (on the Overview, under the gallery) it's just the newest card, and nothing at all for a
+   game that's never published one.
+
+   A game can have hundreds, so only the cards near what's on screen are built - the rest keep their
+   room as an empty card of the same height (measured once it's been built, guessed from how much is
+   in it until then), so the line and the scrollbar don't move as they come and go. *@
+
+<root class="@(Embedded ? "embedded" : "")">
 
     @if (!_loaded)
     {
-        <div class="state"><Spinner /></div>
+        @* The shape of an update card while it loads - one on the Overview (only if the game's
+           published any, so a game with none doesn't flash one), two on the Changes tab *@
+        @if (!Embedded || Package?.LatestChangeLists.Length > 0)
+        {
+            <div class="timeline">
+                @for (var i = 0; i < (Embedded ? 1 : 2); i++)
+                {
+                    <div class="update skeleton @(i == 0 ? "latest" : "")">
+                        <div class="rail">
+                            <div class="dot"></div>
+                            <div class="line"></div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-head">
+                                <div class="bone title-bone"></div>
+                                <div class="bone pill-bone"></div>
+                            </div>
+                            <div class="sections">
+                                <div class="bone-section">
+                                    <div class="bone heading-bone"></div>
+                                    <div class="bone line-bone"></div>
+                                    <div class="bone line-bone short"></div>
+                                    <div class="bone line-bone shorter"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
     }
     else if (_changeLists.Length == 0)
     {
-        <div class="state">This package hasn't published any changelists.</div>
+        @if (!Embedded)
+        {
+            <div class="state">This package hasn't published any changelists.</div>
+        }
     }
     else
     {
-        @foreach (var change in _changeLists)
-        {
-            var hasTitle = !string.IsNullOrWhiteSpace(change.Title);
-            var dateText = change.Created.LocalDateTime.ToString("d MMMM yyyy");
+        <div class="timeline" @ref="Timeline">
+            @for (var i = 0; i < Shown; i++)
+            {
+                var change = _changeLists[i];
+                var latest = i == 0;
+                var last = i == Shown - 1;
+                var hasTitle = !string.IsNullOrWhiteSpace(change.Title);
+                var dateText = change.Created.LocalDateTime.ToString("d MMMM yyyy");
 
-            <div class="changelistgroup">
+                <div class="update @(latest ? "latest" : "") @(last ? "last" : "")">
 
-                <div class="meta-column">
-                    <label class="title">@(hasTitle ? change.Title : dateText)</label>
-                    @if (!string.IsNullOrWhiteSpace(change.Version))
+                    @* The line down the left, a dot for each update on it *@
+                    <div class="rail">
+                        <div class="dot"></div>
+                        <div class="line"></div>
+                    </div>
+
+                    @if (!IsBuilt(i))
                     {
-                        <div class="version">@change.Version</div>
+                        @* Off screen - just its room *@
+                        <div class="card placeholder" style="height: @HeightOf(i)px;"></div>
                     }
-                    @* Skip the date line when the title already is the date. *@
-                    @if (hasTitle)
+                    else
                     {
-                        <label class="created">@dateText</label>
+                        <div class="card">
+                            <div class="card-head">
+                                <div class="title-row">
+                                    <label class="update-name" tooltip="@(hasTitle ? change.Title : dateText)">@(hasTitle ? change.Title : dateText)</label>
+                                    @if (latest)
+                                    {
+                                        <label class="latest-pill">Latest update</label>
+                                    }
+                                </div>
+
+                                @* How long ago, the date itself on hover - not the version number, which means
+                                   nothing to a player *@
+                                <div class="meta-row">
+                                    <div class="ago" tooltip="@dateText"><i>schedule</i><label>@MenuHelpers.TimeAgo( change.Created )</label></div>
+                                </div>
+                            </div>
+
+                            <div class="sections">
+                                @if (change.Added.Length > 0) { <PackageChangeSection ClassName="add" Entries="@change.Added" Icon="add_circle" Title="Added" /> }
+                                @if (change.Improved.Length > 0) { <PackageChangeSection ClassName="improve" Entries="@change.Improved" Icon="auto_awesome" Title="Improved" /> }
+                                @if (change.Fixed.Length > 0) { <PackageChangeSection ClassName="fix" Entries="@change.Fixed" Icon="build" Title="Fixed" /> }
+                                @if (change.Removed.Length > 0) { <PackageChangeSection ClassName="remove" Entries="@change.Removed" Icon="remove_circle" Title="Removed" /> }
+                                @if (change.KnownIssues.Length > 0) { <PackageChangeSection ClassName="knownissue" Entries="@change.KnownIssues" Icon="warning" Title="Known Issues" /> }
+                            </div>
+                        </div>
                     }
-                </div>
 
-                <div class="changes">
-                    <PackageChangeSection ClassName="add" Entries="@change.Added" Icon="🎁" Title="Added" />
-                    <PackageChangeSection ClassName="improve" Entries="@change.Improved" Icon="🧼" Title="Improved" />
-                    <PackageChangeSection ClassName="fix" Entries="@change.Fixed" Icon="🪛" Title="Fixed" />
-                    <PackageChangeSection ClassName="remove" Entries="@change.Removed" Icon="🚯" Title="Removed" />
-                    <PackageChangeSection ClassName="knownissue" Entries="@change.KnownIssues" Icon="⚠️" Title="Known Issues" />
                 </div>
-
-            </div>
-        }
+            }
+        </div>
     }
 </root>
 
@@ -59,15 +123,65 @@
 {
     [Parameter] public Package Package { get; set; }
 
+    /// <summary>
+    /// Just the newest, no scrolling of its own - for the Overview.
+    /// </summary>
+    [Parameter] public bool Embedded { get; set; }
+
+
+    int Shown => Embedded ? Math.Min( _changeLists.Length, 1 ) : _changeLists.Length;
+
     ImmutableArray<Package.ChangeList> _changeLists = ImmutableArray<Package.ChangeList>.Empty;
     bool _loaded;
 
-    protected override int BuildHash() => System.HashCode.Combine(Package, _loaded, _changeLists.Length);
+    protected override int BuildHash() => System.HashCode.Combine(Package, _loaded, _changeLists.Length, Embedded, Near.Hash);
+
+    //
+    // Only the cards near the screen, built - see the top
+    //
+
+    Panel Timeline;
+    readonly MenuProject.UI.NearScreen Near = new();
+
+    bool IsBuilt( int i ) => Embedded || Near.IsBuilt( i );
+
+    string HeightOf( int i ) => Near.HeightOf( i, Estimate( _changeLists[i] ) );
+
+    /// <summary>
+    /// Near enough a card's height before it's been built - its head, a heading for each kind of change
+    /// in it, a line for each change.
+    /// </summary>
+    static float Estimate( Package.ChangeList change )
+    {
+        var kinds = 0;
+        var entries = 0;
+
+        foreach ( var section in new[] { change.Added, change.Improved, change.Fixed, change.Removed, change.KnownIssues } )
+        {
+            if ( section.Length == 0 ) continue;
+            kinds++;
+            entries += section.Length;
+        }
+
+        return 70 + kinds * 44 + entries * 27;
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( Embedded || !_loaded ) return;
+
+        // Its card, once it's a real one rather than its room
+        if ( Near.Update( this, Timeline, _changeLists.Length, row => row.Children.LastOrDefault( x => !x.IsDeleting ) is { } card && card.HasClass( "card" ) && !card.HasClass( "placeholder" ) ? card : null ) )
+            StateHasChanged();
+    }
 
     protected override async Task OnParametersSetAsync()
     {
         _loaded = false;
         _changeLists = ImmutableArray<Package.ChangeList>.Empty;
+        Near.Reset();
         StateHasChanged();
 
         if (Package is null)

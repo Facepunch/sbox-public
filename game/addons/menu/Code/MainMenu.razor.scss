@@ -1,8 +1,5 @@
-@import '/styles/_Theme.scss';
-@import '/styles/mainmenu.scss';
-// Dresses the shared PackageCard in the front page's tile look. Imported once, here,
-// because it emits rules rather than tokens.
-@import '/styles/_packagecard.scss';
+// The theme, the card look, and the rail-and-stage layout the pages sit in - shared with the pause menu
+@import '/styles/_menushell.scss';
 
 .mainmenu {
 	position: relative;
@@ -11,57 +8,16 @@
     width: 100%;
     height: 100%;
     pointer-events: auto;
-}
 
-.tooltip {
-    pointer-events: none;
-    background-color: #656e7e;
-    font-family: Poppins;
-    border: none;
-
-    * {
-        pointer-events: none;
+    // The rail and the pages no wider than 16:9 and centred, so an ultrawide gets a 16:9 menu in its
+    // middle rather than one stretched to its edges - the pause menu and loading screen's pattern.
+    // The scene behind still fills the screen
+    > menushell
+    {
+        width: 100%;
+        max-width: $screen-w-16x9;
+        margin: 0 auto;
     }
-}
-
-.page {
-    flex-direction: column;
-    width: 100%;
-    height: 100%;
-}
-
-.navigator-body {
-    // transition: transform 150ms ease, opacity 150ms ease, display 150ms ease;
-    pointer-events: auto;
-    width: 100%;
-    height: 100%;
-    flex-grow: 1;
-
-    &.hidden {
-        display: none;
-        pointer-events: none;
-    }
-}
-
-// Rail on the left, everything else in a column beside it.
-NavigationHost {
-    flex-direction: row;
-    flex-grow: 1;
-}
-
-.stage {
-    // The floating footer hangs off this, not the whole screen, so it centres on the
-    // page rather than under the rail.
-    position: relative;
-    flex-direction: column;
-    flex-grow: 1;
-    width: 0;
-    overflow: hidden;
-}
-
-.navigator-canvas {
-    flex-grow: 1;
-    z-index: 0;
 }
 
 .overlay

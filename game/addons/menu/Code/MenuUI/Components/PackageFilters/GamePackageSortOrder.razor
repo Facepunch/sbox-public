@@ -19,10 +19,16 @@
 
 @code
 {
+    /// <summary>
+    /// The selected game sort order or personal favourites filter.
+    /// </summary>
     public string Value { get; set; }
 
     List<Package.SortOrder> orders = new();
 
+    /// <summary>
+    /// Creates the available game sort and favourites options.
+    /// </summary>
     public GamePackageSortOrder()
     {
         orders.Add(new Package.SortOrder { Icon = "favorite", Name = "quality", Title = "Most Loved" });
@@ -32,6 +38,7 @@
         orders.Add(new Package.SortOrder { Icon = "new_releases", Name = "newest", Title = "Newest" });
         orders.Add(new Package.SortOrder { Icon = "schedule", Name = "updated", Title = "Updated" });
         orders.Add(new Package.SortOrder { Icon = "diamond", Name = "hiddengem", Title = "Hidden Gems" });
+        orders.Add(new Package.SortOrder { Icon = "bookmarks", Name = "favourite", Title = "Your Favourites" });
     }
 
     void SwitchTo(Package.SortOrder entry)

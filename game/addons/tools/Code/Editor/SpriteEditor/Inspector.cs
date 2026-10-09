@@ -42,27 +42,51 @@ public class Inspector : Widget
 	{
 		base.OnDestroyed();
 
+		DetachSerializedObject();
+
 		SpriteEditor.OnAssetLoaded -= UpdateControlSheet;
 		SpriteEditor.OnAnimationSelected -= UpdateControlSheet;
 		SpriteEditor.OnSpriteModified -= UpdateControlSheet;
+	}
+
+	SerializedObject _serializedObject;
+	SerializedObject.PropertyChangedDelegate _propertyChangedHandler;
+
+	// Controls can still finish async work (texture generators) and write to their old serialized object, so stop listening before replacing it.
+	void DetachSerializedObject()
+	{
+		if ( _serializedObject is not null && _propertyChangedHandler is not null )
+		{
+			_serializedObject.OnPropertyChanged -= _propertyChangedHandler;
+		}
+
+		_serializedObject = null;
+		_propertyChangedHandler = null;
 	}
 
 	private void UpdateControlSheet()
 	{
 		if ( SpriteEditor?.SelectedAnimation is null ) return;
 
+		DetachSerializedObject();
 		controlSheet?.Clear( true );
 
 		var serializedObject = SpriteEditor.SelectedAnimation.GetSerialized();
 		controlSheet.AddObject( serializedObject, ( prop ) => prop.Name != nameof( Sprite.Animation.Name ) );
 
 		var oldestSerialized = SpriteEditor.Sprite.Serialize();
-		serializedObject.OnPropertyChanged += ( prop ) =>
+		var lastStateHash = oldestSerialized.ToJsonString().FastHash();
+		_serializedObject = serializedObject;
+		_propertyChangedHandler = ( prop ) =>
 		{
 			if ( prop is null ) return;
 
-			var undoName = $"Modify {prop.Name}";
 			var serializedSprite = SpriteEditor.Sprite.Serialize();
+			var stateHash = serializedSprite.ToJsonString().FastHash();
+			if ( stateHash == lastStateHash ) return;
+			lastStateHash = stateHash;
+
+			var undoName = $"Modify {prop.Name}";
 			if ( SpriteEditor.UndoStack.Back.Count > 0 )
 			{
 				var lastUndo = SpriteEditor.UndoStack.Back.Peek();
@@ -105,5 +129,7 @@ public class Inspector : Widget
 
 			SpriteEditor?.SetModified();
 		};
+
+		serializedObject.OnPropertyChanged += _propertyChangedHandler;
 	}
 }

@@ -68,15 +68,8 @@ internal static class Avatar
 	{
 		try
 		{
-			if ( Game.Resources.Get<Texture>( filename ) is { } cached )
-			{
-				Track( filename, cached );
-				return cached;
-			}
-
 			var placeholder = Texture.Create( 1, 1 ).WithName( "avatar" ).WithData( new byte[4] { 0, 0, 0, 0 } ).Finish();
 			placeholder.IsLoaded = false;
-			placeholder.RegisterWeakResourceId( filename );
 
 			Track( filename, placeholder );
 

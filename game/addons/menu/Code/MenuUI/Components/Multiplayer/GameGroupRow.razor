@@ -1,68 +1,160 @@
 @using Sandbox;
 @using Sandbox.Network;
 
-<root class="row" onclick=@OnGroupClick>
+<root class="@(OnGroupClick is null ? "heading" : "clickable")">
 
-	@if ( Left is not null )
+	@if ( OnGroupClick is not null )
 	{
-		<div class="left">@Left</div>
+		<MultiplayerListRow Title=@(GamePackage?.Title ?? GameIdent)
+			Image=@GamePackage?.Thumb PlayerCount=@TotalPlayers ServerCount=@ServerCount OnActivate=@OnGroupClick />
 	}
-
-	<div class="game-thumb">
-		@if ( string.IsNullOrEmpty( GamePackage?.Thumb ) )
-		{
-			<i>sports_esports</i>
-		}
-		else
-		{
-			<img src="@GamePackage.Thumb" />
-		}
-	</div>
-
-	<div class="game-info">
-		<div class="game-title">@(GamePackage?.Title ?? GameIdent)</div>
-		<div class="game-summary">
-			<span class="players">@TotalPlayers players on @(ServerCount == 1 ? "1 server" : $"{ServerCount} servers")</span>
-		</div>
-	</div>
-
-	@if ( Left is null )
+	else
 	{
-		<div class="chevron"><i>chevron_right</i></div>
+		@if ( Left is not null )
+		{
+			<div class="left">@Left</div>
+		}
+
+		<div class="game-thumb @(CanOpenGame ? "game-link" : "")" onclick=@OpenGame tooltip="@(CanOpenGame ? "View game details" : "")">
+			@if ( string.IsNullOrEmpty( GamePackage?.Thumb ) )
+			{
+				<i>sports_esports</i>
+			}
+			else
+			{
+				<img src="@GamePackage.Thumb" />
+			}
+		</div>
+
+		<div class="game-info">
+			@Navigation
+			<div class="game-title-row">
+				<div class="game-title @(CanOpenGame ? "game-link" : "")" onclick=@OpenGame tooltip="@(CanOpenGame ? "View game details" : "")">@(GamePackage?.Title ?? GameIdent)</div>
+				@if ( CanOpenGame )
+				{
+					<Button class="favourite" Icon="@(IsFavourite ? "favorite" : "favorite_border")" Active=@IsFavourite disabled=@favouriteBusy onclick=@ToggleFavourite tooltip="@(IsFavourite ? "Remove from favourites" : "Add to favourites")" />
+				}
+			</div>
+			<div class="game-summary">
+				<span>@TotalPlayers.ToString( "N0" ) @(TotalPlayers == 1 ? "player" : "players")</span>
+				<span class="summary-divider">·</span>
+				<span>@(ServerCount == 1 ? "1 server" : $"{ServerCount:N0} servers")</span>
+			</div>
+			@if ( Friends.Count > 0 || FriendsOnly )
+			{
+				<button class="friends-playing @(FriendsOnly ? "active" : "")" onclick=@OnFriendsClick tooltip="@(FriendsOnly ? "Show all servers" : "Only show servers with friends")">
+					<div class="friend-avatars">
+						@foreach ( var friend in Friends.Take( 3 ) )
+						{
+							<img src="avatar:@friend.Id" tooltip="@friend.Name" />
+						}
+					</div>
+					<label>@(Friends.Count == 1 ? "1 friend playing" : $"{Friends.Count} friends playing")</label>
+					@if ( FriendsOnly )
+					{
+						<icon>close</icon>
+					}
+				</button>
+			}
+		</div>
 	}
 
 </root>
 
 @code
 {
+	/// <summary>
+	/// Package shared by the servers in this group.
+	/// </summary>
 	[Parameter] public string GameIdent { get; set; }
+
+	/// <summary>
+	/// Players in the currently listed servers for this game.
+	/// </summary>
 	[Parameter] public int TotalPlayers { get; set; }
+
+	/// <summary>
+	/// Currently listed servers for this game.
+	/// </summary>
 	[Parameter] public int ServerCount { get; set; }
+
+	/// <summary>
+	/// Opens the group, or returns from a scoped server list.
+	/// </summary>
 	[Parameter] public Action OnGroupClick { get; set; }
+
+	/// <summary>
+	/// Optional leading content, such as the back button in a scoped list.
+	/// </summary>
 	[Parameter] public RenderFragment Left { get; set; }
 
+	/// <summary>
+	/// Navigation above the game title when used as a server browser header.
+	/// </summary>
+	[Parameter] public RenderFragment Navigation { get; set; }
+
+	/// <summary>
+	/// Friends playing this game, independent of the current server filters.
+	/// </summary>
+	[Parameter] public IReadOnlyList<Friend> Friends { get; set; } = Array.Empty<Friend>();
+
+	/// <summary>
+	/// Whether the server list is restricted to servers containing friends.
+	/// </summary>
+	[Parameter] public bool FriendsOnly { get; set; }
+
+	/// <summary>
+	/// Toggles the friends filter without opening the game details.
+	/// </summary>
+	[Parameter] public Action OnFriendsClick { get; set; }
+
 	Package GamePackage;
+	string loadedIdent;
+	bool favouriteBusy;
 
-	protected override void OnAfterTreeRender( bool firstTime )
+	bool CanOpenGame => OnGroupClick is null && GamePackage is not null;
+	bool IsFavourite => GamePackage?.Interaction.Favourite == true;
+
+	void OpenGame()
 	{
-		base.OnAfterTreeRender( firstTime );
+		if ( !CanOpenGame ) return;
 
-		if ( firstTime )
-			LoadPackage();
+		Game.Overlay.ShowGameModal( GameIdent );
 	}
 
-	async void LoadPackage()
+	async Task ToggleFavourite()
 	{
-		if ( string.IsNullOrEmpty( GameIdent ) || !GameIdent.Contains( '.' ) || GameIdent.Contains( "local." ) )
-			return;
+		if ( !CanOpenGame || favouriteBusy ) return;
 
-		var pkg = await Package.FetchAsync( GameIdent, true );
-		if ( pkg?.Public ?? false )
+		favouriteBusy = true;
+		try
 		{
-			GamePackage = pkg;
-			StateHasChanged();
+			await GamePackage.SetFavouriteAsync( !IsFavourite );
+		}
+		finally
+		{
+			favouriteBusy = false;
+			if ( IsValid && !IsDeleting ) StateHasChanged();
 		}
 	}
 
-	protected override int BuildHash() => System.HashCode.Combine( GameIdent, TotalPlayers, ServerCount, Left is not null, GamePackage?.Thumb );
+	protected override async Task OnParametersSetAsync()
+	{
+		if ( loadedIdent == GameIdent ) return;
+		loadedIdent = GameIdent;
+		GamePackage = null;
+
+		if ( string.IsNullOrEmpty( GameIdent ) || !GameIdent.Contains( '.' ) || GameIdent.Contains( "local." ) )
+			return;
+
+		var ident = GameIdent;
+		var pkg = await Package.FetchAsync( ident, true );
+		if ( IsValid && !IsDeleting && ident == GameIdent && (pkg?.Public ?? false) )
+		{
+			GamePackage = pkg;
+		}
+	}
+
+	protected override int BuildHash() => System.HashCode.Combine( GameIdent, TotalPlayers, ServerCount, Left is not null, OnGroupClick is not null, GamePackage?.Thumb, GamePackage?.Title,
+		System.HashCode.Combine( Navigation is not null, IsFavourite, favouriteBusy, FriendsOnly, string.Join( ",", Friends.Select( x => x.Id ) ) ) );
 }

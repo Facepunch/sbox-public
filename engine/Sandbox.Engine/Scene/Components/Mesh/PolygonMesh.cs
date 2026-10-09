@@ -2977,6 +2977,21 @@ public sealed partial class PolygonMesh : IJsonConvert
 	{
 		pOutNewEdge = HalfEdgeHandle.Invalid;
 
+		if ( !ResolveFaceVerticesForNewEdge( hFace, hVertexA, hVertexB, out var hFaceVertexA, out var hFaceVertexB ) )
+			return false;
+
+		return Topology.AddEdgeToFace( hFaceVertexA, hFaceVertexB, out pOutNewEdge );
+	}
+
+	/// <summary>
+	/// Find the two incoming half edges of the face that a new edge between these vertices would be
+	/// spliced into.
+	/// </summary>
+	private bool ResolveFaceVerticesForNewEdge( FaceHandle hFace, VertexHandle hVertexA, VertexHandle hVertexB, out HalfEdgeHandle hFaceVertexA, out HalfEdgeHandle hFaceVertexB )
+	{
+		hFaceVertexA = HalfEdgeHandle.Invalid;
+		hFaceVertexB = HalfEdgeHandle.Invalid;
+
 		if ( !hVertexA.IsValid || !hVertexB.IsValid )
 			return false;
 
@@ -2984,8 +2999,8 @@ public sealed partial class PolygonMesh : IJsonConvert
 		if ( hVertexA == hVertexB )
 			return false;
 
-		var hFaceVertexA = Topology.FindEdgeConnectedToFaceEndingAtVertex( hFace, hVertexA );
-		var hFaceVertexB = Topology.FindEdgeConnectedToFaceEndingAtVertex( hFace, hVertexB );
+		hFaceVertexA = Topology.FindEdgeConnectedToFaceEndingAtVertex( hFace, hVertexA );
+		hFaceVertexB = Topology.FindEdgeConnectedToFaceEndingAtVertex( hFace, hVertexB );
 
 		// If either of the vertices is internal the edge must be connected in the correct winding 
 		// order, use the vertex which is not internal to determine the correct winding order.
@@ -3068,7 +3083,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 			}
 		}
 
-		return Topology.AddEdgeToFace( hFaceVertexA, hFaceVertexB, out pOutNewEdge );
+		return true;
 	}
 
 	private bool FindOpenEdgeLoop( HalfEdgeHandle hEdge, out List<HalfEdgeHandle> pOutEdgeList )
@@ -4435,9 +4450,9 @@ public sealed partial class PolygonMesh : IJsonConvert
 	}
 
 	/// <summary>
-	/// Triangulate the polygons into a model
+	/// Triangulate the polygons into a model with the selected collision type.
 	/// </summary>
-	public Model Rebuild()
+	public Model Rebuild( MeshComponent.CollisionType collision = MeshComponent.CollisionType.None )
 	{
 		var faceCount = Topology.FaceCount;
 		var halfEdgeCount = Topology.HalfEdgeCount;
@@ -4459,7 +4474,6 @@ public sealed partial class PolygonMesh : IJsonConvert
 		_meshFaces.EnsureCapacity( faceCount );
 		_faceNormalCache.EnsureCapacity( faceCount );
 
-		var builder = Model.Builder;
 		var submeshes = new Dictionary<int, Submesh>();
 
 		// Prune hidden entries for faces that no longer exist
@@ -4489,8 +4503,6 @@ public sealed partial class PolygonMesh : IJsonConvert
 				};
 
 				submeshes.Add( materialId, submesh );
-
-				builder.AddSurface( material?.Surface );
 			}
 
 			TriangulateFace( hFace, submesh );
@@ -4498,13 +4510,6 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 		_submeshes.Clear();
 		_submeshes.AddRange( submeshes.Values );
-
-		if ( _meshVertices.Count >= 3 && _meshIndices.Count >= 3 )
-		{
-			builder.AddCollisionHull( _meshVertices );
-			builder.AddCollisionMesh( _meshVertices, _meshIndices, _meshTriangleMaterials );
-			builder.AddTraceMesh( _meshVertices, _meshIndices );
-		}
 
 		foreach ( var submesh in submeshes.Values )
 		{
@@ -4531,14 +4536,38 @@ public sealed partial class PolygonMesh : IJsonConvert
 				mesh.UvDensity = uvDensity[2 * (uvDensity.Count - 1) / 10];
 			}
 
-			builder.AddMesh( mesh );
-
 			submesh.Mesh = mesh;
 		}
 
 		IsDirty = false;
 
 		_faceNormalCache.Clear();
+		return CreateModel( collision );
+	}
+
+	internal Model CreateModel( MeshComponent.CollisionType collision )
+	{
+		var builder = Model.Builder;
+		foreach ( var submesh in _submeshes )
+		{
+			builder.AddSurface( submesh.Material?.Surface );
+			builder.AddMesh( submesh.Mesh );
+		}
+
+		if ( _meshVertices.Count >= 3 && _meshIndices.Count >= 3 )
+		{
+			switch ( collision )
+			{
+				case MeshComponent.CollisionType.Hull:
+					builder.AddCollisionHull( _meshVertices );
+					break;
+				case MeshComponent.CollisionType.Mesh:
+					builder.AddCollisionMesh( _meshVertices, _meshIndices, _meshTriangleMaterials );
+					break;
+			}
+			builder.AddTraceMesh( _meshVertices, _meshIndices );
+		}
+
 		return builder.Create();
 	}
 
@@ -6493,7 +6522,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 	}
 
 	[StructLayout( LayoutKind.Sequential )]
-	struct MeshVertex( Vector3 position, Vector3 normal, Vector4 tangent, Vector2 texcoord, Color32 blend, Color32 color )
+	internal struct MeshVertex( Vector3 position, Vector3 normal, Vector4 tangent, Vector2 texcoord, Color32 blend, Color32 color )
 	{
 		[VertexLayout.Position] public Vector3 Position = position;
 		[VertexLayout.Normal] public Vector3 Normal = normal;

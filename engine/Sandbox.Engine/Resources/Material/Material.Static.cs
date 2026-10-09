@@ -1,5 +1,6 @@
 using NativeEngine;
 using System.IO;
+using System.Runtime.CompilerServices;
 
 namespace Sandbox;
 
@@ -8,6 +9,14 @@ namespace Sandbox;
 /// </summary>
 public sealed partial class Material : Resource
 {
+	/// <summary>
+	/// Initializes all built-in UI materials during startup, before rendering can create an active context.
+	/// </summary>
+	internal static void Preload()
+	{
+		RuntimeHelpers.RunClassConstructor( typeof( UI ).TypeHandle );
+	}
+
 	/// <summary>
 	/// Create a new empty material at runtime.
 	/// </summary>

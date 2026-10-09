@@ -4,10 +4,10 @@
 @using Sandbox;
 @using Sandbox.UI;
 
-@attribute [Title( "Transitions" )]
+@attribute [Group( "Effects" )]
+@attribute [Title( "transition" )]
 @attribute [Description( "Easing, timing, interruption, and what can be interpolated" )]
 @attribute [Icon( "animation" )]
-@attribute [Order( 55 )]
 
 @*
     A transition needs something to change, so the page toggles a class on everything on a timer
@@ -130,7 +130,9 @@
     const string Track = "width: 140px; height: 60px";
     const string Frame = "width: 120px; height: 100px";
 
-    /// <summary>How long each half of the cycle lasts.</summary>
+    /// <summary>
+    /// How long each half of the cycle lasts.
+    /// </summary>
     public const float ToggleSeconds = 1.6f;
 
     // The first flip comes almost immediately, so opening the page shows movement right away

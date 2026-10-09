@@ -7,8 +7,7 @@ CartPanel
 	flex-direction: column;
 	flex-shrink: 0;
 	gap: 12px;
-	padding-top: 16px;
-	border-top: 1px solid $front-hairline;
+	padding-top: 8px;
 
 	.head
 	{
@@ -111,7 +110,7 @@ CartPanel
 		align-items: flex-end;
 		justify-content: space-between;
 		padding-top: 10px;
-		border-top: 1px solid $front-hairline;
+		border-top: $front-border-width solid $front-hairline;
 	}
 
 	.total-label

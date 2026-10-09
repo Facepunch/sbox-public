@@ -16,14 +16,14 @@ public sealed class PhysicsGroupDescription : Resource
 
 	internal int CollisionAttributeCount => _native.GetCollisionAttributeCount();
 
-	internal PhysicsGroupDescription( CPhysicsData native )
+	internal PhysicsGroupDescription( CPhysicsData native, string name = null )
 	{
 		if ( native.IsNull ) throw new Exception( "CPhysicsData pointer cannot be null!" );
 
 		_native = native;
-		Name = native.GetResourceName();
+		Name = name ?? native.GetResourceName();
 
-		RegisterWeakResourceId( Name );
+		RegisterWeakResourceId( Name, native.GetGuid() );
 		Refresh();
 	}
 
@@ -66,7 +66,7 @@ public sealed class PhysicsGroupDescription : Resource
 	/// Create from a resource-system strong handle (e.g. from <see cref="NativeGlue.Resources.GetPhysics"/>).
 	/// Uses <see cref="NativeResourceCache"/> exactly like <see cref="Model.FromNative"/>.
 	/// </summary>
-	internal static PhysicsGroupDescription FromNative( CPhysicsData native )
+	internal static PhysicsGroupDescription FromNative( CPhysicsData native, string name = null )
 	{
 		if ( native.IsNull || !native.IsStrongHandleValid() )
 			return null;
@@ -78,20 +78,61 @@ public sealed class PhysicsGroupDescription : Resource
 			return existing;
 		}
 
-		var result = new PhysicsGroupDescription( native );
+		var result = new PhysicsGroupDescription( native, name );
 		NativeResourceCache.Add( instanceId, result );
 		return result;
+	}
+
+	public static PhysicsGroupDescription Create( string name, List<PhysicsBodyBuilder> bodies, List<Surface> surfaces = null )
+	{
+		ThreadSafe.AssertIsMainThread();
+		ArgumentNullException.ThrowIfNull( bodies );
+		if ( bodies.Count == 0 )
+			throw new ArgumentException( "Physics resources require at least one body.", nameof( bodies ) );
+
+		name = Resource.FixPath( name );
+		if ( string.IsNullOrWhiteSpace( name ) )
+			throw new ArgumentException( "Physics resources require a name.", nameof( name ) );
+
+		var descs = CPhysBodyDescArray.Create( bodies, surfaces: CPhysBodyDescArray.SurfaceIndices( surfaces ) );
+		try
+		{
+			var physics = MeshGlue.BuildAggregateData( descs );
+			if ( physics.IsNull || !physics.IsStrongHandleValid() )
+				throw new InvalidOperationException( $"Could not create physics resource '{name}'." );
+
+			return FromNative( physics, name );
+		}
+		finally
+		{
+			descs.DeleteThis();
+		}
 	}
 
 	/// <summary>
 	/// Load a <see cref="PhysicsGroupDescription"/> from a vphys resource path.
 	/// </summary>
-	public static PhysicsGroupDescription Load( string path )
+	public static PhysicsGroupDescription Load( string path ) => Load( (ResourceId)path );
+
+	internal static PhysicsGroupDescription Load( ResourceId id )
 	{
-		if ( string.IsNullOrWhiteSpace( path ) )
+		if ( id.Guid is Guid guid && guid != Guid.Empty )
+		{
+			if ( Game.Resources.TryGet<PhysicsGroupDescription>( guid, out var resource ) )
+				return resource;
+		}
+		else if ( string.IsNullOrWhiteSpace( id.Path ) )
 			return null;
 
-		return FromNative( NativeGlue.Resources.GetPhysics( path ) );
+		var path = id.Path;
+
+		// The resource system wants the source name, not the compiled one.
+		if ( path?.EndsWith( ".vphys_c", StringComparison.OrdinalIgnoreCase ) == true ) path = path[..^2];
+
+		if ( Game.Resources.TryGet<PhysicsGroupDescription>( path, out var cached ) )
+			return cached;
+
+		return FromNative( NativeGlue.Resources.GetPhysics( path, id.Guid ?? Guid.Empty ) );
 	}
 
 	internal void Dispose()
@@ -504,6 +545,27 @@ public sealed class PhysicsGroupDescription : Resource
 					result[i * 3 + 0] = a;
 					result[i * 3 + 1] = b;
 					result[i * 3 + 2] = c;
+				}
+
+				return result;
+			}
+
+			/// <summary>
+			/// The surface of every triangle, in the same order as <see cref="GetIndices"/>. Null
+			/// when the whole mesh shares <see cref="Part.Surface"/>.
+			/// </summary>
+			public Surface[] GetTriangleSurfaces()
+			{
+				if ( Surfaces is null )
+					return null;
+
+				var count = mesh.GetTriangleCount();
+				var result = new Surface[count];
+
+				for ( int i = 0; i < count; i++ )
+				{
+					var index = mesh.GetTriangleMaterial( i );
+					result[i] = index >= 0 && index < Surfaces.Length ? Surfaces[index] : Surface;
 				}
 
 				return result;

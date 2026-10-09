@@ -55,8 +55,9 @@ public class InlineParagraphTests
 		var tail = Text( p, "after" );
 		root.Layout();
 		p.SelectAllInChildren();
-		var oldLayout = p.InlineParagraph.Layout( 180 );
-		var removedNode = deleted.LayoutTree.Node;
+		var oldLayout = p.LayoutTree.InlineContext.Layout( 180 );
+		var removedLayout = deleted.LayoutTree;
+		var removedNode = removedLayout.Node;
 		var target = nested ? span : deleted;
 		if ( deferred ) target.Delete();
 		root.PreLayout();
@@ -66,10 +67,10 @@ public class InlineParagraphTests
 		Assert.IsNull( deleted.LayoutTree );
 		root.CalculateLayout();
 		root.PostLayout();
-		Assert.AreEqual( "before after", p.InlineParagraph.Text.Text );
-		Assert.IsNull( deleted.InlineOwner );
-		Assert.IsFalse( p.InlineParagraph.Text.ShouldDrawSelection );
-		var layout = p.InlineParagraph.Layout( 180 );
+		Assert.AreEqual( "before after", p.LayoutTree.InlineContext.Text.Text );
+		Assert.IsNull( removedLayout.InlineContext );
+		Assert.IsFalse( p.LayoutTree.InlineContext.Text.ShouldDrawSelection );
+		var layout = p.LayoutTree.InlineContext.Layout( 180 );
 		Assert.AreNotSame( oldLayout, layout );
 		Assert.IsFalse( layout.Fragments.Any( f => f.Owner == removedNode ) );
 		Assert.IsTrue( tail.LayoutTree.Node.InlineFragments.Count > 0 );
@@ -89,11 +90,14 @@ public class InlineParagraphTests
 		GlobalContext.Current.UISystem.RunDeferredDeletion( true );
 		root.CalculateLayout();
 		root.PostLayout();
-		Assert.AreEqual( "", p.InlineParagraph.Text.Text );
-		Assert.AreEqual( 0, p.InlineParagraph.Layout( 180 ).Fragments.Count );
-		p.InlineParagraph.Draw();
+		Assert.AreEqual( "", p.LayoutTree.InlineContext.Text.Text );
+		Assert.AreEqual( 0, p.LayoutTree.InlineContext.Layout( 180 ).Fragments.Count );
+		using ( var painter = Painter.Begin( new Sandbox.Rendering.CommandList(), root.PanelBounds ) )
+		{
+			p.LayoutTree.InlineContext.Draw( painter );
+		}
 		root.Layout();
-		Assert.IsNull( p.InlineParagraph );
+		Assert.IsNull( p.LayoutTree.InlineContext );
 		Assert.IsNull( p.LayoutTree.Node.InlineContent );
 	}
 
@@ -138,15 +142,15 @@ public class InlineParagraphTests
 		GlobalContext.Current.UISystem.RunDeferredDeletion( true );
 		Assert.IsNotNull( replacement );
 		Assert.IsNull( replacement._textBlock );
-		if ( measureFirst ) p.InlineParagraph.Measure( float.NaN, false );
+		if ( measureFirst ) p.LayoutTree.InlineContext.Measure( float.NaN, false );
 		root.CalculateLayout();
-		Assert.AreEqual( "before", p.InlineParagraph.Text.Text );
-		Assert.IsNull( replacement.InlineOwner );
-		Assert.IsFalse( p.InlineParagraph.Layout( 180 ).Fragments.Any( f => f.Owner == replacement.LayoutTree.Node ) );
+		Assert.AreEqual( "before", p.LayoutTree.InlineContext.Text.Text );
+		Assert.IsNull( replacement.LayoutTree.InlineContext );
+		Assert.IsFalse( p.LayoutTree.InlineContext.Layout( 180 ).Fragments.Any( f => f.Owner == replacement.LayoutTree.Node ) );
 		root.PostLayout();
 		root.Layout();
-		Assert.AreEqual( "before replacement", p.InlineParagraph.Text.Text );
-		Assert.AreSame( p.InlineParagraph, replacement.InlineOwner );
+		Assert.AreEqual( "before replacement", p.LayoutTree.InlineContext.Text.Text );
+		Assert.AreSame( p.LayoutTree.InlineContext, replacement.LayoutTree.InlineContext );
 		Assert.IsTrue( replacement.LayoutTree.Node.InlineFragments.Count > 0 );
 	}
 
@@ -163,15 +167,95 @@ public class InlineParagraphTests
 		root.PreLayout();
 		moved.Parent = destination;
 		root.CalculateLayout();
-		Assert.AreEqual( "stay", source.InlineParagraph.Text.Text );
-		Assert.IsFalse( source.InlineParagraph.Layout( 180 ).Fragments.Any( f => f.Owner == moved.LayoutTree.Node ) );
+		Assert.AreEqual( "stay", source.LayoutTree.InlineContext.Text.Text );
+		Assert.IsFalse( source.LayoutTree.InlineContext.Layout( 180 ).Fragments.Any( f => f.Owner == moved.LayoutTree.Node ) );
 		root.Layout();
-		Assert.AreEqual( "new move", destination.InlineParagraph.Text.Text );
-		Assert.AreSame( destination.InlineParagraph, moved.InlineOwner );
+		Assert.AreEqual( "new move", destination.LayoutTree.InlineContext.Text.Text );
+		Assert.AreSame( destination.LayoutTree.InlineContext, moved.LayoutTree.InlineContext );
 	}
 
 	[TestMethod]
-	public void UnchangedFormattingMeasurementAndPaintDoNotAllocate()
+	public void InlineParticipantCanBecomeAHostAndRejoinItsAncestor()
+	{
+		var root = Root();
+		var p = Paragraph( root );
+		Text( p, "before " );
+		var span = p.AddChild<Panel>();
+		span.Style.Display = DisplayMode.Inline;
+		var text = Text( span, "nested" );
+		root.Layout();
+		Assert.AreSame( p.LayoutTree, span.LayoutTree.InlineContext.Root );
+		Assert.IsTrue( span.LayoutTree.IsInlineParticipant );
+
+		span.Style.Display = DisplayMode.Block;
+		root.Layout();
+		Assert.IsNull( p.LayoutTree.InlineContext );
+		Assert.AreSame( span.LayoutTree, span.LayoutTree.InlineContext.Root );
+		Assert.IsTrue( span.LayoutTree.HasInlineContent );
+		Assert.IsFalse( span.LayoutTree.IsInlineParticipant );
+		Assert.AreSame( span.LayoutTree.InlineContext, span.LayoutTree.Node.InlineContent );
+		Assert.AreSame( span.LayoutTree.InlineContext, text.LayoutTree.InlineContext );
+		span.SelectAllInChildren();
+		Assert.AreEqual( "nested", text.GetClipboardValue( false ) );
+
+		span.Style.Display = DisplayMode.Inline;
+		root.Layout();
+		Assert.AreSame( p.LayoutTree, span.LayoutTree.InlineContext.Root );
+		Assert.IsFalse( span.LayoutTree.HasInlineContent );
+		Assert.IsTrue( span.LayoutTree.IsInlineParticipant );
+		Assert.IsNull( span.LayoutTree.Node.InlineContent );
+		Assert.AreSame( p.LayoutTree.InlineContext, text.LayoutTree.InlineContext );
+		p.SelectAllInChildren();
+		Assert.AreEqual( "before nested", text.GetClipboardValue( false ) );
+	}
+
+	[TestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void ReleasingOldHostPreservesReparentedParticipants( bool destinationFirst )
+	{
+		var root = Root();
+		var first = Paragraph( root );
+		var second = Paragraph( root );
+		var source = destinationFirst ? second : first;
+		var destination = destinationFirst ? first : second;
+		Text( destination, "new " );
+		var span = source.AddChild<Panel>();
+		span.Style.Display = DisplayMode.Inline;
+		var text = Text( span, "move" );
+		root.Layout();
+		var destinationContext = destination.LayoutTree.InlineContext;
+
+		span.Parent = destination;
+		root.Layout();
+		Assert.IsNull( source.LayoutTree.InlineContext );
+		Assert.IsNull( source.LayoutTree.Node.InlineContent );
+		Assert.AreSame( destinationContext, span.LayoutTree.InlineContext );
+		Assert.AreSame( destinationContext, text.LayoutTree.InlineContext );
+		Assert.IsTrue( text.LayoutTree.Node.InlineFragments.Count > 0 );
+		destination.SelectAllInChildren();
+		Assert.AreEqual( "new move", text.GetClipboardValue( false ) );
+	}
+
+	[TestMethod]
+	public void DeletingHostReleasesItsContextAndParticipants()
+	{
+		var root = Root();
+		var p = Paragraph( root );
+		var text = Text( p, "delete" );
+		root.Layout();
+		var hostLayout = p.LayoutTree;
+		var textLayout = text.LayoutTree;
+		var hostNode = hostLayout.Node;
+
+		p.Delete( true );
+		Assert.IsNull( hostLayout.InlineContext );
+		Assert.IsNull( textLayout.InlineContext );
+		Assert.IsNull( hostNode.InlineContent );
+	}
+
+	[TestMethod]
+	public void UnchangedFormattingMeasurementAndPaintReuseLayout()
 	{
 		var root = Root();
 		var p = Paragraph( root );
@@ -181,30 +265,15 @@ public class InlineParagraphTests
 		Text( span, "several words wrapping across multiple lines" );
 		root.Layout();
 		root.Layout();
-		var paragraph = p.InlineParagraph;
+		var paragraph = p.LayoutTree.InlineContext;
+		using var painter = Painter.Begin( new Sandbox.Rendering.CommandList(), root.PanelBounds );
 		var layout = paragraph.Layout( 180 );
-		for ( int i = 0; i < 100; i++ )
-		{
-			InlineParagraph.CanFormat( p );
-			paragraph.Update();
-			paragraph.Measure( 180, false );
-			paragraph.FinalizeLayout();
-			paragraph.Draw();
-		}
-		p.IsRenderDirty = false;
-		var before = System.GC.GetAllocatedBytesForCurrentThread();
-		for ( int i = 0; i < 100; i++ )
-		{
-			InlineParagraph.CanFormat( p );
-			paragraph.Update();
-			paragraph.Measure( 180, false );
-			paragraph.FinalizeLayout();
-			paragraph.Draw();
-		}
-		var allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
-		Assert.AreEqual( 0L, allocated, "Unchanged paragraph passes should reuse collections and shaping" );
+		InlineFormattingContext.CanFormat( p );
+		paragraph.Update();
+		paragraph.Measure( 180, false );
+		paragraph.FinalizeLayout();
+		paragraph.Draw( painter );
 		Assert.AreSame( layout, paragraph.Layout( 180 ) );
-		Assert.IsFalse( p.IsRenderDirty );
 	}
 
 	[TestMethod]
@@ -220,7 +289,8 @@ public class InlineParagraphTests
 		var text = Text( p, "several words wrapping across many lines to fill the scrolling paragraph with text" );
 		root.Layout();
 		root.Layout();
-		var paragraph = p.InlineParagraph;
+		var paragraph = p.LayoutTree.InlineContext;
+		using var painter = Painter.Begin( new Sandbox.Rendering.CommandList(), root.PanelBounds );
 		var layout = paragraph.Layout( 180 );
 		var fragments = text.LayoutTree.Node.InlineFragments;
 		var origin = paragraph.Origin;
@@ -229,18 +299,14 @@ public class InlineParagraphTests
 		var scroller = scrollParagraph ? p : host;
 		scroller.ScrollOffset = new Vector2( 0, 20 );
 		scroller.SetNeedsFinalLayout();
-		p.IsRenderDirty = false;
 		root.PostLayout();
 		Assert.AreEqual( origin - new Vector2( 0, 20 ), paragraph.Origin );
-		Assert.IsTrue( p.IsRenderDirty, "Moved text descriptors must be rebuilt" );
 		Assert.AreSame( layout, paragraph.Layout( 180 ) );
 		Assert.AreSame( fragments, text.LayoutTree.Node.InlineFragments );
-		paragraph.Draw();
+		paragraph.Draw( painter );
 		Assert.AreEqual( selection, paragraph.SelectedText );
-		p.IsRenderDirty = false;
 		paragraph.FinalizeLayout();
-		paragraph.Draw();
-		Assert.IsFalse( p.IsRenderDirty, "An unchanged final pass must not dirty painting" );
+		paragraph.Draw( painter );
 	}
 
 	[TestMethod]
@@ -251,20 +317,18 @@ public class InlineParagraphTests
 		var text = Text( p, "several words wrapping across multiple lines" );
 		root.Layout();
 		root.Layout();
-		var paragraph = p.InlineParagraph;
+		var paragraph = p.LayoutTree.InlineContext;
+		using var painter = Painter.Begin( new Sandbox.Rendering.CommandList(), root.PanelBounds );
 		var layout = paragraph.Layout( 180 );
 		paragraph.Measure( float.NaN, false );
 		paragraph.Measure( 0, true );
-		paragraph.Draw();
+		paragraph.Draw( painter );
 		Assert.AreSame( layout, paragraph.Layout( 180 ), "Intrinsic measurement must not replace final fragments" );
 		Assert.AreEqual( layout.Size.Height, paragraph.Text.MeasuredSize.y );
 		paragraph.SetSelection( 0, 7 );
-		p.IsRenderDirty = false;
 		paragraph.SetSelection( 0, 7 );
-		Assert.IsFalse( p.IsRenderDirty, "Repeated selection must not invalidate the text texture" );
 		Assert.AreSame( layout, paragraph.Layout( 180 ) );
 		paragraph.SetSelection( 0, 8 );
-		Assert.IsTrue( p.IsRenderDirty );
 		Assert.AreSame( layout, paragraph.Layout( 180 ) );
 		text.Text += " more words";
 		root.Layout();
@@ -293,7 +357,8 @@ public class InlineParagraphTests
 		Text( p, "selected paragraph" );
 		root.Layout();
 		root.Layout();
-		var paragraph = p.InlineParagraph;
+		var paragraph = p.LayoutTree.InlineContext;
+		using var painter = Painter.Begin( new Sandbox.Rendering.CommandList(), root.PanelBounds );
 		var layout = paragraph.Layout( 180 );
 		p.SelectAllInChildren();
 		p.Style.Opacity = 0.5f;
@@ -301,7 +366,6 @@ public class InlineParagraphTests
 		root.Layout();
 		Assert.AreSame( layout, paragraph.Layout( 180 ) );
 		Assert.AreEqual( "selected paragraph", paragraph.SelectedText );
-		Assert.IsTrue( p.IsRenderDirty );
 	}
 
 	[TestMethod]
@@ -312,20 +376,17 @@ public class InlineParagraphTests
 		Text( p, "selected paragraph" );
 		root.Layout();
 		root.Layout();
-		var paragraph = p.InlineParagraph;
+		var paragraph = p.LayoutTree.InlineContext;
+		using var painter = Painter.Begin( new Sandbox.Rendering.CommandList(), root.PanelBounds );
 		var layout = paragraph.Layout( 180 );
 		p.SelectAllInChildren();
-		p.IsRenderDirty = false;
 		root.Style.MixBlendMode = "multiply";
 		root.Layout();
 		Assert.AreEqual( "multiply", p.ComputedStyle.MixBlendMode );
-		Assert.IsTrue( p.IsRenderDirty, "Inherited blend changes must invalidate the paragraph's cached descriptors" );
 		Assert.AreSame( layout, paragraph.Layout( 180 ) );
 		Assert.AreEqual( "selected paragraph", paragraph.SelectedText );
-		p.IsRenderDirty = false;
 		paragraph.Update();
 		paragraph.FinalizeLayout();
-		Assert.IsFalse( p.IsRenderDirty, "Unchanged blend state must not dirty painting" );
 	}
 
 	[TestMethod]
@@ -340,13 +401,13 @@ public class InlineParagraphTests
 		nested.Style.Set( "display: inline; font-weight: 700;" );
 		var text = Text( nested, "a long interactive link that wraps across several lines" );
 		root.Layout();
-		Assert.IsNotNull( p.InlineParagraph );
-		Assert.AreSame( p.InlineParagraph, text.InlineOwner );
+		Assert.IsNotNull( p.LayoutTree.InlineContext );
+		Assert.AreSame( p.LayoutTree.InlineContext, text.LayoutTree.InlineContext );
 		var fragments = link.LayoutTree.Node.InlineFragments;
 		Assert.IsTrue( fragments.Select( f => f.Y ).Distinct().Count() > 1 );
 		Assert.IsTrue( fragments[0].X > 0, "The link shares the prefix's line" );
-		Assert.IsTrue( link.IsInside( p.InlineParagraph.Origin + new Vector2( fragments[0].X + 1, fragments[0].Y + 1 ) ) );
-		Assert.IsFalse( link.IsInside( p.InlineParagraph.Origin + new Vector2( 1, fragments[0].Y + 1 ) ), "Union-box gap must not hit the link" );
+		Assert.IsTrue( link.IsInside( p.LayoutTree.InlineContext.Origin + new Vector2( fragments[0].X + 1, fragments[0].Y + 1 ) ) );
+		Assert.IsFalse( link.IsInside( p.LayoutTree.InlineContext.Origin + new Vector2( 1, fragments[0].Y + 1 ) ), "Union-box gap must not hit the link" );
 		Assert.AreEqual( fragments.Count, nested.LayoutTree.Node.InlineFragments.Count );
 		Assert.IsTrue( prefix.LayoutTree.IsMeasureDefined );
 		var clicks = 0;
@@ -360,7 +421,7 @@ public class InlineParagraphTests
 		Assert.IsTrue( p.Box.Rect.Height < oldHeight );
 		text.Text = "short";
 		root.Layout();
-		Assert.AreEqual( "Before short", p.InlineParagraph.Text.Text );
+		Assert.AreEqual( "Before short", p.LayoutTree.InlineContext.Text.Text );
 		var oldWidth = text.Box.Rect.Width;
 		nested.Style.FontSize = 40;
 		root.Layout();
@@ -378,7 +439,7 @@ public class InlineParagraphTests
 		Text( span, "\n  world" );
 		Text( p, "\u00a0!  " );
 		root.Layout();
-		Assert.AreEqual( "hello world\u00a0!", p.InlineParagraph.Text.Text );
+		Assert.AreEqual( "hello world\u00a0!", p.LayoutTree.InlineContext.Text.Text );
 		p.SelectAllInChildren();
 		Assert.AreEqual( "hello world\u00a0!", p.GetClipboardValue( false ) );
 		p.UnselectAllInChildren();
@@ -392,11 +453,11 @@ public class InlineParagraphTests
 		var p = Paragraph( root );
 		var label = Text( p, "hello world" );
 		root.Layout();
-		Assert.IsNotNull( label.InlineOwner );
+		Assert.IsNotNull( label.LayoutTree.InlineContext );
 		p.Style.Display = DisplayMode.Flex;
 		root.Layout();
-		Assert.IsNull( p.InlineParagraph );
-		Assert.IsNull( label.InlineOwner );
+		Assert.IsNull( p.LayoutTree.InlineContext );
+		Assert.IsNull( label.LayoutTree.InlineContext );
 		Assert.IsTrue( label.LayoutTree.IsMeasureDefined );
 		Assert.IsTrue( label.Box.Rect.Width > 0 );
 	}
@@ -418,7 +479,7 @@ public class InlineParagraphTests
 		builder.CloseElement();
 		builder.Finish();
 		root.Layout();
-		Assert.AreEqual( "one two", p.InlineParagraph.Text.Text );
+		Assert.AreEqual( "one two", p.LayoutTree.InlineContext.Text.Text );
 		var label = p.Children.First().Children.OfType<Label>().Single();
 		Assert.IsTrue( label.IsGeneratedText );
 		Assert.AreEqual( DisplayMode.Flex, label.ComputedStyle.Display );
@@ -432,13 +493,12 @@ public class InlineParagraphTests
 		Text( p, "inter" );
 		var last = Text( p, "active" );
 		root.Layout();
-		Assert.AreEqual( "interactive", p.InlineParagraph.Text.Text );
+		Assert.AreEqual( "interactive", p.LayoutTree.InlineContext.Text.Text );
 		var oldHash = last._textBlock.InlineStyleHash;
 		last.Style.FontColor = Color.Red;
 		root.Layout();
 		Assert.AreNotEqual( oldHash, last._textBlock.InlineStyleHash );
-		Assert.IsTrue( p.IsRenderDirty );
-		Assert.AreEqual( "interactive", p.InlineParagraph.Text.Text );
+		Assert.AreEqual( "interactive", p.LayoutTree.InlineContext.Text.Text );
 	}
 
 	[TestMethod]
@@ -451,7 +511,7 @@ public class InlineParagraphTests
 		var whole = Paragraph( root, 250 );
 		Text( whole, "AV office" );
 		root.Layout();
-		Assert.AreEqual( whole.InlineParagraph.Text.MeasuredSize.x, split.InlineParagraph.Text.MeasuredSize.x, 0.001f );
+		Assert.AreEqual( whole.LayoutTree.InlineContext.Text.MeasuredSize.x, split.LayoutTree.InlineContext.Text.MeasuredSize.x, 0.001f );
 	}
 
 	[TestMethod]
@@ -466,16 +526,16 @@ public class InlineParagraphTests
 		root.Layout();
 		other.Style.Display = DisplayMode.None;
 		root.Layout();
-		Assert.AreEqual( "first", p.InlineParagraph.Text.Text );
-		Assert.IsNull( other.InlineOwner );
+		Assert.AreEqual( "first", p.LayoutTree.InlineContext.Text.Text );
+		Assert.IsNull( other.LayoutTree.InlineContext );
 		Assert.AreEqual( 0, other.LayoutTree.Node.InlineFragments.Count );
 		text.Parent = destination;
 		root.Layout();
-		Assert.AreSame( destination.InlineParagraph, text.InlineOwner );
-		Assert.AreEqual( "new first", destination.InlineParagraph.Text.Text );
+		Assert.AreSame( destination.LayoutTree.InlineContext, text.LayoutTree.InlineContext );
+		Assert.AreEqual( "new first", destination.LayoutTree.InlineContext.Text.Text );
 		text.Text = "";
 		root.Layout();
-		Assert.AreEqual( "new", destination.InlineParagraph.Text.Text );
+		Assert.AreEqual( "new", destination.LayoutTree.InlineContext.Text.Text );
 	}
 
 	[TestMethod]
@@ -486,7 +546,7 @@ public class InlineParagraphTests
 		Text( p, "hello " );
 		var last = Text( p, "world" );
 		root.Layout();
-		var origin = p.InlineParagraph.Origin;
+		var origin = p.LayoutTree.InlineContext.Origin;
 		last.DispatchEventImmediate( new SelectionEvent( "ondragselect", last )
 		{
 			StartPoint = origin,
@@ -502,7 +562,7 @@ public class InlineParagraphTests
 		var p = Paragraph( root );
 		var text = Text( p, " \t\n" );
 		root.Layout();
-		Assert.AreEqual( "", p.InlineParagraph.Text.Text );
+		Assert.AreEqual( "", p.LayoutTree.InlineContext.Text.Text );
 		Assert.AreEqual( 0, text.LayoutTree.Node.InlineFragments.Count );
 		text.Text = "hello";
 		root.Layout();
@@ -541,16 +601,16 @@ public class InlineParagraphTests
 			Assert.IsTrue( carets.Count - 1 < value.Length, "Regression requires a shaped ligature" );
 		for ( int i = 0; i < carets.Count - 1; i++ )
 		{
-			p.InlineParagraph.SetSelection( i + 1, i );
+			p.LayoutTree.InlineContext.SetSelection( i + 1, i );
 			var from = shaped.CodePointToCharacterIndex( carets[i] );
 			var to = shaped.CodePointToCharacterIndex( carets[i + 1] );
 			Assert.AreEqual( value[from..to], p.GetClipboardValue( false ) );
 		}
-		p.InlineParagraph.Select( p.InlineParagraph.Origin, p.InlineParagraph.Origin + new Vector2( 390, 40 ) );
+		p.LayoutTree.InlineContext.Select( p.LayoutTree.InlineContext.Origin, p.LayoutTree.InlineContext.Origin + new Vector2( 390, 40 ) );
 		if ( font == "Calibri" ) Assert.AreEqual( value, p.GetClipboardValue( false ) );
 		p.SelectAllInChildren();
 		Assert.AreEqual( value, p.GetClipboardValue( false ) );
-		Assert.AreEqual( carets.Count - 1, p.InlineParagraph.Text.SelectionEnd );
+		Assert.AreEqual( carets.Count - 1, p.LayoutTree.InlineContext.Text.SelectionEnd );
 	}
 
 	[TestMethod]
@@ -564,14 +624,14 @@ public class InlineParagraphTests
 		builder.Finish();
 		root.Layout();
 		Assert.IsTrue( p.Children.OfType<Label>().Single().IsGeneratedText );
-		Assert.IsNull( p.InlineParagraph );
+		Assert.IsNull( p.LayoutTree.InlineContext );
 		var span = Text( p, " inline" );
 		root.Layout();
-		Assert.AreEqual( "legacy text inline", p.InlineParagraph.Text.Text );
+		Assert.AreEqual( "legacy text inline", p.LayoutTree.InlineContext.Text.Text );
 		span.Style.Display = DisplayMode.None;
 		root.Layout();
-		Assert.IsNull( p.InlineParagraph );
-		Assert.IsTrue( p.Children.All( c => c.InlineOwner is null && c.LayoutTree.Node.InlineFragments.Count == 0 ) );
+		Assert.IsNull( p.LayoutTree.InlineContext );
+		Assert.IsTrue( p.Children.All( c => c.LayoutTree.InlineContext is null && c.LayoutTree.Node.InlineFragments.Count == 0 ) );
 	}
 
 	[TestMethod]
@@ -589,11 +649,11 @@ public class InlineParagraphTests
 		var p = Paragraph( root );
 		var text = Text( p, "hello world" );
 		root.Layout();
-		Assert.IsNotNull( p.InlineParagraph );
+		Assert.IsNotNull( p.LayoutTree.InlineContext );
 		text.Style.Set( style );
 		root.Layout();
-		Assert.IsNull( p.InlineParagraph, style );
-		Assert.IsNull( text.InlineOwner );
+		Assert.IsNull( p.LayoutTree.InlineContext, style );
+		Assert.IsNull( text.LayoutTree.InlineContext );
 		Assert.AreEqual( 0, text.LayoutTree.Node.InlineFragments.Count );
 	}
 
@@ -606,12 +666,12 @@ public class InlineParagraphTests
 		root.Layout();
 		p.Style.Display = DisplayMode.None;
 		root.Layout();
-		Assert.IsNull( p.InlineParagraph );
-		Assert.IsNull( text.InlineOwner );
+		Assert.IsNull( p.LayoutTree.InlineContext );
+		Assert.IsNull( text.LayoutTree.InlineContext );
 		Assert.AreEqual( 0, text.LayoutTree.Node.InlineFragments.Count );
 		p.Style.Display = DisplayMode.Block;
 		root.Layout();
-		Assert.AreSame( p.InlineParagraph, text.InlineOwner );
+		Assert.AreSame( p.LayoutTree.InlineContext, text.LayoutTree.InlineContext );
 		Assert.IsTrue( text.LayoutTree.Node.InlineFragments.Count > 0 );
 	}
 
@@ -626,16 +686,19 @@ public class InlineParagraphTests
 		p.SelectAllInChildren();
 		p.Style.FontSize = 40;
 		root.Layout();
-		Assert.IsFalse( p.InlineParagraph.Text.ShouldDrawSelection, "Parent style changes rebuild the paragraph too" );
-		var height = p.InlineParagraph.Text.MeasuredSize.y;
-		p.InlineParagraph.Measure( float.NaN, false );
-		Assert.IsTrue( p.InlineParagraph.Text.MeasuredSize.y < height );
-		p.InlineParagraph.Draw();
-		Assert.AreEqual( height, p.InlineParagraph.Text.MeasuredSize.y );
+		Assert.IsFalse( p.LayoutTree.InlineContext.Text.ShouldDrawSelection, "Parent style changes rebuild the paragraph too" );
+		var height = p.LayoutTree.InlineContext.Text.MeasuredSize.y;
+		p.LayoutTree.InlineContext.Measure( float.NaN, false );
+		Assert.IsTrue( p.LayoutTree.InlineContext.Text.MeasuredSize.y < height );
+		using ( var painter = Painter.Begin( new Sandbox.Rendering.CommandList(), root.PanelBounds ) )
+		{
+			p.LayoutTree.InlineContext.Draw( painter );
+		}
+		Assert.AreEqual( height, p.LayoutTree.InlineContext.Text.MeasuredSize.y );
 		p.SelectAllInChildren();
 		text.Style.FontFamily = "Courier New";
 		root.Layout();
-		Assert.IsFalse( p.InlineParagraph.Text.ShouldDrawSelection, "Font changes invalidate shaped caret ordinals" );
+		Assert.IsFalse( p.LayoutTree.InlineContext.Text.ShouldDrawSelection, "Font changes invalidate shaped caret ordinals" );
 	}
 
 	[TestMethod]
@@ -646,7 +709,7 @@ public class InlineParagraphTests
 		var text = Text( p, "decorated" );
 		text.Style.Set( "text-decoration: underline; text-decoration-style: wavy; text-decoration-thickness: 3px; text-underline-offset: 4px;" );
 		root.Layout();
-		Assert.IsNotNull( p.InlineParagraph );
+		Assert.IsNotNull( p.LayoutTree.InlineContext );
 		var style = text._textBlock.InlineStyle;
 		Assert.AreEqual( Topten.RichTextKit.UnderlineType.Wavy, style.UnderlineStrokeType );
 		Assert.AreEqual( 3f, style.StrokeThickness );
@@ -660,10 +723,10 @@ public class InlineParagraphTests
 		var p = Paragraph( root, 400 );
 		Text( p, "hello" );
 		root.Layout();
-		var before = p.InlineParagraph.Layout( 400 );
+		var before = p.LayoutTree.InlineContext.Layout( 400 );
 		p.Style.FontSize = 40;
 		root.Layout();
-		var after = p.InlineParagraph.Layout( 400 );
+		var after = p.LayoutTree.InlineContext.Layout( 400 );
 		Assert.IsTrue( after.Baseline > before.Baseline );
 		Assert.IsTrue( after.Size.Height > before.Size.Height );
 	}
@@ -682,8 +745,8 @@ public class InlineParagraphTests
 			child.Parent = p;
 			child.Style.Display = DisplayMode.Inline;
 			root.Layout();
-			Assert.IsNull( p.InlineParagraph, child.GetType().Name );
-			Assert.IsNull( text.InlineOwner );
+			Assert.IsNull( p.LayoutTree.InlineContext, child.GetType().Name );
+			Assert.IsNull( text.LayoutTree.InlineContext );
 		}
 	}
 
@@ -698,9 +761,9 @@ public class InlineParagraphTests
 		var entry = root.AddChild<TextEntry>();
 		entry.Text = "editable";
 		root.Layout();
-		Assert.IsNull( p.InlineParagraph );
+		Assert.IsNull( p.LayoutTree.InlineContext );
 		var entryLabel = entry.Children.OfType<Label>().First();
-		Assert.IsNull( entryLabel.InlineOwner );
+		Assert.IsNull( entryLabel.LayoutTree.InlineContext );
 		Assert.IsTrue( entryLabel.LayoutTree.IsMeasureDefined );
 	}
 }

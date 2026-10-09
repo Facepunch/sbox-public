@@ -21,7 +21,6 @@ public class ControlSheetRow : Panel
 		{
 			flex-direction: row;
 			flex-shrink: 0;
-			max-height: 32px;
 			border-radius: 4px;
 
 			&.hidden
@@ -41,6 +40,9 @@ public class ControlSheetRow : Panel
 		ControlSheetRow > .right
 		{
 			flex-grow: 1;
+			flex-shrink: 1;
+			flex-basis: 0px;
+			min-width: 0px;
 		}
 
 		ControlSheetRow > .left > .title
@@ -56,10 +58,7 @@ public class ControlSheetRow : Panel
 		ControlSheetRow > .right > textentry,
 		ControlSheetRow > .right numberentry
 		{
-			background-color: #000a;
 			flex-grow: 1;
-			padding: 4px 8px;
-			border-radius: 2px;
 		}
 		""";
 

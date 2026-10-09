@@ -152,6 +152,7 @@ struct Decals
 
 			const float decalAttenuation = DecalAttenuation( material.Normal, -decalProjectionAxisWorld, fAtt );
 
+			// Clustered decal selection can differ between pixels, including the sampler index.
 			int samplerIndex = 0;
 
 			if ( color > 0 )
@@ -182,7 +183,7 @@ struct Decals
 					samplerIndex = DecalsExtraDataBuffer.Load( decal.ExtraDataOffset + 36 );
 					uint emissionIdx = DecalsExtraDataBuffer.Load( decal.ExtraDataOffset + 40 );
 
-					SamplerState textureSampler = Bindless::GetSampler( samplerIndex );
+					SamplerState textureSampler = Bindless::GetSamplerNonUniform( samplerIndex );
 
 					if ( heightIdx > 0 )
 					{
@@ -263,7 +264,7 @@ struct Decals
 				// blend everything else in from the color transparency
 				if ( normal > 0 )
 				{
-					SamplerState textureSampler = Bindless::GetSampler( samplerIndex );
+					SamplerState textureSampler = Bindless::GetSamplerNonUniform( samplerIndex );
 					float3 normalts = DecodeNormal( Bindless::GetTexture2D( normal ).SampleGrad( textureSampler, decalUV.xy, gradUV.xy, gradUV.zw ).xyz );
 
 					float3x3 rot = QuaternionToMatrix(decal.Quat);
@@ -274,7 +275,7 @@ struct Decals
 
 				if ( rma > 0 )
 				{
-					SamplerState textureSampler = Bindless::GetSampler( samplerIndex );
+					SamplerState textureSampler = Bindless::GetSamplerNonUniform( samplerIndex );
 					float4 decal_rma = Bindless::GetTexture2D( rma ).SampleGrad( textureSampler, decalUV.xy, gradUV.xy, gradUV.zw );
 					material.Roughness = lerp( material.Roughness, decal_rma.r, decal_albedo.a );
 					material.Metalness = lerp( material.Metalness, decal_rma.g, decal_albedo.a );

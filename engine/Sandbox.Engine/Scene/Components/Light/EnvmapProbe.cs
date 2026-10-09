@@ -321,7 +321,7 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 
 	protected override async Task OnLoad( LoadingContext context )
 	{
-		if ( Application.IsHeadless )
+		if ( !Graphics.IsAvailable )
 			return;
 
 		if ( Mode == EnvmapProbeMode.Realtime && Active && _dynamicTexture is null )

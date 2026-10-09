@@ -84,8 +84,11 @@ public sealed class BoxCollider : Collider
 		var box = BBox.FromPositionAndSize( Center, Scale );
 		box.Mins *= world.Scale;
 		box.Maxs *= world.Scale;
-		box.Mins += local.Position;
-		box.Maxs += local.Position;
+
+		// The shape rotates about the box's center, so the center's offset from our origin needs rotating too
+		var offset = local.Position + local.Rotation * box.Center - box.Center;
+		box.Mins += offset;
+		box.Maxs += offset;
 
 		Shape.UpdateBoxShape( box.Center, local.Rotation, box.Size * 0.5f );
 
@@ -129,9 +132,10 @@ public sealed class BoxCollider : Collider
 		box.Mins *= scale;
 		box.Maxs *= scale;
 
-		// move!
-		box.Mins += local.Position;
-		box.Maxs += local.Position;
+		// move! The shape rotates about the box's center, so the center's offset from our origin needs rotating too
+		var offset = local.Position + local.Rotation * box.Center - box.Center;
+		box.Mins += offset;
+		box.Maxs += offset;
 
 		var shape = targetBody.AddBoxShape( box, local.Rotation );
 

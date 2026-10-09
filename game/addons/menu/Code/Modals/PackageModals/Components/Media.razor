@@ -6,17 +6,50 @@
 @using System;
 @using Sandbox.Network
 
-@if (Package.Screenshots is null) return;
-@if (Package.Screenshots.Count() == 0) return;
+@if (Package is null) return;
 
 <root>
 
-    <div class="main">
-        @if (selectedShot is not null)
+    <div class="main @(HasShots ? "" : "empty")">
+        @if (!HasShots)
         {
-            if ( selectedShot.IsVideo)
+            @* Nothing to show - the frame stays, on the game's own art, saying why: still coming,
+               didn't come, or there's just nothing to see *@
+            @if (IsLoading)
             {
-                <VideoPanel Controls=@true Source="@selectedShot.Url" />
+                <div class="loading"></div>
+            }
+            else
+            {
+                @if (Art is { } art)
+                {
+                    <div class="backdrop" style="background-image: url( @art );"></div>
+                }
+
+                <div class="notice">
+                    <i>@(Failed ? "cloud_off" : "hide_image")</i>
+                    <label class="notice-title">@(Failed ? "Couldn't load the gallery" : "No screenshots yet")</label>
+                    <label class="notice-text">@(Failed ? "sbox.game didn't answer. Check your connection, then open this again." : $"{Package.Title} hasn't added any screenshots or videos.")</label>
+                </div>
+            }
+        }
+        else if (selectedShot is not null)
+        {
+            @* The shot again, blurred and darkened, filling the frame behind it - so a shot that
+               isn't 16:9 sits on its own colours rather than in black bars *@
+            <div class="backdrop" style="background-image: url( @BackdropOf( selectedShot ) );"></div>
+
+            if ( selectedShot.IsVideo && !WaitsToPlay )
+            {
+                @* Playing by itself it's muted - sound's for when it's asked for *@
+                <VideoPanel Controls=@true Muted=@(!_playRequested) Source="@selectedShot.Url" />
+            }
+            else if ( selectedShot.IsVideo )
+            {
+                @* Not playing by itself here - its art, and a play button, until it's asked for *@
+                <div class="video-poster" style="background-image: url( @BackdropOf( selectedShot ) );" onclick=@( () => _playRequested = true )>
+                    <div class="play-big"><i>play_arrow</i></div>
+                </div>
             }
             else
             {
@@ -25,19 +58,22 @@
         }
     </div>
 
-    @if (Package.Screenshots.Count() > 1)
+    @if (HasShots && Shots.Count > 1)
     {
+        @* The strip, in a box that holds the fade on its right end still while the strip scrolls *@
+        <div class="strip">
         <div class="list">
-            @foreach (var screenshot in Package.Screenshots.OrderBy(x => x.IsVideo ? -1 : 1))
+            @foreach (var screenshot in Shots)
             {
                 <div class="screenshot @(screenshot == selectedShot ? "selected" : "")" onclick=@(() => SelectScreenshot(screenshot))>
                     <img src="@screenshot.Thumb" />
                     @if (screenshot.IsVideo)
                     {
-                        <i>play_arrow</i>
+                        <div class="play-badge"><i>play_arrow</i></div>
                     }
                 </div>
             }
+        </div>
         </div>
     }
 </root>
@@ -46,13 +82,66 @@
 {
 	[Parameter] public Package Package { get; set; }
 
-    protected override int BuildHash() => System.HashCode.Combine(Package, Package.Screenshots);
+    /// <summary>
+    /// The full package is in - until then a cached one might have no shots yet, which isn't the
+    /// same as having none.
+    /// </summary>
+    [Parameter] public bool Loaded { get; set; } = true;
 
+    /// <summary>
+    /// The full package never came, so there's no knowing what shots it has.
+    /// </summary>
+    [Parameter] public bool Failed { get; set; }
+
+    /// <summary>
+    /// Its video starts by itself, muted. Off, it waits on its play button - the pause menu's, where
+    /// the game's still going behind it.
+    /// </summary>
+    [Parameter] public bool Autoplay { get; set; } = true;
+
+    protected override int BuildHash() => System.HashCode.Combine(Package, Package?.Screenshots, Loaded, Failed, SelectedScreenshot, _playRequested, Autoplay);
+
+    /// <summary>
+    /// The video's been asked for - its play button, or picked off the strip - so it plays with its sound.
+    /// </summary>
+    bool _playRequested;
+
+    bool WaitsToPlay => !Autoplay && !_playRequested;
+
+    bool HasShots => Shots.Count > 0;
+    bool IsLoading => !Loaded && !Failed;
+
+    /// <summary>
+    /// The game's own art, blurred behind a notice.
+    /// </summary>
+    string Art => !string.IsNullOrEmpty( Package?.ThumbWide ) ? Package.ThumbWide : Package?.Thumb;
+
+    /// <summary>
+    /// Videos first, then the stills - the order the strip shows them in, and what's up first. The
+    /// selection indexes this, not the package's own order: it used to index that, so the strip
+    /// had the video first but the big view opened on whatever the package listed first.
+    /// </summary>
+    List<Package.Screenshot> Shots => Package?.Screenshots?.OrderBy( x => x.IsVideo ? 0 : 1 ).ToList() ?? new();
+
+    // 0 - the video, when there is one, which plays by itself as soon as it's up
     int SelectedScreenshot = 0;
-    Package.Screenshot selectedShot => Package?.Screenshots?.ElementAtOrDefault(SelectedScreenshot);
+    Package.Screenshot selectedShot => Shots.ElementAtOrDefault(SelectedScreenshot);
+
+    /// <summary>
+    /// What to blur behind a shot - its thumbnail (small's plenty, it's blurred), or for a video
+    /// without one, the game's own art rather than the video file.
+    /// </summary>
+    string BackdropOf( Package.Screenshot shot )
+    {
+        if ( !string.IsNullOrEmpty( shot.Thumb ) ) return shot.Thumb;
+        return shot.IsVideo ? (Package.ThumbWide ?? Package.Thumb) : shot.Url;
+    }
 
     void SelectScreenshot(Package.Screenshot screenshot)
     {
-        SelectedScreenshot = Package.Screenshots.ToList().IndexOf(screenshot);
+        SelectedScreenshot = Shots.IndexOf(screenshot);
+
+        // Picking a video's asking for it
+        if ( screenshot.IsVideo ) _playRequested = true;
     }
 }

@@ -1,0 +1,401 @@
+@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.MenuUI.Front;
+@using MenuProject.Overlay;
+@namespace MenuProject
+@inherits Panel
+
+@*
+    A friend asking you into their party - popped up where questions go, over everything. Their face,
+    who's asking, and when they're in a party already, whose it is and the faces of who's in it, the
+    way the friends list shows one. No thanks and Join on the end, like the list's buttons.
+*@
+<root class="@RootClass()">
+
+    @* A glow rising from the bottom of the screen behind it - the top of a lit sphere sat on the
+       screen's edge - so something asking for you is the brightest thing on the page *@
+    <div class="halo"></div>
+
+    @* More waiting behind this one - the edges of a pile of cards peeking out below it, one for each
+       up to three. First, so the card draws over them *@
+    @if ( Queued > 0 )
+    {
+        @for ( var i = Math.Min( Queued, 3 ); i >= 1; i-- )
+        {
+            <div class="peek peek-@i"></div>
+        }
+    }
+
+    <div class="card" @ref="Card">
+
+        @* A soft sheen sweeping across the card on a loop - it keeps catching the eye while it waits *@
+        <div class="sheen"></div>
+
+        @* Who's asking - their face, with a party badge on its corner *@
+        <div class="face">
+            <div class="avatar" style="background-image: url( avatar:@From.Id )"></div>
+            <div class="badge"><i>celebration</i></div>
+        </div>
+
+        <div class="body">
+            @* Who, then what they want - one under the other *@
+            <label class="invite-name">@From.Name</label>
+            <label class="invite-text">@LineText</label>
+
+            @* Their party's faces - as many as fit, then how many more *@
+            @if ( Party is { } party )
+            {
+                <div class="faces">
+                    @foreach ( var member in party.Faces )
+                    {
+                        <div class="avatar small" tooltip="@member.Name" style="background-image: url( avatar:@member.Id )"></div>
+                    }
+                    @if ( party.Size - 1 > party.Faces.Count )
+                    {
+                        <label class="more">+@(party.Size - 1 - party.Faces.Count)</label>
+                    }
+                </div>
+            }
+
+            @if ( PartyView.Exists )
+            {
+                <label class="note">Joining leaves your party</label>
+            }
+        </div>
+
+        <div class="actions">
+            <div class="action decline" onmousedown=@( ( e ) => Decline( e ) ) tooltip="No thanks"><i>close</i></div>
+            <div class="action join" onmousedown=@( ( e ) => Accept( e ) ) tooltip="Join their party"><i>check</i></div>
+        </div>
+
+    </div>
+
+</root>
+
+@code
+{
+    public Friend From { get; init; }
+    internal Action OnAccept { get; init; }
+    internal Action OnDecline { get; init; }
+
+    /// <summary>
+    /// How long it stays up with no answer.
+    /// </summary>
+    public const float Lifetime = 30f;
+
+    /// <summary>
+    /// The most faces across - then "+N".
+    /// </summary>
+    const int MaxFaces = 6;
+
+    record InviteParty( string Title, int Size, ulong Owner, List<Friend> Faces );
+
+    InviteParty _party;
+    bool _partyWorkedOut;
+
+    InviteParty Party
+    {
+        get
+        {
+            if ( !_partyWorkedOut )
+            {
+                _party = PartyOf();
+                _partyWorkedOut = true;
+            }
+
+            return _party;
+        }
+    }
+
+    /// <summary>
+    /// "invited you to their party", or to someone else's when they're not the one leading it.
+    /// </summary>
+    string LineText => Party is { } party && party.Owner != From.Id ? $"invited you to {party.Title}" : "invited you to their party";
+
+    /// <summary>
+    /// Pop one up - lower middle of the screen, where questions go. Queued behind anything already
+    /// showing there.
+    /// </summary>
+    public static void Show( Friend from, Action accept, Action decline )
+    {
+        // Its own time's kept here rather than by the area - so running out swipes just the card off,
+        // like answering it does, rather than the area taking the whole thing away
+        Area?.Queue( new PartyInviteToast { From = from, OnAccept = accept, OnDecline = decline }, duration: 0, clickToDismiss: false );
+    }
+
+    static ToastArea Area => MenuOverlay.Instance?.Top;
+
+    void Accept( PanelEvent e )
+    {
+        e.StopPropagation();
+        OnAccept?.Invoke();
+
+        // Taken up rather than turned away - it fizzles out where it is instead of swiping off
+        _accepted = true;
+        Close();
+    }
+
+    void Decline( PanelEvent e )
+    {
+        e.StopPropagation();
+        OnDecline?.Invoke();
+        Close();
+    }
+
+    //
+    // Going - the card swipes off. With another waiting, that one's let up at once and grows up off
+    // the pile under it while it's still swiping; the last one fades its pile and glow away with it
+    //
+
+    /// <summary>
+    /// How long the card takes to swipe off. Matches the stylesheet.
+    /// </summary>
+    const float LeaveTime = 0.25f;
+
+    /// <summary>
+    /// Once it's off, a few frames more before it's deleted - for whatever's under it to have drawn.
+    /// </summary>
+    const float LingerTime = 0.12f;
+
+    bool _shown;
+    RealTimeSince _sinceShown;
+
+    bool _leaving;
+    RealTimeSince _sinceLeaving;
+
+    /// <summary>
+    /// It went because you joined - it fizzles out rather than swiping off.
+    /// </summary>
+    bool _accepted;
+
+    /// <summary>
+    /// There was another waiting when it went - it swipes off over that one, rather than the pile
+    /// and glow fading away with it.
+    /// </summary>
+    bool _hadNext;
+
+    /// <summary>
+    /// The area's let go of it - the next can show, and it deletes itself once it's off.
+    /// </summary>
+    bool _released;
+    RealTimeSince _sinceReleased;
+
+    /// <summary>
+    /// When the last one was let go - one that goes up within a moment of it is coming off the pile.
+    /// </summary>
+    static RealTimeSince _sinceLastGone = 10;
+
+    /// <summary>
+    /// Following straight on from one that just went - the pile and glow were already up, so it
+    /// doesn't rise in, its card just grows up off the pile.
+    /// </summary>
+    bool Continuing { get; set; }
+
+    void Close()
+    {
+        if ( _leaving ) return;
+
+        _leaving = true;
+        _sinceLeaving = 0;
+        _hadNext = Queued > 0;
+
+        if ( _hadNext ) HandOver();
+    }
+
+    /// <summary>
+    /// Let the next one up, and put this over it so its card swipes off on top.
+    /// </summary>
+    void HandOver()
+    {
+        if ( _released ) return;
+
+        _released = true;
+        _sinceReleased = 0;
+        _sinceLastGone = 0;
+        SetClass( "handed-off", true );
+
+        var area = Area;
+        if ( !area.IsValid() ) return;
+
+        area.Release( this );
+
+        // Drawn in child order - after the one that's just gone up, so over it
+        area.SetChildIndex( this, area.Children.Count() - 1 );
+    }
+
+    /// <summary>
+    /// The area's just put it on screen - its time counts from now, not while it was queued. It's
+    /// built when it's queued, so this is the first it can know whether it's following on.
+    /// </summary>
+    public override void OnParentChanged()
+    {
+        base.OnParentChanged();
+
+        if ( _shown || !Parent.IsValid() ) return;
+
+        _shown = true;
+        _sinceShown = 0;
+        Continuing = _sinceLastGone < 0.5f;
+        SetClass( "continuing", Continuing );
+
+        // Start it in the pile's top slot straight away, so its first frame isn't full size
+        if ( Continuing )
+        {
+            SkipTransitions();
+            Grow();
+        }
+    }
+
+    //
+    // Coming up off the pile - the card starts as the pile's top card (11 down, 10 in each side of
+    // 400) and grows up into place, and each card still on the pile steps up from the slot behind
+    // it. Done here each frame rather than in the stylesheet
+    //
+
+    Panel Card;
+
+    /// <summary>
+    /// How long it takes to come up.
+    /// </summary>
+    const float GrowTime = 0.18f;
+
+    RealTimeSince _sinceGrow;
+    bool _growing;
+    bool _grown;
+
+    void Grow()
+    {
+        if ( _grown ) return;
+
+        if ( !_growing )
+        {
+            _growing = true;
+            _sinceGrow = 0;
+        }
+
+        var t = Math.Clamp( _sinceGrow / GrowTime, 0f, 1f );
+        var e = 1f - MathF.Pow( 1f - t, 3f );
+
+        // The card - from the top of the pile to where it sits
+        Place( Card, 11f * (1 - e), 0.95f.LerpTo( 1f, e ) );
+
+        // The pile - each from the slot behind to its own: 7 lower, and narrower by 10 a side
+        foreach ( var peek in Children.Where( x => x.HasClass( "peek" ) ) )
+        {
+            var n = peek.HasClass( "peek-1" ) ? 1 : peek.HasClass( "peek-2" ) ? 2 : 3;
+            var width = 400f - 20f * n;
+            var from = (width - 20f) / width;
+
+            Place( peek, 7f * (1 - e), from.LerpTo( 1f, e ) );
+        }
+
+        if ( t >= 1 )
+        {
+            _grown = true;
+            Place( Card, 0, 1 );
+            foreach ( var peek in Children.Where( x => x.HasClass( "peek" ) ) )
+                Place( peek, 0, 1 );
+        }
+    }
+
+    static void Place( Panel panel, float down, float width )
+    {
+        if ( !panel.IsValid() ) return;
+
+        if ( down == 0 && width == 1 )
+        {
+            panel.Style.Transform = null;
+            return;
+        }
+
+        var transform = new PanelTransform();
+        transform.AddTranslate( 0, down );
+        transform.AddScale( new Vector3( width, 1, 1 ) );
+        panel.Style.Transform = transform;
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        // Following on - no intro, a few frames' worth as its first styling can land after it's placed
+        if ( Continuing && _sinceShown < 0.1f ) SkipTransitions();
+
+        if ( Continuing && !_grown ) Grow();
+
+        if ( _shown && !_leaving && _sinceShown > Lifetime )
+            Close();
+
+        // The last one - nothing to hand over to, so the area's let go once it's faded
+        if ( _leaving && !_released && _sinceLeaving > LeaveTime )
+            HandOver();
+
+        if ( _released && _sinceReleased > (_hadNext ? LeaveTime : 0) + LingerTime )
+            Delete( true );
+    }
+
+    /// <summary>
+    /// The party they're asking you into, when they're in one - from rich presence, the same as the
+    /// friends list groups them, including the roster they share for people we aren't friends with.
+    /// </summary>
+    InviteParty PartyOf()
+    {
+        var id = RailPresence.Get( From, "party_id" );
+        if ( string.IsNullOrEmpty( id ) ) return null;
+
+        var members = RailPresence.Friends
+            .Where( x => x.Id != From.Id && RailPresence.Get( x, "party_id" ) == id )
+            .OrderBy( x => x.Name )
+            .ToList();
+
+        members.Insert( 0, From );
+
+		foreach ( var member in RailPresence.MembersOf( From ) )
+		{
+			if ( !members.Any( x => x.Id == member.Id ) ) members.Add( member );
+		}
+
+        var owner = RailPresence.Get( From, "party_owner" ).ToULong( 0 );
+        if ( owner != 0 && !members.Any( x => x.Id == owner ) && !new Friend( owner ).IsMe )
+            members.Insert( 0, new Friend( owner ) );
+
+        // The leader first
+        var leaderAt = owner != 0 ? members.FindIndex( x => x.Id == owner ) : -1;
+        if ( leaderAt > 0 )
+        {
+            var leader = members[leaderAt];
+            members.RemoveAt( leaderAt );
+            members.Insert( 0, leader );
+        }
+
+        var size = Math.Max( members.Count, RailPresence.Get( From, "party_size" ).ToInt( 0 ) );
+        if ( size < 2 ) return null;
+
+        var ownerName = owner != 0 ? new Friend( owner ).Name : From.Name;
+        return new InviteParty( $"{ownerName}'s party", size, owner != 0 ? owner : From.Id, members.Where( x => x.Id != From.Id ).Take( MaxFaces ).ToList() );
+    }
+
+    /// <summary>
+    /// Its classes - how big a pile, and where it is in coming and going.
+    /// </summary>
+    string RootClass()
+    {
+        var classes = new List<string>();
+
+        if ( Queued > 0 ) classes.Add( $"queued queued-{Math.Min( Queued, 3 )}" );
+        if ( Continuing ) classes.Add( "continuing" );
+        if ( _leaving ) classes.Add( _hadNext ? "leaving" : "leaving last" );
+        if ( _accepted ) classes.Add( "accepted" );
+        if ( _released ) classes.Add( "handed-off" );
+
+        return string.Join( " ", classes );
+    }
+
+    /// <summary>
+    /// How many popups are waiting behind this one.
+    /// </summary>
+    static int Queued => Area?.QueuedCount ?? 0;
+
+    protected override int BuildHash() => HashCode.Combine( From.Id, PartyView.Exists, Party?.Size, Queued, _leaving, _released, Continuing, _accepted );
+}

@@ -29,13 +29,23 @@ internal sealed class SteamRichPresenceSystem : IRichPresenceSystem
 
 	void IRichPresenceSystem.Poll()
 	{
+		// Friends' menus group everyone sharing a party_id, and use the rest to label it "X's party 2/16"
 		if ( PartyRoom.Current is PartyRoom party )
 		{
 			SetValue( "party_id", $"{party.Id}" );
+			SetValue( "party_owner", $"{party.Owner.Id}" );
+			SetValue( "party_size", $"{party.MemberCount}" );
+			SetValue( "party_max", $"{party.MaxMembers}" );
+			// Cap the roster to fit Steam's 256-byte value limit.
+			SetValue( "party_members", string.Join( ",", party.Members.Select( x => x.Id ).Order().Take( 12 ) ) );
 		}
 		else
 		{
 			SetValue( "party_id", null );
+			SetValue( "party_owner", null );
+			SetValue( "party_size", null );
+			SetValue( "party_max", null );
+			SetValue( "party_members", null );
 		}
 
 		SetValue( "in_editor", Application.IsEditor ? "1" : "0" );

@@ -1,0 +1,45 @@
+@using Sandbox.PanelGallery;
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Layout" )]
+@attribute [Title( "scrollbar-color" )]
+@attribute [Icon( "science" )]
+<root>
+    <h2>Colour</h2>
+
+    <div class="cases">
+        <UiTestCase Caption="Cyan thumb" Setup="@Frame" Rule="scrollbar-color: #29D8FF #00000099" Note="Thumb, then track - the web's order.">
+            <ChildContent><div class="box c-blue"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Caption="Transparent track" Setup="@Frame" Rule="scrollbar-color: #FF4F79 transparent" Note="A thumb with no track.">
+            <ChildContent><div class="box c-red"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Caption="Translucent colours" Setup="@Frame" Rule="scrollbar-color: rgba( 255, 255, 255, 0.9 ) rgba( 0, 0, 0, 0.5 )" Note="Colour functions, spaces and all.">
+            <ChildContent><div class="box c-fn"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Caption="Automatic colours" Setup="@Frame" Rule="scrollbar-color: auto" Note="The bar's own look: a translucent white thumb on nothing.">
+            <ChildContent><div class="box c-auto"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+        <UiTestCase Caption="Hover and drag" Setup="@Frame" Rule="hover and drag" Note="The bar sits dimmed until the content moves or the mouse reaches it. The thumb brightens under the mouse, whatever its colour - hovering the box itself does nothing.">
+            <ChildContent><div class="box c-blue"><div class="tall"></div></div></ChildContent>
+        </UiTestCase>
+    </div>
+<h2>Inheritance</h2>
+<div class="cases">        <UiTestCase Caption="Inherited colours" Setup="@Roomy" class="roomy" Rule=".outer { scrollbar-color: ... }  (inner sets nothing)" Note="scrollbar-color inherits too - both bars are lime on dark.">
+            <ChildContent>
+                <div class="box outer tinted">
+                    <div class="spacer top"></div>
+                    <div class="box inner"><div class="tall"></div></div>
+                    <div class="spacer"></div>
+                </div>
+            </ChildContent>
+        </UiTestCase></div>
+
+</root>
+@code
+{
+    const string Frame = "width: 120px; height: 110px";
+    const string Roomy = "width: 200px; height: 170px";
+}

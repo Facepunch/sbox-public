@@ -24,6 +24,24 @@ public partial class RenderSettings
 		_ => default
 	};
 
+	static readonly GraphicsPreset[] Presets = [GraphicsPreset.Low, GraphicsPreset.Medium, GraphicsPreset.High, GraphicsPreset.Ultra];
+
+	/// <summary>
+	/// Which preset the stored settings match, or <see cref="GraphicsPreset.Custom"/> if none do.
+	/// </summary>
+	internal GraphicsPreset MatchPreset()
+	{
+		var current = new PresetValues( TextureQuality, ShadowQuality, PostProcessQuality, VolumetricFogQuality, AntiAliasQuality );
+
+		foreach ( var preset in Presets )
+		{
+			if ( ValuesFor( preset ) == current )
+				return preset;
+		}
+
+		return GraphicsPreset.Custom;
+	}
+
 	/// <summary>What a graphics preset writes, by setting name.</summary>
 	internal static Dictionary<string, string> SettingsFor( GraphicsPreset preset )
 	{

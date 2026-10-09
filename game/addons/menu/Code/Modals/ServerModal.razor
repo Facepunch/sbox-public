@@ -115,6 +115,7 @@
 	void OpenGameInfo()
 	{
 		if ( GamePackage is null ) return;
+		Discovery.Clicked( new DiscoveryContext { Surface = "server" }, GamePackage );
 		Game.Overlay.ShowGameModal( Server.Game );
 	}
 

@@ -1,134 +1,359 @@
 @import "/styles/_theme.scss";
+@import "/styles/_front.scss";
 
+// The Achievements tab - scoped under it all, stylesheets are global (the old .progress and .score
+// reached into everything else in the menu)
 AchievementList
 {
-    overflow: scroll;
-    flex-grow: 1;
-    flex-shrink: 0;
-}
+	flex-direction: column;
+	flex-grow: 1;
+	flex-shrink: 0;
+	overflow: scroll;
+	padding: 24px 24px 64px 24px;
+	gap: 20px;
+	font-family: $front-font;
 
-.achievement-list
-{
-    gap: 6px;
-    padding: 16px;
-    flex-direction: column;
-    flex-grow: 1;
-    flex-shrink: 0;
-}
+	i
+	{
+		font-family: "Material Icons";
+	}
 
-.achievement
-{
-    flex-shrink: 0;
-    gap: 12px;
-    overflow: hidden;
-    padding: 10px 12px;
-    background-color: $default-900;
-    border: 1px solid $default-border;
-    border-radius: $rounding-default;
-    align-items: center;
+	.state
+	{
+		padding: 64px;
+		justify-content: center;
+		color: $front-secondary;
+		font-size: 13px;
+	}
 
-    img
-    {
-        width: 48px;
-        height: 48px;
-        flex-shrink: 0;
-        border-radius: $rounding-default;
-        border: 1px solid $default-border;
-    }
+	// A gold bar - its fill is a hard-stopped gradient set inline (BarFill), so the track's rounding
+	// clips fill and track as one
+	.bar
+	{
+		flex-grow: 1;
+		height: 6px;
+		border-radius: 999px;
+		background-color: rgba( 255, 255, 255, 0.08 );
+		overflow: hidden;
+	}
 
-    .right
-    {
-        flex-direction: column;
-        flex-grow: 1;
-        gap: 4px;
-        padding: 1px 0;
-    }
+	//
+	// How far through you are - a trophy, the count, the points, the bar
+	//
 
-    .toprow
-    {
-        gap: 6px;
-        align-items: center;
-    }
+	.summary
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 16px;
+		padding: 16px 20px;
+		border-radius: $front-radius;
+		background-image: linear-gradient( 90deg, rgba( $front-trophy, 0.14 ), rgba( $front-trophy, 0.03 ) );
+		border: $front-border-width solid rgba( $front-trophy, 0.3 );
+	}
 
-    .title
-    {
-        color: $default-text;
-        font-weight: 700;
-        font-size: $text-regular;
-        font-family: $font-heading;
-        flex-grow: 1;
-    }
+	.trophy
+	{
+		flex-shrink: 0;
+		width: 36px;
+		height: 36px;
+		font-size: 36px;
+		text-align: center;
+		color: linear-gradient( 180deg, #ffd980, #d99a2b );
+	}
 
-    .description
-    {
-        color: $default-400;
-        font-size: $text-small;
-    }
+	.summary-text
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		gap: 8px;
+	}
 
-    &.locked
-    {
-        opacity: 0.45;
-    }
-}
+	// Along the bottom - "of 9 unlocked" sat on the big number's line, not floating at its middle
+	.summary-top
+	{
+		flex-direction: row;
+		align-items: flex-end;
+		gap: 6px;
 
-// Score badge and meta chips share base pill style
-.score,
-.meta > *
-{
-    padding: 2px 6px;
-    border-radius: $rounding-small;
-    background-color: $default-800;
-    border: 1px solid $default-border;
-    font-size: $text-eyebrow;
-    color: $default-300;
-    align-items: center;
-    gap: 3px;
-}
+		.got
+		{
+			font-family: Inter;
+			font-size: 22px;
+			font-weight: 800;
+			color: $front-heading;
+		}
 
-.score
-{
-    background-color: rgba( $primary-blue, 0.15 );
-    border-color: rgba( $primary-blue, 0.3 );
-    color: lighten( $primary-blue, 20% );
-    font-weight: 700;
-}
+		// The big number's line box has more room under its baseline than this one - up a touch to
+		// meet it
+		.of
+		{
+			font-size: 13px;
+			font-weight: 600;
+			color: $front-body;
+			margin-bottom: 2px;
+		}
 
-.meta
-{
-    gap: 5px;
-    justify-content: flex-end;
+		.grow
+		{
+			flex-grow: 1;
+		}
 
-    i { color: $default-500; font-size: 13px; }
-}
+		.points
+		{
+			font-family: Inter;
+			font-size: 12px;
+			font-weight: 700;
+			color: #ffd980;
+			margin-bottom: 3px;
+		}
+	}
 
-.progress
-{
-    gap: 8px;
-    align-items: center;
-    margin-top: 2px;
+	//
+	// A group - Unlocked, In progress, Locked
+	//
 
-    .bar
-    {
-        background-color: $default-800;
-        border-radius: 3px;
-        overflow: hidden;
-        flex-grow: 1;
-        height: 4px;
+	.group
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 8px;
+	}
 
-        .inner
-        {
-            background-color: $primary-blue;
-            height: 100%;
-            border-radius: 3px;
-        }
-    }
+	.group-head
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 6px;
 
-    .text
-    {
-        color: $primary-blue;
-        flex-shrink: 0;
-        font-size: $text-eyebrow;
-        font-weight: 600;
-        font-family: $font-heading;
-    }
+		.group-title
+		{
+			@include front-section-label;
+		}
+
+		.group-count
+		{
+			padding: 0 6px;
+			border-radius: 999px;
+			background-color: rgba( 255, 255, 255, 0.07 );
+			font-size: 10px;
+			font-weight: 700;
+			color: $front-secondary;
+		}
+	}
+
+	// The rows as one list in one box, hairlines between them
+	.rows
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		border-radius: $front-radius;
+		background-color: $front-card-deep;
+		border: $front-border-width solid $front-hairline;
+		overflow: hidden;
+	}
+
+	.row
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 14px;
+		padding: 12px 16px;
+		border-bottom: $front-border-width solid $front-hairline;
+
+		&:last-child
+		{
+			border-bottom-width: 0;
+		}
+	}
+
+	// Locked - the picture greyed, the words still readable (not the whole row faded out)
+	.icon
+	{
+		position: relative;
+		flex-shrink: 0;
+		width: 44px;
+		height: 44px;
+		border-radius: 8px;
+		background-size: cover;
+		background-position: center;
+		background-color: rgba( 0, 0, 0, 0.4 );
+		border: $front-border-width solid rgba( 255, 255, 255, 0.1 );
+		filter: saturate( 0 ) brightness( 0.55 );
+
+		// Hidden - a lock where the picture would be
+		&.mystery
+		{
+			filter: none;
+			align-items: center;
+			justify-content: center;
+			background-color: rgba( 255, 255, 255, 0.05 );
+
+			i
+			{
+				width: 20px;
+				height: 20px;
+				font-size: 20px;
+				text-align: center;
+				color: $front-tertiary;
+			}
+		}
+
+		// Got - a small gold tick on its corner
+		.tick
+		{
+			position: absolute;
+			right: -4px;
+			bottom: -4px;
+			width: 18px;
+			height: 18px;
+			align-items: center;
+			justify-content: center;
+			border-radius: 50%;
+			background-color: #e8b44a;
+			border: 2px solid $front-card-deep;
+
+			i
+			{
+				width: 11px;
+				height: 11px;
+				font-size: 11px;
+				text-align: center;
+				color: #1a1204;
+			}
+		}
+	}
+
+	// Everything beside the icon - the name and points line, and the bar under it
+	.main
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		flex-basis: 0;
+		min-width: 0;
+		gap: 8px;
+	}
+
+	.head
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 14px;
+	}
+
+	.body
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		flex-basis: 0;
+		min-width: 0;
+		gap: 2px;
+	}
+
+	.name
+	{
+		font-size: 13.5px;
+		font-weight: 700;
+		color: $front-body;
+	}
+
+	.description
+	{
+		font-size: 12.5px;
+		font-weight: 500;
+		color: $front-secondary;
+	}
+
+	.progress
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 10px;
+
+		.bar
+		{
+			height: 4px;
+		}
+
+		// A fixed width, right aligned on the row's right edge - the same edge as the points and
+		// rarity above it - so every bar in the list is the same length
+		// Inter, tabular - every digit the same width, so a count ticking up doesn't jiggle and the
+		// counts down the list line up digit for digit
+		.progress-text
+		{
+			flex-shrink: 0;
+			width: 84px;
+			text-align: right;
+			white-space: nowrap;
+			font-family: Inter;
+			font-variant-numeric: tabular-nums;
+			font-size: 11.5px;
+			font-weight: 600;
+			color: $front-body;
+		}
+	}
+
+	// Points, and when you got it or how rare it is
+	.side
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		align-items: flex-end;
+		gap: 4px;
+	}
+
+	.score
+	{
+		padding: 1px 8px;
+		border-radius: 999px;
+		background-color: rgba( 255, 255, 255, 0.07 );
+		font-family: Inter;
+		font-size: 11px;
+		font-weight: 700;
+		color: $front-body;
+	}
+
+	.when, .rarity
+	{
+		font-size: 11px;
+		font-weight: 500;
+		color: $front-tertiary;
+	}
+
+	// Rare - a muted gold, the page's achievement colour dulled right down, so it's picked out
+	// without shouting
+	.rarity.rare
+	{
+		color: #b39a6a;
+	}
+
+	// Got - full colour, the name bright, the points in gold
+	.row.got
+	{
+		.icon
+		{
+			filter: none;
+			border-color: rgba( $front-trophy, 0.45 );
+		}
+
+		.name
+		{
+			color: $front-heading;
+		}
+
+		.score
+		{
+			background-color: rgba( $front-trophy, 0.16 );
+			color: #ffd980;
+		}
+	}
+
+	.row.hidden .name
+	{
+		color: $front-secondary;
+	}
 }

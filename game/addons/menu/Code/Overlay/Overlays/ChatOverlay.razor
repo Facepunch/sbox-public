@@ -23,6 +23,7 @@
     string Channel = "say";
     bool WasInGame;
     RealTimeSince TimeSinceOpened;
+    PartyRoom HintedParty;
 
     /// <summary>
     /// Does our game / menu context want to show the chat UI?
@@ -37,9 +38,15 @@
     bool InGame => Game.InGame && Networking.IsActive && WantsChat;
 
     /// <summary>
-    /// Are we in a party that supports chat?
+    /// Are we in a party that supports chat? Mid-game only while the menu's up (the pause screen), or when
+    /// the game uses the platform's chat UI - a game without chat doesn't get a chat box over it.
     /// </summary>
-    bool InParty => Preferences.ChatEnabled && PartyRoom.Current is not null;
+    bool InParty => Preferences.ChatEnabled && PartyRoom.Current is not null && (MenuShowing || WantsChat);
+
+    /// <summary>
+    /// Not in a game, or in one with the menu up over it.
+    /// </summary>
+    bool MenuShowing => !Game.InGame || Game.IsMainMenuVisible || ModalSystem.Instance?.IsPauseMenuOpen == true;
 
     /// <summary>
     /// Is the chat available for us?
@@ -100,8 +107,14 @@
         Panel?.AddSystemMessage( "🥀", $"{friend.Name} left the party" );
     }
 
+    /// <summary>
+    /// Handle chat input and show the chat key when entering a party.
+    /// </summary>
     public override void Tick()
     {
+        // Left the party, not just out of reach of its chat - otherwise the hint comes back every pause
+        if ( PartyRoom.Current is null ) HintedParty = null;
+
         if ( !ChatAvailable )
         {
             if ( IsOpen ) Close();
@@ -109,6 +122,18 @@
         }
 
         SetClass( "in-game", InGame );
+
+        // Wait for the chat panel to exist before adding the party's welcome hint.
+        if ( InParty && HintedParty != PartyRoom.Current && Panel.IsValid() )
+        {
+            HintedParty = PartyRoom.Current;
+            var key = Input.GetButtonOrigin( "chat" );
+            var hint = string.IsNullOrWhiteSpace( key )
+                ? "Set a chat key in Settings to chat with your party."
+                : $"Press {key} to chat to your party";
+
+            Panel.AddSystemMessage( "ℹ", hint );
+        }
 
         // Reset to game chat when joining a game
         if ( InGame && !WasInGame )

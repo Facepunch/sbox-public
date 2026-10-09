@@ -1,0 +1,143 @@
+@using Sandbox;
+@using MenuProject.Multiplayer;
+@using MenuProject.MenuUI.Components.Multiplayer;
+@inherits Panel
+@page "/multiplayer"
+@implements Sandbox.UI.Navigation.INavigatorPage
+
+<root>
+	<div class="multiplayer-body">
+		<DockHost @ref="dock" />
+	</div>
+</root>
+
+@code
+{
+	bool pageOpen = true;
+	DockHost dock;
+	GlobalChat chat;
+	MultiplayerServers servers;
+	OpenParties parties;
+
+	protected override void OnAfterTreeRender( bool firstTime )
+	{
+		base.OnAfterTreeRender( firstTime );
+
+		dock.LayoutChanged -= ConfigureTabs;
+		dock.LayoutChanged += ConfigureTabs;
+		ConfigureTabs();
+
+		if ( servers.IsValid() ) servers.OnGameSelected = OpenGame;
+		if ( dock.Items.Count > 0 ) return;
+
+		chat = new GlobalChat();
+		servers = new MultiplayerServers { OnGameSelected = OpenGame };
+		parties = new OpenParties();
+		dock.Register( "servers", "Active Games", servers, canClose: false, icon: "sports_esports" );
+		dock.Register( "parties", "Open Parties", parties, canClose: false, icon: "groups" );
+		dock.Register( "chat", "Global Chat", chat, canClose: false, icon: "chat_bubble" );
+
+		dock.Dock( "servers" );
+		dock.Dock( "parties", "servers", DockPosition.Right, 2f / 3f );
+		dock.Dock( "chat", "parties", DockPosition.Right );
+	}
+
+	/// <summary>
+	/// Apply icons and suppress docking tooltips on existing and newly opened tabs.
+	/// </summary>
+	void ConfigureTabs()
+	{
+		foreach ( var tab in dock.Descendants.OfType<Tab>().Where( x => x.HasClass( "dock-tab" ) ) )
+		{
+			// Existing tabs survive hotload, so also give them their newly added icons.
+			if ( string.IsNullOrEmpty( tab.Icon ) )
+			{
+				tab.Icon = tab.Text switch
+				{
+					"Open Parties" => "groups",
+					"Global Chat" => "chat_bubble",
+					_ => "sports_esports"
+				};
+			}
+
+			tab.Tooltip = null;
+
+			foreach ( var close in tab.Children.Where( x => x.HasClass( "tab-close" ) ) )
+			{
+				close.Tooltip = null;
+			}
+		}
+	}
+
+	/// <summary>
+	/// Opens one closable tab per game, preserving the active list and each tab's filters.
+	/// </summary>
+	void OpenGame( string gameIdent )
+	{
+		var id = $"game:{gameIdent}";
+		if ( dock.IsOpen( id ) )
+		{
+			dock.Activate( id );
+			return;
+		}
+
+		if ( dock.Find( id ) is null )
+		{
+			Package.TryGetCached( gameIdent, out var package, true );
+
+			var browser = new MultiplayerServers
+			{
+				GameIdent = gameIdent,
+				HideFullServers = servers.HideFullServers,
+				HideEmptyServers = servers.HideEmptyServers
+			};
+
+			dock.Register( id, package?.Title ?? gameIdent, browser, canClose: true, icon: "sports_esports" );
+		}
+
+		// Reopen closed tabs beside Active Games; existing open tabs keep their dock position.
+		dock.Dock( id, "servers", DockPosition.Center );
+	}
+
+	void UpdateChat()
+	{
+		if ( pageOpen && IsVisible && chat.IsValid() && chat.IsVisible )
+		{
+			GlobalChatService.Open();
+		}
+		else
+		{
+			GlobalChatService.Close();
+		}
+	}
+
+	void Sandbox.UI.Navigation.INavigatorPage.OnNavigationOpen()
+	{
+		pageOpen = true;
+		UpdateChat();
+	}
+
+	void Sandbox.UI.Navigation.INavigatorPage.OnNavigationClose()
+	{
+		pageOpen = false;
+		GlobalChatService.Close();
+	}
+
+	/// <summary>
+	/// Join chat only while its docked panel is visible.
+	/// </summary>
+	public override void Tick()
+	{
+		base.Tick();
+		UpdateChat();
+	}
+
+	/// <summary>
+	/// Leave global chat when this page is removed.
+	/// </summary>
+	public override void OnDeleted()
+	{
+		GlobalChatService.Close();
+		base.OnDeleted();
+	}
+}

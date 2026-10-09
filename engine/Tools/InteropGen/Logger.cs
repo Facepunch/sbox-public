@@ -12,6 +12,8 @@ public static class Log
 {
 	private static readonly object consoleLock = new();
 
+	public static Action<string> Sink { get; set; }
+
 	private record LogMessage( ConsoleColor Color, string Text, int Indent );
 
 	// Files are processed on separate threads. Each thread buffers its group's lines so they
@@ -92,6 +94,12 @@ public static class Log
 	{
 		lock ( consoleLock )
 		{
+			if ( Sink is { } sink )
+			{
+				sink( message );
+				return;
+			}
+
 			ConsoleColor original = Console.ForegroundColor;
 			try
 			{

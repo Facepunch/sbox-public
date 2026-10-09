@@ -219,7 +219,7 @@ public partial class Panel
 			var text = GetClipboardValue( e is CutEvent );
 			if ( text != null )
 			{
-				NativeEngine.EngineGlobal.SDL_SetClipboardText( text );
+				NativeEngine.Sdl.SetClipboardText( text );
 			}
 		}
 

@@ -1,0 +1,42 @@
+// Dock chrome shares the containing editor's palette, rather than the control's fallback colors.
+.dockhost
+{
+	font-family: Poppins;
+	background-color: $dock-ground;
+	color: $dock-text;
+	.dock-tabs, .dock-splitter { background-color: $dock-ground; }
+	.dock-group, .dock-body { background-color: $dock-surface; color: $dock-text; }
+	.dock-tab
+	{
+		background-color: transparent;
+		color: $dock-muted;
+		border-color: transparent;
+		&:hover { background-color: $dock-surface; color: $dock-text; }
+		&.selected
+		{
+			background-color: $dock-surface;
+			color: $dock-text;
+			border-color: transparent;
+		}
+		&:focus { border-color: transparent; }
+	}
+	&.floating > .dock-window-title { background-color: $dock-ground; color: $dock-muted; }
+}
+
+.style-light .dockhost
+{
+	background-color: $dock-light-ground;
+	color: $dock-light-text;
+	.dock-tabs, .dock-splitter { background-color: $dock-light-ground; }
+	.dock-group, .dock-body { background-color: $dock-light-surface; color: $dock-light-text; }
+	.dock-tab
+	{
+		background-color: transparent;
+		color: $dock-light-muted;
+		border-color: transparent;
+		&:hover { background-color: $dock-light-surface; color: $dock-light-text; }
+		&.selected { background-color: $dock-light-surface; color: $dock-light-text; border-color: transparent; }
+		&:focus { border-color: transparent; }
+	}
+	&.floating > .dock-window-title { background-color: $dock-light-ground; color: $dock-light-muted; }
+}

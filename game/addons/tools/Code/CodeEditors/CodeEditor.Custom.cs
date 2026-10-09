@@ -119,22 +119,5 @@ public class CustomCodeEditor : ICodeEditor
 		return value.Contains( ' ' ) ? $"\"{value}\"" : value;
 	}
 
-	private static void Launch( string executablePath, string arguments )
-	{
-		try
-		{
-			var startInfo = new System.Diagnostics.ProcessStartInfo
-			{
-				FileName = executablePath,
-				Arguments = arguments,
-				CreateNoWindow = true,
-			};
-
-			System.Diagnostics.Process.Start( startInfo );
-		}
-		catch ( Exception ex )
-		{
-			Log.Error( $"Custom code editor: Failed to launch '{executablePath}': {ex.Message}" );
-		}
-	}
+	private static void Launch( string executablePath, string arguments ) => CodeEditorLocator.Launch( executablePath, arguments );
 }

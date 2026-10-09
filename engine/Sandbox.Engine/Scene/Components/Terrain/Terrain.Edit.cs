@@ -73,6 +73,8 @@ public partial class Terrain
 	/// </summary>
 	public void SyncCPUTexture( SyncFlags flags, RectInt region )
 	{
+		if ( !Graphics.IsAvailable ) return;
+
 		Assert.NotNull( Storage );
 
 		region = ClampToResolution( region );
@@ -107,8 +109,24 @@ public partial class Terrain
 	/// </summary>
 	public void SyncGPUTexture()
 	{
+		if ( !Graphics.IsAvailable ) return;
+
 		HeightMap.Update( new ReadOnlySpan<ushort>( Storage.HeightMap ) );
 		ControlMap.Update( new ReadOnlySpan<UInt32>( Storage.ControlMap ) );
+	}
+
+	/// <summary>
+	/// Applies CPU-side storage changes to rendering and collision, then notifies terrain-dependent systems.
+	/// </summary>
+	public void ApplyStorageChanges( SyncFlags flags, RectInt region )
+	{
+		Assert.NotNull( Storage );
+
+		region = ClampToResolution( region );
+
+		SyncGPUTexture();
+		UpdateCollision( flags, region );
+		OnTerrainModified?.Invoke( flags, region );
 	}
 
 	/// <summary>

@@ -1,0 +1,91 @@
+@using System;
+@using Sandbox;
+@using Sandbox.Services;
+@using Sandbox.UI;
+@namespace MenuProject.MenuUI.Jams
+@inherits JamFinalistPhasePanel
+
+<root class="jam-phase grand-final-phase @(FinalUrgent ? "final-urgent" : "")">
+	<JamPhaseLayout Jam=@Jam PhaseTitle=@Headline PhaseSubtitle=@(Waiting ? "Grand Final · Coming up" : "Grand Final") BlurbLead=@(RevealedWinner is not null ? "Champion crowned." : Waiting ? "The finalists are confirmed." : "Every vote counts.") Blurb=@(RevealedWinner is not null ? "Thanks for playing and voting." : Waiting ? "Play both games before voting reopens. The final starts with fresh votes." : "Pick your winner.") CountdownTarget=@CountdownTarget CountdownLabel=@CountdownLabel CountdownStatus=@CountdownStatus>
+		<StandingsContent>
+			<JamStandings Jam=@Jam Finalists=@Category Packages=@Packages WinnerIdent=@RevealedWinner HoldFinalResult=@(RevealedWinner is null) />
+		</StandingsContent>
+		<Content>
+			@if ( !Jam.CommunityVoting )
+			{
+				<JamEntries Jam=@Jam />
+			}
+			else
+			{
+				<div class="finalist-browser">
+					<JamEntryBrowser Jam=@Jam FeaturedTitle="Grand Final">
+						<FeaturedContent>
+							<div class="finalist-scroll">
+								@if ( Error is not null )
+								{
+									<div class="load-error"><label>@Error</label><Button Text="Retry" onclick=@RequestRefresh /></div>
+								}
+								@if ( Categories is { Length: > 1 } )
+								{
+									<div class="category-tabs">
+										@foreach ( var category in Categories )
+										{
+											<Button Text=@category.Title Active=@(Category?.Id == category.Id) onclick=@(() => CategoryId = category.Id) />
+										}
+									</div>
+								}
+								@if ( Category is not null )
+								{
+									<JamEliminationGallery Jam=@Jam Category=@Category Packages=@Packages Submitting=@Submitting CooldownSeconds=@VoteCooldownSeconds Version=@Voting.Version Vote=@SubmitVote WinnerIdent=@RevealedWinner />
+								}
+								else if ( Loading )
+								{
+									<Spinner />
+								}
+								else
+								{
+									<EmptyState Icon="emoji_events" Title="Waiting for the final" Subtitle="The confirmed finalists will appear here." />
+								}
+							</div>
+						</FeaturedContent>
+					</JamEntryBrowser>
+				</div>
+			}
+		</Content>
+	</JamPhaseLayout>
+</root>
+
+@code
+{
+	(Jam Jam, int? Category, string Winner) ResultIdentity;
+	string ResultCandidate;
+	RealTimeSince ResultAge;
+	string RevealedWinner => ResultAge >= 2 ? ResultCandidate : null;
+	bool FinalUrgent => VotingOpen && Category.RoundEnds is { } end && (end - Jam.Now).TotalSeconds <= 60;
+	bool Waiting => JamVotingPresentation.Waiting( Category );
+	string Headline => RevealedWinner is { } winner ? $"{GetPackage( winner )?.Title ?? Package.GetCachedTitle( winner )} wins!"
+		: Waiting ? "Two remain. The final is next." : Category is null ? "Meet the grand finalists."
+		: VotingOpen ? "Two remain. One winner." : "Voting closed. Winner incoming.";
+	DateTimeOffset? CountdownTarget => RevealedWinner is not null ? Voting.FinalResultsUntil
+		: Waiting ? JamVotingPresentation.OpensAt( Jam, Category ) : Category?.RoundEnds ?? Jam.Results;
+	string CountdownLabel => RevealedWinner is not null ? "Explore the winners in" : Waiting ? "Grand final voting opens in" : "Grand final ends in";
+	string CountdownStatus => RevealedWinner is not null ? null : Waiting ? CountdownTarget <= Jam.Now ? "Opening soon" : null
+		: Category is null ? "Loading finalists" : !VotingOpen ? "Verifying result" : null;
+
+	/// <summary>
+	/// Gives a confirmed winner a short reveal beat before displaying the final result.
+	/// </summary>
+	public override void Tick()
+	{
+		base.Tick();
+		var winner = Category?.GetFinalistAtPlace( 1 )?.PackageIdent;
+		var identity = (Jam, Category?.Id, winner);
+		if ( identity == ResultIdentity ) return;
+
+		ResultIdentity = identity;
+		ResultCandidate = winner;
+		ResultAge = 0;
+	}
+
+	protected override int BuildHash() => HashCode.Combine( base.BuildHash(), Headline, RevealedWinner, FinalUrgent, CountdownStatus, CountdownTarget, Waiting );
+}

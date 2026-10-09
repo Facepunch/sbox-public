@@ -8,70 +8,60 @@
 
 @if (Package is null) return;
 
-@if (_posting)
-{
-    <root class="posting">
-        <i>outgoing_mail</i>
-    </root>
-    return;
-}
-
+@*
+    What you thought of a game - how you'd rate it, what stood out and what held it back, and a few
+    words. A window of the menu's own look, like the pause menu's pages.
+*@
 <root>
+    <div class="window">
 
-    <h1>What did you think of @(Package.Title)?</h1>
+        <div class="head">
+            <div class="text">
+                <label class="eyebrow">Write a review</label>
+                <label class="title">What did you think of @Package.Title?</label>
+            </div>
+            <div class="grow"></div>
+            <div class="close" onclick=@( () => CloseModal( false ) ) tooltip="Close"><i>close</i></div>
+        </div>
 
-    <div class="inner">
+        <div class="body">
 
-        <div class="container">
-
+            @* The one it needs - three big choices, each lit in its own colour when it's picked *@
             <div class="ratings">
-
-                <div class="ratings-outline">
-                    <div class="rating @( Score == Review.ReviewScore.Negative ? "active" : "" )" @onclick="@( () => SetRating( Review.ReviewScore.Negative ) )">
-                        <div class="icon">💩</div>
-                        <div class="text">Needs Work</div>
+                @foreach ( var (score, icon, text, tone) in Ratings )
+                {
+                    <div class="rating @tone @(Score == score ? "active" : "")" onclick=@( () => SetRating( score ) )>
+                        <i>@icon</i>
+                        <label>@text</label>
                     </div>
-
-                    <div class="rating @( Score == Review.ReviewScore.Promise ? "active" : "" )" @onclick="@( () => SetRating( Review.ReviewScore.Promise ) )">
-                        <div class="icon">😐</div>
-                        <div class="text">Promising</div>
-                    </div>
-
-                    <div class="rating @( Score == Review.ReviewScore.Positive ? "active" : "" )" @onclick="@( () => SetRating( Review.ReviewScore.Positive ) )">
-                        <div class="icon">😍</div>
-                        <div class="text">Recommended</div>
-                    </div>
-                </div>
-
+                }
             </div>
 
-            <div class="tag-entry">
-
-                <div class="tagcolumn positive-tags">
-                    <label>What did you like?</label>
-                    <TagSelector Value:bind=@PositiveTags/>
-                </div>
-
-                <div class="tagcolumn negative-tags">
-                    <label>What did you dislike?</label>
-                    <TagSelector Value:bind=@NegativeTags />
-                </div>
-
+            <div class="tags positive">
+                <label class="section-label">What stood out</label>
+                <TagSelector Value:bind=@PositiveTags />
             </div>
 
-            <UserComment Player="@Sandbox.Services.Players.Profile.Local">
-                <Content>
-                    <TextEntry @ref=_textEntry Value:bind=@ReviewText Multiline="@true" Placeholder="Enter Your Review.."></TextEntry>
-                </Content>
-            </UserComment>
+            <div class="tags negative">
+                <label class="section-label">What held it back</label>
+                <TagSelector Value:bind=@NegativeTags />
+            </div>
 
-            <div class="footer">
-                <Button @onclick="@PostReview" Disabled="@( Score == Review.ReviewScore.None || string.IsNullOrWhiteSpace(ReviewText) )" Icon="send" Text="Post Review"></Button>
+            <div class="words">
+                <label class="section-label">Your review</label>
+                <TextEntry @ref=_textEntry Value:bind=@ReviewText Multiline="@true" Placeholder="Say what you thought..." />
             </div>
 
         </div>
-    </div>
 
+        <div class="footer">
+            <label class="note">Shown publicly on the game's page</label>
+            <div class="grow"></div>
+            <Button class="cancel" Text="Cancel" onclick=@( () => CloseModal( false ) ) />
+            <Button class="post" Icon="send" Text="@(_posting ? "Posting..." : "Post review")" Disabled=@( !CanPost ) onclick=@PostReview />
+        </div>
+
+    </div>
 </root>
 
 @code
@@ -86,7 +76,16 @@
     TextEntry _textEntry = default;
     bool _posting;
 
-    protected override int BuildHash() => System.HashCode.Combine(Package);
+    static readonly (Review.ReviewScore Score, string Icon, string Text, string Tone)[] Ratings =
+    {
+        (Review.ReviewScore.Negative, "thumb_down", "Needs work", "bad"),
+        (Review.ReviewScore.Promise, "trending_up", "Promising", "meh"),
+        (Review.ReviewScore.Positive, "thumb_up", "Recommended", "good"),
+    };
+
+    bool CanPost => !_posting && Score != Review.ReviewScore.None && !string.IsNullOrWhiteSpace( ReviewText );
+
+    protected override int BuildHash() => System.HashCode.Combine( Package, Score, CanPost, _posting );
 
     protected override async Task OnParametersSetAsync()
     {
@@ -95,6 +94,7 @@
         PositiveTags = oldReview?.Positives ?? Review.PositiveTags.None;
         NegativeTags = oldReview?.Negatives ?? Review.NegativeTags.None;
         Score = oldReview?.Score ?? Review.ReviewScore.None;
+        StateHasChanged();
     }
 
     protected override void OnAfterTreeRender(bool firstTime)
@@ -115,8 +115,7 @@
 
     async Task PostReview()
     {
-        if ( Score == Review.ReviewScore.None ) return;
-        if ( string.IsNullOrWhiteSpace( ReviewText ) ) return;
+        if ( !CanPost ) return;
 
         _posting = true;
         StateHasChanged();

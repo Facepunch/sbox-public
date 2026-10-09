@@ -1,0 +1,42 @@
+@using Sandbox.PanelGallery;
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Backgrounds" )]
+@attribute [Title( "background-repeat" )]
+@attribute [Icon( "science" )]
+<root>
+    <h2>Repeat</h2>
+
+    <div class="cases">
+        <UiTestCase Caption="repeat" Setup="@Plate" Css="background-image: url( /ui/sbox_ident_default.svg ); background-size: 30px 30px; background-repeat: repeat" />
+        <UiTestCase Caption="repeat-x" Setup="@Plate" Css="background-image: url( /ui/sbox_ident_default.svg ); background-size: 30px 30px; background-repeat: repeat-x" />
+        <UiTestCase Caption="repeat-y" Setup="@Plate" Css="background-image: url( /ui/sbox_ident_default.svg ); background-size: 30px 30px; background-repeat: repeat-y" />
+        <UiTestCase Caption="no-repeat" Setup="@Plate" Css="background-image: url( /ui/sbox_ident_default.svg ); background-size: 30px 30px; background-repeat: no-repeat" />
+    </div>
+
+
+    <h2>Tiling - background-size, position, repeat</h2>
+
+    <div class="cases">
+        <UiTestCase Caption="Repeated 50px tile" Setup="@Plate" Css="@($"background-image: linear-gradient( to right, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} ); background-size: 50px 100%")"
+                    Note="A 50px tile repeated across, so the ramp restarts every 50px." />
+        <UiTestCase Caption="Single tile" Setup="@Plate" Css="@($"background-image: linear-gradient( to right, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} ); background-size: 50px 100%; background-repeat: no-repeat")"
+                    Note="One tile, nothing painted past it." />
+        <UiTestCase Caption="Centred tiling" Setup="@Plate" Css="@($"background-image: linear-gradient( to right, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} ); background-size: 50px 100%; background-position: center")"
+                    Note="Repeat is anchored to the position, so tiles land either side of centre." />
+        <UiTestCase Caption="Repeat horizontally" Setup="@Plate" Css="@($"background-image: linear-gradient( to right, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} ); background-size: 50%; background-repeat: repeat-x")"
+                    Note="Percentage size, and repeat on one axis only." />
+        <UiTestCase Caption="Checkerboard" Setup="@Plate" Css="background-image: linear-gradient( 45deg, #444 25%, #888 25%, #888 50%, #444 50% ); background-size: 24px 24px"
+                    Note="The web's checkerboard trick - the tile must line up with its neighbours." />
+    </div>
+
+</root>
+@code
+{
+    // A dark plate behind each image, so transparency and letterboxing are visible
+    const string Plate = "width: 200px; height: 200px; background-color: #23262e";
+
+
+}

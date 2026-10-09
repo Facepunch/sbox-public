@@ -28,9 +28,11 @@ public partial class ServiceApi
 
 		/// <summary>
 		/// The voting picture of a jam: what each community category is doing, who is standing,
-		/// the live counts, and the caller's own votes. Poll it while a voting screen is open.
+		/// the live counts, and the caller's own votes. Read on entry and at scheduled transitions;
+		/// live tally changes arrive through backend messages.
 		/// </summary>
 		[Get( "/jam/{ident}/voting" )]
+		[Headers( "Cache-Control: no-cache" )]
 		Task<JamVotingDto> GetVoting( string ident, int? days = null, [AliasAs( "as" )] string @as = null );
 
 		/// <summary>
@@ -38,6 +40,7 @@ public partial class ServiceApi
 		/// play session ends.
 		/// </summary>
 		[Get( "/jam/{ident}/entry/{package}" )]
+		[Headers( "Cache-Control: no-cache" )]
 		Task<JamEntryVoteDto> GetEntry( string ident, string package, int? days = null, [AliasAs( "as" )] string @as = null );
 
 		/// <summary>

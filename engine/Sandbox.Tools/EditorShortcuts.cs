@@ -7,11 +7,16 @@ public static class EditorShortcuts
 	public static List<Entry> Entries = new();
 	static Dictionary<Type, List<object>> Targets = new();
 
+	/// <summary>
+	/// Disables shortcut invocations when set to false. Used when first-person controlling the scene view camera,
+	/// since shortcuts overlap with the camera movement keys. This is automatically reset to true after a short delay.
+	/// </summary>
 	public static bool AllowShortcuts
 	{
 		get => _timeSinceInputsBlocked >= 0.05f;
 		set => _timeSinceInputsBlocked = value ? 1f : 0f;
 	}
+
 	static RealTimeSince _timeSinceInputsBlocked = 0f;
 
 	/// <summary>
@@ -74,6 +79,42 @@ public static class EditorShortcuts
 		Targets[typeKey].Remove( obj );
 	}
 
+	/// <summary>
+	/// Is <paramref name="keys"/> a function key shortcut (F1-F24) with optional modifiers (CTRL, ALT, SHIFT)?
+	/// </summary>
+	internal static bool IsFunctionKeyShortcut( string keys )
+	{
+		if ( string.IsNullOrEmpty( keys ) ) return false;
+
+		var split = keys.Split( "+", StringSplitOptions.RemoveEmptyEntries );
+
+		var anyFunctionKeys = false;
+
+		foreach ( var key in split )
+		{
+			// Special case: keys 0-9 will get parsed in Enum.TryParse by numeric value instead of name
+
+			if ( char.IsDigit( key[0] ) || key[0] is '-' or '+' ) return false;
+
+			// We need at least one Fn key
+
+			if ( Enum.TryParse<KeyCode>( key, ignoreCase: true, out var keyCode ) && keyCode is >= KeyCode.F1 and <= KeyCode.F24 )
+			{
+				anyFunctionKeys = true;
+				continue;
+			}
+
+			// Modifiers are allowed
+
+			if ( !Enum.TryParse<KeyboardModifiers>( key, ignoreCase: true, out var mod ) || mod == KeyboardModifiers.None )
+			{
+				return false;
+			}
+		}
+
+		return anyFunctionKeys;
+	}
+
 	internal static bool Invoke( string keys, bool force = false )
 	{
 		// Don't invoke shortcuts if the focus widget if we're typing in a LineEdit and holding CTRL or ALT (Not SHIFT since it's used for capital letters)
@@ -88,12 +129,16 @@ public static class EditorShortcuts
 			foreach ( var entry in group )
 			{
 				if ( GetKeys( entry.Identifier ) != keys ) continue;
+
 				entry.IsDown = true;
 
-				if ( AllowShortcuts && !hasInvoked && entry.Invoke( force ) )
-				{
-					justInvoked = true;
-				}
+				if ( hasInvoked ) continue;
+
+				// Always allow Fn keys, even when first-person controlling the scene view camera
+
+				if ( !AllowShortcuts && !IsFunctionKeyShortcut( keys ) ) continue;
+
+				justInvoked |= entry.Invoke( force );
 			}
 			if ( justInvoked ) hasInvoked = true;
 		}
@@ -137,7 +182,6 @@ public static class EditorShortcuts
 	/// </summary>
 	internal static bool InvokeWheel( int delta, KeyboardModifiers modifiers )
 	{
-		if ( !AllowShortcuts ) return false;
 		if ( delta == 0 ) return false;
 
 		var wheelKey = delta > 0 ? "MWHEELUP" : "MWHEELDOWN";

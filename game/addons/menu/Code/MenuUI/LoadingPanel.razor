@@ -1,8 +1,9 @@
-﻿@using Sandbox;
+@using Sandbox;
 @using Sandbox.UI;
-@using MenuProject.UI;
 @inherits Panel
 
-<div class="loading-panel">
-    <IconPanel>hourglass_empty</IconPanel>
-</div>
+@* Fills whatever it's in and fades the spinner in after a beat, so a quick load never flashes it. *@
+
+<root>
+    <Spinner class="large" />
+</root>

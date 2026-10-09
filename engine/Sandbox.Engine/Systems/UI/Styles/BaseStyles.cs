@@ -92,6 +92,25 @@ public abstract partial class BaseStyles : ICloneable
 
 		switch ( property )
 		{
+			case "overscroll-behavior":
+				var words = SplitTopLevel( value );
+				if ( words.Count is < 1 or > 2 ) return false;
+				var x = ParseOverscrollBehavior( words[0] );
+				var y = ParseOverscrollBehavior( words[^1] );
+				if ( !x.HasValue || !y.HasValue ) return false;
+				OverscrollBehaviorX = x;
+				OverscrollBehaviorY = y;
+				return true;
+			case "overscroll-behavior-x":
+				var behaviorX = ParseOverscrollBehavior( value );
+				if ( !behaviorX.HasValue ) return false;
+				OverscrollBehaviorX = behaviorX;
+				return true;
+			case "overscroll-behavior-y":
+				var behaviorY = ParseOverscrollBehavior( value );
+				if ( !behaviorY.HasValue ) return false;
+				OverscrollBehaviorY = behaviorY;
+				return true;
 			case "overflow":
 				return SetOverflow( value, x => Overflow = x );
 			case "overflow-x":
@@ -117,6 +136,14 @@ public abstract partial class BaseStyles : ICloneable
 
 		FillDefaultsGenerated();
 	}
+
+	static OverscrollBehavior? ParseOverscrollBehavior( string value ) => value.Trim().ToLowerInvariant() switch
+	{
+		"auto" => UI.OverscrollBehavior.Auto,
+		"contain" => UI.OverscrollBehavior.Contain,
+		"none" => UI.OverscrollBehavior.None,
+		_ => null
+	};
 
 
 	bool SetOverflow( string value, Action<OverflowMode> set )

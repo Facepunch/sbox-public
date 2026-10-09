@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Memory;
 using Sandbox.UI;
 using System.Net.Http;
 using System.Threading;
@@ -19,6 +19,8 @@ internal static partial class Api
 		Sandbox.Backend.Initialize( new CachingHandler() );
 #pragma warning restore CA2000 // Dispose objects before losing scope
 
+		Activity.RunStarted();
+
 		// Warm up session-wide service caches in the background. Disk copies (if any) get
 		// applied first so the menu has data immediately even if the backend is slow/down.
 		_ = Sandbox.Services.PackageType.LoadAsync();
@@ -31,6 +33,7 @@ internal static partial class Api
 
 		var timer = FastTimer.StartNew();
 
+		Activity.ReportRun();
 		Task.WaitAll( Events.Shutdown(), Stats.Shutdown(), Activity.Shutdown() );
 
 		if ( timer.ElapsedSeconds > 0.5f )
@@ -53,9 +56,19 @@ internal static partial class Api
 			// Try to incldue any convars that could make a meaningful impact on performance
 
 			FpsMax = ConVarSystem.GetInt( "fps_max", 0, true ),
-			MSAA = NativeEngine.RenderService.GetMultisampleType(),
+			MSAA = NativeEngine.CSceneSystem.GetMainSwapChainMultisampleType(),
 			VolumeFogDepth = ConVarSystem.GetInt( "volume_fog_depth", 0, true ),
-			Application.ExceptionCount
+			AoQuality = AmbientOcclusion.UserQuality,
+			AoResolution = AmbientOcclusion.UserResolution,
+			AoDenoisePasses = AmbientOcclusion.UserDenoisePasses,
+			ManagedSceneRenderer = Rendering.ManagedSceneRendering.Enabled,
+			ManagedAsyncCompute = Rendering.ManagedSceneRendering.AsyncCompute,
+			Application.ExceptionCount,
+
+			// Display mode, so presentation problems can be told apart by how the swapchain was set up
+			Sandbox.Engine.Settings.RenderSettings.Instance.VSync,
+			Sandbox.Engine.Settings.RenderSettings.Instance.Fullscreen,
+			Sandbox.Engine.Settings.RenderSettings.Instance.Borderless
 		};
 	}
 }
@@ -74,7 +87,8 @@ public class CachingHandler : DelegatingHandler
 
 	protected override async Task<HttpResponseMessage> SendAsync( HttpRequestMessage request, CancellationToken cancellationToken )
 	{
-		if ( request.Method != HttpMethod.Get )
+		// Mutable snapshots such as jam nominations need a fresh response after a vote.
+		if ( request.Method != HttpMethod.Get || request.Headers.CacheControl?.NoCache == true )
 		{
 			return await base.SendAsync( request, cancellationToken );
 		}

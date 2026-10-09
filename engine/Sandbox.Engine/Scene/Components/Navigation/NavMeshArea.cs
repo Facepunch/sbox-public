@@ -137,12 +137,6 @@ public class NavMeshArea : VolumeComponent, Component.ExecuteInEditor
 
 	private void UpdateNavMeshArea()
 	{
-		if ( !IsBlocker && Area == null )
-		{
-			RemoveNavMeshArea();
-			return;
-		}
-
 		// Create area if it doesn't exist
 		if ( _navMeshArea == null )
 		{

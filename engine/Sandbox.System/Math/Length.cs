@@ -47,9 +47,17 @@ namespace Sandbox.UI
 		/// </summary>
 		public readonly float GetPixels( float dimension )
 		{
+			if ( Unit == LengthUnit.Pixels )
+				return Value;
+
 			if ( Unit == LengthUnit.Percentage )
 				return dimension * (Value / 100.0f);
 
+			return GetPixelsForUnit( dimension );
+		}
+
+		readonly float GetPixelsForUnit( float dimension )
+		{
 			if ( Unit == LengthUnit.ViewWidth )
 				return RootSize.x * (Value / 100.0f);
 

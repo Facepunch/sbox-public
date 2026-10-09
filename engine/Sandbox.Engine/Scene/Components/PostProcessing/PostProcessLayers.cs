@@ -43,7 +43,67 @@ internal class PostProcessLayers
 
 		foreach ( var entry in list )
 		{
+			// Already run on the async compute queue this frame
+			if ( entry.RanAsync )
+			{
+				entry.RanAsync = false;
+				continue;
+			}
+
 			entry.Render();
+		}
+	}
+
+	/// <summary>
+	/// Whether a layer at <paramref name="stage"/> can run on the async compute queue (<see cref="BasePostProcess.AsyncCompute"/>).
+	/// </summary>
+	public bool HasAsyncCompute( Stage stage )
+	{
+		if ( !Layers.TryGetValue( stage, out var list ) ) return false;
+
+		foreach ( var entry in list )
+		{
+			if ( entry.AsyncCompute ) return true;
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	/// Run the layers at <paramref name="stage"/> that can run on the async compute queue, in order, ahead of the stage, which
+	/// then skips them. Called on the render thread, inside a <see cref="Graphics"/> block on the compute queue.
+	/// </summary>
+	public void RenderAsyncCompute( Stage stage )
+	{
+		if ( !Layers.TryGetValue( stage, out var list ) ) return;
+
+		list.Sort();
+
+		foreach ( var entry in list )
+		{
+			if ( !entry.AsyncCompute ) continue;
+
+			entry.Render();
+			entry.RanAsync = true;
+		}
+	}
+
+	/// <summary>
+	/// Whether a layer reads the depth-normals prepass's G-buffer (<see cref="BasePostProcess.NeedsDepthNormals"/>).
+	/// </summary>
+	public bool NeedsDepthNormals
+	{
+		get
+		{
+			foreach ( var list in Layers.Values )
+			{
+				foreach ( var entry in list )
+				{
+					if ( entry.NeedsDepthNormals ) return true;
+				}
+			}
+
+			return false;
 		}
 	}
 }
@@ -62,6 +122,16 @@ internal class PostProcessLayer : IComparable<PostProcessLayer>
 	public CommandList CommandList;
 	public int Order;
 	public string Name;
+
+	/// <summary>
+	/// Whether it reads the depth-normals prepass's G-buffer (<see cref="BasePostProcess.NeedsDepthNormals"/>).
+	/// </summary>
+	public bool NeedsDepthNormals;
+
+	/// <summary>
+	/// Whether it can run on the async compute queue (<see cref="BasePostProcess.AsyncCompute"/>), and whether it has this frame.
+	/// </summary>
+	public bool AsyncCompute, RanAsync;
 
 	public int CompareTo( PostProcessLayer other ) => Order.CompareTo( other.Order );
 

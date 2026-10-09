@@ -11,6 +11,6 @@ public static class Clipboard
 		if ( string.IsNullOrEmpty( text ) )
 			return;
 
-		NativeEngine.EngineGlobal.SDL_SetClipboardText( text );
+		NativeEngine.Sdl.SetClipboardText( text );
 	}
 }

@@ -10,7 +10,7 @@ public class TreeViewPage : GalleryPage
 	readonly Sandbox.UI.Label stats;
 	readonly Sandbox.UI.TreeView<Node> tree;
 
-	public TreeViewPage() : base( "Tree View", "A virtualized tree over your own objects. Only the rows in view exist as panels, and they're reused as you scroll. Arrow keys move, left/right open and close, F2 renames, drag rows onto each other to reparent." )
+	public TreeViewPage() : base( "Tree View", "A virtualized tree over your own objects. Only the rows in view exist as panels, and they're reused as you scroll. Arrow keys move, double-click opens a closed branch, left/right open and close, F2 renames, drag rows onto each other to reparent." )
 	{
 		var row = Case( "One million lazy nodes" );
 

@@ -1,42 +1,110 @@
-﻿@namespace MenuProject.Modals.PackageModalComponents
+@namespace MenuProject.Modals.PackageModalComponents
 @inherits Panel
 @using Sandbox;
 
+@*
+    The News tab - the game page's, and the pause menu's. The newest post big across the top, its
+    picture full width with what it's called laid over the foot of it; the rest under it as cards two
+    to a row, each its picture over its title. Each opens the post. Their shapes, breathing, while
+    they're on their way.
+*@
 <root>
 
-    <PackageTabHeader Title="News" Subtitle="@($"The latest news from the creators of {Package?.Title}.")" />
-
-    @foreach (var entry in News)
+    @if ( !_loaded )
     {
-        <div class="entry" @onclick="@( () => OpenNews( entry ) )">
-
-            @if (entry.Media is not null)
-            {
-                @if (entry.Media.EndsWith(".mp4"))
-                {
-
-                }
-                else
-                {
-                    <div class="media" style="background-image: url( @entry.Media )" />
-                }
-            }
-
-            <div class="right">
-                <div class="title">@entry.Title</div>
-                <div class="meta">
-
-                    <div><i>schedule</i><span>@entry.Created.Humanize()</span></div>
-
-                    @if (entry.Author is not null)
-                    {
-                        <div><i>people</i><span>@entry.Author.Name</span></div>
-                    }
-
-                    </div>
-                <div class="summary">@entry.Summary</div>
+        @* Nothing in yet - the page's shape, breathing *@
+        <div class="feature skeleton">
+            <div class="feature-text">
+                <div class="bone pill-bone"></div>
+                <div class="bone title-bone"></div>
+                <div class="bone line-bone"></div>
             </div>
         </div>
+
+        <div class="grid">
+            @for ( var i = 0; i < 4; i++ )
+            {
+                <div class="card skeleton">
+                    <div class="card-media"></div>
+                    <div class="card-body">
+                        <div class="bone card-title-bone"></div>
+                        <div class="bone line-bone short"></div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else if ( News.Count == 0 )
+    {
+        <div class="state">@Package.Title hasn't posted any news yet.</div>
+    }
+    else
+    {
+        var latest = News[0];
+
+        @* The newest - its picture across the width, a shade coming up it, and it laid over the foot *@
+        <div class="feature" onclick=@( () => OpenNews( latest ) )>
+            <div class="picture" style="background-image: url( @ArtOf( latest ) )"></div>
+            <div class="shade"></div>
+
+            <div class="feature-text">
+                <div class="tags">
+                    <label class="latest-pill">Latest news</label>
+                    <div class="ago" tooltip="@DateOf( latest )"><i>schedule</i><label>@MenuHelpers.TimeAgo( latest.Created )</label></div>
+                </div>
+
+                <label class="feature-title">@latest.Title</label>
+
+                @if ( !string.IsNullOrWhiteSpace( latest.Summary ) )
+                {
+                    <label class="feature-summary">@latest.Summary</label>
+                }
+
+                @if ( latest.Author is { } author )
+                {
+                    <div class="author">
+                        <div class="avatar" style="background-image: url( @author.Avatar )"></div>
+                        <label>@author.Name</label>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @if ( News.Count > 1 )
+        {
+            <label class="section-label">Earlier</label>
+
+            @* The rest, two to a row - each its picture over what it's called *@
+            <div class="grid">
+                @foreach ( var entry in News.Skip( 1 ) )
+                {
+                    <div class="card" onclick=@( () => OpenNews( entry ) )>
+                        <div class="card-media">
+                            <div class="picture" style="background-image: url( @ArtOf( entry ) )"></div>
+                        </div>
+
+                        <div class="card-body">
+                            <label class="card-title">@entry.Title</label>
+
+                            @if ( !string.IsNullOrWhiteSpace( entry.Summary ) )
+                            {
+                                <label class="card-summary">@entry.Summary</label>
+                            }
+
+                            <div class="meta">
+                                @if ( entry.Author is { } by )
+                                {
+                                    <div class="avatar" style="background-image: url( @by.Avatar )"></div>
+                                    <label class="name">@by.Name</label>
+                                    <label class="dot">·</label>
+                                }
+                                <label class="when" tooltip="@DateOf( entry )">@MenuHelpers.TimeAgo( entry.Created )</label>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
     }
 
 </root>
@@ -46,15 +114,43 @@
     [Parameter] public Package Package { get; set; }
 
     List<Sandbox.Services.News> News = new();
+    bool _loaded;
 
     protected override async Task OnParametersSetAsync()
     {
-        News = (await Sandbox.Services.News.GetPackageNews(Package.FullIdent)).ToList();
+        _loaded = false;
+
+        try
+        {
+            News = (await Sandbox.Services.News.GetPackageNews( Package.FullIdent )).ToList();
+        }
+        catch ( Exception e )
+        {
+            Log.Warning( $"Couldn't load {Package?.FullIdent}'s news: {e.Message}" );
+            News = new();
+        }
+
+        _loaded = true;
+        StateHasChanged();
     }
+
+    /// <summary>
+    /// The post's own picture - or the game's art for one without, or with a video there's no still of.
+    /// </summary>
+    string ArtOf( Sandbox.Services.News news )
+    {
+        if ( !string.IsNullOrEmpty( news.Media ) && !news.Media.EndsWith( ".mp4" ) )
+            return news.Media;
+
+        return !string.IsNullOrEmpty( Package?.ThumbWide ) ? Package.ThumbWide : Package?.Thumb;
+    }
+
+    static string DateOf( Sandbox.Services.News news ) => news.Created.LocalDateTime.ToString( "d MMMM yyyy" );
 
     void OpenNews( Sandbox.Services.News news )
     {
         Game.Overlay.ShowNewsModal( news );
     }
 
+    protected override int BuildHash() => HashCode.Combine( Package, _loaded, News.Count );
 }

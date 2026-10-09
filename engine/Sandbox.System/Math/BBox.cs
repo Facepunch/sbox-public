@@ -6,6 +6,7 @@ using System.Text.Json.Serialization;
 /// An <a href="https://en.wikipedia.org/wiki/Minimum_bounding_box">Axis Aligned Bounding Box</a>.
 /// </summary>
 [StructLayout( LayoutKind.Sequential )]
+[Description( "An axis-aligned bounding box defined by its minimum and maximum corners." )]
 public struct BBox : System.IEquatable<BBox>
 {
 	/// <summary>

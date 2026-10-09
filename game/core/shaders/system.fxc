@@ -179,7 +179,8 @@ int TextureDimensionsCubeArray( TextureCubeArray tex, int nMipLevel )
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Allows fxc to compile out combo and rule declarations
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-#define StaticCombo( comboName, range, sys ) ;
+#define StaticCombo( comboName, range, sys, ... ) ;
+#define SpecializationCombo( comboName, range, sys ) ;
 #define DynamicCombo( comboName, range, sys ) ;
 #define DynamicComboFromFeature( comboName, range, feature, sys ) ;
 
@@ -194,6 +195,8 @@ int TextureDimensionsCubeArray( TextureCubeArray tex, int nMipLevel )
 #define SourceArg( arg1 ) string sourceArg = #arg1
 
 #define Attribute( arg1 ) string attribute = arg1
+// Stringize directly: preserve combo names before macro expansion.
+#define ActiveIf( condition ) string activeif = #condition
 
 #define Default( arg1 ) float default1 = { arg1 }
 #define Default1( arg1 ) float default1 = { arg1 }

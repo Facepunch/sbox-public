@@ -4,25 +4,36 @@ GamePackageSortOrder
     flex-direction: row;
     flex-shrink: 0;
     justify-content: space-around;
-}
 
+    button
+    {
+        color: #c6d4eeaa;
+        font-size: 24px;
+        // A fixed square, so the highlight's a real circle whatever the glyph's width. Small enough
+        // to keep all eight options within the filter sidebar.
+        flex-shrink: 0;
+        width: 38px;
+        height: 38px;
+        padding: 0;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
 
-GamePackageSortOrder button
-{
-    color: #c6d4eeaa;
-    font-size: 24px;
-    padding: 8px;
-}
+        .iconpanel
+        {
+            margin: 0;
+            text-align: center;
+        }
 
-GamePackageSortOrder button:hover
-{
-    background-color: #467de455;
-    border-radius: 100px;
-}
+        &:hover
+        {
+            background-color: #467de455;
+        }
 
-GamePackageSortOrder button.active
-{
-    color: white;
-    background-color: #467de4;
-    border-radius: 100px;
+        &.active
+        {
+            color: white;
+            background-color: #467de4;
+        }
+    }
 }

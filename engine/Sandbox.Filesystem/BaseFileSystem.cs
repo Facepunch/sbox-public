@@ -39,6 +39,9 @@ public class BaseFileSystem
 	internal bool PendingDispose = false;
 	internal bool TraceChanges = false;
 
+	// Zio's finalizer does no cleanup for sub/readonly/physical filesystems, it only throws on the finalizer thread if a Dispose failed part way
+	internal static void SuppressZioFinalizer( Zio.IFileSystem fs ) => GC.SuppressFinalize( fs );
+
 	internal virtual void Dispose()
 	{
 		lock ( FileWatch.WithChanges )
@@ -237,6 +240,37 @@ public class BaseFileSystem
 		}
 	}
 
+	/// <summary>Publish a complete file with a same-directory rename, preserving the previous file on write failure.</summary>
+	internal void WriteAllTextAtomic( string path, string contents )
+	{
+		var temporary = $"{path}.{Guid.NewGuid():N}.tmp";
+		try
+		{
+			using ( var stream = OpenWrite( temporary ) )
+			{
+				using var writer = new StreamWriter( stream, new UTF8Encoding( false ), leaveOpen: true );
+				writer.Write( contents );
+				writer.Flush();
+				if ( stream is FileStream file ) file.Flush( flushToDisk: true );
+			}
+			if ( FileExists( path ) ) system.ReplaceFile( FixPath( temporary ), FixPath( path ), null, false );
+			else system.MoveFile( FixPath( temporary ), FixPath( path ) );
+		}
+		finally
+		{
+			try
+			{
+				if ( FileExists( temporary ) ) DeleteFile( temporary );
+			}
+			catch ( Exception e ) when ( e is IOException or UnauthorizedAccessException )
+			{
+				// A leftover temporary file must not hide the original write failure.
+			}
+		}
+	}
+
+	internal void MoveFile( string source, string destination ) => system.MoveFile( FixPath( source ), FixPath( destination ) );
+
 	/// <summary>
 	/// Write the contents to the path. The file will be over-written if the file exists
 	/// </summary>
@@ -325,6 +359,7 @@ public class BaseFileSystem
 		// underneath gives back to sit under that, so it has to be spelled the way that one
 		// spells it - ask for "Code" on a disk that has "code" and it throws at us.
 		var sub = new Zio.FileSystems.SubFileSystem( system, ResolveCasing( path ), false, false );
+		SuppressZioFinalizer( sub );
 		return new BaseFileSystem( sub );
 	}
 

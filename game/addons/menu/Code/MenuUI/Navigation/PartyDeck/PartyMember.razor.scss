@@ -1,36 +1,89 @@
 @import '/styles/_Theme.scss';
+@import '/styles/_front.scss';
 
+// A round face in the party card - people are circles, games are squares. The leader wears a
+// little crown on the corner, and whoever's talking lights up green.
 PartyMember
 {
 	position: relative;
+	flex-shrink: 0;
 	pointer-events: all;
 	cursor: pointer;
 
-	> Avatar
+	// Size comes from the deck, which shrinks faces as the party fills up
+	// Beats the online/in-game outlines the avatar has elsewhere - here the ring means talking
+	Avatar .avatar, Avatar .avatar.online, Avatar .avatar.ingame
 	{
-		pointer-events: none;
+		border-radius: 50%;
+		outline: 2px solid transparent;
+		background-color: rgba( 0, 0, 0, 0.35 );
+		transition: outline 0.1s ease;
+	}
+
+	&:hover Avatar .avatar, &:hover Avatar .avatar.online, &:hover Avatar .avatar.ingame
+	{
+		outline: 2px solid rgba( 255, 255, 255, 0.35 );
+	}
+
+	&.talking Avatar .avatar, &.talking Avatar .avatar.online, &.talking Avatar .avatar.ingame
+	{
+		outline: 2px solid $primary-green;
 	}
 
 	> .crown
 	{
+		pointer-events: none;
 		position: absolute;
-		top: -20px;
-		right: 0px;
-		z-index: 100;
-		transform: rotate( 13deg );
-		font-size: 18px;
+		top: -9px;
+		right: -7px;
+		font-size: 14px;
+		transform: rotate( 18deg );
 	}
 
-	> .talking
+	// Still downloading - a bit faded, so who's holding things up stands out
+	&.busy Avatar .avatar
 	{
+		opacity: 0.75;
+	}
+
+	// Along the bottom edge - download percent, or a glyph for ready / in game / stuck
+	> .status-badge
+	{
+		pointer-events: none;
 		position: absolute;
-		bottom: -12px;
-		left: 7px;
-		z-index: 100;
-		background-color: $primary-green;
-		border-radius: 4px;
-		padding: 2px;
-		color: $default-950;
-		font-size: 14px;
+		bottom: -5px;
+		left: 50%;
+		transform: translateX( -50% );
+		min-width: 18px;
+		height: 16px;
+		padding: 0 4px;
+		align-items: center;
+		justify-content: center;
+		border-radius: 999px;
+		border: 1px solid $front-card-deep;
+		background-color: $front-primary;
+
+		icon
+		{
+			font-size: 11px;
+			color: #ffffff;
+		}
+
+		label
+		{
+			font-size: 9.5px;
+			font-weight: 700;
+			color: #ffffff;
+		}
+
+		&.ready
+		{
+			background-color: $front-reward;
+		}
+
+		&.failed
+		{
+			background-color: $front-danger;
+		}
 	}
 }

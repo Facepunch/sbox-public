@@ -1,0 +1,135 @@
+@import '/styles/_front.scss';
+
+PartySettings
+{
+	flex-direction: column;
+	gap: 10px;
+	padding-top: 12px;
+	border-top: 1px solid $front-hairline;
+	color: $front-body;
+	font-family: $front-font;
+	font-size: 12px;
+	min-height: 0;
+	max-height: 65vh;
+	overflow-y: scroll;
+	flex-shrink: 1;
+
+	> * { flex-shrink: 0; }
+	&.creating { pointer-events: none; }
+
+	button.create-party
+	{
+		@include front-button;
+
+		margin-top: 2px;
+		padding: 8px 12px;
+	}
+
+	.settings-row, .game-row
+	{
+		align-items: center;
+		gap: 8px;
+		min-width: 0;
+	}
+
+	.field-title
+	{
+		width: 92px;
+		flex-shrink: 0;
+		white-space: nowrap;
+		font-weight: 600;
+		color: $front-heading;
+	}
+
+	.settings-row > textentry
+	{
+		@include front-text-entry;
+	}
+
+	SliderControl
+	{
+		flex-grow: 1;
+		min-width: 0;
+		min-height: 32px;
+	}
+
+	.game-choice
+	{
+		@include front-pill;
+
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+		justify-content: flex-start;
+		height: 40px;
+		padding: 5px 8px;
+		gap: 8px;
+
+		.icon
+		{
+			font-size: 20px;
+			flex-shrink: 0;
+			color: $front-secondary;
+		}
+
+		.button-right-column
+		{
+			flex-grow: 1;
+			min-width: 0;
+		}
+	}
+
+	.game-action
+	{
+		@include front-icon-button;
+
+		width: 32px;
+		height: 32px;
+		padding: 0;
+
+		.icon { font-size: 20px; }
+	}
+
+	.game-choice > .icon-texture
+	{
+		width: 28px;
+		height: 28px;
+		flex-shrink: 0;
+		border-radius: 4px;
+		object-fit: cover;
+	}
+
+	.game-choice .button-text, .party-name
+	{
+		flex-grow: 1;
+		min-width: 0;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.game-choice .button-text { font-weight: 600; }
+
+	.game-setup-summary
+	{
+		flex-direction: column;
+		gap: 8px;
+		padding: 12px;
+		border-radius: $front-radius;
+		background-color: rgba( white, 0.03 );
+
+		> div { align-items: center; gap: 8px; }
+		icon { font-family: "Material Icons"; color: $front-secondary; font-size: 16px; flex-shrink: 0; }
+		label { flex-shrink: 1; }
+	}
+
+	.configure-game
+	{
+		@include front-pill;
+		justify-content: center;
+		padding: 8px 12px;
+		margin-top: 4px;
+	}
+
+	.settings-error { color: $front-danger; }
+}

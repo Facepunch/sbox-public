@@ -24,7 +24,10 @@
     </div>
 
     <div class="right">
-		<TextEntry Icon="search" OnTextEdited=@OnSearchEdited></TextEntry>
+        @if ( ShowSearch )
+        {
+		    <TextEntry Icon="search" Placeholder="Search" OnTextEdited=@Search></TextEntry>
+        }
         <MenuProject.UI.PackageFilterOrder Orders="@Result.Orders" Value="@filterOrder" OnChange="@OnOrderChanged"></MenuProject.UI.PackageFilterOrder>
     </div>
 
@@ -37,6 +40,12 @@
 	[Parameter] public string SearchString { get; set; }
 	[Parameter] public Package.FindResult Result { get; set; }
 	[Parameter] public Action<string> OnChange { get; set; }
+
+	/// <summary>
+	/// Its own search box - off where whoever it's in has one of its own, and passes what's typed
+	/// in it to <see cref="Search"/>.
+	/// </summary>
+	[Parameter] public bool ShowSearch { get; set; } = true;
 
 	List<string> filterTypes;
 	List<string> tags;
@@ -91,7 +100,10 @@
         return q;
     }
 
-    void OnSearchEdited( string value )
+    /// <summary>
+    /// Search for this too - after a moment's pause in the typing, rather than every key.
+    /// </summary>
+    public void Search( string value )
     {
         debouncedAction = () =>
         {

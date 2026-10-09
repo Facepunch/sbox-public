@@ -1,6 +1,8 @@
 ﻿
 #include "mapview.h"
 #include "mapviewdroptarget.h"
+#include "mapviewmgr.h"
+#include "hammereditorsession.h"
 
 #include "toolrenderutils/toolcamera.h"
 
@@ -59,6 +61,26 @@ native class CMapView as NativeHammer.CMapView
 
 		return hit;
 	}
+
+	//
+	// Render the view's scene from any camera into an RGB888 buffer of width * height * 3 bytes,
+	// using this view's draw settings. Same path as the screenshot dialog.
+	//
+	inline bool RenderToPixels( Vector3 origin, Angles angles, float fov, int width, int height, CastTo[uint8*] void* pixels )
+	{
+		CMapViewMgr* pViewMgr = self->GetViewManager();
+		if ( pViewMgr == nullptr || pViewMgr->GetEditorSession() == nullptr )
+			return false;
+
+		const CToolCamera* pCamera = self->GetCamera();
+		float flFar = pCamera->IsOrthographic() ? 65536.0f : pCamera->GetCameraFarPlane();
+
+		CFrustum frustum;
+		frustum.InitCamera( origin, angles, 1.0f, flFar, fov, width / (float)height );
+
+		pViewMgr->GetEditorSession()->RenderViewAndReadBack( frustum, width, height, IMAGE_FORMAT_RGB888, pixels, *self );
+		return true;
+	}
 }
 
 native struct HitInfo_t is NativeHammer.HitInfo_t
@@ -79,6 +101,8 @@ native class CToolCamera as NativeHammer.CToolCamera
 	float GetWidth();
 	float GetHeight();
 	float GetCameraFOV();
+
+	bool IsOrthographic();
 
 	//
 	// Finds the 2d point in world space, it lies on the near clipping plane.

@@ -19,9 +19,37 @@ public static class LaunchArguments
 	public static int MaxPlayers { get; set; }
 
 	/// <summary>
-	/// Default privacy for lobbies created on game start.
+	/// Privacy for lobbies created on game start. The more private of this and the lobby's own config wins,
+	/// so neither the menu nor the game can open up a lobby the other made private. If not explicitly set,
+	/// lobbies use their own config.
 	/// </summary>
-	public static LobbyPrivacy Privacy { get; set; } = LobbyPrivacy.Public;
+	public static LobbyPrivacy Privacy
+	{
+		get => PrivacyOverride ?? LobbyPrivacy.Public;
+		set => PrivacyOverride = value;
+	}
+
+	internal static LobbyPrivacy? PrivacyOverride { get; private set; }
+
+	/// <summary>
+	/// The privacy a lobby asking for <paramref name="requested"/> ends up with - the more private of that and
+	/// <see cref="PrivacyOverride"/>.
+	/// </summary>
+	internal static LobbyPrivacy ResolvePrivacy( LobbyPrivacy requested )
+	{
+		if ( PrivacyOverride is not { } privacy ) return requested;
+		return Rank( privacy ) > Rank( requested ) ? privacy : requested;
+	}
+
+	/// <summary>
+	/// How closed a privacy mode is. Not the enum's own order, which has Private before FriendsOnly.
+	/// </summary>
+	static int Rank( LobbyPrivacy privacy ) => privacy switch
+	{
+		LobbyPrivacy.Public => 0,
+		LobbyPrivacy.FriendsOnly => 1,
+		_ => 2
+	};
 
 	/// <summary>
 	/// The game settings to apply on join. These are a list of convars.
@@ -41,7 +69,7 @@ public static class LaunchArguments
 	{
 		GameSettings = default;
 		Map = default;
-		Privacy = default;
+		PrivacyOverride = null;
 		ServerName = default;
 		MaxPlayers = 0;
 	}

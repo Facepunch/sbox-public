@@ -16,10 +16,10 @@ public abstract class BaseWizard : Widget
 
 	protected ScrollArea ScrollArea;
 
-	protected Button BackButton { get; init; }
-	protected Button NextButton { get; init; }
-	protected Label PageTitle { get; init; }
-	protected Label PageSubtitle { get; init; }
+	protected Button BackButton { get; private set; }
+	protected Button NextButton { get; private set; }
+	protected Label PageTitle { get; private set; }
+	protected Label PageSubtitle { get; private set; }
 
 	bool loading;
 	BaseWizardPage _current;
@@ -93,6 +93,15 @@ public abstract class BaseWizard : Widget
 		FooterRight = Footer.AddRow();
 		FooterRight.Spacing = 4;
 
+		BuildNavigation();
+	}
+
+	void BuildNavigation()
+	{
+		HeaderLayout.Clear( true );
+		FooterLeft.Clear( true );
+		FooterRight.Clear( true );
+
 		HeaderLayout.Margin = new Sandbox.UI.Margin( 0, 0, 0, 0 );
 		PageTitle = HeaderLayout.Add( new Label.Title( "Title" ) );
 		PageTitle.ContentMargins = new Sandbox.UI.Margin( 32, 16, 0, 0 );
@@ -139,24 +148,31 @@ public abstract class BaseWizard : Widget
 	}
 
 	/// <summary>
-	/// Rebuild the page on hotload for quick iteration
+	/// Rebuild the UI without reopening pages or restarting their operations.
 	/// </summary>
 	[EditorEvent.Hotload]
-	public void Reset()
+	public virtual void Reset()
 	{
-		HeaderLayout.Clear( true );
-		BodyLayout.Clear( true );
-		FooterLeft.Clear( true );
-		FooterRight.Clear( true );
+		if ( !IsValid ) return;
+
+		BuildNavigation();
+		Current?.Rebuild();
+		Tick();
+		Update();
 	}
 
 	async Task SwitchCurrentPage()
 	{
+		var current = Current;
+		var source = new System.Threading.CancellationTokenSource();
+		current.TokenSource = source;
+		current.FinishTask = null;
 		try
 		{
 			loading = true;
-			_current.TokenSource = new System.Threading.CancellationTokenSource();
-			await _current.OpenAsync();
+			current.OpenTask = current.OpenAsync();
+			await current.OpenTask;
+			if ( !IsValid || Current != current || source.IsCancellationRequested ) return;
 			loading = false;
 
 			if ( _current.IsAutoStep && _current.CanProceed() )
@@ -164,10 +180,35 @@ public abstract class BaseWizard : Widget
 				NextPage();
 			}
 		}
+		catch ( System.OperationCanceledException ) when ( source.IsCancellationRequested )
+		{
+		}
 		catch ( System.Exception e )
 		{
 			Log.Error( e );
 		}
+	}
+
+	/// <summary>
+	/// Stop the current page and wait for its work to finish before reopening an earlier step.
+	/// </summary>
+	protected async Task ReturnToPageAsync( BaseWizardPage page )
+	{
+		var current = Current;
+		loading = true;
+		current.TokenSource?.Cancel();
+
+		try
+		{
+			await Task.WhenAll( current.OpenTask ?? Task.CompletedTask, current.FinishTask ?? Task.CompletedTask );
+		}
+		catch ( System.Exception )
+		{
+			// The page navigation handlers already report failures. Restart even if its work failed.
+		}
+
+		if ( !IsValid ) return;
+		Current = page;
 	}
 
 	protected override void OnPaint()
@@ -194,8 +235,12 @@ public abstract class BaseWizard : Widget
 	[EditorEvent.Frame]
 	public void Tick()
 	{
+		if ( !IsValid ) return;
+
 		if ( Current == null )
 			Current = Steps.FirstOrDefault();
+
+		if ( Current == null ) return;
 
 		bool finalpage = Current == Steps.LastOrDefault();
 
@@ -228,6 +273,8 @@ public abstract class BaseWizard : Widget
 
 	protected void LastPage()
 	{
+		if ( loading ) return;
+
 		var i = Steps.IndexOf( Current );
 		if ( i <= 0 ) return;
 
@@ -238,6 +285,8 @@ public abstract class BaseWizard : Widget
 
 	protected void NextPage()
 	{
+		if ( loading ) return;
+
 		if ( !Current.CanProceed() )
 			return;
 
@@ -271,10 +320,13 @@ public abstract class BaseWizard : Widget
 		var i = Steps.IndexOf( Current );
 		var current = Current;
 		var next = Steps[i + 1];
+		var source = current.TokenSource;
 
 		try
 		{
-			var result = await current.FinishAsync();
+			current.FinishTask = current.FinishAsync();
+			var result = await current.FinishTask;
+			if ( !IsValid || Current != current || source.IsCancellationRequested ) return;
 
 			loading = false;
 
@@ -282,6 +334,9 @@ public abstract class BaseWizard : Widget
 				return;
 
 			Current = next;
+		}
+		catch ( System.OperationCanceledException ) when ( source.IsCancellationRequested )
+		{
 		}
 		catch ( System.Exception e )
 		{

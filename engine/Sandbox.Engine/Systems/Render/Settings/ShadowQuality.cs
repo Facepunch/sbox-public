@@ -1,5 +1,6 @@
 ﻿namespace Sandbox.Engine.Settings;
 
+[Expose]
 public enum ShadowQuality
 {
 	Low = 0,

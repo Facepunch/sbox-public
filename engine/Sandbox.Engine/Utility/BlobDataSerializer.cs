@@ -116,39 +116,45 @@ internal static class BlobDataSerializer
 		return instance;
 	}
 
-	private static byte[] GetBlobData( Dictionary<Guid, RegisteredBlob> blobs )
+	internal readonly record struct CapturedBlob( Guid Id, int Version, byte[] Data );
+
+	private static CapturedBlob[] CaptureBlobs( Dictionary<Guid, RegisteredBlob> blobs ) =>
+		blobs.Select( x => new CapturedBlob( x.Key, x.Value.Blob.Version, x.Value.Data ) ).ToArray();
+
+	private static byte[] GetBlobData( Dictionary<Guid, RegisteredBlob> blobs ) => PackBlobs( CaptureBlobs( blobs ) );
+	internal static byte[] PackBlobs( CapturedBlob[] blobs )
 	{
-		if ( blobs == null || blobs.Count == 0 )
+		if ( blobs == null || blobs.Length == 0 )
 			return null;
 
 		// Canonical order so unchanged content always produces byte-identical output,
 		// independent of registration order or dictionary enumeration details
-		var ordered = blobs.OrderBy( x => x.Key ).ToArray();
+		var ordered = blobs.OrderBy( x => x.Id ).ToArray();
 
-		long offset = HeaderSize + blobs.Count * TocEntrySize;
+		long offset = HeaderSize + blobs.Length * TocEntrySize;
 
 		long totalSize = offset;
 		foreach ( var kvp in ordered )
-			totalSize += kvp.Value.Data.Length;
+			totalSize += kvp.Data.Length;
 
 		var outputStream = ByteStream.Create( (int)totalSize );
 		try
 		{
 			outputStream.Write( 1 );
-			outputStream.Write( blobs.Count );
+			outputStream.Write( blobs.Length );
 
 			foreach ( var kvp in ordered )
 			{
-				outputStream.Write( kvp.Key.ToByteArray() );
-				outputStream.Write( kvp.Value.Blob.Version );
+				outputStream.Write( kvp.Id.ToByteArray() );
+				outputStream.Write( kvp.Version );
 				outputStream.Write( offset );
-				outputStream.Write( kvp.Value.Data.Length );
-				offset += kvp.Value.Data.Length;
+				outputStream.Write( kvp.Data.Length );
+				offset += kvp.Data.Length;
 			}
 
 			foreach ( var kvp in ordered )
 			{
-				outputStream.Write( kvp.Value.Data );
+				outputStream.Write( kvp.Data );
 			}
 
 			return outputStream.ToArray();
@@ -348,6 +354,8 @@ internal static class BlobDataSerializer
 		}
 
 		public byte[] ToByteArray() => GetBlobData( Blobs );
+
+		internal CapturedBlob[] Detach() => CaptureBlobs( Blobs );
 
 		/// <summary>
 		/// Merge extra serialized blob data into this open context, so separately-captured blobs

@@ -1,5 +1,6 @@
 ﻿using NativeEngine;
 using System.Collections.Concurrent;
+using System.Threading;
 
 namespace Sandbox.Rendering;
 
@@ -14,12 +15,36 @@ internal static class ShadowMapperCallbacks
 	/// </summary>
 	static ConcurrentDictionary<IntPtr, ShadowMapper> ShadowMappers = [];
 
-	static ShadowMapper Get( IntPtr pLightMapper ) => ShadowMappers.GetOrAdd( pLightMapper, _ => new() );
+	static ShadowMapper Get( IntPtr pLightMapper )
+	{
+		if ( ShadowMappers.TryGetValue( pLightMapper, out var mapper ) )
+			return mapper;
+
+		mapper = ShadowMappers.GetOrAdd( pLightMapper, _ => ShadowMapper.CreateNative() );
+		Interlocked.Increment( ref _mappersVersion );
+		return mapper;
+	}
+
+	// Mappers are only ever added, so a copy of them stays good until the version moves.
+	// Values would copy them into a new array on every call.
+	sealed record MapperSnapshot( int Version, ShadowMapper[] Mappers );
+	static int _mappersVersion;
+	static MapperSnapshot _mappers = new( 0, [] );
+
+	static ShadowMapper[] GetMappers()
+	{
+		var snapshot = _mappers;
+		var version = Volatile.Read( ref _mappersVersion );
+		if ( snapshot.Version == version ) return snapshot.Mappers;
+
+		_mappers = snapshot = new( version, ShadowMappers.Values.ToArray() );
+		return snapshot.Mappers;
+	}
 
 	internal static void InitForView( IntPtr handle, ISceneView sceneView ) => Get( handle ).InitForView( sceneView );
 	internal static void SetShaderAttributes( IntPtr handle, CRenderAttributes renderAttr )
 	{
-		Get( handle ).SetShaderAttributes( new RenderAttributes( renderAttr ) );
+		Get( handle ).SetShaderAttributes( renderAttr );
 	}
 
 	internal static void UploadToGPU( IntPtr handle ) => Get( handle ).UploadToGPU();
@@ -32,7 +57,11 @@ internal static class ShadowMapperCallbacks
 	internal static void RenderScreenSpaceShadows()
 	{
 		var view = Graphics.SceneView;
-		foreach ( var sm in ShadowMappers.Values )
+
+		// A managed frame (r_managed_scene) has no native view to draw them for
+		if ( view.IsNull ) return;
+
+		foreach ( var sm in GetMappers() )
 			sm.RenderScreenSpaceShadows( view );
 	}
 }

@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 
 namespace Sandbox.Services;
 
@@ -150,6 +150,11 @@ public sealed class Jam
 	public int EntryCount { get; init; }
 
 	/// <summary>
+	/// Seconds a player must have played an entry before they can nominate it.
+	/// </summary>
+	public int MinPlaySeconds { get; init; }
+
+	/// <summary>
 	/// Package search query that lists the entries, e.g. "jam:three".
 	/// </summary>
 	public string Query { get; init; }
@@ -165,7 +170,8 @@ public sealed class Jam
 	/// The clock this jam was fetched against. Normally the real time, but shifted when
 	/// <see cref="PreviewDays"/> is set, so compare dates to this rather than to UtcNow.
 	/// </summary>
-	public DateTimeOffset Now => DateTimeOffset.UtcNow.AddDays( PreviewDays );
+	public DateTimeOffset Now => DateTimeOffset.UtcNow.AddDays( PreviewDays )
+		.Add( Application.IsEditor && PreviewDays > 0 ? editorPreviewOffset : TimeSpan.Zero );
 
 	/// <summary>
 	/// The step in <see cref="Timeline"/> that is current, or -1 before the first one.
@@ -212,7 +218,41 @@ public sealed class Jam
 	/// looking at a phase before it happens.
 	/// </summary>
 	[ConVar( "jam_preview_days", ConVarFlags.Protected, Help = "Preview a jam this many days ahead (admin only)" )]
-	public static int PreviewDays { get; set; } = 0;
+	public static int PreviewDays
+	{
+		get => previewDays;
+		set
+		{
+			if ( previewDays == value ) return;
+			previewDays = value;
+			editorPreviewOffset = TimeSpan.Zero;
+		}
+	}
+
+	static int previewDays;
+	static TimeSpan editorPreviewOffset;
+
+	/// <summary>
+	/// Whether the editor can rehearse local jam transitions without submitting votes.
+	/// </summary>
+	public static bool IsEditorPreview => Application.IsEditor && PreviewDays > 0;
+
+	/// <summary>
+	/// Seeks the running jam clock for editor rehearsals. This does not change backend time or voting.
+	/// Only available in the editor with a positive preview-day offset.
+	/// </summary>
+	public static void SeekEditorPreview( DateTimeOffset target )
+	{
+		if ( !Application.IsEditor || PreviewDays <= 0 )
+			throw new InvalidOperationException( "Enable jam_preview_days in the editor before seeking the preview clock." );
+
+		editorPreviewOffset = target - DateTimeOffset.UtcNow.AddDays( PreviewDays );
+	}
+
+	/// <summary>
+	/// Restores the ordinary day-offset preview clock after an editor rehearsal.
+	/// </summary>
+	public static void ResetEditorPreview() => editorPreviewOffset = TimeSpan.Zero;
 
 	const float CacheSeconds = 60 * 5;
 
@@ -294,6 +334,7 @@ public sealed class Jam
 			Results = x.Results,
 			CommunityVoting = x.CommunityVoting,
 			EntryCount = x.EntryCount,
+			MinPlaySeconds = x.MinPlaySeconds,
 			Query = x.Query,
 			Categories = x.Categories?.Select( From ).ToArray() ?? [],
 			Timeline = x.Timeline?.Select( From ).ToArray() ?? [],

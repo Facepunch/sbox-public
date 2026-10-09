@@ -97,7 +97,9 @@ public sealed partial class ModelBuilder
 			if ( animationBuilder.IsValid )
 				modelBuilder.AddAnimationGroupRuntime( animationBuilder );
 
-			var model = modelBuilder.CreateRuntimeModel( "sbox_procedural_model", true );
+			var resourceName = Resource.FixPath( modelName ).Replace( ':', '_' );
+			resourceName = string.IsNullOrEmpty( resourceName ) ? "sbox_procedural_model" : System.IO.Path.ChangeExtension( resourceName, ".vmdl" );
+			var model = modelBuilder.CreateRuntimeModel( resourceName, true );
 			return Model.FromNative( model, true, modelName );
 		}
 		finally

@@ -9,7 +9,9 @@
    into a label, so both ride alongside it rather than sitting inside it. *@
 <root class="@( Glow ? "glow" : "" ) @( string.IsNullOrEmpty( Sub ) ? "" : "has-sub" )">
 
-    <Button Href="@Href" Icon="@Icon" Text="@Text" />
+    @* mousedown, not click - an open popup's backdrop swallows the mousedown that closes it, so
+       the entry only ever hears the press that opens one. A mouseup would hear both and reopen it. *@
+    <Button Href="@Href" Icon="@Icon" Text="@Text" Active="@Active" onmousedown="@Clicked" />
 
     @if ( !string.IsNullOrEmpty( Badge ) )
     {
@@ -32,8 +34,14 @@
 </root>
 
 @code {
-    /// <summary>The page this entry goes to.</summary>
+    /// <summary>The page this entry goes to. Leave it empty for an entry that opens something in place.</summary>
     [Parameter] public string Href { get; set; }
+
+    /// <summary>Runs when the entry is clicked - for an entry that opens a popup rather than a page.</summary>
+    [Parameter] public Action OnPress { get; set; }
+
+    /// <summary>Force the lit state, for an entry with no page to match against.</summary>
+    [Parameter] public bool Active { get; set; }
 
     /// <summary>Material icon name.</summary>
     [Parameter] public string Icon { get; set; }
@@ -56,7 +64,12 @@
     /// <summary>Optional line under the label, e.g. a countdown. Keep it short - the rail is narrow.</summary>
     [Parameter] public string Sub { get; set; }
 
+    void Clicked()
+    {
+        OnPress?.Invoke();
+    }
+
     string FillWidth => (Math.Clamp( Progress ?? 0f, 0f, 1f ) * 100f).ToString( "0.#", CultureInfo.InvariantCulture ) + "%";
 
-    protected override int BuildHash() => HashCode.Combine( Href, Icon, Text, Badge, BadgeClass, Progress, Glow, Sub );
+    protected override int BuildHash() => HashCode.Combine( HashCode.Combine( Href, Icon, Text, Badge ), BadgeClass, Progress, Glow, Sub, Active );
 }

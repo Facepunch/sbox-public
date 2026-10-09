@@ -141,42 +141,65 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 	}
 
 	/// <summary>
-	/// Creates an instance of this type that will get loaded into later. This allows us to
+	/// Fetch a loaded resource, or set up a promise that will get loaded into later. This allows us to
 	/// have resources that reference other resources that aren't loaded yet (or are missing).
+	/// Mounted references load synchronously instead of creating promises.
 	/// </summary>
-	internal static GameResource GetPromise( System.Type type, string filename )
+	internal static GameResource GetPromise( System.Type type, ResourceId id )
 	{
-		var path = FixPath( filename );
-		if ( string.IsNullOrEmpty( path ) ) return default;
+		if ( id.IsEmpty ) return default;
 
-		var obj = Game.Resources.Get( type, path ) as GameResource;
+		var obj = Game.Resources.Get( type, id ) as GameResource;
 		if ( obj != null ) return obj;
 
-		obj = System.Activator.CreateInstance( type ) as GameResource;
+		if ( Mounting.MountUtility.IsMountPath( id.Path ) )
+		{
+			if ( !Mounting.Directory.TryLoad( id.Path, out var mounted ) )
+				return null;
 
+			if ( mounted is GameResource resource && resource.GetType().IsAssignableTo( type ) )
+				return resource;
+
+			Log.Warning( $"Mounted resource '{id.Path}' is not a '{type.FullName}'." );
+			return null;
+		}
+
+		// create a new instance of the resource type and register it as a promise
+		obj = System.Activator.CreateInstance( type ) as GameResource;
 		if ( obj is null )
 		{
 			Log.Warning( $"Failed to create '{type.FullName}'" );
 			return default;
 		}
 
-		obj.InternalInitialize( filename );
+		obj.InitPromise( id );
 
 		Game.Resources.Register( obj );
 		return obj;
 	}
 
-	private void InternalInitialize( string filename )
+	private void InitPromise( ResourceId id )
 	{
-		ResourcePath = FixPath( filename );
-		ResourceName = System.IO.Path.GetFileNameWithoutExtension( ResourcePath );
-		// Keep this for backwards compat for now
+		// a GUID-only promise has no path yet, will only become known by something else finding it
+		// by GuidIndex and reconciling it (eg. LoadGameResource loading the real file)
+		if ( !string.IsNullOrEmpty( id.Path ) )
+		{
+			ResourcePath = FixPath( id.Path );
+			ResourceName = System.IO.Path.GetFileNameWithoutExtension( ResourcePath );
+			// Keep this for backwards compat for now
 #pragma warning disable CS0618 // Type or member is obsolete
-		ResourceId = ResourcePath.FastHash();
+			ResourceId = ResourcePath.FastHash();
 #pragma warning restore CS0618 // Type or member is obsolete
-		ResourceIdLong = ResourcePath.FastHash64();
+			ResourceIdLong = ResourcePath.FastHash64();
 
-		Manifest = AsyncResourceLoader.Load( ResourcePath );
+			// Sol: the actual load happens via LoadGameResource, what's this for?
+			Manifest = AsyncResourceLoader.Load( ResourcePath );
+		}
+
+		if ( id.Guid is Guid guid && guid != default )
+		{
+			Game.Resources.AssignGuid( this, guid );
+		}
 
 		_awaitingLoad = true;
 	}
@@ -199,15 +222,41 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 		Game.Resources.Register( this );
 	}
 
-	/// <summary>
-	/// Loads a game resource from given file.
-	/// </summary>
-	internal static T Load<T>( string filename ) where T : GameResource
+	Mounting.ResourceLoader _mountLoader;
+	GlobalContext _mountContext;
+
+	internal void RegisterMounted( Mounting.ResourceLoader loader )
 	{
+		Register( loader.Path );
+		_mountLoader = loader;
+		_mountContext = GlobalContext.Current;
+		loader.ShutdownActions += OnMountShutdown;
+	}
+
+	void OnMountShutdown()
+	{
+		using var scope = new GlobalContext.GlobalContextScope( _mountContext );
+		DestroyInternal();
+	}
+
+	/// <summary>
+	/// Loads a game resource by path, including mount:// paths.
+	/// </summary>
+	/// <remarks>
+	/// Uncached mounted resources load synchronously and must be resolved on the main thread.
+	/// </remarks>
+	public static T Load<T>( string filename ) where T : GameResource
+	{
+		if ( string.IsNullOrWhiteSpace( filename ) )
+			return null;
+
 		if ( ResourceLibrary.TryGet<T>( filename, out var resource ) )
 		{
 			return resource;
 		}
+
+		if ( Mounting.MountUtility.IsMountPath( filename ) )
+			return GetPromise( typeof( T ), filename ) as T;
 
 		return null;
 	}
@@ -337,8 +386,16 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 	{
 		using ( PushSerializationScope() )
 		{
+			OnJsonDeserialize( jso );
 			Json.DeserializeToObject( this, jso );
 		}
+	}
+
+	/// <summary>
+	/// Called before deserialization, allowing optional state to be reset when its fields are absent.
+	/// </summary>
+	protected virtual void OnJsonDeserialize( JsonObject node )
+	{
 	}
 
 	/// <summary>
@@ -448,6 +505,12 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 		{
 			Log.Warning( ex, $"{ex.GetType().Name} when destroying {ResourcePath}" );
 		}
+		finally
+		{
+			if ( _mountLoader is not null )
+				_mountLoader.ShutdownActions -= OnMountShutdown;
+			_mountLoader = null;
+			_mountContext = null;
+		}
 	}
 }
-

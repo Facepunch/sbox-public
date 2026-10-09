@@ -40,11 +40,11 @@ public class ToolWindow : Panel
 
 	void BuildToolBar()
 	{
-		var bar = Add.Panel( "toolbar" );
+		var bar = AddChild( new Toolbar() );
 
-		AddButton( bar, "Add", () => AddItem( $"New Item {Items.Count + 1}" ) );
-		AddButton( bar, "Remove", () => RemoveItem( selected ) );
-		AddButton( bar, "Reverse", Reverse );
+		bar.AddButton( "Add", "add", () => AddItem( $"New Item {Items.Count + 1}" ) );
+		bar.AddButton( "Remove", "remove", () => RemoveItem( selected ) );
+		bar.AddButton( "Reverse", "swap_vert", Reverse );
 	}
 
 	void BuildBody()
@@ -59,14 +59,8 @@ public class ToolWindow : Panel
 
 	void BuildStatusBar()
 	{
-		var bar = Add.Panel( "statusbar" );
-		Status = bar.Add.Label( "" );
-	}
-
-	static void AddButton( Panel parent, string text, Action onClick )
-	{
-		var button = parent.Add.Label( text, "button" );
-		button.AddEventListener( "onclick", onClick );
+		var bar = AddChild( new Sandbox.UI.StatusBar() );
+		Status = bar.Left.Add.Label( "" );
 	}
 
 	void RebuildList()

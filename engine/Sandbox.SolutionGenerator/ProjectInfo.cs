@@ -30,6 +30,11 @@ public class ProjectInfo
 
 	public List<string> PackageReferences { get; set; } = new List<string>();
 
+	/// <summary>
+	/// MSBuild properties exposed to analyzers as build_property.Name.
+	/// </summary>
+	public Dictionary<string, string> CompilerProperties { get; set; } = new();
+
 	public List<string> GlobalStatic { get; set; } = new List<string>();
 	public List<string> GlobalUsing { get; set; } = new List<string>();
 	public List<string> IncludeFiles { get; set; } = new();

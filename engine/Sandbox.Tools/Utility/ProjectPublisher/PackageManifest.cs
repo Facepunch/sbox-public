@@ -287,8 +287,9 @@ public partial class ProjectPublisher
 
 				while ( tasks.Count > 8 )
 				{
-					await Task.WhenAny( tasks.ToArray() );
-					tasks.RemoveAll( x => x.IsCompleted );
+					var completed = await Task.WhenAny( tasks );
+					await completed;
+					tasks.Remove( completed );
 				}
 			}
 
@@ -404,6 +405,9 @@ public partial class ProjectPublisher
 				}
 			} );
 
+			if ( Assets.Any( x => string.Equals( x.Name, relativePath, StringComparison.OrdinalIgnoreCase ) ) )
+				return;
+
 			scannedBytes += (ulong)e.Size;
 
 			Assets.Add( e );
@@ -518,6 +522,9 @@ public partial class ProjectPublisher
 					e.Hash = (await Sandbox.Utility.Crc64.FromStreamAsync( stream )).ToString( "x" );
 				}
 			} );
+
+			if ( Assets.Any( x => string.Equals( x.Name, relativePath, StringComparison.OrdinalIgnoreCase ) ) )
+				return;
 
 			scannedBytes += (ulong)e.Size;
 			Assets.Add( e );

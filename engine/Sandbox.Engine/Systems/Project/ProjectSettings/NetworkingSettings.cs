@@ -8,14 +8,16 @@ namespace Sandbox;
 public class NetworkingSettings : ConfigData
 {
 	/// <summary>
-	/// Whether to disband the game lobby when the host leaves.
+	/// Whether to end the game when the host leaves. By default the host hands the game to
+	/// another player when they leave, and everyone carries on from a snapshot of the game.
+	/// Anything a late joiner would see correctly survives the handoff.
 	/// </summary>
 	public bool DestroyLobbyWhenHostLeaves { get; set; }
 
 	/// <summary>
-	/// Whether to periodically switch to the best host candidate. Candidates are
-	/// scored based on their average ping and connection quality to all other peers.
+	/// No longer does anything. The host only changes when the current host leaves.
 	/// </summary>
+	[Hide, Obsolete( "The host only changes when the current host leaves" )]
 	public bool AutoSwitchToBestHost { get; set; } = true;
 
 	/// <summary>

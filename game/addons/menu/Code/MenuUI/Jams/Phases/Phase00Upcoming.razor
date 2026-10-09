@@ -1,0 +1,17 @@
+@namespace MenuProject.MenuUI.Jams
+@inherits JamPhasePanel
+
+<root class="jam-phase">
+	<JamPhaseLayout Jam=@Jam Blurb=@Blurb CountdownTarget=@Jam.Starts CountdownLabel="Starts in">
+		<Content>
+			<JamEntries Jam=@Jam Locked=@true />
+		</Content>
+	</JamPhaseLayout>
+</root>
+
+@code
+{
+	string Blurb => Jam.CommunityVoting
+		? "The theme is a secret until the jam starts. Once it does, play the entries and nominate the ones you rate."
+		: "The theme is a secret until the jam starts.";
+}

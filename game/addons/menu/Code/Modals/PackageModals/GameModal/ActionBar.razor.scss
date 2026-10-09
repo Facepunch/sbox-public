@@ -1,4 +1,5 @@
 @import "/styles/_theme.scss";
+@import "/styles/_front.scss";
 
 ActionBar
 {
@@ -9,26 +10,107 @@ ActionBar
 ActionBar > .left
 {
 	flex-grow: 1;
+	align-items: center;
+	gap: 10px;
+}
+
+// While setting up a new game - what it'll be, as a row of chips: the map with a picture of it, who
+// can join, how many
+ActionBar .setup-summary
+{
+	gap: 6px;
+
+	.chip
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 7px;
+		height: 34px;
+		padding: 0 14px 0 10px;
+		border-radius: 999px;
+		border: $front-border-width solid $front-hairline;
+		background-color: rgba( 255, 255, 255, 0.05 );
+
+		i
+		{
+			font-family: "Material Icons";
+			font-size: 16px;
+			color: linear-gradient( 180deg, #9cc6ff, $front-primary );
+		}
+
+		label
+		{
+			font-family: $front-font;
+			font-size: 12.5px;
+			font-weight: 600;
+			color: $front-heading;
+			font-variant-numeric: tabular-nums;
+			white-space: nowrap;
+		}
+
+		// Its picture behind, from the left edge, fading out most of the way across
+		&.map
+		{
+			position: relative;
+			overflow: hidden;
+			cursor: pointer;
+			transition: all 0.1s ease;
+
+			&:hover
+			{
+				sound-in: "ui.button.over";
+				border-color: rgba( 255, 255, 255, 0.28 );
+				background-color: rgba( 255, 255, 255, 0.11 );
+			}
+
+			&:active
+			{
+				sound-in: "ui.button.press";
+			}
+
+			.art
+			{
+				position: absolute;
+				left: 0;
+				top: 0;
+				bottom: 0;
+				width: 90%;
+				background-size: cover;
+				background-position: center;
+				mask-image: linear-gradient( 90deg, white 0%, black 100% );
+				opacity: 0.7;
+			}
+
+			i, label
+			{
+				text-shadow: 0 1px 4px rgba( 0, 0, 0, 0.8 );
+			}
+		}
+	}
 }
 
 ActionBar > .right
 {
 	justify-content: flex-end;
+	align-items: center;
 	gap: 6px;
 }
 
+// Same pills as the hover preview: hairline for secondary actions, filled for Play.
 Button
 {
-	border-radius: $rounding-default;
+	border-radius: 999px;
 	flex-shrink: 0;
-	font-size: $text-regular;
+	font-size: 12.5px;
 	font-weight: 700;
 	font-family: $font-heading;
-	padding: 6px 14px;
-	border: 1px solid transparent;
-	color: $default-text-light;
-	transition: all 0.15s ease;
-	letter-spacing: 1px;
+	padding: 8px 16px;
+	border: 1px solid rgba( 255, 255, 255, 0.1 );
+	background-color: rgba( 255, 255, 255, 0.05 );
+	color: #c8cedb;
+	transition: all 0.1s ease;
+	letter-spacing: 0.07em;
 
 	label
 	{
@@ -37,8 +119,8 @@ Button
 
 	&:hover
 	{
-		border-color: $default-border;
-		background-color: rgba( $default-500, 0.1 );
+		border-color: rgba( 255, 255, 255, 0.28 );
+		background-color: rgba( 255, 255, 255, 0.11 );
 		color: $default-text;
 		sound-in: "ui.button.over";
 	}
@@ -54,11 +136,11 @@ Button.play
 	background-color: $primary-blue;
 	border-color: transparent;
 	color: white;
-	padding: 6px 20px;
+	padding: 8px 24px;
 
 	&:hover
 	{
-		filter: brightness( 1.2 );
+		filter: brightness( 1.15 );
 		border-color: transparent;
 		background-color: $primary-blue;
 	}
@@ -67,6 +149,51 @@ Button.play
 	{
 		opacity: 0.25;
 		pointer-events: none;
+	}
+}
+
+// New Game and Join Game as one pill, split down the middle like the vote pair - the halves lose
+// their own rounding, the pair takes it
+.play-split
+{
+	flex-direction: row;
+	flex-shrink: 0;
+	align-items: stretch;
+	border-radius: 999px;
+	overflow: hidden;
+
+	Button
+	{
+		border-radius: 0;
+		border-width: 0;
+	}
+
+	.split
+	{
+		width: 1px;
+		flex-shrink: 0;
+		background-color: rgba( 0, 0, 0, 0.35 );
+	}
+
+	// New Game's the one lit up in blue; Join's the quiet half - the same grey as the other
+	// pills, so when there's nothing to join it just dims, rather than being a murky blue
+	Button.join
+	{
+		padding: 8px 20px;
+		background-color: rgba( 255, 255, 255, 0.08 );
+		color: $default-text;
+
+		&:hover
+		{
+			background-color: rgba( 255, 255, 255, 0.15 );
+		}
+
+		&.disabled
+		{
+			background-color: rgba( 255, 255, 255, 0.05 );
+			color: rgba( 255, 255, 255, 0.3 );
+			opacity: 1;
+		}
 	}
 }
 

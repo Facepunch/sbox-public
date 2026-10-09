@@ -73,7 +73,7 @@ public class Viewport : Panel
 		overlay.Add.Panel( "vignette" );
 	}
 
-	readonly Dictionary<string, Panel> toolButtons = new();
+	readonly Dictionary<string, Sandbox.UI.Button> toolButtons = new();
 
 	/// <summary>
 	/// The move/rotate/scale strip down the left. In the gallery it's the control being proven,
@@ -81,17 +81,18 @@ public class Viewport : Panel
 	/// </summary>
 	void BuildToolStrip( Panel overlay )
 	{
-		var strip = overlay.Add.Panel( "toolstrip" );
+		var strip = overlay.AddChild( new Toolbar { Vertical = true } );
+		strip.AddClass( "toolstrip" );
 
 		Tool( strip, "control_camera", "position" );
 		Tool( strip, "360", "rotation" );
 		Tool( strip, "zoom_out_map", "scale" );
 	}
 
-	void Tool( Panel strip, string icon, string toolName )
+	void Tool( Toolbar strip, string icon, string toolName )
 	{
-		var button = strip.Clickable( "toolbutton", () => SetTool( toolName ) );
-		button.Icon( icon );
+		var button = strip.AddButton( null, icon, () => SetTool( toolName ) );
+		button.Tooltip = toolName;
 
 		toolButtons[toolName] = button;
 	}
@@ -104,7 +105,7 @@ public class Viewport : Panel
 
 		foreach ( var (name, button) in toolButtons )
 		{
-			button.SetClass( "active", name == currentTool );
+			button.Active = name == currentTool;
 		}
 	}
 
@@ -188,7 +189,7 @@ public class Viewport : Panel
 
 			foreach ( var (name, button) in toolButtons )
 			{
-				button.SetClass( "active", name == currentTool );
+				button.Active = name == currentTool;
 			}
 		}
 	}
@@ -293,6 +294,9 @@ public class Viewport : Panel
 
 	protected override void OnMouseDown( MousePanelEvent e )
 	{
+		// Overlay controls own their clicks and focus; don't also pick the scene underneath.
+		if ( e.Target is Toolbar || e.Target.Ancestors.OfType<Toolbar>().Any() ) return;
+
 		Focus();
 
 		if ( e.MouseButton == MouseButtons.Right )

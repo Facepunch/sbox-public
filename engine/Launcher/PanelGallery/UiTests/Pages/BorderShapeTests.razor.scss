@@ -1,3 +1,4 @@
+@import "/styles/_gallery-palette.scss";
 BorderShapeTests
 {
 	.oversized-child
@@ -9,7 +10,7 @@ BorderShapeTests
 		height: 60px;
 		align-items: center;
 		justify-content: center;
-		background-image: linear-gradient( to right, #ff4a6e, #4a9eff );
+		background-image: linear-gradient( to right, $gallery-pink, $gallery-cyan );
 		font-size: 18px;
 		font-weight: 700;
 		color: white;

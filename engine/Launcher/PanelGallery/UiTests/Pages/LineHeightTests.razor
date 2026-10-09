@@ -1,0 +1,27 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Text" )]
+@attribute [Title( "line-height" )]
+@attribute [Description( "Compare line-height values independently." )]
+@attribute [Icon( "text_fields" )]
+
+<root>
+    <h2>line-height</h2>
+    <div class="cases">
+        <UiTestCase Setup="@Text" Css="line-height: 1" Caption="1" Text="@Paragraph" />
+        <UiTestCase Setup="@Text" Css="line-height: 2" Caption="2" Text="@Paragraph" />
+        <UiTestCase Setup="@Text" Css="line-height: 8px" Caption="8px" Text="@Paragraph" Note="A length line-height, tighter than the glyphs." />
+        <UiTestCase Setup="@Text" Css="line-height: 1.4" Caption="1.4" Text="@Paragraph" />
+        <UiTestCase Setup="@Text" Css="line-height: 24px" Caption="24px" Text="@Paragraph" />
+    </div>
+</root>
+
+@code
+{
+    const string Text = UiTestCase.TextSetup;
+    const string Sample = "Sphinx of black quartz";
+    const string Paragraph = "Sphinx of black quartz, judge my vow. Pack my box with five dozen liquor jugs.";
+    const string Digits = "0123456789 1111 8888";
+}

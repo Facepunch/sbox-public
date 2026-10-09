@@ -4,7 +4,7 @@ namespace Facepunch.Steps;
 
 internal class BuildManaged( bool clean = false )
 {
-	internal ExitCode Run()
+	internal ExitCode Run() => BuildDisplay.Run( "Build managed code", () =>
 	{
 		string engineDir = Path.Combine( Directory.GetCurrentDirectory(), "engine" );
 		string rootDir = Directory.GetCurrentDirectory();
@@ -14,6 +14,7 @@ internal class BuildManaged( bool clean = false )
 			Log.Info( "Step 1: Dotnet Clean" );
 			if ( clean )
 			{
+				BuildDisplay.Status( "Clean managed projects" );
 				if ( !Utility.RunDotnetCommand( engineDir, "clean" ) )
 					return ExitCode.Failure;
 			}
@@ -23,20 +24,24 @@ internal class BuildManaged( bool clean = false )
 			}
 
 			Log.Info( "Step 2: Dotnet Restore" );
+			BuildDisplay.Status( "Restore managed dependencies" );
 			if ( !Utility.RunDotnetCommand( engineDir, "restore" ) )
 				return ExitCode.Failure;
 
 			Log.Info( "Step 3: Build CodeGen.exe" );
+			BuildDisplay.Status( "Build CodeGen" );
 			RecreateDirectory( Path.Combine( engineDir, "Tools", "CodeGen", "bin" ) );
 			if ( !Utility.RunDotnetCommand( engineDir, "build Tools/CodeGen/ -o Tools/CodeGen/bin" ) )
 				return ExitCode.Failure;
 
 			Log.Info( "Step 3a: Build CreateGameCache.exe" );
+			BuildDisplay.Status( "Build CreateGameCache" );
 			RecreateDirectory( Path.Combine( engineDir, "Tools", "CreateGameCache", "bin" ) );
 			if ( !Utility.RunDotnetCommand( engineDir, "build Tools/CreateGameCache/ -o Tools/CreateGameCache/bin" ) )
 				return ExitCode.Failure;
 
 			Log.Info( "Step 4: Clear managed folder" );
+			BuildDisplay.Status( "Clear managed output" );
 			string managedDir = Path.Combine( rootDir, "game", "bin", "managed" );
 			if ( Directory.Exists( managedDir ) )
 			{
@@ -59,6 +64,7 @@ internal class BuildManaged( bool clean = false )
 			}
 
 			Log.Info( "Step 5: Build Managed" );
+			BuildDisplay.Status( "Build managed engine" );
 			if ( !Utility.RunDotnetCommand( engineDir, "build -c Release Sandbox-Engine.slnx -p:TreatWarningsAsErrors=true" ) )
 				return ExitCode.Failure;
 
@@ -70,19 +76,24 @@ internal class BuildManaged( bool clean = false )
 				Log.Info( $"Step 6: Publish {launcherRid} framework-dependent single-file launchers" );
 				var publishRoot = Path.Combine( Path.GetTempPath(), $"sbox-launchers-{Guid.NewGuid():N}" );
 				Directory.CreateDirectory( publishRoot );
+				var completedLaunchers = 0;
+				BuildDisplay.Status( $"Publish {launcherRid} launchers" );
 
-				foreach ( var project in new[]
+				var launcherProjects = new[]
 				{
 					"Sbox/Sbox.csproj",
 					"SboxDev/Sbox-Dev.csproj",
 					"StandaloneTest/Sbox-Launcher.csproj",
-					"SboxStandalone/Sbox-Standalone.csproj",
 					"SboxServer/Sbox-Server.csproj",
 					"SboxBench/SboxBench.csproj"
-				} )
+				};
+				BuildDisplay.Progress( completedLaunchers, launcherProjects.Length );
+
+				foreach ( var project in launcherProjects )
 				{
 					var output = Path.Combine( publishRoot, Path.GetFileNameWithoutExtension( project ) );
 					var launcherDir = Path.Combine( engineDir, "Launcher" );
+					BuildDisplay.Detail( $"Restore {project}" );
 
 					// Linux has no .NET redistributable the way game/_redist covers Windows, so the
 					// runtime ships in game/bin/dotnet and the apphost is told to look there
@@ -97,6 +108,7 @@ internal class BuildManaged( bool clean = false )
 						$"restore {project} -r {launcherRid} -p:Configuration=Release -p:SelfContained=false -p:RestoreRecursive=false{relativeDotnet}" ) )
 						return ExitCode.Failure;
 
+					BuildDisplay.Detail( $"Publish {project}" );
 					if ( !Utility.RunDotnetCommand( launcherDir,
 						$"publish {project} -c Release -r {launcherRid} -p:SelfContained=false -p:PublishSingleFile=true -p:EnableSingleFileAnalyzer=false -p:BuildProjectReferences=false{relativeDotnet} --no-restore -o \"{output}\"" ) )
 						return ExitCode.Failure;
@@ -106,12 +118,12 @@ internal class BuildManaged( bool clean = false )
 						"Sbox/Sbox.csproj" => "sbox",
 						"SboxDev/Sbox-Dev.csproj" => "sbox-dev",
 						"StandaloneTest/Sbox-Launcher.csproj" => "sbox-launcher",
-						"SboxStandalone/Sbox-Standalone.csproj" => "sbox-standalone",
 						"SboxServer/Sbox-Server.csproj" => "sbox-server",
 						_ => "benchmark"
 					};
 					var extension = OperatingSystem.IsWindows() ? ".exe" : "";
 					File.Copy( Path.Combine( output, name + extension ), Path.Combine( rootDir, "game", name + extension ), true );
+					BuildDisplay.Progress( ++completedLaunchers, launcherProjects.Length );
 				}
 
 				Directory.Delete( publishRoot, true );
@@ -120,13 +132,16 @@ internal class BuildManaged( bool clean = false )
 					return ExitCode.Failure;
 
 				// delete any old .runtimeconfig.json that are hanging around
-				foreach ( var name in new[] { "sbox", "sbox-dev", "sbox-launcher", "sbox-standalone", "sbox-server", "benchmark" } )
+				BuildDisplay.Status( "Remove old launcher files" );
+				var staleFiles = new[] { "sbox", "sbox-dev", "sbox-launcher", "sbox-server", "benchmark" }
+					.SelectMany( name => new[] { $"{name}.dll", $"{name}.runtimeconfig.json" } )
+					// sbox-standalone belongs in bin/managed; a copy in the root would match the depot's *.exe
+					.Concat( ["sbox-standalone", "sbox-standalone.exe", "sbox-standalone.dll", "sbox-standalone.runtimeconfig.json"] );
+
+				foreach ( var file in staleFiles )
 				{
-					foreach ( var extension in new[] { ".dll", ".runtimeconfig.json" } )
-					{
-						var looseFile = Path.Combine( rootDir, "game", name + extension );
-						if ( File.Exists( looseFile ) ) File.Delete( looseFile );
-					}
+					var looseFile = Path.Combine( rootDir, "game", file );
+					if ( File.Exists( looseFile ) ) File.Delete( looseFile );
 				}
 			}
 
@@ -138,7 +153,7 @@ internal class BuildManaged( bool clean = false )
 			Log.Error( $"Build failed with error: {ex}" );
 			return ExitCode.Failure;
 		}
-	}
+	} );
 
 	/// <summary>
 	/// Lays the shared framework the Linux launchers resolve against into game/bin/dotnet.
@@ -183,10 +198,25 @@ internal class BuildManaged( bool clean = false )
 
 		var version = Path.GetFileName( source );
 		var target = Path.Combine( rootDir, "game", "bin", "dotnet" );
+		var icuSource = Path.Combine( AppContext.BaseDirectory, "icu", "linux-x64" );
+		// ICU is a separate native dependency, not part of Microsoft.NETCore.App. The SDK
+		// container may have it even when the player's Steam runtime does not.
+		foreach ( var library in new[] { "libicudata", "libicuuc", "libicui18n" } )
+		{
+			if ( !Directory.Exists( icuSource ) || Directory.GetFiles( icuSource, $"{library}.so.*" ).Length == 0 )
+			{
+				Log.Error( $"Missing bundled ICU library {library} in {icuSource}. Restore and rebuild SboxBuild." );
+				return false;
+			}
+		}
 		Log.Info( $"Step 7: Stage .NET {version} runtime into game/bin/dotnet" );
+		BuildDisplay.Status( $"Stage .NET {version} runtime" );
 
 		RecreateDirectory( target );
 		CopyDirectory( source, Path.Combine( target, "shared", "Microsoft.NETCore.App", version ) );
+		// App-local ICU is loaded through CoreLib's native search directories, including the
+		// shared framework. This also survives our launcher publish filter (no app deps.json).
+		CopyDirectory( icuSource, Path.Combine( target, "shared", "Microsoft.NETCore.App", version ) );
 		// libhostfxr.so, which the apphost loads first and which then finds the framework above.
 		CopyDirectory( Path.Combine( dotnetRoot, "host" ), Path.Combine( target, "host" ) );
 		return true;

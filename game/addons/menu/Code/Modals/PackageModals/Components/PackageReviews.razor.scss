@@ -1,5 +1,8 @@
 @import "/styles/_theme.scss";
+@import "/styles/_front.scss";
 
+// The Reviews tab - the verdict, what players liked and didn't, then the reviews, a card each. All of it
+// scoped under here, the review cards' look included (UserComment is used elsewhere too)
 PackageReviews
 {
 	flex-direction: column;
@@ -7,123 +10,520 @@ PackageReviews
 	max-width: 100%;
 	overflow-y: scroll;
 	flex-shrink: 0;
-}
-
-.review-list
-{
-	flex-direction: column;
-	padding: 32px;
-	flex-shrink: 1;
+	// The same insets as the other tabs
+	padding: 24px 24px 64px 24px;
 	gap: 16px;
-	width: 100%;
-}
+	font-family: $front-font;
 
-.pagination
-{
-	justify-content: center;
-	align-items: center;
-	flex-shrink: 0;
-	gap: 4px;
-}
+	i, icon
+	{
+		font-family: "Material Icons";
+	}
 
-.pagination-button
-{
-	min-width: 32px;
-	height: 32px;
-	border-radius: $rounding-small;
-	padding: 0 10px;
-	align-items: center;
-	justify-content: center;
-	background-color: $default-800;
-	font-weight: 600;
-	font-size: $text-small;
-}
-
-.pagination-button:hover
-{
-	background-color: $default-700;
-}
-
-.pagination-button.current
-{
-	background-color: $primary-blue;
-	color: white;
-}
-
-.pagination-button.disabled
-{
-	opacity: 0.25;
-	pointer-events: none;
-}
-
-.no-reviews
-{
-	padding: 64px 32px;
-	text-align: center;
-	color: $default-300;
-	font-size: $text-regular;
-}
-
-.review-tags
-{
-	flex-wrap: wrap;
-	gap: 6px;
-	margin-top: 12px;
-	padding-top: 12px;
-}
-
-.tag-filters
-{
-	flex-direction: column;
-	padding: 16px;
-	margin: 0 32px 16px 32px;
-	border: 1px solid $default-border;
-	border-radius: $rounding-large;
-	background-color: $default-900;
-
+	// A page's small blue label, like the Overview's
 	.eyebrow
 	{
-		margin-top: 12px;
+		@include front-eyebrow;
+
+		&.bad icon
+		{
+			color: $front-danger;
+		}
 	}
 
-	.eyebrow:first-child
+	//
+	// What they liked, and didn't - a card, a row of chips for each
+	//
+
+	.tags
 	{
-		margin-top: 0;
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 16px;
+		padding: 16px 20px 18px 20px;
+		border-radius: $front-radius;
+		border: $front-border-width solid $front-hairline;
+		background-color: $front-card-deep;
 	}
 
-	.tag-filter-group
+	.tag-group
 	{
+		flex-direction: column;
+		gap: 10px;
+	}
+
+	.chips
+	{
+		flex-direction: row;
 		flex-wrap: wrap;
-		margin-top: 8px;
 		gap: 6px;
 	}
-}
 
-.button-hover-menu
-{
-	background-color: $default-800;
-	padding: 4px;
-	border-radius: $rounding-default;
-	border: 1px solid $default-border;
-	box-shadow: 0 8px 24px rgba( black, 0.5 );
-	gap: 2px;
-	min-width: 160px;
-	z-index: 10;
-
-	Button
+	// A tag - a pill in its side's colour: its glyph, its name, how many said so
+	.chip
 	{
-		border-radius: $rounding-small;
-		width: 100%;
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 6px;
+		height: 28px;
+		padding: 0 11px;
+		border-radius: 999px;
+		border: 1px solid rgba( 255, 255, 255, 0.1 );
+		background-color: rgba( 255, 255, 255, 0.05 );
+
+		icon
+		{
+			font-size: 14px;
+		}
+
+		label
+		{
+			font-size: 12px;
+			font-weight: 600;
+			color: $front-body;
+		}
+
+		.n
+		{
+			font-family: Inter;
+			font-weight: 700;
+			font-variant-numeric: tabular-nums;
+			color: $front-heading;
+			opacity: 0.8;
+		}
+
+		&.good
+		{
+			border-color: rgba( $front-reward, 0.28 );
+			background-color: rgba( $front-reward, 0.08 );
+
+			icon { color: $front-reward; }
+		}
+
+		&.bad
+		{
+			border-color: rgba( $front-danger, 0.28 );
+			background-color: rgba( $front-danger, 0.08 );
+
+			icon { color: $front-danger; }
+		}
+
+		// On a review - a size down, quieter
+		&.small
+		{
+			height: 24px;
+			padding: 0 9px;
+			gap: 5px;
+
+			icon
+			{
+				font-size: 12px;
+			}
+
+			label
+			{
+				font-size: 11px;
+				color: $front-secondary;
+			}
+		}
+	}
+
+	//
+	// Which of them - a row of pills like the reaction pills, the one showing lit in its colour
+	//
+
+	.filters
+	{
+		flex-direction: row;
+		flex-wrap: wrap;
+		flex-shrink: 0;
+		gap: 8px;
+	}
+
+	.filter
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 6px;
+		height: 34px;
+		padding: 0 14px;
+		border-radius: 999px;
+		border: 1px solid rgba( 255, 255, 255, 0.1 );
+		background-color: rgba( 255, 255, 255, 0.05 );
+		cursor: pointer;
+		transition: all 0.1s ease;
+
+		icon
+		{
+			font-size: 15px;
+			color: #c8cedb;
+		}
+
+		label
+		{
+			font-size: 12.5px;
+			font-weight: 600;
+			color: #c8cedb;
+		}
+
+		.n
+		{
+			font-family: Inter;
+			font-weight: 700;
+			font-variant-numeric: tabular-nums;
+			opacity: 0.7;
+		}
 
 		&:hover
 		{
-			border-color: transparent;
-			background-color: rgba( $default-500, 0.15 );
+			sound-in: "ui.button.over";
+			background-color: rgba( 255, 255, 255, 0.11 );
+
+			icon, label
+			{
+				color: $front-heading;
+			}
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+
+		// The one showing - the menu's blue for all of them, a verdict's colour for its own
+		&.active
+		{
+			cursor: default;
+			border-color: rgba( $front-primary, 0.55 );
+			background-color: rgba( $front-primary, 0.25 );
+
+			icon, label
+			{
+				color: #ffffff;
+			}
+		}
+
+		&.good.active
+		{
+			border-color: rgba( $front-reward, 0.55 );
+			background-color: rgba( $front-reward, 0.18 );
+
+			icon, label { color: $front-reward; }
+		}
+
+		&.meh.active
+		{
+			border-color: rgba( $front-trophy, 0.55 );
+			background-color: rgba( $front-trophy, 0.18 );
+
+			icon, label { color: $front-trophy; }
+		}
+
+		&.bad.active
+		{
+			border-color: rgba( $front-danger, 0.55 );
+			background-color: rgba( $front-danger, 0.18 );
+
+			icon, label { color: $front-danger; }
+		}
+	}
+
+	//
+	// The reviews - a card each: who, when and how long they played along the top with their verdict on
+	// the end, what they said, the tags they gave
+	//
+
+	.review-list
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 12px;
+		width: 100%;
+	}
+
+	// A review swapped for its room or back - gone at once, rather than beside the other for a frame
+	.review-list > *:outro
+	{
+		display: none;
+	}
+
+	// A review that's off screen - just its card's room, so the list and its scrollbar stay put
+	.review-placeholder
+	{
+		flex-shrink: 0;
+		border-radius: $front-radius;
+		border: $front-border-width solid $front-hairline;
+		background-color: $front-card-deep;
+	}
+
+	// Still coming - a review card's shape: a round avatar, a line for who, a few for what they said
+	.review-skeleton
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		gap: 14px;
+		padding: 16px 20px 18px 16px;
+		border-radius: $front-radius;
+		border: $front-border-width solid $front-hairline;
+		background-color: $front-card-deep;
+
+		.bone
+		{
+			border-radius: 6px;
+			background-color: rgba( 255, 255, 255, 0.06 );
+			animation: review-bone 1.2s ease-in-out infinite alternate;
+		}
+
+		.avatar
+		{
+			flex-shrink: 0;
+			width: 40px;
+			height: 40px;
+			border-radius: 50%;
+		}
+
+		.lines
+		{
+			flex-direction: column;
+			flex-grow: 1;
+			gap: 10px;
+		}
+
+		.line
+		{
+			height: 12px;
+			width: 92%;
+		}
+
+		.top
+		{
+			width: 30%;
+			height: 14px;
+			margin-bottom: 4px;
+		}
+
+		.short
+		{
+			width: 55%;
+		}
+	}
+
+	.no-reviews
+	{
+		padding: 48px 32px;
+		justify-content: center;
+		font-size: 13px;
+		color: $front-secondary;
+	}
+
+	UserComment
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		gap: 14px;
+		padding: 16px 20px 18px 16px;
+		border-radius: $front-radius;
+		border: $front-border-width solid $front-hairline;
+		background-color: $front-card-deep;
+
+		> .left
+		{
+			width: 40px;
+			min-width: 40px;
+			padding-top: 0;
+
+			img
+			{
+				width: 40px;
+				height: 40px;
+				max-width: 40px;
+				border-radius: 50%;
+			}
+		}
+
+		> .right
+		{
+			min-height: 0;
+			gap: 10px;
+			border: none;
+			border-radius: 0;
+			background-color: transparent;
+			font-size: 12.5px;
+			color: $front-secondary;
+		}
+
+		> .right > .header
+		{
+			padding: 0;
+			gap: 8px;
+
+			.username
+			{
+				font-size: 14px;
+				font-weight: 700;
+				color: $front-heading;
+
+				&:hover
+				{
+					color: #ffffff;
+				}
+			}
+
+			label
+			{
+				font-size: 12px;
+				color: $front-secondary;
+			}
+		}
+
+		> .right > .content
+		{
+			padding: 0;
+			gap: 12px;
+		}
+
+		// No tint of their own - the verdict pill says it
+		&.positive > .right, &.negative > .right, &.promise > .right
+		{
+			border: none;
+			background-color: transparent;
+		}
+	}
+
+	// What they said
+	.review-content
+	{
+		font-size: 13.5px;
+		line-height: 20px;
+		color: $front-body;
+		white-space: normal;
+	}
+
+	// Their verdict, on the end of the top line - a pill in its colour
+	.verdict-pill
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 5px;
+		height: 24px;
+		padding: 0 10px;
+		border-radius: 999px;
+
+		icon
+		{
+			font-size: 13px;
+		}
+
+		label
+		{
+			font-size: 11px;
+			font-weight: 700;
+		}
+
+		&.good
+		{
+			background-color: rgba( $front-reward, 0.12 );
+			icon, label { color: $front-reward; }
+		}
+
+		&.meh
+		{
+			background-color: rgba( $front-trophy, 0.12 );
+			icon, label { color: $front-trophy; }
+		}
+
+		&.bad
+		{
+			background-color: rgba( $front-danger, 0.12 );
+			icon, label { color: $front-danger; }
+		}
+	}
+
+	//
+	// Which page of them - at the foot, round pills like the reaction pills
+	//
+
+	.pagination
+	{
+		flex-direction: row;
+		justify-content: center;
+		align-items: center;
+		flex-shrink: 0;
+		gap: 6px;
+		padding-top: 8px;
+	}
+
+	.page-button
+	{
+		min-width: 34px;
+		height: 34px;
+		padding: 0 10px;
+		align-items: center;
+		justify-content: center;
+		border-radius: 999px;
+		border: 1px solid rgba( 255, 255, 255, 0.1 );
+		background-color: rgba( 255, 255, 255, 0.05 );
+		cursor: pointer;
+		transition: all 0.1s ease;
+
+		label
+		{
+			font-family: Inter;
+			font-size: 12px;
+			font-weight: 700;
+			font-variant-numeric: tabular-nums;
+			color: #c8cedb;
+		}
+
+		icon
+		{
+			font-size: 18px;
+			color: #c8cedb;
+		}
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+			background-color: rgba( 255, 255, 255, 0.11 );
+
+			label, icon
+			{
+				color: $front-heading;
+			}
+		}
+
+		&.current
+		{
+			border-color: rgba( $front-primary, 0.55 );
+			background-color: rgba( $front-primary, 0.3 );
+			cursor: default;
+
+			label
+			{
+				color: #ffffff;
+			}
+		}
+
+		&.disabled
+		{
+			opacity: 0.3;
+			pointer-events: none;
 		}
 	}
 }
 
-.review-content
+@keyframes review-bone
 {
-	color: white;
+	0%
+	{
+		opacity: 0.55;
+	}
+
+	100%
+	{
+		opacity: 1;
+	}
 }

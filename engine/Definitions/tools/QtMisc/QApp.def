@@ -7,6 +7,21 @@ native accessor qApp as Native.QApp
 {
 	void setStyleSheet( qstring style );
 	void beep();
+	inline bool IsApplicationActive()
+	{
+		auto *window = qApp->activeWindow();
+		if ( qApp->applicationState() != Qt::ApplicationActive || !window || !window->isVisible() || window->isMinimized() )
+			return false;
+
+		#if defined( V_PLATFORM_WINDOWS_PC )
+		// Qt can retain activation while a background play request changes widget focus.
+		// SDL's editor wrapper does not receive activation messages, so ask the OS directly.
+		HWND hwnd = GetAncestor( (HWND)window->winId(), GA_ROOT );
+		return hwnd && hwnd == GetForegroundWindow() && IsWindowVisible( hwnd ) && !IsIconic( hwnd );
+		#else
+		return true;
+		#endif
+	}
 	void alert( QWidget widget, int msec );
 
 	Editor.QtKeyboardModifiers queryKeyboardModifiers();

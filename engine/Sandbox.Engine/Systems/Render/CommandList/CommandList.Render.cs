@@ -38,11 +38,9 @@ public sealed unsafe partial class CommandList
 			var rt = commandList.GetRenderTarget( (string)entry.Object5 );
 			if ( rt == null ) return;
 
-			var view = Graphics.SceneView;
-
 			// This is a secondary view, don't draw reflections in it
 			// or we'll end up with an infinite loop!
-			if ( view.GetParent().IsValid ) return;
+			if ( Graphics.IsChildView ) return;
 
 			camera.RenderToTexture( rt.ColorTarget, (ViewSetup)entry.Object2 );
 		}
@@ -72,11 +70,9 @@ public sealed unsafe partial class CommandList
 			if ( !plane.IsInFront( Graphics.CameraTransform.Position ) && !setup.RenderBehind )
 				return;
 
-			var view = Graphics.SceneView;
-
 			// This is a secondary view, don't draw reflections in it
 			// or we'll end up with an infinite loop!
-			if ( view.GetParent().IsValid )
+			if ( Graphics.IsChildView )
 			{
 				if ( setup.FallbackColor is { } clearColor )
 				{
@@ -130,11 +126,9 @@ public sealed unsafe partial class CommandList
 			if ( !plane.IsInFront( Graphics.CameraTransform.Position ) && !setup.RenderBehind )
 				return;
 
-			var view = Graphics.SceneView;
-
 			// This is a secondary view, don't draw reflections in it
 			// or we'll end up with an infinite loop!
-			if ( view.GetParent().IsValid )
+			if ( Graphics.IsChildView )
 			{
 				if ( setup.FallbackColor is { } clearColor )
 				{

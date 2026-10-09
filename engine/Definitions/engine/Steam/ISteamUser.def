@@ -9,14 +9,6 @@ native class ISteamUser
 		return self->GetSteamID().ConvertToUint64();
 	}
 
-	int GetVoice( bool bWantCompressed, void* pDestBuffer, uint cbDestBufferSize, out uint nBytesWritten );
-	int GetAvailableVoice( out uint availableData );
-	uint GetVoiceOptimalSampleRate();
-	int DecompressVoice( void* pCompressed, uint cbCompressed, void* pDestBuffer, uint cbDestBufferSize, out uint nBytesWritten, uint nDesiredSampleRate );
-
-	void StartVoiceRecording();
-	void StopVoiceRecording();
-	
 	inline HAuthTicket GetAuthSessionTicket( ulong targetSteamId, void* buffer, out uint ticketLength )
 	{
 	    SteamNetworkingIdentity ident;

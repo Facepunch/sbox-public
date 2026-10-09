@@ -1,4 +1,5 @@
-﻿@import "/styles/_uitest.scss";
+@import "/styles/_gallery-palette.scss";
+@import "/styles/_uitest.scss";
 
 // The div cases are written as plain markup rather than UiTestCase, because what they're
 // testing is a panel whose text lives in labels under it - which is what a div with text builds.
@@ -21,7 +22,7 @@ BackgroundClipTests
 			background-color: $uitest-stage;
 			font-size: 28px;
 			font-weight: 700;
-			background-image: linear-gradient( to right, #ff4a6e, #4a9eff );
+			background-image: linear-gradient( to right, $gallery-pink, $gallery-cyan );
 			background-clip: text;
 		}
 

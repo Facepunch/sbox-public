@@ -106,7 +106,9 @@ public static class ShaderCompile
 
 		shader.Read();
 
-		if ( !compileOptions.ForceRecompile && !shader.IsOutOfDate )
+		bool dumping = !string.IsNullOrEmpty( compileOptions.SpirvDumpPath );
+
+		if ( !compileOptions.ForceRecompile && !dumping && !shader.IsOutOfDate )
 			return new Results { Success = true, Skipped = true };
 
 		var results = await CompileShader( shader, compileOptions, token );
@@ -114,6 +116,10 @@ public static class ShaderCompile
 			return results;
 
 		token.ThrowIfCancellationRequested();
+
+		// The dump is the output; leave the checked in .shader_c alone
+		if ( dumping )
+			return results;
 
 		await System.IO.File.WriteAllBytesAsync( shader.AbsolutePath + "_c", results.CompiledShader );
 

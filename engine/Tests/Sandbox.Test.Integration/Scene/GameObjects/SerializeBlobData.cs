@@ -1,5 +1,7 @@
 using System.Linq;
+using System.Text;
 using System.Text.Json.Nodes;
+using Sandbox.Resources;
 
 namespace SceneTests.GameObjects;
 
@@ -98,6 +100,32 @@ public class SerializeBlobDataTest
 		Assert.IsNotNull( component.Mesh, "Mesh should deserialize from blob data after the batch flush" );
 		Assert.AreEqual( 4, component.Mesh.VertexHandles.Count() );
 		Assert.AreEqual( 1, component.Mesh.FaceHandles.Count() );
+
+		var file = scene.CreateSceneFile();
+		var json = file.Serialize().ToJsonString();
+		var source = SceneFile.FromSource( "blob_source.scene", scene.Id, json, file.BinaryData );
+		var writer = new ResourceWriter();
+		writer.SetDataBlock( Encoding.UTF8.GetBytes( json ) );
+		writer.RegisterAdditionalBlock( 0x4F4C4244, file.BinaryData ); // DBLO
+		var runtime = SceneFile.FromCompiled( "blob_runtime.scene", scene.Id, writer.ToArray() );
+		var reopened = Scene.CreateEditorScene();
+		try
+		{
+			foreach ( var representation in new[] { source, runtime } )
+			{
+				for ( int i = 0; i < 2; i++ )
+				{
+					Assert.IsTrue( reopened.Load( representation ) );
+					var mesh = reopened.GetAllComponents<MeshComponent>().Single().Mesh;
+					Assert.AreEqual( 4, mesh.VertexHandles.Count(), "Each representation must retain its own blobs across repeated loads" );
+					Assert.AreEqual( 1, mesh.FaceHandles.Count() );
+				}
+			}
+		}
+		finally
+		{
+			reopened.Destroy();
+		}
 	}
 
 	[TestMethod]

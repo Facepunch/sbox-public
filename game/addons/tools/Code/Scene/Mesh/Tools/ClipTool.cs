@@ -108,10 +108,58 @@ public partial class ClipTool : EditorTool
 
 	static Vector3 SnapToPlaneGrid( Vector3 point, Vector3 planeNormal )
 	{
-		var rotation = Rotation.LookAt( planeNormal );
-		var local = point * rotation.Inverse;
-		local = Gizmo.Snap( local, new Vector3( 0, 1, 1 ) );
-		return local * rotation;
+		var plane = new Plane( point, planeNormal );
+		plane.Distance = MathF.Floor( plane.Distance / 0.01f + 0.5f ) * 0.01f;
+
+		var spacing = Gizmo.Settings.GridSpacing;
+		if ( Gizmo.Settings.SnapToGrid == Gizmo.IsCtrlPressed || spacing == 0.0f )
+			return plane.SnapToPlane( point );
+
+		var min = new Vector3(
+			MathF.Floor( point.x / spacing ) * spacing,
+			MathF.Floor( point.y / spacing ) * spacing,
+			MathF.Floor( point.z / spacing ) * spacing );
+		var max = new Vector3(
+			MathF.Ceiling( point.x / spacing ) * spacing,
+			MathF.Ceiling( point.y / spacing ) * spacing,
+			MathF.Ceiling( point.z / spacing ) * spacing );
+
+		var best = point;
+		var bestDistance = float.MaxValue;
+		for ( var axis = 0; axis < 3; axis++ )
+		{
+			var firstAxis = axis == 0 ? 1 : 0;
+			var secondAxis = axis == 2 ? 1 : 2;
+
+			for ( var corner = 0; corner < 4; corner++ )
+			{
+				var start = min;
+				start[firstAxis] = (corner & 2) == 0 ? min[firstAxis] : max[firstAxis];
+				start[secondAxis] = (corner & 1) == 0 ? min[secondAxis] : max[secondAxis];
+				start[axis] -= 1;
+
+				var length = max[axis] - min[axis] + 2;
+				var denominator = plane.Normal[axis] * length;
+				if ( denominator == 0.0f )
+					continue;
+
+				var fraction = -plane.GetDistance( start ) / denominator;
+				if ( fraction < 0.0f || fraction > 1.0f )
+					continue;
+
+				var hit = start;
+				hit[axis] += length * fraction;
+
+				var distance = point.Distance( hit );
+				if ( distance >= bestDistance )
+					continue;
+
+				best = hit;
+				bestDistance = distance;
+			}
+		}
+
+		return best;
 	}
 
 	Vector3 _dragStartP1;
@@ -184,7 +232,7 @@ public partial class ClipTool : EditorTool
 				var drag = Gizmo.GetMouseDrag( _dragStartP1, normal );
 
 				_point1 = SnapToPlaneGrid( _dragStartP1 - drag, normal );
-				_point2 = SnapToPlaneGrid( _dragStartP2 - drag, normal );
+				_point2 = _dragStartP2 + (_point1 - _dragStartP1);
 
 				UpdateClipPlane();
 			}
@@ -243,10 +291,12 @@ public partial class ClipTool : EditorTool
 		if ( Gizmo.IsLeftMouseDown && !Gizmo.WasLeftMousePressed && _hitPlane is { } locked )
 			return PlaneTrace( locked );
 
+		if ( Gizmo.Camera.Ortho )
+			return PlaneTrace( new Plane( SnapNormalToAxis( -Gizmo.Camera.Rotation.Forward ), 0 ) );
+
 		var tr = MeshTrace.Run();
 		if ( tr.Hit )
 		{
-			tr.Normal = SnapNormalToAxis( tr.Normal );
 			return tr;
 		}
 
@@ -421,6 +471,7 @@ public partial class ClipTool : EditorTool
 		var go = new GameObject( true, mesh.GameObject.Name );
 		go.MakeNameUnique();
 		go.WorldTransform = mesh.WorldTransform;
+		go.IsStatic = mesh.GameObject.IsStatic;
 
 		var mc = go.Components.Create<MeshComponent>( false );
 		mc.Mesh = newMesh;

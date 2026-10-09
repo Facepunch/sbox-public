@@ -369,11 +369,11 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 		}
 
 		// update our keyframe immediately
-		TeleportKeyframeBody( WorldTransform );
+		TeleportKeyframeBody( GetTargetTransform().WithScale( 1.0f ) );
 
 		var go = body.GameObject;
 
-		if ( !IsProxy && !Scene.IsEditor )
+		if ( !IsProxy && !Scene.IsEditor && !_keyframeBody.IsValid() )
 		{
 			var currentWorldTx = go.WorldTransform;
 

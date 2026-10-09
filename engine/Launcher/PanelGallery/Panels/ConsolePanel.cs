@@ -86,10 +86,9 @@ public class ConsolePanel : Panel
 	Panel suggestionList;
 	TextInput commandBox;
 
-	Sandbox.UI.Label infoCount;
-	Sandbox.UI.Label warnCount;
-	Sandbox.UI.Label errorCount;
-	Panel collapseButton;
+	Sandbox.UI.Button infoCount;
+	Sandbox.UI.Button warnCount;
+	Sandbox.UI.Button errorCount;
 
 	readonly Dictionary<int, Panel> rows = new();
 	readonly List<Entry> visible = new();
@@ -130,9 +129,10 @@ public class ConsolePanel : Panel
 
 	void BuildToolbar()
 	{
-		var bar = Add.Panel( "bar" );
+		var bar = AddChild( new Toolbar() );
+		bar.AddClass( "bar" );
 
-		Button( bar, "Clear", "delete", () =>
+		bar.AddButton( "Clear", "delete", () =>
 		{
 			ClearBuffer();
 			selected = null;
@@ -140,14 +140,13 @@ public class ConsolePanel : Panel
 			Refilter();
 		} );
 
-		collapseButton = Button( bar, "Collapse", null, () =>
+		bar.AddToggle( "Collapse", null, collapse, value =>
 		{
-			collapse = !collapse;
-			collapseButton.SetClass( "active", collapse );
+			collapse = value;
 			Refilter();
 		} );
 
-		bar.Add.Panel( "grow" );
+		bar.AddSpacer();
 
 		var searchBox = bar.AddChild( new TextInput( "Filter..", "search" ) );
 		searchBox.OnChange = value =>
@@ -161,35 +160,16 @@ public class ConsolePanel : Panel
 		errorCount = Filter( bar, "error", "error", () => showError, v => showError = v );
 	}
 
-	static Panel Button( Panel parent, string title, string icon, Action clicked )
+	Sandbox.UI.Button Filter( Toolbar bar, string icon, string className, Func<bool> get, Action<bool> set )
 	{
-		var button = parent.Add.Panel( "button" );
-
-		if ( icon is not null ) button.Icon( icon );
-		if ( title is not null ) button.Add.Label( title );
-
-		button.AddEventListener( "onclick", clicked );
-
-		return button;
-	}
-
-	Sandbox.UI.Label Filter( Panel bar, string icon, string className, Func<bool> get, Action<bool> set )
-	{
-		var button = bar.Add.Panel( "filter" );
-		button.AddClass( className );
-		button.SetClass( "active", get() );
-		button.Icon( icon );
-
-		var label = button.Add.Label( "0", "count" );
-
-		button.AddEventListener( "onclick", () =>
+		var button = bar.AddToggle( "0", icon, get(), value =>
 		{
-			set( !get() );
-			button.SetClass( "active", get() );
+			set( value );
 			Refilter();
 		} );
-
-		return label;
+		button.AddClass( $"filter {className}" );
+		button.Tooltip = $"Show {className} messages";
+		return button;
 	}
 
 	/// <summary>
@@ -211,7 +191,7 @@ public class ConsolePanel : Panel
 		commandBox.OnSubmit = RunCommand;
 		commandBox.OnButton = OnCommandKey;
 
-		Button( row, null, "vertical_align_bottom", ScrollToBottom ).AddClass( "square" );
+		row.AddChild( new Sandbox.UI.Button( null, "vertical_align_bottom", "square", ScrollToBottom ) );
 	}
 
 	bool OnCommandKey( string button )

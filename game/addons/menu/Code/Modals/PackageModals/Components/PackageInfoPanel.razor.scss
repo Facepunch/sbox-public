@@ -1,176 +1,563 @@
 @import "/styles/_theme.scss";
+@import "/styles/_front.scss";
 
+// A party that isn't what the game's made for
+$mode-warning: #f5a623;
+
+// The column's own height, not its content's - the top stays, the rest scrolls inside it
 PackageInfoPanel
 {
     flex-direction: column;
     overflow: hidden;
-    overflow-y: scroll;
     flex-grow: 1;
-    flex-shrink: 0;
-}
+    flex-shrink: 1;
+    flex-basis: 0;
+    min-height: 0;
 
-.media-wrapper
-{
-    padding: 10px 10px 0px 10px;
-    flex-shrink: 0;
-}
-
-.panel-media
-{
-    width: 100%;
-    aspect-ratio: 16 / 9;
-    background-size: cover;
-    background-position: center;
-    border-radius: $rounding-large;
-    border: 1px solid $default-border;
-    box-shadow: 0px 4px 20px rgba(0,0,0,0.4);
-}
-
-.panel-header
-{
-    flex-direction: column;
-    padding: 10px 12px 6px 12px;
-    gap: 3px;
-    flex-shrink: 0;
-}
-
-.game-title
-{
-    font-size: $text-medium;
-    font-weight: 700;
-    color: $default-text;
-    font-family: $font-heading;
-}
-
-.game-org
-{
-    flex-direction: row;
-    align-items: center;
-    gap: 5px;
-    font-size: $text-small;
-    color: $default-400;
-    cursor: pointer;
-    font-family: $font-default;
-
-    &:hover .org-name { color: $default-100; }
-}
-
-.org-thumb
-{
-    width: 16px;
-    height: 16px;
-    border-radius: $rounding-small;
-    flex-shrink: 0;
-}
-
-.org-name
-{
-    color: $default-300;
-    font-weight: 600;
-}
-
-.panel-sections
-{
-    flex-direction: column;
-    flex-grow: 1;
-    flex-shrink: 0;
-    padding: 4px 10px 10px 10px;
-    gap: 5px;
-}
-
-// Card content layout — info panel cards and achievements card share these.
-// Flat fill (no gradient) with a hairline border reads cleaner than the default Card.
-PackageInfoPanel Card,
-Card.achievements-card
-{
-    flex-direction: column;
-    padding: 11px 13px;
-    gap: 7px;
-    flex-grow: 0;
-    flex-shrink: 0;
-    background: $default-900;
-    border: 1px solid $default-border;
-    border-radius: $rounding-large;
-}
-
-// The achievements card is a button, so give it a clear interactive state
-Card.achievements-card
-{
-    transition: background-color 120ms $easing, border-color 120ms $easing;
-
-    &:hover
+    // The art, name and blurb - fixed, a hairline under it where the scrolling starts
+    .panel-top
     {
-        background: $default-800;
-        border-color: rgba( $default-50, 0.18 );
-    }
-}
-
-.section-label
-{
-    font-size: $text-eyebrow;
-    font-weight: 700;
-    letter-spacing: 1.2px;
-    text-transform: uppercase;
-    color: $default-300;
-    font-family: $font-heading;
-    margin-bottom: 3px;
-}
-
-.info-row
-{
-    flex-direction: row;
-    align-items: center;
-    gap: 9px;
-    color: $default-100;
-    font-size: $text-small;
-    font-family: $font-default;
-    font-weight: 500;
-
-    i
-    {
-        font-size: 15px;
-        color: $default-400;
+        flex-direction: column;
         flex-shrink: 0;
-        width: 16px;
+        padding-bottom: 8px;
+        border-bottom: $front-border-width solid $front-hairline;
     }
 
-    label { flex-grow: 1; }
+    // How it's played - a tile with the icon, the mode in bold, what that means under it. Green for
+    // anything with other people in it, so multiplayer's obvious at a glance; plain for on your own
+    .play-mode
+    {
+        flex-direction: row;
+        flex-shrink: 0;
+        align-items: center;
+        gap: 10px;
+        margin: 10px 10px 0 10px;
+        padding: 8px 12px 8px 8px;
+        border-radius: $front-radius;
+        background-color: rgba( 255, 255, 255, 0.04 );
+        border: $front-border-width solid $front-hairline;
 
-    &.clickable
+        .mode-icon
+        {
+            flex-shrink: 0;
+            width: 32px;
+            height: 32px;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            background-color: rgba( 255, 255, 255, 0.07 );
+
+            i
+            {
+                width: 20px;
+                height: 20px;
+                font-size: 20px;
+                text-align: center;
+                color: $front-body;
+            }
+        }
+
+        .mode-text
+        {
+            flex-direction: column;
+            flex-grow: 1;
+            flex-shrink: 1;
+            min-width: 0;
+            gap: 1px;
+        }
+
+        .mode-label
+        {
+            font-size: 13.5px;
+            font-weight: 700;
+            color: $front-heading;
+        }
+
+        .mode-hint
+        {
+            font-size: 11.5px;
+            font-weight: 500;
+            color: $front-secondary;
+        }
+
+        // Your party's what it's made for - go
+        &.fits
+        {
+            background-color: rgba( $front-accent, 0.08 );
+            border-color: rgba( $front-accent, 0.35 );
+
+            .mode-icon
+            {
+                background-color: rgba( $front-accent, 0.18 );
+
+                i { color: $front-accent; }
+            }
+
+            .mode-label
+            {
+                color: $front-accent;
+            }
+        }
+
+        // It isn't - and the hint says why
+        &.mismatch
+        {
+            background-color: rgba( $mode-warning, 0.08 );
+            border-color: rgba( $mode-warning, 0.4 );
+
+            .mode-icon
+            {
+                background-color: rgba( $mode-warning, 0.18 );
+
+                i { color: $mode-warning; }
+            }
+
+            .mode-label
+            {
+                color: $mode-warning;
+            }
+
+            .mode-hint
+            {
+                color: $front-body;
+            }
+        }
+    }
+
+    .panel-scroll
+    {
+        flex-direction: column;
+        flex-grow: 1;
+        flex-shrink: 1;
+        flex-basis: 0;
+        min-height: 0;
+        overflow-y: scroll;
+    }
+
+    .media-wrapper
+    {
+        padding: 10px 10px 0px 10px;
+        flex-shrink: 0;
+    }
+
+    .panel-media
+    {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        background-size: cover;
+        background-position: center;
+        border-radius: $front-radius;
+        border: $front-border-width solid $front-border;
+    }
+
+    .panel-header
+    {
+        flex-direction: column;
+        padding: 12px 12px 0 12px;
+        gap: 3px;
+        flex-shrink: 0;
+    }
+
+    .game-title
+    {
+        font-family: $front-font;
+        font-size: 18px;
+        font-weight: 700;
+        color: $front-heading;
+    }
+
+    // What it is, in a line or two - under the name, like Steam's short description
+    .game-summary
+    {
+        // Snug under the name - the name's line height leaves a gap of its own
+        margin-top: -3px;
+        font-size: 12.5px;
+        font-weight: 500;
+        color: $front-body;
+    }
+
+    .org-thumb
+    {
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+        flex-shrink: 0;
+    }
+
+    //
+    // The facts - label on the left in a fixed column, value beside it
+    //
+
+    // Straight on from the blurb - the sections' own gap spaces it, like everything else in the
+    // column. Its labels line up with the blurb's left edge (the sections' 10 plus the row's 2 is
+    // the header's 12)
+    .facts
+    {
+        flex-direction: column;
+        flex-shrink: 0;
+        gap: 2px;
+        padding: 0 0 4px 0;
+    }
+
+    .fact
+    {
+        flex-direction: row;
+        align-items: center;
+        min-height: 24px;
+        padding: 2px 2px;
+        border-radius: 4px;
+
+        .key
+        {
+            flex-shrink: 0;
+            width: 92px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: $front-label;
+        }
+
+        .value
+        {
+            flex-direction: row;
+            flex-grow: 1;
+            flex-shrink: 1;
+            min-width: 0;
+            align-items: center;
+            gap: 5px;
+
+            // Their own size, not clipped - a clipped label free to shrink in a row measures as
+            // nothing and draws just its ellipsis
+            label
+            {
+                flex-shrink: 0;
+                font-size: 12.5px;
+                font-weight: 500;
+                color: $front-body;
+                white-space: nowrap;
+            }
+
+            .muted
+            {
+                color: $front-secondary;
+            }
+
+            // Icon and number pairs, clear air between the pairs
+            .stat
+            {
+                flex-direction: row;
+                flex-shrink: 0;
+                align-items: center;
+                gap: 4px;
+                margin-right: 10px;
+
+                i
+                {
+                    width: 14px;
+                    height: 14px;
+                    font-size: 14px;
+                    text-align: center;
+                    color: $front-secondary;
+                }
+            }
+
+            .link
+            {
+                color: $front-link;
+            }
+
+            // A long studio name cut off to fit, the whole of it on hover. Takes the rest of the
+            // row rather than sizing itself - a clipped label left to size itself measures as
+            // nothing and draws just its ellipsis
+            .creator-name
+            {
+                flex-grow: 1;
+                flex-shrink: 1;
+                flex-basis: 0;
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            // Two lines - the when, then the which. Stacked, each line gets the column's full
+            // width, so the update's name can clip to fit without collapsing
+            &.stacked
+            {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 1px;
+
+                .link
+                {
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+            }
+        }
+
+        &.update
+        {
+            padding-top: 4px;
+            padding-bottom: 4px;
+        }
+
+        // On the end of a row that opens something
+        .go
+        {
+            flex-shrink: 0;
+            margin-left: 6px;
+            font-size: 16px;
+            color: $front-tertiary;
+        }
+
+        // Steam's colours - blue for good, amber for mixed, red for bad
+        .rating
+        {
+            font-weight: 600;
+
+            &.positive { color: $front-link; }
+            &.mixed { color: $front-trophy; }
+            &.negative { color: $front-danger; }
+            &.none { color: $front-secondary; }
+        }
+
+        // The pointer over all of it, not just the row's gaps - the labels and icons in it are what
+        // the mouse is actually over most of the time
+        &.clickable
+        {
+            cursor: pointer;
+            transition: background-color 0.1s ease;
+
+            label, i, img, .value
+            {
+                cursor: pointer;
+            }
+
+            &:hover
+            {
+                sound-in: "ui.button.over";
+                background-color: rgba( 255, 255, 255, 0.05 );
+
+                .link
+                {
+                    color: $front-link-hover;
+                }
+            }
+        }
+    }
+
+    .panel-sections
+    {
+        flex-direction: column;
+        flex-grow: 1;
+        flex-shrink: 0;
+        // Room at the bottom, so the last of it scrolls up clear of the fade
+        padding: 10px 10px 48px 10px;
+        gap: 8px;
+    }
+
+    Card,
+    Card.achievements-card
+    {
+        flex-direction: column;
+        padding: 12px 14px;
+        gap: 8px;
+        flex-grow: 0;
+        flex-shrink: 0;
+        background: $front-card-deep;
+        border: $front-border-width solid $front-hairline;
+        border-radius: $front-radius;
+    }
+
+    //
+    // The latest update - its own card, clickable through to the Changes tab
+    //
+
+    Card.update-card
+    {
+        cursor: pointer;
+        transition: background-color 120ms $easing, border-color 120ms $easing;
+
+        label, i, .update-icon
+        {
+            cursor: pointer;
+        }
+
+        // Solid shades, not see-through white - see the achievements card
+        &:hover
+        {
+            sound-in: "ui.button.over";
+            background: #1c2029;
+            border-color: rgba( 255, 255, 255, 0.18 );
+
+            .update-title
+            {
+                color: #ffffff;
+            }
+
+            .go
+            {
+                color: $front-heading;
+            }
+        }
+
+        &:active
+        {
+            sound-in: "ui.button.press";
+        }
+    }
+
+    .update-head
+    {
+        flex-direction: row;
+        align-items: center;
+
+        .section-label
+        {
+            margin-bottom: 0;
+        }
+
+        .grow
+        {
+            flex-grow: 1;
+        }
+    }
+
+    .update-when
+    {
+        flex-shrink: 0;
+        font-size: 11px;
+        font-weight: 600;
+        color: $front-secondary;
+    }
+
+    // A blue tile with the history glyph, then the update's name in full - wrapping, never cut
+    .update-body
+    {
+        flex-direction: row;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .update-icon
+    {
+        flex-shrink: 0;
+        width: 32px;
+        height: 32px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        background-color: rgba( $front-primary, 0.18 );
+
+        i
+        {
+            width: 18px;
+            height: 18px;
+            font-size: 18px;
+            text-align: center;
+            color: $front-link;
+        }
+    }
+
+    .update-title
+    {
+        flex-grow: 1;
+        flex-shrink: 1;
+        min-width: 0;
+        font-size: 13px;
+        font-weight: 600;
+        color: $front-heading;
+        transition: color 120ms $easing;
+    }
+
+    Card.update-card .go
+    {
+        flex-shrink: 0;
+        font-size: 18px;
+        color: $front-tertiary;
+    }
+
+    Card.achievements-card
     {
         cursor: pointer;
 
+        label, .achievement-icon, badge
+        {
+            cursor: pointer;
+        }
+
+        transition: background-color 120ms $easing, border-color 120ms $easing;
+
+        // A solid colour, a shade up from the resting one - not a see-through white. Fading from
+        // near-clear white to the opaque dark fill went through half-opaque grey on the way, the
+        // flash when the pointer left
         &:hover
         {
-            color: $default-text;
-
-            i { color: $primary-blue; }
+            background: #1c2029;
+            border-color: rgba( 255, 255, 255, 0.18 );
         }
     }
-}
 
-.tag-list
-{
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 4px;
-}
-
-.tag
-{
-    padding: 3px 8px;
-    background-color: rgba( $default-50, 0.04 );
-    border: 1px solid $default-border;
-    border-radius: $rounding-small;
-    font-size: $text-eyebrow;
-    font-weight: 600;
-    color: $default-200;
-    font-family: $font-default;
-    transition: background-color 120ms $easing, color 120ms $easing;
-
-    &:hover
+    .section-label
     {
-        background-color: rgba( $default-50, 0.09 );
-        color: $default-100;
+        @include front-section-label;
+        margin-bottom: 2px;
+    }
+
+    .info-row
+    {
+        flex-direction: row;
+        align-items: center;
+        gap: 9px;
+        font-size: 12.5px;
+        font-weight: 500;
+        color: $front-body;
+
+        i
+        {
+            font-size: 16px;
+            color: $front-secondary;
+            flex-shrink: 0;
+            width: 16px;
+        }
+
+        label
+        {
+            flex-grow: 1;
+        }
+
+        &.clickable
+        {
+            cursor: pointer;
+
+            &:hover
+            {
+                color: $front-heading;
+
+                i
+                {
+                    color: $front-primary;
+                }
+            }
+        }
+    }
+
+    .tag-list
+    {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 5px;
+    }
+
+    .tag
+    {
+        @include front-pill;
+        padding: 3px 9px;
+        font-size: 10.5px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: $front-body;
     }
 }

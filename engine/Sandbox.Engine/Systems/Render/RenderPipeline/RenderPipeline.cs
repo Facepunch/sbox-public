@@ -25,14 +25,18 @@ internal partial class RenderPipeline
 	ReactiveMaskDebugLayer ReactiveMaskDebugLayer { get; } = new();
 	ClusteredCullingLayer ClusteredCullingLayer { get; } = new();
 	BloomLayer BloomLayer { get; } = new();
-	BloomDownsampleLayer BloomDownsampleLayer { get; } = new();
 	RefractionStencilLayer RefractionStencilLayer { get; } = new();
 	QuarterDepthDownsampleLayer QuarterDepthDownsampleLayer { get; } = new();
+
+	// Wraps the native pipeline attributes for one call - reused, since every view does this every frame.
+	// Pipelines are one per view at a time, so calls never overlap.
+	readonly RenderAttributes _pipelineAttributes = new( default( CRenderAttributes ) );
 
 	internal void AddLayersToView( ISceneView view, RenderViewport viewport, SceneViewRenderTargetHandle rtColor, SceneViewRenderTargetHandle rtDepth, RenderMultisampleType nMSAA, CRenderAttributes pipelineAttrs, RenderViewport screenSize )
 	{
 		var msaa = nMSAA.FromEngine();
-		var pipelineAttributes = new RenderAttributes( pipelineAttrs );
+		var pipelineAttributes = _pipelineAttributes;
+		pipelineAttributes.Set( pipelineAttrs );
 
 		// renderingpipeline_standard.cpp:1786
 		// Already run: clear layer
@@ -114,12 +118,7 @@ internal partial class RenderPipeline
 		{
 			RenderViewport quarterViewport = viewport / 4;
 
-			var bloomRt = RenderTarget.GetTemporary(
-				(int)quarterViewport.Rect.Width,
-				(int)quarterViewport.Rect.Height,
-				colorFormat: ImageFormat.RGBA1010102,
-				depthFormat: ImageFormat.D32,
-				numMips: (int)Math.Log2( Math.Max( quarterViewport.Rect.Width, quarterViewport.Rect.Height ) ) );
+			var bloomRt = BloomLayer.GetTarget( (int)quarterViewport.Rect.Width, (int)quarterViewport.Rect.Height );
 
 			QuarterDepthDownsampleLayer.Setup( view, quarterViewport, rtDepth, msaa != MultisampleAmount.MultisampleNone, bloomRt );
 			QuarterDepthDownsampleLayer.AddToView( view, quarterViewport );
@@ -128,9 +127,6 @@ internal partial class RenderPipeline
 			BloomLayer.AddToView( view, quarterViewport );
 
 			view.GetRenderAttributesPtr().SetTextureValue( "QuarterResEffectsBloomInputTexture", bloomRt.ColorTarget.native, -1 );
-
-			BloomDownsampleLayer.RT = bloomRt;
-			BloomDownsampleLayer.AddToView( view, quarterViewport );
 		}
 
 		// Refraction stencil layer, used for filtering out depth on Framebuffer copies
@@ -147,7 +143,8 @@ internal partial class RenderPipeline
 
 	internal void PipelineEnd( ISceneView view, RenderViewport viewport, SceneViewRenderTargetHandle rtColor, SceneViewRenderTargetHandle rtDepth, RenderMultisampleType nMSAA, CRenderAttributes pipelineAttrs, RenderViewport screenSize )
 	{
-		var pipelineAttributes = new RenderAttributes( pipelineAttrs );
+		var pipelineAttributes = _pipelineAttributes;
+		pipelineAttributes.Set( pipelineAttrs );
 
 		// Motion vector debug visualization - blit to color buffer after scene is rendered
 		if ( pipelineAttributes.GetInt( "ToolsVisMode" ) == (int)SceneCameraDebugMode.MotionVectors )

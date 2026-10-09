@@ -4,15 +4,15 @@
 public struct LobbyConfig
 {
 	/// <summary>
-	/// Whether to automatically destroy this lobby when the host leaves. This is only
-	/// applicable to P2P lobbies.
+	/// Whether to end the game when the host leaves. By default the host hands the game to
+	/// another player instead. This is only applicable to P2P lobbies.
 	/// </summary>
 	public bool DestroyWhenHostLeaves { get; set; }
 
 	/// <summary>
-	/// Whether to periodically switch to the best possible host candidate. This is only
-	/// applicable to P2P lobbies.
+	/// No longer does anything. The host only changes when the current host leaves.
 	/// </summary>
+	[Obsolete( "The host only changes when the current host leaves" )]
 	public bool AutoSwitchToBestHost { get; set; }
 
 	/// <summary>
@@ -40,7 +40,6 @@ public struct LobbyConfig
 	public LobbyConfig()
 	{
 		DestroyWhenHostLeaves = ProjectSettings.Networking.DestroyLobbyWhenHostLeaves;
-		AutoSwitchToBestHost = ProjectSettings.Networking.AutoSwitchToBestHost;
 		MaxPlayers = Application.GamePackage?.GetCachedMeta( "MaxPlayers", 32 ) ?? 32;
 	}
 }

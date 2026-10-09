@@ -9,6 +9,7 @@ using System.Text.Json.Serialization;
 /// entity position, bone position and scene object position.
 /// </summary>
 [StructLayout( LayoutKind.Sequential )]
+[Description( "A position, rotation and scale in 3D space." )]
 public struct Transform : System.IEquatable<Transform>, IInterpolator<Transform>
 {
 	/// <summary>

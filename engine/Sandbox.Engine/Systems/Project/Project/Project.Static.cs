@@ -288,6 +288,31 @@ public partial class Project
 		return project;
 	}
 
+	/// <summary>
+	/// Add a project from config JSON rather than a .sbproj on disk, rooted at <paramref name="rootPath"/>.
+	/// This is how an exported standalone game loads itself: the config was embedded in its
+	/// executable at export time, so it's read-only and never upgraded or saved here.
+	/// </summary>
+	internal static Project AddFromEmbeddedConfig( string configJson, string rootPath )
+	{
+		var root = new DirectoryInfo( Path.GetFullPath( rootPath ) );
+
+		if ( All.FirstOrDefault( a => a.RootDirectory?.FullName == root.FullName ) is Project existing )
+			return existing;
+
+		var project = new Project( root, configJson ) { Active = true };
+		project.Load();
+
+		if ( project.Broken )
+		{
+			throw new System.Exception( $"Couldn't add embedded project rooted at {root.FullName}" );
+		}
+
+		All.Add( project );
+
+		return project;
+	}
+
 	internal static Project FindByIdent( string ident )
 	{
 		return All.FirstOrDefault( x => string.Equals( ident.Replace( "#local", "" ), x.Config.FullIdent, StringComparison.OrdinalIgnoreCase ) );

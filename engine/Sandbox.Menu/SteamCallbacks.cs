@@ -22,6 +22,7 @@ internal static class SteamCallbacks
 	private static void SteamFriends_OnGameRichPresenceJoinRequested( Steamworks.Friend friend, string connectStr )
 	{
 		using var scope = GlobalContext.MenuScope();
+		Api.Activity.GameRequested( new( "invite" ) );
 		ConsoleSystem.Run( "connect", connectStr.Split( ' ' ).Last() );
 	}
 
@@ -29,6 +30,22 @@ internal static class SteamCallbacks
 	{
 		IGameInstanceDll.Current.CloseGame();
 		_ = TryJoinLobby( steamId );
+	}
+
+	/// <summary>
+	/// Steam launches the game with <c>+connect_lobby &lt;id&gt;</c> when an invite is accepted while it isn't
+	/// running - the launch equivalent of <see cref="SteamFriends_OnGameLobbyJoinRequested"/>.
+	/// </summary>
+	[MenuConCmd( "connect_lobby", ConVarFlags.Protected )]
+	public static void ConnectLobby( string lobbyId )
+	{
+		if ( !ulong.TryParse( lobbyId, out var id ) )
+		{
+			Log.Warning( $"connect_lobby: '{lobbyId}' isn't a lobby id" );
+			return;
+		}
+
+		_ = TryJoinLobby( id );
 	}
 
 	private static async Task TryJoinLobby( Sandbox.SteamId steamId )
@@ -51,6 +68,7 @@ internal static class SteamCallbacks
 		}
 
 		PartyRoom.Current?.Leave();
+		Api.Activity.GameRequested( new( "invite" ) );
 		ConsoleSystem.Run( "connect", steamId.Value );
 	}
 

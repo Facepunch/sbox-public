@@ -39,6 +39,7 @@ CS
 
 	#include "instancing.fxc"
 	#include "morph.fxc"
+	#include "common/classes/Deformation.hlsl"
 
 	DynamicCombo( D_MORPH, 0..1, Sys( ALL ) );
 
@@ -60,6 +61,10 @@ CS
 		uint nDestBufferOffset;
 		uint nTransformBufferOffset_BlendWeightCount;
 		uint nMorphOffset;
+		uint nVolumeOffset;
+		uint nVolumeCount;
+		uint nAnchorOffset;		// Rigidly deformed: its anchors, per bone, in g_deformationAnchors. 0 deforms as usual
+		uint padding;
 	};
 
 	cbuffer Instances_t
@@ -231,10 +236,18 @@ CS
 			vBoneWeights *= 1.0f/255.0f;
 		}
 
+		uint nBlendWeightCount = inst.nTransformBufferOffset_BlendWeightCount & 0xF;
+
+		#if D_DEFORMATION_VOLUME
+		if ( inst.nAnchorOffset != 0 && nBlendWeightCount > 0 )
+			Deformation::ApplyRigid( inst.nVolumeOffset, inst.nVolumeCount, inst.nAnchorOffset, nBoneIndices, vBoneWeights, nBlendWeightCount, vPosOs );
+		else
+			Deformation::Apply( inst.nVolumeOffset, inst.nVolumeCount, vPosOs, vNormalOs, vTangentUOs_flTangentVSign );
+		#endif
+
 		CachedAnimatedVertex_t vert;
 
 		// Fetch transforms & apply
-		uint nBlendWeightCount = inst.nTransformBufferOffset_BlendWeightCount & 0xF;
 		float3x4 mObjToWorld = CalculateInstancingObjectToWorldMatrix( nTransformBufferOffset, nBlendWeightCount, vBoneWeights, nBoneIndices );
 		
 		vert.vPosWs = mul( mObjToWorld, float4( vPosOs, 1.0f ) );

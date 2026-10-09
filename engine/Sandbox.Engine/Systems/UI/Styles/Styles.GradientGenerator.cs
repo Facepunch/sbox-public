@@ -116,7 +116,7 @@ namespace Sandbox.UI
 		/// The colour stops of any gradient, ready for the shader. False when nothing parsed
 		/// at all. Anything past the shader's stop limit is dropped.
 		/// </summary>
-		private bool TryParseStops( string token, out System.Collections.Immutable.ImmutableArray<GradientColorOffset> result )
+		private bool TryParseStops( string token, out GradientStops result )
 		{
 			result = default;
 
@@ -128,18 +128,17 @@ namespace Sandbox.UI
 			// start followed by every segment's end.
 			var count = Math.Min( segments.Count + 1, GradientInfo.MaxStops );
 
-			var stops = System.Collections.Immutable.ImmutableArray.CreateBuilder<GradientColorOffset>( count );
-			stops.Add( segments[0].from );
+			var stops = new GradientStops().Add( segments[0].from );
 
 			foreach ( var segment in segments )
 			{
-				if ( stops.Count >= count )
+				if ( stops.Length >= count )
 					break;
 
-				stops.Add( segment.to );
+				stops = stops.Add( segment.to );
 			}
 
-			result = stops.ToImmutable();
+			result = stops;
 			return true;
 		}
 

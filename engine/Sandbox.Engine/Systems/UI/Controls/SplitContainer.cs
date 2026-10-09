@@ -116,7 +116,7 @@ namespace Sandbox.UI
 
 		/// <summary>
 		/// We can save the position of this splitter in a cookie. To do that set this
-		/// (or "cookie" in a template). We'll automatically save and restore from the cookie.
+		/// (or the <c>cookie</c> attribute in razor). We'll automatically save and restore from the cookie.
 		/// </summary>
 		public string FractionCookie
 		{
@@ -211,8 +211,8 @@ namespace Sandbox.UI
 		}
 
 		/// <summary>
-		/// You can create child panels in the template by setting attributes
-		/// on them, like slot="left" to make that panel appear in the left panel.
+		/// Child panels created from razor markup can set slot="left" or slot="right"
+		/// to be placed in that side.
 		/// </summary>
 		public override void OnTemplateSlot( Html.INode element, string slotName, Panel panel )
 		{

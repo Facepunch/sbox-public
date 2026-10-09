@@ -1,8 +1,7 @@
 namespace Sandbox.PanelGallery;
 
 /// <summary>
-/// The renderer test pages - razor panels compiled into this assembly by the razor source
-/// generator. They came from the menu addon; the gallery hosts them now.
+/// Discovers Razor test pages for the gallery sidebar.
 /// </summary>
 public static class UiTestPages
 {
@@ -20,8 +19,7 @@ public static class UiTestPages
 			.Where( x => !x.IsAbstract && x.IsSubclassOf( typeof( global::PanelGallery.UiTests.UiTestPage ) ) )
 			.Select( x => Game.TypeLibrary.GetType( x ) )
 			.Where( x => x is not null )
-			.OrderBy( x => x.Order )
-			.ThenBy( x => x.Title )
+			.OrderBy( x => x.Title, StringComparer.OrdinalIgnoreCase )
 			.ToList();
 
 		foreach ( var page in pages )
@@ -29,7 +27,10 @@ public static class UiTestPages
 			var current = page;
 			var icon = string.IsNullOrEmpty( current.Icon ) ? "science" : current.Icon;
 
-			Pages.Add( new GalleryPageInfo( current.Title, icon, () => current.Create<Panel>() ) );
+			// A leading slash selects a top-level gallery category; other groups live under CSS.
+			var folder = current.Group?.StartsWith( '/' ) == true ? current.Group.TrimStart( '/' )
+				: string.IsNullOrEmpty( current.Group ) ? "Css Styles" : $"Css Styles/{current.Group}";
+			Pages.Add( new GalleryPageInfo( current.Title, icon, () => current.Create<Panel>(), folder ) );
 		}
 	}
 }

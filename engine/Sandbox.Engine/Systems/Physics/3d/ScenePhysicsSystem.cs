@@ -114,7 +114,7 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 		//
 		// I don't feel comfortable doing this in a thread, because of all the LocalTransformChanged callbacks
 		// System.Threading.Tasks.Parallel.ForEach( Scene.GetAll<Rigidbody>(), c => c.UpdateTransformFromBody() );
-		foreach ( var obj in Scene.GetAll<Rigidbody>() )
+		foreach ( var obj in Scene.Query<Rigidbody>() )
 		{
 			obj.UpdateTransformFromBody();
 		}

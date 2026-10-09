@@ -421,7 +421,7 @@ internal sealed partial class PhysicsBody3d : PhysicsBodyInternal, IHandle
 			if ( _surface == value ) return;
 
 			_surface = value;
-			native.SetMaterialIndex( _surface?.ResourceName );
+			native.SetMaterialIndex( _surface?.PhysicsName );
 		}
 	}
 

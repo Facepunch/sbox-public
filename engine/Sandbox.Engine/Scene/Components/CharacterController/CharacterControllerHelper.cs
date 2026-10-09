@@ -120,8 +120,8 @@ public struct CharacterControllerHelper
 		// Do a regular move
 		var fraction = TryMove( timeDelta );
 
-		// If it got almost all the way then that's cool, use it
-		if ( fraction >= 0.99f )
+		// Slide/bounce traces can accumulate a full fraction without reaching the intended destination.
+		if ( Position.AlmostEqual( startPosition + stepMove.Velocity * timeDelta ) )
 			return fraction;
 
 		// Move up (as much as we can)

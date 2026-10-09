@@ -9,11 +9,48 @@ native static class RenderTools as NativeEngine.RenderTools
 	void ResolveFrameBuffer( IRenderContext renderContext, ITexture texture, NativeRect viewport );
 	void ResolveDepthBuffer( IRenderContext renderContext, ITexture texture, NativeRect viewport );
 	void DrawSceneObject( IRenderContext renderContext, ISceneLayer sceneLayer, CSceneObject sceneObject, Transform transform, Vector4 color, IMaterial material, CRenderAttributes attributes );
-	void DrawModel( IRenderContext renderContext, ISceneLayer sceneLayer, IModel hModel, CastTo[CTransformUnaligned*] void* transforms, int numTransforms, CRenderAttributes attributes );
-	void DrawModel( IRenderContext renderContext, ISceneLayer sceneLayer, IModel hModel, RenderBufferHandle_t hDrawArgBuffer, int nBufferOffset, CRenderAttributes attributes );
-	void DrawModel( IRenderContext renderContext, ISceneLayer sceneLayer, IModel hModel, CastTo[CTransformUnaligned*] void* transforms, int numTransforms, CRenderAttributes attributes, int nLodLevel );
-	void DrawModel( IRenderContext renderContext, ISceneLayer sceneLayer, IModel hModel, RenderBufferHandle_t hDrawArgBuffer, int nBufferOffset, CRenderAttributes attributes, int nLodLevel );
-	void DrawModel( IRenderContext renderContext, ISceneLayer sceneLayer, IModel hModel, RenderBufferHandle_t hTransformBuffer, RenderBufferHandle_t hDrawArgBuffer, int nBufferOffset, CRenderAttributes attributes, int nLodLevel );
+	void DrawModel( IRenderContext renderContext, ISceneLayer sceneLayer, StringToken nShaderMode, IModel hModel, CastTo[CTransformUnaligned*] void* transforms, int numTransforms, CRenderAttributes attributes );
+
+	bool BindModelDrawCall( IRenderContext renderContext, CRenderAttributes attributes, IModel hModel, int nMesh, int nDrawCall );
+	bool SetRenderStateForModelDrawCall( IRenderContext renderContext, CRenderAttributes attributes, IMaterialMode materialMode, IModel hModel, int nMesh, int nDrawCall, int nDepthBias, float flSlopeScaledDepthBias, bool bStripPixelShader, bool bVertexCache, int nOverlayStencil );
+	int GetModelMeshSkinning( IModel hModel, int nMesh, CastTo[int*] void* pBoneCount, CastTo[int*] void* pBlendWeightCount );
+	bool GetModelMeshSkinningBones( IModel hModel, int nMesh, CastTo[matrix3x4_t*] void* pInvBindPoses, CastTo[int*] void* pMasterBones, int nBones );
+	int AllocateVertexCache( int nVertexCount );
+	RenderBufferHandle_t GetVertexCacheBuffer();
+	bool DispatchModelMeshSkinning( IRenderContext renderContext, IMaterialMode materialMode, IModel hModel, int nMesh, RenderBufferHandle_t hTransformBuffer, CastTo[int*] void* pTransformSlots, CastTo[int*] void* pVertexCacheOffsets, int nInstances, int nBlendWeightCount, RenderBufferHandle_t hVolumeBuffer, CastTo[int*] void* pVolumeOffsets, CastTo[int*] void* pVolumeCounts, RenderBufferHandle_t hAnchorBuffer, CastTo[int*] void* pAnchorOffsets, bool bMorph );
+	bool BindModelDrawCallVertexIds( IRenderContext renderContext, IModel hModel, int nMesh, int nDrawCall, int nFirstStream );
+	void BindDepthTarget( IRenderContext renderContext, ITexture hDepth, int nSlice );
+	void BindColorAndDepthTarget( IRenderContext renderContext, ITexture hColor, ITexture hDepth, bool bSrgbWrite );
+	bool BlitTexture( IRenderContext renderContext, ITexture hSource, int nX, int nY, int nWidth, int nHeight, int nSrgbTransfer );
+	void MakeFrameBufferCopy( IRenderContext renderContext, ITexture hDest, int nX, int nY, int nWidth, int nHeight );
+	bool PackSceneEnvMap( CSceneObject sceneObject, void* pOut );
+	bool GetModelDrawCallTint( IModel hModel, int nMesh, int nDrawCall, CastTo[Vector*] void* pTint );
+	ulong GetSceneObjectLightmapKey( CSceneObject sceneObject );
+	void GetSceneWorldWind( ISceneWorld world, CastTo[Vector4D*] void* pStrengthFreq, CastTo[Vector4D*] void* pDir );
+	bool DrawDynamicSceneObject( IRenderContext renderContext, CSceneObject sceneObject, StringToken nShaderMode );
+	bool ModelMeshHasMorphs( IModel hModel, int nMesh );
+	int QueueModelMeshMorph( CSceneObject sceneObject, IModel hModel, int nMesh );
+	void GenerateMorphs();
+	void GetMorphSubrect( int nHandle, CastTo[Vector4D*] void* pSubrect );
+	void* CreateConstantBuffer( int nSize );
+	void SetConstantBufferData( IRenderContext renderContext, CRenderAttributes attributes, StringToken nName, void* hBuffer, void* pData, int nSize );
+	void DestroyConstantBuffer( void* hBuffer );
+	int GetLightProbeVolume( CSceneObject sceneObject, CastTo[Vector*] void* pBoxMins, CastTo[Vector*] void* pBoxMaxs, CastTo[int*] void* pRenderPriority, CastTo[uint32*] void* pLightGroups, int nMaxLightGroups );
+	bool SetLightProbeVolumeAttributes( CSceneObject sceneObject, CRenderAttributes attributes );
+	bool DrawSkyBox( IRenderContext renderContext, CRenderAttributes viewAttributes, IMaterialMode materialMode, Transform transform, Vector4 tint, int nFogType, float flFogMinStart, float flFogMinEnd, float flFogMaxStart, float flFogMaxEnd );
+	IMaterial GetSceneObjectDraw( CSceneObject sceneObject, int nIndex, CastTo[int*] void* pMeshIndex, CastTo[int*] void* pDrawCall, CastTo[int*] void* pFlags );
+	float TonemapFrameUpdate( ITonemapSystem tonemapSystem, bool bUpdate );
+	void RenderAutoExposure( IRenderContext renderContext, ITonemapSystem tonemapSystem, ITexture hColor, int nX, int nY, int nWidth, int nHeight );
+	bool DrawModelDrawCall( IRenderContext renderContext, CRenderAttributes attributes, IMaterial material, StringToken nMode, IModel hModel, int nMesh, int nDrawCall, int nDepthBias, float flSlopeScaledDepthBias, bool bStripPixelShader, int nOverlayStencil, RenderBufferHandle_t hInstanceIds, int nFirstSlot, int nInstances, void* pBind );
+	int GetMaterialBindSize();
+	void ResetMaterialBind( void* pBind );
+	ulong GetMaterialSimilarityKey( IMaterial material );
+	int PackSceneLight( CSceneLightObject light, void* pOut, CastTo[int*] void* pBakeLightIndex );
+	bool SetSceneObjectLightmapAttributes( CSceneObject sceneObject, CRenderAttributes attributes );
+	void DrawModel( IRenderContext renderContext, ISceneLayer sceneLayer, StringToken nShaderMode, IModel hModel, RenderBufferHandle_t hDrawArgBuffer, int nBufferOffset, CRenderAttributes attributes );
+	void DrawModel( IRenderContext renderContext, ISceneLayer sceneLayer, StringToken nShaderMode, IModel hModel, CastTo[CTransformUnaligned*] void* transforms, int numTransforms, CRenderAttributes attributes, int nLodLevel );
+	void DrawModel( IRenderContext renderContext, ISceneLayer sceneLayer, StringToken nShaderMode, IModel hModel, RenderBufferHandle_t hDrawArgBuffer, int nBufferOffset, CRenderAttributes attributes, int nLodLevel );
+	void DrawModel( IRenderContext renderContext, ISceneLayer sceneLayer, StringToken nShaderMode, IModel hModel, RenderBufferHandle_t hTransformBuffer, RenderBufferHandle_t hDrawArgBuffer, int nBufferOffset, CRenderAttributes attributes, int nLodLevel );
 
 	//
 	// Render context can be null and we'll create one

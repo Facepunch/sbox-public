@@ -1,0 +1,20 @@
+@using Sandbox.PanelGallery;
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Effects" )]
+@attribute [Title( "outline" )]
+@attribute [Icon( "check_box_outline_blank" )]
+<root>
+    <h2>outline</h2>
+    <div class="cases">
+        <UiTestCase Caption="4px" class="roomy" Css="@($"border-radius: 20px; outline: 3px solid {GalleryPalette.CyanHex}; outline-offset: 4px")" Note="An outline sits outside the box and doesn't affect layout." />
+        <UiTestCase Caption="-6px" Css="@($"border-radius: 20px; outline: 3px solid {GalleryPalette.CyanHex}; outline-offset: -6px")" Note="A negative offset pulls it inside." />
+    </div>
+</root>
+@code
+{
+
+
+}

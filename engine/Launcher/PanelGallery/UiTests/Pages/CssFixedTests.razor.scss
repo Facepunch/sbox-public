@@ -1,7 +1,7 @@
+@import "/styles/_gallery-palette.scss";
 CssFixedTests
 {
 	.description { max-width: 600px; font-size: 15px; color: #b7c4d8; margin-bottom: 20px; }
-	.controls { gap: 12px; margin-bottom: 30px; }
 	button
 	{
 		padding: 8px 12px;
@@ -11,7 +11,7 @@ CssFixedTests
 		border-radius: 3px;
 		pointer-events: all;
 		cursor: pointer;
-		&:hover { background-color: #47617e; }
+		&:hover { background-color: $gallery-cyan; }
 	}
 	.owner
 	{
@@ -27,7 +27,6 @@ CssFixedTests
 		pointer-events: all;
 		> label { flex-shrink: 0; }
 		&.rotated { transform: rotate(-6deg); }
-		&.hidden { display: none; }
 	}
 	.long-content { height: 500px; flex-shrink: 0; padding-top: 30px; }
 	.floater
@@ -39,7 +38,7 @@ CssFixedTests
 		padding: 20px;
 		gap: 12px;
 		flex-direction: column;
-		background-color: #e8b04a;
+		background-color: $gallery-lime;
 		color: #1a2330;
 		border-radius: 6px;
 		pointer-events: all;
@@ -51,7 +50,7 @@ CssFixedTests
 		right: 32px;
 		bottom: 24px;
 		padding: 14px;
-		background-color: #4ac2e8;
+		background-color: $gallery-cyan;
 		color: #1a2330;
 		border-radius: 4px;
 	}

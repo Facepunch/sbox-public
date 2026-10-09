@@ -1,0 +1,18 @@
+@namespace MenuProject.MenuUI.Components.Multiplayer
+@inherits Panel
+
+<root>
+	<div class="invitation-summary">
+		<label class="invitation-name">@(Invitation?.Name ?? "Party invitation")</label>
+		<label class="invitation-details">@(string.IsNullOrWhiteSpace( Invitation?.GameTitle ) ? "Deciding together" : Invitation.GameTitle)</label>
+		@if ( Invitation is { Available: true } invitation )
+		{
+			<label class="invitation-details">@($"{invitation.Members}/{invitation.Capacity} players · {(invitation.IsFull ? "Party full" : invitation.IsPlaying ? "In game" : "Looking for players")}")</label>
+		}
+		else
+		{
+			<label class="invitation-details">@(Invitation is null ? "Checking party…" : "Party unavailable · ended or could not be reached")</label>
+		}
+	</div>
+	<Button class="primary" disabled=@JoinDisabled onclick=@Join tooltip=@JoinTooltip>@(IsCurrentParty ? "Your party" : "Join party")</Button>
+</root>

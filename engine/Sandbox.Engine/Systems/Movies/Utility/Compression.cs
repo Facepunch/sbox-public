@@ -146,7 +146,7 @@ internal static class ByteStreamExtensions
 		{
 			var value = getValue( sample );
 
-			if ( value.IsInfinity || value.IsNaN )
+			if ( !value.IsFinite )
 			{
 				value = default;
 			}
@@ -171,7 +171,7 @@ internal static class ByteStreamExtensions
 		{
 			var value = getValue( x );
 
-			if ( value.IsInfinity || value.IsNaN )
+			if ( !value.IsFinite )
 			{
 				value = default;
 			}
@@ -259,7 +259,7 @@ file readonly struct Quat32 : IEquatable<Quat32>,
 
 		// Survive a nonsense rotation
 
-		if ( !float.IsFinite( rotation.x ) || !float.IsFinite( rotation.y ) || !float.IsFinite( rotation.z ) || !float.IsFinite( rotation.w ) )
+		if ( !rotation.IsFinite )
 		{
 			return default;
 		}

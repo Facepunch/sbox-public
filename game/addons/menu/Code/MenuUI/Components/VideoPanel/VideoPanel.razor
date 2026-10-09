@@ -36,6 +36,23 @@
 		}
 	}
 
+	bool? _muted;
+
+	/// <summary>
+	/// Muted, not turned down - the controls can unmute it. Only applied when it changes, so a
+	/// rebuild doesn't undo the user's unmute.
+	/// </summary>
+	public bool Muted
+	{
+		set
+		{
+			if (_muted == value) return;
+
+			_muted = value;
+			videoPlayer.Muted = value;
+		}
+	}
+
 	public bool Controls { get; set; } = true;
 
 	Sandbox.VideoPlayer videoPlayer;

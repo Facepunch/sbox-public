@@ -2,6 +2,7 @@
 @import "/styles/_vars.scss";
 @import "/styles/_modal.scss";
 @import '/styles/_button.scss';
+@import '/styles/_popup.scss';
 
 MenuOverlay
 {
@@ -17,7 +18,7 @@ MenuOverlay
 	right: 0px;
 	justify-content: center;
 	margin: 100px;
-	z-index: 1100;
+	z-index: 5100; // Notifications stay above windows and modals.
 	gap: 8px;
 }
 
@@ -28,19 +29,38 @@ MenuOverlay
 	left: 0px;
 	justify-content: center;
 	margin: 100px;
-	z-index: 1100;
+	z-index: 5100;
+	gap: 8px;
+}
+
+.notification-corner
+{
+	position: absolute;
+	right: 24px;
+	bottom: 24px;
+	z-index: 5101;
+	align-items: flex-end;
+	flex-direction: column;
+	gap: 8px;
+}
+
+// The post-game card - bottom middle, clear of the party deck in the corner
+.popup_canvas_bottomcenter
+{
+	position: absolute;
+	left: 0px;
+	right: 0px;
+	bottom: 40px;
+	z-index: 5101;
+	flex-direction: column;
+	align-items: center;
 	gap: 8px;
 }
 
 .popup_canvas_bottomright
 {
-	position: absolute;
-	right: 0px;
-	bottom: 50px;
-	justify-content: center;
-	margin: 100px;
-	z-index: 1100;
 	flex-direction: column;
+	align-items: flex-end;
 	gap: 8px;
 }
 
@@ -51,12 +71,15 @@ MenuOverlay
 	right: 35%;
 	top: 100px;
 	bottom: 150px;
-	z-index: 1100;
+	z-index: 5100;
 	//border: 1px solid red;
 	flex-direction: column;
 	justify-content: flex-end;
 	align-items: center;
+}
 
+.popup_canvas, .popup_canvas_bottomright
+{
 	.popup
 	{
 		background-color: $primary;
@@ -194,6 +217,12 @@ MenuOverlay
 			}
 		}
 	}
+}
+
+.popup_canvas_bottomright .popup
+{
+	position: relative;
+	max-width: 480px;
 }
 
 .tooltip

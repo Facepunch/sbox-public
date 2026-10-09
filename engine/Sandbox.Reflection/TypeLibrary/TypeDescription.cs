@@ -62,6 +62,11 @@ public sealed class TypeDescription : ISourceLineProvider
 	public MethodDescription[] Methods { get; private set; }
 
 	/// <summary>
+	/// Overloaded operators and conversions exposed by this type. These are also included in Methods and Members.
+	/// </summary>
+	public MethodDescription[] Operators { get; private set; }
+
+	/// <summary>
 	/// All properties of this type.
 	/// </summary>
 	public PropertyDescription[] Properties { get; private set; }
@@ -198,8 +203,8 @@ public sealed class TypeDescription : ISourceLineProvider
 			// And there is no reason to explicitly call Object.Finalize for something
 			if ( methodInfo.Name == Microsoft.CodeAnalysis.WellKnownMemberNames.DestructorName ) return false;
 
-			// Ignore getter/setter methods
-			if ( methodInfo.IsSpecialName ) return false;
+			// Operators are callable members. Other special methods (such as accessors) are represented separately.
+			if ( methodInfo.IsSpecialName && MethodDescription.ClassifyOperator( methodInfo ) == OperatorKind.None ) return false;
 			if ( methodInfo.Name == "GetType" ) return false;
 			if ( methodInfo.Name == "ToString" ) return false;
 			if ( methodInfo.Name == "Equals" ) return false;
@@ -368,6 +373,7 @@ public sealed class TypeDescription : ISourceLineProvider
 		Members = md.OrderBy( x => x.SourceLine ).ToArray();
 		DeclaredMembers = Members.Where( x => x.MemberInfo.DeclaringType == type ).ToArray();
 		Methods = Members.OfType<MethodDescription>().ToArray();
+		Operators = Methods.Where( x => x.IsOperator ).ToArray();
 		Properties = Members.OfType<PropertyDescription>().ToArray();
 		Fields = Members.OfType<FieldDescription>().ToArray();
 

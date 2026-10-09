@@ -13,8 +13,8 @@ namespace Sandbox.UI;
 public partial class Panel : IPanel, IValid, IComponent
 {
 	/// <summary>
-	/// The element name. If you've created this Panel via a template this will be whatever the element
-	/// name is on there. If not then it'll be the name of the class (ie Panel, Button)
+	/// The element name used by stylesheet selectors. Set from the tag name when created from razor,
+	/// otherwise the lowercased class name (ie panel, button).
 	/// </summary>
 	[Property]
 	public string ElementName { get; set; }
@@ -115,12 +115,12 @@ public partial class Panel : IPanel, IValid, IComponent
 	public Panel()
 	{
 		InitializeEvents();
+		UpdateDrawCallbacks();
 
 		LayoutTree = new PanelLayout( this );
 		Style = new PanelStyle( this );
 		StyleSheet = new StyleSheetCollection( this );
 		Transitions = new Transitions( this );
-		LayerCommandList = new CommandList( $"UI Layer: {GetType().Name}" );
 
 		ElementName = GetType().Name.ToLower();
 		Switch( PseudoClass.Empty, true );
@@ -157,6 +157,8 @@ public partial class Panel : IPanel, IValid, IComponent
 	{
 		LoadStyleSheet();
 		InitializeEvents();
+		_drawCallbacks.Remove( GetType() );
+		UpdateDrawCallbacks();
 
 		// If the checksum changed on our render tree, then we have to assume that everthing
 		// about it changed. Lets destroy it and start from scratch.
@@ -335,13 +337,13 @@ public partial class Panel : IPanel, IValid, IComponent
 			var didBuildRenderTree = false;
 			var isFirstRender = renderTree == null;
 
-			if ( HasRenderTree || templateBindsChanged )
+			if ( HasRenderTree || parametersChanged )
 			{
 				InternalTreeBinds();
 
-				if ( templateBindsChanged )
+				if ( parametersChanged )
 				{
-					templateBindsChanged = false;
+					parametersChanged = false;
 					razorTreeDirty = true;
 					ParametersChanged( true );
 				}
@@ -400,6 +402,7 @@ public partial class Panel : IPanel, IValid, IComponent
 
 			AddScrollVelocity();
 			RunClassBinds();
+			_paintCache.CheckTextures( this );
 
 
 		}
@@ -501,7 +504,7 @@ public partial class Panel : IPanel, IValid, IComponent
 	{
 		if ( !p.IsVisible )
 			return null;
-		if ( p.InlineParagraph is not null ) return p.InlineParagraph.SelectedText;
+		if ( p.LayoutTree?.HasInlineContent == true ) return p.LayoutTree.SelectedInlineText;
 
 		if ( p is Sandbox.UI.Label label )
 		{
@@ -532,11 +535,7 @@ public partial class Panel : IPanel, IValid, IComponent
 		if ( AllowChildSelection )
 		{
 			e.StopPropagation();
-			if ( InlineParagraph is not null )
-			{
-				InlineParagraph.Select( e.StartPoint, e.EndPoint );
-				return;
-			}
+			if ( LayoutTree?.SelectInlineText( e.StartPoint, e.EndPoint ) == true ) return;
 
 			foreach ( var child in Children )
 			{
@@ -550,11 +549,7 @@ public partial class Panel : IPanel, IValid, IComponent
 	/// </summary>
 	public void SelectAllInChildren()
 	{
-		if ( InlineParagraph is not null )
-		{
-			InlineParagraph.SetSelection( 0, int.MaxValue );
-			return;
-		}
+		if ( LayoutTree?.SetInlineSelection( 0, int.MaxValue ) == true ) return;
 		if ( this is Sandbox.UI.Label label )
 		{
 			label.ShouldDrawSelection = true;
@@ -574,11 +569,7 @@ public partial class Panel : IPanel, IValid, IComponent
 	/// </summary>
 	public void UnselectAllInChildren()
 	{
-		if ( InlineParagraph is not null )
-		{
-			InlineParagraph.SetSelection( 0, 0 );
-			return;
-		}
+		if ( LayoutTree?.SetInlineSelection( 0, 0 ) == true ) return;
 		if ( this is Sandbox.UI.Label label )
 		{
 			label.ShouldDrawSelection = false;
@@ -593,11 +584,7 @@ public partial class Panel : IPanel, IValid, IComponent
 
 	void UpdateSelection( Panel p, SelectionEvent e )
 	{
-		if ( p.InlineParagraph is not null )
-		{
-			p.InlineParagraph.Select( e.StartPoint, e.EndPoint );
-			return;
-		}
+		if ( p.LayoutTree?.SelectInlineText( e.StartPoint, e.EndPoint ) == true ) return;
 		var rect = e.SelectionRect;
 
 		// child is outside of selection vertically

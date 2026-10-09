@@ -1,8 +1,10 @@
 ﻿@using Sandbox;
 @using Sandbox.UI;
+@using MenuProject;
 @using System.Globalization
 @namespace MenuProject.UI
 @inherits Panel
+@implements IDiscoverySurface
 
 <root class=@BuildClass() @onrightclick=@OnCardRightClicked onclick=@OnCardClicked>
     <div class="image" style="background-image: url(@(Image() ?? "/ui/sbox-logo-square.svg"))">
@@ -14,8 +16,16 @@
 
         @if ( Package != null && Package.Flair.IsEmpty == false)
         {
-            <MenuProject.UI.PackageFlairBar Flair="@Package.Flair" />
+            <MenuProject.UI.PackageFlairBar Flair="@Package.Flair" Limit=@(2) />
         }
+
+		@if ( NominationCount is int nominations )
+		{
+			<div class="package-nominations" tooltip="Total nominations across community categories">
+				<icon>how_to_vote</icon>
+				<label>@nominations.ToString("N0")</label>
+			</div>
+		}
 
         @* Overlaid on the art as a pull quote - the mark is its own label so it can be set big. *@
         @if ( ShowSummary && !string.IsNullOrWhiteSpace( Package?.Summary ) )
@@ -31,6 +41,11 @@
         <label class="medium package-title">
             @(Package?.Title ?? "Invalid Package")
         </label>
+
+        @if ( ShowSubtitle && !string.IsNullOrWhiteSpace( Package?.Summary ) )
+        {
+            <label class="package-subtitle" tooltip="@Package.Summary">@Package.Summary</label>
+        }
 
         @if (Package == null)
         {
@@ -50,9 +65,9 @@
 
                 @if ( Package.Usage.UsersNow > 0 )
                 {
-                    <div class="package-stat live">
+                    <div class="package-stat live" tooltip="Playing now">
                         <div class="live-dot" />
-                        <label class="eyebrow">@Compact( Package.Usage.UsersNow ) playing</label>
+                        <label class="eyebrow">@Compact( Package.Usage.UsersNow )</label>
                     </div>
                 }
                 else
@@ -91,22 +106,29 @@
         High
     }
 
-    // Plain statics, not [ConVar]s - only [MenuConVar] registers in the menu, and that lives in
-    // Sandbox.Menu which this addon can't reference. Menu VideoThumbConVars exposes them.
-    public static bool VideoThumbs { get; set; } = true;
-    public static int VideoThumbsPerShelf { get; set; } = 2;
-    public static int VideoThumbsPerGrid { get; set; } = 6;
-    public static float VideoThumbsSeconds { get; set; } = 10f;
+    /// <summary>How many package videos play at once in each front page shelf.</summary>
+    public const int VideoThumbsPerShelf = 2;
+    /// <summary>How many package videos play at once in a package grid.</summary>
+    public const int VideoThumbsPerGrid = 4;
+    /// <summary>Seconds a package video plays before handing over to the next card.</summary>
+    public const float VideoThumbsSeconds = 10f;
+    // Past the card's 0.3s video start, so the preview inherits the card's video mid-fade.
+    const float HoverPreviewDelay = 0.4f;
 	const float VideoActivationDelay = 0.3f;
 	bool showVideo;
 	float? videoRequestedAt;
+	RealTimeSince? hoverStartedAt;
+	bool hoverReported;
 
-	bool WantsVideo() => HasHovered || (VideoThumbs && (Rotation is null || Rotation.IsPlaying( this )));
+	bool WantsVideo() => Videos && (AlwaysPlayVideo || HasHovered || Rotation is null || Rotation.IsPlaying( this ));
 	bool ShowVideo() => showVideo;
 
 	public override void Tick()
 	{
 		base.Tick();
+
+		Discovery.Track( this, Package );
+		TickHoverPreview();
 
 		if ( !WantsVideo() )
 		{
@@ -130,12 +152,54 @@
 		}
 	}
 
-    string VideoUrl()
-    {
-        var url = Package?.VideoThumb;
-        var quality = Quality == VideoQuality.Auto ? PickQuality() : Quality;
+	protected override void OnMouseMove(MousePanelEvent e)
+	{
+		base.OnMouseMove(e);
 
-        if ( quality == VideoQuality.Thumb || string.IsNullOrEmpty( url ) )
+		hoverStartedAt ??= 0;
+	}
+
+	protected override void OnMouseOut(MousePanelEvent e)
+	{
+		base.OnMouseOut(e);
+
+		hoverStartedAt = null;
+		hoverReported = false;
+	}
+
+	void TickHoverPreview()
+	{
+		if ( hoverStartedAt is null || Package is null ) return;
+		if ( hoverStartedAt.Value <= HoverPreviewDelay ) return;
+
+		// A hover counts whether or not a hover card opens - the tile plays its video either way
+		if ( !hoverReported )
+		{
+			hoverReported = true;
+			Discovery.Hovered( this, Package );
+		}
+
+		if ( HoverPreview && Size != SizeType.List )
+			PackageHoverCard.Show( this, Package, PlayingVideoUrl, Videos );
+	}
+
+	/// <summary>The video url this card is showing right now, or null.</summary>
+	public string PlayingVideoUrl => VideoReady() ? VideoUrl() : null;
+
+	// Same cached player the style loaded, so this is false until its first frame arrives - and
+	// stays false when the clip never does, leaving the art alone instead of a title over nothing.
+	bool VideoReady() => showVideo && !string.IsNullOrEmpty( Package?.VideoThumb ) && Texture.Load( VideoUrl() )?.IsLoaded == true;
+
+    string VideoUrl() => VideoUrl( Package, Quality == VideoQuality.Auto ? PickQuality( Box.Rect.Width ) : Quality );
+
+    /// <summary>
+    /// Resolves a package's video thumbnail to a playable clip at the requested quality.
+    /// </summary>
+    public static string VideoUrl( Package package, VideoQuality quality )
+    {
+        var url = package?.VideoThumb;
+
+        if ( quality == VideoQuality.Thumb || quality == VideoQuality.Auto || string.IsNullOrEmpty( url ) )
             return url;
 
         var variant = quality.ToString().ToLowerInvariant();
@@ -145,12 +209,10 @@
             .Replace( "thumb.mp4", $"{variant}.mp4" );
     }
 
-    // Box.Rect is in real screen pixels, so this already accounts for the root panel scaling
+    // Width is in real screen pixels, so this already accounts for the root panel scaling
     // itself by screen height. Zero before first layout - assume a card, not a list row.
-    VideoQuality PickQuality()
+    public static VideoQuality PickQuality( float width )
     {
-        var width = Box.Rect.Width;
-
         if ( width <= 0 ) return VideoQuality.Medium;
         if ( width < 160 ) return VideoQuality.Low;
         if ( width < 900 ) return VideoQuality.Medium;
@@ -162,24 +224,56 @@
     [Parameter] public SizeType Size { get; set; }
 
     /// <summary>
+    /// Where this card is shown, when its container can't say - e.g. one of several shelves in a panel.
+    /// </summary>
+    [Parameter] public DiscoveryContext DiscoveryContext { get; set; }
+
+	/// <summary>
+	/// Displays this package's nomination count from the menu's shared jam state.
+	/// </summary>
+	[Parameter] public bool ShowNominations { get; set; }
+
+	int? NominationCount => ShowNominations ? GameJamSystem.GetNominations( Package?.FullIdent ) : null;
+
+    /// <summary>
     /// Takes turns with the other cards sharing it, so only a few play at once.
     /// </summary>
     [Parameter] public CardVideoRotation Rotation { get; set; }
 
+    /// <summary>
+    /// How often this card gets a turn in its <see cref="Rotation"/>, relative to the others.
+    /// </summary>
+    [Parameter] public float VideoWeight { get; set; } = 1f;
+
+    /// <summary>
+    /// Keeps this card's video playing independently of shared shelf rotation and hover.
+    /// </summary>
+    [Parameter] public bool AlwaysPlayVideo { get; set; }
+
+    /// <summary>
+    /// Its video at all - off, it's only ever the art, hovered or not. For somewhere a clip playing
+    /// is in the way, like the pause menu over a game that's still going.
+    /// </summary>
+    [Parameter] public bool Videos { get; set; } = true;
+
     [Parameter] public VideoQuality Quality { get; set; } = VideoQuality.Auto;
 
     CardVideoRotation registered;
+    float registeredWeight;
 
     protected override void OnParametersSet()
     {
         base.OnParametersSet();
 
-        if ( registered == Rotation )
+        if ( registered == Rotation && registeredWeight == VideoWeight )
             return;
 
-        registered?.Unregister( this );
+        if ( registered != Rotation )
+            registered?.Unregister( this );
+
         registered = Rotation;
-        registered?.Register( this );
+        registeredWeight = VideoWeight;
+        registered?.Register( this, VideoWeight );
     }
 
     public override void OnDeleted()
@@ -195,6 +289,12 @@
     /// </summary>
     [Parameter] public bool ShowSummary { get; set; }
 
+    /// <summary>Show a short description beneath the title in compact horizontal cards.</summary>
+    [Parameter] public bool ShowSubtitle { get; set; }
+
+    /// <summary>Open a <see cref="PackageHoverCard"/> after hovering for a moment.</summary>
+    [Parameter] public bool HoverPreview { get; set; } = true;
+
     /// <summary>
     /// Called when the card is clicked
     /// </summary>
@@ -205,10 +305,14 @@
     /// </summary>
     [Parameter] public Action RightClicked { get; set; }
 
-    void OnCardClicked() => Clicked?.Invoke();
+    void OnCardClicked()
+    {
+        Discovery.Clicked( this, Package );
+        Clicked?.Invoke();
+    }
     void OnCardRightClicked() => RightClicked?.Invoke();
 
-    string BuildClass() => $"package-card {Size.ToString().ToLower()}";
+    string BuildClass() => $"package-card {Size.ToString().ToLower()} {(VideoReady() ? "playing" : "")}";
 
     string VotePercentage()
     {
@@ -235,6 +339,6 @@
         _ => Package?.ThumbWide
     };
 
-    // ShowVideo mounts the video layer, so hover/convar changes have to re-render.
-    protected override int BuildHash() => System.HashCode.Combine(Package?.FullIdent, Package?.Usage.UsersNow, Package?.Flair.Length, ShowVideo(), ShowSummary, VideoUrl());
+    // ShowVideo mounts the video layer, so hover changes have to re-render.
+    protected override int BuildHash() => System.HashCode.Combine(Package?.FullIdent, Package?.Usage.UsersNow, Package?.Flair.Length, ShowVideo(), VideoReady(), HashCode.Combine( ShowSummary, ShowSubtitle, Package?.Summary ), VideoUrl(), NominationCount);
 }

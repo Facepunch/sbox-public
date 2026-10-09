@@ -295,8 +295,9 @@ public static partial class Gizmo
 
 			var localCameraRot = Transform.RotationToLocal( Camera.Rotation );
 
-			var delta = Sandbox.Gizmo.GetMouseDelta( 0, Rotation.FromAxis( localCameraRot.Forward, 0 ).Forward );
-			movement = Vector3.One.Dot( delta );
+			var delta = Sandbox.Gizmo.GetMouseDelta( 0, localCameraRot.Forward );
+			// Dragging right or up grows uniformly, independent of the view and gizmo rotation.
+			movement = (localCameraRot.Right + localCameraRot.Up).Dot( delta );
 
 			// Optional: Debug drawing
 			if ( Hitbox.Debug && Sandbox.Gizmo.IsHovered )

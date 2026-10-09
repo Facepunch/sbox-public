@@ -44,7 +44,8 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		CastShadows = 0x1,
 		FlipX = 0x2,
 		FlipY = 0x4,
-		SnapToFrame = 0x8
+		SnapToFrame = 0x8,
+		Text = 0x10
 	}
 
 	// GPU Resident representation of a sprite
@@ -56,7 +57,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		public Vector2 Scale;
 		public uint TintColor;      // Packed RGBA8
 		public uint OverlayColor;   // Packed RGBA8
-		public int TextureHandle;
+		public int TextureHandle;   // a text sprite carries its block placement in TextureHandle, SamplerIndex, Sequence and SequenceTime, see IBatchedParticleSpriteRenderer
 		public int RenderFlags;
 		public uint BillboardMode;
 		public uint FogStrengthCutout;  // Lower 16 bits: fog, upper 16 bits: alpha cutout
@@ -191,6 +192,8 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 
 	int _renderInstanceCount;
+	bool _pendingHasText, _renderHasText;
+	ulong _renderFrame; // the text buffers the sprites' placements point into
 	bool _renderIsSorted;
 	bool _renderFiltered;
 	bool _renderAdditive;
@@ -456,6 +459,19 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 					};
 
 					var pivot = c.Pivot;
+					if ( c.Billboard == SpriteRenderer.BillboardMode.None )
+					{
+						var right = transform.Rotation.Right;
+						var up = transform.Rotation.Up;
+						var center = spritePos
+							+ right * ((pivot.x - 0.5f) * 2.0f * spriteScale.x)
+							+ up * ((pivot.y - 0.5f) * 2.0f * spriteScale.y);
+						var extent = right.Abs() * spriteScale.x
+							+ up.Abs() * spriteScale.y
+							+ transform.Rotation.Forward.Abs() * 0.01f;
+						return (Vector3.Min( local.mins, center - extent ), Vector3.Max( local.maxs, center + extent ));
+					}
+
 					float halfSize = MathF.Max(
 						MathF.Max( pivot.x, 1f - pivot.x ) * 2f * spriteScale.x,
 						MathF.Max( pivot.y, 1f - pivot.y ) * 2f * spriteScale.y
@@ -475,10 +491,15 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 		}
 
+		_pendingHasText = false;
+
 		foreach ( var spriteGroup in SpriteGroups.Values )
 		{
 			boundsMin = Vector3.Min( boundsMin, spriteGroup.Bounds.Mins );
 			boundsMax = Vector3.Max( boundsMax, spriteGroup.Bounds.Maxs );
+
+			// A group is one particle renderer, so its first sprite says whether it's text
+			_pendingHasText |= spriteGroup.Count > 0 && (spriteGroup.SharedSprites[spriteGroup.Offset].RenderFlags & (int)SpriteFlags.Text) != 0;
 		}
 
 		// Use a degenerate zero-size bounds for empty batches so they can be frustum-culled.
@@ -583,6 +604,8 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		_renderFiltered = filtered;
 		_renderAdditive = additive;
 		_renderOpaque = opaque;
+		_renderHasText = _pendingHasText;
+		_renderFrame = Application.FrameCount;
 	}
 
 	public override void RenderSceneObject()
@@ -600,6 +623,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		{
 			attributes.SetCombo( "D_BLEND", _renderAdditive ? 1 : 0 );
 			attributes.SetCombo( "D_OPAQUE", _renderOpaque ? 1 : 0 );
+			attributes.SetCombo( "D_TEXT", _renderHasText ? 1 : 0 );
 			attributes.Set( "IsSorted", _renderIsSorted ? 1 : 0 );
 			attributes.Set( "SpriteCount", _renderInstanceCount );
 			attributes.Set( "Filtered", _renderFiltered );
@@ -607,6 +631,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 			attributes.Set( "SortLUT", (GpuBuffer)GPUSortingBuffer );
 			attributes.Set( "Vertices", (GpuBuffer)VertexBuffer );
 			attributes.Set( "g_bNonDirectionalDiffuseLighting", true );
+			if ( _renderHasText ) GpuFontText.Bind( attributes, _renderFrame );
 
 			Graphics.DrawIndexedInstanced( (GpuBuffer)IndexBuffer, SpriteMaterial, _renderInstanceCount, attributes );
 		}

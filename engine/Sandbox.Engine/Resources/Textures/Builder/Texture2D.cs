@@ -144,7 +144,7 @@ namespace Sandbox
 
 
 		/// <summary>
-		/// Provide a name to identify the texture by
+		/// Provide a name to identify the texture by, allowing it to be retrieved with <see cref="Texture.Load(string, bool)"/>.
 		/// </summary>
 		/// <param name="name">Desired texture name</param>
 		public Texture2DBuilder WithName( string name )
@@ -252,10 +252,10 @@ namespace Sandbox
 
 			if ( _dataPtr != IntPtr.Zero )
 			{
-				return Texture.Create( string.IsNullOrEmpty( _name ) ? "texture2d_dynamic" : _name, _asAnonymous, config, _dataPtr, _dataLength );
+				return Texture.Create( _name, _asAnonymous, config, _dataPtr, _dataLength );
 			}
 
-			return config.Create( string.IsNullOrEmpty( _name ) ? "texture2d_dynamic" : _name, _asAnonymous, _data, _dataLength );
+			return config.Create( _name, _asAnonymous, _data, _dataLength );
 		}
 
 		/// Custom methods

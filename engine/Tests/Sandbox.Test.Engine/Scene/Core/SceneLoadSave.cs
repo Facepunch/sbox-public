@@ -1,4 +1,9 @@
 using System;
+using System.Buffers.Binary;
+using System.IO;
+using System.Text;
+using Sandbox.Resources;
+using Sandbox.Engine;
 
 namespace SceneTests.Core;
 
@@ -76,6 +81,49 @@ public class SceneLoadSaveTest : SceneTest
 
 		options.SetScene( file );
 		return options;
+	}
+
+	[DataTestMethod]
+	[DataRow( true )]
+	[DataRow( false )]
+	public void ChangeScenePreservesGameAndPersistentObjects( bool standalone )
+	{
+		var previousStandalone = Application.IsStandalone;
+		var previousInstance = IGameInstance.Current;
+		var previousSystem = Networking.System;
+		var previousScene = Game.ActiveScene;
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		try
+		{
+			Application.IsStandalone = standalone;
+			var instance = new GameInstance( "test.game", GameLoadingFlags.Host );
+			IGameInstance.Current = instance;
+			Networking.System = null;
+			Game.ActiveScene = scene;
+			var library = Game.TypeLibrary;
+			var doomed = scene.CreateObject();
+			var survivor = scene.CreateObject();
+			survivor.Flags |= GameObjectFlags.DontDestroyOnLoad;
+
+			var file = MakeSceneFile( "change_scene_preserves_game.scene", "New Scene Object" );
+			Assert.IsTrue( Game.ChangeScene( MakeOptions( file ) ) );
+
+			Assert.AreSame( instance, IGameInstance.Current );
+			Assert.AreSame( library, Game.TypeLibrary );
+			Assert.AreSame( scene, Game.ActiveScene );
+			Assert.IsTrue( survivor.IsValid );
+			Assert.IsFalse( doomed.IsValid );
+			Assert.AreEqual( 1, scene.Directory.FindByName( "New Scene Object" ).Count() );
+		}
+		finally
+		{
+			scene.Destroy();
+			Game.ActiveScene = previousScene;
+			Application.IsStandalone = previousStandalone;
+			IGameInstance.Current = previousInstance;
+			Networking.System = previousSystem;
+		}
 	}
 
 	/// <summary>
@@ -318,7 +366,7 @@ public class SceneLoadSaveTest : SceneTest
 	/// properties like WantsSystemScene - and loading that file restores all of it.
 	/// </summary>
 	[TestMethod]
-	public void SceneFileRoundtrip()
+	public unsafe void SceneFileRoundtrip()
 	{
 		var scene = new Scene();
 		scene.WantsSystemScene = false;
@@ -338,17 +386,63 @@ public class SceneLoadSaveTest : SceneTest
 		Assert.AreEqual( 1, sceneFile.GameObjects.Length );
 		Assert.IsNotNull( sceneFile.SceneProperties );
 
+		var sourceSnapshot = SceneFile.FromSource( sceneFile.ResourcePath, sceneFile.Guid, sceneFile.Serialize().ToJsonString(), sceneFile.BinaryData );
+		Assert.AreEqual( sceneFile.Id, sourceSnapshot.Id );
+		Assert.AreEqual( sceneFile.ResourcePath, sourceSnapshot.ResourcePath );
+		Assert.AreSame( sceneFile, ResourceLibrary.Get<SceneFile>( sceneFile.ResourcePath ), "Editing source must not replace the runtime resource" );
+		var compiledJson = sceneFile.Serialize();
+		var writer = new ResourceWriter();
+		writer.SetDataBlock( Encoding.UTF8.GetBytes( compiledJson.ToJsonString() ) );
+		var compiled = SceneFile.FromCompiled( sceneFile.ResourcePath, sceneFile.Guid, writer.ToArray() );
+		var compiledData = writer.ToArray();
+		Assert.AreEqual( sceneFile.Id, compiled.Id );
+
+		foreach ( var length in new[] { 0, 1, 15, 20, compiledData.Length - 1 } )
+		{
+			Assert.ThrowsException<InvalidDataException>( () => Game.Resources.ReadCompiledResourceJson( compiledData[..length] ) );
+			fixed ( byte* header = compiledData )
+			{
+				var context = new ResourceLoadContext( "truncated.scene", (IntPtr)header, length );
+				Assert.IsTrue( context.ReadData( "DATA" ).IsEmpty );
+			}
+		}
+
+		fixed ( byte* header = compiledData )
+		{
+			var context = new ResourceLoadContext( "valid.scene", (IntPtr)header, compiledData.Length );
+			CollectionAssert.AreEqual( Game.Resources.ReadCompiledResourceBlock( "DATA", compiledData ), context.ReadData( "DATA" ).ToArray() );
+			Assert.IsTrue( context.ReadData( "NONE" ).IsEmpty );
+		}
+
+		foreach ( var (offset, value) in new[] { (8, int.MaxValue), (8, -16), (12, int.MaxValue), (20, int.MinValue), (24, int.MaxValue) } )
+		{
+			var corrupt = (byte[])compiledData.Clone();
+			BinaryPrimitives.WriteInt32LittleEndian( corrupt.AsSpan( offset ), value );
+			Assert.ThrowsException<InvalidDataException>( () => Game.Resources.ReadCompiledResourceJson( corrupt ) );
+			Assert.IsNull( Game.Resources.ReadCompiledResourceBlock( "DATA", corrupt ) );
+			fixed ( byte* header = corrupt )
+			{
+				var context = new ResourceLoadContext( "corrupt.scene", (IntPtr)header, corrupt.Length );
+				Assert.IsTrue( context.ReadData( "DATA" ).IsEmpty );
+			}
+		}
+
+		sceneFile.GameObjects[0]["Name"] = "Runtime Object";
+
 		var restored = new Scene();
 
 		using ( restored.Push() )
 		{
-			Assert.IsTrue( restored.Load( MakeOptions( sceneFile ) ) );
+			Assert.IsTrue( restored.Load( MakeOptions( sourceSnapshot ) ) );
 
 			Assert.IsFalse( restored.WantsSystemScene );
 
 			var loaded = restored.Directory.FindByName( "Saved Object" ).Single();
 			Assert.IsTrue( loaded.LocalPosition.AlmostEqual( new Vector3( 4, 5, 6 ) ) );
 			Assert.AreEqual( 7, loaded.Components.Get<LoadSavePersistComponent>().Number );
+
+			Assert.IsTrue( restored.Load( MakeOptions( sceneFile ) ) );
+			Assert.AreEqual( 1, restored.Directory.FindByName( "Runtime Object" ).Count() );
 		}
 
 		scene.Destroy();
@@ -395,7 +489,9 @@ public class SceneLoadSaveTest : SceneTest
 		var sceneFile = MakeSceneFile( "loadsave_loading_events.scene", "Loaded Object" );
 		var options = MakeOptions( sceneFile, additive: true );
 
+		options.GetSceneFile().GameObjects[0]["Name"] = "Changed Before Initialize";
 		Assert.IsTrue( scene.Load( options ) );
+		Assert.AreEqual( 1, scene.Directory.FindByName( "Changed Before Initialize" ).Count() );
 
 		Assert.AreEqual( 1, probe.BeforeLoadCalls );
 		Assert.AreEqual( 1, probe.OnLoadCalls );

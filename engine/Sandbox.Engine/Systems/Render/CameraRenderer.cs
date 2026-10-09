@@ -21,6 +21,32 @@ internal ref struct CameraRenderer
 		Native.DeleteThis();
 	}
 
+	void AddTags( ITagSet tags, bool exclude )
+	{
+		// A scene camera's tags are already tokens. Those TryGetAll would give back (the ones with
+		// a known string) are the same tokens FindOrCreate makes, without the iterator per frame.
+		if ( tags is TokenBasedTagSet && tags.GetTokens() is HashSet<uint> tokens )
+		{
+			foreach ( var token in tokens )
+			{
+				if ( !StringToken.TryLookup( token, out _ ) ) continue;
+
+				if ( exclude ) Native.AddExcludeTag( token );
+				else Native.AddRenderTag( token );
+			}
+
+			return;
+		}
+
+		foreach ( var tag in tags.TryGetAll() )
+		{
+			var token = StringToken.FindOrCreate( tag );
+
+			if ( exclude ) Native.AddExcludeTag( token );
+			else Native.AddRenderTag( token );
+		}
+	}
+
 	internal void Configure( SceneCamera camera, ViewSetup config )
 	{
 		var _world = camera.World;
@@ -75,20 +101,23 @@ internal ref struct CameraRenderer
 		// Set clear flags
 		Attributes.Set( "clearFlags", (int)camera.ClearFlags );
 
+		if ( config.Time is float renderTime )
+		{
+			Attributes.Set( "RenderTime", renderTime );
+		}
+
 		Native.ClearSceneWorlds();
 		Native.SetRenderAttributes( Attributes.Get() );
 
 		Native.ClearRenderTags();
 		Native.ClearExcludeTags();
 
-		foreach ( var tag in camera.RenderTags.TryGetAll() )
-		{
-			Native.AddRenderTag( StringToken.FindOrCreate( tag ) );
-		}
+		AddTags( config.RenderTags ?? camera.RenderTags, exclude: false );
+		AddTags( camera.ExcludeTags, exclude: true );
 
-		foreach ( var tag in camera.ExcludeTags.TryGetAll() )
+		if ( config.ExcludeTags is not null )
 		{
-			Native.AddExcludeTag( StringToken.FindOrCreate( tag ) );
+			AddTags( config.ExcludeTags, exclude: true );
 		}
 
 		Native.ViewUniqueId = HashCode.Combine( cameraId, config.ViewHash );
@@ -102,8 +131,8 @@ internal ref struct CameraRenderer
 		Native.Ortho = camera.Ortho;
 		Native.ClipSpaceBounds = config.ClipSpaceBounds ?? new Vector4( -1, -1, 1, 1 );
 		Native.EnablePostprocessing = config.EnablePostprocessing ?? camera.EnablePostProcessing;
-		Native.EnableEngineOverlays = camera.EnableEngineOverlays;
-		Native.EnableUI = camera.RenderUI;
+		Native.EnableEngineOverlays = config.EnableDebugOverlays ?? camera.EnableEngineOverlays;
+		Native.EnableUI = config.EnableUI ?? camera.RenderUI;
 		Native.UIOnly = camera.UIOnly;
 		Native.FlipX = config.FlipX ?? false;
 		Native.FlipY = config.FlipY ?? false;
@@ -127,6 +156,10 @@ internal ref struct CameraRenderer
 
 		if ( camera.ExcludeFromTextureStreaming )
 			Native.SceneViewFlags |= NativeEngine.SceneViewFlags.SVF_NO_TEXTURE_STREAMING;
+
+		// Native's bit (1 << 1): the managed enum's members aren't bit values, so SVF_TOOL_VIEW there is native's SVF_DEBUG_LAYERS
+		if ( camera.ToolsView )
+			Native.SceneViewFlags |= (NativeEngine.SceneViewFlags)(1 << 1);
 
 		//
 		// add worlds

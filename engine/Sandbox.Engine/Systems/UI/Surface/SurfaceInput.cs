@@ -30,11 +30,11 @@ internal class SurfaceInput : PanelInput
 	/// </summary>
 	public string Cursor { get; private set; }
 
-	public void SetMouseButton( MouseButtons button, bool down, KeyboardModifiers modifiers )
+	public void SetMouseButton( MouseButtons button, bool down, KeyboardModifiers modifiers, int clickCount = 1 )
 	{
 		var code = ToButtonCode( button );
 
-		AddMouseButton( code, down, modifiers );
+		AddMouseButton( code, down, modifiers, clickCount );
 		Surface.System.InputEventQueue.AddButtonEvent( code, down, modifiers );
 
 		if ( down ) Surface.System.InputEventQueue.AddButtonTyped( code, modifiers );
@@ -78,9 +78,9 @@ internal class SurfaceInput : PanelInput
 		Surface.System.InputEventQueue.MouseMoved( delta );
 	}
 
-	public void SetMouseButton( ButtonCode code, bool down, KeyboardModifiers modifiers )
+	public void SetMouseButton( ButtonCode code, bool down, KeyboardModifiers modifiers, int clickCount = 1 )
 	{
-		AddMouseButton( code, down, modifiers );
+		AddMouseButton( code, down, modifiers, clickCount );
 		Surface.System.InputEventQueue.AddButtonEvent( code, down, modifiers );
 
 		if ( down ) Surface.System.InputEventQueue.AddButtonTyped( code, modifiers );
@@ -88,6 +88,10 @@ internal class SurfaceInput : PanelInput
 
 	public void SetKey( ButtonCode code, bool down, KeyboardModifiers modifiers )
 	{
+		// A drag belongs to the pointer, not to whatever has keyboard focus
+		if ( down && code == ButtonCode.KEY_ESCAPE && Surface.System.Input.CancelDrag() )
+			return;
+
 		Surface.System.InputEventQueue.AddButtonEvent( code, down, modifiers );
 
 		if ( down ) Surface.System.InputEventQueue.AddButtonTyped( code, modifiers );
@@ -96,6 +100,9 @@ internal class SurfaceInput : PanelInput
 	public void SetKey( string button, bool down, int virtualKey, KeyboardModifiers modifiers )
 	{
 		if ( string.IsNullOrEmpty( button ) )
+			return;
+
+		if ( down && InputEventQueue.NormalizeButtonName( button ) == "escape" && Surface.System.Input.CancelDrag() )
 			return;
 
 		Surface.System.InputEventQueue.AddButtonEvent( button, down, virtualKey, modifiers );

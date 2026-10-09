@@ -52,7 +52,8 @@ namespace Editor
 			var o = new JsonNodeOptions { PropertyNameCaseInsensitive = true };
 
 			var e = Read();
-			if ( e == null ) return new JsonObject( o );
+			if ( e is null || e.Value.ValueKind == JsonValueKind.Null )
+				return new JsonObject( o );
 
 			return JsonObject.Create( e.Value, o );
 		}
@@ -103,7 +104,7 @@ namespace Editor
 		{
 			try
 			{
-				// Handle errprs from Read() as well but only for reading.
+				// Handle errors from Read() as well but only for reading.
 				// If we do it for StartSave, we risk losing data..
 				var e = GetElement( keyName );
 				if ( e == null ) return defaultValue;
@@ -117,6 +118,27 @@ namespace Editor
 				// if it was the wrong type, we don't care
 				return defaultValue;
 			}
+		}
+
+		public bool TryGet<T>( string keyName, out T value )
+		{
+			try
+			{
+				// Handle errors from Read() as well but only for reading.
+				// If we do it for StartSave, we risk losing data..
+				if ( GetElement( keyName ) is { } e && e.Deserialize<T>( JsonSerializerOptions.Default ) is T result )
+				{
+					value = result;
+					return true;
+				}
+			}
+			catch
+			{
+				// if it was the wrong type, we don't care
+			}
+
+			value = default;
+			return false;
 		}
 
 		public string GetString( string keyName, string defaultValue = default ) => Get<string>( keyName, defaultValue );

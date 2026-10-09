@@ -1,0 +1,117 @@
+@namespace MenuProject.Modals.PackageModalComponents
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI;
+@using System;
+
+@*
+    You and this game, on its page - not just your numbers, what they say. How long you've played it,
+    big; when you started, and whether that makes you an early one; the rarest thing you've got in it, and how few have it too; and when you were last
+    on. Only once you've played it.
+*@
+<root>
+
+    <label class="section-label">Your record</label>
+
+    @* Your time in it *@
+    <div class="headline">
+        <label class="time">@MenuHelpers.PlayTime( Played )</label>
+    </div>
+
+    <div class="lines">
+        @if ( Package.Interaction.FirstUsed is { } first )
+        {
+            <div class="line">
+                <i>flag</i>
+                <div class="words">
+                    <label class="main">Playing since @first.ToLocalTime().ToString( "d MMM yyyy" )</label>
+                    @if ( EarlyBadge( first ) is { } badge )
+                    {
+                        <label class="badge">@badge</label>
+                    }
+                </div>
+            </div>
+        }
+
+        @* The rarest thing you've got in it - its icon, and how few others have it *@
+        @if ( Rarest is { } rarest )
+        {
+            <div class="line">
+                <div class="icon" style="background-image: url( @IconOf( rarest ) );"></div>
+                <div class="words">
+                    <label class="main">@rarest.Title</label>
+                    <label class="aside">Your rarest - @RarityText( rarest.GlobalFraction ) of players have it</label>
+                </div>
+            </div>
+        }
+
+        @if ( Package.Interaction.LastUsed is { } last )
+        {
+            <div class="line">
+                <i>history</i>
+                <div class="words">
+                    <label class="main">Last played @MenuHelpers.TimeAgo( last )</label>
+                </div>
+            </div>
+        }
+    </div>
+
+</root>
+
+@code
+{
+    [Parameter] public Package Package { get; set; }
+
+    TimeSpan Played => TimeSpan.FromSeconds( Package.Interaction.Seconds );
+
+    /// <summary>
+    /// Here from early on - the week it came out, or its first month.
+    /// </summary>
+    string EarlyBadge( DateTimeOffset first )
+    {
+        if ( Package.Created == default ) return null;
+
+        var days = (first - Package.Created).TotalDays;
+        if ( days < 0 ) return null;
+        if ( days <= 7 ) return "Launch week player";
+        if ( days <= 31 ) return "Here in its first month";
+        return null;
+    }
+
+    Achievement Rarest;
+
+    static string IconOf( Achievement a ) => string.IsNullOrEmpty( a.Icon )
+        ? "https://files.facepunch.com/garry/ae277f80-8a5d-4d54-833e-e7d6f11580fc.png"
+        : a.Icon;
+
+    static string RarityText( float fraction )
+    {
+        var percent = fraction * 100;
+        if ( percent < 1 ) return "fewer than 1%";
+        return $"only {percent:0.#}%";
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Rarest = null;
+        if ( Package is null ) return;
+
+        try
+        {
+            // The rarest you've unlocked - the fewest others have, that anyone's been counted having
+            var collection = await Package.GetAchievements();
+            Rarest = collection?.All
+                .Where( x => x.IsUnlocked && x.GlobalFraction > 0 )
+                .OrderBy( x => x.GlobalFraction )
+                .FirstOrDefault();
+        }
+        catch ( Exception e )
+        {
+            Log.Warning( $"Couldn't fetch {Package.FullIdent}'s achievements: {e.Message}" );
+        }
+
+        StateHasChanged();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Package, Package?.Interaction.Seconds, Rarest );
+}

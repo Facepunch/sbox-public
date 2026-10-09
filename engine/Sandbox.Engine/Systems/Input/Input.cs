@@ -200,7 +200,7 @@ public static partial class Input
 	internal static string GetLocalKeyName( string key )
 	{
 		if ( Application.IsHeadless ) return key;
-		var buttonCode = NativeEngine.InputSystem.StringToButtonCode( key );
-		return NativeEngine.InputSystem.GetKeyDisplayName( buttonCode );
+		var buttonCode = Sandbox.Engine.KeyTranslation.StringToButtonCode( key );
+		return Sandbox.Engine.KeyTranslation.GetKeyDisplayName( buttonCode );
 	}
 }

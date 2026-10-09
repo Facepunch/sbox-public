@@ -1,38 +1,23 @@
-.loading-panel
+LoadingPanel
 {
 	position: absolute;
-	left: 0px;
-	top: 0px;
-	bottom: 0px;
-	right: 0px;
-	background-color: #4441;
-	flex-grow: 1;
+	left: 0;
+	top: 0;
+	right: 0;
+	bottom: 0;
 	align-items: center;
 	justify-content: center;
-	animation: loading-intro 0.5s linear;
+	pointer-events: none;
 	opacity: 0;
-	animation-delay: 1s;
+	animation-name: loading-panel-intro;
+	animation-duration: 0.4s;
+	animation-delay: 0.6s;
+	animation-timing-function: linear;
 	animation-fill-mode: forwards;
-
-	iconpanel
-	{
-		font-size: 200px;
-		animation: loading-anim 1s linear infinite;
-		background-color: #08f5;
-		border-radius: 1000px;
-		padding: 50px;
-	}
 }
 
-@keyframes loading-intro
+@keyframes loading-panel-intro
 {
 	0% { opacity: 0; }
 	100% { opacity: 1; }
-}
-
-@keyframes loading-anim
-{
-	0% { transform: rotate(0deg) scale( 1 ); }
-	50% { transform: rotate(180deg) scale( 1.1 ); }
-	100% { transform: rotate(360deg) scale( 1 ); }
 }

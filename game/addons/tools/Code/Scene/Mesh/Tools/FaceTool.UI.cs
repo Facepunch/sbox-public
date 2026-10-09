@@ -199,6 +199,8 @@ partial class FaceTool
 				("Lasso Deselect", "Alt+Ctrl+Drag"),
 				("Grow Selection", "Numpad +"),
 				("Shrink Selection", "Numpad -"),
+				("Hide Faces", EditorShortcuts.GetDisplayKeys( "mesh.hide-faces" )),
+				("Unhide All Faces", EditorShortcuts.GetDisplayKeys( "mesh.unhide-faces" )),
 				("Apply Material", "Shift+T"),
 				("Wrap Material", "Alt+RMB"),
 				("Lift Material", "Shift+RMB")
@@ -595,6 +597,7 @@ partial class FaceTool
 				{
 					var go = session.Scene.CreateObject();
 					go.Name = "Pasted Mesh";
+					go.IsStatic = true;
 
 					if ( options.RelativeToLast && allPasted.Count > 0 )
 					{
@@ -693,6 +696,7 @@ partial class FaceTool
 
 					var go = new GameObject( entry.Name );
 					go.WorldTransform = entry.WorldTransform;
+					go.IsStatic = entry.IsStatic;
 					go.MakeNameUnique();
 
 					entry.AddSibling( go, false );

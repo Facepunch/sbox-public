@@ -1,7 +1,8 @@
+@import "/styles/_gallery-palette.scss";
 // Everything animates between its base rule and its .on rule. The page toggles .on for you.
 
-$fill: #4a9eff;
-$fill2: #e8b04a;
+$fill: $gallery-cyan;
+$fill2: $gallery-lime;
 
 TransitionTests
 {
@@ -36,7 +37,7 @@ TransitionTests
 		transition: left 1s linear, background-color 0.25s linear;
 	}
 
-	&.on .two-props { background-color: #3fc76a; }
+	&.on .two-props { background-color: $gallery-lime; }
 
 	// Property probes
 	.swatch
@@ -47,7 +48,7 @@ TransitionTests
 	}
 
 	.colour { transition: background-color 1s linear; }
-	&.on .colour { background-color: #4a9eff; }
+	&.on .colour { background-color: $gallery-cyan; }
 
 	.fade { transition: opacity 1s linear; }
 	&.on .fade { opacity: 0.15; }
@@ -65,8 +66,8 @@ TransitionTests
 	.filtered { transition: filter 1s linear; }
 	&.on .filtered { filter: blur( 6px ); }
 
-	.shadowed { transition: box-shadow 1s linear; box-shadow: 0 0 0 0 #4a9eff; }
-	&.on .shadowed { box-shadow: 0 0 20px 6px #4a9eff; }
+	.shadowed { transition: box-shadow 1s linear; box-shadow: 0 0 0 0 $gallery-cyan; }
+	&.on .shadowed { box-shadow: 0 0 20px 6px $gallery-cyan; }
 
 	// The web can't interpolate between units either - one clean snap is the right answer
 	.mixed-units { transition: width 1s linear; width: 40%; }
@@ -75,10 +76,10 @@ TransitionTests
 	.grad
 	{
 		transition: background-image 1s linear;
-		background-image: linear-gradient( to right, #e8b04a, #e84a4a );
+		background-image: linear-gradient( to right, $gallery-lime, $gallery-pink );
 	}
 
-	&.on .grad { background-image: linear-gradient( to right, #4a9eff, #3fc76a ); }
+	&.on .grad { background-image: linear-gradient( to right, $gallery-cyan, $gallery-lime ); }
 
 	// Mounted and unmounted on the same timer
 	.mounted

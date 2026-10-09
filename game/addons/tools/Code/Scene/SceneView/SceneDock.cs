@@ -43,6 +43,10 @@ public partial class SceneDock : Widget
 	{
 		base.OnDestroyed();
 
+		// Stopping the session sends scene.stop, which must not rebuild the view while Qt is tearing us down
+		_sceneView?.Destroy();
+		_sceneView = null;
+
 		_editorSession.Destroy();
 		_editorSession = null;
 	}
@@ -55,10 +59,10 @@ public partial class SceneDock : Widget
 		{
 			Session.MakeActive();
 
-			// Focus the viewport so keybinds work right away after switching tabs
+			// Focus the viewport for keybinds without activating an editor whose tabs changed in the background.
 			var viewport = _sceneView?.LastSelectedViewportWidget;
 			if ( viewport.IsValid() )
-				viewport.Focus();
+				viewport.Focus( activateWindow: false );
 		}
 	}
 

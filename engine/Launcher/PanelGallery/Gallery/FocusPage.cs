@@ -7,6 +7,10 @@ namespace Sandbox.PanelGallery;
 public class FocusPage : GalleryPage
 {
 	readonly Sandbox.UI.Label _output;
+	readonly Sandbox.UI.Label _focused;
+	readonly Queue<string> _events = new();
+	readonly Dictionary<Panel, string> _names = new();
+	Panel _lastFocused;
 
 	public FocusPage() : base( "Focus", "Tab and Shift+Tab move between the controls in tree order. Enter or Space activates a focused button or checkbox." )
 	{
@@ -25,16 +29,33 @@ public class FocusPage : GalleryPage
 		row = Case( "Skipped by Tab, still clickable" );
 		Track( row.AddChild( new Sandbox.UI.Button( "Skipped", null, "flatbutton", () => Report( "clicked Skipped" ) ) { TabIndex = -1 } ), "Skipped" );
 
+		_focused = Add.Label( "Focused control: none", "focus-current" );
 		_output = Output();
+		_output.AddClass( "event-log" );
+		Report( "Ready. Press Tab to start." );
 	}
 
 	void Track( Panel panel, string name )
 	{
-		panel.AddEventListener( "onfocus", () => Report( $"focus: {name}" ) );
+		_names[panel] = name;
+		panel.AddEventListener( "onblur", () => Report( $"blur: {name}" ) );
 	}
 
 	void Report( string text )
 	{
-		_output.Text = text;
+		_events.Enqueue( text );
+		while ( _events.Count > 10 ) _events.Dequeue();
+		if ( _output is not null ) _output.Text = string.Join( "\n", _events );
+	}
+
+	public override void Tick()
+	{
+		base.Tick();
+		var focused = _names.Keys.FirstOrDefault( x => x.HasFocus );
+		if ( focused == _lastFocused ) return;
+		_lastFocused = focused;
+		string name = focused is null ? "none" : _names[focused];
+		_focused.Text = $"Focused control: {name}";
+		Report( $"focus: {name}" );
 	}
 }

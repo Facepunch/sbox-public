@@ -1,0 +1,27 @@
+@namespace PanelGallery.UiTests
+@inherits UiTestPage
+@using Sandbox;
+@using Sandbox.UI;
+@attribute [Group( "Text" )]
+@attribute [Title( "font-family" )]
+@attribute [Description( "Compare font-family values independently." )]
+@attribute [Icon( "text_fields" )]
+
+<root>
+    <h2>font-family</h2>
+    <div class="cases">
+        <UiTestCase Setup="@Text" Css="font-family: Poppins" Caption="Poppins" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font-family: Roboto" Caption="Roboto" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font-family: Inter" Caption="Inter" Text="@Sample" />
+        <UiTestCase Setup="@Text" Css="font-family: Roboto Mono" Caption="Roboto Mono" Text="@Sample" Note="Monospace, so every glyph advances the same." />
+        <UiTestCase Setup="@Text" Css="font-family: NotAFont" Caption="NotAFont" Text="@Sample" Note="A font we don't have falls back rather than drawing nothing." />
+    </div>
+</root>
+
+@code
+{
+    const string Text = UiTestCase.TextSetup;
+    const string Sample = "Sphinx of black quartz";
+    const string Paragraph = "Sphinx of black quartz, judge my vow. Pack my box with five dozen liquor jugs.";
+    const string Digits = "0123456789 1111 8888";
+}

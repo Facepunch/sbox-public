@@ -1,0 +1,219 @@
+@using System;
+@using System.Collections.Generic;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.Services;
+@using Sandbox.UI;
+@namespace MenuProject.MenuUI.Jams
+@inherits Panel
+
+<root class=@(IsKnockout ? "knockout" : "")>
+	<div class="heading">
+		<label class="title">@(IsKnockout ? "Standings" : "Nominations")</label>
+		@if ( IsKnockout )
+		{
+			<label class="@(Finalists.IsVotingAt( Jam.Now ) ? "live" : "closed")">@(WinnerIdent is not null || Finalists.Decided && !HoldFinalResult ? "Final" : Finalists.IsVotingAt( Jam.Now ) ? "Live" : JamVotingPresentation.Waiting( Finalists ) ? "Waiting" : "Closed")</label>
+		}
+		else if ( Entries is not null )
+		{
+			<label class="closed">Closed</label>
+		}
+		else if ( Nominations is not null && Voting.Error is null )
+		{
+			<label class="live">● Live</label>
+		}
+	</div>
+
+	@if ( !IsKnockout && Entries is null && Nominations is null )
+	{
+		<label class="hint">@(Voting?.Error is null ? "Loading standings…" : "Standings unavailable")</label>
+	}
+	else if ( IsKnockout || Entries is not null || Category is not null )
+	{
+		@if ( Rows.Length == 0 )
+		{
+			<label class="hint">@(IsKnockout ? "No finalists available." : Entries is not null ? "Nomination totals unavailable." : "No nominations yet. Play an entry and nominate your favourites.")</label>
+		}
+		else
+		{
+			<div class="standings @(Expanded ? "expanded" : "")">
+				@for ( var i = 0; i < VisibleCount; i++ )
+				{
+					var entry = Rows[i];
+					@if ( !IsKnockout && i == Slots )
+					{
+						<label class="cutoff">Top @Slots cutoff@(TiedAtCutoff ? " · tied" : "")</label>
+					}
+					<div class="entry @(entry.Confirmed ? "confirmed" : "") @(IsKnockout && entry.Rank == 1 ? "first" : "") @(entry.PackageIdent is not null ? "clickable" : "")" onclick=@(() => OpenEntry( entry.PackageIdent ))>
+						<label class="rank">@(IsKnockout ? entry.Rank.FormatWithSuffix() : entry.Rank.ToString())</label>
+						<div class="game">
+							@if ( entry.Pending )
+							{
+								<div class="unknown" tooltip="This place is still being decided">
+									@for ( var character = 0; character < 6; character++ )
+									{
+										<label style=@($"animation-delay: {-(entry.Rank * 0.19f + character * 0.12f)}s")>?</label>
+									}
+								</div>
+							}
+							else
+							{
+								<label class="name" tooltip=@Title( entry.PackageIdent )>@Title( entry.PackageIdent )</label>
+							}
+							@if ( entry.Nominated )
+							{
+								<label class="nominated">✓ Your nomination</label>
+							}
+							@if ( entry.Prize is { } prize )
+							{
+								<label class="prize">@prize</label>
+							}
+						</div>
+						@if ( !IsKnockout )
+						{
+							<label class="votes">@(entry.Votes?.ToString( "N0" ) ?? "—")</label>
+						}
+						else if ( entry.Confirmed )
+						{
+							<icon class="locked" tooltip="Place confirmed">lock</icon>
+						}
+					</div>
+				}
+			</div>
+			@if ( !IsKnockout && Rows.Length > Slots + 1 )
+			{
+				<Button class="view-all" Text=@(Expanded ? "Show fewer" : "View full standings") onclick=@(() => Expanded = !Expanded) />
+			}
+		}
+	}
+	else
+	{
+		<label class="hint">No open nomination categories.</label>
+	}
+</root>
+
+@code
+{
+	/// <summary>
+	/// The jam whose nomination or knockout standings are displayed.
+	/// </summary>
+	[Parameter] public Jam Jam { get; set; }
+
+	/// <summary>
+	/// Optional closed standings in rank order. Null vote totals are unavailable, not zero.
+	/// </summary>
+	[Parameter] public IReadOnlyList<KeyValuePair<string, int?>> Entries { get; set; }
+
+	/// <summary>
+	/// Optional knockout category. Its confirmed places replace nomination rankings and totals.
+	/// </summary>
+	[Parameter] public JamFinalistCategory Finalists { get; set; }
+
+	/// <summary>
+	/// Optional package metadata shared with the finalist gallery; otherwise uses the package cache.
+	/// </summary>
+	[Parameter] public IReadOnlyDictionary<string, Package> Packages { get; set; }
+
+	/// <summary>
+	/// Winner released by the final's reveal sequence after confirmation or local rehearsal.
+	/// </summary>
+	[Parameter] public string WinnerIdent { get; set; }
+
+	/// <summary>
+	/// Keeps the top two places hidden until the final's reveal sequence completes.
+	/// </summary>
+	[Parameter] public bool HoldFinalResult { get; set; }
+
+	// Both modes use the same row markup; ranking remains owned by their respective models.
+	record StandingRow( int Rank, string PackageIdent, int? Votes = null, bool Nominated = false,
+		bool Pending = false, bool Confirmed = false, string Prize = null );
+
+	GameJamSystem Voting => GameJamSystem.For( this );
+	JamNominationSummary Nominations => Voting?.ActiveJam?.Ident == Jam?.Ident ? Voting?.Nominations : null;
+	JamNominationCategory Category => Nominations?.Categories.FirstOrDefault();
+	StandingRow[] Rows = [];
+	int VotingVersion = -1;
+	bool Expanded;
+	bool IsKnockout => Finalists is not null;
+
+	int Slots => Entries is not null ? 5 : Category?.Slots ?? 0;
+	int VisibleCount => IsKnockout || Expanded ? Rows.Length : Math.Min( Rows.Length, Slots + 1 );
+	bool TiedAtCutoff => Slots > 0 && Rows.Length > Slots
+		&& Rows[Slots - 1].Votes.HasValue && Rows[Slots - 1].Votes == Rows[Slots].Votes;
+	string Title( string ident ) => ident is null ? "Game unavailable"
+		: Packages?.GetValueOrDefault( ident )?.Title ?? Package.GetCachedTitle( ident );
+
+	/// <summary>
+	/// Reorders the standings when the shared snapshot receives a new tally.
+	/// </summary>
+	public override void Tick()
+	{
+		base.Tick();
+		if ( IsKnockout ) return;
+		if ( VotingVersion == (Voting?.Version ?? -1) ) return;
+
+		VotingVersion = Voting?.Version ?? -1;
+		UpdateStandings();
+	}
+
+	protected override void OnParametersSet() => UpdateStandings();
+
+	void UpdateStandings()
+	{
+		if ( IsKnockout )
+		{
+			var category = Jam.Categories.FirstOrDefault( x => x.Id == Finalists.Id );
+			Rows = Enumerable.Range( 1, Finalists.Nominees.Count ).Select( place =>
+			{
+				var finalist = place <= 2 && HoldFinalResult ? null
+					: Finalists.GetFinalistAtPlace( place );
+				var prize = category?.Places is { } prizes && place <= prizes.Length ? prizes[place - 1]
+					: place == 1 ? category?.Prize : null;
+				return new StandingRow( place, finalist?.PackageIdent, Pending: finalist is null,
+					Confirmed: finalist is not null, Prize: prize );
+			} ).ToArray();
+		}
+		else
+		{
+			var entries = Entries?.ToArray() ?? Category?.Counts.Where( x => x.Value > 0 )
+				.OrderByDescending( x => x.Value ).ThenBy( x => x.Key, StringComparer.OrdinalIgnoreCase )
+				.Select( x => new KeyValuePair<string, int?>( x.Key, x.Value ) ).ToArray() ?? [];
+			Rows = entries.Select( (entry, index) => new StandingRow(
+				entry.Value.HasValue ? Array.FindIndex( entries, x => x.Value == entry.Value ) + 1 : index + 1,
+				entry.Key, entry.Value, Category?.MyNominations.Contains( entry.Key ) == true ) ).ToArray();
+		}
+
+		StateHasChanged();
+	}
+
+	void OpenEntry( string ident )
+	{
+		if ( ident is null ) return;
+
+		Discovery.Clicked( new DiscoveryContext { Surface = "jams" }, ident );
+		Game.Overlay.ShowGameModal( ident );
+	}
+
+	protected override int BuildHash()
+	{
+		var hash = new HashCode();
+		hash.Add( VotingVersion );
+		hash.Add( Expanded );
+		hash.Add( Voting?.Error );
+		hash.Add( Entries );
+		hash.Add( Jam );
+		hash.Add( Finalists );
+		hash.Add( WinnerIdent );
+		hash.Add( HoldFinalResult );
+		hash.Add( Finalists?.IsVotingAt( Jam.Now ) );
+
+		// The entry browser fills the package cache. Pick up titles without issuing another search.
+		foreach ( var entry in Rows.Take( VisibleCount ) )
+		{
+			hash.Add( entry );
+			hash.Add( Title( entry.PackageIdent ) );
+		}
+
+		return hash.ToHashCode();
+	}
+}

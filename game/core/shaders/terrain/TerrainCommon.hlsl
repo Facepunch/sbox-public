@@ -5,6 +5,7 @@
 // Not stable, shit will change and custom shaders using this API will break until I'm satisfied.
 // But they will break for good reason and I will tell you why and how to update.
 //
+// 03/9/26: Added common terrain splat sampling
 // 12/9/25: Added NoTile Flag
 // 23/07/24: Initial global structured buffers
 //
@@ -12,7 +13,13 @@
 #ifndef TERRAIN_H
 #define TERRAIN_H
 
+#include "common/Bindless.hlsl"
 #include "terrain/TerrainSplatFormat.hlsl"
+
+// This is quite ugly but this is needed due to material.hlsl being not very friendly with sitting in vertex shaders
+#if PROGRAM == VFX_PROGRAM_PS
+    #include "common/material.hlsl"
+#endif
 
 struct TerrainStruct
 {
@@ -61,6 +68,8 @@ struct TerrainMaterial
 SamplerState g_sBilinearBorder < Filter( BILINEAR ); AddressU( BORDER ); AddressV( BORDER ); >;
 SamplerState g_sAnisotropic < Filter( ANISOTROPIC ); MaxAniso(8); >;
 
+static const float TERRAIN_SPLAT_TILE_UNITS = 32.0f;
+
 int g_nTerrainCount < Attribute( "TerrainCount" ); Default( 0 ); >;
 
 StructuredBuffer<TerrainStruct> g_Terrains < Attribute( "Terrain" ); >;
@@ -68,6 +77,10 @@ StructuredBuffer<TerrainMaterial> g_TerrainMaterials < Attribute( "TerrainMateri
 
 float2 Terrain_SampleSeamlessUV( float2 uv );
 float2 Terrain_SampleSeamlessUV( float2 uv, out float2x2 uvAngle );
+
+#if PROGRAM == VFX_PROGRAM_PS
+    Material Terrain_SplatControlQuad( float2 localPos, float2 localDdx, float2 localDdy, uint4 controlBits, float4 quadWeights );
+#endif
 
 float Terrain_HeightBlendWeight( float t, float baseHeight, float overlayHeight, float sharpness )
 {
@@ -123,6 +136,13 @@ struct Terrain
         return mul( Get().TransformInv, float4( worldPos, 1.0 ) ).xyz;
     }
 
+    // Normalized 0-1 heightmap/controlmap UV from a terrain-local XY position
+    static float2 LocalToUV( float2 localPos )
+    {
+        float2 texSize = TextureDimensions2D( GetHeightMap(), 0 );
+        return localPos / ( texSize * Get().UnitsPerTexel );
+    }
+
     static float2 GetUV( float3 worldPos )
     {
         float3 localPos = WorldToLocal( worldPos );
@@ -171,7 +191,7 @@ struct Terrain
 
     static float3 SampleMaterialColor( float2 texUV, CompactTerrainMaterial material )
     {
-        texUV /= 32.0;
+        texUV /= TERRAIN_SPLAT_TILE_UNITS;
 
         TerrainMaterial baseMat = g_TerrainMaterials[material.BaseTextureId];
         if ( baseMat.bcr_texid <= 0 )
@@ -211,7 +231,7 @@ struct Terrain
 
     static float3 SampleMaterialColor( float2 texUV, CompactTerrainMaterial material, float mipLevel )
     {
-        texUV /= 32.0;
+        texUV /= TERRAIN_SPLAT_TILE_UNITS;
 
         TerrainMaterial baseMat = g_TerrainMaterials[material.BaseTextureId];
         if ( baseMat.bcr_texid <= 0 )
@@ -339,6 +359,81 @@ struct Terrain
             SampleMaterialColor( texUV, mat01, mipLevel ) * weights.z +
             SampleMaterialColor( texUV, mat11, mipLevel ) * weights.w;
     }
+
+    //
+    // =========================================
+    // Terrain material sampling stuff
+    // Pixel shader only
+    // =========================================
+    //
+    #if PROGRAM == VFX_PROGRAM_PS
+
+        // Samples full terrain material at given local terrain coordinates
+        static Material Sample( float2 localPos, bool bUseGeometricNormals = false )
+        {
+            float2 uv = LocalToUV( localPos );
+
+            Material m = Material::Init();
+            m.TextureCoords = uv;
+
+            if ( Get().ControlMapTexture != 0 )
+            {
+                float4 quadWeights;
+                uint4 controlBits = GatherControlQuad( uv, quadWeights );
+
+                m = Terrain_SplatControlQuad( localPos, ddx( localPos ), ddy( localPos ), controlBits, quadWeights );
+                m.TextureCoords = uv;
+            }
+
+            if ( bUseGeometricNormals )
+                ApplyGeometricNormals( m, uv );
+
+            return m;
+        }
+
+        // Sample full terrain material at given world-space coordinates
+        static Material Sample( float3 worldPos, bool bUseGeometricNormals = false )
+        {
+            return Sample( WorldToLocal( worldPos ).xy, bUseGeometricNormals );
+        }
+
+        // Samples full terrain material, but with your own control quads and gradients
+        static Material Sample( float2 localPos, float2 localDdx, float2 localDdy,
+            uint4 controlBits, float4 quadWeights, bool bUseGeometricNormals = false )
+        {
+            float2 uv = LocalToUV( localPos );
+
+            Material m = Terrain_SplatControlQuad( localPos, localDdx, localDdy, controlBits, quadWeights );
+            m.TextureCoords = uv;
+
+            if ( bUseGeometricNormals )
+                ApplyGeometricNormals( m, uv );
+
+            return m;
+        }
+
+        // Apply terrain geometry normals onto the material, expects local terrain UVs as input
+        static void ApplyGeometricNormals( inout Material m, float2 uv )
+        {
+            float3 tangentU, tangentV;
+            float3 geoNormal = NormalBasis( uv, tangentU, tangentV );
+
+            // Transform to world space
+            geoNormal = mul( Get().Transform, float4( geoNormal, 0.0 ) ).xyz;
+            tangentU = mul( Get().Transform, float4( tangentU, 0.0 ) ).xyz;
+            tangentV = mul( Get().Transform, float4( tangentV, 0.0 ) ).xyz;
+
+            // Re-orthonormalize in case transform had scaling
+            geoNormal = normalize( geoNormal );
+            tangentU = normalize( tangentU - geoNormal * dot( tangentU, geoNormal ) );
+            tangentV = normalize( cross( geoNormal, tangentU ) );
+
+            m.Normal = TransformNormal( m.Normal, geoNormal, tangentU, tangentV );
+            m.WorldTangentU = tangentU;
+            m.WorldTangentV = tangentV;
+        }
+
+    #endif // PROGRAM == VFX_PROGRAM_PS
 };
 
 //
@@ -349,6 +444,11 @@ float3 Terrain_Normal( Texture2D HeightMap, float2 uv, float maxheight, out floa
 {
     return Terrain::NormalBasis( uv, TangentU, TangentV );
 }
+
+#if PROGRAM == VFX_PROGRAM_PS
+    #include "terrain/TerrainSplat.hlsl"
+#endif
+
 
 // Get UV with per-tile UV offset to reduce visible tiling
 // Works by offsetting UVs within each tile using a hash of the tile coordinate

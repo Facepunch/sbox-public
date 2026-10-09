@@ -1,7 +1,8 @@
+@import "/styles/_gallery-palette.scss";
 // Blue is the container, red is the child that wants to escape it.
 
-$box: #2f5d8a;
-$child: #e84a4a;
+$box: $gallery-cyan;
+$child: $gallery-pink;
 
 OverflowTests
 {
@@ -21,7 +22,7 @@ OverflowTests
 
 	.round { border-radius: 24px; }
 	.circle { border-radius: 50%; }
-	.bordered { border: 8px solid #4ac2e8; }
+	.bordered { border: 8px solid $gallery-cyan; }
 	.rot { transform: rotate( 12deg ); }
 	.small { transform: scale( 0.6 ); }
 	.padded { padding: 12px; }
@@ -53,7 +54,7 @@ OverflowTests
 		width: 100%;
 		height: 220px;
 		flex-shrink: 0;
-		background-image: linear-gradient( to bottom, $child, #e8b04a );
+		background-image: linear-gradient( to bottom, $child, $gallery-lime );
 	}
 
 	// Deliberately shorter than the container
@@ -86,14 +87,4 @@ OverflowTests
 
 	.tilted { transform: rotate( -10deg ); }
 
-	.masked
-	{
-		width: 90px;
-		height: 90px;
-		flex-shrink: 0;
-		background-image: linear-gradient( 45deg, #4a9eff, #e84ad0 );
-	}
-
-	.fade-mask { mask-image: linear-gradient( to bottom, white, transparent ); }
-	.round-mask { mask-image: radial-gradient( white, transparent ); }
 }

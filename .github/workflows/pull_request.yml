@@ -9,7 +9,7 @@ jobs:
     if: github.event.label.name == 'triaged'
     steps:
       - name: Ensure PR checks passed
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -39,17 +39,22 @@ jobs:
             }
 
       - name: Repository Dispatch
-        uses: actions/github-script@v7
-        env:
-          DISPATCH_CONTEXT: ${{ toJson(github) }}
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           github-token: ${{ secrets.SBOXBOT_TOKEN }}
           script: |
-            const clientPayload = JSON.parse(process.env.DISPATCH_CONTEXT);
+            const pr = context.payload.pull_request;
 
             await github.rest.repos.createDispatchEvent({
               owner: 'Facepunch',
               repo: 'sbox',
               event_type: 'pr-triaged',
-              client_payload: { github: clientPayload }
+              client_payload: {
+                number: pr.number,
+                base_ref: pr.base.ref,
+                head_sha: pr.head.sha,
+                title: pr.title,
+                html_url: pr.html_url,
+                triager: context.payload.sender?.login ?? 'unknown'
+              }
             });

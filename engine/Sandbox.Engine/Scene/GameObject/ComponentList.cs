@@ -166,7 +166,9 @@ public class ComponentList
 			return null;
 
 		using var batch = CallbackBatch.Batch();
-		var t = (Component)Activator.CreateInstance( type );
+
+		// TypeLibrary caches a compiled parameterless factory, much cheaper than Activator.CreateInstance
+		var t = Game.TypeLibrary?.GetType( type )?.Create<Component>() ?? (Component)Activator.CreateInstance( type );
 
 		t.GameObject = go;
 		_list.Add( t );
@@ -221,6 +223,15 @@ public class ComponentList
 		CollectAll( results, find );
 
 		return results;
+	}
+
+	/// <summary>
+	/// Append matching components to reusable engine-owned storage.
+	/// </summary>
+	internal void GetAll<T>( List<T> results, FindMode find )
+	{
+		if ( go.IsDestroyed ) return;
+		CollectAll( results, find );
 	}
 
 	// This is an incredibly hot code path, even the slightest change should be verified with benchmarks.

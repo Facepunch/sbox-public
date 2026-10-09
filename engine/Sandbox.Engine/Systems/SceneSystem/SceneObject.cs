@@ -30,9 +30,19 @@ public partial class SceneObject : IHandle
 		{
 			if ( native.IsNull ) return null;
 			// FIXME: What really sucks with this is it allocates CSceneObject::m_pExtraData even if we're only reading
-			return _attributes ??= new RenderAttributes( native.GetAttributesPtrForModify() );
+			if ( _attributes is not null ) return _attributes;
+
+			_attributes = new RenderAttributes( native.GetAttributesPtrForModify() );
+			NotifyChanged( Rendering.SceneObjectChange.Attributes );
+			return _attributes;
 		}
 	}
+
+	/// <summary>
+	/// <see cref="Attributes"/> if anything has asked for them, without making them - for a renderer that chains them
+	/// in (Sandbox.SceneRenderer).
+	/// </summary>
+	internal RenderAttributes CreatedAttributes => _attributes;
 
 	/// <summary>
 	/// The scene world this object belongs to.
@@ -64,6 +74,7 @@ public partial class SceneObject : IHandle
 			var flags = Rendering.SceneObjectFlags.CastShadows | Rendering.SceneObjectFlags.IsLoaded;
 			var typeFlags = ESceneObjectTypeFlags.NONE;
 			MeshSystem.CreateSceneObject( model.native, transform, null, flags, typeFlags, sceneWorld, 0x1 );
+			Tags.RemoveAll();
 			Transform = transform;
 		}
 	}
@@ -100,11 +111,15 @@ public partial class SceneObject : IHandle
 			World.InternalSceneObjects.Add( this );
 		}
 
+		NotifyChanged( Rendering.SceneObjectChange.Added );
+
 		//Log.Info( $"Created SceneObject: {GetType().Name}" );
 	}
 
 	internal virtual void OnNativeDestroy()
 	{
+		NotifyChanged( Rendering.SceneObjectChange.Removed );
+
 		lock ( World.InternalSceneObjects )
 		{
 			World.InternalSceneObjects.Remove( this );
@@ -122,6 +137,7 @@ public partial class SceneObject : IHandle
 	}
 
 	Transform _transform;
+	bool _transformSet;
 
 	/// <summary>
 	/// Incremented whenever <see cref="Transform"/> actually changes. Cheap way for
@@ -130,20 +146,60 @@ public partial class SceneObject : IHandle
 	internal int TransformVersion = 1;
 
 	/// <summary>
+	/// Tell the world's <see cref="SceneWorld.ChangeListener"/>, if it has one, that something changed.
+	/// </summary>
+	internal void NotifyChanged( Rendering.SceneObjectChange change ) => World?.ChangeListener?.OnChanged( this, change );
+
+	/// <summary>
 	/// Transform of this scene object, relative to its <see cref="Parent"/>, or <see cref="SceneWorld"/> if parent is not set.
 	/// </summary>
 	public Transform Transform
 	{
-		get => _transform;
+		// Until it's set from here, native's: an object native made - a map's world geometry - is placed by native, and
+		// read as default(Transform), zero scale and all
+		get => _transformSet || native.IsNull ? _transform : native.GetCTransform();
 		set
 		{
-			if ( _transform == value )
+			if ( _transformSet && _transform == value )
 				return;
 
+			_transformSet = true;
 			_transform = value;
 			TransformVersion++;
 			native.SetTransform( value );
+			NotifyChanged( Rendering.SceneObjectChange.Transform );
 			OnTransformChanged( value );
+			MoveChildren();
+		}
+	}
+
+	/// <summary>
+	/// Children added with <see cref="AddChild"/>, which native moves with this one.
+	/// </summary>
+	List<SceneObject> _children;
+
+	/// <summary>
+	/// Native moved the children with this one (<c>SceneObject_MirrorTransformToChildSceneObjectsRelative</c>, for
+	/// <c>CHILD_SCENEOBJECT_INHERIT_TRANSFORM</c>), and theirs with them: read each one's transform back, and say it changed, as
+	/// its own setter would - or what's cached here, and the managed renderer's copy (<c>r_managed_scene</c>), stay where they were.
+	/// </summary>
+	void MoveChildren()
+	{
+		if ( _children is null ) return;
+
+		foreach ( var child in _children )
+		{
+			if ( !child.IsValid() ) continue;
+
+			var moved = child.native.GetCTransform();
+			if ( child._transformSet && child._transform == moved ) continue;
+
+			child._transformSet = true;
+			child._transform = moved;
+			child.TransformVersion++;
+			child.NotifyChanged( Rendering.SceneObjectChange.Transform );
+			child.OnTransformChanged( moved );
+			child.MoveChildren();
 		}
 	}
 
@@ -196,7 +252,7 @@ public partial class SceneObject : IHandle
 	public BBox Bounds
 	{
 		get => GetSafeBounds();
-		set => native.SetBounds( value );
+		set { native.SetBounds( value ); NotifyChanged( Rendering.SceneObjectChange.Bounds ); }
 	}
 
 	/// <summary>
@@ -215,7 +271,7 @@ public partial class SceneObject : IHandle
 	public bool RenderingEnabled
 	{
 		get => native.IsRenderingEnabled();
-		set => native.SetRenderingEnabled( value );
+		set { native.SetRenderingEnabled( value ); NotifyChanged( Rendering.SceneObjectChange.Visibility ); }
 	}
 
 	/// <summary>
@@ -224,7 +280,7 @@ public partial class SceneObject : IHandle
 	public Color ColorTint
 	{
 		get => native.GetTintRGBA();
-		set => native.SetTintRGBA( value );
+		set { native.SetTintRGBA( value ); NotifyChanged( Rendering.SceneObjectChange.Tint ); }
 	}
 
 	/// <summary>
@@ -256,6 +312,7 @@ public partial class SceneObject : IHandle
 			return;
 
 		native.AddChildObject( name, child, 0x02 );
+		(_children ??= new()).Add( child );
 	}
 
 	/// <summary>
@@ -267,6 +324,7 @@ public partial class SceneObject : IHandle
 			return;
 
 		native.RemoveChild( child );
+		_children?.Remove( child );
 	}
 
 	/// <summary>
@@ -289,6 +347,7 @@ public partial class SceneObject : IHandle
 			if ( !model.HasRenderMeshes() ) model = Model.Error;
 
 			MeshSystem.ChangeModel( this, model.native );
+			NotifyChanged( Rendering.SceneObjectChange.Model );
 
 			OnModelChanged();
 		}
@@ -305,7 +364,7 @@ public partial class SceneObject : IHandle
 	public ulong MeshGroupMask
 	{
 		get => native.GetCurrentMeshGroupMask();
-		set => native.ResetMeshGroups( value );
+		set { native.ResetMeshGroups( value ); NotifyChanged( Rendering.SceneObjectChange.Material ); }
 	}
 
 	/// <summary>
@@ -313,7 +372,11 @@ public partial class SceneObject : IHandle
 	/// </summary>
 	internal int LodOverride
 	{
-		set => native.SetLOD( value );
+		set
+		{
+			native.SetLOD( value );
+			NotifyChanged( Rendering.SceneObjectChange.Settings );
+		}
 	}
 
 	Material _materialOverride;
@@ -327,6 +390,7 @@ public partial class SceneObject : IHandle
 			return;
 
 		_materialOverride = material;
+		NotifyChanged( Rendering.SceneObjectChange.Material );
 
 		if ( material != null && material.native.IsValid )
 		{
@@ -344,6 +408,7 @@ public partial class SceneObject : IHandle
 	{
 		native.ClearMaterialOverrideList();
 		_materialOverride = default;
+		NotifyChanged( Rendering.SceneObjectChange.Material );
 	}
 
 	/// <summary>
@@ -357,6 +422,7 @@ public partial class SceneObject : IHandle
 	public void SetMaterialOverride( Material material, string attributeName, int attributeValue = 1 )
 	{
 		native.SetMaterialOverride( material?.native ?? IntPtr.Zero, attributeName, attributeValue );
+		NotifyChanged( Rendering.SceneObjectChange.Material );
 	}
 
 	/// <summary>
@@ -365,6 +431,7 @@ public partial class SceneObject : IHandle
 	public void SetMaterialGroup( string name )
 	{
 		native.SetMaterialGroup( name );
+		NotifyChanged( Rendering.SceneObjectChange.Material );
 	}
 
 	internal virtual void OnTransformChanged( in Transform tx )
@@ -373,7 +440,8 @@ public partial class SceneObject : IHandle
 	}
 
 	/// <summary>
-	/// This object is not batchable by material for some reason ( example: has dynamic attributes that affect rendering )
+	/// Whether this object may be batched with compatible objects. Different render attribute values
+	/// automatically split batches; objects with equal attributes can still batch together.
 	/// </summary>
 	public bool Batchable
 	{
@@ -441,6 +509,7 @@ public partial class SceneObject : IHandle
 		internal void SetFlag( Rendering.SceneObjectFlags f, bool val )
 		{
 			Object.native.ChangeFlags( val ? f : Rendering.SceneObjectFlags.None, f );
+			Object.NotifyChanged( Rendering.SceneObjectChange.Flags );
 		}
 
 

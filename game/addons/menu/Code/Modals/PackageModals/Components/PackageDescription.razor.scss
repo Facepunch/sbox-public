@@ -3,7 +3,9 @@
 PackageDescription
 {
 	flex-shrink: 0;
-	padding: 32px;
+	// The gallery's 24 at the sides, so the two line up. 13 on top, plus the thumbnail strip's own 3
+	// under it - 16 off the gallery
+	padding: 13px 24px 64px 24px;
 	color: #ADB3CB;
 	width: 100%;
 }

@@ -51,7 +51,7 @@
         </Left>
 
         <Body>
-            <MenuProject.UI.PackageList @ref=PackageList ShowFilters="@false" Query=@($"type:game sort:{filterOrder} {Filter} {GetQuery()}") OnSelected=@Selected OnMenu=@Menu Take=@(200)></MenuProject.UI.PackageList>
+            <MenuProject.UI.PackageList @ref=PackageList Surface="search" ShowFilters="@false" Query=@($"type:game sort:{filterOrder} {Filter} {GetQuery()}") OnSelected=@Selected OnMenu=@Menu Take=@(200)></MenuProject.UI.PackageList>
         </Body>
     </Page>
 </root>
@@ -96,7 +96,7 @@
     TextEntry SearchEntry = default;
     string debouncedSearch = "";
     bool searchPending = false;
-    TimeSince timeSinceSearchEdited;
+    RealTimeSince timeSinceSearchEdited;
 
     List<string> SelectedTags = new();
     Dictionary<string, string> SelectedCategory = new();

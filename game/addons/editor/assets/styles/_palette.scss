@@ -25,3 +25,7 @@ $l-text: #16181d;
 $l-text-muted: #5c6370;
 $l-text-faint: #8a9099;
 $l-positive: #2f9e55;
+
+// Docked tool surfaces sit above the common workspace background.
+$dock-surface: #1d1f25;
+$dock-light-surface: $l-surface;

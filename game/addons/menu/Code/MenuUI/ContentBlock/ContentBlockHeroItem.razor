@@ -27,14 +27,21 @@
 
     protected override int BuildHash() => System.HashCode.Combine(MenuHelpers.HasAuthority, Package?.FullIdent);
 
+    public override void Tick()
+    {
+        base.Tick();
+        Discovery.Track( this, Package );
+    }
+
     void Clicked()
     {
+        Discovery.Clicked( this, Package );
         ContentBlocks.OnLaunch(Package);
     }
 
     void PlayNow(PanelEvent e)
     {
         e.StopPropagation();
-        MenuHelpers.PlayGame(Package);
+        MenuHelpers.PlayGame( Package, via: "hero", source: this );
     }
 }

@@ -1,0 +1,164 @@
+@using System;
+@using System.Linq;
+@using Sandbox;
+@using Sandbox.Services;
+@using Sandbox.UI;
+@namespace MenuProject.MenuUI.Jams
+@inherits Panel
+
+@if ( !Application.IsEditor || Jam is null ) return;
+
+<root>
+	<div class="preview-stages">
+		<label class="preview-label">Preview stage</label>
+		@foreach ( var stage in PreviewStages )
+		{
+			<Button class="@(Jam.IsEditorPreview && ActiveStage == stage.Name ? "selected" : "")" Text=@stage.Name onclick=@(() => Seek( stage.At )) />
+		}
+	</div>
+	@if ( Jam.IsEditorPreview )
+	{
+		<div class="preview-controls">
+			<div class="preview-info">
+				<div class="heading"><label>@PhaseText</label></div>
+				<label class="date">@Jam.Now.ToString( "ddd d MMM · HH:mm:ss 'UTC'" )</label>
+			</div>
+			<div class="preview-actions">
+				<Button Text=@(InKnockout ? "Next round" : "Next phase") Disabled=@(StageEnd is null) onclick=@NextStage />
+				<Button Text=@(InKnockout ? "Round ends in 10s" : "Phase ends in 10s") Disabled=@(StageEnd is null) onclick=@RehearseStage />
+				@if ( InKnockout )
+				{
+					<Button Text="Skip to next phase" Disabled=@(Jam.NextStep is null) onclick=@NextPhase />
+				}
+			</div>
+			<div class="preview-actions">
+				<Button Text="− Day" onclick=@(() => Seek( Jam.Now.AddDays( -1 ) )) />
+				<Button Text="+ Day" onclick=@(() => Seek( Jam.Now.AddDays( 1 ) )) />
+				<Button Text="Reset clock" onclick=@Reset />
+				<Button Text="Exit preview" onclick=@Exit />
+			</div>
+		</div>
+	}
+</root>
+
+@code
+{
+	/// <summary>
+	/// The active jam whose local clock is being rehearsed.
+	/// </summary>
+	[Parameter] public Jam Jam { get; set; }
+
+	GameJamSystem Voting => GameJamSystem.For( this );
+
+	record PreviewStage( string Name, DateTimeOffset At );
+
+	IEnumerable<PreviewStage> PreviewStages
+	{
+		get
+		{
+			var stages = Jam.Timeline.Select( x => new PreviewStage( x.Phase == Jam.Phase.Crowned ? "Results" : x.Name,
+				x.Phase == Jam.Phase.Crowned && Jam.CommunityVoting ? Jam.Results.AddDays( 1 ) : x.At ) ).ToList();
+			stages.Add( new( "Upcoming", (Jam.Announced ?? Jam.Starts).AddDays( -1 ) ) );
+			if ( Jam.CommunityVoting )
+			{
+				if ( Jam.NominationsEnd < Jam.FinalsStart ) stages.Add( new( "Finalist reveal", Jam.NominationsEnd ) );
+				stages.Add( new( "Final result", Jam.Results ) );
+			}
+			return stages.OrderBy( x => x.At );
+		}
+	}
+
+	string ActiveStage => PreviewStages.LastOrDefault( x => x.At <= Jam.Now )?.Name;
+	JamFinalistCategory Category => Voting?.Finalists?.FirstOrDefault();
+	bool InKnockout => Voting?.Phase == Jam.Phase.Finals && Jam.Now >= Jam.FinalsStart;
+	bool InReveal => Jam.CommunityVoting && Jam.Now >= Jam.NominationsEnd && Jam.Now < Jam.FinalsStart;
+	string PhaseText
+	{
+		get
+		{
+			if ( InReveal ) return "Finalist reveal";
+
+			if ( InKnockout )
+			{
+				return Category?.Round is int round
+					? $"Knockout · round {round} of {Math.Max( 1, Category.Nominees.Count - 2 )}"
+					: "Knockout";
+			}
+
+			return Voting?.Phase switch
+			{
+				Jam.Phase.GrandFinal => Jam.Now >= Jam.Results ? "Final result hold" : "Grand final",
+				Jam.Phase.Crowned => "Winners and entries",
+				_ => Jam.CurrentStepIndex >= 0 ? Jam.Timeline[Jam.CurrentStepIndex].Name : "Upcoming"
+			};
+		}
+	}
+
+	// Rehearse the boundary currently on screen. Seeking to the end of the whole
+	// knockout phase would close earlier rounds immediately and skip their countdowns.
+	DateTimeOffset? StageEnd
+	{
+		get
+		{
+			if ( Voting?.Phase == Jam.Phase.GrandFinal )
+			{
+				return Jam.Now < Jam.Results ? Category?.RoundEnds ?? Jam.Results : Voting.FinalResultsUntil;
+			}
+
+			if ( InReveal ) return Jam.FinalsStart;
+			if ( InKnockout ) return Category?.RoundEnds;
+
+			if ( Jam.CommunityVoting && Jam.Now < Jam.NominationsEnd && Jam.NextStep?.At > Jam.NominationsEnd )
+			{
+				return Jam.NominationsEnd;
+			}
+
+			return Jam.NextStep?.At;
+		}
+	}
+
+	void Seek( DateTimeOffset target )
+	{
+		if ( !Application.IsEditor ) return;
+		if ( Jam.PreviewDays <= 0 ) Jam.PreviewDays = 1;
+		if ( target >= Jam.Results && Jam.CommunityVoting )
+		{
+			if ( Voting is not null ) _ = Voting.SeekEditorPreviewResultsAsync( target );
+		}
+		else
+		{
+			Voting?.SeekEditorPreview( target );
+		}
+	}
+
+	void NextPhase()
+	{
+		if ( Jam.NextStep is { } next ) Seek( next.At );
+	}
+
+	void RehearseStage()
+	{
+		if ( StageEnd is { } end ) Seek( end.AddSeconds( -10 ) );
+	}
+
+	void NextStage()
+	{
+		if ( StageEnd is { } end ) Seek( end );
+	}
+
+	void Reset()
+	{
+		if ( !Jam.IsEditorPreview ) return;
+		Jam.ResetEditorPreview();
+		Voting?.SeekEditorPreview( Jam.Now );
+	}
+
+	void Exit()
+	{
+		if ( !Application.IsEditor ) return;
+		Jam.PreviewDays = 0;
+		Voting?.Refresh();
+	}
+
+	protected override int BuildHash() => HashCode.Combine( Jam, Jam.IsEditorPreview, Jam.PreviewDays, Jam?.Now.ToUnixTimeSeconds() );
+}

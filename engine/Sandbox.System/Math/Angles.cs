@@ -11,6 +11,7 @@ using Sandbox.Interpolation;
 /// </summary>
 [JsonConverter( typeof( Sandbox.Internal.JsonConvert.AnglesConverter ) )]
 [StructLayout( LayoutKind.Sequential )]
+[Description( "Euler angles describing pitch, yaw and roll in degrees. Can represent multiple revolutions around an axis." )]
 public struct Angles : IEquatable<Angles>, IParsable<Angles>, IInterpolator<Angles>
 {
 	/// <summary>

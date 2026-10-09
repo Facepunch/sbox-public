@@ -1,0 +1,21 @@
+@namespace MenuProject.MenuUI.Components.Multiplayer
+@using Sandbox;
+@using Chat = MenuProject.Multiplayer.GlobalChatService;
+@inherits Panel
+
+<root>
+	<div class="chat-composer">
+		<TextEntry @ref="input" Value:bind=@Chat.Draft MaxLength=@(400) Placeholder="Say hello…" onsubmit=@Submit />
+		<Button Icon="send" disabled=@(!Chat.CanSend) onclick=@Submit tooltip="Send message" />
+	</div>
+	<div class="chat-actions">
+		@if ( PartyRoom.Current is not null )
+		{
+			<label>@PartyRoom.Current.MemberCount in your party</label>
+			@if ( PartyRoom.Current.Owner.IsMe )
+			{
+				<Button Icon="campaign" disabled=@(!Chat.CanInviteParty) onclick=@Chat.InviteParty tooltip="Post an invitation so anyone in global chat can join">Post party invite</Button>
+			}
+		}
+	</div>
+</root>

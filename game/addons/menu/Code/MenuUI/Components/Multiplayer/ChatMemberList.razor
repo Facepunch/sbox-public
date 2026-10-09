@@ -1,0 +1,23 @@
+@namespace MenuProject.MenuUI.Components.Multiplayer
+@using Sandbox;
+@using MenuProject.MenuUI.Popups;
+@using Chat = MenuProject.Multiplayer.GlobalChatService;
+@inherits Panel
+
+<root>
+	<div class="people-heading">
+		<label>In chat</label>
+		<label>@(Chat.Channel?.MemberCount ?? 0)</label>
+	</div>
+	<VirtualList class="chat-people" Items=@Members ItemHeight=@(44)>
+		<Item Context="item">
+			@if ( item is Friend member )
+			{
+				<button class="chat-person" onclick=@(e => FriendCard.ShowFromClick( e, member )) onrightclick=@(e => FriendCard.ShowFromClick( e, member ))>
+					<div class="chat-avatar" style="background-image: url(avatar:@member.Id)"></div>
+					<label>@member.Name</label>
+				</button>
+			}
+		</Item>
+	</VirtualList>
+</root>

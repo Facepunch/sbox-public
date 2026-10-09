@@ -1,4 +1,5 @@
 using Sandbox.Rendering;
+using Sandbox.UI;
 using static Sandbox.IBatchedParticleSpriteRenderer;
 
 namespace Sandbox;
@@ -127,11 +128,28 @@ public sealed class ParticleTextRenderer : ParticleRenderer, Component.ExecuteIn
 	public bool IsSorted => SortMode != ParticleSortMode.Unsorted;
 
 	/// <summary>
-	/// Provides texture for rendering the sprite
+	/// Text particles draw from the glyph outlines on the GPU, so there is no atlas texture any more.
 	/// </summary>
-	public Texture RenderTexture => TextRendering.GetOrCreateTexture( Text, 4096 ) ?? Texture.White;
+	[Obsolete( "Text particles render from glyph outlines - there is no render texture. Use TextRendering.GetOrCreateTexture if you want a rasterized copy of the text." )]
+	public Texture RenderTexture => null;
 
 	ParticleType IBatchedParticleSpriteRenderer.Type => ParticleType.Text;
+	GpuFontText.Placement IBatchedParticleSpriteRenderer.TextSprite => _textSprite;
+	GpuFontText.Placement _textSprite;
+
+	/// <summary>
+	/// Lay the text out and put its glyph instances in this frame's buffers, so every particle draws it straight
+	/// from the outlines. Once a frame, before the particles are processed.
+	/// </summary>
+	internal void PrepareText()
+	{
+		_textSprite = default;
+
+		var block = TextRendering.GetOrCreateTextBlock( Text, TextFlag.LeftTop, 4096 );
+		if ( block is null || block.IsEmpty ) return;
+
+		_textSprite = block.Upload();
+	}
 
 	protected override void OnAwake()
 	{

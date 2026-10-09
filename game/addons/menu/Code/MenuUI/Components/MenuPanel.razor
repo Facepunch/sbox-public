@@ -35,6 +35,14 @@
     public static MenuPanel Open( Panel source )
     {
         var root = source.FindRootPanel();
+
+        // Right clicking again doesn't hit the backdrop that normally closes us, so drop any
+        // menu that's still open before adding another.
+        foreach ( var open in root.Children.OfType<MenuPanel>().ToArray() )
+        {
+            open.Delete( true );
+        }
+
         var menu = root.AddChild<MenuPanel>();
 
         menu.Style.Left = root.MousePosition.x * root.ScaleFromScreen;

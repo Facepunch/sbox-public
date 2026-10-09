@@ -84,7 +84,7 @@ public class PanelLauncherAppSystem : PanelAppSystem
 	{
 		LauncherPreferences.Load();
 
-		window = new Editor.PanelWindow( "Welcome to the s&box editor", new Vector2( 1100, 660 ), new Vector2( -1, -1 ), borderless: true, vsync: true );
+		window = new Editor.PanelWindow( "Welcome to the s&box editor", new Vector2( 1100, 660 ), null, borderless: true, vsync: true );
 		window.MinSize = new Vector2( 880, 540 );
 		window.CanMaximize = false;
 		window.Root.AddChild( new Sandbox.LauncherUI.LauncherWindow( window ) );

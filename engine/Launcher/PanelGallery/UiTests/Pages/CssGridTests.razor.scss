@@ -1,8 +1,9 @@
+@import "/styles/_gallery-palette.scss";
 // Dark blue is the grid container; every item is a numbered, coloured cell. Red is an absolutely
 // positioned child.
 
 $container: #1f3550;
-$abs: #e84a4a;
+$abs: $gallery-pink;
 
 CssGridTests
 {
@@ -29,12 +30,12 @@ CssGridTests
 		}
 	}
 
-	.c1 { background-color: #e8b04a; }
-	.c2 { background-color: #4ac2e8; }
-	.c3 { background-color: #3fc76a; }
-	.c4 { background-color: #c77bd8; }
-	.c5 { background-color: #e88a4a; }
-	.c6 { background-color: #8fa3bf; }
+	.c1 { background-color: $gallery-lime; }
+	.c2 { background-color: $gallery-cyan; }
+	.c3 { background-color: $gallery-lime; }
+	.c4 { background-color: $gallery-pink; }
+	.c5 { background-color: $gallery-pink; }
+	.c6 { background-color: $gallery-cyan; }
 
 	// Tracks
 	.fixed { grid-template-columns: 60px 60px 60px; grid-template-rows: 40px 40px; gap: 6px; }
@@ -67,7 +68,7 @@ CssGridTests
 
 	// Nesting and absolutes
 	.nested-outer { grid-template-columns: 1fr 2fr; grid-auto-rows: 100px; gap: 6px; }
-	.nested-inner { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 4px; padding: 4px; background-color: #2d4a6e; }
+	.nested-inner { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 4px; padding: 4px; background-color: $gallery-cyan; }
 	.abs-area { position: absolute; grid-column: 2 / 4; grid-row: 2; inset: 4px; background-color: $abs; align-items: center; justify-content: center; }
 	.abs-corner { position: absolute; right: 4px; bottom: 4px; width: 50px; height: 24px; background-color: $abs; align-items: center; justify-content: center; }
 	.abs-area label, .abs-corner label { font-size: 11px; font-weight: 600; color: #ffffff; }

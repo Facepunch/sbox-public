@@ -1,4 +1,4 @@
-﻿namespace Sandbox;
+namespace Sandbox;
 
 /// <summary>
 /// A class that can serialize and deserialize whole objects to and from byte streams, 
@@ -13,9 +13,9 @@ internal partial class BytePack
 	readonly Dictionary<Identifier, Packer> handlers = new();
 	readonly Dictionary<int, Packer> typeHandler = new();
 
-	// Cap recursion so a deeply nested payload can't overflow the stack (uncatchable). Thread-local.
-	[ThreadStatic] static int _depth;
-	const int MaxDepth = 500;
+	// Cap nesting so a deeply nested payload can't overflow the stack (uncatchable). Only covers
+	// one Deserialize tree - dispatching a deserialized payload needs its own limit on top.
+	const int MaxDepth = 32;
 
 	internal Func<Type, Packer> OnCreatePackerFromType { get; set; }
 	internal Func<int, Packer> OnCreatePackerFromIdentifier { get; set; }
@@ -42,7 +42,7 @@ internal partial class BytePack
 		OnCreatePackerFromIdentifier = default;
 	}
 
-	void Add( Packer ti )
+	internal void Add( Packer ti )
 	{
 		ti.Init( this );
 	}
@@ -82,43 +82,36 @@ internal partial class BytePack
 		}
 	}
 
-	public object Deserialize( ref ByteStream data )
+	public object Deserialize( ref ByteStream data ) => Deserialize( ref data, 0 );
+
+	internal object Deserialize( ref ByteStream data, int depth )
 	{
-		_depth++;
+		if ( depth > MaxDepth )
+			throw new System.Exception( $"BytePack nesting depth exceeded ({MaxDepth}) - possible malicious payload" );
 
-		try
+		var h = data.Read<Identifier>();
+
+		if ( h == Identifier.Runtime )
 		{
-			if ( _depth > MaxDepth )
-				throw new System.Exception( $"BytePack recursion depth exceeded ({MaxDepth}) - possible malicious payload" );
+			int typeIdent = data.Read<int>();
+			var p = GetOrCreatePacker( typeIdent );
 
-			var h = data.Read<Identifier>();
-
-			if ( h == Identifier.Runtime )
+			if ( p is not null )
 			{
-				int typeIdent = data.Read<int>();
-				var p = GetOrCreatePacker( typeIdent );
-
-				if ( p is not null )
-				{
-					return p.Read( ref data );
-				}
-
-				throw new System.Exception( $"Unhandled runtime ident {typeIdent}" );
+				return p.Read( ref data, depth );
 			}
 
-			if ( handlers.TryGetValue( h, out var typeInfo ) )
-			{
-				return typeInfo.Read( ref data );
-			}
-
-
-			if ( h == Identifier.Null ) return null;
-			throw new System.Exception( $"Unhandled header {h}" );
+			throw new System.Exception( $"Unhandled runtime ident {typeIdent}" );
 		}
-		finally
+
+		if ( handlers.TryGetValue( h, out var typeInfo ) )
 		{
-			_depth--;
+			return typeInfo.Read( ref data, depth );
 		}
+
+
+		if ( h == Identifier.Null ) return null;
+		throw new System.Exception( $"Unhandled header {h}" );
 	}
 
 	void Serialize<T>( ref ByteStream bs, T obj )
@@ -126,6 +119,17 @@ internal partial class BytePack
 		if ( obj is null )
 		{
 			bs.Write( Identifier.Null );
+			return;
+		}
+
+		// Snapshot blobs and sync tables are byte buffers. Their element type and wire
+		// header are already known, so avoid reflection, size lookup and array pinning.
+		if ( obj is byte[] bytes )
+		{
+			bs.Write( Identifier.ArrayValue );
+			bs.Write( bytes.Length );
+			bs.Write( Identifier.Byte );
+			bs.Write( bytes );
 			return;
 		}
 
@@ -146,6 +150,15 @@ internal partial class BytePack
 		}
 
 		var t = obj.GetType();
+
+		// Most fields use an installed POD/string packer or an already resolved runtime
+		// type. Don't walk their inheritance tree twice looking for List/Dictionary.
+		if ( types.TryGetValue( t, out var cached ) && !cached.UsesCollectionFormat )
+		{
+			cached.WriteTypeIdentifier( ref bs, t );
+			cached.Write( ref bs, obj );
+			return;
+		}
 
 		if ( t.IsBasedOnGenericType( typeof( List<> ) ) )
 		{

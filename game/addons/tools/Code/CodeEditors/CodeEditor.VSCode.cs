@@ -1,8 +1,4 @@
-﻿using System;
-using System.IO;
-using System.Text;
-using System.Text.RegularExpressions;
-using Microsoft.Win32;
+﻿using System.IO;
 
 namespace Editor.CodeEditors;
 
@@ -11,7 +7,7 @@ public class VisualStudioCode : ICodeEditor
 {
 	public void OpenFile( string path, int? line, int? column )
 	{
-		var sln = CodeEditor.FindSolutionFromPath( System.IO.Path.GetDirectoryName( path ) );
+		var sln = CodeEditor.FindSolutionFromPath( Path.GetDirectoryName( path ) );
 		var rootPath = Path.GetDirectoryName( sln );
 
 		Launch( $"-g \"{path}:{line}:{column}\" \"{rootPath}\"" );
@@ -29,50 +25,21 @@ public class VisualStudioCode : ICodeEditor
 		Launch( $"\"{projectPath}\"" );
 	}
 
-	public bool IsInstalled() => !string.IsNullOrEmpty( GetLocation() );
+	public bool IsInstalled() => GetLocation() is not null;
 
-	private static void Launch( string arguments )
-	{
-		var startInfo = new System.Diagnostics.ProcessStartInfo
-		{
-			FileName = GetLocation(),
-			Arguments = arguments,
-			CreateNoWindow = true,
-		};
-
-		System.Diagnostics.Process.Start( startInfo );
-	}
+	private static void Launch( string arguments ) => CodeEditorLocator.Launch( GetLocation(), arguments );
 
 	static string Location;
 
-	[System.Diagnostics.CodeAnalysis.SuppressMessage( "Interoperability", "CA1416:Validate platform compatibility", Justification = "<Pending>" )]
-	private static string GetLocation()
-	{
-		if ( Location != null )
-		{
-			return Location;
-		}
-
-		string value = null;
-		using ( var key = Registry.ClassesRoot.OpenSubKey( @"Applications\\Code.exe\\shell\\open\\command" ) )
-		{
-			value = key?.GetValue( "" ) as string;
-		}
-
-		if ( value == null )
-		{
-			return null;
-		}
-
-		// Given `"C:\Program Files\Microsoft VS Code\Code.exe" "%1"` grab the first bit
-		Regex rgx = new Regex( "\"(.*)\" \".*\"", RegexOptions.IgnoreCase );
-		var matches = rgx.Matches( value );
-		if ( matches.Count == 0 || matches[0].Groups.Count < 2 )
-		{
-			return null;
-		}
-
-		Location = matches[0].Groups[1].Value;
-		return Location;
-	}
+	private static string GetLocation() => Location ??= CodeEditorLocator.Find(
+		"code",
+		// Windows
+		"%LOCALAPPDATA%/Programs/Microsoft VS Code/Code.exe",
+		"%ProgramFiles%/Microsoft VS Code/Code.exe",
+		// macOS
+		"/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code",
+		"~/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code",
+		// Linux
+		"/usr/share/code/bin/code",
+		"/snap/bin/code" );
 }

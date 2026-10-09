@@ -10,6 +10,8 @@ namespace Sandbox;
 [AssetType( Name = "Surface Description", Extension = "surface", Category = "Physics", Flags = AssetTypeFlags.NoEmbedding, IconColor = "#4596ec" )]
 public partial class Surface : GameResource
 {
+	CPhysSurfaceProperties _nativeSurface;
+
 	/// <summary>
 	/// Per-context lookup of loaded surfaces by their physics index.
 	/// Each GlobalContext (Menu, Game) owns its own dictionary so that
@@ -24,6 +26,9 @@ public partial class Surface : GameResource
 	[Hide]
 	[JsonIgnore]
 	public int Index { get; internal set; }
+
+	// Use the full mount path to avoid native surface name collisions between games.
+	internal string PhysicsName => Mounting.MountUtility.IsMountPath( ResourcePath ) ? ResourcePath : ResourceName;
 
 	/// <summary>
 	/// Filepath of the base surface. Use <see cref="SetBaseSurface">SetBaseSurface</see> and <see cref="GetBaseSurface">GetBaseSurface</see>.
@@ -114,6 +119,7 @@ public partial class Surface : GameResource
 
 	protected override void OnDestroy()
 	{
+		_nativeSurface = default;
 		if ( All.TryGetValue( Index, out var v ) && v == this )
 		{
 			All.Remove( Index );
@@ -123,7 +129,9 @@ public partial class Surface : GameResource
 	void Create( bool reload = false )
 	{
 		var controller = g_pPhysicsSystem.GetSurfacePropertyController();
-		CPhysSurfaceProperties props = controller.AddProperty( ResourceName, "default", Description ?? "" );
+		CPhysSurfaceProperties props = controller.AddProperty( PhysicsName, "default", Description ?? "" );
+		_nativeSurface = props;
+		props.m_bHasScrapeSounds = HasScrapeSounds;
 
 		NameHash = props.m_nameHash;
 		Index = props.m_nIndex;
@@ -168,11 +176,15 @@ public partial class Surface : GameResource
 	/// <summary>
 	/// Returns a Surface from its name, or null
 	/// </summary>
+	/// <remarks>
+	/// Uncached mounted paths load synchronously and must be resolved on the main thread.
+	/// </remarks>
 	/// <param name="name">The name of a surface property to look up</param>
 	/// <returns>The surface with given name, or null if such surface property doesn't exist</returns>
 	public static Surface FindByName( string name )
 	{
-		return All.FirstOrDefault( x => x.Value.ResourceName == name ).Value;
+		return All.FirstOrDefault( x => x.Value.PhysicsName == name ).Value
+			?? (Mounting.MountUtility.IsMountPath( name ) ? GameResource.Load<Surface>( name ) : null);
 	}
 
 	protected override Bitmap CreateAssetTypeIcon( int width, int height )

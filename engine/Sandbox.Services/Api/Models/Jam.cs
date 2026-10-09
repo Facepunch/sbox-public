@@ -83,6 +83,11 @@ public class JamDto
 	public int EntryCount { get; set; }
 
 	/// <summary>
+	/// Seconds a player must have played an entry before they can vote for it.
+	/// </summary>
+	public int MinPlaySeconds { get; set; }
+
+	/// <summary>
 	/// Package search query that lists the entries, e.g. "jam:three". Combine with the
 	/// usual sort and type tokens.
 	/// </summary>
@@ -205,7 +210,7 @@ public class JamCategoryVotingDto
 	public JamNomineeDto[] Nominees { get; set; } = [];
 
 	/// <summary>
-	/// Live counts for the open round, or the grand final once decided. Most votes first.
+	/// Live weighted votes for the open round, or the grand final once decided. Highest score first.
 	/// A nominee with no votes isn't listed; a withdrawn one can be (see <see cref="JamNomineeDto.Withdrawn"/>).
 	/// </summary>
 	public JamTallyDto[] Tally { get; set; } = [];
@@ -249,9 +254,20 @@ public class JamNomineeDto
 	public int Place { get; set; }
 }
 
+/// <summary>
+/// One package's public weighted vote tally.
+/// </summary>
 public class JamTallyDto
 {
+	/// <summary>
+	/// Full ident of the package whose votes are counted.
+	/// </summary>
 	public string Package { get; set; }
+
+	/// <summary>
+	/// Sum of eligible votes' captured trust scores, rounded down to a whole number.
+	/// Ranking uses the full precision score.
+	/// </summary>
 	public int Votes { get; set; }
 }
 

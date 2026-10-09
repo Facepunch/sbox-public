@@ -106,7 +106,7 @@ internal sealed class UISurface : IDisposable
 	/// </summary>
 	public void SetMouseButton( MouseButtons button, bool down, KeyboardModifiers modifiers = default ) => Input.SetMouseButton( button, down, modifiers );
 
-	internal void SetMouseButton( NativeEngine.ButtonCode button, bool down, KeyboardModifiers modifiers ) => Input.SetMouseButton( button, down, modifiers );
+	internal void SetMouseButton( NativeEngine.ButtonCode button, bool down, KeyboardModifiers modifiers, int clickCount = 1 ) => Input.SetMouseButton( button, down, modifiers, clickCount );
 
 	internal void SetKey( NativeEngine.ButtonCode button, bool down, KeyboardModifiers modifiers ) => Input.SetKey( button, down, modifiers );
 
@@ -165,11 +165,13 @@ internal sealed class UISurface : IDisposable
 		if ( !panel.IsInside( position ) )
 			return null;
 
+		if ( panel.FindScrollbarAt( position, visibleOnly: true, needPointerEvents: false, match ) is { } scrollbarHit ) return scrollbarHit;
+
 		// Later children draw on top, so they win
 		for ( int i = panel.ChildrenCount - 1; i >= 0; i-- )
 		{
 			var child = panel.GetChild( i );
-			if ( child.IsFixed ) continue;
+			if ( child.IsFixed || child is ScrollBar ) continue;
 			var hit = FindPanelAt( child, position, match );
 			if ( hit is not null ) return hit;
 		}

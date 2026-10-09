@@ -38,7 +38,7 @@ internal partial class ShadowMapper
 
 	struct CascadeDebugInfo
 	{
-		public Texture DepthTexture;
+		public ShadowMap DepthTexture;
 		public float Near;
 		public float Far;
 		public float Width;
@@ -47,6 +47,25 @@ internal partial class ShadowMapper
 
 	static readonly CascadeDebugInfo[] CascadeDebugInfos = new CascadeDebugInfo[4];
 	static int CascadeDebugCount;
+
+	/// <summary>
+	/// The cascade set rendered this frame. Cascades are fit to one camera, so a later view this frame only
+	/// reuses them if it's within the outer cascade of that camera and no bigger than it: cube faces, mirrors
+	/// and VR eyes reuse the main view, while a probe bake that ran first never hijacks the main view.
+	/// </summary>
+	struct CascadeCache
+	{
+		public ulong Frame;
+		public object Light;
+		public Vector3 CameraPosition;
+		public float RadiusSquared;
+		public float ViewportArea;
+		public GPUDirectionalLight Data;
+	}
+
+	// ponytail: single slot, add a per-light dictionary if two worlds with suns interleave views in one frame
+	static CascadeCache LastCascades;
+	static readonly ShadowMap[] LastCascadeMaps = new ShadowMap[4];
 
 	// Near Far frustum corners in clip space
 	private static readonly Vector4[] Corners =
@@ -62,6 +81,23 @@ internal partial class ShadowMapper
 	];
 
 	private static readonly string[] CascadeNames = ["CSM Cascade 0", "CSM Cascade 1", "CSM Cascade 2", "CSM Cascade 3"];
+
+	internal static float CalculateCascadeHardness( float shadowHardness, float cascadeScale, int shadowFilter )
+	{
+		float hardness = Math.Clamp( shadowHardness, 0.0f, 1.0f );
+		float filterRadius = shadowFilter switch
+		{
+			<= 1 => 1.5f,
+			2 => 3.0f,
+			_ => 4.5f
+		};
+
+		// Preserve the softness control when a cascade's world-space kernel becomes
+		// smaller than a texel. A constant cap makes every hardness setting identical
+		// in distant cascades. The fallback spans the full kernel at 0 and one texel at 1.
+		float maximumHardness = 1.0f + hardness * (filterRadius - 1.0f);
+		return Math.Min( (1.0f + hardness * 4.0f) * cascadeScale, maximumHardness );
+	}
 
 	/// <summary>
 	/// Calculates normalized [0,1] split distances for cascade shadow maps.
@@ -127,11 +163,10 @@ internal partial class ShadowMapper
 	/// Given a camera view frustum, computes cascade frustums into the provided span.
 	/// Returns the number of cascades written.
 	/// </summary>
-	static int GetCascades( Span<Cascade> result, CFrustum viewFrustum, Rotation rotation, int numCascades, float NearClip, float FarClip, float lambda, int shadowmapSize, Vector3 cameraPosition )
+	static int GetCascades( Span<Cascade> result, in System.Numerics.Matrix4x4 invViewProj, Rotation rotation, int numCascades, float NearClip, float FarClip, float lambda, int shadowmapSize, Vector3 cameraPosition )
 	{
 		// Project frustum corners into world space from clip space
 		Span<Vector3> viewFrustumCorners = stackalloc Vector3[8];
-		var invViewProj = viewFrustum.GetInvReverseZViewProjTranspose()._numerics;
 		for ( int i = 0; i < 8; i++ )
 		{
 			var corner = System.Numerics.Vector4.Transform( Corners[i], invViewProj );
@@ -263,21 +298,20 @@ internal partial class ShadowMapper
 	}
 
 	/// <summary>
-	/// Find or create shadow maps for a directional light (CSM).
-	/// Returns an index to the directional shadow buffer.
+	/// Find or create shadow maps for a directional light (CSM), fit to the current <see cref="View"/>.
 	/// </summary>
-	internal unsafe void FindOrCreateDirectionalShadowMaps( SceneLight light, ISceneView view )
+	internal unsafe void FindOrCreateDirectionalShadowMaps( in ShadowLight light )
 	{
 		if ( !light.ShadowsEnabled )
 			return;
 
-		int numCascades = Math.Min( light.lightNative.GetShadowCascades(), MaxCascades );
+		int numCascades = Math.Min( light.Cascades, MaxCascades );
 		float farClip = CascadeDistance;
 		int shadowmapSize = MaxCascadeResolution;
-		float splitRatio = light.lightNative.GetShadowCascadeSplitRatio();
+		float splitRatio = light.CascadeSplitRatio;
 
 		// Baked lights exclude static objects from shadow maps, their static shadows come from lightmaps
-		var excludeFlags = (light.lightNative.GetLightFlags() & 32) != 0 // LIGHTTYPE_FLAGS_BAKED
+		var excludeFlags = light.Baked
 			? SceneObjectFlags.StaticObject
 			: SceneObjectFlags.None;
 
@@ -285,57 +319,85 @@ internal partial class ShadowMapper
 		gpuShadowData.Enabled = true;
 
 		// A bit overreach for shadowmapper
-		gpuShadowData.Color = new Vector4( light.LightColor, light.FogStrength );
-		gpuShadowData.Direction = new Vector4( -light.WorldDirection, 0 );
+		gpuShadowData.Color = new Vector4( light.Color, light.FogStrength );
+		gpuShadowData.Direction = new Vector4( light.Direction, 0 );
 
 		// 3D skybox is fully static with baked light, keep the directional light for shading but skip shadow cascades
-		if ( view.GetRenderAttributesPtr().GetBoolValue( "IsSkybox", false ) )
+		if ( View.IsSkybox )
 		{
 			gpuShadowData.CascadeCount = 0;
 			GPUDirectionalLightData = gpuShadowData;
 			return;
 		}
 
+		float viewportArea = View.ViewportSize.x * View.ViewportSize.y;
+		var cameraPosition = View.CameraPosition;
+
+		if ( LastCascades.Frame == Application.FrameCount && LastCascades.Light == light.Key && viewportArea <= LastCascades.ViewportArea
+			&& cameraPosition.DistanceSquared( LastCascades.CameraPosition ) <= LastCascades.RadiusSquared )
+		{
+			gpuShadowData = LastCascades.Data;
+			gpuShadowData.ShadowMaskTextureIndex = Renderer.GetShadowMaskIndex( light.Key );
+
+			CascadeShadowMapCount = (int)gpuShadowData.CascadeCount;
+			for ( int i = 0; i < CascadeShadowMapCount; i++ )
+				CascadeShadowMaps[i] = LastCascadeMaps[i];
+
+			GPUDirectionalLightData = gpuShadowData;
+			return;
+		}
+
 		DirectionalShadowMemorySize = 0;
 
-		// native stuff does this WorldDirection shit, we can just do light.Rotation if stuff is rotated properly
+		// The cascades face the way the light travels
+		var rotation = light.Direction.EulerAngles.ToRotation();
 		Span<Cascade> cascades = stackalloc Cascade[numCascades];
-		int cascadeCount = GetCascades( cascades, view.GetFrustum(), (-light.WorldDirection).EulerAngles.ToRotation(), numCascades, 1.0f, farClip, splitRatio, shadowmapSize, view.GetCameraPosition() );
+		int cascadeCount = GetCascades( cascades, View.InverseViewProjection, rotation, numCascades, 1.0f, farClip, splitRatio, shadowmapSize, cameraPosition );
 		cascades = cascades[..cascadeCount];
-		var frustum = CFrustum.Create();
-		var exclusionFrustum = CFrustum.Create();
-		float baseHardness = 1.0f + light.ShadowHardness * 4.0f;
-		float maxHardnessForFullTexel = ShadowFilter switch
-		{
-			<= 1 => 1.5f,
-			2 => 3.0f,
-			_ => 4.5f
-		};
+		float baseHardness = 1.0f + light.Hardness * 4.0f;
 
 		for ( int i = 0; i < cascades.Length; i++ )
 		{
 			var cascade = cascades[i];
-			var rt = RenderTarget.GetTemporary( shadowmapSize, shadowmapSize, ImageFormat.None, ImageFormat.D32 );
+			var rt = Renderer.GetCascadeTarget( i, shadowmapSize );
 
-			DirectionalShadowMemorySize += (int)g_pRenderDevice.ComputeTextureMemorySize( rt.DepthTarget.native );
+			if ( rt.HasTexture )
+				DirectionalShadowMemorySize += (int)g_pRenderDevice.ComputeTextureMemorySize( rt.Texture.native );
 
-			// Create a native ortho frustum
-			frustum.InitOrthoCamera( cascade.Origin, cascade.Angles, cascade.Near, cascade.Far, cascade.Width, cascade.Height );
+			// Render shadow view. After the first, skip what's inside the largest square inscribed in the
+			// previous cascade's bounding sphere - that cascade has it already.
+			var shadowView = new ShadowViewDesc
+			{
+				Name = CascadeNames[i],
+				Position = cascade.Origin,
+				Rotation = rotation,
+				Orthographic = true,
+				ZNear = cascade.Near,
+				ZFar = cascade.Far,
+				Width = cascade.Width,
+				Height = cascade.Height,
+				Resolution = shadowmapSize,
+				Target = rt,
+				ExcludedFlags = excludeFlags,
+				DepthBias = ShadowDepthBias,
+				SlopeScaledDepthBias = ShadowSlopeScale,
+				HasExclusion = i > 0,
+				ExclusionCenter = i > 0 ? cascades[i - 1].SphereCenter : default,
+				ExclusionSize = i > 0 ? cascades[i - 1].SphereRadius / MathF.Sqrt( 2.0f ) : 0,
+			};
 
-			// Render shadow view
-			CSceneSystem.AddShadowView( CascadeNames[i], view, frustum, new( 0, 0, shadowmapSize, shadowmapSize ), rt.DepthTarget.native, 0, SceneObjectFlags.None, excludeFlags, ShadowDepthBias, ShadowSlopeScale, i > 0 ? exclusionFrustum : default, default );
-
-			// Cache an exclusion frustum sized to the largest square inscribed in the cascade's bounding sphere.
-			var size = cascade.SphereRadius / MathF.Sqrt( 2.0f );
-			exclusionFrustum.InitOrthoCamera( cascade.SphereCenter, cascade.Angles, -size * 0.5f, size * 0.5f, size, size );
+			Matrix viewProjection = Renderer.RenderShadowView( shadowView );
 
 			// Set our gpu data
 			Matrix texScaleBiasMat = GetScaleBiasMatrix( shadowmapSize, 0 );
-			gpuShadowData.WorldToShadowMatrices[i] = frustum.GetReverseZViewProjTranspose() * texScaleBiasMat.Transpose();
-			gpuShadowData.ShadowMapIndex[i] = rt.DepthTarget.Index;
+			gpuShadowData.WorldToShadowMatrices[i] = viewProjection * texScaleBiasMat.Transpose();
+			gpuShadowData.ShadowMapIndex[i] = 0; // filled in by ResolveTextureIndices
+			CascadeShadowMaps[i] = rt;
+			LastCascadeMaps[i] = rt;
 
-			// Make cascades share same perceptual sharpness
-			gpuShadowData.CascadeHardness[i] = baseHardness * (cascade.Width / cascades[0].Width);
+			// Bound the world-space kernel scaling without clamping away the hardness control.
+			gpuShadowData.CascadeHardness[i] = i == 0 ? baseHardness
+				: CalculateCascadeHardness( light.Hardness, cascade.Width / cascades[0].Width, ShadowFilter );
 
 			// Cascade bounding sphere for GPU selection (xyz = center, w = radiusSquared).
 			// Shrink non-last cascades by a PCF margin so the selection boundary stays
@@ -352,16 +414,12 @@ internal partial class ShadowMapper
 			// Width/Far captures world-space texel size normalized by the cascade's depth range,
 			// so the bias in world units stays proportional to texel size across all cascades.
 			float biasScale = (cascade.Width * cascades[0].Far) / (cascades[0].Width * cascade.Far);
-			gpuShadowData.ShadowBias[i] = light.ShadowBias * biasScale;
-
-			// Guarantee that cascades are softer for at least a full texel
-			if ( i > 0 )
-				gpuShadowData.CascadeHardness[i] = Math.Min( gpuShadowData.CascadeHardness[i], maxHardnessForFullTexel );
+			gpuShadowData.ShadowBias[i] = light.Bias * biasScale;
 
 			// Store cascade debug info for HUD rendering
 			CascadeDebugInfos[i] = new CascadeDebugInfo
 			{
-				DepthTexture = rt.DepthTarget,
+				DepthTexture = rt,
 				Near = cascade.Near,
 				Far = cascade.Far,
 				Width = cascade.Width,
@@ -370,21 +428,24 @@ internal partial class ShadowMapper
 		}
 
 		CascadeDebugCount = cascadeCount;
-
-		frustum.Delete();
-		exclusionFrustum.Delete();
+		CascadeShadowMapCount = cascadeCount;
 
 		gpuShadowData.CascadeCount = (uint)numCascades;
 		gpuShadowData.InverseShadowMapSize = 1.0f / shadowmapSize;
 
-		// Ensure we have our screenspace texture index before we actually render them if we use it, so it's already ready when we composite.
-		gpuShadowData.ShadowMaskTextureIndex = 0;
-		if ( ContactShadowsEnabled && light.ContactShadows )
+		float outerRadius = cascadeCount > 0 ? cascades[cascadeCount - 1].SphereRadius : 0f;
+		LastCascades = new CascadeCache
 		{
-			var mask = light.GetShadowMask( view );
-			if ( mask is not null )
-				gpuShadowData.ShadowMaskTextureIndex = (uint)mask.Index;
-		}
+			Frame = Application.FrameCount,
+			Light = light.Key,
+			CameraPosition = cameraPosition,
+			RadiusSquared = outerRadius * outerRadius,
+			ViewportArea = viewportArea,
+			Data = gpuShadowData,
+		};
+
+		// Ensure we have our screenspace texture index before we actually render them if we use it, so it's already ready when we composite.
+		gpuShadowData.ShadowMaskTextureIndex = Renderer.GetShadowMaskIndex( light.Key );
 
 		GPUDirectionalLightData = gpuShadowData;
 	}

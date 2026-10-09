@@ -82,6 +82,7 @@ public partial class Scene : GameObject
 			}
 
 			ProcessDeletes();
+			NavMesh.Reset();
 		}
 
 		if ( !IsEditor && options.ShowLoadingScreen )
@@ -111,9 +112,6 @@ public partial class Scene : GameObject
 			// Depending on if we load a scene from file or from memory, we need to account for that here
 			using var blobs = BlobDataSerializer.Load( sceneFile.BinaryData, sceneFile.ResourcePath );
 			using var batchGroup = CallbackBatch.Batch();
-
-			// Clear cached binary data now that we've loaded it
-			sceneFile.BinaryData = null;
 
 			if ( sceneFile.GameObjects is not null )
 			{

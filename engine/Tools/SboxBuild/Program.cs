@@ -16,12 +16,14 @@ internal class Program
 
 		// Compound commands (handle multiple related steps with flags)
 		AddBuildCommand( rootCommand );
+		AddBootstrapCommand( rootCommand );
 		AddFormatCommand( rootCommand );
 
 		// Individual step commands
 		AddBuildContentCommand( rootCommand );
 		AddTestCommand( rootCommand );
 		AddBuildShadersCommand( rootCommand );
+		AddShaderStatsCommand( rootCommand );
 		AddGenerateSolutionsCommand( rootCommand );
 		AddSyncPublicRepoCommand( rootCommand );
 		AddWriteVersionCommand( rootCommand );
@@ -35,14 +37,19 @@ internal class Program
 		AddUploadSteamCommand( rootCommand );
 		AddDiscordPostCommand( rootCommand );
 		AddDownloadPublicArtifactsCommand( rootCommand );
+		AddInstallGitHooksCommand( rootCommand );
 		AddDownloadThirdPartyCommand( rootCommand );
 		AddUploadBuildArtifactsCommand( rootCommand );
 		AddCheckNativeTouchedCommand( rootCommand );
+		AddShaderSpecializationExperimentCommand( rootCommand );
+		var complexSpecialization = new Command( "test-complex-specialization", "Compare full complex.shader macro/specialized compiles and rendered bent-normal output (requires built engine/tests)" );
+		complexSpecialization.SetHandler( () => Environment.ExitCode = (int)new TestComplexSpecialization().Run() );
+		rootCommand.Add( complexSpecialization );
 		AddNotifySlackCommand( rootCommand );
 		AddReportBuildCommand( rootCommand );
 
-		rootCommand.Invoke( args );
-		return Environment.ExitCode;
+		var result = rootCommand.Invoke( args );
+		return result != 0 ? result : Environment.ExitCode;
 	}
 
 	// ── Compound commands ─────────────────────────────────────────────────────
@@ -70,6 +77,18 @@ internal class Program
 		rootCommand.Add( cmd );
 	}
 
+	private static void AddBootstrapCommand( RootCommand rootCommand )
+	{
+		var cmd = new Command( "bootstrap", "Set up a full or public source distribution for development" );
+		var verboseOption = new Option<bool>( "--verbose", description: "Show full build output instead of only progress and final diagnostics" );
+		cmd.AddOption( verboseOption );
+		cmd.SetHandler( ( bool verbose ) =>
+		{
+			Environment.ExitCode = (int)Bootstrap.Run( verbose );
+		}, verboseOption );
+		rootCommand.Add( cmd );
+	}
+
 	private static void AddFormatCommand( RootCommand rootCommand )
 	{
 		var cmd = new Command( "format", "Format all code" );
@@ -85,6 +104,13 @@ internal class Program
 	}
 
 	// ── Individual step commands ──────────────────────────────────────────────
+
+	private static void AddShaderSpecializationExperimentCommand( RootCommand rootCommand )
+	{
+		var cmd = new Command( "test-shader-specialization", "Build and run the isolated Slang/Vulkan specialization experiment (Windows)" );
+		cmd.SetHandler( () => Environment.ExitCode = (int)new TestShaderSpecialization().Run() );
+		rootCommand.Add( cmd );
+	}
 
 	private static void AddBuildContentCommand( RootCommand rootCommand )
 	{
@@ -122,6 +148,26 @@ internal class Program
 		{
 			Environment.ExitCode = (int)new BuildShaders( forced ).Run();
 		}, forcedOption );
+		rootCommand.Add( cmd );
+	}
+
+	private static void AddShaderStatsCommand( RootCommand rootCommand )
+	{
+		var cmd = new Command( "shader-stats", "Compile every shader combo with AMD's Radeon GPU Analyzer and write register use and occupancy to docs/shaders/shader-stats.md" );
+		var asicOption = new Option<string[]>( "--asic",
+			description: "Target to analyze, repeatable. The first one gets the detailed tables",
+			getDefaultValue: () => ShaderStats.DefaultAsics )
+		{ AllowMultipleArgumentsPerToken = true };
+		var shaderOption = new Option<string[]>( "--shader",
+			description: "Only recompile these .shader files, keeping the stats already gathered for the rest",
+			getDefaultValue: () => [] )
+		{ AllowMultipleArgumentsPerToken = true };
+		cmd.AddOption( asicOption );
+		cmd.AddOption( shaderOption );
+		cmd.SetHandler( ( string[] asics, string[] shaders ) =>
+		{
+			Environment.ExitCode = (int)new ShaderStats( asics, shaders ).Run();
+		}, asicOption, shaderOption );
 		rootCommand.Add( cmd );
 	}
 
@@ -260,6 +306,13 @@ internal class Program
 		{
 			Environment.ExitCode = (int)new DownloadPublicArtifacts( nativeOnly ).Run();
 		}, nativeOnlyOption );
+		rootCommand.Add( cmd );
+	}
+
+	private static void AddInstallGitHooksCommand( RootCommand rootCommand )
+	{
+		var cmd = new Command( "install-git-hooks", "Install git hooks that restore public artifacts and bindings after pull, rebase and checkout. Public source distribution only; fails in a full source checkout" );
+		cmd.SetHandler( () => { Environment.ExitCode = (int)new InstallGitHooks().Run(); } );
 		rootCommand.Add( cmd );
 	}
 

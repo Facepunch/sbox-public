@@ -128,15 +128,20 @@ public partial class TextEntry
 		BreakEditRun();
 	}
 
+	void ApplyState( TextState state )
+	{
+		Label.Text = state.Text;
+		Label.SetSelection( state.SelectionStart, state.SelectionEnd );
+		CaretPosition = state.Caret;
+	}
+
 	void Restore( TextState state )
 	{
 		_restoringState = true;
 
 		try
 		{
-			Label.Text = state.Text;
-			Label.SetSelection( state.SelectionStart, state.SelectionEnd );
-			CaretPosition = state.Caret;
+			ApplyState( state );
 		}
 		finally
 		{

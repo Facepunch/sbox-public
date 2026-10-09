@@ -173,4 +173,35 @@ public class EditorShortcutsTest
 		Assert.AreEqual( "CTRL+K", EditorShortcuts.GetKeys( "shortcut-test.find" ) );
 		Assert.IsFalse( EditorPreferences.ShortcutOverrides.ContainsKey( "shortcut-test.find" ) );
 	}
+
+	[TestMethod]
+
+	// Single key
+	[DataRow( "F1", true )]
+	[DataRow( "F8", true )]
+	[DataRow( "F12", true )]
+	[DataRow( "F24", true )]
+
+	// Modifiers
+	[DataRow( "ALT+F1", true )]
+	[DataRow( "ALT+SHIFT+F1", true )]
+
+	// Case-insensitive
+	[DataRow( "alt+f1", true )]
+
+	// Not a function key
+	[DataRow( "F", false )]
+	[DataRow( "ALT", false )]
+	[DataRow( "0", false )]
+	[DataRow( "1", false )]
+	[DataRow( "8", false )]
+
+	// Not just a function key
+	[DataRow( "F1+F", false )]
+	[DataRow( "ALT+F1+F", false )]
+
+	public void IsFunctionKeyShortcut( string keys, bool expected )
+	{
+		Assert.AreEqual( expected, EditorShortcuts.IsFunctionKeyShortcut( keys ) );
+	}
 }

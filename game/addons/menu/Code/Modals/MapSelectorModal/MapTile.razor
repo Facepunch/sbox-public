@@ -5,27 +5,20 @@
 
 @namespace MenuProject.Modals.MapSelect
 
+@* One of a mounted game's maps to pick - dressed like the menu's package tiles (the Workshop's maps are
+   those, real ones): the picture is the tile, its name over the foot on a scrim *@
 <root>
-	@if ( Thumbnail.IsValid() )
-	{
-		<div class="image" @ref=ThumbnailPanel>
+	<div class="image" @ref=ThumbnailPanel>
 
-		@if (Package is not null)
+		@if ( !Thumbnail.IsValid() )
 		{
-			<div class="overlay">
-				<row>
-					<icon>thumb_up</icon>
-					<label>@VotePercentage()</label>
-				</row>
-			</div>
+			<i class="none">no_photography</i>
 		}
+
+		<div class="foot">
+			<label class="title">@Title</label>
 		</div>
-	}
-	else
-	{
-		<div class="image"><i>no_photography</i></div>
-	}
-	<label class="medium title">@Title</label>
+	</div>
 </root>
 
 @code
@@ -37,29 +30,15 @@
 	public Texture Thumbnail { get; set; }
 
 	[Parameter]
-	public Package Package { get; set; }
-
-	[Parameter]
 	public Action OnSelect { get; set; }
 
 	Panel ThumbnailPanel = null;
-
-	protected override void OnParametersSet()
-	{
-		base.OnParametersSet();
-
-		if ( Package is not null )
-		{
-			Title = Package.Title;
-			Thumbnail = Texture.Load( Package.ThumbWide );
-		}
-	}
 
 	protected override void OnAfterTreeRender(bool firstTime)
 	{
 		base.OnAfterTreeRender(firstTime);
 
-		if ( ThumbnailPanel != null )
+		if ( ThumbnailPanel != null && Thumbnail.IsValid() )
 		{
 			ThumbnailPanel.Style.BackgroundImage = Thumbnail;
 		}
@@ -69,13 +48,5 @@
 	{
 		base.OnClick(e);
 		OnSelect?.Invoke();
-	}
-
-
-	string VotePercentage()
-	{
-		if (Package == null) return "Unrated";
-		if (Package.VotesUp == 0 && Package.VotesDown == 0) return "Unrated";
-		return $"{(int)(Package.VotesUp * 100f / (Package.VotesUp + Package.VotesDown))}%";
 	}
 }

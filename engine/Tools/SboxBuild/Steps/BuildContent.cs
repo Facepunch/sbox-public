@@ -1,10 +1,11 @@
-﻿using static Facepunch.Constants;
+﻿using System.Text.RegularExpressions;
+using static Facepunch.Constants;
 
 namespace Facepunch.Steps;
 
 internal class BuildContent
 {
-	internal ExitCode Run()
+	internal ExitCode Run() => BuildDisplay.Run( "Build content", () =>
 	{
 		try
 		{
@@ -21,7 +22,29 @@ internal class BuildContent
 				return ExitCode.Failure;
 			}
 
-			bool success = Utility.RunProcess( contentBuilderPath, "-b", gameDir );
+			if ( !OperatingSystem.IsWindows() )
+			{
+				// Restore execute permission for downloaded binaries, including cached artifacts.
+				var mode = File.GetUnixFileMode( contentBuilderPath );
+				if ( (mode & UnixFileMode.UserExecute) == 0 )
+					File.SetUnixFileMode( contentBuilderPath, mode | UnixFileMode.UserExecute );
+			}
+
+			BuildDisplay.Status( "Compile game content" );
+			bool success = Utility.RunProcess( contentBuilderPath, "-b", gameDir,
+				onDataReceived: ( _, e ) =>
+				{
+					if ( e.Data is null ) return;
+					if ( !BuildDisplay.IsActive ) Log.Info( e.Data );
+
+					var match = Regex.Match( e.Data, @"(Compiling assets|Merging compile results):\s*(\d+)/(\d+)" );
+					if ( match.Success && int.TryParse( match.Groups[2].Value, out var completed )
+						&& int.TryParse( match.Groups[3].Value, out var total ) )
+					{
+						BuildDisplay.Status( match.Groups[1].Value );
+						BuildDisplay.Progress( completed, total );
+					}
+				} );
 
 			if ( !success )
 				return ExitCode.Failure;
@@ -34,5 +57,5 @@ internal class BuildContent
 			Log.Error( $"Content building failed with error: {ex}" );
 			return ExitCode.Failure;
 		}
-	}
+	} );
 }

@@ -141,6 +141,11 @@ public sealed class MapWorld : MapNode
 		}
 	}
 
+	/// <summary>
+	/// Find a node in this world by its <see cref="MapNode.NodeId"/>. Null if there isn't one.
+	/// </summary>
+	public MapNode FindNode( int nodeId ) => worldNative.FindNodeByID( nodeId );
+
 	internal void GetWorldResourceReferencesAndDependencies( CUtlSymbolTable references )
 	{
 		var referencedResources = Scene.GetAllObjects( false )

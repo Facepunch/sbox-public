@@ -1,4 +1,4 @@
-using NativeEngine;
+﻿using NativeEngine;
 using Sandbox.Engine;
 using System.Runtime.InteropServices;
 
@@ -57,15 +57,62 @@ internal class PanelInput
 		}
 	}
 
-	internal virtual void Tick( IEnumerable<RootPanel> panels, bool mouseIsActive )
+	/// <summary>
+	/// Release pointer capture without clicking or dropping. Keyboard focus and selection stay put.
+	/// </summary>
+	internal void CancelPointerInteraction()
+	{
+		var dropTarget = DropTarget;
+		var dragSource = MouseStates[0].DragTarget;
+		var cancelled = MouseStates
+			.Where( x => x.Dragged && x.DragTarget is not null )
+			.DistinctBy( x => x.DragTarget )
+			.Select( x => new DragEvent( "ondragcancel", x.DragTarget, x.StartHoldOffsetLocal, x.StartHoldOffsetScreen ) )
+			.ToList();
+
+		mousebuttons.Clear();
+		Panel.Switch( PseudoClass.Active, false, Active );
+		Active = null;
+		DropTarget = null;
+
+		foreach ( var state in MouseStates )
+		{
+			state.Reset();
+		}
+
+		// Clear capture before notifying user code, which can delete panels or reenter input.
+		if ( dropTarget is { IsValid: true, IsDeleting: false } )
+			dropTarget.CreateEvent( new PanelEvent( "ondragleave", dragSource ) );
+
+		foreach ( var e in cancelled )
+		{
+			if ( e.Target is { IsValid: true, IsDeleting: false } )
+				e.Target.CreateEvent( e );
+		}
+	}
+
+	/// <summary>
+	/// Call off a drag in progress, like pressing Escape does - nothing is dropped, and the source
+	/// gets <c>ondragcancel</c>. Returns false if nothing was being dragged.
+	/// </summary>
+	internal bool CancelDrag()
+	{
+		if ( !MouseStates.Any( x => x.Dragged && x.DragTarget is not null ) )
+			return false;
+
+		CancelPointerInteraction();
+		return true;
+	}
+
+	internal virtual void Tick( IReadOnlyList<RootPanel> panels, bool mouseIsActive )
 	{
 		bool hoveredAny = false;
 
 		// When we're ticking inputs, let's emulate the mouse if we're using a gamepad
 		if ( Input.EnableVirtualCursor && Input.CurrentController is { } controller )
 		{
-			var moveX = controller.GetAxis( NativeEngine.GameControllerAxis.LeftX );
-			var moveY = controller.GetAxis( NativeEngine.GameControllerAxis.LeftY );
+			var moveX = controller.GetAxis( Sandbox.GameControllerAxis.LeftX );
+			var moveY = controller.GetAxis( Sandbox.GameControllerAxis.LeftY );
 
 			if ( MathF.Abs( moveX ) > 0 || MathF.Abs( moveY ) > 0 )
 			{
@@ -79,9 +126,9 @@ internal class PanelInput
 
 		if ( mouseIsActive )
 		{
-			foreach ( var panel in panels )
+			for ( int i = 0; i < panels.Count; i++ )
 			{
-				if ( UpdateMouse( panel, inputData ) )
+				if ( UpdateMouse( panels[i], inputData ) )
 				{
 					hoveredAny = true;
 					break;
@@ -103,10 +150,17 @@ internal class PanelInput
 	Vector2 mouseWheelValue { get; set; }
 
 	/// <summary>
+	/// Modifier keys held when the pending wheel movement was received.
+	/// </summary>
+	internal KeyboardModifiers WheelModifiers { get; private set; }
+
+
+	/// <summary>
 	/// Called from input when mouse wheel changes
 	/// </summary>
 	public void AddMouseWheel( Vector2 value, KeyboardModifiers modifiers )
 	{
+		WheelModifiers = modifiers;
 		//
 		// Windows apps will typically translate vertical mouse wheel movement into
 		// horizontal mouse wheel movement if the shift key is held down during a mouse
@@ -128,8 +182,15 @@ internal class PanelInput
 	/// </summary>
 	internal KeyboardModifiers MouseModifiers { get; private set; }
 
-	internal void AddMouseButton( ButtonCode code, bool down, KeyboardModifiers modifiers )
+	internal void SetClickCount( ButtonCode button, int count )
 	{
+		var index = button - ButtonCode.MouseLeft;
+		if ( index >= 0 && index < MouseStates.Length ) MouseStates[index].ClickCount = Math.Max( 1, count );
+	}
+
+	internal void AddMouseButton( ButtonCode code, bool down, KeyboardModifiers modifiers, int clickCount = 1 )
+	{
+		if ( down ) SetClickCount( code, clickCount );
 		MouseModifiers = modifiers;
 
 		if ( down ) mousebuttons.Add( code );
@@ -328,8 +389,14 @@ internal class PanelInput
 			return found;
 		}
 
+		if ( panel.FindScrollbarAt( pos, visibleOnly: true, needPointerEvents: true ) is { } scrollbarHit )
+		{
+			current = scrollbarHit;
+			return true;
+		}
+
 		//
-		// No children
+		// No content children
 		//
 		if ( panel._renderChildren is null || panel._renderChildren.Count == 0 )
 		{
@@ -360,6 +427,7 @@ internal class PanelInput
 		public PanelInput Input { get; init; }
 		public ButtonCode MouseButton { get; init; }
 
+		internal int ClickCount = 1;
 		public bool Pressed;
 		public Panel Active;
 		public bool Dragged;
@@ -383,6 +451,20 @@ internal class PanelInput
 			MouseButton = i;
 		}
 
+		internal void Reset()
+		{
+			Panel.Switch( PseudoClass.Active, false, Active );
+			Pressed = false;
+			ClickCount = 1;
+			Active = null;
+			Dragged = false;
+			DragTarget = null;
+			StartHoldOffsetLocal = default;
+			StartHoldOffsetScreen = default;
+			MouseDownEvent = null;
+			RestoreActive();
+		}
+
 		public void Update( bool down, Panel hovered )
 		{
 			var mouseMoved = !Input.CursorDelta.IsNearZeroLength;
@@ -399,13 +481,24 @@ internal class PanelInput
 					Dragged = true;
 					DragTarget?.CreateEvent( new DragEvent( "ondragstart", DragTarget, StartHoldOffsetLocal, StartHoldOffsetScreen ) );
 
+					// The drag-start handler is user code and may rebuild or delete the
+					// panel that received the mouse-down event. Do not dispatch another
+					// mouse event to an invalid panel after that callback returns.
+					if ( !Active.IsValid() )
+					{
+						Active = null;
+						DragTarget = null;
+						return;
+					}
+
 					// We started dragging - stop active panel being active, no click events
 					{
 						Panel.Switch( PseudoClass.Active, false, Active );
 						Panel.Switch( PseudoClass.Hover, false, Active );
-						Active.CreateEvent( new MousePanelEvent( "onmouseup", Active, GetMouseButtonName( MouseButton ) ) );
+						Active.CreateEvent( new MousePanelEvent( "onmouseup", Active, GetMouseButtonName( MouseButton ) ) { KeyboardModifiers = Input.MouseModifiers } );
 						Active.OnButtonEvent( new ButtonEvent( MouseButton, false ) );
 						Active = null;
+						RestoreActive();
 					}
 				}
 
@@ -455,7 +548,12 @@ internal class PanelInput
 			IGameInstanceDll.Current?.ClosePopups( hovered );
 
 			if ( Active == null )
+			{
+				// A press over nothing can't drag - clear the last press's target or the drag watch dereferences a null Active
+				Dragged = false;
+				DragTarget = null;
 				return;
+			}
 
 			Panel.Switch( PseudoClass.Active, true, Active );
 
@@ -471,12 +569,23 @@ internal class PanelInput
 				}
 			}
 
-			Active.Focus();
+			Active.UISystem.SetFocusFromClick( Active );
 
-			MouseDownEvent = new MousePanelEvent( "onmousedown", Active, GetMouseButtonName( MouseButton ) ) { KeyboardModifiers = Input.MouseModifiers };
+			MouseDownEvent = new MousePanelEvent( "onmousedown", Active, GetMouseButtonName( MouseButton ) ) { KeyboardModifiers = Input.MouseModifiers, ClickCount = ClickCount };
+			ClickCount = 1;
 			Active.CreateEvent( MouseDownEvent );
 
 			Active.OnButtonEvent( new ButtonEvent( MouseButton, true ) );
+		}
+
+		void RestoreActive()
+		{
+			// Other buttons can still hold this panel or one of its descendants.
+			foreach ( var state in Input.MouseStates )
+			{
+				if ( state.Active is not null )
+					Panel.Switch( PseudoClass.Active, true, state.Active );
+			}
 		}
 
 		void OnReleased( Panel hovered )
@@ -511,7 +620,7 @@ internal class PanelInput
 
 			if ( canClick )
 			{
-				Active.CreateEvent( new MousePanelEvent( "onmouseup", Active, GetMouseButtonName( MouseButton ) ) );
+				Active.CreateEvent( new MousePanelEvent( "onmouseup", Active, GetMouseButtonName( MouseButton ) ) { KeyboardModifiers = Input.MouseModifiers } );
 
 				if ( MouseButton == ButtonCode.MouseLeft )
 				{
@@ -528,7 +637,7 @@ internal class PanelInput
 			}
 			else
 			{
-				Active.CreateEvent( new MousePanelEvent( "onmouseup", Active, GetMouseButtonName( MouseButton ) ) );
+				Active.CreateEvent( new MousePanelEvent( "onmouseup", Active, GetMouseButtonName( MouseButton ) ) { KeyboardModifiers = Input.MouseModifiers } );
 				Panel.Switch( PseudoClass.Hover, false, Active, hovered );
 			}
 
@@ -536,6 +645,8 @@ internal class PanelInput
 
 			Active.OnButtonEvent( new ButtonEvent( MouseButton, false ) );
 			Active = null;
+
+			RestoreActive();
 		}
 	}
 

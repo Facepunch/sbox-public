@@ -19,6 +19,13 @@ public static partial class Program
 		options.SingleThreaded = args.Any( x => x == "-s" );
 		options.ConsoleOutput = !args.Any( x => x == "-q" );
 
+		// Analysis mode: write every combo's SPIR-V under this folder and leave the .shader_c files alone
+		var dumpIndex = Array.IndexOf( args, "--dump-spirv" );
+		if ( dumpIndex >= 0 && dumpIndex + 1 < args.Length )
+		{
+			options.SpirvDumpPath = System.IO.Path.GetFullPath( args[dumpIndex + 1] );
+		}
+
 		// Recompile mode: bring already-compiled .shader_c files up to the current VCS version using the HLSL
 		// source embedded in them - no .shader source file needed. This is what the backend shader-recompile
 		// worker calls; published packages ship only .shader_c, so the normal "*.shader" build path can't help.
@@ -35,6 +42,7 @@ public static partial class Program
 		for ( int i = 0; i < args.Length; i++ )
 		{
 			var arg = args[i];
+			if ( arg == "--dump-spirv" ) { i++; continue; }
 			if ( arg.StartsWith( "-" ) ) continue;
 
 			files.Add( arg );
@@ -56,12 +64,13 @@ public static partial class Program
 			{
 				if ( !files.Contains( s, StringComparer.OrdinalIgnoreCase ) && !files.Contains( "*" ) ) continue;
 
-				// skip all the BS in junk folders
-				if ( s.Contains( "\\download\\" ) ) continue;
-				if ( s.Contains( "\\templates\\" ) ) continue;
-				if ( s.Contains( "\\." ) ) continue;
-
+				// skip all the BS in junk folders - under wd only, the checkout itself can be in one (.claude\worktrees)
 				var relative = System.IO.Path.GetRelativePath( wd, s );
+				var underWd = "\\" + relative;
+				if ( underWd.Contains( "\\download\\" ) ) continue;
+				if ( underWd.Contains( "\\templates\\" ) ) continue;
+				if ( underWd.Contains( "\\." ) ) continue;
+
 				var p = new ProcessList( relative, s );
 				compileList.Add( p );
 			}

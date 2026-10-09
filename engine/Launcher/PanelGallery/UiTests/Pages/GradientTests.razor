@@ -1,121 +1,123 @@
+@using Sandbox.PanelGallery;
 @namespace PanelGallery.UiTests
 @inherits UiTestPage
 
 @using Sandbox;
 @using Sandbox.UI;
 
-@attribute [Title( "Gradients" )]
-@attribute [Description( "background-image gradients - direction, stops, shape, tiling" )]
+@attribute [Group( "Backgrounds" )]
+@attribute [Title( "background-image" )]
+@attribute [Description( "Images, videos and gradients" )]
 @attribute [Icon( "gradient" )]
-@attribute [Order( 10 )]
 
 <root>
+
+    <h2>Video</h2>
+    <p>A video URL plays directly as the background image, with the same sizing and clipping as a still image.</p>
+    <div class="cases">
+        <UiTestCase Caption="Video: cover" Setup="width: 200px; height: 200px; background-color: #23262e" Css="background-image: url( https://cdn.sbox.game/org/facepunch/sandbox/video/42714/medium.webm ); background-size: cover; background-position: center; background-repeat: no-repeat" Note="Live video fills the frame, cropping to keep its aspect ratio." />
+        <UiTestCase Caption="Video: contain" Setup="width: 200px; height: 200px; background-color: #23262e" Css="background-image: url( https://cdn.sbox.game/org/facepunch/sandbox/video/42714/medium.webm ); background-size: contain; background-position: center; background-repeat: no-repeat" Note="The whole video stays visible inside the frame." />
+        <UiTestCase Caption="Video: rounded" Setup="width: 200px; height: 200px; background-color: #23262e" Css="background-image: url( https://cdn.sbox.game/org/facepunch/sandbox/video/42714/medium.webm ); background-size: cover; background-position: center; border-radius: 50%" Note="The playing video is clipped to a circle." />
+    </div>
+    <h2>With the rest of the box</h2>
+
+    <div class="cases">
+        <UiTestCase Caption="no-repeat" Setup="@Square" class="checkered" Css="background-image: url( /ui/sbox_ident_default.svg ); background-size: contain; background-repeat: no-repeat"
+                    Note="The svg's own transparency, over a chequerboard." />
+        <UiTestCase Caption="center" Setup="@Square" Css="@($"background-color: {GalleryPalette.CyanHex}; background-image: url( /ui/sbox_ident_default.svg ); background-size: 50px 50px; background-repeat: no-repeat; background-position: center")"
+                    Note="Image over colour - the colour shows wherever the image doesn't." />
+        <UiTestCase Caption="24px" Setup="@Square" Css="background-image: url( https://cdn.sbox.game/upload/b/9c9201ad/eff8/4b0c/81af/58c8a68667b9.png ); background-size: cover; border-radius: 24px"
+                    Note="The image is clipped by the radius, not just the fill." />
+        <UiTestCase Caption="6px solid Cyan" Setup="@Square" Css="@($"background-image: url( https://cdn.sbox.game/upload/b/9c9201ad/eff8/4b0c/81af/58c8a68667b9.png ); background-size: cover; border-radius: 24px; border: 6px solid {GalleryPalette.CyanHex}")"
+                    Note="A background runs under the border, not inside it." />
+        <UiTestCase Caption="0.4" Setup="@Square" class="checkered" Css="background-image: url( https://cdn.sbox.game/upload/b/9c9201ad/eff8/4b0c/81af/58c8a68667b9.png ); background-size: cover; opacity: 0.4" />
+        <UiTestCase Caption="rotate( 12deg )" Setup="@Square" class="roomy" Css="background-image: url( https://cdn.sbox.game/upload/b/9c9201ad/eff8/4b0c/81af/58c8a68667b9.png ); background-size: cover; transform: rotate( 12deg )" />
+    </div>
 
     <h2>Linear - direction</h2>
 
     <div class="cases">
-        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( red, blue )"
+        <UiTestCase Caption="To bottom" Setup="@Square" Css="@($"background-image: linear-gradient( {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} )")"
                     Note="No direction means to bottom." />
-        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( to right, red, blue )" />
-        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( to top, red, blue )" />
-        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( 45deg, red, blue )"
-                    Note="0deg is up, angles go clockwise, so red is bottom-left." />
-        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( 135deg, red, blue )" />
-        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( -45deg, red, blue )" />
-        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( 0.25turn, red, blue )" />
-        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( to bottom right, red, blue )"
-                    Note="A corner leans with the box - on 200x100 this is 153deg, not 135." />
-        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( to bottom right, red, blue )"
-                    Note="Square, so the same keyword is 135deg here." />
-        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( to top right, red, blue )" />
+        <UiTestCase Caption="To right" Setup="@Square" Css="@($"background-image: linear-gradient( to right, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} )")" />
+        <UiTestCase Caption="To top" Setup="@Square" Css="@($"background-image: linear-gradient( to top, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} )")" />
+        <UiTestCase Caption="45 degrees" Setup="@Square" Css="@($"background-image: linear-gradient( 45deg, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} )")"
+                    Note="0deg is up, angles go clockwise, so pink is bottom-left." />
+        <UiTestCase Caption="-45 degrees" Setup="@Square" Css="@($"background-image: linear-gradient( -45deg, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} )")" />
+        <UiTestCase Caption="Bottom-right corner" Setup="@Square" Css="@($"background-image: linear-gradient( to bottom right, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} )")"
+                    Note="Towards the bottom-right corner." />
+        <UiTestCase Caption="Top-right corner" Setup="@Wide" Css="@($"background-image: linear-gradient( to top right, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} )")" />
     </div>
 
     <h2>Linear - stops</h2>
 
     <div class="cases">
-        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( to right, black, white )"
+        <UiTestCase Caption="Grayscale ramp" Setup="@Wide" Css="background-image: linear-gradient( to right, black, white )"
                     Note="Ramp for banding and gamma. Should be smooth, and mid-grey at halfway." />
-        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( to right, red 0%, red 50%, blue 50%, blue 100% )"
+        <UiTestCase Caption="Hard stop" Setup="@Wide" Css="@($"background-image: linear-gradient( to right, {GalleryPalette.PinkHex} 0%, {GalleryPalette.PinkHex} 50%, {GalleryPalette.CyanHex} 50%, {GalleryPalette.CyanHex} 100% )")"
                     Note="Hard stop - one pixel of transition at most." />
-        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( to right, red, green 20%, blue )"
+        <UiTestCase Caption="Off-centre stop" Setup="@Wide" Css="@($"background-image: linear-gradient( to right, {GalleryPalette.PinkHex}, {GalleryPalette.LimeHex} 20%, {GalleryPalette.CyanHex} )")"
                     Note="An off-centre stop squashes one side and stretches the other." />
-        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( to right, red, yellow, green, blue )"
+        <UiTestCase Caption="Evenly spaced stops" Setup="@Wide" Css="@($"background-image: linear-gradient( to right, {GalleryPalette.PinkHex}, {GalleryPalette.LimeHex}, {GalleryPalette.CyanHex}, {GalleryPalette.CyanHex} )")"
                     Note="Stops with no positions space evenly." />
-        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( to right, red 20%, blue 60% )"
+        <UiTestCase Caption="Flat ends" Setup="@Wide" Css="@($"background-image: linear-gradient( to right, {GalleryPalette.PinkHex} 20%, {GalleryPalette.CyanHex} 60% )")"
                     Note="Stops short of the ends, so both ends are flat." />
-        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( to right, red 40px, blue 120px )"
+        <UiTestCase Caption="Pixel stops" Setup="@Wide" Css="@($"background-image: linear-gradient( to right, {GalleryPalette.PinkHex} 40px, {GalleryPalette.CyanHex} 120px )")"
                     Note="Pixel positions. On a 200px wide box the ramp runs from 40px to 120px." />
-        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( to right, red 40px, blue 120px )"
-                    Note="The same gradient on a 100px box - the stops stay put, they don't scale with it." />
-        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( 45deg, red 40px, blue 120px )"
+        <UiTestCase Caption="Angled pixel stops" Setup="@Wide" Css="@($"background-image: linear-gradient( 45deg, {GalleryPalette.PinkHex} 40px, {GalleryPalette.CyanHex} 120px )")"
                     Note="Pixels are measured along the gradient line, which is longer than the box at an angle." />
-        <UiTestCase Setup="@Wide" class="checkered" Css="background-image: linear-gradient( to right, rgba( 255, 0, 0, 0 ), rgba( 255, 0, 0, 1 ) )"
+        <UiTestCase Caption="Alpha ramp" Setup="@Wide" class="checkered" Css="@($"background-image: linear-gradient( to right, rgba( {GalleryPalette.PinkHex}, 0 ), rgba( {GalleryPalette.PinkHex}, 1 ) )")"
                     Note="Alpha ramp. Premultiplied interpolation - no dark or grey halfway." />
-        <UiTestCase Setup="@Wide" class="checkered" Css="background-image: linear-gradient( to right, transparent, blue )"
+        <UiTestCase Caption="Transparent to cyan" Setup="@Wide" class="checkered" Css="@($"background-image: linear-gradient( to right, transparent, {GalleryPalette.CyanHex} )")"
                     Note="The web treats transparent as transparent black but still doesn't darken." />
-        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( to right, red, orange, yellow, green, blue, indigo, violet, red, orange )"
+        <UiTestCase Caption="Nine stops" Setup="@Wide" Css="@($"background-image: linear-gradient( to right, {GalleryPalette.PinkHex}, {GalleryPalette.LimeHex}, {GalleryPalette.CyanHex}, {GalleryPalette.LimeHex}, {GalleryPalette.CyanHex}, {GalleryPalette.CyanHex}, {GalleryPalette.PinkHex}, {GalleryPalette.PinkHex}, {GalleryPalette.LimeHex} )")"
                     Note="Nine stops. The shader holds eight, so this is where they start going missing." />
     </div>
 
     <h2>Radial</h2>
 
     <div class="cases">
-        <UiTestCase Setup="@Wide" Css="background-image: radial-gradient( red, blue )"
-                    Note="Default is an ellipse to the farthest corner, so it fills a wide box." />
-        <UiTestCase Setup="@Wide" Css="background-image: radial-gradient( circle, red, blue )"
-                    Note="A circle sized to the farthest corner - blue only reaches the corners." />
-        <UiTestCase Setup="@Wide" Css="background-image: radial-gradient( closest-side, red, blue )" />
-        <UiTestCase Setup="@Wide" Css="background-image: radial-gradient( closest-side circle, red, blue )" />
-        <UiTestCase Setup="@Wide" Css="background-image: radial-gradient( farthest-side, red, blue )" />
-        <UiTestCase Setup="@Wide" Css="background-image: radial-gradient( closest-corner circle, red, blue )" />
-        <UiTestCase Setup="@Wide" Css="background-image: radial-gradient( circle at 20% 80%, red, blue )" />
-        <UiTestCase Setup="@Wide" Css="background-image: radial-gradient( circle at 30px 20px, red, blue )"
+        <UiTestCase Caption="Default extent" Setup="@Wide" Css="@($"background-image: radial-gradient( {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} )")"
+                    Note="The default gradient reaches the farthest corner." />
+        <UiTestCase Caption="Circle" Setup="@Wide" Css="@($"background-image: radial-gradient( circle, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} )")"
+                    Note="A circle sized to the farthest corner - cyan only reaches the corners." />
+        <UiTestCase Caption="Closest side" Setup="@Wide" Css="@($"background-image: radial-gradient( closest-side, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} )")" />
+        <UiTestCase Caption="Circle, closest side" Setup="@Wide" Css="@($"background-image: radial-gradient( closest-side circle, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} )")" />
+        <UiTestCase Caption="Farthest side" Setup="@Wide" Css="@($"background-image: radial-gradient( farthest-side, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} )")" />
+        <UiTestCase Caption="Closest corner" Setup="@Wide" Css="@($"background-image: radial-gradient( closest-corner circle, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} )")" />
+        <UiTestCase Caption="Offset centre" Setup="@Wide" Css="@($"background-image: radial-gradient( circle at 20% 80%, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} )")" />
+        <UiTestCase Caption="Pixel centre" Setup="@Wide" Css="@($"background-image: radial-gradient( circle at 30px 20px, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} )")"
                     Note="A pixel centre. Check it stays put when the UI scale changes." />
-        <UiTestCase Setup="@Wide" Css="background-image: radial-gradient( circle at right top, red, blue )" />
-        <UiTestCase Setup="@Wide" Css="background-image: radial-gradient( red 30%, blue 30% )"
+        <UiTestCase Caption="Top-right centre" Setup="@Wide" Css="@($"background-image: radial-gradient( circle at right top, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} )")" />
+        <UiTestCase Caption="Hard-edged disc" Setup="@Wide" Css="@($"background-image: radial-gradient( {GalleryPalette.PinkHex} 30%, {GalleryPalette.CyanHex} 30% )")"
                     Note="Hard-edged disc." />
     </div>
 
     <h2>Conic</h2>
 
     <div class="cases">
-        <UiTestCase Setup="@Square" Css="background-image: conic-gradient( red, blue )"
+        <UiTestCase Caption="Clockwise sweep" Setup="@Square" Css="@($"background-image: conic-gradient( {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} )")"
                     Note="Starts straight up and sweeps clockwise." />
-        <UiTestCase Setup="@Square" Css="background-image: conic-gradient( from 90deg, red, blue )" />
-        <UiTestCase Setup="@Square" Css="background-image: conic-gradient( red, yellow, green, blue, red )"
+        <UiTestCase Caption="90-degree start" Setup="@Square" Css="@($"background-image: conic-gradient( from 90deg, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} )")" />
+        <UiTestCase Caption="Seamless colour wheel" Setup="@Square" Css="@($"background-image: conic-gradient( {GalleryPalette.PinkHex}, {GalleryPalette.LimeHex}, {GalleryPalette.CyanHex}, {GalleryPalette.CyanHex}, {GalleryPalette.PinkHex} )")"
                     Note="Repeating the first colour last hides the seam." />
-        <UiTestCase Setup="@Square" Css="background-image: conic-gradient( at 20% 20%, red, blue )" />
-        <UiTestCase Setup="@Square" Css="background-image: conic-gradient( #333 0%, #333 25%, #666 25%, #666 50%, #333 50%, #333 75%, #666 75% ); border-radius: 50%"
+        <UiTestCase Caption="Offset centre" Setup="@Square" Css="@($"background-image: conic-gradient( at 20% 20%, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} )")" />
+        <UiTestCase Caption="Hard sectors" Setup="@Square" Css="background-image: conic-gradient( #333 0%, #333 25%, #666 25%, #666 50%, #333 50%, #333 75%, #666 75% ); border-radius: 50%"
                     Note="Hard stops make a pie chart. Edges should be clean at any size." />
-    </div>
-
-    <h2>Tiling - background-size, position, repeat</h2>
-
-    <div class="cases">
-        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( to right, red, blue ); background-size: 50px 100%"
-                    Note="A 50px tile repeated across, so the ramp restarts every 50px." />
-        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( to right, red, blue ); background-size: 50px 100%; background-repeat: no-repeat"
-                    Note="One tile, nothing painted past it." />
-        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( to right, red, blue ); background-size: 50px 100%; background-position: center"
-                    Note="Repeat is anchored to the position, so tiles land either side of centre." />
-        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( to right, red, blue ); background-size: 50%; background-repeat: repeat-x"
-                    Note="Percentage size, and repeat on one axis only." />
-        <UiTestCase Setup="@Wide" Css="background-image: linear-gradient( 45deg, #444 25%, #888 25%, #888 50%, #444 50% ); background-size: 24px 24px"
-                    Note="The web's checkerboard trick - the tile must line up with its neighbours." />
     </div>
 
     <h2>With other properties</h2>
 
     <div class="cases">
-        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( to right, red, blue ); border-radius: 20px" />
-        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( to right, red, blue ); border: 6px solid rgba( 255, 255, 255, 0.6 ); border-radius: 20px"
+        <UiTestCase Caption="Rounded corners" Setup="@Square" Css="@($"background-image: linear-gradient( to right, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} ); border-radius: 20px")" />
+        <UiTestCase Caption="Translucent border" Setup="@Square" Css="@($"background-image: linear-gradient( to right, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} ); border: 6px solid rgba( 255, 255, 255, 0.6 ); border-radius: 20px")"
                     Note="The gradient runs under the border, not inside it." />
-        <UiTestCase Setup="@Square" class="checkered" Css="background-color: #00ff00; background-image: linear-gradient( to right, rgba( 255, 0, 0, 1 ), rgba( 255, 0, 0, 0 ) )"
-                    Note="Image over colour: green shows through where the image is transparent." />
-        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( to right, red, blue ); opacity: 0.4" class="checkered" />
-        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( to right, red, blue ); transform: rotate( 15deg )" class="roomy"
+        <UiTestCase Caption="Gradient over a colour" Setup="@Square" class="checkered" Css="@($"background-color: {GalleryPalette.LimeHex}; background-image: linear-gradient( to right, rgba( {GalleryPalette.PinkHex}, 1 ), rgba( {GalleryPalette.PinkHex}, 0 ) )")"
+                    Note="Image over colour: lime shows through where the image is transparent." />
+        <UiTestCase Caption="Partial opacity" Setup="@Square" Css="@($"background-image: linear-gradient( to right, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} ); opacity: 0.4")" class="checkered" />
+        <UiTestCase Caption="Rotated gradient" Setup="@Square" Css="@($"background-image: linear-gradient( to right, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} ); transform: rotate( 15deg )")" class="roomy"
                     Note="The gradient rotates with the box - it isn't screen aligned." />
-        <UiTestCase Setup="@Square" Css="background-image: linear-gradient( to right, red, blue ); transform: scale( 1.6 )" class="roomy"
+        <UiTestCase Caption="Scaled gradient" Setup="@Square" Css="@($"background-image: linear-gradient( to right, {GalleryPalette.PinkHex}, {GalleryPalette.CyanHex} ); transform: scale( 1.6 )")" class="roomy"
                     Note="Scaling must not band or step the ramp - it's evaluated per pixel." />
     </div>
 
@@ -123,6 +125,6 @@
 
 @code
 {
-    const string Square = "width: 100px; height: 100px";
-    const string Wide = "width: 200px; height: 100px";
+    const string Square = "width: 200px; height: 200px";
+    const string Wide = "width: 200px; height: 200px";
 }

@@ -1,0 +1,11 @@
+
+include "sbox/glue_aggregate.h"
+
+native struct SboxAggregateFragment_t is Sandbox.AggregateFragment
+
+native static class AggregateGlue as NativeEngine.AggregateGlue
+{
+	CSceneObject CreateAggregateSceneObject( ISceneWorld pWorld, IModel hModel, CastTo[SboxAggregateFragment_t*] void* pFragments, int nFragmentCount, bool bCastShadows );
+
+	int GetMaxFragmentCount();
+}

@@ -6,14 +6,83 @@
 @using System;
 @using Sandbox.Network
 @using Sandbox.Modals
+@using Sandbox.Services
 @using Sandbox.DataModel
 @using Sandbox.UI.Navigation
+@using MenuProject.Modals.PackageModalComponents
 
 <root>
 
-    <div class="left">
+    @* Setting up a new game - what it'll be at a glance, and the button that starts it *@
+    @if ( Modal?.Setup is { } setup )
+    {
+        <div class="left setup-summary">
+            @if ( setup.NeedsMap )
+            {
+                @* Its picture behind the glyph, fading out a way in - and another picked from it, like the map row's *@
+                <div class="chip map" onclick=@( () => PickMap( setup ) )>
+                    <div class="art" @ref="MapArt"></div>
+                    <i>map</i>
+                    <label>@setup.MapTitle</label>
+                </div>
+            }
 
-	    @if ( IsDedicatedServerOnly )
+            @if ( setup.IsMultiplayer )
+            {
+                <div class="chip">
+                    <i>@setup.PrivacyIcon</i>
+                    <label>@setup.PrivacyTitle</label>
+                </div>
+
+                @if ( setup.HasPlayerRange )
+                {
+                    <div class="chip">
+                        <i>group</i>
+                        <label>@setup.MaxPlayers players</label>
+                    </div>
+                }
+            }
+        </div>
+
+        <div class="right">
+            @if ( Modal.PartySetup )
+            {
+                <Button Text="Cancel" onclick=@Modal.CancelSetup />
+                @if ( !Modal.SetupReadOnly )
+                {
+                    <Button Icon="@(Modal.EditingPartyDraft ? "arrow_forward" : "save")" class="play" Text=@Modal.SaveSetupText Disabled=@(!Modal.CanApplySetup) onclick=@Modal.SavePartySetup />
+                }
+            }
+            else if ( Modal.CanCreateParty )
+            {
+                <Button Icon="group_add" Text="Create party…" Disabled=@(!Modal.CanApplySetup) onclick=@Modal.CreatePartyFromSetup />
+            }
+            @if ( !Modal.PartySetup )
+            {
+                <Button Icon="play_arrow" class="play" Text=@Modal.StartSetupText Disabled=@(!Modal.CanStartSetup) onclick=@Modal.StartSetup />
+            }
+        </div>
+    }
+    else if ( Modal?.IsSettingUp == true )
+    {
+        <div class="left"></div>
+        <div class="right"><Button Text="Cancel" onclick=@Modal.CancelSetup /></div>
+    }
+    else
+    {
+
+    <div class="left">
+        <PackageReactions Package=@Package OnHidden=@(() => Modal?.CloseModal( false )) />
+    </div>
+
+    <div class="right">
+
+        @* On the right, by the play buttons - it's another way in *@
+	    @* Not while they're up already *@
+	    @if ( Modal?.IsBrowsingSessions == true )
+	    {
+	    }
+	    else if ( IsDedicatedServerOnly )
 	    {
 		    <Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>@LobbyCount Servers</Button>
 	    }
@@ -21,10 +90,6 @@
         {
 			<Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>@LobbyCount Lobbies</Button>
         }
-
-    </div>
-
-    <div class="right">
 
         @if (Modal.HasFullPackage)
         {
@@ -59,13 +124,18 @@
 	            }
 	            else
 	            {
-		            var text = ((!IsMultiplayerGame || IsQuickPlayGame) ? "Play Game" : "New Game");
-
-                    <Button Icon="play_arrow" class="play" Text=@text Disabled=@(!MenuHelpers.HasAuthority || !IsReady()) onclick=@OnPlay />
-
 		            @if (IsMultiplayerGame && !IsQuickPlayGame)
 		            {
-                        <Button icon="auto_awesome" class="play" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OnJoinGame Text="Join Game"></Button>
+                        @* New and Join as one split pill, like the vote pair - two ways into the same game *@
+                        <div class="play-split">
+                            <Button Icon="play_arrow" class="play" Text="New Game" Disabled=@(!MenuHelpers.HasAuthority || !IsReady()) onclick=@OnPlay />
+                            <div class="split"></div>
+                            <Button icon="auto_awesome" class="join" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OnJoinGame Text="Join Game"></Button>
+                        </div>
+		            }
+		            else
+		            {
+                        <Button Icon="play_arrow" class="play" Text="Play Game" Disabled=@(!MenuHelpers.HasAuthority || !IsReady()) onclick=@OnPlay />
 		            }
 	            }
             }
@@ -75,6 +145,7 @@
             <Button Icon="play_arrow" class="play disabled">Play Game</Button>
         }
     </div>
+    }
 
 </root>
 
@@ -84,7 +155,31 @@
     [Parameter] public Package Package {get;set;}
     [Parameter] public Package MapPackage { get; set; }
 
-    protected override int BuildHash() => System.HashCode.Combine(Package, Modal?.HasFullPackage, IsVrOnly, IsMultiplayerGame, LobbyCount, MenuHelpers.HasAuthority, Streamer.IsActive, Streamer.ViewerCount);
+    Panel MapArt;
+    Texture _mapArt;
+
+    void PickMap( GameSetup setup )
+    {
+        if ( Modal.SetupReadOnly ) return;
+        Game.Overlay.ShowMapSelector( map =>
+        {
+            if ( IsValid && Modal.Setup == setup && !Modal.SetupReadOnly ) setup.Map = map;
+        }, setup.Map );
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        // A texture rather than a url (a mounted scene's has none), so it's set here rather than in a style
+        var art = Modal?.Setup?.MapThumb;
+        if ( art == _mapArt || !MapArt.IsValid() ) return;
+
+        _mapArt = art;
+        MapArt.Style.SetBackgroundImage( art );
+    }
+
+    protected override int BuildHash() => System.HashCode.Combine(Package, Modal?.HasFullPackage, IsVrOnly, IsMultiplayerGame, LobbyCount, MenuHelpers.HasAuthority, System.HashCode.Combine( Streamer.IsActive, Streamer.ViewerCount, Modal?.Setup, System.HashCode.Combine( Modal?.Setup?.MapTitle, Modal?.Setup?.MapThumb, Modal?.Setup?.Privacy, Modal?.Setup?.MaxPlayers ) ), HashCode.Combine( Modal?.SetupReadOnly, Modal?.CanApplySetup, Modal?.StartSetupText, Modal?.IsSettingUp, Modal?.IsBrowsingSessions ));
 
     bool IsVrOnly => Package.Info.IsVrOnly;
     bool IsMultiplayerGame => Package.Tags.Contains("multiplayer") || LobbyCount > 0 || Package.Info.MaxPlayers > 1;
@@ -103,14 +198,25 @@
 
     void OnPlay()
     {
-		MenuHelpers.PlayGame( Package, MapPackage );
+		MenuHelpers.PlayGame( Package, MapPackage, "gamepage" );
     }
 
     async Task<bool> OnJoinGame()
     {
-        LoadingScreen.IsVisible = true;
-        LoadingScreen.Title = "Finding Game..";
-        LoadingScreen.Subtitle = "Please wait while we find a game for you to join.";
+        // Your party isn't what it's made for - say so first, joining only if you want to anyway
+        if ( !MenuHelpers.ConfirmPartyFit( Package, () => _ = JoinGame() ) )
+            return false;
+
+        return await JoinGame();
+    }
+
+    async Task<bool> JoinGame()
+    {
+        // The preview must still be open when the play action is recorded.
+        Discovery.Launching( Package, "gamepage-join" );
+
+        // Out of the way first - joining can hold things up, and the modal would freeze mid-close
+        await MenuHelpers.PrepareForLoad( "Finding Game..", "Please wait while we find a game for you to join." );
 
         bool success = await MenuUtility.TryJoinLobby(Package.FullIdent);
         if (success)
@@ -121,10 +227,8 @@
         return false;
     }
 
-    void OpenLobbyList()
-    {
-        Game.Overlay.ShowServerList(new Sandbox.Modals.ServerListConfig(Package.FullIdent));
-    }
+    // Them in this window, in the page's place - not a list of its own over it
+    void OpenLobbyList() => Modal?.OpenSessions();
 
     bool NeedsMap()
     {

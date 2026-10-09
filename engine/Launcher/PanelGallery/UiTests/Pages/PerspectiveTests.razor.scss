@@ -1,0 +1,15 @@
+@import "/styles/_gallery-palette.scss";
+PerspectiveTests
+{
+    .cube { position: absolute; left: 22px; top: 22px; width: 100px; height: 100px; }
+    .face { position: absolute; left: 0; top: 0; width: 100px; height: 100px; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: white; border: 1px solid rgba(255, 255, 255, 0.5); }
+    .front { background-color: $gallery-cyan; }
+    .back { background-color: $gallery-cyan; }
+    .right { background-color: $gallery-pink; }
+    .left { background-color: $gallery-cyan; }
+    .top { background-color: $gallery-cyan; }
+    .bottom { background-color: $gallery-cyan; }
+    .translucent .face { opacity: 0.45; }
+}
+
+PerspectiveTests .separated .face { left: 10px; top: 10px; width: 80px; height: 80px; }

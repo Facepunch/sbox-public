@@ -5,26 +5,93 @@
 @using Sandbox.UI;
 @inherits Panel
 
-@if ( Group is null )
-    return;
-
-<root>
-    @foreach ( var section in Sections )
+<root class="@( Group is null ? "loading" : "" )">
+    @if ( Group is null )
     {
-        <div class="section">
+        @* Still fetching - shelves in the real ones' shape, enough to fill the page *@
+        @for ( var i = 0; i < SkeletonShelves; i++ )
+        {
+            <div class="section">
+                <div class="head">
+                    <div class="bone shelf-title"></div>
+                </div>
+
+                <div class="tiles">
+                    <div class="row">
+                        @for ( var j = 0; j < SkeletonTiles; j++ )
+                        {
+                            <div class="bone-tile">
+                                <div class="bone art"></div>
+                                <div class="bone line title"></div>
+                                <div class="bone line meta"></div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+    @if ( Group is not null && !StarterDismissed )
+    {
+        <StarterShelf Dismissed=@(() => SetStarterDismissed( true )) />
+    }
+
+    @if ( Group is not null && StarterDismissed && HasJamShelf )
+    {
+        <JamShelf Jam=@ActiveJam />
+    }
+
+    @if ( Group is not null && Sections.Count == 0 && StarterDismissed && !HasJamShelf )
+    {
+        <div class="empty-wrap">
+            <EmptyState Icon="search_off" Title="Nothing to show" Subtitle="No games came back for this feed. Try another tab, or check back in a bit." />
+        </div>
+    }
+
+    @foreach ( var section in Sections.Where( x => !(x.Jam && HasJamShelf) ) )
+    {
+        <div class="section @( section.Jam ? "jam" : "" ) @(section.ContinuePlaying ? "continue-playing" : "")">
 
             <div class="head">
-                <div class="head-text">
-                    <label class="title">@section.Title</label>
-                    @if ( !string.IsNullOrEmpty( section.Description ) )
-                    {
-                        <label class="description">@section.Description</label>
-                    }
-                </div>
+                @* Title and blurb are one link, so hovering either lights the title up. *@
+                @if ( section.Url is not null )
+                {
+                    <a class="head-text link" href="@section.Url">
+                        <div class="title-row">
+                            @if ( section.Jam )
+                            {
+                                <icon class="trophy">emoji_events</icon>
+                            }
+                            <label class="title">@section.Title</label>
+                            <icon class="chevron">chevron_right</icon>
+                        </div>
+                        @if ( !string.IsNullOrEmpty( section.Description ) )
+                        {
+                            <label class="description">@section.Description</label>
+                        }
+                    </a>
+                }
+                else
+                {
+                    <div class="head-text">
+                        <div class="title-row">
+                            @if ( section.Jam )
+                            {
+                                <icon class="trophy">emoji_events</icon>
+                            }
+                            <label class="title">@section.Title</label>
+                        </div>
+                        @if ( !string.IsNullOrEmpty( section.Description ) )
+                        {
+                            <label class="description">@section.Description</label>
+                        }
+                    </div>
+                }
                 <div class="grow" />
                 @if ( section.Url is not null )
                 {
-                    <a class="view-all" href="@section.Url">View All</a>
+                    <a class="see-more" href="@section.Url">See more</a>
                 }
             </div>
 
@@ -34,8 +101,8 @@
                     @* The wrapper owns the width - PackageCard sets its own root class/style, so
                        anything passed straight to it gets clobbered. *@
                     <div class="big" style="width: @( (int)BigWidth )px;">
-                        <MenuProject.UI.PackageCard Package=@section.Big ShowSummary=@true
-                                     Rotation=@section.Rotation
+                        <MenuProject.UI.PackageCard Package=@section.Big DiscoveryContext=@section.Discovery
+                                     Rotation=@section.Rotation VideoWeight=@BigVideoWeight
                                      Clicked="@(() => section.Big.OpenModal())"
                                      RightClicked="@(() => MenuHelpers.OpenPackageMenu( this, section.Big ))" />
                     </div>
@@ -44,7 +111,7 @@
                         <div class="row">
                             @foreach ( var package in section.RowOne )
                             {
-                                <MenuProject.UI.PackageCard Package=@package style="@section.RowOneStyle"
+                                <MenuProject.UI.PackageCard Package=@package style="@section.RowOneStyle" DiscoveryContext=@section.Discovery
                                              Rotation=@section.Rotation
                                              Clicked="@(() => package.OpenModal())"
                                              RightClicked="@(() => MenuHelpers.OpenPackageMenu( this, package ))" />
@@ -55,7 +122,7 @@
                             <div class="row">
                                 @foreach ( var package in section.RowTwo )
                                 {
-                                    <MenuProject.UI.PackageCard Package=@package style="@section.RowTwoStyle"
+                                    <MenuProject.UI.PackageCard Package=@package style="@section.RowTwoStyle" DiscoveryContext=@section.Discovery
                                                  Rotation=@section.Rotation
                                                  Clicked="@(() => package.OpenModal())"
                                                  RightClicked="@(() => MenuHelpers.OpenPackageMenu( this, package ))" />
@@ -71,7 +138,7 @@
                     <div class="row">
                         @foreach ( var package in section.RowOne )
                         {
-                            <MenuProject.UI.PackageCard Package=@package
+                            <MenuProject.UI.PackageCard Package=@package Videos=@(!section.ContinuePlaying) ShowSubtitle=@section.ContinuePlaying style="@section.RowOneStyle" DiscoveryContext=@section.Discovery
                                          Rotation=@section.Rotation
                                          Clicked="@(() => package.OpenModal())"
                                          RightClicked="@(() => MenuHelpers.OpenPackageMenu( this, package ))" />
@@ -87,10 +154,14 @@
 @code
 {
     // Keep in sync with .row PackageCard width and the gap in FrontPageGames.razor.scss.
-    const float TileWidth = 250f;
+    const float TileWidth = 300f;
     const float TileGap = 8f;
 
     [Parameter] public Package.ListResult Group { get; set; }
+
+    // While loading - more shelves than any screen shows, so it's full whatever its height
+    const int SkeletonShelves = 6;
+    const int SkeletonTiles = 4;
 
     /// <summary>
     /// How many tile columns fit across a row at the current width. The big tile spans two of them.
@@ -111,6 +182,8 @@
         public string Title;
         public string Description;
         public string Url;
+        public bool Jam;
+        public bool ContinuePlaying;
 
         public bool BigRight;
         public Package Big;
@@ -120,9 +193,33 @@
         public string RowTwoStyle = "";
 
         public MenuProject.UI.CardVideoRotation Rotation;
+        public DiscoveryContext Discovery;
     }
 
     List<Section> Sections { get; set; } = new();
+
+    Sandbox.Services.Jam ActiveJam => GameJamSystem.For( this )?.ActiveJam;
+    bool HasJamShelf => ActiveJam is not null;
+
+    const string StarterDismissedCookie = "menu.discovery.starter.dismissed";
+
+    bool StarterDismissed => Game.Cookies.Get( StarterDismissedCookie, false );
+
+    void SetStarterDismissed( bool dismissed )
+    {
+        Game.Cookies.Set( StarterDismissedCookie, dismissed );
+        ScrollTo( Vector2.Zero );
+        StateHasChanged();
+    }
+
+    [MenuConCmd( "menu_starter_reset", Help = "Bring back the getting-started guide on the front page after it's been dismissed" )]
+    static void ResetStarter() => Game.Cookies.Set( StarterDismissedCookie, false );
+
+    [ConCmd( "menu_starter_reset_editor", Help = "Editor only: bring back the getting-started guide in the menu project you're playing" )]
+    static void ResetStarterInEditor() => Game.Cookies.Set( StarterDismissedCookie, false );
+
+    // The big tile is the shelf's showpiece, so it takes its turn this many times as often.
+    const float BigVideoWeight = 3f;
 
     Package.ListResult builtGroup;
     int builtColumns = -1;
@@ -172,15 +269,17 @@
                 Title = grouping.Title,
                 Description = grouping.Description,
                 Url = GroupUrl( grouping ),
+                Jam = MenuHelpers.IsJamQuery( grouping.QueryString ),
+                ContinuePlaying = grouping.QueryString?.Contains( "sort:used", StringComparison.OrdinalIgnoreCase ) == true,
                 Rotation = i < previous.Count ? previous[i].Rotation : new MenuProject.UI.CardVideoRotation(),
             };
 
-            // No query means View All would land on an unrelated list, so don't link at all.
+            // No query means the title would land on an unrelated list, so don't link at all.
             if ( string.IsNullOrEmpty( grouping.QueryString ) )
                 section.Url = null;
 
             // Featured groups get a mosaic, alternating which side the big tile sits on.
-            var big = grouping.Style == "large" ? PickBig( packages ) : null;
+            var big = !section.ContinuePlaying && grouping.Style == "large" ? PickBig( packages ) : null;
 
             if ( big is not null && Columns >= 3 && packages.Length >= 3 )
             {
@@ -202,7 +301,19 @@
             else
             {
                 section.RowOne.AddRange( packages.Take( Columns ) );
+
+                // Same as the mosaic rows - a shelf with only a couple of games keeps normal
+                // tile widths instead of one card stretching across the whole shelf.
+                section.RowOneStyle = section.RowOne.Count < Columns ? ShortRowTileStyle : "";
             }
+
+            section.Discovery = new DiscoveryContext
+            {
+                Surface = "home",
+                Shelf = grouping.Title,
+                List = Group.RequestId,
+                Packages = new[] { section.Big }.Where( x => x is not null ).Concat( section.RowOne ).Concat( section.RowTwo ).ToArray(),
+            };
 
             Sections.Add( section );
         }
@@ -216,12 +327,7 @@
 
         foreach ( var section in Sections )
         {
-            // A mosaic shelf carries half again as many cards, so it plays proportionally more.
-            var count = MenuProject.UI.PackageCard.VideoThumbsPerShelf;
-            if ( section.Big is not null )
-                count = (int)MathF.Round( count * 1.5f );
-
-            section.Rotation.Count = count;
+            section.Rotation.Count = MenuProject.UI.PackageCard.VideoThumbsPerShelf;
             section.Rotation.Interval = MenuProject.UI.PackageCard.VideoThumbsSeconds;
             section.Rotation.Tick();
         }
@@ -273,7 +379,49 @@
     /// </summary>
     static Package PickBig( Package[] packages ) => packages.FirstOrDefault( x => !string.IsNullOrEmpty( x?.VideoThumb ) );
 
-    static string GroupUrl( Package.ListResult.Grouping g ) => $"/games/group?Query={g.QueryString}&title={g.Title}&icon={g.Icon}";
+    static string GroupUrl( Package.ListResult.Grouping g ) => MenuHelpers.IsJamQuery( g.QueryString ) ? "/jam" : $"/home/group?Query={g.QueryString}&title={g.Title}&subtitle={g.Description}";
 
-    protected override int BuildHash() => HashCode.Combine( Group, Sections.Count, Columns, BigWidth );
+    /// <summary>
+    /// Drop a package the player just hid.
+    /// </summary>
+    /// <summary>
+    /// Take a package off every shelf it's on. Hands back how to put it back where it was - for undoing it.
+    /// </summary>
+    public Action RemovePackage( Package package )
+    {
+        if ( Group?.Groupings is null || package is null )
+            return null;
+
+        var before = new List<(Package.ListResult.Grouping Grouping, Package[] Packages)>();
+
+        foreach ( var grouping in Group.Groupings )
+        {
+            if ( grouping.Packages is null || !grouping.Packages.Any( x => x?.FullIdent == package.FullIdent ) )
+                continue;
+
+            before.Add( (grouping, grouping.Packages) );
+            grouping.Packages = grouping.Packages.Where( x => x?.FullIdent != package.FullIdent ).ToArray();
+        }
+
+        Rebuild();
+
+        return () =>
+        {
+            if ( !this.IsValid() ) return;
+
+            foreach ( var (grouping, packages) in before )
+                grouping.Packages = packages;
+
+            Rebuild();
+        };
+    }
+
+    void Rebuild()
+    {
+        builtGroup = null;
+        BuildSections();
+        StateHasChanged();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( Group, Sections.Count, Columns, BigWidth, StarterDismissed, ActiveJam );
 }

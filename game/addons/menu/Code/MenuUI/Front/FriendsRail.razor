@@ -1,0 +1,720 @@
+@using System;
+@using System.Linq;
+@using MenuProject;
+@using MenuProject.MenuUI.Front;
+@using MenuProject.MenuUI.Popups;
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+
+<root>
+
+    <LookingToPlay />
+
+    @if ( !HasFriends )
+    {
+        @* Nobody on the list at all - say what it's for, and give them a way to fill it *@
+        <div class="no-friends">
+            <icon>group_add</icon>
+            <label class="title">No friends yet</label>
+            <label class="hint">Friends you add on Steam show up here - see what they're playing, and jump into their game or party.</label>
+        </div>
+    }
+    else
+    {
+        <div class="head">
+            <div class="search">
+                <icon>search</icon>
+                <TextEntry Placeholder="Search friends.." HasClearButton=@true OnTextEdited=@OnSearchEdited />
+            </div>
+        </div>
+    }
+
+    @if ( HasFriends && Items.Count == 0 )
+    {
+        <div class="empty">
+            <label>No friends called "@Search"</label>
+        </div>
+    }
+    else if ( HasFriends )
+    {
+        @* One flat list of headers, party cards and rows - only what's on screen gets built *@
+        <MixedVirtualList @ref="ListPanel" class="rows" Items=@Items ItemHeight=@HeightOf>
+            <Item Context="item">
+                @if ( item is HeadItem head )
+                {
+                    @* One chevron, turned to point at the section when it's folded - so it can turn there. Folded
+                       is read live rather than kept in the item, so the header isn't rebuilt when it changes,
+                       and the chevron's transition has something to run on. *@
+                    <div class="group-head @(Collapsed.Contains( head.Id ) ? "collapsed" : "")" onmousedown=@( () => ToggleSection( head.Id ) )>
+                        <icon>expand_more</icon>
+                        <label class="group-title">@head.Title</label>
+                        <label class="group-count">@head.Count</label>
+                    </div>
+                }
+                else if ( item is PartyItem partyItem )
+                {
+                    var party = partyItem.Party;
+
+                    @* A party you can join joins wherever you click it - the faces still open their cards *@
+                    <div class="party @(party.IsMine ? "mine" : "") @(party.Joinable is not null ? "joinable" : "")" onmousedown=@( ( e ) => { if ( party.Joinable is { } leader ) Join( e, leader ); } )>
+                        @if ( partyItem.Art is { } partyArt )
+                        {
+                            <div class="game-art" style="background-image: url( @partyArt );"></div>
+                        }
+                        <div class="party-main">
+                            @* What it is up top - whose, how big, what they're doing - so however many are in it, none of that moves *@
+                            <div class="party-info">
+                                @* Whose it is and what they're up to, in one line - "howie's party · Sandbox · Joinable" *@
+                                <div class="party-title">
+                                    <label class="party-name">@party.Title</label>
+                                    <label class="sep">·</label>
+                                    <label class="game">@party.Game</label>
+                                    @if ( party.Joinable is not null )
+                                    {
+                                        <label class="sep">·</label>
+                                        <label class="state">Joinable</label>
+                                    }
+                                </div>
+                            </div>
+
+                            @* Who's in it underneath - as many faces as fit, then how many more *@
+                            @{
+                                var faces = PartyFaces( party );
+                                var more = party.Size - faces.Count;
+                            }
+
+                            <div class="party-avatars">
+                                @foreach ( var member in faces )
+                                {
+                                    <div class="avatar @(Searching && IsSearchMatch( member ) ? "match" : "")" tooltip="@member.Name" style="background-image: url( avatar:@member.Id )" onmousedown=@( ( e ) => ShowPopup( e, member ) ) />
+                                }
+                                @if ( more > 0 )
+                                {
+                                    <label class="more" tooltip="@MoreTooltip( party, faces )">+@more</label>
+                                }
+                            </div>
+                        </div>
+
+                        @* Beside all of it, halfway down the card *@
+                        @if ( party.Joinable is { } host )
+                        {
+                            <div class="action join" tooltip="Join" onmousedown=@( ( e ) => Join( e, host ) )><icon>play_arrow</icon></div>
+                        }
+                    </div>
+                }
+                else if ( item is FriendItem friendItem )
+                {
+                    var row = friendItem.Row;
+
+                    <div class="friend @row.StatusClass" onmousedown=@( ( e ) => ShowPopup( e, row ) )>
+                        @* The game they're in, faded in behind the row - or a blueprint if they're making one *@
+                        @if ( row.InEditor )
+                        {
+                            <div class="editor-art"></div>
+                        }
+                        else if ( friendItem.Art is { } art )
+                        {
+                            <div class="game-art" style="background-image: url( @art );"></div>
+                        }
+                        <div class="avatar" style="background-image: url( avatar:@row.Id )" />
+                        <div class="info">
+                            <label class="name">@row.Name</label>
+                            <label class="status">@row.Status</label>
+                        </div>
+                        <div class="grow" />
+                        @if ( row.Joinable )
+                        {
+                            <div class="action join" tooltip="Join" onmousedown=@( ( e ) => Join( e, row ) )><icon>play_arrow</icon></div>
+                        }
+                        else if ( PartyInvites.IsPending( row.Id ) )
+                        {
+                            @* Asked in and not here yet - stays up until they join or it lapses, like Dota *@
+                            <div class="invite pending" tooltip="Invite sent - waiting for them to join" onmousedown=@( ( e ) => e.StopPropagation() )>
+                                <icon>hourglass_top</icon>
+                            </div>
+                        }
+                        else if ( row.CanInvite )
+                        {
+                            <div class="invite" tooltip="Invite to party" onmousedown=@( ( e ) => Invite( e, row ) )>
+                                <icon>add</icon>
+                            </div>
+                        }
+                    </div>
+                }
+            </Item>
+        </MixedVirtualList>
+    }
+
+</root>
+
+@code
+{
+    /// <summary>
+    /// One friend, snapshotted so we don't hit Steam every frame.
+    /// </summary>
+    record FriendRow( Friend Friend, ulong Id, string Name, string Status, string StatusClass, bool Joinable, bool CanInvite, string GameIdent, bool InEditor );
+
+    /// <summary>
+    /// A party one or more of our friends are in, grouped by their shared party_id.
+    /// </summary>
+    record PartyGroup( string Title, int Size, int Max, List<FriendRow> Members, string Game, FriendRow Joinable, bool IsMine )
+    {
+        // By who's in it, not which list they're in - so a refresh that changes nothing leaves the card alone
+        public virtual bool Equals( PartyGroup other ) => other is not null
+            && Title == other.Title && Size == other.Size && Max == other.Max && Game == other.Game
+            && Joinable == other.Joinable && IsMine == other.IsMine && Members.SequenceEqual( other.Members );
+
+        public override int GetHashCode() => HashCode.Combine( Title, Size, Max, Game, IsMine, Members.Count );
+    }
+
+    /// <summary>
+    /// Most faces a party card shows before the rest become "+N" - what fits across the rail.
+    /// </summary>
+    const int MaxPartyFaces = 8;
+
+    /// <summary>
+    /// The friends to show faces for - whoever you searched for first, so they're never the ones cut off.
+    /// </summary>
+    List<FriendRow> PartyFaces( PartyGroup party ) => party.Members
+        .OrderByDescending( x => Searching && IsSearchMatch( x ) )
+        .Take( MaxPartyFaces )
+        .ToList();
+
+    /// <summary>
+    /// Who's behind the "+N" - the friends that didn't fit, then however many we don't know.
+    /// </summary>
+    static string MoreTooltip( PartyGroup party, List<FriendRow> shown )
+    {
+        var hidden = party.Members.Except( shown ).Select( x => x.Name ).ToList();
+        var strangers = party.Size - party.Members.Count;
+
+        if ( strangers > 0 )
+            hidden.Add( strangers == 1 ? "1 other" : $"{strangers} others" );
+
+        return string.Join( ", ", hidden );
+    }
+
+    record Section( string Id, string Title, int Count, List<PartyGroup> Parties, List<FriendRow> Friends );
+
+    //
+    // What goes in the list, one after the other. Each only gets rebuilt when it stops being equal to
+    // what it was - so everything a cell shows that can change lives in its item.
+    //
+
+    record HeadItem( string Id, string Title, int Count );
+
+    // Section and Offset - which section a row's in and how far down it it starts - are for the fold
+    // animation, which has to know how much of a section is showing
+    record PartyItem( PartyGroup Party, string Art, string Section, float Offset );
+    record FriendItem( FriendRow Row, string Art, string Section, float Offset );
+
+    /// <summary>
+    /// How tall each kind of item is - the list lays out from these, so they're pinned in the
+    /// stylesheet to match.
+    /// </summary>
+    const float HeadHeight = 36f;
+    const float PartyHeight = 76f;
+    const float FriendHeight = 42f;
+
+    static float BaseHeight( object item ) => item switch
+    {
+        HeadItem => HeadHeight,
+        PartyItem => PartyHeight,
+        _ => FriendHeight,
+    };
+
+    /// <summary>
+    /// How tall an item is right now. While a section folds or unfolds, only the top of it shows - as
+    /// if a box round its rows were shrinking - so the rows run out from its bottom up, each cut off
+    /// where the box ends.
+    /// </summary>
+    float HeightOf( object item )
+    {
+        var height = BaseHeight( item );
+
+        var (section, offset) = item switch
+        {
+            PartyItem party => (party.Section, party.Offset),
+            FriendItem friend => (friend.Section, friend.Offset),
+            _ => (null, 0f),
+        };
+
+        if ( section is null || section != _toggled || !_animating )
+            return height;
+
+        var showing = _toggledHeight * FoldAmount;
+        return Math.Clamp( showing - offset, 0f, height );
+    }
+
+    List<object> Items = new();
+    MixedVirtualList ListPanel;
+    string Search;
+
+    /// <summary>
+    /// Sections the player has folded away. Remembered for the session.
+    /// </summary>
+    static readonly HashSet<string> Collapsed = new();
+
+    /// <summary>
+    /// The section last folded or unfolded, and when - it animates while that's recent. Folding, its
+    /// rows stay in the list until they've shrunk away.
+    /// </summary>
+    string _toggled;
+    RealTimeSince _toggledAt;
+    float _toggledHeight;
+    const float ToggleTime = 0.2f;
+
+    /// <summary>
+    /// The toggled section is animating - set when it's toggled, and only cleared by the rebuild once
+    /// it's done, never by the clock. The list can lay out between the time running out and that
+    /// rebuild, and if the clock said it was over, the section would spring back to its full height
+    /// for that one frame and build every one of its rows.
+    /// </summary>
+    bool _animating;
+
+    /// <summary>
+    /// How much of a section, starting <paramref name="top"/> down the list, the view can show below
+    /// it - only that much takes part in the animation. The rest is out of sight whatever happens:
+    /// animating it, most of the movement would happen where you can't see it, and shrunk to nothing
+    /// every row would sit inside the view at once and build a cell each in one frame.
+    /// </summary>
+    float VisibleBelow( float top )
+    {
+        if ( ListPanel is not { } list || list.Box.Rect.Height <= 0 )
+            return 1200f;
+
+        var view = list.Box.Rect.Height * list.ScaleFromScreen;
+        var scroll = list.ScrollOffset.y * list.ScaleFromScreen;
+
+        return Math.Max( 0f, view - (top - scroll) );
+    }
+
+    /// <summary>
+    /// How much of the toggled section is showing, 0 to 1 - eased out, so it moves quickly and settles.
+    /// </summary>
+    float FoldAmount
+    {
+        get
+        {
+            var t = Math.Clamp( _toggledAt / ToggleTime, 0f, 1f );
+            var eased = 1f - (1f - t) * (1f - t);
+            return Collapsed.Contains( _toggled ) ? 1f - eased : eased;
+        }
+    }
+
+    const float RefreshInterval = 3f;
+    RealTimeSince TimeSinceRefresh = RefreshInterval;
+    bool _lastStreamerMode = Preferences.StreamerMode;
+    string _lastMock = RailPresence.Mock;
+
+    /// <summary>
+    /// Anyone on the list at all, online or not. Assumed until the first refresh says otherwise, so a
+    /// full list doesn't flash up the empty state while it loads.
+    /// </summary>
+    bool HasFriends = true;
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( !IsVisible ) return;
+
+        // A section folding or unfolding - lay the list out again each frame as it moves, then once it's
+        // done, rebuild without it (a folded section's rows are only kept until they've shrunk away)
+        if ( _animating )
+        {
+            if ( _toggledAt < ToggleTime )
+            {
+                if ( ListPanel is not null )
+                    ListPanel.NeedsRebuild = true;
+            }
+            else
+            {
+                _animating = false;
+                Refresh();
+            }
+        }
+
+        // Streamer mode changes friend names, and menu_mock_friends changes everything - refresh straight away
+        if ( Preferences.StreamerMode != _lastStreamerMode || RailPresence.Mock != _lastMock )
+        {
+            _lastStreamerMode = Preferences.StreamerMode;
+            _lastMock = RailPresence.Mock;
+            Refresh();
+        }
+
+        // Cells on screen show some things that aren't in their items - who's got an invite pending,
+        // who matched the search - so re-render them when those change
+        var cellHash = HashCode.Combine( PartyInvites.Hash, Search );
+        if ( cellHash != _cellHash )
+        {
+            _cellHash = cellHash;
+            ListPanel?.RefreshCells();
+        }
+
+        if ( TimeSinceRefresh < RefreshInterval ) return;
+        Refresh();
+    }
+
+    int _cellHash;
+
+    [Event( "friend.change" )]
+    void OnFriendChanged( Friend friend )
+    {
+        // Coalesce - a burst of persona changes shouldn't rebuild the list for each one
+        if ( TimeSinceRefresh > 0.5f )
+            TimeSinceRefresh = RefreshInterval;
+    }
+
+    void OnSearchEdited( string text )
+    {
+        Search = text?.Trim();
+        Refresh();
+    }
+
+    bool Searching => !string.IsNullOrWhiteSpace( Search );
+
+    /// <summary>
+    /// Everyone matches when we're not searching.
+    /// </summary>
+    bool IsSearchMatch( FriendRow row ) => !Searching || (row.Name?.Contains( Search, StringComparison.OrdinalIgnoreCase ) ?? false);
+
+    void ToggleSection( string id )
+    {
+        if ( !Collapsed.Remove( id ) )
+            Collapsed.Add( id );
+
+        _toggled = id;
+        _toggledAt = 0;
+        _animating = true;
+
+        Refresh();
+
+        // Its header's on screen with the old state - show it the new one
+        ListPanel?.RefreshCells();
+    }
+
+    void Refresh()
+    {
+        TimeSinceRefresh = 0;
+
+        var friends = RailPresence.Friends.ToList();
+        HasFriends = friends.Count > 0;
+
+        var sections = new List<Section>();
+
+        // Group before filtering - searching for one person still shows the whole party they're in
+        var playing = friends.Where( x => RailPresence.IsOnline( x ) && RailPresence.IsPlayingThisGame( x ) ).ToList();
+        if ( playing.Count > 0 )
+        {
+            var (parties, solo) = GroupParties( playing );
+            parties = parties.Where( x => x.Members.Any( IsSearchMatch ) ).ToList();
+            solo = solo.Where( IsSearchMatch ).ToList();
+
+            // Parties get a section of their own, first - the friends playing on their own come after
+            if ( parties.Count > 0 )
+                sections.Add( new Section( "parties", "Parties", parties.Count, parties, new() ) );
+
+            if ( solo.Count > 0 )
+                sections.Add( new Section( "playing", "Playing s&box", solo.Count, new(), solo ) );
+        }
+
+        var online = friends.Where( x => RailPresence.IsOnline( x ) && !RailPresence.IsPlayingThisGame( x ) ).OrderBy( x => x.Name ).Select( ToRow ).Where( IsSearchMatch ).ToList();
+        if ( online.Count > 0 )
+            sections.Add( new Section( "online", "Online", online.Count, new(), online ) );
+
+        var offline = friends.Where( x => !RailPresence.IsOnline( x ) ).OrderBy( x => x.Name ).Select( ToRow ).Where( IsSearchMatch ).ToList();
+        if ( offline.Count > 0 )
+            sections.Add( new Section( "offline", "Offline", offline.Count, new(), offline ) );
+
+        Items = Flatten( sections );
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Each section's header, then - unless it's folded away - its parties and its friends.
+    /// </summary>
+    List<object> Flatten( List<Section> sections )
+    {
+        var items = new List<object>();
+        var y = 0f; // how far down the list we are
+
+        foreach ( var section in sections )
+        {
+            var collapsed = Collapsed.Contains( section.Id );
+            var toggled = section.Id == _toggled && _animating;
+            items.Add( new HeadItem( section.Id, section.Title, section.Count ) );
+            y += HeadHeight;
+
+            // Folded away - unless it's still shrinking
+            if ( collapsed && !toggled ) continue;
+
+            var offset = 0f;
+            var foldLimit = toggled ? VisibleBelow( y ) : float.MaxValue;
+
+            foreach ( var party in section.Parties )
+            {
+                if ( offset >= foldLimit ) break;
+
+                items.Add( new PartyItem( party, GameArt( party.Members.FirstOrDefault()?.GameIdent ), section.Id, offset ) );
+                offset += PartyHeight;
+            }
+
+            foreach ( var row in section.Friends )
+            {
+                if ( offset >= foldLimit ) break;
+
+                items.Add( new FriendItem( row, row.InEditor ? null : GameArt( row.GameIdent ), section.Id, offset ) );
+                offset += FriendHeight;
+            }
+
+            if ( toggled )
+                _toggledHeight = offset;
+
+            y += offset;
+        }
+
+        return items;
+    }
+
+    /// <summary>
+    /// Friends that share a party get one card between them. So does a friend in a party of strangers -
+    /// the size comes from their rich presence, so it still reads "Rick's party 3/16".
+    /// </summary>
+    (List<PartyGroup> Parties, List<FriendRow> Solo) GroupParties( List<Friend> friends )
+    {
+        var parties = new List<PartyGroup>();
+        var myParty = RailPresence.PartyId;
+
+        // Who's really in our party, from the lobby itself. Everyone else's party comes from their
+        // rich presence, which lags behind (a leader could wait a while to see their party come
+        // together) and can go stale after someone leaves - but for our own we don't have to wait
+        var inMyParty = RailPresence.PartyMembers.Select( x => x.Id ).ToHashSet();
+
+        var grouped = FriendPartyGrouping.Group( friends,
+            x => x.Id, x => RailPresence.Get( x, "party_id" ), x => RailPresence.Get( x, "party_size" ).ToInt( 0 ),
+            myParty, inMyParty );
+        var solo = grouped.Solo.Select( ToRow ).ToList();
+
+        foreach ( var group in grouped.Parties )
+        {
+            var members = group.Members.OrderBy( x => x.Name ).ToList();
+            var first = members[0];
+            var size = group.Size;
+
+            var rows = members.Select( ToRow ).ToList();
+            var isMine = group.Id == myParty;
+            var host = rows.FirstOrDefault( x => x.Joinable );
+
+            if ( isMine )
+            {
+                // Our own party - we're in the lobby, so we know everyone in it, friend or not
+                rows = RailPresence.PartyMembers.OrderByDescending( x => x.Id == RailPresence.PartyOwner ).Select( ToRow ).ToList();
+            }
+            else
+            {
+                // A friend shares their whole roster, so non-friends get faces and profile cards too.
+                var ownerId = RailPresence.Get( first, "party_owner" ).ToULong( 0 );
+                var roster = members.SelectMany( RailPresence.MembersOf ).Select( x => x.Id );
+                rows = FriendPartyGrouping.MemberIds( members.Select( x => x.Id ), roster, ownerId )
+                    .Select( x => ToRow( new Friend( x ) ) ).ToList();
+            }
+
+            size = Math.Max( size, rows.Count );
+
+            parties.Add( new PartyGroup(
+                Title: isMine ? "Your party" : PartyTitle( first ),
+                Size: size,
+                Max: RailPresence.Get( first, "party_max" ).ToInt( PartyDeck.MAX_MEMBERS ),
+                Members: rows,
+                Game: GameTitle( first ),
+                Joinable: isMine ? null : host,
+                IsMine: isMine ) );
+        }
+
+        parties = parties
+            .OrderByDescending( x => x.IsMine )
+            .ThenByDescending( x => x.Joinable is not null )
+            .ThenByDescending( x => x.Size )
+            .ToList();
+
+        // Joinable first, then whoever's in a game, then the menu idlers
+        solo = solo
+            .OrderByDescending( x => x.Joinable )
+            .ThenBy( x => x.Status == "In main menu" )
+            .ThenBy( x => x.Name )
+            .ToList();
+
+        return (parties, solo);
+    }
+
+    static string PartyTitle( Friend member )
+    {
+        var owner = RailPresence.Get( member, "party_owner" ).ToULong( 0 );
+        if ( owner == 0 ) return $"{member.Name}'s party";
+
+        var friend = new Friend( owner );
+        if ( friend.IsMe ) return "Your party";
+
+        // Steam only tells us names for friends and people we've crossed paths with
+        var name = friend.Name;
+        return string.IsNullOrWhiteSpace( name ) || name == "[unknown]" ? $"{member.Name}'s party" : $"{name}'s party";
+    }
+
+    static bool InEditor( Friend friend ) => RailPresence.Get( friend, "in_editor" ) == "1";
+
+    static string GameTitle( Friend friend )
+    {
+        if ( InEditor( friend ) ) return "In the editor";
+
+        var game = RailPresence.Get( friend, "gametitle" );
+        if ( string.IsNullOrWhiteSpace( game ) || game == "menu" ) return "Main menu";
+        return game;
+    }
+
+    FriendRow ToRow( Friend friend )
+    {
+        var joinable = RailPresence.IsPlayingThisGame( friend ) && MenuHelpers.HasAuthority
+            && !string.IsNullOrWhiteSpace( RailPresence.Get( friend, "connect" ) );
+
+        return new FriendRow( friend, friend.Id, friend.Name, StatusText( friend ), StatusClass( friend ), joinable,
+            !joinable && RailPresence.CanInvite( friend ), PlayingIdent( friend ),
+            RailPresence.IsPlayingThisGame( friend ) && InEditor( friend ) );
+    }
+
+    /// <summary>
+    /// The game they're actually in - not the menu, not the editor. Null otherwise.
+    /// </summary>
+    static string PlayingIdent( Friend friend )
+    {
+        if ( !RailPresence.IsPlayingThisGame( friend ) || InEditor( friend ) ) return null;
+
+        var title = RailPresence.Get( friend, "gametitle" );
+        if ( string.IsNullOrWhiteSpace( title ) || title == "menu" ) return null;
+
+        var ident = RailPresence.Get( friend, "gamename" );
+        return string.IsNullOrWhiteSpace( ident ) ? null : ident;
+    }
+
+
+    //
+    // A screenshot of each game people are in, fetched once per game and shared by every row showing it
+    //
+
+    static readonly Dictionary<string, string> _gameArt = new();
+    static readonly HashSet<string> _gameArtLoading = new();
+
+    /// <summary>
+    /// The picture to put behind a row for this game - null until it's loaded (it fetches the first time
+    /// it's asked for), or if there isn't one.
+    /// </summary>
+    string GameArt( string ident )
+    {
+        if ( string.IsNullOrWhiteSpace( ident ) ) return null;
+        if ( _gameArt.TryGetValue( ident, out var url ) ) return url;
+
+        if ( _gameArtLoading.Add( ident ) )
+            _ = LoadGameArt( ident );
+
+        return null;
+    }
+
+    async Task LoadGameArt( string ident )
+    {
+        try
+        {
+            // Full details, not partial - the screenshots only come with those
+            var package = await Package.FetchAsync( ident, false );
+            _gameArt[ident] = PackageArt.Background( package );
+        }
+        catch ( Exception )
+        {
+            _gameArt[ident] = null;
+        }
+
+        _gameArtLoading.Remove( ident );
+
+        // The art's part of each row's item - rebuild them so it shows
+        if ( this.IsValid() )
+            Refresh();
+    }
+
+    static string StatusText( Friend friend )
+    {
+        if ( RailPresence.IsPlayingThisGame( friend ) )
+        {
+            var game = GameTitle( friend );
+            return game is "Main menu" ? "In main menu" : game is "In the editor" ? game : $"Playing {game}";
+        }
+
+        if ( !RailPresence.IsOnline( friend ) ) return "Offline";
+        if ( RailPresence.IsPlayingAGame( friend ) ) return "Playing another game";
+        if ( RailPresence.IsAway( friend ) ) return "Away";
+        if ( RailPresence.IsBusy( friend ) ) return "Busy";
+        return "Online";
+    }
+
+    static string StatusClass( Friend friend )
+    {
+        if ( RailPresence.IsPlayingThisGame( friend ) ) return "ingame";
+        if ( !RailPresence.IsOnline( friend ) ) return "offline";
+        if ( RailPresence.IsAway( friend ) || RailPresence.IsBusy( friend ) ) return "away";
+        return "online";
+    }
+
+    void Invite( PanelEvent e, FriendRow row )
+    {
+        e.StopPropagation();
+        if ( PartyInvites.IsPending( row.Id ) ) return;
+
+        Sound.Play( "ui.button.press" );
+
+        // Makes the party if there isn't one, and doesn't bother anyone real while it's mocked
+        _ = PartyInvites.Invite( row.Id );
+    }
+
+    void Join( PanelEvent e, FriendRow row )
+    {
+        e.StopPropagation();
+        if ( !MenuHelpers.HasAuthority ) return;
+
+        // They're not really in anything
+        if ( RailPresence.Mocking )
+        {
+            Log.Info( $"menu_mock_friends: would join {row.Name}" );
+            return;
+        }
+
+        MenuUtility.JoinFriendGame( row.Friend );
+    }
+
+    Popup FriendMenu;
+
+    void ShowPopup( PanelEvent e, FriendRow row )
+    {
+        e.StopPropagation();
+
+        if ( FriendMenu.IsValid() )
+        {
+            var same = FriendMenu is FriendCard open && open.Friend.Id == row.Id;
+            FriendMenu.Delete();
+            if ( same ) return;
+        }
+
+        Popup.CloseAll();
+
+        // The rail's against the right edge of the screen - open to the left of it, level with whatever
+        // was clicked. The popup measures its offset from the source's left edge, so push it out by
+        // however far that is from the rail's own - a party avatar and a row then open in the same place.
+        var source = e.This ?? this;
+        var offset = (source.Box.Rect.Left - Box.Rect.Left) * source.ScaleFromScreen + PopupGap;
+
+        FriendMenu = FriendCard.Show( source, row.Friend, Popup.PositionMode.Left, offset );
+    }
+
+    /// <summary>
+    /// Space between the rail's left edge and the friend card.
+    /// </summary>
+    const float PopupGap = 12f;
+}

@@ -43,7 +43,7 @@ internal static unsafe partial class VRSystem
 		//
 		// Check if we actually want to init VR
 		//
-		if ( CommandLine.HasSwitch( "-novr" ) )
+		if ( !CommandLine.HasSwitch( "-vr" ) || CommandLine.HasSwitch( "-novr" ) )
 			return;
 
 		if ( Application.IsHeadless )
@@ -267,7 +267,8 @@ internal static unsafe partial class VRSystem
 		if ( !HasHeadset )
 			return;
 
-		if ( CommandLine.HasSwitch( "-vrdebug" ) )
+		var vrDebug = CommandLine.HasSwitch( "-vrdebug" );
+		if ( vrDebug )
 		{
 			var pDebugCallback = Marshal.GetFunctionPointerForDelegate<DebugUtilsMessengerCallback>( XrDebugCallback );
 			ApplicationConfig.SetDebugCallback( pDebugCallback );
@@ -279,7 +280,7 @@ internal static unsafe partial class VRSystem
 		var instanceInfo = new InstanceInfo()
 		{
 			graphicsApi = GraphicsAPI.Vulkan,
-			useDebugMessenger = true
+			useDebugMessenger = vrDebug
 		};
 
 		CopyStringToBuffer( "s&box", instanceInfo.appName, Constants.MaxAppNameSize );

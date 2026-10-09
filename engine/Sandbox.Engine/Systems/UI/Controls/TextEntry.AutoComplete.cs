@@ -32,6 +32,12 @@ public partial class TextEntry
 	/// </summary>
 	public void UpdateAutoComplete()
 	{
+		if ( !CanEdit )
+		{
+			AutoCompleteCancel();
+			return;
+		}
+
 		if ( AutoComplete == null )
 		{
 			DestroyAutoComplete();
@@ -53,6 +59,12 @@ public partial class TextEntry
 	/// </summary>
 	public void UpdateAutoComplete( object[] options )
 	{
+		if ( !CanEdit )
+		{
+			AutoCompleteCancel();
+			return;
+		}
+
 		if ( !AutoCompletePanel.IsValid() || AutoCompletePanel.IsDeleting )
 		{
 			AutoCompletePanel = new Popup( this, Popup.PositionMode.AboveLeft, 8 );
@@ -61,7 +73,7 @@ public partial class TextEntry
 		}
 
 		AutoCompletePanel.DeleteChildren( true );
-		AutoCompletePanel.UserData = Text;
+		AutoCompletePanel.UserData = CurrentState();
 
 		foreach ( var r in options )
 		{
@@ -89,11 +101,37 @@ public partial class TextEntry
 
 	void AutoCompleteSelected( object obj )
 	{
-		Text = obj.ToString();
-		Focus();
-		OnValueChanged();
+		if ( !CanEdit )
+		{
+			AutoCompleteCancel();
+			return;
+		}
 
-		Label.MoveToLineEnd();
+		var text = obj?.ToString() ?? "";
+		RestoreAutoCompletePreview();
+		var changed = Text != text;
+		if ( changed ) RecordEdit( EditKind.Single );
+
+		Text = text;
+		Label.SetCaretPosition( TextLength );
+		Focus();
+		if ( changed ) OnValueChanged();
+		DestroyAutoComplete();
+	}
+
+	bool CommitAutoComplete()
+	{
+		if ( !AutoCompletePanel.IsValid() || !AutoCompletePanel.SelectedChild.IsValid() ) return false;
+
+		AutoCompleteSelected( AutoCompletePanel.SelectedChild.UserData );
+		return true;
+	}
+
+	void RestoreAutoCompletePreview()
+	{
+		if ( AutoCompletePanel?.UserData is not TextState state ) return;
+
+		ApplyState( state );
 	}
 
 	/// <summary>
@@ -101,6 +139,12 @@ public partial class TextEntry
 	/// </summary>
 	protected virtual void AutoCompleteSelectionChanged()
 	{
+		if ( !CanEdit )
+		{
+			AutoCompleteCancel();
+			return;
+		}
+
 		var selected = AutoCompletePanel.SelectedChild;
 		if ( !selected.IsValid() ) return;
 
@@ -113,7 +157,7 @@ public partial class TextEntry
 	/// </summary>
 	protected virtual void AutoCompleteCancel()
 	{
-		Text = AutoCompletePanel.UserData.ToString();
+		RestoreAutoCompletePreview();
 		DestroyAutoComplete();
 	}
 }

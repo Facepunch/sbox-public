@@ -1,14 +1,39 @@
 @import "/styles/_theme.scss";
+@import "/styles/_front.scss";
 
 $header-height: 60px;
-$right-panel-width: 300px;
+// The info column - the game's art, name, blurb and facts
+$right-panel-width: 375px;
 
 .megacard
 {
-    width: 1300px;
-    max-width: 1300px;
-    height: 78%;
+    // A fifth narrower than it was (1300) - the gallery's 16:9, so narrower's shorter too, and the
+    // description under it comes up onto the page
+    width: 1040px;
+    max-width: 1040px;
+
+    height: 77%;
+    transition: margin-bottom 0.2s ease-out;
+
+    // The party deck's up in the bottom right - lifted clear of it (the margin's taken out of the
+    // space it's centred in, so it rides up by half of it). Centred the rest of the time
+    &.clear-deck
+    {
+        margin-bottom: 110px;
+    }
     font-family: $font-default;
+
+    // A page, not a modal - as big as what it's in. A cap of the whole of it, not "none", which
+    // isn't taken and leaves the modal's cap in place
+    &.fills-page
+    {
+        width: auto;
+        max-width: 100%;
+        height: auto;
+        flex-grow: 1;
+        flex-shrink: 1;
+        min-width: 0;
+    }
 }
 
 .megacard > .body-outer
@@ -37,14 +62,16 @@ $right-panel-width: 300px;
     flex-wrap: wrap;
 }
 
+// One slab with one outline; panes inside are divided by hairlines.
 .megacard > .body-outer > .body
 {
+    @include front-card;
+
+    // The mixin pins flex-shrink to 0; the body must shrink to the modal height.
     flex-grow: 1;
-    flex-direction: column;
-    background-color: $default-900;
-    border: 1px solid $default-border;
-    border-radius: $rounding-large * 2;
-    box-shadow: 0px 0px 120px 60px rgba( $default-950, 0.8 );
+    flex-shrink: 1;
+    min-height: 0;
+    box-shadow: 0 30px 90px rgba( $default-950, 0.75 );
     pointer-events: all;
 }
 
@@ -52,16 +79,31 @@ $right-panel-width: 300px;
 {
     flex-grow: 1;
     overflow: hidden;
+    position: relative;
+
+    // Fades the page on the left out along its bottom, like the info column beside it. Here, not
+    // on the page - that's the thing scrolling, and it'd scroll away with it. The page's own colour,
+    // sampled - clear to solid
+    &::after
+    {
+        content: "";
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        right: $right-panel-width;
+        height: 56px;
+        background-image: linear-gradient( to bottom, rgba( 17, 19, 25, 0 ), rgb( 17, 19, 25 ) );
+        pointer-events: none;
+        z-index: 10;
+    }
 }
 
-// Main content area — LEFT
+// Main content area - LEFT
 .megacard > .body-outer > .body > .row > .content
 {
     flex-grow: 1;
     flex-shrink: 1;
-    background-color: $default-950;
-    margin: 2px 0px 0px 2px;
-    border-radius: $rounding-large 0px 0px 0px;
+    background-color: rgba( 0, 0, 0, 0.28 );
     flex-direction: column;
     overflow: hidden;
     overflow-y: scroll;
@@ -69,17 +111,46 @@ $right-panel-width: 300px;
     pointer-events: all;
 }
 
-// Info panel — RIGHT
+// Info panel - RIGHT
 .megacard > .body-outer > .body > .row > .left
 {
     flex-direction: column;
     flex-grow: 0;
     flex-shrink: 0;
     width: $right-panel-width;
-    margin: 2px 2px 0px 0px;
-    border-radius: 0px $rounding-large 0px 0px;
     overflow: hidden;
-    background-color: $default-900;
+    border-left: $front-border-width solid $front-hairline;
+    position: relative;
+
+    // Fades the column out along its bottom, so it reads as more below. On this box, not the
+    // scrolling one inside - it stays put while the column scrolls under it. The card's own bottom
+    // colour, clear to solid, so it fades into the card rather than through grey
+    &::after
+    {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 56px;
+        background-image: linear-gradient( to bottom, rgba( 23, 26, 33, 0 ), $front-card-bottom );
+        pointer-events: none;
+        z-index: 10;
+    }
+}
+
+// No info column - the page runs the width, its fade with it
+.megacard > .body-outer > .body > .row.no-left
+{
+    > .left
+    {
+        display: none;
+    }
+
+    &::after
+    {
+        right: 0;
+    }
 }
 
 .megacard > .body-outer > .body > .row > .left > label.eyebrow
@@ -90,9 +161,7 @@ $right-panel-width: 300px;
 .megacard > .body-outer > .body > .footer
 {
     flex-shrink: 0;
-    background-color: $default-900;
-    margin: 0px 2px 2px 2px;
-    border-radius: 0px 0px $rounding-large $rounding-large;
-    padding: 16px 20px;
-    border-top: 1px solid $default-border;
+    padding: 14px 20px;
+    border-top: $front-border-width solid $front-hairline;
+    background-color: rgba( 0, 0, 0, 0.15 );
 }

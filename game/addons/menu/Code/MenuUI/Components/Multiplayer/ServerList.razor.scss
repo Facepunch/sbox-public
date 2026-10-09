@@ -1,181 +1,638 @@
+@import "/styles/_front.scss";
+
+// The server browser - a game's servers, or every game's grouped, a card each row. The Multiplayer
+// page's, a game's Sessions tab, and the old server list popup
 ServerList
 {
 	flex-direction: column;
-	overflow: scroll;
+	min-height: 0;
+	overflow: hidden;
+	font-family: $front-font;
+
+	i
+	{
+		font-family: "Material Icons";
+	}
 
 	VirtualList
 	{
 		flex-grow: 1;
+		min-height: 0;
+		// Keep an 8px gap between the rows and the 8px scrollbar track.
+		padding-right: 16px;
+		scrollbar-width: thin;
+		scrollbar-color: $front-secondary transparent;
+		scrollbar-gutter: stable;
+		gap: 6px;
+	}
 
-		.row
-		{			
-			flex-grow: 1;
+	// Not virtual - the rows stacked, as tall as they are, the page round them scrolling
+	.server-rows.plain
+	{
+		flex-direction: column;
+		flex-shrink: 0;
+		gap: 6px;
+		// The virtual list's gutter, so the rows still line up under the header's columns
+		padding-right: 16px;
+
+		ServerRow
+		{
+			flex-grow: 0;
+			flex-shrink: 0;
+			height: 60px;
 		}
 	}
-}
 
-.notice
-{
-	justify-content: center;
-	padding: 50px;
-	font-size: 1rem;
-}
-
-.loading
-{
-	justify-content: center;
-	align-items: center;
-	height: 100%;
-}
-
-h2
-{
-	color: #c6d4ee;
-	text-transform: uppercase;
-	letter-spacing: 1px;
-	flex-shrink: 0;
-	font-weight: 600;
-
-	i
+	.game-groups GameGroupRow
 	{
-		color: #3777ee;
-		text-transform: none;
-		font-size: 22px;
-	}
-}
-
-.cell
-{
-	background-color: rgba( 0, 0, 0, 0.1 );
-
-	&:nth-child( even )
-	{
-		background-color: rgba( 0, 0, 0, 0.05 );
-	}
-}
-
-.row
-{
-	flex-shrink: 0;
-	border-radius: 2px;
-	padding: 0px 48px;
-	cursor: pointer;
-
-	> *
-	{
-		padding: 8px;
-		font-size: 15px;
-		white-space: nowrap;
-		align-items: center;
+		width: 100%;
+		min-width: 0;
 	}
 
-	.game, .map
+	> .toolbar
 	{
-		width: 30%;
+		margin-bottom: 10px;
 	}
 
-	.title
+	.notice
 	{
-		flex-grow: 1;
-	}
-
-	.members
-	{
-		width: 100px;
-		flex-shrink: 0;
-		justify-content: flex-end;
-	}
-
-	.ping-icon
-	{
-		width: 24px;
-		flex-shrink: 0;
-		margin-left: 16px;
 		justify-content: center;
-		align-items: center;
-
-		&.good { color: #4ade80; }
-		&.okay { color: #facc15; }
-		&.bad { color: #f87171; }
+		padding: 48px 16px;
+		font-size: 13px;
+		color: $front-secondary;
+		text-align: center;
 	}
 
-	.ping-value
+	// Still looking - rows' shapes, breathing
+	.loading
 	{
-		width: 56px;
+		flex-direction: column;
+		gap: 6px;
+		padding-right: 16px;
+	}
+
+	//
+	// A row - the columns line up between the header and the servers under it
+	//
+
+	.row
+	{
 		flex-shrink: 0;
+		align-items: center;
+		// Air between the columns - the header's too, so its names don't run into each other
+		gap: 12px;
+		padding: 0 16px;
+		cursor: pointer;
 
-		&.good { color: #4ade80; }
-		&.okay { color: #facc15; }
-		&.bad { color: #f87171; }
-		&.unknown { opacity: 0.3; }
-	}
-
-	&:not(.header)
-	{
-		.game, .map
+		> *
 		{
-			opacity: 0.3;
-			gap: 8px;
-
-			i
-			{
-				font-size: 24px;
-			}
-
-			img
-			{
-				width: 24px;
-				height: 24px;
-			}
-
-			&:hover
-			{
-				opacity: 1;
-			}
+			font-size: 13px;
+			white-space: nowrap;
+			align-items: center;
 		}
 
 		.title
 		{
-			font-weight: bold;
+			flex-grow: 1;
+			min-width: 0;
+			width: 0;
 		}
 
-		.game, .map
+		.map
 		{
-			cursor: pointer;
-		}
+			width: 26%;
+			min-width: 0;
+			gap: 10px;
+			padding-left: 12px;
+			color: $front-body;
 
-		&:hover
-		{
-			background-color: #467de422;
-			color: #fff;
-		}
-
-		&.full
-		{
-			background-color: rgba( 180, 40, 30, 0.10 );
-
-			&:hover
+			label
 			{
-				background-color: rgba( 180, 40, 30, 0.20 );
+				min-width: 0;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+
+			i
+			{
+				font-size: 18px;
+				color: $front-secondary;
+			}
+
+			// Its thumbnail, a little tile
+			img
+			{
+				width: 30px;
+				height: 30px;
+				flex-shrink: 0;
+				border-radius: 6px;
+				border: 1px solid rgba( 255, 255, 255, 0.08 );
 			}
 		}
 
-		&.empty
+		.members
 		{
-			opacity: 0.25;
+			width: 86px;
+			flex-shrink: 0;
+			justify-content: flex-end;
+			gap: 3px;
+			font-family: Inter;
+			font-variant-numeric: tabular-nums;
 
-			&:hover
+			.current
 			{
-				opacity: .75;
-				background-color: #467de422;
+				font-weight: 700;
+				color: $front-heading;
+			}
+
+			.sep, .maxmembers
+			{
+				color: $front-secondary;
+			}
+		}
+
+		.ping-icon
+		{
+			width: 32px;
+			flex-shrink: 0;
+			justify-content: flex-end;
+
+			i
+			{
+				font-size: 16px;
+			}
+		}
+
+		.ping-value
+		{
+			width: 56px;
+			flex-shrink: 0;
+			justify-content: flex-end;
+			font-family: Inter;
+			font-weight: 700;
+			font-variant-numeric: tabular-nums;
+		}
+
+		// How good the line to it is - green, amber, red, or quiet when there's no telling
+		.ping-icon, .ping-value
+		{
+			&.good
+			{
+				color: $front-reward;
+			}
+
+			&.okay
+			{
+				color: $front-trophy;
+			}
+
+			&.bad
+			{
+				color: $front-danger;
+			}
+
+			&.unknown
+			{
+				color: $front-tertiary;
+				font-weight: 500;
+			}
+		}
+
+		// The columns' names, the page's small labels - click one to sort by it
+		&.header
+		{
+			flex-grow: 0;
+			padding: 0 32px 10px 16px;
+			cursor: default;
+
+			h2
+			{
+				@include front-section-label;
+
+				cursor: pointer;
+				transition: color 0.1s ease;
+
+				&:hover
+				{
+					color: $front-heading;
+				}
 			}
 		}
 	}
 
-	&.header
+	//
+	// A server - a card, joined by clicking it: under the pointer it lifts, and a Join button comes
+	// in over its end to say so
+	//
+
+	ServerRow
 	{
-		background-color: #101219dd;
-		padding: 8px 48px;
-		flex-grow: 0;
+		position: relative;
+		flex-grow: 1;
+		border-radius: 8px;
+		border: $front-border-width solid $front-hairline;
+		background-color: $front-card-deep;
+		transition: border-color 0.12s ease, background-color 0.12s ease;
+
+		// Its map's art behind the row's end, fading out towards the words - white shows, black hides
+		.map-art
+		{
+			position: absolute;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			width: 40%;
+			border-radius: 8px;
+			background-size: cover;
+			background-position: center;
+			mask-image: linear-gradient( 90deg, black 0%, white 100% );
+			opacity: 0.25;
+			pointer-events: none;
+		}
+
+		// Its host's face, then its name and what's worth knowing over who else is in it
+		.title
+		{
+			flex-direction: row;
+			align-items: center;
+			gap: 12px;
+			padding-right: 12px;
+		}
+
+		.host
+		{
+			flex-shrink: 0;
+			width: 36px;
+			height: 36px;
+			border-radius: 50%;
+			background-size: cover;
+			background-position: center;
+			background-color: rgba( 255, 255, 255, 0.06 );
+		}
+
+		.names
+		{
+			flex-direction: column;
+			flex-grow: 1;
+			flex-shrink: 1;
+			min-width: 0;
+			gap: 4px;
+		}
+
+		.name-line, .sub-line
+		{
+			flex-direction: row;
+			align-items: center;
+			gap: 8px;
+			min-width: 0;
+		}
+
+		.server-name, .server-map label, .hosted label
+		{
+			flex-shrink: 1;
+			min-width: 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		.server-name
+		{
+			font-size: 14px;
+			font-weight: 700;
+			color: $front-heading;
+		}
+
+		// Who's hosting it, and what it's on - each with a glyph to say which is which
+		.hosted, .server-map
+		{
+			flex-direction: row;
+			flex-shrink: 1;
+			min-width: 0;
+			align-items: center;
+			gap: 4px;
+
+			i
+			{
+				flex-shrink: 0;
+				font-size: 13px;
+				color: $front-tertiary;
+			}
+
+			label
+			{
+				font-size: 11.5px;
+				font-weight: 500;
+				color: $front-secondary;
+			}
+		}
+
+		// Under the name only when the map's own column's been folded away
+		.server-map
+		{
+			display: none;
+		}
+
+		// A little pill after the name - a friend's, an old version, the editor
+		.tag
+		{
+			flex-direction: row;
+			flex-shrink: 0;
+			align-items: center;
+			gap: 3px;
+			padding: 1px 7px;
+			border-radius: 999px;
+			background-color: rgba( 255, 255, 255, 0.08 );
+			font-size: 10px;
+			font-weight: 700;
+			text-transform: uppercase;
+			letter-spacing: 0.04em;
+			color: $front-body;
+
+			// A glyph's drawn from its name in lower case - the tag's upper case and spacing would spell it out
+			i
+			{
+				text-transform: none;
+				letter-spacing: 0;
+			}
+
+			&.friend
+			{
+				background-color: rgba( $front-reward, 0.14 );
+				color: $front-reward;
+			}
+
+			&.warn
+			{
+				background-color: rgba( $front-trophy, 0.14 );
+				color: $front-trophy;
+
+				i, label
+				{
+					font-size: 10px;
+					font-weight: 700;
+					color: $front-trophy;
+				}
+
+				i
+				{
+					font-size: 12px;
+				}
+			}
+		}
+
+		// Friends only, or invite only
+		.privacy
+		{
+			flex-shrink: 0;
+			font-size: 14px;
+			color: $front-secondary;
+		}
+
+		// Your friends in it - their faces overlapping, who
+		.friends
+		{
+			flex-direction: row;
+			flex-shrink: 0;
+			align-items: center;
+
+			.face
+			{
+				width: 18px;
+				height: 18px;
+				margin-right: -5px;
+				border-radius: 50%;
+				border: 1.5px solid $front-card-deep;
+				background-size: cover;
+				background-position: center;
+			}
+
+			label
+			{
+				margin-left: 10px;
+				font-size: 11.5px;
+				font-weight: 600;
+				color: $front-reward;
+			}
+		}
+
+		// How full - a pip a seat, the taken ones lit; or for a big one, the count over a bar. Over the
+		// plain row's columns, which line its count along the bottom
+		&.row .members
+		{
+			flex-direction: column;
+			align-items: flex-end;
+			justify-content: center;
+			gap: 5px;
+
+			.seats
+			{
+				flex-direction: row;
+				gap: 4px;
+			}
+
+			.seat
+			{
+				width: 8px;
+				height: 8px;
+				border-radius: 50%;
+				background-color: rgba( 255, 255, 255, 0.12 );
+
+				&.taken
+				{
+					background-color: $front-primary * 1.3;
+				}
+			}
+
+			// A bigger one's count, in a pill
+			.count
+			{
+				flex-direction: row;
+				align-items: center;
+				gap: 3px;
+				height: 24px;
+				padding: 0 10px;
+				border-radius: 999px;
+				border: 1px solid rgba( 255, 255, 255, 0.1 );
+				background-color: rgba( 255, 255, 255, 0.05 );
+				font-size: 12px;
+			}
+		}
+
+		// Joining - the friends list's green Join, a glowing square, over the row's end in place of
+		// its ping, unseen until the pointer's on the row
+		.join
+		{
+			position: absolute;
+			top: 12px;
+			bottom: 12px;
+			right: 16px;
+			width: 36px;
+			align-items: center;
+			justify-content: center;
+			border-radius: 6px;
+			border: 1px solid rgba( $front-reward, 0.45 );
+			background-color: rgba( $front-reward, 0.12 );
+			box-shadow: 0 0 10px rgba( $front-reward, 0.35 );
+			opacity: 0;
+			transform: translateX( 10px );
+			transition: opacity 0.12s ease, transform 0.12s ease, background-color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+
+			i
+			{
+				width: 100%;
+				text-align: center;
+				font-size: 20px;
+				color: $front-reward * 2;
+				text-shadow: 0 0 6px rgba( $front-reward, 0.9 );
+			}
+
+			// Under the pointer itself - it fills in solid, like the friends list's
+			&:hover
+			{
+				sound-in: "ui.button.over";
+				border-color: $front-reward * 2;
+				background-color: $front-reward;
+				box-shadow: 0 0 16px rgba( $front-reward, 0.7 );
+
+				i
+				{
+					color: #ffffff;
+					text-shadow: none;
+				}
+			}
+		}
+
+		// The ping, out of the way of it - it sits where the ping is, the players stay
+		.ping-icon, .ping-value
+		{
+			transition: opacity 0.12s ease;
+		}
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+			border-color: rgba( $front-primary, 0.5 );
+			background-image: linear-gradient( 90deg, rgba( $front-primary, 0.1 ), rgba( $front-primary, 0.03 ) );
+
+			.join
+			{
+				opacity: 1;
+				transform: translateX( 0 );
+			}
+
+			.ping-icon, .ping-value
+			{
+				opacity: 0;
+			}
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+
+		// No room - its count in amber, and its button says so, greyed, rather than joining
+		&.full
+		{
+			.members .current
+			{
+				color: $front-trophy;
+			}
+
+			.members .seat.taken
+			{
+				background-color: $front-trophy;
+			}
+
+			.members .count
+			{
+				border-color: rgba( $front-trophy, 0.4 );
+				background-color: rgba( $front-trophy, 0.1 );
+			}
+
+			// Nothing to join - grey, and it stays grey under the pointer
+			.join, .join:hover
+			{
+				border-color: rgba( 255, 255, 255, 0.12 );
+				background-color: rgba( 255, 255, 255, 0.06 );
+				box-shadow: none;
+
+				i
+				{
+					color: $front-secondary;
+					text-shadow: none;
+				}
+			}
+
+			&:hover
+			{
+				border-color: $front-hairline;
+				cursor: default;
+			}
+		}
+	}
+
+	// A row's shape while the list loads
+	.row.skeleton
+	{
+		height: 60px;
+		gap: 16px;
+		border-radius: 8px;
+		border: $front-border-width solid $front-hairline;
+		background-color: $front-card-deep;
+		cursor: default;
+
+		.bone
+		{
+			height: 12px;
+			border-radius: 6px;
+			background-color: rgba( 255, 255, 255, 0.06 );
+			animation: server-bone 1.2s ease-in-out infinite alternate;
+		}
+
+		.name { width: 30%; height: 14px; }
+		.map { flex-grow: 1; max-width: 22%; }
+		.members { width: 48px; }
+		.ping { width: 36px; }
+	}
+
+	// Maps belong under the server name when docked in a narrow column.
+	&.compact
+	{
+		.row
+		{
+			.map, .ping-icon
+			{
+				display: none;
+			}
+
+			.members
+			{
+				width: 64px;
+			}
+
+			.ping-value
+			{
+				width: 46px;
+			}
+		}
+
+		ServerRow .server-map
+		{
+			display: flex;
+		}
+	}
+}
+
+@keyframes server-bone
+{
+	0%
+	{
+		opacity: 0.55;
+	}
+
+	100%
+	{
+		opacity: 1;
 	}
 }

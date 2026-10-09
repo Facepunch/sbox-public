@@ -1,0 +1,58 @@
+@using Sandbox
+@using Sandbox.UI
+@using MenuProject.Modals.PackageModalComponents
+@inherits Panel
+
+@*
+    The game you're in, in the pause menu - its list down the left (GameMenu), everything you can do
+    about it, and beside it the body: the page picked from the list (PausePage) - its Game info, or its
+    changes, news, who's here, achievements. Not a route anyone else can
+    reach - the pause menu's navigator is told about it (see PauseModal).
+*@
+<root>
+
+    @* Everything you can do about it down the left, the page you picked beside that *@
+    <GameMenu />
+
+    @if ( ThisGame is { } game )
+    {
+        <PausePage Package=@game Page=@Page />
+    }
+    else
+    {
+        <div class="notice">
+            <i>construction</i>
+            <label class="notice-title">@Game.Ident</label>
+            <label class="notice-text">An unpublished game - there's nothing about it to show yet.</label>
+        </div>
+    }
+
+</root>
+
+@code
+{
+    public const string Url = "/pause";
+
+    /// <summary>
+    /// The page in the body - one of PackagePage's constants, or anything else for the Overview. From
+    /// the url, which always carries it - the navigator keeps this page and only sets what a url has.
+    /// </summary>
+    [Parameter] public string Page { get; set; }
+
+    const string Overview = "overview";
+
+    /// <summary>
+    /// Show one of the game's pages in the body - or its Overview, for null.
+    /// </summary>
+    public static void Show( string page ) => PauseModal.Open?.Navigate( $"{Url}?Page={page ?? Overview}" );
+
+    /// <summary>
+    /// The pause menu's copy - the full package once it's in, the one the game started with until then.
+    /// </summary>
+    static Package ThisGame => PauseModal.CurrentGame;
+
+    // Or with menu_mock_player_list on, to look at the list
+    public static bool ShowPlayers => MenuProject.Modals.PlayerList.IsMocking || (Networking.IsActive && (PauseModal.CurrentGame?.Info.ShowsPlayerList ?? true));
+
+    protected override int BuildHash() => HashCode.Combine( ThisGame, Page );
+}

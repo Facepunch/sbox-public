@@ -23,9 +23,8 @@ public static class MenuScene
 	public static void Tick()
 	{
 		if ( Scene is null ) return;
-		if ( !Game.IsMainMenuVisible ) return;
 
-		using ( Scene.Push() )
+		using ( Scene.PushScope() )
 		{
 			Scene.GameTick( RealTime.Delta );
 		}
@@ -33,13 +32,8 @@ public static class MenuScene
 
 	internal static void Render( SwapChainHandle_t swapChain )
 	{
-		if ( Scene is null ) return;
-		if ( !Game.IsMainMenuVisible ) return;
-		if ( Scene.IsLoading )
-		{
-			Scene.RenderEnvmaps();
-			return;
-		}
+		if ( Scene is null || Scene.IsSuspended ) return;
+		if ( Scene.IsLoading ) return;
 
 		Scene.Camera?.SceneCamera.EnableEngineOverlays = true;
 		SceneCamera.RecordingCamera = Scene.Camera?.SceneCamera;

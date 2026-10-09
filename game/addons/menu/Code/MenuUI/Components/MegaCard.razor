@@ -6,7 +6,7 @@
 @using MenuProject.Modals.PackageModalComponents;
 @inherits Panel
 
-<root class="megacard">
+<root class="megacard @(Fill ? "fills-page" : "")">
 
     <div class="body-outer">
 
@@ -23,7 +23,7 @@
 
         <div class="body">
 
-            <div class="row">
+            <div class="row @(HideLeft ? "no-left" : "")">
 
                 <div class="content">@Content</div>
 
@@ -58,4 +58,24 @@
     [Parameter] public RenderFragment Tabs { get; set; }
     [Parameter] public RenderFragment Metrics { get; set; }
     [Parameter] public RenderFragment Content { get; set; }
+
+    /// <summary>
+    /// Filling whatever it's in, rather than a card in the middle of the screen - the pause menu's
+    /// game page, where it's a page beside the rail rather than a modal.
+    /// </summary>
+    [Parameter] public bool Fill { get; set; }
+
+    /// <summary>
+    /// The info column out of the way, the page taking its room - kept, just not shown, so it's
+    /// straight back when it's wanted.
+    /// </summary>
+    [Parameter] public bool HideLeft { get; set; }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        // Centred, unless the party deck's up in the bottom right - then lifted clear of it
+        SetClass( "clear-deck", !Fill && MenuProject.PartyDeck.Current is not null );
+    }
 }

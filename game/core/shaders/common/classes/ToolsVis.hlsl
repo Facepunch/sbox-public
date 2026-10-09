@@ -203,6 +203,7 @@ struct ToolsVis
     void HandleLightingComplexity(inout float4 vColor, float3 WorldPosition, float4 PositionSs, float3 Normal)
     {
         uint nNumLights = 0;
+        const float3 vReceiverNormalWs = ComputeShadowReceiverNormal( WorldPosition );
 
         ClusterRange lightRange = Cluster::Query( ClusterItemType_Light, PositionSs );
 
@@ -210,7 +211,7 @@ struct ToolsVis
         {
             uint lightIndex = Cluster::LoadItem( lightRange, index );
             Light light;
-            light.Init( WorldPosition, DynamicLightConstantByIndex( lightIndex ), PositionSs );
+            light.Init( WorldPosition, DynamicLightConstantByIndex( lightIndex ), PositionSs, vReceiverNormalWs );
         
             if (light.Visibility > 0.0f && light.Attenuation > 0.0f && dot(light.Direction, Normal) > 0.0f)
                 nNumLights++;

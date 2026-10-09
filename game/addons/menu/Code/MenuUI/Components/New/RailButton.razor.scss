@@ -42,9 +42,17 @@ RailButton
 		background-color: $front-primary * 3;
 	}
 
+	// The rewards bar blooms - brighter than white, so it clears the bloom threshold (1.05), which
+	// nothing else on the rail does. The track doesn't clip it here, so the glow spills past the bar
+	.progress.reward
+	{
+		overflow: visible;
+	}
+
 	.progress.reward .progress-fill
 	{
-		background-color: $front-reward * 3;
+		background-color: $front-reward * 4.5;
+		box-shadow: 0 0 6px $front-reward * 2.25;
 	}
 }
 
@@ -52,7 +60,7 @@ RailButton
 Sidebar .nav RailButton.glow .button icon,
 Sidebar .nav RailButton.glow .button iconpanel
 {
-	color: $front-trophy * 2;
+	color: linear-gradient( 180deg, $front-trophy * 3, $front-trophy * 1.4 );
 	text-shadow: 0 0 14px rgba( $front-trophy, 0.7 );
 	animation-name: rail-glow;
 	animation-duration: 2.4s;
@@ -67,16 +75,17 @@ Sidebar .nav RailButton.glow .button label
 
 @keyframes rail-glow
 {
-	0%   { color: $front-trophy * 1.5; text-shadow: 0 0 8px rgba( $front-trophy, 0.4 ); }
-	50%  { color: $front-trophy * 3;   text-shadow: 0 0 18px rgba( $front-trophy, 0.9 ); }
-	100% { color: $front-trophy * 1.5; text-shadow: 0 0 8px rgba( $front-trophy, 0.4 ); }
+	0%   { text-shadow: 0 0 8px rgba( $front-trophy, 0.4 ); }
+	50%  { text-shadow: 0 0 18px rgba( $front-trophy, 0.9 ); }
+	100% { text-shadow: 0 0 8px rgba( $front-trophy, 0.4 ); }
 }
 
-// Under Sidebar .nav so it beats the rail's own padding.
+// Under Sidebar .nav so it beats the rail's own padding. Reaching into the gaps either side like
+// every entry (see Sidebar) - taller by them, and padded by them, so what's inside stays put.
 Sidebar .nav RailButton.has-sub .button
 {
-	height: 80px;
-	padding: 8px 1px 26px 4px;
+	height: 90px; // 74, and the 8 into each gap
+	padding: 13px 1px 31px 4px;
 }
 
 RailButton .sub

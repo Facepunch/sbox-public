@@ -1,0 +1,4 @@
+managed static class Sandbox.Engine.ConsoleConfig
+{
+	static bool Initialize( bool bindingsEnabled, bool developer, bool console );
+}

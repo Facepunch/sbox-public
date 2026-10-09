@@ -1,0 +1,100 @@
+@using Sandbox.UI
+
+<root class="@(OnActivate is null ? "" : "clickable")" onclick=@OnActivate>
+	<div class="row-image">
+		@if ( string.IsNullOrEmpty( Image ) )
+		{
+			<icon>sports_esports</icon>
+		}
+		else
+		{
+			<img src=@Image />
+		}
+	</div>
+	<div class="row-info">
+		<div class="row-heading">
+			<label class="row-title">@Title</label>
+			@if ( !ServerCount.HasValue )
+			{
+				<label class="row-count">@PlayerCount.ToString( "N0" ) @(PlayerCount == 1 ? "player" : "players")</label>
+			}
+		</div>
+		@if ( !string.IsNullOrEmpty( Subtitle ) || !string.IsNullOrEmpty( CountCaption ) || Actions is not null )
+		{
+			<div class="row-details">
+				<label class="row-subtitle">@Subtitle</label>
+				@if ( !string.IsNullOrEmpty( CountCaption ) )
+				{
+					<label class="row-caption">@CountCaption</label>
+				}
+				@if ( Actions is not null )
+				{
+					<div class="row-actions">@Actions</div>
+				}
+			</div>
+		}
+	</div>
+	@if ( ServerCount is { } serverCount )
+	{
+		<div class="row-stat" tooltip="@(PlayerCount == 1 ? "1 player online" : $"{PlayerCount:N0} players online")">
+			<icon>group</icon>
+			<label>@PlayerCount.ToString( "N0" )</label>
+		</div>
+		<div class="row-stat servers" tooltip="@(serverCount == 1 ? "1 server" : $"{serverCount:N0} servers")">
+			<icon>dns</icon>
+			<label>@serverCount.ToString( "N0" )</label>
+		</div>
+	}
+	@if ( OnActivate is not null )
+	{
+		<icon class="row-chevron">chevron_right</icon>
+	}
+</root>
+
+@code
+{
+	/// <summary>
+	/// Shared item height used by the game and party virtual lists.
+	/// </summary>
+	public const int Height = 60;
+
+	/// <summary>
+	/// Game or party name.
+	/// </summary>
+	[Parameter] public string Title { get; set; }
+
+	/// <summary>
+	/// Secondary details, such as server count or the party's chosen game.
+	/// </summary>
+	[Parameter] public string Subtitle { get; set; }
+
+	/// <summary>
+	/// Game thumbnail or party host avatar.
+	/// </summary>
+	[Parameter] public string Image { get; set; }
+
+	/// <summary>
+	/// Players in this game or party.
+	/// </summary>
+	[Parameter] public int PlayerCount { get; set; }
+
+	/// <summary>
+	/// When supplied, show player and server totals in separate icon columns beside the game title.
+	/// </summary>
+	[Parameter] public int? ServerCount { get; set; }
+
+	/// <summary>
+	/// Optional status beside the secondary details, such as Your party or In game.
+	/// </summary>
+	[Parameter] public string CountCaption { get; set; }
+
+	/// <summary>
+	/// Opens a game when the whole row is clicked.
+	/// </summary>
+	[Parameter] public Action OnActivate { get; set; }
+
+	/// <summary>
+	/// Optional trailing controls, such as joining a party.
+	/// </summary>
+	[Parameter] public RenderFragment Actions { get; set; }
+}

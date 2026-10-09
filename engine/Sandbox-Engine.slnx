@@ -24,6 +24,7 @@
     <Project Path="Launcher/SboxProfiler/SboxProfiler.csproj" />
     <Project Path="Launcher/SboxServer/Sbox-Server.csproj" />
     <Project Path="Launcher/SboxStandalone/Sbox-Standalone.csproj" />
+    <Project Path="Launcher/SceneLab/SceneLab.csproj" />
     <Project Path="Launcher/Shared/LaunchShared.shproj" />
     <Project Path="Launcher/StandaloneTest/Sbox-Launcher.csproj" />
   </Folder>
@@ -60,6 +61,7 @@
     <Project Path="Sandbox.AppSystem/Sandbox.AppSystem.csproj" />
     <Project Path="Sandbox.GameInstance/Sandbox.GameInstance.csproj" />
     <Project Path="Sandbox.Menu/Sandbox.Menu.csproj" />
+    <Project Path="Sandbox.SceneRenderer/Sandbox.SceneRenderer.csproj" />
     <Project Path="Sandbox.Tools/Sandbox.Tools.csproj" />
   </Folder>
   <Folder Name="/Solution Items/">

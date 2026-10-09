@@ -13,56 +13,20 @@
 
     <MegaCard>
         <Metrics>
-            <PackageMetrics Package="@Package" />
+            @* Just report - rating's along the bottom now, the rest is in the info column *@
+            <PackageMetrics Package="@Package" ShowRatings="@false" ShowStats="@false" />
         </Metrics>
         <Tabs>
-
-            <PortalButton StartActive Portal=@Portal>
-                <Button>
-                    <SearchlightTab Title="Overview" Icon="people" />
-                </Button>
-                <Content>
-                    <Media Package=@Package></Media>
+            @* A game's tabs - the Overview's the gallery and the map's own write-up *@
+            <PackageTabs @ref=MapTabs Package=@Package Portal=@Portal>
+                <Overview>
+                    <Media Package=@Package Loaded=@HasFullPackage></Media>
                     <PackageDescription Package=@Package />
-                </Content>
-            </PortalButton>
-
-            <PortalButton @ref=ReviewsTab Portal=@Portal>
-                <Button>
-                    <SearchlightTab Title="Reviews" Icon="reviews" />
-                </Button>
-                <Content>
-                    <PackageReviews Package=@Package />
-                </Content>
-            </PortalButton>
-
-            @if (Package.LatestChangeLists.Length > 0)
-            {
-                <PortalButton @ref=ChangesTab Portal=@Portal>
-                    <Button>
-                        <SearchlightTab Title="Changes" Icon="history" />
-                    </Button>
-                    <Content>
-                        <PackageChanges Package=@Package />
-                    </Content>
-                </PortalButton>
-            }
-
-            @if (Package.LatestNewsPost is not null)
-            {
-                <PortalButton Portal=@Portal>
-                    <Button>
-                        <SearchlightTab Title="News" Icon="newspaper" />
-                    </Button>
-                    <Content>
-                        <PackageNews Package=@Package />
-                    </Content>
-                </PortalButton>
-            }
-
+                </Overview>
+            </PackageTabs>
         </Tabs>
         <Left>
-            <PackageInfoPanel Package="@Package" OnChangelogClicked="@(() => ChangesTab?.ActivatePage())" OnReviewsClicked="@(() => ReviewsTab?.ActivatePage())" />
+            <PackageInfoPanel Package="@Package" OnChangelogClicked="@(() => MapTabs?.OpenChanges())" OnReviewsClicked="@(() => MapTabs?.OpenReviews())" />
 
             @if (achList is not null)
             {
@@ -100,8 +64,7 @@
 
     AchievementCollection achList;
     PortalTarget Portal = default;
-    PortalButton ChangesTab = default;
-    PortalButton ReviewsTab = default;
+    PackageTabs MapTabs = default;
 
 	public List<LobbyInformation> Lobbies = new();
 
@@ -116,7 +79,7 @@
 
 	void OnLobbySelected ( LobbyInformation lobby )
 	{
-        Networking.Connect(lobby.LobbyId);
+        MenuUtility.Connect( lobby.LobbyId );
 		CloseModal(true);
 		OrganizationModal.LastOpened?.CloseModal( true );
 	}

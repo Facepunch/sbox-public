@@ -18,17 +18,28 @@ partial class PublishWizard
 
 		public override async Task OpenAsync()
 		{
-			BodyLayout?.Clear( true );
-
+			BodyLayout.Clear( true );
 			logOutput = new TextEdit( this );
-			BodyLayout.Add( logOutput, 1 );
+			Rebuild();
 
 			Enabled = false;
 			Visible = true;
 
 			PublishConfig.AssemblyFiles = null;
+			PublishConfig.CompilerOutput = null;
+			PublishConfig.Publisher = null;
+			PublishConfig.CodePackages.Clear();
+			CompileSuccessful = false;
 
 			await Refresh();
+		}
+
+		public override void Rebuild()
+		{
+			// Keep the live output, including its formatting, while compilation continues.
+			BodyLayout.Clear( false );
+			logOutput ??= new TextEdit( this );
+			BodyLayout.Add( logOutput, 1 );
 		}
 
 		public async Task Refresh()

@@ -252,7 +252,8 @@ public static partial class Game
 		}
 
 		/// <summary>
-		/// Opens the pause menu overlay. This is the same menu that appears when pressing ESC.
+		/// Opens the pause menu overlay. This is the same menu that appears when pressing Escape,
+		/// or Shift+Escape in editor play mode.
 		/// </summary>
 		public static void ShowPauseMenu()
 		{

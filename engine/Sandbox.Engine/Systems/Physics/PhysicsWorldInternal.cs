@@ -46,6 +46,7 @@ internal abstract partial class PhysicsWorldInternal : IValid
 	public IEnumerable<PhysicsBody> Bodies => bodies.Where( x => x.IsValid ).Select( x => x.Owner );
 
 	internal int BodyCount => bodies.Count;
+	internal HashSet<PhysicsBodyInternal> RegisteredBodies => bodies;
 
 	/// <summary>
 	/// Set or retrieve the collision rules for this <see cref="PhysicsWorld"/>.

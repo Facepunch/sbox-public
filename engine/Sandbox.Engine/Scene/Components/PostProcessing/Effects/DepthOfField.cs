@@ -19,7 +19,7 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 	internal static int Quality { get; set; } = 3;
 
 	/// <summary>
-	/// How blurry to make stuff that isn't in focus, the maximum blur radius in pixels.
+	/// How blurry to make stuff that isn't in focus, relative to screen height with 1080p as the reference.
 	/// </summary>
 	[Range( 0, 100 )]
 	[Property, Group( "Focus" ), Icon( "blur_circular" )]
@@ -28,7 +28,7 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 	/// <summary>
 	/// How far away from the camera to focus in world units.
 	/// </summary>
-	[Range( 1.0f, 1000 )]
+	[Range( 1.0f, 16000 )]
 	[Property, Group( "Focus" ), Icon( "horizontal_distribute" )]
 	public float FocalDistance { get; set; } = 200.0f;
 
@@ -37,6 +37,7 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 	/// Larger values give a softer, more gradual falloff. Defaults to the camera far plane.
 	/// </summary>
 	[Range( 1.0f, 15000.0f )]
+	[Editor( "depth-of-field-focus-range" )]
 	[Property, Group( "Focus" ), Icon( "blur_linear" )]
 	public float FocusRange { get; set; } = 15000f;
 
@@ -96,12 +97,11 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 			return;
 
 		float blurSize = GetWeighted( x => x.BlurSize, 0.0f ).Clamp( 0.0f, 100.0f );
-		if ( blurSize < 0.5f ) return;
+		if ( blurSize <= 0.0f ) return;
 
 		float focalDistance = GetWeighted( x => x.FocalDistance, 200.0f );
 		float focusRange = GetWeighted( x => x.FocusRange, 10000.0f );
 		float stepScale = StepScales[Quality.Clamp( 0, 3 )];
-		int radius = Math.Max( 1, (int)(blurSize / stepScale) );
 
 		EnsureTileBuffers();
 
@@ -136,9 +136,9 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 
 		command.Attributes.Set( "InvDimensions", Vertical.Size, true );
 		command.Attributes.Set( "Dimensions", Vertical.Size );
-		command.Attributes.Set( "Radius", radius );
+		command.Attributes.Set( "BlurSize", blurSize );
 		command.Attributes.Set( "StepScale", stepScale );
-		command.Attributes.Set( "FocusPlane", focalDistance.Clamp( 0, 5000 ) );
+		command.Attributes.Set( "FocusPlane", focalDistance.Clamp( 0, 16000 ) );
 		command.Attributes.Set( "FocusRange", focusRange );
 		command.Attributes.Set( "EnableBack", BackBlur );
 		command.Attributes.Set( "EnableFront", FrontBlur );

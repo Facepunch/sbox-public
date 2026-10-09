@@ -1,55 +1,82 @@
 @using System;
 @using Sandbox;
+@using Sandbox.Services;
 @using Sandbox.UI;
 @namespace Sandbox.Menu
 @inherits Panel
 
-<root>
+@*
+    After you close a game - what it was, and a quick way to say what you thought of it: favourite
+    it, vote on it, review it. Goes by itself after a while (the line along the bottom), not while
+    you're pointing at it. menu_packageclosed <ident> puts one up for any game.
+*@
+<root class="@( ShowJam ? "with-jam" : "" )">
 
-    <div class="close" @onclick="@Close"><i>close</i></div>
+    @* The game - click through to its page *@
+    <div class="head">
+        <div class="game-icon" style="background-image: url( @( Package.Thumb ) )" onclick=@OpenModal tooltip="View More Information"></div>
 
-    <div class="top" @onclick="@OpenModal" ToolTip="View More Information">
-
-        <div class="left">
-            <div  class="game-icon" style="background-image: url( @( Package.Thumb ) )"></div>
+        <div class="head-text" onclick=@OpenModal>
+            <label class="eyebrow">Thanks for playing</label>
+            <label class="game-title">@Package.Title</label>
+            @if ( !string.IsNullOrWhiteSpace( Package.Org?.Title ) )
+            {
+                <label class="game-org">@Package.Org.Title</label>
+            }
         </div>
 
-        <div class="right">
-
-            <div class="game-title">@Package.Title</div>
-            <div class="game-author">@Package.Org.Title</div>
-
-        </div>
+        <div class="close" onclick=@Close tooltip="Dismiss"><i>close</i></div>
     </div>
 
-    <div class="body">
-
-        <div class="option favourite @(IsFavourite ? "active" : "")" ToolTip="@(IsFavourite ? "Remove from Favourites" : "Add to Favourites")" onclick=@ToggleFavourite>
+    @* What you thought - favourite, a vote either way, a review *@
+    <div class="actions">
+        <div class="action favourite @(IsFavourite ? "active" : "")" tooltip="@(IsFavourite ? "Remove from Favourites" : "Add to Favourites")" onclick=@ToggleFavourite>
             <i>favorite</i>
             <label>@(Package.Favourited.KiloFormat())</label>
         </div>
 
-        <div class="group">
-            <div class="option voteup @((Package.Interaction.Rating ?? 1) <= 0 ? "active" : "")" onclick=@VoteUp ToolTip="Vote Up">
+        @* The two votes as one split pill - they're either side of the same question *@
+        <div class="votes">
+            <div class="action up @((Package.Interaction.Rating ?? 1) <= 0 ? "active" : "")" onclick=@VoteUp tooltip="Vote Up">
                 <i>thumb_up</i>
                 <label>@(Package.VotesUp.KiloFormat())</label>
             </div>
 
-            <div class="option votedown @((Package.Interaction.Rating ?? 0) > 0 ? "active" : "")" onclick=@VoteDown ToolTip="Vote Down">
+            <div class="split"></div>
+
+            <div class="action down @((Package.Interaction.Rating ?? 0) > 0 ? "active" : "")" onclick=@VoteDown tooltip="Vote Down">
                 <i>thumb_down</i>
                 <label>@(Package.VotesDown.KiloFormat())</label>
             </div>
         </div>
 
-        <div class="option rating" onclick=@LeaveReview ToolTip="Add a Review">
-            <i>reviews</i>
+        <div class="grow"></div>
+
+        <div class="action review" onclick=@LeaveReview tooltip="Add a Review">
+            <i>rate_review</i>
             <label>Review</label>
         </div>
-
     </div>
 
-    <div class="close-progress">
-        <Panel class="inner" @ref=_closeProgress></Panel>
+    @if ( ShowJam )
+    {
+        <div class="jam @( IsNominated ? "on" : "" )">
+            <i class="trophy">emoji_events</i>
+            <div class="text">
+                <label class="title">@_jam.Title entry</label>
+                <label class="hint">@( IsNominated ? "You nominated this entry" : CanToggle ? "Liked it? Nominate it" : _entry.Reason )</label>
+            </div>
+
+            <div class="nominate @( IsNominated ? "on" : "" ) @( _busy ? "busy" : "" ) @( CanToggle ? "" : "locked" )" onclick=@( () => _ = ToggleNomination() ) ToolTip="@NominateTooltip">
+                <i>@( IsNominated ? "check" : "how_to_vote" )</i>
+                <label>@( IsNominated ? "Nominated" : "Nominate" )</label>
+            </div>
+        </div>
+    }
+
+    @* How long until it goes - runs down along the bottom edge, stops while you're on it *@
+    <div class="timer">
+        <Panel class="fill" @ref=_closeProgress></Panel>
     </div>
 
 </root>
@@ -58,10 +85,78 @@
 {
     [Parameter, EditorRequired] public Package Package { get; set; }
 
-    const float Lifetime = 10;
+    const float Lifetime = 15;
     float timeRemaining = Lifetime;
 
     Panel _closeProgress = default;
+
+    Jam _jam;
+    JamEntryStatus _entry;
+    bool _nominated;
+    bool _busy;
+
+    bool ShowJam => _jam is not null && _entry.IsEntry;
+    bool IsNominated => _nominated;
+    bool CanToggle => IsNominated || _entry.CanNominate;
+    string NominateTooltip => CanToggle ? null : _entry.Reason;
+
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        base.OnAfterTreeRender( firstTime );
+
+        if ( firstTime )
+            _ = LoadJam();
+    }
+
+    async Task LoadJam()
+    {
+        var jam = await Jam.GetActive();
+        if ( !this.IsValid() ) return;
+        if ( jam is null || !jam.CommunityVoting || !jam.HasStarted || jam.Now >= jam.NominationsEnd ) return;
+
+        var entry = await jam.GetEntryStatusAsync( Package );
+        if ( !this.IsValid() ) return;
+        if ( entry is not { IsEntry: true } status ) return;
+
+        _jam = jam;
+        _entry = status;
+        _nominated = status.Nominated;
+        StateHasChanged();
+    }
+
+    async Task ToggleNomination()
+    {
+        if ( _busy || !ShowJam || !CanToggle ) return;
+
+        _busy = true;
+        StateHasChanged();
+
+        var removing = IsNominated;
+        _nominated = !removing;
+        string reason;
+
+        try
+        {
+            reason = removing ? await _jam.WithdrawNominationAsync( Package ) : await _jam.NominateAsync( Package );
+        }
+        catch ( Exception e )
+        {
+            Log.Warning( e, $"Nominate {Package.FullIdent} failed" );
+            reason = "Couldn't reach the jam right now.";
+        }
+
+        if ( !this.IsValid() ) return;
+
+        _busy = false;
+
+        if ( reason is not null )
+        {
+            _nominated = removing;
+            MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast() { Title = reason, Icon = "how_to_vote" } );
+        }
+
+        StateHasChanged();
+    }
 
     public override void Tick()
     {
@@ -73,7 +168,7 @@
             _closeProgress.Style.Dirty();
         }
 
-        if ( HasHovered )
+        if ( HasHovered || _busy )
             return;
 
         timeRemaining -= RealTime.Delta;
@@ -86,6 +181,7 @@
 
     void OpenModal()
     {
+        Discovery.Clicked( new DiscoveryContext { Surface = "gameclosed" }, Package );
         Game.Overlay.ShowGameModal(Package.FullIdent);
         Close();
     }

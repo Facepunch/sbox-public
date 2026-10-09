@@ -1,0 +1,179 @@
+@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+
+@*
+    Achievements and points - yours on the front page, a friend's on their card. A skeleton while
+    they load, so nothing jumps when they arrive, and a note saying so if their profile's private.
+*@
+<root class="@State">
+
+    @if ( State == "private" )
+    {
+        @* Their profile's private - say so rather than leaving a gap *@
+        <div class="private">
+            <icon>lock</icon>
+            <div class="private-text">
+                <label class="private-title">Private profile</label>
+                <label class="private-hint">Their achievements and points are hidden</label>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="stat">
+            <div class="stat-value">
+                <icon class="trophy">emoji_events</icon>
+                @if ( State == "loaded" )
+                {
+                    <label>@Achievements.ToString( "N0" )</label>
+                }
+                else
+                {
+                    <div class="skeleton"></div>
+                }
+            </div>
+            <label class="stat-label">Achievements</label>
+        </div>
+
+        <div class="stat">
+            <div class="stat-value">
+                <icon class="points">stars</icon>
+                @if ( State == "loaded" )
+                {
+                    <label>@Points.ToString( "N0" )</label>
+                }
+                else
+                {
+                    <div class="skeleton"></div>
+                }
+            </div>
+            <label class="stat-label">Points</label>
+        </div>
+    }
+
+</root>
+
+@code
+{
+    /// <summary>
+    /// Whose numbers - nobody set means you.
+    /// </summary>
+    public long SteamId { get; set; }
+
+    bool IsLocal => SteamId == 0 || SteamId == (long)Sandbox.Utility.Steam.SteamId;
+
+    /// <summary>
+    /// Their lifetime unlock count, from the player overview.
+    /// </summary>
+    long Achievements { get; set; }
+
+    /// <summary>
+    /// Their lifetime gamerscore. Ours we already have from the login.
+    /// </summary>
+    int Points { get; set; }
+
+    /// <summary>
+    /// "loading", "loaded", "private" for someone else's private profile, or "hidden" when the lookup failed.
+    /// </summary>
+    string State { get; set; } = "loading";
+
+    /// <summary>
+    /// We know there's nothing more coming for this player - their profile's private, or it failed. Lets
+    /// whatever else is waiting on the same player (the friend card's recently played) give up too.
+    /// </summary>
+    public bool NothingComing => State is "private" or "hidden";
+
+    long _loadedFor = -1;
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        // Whoever we're showing can change (a card reused for someone else) - fetch theirs
+        if ( _loadedFor == SteamId ) return;
+
+        _loadedFor = SteamId;
+        _ = LoadStats( SteamId );
+    }
+
+    async Task LoadStats( long steamId )
+    {
+        State = "loading";
+        StateHasChanged();
+
+        long id = IsLocal ? (long)Sandbox.Utility.Steam.SteamId : steamId;
+
+        Sandbox.Services.Players.Overview overview = null;
+
+        try
+        {
+            overview = await Sandbox.Services.Players.Overview.Get( id );
+        }
+        catch ( Exception )
+        {
+            // Might be the backend having a moment, might be a private profile - worked out below
+        }
+
+        if ( !this.IsValid() || _loadedFor != steamId )
+            return;
+
+        // No overview - private profiles don't get one (it comes back empty, or the request's refused).
+        // If their plain profile still loads, that's why; if even that fails we just don't know.
+        if ( overview is null )
+        {
+            var withheld = !IsLocal && await ProfileExists( id );
+            if ( !this.IsValid() || _loadedFor != steamId ) return;
+
+            if ( withheld )
+            {
+                State = "private";
+                StateHasChanged();
+            }
+            else
+            {
+                Hide();
+            }
+
+            return;
+        }
+
+        // Theirs is private - no numbers coming, but that's worth saying
+        if ( !IsLocal && overview.Player is not { Private: false } )
+        {
+            State = "private";
+            StateHasChanged();
+            return;
+        }
+
+        Achievements = overview.Achievements;
+        Points = IsLocal ? Sandbox.Services.Players.Profile.Local.Score : overview.Player.Score;
+        State = "loaded";
+
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Their basic profile loads - so the backend's up, and it's the overview that's being kept back.
+    /// </summary>
+    static async Task<bool> ProfileExists( long id )
+    {
+        try
+        {
+            return await Sandbox.Services.Players.Profile.Get( id ) is not null;
+        }
+        catch ( Exception )
+        {
+            return false;
+        }
+    }
+
+    void Hide()
+    {
+        State = "hidden";
+        StateHasChanged();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( State, Achievements, Points );
+}

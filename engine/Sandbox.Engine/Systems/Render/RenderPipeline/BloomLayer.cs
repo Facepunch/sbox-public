@@ -23,23 +23,18 @@ internal class BloomLayer : RenderLayer
 		ColorAttachment = renderTarget.ToColorHandle( view );
 		DepthAttachment = renderTarget.ToDepthHandle( view );
 	}
-}
 
-internal class BloomDownsampleLayer : ProceduralRenderLayer
-{
-	public RenderTarget RT { get; set; }
-	public BloomDownsampleLayer()
+	/// <summary>
+	/// The bloom layer's target for a quarter viewport this size: a temporary RGBA1010102 colour and D32 depth. The bloom
+	/// effect blurs it in its own downsample chain. Also what the managed scene renderer draws its bloom objects into.
+	/// </summary>
+	internal static RenderTarget GetTarget( int width, int height )
 	{
-		Name = "Bloom Layer Gaussian Blur";
-		Flags |= LayerFlags.NeverRemove;
-	}
-
-	// Bit wasteful if we are not rendering anything before, in the future these two layers would only be called if we are rendering something
-	internal override void OnRender()
-	{
-		// Fucked?
-		// Graphics.GenerateMipMaps( rt.ColorTarget, Graphics.DownsampleMethod.GaussianBlur );
-		NativeEngine.CSceneSystem.DownsampleTexture( Graphics.Context, RT.ColorTarget.native, (int)Graphics.DownsampleMethod.GaussianBlur );
+		return RenderTarget.GetTemporary(
+			width,
+			height,
+			colorFormat: ImageFormat.RGBA1010102,
+			depthFormat: ImageFormat.D32 );
 	}
 }
 internal class QuarterDepthDownsampleLayer : ProceduralRenderLayer
@@ -67,8 +62,18 @@ internal class QuarterDepthDownsampleLayer : ProceduralRenderLayer
 
 	internal override void OnRender()
 	{
-		Graphics.Attributes.SetCombo( "D_MSAA", MSAAInput );
-		Graphics.Attributes.Set( "DownsampleFactor", 4 );
-		Graphics.Blit( DepthResolve );
+		Render( Graphics.Attributes, MSAAInput );
+	}
+
+	/// <summary>
+	/// Write the depth at a quarter of the resolution into the bound depth target, from <c>SourceDepth</c> in
+	/// <paramref name="attributes"/> (<paramref name="msaaInput"/> or not) - inside a render block. Also what the managed
+	/// scene renderer runs, into its own frame.
+	/// </summary>
+	internal static void Render( RenderAttributes attributes, bool msaaInput )
+	{
+		attributes.SetCombo( "D_MSAA", msaaInput );
+		attributes.Set( "DownsampleFactor", 4 );
+		Graphics.Blit( DepthResolve, attributes );
 	}
 }

@@ -34,48 +34,117 @@ public partial class Package
 	}
 
 	/// <summary>
+	/// The files in a revision's manifest a download fetches - the legal ones, and with
+	/// <paramref name="skipAssets"/> only the compiled code.
+	/// </summary>
+	static ManifestSchema.File[] DownloadableFiles( IRevision rev, bool skipAssets )
+	{
+		var entries = (rev.Manifest?.Files ?? Array.Empty<ManifestSchema.File>()).Where( FilterFileDownloads );
+
+		if ( skipAssets )
+			entries = entries.Where( x => x.Path.StartsWith( ".bin" ) );
+
+		return entries.ToArray();
+	}
+
+	/// <summary>
+	/// How much downloading this package would fetch, in bytes - its files that aren't in the download
+	/// cache already. Fetches the manifest if it hasn't been. 0 when it's all cached, -1 when it can't be
+	/// told (no revision, no manifest).
+	/// </summary>
+	internal async Task<long> GetDownloadSizeAsync( bool skipAssets = false, CancellationToken token = default )
+	{
+		if ( Revision is not { } rev )
+			return -1;
+
+		await rev.DownloadManifestAsync( token );
+		if ( rev.Manifest == null ) return -1;
+
+		var entries = DownloadableFiles( rev, skipAssets );
+
+		// A few file stats each - all at once, off the main thread, like the download's own check
+		return await Task.Run( () => entries
+			.AsParallel()
+			.Where( x => AssetDownloadCache.ResolveCached( x.Path, Convert.ToUInt64( x.Crc, 16 ) ) is null )
+			.Sum( x => x.Size ), token );
+	}
+
+	/// <summary>
 	/// Download a package to a temporary location and return a filesystem with its contents
 	/// </summary>
 	internal async Task<PackageFileSystem> Download( CancellationToken token = default, PackageLoadOptions options = default )
 	{
+		var fs = new PackageFileSystem();
+		return await DownloadFiles( fs, token, options ) ? fs : null;
+	}
+
+	/// <summary>
+	/// Download this package's files into the asset cache without mounting anything, so a later
+	/// <see cref="Download(CancellationToken, PackageLoadOptions)"/> finds them all cached.
+	/// Downloads of the same file share the per-file lock, so this can run alongside one.
+	/// Returns false if the download failed.
+	/// </summary>
+	internal Task<bool> Prefetch( CancellationToken token, PackageLoadOptions options = default )
+	{
+		return DownloadFiles( null, token, options );
+	}
+
+	/// <summary>
+	/// Download the files into the cache, mounting each on <paramref name="fs"/> if there is one
+	/// </summary>
+	async Task<bool> DownloadFiles( PackageFileSystem fs, CancellationToken token, PackageLoadOptions options )
+	{
 		// TODO - if we have a download in progress then return, or wait for it (?)
 		// The filesystem is technically immutable other than disposing and adding more shit to it
 		if ( Revision == null )
-			return null;
+			return false;
 
 		var rev = Revision;
-		if ( rev == null ) return null;
+		if ( rev == null ) return false;
 
 		options.Loading?.LoadingProgress( LoadingProgress.Create( $"Fetching '{Title}' Information" ) );
 
 		// make sure manifest is downloaded
 		await rev.DownloadManifestAsync( token );
 
-		if ( rev.Manifest == null ) return null;
-
-		var entries = rev.Manifest.Files ?? Array.Empty<ManifestSchema.File>();
+		if ( rev.Manifest == null ) return false;
 
 		// filter out files we're never going to download
-		entries = entries.Where( FilterFileDownloads ).ToArray();
-
-		if ( options.SkipAssetDownload )
-		{
-			entries = entries.Where( x => x.Path.StartsWith( ".bin" ) ).ToArray();
-		}
+		var entries = DownloadableFiles( rev, options.SkipAssetDownload );
 
 		var downloadQueue = new ConcurrentBag<FileDownloadEntry>();
-		var fs = new PackageFileSystem();
+
+		// Finding each file in the caches is a few file stats, so that runs for all of them at once off the main thread
+		var resolved = new string[entries.Length];
+		await Task.Run( () => Parallel.For( 0, entries.Length, i => resolved[i] = AssetDownloadCache.ResolveCached( entries[i].Path, Convert.ToUInt64( entries[i].Crc, 16 ) ) ), token );
+		token.ThrowIfCancellationRequested();
 
 		var loopSw = Stopwatch.StartNew();
-		foreach ( var e in entries )
+		for ( int i = 0; i < entries.Length; i++ )
 		{
-			TryAddToDownloadQueue( e, fs, downloadQueue, token );
-			if ( loopSw.ElapsedMilliseconds > 8 ) { global::Sandbox.LoadingScreen.Subtitle = System.IO.Path.GetFileName( e.Path ); await Task.Yield(); loopSw.Restart(); }
+			TryAddToDownloadQueue( entries[i], resolved[i], fs, downloadQueue, token );
+			if ( loopSw.ElapsedMilliseconds > 8 )
+			{
+				if ( fs is not null ) global::Sandbox.LoadingScreen.Subtitle = System.IO.Path.GetFileName( entries[i].Path );
+				await Task.Yield();
+				loopSw.Restart();
+			}
 		}
+
+
+		// Its place among the load's downloads - unless another download of it's already filling that in
+		var tracked = global::Sandbox.LoadingScreen.TrackDownload( FullIdent, Title );
+		if ( tracked is { IsDownloading: true } ) tracked = null;
 
 		// nothing to download
 		if ( downloadQueue.Count <= 0 )
-			return fs;
+		{
+			if ( tracked is not null ) tracked.IsComplete = true;
+
+			options.Loading?.LoadingProgress( new LoadingProgress { Title = $"Download '{Title}' Complete", Fraction = 1 } );
+			Api.Activity.CurrentLoad?.Downloaded( 0, 0, 0 );
+			return true;
+		}
 
 		var progress = LoadingProgress.Create( $"Downloading '{Title}'" );
 
@@ -91,11 +160,20 @@ public partial class Package
 
 		options.Loading?.LoadingProgress( progress );
 
+		if ( tracked is not null )
+		{
+			tracked.TotalSize = totalSize;
+			tracked.Downloaded = 0;
+			tracked.IsComplete = false;
+			tracked.IsDownloading = true;
+		}
+
 		var metric = new Api.Events.EventRecord( "package.download" );
 		metric.SetValue( "ident", FullIdent );
 		metric.SetValue( "files", downloadQueue.Count );
 		metric.SetValue( "size_sum", totalSize );
 		metric.SetValue( "size_avg", downloadQueue.Average( x => x.File.Size ) );
+		metric.SetValue( "prefetch", fs is null );
 
 		Utility.DataProgress.Callback progressCallback = ( p ) => { Interlocked.Add( ref downloadedSize, p.DeltaBytes ); };
 
@@ -107,16 +185,27 @@ public partial class Package
 		// Stop the other workers when one fails, they'd keep writing to a filesystem we've thrown away
 		using var downloadCancel = CancellationTokenSource.CreateLinkedTokenSource( token );
 
+		// Downloaded files wait here for the main thread to mount them
+		var downloaded = new ConcurrentQueue<FileDownloadEntry>();
+
+		void MountDownloaded()
+		{
+			while ( downloaded.TryDequeue( out var e ) )
+				AssetDownloadCache.TryMount( fs.Redirect, e.File.Path, e.Crc );
+		}
+
 		//
-		// Download any pending files
+		// Download any pending files. The transfers run on the thread pool: on the main thread every read
+		// waits for the next frame's queue drain, which caps throughput by frame rate and stalls the frame.
 		//
-		var task = downloadQueue
+		var task = Task.Run( () => downloadQueue
 			.OrderBy( x => Guid.NewGuid() )
 			.ForEachTaskAsync( async ( e ) =>
 			{
 				try
 				{
-					await DownloadFileAsync( e, fs, progressCallback, downloadCancel.Token );
+					await DownloadFileAsync( e, progressCallback, downloadCancel.Token );
+					if ( fs is not null ) downloaded.Enqueue( e );
 				}
 				// Only swallow if we're the ones who cancelled, a timeout mustn't pass as success
 				catch ( OperationCanceledException ) when ( downloadCancel.IsCancellationRequested ) { }
@@ -127,13 +216,15 @@ public partial class Package
 					downloadCancel.Cancel();
 				}
 
-			}, workers );
+			}, workers ) );
 
 		long oldSize = 0;
 		while ( !task.IsCompleted )
 		{
 			if ( hasError || token.IsCancellationRequested )
 				break;
+
+			if ( fs is not null ) MountDownloaded();
 
 			if ( downloadedSize != oldSize )
 			{
@@ -148,6 +239,12 @@ public partial class Package
 				progress.Fraction = frac;
 
 				options.Loading?.LoadingProgress( progress );
+
+				if ( tracked is not null )
+				{
+					tracked.Downloaded = downloadedSize;
+					tracked.Mbps = mbps;
+				}
 			}
 
 			await Task.Delay( 16 );
@@ -156,14 +253,31 @@ public partial class Package
 		// Wait for the cancelled workers to finish writing
 		await task;
 
+		// Not coming down any more, however it ended
+		if ( tracked is not null )
+		{
+			tracked.IsDownloading = false;
+			tracked.Mbps = 0;
+		}
+
 		token.ThrowIfCancellationRequested();
 
 		if ( hasError )
-			return null;
+			return false;
+
+		if ( tracked is not null )
+		{
+			tracked.Downloaded = totalSize;
+			tracked.IsComplete = true;
+		}
+
+		if ( fs is not null ) MountDownloaded();
 
 		progress.Title = $"Download '{Title}' Complete";
+		progress.Fraction = 1;
+		options.Loading?.LoadingProgress( progress );
 		// Clear subtitle so download stats don't bleed into the next phase (e.g. Compiling).
-		global::Sandbox.LoadingScreen.Subtitle = "";
+		if ( fs is not null ) global::Sandbox.LoadingScreen.Subtitle = "";
 
 		Log.Trace( $"..done in {sw.Elapsed.TotalSeconds:0.00}s" );
 
@@ -172,6 +286,8 @@ public partial class Package
 		metric.SetValue( "order", "random" );
 		metric.Submit();
 
+		Api.Activity.CurrentLoad?.Downloaded( totalSize, downloadQueue.Count, sw.Elapsed.TotalSeconds );
+
 		//
 		// Done with this
 		//
@@ -179,24 +295,28 @@ public partial class Package
 		downloadQueue = null;
 
 
-		return fs;
+		return true;
 	}
 
-	private void TryAddToDownloadQueue( ManifestSchema.File entry, PackageFileSystem fs, ConcurrentBag<FileDownloadEntry> queue, CancellationToken token )
+	/// <summary>
+	/// Mount the file where <see cref="AssetDownloadCache.ResolveCached"/> found it, or queue its download.
+	/// </summary>
+	private void TryAddToDownloadQueue( ManifestSchema.File entry, string resolved, PackageFileSystem fs, ConcurrentBag<FileDownloadEntry> queue, CancellationToken token )
 	{
 		ThreadSafe.AssertIsMainThread();
 
 		var crc = Convert.ToUInt64( entry.Crc, 16 );
 
-		if ( AssetDownloadCache.TryMount( fs.Redirect, entry.Path, crc ) )
+		if ( resolved is not null )
+		{
+			if ( fs is not null ) AssetDownloadCache.Mount( fs.Redirect, entry.Path, resolved );
 			return;
+		}
 
+		// Web.DownloadFile makes the directory off the main thread. A new one can take a millisecond with a virus scanner watching.
 		var targetFile = AssetDownloadCache.GetAbsolutePath( entry.Path, crc );
-		System.IO.Directory.CreateDirectory( System.IO.Path.GetDirectoryName( targetFile ) );
 
 		token.ThrowIfCancellationRequested();
-
-		var fileInfo = new System.IO.FileInfo( targetFile );
 
 		var download = new FileDownloadEntry
 		{
@@ -233,9 +353,10 @@ public partial class Package
 	static ConcurrentDictionary<string, SemaphoreSlim> activeDownloadLocks = new( StringComparer.OrdinalIgnoreCase );
 
 	/// <summary>
-	/// Download an individual file
+	/// Download an individual file into the cache. Runs off the main thread, the caller mounts it.
+	/// Returns once the file is on disk, including when another download of it got there first.
 	/// </summary>
-	private async Task DownloadFileAsync( FileDownloadEntry entry, PackageFileSystem fs, Sandbox.Utility.DataProgress.Callback progress, CancellationToken token )
+	private async Task DownloadFileAsync( FileDownloadEntry entry, Sandbox.Utility.DataProgress.Callback progress, CancellationToken token )
 	{
 		var semaphore = activeDownloadLocks.GetOrAdd( entry.AbsolutePath, key => new SemaphoreSlim( 1 ) );
 
@@ -248,6 +369,7 @@ public partial class Package
 
 			if ( entry.File.Size == 0 )
 			{
+				System.IO.Directory.CreateDirectory( System.IO.Path.GetDirectoryName( entry.AbsolutePath ) );
 				await System.IO.File.WriteAllTextAsync( entry.AbsolutePath, "", token );
 			}
 			else
@@ -266,8 +388,6 @@ public partial class Package
 				// we should probably throw exception and abandon here?
 				Log.Warning( $"Downloaded file {entry.AbsolutePath} - checkfile failed" );
 			}
-
-			AssetDownloadCache.TryMount( fs.Redirect, entry.File.Path, entry.Crc );
 		}
 		finally
 		{

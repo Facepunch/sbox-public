@@ -79,7 +79,7 @@ public static class EditorScene
 		}
 
 		session = SceneEditorSession.CreateFromPath( resource.ResourcePath );
-		session.MakeActive();
+		session?.MakeActive();
 	}
 
 	/// <summary>
@@ -242,6 +242,10 @@ public static class EditorScene
 		playableSession ??= FindPlayableSession();
 		if ( playableSession is null ) return;
 
+		var current = playMode ? null : SceneSource.LoadForPlay( playableSession );
+		if ( !playMode && current is null )
+			return;
+
 		OnPlayStore();
 
 		Game.IsPlaying = true;
@@ -256,7 +260,13 @@ public static class EditorScene
 			{
 				LoadingScreen.IsVisible = true;
 				LoadingScreen.Title = "Loading Game..";
-				IGameInstanceDll.Current.EditorPlay();
+				if ( !IGameInstanceDll.Current.EditorPlay() )
+				{
+					Game.IsPlaying = false;
+					LoadingScreen.IsVisible = false;
+					OnPlayRestore();
+					return;
+				}
 			}
 		}
 		else
@@ -270,7 +280,6 @@ public static class EditorScene
 				Game.ActiveScene = null;
 			}
 
-			var current = playableSession.Scene.CreateSceneFile();
 			var name = playableSession.Scene.Name;
 
 			Game.ActiveScene = new Scene();
@@ -282,7 +291,15 @@ public static class EditorScene
 
 			Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnHostPreInitialize( options.GetSceneFile() ) );
 
-			Game.ActiveScene.Load( options );
+			if ( !Game.ActiveScene.Load( options ) )
+			{
+				Game.ActiveScene.Destroy();
+				Game.ActiveScene = null;
+				Game.IsPlaying = false;
+				LoadingScreen.IsVisible = false;
+				OnPlayRestore();
+				return;
+			}
 
 			Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnHostInitialize() );
 			Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnClientInitialize() );
@@ -356,18 +373,16 @@ public static class EditorScene
 		Assert.NotNull( resource, "resource should not be null" );
 
 		var session = SceneEditorSession.CreateFromPath( resource.ResourcePath );
-		session.MakeActive();
+		session?.MakeActive();
 	}
 
 	internal static void UpdatePrefabInstancesInScene( Scene scene, PrefabFile prefab )
 	{
-		var changedPath = prefab.ResourcePath;
-
 		using ( scene.Push() )
 		{
 			// Copy, because this collection can be modified during prefab updating ( e.g. refreshing/deserializing prefab spawns GOs or components)
 			var prefabInstancesRequiringUpdate = scene.GetAllObjects( false )
-				.Where( x => x.IsPrefabInstanceRoot && x.PrefabInstanceSource == changedPath )
+				.Where( x => x.IsPrefabInstanceRoot && x.PrefabInstance.PrefabSource.Guid == prefab.Guid )
 				.Select( x => x.OutermostPrefabInstanceRoot ) // We always need to update the outermostprefab instance
 				.ToHashSet();
 			foreach ( var obj in prefabInstancesRequiringUpdate )

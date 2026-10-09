@@ -5,76 +5,68 @@
 @using SboxMenu;
 @using System;
 @using Sandbox.Network
+@using Sandbox.Modals
 @using MenuProject.Modals.GameModalComponents;
 @using MenuProject.Modals.PackageModalComponents;
+@using MenuProject.MenuUI.Components.Multiplayer;
 
 <root>
 
     <MegaCard>
         <Metrics>
-            <PackageMetrics Package="@Package"/>
+            @* Just report - the rest is in the info column *@
+            <PackageMetrics Package="@Package" ShowRatings="@false" ShowStats="@false"/>
         </Metrics>
         <Tabs>
-
-            <PortalButton StartActive Portal=@Portal>
-                <Button>
-                    <SearchlightTab Title="Overview" Icon="people" />
-                </Button>
-                <Content>
-                    <Media Package=@Package></Media>
-                    <PackageDescription Package=@Package />
-                </Content>
-            </PortalButton>
-
-            <PortalButton @ref=ReviewsTab Portal=@Portal>
-                <Button>
-                    <SearchlightTab Title="Reviews" Icon="reviews" />
-                </Button>
-                <Content>
-                    <PackageReviews Package=@Package/>
-                </Content>
-            </PortalButton>
-
-            @if (Package.LatestChangeLists.Length > 0)
+            @* Setting up a new game, or looking through who's playing it - a trail back to the game's page
+               in the tabs' place *@
+            @if ( IsSettingUp || IsBrowsingSessions )
             {
-                <PortalButton @ref=ChangesTab Portal=@Portal>
-                    <Button>
-                        <SearchlightTab Title="Changes" Icon="history" />
-                    </Button>
-                    <Content>
-                        <PackageChanges Package=@Package/>
-                    </Content>
-                </PortalButton>
+                <div class="setup-trail">
+                    <div class="back" onclick=@( () => { if ( IsBrowsingSessions ) CloseSessions(); else CloseSetup(); } )>
+                        <i>arrow_back</i>
+                        <label>@Package?.Title</label>
+                    </div>
+                    <label class="sep">/</label>
+                    <label class="here">@(IsBrowsingSessions ? "Sessions" : PartySetup ? "Party game" : "New game")</label>
+                </div>
             }
 
-            @if (Package.LatestNewsPost is not null)
-            {
-                <PortalButton Portal=@Portal>
-                    <Button>
-                        <SearchlightTab Title="News" Icon="newspaper" />
-                    </Button>
-                    <Content>
-                        <PackageNews Package=@Package/>
-                    </Content>
-                </PortalButton>
-            }
-
-            <PortalButton Portal=@Portal>
-                <Button>
-                    <SearchlightTab Title="Achievements" Icon="emoji_events" />
-                </Button>
-                <Content>
-					<AchievementList Package=@Package />
-                </Content>
-            </PortalButton>
-
+            @* A game's tabs - the Overview's the gallery and the newest update under it. Kept while
+               setting up, just not shown, so the page is as it was left on the way back *@
+            <PackageTabs @ref=GameTabs Package=@Package Portal=@Portal>
+                <Overview>
+                    <Media Package=@Package Loaded=@HasFullPackage Failed=@FetchFailed></Media>
+                    <PackageChanges Package=@Package Embedded=@true />
+                </Overview>
+            </PackageTabs>
         </Tabs>
         <Left>
-            <PackageInfoPanel Portal=@Portal Package="@Package" OnChangelogClicked="@(() => ChangesTab?.ActivatePage())" OnReviewsClicked="@(() => ReviewsTab?.ActivatePage())" />
+            <PackageInfoPanel Portal=@Portal Package="@Package" OnChangelogClicked="@(() => GameTabs?.OpenChanges())" OnReviewsClicked="@(() => GameTabs?.OpenReviews())" />
 
         </Left>
 
-        <Content><PortalTarget @ref=Portal></PortalTarget></Content>
+        <Content>
+            <PortalTarget @ref=Portal></PortalTarget>
+
+            @if ( Setup is not null )
+            {
+                <GameSetupView Setup=@Setup ReadOnly=@SetupReadOnly Notice=@SetupNotice Error=@SetupError />
+            }
+            else if ( IsSettingUp )
+            {
+                <div class="setup-loading">
+                    <label>@(SetupError ?? "Loading game settings…")</label>
+                </div>
+            }
+            else if ( IsBrowsingSessions )
+            {
+                @* Its servers and lobbies - the server browser's list, just this game's *@
+                <div class="sessions">
+                    <ServerList Config=@(new ServerListConfig( Package?.FullIdent )) ShowGameHeader=@false Virtual=@false />
+                </div>
+            }
+        </Content>
 
         <Footer>
             <ActionBar Modal="@this" Package="@Package"></ActionBar>
@@ -89,11 +81,154 @@
     public string PackageIdent { get; set; }
     public bool HasFullPackage { get; set; }
 
+    /// <summary>
+    /// The full package didn't come - the page is showing what was cached, which has no gallery.
+    /// </summary>
+    public bool FetchFailed { get; set; }
+
     public List<LobbyInformation> Lobbies = new();
 
     PortalTarget Portal = default;
-    PortalButton ChangesTab = default;
-    PortalButton ReviewsTab = default;
+    PackageTabs GameTabs = default;
+
+    /// <summary>
+    /// Looking through who's playing it, in the page's place like setting up a game - its servers and
+    /// lobbies, and a way into each.
+    /// </summary>
+    internal bool IsBrowsingSessions { get; private set; }
+
+    public void OpenSessions()
+    {
+        if ( IsSettingUp ) CloseSetup();
+
+        IsBrowsingSessions = true;
+        SetClass( "setting-up", true );
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Back to the game's page.
+    /// </summary>
+    public void CloseSessions()
+    {
+        IsBrowsingSessions = false;
+        SetClass( "setting-up", IsSettingUp );
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Setting up a new game of it, in the page's place - null when it's just showing the game.
+    /// </summary>
+    public GameSetup Setup { get; private set; }
+
+    internal bool IsSettingUp { get; private set; }
+    int setupRequest;
+
+    /// <summary>
+    /// Load the full package before creating its game setup, including its map and custom settings.
+    /// The optional callback receives the completed setup instead of launching a game.
+    /// </summary>
+    public async Task OpenSetup( Package package, Action<CreateGameResults> onComplete, string via = null, Panel source = null, CreateGameResults? initialSettings = null, bool partyActions = false, PartyDraft draft = null, string initialMap = null )
+    {
+        var request = ++setupRequest;
+        var ident = (package ?? Package).FullIdent;
+        var maxMembers = draft?.MaxMembers ?? (partyActions && PartyView.Exists ? PartyView.MaxMembers : 0);
+        Setup = null;
+        IsSettingUp = true;
+        InitializePartySetup( partyActions, draft );
+        SetClass( "setting-up", true );
+        StateHasChanged();
+
+        try
+        {
+            var full = await Package.FetchAsync( ident, false );
+
+            // The player may have closed this setup or opened another while it was loading.
+            if ( !IsValid || request != setupRequest ) return;
+            if ( full is null ) throw new InvalidOperationException( "Couldn't load game settings. Cancel and try again." );
+
+            // Picker results omit game settings and player limits. Defaults need the full package too.
+            var settings = initialSettings ?? GameSetup.GetInitialSettings( full, maxMembers );
+            if ( initialMap is not null ) settings.Map = initialMap;
+            Setup = new GameSetup( full, onComplete, settings ) { Via = via, Source = source };
+        }
+        catch ( Exception e )
+        {
+            if ( !IsValid || request != setupRequest ) return;
+            SetupError = e.Message;
+        }
+
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Back to the game's page.
+    /// </summary>
+    public void CloseSetup()
+    {
+        setupRequest++;
+        IsSettingUp = false;
+        Setup = null;
+        SetClass( "setting-up", false );
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Return to the party when configuring its game, or back to the game page otherwise.
+    /// </summary>
+    public override bool Back()
+    {
+        if ( IsBrowsingSessions )
+        {
+            CloseSessions();
+            return true;
+        }
+
+        if ( !IsSettingUp ) return false;
+
+        CancelSetup();
+        return true;
+    }
+
+    /// <summary>
+    /// Start a standalone game with the chosen setup, or return it to the original caller.
+    /// </summary>
+    public async Task StartSetup()
+    {
+        if ( Setup is not { } setup || !CanStartSetup ) return;
+
+        SetupBusy = true;
+        SetupError = null;
+        try
+        {
+            var results = setup.Finish();
+
+            if ( setup.Via is not null )
+                Discovery.Launching( setup.Package, setup.Via, setup.Source.IsValid() ? setup.Source : null );
+
+            if ( partyActions )
+            {
+                if ( PartyView.IsMocking ) return;
+                await MenuHelpers.StartConfiguredGame( setup.Package, results, PartyRoom.Current );
+            }
+            else
+            {
+                CloseModal( true );
+                setup.OnComplete?.Invoke( results );
+            }
+        }
+        catch ( Exception e )
+        {
+            LoadingScreen.IsVisible = false;
+            if ( IsValid ) SetupError = e.Message;
+            ModalSystem.Instance?.Notice( "Couldn't start game", e.Message, "error" );
+        }
+        finally
+        {
+            SetupBusy = false;
+            if ( IsValid ) StateHasChanged();
+        }
+    }
 
     async Task RefreshLobbies()
     {
@@ -114,15 +249,36 @@
         if (PackageIdent is null)
             return;
 
-        // Get whatever package info we have
-        Package.TryGetCached(PackageIdent, out Package, true);
+        Discovery.PreviewOpened( "page", PackageIdent );
 
-        // Get Full Package info
-        Package = await Package.FetchAsync(PackageIdent, false);
-        HasFullPackage = true;
+        // Get whatever package info we have - keeping the one it was opened with if there's none cached
+        if ( Package.TryGetCached( PackageIdent, out var cached, true ) ) Package = cached;
+
+        // Get Full Package info - keeping what we had if it doesn't come, so the page still has
+        // something on it and can say what didn't load
+        Package full = null;
+        try
+        {
+            full = await Package.FetchAsync(PackageIdent, false);
+        }
+        catch ( Exception e )
+        {
+            Log.Warning( $"Couldn't fetch {PackageIdent}: {e.Message}" );
+        }
+
+        if ( full is not null ) Package = full;
+        HasFullPackage = full is not null;
+        FetchFailed = full is null;
+        StateHasChanged();
 
         await RefreshLobbies();
     }
 
-    protected override int BuildHash() => System.HashCode.Combine(Package);
+    public override void OnDeleted()
+    {
+        base.OnDeleted();
+        Discovery.PreviewClosed( "page", PackageIdent );
+    }
+
+    protected override int BuildHash() => System.HashCode.Combine(Package, HasFullPackage, FetchFailed, Setup, SetupReadOnly, SetupNotice, SetupError, HashCode.Combine( IsSettingUp, IsBrowsingSessions ));
 }

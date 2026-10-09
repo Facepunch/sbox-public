@@ -110,6 +110,7 @@ native class IPhysicsBody as NativeEngine.IPhysicsBody
 
 	bool CheckOverlap( IPhysicsBody body, Transform transform );
 	bool ComputePenetration( IPhysicsBody body, Transform transform, cref out Vector3 direction, cref out float distance );
+	int GetScrapeContacts( CastTo[PhysicsScrapeContact_t*] void* buffer, int maxCount );
 
 	Vector3 GetLocalInertiaVector();
 	Rotation GetLocalInertiaOrientation();

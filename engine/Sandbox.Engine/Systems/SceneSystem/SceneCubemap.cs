@@ -51,6 +51,7 @@ public sealed class SceneCubemap : SceneLight
 			envMap.CalculateRadianceSH();
 			envMap.CalculateNormalizationSH();
 			CSceneSystem.MarkEnvironmentMapObjectUpdated( this );
+			NotifyChanged( Rendering.SceneObjectChange.Settings );
 		}
 	}
 

@@ -10,7 +10,7 @@ namespace Sandbox;
 [Title( "Dresser" )]
 [Category( "Game" )]
 [Icon( "checkroom" )]
-public sealed class Dresser : Component, Component.ExecuteInEditor
+public sealed partial class Dresser : Component, Component.ExecuteInEditor
 {
 	public enum ClothingSource
 	{
@@ -48,7 +48,24 @@ public sealed class Dresser : Component, Component.ExecuteInEditor
 	/// Who are we dressing? This should be the renderer of the body of a Citizen or Human
 	/// </summary>
 	[Property]
-	public SkinnedModelRenderer BodyTarget { get; set; }
+	public SkinnedModelRenderer BodyTarget
+	{
+		get;
+		set
+		{
+			if ( field == value )
+				return;
+
+			CancelDressing();
+			DetachBody();
+			field = value;
+
+			if ( field.IsValid() )
+				field.ModelChanged += UpdateAppearance;
+
+			UpdateAppearance();
+		}
+	}
 
 	/// <summary>
 	/// Should we change the height too?
@@ -86,26 +103,54 @@ public sealed class Dresser : Component, Component.ExecuteInEditor
 
 	protected override void OnAwake()
 	{
-		if ( IsProxy )
+		if ( IsProxy || _hasOutfitRequest )
 			return;
 
 		_ = Apply();
 	}
 
-	protected override void OnEnabled()
-	{
-		// if we're a proxy then height, age and tint are sent via
-		// parameters on this component, so we need to apply them
-		if ( IsProxy )
-		{
-			ApplyAttributes();
-		}
-	}
+	protected override void OnEnabled() => UpdateAppearance();
 
 	protected override void OnDestroy()
 	{
 		CancelDressing();
+		DetachBody();
 	}
+
+	private void DetachBody()
+	{
+		if ( BodyTarget is not null )
+			BodyTarget.ModelChanged -= UpdateAppearance;
+
+		ReleaseDeforms();
+		_clothingRenderers.Clear();
+	}
+
+	/// <summary>
+	/// Finds the Dresser for a body or adds a transient, manually controlled one.
+	/// Reuse the returned component for outfit requests and live appearance edits.
+	/// </summary>
+	public static Dresser GetOrCreate( SkinnedModelRenderer body )
+	{
+		ArgumentNullException.ThrowIfNull( body );
+		var dresser = Find( body );
+		if ( dresser.IsValid() )
+			return dresser;
+
+		using var scope = body.Scene.Push();
+		dresser = body.GameObject.AddComponent<Dresser>( false );
+		dresser.Flags |= ComponentFlags.NotSaved | ComponentFlags.NotNetworked;
+		dresser._hasOutfitRequest = true;
+		dresser.BodyTarget = body;
+		dresser.Enabled = true;
+		return dresser;
+	}
+
+	/// <summary>
+	/// Finds an existing Dresser for a body, including inactive components.
+	/// </summary>
+	internal static Dresser Find( SkinnedModelRenderer body ) =>
+		body.Scene.GetComponentsInChildren<Dresser>( true ).FirstOrDefault( x => x.IsValid() && x.BodyTarget == body );
 
 	async Task<Clothing> InstallWorkshopClothing( string ident, CancellationToken ct )
 	{
@@ -134,9 +179,10 @@ public sealed class Dresser : Component, Component.ExecuteInEditor
 	/// </summary>
 	public void CancelDressing()
 	{
-		_cts?.Cancel();
-		_cts?.Dispose();
-		_cts = default;
+		var request = _cts;
+		_cts = null;
+		request?.Cancel();
+		request?.Dispose();
 	}
 
 	async ValueTask<ClothingContainer> GetClothing( CancellationToken token )
@@ -160,9 +206,7 @@ public sealed class Dresser : Component, Component.ExecuteInEditor
 		{
 			var clothing = new ClothingContainer();
 			clothing.AddRange( Clothing );
-			clothing.Height = ManualHeight;
-			clothing.Age = ManualAge;
-			clothing.Tint = ManualTint;
+			SetClothingTints( Clothing );
 
 			if ( WorkshopItems != null && WorkshopItems.Count > 0 )
 			{
@@ -189,64 +233,99 @@ public sealed class Dresser : Component, Component.ExecuteInEditor
 	/// <summary>
 	/// True if we're dressing, in an async way
 	/// </summary>
-	public bool IsDressing { get; private set; }
+	public bool IsDressing => _cts is not null;
 
+	/// <summary>
+	/// Removes the outfit while preserving the current appearance.
+	/// </summary>
 	[Button( "Clear Clothing" )]
-	public void Clear()
+	public void Clear() => Apply( new ClothingContainer() );
+
+	/// <summary>
+	/// Applies clothing and appearance from the selected avatar source.
+	/// </summary>
+	[Button( "Apply Clothing" )]
+	public ValueTask Apply() => Apply( true );
+
+	/// <summary>
+	/// Applies an outfit immediately, using this Dresser's current appearance values.
+	/// Missing clothing is skipped. Use UpdateAppearance to import appearance from a container.
+	/// </summary>
+	public void Apply( ClothingContainer clothing )
 	{
+		ArgumentNullException.ThrowIfNull( clothing );
 		CancelDressing();
+		_hasOutfitRequest = true;
 
 		if ( !BodyTarget.IsValid() )
 			return;
 
-		var clothing = new ClothingContainer();
-		clothing.Apply( BodyTarget );
-
+		ApplyClothing( clothing, BodyTarget );
 		BodyTarget.MergeDescendants();
 	}
 
-	[Button( "Apply Clothing" )]
-	public async ValueTask Apply()
+	/// <summary>
+	/// Applies an outfit immediately and downloads missing items. Completion uses the
+	/// current appearance properties, including edits made while the download was pending.
+	/// A newer outfit request, retargeting or destruction cancels this request.
+	/// </summary>
+	public Task ApplyAsync( ClothingContainer clothing, CancellationToken token = default )
 	{
-		CancelDressing();
+		ArgumentNullException.ThrowIfNull( clothing );
+		return DressAsync( clothing, false, token );
+	}
 
-		if ( !BodyTarget.IsValid() )
+	private bool _hasOutfitRequest;
+	private ClothingSource? _appearanceSource;
+
+	private ValueTask Apply( bool loadAppearance ) => new( DressAsync( null, loadAppearance, default ) );
+
+	private async Task DressAsync( ClothingContainer clothing, bool loadAppearance, CancellationToken cancellationToken )
+	{
+		cancellationToken.ThrowIfCancellationRequested();
+		CancelDressing();
+		_hasOutfitRequest = true;
+
+		var body = BodyTarget;
+		if ( !body.IsValid() )
 			return;
 
-		_cts = new CancellationTokenSource();
-		var token = _cts.Token;
-
-		IsDressing = true;
+		var request = CancellationTokenSource.CreateLinkedTokenSource( cancellationToken );
+		_cts = request;
+		var token = request.Token;
 
 		try
 		{
-			var clothing = await GetClothing( token );
 			if ( clothing is null )
-				return;
-
-			if ( !ApplyHeightScale )
 			{
-				clothing.Height = 1;
+				var source = Source;
+				clothing = await GetClothing( token );
+				token.ThrowIfCancellationRequested();
+				if ( clothing is null )
+					return;
+
+				if ( source != ClothingSource.Manual && (loadAppearance || _appearanceSource != source) )
+					UpdateAppearance( clothing );
+
+				_appearanceSource = source;
 			}
 
-			if ( Source == ClothingSource.Manual )
-			{
-				clothing.AddRange( Clothing );
-			}
+			await ApplyClothingAsync( clothing, body, token );
+			token.ThrowIfCancellationRequested();
 
-			clothing.Normalize();
-
-			await clothing.ApplyAsync( BodyTarget, token );
-
-			ManualHeight = clothing.Height;
-			ManualTint = clothing.Tint;
-			ManualAge = clothing.Age;
-
-			BodyTarget.MergeDescendants();
+			if ( body.IsValid() )
+				body.MergeDescendants();
+		}
+		catch ( OperationCanceledException ) when ( token.IsCancellationRequested && !cancellationToken.IsCancellationRequested )
+		{
+			// The Dresser has replaced this request or released its target.
 		}
 		finally
 		{
-			IsDressing = false;
+			if ( ReferenceEquals( _cts, request ) )
+				_cts = null;
+
+			request.Dispose();
 		}
 	}
 
@@ -265,13 +344,16 @@ public sealed class Dresser : Component, Component.ExecuteInEditor
 		ManualAge = rnd.Float();
 		ManualHeight = rnd.Float();
 		ManualTint = rnd.Float();
+		EyeColor = rnd.Float();
 
 		_ = Apply();
 	}
 
+	private int? _editorOutfitHash;
+
 	protected override void OnValidate()
 	{
-		if ( IsProxy )
+		if ( IsProxy || Scene.IsPrefabCacheSceneRoot )
 			return;
 
 		base.OnValidate();
@@ -285,35 +367,119 @@ public sealed class Dresser : Component, Component.ExecuteInEditor
 
 		if ( Scene.IsEditor )
 		{
-			_ = Apply();
+			if ( Source == ClothingSource.Manual )
+				SetClothingTints( Clothing );
+
+			var hash = new HashCode();
+			hash.Add( BodyTarget );
+			hash.Add( Source );
+			hash.Add( RemoveUnownedItems );
+			foreach ( var entry in Clothing )
+			{
+				hash.Add( entry.Clothing );
+				hash.Add( entry.ItemDefinitionId );
+			}
+
+			if ( WorkshopItems is not null )
+			{
+				foreach ( var item in WorkshopItems )
+					hash.Add( item );
+			}
+
+			var outfitHash = hash.ToHashCode();
+			if ( _editorOutfitHash != outfitHash )
+			{
+				_editorOutfitHash = outfitHash;
+				_ = Apply( false );
+			}
+			else
+			{
+				UpdateAppearance();
+			}
 		}
 	}
 
 	/// <summary>
 	/// Called when Height, Age or Tint is changed
 	/// </summary>
-	public void OnManualChange( float a, float b )
-	{
-		ApplyAttributes();
-	}
+	public void OnManualChange( float a, float b ) => UpdateAppearance();
+
+	private bool _settingAppearance;
+	private readonly Dictionary<ClothingContainer.ClothingEntry, SkinnedModelRenderer> _clothingRenderers = new();
+	private readonly Dictionary<(Clothing Clothing, int ItemId), float?> _clothingTints = new();
 
 	/// <summary>
-	/// Applies Height, Age and Tint.
+	/// Copies appearance values and clothing tints, then updates the existing renderers.
+	/// Does not rebuild the outfit or cancel pending clothing downloads.
 	/// </summary>
-	void ApplyAttributes()
+	public void UpdateAppearance( ClothingContainer appearance )
 	{
-		if ( BodyTarget is null )
+		ArgumentNullException.ThrowIfNull( appearance );
+		_settingAppearance = true;
+		try
+		{
+			ManualHeight = appearance.Height;
+			ManualAge = appearance.Age;
+			ManualTint = appearance.Tint;
+			EyeColor = appearance.EyeColor;
+			EyeAlign = appearance.EyeAlign;
+			NeckSize = appearance.NeckSize;
+			WaistSize = appearance.WaistSize;
+			ChestSize = appearance.ChestSize;
+			HeadShape = appearance.HeadShape;
+			NoseSize = appearance.NoseSize;
+			ChinSize = appearance.ChinSize;
+
+			SetClothingTints( appearance.Clothing );
+		}
+		finally
+		{
+			_settingAppearance = false;
+		}
+
+		UpdateAppearance();
+	}
+
+	private void SetClothingTints( IEnumerable<ClothingContainer.ClothingEntry> clothing )
+	{
+		_clothingTints.Clear();
+		foreach ( var entry in clothing )
+		{
+			if ( entry.Clothing is not null || entry.ItemDefinitionId != 0 )
+				_clothingTints[GetTintKey( entry )] = entry.Tint;
+		}
+	}
+
+	// Inventory IDs remain stable when a downloaded resource replaces a placeholder.
+	private static (Clothing Clothing, int ItemId) GetTintKey( ClothingContainer.ClothingEntry entry ) =>
+		entry.ItemDefinitionId != 0 ? (null, entry.ItemDefinitionId) : (entry.Clothing, 0);
+
+	/// <summary>
+	/// Applies current height, skin, eye and deformation values to the existing body and clothing.
+	/// </summary>
+	public void UpdateAppearance()
+	{
+		if ( _settingAppearance || !BodyTarget.IsValid() || BodyTarget.Scene.IsPrefabCacheSceneRoot )
 			return;
 
-		if ( ApplyHeightScale )
-			BodyTarget.Set( "scale_height", ManualHeight.Remap( 0, 1, 0.8f, 1.2f, true ) );
-		else
-			BodyTarget.Set( "scale_height", 1 );
+		BodyTarget.Set( "scale_height", ApplyHeightScale ? ManualHeight.Remap( 0, 1, 0.8f, 1.2f, true ) : 1 );
+		BodyTarget.Attributes.Set( "skin_age", ManualAge );
+		BodyTarget.Attributes.Set( "skin_tint", ManualTint );
 
-		foreach ( var c in BodyTarget.GetComponentsInChildren<SkinnedModelRenderer>() )
+		foreach ( var renderer in BodyTarget.GetComponentsInChildren<SkinnedModelRenderer>( true ) )
 		{
-			c.Attributes.Set( "skin_age", ManualAge );
-			c.Attributes.Set( "skin_tint", ManualTint );
+			renderer.Attributes.Set( "skin_age", ManualAge );
+			renderer.Attributes.Set( "skin_tint", ManualTint );
 		}
+
+		foreach ( var (entry, renderer) in _clothingRenderers )
+		{
+			var clothing = entry.Clothing;
+			if ( renderer.IsValid() && clothing.AllowTintSelect && _clothingTints.TryGetValue( GetTintKey( entry ), out var tint ) )
+				renderer.Tint = clothing.TintSelection.Evaluate( tint?.Clamp( 0, 1 ) ?? clothing.TintDefault );
+		}
+
+		UpdateDeforms();
+		UpdateEyeAttributes();
 	}
 }

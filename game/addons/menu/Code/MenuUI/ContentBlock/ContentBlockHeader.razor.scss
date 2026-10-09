@@ -1,8 +1,14 @@
 @import "/styles/_theme.scss";
+@import "/styles/_front.scss";
 
 .content-block-header
 {
     padding: 0 28px;
+}
+
+.content-block-header.jam .heading {
+    color: $front-trophy * 2;
+    text-shadow: 0 0 14px rgba( $front-trophy, 0.5 );
 }
 
 .content-block-header a {

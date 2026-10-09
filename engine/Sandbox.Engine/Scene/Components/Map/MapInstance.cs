@@ -1,4 +1,4 @@
-using Facepunch.ActionGraphs;
+﻿using Facepunch.ActionGraphs;
 using NativeEngine;
 using Sandbox.Clutter;
 using Sentry;
@@ -161,7 +161,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 					continue;
 
 				// If I'm a client and this came from the snapshot.. don't fucking delete me
-				if ( Networking.IsClient && child.NetworkMode == NetworkMode.Snapshot )
+				if ( ContentComesFromSnapshot && child.NetworkMode == NetworkMode.Snapshot )
 					continue;
 
 				// If it's a fully networked object and I'm the owner, we can delete
@@ -239,11 +239,15 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		CancellationTokenSource tokenSource = new CancellationTokenSource();
 		tokenSources.Add( tokenSource );
 		var token = tokenSource.Token;
+		var snapshotContent = Networking.IsClient || (Scene?.IsLoadingSnapshot ?? false);
+		var acquired = false;
 
 		try
 		{
 			// wait for access
 			await mapLoadSemaphore.WaitAsync( token );
+			acquired = true;
+			_loadingSnapshotContent = snapshotContent;
 			GameObject.Flags |= GameObjectFlags.Loading;
 
 			token.ThrowIfCancellationRequested();
@@ -380,7 +384,11 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		}
 		finally
 		{
-			mapLoadSemaphore.Release();
+			if ( acquired )
+			{
+				_loadingSnapshotContent = false;
+				mapLoadSemaphore.Release();
+			}
 
 			if ( GameObject.IsValid() )
 			{
@@ -447,7 +455,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 			go.Deserialize( json );
 
 			// This is a failsafe for the above check for existing networked objects
-			if ( Networking.IsClient && go.NetworkMode != NetworkMode.Never )
+			if ( ContentComesFromSnapshot && go.NetworkMode != NetworkMode.Never )
 			{
 				go.DestroyImmediate();
 				continue;
@@ -478,6 +486,13 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		return true;
 	}
 
+	bool _loadingSnapshotContent;
+
+	/// <summary>
+	/// This map load is restoring content supplied by the network snapshot.
+	/// </summary>
+	internal bool ContentComesFromSnapshot => Networking.IsClient || _loadingSnapshotContent || (Scene?.IsLoadingSnapshot ?? false);
+
 	private bool ShouldIgnoreGameObject( JsonObject json )
 	{
 		// Don't load another MapInstance if this scene already has one.
@@ -489,7 +504,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 			}
 		}
 
-		if ( !Networking.IsClient || !json.TryGetPropertyValue( JsonKeys.Id, out var id ) )
+		if ( !ContentComesFromSnapshot || !json.TryGetPropertyValue( JsonKeys.Id, out var id ) )
 			return false;
 
 		var gameObject = Scene.Directory.FindByGuid( (Guid)id );
@@ -662,7 +677,7 @@ file class MapComponentMapLoader : SceneMapLoader
 
 		// Don't spawn networked props, because they will be spawned by
 		// the network!
-		if ( isNetworked && Networking.IsClient )
+		if ( isNetworked && Map.ContentComesFromSnapshot )
 		{
 			go.Destroy();
 			return;

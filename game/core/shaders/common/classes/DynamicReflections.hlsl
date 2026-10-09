@@ -11,8 +11,9 @@ struct DynamicReflections
         if (!IsEnabled())
             return 0;
 
-        uint index = Bindless::GetPipelineTextureIndex(PipelineTextureSlotSSR);
-        Texture2D ReflectionColor = Bindless::GetTexture2D( index );
+        // SSR uses a fixed pipeline slot published before rendering, even in divergent shading paths.
+        uint index = Bindless::GetPipelineTextureIndex( asDynamicUniform( PipelineTextureSlotSSR ) );
+        Texture2D ReflectionColor = Bindless::GetTexture2D( asDynamicUniform( UniformIndex( index ) ) );
 
         // If the texture has mips, we can sample it at a specific level based on roughness.
         // Eg Planar Reflections with mip chain.
@@ -28,7 +29,7 @@ struct DynamicReflections
 
     static bool IsEnabled()
     {
-        uint index = Bindless::GetPipelineTextureIndex(PipelineTextureSlotSSR);
+        uint index = Bindless::GetPipelineTextureIndex( asDynamicUniform( PipelineTextureSlotSSR ) );
         return index != 0;
     }
 };

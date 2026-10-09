@@ -106,6 +106,10 @@ public struct Line : System.IEquatable<Line>
 	{
 		var delta = b - a;
 		var length = delta.Length;
+
+		if ( length == 0 )
+			return a;
+
 		var direction = delta / length;
 
 		return a + Vector3.Dot( pos - a, direction ).Clamp( 0, length ) * direction;

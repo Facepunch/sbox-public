@@ -145,7 +145,7 @@ public partial class ProjectRow : ItemRow
 	private string GetLaunchArgs( LaunchFlags launchFlags )
 	{
 		var args = new StringBuilder();
-		if ( launchFlags.Contains( LaunchFlags.VR ) ) args.Append( " -vr" );
+		if ( launchFlags.Contains( LaunchFlags.VR ) || launchFlags.Contains( LaunchFlags.VRDebug ) ) args.Append( " -vr" );
 		if ( launchFlags.Contains( LaunchFlags.VulkanValidation ) ) args.Append( " -vulkan_enable_validation -vulkan_validation_error_assert" );
 		if ( launchFlags.Contains( LaunchFlags.VRDebug ) ) args.Append( " -vrdebug" );
 

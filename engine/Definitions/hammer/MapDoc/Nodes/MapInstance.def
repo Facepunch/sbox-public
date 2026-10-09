@@ -1,5 +1,6 @@
 ﻿
 #include "mapdoclib/mapinstance.h"
+#include "mapdoclib/mapprefab.h"
 
 // This is inherited from : CMapEntityIONode but I haven't done a bind for that
 // And I'm not sure if we even need anything from it yet.
@@ -9,4 +10,11 @@ native class CMapInstance as NativeMapDoc.CMapInstance : CMapNode
 {
 	void SetTarget( CMapNode node );
 	CMapNode GetTarget();
+
+	// For a prefab, the map file it places. Empty for a plain instance.
+	inline string GetTargetMapPath()
+	{
+		const CMapPrefab* pPrefab = dynamic_cast< const CMapPrefab* >( self );
+		return pPrefab ? pPrefab->GetTargetMapPath() : "";
+	}
 }

@@ -3,12 +3,21 @@
 
 FrontPageGames
 {
+	.empty-wrap
+	{
+		flex-grow: 1;
+		width: 100%;
+		align-items: center;
+		justify-content: center;
+		padding: 64px 24px;
+	}
+
 	flex-direction: column;
 	overflow-y: scroll;
 	overflow-x: hidden;
 
 	// The rail and the top bar already inset us - this is only the feed's own breathing room.
-	padding: 64px 24px 48px 24px;
+	padding: 12px 24px 48px 24px;
 
 	.section
 	{
@@ -27,13 +36,58 @@ FrontPageGames
 		width: 100%;
 		margin-bottom: 14px;
 		// .tiles' 5px side inset plus the card's 2px reserved (transparent) border, so the
-		// title and View All line up with the visible edges of the first and last card.
+		// title and See more line up with the visible edges of the first and last card.
 		padding: 0 7px;
 
 		.head-text
 		{
 			flex-direction: column;
-			gap: 2px;
+			gap: 1px;
+
+			&.link
+			{
+				cursor: pointer;
+
+				&:hover
+				{
+					.title
+					{
+						color: #ffffff;
+					}
+
+					.chevron
+					{
+						opacity: 1;
+						margin-left: 2px;
+					}
+				}
+			}
+		}
+
+		// An aside under the title, quiet - the title is what the row is about. The backend only
+		// sends one for shelves whose title doesn't explain itself.
+		.description
+		{
+			font-family: $front-font;
+			font-size: 12px;
+			font-weight: 500;
+			color: $front-secondary;
+			opacity: 0.8;
+		}
+
+		.title-row
+		{
+			flex-direction: row;
+			align-items: center;
+			gap: 8px;
+
+			.chevron
+			{
+				font-size: 20px;
+				color: $front-secondary;
+				opacity: 0;
+				transition: all 0.1s ease;
+			}
 		}
 
 		.title
@@ -44,25 +98,18 @@ FrontPageGames
 			color: $front-heading;
 		}
 
-		.description
-		{
-			font-family: $front-font;
-			font-size: 14px;
-			font-weight: 500;
-			color: $front-secondary;
-		}
-
-		.view-all
+		.see-more
 		{
 			@include front-pill;
 
+			padding: 3px 9px;
 			cursor: pointer;
 			font-family: $front-font;
-			font-size: 10.5px;
+			font-size: 10px;
 			font-weight: 600;
 			text-transform: uppercase;
-			letter-spacing: 0.06em;
-			color: $front-body;
+			letter-spacing: 0.05em;
+			color: $front-secondary;
 
 			&:hover
 			{
@@ -71,7 +118,152 @@ FrontPageGames
 		}
 	}
 
+	.section.jam .head
+	{
+		.trophy
+		{
+			font-size: 22px;
+			color: $front-trophy * 2;
+			text-shadow: 0 0 14px rgba( $front-trophy, 0.5 );
+		}
+
+		.title
+		{
+			color: $front-trophy * 2;
+			text-shadow: 0 0 14px rgba( $front-trophy, 0.5 );
+		}
+
+		.see-more
+		{
+			color: $front-trophy * 1.6;
+			border-color: rgba( $front-trophy, 0.5 );
+
+			&:hover
+			{
+				color: $front-trophy * 2.2;
+				border-color: rgba( $front-trophy, 0.9 );
+			}
+		}
+	}
+
+	// Returning players already know these games: a short horizontal card is enough.
+	.continue-playing
+	{
+		.head { margin-bottom: 6px; }
+		.head .description { display: none; }
+		.row PackageCard
+		{
+			flex-direction: row;
+			height: 86px;
+			background-color: rgba( 255, 255, 255, 0.035 );
+			border-radius: 6px;
+			.image
+			{
+				flex-grow: 0;
+				flex-shrink: 0;
+				width: 100px;
+				height: 100%;
+				aspect-ratio: auto;
+				border-radius: 6px 0 0 6px;
+			}
+			> column
+			{
+				position: relative;
+				left: auto;
+				right: auto;
+				top: auto;
+				bottom: auto;
+				flex-grow: 1;
+				flex-shrink: 1;
+				width: 0;
+				min-width: 0;
+				padding: 10px;
+				justify-content: center;
+				gap: 4px;
+			}
+			.package-title
+			{
+				width: 100%;
+				align-self: stretch;
+				font-size: 14px;
+				opacity: 1;
+				margin: 0;
+				padding: 0;
+				background-color: transparent;
+			}
+			.package-meta { display: none; }
+			PackageFlairBar, .package-nominations { display: none; }
+			.package-subtitle
+			{
+				width: 100%;
+				font-size: 12px;
+				color: $front-secondary;
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+		}
+	}
+
 	// The tile area. Plain: one .row. Mosaic: a .big beside a .grid of two .rows.
+	// Still loading - nothing to scroll to or click, the shelves just fill the page
+	&.loading
+	{
+		overflow: hidden;
+		pointer-events: none;
+	}
+
+	// A placeholder's shape, pulsing
+	.bone
+	{
+		border-radius: 6px;
+		background-color: rgba( 255, 255, 255, 0.05 );
+		animation: front-page-bone 1.2s ease-in-out infinite alternate;
+	}
+
+	.shelf-title
+	{
+		width: 180px;
+		height: 22px;
+	}
+
+	// Sized like a shelf's PackageCard - its art, then its title and stats lines under it
+	.bone-tile
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		flex-basis: 0;
+		min-width: 0;
+		gap: 8px;
+
+		.art
+		{
+			width: 100%;
+			aspect-ratio: 16 / 9;
+			border-radius: $rounding-small;
+		}
+
+		.line
+		{
+			height: 12px;
+			margin-left: 2px;
+		}
+
+		.title
+		{
+			width: 60%;
+			height: 14px;
+			margin-top: 2px;
+		}
+
+		.meta
+		{
+			width: 35%;
+			margin-bottom: 8px;
+		}
+	}
+
 	// The code counts how many tiles fit, so nothing should actually clip.
 	.tiles
 	{
@@ -107,14 +299,14 @@ FrontPageGames
 	}
 
 	// Flexible width: rows always stretch edge to edge - no max, so the last tile's
-	// right edge meets the View All button whatever the count. Height comes from the
+	// right edge meets the See more button whatever the count. Height comes from the
 	// art plus its band, not the card's default fixed height.
 	.row PackageCard
 	{
 		flex-grow: 1;
 		flex-shrink: 1;
-		width: 250px;
-		min-width: 225px;
+		width: 300px;
+		min-width: 270px;
 		height: auto;
 
 		.image
@@ -125,7 +317,6 @@ FrontPageGames
 	}
 
 	// Two tiles wide (the code sets the exact px), two rows tall (stretched by the row).
-	// The art fills whatever's left above the band; the summary sits over the art as a quote.
 	.big
 	{
 		flex-shrink: 0;
@@ -146,58 +337,26 @@ FrontPageGames
 				width: 100%;
 			}
 
-			column
-			{
-				padding: 12px 16px 14px 16px;
-			}
-
 			.package-title
 			{
-				font-size: 18px;
-				// The base card caps the title at 24px for its 14px font - too short for this size.
-				max-height: 30px;
-			}
-
-			// A pull quote across the bottom of the art: a big hanging mark in the menu blue,
-			// then the summary in italics beside it, on a scrim so it survives bright art.
-			.package-summary
-			{
-				position: absolute;
-				left: 0;
-				right: 0;
-				bottom: 0;
-				flex-direction: row;
-				align-items: flex-start;
-				padding: 72px 24px 18px 20px;
-				background-image: linear-gradient( 0deg, rgba( 0, 0, 0, 0.85 ) 30%, rgba( 0, 0, 0, 0 ) );
-
-				// The mark hangs above the text's cap height and glows a touch - HDR.
-				.quote-mark
-				{
-					flex-shrink: 0;
-					font-family: $front-font;
-					font-size: 64px;
-					font-weight: 900;
-					color: $front-primary * 3;
-					// Poppins carries a lot of headroom above the glyph - pull it up onto the line.
-					margin: -18px 6px 0 0;
-				}
-
-				.quote-text
-				{
-					flex-grow: 1;
-					flex-shrink: 1;
-					font-family: $front-font;
-					font-size: 16px;
-					font-weight: 600;
-					font-style: italic;
-					letter-spacing: 0.005em;
-					color: #ffffff;
-					white-space: normal;
-					text-shadow: 0 1px 2px rgba( 0, 0, 0, 0.6 );
-				}
+				min-height: 25px;
+				padding: 2px 8px;
+				font-size: 16px;
 			}
 		}
 	}
 }
 
+
+@keyframes front-page-bone
+{
+	0%
+	{
+		opacity: 0.55;
+	}
+
+	100%
+	{
+		opacity: 1;
+	}
+}

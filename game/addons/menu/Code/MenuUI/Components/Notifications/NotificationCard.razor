@@ -61,6 +61,7 @@
         var parts = Notice.Url.Split( '/', StringSplitOptions.RemoveEmptyEntries );
         if ( parts.Length == 3 )
         {
+            Discovery.Clicked( new DiscoveryContext { Surface = "notifications" }, $"{parts[0]}.{parts[1]}" );
             Game.Overlay.ShowPackageModal( $"{parts[0]}.{parts[1]}", parts[2] );
             return;
         }

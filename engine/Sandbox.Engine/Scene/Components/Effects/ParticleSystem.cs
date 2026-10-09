@@ -64,8 +64,8 @@ public class LegacyParticleSystem : Component, Component.ExecuteInEditor
 
 	void RecreateSceneObject()
 	{
-		// Particle system is not loaded on dedicated server
-		if ( Application.IsHeadless )
+		// Native particle effects require an available renderer.
+		if ( !Graphics.IsAvailable )
 			return;
 
 		if ( Particles is null )

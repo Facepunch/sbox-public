@@ -222,7 +222,10 @@ public partial class SceneViewportWidget
 	public void CycleViewmode()
 	{
 		ViewMode newMode = (ViewMode)(((int)State.View + 1) % ((int)ViewMode.Flat2d + 1));
-		State.View = newMode == ViewMode.Perspective ? ViewMode.Top2d : newMode; // skip 3d
+		if ( newMode == ViewMode.Perspective )
+			EnterPerspectiveView();
+		else
+			State.View = newMode;
 
 		Vector3 center = Vector3.Zero;
 		int count = 0;

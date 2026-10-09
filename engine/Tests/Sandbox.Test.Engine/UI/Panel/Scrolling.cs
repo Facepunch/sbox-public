@@ -1,29 +1,33 @@
 using Sandbox.UI;
+using System;
 
 namespace UITests.Panels;
 
 [TestClass]
-[DoNotParallelize] // Modifies UI System Global + RealTime.SmoothDelta
+[DoNotParallelize] // Modifies UI System Global + RealTime deltas
 public partial class PanelScrollingTest
 {
 	float savedSmoothDelta;
+	float savedDelta;
 
 	/// <summary>
-	/// Remembers the global smooth delta so tests that drive the scroll pump can restore it.
+	/// Remembers the global deltas so tests that drive the scroll pump can restore them.
 	/// </summary>
 	[TestInitialize]
 	public void Initialize()
 	{
 		savedSmoothDelta = RealTime.SmoothDelta;
+		savedDelta = RealTime.Delta;
 	}
 
 	/// <summary>
-	/// Restores the global smooth delta so other test classes see the value they expect.
+	/// Restores the global deltas so other test classes see the values they expect.
 	/// </summary>
 	[TestCleanup]
 	public void Cleanup()
 	{
 		RealTime.SmoothDelta = savedSmoothDelta;
+		RealTime.Delta = savedDelta;
 	}
 
 	/// <summary>
@@ -178,7 +182,7 @@ public partial class PanelScrollingTest
 
 		// The layout integration step scales by RealTime.SmoothDelta, which is never
 		// ticked in the test host - give it a fixed 60fps frame time.
-		RealTime.SmoothDelta = 1.0f / 60.0f;
+		RealTime.Delta = RealTime.SmoothDelta = 1.0f / 60.0f;
 
 		Assert.IsTrue( scroller.TryScroll( new Vector2( 0, 5 ) ) );
 
@@ -200,7 +204,7 @@ public partial class PanelScrollingTest
 	{
 		var (root, scroller) = CreateVerticalScroller();
 
-		RealTime.SmoothDelta = 1.0f / 60.0f;
+		RealTime.Delta = RealTime.SmoothDelta = 1.0f / 60.0f;
 
 		scroller.ScrollOffset = new Vector2( 0, 5000 );
 		scroller.SetNeedsPreLayout();
@@ -216,6 +220,232 @@ public partial class PanelScrollingTest
 		Assert.AreEqual( 0, scroller.ScrollOffset.y, 0.001f );
 	}
 
+	[TestMethod]
+	[DataRow( 30, false, false )]
+	[DataRow( 60, false, false )]
+	[DataRow( 144, false, false )]
+	[DataRow( 240, false, false )]
+	[DataRow( 2000, false, false )]
+	[DataRow( 60, true, false )]
+	[DataRow( 144, true, false )]
+	[DataRow( 240, true, false )]
+	[DataRow( 2000, true, false )]
+	[DataRow( 60, false, true )]
+	[DataRow( 144, false, true )]
+	[DataRow( 240, false, true )]
+	[DataRow( 2000, false, true )]
+	[DataRow( 60, true, true )]
+	[DataRow( 144, true, true )]
+	[DataRow( 240, true, true )]
+	[DataRow( 2000, true, true )]
+	public void RapidWheelInputHasBoundedBounceAtBothBoundaries( int frameRate, bool reversed, bool horizontal )
+	{
+		var (root, scroller) = CreatePaddedScroller( 1000, 1000 );
+		if ( reversed )
+		{
+			scroller.Style.Set( "flex-direction: column-reverse;" );
+			root.Layout();
+		}
+
+		RealTime.Delta = RealTime.SmoothDelta = 1.0f / frameRate;
+		var axis = horizontal ? new Vector2( 1, 0 ) : new Vector2( 0, 1 );
+		var wheel = horizontal ? -axis : axis;
+		var min = reversed ? -scroller.ScrollSize : Vector2.Zero;
+		var max = reversed ? Vector2.Zero : scroller.ScrollSize;
+
+		foreach ( var direction in new[] { 1, -1 } )
+		{
+			var boundary = Vector2.Dot( direction > 0 ? max : min, axis );
+			scroller.ScrollOffset = axis * boundary;
+			for ( int frame = 0; frame < 30; frame++ )
+			{
+				for ( int i = 0; i < 1000; i++ )
+					scroller.TryScroll( wheel * direction );
+				scroller.SetNeedsPreLayout();
+				root.Layout();
+				var overshoot = (Vector2.Dot( scroller.ScrollOffset, axis ) - boundary) * direction;
+				Assert.IsTrue( overshoot >= 0 && overshoot <= 40 * scroller.ScaleToScreen, $"Overshoot: {overshoot}" );
+				if ( frameRate > 100 ) Assert.AreEqual( Vector2.Zero, scroller.ScrollVelocity );
+			}
+
+			var beforeReverse = Vector2.Dot( scroller.ScrollOffset, axis );
+			scroller.TryScroll( wheel * -direction );
+			if ( frameRate > 100 ) Assert.AreEqual( -direction * 20, Vector2.Dot( scroller.ScrollVelocity, axis ), 0.001f, "The hard limit must discard outward momentum" );
+			root.Layout();
+			if ( frameRate > 100 ) Assert.IsTrue( (Vector2.Dot( scroller.ScrollOffset, axis ) - beforeReverse) * direction < 0 );
+
+			// Hit the same edge again, then release without any more input.
+			for ( int i = 0; i < 1000; i++ ) scroller.TryScroll( wheel * direction );
+			root.Layout();
+			var previous = MathF.Abs( Vector2.Dot( scroller.ScrollOffset, axis ) - boundary );
+			for ( int frame = 0; frame < frameRate; frame++ )
+			{
+				root.Layout();
+				var overshoot = MathF.Abs( Vector2.Dot( scroller.ScrollOffset, axis ) - boundary );
+				Assert.IsTrue( overshoot <= previous, "Released bounce should return monotonically" );
+				previous = overshoot;
+			}
+			Assert.AreEqual( boundary, Vector2.Dot( scroller.ScrollOffset, axis ), 0.01f );
+
+			scroller.TryScroll( wheel * -direction );
+			scroller.ScrollTo( scroller.ScrollOffset );
+		}
+	}
+
+	class DragScroller : Panel
+	{
+		public void Start( DragEvent e ) => OnDragStart( e );
+		public void Drag( DragEvent e ) => OnDrag( e );
+		public void End( DragEvent e ) => OnDragEnd( e );
+		public void Step( Vector2 size )
+		{
+			AddScrollVelocity();
+			ConstrainScrolling( size + Box.Rect.Size );
+		}
+	}
+
+	[TestMethod]
+	public void DragReleaseSpringsBackAt240Fps()
+	{
+		var root = new RootPanel { PanelBounds = new Rect( 0, 0, 1000, 1000 ) };
+		var scroller = root.AddChild<DragScroller>();
+		scroller.Style.Set( "width: 200px; height: 200px; overflow: scroll;" );
+		root.Layout();
+		RealTime.Delta = RealTime.SmoothDelta = 1.0f / 240.0f;
+		scroller.Step( new Vector2( 800, 800 ) );
+		var e = new DragEvent( "ondrag", scroller, 0, 0 ) { LocalPosition = new Vector2( 0, 100 ) };
+		scroller.Start( e );
+		scroller.Drag( e );
+		var overshoot = scroller.ScrollOffset.y;
+		Assert.IsTrue( overshoot < 0 && overshoot >= -20 );
+		scroller.End( e );
+		Assert.IsFalse( scroller.IsDragScrolling );
+		// Isolate springback from the test host's cursor velocity.
+		scroller.ScrollVelocity = 0;
+		scroller.Step( new Vector2( 800, 800 ) );
+		Assert.AreEqual( overshoot * (1 - RealTime.SmoothDelta * 100), scroller.ScrollOffset.y, 0.001f );
+		Assert.IsTrue( scroller.ScrollOffset.y < 0, "Release should spring back, not snap" );
+		for ( int i = 0; i < 72; i++ ) scroller.Step( new Vector2( 800, 800 ) );
+		Assert.AreEqual( 0, scroller.ScrollOffset.y, 0.001f );
+	}
+
+	[TestMethod]
+	public void DiagonalWheelRetainsInertiaBelowHardLimit()
+	{
+		var (root, scroller) = CreatePaddedScroller( 1000, 1000 );
+		RealTime.Delta = RealTime.SmoothDelta = 1.0f / 240.0f;
+		scroller.ScrollOffset = new Vector2( scroller.ScrollSize.x, 100 );
+		scroller.TryScroll( new Vector2( -1, 1 ) );
+		// RootPanel.Layout ticks first, damping velocity before integrating the offset.
+		var derivative = Vector2.Zero;
+		var velocity = Vector2.SmoothDamp( new Vector2( 20, 20 ), 0, ref derivative, 0.5f, RealTime.SmoothDelta );
+		root.Layout();
+		Assert.AreEqual( velocity, scroller.ScrollVelocity );
+		Assert.IsTrue( scroller.ScrollOffset.x > scroller.ScrollSize.x && scroller.ScrollOffset.x <= scroller.ScrollSize.x + 20 );
+		Assert.AreEqual( 100 + velocity.y * RealTime.SmoothDelta * 60, scroller.ScrollOffset.y, 0.001f );
+	}
+
+	[TestMethod]
+	[DataRow( 60, 15 )]
+	[DataRow( 60, 25 )]
+	[DataRow( 240, 15 )]
+	[DataRow( 240, 25 )]
+	[DataRow( 2000, 15 )]
+	[DataRow( 2000, 25 )]
+	public void SingleWheelImpulseBouncesThenSettles( int fps, int distance )
+	{
+		var scroller = new DragScroller();
+		scroller.Style.Set( "width: 200px; height: 200px; overflow: scroll;" );
+		var root = new RootPanel { PanelBounds = new Rect( 0, 0, 1000, 1000 ) };
+		root.AddChild( scroller );
+		root.Layout();
+		RealTime.Delta = RealTime.SmoothDelta = 1.0f / fps;
+		var size = new Vector2( 800, 800 );
+		scroller.Step( size );
+		scroller.ScrollOffset = new Vector2( 0, 800 - distance );
+		scroller.TryScroll( new Vector2( 0, 1 ) );
+		Assert.AreEqual( 800 - distance, scroller.ScrollOffset.y, 0.001f, "Input must not predict a frame or move the offset" );
+		var derivative = Vector2.Zero;
+		var velocity = Vector2.SmoothDamp( new Vector2( 0, 20 ), 0, ref derivative, 0.5f, RealTime.SmoothDelta );
+		var expected = 800 - distance + velocity.y * RealTime.SmoothDelta * 60;
+		scroller.Step( size );
+		if ( expected <= 800 ) Assert.AreEqual( expected, scroller.ScrollOffset.y, 0.001f );
+		var bounced = scroller.ScrollOffset.y > 800;
+		for ( int i = 0; i < fps * 4; i++ )
+		{
+			scroller.Step( size );
+			bounced |= scroller.ScrollOffset.y > 800;
+			Assert.IsTrue( scroller.ScrollOffset.y <= 820 );
+		}
+		if ( fps > 100 ) Assert.IsTrue( bounced, "A single wheel impulse should still overshoot" );
+		Assert.AreEqual( 800, scroller.ScrollOffset.y, 0.01f );
+		Assert.AreEqual( 0, scroller.ScrollVelocity.y );
+	}
+
+	[TestMethod]
+	public void WheelAndProgrammaticInertiaBothSpringBack()
+	{
+		var root = new RootPanel { PanelBounds = new Rect( 0, 0, 1000, 1000 ) };
+		var scroller = root.AddChild<DragScroller>();
+		scroller.Style.Set( "width: 200px; height: 200px; overflow: scroll;" );
+		root.Layout();
+		RealTime.Delta = RealTime.SmoothDelta = 1.0f / 240;
+		var size = new Vector2( 800, 800 );
+		scroller.Step( size );
+		scroller.TryScroll( new Vector2( -1, 1 ) );
+		var e = new DragEvent( "ondrag", scroller, 0, 0 );
+		scroller.Start( e );
+		scroller.End( e );
+		scroller.ScrollOffset = new Vector2( 800, 800 );
+		scroller.ScrollVelocity = new Vector2( 20, 20 );
+		scroller.Step( size );
+		Assert.IsTrue( scroller.ScrollOffset.x > 800 && scroller.ScrollOffset.y > 800 );
+
+		scroller.TryScrollToBottom();
+		scroller.ScrollOffset = new Vector2( 800, 800 );
+		scroller.TryScroll( new Vector2( -1, 1 ) );
+		scroller.ScrollVelocity.x = 30;
+		scroller.Step( size );
+		Assert.IsTrue( scroller.ScrollOffset.x > 800 );
+		Assert.IsTrue( scroller.ScrollOffset.y > 800 && scroller.ScrollOffset.y <= 820 );
+		Assert.IsTrue( scroller.ScrollVelocity.y > 0 );
+	}
+
+	[TestMethod]
+	public void WheelInertiaHasBoundedBounceAfterContentShrinks()
+	{
+		var root = new RootPanel { PanelBounds = new Rect( 0, 0, 1000, 1000 ) };
+		var scroller = root.AddChild<DragScroller>();
+		scroller.Style.Set( "width: 200px; height: 200px; overflow: scroll;" );
+		root.Layout();
+		RealTime.Delta = RealTime.SmoothDelta = 1.0f / 240;
+		scroller.Step( new Vector2( 800, 800 ) );
+		scroller.ScrollOffset = new Vector2( 600, 600 );
+		scroller.TryScroll( new Vector2( -1, 0 ) );
+		scroller.Step( new Vector2( 200, 200 ) );
+		Assert.AreEqual( 240, scroller.ScrollOffset.x, 0.001f );
+		Assert.AreEqual( 0, scroller.ScrollVelocity.x );
+		Assert.AreEqual( 240, scroller.ScrollOffset.y, 0.001f, "The outer limit also applies to the non-wheel axis" );
+	}
+
+	[TestMethod]
+	public void ShrinkingContentDuringInertiaSpringsToNewBoundary()
+	{
+		var root = new RootPanel { PanelBounds = new Rect( 0, 0, 1000, 1000 ) };
+		var scroller = root.AddChild<DragScroller>();
+		scroller.Style.Set( "width: 200px; height: 200px; overflow: scroll;" );
+		root.Layout();
+		RealTime.Delta = RealTime.SmoothDelta = 1.0f / 240.0f;
+		scroller.Step( new Vector2( 800, 800 ) );
+		scroller.ScrollOffset = new Vector2( 600, 600 );
+		scroller.ScrollVelocity = new Vector2( 20, 0 );
+		scroller.Step( new Vector2( 200, 200 ) );
+		Assert.IsTrue( scroller.ScrollOffset.x > 200 && scroller.ScrollOffset.x < 600 );
+		Assert.AreEqual( 0, scroller.ScrollVelocity.x, "Resizing beyond the hard limit discards outward inertia" );
+		for ( int i = 0; i < 1000; i++ ) scroller.Step( new Vector2( 200, 200 ) );
+		Assert.AreEqual( 200, scroller.ScrollOffset.x, 0.001f );
+	}
+
 	/// <summary>
 	/// A ScrollOffset within the valid extents survives repeated layouts unchanged - the
 	/// constrain step only rewrites the offset when it's out of bounds or has velocity.
@@ -225,7 +455,7 @@ public partial class PanelScrollingTest
 	{
 		var (root, scroller) = CreateVerticalScroller();
 
-		RealTime.SmoothDelta = 1.0f / 60.0f;
+		RealTime.Delta = RealTime.SmoothDelta = 1.0f / 60.0f;
 
 		scroller.ScrollOffset = new Vector2( 0, 300 );
 

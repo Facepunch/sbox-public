@@ -45,6 +45,47 @@ native class CVfx as NativeEngine.CVfx
 	bool WriteCombo( ShaderProgramType programType, ulong staticId, ulong dynamicId, VfxCompiledShaderInfo_t shaderInfo );
 
 	string GetPropertiesJson();
+
+	// "S_FOO=1 D_BAR=2" for a program's combos that aren't at their minimum in this static/dynamic pair.
+	// Same mixed-radix decode as CVfxVulkan::CompileShaderAndGetVariables.
+	inline string DescribeCombo( ShaderProgramType program, ulong staticCombo, ulong dynamicCombo )
+	{
+		static thread_local CUtlString result;
+		result.Clear();
+		const CVfxProgramData &data = self->m_programArray[(int)program];
+		const CUtlVector< CVfxCombo > *arrays[] = { &data.m_staticComboArray, &data.m_dynamicComboArray };
+		uint64 ids[] = { staticCombo, dynamicCombo };
+		for ( int i = 0; i < 2; ++i )
+		{
+			uint64 stride = 1;
+			for ( const CVfxCombo &combo : *arrays[i] )
+			{
+				const uint32 value = uint32( ( ids[i] / stride ) % combo.GetCount() ) + combo.m_nMin;
+				stride *= combo.GetCount();
+				if ( value == uint32( combo.m_nMin ) ) continue;
+				if ( !result.IsEmpty() ) result += " ";
+				result += CFmtStr( "%s=%u", combo.m_szName, value ).Get();
+			}
+		}
+		return result.Get();
+	}
+
+	// Query editor visibility for a material feature selection. Uses the same
+	// channel dependency traversal as the native material editor.
+	inline bool IsUiVariableActive( string variableName, string featureName, int value )
+	{
+		VfxComboValueVector_t values;
+		values.SetCount( self->FeatureArray().Count() );
+		for ( int i = 0; i < values.Count(); ++i ) values[i] = self->Feature( i ).m_nMin;
+		int feature = self->FindFeatureByName( featureName );
+		if ( feature < 0 || value < self->Feature( feature ).m_nMin || value > self->Feature( feature ).m_nMax ) return false;
+		values[feature] = (VfxComboValue_t)value;
+		CUtlVector<CVfxVariableDescription> descriptions;
+		CUtlVector<int> indices;
+		self->ComputeUiVariableListAndFeatureVariableIndices( descriptions, indices, values );
+		for ( int index : indices ) if ( !V_strcmp( descriptions[index].m_szName, variableName ) ) return true;
+		return false;
+	}
 }
 
 native static class ShaderTools
@@ -113,6 +154,12 @@ native class VfxCompiledShaderInfo_t
 	inline void Delete()
 	{
 		delete self;
+	}
+
+	// The CVfxShaderFileVulkan blob this combo writes into the .shader_c: version, SPIR-V size, SPIR-V, reflection.
+	inline CUtlBuffer GetCompiledShader()
+	{
+		return &self->compiledShader;
 	}
 
 	CUtlString compilerOutput;

@@ -22,6 +22,9 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<None Update="Resources\Audio\*">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
 		<None Update="MovieMaker\TestData\RawRotation.json">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>

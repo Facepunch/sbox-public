@@ -27,13 +27,29 @@ public class PackageChangeList
 }
 
 /// <summary>
-/// A single line within a changelist category. <see cref="Url"/> is an optional link parsed from a
-/// trailing <c>(https://…)</c> on the line.
+/// A single line within a changelist category, with references and explicitly credited GitHub logins.
 /// </summary>
 public class ChangeListEntry
 {
 	public string Text { get; set; }
+	/// <summary>
+	/// Optional area of the game this change belongs to (e.g. "UI", "Editor"), taken from the nearest
+	/// <c># Area</c> heading line above it in the category. Null when the category has no headings.
+	/// </summary>
+	public string Area { get; set; }
+	/// <summary>The first reference URL, retained for API compatibility.</summary>
 	public string Url { get; set; }
+	public ChangeListReference[] References { get; set; } = [];
+	public string[] Contributors { get; set; } = [];
+}
+
+/// <summary>A validated HTTP(S) reference extracted from a changelist entry.</summary>
+public class ChangeListReference
+{
+	public string Url { get; set; }
+	public string Label { get; set; }
+	/// <summary>One of: issue, pull, commit, link.</summary>
+	public string Kind { get; set; }
 }
 
 /// <summary>

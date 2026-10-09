@@ -14,20 +14,27 @@ public partial class Scene : GameObject
 	{
 		SceneMetrics.RayTraceAll++;
 
-		List<SceneTraceResult> results = new List<SceneTraceResult>();
-
 		if ( trace.NeedsFilterCallback )
 		{
 			SceneTrace.SetTraceFilter( in trace );
 			trace.PhysicsTrace.filterCallback = SceneTrace.PhysicsFilterCallback;
 		}
 
+		List<PhysicsTraceResult> physicsResults = null;
+
 		if ( trace.IncludePhysicsWorld )
 		{
-			var physicsResults = _physicsTraceScratch ??= new List<PhysicsTraceResult>();
+			physicsResults = _physicsTraceScratch ??= new List<PhysicsTraceResult>();
 			physicsResults.Clear();
 			trace.PhysicsTrace.RunAll( physicsResults );
+		}
 
+		// Sized up front. Physics hits are usually all of them, and growing from empty reallocates the backing
+		// array several times per trace.
+		var results = new List<SceneTraceResult>( physicsResults?.Count ?? 0 );
+
+		if ( physicsResults is not null )
+		{
 			foreach ( var result in physicsResults )
 			{
 				var sceneResult = SceneTraceResult.From( this, result );

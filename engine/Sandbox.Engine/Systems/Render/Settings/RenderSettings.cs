@@ -30,7 +30,7 @@ public partial class RenderSettings
 
 	public int MaxFrameRate
 	{
-		get => ConVarSystem.GetInt( "fps_max", 100, true );
+		get => ConVarSystem.GetInt( "fps_max", 0, true );
 		set => ConVarSystem.SetInt( "fps_max", value, true );
 	}
 
@@ -42,7 +42,7 @@ public partial class RenderSettings
 
 	public int MaxFrameRateMenu
 	{
-		get => ConVarSystem.GetInt( "fps_max_menu", 120, true );
+		get => ConVarSystem.GetInt( "fps_max_menu", 0, true );
 		set => ConVarSystem.SetInt( "fps_max_menu", value, true );
 	}
 
@@ -198,20 +198,17 @@ public partial class RenderSettings
 	/// <summary>Window, resolution, vsync, frame rate caps and field of view.</summary>
 	public void ResetDisplayConfig()
 	{
-		int desktopWidth = 0;
-		int desktopHeight = 0;
-		uint desktopRefreshRate = 0;
-		EngineGlobal.Plat_GetDesktopResolution( EngineGlobal.Plat_GetDefaultMonitorIndex(), ref desktopWidth, ref desktopHeight, ref desktopRefreshRate );
-		ResolutionWidth = desktopWidth;
-		ResolutionHeight = desktopHeight;
+		var size = SdlDisplay.GetDesktopSize( SdlDisplay.Current );
+		ResolutionWidth = (int)size.x;
+		ResolutionHeight = (int)size.y;
 
 		Fullscreen = false;
 		Borderless = true;
 		VSync = true;
-		MaxFrameRate = 300;
-		MaxFrameRateInactive = 60;
-		MaxFrameRateMenu = 120;
-		DefaultFOV = 75;
+		MaxFrameRate = 0;
+		MaxFrameRateInactive = 90;
+		MaxFrameRateMenu = 0;
+		DefaultFOV = 90;
 
 		VideoSettings.Save();
 	}
@@ -262,7 +259,7 @@ public partial class RenderSettings
 		ResolutionWidth = 1920;
 		ResolutionHeight = 1080;
 
-		NativeEngine.RenderDeviceManager.ChangeVideoMode( Fullscreen, Borderless, VSync, ResolutionWidth, ResolutionHeight, AntiAliasQuality.ToEngine() );
+		ApplyVideoMode();
 	}
 
 }

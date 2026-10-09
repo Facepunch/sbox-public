@@ -26,6 +26,17 @@ public partial class Panel
 			var order = x.GetRenderOrderIndex().CompareTo( y.GetRenderOrderIndex() );
 			return order != 0 ? order : x.SiblingIndex.CompareTo( y.SiblingIndex );
 		} );
+		_shadowChildren?.Clear();
+		foreach ( var child in _renderChildren )
+		{
+			if ( child.ComputedStyle?.BoxShadow is not { } shadows ) continue;
+			for ( int i = 0; i < shadows.Count; i++ )
+			{
+				if ( shadows[i].Inset || shadows[i].Color.a <= 0 ) continue;
+				(_shadowChildren ??= []).Add( child );
+				break;
+			}
+		}
 		_renderChildrenDirty = false;
 	}
 
@@ -35,6 +46,7 @@ public partial class Panel
 		point = GetTransformPosition( point );
 		var inside = IsInside( point );
 		if ( !inside && ComputedStyle.Overflow != OverflowMode.Visible ) return null;
+		if ( FindScrollbarAt( point, visibleOnly, needPointerEvents, match ) is { } scrollbarHit ) return scrollbarHit;
 		SortRenderChildren();
 		if ( _renderChildren is not null )
 		{

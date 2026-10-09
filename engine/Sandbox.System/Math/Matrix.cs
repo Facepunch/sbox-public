@@ -1,6 +1,7 @@
 ﻿using Sandbox;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
 
 /// <summary>
 /// Represents a 4x4 matrix.
@@ -116,6 +117,20 @@ public struct Matrix : System.IEquatable<Matrix>
 	public Vector2 Transform( Vector2 v )
 	{
 		return System.Numerics.Vector2.Transform( v._vec, _numerics );
+	}
+
+	/// <summary>
+	/// Transforms a rect and returns the axis-aligned bounds of its four transformed corners.
+	/// </summary>
+	public Rect Transform( in Rect rect )
+	{
+		var a = Transform( rect.TopLeft );
+		var b = Transform( rect.TopRight );
+		var c = Transform( rect.BottomLeft );
+		var d = Transform( rect.BottomRight );
+		var min = Vector2.Min( Vector2.Min( a, b ), Vector2.Min( c, d ) );
+		var max = Vector2.Max( Vector2.Max( a, b ), Vector2.Max( c, d ) );
+		return new Rect( min, max - min );
 	}
 
 	/// <summary>
@@ -327,7 +342,32 @@ public struct Matrix : System.IEquatable<Matrix>
 	public static bool operator ==( Matrix left, Matrix right ) => left.Equals( right );
 	public static bool operator !=( Matrix left, Matrix right ) => !(left == right);
 	public readonly override bool Equals( object obj ) => obj is Matrix o && Equals( o );
-	public readonly bool Equals( Matrix o ) => (_numerics) == (o._numerics);
-	public readonly override int GetHashCode() => HashCode.Combine( _numerics );
+
+	public readonly bool Equals( Matrix other )
+	{
+		ref readonly float left = ref _numerics.M11;
+		ref readonly float right = ref other._numerics.M11;
+
+		if ( Vector512.IsHardwareAccelerated )
+		{
+			return Vector512.EqualsAll(
+				Vector512.LoadUnsafe( in left ),
+				Vector512.LoadUnsafe( in right ) );
+		}
+
+		if ( Vector256.IsHardwareAccelerated )
+		{
+			return Vector256.EqualsAll(
+				Vector256.LoadUnsafe( in left ),
+				Vector256.LoadUnsafe( in right ) )
+				&& Vector256.EqualsAll(
+					Vector256.LoadUnsafe( in left, 8 ),
+					Vector256.LoadUnsafe( in right, 8 ) );
+		}
+
+		return _numerics == other._numerics;
+	}
+
+	public readonly override int GetHashCode() => _numerics.GetHashCode();
 	#endregion
 }

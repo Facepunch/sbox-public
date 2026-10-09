@@ -9,6 +9,8 @@ public class BaseWizardPage : Widget
 {
 	protected Layout BodyLayout;
 	internal CancellationTokenSource TokenSource;
+	internal Task OpenTask;
+	internal Task<bool> FinishTask;
 
 	/// <summary>
 	/// Automatically proceed to the next step instead of wanting the user to press next
@@ -33,6 +35,16 @@ public class BaseWizardPage : Widget
 	public virtual async Task OpenAsync()
 	{
 		await Task.CompletedTask;
+	}
+
+	/// <summary>
+	/// Rebuild the current page's UI after hotload using its existing state.
+	/// This must not restart work performed by OpenAsync or FinishAsync.
+	/// Pages drawn directly in OnPaint only need a repaint.
+	/// </summary>
+	public virtual void Rebuild()
+	{
+		Update();
 	}
 
 	public virtual async Task<bool> FinishAsync()

@@ -162,77 +162,74 @@ internal static class ResourceLoader
 
 	private static void OnAssetFilesChanged( FileWatch watch, AssetTypeAttribute type )
 	{
-		foreach ( var change in watch.Changes )
-		{
-			OnAssetFileChanged( change, type );
-		}
-	}
-
-	static void OnAssetFileChanged( string file, AssetTypeAttribute type )
-	{
 		var fs = EngineFileSystem.Mounted;
 
-		if ( !file.EndsWith( "_c" ) )
-			file += "_c";
+		Dictionary<string, (GameResource resource, ulong id)> removes = new();
 
-		//
-		// Asset doesn't exist, maybe just added?
-		//
-		if ( !ResourceLibrary.TryGet<GameResource>( file.Trim( '/' ), out var asset ) || asset.IsPromise )
+		foreach ( var f in watch.Changes )
 		{
-			// file wasn't found, so I don't know what was happening.
-			if ( !fs.FileExists( file ) )
-				return;
+			string path = Resource.FixPath( f );
+			if ( !path.EndsWith( "_c" ) )
+				path += "_c";
 
-			Log.Info( $"Detected Added File {file}" );
-			Game.Resources.LoadGameResource( type, file, fs );
-			return;
-		}
-
-		//
-		// File was removed, tell the asset system it died
-		//
-		if ( !fs.FileExists( file ) )
-		{
-			Log.Info( $"Detected Asset File Deleted {file}" );
-
-			// Removes from ResourceLibrary
-			asset.DestroyInternal();
-			return;
-		}
-
-		Span<byte> data = fs.ReadAllBytes( file );
-
-		if ( data.Length <= 3 )
-		{
-			Log.Warning( $"Couldn't load json data from {file}" );
-			return;
-		}
-
-		bool hasCompiledChanges = asset.TryLoadFromData( data );
-		bool externalChanges = false;
-		if ( hasCompiledChanges )
-		{
-			// check for source file changes
-			if ( fs.FileExists( asset.ResourcePath ) )
+			// Added?
+			if ( !ResourceLibrary.TryGet<GameResource>( path, out var resource ) || resource.IsPromise )
 			{
-				var jsonBlob = fs.ReadAllText( asset.ResourcePath );
-				if ( string.IsNullOrEmpty( jsonBlob ) ) return;
+				if ( !fs.FileExists( path ) )
+					continue; // but doesn't exist? wtf
+
+				Log.Info( $"Detected Added File {path}" );
+				Game.Resources.LoadGameResource( type, path, fs );
+				continue;
+			}
+
+			// Removed?
+			if ( !fs.FileExists( path ) )
+			{
+				// but defer until later incase it's actually just been moved
+				removes.TryAdd( path, (resource, resource.ResourceIdLong) );
+				continue;
+			}
+
+			// Modified
+			Span<byte> data = fs.ReadAllBytes( path );
+			if ( data.Length <= 3 )
+			{
+				Log.Warning( $"Couldn't load json data from {path}" );
+				continue;
+			}
+
+			// check what part of the resource was modified - compiled or source - do events
+			bool isModifiedCompiled = resource.TryLoadFromData( data );
+			bool isModifiedSource = false;
+			if ( isModifiedCompiled && fs.FileExists( resource.ResourcePath ) )
+			{
+				var jsonBlob = fs.ReadAllText( resource.ResourcePath );
+				if ( string.IsNullOrEmpty( jsonBlob ) ) continue;
 
 				var sourceHash = jsonBlob.FastHash();
-				if ( sourceHash != asset.LastSavedSourceHash && asset.LastSavedSourceHash != 0 )
+				if ( sourceHash != resource.LastSavedSourceHash && resource.LastSavedSourceHash != 0 )
 				{
-					IToolsDll.Current?.RunEvent<ResourceLibrary.IEventListener>( i => i.OnExternalChanges( asset ) );
-					externalChanges = true;
+					IToolsDll.Current?.RunEvent<ResourceLibrary.IEventListener>( i => i.OnExternalChanges( resource ) );
+					isModifiedSource = true;
 				}
+			}
+
+			resource.PostReloadInternal();
+
+			if ( isModifiedSource )
+			{
+				IToolsDll.Current?.RunEvent<ResourceLibrary.IEventListener>( i => i.OnExternalChangesPostLoad( resource ) );
 			}
 		}
 
-		asset.PostReloadInternal();
-
-		if ( externalChanges )
+		foreach ( (string path, (GameResource resource, ulong id)) in removes )
 		{
-			IToolsDll.Current?.RunEvent<ResourceLibrary.IEventListener>( i => i.OnExternalChangesPostLoad( asset ) );
+			if ( id != resource.ResourceIdLong )
+				continue; // id has been reassigned - this is a move, not a delete
+
+			Log.Info( $"Detected Asset File Deleted {path}" );
+			resource.DestroyInternal();
 		}
 	}
 

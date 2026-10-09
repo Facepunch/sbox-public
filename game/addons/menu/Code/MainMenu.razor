@@ -8,26 +8,15 @@
 
 <div class="mainmenu">
 
-    <NavigationHost DefaultUrl="/home" @ref="Navigator">
-        <ChildContent>
-
-            <Sidebar />
-
-            <div class="stage">
-
-                <div class="navigator-canvas" slot="navigator-canvas"></div>
-                <div class="overlay">
-                    <div class="overlay-container">
-                        <OfflineMode />
-                    </div>
+    <MenuShell DefaultUrl="/home" @ref="Navigator">
+        <Overlay>
+            <div class="overlay">
+                <div class="overlay-container">
+                    <OfflineMode />
                 </div>
-
-                <Footer />
-
             </div>
-
-        </ChildContent>
-    </NavigationHost>
+        </Overlay>
+    </MenuShell>
 </div>
 
 @code
@@ -36,7 +25,6 @@
 
     public static MainMenu Instance { get; private set; }
 
-    static bool _welcomeShown;
     static bool _streamerPromptShown;
 
     override protected void OnEnabled()
@@ -55,24 +43,7 @@
     {
         await Task.DelayRealtime(1500);
 
-        await ShowWelcomeScreenIfNeeded();
-
-        // Shown after the welcome screen so it sits on top of it if both appear.
         await ShowStreamerModePromptIfNeeded();
-    }
-
-    async Task ShowWelcomeScreenIfNeeded()
-    {
-        if ( _welcomeShown ) return;
-        if ( Game.Cookies.Get<bool>( WelcomeScreenModal.CookieKey, false ) ) return;
-
-        _welcomeShown = true;
-
-        var modal = new WelcomeScreenModal();
-        modal.Parent = Panel;
-
-        // Give the welcome modal a frame before we show the next modal
-        await Task.DelayRealtime( 1 );
     }
 
     async Task ShowStreamerModePromptIfNeeded()

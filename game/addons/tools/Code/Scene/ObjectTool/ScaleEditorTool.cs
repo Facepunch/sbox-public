@@ -53,7 +53,7 @@ public class ScaleEditorTool : EditorTool
 
 				if ( startState.Count == 0 )
 				{
-					undoScope ??= SceneEditorSession.Active.UndoScope( "Transform Object(s)" ).WithGameObjectChanges( nonSceneGos, GameObjectUndoFlags.All ).Push();
+					undoScope ??= SceneEditorSession.Active.UndoScope( "Transform Object(s)" ).WithGameObjectChanges( nonSceneGos, GameObjectUndoFlags.Properties ).Push();
 
 					foreach ( var go in nonSceneGos )
 					{

@@ -20,6 +20,76 @@ internal static partial class Api
 		static Dictionary<string, Accum> statDict = new( 16 );
 
 		static Lock Lock = new Lock();
+		static readonly Diagnostics.GpuPassTimings gpuPassTimings = new();
+		static readonly Diagnostics.GpuTimingSamplingWindow gpuSamplingWindow = new();
+		static bool wasSamplingGpu;
+		static Guid gpuSession;
+		static Diagnostics.GpuFrameTimeline gpuTimeline;
+		static ulong timelineAfterFrame;
+		static double lastTimelineCapture = double.NegativeInfinity;
+
+		[ConVar( "gpu_timing_telemetry", ConVarFlags.Protected, Help = "Sample GPU pass timings for performance reports for one second every thirty seconds" )]
+		internal static bool GpuTimingTelemetry { get; set; } = true;
+
+		[ConVar( "gpu_timeline_interval", ConVarFlags.Protected, Help = "Seconds between telemetry timeline captures (minimum 60). Uploaded on the next activity heartbeat. 0 disables timeline uploads." )]
+		internal static int GpuTimelineInterval { get; set; } = 300;
+
+		// Called under the Frame lock. GPU samples are deduplicated by completed GPU frame,
+		// with their own exposure count because profiling only runs during sampling windows.
+		static void CollectGpuStats()
+		{
+			var allowed = GpuTimingTelemetry && AccountInformation.UseAnalytics && Activity.IsSessionActive
+				&& !Application.IsEditor && !Application.IsHeadless && !Application.IsStandalone;
+
+			if ( gpuSession != SessionId )
+			{
+				gpuSession = SessionId;
+				gpuPassTimings.Clear();
+				gpuTimeline = null;
+				gpuSamplingWindow.Reset();
+				wasSamplingGpu = false;
+				lastTimelineCapture = double.NegativeInfinity;
+			}
+
+			if ( !allowed )
+			{
+				gpuPassTimings.Clear();
+				gpuTimeline = null;
+			}
+
+			if ( GpuTimelineInterval <= 0 ) gpuTimeline = null;
+
+			var sampling = gpuSamplingWindow.Update( RealTime.Now, allowed );
+			Diagnostics.GpuProfilerStats.Enabled = DebugOverlay.overlay_gpu == 1 || DebugOverlay.overlay_gpu_timeline == 1 || sampling;
+			Diagnostics.GpuProfilerStats.Update();
+
+			if ( sampling )
+			{
+				if ( !wasSamplingGpu )
+				{
+					timelineAfterFrame = Diagnostics.GpuProfilerStats.FrameId;
+					gpuPassTimings.SkipFrame( timelineAfterFrame );
+				}
+				else
+				{
+					gpuPassTimings.AddFrame( Diagnostics.GpuProfilerStats.FrameId, Diagnostics.GpuProfilerStats.Rows, Diagnostics.GpuProfilerStats.Renderer );
+					if ( gpuTimeline?.Renderer != Diagnostics.GpuProfilerStats.Renderer )
+					{
+						gpuTimeline = null;
+					}
+
+					if ( gpuTimeline is null && GpuTimelineInterval > 0
+						&& RealTime.Now - lastTimelineCapture >= Math.Max( 60, GpuTimelineInterval )
+						&& Diagnostics.GpuProfilerStats.FrameId > timelineAfterFrame )
+					{
+						gpuTimeline = Diagnostics.GpuFrameTimeline.Capture();
+						if ( gpuTimeline is not null ) lastTimelineCapture = RealTime.Now;
+					}
+				}
+			}
+
+			wasSamplingGpu = sampling;
+		}
 
 		struct Accum
 		{
@@ -78,6 +148,8 @@ internal static partial class Api
 
 			lock ( Lock )
 			{
+				CollectGpuStats();
+
 				foreach ( var stat in Timings.GetMain() )
 				{
 					FlipStat( stat );
@@ -141,6 +213,7 @@ internal static partial class Api
 			lock ( Lock )
 			{
 				var msPerFrame = (delta * 1000.0f) / ((float)FrameCount);
+				var gpuPasses = gpuPassTimings.Flip();
 
 				Process currentProc = Process.GetCurrentProcess();
 
@@ -153,9 +226,12 @@ internal static partial class Api
 					FrameBucket = FrameBucket.ToArray(), // need to copy
 					Stages = Stages.Where( x => x.Value.Calls > 0 ).ToDictionary( x => x.Key, x => x.Value.ToMetric() ), // need to copy
 					Stats = BuildStats(),
+					GpuPasses = AccountInformation.UseAnalytics && GpuTimingTelemetry ? gpuPasses : null,
+					GpuTimeline = AccountInformation.UseAnalytics && GpuTimingTelemetry && GpuTimelineInterval > 0 ? gpuTimeline?.ToTelemetry() : null,
 				};
 
 				FrameCount = 0;
+				gpuTimeline = null;
 				startTime = time;
 				Stages.Clear();
 				statDict.Clear();
