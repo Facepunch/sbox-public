@@ -8,7 +8,7 @@ namespace Sandbox;
 
 public partial class GameObject
 {
-	internal const int GameObjectVersion = 2;
+	internal const int GameObjectVersion = 3;
 
 	// The only flags we actually save. Everything else is runtime junk (Loading, Bone, etc) and saving it
 	// just causes phantom Flags overrides in prefab diffs. Networking is the exception, see below.
