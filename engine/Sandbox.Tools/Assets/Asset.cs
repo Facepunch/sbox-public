@@ -436,15 +436,16 @@ public abstract partial class Asset
 		if ( !attribute.TargetType.IsAssignableTo( t ) || attribute.TargetType.IsAbstract )
 			return false;
 
-		// Make sure we have an up to date compiled version
+		obj = GameResource.GetPromise( attribute.TargetType, new ResourceId() { Guid = Guid, Path = Path } );
+		if ( obj != null && !obj.IsPromise )
+			return true; // already exists and loaded
+
+		// Make sure we have an up to date compiled version before reading it. A resource that is
+		// already loaded isn't read from disk here; the file watcher and CompileAllAssets recompile those.
 		if ( CanRecompile )
 		{
 			Compile( false );
 		}
-
-		obj = GameResource.GetPromise( attribute.TargetType, new ResourceId() { Guid = Guid, Path = Path } );
-		if ( obj != null && !obj.IsPromise )
-			return true; // already exists and loaded
 
 		// get compiled path
 		var compiledFilePath = GetCompiledFile( true );

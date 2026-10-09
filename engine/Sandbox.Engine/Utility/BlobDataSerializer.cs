@@ -338,6 +338,35 @@ internal static class BlobDataSerializer
 	}
 
 	/// <summary>
+	/// Reads the raw "_d" sidecar of a resource from the mounted filesystems, or loose on disk.
+	/// Returns null if there is none. Unlike <see cref="ResolveBlobData"/> this never looks at the compiled file.
+	/// </summary>
+	internal static byte[] ReadSidecar( string filePath )
+	{
+		if ( string.IsNullOrEmpty( filePath ) )
+			return null;
+
+		if ( filePath.EndsWith( "_c" ) )
+			filePath = filePath[..^2];
+
+		var sidecarPath = filePath + "_d";
+
+		ReadOnlySpan<BaseFileSystem> filesystems =
+		[
+			FileSystem.Mounted,
+			PackageManager.MountedFileSystem,
+		];
+
+		foreach ( var fs in filesystems )
+		{
+			if ( fs is not null && fs.FileExists( sidecarPath ) )
+				return fs.ReadAllBytes( sidecarPath ).ToArray();
+		}
+
+		return File.Exists( sidecarPath ) ? File.ReadAllBytes( sidecarPath ) : null;
+	}
+
+	/// <summary>
 	/// A disposable context for blob serialization/deserialization.
 	/// </summary>
 	public sealed class BlobContext : IDisposable
