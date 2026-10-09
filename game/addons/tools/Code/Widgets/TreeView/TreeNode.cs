@@ -477,6 +477,15 @@ public partial class TreeNode
 	{
 
 	}
+
+	/// <summary>
+	/// Called by the TreeView before its default press handling. Return false to consume the
+	/// press (skip expand/select); return true to let the TreeView handle it normally.
+	/// </summary>
+	public virtual bool OnItemPressed( VirtualWidget item, MouseEvent e )
+	{
+		return true;
+	}
 }
 
 /// <summary>
