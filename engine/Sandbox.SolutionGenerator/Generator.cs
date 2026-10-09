@@ -117,7 +117,7 @@ namespace Sandbox.SolutionGenerator
 					Directory.CreateDirectory( propertiesPath );
 
 					var absoluteExePath = Path.Combine( relativePath, "sbox-dev.exe" );
-					var relativeExePath = AttemptAbsoluteToRelative( propertiesPath, absoluteExePath );
+					var relativeExePath = AttemptAbsoluteToRelative( p.CsprojPath, absoluteExePath );
 
 					var launchSettings = new LaunchSettings { Profiles = new() };
 					launchSettings.Profiles.Add( "Editor", new LaunchSettings.Profile
@@ -125,6 +125,7 @@ namespace Sandbox.SolutionGenerator
 						CommandName = "Executable",
 						ExecutablePath = relativeExePath,
 						CommandLineArgs = $"-project \"{p.SandboxProjectFilePath}\"",
+						WorkingDirectory = "$(MSBuildProjectDirectory)",
 					} );
 
 					WriteTextIfChanged( Path.Combine( propertiesPath, "launchSettings.json" ), JsonSerializer.Serialize( launchSettings, JsonWriteIndented ) );
