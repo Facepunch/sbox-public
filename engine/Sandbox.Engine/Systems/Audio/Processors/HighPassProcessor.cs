@@ -1,16 +1,13 @@
 ﻿namespace Sandbox.Audio;
 
-/// <summary>
-/// Just a test - don't count on this sticking around
-/// </summary>
 [Expose]
 public sealed class HighPassProcessor : AudioProcessor<HighPassProcessor.State>
 {
 	/// <summary>
-	/// Cutoff frequency of the high-pass filter (0 to 1, where 1 is Nyquist frequency).
+	/// Cutoff frequency of the high-pass filter.
 	/// </summary>
-	[Range( 0, 1 )]
-	public float Cutoff { get; set; } = 0.5f;
+	[Range( 0, 12000 )]
+	public float Cutoff { get; set; } = 300f;
 
 	public class State : ListenerState
 	{
@@ -23,21 +20,23 @@ public sealed class HighPassProcessor : AudioProcessor<HighPassProcessor.State>
 	/// </summary>
 	protected override unsafe void ProcessSingleChannel( AudioChannel channel, Span<float> input )
 	{
-		if ( input.Length == 0 ) return;
+		float rc = 1f / (2f * MathF.PI * Cutoff);
+		float dt = 1f / AudioEngine.SamplingRate;
+		float alpha = rc / (rc + dt);
 
-		float alpha = Cutoff;
-		float prevIn = CurrentState.PreviousInput.Get( channel );
-		float prevOut = CurrentState.PreviousOutput.Get( channel );
+		float prevInput = CurrentState.PreviousInput.Get( channel );
+		float prevOutput = CurrentState.PreviousOutput.Get( channel );
 
 		for ( int i = 0; i < input.Length; i++ )
 		{
-			float current = input[i];
-			input[i] = prevOut + alpha * (current - prevIn);
-			prevIn = current;
-			prevOut = input[i];
+			float sample = input[i];
+			float output = alpha * (prevOutput + sample - prevInput);
+			input[i] = output;
+			prevInput = sample;
+			prevOutput = output;
 		}
 
-		CurrentState.PreviousInput.Set( channel, prevIn );
-		CurrentState.PreviousOutput.Set( channel, prevOut );
+		CurrentState.PreviousInput.Set( channel, prevInput );
+		CurrentState.PreviousOutput.Set( channel, prevOutput );
 	}
 }
