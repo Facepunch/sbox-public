@@ -1,5 +1,5 @@
-﻿using System.IO;
-using System.Text.Json;
+﻿using Sandbox.Resources;
+using System.IO;
 
 namespace Editor.TerrainEditor;
 
@@ -37,7 +37,8 @@ class TerrainMaterialEditor : BaseResourceEditor<TerrainMaterial>
 		// Only work from albedo for now
 		if ( p.Name != nameof( TerrainMaterial.AlbedoImage ) ) return;
 
-		string albedoPath = p.GetValue<string>();
+		string albedoPath = GetImagePath( p.GetValue<Texture>() );
+		if ( string.IsNullOrWhiteSpace( albedoPath ) ) return;
 
 		var directoryname = Path.GetDirectoryName( albedoPath );
 		var filename = Path.GetFileNameWithoutExtension( albedoPath );
@@ -66,8 +67,25 @@ class TerrainMaterialEditor : BaseResourceEditor<TerrainMaterial>
 			if ( !FileSystem.Content.FileExists( name ) ) continue;
 
 			var property = Object.GetProperty( a.Item1 );
-			property.SetValue<string>( name );
+			property.SetValue( CreateImageTexture( name ) );
 		}
+	}
+
+	/// <summary>
+	/// The image file a source image slot was set up from, if it came from one.
+	/// </summary>
+	static string GetImagePath( Texture texture )
+	{
+		if ( texture?.EmbeddedResource is not { } embedded ) return null;
+		if ( embedded.ResourceGenerator != "imagefile" ) return null;
+
+		return embedded.Data?["FilePath"]?.GetValue<string>();
+	}
+
+	static Texture CreateImageTexture( string filePath )
+	{
+		var generator = new ImageFileGenerator { FilePath = filePath };
+		return generator.Create( ResourceGenerator.Options.Default );
 	}
 
 	void UpdateSceneTerrain()
