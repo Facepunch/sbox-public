@@ -154,9 +154,6 @@ namespace Editor
 
 		public static GridLayout Grid() => new GridLayout();
 
-		public static Layout Flow() => new VerticalLayout( default );
-
-		public Layout AddFlow( int stretch = 0 ) => Add( Flow(), stretch );
 		public Layout AddRow( int stretch = 0, bool reversed = false ) => Add( Row( reversed ), stretch );
 		public Layout AddColumn( int stretch = 0, bool reversed = false ) => Add( Column( reversed ), stretch );
 
