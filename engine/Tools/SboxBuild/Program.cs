@@ -12,6 +12,11 @@ internal class Program
 {
 	static int Main( string[] args )
 	{
+		System.Globalization.CultureInfo.DefaultThreadCurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
+		System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = System.Globalization.CultureInfo.InvariantCulture;
+		System.Threading.Thread.CurrentThread.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
+		System.Threading.Thread.CurrentThread.CurrentUICulture = System.Globalization.CultureInfo.InvariantCulture;
+
 		var rootCommand = new RootCommand( "sboxbuild - Build and deployment tool for s&box\n\nRun this from your sbox project root." );
 
 		// Compound commands (handle multiple related steps with flags)
