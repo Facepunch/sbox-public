@@ -101,6 +101,59 @@ public class CircularBufferTest
 	}
 
 	/// <summary>
+	/// Negative indices must throw after the internal array has wrapped,
+	/// without changing any valid element.
+	/// </summary>
+	[TestMethod]
+	public void IndexerRejectsNegativeIndicesAfterWrap()
+	{
+		var buffer = new CircularBuffer<int>( 3, new[] { 1, 2, 3 } );
+		buffer.PushBack( 4 );
+
+		foreach ( int index in new[] { -1, -2, -3, int.MinValue } )
+		{
+			Assert.ThrowsException<IndexOutOfRangeException>( () => buffer[index] );
+			Assert.ThrowsException<IndexOutOfRangeException>( () => buffer[index] = 99 );
+			CollectionAssert.AreEqual( new[] { 2, 3, 4 }, buffer.ToArray() );
+		}
+
+		Assert.AreEqual( 2, buffer[0] );
+		Assert.AreEqual( 4, buffer[2] );
+		buffer[2] = 5;
+		CollectionAssert.AreEqual( new[] { 2, 3, 5 }, buffer.ToArray() );
+	}
+
+	/// <summary>
+	/// Index bounds apply to fresh, partially filled and shifted buffers.
+	/// </summary>
+	[TestMethod]
+	public void IndexerRejectsOutOfRangeIndices()
+	{
+		var empty = new CircularBuffer<int>( 3 );
+		var partial = new CircularBuffer<int>( 3, new[] { 1, 2 } );
+		var full = new CircularBuffer<int>( 3, new[] { 1, 2, 3 } );
+		var shifted = new CircularBuffer<int>( 3, new[] { 1, 2, 3 } );
+		shifted.PopFront();
+		var frontWrapped = new CircularBuffer<int>( 3, new[] { 1, 2, 3 } );
+		frontWrapped.PushFront( 0 );
+		var emptied = new CircularBuffer<int>( 3, new[] { 1, 2, 3 } );
+		emptied.PopFront();
+		emptied.PopFront();
+		emptied.PopFront();
+
+		foreach ( var buffer in new[] { empty, partial, full, shifted, frontWrapped, emptied } )
+		{
+			var contents = buffer.ToArray();
+			foreach ( int index in new[] { -1, -2, int.MinValue, buffer.Size, buffer.Size + 1, int.MaxValue } )
+			{
+				Assert.ThrowsException<IndexOutOfRangeException>( () => buffer[index] );
+				Assert.ThrowsException<IndexOutOfRangeException>( () => buffer[index] = 99 );
+				CollectionAssert.AreEqual( contents, buffer.ToArray() );
+			}
+		}
+	}
+
+	/// <summary>
 	/// Clear should empty the buffer so it can be reused.
 	/// </summary>
 	[TestMethod]
