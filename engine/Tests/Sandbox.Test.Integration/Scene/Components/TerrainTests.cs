@@ -388,6 +388,67 @@ public class TerrainComponentTest
 	}
 
 	/// <summary>
+	/// The heightfield collider follows the terrain's lifetime, and is solid to physics traces
+	/// rather than just present: enabling builds exactly one shape that a trace dropped onto the
+	/// plateau hits, disabling removes it, enabling again builds it again, and destroying the
+	/// terrain - the component or its GameObject - removes it for good. Enabling builds the shape
+	/// once, from the collider's own enable, so this pins that nothing relied on the second build
+	/// Terrain.OnEnabled used to do.
+	/// </summary>
+	[TestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void ColliderFollowsEnableDisableAndDestroy( bool destroyGameObject )
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var storage = CreateSmallStorage();
+		RaiseCenterPlateau( storage );
+
+		var go = scene.CreateObject();
+		var terrain = go.Components.Create<Terrain>( false );
+		terrain.Storage = storage;
+
+		// Straight down onto the middle of the plateau, which is at the full terrain height
+		SceneTraceResult Drop() => scene.Trace.Ray( new Vector3( 3200, 3200, 2000 ), new Vector3( 3200, 3200, -500 ) ).Run();
+
+		Assert.IsFalse( Drop().Hit, "A disabled terrain has nothing to hit" );
+
+		terrain.Enabled = true;
+
+		Assert.AreEqual( 1, terrain.Shapes.Count, "Enabling builds one heightfield shape" );
+		var hit = Drop();
+		Assert.IsTrue( hit.Hit, "An enabled terrain is solid" );
+		Assert.AreEqual( 1000.0f, hit.HitPosition.z, 5.0f, "The trace lands on the plateau" );
+		Assert.AreSame( go, hit.GameObject );
+
+		var firstShape = terrain.Shapes[0];
+		terrain.Enabled = false;
+
+		Assert.AreEqual( 0, terrain.Shapes.Count, "Disabling removes the shape" );
+		Assert.IsFalse( firstShape.IsValid(), "The removed shape is gone from physics" );
+		Assert.IsFalse( Drop().Hit, "A disabled terrain isn't solid" );
+
+		terrain.Enabled = true;
+
+		Assert.AreEqual( 1, terrain.Shapes.Count, "Enabling again builds the shape again" );
+		Assert.IsTrue( Drop().Hit, "A re-enabled terrain is solid again" );
+		Assert.AreEqual( 1000.0f, Drop().HitPosition.z, 5.0f );
+
+		var lastShape = terrain.Shapes[0];
+		if ( destroyGameObject )
+			go.Destroy();
+		else
+			terrain.Destroy();
+
+		scene.ProcessDeletes();
+
+		Assert.IsFalse( lastShape.IsValid(), "Destroying the terrain removes its shape from physics" );
+		Assert.IsFalse( Drop().Hit, "A destroyed terrain isn't solid" );
+	}
+
+	/// <summary>
 	/// CPU height edits reach the collider in place: UpdateCollision pushes the new heights
 	/// into the live heightfield shape and expands its cached local AABB so raised terrain is
 	/// no longer culled by the broadphase or the height field's narrowphase early-out. The
