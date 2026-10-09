@@ -1039,7 +1039,7 @@
           "OwnerTransfer": 1,
           "Components": [
             {
-              "__type": "Sandbox.ModelCollider",
+              "__type": "Sandbox.BoxCollider",
               "__guid": "483f98bd-97a9-4aca-9a66-ecea1dd67889",
               "__enabled": false,
               "Flags": 0,
@@ -1047,7 +1047,8 @@
               "Elasticity": null,
               "Friction": null,
               "IsTrigger": false,
-              "Model": "box_test.vmdl",
+              "Center": "0,0,0",
+              "Scale": "32,32,32",
               "OnComponentDestroy": null,
               "OnComponentDisabled": null,
               "OnComponentEnabled": null,
