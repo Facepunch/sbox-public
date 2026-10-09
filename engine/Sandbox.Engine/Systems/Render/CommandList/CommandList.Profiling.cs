@@ -42,6 +42,28 @@ public sealed unsafe partial class CommandList
 	}
 
 	/// <summary>
+	/// Times a section of immediate rendering on the GPU - <see cref="Graphics"/> calls made straight into the current
+	/// render context rather than recorded into a command list. Same profiler row and debugger event as
+	/// <see cref="ProfileScope"/>, bound with a <c>using</c> block.
+	/// </summary>
+	internal static ImmediateProfilingScope ProfileImmediate( ProfilingSampler sampler ) => new( OpenScopeFor( sampler ) );
+
+	/// <summary>
+	/// A GPU timing section in immediate rendering. Closes at the end of its <c>using</c> block.
+	/// </summary>
+	internal ref struct ImmediateProfilingScope
+	{
+		private readonly OpenScope _open;
+
+		internal ImmediateProfilingScope( OpenScope open )
+		{
+			_open = open;
+		}
+
+		public void Dispose() => CloseScope( Graphics.Context, _open );
+	}
+
+	/// <summary>
 	/// A scope open during this execution. Carries what was actually begun, since the profiler or a debugger
 	/// can be toggled between a scope opening and closing.
 	/// </summary>
