@@ -156,6 +156,7 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 	/// Cancellation source for the current bake operation.
 	/// </summary>
 	private CancellationTokenSource _bakeCts;
+	private readonly SemaphoreSlim _bakeGate = new( 1, 1 );
 
 	//
 	// Component Lifecycle
@@ -176,8 +177,6 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 		Transform.OnTransformChanged -= MarkDirty;
 
 		_bakeCts?.Cancel();
-		_bakeCts?.Dispose();
-		_bakeCts = null;
 
 		MarkDirty();
 	}
@@ -205,44 +204,90 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 	[Button( "Bake", "lightbulb" )]
 	public async Task BakeProbes( CancellationToken ct = default )
 	{
+		await MainThread.Wait();
+
+		// The old bake must unwind before replacing preview textures or relocation data.
+		_bakeCts?.Cancel();
+		await _bakeGate.WaitAsync( ct );
+		try
+		{
+			if ( ct.IsCancellationRequested || !Enabled || Scene?.SceneWorld is null || GameObject.EnabledToken.IsCancellationRequested )
+				return;
+
+			using var cancellation = CancellationTokenSource.CreateLinkedTokenSource( ct, GameObject.EnabledToken );
+			_bakeCts = cancellation;
+			try
+			{
+				await BakeProbesCore( cancellation.Token );
+			}
+			finally
+			{
+				_bakeCts = null;
+			}
+		}
+		finally
+		{
+			_bakeGate.Release();
+		}
+	}
+
+	private async Task BakeProbesCore( CancellationToken ct )
+	{
 		if ( Scene?.SceneWorld is null )
 			return;
-
-		// Cancel any existing bake operation
-		_bakeCts?.Cancel();
-		_bakeCts?.Dispose();
-		_bakeCts = new CancellationTokenSource();
 
 		// Not needed if GPU RT
 		ComputeProbeRelocation();
 
 		using var updater = new DDGIProbeUpdaterCubemapper( this );
+		var complete = false;
+		Texture savedIrradiance = null;
+		Texture savedDistance = null;
+		Texture savedRelocation = null;
 
-		// Update for preview
-		IrradianceTexture = updater.GeneratedIrradianceTexture;
-		DistanceTexture = updater.GeneratedDistanceTexture;
-		RelocationTexture = GeneratedRelocationTexture;
-		Scene.Get<DDGIVolumeSystem>()?.MarkDirty();
-
-		using var linkedCt = CancellationTokenSource.CreateLinkedTokenSource( ct, _bakeCts.Token, GameObject.EnabledToken );
-
-		if ( !await updater.RunAsync( linkedCt.Token ) )
+		try
 		{
-			IrradianceTexture = default;
-			DistanceTexture = default;
-			RelocationTexture = default;
+			// Update for preview
+			IrradianceTexture = updater.GeneratedIrradianceTexture;
+			DistanceTexture = updater.GeneratedDistanceTexture;
+			RelocationTexture = GeneratedRelocationTexture;
+			Scene.Get<DDGIVolumeSystem>()?.MarkDirty();
+
+			if ( await updater.RunAsync( ct ) && !ct.IsCancellationRequested )
+			{
+				// Make sure all GPU work is done before saving textures
+				Graphics.FlushGPU();
+
+				savedIrradiance = SaveTexture( updater.GeneratedIrradianceTexture, "Irradiance" );
+				savedDistance = SaveTexture( updater.GeneratedDistanceTexture, "Distance", ImageFormat.BC6H ); // Previously RGBA16F, we're using softer depth so we can take advantage of BC6H compression now like Overwatch does.
+				savedRelocation = SaveTexture( GeneratedRelocationTexture, "Relocation", ImageFormat.RGBA16161616F );
+				IrradianceTexture = savedIrradiance;
+				DistanceTexture = savedDistance;
+				RelocationTexture = savedRelocation;
+				// SaveTexture can return the source if reloading fails. Transfer ownership
+				// in that case rather than disposing textures still attached to the volume.
+				updater.GeneratedIrradianceTexture = null;
+				updater.GeneratedDistanceTexture = null;
+				complete = true;
+			}
 		}
-		else
+		finally
 		{
-			// Make sure all GPU work is done before saving textures
-			Graphics.FlushGPU();
+			if ( !complete )
+			{
+				// Do not leave disposed preview textures attached after cancellation or failure.
+				IrradianceTexture = default;
+				DistanceTexture = default;
+				RelocationTexture = default;
+				savedIrradiance?.Dispose();
+				savedDistance?.Dispose();
+				savedRelocation?.Dispose();
+				GeneratedRelocationTexture?.Dispose();
+			}
 
-			IrradianceTexture = SaveTexture( updater.GeneratedIrradianceTexture, "Irradiance" );
-			DistanceTexture = SaveTexture( updater.GeneratedDistanceTexture, "Distance", ImageFormat.BC6H ); // Previously RGBA16F, we're using softer depth so we can take advantage of BC6H compression now like Overwatch does.
-			RelocationTexture = SaveTexture( GeneratedRelocationTexture, "Relocation", ImageFormat.RGBA16161616F );
+			GeneratedRelocationTexture = null;
+			Scene?.Get<DDGIVolumeSystem>()?.MarkDirty();
 		}
-
-		Scene.Get<DDGIVolumeSystem>()?.MarkDirty();
 	}
 
 	/// <summary>

@@ -1,4 +1,5 @@
 using Sandbox.Rendering;
+using System.Diagnostics;
 using System.Threading;
 
 namespace Sandbox;
@@ -11,6 +12,9 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 	private readonly IndirectLightVolume _volume;
 	private readonly SceneCamera _camera;
 	private List<Vector3Int> _pendingProbes;
+	private int _nextProbe;
+	private double _schedulingWaitMilliseconds;
+	private const double SubmissionBudgetMilliseconds = 80;
 	private Texture _captureTexture;
 	private Texture _captureDepth;
 
@@ -126,21 +130,33 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 	public async Task<bool> RunAsync( CancellationToken token )
 	{
 		FastTimer pauseTimer = FastTimer.StartNew();
+		var batchWaitMilliseconds = _schedulingWaitMilliseconds;
 
 		using var progress = Application.Editor.ProgressSection();
 
 		progress.Title = "Baking Indirect Light Volume";
 		progress.TotalCount = _pendingProbes.Count;
 		var progressToken = progress.GetCancel();
+		using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource( token, progressToken );
+		token = linkedCancellation.Token;
 
-		while ( _pendingProbes.Count > 0 )
+		while ( _nextProbe < _pendingProbes.Count )
 		{
+			if ( token.IsCancellationRequested )
+			{
+				progress.Subtitle = $"Cancelled!";
+				return false;
+			}
+
 			progress.Subtitle = $"Rendering probe {progress.Current + 1:n0} / {progress.TotalCount:n0}";
 
-			if ( !await RenderProbe() )
+			if ( !await RenderProbe( token ) )
+			{
+				progress.Subtitle = token.IsCancellationRequested ? "Cancelled!" : "Capture failed!";
 				return false;
+			}
 
-			if ( token.IsCancellationRequested || progressToken.IsCancellationRequested )
+			if ( token.IsCancellationRequested )
 			{
 				progress.Subtitle = $"Cancelled!";
 				return false;
@@ -148,9 +164,12 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 
 			progress.Current++;
 
-			if ( pauseTimer.ElapsedMilliSeconds > 20 )
+			// Exclude time suspended in awaits: this limits CPU-side work, not GPU execution.
+			if ( pauseTimer.ElapsedMilliSeconds - (_schedulingWaitMilliseconds - batchWaitMilliseconds) > SubmissionBudgetMilliseconds && _nextProbe < _pendingProbes.Count )
 			{
 				await Task.Delay( 1 );
+				pauseTimer = FastTimer.StartNew();
+				batchWaitMilliseconds = _schedulingWaitMilliseconds;
 			}
 		}
 
@@ -159,13 +178,13 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 		return true;
 	}
 
-	private async Task<bool> RenderProbe()
+	private async Task<bool> RenderProbe( CancellationToken token )
 	{
-		if ( _pendingProbes.Count() == 0 )
+		if ( token.IsCancellationRequested || _nextProbe >= _pendingProbes.Count )
 			return false;
 
-		var probeIndex = _pendingProbes.First();
-		_pendingProbes.RemoveAt( 0 );
+		// Keep the sorted first pass, repeated hit probes, and trailing empty probes unchanged.
+		var probeIndex = _pendingProbes[_nextProbe++];
 
 		_renderedFace = 0;
 		_renderedIndex = probeIndex;
@@ -176,11 +195,21 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 		// Merge our global Scene attributes into the camera
 		_volume.Scene.RenderAttributes.MergeTo( _camera.Attributes );
 
+		// Neither yield is a GPU fence. Keep the existing scheduling until the native
+		// callback lifetime and command ordering contract has been verified in the editor.
+		var waitStart = Stopwatch.GetTimestamp();
 		await Task.Yield();
+		_schedulingWaitMilliseconds += Stopwatch.GetElapsedTime( waitStart ).TotalMilliseconds;
 
+		if ( token.IsCancellationRequested )
+			return false;
+
+		ThreadSafe.AssertIsMainThread();
 		_camera.RenderToCubeTexture( _captureTexture );
 
+		waitStart = Stopwatch.GetTimestamp();
 		await Task.Yield();
+		_schedulingWaitMilliseconds += Stopwatch.GetElapsedTime( waitStart ).TotalMilliseconds;
 
 		return true;
 	}
