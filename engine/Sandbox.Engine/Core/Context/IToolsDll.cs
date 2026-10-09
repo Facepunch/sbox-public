@@ -30,6 +30,11 @@ internal unsafe interface IToolsDll
 	public void SetRelativeMouseOverride( bool relative );
 
 	/// <summary>
+	/// Mirrors the game's custom cursor on the editor play widget. Empty pixels clear the override.
+	/// </summary>
+	public void SetGameCursor( IntPtr cursor, ReadOnlySpan<byte> pixels, int width, int height, int hotX, int hotY );
+
+	/// <summary>
 	/// Whether the editor application is in the foreground, regardless of play-widget focus.
 	/// </summary>
 	public bool IsApplicationActive { get; }
