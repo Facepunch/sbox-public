@@ -34,8 +34,6 @@ COMMON
 	#define AXIS_YZ 1
 	#define AXIS_XZ 2
 
-	#define GRID_SIZE 16384
-
 	//
 	// Variables you can adjust with code
 	//
@@ -45,6 +43,9 @@ COMMON
 
 	// Size of each grid square
 	float2 GridScale < Attribute( "GridScale" ); Default2( 32, 32 ); >;
+
+	// Width of the grid, centered on GridOrigin. 0 is unlimited.
+	float GridSize < Attribute( "GridSize" ); Default( 0 ); >;
 
 	// Number of grid squares per major
 	float MajorGridDivisions < Attribute( "MajorGridDivisions" ); Default( 16 ); >;
@@ -60,6 +61,30 @@ COMMON
 	float4 YAxisColor < Attribute( "YAxisColor" ); Default4( 0, 1.0, 0, 1 ); >;
 	float4 ZAxisColor < Attribute( "ZAxisColor" ); Default4( 0, 0, 1.0, 1 ); >;
 	float4 CenterColor < Attribute( "CenterColor" ); Default4( 1, 1, 1, 1 ); >;
+
+	//
+	// Plane helpers - "uv" is the pair of in-plane axes, "height" is the axis along the plane normal
+	//
+	float2 ToPlane( float3 v )
+	{
+		if ( GridAxis == AXIS_YZ ) return v.yz;
+		if ( GridAxis == AXIS_XZ ) return v.xz;
+		return v.xy;
+	}
+
+	float PlaneHeight( float3 v )
+	{
+		if ( GridAxis == AXIS_YZ ) return v.x;
+		if ( GridAxis == AXIS_XZ ) return v.y;
+		return v.z;
+	}
+
+	float3 FromPlane( float2 uv, float height )
+	{
+		if ( GridAxis == AXIS_YZ ) return float3( height, uv.x, uv.y );
+		if ( GridAxis == AXIS_XZ ) return float3( uv.x, height, uv.y );
+		return float3( uv, height );
+	}
 }
 
 struct VertexInput
@@ -84,44 +109,97 @@ struct PixelInput
 
 VS
 {
+	//
+	// Bounds of the region where the grid plane crosses the view frustum, in camera-relative plane space.
+	// Intersects the plane with the 12 frustum edges - the crossing is a convex polygon whose vertices all
+	// lie on those edges, so their bounds are exact. Returns false when the plane misses the frustum.
+	//
+	bool GetVisiblePlaneBounds( float height, out float2 mins, out float2 maxs )
+	{
+		float3 corners[8];
+
+		[unroll]
+		for ( int c = 0; c < 8; c++ )
+		{
+			float4 ndc = float4( ( c & 1 ) ? 1.0f : -1.0f, ( c & 2 ) ? 1.0f : -1.0f, ( c & 4 ) ? 1.0f : 0.0f, 1.0f );
+			float4 hom = mul( g_matProjectionToWorld, ndc );
+			corners[c] = hom.xyz / max( hom.w, 1e-10 ); // camera-relative
+		}
+
+		mins = 1e30;
+		maxs = -1e30;
+		bool hit = false;
+
+		[unroll]
+		for ( int i = 0; i < 8; i++ )
+		{
+			[unroll]
+			for ( int bit = 1; bit < 8; bit <<= 1 )
+			{
+				if ( i & bit ) continue;
+
+				float3 a = corners[i];
+				float3 b = corners[i | bit];
+				float da = PlaneHeight( a ) - height;
+				float db = PlaneHeight( b ) - height;
+				if ( da * db > 0.0f ) continue;
+
+				// Edges lying in the plane have da == db == 0; their endpoints are picked up by neighbouring edges
+				float t = abs( da - db ) > 1e-6f ? da / ( da - db ) : 0.0f;
+				float2 p = ToPlane( lerp( a, b, saturate( t ) ) );
+
+				mins = min( mins, p );
+				maxs = max( maxs, p );
+				hit = true;
+			}
+		}
+
+		return hit;
+	}
+
 	PixelInput MainVs( VertexInput i )
 	{
 		PixelInput o;
 
-		// TODO: Get worldpos from uniform
-		float3 worldPos = i.Position;
+		float2 cameraUV = ToPlane( g_vCameraPositionWs );
+		float gridHeight = PlaneHeight( GridOrigin );
 
-		if ( GridAxis == AXIS_XY )
+		float2 mins, maxs;
+		bool visible = GetVisiblePlaneBounds( gridHeight - PlaneHeight( g_vCameraPositionWs ), mins, maxs );
+
+		// Snap outward to whole major cells so the vertices sit on a stable lattice as the camera moves
+		float2 snap = GridScale * max( 2.0, round( MajorGridDivisions ) );
+		mins = floor( ( cameraUV + mins ) / snap ) * snap;
+		maxs = ceil( ( cameraUV + maxs ) / snap ) * snap;
+
+		if ( GridSize > 0.0 )
 		{
-			worldPos.xy -= float2( 0.5, 0.5 );
-			worldPos.xyz *= GRID_SIZE;
-
-			o.UV.xy = worldPos.xy;
-		}
-		if ( GridAxis == AXIS_YZ )
-		{
-			worldPos.yz -= float2( 0.5, 0.5 );
-			worldPos.xyz *= GRID_SIZE;
-
-			o.UV.xy = worldPos.yz;
-		}
-		if ( GridAxis == AXIS_XZ )
-		{
-			worldPos.xz -= float2( 0.5, 0.5 );
-			worldPos.xyz *= GRID_SIZE;
-
-			o.UV.xy = worldPos.xz;
+			float2 originUV = ToPlane( GridOrigin );
+			mins = max( mins, originUV - GridSize * 0.5 );
+			maxs = min( maxs, originUV + GridSize * 0.5 );
+			visible = visible && all( mins < maxs );
 		}
 
-		o.PixelPosition = Position3WsToPs( worldPos.xyz );
+		if ( !visible )
+		{
+			// Nothing of the grid is in this view - collapse every vertex to one clipped point
+			o.PixelPosition = float4( 0, 0, -1, 1 );
+			o.UV = 0;
+			return o;
+		}
 
-		// Simple relative depth bias 
+		// Vertex positions are a tessellated [0,1] quad
+		float2 planeUV = lerp( mins, maxs, i.Position.xy );
+
+		o.PixelPosition = Position3WsToPs( FromPlane( planeUV, gridHeight ) );
+
+		// Simple relative depth bias
 		float flProjDepth = saturate( o.PixelPosition.z / o.PixelPosition.w );
 		float flBiasAmount = flProjDepth * 0.0001f;
 		o.PixelPosition.z += flBiasAmount * o.PixelPosition.w;
 
 		// Offset by camera position to keep higher precision
-		o.UV.xy -= g_vCameraPositionWs.xy;
+		o.UV.xy = planeUV - cameraUV;
 
 		return o;
 	}
@@ -135,11 +213,14 @@ PS
 	RenderState( SrcBlend, SRC_ALPHA );
 	RenderState( DstBlend, INV_SRC_ALPHA );
 
-	float4 PristineGridWithMajor( float2 uv )
-	{
-		float4 uvDDXY = float4( ddx( uv.xy ), ddy( uv.xy ) );
-		float2 uvDeriv = float2( length( uvDDXY.xz ), length( uvDDXY.yw ) );
+	// Smallest on-screen size a grid cell may shrink to before that level fades into the next, coarser one.
+	// Line widths are a fraction of a cell, so cells much smaller than this fade to invisible.
+	static const float MinCellPixels = 16.0;
 
+	// uv is in grid cells; uvDeriv is cells per pixel. Derivatives are passed in rather than taken from uv
+	// so they stay continuous where neighbouring pixels pick different levels.
+	float4 PristineGridWithMajor( float2 uv, float2 uvDeriv )
+	{
 		//
 		// axis lines
 		//
@@ -215,15 +296,24 @@ PS
 
 	float4 MainPs( PixelInput i ) : SV_Target0
 	{
-		float2 invGridScale = ( 1 / GridScale );
+		// World units per pixel, from the camera-relative UV so it keeps full precision
+		float2 worldDeriv = float2( length( float2( ddx( i.UV.x ), ddy( i.UV.x ) ) ), length( float2( ddx( i.UV.y ), ddy( i.UV.y ) ) ) );
 
 		// Restore camera offset
-		i.UV.xy += g_vCameraPositionWs.xy - GridOrigin.xy;
+		float2 uv = i.UV.xy + ToPlane( g_vCameraPositionWs ) - ToPlane( GridOrigin );
 
-		// Scale by grid size
-		i.UV.xy *= invGridScale;
-		
-		float4 col = PristineGridWithMajor( i.UV.xy );
+		// Pick the level (GridScale * 2^n) whose cells are at least MinCellPixels on screen and blend
+		// towards the next one. Every coarser line is also a line of the finer level, so this only
+		// fades out in-between lines as they get too dense to read - it never adds off-grid lines.
+		float2 cellPixels = GridScale / max( worldDeriv, 1e-8 );
+		float level = max( 0.0, log2( MinCellPixels / min( cellPixels.x, cellPixels.y ) ) );
+		float levelFloor = floor( level );
+		float2 scale = GridScale * exp2( levelFloor );
+
+		float4 fine = PristineGridWithMajor( uv / scale, worldDeriv / scale );
+		float4 coarse = PristineGridWithMajor( uv / ( scale * 2.0 ), worldDeriv / ( scale * 2.0 ) );
+		float4 col = lerp( fine, coarse, level - levelFloor );
+
 		return float4( SrgbGammaToLinear( col.rgb ), col.a );
 	}
 }
