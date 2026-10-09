@@ -7,6 +7,8 @@ partial class BridgeTool
 	public static PolygonMesh.BridgeUVMode UVMode { get; set; } = PolygonMesh.BridgeUVMode.Auto;
 	public static float RepeatsU { get; set; } = 1.0f;
 	public static float RepeatsV { get; set; } = 1.0f;
+	public static Vector3 FromControlPointPosition { get; set; } = Vector3.Zero;
+	public static Vector3 ToControlPointPosition { get; set; } = Vector3.Zero;
 
 	public override Widget CreateToolSidebar()
 	{
@@ -33,6 +35,12 @@ partial class BridgeTool
 
 			[Title( "Repeats V" ), Range( 0.01f, 100.0f, true, false ), Step( 0.0625f ), WideMode]
 			public readonly float V { get => RepeatsV; set => RepeatsV = value; }
+
+			[Title( "From Control Point" ), WideMode]
+			public readonly Vector3 FromControlPoint { get => FromControlPointPosition; set => FromControlPointPosition = value; }
+
+			[Title( "To Control Point" ), WideMode]
+			public readonly Vector3 ToControlPoint { get => ToControlPointPosition; set => ToControlPointPosition = value; }
 		}
 
 		[InlineEditor( Label = false )]
@@ -67,12 +75,15 @@ partial class BridgeTool
 
 			Layout.AddStretchCell();
 
+			FromControlPointPosition = _tool._controlPoints[(int)BridgeControlPoint.From];
+			ToControlPointPosition = _tool._controlPoints[(int)BridgeControlPoint.To];
+
 			UpdateMesh();
 		}
 
 		void UpdateMesh()
 		{
-			_tool.UpdateBridge( NumSteps, Twist, UVMode, RepeatsU, RepeatsV );
+			_tool.UpdateBridge( NumSteps, Twist, UVMode, RepeatsU, RepeatsV, FromControlPointPosition, ToControlPointPosition );
 		}
 
 		private void Cancel()
