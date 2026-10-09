@@ -250,6 +250,47 @@ public partial class CompilerTest
 		Assert.AreEqual( 2, group.BuildResult.Output.Count() );
 	}
 
+	/// <summary>
+	/// A source file that can't be read (e.g. locked by an IDE mid-save) must not be silently left out
+	/// of the build, or hotload will swap to an assembly missing its types and null out their instances.
+	/// </summary>
+	[TestMethod]
+	public async Task UnreadableSourceFileFailsBuild()
+	{
+		var codePath = Path.Combine( Path.GetTempPath(), $"sbox_compiler_{System.Guid.NewGuid():N}" );
+		Directory.CreateDirectory( codePath );
+
+		try
+		{
+			var lockedFile = Path.Combine( codePath, "MyComponent.cs" );
+			File.WriteAllText( lockedFile, "public class MyComponent { }" );
+			File.WriteAllText( Path.Combine( codePath, "Other.cs" ), "public class Other { }" );
+
+			using var group = new CompileGroup( "Test" );
+
+			var compilerSettings = new Compiler.Configuration();
+			compilerSettings.Clean();
+
+			var compiler = group.CreateCompiler( "test", codePath, compilerSettings );
+
+			await group.BuildAsync();
+			Assert.IsTrue( group.BuildResult.Success, group.BuildResult.BuildDiagnosticsString() );
+
+			compiler.MarkForRecompile();
+
+			using ( new FileStream( lockedFile, FileMode.Open, FileAccess.ReadWrite, FileShare.None ) )
+			{
+				await group.BuildAsync();
+			}
+
+			Assert.IsFalse( group.BuildResult.Success, "Build succeeded without MyComponent.cs" );
+		}
+		finally
+		{
+			Directory.Delete( codePath, true );
+		}
+	}
+
 	/*
 	/// <summary>
 	/// We rely on a package dll
