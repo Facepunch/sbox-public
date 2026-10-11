@@ -70,12 +70,13 @@ internal sealed partial class GameWindow
 
 			var attributes = context.GetAttributesPtrForModify();
 
-			if ( material.IsValid && backdrop.IsStrongHandleValid() && !backdrop.IsError() )
+			// Standalone games never load a backdrop, so check the handle exists before asking about it
+			if ( material.IsValid && backdrop.IsValid && backdrop.IsStrongHandleValid() && !backdrop.IsError() )
 			{
 				DrawStartupBackdrop( context, material, attributes, backdrop, width, height );
 			}
 
-			if ( material.IsValid && texture.IsStrongHandleValid() && !texture.IsError() )
+			if ( material.IsValid && texture.IsValid && texture.IsStrongHandleValid() && !texture.IsError() )
 			{
 				DrawStartupLogo( context, material, attributes, texture, width, height );
 			}
