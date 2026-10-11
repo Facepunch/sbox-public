@@ -569,6 +569,20 @@ public partial class ProjectPublisher
 		}
 
 		/// <summary>
+		/// Include an asset that nothing references directly (found by name at runtime), along with
+		/// everything it references.
+		/// </summary>
+		internal async Task AddAssetWithReferences( Asset asset )
+		{
+			await AddAsset( asset );
+
+			foreach ( var a in asset.GetReferences( true ) )
+			{
+				await AddAsset( a );
+			}
+		}
+
+		/// <summary>
 		/// We're referencing this asset package, so add it as an EditorReference and
 		/// include its asset.
 		/// </summary>

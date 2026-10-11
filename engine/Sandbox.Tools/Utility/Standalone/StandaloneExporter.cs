@@ -112,6 +112,14 @@ public partial class StandaloneExporter
 			await AddCodePackageReference( package );
 		}
 
+		// Physics surfaces are looked up by name, so nothing references them and they were never exported.
+		// Without them every trace hits a null surface - no bullet impact sounds, decals or particles - and
+		// meshes fail to build their collision. Ship every surface and everything it references.
+		foreach ( var surface in AssetSystem.All.Where( x => x.AssetType?.FileExtension == "surface" ).ToArray() )
+		{
+			await PackageManifest.AddAssetWithReferences( surface );
+		}
+
 		// Make sure we're copying into a directory that exists
 		Directory.CreateDirectory( _exportConfig.TargetDir );
 
