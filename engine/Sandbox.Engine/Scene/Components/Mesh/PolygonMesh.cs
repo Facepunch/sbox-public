@@ -115,6 +115,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 			TextureOffset[pair.Value] = sourceMesh.TextureOffset[pair.Key];
 
 			SetFaceMaterial( pair.Value, sourceMesh.GetFaceMaterial( pair.Key ) );
+			SetFaceHidden( pair.Value, sourceMesh.IsFaceHidden( pair.Key ) );
 		}
 
 		IsDirty = true;
@@ -756,11 +757,39 @@ public sealed partial class PolygonMesh : IJsonConvert
 		}
 	}
 
+	private void CopyEdgeFlagsToFace( HalfEdgeHandle sourceEdge, FaceHandle face )
+	{
+		var flags = EdgeFlags[Topology.GetFullEdgeForHalfEdge( sourceEdge )];
+		Topology.GetFullEdgesConnectedToFace( face, out var edges );
+
+		foreach ( var edge in edges )
+			EdgeFlags[edge] = flags;
+	}
+
+	private bool ExtendEdges( IReadOnlyList<HalfEdgeHandle> edges, out List<HalfEdgeHandle> newEdges, out List<HalfEdgeHandle> originalEdges )
+	{
+		if ( !Topology.ExtendEdges( edges, edges.Count, out newEdges, out originalEdges, out _, out _ ) )
+			return false;
+
+		for ( int i = 0; i < newEdges.Count; ++i )
+		{
+			var face = FindFaceConnectingEdges( originalEdges[i], newEdges[i] );
+			var sourceFace = Topology.GetOppositeFaceConnectedToFullEdge( originalEdges[i], face );
+
+			if ( sourceFace.IsValid )
+				SetFaceMaterialIndex( face, GetFaceMaterialIndex( sourceFace ) );
+
+			CopyEdgeFlagsToFace( originalEdges[i], face );
+		}
+
+		return true;
+	}
+
 	public bool ExtendEdges( IReadOnlyList<HalfEdgeHandle> edges, float amount, out List<HalfEdgeHandle> newEdges, out List<FaceHandle> newFaces )
 	{
 		newFaces = new();
 
-		if ( !Topology.ExtendEdges( edges, edges.Count, out newEdges, out var originalEdges, out _, out _ ) )
+		if ( !ExtendEdges( edges, out newEdges, out var originalEdges ) )
 			return false;
 
 		if ( originalEdges.Count == newEdges.Count )
@@ -1762,6 +1791,11 @@ public sealed partial class PolygonMesh : IJsonConvert
 	{
 		hOutNewFace = FaceHandle.Invalid;
 
+		Topology.GetFacesConnectedToFullEdge( hEdgeA, out var hFaceA0, out var hFaceA1 );
+		var hSourceFace = hFaceA0.IsValid ? hFaceA0 : hFaceA1;
+		if ( !hSourceFace.IsValid )
+			return false;
+
 		if ( !Topology.BridgeEdges( hEdgeA, hEdgeB, out var hNewFace ) )
 		{
 			var hSharedVertex = Topology.FindVertexConnectingFullEdges( hEdgeA, hEdgeB );
@@ -1787,10 +1821,8 @@ public sealed partial class PolygonMesh : IJsonConvert
 		if ( !hNewFace.IsValid )
 			return false;
 
-		Topology.GetFacesConnectedToFullEdge( hEdgeA, out var hFaceA0, out var hFaceA1 );
-		var hSourceFace = hFaceA0.IsValid ? hFaceA0 : hFaceA1;
-		if ( hSourceFace.IsValid )
-			SetFaceMaterialIndex( hNewFace, GetFaceMaterialIndex( hSourceFace ) );
+		SetFaceMaterialIndex( hNewFace, GetFaceMaterialIndex( hSourceFace ) );
+		CopyEdgeFlagsToFace( hEdgeA, hNewFace );
 
 		TextureAlignToGrid( Transform, hNewFace );
 
@@ -1859,7 +1891,6 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 		BuildBridgeEdgeSets( fromEdges, toEdges, parameters, edgeSets );
 		GenerateBridgeTopology( edgeSets );
-		AssignBridgeMaterials( edgeSets );
 		AssignBridgeInterpolatedPositions( edgeSets );
 
 		if ( parameters.UVMode == BridgeUVMode.Auto )
@@ -1893,26 +1924,6 @@ public sealed partial class PolygonMesh : IJsonConvert
 		}
 
 		return true;
-	}
-
-	void AssignBridgeMaterials( List<BridgeEdgeSet> edgeSets )
-	{
-		var faces = new List<FaceHandle>( 128 );
-
-		foreach ( var edgeSet in edgeSets )
-		{
-			var sourceFace = edgeSet.FromFace != FaceHandle.Invalid ? edgeSet.FromFace : edgeSet.ToFace;
-			if ( sourceFace == FaceHandle.Invalid )
-				continue;
-
-			var materialIndex = GetFaceMaterialIndex( sourceFace );
-			Topology.FindFacesConnectedToFullEdges( edgeSet.StepEdges, faces, null );
-
-			foreach ( var face in faces )
-			{
-				SetFaceMaterialIndex( face, materialIndex );
-			}
-		}
 	}
 
 	void GenerateBridgeUVsAxis( List<BridgeEdgeSet> edgeSets, BridgeInterpolationParameters parameters )
@@ -2256,7 +2267,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 		for ( int iStep = 1; iStep < numSteps; ++iStep )
 		{
-			if ( !Topology.ExtendEdges( currentEdges, currentEdges.Count, out var newEdges, out var originalEdges, out _, out _ ) )
+			if ( !ExtendEdges( currentEdges, out var newEdges, out var originalEdges ) )
 				return;
 
 			for ( int iEdge = 0; iEdge < numEdges; ++iEdge )
@@ -2449,7 +2460,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 		var plane = new Plane( basePosition, normal );
 
-		if ( plane.GetDistance( targetPosition ) < 0.0f )
+		if ( plane.GetDistance( targetPosition ) <= -0.01f )
 		{
 			normal = -normal;
 		}
@@ -3293,6 +3304,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 		{
 			int nNumSubsetLoopEdges = subSetLoopEdges.Count;
 			loopEdges.Clear();
+			index = 0;
 			loopEdges.EnsureCapacity( nNumSubsetLoopEdges );
 			for ( int iEdge = 0; iEdge < nNumSubsetLoopEdges; ++iEdge )
 			{

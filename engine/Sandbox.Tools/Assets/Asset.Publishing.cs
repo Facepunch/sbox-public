@@ -286,7 +286,7 @@ public partial class Asset
 			return new string( chars );
 		}
 
-		string PackageType()
+		internal string PackageType()
 		{
 			if ( asset.AssetType is null ) return default;
 

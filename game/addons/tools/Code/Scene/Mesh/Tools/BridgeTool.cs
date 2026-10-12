@@ -494,8 +494,8 @@ public partial class BridgeTool( MeshEdge[] edges = null, MeshFace[] faces = nul
 			out var toPlane
 		);
 
-		from.Normal = fromNormalOriginal;
-		to.Normal = toNormalOriginal;
+		from.Normal = fromInterpNormal;
+		to.Normal = toInterpNormal;
 
 		from.Tangent = fromTangent;
 		from.MotionPlane = fromPlane;
@@ -514,7 +514,7 @@ public partial class BridgeTool( MeshEdge[] edges = null, MeshFace[] faces = nul
 
 		var toTarget = (targetPos - basePos).Normal;
 		var plane = new Plane( basePos, originalNormal );
-		var normal = plane.IsInFront( targetPos ) ? originalNormal : -originalNormal;
+		var normal = plane.GetDistance( targetPos ) <= -0.01f ? -originalNormal : originalNormal;
 
 		outNormal = normal;
 

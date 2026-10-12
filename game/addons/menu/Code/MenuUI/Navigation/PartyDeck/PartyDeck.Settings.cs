@@ -18,9 +18,9 @@ public partial class PartyDeck
 
 	internal static void OpenDraftWithGame( Package package, CreateGameResults settings )
 	{
-		if ( !Instance.IsValid() ) throw new InvalidOperationException( "Party settings are not available yet." );
-		if ( PartyView.Exists ) throw new InvalidOperationException( "You are already in a party." );
-		if ( Instance.Draft?.Creating == true ) throw new InvalidOperationException( "Your party is being created." );
+		if ( !Instance.IsValid() ) throw new InvalidOperationException( Language.GetPhrase( "menu.party.party_settings_are_not_available_yet" ) );
+		if ( PartyView.Exists ) throw new InvalidOperationException( Language.GetPhrase( "menu.settings.you_are_already_in_a_party" ) );
+		if ( Instance.Draft?.Creating == true ) throw new InvalidOperationException( Language.GetPhrase( "menu.settings.your_party_is_being_created" ) );
 
 		var draft = Instance.Draft ?? new PartyDraft();
 		draft.Game = package;
@@ -67,8 +67,8 @@ public partial class PartyDeck
 	}
 
 	string PrivacyTooltip => CanChangeSettings
-		? IsPublic ? "Public party · Click to make invitation-only" : "Private party · Click to let anyone join"
-		: IsPublic ? "Public party · Anyone can join. Only the leader can change this." : "Private party · Invitation only. Only the leader can change this.";
+		? IsPublic ? "#menu.party.public_party_click_to_make_invitation_only" : "#menu.party.private_party_click_to_let_anyone_join"
+		: IsPublic ? "#menu.party.public_party_anyone_can_join_only_the_leader_can_change_this" : "#menu.party.private_party_invitation_only_only_the_leader_can_change_this";
 
 	void OpenSettings()
 	{

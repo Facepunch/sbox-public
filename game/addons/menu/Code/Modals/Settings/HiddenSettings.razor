@@ -15,7 +15,7 @@
 	@if ( !MenuUtility.Hidden.IsLoaded || (MenuUtility.Hidden.Packages.Count == 0 && MenuUtility.Hidden.Organizations.Count == 0) )
 	{
 		<div class="section">
-			<div class="section-label"><icon>visibility_off</icon><label>Hidden</label></div>
+			<div class="section-label"><icon>visibility_off</icon><label>#menu.settings.hidden</label></div>
 			<div class="row hidden-note">
 				<div class="line">
 					<label class="note-text">@NoteText</label>
@@ -28,7 +28,7 @@
 		@if ( MenuUtility.Hidden.Packages.Count > 0 )
 		{
 			<div class="section">
-				<div class="section-label"><icon>visibility_off</icon><label>Hidden Games</label></div>
+				<div class="section-label"><icon>visibility_off</icon><label>#menu.settings.hidden_games</label></div>
 
 				@foreach ( var ident in MenuUtility.Hidden.Packages.OrderBy( TitleOf, StringComparer.OrdinalIgnoreCase ) )
 				{
@@ -41,7 +41,7 @@
 								<label class="name">@TitleOf( ident )</label>
 								<label class="meta">@(package?.Org?.Title is { } by ? $"by {by}" : ident)</label>
 							</div>
-							<div class="action" onclick=@( ( PanelEvent e ) => { e.StopPropagation(); _ = UnhidePackage( ident ); } )><label>Unhide</label></div>
+							<div class="action" onclick=@( ( PanelEvent e ) => { e.StopPropagation(); _ = UnhidePackage( ident ); } )><label>#menu.common.unhide</label></div>
 						</div>
 					</div>
 				}
@@ -51,7 +51,7 @@
 		@if ( MenuUtility.Hidden.Organizations.Count > 0 )
 		{
 			<div class="section">
-				<div class="section-label"><icon>visibility_off</icon><label>Hidden Creators</label></div>
+				<div class="section-label"><icon>visibility_off</icon><label>#menu.settings.hidden_creators</label></div>
 
 				@foreach ( var ident in MenuUtility.Hidden.Organizations.OrderBy( OrgTitleOf, StringComparer.OrdinalIgnoreCase ) )
 				{
@@ -62,9 +62,9 @@
 							<div class="thumb logo" style="background-image: url( @org?.Thumb );"></div>
 							<div class="text">
 								<label class="name">@OrgTitleOf( ident )</label>
-								<label class="meta">Everything they make is hidden</label>
+								<label class="meta">#menu.settings.everything_they_make_is_hidden</label>
 							</div>
-							<div class="action" onclick=@( ( PanelEvent e ) => { e.StopPropagation(); _ = UnhideOrganization( ident ); } )><label>Unhide</label></div>
+							<div class="action" onclick=@( ( PanelEvent e ) => { e.StopPropagation(); _ = UnhideOrganization( ident ); } )><label>#menu.common.unhide</label></div>
 						</div>
 					</div>
 				}
@@ -82,8 +82,8 @@
 	bool _failed;
 
 	string NoteText => !MenuUtility.Hidden.IsLoaded
-		? _failed ? "Couldn't get what you've hidden right now." : "Getting what you've hidden…"
-		: "Nothing hidden. Games and creators you hide stay out of your feeds and search - they'll be here so you can bring them back.";
+		? _failed ? "#menu.settings.couldn_t_get_what_you_ve_hidden_right_now" : "#menu.settings.getting_what_you_ve_hidden"
+		: "#menu.settings.nothing_hidden_games_and_creators_you_hide_stay_out";
 
 	string TitleOf( string ident ) => _packages.TryGetValue( ident, out var package ) ? package.Title : ident;
 

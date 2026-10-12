@@ -60,11 +60,11 @@
                 @if ( Error is null && (Loading || Categories is null) )
                 {
                     <Spinner />
-                    <label>Loading finalists…</label>
+                    <label>#menu.jam.loading_finalists</label>
                 }
                 else
                 {
-                    <label>@(Error ?? "No finalists confirmed yet.")</label>
+                    <label>@(Error ?? "#menu.jam.no_finalists_confirmed_yet")</label>
                 }
             </div>
         }
@@ -80,7 +80,7 @@
                             <div class="podium-celebration">
                                 <div class="podium-glow" />
                                 <icon>@(place == 1 ? "emoji_events" : "workspace_premium")</icon>
-                                <label>@(place == 1 ? "Winner!" : "Runner-up")</label>
+                                <label>@(place == 1 ? "#menu.jam.winner" : "#menu.jam.runner_up")</label>
                             </div>
                             <div class="podium-art">
                                 @if ( package is not null )
@@ -94,7 +94,7 @@
                                 <div class="place-badge"><label>@place.FormatWithSuffix() place</label></div>
                             </div>
                             <div class="podium-body">
-                                <div class="winner-copy"><label class="podium-title">@(package?.Title ?? finalist?.PackageIdent ?? "Result pending")</label></div>
+                                <div class="winner-copy"><label class="podium-title">@(package?.Title ?? finalist?.PackageIdent ?? "#menu.jam.result_pending")</label></div>
                                 @if ( !string.IsNullOrEmpty( Prize( place ) ) )
                                 {
                                     <label class="podium-prize">@Prize( place )</label>
@@ -114,7 +114,7 @@
                                 <label class="place-number">@place.FormatWithSuffix()</label>
                                 <div class="place-art" style="background-image: url(@(package?.ThumbWide ?? package?.Thumb))" />
                                 <div class="place-copy">
-                                    <label class="place-title">@(package?.Title ?? finalist?.PackageIdent ?? "Result pending")</label>
+                                    <label class="place-title">@(package?.Title ?? finalist?.PackageIdent ?? "#menu.jam.result_pending")</label>
                                     <label class="place-prize">@Prize( place )</label>
                                 </div>
                             </div>
@@ -156,12 +156,12 @@
                                 }
                             </div>
                             <div class="contender-body">
-                                <label class="contender-title">@(package?.Title ?? ident ?? "Game unavailable")</label>
+                                <label class="contender-title">@(package?.Title ?? ident ?? "#menu.jam.game_unavailable")</label>
                                 @if ( Tallied && !IsDuel )
                                 {
                                     <div class="vote-row">
                                         <label class="vote-count">@Count( finalist ).ToString( "N0" )</label>
-                                        <label class="vote-unit">votes</label>
+                                        <label class="vote-unit">#menu.jam.votes</label>
                                         <div class="grow" />
                                         <label class="vote-share">@Share( finalist )</label>
                                     </div>
@@ -172,7 +172,7 @@
                                     <label class="contender-note">@NominationText( finalist )</label>
                                 }
                                 <div class="contender-actions">
-                                    <Button class="play-button" Icon="play_arrow" Text="Play" Disabled=@(package is null) onclick=@(() => Play( package )) />
+                                    <Button class="play-button" Icon="play_arrow" Text="#menu.common.play" Disabled=@(package is null) onclick=@(() => Play( package )) />
                                     <Button class="vote-button" Icon=@(mine ? "check" : "how_to_vote") Text=@VoteText( mine ) Disabled=@(Submitting || VoteCooldownSeconds > 0 || mine || !VotingOpen || ident is null) onclick=@(() => SubmitVote( ident )) />
                                 </div>
                             </div>
@@ -181,7 +181,7 @@
                         </div>
                         @if ( IsDuel && i == 0 )
                         {
-                            <div class="duel-divider"><label @ref="VersusLabel">VS</label></div>
+                            <div class="duel-divider"><label @ref="VersusLabel">#menu.jam.vs</label></div>
                         }
                     }
                 </div>
@@ -190,7 +190,7 @@
                 @if ( KnockedOut.Length > 0 )
                 {
                     <div class="knocked-out">
-                        <div class="ko-head"><label class="ko-heading">Eliminated</label></div>
+                        <div class="ko-head"><label class="ko-heading">#menu.jam.eliminated</label></div>
                         <div class="ko-grid">
                         @foreach ( var finalist in KnockedOut )
                         {
@@ -225,7 +225,7 @@
                     {
                         <Spinner />
                     }
-                    <label>@(EntriesLoading ? "Loading entries…" : EntriesError ?? "No entries yet.")</label>
+                    <label>@(EntriesLoading ? "#menu.jam.loading_entries" : EntriesError ?? "#menu.jam.no_entries_yet")</label>
                 </div>
             }
             else
@@ -242,7 +242,7 @@
 
     <div class="jam-foot">
         <label class="@(Error is not null && ShowArena ? "error" : "")">@(ShowArena && Error is not null ? Error : FootText)</label>
-        <a class="jam-open" href="/jam"><label>@(ShowArena ? "View standings" : "View jam")</label><icon>chevron_right</icon></a>
+        <a class="jam-open" href="/jam"><label>@(ShowArena ? "#menu.jam.view_standings" : "#menu.jam.view_jam")</label><icon>chevron_right</icon></a>
     </div>
     @if ( Jam.IsEditorPreview )
     {
@@ -418,7 +418,7 @@
         }
         catch ( Exception e )
         {
-            if ( entriesFor == query ) EntriesError = "Couldn't load entries. Open the jam to try again.";
+            if ( entriesFor == query ) EntriesError = "#menu.jam.couldn_t_load_entries_open_the_jam_to_try";
             Log.Warning( $"Couldn't load jam entries ({e.Message})" );
         }
         finally
@@ -443,23 +443,23 @@
 
     string PositionText( JamFinalist finalist )
     {
-        if ( IsDuel ) return IsLeading( finalist ) ? "Leading" : Count( Standing[0] ) == Count( Standing[1] ) ? "Tied" : "Trailing";
-        if ( IsLowest( finalist ) ) return Standing.Count( x => Count( x ) == Minimum ) > 1 ? "Tied last" : "Last place";
-        if ( IsLeading( finalist ) ) return "Leading";
+        if ( IsDuel ) return IsLeading( finalist ) ? "#menu.jam.leading" : Count( Standing[0] ) == Count( Standing[1] ) ? "#menu.jam.tied" : "#menu.jam.trailing";
+        if ( IsLowest( finalist ) ) return Standing.Count( x => Count( x ) == Minimum ) > 1 ? "#menu.jam.tied_last" : "#menu.jam.last_place";
+        if ( IsLeading( finalist ) ) return "#menu.jam.leading";
         return Rank( finalist ).FormatWithSuffix();
     }
 
     string NominationText( JamFinalist finalist ) => finalist.PackageIdent is not null
-        && Category.NominationCounts.TryGetValue( finalist.PackageIdent, out var count ) ? $"Finalist · {count:N0} nominations" : "Finalist";
+        && Category.NominationCounts.TryGetValue( finalist.PackageIdent, out var count ) ? $"Finalist · {count:N0} nominations" : "#menu.jam.finalist";
 
     string VoteText( bool mine )
     {
-        if ( Waiting ) return "Voting opens soon";
-        if ( mine ) return "You voted";
-        if ( !VotingOpen ) return Tallied ? "Voting closed" : "Voting opens soon";
-        if ( Submitting ) return "Voting…";
+        if ( Waiting ) return "#menu.jam.voting_opens_soon";
+        if ( mine ) return "#menu.jam.you_voted";
+        if ( !VotingOpen ) return Tallied ? "#menu.jam.voting_closed" : "#menu.jam.voting_opens_soon";
+        if ( Submitting ) return "#menu.jam.voting";
         if ( VoteCooldownSeconds > 0 ) return $"Vote in {VoteCooldownSeconds}s";
-        return "Vote";
+        return "#menu.jam.vote";
     }
 
     string Prize( int place )
@@ -474,22 +474,22 @@
     {
         get
         {
-            if ( Champion is not null ) return "The results are in";
-            if ( Waiting ) return IsDuel ? "Two remain. The final is next." : "Next round coming up";
+            if ( Champion is not null ) return "#menu.jam.the_results_are_in";
+            if ( Waiting ) return IsDuel ? "#menu.jam.two_remain_the_final_is_next" : "#menu.jam.next_round_coming_up";
 
             return CurrentPhase switch
             {
-                Jam.Phase.Upcoming or Jam.Phase.Teased => "Coming soon",
-                Jam.Phase.Building => "Entries open",
-                Jam.Phase.Judging => "Judging in progress",
-                Jam.Phase.Nominations => "Nominations open",
-                Jam.Phase.Finals when Category is null => "Finalists",
-                Jam.Phase.Finals when !Tallied => "Finalists announced",
-                Jam.Phase.Finals when !VotingOpen => "Round closed",
+                Jam.Phase.Upcoming or Jam.Phase.Teased => "#menu.jam.coming_soon",
+                Jam.Phase.Building => "#menu.jam.entries_open",
+                Jam.Phase.Judging => "#menu.jam.judging_in_progress",
+                Jam.Phase.Nominations => "#menu.jam.nominations_open",
+                Jam.Phase.Finals when Category is null => "#menu.jam.finalists",
+                Jam.Phase.Finals when !Tallied => "#menu.jam.finalists_announced",
+                Jam.Phase.Finals when !VotingOpen => "#menu.jam.round_closed",
                 Jam.Phase.Finals => $"Knockout / Round {Category.Round}",
-                Jam.Phase.GrandFinal when Category is not null && !VotingOpen => "Final voting closed",
-                Jam.Phase.GrandFinal => "Grand final",
-                _ => "Results",
+                Jam.Phase.GrandFinal when Category is not null && !VotingOpen => "#menu.jam.final_voting_closed",
+                Jam.Phase.GrandFinal => "#menu.jam.grand_final_text",
+                _ => "#menu.games.results",
             };
         }
     }
@@ -498,7 +498,7 @@
     {
         get
         {
-            if ( CurrentPhase <= Jam.Phase.Teased ) return "Theme revealed when entries open";
+            if ( CurrentPhase <= Jam.Phase.Teased ) return "#menu.jam.theme_revealed_when_entries_open";
 
             var parts = new List<string>();
             if ( (!ShowArena || Champion is not null) && Jam.EntryCount > 0 ) parts.Add( $"{Jam.EntryCount:N0} entries" );
@@ -526,19 +526,19 @@
 
             return CurrentPhase switch
             {
-                Jam.Phase.Upcoming or Jam.Phase.Teased => "Starts in",
-                Jam.Phase.Building => "Entries close in",
-                Jam.Phase.Judging => "Judging ends in",
-                Jam.Phase.Nominations => "Nominations close in",
-                Jam.Phase.Finals when Jam.Now < Jam.FinalsStart => "Voting opens in",
-                Jam.Phase.GrandFinal => Category?.VotingOpen == true ? "Final vote ends in" : "Final vote opens in",
-                _ => Category?.VotingOpen == true ? $"Round {Category.Round} ends in" : "Next round in",
+                Jam.Phase.Upcoming or Jam.Phase.Teased => "#menu.jam.starts_in",
+                Jam.Phase.Building => "#menu.jam.entries_close_in",
+                Jam.Phase.Judging => "#menu.jam.judging_ends_in",
+                Jam.Phase.Nominations => "#menu.jam.nominations_close_in",
+                Jam.Phase.Finals when Jam.Now < Jam.FinalsStart => "#menu.jam.voting_opens_in",
+                Jam.Phase.GrandFinal => Category?.VotingOpen == true ? "#menu.jam.final_vote_ends_in" : "#menu.jam.final_vote_opens_in",
+                _ => Category?.VotingOpen == true ? $"Round {Category.Round} ends in" : "#menu.jam.next_round_in",
             };
         }
     }
 
     string ClockText => ClockTarget is { } target
-        ? target > Jam.Now ? (target - Jam.Now).ToCountdownString() : Waiting ? "Opening soon" : "Awaiting update"
+        ? target > Jam.Now ? (target - Jam.Now).ToCountdownString() : Waiting ? "#menu.jam.opening_soon" : "#menu.jam.awaiting_update"
         : "";
 
     bool ClockUrgent => ClockTarget is { } target && target > Jam.Now && (target - Jam.Now).TotalMinutes < 60 && VotingOpen;
@@ -547,14 +547,14 @@
     {
         get
         {
-            if ( Champion is not null ) return "Browse the results and play the entries.";
-            if ( Waiting ) return "Play the finalists while you wait. Votes reset when the next round opens.";
-            if ( ShowArena && Tallied && !VotingOpen ) return "Voting is closed. Waiting for the confirmed result.";
-            if ( ShowArena && Category is not null && !Tallied ) return "Play the finalists before voting opens.";
-            if ( ShowArena ) return IsDuel ? "Vote for the winner." : "One vote per round. The lowest-ranked game is eliminated.";
-            if ( CurrentPhase <= Jam.Phase.Teased ) return "The theme will be announced when entries open.";
-            if ( NominationsOpen ) return "Play an entry to nominate it for the finals.";
-            return "Browse and play the entries.";
+            if ( Champion is not null ) return "#menu.jam.browse_the_results_and_play_the_entries";
+            if ( Waiting ) return "#menu.jam.play_the_finalists_while_you_wait_votes_reset_when";
+            if ( ShowArena && Tallied && !VotingOpen ) return "#menu.jam.voting_is_closed_waiting_for_the_confirmed_result";
+            if ( ShowArena && Category is not null && !Tallied ) return "#menu.jam.play_the_finalists_before_voting_opens";
+            if ( ShowArena ) return IsDuel ? "#menu.jam.vote_for_the_winner" : "#menu.jam.one_vote_per_round_the_lowest_ranked_game_is";
+            if ( CurrentPhase <= Jam.Phase.Teased ) return "#menu.jam.the_theme_will_be_announced_when_entries_open";
+            if ( NominationsOpen ) return "#menu.jam.play_an_entry_to_nominate_it_for_the_finals";
+            return "#menu.jam.browse_and_play_the_entries";
         }
     }
 

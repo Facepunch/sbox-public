@@ -3,7 +3,7 @@ using Sandbox.Rendering;
 namespace Sandbox.SceneRenderer;
 
 /// <summary>
-/// Builds resolved min/max depth mips for <c>Depth::Get</c> using <c>DepthDownsampleLayer.Render</c>.
+/// Builds resolved min/max depth mips for <c>Depth::Get</c> using <see cref="SharedPasses.BuildDepthChain"/>, as native's <see cref="Native.DepthDownsampleLayer"/> does.
 /// Runs before <c>AfterDepthPrepass</c>, after a prepass, when a later layer reads it: stages, glass, volumetric fog,
 /// contact shadows (<see cref="FrameResources.DepthChain"/>). On the async compute queue where there is one, beside the shadow maps.
 /// </summary>
@@ -31,13 +31,13 @@ internal sealed class DepthChainLayer : RenderLayer
 	public override void HandOff( RenderFrame frame, RenderContext rc ) => rc.BarrierToComputeRead( frame.Output.Target.Depth );
 
 	/// <summary>
-	/// Bind the pooled chain before recording (<c>DepthDownsampleLayer.Setup</c>).
+	/// Bind the pooled chain before recording (<see cref="Native.DepthDownsampleLayer.Setup"/>).
 	/// Previous-frame depth aliases the current chain, matching native.
 	/// </summary>
 	public override void BeforeSegments( RenderFrame frame, RenderContext frameContext )
 	{
 		var viewport = frame.View.Viewport;
-		chain = DepthDownsampleLayer.GetTarget( (int)viewport.Width, (int)viewport.Height );
+		chain = SharedPasses.DepthChainTarget( (int)viewport.Width, (int)viewport.Height );
 		frameContext.Attributes.Set( DepthChainName, chain.DepthTarget );
 		frameContext.Attributes.Set( DepthChainPrevFrameName, chain.DepthTarget );
 	}

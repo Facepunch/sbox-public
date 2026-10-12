@@ -169,6 +169,7 @@ struct Decals
 				}
 
 				float colorMix = 1.0f;
+				uint blendMode = 0;
 				float4 decal_albedo = float4( 0, 0, 0, 0 );
 				float flHeightCoverageMask = 1;
 
@@ -179,6 +180,7 @@ struct Decals
 					float4 sheetData = asfloat( DecalsExtraDataBuffer.Load4( decal.ExtraDataOffset ) );
 					uint sequence = DecalsExtraDataBuffer.Load( decal.ExtraDataOffset + 16 );
 					colorMix = asfloat( DecalsExtraDataBuffer.Load( decal.ExtraDataOffset + 20 ) );
+					blendMode = DecalsExtraDataBuffer.Load( decal.ExtraDataOffset + 24 ) & 3;
 					uint heightIdx = DecalsExtraDataBuffer.Load( decal.ExtraDataOffset + 28 );
 					samplerIndex = DecalsExtraDataBuffer.Load( decal.ExtraDataOffset + 36 );
 					uint emissionIdx = DecalsExtraDataBuffer.Load( decal.ExtraDataOffset + 40 );
@@ -256,10 +258,17 @@ struct Decals
 				}
 
 				decal_albedo *= colorTint;
-				decal_albedo *= decalAttenuation;
+				if ( blendMode == 0 )
+					decal_albedo.rgb *= decalAttenuation;
+				decal_albedo.a *= decalAttenuation;
 				decal_albedo.a *= flHeightCoverageMask;
 
-				material.Albedo = lerp( material.Albedo, decal_albedo.rgb, colorMix * decal_albedo.a );
+				if ( blendMode == 1 )
+					material.Albedo *= lerp( 1, decal_albedo.rgb, colorMix * decal_albedo.a );
+				else if ( blendMode == 2 )
+					material.Emission += decal_albedo.rgb * colorMix * decal_albedo.a;
+				else
+					material.Albedo = lerp( material.Albedo, decal_albedo.rgb, colorMix * decal_albedo.a );
 
 				// blend everything else in from the color transparency
 				if ( normal > 0 )

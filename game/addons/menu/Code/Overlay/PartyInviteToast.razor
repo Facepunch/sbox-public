@@ -11,7 +11,7 @@
     who's asking, and when they're in a party already, whose it is and the faces of who's in it, the
     way the friends list shows one. No thanks and Join on the end, like the list's buttons.
 *@
-<root class="@RootClass()">
+<root class="@RootClass()" style="pointer-events: @(_leaving ? "none" : "all")">
 
     @* A glow rising from the bottom of the screen behind it - the top of a lit sphere sat on the
        screen's edge - so something asking for you is the brightest thing on the page *@
@@ -60,13 +60,13 @@
 
             @if ( PartyView.Exists )
             {
-                <label class="note">Joining leaves your party</label>
+                <label class="note">#menu.party.joining_leaves_your_party</label>
             }
         </div>
 
         <div class="actions">
-            <div class="action decline" onmousedown=@( ( e ) => Decline( e ) ) tooltip="No thanks"><i>close</i></div>
-            <div class="action join" onmousedown=@( ( e ) => Accept( e ) ) tooltip="Join their party"><i>check</i></div>
+            <div class="action decline" onmousedown=@( ( e ) => Decline( e ) ) tooltip="#menu.common.no_thanks_sentence"><i>close</i></div>
+            <div class="action join" onmousedown=@( ( e ) => Accept( e ) ) tooltip="#menu.party.join_their_party"><i>check</i></div>
         </div>
 
     </div>
@@ -111,7 +111,7 @@
     /// <summary>
     /// "invited you to their party", or to someone else's when they're not the one leading it.
     /// </summary>
-    string LineText => Party is { } party && party.Owner != From.Id ? $"invited you to {party.Title}" : "invited you to their party";
+    string LineText => Party is { } party && party.Owner != From.Id ? $"invited you to {party.Title}" : "#menu.party.invited_you_to_their_party";
 
     /// <summary>
     /// Pop one up - lower middle of the screen, where questions go. Queued behind anything already
@@ -129,18 +129,21 @@
     void Accept( PanelEvent e )
     {
         e.StopPropagation();
-        OnAccept?.Invoke();
+        if ( _leaving ) return;
 
-        // Taken up rather than turned away - it fizzles out where it is instead of swiping off
+        // Latch the action before user code runs; the leaving card may still receive input.
         _accepted = true;
         Close();
+        OnAccept?.Invoke();
     }
 
     void Decline( PanelEvent e )
     {
         e.StopPropagation();
-        OnDecline?.Invoke();
+        if ( _leaving ) return;
+
         Close();
+        OnDecline?.Invoke();
     }
 
     //

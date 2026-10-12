@@ -36,11 +36,11 @@
 	</div>
 	@if ( ServerCount is { } serverCount )
 	{
-		<div class="row-stat" tooltip="@(PlayerCount == 1 ? "1 player online" : $"{PlayerCount:N0} players online")">
+		<div class="row-stat" tooltip="@(PlayerCount == 1 ? "#menu.multiplayer.1_player_online" : $"{PlayerCount:N0} players online")">
 			<icon>group</icon>
 			<label>@PlayerCount.ToString( "N0" )</label>
 		</div>
-		<div class="row-stat servers" tooltip="@(serverCount == 1 ? "1 server" : $"{serverCount:N0} servers")">
+		<div class="row-stat servers" tooltip="@(serverCount == 1 ? "#menu.multiplayer.1_server" : $"{serverCount:N0} servers")">
 			<icon>dns</icon>
 			<label>@serverCount.ToString( "N0" )</label>
 		</div>

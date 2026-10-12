@@ -16,7 +16,7 @@
 
         @if ( Owned > 0 )
         {
-            <div class="owned-pill"><label>@( Owned > 1 ? $"Own {Owned}" : "Owned" )</label></div>
+            <div class="owned-pill"><label>@( Owned > 1 ? $"Own {Owned}" : "#menu.store.owned" )</label></div>
         }
     </div>
 
@@ -44,7 +44,7 @@
                 <div class="adder">
                     <div class="step" @onclick="@RemoveFromCart"><icon>remove</icon></div>
                     <TextEntry class="count" Numeric="@true" NumberFormat="0" MinValue="@(0f)" MaxValue="@((float)ShoppingCart.MaxPerItem)"
-                               Value="@CountInCart.ToString()" OnTextEdited="@OnCountEdited" onblur="@( ( PanelEvent e ) => OnCountBlur( e ) )" tooltip="Type how many you want"></TextEntry>
+                               Value="@CountInCart.ToString()" OnTextEdited="@OnCountEdited" onblur="@( ( PanelEvent e ) => OnCountBlur( e ) )" tooltip="#menu.store.type_how_many_you_want"></TextEntry>
                     <div class="step" @onclick="@AddToCart"><icon>add</icon></div>
                 </div>
             }
@@ -52,7 +52,7 @@
             {
                 <div class="add" @onclick="@AddToCart">
                     <icon>add_shopping_cart</icon>
-                    <label>Add</label>
+                    <label>#menu.store.add</label>
                 </div>
             }
         </div>

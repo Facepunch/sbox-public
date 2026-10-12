@@ -1,0 +1,120 @@
+@import "/styles/_front.scss";
+
+// On a card's art, bottom right - only while you're pointing at the card (see PackageCard), unless
+// you've already subscribed, so you can see which ones you have
+WorkshopCardActions
+{
+	position: absolute;
+	right: 8px;
+	bottom: 8px;
+	z-index: 3;
+	flex-direction: row;
+	gap: 4px;
+	opacity: 0;
+	transition: opacity 0.12s ease;
+
+	&.subscribed
+	{
+		opacity: 1;
+	}
+
+	.action
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 4px;
+		height: 26px;
+		padding: 0 10px 0 8px;
+		border-radius: 999px;
+		background-color: rgba( 8, 10, 14, 0.75 );
+		border: 1px solid rgba( 255, 255, 255, 0.14 );
+		backdrop-filter: blur( 6px );
+		pointer-events: all;
+		cursor: pointer;
+		transition: all 0.12s ease;
+
+		icon
+		{
+			font-size: 15px;
+			color: $front-body;
+		}
+
+		label
+		{
+			font-family: $front-font;
+			font-size: 12px;
+			font-weight: 600;
+			color: $front-heading;
+		}
+
+		&:hover
+		{
+			border-color: rgba( 255, 255, 255, 0.35 );
+			background-color: rgba( 8, 10, 14, 0.9 );
+			sound-in: "ui.button.over";
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+
+		&.busy
+		{
+			cursor: default;
+		}
+	}
+
+	// Just the icon
+	.open, .remove
+	{
+		padding: 0 6px;
+	}
+
+	.remove:hover
+	{
+		border-color: rgba( $front-danger, 0.6 );
+
+		icon
+		{
+			color: $front-danger;
+		}
+	}
+
+	.when-hovered
+	{
+		display: none;
+	}
+
+	&.subscribed .subscribe
+	{
+		border-color: rgba( $front-reward, 0.5 );
+
+		icon
+		{
+			color: $front-reward;
+		}
+
+		// Pointing at it says what clicking does
+		&:hover
+		{
+			border-color: rgba( $front-danger, 0.6 );
+
+			icon
+			{
+				color: $front-danger;
+			}
+
+			.when-idle
+			{
+				display: none;
+			}
+
+			.when-hovered
+			{
+				display: flex;
+				color: $front-danger;
+			}
+		}
+	}
+}

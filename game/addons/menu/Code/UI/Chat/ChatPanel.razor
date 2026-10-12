@@ -24,7 +24,7 @@
 				}
 				@if ( entry.Channel == "party" && ShowChannelLabel )
 				{
-					<span class="channel-label">PARTY</span>
+					<span class="channel-label">#menu.home.party</span>
 				}
 				<span class="text">@entry.Message</span>
 			</div>
@@ -38,7 +38,7 @@
 			{
 				<span class="channel-label">@InputPrefix</span>
 			}
-			<TextEntry @ref="InputBox" MaxLength="@(Sandbox.Platform.Chat.MaxMessageLength)" Placeholder="Type a message..." onsubmit="@OnInputSubmit" />
+			<TextEntry @ref="InputBox" MaxLength="@(Sandbox.Platform.Chat.MaxMessageLength)" Placeholder="#menu.home.type_a_message" onsubmit="@OnInputSubmit" />
 		}
 	</div>
 

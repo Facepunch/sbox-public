@@ -53,11 +53,11 @@
     /// </summary>
     public static readonly Info[] All =
     {
-        new( Reviews, "Reviews", "reviews" ),
-        new( Players, "Players", "groups" ),
-        new( Changes, "Changes", "history" ),
-        new( News, "News", "newspaper" ),
-        new( Achievements, "Achievements", "emoji_events" ),
+        new( Reviews, "#menu.games.reviews", "reviews" ),
+        new( Players, "#menu.games.players", "groups" ),
+        new( Changes, "#menu.games.changes", "history" ),
+        new( News, "#menu.games.news", "newspaper" ),
+        new( Achievements, "#menu.games.achievements", "emoji_events" ),
     };
 
     public static Info Find( string id ) => All.FirstOrDefault( x => x.Id == id );

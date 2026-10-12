@@ -31,7 +31,7 @@
                 <label>Resume game</label>
             </div>
 
-            <div class="action leave" onclick=@Leave tooltip="Leave game">
+            <div class="action leave" onclick=@Leave tooltip="#menu.pause.leave_game">
                 <i>logout</i>
             </div>
         </div>
@@ -40,7 +40,7 @@
         {
             <div class="action" onclick=@ChangeMap>
                 <i>map</i>
-                <label>Change map</label>
+                <label>#menu.pause.change_map</label>
             </div>
         }
 
@@ -48,7 +48,7 @@
         {
             <div class="action @(Streamer.IsActive ? "on" : "")" onclick=@( () => Game.Overlay.ShowServiceConnector() )>
                 <i>settings_input_antenna</i>
-                <label>Stream</label>
+                <label>#menu.pause.stream</label>
             </div>
         }
     </div>
@@ -66,7 +66,7 @@
             {
                 <div class="entry @Active( PackagePage.Players )" onclick=@( () => PauseHome.Show( PackagePage.Players ) )>
                     <i>group</i>
-                    <label>Players</label>
+                    <label>#menu.pause.players</label>
                 </div>
             }
 
@@ -74,20 +74,20 @@
             {
                 <div class="entry @Active( PackagePage.Achievements )" onclick=@( () => PauseHome.Show( PackagePage.Achievements ) )>
                     <i>emoji_events</i>
-                    <label>Achievements</label>
+                    <label>#menu.pause.achievements</label>
                 </div>
             }
 
             <div class="entry @Active( PackagePage.Reviews )" onclick=@( () => PauseHome.Show( PackagePage.Reviews ) )>
                 <i>reviews</i>
-                <label>Reviews</label>
+                <label>#menu.games.reviews</label>
             </div>
 
             @if ( game.LatestNewsPost is not null )
             {
                 <div class="entry @Active( PackagePage.News )" onclick=@( () => PauseHome.Show( PackagePage.News ) )>
                     <i>newspaper</i>
-                    <label>News</label>
+                    <label>#menu.pause.news</label>
                 </div>
             }
 
@@ -95,7 +95,7 @@
             {
                 <div class="entry @Active( PackagePage.Changes )" onclick=@( () => PauseHome.Show( PackagePage.Changes ) )>
                     <i>history</i>
-                    <label>Changes</label>
+                    <label>#menu.pause.changes</label>
                 </div>
             }
         </div>
@@ -158,9 +158,9 @@
         ModalSystem.Instance?.Open( new MenuProject.Modals.QuestionModal
         {
             Color = Color.Parse( "#ff5d6a" ) ?? Color.Red,
-            Title = "Leave Game?",
-            Message = "Any unsaved progress will be lost.",
-            ConfirmText = "Leave",
+            Title = "#menu.pause.leave_game_label",
+            Message = "#menu.pause.any_unsaved_progress_will_be_lost",
+            ConfirmText = "#menu.pause.leave",
             ConfirmIcon = "logout",
             OnConfirm = () => Game.Close()
         } );

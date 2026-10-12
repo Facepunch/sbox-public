@@ -64,7 +64,7 @@ public class SettingItem
 	public Func<SettingItem, Panel> CreateControl { get; init; }
 
 	/// <summary>Action button label. The row already carries the name.</summary>
-	public string ActionLabel { get; init; } = "Run";
+	public string ActionLabel { get; init; } = "#menu.settings.run";
 
 	public bool AppliesRenderSettings { get; init; }
 
@@ -169,9 +169,37 @@ public class SettingItem
 	}
 
 	string searchText;
+	string searchLanguage;
 
-	/// <summary>Everything a search looks at, lowercased once and kept.</summary>
-	public string SearchText => searchText ??= $"{Title} {Description} {Section} {Category}".ToLowerInvariant();
+	/// <summary>
+	/// Search the displayed phrases, rebuilding the cached text when the language changes.
+	/// </summary>
+	public string SearchText
+	{
+		get
+		{
+			if ( searchText is null || searchLanguage != Language.SelectedCode )
+			{
+				searchLanguage = Language.SelectedCode;
+				searchText = $"{SearchPhrase( Title )} {SearchPhrase( Description )} {SearchPhrase( Section )} {Category}".ToLowerInvariant();
+			}
 
+			return searchText;
+		}
+	}
+
+	static string SearchPhrase( string text ) => text?.StartsWith( '#' ) == true ? Language.GetPhrase( text[1..] ) : text;
+
+	/// <summary>
+	/// Forget cached search text when translations are reloaded without changing language.
+	/// </summary>
+	internal void InvalidateSearch()
+	{
+		searchText = null;
+	}
+
+	/// <summary>
+	/// Whether the localized setting text contains the normalized search query.
+	/// </summary>
 	public bool Matches( string query ) => SearchText.Contains( query );
 }

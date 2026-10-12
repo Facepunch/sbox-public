@@ -14,24 +14,24 @@
 				<div class="storage-overview-heading">
 					<div class="storage-drive"><i>storage</i></div>
 					<div class="storage-overview-title">
-						<label class="storage-heading">Downloaded content</label>
-						<label class="storage-secondary">Kept on this device so your games load faster.</label>
+						<label class="storage-heading">#menu.settings.downloaded_content</label>
+						<label class="storage-secondary">#menu.settings.kept_on_this_device_so_your_games_load_faster</label>
 					</div>
 					<div class="storage-total">
-						<label class="storage-value">@(HasSnapshot ? FormatSize( Size ) : "Calculating…")</label>
-						<label class="storage-secondary">@(HasSnapshot ? "used by downloads" : "Reading your cache")</label>
+						<label class="storage-value">@(HasSnapshot ? FormatSize( Size ) : "#menu.settings.calculating")</label>
+						<label class="storage-secondary">@(HasSnapshot ? "#menu.settings.used_by_downloads" : "#menu.settings.reading_your_cache")</label>
 					</div>
 				</div>
 
 				<div class="storage-usage-bar">
 					@foreach ( var entry in SizeBreakdown.OrderByDescending( x => x.Value ) )
 					{
-						<div class="storage-segment file-type-@Slug( entry.Key )" style="flex-grow: @entry.Value;" title="@($"{entry.Key}: {FormatSize( entry.Value )}")"></div>
+						<div class="storage-segment file-type-@Slug( entry.Key )" style="flex-grow: @entry.Value;" title="@($"{TypeTitle( entry.Key )}: {FormatSize( entry.Value )}")"></div>
 					}
 				</div>
 				<div class="storage-overview-footer">
 					<label class="storage-secondary">@(IsRefreshing ? $"Scanning… {ScannedFiles:N0} files" : $"{Files:N0} cached files")</label>
-					<Button class="storage-refresh" Disabled=@Busy onclick=@TryRefresh>Refresh</Button>
+					<Button class="storage-refresh" Disabled=@Busy onclick=@TryRefresh>#menu.common.refresh</Button>
 				</div>
 			</div>
 
@@ -43,57 +43,57 @@
 			@if ( HasSnapshot )
 			{
 				<div class="storage-section">
-					<label class="storage-section-title">Recommendations</label>
+					<label class="storage-section-title">#menu.settings.recommendations</label>
 					<div class="storage-group storage-cleanup">
 						<div class="storage-recommendation">
 							<div class="storage-cleanup-icon"><i>@(OldSize > 0 ? "auto_delete" : "check_circle")</i></div>
 							<div class="storage-recommendation-copy">
-								<label class="storage-heading">@(OldSize > 0 ? "Remove unused downloads" : "You're up to date")</label>
+								<label class="storage-heading">@(OldSize > 0 ? "#menu.settings.remove_unused_downloads" : "#menu.settings.you_re_up_to_date")</label>
 								<label class="storage-secondary">@(OldSize > 0 ? $"Free up to {FormatSize( OldSize )}. These files haven't been accessed in {DaysAgo} days." : $"All cached content has been accessed in the last {DaysAgo} days.")</label>
 							</div>
 							@if ( OldSize > 0 )
 							{
-								<Button class="storage-action" Disabled=@(!CanClear || ConfirmCleanup) onclick=@RequestCleanup>@(IsClearing ? "Removing…" : "Remove…")</Button>
+								<Button class="storage-action" Disabled=@(!CanClear || ConfirmCleanup) onclick=@RequestCleanup>@(IsClearing ? "#menu.settings.removing" : "#menu.settings.remove")</Button>
 							}
 						</div>
 						@if ( ConfirmCleanup )
 						{
 							<div class="storage-confirmation">
 								<label class="storage-heading">Remove @FormatSize( OldSize ) of unused downloads?</label>
-								<label class="storage-secondary">Your saved data won't be touched. Games may take longer to load while removed content downloads again.</label>
+								<label class="storage-secondary">#menu.settings.your_saved_data_won_t_be_touched_games_may</label>
 								<div class="storage-confirmation-actions">
-									<Button class="storage-action" onclick=@CancelCleanup>Cancel</Button>
-									<Button class="storage-action storage-destructive" Disabled=@(!CanClear) onclick=@ClearUnused>Remove Downloads</Button>
+									<Button class="storage-action" onclick=@CancelCleanup>#menu.common.cancel</Button>
+									<Button class="storage-action storage-destructive" Disabled=@(!CanClear) onclick=@ClearUnused>#menu.settings.remove_downloads</Button>
 								</div>
 							</div>
 						}
 					</div>
-					<label class="storage-footnote">Removed content downloads again when you need it. Saved data is not affected.</label>
+					<label class="storage-footnote">#menu.settings.removed_content_downloads_again_when_you_need_it_saved</label>
 				</div>
 
 				<div class="storage-section">
 					<div class="storage-section-heading">
-						<label class="storage-section-title">Content by type</label>
-						<label class="storage-secondary">Largest first</label>
+						<label class="storage-section-title">#menu.settings.content_by_type</label>
+						<label class="storage-secondary">#menu.settings.largest_first</label>
 					</div>
 					<div class="storage-group storage-rows">
 						@foreach ( var entry in SizeBreakdown.OrderByDescending( x => x.Value ) )
 						{
 							<div class="storage-type-row">
 								<div class="storage-type-icon file-type-@Slug( entry.Key )"><i>@TypeIcon( entry.Key )</i></div>
-								<label class="storage-type-name">@entry.Key</label>
+								<label class="storage-type-name">@TypeTitle( entry.Key )</label>
 								<label class="storage-type-size">@FormatSize( entry.Value )</label>
 							</div>
 						}
 						@if ( Files == 0 )
 						{
 							<div class="storage-empty">
-								<label class="storage-heading">No downloaded content</label>
-								<label class="storage-secondary">Content will appear here as you play.</label>
+								<label class="storage-heading">#menu.settings.no_downloaded_content</label>
+								<label class="storage-secondary">#menu.settings.content_will_appear_here_as_you_play</label>
 							</div>
 						}
 					</div>
-					<label class="storage-footnote">This includes downloaded content only, not the s&amp;box installation or your saved data.</label>
+					<label class="storage-footnote">#menu.settings.this_includes_downloaded_content_only_not_the_s_box</label>
 				</div>
 			}
 		</div>
@@ -230,6 +230,23 @@
 		_ => "Other"
 	};
 
+	/// <summary>
+	/// Localized display name for a stable cache bucket identifier.
+	/// </summary>
+	static string TypeTitle( string type ) => Language.GetPhrase( type switch
+	{
+		"Maps" => "menu.maps",
+		"Textures" => "menu.settings.textures",
+		"Shaders" => "menu.settings.shaders",
+		"Images" => "menu.settings.images",
+		"Videos" => "menu.settings.videos",
+		"Materials" => "menu.settings.materials",
+		"Models" => "menu.settings.models",
+		"Sounds" => "menu.settings.sounds",
+		"Other" => "menu.store.other",
+		_ => type
+	} );
+
 	static string Slug( string value ) => value.ToLowerInvariant();
 
 	static string FormatSize( long bytes )
@@ -251,4 +268,13 @@
 		"Videos" => "videocam",
 		_ => "folder"
 	};
+
+	/// <summary>
+	/// Rebuild composed text when translations change.
+	/// </summary>
+	public override void LanguageChanged()
+	{
+		base.LanguageChanged();
+		StateHasChanged();
+	}
 }

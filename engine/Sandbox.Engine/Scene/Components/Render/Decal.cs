@@ -163,7 +163,6 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 
 		_seed = Random.Shared.Int( 10000 );
 		_startTime = Time.NowDouble;
-		_def = Random.Shared.FromList( Decals );
 		_isActive = true;
 
 		UpdateSceneObject();
@@ -297,6 +296,7 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 		_sceneObject.RenderingEnabled = _isActive;
 		_sceneObject.Color = _def.Tint * ColorTint.Evaluate( delta, Rand( 238 ) );
 		_sceneObject.ColorMix = _def.ColorMix * ColorMix.Evaluate( delta, Rand( 324 ) );
+		_sceneObject.BlendMode = _def.BlendMode;
 		_sceneObject.AttenuationAngle = AttenuationAngle;
 		_sceneObject.CoverageAmount = _def.CoverageAmount * CoverageAmount.Evaluate( delta, Rand( 493 ) );
 		_sceneObject.CoverageRange = CoverageRange;

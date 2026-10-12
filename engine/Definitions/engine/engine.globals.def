@@ -49,6 +49,7 @@ native static class global as NativeEngine.EngineGlobal
 //	int LaunchGame( CMaterialSystem2AppSystemDict appDict, string lpCmdLine, bool withClient, bool withTools );
 
 	bool SourceEngineUnitTestInit();
+	bool SourceEngineInitStartupWindow( CMaterialSystem2AppSystemDict appDict );
 	bool SourceEnginePreInit( string lpCmdLine, CMaterialSystem2AppSystemDict appDict );
 	bool SourceEngineInit( CMaterialSystem2AppSystemDict appDict );
 	bool SourceEnginePanelAppInit( CMaterialSystem2AppSystemDict appDict, bool drawsScenes );

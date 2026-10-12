@@ -79,17 +79,19 @@ struct Deformation
 		inout float3 position )
 	{
 		// One weight is its first bone alone, whatever the weight, as skinning takes it
-		float3 anchor = 0;
+		float3 displacement = 0;
 		for ( uint i = 0; i < weightCount; ++i )
 		{
-			anchor += ( weightCount == 1 ? 1.0 : weights[i] ) * g_deformationAnchors[anchorOffset + bones[i]].xyz;
+			float weight = weightCount == 1 ? 1.0 : weights[i];
+			float3 anchor = g_deformationAnchors[anchorOffset + bones[i]].xyz;
+			float3 moved = anchor;
+			float3 normal = float3( 0, 0, 1 );
+			float4 tangent = float4( 1, 0, 0, 1 );
+			Apply( volumeOffset, volumeCount, moved, normal, tangent );
+			displacement += weight * (moved - anchor);
 		}
 
-		float3 moved = anchor;
-		float3 normal = float3( 0, 0, 1 );
-		float4 tangent = float4( 1, 0, 0, 1 );
-		Apply( volumeOffset, volumeCount, moved, normal, tangent );
-		position += moved - anchor;
+		position += displacement;
 	}
 };
 #endif

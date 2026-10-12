@@ -26,11 +26,11 @@ public sealed class PartyDraft
 	internal async Task Create()
 	{
 		if ( Creating || Cancelled ) return;
-		if ( PartyRoom.Current is not null ) throw new InvalidOperationException( "You are already in a party." );
+		if ( PartyRoom.Current is not null ) throw new InvalidOperationException( Language.GetPhrase( "menu.settings.you_are_already_in_a_party" ) );
 
 		var name = Name?.Trim();
 		if ( string.IsNullOrWhiteSpace( name ) || name.Length > PartyRoom.MaxNameLength || name.Any( char.IsControl ) )
-			throw new InvalidOperationException( "Enter a party name." );
+			throw new InvalidOperationException( Language.GetPhrase( "menu.party.enter_a_party_name" ) );
 
 		Creating = true;
 		PartyRoom party = null;
@@ -39,7 +39,7 @@ public sealed class PartyDraft
 		{
 			// Configure the lobby before making a public party discoverable.
 			party = await PartyRoom.Create( MaxMembers, name, false );
-			if ( party is null ) throw new InvalidOperationException( "Could not create the party. Please try again." );
+			if ( party is null ) throw new InvalidOperationException( Language.GetPhrase( "menu.party.could_not_create_the_party_please_try_again" ) );
 			if ( Cancelled )
 			{
 				party.Leave();

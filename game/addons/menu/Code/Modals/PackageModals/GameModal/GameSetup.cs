@@ -98,7 +98,7 @@ public sealed partial class GameSetup
 	/// </summary>
 	const int MaxSideBySide = 4;
 
-	static readonly List<Option> OffOn = [new( "Off", false ), new( "On", true )];
+	static readonly List<Option> OffOn = [new( "#menu.games.off", false ), new( "#menu.games.on", true )];
 
 	/// <summary>
 	/// Start from the supplied setup, or restore the player's previous choices for this game.
@@ -117,7 +117,7 @@ public sealed partial class GameSetup
 		ServerNameItem = Loaded( new SettingItem
 		{
 			Id = "server.name",
-			Title = "Name",
+			Title = "#menu.games.name",
 			Kind = SettingKind.Custom,
 			CreateControl = TextControl,
 			Read = () => serverName
@@ -126,7 +126,7 @@ public sealed partial class GameSetup
 		PrivacyItem = Loaded( new SettingItem
 		{
 			Id = "server.privacy",
-			Title = "Who Can Join",
+			Title = "#menu.games.who_can_join",
 			Options = Enum.GetValues<LobbyPrivacy>().Select( x => new Option( TitleOf( x ), x ) { Icon = IconOf( x ) } ).ToList(),
 			Read = () => saved.Privacy
 		} );
@@ -134,7 +134,7 @@ public sealed partial class GameSetup
 		PlayersItem = Loaded( new SettingItem
 		{
 			Id = "server.players",
-			Title = "Max Players",
+			Title = "#menu.games.max_players",
 			Kind = SettingKind.Slider,
 			Min = MinPlayerCount,
 			Max = MaxPlayerCount,
@@ -275,9 +275,9 @@ public sealed partial class GameSetup
 
 	static string TitleOf( LobbyPrivacy privacy ) => privacy switch
 	{
-		LobbyPrivacy.Public => "Public",
-		LobbyPrivacy.Private => "Private",
-		_ => "Friends Only"
+		LobbyPrivacy.Public => "#menu.workshop.public",
+		LobbyPrivacy.Private => "#menu.workshop.private",
+		_ => "#menu.games.friends_only"
 	};
 
 	static string IconOf( LobbyPrivacy privacy ) => privacy switch
@@ -287,7 +287,7 @@ public sealed partial class GameSetup
 		_ => "people"
 	};
 
-	public string PrivacyTitle => TitleOf( Privacy );
+	public string PrivacyTitle => Language.GetPhrase( TitleOf( Privacy )[1..] );
 	public string PrivacyIcon => IconOf( Privacy );
 
 	/// <summary>
@@ -296,7 +296,7 @@ public sealed partial class GameSetup
 	/// </summary>
 	async Task ResolveMap( string map )
 	{
-		MapTitle = string.IsNullOrWhiteSpace( map ) ? "Default map" : MapName( map );
+		MapTitle = string.IsNullOrWhiteSpace( map ) ? "#menu.games.default_map" : MapName( map );
 		MapThumb = null;
 
 		if ( string.IsNullOrWhiteSpace( map ) ) return;

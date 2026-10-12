@@ -33,7 +33,7 @@
 					}
 				</div>
 				<div class="info">
-					<label class="eyebrow">Game</label>
+					<label class="eyebrow">#menu.home.game</label>
 					<label class="title">@(GamePackage?.Title ?? Server.Game)</label>
 				</div>
 			</div>
@@ -50,16 +50,16 @@
 					}
 				</div>
 				<div class="info">
-					<label class="eyebrow">Map</label>
-					<label class="title">@(MapPackage?.Title ?? (MapUnavailable ? "Unknown" : Server.Map))</label>
+					<label class="eyebrow">#menu.home.map</label>
+					<label class="title">@(MapPackage?.Title ?? (MapUnavailable ? "#menu.home.unknown" : Server.Map))</label>
 				</div>
 			</div>
 
 		</div>
 
 		<div class="footer">
-			<Button class="clicky" @onclick=@(() => CloseModal( false ))>Cancel</Button>
-			<Button class="clicky primary" Disabled=@(!MenuHelpers.HasAuthority) Icon="play_circle_filled" onclick=@JoinServer>Join Server</Button>
+			<Button class="clicky" @onclick=@(() => CloseModal( false ))>#menu.common.cancel</Button>
+			<Button class="clicky primary" Disabled=@(!MenuHelpers.HasAuthority) Icon="play_circle_filled" onclick=@JoinServer>#menu.home.join_server</Button>
 		</div>
 
 	</div>

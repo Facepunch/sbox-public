@@ -14,11 +14,11 @@
 <root>
 	@if ( InParty )
 	{
-		<FloatingWindow @ref="Window" Title="@(Draft is not null ? "Create party" : PartyView.Name)" Icon="🎉" KeepOnScreen="@(true)" ShowMinimizeButton="@(true)" ShowCloseButton="@(true)" OnCloseRequested="@Leave" class="@(Activity() ?? "")">
+		<FloatingWindow @ref="Window" Title="@(Draft is not null ? "#menu.party.create_party" : PartyView.Name)" Icon="🎉" KeepOnScreen="@(true)" ShowMinimizeButton="@(true)" ShowCloseButton="@(true)" OnCloseRequested="@Leave" class="@(Activity() ?? "")">
 			<ChildContent>
 				<div class="party-deck-content @(Activity() ?? "")">
 					<div class="head toolbar @(SettingsOpen ? "" : "divided")">
-						<div class="current-game @(HasDisplayGame || CanChangeSettings ? "editable" : "") @(HasDisplayGame ? "" : "empty")" onclick=@OpenGameInfo tooltip="@(HasDisplayGame ? "View game details" : CanChangeSettings ? "Party settings" : "")">
+						<div class="current-game @(HasDisplayGame || CanChangeSettings ? "editable" : "") @(HasDisplayGame ? "" : "empty")" onclick=@OpenGameInfo tooltip="@(HasDisplayGame ? "#menu.party.view_game_details" : CanChangeSettings ? "#menu.party.party_settings" : "")">
 							@if ( !string.IsNullOrWhiteSpace( GameThumb ) )
 							{
 								<div class="game-thumb" style="background-image: url( @GameThumb );" />
@@ -28,7 +28,7 @@
 								<icon>sports_esports</icon>
 							}
 							<div class="game-summary">
-								<label>@(HasDisplayGame ? DisplayGameTitle : "No game selected")</label>
+								<label>@(HasDisplayGame ? DisplayGameTitle : "#menu.party.no_game_selected")</label>
 								@if ( GameSummaryText is { } summary )
 								{
 									<label class="game-capacity" tooltip=@summary>@summary</label>
@@ -41,7 +41,7 @@
 							<div class="icon-button voice @VoiceClass" tooltip="@VoiceTooltip">
 								<icon>@(Preferences.VoiceMode == VoiceMode.Disabled ? "mic_off" : "mic")</icon>
 							</div>
-							<Button class="icon-button settings" Active=@SettingsOpen Icon="settings" onclick="@ToggleSettings" tooltip="@(SettingsOpen ? "Back to party" : "Party settings")" />
+							<Button class="icon-button settings" Active=@SettingsOpen Icon="settings" onclick="@ToggleSettings" tooltip="@(SettingsOpen ? "#menu.party.back_to_party" : "#menu.party.party_settings")" />
 						}
 					</div>
 
@@ -88,12 +88,12 @@
 
 								@if ( status.CanRetry )
 								{
-									<Button class="status-button retry" onclick=@Retry Icon="refresh" Text="Retry" />
+									<Button class="status-button retry" onclick=@Retry Icon="refresh" Text="#menu.common.retry" />
 								}
 
 								@if ( status.CanCancel )
 								{
-									<Button class="icon-button cancel" onclick=@Cancel tooltip="Stop joining - you'll stay in the party" Icon="close" />
+									<Button class="icon-button cancel" onclick=@Cancel tooltip="#menu.party.stop_joining_you_ll_stay_in_the_party" Icon="close" />
 								}
 
 							</div>
@@ -104,30 +104,30 @@
 							}
 						}
 
-						@* Roomy faces while the party's small, smaller ones that wrap as it fills up *@
-						<div class="members @(SeatsTaken > 5 ? "compact" : "")">
-							<PartyMember Friend="@Me" Status="@StatusOf( Me )" Ready="@PartyView.IsMemberReady( Me )" />
-							@foreach ( var member in Members.Where( x => !x.IsMe ) )
-							{
-								<PartyMember Friend="@member" Status="@StatusOf( member )" Ready="@PartyView.IsMemberReady( member )" />
-							}
-
-							@* Asked in, not here yet - their seat's held, greyed out, until they turn up or it lapses.
-							   Clicking one lets it go (the invite itself is already with them). *@
-							@foreach ( var invited in PartyInvites.Pending )
-							{
-								<div class="pending-seat" tooltip="@PendingTooltip( invited )" onmouseup="@( () => PartyInvites.Dismiss( invited.Id ) )">
-									<Avatar UserId="@((long)invited.Id)" ShowStatus="@false" />
-									<div class="pending-badge"><icon class="waiting">hourglass_top</icon><icon class="dismiss">close</icon></div>
-								</div>
-							}
-
-							@if ( SeatsTaken < MaxMembers )
-							{
-								<div class="open-seat" onmouseup="@OpenFriends" tooltip="Invite a friend"><icon>add</icon></div>
-							}
-						</div>
 					}
+					@* Keep member listeners mounted while settings replace the party roster view. *@
+					<div class="members @(SeatsTaken > 5 ? "compact" : "")" style="display: @(SettingsOpen ? "none" : "flex")">
+						<PartyMember Friend="@Me" Status="@StatusOf( Me )" Ready="@PartyView.IsMemberReady( Me )" />
+						@foreach ( var member in Members.Where( x => !x.IsMe ) )
+						{
+							<PartyMember Friend="@member" Status="@StatusOf( member )" Ready="@PartyView.IsMemberReady( member )" />
+						}
+
+						@* Asked in, not here yet - their seat's held, greyed out, until they turn up or it lapses.
+						   Clicking one lets it go (the invite itself is already with them). *@
+						@foreach ( var invited in PartyInvites.Pending )
+						{
+							<div class="pending-seat" tooltip="@PendingTooltip( invited )" onmouseup="@( () => PartyInvites.Dismiss( invited.Id ) )">
+								<Avatar UserId="@((long)invited.Id)" ShowStatus="@false" />
+								<div class="pending-badge"><icon class="waiting">hourglass_top</icon><icon class="dismiss">close</icon></div>
+							</div>
+						}
+
+						@if ( SeatsTaken < MaxMembers )
+						{
+							<div class="open-seat" onmouseup="@OpenFriends" tooltip="#menu.party.invite_a_friend"><icon>add</icon></div>
+						}
+					</div>
 
 					@if ( ShowPlayControls )
 					{
@@ -135,15 +135,15 @@
 							<label class="play-hint">@PlayHint</label>
 							@if ( !SettingsOpen )
 							{
-								<Button class="configure-button" Icon="tune" Text="@(PartyView.OwnerIsMe ? "Configure game" : "View game setup")" onclick=@ConfigureGame />
+								<Button class="configure-button" Icon="tune" Text="@(PartyView.OwnerIsMe ? "#menu.party.configure_game" : "#menu.party.view_game_setup")" onclick=@ConfigureGame />
 							}
 							@if ( PartyView.OwnerIsMe )
 							{
-								<Button class="play-button" Icon="play_arrow" disabled="@(!CanStartGame)" onclick="@StartGame">Start Game</Button>
+								<Button class="play-button" Icon="play_arrow" disabled="@(!CanStartGame)" onclick="@StartGame">#menu.party.start_game</Button>
 							}
 							else
 							{
-								<Button class="@(IsReady ? "ready-button" : "play-button")" Icon="@(IsReady ? "check" : "check_circle")" disabled="@(!IsReady && SetupProblem is not null)" onclick="@ToggleReady">@(IsReady ? "Not ready" : "Ready")</Button>
+								<Button class="@(IsReady ? "ready-button" : "play-button")" Icon="@(IsReady ? "check" : "check_circle")" disabled="@(!IsReady && SetupProblem is not null)" onclick="@ToggleReady">@(IsReady ? "#menu.party.not_ready" : "#menu.party.ready")</Button>
 							}
 						</div>
 					}
@@ -222,7 +222,7 @@
 		{
 			// The game's the headline - the verb and the numbers are the small print
 			PartyRoom.JoinStage.Downloading when download is { } d => new JoinStatus( "download", game, Speed( d ), d.Fraction, true, false ),
-			PartyRoom.JoinStage.Downloading => new JoinStatus( "download", game, "Getting it ready", null, true, false ),
+			PartyRoom.JoinStage.Downloading => new JoinStatus( "download", game, "#menu.party.getting_it_ready", null, true, false ),
 
 			// Ours is done - if the leader's still loading, show theirs instead
 			PartyRoom.JoinStage.WaitingForHost when PartyView.HostDownloadProgress is { } host =>
@@ -231,17 +231,17 @@
 			// The leader's in, but there's no lobby to follow them into yet - not a problem, we'll go
 			// as soon as there is
 			PartyRoom.JoinStage.WaitingForHost when PartyView.LeaderState == PartyRoom.OwnerJoinState.Unavailable =>
-				new JoinStatus( "schedule", $"Waiting for {leader}", "You'll join once a lobby has been made", null, true, false ),
+				new JoinStatus( "schedule", $"Waiting for {leader}", "#menu.party.you_ll_join_once_a_lobby_has_been_made", null, true, false ),
 
 			PartyRoom.JoinStage.WaitingForHost => new JoinStatus( "hourglass_top", $"Waiting for {leader}", $"Ready to join {game}", null, true, false ),
 
 			PartyRoom.JoinStage.Connecting => new JoinStatus( "login", $"Joining {leader}", $"Loading into {game}", download?.Fraction, true, false ),
 
 			PartyRoom.JoinStage.Failed => new JoinStatus( "error", $"Couldn't join {leader}", PartyView.JoinError, null, false, true, false ),
-			PartyRoom.JoinStage.Cancelled => new JoinStatus( "block", "Stopped joining", $"You're still in {leader}'s party", null, false, true, false ),
+			PartyRoom.JoinStage.Cancelled => new JoinStatus( "block", "#menu.party.stopped_joining", $"You're still in {leader}'s party", null, false, true, false ),
 			// Not a failure - the leader's in a game with nothing to join yet, and we'll follow them in
 			// as soon as they open a lobby
-			PartyRoom.JoinStage.Unavailable => new JoinStatus( "schedule", $"Waiting for {leader}", "You'll join once a lobby has been made", null, false, false ),
+			PartyRoom.JoinStage.Unavailable => new JoinStatus( "schedule", $"Waiting for {leader}", "#menu.party.you_ll_join_once_a_lobby_has_been_made", null, false, false ),
 
 			_ => null
 		};
@@ -249,12 +249,12 @@
 
 	/// <summary>
 	/// The small print under the game's name. Time left goes first - it's what you want to know,
-	/// and the end of the line is what gets cut off. Once we know it, "Downloading" can go: the bar
+	/// and the end of the line is what gets cut off. Once we know it, "#menu.party.downloading" can go: the bar
 	/// and the percentage already say that.
 	/// </summary>
 	static string Speed( LoadingProgress progress )
 	{
-		if ( progress.Mbps <= 0 ) return "Downloading";
+		if ( progress.Mbps <= 0 ) return "#menu.party.downloading";
 
 		var speed = $"{progress.Mbps:0} Mbps";
 		var eta = progress.CalculateETA();
@@ -409,9 +409,9 @@
 
 	string VoiceTooltip => Preferences.VoiceMode switch
 	{
-		VoiceMode.Disabled => "Voice chat is turned off",
-		VoiceMode.OpenMicrophone => "Open mic - your party can hear you",
-		_ => "Hold push to talk to speak to your party"
+		VoiceMode.Disabled => "#menu.party.voice_chat_is_turned_off",
+		VoiceMode.OpenMicrophone => "#menu.party.open_mic_your_party_can_hear_you",
+		_ => "#menu.party.hold_push_to_talk_to_speak_to_your_party"
 	};
 
 	protected override int BuildHash()
@@ -433,7 +433,7 @@
 	public static Task<bool> EnsurePartyExists( bool isPublic = false )
 	{
 		if ( PartyRoom.Current is not null ) return System.Threading.Tasks.Task.FromResult( true );
-		if ( !Instance.IsValid() ) throw new InvalidOperationException( "Party settings are not available yet." );
+		if ( !Instance.IsValid() ) throw new InvalidOperationException( Language.GetPhrase( "menu.party.party_settings_are_not_available_yet" ) );
 		return Instance.BeginCreate( isPublic );
 	}
 

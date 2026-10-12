@@ -8,7 +8,7 @@
 <root>
 
 	<div class="topbar">
-		<Button class="clicky back" Icon="west" Text="Back" @onclick="@Back" />
+		<Button class="clicky back" Icon="west" Text="#menu.common.back" @onclick="@Back" />
 	</div>
 
 	@if ( IsLoading )
@@ -22,17 +22,17 @@
 	else if ( Offer is null )
 	{
 		<div class="center">
-			<label class="title">Nothing to open right now.</label>
-			<label class="sub">Jump into a game to receive your reward drop.</label>
-			<Button class="clicky" Text="Back" Icon="west" @onclick="@Back" />
+			<label class="title">#menu.rewards.nothing_to_open_right_now</label>
+			<label class="sub">#menu.rewards.jump_into_a_game_to_receive_your_reward_drop</label>
+			<Button class="clicky" Text="#menu.common.back" Icon="west" @onclick="@Back" />
 		</div>
 	}
 	else if ( Result is not null && Result.Success )
 	{
 		<div class="result-bar">
 			<icon class="result-icon">celebration</icon>
-			<label class="result-text">You claimed your reward!</label>
-			<Button class="clicky primary" Text="Done" Icon="check" @onclick="@Back" />
+			<label class="result-text">#menu.rewards.you_claimed_your_reward</label>
+			<Button class="clicky primary" Text="#menu.common.done" Icon="check" @onclick="@Back" />
 		</div>
 	}
 	else if ( ShowClaimBar )
@@ -42,7 +42,7 @@
 				<div class="select-banner">
 					<label>Select @Offer.PickCount @( Offer.PickCount == 1 ? "Reward" : "Rewards" )</label>
 				</div>
-				<label class="blurb">Pick your item — it's yours to keep, free.</label>
+				<label class="blurb">#menu.rewards.pick_your_item_it_s_yours_to_keep_free</label>
 			</div>
 
 			<Button class="clicky claim" Text="@ClaimText" Icon="redeem" Disabled="@( !CanConfirm )" @onclick="@Confirm" />
@@ -131,7 +131,7 @@
 		StateHasChanged();
 	}
 
-	string ClaimText => IsChoosing ? "Claiming…" : "Claim";
+	string ClaimText => IsChoosing ? "#menu.rewards.claiming" : "#menu.rewards.claim";
 
 	/// <summary>You can confirm once you've picked exactly the number of items the offer allows.</summary>
 	bool CanConfirm

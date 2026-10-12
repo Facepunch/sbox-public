@@ -19,7 +19,7 @@
 			}
 			@foreach ( var filter in PlayFilters )
 			{
-				<Button class="entry-filter" Text=@($"{(FeaturedContent is not null && filter.Value?.ToString() == "all" ? "All entries" : filter.Title)} ({FilterCount( filter.Value?.ToString() )})") Active=@(EntryFilter == filter.Value?.ToString()) onclick=@(() => SetFilter( filter.Value )) />
+				<Button class="entry-filter" Text=@($"{(FeaturedContent is not null && filter.Value?.ToString() == "all" ? Language.GetPhrase( "menu.jam.all_entries" ) : Language.GetPhrase( filter.Title[1..] ))} ({FilterCount( filter.Value?.ToString() )})") Active=@(EntryFilter == filter.Value?.ToString()) onclick=@(() => SetFilter( filter.Value )) />
 			}
 
 			@if ( ShowNominations )
@@ -33,7 +33,7 @@
 	{
 		<div class="load-error">
 			<label>@Error</label>
-			<Button onclick=@Retry>Retry</Button>
+			<Button onclick=@Retry>#menu.common.retry</Button>
 		</div>
 	}
 
@@ -43,7 +43,7 @@
 	}
 	else if ( EntriesError is not null && Entries is null )
 	{
-		<EmptyState Icon="cloud_off" Title="Entries unavailable" Subtitle="Try again in a moment." />
+		<EmptyState Icon="cloud_off" Title="#menu.jam.entries_unavailable" Subtitle="#menu.jam.try_again_in_a_moment" />
 	}
 	else if ( Entries is null || ( NeedsNominations && Nominations is null && Error is null ) )
 	{
@@ -51,15 +51,15 @@
 	}
 	else if ( NeedsNominations && Nominations is null )
 	{
-		<EmptyState Icon="cloud_off" Title="Nominations unavailable" Subtitle="Try again, or browse all entries." />
+		<EmptyState Icon="cloud_off" Title="#menu.jam.nominations_unavailable" Subtitle="#menu.jam.try_again_or_browse_all_entries" />
 	}
 	else if ( Order == "nominations" && !ShowNominations && NominationCounts?.Count is not > 0 )
 	{
-		<EmptyState Icon="how_to_vote" Title="Nomination totals unavailable" Subtitle="Choose another order to browse the entries." />
+		<EmptyState Icon="how_to_vote" Title="#menu.jam.nomination_totals_unavailable" Subtitle="#menu.jam.choose_another_order_to_browse_the_entries" />
 	}
 	else if ( VisibleEntries is { Length: 0 } && !string.IsNullOrWhiteSpace( Search ) )
 	{
-		<EmptyState Icon="search_off" Title="No matching entries" Subtitle="Try a different search or play filter." />
+		<EmptyState Icon="search_off" Title="#menu.jam.no_matching_entries" Subtitle="#menu.jam.try_a_different_search_or_play_filter" />
 	}
 	else
 	{
@@ -84,7 +84,7 @@
 	/// <summary>
 	/// The current voting stage displayed on the featured tab.
 	/// </summary>
-	[Parameter] public string FeaturedTitle { get; set; } = "Knockout";
+	[Parameter] public string FeaturedTitle { get; set; } = "#menu.jam.knockout";
 
 	/// <summary>
 	/// Closed nomination totals supplied by the phase. Missing counts are unknown, not zero.
@@ -93,20 +93,20 @@
 
 	static readonly List<Option> PlayFilters =
 	[
-		new( "All", "all" ),
-		new( "Played", "played" ),
-		new( "Unplayed", "unplayed" )
+		new( "#menu.common.all", "all" ),
+		new( "#menu.games.played", "played" ),
+		new( "#menu.jam.unplayed", "unplayed" )
 	];
 
 	[SkipHotload]
 	static readonly List<Option> NominationOrders =
 	[
-		new( "Discovery", "discovery" ),
-		new( "Most nominations", "nominations" ) { Tooltip = "Highest nomination counts first" },
-		new( "Active players", "active-players" ) { Tooltip = "Most players currently playing" },
-		new( "Thumbs up", "thumbs-up" ) { Tooltip = "Most positive votes" },
-		new( "Newest", "newest" ),
-		new( "Name A–Z", "name" )
+		new( "#menu.jam.discovery", "discovery" ),
+		new( "#menu.jam.most_nominations", "nominations" ) { Tooltip = "#menu.jam.highest_nomination_counts_first" },
+		new( "#menu.jam.active_players", "active-players" ) { Tooltip = "#menu.jam.most_players_currently_playing" },
+		new( "#menu.jam.thumbs_up", "thumbs-up" ) { Tooltip = "#menu.jam.most_positive_votes" },
+		new( "#menu.avatar.newest", "newest" ),
+		new( "#menu.jam.name_a_z", "name" )
 	];
 
 	bool CanSortByNominations => ShowNominations || NominationCounts is not null;
@@ -220,7 +220,7 @@
 			if ( !this.IsValid() || Jam?.Ident != jam.Ident ) return;
 
 			Log.Warning( $"Couldn't load jam entries ({e.Message})" );
-			EntriesError = "Couldn't refresh entries. Try again in a moment.";
+			EntriesError = "#menu.jam.couldn_t_refresh_entries_try_again_in_a_moment";
 		}
 		finally
 		{
@@ -244,12 +244,12 @@
 		{
 			// A stable server order keeps pagination independent of the local shuffle.
 			var page = await Package.FindAsync( $"{jam.Query} sort:newest", 200, entries.Count );
-			if ( page?.Packages is null ) throw new InvalidOperationException( "No entry results." );
+			if ( page?.Packages is null ) throw new InvalidOperationException( Language.GetPhrase( "menu.jam.no_entry_results" ) );
 
 			total = page.TotalCount;
 			if ( page.Packages.Length == 0 && (entries.Count > 0 || total > 0 || jam.EntryCount > 0) )
 			{
-				throw new InvalidOperationException( "Incomplete entry results." );
+				throw new InvalidOperationException( Language.GetPhrase( "menu.jam.incomplete_entry_results" ) );
 			}
 
 			entries.AddRange( page.Packages );
@@ -338,4 +338,13 @@
 
 	protected override int BuildHash() => HashCode.Combine( VisibleEntries, EntryFilter, Order, ShowNominations, Nominations, Error, Loading,
 		HashCode.Combine( FeaturedContent, NominationCounts, FeaturedTitle, Search ) );
+
+	/// <summary>
+	/// Rebuild composed text when translations change.
+	/// </summary>
+	public override void LanguageChanged()
+	{
+		base.LanguageChanged();
+		StateHasChanged();
+	}
 }

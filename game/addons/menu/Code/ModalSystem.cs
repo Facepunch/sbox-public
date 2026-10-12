@@ -308,7 +308,7 @@ public class ModalSystem : IModalSystem
 		{
 			Title = title,
 			Message = message,
-			ConfirmText = "Ok",
+			ConfirmText = "#menu.common.ok",
 			CancelText = null
 		};
 

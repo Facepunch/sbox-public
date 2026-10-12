@@ -28,8 +28,8 @@
 
                 <div class="notice">
                     <i>@(Failed ? "cloud_off" : "hide_image")</i>
-                    <label class="notice-title">@(Failed ? "Couldn't load the gallery" : "No screenshots yet")</label>
-                    <label class="notice-text">@(Failed ? "sbox.game didn't answer. Check your connection, then open this again." : $"{Package.Title} hasn't added any screenshots or videos.")</label>
+                    <label class="notice-title">@(Failed ? "#menu.games.couldn_t_load_the_gallery" : "#menu.games.no_screenshots_yet")</label>
+                    <label class="notice-text">@(Failed ? "#menu.games.sbox_game_didn_t_answer_check_your_connection_then" : $"{Package.Title} hasn't added any screenshots or videos.")</label>
                 </div>
             }
         }

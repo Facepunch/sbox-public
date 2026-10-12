@@ -57,7 +57,7 @@
     {
         @if (!Embedded)
         {
-            <div class="state">This package hasn't published any changelists.</div>
+            <div class="state">#menu.games.this_package_hasn_t_published_any_changelists</div>
         }
     }
     else
@@ -92,7 +92,7 @@
                                     <label class="update-name" tooltip="@(hasTitle ? change.Title : dateText)">@(hasTitle ? change.Title : dateText)</label>
                                     @if (latest)
                                     {
-                                        <label class="latest-pill">Latest update</label>
+                                        <label class="latest-pill">#menu.games.latest_update</label>
                                     }
                                 </div>
 
@@ -104,11 +104,11 @@
                             </div>
 
                             <div class="sections">
-                                @if (change.Added.Length > 0) { <PackageChangeSection ClassName="add" Entries="@change.Added" Icon="add_circle" Title="Added" /> }
-                                @if (change.Improved.Length > 0) { <PackageChangeSection ClassName="improve" Entries="@change.Improved" Icon="auto_awesome" Title="Improved" /> }
-                                @if (change.Fixed.Length > 0) { <PackageChangeSection ClassName="fix" Entries="@change.Fixed" Icon="build" Title="Fixed" /> }
-                                @if (change.Removed.Length > 0) { <PackageChangeSection ClassName="remove" Entries="@change.Removed" Icon="remove_circle" Title="Removed" /> }
-                                @if (change.KnownIssues.Length > 0) { <PackageChangeSection ClassName="knownissue" Entries="@change.KnownIssues" Icon="warning" Title="Known Issues" /> }
+                                @if (change.Added.Length > 0) { <PackageChangeSection ClassName="add" Entries="@change.Added" Icon="add_circle" Title="#menu.games.added" /> }
+                                @if (change.Improved.Length > 0) { <PackageChangeSection ClassName="improve" Entries="@change.Improved" Icon="auto_awesome" Title="#menu.games.improved" /> }
+                                @if (change.Fixed.Length > 0) { <PackageChangeSection ClassName="fix" Entries="@change.Fixed" Icon="build" Title="#menu.games.fixed" /> }
+                                @if (change.Removed.Length > 0) { <PackageChangeSection ClassName="remove" Entries="@change.Removed" Icon="remove_circle" Title="#menu.games.removed" /> }
+                                @if (change.KnownIssues.Length > 0) { <PackageChangeSection ClassName="knownissue" Entries="@change.KnownIssues" Icon="warning" Title="#menu.games.known_issues" /> }
                             </div>
                         </div>
                     }

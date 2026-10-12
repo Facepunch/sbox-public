@@ -13,7 +13,6 @@ internal class ServerPackages
 {
 	public static ServerPackages Current { get; private set; }
 
-	internal record struct ServerPackageInfo();
 	internal StringTable StringTable;
 
 	internal class PackageDownload
@@ -175,18 +174,50 @@ internal class ServerPackages
 			return;
 
 		Log.Info( $"Installing server package: {ident}" );
-		ServerPackageInfo packageInfo = entry.Read<ServerPackageInfo>();
 		await DownloadAndMount( ident, reloadResources: reloadResources );
 	}
 
-	/// <inheritdoc cref="AddRequirement(string, ServerPackageInfo)"/>
-	internal void AddRequirement( Package package, ServerPackageInfo info = default )
-		=> AddRequirement( package.GetIdent( false, true ), info );
+	/// <summary>
+	/// The workshop items the server has a different version of than we've installed, like Garry's Mod's map check. We
+	/// can't join with those - one of us has an older version, and the workshop only has the latest.
+	/// </summary>
+	internal List<Workshop.Item> GetMismatchedWorkshopItems()
+	{
+		var mismatched = new List<Workshop.Item>();
+
+		foreach ( var entry in StringTable.Entries.Values )
+		{
+			if ( Get( entry.Name )?.package is not { InstallsFromWorkshop: true } package )
+				continue;
+
+			// Each package's entry is the version of its workshop item the server has
+			var server = entry.Read<long>();
+			var ours = Workshop.GetInstalledVersion( package.WorkshopId );
+
+			if ( server != 0 && ours != 0 && server != ours )
+				mismatched.Add( new Workshop.Item { Id = package.WorkshopId, Title = package.Title } );
+		}
+
+		return mismatched;
+	}
+
+	/// <summary>
+	/// Why we can't join a server whose versions of these workshop items are different to ours
+	/// </summary>
+	internal static string MismatchMessage( IEnumerable<Workshop.Item> items )
+	{
+		var names = items.Select( x => x.Title ?? $"Workshop item {x.Id}" );
+		return $"You can't join this server because its version of {string.Join( ", ", names )} is different from yours. One of you has an older version - the server needs to update, or yours does.";
+	}
+
+	/// <inheritdoc cref="AddRequirement(string)"/>
+	internal void AddRequirement( Package package )
+		=> AddRequirement( package.GetIdent( false, true ) );
 
 	/// <summary>
 	/// Add a reference to a package requirement.
 	/// </summary>
-	internal void AddRequirement( string packageIdent, ServerPackageInfo info = default )
+	internal void AddRequirement( string packageIdent )
 	{
 		if ( _refcounts.TryGetValue( packageIdent, out var count ) )
 		{
@@ -195,7 +226,7 @@ internal class ServerPackages
 		else
 		{
 			_refcounts[packageIdent] = 1;
-			StringTable.Set( packageIdent, info );
+			StringTable.Set( packageIdent, 0L );
 		}
 	}
 
@@ -234,18 +265,33 @@ internal class ServerPackages
 
 		if ( Networking.IsHost )
 		{
-			Current?.AddRequirement( packageIdent, new ServerPackageInfo() );
+			Current?.AddRequirement( packageIdent );
 		}
 
-		if ( Downloads.TryGetValue( packageIdent, out var dl ) )
-			return await dl.DownloadAndMount( token, reloadResources );
+		if ( !Downloads.TryGetValue( packageIdent, out var dl ) )
+		{
+			dl = new();
+			dl.ident = packageIdent;
 
-		dl = new();
-		dl.ident = packageIdent;
+			Downloads[packageIdent] = dl;
+		}
 
-		Downloads[packageIdent] = dl;
+		var fs = await dl.DownloadAndMount( token, reloadResources );
 
-		return await dl.DownloadAndMount( token, reloadResources );
+		// Which version of its workshop item we've got, so clients can tell if theirs is the same
+		if ( Networking.IsHost && dl.package is { InstallsFromWorkshop: true } package )
+			Current?.SetWorkshopVersion( packageIdent, Workshop.GetInstalledVersion( package.WorkshopId ) );
+
+		return fs;
+	}
+
+	/// <summary>
+	/// Tell clients which version of a package's workshop item we've got
+	/// </summary>
+	void SetWorkshopVersion( string packageIdent, long version )
+	{
+		if ( _refcounts.ContainsKey( packageIdent ) )
+			StringTable.Set( packageIdent, version );
 	}
 
 	internal static PackageDownload Get( string packageIdent )

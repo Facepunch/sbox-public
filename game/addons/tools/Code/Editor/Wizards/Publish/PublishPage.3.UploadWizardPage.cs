@@ -131,39 +131,7 @@ partial class PublishWizard
 
 		public async Task Refresh()
 		{
-			Publisher = await ProjectPublisher.FromProject( Project );
-
-			if ( Project.Config.Type == "game" )
-			{
-				var settings = Publisher.GetGameSettings( PublishConfig.CompilerOutput );
-				Publisher.SetMeta( "GameSettings", settings );
-			}
-
-			if ( PublishConfig.AssemblyFiles is not null )
-			{
-				foreach ( var f in PublishConfig.AssemblyFiles )
-				{
-					if ( f.Value is byte[] bytes )
-					{
-						await Publisher.AddFile( bytes, f.Key );
-					}
-
-					if ( f.Value is string json )
-					{
-						await Publisher.AddFile( json, f.Key );
-					}
-				}
-			}
-
-			// Add assets from Cloud.Model( .. ) etc
-			foreach ( var package in PublishConfig.CodePackages )
-			{
-				await Publisher.AddCodePackageReference( package );
-			}
-
-			UpdateFileList();
-
-			await Publisher.PrePublish();
+			Publisher = await CreatePublisher( Project, PublishConfig );
 
 			UpdateFileList();
 		}

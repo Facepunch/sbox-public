@@ -65,10 +65,19 @@ public readonly record struct PlayerModes( bool Solo, bool Multiplayer, bool Coo
 		get
 		{
 			if ( IsUnknown ) return null;
-			if ( !Multiplayer ) return "Singleplayer";
+			if ( !Multiplayer ) return "#menu.games.singleplayer";
 
-			var kind = Coop && Versus ? "Co-op & Versus" : Coop ? "Co-op" : Versus ? "Versus" : "Multiplayer";
-			return Solo ? $"Solo or {kind}" : kind;
+			return (Solo, Coop, Versus) switch
+			{
+				(true, true, true ) => "#menu.games.solo_or_co_op_versus",
+				(true, true, false ) => "#menu.games.solo_or_co_op",
+				(true, false, true ) => "#menu.games.solo_or_versus",
+				(true, false, false ) => "#menu.games.solo_or_multiplayer",
+				(false, true, true ) => "#menu.games.co_op_versus",
+				(false, true, false ) => "#menu.games.co_op",
+				(false, false, true ) => "#menu.games.versus",
+				_ => "#menu.home.multiplayer",
+			};
 		}
 	}
 
@@ -80,10 +89,21 @@ public readonly record struct PlayerModes( bool Solo, bool Multiplayer, bool Coo
 		get
 		{
 			if ( IsUnknown ) return null;
-			if ( !Multiplayer ) return "Played on your own";
+			if ( !Multiplayer ) return Language.GetPhrase( "menu.games.played_on_your_own" );
 
-			var with = Coop && Versus ? "team up with friends or take them on" : Coop ? "team up with friends" : Versus ? "take on other players" : "play with other people";
-			return Solo ? $"Play on your own, or {with}" : char.ToUpper( with[0] ) + with[1..];
+			var phrase = (Solo, Coop, Versus) switch
+			{
+				(true, true, true ) => "menu.games.play_on_your_own_or_team_up_with_friends_or_take_them_on",
+				(true, true, false ) => "menu.games.play_on_your_own_or_team_up_with_friends",
+				(true, false, true ) => "menu.games.play_on_your_own_or_take_on_other_players",
+				(true, false, false ) => "menu.games.play_on_your_own_or_play_with_other_people",
+				(false, true, true ) => "menu.games.team_up_with_friends_or_take_them_on",
+				(false, true, false ) => "menu.games.team_up_with_friends",
+				(false, false, true ) => "menu.games.take_on_other_players",
+				_ => "menu.games.play_with_other_people",
+			};
+
+			return Language.GetPhrase( phrase );
 		}
 	}
 
@@ -131,7 +151,7 @@ public readonly record struct PlayerModes( bool Solo, bool Multiplayer, bool Coo
 		if ( players <= 1 ) return (FitKind.Good, null);
 
 		if ( !Multiplayer )
-			return (FitKind.Poor, "This game is singleplayer.");
+			return (FitKind.Poor, "#menu.games.this_game_is_singleplayer");
 
 		if ( MaxPlayers > 0 && players > MaxPlayers )
 			return (FitKind.Poor, $"This game holds up to {MaxPlayers} players. You have {players}.");

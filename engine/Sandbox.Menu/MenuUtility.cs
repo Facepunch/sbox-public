@@ -13,6 +13,9 @@ public static partial class MenuUtility
 {
 	public static Action Tick { get; set; }
 
+	/// <summary>Whether higher-resolution texture data is currently downloading.</summary>
+	public static bool IsTextureWebStreamingActive => NativeGlue.Resources.IsTextureWebStreamingActive();
+
 	public static void SetModalSystem( IModalSystem system )
 	{
 		IModalSystem.Current = system;

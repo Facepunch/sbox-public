@@ -39,24 +39,24 @@ public partial class PackageSelectionModal
 	RealTimeSince timeSinceSearchEdited;
 	string lastReportedQuery;
 
-	static readonly Package.SortOrder FavouritesSortOrder = new( "favourite", "Your favourites", "bookmarks" );
+	static readonly Package.SortOrder FavouritesSortOrder = new( "favourite", "#menu.games.your_favourites", "bookmarks" );
 
 	static readonly Package.SortOrder[] GameSortOrders =
 	[
-		new() { Name = "trending", Title = "Trending", Icon = "trending_up" },
-		new() { Name = "rankday", Title = "Popular today", Icon = "local_fire_department" },
-		new() { Name = "rankweek", Title = "Popular this week", Icon = "date_range" },
-		new() { Name = "rankmonth", Title = "Popular this month", Icon = "calendar_month" },
-		new() { Name = "quality", Title = "Most loved", Icon = "favorite" },
-		new() { Name = "newest", Title = "New releases", Icon = "new_releases" },
-		new() { Name = "updated", Title = "Recently updated", Icon = "schedule" },
-		new() { Name = "hiddengem", Title = "Hidden gems", Icon = "diamond" },
+		new() { Name = "trending", Title = "#menu.games.trending", Icon = "trending_up" },
+		new() { Name = "rankday", Title = "#menu.games.popular_today", Icon = "local_fire_department" },
+		new() { Name = "rankweek", Title = "#menu.games.popular_this_week", Icon = "date_range" },
+		new() { Name = "rankmonth", Title = "#menu.games.popular_this_month", Icon = "calendar_month" },
+		new() { Name = "quality", Title = "#menu.games.most_loved", Icon = "favorite" },
+		new() { Name = "newest", Title = "#menu.games.new_releases", Icon = "new_releases" },
+		new() { Name = "updated", Title = "#menu.games.recently_updated", Icon = "schedule" },
+		new() { Name = "hiddengem", Title = "#menu.games.hidden_gems", Icon = "diamond" },
 		FavouritesSortOrder
 	];
 
 	static readonly Package.SortOrder[] DefaultSortOrders =
 	[
-		new() { Name = "trending", Title = "Trending", Icon = "trending_up" }
+		new() { Name = "trending", Title = "#menu.games.trending", Icon = "trending_up" }
 	];
 
 	bool IsGamePicker => packageTypes.Count == 1 && packageTypes[0] == "game";
@@ -95,7 +95,9 @@ public partial class PackageSelectionModal
 
 	string SearchQuery => $"{string.Join( " ", packageTypes.Select( type => $"type:{type}" ) )} {string.Join( " ", requiredFilters )} sort:{sortOrder} {debouncedSearch} {string.Join( " ", selectedTags.Select( tag => $"+{tag}" ) )} {string.Join( " ", selectedCategories.Select( category => $"{category.Key}:{category.Value}" ) )}".Trim();
 
-	string ResultsTitle => !string.IsNullOrWhiteSpace( debouncedSearch ) ? "Search results" : SortOrders.FirstOrDefault( order => order.Name == sortOrder ).Title ?? Result?.Orders?.FirstOrDefault( order => order.Name == sortOrder ).Title ?? "Results";
+	string ResultsTitle => packageSource == PackageSource.Subscribed ? Language.GetPhrase( "menu.workshop.subscribed_packages", new() { ["noun"] = PackageNoun } )
+		: packageSource == PackageSource.Downloaded ? Language.GetPhrase( "menu.workshop.downloaded_packages", new() { ["noun"] = PackageNoun } )
+		: !string.IsNullOrWhiteSpace( debouncedSearch ) ? "#menu.games.search_results" : SortOrders.FirstOrDefault( order => order.Name == sortOrder ).Title ?? Result?.Orders?.FirstOrDefault( order => order.Name == sortOrder ).Title ?? "#menu.games.results";
 
 	void SetQuery( string query )
 	{
@@ -104,6 +106,7 @@ public partial class PackageSelectionModal
 		selectedTags.Clear();
 		selectedCategories.Clear();
 		sortOrder = "trending";
+		packageSource = PackageSource.Browse;
 		searchPending = false;
 		var searchTerms = new List<string>();
 
@@ -201,6 +204,9 @@ public partial class PackageSelectionModal
 			StateHasChanged();
 		}
 
+		if ( IsWorkshopSource )
+			RefreshWorkshopPackages();
+
 		var query = SearchQuery;
 		if ( query == lastReportedQuery ) return;
 
@@ -214,5 +220,5 @@ public partial class PackageSelectionModal
 		OnPackageSelected?.Invoke( package );
 	}
 
-	protected override int BuildHash() => HashCode.Combine( Result, SearchQuery, searchText, packageList?.FoundPackages, ShowMapSources, selectedMount, mountedMaps );
+	protected override int BuildHash() => HashCode.Combine( Result, SearchQuery, searchText, packageList?.FoundPackages, ShowMapSources, selectedMount, mountedMaps, workshopPackages );
 }

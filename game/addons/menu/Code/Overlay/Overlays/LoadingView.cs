@@ -290,7 +290,7 @@ public static class LoadingView
 				return new( string.Format( phase.Title, title ), subtitle );
 			}
 
-			return new( "Starting Game", null );
+			return new( "#menu.loading.starting_game", null );
 		}
 	}
 }

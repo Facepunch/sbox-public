@@ -56,6 +56,10 @@ public sealed partial class PlayerController : Component
 			if ( !result.Hit )
 				return;
 
+			// Walkable slopes are handled by ground movement
+			if ( Mode.IsStandableSurface( result ) )
+				return;
+
 			if ( StepDebug )
 			{
 				DebugOverlay.Line( a, b, duration: 10, color: Color.Green );

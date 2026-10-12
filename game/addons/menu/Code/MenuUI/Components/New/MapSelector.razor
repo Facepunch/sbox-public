@@ -37,7 +37,7 @@
 		}
 	}
 
-	public string Title { get; private set; } = "Default Map";
+	public string Title { get; private set; } = "#menu.home.default_map";
 
 
 	protected override void OnMouseUp(MousePanelEvent e)
@@ -69,7 +69,7 @@
 		if ( string.IsNullOrWhiteSpace( map ) )
 		{
 			Thumb = null;
-			Title = "Default Map";
+			Title = "#menu.home.default_map";
 			StateHasChanged();
 			return;
 		}
@@ -94,7 +94,7 @@
 		}
 
 		Thumb = null;
-		Title = "Default Map";
+		Title = "#menu.home.default_map";
 
 		StateHasChanged();
 	}

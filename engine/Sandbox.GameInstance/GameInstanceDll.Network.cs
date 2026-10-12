@@ -259,6 +259,14 @@ internal partial class GameInstanceDll
 
 		await ServerPackages.InstallAll();
 
+		// Like Garry's Mod's map check - if the server's files are different, we can't play with what it has
+		var mismatched = ServerPackages.GetMismatchedWorkshopItems();
+		if ( mismatched.Count > 0 )
+		{
+			Disconnect( ServerPackages.MismatchMessage( mismatched ) );
+			return false;
+		}
+
 		// Prevent a blank title between the last package install and the download queue start.
 		if ( string.IsNullOrWhiteSpace( LoadingScreen.Title ) )
 			LoadingScreen.Title = "Loading..";

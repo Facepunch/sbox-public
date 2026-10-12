@@ -146,13 +146,19 @@ internal static partial class PackageManager
 
 	private static void UnmountUntagged()
 	{
-		foreach ( var item in ActivePackages.Where( x => x.Tags.Count() == 0 ).ToArray() )
+		var unmounted = ActivePackages.Where( x => x.Tags.Count() == 0 ).ToArray();
+
+		foreach ( var item in unmounted )
 		{
 			log.Trace( $"Unmounting '{item.Package.FullIdent}' - no tags remaining" );
 
 			item.Delete();
 			ActivePackages.Remove( item );
 		}
+
+		// Workshop updates wait for their package to be unmounted
+		if ( unmounted.Any( x => x.Package is { InstallsFromWorkshop: true } ) )
+			Services.Ugc.OnPackagesUnmounted();
 	}
 
 	internal static void UnmountAll()
@@ -196,6 +202,8 @@ internal static partial class PackageManager
 	/// </summary>
 	internal static async Task PrefetchAsync( Package root, bool includeRoot, bool allowLocalPackages, CancellationToken token )
 	{
+		// Keep upgrades paused across the entire dependency tree, including manifest fetches.
+		using var textureDownload = TextureWebStreaming.BeginDownload();
 		var seen = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
 		bool Unseen( string ident ) { lock ( seen ) return seen.Add( ident ); }
 

@@ -1,4 +1,5 @@
 using NativeEngine;
+using Sandbox.Rendering;
 
 namespace Sandbox;
 
@@ -8,6 +9,18 @@ namespace Sandbox;
 internal sealed class DecalSceneObject : SceneObject
 {
 	NativeEngine.CDecalSceneObject decalNative;
+
+	public DecalBlendMode BlendMode
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			Attributes.Set( "DecalBlendMode", (int)value );
+			NotifyChanged( Rendering.SceneObjectChange.Settings );
+		}
+	}
 
 	internal DecalSceneObject() { }
 	internal DecalSceneObject( HandleCreationData _ ) { }

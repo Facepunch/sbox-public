@@ -35,10 +35,11 @@ internal static class PartyService
 		{
 			if ( current.Id.ValueUnsigned == id ) return;
 
-			throw new InvalidOperationException( "Leave your current party before joining another." );
+			throw new InvalidOperationException( Language.GetPhrase( "menu.party.leave_your_current_party_before_joining_another_text" ) );
 		}
 
-		await PartyRoom.Join( id );
+		if ( !await PartyRoom.Join( id ) )
+			throw new InvalidOperationException( "Couldn't join the party. It may no longer be available." );
 	} );
 
 	static async Task Run( Func<Task> action )
