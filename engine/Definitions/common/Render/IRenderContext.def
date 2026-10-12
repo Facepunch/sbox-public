@@ -84,6 +84,16 @@ native class IRenderContext as NativeEngine.IRenderContext
 		self->ClearUnorderedAccessViewUint( hTexture, 0, clearValueUINT );
 	}
 
+	// Clears a texture to an integer in every channel (a UAV counter or lock), in-band on this context
+	inline void ClearTextureUint( ITexture hTexture, uint nValue )
+	{
+		if ( hTexture == RENDER_TEXTURE_HANDLE_INVALID )
+			return;
+
+		uint32 clearValueUINT[ 4 ] = { nValue, nValue, nValue, nValue };
+		self->ClearUnorderedAccessViewUint( hTexture, 0, clearValueUINT );
+	}
+
 	inline void BindRenderTargets( ITexture colorTexture, ITexture depthTexture, ISceneLayer layer )
 	{
 		const RenderTargetDesc_t &layerDesc = layer->GetRenderTargetDesc();

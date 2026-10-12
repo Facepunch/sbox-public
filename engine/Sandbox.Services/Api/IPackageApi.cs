@@ -1,4 +1,4 @@
-﻿using Refit;
+using Refit;
 using System.Text.Json.Serialization;
 
 namespace Sandbox.Services;
@@ -240,4 +240,45 @@ public record struct ManifestFileEntry(
 	[property: JsonPropertyName( "url" )] string Url,
 	[property: JsonPropertyName( "crc" )] string Crc,
 	[property: JsonPropertyName( "path" )] string Path,
-	[property: JsonPropertyName( "size" )] long Size );
+	[property: JsonPropertyName( "size" )] long Size )
+{
+	[JsonPropertyName( "texture" ), JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )]
+	public TextureWebStreamingInfo Texture { get; init; }
+}
+
+/// <summary>
+/// Cumulative partial download prefixes for a compiled texture. Clients choose the initial mip;
+/// full-resolution downloads use the ordinary file size and checksum instead.
+/// </summary>
+public sealed class TextureWebStreamingInfo
+{
+	public const int CurrentVersion = 2;
+
+	// Leave the default at zero so metadata without a version is reprocessed.
+	[JsonPropertyName( "version" )]
+	public int Version { get; set; }
+
+	[JsonPropertyName( "width" )]
+	public int Width { get; set; }
+
+	[JsonPropertyName( "height" )]
+	public int Height { get; set; }
+
+	[JsonPropertyName( "mips" )]
+	public Mip[] Mips { get; set; } = [];
+
+	public sealed class Mip
+	{
+		/// <summary>One is half resolution. Entries are ordered by level; full resolution (zero) is omitted.</summary>
+		[JsonPropertyName( "level" )]
+		public int Level { get; set; }
+
+		/// <summary>Bytes from the start of the file, including the header and all smaller mips.</summary>
+		[JsonPropertyName( "prefixSize" )]
+		public int PrefixSize { get; set; }
+
+		/// <summary>SHA-256 of that entire prefix.</summary>
+		[JsonPropertyName( "prefixHash" )]
+		public string PrefixHash { get; set; }
+	}
+}

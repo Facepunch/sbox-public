@@ -271,7 +271,7 @@
 
 	protected override int BuildHash() => System.HashCode.Combine( Server.Name, Server.Map, Server.Members, Server.MaxMembers, Server.Ping, MapPackage?.Thumb, MapPackage?.Title, HashCode.Combine( FriendsIn.Count, GamePackage?.Revision?.VersionId, Server.OwnerId ) );
 
-	string PingTooltip => Server.Ping < 0 ? "Latency unavailable" : Server.IsPingEstimated ? $"About {Server.Ping} ms - estimated from Steam's relays" : $"{Server.Ping} ms latency";
+	string PingTooltip => Server.Ping < 0 ? "#menu.common.latency_unavailable" : Server.IsPingEstimated ? $"About {Server.Ping} ms - estimated from Steam's relays" : $"{Server.Ping} ms latency";
 
 	string RowClass => Server.IsFull ? "full" : Server.Members == 0 ? "empty" : "";
 

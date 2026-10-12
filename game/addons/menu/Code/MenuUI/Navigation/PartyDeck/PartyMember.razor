@@ -45,7 +45,7 @@
 	/// </summary>
 	public bool Ready { get; set; }
 
-	string Name => Friend.IsMe ? "You" : Friend.Name;
+	string Name => Friend.IsMe ? Language.GetPhrase( "menu.friends.you" ) : Friend.Name;
 
 	string Badge => Ready ? "check" : Status.Stage switch
 	{
@@ -157,4 +157,12 @@
 		soundStream.WriteVoiceData(data);
 	}
 
+	/// <summary>
+	/// Rebuild composed text when translations change.
+	/// </summary>
+	public override void LanguageChanged()
+	{
+		base.LanguageChanged();
+		StateHasChanged();
+	}
 }

@@ -263,6 +263,30 @@ public class PlayerControllerTest
 		Assert.IsTrue( pc.Velocity.Length < 10f, $"the brakes should have stopped it: {pc.Velocity}" );
 	}
 
+	[TestMethod]
+	[DataRow( 20f )]
+	[DataRow( -20f )]
+	public void SlopeFixStopsAfterWalkingAndHoldsPosition( float pitch )
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var floor = CreateFloor( scene );
+		floor.WorldRotation = Rotation.FromPitch( pitch );
+		var pc = CreatePlayer( scene, new Vector3( 0, 0, 40 ) );
+		TickUntilGrounded( scene, pc );
+		Assert.IsTrue( pc.IsOnGround );
+		pc.WishVelocity = new Vector3( 100, 0, 0 );
+		for ( int i = 0; i < 20; i++ ) scene.GameTick();
+		pc.WishVelocity = Vector3.Zero;
+		for ( int i = 0; i < 20; i++ ) scene.GameTick();
+		var stopped = pc.WorldPosition;
+		for ( int i = 0; i < 100; i++ ) scene.GameTick();
+
+		Assert.IsTrue( pc.IsOnGround );
+		Assert.IsTrue( (pc.WorldPosition - stopped).Length < 1, $"should not drift after stopping on a slope: {pc.WorldPosition - stopped}" );
+		Assert.IsTrue( pc.Body.Velocity.Length < 1, $"should remain stopped: {pc.Body.Velocity}" );
+	}
+
 	/// <summary>
 	/// Jump adds an upwards velocity to the body and ungrounds immediately via
 	/// PreventGrounding - the controller rises, falls back and lands again.

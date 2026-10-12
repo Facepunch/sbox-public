@@ -47,7 +47,7 @@
         <div class="right">
             @if ( Modal.PartySetup )
             {
-                <Button Text="Cancel" onclick=@Modal.CancelSetup />
+                <Button Text="#menu.common.cancel" onclick=@Modal.CancelSetup />
                 @if ( !Modal.SetupReadOnly )
                 {
                     <Button Icon="@(Modal.EditingPartyDraft ? "arrow_forward" : "save")" class="play" Text=@Modal.SaveSetupText Disabled=@(!Modal.CanApplySetup) onclick=@Modal.SavePartySetup />
@@ -55,7 +55,7 @@
             }
             else if ( Modal.CanCreateParty )
             {
-                <Button Icon="group_add" Text="Create party…" Disabled=@(!Modal.CanApplySetup) onclick=@Modal.CreatePartyFromSetup />
+                <Button Icon="group_add" Text="#menu.games.create_party" Disabled=@(!Modal.CanApplySetup) onclick=@Modal.CreatePartyFromSetup />
             }
             @if ( !Modal.PartySetup )
             {
@@ -66,7 +66,7 @@
     else if ( Modal?.IsSettingUp == true )
     {
         <div class="left"></div>
-        <div class="right"><Button Text="Cancel" onclick=@Modal.CancelSetup /></div>
+        <div class="right"><Button Text="#menu.common.cancel" onclick=@Modal.CancelSetup /></div>
     }
     else
     {
@@ -97,7 +97,7 @@
             {
                 @if (MapPackage is null)
                 {
-                    <Button icon="map" onclick=@SelectMap>Select Map</Button>
+                    <Button icon="map" onclick=@SelectMap>#menu.games.select_map</Button>
                 }
                 else
                 {
@@ -107,20 +107,20 @@
 
             @if ( Package.Info.IsStreamerGame )
             {
-                var text = Streamer.IsActive ? $"{Streamer.ViewerCount} Viewers" : "Stream Setup";
+                var text = Streamer.IsActive ? $"{Streamer.ViewerCount} Viewers" : "#menu.games.stream_setup";
 
                 <Button Active=@Streamer.IsActive Text="@text" Icon="settings_input_antenna" class="streaming" @onclick="@(() => Game.Overlay.ShowServiceConnector())"></Button>
             }
 
             @if (IsVrOnly && !Application.IsVR)
             {
-                <Button icon="panorama_photosphere" class="play disabled">VR Only</Button>
+                <Button icon="panorama_photosphere" class="play disabled">#menu.games.vr_only</Button>
             }
             else
             {
 	            @if ( IsDedicatedServerOnly )
 	            {
-					<Button icon="auto_awesome" class="play" Disabled=@(!MenuHelpers.HasAuthority) onclick=@OpenLobbyList>View Servers</Button>
+					<Button icon="auto_awesome" class="play" Disabled=@(!MenuHelpers.HasAuthority) onclick=@OpenLobbyList>#menu.games.view_servers_label</Button>
 	            }
 	            else
 	            {
@@ -128,21 +128,21 @@
 		            {
                         @* New and Join as one split pill, like the vote pair - two ways into the same game *@
                         <div class="play-split">
-                            <Button Icon="play_arrow" class="play" Text="New Game" Disabled=@(!MenuHelpers.HasAuthority || !IsReady()) onclick=@OnPlay />
+                            <Button Icon="play_arrow" class="play" Text="#menu.games.new_game" Disabled=@(!MenuHelpers.HasAuthority || !IsReady()) onclick=@OnPlay />
                             <div class="split"></div>
-                            <Button icon="auto_awesome" class="join" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OnJoinGame Text="Join Game"></Button>
+                            <Button icon="auto_awesome" class="join" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OnJoinGame Text="#menu.games.join_game"></Button>
                         </div>
 		            }
 		            else
 		            {
-                        <Button Icon="play_arrow" class="play" Text="Play Game" Disabled=@(!MenuHelpers.HasAuthority || !IsReady()) onclick=@OnPlay />
+                        <Button Icon="play_arrow" class="play" Text="#menu.games.play_game" Disabled=@(!MenuHelpers.HasAuthority || !IsReady()) onclick=@OnPlay />
 		            }
 	            }
             }
         }
         else
         {
-            <Button Icon="play_arrow" class="play disabled">Play Game</Button>
+            <Button Icon="play_arrow" class="play disabled">#menu.games.play_game</Button>
         }
     </div>
     }
@@ -216,14 +216,14 @@
         Discovery.Launching( Package, "gamepage-join" );
 
         // Out of the way first - joining can hold things up, and the modal would freeze mid-close
-        await MenuHelpers.PrepareForLoad( "Finding Game..", "Please wait while we find a game for you to join." );
+        await MenuHelpers.PrepareForLoad( "#menu.games.finding_game", "#menu.games.please_wait_while_we_find_a_game_for_you_to_join" );
 
         bool success = await MenuUtility.TryJoinLobby(Package.FullIdent);
         if (success)
             return true;
             
         LoadingScreen.IsVisible = false;
-        ModalSystem.Instance.Notice( "Join Game Failed", "Couldn't join any available games", "search_off" );
+        ModalSystem.Instance.Notice( "#menu.games.join_game_failed", "#menu.games.couldn_t_join_any_available_games", "search_off" );
         return false;
     }
 
@@ -262,5 +262,14 @@
             MapPackage = pkg;
             StateHasChanged();
         });
+    }
+
+    /// <summary>
+    /// Refresh the localized privacy summary when translations change.
+    /// </summary>
+    public override void LanguageChanged()
+    {
+        base.LanguageChanged();
+        StateHasChanged();
     }
 }

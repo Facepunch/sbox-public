@@ -5,8 +5,8 @@
 
 <root>
 	<div class="chat-composer">
-		<TextEntry @ref="input" Value:bind=@Chat.Draft MaxLength=@(400) Placeholder="Say hello…" onsubmit=@Submit />
-		<Button Icon="send" disabled=@(!Chat.CanSend) onclick=@Submit tooltip="Send message" />
+		<TextEntry @ref="input" Value:bind=@Chat.Draft MaxLength=@(400) Placeholder="#menu.multiplayer.say_hello" onsubmit=@Submit />
+		<Button Icon="send" disabled=@(!Chat.CanSend) onclick=@Submit tooltip="#menu.multiplayer.send_message" />
 	</div>
 	<div class="chat-actions">
 		@if ( PartyRoom.Current is not null )
@@ -14,7 +14,7 @@
 			<label>@PartyRoom.Current.MemberCount in your party</label>
 			@if ( PartyRoom.Current.Owner.IsMe )
 			{
-				<Button Icon="campaign" disabled=@(!Chat.CanInviteParty) onclick=@Chat.InviteParty tooltip="Post an invitation so anyone in global chat can join">Post party invite</Button>
+				<Button Icon="campaign" disabled=@(!Chat.CanInviteParty) onclick=@Chat.InviteParty tooltip="#menu.multiplayer.post_an_invitation_so_anyone_in_global_chat_can_join">#menu.multiplayer.post_party_invite</Button>
 			}
 		}
 	</div>

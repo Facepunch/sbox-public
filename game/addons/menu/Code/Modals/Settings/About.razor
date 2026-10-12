@@ -8,7 +8,7 @@
 <root class="page-inner">
 
 	<div class="page-content">
-		<h2>Third-Party Components</h2>
+		<h2>#menu.settings.third_party_components</h2>
 		<div class="statement">@IndexData?.Statement</div>
 
 		@if (Components != null)
@@ -24,15 +24,15 @@
 						</div>
 					}
 					<div class="info-row">
-                        <span class="info-label">Copyright ©</span>
+                        <span class="info-label">#menu.settings.copyright</span>
 						<span class="content">@string.Join("; ", component.Copyright ?? new List<string>())</span>
 					</div>
 					<div class="info-row">
-						<span class="info-label">License</span>
+						<span class="info-label">#menu.settings.license</span>
 						<span class="content">@component.License</span>
 					</div>
 					<div class="info-row">
-                        <span class="info-label">Homepage</span>
+                        <span class="info-label">#menu.settings.homepage</span>
                         <span class="content">@component.ProjectUrl</span>
 					</div>
 
@@ -59,13 +59,13 @@
 		{
 			@* MenuDll mounts /thirdpartylegalnotices/ only when the menu boots as the menu. *@
 			<div class="empty">
-				<div>Couldn't read the third-party component list.</div>
-				<div class="hint">@(Exists ? "dependency_index.json is mounted but couldn't be parsed." : "dependency_index.json isn't mounted - this list only works in the real menu, not in the editor.")</div>
+				<div>#menu.settings.couldn_t_read_the_third_party_component_list</div>
+				<div class="hint">@(Exists ? "#menu.settings.dependency_index_json_is_mounted_but_couldn_t_be" : "#menu.settings.dependency_index_json_isn_t_mounted_this_list_only")</div>
 			</div>
 		}
 		else
 		{
-			<div>Loading third-party component data...</div>
+			<div>#menu.settings.loading_third_party_component_data</div>
 		}
 	</div>
 </root>
@@ -159,7 +159,7 @@
     private List<string> SplitIntoChunks(string text, int linesPerChunk)
     {
         if (string.IsNullOrEmpty(text))
-            return new List<string> { "No license text available." };
+            return new List<string> { "#menu.settings.no_license_text_available" };
             
         // Split the text into lines
         var lines = text.Split('\n');

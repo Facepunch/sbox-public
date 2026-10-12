@@ -3,6 +3,7 @@ using Sandbox.SceneRenderer.Features;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Skybox3D = Sandbox.SceneRenderer.Skybox3D;
 using static SceneRendererTests.TestScenes;
 
 namespace SceneRendererTests;

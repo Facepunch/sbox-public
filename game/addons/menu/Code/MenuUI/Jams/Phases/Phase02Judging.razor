@@ -15,5 +15,5 @@
 
 	System.DateTimeOffset? CountdownTarget => NominationsOpen ? Jam.NominationsEnd : Jam.NextStep?.At;
 
-	string CountdownLabel => NominationsOpen ? "Nominations lock in" : $"{Jam.NextStep?.Name} in";
+	string CountdownLabel => NominationsOpen ? "#menu.jam.nominations_lock_in" : $"{Jam.NextStep?.Name} in";
 }

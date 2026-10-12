@@ -240,6 +240,7 @@ class ProjectCreatorPanel : Panel
 
 		var configPath = Path.Combine( projectPath, $"{config.Ident}.sbproj" );
 		File.WriteAllText( configPath, config.ToJson() );
+		Editor.ProjectAgentInstructions.Update( configPath, EngineFileSystem.Root.GetFullPath( "/" ), config.AI );
 
 		if ( _createGitIgnore.Checked && !File.Exists( Path.Combine( projectPath, ".gitignore" ) ) )
 		{

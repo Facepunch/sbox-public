@@ -19,6 +19,7 @@ public partial class StandaloneExporter
 	public Action<ExportProgress> OnProgressChanged { get; set; }
 
 	private List<QueuedFile> _files = new();
+	private readonly List<string> _temporarySources = new();
 	private ExportConfig _exportConfig;
 
 	StandaloneExporter( ExportConfig config )
@@ -126,11 +127,24 @@ public partial class StandaloneExporter
 	private async Task CopyAllFiles()
 	{
 		var orderedFiles = _files.OrderBy( x => x.Step );
-		foreach ( var f in orderedFiles )
+		try
 		{
-			await CopyFileAsync( f );
+			foreach ( var f in orderedFiles )
+			{
+				await CopyFileAsync( f );
+			}
+		}
+		finally
+		{
+			foreach ( var source in _temporarySources )
+			{
+				try { File.Delete( source ); }
+				catch ( Exception exception ) { Logger.Warning( exception, $"Couldn't remove temporary export file {source}" ); }
+			}
+			_temporarySources.Clear();
 		}
 	}
+
 
 	private StandaloneManifest CreateStandaloneManifest( string baseDir )
 	{
@@ -243,7 +257,37 @@ public partial class StandaloneExporter
 		{
 			var path = _exportConfig.StartupImage;
 			var startupImagePath = Path.Combine( _exportConfig.Project.GetAssetsPath(), path + "_c" );
-			QueueCopy( $"{startupImagePath}", $"{baseDir}/core/materials/startup_background.vtex_c", BuildStep.CopyMisc );
+			QueueCopy( startupImagePath, $"{baseDir}/core/materials/startup_background.vtex_c", BuildStep.CopyMisc );
+			QueueStartupImagePng( path, $"{baseDir}/core/materials/startup_background_color.png" );
+		}
+	}
+
+	private void QueueStartupImagePng( string resourcePath, string destination )
+	{
+		var texture = Texture.Load( resourcePath, false );
+		if ( texture is null || !texture.IsValid || texture.IsError )
+			throw new InvalidOperationException( $"Couldn't load selected startup image '{resourcePath}'" );
+
+		using var bitmap = texture.GetBitmap();
+		if ( bitmap is null || !bitmap.IsValid )
+			throw new InvalidOperationException( $"Couldn't read selected startup image '{resourcePath}'" );
+
+		var desc = g_pRenderDevice.GetTextureDesc( texture.native );
+		var width = desc.m_nDisplayRectWidth > 0 ? Math.Min( desc.m_nDisplayRectWidth, bitmap.Width ) : bitmap.Width;
+		var height = desc.m_nDisplayRectHeight > 0 ? Math.Min( desc.m_nDisplayRectHeight, bitmap.Height ) : bitmap.Height;
+		using var image = bitmap.Crop( new Rect( 0, 0, width, height ) );
+
+		var source = Path.Combine( Path.GetTempPath(), $"sbox-startup-{Guid.NewGuid():N}.png" );
+		try
+		{
+			File.WriteAllBytes( source, image.ToPng() );
+			_temporarySources.Add( source );
+			QueueCopy( source, destination, BuildStep.CopyMisc );
+		}
+		catch
+		{
+			File.Delete( source );
+			throw;
 		}
 	}
 

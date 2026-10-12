@@ -29,9 +29,9 @@
     <div class="nav">
 
         <Button Href="/home" Icon="home">#menu.home</Button>
-        <Button Href="/games/all?Sort=trending&Filter=" Icon="sports_esports">Games</Button>
-        <Button Href="/multiplayer" Icon="forum">Multiplayer</Button>
-        <Button Href="/mounts" Icon="extension">Mounts</Button>
+        <Button Href="/games/all?Sort=trending&Filter=" Icon="sports_esports">#menu.games</Button>
+        <Button Href="/multiplayer" Icon="forum">#menu.home.multiplayer</Button>
+        <Button Href="/mounts" Icon="extension">#menu.home.mounts</Button>
         @* Not for an account under a week old - nothing's for sale to it yet *@
         @if ( MenuHelpers.ShowMicrotransactions )
         {
@@ -40,7 +40,7 @@
 
         @if ( jam is not null )
         {
-            <RailButton Href="/jam" Icon="emoji_events" Text="Jam" Glow="@JamLive" Sub="@JamCountdown" />
+            <RailButton Href="/jam" Icon="emoji_events" Text="#menu.home.jam" Glow="@JamLive" Sub="@JamCountdown" />
         }
     </div>
 
@@ -51,19 +51,19 @@
         @* Nothing waiting means nothing to go and look at, so the entry isn't there at all. *@
         @if ( ShowInbox )
         {
-            <RailButton Href="@InboxUrl" Icon="notifications" Text="Inbox" Badge="@NotificationBadge" />
+            <RailButton Href="@InboxUrl" Icon="notifications" Text="#menu.home.inbox" Badge="@NotificationBadge" />
         }
 
         @* Not a page - it pops up beside the entry, like the friends list does off the party deck.
            Not mid-game either: opening a drop loads the unboxing scene, which would pull you out of it. *@
         @if ( !Game.InGame )
         {
-            <RailButton @ref="RewardsButton" OnPress="@OpenRewards" Active="@RewardsOpen" Icon="redeem" Text="Rewards" Badge="@RewardBadge" BadgeClass="reward" Progress="@RewardProgress" />
+            <RailButton @ref="RewardsButton" OnPress="@OpenRewards" Active="@RewardsOpen" Icon="redeem" Text="#menu.home.rewards" Badge="@RewardBadge" BadgeClass="reward" Progress="@RewardProgress" />
         }
 
-        <Button Href="/settings" Icon="settings">Settings</Button>
+        <Button Href="/settings" Icon="settings">#menu.settings</Button>
         @* Out of s&box - mid-game too. Leaving just the game you're in is on its page, in the pause menu *@
-        <Button @onmouseup=@Quit class="quit" Icon="power_settings_new">Quit</Button>
+        <Button @onmouseup=@Quit class="quit" Icon="power_settings_new">#menu.quit</Button>
     </div>
 
 </root>
@@ -224,9 +224,9 @@
         ModalSystem.Instance?.Open( new MenuProject.Modals.QuestionModal
         {
             Color = Color.Parse( "#ff5d6a" ) ?? Color.Red,
-            Title = "Quit to Desktop?",
-            Message = "Are you sure you want to close s&box?",
-            ConfirmText = "Quit to Desktop",
+            Title = "#menu.home.quit_to_desktop",
+            Message = "#menu.home.are_you_sure_you_want_to_close_s_box",
+            ConfirmText = "#menu.home.quit_to_desktop_sentence",
             ConfirmIcon = "power_settings_new",
             OnConfirm = () => ConsoleSystem.Run( "quit" )
         } );

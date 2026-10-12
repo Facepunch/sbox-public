@@ -28,14 +28,14 @@
     @if ( Setup.NeedsMap || Setup.ItemsIn( null ).Any() )
     {
         <div class="section">
-            <div class="section-label"><icon>sports_esports</icon><label>Game</label></div>
+            <div class="section-label"><icon>sports_esports</icon><label>#menu.games.game</label></div>
 
             @* Drawn here rather than a SettingsRow - a picture of it, which picks another *@
             @if ( Setup.NeedsMap )
             {
                 <div class="row map-row">
                     <div class="line">
-                        <label class="name">Map</label>
+                        <label class="name">#menu.games.map</label>
                         <div class="control">
                             @if ( ReadOnly )
                             {
@@ -60,7 +60,7 @@
     @if ( Setup.IsMultiplayer )
     {
         <div class="section">
-            <div class="section-label"><icon>dns</icon><label>Server</label></div>
+            <div class="section-label"><icon>dns</icon><label>#menu.games.server</label></div>
 
             <SettingsRow Item=@Setup.ServerNameItem ReadOnly=@ReadOnly />
             <SettingsRow Item=@Setup.PrivacyItem ReadOnly=@ReadOnly />

@@ -291,8 +291,9 @@ public sealed partial class CommandList
 					return;
 				}
 
+				// GetTemporary caps the mips a small target asks for, so a mip past the last one binds the last one
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.Set( entry.Token, target.ColorTarget, (int)entry.Data1.x );
+				attrAccess.attributes.Set( entry.Token, target.ColorTarget, Math.Min( (int)entry.Data1.x, target.ColorTarget.Mips - 1 ) );
 			}
 
 			list.AddEntry( &Execute, new Entry { Token = token, Object5 = buffer.Name, Object4 = this, Data1 = new Vector4( mip, 0, 0, 0 ) } );

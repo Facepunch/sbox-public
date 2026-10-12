@@ -34,6 +34,20 @@ native class ISceneLayer as NativeEngine.ISceneLayer
     void SetLayerNoCull( bool enabled );
 
     void SetBoundingVolumeSizeCullThresholdInPercent( float flSizeCullThreshold );
+
+    void DisableReflectionsAndRefractionsForObjectsInThisLayer( bool bOnOff );
+    void SetFadeTargetLayer( ISceneLayer pLayer );
+    void SetTonemapOverrideScaleValue( float flScale );
+
+    inline void SetShaderMode( StringToken nShaderMode )
+    {
+        self->m_shaderMode = nShaderMode;
+    }
+
+    inline void SetWireframeOverride()
+    {
+        this->SetWireframeOverride();
+    }
     
     void SetClearColor( Vector4 vecColor, int nRenderTargetIndex );
     ITexture GetTextureValue( StringToken nTokenID, ITexture nDefaultValue );
@@ -52,6 +66,11 @@ native class ISceneLayer as NativeEngine.ISceneLayer
     inline void SetOutput( HSceneViewRenderTarget hColor, HSceneViewRenderTarget hDepth )
     {
         this->m_RenderTargetOutputs.Init( hColor, hDepth );
+    }
+
+    inline void SetOutput( HSceneViewRenderTarget hColor, HSceneViewRenderTarget hDepth, RenderColorSpace_t colorSpace )
+    {
+        this->m_RenderTargetOutputs.Init( hColor, hDepth, colorSpace );
     }
 
     // Game overlay (viewmodel) stencil helper, see iscenelayer.h

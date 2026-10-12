@@ -14,14 +14,14 @@
 
 		<div class="header">
 			<i>redeem</i>
-			<h2>Item drops</h2>
+			<h2>#menu.rewards.item_drops</h2>
 			<div class="grow" />
 
 			@if ( Window is not null )
 			{
 				<div class="refresh @( IsLoading ? "busy" : "" )" onclick=@Refresh>
 					<icon>refresh</icon>
-					<label>@( IsLoading ? "Loading" : "Refresh" )</label>
+					<label>@( IsLoading ? "#menu.common.loading" : "#menu.common.refresh" )</label>
 				</div>
 			}
 		</div>
@@ -39,8 +39,8 @@
 					{
 						<icon>redeem</icon>
 					}
-					<label class="title">@( IsLoading ? "Checking your progress" : "No drop right now" )</label>
-					<label class="hint">@( IsLoading ? "One moment." : "Nothing is being tracked for you at the moment. Play something and check back." )</label>
+					<label class="title">@( IsLoading ? "#menu.rewards.checking_your_progress" : "#menu.rewards.no_drop_right_now" )</label>
+					<label class="hint">@( IsLoading ? "#menu.rewards.one_moment" : "#menu.rewards.nothing_is_being_tracked_for_you_at_the_moment" )</label>
 				</div>
 			}
 			else
@@ -57,13 +57,13 @@
 					</div>
 
 					<div class="hero-body">
-						<label class="eyebrow">@( CanOpen ? "Your drop is waiting" : "Next drop" )</label>
+						<label class="eyebrow">@( CanOpen ? "#menu.rewards.your_drop_is_waiting" : "#menu.rewards.next_drop" )</label>
 						<label class="hero-title">@Title</label>
 						<label class="hero-hint">@StatusText</label>
 
 						<div class="open @( CanOpen ? "reward" : "locked" )" onclick=@OpenReward>
 							<icon>@( CanOpen ? "inventory_2" : "lock" )</icon>
-							<label>@( CanOpen ? "Open your drop" : "Keep playing" )</label>
+							<label>@( CanOpen ? "#menu.rewards.open_your_drop" : "#menu.rewards.keep_playing" )</label>
 						</div>
 					</div>
 
@@ -72,7 +72,7 @@
 				@if ( Facets.Length > 0 )
 				{
 					<div class="section-head">
-						<label class="title">Objectives</label>
+						<label class="title">#menu.rewards.objectives</label>
 						<label class="count">@MetCount of @Facets.Length met</label>
 					</div>
 
@@ -105,10 +105,10 @@
 		</div>
 
 		<div class="footer">
-			<label class="note">Play games and every objective ticks itself off. Meet them all and the drop unlocks - no money involved.</label>
+			<label class="note">#menu.rewards.play_games_and_every_objective_ticks_itself_off_meet</label>
 			@if ( MenuHelpers.ShowMicrotransactions )
 			{
-				<label class="docs-link" onclick=@OpenStore>Browse the item store</label>
+				<label class="docs-link" onclick=@OpenStore>#menu.rewards.browse_the_item_store</label>
 			}
 		</div>
 
@@ -143,7 +143,7 @@
 
 	int MetCount => Window?.MetCount ?? 0;
 
-	string Title => string.IsNullOrWhiteSpace( Window?.Title ) ? "Item drop" : Window.Title;
+	string Title => string.IsNullOrWhiteSpace( Window?.Title ) ? "#menu.rewards.item_drop" : Window.Title;
 
 	/// <summary>Every objective averaged - one arc stands in for all of them.</summary>
 	float Fraction => Window is null ? 0f : (CanOpen ? 1f : Window.Progress);
@@ -154,9 +154,9 @@
 	{
 		get
 		{
-			if ( State?.Pending is not null ) return "You started opening this one - go back and pick your item.";
-			if ( CanOpen ) return "Everything's met. Open it and choose what you keep.";
-			if ( Facets.Length == 0 ) return "Nothing to do here yet.";
+			if ( State?.Pending is not null ) return "#menu.rewards.you_started_opening_this_one_go_back_and_pick_your_item";
+			if ( CanOpen ) return "#menu.rewards.everything_s_met_open_it_and_choose_what_you_keep";
+			if ( Facets.Length == 0 ) return "#menu.rewards.nothing_to_do_here_yet";
 
 			return $"{Facets.Length - MetCount} left to go.";
 		}
@@ -173,7 +173,7 @@
 
 	static string CountText( RewardFacet facet )
 	{
-		return facet.Met ? "Done" : $"{(int)facet.Current}/{(int)facet.Required}";
+		return facet.Met ? "#menu.common.done" : $"{(int)facet.Current}/{(int)facet.Required}";
 	}
 
 	/// <summary>Two hard stops - filled arc up to the percentage, empty track the rest of the way.</summary>

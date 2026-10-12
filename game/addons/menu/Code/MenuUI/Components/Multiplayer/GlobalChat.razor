@@ -5,10 +5,10 @@
 
 <root>
 	<div class="global-conversation">
-		<div class="conversation-heading"><div><label>Who's up for a game?</label><span>@(Chat.Channel is null ? "Connecting to global chat…" : $"{Chat.Channel.MemberCount} here · say hello or share your party")</span></div></div>
+		<div class="conversation-heading"><div><label>#menu.multiplayer.who_s_up_for_a_game</label><span>@(Chat.Channel is null ? "#menu.common.connecting_to_global_chat" : $"{Chat.Channel.MemberCount} here · say hello or share your party")</span></div></div>
 		@if ( Chat.Connecting )
 		{
-			<div class="chat-notice">Joining global chat…</div>
+			<div class="chat-notice">#menu.multiplayer.joining_global_chat</div>
 		}
 		@if ( !string.IsNullOrEmpty( Chat.Error ) )
 		{
@@ -21,7 +21,7 @@
 		<div class="chat-messages" @ref="messageList">
 			@if ( Chat.Messages.Count == 0 )
 			{
-				<div class="chat-empty"><icon>forum</icon><label>Say hello. Find your next group.</label></div>
+				<div class="chat-empty"><icon>forum</icon><label>#menu.multiplayer.say_hello_find_your_next_group</label></div>
 			}
 			@foreach ( var message in Chat.Messages )
 			{

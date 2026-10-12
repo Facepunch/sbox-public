@@ -1,4 +1,4 @@
-﻿@namespace MenuProject.Modals.PackageModalComponents
+@namespace MenuProject.Modals.PackageModalComponents
 @inherits Panel
 @using Sandbox;
 @using Sandbox.UI;
@@ -13,21 +13,21 @@
     <MetricButton Interactive 
         Active="@Package.Interaction.Favourite"
         @onclick="@ToggleFavourite"
-        Tooltip="Favourited" 
+        Tooltip="#menu.games.favourited"
         Icon="favorite" 
         Value="@Package.Favourited.ToMetric()" />
 
     <MetricButton Interactive 
         Active="@( Package.Interaction.Rating == 0 )"
         @onclick="@VoteUp"
-        Tooltip="Thumbs Up"
+        Tooltip="#menu.games.thumbs_up"
         Icon="thumb_up" 
         Value="@Package.VotesUp.ToMetric()" />
 
     <MetricButton Interactive 
         Active="@( Package.Interaction.Rating == 1 )" 
          @onclick="@VoteDown"
-        Tooltip="Thumbs Down" 
+        Tooltip="#menu.games.thumbs_down"
         Icon="thumb_down" 
         Value="@Package.VotesDown.ToMetric()" />
     }
@@ -39,13 +39,13 @@
         Icon="reviews"
         Value="@Package.Reviews.Score.ToString( "0\\%" )" />
 
-    <MetricButton Tooltip="Total Players" Icon="sports_kabaddi" Value="@Package.Usage.Total.Users.ToMetric()" />
-    <MetricButton Tooltip="Total Sessions" Icon="calendar_month" Value="@Package.Usage.Total.Sessions.ToMetric()" />
+    <MetricButton Tooltip="#menu.games.total_players" Icon="sports_kabaddi" Value="@Package.Usage.Total.Users.ToMetric()" />
+    <MetricButton Tooltip="#menu.games.total_sessions" Icon="calendar_month" Value="@Package.Usage.Total.Sessions.ToMetric()" />
 
-    <MetricButton Tooltip="Last Updated" Icon="update" Value="@((DateTime.UtcNow - Package.Updated ).Humanize( 1 ))" />
+    <MetricButton Tooltip="#menu.games.last_updated" Icon="update" Value="@((DateTime.UtcNow - Package.Updated ).Humanize( 1 ))" />
     }
 
-    <MetricButton Interactive style="margin-top: 30px;" Tooltip="Report Abuse" Icon="flag" Value="report" @onclick="@( () => Game.Overlay.ShowReportModal( Package.FullIdent ) )" />
+    <MetricButton Interactive style="margin-top: 30px;" Tooltip="#menu.games.report_abuse" Icon="flag" Value="report" @onclick="@( () => Game.Overlay.ShowReportModal( Package.FullIdent ) )" />
 
 </root>
 

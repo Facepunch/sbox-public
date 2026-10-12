@@ -39,12 +39,18 @@ public partial class Package
 	/// </summary>
 	static ManifestSchema.File[] DownloadableFiles( IRevision rev, bool skipAssets )
 	{
-		var entries = (rev.Manifest?.Files ?? Array.Empty<ManifestSchema.File>()).Where( FilterFileDownloads );
+		return DownloadableFiles( rev.Manifest?.Files ?? Array.Empty<ManifestSchema.File>(), skipAssets ).ToArray();
+	}
+
+	/// <inheritdoc cref="DownloadableFiles(IRevision, bool)"/>
+	static IEnumerable<ManifestSchema.File> DownloadableFiles( ManifestSchema.File[] files, bool skipAssets )
+	{
+		var entries = files.Where( FilterFileDownloads );
 
 		if ( skipAssets )
 			entries = entries.Where( x => x.Path.StartsWith( ".bin" ) );
 
-		return entries.ToArray();
+		return entries;
 	}
 
 	/// <summary>
@@ -57,6 +63,13 @@ public partial class Package
 		if ( Revision is not { } rev )
 			return -1;
 
+		if ( InstallsFromWorkshop )
+		{
+			var state = Workshop.GetState( WorkshopId );
+			if ( state.IsInstalled && !state.NeedsUpdate ) return 0;
+			return state.Total > 0 ? state.Total - state.Downloaded : -1;
+		}
+
 		await rev.DownloadManifestAsync( token );
 		if ( rev.Manifest == null ) return -1;
 
@@ -66,7 +79,7 @@ public partial class Package
 		return await Task.Run( () => entries
 			.AsParallel()
 			.Where( x => AssetDownloadCache.ResolveCached( x.Path, Convert.ToUInt64( x.Crc, 16 ) ) is null )
-			.Sum( x => x.Size ), token );
+			.Sum( x => TextureWebStreaming.DownloadSize( x ) ), token );
 	}
 
 	/// <summary>
@@ -101,6 +114,11 @@ public partial class Package
 
 		var rev = Revision;
 		if ( rev == null ) return false;
+		using var textureDownload = TextureWebStreaming.BeginDownload();
+
+		// The files are in a workshop item, the backend just has a manifest of them
+		if ( InstallsFromWorkshop )
+			return await DownloadFromWorkshop( fs, token, options );
 
 		options.Loading?.LoadingProgress( LoadingProgress.Create( $"Fetching '{Title}' Information" ) );
 
@@ -136,11 +154,32 @@ public partial class Package
 		var tracked = global::Sandbox.LoadingScreen.TrackDownload( FullIdent, Title );
 		if ( tracked is { IsDownloading: true } ) tracked = null;
 
+		var textureCount = entries.Count( x => x.Path.EndsWith( ".vtex_c", StringComparison.OrdinalIgnoreCase ) );
+		var cachedTextures = textureCount - downloadQueue.Count( x => x.File.Path.EndsWith( ".vtex_c", StringComparison.OrdinalIgnoreCase ) );
+		var streamableTextures = downloadQueue.Count( x => TextureWebStreaming.IsSupported( x.File ) );
+		var streamedTextures = 0;
+		var streamingFallbacks = 0;
+		long deferredTextureBytes = 0;
+
+		void LogTextureStreaming()
+		{
+			// Prefetch uses this same path; report once when the package is actually mounted.
+			if ( fs is null || textureCount == 0 ) return;
+			if ( !TextureWebStreaming.Enabled )
+			{
+				Log.Info( $"Texture web streaming '{FullIdent}': disabled; downloading textures in full." );
+				return;
+			}
+			Log.Info( $"Texture web streaming '{FullIdent}': {streamedTextures:N0} streamed, {deferredTextureBytes.FormatBytes()} deferred; {cachedTextures:N0} fully cached, {textureCount - cachedTextures - streamableTextures:N0} without usable metadata, {streamingFallbacks:N0} fallbacks." );
+		}
+
 		// nothing to download
 		if ( downloadQueue.Count <= 0 )
 		{
 			if ( tracked is not null ) tracked.IsComplete = true;
+			if ( fs is not null ) RememberForOffline();
 
+			LogTextureStreaming();
 			options.Loading?.LoadingProgress( new LoadingProgress { Title = $"Download '{Title}' Complete", Fraction = 1 } );
 			Api.Activity.CurrentLoad?.Downloaded( 0, 0, 0 );
 			return true;
@@ -150,7 +189,7 @@ public partial class Package
 
 		var workers = MaxParallelDownloads;
 		var sw = Stopwatch.StartNew();
-		long totalSize = downloadQueue.Sum( x => x.File.Size );
+		long totalSize = downloadQueue.Sum( x => TextureWebStreaming.DownloadSize( x.File ) );
 		long downloadedSize = 0;
 		Log.Trace( $"Downloading {downloadQueue.Count:n0} files ({totalSize.FormatBytes()}).." );
 		SentrySdk.AddBreadcrumb( $"Downloading {downloadQueue.Count:n0} files for {FullIdent}", "package.download" );
@@ -191,7 +230,10 @@ public partial class Package
 		void MountDownloaded()
 		{
 			while ( downloaded.TryDequeue( out var e ) )
-				AssetDownloadCache.TryMount( fs.Redirect, e.File.Path, e.Crc );
+			{
+				AssetDownloadCache.Mount( fs.Redirect, e.File.Path, e.AbsolutePath );
+				TextureWebStreaming.QueuePrefetch( e.AbsolutePath, e.File );
+			}
 		}
 
 		//
@@ -204,7 +246,20 @@ public partial class Package
 			{
 				try
 				{
-					await DownloadFileAsync( e, progressCallback, downloadCancel.Token );
+					var partial = await TextureWebStreaming.TryPrepareAsync( e.File, downloadCancel.Token );
+					if ( partial is not null )
+					{
+						e.AbsolutePath = partial;
+						Interlocked.Increment( ref streamedTextures );
+						Interlocked.Add( ref deferredTextureBytes, e.File.Size - TextureWebStreaming.DownloadSize( e.File ) );
+						progressCallback( new Sandbox.Utility.DataProgress { DeltaBytes = TextureWebStreaming.DownloadSize( e.File ) } );
+					}
+					else
+					{
+						if ( TextureWebStreaming.IsSupported( e.File ) ) Interlocked.Increment( ref streamingFallbacks );
+						Interlocked.Add( ref totalSize, e.File.Size - TextureWebStreaming.DownloadSize( e.File ) );
+						await DownloadFileAsync( e, progressCallback, downloadCancel.Token );
+					}
 					if ( fs is not null ) downloaded.Enqueue( e );
 				}
 				// Only swallow if we're the ones who cancelled, a timeout mustn't pass as success
@@ -219,6 +274,7 @@ public partial class Package
 			}, workers ) );
 
 		long oldSize = 0;
+		long oldTotalSize = totalSize;
 		while ( !task.IsCompleted )
 		{
 			if ( hasError || token.IsCancellationRequested )
@@ -226,15 +282,19 @@ public partial class Package
 
 			if ( fs is not null ) MountDownloaded();
 
-			if ( downloadedSize != oldSize )
+			var currentSize = Interlocked.Read( ref downloadedSize );
+			var currentTotalSize = Interlocked.Read( ref totalSize );
+			if ( currentSize != oldSize || currentTotalSize != oldTotalSize )
 			{
-				var speed = downloadedSize / sw.Elapsed.TotalSeconds;
+				var speed = currentSize / sw.Elapsed.TotalSeconds;
 				var mbps = (speed / 1024.0 / 1024.0) * 8;
 
-				oldSize = downloadedSize;
-				double frac = ((double)downloadedSize / (double)totalSize).Clamp( 0, 1 );
+				oldSize = currentSize;
+				oldTotalSize = currentTotalSize;
+				double frac = currentTotalSize > 0 ? ((double)currentSize / currentTotalSize).Clamp( 0, 1 ) : 1;
 
 				progress.Title = $"Downloading '{Title}'";
+				progress.TotalSize = currentTotalSize;
 				progress.Mbps = mbps;
 				progress.Fraction = frac;
 
@@ -242,6 +302,7 @@ public partial class Package
 
 				if ( tracked is not null )
 				{
+					tracked.TotalSize = currentTotalSize;
 					tracked.Downloaded = downloadedSize;
 					tracked.Mbps = mbps;
 				}
@@ -267,19 +328,23 @@ public partial class Package
 
 		if ( tracked is not null )
 		{
+			tracked.TotalSize = totalSize;
 			tracked.Downloaded = totalSize;
 			tracked.IsComplete = true;
 		}
 
 		if ( fs is not null ) MountDownloaded();
+		if ( fs is not null ) RememberForOffline();
 
 		progress.Title = $"Download '{Title}' Complete";
+		progress.TotalSize = totalSize;
 		progress.Fraction = 1;
 		options.Loading?.LoadingProgress( progress );
 		// Clear subtitle so download stats don't bleed into the next phase (e.g. Compiling).
 		if ( fs is not null ) global::Sandbox.LoadingScreen.Subtitle = "";
 
 		Log.Trace( $"..done in {sw.Elapsed.TotalSeconds:0.00}s" );
+		LogTextureStreaming();
 
 		metric.SetValue( "time", sw.Elapsed.TotalSeconds );
 		metric.SetValue( "workers", workers );
@@ -365,7 +430,11 @@ public partial class Package
 		try
 		{
 			if ( System.IO.File.Exists( entry.AbsolutePath ) )
+			{
+				// Another download (usually prefetch) completed it while we waited for the lock.
+				progress?.Invoke( new Sandbox.Utility.DataProgress { DeltaBytes = entry.File.Size } );
 				return;
+			}
 
 			if ( entry.File.Size == 0 )
 			{

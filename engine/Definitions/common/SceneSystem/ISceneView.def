@@ -11,6 +11,12 @@ native class ISceneView as NativeEngine.ISceneView
 	CRenderAttributes GetRenderAttributesPtr();
 	ISceneLayer AddRenderLayer( string pszDebugName, RenderViewport viewport, StringToken eShaderMode, ISceneLayer pAddBefore );
 	ISceneLayer AddManagedProceduralLayer( string pszDebugName, RenderViewport viewport, SboxProceduralLayerCallback renderCallback, ISceneLayer pAddBefore, bool bDeleteWhenDone );
+	ISceneLayer AddLabelLayer( string pLabelName );
+
+	inline ISceneLayer AddBlitTextureToTargetLayer( string pDebugName, HSceneViewRenderTarget hSource, RenderViewport sourceViewport, RenderViewport destViewport, HSceneViewRenderTarget hDest, RenderColorSpace_t colorSpace )
+	{
+		return this->AddBlitTextureToTargetLayer( pDebugName, hSource, sourceViewport, destViewport, SceneLayerOutputs_t( hDest, SCENE_VIEW_RENDER_TARGET_INVALID, colorSpace ) );
+	}
 
 	void SetDefaultLayerObjectRequiredFlags( ESceneObjectFlags nFlags );
 	void SetDefaultLayerObjectExcludedFlags( ESceneObjectFlags nFlags );

@@ -113,7 +113,7 @@ PS
 
     RenderState( DepthWriteEnable, true );
     RenderState( DepthEnable, true );
-	RenderState( ColorWriteEnable0, RGB );
+	RenderState( ColorWriteEnable0, RGBA );
 	
 	RenderState( StencilEnable, true );
 	RenderState( StencilRef, 1 );
@@ -173,7 +173,12 @@ PS
 		#endif
 
 		// We do custom blending here to avoid overdraw
-		vColor.rgb = lerp( _ColorTexture.Sample( g_sPointWrap, screenUv ).rgb, vColor.rgb, saturate( vColor.a ) );
+		float4 vScene = _ColorTexture.Sample( g_sPointWrap, screenUv );
+		float flBlend = saturate( vColor.a );
+		vColor.rgb = lerp( vScene.rgb, vColor.rgb, flBlend );
+
+		// Composite alpha over the scene so outlines stay visible on cameras with a transparent background
+		vColor.a = lerp( vScene.a, 1.0f, flBlend );
 
 		return vColor;
 	}

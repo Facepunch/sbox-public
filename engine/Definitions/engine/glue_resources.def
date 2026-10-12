@@ -5,6 +5,11 @@ native static class Glue.Resources as NativeGlue.Resources
 {
 	IMaterial GetMaterial( string name, Guid guid );
 	ITexture GetTexture( string name, Guid guid );
+	bool IsTextureWebStreamingActive();
+	bool HasTextureWebStreamingRequests();
+	bool PrefetchTextureWebStreaming( string path, string url, int size, int generation );
+	int CancelTextureWebStreamingPrefetch();
+	void SetTextureWebStreamingState( bool paused, int bytesPerSecond );
 	IModel GetModel( string name, Guid guid );
 
 	inline string GetModelResourceName( IModel model )

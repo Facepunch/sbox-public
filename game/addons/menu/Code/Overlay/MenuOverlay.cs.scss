@@ -8,6 +8,48 @@ MenuOverlay
 {
 	pointer-events: none;
 	z-index: 900;
+
+	.texture-web-streaming
+	{
+		position: absolute;
+		top: 0px;
+		right: 0px;
+		padding: 12px 16px 28px 48px;
+		gap: 8px;
+		background-image: radial-gradient(ellipse at 55% 0%, rgba(20, 20, 20, 0.42) 0%, rgba(20, 20, 20, 0.28) 45%, rgba(20, 20, 20, 0) 70%);
+		color: rgba(255, 255, 255, 0.9);
+		text-shadow: 0px 1px 3px rgba(0, 0, 0, 0.7);
+		font-family: Poppins;
+		font-size: 16px;
+		font-weight: 500;
+		align-items: center;
+		justify-content: center;
+		opacity: 0;
+		transition: opacity 0.2s ease;
+		pointer-events: none;
+
+		&.active
+		{
+			opacity: 1;
+			.spinner { animation: texture-web-streaming-spin 1s linear infinite; }
+		}
+
+		.spinner
+		{
+			width: 14px;
+			height: 14px;
+			flex-shrink: 0;
+			border-radius: 50%;
+			border: 2px solid rgba(230, 230, 230, 0.45);
+			border-top-color: #7bc4ff;
+		}
+	}
+}
+
+@keyframes texture-web-streaming-spin
+{
+	0% { transform: rotateZ(0deg); }
+	100% { transform: rotateZ(360deg); }
 }
 
 .popup_canvas_top

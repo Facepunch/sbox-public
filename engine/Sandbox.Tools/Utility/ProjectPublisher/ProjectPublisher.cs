@@ -52,6 +52,11 @@ public partial class ProjectPublisher
 			await p.AddFile( thumb.GetPng(), $"/{p.TargetPackageIdent}/thumb.png" );
 		}
 
+		if ( IsWorkshopAsset( asset ) )
+		{
+			p.WorkshopAsset = asset;
+		}
+
 		return p;
 	}
 
@@ -193,7 +198,19 @@ public partial class ProjectPublisher
 
 		await TryWorkshopUpload();
 
-		await PostManifest( Manifest, cancel );
+		if ( HasWorkshopUpload )
+		{
+			await PublishToWorkshop( cancel );
+
+			// Only once the workshop has the files - if Steam turned us down, the backend never hears about it
+			await UploadFiles();
+
+			if ( Manifest.Assets.Any( x => !x.Skip ) )
+				throw new System.Exception( $"Couldn't upload the thumb to {Global.BackendTitle}, the console has more about why." );
+		}
+
+		if ( !await PostManifest( Manifest, cancel ) )
+			throw new System.Exception( "The backend didn't accept the new revision, the console has more about why." );
 	}
 
 	/// <summary>
@@ -221,6 +238,12 @@ public partial class ProjectPublisher
 				file.Name = file.Name.ToLowerInvariant();
 			}
 		}
+
+		// Before the backend gets anything, so a problem with the workshop item shows up first
+		await CheckWorkshopItem();
+
+		// After lowercasing, the workshop item's files are laid out by these names
+		MoveFilesToWorkshop();
 
 		var publish = new PublishManifest
 		{
@@ -490,11 +513,15 @@ public partial class ProjectPublisher
 
 	void TriggerProgessChanged()
 	{
+		// Nobody's listening - workshop publishes upload their manifest without a page showing it
+		if ( OnProgressChanged is not { } changed )
+			return;
+
 		if ( timeSinceTrigger <= (1.0f / 30.0f) )
 			return;
 
 		timeSinceTrigger = 0;
-		MainThread.Queue( OnProgressChanged );
+		MainThread.Queue( changed );
 	}
 
 	/// <summary>
@@ -538,7 +565,7 @@ public partial class ProjectPublisher
 		await WorkshopUtils.UploadAsset( asset );
 
 		// look up the workshop id
-		if ( asset.MetaData.Get<ulong>( "WorkshopId" ) is var id )
+		if ( asset.MetaData.Get( "WorkshopId", 0UL ) is var id && id != 0 )
 		{
 			// Publish this info with the asset
 			SetMeta( "WorkshopId", id );

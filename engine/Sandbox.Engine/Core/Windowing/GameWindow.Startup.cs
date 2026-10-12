@@ -6,23 +6,24 @@ namespace Sandbox.Engine;
 internal sealed partial class GameWindow
 {
 	float startupProgress = -1;
+	string startupStatus = string.Empty;
 	bool startupFinished;
-
-	/// <summary>
-	/// Redraw the startup screen at loading milestones, until normal rendering takes over.
-	/// </summary>
-	internal void UpdateStartupProgress( float progress )
+	internal void UpdateStartupProgress( float progress, string status )
 	{
 		ThreadSafe.AssertIsMainThread();
-
-		if ( startupFinished || CommandLine.HasSwitch( "-nowindow" ) )
-			return;
+		if ( startupFinished || CommandLine.HasSwitch( "-nowindow" ) ) return;
 
 		progress = Math.Clamp( progress, 0, 1 );
-		if ( progress <= startupProgress )
-			return;
+		status ??= startupStatus;
+		if ( progress < startupProgress || (progress == startupProgress && status == startupStatus) ) return;
 
 		startupProgress = progress;
+		startupStatus = status;
+		if ( startupWindow is { IsOpen: true } softwareSplash )
+		{
+			softwareSplash.UpdateProgress( progress, status );
+			return;
+		}
 
 		try
 		{
@@ -30,11 +31,11 @@ internal sealed partial class GameWindow
 		}
 		catch ( Exception e )
 		{
-			// A missing splash or failed present should never prevent the game from starting.
 			startupFinished = true;
 			Log.Warning( e, "Couldn't draw startup image" );
 		}
 	}
+
 
 	/// <summary>
 	/// Paint the startup background and a small progress line without loading the UI system.
@@ -47,11 +48,12 @@ internal sealed partial class GameWindow
 		if ( width <= 0 || height <= 0 )
 			return;
 
+		using var statusBitmap = GameStartupWindow.CreateStatusBitmap( startupStatus, width - 1, height / 1080.0f );
+		using var statusTexture = statusBitmap?.ToTexture( mips: false );
 		var context = g_pRenderDevice.CreateRenderContext( 0 );
 		IMaterial material = default;
 		ITexture texture = default;
 		ITexture backdrop = default;
-
 		try
 		{
 			material = MaterialSystem2.CreateRawMaterial( "_initial_window.vmat", "shaders/unlit.shader_c", true );
@@ -80,6 +82,10 @@ internal sealed partial class GameWindow
 				DrawStartupLogo( context, material, attributes, texture, width, height );
 			}
 
+			if ( material.IsValid && statusBitmap is not null && statusTexture is { IsValid: true } )
+			{
+				DrawStartupStatus( context, material, attributes, statusTexture.native, statusBitmap.Width, statusBitmap.Height, width, height );
+			}
 			DrawStartupProgress( context, width, height, progress );
 
 			context.Submit();
@@ -123,6 +129,21 @@ internal sealed partial class GameWindow
 			(width - imageWidth) / 2, (height - imageHeight) / 2, imageWidth, imageHeight,
 			0, 0, sourceWidth - 1, sourceHeight - 1, desc.m_nWidth, desc.m_nHeight );
 	}
+	static void DrawStartupStatus( IRenderContext context, IMaterial material, CRenderAttributes attributes, ITexture texture, int labelWidth, int labelHeight, int width, int height )
+	{
+		var scale = height / 1080.0f;
+		var barHeight = Math.Clamp( (int)(4 * scale), 1, height );
+		var barY = Math.Max( 0, height - (int)(48 * scale) - barHeight );
+		var x = (width - labelWidth) / 2;
+		var y = Math.Max( 0, barY - labelHeight - Math.Max( 4, (int)(10 * scale) ) );
+
+		attributes.SetComboValue( "F_TRANSLUCENT", (byte)1 );
+		material.Set( "g_tColor", texture );
+		MaterialSystem2Utils.DrawScreenSpaceRectangle( context, material, attributes,
+			x, y, labelWidth, labelHeight,
+			0, 0, labelWidth - 1, labelHeight - 1, labelWidth, labelHeight );
+	}
+
 
 	/// <summary>
 	/// Draw a simple progress track and solid red fill using viewport clears.

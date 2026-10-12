@@ -55,7 +55,7 @@
             @if (ShowReviews)
             {
                 <div class="fact @(Package.Reviews.Total > 0 ? "clickable" : "")" @onclick="@(() => { if ( Package.Reviews.Total > 0 ) OnReviewsClicked?.Invoke(); })">
-                    <label class="key">Reviews</label>
+                    <label class="key">#menu.games.reviews</label>
                     <div class="value">
                         <label class="rating @RatingClass( Package )">@RatingText( Package )</label>
                         @if (Package.Reviews.Total > 0)
@@ -69,14 +69,14 @@
             @* The update itself is under the gallery on the Overview - here, just when, and a way to
                the Changes tab if there's a changelog *@
             <div class="fact @(LatestChange is not null ? "clickable" : "")" @onclick="@(() => { if ( LatestChange is not null ) OnChangelogClicked?.Invoke(); })">
-                <label class="key">Updated</label>
+                <label class="key">#menu.games.updated</label>
                 <div class="value"><label>@MenuHelpers.TimeAgo( Package.Updated )</label></div>
             </div>
 
             @if (Package.Created != default)
             {
                 <div class="fact">
-                    <label class="key">Released</label>
+                    <label class="key">#menu.games.released</label>
                     <div class="value"><label>@Package.Created.ToLocalTime().ToString("d MMM yyyy")</label></div>
                 </div>
             }
@@ -84,7 +84,7 @@
             @if (Package.Org != null)
             {
                 <div class="fact clickable" @onclick=@OrgClicked>
-                    <label class="key">Creator</label>
+                    <label class="key">#menu.games.creator</label>
                     <div class="value">
                         <img class="org-thumb" src="@Package.Org.Thumb" />
                         <label class="link creator-name" tooltip="@Package.Org.Title">@Package.Org.Title</label>
@@ -93,9 +93,9 @@
             }
 
             <div class="fact">
-                <label class="key">Players</label>
+                <label class="key">#menu.games.players</label>
                 <div class="value">
-                    <div class="stat" tooltip="Players all time">
+                    <div class="stat" tooltip="#menu.games.players_all_time">
                         <i>group</i>
                         <label>@Package.Usage.Total.Users.ToMetric()</label>
                     </div>
@@ -130,7 +130,7 @@
         {
             <Card class="tags-card">
                 <ChildContent>
-                    <label class="section-label">Tags</label>
+                    <label class="section-label">#menu.games.tags</label>
                     <div class="tag-list">
                         @foreach (var tag in Package.Tags)
                         {
@@ -198,20 +198,20 @@
 		var total = package.Reviews.Total;
 		var score = package.Reviews.Score;
 
-		if ( total <= 0 ) return "No reviews yet";
+		if ( total <= 0 ) return "#menu.games.no_reviews_yet";
 		if ( total < 10 ) return $"{total} review{(total == 1 ? "" : "s")}";
 
 		if ( score >= 80 )
 		{
-			if ( score >= 95 && total >= 500 ) return "Overwhelmingly Positive";
-			return total >= 50 ? "Very Positive" : "Positive";
+			if ( score >= 95 && total >= 500 ) return "#menu.games.overwhelmingly_positive";
+			return total >= 50 ? "#menu.games.very_positive" : "#menu.games.positive";
 		}
 
-		if ( score >= 70 ) return "Mostly Positive";
-		if ( score >= 40 ) return "Mixed";
-		if ( score >= 20 ) return "Mostly Negative";
-		if ( total >= 500 ) return "Overwhelmingly Negative";
-		return total >= 50 ? "Very Negative" : "Negative";
+		if ( score >= 70 ) return "#menu.games.mostly_positive";
+		if ( score >= 40 ) return "#menu.games.mixed";
+		if ( score >= 20 ) return "#menu.games.mostly_negative";
+		if ( total >= 500 ) return "#menu.games.overwhelmingly_negative";
+		return total >= 50 ? "#menu.games.very_negative" : "#menu.games.negative";
 	}
 
 	/// <summary>
@@ -242,4 +242,13 @@
         if (Package?.Org != null)
             Game.Overlay.ShowOrganizationModal(Package.Org);
     }
+
+	/// <summary>
+	/// Rebuild composed text when translations change.
+	/// </summary>
+	public override void LanguageChanged()
+	{
+		base.LanguageChanged();
+		StateHasChanged();
+	}
 }

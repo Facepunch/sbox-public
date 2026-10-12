@@ -14,9 +14,11 @@ internal sealed partial class GameWindow : IDisposable
 	internal static GameWindow Current { get; private set; }
 
 	readonly SdlWindow window;
+	GameStartupWindow startupWindow;
 	WindowMode? windowMode;
 	VideoMode? pendingMode;
 	bool attached;
+	bool usingSoftwareSplash;
 	bool renderingInitialized;
 
 	internal IntPtr Handle => window.Handle;
@@ -28,32 +30,45 @@ internal sealed partial class GameWindow : IDisposable
 		set => window.Title = value;
 	}
 
-	internal GameWindow( string title )
+	internal GameWindow( string title, GameStartupWindow startupWindow = null )
 	{
 		ThreadSafe.AssertIsMainThread();
-
 		var mode = VideoMode.FromCommandLine( RenderSettings.Instance );
 		var fullscreen = mode.Window.Fullscreen;
 
 		Sdl.SetHint( "SDL_MOUSE_FOCUS_CLICKTHROUGH", "1" );
 		if ( OperatingSystem.IsLinux() )
 		{
-			// Match ApplyWindowMode's desktop-fullscreen policy before SDL applies the request.
-			if ( mode.Window.Borderless )
-			{
-				fullscreen = true;
-			}
-
-			// Loading can park the event loop long enough for X11 to report a hung application.
+			if ( mode.Window.Borderless ) fullscreen = true;
 			Sdl.SetHint( "SDL_VIDEO_X11_NET_WM_PING", "0" );
 		}
-		window = new SdlWindow( Sdl.CreateWindow( title, Math.Max( mode.Window.Width, 1 ), Math.Max( mode.Window.Height, 1 ), Sdl.WindowFlags.Hidden | Sdl.WindowFlags.Resizable | Sdl.WindowFlags.Vulkan ) );
+		var initialStartupProgress = startupWindow?.Progress ?? 0.02f;
+		var initialStartupStatus = startupWindow?.Status ?? "Initializing Vulkan";
+
+		var startupHandle = startupWindow?.TransferToVulkan() ?? IntPtr.Zero;
+		usingSoftwareSplash = startupHandle != IntPtr.Zero;
+		this.startupWindow = usingSoftwareSplash ? startupWindow : null;
+		if ( !usingSoftwareSplash ) startupWindow?.Dispose();
+
+		var width = Math.Max( mode.Window.Width, 1 );
+		var height = Math.Max( mode.Window.Height, 1 );
+		window = new SdlWindow( usingSoftwareSplash
+			? startupHandle
+			: Sdl.CreateWindow( title, width, height, Sdl.WindowFlags.Hidden | Sdl.WindowFlags.Resizable | Sdl.WindowFlags.Vulkan ) );
 
 		try
 		{
-			if ( !ApplyWindowMode( mode.Window ) ) pendingMode = mode;
+			if ( usingSoftwareSplash )
+			{
+				windowMode = null;
+				if ( fullscreen ) pendingMode = mode;
+			}
+			else if ( !ApplyWindowMode( mode.Window ) )
+			{
+				pendingMode = mode;
+			}
 
-			if ( CommandLine.HasSwitch( "-x" ) || CommandLine.HasSwitch( "-y" ) )
+			if ( !usingSoftwareSplash && (CommandLine.HasSwitch( "-x" ) || CommandLine.HasSwitch( "-y" )) )
 			{
 				WarnIfFailed( Sdl.GetWindowPosition( window.Handle, out var x, out var y ) );
 				WarnIfFailed( Sdl.SetWindowPosition( window.Handle, CommandLine.GetSwitchInt( "-x", x ), CommandLine.GetSwitchInt( "-y", y ) ) );
@@ -67,15 +82,16 @@ internal sealed partial class GameWindow : IDisposable
 			WarnIfFailed( Sdl.StartTextInput( window.Handle ) );
 
 			Current = this;
-			if ( !CommandLine.HasSwitch( "-nowindow" ) )
+			if ( usingSoftwareSplash )
+				UpdateStartupProgress( initialStartupProgress, initialStartupStatus );
+			else if ( !CommandLine.HasSwitch( "-nowindow" ) )
 			{
 				if ( fullscreen && window.Show() )
 				{
-					// SDL applies fullscreen geometry when shown. Match it before drawing the splash.
 					pendingMode = mode;
 					ApplyPendingMode();
 				}
-				UpdateStartupProgress( 0.02f );
+				UpdateStartupProgress( initialStartupProgress, initialStartupStatus );
 				if ( !fullscreen ) window.Show();
 			}
 		}
@@ -152,6 +168,8 @@ internal sealed partial class GameWindow : IDisposable
 		if ( window.Handle == IntPtr.Zero ) return;
 
 		if ( Current == this ) Current = null;
+		startupWindow?.Dispose();
+		startupWindow = null;
 		if ( renderingInitialized )
 		{
 			CSceneSystem.SetMainSwapChain( default );

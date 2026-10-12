@@ -21,11 +21,16 @@
 
 		@if ( NominationCount is int nominations )
 		{
-			<div class="package-nominations" tooltip="Total nominations across community categories">
+			<div class="package-nominations" tooltip="#menu.games.total_nominations_across_community_categories">
 				<icon>how_to_vote</icon>
 				<label>@nominations.ToString("N0")</label>
 			</div>
 		}
+
+        @if ( ShowSubscribe && Package is not null )
+        {
+            <MenuProject.UI.WorkshopCardActions Package=@Package />
+        }
 
         @* Overlaid on the art as a pull quote - the mark is its own label so it can be set big. *@
         @if ( ShowSummary && !string.IsNullOrWhiteSpace( Package?.Summary ) )
@@ -39,7 +44,7 @@
 
     <column>
         <label class="medium package-title">
-            @(Package?.Title ?? "Invalid Package")
+            @(Package?.Title ?? "#menu.games.invalid_package")
         </label>
 
         @if ( ShowSubtitle && !string.IsNullOrWhiteSpace( Package?.Summary ) )
@@ -51,7 +56,7 @@
         {
             <row>
                 <label class="eyebrow">
-                    We couldn't find that package.
+                    #menu.games.we_couldn_t_find_that_package
                 </label>
             </row>
         }
@@ -65,7 +70,7 @@
 
                 @if ( Package.Usage.UsersNow > 0 )
                 {
-                    <div class="package-stat live" tooltip="Playing now">
+                    <div class="package-stat live" tooltip="#menu.games.playing_now">
                         <div class="live-dot" />
                         <label class="eyebrow">@Compact( Package.Usage.UsersNow )</label>
                     </div>
@@ -296,6 +301,11 @@
     [Parameter] public bool HoverPreview { get; set; } = true;
 
     /// <summary>
+    /// Put Steam Workshop actions on the art - subscribe, and open its page. For picking maps, where you might want to keep one.
+    /// </summary>
+    [Parameter] public bool ShowSubscribe { get; set; }
+
+    /// <summary>
     /// Called when the card is clicked
     /// </summary>
     [Parameter] public Action Clicked { get; set; }
@@ -316,8 +326,8 @@
 
     string VotePercentage()
     {
-        if (Package == null) return "Unrated";
-        if (Package.VotesUp == 0 && Package.VotesDown == 0) return "Unrated";
+        if (Package == null) return "#menu.games.unrated";
+        if (Package.VotesUp == 0 && Package.VotesDown == 0) return "#menu.games.unrated";
         return $"{(int)(Package.VotesUp * 100f / (Package.VotesUp + Package.VotesDown))}%";
     }
 

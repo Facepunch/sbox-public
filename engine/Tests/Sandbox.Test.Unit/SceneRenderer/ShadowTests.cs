@@ -21,43 +21,54 @@ public class ShadowTests
 	[TestMethod]
 	public void SunCascades()
 	{
-		var world = new RenderWorld();
-		var box = new MeshObject( null, new Transform( new Vector3( 10, 0, 0 ) ) ) { LocalBounds = UnitBox };
-		world.Add( box );
+		// The sun asks for four; pin the cap so the test doesn't depend on the default quality profile
+		var maxCascades = Sandbox.Rendering.ShadowMapper.MaxCascades;
+		Sandbox.Rendering.ShadowMapper.MaxCascades = 4;
 
-		var view = LookingDownX();
-		using var system = new RenderSystem();
-		var mesh = system.GetFeature<MeshRenderFeature>();
-
-		CollectAndPrepare( system, world, view );
-
-		var passes = system.ShadowMaps.Passes;
-		Assert.AreEqual( 4, passes.Length );
-		Assert.AreEqual( 4u, system.ShadowMaps.Directional.CascadeCount );
-
-		for ( int i = 0; i < passes.Length; i++ )
+		try
 		{
-			Assert.IsTrue( passes[i].IsShadow );
-			Assert.IsTrue( passes[i].View.Orthographic );
-			Assert.AreSame( view, passes[i].Root, "LOD and size culling come from the main view" );
-			if ( i > 0 ) Assert.IsTrue( passes[i].View.OrthoSize.x > passes[i - 1].View.OrthoSize.x, "cascades grow" );
+			var world = new RenderWorld();
+			var box = new MeshObject( null, new Transform( new Vector3( 10, 0, 0 ) ) ) { LocalBounds = UnitBox };
+			world.Add( box );
+
+			var view = LookingDownX();
+			using var system = new RenderSystem();
+			var mesh = system.GetFeature<MeshRenderFeature>();
+
+			CollectAndPrepare( system, world, view );
+
+			var passes = system.ShadowMaps.Passes;
+			Assert.AreEqual( 4, passes.Length );
+			Assert.AreEqual( 4u, system.ShadowMaps.Directional.CascadeCount );
+
+			for ( int i = 0; i < passes.Length; i++ )
+			{
+				Assert.IsTrue( passes[i].IsShadow );
+				Assert.IsTrue( passes[i].View.Orthographic );
+				Assert.AreSame( view, passes[i].Root, "LOD and size culling come from the main view" );
+				if ( i > 0 ) Assert.IsTrue( passes[i].View.OrthoSize.x > passes[i - 1].View.OrthoSize.x, "cascades grow" );
+			}
+
+			// Move the box to the middle of the first cascade: then it's inside the second's exclusion box
+			var center = system.ShadowMaps.Directional.CascadeSpheres[0];
+			box.Transform = new Transform( new Vector3( center.x, center.y, center.z ) );
+			CollectAndPrepare( system, world, view );
+
+			passes = system.ShadowMaps.Passes;
+			CollectionAssert.Contains( passes[0].Visible( mesh ), 0 );
+			CollectionAssert.DoesNotContain( passes[1].Visible( mesh ), 0, "the first cascade already has it" );
+
+			// No sun shadows, no cascades - but the sun still lights
+			world.Lighting.SunShadows = false;
+			CollectAndPrepare( system, world, view );
+			Assert.AreEqual( 0, system.ShadowMaps.Passes.Length );
+			Assert.AreEqual( 0u, system.ShadowMaps.Directional.CascadeCount );
+			Assert.IsTrue( system.ShadowMaps.Directional.Enabled );
 		}
-
-		// Move the box to the middle of the first cascade: then it's inside the second's exclusion box
-		var center = system.ShadowMaps.Directional.CascadeSpheres[0];
-		box.Transform = new Transform( new Vector3( center.x, center.y, center.z ) );
-		CollectAndPrepare( system, world, view );
-
-		passes = system.ShadowMaps.Passes;
-		CollectionAssert.Contains( passes[0].Visible( mesh ), 0 );
-		CollectionAssert.DoesNotContain( passes[1].Visible( mesh ), 0, "the first cascade already has it" );
-
-		// No sun shadows, no cascades - but the sun still lights
-		world.Lighting.SunShadows = false;
-		CollectAndPrepare( system, world, view );
-		Assert.AreEqual( 0, system.ShadowMaps.Passes.Length );
-		Assert.AreEqual( 0u, system.ShadowMaps.Directional.CascadeCount );
-		Assert.IsTrue( system.ShadowMaps.Directional.Enabled );
+		finally
+		{
+			Sandbox.Rendering.ShadowMapper.MaxCascades = maxCascades;
+		}
 	}
 
 	/// <summary>

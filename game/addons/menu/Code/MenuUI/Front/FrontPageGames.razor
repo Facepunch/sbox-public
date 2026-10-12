@@ -45,7 +45,7 @@
     @if ( Group is not null && Sections.Count == 0 && StarterDismissed && !HasJamShelf )
     {
         <div class="empty-wrap">
-            <EmptyState Icon="search_off" Title="Nothing to show" Subtitle="No games came back for this feed. Try another tab, or check back in a bit." />
+            <EmptyState Icon="search_off" Title="#menu.home.nothing_to_show" Subtitle="#menu.home.no_games_came_back_for_this_feed_try_another_tab_or_check_back_in_a_bit" />
         </div>
     }
 
@@ -91,7 +91,7 @@
                 <div class="grow" />
                 @if ( section.Url is not null )
                 {
-                    <a class="see-more" href="@section.Url">See more</a>
+                    <a class="see-more" href="@section.Url">#menu.home.see_more</a>
                 }
             </div>
 
@@ -392,14 +392,18 @@
         if ( Group?.Groupings is null || package is null )
             return null;
 
-        var before = new List<(Package.ListResult.Grouping Grouping, Package[] Packages)>();
+        var before = new List<(Package.ListResult.Grouping Grouping, int Index)>();
 
         foreach ( var grouping in Group.Groupings )
         {
-            if ( grouping.Packages is null || !grouping.Packages.Any( x => x?.FullIdent == package.FullIdent ) )
+            if ( grouping.Packages is null )
                 continue;
 
-            before.Add( (grouping, grouping.Packages) );
+            var index = Array.FindIndex( grouping.Packages, x => x?.FullIdent == package.FullIdent );
+            if ( index < 0 )
+                continue;
+
+            before.Add( (grouping, index) );
             grouping.Packages = grouping.Packages.Where( x => x?.FullIdent != package.FullIdent ).ToArray();
         }
 
@@ -409,8 +413,19 @@
         {
             if ( !this.IsValid() ) return;
 
-            foreach ( var (grouping, packages) in before )
-                grouping.Packages = packages;
+            foreach ( var (grouping, index) in before )
+            {
+                var current = grouping.Packages ?? Array.Empty<Package>();
+                if ( current.Any( x => x?.FullIdent == package.FullIdent ) )
+                    continue;
+
+                var insertAt = Math.Min( index, current.Length );
+                var restored = new Package[current.Length + 1];
+                Array.Copy( current, 0, restored, 0, insertAt );
+                restored[insertAt] = package;
+                Array.Copy( current, insertAt, restored, insertAt + 1, current.Length - insertAt );
+                grouping.Packages = restored;
+            }
 
             Rebuild();
         };

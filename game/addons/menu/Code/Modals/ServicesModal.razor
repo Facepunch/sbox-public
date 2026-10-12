@@ -11,18 +11,17 @@
 	<div class="window">
 		<div class="header">
 			<icon class="heading">cast</icon>
-			<label class="heading">Services</label>
+			<label class="heading">#menu.services.services</label>
 		</div>
 
         <div class="description">
-            If you have a twitch account you can link it here. Games will be able to access your viewer's names and read the chat, 
-            so you can have interactive streams!
+            #menu.services.if_you_have_a_twitch_account_you_can_link
         </div>
 
 		<div class="body">
 			@if ( Loading )
 			{
-				<div class="loading">Loading…</div>
+				<div class="loading">#menu.common.loading_ellipsis</div>
 			}
 			else
 			{
@@ -44,7 +43,7 @@
 							}
 							else
 							{
-								<label class="status">Not linked</label>
+								<label class="status">#menu.services.not_linked</label>
 							}
 
                             @if ( Streamer.IsActive )
@@ -68,18 +67,18 @@
 
                                 @if (MenuUtility.Streaming.IsActive)
                                 {
-                                    <Button class="clicky primary" @onclick=@( () => MenuUtility.Streaming.Disconnect( def.Type ) )>End Stream</Button>
+                                    <Button class="clicky primary" @onclick=@( () => MenuUtility.Streaming.Disconnect( def.Type ) )>#menu.services.end_stream</Button>
                                 }
                                 else
                                 {
-                                    <Button class="clicky primary" @onclick=@( () => MenuUtility.Streaming.Connect( def.Type ) )>Start Stream</Button>
+                                    <Button class="clicky primary" @onclick=@( () => MenuUtility.Streaming.Connect( def.Type ) )>#menu.services.start_stream</Button>
                                 }
 
                             </div>
 						}
 						else
 						{
-							<Button class="clicky primary" @onclick=@( () => Connect( def.Type ) )>Link</Button>
+							<Button class="clicky primary" @onclick=@( () => Connect( def.Type ) )>#menu.services.link</Button>
 						}
 					</div>
 				}

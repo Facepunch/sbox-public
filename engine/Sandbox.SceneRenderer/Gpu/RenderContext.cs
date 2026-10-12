@@ -978,12 +978,12 @@ internal sealed class RenderContext : IDisposable
 	}
 
 	/// <summary>
-	/// Resolve depth and build min/max mips using <c>DepthDownsampleLayer</c>.
+	/// Resolve depth and build min/max mips, as native's pipeline does (<see cref="SharedPasses.BuildDepthChain"/>).
 	/// </summary>
 	public void BuildDepthChain( Texture depth, bool multisampled, Texture chain, int width, int height )
 	{
 		Invalidate();
-		Sandbox.Rendering.DepthDownsampleLayer.Render( context, depth, chain, multisampled, width, height );
+		SharedPasses.BuildDepthChain( context, depth, chain, multisampled, width, height );
 	}
 
 	static readonly StringToken SourceDepth = new( "SourceDepth" );
@@ -1028,7 +1028,7 @@ internal sealed class RenderContext : IDisposable
 	}
 
 	/// <summary>
-	/// Quarter-resolution depth blit using <c>QuarterDepthDownsampleLayer</c>, with isolated combos and context view constants.
+	/// Quarter-resolution depth blit (<see cref="SharedPasses.DownsampleQuarterDepth"/>), with isolated combos and context view constants.
 	/// </summary>
 	public void DownsampleQuarterDepth( Graphics.ManagedView target, Texture depth, bool multisampled )
 	{
@@ -1038,7 +1038,7 @@ internal sealed class RenderContext : IDisposable
 		attributes.Set( SourceDepth, depth );
 		using ( new Graphics.Scope( context, target ) )
 		{
-			Sandbox.Rendering.QuarterDepthDownsampleLayer.Render( attributes, multisampled );
+			SharedPasses.DownsampleQuarterDepth( attributes, multisampled );
 		}
 
 		RenderAttributes.Pool.Return( attributes );

@@ -959,8 +959,9 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		Api.Activity.GameRequested( new( "console", gameIdent ), replace: false );
 
-		// We can load and run projects if we're a Dedicated Server.
-		if ( Application.IsDedicatedServer && gameIdent.ToLower().Contains( ".sbproj" ) )
+		// Local automation can launch a project directly, just like a dedicated server.
+		if ( (Application.IsDedicatedServer || Sandbox.Utility.CommandLine.HasSwitch( "-mcp" ))
+			&& gameIdent.EndsWith( ".sbproj", StringComparison.OrdinalIgnoreCase ) )
 		{
 			await Project.InitializeBuiltIn( false );
 
@@ -971,7 +972,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			var libraries = Path.Combine( project.RootDirectory.FullName, "Libraries" );
 
 			// We should iterate all available libraries and add their projects
-			foreach ( var folder in Directory.EnumerateDirectories( libraries ) )
+			foreach ( var folder in Directory.Exists( libraries ) ? Directory.EnumerateDirectories( libraries ) : [] )
 			{
 				var configs = Directory.EnumerateFiles( folder, "*.sbproj" ).ToArray();
 				if ( configs.Length != 1 ) continue;

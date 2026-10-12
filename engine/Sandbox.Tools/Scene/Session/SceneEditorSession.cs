@@ -9,7 +9,7 @@ namespace Editor;
 /// A SceneEditorSession holds a Scene that is open in the editor.
 /// It creates a widget, has a selection and undo system.
 /// </summary>
-public partial class SceneEditorSession : Scene.ISceneEditorSession
+public partial class SceneEditorSession : Scene.ISceneEditorSession, AssetSystem.IEventListener
 {
 	/// <summary>
 	/// All open editor sessions
@@ -176,6 +176,20 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		{
 			timeSinceSavedState = 0;
 			EditorEvent.Run( "scene.session.save" );
+		}
+	}
+
+	void AssetSystem.IEventListener.OnAssetChanged( Asset asset )
+	{
+		if ( asset is null || asset.Guid == Guid.Empty )
+			return;
+
+		foreach ( var session in All )
+		{
+			if ( session.IsMounted || session.Scene?.Source is not SceneFile source || source.Guid != asset.Guid )
+				continue;
+
+			SceneSource.FindAsset( source );
 		}
 	}
 
@@ -444,6 +458,12 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// </summary>
 	internal static void SaveOpenSessions()
 	{
+		foreach ( var session in All )
+		{
+			if ( !session.IsMounted && session.Scene?.Source is SceneFile source )
+				SceneSource.FindAsset( source );
+		}
+
 		var open = All
 			.Where( x => x is not GameEditorSession )
 			.Select( x => x.Scene.Source?.ResourcePath )

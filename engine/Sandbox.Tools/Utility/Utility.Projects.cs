@@ -11,6 +11,18 @@ public static partial class EditorUtility
 			// Save changes
 			addon?.Save();
 
+			if ( addon is not null && addon == Project.Current && !StartupLoadProject.IsLoading )
+			{
+				if ( addon.Config.AI?.EnableMcpCommunication != false )
+				{
+					Mcp.McpPipeServer.Start();
+				}
+				else
+				{
+					Mcp.McpPipeServer.Stop();
+				}
+			}
+
 			//
 			// If we're a transient project we don't need to dirty everything else.
 			// we just really want to call the save callback and return.

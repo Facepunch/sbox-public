@@ -100,8 +100,11 @@ internal static partial class HammerTools
 			if ( indices is null || indices.Length < 3 )
 				throw new Exception( $"faces[{i}] needs at least 3 indices" );
 
-			if ( indices.FirstOrDefault( x => x < 0 || x >= vertices.Length, -1 ) is var bad && bad != -1 )
-				throw new Exception( $"faces[{i}] uses vertex {bad}, but there are only {vertices.Length} vertices" );
+			foreach ( var index in indices )
+			{
+				if ( index < 0 || index >= vertices.Length )
+					throw new Exception( $"faces[{i}] uses vertex {index}, but there are only {vertices.Length} vertices" );
+			}
 
 			var face = polygons.AddFace( indices );
 			face.Material = string.IsNullOrWhiteSpace( faces[i].Material ) ? defaultMaterial : FindMaterial( faces[i].Material );

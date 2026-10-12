@@ -91,7 +91,9 @@ Other switches:
   reference comes from native `RenderToTexture` at the same count, three frames later.
 - **Window:** multisampled at 4x by default, as a game's is; `-swapchain-msaa 2|8` for another count, `-swapchain-msaa 1`
   for none (the native frames saved before 2026-09-29 were captured without).
-- **Capture:** `-capture-frame` (default 30).
+- **Capture:** `-capture-frame` (default 30). `-debugmode <SceneCameraDebugMode>` captures a GameObject preset's debug
+  visualisation instead of its lit frame, e.g. `-debugmode AmbientOcclusion` for the AO alone; with `+r_ao_reference 128`
+  for a converged ground truth to compare AO changes against.
 - **Console variables:** `+name value` sets one before the first scene loads (`ConVarSystem.Run`), managed ones included
   (SceneLab registers the engine's, under its own cookies; before 2026-09-27 they were unknown commands). Native scenesystem
   convars such as `sc_fbcopy_depthaware_mask` aren't reachable this way.

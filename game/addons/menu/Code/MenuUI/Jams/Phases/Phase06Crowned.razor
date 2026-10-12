@@ -7,7 +7,7 @@
 @inherits JamFinalistPhasePanel
 
 <root class="jam-phase">
-	<JamPhaseLayout Jam=@Jam PhaseTitle="Meet the winners" PhaseSubtitle="Final results" BlurbLead="Thanks for playing." Blurb="Celebrate the winners, then discover everything made for the jam.">
+	<JamPhaseLayout Jam=@Jam PhaseTitle="#menu.jam.meet_the_winners" PhaseSubtitle="#menu.jam.final_results" BlurbLead="#menu.jam.thanks_for_playing" Blurb="#menu.jam.celebrate_the_winners_then_discover_everything_made_for_the_jam">
 		<StandingsContent>
 			@if ( Category is not null )
 			{
@@ -18,7 +18,7 @@
 			<div class="results-content">
 				@if ( Error is not null )
 				{
-					<div class="load-error"><label>@Error</label><Button Text="Retry" onclick=@RequestRefresh /></div>
+					<div class="load-error"><label>@Error</label><Button Text="#menu.common.retry" onclick=@RequestRefresh /></div>
 				}
 				@if ( Categories is { Length: > 1 } )
 				{
@@ -44,7 +44,7 @@
 								}
 								else
 								{
-									<EmptyState Icon="emoji_events" Title=@(finalist is null ? "Result pending" : Package.GetCachedTitle( finalist.PackageIdent )) Subtitle=@(finalist is null ? "Awaiting confirmation" : "Game unavailable") />
+									<EmptyState Icon="emoji_events" Title=@(finalist is null ? "#menu.jam.result_pending" : Package.GetCachedTitle( finalist.PackageIdent )) Subtitle=@(finalist is null ? "#menu.jam.awaiting_confirmation" : "#menu.jam.game_unavailable") />
 								}
 							</div>
 						}

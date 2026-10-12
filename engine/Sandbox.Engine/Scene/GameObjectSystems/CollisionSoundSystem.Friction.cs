@@ -100,7 +100,10 @@ partial class CollisionSoundSystem
 
 			var otherVelocity = other.IsValid() ? other.GetVelocityAtPoint( contact.Point ) : Vector3.Zero;
 			var bodyVelAtPoint = rotating ? body.GetVelocityAtPoint( contact.Point ) : bodyVelocity;
-			var relative = bodyVelAtPoint - otherVelocity;
+			var surfaceVelocity = body3d.GetSurfaceVelocity( contact.SelfSurfaceIndex );
+			if ( other.IsValid() && other._body is PhysicsBody3d otherBody3d )
+				surfaceVelocity -= otherBody3d.GetSurfaceVelocity( contact.OtherSurfaceIndex );
+			var relative = bodyVelAtPoint - otherVelocity - surfaceVelocity;
 			var slipSquared = (relative - contact.Normal * Vector3.Dot( relative, contact.Normal )).LengthSquared;
 			if ( slipSquared <= SlipEpsilon * SlipEpsilon )
 				continue;
