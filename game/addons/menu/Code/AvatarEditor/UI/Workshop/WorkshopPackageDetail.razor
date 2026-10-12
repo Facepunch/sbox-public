@@ -9,7 +9,7 @@
 
     <div class="return" onclick=@(() => Ancestors.OfType<WorkshopPage>().FirstOrDefault().OnPackageSelected(null))>
         <i>keyboard_return</i>
-        <label>Return To List</label>
+        <label>#menu.avatar.return_to_list</label>
     </div>
 
     <div class="detail">
@@ -26,7 +26,7 @@
     <div class="interactions">
 
         @*
-        <div class="option favourite @(Package.Interaction.Favourite ? "active" : "")" ToolTip="@(Package.Interaction.Favourite ? "Remove from Favourites" : "Add to Favourites")" onclick=@ToggleFavourite>
+        <div class="option favourite @(Package.Interaction.Favourite ? "active" : "")" ToolTip="@(Package.Interaction.Favourite ? "#menu.games.remove_from_favourites" : "#menu.games.add_to_favourites")" onclick=@ToggleFavourite>
             <i>favorite</i>
             <label>@(Package.Favourited.KiloFormat())</label>
         </div>
@@ -47,9 +47,9 @@
         </div>
 
 
-        <div class="option rating" onclick=@LeaveReview ToolTip="Add a Review">
+        <div class="option rating" onclick=@LeaveReview ToolTip="#menu.avatar.add_a_review">
             <i>reviews</i>
-            <label>Review</label>
+            <label>#menu.avatar.review</label>
         </div>
 
     </div>

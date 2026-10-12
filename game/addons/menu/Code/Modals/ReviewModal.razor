@@ -17,11 +17,11 @@
 
         <div class="head">
             <div class="text">
-                <label class="eyebrow">Write a review</label>
+                <label class="eyebrow">#menu.review.write_a_review</label>
                 <label class="title">What did you think of @Package.Title?</label>
             </div>
             <div class="grow"></div>
-            <div class="close" onclick=@( () => CloseModal( false ) ) tooltip="Close"><i>close</i></div>
+            <div class="close" onclick=@( () => CloseModal( false ) ) tooltip="#menu.common.close"><i>close</i></div>
         </div>
 
         <div class="body">
@@ -38,27 +38,27 @@
             </div>
 
             <div class="tags positive">
-                <label class="section-label">What stood out</label>
+                <label class="section-label">#menu.review.what_stood_out</label>
                 <TagSelector Value:bind=@PositiveTags />
             </div>
 
             <div class="tags negative">
-                <label class="section-label">What held it back</label>
+                <label class="section-label">#menu.review.what_held_it_back</label>
                 <TagSelector Value:bind=@NegativeTags />
             </div>
 
             <div class="words">
-                <label class="section-label">Your review</label>
-                <TextEntry @ref=_textEntry Value:bind=@ReviewText Multiline="@true" Placeholder="Say what you thought..." />
+                <label class="section-label">#menu.review.your_review</label>
+                <TextEntry @ref=_textEntry Value:bind=@ReviewText Multiline="@true" Placeholder="#menu.review.say_what_you_thought" />
             </div>
 
         </div>
 
         <div class="footer">
-            <label class="note">Shown publicly on the game's page</label>
+            <label class="note">#menu.review.shown_publicly_on_the_game_s_page</label>
             <div class="grow"></div>
-            <Button class="cancel" Text="Cancel" onclick=@( () => CloseModal( false ) ) />
-            <Button class="post" Icon="send" Text="@(_posting ? "Posting..." : "Post review")" Disabled=@( !CanPost ) onclick=@PostReview />
+            <Button class="cancel" Text="#menu.common.cancel" onclick=@( () => CloseModal( false ) ) />
+            <Button class="post" Icon="send" Text="@(_posting ? "#menu.review.posting" : "#menu.review.post_review")" Disabled=@( !CanPost ) onclick=@PostReview />
         </div>
 
     </div>
@@ -78,9 +78,9 @@
 
     static readonly (Review.ReviewScore Score, string Icon, string Text, string Tone)[] Ratings =
     {
-        (Review.ReviewScore.Negative, "thumb_down", "Needs work", "bad"),
-        (Review.ReviewScore.Promise, "trending_up", "Promising", "meh"),
-        (Review.ReviewScore.Positive, "thumb_up", "Recommended", "good"),
+        (Review.ReviewScore.Negative, "thumb_down", "#menu.review.needs_work", "bad"),
+        (Review.ReviewScore.Promise, "trending_up", "#menu.review.promising", "meh"),
+        (Review.ReviewScore.Positive, "thumb_up", "#menu.review.recommended", "good"),
     };
 
     bool CanPost => !_posting && Score != Review.ReviewScore.None && !string.IsNullOrWhiteSpace( ReviewText );

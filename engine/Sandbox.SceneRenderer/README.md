@@ -4,6 +4,10 @@ A C# scene renderer for s&box, intended to replace the native scenesystem's worl
 It manages render objects, visibility, lighting and frame execution while using the engine's existing
 materials, shaders and graphics backend.
 
+It also holds the layers of native's rendering pipeline ([Native](Native/)): native sets each view up and
+this adds its layers, for every camera that isn't rendered here. See the
+[render pipeline doc](../../docs/managed/render-pipeline.md).
+
 The renderer is experimental. To use it for GameObject scenes, enable `r_managed_scene 1`.
 It is disabled by default. [SceneLab](../Launcher/SceneLab/) runs the managed and native renderers
 against the same scenes for visual comparison and performance testing.
@@ -51,10 +55,11 @@ system, shader code, shadow-map policy and skinning vertex cache.
 | [Gpu](Gpu/) | Native rendering access, GPU uploads, transform buffers and shader constants. |
 | [Bridge](Bridge/) | Synchronization with GameObject scenes and execution of existing camera stages. |
 | [Diagnostics](Diagnostics/) | Frame comparison, rendering statistics and profiler instrumentation. |
+| [Native](Native/) | Native's rendering pipeline: the layers of its standard and 3D skybox views (`NativeRenderPipeline`). |
 
 Folders describe responsibilities; they do not all introduce namespaces. Public types use
-`Sandbox.SceneRenderer`. Internal subsystems also use `.Features`, `.Culling`, `.Shadows`, `.Gpu` and
-`.Bridge`, imported within the project by [Assembly.cs](Assembly.cs).
+`Sandbox.SceneRenderer`. Internal subsystems also use `.Features`, `.Culling`, `.Shadows`, `.Gpu`,
+`.Bridge` and `.Native`; the first four are imported within the project by [Assembly.cs](Assembly.cs).
 
 Shared math belongs in `Sandbox.System`. In particular,
 [Matrix3x4](../Sandbox.System/Math/Matrix3x4.cs) lives alongside `Matrix` and represents the native affine
@@ -85,8 +90,9 @@ With `r_managed_async_compute`, depth-chain, contact-shadow and AO work can over
 
 ### Connections to the rest of the engine
 
-- [ManagedScene](../Sandbox.Engine/Systems/Render/ManagedScene/) owns the convars, renderer loading,
-  scene-change notifications and shutdown integration.
+- [ManagedScene](../Sandbox.Engine/Systems/Render/ManagedScene/) owns the convars, scene-change notifications
+  and shutdown integration. The app system registers this assembly with the engine at startup
+  ([EngineHooks.cs](EngineHooks.cs)).
 - [ShadowMapper](../Sandbox.Engine/Systems/Render/Shadows/) supplies shared shadow allocation, caching
   and time-slicing policy for both renderers.
 - [Graphics.IFrameView](../Sandbox.Engine/Systems/Render/Graphics.FrameView.cs) lets camera effects and
@@ -94,8 +100,8 @@ With `r_managed_async_compute`, depth-chain, contact-shadow and AO work can over
   native scene view or layer exists.
 - [RenderTools.def](../Definitions/engine/Render/RenderTools.def) exposes native helpers implemented in
   [rendertools.cpp](../../src/engine2/sbox/rendertools.cpp).
-- [RenderPipeline](../Sandbox.Engine/Systems/Render/RenderPipeline/) contains existing effect helpers
-  reused for depth downsampling, bloom and refraction.
+- [Gpu/SharedPasses.cs](Gpu/SharedPasses.cs) holds the depth chain, quarter depth and bloom and refraction
+  targets, which this renderer and native's pipeline both use.
 
 ## Building and testing
 

@@ -30,7 +30,6 @@ public sealed partial class GameJamSystem
 	/// </summary>
 	public bool IsSubmittingFinalistVote { get; private set; }
 
-	readonly List<JamVoteUpdate> pendingFinalistVotes = new();
 	readonly Dictionary<(int Category, int? Round), float> finalistVoteCooldowns = new();
 	JamFinalistSource finalistSource;
 	bool finalistsLoading;
@@ -94,7 +93,6 @@ public sealed partial class GameJamSystem
 		Finalists = null;
 		FinalistsError = null;
 		FinalistVoteError = null;
-		pendingFinalistVotes.Clear();
 		finalistVoteCooldowns.Clear();
 		nextFinalistsRefresh = null;
 		finalistsLoading = false;
@@ -183,8 +181,8 @@ public sealed partial class GameJamSystem
 			if ( !IsCurrentFinalists( source ) ) return;
 
 			Log.Warning( $"Couldn't refresh jam finalists ({e.Message})" );
-			FinalistsError = Finalists is null ? "Couldn't load finalists. You can still browse all entries."
-				: "Couldn't refresh finalists. Showing the last confirmed slate.";
+			FinalistsError = Finalists is null ? "#menu.jam.couldn_t_load_finalists_you_can_still_browse_all"
+				: "#menu.jam.couldn_t_refresh_finalists_showing_the_last_confirmed_slate";
 			nextFinalistsRefresh = jam.Now.AddSeconds( 15 );
 		}
 		finally
@@ -192,7 +190,6 @@ public sealed partial class GameJamSystem
 			if ( IsCurrentFinalists( source ) )
 			{
 				finalistsLoading = false;
-				ApplyPendingFinalistVotes();
 				Version++;
 			}
 		}
@@ -225,27 +222,14 @@ public sealed partial class GameJamSystem
 
 		if ( finalistsLoading || IsSubmittingFinalistVote )
 		{
-			pendingFinalistVotes.Add( update );
+			// Pushes have no revision, so reconcile rather than replaying over a snapshot or vote response.
+			RefreshFinalists();
+			return;
 		}
 
 		var category = Finalists?.FirstOrDefault( x => x.Id == update.CategoryId );
 		if ( category?.Decided != true && (category?.Round is null || category.Round < update.Round) ) RefreshFinalists();
 		if ( category?.Apply( update ) == true ) Version++;
-	}
-
-	/// <summary>
-	/// Preserves live tally messages received while a snapshot or vote response was in flight.
-	/// </summary>
-	void ApplyPendingFinalistVotes()
-	{
-		if ( finalistsLoading || IsSubmittingFinalistVote ) return;
-
-		foreach ( var update in pendingFinalistVotes )
-		{
-			ApplyFinalistVotes( update );
-		}
-
-		pendingFinalistVotes.Clear();
 	}
 
 	/// <summary>
@@ -279,7 +263,7 @@ public sealed partial class GameJamSystem
 		{
 			if ( IsCurrentFinalists( source ) )
 			{
-				FinalistVoteError = e is InvalidOperationException ? e.Message : "Couldn't update your vote. Try again.";
+				FinalistVoteError = e is InvalidOperationException ? e.Message : "#menu.jam.couldn_t_update_your_vote_try_again";
 			}
 		}
 		finally
@@ -287,7 +271,6 @@ public sealed partial class GameJamSystem
 			if ( IsCurrentFinalists( source ) )
 			{
 				IsSubmittingFinalistVote = false;
-				ApplyPendingFinalistVotes();
 				Version++;
 			}
 		}

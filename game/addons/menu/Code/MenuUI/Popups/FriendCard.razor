@@ -51,7 +51,7 @@
 	@if ( PlayingNow )
 	{
 		<div class="playing">
-			<label class="section-label">Playing now</label>
+			<label class="section-label">#menu.friends.playing_now</label>
 			<div class="game @(HasGamePage ? "clickable" : "")" onmousedown=@OpenGame>
 				<div class="thumb" style="background-image: url( @GameThumb );"></div>
 				<div class="game-info">
@@ -69,7 +69,7 @@
 							<div class="face" tooltip="@other.Name" style="background-image: url( avatar:@other.Id )"></div>
 						}
 					</div>
-					<label>@(FriendsHere.Count == 1 ? "1 other friend playing" : $"{FriendsHere.Count} other friends playing")</label>
+					<label>@(FriendsHere.Count == 1 ? "#menu.friends.1_other_friend_playing" : $"{FriendsHere.Count} other friends playing")</label>
 				</div>
 			}
 		</div>
@@ -78,7 +78,7 @@
 	{
 		@* Still finding out what they were last in - hold the space for it *@
 		<div class="playing loading">
-			<label class="section-label quiet">Recently played</label>
+			<label class="section-label quiet">#menu.friends.recently_played</label>
 			<div class="game">
 				<div class="thumb skeleton"></div>
 				<div class="game-info">
@@ -92,7 +92,7 @@
 	{
 		@* Not in anything right now - what they were last in *@
 		<div class="playing">
-			<label class="section-label quiet">Recently played</label>
+			<label class="section-label quiet">#menu.friends.recently_played</label>
 			<div class="game clickable" onmousedown=@( () => OpenPackage( recent.Package ) )>
 				<div class="thumb" style="background-image: url( @recent.Package.Thumb );"></div>
 				<div class="game-info">
@@ -115,7 +115,7 @@
 		<div class="action-row">
 			@if ( CanJoin )
 			{
-				<div class="button primary" onmousedown=@Join><icon>sports_esports</icon><label>Join game</label></div>
+				<div class="button primary" onmousedown=@Join><icon>sports_esports</icon><label>#menu.friends.join_game</label></div>
 			}
 			else if ( IsMe )
 			{
@@ -135,18 +135,18 @@
 			}
 			else if ( InMyParty )
 			{
-				<div class="button done"><icon>check</icon><label>In your party</label></div>
+				<div class="button done"><icon>check</icon><label>#menu.friends.in_your_party</label></div>
 			}
 			else if ( Invited )
 			{
-				<div class="button done"><icon>check</icon><label>Invite sent</label></div>
+				<div class="button done"><icon>check</icon><label>#menu.friends.invite_sent</label></div>
 			}
 			else if ( MenuUtility.CanInviteToParty( Friend ) )
 			{
-				<div class="button primary" onmousedown=@Invite><icon>group_add</icon><label>Invite to party</label></div>
+				<div class="button primary" onmousedown=@Invite><icon>group_add</icon><label>#menu.friends.invite_to_party</label></div>
 			}
 
-			<div class="button" onmousedown=@ViewProfile><label>View profile</label><icon>open_in_new</icon></div>
+			<div class="button" onmousedown=@ViewProfile><label>#menu.friends.view_profile_sentence</label><icon>open_in_new</icon></div>
 
 			@* Sharing the row when it's got room for them *@
 			@if ( !SplitRows )
@@ -280,7 +280,7 @@
 	{
 		var span = DateTimeOffset.UtcNow - when;
 
-		if ( span.TotalMinutes < 1 ) return "just now";
+		if ( span.TotalMinutes < 1 ) return Language.GetPhrase( "menu.common.just_now" );
 		if ( span.TotalHours < 1 ) return $"{(int)span.TotalMinutes}m ago";
 		if ( span.TotalDays < 1 ) return $"{(int)span.TotalHours}h ago";
 		if ( span.TotalDays < 7 ) return $"{(int)span.TotalDays}d ago";
@@ -425,15 +425,15 @@
 	{
 		var extras = new List<ExtraAction>();
 
-		if ( !IsMe && !Friend.IsFriend ) extras.Add( new( "person_add", "Add friend", AddFriend ) );
+		if ( !IsMe && !Friend.IsFriend ) extras.Add( new( "person_add", "#menu.friends.add_friend", AddFriend ) );
 
 		if ( CanManage )
 		{
-			extras.Add( new( "shield", "Promote", MakeLeader, Tooltip: "Make leader of party" ) );
-			extras.Add( new( "person_remove", "Kick", Kick, true ) );
+			extras.Add( new( "shield", "#menu.friends.promote", MakeLeader, Tooltip: "#menu.friends.make_leader_of_party" ) );
+			extras.Add( new( "person_remove", "#menu.friends.kick", Kick, true ) );
 		}
 
-		if ( IsMe && PartyView.Exists ) extras.Add( new( "logout", "Leave party", LeaveParty, true ) );
+		if ( IsMe && PartyView.Exists ) extras.Add( new( "logout", "#menu.friends.leave_party", LeaveParty, true ) );
 
 		return extras;
 	}
@@ -449,20 +449,20 @@
 	{
 		get
 		{
-			if ( IsMe ) return "That's you";
+			if ( IsMe ) return "#menu.friends.that_s_you";
 
 			if ( Friend.IsPlayingThisGame )
 			{
-				if ( InEditor ) return "In the editor";
-				if ( InMenu ) return "In main menu";
-				return "In game";
+				if ( InEditor ) return "#menu.friends.in_the_editor";
+				if ( InMenu ) return "#menu.friends.in_main_menu";
+				return "#menu.friends.in_game";
 			}
 
-			if ( !Friend.IsOnline ) return "Offline";
-			if ( Friend.IsPlayingAGame ) return "Playing another game";
-			if ( Friend.IsAway || Friend.IsSnoozing ) return "Away";
-			if ( Friend.IsBusy ) return "Busy";
-			return "Online";
+			if ( !Friend.IsOnline ) return "#menu.friends.offline";
+			if ( Friend.IsPlayingAGame ) return "#menu.friends.playing_another_game";
+			if ( Friend.IsAway || Friend.IsSnoozing ) return "#menu.friends.away";
+			if ( Friend.IsBusy ) return "#menu.friends.busy";
+			return "#menu.friends.online";
 		}
 	}
 
@@ -490,11 +490,11 @@
 			var size = Friend.GetRichPresence( "steam_player_group_size" ).ToInt( 0 );
 			var players = size > 1 ? $"{size} players" : null;
 
-			var parts = new[] { string.IsNullOrWhiteSpace( map ) ? null : map, players, Joinable ? "Joinable" : null }
+			var parts = new[] { string.IsNullOrWhiteSpace( map ) ? null : map, players, Joinable ? Language.GetPhrase( "menu.friends.joinable" ) : null }
 				.Where( x => x is not null );
 
 			var detail = string.Join( " · ", parts );
-			return string.IsNullOrWhiteSpace( detail ) ? "Playing" : detail;
+			return string.IsNullOrWhiteSpace( detail ) ? "#menu.friends.playing" : detail;
 		}
 	}
 
@@ -631,4 +631,13 @@
 	}
 
 	protected override int BuildHash() => HashCode.Combine( Friend, AvatarJson, GameThumb, HashCode.Combine( GameTitle, GameArt, _recent, _profileLoaded ), Invited, InMyParty, HashCode.Combine( StateText, CanManage, CanInviteToGame, _gameInvited ) );
+
+	/// <summary>
+	/// Rebuild composed text when translations change.
+	/// </summary>
+	public override void LanguageChanged()
+	{
+		base.LanguageChanged();
+		StateHasChanged();
+	}
 }

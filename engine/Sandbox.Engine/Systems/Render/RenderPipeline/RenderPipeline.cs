@@ -1,170 +1,87 @@
-﻿using NativeEngine;
+using NativeEngine;
 
 namespace Sandbox.Rendering;
 
 /// <summary>
-/// Start moving the c++ render pipeline here
-/// It won't be the prettiest to start, but we can start simplifying afterwards
+/// Builds the layers of native's rendering pipelines: <see cref="RenderPipeline"/> hands it each view native set up.
+/// Sandbox.SceneRenderer's <c>NativeRenderPipeline</c> is the one, installed at startup.
 /// </summary>
-internal partial class RenderPipeline
+internal interface INativeRenderPipeline
 {
+	/// <summary>
+	/// Add every layer of a view the standard pipeline set up.
+	/// </summary>
+	void AddLayersToView( CRenderPipelineSetup setup );
 
-	DepthNormalPrepassLayer[] DepthNormalPrepasses { get; } =
-	[
-		new DepthNormalPrepassLayer( DepthNormalPrepassLayer.PrepassMode.Overlay ),
-		new DepthNormalPrepassLayer( DepthNormalPrepassLayer.PrepassMode.Large ),
-		new DepthNormalPrepassLayer( DepthNormalPrepassLayer.PrepassMode.Small ),
-	];
-	LightbinnerLayer LightbinnerLayer { get; } = new();
-	DepthDownsampleLayer DepthDownsampleLayer { get; } = new();
-	MotionVectorLayer MotionVectorLayer { get; } = new();
-	MotionVectorDebugLayer MotionVectorDebugLayer { get; } = new();
-	ReactiveDepthLayer ReactiveDepthViewmodel { get; } = new( "Reactive Depth (Viewmodel)", SceneObjectFlags.ViewModelLayer );
-	ReactiveDepthLayer ReactiveDepthOverlay { get; } = new( "Reactive Depth (Overlay)", SceneObjectFlags.GameOverlayLayer, clearDepth: false );
-	ReactiveMaskLayer ReactiveMaskLayer { get; } = new();
-	ReactiveMaskDebugLayer ReactiveMaskDebugLayer { get; } = new();
-	ClusteredCullingLayer ClusteredCullingLayer { get; } = new();
-	BloomLayer BloomLayer { get; } = new();
-	RefractionStencilLayer RefractionStencilLayer { get; } = new();
-	QuarterDepthDownsampleLayer QuarterDepthDownsampleLayer { get; } = new();
+	/// <summary>
+	/// Add every layer of a 3D skybox's view.
+	/// </summary>
+	void AddSkybox3DLayersToView( CRenderPipelineSetup setup );
 
-	// Wraps the native pipeline attributes for one call - reused, since every view does this every frame.
-	// Pipelines are one per view at a time, so calls never overlap.
-	readonly RenderAttributes _pipelineAttributes = new( default( CRenderAttributes ) );
+	/// <summary>
+	/// A view has been submitted: whatever its layers needed while it rendered can be used again.
+	/// </summary>
+	void OnSceneViewSubmitted( ISceneView view );
 
-	internal void AddLayersToView( ISceneView view, RenderViewport viewport, SceneViewRenderTargetHandle rtColor, SceneViewRenderTargetHandle rtDepth, RenderMultisampleType nMSAA, CRenderAttributes pipelineAttrs, RenderViewport screenSize )
+	/// <summary>
+	/// The screen-space UI layers for a stage over <paramref name="color"/>, for views outside the pipeline (the camera
+	/// renderer's panel UI and platform overlay). Returns the layer that writes it.
+	/// </summary>
+	ISceneLayer AddUIHook( string name, Stage stage, ISceneView view, RenderViewport viewport, SceneViewRenderTargetHandle color );
+
+	/// <summary>
+	/// Make its shaders and materials, on the main thread at startup. Its layers would otherwise make them the first time
+	/// they render, on a render job, where that isn't allowed.
+	/// </summary>
+	void WarmUp();
+
+	/// <summary>
+	/// Free what it holds, at engine shutdown.
+	/// </summary>
+	void Shutdown();
+}
+
+/// <summary>
+/// What native's rendering pipelines (renderingpipeline_standard.cpp) call once they've set up a view's render targets and
+/// attributes. The layers come from <see cref="Current"/>.
+/// </summary>
+internal static class RenderPipeline
+{
+	/// <summary>
+	/// Blend screen-space UI in gamma space, like a browser: the UI shaders write sRGB-encoded colour and the blend works on
+	/// that, rather than on linear colour.
+	/// </summary>
+	[ConVar( "ui_gamma_blend", Help = "Blend screen-space UI in gamma space like a browser" )]
+	public static bool UIGammaBlend { get; set; } = true;
+
+	/// <summary>
+	/// The pipeline that adds the layers.
+	/// </summary>
+	internal static INativeRenderPipeline Current { get; set; }
+
+	static bool warned;
+
+	static INativeRenderPipeline Get()
 	{
-		var msaa = nMSAA.FromEngine();
-		var logicalViewport = view.GetMainViewport().Rect;
-		view.GetRenderAttributesPtr().SetVector4DValue( "PainterScreenViewport",
-			new Vector4( logicalViewport.Left, logicalViewport.Top, logicalViewport.Width, logicalViewport.Height ) );
-		var pipelineAttributes = _pipelineAttributes;
-		pipelineAttributes.Set( pipelineAttrs );
-
-		// renderingpipeline_standard.cpp:1786
-		// Already run: clear layer
-
+		if ( Current is null && !warned )
 		{
-			LightbinnerLayer.Setup( pipelineAttributes );
-			LightbinnerLayer.AddToView( view, viewport );
-
-			ClusteredCullingLayer.Setup( view, viewport );
-			ClusteredCullingLayer.AddToView( view, viewport );
+			warned = true;
+			Log.Error( "No native render pipeline is installed - views will render nothing" );
 		}
 
-		view.GetRenderAttributesPtr().SetIntValue( "ShadowFilterQuality", ShadowMapper.ShadowFilter );
-
-		// Depth Prepass with a small GBuffer ( Normals, Roughness )
-		{
-			var gbufferColor = RenderTarget.GetTemporary(
-				(int)screenSize.Rect.Width,
-				(int)screenSize.Rect.Height,
-				colorFormat: ImageFormat.RGBA16161616F,
-				depthFormat: ImageFormat.None,
-				msaa: msaa );
-
-			//
-			// Two layer depth prepass, initial layer renders fewer larger objects, second layer renders everything else
-			// matt: I don't think this makes sense anymore, Valve used to do it to opt out of smaller objects entirely.
-			//       However doing 1 big pass seems to double draw calls, it's possible it's not rendering everything?
-			//
-			bool disableDepthPrepassCulling = view.GetRenderAttributesPtr().GetBoolValue( "NoPrepassCulling", false );
-
-			foreach ( var prepass in DepthNormalPrepasses )
-			{
-				prepass.Setup( view, gbufferColor, rtDepth );
-				var layer = prepass.AddToView( view, viewport );
-
-				// Overlay writes the stencil bit at its real depth; every other prepass tests it so
-				// their (potentially nearer) depth can't overwrite pixels the overlay already claimed.
-				layer.SetOverlayStencil( prepass.Mode == DepthNormalPrepassLayer.PrepassMode.Overlay );
-
-				if ( prepass.CullThresholdPercent == 0 )
-					continue;
-
-				layer.SetBoundingVolumeSizeCullThresholdInPercent( prepass.CullThresholdPercent );
-				layer.SetLayerNoCull( disableDepthPrepassCulling );
-			}
-
-			// Pass that DepthNormals are enabled to the rest of the pipeline
-			view.GetRenderAttributesPtr().SetIntValue( "NormalsTextureIndex", gbufferColor.ColorTarget.Index );
-			view.GetRenderAttributesPtr().SetTextureValue( "NormalsGBuffer", gbufferColor.ColorTarget.native, -1 );
-		}
-
-		// Compute Async: Depth downscale, clustered culling
-		{
-			DepthDownsampleLayer.Setup( viewport, rtDepth, msaaInput: msaa != MultisampleAmount.MultisampleNone, view );
-			DepthDownsampleLayer.AddToView( view, viewport );
-		}
-
-		// Render motion vectors if something asks for it, e.g FSR3 or DLSS
-		if ( view.GetRenderAttributesPtr().GetBoolValue( "WantsMotionVectors", false ) )
-		{
-			MotionVectorLayer.Setup( viewport, view );
-			MotionVectorLayer.AddToView( view, viewport );
-
-			// Reactive mask: re-render viewmodel and overlay objects in depth-only mode,
-			// then convert to an R16F mask that tells FSR3 to prefer current-frame
-			// data for these pixels (they have no valid motion vectors).
-			var reactiveDepthHandle = ReactiveMaskLayer.Setup( viewport, view );
-
-			ReactiveDepthViewmodel.Setup( reactiveDepthHandle );
-			ReactiveDepthViewmodel.AddToView( view, viewport );
-
-			ReactiveDepthOverlay.Setup( reactiveDepthHandle );
-			ReactiveDepthOverlay.AddToView( view, viewport );
-
-			ReactiveMaskLayer.AddToView( view, viewport );
-		}
-
-		// Bloom layer, Effects that only show up on bloom like a ghost effect
-		{
-			RenderViewport quarterViewport = viewport / 4;
-
-			var bloomRt = BloomLayer.GetTarget( (int)quarterViewport.Rect.Width, (int)quarterViewport.Rect.Height );
-
-			QuarterDepthDownsampleLayer.Setup( view, quarterViewport, rtDepth, msaa != MultisampleAmount.MultisampleNone, bloomRt );
-			QuarterDepthDownsampleLayer.AddToView( view, quarterViewport );
-
-			BloomLayer.Setup( view, bloomRt );
-			BloomLayer.AddToView( view, quarterViewport );
-
-			view.GetRenderAttributesPtr().SetTextureValue( "QuarterResEffectsBloomInputTexture", bloomRt.ColorTarget.native, -1 );
-		}
-
-		// Refraction stencil layer, used for filtering out depth on Framebuffer copies
-		{
-			RenderViewport quarterViewport = viewport / 4;
-			RefractionStencilLayer.Setup( view, quarterViewport );
-			RefractionStencilLayer.AddToView( view, quarterViewport );
-		}
-
-		// Opaque pass
-		// Transparent pass
-		// Etc.
+		return Current;
 	}
 
-	internal void PipelineEnd( ISceneView view, RenderViewport viewport, SceneViewRenderTargetHandle rtColor, SceneViewRenderTargetHandle rtDepth, RenderMultisampleType nMSAA, CRenderAttributes pipelineAttrs, RenderViewport screenSize )
-	{
-		var pipelineAttributes = _pipelineAttributes;
-		pipelineAttributes.Set( pipelineAttrs );
+	internal static void AddLayersToView( CRenderPipelineSetup setup ) => Get()?.AddLayersToView( setup );
 
-		// Motion vector debug visualization - blit to color buffer after scene is rendered
-		if ( pipelineAttributes.GetInt( "ToolsVisMode" ) == (int)SceneCameraDebugMode.MotionVectors )
-		{
-			MotionVectorDebugLayer.ColorAttachment = rtColor;
-			MotionVectorDebugLayer.AddToView( view, viewport );
-		}
+	internal static void AddSkybox3DLayersToView( CRenderPipelineSetup setup ) => Get()?.AddSkybox3DLayersToView( setup );
 
-		// Reactive mask debug visualization
-		if ( pipelineAttributes.GetInt( "ToolsVisMode" ) == (int)SceneCameraDebugMode.ReactiveMask )
-		{
-			ReactiveMaskDebugLayer.ColorAttachment = rtColor;
-			ReactiveMaskDebugLayer.AddToView( view, viewport );
-		}
+	internal static void OnSceneViewSubmitted( ISceneView view ) => Current?.OnSceneViewSubmitted( view );
 
-		var cameraId = view.m_ManagedCameraId;
-		if ( cameraId == 0 )
-			return;
-	}
+	internal static ISceneLayer AddUIHook( string name, Stage stage, ISceneView view, RenderViewport viewport, SceneViewRenderTargetHandle color )
+		=> Get()?.AddUIHook( name, stage, view, viewport, color ) ?? default;
+
+	internal static void WarmUp() => Current?.WarmUp();
+
+	internal static void Shutdown() => Current?.Shutdown();
 }

@@ -2,6 +2,8 @@
 
 public sealed partial class PlayerController : Component
 {
+	const float _groundedFeetLift = 0.5f;
+
 	/// <summary>
 	/// Make sure the body and our components are created
 	/// </summary>
@@ -88,8 +90,6 @@ public sealed partial class PlayerController : Component
 		BodyCollider.Enabled = bodyEnd < bodyStart;
 
 		var feetLength = BodyCollider.Enabled ? feetHeight : CurrentHeight;
-		FeetCollider.Scale = new Vector3( BodyRadius ) + localUpAbs * (feetLength - BodyRadius);
-		FeetCollider.Center = localUp * feetLength * 0.5f;
 		FeetCollider.Friction = feetFriction;
 		FeetCollider.Enabled = true;
 
@@ -110,5 +110,13 @@ public sealed partial class PlayerController : Component
 		Body.OverrideMassCenter = true;
 
 		Mode?.UpdateRigidBody( Body );
+
+		//
+		// Small lips are absorbed by Reground, and larger "steps" by TryStep.
+		//
+		var feetLift = IsOnGround && !GroundIsDynamic && !Body.Gravity ? _groundedFeetLift : 0.0f;
+		var feetBoxLength = feetLength - feetLift;
+		FeetCollider.Scale = new Vector3( BodyRadius ) + localUpAbs * (feetBoxLength - BodyRadius);
+		FeetCollider.Center = localUp * (feetLift + feetBoxLength * 0.5f);
 	}
 }

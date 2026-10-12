@@ -9,13 +9,13 @@
 		<Toolbar>
 			<Sandbox.UI.Toolbar>
 				<ChildContent>
-					<TextEntry class="toolbar-search" Placeholder="@(servers?.SelectedGame is null ? "Search games, servers or maps" : "Search servers or maps")" Value:bind=@search HasClearButton=@true />
+					<TextEntry class="toolbar-search" Placeholder="@(servers?.SelectedGame is null ? "#menu.multiplayer.search_games_servers_or_maps" : "#menu.multiplayer.search_servers_or_maps")" Value:bind=@search HasClearButton=@true />
 					<div class="pill-group">
-						<Button class="filter icon-only" Icon="event_seat" Active=@HideFullServers onclick=@(() => HideFullServers = !HideFullServers) title="Only show servers with available slots" tooltip="Only show servers with available slots" />
-						<Button class="filter icon-only" Icon="groups" Active=@HideEmptyServers onclick=@(() => HideEmptyServers = !HideEmptyServers) title="Only show servers with players online" tooltip="Only show servers with players online" />
+						<Button class="filter icon-only" Icon="event_seat" Active=@HideFullServers onclick=@(() => HideFullServers = !HideFullServers) title="#menu.multiplayer.only_show_servers_with_available_slots" tooltip="#menu.multiplayer.only_show_servers_with_available_slots" />
+						<Button class="filter icon-only" Icon="groups" Active=@HideEmptyServers onclick=@(() => HideEmptyServers = !HideEmptyServers) title="#menu.multiplayer.only_show_servers_with_players_online" tooltip="#menu.multiplayer.only_show_servers_with_players_online" />
 					</div>
 					<div class="pill-group">
-						<Button class="refresh icon-only" Icon="refresh" disabled=@(servers?.IsRefreshing == true) onclick=@RefreshServers title="Refresh servers" tooltip="Refresh servers" />
+						<Button class="refresh icon-only" Icon="refresh" disabled=@(servers?.IsRefreshing == true) onclick=@RefreshServers title="#menu.multiplayer.refresh_servers" tooltip="#menu.multiplayer.refresh_servers" />
 					</div>
 				</ChildContent>
 			</Sandbox.UI.Toolbar>
@@ -58,7 +58,7 @@
 	{
 		get
 		{
-			if ( servers?.HasResults != true ) return "Finding live servers…";
+			if ( servers?.HasResults != true ) return "#menu.multiplayer.finding_live_servers";
 			var players = servers.VisiblePlayerCount;
 			var count = servers.VisibleServerCount;
 			return $"{players:N0} {(players == 1 ? "player" : "players")} · {count:N0} {(count == 1 ? "server" : "servers")}";
@@ -82,7 +82,7 @@
 
 		statusDot.SetClass( "refreshing", servers?.IsRefreshing == true );
 		statusLabel.Text = StatusText;
-		updateLabel.Text = servers?.IsRefreshing == true ? "Updating…" : "Updates automatically";
+		updateLabel.Text = servers?.IsRefreshing == true ? "#menu.multiplayer.updating" : "#menu.multiplayer.updates_automatically";
 	}
 
 	/// <summary>

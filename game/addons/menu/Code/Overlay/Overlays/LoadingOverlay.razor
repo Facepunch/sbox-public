@@ -49,7 +49,7 @@
 			{
 				<div class="news">
 					<div class="news-eyebrow">
-						<div class="eyebrow"><icon>campaign</icon><label>Latest update</label></div>
+						<div class="eyebrow"><icon>campaign</icon><label>#menu.loading.latest_update</label></div>
 						<div class="ago"><icon>schedule</icon><label>@Ago( news.Created )</label></div>
 					</div>
 					<label class="news-title">@news.Title</label>
@@ -79,7 +79,7 @@
 					@if ( Completing )
 					{
 						@* Pops in where the percentage was *@
-						<div class="done-badge"><icon>check</icon><label>Done</label></div>
+						<div class="done-badge"><icon>check</icon><label>#menu.common.done</label></div>
 					}
 					else
 					{
@@ -134,7 +134,7 @@
 						<div class="eta"><icon>schedule</icon><label>@eta</label></div>
 					}
 					<div class="grow"></div>
-					<div class="cancel" onclick=@LoadingView.Cancel><icon>close</icon><label>Cancel</label></div>
+					<div class="cancel" onclick=@LoadingView.Cancel><icon>close</icon><label>#menu.common.cancel</label></div>
 				</div>
 			</div>
 		</div>
@@ -418,7 +418,7 @@
             // A download's own title left behind ("Download 'Sandbox' Complete") says nothing now
             var title = LoadingView.Title;
             if ( string.IsNullOrWhiteSpace( title ) || Regex.IsMatch( title, "^(Downloading|Download|Fetching) " ) )
-                title = LoadingView.FirstTask ?? "Loading";
+                title = LoadingView.FirstTask ?? "#menu.common.loading";
 
             return Regex.Replace( title, "'([^']+)'", "$1" );
         }
@@ -462,7 +462,7 @@
     /// <summary>
     /// "420 MB", "1.2 GB" - as short as it goes.
     /// </summary>
-    static string Size( double bytes )
+    internal static string Size( double bytes )
     {
         if ( bytes >= 1_000_000_000 ) return $"{bytes / 1_000_000_000:0.#} GB";
         if ( bytes >= 1_000_000 ) return $"{bytes / 1_000_000:0} MB";
@@ -474,7 +474,7 @@
     /// 1.1 GB download reads "0.51 GB", not "510 MB". Gigabytes get a second decimal, so it's seen
     /// going up rather than sitting on the same tenth for ages.
     /// </summary>
-    static string SizeIn( double bytes, double total )
+    internal static string SizeIn( double bytes, double total )
     {
         if ( total >= 1_000_000_000 ) return $"{bytes / 1_000_000_000:0.00} GB";
         if ( total >= 1_000_000 ) return $"{bytes / 1_000_000:0} MB";
@@ -485,7 +485,7 @@
     {
         var span = DateTimeOffset.UtcNow - when;
 
-        if ( span.TotalHours < 1 ) return "just now";
+        if ( span.TotalHours < 1 ) return Language.GetPhrase( "menu.common.just_now" );
         if ( span.TotalDays < 1 ) return $"{(int)span.TotalHours}h ago";
         if ( span.TotalDays < 2 ) return "yesterday";
         if ( span.TotalDays < 30 ) return $"{(int)span.TotalDays} days ago";

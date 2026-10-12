@@ -36,6 +36,8 @@ public abstract class SceneLoader<T> : ResourceLoader<T>, IThumbnailProvider whe
 		scene.SetDeterministicId( (Path ?? string.Empty).ToGuid() );
 
 		using ( scene.Push() )
+		// Finish build callbacks before destroying the temporary scene.
+		using ( CallbackBatch.Isolated() )
 		{
 			BuildScene();
 		}

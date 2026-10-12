@@ -173,6 +173,11 @@ internal sealed class ProjectSettingsWindow : Window
 
 		AddCategoryToList( typeof( ProjectPage ), "Project" );
 
+		if ( !project.IsTransient && !project.IsReadOnly )
+		{
+			AddCategoryToList( typeof( AICategory ), "AI" );
+		}
+
 		if ( project.Config.Type == "game" )
 		{
 			AddCategoryToList( typeof( GameCategory ), "Project" );

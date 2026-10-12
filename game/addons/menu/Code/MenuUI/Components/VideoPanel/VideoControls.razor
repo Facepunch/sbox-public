@@ -17,27 +17,27 @@
 
         @if ( VideoPlayer.IsPaused )
         {
-            <div class="control play" onclick="@VideoPlayer.Resume" tooltip="Play"><i>play_arrow</i></div>
+            <div class="control play" onclick="@VideoPlayer.Resume" tooltip="#menu.common.play"><i>play_arrow</i></div>
         }
         else
         {
-            <div class="control play" onclick="@VideoPlayer.Pause" tooltip="Pause"><i>pause</i></div>
+            <div class="control play" onclick="@VideoPlayer.Pause" tooltip="#menu.common.pause"><i>pause</i></div>
         }
 
         @if ( !VideoPlayer.HasAudio )
         {
-            <div class="control disabled" tooltip="No sound"><i>volume_off</i></div>
+            <div class="control disabled" tooltip="#menu.home.no_sound"><i>volume_off</i></div>
         }
         else
         {
             <div class="volume">
                 @if ( VideoPlayer.Muted )
                 {
-                    <div class="control" onclick="@( () => VideoPlayer.Muted = false )" tooltip="Unmute"><i>volume_off</i></div>
+                    <div class="control" onclick="@( () => VideoPlayer.Muted = false )" tooltip="#menu.home.unmute"><i>volume_off</i></div>
                 }
                 else
                 {
-                    <div class="control" onclick="@( () => VideoPlayer.Muted = true )" tooltip="Mute"><i>volume_up</i></div>
+                    <div class="control" onclick="@( () => VideoPlayer.Muted = true )" tooltip="#menu.home.mute"><i>volume_up</i></div>
                 }
 
                 <SliderControl Min="@(0)" Max="@(1)" Step="@(0.01f)" Value="@VideoPlayer.Audio.Volume" OnValueChanged="@VolumeChanged"></SliderControl>

@@ -20,51 +20,49 @@
 
 				<div class="aside">
 
-					<h2><WithIcon Icon="extension" Text="What's a mount?"></WithIcon></h2>
+					<h2><WithIcon Icon="extension" Text="#menu.mounts.what_s_a_mount"></WithIcon></h2>
 					<p>
-						A mount lets s&amp;box use the content of a game you already own. Turn one on and it
-						reads that game straight out of its install folder, converting the models, maps,
-						materials and sounds as they're asked for.
+						#menu.mounts.a_mount_lets_s_box_use_the_content_of
 					</p>
 
 					<div class="block">
-						<label class="section-label">How it works</label>
+						<label class="section-label">#menu.mounts.how_it_works</label>
 
 						<div class="step">
 							<icon>shopping_cart</icon>
-							<label>Own the game on Steam and install it. s&amp;box finds it through your library.</label>
+							<label>#menu.mounts.own_the_game_on_steam_and_install_it_s_box_finds_it_through_your_library</label>
 						</div>
 
 						<div class="step">
 							<icon>toggle_on</icon>
-							<label>Turn it on here. It stays on until you turn it off again.</label>
+							<label>#menu.mounts.turn_it_on_here_it_stays_on_until_you_turn_it_off_again</label>
 						</div>
 
 						<div class="step">
 							<icon>folder_open</icon>
-							<label>Its content shows up in the asset browser, and in any game that asks for it.</label>
+							<label>#menu.mounts.its_content_shows_up_in_the_asset_browser_and</label>
 						</div>
 					</div>
 
 					<div class="block">
-						<label class="section-label">Worth knowing</label>
+						<label class="section-label">#menu.mounts.worth_knowing</label>
 
 						<div class="note">
 							<icon>group</icon>
-							<label>In multiplayer, everyone needs the game installed and mounted too - otherwise they won't see the content.</label>
+							<label>#menu.mounts.in_multiplayer_everyone_needs_the_game_installed_and_mounted</label>
 						</div>
 
 						<div class="note">
 							<icon>memory</icon>
-							<label>Turning a mount off releases everything it loaded, so leave off what you're not using.</label>
+							<label>#menu.mounts.turning_a_mount_off_releases_everything_it_loaded_so</label>
 						</div>
 
 						<div class="note">
 							<icon>code</icon>
-							<label>Mounts are part of the engine, and anyone can write one for a game that isn't here yet.</label>
+							<label>#menu.mounts.mounts_are_part_of_the_engine_and_anyone_can</label>
 						</div>
 
-						<label class="docs-link" onclick=@OpenDocs>Read more about mounts</label>
+						<label class="docs-link" onclick=@OpenDocs>#menu.mounts.read_more_about_mounts</label>
 					</div>
 
 				</div>
@@ -75,15 +73,15 @@
 					{
 						<div class="empty">
 							<icon>extension_off</icon>
-							<label class="title">No mounts installed</label>
-							<label class="hint">Mounts ship with the engine - if this list is empty something went wrong loading them.</label>
+							<label class="title">#menu.mounts.no_mounts_installed</label>
+							<label class="hint">#menu.mounts.mounts_ship_with_the_engine_if_this_list_is</label>
 						</div>
 					}
 
 					@if ( Installed.Any() )
 					{
 						<div class="section-head">
-							<label class="title">Installed</label>
+							<label class="title">#menu.mounts.installed</label>
 							<label class="count">@Installed.Count() games</label>
 						</div>
 
@@ -98,7 +96,7 @@
 					@if ( Owned.Any() )
 					{
 						<div class="section-head quiet">
-							<label class="title">In your library</label>
+							<label class="title">#menu.mounts.in_your_library</label>
 							<label class="count">@Owned.Count() games to install</label>
 						</div>
 
@@ -113,7 +111,7 @@
 					@if ( Unowned.Any() )
 					{
 						<div class="section-head quiet">
-							<label class="title">Not owned</label>
+							<label class="title">#menu.mounts.not_owned</label>
 							<label class="count">@Unowned.Count() games</label>
 						</div>
 

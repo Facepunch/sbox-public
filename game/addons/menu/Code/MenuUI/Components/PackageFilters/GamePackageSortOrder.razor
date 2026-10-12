@@ -31,14 +31,14 @@
     /// </summary>
     public GamePackageSortOrder()
     {
-        orders.Add(new Package.SortOrder { Icon = "favorite", Name = "quality", Title = "Most Loved" });
-        orders.Add(new Package.SortOrder { Icon = "today", Name = "rankday", Title = "Popular Today" });
-        orders.Add(new Package.SortOrder { Icon = "calendar_month", Name = "rankmonth", Title = "Popular Month" });
-        orders.Add(new Package.SortOrder { Icon = "trending_up", Name = "trending", Title = "Trending" });
-        orders.Add(new Package.SortOrder { Icon = "new_releases", Name = "newest", Title = "Newest" });
-        orders.Add(new Package.SortOrder { Icon = "schedule", Name = "updated", Title = "Updated" });
-        orders.Add(new Package.SortOrder { Icon = "diamond", Name = "hiddengem", Title = "Hidden Gems" });
-        orders.Add(new Package.SortOrder { Icon = "bookmarks", Name = "favourite", Title = "Your Favourites" });
+        orders.Add(new Package.SortOrder { Icon = "favorite", Name = "quality", Title = "#menu.games.most_loved_label" });
+        orders.Add(new Package.SortOrder { Icon = "today", Name = "rankday", Title = "#menu.games.popular_today_label" });
+        orders.Add(new Package.SortOrder { Icon = "calendar_month", Name = "rankmonth", Title = "#menu.games.popular_month" });
+        orders.Add(new Package.SortOrder { Icon = "trending_up", Name = "trending", Title = "#menu.games.trending" });
+        orders.Add(new Package.SortOrder { Icon = "new_releases", Name = "newest", Title = "#menu.games.newest" });
+        orders.Add(new Package.SortOrder { Icon = "schedule", Name = "updated", Title = "#menu.games.updated" });
+        orders.Add(new Package.SortOrder { Icon = "diamond", Name = "hiddengem", Title = "#menu.games.hidden_gems_label" });
+        orders.Add(new Package.SortOrder { Icon = "bookmarks", Name = "favourite", Title = "#menu.games.your_favourites_label" });
     }
 
     void SwitchTo(Package.SortOrder entry)

@@ -47,6 +47,8 @@ public sealed partial class GameJamSystem : GameObjectSystem<GameJamSystem>, IBa
 	bool loading;
 	bool refreshRequested = true;
 	int previewDays = Jam.PreviewDays;
+	const double RefreshRetrySeconds = 60;
+	double nextRefreshRetry;
 	DateTimeOffset? nextRefresh;
 
 	bool NominationsOpen => ActiveJam is { CommunityVoting: true, HasStarted: true }
@@ -76,6 +78,8 @@ public sealed partial class GameJamSystem : GameObjectSystem<GameJamSystem>, IBa
 	public void Refresh()
 	{
 		refreshRequested = true;
+		nextRefresh = null;
+		nextRefreshRetry = 0;
 		RefreshFinalists();
 	}
 
@@ -131,6 +135,7 @@ public sealed partial class GameJamSystem : GameObjectSystem<GameJamSystem>, IBa
 			previewDays = Jam.PreviewDays;
 			ActiveJam = null;
 			nextRefresh = null;
+			nextRefreshRetry = 0;
 			Nominations = null;
 			ResetFinalists();
 			Error = null;
@@ -144,9 +149,14 @@ public sealed partial class GameJamSystem : GameObjectSystem<GameJamSystem>, IBa
 			Version++;
 		}
 
-		if ( ActiveJam is not null && nextRefresh <= ActiveJam.Now )
+		if ( ActiveJam is not null && nextRefresh.HasValue && nextRefresh <= ActiveJam.Now )
 		{
 			nextRefresh = null;
+			Refresh();
+		}
+		else if ( nextRefreshRetry > 0 && RealTime.Now >= nextRefreshRetry )
+		{
+			nextRefreshRetry = 0;
 			Refresh();
 		}
 
@@ -175,19 +185,23 @@ public sealed partial class GameJamSystem : GameObjectSystem<GameJamSystem>, IBa
 				ResetFinalists();
 			}
 			ActiveJam = jam;
-			nextRefresh = jam?.NextStep?.At;
-
 			var nominations = NominationsOpen ? await jam.GetNominationSummaryAsync() : null;
 			if ( !Scene.IsValid() || days != Jam.PreviewDays ) return;
+			var nextStep = jam?.NextStep;
+			nextRefresh = nextStep is not null && nextStep.At > jam.Now ? nextStep.At : null;
+			// GetActive caches null results, so retry periodically until a published jam is visible.
+			nextRefreshRetry = nextRefresh is null ? RealTime.Now + RefreshRetrySeconds : 0;
 
-			Error = NominationsOpen && nominations is null ? "Couldn't refresh nominations. Try again in a moment." : null;
+			Error = NominationsOpen && nominations is null ? "#menu.jam.couldn_t_refresh_nominations_try_again_in_a_moment" : null;
 			if ( nominations is not null || !NominationsOpen ) Nominations = nominations;
 			Version++;
 		}
 		catch ( Exception e )
 		{
 			Log.Warning( e, "Couldn't refresh the active jam" );
-			Error = "Couldn't refresh the jam. Try again in a moment.";
+			Error = "#menu.jam.couldn_t_refresh_the_jam_try_again_in_a";
+			nextRefresh = null;
+			nextRefreshRetry = RealTime.Now + RefreshRetrySeconds;
 			Version++;
 		}
 		finally

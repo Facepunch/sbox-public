@@ -1,4 +1,4 @@
-﻿using NativeEngine;
+using NativeEngine;
 using Sandbox.Network;
 using Sandbox.Utility;
 using Sandbox.VR;
@@ -24,11 +24,13 @@ internal static class Bootstrap
 	/// <summary>
 	/// Set up application flags, the main thread and filesystems so the startup window can read its settings.
 	/// </summary>
-	internal static void InitApplication( CMaterialSystem2AppSystemDict appDict )
+	internal static void InitApplication( CMaterialSystem2AppSystemDict appDict, string rootFolder = null )
 	{
 		Application.Initialize( appDict.IsDedicatedServer(), appDict.IsConsoleApp(), appDict.IsInToolsMode(), appDict.IsInTestMode(), EngineGlobal.IsRetail() );
-		InitFileSystem( EngineGlobal.GetGameRootFolder() );
+		InitFileSystem( rootFolder ?? EngineGlobal.GetGameRootFolder() );
+		DLLImportResolver.SetupResolvers();
 	}
+
 
 	/// <summary>
 	/// Bootstrap managed services after the startup window has been painted.
@@ -40,9 +42,8 @@ internal static class Bootstrap
 			initializeWindow?.Invoke();
 			InitServices();
 			Graphics.Initialize();
-			GameWindow.Current?.UpdateStartupProgress( 0.1f );
+			GameWindow.Current?.UpdateStartupProgress( 0.1f, "Preparing files" );
 
-			DLLImportResolver.SetupResolvers();
 
 			StartupTiming = new Api.Events.EventRecord( $"StartupTiming.{(Application.IsEditor ? "Editor" : (Application.IsHeadless ? "Server" : "Game"))}" );
 			StartupTiming.StartTimer( "Time" );
@@ -61,6 +62,11 @@ internal static class Bootstrap
 			Logging.OnException = ErrorReporter.ReportException;
 			Logging.PrintToConsole = Application.IsHeadless;
 
+			if ( Application.IsEditor || CommandLine.HasSwitch( "-mcp" ) )
+			{
+				Editor.Mcp.LogBuffer.StartCapture();
+			}
+
 			{
 				using var timerFs = StartupTiming?.ScopeTimer( "FilesystemInit" );
 
@@ -78,7 +84,7 @@ internal static class Bootstrap
 			}
 
 			Api.Init();
-			GameWindow.Current?.UpdateStartupProgress( 0.2f );
+			GameWindow.Current?.UpdateStartupProgress( 0.2f, "Loading game code" );
 
 			if ( Application.IsStandalone )
 			{
@@ -102,7 +108,7 @@ internal static class Bootstrap
 				Mounting.Directory.LoadAssemblies();
 			}
 
-			GameWindow.Current?.UpdateStartupProgress( 0.4f );
+			GameWindow.Current?.UpdateStartupProgress( 0.4f, "Starting engine systems" );
 		}
 		catch ( Exception ex )
 		{
@@ -158,9 +164,10 @@ internal static class Bootstrap
 	{
 		try
 		{
+			Material.Preload();
 			using ( var _ = StartupTiming?.ScopeTimer( "Material Preload" ) )
 				Material.Preload();
-			GameWindow.Current?.UpdateStartupProgress( 0.55f );
+			GameWindow.Current?.UpdateStartupProgress( 0.55f, "Loading engine assemblies" );
 
 			IToolsDll.Current?.Spin();
 
@@ -183,8 +190,9 @@ internal static class Bootstrap
 			{
 				ReflectionUtility.RunAllStaticConstructors( "Sandbox.System" );
 				ReflectionUtility.RunAllStaticConstructors( "Sandbox.Engine" );
+				Rendering.RenderPipeline.WarmUp();
 			}
-			GameWindow.Current?.UpdateStartupProgress( 0.6f );
+			GameWindow.Current?.UpdateStartupProgress( 0.6f, "Loading built-in projects" );
 
 			//log.Trace( "Bootstrap::Init" );
 			//log.Trace( $"Current Directory is {System.IO.Directory.GetCurrentDirectory()}" );
@@ -199,7 +207,7 @@ internal static class Bootstrap
 				SyncContext.RunBlocking( Project.InitializeBuiltIn() );
 			}
 
-			GameWindow.Current?.UpdateStartupProgress( 0.7f );
+			GameWindow.Current?.UpdateStartupProgress( 0.7f, "Initializing services" );
 
 			InitEngineConVars();
 			ConsoleConfig.ExecuteAutoexec();
@@ -233,7 +241,13 @@ internal static class Bootstrap
 				SyncContext.RunBlocking( Services.Inventory.WaitForSteamInventoryItems( timeout.Token ) );
 			}
 
-			GameWindow.Current?.UpdateStartupProgress( 0.8f );
+			if ( !Application.IsStandalone )
+			{
+				// Know what's subscribed before the menu or a game asks for a package
+				Services.Ugc.InitializeSubscriptions();
+			}
+
+			GameWindow.Current?.UpdateStartupProgress( 0.8f, "Loading menu" );
 
 			if ( IMenuDll.Current is not null )
 			{
@@ -241,7 +255,7 @@ internal static class Bootstrap
 				SyncContext.RunBlocking( IMenuDll.Current.Initialize() );
 			}
 
-			GameWindow.Current?.UpdateStartupProgress( 0.9f );
+			GameWindow.Current?.UpdateStartupProgress( 0.9f, "Loading game" );
 
 			if ( IGameInstanceDll.Current is not null )
 			{
@@ -249,7 +263,7 @@ internal static class Bootstrap
 				SyncContext.RunBlocking( IGameInstanceDll.Current.Initialize() );
 			}
 
-			GameWindow.Current?.UpdateStartupProgress( 0.95f );
+			GameWindow.Current?.UpdateStartupProgress( 0.95f, "Finalizing startup" );
 
 			if ( SteamClient.IsValid && ErrorReporter.IsUsingSentry )
 			{
@@ -298,6 +312,15 @@ internal static class Bootstrap
 			// Networking bootstrap
 			//
 			Networking.Bootstrap();
+
+			// Local automation uses a separate same-user pipe for every process. Games opt in;
+			// editors follow the project's AI preferences, including when launched with -mcp.
+			if ( Application.IsEditor
+				? Project.Current?.Config.AI?.EnableMcpCommunication != false
+				: CommandLine.HasSwitch( "-mcp" ) )
+			{
+				Editor.Mcp.McpPipeServer.Start();
+			}
 
 			if ( Application.IsJoinLocal )
 			{

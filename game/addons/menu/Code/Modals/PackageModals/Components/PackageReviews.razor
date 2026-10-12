@@ -1,4 +1,4 @@
-﻿@namespace MenuProject.Modals.PackageModalComponents
+@namespace MenuProject.Modals.PackageModalComponents
 @inherits Panel
 @using Sandbox;
 @using Sandbox.UI
@@ -51,10 +51,10 @@
     @if ( Package.Reviews.Total > 0 )
     {
         <div class="filters">
-            <div class="filter @(Filter is null ? "active" : "")" onclick=@( () => _ = SetFilter( null ) )><label>All</label><label class="n">@Package.Reviews.Total</label></div>
-            <div class="filter good @(Filter == ReviewScore.Positive ? "active" : "")" onclick=@( () => _ = SetFilter( ReviewScore.Positive ) )><icon>thumb_up</icon><label>Recommended</label><label class="n">@Package.Reviews.PositiveRatings</label></div>
-            <div class="filter meh @(Filter == ReviewScore.Promise ? "active" : "")" onclick=@( () => _ = SetFilter( ReviewScore.Promise ) )><icon>thumbs_up_down</icon><label>Shows promise</label><label class="n">@Package.Reviews.PromiseRatings</label></div>
-            <div class="filter bad @(Filter == ReviewScore.Negative ? "active" : "")" onclick=@( () => _ = SetFilter( ReviewScore.Negative ) )><icon>thumb_down</icon><label>Needs work</label><label class="n">@Package.Reviews.NegativeRatings</label></div>
+            <div class="filter @(Filter is null ? "active" : "")" onclick=@( () => _ = SetFilter( null ) )><label>#menu.common.all</label><label class="n">@Package.Reviews.Total</label></div>
+            <div class="filter good @(Filter == ReviewScore.Positive ? "active" : "")" onclick=@( () => _ = SetFilter( ReviewScore.Positive ) )><icon>thumb_up</icon><label>#menu.games.recommended</label><label class="n">@Package.Reviews.PositiveRatings</label></div>
+            <div class="filter meh @(Filter == ReviewScore.Promise ? "active" : "")" onclick=@( () => _ = SetFilter( ReviewScore.Promise ) )><icon>thumbs_up_down</icon><label>#menu.games.shows_promise</label><label class="n">@Package.Reviews.PromiseRatings</label></div>
+            <div class="filter bad @(Filter == ReviewScore.Negative ? "active" : "")" onclick=@( () => _ = SetFilter( ReviewScore.Negative ) )><icon>thumb_down</icon><label>#menu.games.needs_work</label><label class="n">@Package.Reviews.NegativeRatings</label></div>
         </div>
     }
 
@@ -77,7 +77,7 @@
         }
         else if ( Reviews.Count == 0 && TotalCount == 0 )
         {
-            <div class="no-reviews">@(Filter is null ? "No reviews yet - be the first to write one." : "No reviews like that yet.")</div>
+            <div class="no-reviews">@(Filter is null ? "#menu.games.no_reviews_yet_be_the_first_to_write_one" : "No reviews like that yet.")</div>
         }
         else
         {
@@ -96,15 +96,15 @@
                     <TopBar>
                         @if ( review.Score == ReviewScore.Positive )
                         {
-                            <div class="verdict-pill good"><icon>thumb_up</icon><label>Recommended</label></div>
+                            <div class="verdict-pill good"><icon>thumb_up</icon><label>#menu.games.recommended</label></div>
                         }
                         else if ( review.Score == ReviewScore.Negative )
                         {
-                            <div class="verdict-pill bad"><icon>thumb_down</icon><label>Needs work</label></div>
+                            <div class="verdict-pill bad"><icon>thumb_down</icon><label>#menu.games.needs_work</label></div>
                         }
                         else if ( review.Score == ReviewScore.Promise )
                         {
-                            <div class="verdict-pill meh"><icon>thumbs_up_down</icon><label>Shows promise</label></div>
+                            <div class="verdict-pill meh"><icon>thumbs_up_down</icon><label>#menu.games.shows_promise</label></div>
                         }
                     </TopBar>
                     <Content>

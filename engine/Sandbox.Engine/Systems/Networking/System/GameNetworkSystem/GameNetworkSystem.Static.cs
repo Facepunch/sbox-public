@@ -139,6 +139,7 @@ internal static class DedicatedServer
 
 	private static bool IsGameServerActive { get; set; }
 	private static bool Initialized { get; set; }
+	private static Task<bool> _steamLogOn;
 
 	private static Dictionary<string, string> _data = new();
 	private static string _mapName;
@@ -257,7 +258,7 @@ internal static class DedicatedServer
 
 		if ( !IsGameServerActive )
 		{
-			Steam.SteamGameServer_Init( Networking.Port, Networking.QueryPort, "1.0.0.0" );
+			await LogOnToSteamAsync();
 			Networking.Bootstrap();
 
 			// Conna: we can abstract this stuff out later, but for now we only use Steam networking for dedicated servers.
@@ -370,6 +371,55 @@ internal static class DedicatedServer
 		}
 	}
 
+	/// <summary>
+	/// Bring up the Steam game server and log on. The server's packages install from the workshop
+	/// before the server is started, so they call this too. Returns false if we couldn't log on.
+	/// </summary>
+	internal static Task<bool> LogOnToSteamAsync()
+	{
+		return _steamLogOn ??= LogOnToSteamInternalAsync();
+	}
+
+	static async Task<bool> LogOnToSteamInternalAsync()
+	{
+		Steam.SteamGameServer_Init( Networking.Port, Networking.QueryPort, "1.0.0.0" );
+
+		EngineFileSystem.DownloadedFiles.CreateDirectory( "/workshop" );
+		if ( !CUgcSubscriptions.InitWorkshopForGameServer( EngineFileSystem.DownloadedFiles.GetFullPath( "/workshop" ) ) )
+		{
+			Log.Warning( "Couldn't initialize the workshop for the game server" );
+		}
+
+		var sgs = Steam.SteamGameServer();
+		if ( !sgs.IsValid )
+			return false;
+
+		// These can only be set before logging on
+		sgs.SetProduct( "sbox" );
+		sgs.SetModDir( "sbox" );
+		sgs.SetDedicatedServer( true );
+		sgs.SetGameDescription( Application.GamePackage?.Title ?? "s&box" );
+
+		if ( !string.IsNullOrEmpty( Networking.GameServerToken ) )
+			sgs.LogOn( Networking.GameServerToken );
+		else
+			sgs.LogOnAnonymous();
+
+		var timeout = RealTime.Now + 10.0f;
+		while ( !sgs.BLoggedOn() )
+		{
+			if ( RealTime.Now > timeout )
+			{
+				Log.Warning( "Unable to log on to Steam in a reasonable time!" );
+				return false;
+			}
+
+			await Task.Delay( 100 );
+		}
+
+		return true;
+	}
+
 	private static void OnConnected( SteamServersConnected_t cb )
 	{
 		Log.Warning( $"Connected to Steam" );
@@ -427,5 +477,6 @@ internal static class DedicatedServer
 
 		Steam.SteamGameServer_Shutdown();
 		IsGameServerActive = false;
+		_steamLogOn = null;
 	}
 }

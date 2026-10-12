@@ -76,23 +76,23 @@
 	/// <summary>The feeds offered in the top bar, in order.</summary>
 	public static readonly FeedTab[] Tabs =
 	[
-		new( "discover", "Discover", null ),
-		new( "trending", "Trending", "sort:trending" ),
-		new( "popular", "Popular", "sort:rankmonth" ),
-		new( "newest", "Newest", "sort:newest" ),
-		new( "updated", "Updated", "sort:updated" ),
-		new( "gems", "Hidden Gems", "sort:hiddengem" ),
-		new( "favourites", "Your Favourites", "sort:favourites" ),
+		new( "discover", "#menu.home.discover", null ),
+		new( "trending", "#menu.home.trending", "sort:trending" ),
+		new( "popular", "#menu.home.popular", "sort:rankmonth" ),
+		new( "newest", "#menu.home.newest", "sort:newest" ),
+		new( "updated", "#menu.home.updated", "sort:updated" ),
+		new( "gems", "#menu.home.hidden_gems", "sort:hiddengem" ),
+		new( "favourites", "#menu.home.your_favourites", "sort:favourites" ),
 	];
 
 	/// <summary>Genre feeds, shown after the main tabs. Best-rated first within each genre.</summary>
 	public static readonly FeedTab[] Genres =
 	[
-		new( "shooter", "Shooter", "sort:quality genre:shooter" ),
-		new( "puzzle", "Puzzle", "sort:quality genre:puzzle" ),
-		new( "strategy", "Strategy", "sort:quality genre:strategy" ),
-		new( "sports", "Sports", "sort:quality genre:sports" ),
-		new( "roguelike", "Roguelike", "sort:quality genre:roguelike" ),
+		new( "shooter", "#menu.home.shooter", "sort:quality genre:shooter" ),
+		new( "puzzle", "#menu.home.puzzle", "sort:quality genre:puzzle" ),
+		new( "strategy", "#menu.home.strategy", "sort:quality genre:strategy" ),
+		new( "sports", "#menu.home.sports", "sort:quality genre:sports" ),
+		new( "roguelike", "#menu.home.roguelike", "sort:quality genre:roguelike" ),
 	];
 
 	static FeedTab FindTab( string name ) => Tabs.Concat( Genres ).FirstOrDefault( x => x.Name == name ) ?? Tabs[0];

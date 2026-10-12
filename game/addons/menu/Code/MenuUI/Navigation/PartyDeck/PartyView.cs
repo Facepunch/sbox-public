@@ -53,7 +53,7 @@ public static class PartyView
 	/// <summary>
 	/// The party name, with the local player's chat filter applied.
 	/// </summary>
-	public static string Name => IsMocking ? Sandbox.Utility.Steam.FilterChat( mockName ?? $"{Owner.Name}'s Party", Owner.Id ) : Party?.Name ?? "Party";
+	public static string Name => IsMocking ? Sandbox.Utility.Steam.FilterChat( mockName ?? $"{Owner.Name}'s Party", Owner.Id ) : Party?.Name ?? "#party";
 
 	/// <summary>
 	/// Whether anyone can discover and join the party.

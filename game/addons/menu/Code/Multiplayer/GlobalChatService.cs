@@ -277,7 +277,7 @@ internal static class GlobalChatService
 		if ( text.Length > 400 ) text = text[..400];
 		if ( !Channel.Send( JsonSerializer.Serialize( new Message { Id = Guid.NewGuid(), Text = text, PartyId = partyId } ) ) )
 		{
-			Error = "The message could not be sent.";
+			Error = "#menu.common.the_message_could_not_be_sent";
 			return false;
 		}
 		Error = null;

@@ -205,8 +205,6 @@ internal class ToolsDll : IToolsDll
 		// Add all game addons to be compiled in tools mode, making them accessible for Hammer, Asset Editor, etc.
 		//
 		ManagedTools.AssembliesDirty = true;
-
-		Editor.Mcp.McpServer.Start();
 	}
 
 	/// <summary>

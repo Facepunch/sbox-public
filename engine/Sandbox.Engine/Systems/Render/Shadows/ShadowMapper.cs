@@ -21,13 +21,13 @@ internal partial class ShadowMapper
 	public static int MaxShadows { get; set; } = 256;
 
 	[ConVar( "r.shadows.maxresolution", Min = 128, Max = 4096, Help = "Max texture size (square) for a projected light shadow map, higher is better but uses more vram, these are scaled automatically too." )]
-	public static int MaxResolution { get; set; } = 1024; // Low/Med=512, High=1024, Very High=2048
+	public static int MaxResolution { get; set; } = 1024; // Low=512, Medium/High=1024, Ultra=2048
 
 	[ConVar( "r.shadows.quality", Min = 0, Max = 4, Help = "What filtering to use, higher is more GPU intensive. 0 = Off, 1 = Low, 2 = Med, 3 = High, 4 = Experimental Penumbra Shadows" )]
 	public static int ShadowFilter { get; set; } = 3;
 
 	[ConVar( "r.shadows.csm.maxcascades", Min = 1, Max = 4, Help = "Maximum number of cascades for directional light shadows." )]
-	public static int MaxCascades { get; set; } = 4;
+	public static int MaxCascades { get; set; } = 3;
 
 	[ConVar( "r.shadows.csm.maxresolution", Min = 512, Max = 8192, Help = "Maximum resolution for each cascade shadow map." )]
 	public static int MaxCascadeResolution { get; set; } = 2048;

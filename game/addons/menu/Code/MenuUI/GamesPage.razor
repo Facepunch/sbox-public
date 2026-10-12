@@ -20,7 +20,7 @@
                     <GamePackageSortOrder Value:bind="@filterOrder"></GamePackageSortOrder>
                 </div>
 
-                <TextEntry @ref="SearchEntry" placeholder="Search games..." OnTextEdited=@OnSearchEdited></TextEntry>
+                <TextEntry @ref="SearchEntry" placeholder="#menu.home.search_games" OnTextEdited=@OnSearchEdited></TextEntry>
 
                 @if (Result?.Properties is not null && Result.Properties.Length > 0)
                 {
@@ -42,7 +42,7 @@
                 }
 
                 <div class="flex-column flex-gap-16">
-                    <h2><WithIcon Icon="tag" Text="Tags"></WithIcon></h2>
+                    <h2><WithIcon Icon="tag" Text="#menu.home.tags"></WithIcon></h2>
                     <PackageTagFilter Result=@Result Selected="@SelectedTags"></PackageTagFilter>
                 </div>
 

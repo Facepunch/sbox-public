@@ -52,10 +52,10 @@ partial class StandaloneExporter
 		"dev/helper/**/*.vtex_c",
 		"dev/vgui/**/*.vmat_c",
 		"dev/*.vtex_c",
-		
-		// Splash screen
+		// Splash screen images. The software splash reads these raw PNGs before the resource system starts.
+		"materials/startup_background_color.png",
+		"materials/startup_backdrop_color.png",
 		"materials/startup_background.vtex_c",
-
 		// Interface
 		"fonts/*.ttf",
 		"styles/**/*",

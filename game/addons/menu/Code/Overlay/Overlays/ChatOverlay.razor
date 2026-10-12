@@ -8,10 +8,8 @@
 @implements PartyRoom.IEventListener
 @namespace MenuProject.Overlay.Overlays
 
-@if ( !ChatAvailable )
-    return;
+<root style="display: @(ChatAvailable ? "flex" : "none")">
 
-<root>
 	<ChatPanel @ref="Panel" ShowInput="@IsOpen" MessageFadeTime="@(8f)" ShowChannelLabel="@(InGame && InParty)" InputPrefix="@(IsOpen ? Channel : "")" OnSubmit="@OnChatSubmit" OnDismiss="@Close" />
 </root>
 
@@ -129,7 +127,7 @@
             HintedParty = PartyRoom.Current;
             var key = Input.GetButtonOrigin( "chat" );
             var hint = string.IsNullOrWhiteSpace( key )
-                ? "Set a chat key in Settings to chat with your party."
+                ? "#menu.common.set_a_chat_key_in_settings_to_chat_with"
                 : $"Press {key} to chat to your party";
 
             Panel.AddSystemMessage( "ℹ", hint );

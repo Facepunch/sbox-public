@@ -13,18 +13,18 @@
 <root>
 
     <div class="group">
-        <div class="pill @( Liked ? "active" : "" )" onclick=@( () => _ = Vote( true ) ) tooltip="Like">
+        <div class="pill @( Liked ? "active" : "" )" onclick=@( () => _ = Vote( true ) ) tooltip="#menu.games.like">
             <icon>thumb_up</icon>
             <label>@Package.VotesUp.ToMetric()</label>
         </div>
-        <div class="pill @( Disliked ? "active" : "" )" onclick=@( () => _ = Vote( false ) ) tooltip="Dislike">
+        <div class="pill @( Disliked ? "active" : "" )" onclick=@( () => _ = Vote( false ) ) tooltip="#menu.games.dislike">
             <icon>thumb_down</icon>
             <label>@Package.VotesDown.ToMetric()</label>
         </div>
     </div>
 
     <div class="group">
-        <div class="pill fav @( Package.Interaction.Favourite ? "active" : "" )" onclick=@( () => _ = ToggleFavourite() ) tooltip="@( Package.Interaction.Favourite ? "Remove from favourites" : "Add to favourites" )">
+        <div class="pill fav @( Package.Interaction.Favourite ? "active" : "" )" onclick=@( () => _ = ToggleFavourite() ) tooltip="@( Package.Interaction.Favourite ? "#menu.games.remove_from_favourites_text" : "#menu.games.add_to_favourites_text" )">
             <icon>@( Package.Interaction.Favourite ? "favorite" : "favorite_border" )</icon>
             <label>@Package.Favourited.ToMetric()</label>
         </div>
@@ -52,12 +52,12 @@
             {
                 <div class="pill active" onclick=@( () => _ = Unhide() ) tooltip="@UnhideTooltip">
                     <icon>visibility</icon>
-                    <label>Unhide</label>
+                    <label>#menu.common.unhide</label>
                 </div>
             }
             else
             {
-                <div class="pill" onclick=@( () => _ = Hide() ) tooltip="@( Package.TypeName == "map" ? "Hide this map" : "Hide this game" )">
+                <div class="pill" onclick=@( () => _ = Hide() ) tooltip="@( Package.TypeName == "map" ? "#menu.games.hide_this_map" : "#menu.games.hide_this_game" )">
                     <icon>block</icon>
                 </div>
             }
@@ -69,7 +69,7 @@
         <div class="group jam">
             <div class="pill nominate @( _nominated ? "on" : "" ) @( _jamBusy ? "busy" : "" ) @( CanToggleNomination ? "" : "locked" )" onclick=@( () => _ = ToggleNomination() ) tooltip="@JamTooltip">
                 <icon>@( _nominated ? "check" : CanToggleNomination ? "emoji_events" : "lock" )</icon>
-                <label>@( _nominated ? "Nominated" : "Nominate" )</label>
+                <label>@( _nominated ? "#menu.games.nominated" : "#menu.games.nominate" )</label>
             </div>
         </div>
     }
@@ -92,15 +92,15 @@
     [Parameter] public bool ShowReviews { get; set; } = true;
 
     /// <summary>
-    /// The review pill says the score - or, off, it's just its glyph ("Write a review" on hover), for
+    /// The review pill says the score - or, off, it's just its glyph ("#menu.games.write_a_review" on hover), for
     /// where the score's said already (the pause menu's game, in its reviews line).
     /// </summary>
     [Parameter] public bool ShowReviewScore { get; set; } = true;
 
     protected override int BuildHash() => HashCode.Combine( Package, Package?.Interaction.Rating, Package?.Interaction.Favourite, Package?.VotesUp, Package?.VotesDown, Package?.Favourited, Package?.Reviews.Total, HashCode.Combine( ShowJam, _nominated, _jamBusy, OnHidden is null, ShowReviews, ShowReviewScore, MenuUtility.Hidden.Revision ) );
 
-    string ReviewText => !ShowReviewScore ? null : Package.Reviews.Total > 0 ? Package.Reviews.Score.ToString( "0\\%" ) : "Review";
-    string ReviewTooltip => ShowReviewScore && Package.Reviews.Total > 0 ? $"{Package.Reviews.Score:N0}% from {Package.Reviews.Total} reviews. Write yours" : "Write a review";
+    string ReviewText => !ShowReviewScore ? null : Package.Reviews.Total > 0 ? Package.Reviews.Score.ToString( "0\\%" ) : "#menu.games.review";
+    string ReviewTooltip => ShowReviewScore && Package.Reviews.Total > 0 ? $"{Package.Reviews.Score:N0}% from {Package.Reviews.Total} reviews. Write yours" : "#menu.games.write_a_review";
 
     // Rating: 0 like, 1 dislike, null unrated
     bool Liked => Package.Interaction.Rating == 0;
@@ -131,7 +131,7 @@
 
     string UnhideTooltip => HiddenByOrganization
         ? $"Everything by {Package.Org?.Title} is hidden - show it all again"
-        : "You've hidden this - show it again";
+        : "#menu.games.you_ve_hidden_this_show_it_again";
 
     async Task Unhide()
     {
@@ -163,7 +163,7 @@
 
     bool ShowJam => _jam is not null && _entry.IsEntry;
     bool CanToggleNomination => _nominated || _entry.CanNominate;
-    string JamTooltip => $"{_jam?.Title} entry. " + (_nominated ? "You nominated it for the jam" : CanToggleNomination ? "Liked it? Nominate it for the jam" : _entry.Reason);
+    string JamTooltip => $"{_jam?.Title} entry. " + (_nominated ? Language.GetPhrase( "menu.games.you_nominated_it_for_the_jam" ) : CanToggleNomination ? Language.GetPhrase( "menu.games.liked_it_nominate_it_for_the_jam" ) : _entry.Reason);
 
     protected override void OnAfterTreeRender( bool firstTime )
     {
@@ -207,7 +207,7 @@
         catch ( Exception e )
         {
             Log.Warning( e, $"Nominate {Package.FullIdent} failed" );
-            reason = "Couldn't reach the jam right now.";
+            reason = "#menu.games.couldn_t_reach_the_jam_right_now";
         }
 
         if ( !this.IsValid() ) return;
@@ -220,6 +220,15 @@
             MenuOverlay.Instance?.BottomRight?.Queue( new MenuProject.Toast() { Title = reason, Icon = "how_to_vote" } );
         }
 
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Rebuild composed text when translations change.
+    /// </summary>
+    public override void LanguageChanged()
+    {
+        base.LanguageChanged();
         StateHasChanged();
     }
 }

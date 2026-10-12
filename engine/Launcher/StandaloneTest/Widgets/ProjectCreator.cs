@@ -242,6 +242,7 @@ public class ProjectCreator : Dialog
 		var txt = config.ToJson();
 
 		System.IO.File.WriteAllText( configPath, txt );
+		ProjectAgentInstructions.Update( configPath, FileSystem.Root.GetFullPath( "/" ), config.AI );
 
 		if ( CreateGitIgnore.Value )
 		{

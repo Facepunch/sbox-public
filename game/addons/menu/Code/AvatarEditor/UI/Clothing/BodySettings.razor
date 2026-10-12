@@ -4,13 +4,13 @@
 
 <root>
 
-    <FormRow Label="Height">
+    <FormRow Label="#menu.avatar.height">
         <Content>
             <SliderControl class="simple" Value:bind=@Manager.Height Min="@(0.0f)" Max="@(1.0f)" Step="@(0.01f)"></SliderControl>
         </Content>
     </FormRow>    
 
-    <FormRow Label="Skin">
+    <FormRow Label="#menu.avatar.skin">
         <Content>
             <div class="skin-items">
                 @foreach( var item in Manager.GetAllClothing().Where( x => x.HasHumanSkin ) )
@@ -25,7 +25,7 @@
         </Content>
     </FormRow>
 
-	<FormRow Label="Eye Color">
+	<FormRow Label="#menu.avatar.eye_color">
 		<Content>
 			<ColorSwatchPicker Gradient="@Dresser.EyeColorGradient" Value:bind="@Manager.EyeColor" />
 		</Content>

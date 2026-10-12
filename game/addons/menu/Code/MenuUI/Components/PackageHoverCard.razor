@@ -22,7 +22,7 @@
         @if ( Package.Usage.UsersNow > 0 )
         {
             <div class="facts">
-                <div class="fact live" tooltip="Playing now">
+                <div class="fact live" tooltip="#menu.games.playing_now">
                     <div class="live-dot" />
                     <label>@Compact( Package.Usage.UsersNow )</label>
                 </div>
@@ -39,7 +39,7 @@
                 <label>@ReviewPercentText()</label>
             </div>
 
-            <div class="fact" tooltip="Players all time">
+            <div class="fact" tooltip="#menu.games.players_all_time">
                 <icon>group</icon>
                 <label>@Compact( Package.Usage.Total.Users )</label>
             </div>
@@ -91,7 +91,7 @@
                 </div>
                 <div class="nominate @( _nominated ? "on" : "" ) @( _busy ? "busy" : "" ) @( CanToggleNomination ? "" : "locked" )" onclick=@( () => _ = ToggleNomination() )>
                     <icon>@( _nominated ? "check" : CanToggleNomination ? "how_to_vote" : "lock" )</icon>
-                    <label>@( _nominated ? "Nominated" : "Nominate" )</label>
+                    <label>@( _nominated ? "#menu.games.nominated" : "#menu.games.nominate" )</label>
                 </div>
             </div>
         }
@@ -99,24 +99,24 @@
         <div class="footer">
             <div class="actions">
                 <div class="group">
-                    <div class="button @( Liked ? "active" : "" )" onclick=@( () => _ = Vote( true ) ) tooltip="Like">
+                    <div class="button @( Liked ? "active" : "" )" onclick=@( () => _ = Vote( true ) ) tooltip="#menu.games.like">
                         <icon>thumb_up</icon>
                     </div>
-                    <div class="button @( Disliked ? "active" : "" )" onclick=@( () => _ = Vote( false ) ) tooltip="Dislike">
+                    <div class="button @( Disliked ? "active" : "" )" onclick=@( () => _ = Vote( false ) ) tooltip="#menu.games.dislike">
                         <icon>thumb_down</icon>
                     </div>
                 </div>
                 <div class="group">
-                    <div class="button fav @( Package.Interaction.Favourite ? "active" : "" )" onclick=@( () => _ = ToggleFavourite() ) tooltip="@( Package.Interaction.Favourite ? "Remove from favourites" : "Add to favourites" )">
+                    <div class="button fav @( Package.Interaction.Favourite ? "active" : "" )" onclick=@( () => _ = ToggleFavourite() ) tooltip="@( Package.Interaction.Favourite ? "#menu.games.remove_from_favourites_text" : "#menu.games.add_to_favourites_text" )">
                         <icon>@( Package.Interaction.Favourite ? "favorite" : "favorite_border" )</icon>
                     </div>
-                    <div class="button" onclick=@Review tooltip="Write a review">
+                    <div class="button" onclick=@Review tooltip="#menu.games.write_a_review">
                         <icon>rate_review</icon>
                     </div>
                 </div>
                 @if ( Package.TypeName == "game" )
                 {
-                    <div class="button @( _hiding ? "busy" : "" )" onclick=@( () => _ = Hide() ) tooltip="Hide this game">
+                    <div class="button @( _hiding ? "busy" : "" )" onclick=@( () => _ = Hide() ) tooltip="#menu.games.hide_this_game">
                         <icon>block</icon>
                     </div>
                 }
@@ -129,7 +129,7 @@
                 <div class="actions">
                     <div class="button primary" onclick=@Play>
                         <icon>play_arrow</icon>
-                        <label>Play</label>
+                        <label>#menu.common.play</label>
                     </div>
                 </div>
             }
@@ -168,7 +168,7 @@
 
     bool ShowJam => _jam is not null && _entry.IsEntry;
     bool CanToggleNomination => _nominated || _entry.CanNominate;
-    string JamHint => _nominated ? "You nominated it for the jam" : CanToggleNomination ? "Liked it? Nominate it for the jam" : _entry.Reason;
+    string JamHint => _nominated ? "#menu.games.you_nominated_it_for_the_jam" : CanToggleNomination ? "#menu.games.liked_it_nominate_it_for_the_jam" : _entry.Reason;
 
     static bool IsShowing( Panel source ) => Current.IsValid() && Current.Source == source;
 
@@ -243,7 +243,7 @@
         catch ( Exception e )
         {
             Log.Warning( e, $"Nominate {Package.FullIdent} failed" );
-            reason = "Couldn't reach the jam right now.";
+            reason = "#menu.games.couldn_t_reach_the_jam_right_now";
         }
 
         if ( !this.IsValid() ) return;
@@ -455,8 +455,8 @@
 
     static string TagLabel( string tag ) => tag switch
     {
-        "multiplayer" => "Multiplayer",
-        "singleplayer" => "Singleplayer",
+        "multiplayer" => "#menu.home.multiplayer",
+        "singleplayer" => "#menu.games.singleplayer",
         _ => GenreLabels.GetValueOrDefault( tag, tag ),
     };
 
@@ -482,14 +482,14 @@
     string ReviewText()
     {
         var (pct, count) = Rating();
-        if ( pct == -1 ) return "No reviews yet";
+        if ( pct == -1 ) return "#menu.games.no_reviews_yet";
 
         var verdict = pct switch
         {
-            >= 80 => "Very Positive",
-            >= 60 => "Positive",
-            >= 40 => "Mixed",
-            _ => "Negative"
+            >= 80 => Language.GetPhrase( "menu.games.very_positive" ),
+            >= 60 => Language.GetPhrase( "menu.games.positive" ),
+            >= 40 => Language.GetPhrase( "menu.games.mixed" ),
+            _ => Language.GetPhrase( "menu.games.negative" )
         };
 
         return $"{verdict} ({Compact( count )})";
@@ -498,7 +498,7 @@
     string ReviewPercentText()
     {
         var pct = Rating().Percent;
-        return pct == -1 ? "Unrated" : $"{pct}%";
+        return pct == -1 ? "#menu.games.unrated" : $"{pct}%";
     }
 
     string ReviewClass() => Rating().Percent switch
@@ -520,19 +520,19 @@
     // Only genre-like tags are shown; the backend's genre facet isn't on Package yet.
     static readonly Dictionary<string, string> GenreLabels = new( StringComparer.OrdinalIgnoreCase )
     {
-        ["shooter"] = "Shooter", ["fps"] = "FPS", ["tps"] = "Third Person Shooter",
-        ["puzzle"] = "Puzzle", ["strategy"] = "Strategy", ["sports"] = "Sports",
-        ["roguelike"] = "Roguelike", ["roguelite"] = "Roguelite", ["horror"] = "Horror",
-        ["racing"] = "Racing", ["survival"] = "Survival", ["sandbox"] = "Sandbox",
-        ["rpg"] = "RPG", ["platformer"] = "Platformer", ["adventure"] = "Adventure",
-        ["simulation"] = "Simulation", ["sim"] = "Simulation", ["action"] = "Action",
-        ["arcade"] = "Arcade", ["party"] = "Party", ["fighting"] = "Fighting",
-        ["rhythm"] = "Rhythm", ["stealth"] = "Stealth", ["towerdefense"] = "Tower Defense",
-        ["socialdeduction"] = "Social Deduction", ["deduction"] = "Social Deduction",
-        ["deathmatch"] = "Deathmatch", ["battleroyale"] = "Battle Royale", ["parkour"] = "Parkour",
-        ["tycoon"] = "Tycoon", ["building"] = "Building", ["roleplay"] = "Roleplay", ["rp"] = "Roleplay",
-        ["minigames"] = "Minigames", ["coop"] = "Co-op", ["pvp"] = "PvP", ["casual"] = "Casual",
-        ["golf"] = "Golf", ["driving"] = "Driving", ["physics"] = "Physics", ["zombies"] = "Zombies",
+        ["shooter"] = "#menu.home.shooter", ["fps"] = "#menu.games.fps", ["tps"] = "#menu.games.third_person_shooter",
+        ["puzzle"] = "#menu.home.puzzle", ["strategy"] = "#menu.home.strategy", ["sports"] = "#menu.home.sports",
+        ["roguelike"] = "#menu.home.roguelike", ["roguelite"] = "#menu.games.roguelite", ["horror"] = "#menu.games.horror",
+        ["racing"] = "#menu.games.racing", ["survival"] = "#menu.games.survival", ["sandbox"] = "#menu.games.sandbox",
+        ["rpg"] = "#menu.games.rpg", ["platformer"] = "#menu.games.platformer", ["adventure"] = "#menu.games.adventure",
+        ["simulation"] = "#menu.settings.simulation", ["sim"] = "#menu.settings.simulation", ["action"] = "#menu.games.action",
+        ["arcade"] = "#menu.games.arcade", ["party"] = "#party", ["fighting"] = "#menu.games.fighting",
+        ["rhythm"] = "#menu.games.rhythm", ["stealth"] = "#menu.games.stealth", ["towerdefense"] = "#menu.games.tower_defense",
+        ["socialdeduction"] = "#menu.games.social_deduction", ["deduction"] = "#menu.games.social_deduction",
+        ["deathmatch"] = "#menu.games.deathmatch", ["battleroyale"] = "#menu.games.battle_royale", ["parkour"] = "#menu.games.parkour",
+        ["tycoon"] = "#menu.games.tycoon", ["building"] = "#menu.games.building", ["roleplay"] = "#menu.games.roleplay", ["rp"] = "#menu.games.roleplay",
+        ["minigames"] = "#menu.games.minigames", ["coop"] = "#menu.games.co_op", ["pvp"] = "#menu.games.pvp", ["casual"] = "#menu.games.casual",
+        ["golf"] = "#menu.games.golf", ["driving"] = "#menu.games.driving", ["physics"] = "#menu.games.physics", ["zombies"] = "#menu.games.zombies",
     };
 
     IEnumerable<string> Tags()
@@ -558,4 +558,13 @@
     }
 
     protected override int BuildHash() => HashCode.Combine( Package?.FullIdent, Package?.Usage.UsersNow, showVideo, VideoUrl(), MenuHelpers.HasAuthority, ShowJam, HashCode.Combine( _nominated, _busy, Package?.Interaction.Rating, Package?.Interaction.Favourite, PlayerModes.PartySize ) );
+
+    /// <summary>
+    /// Rebuild composed text when translations change.
+    /// </summary>
+    public override void LanguageChanged()
+    {
+        base.LanguageChanged();
+        StateHasChanged();
+    }
 }

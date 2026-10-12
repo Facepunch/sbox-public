@@ -805,7 +805,7 @@
 		},
 		{
 			"Name": "bc7enc_rdo",
-			"Comment": "BC7 texture encoder (bc7enc_rdo) used via bc7enc.dll for texture compression.",
+			"Comment": "BC7 texture encoder (bc7enc_rdo) used via bc7enc.dll for texture compression, plus its statically linked entropy reduction transform for RDO texture encoding.",
 			"UsedBy": [
 				"resourcecompiler"
 			],

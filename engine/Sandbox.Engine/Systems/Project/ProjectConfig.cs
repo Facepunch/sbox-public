@@ -125,6 +125,12 @@ public class ProjectConfig
 	public bool IsStandaloneOnly { get; set; }
 
 	/// <summary>
+	/// Shared preferences for agent instructions and local editor automation.
+	/// </summary>
+	[Hide]
+	public ProjectAISettings AI { get; set; } = new();
+
+	/// <summary>
 	/// Custom key-value storage for this project.
 	/// </summary>
 	[Hide]

@@ -1,12 +1,10 @@
 using NativeEngine;
-using System.Reflection;
-using System.Runtime.CompilerServices;
 
 namespace Sandbox.Rendering;
 
 /// <summary>
 /// What the managed scene renderer (Sandbox.SceneRenderer) offers the engine. It lives in its own assembly, which
-/// references this one, so it registers itself here when it's loaded.
+/// references this one, so the app system registers it here at startup.
 /// </summary>
 internal interface IManagedSceneRenderer
 {
@@ -69,11 +67,9 @@ internal static partial class ManagedSceneRendering
 	public static bool AsyncCompute { get; set; } = true;
 
 	/// <summary>
-	/// Set by Sandbox.SceneRenderer's module initializer when the assembly loads.
+	/// Set by Sandbox.SceneRenderer when the app system installs it at startup.
 	/// </summary>
 	public static IManagedSceneRenderer Renderer { get; set; }
-
-	static bool loadTried;
 
 	/// <summary>
 	/// Called at engine shutdown: the managed renderer frees what it holds while native is still there.
@@ -95,28 +91,6 @@ internal static partial class ManagedSceneRendering
 	internal static void Forget( SceneWorld world ) => Renderer?.Forget( world );
 
 	/// <summary>
-	/// The managed renderer, loading its assembly the first time it's wanted. Null if it isn't there.
-	/// </summary>
-	static IManagedSceneRenderer Load()
-	{
-		if ( Renderer is not null || loadTried ) return Renderer;
-		loadTried = true;
-
-		try
-		{
-			var assembly = Assembly.Load( "Sandbox.SceneRenderer" );
-			RuntimeHelpers.RunModuleConstructor( assembly.ManifestModule.ModuleHandle );
-		}
-		catch ( Exception e )
-		{
-			Log.Warning( e, $"r_managed_scene: couldn't load Sandbox.SceneRenderer - {e.Message}" );
-		}
-
-		if ( Renderer is null ) Log.Warning( "r_managed_scene: Sandbox.SceneRenderer didn't register a renderer" );
-		return Renderer;
-	}
-
-	/// <summary>
 	/// Render a camera through the managed renderer, if it's on and can. Called where the camera would add itself
 	/// to native's render list.
 	/// </summary>
@@ -129,7 +103,7 @@ internal static partial class ManagedSceneRendering
 		// Stereo cameras stay native
 		if ( VR.VRSystem.IsActive && camera.TargetEye != StereoTargetEye.None ) return false;
 
-		var renderer = Load();
+		var renderer = Renderer;
 		if ( renderer is null ) return false;
 
 		// Just before a compare, native renders the camera too, over the managed frame, so both renderers' effects that carry
@@ -208,7 +182,7 @@ internal static partial class ManagedSceneRendering
 
 	static void RunCompare( CameraComponent camera, string folder )
 	{
-		var renderer = Load();
+		var renderer = Renderer;
 		if ( renderer is null )
 		{
 			Log.Warning( "r_managed_scene_compare: no managed renderer" );

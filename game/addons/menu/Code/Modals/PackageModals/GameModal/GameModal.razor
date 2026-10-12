@@ -28,7 +28,7 @@
                         <label>@Package?.Title</label>
                     </div>
                     <label class="sep">/</label>
-                    <label class="here">@(IsBrowsingSessions ? "Sessions" : PartySetup ? "Party game" : "New game")</label>
+                    <label class="here">@(IsBrowsingSessions ? "Sessions" : PartySetup ? "#menu.games.party_game" : "#menu.games.new_game_sentence")</label>
                 </div>
             }
 
@@ -56,7 +56,7 @@
             else if ( IsSettingUp )
             {
                 <div class="setup-loading">
-                    <label>@(SetupError ?? "Loading game settings…")</label>
+                    <label>@(SetupError ?? "#menu.games.loading_game_settings")</label>
                 </div>
             }
             else if ( IsBrowsingSessions )
@@ -145,7 +145,7 @@
 
             // The player may have closed this setup or opened another while it was loading.
             if ( !IsValid || request != setupRequest ) return;
-            if ( full is null ) throw new InvalidOperationException( "Couldn't load game settings. Cancel and try again." );
+            if ( full is null ) throw new InvalidOperationException( Language.GetPhrase( "menu.games.couldn_t_load_game_settings_cancel_and_try_again" ) );
 
             // Picker results omit game settings and player limits. Defaults need the full package too.
             var settings = initialSettings ?? GameSetup.GetInitialSettings( full, maxMembers );
@@ -221,7 +221,7 @@
         {
             LoadingScreen.IsVisible = false;
             if ( IsValid ) SetupError = e.Message;
-            ModalSystem.Instance?.Notice( "Couldn't start game", e.Message, "error" );
+            ModalSystem.Instance?.Notice( "#menu.games.couldn_t_start_game", e.Message, "error" );
         }
         finally
         {

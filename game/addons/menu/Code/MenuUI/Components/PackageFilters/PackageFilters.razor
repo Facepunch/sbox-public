@@ -26,7 +26,7 @@
     <div class="right">
         @if ( ShowSearch )
         {
-		    <TextEntry Icon="search" Placeholder="Search" OnTextEdited=@Search></TextEntry>
+		    <TextEntry Icon="search" Placeholder="#menu.common.search" OnTextEdited=@Search></TextEntry>
         }
         <MenuProject.UI.PackageFilterOrder Orders="@Result.Orders" Value="@filterOrder" OnChange="@OnOrderChanged"></MenuProject.UI.PackageFilterOrder>
     </div>

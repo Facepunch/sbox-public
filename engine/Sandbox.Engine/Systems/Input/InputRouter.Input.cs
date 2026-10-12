@@ -152,6 +152,11 @@ internal static partial class InputRouter
 				return;
 			}
 
+			// The pointer can own a UI drag without that UI having keyboard focus (for example, a tab reorder).
+			var pointerTarget = Contexts.FirstOrDefault( x => x.MouseState != InputContext.InputState.Ignore );
+			if ( pointerTarget?.MouseState == InputContext.InputState.UI && pointerTarget.TryCancelDrag() )
+				return;
+
 			// Let the game input get first dibs
 			if ( IGameInstance.Current is not null && IGameInstanceDll.Current.InputContext.In_Escape() )
 			{

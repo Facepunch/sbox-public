@@ -2,6 +2,7 @@ using Sandbox.Rendering;
 using Sandbox.SceneRenderer;
 using Sandbox.SceneRenderer.Features;
 using Sandbox.SceneRenderer.Gpu;
+using Skybox3D = Sandbox.SceneRenderer.Skybox3D;
 using static SceneRendererTests.TestScenes;
 
 namespace SceneRendererTests;

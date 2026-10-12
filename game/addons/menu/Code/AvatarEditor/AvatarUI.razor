@@ -30,7 +30,7 @@
 
 			<div class="headerbutton" @onclick=@BackToMainMenu>
 				<div class="icon">west</div>
-				<div class="title">Back</div>
+				<div class="title">#menu.common.back</div>
 			</div>
 
 			@if (tab == "edit")
@@ -38,10 +38,10 @@
 
 				<div class="headerbutton @(HasUnsavedChanges ? "" : "disabled")" @onclick=@Manager.SaveChanges>
 					<div class="icon">save</div>
-					<div class="title">Save</div>
+					<div class="title">#menu.common.save</div>
 				</div>
 
-				<div title="Revert" class="headerbutton @(HasUnsavedChanges ? "" : "disabled")" @onclick=@Manager.RevertChanges>
+				<div title="#menu.common.revert" class="headerbutton @(HasUnsavedChanges ? "" : "disabled")" @onclick=@Manager.RevertChanges>
 					<div class="icon">restore</div>
 				</div>
 			}
@@ -51,9 +51,9 @@
 		<div class="center">
 			<ButtonGroup Value:bind="@tab" class="bg-round">
 				<ChildContent>
-					<Button Icon="checkroom" Text="Edit" Value="edit"></Button>
-					<Button Icon="landscape" Text="Scene" Value="scene"></Button>
-					<Button Icon="cloud_done" Text="Workshop" Value="workshop"></Button>
+					<Button Icon="checkroom" Text="#menu.common.edit" Value="edit"></Button>
+					<Button Icon="landscape" Text="#menu.avatar.scene" Value="scene"></Button>
+					<Button Icon="cloud_done" Text="#menu.avatar.workshop" Value="workshop"></Button>
 				</ChildContent>
 			</ButtonGroup>
 		</div>

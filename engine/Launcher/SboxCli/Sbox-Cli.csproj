@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net10.0</TargetFramework>
+		<AssemblyName>sbox-cli</AssemblyName>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+		<OutputPath>../../../game/bin/managed/</OutputPath>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- The bridge has no engine dependencies and does not load native engine DLLs. -->
+		<Compile Include="../../Sandbox.Engine/Systems/Mcp/Transport/McpWire.cs" Link="McpWire.cs" />
+		<None Update="sbox-cli.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+	</ItemGroup>
+</Project>

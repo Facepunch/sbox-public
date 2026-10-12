@@ -457,7 +457,8 @@ file class AssetRow : Widget
 			Status = "Checking Files";
 			await upload.PrePublish();
 
-			if ( upload.MissingFileCount > 0 )
+			// Workshop publishes send the backend their manifest after the workshop upload, in Publish
+			if ( upload.MissingFileCount > 0 && !upload.HasWorkshopUpload )
 			{
 				upload.OnProgressChanged = () => Status = $"{(upload.MissingFileSize).FormatBytes()}";
 				await upload.UploadFiles();
@@ -465,7 +466,18 @@ file class AssetRow : Widget
 			}
 
 			Status = "Publishing";
-			await upload.Publish();
+			var publishing = upload.Publish();
+
+			// Maps upload to the workshop first, which can take a while
+			while ( !publishing.IsCompleted )
+			{
+				if ( upload.WorkshopUploadStatus is { } workshop && !upload.IsWorkshopUploaded )
+					Status = upload.WorkshopBytesTotal > 0 ? $"{workshop} {upload.WorkshopBytesDone.FormatBytes()}/{upload.WorkshopBytesTotal.FormatBytes()}" : workshop;
+
+				await Task.Delay( 100 );
+			}
+
+			await publishing;
 		}
 		catch ( System.Exception e )
 		{

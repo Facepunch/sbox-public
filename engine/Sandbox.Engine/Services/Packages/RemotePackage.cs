@@ -82,8 +82,14 @@ internal sealed class RemotePackage : Package
 		}
 	}
 
+	/// <summary>
+	/// What the backend last told us about this package, kept so it can be installed offline
+	/// </summary>
+	internal PackageDto Dto { get; private set; }
+
 	public void UpdateFromDto( PackageDto p )
 	{
+		Dto = p;
 		Org = Package.Organization.FromDto( p.Org );
 
 		Ident = p.Ident;

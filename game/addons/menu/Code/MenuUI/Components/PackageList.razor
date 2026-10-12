@@ -26,7 +26,7 @@
     else if (FoundPackages.Count() == 0 )
     {
         <div class="empty-wrap">
-            <EmptyState Icon="search_off" Title="Nothing found" Subtitle="Nothing matches that. Try a different search, or loosen the filters." />
+            <EmptyState Icon="search_off" Title="#menu.games.nothing_found" Subtitle="#menu.games.nothing_matches_that_try_a_different_search_or_loosen_the_filters" />
         </div>
     }
     else
@@ -46,6 +46,7 @@
                                  Rotation=@Rotation
                                  ShowNominations=@ShowNominations
                                  HoverPreview=@HoverPreview
+                                 ShowSubscribe=@ShowSubscribe
                                  Package=@package></MenuProject.UI.PackageCard>
 					}
                 }
@@ -110,6 +111,11 @@
 
 	[Parameter] public RenderFragment<Package> Item { get; set; }
 
+	/// <summary>
+	/// Put a Steam Workshop subscribe button on each card.
+	/// </summary>
+	[Parameter] public bool ShowSubscribe { get; set; }
+
     [Parameter] public List<Package> FoundPackages { get; set; }
 
     public Package.FindResult Result;
@@ -130,6 +136,8 @@
     {
         if (Packages is not null)
         {
+            // A list we've been given, not a search - nothing more to find
+            Result = null;
             FoundPackages = new();
             FoundPackages.AddRange(Packages);
             StateHasChanged();
@@ -147,10 +155,13 @@
     {
         var query = Query;
 
-        Result = await Package.FindAsync(Query, Take, 0);
+        var result = await Package.FindAsync(Query, Take, 0);
 
-        if ( query != Query )
+        // Searched again, or been given a list instead, while this was coming
+        if ( query != Query || Packages is not null )
             return;
+
+        Result = result;
 
         if (Result != null)
         {
@@ -170,7 +181,7 @@
 
         var result = await Package.FindAsync( Query, Take, FoundPackages.Count() );
 
-        if (query != Query)
+        if (query != Query || Packages is not null)
             return;
 
         if (result != null)

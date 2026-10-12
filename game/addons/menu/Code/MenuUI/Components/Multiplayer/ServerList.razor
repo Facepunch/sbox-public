@@ -13,7 +13,7 @@
             <Navigation>
                 @if ( string.IsNullOrWhiteSpace( Config.GamePackageFilter ) )
                 {
-                    <Button class="back-to-games" Icon="arrow_back" onclick=@BackToGames>All games</Button>
+                    <Button class="back-to-games" Icon="arrow_back" onclick=@BackToGames>#menu.multiplayer.all_games</Button>
                 }
             </Navigation>
         </GameGroupRow>
@@ -44,7 +44,7 @@
     {
         @if ( gameGroups.Count == 0 )
         {
-            <div class="notice">No matching servers right now. Try another search, or create a lobby to get a game going.</div>
+            <div class="notice">#menu.multiplayer.no_matching_servers_right_now_try_another_search_or</div>
         }
         else
         {
@@ -65,16 +65,16 @@
     {
         @if ( serverLobbies.Count == 0 )
         {
-            <div class="notice">@(friendsOnly ? "No friends' servers match the current filters. Their servers may be private or unlisted. Click the friends filter above to show all servers." : "No matching servers right now. Try another search, or create a lobby to get a game going.")</div>
+            <div class="notice">@(friendsOnly ? "#menu.multiplayer.no_friends_servers_match_the_current_filters_their_servers" : "#menu.multiplayer.no_matching_servers_right_now_try_another_search_or")</div>
         }
         else
         {
             <div class="header row">
-                <h2 class="title" onclick="@(() => SetSort( "name" ))">Name @SortIndicator( "name" )</h2>
-                <h2 class="map" onclick="@(() => SetSort( "map" ))">Map @SortIndicator( "map" )</h2>
-                <h2 class="members" onclick="@(() => SetSort( "members" ))">Players @SortIndicator( "members" )</h2>
+                <h2 class="title" onclick="@(() => SetSort( "name" ))"><label>#menu.games.name</label> @SortIndicator( "name" )</h2>
+                <h2 class="map" onclick="@(() => SetSort( "map" ))"><label>#menu.games.map</label> @SortIndicator( "map" )</h2>
+                <h2 class="members" onclick="@(() => SetSort( "members" ))"><label>#menu.games.players</label> @SortIndicator( "members" )</h2>
                 <h2 class="ping-icon" />
-                <h2 class="ping-value" onclick="@(() => SetSort("ping"))">Ping @SortIndicator( "ping" )</h2>
+                <h2 class="ping-value" onclick="@(() => SetSort("ping"))"><label>#menu.friends.ping</label> @SortIndicator( "ping" )</h2>
             </div>
             @if ( Virtual )
             {

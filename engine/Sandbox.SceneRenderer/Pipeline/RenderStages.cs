@@ -4,7 +4,7 @@ using Sandbox.Rendering;
 namespace Sandbox.SceneRenderer;
 
 /// <summary>
-/// Camera commands, effects and UI at native hook points (<c>CManagedRenderPipeline::OnHook</c>).
+/// Camera commands, effects and UI at native hook points (<see cref="Native.HookLayers"/>).
 /// Stages through tonemapping use HDR; later stages use the final output. Targets are bound on entry.
 /// </summary>
 internal interface IRenderStages

@@ -5,6 +5,11 @@ namespace Sandbox;
 
 public partial class Material
 {
+	internal override void OnReloaded()
+	{
+		Attributes.Set( native.GetRenderAttributes() );
+	}
+
 	/// <summary>
 	/// Load a material from disk. Has internal cache.
 	/// </summary>

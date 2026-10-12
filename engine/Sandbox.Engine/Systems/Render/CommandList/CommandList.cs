@@ -1103,7 +1103,8 @@ public sealed unsafe partial class CommandList
 	public RenderTargetHandle.SizeHandle ViewportSize => new RenderTargetHandle.SizeHandle { Name = "$vp" };
 
 	/// <summary>
-	/// A handle to the viewport size divided by a factor. Useful for dispatching at half or quarter resolution.
+	/// A handle to the viewport size divided by a factor, rounded up so a thread for every <paramref name="divisor"/> pixels
+	/// covers them all. Useful for dispatching at half or quarter resolution.
 	/// </summary>
 	public RenderTargetHandle.SizeHandle ViewportSizeScaled( int divisor ) => new RenderTargetHandle.SizeHandle { Name = "$vp", Divisor = Math.Max( 1, divisor ) };
 
@@ -1160,8 +1161,8 @@ public sealed unsafe partial class CommandList
 
 		if ( divisor > 1 )
 		{
-			result.x = Math.Max( 1, result.x / divisor );
-			result.y = Math.Max( 1, result.y / divisor );
+			result.x = Math.Max( 1, (result.x + divisor - 1) / divisor );
+			result.y = Math.Max( 1, (result.y + divisor - 1) / divisor );
 		}
 
 		return result;

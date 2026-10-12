@@ -5,7 +5,7 @@ namespace Sandbox.SceneRenderer.Bridge;
 
 /// <summary>
 /// Dispatches camera stages through <c>IManagedCamera.OnRenderStage</c> using a managed Graphics view.
-/// Handles auto exposure and gamma-space UI blending (<c>CManagedRenderPipeline::OnUIHook</c>).
+/// Handles auto exposure and gamma-space UI blending (<see cref="Native.HookLayers.AddUI"/>).
 /// </summary>
 internal sealed class CameraStages : IRenderStages, IDisposable
 {
@@ -140,10 +140,10 @@ internal sealed class CameraStages : IRenderStages, IDisposable
 		view.ColorFormat = target.ColorFormat;
 		view.Msaa = SampleCount( target.Samples );
 
-		// Gamma UI uses a linear view of sRGB bytes (CManagedRenderPipeline::OnUIHook).
+		// Gamma UI uses a linear view of sRGB bytes (Native.HookLayers.AddUI).
 		// Float targets need encoded scratch, decoded back after UI drawing.
 		var ui = stage is Stage.UI or Stage.EarlyUI;
-		var gamma = ui && ConsoleSystem.GetValue( "ui_gamma_blend", "1" ) != "0";
+		var gamma = ui && RenderPipeline.UIGammaBlend;
 		RenderTarget scratch = null;
 
 		if ( gamma && ViewTarget.IsFloatFormat( target.ColorFormat ) )
