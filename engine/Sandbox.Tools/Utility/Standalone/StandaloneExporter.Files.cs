@@ -56,6 +56,10 @@ partial class StandaloneExporter
 		// Splash screen
 		"materials/startup_background.vtex_c",
 
+		// Surfaces - loaded at runtime without anything referencing them, physics and
+		// ModelBuilder fall back to surfaces/default.surface. Their references are added too.
+		"surfaces/*.surface_c",
+
 		// Interface
 		"fonts/*.ttf",
 		"styles/**/*",
@@ -68,6 +72,38 @@ partial class StandaloneExporter
 	private IEnumerable<string> GetCoreFiles( string engineDir )
 	{
 		return GetWhitelistedFiles( CoreWhitelist, Path.Combine( engineDir, "core" ) );
+	}
+
+	/// <summary>
+	/// The compiled files the given surfaces reference (impact prefabs, footstep sounds, decal textures).
+	/// Nothing in the game references these directly, so they'd never be picked up otherwise. Some live
+	/// outside of core (generated textures are transients), so they're keyed by resource path.
+	/// </summary>
+	private static IEnumerable<CodeResource> GetSurfaceReferences( IEnumerable<string> files )
+	{
+		foreach ( var file in files )
+		{
+			if ( !file.EndsWith( ".surface_c", StringComparison.OrdinalIgnoreCase ) )
+				continue;
+
+			var asset = AssetSystem.FindByPath( file );
+			if ( asset is null )
+			{
+				Logger.Warning( $"Surface '{file}' isn't in the asset system, its references won't be exported" );
+				continue;
+			}
+
+			foreach ( var reference in asset.GetReferences( true ) )
+			{
+				var absolutePath = reference.GetCompiledFile( true );
+				var relativePath = reference.GetCompiledFile( false );
+
+				if ( string.IsNullOrEmpty( absolutePath ) || string.IsNullOrEmpty( relativePath ) )
+					continue;
+
+				yield return new CodeResource( relativePath.TrimStart( '/', '\\' ), absolutePath );
+			}
+		}
 	}
 
 	private static IEnumerable<string> GetBlacklistedFiles( string[] blacklist, string absoluteDirectory )
