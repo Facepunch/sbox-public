@@ -1,0 +1,16 @@
+CommandButton
+{
+    padding: 1rem;
+    cursor: pointer;
+    font-family: Poppins;
+    font-weight: bold;
+    font-size: 14px;
+    border-radius: 10px;
+    background-color: #0088ff;
+    color: #fff;
+}
+
+CommandButton:hover
+{
+    background-color: #2299ff;
+}

@@ -89,6 +89,11 @@ internal class DeltaSnapshot : IObjectPoolEvent
 	public RealTimeSince TimeSinceCreated { get; private set; } = 0f;
 	public ushort Version { get; set; }
 	public IDeltaSnapshot Source { get; set; }
+
+	/// <summary>
+	/// When the sender took it, on our clock.
+	/// </summary>
+	public double Time { get; set; }
 	public ushort SnapshotId { get; set; }
 	public Guid ObjectId { get; set; }
 	public int Size { get; private set; }

@@ -93,8 +93,9 @@ internal static class EngineLoop
 			}
 		}
 
-		PerformanceStats.Timings.Idle.AddMilliseconds( framePacer.Wait( FrameRateLimit.FramesPerSecond ) );
-		DebugOverlay.FrameTimeGraph.Sample( frameTimer.ElapsedMilliSeconds );
+		var idleMs = framePacer.Wait( FrameRateLimit.FramesPerSecond );
+		PerformanceStats.Timings.Idle.AddMilliseconds( idleMs );
+		PerfHub.SampleFrame( frameTimer.ElapsedMilliSeconds, idleMs );
 
 		previousTime = time;
 	}
@@ -217,6 +218,9 @@ internal static class EngineLoop
 		{
 			SimulateUI();
 		}
+
+		// After the game and menu UI so it draws over them. Outside the UI scope so it doesn't count as the game's UI.
+		PerfHub.Simulate();
 
 		// Give each sound handle an opportunity to for a frame think
 		using ( PerformanceStats.Timings.Audio.Scope() )

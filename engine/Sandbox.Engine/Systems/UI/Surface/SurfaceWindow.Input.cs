@@ -1,13 +1,12 @@
 using NativeEngine;
-using Sandbox.UI;
 
-namespace Editor;
+namespace Sandbox.UI;
 
 //
 // Input. PanelWindowInput hands us what the OS sent for this window - see
 // Systems/UI/Surface/PanelWindowInput.cs.
 //
-public partial class PanelWindow
+internal partial class SurfaceWindow
 {
 	Vector2 _mousePosition;
 	bool _mouseInside;

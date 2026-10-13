@@ -1,11 +1,10 @@
 using NativeEngine;
-using Sandbox.UI;
 using System;
 using System.Diagnostics;
 
-namespace Editor;
+namespace Sandbox.UI;
 
-public partial class PanelWindow
+internal partial class SurfaceWindow
 {
 	bool _inFrame;
 
@@ -13,7 +12,7 @@ public partial class PanelWindow
 	/// Whether the OS window is on screen. A window is born hidden and appears once it has drawn
 	/// its contents, so this is false for its first frame or two.
 	/// </summary>
-	public bool IsShown { get; private protected set; }
+	public bool IsShown { get; internal set; }
 
 	/// <summary>
 	/// Resize the window to fit the first thing on the surface. Popups use this so a menu is
@@ -25,7 +24,25 @@ public partial class PanelWindow
 	/// Simulate and draw. Called once a frame by the engine loop, and again from resize events
 	/// while a drag has the main thread parked in a modal loop.
 	/// </summary>
-	bool IPanelWindow.Frame() => Frame();
+	bool IPanelWindow.Frame()
+	{
+		using var _ = FrameTiming is { } timing ? timing.Scope() : default;
+		return Frame();
+	}
+
+	/// <summary>
+	/// Draw at most this many times a second. Zero draws whenever the engine loop does. A window over a game that doesn't
+	/// need to keep up with it - a stats window, say - sets this so it isn't laying out and presenting at the game's
+	/// frame rate. Skipped frames simply aren't drawn; the window keeps showing the last one.
+	/// </summary>
+	internal float MaxFramesPerSecond { get; set; }
+
+	/// <summary>
+	/// Where this window's frames are counted, when they shouldn't vanish into whatever's drawing them.
+	/// </summary>
+	internal Sandbox.Diagnostics.PerformanceStats.Timings FrameTiming { get; set; }
+
+	RealTimeSince _sinceFrame;
 
 	internal bool Frame()
 	{
@@ -45,6 +62,9 @@ public partial class PanelWindow
 		}
 
 		if ( IsMinimized ) return false;
+
+		if ( MaxFramesPerSecond > 0 && IsShown && !_inFrame && _sinceFrame < 1f / MaxFramesPerSecond ) return false;
+		_sinceFrame = 0;
 
 		// Resize events land mid-frame during a drag, and we draw from those too
 		if ( _inFrame && !AllowNestedFrame ) return false;
@@ -210,13 +230,13 @@ public partial class PanelWindow
 	/// <see cref="ClearsBackground"/> off and whatever this draws shows through the panels
 	/// wherever they're transparent.
 	/// </summary>
-	private protected virtual void OnRenderBackground( SwapChainHandle_t swapChain, Vector2 size ) { }
+	internal virtual void OnRenderBackground( SwapChainHandle_t swapChain, Vector2 size ) { }
 
 	/// <summary>
 	/// Whether the swap chain is cleared to <see cref="BackgroundColor"/> before the panels draw.
 	/// Off for a window that fills it itself in <see cref="OnRenderBackground"/>.
 	/// </summary>
-	private protected bool ClearsBackground
+	internal bool ClearsBackground
 	{
 		get => _camera is null || (_camera.ClearFlags & ClearFlags.Color) != 0;
 		set { if ( _camera is not null ) _camera.ClearFlags = value ? ClearFlags.All : ClearFlags.All & ~ClearFlags.Color; }
@@ -225,12 +245,12 @@ public partial class PanelWindow
 	/// <summary>
 	/// Whether the window follows its display's scale as it's dragged between displays.
 	/// </summary>
-	private protected virtual bool FollowsDisplayScale => true;
+	internal virtual bool FollowsDisplayScale => true;
 
 	/// <summary>
 	/// The window has drawn its first frame and is about to be shown.
 	/// </summary>
-	private protected virtual void OnFirstShow() { }
+	internal virtual void OnFirstShow() { }
 
 	/// <summary>
 	/// Shrink the window to whatever is on the surface. Returns true if we resized, in which case

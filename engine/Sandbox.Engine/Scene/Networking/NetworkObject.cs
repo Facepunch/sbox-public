@@ -880,7 +880,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 
 			if ( didTransformChange )
 			{
-				GameObject.Transform.FromNetwork( transform, clearInterpolation );
+				GameObject.Transform.FromNetwork( transform, clearInterpolation, snapshot.Time );
 			}
 			else if ( clearInterpolation )
 			{

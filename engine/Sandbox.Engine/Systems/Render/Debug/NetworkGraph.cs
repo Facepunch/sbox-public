@@ -6,14 +6,14 @@ internal static partial class DebugOverlay
 	{
 		private static readonly Dictionary<NetworkDebugSystem.MessageType, Color> Colors = new()
 		{
-			[NetworkDebugSystem.MessageType.Rpc] = Color.Blue,
-			[NetworkDebugSystem.MessageType.Spawn] = Color.Magenta,
-			[NetworkDebugSystem.MessageType.Refresh] = Color.Orange,
-			[NetworkDebugSystem.MessageType.Snapshot] = Color.Red,
-			[NetworkDebugSystem.MessageType.SyncVars] = Color.Cyan,
-			[NetworkDebugSystem.MessageType.Culling] = Color.Yellow,
-			[NetworkDebugSystem.MessageType.StringTable] = Color.Green,
-			[NetworkDebugSystem.MessageType.UserCommands] = Color.Black
+			[NetworkDebugSystem.MessageType.Rpc] = Sandbox.Diagnostics.HubStyles.Series[0],
+			[NetworkDebugSystem.MessageType.Spawn] = Sandbox.Diagnostics.HubStyles.Series[1],
+			[NetworkDebugSystem.MessageType.Refresh] = Sandbox.Diagnostics.HubStyles.Series[2],
+			[NetworkDebugSystem.MessageType.Snapshot] = Sandbox.Diagnostics.HubStyles.Series[3],
+			[NetworkDebugSystem.MessageType.SyncVars] = Sandbox.Diagnostics.HubStyles.Series[4],
+			[NetworkDebugSystem.MessageType.Culling] = Sandbox.Diagnostics.HubStyles.Series[5],
+			[NetworkDebugSystem.MessageType.StringTable] = Sandbox.Diagnostics.HubStyles.Series[6],
+			[NetworkDebugSystem.MessageType.UserCommands] = Sandbox.Diagnostics.HubStyles.Series[7]
 		};
 
 		private static float _smoothedInKbpsIn;

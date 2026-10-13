@@ -8,12 +8,6 @@ namespace Sandbox.Network;
 /// </summary>
 internal class RemoteSnapshotState
 {
-	/// <summary>
-	/// How many seconds we'll allow to pass for a snapshot acknowledgement packet
-	/// to be received from a client.
-	/// </summary>
-	private const float MaximumAckResponseTime = 0.25f;
-
 	private record struct PredictedEntry( ushort SnapshotId, byte[] Value, float ExpireTime, ulong Hash );
 	public record struct Entry( ushort SnapshotId, byte[] Data, ulong Hash );
 
@@ -51,9 +45,10 @@ internal class RemoteSnapshotState
 	/// <param name="input"></param>
 	/// <param name="snapshotId"></param>
 	/// <param name="timeNow"></param>
-	public void AddPredicted( in DeltaSnapshot.SnapshotDataEntry input, ushort snapshotId, float timeNow )
+	/// <param name="resendTime">How long until it's sent again without an acknowledgement.</param>
+	public void AddPredicted( in DeltaSnapshot.SnapshotDataEntry input, ushort snapshotId, float timeNow, float resendTime = DeltaSnapshotSystem.DefaultResendTime )
 	{
-		_predictedData[input.Slot] = new PredictedEntry( snapshotId, input.Value, timeNow + MaximumAckResponseTime, input.Hash );
+		_predictedData[input.Slot] = new PredictedEntry( snapshotId, input.Value, timeNow + resendTime, input.Hash );
 	}
 
 	/// <summary>

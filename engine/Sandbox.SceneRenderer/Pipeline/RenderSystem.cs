@@ -242,7 +242,7 @@ public sealed partial class RenderSystem : IDisposable
 		recorder ??= new FrameRecorder();
 		recorder.Plan( frame, ParallelRecording, Sandbox.Rendering.ManagedSceneRendering.AsyncCompute );
 
-		// overlay_scene_plan, or SceneLab's plan overlay: frames drawn into a window show their plan, published with its times
+		// The performance hub's frame plan, or SceneLab's plan overlay: frames drawn into a window show their plan, published with its times
 		var plan = Sandbox.Rendering.ManagedFramePlan.Wanted && (IntPtr)output.SwapChain != IntPtr.Zero ? recorder.Snapshot( view.Name ) : null;
 
 		context.Begin();
@@ -316,7 +316,7 @@ public sealed partial class RenderSystem : IDisposable
 			plan.Publish();
 		}
 
-		// Native counters omit managed draws; report them for overlay_frame.
+		// Native counters omit managed draws; report them for the frame stats.
 		Sandbox.Rendering.ManagedSceneRendering.Report( new Sandbox.Rendering.ManagedFrameCounters
 		{
 			Renders = 1,

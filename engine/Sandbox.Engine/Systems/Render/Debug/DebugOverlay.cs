@@ -19,41 +19,15 @@ internal static partial class DebugOverlay
 		_overlay.ExecuteOnRenderThread();
 	}
 
-	[ConVar( "overlay_profile", Help = "Draws an overlay showing timings from the main profile categories" )]
-	internal static int overlay_profile { get; set; } = 0;
-
-	[ConVar( "overlay_alloc", Help = "Draws an overlay showing allocations and garbage collection" )]
-	internal static int overlay_alloc { get; set; } = 0;
-
-	[ConVar( "overlay_frame", Help = "Render frame stats overlay. 0=off, 1=essentials (timing/geometry/lights/memory), 2=+batching/culling/material changes, 3=+GPU resources" )]
-	internal static int overlay_frame { get; set; } = 0;
-
-	[ConVar( "overlay_network_graph", Help = "Draws an overlay showing a network usage summary" )]
-	internal static int overlay_network_graph { get; set; } = 0;
-
-	[ConVar( "overlay_fps", Help = "Draws an overlay graphing frame-time pacing: a live frametime strip and a distribution histogram" )]
-	internal static int overlay_fps { get; set; } = 0;
-
-	[ConVar( "overlay_network_calls", Help = "Draws an overlay showing most received network calls" )]
-	internal static int overlay_network_calls { get; set; } = 0;
-
-	[ConVar( "overlay_pp", Help = "Draws an overlay showing current post process stack" )]
-	internal static int overlay_pp { get; set; } = 0;
-
-	[ConVar( "overlay_gpu", Help = "Draws an overlay showing GPU timing for render passes" )]
-	internal static int overlay_gpu { get; set; } = 0;
-
-	[ConVar( "overlay_gpu_timeline", Help = "Draws an interactive GPU frame timeline" )]
-	internal static int overlay_gpu_timeline { get; set; } = 0;
-
-	[ConVar( "overlay_resources", Help = "Draws an overlay showing registered resources and native cache" )]
-	internal static int overlay_resources { get; set; } = 0;
-
+	/// <summary>
+	/// Draws what's left of the engine's own screen overlays. The performance stats that used to stack up here, one
+	/// <c>overlay_*</c> convar each, live in the performance hub now (<see cref="Diagnostics.PerfHub"/>); its tabs call
+	/// the drawers in this class directly.
+	/// </summary>
 	public static void Draw()
 	{
 		using var painter = Painter.Begin( CommandList );
 		Vector2 pos = new Vector2( 64, 64 );
-		var activeScene = Application.GetActiveScene();
 
 		// Show current render debug mode on screen when not default
 		if ( ToolsVisualization.mat_toolsvis != SceneCameraDebugMode.Normal )
@@ -62,103 +36,11 @@ internal static partial class DebugOverlay
 			pos.y += OverlaySpacing;
 		}
 
-		if ( overlay_network_calls == 1 )
-		{
-			DebugOverlay.NetworkCalls.Draw( painter, ref pos );
-			pos.y += OverlaySpacing;
-		}
-
-		if ( overlay_network_graph == 1 )
-		{
-			DebugOverlay.NetworkGraph.Draw( painter, ref pos );
-			pos.y += OverlaySpacing;
-		}
-
-		if ( overlay_fps > 0 )
-		{
-			DebugOverlay.FrameTimeGraph.Draw( painter, ref pos, overlay_fps );
-			pos.y += OverlaySpacing;
-		}
-
-		if ( overlay_profile == 1 )
-		{
-			DebugOverlay.Profiler.Draw( painter, ref pos );
-			pos.y += OverlaySpacing;
-		}
-
-		if ( overlay_frame > 0 )
-		{
-			DebugOverlay.Frame.Draw( painter, ref pos, overlay_frame );
-			pos.y += OverlaySpacing;
-		}
-
-		if ( overlay_pp == 1 )
-		{
-			activeScene?.Camera?.PrintPostProcessDebugOverlay( ref pos, painter );
-			pos.y += OverlaySpacing;
-		}
-
-		if ( overlay_alloc == 1 )
-		{
-			DebugOverlay.Allocations.Draw( painter, ref pos );
-			pos.y += OverlaySpacing;
-		}
-		else
-		{
-			DebugOverlay.Allocations.Disabled();
-		}
-
-		// GPU Profiler
-		if ( overlay_gpu_timeline == 1 )
-		{
-			DebugOverlay.GpuTimeline.Draw( painter, ref pos );
-			pos.y += OverlaySpacing;
-		}
-		else
-		{
-			DebugOverlay.GpuTimeline.Clear();
-		}
-
-		if ( overlay_gpu == 1 )
-		{
-			DebugOverlay.GpuProfiler.Draw( painter, ref pos );
-			pos.y += OverlaySpacing;
-		}
-
-		if ( overlay_resources == 1 )
-		{
-			DebugOverlay.Resources.Draw( painter, ref pos );
-			pos.y += OverlaySpacing;
-		}
-
-		if ( overlay_ui == 1 )
-		{
-			DebugOverlay.UI.Draw( painter, ref pos );
-			pos.y += OverlaySpacing;
-		}
-
-		if ( overlay_audio != 0 )
-		{
-			DebugOverlay.Audio.Draw( painter, ref pos );
-			pos.y += OverlaySpacing;
-		}
-
-		if ( overlay_video != 0 )
-		{
-			DebugOverlay.Video.Draw( painter, ref pos );
-			pos.y += OverlaySpacing;
-		}
-
-		if ( overlay_scene_plan > 0 )
-		{
-			DebugOverlay.ScenePlan.Draw( painter, ref pos, overlay_scene_plan );
-			pos.y += OverlaySpacing;
-		}
+		// Collectors that only run while a hub tab shows them
+		if ( !Diagnostics.PerfHub.IsShowing( "memory" ) ) DebugOverlay.Allocations.Disabled();
+		if ( !Diagnostics.PerfHub.IsShowing( "gpu" ) ) DebugOverlay.GpuTimeline.Clear();
 
 		if ( ShadowMapper.DebugEnabled )
 			ShadowMapper.Draw( ref pos, painter );
-
-		// Tooltips float above every overlay, outside the timeline's own bounds.
-		DebugOverlay.GpuTimeline.DrawTooltip( painter );
 	}
 }

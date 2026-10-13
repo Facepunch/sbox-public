@@ -5,7 +5,7 @@ namespace Sandbox.SceneLab;
 
 /// <summary>
 /// The managed renderer's frame plan over the viewport (<b>View &gt; Frame Plan</b>, or <c>-plan [level]</c>): the engine's
-/// <c>overlay_scene_plan</c>, drawn by a panel since a panel app has no engine overlay pass. Level 1 shows the layers that ran
+/// frame plan the performance hub shows on its Rendering tab, drawn by a panel here since a panel app has no hub. Level 1 shows the layers that ran
 /// or were culled, level 2 every layer.
 /// </summary>
 internal sealed class PlanOverlay : Panel

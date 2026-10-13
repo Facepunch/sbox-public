@@ -1,19 +1,18 @@
-using Sandbox.UI;
 
-namespace Editor;
+namespace Sandbox.UI;
 
 //
 // Popups. A window's panels open menus and dropdowns the way panels in a game do, but here each
 // popup opens in an OS window of its own, so it can hang outside the window like the OS's menus.
 // The engine's Popup decides when and what; this is where.
 //
-public partial class PanelWindow : IPopupHost
+internal partial class SurfaceWindow : IPopupHost
 {
 	void IPopupHost.ShowPopup( Sandbox.UI.Popup popup, Panel source, Sandbox.UI.Popup.PositionMode position, float offset )
 	{
-		// Lives until it's dismissed - see PopupWindow.OnClosing
+		// Lives until it's dismissed - see SurfacePopupWindow.OnClosing
 #pragma warning disable CA2000
-		var window = (PopupWindow)Popup( this, PopupPosition( popup.AnchorRect ?? source.Box.Rect, MousePosition, position, offset ), popup.IgnoresInput );
+		var window = (SurfacePopupWindow)Popup( this, PopupPosition( popup.AnchorRect ?? source.Box.Rect, MousePosition, position, offset ), popup.IgnoresInput );
 #pragma warning restore CA2000
 		window.Root.AddClass( "os-menu" );
 
@@ -41,7 +40,7 @@ public partial class PanelWindow : IPopupHost
 		// Submenus and documentation can be taller than the popup that opened them.
 		// Bound them by the original window, in the popup's layout units.
 		var sizingWindow = this;
-		while ( sizingWindow is PopupWindow parentPopup ) sizingWindow = parentPopup.Parent;
+		while ( sizingWindow is SurfacePopupWindow parentPopup ) sizingWindow = parentPopup.Parent;
 		popup.Style.MaxHeight = sizingWindow.PixelSize.y * popup.ScaleFromScreen;
 
 		// The compositor rounds the window's corners. Rounding the popup's own as well shows the
@@ -53,7 +52,7 @@ public partial class PanelWindow : IPopupHost
 
 	void IPopupHost.UpdatePopup( Sandbox.UI.Popup popup )
 	{
-		if ( FromPanel( popup ) is PopupWindow window ) window.UpdateAnchor();
+		if ( FromPanel( popup ) is SurfacePopupWindow window ) window.UpdateAnchor();
 	}
 
 	void IPopupHost.HidePopup( Sandbox.UI.Popup popup )

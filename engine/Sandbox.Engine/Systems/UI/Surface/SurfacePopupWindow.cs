@@ -1,20 +1,19 @@
 using NativeEngine;
-using Sandbox.UI;
 using System;
 
-namespace Editor;
+namespace Sandbox.UI;
 
 /// <summary>
 /// A borderless window that sits above the window that opened it and can hang outside it, the way
 /// an OS menu does. Born hidden at its parent's size, it shrinks to whatever is put in it and only
 /// then appears, so it ends up the size of its contents. Dismissed by a click anywhere else.
 /// </summary>
-internal sealed class PopupWindow : PanelWindow
+internal sealed class SurfacePopupWindow : SurfaceWindow
 {
 	/// <summary>
 	/// The window this one hangs off.
 	/// </summary>
-	internal PanelWindow Parent { get; }
+	internal SurfaceWindow Parent { get; }
 
 	/// <summary>
 	/// A popup that never takes the keyboard or the mouse - a tooltip, say. It can't be focused,
@@ -39,7 +38,7 @@ internal sealed class PopupWindow : PanelWindow
 	// The size to be born at, in window coordinates
 	readonly Vector2 _initialSize;
 
-	internal PopupWindow( PanelWindow parent, Vector2 localPosition, bool ignoresInput )
+	internal SurfacePopupWindow( SurfaceWindow parent, Vector2 localPosition, bool ignoresInput )
 	{
 		ThreadSafe.AssertIsMainThread();
 
@@ -59,7 +58,7 @@ internal sealed class PopupWindow : PanelWindow
 		// A submenu can be wider than its parent menu. Measure against the original window
 		// so a narrow suggestion list doesn't force its documentation to wrap prematurely.
 		var sizingWindow = parent;
-		while ( sizingWindow is PopupWindow popupParent ) sizingWindow = popupParent.Parent;
+		while ( sizingWindow is SurfacePopupWindow popupParent ) sizingWindow = popupParent.Parent;
 		_initialSize = parent.PixelsToWindow( sizingWindow.PixelSize );
 
 		var surface = new UISurface { DpiScale = parent.Surface.DpiScale, Size = sizingWindow.PixelSize };
@@ -80,7 +79,7 @@ internal sealed class PopupWindow : PanelWindow
 	/// The OS window is made at the first frame boundary, not on construction - building a swap
 	/// chain while another window is mid-render leaves it in a state that never presents.
 	/// </summary>
-	private protected override bool CreateNativeWindow()
+	internal override bool CreateNativeWindow()
 	{
 		var x = (int)_position.x;
 		var y = (int)_position.y;
@@ -125,7 +124,7 @@ internal sealed class PopupWindow : PanelWindow
 		// Opaque - the compositor rounds the window's corners itself. Windows doesn't composite
 		// swapchain alpha, so drawing our own round corners isn't an option - the corner pixels
 		// come out as uninitialized garbage.
-		CreateRenderer( "PanelWindow Popup", vsync: false );
+		CreateRenderer( "SurfaceWindow Popup", vsync: false );
 
 		return true;
 	}
@@ -134,14 +133,14 @@ internal sealed class PopupWindow : PanelWindow
 	/// Popups take the scale of the display they open on and keep it - they're too short-lived to
 	/// be dragged between displays.
 	/// </summary>
-	private protected override bool FollowsDisplayScale => false;
+	internal override bool FollowsDisplayScale => false;
 
 	/// <summary>
 	/// It was born as big as its parent, so the OS may have shoved it back onto the screen to
 	/// make it fit. It has shrunk to its contents since, so ask again for where it was meant to
 	/// go - the OS still gets the last word if it doesn't fit there either.
 	/// </summary>
-	private protected override void OnFirstShow()
+	internal override void OnFirstShow()
 	{
 		Sdl.SetWindowPosition( Handle, (int)_position.x, (int)_position.y );
 		_anchorPosition = null;
@@ -159,7 +158,7 @@ internal sealed class PopupWindow : PanelWindow
 		if ( Handle == IntPtr.Zero || HostedPopup?.AnchorRect is not { } anchor ) return;
 		var bounds = Parent.DisplayWorkArea;
 		// SDL reports popup positions relative to their parent window.
-		for ( var ancestor = Parent; ancestor is not null; ancestor = (ancestor as PopupWindow)?.Parent )
+		for ( var ancestor = Parent; ancestor is not null; ancestor = (ancestor as SurfacePopupWindow)?.Parent )
 			bounds.Position -= ancestor.Position;
 		var source = new Rect( Parent.PixelsToWindow( anchor.Position ), Parent.PixelsToWindow( anchor.Size ) );
 		var position = Sandbox.UI.Popup.AnchorPosition( source, PixelsToWindow( PixelSize ), bounds,
@@ -174,7 +173,7 @@ internal sealed class PopupWindow : PanelWindow
 	/// The popup this window was showing goes before the surface does, so anything that wants
 	/// out of it - a menu's rows - gets out before the surface deletes everything in it.
 	/// </summary>
-	private protected override void OnClosing()
+	internal override void OnClosing()
 	{
 		var popup = HostedPopup;
 		HostedPopup = null;

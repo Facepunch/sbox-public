@@ -1,20 +1,19 @@
-using Sandbox.UI;
 
-namespace Editor;
+namespace Sandbox.UI;
 
 //
 // Tooltips. A window's panels get their tooltips the same way panels in a game do - Panel.Tooltip,
 // or OnTooltip for something richer - but here they open in a window of their own, so they can
 // hang outside the window like the OS's do. The engine's TooltipSystem decides when; this is where.
 //
-public partial class PanelWindow : ITooltipHost
+internal partial class SurfaceWindow : ITooltipHost
 {
-	PanelWindow _tooltip;
+	SurfaceWindow _tooltip;
 
 	/// <summary>
 	/// The tooltip window open over this one, if there is one.
 	/// </summary>
-	public PanelWindow TooltipWindow => _tooltip is { IsOpen: true } ? _tooltip : null;
+	public SurfaceWindow TooltipWindow => _tooltip is { IsOpen: true } ? _tooltip : null;
 
 	void ITooltipHost.ShowTooltip( Panel tooltip, Panel owner, Vector2 cursor )
 	{

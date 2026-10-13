@@ -5,6 +5,7 @@
 		"ESCAPE"	"escape"
 		"F1"		"gameinfo"
 		"F2"		"con_toggle"
+		"F11"		"perf_hub"
 		"F6"		"video"
 	}
 	

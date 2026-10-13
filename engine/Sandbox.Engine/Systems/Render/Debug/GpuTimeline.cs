@@ -6,22 +6,24 @@ namespace Sandbox;
 
 internal static partial class DebugOverlay
 {
-	[ConVar( "overlay_gpu_freeze", Help = "Freeze the GPU timeline overlay; profiling continues" )]
+	/// <summary>
+	/// Hold the GPU timeline on the frame it's showing. Profiling carries on.
+	/// </summary>
 	internal static bool FreezeGpuTimeline { get; set; }
 
 	public class GpuTimeline
 	{
-		private static readonly Color[] PassColors =
-		[
-			new( 0.4f, 0.7f, 1.0f ),
-			new( 0.4f, 1.0f, 0.5f ),
-			new( 1.0f, 0.7f, 0.3f ),
-			new( 1.0f, 0.4f, 0.4f ),
-			new( 0.8f, 0.5f, 1.0f ),
-			new( 1.0f, 1.0f, 0.4f ),
-			new( 0.5f, 1.0f, 1.0f ),
-			new( 1.0f, 0.5f, 0.8f )
-		];
+		/// <summary>
+		/// The cursor and space the panel hosting the timeline gives it, in the timeline's own drawing units.
+		/// </summary>
+		internal record struct HostInput( bool CursorInside, Vector2 Cursor, bool ButtonDown, Vector2 Area );
+
+		/// <summary>
+		/// Set by the host before each <see cref="Draw"/>.
+		/// </summary>
+		internal static HostInput Input;
+
+		private static Color[] PassColors => HubStyles.Series;
 
 		private const int MaxTimelineRows = 8;
 		private const float TimelineRowHeight = 30;
@@ -57,20 +59,19 @@ internal static partial class DebugOverlay
 		private static void ResetFreezeButton()
 		{
 			_freezeButtonPressed = false;
-			_mouseWasDown = InputRouter.IsButtonDown( ButtonCode.MouseLeft );
+			_mouseWasDown = Input.ButtonDown;
 		}
 
 		private static void UpdateFreezeButton()
 		{
-			// Observe the existing button state without consuming input or registering router hooks.
-			if ( !InputRouter.MouseCursorVisible || !WindowInput.HasMouseFocus() )
+			if ( !Input.CursorInside )
 			{
 				ResetFreezeButton();
 				return;
 			}
 
-			bool down = InputRouter.IsButtonDown( ButtonCode.MouseLeft );
-			bool hovered = _freezeButtonBounds.IsInside( Mouse.Position );
+			bool down = Input.ButtonDown;
+			bool hovered = _freezeButtonBounds.IsInside( Input.Cursor );
 			if ( down && !_mouseWasDown )
 			{
 				_freezeButtonPressed = hovered;
@@ -172,7 +173,7 @@ internal static partial class DebugOverlay
 		internal static void Draw( Painter painter, ref Vector2 pos )
 		{
 			_freezeButtonBounds = default;
-			float width = Screen.Width - pos.x - 32;
+			float width = Input.Area.x - pos.x - 12;
 			if ( width < 320 )
 			{
 				_timelineHoverBounds = default;
@@ -181,8 +182,7 @@ internal static partial class DebugOverlay
 				return;
 			}
 
-			// Use the routed cursor, including the console/menu cursor, rather than the game's mouse mode.
-			bool hovering = InputRouter.MouseCursorVisible && _timelineHoverBounds.IsInside( Mouse.Position );
+			bool hovering = Input.CursorInside && _timelineHoverBounds.IsInside( Input.Cursor );
 			UpdateTimeline( hovering || _freezeButtonPressed );
 			using var state = painter.Scope();
 			if ( _timelineBars.Count == 0 )
@@ -205,19 +205,19 @@ internal static partial class DebugOverlay
 			_timelineHoverBounds = new Rect( chartX, chartY, chartWidth, chartBottom - chartY );
 
 			painter.Stroke = Stroke.None;
-			painter.Fill = new Color( 0.04f, 0.05f, 0.07f, 0.95f );
+			painter.Fill = HubStyles.Plot;
 			painter.Rect( new Rect( pos.x - 12, pos.y - 12, width + 24, bottom - pos.y + 24 ) );
 			painter.Clip( new Rect( pos.x, pos.y, width, bottom - pos.y ) );
 			_freezeButtonBounds = new Rect( pos.x + width - 112, pos.y, 112, 28 );
 			UpdateFreezeButton();
 			var status = FreezeGpuTimeline ? "FROZEN" : hovering ? "HELD FOR INSPECTION" : "LIVE (4 Hz)";
 			TimelineText( painter, $"GPU frame #{_timeline.FrameId}  |  {_timeline.Renderer}  |  {_timelineSpan:F3}ms captured span  |  {status}",
-				Color.White, new Rect( pos.x, pos.y, width - 128, 28 ), 15, 700 );
+				HubStyles.Text, new Rect( pos.x, pos.y, width - 128, 28 ), 12, 600 );
 
-			bool buttonHovered = InputRouter.MouseCursorVisible && _freezeButtonBounds.IsInside( Mouse.Position );
-			painter.Fill = _freezeButtonPressed && buttonHovered ? new Color( 0.16f, 0.32f, 0.48f )
-				: buttonHovered ? new Color( 0.26f, 0.44f, 0.62f ) : new Color( 0.16f, 0.24f, 0.32f );
-			painter.Stroke = Stroke.Solid( Color.White.WithAlpha( buttonHovered ? 0.8f : 0.3f ), 1 );
+			bool buttonHovered = Input.CursorInside && _freezeButtonBounds.IsInside( Input.Cursor );
+			painter.Fill = _freezeButtonPressed && buttonHovered ? HubStyles.Line
+				: buttonHovered ? HubStyles.Raised.Lighten( 0.3f ) : HubStyles.Raised;
+			painter.Stroke = Stroke.Solid( FreezeGpuTimeline ? HubStyles.Warning : HubStyles.Line, 1 );
 			painter.Rect( _freezeButtonBounds );
 			painter.Stroke = Stroke.None;
 			TimelineText( painter, FreezeGpuTimeline ? "Resume" : "Freeze", Color.White, _freezeButtonBounds,
@@ -254,10 +254,10 @@ internal static partial class DebugOverlay
 			// Give subpixel scopes a small hit target without changing their displayed duration.
 			float nearest = 3;
 			_hoveredTimelineBar = -1;
-			for ( int i = 0; i < _timelineBars.Count && InputRouter.MouseCursorVisible; i++ )
+			for ( int i = 0; i < _timelineBars.Count && Input.CursorInside; i++ )
 			{
 				var rect = BarRect( _timelineBars[i] );
-				var mouse = Mouse.Position;
+				var mouse = Input.Cursor;
 				if ( mouse.y < rect.Top || mouse.y >= rect.Bottom ) continue;
 				float distance = MathF.Max( 0, MathF.Max( rect.Left - mouse.x, mouse.x - rect.Right ) );
 				if ( distance < nearest )
@@ -283,7 +283,7 @@ internal static partial class DebugOverlay
 			painter.Stroke = Stroke.None;
 
 			int omitted = _hiddenTimelinePasses + _timeline.DroppedEvents;
-			var footer = "Elapsed GPU scopes, not additive  |  Offsets from first pass  |  overlay_gpu_freeze 1 to hold";
+			var footer = "Elapsed GPU scopes, not additive  |  Offsets from first pass  |  Freeze to hold a frame";
 			if ( omitted > 0 ) footer += $"  |  {omitted} events omitted";
 			TimelineText( painter, footer, Color.White.WithAlpha( 0.65f ), new Rect( pos.x, chartBottom + 10, width, 24 ), 12 );
 
@@ -292,27 +292,28 @@ internal static partial class DebugOverlay
 
 		internal static void DrawTooltip( Painter painter )
 		{
-			if ( overlay_gpu_timeline != 1 || !InputRouter.MouseCursorVisible || _hoveredTimelineBar < 0
-				|| _hoveredTimelineBar >= _timelineBars.Count || Screen.Width < 160 || Screen.Height < 160 )
+			var area = Input.Area;
+			if ( !Input.CursorInside || _hoveredTimelineBar < 0
+				|| _hoveredTimelineBar >= _timelineBars.Count || area.x < 160 || area.y < 160 )
 			{
 				return;
 			}
 
 			var bar = _timelineBars[_hoveredTimelineBar];
 			var e = bar.Event;
-			float width = MathF.Min( 620, Screen.Width - 24 );
-			float height = MathF.Min( 196, Screen.Height - 24 );
-			var mouse = Mouse.Position;
+			float width = MathF.Min( 620, area.x - 24 );
+			float height = MathF.Min( 196, area.y - 24 );
+			var mouse = Input.Cursor;
 			float x = mouse.x + 16;
 			float y = mouse.y + 20;
-			if ( x + width > Screen.Width - 12 ) x = mouse.x - width - 16;
-			if ( y + height > Screen.Height - 12 ) y = mouse.y - height - 16;
-			x = Math.Clamp( x, 12, Screen.Width - width - 12 );
-			y = Math.Clamp( y, 12, Screen.Height - height - 12 );
+			if ( x + width > area.x - 12 ) x = mouse.x - width - 16;
+			if ( y + height > area.y - 12 ) y = mouse.y - height - 16;
+			x = Math.Clamp( x, 12, area.x - width - 12 );
+			y = Math.Clamp( y, 12, area.y - height - 12 );
 			var bounds = new Rect( x, y, width, height );
 
 			using var state = painter.Scope();
-			painter.Fill = new Color( 0.055f, 0.065f, 0.09f, 0.98f );
+			painter.Fill = HubStyles.Raised.WithAlpha( 0.98f );
 			painter.Stroke = Stroke.Solid( bar.Color.WithAlpha( 0.8f ), 1 );
 			painter.Rect( bounds );
 			painter.Stroke = Stroke.None;

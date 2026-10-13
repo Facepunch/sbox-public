@@ -155,7 +155,7 @@ public sealed partial class PanelDockWindows : IDisposable
 		try
 		{
 			var session = _session;
-			session?.OnWindowClosing( window );
+			session?.OnWindowClosing( window.Core );
 			// A direct Dispose cannot wait for Frame: its surface is about to be deleted.
 			if ( session is not null )
 			{
@@ -499,7 +499,7 @@ public sealed partial class PanelDockWindows : IDisposable
 		/// <inheritdoc/>
 		public void OnWindowClosing( IPanelWindow window )
 		{
-			if ( window == _sourceWindow || window == _captureWindow || window == _targetWindow ) Cancel();
+			if ( window == _sourceWindow?.Core || window == _captureWindow?.Core || window == _targetWindow?.Core ) Cancel();
 		}
 	}
 
@@ -542,7 +542,7 @@ public sealed partial class PanelDockWindows : IDisposable
 	sealed class FloatingWindow( string title, Vector2 size, Vector2 position, PanelWindow owner, Action<FloatingWindow> closing )
 		: PanelWindow( title, size, position, borderless: true )
 	{
-		internal override IPanelWindow ParentWindow => owner;
+		internal override PanelWindow ParentWindow => owner;
 
 
 		private protected override void OnClosing()

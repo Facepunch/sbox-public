@@ -364,11 +364,18 @@ public partial class GameTransform
 		World = tx;
 	}
 
-	internal void FromNetwork( Transform transform, bool clearInterpolation )
+	internal void FromNetwork( Transform transform, bool clearInterpolation, double time )
 	{
 		if ( !Application.IsHeadless && GameObject.Network.Interpolation && !clearInterpolation )
 		{
-			(_networkTransformBuffer ??= new( TransformState.CreateInterpolator() )).Add( new TransformState( transform ), Time.NowDouble );
+			var buffer = _networkTransformBuffer ??= new( TransformState.CreateInterpolator() );
+			var interval = 1.0 / ProjectSettings.Networking.UpdateRate.Clamp( 1, 500 );
+
+			// After a pause, rest until one update before this one instead of jumping to it
+			if ( buffer.IsEmpty || time - buffer.Last.Time > interval * 2 + 0.1 )
+				buffer.Add( buffer.IsEmpty ? new TransformState( _interpolatedLocal ) : buffer.Last.State, time - interval );
+
+			buffer.Add( new TransformState( transform ), time );
 			Interpolate = true;
 		}
 		else

@@ -1487,6 +1487,9 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	/// </summary>
 	internal override void OnDeltaSnapshotMessage( InternalMessageType type, ByteStream bs, Connection source )
 	{
+		// Acknowledgements measure the round trip, against a clock that's otherwise only updated when we send
+		DeltaSnapshots.UpdateTime();
+
 		if ( type == InternalMessageType.DeltaSnapshot )
 		{
 			NetworkDebugSystem.Current?.Record( NetworkDebugSystem.MessageType.SyncVars, bs.Length );

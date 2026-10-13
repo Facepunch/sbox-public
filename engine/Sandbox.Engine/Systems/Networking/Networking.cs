@@ -145,8 +145,14 @@ public static partial class Networking
 	[ConVar( "net_game_server_token", ConVarFlags.Protected )]
 	internal static string GameServerToken { get; set; } = string.Empty;
 
-	[ConVar( "net_interp_time", ConVarFlags.Protected, Help = "Interpolation time in seconds" )]
-	internal static float InterpolationTime { get; set; } = 0.1f;
+	[ConVar( "net_interp_time", ConVarFlags.Protected, Help = "Interpolation time in seconds, 0 to adapt to each connection" )]
+	internal static float InterpolationTimeOverride { get; set; }
+
+	/// <summary>
+	/// Interpolation reads this far back. Snapshot times are shifted so each sender's updates show after its own delay,
+	/// see <see cref="Sandbox.Network.DeltaSnapshotSystem.ConnectionData.ToLocalTime"/>.
+	/// </summary>
+	internal static float InterpolationTime => InterpolationTimeOverride > 0 ? InterpolationTimeOverride : 2f / ProjectSettings.Networking.UpdateRate.Clamp( 1, 500 );
 
 	[ConVar( "net_fakepacketloss", ConVarFlags.Protected | ConVarFlags.Cheat, Help = "Simulate packet loss in %" )]
 	internal static int FakePacketLoss { get; set; } = 0;

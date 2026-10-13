@@ -2,7 +2,7 @@ namespace Sandbox.Rendering;
 
 /// <summary>
 /// What the managed scene renderer did in a frame, added up over every camera it rendered - native's scenesystem counters
-/// (<c>SceneSystemPerFrameStats_t</c>) don't see its draws, so the frame stats overlay (<c>overlay_frame</c>) reads these.
+/// (<c>SceneSystemPerFrameStats_t</c>) don't see its draws, so the frame stats (the performance hub's Rendering tab) read these.
 /// </summary>
 internal struct ManagedFrameCounters
 {
