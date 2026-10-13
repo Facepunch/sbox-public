@@ -135,13 +135,17 @@ public partial class RenderSettings
 	}
 
 	/// <summary>
-	/// The settings menu writes effects one at a time, never the preset. When they add up to one,
-	/// record its level so the effects of games that aren't loaded follow it too.
+	/// Record a new preset level so unloaded games' effects follow it. Only on a change, or quitting
+	/// a game would wipe what was picked in it.
 	/// </summary>
 	void SettleCustomEffects()
 	{
 		var preset = PostProcessQuality;
-		if ( preset != PostProcessQuality.Custom )
-			SetCustomEffectsBase( EffectLevelFor( preset ) );
+		if ( preset == PostProcessQuality.Custom )
+			return;
+
+		var level = EffectLevelFor( preset );
+		if ( level != CustomEffectBase )
+			SetCustomEffectsBase( level );
 	}
 }
