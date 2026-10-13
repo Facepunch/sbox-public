@@ -2,6 +2,7 @@ using Sandbox.Tasks;
 using System;
 using System.Diagnostics;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace EngineTests;
 
@@ -9,6 +10,31 @@ namespace EngineTests;
 public class SynchronizationContextTest
 {
 	const int WaitTimeout = 0x102;
+
+	[TestMethod]
+	public void YieldDoesNotRequireAnotherQueuePump()
+	{
+		var context = new ExpirableSynchronizationContext( false );
+		var previous = SynchronizationContext.Current;
+		try
+		{
+			SynchronizationContext.SetSynchronizationContext( context );
+			var task = YieldTwice();
+			Assert.IsFalse( task.IsCompleted );
+			context.ProcessQueue();
+			Assert.IsTrue( task.IsCompletedSuccessfully, "Task.Yield is not a frame boundary or rendering fence." );
+		}
+		finally
+		{
+			SynchronizationContext.SetSynchronizationContext( previous );
+		}
+
+		static async Task YieldTwice()
+		{
+			await Task.Yield();
+			await Task.Yield();
+		}
+	}
 
 	[TestMethod]
 	public void TimedWaitHonorsTimeout()
