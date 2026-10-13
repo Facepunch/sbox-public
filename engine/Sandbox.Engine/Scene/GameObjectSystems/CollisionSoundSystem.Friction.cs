@@ -48,7 +48,8 @@ partial class CollisionSoundSystem
 			Span<PhysicsBody3d.ScrapeContact> contacts = stackalloc PhysicsBody3d.ScrapeContact[MaxContacts];
 			foreach ( var body in world._world.RegisteredBodies )
 			{
-				if ( body is PhysicsBody3d body3d && body.EnableCollisionSounds && body.IsValid )
+				// Statics can't slide; the moving body's side already plays the scrape.
+				if ( body is PhysicsBody3d body3d && body.EnableCollisionSounds && body.IsValid && body.BodyType != PhysicsBodyType.Static )
 					Evaluate( body3d, contacts );
 			}
 		}
