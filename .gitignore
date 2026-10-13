@@ -88,6 +88,7 @@ engine/TestResults/
 /game/bin/**/*.xml
 /game/bin/**/*.json
 /game/bin/win64/logs
+/game/bin/managed/skills
 /game/config/**/*.json
 /game/config/**/*.json.backup
 /game/core/cfg/*.vcfg
