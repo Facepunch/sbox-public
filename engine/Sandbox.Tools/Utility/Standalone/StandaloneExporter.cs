@@ -257,6 +257,14 @@ public partial class StandaloneExporter
 		{
 			var path = _exportConfig.StartupImage;
 			var startupImagePath = Path.Combine( _exportConfig.Project.GetAssetsPath(), path + "_c" );
+
+			// The image picker stores the file's absolute path, but the resource system only loads asset-relative paths
+			if ( Path.IsPathRooted( path ) && AssetSystem.FindByPath( path ) is { } startupAsset )
+			{
+				path = startupAsset.Path;
+				startupImagePath = startupAsset.GetCompiledFile( true ) ?? startupImagePath;
+			}
+
 			QueueCopy( startupImagePath, $"{baseDir}/core/materials/startup_background.vtex_c", BuildStep.CopyMisc );
 			QueueStartupImagePng( path, $"{baseDir}/core/materials/startup_background_color.png" );
 		}
