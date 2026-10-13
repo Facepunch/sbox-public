@@ -360,7 +360,15 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 				newInstance.m_queue.Writer.TryWrite( new Data( data.Callback, data.State, isCancelled ? this : newInstance ) );
 			}
 		}
+
+		// Wakes workers waiting on this context, so they move to the new one.
+		m_queue.Writer.TryComplete();
 	}
+
+	/// <summary>
+	/// Completes when work is queued, or with false once this context has expired.
+	/// </summary>
+	public ValueTask<bool> WaitForWorkAsync( CancellationToken ct ) => m_queue.Reader.WaitToReadAsync( ct );
 
 	private ExpirableSynchronizationContext GetCurrentContext()
 	{
