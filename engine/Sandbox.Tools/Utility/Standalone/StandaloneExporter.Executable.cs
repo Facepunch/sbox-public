@@ -32,7 +32,7 @@ partial class StandaloneExporter
 	private void WriteExecutable()
 	{
 		var launcherDir = Path.Combine( Environment.CurrentDirectory, "bin", "managed" );
-		var template = Path.Combine( launcherDir, LauncherName + ".exe" );
+		var template = Path.Combine( launcherDir, LauncherName + $"{(OperatingSystem.IsWindows() ? ".exe" : "")}" );
 		if ( !File.Exists( template ) )
 			throw new FileNotFoundException( $"No standalone launcher at {template} - build Sandbox-Engine.slnx (it's the Sbox-Standalone project's output)" );
 
@@ -45,7 +45,8 @@ partial class StandaloneExporter
 		}
 
 		// The executable is that apphost, told where its assembly went
-		var executablePath = Path.Combine( _exportConfig.TargetDir, $"{_exportConfig.ExecutableName}.exe" );
+
+		var executablePath = Path.Combine( _exportConfig.TargetDir, $"{_exportConfig.ExecutableName}{(OperatingSystem.IsWindows() ? ".exe" : "")}" );
 		var image = File.ReadAllBytes( template );
 		SetAppHostAssemblyPath( image, LauncherName + ".dll", LauncherAssemblyPath );
 		File.WriteAllBytes( executablePath, image );
