@@ -319,6 +319,8 @@ internal partial class ShadowMapper
 
 		int numCascades = Math.Min( light.Cascades, MaxCascades );
 		float farClip = CascadeDistance;
+		if ( light.CascadeMaxDistance > 1.0f ) // past the 1 unit near plane
+			farClip = MathF.Min( farClip, light.CascadeMaxDistance );
 		int shadowmapSize = MaxCascadeResolution;
 		float splitRatio = light.CascadeSplitRatio;
 

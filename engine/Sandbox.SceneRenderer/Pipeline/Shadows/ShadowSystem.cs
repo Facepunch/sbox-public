@@ -127,6 +127,7 @@ internal sealed class ShadowSystem : IShadowRenderer, IDisposable
 			ShadowsEnabled = enabled && lighting.SunShadows,
 			Cascades = lighting.SunShadowCascades,
 			CascadeSplitRatio = lighting.SunShadowSplitRatio,
+			CascadeMaxDistance = lighting.SunShadowMaxDistance,
 
 			// Baked suns exclude static casters (ShadowMapper.FromNative).
 			Baked = lighting.SunShadowsBaked,
