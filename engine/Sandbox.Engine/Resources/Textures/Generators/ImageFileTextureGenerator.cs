@@ -197,8 +197,26 @@ public class ImageFileGenerator : TextureGenerator
 			return Texture.Load( FilePath );
 		}
 
-		var bitmap = await LoadCached();
+		var bitmap = await CreateBitmap( options, ct );
 		if ( bitmap is null ) return Texture.Invalid;
+
+		var texture = bitmap.ToTexture();
+		bitmap.Dispose();
+
+		return texture;
+	}
+
+	/// <summary>
+	/// The fully processed image, before it becomes a texture. Compilers that pack images
+	/// together (terrain materials) need the pixels, not a texture.
+	/// </summary>
+	internal async Task<Bitmap> CreateBitmap( Options options, CancellationToken ct )
+	{
+		if ( string.IsNullOrWhiteSpace( FilePath ) )
+			return null;
+
+		var bitmap = await LoadCached();
+		if ( bitmap is null ) return null;
 
 		//
 		// Tell the compiler we're using this file, so to add it as a compile reference
@@ -274,10 +292,7 @@ public class ImageFileGenerator : TextureGenerator
 		}
 #pragma warning restore CA2000 // Dispose objects before losing scope
 
-		var tex = bitmap.ToTexture();
-		bitmap?.Dispose();
-
-		return tex;
+		return bitmap;
 	}
 
 	public override EmbeddedResource? CreateEmbeddedResource()
