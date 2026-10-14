@@ -7,7 +7,7 @@ internal class GameCache
 	internal ExitCode Run()
 	{
 		string rootDir = Directory.GetCurrentDirectory();
-		string exePath = Path.Combine( rootDir, "engine", "Tools", "CreateGameCache", "bin", "CreateGameCache.exe" );
+		string exePath = Path.Combine( rootDir, "engine", "Tools", "CreateGameCache", "bin", $"CreateGameCache{(OperatingSystem.IsWindows() ? ".exe" : "")}" );
 		string gameDir = Path.Combine( rootDir, "game" );
 
 		try

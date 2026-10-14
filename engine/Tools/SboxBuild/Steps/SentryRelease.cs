@@ -67,7 +67,7 @@ internal class SentryRelease( string org, string project )
 		};
 
 		return Utility.RunProcess(
-			"sentry-cli.exe",
+			$"sentry-cli{(OperatingSystem.IsWindows() ? ".exe" : "")}",
 			arguments,
 			workingDirectory,
 			envVars,
