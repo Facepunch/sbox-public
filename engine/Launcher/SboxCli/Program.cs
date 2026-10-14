@@ -150,7 +150,7 @@ internal static class Program
 			}
 			else
 			{
-				var executable = Path.Combine( options.EngineDirectory, options.Mode == "--project" ? "sbox-dev.exe" : "sbox.exe" );
+				var executable = Path.Combine( options.EngineDirectory, options.Mode == "--project" ? $"sbox-dev{(OperatingSystem.IsWindows() ? ".exe" : "")}" : $"sbox{(OperatingSystem.IsWindows() ? ".exe" : "")}" );
 				if ( !File.Exists( executable ) )
 					throw new FileNotFoundException( "Engine executable not found. Use --engine to specify the game directory.", executable );
 
