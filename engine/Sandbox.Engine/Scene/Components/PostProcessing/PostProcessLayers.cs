@@ -10,9 +10,16 @@ internal class PostProcessLayers
 	public Dictionary<Stage, List<PostProcessLayer>> Layers = new();
 	readonly HashSet<Stage> _earlyScheduled = [];
 
+	// The build makes the same layers every frame, so they're reused rather than allocated: _pool[.._used] are this build's.
+	readonly List<PostProcessLayer> _pool = new();
+	int _used;
+
 	public void Clear()
 	{
-		Layers.Clear();
+		foreach ( var list in Layers.Values )
+			list.Clear();
+
+		_used = 0;
 		_earlyScheduled.Clear();
 	}
 
@@ -21,7 +28,19 @@ internal class PostProcessLayers
 	/// </summary>
 	public PostProcessLayer CreateLayer( Stage stage )
 	{
-		PostProcessLayer layer = new();
+		PostProcessLayer layer;
+		if ( _used < _pool.Count )
+		{
+			layer = _pool[_used];
+			layer.Reset();
+		}
+		else
+		{
+			layer = new();
+			_pool.Add( layer );
+		}
+
+		_used++;
 
 		if ( !Layers.TryGetValue( stage, out var list ) )
 		{
@@ -162,7 +181,26 @@ internal class PostProcessLayer : IComparable<PostProcessLayer>
 	public PostProcessQueue? EarlyQueue;
 	public bool RanEarly;
 
+	/// <summary>
+	/// The list <see cref="BasePostProcess"/>'s Blit records into when it builds this layer. Kept with the pooled layer so
+	/// a blit reuses one list per camera instead of allocating a new one every frame.
+	/// </summary>
+	internal CommandList BlitCommandList;
+
 	public int CompareTo( PostProcessLayer other ) => Order.CompareTo( other.Order );
+
+	/// <summary>
+	/// Back to a fresh layer for reuse. <see cref="BlitCommandList"/> is kept, that's the point of reusing it.
+	/// </summary>
+	internal void Reset()
+	{
+		CommandList = null;
+		Order = 0;
+		Name = null;
+		NeedsDepthNormals = false;
+		EarlyQueue = null;
+		RanEarly = false;
+	}
 
 	/// <summary>
 	/// Render this layer
