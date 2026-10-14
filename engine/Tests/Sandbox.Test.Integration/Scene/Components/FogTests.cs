@@ -360,8 +360,8 @@ public class FogComponentTest
 	}
 
 	/// <summary>
-	/// The camera post-processing pass turns the scene camera's volumetric fog on exactly when
-	/// the scene contains at least one enabled VolumetricFogVolume, writing a fixed set of
+	/// The camera post-processing pass turns the scene camera's volumetric fog on when an enabled
+	/// VolumetricFogVolume is within its draw distance, writing a fixed set of
 	/// parameters (draw distance 4096, fade-in 64..256, indirect strength/anisotropy/scattering
 	/// all 1). The whole block only runs when the camera clears color, so without a color clear
 	/// the previous values go stale rather than being recomputed.
@@ -401,6 +401,53 @@ public class FogComponentTest
 		cam.ClearFlags = ClearFlags.Depth;
 		cam.CopyPostProcessing( sceneCamera );
 		Assert.IsFalse( sceneCamera.VolumetricFog.Enabled, "Without a color clear the volumetric block is skipped, leaving the previous state" );
+
+		go.Destroy();
+		scene.ProcessDeletes();
+	}
+
+	/// <summary>
+	/// Volumetrics only run for a visible fog volume within the fog's draw distance, and stay on a little past it
+	/// so the camera doesn't flip them on and off at the edge.
+	/// </summary>
+	[TestMethod]
+	public void FogVolumesOutOfRangeLeaveVolumetricsOff()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var cam = scene.CreateObject().Components.Create<CameraComponent>();
+		var sceneCamera = cam.SceneCamera;
+		sceneCamera.Position = Vector3.Zero;
+
+		var go = scene.CreateObject();
+		var volume = go.Components.Create<VolumetricFogVolume>();
+		volume.Bounds = BBox.FromPositionAndSize( 0, 200 );
+
+		go.WorldPosition = new Vector3( 10000, 0, 0 );
+		cam.CopyPostProcessing( sceneCamera );
+		Assert.IsFalse( sceneCamera.VolumetricFog.Enabled, "A volume beyond the draw distance leaves volumetrics off" );
+
+		go.WorldPosition = new Vector3( 4000, 0, 0 );
+		cam.CopyPostProcessing( sceneCamera );
+		Assert.IsTrue( sceneCamera.VolumetricFog.Enabled, "A volume whose bounds reach into the draw distance turns them on" );
+
+		go.WorldPosition = new Vector3( 4300, 0, 0 );
+		cam.CopyPostProcessing( sceneCamera );
+		Assert.IsTrue( sceneCamera.VolumetricFog.Enabled, "Just past the draw distance, fog that's on stays on" );
+
+		go.WorldPosition = new Vector3( 5000, 0, 0 );
+		cam.CopyPostProcessing( sceneCamera );
+		Assert.IsFalse( sceneCamera.VolumetricFog.Enabled, "Beyond the margin it switches off" );
+
+		go.WorldPosition = new Vector3( 4300, 0, 0 );
+		cam.CopyPostProcessing( sceneCamera );
+		Assert.IsFalse( sceneCamera.VolumetricFog.Enabled, "Fog that's off waits for the draw distance itself" );
+
+		go.WorldPosition = Vector3.Zero;
+		volume.Strength = 0;
+		cam.CopyPostProcessing( sceneCamera );
+		Assert.IsFalse( sceneCamera.VolumetricFog.Enabled, "A zero strength volume adds no fog" );
 
 		go.Destroy();
 		scene.ProcessDeletes();
