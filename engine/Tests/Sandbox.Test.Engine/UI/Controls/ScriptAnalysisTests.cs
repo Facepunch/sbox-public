@@ -13,11 +13,8 @@ public class ScriptAnalysisTests
 	public void Initialize()
 	{
 		previous = GlobalContext.Current;
-		var types = new TypeLibrary();
-		types.AddIntrinsicTypes();
-		types.AddAssembly( typeof( Script ).Assembly, false );
-		types.AddAssembly( typeof( ScriptAnalysisTests ).Assembly, true );
-		GlobalContext.Current = new GlobalContext { TypeLibrary = types };
+		// Intrinsics, engine and this assembly (dynamic), built once and shared
+		GlobalContext.Current = new GlobalContext { TypeLibrary = SharedTypeLibrary.ScriptingWithTests };
 	}
 	[TestCleanup]
 	public void Cleanup() => GlobalContext.Current = previous;

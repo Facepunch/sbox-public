@@ -502,6 +502,28 @@ public partial class ProjectPublisher
 	}
 
 	/// <summary>
+	/// Was the package's thumb picked for this publish, rather than rendered from its asset?
+	/// </summary>
+	bool ThumbnailChosen;
+
+	/// <summary>
+	/// Use this image as the package's thumb instead of the one rendered from its asset - the middle of it, cut
+	/// square (<see cref="CropToSquare"/>). Any image a <see cref="Bitmap"/> can read - it goes up as a png. Before
+	/// <see cref="PrePublish"/>, so it's uploaded.
+	/// </summary>
+	public Task SetThumbnail( byte[] image )
+	{
+		using var bitmap = Bitmap.CreateFromBytes( image ) ?? throw new ArgumentException( "Couldn't read the thumbnail image" );
+		using var square = CropToSquare( bitmap );
+
+		var name = $"/{TargetPackageIdent}/thumb.png";
+		Manifest.Assets.RemoveAll( x => string.Equals( x.Name, name, StringComparison.OrdinalIgnoreCase ) );
+		ThumbnailChosen = true;
+
+		return AddFile( square.ToPng(), name );
+	}
+
+	/// <summary>
 	/// If the code is referencing a package - we can add it to the manifest using this.
 	/// </summary>
 	public Task AddCodePackageReference( string package )

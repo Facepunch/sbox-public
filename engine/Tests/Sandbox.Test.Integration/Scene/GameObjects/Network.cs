@@ -21,10 +21,7 @@ public class NetworkTest
 	{
 		_oldTypeLibrary = Game.TypeLibrary;
 
-		Game.TypeLibrary = new Sandbox.Internal.TypeLibrary();
-		Game.TypeLibrary.AddAssembly( typeof( PrefabFile ).Assembly, false );
-		Game.TypeLibrary.AddAssembly( typeof( ModelRenderer ).Assembly, false );
-		Game.TypeLibrary.AddAssembly( typeof( NetworkTestComponent ).Assembly, false );
+		Game.TypeLibrary = SharedTypeLibrary.EngineAndTests;
 
 		JsonUpgrader.UpdateUpgraders( Game.TypeLibrary );
 	}

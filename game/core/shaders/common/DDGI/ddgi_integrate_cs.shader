@@ -32,8 +32,7 @@ COMMON
 	RWTexture3D<float4> IrradianceVolume < Attribute( "IrradianceVolume" ); >;
 	RWTexture3D<float2> DistanceVolume < Attribute( "DistanceVolume" ); >;
 	
-	float MaxProbeDistance < Attribute( "MaxProbeDistance" ); Default( 1000.0f ); >;
-	float EnergyLoss < Attribute( "EnergyLoss" ); Default( 2.0f ); >;
+	float ProbeMaxDistance < Attribute( "ProbeMaxDistance" ); >;
 	
 	int3 ProbeIndex < Attribute( "ProbeIndex" ); >;
 	#define ProbeSampler g_sTrilinearClamp
@@ -51,7 +50,8 @@ COMMON
 
 	float GetDepthDistance( TextureCube depthTex, float3 direction )
 	{
-		float depth = depthTex.SampleLevel( ProbeSampler, direction, 0.0f ).r;
+		// Filtering projected depth before linearization creates false near surfaces at silhouettes.
+		float depth = depthTex.SampleLevel( g_sPointClamp, direction, 0.0f ).r;
 		depth = Depth::Normalize( depth );
 		depth = Depth::Linearize( depth );
 		
@@ -81,7 +81,6 @@ COMMON
 			if ( weight > 0.0f )
 			{
 				float3 radiance = tex.SampleLevel( ProbeSampler, rayDirection, 0.0f ).rgb;
-				radiance = pow( radiance, 1.0f / EnergyLoss );
 				result += radiance * weight;
 				totalWeight += weight;
 			}
@@ -90,7 +89,6 @@ COMMON
 		if ( totalWeight > 0.0f )
 			result /= totalWeight;
 		
-		result = pow( result, EnergyLoss );
 		return result;
 	}
 
@@ -113,15 +111,20 @@ COMMON
 				continue;
 
 			float distance = abs( GetDepthDistance( depthTex, rayDirection ) );
-			distance = min( distance, MaxProbeDistance );
+			// Only distances within this probe's sampling neighborhood can affect visibility.
+			distance = saturate( distance / ProbeMaxDistance );
 
 			result += float3( distance * weight, distance * distance * weight, weight );
 		}
 
 		if ( result.z > 1e-9f )
+		{
 			result.xy /= result.z;
+		}
 		else
-			return float2( MaxProbeDistance, MaxProbeDistance * MaxProbeDistance );
+		{
+			return float2( 1.0f, 1.0f );
+		}
 
 		// Store the two distance moments: mean and mean of distance-squared.
 		return result.xy;
@@ -158,9 +161,7 @@ CS
 	float4 IntegrateDistance( float3 direction )
 	{
 		float2 distanceData = SampleProbeDistance( SourceDepth, direction );
-		float mean = min( distanceData.x, 65504.0f );        // Mean distance
-		float meanSquared = min( distanceData.y, 65504.0f ); // Mean of distance squared
-		return float4( mean, meanSquared, 0, 0 );
+		return float4( distanceData, 0, 0 );
 	}
 
 	[numthreads( TILE_SIZE, TILE_SIZE, 1 )]
@@ -187,12 +188,16 @@ CS
 		GroupMemoryBarrierWithGroupSync();
 
 		// The octahedral map is borderless, so the boundary texels are discontinuous across the
-		// seam. Each edge texel is identified with a mirrored texel on the same edge (corners map
-		// to the diagonally opposite corner). Blend the two 50/50 so the seam stays continuous.
+		// seam. Each edge texel is identified with a mirrored texel on the same edge.
+		// All four corners meet at the same direction and must share the same value.
 		const uint N = DDGI_OCT_RESOLUTION;
 		bool onX = ( localPos.x == 0 || localPos.x == N - 1 );
 		bool onY = ( localPos.y == 0 || localPos.y == N - 1 );
-		if ( onX || onY )
+		if ( onX && onY )
+		{
+			value = 0.25f * (g_TileResults[0][0] + g_TileResults[0][N - 1] + g_TileResults[N - 1][0] + g_TileResults[N - 1][N - 1]);
+		}
+		else if ( onX || onY )
 		{
 			uint2 mirror = localPos;
 			if ( onY ) mirror.x = ( N - 1 ) - localPos.x;
@@ -206,7 +211,8 @@ CS
 		#if D_PASS == 0
 			IrradianceVolume[dstCoord] = value;
 		#else
-			DistanceVolume[dstCoord] = value.xy;
+			// Compute the spread before half-float storage and BC6H compression.
+			DistanceVolume[dstCoord] = float2( value.x, sqrt( max( value.y - value.x * value.x, 0.0f ) ) );
 		#endif
 	}
 }

@@ -23,7 +23,15 @@ namespace Sandbox.Generator
 			var lineNm = SyntaxFactory.Literal( $"{lineSpan.StartLinePosition.Line + 1}", lineSpan.StartLinePosition.Line + 1 );
 			var file = SyntaxFactory.Literal( $"{tree.FilePath}" );
 
-			var line = SyntaxFactory.LineDirectiveTrivia( lineNm, file, true ).NormalizeWhitespace().WithLeadingTrivia( SyntaxFactory.CarriageReturn );
+			// "\r#line 12 "file"\r\n", built with its whitespace in place - NormalizeWhitespace on every
+			// statement was a good part of the generator's time
+			var line = SyntaxFactory.LineDirectiveTrivia(
+				SyntaxFactory.Token( SyntaxFactory.TriviaList( SyntaxFactory.CarriageReturn ), SyntaxKind.HashToken, SyntaxFactory.TriviaList() ),
+				SyntaxFactory.Token( SyntaxFactory.TriviaList(), SyntaxKind.LineKeyword, SyntaxFactory.TriviaList( SyntaxFactory.Space ) ),
+				lineNm.WithLeadingTrivia().WithTrailingTrivia( SyntaxFactory.Space ),
+				file.WithLeadingTrivia().WithTrailingTrivia(),
+				SyntaxFactory.Token( SyntaxFactory.TriviaList(), SyntaxKind.EndOfDirectiveToken, SyntaxFactory.TriviaList( SyntaxFactory.CarriageReturnLineFeed ) ),
+				true );
 
 			var trivia = node.HasLeadingTrivia ? node.GetLeadingTrivia() : SyntaxFactory.TriviaList();
 

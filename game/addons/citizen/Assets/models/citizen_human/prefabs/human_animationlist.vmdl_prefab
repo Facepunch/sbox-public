@@ -6984,7 +6984,7 @@
 										disable_compression = false
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/rust@jog_n.fbx"
+										source_filename = "models/citizen_human/animations/rust@walk_n.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -7014,7 +7014,7 @@
 										disable_compression = false
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/rust@jog_w.fbx"
+										source_filename = "models/citizen_human/animations/rust@walk_w.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -7044,7 +7044,7 @@
 										disable_compression = false
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/rust@jog_e.fbx"
+										source_filename = "models/citizen_human/animations/rust@walk_e.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -7074,7 +7074,7 @@
 										disable_compression = false
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/rust@jog_s.fbx"
+										source_filename = "models/citizen_human/animations/rust@walk_s.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -7104,7 +7104,7 @@
 										disable_compression = false
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/rust@jog_ne.fbx"
+										source_filename = "models/citizen_human/animations/rust@walk_ne.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -7134,7 +7134,7 @@
 										disable_compression = false
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/rust@jog_nw.fbx"
+										source_filename = "models/citizen_human/animations/rust@walk_nw.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -7164,7 +7164,7 @@
 										disable_compression = false
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/rust@jog_se.fbx"
+										source_filename = "models/citizen_human/animations/rust@walk_se.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -7194,7 +7194,7 @@
 										disable_compression = false
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/rust@jog_sw.fbx"
+										source_filename = "models/citizen_human/animations/rust@walk_sw.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -7862,10 +7862,10 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@pistol_2h_attack_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@m92_attack.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = 40.0
@@ -7893,10 +7893,10 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@pistol_2h_attack_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@m92_attack.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = 40.0
@@ -7916,10 +7916,10 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@pistol_2h_attack_02.fbx"
+										source_filename = "models/citizen_human/animations/rust@m92_attack.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = 40.0
@@ -7947,10 +7947,10 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@pistol_2h_attack_02.fbx"
+										source_filename = "models/citizen_human/animations/rust@m92_attack.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = 40.0
@@ -7970,10 +7970,10 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@pistol_2h_deploy_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@m92_deploy.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -7988,7 +7988,7 @@
 											{
 												_class = "AnimSubtract"
 												anim_name = "Pistol_2H_Deploy_01"
-												frame = 25
+												frame = 37
 											},
 										]
 										activity_name = ""
@@ -8001,10 +8001,10 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@pistol_2h_deploy_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@m92_deploy.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -8024,10 +8024,10 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@pistol_2h_pose_standing_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@m92_idle.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -8070,10 +8070,10 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@pistol_2h_pose_standing_idle_01b.fbx"
+										source_filename = "models/citizen_human/animations/rust@m92_idle_relax.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -8093,10 +8093,10 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@pistol_2h_pose_standing_moving_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@m92_idle.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -8134,10 +8134,10 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@pistol_2h_pose_crouching_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@m92_crouch.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -8175,10 +8175,10 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@pistol_2h_pose_crouchinglow_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@m92_crouchlow.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -8198,10 +8198,10 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@pistol_2h_reload_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@m92_reload.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -8229,10 +8229,10 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@pistol_2h_reload_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@m92_reload.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -8621,10 +8621,10 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@smg_2h_pose_standing_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@lr300_idle.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -8644,10 +8644,10 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@smg_2h_pose_standing_idle_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@lr300_idle.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -8685,10 +8685,10 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@smg_2h_pose_crouching_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@lr300_crouch.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -8726,10 +8726,10 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@smg_2h_pose_crouchinglow_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@lr300_crouchlow.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -8749,12 +8749,12 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@smg_2h_attack_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@lr300_attack.fbx"
 										start_frame = -1
-										end_frame = 4
+										end_frame = -1
 										framerate = -1.0
 										take = 0
 										reverse = false
@@ -8780,12 +8780,12 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@smg_2h_attack_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@lr300_attack.fbx"
 										start_frame = -1
-										end_frame = 4
+										end_frame = -1
 										framerate = -1.0
 										take = 0
 										reverse = false
@@ -8803,10 +8803,10 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@smg_2h_deploy_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@lr300_deploy.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -8821,7 +8821,7 @@
 											{
 												_class = "AnimSubtract"
 												anim_name = "SMG_2H_Deploy_01"
-												frame = 0
+												frame = 63
 											},
 										]
 										activity_name = ""
@@ -8834,10 +8834,10 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@smg_2h_deploy_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@lr300_deploy.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -8857,12 +8857,12 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@smg_2h_reload_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@lr300_reload.fbx"
 										start_frame = -1
-										end_frame = 50
+										end_frame = -1
 										framerate = -1.0
 										take = 0
 										reverse = false
@@ -8878,6 +8878,83 @@
 												frame = 0
 											},
 										]
+										activity_name = ""
+										activity_weight = 1
+										weight_list_name = ""
+										fade_in_time = 0.2
+										fade_out_time = 0.2
+										looping = false
+										delta = false
+										worldSpace = false
+										hidden = false
+										anim_markup_ordered = false
+										disable_compression = true
+										disable_interpolation = false
+										enable_scale = false
+										source_filename = "models/citizen_human/animations/rust@lr300_reload.fbx"
+										start_frame = -1
+										end_frame = -1
+										framerate = -1.0
+										take = 0
+										reverse = false
+									},
+									{
+										_class = "AnimFile"
+										name = "SMG_2H_Deploy_01_Stock"
+										activity_name = ""
+										activity_weight = 1
+										weight_list_name = ""
+										fade_in_time = 0.2
+										fade_out_time = 0.2
+										looping = false
+										delta = false
+										worldSpace = false
+										hidden = false
+										anim_markup_ordered = false
+										disable_compression = false
+										disable_interpolation = false
+										enable_scale = false
+										source_filename = "models/citizen_human/animations/retargeted/weapons/human@smg_2h_deploy_01.fbx"
+										start_frame = -1
+										end_frame = -1
+										framerate = -1.0
+										take = 0
+										reverse = false
+									},
+									{
+										_class = "AnimFile"
+										name = "SMG_2H_Deploy_01_Stock_delta"
+										children = 
+										[
+											{
+												_class = "AnimSubtract"
+												anim_name = "SMG_2H_Deploy_01_Stock"
+												frame = 0
+											},
+										]
+										activity_name = ""
+										activity_weight = 1
+										weight_list_name = ""
+										fade_in_time = 0.2
+										fade_out_time = 0.2
+										looping = false
+										delta = false
+										worldSpace = false
+										hidden = false
+										anim_markup_ordered = false
+										disable_compression = false
+										disable_interpolation = false
+										enable_scale = false
+										source_filename = "models/citizen_human/animations/retargeted/weapons/human@smg_2h_deploy_01.fbx"
+										start_frame = -1
+										end_frame = -1
+										framerate = -1.0
+										take = 0
+										reverse = false
+									},
+									{
+										_class = "AnimFile"
+										name = "SMG_2H_Reload_01_Stock"
 										activity_name = ""
 										activity_weight = 1
 										weight_list_name = ""
@@ -8972,10 +9049,10 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@shotgun_2h_pose_standing_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@m4shotgun_idle.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -8995,10 +9072,10 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@shotgun_2h_pose_standing_idle_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@m4shotgun_idle_relax.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -9018,10 +9095,10 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@shotgun_2h_pose_standing_moving_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@m4shotgun_idle.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -9059,10 +9136,10 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@shotgun_2h_pose_crouching_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@m4shotgun_crouch.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -9100,10 +9177,10 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@shotgun_2h_pose_crouchinglow_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@m4shotgun_crouchlow.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -9123,10 +9200,10 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@shotgun_2h_attack_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@m4shotgun_attack.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -9154,10 +9231,10 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@shotgun_2h_attack_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@m4shotgun_attack.fbx"
 										start_frame = -1
 										end_frame = -1
 										framerate = -1.0
@@ -9167,6 +9244,60 @@
 									{
 										_class = "AnimFile"
 										name = "Shotgun_2H_Deploy_01"
+										activity_name = ""
+										activity_weight = 1
+										weight_list_name = ""
+										fade_in_time = 0.2
+										fade_out_time = 0.2
+										looping = false
+										delta = false
+										worldSpace = false
+										hidden = false
+										anim_markup_ordered = false
+										disable_compression = true
+										disable_interpolation = false
+										enable_scale = false
+										source_filename = "models/citizen_human/animations/rust@m4shotgun_deploy.fbx"
+										start_frame = -1
+										end_frame = -1
+										framerate = -1.0
+										take = 0
+										reverse = false
+									},
+									{
+										_class = "AnimFile"
+										name = "Shotgun_2H_Deploy_01_delta"
+										children = 
+										[
+											{
+												_class = "AnimSubtract"
+												anim_name = "Shotgun_2H_Deploy_01"
+												frame = 50
+											},
+										]
+										activity_name = ""
+										activity_weight = 1
+										weight_list_name = ""
+										fade_in_time = 0.2
+										fade_out_time = 0.2
+										looping = false
+										delta = false
+										worldSpace = false
+										hidden = false
+										anim_markup_ordered = false
+										disable_compression = true
+										disable_interpolation = false
+										enable_scale = false
+										source_filename = "models/citizen_human/animations/rust@m4shotgun_deploy.fbx"
+										start_frame = -1
+										end_frame = -1
+										framerate = -1.0
+										take = 0
+										reverse = false
+									},
+									{
+										_class = "AnimFile"
+										name = "Shotgun_2H_Deploy_01_Stock"
 										activity_name = ""
 										activity_weight = 1
 										weight_list_name = ""
@@ -9189,12 +9320,12 @@
 									},
 									{
 										_class = "AnimFile"
-										name = "Shotgun_2H_Deploy_01_delta"
+										name = "Shotgun_2H_Deploy_01_Stock_delta"
 										children = 
 										[
 											{
 												_class = "AnimSubtract"
-												anim_name = "Shotgun_2H_Deploy_01"
+												anim_name = "Shotgun_2H_Deploy_01_Stock"
 												frame = 0
 											},
 										]
@@ -9285,12 +9416,12 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@shotgun_2h_reload_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@m4shotgun_reload_entry.fbx"
 										start_frame = -1
-										end_frame = 13
+										end_frame = -1
 										framerate = -1.0
 										take = 0
 										reverse = false
@@ -9302,7 +9433,7 @@
 										[
 											{
 												_class = "AnimSubtract"
-												anim_name = "Shotgun_2H_Reload_01"
+												anim_name = "Shotgun_2H_Pose_Standing_01"
 												frame = 0
 											},
 										]
@@ -9316,12 +9447,12 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@shotgun_2h_reload_01.fbx"
+										source_filename = "models/citizen_human/animations/rust@m4shotgun_reload_entry.fbx"
 										start_frame = -1
-										end_frame = 13
+										end_frame = -1
 										framerate = -1.0
 										take = 0
 										reverse = false
@@ -9347,12 +9478,12 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@shotgun_2h_reload_01.fbx"
-										start_frame = 12
-										end_frame = 20
+										source_filename = "models/citizen_human/animations/rust@m4shotgun_reload_loop.fbx"
+										start_frame = -1
+										end_frame = -1
 										framerate = -1.0
 										take = 0
 										reverse = false
@@ -9369,7 +9500,7 @@
 											},
 											{
 												_class = "AnimSubtract"
-												anim_name = "Shotgun_2H_Reload_01"
+												anim_name = "Shotgun_2H_Pose_Standing_01"
 												frame = 0
 											},
 										]
@@ -9383,12 +9514,12 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@shotgun_2h_reload_01.fbx"
-										start_frame = 12
-										end_frame = 20
+										source_filename = "models/citizen_human/animations/rust@m4shotgun_reload_loop.fbx"
+										start_frame = -1
+										end_frame = -1
 										framerate = -1.0
 										take = 0
 										reverse = false
@@ -9406,12 +9537,12 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@shotgun_2h_reload_01.fbx"
-										start_frame = 20
-										end_frame = 35
+										source_filename = "models/citizen_human/animations/rust@m4shotgun_reload_exit.fbx"
+										start_frame = -1
+										end_frame = -1
 										framerate = -1.0
 										take = 0
 										reverse = false
@@ -9423,7 +9554,7 @@
 										[
 											{
 												_class = "AnimSubtract"
-												anim_name = "Shotgun_2H_Reload_01"
+												anim_name = "Shotgun_2H_Pose_Standing_01"
 												frame = 0
 											},
 										]
@@ -9437,12 +9568,12 @@
 										worldSpace = false
 										hidden = false
 										anim_markup_ordered = false
-										disable_compression = false
+										disable_compression = true
 										disable_interpolation = false
 										enable_scale = false
-										source_filename = "models/citizen_human/animations/retargeted/weapons/human@shotgun_2h_reload_01.fbx"
-										start_frame = 20
-										end_frame = 35
+										source_filename = "models/citizen_human/animations/rust@m4shotgun_reload_exit.fbx"
+										start_frame = -1
+										end_frame = -1
 										framerate = -1.0
 										take = 0
 										reverse = false
@@ -10751,12 +10882,12 @@
 												worldSpace = false
 												hidden = false
 												anim_markup_ordered = false
-												disable_compression = false
+												disable_compression = true
 												disable_interpolation = false
 												enable_scale = false
-												source_filename = "models/citizen_human/animations/retargeted/weapons/human@melee_weapons_2h_pose_standing_01.fbx"
+												source_filename = "models/citizen_human/animations/rust@hatchet_idle.fbx"
 												start_frame = -1
-												end_frame = 0
+												end_frame = -1
 												framerate = -1.0
 												take = 0
 												reverse = false
@@ -10781,10 +10912,10 @@
 												worldSpace = false
 												hidden = false
 												anim_markup_ordered = false
-												disable_compression = false
+												disable_compression = true
 												disable_interpolation = false
 												enable_scale = false
-												source_filename = "models/citizen_human/animations/retargeted/weapons/human@melee_weapons_2h_pose_crouching_01.fbx"
+												source_filename = "models/citizen_human/animations/rust@hatchet_crouch.fbx"
 												start_frame = -1
 												end_frame = -1
 												framerate = -1.0
@@ -10804,10 +10935,10 @@
 												worldSpace = false
 												hidden = false
 												anim_markup_ordered = false
-												disable_compression = false
+												disable_compression = true
 												disable_interpolation = false
 												enable_scale = false
-												source_filename = "models/citizen_human/animations/retargeted/weapons/human@melee_weapons_2h_attack_01.fbx"
+												source_filename = "models/citizen_human/animations/rust@hatchet_attack.fbx"
 												start_frame = -1
 												end_frame = -1
 												framerate = -1.0

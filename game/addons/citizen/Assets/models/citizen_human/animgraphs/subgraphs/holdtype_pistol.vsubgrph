@@ -2271,7 +2271,7 @@
 								m_id = 2128448084
 							}
 							m_fStartCycle = 0.0
-							m_fDuration = 0.642495
+							m_fDuration = 0.95
 						},
 						{
 							_class = "CAnimTagSpan"
@@ -2280,7 +2280,7 @@
 								m_id = 1159356952
 							}
 							m_fStartCycle = 0.028133
-							m_fDuration = 0.651151
+							m_fDuration = 0.922
 						},
 					]
 					m_sequenceName = "Pistol_2H_Reload_01"

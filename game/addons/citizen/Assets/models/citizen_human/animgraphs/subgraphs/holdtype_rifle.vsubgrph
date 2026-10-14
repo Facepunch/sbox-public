@@ -3158,7 +3158,7 @@
 						m_id = 2121256441
 					}
 					m_sNote = ""
-					m_sequenceName = "Pistol_2H_Pose_CrouchingLow_01"
+					m_sequenceName = "SMG_2H_Pose_CrouchingLow_01"
 					m_nFrameIndex = 0
 					m_tagSpans = 
 					[

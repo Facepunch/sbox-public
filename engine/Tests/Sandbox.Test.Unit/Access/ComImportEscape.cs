@@ -10,7 +10,6 @@ namespace AccessTests;
 // COM objects and escape the sandbox, and its metadata flag slipped past access control.
 // https://hackerone.com/reports/3775841
 [TestClass]
-[DoNotParallelize]
 public class ComImportEscapeTest
 {
 	// Compile a package.* assembly from source and run it through access control.

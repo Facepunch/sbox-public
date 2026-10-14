@@ -25,7 +25,7 @@ internal static class ToolRegistry
 	static readonly Lazy<MethodDescription[]> Builtins = new( () =>
 	{
 		var library = new TypeLibrary();
-		return new[] { typeof( TopLevelTools ), typeof( InstanceTools ), typeof( ScriptTools ) }
+		return new[] { typeof( TopLevelTools ), typeof( InstanceTools ), typeof( ScriptTools ), typeof( PerfTools ) }
 			.SelectMany( type => TypeDescription.Create( library, type, true, null ).Methods )
 			.Where( method => method.GetCustomAttribute<McpToolAttribute>() is not null )
 			.ToArray();

@@ -188,13 +188,86 @@ internal static partial class PerfHub
 			return;
 
 		_sinceAnalysis = 0;
+		Current = Summarise();
+	}
+
+	/// <summary>
+	/// A fresh analysis of the live frames, whether or not the hub is open or paused.
+	/// </summary>
+	internal static Summary Summarise()
+	{
 		UpdateRates();
 
 		var s = new Summary();
 		AnalyseFrames( s );
 		AnalyseCosts( s );
 		FindIssues( s );
-		Current = s;
+		return s;
+	}
+
+	/// <summary>
+	/// Every named main thread scope with time in it, not just the categories, biggest first. Scopes nest, so they overlap.
+	/// </summary>
+	internal static void GetScopes( List<Cost> into )
+	{
+		into.Clear();
+		foreach ( var (_, timing) in PerformanceStats.Timings.All )
+		{
+			if ( timing == PerformanceStats.Timings.Idle ) continue;
+
+			var m = timing.GetMetric( 120 );
+			if ( m.Avg < 0.01f ) continue;
+
+			into.Add( new Cost( timing.Name, timing.Color, m.Avg, m.Max ) );
+		}
+
+		into.Sort( static ( a, b ) => b.AvgMs.CompareTo( a.AvgMs ) );
+	}
+
+	/// <summary>
+	/// One GPU pass in submission order. <see cref="BranchMs"/> is the most any pass under it (itself included) took,
+	/// for deciding what's worth listing - scopes overlap, so a parent's time isn't the sum of its children's.
+	/// </summary>
+	internal readonly record struct GpuPass( uint Id, string Name, int Depth, bool Measured, float AvgMs, float MaxMs, float BranchMs );
+
+	static int[] _gpuDepth = [];
+	static float[] _gpuBranch = [];
+
+	/// <summary>
+	/// Every GPU pass in the order it was submitted, with its depth under its parent.
+	/// </summary>
+	internal static void GetGpuPasses( List<GpuPass> into )
+	{
+		into.Clear();
+
+		var rows = GpuProfilerStats.Rows;
+		if ( _gpuDepth.Length < rows.Length )
+		{
+			_gpuDepth = new int[rows.Length];
+			_gpuBranch = new float[rows.Length];
+		}
+
+		// Parents come before their children, so depth fills forwards and branch time backwards
+		for ( int i = 0; i < rows.Length; i++ )
+		{
+			var parent = rows[i].Parent;
+			_gpuDepth[i] = parent >= 0 && parent < i ? _gpuDepth[parent] + 1 : 0;
+			_gpuBranch[i] = rows[i].Measured ? GpuProfilerStats.GetSmoothedDuration( rows[i].StableId ) : 0;
+		}
+
+		for ( int i = rows.Length - 1; i >= 0; i-- )
+		{
+			var parent = rows[i].Parent;
+			if ( parent >= 0 && parent < i ) _gpuBranch[parent] = MathF.Max( _gpuBranch[parent], _gpuBranch[i] );
+		}
+
+		for ( int i = 0; i < rows.Length; i++ )
+		{
+			var row = rows[i];
+			var avg = row.Measured ? GpuProfilerStats.GetSmoothedDuration( row.StableId ) : 0;
+			var max = row.Measured ? GpuProfilerStats.GetMaxDuration( row.StableId ) : 0;
+			into.Add( new GpuPass( row.StableId, row.Name, _gpuDepth[i], row.Measured, avg, max, _gpuBranch[i] ) );
+		}
 	}
 
 	static void UpdateRates()

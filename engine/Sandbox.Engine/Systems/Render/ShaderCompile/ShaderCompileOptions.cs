@@ -9,6 +9,11 @@ public struct ShaderCompileOptions
 	public bool ForceRecompile { get; set; }
 
 	/// <summary>
+	/// Most combos to compile at once. 0 picks from the core count and free memory.
+	/// </summary>
+	public int MaxThreads { get; set; }
+
+	/// <summary>
 	/// Write to console. Used when running from the command line.
 	/// </summary>
 	public bool ConsoleOutput { get; set; }

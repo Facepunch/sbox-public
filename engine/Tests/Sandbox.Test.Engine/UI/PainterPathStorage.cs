@@ -62,14 +62,19 @@ public class PainterPathStorageTest
 	public void PathStorageAccommodatesCapsJoinsAndPatterns( BorderStyle style, bool closed )
 	{
 		var context = new Painter.Context( new Sandbox.Rendering.CommandList() );
+
+		// Solid strokes ignore the phase. The dash period is 13, so -10 (wraps to 3), 0 and 8 start the
+		// pattern inside a dash, at one, and at the gap; dotted (period 7) gets 4, 0 and 1.
+		var phases = style == BorderStyle.Solid ? new[] { 0f } : new[] { -10f, 0, 8 };
 		try
 		{
+			// Each count takes a different storage path: <= 8 points, <= MaxPolygonPoints, and above
 			foreach ( int count in new[] { 3, 17, 257 } )
 			{
 				var points = MakePoints( count );
 				foreach ( var cap in Enum.GetValues<Stroke.LineCap>() )
 					foreach ( var join in Enum.GetValues<Stroke.LineJoin>() )
-						foreach ( float phase in new[] { -13f, 0, 3, 8, 13 } )
+						foreach ( float phase in phases )
 						{
 							context.CommandList.Reset();
 							context.Begin( new Rect( 0, 0, 1000, 1000 ) );

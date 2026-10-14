@@ -14,7 +14,7 @@ Layer0
 
 	//---- Mesh Fit ----
 	g_flIrisRadius "0.174"
-	g_vIrisCenter "[0.475 0.500]"
+	g_vIrisCenter "[0.515 0.500]"
 
 	Attributes
 	{

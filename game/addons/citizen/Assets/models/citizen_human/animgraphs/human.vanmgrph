@@ -2213,6 +2213,18 @@
 				m_bDefaultValue = false
 			},
 			{
+				_class = "CBoolAnimParameter"
+				m_name = "b_avatar_skip_intro"
+				m_id = 
+				{
+					m_id = 1987650013
+				}
+				m_previewButton = "ANIMPARAM_BUTTON_NONE"
+				m_bUseMostRecentValue = false
+				m_bAutoReset = false
+				m_bDefaultValue = false
+			},
+			{
 				_class = "CFloatAnimParameter"
 				m_name = "aim_body_pitch"
 				m_id = 
@@ -2682,9 +2694,9 @@
 				m_previewButton = "ANIMPARAM_BUTTON_NONE"
 				m_bUseMostRecentValue = false
 				m_bAutoReset = false
-				m_fDefaultValue = 0.01
-				m_fMinValue = 0.01
-				m_fMaxValue = 0.01
+				m_fDefaultValue = 0.01524
+				m_fMinValue = 0.01524
+				m_fMaxValue = 0.01524
 			},
 			{
 				_class = "CFloatAnimParameter"

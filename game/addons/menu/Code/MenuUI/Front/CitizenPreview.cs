@@ -189,6 +189,10 @@ public sealed class CitizenPreview : Panel
 				if ( token.IsCancellationRequested || !cameraObject.IsValid() )
 					return;
 
+				// A human skin swaps the body model, which rebuilds the anim graph with default
+				// parameters - put the pose back so the entry animation plays
+				renderer.Set( "special_idle_states", 1 );
+
 				// Taller people need the camera a little higher - a rough guess, and all we've got unless
 				// we're framing on their head, which takes over once they're posed
 				var height = clothing.Height.Remap( 0, 1, 0.8f, 1.2f, true );

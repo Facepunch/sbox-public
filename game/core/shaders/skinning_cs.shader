@@ -19,6 +19,7 @@ COMMON
 	#include "common.fxc"
 	#include "vr_common.fxc"
 	#include "math_general.fxc"
+	#include "common/utils/normal_transform.hlsl"
 	#include "transform_buffer.fxc"
 }
 
@@ -253,9 +254,10 @@ CS
 		vert.vPosWs = mul( mObjToWorld, float4( vPosOs, 1.0f ) );
 		vert.flMorphWrinkle = flWrinkle;
 
-		float3 vNormalWs = normalize( mul( mObjToWorld, float4( vNormalOs.xyz, 0.0 ) ) );
+		float flTransformSign;
+		float3 vNormalWs = TransformNormalInverseTranspose( vNormalOs.xyz, (float3x3)mObjToWorld, flTransformSign );
 		float3 vTangentUWs = mul( mObjToWorld, float4( vTangentUOs_flTangentVSign.xyz, 0.0 ) );
-		EncodeTangentSpace( vNormalWs, vTangentUWs, vTangentUOs_flTangentVSign.w, vert );
+		EncodeTangentSpace( vNormalWs, vTangentUWs, vTangentUOs_flTangentVSign.w * flTransformSign, vert );
 
 		uint nBufferAddress = 24 * ( nVertexId + inst.nDestBufferOffset );
 		g_outputVB.Store3( nBufferAddress, asuint( vert.vPosWs ) );

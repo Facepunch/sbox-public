@@ -14,6 +14,14 @@ public class GuidTests
 	string _assetsPath;
 	string _testPath;
 
+	static bool _databaseBuilt;
+
+	[ClassInitialize]
+	public static void ClassInitialize( TestContext context )
+	{
+		_databaseBuilt = false;
+	}
+
 	[TestInitialize]
 	public void TestInitialize()
 	{
@@ -30,8 +38,14 @@ public class GuidTests
 
 		NativeEngine.FullFileSystem.AddProjectPath( "unittest", _assetsPath.ToLowerInvariant() );
 
-		// make sure the guid mappings are rebuilt
-		NativeEngine.g_pResourceSystem.InvalidateDatabase();
+		// Rebuild the guid mappings once so they include the fixtures. A rebuild rescans
+		// everything mounted (~0.5s), and later tests only add files in their own new folder
+		// with new guids, which they register themselves.
+		if ( !_databaseBuilt )
+		{
+			NativeEngine.g_pResourceSystem.InvalidateDatabase();
+			_databaseBuilt = true;
+		}
 
 		GlobalContext.Current.FileMount = new AggregateFileSystem();
 		FileSystem.Mounted.Mount( new LocalFileSystem( _assetsPath ) );
@@ -183,9 +197,8 @@ public class GuidTests
 		{
 			WriteMeta( paths[i], guids[i] );
 			File.WriteAllBytes( Path.Combine( _assetsPath, paths[i] + "_c" ), CreateAggregateModel( i + 2 ).SaveToVmdl() );
+			MetaChanged( paths[i] );
 		}
-
-		NativeEngine.g_pResourceSystem.InvalidateDatabase();
 
 		for ( int i = 0; i < models.Length; i++ )
 		{
@@ -439,6 +452,16 @@ public class GuidTests
 	}
 
 	/// <summary>
+	/// Register a written .meta the way the editor's file watcher does. InvalidateDatabase would
+	/// work too but rescans everything mounted; PathReuseAfterRename keeps using it so the full
+	/// rebuild stays covered.
+	/// </summary>
+	static void MetaChanged( string relativePath )
+	{
+		NativeEngine.g_pResourceSystem.NotifyMetaFileChanged( relativePath, true );
+	}
+
+	/// <summary>
 	/// After a resource is renamed, its old path must resolve to whatever's there now,
 	/// not the resource that used to live there.
 	/// </summary>
@@ -508,7 +531,7 @@ public class GuidTests
 		var guid = Guid.NewGuid();
 		WriteScene( relativePath, guid );
 
-		NativeEngine.g_pResourceSystem.InvalidateDatabase();
+		MetaChanged( relativePath );
 		ResourceLoader.LoadAllGameResource( FileSystem.Mounted, reloadExisting: true );
 
 		Assert.AreEqual( guid, promise.Guid, "Promise should have adopted the guid once the resource was loaded" );
@@ -538,7 +561,7 @@ public class GuidTests
 
 		// now the real resource for guidA gets loaded
 		WriteScene( currentPath, guidA );
-		NativeEngine.g_pResourceSystem.InvalidateDatabase();
+		MetaChanged( currentPath );
 		ResourceLoader.LoadAllGameResource( FileSystem.Mounted, reloadExisting: true );
 
 		Assert.AreSame( promiseA, ResourceLibrary.Get<SceneFile>( currentPath ), "GUID-only promise should adopt the real path once loaded" );
@@ -562,7 +585,7 @@ public class GuidTests
 		var guid = Guid.NewGuid();
 		WriteScene( currentPath, guid );
 
-		NativeEngine.g_pResourceSystem.InvalidateDatabase();
+		MetaChanged( currentPath );
 
 		// reference by guid, but with a stale path that was never actually where this
 		// resource lived (eg a saved reference from before a rename)

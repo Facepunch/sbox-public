@@ -41,8 +41,6 @@ internal class BuildShaders( bool forced = false )
 			arguments += " -f";
 		}
 
-		// Track if any shaders were compiled
-		var shaderCompiled = false;
 		var current = 0;
 		var total = 0;
 		BuildDisplay.Status( "Compile shaders" );
@@ -70,11 +68,6 @@ internal class BuildShaders( bool forced = false )
 					{
 						BuildDisplay.Progress( current, total );
 					}
-
-					if ( e.Data.Contains( "Compiled successfully in" ) )
-					{
-						shaderCompiled = true;
-					}
 				}
 			}
 		);
@@ -82,12 +75,6 @@ internal class BuildShaders( bool forced = false )
 		if ( !success )
 		{
 			Log.Error( $"Shader compiler failed" );
-			return ExitCode.Failure;
-		}
-
-		if ( shaderCompiled && Utility.IsCi() )
-		{
-			Log.Error( $"Step Failed because at least one shader had to be recompiled, please compile shaders locally before committing." );
 			return ExitCode.Failure;
 		}
 

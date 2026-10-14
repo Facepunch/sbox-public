@@ -2,6 +2,7 @@ using Sandbox.Mcp.Transport;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO.Pipes;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Channels;
@@ -13,20 +14,46 @@ namespace Sandbox.Cli;
 internal static class Program
 {
 	const string Help = """
-		sbox-cli --project <path>       Open a project in a visible editor and own its lifetime
-		sbox-cli --game <path|ident>    Start a game and own its lifetime
-		sbox-cli --connect <pid>        Attach to an existing editor or MCP-enabled game
-		sbox-cli --list                 Print connected instances as JSON and exit
+		sbox-cli --connect [pid|project]    Attach to a running editor, or a game started with -mcp
+		sbox-cli --project [project]        Attach to the project's editor, or open and own one
+		sbox-cli --game <project|ident>     Start a game and own its lifetime
+		sbox-cli --call <tool> [json]       Call one tool on a running instance, print the result, exit
+		sbox-cli --list                     Print running instances as JSON and exit
+
+		sbox-cli --new <title>              Create a project in a new folder named after its ident
+		         [--template <name>]        Template to start from (default: the launcher's first)
+		         [--in <folder>]            Where to create it (default: the current directory)
+		sbox-cli --templates                List the project templates as JSON
+
+		sbox-cli --skill [name[/file]]      List the agent skills for this installation, or print one
+		sbox-cli --skill-install [target]   Install the s&box bootstrap skill for your agents
+		sbox-cli --skill-uninstall [target] Remove it again
+		sbox-cli --skill-status             Show where it's installed, as JSON
+
+		Skill targets: claude (~/.claude/skills), agents (~/.agents/skills, used by Codex and
+		others). Without one, install covers the agents found on this machine and uninstall
+		covers all. The bootstrap tells agents to read --skill, so it never goes out of date;
+		only copies carrying its marker are replaced or removed.
+
+		A project is a .sbproj file or its directory. Without one, --connect, --project and --call
+		use the project containing the current directory; outside any project, --connect and --call
+		attach to the only running instance. --call can be combined with --connect <pid|project>.
 
 		Options: --engine <game-directory>, --idle-timeout <seconds> (600),
 		         --startup-timeout <seconds> (180), --request-timeout <seconds> (300)
+
+		--call prints structured results as JSON and text as-is, and saves images to files whose
+		paths it prints. Exit code 0 on success, 2 when the tool reports an error, 1 otherwise.
 
 		Connection modes speak MCP: one UTF-8 JSON-RPC message per line on stdin/stdout.
 		Send initialize, notifications/initialized, tools/list, then tools/call.
 		Initialization returns instructions and a session directory for exchanging files.
 		Diagnostics go to stderr. Closing stdin closes the connection and any owned instance.
-		An existing game must have been launched with -mcp. Editors follow Project Settings > AI.
+		Editors accept connections unless disabled in Project Settings > AI.
 		""";
+
+	// Output is for people and agents to read, so keep paths like s&box unescaped.
+	internal static readonly JsonSerializerOptions Readable = new() { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
 	static async Task<int> Main( string[] args )
 	{
@@ -36,18 +63,33 @@ internal static class Program
 			if ( options.Mode == "--help" )
 			{
 				Console.WriteLine( Help );
-				Console.WriteLine( $"\nUsage guide: {Path.Combine( AppContext.BaseDirectory, "sbox-cli.md" )}" );
+				Console.WriteLine( $"\nAgent skill: {Path.Combine( AppContext.BaseDirectory, "skills", "sbox-cli", "SKILL.md" )}" );
 				return 0;
+			}
+
+			switch ( options.Mode )
+			{
+				case "--skill": return Skills.Print( options.Target );
+				case "--skill-status": return Skills.Status();
+				case "--skill-install": return Skills.Install( options.Target );
+				case "--skill-uninstall": return Skills.Uninstall( options.Target );
+				case "--new": return Projects.Create( options );
+				case "--templates": return Projects.ListTemplates( options );
 			}
 
 			if ( options.Mode == "--list" )
 			{
-				await ListInstances();
+				var instances = new JsonArray( (await FindInstances()).ToArray() );
+				Console.WriteLine( instances.ToJsonString( Readable ) );
 				return 0;
 			}
 
 			using var lifetime = new CancellationTokenSource();
 			Console.CancelKeyPress += ( _, e ) => { e.Cancel = true; lifetime.Cancel(); };
+
+			if ( options.CallTool is not null )
+				return await Call( options, lifetime.Token );
+
 			var messages = Channel.CreateBounded<string>( 32 );
 			var input = ReadInput();
 			var connection = Connect( options, messages.Reader, lifetime.Token );
@@ -99,7 +141,12 @@ internal static class Program
 			cancellation.ThrowIfCancellationRequested();
 			if ( options.Mode == "--connect" )
 			{
-				process = Process.GetProcessById( int.Parse( options.Target ) );
+				process = await FindTarget( options );
+			}
+			else if ( options.Mode == "--project" && await FindRunning( options.Target, required: false ) is { } running )
+			{
+				// Never open a second editor on a project that's already open; attach to it instead.
+				process = running;
 			}
 			else
 			{
@@ -115,33 +162,7 @@ internal static class Program
 			}
 
 			Console.Error.WriteLine( $"sbox-cli: connecting to PID {process.Id} ({(owned is null ? "attached" : "owned")})." );
-			pipe = CreatePipe( process );
-			using ( var startup = CancellationTokenSource.CreateLinkedTokenSource( cancellation ) )
-			{
-				startup.CancelAfter( options.StartupTimeout );
-				var connecting = pipe.ConnectAsync( startup.Token );
-				var exited = process.WaitForExitAsync( startup.Token );
-				try
-				{
-					if ( await Task.WhenAny( connecting, exited ) == exited )
-					{
-						await exited;
-						throw new IOException( "The target exited before its MCP endpoint became ready." );
-					}
-
-					await connecting;
-					VerifyServer( pipe, process.Id );
-				}
-				catch ( OperationCanceledException ) when ( !cancellation.IsCancellationRequested )
-				{
-					throw new TimeoutException( "Timed out waiting for the MCP endpoint. Enable MCP Communication in Project Settings > AI, or start the game with -mcp. Check the engine logs for startup failures." );
-				}
-				finally
-				{
-					await startup.CancelAsync();
-				}
-			}
-
+			pipe = await OpenPipe( process, options, cancellation );
 			Console.Error.WriteLine( "sbox-cli: connected. Send MCP initialize for tools and session instructions; close stdin to disconnect." );
 			await Relay( pipe, messages, options, cancellation );
 		}
@@ -166,6 +187,214 @@ internal static class Program
 			process?.Dispose();
 			pipe?.Dispose();
 		}
+	}
+
+	/// <summary>
+	/// Connect to a process's MCP pipe, waiting for it to come up if the process is still starting.
+	/// </summary>
+	static async Task<NamedPipeClientStream> OpenPipe( Process process, Options options, CancellationToken cancellation )
+	{
+		var pipe = CreatePipe( process );
+		using var startup = CancellationTokenSource.CreateLinkedTokenSource( cancellation );
+		startup.CancelAfter( options.StartupTimeout );
+		var connecting = pipe.ConnectAsync( startup.Token );
+		var exited = process.WaitForExitAsync( startup.Token );
+
+		try
+		{
+			if ( await Task.WhenAny( connecting, exited ) == exited )
+			{
+				await exited;
+				throw new IOException( "The target exited before its MCP endpoint became ready." );
+			}
+
+			await connecting;
+			VerifyServer( pipe, process.Id );
+			return pipe;
+		}
+		catch ( Exception e )
+		{
+			pipe.Dispose();
+			if ( e is OperationCanceledException && !cancellation.IsCancellationRequested )
+				throw new TimeoutException( "Timed out waiting for the MCP endpoint. Enable MCP Communication in Project Settings > AI, or start the game with -mcp. Check the engine logs for startup failures." );
+
+			throw;
+		}
+		finally
+		{
+			await startup.CancelAsync();
+		}
+	}
+
+	/// <summary>
+	/// The process --connect names: an explicit PID, the editor for a project, or the only instance running.
+	/// </summary>
+	static async Task<Process> FindTarget( Options options ) => options.Pid is { } pid
+		? Process.GetProcessById( pid )
+		: await FindRunning( options.Target, required: true );
+
+	/// <summary>
+	/// Find the running instance for a project, or the only running instance when project is null.
+	/// Never falls back to a different project's instance.
+	/// </summary>
+	static async Task<Process> FindRunning( string project, bool required )
+	{
+		var instances = await FindInstances();
+		var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+		var matches = project is null ? instances : instances
+			.Where( x => x["project"]?.GetValue<string>() is { } path && string.Equals( Path.GetFullPath( path ), project, comparison ) )
+			.ToList();
+
+		if ( matches.Count == 1 )
+			return Process.GetProcessById( matches[0]["pid"].GetValue<int>() );
+
+		if ( matches.Count > 1 )
+		{
+			var candidates = string.Join( Environment.NewLine, matches.Select( x => $"  {x["pid"]} {x["kind"]} {x["project"]}" ) );
+			throw new IOException( $"Several instances match. Pass a PID from --list:{Environment.NewLine}{candidates}" );
+		}
+
+		if ( !required )
+			return null;
+
+		throw new IOException( project is null
+			? "No running instance accepts connections. Open a project in the editor, or start a game with -mcp."
+			: $"No running editor has {project} open. Open it in the editor, or use --project to launch one." );
+	}
+
+	/// <summary>
+	/// Ask every s&amp;box process for its MCP identity. Processes without a reachable pipe are skipped.
+	/// </summary>
+	static async Task<List<JsonObject>> FindInstances()
+	{
+		var instances = new List<JsonObject>();
+		foreach ( var process in Process.GetProcesses() )
+		{
+			using ( process )
+			{
+				try
+				{
+					if ( !process.ProcessName.StartsWith( "sbox", StringComparison.OrdinalIgnoreCase ) || process.ProcessName == "sbox-cli" )
+						continue;
+
+					using var timeout = new CancellationTokenSource( 300 );
+					using var pipe = CreatePipe( process );
+					await pipe.ConnectAsync( timeout.Token );
+					VerifyServer( pipe, process.Id );
+					await McpWire.WriteAsync( pipe, """{"jsonrpc":"2.0","id":1,"method":"sbox/instance"}""", timeout.Token );
+					var response = await new McpWire( pipe ).ReadAsync( timeout.Token );
+					if ( JsonNode.Parse( response )?["result"] is JsonObject instance )
+						instances.Add( (JsonObject)instance.DeepClone() );
+				}
+				catch ( Exception )
+				{
+					// Exited, inaccessible, not enabled or an older engine build.
+				}
+			}
+		}
+
+		return instances;
+	}
+
+	/// <summary>
+	/// One-shot tool call for shells and scripts: handshake, call, print the result, disconnect.
+	/// The attached instance keeps running.
+	/// </summary>
+	static async Task<int> Call( Options options, CancellationToken cancellation )
+	{
+		using var process = await FindTarget( options );
+		using var pipe = await OpenPipe( process, options, cancellation );
+		var wire = new McpWire( pipe, 64 * 1024 * 1024 );
+
+		var initialize = await Request( 1, "initialize", new JsonObject
+		{
+			["protocolVersion"] = "2025-11-25",
+			["capabilities"] = new JsonObject(),
+			["clientInfo"] = new JsonObject { ["name"] = "sbox-cli --call", ["version"] = "1" }
+		} );
+		var exchange = initialize?["_meta"]?["exchangeDirectory"]?.GetValue<string>();
+		await McpWire.WriteAsync( pipe, """{"jsonrpc":"2.0","method":"notifications/initialized"}""", cancellation );
+
+		var result = await Request( 2, "tools/call", new JsonObject { ["name"] = options.CallTool, ["arguments"] = options.CallArguments } );
+
+		var isError = result?["isError"]?.GetValue<bool>() == true;
+		var structured = isError ? null : result?["structuredContent"];
+		using var output = new StreamWriter( isError ? Console.OpenStandardError() : Console.OpenStandardOutput(), new UTF8Encoding( false ) );
+
+		if ( structured is not null )
+			output.WriteLine( structured.ToJsonString( Readable ) );
+
+		var images = 0;
+		foreach ( var block in result?["content"]?.AsArray() ?? [] )
+		{
+			switch ( block?["type"]?.GetValue<string>() )
+			{
+				// Structured results repeat themselves as text.
+				case "text" when structured is null:
+					output.WriteLine( block["text"]?.GetValue<string>() );
+					break;
+				case "text":
+					break;
+				case "image":
+					output.WriteLine( SaveImage( block, exchange, options.CallTool, ++images ) );
+					break;
+				default:
+					output.WriteLine( block?.ToJsonString() );
+					break;
+			}
+		}
+
+		// Initialization creates the session directory; don't leave an empty one behind for every call.
+		try
+		{
+			if ( exchange is not null && Directory.Exists( exchange ) && !Directory.EnumerateFileSystemEntries( exchange ).Any() )
+				Directory.Delete( exchange );
+		}
+		catch ( IOException ) { }
+
+		return isError ? 2 : 0;
+
+		async Task<JsonNode> Request( int id, string method, JsonObject parameters )
+		{
+			using var timeout = CancellationTokenSource.CreateLinkedTokenSource( cancellation );
+			timeout.CancelAfter( options.RequestTimeout );
+			var message = new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["method"] = method, ["params"] = parameters };
+
+			try
+			{
+				await McpWire.WriteAsync( pipe, message.ToJsonString(), timeout.Token );
+				while ( await wire.ReadAsync( timeout.Token ) is { } line )
+				{
+					var response = JsonNode.Parse( line );
+					var responseId = response?["id"];
+					if ( response?["error"] is { } error && (responseId is null || responseId.GetValueKind() == JsonValueKind.Null || responseId.ToJsonString() == id.ToString()) )
+						throw new IOException( $"{method} failed: {error["message"]}" );
+
+					if ( responseId?.ToJsonString() == id.ToString() )
+						return response["result"];
+				}
+			}
+			catch ( OperationCanceledException ) when ( !cancellation.IsCancellationRequested )
+			{
+				throw new TimeoutException( $"{method} exceeded --request-timeout. The outcome of an already running tool is unknown; inspect state before retrying." );
+			}
+
+			throw new IOException( "The instance closed its MCP connection." );
+		}
+	}
+
+	/// <summary>
+	/// Write an image content block to the session directory and return its path.
+	/// </summary>
+	static string SaveImage( JsonNode block, string directory, string tool, int index )
+	{
+		directory ??= Path.Combine( Path.GetTempPath(), "sbox-cli" );
+		Directory.CreateDirectory( directory );
+
+		var extension = block["mimeType"]?.GetValue<string>() is "image/jpeg" ? "jpg" : "png";
+		var path = Path.Combine( directory, $"{tool}-{DateTime.Now:yyyyMMdd-HHmmss}-{index}.{extension}" );
+		File.WriteAllBytes( path, Convert.FromBase64String( block["data"]?.GetValue<string>() ?? "" ) );
+		return path;
 	}
 
 	static NamedPipeClientStream CreatePipe( Process process ) => new( ".",
@@ -252,36 +481,5 @@ internal static class Program
 	{
 		try { return JsonNode.Parse( line )?["id"]?.ToJsonString(); }
 		catch ( Exception ) { return null; }
-	}
-
-	static async Task ListInstances()
-	{
-		var instances = new JsonArray();
-		foreach ( var process in Process.GetProcesses() )
-		{
-			using ( process )
-			{
-				try
-				{
-					if ( !process.ProcessName.StartsWith( "sbox", StringComparison.OrdinalIgnoreCase ) || process.ProcessName == "sbox-cli" )
-						continue;
-
-					using var timeout = new CancellationTokenSource( 300 );
-					using var pipe = CreatePipe( process );
-					await pipe.ConnectAsync( timeout.Token );
-					VerifyServer( pipe, process.Id );
-					await McpWire.WriteAsync( pipe, """{"jsonrpc":"2.0","id":1,"method":"sbox/instance"}""", timeout.Token );
-					var response = await new McpWire( pipe ).ReadAsync( timeout.Token );
-					if ( JsonNode.Parse( response )?["result"] is { } instance )
-						instances.Add( instance.DeepClone() );
-				}
-				catch ( Exception )
-				{
-					// Exited, inaccessible, not enabled or an older engine build.
-				}
-			}
-		}
-
-		Console.WriteLine( instances.ToJsonString( new JsonSerializerOptions { WriteIndented = true } ) );
 	}
 }

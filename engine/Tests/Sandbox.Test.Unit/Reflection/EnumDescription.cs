@@ -5,12 +5,17 @@ namespace ReflectionTests;
 [TestClass]
 public class EnumDescriptionTest
 {
-	private EnumDescription GetExampleEnumDescription()
+	// Scanning the test assembly is slow, so build it once. Tests only read through it.
+	static readonly System.Lazy<TypeLibrary> SharedLibrary = new( () =>
 	{
 		var tl = new TypeLibrary();
-		tl.AddAssembly( GetType().Assembly, true );
+		tl.AddAssembly( typeof( EnumDescriptionTest ).Assembly, true );
+		return tl;
+	} );
 
-		return tl.GetEnumDescription( typeof( ExampleEnum ) );
+	private EnumDescription GetExampleEnumDescription()
+	{
+		return SharedLibrary.Value.GetEnumDescription( typeof( ExampleEnum ) );
 	}
 
 	[TestMethod]

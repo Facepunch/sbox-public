@@ -35,15 +35,9 @@ public sealed partial class IndirectLightVolume
 	const float MaxOffsetFactor = 0.45f;
 
 	/// <summary>
-	/// How far to trace rays as a multiple of the minimum probe spacing.
+	/// How far to trace rays as a multiple of the probe cell diagonal.
 	/// </summary>
 	const float TraceDistanceFactor = 1.0f;
-
-	/// <summary>
-	/// How to handle probes detected inside geometry.
-	/// </summary>
-	[Property, Group( "Advanced Settings" )]
-	public InsideGeometryBehavior InsideGeometry { get; set; } = InsideGeometryBehavior.Relocate;
 
 	/// <summary>
 	/// Volume texture storing probe relocation offsets (XYZ = offset, W = active).
@@ -123,15 +117,17 @@ public sealed partial class IndirectLightVolume
 
 		var counts = ProbeCounts;
 		var totalProbes = counts.x * counts.y * counts.z;
-		var spacing = ComputeSpacing( counts );
+		var spacing = ComputeSpacing( counts ) * WorldScale.Abs();
 
 		// Generate ray directions based on current settings
 		var rayDirections = GenerateSphericalDirections( RelocationRayCount );
 
-		// All distances are relative to the minimum spacing dimension
+		// Clearance uses the smallest cell dimension.
 		var minSpacing = MathF.Min( spacing.x, MathF.Min( spacing.y, spacing.z ) );
 		var minFrontfaceDistance = minSpacing * MinFrontfaceDistanceFactor;
-		var maxTraceDistance = minSpacing * TraceDistanceFactor;
+
+		// Check across the probe cell, including solids thicker than one grid interval.
+		var maxTraceDistance = spacing.Length * TraceDistanceFactor;
 
 		Probes = new Probe[totalProbes];
 		for ( int i = 0; i < totalProbes; i++ )
@@ -177,6 +173,13 @@ public sealed partial class IndirectLightVolume
 						}
 
 						offset = newOffset;
+					}
+
+					if ( isActive && InsideGeometry == InsideGeometryBehavior.Relocate )
+					{
+						// A failed or exhausted relocation must not leave a capture inside a solid.
+						var finalTrace = TraceProbeRays( basePosition + offset, maxTraceDistance, rayDirections );
+						isActive = finalTrace.BackfaceRatio < BackfaceThreshold;
 					}
 
 					probe.Offset = offset;
@@ -263,6 +266,7 @@ public sealed partial class IndirectLightVolume
 		var trace = Scene.Trace
 			.Ray( origin, endPoint )
 			.UsePhysicsWorld( false )
+			.WithoutTags( RenderExcludeTags )
 			.UseRenderMeshes( hitFront: true, hitBack: true ); // CullMode = 0, hit both faces
 
 		var result = trace.Run();
@@ -346,8 +350,10 @@ public sealed partial class IndirectLightVolume
 	/// <summary>
 	/// Returns true if the offset lies within the ellipsoid defined by spacing and the max factor.
 	/// </summary>
-	private static bool IsWithinEllipsoidLimit( Vector3 offset, Vector3 spacing, float maxFactor )
+	private bool IsWithinEllipsoidLimit( Vector3 offset, Vector3 spacing, float maxFactor )
 	{
+		// Offset is in world space; spacing follows the volume's rotated axes.
+		offset = WorldRotation.Inverse * offset;
 		var normalizedOffset = new Vector3(
 			spacing.x > 0f ? offset.x / spacing.x : 0f,
 			spacing.y > 0f ? offset.y / spacing.y : 0f,

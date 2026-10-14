@@ -15,7 +15,7 @@ public sealed class SpawnPoint : Component
 	{
 		base.DrawGizmos();
 
-		var spawnpointModel = Model.Load( "models/editor/spawnpoint.vmdl" );
+		var spawnpointModel = Model.Load( "models/dev/playerstart_tint.vmdl" );
 
 		Gizmo.Hitbox.Model( spawnpointModel );
 		Gizmo.Draw.Color = Color.WithAlpha( (Gizmo.IsHovered || Gizmo.IsSelected) ? 0.7f : 0.5f );

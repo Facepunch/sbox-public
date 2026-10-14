@@ -170,6 +170,12 @@ internal static partial class Workshop
 	internal static void RemoveDownloaded( ulong id ) => Ugc.RemoveDownloaded( id );
 
 	/// <summary>
+	/// These items are being played now - Steam counts their playtime, and stops counting any that aren't any more.
+	/// 0s are skipped, so a package's <see cref="Package.WorkshopId"/> can go straight in.
+	/// </summary>
+	internal static void SetPlaying( params ReadOnlySpan<ulong> ids ) => Ugc.SetPlaying( ids );
+
+	/// <summary>
 	/// What's coming down from the workshop right now - only what Steam's actually sending. This asks Steam about
 	/// each one, so poll it, don't call it every frame.
 	/// </summary>

@@ -246,7 +246,18 @@
 						m_id = 199429919
 					}
 					m_sNote = ""
-					m_tagSpans = [  ]
+					m_tagSpans = 
+					[
+						{
+							_class = "CAnimTagSpan"
+							m_id = 
+							{
+								m_id = 2128448084
+							}
+							m_fStartCycle = 0.0
+							m_fDuration = 1.0
+						},
+					]
 					m_sequenceName = "Shotgun_2H_Reload_01_entry"
 					m_playbackSpeed = 1.0
 					m_bLoop = false
@@ -287,7 +298,18 @@
 						m_id = 279958779
 					}
 					m_sNote = ""
-					m_tagSpans = [  ]
+					m_tagSpans = 
+					[
+						{
+							_class = "CAnimTagSpan"
+							m_id = 
+							{
+								m_id = 2128448084
+							}
+							m_fStartCycle = 0.0
+							m_fDuration = 0.95
+						},
+					]
 					m_sequenceName = "Shotgun_2H_Reload_01_exit"
 					m_playbackSpeed = 1.0
 					m_bLoop = false
@@ -628,7 +650,18 @@
 						m_id = 577320921
 					}
 					m_sNote = ""
-					m_tagSpans = [  ]
+					m_tagSpans = 
+					[
+						{
+							_class = "CAnimTagSpan"
+							m_id = 
+							{
+								m_id = 2128448084
+							}
+							m_fStartCycle = 0.0
+							m_fDuration = 0.95
+						},
+					]
 					m_sequenceName = "Shotgun_2H_Reload_01_exit"
 					m_playbackSpeed = 1.0
 					m_bLoop = false
@@ -757,7 +790,18 @@
 						m_id = 974635641
 					}
 					m_sNote = ""
-					m_tagSpans = [  ]
+					m_tagSpans = 
+					[
+						{
+							_class = "CAnimTagSpan"
+							m_id = 
+							{
+								m_id = 2128448084
+							}
+							m_fStartCycle = 0.0
+							m_fDuration = 1.0
+						},
+					]
 					m_sequenceName = "Shotgun_2H_Reload_01_entry"
 					m_playbackSpeed = 1.0
 					m_bLoop = false
@@ -1087,7 +1131,18 @@
 						m_id = 1353942519
 					}
 					m_sNote = ""
-					m_tagSpans = [  ]
+					m_tagSpans = 
+					[
+						{
+							_class = "CAnimTagSpan"
+							m_id = 
+							{
+								m_id = 2128448084
+							}
+							m_fStartCycle = 0.0
+							m_fDuration = 1.0
+						},
+					]
 					m_sequenceName = "Shotgun_2H_Reload_01_loop"
 					m_playbackSpeed = 1.0
 					m_bLoop = false
@@ -1623,7 +1678,18 @@
 						m_id = 1648750242
 					}
 					m_sNote = ""
-					m_tagSpans = [  ]
+					m_tagSpans = 
+					[
+						{
+							_class = "CAnimTagSpan"
+							m_id = 
+							{
+								m_id = 2128448084
+							}
+							m_fStartCycle = 0.0
+							m_fDuration = 1.0
+						},
+					]
 					m_sequenceName = "Shotgun_2H_Reload_01_loop"
 					m_playbackSpeed = 1.0
 					m_bLoop = false
@@ -1839,7 +1905,18 @@
 						m_id = 1859360613
 					}
 					m_sNote = ""
-					m_tagSpans = [  ]
+					m_tagSpans = 
+					[
+						{
+							_class = "CAnimTagSpan"
+							m_id = 
+							{
+								m_id = 2128448084
+							}
+							m_fStartCycle = 0.0
+							m_fDuration = 1.0
+						},
+					]
 					m_sequenceName = "Shotgun_2H_Reload_01_loop"
 					m_playbackSpeed = 1.0
 					m_bLoop = true

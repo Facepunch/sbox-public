@@ -43,12 +43,24 @@ public static partial class AssetSystem
 			await package.Revision.DownloadManifestAsync( token );
 
 			using var suppressWatchers = FileWatch.Suppress();
-			await DownloadCloudFiles( package, loading, token );
+			var downloaded = await DownloadCloudFiles( package, loading, token );
 
 			foreach ( var file in package.Revision.Manifest.Files )
 			{
 				var fullPath = FileSystem.Cloud.GetFullPath( file.Path );
-				var asset = RegisterFile( fullPath );
+
+				// A file that was already on disk and is already an asset was registered by the asset system's
+				// own scan, and hasn't changed since - registering it again is a slow native call for nothing.
+				// Anything just written, or not known yet, is registered as before.
+				var asset = downloaded.Contains( file.Path ) ? null : FindByPath( fullPath );
+				if ( asset is not null )
+				{
+					asset.TryLoadGameResource( typeof( GameResource ), out _, true );
+				}
+				else
+				{
+					asset = RegisterFile( fullPath );
+				}
 
 				if ( asset is null )
 					continue;
@@ -248,18 +260,21 @@ public static partial class AssetSystem
 	}
 
 	/// <summary>
-	/// Initialize the files from the
+	/// Initialize the files from the package manifest. Returns the manifest paths of the files that were written.
 	/// </summary>
-	private static async Task DownloadCloudFiles( Package package, Action<float> progress, CancellationToken token )
+	private static async Task<HashSet<string>> DownloadCloudFiles( Package package, Action<float> progress, CancellationToken token )
 	{
 		long totalSize = package.Revision.Manifest.Files.Sum( x => x.Size );
 		long downloaded = 0;
+		var written = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
 
 		IToolsDll.Current?.RunEvent( "package.download.start", package, token );
 
 		await package.Revision.Manifest.Files.ForEachTaskAsync( async ( e ) =>
 		{
-			await DownloadFile( package, e, token );
+			if ( await DownloadFile( package, e, token ) )
+				written.Add( e.Path );
+
 			downloaded += e.Size;
 
 			float frac = (float)((double)downloaded / (double)totalSize);
@@ -268,9 +283,13 @@ public static partial class AssetSystem
 		}, Package.MaxParallelDownloads );
 
 		IToolsDll.Current?.RunEvent( "package.download.complete", package );
+		return written;
 	}
 
-	static async Task DownloadFile( Package package, ManifestSchema.File entry, CancellationToken token )
+	/// <summary>
+	/// Download a manifest file into the cloud folder. False if it didn't need writing.
+	/// </summary>
+	static async Task<bool> DownloadFile( Package package, ManifestSchema.File entry, CancellationToken token )
 	{
 		ThreadSafe.AssertIsMainThread();
 
@@ -279,28 +298,28 @@ public static partial class AssetSystem
 		//
 		string path = entry.Path.StartsWith( "/" ) ? entry.Path : $"/{entry.Path}";
 		if ( path == $"/{package.FullIdent}/thumb.png" )
-			return;
+			return false;
 
 		//
 		// Ignore assemblies
 		//
 		if ( entry.Path.EndsWith( ".dll" ) )
-			return;
+			return false;
 
 		//
 		// This file exists in core, no need to download it (at this moment)
 		//
 		if ( EngineFileSystem.CoreContent.FileExists( entry.Path ) )
-			return;
+			return false;
 
 		if ( !CloudDirectory.AddFile( entry.Path, entry.Crc, entry.Size, package ) )
-			return; // unwanted - newer revision already registered
+			return false; // unwanted - newer revision already registered
 
 		//
 		// File exists - we should probably check crcs and shit
 		//
 		if ( FileSystem.Cloud.FileExists( entry.Path ) && FileSystem.Cloud.FileSize( entry.Path ) == entry.Size )
-			return;
+			return false;
 
 		var targetFile = FileSystem.Cloud.GetFullPath( entry.Path );
 		var targetPath = System.IO.Path.GetDirectoryName( entry.Path );
@@ -320,6 +339,8 @@ public static partial class AssetSystem
 			var url = $"{entry.Url}";
 			await Sandbox.Utility.Web.DownloadFile( url, targetFile, token );
 		}
+
+		return true;
 	}
 }
 

@@ -80,5 +80,7 @@ native static class Steam.Ugc.CUgcSubscriptions as NativeEngine.CUgcSubscription
     bool DownloadItem( ulong fileid, bool highPriority );
     void SubscribeItem( ulong fileid );
     void UnsubscribeItem( ulong fileid );
+    void StartPlaytimeTracking( ulong fileid );
+    void StopPlaytimeTracking( ulong fileid );
     bool InitWorkshopForGameServer( string folder );
 }

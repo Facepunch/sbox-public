@@ -7,6 +7,9 @@ ClothingPage
     {
         margin-bottom: 192px;
         min-height: 0;
+
+        // Size the settings panel to its contents instead of stretching it down the column
+        align-items: flex-start;
     }
 }
 

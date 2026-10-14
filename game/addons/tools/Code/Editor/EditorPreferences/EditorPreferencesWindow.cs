@@ -40,6 +40,7 @@ internal class EditorPreferencesWindow : BaseWindow
 		container.AddPage( "Scene View", "videocam", new PageSceneView( this ) );
 		container.AddPage( "Editor Keybinds", "keyboard", new PageKeybinds( this ) );
 		container.AddPage( "Networking", "wifi", new PageNetworking( this ) );
+		container.AddPage( "AI Agents", "smart_toy", new PageAgents( this ) );
 
 		EditorEvent.Run( "editor.preferences", container );
 	}

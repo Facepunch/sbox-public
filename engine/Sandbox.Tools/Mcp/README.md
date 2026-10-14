@@ -1,35 +1,49 @@
 # MCP tools and sbox-cli
 
-For the agent-facing usage guide shipped beside the executable, see
-[`sbox-cli.md`](../../Launcher/SboxCli/sbox-cli.md). Run `sbox-cli --help` to find its installed path.
+For agent-facing usage, see the [`sbox-cli` skill](../../Launcher/SboxCli/skills/sbox-cli/SKILL.md),
+which ships beside the executable and is printed by `sbox-cli --skill sbox-cli`. Agents find it
+through a small bootstrap skill ([`bootstrap/sbox`](../../Launcher/SboxCli/bootstrap/sbox/SKILL.md),
+also published as `Facepunch/sbox-skills`), installed for the user. The editor offers it once when
+it finds Claude Code or Codex; Editor Preferences › AI Agents and `sbox-cli --skill-install` manage it.
 
 `game/bin/managed/sbox-cli.exe` is a .NET 10 console application that keeps one MCP connection
-open over stdin/stdout. It has no engine dependencies of its own. Editors expose a local
+open over stdin/stdout, or makes a single call with `--call`. It has no engine dependencies of its own. Editors expose a local
 named pipe by default, controlled by **Project Settings > AI > Enable MCP Communication**;
 games expose one when launched with `-mcp`. The pipe is restricted to the current
 OS user and named using the process ID and start time. On Windows the CLI also verifies the
 server's actual PID. Multiple editors and games can therefore run independently without TCP ports.
 
-The AI settings page also controls **Write to AGENTS.md**, enabled by default. Disabling it
-stops writes to both the root instructions and `.sbox/agent-guide.md`, leaving existing files
-intact. Both preferences are stored in the `.sbproj` and shared with collaborators. Saving MCP
-as disabled immediately closes connected transports and cancels pending work; already running
-scripts must cooperate with cancellation.
+The preference is stored in the `.sbproj` and shared with collaborators. Saving MCP as disabled
+immediately closes connected transports and cancels pending work; already running scripts must
+cooperate with cancellation.
 
 ```powershell
 # Discover running instances that support the new transport.
 game/bin/managed/sbox-cli.exe --list
 
-# Attach; closing the CLI leaves this process running.
+# One call against the editor for the project in the current directory, then exit.
+game/bin/managed/sbox-cli.exe --call editor_status
+game/bin/managed/sbox-cli.exe --call search_tools '{"query":"scene"}'
+
+# Attach; closing the CLI leaves the process running. Takes a PID, a project, or nothing for
+# the project containing the current directory (or the only instance, outside any project).
+game/bin/managed/sbox-cli.exe --connect
 game/bin/managed/sbox-cli.exe --connect 12345
 
-# Launch and own an editor or game. Project directories resolve to .sbproj.
-game/bin/managed/sbox-cli.exe --project C:/projects/my-game/.sbproj
-game/bin/managed/sbox-cli.exe --game C:/projects/my-game/.sbproj
+# Attach to the project's editor if it's open, otherwise launch and own one.
+game/bin/managed/sbox-cli.exe --project C:/projects/my-game
+
+# Create a project from a template, like the launcher does. Prints the new .sbproj path.
+game/bin/managed/sbox-cli.exe --templates
+game/bin/managed/sbox-cli.exe --new "My Game" --template game.minimal --in C:/projects
+
+# Launch and own a game.
+game/bin/managed/sbox-cli.exe --game C:/projects/my-game/my-game.sbproj
 game/bin/managed/sbox-cli.exe --game facepunch.sandbox
 ```
 
-Launches open normal visible windows. `--engine <directory>` overrides the game installation
+A project is a `.sbproj` or the directory containing it. Inside a project, the CLI only ever
+attaches to that project's instance. Launches open normal visible windows. `--engine <directory>` overrides the game installation
 inferred from the CLI's location. Owned launches currently require Windows. An existing process
 must be running an engine build with the pipe support; restart older editors after rebuilding.
 
@@ -80,8 +94,9 @@ Only the tool declaration attributes, hints and `McpResult` builders are public 
 
 ## Lifetime
 
-Closing stdin, losing the pipe, or Ctrl+C shuts down the bridge. `--connect` never terminates
-the attached instance. With `--project` or `--game`, the CLI first requests a graceful quit,
+Closing stdin, losing the pipe, or Ctrl+C shuts down the bridge. An attached instance
+(`--connect`, `--call`, or `--project` on an editor that was already open) is never terminated.
+For an instance it launched, the CLI first requests a graceful quit,
 waits up to two seconds, then closes its Windows job to terminate the owned process tree.
 The instance is assigned to the job atomically during creation, before running; the job also closes if the
 CLI crashes or is forcibly killed. Engine processes do not inherit the CLI's stdio handles.
@@ -264,18 +279,10 @@ per tool. The current ones:
 
 ## Trying it out
 
-Configure an MCP client's stdio connection with the full path to `sbox-cli.exe` and the
-arguments for the instance you want to control. For example:
-
-```json
-{
-  "command": "C:/sbox/bin/managed/sbox-cli.exe",
-  "args": ["--project", "C:/projects/my-game/.sbproj"]
-}
-```
-
-Replace the paths with your installation and project. To attach to an existing editor, use
-`["--connect", "12345"]` as the arguments, with the PID reported by `sbox-cli --list`.
+From the project directory, `sbox-cli --call search_tools '{"query":"car"}'` finds your tool and
+`sbox-cli --call find_cars` calls it. For an MCP client, configure a stdio server with the full
+path to `sbox-cli.exe` and `["--connect"]` (or `["--project"]`) as arguments; the client's working
+directory selects the project.
 
 Then ask it to `search_tools` for yours and call it. `read_console` shows what the editor logged,
 which is also where your tool's errors and prints end up.

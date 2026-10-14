@@ -287,6 +287,11 @@ public sealed partial class AvatarEditManager : Component
 			var dresser = Dresser.GetOrCreate( targetRenderer );
 			dresser.UpdateAppearance( Container );
 			await dresser.ApplyAsync( container, token );
+
+			// A human skin swaps the body model, which rebuilds the anim graph with default
+			// parameters - put it back on the avatar menu's looping idles, skipping the entry wave
+			targetRenderer.Set( "b_avatar_skip_intro", true );
+			targetRenderer.Set( "special_idle_states", "avatar_menu" );
 		}
 		catch ( OperationCanceledException ) when ( token.IsCancellationRequested )
 		{

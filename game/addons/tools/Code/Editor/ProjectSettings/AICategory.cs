@@ -17,7 +17,6 @@ internal sealed class AICategory : ProjectSettingsWindow.Category
 	{
 		settings = new ProjectAISettings
 		{
-			WriteAgentInstructions = project.Config.AI?.WriteAgentInstructions ?? true,
 			EnableMcpCommunication = project.Config.AI?.EnableMcpCommunication ?? true
 		};
 
@@ -36,7 +35,6 @@ internal sealed class AICategory : ProjectSettingsWindow.Category
 	{
 		Project.Config.AI = new ProjectAISettings
 		{
-			WriteAgentInstructions = settings.WriteAgentInstructions,
 			EnableMcpCommunication = settings.EnableMcpCommunication
 		};
 

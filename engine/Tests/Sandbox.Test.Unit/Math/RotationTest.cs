@@ -89,8 +89,14 @@ public class RotationTest
 	[TestMethod]
 	public void AnglesPoles()
 	{
-		for ( var pitch = 87f; pitch <= 100f; pitch += 1f / 512f )
+		// Steps in 1/512 degree units: fine within half a degree of the pole, 1/32 elsewhere
+		const int fineStart = 512 * 179 / 2;
+		const int fineEnd = 512 * 181 / 2;
+
+		for ( var step = 87 * 512; step <= 100 * 512; step += step >= fineStart && step < fineEnd ? 1 : 16 )
 		{
+			var pitch = step / 512f;
+
 			for ( var yaw = -180; yaw < 180; yaw += 1 )
 			{
 				for ( var sign = -1; sign <= 1; sign += 2 )

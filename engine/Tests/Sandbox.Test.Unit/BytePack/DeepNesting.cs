@@ -1,4 +1,5 @@
 ﻿using Sandbox;
+using Sandbox.Internal;
 using System;
 using System.IO;
 
@@ -10,6 +11,13 @@ namespace BytePackTests;
 [TestClass]
 public class DeepNestingTest : BaseRoundTrip
 {
+	// BytePack's built-in packers cover object[], string and Dictionary, so skip the
+	// base library's assembly scan and use an empty one per test.
+	readonly TypeLibrary typeLibrary = new();
+
+	public override byte[] Serialize( object obj ) => typeLibrary.ToBytes( obj );
+	public override object Deserialize( byte[] data ) => typeLibrary.FromBytes<object>( data );
+
 	// Wire bytes for object[1]{ object[1]{ ... } } nested `depth` levels deep, as ObjectArrayPacker.Write emits.
 	static byte[] BuildNestedObjectArray( int depth )
 	{

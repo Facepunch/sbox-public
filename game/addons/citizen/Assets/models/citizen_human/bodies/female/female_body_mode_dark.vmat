@@ -38,7 +38,7 @@ Layer0
 
 	//---- Roughness ----
 	g_flRoughnessScale "1.000"
-	TextureRoughness "models/citizen_human/bodies/female/female_body_mode_light_rough.png"
+	TextureRoughness "models/citizen_human/bodies/female/female_body_mode_dark_rough.png"
 
 	//---- Specular ----
 	g_flSecondSpecularLobeRatio "0.008"

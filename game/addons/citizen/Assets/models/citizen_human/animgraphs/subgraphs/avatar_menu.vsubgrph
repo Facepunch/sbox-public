@@ -2645,7 +2645,7 @@
 						{
 							m_nodeID = 
 							{
-								m_id = 2107376468
+								m_id = 1629587785
 							}
 							m_outputID = 
 							{
@@ -2687,6 +2687,1753 @@
 						m_vControlPoint2 = [ 0.5, 1.0 ]
 					}
 					m_intParamNames = [  ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1629587785
+				}
+				value = 
+				{
+					_class = "CSelectorAnimNode"
+					m_sName = "Look-at: avatar editor only"
+					m_vecPosition = [ 96.0, -144.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1629587785
+					}
+					m_sNote = "b_avatar_skip_intro off (main menu) skips the head/torso aim - the portrait never sets aim_head/aim_body, so their defaults would hold the head forward. On (avatar editor) uses the aim."
+					m_children = 
+					[
+						{
+							m_nodeID = 
+							{
+								m_id = 2107376468
+							}
+							m_outputID = 
+							{
+								m_id = 4294967295
+							}
+						},
+						{
+							m_nodeID = 
+							{
+								m_id = 1987650012
+							}
+							m_outputID = 
+							{
+								m_id = 4294967295
+							}
+						},
+					]
+					m_tags = 
+					[
+						{
+							m_id = 4294967295
+						},
+						{
+							m_id = 4294967295
+						},
+					]
+					m_selectionSource = "SelectionSource_Bool"
+					m_boolParamID = 
+					{
+						m_id = 1987650013
+					}
+					m_enumParamID = 
+					{
+						m_id = 4294967295
+					}
+					m_intParamID = 
+					{
+						m_id = 4294967295
+					}
+					m_intParamMinValue = 0
+					m_intParamMaxValue = 2
+					m_blendDuration = 0.0
+					m_tagBehavior = "SelectorTagBehavior_OffWhenFinished"
+					m_bResetOnChange = false
+					m_bSyncCyclesOnChange = false
+					m_blendCurve = 
+					{
+						m_vControlPoint1 = [ 0.5, 0.0 ]
+						m_vControlPoint2 = [ 0.5, 1.0 ]
+					}
+					m_intParamNames = [  ]
+				}
+			},
+
+			{
+				key = 
+				{
+					m_id = 1016967306
+				}
+				value = 
+				{
+					_class = "CSequenceAnimNode"
+					m_sName = "Main menu idle loop 01"
+					m_vecPosition = [ -1600.0, -128.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1016967306
+					}
+					m_sNote = ""
+					m_tagSpans = [  ]
+					m_sequenceName = "AvatarMenu_MocapIdle_01"
+					m_playbackSpeed = 1.0
+					m_bLoop = true
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1108316486
+				}
+				value = 
+				{
+					_class = "CSequenceAnimNode"
+					m_sName = "Main menu idle loop 02"
+					m_vecPosition = [ -1600.0, -16.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1108316486
+					}
+					m_sNote = ""
+					m_tagSpans = [  ]
+					m_sequenceName = "AvatarMenu_MocapIdle_02"
+					m_playbackSpeed = 1.0
+					m_bLoop = true
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1873232459
+				}
+				value = 
+				{
+					_class = "CChoiceAnimNode"
+					m_sName = "Choose main menu idle loop"
+					m_vecPosition = [ -1248.0, -80.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1873232459
+					}
+					m_sNote = "Keeps both authored idle loops, the random seed, 0.7-second crossfade and cycle-end choice behavior."
+					m_children = 
+					[
+						{
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 1016967306
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+							m_name = ""
+							m_weight = 0.0
+							m_blendTime = 0.2
+						},
+						{
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 1108316486
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+							m_name = ""
+							m_weight = 0.0
+							m_blendTime = 0.2
+						},
+					]
+					m_seed = 1093069335
+					m_choiceMethod = "WeightedRandom"
+					m_choiceChangeMethod = "OnResetOrCycleEnd"
+					m_blendMethod = "SingleBlendTime"
+					m_blendTime = 0.7
+					m_bCrossFade = true
+					m_bResetChosen = true
+					m_bDontResetSameSelection = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1188810279
+				}
+				value = 
+				{
+					_class = "CGroupAnimNode"
+					m_sName = "Idle fidgets (main menu mocap)"
+					m_vecPosition = [ -896.0, -240.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1188810279
+					}
+					m_sNote = "Idle loop enters the existing fidget state machine. Reset blocking and every authored fidget remain intact."
+					m_inputNodeID = 
+					{
+						m_id = 1246128260
+					}
+					m_outputNodeID = 
+					{
+						m_id = 1154190536
+					}
+					m_inputConnectionMap = 
+					[
+						{
+							key = 
+							{
+								m_id = 1593490481
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 1873232459
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+					m_nodeManager = 
+					{
+						_class = "CAnimNodeManager"
+						m_nodes = 
+						[
+							{
+								key = 
+								{
+									m_id = 1723199062
+								}
+								value = 
+								{
+									_class = "CSequenceAnimNode"
+									m_sName = "AvatarMenu_FidgetSmall_03"
+									m_vecPosition = [ -160.0, -416.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1723199062
+									}
+									m_sNote = ""
+									m_tagSpans = [  ]
+									m_sequenceName = "AvatarMenu_MocapFidgetSmall_03"
+									m_playbackSpeed = 1.0
+									m_bLoop = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1203746415
+								}
+								value = 
+								{
+									_class = "CSequenceAnimNode"
+									m_sName = "AvatarMenu_FidgetSmall_09"
+									m_vecPosition = [ -160.0, -128.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1203746415
+									}
+									m_sNote = ""
+									m_tagSpans = [  ]
+									m_sequenceName = "AvatarMenu_MocapFidgetSmall_09"
+									m_playbackSpeed = 1.0
+									m_bLoop = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1493767492
+								}
+								value = 
+								{
+									_class = "CBoneMaskAnimNode"
+									m_sName = "RESET BLOCKER"
+									m_vecPosition = [ 416.0, -352.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1493767492
+									}
+									m_sNote = ""
+									m_weightListName = "_empty_anim_weightlist"
+									m_inputConnection1 = 
+									{
+										m_nodeID = 
+										{
+											m_id = 1246128260
+										}
+										m_outputID = 
+										{
+											m_id = 1593490481
+										}
+									}
+									m_inputConnection2 = 
+									{
+										m_nodeID = 
+										{
+											m_id = 1246128260
+										}
+										m_outputID = 
+										{
+											m_id = 1593490481
+										}
+									}
+									m_blendSpace = "BlendSpace_Parent"
+									m_bUseBlendScale = false
+									m_blendValueSource = "Parameter"
+									m_blendParameter = 
+									{
+										m_id = 4294967295
+									}
+									m_timingBehavior = "UseChild2"
+									m_flTimingBlend = 0.5
+									m_flRootMotionBlend = 0.0
+									m_footMotionTiming = "Child1"
+									m_bResetChild1 = false
+									m_bResetChild2 = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1736237972
+								}
+								value = 
+								{
+									_class = "CSequenceAnimNode"
+									m_sName = "AvatarMenu_FidgetSmall_13"
+									m_vecPosition = [ -160.0, 64.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1736237972
+									}
+									m_sNote = ""
+									m_tagSpans = [  ]
+									m_sequenceName = "AvatarMenu_MocapFidgetSmall_13"
+									m_playbackSpeed = 1.0
+									m_bLoop = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1678126098
+								}
+								value = 
+								{
+									_class = "CSequenceAnimNode"
+									m_sName = "AvatarMenu_FidgetLarge_02"
+									m_vecPosition = [ 128.0, -16.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1678126098
+									}
+									m_sNote = ""
+									m_tagSpans = [  ]
+									m_sequenceName = "AvatarMenu_MocapFidgetLarge_02"
+									m_playbackSpeed = 1.0
+									m_bLoop = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1072788290
+								}
+								value = 
+								{
+									_class = "CSequenceAnimNode"
+									m_sName = "AvatarMenu_FidgetLarge_05"
+									m_vecPosition = [ 128.0, 128.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1072788290
+									}
+									m_sNote = ""
+									m_tagSpans = [  ]
+									m_sequenceName = "AvatarMenu_MocapFidgetLarge_05"
+									m_playbackSpeed = 1.0
+									m_bLoop = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1500351936
+								}
+								value = 
+								{
+									_class = "CSequenceAnimNode"
+									m_sName = "AvatarMenu_FidgetSmall_11"
+									m_vecPosition = [ -160.0, -32.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1500351936
+									}
+									m_sNote = ""
+									m_tagSpans = [  ]
+									m_sequenceName = "AvatarMenu_MocapFidgetSmall_11"
+									m_playbackSpeed = 1.0
+									m_bLoop = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1160371386
+								}
+								value = 
+								{
+									_class = "CSequenceAnimNode"
+									m_sName = "AvatarMenu_FidgetSmall_07"
+									m_vecPosition = [ -160.0, -224.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1160371386
+									}
+									m_sNote = ""
+									m_tagSpans = [  ]
+									m_sequenceName = "AvatarMenu_MocapFidgetSmall_07"
+									m_playbackSpeed = 1.0
+									m_bLoop = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1839449756
+								}
+								value = 
+								{
+									_class = "CSequenceAnimNode"
+									m_sName = "AvatarMenu_FidgetLarge_01"
+									m_vecPosition = [ 128.0, -64.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1839449756
+									}
+									m_sNote = ""
+									m_tagSpans = [  ]
+									m_sequenceName = "AvatarMenu_MocapFidgetLarge_01"
+									m_playbackSpeed = 1.0
+									m_bLoop = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1983024925
+								}
+								value = 
+								{
+									_class = "CSequenceAnimNode"
+									m_sName = "AvatarMenu_FidgetSmall_05"
+									m_vecPosition = [ -160.0, -320.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1983024925
+									}
+									m_sNote = ""
+									m_tagSpans = [  ]
+									m_sequenceName = "AvatarMenu_MocapFidgetSmall_05"
+									m_playbackSpeed = 1.0
+									m_bLoop = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1012128206
+								}
+								value = 
+								{
+									_class = "CSequenceAnimNode"
+									m_sName = "AvatarMenu_FidgetSmall_15"
+									m_vecPosition = [ -160.0, 160.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1012128206
+									}
+									m_sNote = ""
+									m_tagSpans = [  ]
+									m_sequenceName = "AvatarMenu_MocapFidgetSmall_15"
+									m_playbackSpeed = 1.0
+									m_bLoop = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1689824496
+								}
+								value = 
+								{
+									_class = "CSequenceAnimNode"
+									m_sName = "AvatarMenu_FidgetSmall_14"
+									m_vecPosition = [ -160.0, 112.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1689824496
+									}
+									m_sNote = ""
+									m_tagSpans = [  ]
+									m_sequenceName = "AvatarMenu_MocapFidgetSmall_14"
+									m_playbackSpeed = 1.0
+									m_bLoop = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1477986319
+								}
+								value = 
+								{
+									_class = "CSequenceAnimNode"
+									m_sName = "AvatarMenu_FidgetSmall_10"
+									m_vecPosition = [ -160.0, -80.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1477986319
+									}
+									m_sNote = ""
+									m_tagSpans = [  ]
+									m_sequenceName = "AvatarMenu_MocapFidgetSmall_10"
+									m_playbackSpeed = 1.0
+									m_bLoop = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1366779755
+								}
+								value = 
+								{
+									_class = "CSequenceAnimNode"
+									m_sName = "AvatarMenu_FidgetLarge_03"
+									m_vecPosition = [ 128.0, 32.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1366779755
+									}
+									m_sNote = ""
+									m_tagSpans = [  ]
+									m_sequenceName = "AvatarMenu_MocapFidgetLarge_03"
+									m_playbackSpeed = 1.0
+									m_bLoop = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1274374289
+								}
+								value = 
+								{
+									_class = "CStateMachineAnimNode"
+									m_sName = "Unnamed"
+									m_vecPosition = [ 608.0, -128.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1274374289
+									}
+									m_sNote = ""
+									m_states = 
+									[
+										{
+											_class = "CAnimState"
+											m_transitions = 
+											[
+												{
+													_class = "CAnimStateTransition"
+													m_conditions = [  ]
+													m_blendDuration = 0.0
+													m_destState = 
+													{
+														m_id = 1625150595
+													}
+													m_bReset = false
+													m_resetCycleOption = "Beginning"
+													m_flFixedCycleValue = 0.0
+													m_bBlendCycle = false
+													m_blendCurve = 
+													{
+														m_vControlPoint1 = [ 0.5, 0.0 ]
+														m_vControlPoint2 = [ 0.5, 1.0 ]
+													}
+													m_bForceFootPlant = false
+													m_bDisabled = false
+													m_bRandomTimeBetween = true
+													m_flRandomTimeStart = 4.0
+													m_flRandomTimeEnd = 16.0
+												},
+												{
+													_class = "CAnimStateTransition"
+													m_conditions = [  ]
+													m_blendDuration = 0.0
+													m_destState = 
+													{
+														m_id = 1107858324
+													}
+													m_bReset = false
+													m_resetCycleOption = "Beginning"
+													m_flFixedCycleValue = 0.0
+													m_bBlendCycle = false
+													m_blendCurve = 
+													{
+														m_vControlPoint1 = [ 0.5, 0.0 ]
+														m_vControlPoint2 = [ 0.5, 1.0 ]
+													}
+													m_bForceFootPlant = false
+													m_bDisabled = false
+													m_bRandomTimeBetween = true
+													m_flRandomTimeStart = 10.0
+													m_flRandomTimeEnd = 15.0
+												},
+											]
+											m_tags = [  ]
+											m_tagBehaviors = [  ]
+											m_name = "Init / passthrough"
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 1493767492
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_stateID = 
+											{
+												m_id = 1271725723
+											}
+											m_position = [ -112.0, -16.0 ]
+											m_bIsStartState = true
+											m_bIsEndtState = false
+											m_bIsPassthrough = false
+											m_bIsRootMotionExclusive = false
+											m_bAlwaysEvaluate = false
+										},
+										{
+											_class = "CAnimState"
+											m_transitions = 
+											[
+												{
+													_class = "CAnimStateTransition"
+													m_conditions = [  ]
+													m_blendDuration = 0.3
+													m_destState = 
+													{
+														m_id = 1939397133
+													}
+													m_bReset = true
+													m_resetCycleOption = "Beginning"
+													m_flFixedCycleValue = 0.0
+													m_bBlendCycle = false
+													m_blendCurve = 
+													{
+														m_vControlPoint1 = [ 0.5, 0.0 ]
+														m_vControlPoint2 = [ 0.5, 1.0 ]
+													}
+													m_bForceFootPlant = false
+													m_bDisabled = false
+													m_bRandomTimeBetween = false
+													m_flRandomTimeStart = 0.0
+													m_flRandomTimeEnd = 0.0
+												},
+											]
+											m_tags = [  ]
+											m_tagBehaviors = [  ]
+											m_name = "Small"
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 1493767492
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_stateID = 
+											{
+												m_id = 1625150595
+											}
+											m_position = [ -208.0, 80.0 ]
+											m_bIsStartState = false
+											m_bIsEndtState = false
+											m_bIsPassthrough = false
+											m_bIsRootMotionExclusive = false
+											m_bAlwaysEvaluate = false
+										},
+										{
+											_class = "CAnimState"
+											m_transitions = [  ]
+											m_tags = [  ]
+											m_tagBehaviors = [  ]
+											m_name = "Play small"
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 1003055351
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_stateID = 
+											{
+												m_id = 1939397133
+											}
+											m_position = [ -208.0, 272.0 ]
+											m_bIsStartState = false
+											m_bIsEndtState = true
+											m_bIsPassthrough = false
+											m_bIsRootMotionExclusive = false
+											m_bAlwaysEvaluate = false
+										},
+										{
+											_class = "CAnimState"
+											m_transitions = 
+											[
+												{
+													_class = "CAnimStateTransition"
+													m_conditions = [  ]
+													m_blendDuration = 0.3
+													m_destState = 
+													{
+														m_id = 1134343316
+													}
+													m_bReset = true
+													m_resetCycleOption = "Beginning"
+													m_flFixedCycleValue = 0.0
+													m_bBlendCycle = false
+													m_blendCurve = 
+													{
+														m_vControlPoint1 = [ 0.5, 0.0 ]
+														m_vControlPoint2 = [ 0.5, 1.0 ]
+													}
+													m_bForceFootPlant = false
+													m_bDisabled = false
+													m_bRandomTimeBetween = false
+													m_flRandomTimeStart = 0.0
+													m_flRandomTimeEnd = 0.0
+												},
+											]
+											m_tags = [  ]
+											m_tagBehaviors = [  ]
+											m_name = "Large"
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 1493767492
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_stateID = 
+											{
+												m_id = 1107858324
+											}
+											m_position = [ -16.0, 80.0 ]
+											m_bIsStartState = false
+											m_bIsEndtState = false
+											m_bIsPassthrough = false
+											m_bIsRootMotionExclusive = false
+											m_bAlwaysEvaluate = false
+										},
+										{
+											_class = "CAnimState"
+											m_transitions = [  ]
+											m_tags = [  ]
+											m_tagBehaviors = [  ]
+											m_name = "Play large"
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 1968382233
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_stateID = 
+											{
+												m_id = 1134343316
+											}
+											m_position = [ -16.0, 272.0 ]
+											m_bIsStartState = false
+											m_bIsEndtState = true
+											m_bIsPassthrough = false
+											m_bIsRootMotionExclusive = false
+											m_bAlwaysEvaluate = false
+										},
+									]
+									m_bBlockWaningTags = false
+									m_bLockStateWhenWaning = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 2134870996
+								}
+								value = 
+								{
+									_class = "CSequenceAnimNode"
+									m_sName = "AvatarMenu_FidgetLarge_06"
+									m_vecPosition = [ 128.0, 176.0 ]
+									m_nNodeID = 
+									{
+										m_id = 2134870996
+									}
+									m_sNote = ""
+									m_tagSpans = [  ]
+									m_sequenceName = "AvatarMenu_MocapFidgetLarge_06"
+									m_playbackSpeed = 1.0
+									m_bLoop = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1627886335
+								}
+								value = 
+								{
+									_class = "CSequenceAnimNode"
+									m_sName = "AvatarMenu_FidgetSmall_02"
+									m_vecPosition = [ -160.0, -464.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1627886335
+									}
+									m_sNote = ""
+									m_tagSpans = [  ]
+									m_sequenceName = "AvatarMenu_MocapFidgetSmall_02"
+									m_playbackSpeed = 1.0
+									m_bLoop = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1154190536
+								}
+								value = 
+								{
+									_class = "CGroupOutputAnimNode"
+									m_sName = "Selected pose"
+									m_vecPosition = [ 944.0, -112.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1154190536
+									}
+									m_sNote = ""
+									m_proxyItems = 
+									[
+										{
+											m_name = "In"
+											m_outputID = 
+											{
+												m_id = 1178634017
+											}
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 1274374289
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+										},
+									]
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1147368165
+								}
+								value = 
+								{
+									_class = "CSequenceAnimNode"
+									m_sName = "AvatarMenu_FidgetSmall_01"
+									m_vecPosition = [ -160.0, -512.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1147368165
+									}
+									m_sNote = ""
+									m_tagSpans = [  ]
+									m_sequenceName = "AvatarMenu_MocapFidgetSmall_01"
+									m_playbackSpeed = 1.0
+									m_bLoop = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1003055351
+								}
+								value = 
+								{
+									_class = "CChoiceAnimNode"
+									m_sName = "Choose authored pose"
+									m_vecPosition = [ 128.0, -352.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1003055351
+									}
+									m_sNote = ""
+									m_children = 
+									[
+										{
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 1147368165
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_name = ""
+											m_weight = 0.0
+											m_blendTime = 0.2
+										},
+										{
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 1627886335
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_name = ""
+											m_weight = 0.0
+											m_blendTime = 0.2
+										},
+										{
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 1723199062
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_name = ""
+											m_weight = 0.0
+											m_blendTime = 0.2
+										},
+										{
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 2140530171
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_name = ""
+											m_weight = 0.0
+											m_blendTime = 0.2
+										},
+										{
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 1983024925
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_name = ""
+											m_weight = 0.0
+											m_blendTime = 0.2
+										},
+										{
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 1628028054
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_name = ""
+											m_weight = 0.0
+											m_blendTime = 0.2
+										},
+										{
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 1160371386
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_name = ""
+											m_weight = 0.0
+											m_blendTime = 0.2
+										},
+										{
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 1845741632
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_name = ""
+											m_weight = 0.0
+											m_blendTime = 0.2
+										},
+										{
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 1203746415
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_name = ""
+											m_weight = 0.0
+											m_blendTime = 0.2
+										},
+										{
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 1477986319
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_name = ""
+											m_weight = 0.0
+											m_blendTime = 0.2
+										},
+										{
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 1500351936
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_name = ""
+											m_weight = 0.0
+											m_blendTime = 0.2
+										},
+										{
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 1870492870
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_name = ""
+											m_weight = 0.0
+											m_blendTime = 0.2
+										},
+										{
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 1736237972
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_name = ""
+											m_weight = 0.0
+											m_blendTime = 0.2
+										},
+										{
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 1689824496
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_name = ""
+											m_weight = 0.0
+											m_blendTime = 0.2
+										},
+										{
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 1012128206
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_name = ""
+											m_weight = 0.0
+											m_blendTime = 0.2
+										},
+									]
+									m_seed = 537244472
+									m_choiceMethod = "WeightedRandomNoRepeat"
+									m_choiceChangeMethod = "OnReset"
+									m_blendMethod = "SingleBlendTime"
+									m_blendTime = 0.2
+									m_bCrossFade = false
+									m_bResetChosen = true
+									m_bDontResetSameSelection = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1092636796
+								}
+								value = 
+								{
+									_class = "CSequenceAnimNode"
+									m_sName = "AvatarMenu_FidgetLarge_04"
+									m_vecPosition = [ 128.0, 80.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1092636796
+									}
+									m_sNote = ""
+									m_tagSpans = [  ]
+									m_sequenceName = "AvatarMenu_MocapFidgetLarge_04"
+									m_playbackSpeed = 1.0
+									m_bLoop = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1968382233
+								}
+								value = 
+								{
+									_class = "CChoiceAnimNode"
+									m_sName = "Choose authored pose"
+									m_vecPosition = [ 384.0, -32.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1968382233
+									}
+									m_sNote = ""
+									m_children = 
+									[
+										{
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 1839449756
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_name = ""
+											m_weight = 0.0
+											m_blendTime = 0.2
+										},
+										{
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 1678126098
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_name = ""
+											m_weight = 0.0
+											m_blendTime = 0.2
+										},
+										{
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 1366779755
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_name = ""
+											m_weight = 0.0
+											m_blendTime = 0.2
+										},
+										{
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 1092636796
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_name = ""
+											m_weight = 0.0
+											m_blendTime = 0.2
+										},
+										{
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 1072788290
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_name = ""
+											m_weight = 0.0
+											m_blendTime = 0.2
+										},
+										{
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 2134870996
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_name = ""
+											m_weight = 0.0
+											m_blendTime = 0.2
+										},
+										{
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 1329956693
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+											m_name = ""
+											m_weight = 0.0
+											m_blendTime = 0.2
+										},
+									]
+									m_seed = 537244472
+									m_choiceMethod = "WeightedRandomNoRepeat"
+									m_choiceChangeMethod = "OnReset"
+									m_blendMethod = "SingleBlendTime"
+									m_blendTime = 0.2
+									m_bCrossFade = false
+									m_bResetChosen = true
+									m_bDontResetSameSelection = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 2140530171
+								}
+								value = 
+								{
+									_class = "CSequenceAnimNode"
+									m_sName = "AvatarMenu_FidgetSmall_04"
+									m_vecPosition = [ -160.0, -368.0 ]
+									m_nNodeID = 
+									{
+										m_id = 2140530171
+									}
+									m_sNote = ""
+									m_tagSpans = [  ]
+									m_sequenceName = "AvatarMenu_MocapFidgetSmall_04"
+									m_playbackSpeed = 1.0
+									m_bLoop = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1870492870
+								}
+								value = 
+								{
+									_class = "CSequenceAnimNode"
+									m_sName = "AvatarMenu_FidgetSmall_12"
+									m_vecPosition = [ -160.0, 16.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1870492870
+									}
+									m_sNote = ""
+									m_tagSpans = [  ]
+									m_sequenceName = "AvatarMenu_MocapFidgetSmall_12"
+									m_playbackSpeed = 1.0
+									m_bLoop = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1628028054
+								}
+								value = 
+								{
+									_class = "CSequenceAnimNode"
+									m_sName = "AvatarMenu_FidgetSmall_06"
+									m_vecPosition = [ -160.0, -272.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1628028054
+									}
+									m_sNote = ""
+									m_tagSpans = [  ]
+									m_sequenceName = "AvatarMenu_MocapFidgetSmall_06"
+									m_playbackSpeed = 1.0
+									m_bLoop = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1845741632
+								}
+								value = 
+								{
+									_class = "CSequenceAnimNode"
+									m_sName = "AvatarMenu_FidgetSmall_08"
+									m_vecPosition = [ -160.0, -176.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1845741632
+									}
+									m_sNote = ""
+									m_tagSpans = [  ]
+									m_sequenceName = "AvatarMenu_MocapFidgetSmall_08"
+									m_playbackSpeed = 1.0
+									m_bLoop = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1329956693
+								}
+								value = 
+								{
+									_class = "CSequenceAnimNode"
+									m_sName = "AvatarMenu_FidgetLarge_07"
+									m_vecPosition = [ 128.0, 224.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1329956693
+									}
+									m_sNote = ""
+									m_tagSpans = [  ]
+									m_sequenceName = "AvatarMenu_MocapFidgetLarge_07"
+									m_playbackSpeed = 1.0
+									m_bLoop = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1246128260
+								}
+								value = 
+								{
+									_class = "CGroupInputAnimNode"
+									m_sName = "Passthrough"
+									m_vecPosition = [ 240.0, -512.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1246128260
+									}
+									m_sNote = ""
+									m_proxyItems = 
+									[
+										{
+											m_name = ""
+											m_outputID = 
+											{
+												m_id = 1593490481
+											}
+											m_inputConnection = 
+											{
+												m_nodeID = 
+												{
+													m_id = 4294967295
+												}
+												m_outputID = 
+												{
+													m_id = 4294967295
+												}
+											}
+										},
+									]
+								}
+							},
+						]
+					}
+				}
+			},			{
+				key = 
+				{
+					m_id = 1881773245
+				}
+				value = 
+				{
+					_class = "CSelectorAnimNode"
+					m_sName = "Idle: main menu mocap or avatar menu"
+					m_vecPosition = [ -992.0, 80.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1881773245
+					}
+					m_sNote = "b_avatar_skip_intro off (main menu) plays the original mocap idles that match the mocap entrances; on (avatar editor) plays the customiser idles."
+					m_children = 
+					[
+						{
+							m_nodeID = 
+							{
+								m_id = 1873232459
+							}
+							m_outputID = 
+							{
+								m_id = 4294967295
+							}
+						},
+						{
+							m_nodeID = 
+							{
+								m_id = 528308650
+							}
+							m_outputID = 
+							{
+								m_id = 4294967295
+							}
+						},
+					]
+					m_tags = 
+					[
+						{
+							m_id = 4294967295
+						},
+						{
+							m_id = 4294967295
+						},
+					]
+					m_selectionSource = "SelectionSource_Bool"
+					m_boolParamID = 
+					{
+						m_id = 1987650013
+					}
+					m_enumParamID = 
+					{
+						m_id = 4294967295
+					}
+					m_intParamID = 
+					{
+						m_id = 4294967295
+					}
+					m_intParamMinValue = 0
+					m_intParamMaxValue = 2
+					m_blendDuration = 0.0
+					m_tagBehavior = "SelectorTagBehavior_OffWhenFinished"
+					m_bResetOnChange = false
+					m_bSyncCyclesOnChange = false
+					m_blendCurve = 
+					{
+						m_vControlPoint1 = [ 0.5, 0.0 ]
+						m_vControlPoint2 = [ 0.5, 1.0 ]
+					}
+					m_intParamNames = [  ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 2003702066
+				}
+				value = 
+				{
+					_class = "CSelectorAnimNode"
+					m_sName = "Fidgets: main menu mocap or avatar menu"
+					m_vecPosition = [ -640.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 2003702066
+					}
+					m_sNote = "b_avatar_skip_intro off (main menu) plays the original mocap fidgets; on (avatar editor) plays the customiser fidgets."
+					m_children = 
+					[
+						{
+							m_nodeID = 
+							{
+								m_id = 1188810279
+							}
+							m_outputID = 
+							{
+								m_id = 1178634017
+							}
+						},
+						{
+							m_nodeID = 
+							{
+								m_id = 37868401
+							}
+							m_outputID = 
+							{
+								m_id = 1201682944
+							}
+						},
+					]
+					m_tags = 
+					[
+						{
+							m_id = 4294967295
+						},
+						{
+							m_id = 4294967295
+						},
+					]
+					m_selectionSource = "SelectionSource_Bool"
+					m_boolParamID = 
+					{
+						m_id = 1987650013
+					}
+					m_enumParamID = 
+					{
+						m_id = 4294967295
+					}
+					m_intParamID = 
+					{
+						m_id = 4294967295
+					}
+					m_intParamMinValue = 0
+					m_intParamMaxValue = 2
+					m_blendDuration = 0.0
+					m_tagBehavior = "SelectorTagBehavior_OffWhenFinished"
+					m_bResetOnChange = false
+					m_bSyncCyclesOnChange = false
+					m_blendCurve = 
+					{
+						m_vControlPoint1 = [ 0.5, 0.0 ]
+						m_vControlPoint2 = [ 0.5, 1.0 ]
+					}
+					m_intParamNames = [  ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1987650011
+				}
+				value = 
+				{
+					_class = "CLookAtAnimNode"
+					m_sName = "Avatar menu torso aim"
+					m_vecPosition = [ -32.0, -48.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1987650011
+					}
+					m_sNote = "Avatar menu only: lets aim_body turn the torso on top of the mocap idle. Settings copied from the locomotion Unarmed torso aim."
+					m_inputConnection = 
+					{
+						m_nodeID = 
+						{
+							m_id = 2107376468
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_target = "VectorParameter"
+					m_param = 
+					{
+						m_id = 1442178442
+					}
+					m_weightParam = 
+					{
+						m_id = 1874579477
+					}
+					m_lookatChainName = "AimChain_NoPelvis_Halved"
+					m_attachmentName = "forward_reference"
+					m_flYawLimit = 120.0
+					m_flPitchLimit = 120.0
+					m_bResetBase = true
+					m_bLockWhenWaning = false
+					m_bUseHysteresis = false
+					m_flHysteresisInnerAngle = 1.0
+					m_flHysteresisOuterAngle = 20.0
+					m_damping = 
+					{
+						_class = "CAnimInputDamping"
+						m_speedFunction = "Spring"
+						m_fSpeedScale = 10.0
+						m_fMinSpeed = 0.0
+						m_fMaxTension = 960.0
+						m_fTension = 100.0
+						m_fDamping = 5.0
+					}
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1987650012
+				}
+				value = 
+				{
+					_class = "CLookAtAnimNode"
+					m_sName = "Avatar menu head aim"
+					m_vecPosition = [ 96.0, -48.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1987650012
+					}
+					m_sNote = "Avatar menu only: lets aim_head turn the head on top of the mocap idle. Settings copied from the locomotion Unarmed head aim."
+					m_inputConnection = 
+					{
+						m_nodeID = 
+						{
+							m_id = 1987650011
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_target = "VectorParameter"
+					m_param = 
+					{
+						m_id = 1205941383
+					}
+					m_weightParam = 
+					{
+						m_id = 1414089017
+					}
+					m_lookatChainName = "LookChain"
+					m_attachmentName = "forward_reference"
+					m_flYawLimit = 140.0
+					m_flPitchLimit = 140.0
+					m_bResetBase = true
+					m_bLockWhenWaning = false
+					m_bUseHysteresis = false
+					m_flHysteresisInnerAngle = 1.0
+					m_flHysteresisOuterAngle = 20.0
+					m_damping = 
+					{
+						_class = "CAnimInputDamping"
+						m_speedFunction = "Spring"
+						m_fSpeedScale = 30.0
+						m_fMinSpeed = 0.0
+						m_fMaxTension = 960.0
+						m_fTension = 100.0
+						m_fDamping = 10.0
+					}
 				}
 			},
 			{
@@ -2816,6 +4563,44 @@
 							_class = "CAnimState"
 							m_transitions = 
 							[
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 0
+											m_paramID = 
+											{
+												m_id = 1987650013
+											}
+											m_comparisonValue = 
+											{
+												m_nType = 1
+												m_data = true
+											}
+										},
+									]
+									m_blendDuration = 0.0
+									m_destState = 
+									{
+										m_id = 1460897087
+									}
+									m_bReset = true
+									m_resetCycleOption = "Beginning"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.366667, 0.0 ]
+										m_vControlPoint2 = [ 0.226667, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
 								{
 									_class = "CAnimStateTransition"
 									m_conditions = 
@@ -3363,7 +5148,7 @@
 							{
 								m_nodeID = 
 								{
-									m_id = 528308650
+									m_id = 1881773245
 								}
 								m_outputID = 
 								{
@@ -3628,11 +5413,11 @@
 							{
 								m_nodeID = 
 								{
-									m_id = 37868401
+									m_id = 2003702066
 								}
 								m_outputID = 
 								{
-									m_id = 1201682944
+									m_id = 4294967295
 								}
 							}
 							m_stateID = 

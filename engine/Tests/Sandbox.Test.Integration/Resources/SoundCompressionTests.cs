@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
@@ -11,49 +12,108 @@ namespace ResourceTests;
 [TestClass]
 public class SoundCompressionTests
 {
+	static readonly int[] ResampledRates = [65536, 96000, 192000];
+	static readonly int[] PreservedRates = [44100, 48000, 65535];
+
+	/// <summary>
+	/// A tone.ogg variant: the source written to disk, the source as it was after compiling, and the result.
+	/// </summary>
+	sealed record Variant( byte[] Source, byte[] SourceAfter, Compiled Compiled );
+
+	/// <summary>
+	/// Every tone.ogg variant the tests need, compiled in one resourcecompiler run. Each run costs
+	/// ~0.75s of startup, so this is much cheaper than one run per test. Payload returns a copy,
+	/// so tests can modify it.
+	/// </summary>
+	static readonly Lazy<(Compiled Plain, Dictionary<int, Variant> Resampled, Dictionary<int, Variant> Preserved)> Tones = new( () =>
+	{
+		using var files = new Fixtures();
+		var tone = File.ReadAllBytes( Path.Combine( AppContext.BaseDirectory, "Resources", "Audio", "tone.ogg" ) );
+
+		var paths = new List<string> { files.Write( "tone.ogg", tone ) };
+		var sources = new List<byte[]> { tone };
+
+		foreach ( var rate in ResampledRates )
+		{
+			var source = VorbisWithRate( (byte[])tone.Clone(), rate );
+			var path = files.Write( $"resampled_{rate}.ogg", source );
+			File.WriteAllText( path + ".meta", JsonSerializer.Serialize( new { guid = Guid.NewGuid(), loop = true, start = 0.05, end = 0.1 } ) );
+			paths.Add( path );
+			sources.Add( source );
+		}
+
+		foreach ( var rate in PreservedRates )
+		{
+			var source = VorbisWithRate( (byte[])tone.Clone(), rate );
+			paths.Add( files.Write( $"preserved_{rate}.ogg", source ) );
+			sources.Add( source );
+		}
+
+		var compiled = files.Compile( paths.ToArray() );
+		Variant At( int i ) => new( sources[i], File.ReadAllBytes( paths[i] ), compiled[i] );
+
+		var resampled = ResampledRates.Select( ( rate, i ) => (rate, variant: At( 1 + i )) ).ToDictionary( x => x.rate, x => x.variant );
+		var preserved = PreservedRates.Select( ( rate, i ) => (rate, variant: At( 1 + ResampledRates.Length + i )) ).ToDictionary( x => x.rate, x => x.variant );
+		return (compiled[0], resampled, preserved);
+	} );
+
+	static Compiled ToneOgg() => Tones.Value.Plain;
+
 	[TestMethod]
 	public void CompressesPcmAndFlacByDefaultWithoutChangingSources()
 	{
 		using var files = new Fixtures();
 		var wave = Wave( 48123, 2 );
 		var path = files.Write( "stereo.wav", wave );
-		var compiled = files.Compile( path );
-		Assert.AreEqual( SoundFormat.Opus, compiled.Format );
-		Assert.AreEqual( 48123, compiled.Frames );
-		Assert.IsTrue( compiled.Bytes.Length < wave.Length / 2 );
+		var compiled = files.Compile( path, files.Copy( "tone.flac" ) );
+		Assert.AreEqual( SoundFormat.Opus, compiled[0].Format );
+		Assert.AreEqual( 48123, compiled[0].Frames );
+		Assert.IsTrue( compiled[0].Bytes.Length < wave.Length / 2 );
 		CollectionAssert.AreEqual( wave, File.ReadAllBytes( path ) );
 
-		path = files.Copy( "tone.flac" );
-		compiled = files.Compile( path );
-		Assert.AreEqual( SoundFormat.Opus, compiled.Format );
-		Assert.AreEqual( 48000, compiled.Frames );
+		Assert.AreEqual( SoundFormat.Opus, compiled[1].Format );
+		Assert.AreEqual( 48000, compiled[1].Frames );
 	}
 
 	[TestMethod]
 	public void PreservesCompressedPayloadsAndAppliesRequestedProcessing()
 	{
-		foreach ( var extension in new[] { "mp3", "ogg", "opus" } )
+		var extensions = new[] { "mp3", "ogg", "opus" };
+
+		// Write every source first so they all compile in one run
+		using var files = new Fixtures();
+		var paths = new List<string>();
+		foreach ( var extension in extensions )
 		{
-			using var files = new Fixtures();
-			var path = files.Copy( $"tone.{extension}" );
-			var original = File.ReadAllBytes( path );
-			var compiled = files.Compile( path );
+			var original = File.ReadAllBytes( Path.Combine( AppContext.BaseDirectory, "Resources", "Audio", $"tone.{extension}" ) );
+			paths.Add( files.Write( $"tone_{extension}.{extension}", original ) );
+
+			// Gain/mono/trim edits decode the original source before encoding the result.
+			var processed = files.Write( $"processed_{extension}.{extension}", original );
+			File.WriteAllText( processed + ".meta", JsonSerializer.Serialize( new { guid = Guid.NewGuid(), gain = -6 } ) );
+			paths.Add( processed );
+		}
+
+		var compiled = files.Compile( paths.ToArray() );
+
+		for ( var i = 0; i < extensions.Length; i++ )
+		{
+			var extension = extensions[i];
+			var original = File.ReadAllBytes( paths[i * 2] );
+			var plain = compiled[i * 2];
 			var expected = extension switch { "mp3" => SoundFormat.MP3, "ogg" => SoundFormat.Vorbis, _ => SoundFormat.Opus };
-			Assert.AreEqual( expected, compiled.Format );
-			if ( extension == "ogg" ) CollectionAssert.AreEqual( original, compiled.Payload );
-			if ( extension == "opus" ) CollectionAssert.AreEqual( OpusPackets( original ), compiled.Payload );
+			Assert.AreEqual( expected, plain.Format );
+			if ( extension == "ogg" ) CollectionAssert.AreEqual( original, plain.Payload );
+			if ( extension == "opus" ) CollectionAssert.AreEqual( OpusPackets( original ), plain.Payload );
 			if ( extension == "mp3" )
 			{
 				var start = original.AsSpan( 0, 3 ).SequenceEqual( "ID3"u8 )
 					? 10 + (original[6] << 21 | original[7] << 14 | original[8] << 7 | original[9]) : 0;
-				CollectionAssert.AreEqual( original[start..], compiled.Payload );
+				CollectionAssert.AreEqual( original[start..], plain.Payload );
 			}
 
-			// Gain/mono/trim edits decode the original source before encoding the result.
-			var processed = files.Write( $"processed.{extension}", original );
-			File.WriteAllText( processed + ".meta", JsonSerializer.Serialize( new { guid = Guid.NewGuid(), gain = -6 } ) );
-			Assert.AreEqual( SoundFormat.Opus, files.Compile( processed ).Format );
-			CollectionAssert.AreEqual( original, File.ReadAllBytes( processed ) );
+			Assert.AreEqual( SoundFormat.Opus, compiled[i * 2 + 1].Format );
+			CollectionAssert.AreEqual( original, File.ReadAllBytes( paths[i * 2 + 1] ) );
 		}
 	}
 
@@ -63,20 +123,14 @@ public class SoundCompressionTests
 	[DataRow( 192000 )]
 	public void ResamplesVorbisRatesThatDoNotFitTheCompiledHeader( int rate )
 	{
-		using var files = new Fixtures();
-		var path = files.Copy( "tone.ogg" );
-		var originalFrames = files.Compile( path ).Frames;
-		var source = VorbisWithRate( File.ReadAllBytes( path ), rate );
-		File.WriteAllBytes( path, source );
-		File.WriteAllText( path + ".meta", JsonSerializer.Serialize( new { guid = Guid.NewGuid(), loop = true, start = 0.05, end = 0.1 } ) );
-
-		var compiled = files.Compile( path );
+		var originalFrames = ToneOgg().Frames;
+		var (source, sourceAfter, compiled) = Tones.Value.Resampled[rate];
 		Assert.AreEqual( SoundFormat.Opus, compiled.Format );
 		Assert.AreEqual( 48000, compiled.Rate );
 		Assert.AreEqual( originalFrames * 48000.0 / rate, compiled.Frames, 1.0 );
 		Assert.AreEqual( 2400, compiled.LoopStart, 1 );
 		Assert.AreEqual( 4800, compiled.LoopEnd, 1 );
-		CollectionAssert.AreEqual( source, File.ReadAllBytes( path ) );
+		CollectionAssert.AreEqual( source, sourceAfter );
 	}
 
 	[TestMethod]
@@ -85,11 +139,7 @@ public class SoundCompressionTests
 	[DataRow( 65535 )]
 	public void PreservesVorbisRatesThatFitTheCompiledHeader( int rate )
 	{
-		using var files = new Fixtures();
-		var path = files.Copy( "tone.ogg" );
-		var source = VorbisWithRate( File.ReadAllBytes( path ), rate );
-		File.WriteAllBytes( path, source );
-		var compiled = files.Compile( path );
+		var (source, _, compiled) = Tones.Value.Preserved[rate];
 		Assert.AreEqual( SoundFormat.Vorbis, compiled.Format );
 		Assert.AreEqual( rate, compiled.Rate );
 		CollectionAssert.AreEqual( source, compiled.Payload );
@@ -150,7 +200,7 @@ public class SoundCompressionTests
 		Assert.AreEqual( decoded.SampleCount * 2, chained.SampleCount );
 		CollectionAssert.AreEqual( decoded.PCMData.Concat( decoded.PCMData ).ToArray(), chained.PCMData );
 
-		var compiled = files.Compile( files.Write( "chained.ogg", chain ) );
+		var compiled = files.Compile( files.Write( "chained.ogg", chain ) )[0];
 		Assert.AreEqual( SoundFormat.Vorbis, compiled.Format );
 		CollectionAssert.AreEqual( chain, compiled.Payload );
 		using var sampler = VorbisSampler( compiled.Payload, compiled.Rate, compiled.Channels, compiled.Frames );
@@ -185,8 +235,7 @@ public class SoundCompressionTests
 	[DataRow( "high-rate" )]
 	public void FailedVorbisMixerFinishesInsteadOfRemainingAnActiveVoice( string failure )
 	{
-		using var files = new Fixtures();
-		var compiled = files.Compile( files.Copy( "tone.ogg" ) );
+		var compiled = ToneOgg();
 		var source = compiled.Payload;
 		var rate = compiled.Rate;
 		var channels = compiled.Channels;
@@ -213,8 +262,7 @@ public class SoundCompressionTests
 	[TestMethod]
 	public void ValidVorbisMixerAdvancesAndFinishes()
 	{
-		using var files = new Fixtures();
-		var compiled = files.Compile( files.Copy( "tone.ogg" ) );
+		var compiled = ToneOgg();
 		using var sampler = VorbisSampler( compiled.Payload, compiled.Rate, compiled.Channels, compiled.Frames );
 		Assert.IsTrue( sampler.IsReadyToMix );
 		for ( var i = 0; i < 200 && sampler.ShouldContinueMixing; i++ ) sampler.Sample( 1 );
@@ -227,8 +275,7 @@ public class SoundCompressionTests
 	[DataRow( true )]
 	public async Task FailedVorbisSampleExtractionReturnsPromptly( bool interleaved )
 	{
-		using var files = new Fixtures();
-		var compiled = files.Compile( files.Copy( "tone.ogg" ) );
+		var compiled = ToneOgg();
 		var source = compiled.Payload;
 		source[0] = 0;
 		var native = VorbisSound( source, compiled.Rate, compiled.Channels, compiled.Frames );
@@ -260,16 +307,17 @@ public class SoundCompressionTests
 	public void PreservesOptOutSmallSoundsAndLoopBoundaries()
 	{
 		using var files = new Fixtures();
-		var path = files.Write( "uncompressed.wav", Wave( 48000, 1 ) );
-		File.WriteAllText( path + ".meta", JsonSerializer.Serialize( new { guid = Guid.NewGuid(), compress = false } ) );
-		Assert.AreEqual( SoundFormat.PCM16, files.Compile( path ).Format );
-		path = files.Write( "tiny.wav", Wave( 8, 1 ) );
-		Assert.AreEqual( SoundFormat.PCM16, files.Compile( path ).Format );
-		path = files.Write( "loop.wav", Wave( 48000, 1 ) );
-		File.WriteAllText( path + ".meta", JsonSerializer.Serialize( new { guid = Guid.NewGuid(), loop = true, start = 0.25, end = 0.5 } ) );
-		var compiled = files.Compile( path );
-		Assert.AreEqual( 12000, compiled.LoopStart );
-		Assert.AreEqual( 24000, compiled.LoopEnd );
+		var uncompressed = files.Write( "uncompressed.wav", Wave( 48000, 1 ) );
+		File.WriteAllText( uncompressed + ".meta", JsonSerializer.Serialize( new { guid = Guid.NewGuid(), compress = false } ) );
+		var tiny = files.Write( "tiny.wav", Wave( 8, 1 ) );
+		var loop = files.Write( "loop.wav", Wave( 48000, 1 ) );
+		File.WriteAllText( loop + ".meta", JsonSerializer.Serialize( new { guid = Guid.NewGuid(), loop = true, start = 0.25, end = 0.5 } ) );
+
+		var compiled = files.Compile( uncompressed, tiny, loop );
+		Assert.AreEqual( SoundFormat.PCM16, compiled[0].Format );
+		Assert.AreEqual( SoundFormat.PCM16, compiled[1].Format );
+		Assert.AreEqual( 12000, compiled[2].LoopStart );
+		Assert.AreEqual( 24000, compiled[2].LoopEnd );
 	}
 
 	static byte[] Wave( int frames, int channels )
@@ -344,18 +392,22 @@ public class SoundCompressionTests
 		}
 		public string Write( string file, byte[] bytes ) { var path = Path.Combine( sources, file ); File.WriteAllBytes( path, bytes ); return path; }
 		public string Copy( string file ) => Write( file, File.ReadAllBytes( Path.Combine( AppContext.BaseDirectory, "Resources", "Audio", file ) ) );
-		public Compiled Compile( string path )
+		/// <summary>
+		/// Compile the given sources in one resourcecompiler run, which saves ~0.75s of startup per
+		/// source. They need distinct names, since each compiles to name.vsnd_c.
+		/// </summary>
+		public Compiled[] Compile( params string[] paths )
 		{
+			Assert.AreEqual( paths.Length, paths.Select( Path.GetFileNameWithoutExtension ).Distinct().Count(), "Sources must have distinct names" );
 			var start = new ProcessStartInfo( Path.Combine( engine, "bin", "win64", "resourcecompiler.exe" ) )
 			{ UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
-			foreach ( var arg in new[] { "-f", "-noassert", "-skiprendersystem", "-searchpaths", $"core|{sources}", path } ) start.ArgumentList.Add( arg );
+			foreach ( var arg in new[] { "-f", "-noassert", "-skiprendersystem", "-searchpaths", $"core|{sources}" }.Concat( paths ) ) start.ArgumentList.Add( arg );
 			using var process = Process.Start( start );
 			var output = process.StandardOutput.ReadToEndAsync();
 			var error = process.StandardError.ReadToEndAsync();
 			if ( !process.WaitForExit( 60000 ) ) { process.Kill( entireProcessTree: true ); Assert.Fail( "Sound compiler timed out" ); }
 			Assert.AreEqual( 0, process.ExitCode, output.Result + error.Result );
-			var compiled = Path.ChangeExtension( path, ".vsnd_c" );
-			return new Compiled( File.ReadAllBytes( compiled ) );
+			return paths.Select( path => new Compiled( File.ReadAllBytes( Path.ChangeExtension( path, ".vsnd_c" ) ) ) ).ToArray();
 		}
 		public void Dispose()
 		{

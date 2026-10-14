@@ -18,9 +18,7 @@ public class NetworkRecursionTest
 	{
 		_oldTypeLibrary = Game.TypeLibrary;
 
-		Game.TypeLibrary = new TypeLibrary();
-		Game.TypeLibrary.AddAssembly( typeof( PrefabFile ).Assembly, false );
-		Game.TypeLibrary.AddAssembly( typeof( ModelRenderer ).Assembly, false );
+		Game.TypeLibrary = SharedTypeLibrary.Engine;
 
 		JsonUpgrader.UpdateUpgraders( Game.TypeLibrary );
 	}

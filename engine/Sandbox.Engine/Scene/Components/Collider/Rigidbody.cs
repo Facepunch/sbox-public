@@ -257,7 +257,9 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 		{
 			if ( _body.IsValid() && !IsProxy )
 			{
+				// Leave _lastVelocity as the last networked value, so PrePhysicsStep sees this change and syncs it
 				_body.Velocity = value;
+				return;
 			}
 
 			_lastVelocity = value;
@@ -272,6 +274,7 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 			if ( _body.IsValid() && !IsProxy )
 			{
 				_body.AngularVelocity = value;
+				return;
 			}
 
 			_lastAngularVelocity = value;

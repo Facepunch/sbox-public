@@ -19,6 +19,13 @@ public static partial class Program
 		options.SingleThreaded = args.Any( x => x == "-s" );
 		options.ConsoleOutput = !args.Any( x => x == "-q" );
 
+		// Most combos to compile at once, default picks from cores and free memory
+		var threadsIndex = Array.IndexOf( args, "-j" );
+		if ( threadsIndex >= 0 && threadsIndex + 1 < args.Length && int.TryParse( args[threadsIndex + 1], out var threads ) )
+		{
+			options.MaxThreads = threads;
+		}
+
 		// Analysis mode: write every combo's SPIR-V under this folder and leave the .shader_c files alone
 		var dumpIndex = Array.IndexOf( args, "--dump-spirv" );
 		if ( dumpIndex >= 0 && dumpIndex + 1 < args.Length )
@@ -42,7 +49,7 @@ public static partial class Program
 		for ( int i = 0; i < args.Length; i++ )
 		{
 			var arg = args[i];
-			if ( arg == "--dump-spirv" ) { i++; continue; }
+			if ( arg == "--dump-spirv" || arg == "-j" ) { i++; continue; }
 			if ( arg.StartsWith( "-" ) ) continue;
 
 			files.Add( arg );
@@ -95,6 +102,14 @@ public static partial class Program
 				if ( !result.Success )
 				{
 					failedList.Add( c );
+				}
+
+				// Compiled combos hold native memory the GC can't see, freed by their finalizers. Left alone
+				// it piles up across shaders (20+ GB by the end of a full build), so let it go now.
+				if ( !result.Skipped )
+				{
+					GC.Collect();
+					GC.WaitForPendingFinalizers();
 				}
 
 				if ( options.ConsoleOutput )

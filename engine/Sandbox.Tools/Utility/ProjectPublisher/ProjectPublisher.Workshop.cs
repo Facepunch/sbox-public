@@ -36,6 +36,11 @@ public partial class ProjectPublisher
 	bool WorkshopHasImages;
 
 	/// <summary>
+	/// Does the workshop item have a main thumbnail? Then it keeps it, unless one's picked for this publish.
+	/// </summary>
+	bool WorkshopHasThumb;
+
+	/// <summary>
 	/// Something whoever's publishing should know about the workshop item first, like that it isn't
 	/// theirs. Null if there's nothing to say.
 	/// </summary>
@@ -50,10 +55,90 @@ public partial class ProjectPublisher
 	}
 
 	/// <summary>
-	/// Find the workshop item the files go in, and check it looks like we can publish to it. The backend's
-	/// package says which item it is - the asset's note of it can be missing or stale on this machine, and
-	/// going by that would make a second item. Steam doesn't tell us who an item's contributors are, so if
-	/// it isn't ours we warn, and Steam decides when we upload.
+	/// The workshop item a map's files go in, or 0 if there isn't one yet. The backend's package says which item
+	/// it is - the asset's note of it can be missing or stale on this machine, and going by that would make a
+	/// second item.
+	/// </summary>
+	static ulong FindWorkshopItemId( Package current, Asset asset )
+	{
+		return current is { InstallsFromWorkshop: true } ? current.WorkshopId : asset.MetaData.Get( "WorkshopId", 0UL );
+	}
+
+	/// <summary>
+	/// The workshop item a publish of this project goes to unless it's told otherwise - 0 if it isn't a map, or
+	/// it'll make a new item
+	/// </summary>
+	public static async Task<ulong> GetWorkshopItemIdAsync( Project project )
+	{
+		if ( project.ProjectSourceObject is not Asset asset || !IsWorkshopAsset( asset ) )
+			return 0;
+
+		return FindWorkshopItemId( await Package.FetchAsync( project.Config.FullIdent, false, false ), asset );
+	}
+
+	/// <summary>
+	/// What a workshop item is, for checking it's the right one before publishing to it
+	/// </summary>
+	/// <param name="Title">Its title, or null if Steam couldn't find it</param>
+	/// <param name="Thumb">Its main thumbnail, or null if it hasn't got one</param>
+	/// <param name="Warning">Why publishing to it might not work, or null if it looks fine</param>
+	public record WorkshopItemInfo( string Title, string Thumb, string Warning );
+
+	/// <summary>
+	/// Ask Steam about a workshop item - not from its cache, it might have just been published
+	/// </summary>
+	public static async Task<WorkshopItemInfo> GetWorkshopItemInfoAsync( ulong id )
+	{
+		var item = await FetchWorkshopItem( id, 0 );
+		return new WorkshopItemInfo( item?.Title, string.IsNullOrEmpty( item?.Thumb ) ? null : item.Thumb, WarningFor( id, item ) );
+	}
+
+	static async Task<Workshop.Item> FetchWorkshopItem( ulong id, int maxCacheAge )
+	{
+		try
+		{
+			return (await Workshop.FetchAsync( [id], default, maxCacheAge )).FirstOrDefault();
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( e, $"Couldn't look up workshop item {id} ({e.Message})" );
+			return null;
+		}
+	}
+
+	/// <summary>
+	/// Why publishing to this item might not work, or null. Steam doesn't tell us who an item's contributors are,
+	/// so if it isn't ours we warn, and Steam decides when we upload.
+	/// </summary>
+	static string WarningFor( ulong id, Workshop.Item item )
+	{
+		if ( item?.Owner is null || item.Owner.Id == 0 )
+			return $"Couldn't find workshop item {id}. If it's been deleted or hidden, Steam won't accept the upload.";
+
+		if ( item.Owner.Id != Game.SteamId )
+			return $"Workshop item {id} belongs to {item.Owner.Name}. Steam will only accept the upload if they've added you as a contributor.";
+
+		return null;
+	}
+
+	/// <summary>
+	/// The item <see cref="SetWorkshopItem"/> chose, if it was called
+	/// </summary>
+	ulong ChosenWorkshopItemId;
+	bool WorkshopItemChosen;
+
+	/// <summary>
+	/// Put the files in this workshop item, or a new one with 0, rather than the one the package says. Before
+	/// <see cref="PrePublish"/>.
+	/// </summary>
+	public void SetWorkshopItem( ulong id )
+	{
+		ChosenWorkshopItemId = id;
+		WorkshopItemChosen = true;
+	}
+
+	/// <summary>
+	/// Find the workshop item the files go in, and check it looks like we can publish to it
 	/// </summary>
 	async Task CheckWorkshopItem()
 	{
@@ -64,38 +149,22 @@ public partial class ProjectPublisher
 
 		var current = await Package.FetchAsync( Project.Config.FullIdent, false, false );
 		BackendPackage = current;
-		WorkshopItemId = current is { InstallsFromWorkshop: true } ? current.WorkshopId : WorkshopAsset.MetaData.Get( "WorkshopId", 0UL );
+		WorkshopItemId = WorkshopItemChosen ? ChosenWorkshopItemId : FindWorkshopItemId( current, WorkshopAsset );
 
 		// First publish, we'll create one
 		if ( WorkshopItemId == 0 )
 			return;
 
-		Workshop.Item item = null;
-
-		try
-		{
-			item = await Workshop.FetchAsync( WorkshopItemId );
-		}
-		catch ( Exception e )
-		{
-			Log.Warning( e, $"Couldn't look up workshop item {WorkshopItemId} ({e.Message})" );
-		}
-
-		// Never make a new item here, it might just be hidden from us - that would split the map in two
-		if ( item?.Owner is null || item.Owner.Id == 0 )
-		{
-			WorkshopWarning = $"Couldn't find this map's workshop item ({WorkshopItemId}). If it's been deleted or hidden, Steam won't accept the upload.";
-		}
-		else if ( item.Owner.Id != Game.SteamId )
-		{
-			WorkshopWarning = $"This map's workshop item belongs to {item.Owner.Name}. Steam will only accept the upload if they've added you as a contributor.";
-		}
+		// Never make a new item if we can't find it, it might just be hidden from us - that would split the map in two
+		var item = await FetchWorkshopItem( WorkshopItemId, 0 );
+		WorkshopWarning = WarningFor( WorkshopItemId, item );
 
 		if ( WorkshopWarning is not null )
 			Log.Warning( WorkshopWarning );
 
 		// If we can't see it we can't tell - leave its images alone
 		WorkshopHasImages = item?.HasImages ?? true;
+		WorkshopHasThumb = item is null || !string.IsNullOrEmpty( item.Thumb );
 	}
 
 	/// <summary>
@@ -199,7 +268,7 @@ public partial class ProjectPublisher
 	public string WorkshopUploadStatus => workshopStage switch
 	{
 		WorkshopStage.Copying => "Getting the files ready",
-		WorkshopStage.Media => "Getting the screenshots",
+		WorkshopStage.Media => "Getting the images",
 		WorkshopStage.Submitting => workshopItem?.Status switch
 		{
 			Sandbox.Services.Ugc.UgcPublisher.UpdateStatus.PreparingConfig => "Preparing",
@@ -268,23 +337,23 @@ public partial class ProjectPublisher
 
 			workshopStage = WorkshopStage.Media;
 
+			// The main thumbnail is the one checked before publishing - one picked for this publish, otherwise the
+			// one the item has. An item without one gets the package's thumb on sbox.game, otherwise the one we rendered.
+			// Square, as Steam shows them.
+			var thumb = FitPreviewImage( Manifest.FindAsset( $"/{TargetPackageIdent}/thumb.png" )?.Contents, true );
+			var previewBytes = ThumbnailChosen ? thumb
+				: WorkshopHasThumb ? null
+				: await DownloadPreviewImage( BackendPackage?.Thumb, cancel, true ) ?? thumb;
+
+			// Only an item with no images gets the screenshots - otherwise they're the creator's on Steam
+			var media = WorkshopHasImages ? new List<string>() : await DownloadMedia( mediaFolderName, cancel );
+
 			string preview = null;
-			var media = new List<string>();
 
-			// Only an item with no images gets them - its art on sbox.game, otherwise the thumb we rendered,
-			// and its screenshots
-			if ( !WorkshopHasImages )
+			if ( previewBytes is not null )
 			{
-				var thumb = Manifest.FindAsset( $"/{TargetPackageIdent}/thumb.png" );
-				var previewBytes = await DownloadPreviewImage( BackendPackage?.Thumb, cancel ) ?? FitPreviewImage( thumb?.Contents );
-
-				if ( previewBytes is not null )
-				{
-					FileSystem.Transient.WriteAllBytes( previewName, previewBytes );
-					preview = FileSystem.Transient.GetFullPath( previewName );
-				}
-
-				media = await DownloadMedia( mediaFolderName, cancel );
+				FileSystem.Transient.WriteAllBytes( previewName, previewBytes );
+				preview = FileSystem.Transient.GetFullPath( previewName );
 			}
 
 			workshopStage = WorkshopStage.Submitting;
@@ -303,8 +372,8 @@ public partial class ProjectPublisher
 					item.SetPreviewImage( preview );
 
 				// A new item gets its sbox.game summary - after that the description's the creator's own
-				if ( WorkshopItemId == 0 )
-					item.SetDescription( WorkshopDescription() );
+				if ( WorkshopItemId == 0 && !string.IsNullOrWhiteSpace( BackendPackage?.Summary ) )
+					item.SetDescription( BackendPackage.Summary );
 
 				foreach ( var image in media )
 					item.AddPreviewImage( image );
@@ -380,15 +449,16 @@ public partial class ProjectPublisher
 	}
 
 	/// <summary>
-	/// Download an image from the backend, made into something Steam will take as a preview. Null if it couldn't be.
+	/// Download an image from the backend, made into something Steam will take as a preview - cut
+	/// <paramref name="square"/> for the main one. Null if it couldn't be.
 	/// </summary>
-	static async Task<byte[]> DownloadPreviewImage( string url, CancellationToken cancel )
+	static async Task<byte[]> DownloadPreviewImage( string url, CancellationToken cancel, bool square = false )
 	{
 		if ( string.IsNullOrEmpty( url ) ) return null;
 
 		try
 		{
-			return FitPreviewImage( await Sandbox.Utility.Web.GrabFile( url, cancel ) );
+			return FitPreviewImage( await Sandbox.Utility.Web.GrabFile( url, cancel ), square );
 		}
 		catch ( Exception e ) when ( e is not OperationCanceledException )
 		{
@@ -398,15 +468,27 @@ public partial class ProjectPublisher
 	}
 
 	/// <summary>
-	/// A jpg of this image that fits Steam's preview limit - no wider than 1920, and the quality brought down
-	/// until it's under 1MB
+	/// The middle of this image, cut square - Steam shows workshop items' main thumbnails square. A new bitmap.
 	/// </summary>
-	static byte[] FitPreviewImage( byte[] image )
+	public static Bitmap CropToSquare( Bitmap image )
+	{
+		var size = Math.Min( image.Width, image.Height );
+		return image.Crop( new Rect( (image.Width - size) / 2, (image.Height - size) / 2, size, size ) );
+	}
+
+	/// <summary>
+	/// A jpg of this image that fits Steam's preview limit - cut <paramref name="square"/> for the main one, no
+	/// wider than 1920, and the quality brought down until it's under 1MB
+	/// </summary>
+	static byte[] FitPreviewImage( byte[] image, bool square = false )
 	{
 		if ( image is null || image.Length == 0 ) return null;
 
-		using var bitmap = Bitmap.CreateFromBytes( image );
-		if ( bitmap is null ) return null;
+		using var loaded = Bitmap.CreateFromBytes( image );
+		if ( loaded is null ) return null;
+
+		using var cropped = square ? CropToSquare( loaded ) : null;
+		var bitmap = cropped ?? loaded;
 
 		var fitted = bitmap.Width > 1920 ? bitmap.Resize( 1920, (int)(bitmap.Height * (1920f / bitmap.Width)) ) : bitmap;
 
@@ -424,17 +506,6 @@ public partial class ProjectPublisher
 		{
 			if ( fitted != bitmap ) fitted.Dispose();
 		}
-	}
-
-	/// <summary>
-	/// What a new workshop item says about itself - its summary on sbox.game, and where to find it there
-	/// </summary>
-	string WorkshopDescription()
-	{
-		var summary = BackendPackage?.Summary;
-		var link = $"[url=https://sbox.game/{Project.Config.FullIdent.Replace( '.', '/' )}]{Project.Config.Title} on sbox.game[/url]";
-
-		return string.IsNullOrWhiteSpace( summary ) ? link : $"{summary}\n\n{link}";
 	}
 
 	/// <summary>

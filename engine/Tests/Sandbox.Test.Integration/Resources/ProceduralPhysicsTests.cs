@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace ResourceTests;
@@ -6,6 +7,37 @@ namespace ResourceTests;
 [TestClass]
 public class ProceduralPhysicsTests
 {
+	[DataTestMethod]
+	[DataRow( 63, true )]
+	[DataRow( 64, true )]
+	[DataRow( 65, false )]
+	public void HullCreationHonorsTheFullEightBitIndexCapacity( int sides, bool accepted )
+	{
+		var points = new List<Vector3>();
+		for ( var index = 0; index < sides; index++ )
+		{
+			var angle = 2 * MathF.PI * index / sides;
+			points.Add( new Vector3( 16 * MathF.Cos( angle ), 16 * MathF.Sin( angle ), 0 ) );
+		}
+		points.Add( Vector3.Up * 16 );
+		var scene = new Scene();
+		try
+		{
+			using var scope = scene.Push();
+			var collider = scene.CreateObject().AddComponent<HullCollider>( false );
+			collider.Type = HullCollider.PrimitiveType.Points;
+			collider.Points = points;
+			collider.Enabled = true;
+			var shape = collider.PhysicsBody.Shapes.Single();
+			Assert.AreEqual( accepted ? PhysicsShapeType.SHAPE_HULL : PhysicsShapeType.SHAPE_SPHERE,
+				shape.ShapeType, $"{sides * 4} half-edges produced the wrong shape type." );
+		}
+		finally
+		{
+			scene.Destroy();
+		}
+	}
+
 	[TestMethod]
 	public void StandalonePhysicsPreservesBodyDampingAndInertia()
 	{

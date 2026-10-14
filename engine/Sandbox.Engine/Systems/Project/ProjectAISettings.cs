@@ -7,14 +7,6 @@ namespace Sandbox.DataModel;
 public sealed class ProjectAISettings
 {
 	/// <summary>
-	/// Maintain the s&amp;box section in AGENTS.md and the local installation guide.
-	/// Disabling this leaves existing files untouched.
-	/// </summary>
-	[Title( "Write to AGENTS.md" )]
-	[Description( "Write s&box instructions when creating or opening this project. Existing instructions are preserved. Disable this to stop writing; existing files will remain." )]
-	public bool WriteAgentInstructions { get; set; } = true;
-
-	/// <summary>
 	/// Allow local MCP clients to discover and control this project's editor.
 	/// Standalone games still require the -mcp launch argument.
 	/// </summary>

@@ -90,10 +90,29 @@ internal static partial class PerfHub
 		return ShowAdvanced;
 	}
 
+	static readonly Dictionary<string, double> _collectUntil = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// Run a tab's collectors for a while without the tab on screen, so the MCP tools (<see cref="Editor.Mcp.PerfTools"/>)
+	/// can read what the tab would show. The overview's collectors are the GPU's.
+	/// </summary>
+	internal static void CollectFor( string tab, float seconds )
+	{
+		var until = RealTime.Now + seconds;
+		if ( until > _collectUntil.GetValueOrDefault( tab ) ) _collectUntil[tab] = until;
+	}
+
+	/// <summary>
+	/// Should the data behind this tab be collected? True while it's showing, or while a tool asked for it with
+	/// <see cref="CollectFor"/>. Collection only - drawing in the world stays with <see cref="IsShowing"/>.
+	/// </summary>
+	internal static bool IsCollecting( string tab ) =>
+		IsShowing( tab ) || RealTime.Now < _collectUntil.GetValueOrDefault( tab );
+
 	/// <summary>
 	/// The hub reads GPU pass timings for the overview's top costs and the GPU tab, so profiling runs while it's open.
 	/// </summary>
-	internal static bool WantsGpuTimings => IsOpen;
+	internal static bool WantsGpuTimings => IsOpen || IsCollecting( "gpu" );
 
 	static SurfaceWindow _surfaceWindow;
 	static Vector2? _windowPosition;

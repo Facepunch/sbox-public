@@ -121,11 +121,6 @@ static class StartupLoadProject
 		Project.Current.LastOpened = DateTime.Now;
 		project.Active = true;
 
-		if ( !project.IsBuiltIn )
-		{
-			ProjectAgentInstructions.Update( project.ConfigFilePath, EngineFileSystem.Root.GetFullPath( "/" ), project.Config.AI );
-		}
-
 		Step( "Initializing asset system" );
 		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: Init AssetSystem" ) )
 		{

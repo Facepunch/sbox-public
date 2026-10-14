@@ -37,7 +37,9 @@ internal static partial class DebugOverlay
 		}
 
 		// Collectors that only run while a hub tab shows them
-		if ( !Diagnostics.PerfHub.IsShowing( "memory" ) ) DebugOverlay.Allocations.Disabled();
+		// Allocation tracking counts GC pauses frame by frame, so it samples every game frame rather than the hub's
+		if ( Diagnostics.PerfHub.IsCollecting( "memory" ) ) DebugOverlay.Allocations.Sample();
+		else DebugOverlay.Allocations.Disabled();
 		if ( !Diagnostics.PerfHub.IsShowing( "gpu" ) ) DebugOverlay.GpuTimeline.Clear();
 
 		if ( ShadowMapper.DebugEnabled )

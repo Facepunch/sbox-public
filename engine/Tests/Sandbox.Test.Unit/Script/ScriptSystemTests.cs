@@ -12,16 +12,29 @@ public class ScriptSystemTests
 	private GlobalContext previous;
 	private GlobalContext context;
 
-	[TestInitialize]
-	public void Initialize()
+	// Scanning the assemblies is slow, so tests share one library unless they mutate it
+	static readonly Lazy<TypeLibrary> SharedLibrary = new( CreateLibrary );
+
+	static TypeLibrary CreateLibrary()
 	{
-		previous = GlobalContext.Current;
 		var library = new TypeLibrary();
 		library.AddIntrinsicTypes();
 		library.AddAssembly( typeof( Vector3 ).Assembly, false );
 		library.AddAssembly( typeof( Script ).Assembly, false );
 		library.AddAssembly( typeof( ScriptSystemTests ).Assembly, false );
-		GlobalContext.Current = context = new GlobalContext { TypeLibrary = library };
+		return library;
+	}
+
+	/// <summary>
+	/// Swap in a private library for tests that add or remove assemblies.
+	/// </summary>
+	private void UseOwnLibrary() => GlobalContext.Current = context = new GlobalContext { TypeLibrary = CreateLibrary() };
+
+	[TestInitialize]
+	public void Initialize()
+	{
+		previous = GlobalContext.Current;
+		GlobalContext.Current = context = new GlobalContext { TypeLibrary = SharedLibrary.Value };
 	}
 
 	[TestCleanup]
@@ -179,6 +192,7 @@ public class ScriptSystemTests
 	[TestMethod]
 	public void InstancesAreIndependentAndHotloadInvalidatesPermissions()
 	{
+		UseOwnLibrary();
 		var first = Game.Scripting.CreateScript( "return Host.Read(1);" );
 		var second = Game.Scripting.CreateScript( "return Host.Read(1);" );
 		first.SetArgument( "Host", new Host { Value = 10 } );

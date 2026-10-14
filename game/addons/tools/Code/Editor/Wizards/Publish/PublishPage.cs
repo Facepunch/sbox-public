@@ -49,7 +49,7 @@ partial class PublishWizard : BaseWizard
 		// Maps go to the workshop - no files for the backend, no video, and the revision gets a default changelist
 		if ( ProjectPublisher.PublishesToWorkshop( Project ) )
 		{
-			AddStep( new WorkshopUploadPage() { Project = Project, PublishConfig = Config } );    // files to the workshop, then make live
+			AddStep( new WorkshopUploadPage() { Project = Project, PublishConfig = Config } );    // item and thumbnail, then files to the workshop, then make live
 		}
 		else
 		{

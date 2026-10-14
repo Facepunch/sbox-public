@@ -196,6 +196,7 @@ PS
 		
 		m.Albedo = texAlbedo.rgb;
 		m.Normal = TransformNormal(decodedTexNormal, i.vNormalWs, i.vTangentUWs, i.vTangentVWs);
+		m.GeometricNormal = i.vNormalWs.xyz;
 		m.Roughness = texRMA.r;
 		m.Metalness = texRMA.g;
 		m.AmbientOcclusion = texRMA.b;

@@ -44,6 +44,12 @@ internal static class Analytics
 
 		net = SampleNetwork();
 
+		// Steam counts the workshop items' playtime from what the backend's told - games and maps alike
+		if ( ready && !Application.IsEditor && !Application.IsDedicatedServer )
+			Workshop.SetPlaying( Application.GamePackage?.WorkshopId ?? 0, Application.MapPackage?.WorkshopId ?? 0 );
+		else
+			Workshop.SetPlaying();
+
 		CheckHash();
 		if ( gameChanged ) timeUntilNextUpdate = 0;
 		TryUpdateActivity();

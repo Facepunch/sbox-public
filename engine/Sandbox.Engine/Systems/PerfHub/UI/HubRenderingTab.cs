@@ -87,7 +87,7 @@ internal sealed class HubRenderingTab : HubTab
 		var batchingMatters = drawCalls > BatchingMattersAbove;
 
 		RefreshContext( f, m, isManaged );
-		RefreshFindings( f, isManaged, drawCalls, trisPerDraw, batchingMatters );
+		RefreshFindings( f );
 		RefreshSubmission( f, m, isManaged, drawCalls, triangles, trisPerDraw, batchingMatters );
 		RefreshVisibility( f, m, isManaged );
 		RefreshLights( f, m, isManaged );
@@ -113,36 +113,49 @@ internal sealed class HubRenderingTab : HubTab
 		_context.Set( "Resolves", $"{f.RenderTargetResolves:N0}" );
 	}
 
-	void RefreshFindings( FrameStats f, bool isManaged, double drawCalls, double trisPerDraw, bool batchingMatters )
+	void RefreshFindings( FrameStats f )
 	{
-		_issues.Clear();
+		FindIssues( f, _issues );
+		_findings.Set( _issues );
+	}
+
+	/// <summary>
+	/// What's out of line in last frame's rendering numbers, worst first.
+	/// </summary>
+	internal static void FindIssues( FrameStats f, List<PerfHub.Issue> into )
+	{
+		var isManaged = f.Managed.Renders > 0;
+		var drawCalls = isManaged ? f.Managed.TotalDraws : f.DrawCalls;
+		var trisPerDraw = Ratio( isManaged ? f.Managed.Triangles : f.TrianglesRendered, drawCalls );
+		var batchingMatters = drawCalls > BatchingMattersAbove;
+
+		into.Clear();
 
 		if ( drawCalls >= DrawCallsWarn )
-			_issues.Add( new( drawCalls >= DrawCallsBad ? PerfHub.Severity.Bad : PerfHub.Severity.Warning, "Draw calls",
+			into.Add( new( drawCalls >= DrawCallsBad ? PerfHub.Severity.Bad : PerfHub.Severity.Warning, "Draw calls",
 				$"{drawCalls:N0}, over {DrawCallsWarn:N0}. Merge meshes, instance repeats, use LODs", null ) );
 
 		if ( batchingMatters && trisPerDraw < TrisPerDrawWarn )
-			_issues.Add( new( PerfHub.Severity.Warning, "Small draws",
+			into.Add( new( PerfHub.Severity.Warning, "Small draws",
 				$"{trisPerDraw:N0} triangles per draw, under {TrisPerDrawWarn:N0}", null ) );
 
 		if ( !isManaged )
 		{
 			var matPerDraw = Ratio( f.MaterialChanges + f.ShadowMaterialChanges, f.DrawCalls );
 			if ( batchingMatters && matPerDraw > MatChangesPerDrawWarn )
-				_issues.Add( new( PerfHub.Severity.Info, "Material changes",
+				into.Add( new( PerfHub.Severity.Info, "Material changes",
 					$"{matPerDraw:0.00} per draw, over {MatChangesPerDrawWarn}. Share materials so draws batch", null ) );
 		}
 
 		var pool = Percent( f.TexturePoolUsedBytes, f.TexturePoolLimitBytes );
 		if ( pool >= TexturePoolWarn )
-			_issues.Add( new( pool >= TexturePoolBad ? PerfHub.Severity.Bad : PerfHub.Severity.Warning, "Texture pool",
+			into.Add( new( pool >= TexturePoolBad ? PerfHub.Severity.Bad : PerfHub.Severity.Warning, "Texture pool",
 				$"{pool:0}% used, {HubFormat.BytesOf( f.TexturePoolUsedBytes, f.TexturePoolLimitBytes )}", null ) );
 
 		if ( f.PendingStreamingRequests > StreamingWarn )
-			_issues.Add( new( PerfHub.Severity.Info, "Streaming backlog", $"{f.PendingStreamingRequests:N0} pending", null ) );
+			into.Add( new( PerfHub.Severity.Info, "Streaming backlog", $"{f.PendingStreamingRequests:N0} pending", null ) );
 
-		_issues.Sort( static ( a, b ) => b.Severity.CompareTo( a.Severity ) );
-		_findings.Set( _issues );
+		into.Sort( static ( a, b ) => b.Severity.CompareTo( a.Severity ) );
 	}
 
 	void RefreshSubmission( FrameStats f, ManagedFrameCounters m, bool isManaged, double drawCalls, double triangles, double trisPerDraw, bool batchingMatters )

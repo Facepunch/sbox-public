@@ -27,49 +27,97 @@
 							_class = "CBlend2DItem"
 							m_tagSpans = [  ]
 							m_sequenceName = "WalkFast_E"
-							m_blendValue = [ 80.0, 0.0 ]
+							m_blendValue = [ 10.0, 0.0 ]
 						},
 						{
 							_class = "CBlend2DItem"
 							m_tagSpans = [  ]
 							m_sequenceName = "WalkFast_N"
-							m_blendValue = [ 0.0, 80.0 ]
+							m_blendValue = [ 0.0, 10.0 ]
 						},
 						{
 							_class = "CBlend2DItem"
 							m_tagSpans = [  ]
 							m_sequenceName = "WalkFast_NE"
-							m_blendValue = [ 56.0, 56.0 ]
+							m_blendValue = [ 7.1, 7.1 ]
 						},
 						{
 							_class = "CBlend2DItem"
 							m_tagSpans = [  ]
 							m_sequenceName = "WalkFast_NW"
-							m_blendValue = [ -56.0, 56.0 ]
+							m_blendValue = [ -7.1, 7.1 ]
 						},
 						{
 							_class = "CBlend2DItem"
 							m_tagSpans = [  ]
 							m_sequenceName = "WalkFast_S"
-							m_blendValue = [ 0.0, -80.0 ]
+							m_blendValue = [ 0.0, -10.0 ]
 						},
 						{
 							_class = "CBlend2DItem"
 							m_tagSpans = [  ]
 							m_sequenceName = "WalkFast_SE"
-							m_blendValue = [ 56.0, -56.0 ]
+							m_blendValue = [ 7.1, -7.1 ]
 						},
 						{
 							_class = "CBlend2DItem"
 							m_tagSpans = [  ]
 							m_sequenceName = "WalkFast_SW"
-							m_blendValue = [ -56.0, -56.0 ]
+							m_blendValue = [ -7.1, -7.1 ]
 						},
 						{
 							_class = "CBlend2DItem"
 							m_tagSpans = [  ]
 							m_sequenceName = "WalkFast_W"
-							m_blendValue = [ -80.0, 0.0 ]
+							m_blendValue = [ -10.0, 0.0 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "WalkFast_E"
+							m_blendValue = [ 100.0, 0.0 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "WalkFast_N"
+							m_blendValue = [ 0.0, 100.0 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "WalkFast_NE"
+							m_blendValue = [ 70.7, 70.7 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "WalkFast_NW"
+							m_blendValue = [ -70.7, 70.7 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "WalkFast_S"
+							m_blendValue = [ 0.0, -100.0 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "WalkFast_SE"
+							m_blendValue = [ 70.7, -70.7 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "WalkFast_SW"
+							m_blendValue = [ -70.7, -70.7 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "WalkFast_W"
+							m_blendValue = [ -100.0, 0.0 ]
 						},
 					]
 					m_blendSourceX = "Parameter"
@@ -183,49 +231,97 @@
 							_class = "CBlend2DItem"
 							m_tagSpans = [  ]
 							m_sequenceName = "Run_E"
-							m_blendValue = [ 210.0, 0.0 ]
+							m_blendValue = [ 90.0, 0.0 ]
 						},
 						{
 							_class = "CBlend2DItem"
 							m_tagSpans = [  ]
 							m_sequenceName = "Run_N_m"
-							m_blendValue = [ 0.0, 210.0 ]
+							m_blendValue = [ 0.0, 90.0 ]
 						},
 						{
 							_class = "CBlend2DItem"
 							m_tagSpans = [  ]
 							m_sequenceName = "Run_NE"
-							m_blendValue = [ 150.0, 150.0 ]
+							m_blendValue = [ 63.6, 63.6 ]
 						},
 						{
 							_class = "CBlend2DItem"
 							m_tagSpans = [  ]
 							m_sequenceName = "Run_NW"
-							m_blendValue = [ -150.0, 150.0 ]
+							m_blendValue = [ -63.6, 63.6 ]
 						},
 						{
 							_class = "CBlend2DItem"
 							m_tagSpans = [  ]
 							m_sequenceName = "Run_S"
-							m_blendValue = [ 0.0, -210.0 ]
+							m_blendValue = [ 0.0, -90.0 ]
 						},
 						{
 							_class = "CBlend2DItem"
 							m_tagSpans = [  ]
 							m_sequenceName = "Run_SE"
-							m_blendValue = [ 150.0, -150.0 ]
+							m_blendValue = [ 63.6, -63.6 ]
 						},
 						{
 							_class = "CBlend2DItem"
 							m_tagSpans = [  ]
 							m_sequenceName = "Run_SW"
-							m_blendValue = [ -150.0, -150.0 ]
+							m_blendValue = [ -63.6, -63.6 ]
 						},
 						{
 							_class = "CBlend2DItem"
 							m_tagSpans = [  ]
 							m_sequenceName = "Run_W"
-							m_blendValue = [ -210.0, 0.0 ]
+							m_blendValue = [ -90.0, 0.0 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "Run_E"
+							m_blendValue = [ 160.0, 0.0 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "Run_N_m"
+							m_blendValue = [ 0.0, 160.0 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "Run_NE"
+							m_blendValue = [ 113.1, 113.1 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "Run_NW"
+							m_blendValue = [ -113.1, 113.1 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "Run_S"
+							m_blendValue = [ 0.0, -160.0 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "Run_SE"
+							m_blendValue = [ 113.1, -113.1 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "Run_SW"
+							m_blendValue = [ -113.1, -113.1 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "Run_W"
+							m_blendValue = [ -160.0, 0.0 ]
 						},
 					]
 					m_blendSourceX = "Parameter"
@@ -339,49 +435,97 @@
 							_class = "CBlend2DItem"
 							m_tagSpans = [  ]
 							m_sequenceName = "Run2X_E"
-							m_blendValue = [ 300.0, 0.0 ]
+							m_blendValue = [ 130.0, 0.0 ]
 						},
 						{
 							_class = "CBlend2DItem"
 							m_tagSpans = [  ]
 							m_sequenceName = "Run2X_S"
-							m_blendValue = [ 0.0, -300.0 ]
+							m_blendValue = [ 0.0, -130.0 ]
 						},
 						{
 							_class = "CBlend2DItem"
 							m_tagSpans = [  ]
 							m_sequenceName = "Run2X_SE"
-							m_blendValue = [ 212.0, -212.0 ]
+							m_blendValue = [ 91.9, -91.9 ]
 						},
 						{
 							_class = "CBlend2DItem"
 							m_tagSpans = [  ]
 							m_sequenceName = "Run2X_SW"
-							m_blendValue = [ -212.0, -212.0 ]
+							m_blendValue = [ -91.9, -91.9 ]
 						},
 						{
 							_class = "CBlend2DItem"
 							m_tagSpans = [  ]
 							m_sequenceName = "Run2X_W"
-							m_blendValue = [ -300.0, 0.0 ]
+							m_blendValue = [ -130.0, 0.0 ]
 						},
 						{
 							_class = "CBlend2DItem"
 							m_tagSpans = [  ]
 							m_sequenceName = "Sprint_N_m"
-							m_blendValue = [ 0.0, 300.0 ]
+							m_blendValue = [ 0.0, 130.0 ]
 						},
 						{
 							_class = "CBlend2DItem"
 							m_tagSpans = [  ]
 							m_sequenceName = "Sprint_NE_m"
-							m_blendValue = [ 212.0, 212.0 ]
+							m_blendValue = [ 91.9, 91.9 ]
 						},
 						{
 							_class = "CBlend2DItem"
 							m_tagSpans = [  ]
 							m_sequenceName = "Sprint_NW_m"
-							m_blendValue = [ -212.0, 212.0 ]
+							m_blendValue = [ -91.9, 91.9 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "Run2X_E"
+							m_blendValue = [ 340.0, 0.0 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "Run2X_S"
+							m_blendValue = [ 0.0, -340.0 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "Run2X_SE"
+							m_blendValue = [ 240.4, -240.4 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "Run2X_SW"
+							m_blendValue = [ -240.4, -240.4 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "Run2X_W"
+							m_blendValue = [ -340.0, 0.0 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "Sprint_N_m"
+							m_blendValue = [ 0.0, 340.0 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "Sprint_NE_m"
+							m_blendValue = [ 240.4, 240.4 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "Sprint_NW_m"
+							m_blendValue = [ -240.4, 240.4 ]
 						},
 					]
 					m_blendSourceX = "Parameter"

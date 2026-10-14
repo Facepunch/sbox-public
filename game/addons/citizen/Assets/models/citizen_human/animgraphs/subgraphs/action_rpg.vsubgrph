@@ -158,7 +158,7 @@
 							m_fDuration = 0.283333
 						},
 					]
-					m_sequenceName = "Shotgun_2H_Deploy_01_delta"
+					m_sequenceName = "Shotgun_2H_Deploy_01_Stock_delta"
 					m_playbackSpeed = 1.0
 					m_bLoop = false
 				}

@@ -130,8 +130,12 @@ internal static class ContactShadows
 	{
 		int dispatchCount = 0;
 
+		// Keep the light within 2^17px: further out (w ~ 0) float32 loses sub-pixel precision and the waves leave 1px seams
+		const float MaxLightPixels = 131072.0f;
+		float xyExtent = Math.Max( Math.Abs( lightProjection.x ) * viewportWidth, Math.Abs( lightProjection.y ) * viewportHeight ) * 0.5f;
+		float fpLimit = Math.Max( 0.000002f * WaveSize, xyExtent / MaxLightPixels );
+
 		float xyLightW = lightProjection.w;
-		float fpLimit = 0.000002f * WaveSize;
 		if ( xyLightW >= 0 && xyLightW < fpLimit ) xyLightW = fpLimit;
 		else if ( xyLightW < 0 && xyLightW > -fpLimit ) xyLightW = -fpLimit;
 
@@ -139,7 +143,8 @@ internal static class ContactShadows
 			((lightProjection.x / xyLightW) * +0.5f + 0.5f) * viewportWidth,
 			((lightProjection.y / xyLightW) * -0.5f + 0.5f) * viewportHeight,
 			lightProjection.w == 0 ? 0 : (lightProjection.z / lightProjection.w),
-			lightProjection.w > 0 ? 1 : -1 );
+			// Clamped w, so the direction matches the side the light was placed on
+			xyLightW > 0 ? 1 : -1 );
 
 		Span<int> lightXY = stackalloc int[2];
 		lightXY[0] = (int)(lightCoordinate.x + 0.5f);

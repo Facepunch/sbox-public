@@ -55,18 +55,7 @@ internal sealed class HubCpuTab : HubTab
 		_categories.SetCosts( s.TopCpu, 32, s.CpuWorkAvg, null, "Nothing measured" );
 
 		// Every named scope, not just the main categories - where a category's time actually went
-		_scopeCosts.Clear();
-		foreach ( var (_, timing) in PerformanceStats.Timings.All )
-		{
-			if ( timing == PerformanceStats.Timings.Idle ) continue;
-
-			var m = timing.GetMetric( 120 );
-			if ( m.Avg < 0.01f ) continue;
-
-			_scopeCosts.Add( new PerfHub.Cost( timing.Name, timing.Color, m.Avg, m.Max ) );
-		}
-
-		_scopeCosts.Sort( static ( a, b ) => b.AvgMs.CompareTo( a.AvgMs ) );
+		PerfHub.GetScopes( _scopeCosts );
 		_scopes.SetCosts( _scopeCosts, 30, s.CpuWorkAvg, null, "Nothing measured" );
 	}
 }
@@ -82,8 +71,7 @@ internal sealed class HubGpuTab : HubTab
 	readonly HubFacts _facts;
 	readonly HubTable _passes;
 	readonly HubTable _tree;
-	float[] _subtree = [];
-	int[] _depth = [];
+	readonly List<PerfHub.GpuPass> _gpuPasses = new();
 
 	public HubGpuTab()
 	{
@@ -118,46 +106,24 @@ internal sealed class HubGpuTab : HubTab
 	/// </summary>
 	void RefreshTree( float gpuMs )
 	{
-		var rows = GpuProfilerStats.Rows;
-		if ( _subtree.Length < rows.Length )
-		{
-			_subtree = new float[rows.Length];
-			_depth = new int[rows.Length];
-		}
-
-		// Parents come before their children, so depth fills forwards and subtree time backwards
-		for ( int i = 0; i < rows.Length; i++ )
-		{
-			var parent = rows[i].Parent;
-			_depth[i] = parent >= 0 && parent < i ? _depth[parent] + 1 : 0;
-			_subtree[i] = rows[i].Measured ? GpuProfilerStats.GetSmoothedDuration( rows[i].StableId ) : 0;
-		}
-
-		for ( int i = rows.Length - 1; i >= 0; i-- )
-		{
-			var parent = rows[i].Parent;
-			if ( parent >= 0 && parent < i ) _subtree[parent] = MathF.Max( _subtree[parent], _subtree[i] );
-		}
+		PerfHub.GetGpuPasses( _gpuPasses );
 
 		var t = _tree;
 		t.Begin();
-		for ( int i = 0; i < rows.Length; i++ )
+		foreach ( var pass in _gpuPasses )
 		{
-			var row = rows[i];
-			if ( _subtree[i] < 0.01f ) continue;
+			if ( pass.BranchMs < 0.01f ) continue;
 
-			var name = row.Name;
-			var indent = _depth[i] * 14f;
-			if ( !row.Measured )
+			var indent = pass.Depth * 14f;
+			if ( !pass.Measured )
 			{
-				t.Row( $"{row.StableId}", [new( name, "dim", Indent: indent ), "", "", "", ""] );
+				t.Row( $"{pass.Id}", [new( pass.Name, "dim", Indent: indent ), "", "", "", ""] );
 				continue;
 			}
 
-			var avg = GpuProfilerStats.GetSmoothedDuration( row.StableId );
-			var share = gpuMs > 0 ? avg / gpuMs : 0;
-			t.Row( $"{row.StableId}", [new( name, null, Indent: indent ), HubTable.Number( HubFormat.Ms( avg ) ),
-				new( HubFormat.Ms( GpuProfilerStats.GetMaxDuration( row.StableId ) ), "number dim" ), new( $"{share * 100:0}", "number dim" ), HubTable.BarOf( share )] );
+			var share = gpuMs > 0 ? pass.AvgMs / gpuMs : 0;
+			t.Row( $"{pass.Id}", [new( pass.Name, null, Indent: indent ), HubTable.Number( HubFormat.Ms( pass.AvgMs ) ),
+				new( HubFormat.Ms( pass.MaxMs ), "number dim" ), new( $"{share * 100:0}", "number dim" ), HubTable.BarOf( share )] );
 		}
 		t.End( "Waiting for GPU timings" );
 	}
@@ -191,14 +157,6 @@ internal sealed class HubMemoryTab : HubTab
 		_strong = split.AddChild( new Panel( null, "section" ) ).AddChild( new HubTable( "minmax(0, 1fr) 56px 56px", "Resource index", "#live", "#max" ).Banded() );
 		_weak = split.AddChild( new Panel( null, "section" ) ).AddChild( new HubTable( "minmax(0, 1fr) 56px 56px", "Weak index", "#live", "#max" ).Banded() );
 		_native = split.AddChild( new Panel( null, "section span-all" ) ).AddChild( new HubTable( "minmax(0, 1fr) 56px 56px", "Native resource cache", "#live", "#max" ).Banded() );
-	}
-
-	public override void Tick()
-	{
-		base.Tick();
-
-		// Allocation tracking counts GC pauses frame by frame, so it samples every frame the tab is up
-		if ( !HasClass( "hidden" ) ) DebugOverlay.Allocations.Sample();
 	}
 
 	public override void Refresh( PerfHub.Summary s )
@@ -380,42 +338,18 @@ internal sealed class HubUiTab : HubTab
 		var t = _roots;
 		t.Begin();
 
-		// The game's UI and the menu's are separate systems; the hub's own isn't counted
-		foreach ( var context in Contexts() )
+		foreach ( var (name, root) in RenderedRoots() )
 		{
-			var system = context.UISystem;
-			if ( system is null ) continue;
+			var r = root.Stats;
+			count++;
+			gpuBuffers += GpuBuffers( root );
+			total = Sum( total, r );
 
-			foreach ( var root in system.RootPanels.OrderByDescending( x => x.Stats.CpuTime ) )
-			{
-				if ( !root.IsValid ) continue;
-
-				// Roots that have stopped rendering keep their last numbers
-				var r = root.Stats;
-				if ( r.RenderCount == 0 || r.FrameNumber + 1 < Application.FrameCount ) continue;
-
-				count++;
-				gpuBuffers += root.PanelCommandList.FindResource<Painter.Context>()?.Batcher.GpuBufferCount ?? 0;
-				total = total with
-				{
-					LayoutTime = total.LayoutTime + r.LayoutTime,
-					CommandBuildTime = total.CommandBuildTime + r.CommandBuildTime,
-					SubmissionTime = total.SubmissionTime + r.SubmissionTime,
-					PanelsRendered = total.PanelsRendered + r.PanelsRendered,
-					PanelsCulled = total.PanelsCulled + r.PanelsCulled,
-					DrawCalls = total.DrawCalls + r.DrawCalls,
-					Instances = total.Instances + r.Instances,
-					Layers = total.Layers + r.Layers,
-					FrameGrabs = total.FrameGrabs + r.FrameGrabs,
-				};
-
-				var name = context == Engine.GlobalContext.Menu ? $"{root.GetType().Name} (menu)" : root.GetType().Name;
-				t.Row( $"{System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode( root )}", [name,
-					HubTable.Number( $"{r.PanelsRendered:N0}" ),
-					Ms( r.LayoutTime ), Ms( r.CommandBuildTime ), Ms( r.SubmissionTime ),
-					HubTable.Number( HubFormat.Ms( r.CpuTime.TotalMilliseconds ) ),
-					new( $"{r.DrawCalls:N0}", "number dim" )], tooltip: $"{name}: {r.PanelsCulled:N0} subtrees culled, {r.Layers:N0} layers, {r.FrameGrabs:N0} frame grabs" );
-			}
+			t.Row( $"{System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode( root )}", [name,
+				HubTable.Number( $"{r.PanelsRendered:N0}" ),
+				Ms( r.LayoutTime ), Ms( r.CommandBuildTime ), Ms( r.SubmissionTime ),
+				HubTable.Number( HubFormat.Ms( r.CpuTime.TotalMilliseconds ) ),
+				new( $"{r.DrawCalls:N0}", "number dim" )], tooltip: $"{name}: {r.PanelsCulled:N0} subtrees culled, {r.Layers:N0} layers, {r.FrameGrabs:N0} frame grabs" );
 		}
 
 		t.End( "No UI rendered this frame" );
@@ -429,6 +363,45 @@ internal sealed class HubUiTab : HubTab
 		_facts.Set( "Frame grabs", $"{total.FrameGrabs:N0}", total.FrameGrabs > 0 ? PerfHub.Severity.Info : null, "Backdrop filters and the like copy the screen" );
 		_facts.Set( "GPU buffers", $"{gpuBuffers:N0}" );
 	}
+
+	/// <summary>
+	/// The root panels that rendered last frame, most expensive first, game before menu. The game's UI and the menu's are
+	/// separate systems; the hub's own isn't counted.
+	/// </summary>
+	internal static IEnumerable<(string Name, RootPanel Root)> RenderedRoots()
+	{
+		foreach ( var context in Contexts() )
+		{
+			var system = context.UISystem;
+			if ( system is null ) continue;
+
+			foreach ( var root in system.RootPanels.OrderByDescending( x => x.Stats.CpuTime ) )
+			{
+				if ( !root.IsValid ) continue;
+
+				// Roots that have stopped rendering keep their last numbers
+				var r = root.Stats;
+				if ( r.RenderCount == 0 || r.FrameNumber + 1 < Application.FrameCount ) continue;
+
+				yield return (context == Engine.GlobalContext.Menu ? $"{root.GetType().Name} (menu)" : root.GetType().Name, root);
+			}
+		}
+	}
+
+	internal static int GpuBuffers( RootPanel root ) => root.PanelCommandList.FindResource<Painter.Context>()?.Batcher.GpuBufferCount ?? 0;
+
+	internal static RootPanel.RenderStatistics Sum( RootPanel.RenderStatistics total, RootPanel.RenderStatistics r ) => total with
+	{
+		LayoutTime = total.LayoutTime + r.LayoutTime,
+		CommandBuildTime = total.CommandBuildTime + r.CommandBuildTime,
+		SubmissionTime = total.SubmissionTime + r.SubmissionTime,
+		PanelsRendered = total.PanelsRendered + r.PanelsRendered,
+		PanelsCulled = total.PanelsCulled + r.PanelsCulled,
+		DrawCalls = total.DrawCalls + r.DrawCalls,
+		Instances = total.Instances + r.Instances,
+		Layers = total.Layers + r.Layers,
+		FrameGrabs = total.FrameGrabs + r.FrameGrabs,
+	};
 
 	static IEnumerable<Engine.GlobalContext> Contexts()
 	{

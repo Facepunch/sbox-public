@@ -13,11 +13,8 @@ public partial class ScriptPainterTests
 	public void Initialize()
 	{
 		previous = GlobalContext.Current;
-		var types = new TypeLibrary();
-		types.AddIntrinsicTypes();
-		types.AddAssembly( typeof( Painter ).Assembly, false );
-		types.AddAssembly( typeof( Vector2 ).Assembly, false );
-		GlobalContext.Current = new GlobalContext { TypeLibrary = types };
+		// Intrinsics, engine and system, built once and shared
+		GlobalContext.Current = new GlobalContext { TypeLibrary = SharedTypeLibrary.ScriptingWithSystem };
 	}
 
 	[TestCleanup]

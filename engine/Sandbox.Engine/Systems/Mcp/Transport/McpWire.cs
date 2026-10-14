@@ -48,8 +48,9 @@ internal sealed class McpWire( Stream input, int maxBytes = 8 * 1024 * 1024 )
 			message.Write( buffer, position, count );
 			position = newline < 0 ? end : end + 1;
 
+			// Some writers (Windows PowerShell's redirected stdin among them) open the stream with a byte order mark.
 			if ( newline >= 0 )
-				return Encoding.GetString( message.GetBuffer(), 0, (int)message.Length ).TrimEnd( '\r' );
+				return Encoding.GetString( message.GetBuffer(), 0, (int)message.Length ).TrimStart( '﻿' ).TrimEnd( '\r' );
 		}
 	}
 

@@ -301,11 +301,15 @@ internal class Program
 		var nativeOnlyOption = new Option<bool>( "--native-only",
 			description: "Download only native binaries",
 			getDefaultValue: () => false );
+		var shadersOnlyOption = new Option<bool>( "--shaders-only",
+			description: "Download only compiled shaders, to seed build-shaders",
+			getDefaultValue: () => false );
 		cmd.AddOption( nativeOnlyOption );
-		cmd.SetHandler( ( bool nativeOnly ) =>
+		cmd.AddOption( shadersOnlyOption );
+		cmd.SetHandler( ( bool nativeOnly, bool shadersOnly ) =>
 		{
-			Environment.ExitCode = (int)new DownloadPublicArtifacts( nativeOnly ).Run();
-		}, nativeOnlyOption );
+			Environment.ExitCode = (int)new DownloadPublicArtifacts( nativeOnly, shadersOnly ).Run();
+		}, nativeOnlyOption, shadersOnlyOption );
 		rootCommand.Add( cmd );
 	}
 

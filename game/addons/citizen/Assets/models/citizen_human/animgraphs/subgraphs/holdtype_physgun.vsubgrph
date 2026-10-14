@@ -1789,7 +1789,7 @@
 							m_fDuration = 0.533436
 						},
 					]
-					m_sequenceName = "SMG_2H_Reload_01"
+					m_sequenceName = "SMG_2H_Reload_01_Stock"
 					m_playbackSpeed = 1.0
 					m_bLoop = false
 				}

@@ -121,12 +121,12 @@
 																			m_comparisonOp = 2
 																			m_paramID = 
 																			{
-																				m_id = 1285441981
+																				m_id = 1179231407
 																			}
 																			m_comparisonValue = 
 																			{
 																				m_nType = 4
-																				m_data = 160.0
+																				m_data = 95.0
 																			}
 																		},
 																	]
@@ -189,12 +189,12 @@
 																			m_comparisonOp = 4
 																			m_paramID = 
 																			{
-																				m_id = 1285441981
+																				m_id = 1179231407
 																			}
 																			m_comparisonValue = 
 																			{
 																				m_nType = 4
-																				m_data = 150.0
+																				m_data = 90.0
 																			}
 																		},
 																	]

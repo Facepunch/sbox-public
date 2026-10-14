@@ -69,6 +69,7 @@ class ProgramSource
 								.ToArray();
 
 		var totalCombos = combos.Length;
+		var threads = options.SingleThreaded ? 1 : ShaderCompile.ComboThreads( options );
 
 		stepResult.Name = $"{ProgramType}";
 		stepResult.ComboCount = totalCombos;
@@ -77,7 +78,7 @@ class ProgramSource
 		if ( options.ConsoleOutput )
 		{
 			Console.ForegroundColor = ConsoleColor.Green;
-			Console.WriteLine( $"	{ProgramType} - {totalCombos:n0} {"combo".Pluralize()}" );
+			Console.WriteLine( $"	{ProgramType} - {totalCombos:n0} {"combo".Pluralize()} on {"thread".ToQuantity( threads )}" );
 			Console.ForegroundColor = ConsoleColor.White;
 		}
 
@@ -144,9 +145,10 @@ class ProgramSource
 		}
 		else
 		{
+			var parallel = new ParallelOptions { MaxDegreeOfParallelism = threads };
 			await Task.Run( () =>
 			{
-				Parallel.ForEach( combos, compileCombo );
+				Parallel.ForEach( combos, parallel, compileCombo );
 			}, token );
 		}
 

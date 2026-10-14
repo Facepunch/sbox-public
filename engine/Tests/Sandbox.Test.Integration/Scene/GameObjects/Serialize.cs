@@ -23,9 +23,7 @@ public class SerializeTest
 		_oldTypeLibrary = Game.TypeLibrary;
 		_oldNodeLibrary = Game.NodeLibrary;
 
-		TypeLibrary = new Sandbox.Internal.TypeLibrary();
-		TypeLibrary.AddAssembly( typeof( ModelRenderer ).Assembly, false );
-		TypeLibrary.AddAssembly( typeof( ComponentIdTest ).Assembly, false );
+		TypeLibrary = SharedTypeLibrary.EngineAndTests;
 		JsonUpgrader.UpdateUpgraders( TypeLibrary );
 
 		NodeLibrary = new NodeLibrary( new TypeLoader( () => TypeLibrary ) );

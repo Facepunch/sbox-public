@@ -645,14 +645,15 @@ PS
 	void ApplyEyeIndirectDiffuse( inout LightingTerms_t lighting, FinalCombinerInput_t f )
 	{
 		bool hasDiffuseOverride = false;
+		float4 ddgi = 0.0;
 
 		if ( DDGI::IsEnabled() )
 		{
-			DDGIVolume volume = DDGI::GetVolume( f.vPositionWs );
-			if ( volume.IsValid() )
+			ddgi = DDGI::EvaluateVolumes( f.vPositionWs, f.vSSSNormalWs,
+				CalculatePositionToCameraDirWs( f.vPositionWs ) );
+			if ( ddgi.a >= 1.0 )
 			{
-				lighting.vIndirectDiffuse = DDGI::Evaluate( volume, f.vPositionWs, f.vSSSNormalWs,
-					CalculatePositionToCameraDirWs( f.vPositionWs ) );
+				lighting.vIndirectDiffuse = ddgi.rgb;
 				hasDiffuseOverride = true;
 			}
 		}
@@ -683,7 +684,7 @@ PS
 			}
 
 			float3 ambient = lerp( 1.0, AmbientLightColor.rgb, AmbientLightColor.a );
-			lighting.vIndirectDiffuse = lerp( diffuse, ambient, AmbientLightColor.a );
+			lighting.vIndirectDiffuse = ddgi.rgb + (1.0 - ddgi.a) * lerp( diffuse, ambient, AmbientLightColor.a );
 			hasDiffuseOverride = true;
 		}
 
@@ -840,7 +841,11 @@ PS
 		// Keep lighting calls outside per-pixel branches: shadow receivers use derivatives.
 		LightingTerms_t lighting = InitLightingTerms();
 		ComputeEyeDirectLighting( lighting, f, normal );
-		CalculateIndirectLighting( lighting, f );
+		// Use the tissue normal for blended DDGI, including partially covered lightmaps/probes.
+		// Corneal reflections are evaluated separately below.
+		FinalCombinerInput_t diffuseInput = f;
+		diffuseInput.vNormalWs = f.vSSSNormalWs;
+		CalculateIndirectLighting( lighting, diffuseInput );
 		ApplyEyeIndirectDiffuse( lighting, f );
 		// A wet dielectric reflects the environment's radiance. Rescaling its
 		// reflection to the diffuse probe brightness erases the sky in sockets.
