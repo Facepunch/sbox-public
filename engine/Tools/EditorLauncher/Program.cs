@@ -16,7 +16,7 @@ namespace SboxEditorLauncher;
 static partial class Program
 {
 	const uint SboxAppId = 590830;
-	const string SboxDevExe = "sbox-dev.exe";
+	static readonly string SboxDevExe = $"sbox-dev{(OperatingSystem.IsWindows() ? ".exe" : "")}";
 
 	[STAThread]
 	static int Main()
