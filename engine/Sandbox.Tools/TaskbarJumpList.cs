@@ -62,7 +62,7 @@ public static class TaskbarJumpList
 			if ( string.IsNullOrEmpty( gameDir ) )
 				return;
 
-			var editorExe = Path.Combine( gameDir, "sbox-dev.exe" );
+			var editorExe = Path.Combine( gameDir, $"sbox-dev{(OperatingSystem.IsWindows() ? ".exe" : "")}" );
 
 			// No SetAppID on purpose. We commit under our own implicit (path derived) appid, which is
 			// the same one the taskbar uses for a pin to this exe, so it works on pins that already exist.
