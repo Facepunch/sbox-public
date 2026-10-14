@@ -170,7 +170,7 @@ public partial class Project
 				await project.GenerateProject( generator );
 			}
 
-			generator.Run( "sbox.exe", "bin/managed", solutionName, EngineFileSystem.Root.GetFullPath( "/" ), solutionFolder );
+			generator.Run( $"sbox{(OperatingSystem.IsWindows() ? ".exe" : "")}", "bin/managed", solutionName, EngineFileSystem.Root.GetFullPath( "/" ), solutionFolder );
 		}
 		catch ( System.Exception e )
 		{
