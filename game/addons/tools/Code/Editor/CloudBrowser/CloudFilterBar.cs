@@ -35,7 +35,7 @@ class CloudFilterBar : Widget
 		FacepunchOnly.IsToggle = true;
 		Layout.Add( FacepunchOnly );
 
-		OrderMode =new ToolButton( "Order Mode", "emoji_events", this );
+		OrderMode = new ToolButton( "Order Mode", "emoji_events", this );
 		OrderMode.FixedSize = Theme.RowHeight;
 		Layout.Add( OrderMode );
 
