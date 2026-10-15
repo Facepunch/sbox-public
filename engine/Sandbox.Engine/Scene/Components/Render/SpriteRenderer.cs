@@ -150,6 +150,15 @@ public sealed partial class SpriteRenderer : Renderer, Component.ExecuteInEditor
 	public FilterMode TextureFilter { get; set; } = FilterMode.Bilinear;
 
 	/// <summary>
+	/// Draw this sprite with a custom material instead of the built-in sprite shader. The shader must be
+	/// written for the sprite pipeline - it has to read the same sprite instance data as the built-in
+	/// sprite shader. Sprites sharing a material are drawn in one batch, each different material adds a
+	/// draw call.
+	/// </summary>
+	[Property, Category( "Visuals" ), Order( -200 )]
+	public Material MaterialOverride { get; set; }
+
+	/// <summary>
 	/// Alignment mode for the sprite's billboard behavior.
 	/// </summary>
 	[Property, Category( "Visuals" ), Order( -200 )]

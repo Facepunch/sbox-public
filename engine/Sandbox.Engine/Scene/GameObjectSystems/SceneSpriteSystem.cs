@@ -4,6 +4,7 @@ using Sandbox.Hashing;
 using Sandbox.Rendering;
 using System.Buffers;
 using System.Collections.Frozen;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
@@ -13,7 +14,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 	private readonly record struct ParticleResult( Guid Id, ulong Group, IBatchedParticleSpriteRenderer System, int Offset, int Count, int SplotCount, BBox Bounds );
 
 	/// <summary>Carries the data needed to configure a new <see cref="SpriteBatchSceneObject"/> from the original component state.</summary>
-	private readonly record struct RenderGroupConfig( InstanceGroupFlags Flags, RenderOptions RenderOptions, IReadOnlySet<uint> Tags );
+	private readonly record struct RenderGroupConfig( InstanceGroupFlags Flags, RenderOptions RenderOptions, IReadOnlySet<uint> Tags, Material Material );
 
 	Dictionary<ulong, SpriteBatchSceneObject> RenderGroups = [];
 
@@ -260,7 +261,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		}
 	}
 
-	private static ulong GetRenderGroupKey( ISpriteRenderGroup component, GameTags tags, RenderOptions renderOptions, Guid isolatedComponent = default )
+	internal static ulong GetRenderGroupKey( ISpriteRenderGroup component, GameTags tags, RenderOptions renderOptions, Guid isolatedComponent = default, int materialId = 0 )
 	{
 		var flags = GetRenderGroupFlags( component );
 
@@ -272,12 +273,13 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		);
 
 		var tokens = tags.GetTokens();
-		// Single buffer: [4 bytes flags][1 byte renderLayer][16 bytes isolated component][4*N bytes tokens].
-		Span<byte> buf = tokens.Count <= 64 ? stackalloc byte[21 + tokens.Count * 4] : new byte[21 + tokens.Count * 4];
+		// Single buffer: [4 bytes flags][1 byte renderLayer][4 bytes material][16 bytes isolated component][4*N bytes tokens].
+		Span<byte> buf = tokens.Count <= 64 ? stackalloc byte[25 + tokens.Count * 4] : new byte[25 + tokens.Count * 4];
 		MemoryMarshal.Write( buf, in flags );
 		buf[4] = renderLayerFlags;
-		MemoryMarshal.Write( buf[5..], in isolatedComponent );
-		var tokenSlice = MemoryMarshal.Cast<byte, uint>( buf[21..] );
+		MemoryMarshal.Write( buf[5..], in materialId );
+		MemoryMarshal.Write( buf[9..], in isolatedComponent );
+		var tokenSlice = MemoryMarshal.Cast<byte, uint>( buf[25..] );
 		int i = 0;
 		foreach ( var token in tokens ) tokenSlice[i++] = token;
 		MemoryExtensions.Sort( tokenSlice );
@@ -296,9 +298,19 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		return flags;
 	}
 
-	private static RenderGroupConfig BuildConfig( ISpriteRenderGroup component, GameTags tags, RenderOptions renderOptions )
+	/// <summary>
+	/// Batch identity of a material. This is the material's object identity on purpose: an id derived from
+	/// the resource path or name would batch two materials together that can render differently. Two
+	/// wrappers around the same material only cost an extra draw call.
+	/// </summary>
+	private static int GetMaterialId( Material material )
 	{
-		return new RenderGroupConfig( GetRenderGroupFlags( component ), renderOptions.Clone(), tags.GetTokens().ToFrozenSet() );
+		return material.IsValid() ? RuntimeHelpers.GetHashCode( material ) : 0;
+	}
+
+	private static RenderGroupConfig BuildConfig( ISpriteRenderGroup component, GameTags tags, RenderOptions renderOptions, Material material = null )
+	{
+		return new RenderGroupConfig( GetRenderGroupFlags( component ), renderOptions.Clone(), tags.GetTokens().ToFrozenSet(), material );
 	}
 
 	/// <summary>
@@ -354,6 +366,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		renderGroupObject.Additive = (config.Flags & InstanceGroupFlags.Additive) != 0;
 		renderGroupObject.Opaque = (config.Flags & InstanceGroupFlags.Opaque) != 0;
 		renderGroupObject.Tags.SetFrom( new TagSet( config.Tags.Select( StringToken.GetValue ) ) );
+		renderGroupObject.Material = config.Material;
 		config.RenderOptions.Apply( renderGroupObject );
 
 		RenderGroups.Add( key, renderGroupObject );
@@ -364,9 +377,10 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 	internal void RegisterSprite( Guid componentId, SpriteRenderer component )
 	{
 		var isolatedComponent = GetIsolatedComponent( component );
-		var key = GetRenderGroupKey( component, component.Tags as GameTags, component.RenderOptions, isolatedComponent );
+		var materialId = GetMaterialId( component.MaterialOverride );
+		var key = GetRenderGroupKey( component, component.Tags as GameTags, component.RenderOptions, isolatedComponent, materialId );
 		if ( !RenderGroups.ContainsKey( key ) )
-			CreateRenderGroup( key, BuildConfig( component, component.Tags as GameTags, component.RenderOptions ), isolatedComponent != default );
+			CreateRenderGroup( key, BuildConfig( component, component.Tags as GameTags, component.RenderOptions, component.MaterialOverride ), isolatedComponent != default );
 
 		InsertInRenderGroup( componentId, component, key );
 	}
@@ -377,7 +391,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		if ( FindCurrentRenderGroup( componentId ) is ulong oldRenderGroup )
 		{
 			var isolatedComponent = GetIsolatedComponent( component );
-			var newRenderGroup = GetRenderGroupKey( component, (GameTags)component.Tags, component.RenderOptions, isolatedComponent );
+			var newRenderGroup = GetRenderGroupKey( component, (GameTags)component.Tags, component.RenderOptions, isolatedComponent, GetMaterialId( component.MaterialOverride ) );
 			if ( !oldRenderGroup.Equals( newRenderGroup ) )
 			{
 				RemoveFromRenderGroup( componentId, oldRenderGroup );
