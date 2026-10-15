@@ -47,6 +47,7 @@ public readonly ref partial struct Painter
 		readonly Filter _filter;
 		readonly Mask? _mask;
 		readonly float _opacity;
+		readonly int _mipCount;
 
 		internal LayerScope( Context context, Rect bounds, float opacity, Filter filter, Mask? mask )
 		{
@@ -60,6 +61,7 @@ public readonly ref partial struct Painter
 			_layerBounds = bounds;
 			_filter = filter;
 			_mask = mask;
+			_mipCount = LayerMipCount( filter.Blur, bounds );
 
 			var output = context.Batcher;
 			output.Flush();
@@ -69,7 +71,7 @@ public readonly ref partial struct Painter
 			context.ActiveLayer = _name;
 			var commands = output.CommandList;
 			commands.PushRenderTarget();
-			var target = commands.GetRenderTarget( _name, (int)MathF.Ceiling( bounds.Width ), (int)MathF.Ceiling( bounds.Height ), ImageFormat.RGBA8888, ImageFormat.None );
+			var target = commands.GetRenderTarget( _name, (int)MathF.Ceiling( bounds.Width ), (int)MathF.Ceiling( bounds.Height ), ImageFormat.RGBA8888, ImageFormat.None, numMips: _mipCount );
 			commands.SetRenderTarget( target );
 			commands.Clear( Color.Transparent, clearDepth: false, clearStencil: false );
 			output.Destination = new() { GammaOutput = true };
@@ -116,7 +118,13 @@ public readonly ref partial struct Painter
 				}
 
 				if ( _state.HasArea && _state.Opacity * _inheritedOpacity * _opacity > 0 )
+				{
+					// ui/blur.hlsl reads the blur from the layer's gaussian mip chain; build it before the composite samples it
+					if ( _mipCount > 1 )
+						output.CommandList.GenerateMipMaps( source, Graphics.DownsampleMethod.GaussianBlurAlpha );
+
 					owner.Painter.CompositeLayer( source, _layerBounds, _filter, _mask, _opacity );
+				}
 			}
 			finally
 			{

@@ -5,6 +5,44 @@ namespace Sandbox;
 
 public readonly ref partial struct Painter
 {
+	/// <summary>
+	/// How many mips a layer needs for ui/blur.hlsl to read a blur of <paramref name="sigma"/> texels from its
+	/// gaussian chain, 1 for none. The shader reads the deepest level whose own blur stays within 90% of the sigma,
+	/// so the chain stops there - and at the layer's short side, since GenerateMipMaps stops once it runs out and
+	/// a longer chain would leave mips nothing writes.
+	/// </summary>
+	internal static int LayerMipCount( float sigma, Rect bounds )
+	{
+		if ( sigma <= 0.05f ) return 1;
+
+		var mip = 0;
+		while ( LayerChainSigma( mip + 1 ) <= 0.9f * sigma )
+			mip++;
+
+		var shortSide = MathF.Max( 1, MathF.Min( (int)bounds.Width, (int)bounds.Height ) );
+		var shortSideMips = (int)MathF.Log2( shortSide ) + 1;
+		return Math.Min( mip + 1, shortSideMips );
+	}
+
+	/// <summary>
+	/// The blur mip <paramref name="mip"/> of the GaussianBlurAlpha chain carries, in texels of mip 0 - the same sum
+	/// as blur.hlsl's GaussianBlurChainSigma.
+	/// </summary>
+	static float LayerChainSigma( int mip )
+	{
+		var texels = MathF.Pow( 4.0f, mip );
+		return MathF.Sqrt( 2.75f * (texels - 1.0f) + texels / 6.0f );
+	}
+
+	/// <summary>
+	/// Builds the gaussian mip chain the blur shaders read a completed layer through. Drop shadows are made from
+	/// alpha, so the chain keeps it.
+	/// </summary>
+	internal void GenerateLayerMips( RenderTargetHandle source )
+	{
+		NativeCommands().GenerateMipMaps( source, Graphics.DownsampleMethod.GaussianBlurAlpha );
+	}
+
 	internal void Composite( RenderTargetHandle source, Rect bounds, Filter filter, Mask? mask, MaskScope maskScope,
 		ReadOnlySpan<UI.Shadow> shadows, float borderWidth, Color borderColor )
 	{

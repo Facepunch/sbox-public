@@ -26,7 +26,7 @@ public partial class Panel
 		if ( layered )
 		{
 			stats.LayerPanels++;
-			layer = painter.Target( PanelLayerRTName, PanelLayerBounds );
+			layer = painter.Target( PanelLayerRTName, PanelLayerBounds, LayerMipCount );
 		}
 
 		try
