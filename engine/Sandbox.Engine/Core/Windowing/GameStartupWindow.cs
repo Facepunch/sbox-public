@@ -69,10 +69,10 @@ internal sealed class GameStartupWindow : IDisposable
 			if ( CommandLine.HasSwitch( "-x" ) ) x = CommandLine.GetSwitchInt( "-x", x );
 			if ( CommandLine.HasSwitch( "-y" ) ) y = CommandLine.GetSwitchInt( "-y", y );
 
-			SdlWindow.Check( Sdl.SetWindowPosition( Handle, x, y ) );
+			SdlWindow.WarnIfFailed( Sdl.SetWindowPosition( Handle, x, y ) );
 			SdlWindow.Check( Sdl.SetWindowBordered( Handle, !borderless ) );
 			SdlWindow.Check( Sdl.SetWindowResizable( Handle, true ) );
-			SdlWindow.Check( Sdl.SyncWindow( Handle ) );
+			SdlWindow.WarnIfFailed( Sdl.SyncWindow( Handle ) );
 			if ( !Sdl.FillWindowColor( Handle, 27, 36, 51, 255 ) )
 			{
 				Log.Warning( $"Couldn't fill the startup window: {Sdl.GetError()}" );
@@ -82,7 +82,7 @@ internal sealed class GameStartupWindow : IDisposable
 
 			softwareSurfaceAvailable = true;
 			SdlWindow.Check( Sdl.ShowWindow( Handle ) );
-			SdlWindow.Check( Sdl.SyncWindow( Handle ) );
+			SdlWindow.WarnIfFailed( Sdl.SyncWindow( Handle ) );
 
 			logo = LoadBitmap( LogoPath, "startup logo" );
 			if ( !standalone ) backdrop = LoadBitmap( BackdropPath, "startup backdrop" );
@@ -199,11 +199,17 @@ internal sealed class GameStartupWindow : IDisposable
 		}
 
 		var handle = Handle;
+		Detach();
+		return handle;
+	}
+
+	/// <summary>Stop using the SDL window without destroying it. Its new owner is responsible for it.</summary>
+	internal void Detach()
+	{
 		Handle = IntPtr.Zero;
 		isOpen = false;
 		softwareSurfaceAvailable = false;
 		DisposeImages();
-		return handle;
 	}
 
 	unsafe void PumpEvents()

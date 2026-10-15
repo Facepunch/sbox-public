@@ -12,6 +12,7 @@ public sealed class Win64 : NativePlatform
 	public const string MinimumVisualStudio = "18.9";
 
 	public const int MpCount = 8;
+	public const int MaxMpCount = 32;
 
 	public override string Name => "win64";
 	public override bool IsWindows => true;
@@ -57,23 +58,28 @@ public sealed class Win64 : NativePlatform
 		Solution.Write( SchemaCompilerSolution, Solution.WithDependencies( modules.Where( m => m.Name is SchemaCompiler.ToolChild or SchemaCompiler.Tool ) ) );
 		Solution.Write( EverythingSolution( options ), modules );
 
+		// Only the editors themselves: their dependencies were just built by the everything solution, and
+		// rebuilding those too doubled the cost of the rebuild.
 		if ( options.Retail )
-			Solution.Write( ToolsSolution, Solution.WithDependencies( modules.Where( m => Tools.Contains( m.Name ) ) ) );
+			Solution.Write( ToolsSolution, modules.Where( m => Tools.Contains( m.Name ) ) );
 
 		Log.Info( $"Generated {modules.Count} native projects." );
 	}
 
 	private const string SchemaCompilerSolution = "schemacompiler_all";
 
-	/// <summary>The editors, which Retail builds again on their own so they are never incremental.</summary>
+	/// <summary>
+	/// The editors, which an incremental Retail build rebuilds on their own because their incremental
+	/// builds have come out corrupt. A clean build has nothing stale to rebuild, so it skips them.
+	/// </summary>
 	private static readonly string[] Tools = ["hammer", "modeldoc_editor", "animgraph_editor"];
 
 	private string ToolsSolution => $"buildbot_tools_{Name}";
 
 	public override IEnumerable<(string Name, bool AlwaysRebuild)> Solutions( Options options )
 	{
-		// The schema compiler has to exist before anything that uses schema can build.
-		yield return (SchemaCompilerSolution, false);
+		// No separate schema compiler pass first: modules that run it depend on it in the everything solution
+		// (SchemaCompiler.Order), and building it on its own kept most of the machine idle while it did.
 		yield return (EverythingSolution( options ), false);
 
 		// Tools are never built incrementally in Retail.
@@ -130,6 +136,18 @@ public sealed class Win64 : NativePlatform
 
 	public override void Generate( Module module, Options options )
 	{
+		// More at once for big projects. Eight each starved the largest ones, which the rest of the build
+		// tends to wait on: mapdoclib's 170 files held back hammer, toolframework2 and resourcecompiler.
+		// Counted here, after unity batching, so it is the files that actually compile.
+		if ( module.Msvc.MultiProcessor )
+		{
+			foreach ( var config in module.Configs )
+			{
+				var sources = module.ResolvedFiles.Count( f => f.Kind == FileKind.Compile && !f.ExcludeFrom.Contains( config.Name ) );
+				config.Option( $"/MP{Math.Clamp( sources / 8, MpCount, MaxMpCount )}" );
+			}
+		}
+
 		Vcxproj.Write( module, options );
 		SchemaCompiler.WriteInfo( module );
 
@@ -244,8 +262,8 @@ public sealed class Win64 : NativePlatform
 
 		config.Include( "common", "public", "public/tier0", "thirdparty/sdl3/include" );
 
+		// How many files compile at once is decided when the project is written, see Generate.
 		if ( !module.Msvc.MultiProcessor ) Set( config.Cl, "MultiProcessorCompilation", "false" );
-		else config.Option( $"/MP{MpCount}" );
 
 		if ( !module.Msvc.Rtti ) Set( config.Cl, "RuntimeTypeInfo", "false" );
 		if ( module.CompileAsC ) config.Cl["CompileAs"] = "CompileAsC";

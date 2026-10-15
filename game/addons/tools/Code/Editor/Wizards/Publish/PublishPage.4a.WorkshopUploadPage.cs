@@ -27,6 +27,12 @@ partial class PublishWizard
 		ProjectPublisher.WorkshopItemInfo ItemInfo;
 
 		/// <summary>
+		/// The items the files could go in instead of a new one - ours of the same type, and the one the package
+		/// says even if it isn't ours
+		/// </summary>
+		ProjectPublisher.PublishedWorkshopItem[] PublishedItems = [];
+
+		/// <summary>
 		/// Which look-up is the latest - an older one finishing after it doesn't count
 		/// </summary>
 		int LookupVersion;
@@ -68,9 +74,11 @@ partial class PublishWizard
 			Loading = true;
 			Rebuild();
 
+			var published = ProjectPublisher.GetPublishedWorkshopItemsAsync( Project.Config.Type );
 			var package = await Package.FetchAsync( Project.Config.FullIdent, false, false );
 			BackendThumb = string.IsNullOrEmpty( package?.Thumb ) ? null : package.Thumb;
 			ItemId = await ProjectPublisher.GetWorkshopItemIdAsync( Project );
+			PublishedItems = await published;
 
 			Loading = false;
 			Loaded = true;
@@ -103,6 +111,11 @@ partial class PublishWizard
 				return;
 
 			ItemInfo = info;
+
+			// The package's item might not be one of ours - keep it in the list to go back to
+			if ( ItemId != 0 && !PublishedItems.Any( x => x.Id == ItemId ) )
+				PublishedItems = [new( ItemId, info?.Title ), .. PublishedItems];
+
 			Preview = preview;
 			LookingUp = false;
 			Rebuild();
@@ -150,15 +163,11 @@ partial class PublishWizard
 			var itemRow = BodyLayout.AddRow();
 			itemRow.Spacing = 8;
 
-			// A new item's 0 - greyed out until it's typed over
-			var idEntry = itemRow.Add( new LineEdit( null ) { Text = ItemId == 0 ? "" : ItemId.ToString(), PlaceholderText = "0", ReadOnly = Locked } );
-			idEntry.RegexValidator = "[0-9]*";
-			idEntry.FixedWidth = 200;
-			idEntry.EditingFinished += () => OnItemIdEdited( idEntry.Text );
+			var picker = itemRow.Add( new Button( ItemTitle( ItemId ), "expand_more" ) { Enabled = !Locked } );
+			picker.MinimumWidth = 240;
+			picker.Clicked = () => OpenItemMenu( picker );
 
-			itemRow.Add( new Label( LookingUp ? "Looking it up..."
-				: ItemId == 0 ? "A new workshop item will be made"
-				: ItemInfo?.Title ?? "" ) );
+			itemRow.Add( new Label( ItemDetails() ) { Color = Theme.TextControl.WithAlpha( 0.5f ) } );
 
 			itemRow.AddStretchCell();
 
@@ -209,9 +218,72 @@ partial class PublishWizard
 			return "This map doesn't have a thumbnail yet. Pick an image for it.";
 		}
 
-		void OnItemIdEdited( string text )
+		string ItemTitle( ulong id )
 		{
-			var id = ulong.TryParse( text, out var parsed ) ? parsed : 0;
+			if ( id == 0 ) return "New Item";
+
+			var title = PublishedItems.FirstOrDefault( x => x.Id == id )?.Title;
+			return string.IsNullOrWhiteSpace( title ) ? $"Workshop item {id}" : title;
+		}
+
+		/// <summary>
+		/// What's worth knowing about the item before publishing to it - when it last changed, who's got it, and
+		/// where to see it
+		/// </summary>
+		string ItemDetails()
+		{
+			if ( LookingUp ) return "Looking it up...";
+			if ( ItemId == 0 ) return "A new workshop item will be made when you upload";
+			if ( ItemInfo is null ) return "";
+
+			var details = new List<string>();
+
+			// Steam couldn't find it - the warning says so, there's only its page to offer
+			if ( ItemInfo.Title is not null )
+			{
+				details.Add( $"Updated {ItemInfo.Updated.Humanize()}" );
+				details.Add( ItemInfo.Subscriptions == 1 ? "1 subscriber" : $"{ItemInfo.Subscriptions:n0} subscribers" );
+
+				if ( ItemInfo.Size > 0 )
+					details.Add( ItemInfo.Size.FormatBytes() );
+			}
+
+			details.Add( $"<a href=\"{ItemInfo.Url}\">View on Steam</a>" );
+			return string.Join( " · ", details );
+		}
+
+		/// <summary>
+		/// Pick the item to publish to - a new one, or one we've published already
+		/// </summary>
+		void OpenItemMenu( Button button )
+		{
+			if ( Locked )
+				return;
+
+			var menu = new Menu( this ) { ToolTipsVisible = true };
+			menu.MinimumWidth = button.Width;
+
+			AddItemOption( menu, 0, "add" );
+
+			if ( PublishedItems.Length > 0 )
+				menu.AddSeparator();
+
+			foreach ( var item in PublishedItems )
+				AddItemOption( menu, item.Id, null ).ToolTip = $"Workshop item {item.Id}";
+
+			menu.OpenAt( button.ScreenRect.BottomLeft );
+		}
+
+		Option AddItemOption( Menu menu, ulong id, string icon )
+		{
+			var option = menu.AddOption( ItemTitle( id ), icon, () => SelectItem( id ) );
+			option.Checkable = true;
+			option.Checked = id == ItemId;
+			return option;
+		}
+
+		void SelectItem( ulong id )
+		{
 			if ( id == ItemId || Locked )
 				return;
 

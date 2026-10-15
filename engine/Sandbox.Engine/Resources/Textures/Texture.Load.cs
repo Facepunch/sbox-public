@@ -140,7 +140,7 @@ public partial class Texture
 			// SVGs can have query parameters appended to them, find the ones
 			// that match and reload with the same parameters
 			var svgPath = filepath.TrimStart( '/' );
-			foreach ( var svgTarget in Game.Resources.FindWeakByPathPrefix<Texture>( svgPath ) )
+			foreach ( var svgTarget in Game.Resources.FindWeakByPathPrefix<Texture>( svgPath ).ToArray() )
 			{
 				svgTarget.TryReload( filesystem, svgTarget.ResourcePath );
 			}

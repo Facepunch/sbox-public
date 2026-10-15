@@ -105,7 +105,7 @@ public partial class RenderSettings
 	/// </summary>
 	static ulong Class( ulong gigabytes, ulong gb ) => gigabytes * gb - (gb * 3 / 4);
 
-	static bool IsIntegratedGpu( string name )
+	internal static bool IsIntegratedGpu( string name )
 	{
 		if ( string.IsNullOrEmpty( name ) )
 			return false;

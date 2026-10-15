@@ -82,7 +82,11 @@ public partial class ProjectPublisher
 	/// <param name="Title">Its title, or null if Steam couldn't find it</param>
 	/// <param name="Thumb">Its main thumbnail, or null if it hasn't got one</param>
 	/// <param name="Warning">Why publishing to it might not work, or null if it looks fine</param>
-	public record WorkshopItemInfo( string Title, string Thumb, string Warning );
+	/// <param name="Updated">When it was last updated, or default if Steam couldn't find it</param>
+	/// <param name="Subscriptions">How many people are subscribed to it</param>
+	/// <param name="Size">How big its files are, in bytes</param>
+	/// <param name="Url">Its page on the Steam Workshop</param>
+	public record WorkshopItemInfo( string Title, string Thumb, string Warning, DateTimeOffset Updated, long Subscriptions, long Size, string Url );
 
 	/// <summary>
 	/// Ask Steam about a workshop item - not from its cache, it might have just been published
@@ -90,7 +94,35 @@ public partial class ProjectPublisher
 	public static async Task<WorkshopItemInfo> GetWorkshopItemInfoAsync( ulong id )
 	{
 		var item = await FetchWorkshopItem( id, 0 );
-		return new WorkshopItemInfo( item?.Title, string.IsNullOrEmpty( item?.Thumb ) ? null : item.Thumb, WarningFor( id, item ) );
+
+		return new WorkshopItemInfo( item?.Title, string.IsNullOrEmpty( item?.Thumb ) ? null : item.Thumb, WarningFor( id, item ),
+			item?.Updated ?? default, item?.Subscriptions ?? 0, item?.Size ?? 0, Workshop.GetUrl( id ) );
+	}
+
+	/// <summary>
+	/// A workshop item the files could go in
+	/// </summary>
+	public record PublishedWorkshopItem( ulong Id, string Title );
+
+	/// <summary>
+	/// The workshop items we've published of this type (e.g. "map"), newest first. Empty if Steam couldn't be asked.
+	/// </summary>
+	public static async Task<PublishedWorkshopItem[]> GetPublishedWorkshopItemsAsync( string type )
+	{
+		try
+		{
+			var result = await new Workshop.Query()
+				.WithTag( type )
+				.WithAuthor( Game.SteamId )
+				.RunAsync();
+
+			return result.Items.Select( x => new PublishedWorkshopItem( x.Id, x.Title ) ).ToArray();
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( e, $"Couldn't list our published {type} workshop items ({e.Message})" );
+			return [];
+		}
 	}
 
 	static async Task<Workshop.Item> FetchWorkshopItem( ulong id, int maxCacheAge )
@@ -422,17 +454,17 @@ public partial class ProjectPublisher
 	const int MaxPreviewBytes = 1024 * 1024;
 
 	/// <summary>
-	/// Download the package's screenshots on sbox.game, for the workshop item's previews. Steam only takes videos
-	/// from YouTube, so a video brings its thumb.
+	/// Download the package's screenshots on sbox.game, for the workshop item's previews. Videos are left out -
+	/// Steam only takes them from YouTube.
 	/// </summary>
 	async Task<List<string>> DownloadMedia( string folderName, CancellationToken cancel )
 	{
 		var media = new List<string>();
 		var screenshots = BackendPackage?.Screenshots ?? Array.Empty<Package.Screenshot>();
 
-		foreach ( var screenshot in screenshots.OrderBy( x => x.Created ) )
+		foreach ( var screenshot in screenshots.Where( x => !x.IsVideo ).OrderBy( x => x.Created ) )
 		{
-			var url = screenshot.IsVideo ? screenshot.Thumb : screenshot.Url;
+			var url = screenshot.Url;
 			if ( string.IsNullOrEmpty( url ) ) continue;
 
 			var bytes = await DownloadPreviewImage( url, cancel );

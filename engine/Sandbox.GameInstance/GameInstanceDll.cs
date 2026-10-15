@@ -128,6 +128,9 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	{
 		var hadPreviousEnvironment = gameInstance is not null || AssemblyEnroller is not null || DidMountNetworkedFiles;
 
+		// The menu loaded its resources moments ago during startup, so there is nothing to reset yet.
+		var menuResourcesCurrent = !hadPreviousEnvironment && !Application.IsEditor;
+
 		using var scope = GlobalContext.GameScope();
 
 		Log.Trace( "Game Menu - ResetEnvironment" );
@@ -145,7 +148,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			PackageLoader.OnAfterHotload = OnAfterHotload;
 		}
 
-		ResourceLoader.Clear();
+		if ( !menuResourcesCurrent ) ResourceLoader.Clear();
 
 		if ( DidMountNetworkedFiles )
 		{
@@ -253,7 +256,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			}
 		};
 
-		IMenuDll.Current?.Reset();
+		if ( !menuResourcesCurrent ) IMenuDll.Current?.Reset();
 
 		if ( hadPreviousEnvironment )
 		{

@@ -34,6 +34,8 @@ internal static class EngineLoop
 			g_pEngineServiceMgr.ExitMainLoop();
 		}
 
+		GameWindow.Current?.CompleteStartup();
+
 		LoopFrames++;
 
 		double time = RealTime.NowDouble;

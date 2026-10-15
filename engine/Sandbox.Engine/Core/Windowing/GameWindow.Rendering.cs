@@ -11,6 +11,9 @@ internal sealed partial class GameWindow
 	// Scene views derive their dimensions and MSAA from this swapchain; scratch textures are pooled on demand.
 	internal void InitializeRendering()
 	{
+		renderingRequested = true;
+		if ( window.SwapChain == default ) return;
+
 		CSceneSystem.SetMainSwapChain( window.SwapChain );
 		renderingInitialized = true;
 	}
@@ -19,10 +22,6 @@ internal sealed partial class GameWindow
 
 	internal void Render()
 	{
-		startupFinished = true;
-		startupWindow?.Dispose();
-		startupWindow = null;
-
 		// All views join one batch so scene jobs overlap and we wait once at the end.
 		CSceneSystem.BeginRenderingViews( true );
 		try
