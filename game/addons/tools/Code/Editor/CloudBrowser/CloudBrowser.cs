@@ -107,6 +107,24 @@ public partial class CloudAssetBrowser : Widget, IBrowser
 		}
 	}
 
+	bool _facepunchOnly = false;
+
+	/// <summary>
+	/// If true, only show packages uploaded by the Facepunch organisation.
+	/// </summary>
+	public bool FacepunchOnly
+	{
+		get => _facepunchOnly;
+		set
+		{
+			if ( _facepunchOnly == value ) return;
+			_facepunchOnly = value;
+
+			UpdateAssetList();
+			SaveSettings();
+		}
+	}
+
 	public static string DefaultView
 	{
 		get => EditorCookie.GetString( "CloudBrowser.DefaultView", "" );
@@ -228,6 +246,7 @@ public partial class CloudAssetBrowser : Widget, IBrowser
 		FilterBar = new CloudFilterBar( CloudLocations.ActiveFilters, UpdateAssetList, body );
 		ViewMode = FilterBar.ViewMode;
 		OrderMode = FilterBar.OrderMode;
+		FilterBar.FacepunchOnly.Bind( "Checked" ).From( this, nameof( FacepunchOnly ) );
 		body.Layout.Add( FilterBar );
 
 		body.Layout.Add( ListHeader );
@@ -370,6 +389,7 @@ public partial class CloudAssetBrowser : Widget, IBrowser
 		foreach ( var package in packages.Where( x => FuzzyContains( x.Title, query ) ) )
 		{
 			if ( package.TypeName == "game" ) continue;
+			if ( FacepunchOnly && package.Org?.Ident != "facepunch" ) continue;
 			string assetPath = package.GetMeta<string>( "PrimaryAsset" );
 			var a = AssetSystem.FindByPath( assetPath );
 
@@ -395,6 +415,12 @@ public partial class CloudAssetBrowser : Widget, IBrowser
 		if ( activeFilters is { IsEmpty: false } )
 		{
 			q += $" {activeFilters.ToQueryString()}";
+		}
+
+		// Don't override an org the user is already browsing (e.g. one of their organisations)
+		if ( FacepunchOnly && !q.Contains( "org:", StringComparison.OrdinalIgnoreCase ) )
+		{
+			q += " org:facepunch";
 		}
 
 		q += $" sort:{CurrentOrderMode}";
@@ -603,6 +629,7 @@ public partial class CloudAssetBrowser : Widget, IBrowser
 		ShowJunkFiles = ProjectCookie.Get<bool>( $"{SettingsCookie}.ShowJunkFiles", ShowJunkFiles );
 		HideNonAssets = ProjectCookie.Get<bool>( $"{SettingsCookie}.HideNonAssets", HideNonAssets );
 		ShowRecursiveFiles = ProjectCookie.Get<bool>( $"{SettingsCookie}.ShowRecursiveFiles", ShowRecursiveFiles );
+		FacepunchOnly = ProjectCookie.Get<bool>( $"{SettingsCookie}.FacepunchOnly", FacepunchOnly );
 
 		SuppressSaveSettings = false;
 	}
@@ -623,6 +650,7 @@ public partial class CloudAssetBrowser : Widget, IBrowser
 		ProjectCookie.Set<bool>( $"{SettingsCookie}.ShowJunkFiles", ShowJunkFiles );
 		ProjectCookie.Set<bool>( $"{SettingsCookie}.HideNonAssets", HideNonAssets );
 		ProjectCookie.Set<bool>( $"{SettingsCookie}.ShowRecursiveFiles", ShowRecursiveFiles );
+		ProjectCookie.Set<bool>( $"{SettingsCookie}.FacepunchOnly", FacepunchOnly );
 	}
 
 	/// <summary>
