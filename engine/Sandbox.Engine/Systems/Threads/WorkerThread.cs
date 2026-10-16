@@ -46,11 +46,13 @@ internal static class WorkerThread
 
 		while ( !ct.IsCancellationRequested )
 		{
-			SyncContext.WorkerThread.ProcessQueue();
+			var ctx = SyncContext.WorkerThread;
+			ctx.ProcessQueue();
 
 			try
 			{
-				await Task.Delay( 1, ct );
+				// Sleep until work is posted. Polling with Task.Delay( 1 ) allocated a timer per wake on every worker.
+				await ctx.WaitForWorkAsync( ct );
 			}
 			catch ( OperationCanceledException )
 			{
