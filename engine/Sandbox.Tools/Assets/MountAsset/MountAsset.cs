@@ -113,7 +113,7 @@ internal class MountAsset : Asset
 
 	internal override async Task<bool> CacheAsync()
 	{
-		var r = await file.GetOrCreate();
+		var r = await Sandbox.Mounting.Directory.TryLoadAsync( file.Path );
 		return r is not null;
 	}
 
@@ -125,7 +125,9 @@ internal class MountAsset : Asset
 	{
 		obj = null;
 
-		var result = file.GetOrCreate().Result;
+		if ( !Sandbox.Mounting.Directory.TryLoad( file.Path, out var result ) )
+			return false;
+
 		if ( result is GameResource gr && gr.GetType().IsAssignableTo( t ) )
 		{
 			obj = gr;

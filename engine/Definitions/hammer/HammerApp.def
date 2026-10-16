@@ -1,5 +1,10 @@
 ﻿
 #include "hammerapp.h"
+#include "hammereditorsession.h"
+#include "mapview.h"
+#include "mapviewmgr.h"
+#include "qcontrols/qinputbindmanager.h"
+#include "buildmapdialog.h"
 
 native class CHammerApp as NativeHammer.CHammerApp
 {
@@ -90,6 +95,115 @@ native class CHammerApp as NativeHammer.CHammerApp
 	}
 
 	void OnFileReload();
+
+	//
+	// Invoke a bindable command by name ( Undo, GroupSelection, FrameAllViews... ) on the active
+	// session, falling back to the app. These are the same commands key bindings and menus run.
+	//
+	inline bool InvokeCommand( string commandName )
+	{
+		CUtlStringToken token = MakeStringToken( commandName );
+
+		CHammerEditorSession* pEditorSession = self->GetActiveHammerEditorSession();
+		if ( pEditorSession != nullptr && CQInputBindManager::Get()->InvokeCommand( pEditorSession, token ) )
+			return true;
+
+		return CQInputBindManager::Get()->InvokeCommand( self, token );
+	}
+
+	// Newline separated names of every command InvokeCommand can run
+	inline string GetCommandNames()
+	{
+		CUtlString names;
+
+		CHammerEditorSession* pEditorSession = self->GetActiveHammerEditorSession();
+		IBindTarget* targets[] = { pEditorSession, self };
+
+		for ( IBindTarget* pTarget : targets )
+		{
+			if ( pTarget == nullptr )
+				continue;
+
+			CBindTargetDescriptorBase* pDescriptor = pTarget->GetBindableTargetDescriptor();
+			if ( pDescriptor == nullptr )
+				continue;
+
+			for ( int i = 0; i < pDescriptor->GetCommandCount(); i++ )
+			{
+				names += pDescriptor->GetCommand( i )->GetCommandNameString();
+				names += "\n";
+			}
+		}
+
+		return names;
+	}
+
+	// Save the active map in place. Never prompts - a map that has never been saved returns false.
+	inline bool SaveActiveMap()
+	{
+		CHammerEditorSession* pEditorSession = self->GetActiveHammerEditorSession();
+		if ( pEditorSession == nullptr || pEditorSession->IsNewEditorSession() )
+			return false;
+
+		return self->SaveSession( pEditorSession );
+	}
+
+	inline bool IsActiveMapModified()
+	{
+		CHammerEditorSession* pEditorSession = self->GetActiveHammerEditorSession();
+		if ( pEditorSession == nullptr )
+			return false;
+
+		return pEditorSession->SessionIsModified();
+	}
+
+	inline int GetMapViewCount()
+	{
+		CHammerEditorSession* pEditorSession = self->GetActiveHammerEditorSession();
+		if ( pEditorSession == nullptr || pEditorSession->GetViewManager() == nullptr )
+			return 0;
+
+		return pEditorSession->GetViewManager()->GetNumViews();
+	}
+
+	inline CMapView GetMapView( int index )
+	{
+		CHammerEditorSession* pEditorSession = self->GetActiveHammerEditorSession();
+		if ( pEditorSession == nullptr || pEditorSession->GetViewManager() == nullptr )
+			return (CMapView*)nullptr;
+
+		return pEditorSession->GetViewManager()->GetView( index );
+	}
+
+	// Compile the active map through the Build Map dialog. preset is a BuildPresetList_t, PRESET_CUSTOM uses the dialog's settings.
+	inline bool StartMapBuild( int preset, bool loadInEngine )
+	{
+		return CQBuildMapDialog::StartBuild( preset, loadInEngine );
+	}
+
+	inline bool IsMapBuildRunning()
+	{
+		return CQBuildMapDialog::IsBuildRunning();
+	}
+
+	inline string GetMapBuildStatus()
+	{
+		return CQBuildMapDialog::GetBuildStatus();
+	}
+
+	inline string GetMapBuildLog()
+	{
+		return CQBuildMapDialog::GetBuildLog();
+	}
+
+	inline CMapView GetActiveMapView()
+	{
+		CHammerEditorSession* pEditorSession = self->GetActiveHammerEditorSession();
+		if ( pEditorSession == nullptr || pEditorSession->GetViewManager() == nullptr )
+			return (CMapView*)nullptr;
+
+		return pEditorSession->GetViewManager()->GetMostRecentlyActiveView();
+	}
 }
 
 native static class NativeHammer.Options

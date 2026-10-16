@@ -1,6 +1,7 @@
 @import "/styles/_front.scss";
 
-// Landscape tiles: art fills the tile, title and live count sit over its foot on a scrim.
+// Landscape tiles: the art is the whole card. Nearly every game has its name in its art, so the
+// title only fades in while a video covers it. The live count sits in the bottom right corner.
 // A mixin because "&.default, &.wide" nests as "PackageCard.default, PackageCard.wide column".
 @mixin landscape-band
 {
@@ -13,25 +14,28 @@
 	}
 
 	// Out-ranks the card's own hover below. No grow - it lifts: up a few pixels, its shadow
-	// deepening under it as if it's come off the page. The title goes white
+	// deepening under it as if it's come off the page.
 	&.package-card:not(.list):hover
 	{
 		transform: translateY( -4px );
 		box-shadow: 0 14px 30px rgba( black, 0.65 );
 	}
 
+	// Covers the art: the title sits in its top left corner, the live count in its bottom right.
 	column
 	{
 		position: absolute;
 		left: 0;
 		right: 0;
+		top: 0;
 		bottom: 0;
-		flex-direction: row;
-		align-items: center;
-		gap: 8px;
-		padding: 28px 12px 9px 12px;
+		flex-direction: column;
+		align-items: stretch;
+		justify-content: space-between;
+		gap: 0;
+		padding: 0;
 		background-color: transparent;
-		background-image: linear-gradient( 0deg, rgba( 0, 0, 0, 0.6 ) 30%, rgba( 0, 0, 0, 0 ) );
+		background-image: none;
 		pointer-events: none;
 
 		&::after
@@ -40,18 +44,51 @@
 		}
 	}
 
+	// On the same dark pill as the nominations badge - a glow wasn't enough on busy video.
 	.package-title
 	{
-		flex-grow: 1;
+		align-self: flex-start;
+		flex-grow: 0;
 		flex-shrink: 1;
 		min-width: 0;
+		max-width: 100%;
+		// The base card caps the title at 24px tall, which the pill's padding would overflow.
+		// Not "none" - the style engine has no such length, so that left the cap in place.
+		max-height: 60px;
+		// At least the flair badges' height. Not a fixed height with a matching line-height - the
+		// ellipsis logic decides no line fits in that and draws nothing.
+		min-height: 22px;
+		padding: 1px 7px;
+		margin: 8px 8px 0 8px;
+		border-radius: 5px;
+		// A touch denser than the nominations badge - this sits on moving video
+		background-color: rgba( 14, 18, 26, 0.94 );
 		font-size: 13.5px;
 		color: #ffffff;
-		text-shadow: 0 1px 2px rgba( 0, 0, 0, 0.7 );
+		opacity: 0;
+		transition: opacity 0.6s ease-in-out;
+	}
+
+	&.playing .package-title
+	{
+		opacity: 1;
+		transition: opacity 1.2s ease-in-out 0.6s;
+	}
+
+	// The nominations badge shares the title's corner - it steps aside while the title's up.
+	.package-nominations
+	{
+		transition: opacity 0.6s ease-in-out;
+	}
+
+	&.playing .package-nominations
+	{
+		opacity: 0;
 	}
 
 	.package-meta
 	{
+		align-self: flex-end;
 		flex-shrink: 0;
 		gap: 0;
 	}
@@ -61,23 +98,32 @@
 	{
 		display: none;
 
+		// The same pill as the title, flair height, in the opposite corner. Wider than a badge,
+		// unavoidably - the dot is what says "live", so it stays.
 		&.live
 		{
 			display: flex;
+			gap: 4px;
+			min-height: 22px;
+			padding: 1px 6px;
+			margin: 0 8px 8px 0;
+			border-radius: 5px;
+			background-color: rgba( 14, 18, 26, 0.94 );
 		}
 
 		label
 		{
-			font-size: 11px;
-			text-shadow: 0 1px 2px rgba( 0, 0, 0, 0.7 );
+			font-size: 12.5px;
+			font-weight: 600;
 		}
 	}
 }
 
 //
 // The front page's tile look, applied to the shared PackageCard. PackageCard lives in
-// the base addon and can't import these tokens, so the menu dresses it from here -
-// stylesheets are global, so this reaches every card the menu renders.
+// the base addon and can't import these tokens, so the menu dresses it from here. It only
+// reaches cards under a stylesheet that imports it - the menus (_menushell) and the pickers
+// (_picker) do; anywhere else in the overlay gets the bare card.
 //
 // The image-on-top variants get the full treatment. .list is a horizontal row and
 // keeps its own layout; only its colours are touched.
@@ -141,10 +187,11 @@ PackageCard
 		bottom: 0;
 		background-size: cover;
 		background-position: center;
+		pointer-events: none;
 
 		// The still art is underneath, so fading crossfades into it instead of cutting.
 		opacity: 1;
-		transition: opacity 0.4s ease-out;
+		transition: opacity 1s ease-in-out;
 
 		&:intro
 		{
@@ -154,7 +201,7 @@ PackageCard
 		&:outro
 		{
 			opacity: 0;
-			transition: opacity 0.3s ease-in;
+			transition: opacity 0.6s ease-in-out;
 		}
 	}
 

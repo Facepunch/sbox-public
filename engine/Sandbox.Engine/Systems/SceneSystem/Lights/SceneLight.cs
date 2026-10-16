@@ -64,6 +64,24 @@ public class SceneLight : SceneObject
 	}
 
 	/// <summary>
+	/// Makes this a baked light addressed by probe/lightmap index textures (0-254).
+	/// Pass -1 to restore dynamic lighting. Index 255 is reserved for an empty texture channel.
+	/// </summary>
+	public void SetBakedLightIndex( int index, bool mixedShadows = false )
+	{
+		if ( index is < -1 or > 254 )
+			throw new ArgumentOutOfRangeException( nameof( index ) );
+		lightNative.SetBakeLightIndex( index );
+		lightNative.SetBakeLightIndexScale( 1.0f );
+		lightNative.SetUsesIndexedBakedLighting( index >= 0 );
+		var flags = lightNative.GetLightFlags();
+		flags &= ~(16u | 32u);
+		if ( index >= 0 ) flags |= 32u | (mixedShadows ? 16u : 0u);
+		lightNative.SetLightFlags( flags );
+		NotifyChanged( Rendering.SceneObjectChange.Settings );
+	}
+
+	/// <summary>
 	/// Get or set the resolution of the shadow map. If this is zero the engine will decide what it should use.
 	/// </summary>
 	public int ShadowTextureResolution

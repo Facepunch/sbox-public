@@ -244,7 +244,7 @@ partial class PolygonMesh
 				var newIndex = outVertexPositions.Count;
 				outVertexPositions.Add( vertexPosition );
 				outFaceVertexToVertexTable.Add( hFaceVertexA, newIndex );
-				outFaceVertexToVertexTable.Add( hFaceVertexB, newIndex );
+				outFaceVertexToVertexTable.TryAdd( hFaceVertexB, newIndex );
 			}
 			else if ( indexA < 0 )
 			{

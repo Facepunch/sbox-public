@@ -290,7 +290,7 @@ public partial class BaseChair : Component, Component.IPressable, ISitTarget
 		var seatPos = (SeatPosition ?? GameObject).WorldTransform;
 		var localSeatPos = GameObject.WorldTransform.ToLocal( seatPos );
 
-		var so = Gizmo.Draw.Model( "models/citizen/citizen.vmdl", localSeatPos.WithScale( 1 ) );
+		var so = Gizmo.Draw.Model( "models/citizen_human/human.vmdl", localSeatPos.WithScale( 1 ) );
 		so.ColorTint = Color.White.WithAlpha( 0.6f );
 		so.SetAnimParameter( "sit", (int)SitPose );
 		so.SetAnimParameter( "sit_offset_height", SitHeight * 12.0f );

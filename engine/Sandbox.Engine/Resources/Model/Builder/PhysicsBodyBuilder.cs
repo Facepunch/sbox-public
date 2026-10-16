@@ -1,7 +1,7 @@
 namespace Sandbox;
 
 /// <summary>
-/// Builds a physics body for a <see cref="Model"/>.
+/// Builds a physics body for a model or standalone physics resource.
 /// </summary>
 public sealed class PhysicsBodyBuilder
 {
@@ -12,6 +12,21 @@ public sealed class PhysicsBodyBuilder
 	public float Mass { get; set; }
 
 	/// <summary>
+	/// Multiplier for the calculated inertia tensor, independent of mass.
+	/// </summary>
+	public float InertiaScale { get; set; } = 1.0f;
+
+	/// <summary>
+	/// Linear velocity damping per second.
+	/// </summary>
+	public float LinearDamping { get; set; }
+
+	/// <summary>
+	/// Angular velocity damping per second.
+	/// </summary>
+	public float AngularDamping { get; set; }
+
+	/// <summary>
 	/// The surface properties applied to this body.
 	/// </summary>
 	public Surface Surface { get; set; }
@@ -19,7 +34,7 @@ public sealed class PhysicsBodyBuilder
 	/// <summary>
 	/// The bind pose transform used when attaching this body to a bone.
 	/// </summary>
-	public Transform BindPose { get; set; }
+	public Transform BindPose { get; set; } = Transform.Zero;
 
 	/// <summary>
 	/// The name of the bone this body is attached to, or <c>null</c> if not attached.
@@ -38,7 +53,7 @@ public sealed class PhysicsBodyBuilder
 	internal List<HullShape> Hulls = [];
 	internal List<MeshShape> Meshes = [];
 
-	internal PhysicsBodyBuilder()
+	public PhysicsBodyBuilder()
 	{
 	}
 
@@ -47,6 +62,21 @@ public sealed class PhysicsBodyBuilder
 	public PhysicsBodyBuilder SetMass( float mass )
 	{
 		Mass = mass;
+		return this;
+	}
+
+	/// <inheritdoc cref="InertiaScale"/>
+	public PhysicsBodyBuilder SetInertiaScale( float scale )
+	{
+		InertiaScale = scale;
+		return this;
+	}
+
+	/// <summary>Sets linear and angular velocity damping per second.</summary>
+	public PhysicsBodyBuilder SetDamping( float linear, float angular )
+	{
+		LinearDamping = linear;
+		AngularDamping = angular;
 		return this;
 	}
 

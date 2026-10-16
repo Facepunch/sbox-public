@@ -66,6 +66,7 @@ public readonly ref partial struct Painter
 		attributes.Set( "LayerMat", target.LayerMatrix );
 		attributes.Set( "TransformMat", transform );
 		attributes.SetCombo( "D_WORLDPANEL", target.WorldPanelCombo );
+		attributes.SetCombo( "D_PAINTER_SCREENPIXELS", target.MapScreenPixels );
 		// Native quads apply the scene object's transform in ui/vertex.hlsl.
 		if ( target.WorldMatrix.HasValue ) attributes.Set( "WorldMat", ScenePanelObject.BuildPanelToObjectMatrix() );
 		if ( target.GammaOutput.HasValue ) attributes.Set( "UIGammaOutput", target.GammaOutput.Value );

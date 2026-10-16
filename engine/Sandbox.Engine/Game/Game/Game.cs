@@ -191,6 +191,9 @@ public static partial class Game
 			return;
 		}
 
+		var sameGame = string.Equals( Ident?.Split( '#' )[0], gameIdent?.Split( '#' )[0], StringComparison.OrdinalIgnoreCase );
+		Api.Activity.GameRequested( new( sameGame ? "reload" : "game", gameIdent ) );
+
 		if ( Networking.IsActive && Networking.IsHost )
 		{
 			if ( keepClients )

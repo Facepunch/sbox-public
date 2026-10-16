@@ -13,15 +13,28 @@ public class ScriptAnalysisTests
 	private GlobalContext previous;
 	private GlobalContext context;
 
-	[TestInitialize]
-	public void Initialize()
+	// Scanning the assemblies is slow, so tests share one library unless they mutate it
+	static readonly Lazy<TypeLibrary> SharedLibrary = new( CreateLibrary );
+
+	static TypeLibrary CreateLibrary()
 	{
-		previous = GlobalContext.Current;
 		var library = new TypeLibrary();
 		library.AddIntrinsicTypes();
 		library.AddAssembly( typeof( Script ).Assembly, false );
 		library.AddAssembly( typeof( ScriptAnalysisTests ).Assembly, false );
-		GlobalContext.Current = context = new GlobalContext { TypeLibrary = library };
+		return library;
+	}
+
+	/// <summary>
+	/// Swap in a private library for tests that add or remove assemblies.
+	/// </summary>
+	private void UseOwnLibrary() => GlobalContext.Current = context = new GlobalContext { TypeLibrary = CreateLibrary() };
+
+	[TestInitialize]
+	public void Initialize()
+	{
+		previous = GlobalContext.Current;
+		GlobalContext.Current = context = new GlobalContext { TypeLibrary = SharedLibrary.Value };
 		AnalysisHost.Calls = 0;
 	}
 
@@ -123,6 +136,7 @@ public class ScriptAnalysisTests
 	[TestMethod]
 	public void SnapshotsStayImmutableAfterInputAndContextChanges()
 	{
+		UseOwnLibrary();
 		var system = Game.Scripting;
 		var inputs = new List<Script.Input> { new( "Player", typeof( AnalysisHost ) ) };
 		var old = system.Analyze( "Player.", inputs );
@@ -145,14 +159,14 @@ public class ScriptAnalysisTests
 			Assert.AreEqual( 0, Game.Scripting.Analyze( source ).GetCompletions( source.Length ).Items.Count );
 	}
 
-	[TestMethod]
+	[TestMethod, TestCategory( Allocations.Category )]
 	public void SymbolAndTokenQueriesAllocateNothing()
 	{
 		var analysis = Game.Scripting.Analyze( "return Math.Sin(0);" );
-		for ( int i = 0; i < 1000; i++ ) { analysis.GetSymbol( 7 ); analysis.GetToken( 7 ); }
-		long before = GC.GetAllocatedBytesForCurrentThread();
-		for ( int i = 0; i < 1000; i++ ) { analysis.GetSymbol( 7 ); analysis.GetToken( 7 ); }
-		Assert.AreEqual( 0L, GC.GetAllocatedBytesForCurrentThread() - before );
+		Allocations.AssertSettles( "1,000 symbol and token queries", () =>
+		{
+			for ( int i = 0; i < 1000; i++ ) { analysis.GetSymbol( 7 ); analysis.GetToken( 7 ); }
+		} );
 	}
 
 	[TestMethod]

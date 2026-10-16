@@ -64,6 +64,108 @@ Media > .main
 		max-width: 100%;
 		max-height: 100%;
 	}
+
+	// A video waiting to be played (no autoplay) - its art filling the frame, a big play button on it
+	.video-poster
+	{
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		align-items: center;
+		justify-content: center;
+		background-size: cover;
+		background-position: center;
+		cursor: pointer;
+
+		.play-big
+		{
+			position: absolute;
+			width: 64px;
+			height: 64px;
+			align-items: center;
+			justify-content: center;
+			border-radius: 50%;
+			background-color: rgba( 10, 12, 18, 0.7 );
+			border: 2px solid rgba( 255, 255, 255, 0.25 );
+			transition: all 0.12s ease;
+
+			i
+			{
+				font-size: 36px;
+				color: white;
+				text-align: center;
+			}
+		}
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+
+			.play-big
+			{
+				background-color: $front-primary;
+				border-color: $front-primary * 1.4;
+				transform: scale( 1.08 );
+			}
+		}
+	}
+
+	// Waiting on the full package - the frame, pulsing
+	.loading
+	{
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		animation: media-loading 1.2s ease-in-out infinite alternate;
+	}
+
+	// Nothing to show, and why - centred on the game's blurred art
+	.notice
+	{
+		position: relative;
+		flex-direction: column;
+		align-items: center;
+		gap: 4px;
+		max-width: 70%;
+
+		i
+		{
+			font-size: 36px;
+			color: $front-secondary;
+			margin-bottom: 6px;
+		}
+
+		.notice-title
+		{
+			font-size: 15px;
+			font-weight: 700;
+			color: $front-heading;
+		}
+
+		.notice-text
+		{
+			font-size: 13px;
+			color: $front-secondary;
+			text-align: center;
+		}
+	}
+}
+
+@keyframes media-loading
+{
+	0%
+	{
+		background-color: rgba( 255, 255, 255, 0.02 );
+	}
+
+	100%
+	{
+		background-color: rgba( 255, 255, 255, 0.06 );
+	}
 }
 
 // Holds the strip, and the fade over its right end - on this box, not the scrolling strip (a mask

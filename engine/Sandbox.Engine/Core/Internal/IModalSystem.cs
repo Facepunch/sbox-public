@@ -142,6 +142,21 @@ public struct CreateGameOptions
 
 	public Package Package { get; set; }
 	public Action<CreateGameResults> OnComplete { get; set; }
+
+	/// <summary>
+	/// The setup to edit instead of loading the player's last saved setup for this game.
+	/// </summary>
+	public CreateGameResults? InitialSettings { get; set; }
+
+	/// <summary>
+	/// Show this as a settings form with a Save Settings button. The completion callback decides what happens next.
+	/// </summary>
+	public bool ConfigureOnly { get; set; }
+
+	/// <summary>
+	/// Minimum server capacity required by the caller, such as the number of players in a party.
+	/// </summary>
+	public int MinimumPlayers { get; set; }
 }
 
 public struct CreateGameResults

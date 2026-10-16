@@ -46,7 +46,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 
 	internal unsafe void UpdateParticleSprites()
 	{
-		var spriteRenderers = Scene.GetAllComponents<IBatchedParticleSpriteRenderer>();
+		var spriteRenderers = Scene.Query<IBatchedParticleSpriteRenderer>();
 
 		// Calculate total size needed and ensure shared block is large enough
 		int totalParticles = 0;

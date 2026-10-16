@@ -2,26 +2,67 @@
   "RootObject": {
     "__guid": "11fb79ef-ff73-447b-8f38-759c958892f5",
     "Flags": 0,
-    "Name": "camera",
+    "Name": "Camera",
     "Tags": "maincamera",
     "Enabled": true,
     "Components": [
       {
         "__type": "Sandbox.CameraComponent",
         "__guid": "9491dda5-257e-455a-a272-37a4fda19f4c",
+        "__enabled": true,
         "BackgroundColor": "0.33333,0.46275,0.52157,1",
         "ClearFlags": "All",
-        "FieldOfView": 60,
+        "EnablePostProcessing": true,
+        "FieldOfView": 90,
+        "FovAxis": "Horizontal",
         "IsMainCamera": true,
         "Orthographic": false,
         "OrthographicHeight": 1204,
         "Priority": 1,
-        "RenderExcludeTags": "",
+        "RenderExcludeTags": "viewer",
         "RenderTags": "",
         "TargetEye": "None",
         "Viewport": "0,0,1,1",
-        "ZFar": 10000,
-        "ZNear": 10
+        "ZFar": 5000,
+        "ZNear": 0.1
+      },
+      {
+        "__type": "Sandbox.Bloom",
+        "__guid": "d977ffc1-b003-41c8-996c-4b13b9c84b22",
+        "__enabled": true,
+        "__version": 1,
+        "Mode": "Additive",
+        "Strength": 1,
+        "Threshold": 1,
+        "Tint": "1,1,1,1"
+      },
+      {
+        "__type": "Sandbox.ScreenSpaceReflections",
+        "__guid": "38800d12-ff8e-4004-9db9-34f262b8a68f",
+        "__enabled": true
+      },
+      {
+        "__type": "Sandbox.AmbientOcclusion",
+        "__guid": "405675ef-800d-40d3-8a13-9011ca97f80f",
+        "__enabled": true,
+        "__version": 1,
+        "FalloffRange": 1,
+        "Intensity": 1,
+        "Radius": 128,
+        "ThinCompensation": 5
+      },
+      {
+        "__type": "Sandbox.Tonemapping",
+        "__guid": "f0b57152-c3a7-4fc6-9a9c-c39101a6bdfd",
+        "__enabled": true,
+        "__version": 3,
+        "AutoExposureEnabled": true,
+        "ExposureCompensation": 0,
+        "ExposureMethod": "RGB",
+        "MaximumExposure": 3,
+        "MinimumExposure": 1,
+        "Mode": "AgX",
+        "Rate": 1
       }
     ],
     "Children": [],

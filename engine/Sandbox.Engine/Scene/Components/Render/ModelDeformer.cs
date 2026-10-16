@@ -74,8 +74,6 @@ public sealed partial class ModelDeformer : VolumeComponent, Component.ExecuteIn
 	}
 
 	private ModelRenderer _owner;
-	private Transform _packedPlacement;
-	private bool _hasPackedData;
 
 	/// <summary>
 	/// Cached volume data ready for the native renderer.
@@ -203,7 +201,6 @@ public sealed partial class ModelDeformer : VolumeComponent, Component.ExecuteIn
 		_owner?.ModelDeformers.Remove( this );
 		_owner = null;
 		Data = default;
-		_hasPackedData = false;
 	}
 
 	internal void UpdateVolume()
@@ -226,36 +223,40 @@ public sealed partial class ModelDeformer : VolumeComponent, Component.ExecuteIn
 			return;
 		}
 
-		CreateDeformationData( _owner.WorldTransform.ToLocal( WorldTransform ) );
+		Placement = _owner.WorldTransform.ToLocal( WorldTransform );
+		Data = Pack( Placement );
 	}
 
 	/// <summary>
-	/// Validates and packs a volume for the native scene model and deformation shader.
+	/// The renderer it deforms, and where the volume is in that model's space, as last packed.
 	/// </summary>
-	internal SceneDeformationVolumeData CreateDeformationData( Transform placement )
+	internal ModelRenderer Owner => _owner;
+	internal Transform Placement { get; private set; }
+
+	/// <summary>
+	/// Validates and packs the volume, at a placement in a model's space, for the native scene model and deformation shader.
+	/// </summary>
+	internal SceneDeformationVolumeData Pack( Transform placement )
 	{
 		GetShapeParameters( out var center, out var size, out var radius );
 
-		var data = Data;
-		if ( !_hasPackedData || !_packedPlacement.Equals( placement ) )
+		System.Numerics.Matrix4x4 volumeToModel = Matrix.FromTransform( placement );
+		if ( !System.Numerics.Matrix4x4.Invert( volumeToModel, out var modelToVolume ) )
 		{
-			System.Numerics.Matrix4x4 volumeToModel = Matrix.FromTransform( placement );
-			if ( !System.Numerics.Matrix4x4.Invert( volumeToModel, out var modelToVolume ) )
-			{
-				throw new ArgumentException( "Volume placement must be invertible.", nameof( placement ) );
-			}
-
-			// The shader uses column positions, whereas System.Numerics uses row vectors.
-			volumeToModel = System.Numerics.Matrix4x4.Transpose( volumeToModel );
-			modelToVolume = System.Numerics.Matrix4x4.Transpose( modelToVolume );
-
-			data.ModelToVolumeRow0 = new Vector4( modelToVolume.M11, modelToVolume.M12, modelToVolume.M13, modelToVolume.M14 );
-			data.ModelToVolumeRow1 = new Vector4( modelToVolume.M21, modelToVolume.M22, modelToVolume.M23, modelToVolume.M24 );
-			data.ModelToVolumeRow2 = new Vector4( modelToVolume.M31, modelToVolume.M32, modelToVolume.M33, modelToVolume.M34 );
-			data.VolumeToModelRow0 = new Vector4( volumeToModel.M11, volumeToModel.M12, volumeToModel.M13, volumeToModel.M14 );
-			data.VolumeToModelRow1 = new Vector4( volumeToModel.M21, volumeToModel.M22, volumeToModel.M23, volumeToModel.M24 );
-			data.VolumeToModelRow2 = new Vector4( volumeToModel.M31, volumeToModel.M32, volumeToModel.M33, volumeToModel.M34 );
+			throw new ArgumentException( "Volume placement must be invertible.", nameof( placement ) );
 		}
+
+		// The shader uses column positions, whereas System.Numerics uses row vectors.
+		volumeToModel = System.Numerics.Matrix4x4.Transpose( volumeToModel );
+		modelToVolume = System.Numerics.Matrix4x4.Transpose( modelToVolume );
+
+		var data = new SceneDeformationVolumeData();
+		data.ModelToVolumeRow0 = new Vector4( modelToVolume.M11, modelToVolume.M12, modelToVolume.M13, modelToVolume.M14 );
+		data.ModelToVolumeRow1 = new Vector4( modelToVolume.M21, modelToVolume.M22, modelToVolume.M23, modelToVolume.M24 );
+		data.ModelToVolumeRow2 = new Vector4( modelToVolume.M31, modelToVolume.M32, modelToVolume.M33, modelToVolume.M34 );
+		data.VolumeToModelRow0 = new Vector4( volumeToModel.M11, volumeToModel.M12, volumeToModel.M13, volumeToModel.M14 );
+		data.VolumeToModelRow1 = new Vector4( volumeToModel.M21, volumeToModel.M22, volumeToModel.M23, volumeToModel.M24 );
+		data.VolumeToModelRow2 = new Vector4( volumeToModel.M31, volumeToModel.M32, volumeToModel.M33, volumeToModel.M34 );
 
 		data.SizeRadius = new Vector4( size.x, size.y, size.z, radius );
 		data.AmountFalloff = new Vector4( StretchRatio, Inflation, 0, Falloff );
@@ -272,9 +273,6 @@ public sealed partial class ModelDeformer : VolumeComponent, Component.ExecuteIn
 			throw new ArgumentException( "Deformation parameters must produce finite renderer data." );
 		}
 
-		Data = data;
-		_packedPlacement = placement;
-		_hasPackedData = true;
 		return data;
 	}
 

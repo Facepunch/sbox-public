@@ -105,19 +105,35 @@ PackageHoverCard
 		}
 	}
 
+	// Who made it and when it was updated - the whole line to itself, cut short only if it really is long
 	.byline
+	{
+		flex-direction: row;
+		align-items: center;
+		margin-top: -4px;
+		overflow: hidden;
+
+		> label
+		{
+			flex-shrink: 1;
+			min-width: 0;
+			font-size: 11.5px;
+			font-weight: 500;
+			color: $front-tertiary;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+	}
+
+	// The genres, then how it's played, under the byline - all just labels, nothing to click
+	.tags
 	{
 		flex-direction: row;
 		align-items: center;
 		flex-wrap: nowrap;
 		gap: 6px;
-		margin-top: -4px;
 		overflow: hidden;
-
-		.grow
-		{
-			flex-grow: 1;
-		}
 
 		.tag
 		{
@@ -126,44 +142,19 @@ PackageHoverCard
 			font-size: 12px;
 			font-weight: 600;
 			color: $front-secondary;
-			cursor: pointer;
-			transition: color 0.1s ease;
-
-			&:hover
-			{
-				color: $front-heading;
-			}
-
-			&.plain
-			{
-				cursor: default;
-
-				&:hover
-				{
-					color: $front-secondary;
-				}
-			}
+			white-space: nowrap;
 		}
 
-		label, .sep
+		.sep
 		{
 			flex-shrink: 0;
 			font-size: 11.5px;
 			font-weight: 500;
 			color: $front-tertiary;
-			white-space: nowrap;
 		}
 
-		> label:first-child
-		{
-			flex-shrink: 1;
-			min-width: 0;
-			overflow: hidden;
-			text-overflow: ellipsis;
-		}
-
-		// How it's played, in a chip ahead of the genres - quiet for singleplayer, green for
-		// anything you can play with other people. Browses to that tag.
+		// How it's played, in a chip after the genres - quiet for singleplayer, green for anything
+		// you can play with other people. Only says so: no pointer, no hover
 		.mode
 		{
 			flex-direction: row;
@@ -175,8 +166,6 @@ PackageHoverCard
 			border-radius: 999px;
 			border: 1px solid rgba( 255, 255, 255, 0.1 );
 			background-color: rgba( 255, 255, 255, 0.05 );
-			cursor: pointer;
-			transition: all 0.1s ease;
 
 			icon
 			{
@@ -192,43 +181,21 @@ PackageHoverCard
 				color: $front-secondary;
 			}
 
-			&:hover
-			{
-				border-color: rgba( 255, 255, 255, 0.25 );
-				background-color: rgba( 255, 255, 255, 0.1 );
-
-				icon, label { color: $front-heading; }
-			}
-
 			&.multiplayer
 			{
 				border-color: rgba( $front-accent, 0.35 );
 				background-color: rgba( $front-accent, 0.12 );
 
 				icon, label { color: $front-accent; }
-
-				&:hover
-				{
-					border-color: rgba( $front-accent, 0.7 );
-					background-color: rgba( $front-accent, 0.22 );
-
-					icon, label { color: $front-accent * 1.5; }
-				}
-			}
-		}
-
-		.fact
-		{
-			gap: 4px;
-
-			icon
-			{
-				font-size: 12px;
 			}
 
-			label
+			// Your party isn't what it's made for - the tooltip says why
+			&.mismatch
 			{
-				color: $front-secondary;
+				border-color: rgba( #f5a623, 0.4 );
+				background-color: rgba( #f5a623, 0.12 );
+
+				icon, label { color: #f5a623; }
 			}
 		}
 	}

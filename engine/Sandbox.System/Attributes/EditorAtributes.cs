@@ -499,7 +499,7 @@ namespace Sandbox
 	/// <summary>
 	/// Add a header above this property
 	/// </summary>
-	[AttributeUsage( AttributeTargets.Property )]
+	[AttributeUsage( AttributeTargets.Property | AttributeTargets.Method )]
 	public sealed class HeaderAttribute : System.Attribute
 	{
 		public string Title { get; set; }

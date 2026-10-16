@@ -305,68 +305,41 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 		if ( !targetEdge.IsValid() )
 			return;
 
-		var shift = Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift );
+		var modifiers = Application.KeyboardModifiers;
+		var shift = modifiers.HasFlag( KeyboardModifiers.Shift );
+		var ctrl = modifiers.HasFlag( KeyboardModifiers.Ctrl );
 
-		if ( shift && HasEdgePathStart( targetEdge ) )
-		{
-			TrySelectEdgePath( targetEdge );
-			return;
-		}
-
-		if ( !shift )
-			Selection.Clear();
-
-		if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
-		{
-			targetEdge.Component.Mesh.FindEdgeLoopForEdges( [targetEdge.Handle], out var hEdges );
-			foreach ( var hEdge in hEdges )
-				Selection.Add( new MeshEdge( targetEdge.Component, hEdge ) );
-		}
-	}
-
-	private bool HasEdgePathStart( MeshEdge targetEdge )
-	{
-		return TryGetEdgePathStart( targetEdge, out _ );
-	}
-
-	private bool TryGetEdgePathStart( MeshEdge targetEdge, out MeshEdge startEdge )
-	{
-		startEdge = default;
-
-		var selected = Selection.OfType<MeshEdge>()
-			.Where( e => e.IsValid() && e.Component == targetEdge.Component )
-			.ToList();
-
-		if ( selected.Count == 0 || selected.Count > 2 )
-			return false;
+		using var undoScope = SceneEditorSession.Active.UndoScope( "Select Edge Loop" ).Push();
+		if ( !shift && !ctrl )
+			Selection.Set( targetEdge );
+		else
+			Selection.Add( targetEdge );
 
 		var mesh = targetEdge.Component.Mesh;
-		startEdge = selected.FirstOrDefault( e =>
-			e.Handle != targetEdge.Handle &&
-			e.Handle != mesh.GetOppositeHalfEdge( targetEdge.Handle )
-		);
+		var selected = Selection.OfType<MeshEdge>()
+			.Where( e => e.IsValid() && e.Component == targetEdge.Component )
+			.Select( e => e.Handle )
+			.Distinct()
+			.ToArray();
 
-		return startEdge.IsValid();
-	}
+		mesh.FindEdgeLoopForEdges( selected, out var loopEdges );
+		var singleLoop = loopEdges;
+		if ( shift || ctrl )
+			mesh.FindEdgeLoopForEdges( [targetEdge.Handle], out singleLoop );
 
-	private bool TrySelectEdgePath( MeshEdge targetEdge )
-	{
-		if ( !TryGetEdgePathStart( targetEdge, out var startEdge ) )
-			return false;
+		var singleLoopEdges = singleLoop.ToHashSet();
 
-		var path = FindShortestEdgePath( startEdge, targetEdge );
-		if ( path == null || path.Count == 0 )
+		foreach ( var edge in loopEdges )
 		{
-			if ( !Selection.Contains( targetEdge ) )
-				Selection.Add( targetEdge );
+			if ( !singleLoopEdges.Contains( edge ) && !singleLoopEdges.Contains( mesh.GetOppositeHalfEdge( edge ) ) )
+				continue;
 
-			return true;
+			var meshEdge = new MeshEdge( targetEdge.Component, edge );
+			if ( ctrl && (!shift || Selection.Contains( meshEdge )) )
+				Selection.Remove( meshEdge );
+			else
+				Selection.Add( meshEdge );
 		}
-
-		foreach ( var edge in path.Where( e => !Selection.Contains( e ) ) )
-			Selection.Add( edge );
-
-		return true;
 	}
 
 	internal static List<MeshEdge> FindShortestEdgePath( MeshEdge start, MeshEdge end )

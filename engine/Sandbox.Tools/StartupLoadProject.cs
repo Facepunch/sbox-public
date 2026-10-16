@@ -100,7 +100,6 @@ static class StartupLoadProject
 		if ( string.IsNullOrEmpty( path ) ) throw new ArgumentException( nameof( path ) );
 		Assert.IsNull( Project.Current );
 
-		// This kinda sucks but better than overcomplicating everything.. make sure to update the steps..
 		CurrentStep = 0;
 		TotalSteps = 16;
 
@@ -144,7 +143,6 @@ static class StartupLoadProject
 		{
 			await PackageManager.InstallProjects( Project.All.Where( x => x.IsBuiltIn ).ToArray() );
 		}
-
 		//
 		// Load the dlls etc from our parent package
 		//
@@ -165,11 +163,11 @@ static class StartupLoadProject
 		{
 			await Project.SyncWithPackageManager();
 		}
-
-		// This double Load shit is stupid, creates the compilers properly now that we've installed any dependant packages
-		project.Load();
-
-		ExportSettings( project );
+		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: Reload Project" ) )
+		{
+			project.Load();
+			ExportSettings( project );
+		}
 
 		Step( "Generating solution" );
 		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: Generate Solution" ) )
@@ -186,7 +184,13 @@ static class StartupLoadProject
 		// Compiles and waits for the project in a bullshit way - this already starts happening way sooner
 		Step( "Compiling projects" );
 
-		if ( await EditorUtility.Projects.Updated( project ) == false )
+		bool projectUpdated;
+		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: Check Compiled Projects" ) )
+		{
+			projectUpdated = await EditorUtility.Projects.Updated( project );
+		}
+
+		if ( projectUpdated == false )
 		{
 			using var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: Compile" );
 			// load failed, present the user with the information

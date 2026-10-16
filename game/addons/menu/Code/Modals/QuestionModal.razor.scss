@@ -1,0 +1,149 @@
+@import "/styles/_front.scss";
+
+QuestionModal
+{
+	font-family: $front-font;
+
+	// The dim behind just fades - the box's own intro and outro do the rest
+	&.modal:intro
+	{
+		transform: none;
+	}
+
+	// Going - as long as the box takes to go out of focus, so it's not cut off halfway
+	&.modal:outro
+	{
+		transform: none;
+		transition: all 0.18s ease-in;
+
+		.window
+		{
+			opacity: 0;
+			filter: blur( 10px );
+			transition: all 0.18s ease-in;
+		}
+	}
+
+	// A box in the middle of the dimmed screen - the rail's paper and outline
+	.window
+	{
+		@include front-grain;
+
+		position: relative;
+		width: 440px;
+		flex-direction: column;
+		align-items: center;
+		gap: 12px;
+		padding: 30px 28px 24px 28px;
+		border-radius: $front-radius;
+		border: $front-border-width solid $front-border;
+		background-image: linear-gradient( to bottom, rgba( 20, 24, 33, 0.97 ), rgba( 13, 16, 22, 0.97 ) );
+		box-shadow: 0 16px 48px rgba( 0, 0, 0, 0.5 );
+		overflow: hidden;
+		pointer-events: all;
+		transition: all 0.2s ease-out;
+
+		// Drops in from a little above, coming into focus as it fades in like a tooltip - and goes back
+		// out of it on the way out (above)
+		&:intro
+		{
+			opacity: 0;
+			filter: blur( 10px );
+			transform: translateY( -24px );
+		}
+	}
+
+	// The colour glowing through the box, behind the words
+	.wash
+	{
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: -40%;
+		bottom: 20%;
+		pointer-events: none;
+	}
+
+	.title
+	{
+		font-size: 22px;
+		font-weight: 700;
+		color: $front-heading;
+		text-align: center;
+	}
+
+	// The box's width, so it wraps rather than running out past it
+	.message
+	{
+		width: 100%;
+		font-size: 14px;
+		color: $front-body;
+		text-align: center;
+		// Kept - a notice's message can come in paragraphs (a load error, then what it said)
+		white-space: pre-line;
+	}
+
+	.buttons
+	{
+		width: 100%;
+		flex-direction: row;
+		gap: 8px;
+		margin-top: 12px;
+	}
+
+	.buttons .button
+	{
+		flex-grow: 1;
+		flex-basis: 0;
+		flex-direction: row;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		height: 40px;
+		border-radius: 999px;
+		border: 1px solid rgba( 255, 255, 255, 0.16 );
+		background-color: rgba( 255, 255, 255, 0.07 );
+		font-size: 13px;
+		font-weight: 700;
+		color: #d6e2f7;
+		cursor: pointer;
+		transition: all 0.1s ease;
+
+		iconpanel
+		{
+			font-size: 17px;
+			color: #d6e2f7;
+		}
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+			background-color: rgba( 255, 255, 255, 0.11 );
+			color: #ffffff;
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+
+		// The answer that does it - filled in the modal's Color, inline, so it's never mistaken for
+		// the safe one. It lifts on hover rather than changing colour, which the inline fill would beat
+		&.confirm
+		{
+			opacity: 0.9;
+			color: #ffffff;
+
+			iconpanel
+			{
+				color: #ffffff;
+			}
+
+			&:hover
+			{
+				opacity: 1;
+				box-shadow: 0 0 18px rgba( 255, 255, 255, 0.18 );
+			}
+		}
+	}
+}

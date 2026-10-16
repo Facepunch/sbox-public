@@ -8,6 +8,12 @@
 public struct ViewSetup
 {
 	/// <summary>
+	/// Overrides shader time (g_flTime), in seconds, for this view and its child views.
+	/// Null inherits the parent view's time, or the normal frame time for a top-level view.
+	/// </summary>
+	public float? Time;
+
+	/// <summary>
 	/// Overrides the camera's inclusion tags for this view. Null inherits the camera's filter;
 	/// an empty set includes all tags, subject to exclusions. This does not change the camera.
 	/// When used in a command list, keep the set unchanged while the list can execute.

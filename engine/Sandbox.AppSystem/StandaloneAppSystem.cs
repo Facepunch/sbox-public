@@ -18,6 +18,12 @@ public class StandaloneAppSystem : AppSystem
 		Application.IsStandalone = true;
 		Application.AppId = Standalone.Manifest.AppId;
 
+		if ( Standalone.Manifest.IsVRProject && !Utility.CommandLine.HasSwitch( "-vr" ) && !Utility.CommandLine.HasSwitch( "-novr" ) )
+		{
+			Utility.CommandLine.CommandLineString = Utility.CommandLine.Full + " -vr";
+			Utility.CommandLine.Parse();
+		}
+
 		CreateGame();
 
 		var createInfo = new AppSystemCreateInfo()
@@ -29,7 +35,7 @@ public class StandaloneAppSystem : AppSystem
 		if ( Utility.CommandLine.HasSwitch( "-headless" ) )
 			createInfo.Flags |= AppSystemFlags.IsConsoleApp;
 
-		InitGame( createInfo );
+		InitGame( createInfo, Utility.CommandLine.Full );
 
 		LoadStandaloneGame();
 	}

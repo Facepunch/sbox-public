@@ -3,6 +3,7 @@
 #include "ui/scissor.hlsl"
 #include "ui/gamma.hlsl"
 #include "common/blendmode.hlsl"
+#include "ui/lighting.hlsl"
 
 float2 BoxSize < Attribute( "BoxSize" ); >;
 float2 BoxPosition < Attribute( "BoxPosition" ); >;
@@ -41,6 +42,9 @@ float4 UI_ApplyClip( float4 vColor, bool bPremultiplied = false )
 // flCoverage is how much of the pixel the shape covers, see UISoftenHdrEdges.
 PS_OUTPUT UI_CommonProcessing_Post( PS_INPUT i, PS_OUTPUT o, float flCoverage = 1.0 )
 {
+    #ifndef UI_SKIP_LIGHTING
+        o.vColor = UI_ApplyLighting( i.vPositionPs, o.vColor );
+    #endif
     o.vColor = UISoftenHdrEdges( o.vColor, flCoverage * g_flUIClipCoverage );
     o.vColor = UI_ApplyClip( o.vColor );
     o.vColor = UIEncodeOutput( o.vColor );

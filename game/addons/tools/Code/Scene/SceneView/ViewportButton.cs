@@ -5,8 +5,6 @@ internal class ViewportButton : Widget
 	private string Icon;
 	private Action OnClick;
 
-	public Color Color { get; set; } = Theme.TextLight;
-
 	public ViewportButton( string icon, Action onClick ) : base( null )
 	{
 		Icon = icon;
@@ -19,18 +17,14 @@ internal class ViewportButton : Widget
 
 	protected override void OnMousePress( MouseEvent e )
 	{
-		if ( e.LeftMouseButton && Enabled )
+		if ( e.LeftMouseButton )
 		{
-			e.Accepted = true;
 			Activate();
 		}
 	}
 
 	public void Activate()
 	{
-		if ( !Enabled )
-			return;
-
 		OnClick();
 	}
 
@@ -40,7 +34,7 @@ internal class ViewportButton : Widget
 		Paint.TextAntialiasing = true;
 
 		Paint.ClearBrush();
-		Paint.SetPen( !Enabled ? Color.WithAlphaMultiplied( 0.4f ) : Paint.HasMouseOver ? Color.Lighten( 0.8f ) : Color );
+		Paint.SetPen( Paint.HasMouseOver ? Theme.TextLight.Lighten( 0.8f ) : Theme.TextLight );
 		Paint.DrawIcon( LocalRect, Icon, HeaderBarStyle.IconSize, TextFlag.Center );
 	}
 }

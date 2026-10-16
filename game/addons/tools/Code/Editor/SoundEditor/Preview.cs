@@ -49,7 +49,7 @@ public class Preview : Widget
 
 			new ScenePointLight( world, new Vector3( 100, 100, 100 ), 500, Color.White * 4 ).ShadowsEnabled = false;
 			new ScenePointLight( world, new Vector3( -100, -100, 100 ), 500, Color.White * 4 ).ShadowsEnabled = false;
-			SceneObject = new SceneModel( world, "models/citizen/citizen.vmdl", Transform.Zero.WithPosition( Vector3.Backward * 250 ) );
+			SceneObject = new SceneModel( world, "models/citizen_human/human.vmdl", Transform.Zero.WithPosition( Vector3.Backward * 250 ) );
 		}
 
 		public void AddVisemes( List<VisemeFrame> visemes, float t, float dt )

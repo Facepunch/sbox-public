@@ -105,39 +105,59 @@ public class SvgSourceGenerator : TextureGenerator
 	[Hide, JsonIgnore]
 	public override bool CacheToDisk => true;
 
-	protected override ValueTask<Texture> CreateTexture( Options options, CancellationToken ct )
+	/// <summary>
+	/// Rasterizes the SVG on a worker and creates the texture on the caller's context.
+	/// </summary>
+	protected override async ValueTask<Texture> CreateTexture( Options options, CancellationToken ct )
 	{
 		var w = Size.x.Clamp( 1, 1024 * 4 );
 		var h = Size.y.Clamp( 1, 1024 * 4 );
+		var source = Source;
+		var scale = Scale;
+		var offset = Offset;
+		var rotate = Rotate;
+		var colorize = Colorize;
+		var targetColor = TargetColor;
+		var flipHorizontal = FlipHorizontal;
+		var flipVertical = FlipVertical;
 
-		using var bitmap = Bitmap.CreateFromSvgString( Source, w, h, Scale, Offset, Rotate );
-		if ( bitmap is null ) return default;
-
-		if ( Colorize )
+		using var bitmap = await Task.Run( () =>
 		{
-			bitmap.Colorize( TargetColor );
-		}
+			ct.ThrowIfCancellationRequested();
+			var result = Bitmap.CreateFromSvgString( source, w, h, scale, offset, rotate );
+			if ( result is null ) return null;
 
-		// adjustments
-		if ( FlipHorizontal && FlipVertical )
-		{
-			using var flippedHorizontal = bitmap.FlipHorizontal();
-			using var flippedVertical = flippedHorizontal.FlipVertical();
-			return ValueTask.FromResult( flippedVertical.ToTexture() );
-		}
+			try
+			{
+				if ( colorize )
+				{
+					result.Colorize( targetColor );
+				}
 
-		if ( FlipHorizontal )
-		{
-			using var flippedHorizontal = bitmap.FlipHorizontal();
-			return ValueTask.FromResult( flippedHorizontal.ToTexture() );
-		}
+				if ( flipHorizontal )
+				{
+					var flipped = result.FlipHorizontal();
+					result.Dispose();
+					result = flipped;
+				}
 
-		if ( FlipVertical )
-		{
-			using var flippedVertical = bitmap.FlipVertical();
-			return ValueTask.FromResult( flippedVertical.ToTexture() );
-		}
+				if ( flipVertical )
+				{
+					var flipped = result.FlipVertical();
+					result.Dispose();
+					result = flipped;
+				}
 
-		return ValueTask.FromResult( bitmap.ToTexture() );
+				return result;
+			}
+			catch
+			{
+				result.Dispose();
+				throw;
+			}
+		}, ct );
+
+		ct.ThrowIfCancellationRequested();
+		return bitmap?.ToTexture();
 	}
 }

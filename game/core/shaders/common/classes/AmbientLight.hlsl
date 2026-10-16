@@ -35,15 +35,8 @@ struct AmbientLight
 
     static float3 FromDDGI(float3 WorldPosition, float3 WorldNormal)
     {
-        DDGIVolume ddgiVolume = DDGI::GetVolume( WorldPosition );
-        if ( ddgiVolume.IsValid() )
-        {
-            float3 cameraDirWs = CalculatePositionToCameraDirWs( WorldPosition );
-            float3 ddgiIrradiance = DDGI::Evaluate(ddgiVolume, WorldPosition, WorldNormal, cameraDirWs);
-            return ddgiIrradiance;
-        }
-
-        return 0.0f;
+        float3 cameraDirWs = CalculatePositionToCameraDirWs( WorldPosition );
+        return DDGI::EvaluateVolumes( WorldPosition, WorldNormal, cameraDirWs ).rgb;
     }
 
     static float3 FromEnvMapProbe(float3 WorldPosition, float4 PositionSs, float3 WorldNormal)

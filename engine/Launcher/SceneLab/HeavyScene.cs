@@ -52,6 +52,18 @@ internal static class HeavyScene
 		return scene;
 	}
 
+	/// <summary>
+	/// Independent prepass effects, with enough draw work to exercise async compute and a reflective floor for SSR.
+	/// </summary>
+	public static Scene BuildWithReflectionsAndOcclusion()
+	{
+		var scene = BuildWithOcclusion();
+		using var _ = scene.Push();
+		scene.Directory.FindByName( "Camera" ).First().Components.Create<ScreenSpaceReflections>();
+		scene.Directory.FindByName( "Floor" ).First().Components.Get<ModelRenderer>().MaterialOverride = Material.Load( "materials/dev/dev_metal_rough10.vmat" );
+		return scene;
+	}
+
 	public static Scene Build()
 	{
 		var scene = GameScenes.Stage( out var camera, new Vector3( -820, -640, 420 ), new Vector3( 0, 0, 0 ) );

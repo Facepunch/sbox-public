@@ -27,6 +27,7 @@ internal sealed partial class PhysicsBody2d : PhysicsBodyInternal
 	Vector3 _localMassCenterOverride;
 	bool _overrideInertia;
 	float _inertiaOverride;
+	float _inertiaScale = 1.0f;
 
 	public override bool IsValid => Box2d.b2Body_IsValid( _bodyId );
 
@@ -114,6 +115,8 @@ internal sealed partial class PhysicsBody2d : PhysicsBodyInternal
 
 		if ( _overrideInertia )
 			data.rotationalInertia = _inertiaOverride;
+		else
+			data.rotationalInertia *= _inertiaScale;
 
 		Box2d.b2Body_SetMassData( BodyId, data );
 	}
@@ -176,6 +179,15 @@ internal sealed partial class PhysicsBody2d : PhysicsBodyInternal
 	}
 
 	public override Vector3 Inertia => new( 0, 0, Box2d.b2Body_GetRotationalInertia( BodyId ) );
+
+	internal override void ScaleInertia( float scale )
+	{
+		if ( _inertiaScale == scale )
+			return;
+
+		_inertiaScale = scale;
+		UpdateMass();
+	}
 
 	public override Rotation InertiaRotation => Rotation.Identity;
 

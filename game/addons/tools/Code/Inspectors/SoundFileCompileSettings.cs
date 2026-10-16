@@ -35,16 +35,19 @@ public class SoundFileCompileSettings : Widget, IAssetInspector
 		public float Gain { get; set; } = 0.0f;
 
 		[Title( "Sample Rate" ), Header( "Resampling" )]
-		public SamplingRate Rate { get; set; } = SamplingRate.Rate44100;
+		public SamplingRate Rate { get; set; } = SamplingRate.Source;
 
 		[Title( "Enabled" ), Header( "Compression" )]
-		public bool Compress { get; set; }
+		[Description( "Preserve compressed sources; encode processed or uncompressed audio with Opus when smaller" )]
+		public bool Compress { get; set; } = true;
 
 		[Title( "Bitrate" ), Range( 128, 256, true, true )]
-		public int Bitrate { get; set; } = 256;
+		[Description( "Stereo bitrate in kbps, mono sounds use half" )]
+		public int Bitrate { get; set; } = 192;
 
 		public enum SamplingRate
 		{
+			[Title( "Source" )] Source = 0,
 			[Title( "8000" )] Rate8000 = 8000,
 			[Title( "11025" )] Rate11025 = 11025,
 			[Title( "12000" )] Rate12000 = 12000,
@@ -63,6 +66,7 @@ public class SoundFileCompileSettings : Widget, IAssetInspector
 	/// selection, many for multi-select.
 	/// </summary>
 	private readonly List<(Asset Asset, Settings Settings)> _targets = new();
+	private WarningBox _compressionWarning;
 
 	public SoundFileCompileSettings( Widget parent ) : base( parent )
 	{
@@ -80,9 +84,9 @@ public class SoundFileCompileSettings : Widget, IAssetInspector
 		_targets.Add( (asset, settings) );
 
 		var so = EditorTypeLibrary.GetSerializedObject( settings );
-		so.OnPropertyChanged += ValuesChanged;
 
-		Layout = ControlSheet.Create( so );
+		BuildSettings( so );
+		so.OnPropertyChanged += ValuesChanged;
 	}
 
 	public bool SetAssets( Asset[] assets )
@@ -106,11 +110,20 @@ public class SoundFileCompileSettings : Widget, IAssetInspector
 			return false;
 
 		mso.Rebuild();
+
+		BuildSettings( mso );
 		mso.OnPropertyChanged += ValuesChanged;
 
-		Layout = ControlSheet.Create( mso );
-
 		return true;
+	}
+
+	private void BuildSettings( SerializedObject settings )
+	{
+		Layout = Layout.Column();
+		_compressionWarning = Layout.Add( new WarningBox(
+			"Compression is disabled. This sound will be published uncompressed, which can greatly increase download size and joining time. Enable compression unless you need lossless audio.", this ) );
+		Layout.Add( ControlSheet.Create( settings ) );
+		_compressionWarning.Visible = _targets.Any( x => !x.Settings.Compress );
 	}
 
 	/// <summary>
@@ -129,9 +142,9 @@ public class SoundFileCompileSettings : Widget, IAssetInspector
 			TrimSilence = meta.Get( "trimSilence", false ),
 			Normalize = meta.Get( "normalize", false ),
 			Gain = meta.Get( "gain", 0.0f ),
-			Rate = meta.Get( "rate", Settings.SamplingRate.Rate44100 ),
-			Compress = meta.Get( "compress", false ),
-			Bitrate = meta.Get( "bitrate", 256 ),
+			Rate = meta.Get( "rate", Settings.SamplingRate.Source ),
+			Compress = meta.Get( "compress", true ),
+			Bitrate = meta.Get( "bitrate", 192 ),
 		};
 	}
 
@@ -163,6 +176,7 @@ public class SoundFileCompileSettings : Widget, IAssetInspector
 	/// </summary>
 	private void ValuesChanged( SerializedProperty property )
 	{
+		_compressionWarning.Visible = _targets.Any( x => !x.Settings.Compress );
 		// Don't save/compile here directly. For multi-select the MultiSerializedObject fires this
 		// once per selected asset as the edit propagates, and sliders fire it every drag tick -
 		// acting immediately means compiling assets whose meta is about to change again, and a

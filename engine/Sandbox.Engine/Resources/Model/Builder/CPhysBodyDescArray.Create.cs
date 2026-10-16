@@ -6,12 +6,31 @@ using Sandbox;
 /// </summary>
 internal unsafe readonly partial struct CPhysBodyDescArray
 {
+	internal static List<int> SurfaceIndices( List<Surface> surfaces )
+	{
+		if ( surfaces is null )
+			return null;
+
+		var fallback = Surface.FindByName( "default" );
+		var indices = new List<int>( surfaces.Count );
+		foreach ( var surface in surfaces )
+			indices.Add( (surface ?? fallback ?? throw new InvalidOperationException( "The default physics surface is not loaded." )).Index );
+
+		return indices;
+	}
+
 	/// <summary>
 	/// Populate a native body array from managed builders. The caller owns the result
 	/// and must call <see cref="DeleteThis"/> on it.
 	/// </summary>
 	internal static CPhysBodyDescArray Create( List<PhysicsBodyBuilder> bodies, List<PhysicsJointBuilder> joints = null, List<int> surfaces = null )
 	{
+		if ( joints is not null )
+		{
+			foreach ( var joint in joints )
+				joint.Validate( bodies?.Count ?? 0 );
+		}
+
 		if ( bodies is null || bodies.Count == 0 )
 			return default;
 
@@ -35,6 +54,12 @@ internal unsafe readonly partial struct CPhysBodyDescArray
 		{
 			var source = sources[index];
 			var destination = bodies.Get( index );
+
+			if ( !float.IsFinite( source.InertiaScale ) || source.InertiaScale <= 0 )
+				throw new ArgumentOutOfRangeException( nameof( source.InertiaScale ), "Body inertia scale must be finite and positive." );
+			if ( !float.IsFinite( source.LinearDamping ) || source.LinearDamping < 0
+				|| !float.IsFinite( source.AngularDamping ) || source.AngularDamping < 0 )
+				throw new ArgumentOutOfRangeException( nameof( sources ), "Body damping must be finite and nonnegative." );
 
 			foreach ( var box in source.Boxes )
 			{
@@ -89,6 +114,9 @@ internal unsafe readonly partial struct CPhysBodyDescArray
 			}
 
 			destination.m_flMass = source.Mass;
+			destination.m_flInertiaScale = source.InertiaScale;
+			destination.m_flLinearDamping = source.LinearDamping;
+			destination.m_flAngularDamping = source.AngularDamping;
 			destination.SetBoneName( source.BoneName );
 			destination.SetBindPose( source.BindPose );
 
@@ -131,6 +159,13 @@ internal unsafe readonly partial struct CPhysBodyDescArray
 			destination.m_flAngularDampingRatio = source.AngularDamping;
 			destination.m_flLinearStrength = source.LinearStrength;
 			destination.m_flAngularStrength = source.AngularStrength;
+			destination.m_bLinearMotorIsSpring = source.LinearMotorIsSpring;
+			destination.m_bAngularMotorIsSpring = source.AngularMotorIsSpring;
+			destination.m_flLinearTargetPosition = source.LinearTargetPosition;
+			destination.m_flAngularTargetAngle = source.AngularTargetAngle.DegreeToRadian();
+			destination.m_qAngularTargetRotation = source.AngularTargetRotation;
+			destination.m_bOverrideFriction = source.OverrideFriction;
+			destination.m_flFriction = source.Friction;
 			destination.m_Frame1 = source.Frame1;
 			destination.m_Frame2 = source.Frame2;
 			destination.SetLinearLimitMin( source.LinearLimit.x );

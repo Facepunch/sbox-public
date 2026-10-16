@@ -301,6 +301,15 @@ PS
 	#endif
 	float4 MainPs( PixelInput i ) : SV_Target0
 	{
+		// Finish transmission sampling before material and lighting evaluation.
+		#if S_TRANSMISSIVE
+			float3 transmissiveColor = g_tTransmissiveColor.Sample( TextureFiltering, i.vTextureCoords.xy ).rgb;
+			float transmission = dot( transmissiveColor, float3( 0.299, 0.587, 0.114 ) );
+		#else
+			float3 transmissiveColor = 1.0;
+			float transmission = 0.0;
+		#endif
+
 		Material m = Material::From( i );
 
 		// Specular occlusion
@@ -336,14 +345,6 @@ PS
 			// Spent as sub-pixel coverage below when we have samples for it, otherwise cut at the
 			// halfway point. The fade is constant per triangle, so the cut drops a whole card at once.
 			clip( flGrazingFade - ( bFadeViaCoverage ? ( 1.0 / 255.0 ) : 0.5 ) );
-		#endif
-
-		#if S_TRANSMISSIVE
-			float3 transmissiveColor = g_tTransmissiveColor.Sample( TextureFiltering, i.vTextureCoords.xy ).rgb;
-			float transmission = dot( transmissiveColor, float3( 0.299, 0.587, 0.114 ) );
-		#else
-			float3 transmissiveColor = 1.0;
-			float transmission = 0.0;
 		#endif
 
 		#if S_ALPHA_TEST

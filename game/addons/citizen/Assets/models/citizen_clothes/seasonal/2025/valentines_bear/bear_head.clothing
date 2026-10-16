@@ -11,16 +11,17 @@
   "Category": "HatCostume",
   "ConditionalModels": {},
   "Tags": null,
-  "Parent": null,
   "Model": "models/citizen_clothes/seasonal/2025/valentines_bear/bear_mask/models/bear_mask.vmdl",
   "HumanAltModel": "models/citizen_clothes/seasonal/2025/valentines_bear/bear_mask/models/bear_mask_m_human.vmdl",
   "HumanAltFemaleModel": null,
   "SkinMaterial": null,
   "EyesMaterial": null,
   "MaterialGroup": null,
+  "HeelHeight": 0,
   "SlotsUnder": "HeadTop, HeadBottom",
   "SlotsOver": "HeadTop, HeadBottom",
   "HideBody": "Head",
+  "DeformationMode": "Normal",
   "AllowTintSelect": false,
   "TintSelection": {
     "blend": "Linear",
@@ -37,7 +38,8 @@
   "Icon": {
     "Path": "models/citizen_clothes/seasonal/2025/valentines_bear/bear_head.clothing.png",
     "Mode": "Head",
-    "PositionOffset": "-82.59997,0,-2.499999"
+    "UsePositionOffset": false,
+    "PositionOffset": "-82.599968,0,-2.49999905"
   },
   "__references": [],
   "__version": 0

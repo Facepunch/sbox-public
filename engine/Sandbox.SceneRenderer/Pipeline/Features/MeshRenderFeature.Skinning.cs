@@ -40,6 +40,11 @@ internal sealed partial class MeshRenderFeature
 		public int VolumeOffset;
 
 		/// <summary>
+		/// Where its anchors, per mesh bone, start in the frame's anchor buffer, for a rigidly deformed object; 0 for none.
+		/// </summary>
+		public int AnchorOffset;
+
+		/// <summary>
 		/// Its morphs' handle this frame (<see cref="RenderContext.QueueMorph"/>), or -1 when it doesn't morph.
 		/// </summary>
 		public int Morph;
@@ -171,18 +176,30 @@ internal sealed partial class MeshRenderFeature
 			batchOffsets = new int[jobs.Length];
 			batchVolumeOffsets = new int[jobs.Length];
 			batchVolumeCounts = new int[jobs.Length];
+			batchAnchorOffsets = new int[jobs.Length];
 		}
 
-		// Pack deformation volumes into one buffer with per-job ranges (m_frameVolumes).
+		// Pack deformation volumes into one buffer with per-job ranges (m_frameVolumes), and rigidly deformed jobs' anchors
+		// in their mesh's bone order after an unused first one (m_frameAnchors)
 		frameVolumes.Clear();
+		frameAnchors.Clear();
+		frameAnchors.Add( default );
 		foreach ( ref var job in jobs )
 		{
 			if ( !job.Object.IsDeformed ) continue;
 			job.VolumeOffset = frameVolumes.Count;
 			frameVolumes.AddRange( job.Object.DeformationVolumes );
+
+			var anchors = job.Object.DeformationAnchors;
+			job.AnchorOffset = anchors.Length > 0 ? frameAnchors.Count : 0;
+			if ( anchors.Length == 0 ) continue;
+
+			foreach ( var master in job.Object.Mesh.SkinFor( job.ModelMesh ).MasterBones )
+				frameAnchors.Add( (uint)master < (uint)anchors.Length ? anchors[master] : default );
 		}
 
 		GpuBuffer volumeBuffer = frameVolumes.Count > 0 ? volumeRing.Upload( context, CollectionsMarshal.AsSpan( frameVolumes ) ) : null;
+		GpuBuffer anchorBuffer = frameVolumes.Count > 0 ? anchorRing.Upload( context, CollectionsMarshal.AsSpan( frameAnchors ) ) : null;
 
 		context.BarrierVertexCacheToWrite();
 		for ( int first = 0; first < jobs.Length; )
@@ -200,11 +217,12 @@ internal sealed partial class MeshRenderFeature
 				batchOffsets[count] = job.VertexCacheOffset;
 				batchVolumeOffsets[count] = job.VolumeOffset;
 				batchVolumeCounts[count] = deformed ? job.Object.DeformationVolumes.Length : 0;
+				batchAnchorOffsets[count] = job.AnchorOffset;
 				count++;
 			}
 
 			context.DispatchSkinning( skinningShader, mesh, modelMesh, frameTransforms.Current, batchSlots.AsSpan( 0, count ), batchOffsets.AsSpan( 0, count ), mesh.SkinFor( modelMesh ).BlendWeightCount,
-				deformed ? volumeBuffer : null, batchVolumeOffsets.AsSpan( 0, count ), batchVolumeCounts.AsSpan( 0, count ), morphed );
+				deformed ? volumeBuffer : null, batchVolumeOffsets.AsSpan( 0, count ), batchVolumeCounts.AsSpan( 0, count ), anchorBuffer, batchAnchorOffsets.AsSpan( 0, count ), morphed );
 			first += count;
 		}
 		context.BarrierVertexCacheToRead();
@@ -214,6 +232,9 @@ internal sealed partial class MeshRenderFeature
 	int[] batchOffsets = [];
 	int[] batchVolumeOffsets = [];
 	int[] batchVolumeCounts = [];
+	int[] batchAnchorOffsets = [];
 	readonly List<SceneDeformationVolumeData> frameVolumes = new();
 	readonly UploadRing<SceneDeformationVolumeData> volumeRing = new( "SceneRenderer DeformationVolumes" );
+	readonly List<Vector4> frameAnchors = new();
+	readonly UploadRing<Vector4> anchorRing = new( "SceneRenderer DeformationAnchors" );
 }

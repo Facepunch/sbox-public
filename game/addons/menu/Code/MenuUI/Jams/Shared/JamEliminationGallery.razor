@@ -8,17 +8,27 @@
 @namespace MenuProject.MenuUI.Jams
 @inherits Panel
 
-<root class=@(IsGrandFinal ? "grand-final" : "")>
+<root class="@(IsGrandFinal ? "grand-final" : "") @(Waiting ? "waiting" : "")">
+	@if ( Waiting )
+	{
+		<div class="waiting-banner">
+			<icon>lock_clock</icon>
+			<div>
+				<label class="waiting-title">@(IsGrandFinal ? "#menu.jam.the_grand_final_is_lined_up" : "#menu.jam.the_next_round_is_lined_up")</label>
+				<label>#menu.jam.voting_is_paused_play_the_contenders_while_you_wait</label>
+			</div>
+		</div>
+	}
 	<div class="round-heading">
 		<div class="round-summary">
 			@if ( VotingOpen )
 			{
 				<div class="live-dot" @ref=LiveDot />
 			}
-			<label class="round-meta">@($"{Category.TotalVotes:N0} {(WinnerIdent is not null ? "final" : VotingOpen ? "live" : "recorded")} votes · {Category.Title}")</label>
+			<label class="round-meta">@(Waiting ? $"{Standing.Length} confirmed finalists · {Category.Title}" : $"{Category.TotalVotes:N0} {(WinnerIdent is not null ? "final" : VotingOpen ? "live" : "recorded")} votes · {Category.Title}")</label>
 		</div>
 		<div class="round-tools">
-			<label class="selection" tooltip="Choose another game to move your vote before voting closes.">@SelectionText</label>
+			<label class="selection" tooltip="@(Waiting ? "#menu.jam.a_fresh_vote_opens_with_the_next_round" : "#menu.jam.choose_another_game_to_move_your_vote_before_voting_closes")">@SelectionText</label>
 			@if ( CooldownSeconds > 0 )
 			{
 				<label class="round-meta">Change vote in @(CooldownSeconds)s</label>
@@ -30,18 +40,21 @@
 		{
 			var ident = finalist.PackageIdent;
 			var package = PackageFor( ident );
-			var selected = ident is not null && Category.MyVotes.Contains( ident );
+			var selected = !Waiting && ident is not null && Category.MyVotes.Contains( ident );
 			var lowest = IsLowest( finalist );
 			<div class="gallery-card @CardClass( ident ) @(lowest ? "lowest" : "")">
-				<JamVoteBar Votes=@Count( finalist ) VoteShare=@($"{Share( finalist )} of votes") Maximum=@ChartMaximum Lowest=@lowest Selected=@selected Live=@VotingOpen GrandFinal=@IsGrandFinal Urgent=@Urgent Winner=@(WinnerIdent is not null && WinnerIdent == ident) LeadChange=@(VotingOpen && LeadNoticeUntil > 0 && Leader == ident) Identity=@($"{RoundIdentity}/{ident}") Seed=@finalist.Seed />
-				<div class="gallery-art" tooltip="Click the artwork to play">
+				@if ( !Waiting )
+				{
+					<JamVoteBar Votes=@Count( finalist ) VoteShare=@($"{Share( finalist )} of votes") Maximum=@ChartMaximum Lowest=@lowest Selected=@selected Live=@VotingOpen GrandFinal=@IsGrandFinal Urgent=@Urgent Winner=@(WinnerIdent is not null && WinnerIdent == ident) LeadChange=@(VotingOpen && LeadNoticeUntil > 0 && Leader == ident) Identity=@($"{RoundIdentity}/{ident}") Seed=@finalist.Seed />
+				}
+				<div class="gallery-art" tooltip="#menu.jam.click_the_artwork_to_play">
 					@if ( package is not null )
 					{
 						<MenuProject.UI.PackageCard Package=@package AlwaysPlayVideo=@true Clicked=@(() => Play( package )) RightClicked=@(() => ContentBlocks.OnMenu( this, package )) />
 					}
 					else
 					{
-						<div class="unavailable"><icon>videogame_asset_off</icon><label>Game unavailable</label></div>
+						<div class="unavailable"><icon>videogame_asset_off</icon><label>#menu.jam.game_unavailable</label></div>
 					}
 				</div>
 				<div class="gallery-details">
@@ -52,19 +65,23 @@
 						<label class="position">@PositionText( finalist )</label>
 					</div>
 				</div>
-				<div class="card-actions" tooltip=@EligibilityText( ident, selected )>
-					<Button class="vote-action" IconTexture=@(selected ? Avatar : null) Text=@VoteText( ident, selected ) tooltip=@EligibilityText( ident, selected ) Disabled=@(Busy || CooldownSeconds > 0 || selected || !VotingOpen || !CanVote( ident )) onclick=@(() => Vote?.Invoke( ident )) />
+				<div class="card-actions">
+					@if ( Waiting )
+					{
+						<Button class="play-action" Icon="play_arrow" Text="#menu.common.play" Disabled=@(package is null) onclick=@(() => Play( package )) />
+					}
+					<Button class="vote-action" IconTexture=@(selected ? Avatar : null) Text=@VoteText( selected ) Disabled=@(Submitting || CooldownSeconds > 0 || selected || !VotingOpen || ident is null) onclick=@(() => Vote?.Invoke( ident )) />
 				</div>
 			</div>
 		}
-		@if ( IsGrandFinal && Standing.Length == 2 )
+		@if ( IsGrandFinal && Standing.Length == 2 && !Waiting )
 		{
-			<JamFinalDuel Live=@VotingOpen Counting=@(!VotingOpen && WinnerIdent is null) Winner=@WinnerIdent SecondsLeft=@SecondsLeft LeadNotice=@(VotingOpen && LeadNoticeUntil > 0 ? "LEAD CHANGE" : null) />
+			<JamFinalDuel Live=@VotingOpen Counting=@(!VotingOpen && WinnerIdent is null) Winner=@WinnerIdent SecondsLeft=@SecondsLeft LeadNotice=@(VotingOpen && LeadNoticeUntil > 0 ? "#menu.jam.lead_change" : null) />
 		}
 	</div>
 	@if ( Standing.Length == 0 )
 	{
-		<EmptyState Icon="emoji_events" Title="No finalists available" Subtitle="The next confirmed slate will appear here." />
+		<EmptyState Icon="emoji_events" Title="#menu.jam.no_finalists_available" Subtitle="#menu.jam.the_next_confirmed_slate_will_appear_here" />
 	}
 </root>
 
@@ -86,14 +103,9 @@
 	[Parameter] public IReadOnlyDictionary<string, Package> Packages { get; set; }
 
 	/// <summary>
-	/// Fresh play eligibility for this category, keyed by package ident.
+	/// Whether a vote is awaiting a response, preventing duplicate submissions.
 	/// </summary>
-	[Parameter] public IReadOnlyDictionary<string, JamEntryStatus?> Eligibility { get; set; }
-
-	/// <summary>
-	/// Prevents duplicate submissions and voting during snapshot reconciliation.
-	/// </summary>
-	[Parameter] public bool Busy { get; set; }
+	[Parameter] public bool Submitting { get; set; }
 
 	/// <summary>
 	/// Seconds remaining before this category's vote can be changed again.
@@ -158,7 +170,8 @@
 		Standing = Category.Contenders.OrderBy( DisplayOrder ).ToArray();
 	}
 
-	string Selected => Category.MyVotes.FirstOrDefault();
+	bool Waiting => JamVotingPresentation.Waiting( Category );
+	string Selected => Waiting ? null : Category.MyVotes.FirstOrDefault();
 	bool IsGrandFinal => Category.GrandFinal;
 	// A decided snapshot may omit Round. Keep final bars in place while the result is revealed.
 	string RoundIdentity => $"{Jam.Ident}/{Category.Id}/{(IsGrandFinal ? "final" : Category.Round?.ToString())}";
@@ -195,23 +208,22 @@
 	}
 
 	Package PackageFor( string ident ) => ident is null ? null : Packages.GetValueOrDefault( ident );
-	string Title( string ident ) => PackageFor( ident )?.Title ?? ident ?? "Game unavailable";
+	string Title( string ident ) => PackageFor( ident )?.Title ?? ident ?? "#menu.jam.game_unavailable";
 	int Count( JamFinalist finalist ) => finalist.PackageIdent is null ? 0 : Category.Counts.GetValueOrDefault( finalist.PackageIdent );
 	int Rank( JamFinalist finalist ) => 1 + Standing.Count( x => Count( x ) > Count( finalist ) );
 	bool IsLowest( JamFinalist finalist ) => VotingOpen && Category.TotalVotes > 0 && Count( finalist ) == Minimum;
 	string Share( JamFinalist finalist ) => (Category.TotalVotes > 0 ? 100.0 * Count( finalist ) / Category.TotalVotes : 0).ToString( "0.0" ) + "%";
-	JamEntryStatus? Status( string ident ) => ident is null ? null : Eligibility?.GetValueOrDefault( ident );
-	bool CanVote( string ident ) => PackageFor( ident ) is not null && Status( ident )?.CanNominate == true;
 
 	string SelectionText
 	{
 		get
 		{
-			if ( WinnerIdent is not null ) return "Winner confirmed";
-			if ( !VotingOpen && IsGrandFinal ) return "Verifying the final result";
+			if ( WinnerIdent is not null ) return "#menu.jam.winner_confirmed";
+			if ( Waiting ) return "#menu.jam.voting_opens_soon";
+			if ( !VotingOpen && IsGrandFinal ) return "#menu.jam.verifying_the_final_result";
 			if ( Selected is not null ) return $"Your vote: {Title( Selected )}";
 
-			return IsGrandFinal ? "Pick your winner" : "Pick your favourite";
+			return IsGrandFinal ? "#menu.jam.pick_your_winner_text" : "#menu.jam.pick_your_favourite";
 		}
 	}
 
@@ -225,40 +237,30 @@
 
 	string PositionText( JamFinalist finalist )
 	{
-		if ( WinnerIdent is not null ) return WinnerIdent == finalist.PackageIdent ? "Champion" : "Runner-up";
+		if ( WinnerIdent is not null ) return WinnerIdent == finalist.PackageIdent ? "#menu.jam.champion" : "#menu.jam.runner_up";
+		if ( Waiting ) return "#menu.jam.finalist";
 
 		if ( IsGrandFinal )
 		{
-			if ( LowestCount > 1 ) return "Tied";
+			if ( LowestCount > 1 ) return "#menu.jam.tied";
 
-			return Rank( finalist ) == 1 ? "Leading" : "Trailing";
+			return Rank( finalist ) == 1 ? "#menu.jam.leading" : "#menu.jam.trailing";
 		}
 
-		if ( IsLowest( finalist ) ) return LowestCount > 1 ? "Tied lowest" : "Lowest";
+		if ( IsLowest( finalist ) ) return LowestCount > 1 ? "#menu.jam.tied_lowest" : "#menu.jam.lowest";
 
 		return $"Rank {Rank( finalist )}";
 	}
 
-	string VoteText( string ident, bool selected )
+	string VoteText( bool selected )
 	{
-		if ( selected ) return "You Voted";
-		if ( !VotingOpen ) return "Voting closed";
+		if ( Waiting ) return "#menu.jam.voting_opens_soon";
+		if ( selected ) return "#menu.jam.you_voted_text";
+		if ( !VotingOpen ) return "#menu.jam.voting_closed";
+		if ( Submitting ) return "#menu.jam.submitting_vote";
+		if ( CooldownSeconds > 0 ) return $"Vote in {CooldownSeconds}s";
 
-		return CanVote( ident ) ? "Vote" : "Vote locked";
-	}
-
-	string EligibilityText( string ident, bool selected )
-	{
-		if ( !VotingOpen ) return "Each round starts fresh";
-		if ( CooldownSeconds > 0 ) return $"Change your vote in {CooldownSeconds}s";
-		if ( selected ) return "Your vote. Choose another game to move it.";
-
-		if ( Status( ident ) is not JamEntryStatus status )
-		{
-			return Busy ? "Checking voting eligibility…" : "Couldn't check eligibility. Retry above.";
-		}
-
-		return status.CanNominate ? "Ready to vote" : status.Reason ?? "Play this game to unlock voting";
+		return "#menu.jam.vote";
 	}
 
 	void Play( Package package )
@@ -266,6 +268,6 @@
 		if ( package is not null ) ContentBlocks.OnLaunch( package );
 	}
 
-	protected override int BuildHash() => HashCode.Combine( Category, Version, Busy, Packages.Count, Eligibility?.Count, VotingOpen, CooldownSeconds,
-		HashCode.Combine( WinnerIdent, LeadNoticeUntil > 0, Urgent, Urgent ? SecondsLeft : 0 ) );
+	protected override int BuildHash() => HashCode.Combine( Category, Version, Submitting, Packages.Count, VotingOpen, CooldownSeconds,
+		HashCode.Combine( WinnerIdent, LeadNoticeUntil > 0, Urgent, Urgent ? SecondsLeft : 0, Waiting ) );
 }

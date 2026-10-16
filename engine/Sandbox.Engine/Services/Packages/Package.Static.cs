@@ -158,6 +158,9 @@ public partial class Package
 
 		if ( Backend.Package is null )
 		{
+			if ( FetchOffline( $"{ident.org}.{ident.package}" ) is { } installed )
+				return installed;
+
 			Log.Warning( $"Unable to fetch package info for {identString}: backend not available." );
 			return null;
 		}
@@ -194,8 +197,12 @@ public partial class Package
 
 			(package as RemotePackage).UpdateFromDto( result );
 		}
-		catch ( HttpRequestException e )
+		catch ( Exception e ) when ( e is HttpRequestException or TaskCanceledException )
 		{
+			// Offline, or the backend's timing out
+			if ( FetchOffline( StripVersion( packageIdent ) ) is { } installed )
+				return installed;
+
 			Log.Warning( e, $"Failed to fetch package info for {identString}: {e.Message}" );
 			return null;
 		}
@@ -204,12 +211,13 @@ public partial class Package
 			if ( e.StatusCode == System.Net.HttpStatusCode.NotFound )
 			{
 				Log.Warning( $"Failed to fetch package info for {identString}: package not found." );
-			}
-			else
-			{
-				Log.Warning( e, $"Failed to fetch package info for {identString}: {e.Message}" );
+				return null;
 			}
 
+			if ( FetchOffline( StripVersion( packageIdent ) ) is { } installed )
+				return installed;
+
+			Log.Warning( e, $"Failed to fetch package info for {identString}: {e.Message}" );
 			return null;
 		}
 
@@ -350,7 +358,7 @@ public partial class Package
 			var l = await Backend.Package.Find( query, take, skip );
 			return FindResult.FromDto( l );
 		}
-		catch ( ApiException )
+		catch ( Exception e ) when ( e is ApiException or HttpRequestException or TaskCanceledException )
 		{
 			return new FindResult { Packages = Array.Empty<Package>(), TotalCount = 0, Tags = Array.Empty<TagEntry>(), Orders = Array.Empty<SortOrder>() };
 		}

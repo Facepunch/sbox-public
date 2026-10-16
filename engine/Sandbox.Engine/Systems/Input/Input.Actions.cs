@@ -46,7 +46,17 @@ public static partial class Input
 	/// <returns></returns>
 	internal static int GetActionIndex( string actionName )
 	{
-		return InputActions?.FindIndex( x => string.Equals( x.Name, actionName, StringComparison.OrdinalIgnoreCase ) ) ?? -1;
+		// Plain loop: a FindIndex lambda would capture actionName and allocate on every Down/Pressed/Released
+		var actions = InputActions;
+		if ( actions is null ) return -1;
+
+		for ( int i = 0; i < actions.Count; i++ )
+		{
+			if ( string.Equals( actions[i].Name, actionName, StringComparison.OrdinalIgnoreCase ) )
+				return i;
+		}
+
+		return -1;
 	}
 
 	/// <inheritdoc cref="GetActionIndex(string)"/>

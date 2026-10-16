@@ -15,9 +15,15 @@ public abstract partial class Connection
 	/// </summary>
 	internal static void ClearUpdateContextInput()
 	{
-		foreach ( var connection in All )
+		if ( Networking.System is not { } network )
 		{
-			connection.Input.ClearUpdateContext();
+			Local?.Input.ClearUpdateContext();
+			return;
+		}
+
+		foreach ( var entry in network.ConnectionInfo.All )
+		{
+			Find( entry.Key )?.Input.ClearUpdateContext();
 		}
 	}
 
@@ -26,9 +32,15 @@ public abstract partial class Connection
 	/// </summary>
 	internal static void ClearFixedUpdateContextInput()
 	{
-		foreach ( var connection in All )
+		if ( Networking.System is not { } network )
 		{
-			connection.Input.ClearFixedUpdateContext();
+			Local?.Input.ClearFixedUpdateContext();
+			return;
+		}
+
+		foreach ( var entry in network.ConnectionInfo.All )
+		{
+			Find( entry.Key )?.Input.ClearFixedUpdateContext();
 		}
 	}
 

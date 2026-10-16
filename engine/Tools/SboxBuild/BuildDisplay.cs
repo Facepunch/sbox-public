@@ -149,6 +149,9 @@ internal static class BuildDisplay
 			}
 			else Pump( null );
 
+			// Keep the outcome below visible without expanding anything.
+			GitHubActions.EndGroup();
+
 			for ( var i = 0; i < session.Stages.Length; i++ )
 			{
 				var message = $"{session.Stages[i]}: {session.Results[i]} ({FormatTime( session.Elapsed[i] )})";
@@ -193,6 +196,8 @@ internal static class BuildDisplay
 	{
 		var session = current;
 		if ( session == null ) return;
+		// Each status starts its own collapsible section of the Actions log.
+		GitHubActions.Group( message );
 		lock ( session.Sync )
 		{
 			if ( session.Finished ) return;

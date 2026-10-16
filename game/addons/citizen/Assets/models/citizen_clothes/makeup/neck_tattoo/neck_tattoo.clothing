@@ -13,8 +13,8 @@
   "Tags": null,
   "Parent": null,
   "Model": "models/citizen_clothes/makeup/neck_tattoo/models/neck_tattoo.vmdl",
-  "HumanAltModel": null,
-  "HumanAltFemaleModel": null,
+  "HumanAltModel": "models/citizen_clothes/makeup/neck_tattoo/models/neck_tattoo_human.vmdl",
+  "HumanAltFemaleModel": "models/citizen_clothes/makeup/neck_tattoo/models/neck_tattoo_human.vmdl",
   "SkinMaterial": null,
   "EyesMaterial": null,
   "MaterialGroup": null,
@@ -36,8 +36,9 @@
   "SteamItemDefinitionId": 696280,
   "Icon": {
     "Path": "models/citizen_clothes/makeup/neck_tattoo/neck_tattoo.clothing.png",
-    "Mode": "CitizenSkin",
-    "PositionOffset": "10,0,-4.2"
+    "Mode": "Head",
+    "PositionOffset": "10,0,-4.2",
+    "UsePositionOffset": false
   },
   "__references": [],
   "__version": 0

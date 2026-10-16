@@ -183,6 +183,10 @@ internal sealed class InputContext
 			return true;
 		}
 
+		// A drag belongs to the pointer, not to whatever has keyboard focus
+		if ( TryCancelDrag() )
+			return true;
+
 		if ( KeyboardState == InputState.Game )
 		{
 			TargetUISystem.CurrentFocus?.CreateEvent( "onescape" );
@@ -196,6 +200,17 @@ internal sealed class InputContext
 			return false;
 
 		TargetUISystem.CurrentFocus?.CreateEvent( "onescape" );
+		return true;
+	}
+
+	/// <summary>
+	/// Cancel a drag owned by this context's pointer and consume Escape when one is active.
+	/// </summary>
+	internal bool TryCancelDrag()
+	{
+		if ( TargetUISystem?.Input.CancelDrag() != true ) return false;
+
+		InputRouter.EscapeWasPressed = false;
 		return true;
 	}
 

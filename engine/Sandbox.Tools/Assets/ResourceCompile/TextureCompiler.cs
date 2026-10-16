@@ -102,7 +102,11 @@ public class TextureResourceCompiler : ResourceCompiler
 			writer.CalculateFormat();
 
 		Context.Data.Write( writer.GetData() );
-		Context.StreamingData.Write( writer.GetStreamingData() );
+
+		// Encoding owns only the captured bitmaps. Native compiler writes stay on the caller.
+		var streamingData = await Task.Run( writer.GetStreamingData );
+
+		Context.StreamingData.Write( streamingData );
 
 		return true;
 	}

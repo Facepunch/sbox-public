@@ -13,17 +13,19 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	bool WantsDepthNormals() => PostProcess.NeedsDepthNormals;
 
 	/// <summary>
-	/// Whether post processing at <paramref name="stage"/> can run on the async compute queue (<see cref="BasePostProcess.AsyncCompute"/>).
+	/// Whether independent post processing can run ahead of <paramref name="stage"/> on <paramref name="queue"/>.
 	/// </summary>
-	bool HasAsyncCompute( Stage stage ) => PostProcessSystem.EnablePostProcess && PostProcess.HasAsyncCompute( stage );
+	bool HasEarlyPostProcess( Stage stage, PostProcessQueue queue ) => PostProcessSystem.EnablePostProcess && PostProcess.HasEarlyPostProcess( stage, queue );
+
+	void ScheduleEarlyPostProcess( Stage stage, bool enabled ) => PostProcess.ScheduleEarlyPostProcess( stage, enabled );
 
 	/// <summary>
 	/// Run it, under the conditions the stage would (<c>PostProcessSystem.OnRenderStage</c>). On the render thread.
 	/// </summary>
-	void RenderAsyncCompute( Stage stage )
+	void RenderEarlyPostProcess( Stage stage, PostProcessQueue queue )
 	{
 		if ( !PostProcessSystem.EnablePostProcess || !Graphics.PostProcessEnabled ) return;
-		PostProcess.RenderAsyncCompute( stage );
+		PostProcess.RenderEarlyPostProcess( stage, queue );
 	}
 
 	/// <summary>
@@ -38,31 +40,4 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	/// </summary>
 	[Property]
 	public GameObject PostProcessAnchor { get; set; }
-
-
-	internal void PrintPostProcessDebugOverlay( ref Vector2 pos, Painter painter )
-	{
-		var text = $"";
-
-		foreach ( var group in PostProcess.Layers.OrderBy( x => x.Key ) )
-		{
-			text += $"{group.Key}\n";
-
-			foreach ( var layer in group.Value.OrderBy( x => x.Order ) )
-			{
-				text += $"\t{layer.Order,6:D}: {layer.Name}\n";
-			}
-		}
-
-		var textScope = TextRendering.Scope.Default;
-		textScope.Text = text;
-		textScope.FontSize = 11;
-		textScope.FontName = "Roboto Mono";
-		textScope.FontWeight = 600;
-		textScope.Outline = new TextRendering.Outline { Enabled = true, Color = Color.Black.WithAlpha( 0.9f ), Size = 3 };
-		textScope.Shadow = new TextRendering.Shadow { Enabled = true, Color = Color.Black.WithAlpha( 0.5f ), Offset = 0, Size = 2 };
-
-		var drawnRect = Sandbox.DebugOverlay.DrawText( painter, textScope, pos, flags: TextFlag.LeftTop );
-		pos.y = drawnRect.Bottom;
-	}
 }

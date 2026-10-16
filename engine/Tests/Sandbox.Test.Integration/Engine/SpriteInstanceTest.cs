@@ -16,6 +16,81 @@ public class SpriteInstanceTest
 	};
 
 	[TestMethod]
+	public void AnimationStatePreservesElapsedTime()
+	{
+		var animation = CreateSprite().Animations[0];
+		var state = new Sprite.AnimationState();
+		Assert.IsTrue( state.TryAdvanceFrame( animation, 0.625f ) );
+		Assert.AreEqual( 2, state.CurrentFrameIndex );
+		Assert.AreEqual( 0.125f, state.TimeSinceLastFrame );
+		Assert.IsTrue( state.TryAdvanceFrame( animation, 0.125f ) );
+		Assert.AreEqual( 3, state.CurrentFrameIndex );
+		Assert.AreEqual( 0f, state.TimeSinceLastFrame );
+		Assert.IsFalse( state.TryAdvanceFrame( animation, 0.125f ) );
+	}
+
+	[TestMethod, Timeout( 5000 )]
+	[DataRow( Sprite.LoopMode.Loop, 1f )]
+	[DataRow( Sprite.LoopMode.Loop, -1f )]
+	[DataRow( Sprite.LoopMode.PingPong, 1f )]
+	[DataRow( Sprite.LoopMode.PingPong, -1f )]
+	[DataRow( Sprite.LoopMode.None, 1f )]
+	[DataRow( Sprite.LoopMode.None, -1f )]
+	public void AnimationStateExtremeValuesComplete( Sprite.LoopMode mode, float direction )
+	{
+		var animation = CreateSprite( mode ).Animations[0];
+		var state = new Sprite.AnimationState { PlaybackSpeed = direction * 1e20f };
+		Assert.IsTrue( state.TryAdvanceFrame( animation, 1f / 60 ) );
+		Assert.IsTrue( state.JustFinished );
+		Assert.IsTrue( state.TryAdvanceFrame( animation, float.MaxValue ) );
+		Assert.IsTrue( float.IsFinite( state.TimeSinceLastFrame ) );
+		Assert.IsTrue( state.TimeSinceLastFrame < 1f / (animation.FrameRate * Math.Abs( state.PlaybackSpeed )) );
+		state.PlaybackSpeed = direction;
+		Assert.IsTrue( state.TryAdvanceFrame( animation, float.MaxValue ) );
+		Assert.IsTrue( state.TimeSinceLastFrame < 0.25f );
+	}
+
+	[TestMethod]
+	public void AnimationStateRejectsInvalidDeltaTime()
+	{
+		var animation = CreateSprite().Animations[0];
+		var state = new Sprite.AnimationState();
+		Assert.ThrowsException<ArgumentOutOfRangeException>( () => state.TryAdvanceFrame( animation, float.PositiveInfinity ) );
+		Assert.ThrowsException<ArgumentOutOfRangeException>( () => state.TryAdvanceFrame( animation, float.NaN ) );
+		Assert.ThrowsException<ArgumentOutOfRangeException>( () => state.TryAdvanceFrame( animation, -1 ) );
+	}
+
+	[TestMethod]
+	[DataRow( Sprite.LoopMode.Loop, 1f )]
+	[DataRow( Sprite.LoopMode.Loop, -1f )]
+	[DataRow( Sprite.LoopMode.PingPong, 1f )]
+	[DataRow( Sprite.LoopMode.PingPong, -1f )]
+	[DataRow( Sprite.LoopMode.None, 1f )]
+	[DataRow( Sprite.LoopMode.None, -1f )]
+	public void AnimationStateLargeDeltaMatchesIndividualUpdates( Sprite.LoopMode mode, float speed )
+	{
+		var animation = CreateSprite( mode ).Animations[0];
+		animation.LoopStart = 1;
+		animation.LoopEnd = 2;
+		var fast = new Sprite.AnimationState { PlaybackSpeed = speed };
+		var slow = new Sprite.AnimationState { PlaybackSpeed = speed };
+		fast.TryAdvanceFrame( animation, 1.375f );
+		bool finished = false;
+		for ( int i = 0; i < 11; i++ )
+		{
+			slow.TryAdvanceFrame( animation, 0.125f );
+			finished |= slow.JustFinished;
+		}
+		Assert.AreEqual( slow.CurrentFrameIndex, fast.CurrentFrameIndex );
+		Assert.AreEqual( slow.IsPingPonging, fast.IsPingPonging );
+		Assert.AreEqual( slow.TimeSinceLastFrame, fast.TimeSinceLastFrame );
+		Assert.IsTrue( finished );
+		Assert.AreEqual( finished, fast.JustFinished );
+		fast.TryAdvanceFrame( animation, 0 );
+		Assert.IsFalse( fast.JustFinished );
+	}
+
+	[TestMethod]
 	public void InstancesAreIndependentAndPreserveElapsedTime()
 	{
 		var resource = CreateSprite();

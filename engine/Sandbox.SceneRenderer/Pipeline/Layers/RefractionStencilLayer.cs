@@ -3,7 +3,7 @@ using Sandbox.Rendering;
 namespace Sandbox.SceneRenderer;
 
 /// <summary>
-/// Quarter-resolution glass depth for <c>depthaware_mask_cs</c> (<c>RenderPipeline.AddLayersToView</c>).
+/// Quarter-resolution glass depth for <c>depthaware_mask_cs</c> (native: <see cref="Native.StandardPipeline"/>).
 /// The mask uses reprojected history to keep foreground objects out of refraction.
 /// Draws unfaded translucent readers with forced depth material and both faces; runs only when a frame copy is needed.
 /// </summary>
@@ -38,7 +38,7 @@ internal sealed class RefractionStencilLayer : MeshLayer
 	{
 		var full = frame.View.Viewport;
 		viewport = new Rect( (int)(full.Left / 4), (int)(full.Top / 4), (int)(full.Width / 4), (int)(full.Height / 4) );
-		target = Rendering.RefractionStencilLayer.GetTarget( (int)viewport.Width, (int)viewport.Height );
+		target = SharedPasses.RefractionStencilTarget( (int)viewport.Width, (int)viewport.Height );
 		frameContext.Attributes.Set( RefractionDepth, target.DepthTarget );
 	}
 

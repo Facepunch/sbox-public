@@ -21,9 +21,8 @@ internal sealed class ContactShadowLayer : RenderLayer
 
 	// screen_space_shadows_cs marches the depth chain
 	public override FrameResources Reads( RenderFrame frame ) => FrameResources.DepthChain;
-
-	// Its dispatches, anyway: the mask's clear and barriers are graphics, in HandOff and TakeBack
-	public override bool AsyncCompute => true;
+	public override FrameResources Writes => FrameResources.ContactShadows;
+	public override bool SupportsAsyncCompute => true;
 
 	public override void HandOff( RenderFrame frame, RenderContext rc ) => Render( frame, rc, ContactShadows.Steps.Prepare );
 

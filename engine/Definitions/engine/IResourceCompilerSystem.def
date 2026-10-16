@@ -37,4 +37,14 @@ native static accessor g_pResourceCompilerSystem as IResourceCompilerSystem
 
 		return outputData;
 	}
+
+	inline bool GenerateResourceFileForced( string path, string text )
+	{
+		CUtlBuffer inputData( 0, 0, CUtlBuffer::TEXT_BUFFER );
+		inputData.PutString( text );
+		ResourceCompileSettings_t compileSettings;
+		compileSettings.m_nCompileMode = COMPILE_PARENTS_BUT_CHILDREN_AND_ASSOCIATES_AS_NEEDED;
+		compileSettings.m_pOverrideInputData = &inputData;
+		return g_pResourceCompilerSystem->GenerateResourceFile( path, compileSettings );
+	}
 }

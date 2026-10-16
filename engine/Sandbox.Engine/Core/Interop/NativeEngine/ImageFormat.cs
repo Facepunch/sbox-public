@@ -147,6 +147,12 @@ public enum ImageFormat : int
 
 internal static class ImageFormatExtensions
 {
+	/// <summary>
+	/// Whether the format has the eight stencil bits required by the standard camera pipeline.
+	/// </summary>
+	internal static bool HasCameraStencil( this ImageFormat format ) => format is
+		ImageFormat.D24S8 or ImageFormat.LINEAR_D24S8 or ImageFormat.D24FS8 or ImageFormat.D32FS8;
+
 	public static bool IsDepthFormat( this ImageFormat format )
 	{
 		switch ( format )

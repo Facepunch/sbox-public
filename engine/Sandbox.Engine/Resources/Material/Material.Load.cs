@@ -5,6 +5,11 @@ namespace Sandbox;
 
 public partial class Material
 {
+	internal override void OnReloaded()
+	{
+		Attributes.Set( native.GetRenderAttributes() );
+	}
+
 	/// <summary>
 	/// Load a material from disk. Has internal cache.
 	/// </summary>
@@ -30,7 +35,7 @@ public partial class Material
 		if ( filename.StartsWith( '/' ) || filename.StartsWith( '\\' ) )
 			filename = filename[1..];
 
-		if ( !string.IsNullOrWhiteSpace( filename ) && Directory.TryLoad( filename, ResourceType.Material, out object model ) && model is Material m )
+		if ( !string.IsNullOrWhiteSpace( filename ) && Directory.TryLoad( filename, out object model ) && model is Material m )
 			return m;
 
 		return FromNative( NativeGlue.Resources.GetMaterial( filename, Guid.Empty ), filename );
@@ -45,7 +50,7 @@ public partial class Material
 	{
 		ThreadSafe.AssertIsMainThread();
 
-		if ( !string.IsNullOrWhiteSpace( filename ) && await Directory.TryLoadAsync( filename, ResourceType.Material ) is Material m )
+		if ( !string.IsNullOrWhiteSpace( filename ) && await Directory.TryLoadAsync( filename ) is Material m )
 			return m;
 
 		using var manifest = AsyncResourceLoader.Load( filename );

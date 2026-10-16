@@ -168,6 +168,22 @@
 						remaps = 
 						[
 							{
+								from = "m_playermodelhd02.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead02/citizen_human_malehead02.vmat"
+							},
+							{
+								from = "m_playermodelhd03.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead03/citizen_human_malehead03.vmat"
+							},
+							{
+								from = "m_playermodelhd04.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead04/citizen_human_malehead04.vmat"
+							},
+							{
+								from = "m_playermodelhd05.vmat"
+								to = "models/citizen_human/heads/citizen_human_malehead05/citizen_human_malehead05.vmat"
+							},
+							{
 								from = "male_body.vmat"
 								to = "models/citizen_human/bodies/male/body_mode_dark.vmat"
 							},
@@ -254,6 +270,148 @@
 				]
 			},
 			{
+				_class = "LODGroupList"
+				children = 
+				[
+					{
+						_class = "LODGroup"
+						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = 
+						[
+							"chest",
+							"hands",
+							"legs",
+							"feet",
+							"head_01",
+							"eyes_01",
+							"jaw_01",
+							"head_02",
+							"eyes_02",
+							"jaw_02",
+							"head_03",
+							"eyes_03",
+							"jaw_03",
+							"head_04",
+							"eyes_04",
+							"jaw_04",
+							"head_05",
+							"eyes_05",
+							"jaw_05",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						note = "Body only for now - heads stay on LOD0 meshes"
+						switch_threshold = 10.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = 
+						[
+							"chest_lod1",
+							"hands_lod1",
+							"legs_lod1",
+							"feet_lod1",
+							"head_01",
+							"eyes_01",
+							"jaw_01",
+							"head_02",
+							"eyes_02",
+							"jaw_02",
+							"head_03",
+							"eyes_03",
+							"jaw_03",
+							"head_04",
+							"eyes_04",
+							"jaw_04",
+							"head_05",
+							"eyes_05",
+							"jaw_05",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						note = "Every face switches to its copy of the LOD2 head (keeps LOD0 eyes, no jaws)"
+						switch_threshold = 20.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = 
+						[
+							"chest_lod2",
+							"hands_lod2",
+							"legs_lod2",
+							"feet_lod2",
+							"head_01_lod2",
+							"head_02_lod2",
+							"head_03_lod2",
+							"head_04_lod2",
+							"head_05_lod2",
+							"eyes_01",
+							"eyes_02",
+							"eyes_03",
+							"eyes_04",
+							"eyes_05",
+						]
+						material_culls = [  ]
+					},
+					{
+						_class = "LODGroup"
+						note = "Every face switches to its copy of the LOD3 head (no eyes or jaws)"
+						switch_threshold = 40.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
+						auto_strip_vertex_color = false
+						auto_material_culling_enabled = false
+						meshes = 
+						[
+							"chest_lod3",
+							"hands_lod3",
+							"legs_lod3",
+							"feet_lod3",
+							"head_01_lod3",
+							"head_02_lod3",
+							"head_03_lod3",
+							"head_04_lod3",
+							"head_05_lod3",
+						]
+						material_culls = [  ]
+					},
+				]
+			},
+			{
 				_class = "AnimationList"
 				children = 
 				[
@@ -263,15 +421,40 @@
 					},
 					{
 						_class = "Prefab"
-						target_file = "models/citizen_human/prefabs/human_animationlist_debug.vmdl_prefab"
-					},
-					{
-						_class = "Prefab"
 						target_file = "models/citizen_human/prefabs/human_animationlist_menu.vmdl_prefab"
 					},
 					{
 						_class = "Prefab"
 						target_file = "models/citizen_human/prefabs/human_animationlist_visemes.vmdl_prefab"
+					},
+					{
+						_class = "AnimFrame"
+						name = "SkeletonDelta_delta"
+						note = "Neutral skeleton correction for the shared Human graph"
+						children = 
+						[
+							{
+								_class = "AnimSubtract"
+								anim_name = "bindPose"
+								frame = 0
+							},
+						]
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = false
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = true
+						disable_interpolation = false
+						enable_scale = false
+						src_anim_name = "bindPose"
+						frame_type = "FirstFrame"
+						frame = 0
 					},
 				]
 				default_root_bone_name = "pelvis"
@@ -356,6 +539,10 @@
 						_class = "Prefab"
 						name = "Citizen_weightlists"
 						target_file = "models/citizen/prefabs/citizen_weightlistlist.vmdl_prefab"
+					},
+					{
+						_class = "Prefab"
+						target_file = "models/citizen_human/prefabs/human_face_weightlists.vmdl_prefab"
 					},
 					{
 						_class = "WeightList"
@@ -535,14 +722,14 @@
 				[
 					{
 						_class = "Prefab"
-						target_file = "models/citizen_human/prefabs/human_bodygrouplist.vmdl_prefab"
+						target_file = "models/citizen_human/prefabs/human_bodygrouplist_male.vmdl_prefab"
 					},
 				]
 			},
 		]
 		model_archetype = ""
 		primary_associated_entity = ""
-		anim_graph_name = "models/citizen/citizen_human_m.vanmgrph"
+		anim_graph_name = "models/citizen_human/animgraphs/human.vanmgrph"
 		base_model_name = ""
 	}
 }

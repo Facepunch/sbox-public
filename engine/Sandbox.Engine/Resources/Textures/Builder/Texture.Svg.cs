@@ -16,6 +16,16 @@ public partial class Texture
 		if ( Game.Resources.Get<Texture>( cacheName ) is Texture existing )
 			return existing;
 
+		var tx = RenderSvg( svgContents, width, height, color );
+		if ( tx is null )
+			return Texture.Invalid;
+
+		tx.RegisterWeakResourceId( cacheName );
+		return tx;
+	}
+
+	internal static Texture RenderSvg( string svgContents, int? width, int? height, Color? color )
+	{
 		try
 		{
 			var svgDocument = Svg.SvgDocument.FromSvg<Svg.SvgDocument>( svgContents.Trim() );
@@ -62,25 +72,18 @@ public partial class Texture
 				canvas.Translate( -midX, -midY );
 				canvas.DrawPicture( svg.Picture, paint );
 
-				var tx = Texture.Create( resolvedWidth, resolvedHeight, ImageFormat.BGRA8888 )
+				return Texture.Create( resolvedWidth, resolvedHeight, ImageFormat.BGRA8888 )
 							.WithName( $"skiasvg" )
 							.WithData( bitmap.GetPixels(), resolvedWidth * resolvedHeight * bitmap.BytesPerPixel )
 							.WithMips()
 							.WithDynamicUsage()
 				.Finish();
-
-				if ( tx.IsValid() )
-				{
-					tx.RegisterWeakResourceId( cacheName );
-				}
-
-				return tx;
 			}
 		}
 		catch ( System.Exception e )
 		{
 			Log.Warning( e, $"Error when loading svg: {e.Message}" );
-			return Texture.Invalid;
+			return null;
 		}
 	}
 }

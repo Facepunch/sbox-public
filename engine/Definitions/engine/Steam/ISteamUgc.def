@@ -48,6 +48,7 @@ native class Steam.Ugc.CUgcUpdate as NativeEngine.CUgcUpdate
     float GetProgressPercent();
     ulong GetBytesProcessed();
     ulong GetBytesTotal();
+    int GetUpdateStatus();
 
     bool m_creating;
     bool m_created;
@@ -70,18 +71,16 @@ native class Steam.Ugc.CUgcQuery as NativeEngine.CUgcQuery
     string GetResultJson();
 }
 
-native class Steam.Ugc.CUgcInstall as NativeEngine.CUgcInstall
+native static class Steam.Ugc.CUgcSubscriptions as NativeEngine.CUgcSubscriptions
 {
-    inline static CUgcInstall Create( ulong fileid )
-    {
-        return new Steam::Ugc::CUgcInstall( (PublishedFileId_t) fileid );
-    }
-
-    void Dispose(); [delete]
-
-    bool m_complete;
-    bool m_success;
-    int m_resultCode;
-
-    string GetResultJson();
+    string GetSubscribedJson();
+    string GetDownloadedJson();
+    bool MarkDownloadedItemAsUnused( ulong fileid );
+    string GetItemJson( ulong fileid );
+    bool DownloadItem( ulong fileid, bool highPriority );
+    void SubscribeItem( ulong fileid );
+    void UnsubscribeItem( ulong fileid );
+    void StartPlaytimeTracking( ulong fileid );
+    void StopPlaytimeTracking( ulong fileid );
+    bool InitWorkshopForGameServer( string folder );
 }

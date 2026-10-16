@@ -11,21 +11,28 @@ internal class WorldPanelInput : PanelInput
 	internal Vector2 MouseWheel;
 	internal bool UseMouseInput;
 
-	internal override void Tick( IEnumerable<RootPanel> panels, bool mouseIsActive )
+	readonly List<RootPanel> _hitPanels = new();
+
+	internal override void Tick( IReadOnlyList<RootPanel> panels, bool mouseIsActive )
 	{
 		bool hoveredAny = false;
 		var inputData = GetInputData();
 
-		List<RootPanel> worldPanels = new();
-		foreach ( var panel in panels.Where( p => p.ChildrenWantMouseInput ) )
+		var worldPanels = _hitPanels;
+		worldPanels.Clear();
+		for ( int i = 0; i < panels.Count; i++ )
 		{
+			var panel = panels[i];
+			if ( panel is null || !panel.ChildrenWantMouseInput ) continue;
+
 			if ( panel.RayToLocalPosition( Ray, out panel.WorldCursor, out panel.WorldDistance ) )
-				worldPanels.Add( panel );
+				InsertByDistance( worldPanels, panel );
 		}
 
 		// In order of distance, update our mouse on them
-		foreach ( var panel in worldPanels.OrderBy( x => x.WorldDistance ) )
+		for ( int i = 0; i < worldPanels.Count; i++ )
 		{
+			var panel = worldPanels[i];
 			inputData.MousePos = panel.WorldCursor;
 			if ( UpdateMouse( panel, inputData ) )
 			{
@@ -34,12 +41,24 @@ internal class WorldPanelInput : PanelInput
 			}
 		}
 
+		worldPanels.Clear();
+
 		if ( !hoveredAny )
 		{
 			SetHovered( null );
 		}
 
 		SimulateEvents();
+	}
+
+	/// <summary>
+	/// Keeps the list nearest first. Equal distances keep their order, like OrderBy.
+	/// </summary>
+	static void InsertByDistance( List<RootPanel> list, RootPanel panel )
+	{
+		int i = list.Count;
+		while ( i > 0 && list[i - 1].WorldDistance > panel.WorldDistance ) i--;
+		list.Insert( i, panel );
 	}
 
 	internal override InputData GetInputData()

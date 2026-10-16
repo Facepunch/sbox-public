@@ -325,7 +325,7 @@ partial class GameObjectNode : TreeNode<GameObject>
 	{
 		var undoName = selection != null && selection.Count > 1 ? $"Rename {selection.Count} Objects" : "Rename Object";
 		var gos = selection.Select( x => x.Value ).OfType<GameObject>().ToArray();
-		using ( SceneEditorSession.Active.UndoScope( undoName ).WithGameObjectChanges( gos, GameObjectUndoFlags.All ).Push() )
+		using ( SceneEditorSession.Active.UndoScope( undoName ).WithGameObjectChanges( gos, GameObjectUndoFlags.Properties ).Push() )
 		{
 			foreach ( var go in gos )
 			{

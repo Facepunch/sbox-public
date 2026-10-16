@@ -19,6 +19,7 @@ public partial class Mixer
 
 		var newMaster = new Mixer( null );
 		newMaster.Name = "Master";
+		newMaster.SetMasterSimulationTagDefaults();
 
 		// Sol: I think these defaults all get overriden by the Clear() on Deserialize? leaving incase there's a path I'm not considering
 

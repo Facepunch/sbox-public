@@ -27,6 +27,7 @@ native class IPhysicsJoint as NativeEngine.IPhysicsJoint
 	Vector3 GetAngularSpring();
 
 	void SetAngularMotor( float targetVelocity, float maxTorque );
+	void SetLinearMotor( float targetVelocity, float maxForce );
 
 	void SetMinLength( float f );
 	float GetMinLength();
@@ -42,8 +43,12 @@ native class IPhysicsJoint as NativeEngine.IPhysicsJoint
 
 	void SetFriction( float f );
 
-	void SetLimit( string name, Vector3 limit );
-	void SetLimitEnabled( string name, bool state );
+	void SetSwingLimit( float angleDegrees );
+	void SetSwingLimitEnabled( bool enabled );
+	void SetTwistLimits( float minDegrees, float maxDegrees );
+	void SetTwistLimitEnabled( bool enabled );
+	void SetLinearLimits( float min, float max );
+	void SetLinearLimitEnabled( bool enabled );
 
 	float GetAngle();
 

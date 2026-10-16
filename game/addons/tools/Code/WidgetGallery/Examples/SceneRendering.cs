@@ -130,13 +130,13 @@ internal class SceneRendering : SceneRenderingWidget
 
 		if ( canvas.Layout is GridLayout gridLayout )
 		{
-			gridLayout.AddCell( 0, 0, new SceneRendering( "models/citizen/citizen.vmdl" ), 1 );
-			gridLayout.AddCell( 1, 0, new SceneRendering( "models/citizen/citizen.vmdl" ), 1 );
-			gridLayout.AddCell( 2, 0, new SceneRendering( "models/citizen/citizen.vmdl" ), 1 );
+			gridLayout.AddCell( 0, 0, new SceneRendering( "models/citizen_human/human.vmdl" ), 1 );
+			gridLayout.AddCell( 1, 0, new SceneRendering( "models/citizen_human/human.vmdl" ), 1 );
+			gridLayout.AddCell( 2, 0, new SceneRendering( "models/citizen_human/human.vmdl" ), 1 );
 
-			gridLayout.AddCell( 0, 1, new SceneRendering( "models/citizen/citizen.vmdl" ), 1 );
-			gridLayout.AddCell( 1, 1, new SceneRendering( "models/citizen/citizen.vmdl" ), 1 );
-			gridLayout.AddCell( 2, 1, new SceneRendering( "models/citizen/citizen.vmdl" ), 1 );
+			gridLayout.AddCell( 0, 1, new SceneRendering( "models/citizen_human/human.vmdl" ), 1 );
+			gridLayout.AddCell( 1, 1, new SceneRendering( "models/citizen_human/human.vmdl" ), 1 );
+			gridLayout.AddCell( 2, 1, new SceneRendering( "models/citizen_human/human.vmdl" ), 1 );
 		}
 
 		return canvas;

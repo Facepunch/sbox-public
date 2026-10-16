@@ -1,7 +1,11 @@
-﻿namespace Sandbox;
+namespace Sandbox;
 
 internal static partial class DebugOverlay
 {
+	/// <summary>
+	/// Managed allocations by type, and GC pauses, for the performance hub's Memory tab. Tracking starts the first
+	/// time the tab samples and stops when it closes, since an allocation scope isn't free.
+	/// </summary>
 	public partial class Allocations
 	{
 		static Sandbox.Diagnostics.Allocations.Scope _scope;
@@ -19,12 +23,40 @@ internal static partial class DebugOverlay
 		static long _frameCount = 0;
 		static long _pauseTicksSum = 0;
 		static long _stutterCount = 0;
-		static long _pauseTicksMin = long.MaxValue;
 		static long _pauseTicksMax = 0;
 		static long _gen0Sum = 0;
 		static long _gen1Sum = 0;
 		static long _gen2Sum = 0;
 		static long _allocBytesAtOpen = 0;
+
+		/// <summary>
+		/// The types that allocated the most since tracking started, biggest first.
+		/// </summary>
+		internal static IReadOnlyList<(string Name, long Bytes, long Count)> Top => _topAllocs;
+
+		/// <summary>
+		/// How long tracking has been running.
+		/// </summary>
+		internal static double WindowSeconds => _openTime < 0 ? 0 : RealTime.Now - _openTime;
+
+		internal static long AllocatedBytes => _openTime < 0 ? 0 : GC.GetTotalAllocatedBytes( precise: false ) - _allocBytesAtOpen;
+
+		internal static (long Gen0, long Gen1, long Gen2) Collections
+		{
+			get
+			{
+				var ls = Sandbox.Diagnostics.PerformanceStats.LastSecond;
+				return (_gen0Sum + ls.Gc0, _gen1Sum + ls.Gc1, _gen2Sum + ls.Gc2);
+			}
+		}
+
+		internal static double PauseSumMs => TimeSpan.FromTicks( _pauseTicksSum ).TotalMilliseconds;
+		internal static double PauseMaxMs => TimeSpan.FromTicks( _pauseTicksMax ).TotalMilliseconds;
+
+		/// <summary>
+		/// Frames with a GC pause of 2 ms or more.
+		/// </summary>
+		internal static long Stutters => _stutterCount;
 
 		internal static void Disabled()
 		{
@@ -35,7 +67,6 @@ internal static partial class DebugOverlay
 			_frameCount = 0;
 			_pauseTicksSum = 0;
 			_stutterCount = 0;
-			_pauseTicksMin = long.MaxValue;
 			_pauseTicksMax = 0;
 			_gen0Sum = 0;
 			_gen1Sum = 0;
@@ -45,7 +76,10 @@ internal static partial class DebugOverlay
 			_topAllocs.Clear();
 		}
 
-		internal static void Draw( Painter painter, ref Vector2 pos )
+		/// <summary>
+		/// Call once a frame while the tab is showing.
+		/// </summary>
+		internal static void Sample()
 		{
 			_scope ??= new();
 			_scope.Start();
@@ -57,8 +91,6 @@ internal static partial class DebugOverlay
 				_lastFlushTime = now;
 				_allocBytesAtOpen = GC.GetTotalAllocatedBytes( precise: false );
 			}
-
-			var ls = Sandbox.Diagnostics.PerformanceStats.LastSecond;
 
 			if ( now - _lastFlushTime >= 1.0 )
 			{
@@ -82,6 +114,7 @@ internal static partial class DebugOverlay
 
 				_scope.Clear();
 
+				var ls = Sandbox.Diagnostics.PerformanceStats.LastSecond;
 				_gen0Sum += ls.Gc0;
 				_gen1Sum += ls.Gc1;
 				_gen2Sum += ls.Gc2;
@@ -90,127 +123,8 @@ internal static partial class DebugOverlay
 			var gcPause = Sandbox.Diagnostics.PerformanceStats.GcPause;
 			_frameCount++;
 			_pauseTicksSum += gcPause;
-			if ( gcPause < _pauseTicksMin ) _pauseTicksMin = gcPause;
 			if ( gcPause > _pauseTicksMax ) _pauseTicksMax = gcPause;
 			if ( gcPause >= StutterThresholdTicks ) _stutterCount++;
-
-			var liveElapsed = now - _openTime;
-			if ( liveElapsed < 1.0 )
-				return;
-
-			var x = pos.x;
-			var y = pos.y;
-
-			var scope = new TextRendering.Scope( "", Color.White, 11, "Roboto Mono", 600 )
-			{
-				Outline = new TextRendering.Outline { Color = Color.Black, Enabled = true, Size = 2 }
-			};
-			var headerScope = new TextRendering.Scope( "", Color.White.WithAlpha( 0.9f ), 11, "Roboto Mono", 700 )
-			{
-				Outline = new TextRendering.Outline { Color = Color.Black, Enabled = true, Size = 2 }
-			};
-			var dimScope = new TextRendering.Scope( "", Color.White.WithAlpha( 0.78f ), 10, "Roboto Mono", 600 )
-			{
-				Outline = new TextRendering.Outline { Color = Color.Black, Enabled = true, Size = 2 }
-			};
-
-			var lowestPauseMs = TimeSpan.FromTicks( _pauseTicksMin == long.MaxValue ? 0 : _pauseTicksMin ).TotalMilliseconds;
-			var highestPauseMs = TimeSpan.FromTicks( _pauseTicksMax ).TotalMilliseconds;
-			var sumMs = TimeSpan.FromTicks( _pauseTicksSum ).TotalMilliseconds;
-			var avgMs = _frameCount > 0 ? TimeSpan.FromTicks( _pauseTicksSum / _frameCount ).TotalMilliseconds : 0.0;
-
-			var gcMemInfo = GC.GetGCMemoryInfo();
-			var allocBytesTotal = GC.GetTotalAllocatedBytes( precise: false ) - _allocBytesAtOpen;
-			var mbPerSec = liveElapsed > 0 ? allocBytesTotal / (1024.0 * 1024.0 * liveElapsed) : 0.0;
-			var mbTotal = allocBytesTotal / (1024.0 * 1024.0);
-			var elapsedSecondsInt = (int)liveElapsed;
-			var windowLabel = elapsedSecondsInt >= 60 ? $"{elapsedSecondsInt / 60}m {elapsedSecondsInt % 60}s" : $"{elapsedSecondsInt}s";
-
-			headerScope.Text = $"Allocations & GC ({windowLabel} window)";
-			DebugOverlay.DrawText( painter, headerScope, new Rect( x, y, 512, 14 ), TextFlag.LeftTop );
-			y += 16;
-
-			DrawSummaryRow( painter, x, ref y, scope, dimScope, "Gen (0/1/2):", $"{_gen0Sum + ls.Gc0} / {_gen1Sum + ls.Gc1} / {_gen2Sum + ls.Gc2}" );
-			DrawSummaryRow( painter, x, ref y, scope, dimScope, "Total / Rate:", $"{mbTotal:N1} MB / {mbPerSec:N2} MB/s" );
-			DrawSummaryRow( painter, x, ref y, scope, dimScope, "Pause Avg / Min / Max:", $"{avgMs:N2}ms / {lowestPauseMs:N2}ms / {highestPauseMs:N2}ms" );
-			DrawSummaryRow( painter, x, ref y, scope, dimScope, "GC Pause Sum:", $"{sumMs:N2}ms" );
-			DrawSummaryRow( painter, x, ref y, scope, dimScope, "GC Pause %:", $"{sumMs / (liveElapsed * 1000.0) * 100.0:N2}% window, {gcMemInfo.PauseTimePercentage:N2}% lifetime" );
-			DrawSummaryRow( painter, x, ref y, scope, dimScope, $"Stutters (>{StutterThresholdTicks / TimeSpan.TicksPerMillisecond}ms):", $"{_stutterCount} frames" );
-
-			y += 8;
-			headerScope.TextColor = new Color( 0.5f, 1f, 1f );
-			headerScope.Text = "Managed Heap (last GC)";
-			DebugOverlay.DrawText( painter, headerScope, new Rect( x, y, 512, 14 ), TextFlag.LeftTop );
-			y += 16;
-
-			// Stats from GCMemoryInfo — these are the modern .NET equivalents of the
-			// .NET Framework "Memory performance counters" (PerformanceCounter objects).
-			var genInfo = gcMemInfo.GenerationInfo;
-			var heapFragPct = gcMemInfo.HeapSizeBytes > 0 ? (double)gcMemInfo.FragmentedBytes / gcMemInfo.HeapSizeBytes * 100.0 : 0.0;
-			DrawSummaryRow( painter, x, ref y, scope, dimScope, "Heap (frag):", $"{gcMemInfo.HeapSizeBytes.FormatBytes()} ({heapFragPct:N1}%)" );
-			DrawSummaryRow( painter, x, ref y, scope, dimScope, "Committed:", gcMemInfo.TotalCommittedBytes.FormatBytes() );
-			var g0 = genInfo.Length > 0 ? genInfo[0].SizeAfterBytes.FormatBytes() : "?";
-			var g1 = genInfo.Length > 1 ? genInfo[1].SizeAfterBytes.FormatBytes() : "?";
-			var g2 = genInfo.Length > 2 ? genInfo[2].SizeAfterBytes.FormatBytes() : "?";
-			DrawSummaryRow( painter, x, ref y, scope, dimScope, "Gen (0/1/2):", $"{g0} / {g1} / {g2}" );
-			if ( genInfo.Length > 3 ) DrawSummaryRow( painter, x, ref y, scope, dimScope, "LOH:", genInfo[3].SizeAfterBytes.FormatBytes() );
-			DrawSummaryRow( painter, x, ref y, scope, dimScope, "Pinned / Pending Finalizer:", $"{gcMemInfo.PinnedObjectsCount} / {gcMemInfo.FinalizationPendingCount}" );
-
-			y += 8;
-			headerScope.TextColor = new Color( 1f, 1f, 0.5f );
-			headerScope.Text = $"Top {_topAllocs.Count} Allocations";
-			DebugOverlay.DrawText( painter, headerScope, new Rect( x, y, 512, 14 ), TextFlag.LeftTop );
-			y += 14;
-
-			dimScope.Text = "bytes";
-			DebugOverlay.DrawText( painter, dimScope, new Rect( x + 10, y, 64, 12 ), TextFlag.RightTop );
-			dimScope.Text = "count";
-			DebugOverlay.DrawText( painter, dimScope, new Rect( x + 80, y, 62, 12 ), TextFlag.RightTop );
-			dimScope.Text = "type";
-			DebugOverlay.DrawText( painter, dimScope, new Rect( x + 152, y, 320, 12 ), TextFlag.LeftTop );
-			y += 14;
-
-			foreach ( var e in _topAllocs )
-			{
-				scope.TextColor = GetLineColor( e.Name );
-
-				{
-					scope.Text = e.Bytes.FormatBytes();
-					DebugOverlay.DrawText( painter, scope, new Rect( x + 10, y, 64, 13 ), TextFlag.RightTop );
-				}
-
-				{
-					scope.Text = e.Count.KiloFormat();
-					DebugOverlay.DrawText( painter, scope, new Rect( x + 80, y, 62, 13 ), TextFlag.RightTop );
-				}
-
-				{
-					scope.Text = e.Name;
-					DebugOverlay.DrawText( painter, scope, new Vector2( x + 152, y ), TextFlag.LeftTop );
-				}
-
-				y += 14;
-			}
-
-			pos.y = y;
-		}
-
-		static Color GetLineColor( string name )
-		{
-			if ( name.StartsWith( "System." ) ) return new Color( 0.7f, 1f, 0.7f );
-			if ( name.StartsWith( "<GetAll>" ) ) return new Color( 1f, 1f, 0.7f );
-
-			return Color.White;
-		}
-
-		static void DrawSummaryRow( Painter painter, float x, ref float y, TextRendering.Scope valueScope, TextRendering.Scope labelScope, string label, string value )
-		{
-			labelScope.Text = label;
-			DebugOverlay.DrawText( painter, labelScope, new Rect( x, y, 160, 13 ), TextFlag.LeftTop );
-			valueScope.Text = value;
-			valueScope.TextColor = Color.White.WithAlpha( 0.9f );
-			DebugOverlay.DrawText( painter, valueScope, new Rect( x + 168, y, 320, 13 ), TextFlag.LeftTop );
-			y += 13;
 		}
 	}
 }

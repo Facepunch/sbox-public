@@ -141,6 +141,16 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 	[Property, Hide]
 	ModelRenderer ModelRenderer { get; set; }
 
+	/// <summary>
+	/// Override material carried over from the prop a gib broke off, applied to the renderer we create.
+	/// </summary>
+	internal Material InheritedMaterialOverride;
+
+	/// <summary>
+	/// Surface carried over from the prop a gib broke off, applied to the collider we create.
+	/// </summary>
+	internal Surface InheritedSurface;
+
 	void ClearProcedurals()
 	{
 		if ( ProceduralComponents is null )
@@ -240,6 +250,11 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		mr.MaterialGroup = MaterialGroup;
 		mr.Tint = Tint;
 
+		if ( InheritedMaterialOverride is not null )
+		{
+			mr.MaterialOverride = InheritedMaterialOverride;
+		}
+
 		AddProcedural( mr );
 
 		ModelRenderer = mr;
@@ -259,6 +274,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 			var collider = Components.GetOrCreate<ModelCollider>();
 			collider.Static = true;
 			collider.Model = Model;
+			ApplyInheritedSurface( collider );
 			AddProcedural( collider );
 
 			return;
@@ -270,6 +286,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 			var collider = Components.GetOrCreate<ModelCollider>();
 			collider.Static = false;
 			collider.Model = Model;
+			ApplyInheritedSurface( collider );
 
 			AddProcedural( collider );
 
@@ -331,6 +348,29 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		physics.Model = Model;
 
 		AddProcedural( physics );
+	}
+
+	void ApplyInheritedSurface( Collider collider )
+	{
+		if ( InheritedSurface.IsValid() )
+		{
+			collider.Surface = InheritedSurface;
+		}
+	}
+
+	static Material GetGibMaterialOverride( ModelRenderer mr )
+	{
+		if ( !mr.IsValid() )
+			return null;
+
+		if ( mr.MaterialOverride is not null )
+			return mr.MaterialOverride;
+
+		var materials = mr.Materials;
+		if ( materials.Count == 1 && materials.HasOverride( 0 ) )
+			return materials.GetOverride( 0 );
+
+		return null;
 	}
 
 	/// <summary>
@@ -539,6 +579,9 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		var rb = Components.Get<Rigidbody>();
 		var mr = Components.Get<ModelRenderer>();
 
+		var materialOverride = GetGibMaterialOverride( mr );
+		var surface = Components.Get<Collider>()?.Surface;
+
 		gibs.EnsureCapacity( breaklist.Length );
 
 		// Batch anything we're spawning here
@@ -571,6 +614,8 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 				}
 
 				var c = gib.Components.Create<Gib>( false );
+				c.InheritedMaterialOverride = materialOverride;
+				c.InheritedSurface = surface;
 				c.FadeTime = breakModel.FadeTime;
 				c.Model = model;
 				c.Enabled = true;

@@ -29,18 +29,17 @@ public sealed partial class RenderSystem
 			overlayPrepass,
 			new DepthPrepassLayer( overlayPrepass ),
 
-			// Compute over the prepass's depth, on the async compute queue where there is one, while the shadow maps draw
-			// (FrameRecorder). Native draws its shadow views first; nothing between here and the stage below reads them.
+			// Pass inputs and outputs determine queue waits; this list is also the serial execution order.
 			new DepthChainLayer(),
+			new EarlyStageLayer( Stage.AfterDepthPrepass, PostProcessQueue.AsyncCompute ),
 			contactShadows,
-			new AsyncStageLayer( Stage.AfterDepthPrepass ),
+			new EarlyStageLayer( Stage.AfterDepthPrepass, PostProcessQueue.Graphics ),
 			new ShadowLayer(),
 			new ShadowsReadyLayer(),
 
 			// Quarter-resolution bloom with scene-depth occlusion.
 			new QuarterDepthDownsampleLayer( bloom ),
 			bloom,
-			new BloomBlurLayer( bloom ),
 
 			// Glass depth for the frame-copy mask.
 			new RefractionStencilLayer(),
@@ -94,7 +93,7 @@ public sealed partial class RenderSystem
 	}
 
 	/// <summary>
-	/// Skybox pipeline: prepass, forward, unfaded translucency, then 2D sky (<c>Skybox3DPipeline</c>).
+	/// Skybox pipeline: prepass, forward, unfaded translucency, then 2D sky (<see cref="Native.Skybox3DPipeline"/>).
 	/// </summary>
 	static RenderLayer[] SkyboxLayers() =>
 	[

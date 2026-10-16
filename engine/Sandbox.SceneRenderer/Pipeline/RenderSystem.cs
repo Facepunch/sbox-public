@@ -242,7 +242,7 @@ public sealed partial class RenderSystem : IDisposable
 		recorder ??= new FrameRecorder();
 		recorder.Plan( frame, ParallelRecording, Sandbox.Rendering.ManagedSceneRendering.AsyncCompute );
 
-		// overlay_scene_plan, or SceneLab's plan overlay: frames drawn into a window show their plan, published with its times
+		// The performance hub's frame plan, or SceneLab's plan overlay: frames drawn into a window show their plan, published with its times
 		var plan = Sandbox.Rendering.ManagedFramePlan.Wanted && (IntPtr)output.SwapChain != IntPtr.Zero ? recorder.Snapshot( view.Name ) : null;
 
 		context.Begin();
@@ -254,7 +254,7 @@ public sealed partial class RenderSystem : IDisposable
 			// Submit skybox setup after main setup, before draws.
 			if ( skyFrame is not null )
 			{
-				skybox.context.Begin( recorder.Parallel ? null : context );
+				skybox.context.Begin( recorder.SeparateContexts ? null : context );
 				skybox.Setup( skyFrame );
 			}
 			stats.SetupMs = Lap();
@@ -316,7 +316,7 @@ public sealed partial class RenderSystem : IDisposable
 			plan.Publish();
 		}
 
-		// Native counters omit managed draws; report them for overlay_frame.
+		// Native counters omit managed draws; report them for the frame stats.
 		Sandbox.Rendering.ManagedSceneRendering.Report( new Sandbox.Rendering.ManagedFrameCounters
 		{
 			Renders = 1,
@@ -363,7 +363,7 @@ public sealed partial class RenderSystem : IDisposable
 		// Per-view debug mode (ToolsVis.hlsl, SetupShadingMode).
 		context.Attributes.Set( ToolsVisModeName, view.ToolsVisMode );
 
-		// Glass reads the native Skybox3DPipeline combo.
+		// Glass reads the native 3D skybox pipeline's combo (Native.Skybox3DPipeline).
 		if ( isSkybox ) context.Attributes.SetCombo( SkyboxCombo, 1 );
 
 		for ( int i = 0; i < features.Count; i++ )

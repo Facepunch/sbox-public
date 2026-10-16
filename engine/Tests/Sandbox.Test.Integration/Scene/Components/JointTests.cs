@@ -1,4 +1,5 @@
 using System;
+using PhysicsPoint = Sandbox.Physics.PhysicsPoint;
 using PhysicsSpring = Sandbox.Physics.PhysicsSpring;
 
 namespace SceneTests.Components;
@@ -12,6 +13,249 @@ namespace SceneTests.Components;
 [TestClass]
 public class PhysicsJointTest
 {
+	sealed class LimitRecordingJoint : Sandbox.Physics.PhysicsJointInternal
+	{
+		public float SwingAngle;
+		public Vector2 TwistRange, LinearRange;
+		public bool SwingEnabled, TwistEnabled, LinearEnabled;
+		public override bool IsValid => true;
+		internal override PhysicsJointType JointType => default;
+		public override PhysicsBody Body1 => null;
+		public override PhysicsBody Body2 => null;
+		public override bool Collisions { get; set; }
+		public override float Strength { get; set; }
+		public override float AngularStrength { get; set; }
+		internal override float LinearImpulse => 0;
+		internal override float AngularImpulse => 0;
+		internal override void WakeBodies() { }
+		public override void Remove() { }
+		public override void GetLocalFrameA( out Vector3 position, out Rotation rotation ) { position = Vector3.Zero; rotation = Rotation.Identity; }
+		public override void GetLocalFrameB( out Vector3 position, out Rotation rotation ) { position = Vector3.Zero; rotation = Rotation.Identity; }
+		public override void SetLocalFrameA( Vector3 position, Rotation rotation ) { }
+		public override void SetLocalFrameB( Vector3 position, Rotation rotation ) { }
+		public override void SetSwingLimit( float angleDegrees ) => SwingAngle = angleDegrees;
+		public override void SetSwingLimitEnabled( bool enabled ) => SwingEnabled = enabled;
+		public override void SetTwistLimits( float minDegrees, float maxDegrees ) => TwistRange = new Vector2( minDegrees, maxDegrees );
+		public override void SetTwistLimitEnabled( bool enabled ) => TwistEnabled = enabled;
+		public override void SetLinearLimits( float min, float max ) => LinearRange = new Vector2( min, max );
+		public override void SetLinearLimitEnabled( bool enabled ) => LinearEnabled = enabled;
+	}
+
+	[TestMethod]
+	public void JointLimitsDispatchThroughExplicitMethods()
+	{
+		var ballBackend = new LimitRecordingJoint();
+		var ball = new Sandbox.Physics.BallSocketJoint( ballBackend )
+		{
+			SwingLimit = new Vector2( 10, 40 ),
+			SwingLimitEnabled = true,
+			TwistLimit = new Vector2( -30, 60 ),
+			TwistLimitEnabled = true
+		};
+		Assert.AreEqual( 40, ballBackend.SwingAngle );
+		Assert.IsTrue( ballBackend.SwingEnabled );
+		Assert.AreEqual( new Vector2( -30, 60 ), ballBackend.TwistRange );
+		Assert.IsTrue( ballBackend.TwistEnabled );
+		ball.SwingLimitEnabled = false;
+		Assert.IsFalse( ballBackend.SwingEnabled );
+		Assert.IsTrue( ballBackend.TwistEnabled );
+
+		var hingeBackend = new LimitRecordingJoint();
+		var hinge = new Sandbox.Physics.HingeJoint( hingeBackend );
+		hinge.ConfigureLimits( new Vector2( -20, 50 ), true );
+		Assert.AreEqual( new Vector2( -20, 50 ), hingeBackend.TwistRange );
+		Assert.IsTrue( hingeBackend.TwistEnabled );
+		hinge.ConfigureLimits( Vector2.Zero, false );
+		Assert.AreEqual( Vector2.Zero, hingeBackend.TwistRange );
+		Assert.IsFalse( hingeBackend.TwistEnabled );
+
+		var sliderBackend = new LimitRecordingJoint();
+		var slider = new Sandbox.Physics.SliderJoint( sliderBackend );
+		slider.ConfigureLimits( new Vector2( -12, 30 ), false );
+		Assert.AreEqual( new Vector2( -12, 30 ), sliderBackend.LinearRange );
+		Assert.IsFalse( sliderBackend.LinearEnabled );
+		slider.ConfigureLimits( Vector2.Zero, true );
+		Assert.AreEqual( Vector2.Zero, sliderBackend.LinearRange );
+		Assert.IsTrue( sliderBackend.LinearEnabled );
+	}
+
+	[DataTestMethod]
+	[DataRow( false, false )]
+	[DataRow( false, true )]
+	[DataRow( true, false )]
+	[DataRow( true, true )]
+	public void AngularMotorsSwitchBetweenVelocityAndSpring( bool twoDimensional, bool ball )
+	{
+		var world = twoDimensional ? new PhysicsWorld( new PhysicsWorld2d() ) : new PhysicsWorld();
+		try
+		{
+			world.Gravity = Vector3.Zero;
+			world.SleepingEnabled = false;
+			var anchor = new PhysicsBody( world ) { BodyType = PhysicsBodyType.Static };
+			var body = new PhysicsBody( world ) { BodyType = PhysicsBodyType.Dynamic, Mass = 1 };
+			body.AddSphereShape( Vector3.Zero, 1 );
+			Action<float> velocity;
+			Action<float> spring;
+			if ( ball )
+			{
+				var joint = Sandbox.Physics.PhysicsJoint.CreateBallSocket( anchor, body, Vector3.Zero );
+				velocity = value => joint.SetMotorVelocity( Vector3.Up * value, 100000 );
+				spring = value => joint.SetTargetRotation( Rotation.FromYaw( value ), 5, 1 );
+			}
+			else
+			{
+				var joint = Sandbox.Physics.PhysicsJoint.CreateHinge( anchor, body, Transform.Zero, Transform.Zero );
+				velocity = value => joint.SetAngularMotor( value, 100000 );
+				spring = value => joint.SetAngularSpring( new Vector3( value.DegreeToRadian(), 5, 1 ) );
+			}
+			velocity( -2 );
+			for ( var i = 0; i < 60; i++ ) world.Step( 1f / 120 );
+			var speed = body.AngularVelocity.z;
+			Assert.AreEqual( -2, twoDimensional ? speed.DegreeToRadian() : speed, 0.01f );
+			spring( 30 );
+			for ( var i = 0; i < 240; i++ ) world.Step( 1f / 120 );
+			Assert.IsTrue( body.Transform.Rotation.Distance( Rotation.FromYaw( 30 ) ) < 0.5f );
+			velocity( 1 );
+			for ( var i = 0; i < 60; i++ ) world.Step( 1f / 120 );
+			speed = body.AngularVelocity.z;
+			Assert.AreEqual( 1, twoDimensional ? speed.DegreeToRadian() : speed, 0.01f );
+		}
+		finally
+		{
+			world.Delete();
+		}
+	}
+
+	[DataTestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void SliderFrictionReplacesSpringAndStopsMotion( bool twoDimensional )
+	{
+		var world = twoDimensional ? new PhysicsWorld( new PhysicsWorld2d() ) : new PhysicsWorld();
+		try
+		{
+			world.Gravity = Vector3.Left * 850;
+			world.SleepingEnabled = false;
+			var anchor = new PhysicsBody( world ) { BodyType = PhysicsBodyType.Static };
+			var body = new PhysicsBody( world ) { BodyType = PhysicsBodyType.Dynamic, Mass = 1 };
+			body.AddSphereShape( Vector3.Zero, 1 );
+			var joint = Sandbox.Physics.PhysicsJoint.CreateSlider( new PhysicsPoint( anchor ), new PhysicsPoint( body ), -500, 500 );
+			joint.ConfigureLimits( new Vector2( -500, 500 ), false );
+			joint.SetTargetPosition( -12, 5, 1 );
+			joint.Friction = 0.25f;
+			body.Velocity = Vector3.Forward * 100;
+			for ( var i = 0; i < 120; i++ ) world.Step( 1f / 120 );
+			Assert.AreEqual( 0, body.Velocity.x, 0.1f );
+			Assert.IsTrue( body.Transform.Position.x > 10 );
+		}
+		finally
+		{
+			world.Delete();
+		}
+	}
+
+	[DataTestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void SliderMotorsKeepLinearUnitsAndSwitchBetweenSpringAndVelocity( bool twoDimensional )
+	{
+		var world = twoDimensional ? new PhysicsWorld( new PhysicsWorld2d() ) : new PhysicsWorld();
+		try
+		{
+			world.Gravity = Vector3.Zero;
+			world.SleepingEnabled = false;
+			var anchor = new PhysicsBody( world ) { BodyType = PhysicsBodyType.Static };
+			var body = new PhysicsBody( world ) { BodyType = PhysicsBodyType.Dynamic, Mass = 1 };
+			body.AddSphereShape( Vector3.Zero, 1 );
+			var joint = Sandbox.Physics.PhysicsJoint.CreateSlider(
+				new PhysicsPoint( anchor ), new PhysicsPoint( body ), -500, 500 );
+			joint.ConfigureLimits( new Vector2( -500, 500 ), false );
+			joint.SetLinearMotor( 100, 100000 );
+			for ( var i = 0; i < 60; i++ ) world.Step( 1f / 120 );
+			Assert.AreEqual( 100, body.Velocity.x, 0.5f );
+
+			joint.SetTargetPosition( -12, 5, 1 );
+			for ( var i = 0; i < 240; i++ ) world.Step( 1f / 120 );
+			Assert.AreEqual( -12, body.Transform.Position.x, 0.5f );
+
+			joint.SetLinearMotor( -50, 100000 );
+			for ( var i = 0; i < 60; i++ ) world.Step( 1f / 120 );
+			Assert.AreEqual( -50, body.Velocity.x, 0.5f );
+			joint.Friction = 0;
+			body.Velocity = Vector3.Forward * 25;
+			for ( var i = 0; i < 60; i++ ) world.Step( 1f / 120 );
+			Assert.AreEqual( 25, body.Velocity.x, 0.5f );
+		}
+		finally
+		{
+			world.Delete();
+		}
+	}
+
+	[DataTestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void HingeLimitsKeepDegreeUnitsAndExplicitZeroWidthState( bool twoDimensional )
+	{
+		var world = twoDimensional ? new PhysicsWorld( new PhysicsWorld2d() ) : new PhysicsWorld();
+		try
+		{
+			world.Gravity = Vector3.Zero;
+			world.SleepingEnabled = false;
+			var anchor = new PhysicsBody( world ) { BodyType = PhysicsBodyType.Static };
+			var body = new PhysicsBody( world ) { BodyType = PhysicsBodyType.Dynamic, Mass = 1 };
+			body.AddSphereShape( Vector3.Zero, 1 );
+			var joint = Sandbox.Physics.PhysicsJoint.CreateHinge( anchor, body, Transform.Zero, Transform.Zero );
+			joint.ConfigureLimits( new Vector2( 30, 60 ), true );
+			Assert.AreEqual( 30, joint.MinAngle, 0.001f );
+			Assert.AreEqual( 60, joint.MaxAngle, 0.001f );
+			joint.ConfigureLimits( Vector2.Zero, true );
+			body.AngularVelocity = Vector3.Up * (twoDimensional ? 5f.RadianToDegree() : 5);
+			for ( var i = 0; i < 120; i++ ) world.Step( 1f / 120 );
+			Assert.AreEqual( 0, joint.Angle, 1 );
+			joint.ConfigureLimits( Vector2.Zero, false );
+			body.AngularVelocity = Vector3.Up * (twoDimensional ? 2f.RadianToDegree() : 2);
+			for ( var i = 0; i < 30; i++ ) world.Step( 1f / 120 );
+			Assert.IsTrue( MathF.Abs( joint.Angle ) > 20 );
+		}
+		finally
+		{
+			world.Delete();
+		}
+	}
+
+	[DataTestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void SliderZeroWidthLimitsDistinguishLockedAndDisabled( bool twoDimensional )
+	{
+		var world = twoDimensional ? new PhysicsWorld( new PhysicsWorld2d() ) : new PhysicsWorld();
+		try
+		{
+			world.Gravity = Vector3.Zero;
+			world.SleepingEnabled = false;
+			var anchor = new PhysicsBody( world ) { BodyType = PhysicsBodyType.Static };
+			var body = new PhysicsBody( world ) { BodyType = PhysicsBodyType.Dynamic, Mass = 1 };
+			body.AddSphereShape( Vector3.Zero, 1 );
+			var joint = Sandbox.Physics.PhysicsJoint.CreateSlider(
+				new PhysicsPoint( anchor ), new PhysicsPoint( body ), -20, -10 );
+			Assert.AreEqual( -20, joint.MinLength );
+			Assert.AreEqual( -10, joint.MaxLength );
+			joint.ConfigureLimits( Vector2.Zero, true );
+			body.Velocity = Vector3.Forward * 100;
+			for ( var i = 0; i < 120; i++ ) world.Step( 1f / 120 );
+			Assert.AreEqual( 0, body.Transform.Position.x, 0.1f );
+			joint.ConfigureLimits( Vector2.Zero, false );
+			body.Velocity = Vector3.Forward * 100;
+			for ( var i = 0; i < 30; i++ ) world.Step( 1f / 120 );
+			Assert.AreEqual( 25, body.Transform.Position.x, 0.5f );
+		}
+		finally
+		{
+			world.Delete();
+		}
+	}
+
 	/// <summary>
 	/// Creates a GameObject with a gravity-less dynamic Rigidbody and a 10 unit box collider
 	/// at the given world position - the standard dynamic test body.
@@ -1004,8 +1248,11 @@ public class PhysicsJointTest
 	/// A HingeJoint's limit and motor configuration survives a json round trip and the
 	/// deserialized joint goes live against the cloned target on the next tick.
 	/// </summary>
-	[TestMethod]
-	public void HingeJointSerializationRoundTrip()
+	[DataTestMethod]
+	[DataRow( null, HingeJoint.MotorMode.Disabled )]
+	[DataRow( false, HingeJoint.MotorMode.TargetVelocity )]
+	[DataRow( true, HingeJoint.MotorMode.TargetAngle )]
+	public void HingeJointSerializationRoundTrip( bool? limits, HingeJoint.MotorMode mode )
 	{
 		var scene = new Scene();
 		using var sceneScope = scene.Push();
@@ -1016,7 +1263,9 @@ public class PhysicsJointTest
 		joint.Body = target;
 		joint.MinAngle = -30f;
 		joint.MaxAngle = 60f;
-		joint.Motor = HingeJoint.MotorMode.TargetVelocity;
+		joint.LimitEnabled = limits;
+		joint.Motor = mode;
+		joint.TargetAngle = -25;
 		joint.TargetVelocity = 90f;
 		joint.MaxTorque = 1000f;
 		joint.Friction = 0.25f;
@@ -1027,7 +1276,9 @@ public class PhysicsJointTest
 
 		Assert.AreEqual( -30f, loaded.MinAngle );
 		Assert.AreEqual( 60f, loaded.MaxAngle );
-		Assert.AreEqual( HingeJoint.MotorMode.TargetVelocity, loaded.Motor );
+		Assert.AreEqual( limits, loaded.LimitEnabled );
+		Assert.AreEqual( mode, loaded.Motor );
+		Assert.AreEqual( -25, loaded.TargetAngle );
 		Assert.AreEqual( 90f, loaded.TargetVelocity );
 		Assert.AreEqual( 1000f, loaded.MaxTorque );
 		Assert.AreEqual( 0.25f, loaded.Friction );
@@ -1052,6 +1303,7 @@ public class PhysicsJointTest
 		var (root, anchor, target) = CreateJointRig( scene );
 
 		var joint = anchor.Components.Create<BallJoint>();
+		Assert.AreEqual( Rotation.Identity, joint.TargetRotation );
 		joint.Body = target;
 		joint.SwingLimitEnabled = true;
 		joint.SwingLimit = new Vector2( 10, 80 );
@@ -1103,7 +1355,46 @@ public class PhysicsJointTest
 		Assert.AreEqual( 5f, loaded.MinLength );
 		Assert.AreEqual( 80f, loaded.MaxLength );
 		Assert.AreEqual( 0.5f, loaded.Friction );
+		Assert.IsNull( loaded.LimitEnabled );
+		Assert.AreEqual( SliderJoint.MotorMode.Disabled, loaded.Motor );
+		Assert.AreEqual( 1, loaded.Frequency );
+		Assert.AreEqual( 1, loaded.DampingRatio );
 		Assert.AreEqual( "target", loaded.Body.Name );
+	}
+
+	[DataTestMethod]
+	[DataRow( null, SliderJoint.MotorMode.Disabled )]
+	[DataRow( false, SliderJoint.MotorMode.TargetVelocity )]
+	[DataRow( true, SliderJoint.MotorMode.TargetPosition )]
+	public void SliderJointMotorAndExplicitLimitsSerialize( bool? limits, SliderJoint.MotorMode mode )
+	{
+		var scene = new Scene();
+		try
+		{
+			using var scope = scene.Push();
+			var (root, anchor, target) = CreateJointRig( scene );
+			var joint = anchor.Components.Create<SliderJoint>();
+			joint.Body = target;
+			joint.LimitEnabled = limits;
+			joint.Motor = mode;
+			joint.TargetPosition = -12;
+			joint.TargetVelocity = 100;
+			joint.MaxForce = 123;
+			joint.Frequency = 7;
+			joint.DampingRatio = 0.3f;
+			var loaded = SerializeRigRoundTrip<SliderJoint>( scene, root );
+			Assert.AreEqual( limits, loaded.LimitEnabled );
+			Assert.AreEqual( mode, loaded.Motor );
+			Assert.AreEqual( -12, loaded.TargetPosition );
+			Assert.AreEqual( 100, loaded.TargetVelocity );
+			Assert.AreEqual( 123, loaded.MaxForce );
+			Assert.AreEqual( 7, loaded.Frequency );
+			Assert.AreEqual( 0.3f, loaded.DampingRatio );
+		}
+		finally
+		{
+			scene.Destroy();
+		}
 	}
 
 	/// <summary>

@@ -1,4 +1,4 @@
-﻿namespace Editor;
+namespace Editor;
 
 class ClothingIconPreviewWidget : Widget
 {
@@ -33,40 +33,44 @@ class ClothingIconPreviewWidget : Widget
 		CanvasWidget.Scene = Scene.Scene;
 	}
 
+	/// <summary>
+	/// Exports a Human clothing icon, preserving the existing icon when the item has no renderable Human model.
+	/// </summary>
 	public static void RenderIcon( Asset asset, Clothing resource )
 	{
-		// force an icon path
-		var iconInfo = resource.Icon;
-
-		iconInfo.Path = resource.ResourcePath + ".png";
-		resource.Icon = iconInfo;
-
 		var clothingSetup = new ClothingScene();
-		clothingSetup.Update();
-		clothingSetup.InstallClothing( resource );
-
-		clothingSetup.Scene.EditorTick( RealTime.Now - 2, 1 );
-		clothingSetup.Scene.EditorTick( RealTime.Now - 1, 1 );
-
-		clothingSetup.Update();
-
-		int size = 512;
-		int upscale = 4;
-
-		using var bitmap = new Bitmap( size * upscale, size * upscale );
-		clothingSetup.Scene.Camera.RenderToBitmap( bitmap );
-
-		if ( asset.SaveToDisk( resource ) )
+		try
 		{
-			asset.Compile( false );
+			clothingSetup.Update();
+			clothingSetup.InstallClothing( resource );
+
+			if ( !clothingSetup.HasRenderableClothing )
+			{
+				Log.Warning( $"Cannot render clothing icon for '{resource.ResourcePath}': no Human model is available. Existing icon kept." );
+				return;
+			}
+
+			var iconInfo = resource.Icon;
+			iconInfo.Path = resource.ResourcePath + ".png";
+			resource.Icon = iconInfo;
+
+			using var bitmap = ClothingIconRenderer.Render( clothingSetup );
+
+			if ( asset.SaveToDisk( resource ) )
+			{
+				asset.Compile( false );
+			}
+
+			var root = asset.AbsolutePath[0..^(asset.RelativePath.Length)];
+			var pngPath = root + iconInfo.Path;
+			System.IO.Directory.CreateDirectory( System.IO.Path.GetDirectoryName( pngPath ) );
+
+			var outputData = bitmap.ToPng();
+			System.IO.File.WriteAllBytes( pngPath, outputData );
 		}
-
-		var root = asset.AbsolutePath[0..^(asset.RelativePath.Length)];
-		var pngPath = root + iconInfo.Path;
-		System.IO.Directory.CreateDirectory( System.IO.Path.GetDirectoryName( pngPath ) );
-
-		using var downsampledBitmap = bitmap.Resize( size, size );
-		var outputData = downsampledBitmap.ToPng();
-		System.IO.File.WriteAllBytes( pngPath, outputData );
+		finally
+		{
+			clothingSetup.Scene.Destroy();
+		}
 	}
 }

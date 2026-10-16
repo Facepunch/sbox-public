@@ -7,6 +7,35 @@ namespace TextureTests;
 public class TextureTest
 {
 	[TestMethod]
+	public void ArrayMipDataKeepsEverySlice()
+	{
+		using var texture = Texture.CreateArray( 4, 4, 3 )
+			.WithMips( 3 )
+			.WithData( new byte[3 * (16 + 4 + 1) * 4] )
+			.Finish();
+		Assert.IsTrue( texture.IsValid );
+	}
+
+	[TestMethod]
+	public void ArrayMipDataRejectsShrinkingSliceCount()
+	{
+		Assert.ThrowsException<Exception>( () => Texture.CreateArray( 4, 4, 3 )
+			.WithMips( 3 )
+			.WithData( new byte[(16 * 3 + 4 + 1) * 4] )
+			.Finish() );
+	}
+
+	[TestMethod]
+	public void VolumeMipDataShrinksDepth()
+	{
+		using var texture = Texture.CreateVolume( 4, 4, 3 )
+			.WithMips( 3 )
+			.WithData( new byte[(16 * 3 + 4 + 1) * 4] )
+			.Finish();
+		Assert.IsTrue( texture.IsValid );
+	}
+
+	[TestMethod]
 	public void VideoPresentationTrackingOverridesNativeUse()
 	{
 		using var player = new VideoPlayer();

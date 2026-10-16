@@ -191,12 +191,11 @@
 .navitem .icon { font-size: 17px; margin-right: 11px; transition: transform 0.15s ease-out; }
 .navitem .label { font-size: 13px; font-weight: 500; }
 .navitem .grow { flex-grow: 1; }
-.navitem .external { font-size: 12px; margin-right: 0; color: $text-faint; opacity: 0; transition: opacity 0.12s ease-out; }
+.navitem .external { font-size: 12px; margin-right: 0; color: $text-faint; }
 
 .navitem:hover { color: $text; background-color: $raised; }
 .navitem:active { background-color: $raised-hover; }
 .navitem:hover .icon { transform: translateX( 2px ); }
-.navitem:hover .external { opacity: 1; }
 
 // The active page: blue accent bar, blue-tinted surface - straight from the theme doc
 @keyframes barin

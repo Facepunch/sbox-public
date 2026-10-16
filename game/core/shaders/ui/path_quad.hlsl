@@ -4,7 +4,7 @@
 // Project homogeneous panel coordinates, including directions (w = 0).
 float4 PathToClip( float4 position, float4x4 transform )
 {
-	float4 panel = mul( LayerMat, mul( transform, position ) );
+	float4 panel = MapPainterScreenPixels( mul( LayerMat, mul( transform, position ) ), g_vViewport );
 	#if D_WORLDPANEL
 		panel.y = -panel.y;
 		return Position4WsToPs( mul( g_matWorldPanel, panel ) );

@@ -51,7 +51,7 @@
 	@if ( PlayingNow )
 	{
 		<div class="playing">
-			<label class="section-label">Playing now</label>
+			<label class="section-label">#menu.friends.playing_now</label>
 			<div class="game @(HasGamePage ? "clickable" : "")" onmousedown=@OpenGame>
 				<div class="thumb" style="background-image: url( @GameThumb );"></div>
 				<div class="game-info">
@@ -69,7 +69,7 @@
 							<div class="face" tooltip="@other.Name" style="background-image: url( avatar:@other.Id )"></div>
 						}
 					</div>
-					<label>@(FriendsHere.Count == 1 ? "1 other friend playing" : $"{FriendsHere.Count} other friends playing")</label>
+					<label>@(FriendsHere.Count == 1 ? "#menu.friends.1_other_friend_playing" : $"{FriendsHere.Count} other friends playing")</label>
 				</div>
 			}
 		</div>
@@ -78,7 +78,7 @@
 	{
 		@* Still finding out what they were last in - hold the space for it *@
 		<div class="playing loading">
-			<label class="section-label quiet">Recently played</label>
+			<label class="section-label quiet">#menu.friends.recently_played</label>
 			<div class="game">
 				<div class="thumb skeleton"></div>
 				<div class="game-info">
@@ -92,7 +92,7 @@
 	{
 		@* Not in anything right now - what they were last in *@
 		<div class="playing">
-			<label class="section-label quiet">Recently played</label>
+			<label class="section-label quiet">#menu.friends.recently_played</label>
 			<div class="game clickable" onmousedown=@( () => OpenPackage( recent.Package ) )>
 				<div class="thumb" style="background-image: url( @recent.Package.Thumb );"></div>
 				<div class="game-info">
@@ -115,33 +115,45 @@
 		<div class="action-row">
 			@if ( CanJoin )
 			{
-				<div class="button primary" onmousedown=@Join><icon>sports_esports</icon><label>Join game</label></div>
+				<div class="button primary" onmousedown=@Join><icon>sports_esports</icon><label>#menu.friends.join_game</label></div>
 			}
 			else if ( IsMe )
 			{
 				@* Nothing to do to yourself but look *@
 			}
+			else if ( CanInviteToGame )
+			{
+				@* Mid-game, into the game you're in - before the party, that's what you're here for *@
+				@if ( _gameInvited )
+				{
+					<div class="button done"><icon>check</icon><label>Game invite sent</label></div>
+				}
+				else
+				{
+					<div class="button primary" onmousedown=@InviteToGame><icon>sports_esports</icon><label>Invite to game</label></div>
+				}
+			}
 			else if ( InMyParty )
 			{
-				<div class="button done"><icon>check</icon><label>In your party</label></div>
+				<div class="button done"><icon>check</icon><label>#menu.friends.in_your_party</label></div>
 			}
 			else if ( Invited )
 			{
-				<div class="button done"><icon>check</icon><label>Invite sent</label></div>
+				<div class="button done"><icon>check</icon><label>#menu.friends.invite_sent</label></div>
 			}
 			else if ( MenuUtility.CanInviteToParty( Friend ) )
 			{
-				<div class="button primary" onmousedown=@Invite><icon>group_add</icon><label>Invite to party</label></div>
+				<div class="button primary" onmousedown=@Invite><icon>group_add</icon><label>#menu.friends.invite_to_party</label></div>
 			}
 
-			<div class="button" onmousedown=@ViewProfile><label>View profile</label><icon>open_in_new</icon></div>
+			<div class="button" onmousedown=@ViewProfile><label>#menu.friends.view_profile_sentence</label><icon>open_in_new</icon></div>
 
 			@* Sharing the row when it's got room for them *@
 			@if ( !SplitRows )
 			{
 				@foreach ( var extra in extras )
 				{
-					<div class="button @(extra.Danger ? "danger" : "")" onmousedown=@extra.Click><icon>@extra.Icon</icon><label>@extra.Label</label></div>
+					<div class="button @(extra.Danger ? "danger" : "")" tooltip=@extra.Tooltip onmousedown=@extra.Click><icon>@extra.Icon</icon><label>@extra.Label</label></div>
 				}
 			}
 		</div>
@@ -149,10 +161,10 @@
 		@* The less common stuff underneath, when there's too much for one row *@
 		@if ( SplitRows )
 		{
-			<div class="action-row">
+			<div class="action-row secondary">
 				@foreach ( var extra in extras )
 				{
-					<div class="button @(extra.Danger ? "danger" : "")" onmousedown=@extra.Click><icon>@extra.Icon</icon><label>@extra.Label</label></div>
+					<div class="button @(extra.Danger ? "danger" : "")" tooltip=@extra.Tooltip onmousedown=@extra.Click><icon>@extra.Icon</icon><label>@extra.Label</label></div>
 				}
 			</div>
 		}
@@ -164,6 +176,16 @@
 	public Friend Friend { get; set; }
 
 	/// <summary>
+	/// Open the user menu from a clicked name or avatar, replacing any existing popup.
+	/// </summary>
+	public static void ShowFromClick( PanelEvent e, Friend friend )
+	{
+		e.StopPropagation();
+		Popup.CloseAll();
+		Show( e.This, friend, PositionMode.AboveCenter, 8 );
+	}
+
+	/// <summary>
 	/// Open a card for this person beside <paramref name="source"/>.
 	/// </summary>
 	public static FriendCard Show( Panel source, Friend friend, PositionMode mode = PositionMode.Left, float offset = 18 )
@@ -171,12 +193,36 @@
 		var card = new FriendCard { Friend = friend };
 		card.SetPositioning( source, mode, offset );
 
-		// Opened from the party deck while it's up in the overlay over a modal - popups sit under
-		// the deck there, so lift this one over it
-		if ( card.Parent == MenuOverlay.Instance )
-			card.Style.ZIndex = Sandbox.UI.Footer.ZIndex + 20;
-
 		return card;
+	}
+
+	/// <summary>
+	/// Keep avatar cards on screen, flipping below the avatar when there isn't room above it.
+	/// Use the measured size so loading profile details can't push the card outside the viewport.
+	/// </summary>
+	public override void OnLayout( ref Rect layoutRect )
+	{
+		if ( Position != PositionMode.AboveCenter || !PopupSource.IsValid() )
+		{
+			base.OnLayout( ref layoutRect );
+			return;
+		}
+
+		var bounds = FindRootPanel().Box.Rect;
+		var anchor = PopupSource.Box.Rect;
+		var margin = 12 * ScaleToScreen;
+		var gap = PopupSourceOffset * PopupSource.ScaleToScreen;
+		var above = anchor.Top - bounds.Top - margin - gap;
+		var below = bounds.Bottom - margin - anchor.Bottom - gap;
+		var top = above < layoutRect.Height && below > above
+			? anchor.Bottom + gap
+			: anchor.Top - gap - layoutRect.Height;
+
+		layoutRect.Position = new Vector2(
+			Math.Clamp( anchor.Center.x - layoutRect.Width * 0.5f, bounds.Left + margin,
+				Math.Max( bounds.Left + margin, bounds.Right - margin - layoutRect.Width ) ),
+			Math.Clamp( top, bounds.Top + margin,
+				Math.Max( bounds.Top + margin, bounds.Bottom - margin - layoutRect.Height ) ) );
 	}
 
 	//
@@ -234,7 +280,7 @@
 	{
 		var span = DateTimeOffset.UtcNow - when;
 
-		if ( span.TotalMinutes < 1 ) return "just now";
+		if ( span.TotalMinutes < 1 ) return Language.GetPhrase( "menu.common.just_now" );
 		if ( span.TotalHours < 1 ) return $"{(int)span.TotalMinutes}m ago";
 		if ( span.TotalDays < 1 ) return $"{(int)span.TotalHours}h ago";
 		if ( span.TotalDays < 7 ) return $"{(int)span.TotalDays}d ago";
@@ -244,6 +290,7 @@
 
 	void OpenPackage( Package package )
 	{
+		Discovery.Clicked( new DiscoveryContext { Surface = "friendcard" }, package );
 		package?.OpenModal();
 		Delete();
 	}
@@ -274,9 +321,19 @@
 	/// </summary>
 	const float ProfileTimeout = 8f;
 
+	/// <summary>
+	/// Constrain avatar cards to the viewport and stop loading profiles known to be private.
+	/// </summary>
 	public override void Tick()
 	{
 		base.Tick();
+
+		if ( Position == PositionMode.AboveCenter )
+		{
+			var size = FindRootPanel().Box.Rect.Size * ScaleFromScreen;
+			Style.MaxWidth = Math.Max( 0, size.x - 24 );
+			Style.MaxHeight = Math.Max( 0, size.y - 24 );
+		}
 
 		// The stats box asks about the same player and knows first when nothing's coming - no point
 		// waiting on our own request to find out the hard way
@@ -359,7 +416,7 @@
 	/// </summary>
 	bool CanManage => !IsMe && InMyParty && PartyView.OwnerIsMe;
 
-	record ExtraAction( string Icon, string Label, Action Click, bool Danger = false );
+	record ExtraAction( string Icon, string Label, Action Click, bool Danger = false, string Tooltip = null );
 
 	/// <summary>
 	/// The less common buttons - add friend, make leader, kick, leave.
@@ -368,20 +425,20 @@
 	{
 		var extras = new List<ExtraAction>();
 
-		if ( !IsMe && !Friend.IsFriend ) extras.Add( new( "person_add", "Add friend", AddFriend ) );
+		if ( !IsMe && !Friend.IsFriend ) extras.Add( new( "person_add", "#menu.friends.add_friend", AddFriend ) );
 
 		if ( CanManage )
 		{
-			extras.Add( new( "shield", "Make leader", MakeLeader ) );
-			extras.Add( new( "person_remove", "Kick", Kick, true ) );
+			extras.Add( new( "shield", "#menu.friends.promote", MakeLeader, Tooltip: "#menu.friends.make_leader_of_party" ) );
+			extras.Add( new( "person_remove", "#menu.friends.kick", Kick, true ) );
 		}
 
-		if ( IsMe && PartyView.Exists ) extras.Add( new( "logout", "Leave party", LeaveParty, true ) );
+		if ( IsMe && PartyView.Exists ) extras.Add( new( "logout", "#menu.friends.leave_party", LeaveParty, true ) );
 
 		return extras;
 	}
 
-	int MainCount => 1 + (CanJoin || (!IsMe && (InMyParty || Invited || MenuUtility.CanInviteToParty( Friend ))) ? 1 : 0);
+	int MainCount => 1 + (CanJoin || (!IsMe && (CanInviteToGame || InMyParty || Invited || MenuUtility.CanInviteToParty( Friend ))) ? 1 : 0);
 
 	/// <summary>
 	/// Two buttons fit a row with their labels - past that, the extras get a row of their own.
@@ -392,20 +449,20 @@
 	{
 		get
 		{
-			if ( IsMe ) return "That's you";
+			if ( IsMe ) return "#menu.friends.that_s_you";
 
 			if ( Friend.IsPlayingThisGame )
 			{
-				if ( InEditor ) return "In the editor";
-				if ( InMenu ) return "In main menu";
-				return "In game";
+				if ( InEditor ) return "#menu.friends.in_the_editor";
+				if ( InMenu ) return "#menu.friends.in_main_menu";
+				return "#menu.friends.in_game";
 			}
 
-			if ( !Friend.IsOnline ) return "Offline";
-			if ( Friend.IsPlayingAGame ) return "Playing another game";
-			if ( Friend.IsAway || Friend.IsSnoozing ) return "Away";
-			if ( Friend.IsBusy ) return "Busy";
-			return "Online";
+			if ( !Friend.IsOnline ) return "#menu.friends.offline";
+			if ( Friend.IsPlayingAGame ) return "#menu.friends.playing_another_game";
+			if ( Friend.IsAway || Friend.IsSnoozing ) return "#menu.friends.away";
+			if ( Friend.IsBusy ) return "#menu.friends.busy";
+			return "#menu.friends.online";
 		}
 	}
 
@@ -433,11 +490,11 @@
 			var size = Friend.GetRichPresence( "steam_player_group_size" ).ToInt( 0 );
 			var players = size > 1 ? $"{size} players" : null;
 
-			var parts = new[] { string.IsNullOrWhiteSpace( map ) ? null : map, players, Joinable ? "Joinable" : null }
+			var parts = new[] { string.IsNullOrWhiteSpace( map ) ? null : map, players, Joinable ? Language.GetPhrase( "menu.friends.joinable" ) : null }
 				.Where( x => x is not null );
 
 			var detail = string.Join( " · ", parts );
-			return string.IsNullOrWhiteSpace( detail ) ? "Playing" : detail;
+			return string.IsNullOrWhiteSpace( detail ) ? "#menu.friends.playing" : detail;
 		}
 	}
 
@@ -499,6 +556,24 @@
 		Delete();
 	}
 
+	/// <summary>
+	/// In a game others can join - private ones too, the invite lets them in - and this isn't you.
+	/// </summary>
+	bool CanInviteToGame => !IsMe && Game.InGame && MenuUtility.CanInviteToGame;
+
+	bool _gameInvited;
+
+	/// <summary>
+	/// Into the game you're in - a Steam invite, with its way in.
+	/// </summary>
+	void InviteToGame()
+	{
+		if ( !CanInviteToGame ) return;
+
+		_gameInvited = MenuUtility.InviteFriendGame( Friend );
+		StateHasChanged();
+	}
+
 	async Task Invite()
 	{
 		// Makes the party if there isn't one, and doesn't send anything real while it's mocked
@@ -506,9 +581,12 @@
 		StateHasChanged();
 	}
 
+	/// <summary>
+	/// Their Steam profile - this card's their s&box one.
+	/// </summary>
 	void ViewProfile()
 	{
-		Game.Overlay.ShowPlayer( Friend.Id );
+		Friend.OpenInOverlay();
 		Delete();
 	}
 
@@ -547,9 +625,19 @@
 		if ( !Package.TryGetCached( GameIdent, out var package ) )
 			package = await Package.Fetch( GameIdent, false );
 
+		Discovery.Clicked( new DiscoveryContext { Surface = "friendcard" }, package );
 		package?.OpenModal();
 		Delete();
 	}
 
-	protected override int BuildHash() => HashCode.Combine( Friend, AvatarJson, GameThumb, HashCode.Combine( GameTitle, GameArt, _recent, _profileLoaded ), Invited, InMyParty, HashCode.Combine( StateText, CanManage ) );
+	protected override int BuildHash() => HashCode.Combine( Friend, AvatarJson, GameThumb, HashCode.Combine( GameTitle, GameArt, _recent, _profileLoaded ), Invited, InMyParty, HashCode.Combine( StateText, CanManage, CanInviteToGame, _gameInvited ) );
+
+	/// <summary>
+	/// Rebuild composed text when translations change.
+	/// </summary>
+	public override void LanguageChanged()
+	{
+		base.LanguageChanged();
+		StateHasChanged();
+	}
 }

@@ -580,6 +580,8 @@ internal abstract partial class PhysicsBodyInternal : IValid
 	/// </summary>
 	public virtual Rotation InertiaRotation => Rotation.Identity;
 
+	internal virtual void ScaleInertia( float scale ) => throw new NotSupportedException();
+
 	/// <summary>
 	/// Sets the inertia tensor using the given moments and rotation.
 	/// </summary>

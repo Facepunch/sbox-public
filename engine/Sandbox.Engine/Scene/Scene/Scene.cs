@@ -264,6 +264,11 @@ public partial class Scene : GameObject
 	}
 
 	/// <summary>
+	/// <see cref="Push"/> without boxing the scope. Use with <c>using var</c>.
+	/// </summary>
+	internal ScenePushScope PushScope() => new( this );
+
+	/// <summary>
 	/// Collects anything inside into a batch group. A batchgroup is used with GameObject and Components to
 	/// make sure that their OnEnable/OnDisable and other callbacks are called in a deterministic order,
 	/// and that they can find each other during creation. <see cref="GameObject.NetworkSpawn()"/> calls will also be batched.
@@ -323,15 +328,50 @@ public partial class Scene : GameObject
 		PreCameraRender();
 
 		// Get all cameras sorted by render priority
-		var cameras = Cameras.OrderBy( x => x.Priority );
-		foreach ( var cc in cameras )
+		var cameras = RentSortedCameras();
+		try
 		{
-			if ( cc.Active == false ) continue;
-			if ( cc.IsSceneEditorCamera ) continue;
+			foreach ( var cc in cameras )
+			{
+				if ( cc.Active == false ) continue;
+				if ( cc.IsSceneEditorCamera ) continue;
 
-			using var _cam = _cameraRenderTimer.Start( cc.GameObject?.Name );
-			cc.AddToRenderList( swapChain, size );
+				using var _cam = _cameraRenderTimer.Start( cc.GameObject?.Name );
+				cc.AddToRenderList( swapChain, size );
+			}
 		}
+		finally
+		{
+			ReturnSortedCameras( cameras );
+		}
+	}
+
+	List<CameraComponent> _sortedCameraScratch;
+
+	/// <summary>
+	/// <see cref="Cameras"/> by priority, equal priorities in set order like OrderBy. A snapshot, since
+	/// rendering a camera can add or remove cameras. A nested call gets its own list.
+	/// </summary>
+	List<CameraComponent> RentSortedCameras()
+	{
+		var cameras = _sortedCameraScratch ?? new();
+		_sortedCameraScratch = null;
+
+		foreach ( var camera in Cameras )
+		{
+			var priority = camera.Priority;
+			int i = cameras.Count;
+			while ( i > 0 && cameras[i - 1].Priority > priority ) i--;
+			cameras.Insert( i, camera );
+		}
+
+		return cameras;
+	}
+
+	void ReturnSortedCameras( List<CameraComponent> cameras )
+	{
+		cameras.Clear();
+		_sortedCameraScratch = cameras;
 	}
 
 	internal void RenderEnvmaps()
@@ -346,10 +386,12 @@ public partial class Scene : GameObject
 		}
 
 		// We pre-render envmaps, we dont need to render them parallelly in a frame anymore, this can cause transform buffers and descriptor sets to balloon in complex scenes and cause crashes.
-		const int maxSimultaniousUpdates = 1;
-		foreach ( var envmap in GetAllComponents<EnvmapProbe>().Where( x => x.Dirty ).Take( maxSimultaniousUpdates ) )
+		foreach ( var envmap in Query<EnvmapProbe>() )
 		{
+			if ( !envmap.Dirty ) continue;
+
 			envmap.RenderCubemap();
+			break;
 		}
 	}
 
@@ -366,10 +408,17 @@ public partial class Scene : GameObject
 	{
 		// We want to initialize all cameras (enabled & disabled) incase they're used to render manually
 		// we need to make sure the SceneCamera is created etc.
-		var cameras = Cameras.OrderBy( x => x.Priority );
-		foreach ( var cc in cameras )
+		var cameras = RentSortedCameras();
+		try
 		{
-			cc.InitializeRendering();
+			foreach ( var cc in cameras )
+			{
+				cc.InitializeRendering();
+			}
+		}
+		finally
+		{
+			ReturnSortedCameras( cameras );
 		}
 
 		// Alpha is used to lerp between IBL and fixed ambient light
@@ -383,7 +432,7 @@ public partial class Scene : GameObject
 			ambientLight += light.SkyColor;
 		}
 
-		foreach ( var light in GetAllComponents<AmbientLight>() )
+		foreach ( var light in Query<AmbientLight>() )
 		{
 			if ( Camera.IsValid() && light.Tags.HasAny( Camera.RenderExcludeTags ) )
 				continue;
@@ -460,8 +509,13 @@ internal struct ScenePushScope : IDisposable
 	float _prevDelta;
 	float _prevNow;
 
+	/// <summary>
+	/// A null scene makes a scope that does nothing, so callers don't need a nullable scope.
+	/// </summary>
 	internal ScenePushScope( Scene scene )
 	{
+		if ( scene is null ) return;
+
 		ThreadSafe.AssertIsMainThread();
 		_pushed = scene;
 		_prev = Game.ActiveScene;

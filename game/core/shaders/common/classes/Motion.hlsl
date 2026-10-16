@@ -16,6 +16,11 @@ struct Motion
     // Returns the motion position in Screen Space, for UV just multiply by inverse viewport size
     static float3 Get(float2 screenPosition)
     {
+        // Too close eg Viewmodels, return the screen position as-is instead of reprojecting
+        // We could read the overlay stencil bit but that's super slow on AMD
+        if( Depth::GetLinear(screenPosition) <= 32 )
+            return float3(screenPosition,0);
+
         // Calculate world space position based on the previous projection
         const float3 worldPos = Depth::GetWorldPosition( screenPosition );
 

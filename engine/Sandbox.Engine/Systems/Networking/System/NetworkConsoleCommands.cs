@@ -23,11 +23,7 @@ internal static class NetworkConsoleCommands
 	[ConCmd( "joinlobby", ConVarFlags.Protected )]
 	public static async Task FindAndJoinLobby()
 	{
-		if ( Networking.IsActive )
-		{
-			Log.Warning( "You are already connected to a server." );
-			return;
-		}
+		Api.Activity.GameRequested( new( "console" ), replace: false );
 
 		var q = Steamworks.SteamMatchmaking.LobbyList
 			.FilterDistanceWorldwide()
@@ -35,9 +31,11 @@ internal static class NetworkConsoleCommands
 			.WithMaxResults( 2000 );
 
 		Log.Info( "Finding best lobby..." );
+		var session = Networking.System;
 		var lobbies = await q.RequestAsync( default );
 
-		if ( Networking.IsActive )
+		// Something else connected while we were looking
+		if ( !ReferenceEquals( Networking.System, session ) )
 			return;
 
 		if ( !lobbies.Any() )
@@ -58,12 +56,7 @@ internal static class NetworkConsoleCommands
 	[ConCmd( "connect", ConVarFlags.Protected )]
 	public static void ConnectToServer( string target )
 	{
-		if ( Networking.IsActive )
-		{
-			Log.Warning( "You are already connected to a server." );
-			return;
-		}
-
+		Api.Activity.GameRequested( new( "console" ), replace: false );
 		Networking.Connect( target );
 	}
 
@@ -203,6 +196,7 @@ internal static class NetworkConsoleCommands
 			return;
 		}
 
+		Api.Activity.GameRequested( new( "console" ), replace: false );
 		Networking.Connect( Networking.LastConnectionString );
 	}
 }

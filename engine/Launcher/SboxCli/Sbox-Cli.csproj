@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net10.0</TargetFramework>
+		<AssemblyName>sbox-cli</AssemblyName>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+		<OutputPath>../../../game/bin/managed/</OutputPath>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- The bridge has no engine dependencies and does not load native engine DLLs. -->
+		<Compile Include="../../Sandbox.Engine/Systems/Mcp/Transport/McpWire.cs" Link="McpWire.cs" />
+		<!-- Project creation is shared with the launcher, so the CLI makes the same projects it does. -->
+		<Compile Include="../StandaloneTest/ProjectTemplateFiles.cs" Link="ProjectTemplateFiles.cs" />
+		<!-- The agent skill ships beside the executable, so every installation has the version that matches it. -->
+		<None Update="skills/**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+		<!-- The bootstrap skill that skill-install writes into agents. Facepunch/sbox-skills publishes the same file. -->
+		<None Remove="bootstrap/**" />
+		<EmbeddedResource Include="bootstrap/sbox/SKILL.md" LogicalName="sbox-bootstrap.md" />
+	</ItemGroup>
+</Project>

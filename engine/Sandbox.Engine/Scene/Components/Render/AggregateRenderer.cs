@@ -26,6 +26,8 @@ public readonly record struct AggregateFragmentInfo( BBox Bounds )
 [Icon( "dynamic_feed" )]
 public sealed class AggregateRenderer : Component, Component.ExecuteInEditor, IHasModel
 {
+	public static int MaxFragments => SceneAggregateObject.MaxFragments;
+
 	/// <summary>
 	/// Baked at compile time - one model per material, one draw call per fragment.
 	/// </summary>

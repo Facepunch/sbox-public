@@ -132,6 +132,68 @@ public class MapMesh : MapNode
 		return assets.Distinct();
 	}
 
+	/// <summary>
+	/// Every face of the mesh, in world space. A face's <see cref="MapMeshFace.Index"/> stays valid
+	/// until the mesh's topology changes, for <see cref="SetFaceMaterial"/>.
+	/// </summary>
+	public IReadOnlyList<MapMeshFace> GetFaces()
+	{
+		var faces = new List<MapMeshFace>();
+		var data = meshNative.GetFaceData();
+
+		if ( string.IsNullOrEmpty( data ) )
+			return faces;
+
+		foreach ( var line in data.Split( '\n', StringSplitOptions.RemoveEmptyEntries ) )
+		{
+			var parts = line.Split( '\t' );
+			if ( parts.Length < 3 ) continue;
+
+			var vertices = parts[2].Split( ';', StringSplitOptions.RemoveEmptyEntries )
+				.Select( ParseVector )
+				.ToArray();
+
+			faces.Add( new MapMeshFace( faces.Count, parts[0], ParseVector( parts[1] ), vertices ) );
+		}
+
+		return faces;
+
+		static Vector3 ParseVector( string text )
+		{
+			var xyz = text.Split( ' ', StringSplitOptions.RemoveEmptyEntries );
+			return new Vector3( xyz[0].ToFloat(), xyz[1].ToFloat(), xyz[2].ToFloat() );
+		}
+	}
+
+	/// <summary>
+	/// Assign a material to some of the mesh's faces, by <see cref="MapMeshFace.Index"/>.
+	/// </summary>
+	public unsafe void SetFaceMaterial( IEnumerable<int> faceIndices, Material material )
+	{
+		ArgumentNullException.ThrowIfNull( faceIndices );
+		ArgumentNullException.ThrowIfNull( material );
+
+		var indices = faceIndices.ToArray();
+		if ( indices.Length == 0 ) return;
+
+		fixed ( int* pIndices = indices )
+		{
+			meshNative.SetFacesMaterial( (IntPtr)pIndices, indices.Length, material.Name );
+		}
+	}
+
+	/// <summary>
+	/// The world space bounds of the mesh's vertices.
+	/// </summary>
+	public BBox Bounds
+	{
+		get
+		{
+			var points = GetFaces().SelectMany( x => x.Vertices ).ToArray();
+			return points.Length == 0 ? new BBox( Position, Position ) : BBox.FromPoints( points );
+		}
+	}
+
 	internal IDisposable TransformOperation( TransformOperationMode mode, TransformFlags flags ) => new TransformOperationScope( meshNative, mode, flags );
 	internal void Transform( Matrix matrix, TransformFlags flags ) => meshNative.Transform( matrix, flags );
 }

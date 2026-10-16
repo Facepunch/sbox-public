@@ -46,8 +46,11 @@ sealed class DDGIVolumeSystem : GameObjectSystem<DDGIVolumeSystem>
 
 		// Mark textures as used every frame, so the streaming system keeps 
 		// them resident while the volumes are active.
-		foreach ( var volume in Scene.GetAll<IndirectLightVolume>().Where( v => v is { Active: true, Enabled: true } ) )
+		foreach ( var volume in Scene.Query<IndirectLightVolume>() )
 		{
+			if ( volume is not { Active: true, Enabled: true } )
+				continue;
+
 			volume.IrradianceTexture?.MarkUsed();
 			volume.DistanceTexture?.MarkUsed();
 			volume.RelocationTexture?.MarkUsed();

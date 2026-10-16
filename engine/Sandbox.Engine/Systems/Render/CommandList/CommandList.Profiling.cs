@@ -6,7 +6,8 @@ public sealed unsafe partial class CommandList
 {
 	/// <summary>
 	/// Times a section of this command list on the GPU. Shows up as a PIX/RenderDoc event and as a row in
-	/// the GPU profiler overlay. Bound with a <c>using</c> block, which is what decides where the section ends.
+	/// the GPU profiler overlay when profiling is enabled. Bound with a <c>using</c> block,
+	/// which is what decides where the section ends.
 	/// </summary>
 	public ProfilingScope ProfileScope( ProfilingSampler sampler )
 	{
@@ -77,9 +78,9 @@ public sealed unsafe partial class CommandList
 		var pix = DebugMarkersEnabled;
 		if ( pix ) context.BeginPixEvent( sampler.NamePtr );
 
-		// None on the async compute queue, whose timestamps native doesn't support (CSceneSystem::SubmitViews)
-		var marker = Diagnostics.GpuProfilerStats.Enabled && !Graphics.OnComputeQueue
-			? CSceneSystem.BeginManagedPerfMarker( context, sampler.NamePtr )
+		// Native selects the actual queue and rejects unsupported timestamp clock domains.
+		var marker = Diagnostics.GpuProfilerStats.Enabled
+			? CSceneSystem.BeginManagedPerfMarker( context, sampler.NamePtr, false, false )
 			: IntPtr.Zero;
 
 		// Native copies the name during those calls, so the sampler only has to survive until here.

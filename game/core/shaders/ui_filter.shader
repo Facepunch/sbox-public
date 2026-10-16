@@ -22,6 +22,7 @@ COMMON
 {
 	#include "ui/common.hlsl"
 	#include "common/Bindless.hlsl"
+	DynamicCombo( D_PAINTER_SCREENPIXELS, 0..1, Sys( ALL ) );
 }
   
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------

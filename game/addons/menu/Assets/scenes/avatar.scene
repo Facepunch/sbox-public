@@ -201,11 +201,6 @@
           "__guid": "3cc7731d-c4e5-4d5e-9313-99d1eb4b6805",
           "__enabled": true,
           "Flags": 0,
-          "Citizen": {
-            "_type": "gameobject",
-            "go": "6f3d977a-9113-45a5-b133-c7b236c68b2b"
-          },
-          "CitizenActive": true,
           "Human": {
             "_type": "gameobject",
             "go": "5bab62e4-c7a9-4a46-b4e4-5304ebbde276"
@@ -330,7 +325,7 @@
           "__enabled": true,
           "Flags": 0,
           "AnimationGraph": null,
-          "BodyGroups": 6061,
+          "BodyGroups": 149761,
           "BoneMergeTarget": null,
           "CreateAttachments": false,
           "CreateBoneObjects": false,
@@ -338,7 +333,7 @@
           "MaterialGroup": "default",
           "MaterialOverride": null,
           "Materials": null,
-          "Model": "models/citizen_human/citizen_human_male.vmdl",
+          "Model": "models/citizen_human/human.vmdl",
           "Morphs": {},
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
@@ -2763,70 +2758,6 @@
           "Children": []
         }
       ]
-    },
-    {
-      "__guid": "6f3d977a-9113-45a5-b133-c7b236c68b2b",
-      "__version": 2,
-      "Flags": 0,
-      "Name": "Citizen Body",
-      "Position": "0,0,0",
-      "Rotation": "0,0,0,1",
-      "Scale": "1,1,1",
-      "Tags": "",
-      "Enabled": true,
-      "NetworkMode": 2,
-      "NetworkFlags": 0,
-      "NetworkOrphaned": 0,
-      "NetworkTransmit": true,
-      "OwnerTransfer": 1,
-      "Components": [
-        {
-          "__type": "Sandbox.SkinnedModelRenderer",
-          "__guid": "82738908-c42c-4525-9b59-676355bd4182",
-          "__enabled": true,
-          "Flags": 0,
-          "AnimationGraph": null,
-          "BodyGroups": 341,
-          "BoneMergeTarget": null,
-          "CreateAttachments": false,
-          "CreateBoneObjects": false,
-          "LodOverride": null,
-          "MaterialGroup": null,
-          "MaterialOverride": null,
-          "Materials": null,
-          "Model": "models/citizen/citizen.vmdl",
-          "Morphs": {},
-          "OnComponentDestroy": null,
-          "OnComponentDisabled": null,
-          "OnComponentEnabled": null,
-          "OnComponentFixedUpdate": null,
-          "OnComponentStart": null,
-          "OnComponentUpdate": null,
-          "Parameters": {
-            "bools": {},
-            "ints": {},
-            "floats": {},
-            "vectors": {},
-            "rotations": {}
-          },
-          "PlaybackRate": 1,
-          "RenderOptions": {
-            "GameLayer": true,
-            "OverlayLayer": false,
-            "BloomLayer": false,
-            "AfterUILayer": false
-          },
-          "RenderType": "On",
-          "Sequence": {
-            "Name": null,
-            "Looping": true,
-            "Blending": false
-          },
-          "Tint": "1,1,1,1",
-          "UseAnimGraph": true
-        }
-      ],
-      "Children": []
     },
     {
       "__guid": "b6231de1-e807-4c46-800a-b213ab036baa",

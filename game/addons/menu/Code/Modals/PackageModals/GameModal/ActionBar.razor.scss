@@ -14,133 +14,78 @@ ActionBar > .left
 	gap: 10px;
 }
 
-ActionBar .group
+// While setting up a new game - what it'll be, as a row of chips: the map with a picture of it, who
+// can join, how many
+ActionBar .setup-summary
 {
-	flex-direction: row;
-	flex-shrink: 0;
-	border-radius: 999px;
-	border: 1px solid rgba( 255, 255, 255, 0.1 );
-	background-color: rgba( 255, 255, 255, 0.05 );
-	overflow: hidden;
+	gap: 6px;
 
-	.pill
+	.chip
 	{
 		flex-direction: row;
 		flex-shrink: 0;
 		align-items: center;
-		gap: 5px;
+		gap: 7px;
 		height: 34px;
-		min-width: 40px;
-		padding: 0 12px;
-		cursor: pointer;
-		transition: all 0.1s ease;
+		padding: 0 14px 0 10px;
+		border-radius: 999px;
+		border: $front-border-width solid $front-hairline;
+		background-color: rgba( 255, 255, 255, 0.05 );
 
-		icon
+		i
 		{
-			font-size: 17px;
-			color: #c8cedb;
+			font-family: "Material Icons";
+			font-size: 16px;
+			color: linear-gradient( 180deg, #9cc6ff, $front-primary );
 		}
 
 		label
 		{
-			font-family: $font-heading;
-			font-size: 12px;
-			font-weight: 700;
-			color: #c8cedb;
+			font-family: $front-font;
+			font-size: 12.5px;
+			font-weight: 600;
+			color: $front-heading;
+			font-variant-numeric: tabular-nums;
+			white-space: nowrap;
 		}
 
-		&:hover
+		// Its picture behind, from the left edge, fading out most of the way across
+		&.map
 		{
-			sound-in: "ui.button.over";
-			background-color: rgba( 255, 255, 255, 0.11 );
+			position: relative;
+			overflow: hidden;
+			cursor: pointer;
+			transition: all 0.1s ease;
 
-			icon, label
+			&:hover
 			{
-				color: $default-text;
-			}
-		}
-
-		&:active
-		{
-			sound-in: "ui.button.press";
-		}
-
-		&.active
-		{
-			background-color: rgba( $primary-blue, 0.3 );
-
-			icon
-			{
-				color: $primary-blue * 1.6;
+				sound-in: "ui.button.over";
+				border-color: rgba( 255, 255, 255, 0.28 );
+				background-color: rgba( 255, 255, 255, 0.11 );
 			}
 
-			label
+			&:active
 			{
-				color: $default-text;
-			}
-		}
-
-		&.fav.active
-		{
-			background-color: rgba( #e93b6d, 0.25 );
-
-			icon
-			{
-				color: #e93b6d;
-			}
-		}
-	}
-}
-
-ActionBar .group.jam
-{
-	border-color: rgba( $front-trophy, 0.5 );
-	background-color: rgba( $front-trophy, 0.12 );
-
-	.pill
-	{
-		padding: 0 14px 0 12px;
-
-		icon
-		{
-			color: $front-trophy * 1.6;
-		}
-
-		label
-		{
-			color: $front-trophy * 1.6;
-		}
-
-		&:hover
-		{
-			background-color: rgba( $front-trophy, 0.2 );
-		}
-
-		&.on
-		{
-			background-color: $front-trophy;
-
-			icon
-			{
-				color: #1a1204;
+				sound-in: "ui.button.press";
 			}
 
-			label
+			.art
 			{
-				color: #1a1204;
+				position: absolute;
+				left: 0;
+				top: 0;
+				bottom: 0;
+				width: 90%;
+				background-size: cover;
+				background-position: center;
+				mask-image: linear-gradient( 90deg, white 0%, black 100% );
+				opacity: 0.7;
 			}
-		}
 
-		&.locked
-		{
-			opacity: 0.5;
-			cursor: default;
-		}
-
-		&.busy
-		{
-			opacity: 0.5;
-			pointer-events: none;
+			i, label
+			{
+				text-shadow: 0 1px 4px rgba( 0, 0, 0, 0.8 );
+			}
 		}
 	}
 }

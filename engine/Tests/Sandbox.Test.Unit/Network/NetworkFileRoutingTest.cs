@@ -11,6 +11,15 @@ public class NetworkFileRoutingTest
 		Assert.IsTrue( GameInstanceDll.ShouldUseLargeDownload( "shaders/toon_postprocess.shader_c", 1024 ) );
 	}
 
+	[DataTestMethod]
+	[DataRow( 0L )]
+	[DataRow( 1695L )]
+	[DataRow( 65535L )]
+	public void SmallPhysicsUsesLargeDownload( long size )
+	{
+		Assert.IsTrue( GameInstanceDll.ShouldUseLargeDownload( "scenes/world_scene_data/compiled/generation/collision_0.vphys_c", size ) );
+	}
+
 	[TestMethod]
 	public void SmallNonEngineFileUsesSmallDownload()
 	{

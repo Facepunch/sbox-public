@@ -49,7 +49,10 @@ public sealed class MixedVirtualList : BaseVirtualPanel
 	{
 		var offsetsChanged = _offsetsDirty || NeedsRebuild || _tops.Count != _items.Count;
 		if ( offsetsChanged )
+		{
 			RebuildOffsets();
+			MoveCells();
+		}
 
 		var hash = HashCode.Combine( Box.RectInner, ScaleFromScreen, ScrollOffset.y, _contentHeight );
 		if ( hash == _updateHash && !offsetsChanged ) return false;
@@ -75,7 +78,8 @@ public sealed class MixedVirtualList : BaseVirtualPanel
 
 		for ( int i = 0; i < _items.Count; i++ )
 		{
-			var height = MathF.Max( 1f, ItemHeight?.Invoke( _items[i] ) ?? 32f );
+			// Zero is allowed - an item can shrink away to nothing while it animates out
+			var height = MathF.Max( 0f, ItemHeight?.Invoke( _items[i] ) ?? 32f );
 
 			if ( i > 0 ) y += _spacing.y;
 
@@ -86,6 +90,59 @@ public sealed class MixedVirtualList : BaseVirtualPanel
 
 		_contentHeight = y;
 	}
+
+	/// <summary>
+	/// Cells are kept by index, and one whose index now holds a different item gets torn down and
+	/// built again - so inserting or removing items rebuilds every cell after them, and a new cell is
+	/// empty for a frame. Before that happens, move each cell to wherever its item went.
+	/// </summary>
+	void MoveCells()
+	{
+		// The cells whose index now holds something else
+		_movedFrom.Clear();
+		foreach ( var (index, data) in _cellData )
+		{
+			if ( index >= _items.Count || !EqualityComparer<object>.Default.Equals( _items[index], data ) )
+				_movedFrom.Add( index );
+		}
+
+		if ( _movedFrom.Count == 0 ) return;
+
+		// Lift them all out first, so one landing on another's old index can't collide with it
+		_moving.Clear();
+		foreach ( var index in _movedFrom )
+		{
+			var data = _cellData[index];
+			_cellData.Remove( index );
+
+			if ( !_created.Remove( index, out var panel ) ) continue;
+
+			if ( data is null || !_moving.TryAdd( data, panel ) )
+				panel.Delete( true );
+		}
+
+		_movedFrom.Clear();
+
+		// Then put each down where its item is now
+		for ( int i = 0; i < _items.Count && _moving.Count > 0; i++ )
+		{
+			var item = _items[i];
+			if ( item is null || _created.ContainsKey( i ) ) continue;
+			if ( !_moving.Remove( item, out var panel ) ) continue;
+
+			_created[i] = panel;
+			_cellData[i] = item;
+		}
+
+		// Whatever's left, its item is gone
+		foreach ( var panel in _moving.Values )
+			panel.Delete( true );
+
+		_moving.Clear();
+	}
+
+	readonly Dictionary<object, Panel> _moving = new();
+	readonly List<int> _movedFrom = new();
 
 	protected override void GetVisibleRange( out int first, out int pastEnd )
 	{
@@ -121,7 +178,11 @@ public sealed class MixedVirtualList : BaseVirtualPanel
 		panel.Style.Left = _rect.Left;
 		panel.Style.Top = top;
 		panel.Style.Width = MathF.Max( 1f, _rect.Width );
-		panel.Style.Height = MathF.Max( 1f, bottom - top );
+		panel.Style.Height = MathF.Max( 0f, bottom - top );
+
+		// Shrunk away to nothing - hide it. Clipping can't be trusted to: a zero-size box doesn't clip
+		// its overflow, so the item would draw in full over whatever's below.
+		panel.Style.Display = bottom > top ? DisplayMode.Flex : DisplayMode.None;
 		panel.Style.Dirty();
 	}
 

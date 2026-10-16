@@ -83,20 +83,26 @@ internal static class MapScenes
 	{
 		if ( !PanelAppSystem.ApiReady.IsCompleted ) return;
 
-		// What a game's boot sets up for downloading packages and a panel app's doesn't: the downloads folder and the asset
-		// cache in it (Bootstrap.PreInit), and the server package table packages mount through (GameInstanceDll)
-		if ( ServerPackages.Current is null )
-		{
-			if ( EngineFileSystem.DownloadedFiles is null ) EngineFileSystem.InitializeDownloadsFolder();
-			EngineFileSystem.DownloadedFiles.CreateDirectory( "/assets" );
-			AssetDownloadCache.Initialize( EngineFileSystem.DownloadedFiles.GetFullPath( "/assets" ) );
-			_ = new ServerPackages();
-		}
+		EnableDownloads();
 
 		foreach ( var map in scene.GetAllComponents<MapInstance>() )
 		{
 			if ( string.IsNullOrEmpty( map.MapName ) ) map.MapName = map.GameObject.Name;
 		}
+	}
+
+	/// <summary>
+	/// What a game's boot sets up for downloading packages and a panel app's doesn't: the downloads folder and the asset
+	/// cache in it (Bootstrap.PreInit), and the server package table packages mount through (GameInstanceDll).
+	/// </summary>
+	internal static void EnableDownloads()
+	{
+		if ( ServerPackages.Current is not null ) return;
+
+		if ( EngineFileSystem.DownloadedFiles is null ) EngineFileSystem.InitializeDownloadsFolder();
+		EngineFileSystem.DownloadedFiles.CreateDirectory( "/assets" );
+		AssetDownloadCache.Initialize( EngineFileSystem.DownloadedFiles.GetFullPath( "/assets" ) );
+		_ = new ServerPackages();
 	}
 
 	/// <summary>

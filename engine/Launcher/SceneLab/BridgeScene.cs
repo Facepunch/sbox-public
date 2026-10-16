@@ -80,12 +80,12 @@ internal static class BridgeScene
 		var citizen = new GameObject( true, "Citizen" );
 		citizen.WorldRotation = Rotation.FromYaw( 200 );
 		var skinned = citizen.Components.Create<SkinnedModelRenderer>();
-		skinned.Model = Model.Load( "models/citizen/citizen.vmdl" );
+		skinned.Model = Model.Load( "models/citizen_human/human.vmdl" );
 		skinned.UseAnimGraph = false;
 		skinned.Sequence.Name = "AvatarMenu_Entry_Jump";
 		skinned.Sequence.TimeNormalized = 0.4f;
 		skinned.PlaybackRate = 0;
-		skinned.SetBodyGroup( "Feet", 1 );
+		skinned.SetBodyGroup( "Feet", 2 );
 		skinned.SetMaterialOverride( Material.Load( "models/citizen/skin/citizen_skin_grey.vmat" ), "skin" );
 
 		// A human in a material group, in its bind pose
@@ -93,7 +93,7 @@ internal static class BridgeScene
 		human.WorldPosition = new Vector3( -50, 70, 0 );
 		human.WorldRotation = Rotation.FromYaw( 230 );
 		var humanRenderer = human.Components.Create<SkinnedModelRenderer>();
-		humanRenderer.Model = Model.Load( "models/citizen_human/citizen_human_male.vmdl" );
+		humanRenderer.Model = Model.Load( "models/citizen_human/human.vmdl" );
 		humanRenderer.UseAnimGraph = false;
 		humanRenderer.PlaybackRate = 0;
 		humanRenderer.MaterialGroup = "skin_light";
@@ -109,7 +109,7 @@ internal static class BridgeScene
 		dressed.WorldPosition = new Vector3( 75, 25, 0 );
 		dressed.WorldRotation = Rotation.FromYaw( 190 );
 		var body = dressed.Components.Create<SkinnedModelRenderer>();
-		body.Model = Model.Load( "models/citizen/citizen.vmdl" );
+		body.Model = Model.Load( "models/citizen_human/human.vmdl" );
 		body.UseAnimGraph = false;
 		body.Sequence.Name = "AvatarMenu_Entry_Jump";
 		body.Sequence.TimeNormalized = 0.6f;
@@ -208,7 +208,7 @@ internal static class BridgeScene
 		// material group; the per index override swapped
 		var citizen = Find( "Citizen" ).Components.Get<SkinnedModelRenderer>();
 		citizen.Sequence.TimeNormalized = 0.75f;
-		citizen.SetBodyGroup( "Head", 1 );
+		citizen.SetBodyGroup( "Head", 7 );
 		citizen.SetBodyGroup( "Feet", 0 );
 		citizen.SetMaterialOverride( null, "skin" );
 		citizen.Attributes.Set( "skin_tint", 0.95f );

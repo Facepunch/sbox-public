@@ -50,6 +50,16 @@ PartyInviteToast
 		transition: opacity 0.25s ease-in, transform 0.25s ease-in;
 	}
 
+	// Joined - no flick away for that: the card fizzles out where it is, swelling a touch as it blurs
+	// and fades, like it's been taken up. Same time as the swipe
+	&.leaving.accepted .card
+	{
+		opacity: 0;
+		filter: blur( 12px );
+		transform: scale( 1.06 );
+		transition: opacity 0.25s ease-out, transform 0.25s ease-out, filter 0.25s ease-out;
+	}
+
 	// Handed over to the next - it's on top of the next now, just its card swiping off over it. Its
 	// pile and glow go at once, or they'd sit over the next one's card; the next has its own
 	&.handed-off .halo,

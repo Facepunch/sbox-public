@@ -21,7 +21,7 @@ Home
 			height: 16px;
 			width: 1px;
 			background-color: $front-hairline;
-			margin: 0 8px;
+			margin: 0 14px;
 		}
 
 		.button
@@ -125,7 +125,7 @@ Home
 				flex-shrink: 0;
 			}
 
-			> ProfileStats, > FriendsRail, > .party-slot
+			> ProfileStats, > FriendsRail
 			{
 				border-top: $front-border-width solid $front-hairline;
 			}
@@ -135,20 +135,6 @@ Home
 				flex-grow: 1;
 				flex-shrink: 1;
 				height: 0;
-			}
-
-			// The bottom band, room for the party deck. The deck floats over it from the menu
-			// overlay (so it can stay above modals), and sets this height to its own as the
-			// party grows - see Footer.razor.
-			> .party-slot
-			{
-				flex-shrink: 0;
-				height: 120px;
-
-				&.hidden
-				{
-					display: none;
-				}
 			}
 		}
 	}

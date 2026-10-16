@@ -11,6 +11,7 @@ public static class GpuProfilerStats
 		public int Parent;
 		public uint StableId;
 		public bool Measured;
+		public float Duration;
 
 		public bool Unparented;
 	}
@@ -74,6 +75,9 @@ public static class GpuProfilerStats
 	public static float VideoMemoryUsageFraction { get; private set; }
 
 	internal static int RowCount => _rows.Count;
+	internal static ulong FrameId { get; private set; }
+	internal static string Renderer { get; private set; } = "unknown";
+	internal static ReadOnlySpan<Row> Rows => System.Runtime.InteropServices.CollectionsMarshal.AsSpan( _rows );
 	internal static Row GetRow( int index ) => _rows[index];
 
 	internal static float GetSmoothedDuration( uint stableId ) => _samples.TryGetValue( stableId, out var s ) ? s.Smoothed : 0f;
@@ -83,6 +87,8 @@ public static class GpuProfilerStats
 	{
 		if ( !_enabled )
 		{
+			FrameId = 0;
+			Renderer = "unknown";
 			_rows.Clear();
 			_paths = null;
 			return;
@@ -98,6 +104,14 @@ public static class GpuProfilerStats
 		_paths = null;
 
 		NativeEngine.CSceneSystem.RefreshGpuTimestampSnapshot();
+		FrameId = NativeEngine.CSceneSystem.GetGpuTimestampFrameId();
+		Renderer = NativeEngine.CSceneSystem.GetGpuTimestampRenderer() switch
+		{
+			1 => "native",
+			2 => "managed",
+			3 => "managed-async",
+			_ => "unknown"
+		};
 
 		int count = NativeEngine.CSceneSystem.GetGpuTimestampCount();
 		for ( int i = 0; i < count; i++ )
@@ -109,6 +123,7 @@ public static class GpuProfilerStats
 				StableId = NativeEngine.CSceneSystem.GetGpuTimestampStableId( i ),
 				Measured = NativeEngine.CSceneSystem.GetGpuTimestampMeasured( i ),
 				Unparented = NativeEngine.CSceneSystem.GetGpuTimestampUnparented( i ),
+				Duration = NativeEngine.CSceneSystem.GetGpuTimestampDuration( i ),
 			};
 
 			_rows.Add( row );
@@ -116,7 +131,7 @@ public static class GpuProfilerStats
 			if ( !row.Measured )
 				continue;
 
-			var duration = NativeEngine.CSceneSystem.GetGpuTimestampDuration( i );
+			var duration = row.Duration;
 
 			if ( _samples.TryGetValue( row.StableId, out var sample ) )
 			{

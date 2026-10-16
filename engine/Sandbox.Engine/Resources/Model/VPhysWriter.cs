@@ -11,7 +11,7 @@ internal sealed class VPhysWriter
 	/// </summary>
 	public static byte[] Write( List<PhysicsBodyBuilder> bodies, List<Surface> surfaces = null )
 	{
-		var indices = Indices( surfaces );
+		var indices = CPhysBodyDescArray.SurfaceIndices( surfaces );
 		var descs = CPhysBodyDescArray.Create( bodies, null, indices );
 
 		if ( descs.IsNull )
@@ -35,25 +35,6 @@ internal sealed class VPhysWriter
 		{
 			descs.DeleteThis();
 		}
-	}
-
-	/// <summary>
-	/// Where each surface sits in the surface table, with anything unset falling back to default.
-	/// </summary>
-	static List<int> Indices( List<Surface> surfaces )
-	{
-		if ( surfaces is null )
-			return null;
-
-		var fallback = Surface.FindByName( "default" );
-		var indices = new List<int>( surfaces.Count );
-
-		foreach ( var surface in surfaces )
-		{
-			indices.Add( (surface ?? fallback).Index );
-		}
-
-		return indices;
 	}
 
 	readonly CPhysicsData _native;

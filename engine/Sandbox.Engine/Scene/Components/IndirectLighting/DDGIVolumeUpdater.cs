@@ -13,6 +13,11 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 	private List<Vector3Int> _pendingProbes;
 	private Texture _captureTexture;
 	private Texture _captureDepth;
+	private Texture _firstPassIrradiance;
+	private GpuBuffer<IndirectLightVolume.DDGIVolumeGpuData> _captureVolumes;
+	private readonly List<Texture> _captureTextures = new();
+	private int _captureVolumeCount;
+	private int _pass;
 
 	/// <summary>
 	/// Volume texture storing probe irradiance data (color).
@@ -31,10 +36,8 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 	static ComputeShader IntegrateShader = new ComputeShader( "common/DDGI/ddgi_integrate_cs" );
 
 	/// <summary>
-	/// Whether to do a second pass on probes that are inside geometry so they have accurate bounces.
+	/// Creates the capture camera and temporary textures for one volume bake.
 	/// </summary>
-	private readonly bool BakeWithTwoPasses = true;
-
 	public DDGIProbeUpdaterCubemapper( IndirectLightVolume volume )
 	{
 		_volume = volume;
@@ -45,6 +48,7 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 		{
 			World = volume.Scene.SceneWorld,
 			Rotation = Rotation.Identity,
+			FieldOfView = 90.0f,
 			ClearFlags = ClearFlags.All,
 			BackgroundColor = Color.Black,
 			AmbientLightColor = Color.Black,
@@ -123,6 +127,10 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 			.Finish();
 	}
 
+	/// <summary>
+	/// Captures direct lighting, then one bounce from the completed first pass.
+	/// Returns false when either cancellation source interrupts the bake.
+	/// </summary>
 	public async Task<bool> RunAsync( CancellationToken token )
 	{
 		FastTimer pauseTimer = FastTimer.StartNew();
@@ -130,43 +138,84 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 		using var progress = Application.Editor.ProgressSection();
 
 		progress.Title = "Baking Indirect Light Volume";
-		progress.TotalCount = _pendingProbes.Count;
+		progress.TotalCount = _pendingProbes.Count * 2;
 		var progressToken = progress.GetCancel();
 
-		while ( _pendingProbes.Count > 0 )
+		for ( _pass = 0; _pass < 2; _pass++ )
 		{
-			progress.Subtitle = $"Rendering probe {progress.Current + 1:n0} / {progress.TotalCount:n0}";
-
-			if ( !await RenderProbe() )
-				return false;
-
-			if ( token.IsCancellationRequested || progressToken.IsCancellationRequested )
+			if ( _pass == 1 )
 			{
-				progress.Subtitle = $"Cancelled!";
-				return false;
+				// The volume preview keeps the completed first pass as a frozen bounce source.
+				var irradiance = CreateVolumeTexture(
+					new Vector3Int( GeneratedIrradianceTexture.Width, GeneratedIrradianceTexture.Height, GeneratedIrradianceTexture.Depth ),
+					ImageFormat.RGBA16161616F, "Irradiance" );
+				_firstPassIrradiance = GeneratedIrradianceTexture;
+				GeneratedIrradianceTexture = irradiance;
 			}
 
-			progress.Current++;
-
-			if ( pauseTimer.ElapsedMilliSeconds > 20 )
+			UpdateCaptureVolumes();
+			foreach ( var probeIndex in _pendingProbes )
 			{
-				await Task.Delay( 1 );
+				if ( token.IsCancellationRequested || progressToken.IsCancellationRequested )
+					return false;
+
+				progress.Subtitle = $"Rendering probe {progress.Current + 1:n0} / {progress.TotalCount:n0}";
+				if ( !await RenderProbe( probeIndex, token, progressToken ) )
+					return false;
+				if ( token.IsCancellationRequested || progressToken.IsCancellationRequested )
+					return false;
+
+				progress.Current++;
+
+				if ( pauseTimer.ElapsedMilliSeconds > 20 )
+				{
+					await Task.Delay( 1 );
+				}
 			}
 		}
+
+		if ( token.IsCancellationRequested || progressToken.IsCancellationRequested )
+			return false;
 
 		progress.Subtitle = $"Complete!";
 
 		return true;
 	}
 
-	private async Task<bool> RenderProbe()
+	/// <summary>
+	/// Captures use a fixed set of volume textures for each bounce, independent of editor updates.
+	/// </summary>
+	private void UpdateCaptureVolumes()
 	{
-		if ( _pendingProbes.Count() == 0 )
-			return false;
+		_captureTextures.Clear();
+		var data = new List<IndirectLightVolume.DDGIVolumeGpuData>();
+		foreach ( var volume in _volume.Scene.GetAll<IndirectLightVolume>().OrderBy( x => x.Bounds.Volume ) )
+		{
+			if ( !volume.Active || !volume.Enabled || (_pass == 0 && volume == _volume) )
+				continue;
 
-		var probeIndex = _pendingProbes.First();
-		_pendingProbes.RemoveAt( 0 );
+			// Retain other volumes' saved textures for the whole pass, even if they finish a rebake.
+			if ( volume.BuildData( out var entry, usePreview: volume == _volume, applyAdjustments: false ) )
+			{
+				data.Add( entry );
+				if ( volume != _volume )
+				{
+					_captureTextures.Add( volume.IrradianceTexture );
+					_captureTextures.Add( volume.DistanceTexture );
+					_captureTextures.Add( volume.RelocationTexture );
+				}
+			}
+		}
 
+		_captureVolumes?.Dispose();
+		_captureVolumeCount = data.Count;
+		_captureVolumes = new GpuBuffer<IndirectLightVolume.DDGIVolumeGpuData>( Math.Max( 1, data.Count ) );
+		if ( data.Count > 0 )
+			_captureVolumes.SetData( data );
+	}
+
+	private async Task<bool> RenderProbe( Vector3Int probeIndex, CancellationToken token, CancellationToken progressToken )
+	{
 		_renderedFace = 0;
 		_renderedIndex = probeIndex;
 
@@ -175,77 +224,36 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 
 		// Merge our global Scene attributes into the camera
 		_volume.Scene.RenderAttributes.MergeTo( _camera.Attributes );
+		_camera.Attributes.Set( "DDGI_Volumes", _captureVolumes );
+		_camera.Attributes.Set( "DDGI_VolumeCount", _captureVolumeCount );
 
 		await Task.Yield();
+
+		if ( token.IsCancellationRequested || progressToken.IsCancellationRequested )
+			return false;
+
+		foreach ( var texture in _captureTextures )
+			texture.MarkUsed();
 
 		_camera.RenderToCubeTexture( _captureTexture );
 
 		await Task.Yield();
-
 		return true;
 	}
 
 	private void InitializeProbeQueue()
 	{
-		var scene = _volume.Scene;
-		if ( scene is null )
-			return;
-
-		var probeCounts = _volume.ProbeCounts;
-		var halfExtents = _volume.ComputeSpacing( probeCounts ) * _volume.WorldTransform.Scale.Abs();
-		var probeBounds = new BBox( -halfExtents, halfExtents );
-
-		var hitProbesList = new List<Vector3Int>();
-		var emptyProbesList = new List<Vector3Int>();
-
-		for ( int z = 0; z < probeCounts.z; z++ )
+		var counts = _volume.ProbeCounts;
+		for ( int z = 0; z < counts.z; z++ )
 		{
-			for ( int y = 0; y < probeCounts.y; y++ )
+			for ( int y = 0; y < counts.y; y++ )
 			{
-				for ( int x = 0; x < probeCounts.x; x++ )
+				for ( int x = 0; x < counts.x; x++ )
 				{
-					var probeIndex = new Vector3Int( x, y, z );
-					var probePosition = _volume.GetProbeWorldPosition( probeIndex );
-
-					var trace = scene.Trace.Box( probeBounds, probePosition, probePosition )
-							.IgnoreGameObjectHierarchy( _volume.GameObject )
-							.Run();
-
-					if ( trace.Hit )
-						hitProbesList.Add( probeIndex );
-					else
-						emptyProbesList.Add( probeIndex );
+					_pendingProbes.Add( new Vector3Int( x, y, z ) );
 				}
 			}
 		}
-
-		if ( BakeWithTwoPasses )
-		{
-			// Make probes closer to the camera and that affect geometry render first
-			_pendingProbes.AddRange( hitProbesList );
-			var eye = Application.Editor.Camera.WorldTransform;
-
-			var trace = scene.Trace.Ray( eye.Position, eye.Position + eye.Forward * 10000 )
-				.UseRenderMeshes()
-				.Run();
-
-			var hitPos = trace.Hit ? trace.HitPosition : eye.Position + eye.Forward * 100;
-
-			_pendingProbes = _pendingProbes.OrderBy( x =>
-			{
-				return Vector3.DistanceBetween( _volume.GetProbeWorldPosition( x ), hitPos );
-			} ).ToList();
-
-			// Do a second pass for probes that hit geometry to make sure have accurate bounces
-			_pendingProbes.AddRange( _pendingProbes );
-		}
-		else
-		{
-			// Just render all probes that hit geometry first
-			_pendingProbes.AddRange( hitProbesList );
-		}
-		// Append empty probes at the end of the list
-		_pendingProbes.AddRange( emptyProbesList );
 	}
 
 	private void InitializeCaptureTexture()
@@ -278,29 +286,40 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 		attrs.Set( "SourceProbe", _captureTexture );
 		attrs.Set( "SourceDepth", _captureDepth );
 
-		attrs.Set( "IrradianceVolume", _volume.IrradianceTexture );
-		attrs.Set( "DistanceVolume", _volume.DistanceTexture );
+		attrs.Set( "IrradianceVolume", GeneratedIrradianceTexture );
+		attrs.Set( "DistanceVolume", GeneratedDistanceTexture );
 
 		attrs.Set( "ProbeIndex", probeIndex );
 		attrs.Set( "ProbeCounts", _volume.ProbeCounts );
-		attrs.Set( "EnergyLoss", _volume.Contrast );
+		// Farther geometry cannot occlude any point that samples this probe. Including it
+		// inflates variance at silhouettes and lets exterior probes leak through walls.
+		attrs.Set( "ProbeMaxDistance", Math.Max( 1.0f, _volume.ProbeCellDiagonal + (_volume.GetProbe( probeIndex )?.Offset.Length ?? 0.0f) ) );
 
 		// Irradiance pass (8x8 borderless tile)
 		attrs.SetCombo( "D_PASS", 0 );
 		IntegrateShader.DispatchWithAttributes( attrs, 1, 1, 1 );
 
-		// Distance pass (16x16 borderless tile)
-		attrs.SetCombo( "D_PASS", 1 );
-		IntegrateShader.DispatchWithAttributes( attrs, 1, 1, 1 );
+		// Geometry is unchanged between bounces; keep the first pass distance data read-only.
+		if ( _pass == 0 )
+		{
+			attrs.SetCombo( "D_PASS", 1 );
+			IntegrateShader.DispatchWithAttributes( attrs, 1, 1, 1 );
+		}
 
 		RenderAttributes.Pool.Return( attrs );
 	}
 
+	/// <summary>
+	/// Releases temporary bake resources and references to shared saved textures.
+	/// </summary>
 	public void Dispose()
 	{
 		_camera?.Dispose();
 		_captureTexture?.Dispose();
 		_captureDepth?.Dispose();
+		_captureVolumes?.Dispose();
+		_captureTextures.Clear();
+		_firstPassIrradiance?.Dispose();
 
 		GeneratedIrradianceTexture?.Dispose();
 		GeneratedDistanceTexture?.Dispose();

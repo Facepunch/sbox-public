@@ -12,7 +12,6 @@ internal static class GameResourceProcessor
 	public static void Initialize()
 	{
 		GameResource.ProcessSerializedObject += ProcessGameResource;
-		SceneFile.ResolveRuntimeScene = SceneSource.ResolveRuntime;
 	}
 
 	internal static IEnumerable<string> GetCloudReferences( JsonObject jso )

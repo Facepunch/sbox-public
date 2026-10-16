@@ -94,7 +94,7 @@ unsafe class ResourceCompileContextImp : ResourceCompileContext, IDisposable
 	public override byte[] ReadSource()
 	{
 		// read from in memory, if we have an override
-		var buffer = _context.GetOverrideData();
+		var buffer = _context.GetOverrideData( true );
 		if ( buffer.IsValid )
 		{
 			IntPtr basePtr = buffer.Base();
@@ -129,6 +129,13 @@ unsafe class ResourceCompileContextImp : ResourceCompileContext, IDisposable
 
 		Log.Warning( $"Couldn't read source file: [{AbsolutePath}]" );
 		return null;
+	}
+
+	internal bool TryReadOverrideInput( out byte[] data )
+	{
+		var buffer = _context.GetOverrideData( false );
+		data = buffer.IsValid ? buffer.ToArray() : null;
+		return buffer.IsValid;
 	}
 
 	/// <summary>

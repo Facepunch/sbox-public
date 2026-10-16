@@ -1,0 +1,251 @@
+@import "/styles/_front.scss";
+// The menu's tile look for the package cards in the list - it only reaches cards under a stylesheet
+// that imports it, and a picker's up in the overlay, away from the menu's
+@import "/styles/_packagecard.scss";
+
+// A window to pick a package from - the map picker, and the game picker. The rail's paper, fading into
+// focus; a head with what you're picking and the search for it; the list under that, its filters the
+// menu's boxes along the top, fading out at the foot. Markup: .window > .main > (.head > .text
+// (.eyebrow-label, .title), .grow, TextEntry.picker-search), .body > PackageList. Include it in the
+// modal's own selector; anything beside .main (the map picker's sources) is the modal's own
+@mixin front-picker
+{
+	font-family: $front-font;
+
+	i, icon
+	{
+		font-family: "Material Icons";
+	}
+
+	// The window - the rail's paper and outline, like the pause menu's game pages, fading into focus
+	> .window
+	{
+		@include front-grain;
+
+		position: relative;
+		flex-direction: row;
+		width: 1500px;
+		height: 900px;
+		max-width: 92%;
+		max-height: 88%;
+		border-radius: $front-radius;
+		border: $front-border-width solid $front-border;
+		background-image: linear-gradient( to bottom, rgba( 20, 24, 33, 0.98 ), rgba( 13, 16, 22, 0.98 ) );
+		box-shadow: 0 16px 48px rgba( 0, 0, 0, 0.5 );
+		overflow: hidden;
+		pointer-events: all;
+		transition: all 0.2s ease-out;
+
+		&:intro
+		{
+			opacity: 0;
+			filter: blur( 10px );
+		}
+	}
+
+	.main
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+	}
+
+	// What you're picking over which lot it is, and the search for them
+	.head
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 12px;
+		padding: 16px 16px 14px 24px;
+		border-bottom: $front-border-width solid $front-hairline;
+
+		.text
+		{
+			flex-direction: column;
+			gap: 2px;
+		}
+
+		.eyebrow-label
+		{
+			@include front-section-label;
+		}
+
+		.title
+		{
+			font-size: 18px;
+			font-weight: 700;
+			color: $front-heading;
+		}
+
+		.grow
+		{
+			flex-grow: 1;
+		}
+
+		// The one search - one size, whichever's showing. Not ".search": a text entry names its icon
+		// after the glyph, so that would box the magnifying glass too
+		.picker-search
+		{
+			flex-shrink: 0;
+			width: 300px;
+			height: 34px;
+			padding: 0 12px;
+			align-items: center;
+			border-radius: 8px;
+			background-color: rgba( 0, 0, 0, 0.25 );
+			border: $front-border-width solid $front-hairline;
+			font-size: 13px;
+			color: $front-body;
+			pointer-events: all;
+
+			// Pinned on the left, the words clear of it - a text entry's icon is always placed absolutely
+			iconpanel
+			{
+				position: absolute;
+				left: 12px;
+				right: auto;
+				padding-right: 0;
+				font-size: 16px;
+				color: $front-tertiary;
+			}
+
+			Label
+			{
+				margin-left: 26px;
+				flex-grow: 1;
+			}
+
+			Label.placeholder
+			{
+				color: $front-tertiary;
+				font-weight: 500;
+			}
+
+			&:focus
+			{
+				border-color: $front-primary;
+			}
+		}
+
+	}
+
+	// Fading out at the foot rather than stopping dead at the window's edge
+	.body
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		min-height: 0;
+		mask-image: linear-gradient( to bottom, white 0%, white 92%, black 100% );
+	}
+
+	// The list's filters - the menu's boxes rather than their own, the whole first row to themselves
+	// (the search is up in the head): the filters from the left, the order on the end
+	.packagefilter
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 8px;
+		padding: 16px 24px 0 24px;
+
+		> .left
+		{
+			flex-grow: 1;
+			flex-shrink: 1;
+			flex-wrap: wrap;
+			gap: 8px;
+		}
+
+		> .right
+		{
+			flex-grow: 0;
+			flex-shrink: 0;
+			gap: 8px;
+		}
+	}
+
+	.packagefilterfacet
+	{
+		height: 34px;
+		padding: 0 12px;
+		gap: 8px;
+		align-items: center;
+		border-radius: 8px;
+		outline: 0px solid transparent;
+		border: $front-border-width solid $front-hairline;
+		background-color: rgba( 0, 0, 0, 0.25 );
+		font-family: $front-font;
+		font-size: 13px;
+		font-weight: 600;
+		color: $front-body;
+
+		iconpanel, i
+		{
+			font-size: 16px;
+			color: $front-tertiary;
+		}
+
+		&:hover
+		{
+			border-color: rgba( $front-primary, 0.5 );
+			background-color: rgba( 0, 0, 0, 0.25 );
+			color: $front-heading;
+		}
+
+		&.is-active
+		{
+			border-color: $front-primary;
+			background-color: rgba( $front-primary, 0.15 );
+			color: $front-heading;
+		}
+	}
+
+	// The order - one width whatever it's set to, so picking a longer one ("Popular Monthly") doesn't
+	// shove the search along and knock a filter onto the next line; a longer name still ellipsises
+	.packagefilter > .right > .packagefilterfacet
+	{
+		width: 170px;
+
+		flex-shrink: 0;
+
+		> div
+		{
+			flex-grow: 1;
+			flex-shrink: 1;
+			min-width: 0;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+		}
+	}
+
+	// Room under the last row, to scroll it clear of the fade
+	.body VirtualGrid
+	{
+		width: 100%;
+		height: 100%;
+		gap: 16px;
+		padding: 20px 24px 72px 24px;
+	}
+
+	.none
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		align-items: center;
+		justify-content: center;
+		gap: 10px;
+
+		i
+		{
+			font-size: 40px;
+			color: $front-tertiary;
+		}
+
+		label
+		{
+			font-size: 14px;
+			color: $front-secondary;
+		}
+	}
+}

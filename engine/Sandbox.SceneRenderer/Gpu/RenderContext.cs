@@ -21,6 +21,9 @@ internal sealed class RenderContext : IDisposable
 	bool mergedValid;
 	bool borrowed;
 	RenderContext frame;
+	bool debugMarkers;
+
+	internal bool GpuScopesEnabled => Sandbox.Diagnostics.GpuProfilerStats.Enabled || debugMarkers;
 
 	/// <summary>
 	/// A frame's own context.
@@ -275,27 +278,47 @@ internal sealed class RenderContext : IDisposable
 	}
 
 	/// <summary>
-	/// Start a GPU timing scope for the engine's GPU profiler (native's managed perf markers, which command lists use too),
-	/// while it's on. Zero when it's off, and on the async compute queue, which native's timestamps don't support
-	/// (<c>CSceneSystem::SubmitViews</c>).
+	/// Start an explicitly bounded GPU pass on the current graphics or compute context.
 	/// </summary>
-	public IntPtr BeginGpuScope( string name )
+	public GpuScope BeginGpuScope( string name )
 	{
-		if ( !Sandbox.Diagnostics.GpuProfilerStats.Enabled || AsyncCompute ) return IntPtr.Zero;
+		if ( !GpuScopesEnabled )
+		{
+			return default;
+		}
 
 		// Native takes the name as UTF-8, which a sampler holds; one per name, kept, since layers record on several threads
 		var sampler = gpuScopeNames.GetOrAdd( name, static n => new Sandbox.Rendering.ProfilingSampler( n ) );
-		return CSceneSystem.BeginManagedPerfMarker( context, sampler.NamePtr );
+		var pix = debugMarkers;
+		if ( pix )
+		{
+			context.BeginPixEvent( sampler.NamePtr );
+		}
+
+		var marker = Sandbox.Diagnostics.GpuProfilerStats.Enabled
+			? CSceneSystem.BeginManagedPerfMarker( context, sampler.NamePtr, true, true )
+			: IntPtr.Zero;
+		return new( marker, pix );
 	}
+
+	public readonly record struct GpuScope( IntPtr Marker, bool Pix );
 
 	static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Sandbox.Rendering.ProfilingSampler> gpuScopeNames = new();
 
 	/// <summary>
 	/// End a scope <see cref="BeginGpuScope"/> started.
 	/// </summary>
-	public void EndGpuScope( IntPtr scope )
+	public void EndGpuScope( GpuScope scope )
 	{
-		if ( scope != IntPtr.Zero ) CSceneSystem.EndManagedPerfMarker( context, scope );
+		if ( scope.Marker != IntPtr.Zero )
+		{
+			CSceneSystem.EndManagedPerfMarker( context, scope.Marker );
+		}
+
+		if ( scope.Pix )
+		{
+			context.EndPixEvent();
+		}
 	}
 
 	/// <summary>
@@ -468,19 +491,23 @@ internal sealed class RenderContext : IDisposable
 
 	/// <summary>
 	/// Compute-skin a model mesh's instances into native vertex-cache blocks (<c>skinning_cs</c>).
-	/// Optional per-instance volume ranges enable deformation; dispatch deformed and undeformed instances separately.
+	/// Optional per-instance volume ranges enable deformation; dispatch deformed and undeformed instances separately. Deformed
+	/// instances read their anchors, per mesh bone, from their offset into <paramref name="anchors"/> - 0 for none.
 	/// </summary>
 	public unsafe bool DispatchSkinning( Material skinningShader, RenderMesh mesh, int modelMesh, GpuBuffer transforms, ReadOnlySpan<int> slots, ReadOnlySpan<int> vertexCacheOffsets, int blendWeights,
-		GpuBuffer volumes = null, ReadOnlySpan<int> volumeOffsets = default, ReadOnlySpan<int> volumeCounts = default, bool morph = false )
+		GpuBuffer volumes = null, ReadOnlySpan<int> volumeOffsets = default, ReadOnlySpan<int> volumeCounts = default, GpuBuffer anchors = null, ReadOnlySpan<int> anchorOffsets = default, bool morph = false )
 	{
 		fixed ( int* s = slots )
 		fixed ( int* o = vertexCacheOffsets )
 		fixed ( int* vo = volumeOffsets )
 		fixed ( int* vc = volumeCounts )
+		fixed ( int* ao = anchorOffsets )
 		{
-			RenderBufferHandle_t volumeBuffer = volumes is null ? IntPtr.Zero : volumes.native;
+			var deformed = volumes is not null && anchors is not null;
+			RenderBufferHandle_t volumeBuffer = deformed ? volumes.native : IntPtr.Zero;
+			RenderBufferHandle_t anchorBuffer = deformed ? anchors.native : IntPtr.Zero;
 			return RenderTools.DispatchModelMeshSkinning( context, skinningShader.native.GetMode(), mesh.Model.native, modelMesh, transforms.native, (IntPtr)s, (IntPtr)o, slots.Length, blendWeights,
-				volumeBuffer, volumes is null ? IntPtr.Zero : (IntPtr)vo, volumes is null ? IntPtr.Zero : (IntPtr)vc, morph );
+				volumeBuffer, deformed ? (IntPtr)vo : IntPtr.Zero, deformed ? (IntPtr)vc : IntPtr.Zero, anchorBuffer, deformed ? (IntPtr)ao : IntPtr.Zero, morph );
 		}
 	}
 
@@ -607,6 +634,7 @@ internal sealed class RenderContext : IDisposable
 		borrowed = shared is not null;
 		if ( borrowed && AsyncCompute ) throw new InvalidOperationException( "An async compute context records into its own native context" );
 		context = borrowed ? shared.context : g_pRenderDevice.CreateRenderContext( AsyncCompute ? AsyncComputeQueue : 0 );
+		debugMarkers = borrowed ? shared.debugMarkers : g_pRenderDevice.AreDebugMarkersEnabled();
 
 		// The frame's bindless texture set, as CSceneSystem::InitializeRenderAttributes does for a view
 		if ( frame is null ) Attributes.Get().SetGlobalBindlessDescriptorSet();
@@ -950,12 +978,19 @@ internal sealed class RenderContext : IDisposable
 	}
 
 	/// <summary>
-	/// Resolve depth and build min/max mips using <c>DepthDownsampleLayer</c>.
+	/// Resolve depth and build min/max mips, as native's pipeline does (<see cref="SharedPasses.BuildDepthChain"/>).
 	/// </summary>
 	public void BuildDepthChain( Texture depth, bool multisampled, Texture chain, int width, int height )
 	{
 		Invalidate();
-		Sandbox.Rendering.DepthDownsampleLayer.Render( context, depth, chain, multisampled, width, height );
+		SharedPasses.BuildDepthChain( context, depth, chain, multisampled, width, height );
+		// Finish the producer's layout transition before graphics and compute sample the chain concurrently.
+		if ( AsyncCompute )
+		{
+			context.TextureBarrierTransition( chain.native, -1, RenderBarrierPipelineStageFlags_t.ComputeShaderBit,
+				RenderBarrierPipelineStageFlags_t.ComputeShaderBit, RenderImageLayout_t.RENDER_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+				RenderBarrierAccessFlags_t.ShaderWriteBit, RenderBarrierAccessFlags_t.ShaderReadBit );
+		}
 	}
 
 	static readonly StringToken SourceDepth = new( "SourceDepth" );
@@ -1000,7 +1035,7 @@ internal sealed class RenderContext : IDisposable
 	}
 
 	/// <summary>
-	/// Quarter-resolution depth blit using <c>QuarterDepthDownsampleLayer</c>, with isolated combos and context view constants.
+	/// Quarter-resolution depth blit (<see cref="SharedPasses.DownsampleQuarterDepth"/>), with isolated combos and context view constants.
 	/// </summary>
 	public void DownsampleQuarterDepth( Graphics.ManagedView target, Texture depth, bool multisampled )
 	{
@@ -1010,7 +1045,7 @@ internal sealed class RenderContext : IDisposable
 		attributes.Set( SourceDepth, depth );
 		using ( new Graphics.Scope( context, target ) )
 		{
-			Sandbox.Rendering.QuarterDepthDownsampleLayer.Render( attributes, multisampled );
+			SharedPasses.DownsampleQuarterDepth( attributes, multisampled );
 		}
 
 		RenderAttributes.Pool.Return( attributes );
@@ -1027,15 +1062,6 @@ internal sealed class RenderContext : IDisposable
 		{
 			Sandbox.Rendering.ContactShadows.Render( mask, worldToProjection, lightDirection, shadowHardness, steps );
 		}
-	}
-
-	/// <summary>
-	/// Blur texture mips using <c>BloomDownsampleLayer</c>.
-	/// </summary>
-	public void BlurMips( Texture texture )
-	{
-		Invalidate();
-		Sandbox.Rendering.BloomDownsampleLayer.Render( context, texture );
 	}
 
 	/// <summary>

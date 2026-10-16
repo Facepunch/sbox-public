@@ -4,6 +4,10 @@ A C# scene renderer for s&box, intended to replace the native scenesystem's worl
 It manages render objects, visibility, lighting and frame execution while using the engine's existing
 materials, shaders and graphics backend.
 
+It also holds the layers of native's rendering pipeline ([Native](Native/)): native sets each view up and
+this adds its layers, for every camera that isn't rendered here. See the
+[render pipeline doc](../../docs/managed/render-pipeline.md).
+
 The renderer is experimental. To use it for GameObject scenes, enable `r_managed_scene 1`.
 It is disabled by default. [SceneLab](../Launcher/SceneLab/) runs the managed and native renderers
 against the same scenes for visual comparison and performance testing.
@@ -51,10 +55,11 @@ system, shader code, shadow-map policy and skinning vertex cache.
 | [Gpu](Gpu/) | Native rendering access, GPU uploads, transform buffers and shader constants. |
 | [Bridge](Bridge/) | Synchronization with GameObject scenes and execution of existing camera stages. |
 | [Diagnostics](Diagnostics/) | Frame comparison, rendering statistics and profiler instrumentation. |
+| [Native](Native/) | Native's rendering pipeline: the layers of its standard and 3D skybox views (`NativeRenderPipeline`). |
 
 Folders describe responsibilities; they do not all introduce namespaces. Public types use
-`Sandbox.SceneRenderer`. Internal subsystems also use `.Features`, `.Culling`, `.Shadows`, `.Gpu` and
-`.Bridge`, imported within the project by [Assembly.cs](Assembly.cs).
+`Sandbox.SceneRenderer`. Internal subsystems also use `.Features`, `.Culling`, `.Shadows`, `.Gpu`,
+`.Bridge` and `.Native`; the first four are imported within the project by [Assembly.cs](Assembly.cs).
 
 Shared math belongs in `Sandbox.System`. In particular,
 [Matrix3x4](../Sandbox.System/Math/Matrix3x4.cs) lives alongside `Matrix` and represents the native affine
@@ -81,12 +86,49 @@ can do useful work for the current frame.
 Large frames record work in parallel. Each recording segment has its own native context, created on
 the thread that records it. Shadow culling is also parallelized. Camera stages and custom-object work
 that requires the main thread stay there. Small frames avoid the overhead of parallel recording.
-With `r_managed_async_compute`, depth-chain, contact-shadow and AO work can overlap shadow-map rendering.
+With `r_managed_async_compute` (enabled by default), depth-chain, contact-shadow and AO work can overlap
+shadow-map rendering. SSR automatically starts on graphics once Hi-Z is ready, alongside AO on compute.
+
+Declare each pass's inputs, outputs and compute capability. The pipeline itself stays a plain list:
+
+```csharp
+// On the AO pass:
+public override FrameResources Reads( RenderFrame frame ) => FrameResources.DepthChain | FrameResources.Normals;
+public override FrameResources Writes => FrameResources.AmbientOcclusion;
+public override bool SupportsAsyncCompute => true;
+
+// In the pipeline, in serial execution order:
+new DepthChainLayer(),
+new EarlyStageLayer( Stage.AfterDepthPrepass, PostProcessQueue.AsyncCompute ),
+contactShadows,
+new EarlyStageLayer( Stage.AfterDepthPrepass, PostProcessQueue.Graphics ),
+new ShadowLayer(),
+new ShadowsReadyLayer(),
+```
+
+`FrameRecorder` finds consecutive compute-capable passes and the following independent graphics work. It
+splits compute submissions at the results graphics needs and inserts waits for read/write, write/read and
+write/write conflicts. Read-only sharing needs no wait. Graphics producers submit before the next compute
+batch's handoff; outstanding compute joins before that handoff, another frame or untracked work. No groups,
+named pass dependencies or manual semaphore wiring are required in the pipeline.
+Reusing an earlier compute pass's input or output starts another batch, so graphics preparation cannot clear it too early.
+
+`Reads` defaults to `FrameResources.Untracked`: an undeclared pass is a conservative scheduling boundary.
+To allow overlap, override it with all resources the pass reads (`None` for no inputs), and declare its
+outputs in `Writes`. Include `Untracked` alongside known inputs for arbitrary camera hooks or custom drawing.
+These declarations also drive output culling; `HasSideEffects` keeps work such as the depth prepass even
+when no later pass explicitly reads its output. This does not inspect shader bindings or allocate resources.
+
+Each queue preserves list order. Disabled/unsupported async compute and windows with no independent graphics
+work stay serial. CPU worker thresholds do not control GPU overlap. Graphics-only preparation and result
+transitions remain in `HandOff` and `TakeBack`; preparation must only initialize outputs and transition inputs
+that already exist before the batch. Early camera effects stay at their normal stage on the serial path.
 
 ### Connections to the rest of the engine
 
-- [ManagedScene](../Sandbox.Engine/Systems/Render/ManagedScene/) owns the convars, renderer loading,
-  scene-change notifications and shutdown integration.
+- [ManagedScene](../Sandbox.Engine/Systems/Render/ManagedScene/) owns the convars, scene-change notifications
+  and shutdown integration. The app system registers this assembly with the engine at startup
+  ([EngineHooks.cs](EngineHooks.cs)).
 - [ShadowMapper](../Sandbox.Engine/Systems/Render/Shadows/) supplies shared shadow allocation, caching
   and time-slicing policy for both renderers.
 - [Graphics.IFrameView](../Sandbox.Engine/Systems/Render/Graphics.FrameView.cs) lets camera effects and
@@ -94,8 +136,8 @@ With `r_managed_async_compute`, depth-chain, contact-shadow and AO work can over
   native scene view or layer exists.
 - [RenderTools.def](../Definitions/engine/Render/RenderTools.def) exposes native helpers implemented in
   [rendertools.cpp](../../src/engine2/sbox/rendertools.cpp).
-- [RenderPipeline](../Sandbox.Engine/Systems/Render/RenderPipeline/) contains existing effect helpers
-  reused for depth downsampling, bloom and refraction.
+- [Gpu/SharedPasses.cs](Gpu/SharedPasses.cs) holds the depth chain, quarter depth and bloom and refraction
+  targets, which this renderer and native's pipeline both use.
 
 ## Building and testing
 

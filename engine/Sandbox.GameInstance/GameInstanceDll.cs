@@ -126,6 +126,11 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	/// </summary>
 	public void ResetEnvironment()
 	{
+		var hadPreviousEnvironment = gameInstance is not null || AssemblyEnroller is not null || DidMountNetworkedFiles;
+
+		// The menu loaded its resources moments ago during startup, so there is nothing to reset yet.
+		var menuResourcesCurrent = !hadPreviousEnvironment && !Application.IsEditor;
+
 		using var scope = GlobalContext.GameScope();
 
 		Log.Trace( "Game Menu - ResetEnvironment" );
@@ -143,7 +148,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			PackageLoader.OnAfterHotload = OnAfterHotload;
 		}
 
-		ResourceLoader.Clear();
+		if ( !menuResourcesCurrent ) ResourceLoader.Clear();
 
 		if ( DidMountNetworkedFiles )
 		{
@@ -251,14 +256,17 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			}
 		};
 
-		IMenuDll.Current?.Reset();
+		if ( !menuResourcesCurrent ) IMenuDll.Current?.Reset();
 
-		// Run GC and finalizers to clear any native resources held
-		GC.Collect();
-		GC.WaitForPendingFinalizers();
+		if ( hadPreviousEnvironment )
+		{
+			// Run GC and finalizers to clear any native resources held
+			GC.Collect();
+			GC.WaitForPendingFinalizers();
 
-		// Run the queue one more time, since some finalizers queue tasks
-		MainThread.RunQueues();
+			// Run the queue one more time, since some finalizers queue tasks
+			MainThread.RunQueues();
+		}
 	}
 
 	/// <summary>
@@ -388,27 +396,46 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		using var scope = GlobalContext.GameScope();
 
-		ConVarSystem.SaveAll();
-
-		// Scope disconnect so we can shutdown game before disconnect and stop game objects from sending network destroy,
-		// orphaned action should take care of it.
-		using ( Networking.DisconnectScope() )
-		{
-			gameInstance.Shutdown();
-			gameInstance = null;
-			IGameInstance.Current = null;
-		}
-
-		Application.ClearGame();
+		LeaveGame( disconnect: true );
 
 		LoadingScreen.IsVisible = false;
 		LoadingScreen.Media = null;
 
-		Sound.StopAll( 0.2f );
-
 		ResetEnvironment();
 
 		Mounting.MountUtility.TickPreviewRenders();
+	}
+
+	/// <summary>
+	/// Shut the running game down so nothing of it carries over: its scene, its sounds, its settings and,
+	/// unless we're joining a session that's already open, its network session.
+	/// </summary>
+	private void LeaveGame( bool disconnect )
+	{
+		Analytics.GameClosed();
+		using var scope = GlobalContext.GameScope();
+
+		if ( gameInstance is not null )
+		{
+			ConVarSystem.SaveAll();
+
+			// Scope disconnect so we can shutdown game before disconnect and stop game objects from sending network destroy,
+			// orphaned action should take care of it.
+			using ( disconnect ? Networking.DisconnectScope() : null )
+			{
+				gameInstance.Shutdown();
+				gameInstance = null;
+				IGameInstance.Current = null;
+			}
+
+			Sound.StopAll( 0.2f );
+		}
+		else if ( disconnect )
+		{
+			Networking.Disconnect();
+		}
+
+		Application.ClearGame();
 	}
 
 	internal Input.Context _perFrameInput = Input.Context.Create( "ClientPerFrame" );
@@ -417,7 +444,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	{
 		var scene = Game.ActiveScene;
 
-		using var sceneScope = scene?.Push();
+		using var sceneScope = new ScenePushScope( scene );
 
 		if ( scene is not null )
 		{
@@ -515,7 +542,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			mouseIsAllowed = !IMenuDll.Current.HasOverlayMouseInput();
 		}
 
-		using ( Game.ActiveScene?.Push() )
+		using ( new ScenePushScope( Game.ActiveScene ) )
 		{
 			Game.Language?.Tick();
 			GlobalContext.Current.UISystem.Simulate( mouseIsAllowed );
@@ -544,6 +571,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		}
 
 		Api.Activity.SetExitReason( string.IsNullOrEmpty( message ) ? "leave" : "disconnect", message );
+		Api.Activity.CancelRequest( Api.Activity.PendingRequest );
 		Api.Activity.LoadAbandoned( string.IsNullOrEmpty( message ) ? null : message );
 
 		// cancel any in-progress load right now instead of waiting for tick
@@ -668,23 +696,10 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 				return;
 		}
 
-		// Tear down the current game in its own scope. We may have been called from the
-		// menu, and the shutdown clears per-context state.
+		// Leave the current game first, fully. If this is part of a remote connection the
+		// session we're on is the one we're joining, so that stays.
 		Api.Activity.LoadStage( "teardown" );
-		using ( GlobalContext.GameScope() )
-		{
-			gameInstance?.Shutdown();
-
-			//
-			// If this isn't part of a remote connection, leave any active network session
-			//
-			if ( !flags.Contains( GameLoadingFlags.Remote ) )
-			{
-				Networking.Disconnect();
-			}
-
-			Application.ClearGame();
-		}
+		LeaveGame( disconnect: !flags.Contains( GameLoadingFlags.Remote ) );
 
 		if ( !Application.IsDedicatedServer && !Application.IsStandalone )
 		{
@@ -888,9 +903,9 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	/// <summary>
 	/// Pushes the game scope. This will push the active scene and the right time.
 	/// </summary>
-	public IDisposable PushScope()
+	public ScenePushScope PushScope()
 	{
-		return Game.ActiveScene?.Push();
+		return new ScenePushScope( Game.ActiveScene );
 	}
 
 	/// <summary>
@@ -899,12 +914,21 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	void TickSceneStats( Scene scene )
 	{
 		var sceneValid = scene.IsValid();
+
+		// Counted with direct queries, this runs every frame
+		int cameraCount = 0, particleCount = 0;
+		if ( sceneValid )
+		{
+			foreach ( var _ in scene.Query<CameraComponent>() ) cameraCount++;
+			foreach ( var effect in scene.Query<ParticleEffect>() ) particleCount += effect.Particles.Count;
+		}
+
 		Api.Performance.CollectStat( "GameObjectCount", sceneValid ? scene.Directory.GameObjectCount : 0 );
 		Api.Performance.CollectStat( "ComponentCount", sceneValid ? scene.Directory.ComponentCount : 0 );
 		Api.Performance.CollectStat( "RootGameObjects", sceneValid ? scene.Children.Count : 0 );
-		Api.Performance.CollectStat( "CameraCount", sceneValid ? scene.GetAllComponents<CameraComponent>().Count() : 0 );
+		Api.Performance.CollectStat( "CameraCount", cameraCount );
 		Api.Performance.CollectStat( "ColliderCount", sceneValid ? scene.PhysicsWorld.BodyCount : 0 );
-		Api.Performance.CollectStat( "Particles", sceneValid ? scene.GetAllComponents<ParticleEffect>().Sum( x => x.Particles.Count ) : 0 );
+		Api.Performance.CollectStat( "Particles", particleCount );
 
 		Api.Performance.CollectStat( "GameObjectsDestroyed", SceneMetrics.GameObjectsDestroyed );
 		Api.Performance.CollectStat( "ParticlesCreated", SceneMetrics.ParticlesCreated );
@@ -938,8 +962,9 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		Api.Activity.GameRequested( new( "console", gameIdent ), replace: false );
 
-		// We can load and run projects if we're a Dedicated Server.
-		if ( Application.IsDedicatedServer && gameIdent.ToLower().Contains( ".sbproj" ) )
+		// Local automation can launch a project directly, just like a dedicated server.
+		if ( (Application.IsDedicatedServer || Sandbox.Utility.CommandLine.HasSwitch( "-mcp" ))
+			&& gameIdent.EndsWith( ".sbproj", StringComparison.OrdinalIgnoreCase ) )
 		{
 			await Project.InitializeBuiltIn( false );
 
@@ -950,7 +975,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			var libraries = Path.Combine( project.RootDirectory.FullName, "Libraries" );
 
 			// We should iterate all available libraries and add their projects
-			foreach ( var folder in Directory.EnumerateDirectories( libraries ) )
+			foreach ( var folder in Directory.Exists( libraries ) ? Directory.EnumerateDirectories( libraries ) : [] )
 			{
 				var configs = Directory.EnumerateFiles( folder, "*.sbproj" ).ToArray();
 				if ( configs.Length != 1 ) continue;

@@ -431,14 +431,6 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		if ( sceneFile is null )
 			return false;
 
-		var loadOptions = new SceneLoadOptions();
-		using var runtimePreparation = loadOptions.RuntimePreparationScope();
-		loadOptions.SetScene( sceneFile );
-		if ( !loadOptions.PrepareRuntime() )
-			return false;
-
-		sceneFile = loadOptions.GetSceneFile();
-
 		// Wouldn't this be nice? Doesn't make sense within a MapInstance, but when we switch away
 		// SceneLoadOptions options = new() { IsAdditive = true };
 		// options.SetScene( sceneFile );
@@ -447,7 +439,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		using var optionsScope = ActionGraph.PushSerializationOptions( sceneFile.SerializationOptions with { ForceUpdateCached = Scene.IsEditor } );
 		using var sceneScope = Scene.Push();
 		// Set up a blob context to resolve binary data in the map scene.
-		using var blobs = sceneFile.LoadBlobData();
+		using var blobs = BlobDataSerializer.Load( sceneFile.BinaryData, path );
 		using var batchGroup = CallbackBatch.Batch();
 
 		foreach ( var json in sceneFile.GameObjects )
@@ -884,10 +876,15 @@ file class MapComponentMapLoader : SceneMapLoader
 					break;
 				}
 
+			case "env_light_probe_volume":
+				{
+					LightProbeVolume.InitializeFromLegacy( go, kv );
+					break;
+				}
 			case "env_combined_light_probe_volume":
 				{
 					EnvmapProbe.InitializeFromLegacy( go, kv ); // create an envmap component
-					AddMapObjectComponent( go, kv ); // create the probe sceneobject (we don't have a component for it)
+					LightProbeVolume.InitializeFromLegacy( go, kv );
 					break;
 				}
 			case "snd_soundscape_box":

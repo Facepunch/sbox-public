@@ -228,8 +228,9 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 
 		sceneCamera.OnRenderStageHook = ExecuteCommandLists;
 		sceneCamera.WantsDepthNormalsHook = WantsDepthNormals;
-		sceneCamera.HasAsyncComputeHook = HasAsyncCompute;
-		sceneCamera.RenderAsyncComputeHook = RenderAsyncCompute;
+		sceneCamera.HasEarlyPostProcessHook = HasEarlyPostProcess;
+		sceneCamera.ScheduleEarlyPostProcessHook = ScheduleEarlyPostProcess;
+		sceneCamera.RenderEarlyPostProcessHook = RenderEarlyPostProcess;
 	}
 
 	protected override void OnAwake()
@@ -286,15 +287,28 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	/// </summary>
 	public void ComposeView()
 	{
-		ComposeView( Scene.IsEditor ? null : GatherModifiers( Scene ) );
+		ComposeView( Scene.IsEditor ? null : GatherModifiers( Scene, new() ) );
 	}
 
 	// The scene-wide modifier set, sorted - gathered once per tick and shared by every camera
 	// composing that tick (see Scene.UpdateCameraViews). Null when modifiers don't apply (editor).
-	internal static ICameraModifier[] GatherModifiers( Scene scene )
-		=> scene.GetAll<ICameraModifier>().OrderBy( x => x.CameraOrder ).ToArray();
+	// Equal orders keep scene order, like OrderBy.
+	internal static List<ICameraModifier> GatherModifiers( Scene scene, List<ICameraModifier> modifiers )
+	{
+		modifiers.Clear();
 
-	internal void ComposeView( ICameraModifier[] modifiers )
+		foreach ( var modifier in scene.Query<ICameraModifier>() )
+		{
+			var order = modifier.CameraOrder;
+			int i = modifiers.Count;
+			while ( i > 0 && modifiers[i - 1].CameraOrder > order ) i--;
+			modifiers.Insert( i, modifier );
+		}
+
+		return modifiers;
+	}
+
+	internal void ComposeView( List<ICameraModifier> modifiers )
 	{
 		var view = RawView;
 
@@ -389,8 +403,9 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	/// </summary>
 	Action<Stage, SceneCamera> executeCommandListsHook;
 	Func<bool> wantsDepthNormalsHook;
-	Func<Stage, bool> hasAsyncComputeHook;
-	Action<Stage> renderAsyncComputeHook;
+	Func<Stage, PostProcessQueue, bool> hasEarlyPostProcessHook;
+	Action<Stage, bool> scheduleEarlyPostProcessHook;
+	Action<Stage, PostProcessQueue> renderEarlyPostProcessHook;
 
 	public void UpdateSceneCamera( SceneCamera camera, bool includeTags = true )
 	{
@@ -464,8 +479,9 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		//
 		camera.OnRenderStageHook = executeCommandListsHook ??= ExecuteCommandLists;
 		camera.WantsDepthNormalsHook = wantsDepthNormalsHook ??= WantsDepthNormals;
-		camera.HasAsyncComputeHook = hasAsyncComputeHook ??= HasAsyncCompute;
-		camera.RenderAsyncComputeHook = renderAsyncComputeHook ??= RenderAsyncCompute;
+		camera.HasEarlyPostProcessHook = hasEarlyPostProcessHook ??= HasEarlyPostProcess;
+		camera.ScheduleEarlyPostProcessHook = scheduleEarlyPostProcessHook ??= ScheduleEarlyPostProcess;
+		camera.RenderEarlyPostProcessHook = renderEarlyPostProcessHook ??= RenderEarlyPostProcess;
 
 		//
 		// Hack because I don't want this to have to be on a camera. This
@@ -488,9 +504,25 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		if ( Scene is null )
 			return;
 
-		camera.OnRenderUI = () => OnCameraRenderUI( camera, ScreenPanel.RenderTiming.AfterPostProcess );
-		camera.OnRenderUIBeforePostProcess = () => OnCameraRenderUI( camera, ScreenPanel.RenderTiming.BeforePostProcess );
+		// This runs every frame, so make the callbacks once per scene camera
+		if ( _renderUICamera != camera )
+			CreateRenderUICallbacks( camera );
+
+		camera.OnRenderUI = _renderUI;
+		camera.OnRenderUIBeforePostProcess = _renderUIBeforePostProcess;
 	}
+
+	// Separate so the closure is only allocated here, not on every UpdateSceneCameraUI
+	void CreateRenderUICallbacks( SceneCamera camera )
+	{
+		_renderUICamera = camera;
+		_renderUI = () => OnCameraRenderUI( camera, ScreenPanel.RenderTiming.AfterPostProcess );
+		_renderUIBeforePostProcess = () => OnCameraRenderUI( camera, ScreenPanel.RenderTiming.BeforePostProcess );
+	}
+
+	SceneCamera _renderUICamera;
+	Action _renderUI;
+	Action _renderUIBeforePostProcess;
 
 	[Obsolete( "Use CommandList" )]
 	public IDisposable AddHookAfterOpaque( string debugName, int order, Action<SceneCamera> renderEffect ) => null;
@@ -556,7 +588,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 
 	internal void InitializeRendering( bool renderUI = true )
 	{
-		using ( Scene.Push() )
+		using ( Scene.PushScope() )
 		{
 			EnsureSceneCameraCreated();
 
@@ -589,7 +621,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		if ( Viewport.z <= 0 ) return;
 		if ( Viewport.w <= 0 ) return;
 
-		using ( Scene.Push() )
+		using ( Scene.PushScope() )
 		{
 			InitializeRendering();
 
@@ -787,8 +819,41 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	/// </summary>
 	public bool RenderToTexture( Texture target, in ViewSetup config = default )
 	{
+		return RenderToTexture( target, null, config );
+	}
+
+	/// <summary>
+	/// Render colour and depth into caller-owned textures without copying the depth buffer.
+	/// The optional depth target must be a renderable 2D depth texture with eight stencil bits and the same dimensions
+	/// as the colour target. Its sample count determines the scene's MSAA sample count.
+	/// Depth retains the camera's projection and orientation: <see cref="ViewSetup.FlipX"/> and
+	/// <see cref="ViewSetup.FlipY"/> only affect the final colour blit. Keep both textures alive
+	/// until rendering and any subsequent sampling have completed.
+	/// </summary>
+	public bool RenderToTexture( Texture target, Texture depthTarget, in ViewSetup config )
+	{
+		return RenderToTexture( target, depthTarget, config, out _ );
+	}
+
+	/// <summary>
+	/// Submit a camera view and copy its resolved projection and viewport for deferred consumers.
+	/// </summary>
+	internal bool RenderToTexture( Texture target, Texture depthTarget, in ViewSetup config, out ViewData viewData )
+	{
+		viewData = default;
+
 		if ( target is null || target.native.IsNull )
 			return false;
+
+		if ( depthTarget is not null )
+		{
+			if ( !depthTarget.IsValid || depthTarget.IsError || !depthTarget.IsRenderTarget
+				|| !depthTarget.ImageFormat.HasCameraStencil() || depthTarget.Depth != 1 )
+				throw new ArgumentException( "Depth must be a valid 2D depth render target with eight stencil bits.", nameof( depthTarget ) );
+
+			if ( depthTarget.Size != target.Size )
+				throw new ArgumentException( "Colour and depth targets must have matching dimensions.", nameof( depthTarget ) );
+		}
 
 		// TODO: we need to get rid of this guard, it's a hack
 		if ( !Graphics.IsActive )
@@ -811,11 +876,26 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		//
 		// Adds the views to the scene system
 		//
-		setup.Native.RenderToTexture( target.native, Graphics.SceneView );
+		var rendered = setup.Native.RenderToTexture( target.native, Graphics.SceneView, depthTarget?.native ?? default );
+
+		if ( rendered )
+		{
+			var depthRange = setup.Native.RenderedDepthRange;
+			viewData = new ViewData
+			{
+				IsValid = true,
+				ProjectionToView = setup.Native.RenderedProjectionToView,
+				Viewport = setup.Native.RenderedViewport,
+				DepthRange = new Vector2( depthRange.x, depthRange.y ),
+				DepthUvScaleBias = new Vector4(
+					setup.Native.FlipX ? -1 : 1, setup.Native.FlipY ? -1 : 1,
+					setup.Native.FlipX ? 1 : 0, setup.Native.FlipY ? 1 : 0 )
+			};
+		}
+
 		setup.Native.ClearSceneWorlds();
 
-
-		return true;
+		return rendered;
 	}
 
 	/// <summary>
@@ -899,7 +979,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		if ( !this.IsValid() )
 			return;
 
-		using ( Scene.Push() )
+		using ( Scene.PushScope() )
 		{
 			Scene.PreCameraRender();
 			InitializeRendering( renderUI );

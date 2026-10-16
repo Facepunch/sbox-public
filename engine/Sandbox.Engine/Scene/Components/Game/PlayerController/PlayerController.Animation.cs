@@ -33,6 +33,9 @@ public sealed partial class PlayerController : Component
 	/// </summary>
 	public bool ShowCreateBodyRenderer => UseAnimatorControls && Renderer is null;
 
+	/// <summary>
+	/// Create a child renderer using the Human model for the player's body.
+	/// </summary>
 	[Button( icon: "add" )]
 	[Property, Feature( "Animator" ), Tint( EditorTint.Green ), ShowIf( "ShowCreateBodyRenderer", true )]
 	public void CreateBodyRenderer()
@@ -41,7 +44,7 @@ public sealed partial class PlayerController : Component
 		body.Parent = GameObject;
 
 		Renderer = body.AddComponent<SkinnedModelRenderer>();
-		Renderer.Model = Model.Load( "models/citizen/citizen.vmdl" );
+		Renderer.Model = Model.Load( "models/citizen_human/human.vmdl" );
 	}
 
 	[Property, Feature( "Animator" )] public float RotationAngleLimit { get; set; } = 45.0f;

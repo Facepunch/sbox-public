@@ -3,7 +3,7 @@ using Sandbox.Rendering;
 namespace Sandbox.SceneRenderer;
 
 /// <summary>
-/// Draws bloom-flagged objects into quarter-resolution colour and scene depth (<c>RenderPipeline.AddLayersToView</c>).
+/// Draws bloom-flagged objects into quarter-resolution colour and scene depth (native: <see cref="Native.StandardPipeline"/>).
 /// Excludes faded draws and translucent draws of mixed objects. Runs before <c>AfterDepthPrepass</c> only when needed;
 /// otherwise the bloom input is black. Each pass needs quarter-resolution view constants for light clustering.
 /// </summary>
@@ -41,7 +41,7 @@ internal sealed class BloomLayer : MeshLayer
 	public override FrameResources Writes => FrameResources.BloomObjects;
 
 	// Its objects test against the quarter-resolution depth
-	public override FrameResources Reads( RenderFrame frame ) => FrameResources.QuarterDepth;
+	public override FrameResources Reads( RenderFrame frame ) => FrameResources.QuarterDepth | FrameResources.Untracked;
 
 	/// <summary>
 	/// Acquire and bind the bloom target before recording.
@@ -50,7 +50,7 @@ internal sealed class BloomLayer : MeshLayer
 	{
 		var viewport = frame.View.Viewport;
 		Viewport = new Rect( (int)(viewport.Left / 4), (int)(viewport.Top / 4), (int)(viewport.Width / 4), (int)(viewport.Height / 4) );
-		Target = Rendering.BloomLayer.GetTarget( (int)Viewport.Width, (int)Viewport.Height );
+		Target = SharedPasses.BloomTarget( (int)Viewport.Width, (int)Viewport.Height );
 		frameContext.Attributes.Set( BloomInput, Target.ColorTarget );
 
 		GraphicsView ??= new Graphics.ManagedView();
@@ -93,11 +93,6 @@ internal sealed class BloomLayer : MeshLayer
 		if ( start ) rc.Clear( Color.Transparent, clearColor: true, clearDepth: false );
 	}
 
-	/// <summary>
-	/// Release the frame's target reference.
-	/// </summary>
-	internal void EndFrame() => Target = null;
-
 	public override void Dispose()
 	{
 		GraphicsView?.Dispose();
@@ -106,7 +101,7 @@ internal sealed class BloomLayer : MeshLayer
 }
 
 /// <summary>
-/// Downsamples scene depth for bloom occlusion using <c>QuarterDepthDownsampleLayer.Render</c>.
+/// Downsamples scene depth for bloom occlusion using <see cref="SharedPasses.DownsampleQuarterDepth"/>, as native's <see cref="Native.BloomDepthLayer"/> does.
 /// </summary>
 internal sealed class QuarterDepthDownsampleLayer : RenderLayer
 {
@@ -131,30 +126,5 @@ internal sealed class QuarterDepthDownsampleLayer : RenderLayer
 
 		var hdr = frame.Output.Target;
 		rc.DownsampleQuarterDepth( bloom.GraphicsView, hdr.Depth, hdr.Samples > 1 );
-	}
-}
-
-/// <summary>
-/// Blurs bloom mips using <c>BloomDownsampleLayer.Render</c>; no view constants required.
-/// </summary>
-internal sealed class BloomBlurLayer : RenderLayer
-{
-	readonly BloomLayer bloom;
-
-	public BloomBlurLayer( BloomLayer bloom ) : base( "Bloom Layer Gaussian Blur" )
-	{
-		this.bloom = bloom;
-	}
-
-	public override bool IsNeeded( RenderFrame frame ) => bloom.IsNeeded( frame );
-
-	public override FrameResources Writes => FrameResources.BloomInput;
-
-	public override FrameResources Reads( RenderFrame frame ) => FrameResources.BloomObjects;
-
-	public override void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats )
-	{
-		rc.BlurMips( bloom.Target.ColorTarget );
-		bloom.EndFrame();
 	}
 }

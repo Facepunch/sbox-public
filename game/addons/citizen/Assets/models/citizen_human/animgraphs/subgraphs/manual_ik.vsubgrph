@@ -1,0 +1,557 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:animgraph2:version{0f7898b8-5471-45c4-9867-cd9c46bcfdb5} -->
+{
+	_class = "CAnimationSubGraph"
+	m_nodeManager = 
+	{
+		_class = "CAnimNodeManager"
+		m_nodes = 
+		[
+			{
+				key = 
+				{
+					m_id = 124645655
+				}
+				value = 
+				{
+					_class = "CTwoBoneIKAnimNode"
+					m_sName = "Manual IK left hand"
+					m_vecPosition = [ -48.0, 96.0 ]
+					m_nNodeID = 
+					{
+						m_id = 124645655
+					}
+					m_sNote = ""
+					m_inputConnection = 
+					{
+						m_nodeID = 
+						{
+							m_id = 213201918
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_ikChainName = "left_arm_IK"
+					m_endEffectorType = "IkEndEffector_Bone"
+					m_endEffectorAttachmentName = ""
+					m_targetType = "IkTarget_Parameter_ModelSpace"
+					m_attachmentName = ""
+					m_targetBoneName = "hand_L_IK_target"
+					m_targetParam = 
+					{
+						m_id = 937870857
+					}
+					m_bMatchTargetOrientation = true
+					m_rotationParam = 
+					{
+						m_id = 227489733
+					}
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 213201918
+				}
+				value = 
+				{
+					_class = "CSelectorAnimNode"
+					m_sName = ""
+					m_vecPosition = [ -192.0, -64.0 ]
+					m_nNodeID = 
+					{
+						m_id = 213201918
+					}
+					m_sNote = ""
+					m_children = 
+					[
+						{
+							m_nodeID = 
+							{
+								m_id = 620015896
+							}
+							m_outputID = 
+							{
+								m_id = 4294967295
+							}
+						},
+						{
+							m_nodeID = 
+							{
+								m_id = 770235078
+							}
+							m_outputID = 
+							{
+								m_id = 4294967295
+							}
+						},
+					]
+					m_tags = 
+					[
+						{
+							m_id = 4294967295
+						},
+						{
+							m_id = 4294967295
+						},
+					]
+					m_selectionSource = "SelectionSource_Bool"
+					m_boolParamID = 
+					{
+						m_id = 429120056
+					}
+					m_enumParamID = 
+					{
+						m_id = 4294967295
+					}
+					m_intParamID = 
+					{
+						m_id = 4294967295
+					}
+					m_intParamMinValue = 0
+					m_intParamMaxValue = 2
+					m_blendDuration = 0.35
+					m_tagBehavior = "SelectorTagBehavior_OffWhenFinished"
+					m_bResetOnChange = false
+					m_bSyncCyclesOnChange = false
+					m_blendCurve = 
+					{
+						m_vControlPoint1 = [ 0.388889, 0.0 ]
+						m_vControlPoint2 = [ 0.148148, 1.0 ]
+					}
+					m_intParamNames = [  ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 620015896
+				}
+				value = 
+				{
+					_class = "CSelectorAnimNode"
+					m_sName = ""
+					m_vecPosition = [ -448.0, -64.0 ]
+					m_nNodeID = 
+					{
+						m_id = 620015896
+					}
+					m_sNote = ""
+					m_children = 
+					[
+						{
+							m_nodeID = 
+							{
+								m_id = 1590672954
+							}
+							m_outputID = 
+							{
+								m_id = 268268952
+							}
+						},
+						{
+							m_nodeID = 
+							{
+								m_id = 985251156
+							}
+							m_outputID = 
+							{
+								m_id = 4294967295
+							}
+						},
+					]
+					m_tags = 
+					[
+						{
+							m_id = 4294967295
+						},
+						{
+							m_id = 4294967295
+						},
+					]
+					m_selectionSource = "SelectionSource_Bool"
+					m_boolParamID = 
+					{
+						m_id = 692834498
+					}
+					m_enumParamID = 
+					{
+						m_id = 4294967295
+					}
+					m_intParamID = 
+					{
+						m_id = 4294967295
+					}
+					m_intParamMinValue = 0
+					m_intParamMaxValue = 2
+					m_blendDuration = 0.35
+					m_tagBehavior = "SelectorTagBehavior_OffWhenFinished"
+					m_bResetOnChange = false
+					m_bSyncCyclesOnChange = false
+					m_blendCurve = 
+					{
+						m_vControlPoint1 = [ 0.388889, 0.0 ]
+						m_vControlPoint2 = [ 0.148148, 1.0 ]
+					}
+					m_intParamNames = [  ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 770235078
+				}
+				value = 
+				{
+					_class = "CTwoBoneIKAnimNode"
+					m_sName = "Manual IK right foot"
+					m_vecPosition = [ -304.0, 96.0 ]
+					m_nNodeID = 
+					{
+						m_id = 770235078
+					}
+					m_sNote = ""
+					m_inputConnection = 
+					{
+						m_nodeID = 
+						{
+							m_id = 620015896
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_ikChainName = "right_leg_IK"
+					m_endEffectorType = "IkEndEffector_Bone"
+					m_endEffectorAttachmentName = ""
+					m_targetType = "IkTarget_Parameter_ModelSpace"
+					m_attachmentName = ""
+					m_targetBoneName = "hand_R_IK_target"
+					m_targetParam = 
+					{
+						m_id = 1040390066
+					}
+					m_bMatchTargetOrientation = true
+					m_rotationParam = 
+					{
+						m_id = 579398893
+					}
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 832347544
+				}
+				value = 
+				{
+					_class = "CSelectorAnimNode"
+					m_sName = ""
+					m_vecPosition = [ 320.0, -64.0 ]
+					m_nNodeID = 
+					{
+						m_id = 832347544
+					}
+					m_sNote = ""
+					m_children = 
+					[
+						{
+							m_nodeID = 
+							{
+								m_id = 1432957441
+							}
+							m_outputID = 
+							{
+								m_id = 4294967295
+							}
+						},
+						{
+							m_nodeID = 
+							{
+								m_id = 1582858677
+							}
+							m_outputID = 
+							{
+								m_id = 4294967295
+							}
+						},
+					]
+					m_tags = 
+					[
+						{
+							m_id = 4294967295
+						},
+						{
+							m_id = 4294967295
+						},
+					]
+					m_selectionSource = "SelectionSource_Bool"
+					m_boolParamID = 
+					{
+						m_id = 2309985
+					}
+					m_enumParamID = 
+					{
+						m_id = 4294967295
+					}
+					m_intParamID = 
+					{
+						m_id = 4294967295
+					}
+					m_intParamMinValue = 0
+					m_intParamMaxValue = 2
+					m_blendDuration = 0.35
+					m_tagBehavior = "SelectorTagBehavior_OffWhenFinished"
+					m_bResetOnChange = false
+					m_bSyncCyclesOnChange = false
+					m_blendCurve = 
+					{
+						m_vControlPoint1 = [ 0.388889, 0.0 ]
+						m_vControlPoint2 = [ 0.148148, 1.0 ]
+					}
+					m_intParamNames = [  ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 985251156
+				}
+				value = 
+				{
+					_class = "CTwoBoneIKAnimNode"
+					m_sName = "Manual IK left foot"
+					m_vecPosition = [ -560.0, 96.0 ]
+					m_nNodeID = 
+					{
+						m_id = 985251156
+					}
+					m_sNote = ""
+					m_inputConnection = 
+					{
+						m_nodeID = 
+						{
+							m_id = 1590672954
+						}
+						m_outputID = 
+						{
+							m_id = 268268952
+						}
+					}
+					m_ikChainName = "left_leg_IK"
+					m_endEffectorType = "IkEndEffector_Bone"
+					m_endEffectorAttachmentName = ""
+					m_targetType = "IkTarget_Parameter_ModelSpace"
+					m_attachmentName = ""
+					m_targetBoneName = "hand_L_IK_target"
+					m_targetParam = 
+					{
+						m_id = 828245487
+					}
+					m_bMatchTargetOrientation = true
+					m_rotationParam = 
+					{
+						m_id = 1211714571
+					}
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1432957441
+				}
+				value = 
+				{
+					_class = "CSelectorAnimNode"
+					m_sName = ""
+					m_vecPosition = [ 64.0, -64.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1432957441
+					}
+					m_sNote = ""
+					m_children = 
+					[
+						{
+							m_nodeID = 
+							{
+								m_id = 213201918
+							}
+							m_outputID = 
+							{
+								m_id = 4294967295
+							}
+						},
+						{
+							m_nodeID = 
+							{
+								m_id = 124645655
+							}
+							m_outputID = 
+							{
+								m_id = 4294967295
+							}
+						},
+					]
+					m_tags = 
+					[
+						{
+							m_id = 4294967295
+						},
+						{
+							m_id = 4294967295
+						},
+					]
+					m_selectionSource = "SelectionSource_Bool"
+					m_boolParamID = 
+					{
+						m_id = 1598349679
+					}
+					m_enumParamID = 
+					{
+						m_id = 4294967295
+					}
+					m_intParamID = 
+					{
+						m_id = 4294967295
+					}
+					m_intParamMinValue = 0
+					m_intParamMaxValue = 2
+					m_blendDuration = 0.35
+					m_tagBehavior = "SelectorTagBehavior_OffWhenFinished"
+					m_bResetOnChange = false
+					m_bSyncCyclesOnChange = false
+					m_blendCurve = 
+					{
+						m_vControlPoint1 = [ 0.388889, 0.0 ]
+						m_vControlPoint2 = [ 0.148148, 1.0 ]
+					}
+					m_intParamNames = [  ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1582858677
+				}
+				value = 
+				{
+					_class = "CTwoBoneIKAnimNode"
+					m_sName = "Manual IK right hand"
+					m_vecPosition = [ 208.0, 96.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1582858677
+					}
+					m_sNote = ""
+					m_inputConnection = 
+					{
+						m_nodeID = 
+						{
+							m_id = 1432957441
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_ikChainName = "right_arm_IK"
+					m_endEffectorType = "IkEndEffector_Bone"
+					m_endEffectorAttachmentName = ""
+					m_targetType = "IkTarget_Parameter_ModelSpace"
+					m_attachmentName = ""
+					m_targetBoneName = "hand_R_IK_target"
+					m_targetParam = 
+					{
+						m_id = 1651085716
+					}
+					m_bMatchTargetOrientation = true
+					m_rotationParam = 
+					{
+						m_id = 1600416393
+					}
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1590672954
+				}
+				value = 
+				{
+					_class = "CGroupInputAnimNode"
+					m_sName = "Incoming pose"
+					m_vecPosition = [ -672.0, -64.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1590672954
+					}
+					m_sNote = ""
+					m_proxyItems = 
+					[
+						{
+							m_name = "Out"
+							m_outputID = 
+							{
+								m_id = 268268952
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1956108287
+				}
+				value = 
+				{
+					_class = "CGroupOutputAnimNode"
+					m_sName = "Adjusted pose"
+					m_vecPosition = [ 544.0, -64.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1956108287
+					}
+					m_sNote = ""
+					m_proxyItems = 
+					[
+						{
+							m_name = "In"
+							m_outputID = 
+							{
+								m_id = 176530900
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 832347544
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+		]
+	}
+	m_localParameters = [  ]
+	m_localTags = [  ]
+}

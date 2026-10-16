@@ -1237,6 +1237,9 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		var created = new List<(GameObject, ObjectCreateMsg)>();
 
+		// Keep all blob data alive until CallbackBatch has flushed.
+		using var blobs = BlobDataSerializer.LoadFromMemory( [] );
+
 		using ( CallbackBatch.Batch() )
 		{
 			foreach ( var msg in message.CreateMsgs )
@@ -1252,13 +1255,14 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 					continue;
 				}
 
-				using ( BlobDataSerializer.LoadFromMemory( msg.BlobData ) )
-				{
-					var go = new GameObject();
-					go.Deserialize( JsonNode.Parse( msg.JsonData ).AsObject(), networkDeserializeOptionsCreate );
-					go.NetworkSpawnRemote( msg );
-					created.Add( (go, msg) );
-				}
+				// Fold this object's blobs into the shared scope.
+				blobs.Load( msg.BlobData );
+
+				var go = new GameObject();
+				go.Deserialize( JsonNode.Parse( msg.JsonData ).AsObject(), networkDeserializeOptionsCreate );
+				go.NetworkSpawnRemote( msg );
+
+				created.Add( (go, msg) );
 			}
 		}
 
@@ -1481,6 +1485,9 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	/// </summary>
 	internal override void OnDeltaSnapshotMessage( InternalMessageType type, ByteStream bs, Connection source )
 	{
+		// Acknowledgements measure the round trip, against a clock that's otherwise only updated when we send
+		DeltaSnapshots.UpdateTime();
+
 		if ( type == InternalMessageType.DeltaSnapshot )
 		{
 			NetworkDebugSystem.Current?.Record( NetworkDebugSystem.MessageType.SyncVars, bs.Length );

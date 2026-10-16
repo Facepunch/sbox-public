@@ -86,6 +86,16 @@ namespace Steamworks
 		}
 
 		/// <summary>
+		/// Activates the Steam Overlay's web browser at this url. False if there's no Steam to do it.
+		/// </summary>
+		internal static bool OpenWebOverlay( string url )
+		{
+			if ( !IsInstalled ) return false;
+			Internal.ActivateGameOverlayToWebPage( url, ActivateGameOverlayToWebPageMode.Default );
+			return true;
+		}
+
+		/// <summary>
 		/// Activates the Steam Overlay to open the invite dialog. Invitations sent from this dialog will be for the provided lobby.
 		/// </summary>
 		internal static void OpenGameInviteOverlay( SteamId lobby )

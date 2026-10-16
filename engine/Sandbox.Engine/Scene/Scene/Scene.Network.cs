@@ -28,7 +28,7 @@ public partial class Scene : GameObject
 		networkedObjects.Remove( obj );
 	}
 
-	RealTimeSince _timeSinceNetworkUpdate = 0f;
+	double _nextNetworkUpdate;
 
 	/// <summary>
 	/// Send any pending network updates at our desired <see cref="NetworkRate"/>.
@@ -41,10 +41,14 @@ public partial class Scene : GameObject
 		if ( SceneNetworkSystem.Instance is not { } system )
 			return;
 
-		if ( _timeSinceNetworkUpdate < NetworkRate )
+		var now = RealTime.NowDouble;
+		if ( now < _nextNetworkUpdate )
 			return;
 
-		_timeSinceNetworkUpdate = 0f;
+		// Kept on a schedule, waiting a full interval from whichever frame we got to would send less often than asked
+		_nextNetworkUpdate += NetworkRate;
+		if ( _nextNetworkUpdate <= now )
+			_nextNetworkUpdate = now + NetworkRate;
 
 		SendClientTick( system );
 

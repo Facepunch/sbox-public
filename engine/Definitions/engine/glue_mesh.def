@@ -58,6 +58,9 @@ native class CPhysBodyDescArray
 native class CPhysBodyDesc
 {
 	float m_flMass;
+	float m_flInertiaScale;
+	float m_flLinearDamping;
+	float m_flAngularDamping;
 
 	inline void SetBoneName( string boneName )
 	{
@@ -132,9 +135,10 @@ native class CModelBuilder as NativeEngine.ModelBuilder
 	void SetViewBounds( Vector3 mins, Vector3 maxs );
 	void SetEyePosition( Vector3 position );
 	void SetMaxEyeDeflection( float degrees );
+	bool SetModelKeyValues( KeyValues3 data );
 	void SetLODSwitchDistance( int lod, float distance );
 	void AddRunTimeMesh( IMesh mesh, CastTo[MeshGroupMask_t] ulong meshGroupMask, CastTo[LODGroupMask_t] int lodGroupMask );
-	void AddRunTimeBone( string boneName, string parentName, float radius, Vector3 position, Rotation rotation );
+	void AddRunTimeBone( string boneName, string parentName, Vector3 position, Rotation rotation, BBox bounds );
 	void AddRunTimeAttachment( string name, string parentName, Vector3 position, Rotation rotation );
 	int AddMeshGroup( string name );
 	CBuilderMaterialGroup AddMaterialGroup();

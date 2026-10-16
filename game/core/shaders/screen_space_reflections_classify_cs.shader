@@ -32,6 +32,8 @@ CS
     static const uint TILE_COORD_MASK = 0xFFFFu;
     static const uint TILE_COORD_SHIFT = 16u;
 
+    float RoughnessCutoff < Attribute( "RoughnessCutoff" ); Default( 0.5 ); >;
+
 	// Scale factor between full-res screen and SSR buffers: 1 = full, 2 = half, 4 = quarter
 	float Scale 	< Attribute("Scale"); Default(1); >;
 	float ScaleInv 	< Attribute("ScaleInv"); Default(1); >;
@@ -48,6 +50,7 @@ CS
 
     RWStructuredBuffer<uint> 					ClassifiedTilesRW 		< Attribute("ClassifiedTilesRW"); >;
     RWStructuredBuffer<IndirectDispatchArguments> DispatchArgsRW 	< Attribute("IntersectDispatchArgsRW"); >;
+    RWTexture2D<float4>                         OutRadiance 		< Attribute("OutRadiance"); >;
 
     uint PackTileCoord( uint2 tileCoord )
     {
@@ -67,9 +70,14 @@ CS
 
         if ( vDispatch.x < SSRSize.x && vDispatch.y < SSRSize.y )
         {
-            float roughness = Roughness::Sample( vDispatch * ScaleInv );
-            float depth = Depth::GetNormalized( vDispatch * ScaleInv );
-            if ( roughness < 0.5f && depth > 0.0001f )
+            // Clear the trace mip, the intersect only writes classified tiles
+            OutRadiance[vDispatch] = 0;
+
+            // Same representative full-res pixel as the intersect pass
+            int2 vPixel = min( vDispatch * (int)ScaleInv + (int)ScaleInv / 2, int2( g_vViewportSize ) - 1 );
+            float roughness = Roughness::Sample( vPixel );
+            float depth = Depth::GetNormalized( vPixel );
+            if ( roughness < RoughnessCutoff && depth > 0.0001f )
             {
                 InterlockedOr( groupHasReflection, 1u );
             }

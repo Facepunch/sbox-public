@@ -21,10 +21,7 @@ public class NetworkTest
 	{
 		_oldTypeLibrary = Game.TypeLibrary;
 
-		Game.TypeLibrary = new Sandbox.Internal.TypeLibrary();
-		Game.TypeLibrary.AddAssembly( typeof( PrefabFile ).Assembly, false );
-		Game.TypeLibrary.AddAssembly( typeof( ModelRenderer ).Assembly, false );
-		Game.TypeLibrary.AddAssembly( typeof( NetworkTestComponent ).Assembly, false );
+		Game.TypeLibrary = SharedTypeLibrary.EngineAndTests;
 
 		JsonUpgrader.UpdateUpgraders( Game.TypeLibrary );
 	}
@@ -119,7 +116,7 @@ public class NetworkTest
 		go.Transform.Local = localTransform;
 
 		var time = Time.NowDouble;
-		go.Transform.FromNetwork( networkTransform, false );
+		go.Transform.FromNetwork( networkTransform, false, time );
 
 		go.Transform.Update( time + Networking.InterpolationTime * 2f, time );
 
@@ -566,6 +563,7 @@ public class NetworkTest
 		writer.Write( snapshot.ObjectId );
 		writer.Write( snapshot.Version );
 		writer.Write( snapshot.SnapshotId );
+		writer.Write( Time.NowDouble );
 		writer.Write( (ushort)snapshot.Entries.Count );
 
 		foreach ( var entry in snapshot.Entries )

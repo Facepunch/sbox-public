@@ -143,6 +143,7 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 	/// <summary>
 	/// Fetch a loaded resource, or set up a promise that will get loaded into later. This allows us to
 	/// have resources that reference other resources that aren't loaded yet (or are missing).
+	/// Mounted references load synchronously instead of creating promises.
 	/// </summary>
 	internal static GameResource GetPromise( System.Type type, ResourceId id )
 	{
@@ -150,6 +151,18 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 
 		var obj = Game.Resources.Get( type, id ) as GameResource;
 		if ( obj != null ) return obj;
+
+		if ( Mounting.MountUtility.IsMountPath( id.Path ) )
+		{
+			if ( !Mounting.Directory.TryLoad( id.Path, out var mounted ) )
+				return null;
+
+			if ( mounted is GameResource resource && resource.GetType().IsAssignableTo( type ) )
+				return resource;
+
+			Log.Warning( $"Mounted resource '{id.Path}' is not a '{type.FullName}'." );
+			return null;
+		}
 
 		// create a new instance of the resource type and register it as a promise
 		obj = System.Activator.CreateInstance( type ) as GameResource;
@@ -209,15 +222,41 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 		Game.Resources.Register( this );
 	}
 
-	/// <summary>
-	/// Loads a game resource from given file.
-	/// </summary>
-	internal static T Load<T>( string filename ) where T : GameResource
+	Mounting.ResourceLoader _mountLoader;
+	GlobalContext _mountContext;
+
+	internal void RegisterMounted( Mounting.ResourceLoader loader )
 	{
+		Register( loader.Path );
+		_mountLoader = loader;
+		_mountContext = GlobalContext.Current;
+		loader.ShutdownActions += OnMountShutdown;
+	}
+
+	void OnMountShutdown()
+	{
+		using var scope = new GlobalContext.GlobalContextScope( _mountContext );
+		DestroyInternal();
+	}
+
+	/// <summary>
+	/// Loads a game resource by path, including mount:// paths.
+	/// </summary>
+	/// <remarks>
+	/// Uncached mounted resources load synchronously and must be resolved on the main thread.
+	/// </remarks>
+	public static T Load<T>( string filename ) where T : GameResource
+	{
+		if ( string.IsNullOrWhiteSpace( filename ) )
+			return null;
+
 		if ( ResourceLibrary.TryGet<T>( filename, out var resource ) )
 		{
 			return resource;
 		}
+
+		if ( Mounting.MountUtility.IsMountPath( filename ) )
+			return GetPromise( typeof( T ), filename ) as T;
 
 		return null;
 	}
@@ -465,6 +504,13 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 		catch ( Exception ex )
 		{
 			Log.Warning( ex, $"{ex.GetType().Name} when destroying {ResourcePath}" );
+		}
+		finally
+		{
+			if ( _mountLoader is not null )
+				_mountLoader.ShutdownActions -= OnMountShutdown;
+			_mountLoader = null;
+			_mountContext = null;
 		}
 	}
 }

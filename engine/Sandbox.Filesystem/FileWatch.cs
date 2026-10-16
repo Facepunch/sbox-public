@@ -157,7 +157,6 @@ public sealed class FileWatch : IDisposable
 		return false;
 	}
 
-
 	// TODO - move this into BaseFileSystem
 	public static void Tick()
 	{

@@ -51,6 +51,15 @@ internal sealed partial class SceneLabWindow
 		// Orbit from where the scene put its camera
 		if ( game.Camera is { } camera )
 		{
+			// -debugmode AmbientOcclusion and the like: capture a debug visualisation instead of the lit frame
+			if ( Args.String( "-debugmode" ) is { Length: > 0 } debugModeName )
+			{
+				if ( Enum.TryParse<SceneCameraDebugMode>( debugModeName, true, out var debugMode ) && Enum.IsDefined( debugMode ) )
+					camera.DebugMode = debugMode;
+				else
+					Log.Warning( $"Scene Lab: unknown -debugmode {debugModeName}, capturing the lit frame" );
+			}
+
 			var offset = GameFocus - camera.WorldPosition;
 			var angles = Rotation.LookAt( offset ).Angles();
 			gameCamera = (angles.yaw, angles.pitch, offset.Length);

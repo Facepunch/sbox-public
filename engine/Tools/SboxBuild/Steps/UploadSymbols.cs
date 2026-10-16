@@ -11,6 +11,7 @@ internal class UploadSymbols
 			Log.Info( "Uploading debug symbols..." );
 
 			string rootDir = Directory.GetCurrentDirectory();
+			string gameDir = Path.Combine( rootDir, "game" );
 			string steamworksDir = Path.Combine( rootDir, "steamworks" );
 			string symbolStoreExe = Path.Combine( steamworksDir, "Facepunch.SymStore.exe" );
 
@@ -20,11 +21,11 @@ internal class UploadSymbols
 				return ExitCode.Failure;
 			}
 
-			// The command uploads all DLLs, PDBs, and EXEs
+			// Only upload what we ship: all DLLs, PDBs, and EXEs under the game folder
 			bool success = Utility.RunProcess(
 				symbolStoreExe,
 				"*.dll *.pdb *.exe",
-				rootDir,
+				gameDir,
 				timeoutMs: 1800000 // 30 minute timeout
 			);
 

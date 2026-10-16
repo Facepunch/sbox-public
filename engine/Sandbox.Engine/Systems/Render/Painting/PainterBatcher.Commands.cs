@@ -100,6 +100,7 @@ internal partial class PainterBatcher
 			return new( _resolvedTransform, _scissorIndex.Value, _transformIndex.Value );
 		}
 		internal Matrix LayerMatrix = Matrix.Identity;
+		internal bool MapScreenPixels;
 		internal bool? PlaybackPaused;
 		internal bool Layered;
 		internal bool? GammaOutput;

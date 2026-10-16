@@ -99,6 +99,7 @@ public class Button : Panel, INavigationEvent
 	{
 		AddClass( "button" );
 		AcceptsFocus = true;
+		FocusOnClick = false;
 
 		IconPanel = AddChild( new IconPanel( null, "icon" ) );
 		IconPanel.Style.Display = DisplayMode.None;

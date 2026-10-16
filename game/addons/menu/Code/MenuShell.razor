@@ -1,0 +1,34 @@
+@using Sandbox.UI
+@using Sandbox.UI.Navigation
+@inherits NavigationHost
+
+@*
+    The menu's frame - the rail down the left, the pages beside it - and their navigator. The main menu
+    and the pause menu are both this, so anything in the frame is in both: they differ only in what
+    they stack over the pages (the pause menu's Resume bar on top, the main menu's offline notice over
+    them).
+*@
+<root>
+
+    <Sidebar />
+
+    <div class="stage">
+        @Top
+        <div class="navigator-canvas" slot="navigator-canvas"></div>
+        @Overlay
+    </div>
+
+</root>
+
+@code
+{
+    /// <summary>
+    /// Across the top of the stage, over every page - the pause menu's Resume bar.
+    /// </summary>
+    [Parameter] public RenderFragment Top { get; set; }
+
+    /// <summary>
+    /// After the pages, so over them - the main menu's offline notice.
+    /// </summary>
+    [Parameter] public RenderFragment Overlay { get; set; }
+}

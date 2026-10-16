@@ -1,0 +1,368 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:animgraph2:version{0f7898b8-5471-45c4-9867-cd9c46bcfdb5} -->
+{
+	_class = "CAnimationSubGraph"
+	m_nodeManager = 
+	{
+		_class = "CAnimNodeManager"
+		m_nodes = 
+		[
+			{
+				key = 
+				{
+					m_id = 2240000010
+				}
+				value = 
+				{
+					_class = "CGroupInputAnimNode"
+					m_sName = "Other movement"
+					m_vecPosition = [ -480.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 2240000010
+					}
+					m_sNote = ""
+					m_proxyItems = 
+					[
+						{
+							m_name = "Movement pose"
+							m_outputID = 
+							{
+								m_id = 2240000011
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 2240000012
+				}
+				value = 
+				{
+					_class = "CBlend2DAnimNode"
+					m_sName = "Climbing directions"
+					m_vecPosition = [ -480.0, 160.0 ]
+					m_nNodeID = 
+					{
+						m_id = 2240000012
+					}
+					m_sNote = "Rust climbing loops use move_y (right) and move_z (up), in inches/second. Full stride at 150 in/s; playback is 1.5 times the source rate."
+					m_items = 
+					[
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "Climb_Idle"
+							m_blendValue = [ 0.0, 0.0 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "Climb_Up"
+							m_blendValue = [ 0.0, 150.0 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "Climb_Down"
+							m_blendValue = [ 0.0, -150.0 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "Climb_Left"
+							m_blendValue = [ -150.0, 0.0 ]
+						},
+						{
+							_class = "CBlend2DItem"
+							m_tagSpans = [  ]
+							m_sequenceName = "Climb_Right"
+							m_blendValue = [ 150.0, 0.0 ]
+						},
+					]
+					m_blendSourceX = "Parameter"
+					m_paramX = 
+					{
+						m_id = 582995392
+					}
+					m_blendSourceY = "Parameter"
+					m_paramY = 
+					{
+						m_id = 777307590
+					}
+					m_bLoop = true
+					m_bLockBlendOnReset = false
+					m_bLockWhenWaning = false
+					m_playbackSpeed = 1.5
+					m_damping = 
+					{
+						_class = "CAnimInputDamping"
+						m_speedFunction = "Spring"
+						m_fSpeedScale = 10.0
+						m_fMinSpeed = 0.0
+						m_fMaxTension = 100.0
+						m_fTension = 100.0
+						m_fDamping = 5.0
+					}
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 2240000013
+				}
+				value = 
+				{
+					_class = "CStateMachineAnimNode"
+					m_sName = "Climbing"
+					m_vecPosition = [ 0.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 2240000013
+					}
+					m_sNote = "Climbing replaces locomotion and disables ground foot placement; ladder contact comes from the authored poses."
+					m_states = 
+					[
+						{
+							_class = "CAnimState"
+							m_transitions = 
+							[
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 0
+											m_paramID = 
+											{
+												m_id = 2240000000
+											}
+											m_comparisonValue = 
+											{
+												m_nType = 1
+												m_data = true
+											}
+										},
+									]
+									m_blendDuration = 0.2
+									m_destState = 
+									{
+										m_id = 2240000015
+									}
+									m_bReset = true
+									m_resetCycleOption = "Beginning"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+							]
+							m_tags = [  ]
+							m_tagBehaviors = [  ]
+							m_name = "Other movement"
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2240000010
+								}
+								m_outputID = 
+								{
+									m_id = 2240000011
+								}
+							}
+							m_stateID = 
+							{
+								m_id = 2240000014
+							}
+							m_position = [ 0.0, 0.0 ]
+							m_bIsStartState = true
+							m_bIsEndtState = false
+							m_bIsPassthrough = false
+							m_bIsRootMotionExclusive = false
+							m_bAlwaysEvaluate = false
+						},
+						{
+							_class = "CAnimState"
+							m_transitions = 
+							[
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 0
+											m_paramID = 
+											{
+												m_id = 2240000000
+											}
+											m_comparisonValue = 
+											{
+												m_nType = 1
+												m_data = false
+											}
+										},
+									]
+									m_blendDuration = 0.2
+									m_destState = 
+									{
+										m_id = 2240000014
+									}
+									m_bReset = true
+									m_resetCycleOption = "Beginning"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+							]
+							m_tags = 
+							[
+								{
+									m_id = 2097192094
+								},
+							]
+							m_tagBehaviors = [ 0 ]
+							m_name = "Climbing"
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2240000012
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+							m_stateID = 
+							{
+								m_id = 2240000015
+							}
+							m_position = [ 320.0, 0.0 ]
+							m_bIsStartState = false
+							m_bIsEndtState = false
+							m_bIsPassthrough = false
+							m_bIsRootMotionExclusive = false
+							m_bAlwaysEvaluate = false
+						},
+					]
+					m_bBlockWaningTags = false
+					m_bLockStateWhenWaning = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 2240000016
+				}
+				value = 
+				{
+					_class = "CGroupOutputAnimNode"
+					m_sName = "Climbing output"
+					m_vecPosition = [ 320.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 2240000016
+					}
+					m_sNote = ""
+					m_proxyItems = 
+					[
+						{
+							m_name = "Movement pose"
+							m_outputID = 
+							{
+								m_id = 2240000017
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2240000013
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+		]
+	}
+	m_localParameters = 
+	[
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "move_y"
+			m_id = 
+			{
+				m_id = 582995392
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = -1000.0
+			m_fMaxValue = 1000.0
+		},
+		{
+			_class = "CFloatAnimParameter"
+			m_name = "move_z"
+			m_id = 
+			{
+				m_id = 777307590
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_fDefaultValue = 0.0
+			m_fMinValue = -1000.0
+			m_fMaxValue = 1000.0
+		},
+		{
+			_class = "CBoolAnimParameter"
+			m_name = "b_climb"
+			m_id = 
+			{
+				m_id = 2240000000
+			}
+			m_previewButton = "ANIMPARAM_BUTTON_NONE"
+			m_bUseMostRecentValue = false
+			m_bAutoReset = false
+			m_bDefaultValue = false
+		},
+	]
+	m_localTags = [  ]
+}

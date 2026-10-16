@@ -6,6 +6,7 @@ internal partial class NetworkSystem
 	{
 		IsHost = true;
 		HostConnection = null;
+		Access.Privacy = Config.Privacy;
 		InstallStringTables();
 
 		// Conna: if we're the host then set our state as Connected.
@@ -19,6 +20,8 @@ internal partial class NetworkSystem
 		}
 
 		InitializeGameSystem();
+
+		InviteParty();
 	}
 }
 

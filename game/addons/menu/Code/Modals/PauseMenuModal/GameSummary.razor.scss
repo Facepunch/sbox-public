@@ -1,0 +1,88 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+// The game, up top down the left over its buttons - its name, what it is and the pills to like it,
+// one under another
+GameSummary
+{
+	position: relative;
+	flex-direction: column;
+	flex-shrink: 0;
+	gap: 14px;
+	padding: 20px 20px 18px 20px;
+	border-bottom: $front-border-width solid $front-hairline;
+	font-family: $front-font;
+
+	// The game's art behind it all, faded out down its height - white shows, black hides. The column
+	// clips it to its corners
+	> .art
+	{
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		background-size: cover;
+		background-position: center;
+		mask-image: linear-gradient( to bottom, white 0%, black 100% );
+		opacity: 0.45;
+		pointer-events: none;
+	}
+
+	// Over the art, so the words are never under it
+	.block
+	{
+		position: relative;
+		flex-direction: column;
+	}
+
+	> .about
+	{
+		gap: 6px;
+	}
+
+	// The pills wrap onto a second line rather than run out of the column
+	PackageReactions
+	{
+		flex-wrap: wrap;
+		gap: 8px;
+		pointer-events: all;
+	}
+
+	.about
+	{
+		// Its big type carries room of its own under the letters - taken back, so the line under it
+		// sits snug on it
+		.name
+		{
+			font-size: 28px;
+			font-weight: 700;
+			color: $front-heading;
+			margin-bottom: -6px;
+
+			// Opens the game's page
+			align-self: flex-start;
+			cursor: pointer;
+			pointer-events: all;
+			transition: color 0.1s ease;
+
+			&:hover
+			{
+				sound-in: "ui.button.over";
+				color: #ffffff;
+			}
+
+			&:active
+			{
+				sound-in: "ui.button.press";
+			}
+		}
+
+		.summary
+		{
+			font-size: 13.5px;
+			color: $front-body;
+			white-space: normal;
+		}
+	}
+}

@@ -7,7 +7,7 @@ using System.Threading;
 namespace MenuProject.MenuUI.Front;
 
 /// <summary>
-/// A little portrait of a citizen - yours, or someone else's dressed from the json their profile shares.
+/// A little portrait using the Human model - yours, or someone else's dressed from the json their profile shares.
 /// Hands on hips, turned a touch to the side. The front page's one can be spun and watches the cursor;
 /// others just stand there.
 /// </summary>
@@ -130,6 +130,9 @@ public sealed class CitizenPreview : Panel
 
 		var clothing = LocalUser ? ClothingContainer.CreateFromLocalUser() : ClothingContainer.CreateFromJson( _avatarJson );
 		_yaw = Yaw;
+		_dizzySpin = 0f;
+		_dizzyRemaining = 0f;
+		_dizzyPhase = 0f;
 
 		_ = Dress( _scene, clothing, _cancel.Token );
 	}
@@ -161,9 +164,7 @@ public sealed class CitizenPreview : Panel
 				body.WorldRotation = Rotation.FromYaw( Yaw );
 
 				var renderer = body.AddComponent<SkinnedModelRenderer>();
-				renderer.Model = Model.Load( clothing.PrefersHuman
-					? "models/citizen_human/citizen_human_male.vmdl"
-					: "models/citizen/citizen.vmdl" );
+				renderer.Model = Model.Load( "models/citizen_human/human.vmdl" );
 
 				// The hands-on-hips pose the garage character used
 				renderer.Set( "special_idle_states", 1 );
@@ -187,6 +188,10 @@ public sealed class CitizenPreview : Panel
 
 				if ( token.IsCancellationRequested || !cameraObject.IsValid() )
 					return;
+
+				// A human skin swaps the body model, which rebuilds the anim graph with default
+				// parameters - put the pose back so the entry animation plays
+				renderer.Set( "special_idle_states", 1 );
 
 				// Taller people need the camera a little higher - a rough guess, and all we've got unless
 				// we're framing on their head, which takes over once they're posed
@@ -260,12 +265,18 @@ public sealed class CitizenPreview : Panel
 	const float SpinFriction = 3.5f;
 
 	/// <summary>
-	/// Degrees of spin added per wheel notch.
+	/// Wheel spins coast longer so successive notches build momentum.
+	/// </summary>
+	const float WheelSpinFriction = 0.8f;
+
+	/// <summary>
+	/// Degrees per second added to the spin velocity per wheel notch.
 	/// </summary>
 	const float WheelDegreesPerNotch = 140f;
 
 	float _yaw;
 	float _yawVelocity;
+	float _spinFriction = SpinFriction;
 	float _lastDragX;
 	bool _dragging;
 
@@ -278,6 +289,7 @@ public sealed class CitizenPreview : Panel
 		}
 
 		// Each notch gives them a shove, and a run of them stacks into a proper spin
+		_spinFriction = WheelSpinFriction;
 		_yawVelocity += value.y * WheelDegreesPerNotch;
 	}
 
@@ -291,6 +303,7 @@ public sealed class CitizenPreview : Panel
 		_dragging = true;
 		_lastDragX = MousePosition.x;
 		_yawVelocity = 0f;
+		_spinFriction = SpinFriction;
 	}
 
 	/// <summary>
@@ -303,6 +316,7 @@ public sealed class CitizenPreview : Panel
 			return;
 
 		var dt = MathF.Max( RealTime.Delta, 0.001f );
+		var previousYaw = _yaw;
 
 		if ( _dragging && !HasActive )
 			_dragging = false;
@@ -321,13 +335,46 @@ public sealed class CitizenPreview : Panel
 		else
 		{
 			_yaw += _yawVelocity * dt;
-			_yawVelocity *= MathF.Exp( -SpinFriction * dt );
+			_yawVelocity *= MathF.Exp( -_spinFriction * dt );
 
 			if ( MathF.Abs( _yawVelocity ) < 0.5f )
 				_yawVelocity = 0f;
 		}
 
 		_renderer.GameObject.WorldRotation = Rotation.FromYaw( _yaw );
+		UpdateDizziness( MathF.Abs( _yaw - previousYaw ), dt );
+	}
+
+	/// <summary>
+	/// Three quick revolutions earn a few seconds of rolling eyes. Slow turns don't count, and
+	/// keeping them spinning postpones recovery until you finally leave the poor citizen alone.
+	/// </summary>
+	const float DizzySpinThreshold = 1080f;
+	const float DizzySpinSpeed = 360f;
+	const float DizzySeconds = 5f;
+
+	float _dizzySpin;
+	float _dizzyRemaining;
+	float _dizzyPhase;
+
+	void UpdateDizziness( float spin, float dt )
+	{
+		_dizzyRemaining = MathF.Max( 0f, _dizzyRemaining - dt );
+
+		if ( spin / dt >= DizzySpinSpeed )
+		{
+			_dizzySpin = MathF.Min( DizzySpinThreshold, _dizzySpin + spin );
+
+			if ( _dizzySpin >= DizzySpinThreshold )
+				_dizzyRemaining = DizzySeconds;
+		}
+		else
+		{
+			_dizzySpin = MathF.Max( 0f, _dizzySpin - DizzySpinSpeed * dt );
+		}
+
+		if ( _dizzyRemaining > 0f )
+			_dizzyPhase = (_dizzyPhase + dt * 10f) % MathF.Tau;
 	}
 
 	//
@@ -375,6 +422,19 @@ public sealed class CitizenPreview : Panel
 
 			wantDirection = (target - eyes).Normal;
 			wantWeight = 1f;
+		}
+
+		if ( _dizzyRemaining > 0f )
+		{
+			// Roll in model space so the eyes stay dizzy whichever way they're facing. Ease back
+			// into watching the cursor over the last second and a half.
+			var rotation = _renderer.WorldRotation;
+			var dizzyDirection = (rotation.Forward
+				+ rotation.Right * (MathF.Cos( _dizzyPhase ) * 0.8f)
+				+ rotation.Up * (MathF.Sin( _dizzyPhase ) * 0.65f)).Normal;
+			var amount = MathF.Min( 1f, _dizzyRemaining / 1.5f );
+			wantDirection = Vector3.Lerp( wantDirection, dizzyDirection, amount ).Normal;
+			wantWeight = MathF.Max( wantWeight, amount );
 		}
 
 		if ( _eyeDirection.IsNearZeroLength )

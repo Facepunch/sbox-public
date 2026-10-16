@@ -1,0 +1,9 @@
+// Just a holder - the page inside brings its own insets and scrolling, so this stays out of the way:
+// as tall as the page, never squashed by whatever it's in
+PackagePage
+{
+	flex-direction: column;
+	flex-grow: 1;
+	flex-shrink: 0;
+	max-width: 100%;
+}

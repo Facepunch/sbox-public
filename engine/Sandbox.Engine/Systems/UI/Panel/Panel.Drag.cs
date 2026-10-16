@@ -52,6 +52,7 @@ public partial class Panel
 		if ( e.Is( "ondragstart" ) ) OnDragStart( e );
 		if ( e.Is( "ondragend" ) ) OnDragEnd( e );
 		if ( e.Is( "ondrag" ) ) OnDrag( e );
+		if ( e.Is( "ondragcancel" ) ) OnDragCancel( e );
 	}
 
 	protected virtual void OnDragStart( DragEvent e )
@@ -82,6 +83,15 @@ public partial class Panel
 		ScrollVelocity += delta;
 		scrollVelocityVelocity = 0;
 		e.StopPropagation();
+	}
+
+	/// <summary>
+	/// The drag was called off before it ended - Escape was pressed, or the pointer was taken away.
+	/// Nothing is dropped, so undo anything the drag has shown or changed so far.
+	/// </summary>
+	protected virtual void OnDragCancel( DragEvent e )
+	{
+		IsDragScrolling = false;
 	}
 
 	/// <summary>

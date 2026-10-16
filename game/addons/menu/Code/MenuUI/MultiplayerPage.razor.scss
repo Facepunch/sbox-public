@@ -1,0 +1,28 @@
+@import "/styles/_front.scss";
+
+MultiplayerPage
+{
+	pointer-events: all;
+	flex-grow: 1;
+	min-height: 0;
+	flex-direction: column;
+	padding: $front-chrome-gap;
+	font-family: $front-font;
+	color: $front-body;
+
+	.multiplayer-body
+	{
+		flex-grow: 1;
+		min-height: 0;
+		gap: 16px;
+		// Preserve usable columns on narrow windows instead of clipping their contents.
+		overflow-x: scroll;
+
+		> DockHost
+		{
+			flex-grow: 1;
+			// Leave room for all three columns, their borders and the two dividers.
+			min-width: 1040px;
+		}
+	}
+}

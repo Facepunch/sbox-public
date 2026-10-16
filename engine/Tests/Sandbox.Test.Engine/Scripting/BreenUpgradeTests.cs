@@ -13,12 +13,8 @@ public class BreenUpgradeTests
 	public void Initialize()
 	{
 		previous = GlobalContext.Current;
-		var types = new TypeLibrary();
-		types.AddIntrinsicTypes();
-		types.AddAssembly( typeof( Script ).Assembly, false );
-		types.AddAssembly( typeof( Vector2 ).Assembly, false );
-		types.AddAssembly( typeof( BreenUpgradeTests ).Assembly, true );
-		GlobalContext.Current = new GlobalContext { TypeLibrary = types };
+		// Intrinsics, engine, system and this assembly (dynamic), built once and shared
+		GlobalContext.Current = new GlobalContext { TypeLibrary = SharedTypeLibrary.ScriptingWithSystemAndTests };
 	}
 	[TestCleanup]
 	public void Cleanup() => GlobalContext.Current = previous;

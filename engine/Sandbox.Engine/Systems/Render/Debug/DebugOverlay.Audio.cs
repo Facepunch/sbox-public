@@ -4,13 +4,9 @@ namespace Sandbox;
 
 internal static partial class DebugOverlay
 {
-	[ConVar( "overlay_audio", ConVarFlags.Protected | ConVarFlags.Cheat, Help = "Draws an audio debug overlay with HUD stats and world-space sound markers." )]
-	internal static int overlay_audio { get; set; } = 0;
-
 	public partial class Audio
 	{
 		static readonly TextRendering.Outline _outline = new() { Color = Color.Black, Size = 2, Enabled = true };
-		static readonly TextRendering.Outline _statusOutline = new() { Color = Color.Black, Size = 3, Enabled = true };
 		static readonly List<SoundHandle> _handles = new();
 
 		internal static void Draw( Painter painter, ref Vector2 pos )
@@ -44,11 +40,15 @@ internal static partial class DebugOverlay
 			CountRows( painter, ref drawPos );
 			drawPos.y += 6;
 
+			Header( painter, ref drawPos, "Simulation" );
+			RowStr( painter, ref drawPos, "Reverb", SoundSimulationSystem.snd_reverb_enable ? "on" : "off" );
+			RowStr( painter, ref drawPos, "Occlusion", SoundSimulationSystem.snd_occlusion_enable ? "on" : "off" );
+			RowStr( painter, ref drawPos, "Diffraction", SoundSimulationSystem.snd_diffraction_enable ? "on" : "off" );
+			drawPos.y += 6;
+
 			ReverbSection( painter, ref drawPos );
 			SurfaceProbeSection( painter, ref drawPos, scene, listener );
 			SoundTable( painter, ref drawPos, listener );
-
-			DrawStatusOverlay( painter );
 
 			pos.y += MathF.Max( 0, drawPos.y - startY );
 		}
@@ -146,30 +146,6 @@ internal static partial class DebugOverlay
 			RowStr( painter, ref pos, "Openness", $"{snap.Openness:F2}" );
 			RowStr( painter, ref pos, "Material Tone L/M/H", $"{mt.Low:F2} / {mt.Mid:F2} / {mt.High:F2}" );
 			pos.y += 6;
-		}
-
-		internal static void DrawStatusOverlay( Painter painter )
-		{
-			float x = Screen.Width - 440f;
-			float y = 20f;
-			const float LineH = 44f;
-			const int FontSize = 32;
-
-			StatusLine( painter, ref y, x, LineH, FontSize, "Reverb",
-				SoundSimulationSystem.snd_reverb_enable );
-			StatusLine( painter, ref y, x, LineH, FontSize, "Occlusion",
-				SoundSimulationSystem.snd_occlusion_enable );
-			StatusLine( painter, ref y, x, LineH, FontSize, "Diffraction",
-				SoundSimulationSystem.snd_diffraction_enable );
-		}
-
-		static void StatusLine( Painter painter, ref float y, float x, float lineH, int fontSize, string label, bool on )
-		{
-			var rect = new Rect( x, y, 420f, lineH );
-			var color = on ? new Color( 0.35f, 1f, 0.45f ) : new Color( 1f, 0.35f, 0.35f );
-			var scope = new TextRendering.Scope( $"{label}:  {(on ? "ON" : "OFF")}", color, fontSize, "Roboto Mono", 700 ) { Outline = _statusOutline };
-			DebugOverlay.DrawText( painter, scope, rect, TextFlag.RightCenter );
-			y += lineH;
 		}
 
 		static void RowStr( Painter painter, ref Vector2 pos, string label, string value )
@@ -366,7 +342,8 @@ internal sealed class AudioDebugWorldSystem : GameObjectSystem<AudioDebugWorldSy
 
 	void DrawWorldMarkers()
 	{
-		if ( DebugOverlay.overlay_audio == 0 ) return;
+		// Sound positions through walls - only for the hub's audio tab, which needs cheats
+		if ( !Diagnostics.PerfHub.IsShowing( "audio" ) ) return;
 
 		var dbg = Scene.GetSystem<DebugOverlaySystem>();
 		if ( dbg is null ) return;

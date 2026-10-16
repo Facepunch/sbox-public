@@ -42,7 +42,7 @@ internal class SteamMatchmaking : SteamClientClass<SteamMatchmaking>
 		Assert.NotNull( Internal );
 
 		var lobby = await Internal.JoinLobby( lobbyId );
-		if ( !lobby.HasValue ) return ((RoomEnter)lobby.Value.EChatRoomEnterResponse, null);
+		if ( !lobby.HasValue ) return (RoomEnter.Error, null);
 
 		return ((RoomEnter)lobby.Value.EChatRoomEnterResponse,
 			new Lobby { Id = lobby.Value.SteamIDLobby });

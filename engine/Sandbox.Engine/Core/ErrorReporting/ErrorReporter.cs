@@ -36,6 +36,7 @@ internal static class ErrorReporter
 			config.DetectStartupTime = StartupTimeDetectionMode.None;
 		} );
 
+		ManagedExceptionReporting.Initialize();
 		Logging.OnException = ReportException;
 	}
 
@@ -44,6 +45,7 @@ internal static class ErrorReporter
 		if ( !IsUsingSentry ) return;
 
 		SentrySdk.Flush();
+		ManagedExceptionReporting.Flush();
 	}
 
 	private static SentryEvent BeforeSend( SentryEvent ev, SentryHint hint )
@@ -73,6 +75,7 @@ internal static class ErrorReporter
 		ev.Contexts.Device.StorageSize = SystemInfo.StorageSizeTotal;
 		ev.Contexts.Device.FreeStorage = SystemInfo.StorageSizeAvailable;
 
+		ManagedExceptionReporting.Copy( ev );
 		return ev;
 	}
 

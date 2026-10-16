@@ -21,6 +21,7 @@
   "SlotsUnder": "HeadTop",
   "SlotsOver": 0,
   "HideBody": 0,
+  "DeformationMode": "Normal",
   "AllowTintSelect": false,
   "TintSelection": {
     "blend": "Linear",
@@ -37,6 +38,7 @@
   "Icon": {
     "Path": "models/citizen_clothes/seasonal/2024/santa/santahat.clothing.png",
     "Mode": "Head",
+    "UsePositionOffset": false,
     "PositionOffset": "0,0,0"
   },
   "__references": [],

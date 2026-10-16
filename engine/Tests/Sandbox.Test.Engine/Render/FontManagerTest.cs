@@ -18,6 +18,20 @@ public class FontManagerTest
 	static string CoreFolder => Path.Combine( Environment.CurrentDirectory, "core" );
 	static string FontsFolder => Path.Combine( CoreFolder, "fonts" );
 
+	// Loading every core font is slow; the lookup rows only read, so they share one manager
+	static readonly Lazy<FontManager> CoreFonts = new( () =>
+	{
+		var fonts = new FontManager();
+		fonts.LoadAll( new LocalFileSystem( CoreFolder ) );
+		return fonts;
+	} );
+
+	[ClassCleanup]
+	public static void ClassCleanup()
+	{
+		if ( CoreFonts.IsValueCreated ) CoreFonts.Value.Clear( true );
+	}
+
 	[DataTestMethod]
 	[DataRow( "Roboto", 400, false, "Roboto-Regular.ttf" )]
 	[DataRow( "Roboto", 700, false, "Roboto-Bold.ttf" )]
@@ -28,12 +42,7 @@ public class FontManagerTest
 	[DataRow( "Roboto Mono", 200, true, "RobotoMono-ThinItalic.ttf" )]
 	public void CoreFontsResolveToTheNormalWidthFace( string family, int weight, bool italic, string expectedFile )
 	{
-		var fonts = new FontManager();
-		fonts.LoadAll( new LocalFileSystem( CoreFolder ) );
-
-		AssertIsFile( expectedFile, fonts.TypefaceFromStyle( new Style { FontFamily = family, FontWeight = weight, FontItalic = italic }, false ) );
-
-		fonts.Clear( true );
+		AssertIsFile( expectedFile, CoreFonts.Value.TypefaceFromStyle( new Style { FontFamily = family, FontWeight = weight, FontItalic = italic }, false ) );
 	}
 
 	[DataTestMethod]

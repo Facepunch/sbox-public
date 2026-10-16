@@ -49,9 +49,13 @@ public static class GameMode
 
 		_inPlay = widget;
 
-		widget.Focus();
+		// Starting play through automation must not activate a background or minimized editor.
+		widget.Focus( activateWindow: false );
 	}
 
+	/// <summary>
+	/// Releases the active play widget and its borrowed input and render targets.
+	/// </summary>
 	public static void ClearPlayMode()
 	{
 		if ( _inPlay is null )

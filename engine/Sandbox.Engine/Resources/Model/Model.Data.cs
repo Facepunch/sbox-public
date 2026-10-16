@@ -9,10 +9,11 @@ namespace Sandbox
 	{
 		Dictionary<string, object> DataCache = new();
 
-		readonly JsonSerializerOptions jsonOptions = new()
+		internal static readonly JsonSerializerOptions DataJsonOptions = new()
 		{
 			ReadCommentHandling = JsonCommentHandling.Skip,
 			PropertyNameCaseInsensitive = true,
+			PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
 			IncludeFields = true,
 			Converters =
 			{
@@ -30,7 +31,7 @@ namespace Sandbox
 			return EngineGlue.KeyValues3ToJson( key );
 		}
 
-		internal string DeduceKeyName( Type type )
+		internal static string DeduceKeyName( Type type )
 		{
 			var outputType = type;
 			var dataType = type;
@@ -102,7 +103,7 @@ namespace Sandbox
 
 			try
 			{
-				var obj = JsonSerializer.Deserialize( json, t, jsonOptions );
+				var obj = JsonSerializer.Deserialize( json, t, DataJsonOptions );
 
 				if ( obj == null )
 				{

@@ -1,21 +1,15 @@
 using NativeEngine;
 using System.Linq;
 using Sandbox.Rendering;
-using System.Runtime.CompilerServices;
 
 namespace Sandbox.SceneRenderer.Bridge;
 
 /// <summary>
 /// <c>r_managed_scene</c> backend: one world mirror per scene and render system per camera.
-/// Registered on assembly load; <see cref="CameraStages"/> runs camera effects and UI at native hook points.
+/// Registered at startup (<see cref="EngineHooks"/>); <see cref="CameraStages"/> runs camera effects and UI at native hook points.
 /// </summary>
 internal sealed class SceneBridge : IManagedSceneRenderer
 {
-#pragma warning disable CA2255 // Register on demand when the engine loads this assembly.
-	[ModuleInitializer]
-	internal static void Register() => ManagedSceneRendering.Renderer = new SceneBridge();
-#pragma warning restore CA2255
-
 	/// <summary>
 	/// Strongly owned world/camera state requires explicit disposal of native resources.
 	/// Released on deletion or shutdown; unreported invalid entries are swept next frame.

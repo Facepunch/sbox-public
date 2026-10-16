@@ -10,6 +10,9 @@ LauncherWindow
 	flex-direction: row;
 }
 
+.editor-window { background-color: rgba( $ground, 0.72 ); }
+.style-light.editor-window { background-color: rgba( $l-ground, 0.72 ); }
+
 //
 // The background - the latest news artwork once it arrives, softened so the UI stays
 // readable. The window's ground colour shows until then.
@@ -33,10 +36,10 @@ LauncherWindow
 	transition: opacity 1.2s ease-out;
 }
 
-.backdrop.visible { opacity: 0.65; }
+.backdrop.visible { opacity: 0.50; }
 
 .style-light .backdrop { filter: blur( 8px ) saturate( 1.1 ) brightness( 1.15 ); }
-.style-light .backdrop.visible { opacity: 0.35; }
+.style-light .backdrop.visible { opacity: 0.25; }
 
 // The window lights up while a droppable project hovers over it
 LauncherWindow.dropping { border-color: $accent; }
@@ -54,7 +57,6 @@ LauncherWindow.dropping .projects { background-color: rgba( $accent, 0.06 ); bor
 //
 .main { flex-grow: 1; flex-direction: column; overflow: hidden; }
 
-.titlebar .fps { color: $text-faint; font-size: 10px; margin-right: 14px; }
 
 .content { flex-grow: 1; flex-direction: column; overflow: hidden; }
 
@@ -73,12 +75,16 @@ LauncherWindow.dropping .projects { background-color: rgba( $accent, 0.06 ); bor
 	margin-left: 10px;
 	padding: 2px 8px;
 	border-radius: 20px;
-	background-color: $raised;
-	border: 1px solid $line;
+	background-color: rgba( $raised, 0.60 );
+	border: 1px solid rgba( $line, 0.85 );
 	color: $text-muted;
 	font-size: 10px;
 	font-weight: 600;
 }
+
+.header .searchbox .content-label.placeholder { color: $text-muted; opacity: 1; }
+.header .searchbox iconpanel { color: $text-muted; }
+.header .searchbox { background-color: rgba( $raised, 0.62 ); border-color: rgba( $line, 0.85 ); }
 
 .header .grow { flex-grow: 1; }
 .header .searchbox { width: 240px; margin-right: 8px; }
@@ -136,8 +142,8 @@ LauncherWindow.dropping .projects { background-color: rgba( $accent, 0.06 ); bor
 	padding: 0 12px 0 10px;
 	margin-bottom: 6px;
 	border-radius: 10px;
-	background-color: $surface;
-	border: 1px solid $line;
+	background-color: rgba( $surface, 0.72 );
+	border: 1px solid rgba( $line, 0.86 );
 	pointer-events: all;
 	animation-name: rise;
 	animation-duration: 0.4s;
@@ -148,7 +154,7 @@ LauncherWindow.dropping .projects { background-color: rgba( $accent, 0.06 ); bor
 
 .projectrow:hover
 {
-	background-color: $raised;
+	background-color: rgba( $raised, 0.78 );
 	border-color: $accent;
 }
 
@@ -196,6 +202,29 @@ LauncherWindow.dropping .projects { background-color: rgba( $accent, 0.06 ); bor
 
 .projectrow .runningtag .icon { flex-shrink: 0; font-size: 9px; margin-right: 5px; }
 .projectrow .runningtag .running-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+// The editor can take several seconds to create its first window.
+.projectrow .launchingtag
+{
+	display: none;
+	flex-shrink: 0.35;
+	min-width: 0;
+	flex-direction: row;
+	align-items: center;
+	margin-right: 12px;
+	color: $accent;
+	font-size: 11px;
+	font-weight: 600;
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+.projectrow .launchingtag .icon { flex-shrink: 0; font-size: 9px; margin-right: 5px; }
+.projectrow .launchingtag .launching-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.projectrow.launching { border-color: rgba( $accent, 0.45 ); }
+.projectrow.launching:hover { border-color: $accent; }
+.projectrow.launching .launchingtag { display: flex; }
+.projectrow.launching .open { display: none; }
 
 .projectrow.running { border-color: rgba( $positive, 0.45 ); }
 .projectrow.running:hover { border-color: $positive; }
@@ -295,8 +324,8 @@ LauncherWindow.dropping .projects { background-color: rgba( $accent, 0.06 ); bor
 	margin-bottom: 12px;
 	border-radius: 10px;
 	overflow: hidden;
-	background-color: $surface;
-	border: 1px solid $line;
+	background-color: rgba( $surface, 0.72 );
+	border: 1px solid rgba( $line, 0.86 );
 	pointer-events: all;
 	cursor: pointer;
 	animation-name: rise;
@@ -319,7 +348,7 @@ LauncherWindow.dropping .projects { background-color: rgba( $accent, 0.06 ); bor
 
 .newscard:hover .image { transform: scale( 1.05 ); }
 
-.newscard .text { flex-direction: column; padding: 10px 12px; background-color: $raised; }
+.newscard .text { flex-direction: column; padding: 10px 12px; background-color: rgba( $raised, 0.78 ); }
 .newscard .title { font-size: 12px; font-weight: 600; }
 .newscard .date { font-size: 10px; color: $text-faint; margin-top: 3px; }
 
@@ -438,16 +467,18 @@ LauncherWindow.dropping .projects { background-color: rgba( $accent, 0.06 ); bor
 // Light theme overrides
 //
 // The backdrop artwork darkens the ground, faint grey doesn't read over it
-.style-light .titlebar .fps { color: $l-text-muted; }
 .style-light .sidebar .version { color: $l-text-muted; }
 LauncherWindow.style-light .sectionlabel .text { color: $l-text; }
 
-.style-light .header .count { background-color: $l-raised; border-color: $l-line; color: $l-text-muted; }
+.style-light .header .count { background-color: rgba( $l-raised, 0.72 ); border-color: rgba( $l-line, 0.85 ); color: $l-text-muted; }
+.style-light .header .searchbox { background-color: rgba( $l-raised, 0.72 ); border-color: rgba( $l-line, 0.85 ); }
+.style-light .header .searchbox .content-label.placeholder { color: $l-text-muted; opacity: 1; }
+.style-light .header .searchbox iconpanel { color: $l-text-muted; }
 
 .style-light .project-column .sectionlabel .rule, .style-light .rail .sectionlabel .rule, .style-light .sidebar .sectionlabel .rule { background-color: rgba( $l-text, 0.20 ); }
 
-.style-light .projectrow { background-color: $l-surface; border-color: $l-line; }
-.style-light .projectrow:hover { background-color: $l-raised; border-color: $accent; }
+.style-light .projectrow { background-color: rgba( $l-surface, 0.72 ); border-color: rgba( $l-line, 0.86 ); }
+.style-light .projectrow:hover { background-color: rgba( $l-raised, 0.80 ); border-color: $accent; }
 .style-light .projectrow .runningtag { color: $l-positive; }
 .style-light .projectrow.running { border-color: rgba( $l-positive, 0.55 ); }
 .style-light .projectrow.running:hover { border-color: $l-positive; }
@@ -459,9 +490,9 @@ LauncherWindow.style-light .sectionlabel .text { color: $l-text; }
 .style-light .projectrow .badge { color: $l-text-faint; }
 .style-light .projectrow .badge.pin { color: $accent; }
 
-.style-light .newscard { background-color: $l-surface; border-color: $l-line; }
+.style-light .newscard { background-color: rgba( $l-surface, 0.72 ); border-color: rgba( $l-line, 0.86 ); }
 .style-light .newscard:hover { border-color: $accent; }
-.style-light .newscard .text { background-color: $l-raised; }
+.style-light .newscard .text { background-color: rgba( $l-raised, 0.80 ); }
 .style-light .newscard .date { color: $l-text-faint; }
 .style-light .newscard.placeholder .title-stub, .style-light .newscard.placeholder .date-stub { background-color: $l-line; }
 .style-light .news-status { color: $l-text-muted; }

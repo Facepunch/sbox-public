@@ -8,11 +8,11 @@
 <root>
 	<div class="entry-controls">
 		<div class="entry-tabs">@Filters</div>
-		<TextEntry class="entry-search" Placeholder="Search entries…" Value=@Search HasClearButton=@true OnTextEdited=@SearchChanged />
+		<TextEntry class="entry-search" Placeholder="#menu.jam.search_entries" Value=@Search HasClearButton=@true OnTextEdited=@SearchChanged />
 		@if ( ShowOrder )
 		{
 			<div class="entry-order">
-				<label>Order</label>
+				<label>#menu.jam.order</label>
 				<DropDown Options=@Orders Value=@Order ValueChanged=@OrderChanged />
 			</div>
 		}
@@ -62,11 +62,11 @@
 	[SkipHotload]
 	public static readonly List<Option> DefaultOrders =
 	[
-		new( "Discovery", "discovery" ),
-		new( "Active players", "active-players" ) { Tooltip = "Most players currently playing" },
-		new( "Thumbs up", "thumbs-up" ) { Tooltip = "Most positive votes" },
-		new( "Newest", "newest" ),
-		new( "Name A–Z", "name" )
+		new( "#menu.jam.discovery", "discovery" ),
+		new( "#menu.jam.active_players", "active-players" ) { Tooltip = "#menu.jam.most_players_currently_playing" },
+		new( "#menu.jam.thumbs_up", "thumbs-up" ) { Tooltip = "#menu.jam.most_positive_votes" },
+		new( "#menu.avatar.newest", "newest" ),
+		new( "#menu.jam.name_a_z", "name" )
 	];
 
 	protected override int BuildHash() => HashCode.Combine( Filters, Orders, Order, ShowOrder, Search );

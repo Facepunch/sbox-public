@@ -4,9 +4,6 @@ Layer0
 {
 	shader "shaders/skin.shader"
 
-	//---- Animation ----
-	F_MORPH_SUPPORTED 1
-
 	//---- Skin ----
 	F_USE_BENT_NORMALS 1
 	F_USE_FACE_OCCLUSION_TEXTURE 1
@@ -45,10 +42,15 @@ Layer0
 
 	//---- Roughness ----
 	g_flRoughnessScale "1.000"
-	TextureRoughness "models/citizen_human/heads/citizen_human_malehead01/citizen_human_malehead01_rough.png"
+	TextureRoughness "models/citizen_human/heads/citizen_human_malehead02/citizen_human_malehead02_rough.png"
 
 	//---- Specular ----
 	g_flSecondSpecularLobeRatio "0.008"
+
+	//---- Tinting ----
+	g_bOverrideTinting "0"
+	g_flSkinAge "0.500"
+	TextureTintLookup "models/citizen_human/heads/citizen_human_malehead01/citizen_human_malehead01_color.png"
 
 	//---- Transmission ----
 	g_flTransmissionFalloff "0.759"

@@ -34,20 +34,20 @@
         },
         "Low":
         {
-            "r_ao_quality": "1",
+            "r_ao_quality": "2",
             "r_ao_resolution": "4",
-            "r_ao_denoise_passes": "2"
+            "r_ao_denoise_passes": "3"
         },
         "Medium":
         {
-            "r_ao_quality": "2",
-            "r_ao_resolution": "2",
-            "r_ao_denoise_passes": "2"
+            "r_ao_quality": "3",
+            "r_ao_resolution": "3",
+            "r_ao_denoise_passes": "3"
         },
         "High":
         {
             "r_ao_quality": "3",
-            "r_ao_resolution": "1",
+            "r_ao_resolution": "2",
             "r_ao_denoise_passes": "3"
         }
     },
@@ -144,8 +144,8 @@
         "Low":
         {
             "r.shadows.maxresolution": "512",
-            "r.shadows.csm.maxresolution": "1024",
-            "r.shadows.csm.maxcascades": "2",
+            "r.shadows.csm.maxresolution": "512",
+            "r.shadows.csm.maxcascades": "1",
             "r.shadows.csm.distance": "4000",
             "r.shadows.quality": "1",
             "r.shadows.contact.enabled": "0",
@@ -155,8 +155,8 @@
         "Medium":
         {
             "r.shadows.maxresolution": "1024",
-            "r.shadows.csm.maxresolution": "2048",
-            "r.shadows.csm.maxcascades": "3",
+            "r.shadows.csm.maxresolution": "1024",
+            "r.shadows.csm.maxcascades": "2",
             "r.shadows.csm.distance": "8000",
             "r.shadows.quality": "2",
             "r.shadows.contact.enabled": "1",
@@ -165,9 +165,9 @@
         },
         "High":
         {
-            "r.shadows.maxresolution": "2048",
-            "r.shadows.csm.maxresolution": "4096",
-            "r.shadows.csm.maxcascades": "4",
+            "r.shadows.maxresolution": "1024",
+            "r.shadows.csm.maxresolution": "2048",
+            "r.shadows.csm.maxcascades": "3",
             "r.shadows.csm.distance": "15000",
             "r.shadows.quality": "3",
             "r.shadows.contact.enabled": "1",
@@ -177,7 +177,7 @@
         "Ultra":
         {
             "r.shadows.maxresolution": "2048",
-            "r.shadows.csm.maxresolution": "4096",
+            "r.shadows.csm.maxresolution": "2048",
             "r.shadows.csm.maxcascades": "4",
             "r.shadows.csm.distance": "20000",
             "r.shadows.quality": "3",

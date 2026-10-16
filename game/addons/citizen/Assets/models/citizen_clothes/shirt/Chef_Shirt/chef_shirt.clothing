@@ -11,16 +11,17 @@
   "Category": "Shirt",
   "ConditionalModels": {},
   "Tags": null,
-  "Parent": null,
   "Model": "models/citizen_clothes/shirt/chef_shirt/models/chef_shirt.vmdl",
   "HumanAltModel": "models/citizen_clothes/shirt/chef_shirt/models/chef_shirt_m_human.vmdl",
   "HumanAltFemaleModel": null,
   "SkinMaterial": null,
   "EyesMaterial": null,
   "MaterialGroup": "",
+  "HeelHeight": 0,
   "SlotsUnder": "Chest, LeftArm, RightArm",
   "SlotsOver": 0,
   "HideBody": "Chest",
+  "DeformationMode": "Normal",
   "AllowTintSelect": false,
   "TintSelection": {
     "blend": "Linear",
@@ -37,7 +38,8 @@
   "Icon": {
     "Path": "models/citizen_clothes/shirt/chef_shirt/chef_shirt.clothing.png",
     "Mode": "Chest",
-    "PositionOffset": "55.10002,0,-2.599999"
+    "UsePositionOffset": false,
+    "PositionOffset": "55.1000214,0,-2.59999895"
   },
   "__references": [],
   "__version": 0

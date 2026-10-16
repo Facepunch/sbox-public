@@ -26,7 +26,13 @@ internal static class Analytics
 
 		timeUntilThink = Random.Shared.Float( 2, 4 );
 
-		gameIdent = Application.GameIdent;
+		// Package identity is available during installation. Only a ready host or activated client
+		// has reached gameplay; failed downloads must never open an activity session.
+		var ready = IGameInstance.Current is { IsLoading: false }
+			&& (!Networking.IsActive || Networking.IsHost || Connection.Local?.State == Connection.ChannelState.Connected);
+		var nextGame = ready ? Application.GameIdent : null;
+		var gameChanged = gameIdent != nextGame;
+		gameIdent = nextGame;
 		gameVersion = Application.GamePackage?.Revision?.VersionId.ToString() ?? "";
 		mapIdent = Application.MapPackage?.FullIdent ?? "";
 
@@ -38,7 +44,14 @@ internal static class Analytics
 
 		net = SampleNetwork();
 
+		// Steam counts the workshop items' playtime from what the backend's told - games and maps alike
+		if ( ready && !Application.IsEditor && !Application.IsDedicatedServer )
+			Workshop.SetPlaying( Application.GamePackage?.WorkshopId ?? 0, Application.MapPackage?.WorkshopId ?? 0 );
+		else
+			Workshop.SetPlaying();
+
 		CheckHash();
+		if ( gameChanged ) timeUntilNextUpdate = 0;
 		TryUpdateActivity();
 	}
 
@@ -66,22 +79,34 @@ internal static class Analytics
 
 		timeUntilNextUpdate = 60.0f * 1.0f;
 
-		Task.Run( () => Api.Activity.UpdateActivity( gameIdent, gameVersion, mapIdent, contentIdent, net ) );
+		Api.Activity.QueueUpdate( gameIdent, gameVersion, mapIdent, contentIdent, net );
+	}
+
+	internal static void GameClosed()
+	{
+		if ( Application.IsHeadless || Application.IsEditor || Application.IsDedicatedServer ) return;
+		gameIdent = null;
+		timeUntilThink = 0;
+		Api.Activity.QueueUpdate( null, null, null, null );
 	}
 
 	/// <summary>
 	/// Solo, hosting or joined, and how many others were there - playing alone is the norm for new players.
+	/// And how many are in our party, 0 without one.
 	/// </summary>
 	static object SampleNetwork()
 	{
+		var party = PartyRoom.Current?.MemberCount ?? 0;
+
 		if ( !Networking.IsActive )
-			return new { mode = "solo", players = 1, max = 1 };
+			return new { mode = "solo", players = 1, max = 1, party };
 
 		return new
 		{
 			mode = Networking.IsHost ? "host" : "client",
 			players = Connection.All.Count( x => x.State == Connection.ChannelState.Connected ),
 			max = Networking.MaxPlayers,
+			party,
 		};
 	}
 }

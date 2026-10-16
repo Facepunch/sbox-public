@@ -25,6 +25,7 @@ internal sealed class SceneCompilerWindow : Dialog
 	SceneCompileReport _sources;
 	string _error;
 	string[] _summary;
+	int _warningCount;
 
 	IReadOnlyList<string> _displayedLines;
 	int _displayedLineCount;
@@ -197,7 +198,7 @@ internal sealed class SceneCompilerWindow : Dialog
 
 		_log.ScrollToBottom();
 
-		if ( _sources != _session.Report || _summary != _session.Summary || _error != _session.Error )
+		if ( _sources != _session.Report || _summary != _session.Summary || _error != _session.Error || _warningCount != _session.Warnings.Count )
 			BuildReport();
 
 		UpdateControls();
@@ -246,6 +247,7 @@ internal sealed class SceneCompilerWindow : Dialog
 		_sources = _session.Report;
 		_summary = _session.Summary;
 		_error = _session.Error;
+		_warningCount = _session.Warnings.Count;
 		_lines.Clear();
 		_groups.Clear();
 
@@ -318,6 +320,14 @@ internal sealed class SceneCompilerWindow : Dialog
 			foreach ( var stage in completed.Stages )
 				timings.Entries.Add( new Entry { Text = $"{stage.Name}: {stage.Duration.TotalSeconds:n2} s", Icon = "schedule", Indent = 20.0f } );
 			_groups.Insert( 0, timings );
+		}
+
+		if ( _session.Warnings.Count > 0 )
+		{
+			var warnings = new Group { Title = "compile warnings", Open = true };
+			foreach ( var warning in _session.Warnings )
+				warnings.Entries.Add( new Entry { Text = warning.Message, Icon = "warning", Indent = 20.0f, Target = warning.Component } );
+			_groups.Insert( 0, warnings );
 		}
 
 		Flatten();

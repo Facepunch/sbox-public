@@ -1,89 +1,13 @@
-// THIS FILE IS AUTO-GENERATED
-
+// Procedural human eye: identity and mesh fit; surface defaults live in the shader.
 Layer0
 {
 	shader "shaders/citizen_eye.shader"
 
-	//---- Specular ----
-	F_SPECULAR_CUBE_MAP 1 // In-game Cube Map
-
-	//---- Color ----
-	g_flModelTintAmount "1.000"
-	g_vColorTint "[1.000000 1.000000 1.000000 0.000000]"
-
-	//---- Eye Shape ----
-	g_flEdgeSoftness "0.053"
-	g_flIrisAspect "1.000"
-	g_flIrisRadius "0.213"
-	g_vIrisCenter "[0.500 0.500]"
-
-	//---- Fade ----
-	g_flFadeExponent "1.000"
-
-	//---- Fog ----
-	g_bFogEnabled "1"
-
-	//---- Iris ----
-	g_flInnerColorRadius "0.603"
-	g_flIrisColorBlend "0.679"
-	g_vIrisColor "[0.317647 0.231373 0.156863 0.000000]"
-	g_vIrisTint "[0.721569 0.721569 0.721569 0.000000]"
-
-	//---- Iris Detail ----
-	g_flCollaretteStrength "0.552"
-	g_flCryptStrength "0.286"
+	g_vIrisColor "[0.32 0.23 0.16]"
 	g_flDetailSeed "25.444"
-	g_flFiberCount "62.785"
-	g_flFiberStrength "0.481"
-	g_flFiberTwist "-0.002"
-	g_flIrisRelief "1.000"
-	g_flMicroFiberStrength "0.903"
-	g_flPigmentVariation "0.789"
-	g_flRingCount "14.615"
-	g_flRingStrength "0.481"
-
-	//---- Limbal Ring ----
-	g_flLimbalStrength "0.268"
-	g_flLimbalWidth "0.400"
-
-	//---- Pupil ----
-	g_flPupilAspect "1.071"
-	g_flPupilRimStrength "0.791"
-	g_flPupilSize "0.480"
-	g_flPupilSoftness "0.030"
-	g_vPupilColor "[0.043137 0.043137 0.043137 0.000000]"
-
-	//---- Sclera ----
-	g_flScleraDiffuseWrap "0.515"
-	g_flScleraRedness "0.667"
-	g_flScleraRednessStart "0.200"
-	g_flVeinStrength "0.607"
-	g_vScleraColor "[0.807843 0.721569 0.650980 0.000000]"
-	g_vScleraEdgeColor "[0.501961 0.211765 0.192157 0.000000]"
-
-	//---- Surface ----
-	g_flCorneaBulge "0.105"
-	g_flCorneaIor "1.000"
-	g_flCorneaReflectance "0.014"
-	g_flCorneaRoughness "0.039"
-	g_flIrisConcavity "0.805"
-	g_flIrisDepth "0.200"
-	g_flScleraRoughness "0.066"
-	g_flSphericalNormals "1.000"
-
-	//---- Texture Coordinates ----
-	g_vTexCoordOffset "[0.000 0.000]"
-	g_vTexCoordScale "[1.000 1.000]"
-	g_vTexCoordScrollSpeed "[0.000 0.000]"
-
-	//---- View Occlusion ----
-	g_flDirectOcclusion "0.907"
-	g_flReflectionOcclusion "1.000"
-	g_flViewOcclusionHardness "0.057"
-	g_flViewOcclusionPower "0.452"
-	g_flViewOcclusionStart "0.379"
-	g_flViewOcclusionStrength "1.120"
-	g_vOcclusionTint "[0.000000 0.000000 0.000000 0.000000]"
+	g_flPupilSize "0.30"
+	g_flIrisRadius "0.213"
+	g_vIrisCenter "[0.5 0.5]"
 
 	Attributes
 	{

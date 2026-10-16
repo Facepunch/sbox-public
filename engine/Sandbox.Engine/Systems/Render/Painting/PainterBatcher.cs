@@ -191,6 +191,7 @@ internal partial class PainterBatcher
 		attributes.Set( "InstanceOffset", offset );
 		attributes.SetCombo( "D_BLENDMODE", (int)_blendMode );
 		attributes.SetCombo( "D_WORLDPANEL", target.WorldPanelCombo );
+		attributes.SetCombo( "D_PAINTER_SCREENPIXELS", target.MapScreenPixels );
 		_commands.DrawIndexedInstanced( (GpuBuffer)_quadIndexBuffer, Material.UI.BatchedBox, count, attributes );
 	}
 

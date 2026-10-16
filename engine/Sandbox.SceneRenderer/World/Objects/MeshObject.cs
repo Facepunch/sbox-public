@@ -185,6 +185,12 @@ public sealed class MeshObject : RenderObject
 	internal SceneDeformationVolumeData[] DeformationVolumes { get; set; } = [];
 
 	/// <summary>
+	/// A model-space anchor per model bone the volumes move it rigidly by (<c>CSceneAnimatableObject::SetDeformationAnchors</c>),
+	/// or none to deform it as usual.
+	/// </summary>
+	internal Vector4[] DeformationAnchors { get; set; } = [];
+
+	/// <summary>
 	/// Whether any volumes deform it (<see cref="DeformationVolumes"/>).
 	/// </summary>
 	internal bool IsDeformed => DeformationVolumes.Length > 0 && IsSkinned;

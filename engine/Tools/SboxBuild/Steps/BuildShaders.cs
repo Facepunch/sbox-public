@@ -3,9 +3,24 @@ using static Facepunch.Constants;
 
 namespace Facepunch.Steps;
 
-internal class BuildShaders( bool forced = false )
+internal class BuildShaders( bool forced = false, bool seed = false )
 {
-	internal ExitCode Run() => BuildDisplay.Run( "Build shaders", () =>
+	internal ExitCode Run()
+	{
+		// Compiled shaders aren't committed. Starting from the newest published ones means only the
+		// shaders changed since then compile; without them, everything does.
+		if ( seed )
+		{
+			if ( new DownloadPublicArtifacts( shadersOnly: true ).Run() == ExitCode.Success )
+				GitHubActions.Note( "seeded from published shaders" );
+			else
+				Log.Warning( "Couldn't download the published shaders, compiling them all." );
+		}
+
+		return Compile();
+	}
+
+	private ExitCode Compile() => BuildDisplay.Run( "Build shaders", () =>
 	{
 		try
 		{
@@ -41,10 +56,10 @@ internal class BuildShaders( bool forced = false )
 			arguments += " -f";
 		}
 
-		// Track if any shaders were compiled
-		var shaderCompiled = false;
 		var current = 0;
 		var total = 0;
+		var compiled = 0;
+		var upToDate = 0;
 		BuildDisplay.Status( "Compile shaders" );
 
 		bool success = Utility.RunProcess(
@@ -68,26 +83,19 @@ internal class BuildShaders( bool forced = false )
 						|| e.Data.Contains( "Skipped, up to date." )
 						|| e.Data.Contains( "Compile failed." ) )
 					{
+						if ( e.Data.Contains( "Compiled successfully in" ) ) compiled++;
+						else if ( e.Data.Contains( "Skipped, up to date." ) ) upToDate++;
 						BuildDisplay.Progress( current, total );
-					}
-
-					if ( e.Data.Contains( "Compiled successfully in" ) )
-					{
-						shaderCompiled = true;
 					}
 				}
 			}
 		);
 
+		GitHubActions.Note( $"{compiled} compiled, {upToDate} up to date" );
+
 		if ( !success )
 		{
 			Log.Error( $"Shader compiler failed" );
-			return ExitCode.Failure;
-		}
-
-		if ( shaderCompiled && Utility.IsCi() )
-		{
-			Log.Error( $"Step Failed because at least one shader had to be recompiled, please compile shaders locally before committing." );
 			return ExitCode.Failure;
 		}
 

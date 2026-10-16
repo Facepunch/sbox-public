@@ -253,6 +253,7 @@ native class CPhysSurfaceProperties as NativeEngine.CPhysSurfaceProperties
 	int m_nIndex; 
 	int	m_nBaseIndex;
 	int	m_AudioSurface;
+	bool m_bHasScrapeSounds;
 
 	bool m_bHidden;
 
@@ -288,6 +289,14 @@ native class VPhysXJoint_t
 
 	float m_flLinearStrength;
 	float m_flAngularStrength;
+
+	bool m_bLinearMotorIsSpring;
+	bool m_bAngularMotorIsSpring;
+	float m_flLinearTargetPosition;
+	float m_flAngularTargetAngle;
+	Rotation m_qAngularTargetRotation;
+	bool m_bOverrideFriction;
+	float m_flFriction;
 
 	Transform m_Frame1;
 	Transform m_Frame2;

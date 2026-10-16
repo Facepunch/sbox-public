@@ -103,28 +103,31 @@ public sealed partial class PostProcessSystem : GameObjectSystem<PostProcessSyst
 
 		var pos = cc.PostProcessAnchor.IsValid() ? cc.PostProcessAnchor.WorldPosition : cc.WorldPosition;
 
-		List<WeightedEffect> effects = cc.GetComponentsInChildren<BasePostProcess>()
-										.Select( x => new WeightedEffect { Effect = x, Weight = 1 } )
-										.ToList();
-
-		var volumes = Scene.GetSystem<VolumeSystem>()?.FindAll<PostProcessVolume>( pos );
-		foreach ( var volume in volumes.OrderBy( x => x.Priority ) )
+		var scratch = RentBuildScratch();
+		try
 		{
-			var weight = volume.GetWeight( pos );
-			effects.AddRange( volume.GetComponentsInChildren<BasePostProcess>().Select( x => new WeightedEffect { Effect = x, Weight = weight } ) );
-		}
+			scratch.AddEffects( cc.GameObject, 1 );
 
-		foreach ( var group in effects.GroupBy( x => x.Effect.GetType() ) )
-		{
-			var effect = group.First();
-
-			var ctx = new PostProcessContext()
+			foreach ( var volume in Scene.Query<PostProcessVolume>() )
 			{
-				Camera = cc,
-				Components = group.ToArray()
-			};
+				if ( ((VolumeSystem.IVolume)volume).Test( pos ) )
+					scratch.Volumes.Add( (volume, volume.Priority, scratch.Volumes.Count) );
+			}
 
-			effect.Effect.Build( ctx );
+			// Match OrderBy's stable ordering when volumes have equal priority.
+			scratch.Volumes.Sort( static ( a, b ) =>
+			{
+				var order = a.Priority.CompareTo( b.Priority );
+				return order != 0 ? order : a.Index.CompareTo( b.Index );
+			} );
+			foreach ( var entry in scratch.Volumes )
+				scratch.AddEffects( entry.Volume.GameObject, entry.Volume.GetWeight( pos ) );
+
+			scratch.Build( cc );
+		}
+		finally
+		{
+			ReturnBuildScratch( scratch );
 		}
 	}
 
@@ -133,22 +136,15 @@ public sealed partial class PostProcessSystem : GameObjectSystem<PostProcessSyst
 	/// </summary>
 	private void PreviewVolume( PostProcessVolume volume )
 	{
-		var data = Scene.Camera.PostProcess;
-		var pos = volume.WorldPosition;
-
-		List<WeightedEffect> effects = volume.GetComponentsInChildren<BasePostProcess>().Select( x => new WeightedEffect { Effect = x, Weight = 1 } ).ToList();
-
-		foreach ( var group in effects.GroupBy( x => x.Effect.GetType() ) )
+		var scratch = RentBuildScratch();
+		try
 		{
-			var effect = group.First();
-
-			var ctx = new PostProcessContext()
-			{
-				Camera = Scene.Camera,
-				Components = group.ToArray()
-			};
-
-			effect.Effect.Build( ctx );
+			scratch.AddEffects( volume.GameObject, 1 );
+			scratch.Build( Scene.Camera );
+		}
+		finally
+		{
+			ReturnBuildScratch( scratch );
 		}
 	}
 

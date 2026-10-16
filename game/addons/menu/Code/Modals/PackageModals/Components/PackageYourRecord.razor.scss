@@ -1,0 +1,118 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+// You and the game - a card like the achievements one under it: your time big, then
+// a line each for what else is worth telling
+PackageYourRecord
+{
+	flex-direction: column;
+	flex-shrink: 0;
+	gap: 12px;
+	padding: 12px 14px 14px 14px;
+	border-radius: $front-radius;
+	border: $front-border-width solid $front-hairline;
+	background-color: $front-card-deep;
+	font-family: $front-font;
+
+	i
+	{
+		font-family: "Material Icons";
+	}
+
+	.section-label
+	{
+		@include front-section-label;
+	}
+
+	// Your time, big
+	// Snug under its label - the big type carries room of its own over its letters
+	.headline
+	{
+		flex-direction: column;
+		gap: 2px;
+		margin-top: -12px;
+
+		.time
+		{
+			font-family: Inter;
+			font-size: 26px;
+			font-weight: 800;
+			font-variant-numeric: tabular-nums;
+			color: $front-heading;
+		}
+	}
+
+	.lines
+	{
+		flex-direction: column;
+		gap: 10px;
+		padding-top: 12px;
+		border-top: $front-border-width solid $front-hairline;
+	}
+
+	// A glyph, or the achievement's own icon, beside what it's about and why it's worth saying
+	.line
+	{
+		flex-direction: row;
+		align-items: flex-start;
+		gap: 6px;
+
+		> i
+		{
+			flex-shrink: 0;
+			width: 24px;
+			font-size: 18px;
+			text-align: center;
+			color: $front-secondary;
+		}
+
+		> .icon
+		{
+			flex-shrink: 0;
+			width: 28px;
+			height: 28px;
+			border-radius: 6px;
+			border: 1px solid rgba( $front-trophy, 0.7 );
+			background-size: cover;
+			background-position: center;
+		}
+	}
+
+	.words
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+		gap: 3px;
+
+		.main
+		{
+			font-size: 13px;
+			font-weight: 600;
+			color: $front-body;
+			white-space: normal;
+		}
+
+		.aside
+		{
+			font-size: 11.5px;
+			color: $front-secondary;
+			white-space: normal;
+		}
+
+		// Something to be proud of - here from early on
+		.badge
+		{
+			align-self: flex-start;
+			padding: 2px 8px;
+			border-radius: 999px;
+			background-color: rgba( $front-trophy, 0.14 );
+			font-size: 10.5px;
+			font-weight: 700;
+			text-transform: uppercase;
+			letter-spacing: 0.05em;
+			color: $front-trophy;
+		}
+	}
+}

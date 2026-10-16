@@ -40,9 +40,9 @@ native class IResourceCompilerContext
 		return self->RegisterAdditionalBlock(  blockId, data, count );
 	}
 
-	inline CUtlBuffer GetOverrideData()
+	inline CUtlBuffer GetOverrideData( bool trackChanges )
 	{
-		return self->RequestBufferArg( "___OverrideInputData___", INPUT_DEPENDENCY_NORMAL );
+		return self->RequestBufferArg( "___OverrideInputData___", trackChanges ? INPUT_DEPENDENCY_NORMAL : INPUT_DEPENDENCY_SUPPRESS );
 	}
 
 	CResourceStream Data();

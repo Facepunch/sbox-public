@@ -58,6 +58,7 @@ internal partial class NetworkSystem
 	{
 		AddHandler<HostLeavingMsg>( OnHostLeaving );
 		AddHandler<HostLeavingAckMsg>( OnHostLeavingAck );
+		AddHandler<HostAccessMsg>( OnHostAccess );
 		AddHandler<HostHandoffMsg>( OnHostHandoff );
 		AddHandler<HostHandoffAckMsg>( OnHostHandoffAck );
 		AddHandler<HostResyncMsg>( OnHostResync );
@@ -133,6 +134,9 @@ internal partial class NetworkSystem
 		Log.Info( $"Handing off host to {successor}" );
 
 		_migrationPhase = MigrationPhase.HandingOff;
+
+		// Same reliable channel, so it arrives before the snapshot
+		successor.SendMessage( new HostAccessMsg { Privacy = Access.Privacy, InvitedJoiners = Access.Invited.ToArray(), AdmittedJoiners = Access.Admitted.ToArray() }, NetFlags.Reliable | NetFlags.SendImmediate );
 		GameSystem.SendSnapshot( successor, snapshot => new HostHandoffMsg { Snapshot = snapshot }, handoff: true, flags: NetFlags.Reliable | NetFlags.SendImmediate );
 
 		foreach ( var socket in sockets )
@@ -214,12 +218,38 @@ internal partial class NetworkSystem
 		SetHostConnection( successor );
 	}
 
+	HostAccessMsg? _handoffAccess;
+
+	void OnHostAccess( HostAccessMsg msg, Connection source, Guid msgId )
+	{
+		if ( IsHost || !source.IsHost )
+			return;
+
+		_handoffAccess = msg;
+	}
+
 	async Task OnHostHandoff( HostHandoffMsg msg, Connection source, Guid msgId )
 	{
 		if ( IsHost || !source.IsHost )
 			return;
 
 		source.SendMessage( new HostHandoffAckMsg(), NetFlags.Reliable | NetFlags.SendImmediate );
+
+		// Our own Config is the default one we joined with - the game's privacy comes from the old host
+		if ( _handoffAccess is { } access )
+		{
+			Access.Load( access.Privacy, access.InvitedJoiners, access.AdmittedJoiners );
+		}
+		else
+		{
+			// Shouldn't happen, it's sent first. Don't open the game up: keep who's here, let nobody new in.
+			Log.Warning( "Host handoff arrived without the join rules - only letting existing players back in" );
+			Access.Load( LobbyPrivacy.Private, null, _connections.Where( c => c.State >= Connection.ChannelState.Welcome ).Select( c => (ulong)c.SteamId ) );
+		}
+
+		_handoffAccess = null;
+		Access.Admit( source.SteamId );
+
 		await BecomeHostAsync( source, msg.Snapshot );
 	}
 
@@ -262,6 +292,14 @@ internal partial class NetworkSystem
 
 			RemovePeer( previousHost );
 
+			// Only who the old host let in carries over. A resync skips the join check, so anyone
+			// else past the handshake has to go through it again.
+			foreach ( var c in _connections.Where( IsUnadmittedPeer ) )
+			{
+				Log.Info( $"{c.Name} [{c.SteamId}] wasn't let in by the previous host - restarting their handshake" );
+				c.State = Connection.ChannelState.Unconnected;
+			}
+
 			var peers = _connections.ToArray();
 			foreach ( var c in peers )
 			{
@@ -297,6 +335,13 @@ internal partial class NetworkSystem
 			_migrationPhase = MigrationPhase.None;
 			_leavingHost = null;
 		}
+	}
+
+	bool IsUnadmittedPeer( Connection c )
+	{
+		return c is SteamLobbyConnection
+			&& c.State >= Connection.ChannelState.Welcome
+			&& !Access.IsAdmitted( c.SteamId );
 	}
 
 	SnapshotCapture StartResync( Connection connection, SnapshotCapture shared )

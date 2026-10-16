@@ -24,9 +24,15 @@ public class BaseModal : Panel
 
 	protected override void OnEscape( PanelEvent e )
 	{
-		CloseModal( false );
+		if ( !Back() ) CloseModal( false );
 		e.StopPropagation();
 	}
+
+	/// <summary>
+	/// Step back within it, rather than closing it, on escape - true if it did. Nothing to step back
+	/// from by default.
+	/// </summary>
+	public virtual bool Back() => false;
 
 	public void CloseModal( bool success )
 	{

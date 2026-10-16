@@ -2,7 +2,8 @@
 @import "/styles/_front.scss";
 
 $header-height: 60px;
-$right-panel-width: 300px;
+// The info column - the game's art, name, blurb and facts
+$right-panel-width: 375px;
 
 .megacard
 {
@@ -21,6 +22,18 @@ $right-panel-width: 300px;
         margin-bottom: 110px;
     }
     font-family: $font-default;
+
+    // A page, not a modal - as big as what it's in. A cap of the whole of it, not "none", which
+    // isn't taken and leaves the modal's cap in place
+    &.fills-page
+    {
+        width: auto;
+        max-width: 100%;
+        height: auto;
+        flex-grow: 1;
+        flex-shrink: 1;
+        min-width: 0;
+    }
 }
 
 .megacard > .body-outer
@@ -123,6 +136,20 @@ $right-panel-width: 300px;
         background-image: linear-gradient( to bottom, rgba( 23, 26, 33, 0 ), $front-card-bottom );
         pointer-events: none;
         z-index: 10;
+    }
+}
+
+// No info column - the page runs the width, its fade with it
+.megacard > .body-outer > .body > .row.no-left
+{
+    > .left
+    {
+        display: none;
+    }
+
+    &::after
+    {
+        right: 0;
     }
 }
 

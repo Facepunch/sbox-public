@@ -36,6 +36,8 @@ internal sealed class SteamRichPresenceSystem : IRichPresenceSystem
 			SetValue( "party_owner", $"{party.Owner.Id}" );
 			SetValue( "party_size", $"{party.MemberCount}" );
 			SetValue( "party_max", $"{party.MaxMembers}" );
+			// Cap the roster to fit Steam's 256-byte value limit.
+			SetValue( "party_members", string.Join( ",", party.Members.Select( x => x.Id ).Order().Take( 12 ) ) );
 		}
 		else
 		{
@@ -43,6 +45,7 @@ internal sealed class SteamRichPresenceSystem : IRichPresenceSystem
 			SetValue( "party_owner", null );
 			SetValue( "party_size", null );
 			SetValue( "party_max", null );
+			SetValue( "party_members", null );
 		}
 
 		SetValue( "in_editor", Application.IsEditor ? "1" : "0" );
@@ -66,8 +69,9 @@ internal sealed class SteamRichPresenceSystem : IRichPresenceSystem
 
 			if ( gameLobby is not null )
 			{
-				SetValue( "connect", $"+connect {gameLobby.LobbySteamId}" );
-				SetValue( "steam_player_group", $"{gameLobby.LobbySteamId}" );
+				// Anyone with the lobby id can try to join, so keep it from people who'd just get kicked
+				SetValue( "connect", gameLobby.AdvertiseJoin ? $"+connect {gameLobby.LobbySteamId}" : null );
+				SetValue( "steam_player_group", gameLobby.PresenceGroup );
 				SetValue( "steam_player_group_size", $"{gameLobby.LobbyMemberCount}" );
 			}
 			else

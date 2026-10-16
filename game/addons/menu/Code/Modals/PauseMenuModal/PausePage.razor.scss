@@ -1,0 +1,66 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+// In the body beside the list - the rest of the page's width and its full height, straight on the
+// game, the page scrolling inside
+PausePage
+{
+	flex-direction: column;
+	flex-grow: 1;
+	flex-shrink: 1;
+	min-width: 0;
+	pointer-events: all;
+	font-family: $front-font;
+	transition: all 0.2s ease-out;
+
+	// Comes into focus as it fades in, like a tooltip
+	&:intro
+	{
+		opacity: 0;
+		filter: blur( 10px );
+	}
+
+	> .content
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-height: 0;
+		overflow-y: scroll;
+		font-size: $text-regular;
+
+		// Room over every page, so it starts a way down rather than hard under the screen's top
+		padding-top: 64px;
+
+		// More of it down there - its foot fades out into the game rather than stopping dead at the
+		// edge. White shows, black hides
+		&.more
+		{
+			mask-image: linear-gradient( to bottom, white 0%, white 90%, black 100% );
+		}
+	}
+
+	// The page, slimmed - 15% of the body taken off each side, so it reads down the middle rather than
+	// across the whole screen. Not Game info, which is laid out for the body's whole width. The
+	// scrollbar stays out on the body's edge
+	> .content > PackagePage
+	{
+		width: 70%;
+		align-self: center;
+	}
+
+	// The page on its way out, swapped for another - gone at once. Deleted panels stay in the layout
+	// until their outro's done, so for a frame it sat in the column beside the one coming in, the two
+	// squeezed into its height together. The pages inside the holder too, swapped between each other
+	> .content > PackagePage:outro, > .content > PauseOverview:outro, > .content > PackagePage > *:outro
+	{
+		display: none;
+	}
+
+	// The page itself - the game page's own tab, without its insets. A little room along its foot, so
+	// its last row isn't hard on the screen's edge
+	> .content > PackagePage > *
+	{
+		padding: 0 0 24px 0;
+	}
+}

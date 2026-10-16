@@ -6,7 +6,7 @@ namespace Editor;
 sealed class SceneCompileToolbar : Widget
 {
 	readonly SceneCompileSession _session = SceneCompileSession.Current;
-	readonly ViewportButton _button;
+	readonly IconButton _button;
 	ContextMenu _menu;
 	Label _name;
 	Label _state;
@@ -26,10 +26,20 @@ sealed class SceneCompileToolbar : Widget
 		FixedHeight = Theme.ControlHeight;
 		Layout = Layout.Row();
 		Layout.Spacing = 0;
-		_button = Layout.Add( new ViewportButton( "hardware", Compile ) );
-		Layout.Add( new ViewportButton( "arrow_drop_down", OpenMenu )
+		_button = Layout.Add( new IconButton( "hardware", Compile )
+		{
+			FixedSize = Theme.ControlHeight,
+			IconSize = HeaderBarStyle.IconSize,
+			Background = Color.Transparent,
+			Foreground = Theme.TextLight
+		} );
+		Layout.Add( new IconButton( "arrow_drop_down", OpenMenu )
 		{
 			FixedWidth = Theme.RowHeight * 0.5f,
+			FixedHeight = Theme.ControlHeight,
+			IconSize = HeaderBarStyle.IconSize,
+			Background = Color.Transparent,
+			Foreground = Theme.TextLight,
 			ToolTip = "Scene compile status and settings"
 		} );
 
@@ -80,11 +90,11 @@ sealed class SceneCompileToolbar : Widget
 		if ( Game.IsPlaying )
 			return ("Play mode", "Stop playing before compiling the scene.", Theme.TextLight);
 
-		if ( _session.Error is null && _session.HasSources && !_session.HasCompileGeometry && !_session.HasCompilation )
+		if ( _session.Error is null && _session.HasSources && !_session.HasCompileGeometry )
 			return ("Nothing to compile", "This scene has no geometry to bake.", Theme.TextLight);
 
 		if ( _session.Scene?.Editor?.HasUnsavedChanges == true )
-			return ("Needs compile (unsaved)", "Play uses the uncompiled scene. Save before compiling.", Theme.Yellow);
+			return ("Unsaved changes", "Save before compiling the scene.", Theme.Yellow);
 
 		if ( _session.HasResult && _session.Status == "Failed" )
 			return ("Compile failed", _session.Error ?? "Open the log to see why compilation failed.", Theme.Red);
@@ -92,12 +102,7 @@ sealed class SceneCompileToolbar : Widget
 		if ( _session.Error is not null )
 			return ("Cannot compile", _session.Error, Theme.Yellow);
 
-		if ( !_session.HasCompilation )
-			return ("Not compiled", "Play uses the uncompiled scene.", Theme.Yellow);
-
-		return _session.NeedsCompilation
-			? ("Needs compile", "Play uses the uncompiled scene.", Theme.Yellow)
-			: ("Compiled", "Play uses the compiled scene.", Theme.Green);
+		return ("Ready to compile", "Compile geometry into .scene_c. Changed source recompiles normally; an unchanged save keeps the bake.", Theme.TextLight);
 	}
 
 	void UpdateControls()
@@ -114,7 +119,7 @@ sealed class SceneCompileToolbar : Widget
 		if ( !_button.Enabled && !string.IsNullOrEmpty( status.Detail ) )
 			_button.ToolTip += $"\n{status.Detail}";
 		_button.Cursor = _button.Enabled ? CursorShape.Finger : CursorShape.Arrow;
-		_button.Color = status.Color;
+		_button.Foreground = status.Color;
 		_button.Update();
 		Update();
 

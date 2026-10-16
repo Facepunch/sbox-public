@@ -149,6 +149,7 @@ public readonly ref partial struct Painter
 				var handle = commands.GetRenderTarget( name, (int)bounds.Width, (int)bounds.Height, ImageFormat.RGBA8888, ImageFormat.None );
 				commands.SetRenderTarget( handle );
 				commands.Clear( Color.Transparent );
+				output.Destination.MapScreenPixels = false;
 				output.Destination.Layered = true;
 				// Draws inside keep their screen transforms and clips. This cancels the layer's own share,
 				// which the composite applies again, and moves the layer's bounds onto the target.

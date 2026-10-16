@@ -37,7 +37,8 @@ public static partial class AssetSystem
 		// this is a game resource
 		if ( assetType.IsGameResource )
 		{
-			return CompileGameResource( context );
+			CompileGameResource( context );
+			return true;
 		}
 
 		// Nothing!
@@ -83,15 +84,10 @@ public static partial class AssetSystem
 		return map.TryGetValue( extension, out var found ) ? found : null;
 	}
 
-	static bool CompileGameResource( ResourceCompileContext context )
+	internal static void CompileGameResource( ResourceCompileContext context )
 	{
 		// Get the json contents
 		var jsonString = System.IO.File.ReadAllText( context.AbsolutePath );
-		byte[] compiledBlob = null;
-		var compiled = false;
-		if ( System.IO.Path.GetExtension( context.AbsolutePath ).Equals( ".scene", StringComparison.OrdinalIgnoreCase )
-			&& !SceneCompileCache.TryGetRuntimeData( context, ref jsonString, out compiledBlob, out compiled ) )
-			return false;
 
 		//
 		// Pre Feb-2023 we saved GameResources to keyvalues. Keep support for loading this
@@ -109,19 +105,6 @@ public static partial class AssetSystem
 
 		context.Data.Write( jsonString );
 
-		if ( compiled )
-		{
-			unsafe
-			{
-				fixed ( byte* ptr = compiledBlob )
-				{
-					context.WriteBlock( BlobDataSerializer.CompiledBlobName, (IntPtr)ptr, compiledBlob.Length );
-				}
-			}
-
-			return true;
-		}
-
 		// Write binary blob data to BLOB block if companion file exists
 		var blobPath = context.AbsolutePath + "_d";
 		if ( System.IO.File.Exists( blobPath ) )
@@ -137,8 +120,6 @@ public static partial class AssetSystem
 				}
 			}
 		}
-
-		return true;
 	}
 
 	/// <summary>

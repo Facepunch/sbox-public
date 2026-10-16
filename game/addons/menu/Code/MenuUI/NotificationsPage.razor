@@ -22,33 +22,32 @@
 
 				<div class="inbox-aside">
 
-					<h2><WithIcon Icon="notifications" Text="Your inbox"></WithIcon></h2>
+					<h2><WithIcon Icon="notifications" Text="#menu.notifications.your_inbox"></WithIcon></h2>
 					<p>
-						Anything that happened on sbox.game involving you or something you follow ends
-						up here - so you can catch up on it without leaving the menu.
+						#menu.notifications.anything_that_happened_on_sbox_game_involving_you_or
 					</p>
 
 					<div class="block">
-						<label class="section-label">How it works</label>
+						<label class="section-label">#menu.notifications.how_it_works</label>
 
 						<div class="step">
 							<icon>cloud</icon>
-							<label>These come from sbox.game, so the site shows you the same list.</label>
+							<label>#menu.notifications.these_come_from_sbox_game_so_the_site_shows_you_the_same_list</label>
 						</div>
 
 						<div class="step">
 							<icon>open_in_new</icon>
-							<label>Click one to open what it's about. A game opens right here, anything else opens the site.</label>
+							<label>#menu.notifications.click_one_to_open_what_it_s_about_a</label>
 						</div>
 
 						<div class="step">
 							<icon>mark_email_read</icon>
-							<label>Opening this page marks everything read. Read ones stay listed, just dimmed.</label>
+							<label>#menu.notifications.opening_this_page_marks_everything_read_read_ones_stay</label>
 						</div>
 					</div>
 
 					<div class="block">
-						<label class="section-label">Worth knowing</label>
+						<label class="section-label">#menu.notifications.worth_knowing</label>
 
 						<div class="note">
 							<icon>history</icon>
@@ -57,10 +56,10 @@
 
 						<div class="note">
 							<icon>cloud_off</icon>
-							<label>Nothing is kept on this machine - offline, there's nothing to show.</label>
+							<label>#menu.notifications.nothing_is_kept_on_this_machine_offline_there_s_nothing_to_show</label>
 						</div>
 
-						<label class="docs-link" onclick=@OpenSite>Open sbox.game</label>
+						<label class="docs-link" onclick=@OpenSite>#menu.notifications.open_sbox_game</label>
 					</div>
 
 				</div>
@@ -68,13 +67,13 @@
 				<div class="inbox-list">
 
 					<div class="section-head">
-						<label class="title">Notifications</label>
+						<label class="title">#menu.notifications</label>
 						<label class="count">@CountText</label>
 						<div class="grow" />
 
 						<div class="refresh @( IsLoading ? "busy" : "" )" onclick=@Refresh>
 							<icon>refresh</icon>
-							<label>@( IsLoading ? "Loading" : "Refresh" )</label>
+							<label>@( IsLoading ? "#menu.common.loading" : "#menu.common.refresh" )</label>
 						</div>
 					</div>
 
@@ -89,16 +88,16 @@
 							{
 								<icon>cloud_off</icon>
 							}
-							<label class="title">@( IsLoading ? "Fetching your notifications" : "Couldn't reach sbox.game" )</label>
-							<label class="hint">@( IsLoading ? "One moment." : "Notifications live on the site, so there's nothing to show while you're offline." )</label>
+							<label class="title">@( IsLoading ? "#menu.notifications.fetching_your_notifications" : "#menu.notifications.couldn_t_reach_sbox_game" )</label>
+							<label class="hint">@( IsLoading ? "#menu.notifications.one_moment" : "#menu.notifications.notifications_live_on_the_site_so_there_s_nothing" )</label>
 						</div>
 					}
 					else if ( notices.Length == 0 )
 					{
 						<div class="inbox-empty">
 							<icon>done_all</icon>
-							<label class="title">Nothing waiting</label>
-							<label class="hint">Comments, follows and updates all land here. Go and play something.</label>
+							<label class="title">#menu.notifications.nothing_waiting</label>
+							<label class="hint">#menu.notifications.comments_follows_and_updates_all_land_here_go_and_play_something</label>
 						</div>
 					}
 
@@ -107,7 +106,7 @@
 					@if ( Unread.Any() )
 					{
 						<div class="section-head">
-							<label class="title">New</label>
+							<label class="title">#menu.notifications.new</label>
 							<label class="count">@Unread.Count() since you last looked</label>
 						</div>
 
@@ -120,7 +119,7 @@
 					@if ( Earlier.Any() )
 					{
 						<div class="section-head quiet">
-							<label class="title">Earlier</label>
+							<label class="title">#menu.notifications.earlier</label>
 							<label class="count">@Earlier.Count() you've already seen</label>
 						</div>
 

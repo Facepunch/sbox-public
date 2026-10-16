@@ -6,20 +6,28 @@
 
 <root>
 
-    @* A scene behind your citizen *@
+    @* A scene behind your avatar, softened back so they stand out from it *@
     <div class="backdrop"></div>
 
-    @* Your citizen, filling the card - spin them round, and they watch the cursor *@
-    <CitizenPreview class="portrait" LocalUser="@true" Interactive="@true" />
+    @* A soft light behind their head and shoulders, so dark hair doesn't sink into the backdrop *@
+    <div class="glow"></div>
 
-    <div class="info">
-        <label class="eyebrow">Welcome back,</label>
-        <label class="name">@Sandbox.Utility.Steam.PersonaName</label>
+    @* Frame the Human higher in the card so their torso stays above the footer fade. *@
+    <div class="citizen-stage">
+        <CitizenPreview class="portrait" LocalUser="@true" Interactive="@true" FieldOfView="@(32f)" CameraDistance="@(90f)" HeadOffset="@(-20f)" />
     </div>
 
-    <div class="edit clicky" tooltip="Edit your avatar" @onclick="@OpenAvatarScene">
-        <icon>emoji_people</icon>
-        <label>Edit</label>
+    @* Name on the left, edit on the right, along the bottom *@
+    <div class="footer">
+        <div class="info">
+            <label class="eyebrow">#menu.home.welcome_back</label>
+            <label class="name">@Sandbox.Utility.Steam.PersonaName</label>
+        </div>
+
+        <div class="edit clicky" tooltip="#menu.home.edit_your_avatar" @onclick="@OpenAvatarScene">
+            <icon>edit</icon>
+            <label>#menu.common.edit</label>
+        </div>
     </div>
 
 </root>

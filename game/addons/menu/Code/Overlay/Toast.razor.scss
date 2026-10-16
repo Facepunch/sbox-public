@@ -58,6 +58,38 @@ Toast
 		color: rgba( 255, 255, 255, 0.5 );
 	}
 
+	// Something to do about it, on the end - "Undo"
+	.action
+	{
+		flex-shrink: 0;
+		margin-left: 8px;
+		padding: 6px 12px;
+		border-radius: 999px;
+		border: 1px solid rgba( 255, 255, 255, 0.14 );
+		background-color: rgba( 255, 255, 255, 0.07 );
+		font-family: Poppins;
+		font-size: 12px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: rgba( 255, 255, 255, 0.85 );
+		cursor: pointer;
+		transition: all 0.1s ease;
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+			border-color: rgba( 255, 255, 255, 0.3 );
+			background-color: rgba( 255, 255, 255, 0.14 );
+			color: #ffffff;
+		}
+
+		&:active
+		{
+			sound-in: "ui.button.press";
+		}
+	}
+
 	&.loading
 	{
 		i

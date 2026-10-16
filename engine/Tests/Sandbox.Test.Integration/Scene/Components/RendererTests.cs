@@ -75,7 +75,7 @@ public class RenderComponentTest
 
 	/// <summary>
 	/// Assigning a model to a live ModelRenderer pushes it straight through to the scene
-	/// object and enables rendering, because the citizen model has render meshes.
+	/// object and enables rendering, because the human model has render meshes.
 	/// </summary>
 	[TestMethod]
 	public void ModelRendererModelAssignment()
@@ -86,11 +86,11 @@ public class RenderComponentTest
 		var go = scene.CreateObject();
 		var mr = go.Components.Create<ModelRenderer>();
 
-		var citizen = Model.Load( "models/citizen/citizen.vmdl" );
-		mr.Model = citizen;
+		var human = Model.Load( "models/citizen_human/human.vmdl" );
+		mr.Model = human;
 
-		Assert.AreEqual( citizen, mr.Model );
-		Assert.AreEqual( citizen, mr.SceneObject.Model, "Model should propagate to the scene object" );
+		Assert.AreEqual( human, mr.Model );
+		Assert.AreEqual( human, mr.SceneObject.Model, "Model should propagate to the scene object" );
 		Assert.IsTrue( mr.SceneObject.RenderingEnabled, "A model with render meshes should be rendering" );
 
 		go.Destroy();

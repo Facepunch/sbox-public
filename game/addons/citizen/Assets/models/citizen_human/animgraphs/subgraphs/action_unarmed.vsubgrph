@@ -1,0 +1,532 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:animgraph2:version{0f7898b8-5471-45c4-9867-cd9c46bcfdb5} -->
+{
+	_class = "CAnimationSubGraph"
+	m_nodeManager = 
+	{
+		_class = "CAnimNodeManager"
+		m_nodes = 
+		[
+			{
+				key = 
+				{
+					m_id = 2100000010
+				}
+				value = 
+				{
+					_class = "CGroupInputAnimNode"
+					m_sName = "Composed weapon pose"
+					m_vecPosition = [ 0.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 2100000010
+					}
+					m_sNote = ""
+					m_proxyItems = 
+					[
+						{
+							m_name = "Scaled movement pose"
+							m_outputID = 
+							{
+								m_id = 2100000022
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 156950011
+				}
+				value = 
+				{
+					_class = "CBoneMaskAnimNode"
+					m_sName = "Reset blocker"
+					m_vecPosition = [ 300.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 156950011
+					}
+					m_sNote = "Didn\'t have the need for this before as Look At nodes were preventing the reset signal from coming through. So I\'m putting this here as a (maybe temporary\?) solution"
+					m_weightListName = "_empty_anim_weightlist"
+					m_inputConnection1 = 
+					{
+						m_nodeID = 
+						{
+							m_id = 2100000010
+						}
+						m_outputID = 
+						{
+							m_id = 2100000022
+						}
+					}
+					m_inputConnection2 = 
+					{
+						m_nodeID = 
+						{
+							m_id = 2100000010
+						}
+						m_outputID = 
+						{
+							m_id = 2100000022
+						}
+					}
+					m_blendSpace = "BlendSpace_Parent"
+					m_bUseBlendScale = false
+					m_blendValueSource = "Parameter"
+					m_blendParameter = 
+					{
+						m_id = 4294967295
+					}
+					m_timingBehavior = "UseChild1"
+					m_flTimingBlend = 0.5
+					m_flRootMotionBlend = 0.0
+					m_footMotionTiming = "Child1"
+					m_bResetChild1 = false
+					m_bResetChild2 = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 365329030
+				}
+				value = 
+				{
+					_class = "CBoneMaskAnimNode"
+					m_sName = "Reset blocker"
+					m_vecPosition = [ 1200.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 365329030
+					}
+					m_sNote = "Didn\'t have the need for this before as Look At nodes were preventing the reset signal from coming through. So I\'m putting this here as a (maybe temporary\?) solution"
+					m_weightListName = "_empty_anim_weightlist"
+					m_inputConnection1 = 
+					{
+						m_nodeID = 
+						{
+							m_id = 1414740341
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_inputConnection2 = 
+					{
+						m_nodeID = 
+						{
+							m_id = 1414740341
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_blendSpace = "BlendSpace_Parent"
+					m_bUseBlendScale = false
+					m_blendValueSource = "Parameter"
+					m_blendParameter = 
+					{
+						m_id = 4294967295
+					}
+					m_timingBehavior = "UseChild1"
+					m_flTimingBlend = 0.5
+					m_flRootMotionBlend = 0.0
+					m_footMotionTiming = "Child1"
+					m_bResetChild1 = false
+					m_bResetChild2 = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 674615398
+				}
+				value = 
+				{
+					_class = "CSolveIKChainAnimNode"
+					m_sName = "Solve IK arms"
+					m_vecPosition = [ 600.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 674615398
+					}
+					m_sNote = ""
+					m_inputConnection = 
+					{
+						m_nodeID = 
+						{
+							m_id = 156950011
+						}
+						m_outputID = 
+						{
+							m_id = 4294967295
+						}
+					}
+					m_IkChains = 
+					[
+						{
+							_class = "CSolveIKChainAnimNodeChainData"
+							m_IkChain = "right_arm_IK"
+							m_SolverSettingSource = "SOLVEIKCHAINANIMNODESETTINGSOURCE_Default"
+							m_OverrideSolverSettings = 
+							{
+								m_SolverType = "IKSOLVER_TwoBone"
+							}
+							m_TargetSettingSource = "SOLVEIKCHAINANIMNODESETTINGSOURCE_Default"
+							m_OverrideTargetSettings = 
+							{
+								m_TargetSource = "Bone"
+								m_Bone = 
+								{
+									m_Name = ""
+								}
+								m_AnimgraphParameterNamePosition = 
+								{
+									m_id = 4294967295
+								}
+								m_TargetCoordSystem = "World Space"
+							}
+							m_DebugSetting = "SOLVEIKCHAINANIMNODEDEBUGSETTING_None"
+							m_flDebugNormalizedLength = 1.0
+							m_vDebugOffset = [ 0.0, 0.0, 0.0 ]
+						},
+						{
+							_class = "CSolveIKChainAnimNodeChainData"
+							m_IkChain = "left_arm_IK"
+							m_SolverSettingSource = "SOLVEIKCHAINANIMNODESETTINGSOURCE_Default"
+							m_OverrideSolverSettings = 
+							{
+								m_SolverType = "IKSOLVER_TwoBone"
+							}
+							m_TargetSettingSource = "SOLVEIKCHAINANIMNODESETTINGSOURCE_Default"
+							m_OverrideTargetSettings = 
+							{
+								m_TargetSource = "Bone"
+								m_Bone = 
+								{
+									m_Name = ""
+								}
+								m_AnimgraphParameterNamePosition = 
+								{
+									m_id = 4294967295
+								}
+								m_TargetCoordSystem = "World Space"
+							}
+							m_DebugSetting = "SOLVEIKCHAINANIMNODEDEBUGSETTING_None"
+							m_flDebugNormalizedLength = 1.0
+							m_vDebugOffset = [ 0.0, 0.0, 0.0 ]
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1414740341
+				}
+				value = 
+				{
+					_class = "CStateMachineAnimNode"
+					m_sName = "Enable [weaponless arms IK] SM"
+					m_vecPosition = [ 900.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1414740341
+					}
+					m_sNote = "This is, effectively speaking, the \"none\" weapon branch.\n\nNot checking against thrill = 0 but 0.05 so there\'s a slight stickiness to the IK that makes things look nicer"
+					m_states = 
+					[
+						{
+							_class = "CAnimState"
+							m_transitions = 
+							[
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CTagCondition"
+											m_comparisonOp = 0
+											m_tagID = 
+											{
+												m_id = 756568257
+											}
+											m_comparisonValue = true
+										},
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 4
+											m_paramID = 
+											{
+												m_id = 1146062733
+											}
+											m_comparisonValue = 
+											{
+												m_nType = 4
+												m_data = 0.03
+											}
+										},
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 1
+											m_paramID = 
+											{
+												m_id = 1598339350
+											}
+											m_comparisonValue = 
+											{
+												m_nType = 2
+												m_data = 0
+											}
+										},
+									]
+									m_blendDuration = 0.3
+									m_destState = 
+									{
+										m_id = 222254444
+									}
+									m_bReset = false
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.34, 0.006667 ]
+										m_vControlPoint2 = [ 0.306667, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+							]
+							m_tags = [  ]
+							m_tagBehaviors = [  ]
+							m_name = "No"
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 156950011
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+							m_stateID = 
+							{
+								m_id = 1641125496
+							}
+							m_position = [ -464.0, 256.0 ]
+							m_bIsStartState = true
+							m_bIsEndtState = false
+							m_bIsPassthrough = false
+							m_bIsRootMotionExclusive = false
+							m_bAlwaysEvaluate = false
+						},
+						{
+							_class = "CAnimState"
+							m_transitions = 
+							[
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CTagCondition"
+											m_comparisonOp = 1
+											m_tagID = 
+											{
+												m_id = 756568257
+											}
+											m_comparisonValue = true
+										},
+									]
+									m_blendDuration = 0.3
+									m_destState = 
+									{
+										m_id = 1641125496
+									}
+									m_bReset = false
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.34, 0.006667 ]
+										m_vControlPoint2 = [ 0.306667, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 2
+											m_paramID = 
+											{
+												m_id = 1146062733
+											}
+											m_comparisonValue = 
+											{
+												m_nType = 4
+												m_data = 0.03
+											}
+										},
+									]
+									m_blendDuration = 0.3
+									m_destState = 
+									{
+										m_id = 1641125496
+									}
+									m_bReset = false
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.34, 0.006667 ]
+										m_vControlPoint2 = [ 0.306667, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+							]
+							m_tags = [  ]
+							m_tagBehaviors = [  ]
+							m_name = "Yes (sitting)"
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 674615398
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+							m_stateID = 
+							{
+								m_id = 222254444
+							}
+							m_position = [ -240.0, 352.0 ]
+							m_bIsStartState = false
+							m_bIsEndtState = false
+							m_bIsPassthrough = false
+							m_bIsRootMotionExclusive = false
+							m_bAlwaysEvaluate = false
+						},
+					]
+					m_bBlockWaningTags = false
+					m_bLockStateWhenWaning = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 895415107
+				}
+				value = 
+				{
+					_class = "CCommentAnimNode"
+					m_sName = "Weaponless arms IK and reset handling"
+					m_vecPosition = [ 0.0, -320.0 ]
+					m_nNodeID = 
+					{
+						m_id = 895415107
+					}
+					m_sNote = ""
+					m_commentText = ""
+					m_size = [ 3264.0, 32.0 ]
+					m_color = [ 0, 50, 80, 255 ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 962833763
+				}
+				value = 
+				{
+					_class = "CCommentAnimNode"
+					m_sName = "Don\'t reset completely"
+					m_vecPosition = [ 360.0, -320.0 ]
+					m_nNodeID = 
+					{
+						m_id = 962833763
+					}
+					m_sNote = ""
+					m_commentText = "Do not carry reset through additive child here (it would propagate back to the weapon branch)"
+					m_size = [ 256.0, 160.0 ]
+					m_color = [ 255, 102, 0, 255 ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 2231000001
+				}
+				value = 
+				{
+					_class = "CGroupOutputAnimNode"
+					m_sName = "Final weapon pose"
+					m_vecPosition = [ 1500.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 2231000001
+					}
+					m_sNote = ""
+					m_proxyItems = 
+					[
+						{
+							m_name = "Pose"
+							m_outputID = 
+							{
+								m_id = 2231000002
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 365329030
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+		]
+	}
+	m_localParameters = [  ]
+	m_localTags = [  ]
+}

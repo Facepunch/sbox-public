@@ -5,6 +5,12 @@ public sealed partial class AvatarEditManager
 	float _center = 35f;
 	Angles _angle = new Angles( 0, 180, 0 );
 
+	/// <summary>
+	/// How far from the camera toward their eyes the look target sits, along the cursor ray.
+	/// Lower keeps it steadier but makes the glance subtler.
+	/// </summary>
+	const float LookTargetDepth = 0.5f;
+
 	void UpdateEyes( SkinnedModelRenderer renderer )
 	{
 		var headTransform = renderer.GetAttachment( "eyes" ) ?? renderer.WorldTransform;
@@ -16,8 +22,12 @@ public sealed partial class AvatarEditManager
 
 
 		var eyePos = headTransform.Position;
-		var distanceToCamera = (eyePos + renderer.WorldRotation.Forward * 20.0f).Distance( ray.Position );
-		var targetPos = ray.Project( distanceToCamera );
+
+		// Put the target part of the way out from the camera, in front of their face. A target at
+		// their own depth sits right next to the eyes, so the head moving swings the direction to it
+		// around - with the camera low, it rubber-bands back and forth.
+		var distanceToCamera = eyePos.Distance( ray.Position );
+		var targetPos = ray.Project( distanceToCamera * LookTargetDepth );
 
 		if ( distance < 100 )
 		{

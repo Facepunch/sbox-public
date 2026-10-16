@@ -1,35 +1,41 @@
+@import "/styles/_front.scss";
+
 GameGroupRow
 {
 	flex-shrink: 0;
-	border-radius: 2px;
-	padding: 0px 48px;
-	cursor: pointer;
 	align-items: center;
+	gap: 12px;
+	padding: 8px 10px;
+	border-radius: 6px;
 
-	&:hover
+	&.clickable
 	{
-		background-color: #467de422;
-		color: #fff;
+		padding: 0;
 	}
 
 	.game-thumb
 	{
-		width: 70px;
-		height: 70px;
+		width: 40px;
+		height: 40px;
 		align-items: center;
 		justify-content: center;
 		flex-shrink: 0;
-		margin-right: 12px;
+		border-radius: 7px;
+		background-color: rgba( 0, 0, 0, 0.2 );
+		overflow: hidden;
 
 		i
 		{
-			font-size: 28px;
-			color: #3777ee;
+			font-size: 24px;
+			color: $front-secondary;
 		}
 
+		// Size the image itself as well as its container.
 		img
 		{
-			border-radius: 4px;
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
 		}
 	}
 
@@ -37,47 +43,198 @@ GameGroupRow
 	{
 		flex-direction: column;
 		flex-grow: 1;
-		align-items: flex-start;
-		overflow: hidden;
+		min-width: 0;
+		gap: 2px;
 	}
 
 	.game-title
 	{
-		font-weight: bold;
-		font-size: 15px;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
+		@include front-row-title;
+		font-size: 14px;
+	}
+
+	.game-title-row
+	{
+		align-items: center;
+		gap: 8px;
+		min-width: 0;
 	}
 
 	.game-summary
 	{
-		font-size: 12px;
-		opacity: 0.5;
+		font-size: 11px;
+		color: $front-secondary;
 	}
 
 	.left
 	{
 		align-items: center;
-		justify-content: center;
 		flex-shrink: 0;
-		margin-right: 4px;
+		color: $front-secondary;
 
 		i
 		{
-			font-size: 20px;
-			opacity: 0.6;
+			font-size: 18px;
 		}
 	}
 
-	.chevron
+	// Keep game details, favourites and friends as separate targets within the heading.
+	&.heading
 	{
-		opacity: 0.4;
-		align-items: center;
+		padding: 10px 4px 18px;
+		margin-bottom: 14px;
+		gap: 16px;
+		border-radius: 0;
+		border-bottom: 1px solid $front-border;
 
-		i
+		.game-thumb
 		{
+			width: 64px;
+			height: 64px;
+			border-radius: 10px;
+			border: 1px solid rgba( 255, 255, 255, 0.15 );
+			box-shadow: 0 4px 16px rgba( 0, 0, 0, 0.35 );
+		}
+
+		.game-info
+		{
+			gap: 3px;
+		}
+
+		.game-title
+		{
+			min-width: 0;
+			flex-shrink: 1;
 			font-size: 20px;
+			font-weight: 700;
+			text-shadow: 0 2px 6px rgba( 0, 0, 0, 0.7 );
+		}
+
+		.game-link
+		{
+			cursor: pointer;
+
+			&:hover
+			{
+				color: $front-link;
+				border-color: $front-link;
+			}
+		}
+
+		.favourite
+		{
+			flex-shrink: 0;
+			align-items: center;
+			justify-content: center;
+			width: 30px;
+			height: 30px;
+			padding: 0;
+			border-radius: 50%;
+			background-color: rgba( 0, 0, 0, 0.2 );
+			color: $front-secondary;
+			cursor: pointer;
+
+			iconpanel
+			{
+				font-size: 18px;
+			}
+
+			&:hover, &.active
+			{
+				color: #f3a7bc;
+				background-color: rgba( #f3a7bc, 0.12 );
+			}
+
+			&.disabled
+			{
+				pointer-events: none;
+				opacity: 0.5;
+			}
+		}
+
+		.friends-playing
+		{
+			align-self: flex-start;
+			align-items: center;
+			max-width: 100%;
+			gap: 6px;
+			margin-top: 5px;
+			padding: 4px 7px 4px 4px;
+			border: 1px solid transparent;
+			border-radius: 16px;
+			background-color: rgba( 0, 0, 0, 0.25 );
+			color: $front-secondary;
+			font-size: 11px;
+			font-weight: 500;
+			text-transform: none;
+			cursor: pointer;
+
+			&:hover, &.active
+			{
+				background-color: rgba( $front-primary, 0.16 );
+				border-color: rgba( $front-link, 0.35 );
+				color: $front-link;
+			}
+
+			.friend-avatars
+			{
+				flex-shrink: 0;
+				padding-right: 4px;
+
+				img
+				{
+					width: 20px;
+					height: 20px;
+					border-radius: 50%;
+					border: 1px solid $front-card-deep;
+					margin-right: -4px;
+				}
+			}
+
+			label
+			{
+				flex-shrink: 1;
+			}
+
+			icon
+			{
+				font-size: 14px;
+				flex-shrink: 0;
+			}
+		}
+
+		.game-summary
+		{
+			gap: 6px;
+			font-size: 12px;
+			white-space: nowrap;
+		}
+
+		.summary-divider
+		{
+			color: $front-tertiary;
+		}
+
+		.back-to-games
+		{
+			align-self: flex-start;
+			align-items: center;
+			gap: 4px;
+			padding: 0;
+			margin-bottom: 1px;
+			font-size: 11px;
+			color: $front-secondary;
+			cursor: pointer;
+
+			iconpanel
+			{
+				font-size: 14px;
+			}
+
+			&:hover
+			{
+				color: $front-link;
+			}
 		}
 	}
 }

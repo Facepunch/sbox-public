@@ -6,26 +6,39 @@
 @namespace MenuProject.MenuUI.Jams
 @inherits Panel
 
-@if ( !Jam.IsEditorPreview || Jam is null ) return;
+@if ( !Application.IsEditor || Jam is null ) return;
 
 <root>
-	<div class="preview-info">
-		<div class="heading"><icon>science</icon><label>@($"Editor preview · +{Jam.PreviewDays}d")</label><label class="phase">@PhaseText</label></div>
-		<label class="date">@Jam.Now.ToString( "ddd d MMM · HH:mm:ss 'UTC'" )</label>
-	</div>
-	<div class="actions">
-		<Button Text=@(InKnockout ? "Next round" : "Next phase") Disabled=@(StageEnd is null) onclick=@NextStage />
-		<Button Text=@(InKnockout ? "Round ends in 10s" : "Phase ends in 10s") Disabled=@(StageEnd is null) onclick=@RehearseStage />
-		@if ( InKnockout )
+	<div class="preview-stages">
+		<label class="preview-label">Preview stage</label>
+		@foreach ( var stage in PreviewStages )
 		{
-			<Button Text="Skip to next phase" Disabled=@(Jam.NextStep is null) onclick=@NextPhase />
+			<Button class="@(Jam.IsEditorPreview && ActiveStage == stage.Name ? "selected" : "")" Text=@stage.Name onclick=@(() => Seek( stage.At )) />
 		}
 	</div>
-	<div class="actions">
-		<Button Text="− Day" onclick=@(() => Seek( Jam.Now.AddDays( -1 ) )) />
-		<Button Text="+ Day" onclick=@(() => Seek( Jam.Now.AddDays( 1 ) )) />
-		<Button Text="Reset clock" onclick=@Reset />
-	</div>
+	@if ( Jam.IsEditorPreview )
+	{
+		<div class="preview-controls">
+			<div class="preview-info">
+				<div class="heading"><label>@PhaseText</label></div>
+				<label class="date">@Jam.Now.ToString( "ddd d MMM · HH:mm:ss 'UTC'" )</label>
+			</div>
+			<div class="preview-actions">
+				<Button Text=@(InKnockout ? "Next round" : "Next phase") Disabled=@(StageEnd is null) onclick=@NextStage />
+				<Button Text=@(InKnockout ? "Round ends in 10s" : "Phase ends in 10s") Disabled=@(StageEnd is null) onclick=@RehearseStage />
+				@if ( InKnockout )
+				{
+					<Button Text="Skip to next phase" Disabled=@(Jam.NextStep is null) onclick=@NextPhase />
+				}
+			</div>
+			<div class="preview-actions">
+				<Button Text="− Day" onclick=@(() => Seek( Jam.Now.AddDays( -1 ) )) />
+				<Button Text="+ Day" onclick=@(() => Seek( Jam.Now.AddDays( 1 ) )) />
+				<Button Text="Reset clock" onclick=@Reset />
+				<Button Text="Exit preview" onclick=@Exit />
+			</div>
+		</div>
+	}
 </root>
 
 @code
@@ -35,7 +48,27 @@
 	/// </summary>
 	[Parameter] public Jam Jam { get; set; }
 
-	GameJamSystem Voting => GameJamSystem.Get( Scene );
+	GameJamSystem Voting => GameJamSystem.For( this );
+
+	record PreviewStage( string Name, DateTimeOffset At );
+
+	IEnumerable<PreviewStage> PreviewStages
+	{
+		get
+		{
+			var stages = Jam.Timeline.Select( x => new PreviewStage( x.Phase == Jam.Phase.Crowned ? "Results" : x.Name,
+				x.Phase == Jam.Phase.Crowned && Jam.CommunityVoting ? Jam.Results.AddDays( 1 ) : x.At ) ).ToList();
+			stages.Add( new( "Upcoming", (Jam.Announced ?? Jam.Starts).AddDays( -1 ) ) );
+			if ( Jam.CommunityVoting )
+			{
+				if ( Jam.NominationsEnd < Jam.FinalsStart ) stages.Add( new( "Finalist reveal", Jam.NominationsEnd ) );
+				stages.Add( new( "Final result", Jam.Results ) );
+			}
+			return stages.OrderBy( x => x.At );
+		}
+	}
+
+	string ActiveStage => PreviewStages.LastOrDefault( x => x.At <= Jam.Now )?.Name;
 	JamFinalistCategory Category => Voting?.Finalists?.FirstOrDefault();
 	bool InKnockout => Voting?.Phase == Jam.Phase.Finals && Jam.Now >= Jam.FinalsStart;
 	bool InReveal => Jam.CommunityVoting && Jam.Now >= Jam.NominationsEnd && Jam.Now < Jam.FinalsStart;
@@ -86,9 +119,16 @@
 
 	void Seek( DateTimeOffset target )
 	{
-		if ( !Jam.IsEditorPreview ) return;
-		Jam.SeekEditorPreview( target );
-		Voting?.Refresh();
+		if ( !Application.IsEditor ) return;
+		if ( Jam.PreviewDays <= 0 ) Jam.PreviewDays = 1;
+		if ( target >= Jam.Results && Jam.CommunityVoting )
+		{
+			if ( Voting is not null ) _ = Voting.SeekEditorPreviewResultsAsync( target );
+		}
+		else
+		{
+			Voting?.SeekEditorPreview( target );
+		}
 	}
 
 	void NextPhase()
@@ -110,6 +150,13 @@
 	{
 		if ( !Jam.IsEditorPreview ) return;
 		Jam.ResetEditorPreview();
+		Voting?.SeekEditorPreview( Jam.Now );
+	}
+
+	void Exit()
+	{
+		if ( !Application.IsEditor ) return;
+		Jam.PreviewDays = 0;
 		Voting?.Refresh();
 	}
 

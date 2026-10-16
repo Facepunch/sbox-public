@@ -36,4 +36,32 @@ public sealed partial class SceneModel
 		// Its vertices move as if its bones had, and its bounds grow
 		NotifyChanged( Rendering.SceneObjectChange.Bones );
 	}
+
+	private readonly List<Vector4> _anchorSnapshot = new();
+
+	/// <summary>
+	/// The model-space anchor per model bone this model is rigidly deformed by, as last set, or none.
+	/// </summary>
+	internal ReadOnlySpan<Vector4> DeformationAnchors => CollectionsMarshal.AsSpan( _anchorSnapshot );
+
+	/// <summary>
+	/// Makes the deformation volumes move this model rigidly: each part of it moves as they move its bone's anchor, a
+	/// model-space point per model bone, without being reshaped. None deforms it as usual.
+	/// </summary>
+	internal unsafe void SetDeformationAnchors( ReadOnlySpan<Vector4> anchors )
+	{
+		if ( anchors.SequenceEqual( CollectionsMarshal.AsSpan( _anchorSnapshot ) ) )
+		{
+			return;
+		}
+
+		fixed ( Vector4* data = anchors )
+		{
+			animNative.SetDeformationAnchors( anchors.Length, (IntPtr)data );
+		}
+
+		_anchorSnapshot.Clear();
+		_anchorSnapshot.AddRange( anchors );
+		NotifyChanged( Rendering.SceneObjectChange.Bones );
+	}
 }

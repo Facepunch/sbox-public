@@ -48,14 +48,24 @@ partial class PublishWizard
 			BodyLayout.Add( new Label.Body( "You can edit more package information and upload screenshots on its webpage:" ) { Alignment = TextFlag.Center } );
 
 			var r = BodyLayout.AddRow();
+			r.Spacing = 8;
 
 			r.AddStretchCell();
-			r.Add( new Button.Primary( "View and Edit on Web", "open_in_browser" )
+			r.Add( new Button.Primary( Global.BackendTitle, "open_in_browser" )
 			{
 				Clicked = () => EditorUtility.OpenFolder( Project.EditUrl )
 			} );
-			r.AddStretchCell();
 
+			// Its files are on the workshop too
+			if ( PublishConfig.Publisher?.WorkshopUrl is { } workshopUrl )
+			{
+				r.Add( new Button.Primary( "Steam Workshop", "open_in_browser" )
+				{
+					Clicked = () => EditorUtility.OpenFolder( workshopUrl )
+				} );
+			}
+
+			r.AddStretchCell();
 
 			BodyLayout.AddStretchCell( 1 );
 		}

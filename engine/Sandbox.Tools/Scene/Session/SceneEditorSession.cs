@@ -2,7 +2,6 @@
 using Sandbox.ActionGraphs;
 using System;
 using System.IO;
-using System.Text.Json.Nodes;
 
 namespace Editor;
 
@@ -10,7 +9,7 @@ namespace Editor;
 /// A SceneEditorSession holds a Scene that is open in the editor.
 /// It creates a widget, has a selection and undo system.
 /// </summary>
-public partial class SceneEditorSession : Scene.ISceneEditorSession
+public partial class SceneEditorSession : Scene.ISceneEditorSession, AssetSystem.IEventListener
 {
 	/// <summary>
 	/// All open editor sessions
@@ -159,9 +158,6 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 
 	public void Tick()
 	{
-		if ( Scene.Source is SceneFile { IsSourceSnapshot: true } source )
-			SceneSource.FindAsset( source );
-
 		//
 		// If this is an editor scene, tick it to flush deleted objects etc
 		//
@@ -180,6 +176,20 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		{
 			timeSinceSavedState = 0;
 			EditorEvent.Run( "scene.session.save" );
+		}
+	}
+
+	void AssetSystem.IEventListener.OnAssetChanged( Asset asset )
+	{
+		if ( asset is null || asset.Guid == Guid.Empty )
+			return;
+
+		foreach ( var session in All )
+		{
+			if ( session.IsMounted || session.Scene?.Source is not SceneFile source || source.Guid != asset.Guid )
+				continue;
+
+			SceneSource.FindAsset( source );
 		}
 	}
 
@@ -214,7 +224,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 
 	protected virtual void OnEdited()
 	{
-		SceneCompileSession.Current.OnSceneEdited( Scene );
+
 	}
 
 	static RealTimeSince timeSinceLastUpdatePrefabs;
@@ -257,14 +267,6 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	}
 
 	bool unsavedChanges;
-	internal int EditVersion { get; private set; }
-	internal bool CompilationDirty { get; set; }
-
-	void MarkCompilationDirty()
-	{
-		EditVersion++;
-		CompilationDirty = true;
-	}
 
 	/// <summary>
 	/// True if this session is editing a scene opened from a mount. Mounted scenes live at a
@@ -277,9 +279,6 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		get => unsavedChanges && !IsMounted;
 		set
 		{
-			if ( value )
-				MarkCompilationDirty();
-
 			editedScenes.Add( this );
 
 			if ( unsavedChanges == value )
@@ -304,7 +303,6 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		}
 
 		InitUndo();
-		MarkCompilationDirty();
 		Scene.Load( source );
 
 		Selection.Clear();
@@ -355,26 +353,21 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 
 		EditorEvent.Run( "scene.beforesave", Active.Scene );
 
+		if ( !isPrefab && !saveAs && !HasUnsavedChanges && Scene.Source is not null && File.Exists( saveLocation ) )
+		{
+			EditorEvent.Run( "scene.saved", Scene );
+			return;
+		}
+
 		var asset = AssetSystem.CreateResource( extension, saveLocation );
 		Assert.NotNull( asset, $"Failed to CreateResource for {fileType} at {saveLocation}" );
 
 		GameResource resource = Scene is PrefabScene prefabScene ? prefabScene.ToPrefabFile() : Scene.CreateSceneFile();
-		if ( resource is SceneFile sceneFile )
-			sceneFile.InitializeSource( asset.Path, asset.Guid );
-
-		if ( !asset.SaveToDisk( resource ) )
+		var saved = resource is SceneFile sceneFile ? SceneSource.Save( asset, sceneFile ) : asset.SaveToDisk( resource );
+		if ( !saved )
 		{
 			Log.Error( $"Could not save {asset.Path}." );
 			return;
-		}
-
-		if ( !isPrefab )
-		{
-			if ( Scene.Source?.ResourcePath != asset.Path )
-				MarkCompilationDirty();
-
-			if ( CompilationDirty )
-				SceneCompileCache.WriteSetting( asset, SceneCompileCache.DirtyProperty, JsonValue.Create( true ) );
 		}
 
 		// Update this scene's path
@@ -465,6 +458,12 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// </summary>
 	internal static void SaveOpenSessions()
 	{
+		foreach ( var session in All )
+		{
+			if ( !session.IsMounted && session.Scene?.Source is SceneFile source )
+				SceneSource.FindAsset( source );
+		}
+
 		var open = All
 			.Where( x => x is not GameEditorSession )
 			.Select( x => x.Scene.Source?.ResourcePath )
@@ -548,12 +547,6 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 
 		if ( resource is SceneFile sceneFile )
 		{
-			if ( sceneFile.IsCompiled )
-			{
-				Log.Error( $"Cannot edit compiled scene '{path}' without its .scene source file." );
-				return null;
-			}
-
 			if ( SceneEditorSession.Resolve( sceneFile ) is SceneEditorSession existingSession )
 			{
 				existingSession.MakeActive();

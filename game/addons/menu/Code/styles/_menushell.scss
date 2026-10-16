@@ -1,0 +1,42 @@
+// What the main menu's pages need round them - its theme and the tile look for package cards. The
+// main menu and the pause menu both import it, so a page looks the same in either. The rail-and-stage
+// frame round the pages is MenuShell's.
+@import '/styles/_Theme.scss';
+@import '/styles/mainmenu.scss';
+// Dresses the shared PackageCard in the front page's tile look. Emits rules rather than tokens, so
+// it's only imported where there's a menu to dress.
+@import '/styles/_packagecard.scss';
+// The Multiplayer tab's pieces - its docked panels, toolbars, status bar and list rows
+@import '/styles/_dock.scss';
+@import '/styles/_toolbar.scss';
+@import '/styles/_statusbar.scss';
+@import '/styles/_multiplayer-list-row.scss';
+
+.tooltip {
+    pointer-events: none;
+    background-color: #656e7e;
+    font-family: Poppins;
+    border: none;
+
+    * {
+        pointer-events: none;
+    }
+}
+
+.page {
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+}
+
+.navigator-body {
+    pointer-events: auto;
+    width: 100%;
+    height: 100%;
+    flex-grow: 1;
+
+    &.hidden {
+        display: none;
+        pointer-events: none;
+    }
+}

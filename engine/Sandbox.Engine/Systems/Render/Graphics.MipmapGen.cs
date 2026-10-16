@@ -35,6 +35,10 @@ public static partial class Graphics
 		/// Downsamples the texture in red and green channels using a Min/Max filter ( darkest and brightest pixel )
 		/// </summary>
 		MinMax,
+		/// <summary>
+		/// Downsamples with a long-tailed GGX-like kernel, for reflection mip chains
+		/// </summary>
+		GGX,
 		Default = 0,
 		None = -1
 	};
@@ -83,7 +87,11 @@ public static partial class Graphics
 			attributes.Set( "InvTextureSize", new Vector2( 1.0f / width, 1.0f / height ) );
 
 			// And send to the GPU
-			_mipMapGeneratorShader.DispatchWithAttributes( attributes, width, height, 1 );
+			// GGX threads write 2x2 texels each
+			if ( downsampleMethod == DownsampleMethod.GGX )
+				_mipMapGeneratorShader.DispatchWithAttributes( attributes, (width + 1) / 2, (height + 1) / 2, 1 );
+			else
+				_mipMapGeneratorShader.DispatchWithAttributes( attributes, width, height, 1 );
 
 			RenderAttributes.Pool.Return( attributes );
 

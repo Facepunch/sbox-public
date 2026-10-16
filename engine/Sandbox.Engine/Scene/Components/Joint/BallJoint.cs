@@ -180,7 +180,7 @@ public sealed class BallJoint : Joint
 				_joint.WakeBodies();
 			}
 		}
-	}
+	} = Rotation.Identity;
 
 	/// <summary>
 	/// Frequency of motor.

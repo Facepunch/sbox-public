@@ -130,6 +130,7 @@ partial class MoveMode
 	{
 		renderer.Set( "sit", 0 );
 		renderer.Set( "b_swim", Controller.IsSwimming );
+		renderer.Set( "b_climb", Controller.IsClimbing );
 		renderer.Set( "b_grounded", Controller.IsOnGround || Controller.IsClimbing );
 
 		var duck = Controller.Headroom.Remap( 25, 0, 0, 0.5f, true );

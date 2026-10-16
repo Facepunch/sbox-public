@@ -155,6 +155,10 @@ public static class Qt
 			// Without this the fork's Q_DECL_EXPORT expands to nothing under gcc, so a shared Qt module
 			// (the docking system) exports none of its classes and its consumers cannot link.
 			config.Define( "QT_VISIBILITY_AVAILABLE" );
+			// Every object that includes a Qt header otherwise references qt_version_tag from QtCore. A Qt
+			// module's precompiled header puts Qt into all of its objects, and static ones end up linked
+			// into DLLs that never link Qt.
+			config.Define( "QT_NO_VERSION_TAGGING" );
 			config.LinkLibs.AddRange( ["Qt5Core", "Qt5Gui", "Qt5Widgets"] );
 			config.LibDirs.Add( $"{Root}/lib/{Paths.Platform}" );
 			config.LinkOptions.Add( $"-Wl,-rpath,{origin}/{Paths.Relative( "../game/bin/" + Paths.Platform, $"{Root}/lib/{Paths.Platform}" ).Replace( '\\', '/' )}" );

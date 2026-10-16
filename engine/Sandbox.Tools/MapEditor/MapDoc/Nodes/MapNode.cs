@@ -116,6 +116,17 @@ public class MapNode : IHandle
 	}
 
 	/// <summary>
+	/// Hammer's id for this node - unique within its <see cref="MapWorld"/> and saved with the map.
+	/// Find the node again with <see cref="MapWorld.FindNode(int)"/>.
+	/// </summary>
+	public int NodeId => native.GetNodeID();
+
+	/// <summary>
+	/// Whether this node is part of the current selection.
+	/// </summary>
+	public bool IsSelected => native.IsSelected();
+
+	/// <summary>
 	/// Native C++ type name for this map node (nice for debug, might disappear at some point)
 	/// </summary>
 	public string TypeString => native.GetTypeString();
@@ -198,17 +209,16 @@ public class MapNode : IHandle
 	}
 
 	/// <summary>
-	/// Creates a copy of this map node.
+	/// Creates a copy of this map node and its children, alongside it in the same parent - the same
+	/// as cloning it in Hammer. The copy gets new node ids and is kept for undo, so call
+	/// <see cref="History.MarkUndoPosition"/> first. Returns null if the node can't be cloned.
 	/// </summary>
 	public MapNode Copy()
 	{
-		var copy = native.Copy();
-		if ( !copy.IsValid() ) return null;
+		// Clone into whichever document owns us, we don't really deal with nodes outside of a mapdoc for now
+		var doc = World?.worldNative.GetRootDocument( MapNodeGetRootDocument.MayBeLoading ) ?? Hammer.ActiveMap;
 
-		// Automatically add it to the current mapdoc, we don't really deal with them outside of a mapdoc for now
-		Hammer.ActiveMap.native.AddObjectToDocument( copy, native.GetParent() );
-
-		return copy;
+		return doc.native.CloneObject( this );
 	}
 
 	public void Remove()

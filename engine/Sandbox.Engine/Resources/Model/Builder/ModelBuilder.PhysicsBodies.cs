@@ -34,7 +34,11 @@ public sealed partial class ModelBuilder
 	private CPhysBodyDescArray CreatePhysicsBodies()
 	{
 		if ( _bodies.Count == 0 )
+		{
+			foreach ( var joint in _joints )
+				joint.Validate( 0 );
 			return CreateLegacyPhysicsBodies();
+		}
 
 		return CPhysBodyDescArray.Create( _bodies, _joints, _surfaces );
 	}

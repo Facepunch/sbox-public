@@ -1,4 +1,5 @@
 using NativeEngine;
+using Sandbox.Modals;
 
 namespace Sandbox.Engine;
 
@@ -138,6 +139,23 @@ internal static partial class InputRouter
 			{
 				return;
 			}
+
+			// The menu's up over the game - the pause menu, or something opened from it. Escape is the
+			// menu's, to close it with, before the game can take it: F1 opens the pause menu even in a
+			// game that keeps escape for itself, and there'd be no other way back out
+			if ( IGameInstance.Current is not null && !Application.IsEditor && IModalSystem.Current?.IsModalOpen == true )
+			{
+				EscapeWasPressed = false;
+
+				using var scope = GlobalContext.MenuScope();
+				IModalSystem.Current?.PauseMenu();
+				return;
+			}
+
+			// The pointer can own a UI drag without that UI having keyboard focus (for example, a tab reorder).
+			var pointerTarget = Contexts.FirstOrDefault( x => x.MouseState != InputContext.InputState.Ignore );
+			if ( pointerTarget?.MouseState == InputContext.InputState.UI && pointerTarget.TryCancelDrag() )
+				return;
 
 			// Let the game input get first dibs
 			if ( IGameInstance.Current is not null && IGameInstanceDll.Current.InputContext.In_Escape() )

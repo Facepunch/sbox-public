@@ -522,6 +522,35 @@ void CalcBakedLightingForLight( const FinalCombinerInput_t finalCombinerInput, f
 	}
 }
 
+//---------------------------------------------------------------------------------------------------------------------------------------------------------
+void ComputeBakedLighting( inout LightingTerms_t o, const FinalCombinerInput_t f )
+{
+	if ( !LightmappedLight::UsesLightmaps() && !ProbeLight::UsesProbes() )
+		return;
+
+	int4 vLightIndices;
+	float4 vLightStrengths;
+	if ( LightmappedLight::UsesLightmaps() )
+	{
+		float3 vLightmapUVW = float3( f.vLightmapUV, 0 );
+		vLightIndices = int4( Tex2DArrayS( LightMap( 0 ), g_sPointClamp, vLightmapUVW ).rgba * 255.0 );
+		vLightStrengths = Tex2DArrayS( LightMap( 1 ), g_sTrilinearClamp, vLightmapUVW ).rgba;
+		vLightStrengths *= vLightStrengths;
+	}
+	else
+	{
+		SampleLightProbeVolumeIndexedDirectLighting( vLightIndices, vLightStrengths, f.vPositionWs.xyz );
+	}
+
+	// Derivatives must be evaluated before the per-light branch diverges.
+	const float3 vReceiverNormalWs = ComputeShadowReceiverNormal( f.vPositionWs.xyz );
+	for ( int j = 0; j < 4; j++ )
+	{
+		CalcBakedLightingForLight( f, vReceiverNormalWs, vLightIndices[j], vLightStrengths[j],
+			o.vDiffuse, o.vSpecular, o.vTransmissive );
+	}
+}
+
 // https://sms.playstation.com/stories/gdc-2019-indirect-lighting
 float NormalizeCubeBrightness( uint iCubeID, float3 vNormalWs, float flIsotropicRoughness, float flTargetLuminanceOfCubemap )
 {
@@ -532,7 +561,7 @@ float NormalizeCubeBrightness( uint iCubeID, float3 vNormalWs, float flIsotropic
 		flNormalizationCeiling - ( flNormalizationCeiling - 1.0f ) / ( 1.0f - flRoughnessBegin ) );
 
 	// Our cubemaps are pre-filtered, use a roughly blurred mip of them in place of spherical harmonics to do the normalization
-	float flMeasuredLuminanceOfCubemap = max( length( SampleEnvironmentMapLevel(vNormalWs, 1.0f, iCubeID) ), 0.001 );
+	float flMeasuredLuminanceOfCubemap = max( RelativeLuminance( SampleEnvironmentMapLevel(vNormalWs, 1.0f, iCubeID) ), 0.001 );
 
 	float flNormalizationMax = flIsotropicRoughness * vNormalizationParams.x + vNormalizationParams.y;
 	flNormalizationMax = max(flNormalizationMax, 1.0f);
@@ -542,6 +571,9 @@ float NormalizeCubeBrightness( uint iCubeID, float3 vNormalWs, float flIsotropic
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
 void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const FinalCombinerInput_t finalCombinerData )
 {
+	// Finish the baked light loop before indirect lighting results have to stay live.
+	ComputeBakedLighting( lightingTerms, finalCombinerData );
+
 	float3 vNormalTs				= finalCombinerData.vNormalTs;
 	float3 vPositionWs				= finalCombinerData.vPositionWs;
 	float3 vPositionWithOffsetWs	= finalCombinerData.vPositionWithOffsetWs;
@@ -577,14 +609,9 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 	bool bHasBakedLighting = true;
 	bool bHasCubeBrightnessNormalization = true;
 
-	// Shadow receiver normal for the baked light loops below. Derivatives are only defined in uniform
-	// control flow, so take it here rather than inside CalcBakedLightingForLight's per-light branch.
-	const float3 vReceiverNormalWs = ComputeShadowReceiverNormal( vPositionWs.xyz );
-
 	if ( LightmappedLight::UsesLightmaps() )
 	{
 		float3 vLightmapUVW = float3( finalCombinerData.vLightmapUV, 0 );
-		float4 vLightIndexFloats = Tex2DArrayS( LightMap( 0 ), g_sPointClamp, vLightmapUVW ).rgba;
 
 		// Ambient Highlight Direction (directional lightmap) data
 		float3 vIrradiance = Tex2DArrayS( LightMap( 2 ), g_sTrilinearClamp, vLightmapUVW ).rgb;
@@ -618,17 +645,6 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 		flTargetLuminanceOfCubemap = RelativeLuminance( vIrradiance.rgb );
 
 		lightingTerms.vIndirectDiffuse += float3( vIrradiance.xyz );
-
-		// Evaluate indexed baked lights from lightmap
-		float4 vLightStrengths = Tex2DArrayS( LightMap( 1 ), g_sTrilinearClamp, vLightmapUVW ).rgba;
-		vLightStrengths *= vLightStrengths;
-		int4 vLightIndices = int4( vLightIndexFloats.xyzw * 255.0 );
-
-		for ( int j = 0; j < 4; j++ )
-		{
-			CalcBakedLightingForLight( finalCombinerData, vReceiverNormalWs, vLightIndices[j], vLightStrengths[j],
-				lightingTerms.vDiffuse, lightingTerms.vSpecular, lightingTerms.vTransmissive );
-		}
 	}
 	else if ( ProbeLight::UsesProbes() )
 	{
@@ -684,18 +700,6 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 			}
 			#endif
 		}
-
-		// Evaluate indexed baked lights from probe volume
-		int4 vLightIndices;
-		float4 vLightStrengths;
-		SampleLightProbeVolumeIndexedDirectLighting( vLightIndices, vLightStrengths, vPositionWs.xyz );
-
-		for ( int j = 0; j < 4; j++ )
-		{
-			CalcBakedLightingForLight( finalCombinerData, vReceiverNormalWs, vLightIndices[j], vLightStrengths[j],
-				lightingTerms.vDiffuse, lightingTerms.vSpecular, lightingTerms.vTransmissive );
-		}
-
 	}
 	else
 	{
@@ -708,20 +712,9 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
     // Add DDGI indirect lighting
 	// This is done after lightmaps/probes because those actually calculate direct lighting on this block :^(
     //
+	float4 ddgi = 0.0f;
 	if ( DDGI::IsEnabled() )
-	{
-		DDGIVolume ddgiVolume = DDGI::GetVolume( vPositionWs );
-		if ( ddgiVolume.IsValid() )
-		{
-			float3 ddgiIrradiance = DDGI::Evaluate( ddgiVolume, vPositionWs, vNormalWs, vPositionToCameraDirWs.xyz );
-			lightingTerms.vIndirectDiffuse.rgb = ddgiIrradiance;
-
-			bHasBakedLighting = true;
-			bHasCubeBrightnessNormalization = true;
-
-			flTargetLuminanceOfCubemap = RelativeLuminance( ddgiIrradiance );
-		}
-	}
+		ddgi = DDGI::EvaluateVolumes( vPositionWs, vNormalWs, vPositionToCameraDirWs.xyz );
 
 	//
 	// Apply specular from cube maps
@@ -745,6 +738,11 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 		ClusterRange envRange = Cluster::Query( ClusterItemType_EnvMap, finalCombinerData.vPositionSs );
 
 		float2 vLevel = vSQRTRoughness.xy;
+		if ( S_CLOTH_SHADING != 0 )
+		{
+			// Cloth uses the same artistic roughness mapping for every contributing probe.
+			vLevel = pow( flIsotropicRoughness, 0.125 );
+		}
 		
 		for ( uint i = 0; i < envRange.Count; i++ )
 		{
@@ -776,13 +774,6 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 			//---------------------------------------------------------------------------------------------------------------------------------------------------------
 			float3 vCubeMapTexel = 0.0f;
 
-			if ( S_CLOTH_SHADING != 0 )
-			{
-				// For cloth shading, roughness needs be very low to fit with the specular shading.  The power here is arbitrary, based on look
-				vLevel /= vSQRTRoughness.xy;
-				vLevel *= pow( flIsotropicRoughness, 0.125 );
-			}
-
 			float3 vNormalWarpWs = normalize( lerp( vParallaxReflectionCubemapLocal.xyz, vNormalWs.xyz, vLevel.x ) ); // Used to deal with specular aliasing
 			vCubeMapTexel = SampleEnvironmentMapLevel( vNormalWarpWs.xyz, vLevel.x, index );
 
@@ -795,7 +786,11 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
             }
 			else
             {
-                vCubeMapTexel *= CalcBRDFReflectionFactor(flNDotV, flIsotropicRoughness, finalCombinerData.vSpecularColor);
+                #if ( S_TWO_LOBE_SPECULAR )
+                    vCubeMapTexel *= CalcBRDFReflectionFactor( flNDotV, vRoughness.x, finalCombinerData.vSpecularColor );
+                #else
+                    vCubeMapTexel *= CalcBRDFReflectionFactor( flNDotV, flIsotropicRoughness, finalCombinerData.vSpecularColor );
+                #endif
             }
 
 			// Two lobe specular has different logic
@@ -805,12 +800,18 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 				vNormalWarpWs = normalize( lerp( vParallaxReflectionCubemapLocal.xyz, vNormalWs.xyz, vLevel.y ) );
 				float3 vCubeMapTexelGlossy = SampleEnvironmentMapLevel( vNormalWarpWs.xyz, vLevel.y, index );
 				vCubeMapTexelGlossy *= CalcBRDFReflectionFactor( flNDotV, vRoughness.y, finalCombinerData.vSpecularColor );
-				
+				vCubeMapTexel = lerp( vCubeMapTexel, vCubeMapTexelGlossy, flTwoLobeSpecularRatio );
 			}
 			#endif
 
-			if( bHasCubeBrightnessNormalization )
-				vCubeMapTexel *= NormalizeCubeBrightness( index, vNormalWs, vRoughness.x, flTargetLuminanceOfCubemap );
+			float normalization = bHasCubeBrightnessNormalization
+				? NormalizeCubeBrightness( index, vNormalWs, vRoughness.x, flTargetLuminanceOfCubemap ) : 1.0f;
+			if ( ddgi.a > 0.0f )
+			{
+				float ddgiLuminance = RelativeLuminance( ddgi.rgb / ddgi.a );
+				normalization = lerp( normalization, NormalizeCubeBrightness( index, vNormalWs, vRoughness.x, ddgiLuminance ), ddgi.a );
+			}
+			vCubeMapTexel *= normalization;
 
 			vCubeMapTexel_Specular = lerp( vCubeMapTexel_Specular, vCubeMapTexel, 1.0 - flDistAccumulated );
 
@@ -869,6 +870,10 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 		if( !bHasBakedLighting )
 			lightingTerms.vIndirectDiffuse.rgb = lerp( vCubeMapTexel_Diffuse.rgb, lightingTerms.vIndirectDiffuse.rgb, AmbientLightColor.w );
 	}
+
+	// Resolve the existing IBL/lightmap fallback before fading it out under DDGI.
+	if ( ddgi.a > 0.0f )
+		lightingTerms.vIndirectDiffuse.rgb = ddgi.rgb + (1.0f - ddgi.a) * lightingTerms.vIndirectDiffuse.rgb;
 	
 	// Apply indirect transmissive lighting
 	lightingTerms.vTransmissive.rgb += vTransmissiveMask.rgb * lightingTerms.vIndirectDiffuse.rgb;

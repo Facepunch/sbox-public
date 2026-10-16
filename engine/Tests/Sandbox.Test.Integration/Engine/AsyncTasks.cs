@@ -1,5 +1,6 @@
 ﻿using Sandbox.Engine;
 using Sandbox.Tasks;
+using Sandbox.Resources;
 using System;
 using System.Threading;
 
@@ -9,6 +10,95 @@ namespace EngineTests;
 public class AsyncTaskTest
 {
 	private TaskSource TaskSource;
+
+	sealed class CallbackCompiler( Func<Task<bool>> callback ) : ResourceCompiler
+	{
+		protected override Task<bool> Compile() => callback();
+	}
+
+	sealed class CallbackTextureGenerator( Func<Task> callback ) : TextureGenerator
+	{
+		protected override async ValueTask<Texture> CreateTexture( Options options, CancellationToken ct )
+		{
+			await callback();
+
+			// This test checks scheduling without allocating a native texture.
+			return null;
+		}
+	}
+
+	/// <summary>
+	/// Compiler texture callbacks and nested child compiles retain the engine main thread
+	/// before and after asynchronous work, without dispatching to the blocked engine queue.
+	/// </summary>
+	[TestMethod]
+	public void TextureCompilationPreservesMainThread()
+	{
+		ThreadSafe.AssertIsMainThread();
+		var previous = SynchronizationContext.Current;
+		var childCompleted = false;
+		var child = new CallbackCompiler( async () =>
+		{
+			Assert.IsTrue( ThreadSafe.IsMainThread );
+			await Task.Yield();
+			Assert.IsTrue( ThreadSafe.IsMainThread );
+			childCompleted = true;
+			return true;
+		} );
+		var generator = new CallbackTextureGenerator( async () =>
+		{
+			Assert.IsTrue( ThreadSafe.IsMainThread );
+			var context = SynchronizationContext.Current;
+			await Task.Yield();
+			await Task.Run( () => Assert.IsFalse( ThreadSafe.IsMainThread ) );
+			Assert.IsTrue( ThreadSafe.IsMainThread );
+
+			// Check completion first so a regression fails instead of blocking the test.
+			Assert.IsTrue( MainThread.Wait().IsCompleted );
+			await MainThread.Wait();
+			Assert.IsTrue( child.CompileInternal() );
+			Assert.AreSame( context, SynchronizationContext.Current );
+		} );
+		CallbackCompiler compiler = null;
+		compiler = new CallbackCompiler( async () =>
+		{
+			await generator.CreateAsync( new ResourceGenerator.Options { ForDisk = true, Compiler = compiler }, default );
+			Assert.IsTrue( ThreadSafe.IsMainThread );
+			return true;
+		} );
+
+		Assert.IsTrue( compiler.CompileInternal() );
+		Assert.IsTrue( childCompleted );
+		Assert.AreSame( previous, SynchronizationContext.Current );
+	}
+
+	/// <summary>
+	/// A native callback can await the main thread inside a private pump without leaving that pump.
+	/// Frame waits must still yield to the engine queue.
+	/// </summary>
+	[TestMethod]
+	public void MainThreadSwitchInsideAsyncPump()
+	{
+		ThreadSafe.AssertIsMainThread();
+		var previous = SynchronizationContext.Current;
+
+		AsyncPump.RunSynchronously( async () =>
+		{
+			var context = SynchronizationContext.Current;
+			Assert.IsTrue( MainThread.Wait().IsCompleted );
+			Assert.IsTrue( GameTask.MainThread().IsCompleted );
+			Assert.IsFalse( new SyncTask( SyncContext.MainThread ).IsCompleted );
+
+			await MainThread.Wait();
+			await Task.Yield();
+			await GameTask.MainThread();
+
+			Assert.AreSame( context, SynchronizationContext.Current );
+			ThreadSafe.AssertIsMainThread();
+		} );
+
+		Assert.AreSame( previous, SynchronizationContext.Current );
+	}
 
 	/// <summary>
 	/// The cancellation-swallowing tasks in <see cref="TaskCancel3"/> and <see cref="TaskCancel4"/>

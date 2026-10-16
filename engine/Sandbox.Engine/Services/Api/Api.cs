@@ -19,6 +19,8 @@ internal static partial class Api
 		Sandbox.Backend.Initialize( new CachingHandler() );
 #pragma warning restore CA2000 // Dispose objects before losing scope
 
+		Activity.RunStarted();
+
 		// Warm up session-wide service caches in the background. Disk copies (if any) get
 		// applied first so the menu has data immediately even if the backend is slow/down.
 		_ = Sandbox.Services.PackageType.LoadAsync();
@@ -31,6 +33,7 @@ internal static partial class Api
 
 		var timer = FastTimer.StartNew();
 
+		Activity.ReportRun();
 		Task.WaitAll( Events.Shutdown(), Stats.Shutdown(), Activity.Shutdown() );
 
 		if ( timer.ElapsedSeconds > 0.5f )
@@ -55,6 +58,11 @@ internal static partial class Api
 			FpsMax = ConVarSystem.GetInt( "fps_max", 0, true ),
 			MSAA = NativeEngine.CSceneSystem.GetMainSwapChainMultisampleType(),
 			VolumeFogDepth = ConVarSystem.GetInt( "volume_fog_depth", 0, true ),
+			AoQuality = AmbientOcclusion.UserQuality,
+			AoResolution = AmbientOcclusion.UserResolution,
+			AoDenoisePasses = AmbientOcclusion.UserDenoisePasses,
+			ManagedSceneRenderer = Rendering.ManagedSceneRendering.Enabled,
+			ManagedAsyncCompute = Rendering.ManagedSceneRendering.AsyncCompute,
 			Application.ExceptionCount,
 
 			// Display mode, so presentation problems can be told apart by how the swapchain was set up

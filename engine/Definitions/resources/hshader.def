@@ -46,6 +46,30 @@ native class CVfx as NativeEngine.CVfx
 
 	string GetPropertiesJson();
 
+	// "S_FOO=1 D_BAR=2" for a program's combos that aren't at their minimum in this static/dynamic pair.
+	// Same mixed-radix decode as CVfxVulkan::CompileShaderAndGetVariables.
+	inline string DescribeCombo( ShaderProgramType program, ulong staticCombo, ulong dynamicCombo )
+	{
+		static thread_local CUtlString result;
+		result.Clear();
+		const CVfxProgramData &data = self->m_programArray[(int)program];
+		const CUtlVector< CVfxCombo > *arrays[] = { &data.m_staticComboArray, &data.m_dynamicComboArray };
+		uint64 ids[] = { staticCombo, dynamicCombo };
+		for ( int i = 0; i < 2; ++i )
+		{
+			uint64 stride = 1;
+			for ( const CVfxCombo &combo : *arrays[i] )
+			{
+				const uint32 value = uint32( ( ids[i] / stride ) % combo.GetCount() ) + combo.m_nMin;
+				stride *= combo.GetCount();
+				if ( value == uint32( combo.m_nMin ) ) continue;
+				if ( !result.IsEmpty() ) result += " ";
+				result += CFmtStr( "%s=%u", combo.m_szName, value ).Get();
+			}
+		}
+		return result.Get();
+	}
+
 	// Query editor visibility for a material feature selection. Uses the same
 	// channel dependency traversal as the native material editor.
 	inline bool IsUiVariableActive( string variableName, string featureName, int value )
@@ -130,6 +154,12 @@ native class VfxCompiledShaderInfo_t
 	inline void Delete()
 	{
 		delete self;
+	}
+
+	// The CVfxShaderFileVulkan blob this combo writes into the .shader_c: version, SPIR-V size, SPIR-V, reflection.
+	inline CUtlBuffer GetCompiledShader()
+	{
+		return &self->compiledShader;
 	}
 
 	CUtlString compilerOutput;

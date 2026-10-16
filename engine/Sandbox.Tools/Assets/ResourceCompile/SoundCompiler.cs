@@ -14,6 +14,7 @@ namespace Editor;
 [ResourceIdentity( "wav" )]
 [ResourceIdentity( "mp3" )]
 [ResourceIdentity( "ogg" )]
+[ResourceIdentity( "opus" )]
 [ResourceIdentity( "flac" )]
 public class SoundResourceCompiler : ResourceCompiler
 {

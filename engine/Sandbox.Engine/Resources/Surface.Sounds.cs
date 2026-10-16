@@ -62,5 +62,18 @@ public partial class Surface
 	/// Sounds for this surface material
 	/// </summary>
 	[InlineEditor, Title( "Sounds" )]
-	public SurfaceSoundCollection SoundCollection { get; set; }
+	public SurfaceSoundCollection SoundCollection
+	{
+		get => _sounds;
+		set
+		{
+			_sounds = value;
+			if ( !_nativeSurface.IsNull )
+				_nativeSurface.m_bHasScrapeSounds = HasScrapeSounds;
+		}
+	}
+
+	SurfaceSoundCollection _sounds;
+
+	internal bool HasScrapeSounds => _sounds.ScrapeRough is not null || _sounds.ScrapeSmooth is not null;
 }

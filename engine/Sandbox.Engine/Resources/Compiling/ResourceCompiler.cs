@@ -1,5 +1,4 @@
 ﻿using System.Text.Json.Serialization;
-using System.Threading;
 
 namespace Sandbox.Resources;
 
@@ -42,14 +41,9 @@ public abstract partial class ResourceCompiler
 	{
 		try
 		{
-			var t = Task.Run( Compile );
-
-			while ( !t.IsCompleted )
-			{
-				Thread.Sleep( 1 );
-			}
-
-			return t.Result;
+			// Native child compiles share the caller's filesystem and compiler state.
+			// Pump only this compile's continuations, never editor frames or other jobs.
+			return AsyncPump.RunSynchronously( Compile );
 		}
 		catch ( System.Exception e )
 		{

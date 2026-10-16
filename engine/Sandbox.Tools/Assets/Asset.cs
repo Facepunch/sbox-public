@@ -545,16 +545,14 @@ public abstract partial class Asset
 	/// </summary>
 	/// <param name="obj">The instance data to save.</param>
 	/// <returns>Whether the instance was successfully saved or not.</returns>
-	public virtual bool SaveToDisk( GameResource obj )
+	public virtual bool SaveToDisk( GameResource obj ) => SaveToDisk( obj, register: true );
+
+	internal bool SaveSource( GameResource obj ) => SaveToDisk( obj, register: false );
+
+	bool SaveToDisk( GameResource obj, bool register )
 	{
 		if ( obj == null )
 			return false;
-
-		if ( obj is SceneFile { IsCompiled: true } )
-		{
-			Log.Error( "Cannot save a compiled runtime scene over its source. Open the .scene for editing instead." );
-			return false;
-		}
 
 		var filename = GetSourceFile( true );
 
@@ -578,7 +576,7 @@ public abstract partial class Asset
 				obj.SaveToDisk( filename, jsonString );
 
 				Compile( false );
-				if ( obj is not SceneFile { IsSourceSnapshot: true } )
+				if ( register )
 					obj.Register( Path );
 				return true;
 			}

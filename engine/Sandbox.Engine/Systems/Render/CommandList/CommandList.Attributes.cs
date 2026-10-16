@@ -48,7 +48,7 @@ public sealed partial class CommandList
 		AddEntry( &Execute, new Entry { Object1 = indices, Object2 = material, Object3 = attributes, Count = count } );
 	}
 
-	public unsafe class AttributeAccess
+	public unsafe partial class AttributeAccess
 	{
 		// Writes (Grab*Texture) and the clear (Reset) happen under the owning CommandList's _lock,
 		// so they're already serialized. GetRenderTarget is the only access not already under that
@@ -291,8 +291,9 @@ public sealed partial class CommandList
 					return;
 				}
 
+				// GetTemporary caps the mips a small target asks for, so a mip past the last one binds the last one
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.Set( entry.Token, target.ColorTarget, (int)entry.Data1.x );
+				attrAccess.attributes.Set( entry.Token, target.ColorTarget, Math.Min( (int)entry.Data1.x, target.ColorTarget.Mips - 1 ) );
 			}
 
 			list.AddEntry( &Execute, new Entry { Token = token, Object5 = buffer.Name, Object4 = this, Data1 = new Vector4( mip, 0, 0, 0 ) } );

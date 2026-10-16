@@ -81,6 +81,10 @@ public class ResourceGeneratorControlWidget : ControlWidget
 		try
 		{
 			var resource = await Generator.FindOrCreateObjectAsync( ResourceGenerator.Options.Default, default );
+
+			// The owning inspector may have been rebuilt while we were generating
+			if ( !IsValid ) return;
+
 			SerializedProperty.SetValue( resource );
 			OnResourceChanged( resource );
 			Update();

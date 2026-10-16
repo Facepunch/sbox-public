@@ -74,6 +74,7 @@ internal partial class PainterBatcher
 		attributes.Set( "Invert", data.Filter.Invert );
 		attributes.Set( "HueRotate", data.Filter.HueRotation );
 		attributes.Set( "BlurScale", data.Filter.Blur );
+		attributes.SetCombo( "D_PAINTER_SCREENPIXELS", Destination.MapScreenPixels );
 
 		if ( reuseGrab )
 		{

@@ -25,13 +25,17 @@ public sealed unsafe partial class CommandList
 
 	/// <summary>
 	/// Renders the view from a camera to the specified render target.
+	/// When present, the target's depth texture is written directly in the unflipped camera projection.
 	/// </summary>
-	public void DrawView( CameraComponent camera, RenderTargetHandle target, ViewSetup viewSetup = default )
+	/// <returns>Deferred metadata for this view, available to subsequent attribute commands.</returns>
+	public ViewHandle DrawView( CameraComponent camera, RenderTargetHandle target, ViewSetup viewSetup = default )
 	{
-		if ( !camera.IsValid() ) return;
+		var view = CreateViewHandle();
 
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
+			commandList.state.views[entry.ViewId] = default;
+
 			var camera = (CameraComponent)entry.Object1;
 			if ( !camera.IsValid() ) return;
 
@@ -42,21 +46,27 @@ public sealed unsafe partial class CommandList
 			// or we'll end up with an infinite loop!
 			if ( Graphics.IsChildView ) return;
 
-			camera.RenderToTexture( rt.ColorTarget, (ViewSetup)entry.Object2 );
+			camera.RenderToTexture( rt.ColorTarget, rt.DepthTarget, (ViewSetup)entry.Object2, out var result );
+			commandList.state.views[entry.ViewId] = result;
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = camera, Object5 = target.Name, Object2 = viewSetup } );
+		AddEntry( &Execute, new Entry { Object1 = camera, Object5 = target.Name, Object2 = viewSetup, ViewId = view.Id } );
+		return view;
 	}
 
 	/// <summary>
 	/// Render a planar reflection using the specified camera and the specified plane.
+	/// When present, the target's depth texture receives the oblique camera depth before colour flips.
 	/// </summary>
-	public void DrawReflection( CameraComponent camera, Plane plane, in RenderTargetHandle target, ReflectionSetup reflectionSetup = default )
+	/// <returns>Deferred metadata for this view, available to subsequent attribute commands.</returns>
+	public ViewHandle DrawReflection( CameraComponent camera, Plane plane, in RenderTargetHandle target, ReflectionSetup reflectionSetup = default )
 	{
-		if ( !camera.IsValid() ) return;
+		var view = CreateViewHandle();
 
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
+			commandList.state.views[entry.ViewId] = default;
+
 			var camera = (CameraComponent)entry.Object1;
 			if ( !camera.IsValid() ) return;
 
@@ -97,22 +107,28 @@ public sealed unsafe partial class CommandList
 			setup.ViewSetup.ProjectionMatrix ??= oblique;
 			setup.ViewSetup.FlipX ??= true; // we're mirroring!
 
-			camera.RenderToTexture( rt.ColorTarget, setup.ViewSetup );
+			camera.RenderToTexture( rt.ColorTarget, rt.DepthTarget, setup.ViewSetup, out var result );
+			commandList.state.views[entry.ViewId] = result;
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = camera, Object2 = reflectionSetup, Object5 = target.Name, Data1 = new Vector4( plane.Normal.x, plane.Normal.y, plane.Normal.z, 0 ), Data2 = new Vector4( plane.Distance, 0, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Object1 = camera, Object2 = reflectionSetup, ViewId = view.Id, Object5 = target.Name, Data1 = new Vector4( plane.Normal.x, plane.Normal.y, plane.Normal.z, 0 ), Data2 = new Vector4( plane.Distance, 0, 0, 0 ) } );
+		return view;
 	}
 
 	/// <summary>
 	/// Render a planar refraction using the specified camera and the specified plane. This is for all intents and purposes a
 	/// regular view with a plane clipping it. Usually used for rendering under water.
+	/// When present, the target's depth texture receives the oblique camera depth before colour flips.
 	/// </summary>
-	public void DrawRefraction( CameraComponent camera, Plane plane, in RenderTargetHandle target, RefractionSetup refractionSetup = default )
+	/// <returns>Deferred metadata for this view, available to subsequent attribute commands.</returns>
+	public ViewHandle DrawRefraction( CameraComponent camera, Plane plane, in RenderTargetHandle target, RefractionSetup refractionSetup = default )
 	{
-		if ( !camera.IsValid() ) return;
+		var view = CreateViewHandle();
 
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
+			commandList.state.views[entry.ViewId] = default;
+
 			var camera = (CameraComponent)entry.Object1;
 			if ( !camera.IsValid() ) return;
 
@@ -153,10 +169,12 @@ public sealed unsafe partial class CommandList
 			setup.ViewSetup.FieldOfView ??= Graphics.FieldOfView;
 			setup.ViewSetup.ProjectionMatrix ??= oblique;
 
-			camera.RenderToTexture( rt.ColorTarget, setup.ViewSetup );
+			camera.RenderToTexture( rt.ColorTarget, rt.DepthTarget, setup.ViewSetup, out var result );
+			commandList.state.views[entry.ViewId] = result;
 		}
 
-		AddEntry( &Execute, new Entry { Object1 = camera, Object2 = refractionSetup, Object5 = target.Name, Data1 = new Vector4( plane.Normal.x, plane.Normal.y, plane.Normal.z, 0 ), Data2 = new Vector4( plane.Distance, 0, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Object1 = camera, Object2 = refractionSetup, ViewId = view.Id, Object5 = target.Name, Data1 = new Vector4( plane.Normal.x, plane.Normal.y, plane.Normal.z, 0 ), Data2 = new Vector4( plane.Distance, 0, 0, 0 ) } );
+		return view;
 	}
 
 }

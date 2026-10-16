@@ -21,6 +21,11 @@
 	[Parameter]
 	public Action<string> OnValueChanged { get; set; }
 
+	/// <summary>
+	/// Called after opening the map picker so its owner can track the selection being edited.
+	/// </summary>
+	[Parameter] public Action OnSelectorOpened { get; set; }
+
 
 	public Texture Thumb
 	{
@@ -32,7 +37,7 @@
 		}
 	}
 
-	public string Title { get; private set; } = "Default Map";
+	public string Title { get; private set; } = "#menu.home.default_map";
 
 
 	protected override void OnMouseUp(MousePanelEvent e)
@@ -56,6 +61,7 @@
 
 			OnValueChanged?.Invoke(pkg);
 		}, Map );
+		OnSelectorOpened?.Invoke();
 	}
 
 	public async Task OnMapChanged( string map )
@@ -63,7 +69,7 @@
 		if ( string.IsNullOrWhiteSpace( map ) )
 		{
 			Thumb = null;
-			Title = "Default Map";
+			Title = "#menu.home.default_map";
 			StateHasChanged();
 			return;
 		}
@@ -88,7 +94,7 @@
 		}
 
 		Thumb = null;
-		Title = "Default Map";
+		Title = "#menu.home.default_map";
 
 		StateHasChanged();
 	}

@@ -22,6 +22,9 @@ class Program
 		// Attach NVIDIA Aftermath GPU crash dump files if available
 		AttachAftermathFiles( envelope );
 
+		// Attach the VK_EXT_device_fault vendor blob (AMD) if available
+		AttachDeviceFaultFile( envelope );
+
 		// Attach the most recent game log if available
 		AttachLatestLog( envelope );
 
@@ -124,9 +127,9 @@ class Program
 				return;
 			}
 
-			// Only attach files from the most recent dump (within last 120 seconds)
+			// The game shows a message box between writing the dump and crashing, so allow for the user sitting on it
 			var latestDump = dumpFiles[0];
-			var cutoffTime = DateTime.UtcNow.AddSeconds( -120 );
+			var cutoffTime = DateTime.UtcNow.Add( -GpuDumpMaxAge );
 
 			if ( latestDump.LastWriteTimeUtc < cutoffTime )
 			{
@@ -180,6 +183,41 @@ class Program
 		catch ( Exception ex )
 		{
 			Console.WriteLine( $"Error attaching aftermath files: {ex.Message}" );
+		}
+	}
+
+	static readonly TimeSpan GpuDumpMaxAge = TimeSpan.FromMinutes( 10 );
+
+	/// <summary>
+	/// Attaches the most recent gpu_crash_dumps/device_fault_*.bin, which only the GPU vendor can decode.
+	/// </summary>
+	static void AttachDeviceFaultFile( Envelope envelope )
+	{
+		try
+		{
+			var envelopePath = envelope.FilePath;
+			if ( string.IsNullOrEmpty( envelopePath ) )
+				return;
+
+			var gameDir = FindGameRoot( envelopePath, "gpu_crash_dumps" );
+			var dumpDir = Path.Combine( gameDir ?? string.Empty, "gpu_crash_dumps" );
+			if ( !Directory.Exists( dumpDir ) )
+				return;
+
+			var latest = Directory.GetFiles( dumpDir, "device_fault_*.bin" )
+				.Select( f => new FileInfo( f ) )
+				.OrderByDescending( f => f.LastWriteTimeUtc )
+				.FirstOrDefault();
+
+			if ( latest is null || latest.LastWriteTimeUtc < DateTime.UtcNow.Add( -GpuDumpMaxAge ) || latest.Length > 50 * 1024 * 1024 )
+				return;
+
+			envelope.AddAttachment( latest.Name, File.ReadAllBytes( latest.FullName ), "application/octet-stream" );
+			Console.WriteLine( $"Attached: {latest.Name} ({latest.Length:N0} bytes)" );
+		}
+		catch ( Exception ex )
+		{
+			Console.WriteLine( $"Error attaching device fault file: {ex.Message}" );
 		}
 	}
 

@@ -29,7 +29,10 @@ struct Material
 
     float2 TextureCoords; // if TOOL_VIS
 
-    // DEPRECATED
+    /// <summary>
+    /// World-space geometric normal before normal mapping. Zero means an unspecified basis
+    /// for custom materials that only provide a shading normal and tangents.
+    /// </summary>
     float3 GeometricNormal;
     
     /// <summary>
@@ -54,6 +57,7 @@ struct Material
         m.ScreenPosition = ScreenPosition;
 
         m.TangentNormal = float3(0.0, 0.0, 1.0);
+        m.GeometricNormal = float3(0.0, 0.0, 0.0);
         m.WorldTangentU = float3(1.0, 0.0, 0.0);
         m.WorldTangentV = float3(0.0, 1.0, 0.0);
         m.LightmapUV = Blink(0.5f);
@@ -100,6 +104,7 @@ struct Material
         Material m = Material::Init(i.vPositionWithOffsetWs.xyz, i.vPositionSs);
 
         m.Normal = i.vNormalWs.xyz;
+        m.GeometricNormal = i.vNormalWs.xyz;
         m.WorldTangentU = i.vTangentUWs;
         m.WorldTangentV = i.vTangentVWs;
         m.LightmapUV = i.vLightmapUV;

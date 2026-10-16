@@ -396,6 +396,33 @@
 							},
 							{
 								_class = "LookAtChain"
+								name = "AimChain_NoPelvis_Halved"
+								lookat_chain =
+								{
+									name = ""
+									bones =
+									[
+										{
+											name = "spine_2"
+											weight = 0.5
+										},
+										{
+											name = "spine_1"
+											weight = 0.3
+										},
+										{
+											name = "spine_0"
+											weight = 0.15
+										},
+										{
+											name = "pelvis"
+											weight = 0.0
+										},
+									]
+								}
+							},
+							{
+								_class = "LookAtChain"
 								name = "AimChain_NoPelvis_25percent"
 								lookat_chain = 
 								{

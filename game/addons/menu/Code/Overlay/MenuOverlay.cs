@@ -6,6 +6,15 @@ using Sandbox.UI.Construct;
 public partial class MenuOverlay : RootPanel
 {
 	public static MenuOverlay Instance;
+	readonly Panel textureWebStreaming;
+	RealTimeSince sinceJoined = 0;
+	bool hasStreamedTextures;
+
+	/// <summary>
+	/// The workshop download overlay's own root, so it draws over every modal in this one. Roots are drawn last
+	/// made first (see UISystem.CombineCommandLists), so it's made before this.
+	/// </summary>
+	static RootPanel DownloadsRoot;
 
 	public ToastArea Top;
 	public ToastArea BottomRight;
@@ -26,6 +35,11 @@ public partial class MenuOverlay : RootPanel
 	public static void Init()
 	{
 		Shutdown();
+
+		DownloadsRoot = new RootPanel();
+		DownloadsRoot.Style.PointerEvents = PointerEvents.None;
+		DownloadsRoot.AddChild<WorkshopDownloadOverlay>();
+
 		Instance = new MenuOverlay();
 
 		// After the overlay, so it draws over it - see LoadingRoot
@@ -36,6 +50,9 @@ public partial class MenuOverlay : RootPanel
 	{
 		Instance?.Delete();
 		Instance = null;
+
+		DownloadsRoot?.Delete();
+		DownloadsRoot = null;
 
 		LoadingRoot.Instance?.Delete();
 		LoadingRoot.Instance = null;
@@ -53,19 +70,32 @@ public partial class MenuOverlay : RootPanel
 		AddChild<MicOverlay>();
 		AddChild<SubtitleOverlay>();
 		AddChild<ChatOverlay>();
+		textureWebStreaming = AddChild<Panel>( "texture-web-streaming" );
+		textureWebStreaming.AddChild<Panel>( "spinner" );
+		textureWebStreaming.Add.Label( "Higher quality textures will download during gameplay", "label" );
 
-		// The party deck. It moves itself between here and the menu page - see Footer.razor
-		AddChild<Sandbox.UI.Footer>();
+		// The party view owns its window and moves between here and the menu page.
+		AddChild<MenuProject.PartyDeck>();
 	}
 
 	public override void Tick()
 	{
 		base.Tick();
 
+		var playing = MenuUtility.GamePackage is not null && !LoadingScreen.IsVisible;
+		if ( !playing )
+		{
+			sinceJoined = 0;
+			hasStreamedTextures = false;
+		}
+		else if ( MenuUtility.IsTextureWebStreamingActive ) hasStreamedTextures = true;
+		// Explain streaming once after joining, without resurfacing throughout the game.
+		textureWebStreaming.SetClass( "active", playing && sinceJoined < 30 && hasStreamedTextures );
+
 		// The deck spends most of its time living in the menu page, and goes with it if the page is
 		// torn down (the avatar editor swaps the scene) - bring a new one back
-		if ( !Sandbox.UI.Footer.Instance.IsValid() )
-			AddChild<Sandbox.UI.Footer>();
+		if ( !MenuProject.PartyDeck.Instance.IsValid() )
+			AddChild<MenuProject.PartyDeck>();
 	}
 
 	// No UpdateScale override - the root panel's own sizes things by screen height (1080 tall is 1:1),

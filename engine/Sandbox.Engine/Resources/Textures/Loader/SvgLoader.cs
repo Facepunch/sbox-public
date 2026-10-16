@@ -16,11 +16,6 @@ internal static class SvgLoader
 
 	internal static Texture Load( BaseFileSystem filesystem, string url, bool warnOnMissing )
 	{
-		// NormalizeFilename preserves query params (only lowercases + normalises slashes),
-		// so the full URL is a valid and consistent cache key.
-		if ( Game.Resources.Get<Texture>( url ) is { } cached )
-			return cached;
-
 		var split = url.Split( '?' );
 		int? width = null;
 		int? height = null;
@@ -54,10 +49,7 @@ internal static class SvgLoader
 				return null;
 			}
 
-			var tex = Texture.CreateFromSvgSource( svg, width, height, color );
-			tex?.RegisterWeakResourceId( url );
-
-			return tex;
+			return Texture.RenderSvg( svg, width, height, color );
 		}
 		catch ( System.Exception e )
 		{

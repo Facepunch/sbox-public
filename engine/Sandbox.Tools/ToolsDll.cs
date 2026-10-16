@@ -108,11 +108,14 @@ internal class ToolsDll : IToolsDll
 		//
 		// Compile our base projects first
 		//
-		if ( !await Project.CompileAsync() )
+		using ( var _ = Sandbox.Engine.Bootstrap.StartupTiming?.ScopeTimer( "Tools - Compile Base Projects" ) )
 		{
-			// If we can't compile base projects, bail - everything will be fucked
-			// Doesn't need to be descriptive because it's either we've fucked it, or the user has edited base files and fucked it.
-			throw new System.Exception( "Base projects failed to compile. Can't continue. (Check log file)" );
+			if ( !await Project.CompileAsync() )
+			{
+				// If we can't compile base projects, bail - everything will be fucked
+				// Doesn't need to be descriptive because it's either we've fucked it, or the user has edited base files and fucked it.
+				throw new System.Exception( "Base projects failed to compile. Can't continue. (Check log file)" );
+			}
 		}
 
 		// Rebuild content path now because some projects are added during bootstrap
@@ -195,8 +198,6 @@ internal class ToolsDll : IToolsDll
 		// Add all game addons to be compiled in tools mode, making them accessible for Hammer, Asset Editor, etc.
 		//
 		ManagedTools.AssembliesDirty = true;
-
-		Editor.Mcp.McpServer.Start();
 	}
 
 	/// <summary>
@@ -266,7 +267,7 @@ internal class ToolsDll : IToolsDll
 	public void Spin()
 	{
 		BindSystem?.Tick();
-		g_pToolFramework2.Spin();
+		Editor.Application.Spin();
 		EngineLoop.RunAsyncTasks();
 
 		NativeEngine.EngineGlobal.ToolsStallMonitor_IndicateActivity();

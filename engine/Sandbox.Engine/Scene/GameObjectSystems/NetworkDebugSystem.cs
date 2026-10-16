@@ -119,7 +119,7 @@ sealed partial class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 	/// </summary>
 	internal void Track<T>( string name, T message, bool outbound = false, Connection source = default )
 	{
-		if ( DebugOverlay.overlay_network_calls == 0 && !NetworkRecord )
+		if ( !NetworkRecord && !Diagnostics.PerfHub.IsCollecting( "network" ) )
 			return;
 
 		var bs = ByteStream.Create( 256 );
@@ -161,7 +161,7 @@ sealed partial class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 	/// </summary>
 	internal void TrackSync( string name, int bytes, bool outbound = false, Connection source = default )
 	{
-		if ( DebugOverlay.overlay_network_calls == 0 && !NetworkRecord )
+		if ( !NetworkRecord && !Diagnostics.PerfHub.IsCollecting( "network" ) )
 			return;
 
 		EnsureInitialized();
@@ -191,7 +191,7 @@ sealed partial class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 	/// </summary>
 	internal void Record<T>( MessageType type, T message )
 	{
-		if ( DebugOverlay.overlay_network_graph == 0 )
+		if ( !Diagnostics.PerfHub.IsCollecting( "network" ) )
 			return;
 
 		var bs = ByteStream.Create( 256 );
@@ -216,7 +216,7 @@ sealed partial class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 	/// </summary>
 	internal void Record( MessageType type, int size )
 	{
-		if ( DebugOverlay.overlay_network_graph == 0 )
+		if ( !Diagnostics.PerfHub.IsCollecting( "network" ) )
 			return;
 
 		if ( !_currentTick.BytesPerType.TryAdd( type, size ) )

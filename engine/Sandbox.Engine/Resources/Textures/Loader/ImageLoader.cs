@@ -47,7 +47,7 @@ internal static class Image
 				var animation = new Texture.Animation( codec );
 				codec = null; // ownership transferred to Animation
 
-				var texture = CreateTexture( animation.Bitmap, debugName );
+				var texture = CreateTexture( animation.Bitmap );
 				texture.IsAnimated = true;
 				animation.Texture = new System.WeakReference<Texture>( texture );
 				Texture.Animations.Add( animation );
@@ -68,7 +68,7 @@ internal static class Image
 					return default;
 				}
 
-				var texture = CreateTexture( bitmap, debugName );
+				var texture = CreateTexture( bitmap );
 				return texture;
 			}
 		}
@@ -110,7 +110,6 @@ internal static class Image
 			}
 
 			var texture = Texture.Create( width, height, format )
-				.WithName( filename )
 				.WithData( data, dataSize )
 				.WithMips( numMips )
 				.Finish();
@@ -123,7 +122,7 @@ internal static class Image
 		}
 	}
 
-	private static Texture CreateTexture( SKBitmap bitmap, string name )
+	private static Texture CreateTexture( SKBitmap bitmap )
 	{
 		var format = bitmap.ColorType switch
 		{
@@ -136,7 +135,6 @@ internal static class Image
 		int numMips = (int)Math.Log2( Math.Min( bitmap.Width, bitmap.Height ) ) + 1;
 
 		var texture = Texture.Create( bitmap.Width, bitmap.Height, format )
-			.WithName( name )
 			.WithData( bitmap.GetPixels(), bitmap.ByteCount )
 			.WithMips( numMips )
 			.Finish();
@@ -147,9 +145,6 @@ internal static class Image
 	public static Texture Load( BaseFileSystem filesystem, string filename, bool warnOnMissing = true )
 	{
 		filename = filename.Normalize();
-
-		if ( Game.Resources.Get<Texture>( filename ) is { } cached )
-			return cached;
 
 		try
 		{
@@ -174,7 +169,6 @@ internal static class Image
 				tex = Load( stream, filename );
 			}
 
-			tex?.RegisterWeakResourceId( filename );
 			return tex;
 		}
 		catch ( System.IO.FileNotFoundException e )

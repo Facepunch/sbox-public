@@ -17,6 +17,12 @@ public sealed class WorldPanel : Renderer, IRootPanelComponent
 	[Property] public bool LookAtCamera { get; set; }
 	[Property] public Vector2 PanelSize { get; set; } = new Vector2( 512 );
 
+	/// <summary>
+	/// Whether the panel is affected by lighting.
+	/// </summary>
+	[Property]
+	public bool Lighting { get; set; }
+
 	// todo: show these as group buttons
 
 	[Property] public HAlignment HorizontalAlign { get; set; } = HAlignment.Center;
@@ -104,6 +110,7 @@ public sealed class WorldPanel : Renderer, IRootPanelComponent
 		worldPanel.Transform = WorldTransform;
 		worldPanel.Tags.SetFrom( GameObject.Tags );
 		worldPanel.MaxInteractionDistance = InteractionRange;
+		worldPanel.Lighting = Lighting;
 
 		OnSceneObjectCreated( worldPanel.SceneObject );
 		OnRenderOptionsChanged();
@@ -142,6 +149,7 @@ public sealed class WorldPanel : Renderer, IRootPanelComponent
 		}
 
 		worldPanel.Transform = WorldTransform.WithRotation( currentRot ).WithScale( currentScale * RenderScale );
+		worldPanel.Lighting = Lighting;
 
 		var rect = CalculateRect();
 

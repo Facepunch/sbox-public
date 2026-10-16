@@ -3,6 +3,7 @@ using System.Buffers.Binary;
 using System.IO;
 using System.Text;
 using Sandbox.Resources;
+using Sandbox.Engine;
 
 namespace SceneTests.Core;
 
@@ -82,6 +83,49 @@ public class SceneLoadSaveTest : SceneTest
 		return options;
 	}
 
+	[DataTestMethod]
+	[DataRow( true )]
+	[DataRow( false )]
+	public void ChangeScenePreservesGameAndPersistentObjects( bool standalone )
+	{
+		var previousStandalone = Application.IsStandalone;
+		var previousInstance = IGameInstance.Current;
+		var previousSystem = Networking.System;
+		var previousScene = Game.ActiveScene;
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		try
+		{
+			Application.IsStandalone = standalone;
+			var instance = new GameInstance( "test.game", GameLoadingFlags.Host );
+			IGameInstance.Current = instance;
+			Networking.System = null;
+			Game.ActiveScene = scene;
+			var library = Game.TypeLibrary;
+			var doomed = scene.CreateObject();
+			var survivor = scene.CreateObject();
+			survivor.Flags |= GameObjectFlags.DontDestroyOnLoad;
+
+			var file = MakeSceneFile( "change_scene_preserves_game.scene", "New Scene Object" );
+			Assert.IsTrue( Game.ChangeScene( MakeOptions( file ) ) );
+
+			Assert.AreSame( instance, IGameInstance.Current );
+			Assert.AreSame( library, Game.TypeLibrary );
+			Assert.AreSame( scene, Game.ActiveScene );
+			Assert.IsTrue( survivor.IsValid );
+			Assert.IsFalse( doomed.IsValid );
+			Assert.AreEqual( 1, scene.Directory.FindByName( "New Scene Object" ).Count() );
+		}
+		finally
+		{
+			scene.Destroy();
+			Game.ActiveScene = previousScene;
+			Application.IsStandalone = previousStandalone;
+			IGameInstance.Current = previousInstance;
+			Networking.System = previousSystem;
+		}
+	}
+
 	/// <summary>
 	/// The Load( GameResource ) overload loads scene files and rejects any other
 	/// resource type by returning false.
@@ -116,23 +160,6 @@ public class SceneLoadSaveTest : SceneTest
 
 		Assert.IsFalse( scene.Load( new SceneLoadOptions() ) );
 		Assert.IsTrue( existing.IsValid );
-
-		var resolver = SceneFile.ResolveRuntimeScene;
-		try
-		{
-			SceneFile.ResolveRuntimeScene = _ => null;
-			Assert.IsFalse( scene.Load( MakeOptions( MakeSceneFile( "loadsave_rejected_runtime.scene" ) ) ) );
-			Assert.IsTrue( existing.IsValid, "Rejecting stale runtime data must happen before clearing the live scene" );
-		}
-		finally
-		{
-			SceneFile.ResolveRuntimeScene = resolver;
-		}
-
-		var unavailable = MakeSceneFile( "loadsave_unavailable_compilation.scene" );
-		unavailable.CompileError = "Scene compilation needs rebuilding.";
-		Assert.IsFalse( scene.Load( MakeOptions( unavailable ) ) );
-		Assert.IsTrue( existing.IsValid, "An unavailable compilation must not replace the live scene" );
 
 		scene.Destroy();
 	}
@@ -360,33 +387,15 @@ public class SceneLoadSaveTest : SceneTest
 		Assert.IsNotNull( sceneFile.SceneProperties );
 
 		var sourceSnapshot = SceneFile.FromSource( sceneFile.ResourcePath, sceneFile.Guid, sceneFile.Serialize().ToJsonString(), sceneFile.BinaryData );
-		Assert.IsTrue( sourceSnapshot.IsSourceSnapshot );
 		Assert.AreEqual( sceneFile.Id, sourceSnapshot.Id );
 		Assert.AreEqual( sceneFile.ResourcePath, sourceSnapshot.ResourcePath );
 		Assert.AreSame( sceneFile, ResourceLibrary.Get<SceneFile>( sceneFile.ResourcePath ), "Editing source must not replace the runtime resource" );
 		var compiledJson = sceneFile.Serialize();
-		compiledJson["__scene_compiled"] = true;
-		compiledJson["__scene_compile_error"] = "Scene compilation needs rebuilding.";
-		var compiledSnapshot = SceneFile.FromSource( sceneFile.ResourcePath, sceneFile.Guid, compiledJson.ToJsonString(), sceneFile.BinaryData );
-		Assert.IsTrue( compiledSnapshot.IsCompiled, "The compiled marker must prevent editing or saving runtime data as source" );
-		Assert.AreEqual( "Scene compilation needs rebuilding.", compiledSnapshot.CompileError );
-
 		var writer = new ResourceWriter();
 		writer.SetDataBlock( Encoding.UTF8.GetBytes( compiledJson.ToJsonString() ) );
 		var compiled = SceneFile.FromCompiled( sceneFile.ResourcePath, sceneFile.Guid, writer.ToArray() );
-		Assert.AreEqual( compiledSnapshot.CompileError, compiled.CompileError );
-
-		compiledJson.Remove( "__scene_compile_error" );
-		writer = new ResourceWriter();
-		writer.SetDataBlock( Encoding.UTF8.GetBytes( compiledJson.ToJsonString() ) );
 		var compiledData = writer.ToArray();
-		Assert.IsTrue( compiled.TryLoadFromData( compiledData ) );
-		Assert.IsTrue( compiled.IsCompiled );
-		Assert.IsNull( compiled.CompileError, "A successful reload must clear an earlier unavailable-compilation marker" );
-
-		compiled.LoadFromJson( sceneFile.Serialize().ToJsonString() );
-		Assert.IsFalse( compiled.IsCompiled, "Loading authoring data must clear runtime-only markers" );
-		Assert.IsNull( compiled.CompileError );
+		Assert.AreEqual( sceneFile.Id, compiled.Id );
 
 		foreach ( var length in new[] { 0, 1, 15, 20, compiledData.Length - 1 } )
 		{
@@ -480,25 +489,9 @@ public class SceneLoadSaveTest : SceneTest
 		var sceneFile = MakeSceneFile( "loadsave_loading_events.scene", "Loaded Object" );
 		var options = MakeOptions( sceneFile, additive: true );
 
-		var resolver = SceneFile.ResolveRuntimeScene;
-		var resolutions = 0;
-		try
-		{
-			SceneFile.ResolveRuntimeScene = file =>
-			{
-				resolutions++;
-				return SceneFile.FromSource( file.ResourcePath, file.Guid, file.Serialize().ToJsonString(), file.BinaryData );
-			};
-			Assert.IsTrue( options.PrepareRuntime() );
-			options.GetSceneFile().GameObjects[0]["Name"] = "Changed Before Initialize";
-			Assert.IsTrue( scene.Load( options ) );
-			Assert.AreEqual( 1, resolutions, "Load must use the representation already given to startup callbacks" );
-			Assert.AreEqual( 1, scene.Directory.FindByName( "Changed Before Initialize" ).Count() );
-		}
-		finally
-		{
-			SceneFile.ResolveRuntimeScene = resolver;
-		}
+		options.GetSceneFile().GameObjects[0]["Name"] = "Changed Before Initialize";
+		Assert.IsTrue( scene.Load( options ) );
+		Assert.AreEqual( 1, scene.Directory.FindByName( "Changed Before Initialize" ).Count() );
 
 		Assert.AreEqual( 1, probe.BeforeLoadCalls );
 		Assert.AreEqual( 1, probe.OnLoadCalls );

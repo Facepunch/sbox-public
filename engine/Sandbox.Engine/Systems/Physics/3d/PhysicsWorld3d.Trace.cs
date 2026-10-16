@@ -30,6 +30,10 @@ partial class PhysicsWorld3d
 
 	internal override unsafe PhysicsTraceResult TraceSingle( in PhysicsTrace.Request request, PhysicsBody targetBody, Func<PhysicsShape, bool> filterCallback )
 	{
+		// Native dereferences the world without checking, a deleted world would crash
+		if ( !world.IsValid )
+			return base.TraceSingle( request, targetBody, filterCallback );
+
 		if ( targetBody is not null && !targetBody.IsValid() )
 			throw new InvalidOperationException( "The physics body has been released" );
 
@@ -64,6 +68,9 @@ partial class PhysicsWorld3d
 
 	internal override unsafe int TraceMultiple( in PhysicsTrace.Request request, PhysicsBody targetBody, Func<PhysicsShape, bool> filterCallback, List<PhysicsTraceResult> results )
 	{
+		if ( !world.IsValid )
+			return 0;
+
 		if ( targetBody is not null && !targetBody.IsValid() )
 			throw new InvalidOperationException( "The physics body has been released" );
 

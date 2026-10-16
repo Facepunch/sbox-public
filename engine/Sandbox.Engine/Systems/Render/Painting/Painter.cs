@@ -74,11 +74,13 @@ public readonly ref partial struct Painter
 	}
 
 	/// <summary>
-	/// Records drawing into a command list using the screen bounds. Dispose the painter to append its drawing.
+	/// Records drawing into a command list using screen bounds. Its screen-pixel coordinates map to the active view
+	/// viewport when executed. Dispose the painter to append its drawing.
 	/// </summary>
 	public static Painter Begin( CommandList commandList )
 	{
-		return Begin( commandList, new Rect( Vector2.Zero, Screen.Size ) );
+		var bounds = new Rect( Vector2.Zero, Screen.Size );
+		return Painter.Context.Get( commandList ).Begin( bounds, mapScreenPixels: true );
 	}
 
 	/// <summary>

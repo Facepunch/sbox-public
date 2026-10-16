@@ -360,6 +360,18 @@ FinalCombinerInput_t PS_SharedStandardProcessing( const PS_INPUT i )
 	#endif
 
 	//
+	// Self Illum
+	//
+	#if ( S_SELF_ILLUM )
+	{
+		float2 vSelfIllumTextureCoords = g_vSelfIllumOffset.xy + GetUVDefault1( g_bUseSecondaryUvForSelfIllum, i.vTextureCoords ) + frac( g_flTime * g_vSelfIllumScrollSpeed.xy );
+		float3 vSelfIllumTintScaled = pow( 2.0, g_flSelfIllumBrightness ).xxx * saturate( g_flSelfIllumScale.xxx ) * SrgbGammaToLinear( g_vSelfIllumTint.xyz );
+		o.vEmissive = Tex2DS( g_tSelfIllumMask, g_sTrilinearWrap, vSelfIllumTextureCoords.xy ).rgb * vSelfIllumTintScaled.rgb;
+		o.vEmissive = lerp( o.vEmissive.rgb, o.vEmissive.rgb * vAlbedo.rgb, g_flSelfIllumAlbedoFactor );
+	}
+	#endif
+
+	//
 	// Ambient Occlusion
 	//
 	float2 vAmbientOcclusionUVs;
@@ -528,17 +540,6 @@ FinalCombinerInput_t PS_SharedStandardProcessing( const PS_INPUT i )
 	}
 	#endif
 		
-	//
-	// Self Illum
-	//
-	#if ( S_SELF_ILLUM )
-	{
-		float2 vSelfIllumTextureCoords = g_vSelfIllumOffset.xy + GetUVDefault1( g_bUseSecondaryUvForSelfIllum, i.vTextureCoords ) + frac( g_flTime * g_vSelfIllumScrollSpeed.xy );
-		float3 vSelfIllumTintScaled = pow( 2.0, g_flSelfIllumBrightness ).xxx * saturate( g_flSelfIllumScale.xxx ) * SrgbGammaToLinear( g_vSelfIllumTint.xyz );
-		o.vEmissive = Tex2DS( g_tSelfIllumMask, g_sTrilinearWrap, vSelfIllumTextureCoords.xy ).rgb * vSelfIllumTintScaled.rgb;
-		o.vEmissive = lerp( o.vEmissive.rgb, o.vEmissive.rgb * vAlbedo.rgb, g_flSelfIllumAlbedoFactor );
-	}
-	#endif
 
 	//
 	// Detail Texture

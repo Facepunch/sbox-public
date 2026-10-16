@@ -15,6 +15,11 @@ native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSc
 		self->SetDeformationVolumes( count, static_cast<const SceneDeformationVolumeData_t *>( volumes ) );
 	}
 
+	inline void SetDeformationAnchors( int count, void* anchors )
+	{
+		self->SetDeformationAnchors( count, static_cast<const Vector4D *>( anchors ) );
+	}
+
 	[nogc]
 	void SetWorldSpaceRenderBoneTransform( int nBoneIndex, Transform pRenderWorldTransform );
 	[nogc]
@@ -92,11 +97,6 @@ native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSc
 	float GetPlaybackRate();
 	void SetPlaybackRate( float flPlaybackRate );
 
-	int GetParameterInt( string name );
-	Float GetParameterFloat( string name );
-	Vector3 GetParameterVector3( string name );
-	Rotation GetParameterRotation( string name );
-
 	//
 	// Anim Events
 	//
@@ -130,18 +130,11 @@ native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSc
 
 native class IAnimParameterInstance as NativeEngine.IAnimParameterInstance
 {
-	void SetValue( bool val );
-	void SetValue( int val );
-	void SetValue( float val );
-	void SetValue( Vector3 val );
-	void SetValue( Rotation val );
-	inline void SetEnumValue( int val )
-	{
-		self->SetValue( CAnimEnum( (AnimEnumValue_t)val ) );
-	}
-
 	CUtlString GetName();
+	NativeEngine.AnimVariant GetValue();
+	NativeEngine.AnimParamType GetParameterType();
+
 	bool IsAutoReset();
 
-	NativeEngine.AnimParamType GetParameterType();
+	void SetValue( NativeEngine.AnimVariant val );
 }

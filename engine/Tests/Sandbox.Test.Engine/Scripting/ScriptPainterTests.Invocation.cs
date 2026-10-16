@@ -7,20 +7,17 @@ namespace ScriptingTests;
 
 public partial class ScriptPainterTests
 {
-	[TestMethod]
+	[TestMethod, TestCategory( Allocations.Category )]
 	public void FluentInvocationDoesNotAllocateAfterWarmup()
 	{
 		var script = Game.Scripting.CreateScript( "return amount;" );
-		for ( var i = 0; i < 100; i++ )
-			script.With( "amount", 1 ).With( "amount", 2 ).RunAndReturn<int>();
-
-		var before = GC.GetAllocatedBytesForCurrentThread();
 		var total = 0;
-		for ( var i = 0; i < 100; i++ )
-			total += script.With( "amount", 1 ).With( "amount", 2 ).RunAndReturn<int>();
-		var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+		Allocations.AssertSettles( "100 fluent invocations", () =>
+		{
+			for ( var i = 0; i < 100; i++ )
+				total += script.With( "amount", 1 ).With( "amount", 2 ).RunAndReturn<int>();
+		}, beforePass: () => total = 0 );
 		Assert.AreEqual( 200, total );
-		Assert.AreEqual( 0L, allocated );
 	}
 
 	[TestMethod]

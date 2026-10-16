@@ -11,16 +11,17 @@
   "Category": "HatFormal",
   "ConditionalModels": {},
   "Tags": null,
-  "Parent": "models/citizen_clothes/hat/fedora/fedora.clothing",
   "Model": "models/citizen_clothes/hat/fedora/models/fedora_brown.vmdl",
   "HumanAltModel": "models/citizen_clothes/hat/fedora/models/fedora_brown_m_human.vmdl",
   "HumanAltFemaleModel": null,
   "SkinMaterial": null,
   "EyesMaterial": null,
   "MaterialGroup": "",
+  "HeelHeight": 0,
   "SlotsUnder": "HeadTop",
   "SlotsOver": 0,
   "HideBody": 0,
+  "DeformationMode": "Normal",
   "AllowTintSelect": false,
   "TintSelection": {
     "blend": "Linear",
@@ -37,6 +38,7 @@
   "Icon": {
     "Path": "models/citizen_clothes/hat/fedora/fedora_brown.clothing.png",
     "Mode": "Eyes",
+    "UsePositionOffset": false,
     "PositionOffset": "0,0,0"
   },
   "__references": [],

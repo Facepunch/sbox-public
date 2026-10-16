@@ -5,12 +5,12 @@ namespace MenuProject.MenuUI.Front;
 /// <summary>
 /// Everything the friends rail reads about your friends and your party - who's online, what they're
 /// playing, their rich presence, who's in your lobby. Straight from Steam normally; with
-/// <c>friends_mock</c> on, a made up world built from your real friends (real names and faces) that
+/// <c>menu_mock_friends</c> on, a made up world built from your real friends (real names and faces) that
 /// covers every case the rail handles.
 /// </summary>
 public static class RailPresence
 {
-	[MenuConVar( "friends_mock", Help = "Fill the friends list with made up parties and states: off, leader (you lead your party), member (a friend leads it)" )]
+	[MenuConVar( "menu_mock_friends", Help = "Fill the friends list with made up parties and states: off, leader (you lead your party), member (a friend leads it)" )]
 	public static string Mock { get; set; } = "off";
 
 	public static bool Mocking => Mock is "leader" or "member";
@@ -19,7 +19,7 @@ public static class RailPresence
 	static MockWorld _built;
 
 	/// <summary>
-	/// The made up world - built whenever either mock is on, since <c>party_mock</c> uses its party
+	/// The made up world - built whenever either mock is on, since <c>menu_mock_party</c> uses its party
 	/// too. Rebuilt when either changes.
 	/// </summary>
 	static MockWorld Built
@@ -32,7 +32,7 @@ public static class RailPresence
 			if ( _builtFor == key && _built is not null ) return _built;
 
 			// The joining states are you following the leader into their game - a leader never joins
-			// their own, so those always put a friend in charge. Otherwise friends_mock says, and you
+			// their own, so those always put a friend in charge. Otherwise menu_mock_friends says, and you
 			// lead if it doesn't
 			var joining = PartyView.IsMockingJoin && PartyView.Mock is not ("idle" or "full");
 			var leader = !joining && (!Mocking || Mock == "leader");
@@ -44,7 +44,7 @@ public static class RailPresence
 	}
 
 	/// <summary>
-	/// The made up friends - only while <c>friends_mock</c> is on. <c>party_mock</c> alone makes up the
+	/// The made up friends - only while <c>menu_mock_friends</c> is on. <c>menu_mock_party</c> alone makes up the
 	/// party, not everyone else.
 	/// </summary>
 	static MockWorld World => Mocking ? Built : null;
@@ -67,6 +67,10 @@ public static class RailPresence
 	public static IEnumerable<Friend> Friends => World?.Friends ?? MenuUtility.Friends.Where( x => !x.IsMe );
 
 	public static string Get( Friend friend, string key ) => World?.Find( friend )?.Get( key ) ?? (World is null ? friend.GetRichPresence( key ) : null);
+
+	public static IEnumerable<Friend> MembersOf( Friend friend ) => World is { } world
+		? world.PartyRoster( Get( friend, "party_id" ) )
+		: MenuUtility.GetPartyMembers( friend );
 
 	public static bool IsOnline( Friend friend ) => World?.Find( friend )?.Online ?? friend.IsOnline;
 	public static bool IsPlayingThisGame( Friend friend ) => World?.Find( friend )?.Playing ?? friend.IsPlayingThisGame;
@@ -123,6 +127,9 @@ public static class RailPresence
 		/// </summary>
 		public MockState Find( Friend friend ) => _states.GetValueOrDefault( friend.Id );
 
+		public IEnumerable<Friend> PartyRoster( string id ) => string.IsNullOrEmpty( id ) ? Enumerable.Empty<Friend>()
+			: _states.Where( x => x.Value.Get( "party_id" ) == id ).Select( x => new Friend( x.Key ) );
+
 		const string Game = "facepunch.sandbox";
 		const string GameName = "Sandbox";
 
@@ -174,7 +181,7 @@ public static class RailPresence
 				state.Presence["party_id"] = id;
 				state.Presence["party_owner"] = owner.ToString();
 				state.Presence["party_size"] = size.ToString();
-				state.Presence["party_max"] = "16";
+				state.Presence["party_max"] = PartyDeck.MAX_MEMBERS.ToString();
 			}
 
 			//
@@ -205,8 +212,11 @@ public static class RailPresence
 			foreach ( var f in partyA )
 				Party( Set( f, title: GameName, connect: f?.Id == host?.Id ? "+connect 1" : null ), "mock-a", host?.Id ?? 0, 3 );
 
-			// A friend in a party led by someone you don't know - their face goes up front, the third is a "+1"
+			// A friend with a leader and another member outside your friends list.
 			Party( Set( Take(), title: GameName ), "mock-b", strangerLeader?.Id ?? 0, 3 );
+			Party( Set( strangerLeader, title: GameName ), "mock-b", strangerLeader?.Id ?? 0, 3 );
+			var strangerMember = TakeStranger();
+			Party( Set( strangerMember, title: GameName ), "mock-b", strangerLeader?.Id ?? 0, 3 );
 
 			// A big one - ten friends and two others, more faces than fit
 			var bigLead = Take();
@@ -242,7 +252,7 @@ public static class RailPresence
 				w.Invited.Add( (invited.Id, seconds) );
 			}
 
-			// party_mock full - fill the party up with whoever's left
+			// menu_mock_party full - fill the party up with whoever's left
 			while ( full && w.PartyMembers.Count < PartyDeck.MAX_MEMBERS && Take() is { } extra )
 			{
 				w.PartyMembers.Add( extra );

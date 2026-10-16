@@ -23,6 +23,11 @@ public sealed partial class PlayerController : Component
 	public float GroundFriction { get; set; }
 
 	/// <summary>
+	/// The normal of the walkable surface beneath us.
+	/// </summary>
+	public Vector3 GroundNormal { get; private set; } = Vector3.Up;
+
+	/// <summary>
 	/// Are we standing on a surface that is physically dynamic
 	/// </summary>
 	public bool GroundIsDynamic { get; set; }
@@ -74,7 +79,7 @@ public sealed partial class PlayerController : Component
 		float radiusScale = 1.0f;
 		var tr = TraceBody( currentPosition + up, currentPosition - up * stepSize, radiusScale, 0.5f );
 
-		while ( tr.StartedSolid )
+		while ( tr.StartedSolid || (tr.Hit && !Mode.IsStandableSurface( tr )) )
 		{
 			radiusScale = radiusScale - 0.1f;
 			if ( radiusScale < 0.7f )
@@ -88,7 +93,7 @@ public sealed partial class PlayerController : Component
 			return;
 		}
 
-		if ( tr.Hit )
+		if ( tr.Hit && Mode.IsStandableSurface( tr ) )
 		{
 			var targetPosition = tr.EndPosition + up * 0.01f;
 			var delta = currentPosition - targetPosition;
@@ -176,6 +181,7 @@ public sealed partial class PlayerController : Component
 		GroundObject = body?.GameObject;
 		GroundComponent = body?.Component;
 		GroundSurface = tr.Surface;
+		GroundNormal = tr.Hit ? tr.Normal : UpDirection;
 		GroundIsDynamic = true;
 
 		if ( GroundObject is not null )
@@ -190,6 +196,10 @@ public sealed partial class PlayerController : Component
 					GroundFriction = collider.Friction.Value;
 
 				GroundIsDynamic = collider.IsDynamic;
+			}
+			else if ( body is not null )
+			{
+				GroundIsDynamic = body.BodyType == PhysicsBodyType.Dynamic;
 			}
 		}
 		else

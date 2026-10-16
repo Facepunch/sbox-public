@@ -10,13 +10,21 @@ struct DDGIVolume
     float3 BBoxMax;
     float NormalBias;
     float3 ProbeSpacing;
-    float BlendDistance;
+    float ProbeCellDiagonal;
     float3 ReciprocalSpacing;
     int IrradianceTextureIndex;
     float3 ReciprocalCountsMinusOne;
     int DistanceTextureIndex;
     int3 ProbeCounts;
     int RelocationTextureIndex;
+    int BakeVersion;
+    float4x4 ProbeToWorldTransform;
+    float ViewBias;
+    float RuntimeContrast;
+    float RuntimeSaturation;
+    float RuntimeIntensity;
+    float3 RuntimeTint;
+    float BlendDistance;
 
     bool IsValid()
     {
@@ -28,10 +36,23 @@ struct DDGIVolume
         return mul( WorldToProbeTransform, float4( positionWs, 1.0f ) ).xyz;
     }
 
-    bool Contains( float3 positionWs )
+    float GetBlendWeight( float3 positionWs )
     {
         float3 probeSpace = ToProbeSpace( positionWs );
-        return all( probeSpace >= BBoxMin ) && all( probeSpace <= BBoxMax );
+        float3 faceDistance = min( probeSpace - BBoxMin, BBoxMax - probeSpace );
+        if ( all( faceDistance >= 0.0f ) )
+            return 1.0f;
+
+        if ( BlendDistance <= 0.0f )
+            return 0.0f;
+
+        // Inverse-transform row lengths convert local plane distances to world units,
+        // including rotated, mirrored and nonuniformly scaled volumes.
+        float3 inverseScale = float3( length( WorldToProbeTransform[0].xyz ),
+                                     length( WorldToProbeTransform[1].xyz ),
+                                     length( WorldToProbeTransform[2].xyz ) );
+        faceDistance /= max( inverseScale, 1e-6f );
+        return saturate( 1.0f - length( max( -faceDistance, 0.0f ) ) / BlendDistance );
     }
 };
 
@@ -78,8 +99,8 @@ struct DDGI
     // The surfaceNormal and cameraDirection arguments are expected to be normalized
     static float3 GetSurfaceBias(float3 surfaceNormal, float3 cameraDirection, DDGIVolume volume)
     {
-        float viewBias = 0; // TOOD: expose per-volume?
-        return (surfaceNormal * volume.NormalBias) + (-cameraDirection * viewBias);
+        float viewBias = volume.BakeVersion == 1 ? volume.ViewBias : 0.0f;
+        return (surfaceNormal * volume.NormalBias) + (cameraDirection * viewBias);
     }
 
     static float3 OctahedralDecode(float2 octCoord)
@@ -150,12 +171,36 @@ struct DDGI
         return SampleProbeOctahedral( volume, irradianceTex, probeIndex, direction, DDGI_IRRADIANCE_OCT_RESOLUTION ).rgb;
     }
 
-    static float2 SampleProbeDistance( in DDGIVolume volume, Texture3D distanceTex, int3 probeIndex, float3 direction )
+    static float2 SampleProbeDistance( in DDGIVolume volume, Texture3D distanceTex, int3 probeIndex, float3 direction, float maxDistance )
     {
+        if ( volume.BakeVersion == 1 )
+        {
+            // Filter mean and standard deviation using the law of total variance.
+            // Subtracting independently compressed first/second moments loses small variances.
+            const int n = DDGI_DISTANCE_OCT_RESOLUTION;
+            float2 texel = clamp( OctahedralEncode( direction ) * n - 0.5f, 0.0f, float(n - 1) );
+            int2 p0 = int2( floor( texel ) );
+            int2 p1 = min( p0 + 1, n - 1 );
+            float2 alpha = frac( texel );
+            int2 tileBase = probeIndex.xy * n;
+            float2 a = distanceTex.Load( int4( tileBase + p0, probeIndex.z, 0 ) ).rg;
+            float2 b = distanceTex.Load( int4( tileBase + int2( p1.x, p0.y ), probeIndex.z, 0 ) ).rg;
+            float2 c = distanceTex.Load( int4( tileBase + int2( p0.x, p1.y ), probeIndex.z, 0 ) ).rg;
+            float2 d = distanceTex.Load( int4( tileBase + p1, probeIndex.z, 0 ) ).rg;
+            float4 weights = float4( (1 - alpha.x) * (1 - alpha.y), alpha.x * (1 - alpha.y), (1 - alpha.x) * alpha.y, alpha.x * alpha.y );
+            float4 means = float4( a.x, b.x, c.x, d.x );
+            float4 deviations = float4( a.y, b.y, c.y, d.y );
+            float mean = dot( weights, means );
+            float4 delta = means - mean;
+            float variance = dot( weights, deviations * deviations + delta * delta );
+            return float2( mean * maxDistance, variance * maxDistance * maxDistance );
+        }
+
+        // Saved legacy data retains its original sampling and visibility calculation.
         return SampleProbeOctahedral( volume, distanceTex, probeIndex, direction, DDGI_DISTANCE_OCT_RESOLUTION ).rg;
     }
 
-    static float ComputeVisibility(float distanceToSample, float2 meanVariance)
+    static float ComputeVisibility(float distanceToSample, float2 meanVariance, bool corrected)
     {
         float mean = meanVariance.x;           // Mean distance
         float variance = meanVariance.y;        // Variance of distance
@@ -170,7 +215,8 @@ struct DDGI
         if (distanceToSample <= mean * 1.01f)
             return 1.0f;
 
-        float delta = distanceToSample - mean;
+        // Use the same biased surface as the early-out, avoiding a discontinuity there.
+        float delta = distanceToSample - mean * (corrected ? 1.01f : 1.0f);
         float chebyshev = variance / (variance + delta * delta);
 
         // Sharpen the curve to reduce light leaking
@@ -189,22 +235,16 @@ struct DDGI
         return DDGIVolumeCount > 0;
     }
 
-    static DDGIVolume GetVolume( float3 positionWs )
+    static float3 Evaluate( DDGIVolume volume, float3 positionWs, float3 normalWs, float3 cameraDirection = float3(0,0,0) )
     {
-        [loop]
-        for ( uint volumeIdx = 0u; volumeIdx < DDGIVolumeCount; ++volumeIdx )
+        // Extend the boundary lighting through the outward blend region.
+        float3 positionPs = volume.ToProbeSpace( positionWs );
+        if ( volume.BlendDistance > 0.0f && (any( positionPs < volume.BBoxMin ) || any( positionPs > volume.BBoxMax )) )
         {
-            DDGIVolume candidate = DDGIVolumes[volumeIdx];
-
-            if ( candidate.Contains( positionWs ) )
-                return candidate;
+            positionPs = clamp( positionPs, volume.BBoxMin, volume.BBoxMax );
+            positionWs = mul( volume.ProbeToWorldTransform, float4( positionPs, 1.0f ) ).xyz;
         }
 
-        return {};
-    }
-
-    static float3 Evaluate( DDGIVolume volume, float3 positionWs, float3 normalWs, float3 cameraDirection = float3(0,0,1) )
-    {
         Texture3D irradianceTex = Bindless::GetTexture3D( volume.IrradianceTextureIndex );
         Texture3D distanceTex = Bindless::GetTexture3D( volume.DistanceTextureIndex );
 
@@ -215,10 +255,14 @@ struct DDGI
         float3 probeSpacePosition = volume.ToProbeSpace( biasedPosition );
 
         if ( any( probeSpacePosition < volume.BBoxMin ) || any( probeSpacePosition > volume.BBoxMax ) )
-            return 0;
+        {
+            if ( volume.BakeVersion != 1 && volume.BlendDistance <= 0.0f )
+                return 0;
 
-        // Unbiased position in probe space for distance/direction calculations
-        float3 positionPs = volume.ToProbeSpace( positionWs );
+            // A sampling bias must not turn a point inside the volume into a black border.
+            probeSpacePosition = clamp( probeSpacePosition, volume.BBoxMin, volume.BBoxMax );
+            biasedPosition = mul( volume.ProbeToWorldTransform, float4( probeSpacePosition, 1.0f ) ).xyz;
+        }
 
         int3 baseGridCoord = clamp( int3( (probeSpacePosition - volume.BBoxMin) * volume.ReciprocalSpacing ),
                                     int3( 0, 0, 0 ),
@@ -241,7 +285,7 @@ struct DDGI
             // Base probe position in probe space
             float3 probePos = volume.ProbeSpacing * float3( probeGridCoord ) + volume.BBoxMin;
 
-            // Apply relocation offset (offset is already in local/probe space)
+            // Relocation is stored in world space. Legacy bakes retain their original interpretation.
             bool probeActive = true;
             float3 relocationOffset = GetProbeRelocationOffset( volume, probeGridCoord, probeActive );
             
@@ -250,9 +294,20 @@ struct DDGI
                 continue;
 
             float3 relocatedProbePos = probePos + relocationOffset;
+            float3 samplePosition = positionPs;
+            float3 biasedSamplePosition = positionPs + normalWs * volume.NormalBias;
+
+            if ( volume.BakeVersion == 1 )
+            {
+                relocatedProbePos = mul( volume.ProbeToWorldTransform, float4( probePos, 1.0f ) ).xyz + relocationOffset;
+                samplePosition = positionWs;
+                biasedSamplePosition = biasedPosition;
+            }
 
             // Use relocated probe position for distance calculations
-            float3 probeToPoint = (positionPs - relocatedProbePos) + (normalWs * volume.NormalBias);
+            float3 probeToPoint = volume.BakeVersion == 1
+                ? biasedSamplePosition - relocatedProbePos
+                : (positionPs - relocatedProbePos) + (normalWs * volume.NormalBias);
             float distanceToProbe = length( probeToPoint );
             if ( distanceToProbe < 1e-5f )
                 continue;
@@ -262,11 +317,12 @@ struct DDGI
             float3 trilinear = lerp( 1.0f - alpha, alpha, float3( offset ) );
             float weight = 1.0f;
 
-            float3 trueDirectionToProbe = normalize( relocatedProbePos - positionPs );
+            float3 trueDirectionToProbe = normalize( relocatedProbePos - samplePosition );
             
 
-            float2 distanceMoments = SampleProbeDistance( volume, distanceTex, probeGridCoord, direction );
-            float visibility = ComputeVisibility( distanceToProbe, distanceMoments );
+            float maxDistance = max( 1.0f, volume.ProbeCellDiagonal + length( relocationOffset ) );
+            float2 distanceMoments = SampleProbeDistance( volume, distanceTex, probeGridCoord, direction, maxDistance );
+            float visibility = ComputeVisibility( distanceToProbe, distanceMoments, volume.BakeVersion == 1 );
             weight *= visibility;
 
             float3 irradiance = SampleProbeIrradiance( volume, irradianceTex, probeGridCoord, -normalWs );
@@ -287,7 +343,7 @@ struct DDGI
 
             // Smooth falloff that reaches zero at 90 degrees from normal
             // This prevents probes on the other side of walls from contributing
-            weight *= saturate(backfaceDot) + 0.01;
+            weight *= saturate(backfaceDot) + (volume.BakeVersion == 1 ? 0.0f : 0.01f);
 
             weight *= trilinear.x * trilinear.y * trilinear.z;
 
@@ -295,10 +351,50 @@ struct DDGI
             accumulatedWeight += weight;
         }
 
-        if ( accumulatedWeight <= 1e-5f )
+        if ( accumulatedWeight <= (volume.BakeVersion == 1 ? 0.0f : 1e-5f) )
             return 0;
 
-        return (0.5f * 3.14159265f) * (accumulatedIrradiance / accumulatedWeight);
+        // Integration already stores cosine-weighted radiance (irradiance / pi).
+        // Preserve the historical gain only for existing saved bakes.
+        float3 irradiance = volume.BakeVersion == 1
+            ? accumulatedIrradiance / accumulatedWeight
+            : (0.5f * 3.14159265f) * (accumulatedIrradiance / accumulatedWeight);
+
+        // Grade this volume's blended lighting. Neutral controls preserve the
+        // original result exactly; capture buffers always supply neutral values.
+        if ( volume.RuntimeContrast != 1.0f || volume.RuntimeSaturation != 1.0f )
+        {
+            float luminance = dot( irradiance, float3( 0.2126f, 0.7152f, 0.0722f ) );
+            irradiance = lerp( luminance.xxx, irradiance, volume.RuntimeSaturation );
+            irradiance = max( 0.0f, (irradiance - 0.18f) * volume.RuntimeContrast + 0.18f );
+        }
+
+        return irradiance * volume.RuntimeIntensity * max( volume.RuntimeTint, 0.0f );
+    }
+
+    // RGB is weighted irradiance; alpha is coverage for callers with fallback lighting.
+    // Preserve first-volume priority: a full-weight volume ends the search as before.
+    static float4 EvaluateVolumes( float3 positionWs, float3 normalWs, float3 cameraDirection = float3(0,0,0) )
+    {
+        float4 result = 0.0f;
+        [loop]
+        for ( uint volumeIdx = 0u; volumeIdx < DDGIVolumeCount; ++volumeIdx )
+        {
+            DDGIVolume volume = DDGIVolumes[volumeIdx];
+            if ( !volume.IsValid() )
+                continue;
+
+            float weight = volume.GetBlendWeight( positionWs ) * (1.0f - result.a);
+            if ( weight <= 0.0f )
+                continue;
+
+            result.rgb += Evaluate( volume, positionWs, normalWs, cameraDirection ) * weight;
+            result.a += weight;
+            if ( result.a >= 1.0f )
+                break;
+        }
+
+        return result;
     }
 };
 

@@ -11,6 +11,11 @@ internal class NetworkTable : IDisposable
 	/// </summary>
 	internal static bool IsReadingChanges { get; private set; }
 
+	/// <summary>
+	/// When the values being read from a snapshot were taken, on our clock. NaN outside of reading one.
+	/// </summary>
+	internal static double ReadTime { get; private set; } = double.NaN;
+
 	public class Entry : INetworkProxy
 	{
 		// We're making all of these fields because they're accessed on an extremely hot path.
@@ -345,6 +350,7 @@ internal class NetworkTable : IDisposable
 			try
 			{
 				IsReadingChanges = true;
+				ReadTime = snapshot.Time;
 				ReadEntryFromStream( slot, entry, ref bs );
 			}
 			catch ( Exception e )
@@ -354,6 +360,7 @@ internal class NetworkTable : IDisposable
 			finally
 			{
 				IsReadingChanges = false;
+				ReadTime = double.NaN;
 
 				// We're never dirty if we just had our value read.
 				entry.IsDirty = false;

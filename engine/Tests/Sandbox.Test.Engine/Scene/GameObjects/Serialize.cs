@@ -25,15 +25,11 @@ public class SerializeTest : SceneTest
 		_oldTypeLibrary = Game.TypeLibrary;
 		_oldNodeLibrary = Game.NodeLibrary;
 
-		TypeLibrary = new Sandbox.Internal.TypeLibrary();
-		TypeLibrary.AddAssembly( typeof( ModelRenderer ).Assembly, false );
-		TypeLibrary.AddAssembly( typeof( OldVersioningComponent ).Assembly, false );
-		TypeLibrary.AddAssembly( typeof( InheritedPropertyComponent ).Assembly, false );
+		// Engine + this assembly, built once and shared
+		TypeLibrary = SharedTypeLibrary.EngineAndTests;
 		JsonUpgrader.UpdateUpgraders( TypeLibrary );
 
-		NodeLibrary = new NodeLibrary( new TypeLoader( () => TypeLibrary ) );
-		NodeLibrary.AddAssembly( typeof( LogNodes ).Assembly );
-		NodeLibrary.AddAssembly( typeof( Scene ).Assembly ); // engine
+		NodeLibrary = SharedTypeLibrary.EngineAndTestsNodes;
 
 		Game.TypeLibrary = TypeLibrary;
 		Game.NodeLibrary = NodeLibrary;

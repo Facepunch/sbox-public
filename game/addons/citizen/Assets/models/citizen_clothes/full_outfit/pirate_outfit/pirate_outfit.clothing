@@ -11,16 +11,17 @@
   "Category": "Costume",
   "ConditionalModels": {},
   "Tags": null,
-  "Parent": null,
   "Model": "models/citizen_clothes/full_outfit/pirate_outfit/models/pirate_outfit.vmdl",
   "HumanAltModel": "models/citizen_clothes/full_outfit/pirate_outfit/models/pirate_outfit_m_human.vmdl",
   "HumanAltFemaleModel": "models/citizen_clothes/full_outfit/pirate_outfit/models/pirate_outfit_m_human.vmdl",
   "SkinMaterial": null,
   "EyesMaterial": null,
   "MaterialGroup": "",
+  "HeelHeight": 0,
   "SlotsUnder": "Chest, LeftArm, RightArm, LeftWrist, RightWrist, LeftThigh, RightThigh, LeftKnee, RightKnee, LeftShin, RightShin, LeftFoot, RightFoot",
   "SlotsOver": "Chest, LeftArm, RightArm, LeftWrist, RightWrist, LeftHand, RightHand, Groin, LeftThigh, RightThigh, LeftKnee, RightKnee, LeftShin, RightShin, LeftFoot, RightFoot, Waist",
   "HideBody": "Chest, Legs, Feet",
+  "DeformationMode": "Normal",
   "AllowTintSelect": false,
   "TintSelection": {
     "blend": "Linear",
@@ -37,7 +38,8 @@
   "Icon": {
     "Path": "models/citizen_clothes/full_outfit/pirate_outfit/pirate_outfit.clothing.png",
     "Mode": "CitizenSkin",
-    "PositionOffset": "-70.99995,0,-36"
+    "UsePositionOffset": false,
+    "PositionOffset": "-70.9999466,0,-36"
   },
   "__references": [],
   "__version": 0

@@ -95,7 +95,7 @@ public class Preview : Widget
 	private void ScenePreFrame()
 	{
 		var texture = Renderer.Texture;
-		if ( texture.Width == 0 || texture.Height == 0 )
+		if ( texture is null || texture.Width == 0 || texture.Height == 0 )
 			return;
 		var ratio = (float)texture.Width / texture.Height;
 		var pivotOffset = new Vector2( 0.5f, 0.5f ) - (SpriteEditor?.SelectedAnimation?.Origin ?? new Vector2( 0.5f, 0.5f ));

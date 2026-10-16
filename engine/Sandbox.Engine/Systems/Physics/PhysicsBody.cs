@@ -486,6 +486,17 @@ public sealed partial class PhysicsBody : IValid
 	public Rotation InertiaRotation => _body.InertiaRotation;
 
 	/// <summary>
+	/// Sets the multiplier for calculated inertia. Explicit inertia tensors take precedence.
+	/// </summary>
+	internal void ScaleInertia( float scale )
+	{
+		if ( !float.IsFinite( scale ) || scale <= 0 )
+			throw new ArgumentOutOfRangeException( nameof( scale ) );
+
+		_body.ScaleInertia( scale );
+	}
+
+	/// <summary>
 	/// Sets the inertia tensor using the given moments and rotation.
 	/// </summary>
 	public void SetInertiaTensor( Vector3 inertia, Rotation rotation ) => _body.SetInertiaTensor( inertia, rotation );

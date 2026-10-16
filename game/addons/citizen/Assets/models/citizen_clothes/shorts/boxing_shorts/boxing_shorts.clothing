@@ -21,6 +21,7 @@
   "SlotsUnder": "Groin, LeftThigh, RightThigh, LeftKnee, RightKnee, LeftShin, RightShin",
   "SlotsOver": 0,
   "HideBody": "Legs",
+  "DeformationMode": "Normal",
   "AllowTintSelect": false,
   "TintSelection": {
     "blend": "Linear",
@@ -37,6 +38,7 @@
   "Icon": {
     "Path": "models/citizen_clothes/shorts/boxing_shorts/boxing_shorts.clothing.png",
     "Mode": "Chest",
+    "UsePositionOffset": false,
     "PositionOffset": "100,0,-17"
   },
   "__references": [],

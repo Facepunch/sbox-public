@@ -82,7 +82,7 @@ public sealed class JamFinalDuel : Panel
 		var difference = Math.Abs( left.Votes - right.Votes );
 		var total = left.Votes + right.Votes;
 		var gap = total > 0 ? difference * 100f / total : 0;
-		Text( painter, difference == 0 ? "LEVEL" : $"Δ {difference:N0}", middle + 34 * scale,
+		Text( painter, difference == 0 ? "#menu.jam.level" : $"Δ {difference:N0}", middle + 34 * scale,
 			(high + low) * 0.5f, 60 * scale, 11 * scale, gold );
 
 		// Keep the identity marker beneath the comparison bracket, clear of both count labels.
@@ -97,11 +97,11 @@ public sealed class JamFinalDuel : Panel
 		painter.Stroke = Stroke.Solid( ink.WithAlpha( 0.23f ), scale );
 		painter.Line( new Vector2( leftX, centerY ), new Vector2( middle - radius - 10 * scale, centerY ) );
 		painter.Line( new Vector2( middle + radius + 10 * scale, centerY ), new Vector2( rightX, centerY ) );
-		Text( painter, Counting ? "···" : "VS", middle, centerY, 70 * scale, 29 * scale, gold * (1.25f + pulse * 0.2f) );
+		Text( painter, Counting ? "···" : "#menu.jam.vs", middle, centerY, 70 * scale, 29 * scale, gold * (1.25f + pulse * 0.2f) );
 
-		var caption = Winner is not null ? "FINAL RESULT" : Counting ? "VERIFYING RESULT" : difference == 0 ? "DEAD HEAT" : "VOTE ADVANTAGE";
+		var caption = Winner is not null ? "#menu.jam.final_result" : Counting ? "#menu.jam.verifying_result_text" : difference == 0 ? "#menu.jam.dead_heat" : "#menu.jam.vote_advantage";
 		Text( painter, caption, middle, centerY + 52 * scale, 220 * scale, 10 * scale, ink );
-		Text( painter, difference == 0 ? "TIED" : $"{(left.Votes > right.Votes ? "←" : "→")}  {difference:N0} VOTES", middle,
+		Text( painter, difference == 0 ? "#menu.jam.tied_text" : $"{(left.Votes > right.Votes ? "←" : "→")}  {difference:N0} VOTES", middle,
 			centerY + 76 * scale, 220 * scale, 19 * scale, gold );
 		Text( painter, $"{gap:0.0} POINT MARGIN", middle, centerY + 98 * scale, 220 * scale, 10 * scale, ink );
 
@@ -131,6 +131,6 @@ public sealed class JamFinalDuel : Panel
 	{
 		// TextStyle applies the panel scale itself; geometry above is already in drawing pixels.
 		painter.TextStyle = new TextStyle { FontName = "Inter", FontSize = size / ScaleToScreen, FontWeight = size >= 18 * ScaleToScreen ? 700 : 500, Color = color, Alignment = TextFlag.Center };
-		painter.Text( value, new Rect( x - width * 0.5f, y - size, width, size * 2 ) );
+		painter.Text( value.StartsWith( '#' ) ? Language.GetPhrase( value[1..] ) : value, new Rect( x - width * 0.5f, y - size, width, size * 2 ) );
 	}
 }

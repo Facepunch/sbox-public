@@ -1,0 +1,732 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:animgraph2:version{0f7898b8-5471-45c4-9867-cd9c46bcfdb5} -->
+{
+	_class = "CAnimationSubGraph"
+	m_nodeManager = 
+	{
+		_class = "CAnimNodeManager"
+		m_nodes = 
+		[
+			{
+				key = 
+				{
+					m_id = 2100000010
+				}
+				value = 
+				{
+					_class = "CGroupInputAnimNode"
+					m_sName = "Composed weapon pose"
+					m_vecPosition = [ 0.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 2100000010
+					}
+					m_sNote = ""
+					m_proxyItems = 
+					[
+						{
+							m_name = "Rifle composite"
+							m_outputID = 
+							{
+								m_id = 2100000041
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 110587761
+				}
+				value = 
+				{
+					_class = "CStateMachineAnimNode"
+					m_sName = "Rifle 2H - IK disable"
+					m_vecPosition = [ 900.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 110587761
+					}
+					m_sNote = "The tag will DISABLE IK."
+					m_states = 
+					[
+						{
+							_class = "CAnimState"
+							m_transitions = 
+							[
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CTagCondition"
+											m_comparisonOp = 0
+											m_tagID = 
+											{
+												m_id = 1159356952
+											}
+											m_comparisonValue = true
+										},
+									]
+									m_blendDuration = 0.25
+									m_destState = 
+									{
+										m_id = 1975384318
+									}
+									m_bReset = false
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CParameterAnimCondition"
+											m_comparisonOp = 0
+											m_paramID = 
+											{
+												m_id = 1521804861
+											}
+											m_comparisonValue = 
+											{
+												m_nType = 1
+												m_data = true
+											}
+										},
+									]
+									m_blendDuration = 0.0
+									m_destState = 
+									{
+										m_id = 1975384318
+									}
+									m_bReset = false
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+							]
+							m_tags = [  ]
+							m_tagBehaviors = [  ]
+							m_name = "Enable (default)"
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 396860990
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+							m_stateID = 
+							{
+								m_id = 1228346111
+							}
+							m_position = [ -112.0, -144.0 ]
+							m_bIsStartState = true
+							m_bIsEndtState = false
+							m_bIsPassthrough = false
+							m_bIsRootMotionExclusive = false
+							m_bAlwaysEvaluate = false
+						},
+						{
+							_class = "CAnimState"
+							m_transitions = 
+							[
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CTagCondition"
+											m_comparisonOp = 0
+											m_tagID = 
+											{
+												m_id = 564997034
+											}
+											m_comparisonValue = true
+										},
+										{
+											_class = "CTimeCondition"
+											m_comparisonOp = 3
+											m_comparisonValue = 0.1
+										},
+									]
+									m_blendDuration = 0.6
+									m_destState = 
+									{
+										m_id = 1228346111
+									}
+									m_bReset = false
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.646667, 0.0 ]
+										m_vControlPoint2 = [ 0.22, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+								{
+									_class = "CAnimStateTransition"
+									m_conditions = 
+									[
+										{
+											_class = "CTagCondition"
+											m_comparisonOp = 0
+											m_tagID = 
+											{
+												m_id = 1159356952
+											}
+											m_comparisonValue = false
+										},
+									]
+									m_blendDuration = 0.2
+									m_destState = 
+									{
+										m_id = 1228346111
+									}
+									m_bReset = false
+									m_resetCycleOption = "SameCycleAsSource"
+									m_flFixedCycleValue = 0.0
+									m_bBlendCycle = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_bForceFootPlant = false
+									m_bDisabled = false
+									m_bRandomTimeBetween = false
+									m_flRandomTimeStart = 0.0
+									m_flRandomTimeEnd = 0.0
+								},
+							]
+							m_tags = [  ]
+							m_tagBehaviors = [  ]
+							m_name = "Disable"
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 320027631
+								}
+								m_outputID = 
+								{
+									m_id = 2230000014
+								}
+							}
+							m_stateID = 
+							{
+								m_id = 1975384318
+							}
+							m_position = [ 240.0, -144.0 ]
+							m_bIsStartState = false
+							m_bIsEndtState = false
+							m_bIsPassthrough = false
+							m_bIsRootMotionExclusive = false
+							m_bAlwaysEvaluate = false
+						},
+					]
+					m_bBlockWaningTags = false
+					m_bLockStateWhenWaning = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 396860990
+				}
+				value = 
+				{
+					_class = "CTwoBoneIKAnimNode"
+					m_sName = "Left Arm IKrule"
+					m_vecPosition = [ 600.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 396860990
+					}
+					m_sNote = ""
+					m_inputConnection = 
+					{
+						m_nodeID = 
+						{
+							m_id = 320027631
+						}
+						m_outputID = 
+						{
+							m_id = 2230000014
+						}
+					}
+					m_ikChainName = "left_arm_IK"
+					m_endEffectorType = "IkEndEffector_Bone"
+					m_endEffectorAttachmentName = ""
+					m_targetType = "IkTarget_Bone"
+					m_attachmentName = ""
+					m_targetBoneName = "hand_L_to_R_ikrule"
+					m_targetParam = 
+					{
+						m_id = 4294967295
+					}
+					m_bMatchTargetOrientation = true
+					m_rotationParam = 
+					{
+						m_id = 4294967295
+					}
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 320027631
+				}
+				value = 
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Retriggerable fire"
+					m_vecPosition = [ 300.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 320027631
+					}
+					m_sNote = "Shared definition with an independent action state per weapon. The idle state remains always-evaluated so repeated shots can restart immediately. This is independent of reload and deploy state."
+					m_inputNodeID = 
+					{
+						m_id = 2230000010
+					}
+					m_outputNodeID = 
+					{
+						m_id = 2230000011
+					}
+					m_subGraphFilename = "models\\citizen_human\\animgraphs\\subgraphs\\action_fire.vsubgrph"
+					m_inputConnectionMap = 
+					[
+						{
+							key = 
+							{
+								m_id = 2230000012
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2100000010
+								}
+								m_outputID = 
+								{
+									m_id = 2100000041
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 2230000013
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 1520206981
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1520206981
+				}
+				value = 
+				{
+					_class = "CSequenceAnimNode"
+					m_sName = ""
+					m_vecPosition = [ 0.0, 220.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1520206981
+					}
+					m_sNote = ""
+					m_tagSpans = [  ]
+					m_sequenceName = "SMG_2H_Attack_01_delta"
+					m_playbackSpeed = 1.0
+					m_bLoop = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1801253016
+				}
+				value = 
+				{
+					_class = "CSelectorAnimNode"
+					m_sName = "Handedness"
+					m_vecPosition = [ 1200.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1801253016
+					}
+					m_sNote = ""
+					m_children = 
+					[
+						{
+							m_nodeID = 
+							{
+								m_id = 110587761
+							}
+							m_outputID = 
+							{
+								m_id = 4294967295
+							}
+						},
+						{
+							m_nodeID = 
+							{
+								m_id = 110587761
+							}
+							m_outputID = 
+							{
+								m_id = 4294967295
+							}
+						},
+						{
+							m_nodeID = 
+							{
+								m_id = 110587761
+							}
+							m_outputID = 
+							{
+								m_id = 4294967295
+							}
+						},
+					]
+					m_tags = 
+					[
+						{
+							m_id = 1487868526
+						},
+						{
+							m_id = 81905938
+						},
+						{
+							m_id = 1584013562
+						},
+					]
+					m_selectionSource = "SelectionSource_Enum"
+					m_boolParamID = 
+					{
+						m_id = 4294967295
+					}
+					m_enumParamID = 
+					{
+						m_id = 1677366560
+					}
+					m_intParamID = 
+					{
+						m_id = 4294967295
+					}
+					m_intParamMinValue = 0
+					m_intParamMaxValue = 2
+					m_blendDuration = 0.3
+					m_tagBehavior = "SelectorTagBehavior_OnWhileCurrent"
+					m_bResetOnChange = true
+					m_bSyncCyclesOnChange = false
+					m_blendCurve = 
+					{
+						m_vControlPoint1 = [ 0.314815, 0.0 ]
+						m_vControlPoint2 = [ 0.111111, 1.0 ]
+					}
+					m_intParamNames = [  ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 946508919
+				}
+				value = 
+				{
+					_class = "CSequenceAnimNode"
+					m_sName = ""
+					m_vecPosition = [ 0.0, 440.0 ]
+					m_nNodeID = 
+					{
+						m_id = 946508919
+					}
+					m_sNote = ""
+					m_tagSpans = 
+					[
+						{
+							_class = "CAnimTagSpan"
+							m_id = 
+							{
+								m_id = 1159356952
+							}
+							m_fStartCycle = 0.0
+							m_fDuration = 0.283333
+						},
+					]
+					m_sequenceName = "SMG_2H_Deploy_01_delta"
+					m_playbackSpeed = 1.0
+					m_bLoop = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 988157259
+				}
+				value = 
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Deploy transition"
+					m_vecPosition = [ 1500.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 988157259
+					}
+					m_sNote = "Shared definition with an independent action state per weapon. Preserves the existing deploy trigger, 0.05-second entry and 0.1-second return. Clip and handedness selection stay with the weapon."
+					m_inputNodeID = 
+					{
+						m_id = 2230000000
+					}
+					m_outputNodeID = 
+					{
+						m_id = 2230000001
+					}
+					m_subGraphFilename = "models\\citizen_human\\animgraphs\\subgraphs\\action_deploy.vsubgrph"
+					m_inputConnectionMap = 
+					[
+						{
+							key = 
+							{
+								m_id = 2230000002
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 1801253016
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 2230000003
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 1525507427
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1525507427
+				}
+				value = 
+				{
+					_class = "CSelectorAnimNode"
+					m_sName = "Handedness"
+					m_vecPosition = [ 300.0, 220.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1525507427
+					}
+					m_sNote = ""
+					m_children = 
+					[
+						{
+							m_nodeID = 
+							{
+								m_id = 946508919
+							}
+							m_outputID = 
+							{
+								m_id = 4294967295
+							}
+						},
+						{
+							m_nodeID = 
+							{
+								m_id = 946508919
+							}
+							m_outputID = 
+							{
+								m_id = 4294967295
+							}
+						},
+						{
+							m_nodeID = 
+							{
+								m_id = 946508919
+							}
+							m_outputID = 
+							{
+								m_id = 4294967295
+							}
+						},
+					]
+					m_tags = 
+					[
+						{
+							m_id = 1487868526
+						},
+						{
+							m_id = 81905938
+						},
+						{
+							m_id = 1584013562
+						},
+					]
+					m_selectionSource = "SelectionSource_Enum"
+					m_boolParamID = 
+					{
+						m_id = 4294967295
+					}
+					m_enumParamID = 
+					{
+						m_id = 1677366560
+					}
+					m_intParamID = 
+					{
+						m_id = 4294967295
+					}
+					m_intParamMinValue = 0
+					m_intParamMaxValue = 2
+					m_blendDuration = 0.1
+					m_tagBehavior = "SelectorTagBehavior_OnWhileCurrent"
+					m_bResetOnChange = false
+					m_bSyncCyclesOnChange = false
+					m_blendCurve = 
+					{
+						m_vControlPoint1 = [ 0.388889, 0.0 ]
+						m_vControlPoint2 = [ 0.148148, 1.0 ]
+					}
+					m_intParamNames = [  ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 91040128
+				}
+				value = 
+				{
+					_class = "CCommentAnimNode"
+					m_sName = "Rifle/SMG"
+					m_vecPosition = [ 0.0, -320.0 ]
+					m_nNodeID = 
+					{
+						m_id = 91040128
+					}
+					m_sNote = ""
+					m_commentText = ""
+					m_size = [ 576.0, 224.0 ]
+					m_color = [ 0, 50, 80, 255 ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 2231000021
+				}
+				value = 
+				{
+					_class = "CGroupOutputAnimNode"
+					m_sName = "Final weapon pose"
+					m_vecPosition = [ 1800.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 2231000021
+					}
+					m_sNote = ""
+					m_proxyItems = 
+					[
+						{
+							m_name = "Pose"
+							m_outputID = 
+							{
+								m_id = 2231000022
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 988157259
+								}
+								m_outputID = 
+								{
+									m_id = 2230000004
+								}
+							}
+						},
+					]
+				}
+			},
+		]
+	}
+	m_localParameters = [  ]
+	m_localTags = [  ]
+}

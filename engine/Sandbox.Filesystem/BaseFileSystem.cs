@@ -39,6 +39,9 @@ public class BaseFileSystem
 	internal bool PendingDispose = false;
 	internal bool TraceChanges = false;
 
+	// Zio's finalizer does no cleanup for sub/readonly/physical filesystems, it only throws on the finalizer thread if a Dispose failed part way
+	internal static void SuppressZioFinalizer( Zio.IFileSystem fs ) => GC.SuppressFinalize( fs );
+
 	internal virtual void Dispose()
 	{
 		lock ( FileWatch.WithChanges )
@@ -356,6 +359,7 @@ public class BaseFileSystem
 		// underneath gives back to sit under that, so it has to be spelled the way that one
 		// spells it - ask for "Code" on a disk that has "code" and it throws at us.
 		var sub = new Zio.FileSystems.SubFileSystem( system, ResolveCasing( path ), false, false );
+		SuppressZioFinalizer( sub );
 		return new BaseFileSystem( sub );
 	}
 

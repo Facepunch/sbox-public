@@ -59,10 +59,7 @@ public class HostMigrationTest
 	{
 		_oldTypeLibrary = Game.TypeLibrary;
 
-		Game.TypeLibrary = new Sandbox.Internal.TypeLibrary();
-		Game.TypeLibrary.AddAssembly( typeof( PrefabFile ).Assembly, false );
-		Game.TypeLibrary.AddAssembly( typeof( ModelRenderer ).Assembly, false );
-		Game.TypeLibrary.AddAssembly( typeof( HostListener ).Assembly, false );
+		Game.TypeLibrary = SharedTypeLibrary.EngineAndTests;
 
 		JsonUpgrader.UpdateUpgraders( Game.TypeLibrary );
 
@@ -109,6 +106,10 @@ public class HostMigrationTest
 		Assert.AreEqual( 1, handoff.Length, "The successor should receive exactly one handoff" );
 		Assert.IsTrue( handoff[0].Snapshot.NetworkObjects.OfType<ObjectCreateMsg>().Any( x => x.Guid == go.Id ), "The handoff snapshot should carry the networked objects" );
 		Assert.IsTrue( handoff[0].Snapshot.SceneData.Contains( hostOnly.Id.ToString() ), "The handoff snapshot should carry objects that are never networked" );
+
+		var payloads = clientAndHost.Client.Messages.Select( m => m.Payload ).ToList();
+		var access = payloads.FindIndex( p => p is HostAccessMsg );
+		Assert.IsTrue( access >= 0 && access < payloads.FindIndex( p => p is HostHandoffMsg ), "The successor gets the join rules before the snapshot" );
 
 		var joinSnapshot = SnapshotMsg.Create();
 		SceneNetworkSystem.Instance.GetSnapshot( clientAndHost.Client, ref joinSnapshot );

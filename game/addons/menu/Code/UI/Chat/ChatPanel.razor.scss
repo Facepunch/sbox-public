@@ -51,7 +51,6 @@ ChatPanel
 
 			&:hover
 			{
-				cursor: pointer;
 				background-color: rgba( white, 0.05 );
 			}
 
@@ -89,6 +88,7 @@ ChatPanel
 
 			.avatar
 			{
+				cursor: pointer;
 				width: 24px;
 				height: 24px;
 				min-width: 24px;
@@ -102,6 +102,16 @@ ChatPanel
 
 			.name
 			{
+				&.clickable
+				{
+					cursor: pointer;
+
+					&:hover
+					{
+						color: white;
+					}
+				}
+
 				color: #0094ff;
 				font-family: $font-heading;
 				font-weight: 800;

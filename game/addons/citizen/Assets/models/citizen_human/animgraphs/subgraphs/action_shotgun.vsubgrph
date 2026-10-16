@@ -1,0 +1,320 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:animgraph2:version{0f7898b8-5471-45c4-9867-cd9c46bcfdb5} -->
+{
+	_class = "CAnimationSubGraph"
+	m_nodeManager = 
+	{
+		_class = "CAnimNodeManager"
+		m_nodes = 
+		[
+			{
+				key = 
+				{
+					m_id = 2100000010
+				}
+				value = 
+				{
+					_class = "CGroupInputAnimNode"
+					m_sName = "Composed weapon pose"
+					m_vecPosition = [ 0.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 2100000010
+					}
+					m_sNote = ""
+					m_proxyItems = 
+					[
+						{
+							m_name = "Shotgun composite"
+							m_outputID = 
+							{
+								m_id = 2100000040
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 4294967295
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 320027631
+				}
+				value = 
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Retriggerable fire"
+					m_vecPosition = [ 300.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 320027631
+					}
+					m_sNote = "Shared definition with an independent action state per weapon. The idle state remains always-evaluated so repeated shots can restart immediately. This is independent of reload and deploy state."
+					m_inputNodeID = 
+					{
+						m_id = 2230000010
+					}
+					m_outputNodeID = 
+					{
+						m_id = 2230000011
+					}
+					m_subGraphFilename = "models\\citizen_human\\animgraphs\\subgraphs\\action_fire.vsubgrph"
+					m_inputConnectionMap = 
+					[
+						{
+							key = 
+							{
+								m_id = 2230000012
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 2100000010
+								}
+								m_outputID = 
+								{
+									m_id = 2100000040
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 2230000013
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 773026807
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 773026807
+				}
+				value = 
+				{
+					_class = "CSequenceAnimNode"
+					m_sName = ""
+					m_vecPosition = [ 0.0, 220.0 ]
+					m_nNodeID = 
+					{
+						m_id = 773026807
+					}
+					m_sNote = ""
+					m_tagSpans = [  ]
+					m_sequenceName = "Shotgun_2H_Attack_01_delta"
+					m_playbackSpeed = 1.0
+					m_bLoop = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1024859842
+				}
+				value = 
+				{
+					_class = "CTwoBoneIKAnimNode"
+					m_sName = "Left Arm IK"
+					m_vecPosition = [ 600.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1024859842
+					}
+					m_sNote = ""
+					m_inputConnection = 
+					{
+						m_nodeID = 
+						{
+							m_id = 320027631
+						}
+						m_outputID = 
+						{
+							m_id = 2230000014
+						}
+					}
+					m_ikChainName = "left_arm_IK"
+					m_endEffectorType = "IkEndEffector_Bone"
+					m_endEffectorAttachmentName = ""
+					m_targetType = "IkTarget_Bone"
+					m_attachmentName = ""
+					m_targetBoneName = "hand_L_to_R_ikrule"
+					m_targetParam = 
+					{
+						m_id = 4294967295
+					}
+					m_bMatchTargetOrientation = true
+					m_rotationParam = 
+					{
+						m_id = 4294967295
+					}
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 227555572
+				}
+				value = 
+				{
+					_class = "CSequenceAnimNode"
+					m_sName = ""
+					m_vecPosition = [ 0.0, 440.0 ]
+					m_nNodeID = 
+					{
+						m_id = 227555572
+					}
+					m_sNote = ""
+					m_tagSpans = [  ]
+					m_sequenceName = "Shotgun_2H_Deploy_01_delta"
+					m_playbackSpeed = 1.2
+					m_bLoop = false
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 988157259
+				}
+				value = 
+				{
+					_class = "CSubGraphAnimNode"
+					m_sName = "Deploy transition"
+					m_vecPosition = [ 900.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 988157259
+					}
+					m_sNote = "Shared definition with an independent action state per weapon. Preserves the existing deploy trigger, 0.05-second entry and 0.1-second return. Clip and handedness selection stay with the weapon."
+					m_inputNodeID = 
+					{
+						m_id = 2230000000
+					}
+					m_outputNodeID = 
+					{
+						m_id = 2230000001
+					}
+					m_subGraphFilename = "models\\citizen_human\\animgraphs\\subgraphs\\action_deploy.vsubgrph"
+					m_inputConnectionMap = 
+					[
+						{
+							key = 
+							{
+								m_id = 2230000002
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 1024859842
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+						{
+							key = 
+							{
+								m_id = 2230000003
+							}
+							value = 
+							{
+								m_nodeID = 
+								{
+									m_id = 227555572
+								}
+								m_outputID = 
+								{
+									m_id = 4294967295
+								}
+							}
+						},
+					]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 1463624701
+				}
+				value = 
+				{
+					_class = "CCommentAnimNode"
+					m_sName = "Shotgun"
+					m_vecPosition = [ 0.0, -320.0 ]
+					m_nNodeID = 
+					{
+						m_id = 1463624701
+					}
+					m_sNote = ""
+					m_commentText = ""
+					m_size = [ 576.0, 224.0 ]
+					m_color = [ 0, 50, 80, 255 ]
+				}
+			},
+			{
+				key = 
+				{
+					m_id = 2231000031
+				}
+				value = 
+				{
+					_class = "CGroupOutputAnimNode"
+					m_sName = "Final weapon pose"
+					m_vecPosition = [ 1200.0, 0.0 ]
+					m_nNodeID = 
+					{
+						m_id = 2231000031
+					}
+					m_sNote = ""
+					m_proxyItems = 
+					[
+						{
+							m_name = "Pose"
+							m_outputID = 
+							{
+								m_id = 2231000032
+							}
+							m_inputConnection = 
+							{
+								m_nodeID = 
+								{
+									m_id = 988157259
+								}
+								m_outputID = 
+								{
+									m_id = 2230000004
+								}
+							}
+						},
+					]
+				}
+			},
+		]
+	}
+	m_localParameters = [  ]
+	m_localTags = [  ]
+}

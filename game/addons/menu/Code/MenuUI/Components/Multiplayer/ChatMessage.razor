@@ -1,0 +1,17 @@
+@namespace MenuProject.MenuUI.Components.Multiplayer
+@inherits Panel
+
+<root>
+	<div class="chat-avatar" style="background-image: url(avatar:@Sender.Id)" onclick=@ShowSender onrightclick=@ShowSender></div>
+	<div class="chat-message-body">
+		<label class="chat-name" onclick=@ShowSender onrightclick=@ShowSender>@Sender.Name</label>
+		@if ( PartyId == 0 )
+		{
+			<label>@Text</label>
+		}
+		else
+		{
+			<PartyInvitationCard PartyId=@PartyId />
+		}
+	</div>
+</root>

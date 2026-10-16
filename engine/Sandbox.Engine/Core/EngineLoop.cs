@@ -34,6 +34,8 @@ internal static class EngineLoop
 			g_pEngineServiceMgr.ExitMainLoop();
 		}
 
+		GameWindow.Current?.CompleteStartup();
+
 		LoopFrames++;
 
 		double time = RealTime.NowDouble;
@@ -93,8 +95,9 @@ internal static class EngineLoop
 			}
 		}
 
-		PerformanceStats.Timings.Idle.AddMilliseconds( framePacer.Wait( FrameRateLimit.FramesPerSecond ) );
-		DebugOverlay.FrameTimeGraph.Sample( frameTimer.ElapsedMilliSeconds );
+		var idleMs = framePacer.Wait( FrameRateLimit.FramesPerSecond );
+		PerformanceStats.Timings.Idle.AddMilliseconds( idleMs );
+		PerfHub.SampleFrame( frameTimer.ElapsedMilliSeconds, idleMs );
 
 		previousTime = time;
 	}
@@ -192,7 +195,7 @@ internal static class EngineLoop
 		//
 		if ( !Application.IsHeadless )
 		{
-			using ( IGameInstanceDll.Current?.PushScope() )
+			using ( IGameInstanceDll.Current?.PushScope() ?? default )
 			{
 				VoiceManager.Tick();
 				Sandbox.TextRendering.Tick();
@@ -218,6 +221,9 @@ internal static class EngineLoop
 			SimulateUI();
 		}
 
+		// After the game and menu UI so it draws over them. Outside the UI scope so it doesn't count as the game's UI.
+		PerfHub.Simulate();
+
 		// Give each sound handle an opportunity to for a frame think
 		using ( PerformanceStats.Timings.Audio.Scope() )
 		{
@@ -242,7 +248,7 @@ internal static class EngineLoop
 	{
 		using ( PerformanceStats.Timings.Async.Scope() )
 		{
-			using var sceneScope = IGameInstanceDll.Current?.PushScope();
+			using var sceneScope = IGameInstanceDll.Current?.PushScope() ?? default;
 
 			ThreadSafe.AssertIsMainThread();
 			MainThread.RunQueues();
@@ -325,9 +331,15 @@ internal static class EngineLoop
 
 		using var _outputScope = _clientOutput.Start();
 
+		// Choose g_flTime before rendering, independently of temporary menu and preview scene scopes.
+		var renderTime = Game.IsPlaying && GlobalContext.Game.ActiveScene is { IsValid: true } gameScene
+			? (float)gameScene.TimeNow
+			: RealTime.Now;
+
+		CSceneSystem.SetNextRenderTime( renderTime );
+
 		// Flush envmaps in their own view scope before we do any view rendering
-		foreach ( var scene in Scene.All.Where( x => x.Active ) )
-			scene.RenderEnvmaps();
+		Scene.RenderAllEnvmaps();
 
 		// r_managed_scene_compare renders to a bitmap, which has to happen before any views are rendering
 		Rendering.ManagedSceneRendering.BeforeRenderingViews();

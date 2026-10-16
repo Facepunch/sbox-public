@@ -18,16 +18,12 @@ internal static class ThumbLoader
 	{
 		try
 		{
-			if ( Game.Resources.Get<Texture>( filename ) is { } cached )
-				return cached;
-
 			var placeholder = Texture.Create( 1, 1 )
 				.WithName( "thumb" )
 				.WithData( new byte[4] { 0, 0, 0, 0 } )
 				.Finish();
 
 			placeholder.IsLoaded = false;
-			placeholder.RegisterWeakResourceId( filename );
 
 			_ = LoadIntoTexture( filename, placeholder );
 

@@ -56,6 +56,10 @@ public sealed partial class PlayerController : Component
 			if ( !result.Hit )
 				return;
 
+			// Walkable slopes are handled by ground movement
+			if ( Mode.IsStandableSurface( result ) )
+				return;
+
 			if ( StepDebug )
 			{
 				DebugOverlay.Line( a, b, duration: 10, color: Color.Green );
@@ -139,7 +143,7 @@ public sealed partial class PlayerController : Component
 				return;
 
 			// didn't step up enough to bother - returning here avoids getting stuck on corners when there's a ceiling above (due to RestoreStep preventing moving forward)
-			if ( (result.EndPosition - Body.WorldPosition).Dot( up ).AlmostEqual( 0, 0.015f ) )
+			if ( (result.EndPosition - Body.WorldPosition).Dot( up ) <= _skin )
 				return;
 
 			_didstep = true;

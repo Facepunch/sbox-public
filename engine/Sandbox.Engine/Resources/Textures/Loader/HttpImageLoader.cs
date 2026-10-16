@@ -27,12 +27,8 @@ internal static class ImageUrl
 	{
 		try
 		{
-			if ( Game.Resources.Get<Texture>( filename ) is { } cached )
-				return cached;
-
 			var placeholder = Texture.Create( 1, 1 ).WithName( "httpimg-placeholder" ).WithData( new byte[4] { 0, 0, 0, 0 } ).Finish();
 			_ = placeholder.ReplacementAsync( LoadFromUrl( filename ) );
-			placeholder.RegisterWeakResourceId( filename );
 			return placeholder;
 		}
 		catch ( System.Exception e )

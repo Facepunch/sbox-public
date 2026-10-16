@@ -149,7 +149,8 @@ internal partial class NetworkSystem
 
 	async Task On_Handshake_ClientInfo( UserInfo msg, Connection source, Guid msgId )
 	{
-		if ( source.IsHost )
+		// Only the host lets people in. A peer would check them against rules it doesn't have.
+		if ( !IsHost || source.IsHost )
 			return;
 
 		if ( msg.HandshakeId != source.HandshakeId )
@@ -185,21 +186,19 @@ internal partial class NetworkSystem
 		Log.Info( $"{msg.Name} [{msg.SteamId}] is connecting" );
 
 		//
-		// If the lobby is set to FriendsOnly, only allow players who are Steam friends with the host.
+		// Private and friends-only lobbies. Steam lets anyone with the lobby id join it, so this is
+		// the only thing keeping people out. Only lobby connections have a Steam Id we can trust; the
+		// rest are loopback (local instances), or a dedicated server's, which this doesn't cover.
 		//
-		if ( !Application.IsDedicatedServer && Config.Privacy == LobbyPrivacy.FriendsOnly )
+		if ( !Application.IsDedicatedServer && source is SteamLobbyConnection )
 		{
-			var hostSteamId = Utility.Steam.SteamId;
-
-			// Host is always allowed
-			if ( msg.SteamId != hostSteamId.Value && !new Friend( msg.SteamId ).IsFriend )
+			if ( !Access.CanJoin( msg.SteamId, out var privacyDenial ) )
 			{
-				Log.Info( $"Kicked {msg.Name} [{msg.SteamId}] - not friends with host [{hostSteamId}]" );
-				source.Kick( "This lobby is Friends Only." );
+				Log.Info( $"Kicked {msg.Name} [{msg.SteamId}] - not allowed into this {Access.Privacy} lobby" );
+				source.Kick( privacyDenial );
 				return;
 			}
 		}
-
 
 		var denialReason = "";
 
@@ -208,6 +207,12 @@ internal partial class NetworkSystem
 			Log.Info( $"Kicking {msg.Name} [{msg.SteamId}] - {denialReason}" );
 			source.Kick( denialReason );
 			return;
+		}
+
+		// They're in, so they can come back - even after the host has changed
+		if ( source is SteamLobbyConnection )
+		{
+			Access.Admit( msg.SteamId );
 		}
 
 		source.PreInfo = null;
@@ -289,7 +294,7 @@ internal partial class NetworkSystem
 
 	Task On_Handshake_RequestMountedVPKs( RequestMountedVPKs msg, Connection source, Guid msgId )
 	{
-		if ( source.IsHost )
+		if ( !IsHost || source.IsHost )
 			return Task.CompletedTask;
 
 		if ( msg.HandshakeId != source.HandshakeId )
@@ -341,7 +346,7 @@ internal partial class NetworkSystem
 
 	Task On_Handshake_RequestSnapshot( RequestInitialSnapshot msg, Connection source, Guid msgId )
 	{
-		if ( source.IsHost )
+		if ( !IsHost || source.IsHost )
 			return Task.CompletedTask;
 
 		if ( msg.HandshakeId != source.HandshakeId )
@@ -428,7 +433,7 @@ internal partial class NetworkSystem
 
 	Task On_Handshake_ClientReady( ClientReady msg, Connection source, Guid msgId )
 	{
-		if ( source.IsHost )
+		if ( !IsHost || source.IsHost )
 			return Task.CompletedTask;
 
 		if ( msg.HandshakeId != source.HandshakeId )
@@ -462,7 +467,7 @@ internal partial class NetworkSystem
 
 	Task On_Handshake_Restart( RestartHandshakeMsg msg, Connection source, Guid msgId )
 	{
-		if ( source.IsHost )
+		if ( !IsHost || source.IsHost )
 			return Task.CompletedTask;
 
 		StartHandshake( source );
@@ -501,6 +506,9 @@ internal partial class NetworkSystem
 
 		Connection.Local.State = Connection.ChannelState.Connected;
 		source.State = Connection.ChannelState.Connected;
+
+		// Before the party sees we're in and follows
+		InviteParty();
 
 		return Task.CompletedTask;
 	}

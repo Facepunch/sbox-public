@@ -18,12 +18,6 @@ PackageChanges
         font-family: "Material Icons";
     }
 
-    // Just the tab's gap under the heading - not the big margin the header brings elsewhere
-    PackageTabHeader
-    {
-        margin-bottom: 0;
-    }
-
     .state
     {
         flex-grow: 1;
@@ -67,12 +61,14 @@ PackageChanges
             border: 2px solid $front-card-deep;
         }
 
-        // Runs from this dot on down to the next one
+        // Runs from this dot on down to the next one - on past its own row into the next, as that one's
+        // dot sits 20 down from its top, so it stops the same 4 short of it as it starts under this one
         .line
         {
             flex-grow: 1;
             width: 2px;
             margin-top: 4px;
+            margin-bottom: -16px;
             background-color: $front-hairline;
         }
     }
@@ -88,6 +84,12 @@ PackageChanges
     .update.last .rail .line
     {
         background-color: transparent;
+    }
+
+    // A card swapped for its room or back - gone at once, rather than beside the other for a frame
+    .update > .card:outro
+    {
+        display: none;
     }
 
     .card
@@ -192,31 +194,7 @@ PackageChanges
     // "3 months ago" in a pill, a clock in front - like the loading screen's latest update
     .ago
     {
-        flex-direction: row;
-        flex-shrink: 0;
-        align-items: center;
-        gap: 4px;
-        height: 20px;
-        padding: 0 8px 0 6px;
-        border-radius: 999px;
-        background-color: rgba( 255, 255, 255, 0.07 );
-
-        i
-        {
-            width: 12px;
-            height: 12px;
-            font-size: 12px;
-            text-align: center;
-            color: $front-secondary;
-        }
-
-        label
-        {
-            font-family: $front-font;
-            font-size: 11px;
-            font-weight: 600;
-            color: $front-secondary;
-        }
+        @include front-meta-pill;
     }
 
     //

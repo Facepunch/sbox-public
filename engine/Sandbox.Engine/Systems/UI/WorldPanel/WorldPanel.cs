@@ -58,6 +58,15 @@
 		/// </summary>
 		public float MaxInteractionDistance { get; set; }
 
+		/// <summary>
+		/// Whether the panel is affected by lighting.
+		/// </summary>
+		public bool Lighting
+		{
+			get => SceneObject.Lighting;
+			set => SceneObject.Lighting = value;
+		}
+
 		public WorldPanel( SceneWorld world ) : this( world, Sandbox.Engine.GlobalContext.Current.UISystem )
 		{
 		}

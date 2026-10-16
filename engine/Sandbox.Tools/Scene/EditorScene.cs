@@ -242,11 +242,10 @@ public static class EditorScene
 		playableSession ??= FindPlayableSession();
 		if ( playableSession is null ) return;
 
-		SceneLoadOptions options = null;
-		if ( !playMode && !SceneSource.PreparePlay( playableSession, out options ) )
+		var current = playMode ? null : SceneSource.LoadForPlay( playableSession );
+		if ( !playMode && current is null )
 			return;
 
-		using var runtimePreparation = options?.RuntimePreparationScope();
 		OnPlayStore();
 
 		Game.IsPlaying = true;
@@ -287,17 +286,12 @@ public static class EditorScene
 			Game.ActiveScene.Name = name;
 			Game.ActiveScene.StartLoading();
 
-			if ( options is null )
-			{
-				options = new SceneLoadOptions();
-				options.SetScene( playableSession.Scene.CreateSceneFile() );
-			}
-			using var scenePreparation = options.RuntimePreparationScope();
-			var prepared = options.PrepareRuntime();
-			if ( prepared )
-				Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnHostPreInitialize( options.GetSceneFile() ) );
+			var options = new SceneLoadOptions();
+			options.SetScene( current );
 
-			if ( !prepared || !Game.ActiveScene.Load( options ) )
+			Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnHostPreInitialize( options.GetSceneFile() ) );
+
+			if ( !Game.ActiveScene.Load( options ) )
 			{
 				Game.ActiveScene.Destroy();
 				Game.ActiveScene = null;

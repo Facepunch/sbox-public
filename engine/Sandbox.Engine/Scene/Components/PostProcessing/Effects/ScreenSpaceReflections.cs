@@ -7,35 +7,33 @@ namespace Sandbox;
 [Icon( "local_mall" )]
 public class ScreenSpaceReflections : BasePostProcess<ScreenSpaceReflections>
 {
-	int Frame;
-
-	Texture BlueNoise { get; set; } = Texture.Load( "textures/dev/blue_noise_256.vtex" );
-
 	[ConVar( "r_ssr_downsample_ratio", Help = "Default SSR resolution scale (0 = Disabled, 1 = Full, 2 = Quarter, 4 = Sixteeneth)." )]
 	internal static int DownsampleRatio { get; set; } = 2;
 
+	// The trace lands in mip log2(ratio), so only powers of two that fit the chain line up
+	static int Ratio => (int)Math.Min( System.Numerics.BitOperations.RoundUpToPowerOf2( (uint)DownsampleRatio ), 1u << (ReflectionMips - 1) );
+
 	/// <summary>
-	/// Stop tracing rays after this roughness value. 
+	/// Stop tracing rays after this roughness value.
 	/// This is meant to be used to avoid tracing rays for very rough surfaces which are unlikely to have any reflections.
 	/// This is a performance optimization.
 	/// </summary>
 	public float RoughnessCutoff => 0.5f;
 
-	readonly bool Denoise = true;
+	/// <summary>
+	/// Compositing samples mip roughness² * 4 of the result, so rougher surfaces get a blurrier reflection
+	/// </summary>
+	const int ReflectionMips = 5;
 
 	enum Passes
 	{
-		ClassifyTiles,
-		Intersect,
-		DenoiseReproject,
-		DenoisePrefilter,
-		DenoiseResolveTemporal,
-		BilateralUpscale
+		Intersect = 1,
+		BilateralUpscale = 2
 	}
 
 	enum DispatchArgsEntry
 	{
-		IntersectAndDenoise = 0,
+		Intersect = 0,
 		BilateralUpscale = 1
 	}
 
@@ -45,16 +43,29 @@ public class ScreenSpaceReflections : BasePostProcess<ScreenSpaceReflections>
 	private static ComputeShader ShaderCs = new ComputeShader( "screen_space_reflections_cs" );
 	private static ComputeShader ClassifyShaderCs = new ComputeShader( "screen_space_reflections_classify_cs" );
 
+	static readonly ProfilingSampler[] PassProfiles =
+	[
+		new( "SSR classify tiles" ),
+		new( "SSR intersect" ),
+		new( "SSR bilateral upscale" )
+	];
+
 	private GpuBuffer<uint> ClassifiedTilesBuffer;
 	private GpuBuffer<GpuBuffer.IndirectDispatchArguments> DispatchArgsBuffer;
+
+	private static readonly GpuBuffer.IndirectDispatchArguments[] InitialDispatchArgs =
+	[
+		new() { ThreadGroupCountX = 0, ThreadGroupCountY = 1, ThreadGroupCountZ = 1 },
+		new() { ThreadGroupCountX = 0, ThreadGroupCountY = 1, ThreadGroupCountZ = 1 }
+	];
 
 	private void EnsureClassifiedTileBuffers( Texture referenceTexture )
 	{
 		var width = Math.Max( 1, referenceTexture.Width );
 		var height = Math.Max( 1, referenceTexture.Height );
 
-		var ssrWidth = Math.Max( 1, (int)MathF.Ceiling( width / (float)DownsampleRatio ) );
-		var ssrHeight = Math.Max( 1, (int)MathF.Ceiling( height / (float)DownsampleRatio ) );
+		var ssrWidth = Math.Max( 1, (int)MathF.Ceiling( width / (float)Ratio ) );
+		var ssrHeight = Math.Max( 1, (int)MathF.Ceiling( height / (float)Ratio ) );
 
 		var groupsX = (ssrWidth + 7) / 8;
 		var groupsY = (ssrHeight + 7) / 8;
@@ -75,13 +86,8 @@ public class ScreenSpaceReflections : BasePostProcess<ScreenSpaceReflections>
 		base.OnEnabled();
 
 		cmdLastframe.Reset();
-		cmdLastframe.Attributes.GrabFrameTexture( "LastFrameColor" );
-	}
-
-	protected override void OnDisabled()
-	{
-		base.OnDisabled();
-		Frame = 0;
+		// The cone blur samples the mip matching its footprint, taps along the lobe hide the box filter
+		cmdLastframe.Attributes.GrabFrameTexture( "LastFrameColor", Graphics.DownsampleMethod.GGX, maxMips: 6 );
 	}
 
 	/// <summary>
@@ -90,215 +96,80 @@ public class ScreenSpaceReflections : BasePostProcess<ScreenSpaceReflections>
 	/// </summary>
 	internal override bool NeedsDepthNormals => true;
 
+	// Reads prepass depth/normals and its own history, never AO or contact shadows. Clears require the graphics queue.
+	internal override PostProcessQueue? EarlyQueue => PostProcessQueue.Graphics;
+
 	public override void Render()
 	{
 		cmd.Reset();
 
-		bool pingPong = (Frame++ % 2) == 0;
-
 		if ( DownsampleRatio < 1 )
 			return;
 
-		bool needsUpscale = DownsampleRatio != 1;
-		var lastFrameRt = cmdLastframe.Attributes.GetRenderTarget( "LastFrameColor" )?.ColorTarget ?? Texture.Transparent;
-		EnsureClassifiedTileBuffers( lastFrameRt );
+		bool needsUpscale = Ratio != 1;
+		var lastFrame = cmdLastframe.Attributes.GetRenderTarget( "LastFrameColor" )?.ColorTarget ?? Texture.Transparent;
+		EnsureClassifiedTileBuffers( lastFrame );
+		DispatchArgsBuffer.SetData( InitialDispatchArgs );
 
-		GpuBuffer.IndirectDispatchArguments[] intersectDispatchArgsUpload = [
-			// Entry 0: intersect/denoise (1 group per classified tile)
-			new()
-			{
-				ThreadGroupCountX = 0,
-				ThreadGroupCountY = 1,
-				ThreadGroupCountZ = 1
-			},
-			// Entry 1: bilateral upscale (groupsPerTile groups per classified tile)
-			new()
-			{
-				ThreadGroupCountX = 0,
-				ThreadGroupCountY = 1,
-				ThreadGroupCountZ = 1
-			}
-		];
+		// The trace writes straight into the mip matching its resolution (half res = mip 1), the upscale fills mip 0 from it
+		int traceMip = System.Numerics.BitOperations.Log2( (uint)Ratio );
+		var reflection = cmd.GetRenderTarget( "SSR_Reflection", 1, ImageFormat.RGBA16161616F, ImageFormat.None, numMips: ReflectionMips );
+		var guide = cmd.GetRenderTarget( "SSR_Guide", Ratio, ImageFormat.RGBA16161616F, ImageFormat.None );
 
-		DispatchArgsBuffer.SetData( intersectDispatchArgsUpload );
-
-		cmd.Attributes.Set( "BlueNoiseIndex", BlueNoise.Index );
-
-		var Radiance0 = cmd.GetRenderTarget( "Radiance0", ImageFormat.RGBA16161616F, sizeFactor: DownsampleRatio );
-		var Radiance1 = cmd.GetRenderTarget( "Radiance1", ImageFormat.RGBA16161616F, sizeFactor: DownsampleRatio );
-
-		var Variance0 = cmd.GetRenderTarget( "Variance0", ImageFormat.R16F, sizeFactor: DownsampleRatio );
-		var Variance1 = cmd.GetRenderTarget( "Variance1", ImageFormat.R16F, sizeFactor: DownsampleRatio );
-
-		var SampleCount0 = cmd.GetRenderTarget( "Sample Count0", ImageFormat.R16F, sizeFactor: DownsampleRatio );
-		var SampleCount1 = cmd.GetRenderTarget( "Sample Count1", ImageFormat.R16F, sizeFactor: DownsampleRatio );
-
-		var AverageRadiance0 = cmd.GetRenderTarget( "Average Radiance0", ImageFormat.RGBA8888, sizeFactor: 8 * DownsampleRatio );
-		var AverageRadiance1 = cmd.GetRenderTarget( "Average Radiance1", ImageFormat.RGBA8888, sizeFactor: 8 * DownsampleRatio );
-
-		var ReprojectedRadiance = cmd.GetRenderTarget( "Reprojected Radiance", ImageFormat.RGBA16161616F, sizeFactor: DownsampleRatio );
-
-		var RayLength = cmd.GetRenderTarget( "Ray Length", ImageFormat.R16F, sizeFactor: DownsampleRatio );
-		var DepthHistory = cmd.GetRenderTarget( "Previous Depth", ImageFormat.R16F, sizeFactor: DownsampleRatio );
-		var GBufferHistory = cmd.GetRenderTarget( "Previous GBuffer", ImageFormat.RGBA16161616F, sizeFactor: DownsampleRatio );
-		var FullResRadiance = needsUpscale ? cmd.GetRenderTarget( "Radiance Full", ImageFormat.RGBA16161616F ) : default;
-
-		var radiancePing = pingPong ? Radiance0 : Radiance1;
-		var radianceHistory = pingPong ? Radiance1 : Radiance0;
-
-		var variancePing = pingPong ? Variance0 : Variance1;
-		var varianceHistory = pingPong ? Variance1 : Variance0;
-
-		var samplePing = pingPong ? SampleCount0 : SampleCount1;
-		var sampleHistory = pingPong ? SampleCount1 : SampleCount0;
-
-		var averagePing = pingPong ? AverageRadiance0 : AverageRadiance1;
-
-		// Common settings for all passes
-		cmd.Attributes.Set( "PreviousFrameColorIndex", lastFrameRt.Index );
-		cmd.Attributes.Set( "DepthHistoryIndex", DepthHistory.ColorIndex );
-		cmd.Attributes.Set( "GBufferHistoryIndex", GBufferHistory.ColorIndex );
-
-		cmd.Attributes.Set( "Radiance0Index", Radiance0.ColorIndex );
-		cmd.Attributes.Set( "Radiance1Index", Radiance1.ColorIndex );
-		cmd.Attributes.Set( "Variance0Index", Variance0.ColorIndex );
-		cmd.Attributes.Set( "Variance1Index", Variance1.ColorIndex );
-		cmd.Attributes.Set( "SampleCount0Index", SampleCount0.ColorIndex );
-		cmd.Attributes.Set( "SampleCount1Index", SampleCount1.ColorIndex );
-		cmd.Attributes.Set( "AverageRadiance0Index", AverageRadiance0.ColorIndex );
-		cmd.Attributes.Set( "AverageRadiance1Index", AverageRadiance1.ColorIndex );
-		cmd.Attributes.Set( "ReprojectedRadianceIndex", ReprojectedRadiance.ColorIndex );
-		cmd.Attributes.Set( "PingIs0", pingPong );
-
-		cmd.Attributes.Set( "RayLength", RayLength.ColorTexture );
+		cmd.Attributes.Set( "PreviousFrameColorIndex", lastFrame.Index );
 		cmd.Attributes.Set( "RoughnessCutoff", RoughnessCutoff );
+		cmd.Attributes.Set( "Scale", 1.0f / Ratio );
+		cmd.Attributes.Set( "ScaleInv", (float)Ratio );
 
-		cmd.Attributes.Set( "ClassifiedTiles", ClassifiedTilesBuffer );
-
-		// Downsampled size info
-		cmd.Attributes.Set( "Scale", 1.0f / (float)DownsampleRatio );
-		cmd.Attributes.Set( "ScaleInv", (float)DownsampleRatio );
+		cmd.ResourceBarrierTransition( lastFrame, ResourceState.NonPixelShaderResource );
 
 		// Clear since we are indirect
-		cmd.Clear( radiancePing, Color.Transparent );
-		if ( needsUpscale )
-			cmd.Clear( FullResRadiance, Color.Transparent );
+		cmd.Clear( reflection, Color.Transparent );
+		cmd.Clear( guide, Color.Transparent );
 
-		// The previous-frame color is grabbed by cmdLastframe (AfterOpaque) and sampled here as an SRV.
-		// It's a persistent pooled texture, so its layout carries over from last frame's grab - transition
-		// it to a shader-read state before the compute passes read it. A bindless sample won't do this for us.
-		cmd.ResourceBarrierTransition( lastFrameRt, ResourceState.NonPixelShaderResource );
-
-		foreach ( Passes pass in Enum.GetValues( typeof( Passes ) ) )
+		// Classify tiles
+		using ( cmd.ProfileScope( PassProfiles[0] ) )
 		{
-			if ( !Denoise && pass > Passes.Intersect )
-				break;
-
-			switch ( pass )
-			{
-				case Passes.ClassifyTiles:
-					cmd.ResourceBarrierTransition( ClassifiedTilesBuffer, ResourceState.UnorderedAccess );
-					cmd.ResourceBarrierTransition( DispatchArgsBuffer, ResourceState.UnorderedAccess );
-					cmd.Attributes.Set( "ClassifiedTilesRW", ClassifiedTilesBuffer );
-					cmd.Attributes.Set( "IntersectDispatchArgsRW", DispatchArgsBuffer );
-					cmd.DispatchCompute( ClassifyShaderCs, ReprojectedRadiance.Size );
-					cmd.ResourceBarrierTransition( ClassifiedTilesBuffer, ResourceState.UnorderedAccess, ResourceState.NonPixelShaderResource );
-					cmd.ResourceBarrierTransition( DispatchArgsBuffer, ResourceState.UnorderedAccess, ResourceState.IndirectArgument );
-					continue;
-
-				case Passes.Intersect:
-					cmd.Attributes.Set( "OutRadiance", radiancePing.ColorTexture );
-					break;
-
-				case Passes.DenoiseReproject:
-					cmd.Attributes.Set( "OutReprojectedRadiance", ReprojectedRadiance.ColorTexture );
-					cmd.Attributes.Set( "OutAverageRadiance", averagePing.ColorTexture );
-					cmd.Attributes.Set( "OutVariance", variancePing.ColorTexture );
-					cmd.Attributes.Set( "OutSampleCount", samplePing.ColorTexture );
-					break;
-
-				case Passes.DenoisePrefilter:
-					cmd.Attributes.Set( "OutRadiance", radianceHistory.ColorTexture );
-					cmd.Attributes.Set( "OutVariance", varianceHistory.ColorTexture );
-					cmd.Attributes.Set( "OutSampleCount", sampleHistory.ColorTexture );
-					break;
-
-				case Passes.DenoiseResolveTemporal:
-					cmd.Attributes.Set( "OutRadiance", radiancePing.ColorTexture );
-					cmd.Attributes.Set( "OutVariance", variancePing.ColorTexture );
-					cmd.Attributes.Set( "OutSampleCount", samplePing.ColorTexture );
-
-					cmd.Attributes.Set( "GBufferHistoryRW", GBufferHistory.ColorTexture );
-					cmd.Attributes.Set( "DepthHistoryRW", DepthHistory.ColorTexture );
-					break;
-
-				case Passes.BilateralUpscale:
-					if ( !needsUpscale )
-					{
-						continue;
-					}
-
-					cmd.Attributes.Set( "OutRadiance", FullResRadiance.ColorTexture );
-					cmd.Attributes.SetCombo( "D_PASS", (int)Passes.BilateralUpscale );
-					// Use bilateral entry which has groupsPerTile groups per classified tile.
-					cmd.DispatchComputeIndirect( ShaderCs, DispatchArgsBuffer, (int)DispatchArgsEntry.BilateralUpscale );
-					cmd.ResourceBarrierTransition( FullResRadiance, ResourceState.NonPixelShaderResource );
-					continue;
-			}
-
-			if ( pass == Passes.BilateralUpscale )
-				continue;
-
-			cmd.Attributes.SetCombo( "D_PASS", (int)pass );
-
-			cmd.DispatchComputeIndirect( ShaderCs, DispatchArgsBuffer, (int)DispatchArgsEntry.IntersectAndDenoise );
-
-			switch ( pass )
-			{
-				case Passes.Intersect:
-					cmd.ResourceBarrierTransition( radiancePing, ResourceState.NonPixelShaderResource );
-					// RayLength is a RWTexture written here and read back as a UAV in DenoiseReproject.
-					// The layout stays UnorderedAccess, so a plain transition emits nothing - issue a UAV
-					// barrier so the writes are visible to the reproject pass.
-					cmd.UavBarrier( RayLength );
-					break;
-
-				case Passes.DenoiseReproject:
-					cmd.ResourceBarrierTransition( ReprojectedRadiance, ResourceState.NonPixelShaderResource );
-					cmd.ResourceBarrierTransition( averagePing, ResourceState.NonPixelShaderResource );
-					cmd.ResourceBarrierTransition( variancePing, ResourceState.NonPixelShaderResource );
-					cmd.ResourceBarrierTransition( samplePing, ResourceState.NonPixelShaderResource );
-					break;
-
-				case Passes.DenoisePrefilter:
-					cmd.ResourceBarrierTransition( radianceHistory, ResourceState.NonPixelShaderResource );
-					cmd.ResourceBarrierTransition( varianceHistory, ResourceState.NonPixelShaderResource );
-					cmd.ResourceBarrierTransition( sampleHistory, ResourceState.NonPixelShaderResource );
-					break;
-
-				case Passes.DenoiseResolveTemporal:
-					cmd.ResourceBarrierTransition( radiancePing, ResourceState.NonPixelShaderResource );
-					cmd.ResourceBarrierTransition( variancePing, ResourceState.NonPixelShaderResource );
-					cmd.ResourceBarrierTransition( samplePing, ResourceState.NonPixelShaderResource );
-					cmd.ResourceBarrierTransition( GBufferHistory, ResourceState.NonPixelShaderResource );
-					cmd.ResourceBarrierTransition( DepthHistory, ResourceState.NonPixelShaderResource );
-					break;
-			}
+			cmd.ResourceBarrierTransition( ClassifiedTilesBuffer, ResourceState.UnorderedAccess );
+			cmd.ResourceBarrierTransition( DispatchArgsBuffer, ResourceState.UnorderedAccess );
+			cmd.Attributes.Set( "ClassifiedTilesRW", ClassifiedTilesBuffer );
+			cmd.Attributes.Set( "IntersectDispatchArgsRW", DispatchArgsBuffer );
+			cmd.Attributes.Set( "OutRadiance", reflection.ColorTexture, traceMip );
+			cmd.DispatchCompute( ClassifyShaderCs, guide.Size );
+			cmd.UavBarrier( reflection );
+			cmd.ResourceBarrierTransition( ClassifiedTilesBuffer, ResourceState.UnorderedAccess, ResourceState.NonPixelShaderResource );
+			cmd.ResourceBarrierTransition( DispatchArgsBuffer, ResourceState.UnorderedAccess, ResourceState.IndirectArgument );
 		}
 
-		var finalReflection = needsUpscale ? FullResRadiance : radiancePing;
-		cmd.ResourceBarrierTransition( finalReflection, ResourceState.PixelShaderResource );
-		cmd.UavBarrier( finalReflection );
+		// Intersect
+		using ( cmd.ProfileScope( PassProfiles[(int)Passes.Intersect] ) )
+		{
+			cmd.Attributes.Set( "ClassifiedTiles", ClassifiedTilesBuffer );
+			cmd.Attributes.Set( "OutGuide", guide.ColorTexture );
+			cmd.Attributes.SetCombo( "D_PASS", (int)Passes.Intersect );
+			cmd.DispatchComputeIndirect( ShaderCs, DispatchArgsBuffer, (int)DispatchArgsEntry.Intersect );
+			cmd.ResourceBarrierTransition( reflection, ResourceState.NonPixelShaderResource, traceMip );
+		}
 
-		// Final SSR color to be used by shaders
 		if ( needsUpscale )
-			cmd.SetPipelineTexture( PipelineTextureSlot.Reflections, FullResRadiance.ColorTexture );
-		else
-			cmd.SetPipelineTexture( PipelineTextureSlot.Reflections, radiancePing.ColorTexture );
+		{
+			using var passScope = cmd.ProfileScope( PassProfiles[(int)Passes.BilateralUpscale] );
 
+			cmd.ResourceBarrierTransition( guide, ResourceState.NonPixelShaderResource );
+			cmd.Attributes.Set( "Radiance", reflection.ColorTexture, traceMip );
+			cmd.Attributes.Set( "Guide", guide.ColorTexture );
+			cmd.Attributes.Set( "OutRadiance", reflection.ColorTexture, 0 );
+			cmd.Attributes.SetCombo( "D_PASS", (int)Passes.BilateralUpscale );
+			cmd.DispatchComputeIndirect( ShaderCs, DispatchArgsBuffer, (int)DispatchArgsEntry.BilateralUpscale );
+			cmd.UavBarrier( reflection );
+		}
+
+		// Rebuild from the bilateral-upscaled mip 0 so the raw trace doesn't bleed across edges
+		cmd.GenerateMipMaps( reflection, Graphics.DownsampleMethod.GGX );
+		cmd.ResourceBarrierTransition( reflection, ResourceState.PixelShaderResource );
+		cmd.SetPipelineTexture( PipelineTextureSlot.Reflections, reflection.ColorTexture );
 
 		InsertCommandList( cmdLastframe, Stage.AfterOpaque, 0, "ScreenSpaceReflections" );
 		InsertCommandList( cmd, Stage.AfterDepthPrepass, int.MaxValue, "ScreenSpaceReflections" );
 	}
-
 }

@@ -1,22 +1,24 @@
 using System;
+using System.Collections.Generic;
+using NativeEngine;
 
 namespace SceneTests.Components;
 
 [TestClass]
 public class SkinnedRendererTest
 {
-	private static Model CitizenModel => Model.Load( "models/citizen/citizen.vmdl" );
+	private static Model HumanModel => Model.Load( "models/citizen_human/human.vmdl" );
 
 	/// <summary>
-	/// Creates a GameObject with a SkinnedModelRenderer using the citizen model - the
+	/// Creates a GameObject with a SkinnedModelRenderer using the human model - the
 	/// standard setup used by the tests in this class. The component is created disabled,
-	/// given the model, then enabled so the SceneModel spawns with the citizen straight away.
+	/// given the model, then enabled so the SceneModel spawns with the human straight away.
 	/// </summary>
-	static SkinnedModelRenderer CreateCitizenRenderer( Scene scene, out GameObject go )
+	static SkinnedModelRenderer CreateHumanRenderer( Scene scene, out GameObject go )
 	{
 		go = scene.CreateObject();
 		var smr = go.Components.Create<SkinnedModelRenderer>( false );
-		smr.Model = CitizenModel;
+		smr.Model = HumanModel;
 		smr.Enabled = true;
 		return smr;
 	}
@@ -37,20 +39,20 @@ public class SkinnedRendererTest
 	}
 
 	/// <summary>
-	/// Picks the citizen's "Jump_Standing" sequence from the runtime sequence list. The
-	/// authored citizen animation list ships this animation (with AE_FOOTSTEP events at
+	/// Picks the human's "Jump_Standing" sequence from the runtime sequence list. The
+	/// authored human animation list ships this animation (with AE_FOOTSTEP events at
 	/// frames 1 and 13), so it must be present on the compiled model.
 	/// </summary>
 	static string FindJumpStandingSequence( SkinnedModelRenderer smr )
 	{
 		var name = smr.Sequence.SequenceNames.FirstOrDefault( x => string.Equals( x, "Jump_Standing", StringComparison.OrdinalIgnoreCase ) );
-		Assert.IsNotNull( name, "The citizen model should compile the authored Jump_Standing animation into its sequence list" );
+		Assert.IsNotNull( name, "The human model should compile the authored Jump_Standing animation into its sequence list" );
 		return name;
 	}
 
 	/// <summary>
 	/// Enabling a SkinnedModelRenderer creates a SceneModel scene object carrying the
-	/// assigned model, with the embedded citizen animgraph live and the component defaults
+	/// assigned model, with the embedded human animgraph live and the component defaults
 	/// (UseAnimGraph on, PlaybackRate 1) pushed through. Disabling deletes the scene object
 	/// and nulls the SceneModel property, re-enabling creates a fresh one, and destroying
 	/// the GameObject tears everything down.
@@ -61,14 +63,14 @@ public class SkinnedRendererTest
 		var scene = new Scene();
 		using var sceneScope = scene.Push();
 
-		var smr = CreateCitizenRenderer( scene, out var go );
+		var smr = CreateHumanRenderer( scene, out var go );
 
 		var so = smr.SceneModel;
 		Assert.IsNotNull( so, "Enabling should create a SceneModel" );
 		Assert.IsTrue( so.IsValid() );
 		Assert.AreSame( so, smr.SceneObject, "SceneModel is the renderer's scene object" );
-		Assert.AreEqual( CitizenModel, so.Model, "The citizen model should be on the scene object" );
-		Assert.IsNotNull( so.AnimationGraph, "The citizen model embeds citizen.vanmgrph, available as soon as the scene model spawns" );
+		Assert.AreEqual( HumanModel, so.Model, "The human model should be on the scene object" );
+		Assert.IsNotNull( so.AnimationGraph, "The human model embeds human.vanmgrph, available as soon as the scene model spawns" );
 
 		Assert.IsTrue( smr.UseAnimGraph, "UseAnimGraph defaults on" );
 		Assert.IsTrue( so.UseAnimGraph, "The default is synced to the scene model" );
@@ -104,7 +106,7 @@ public class SkinnedRendererTest
 		var scene = new Scene();
 		using var sceneScope = scene.Push();
 
-		var smr = CreateCitizenRenderer( scene, out var go );
+		var smr = CreateHumanRenderer( scene, out var go );
 
 		smr.PlaybackRate = 2.0f;
 		Assert.AreEqual( 2.0f, smr.PlaybackRate );
@@ -145,14 +147,14 @@ public class SkinnedRendererTest
 		go.Enabled = false;
 
 		var smr = go.Components.Create<SkinnedModelRenderer>();
-		smr.Model = CitizenModel;
+		smr.Model = HumanModel;
 		smr.CreateBoneObjects = true;
 
 		Assert.IsNull( smr.SceneModel, "A renderer on a disabled GameObject has no live scene model to drive bones" );
 
 		var offsetBones = 0;
 
-		foreach ( var bone in CitizenModel.Bones.AllBones )
+		foreach ( var bone in HumanModel.Bones.AllBones )
 		{
 			var boneObject = smr.GetBoneObject( bone.Index );
 			Assert.IsNotNull( boneObject, $"A bone object should be created for '{bone.Name}'" );
@@ -168,14 +170,14 @@ public class SkinnedRendererTest
 				offsetBones++;
 		}
 
-		Assert.IsTrue( offsetBones > 0, "The citizen bind pose has plenty of offset bones - if none registered the test isn't proving anything (all-identity would trivially pass)" );
+		Assert.IsTrue( offsetBones > 0, "The human bind pose has plenty of offset bones - if none registered the test isn't proving anything (all-identity would trivially pass)" );
 
 		go.Destroy();
 		scene.ProcessDeletes();
 	}
 
 	/// <summary>
-	/// The citizen animgraph parameter defaults are readable as soon as the renderer is
+	/// The human animgraph parameter defaults are readable as soon as the renderer is
 	/// enabled (b_grounded true, duck 0, hit_bone 20, aim_eyes (100,0,0), identity ik
 	/// rotation), every parameter type round trips through Set/Get against the live graph,
 	/// and unknown parameter names read back as zero / identity from the native side while
@@ -187,10 +189,10 @@ public class SkinnedRendererTest
 		var scene = new Scene();
 		using var sceneScope = scene.Push();
 
-		var smr = CreateCitizenRenderer( scene, out var go );
+		var smr = CreateHumanRenderer( scene, out var go );
 
-		// Authored defaults from citizen.vanmgrph
-		Assert.IsTrue( smr.GetBool( "b_grounded" ), "b_grounded defaults to true in the citizen graph" );
+		// Authored defaults from human.vanmgrph
+		Assert.IsTrue( smr.GetBool( "b_grounded" ), "b_grounded defaults to true in the human graph" );
 		Assert.AreEqual( 0.0f, smr.GetFloat( "duck" ), "duck defaults to 0" );
 		Assert.AreEqual( 20, smr.GetInt( "hit_bone" ), "hit_bone defaults to 20" );
 		Assert.AreEqual( new Vector3( 100, 0, 0 ), smr.GetVector( "aim_eyes" ), "aim_eyes defaults to (100,0,0)" );
@@ -250,7 +252,7 @@ public class SkinnedRendererTest
 
 		var go = scene.CreateObject();
 		var smr = go.Components.Create<SkinnedModelRenderer>( false );
-		smr.Model = CitizenModel;
+		smr.Model = HumanModel;
 
 		smr.Set( "duck", 0.5f );
 		smr.Set( "b_grounded", false );
@@ -277,7 +279,7 @@ public class SkinnedRendererTest
 		var scene = new Scene();
 		using var sceneScope = scene.Push();
 
-		var smr = CreateCitizenRenderer( scene, out var go );
+		var smr = CreateHumanRenderer( scene, out var go );
 
 		smr.Parameters.Set( "b_grounded", false );
 		smr.Parameters.Set( "duck", 1.5f );
@@ -309,10 +311,10 @@ public class SkinnedRendererTest
 		var scene = new Scene();
 		using var sceneScope = scene.Push();
 
-		var smr = CreateCitizenRenderer( scene, out var go );
+		var smr = CreateHumanRenderer( scene, out var go );
 		smr.UseAnimGraph = false;
 
-		Assert.IsTrue( smr.Sequence.SequenceNames.Count > 0, "The citizen model should list its sequences" );
+		Assert.IsTrue( smr.Sequence.SequenceNames.Count > 0, "The human model should list its sequences" );
 
 		smr.Sequence.Name = "not_a_sequence";
 		Assert.AreEqual( "not_a_sequence", smr.Sequence.Name, "The accessor keeps whatever name was set" );
@@ -348,7 +350,7 @@ public class SkinnedRendererTest
 	}
 
 	/// <summary>
-	/// Playing the citizen's Jump_Standing sequence headless delivers its authored
+	/// Playing the human's Jump_Standing sequence headless delivers its authored
 	/// AE_FOOTSTEP events through OnFootstepEvent: the events are queued by the animation
 	/// update during GameTick and dispatched on the main thread, so a couple of seconds of
 	/// looping sim time is guaranteed to cross the footstep frames.
@@ -359,7 +361,7 @@ public class SkinnedRendererTest
 		var scene = new Scene();
 		using var sceneScope = scene.Push();
 
-		var smr = CreateCitizenRenderer( scene, out var go );
+		var smr = CreateHumanRenderer( scene, out var go );
 		smr.UseAnimGraph = false;
 		smr.Sequence.Name = FindJumpStandingSequence( smr );
 
@@ -382,7 +384,7 @@ public class SkinnedRendererTest
 	}
 
 	/// <summary>
-	/// CreateBoneObjects builds a GameObject hierarchy mirroring the citizen skeleton:
+	/// CreateBoneObjects builds a GameObject hierarchy mirroring the human skeleton:
 	/// bones resolve by name, index and bone reference to the same flagged GameObject under
 	/// the renderer's GameObject, out-of-range and unknown lookups return null, and turning
 	/// the option back off clears the lookup and strips the Bone flag while leaving the
@@ -394,7 +396,7 @@ public class SkinnedRendererTest
 		var scene = new Scene();
 		using var sceneScope = scene.Push();
 
-		var smr = CreateCitizenRenderer( scene, out var go );
+		var smr = CreateHumanRenderer( scene, out var go );
 
 		Assert.IsFalse( smr.CreateBoneObjects, "Bone objects are off by default" );
 		Assert.IsNull( smr.GetBoneObject( "pelvis" ), "No bone objects exist until CreateBoneObjects is enabled" );
@@ -402,19 +404,19 @@ public class SkinnedRendererTest
 		smr.CreateBoneObjects = true;
 
 		var pelvis = smr.GetBoneObject( "pelvis" );
-		Assert.IsNotNull( pelvis, "The citizen pelvis bone should have a GameObject" );
+		Assert.IsNotNull( pelvis, "The human pelvis bone should have a GameObject" );
 		Assert.IsTrue( pelvis.IsValid() );
 		Assert.IsTrue( string.Equals( "pelvis", pelvis.Name, StringComparison.OrdinalIgnoreCase ), "Bone objects take their bone's name" );
 		Assert.IsTrue( pelvis.Flags.HasFlag( GameObjectFlags.Bone ), "Bone objects are flagged as bones" );
 		Assert.IsTrue( IsDescendantOf( pelvis, go ), "Bone objects live under the renderer's GameObject" );
 
-		var bone = CitizenModel.Bones.GetBone( "pelvis" );
+		var bone = HumanModel.Bones.GetBone( "pelvis" );
 		Assert.IsNotNull( bone );
 		Assert.AreSame( pelvis, smr.GetBoneObject( bone.Index ), "Index lookup should agree with name lookup" );
 		Assert.AreSame( pelvis, smr.GetBoneObject( bone ), "Bone reference lookup should agree too" );
 
 		Assert.IsNull( smr.GetBoneObject( -1 ), "Negative indices return null" );
-		Assert.IsNull( smr.GetBoneObject( CitizenModel.Bones.AllBones.Count ), "Out of range indices return null" );
+		Assert.IsNull( smr.GetBoneObject( HumanModel.Bones.AllBones.Count ), "Out of range indices return null" );
 		Assert.IsNull( smr.GetBoneObject( "not_a_bone" ), "Unknown bone names return null" );
 
 		smr.CreateBoneObjects = false;
@@ -428,10 +430,10 @@ public class SkinnedRendererTest
 	}
 
 	/// <summary>
-	/// Bone transform queries work as soon as the renderer is enabled - the citizen's
+	/// Bone transform queries work as soon as the renderer is enabled - the human's
 	/// hand bone resolves in world and local space, the bulk accessors return one entry per
 	/// model bone, unknown bone names fail the Try pattern - and ticking the scene plays
-	/// the citizen's idle graph headless, visibly moving the hand bone over two seconds of
+	/// the human's idle graph headless, visibly moving the hand bone over two seconds of
 	/// sim time.
 	/// </summary>
 	[TestMethod]
@@ -440,15 +442,15 @@ public class SkinnedRendererTest
 		var scene = new Scene();
 		using var sceneScope = scene.Push();
 
-		var smr = CreateCitizenRenderer( scene, out var go );
+		var smr = CreateHumanRenderer( scene, out var go );
 
-		Assert.IsTrue( smr.TryGetBoneTransform( "hand_R", out var initial ), "The citizen hand bone should resolve" );
+		Assert.IsTrue( smr.TryGetBoneTransform( "hand_R", out var initial ), "The human hand bone should resolve" );
 		Assert.IsTrue( smr.TryGetBoneTransformLocal( "hand_R", out _ ), "Local-space bone transforms should resolve too" );
 		Assert.IsFalse( smr.TryGetBoneTransform( "not_a_bone", out _ ), "Unknown bones fail the lookup" );
 
-		Assert.AreEqual( CitizenModel.BoneCount, smr.GetBoneTransforms( true ).Length, "One world transform per bone" );
-		Assert.AreEqual( CitizenModel.BoneCount, smr.GetBoneTransforms( false ).Length, "One local transform per bone" );
-		Assert.AreEqual( CitizenModel.BoneCount, smr.GetBoneVelocities().Length, "One velocity per bone" );
+		Assert.AreEqual( HumanModel.BoneCount, smr.GetBoneTransforms( true ).Length, "One world transform per bone" );
+		Assert.AreEqual( HumanModel.BoneCount, smr.GetBoneTransforms( false ).Length, "One local transform per bone" );
+		Assert.AreEqual( HumanModel.BoneCount, smr.GetBoneVelocities().Length, "One velocity per bone" );
 
 		var maxDelta = 0.0f;
 
@@ -469,7 +471,7 @@ public class SkinnedRendererTest
 	}
 
 	/// <summary>
-	/// GetAttachment resolves the citizen's authored hand_R attachment near the model in
+	/// GetAttachment resolves the human's authored hand_R attachment near the model in
 	/// world space, returns local space when asked, follows the GameObject when it moves,
 	/// returns null for unknown attachment names, and returns null once the component is
 	/// disabled because the scene model is gone.
@@ -480,10 +482,10 @@ public class SkinnedRendererTest
 		var scene = new Scene();
 		using var sceneScope = scene.Push();
 
-		var smr = CreateCitizenRenderer( scene, out var go );
+		var smr = CreateHumanRenderer( scene, out var go );
 
 		var attachment = smr.GetAttachment( "hand_R" );
-		Assert.IsTrue( attachment.HasValue, "The citizen ships a hand_R attachment" );
+		Assert.IsTrue( attachment.HasValue, "The human ships a hand_R attachment" );
 		Assert.IsTrue( attachment.Value.Position.Length < 200.0f, "With the GameObject at the origin the attachment should be near the model" );
 
 		Assert.IsNull( smr.GetAttachment( "not_an_attachment" ), "Unknown attachments return null" );
@@ -521,8 +523,8 @@ public class SkinnedRendererTest
 		var scene = new Scene();
 		using var sceneScope = scene.Push();
 
-		var target = CreateCitizenRenderer( scene, out var targetGo );
-		var child = CreateCitizenRenderer( scene, out var childGo );
+		var target = CreateHumanRenderer( scene, out var targetGo );
+		var child = CreateHumanRenderer( scene, out var childGo );
 
 		child.BoneMergeTarget = child;
 		Assert.IsNull( child.BoneMergeTarget, "Assigning self as the merge target is ignored" );
@@ -552,7 +554,7 @@ public class SkinnedRendererTest
 	}
 
 	/// <summary>
-	/// Morph overrides on the citizen face: the model ships flex controllers, Set stores
+	/// Morph overrides on the human face: the model ships flex controllers, Set stores
 	/// an override on the component and writes it through to the scene model immediately,
 	/// Clear removes the component override - but the native side keeps the last override
 	/// target (only the blend alpha fades back to animation), so Get falls through to that
@@ -564,24 +566,24 @@ public class SkinnedRendererTest
 		var scene = new Scene();
 		using var sceneScope = scene.Push();
 
-		var smr = CreateCitizenRenderer( scene, out var go );
+		var smr = CreateHumanRenderer( scene, out var go );
 
-		Assert.IsTrue( CitizenModel.MorphCount > 0, "The citizen has face morphs" );
-		Assert.IsTrue( CitizenModel.Morphs.Names.Any( x => string.Equals( x, "lipcornerpullerL", StringComparison.OrdinalIgnoreCase ) ), "The citizen face ships the lipcornerpullerL flex controller" );
+		Assert.IsTrue( HumanModel.MorphCount > 0, "The human has face morphs" );
+		Assert.IsTrue( HumanModel.Morphs.Names.Any( x => string.Equals( x, "mouthSmile_L", StringComparison.OrdinalIgnoreCase ) ), "The human face ships the mouthSmile_L flex controller" );
 
-		Assert.IsFalse( smr.Morphs.ContainsOverride( "lipcornerpullerL" ), "No overrides initially" );
-		Assert.AreEqual( 0.0f, smr.Morphs.Get( "lipcornerpullerL" ), "The native override value starts at zero" );
+		Assert.IsFalse( smr.Morphs.ContainsOverride( "mouthSmile_L" ), "No overrides initially" );
+		Assert.AreEqual( 0.0f, smr.Morphs.Get( "mouthSmile_L" ), "The native override value starts at zero" );
 
-		smr.Morphs.Set( "lipcornerpullerL", 0.75f );
+		smr.Morphs.Set( "mouthSmile_L", 0.75f );
 
-		Assert.IsTrue( smr.Morphs.ContainsOverride( "lipcornerpullerL" ) );
-		Assert.AreEqual( 0.75f, smr.Morphs.Get( "lipcornerpullerL" ) );
-		Assert.AreEqual( 0.75f, smr.SceneModel.Morphs.Get( "lipcornerpullerL" ), 0.001f, "The override writes through to the scene model immediately" );
+		Assert.IsTrue( smr.Morphs.ContainsOverride( "mouthSmile_L" ) );
+		Assert.AreEqual( 0.75f, smr.Morphs.Get( "mouthSmile_L" ) );
+		Assert.AreEqual( 0.75f, smr.SceneModel.Morphs.Get( "mouthSmile_L" ), 0.001f, "The override writes through to the scene model immediately" );
 
-		smr.Morphs.Clear( "lipcornerpullerL" );
+		smr.Morphs.Clear( "mouthSmile_L" );
 
-		Assert.IsFalse( smr.Morphs.ContainsOverride( "lipcornerpullerL" ), "Clear removes the component override" );
-		Assert.AreEqual( 0.75f, smr.Morphs.Get( "lipcornerpullerL" ), 0.001f, "Quirk: clearing only fades the blend alpha - the native override target survives and Get falls through to it" );
+		Assert.IsFalse( smr.Morphs.ContainsOverride( "mouthSmile_L" ), "Clear removes the component override" );
+		Assert.AreEqual( 0.75f, smr.Morphs.Get( "mouthSmile_L" ), 0.001f, "Quirk: clearing only fades the blend alpha - the native override target survives and Get falls through to it" );
 
 		Assert.AreEqual( 0.0f, smr.SceneModel.Morphs.Get( "not_a_morph" ), "Unknown morphs read zero" );
 
@@ -602,13 +604,13 @@ public class SkinnedRendererTest
 		var scene = new Scene();
 		using var sceneScope = scene.Push();
 
-		var smr = CreateCitizenRenderer( scene, out var go );
+		var smr = CreateHumanRenderer( scene, out var go );
 		smr.PlaybackRate = 0.5f;
 		smr.Parameters.Set( "duck", 0.5f );
 		smr.Parameters.Set( "b_grounded", false );
 		smr.Parameters.Set( "hit_bone", 5 );
 		smr.Parameters.Set( "aim_eyes", new Vector3( 1, 2, 3 ) );
-		smr.Morphs.Set( "lipcornerpullerL", 0.75f );
+		smr.Morphs.Set( "mouthSmile_L", 0.75f );
 		smr.Sequence.Name = "Jump_Standing";
 		smr.Sequence.Looping = false;
 
@@ -616,7 +618,7 @@ public class SkinnedRendererTest
 		var loaded = clone.Components.Get<SkinnedModelRenderer>();
 
 		Assert.IsNotNull( loaded, "Deserialized GameObject should have a SkinnedModelRenderer" );
-		Assert.AreEqual( CitizenModel.Name, loaded.Model?.Name, "Model should round trip by path" );
+		Assert.AreEqual( HumanModel.Name, loaded.Model?.Name, "Model should round trip by path" );
 		Assert.AreEqual( 0.5f, loaded.PlaybackRate );
 		Assert.IsTrue( loaded.UseAnimGraph, "UseAnimGraph default round trips" );
 
@@ -629,8 +631,8 @@ public class SkinnedRendererTest
 		Assert.AreEqual( 5, loaded.GetInt( "hit_bone" ) );
 		Assert.AreEqual( new Vector3( 1, 2, 3 ), loaded.GetVector( "aim_eyes" ) );
 
-		Assert.IsTrue( loaded.Morphs.ContainsOverride( "lipcornerpullerL" ), "Morph overrides round trip" );
-		Assert.AreEqual( 0.75f, loaded.Morphs.Get( "lipcornerpullerL" ) );
+		Assert.IsTrue( loaded.Morphs.ContainsOverride( "mouthSmile_L" ), "Morph overrides round trip" );
+		Assert.AreEqual( 0.75f, loaded.Morphs.Get( "mouthSmile_L" ) );
 
 		Assert.AreEqual( "Jump_Standing", loaded.Sequence.Name, "The sequence name round trips" );
 		Assert.IsFalse( loaded.Sequence.Looping, "The looping flag round trips" );
@@ -650,7 +652,7 @@ public class SkinnedRendererTest
 		var scene = new Scene();
 		using var sceneScope = scene.Push();
 
-		var smr = CreateCitizenRenderer( scene, out _ );
+		var smr = CreateHumanRenderer( scene, out _ );
 
 		var headPoint = new Vector3( 0, 0, 64 );
 		var headBone = smr.GetClosestBone( headPoint );
@@ -675,5 +677,55 @@ public class SkinnedRendererTest
 		}
 
 		Assert.AreEqual( closest, headBone.Index, "the native answer matches a managed scan" );
+	}
+
+	public static IEnumerable<object[]> AnimVariantConversionData => ((IEnumerable<AnimVariant[]>)
+	[
+		// boolean to int/float/byte
+		[false, 0],
+		[true, 1],
+		[false, 0f],
+		[true, 1f],
+		[false, (byte)0],
+		[true, (byte)1],
+
+		// int to boolean/float/byte
+		[0, false],
+		[1, true],
+		[100, 100f],
+		[100, (byte)100],
+
+		// float to boolean/int/byte
+		[0f, false],
+		[1f, true],
+		[100f, 100],
+		[100f, (byte)100],
+
+		// byte to boolean/int/float
+		[(byte)0, false],
+		[(byte)1, true],
+		[(byte)100, 100],
+		[(byte)100, 100f]
+	]).Select( object[] ( x ) => [x[0], x[1]] );
+
+	/// <summary>
+	/// Tests converting <see cref="AnimVariant"/>s between scalar types.
+	/// </summary>
+	[TestMethod]
+	[DynamicData( nameof( AnimVariantConversionData ) )]
+	public void AnimVariantScalarConversion( object source, object expected )
+	{
+		var sourceVariant = (AnimVariant)source;
+		var expectedVariant = (AnimVariant)expected;
+
+		try
+		{
+			Assert.IsTrue( sourceVariant.TryConvertTo( expectedVariant.Type, out var convertedVariant ), $"Failed to convert {sourceVariant.Type} to {expectedVariant.Type}." );
+			Assert.AreEqual( expectedVariant, convertedVariant, $"Conversion result for {sourceVariant.Type} to {expectedVariant.Type} does not match expected value." );
+		}
+		catch ( Exception ex )
+		{
+			Assert.Fail( $"Exception occurred during conversion from {sourceVariant.Type} to {expectedVariant.Type}: {ex.Message}" );
+		}
 	}
 }

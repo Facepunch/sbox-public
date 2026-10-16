@@ -15,12 +15,18 @@ public static class Program
 
 	static List<Task> tasks = new();
 
-	public static async Task Main( string[] args )
+	public static async Task<int> Main( string[] args )
 	{
-		var dir = System.Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE", EnvironmentVariableTarget.User );
-		var cachePath = System.IO.Path.Combine( dir, CacheFolder );
+		if ( args.Length != 1 || !Directory.Exists( args[0] ) )
+		{
+			Console.Error.WriteLine( "Usage: CreateGameCache <game-directory> (must be an existing directory)" );
+			return 1;
+		}
+
+		var cachePath = Path.Combine( Path.GetFullPath( args[0] ), CacheFolder );
 		CacheDirectory = new DirectoryInfo( cachePath );
 
+		Console.WriteLine( $"Game cache directory: {CacheDirectory.FullName}" );
 		CacheDirectory.Create();
 
 		Sandbox.Api.Init();
@@ -28,23 +34,30 @@ public static class Program
 		await FindAndInstallPackage( "type:model sort:popular org:facepunch", 200 );
 		await FindAndInstallPackage( "type:model sort:spawns org:facepunch", 200 );
 
-		await InstallPackage( "facepunch.ss1" );
 		await InstallPackage( "facepunch.sandbox" );
 		await InstallPackage( "facepunch.construct" );
 		await InstallPackage( "facepunch.flatgrass" );
-		await InstallPackage( "facepunch.square" );
-		await InstallPackage( "facepunch.testbed" );
-		await InstallPackage( "facepunch.hc1" );
-		await InstallPackage( "facepunch.depot" );
-		await InstallPackage( "facepunch.construct23" );
+
+		// Onboarding games from game/addons/menu/Code/MenuUI/Front/StarterShelf.razor.
+		await InstallPackage( "jco.drill" );
+		await InstallPackage( "glag.ex_zone" );
+		await InstallPackage( "priceless.deliveryhopper" );
+		await InstallPackage( "facepunch.blockparty" );
+
+		await InstallPackage( "taxi.mow_the_lawn" );
+		await InstallPackage( "kivin.goblingeddon" );
 
 		await Task.WhenAll( tasks );
+		return 0;
 	}
 
 	static async Task FindAndInstallPackage( string query, int max )
 	{
 		Console.WriteLine( $"{query}" );
 		var result = await Package.FindAsync( query, max );
+		if ( result.Packages is null || result.Packages.Length == 0 )
+			throw new InvalidOperationException( $"No packages returned for game cache query: {query}" );
+
 		foreach ( var package in result.Packages )
 		{
 			await InstallPackage( package.FullIdent );
@@ -56,8 +69,12 @@ public static class Program
 		Console.WriteLine( $"{packageName}" );
 
 		var package = await Sandbox.Package.Fetch( packageName, false );
+		if ( package?.Revision is null )
+			throw new InvalidOperationException( $"No revision found for game cache package: {packageName}" );
 
 		await package.Revision.DownloadManifestAsync();
+		if ( package.Revision.Manifest?.Files is null )
+			throw new InvalidOperationException( $"No manifest found for game cache package: {packageName}" );
 
 		foreach ( var file in package.Revision.Manifest.Files )
 		{
@@ -84,7 +101,11 @@ public static class Program
 			}
 
 			Console.WriteLine( $"{file.Path}" );
-			await Sandbox.Utility.Web.DownloadFile( file.Url, path, default, default );
+			if ( !await Sandbox.Utility.Web.DownloadFile( file.Url, path, default, default ) )
+				throw new IOException( $"Failed to download game cache file: {file.Path}" );
+
+			if ( new FileInfo( path ).Length != file.Size )
+				throw new IOException( $"Incorrect size for game cache file: {file.Path}" );
 		}
 		finally
 		{

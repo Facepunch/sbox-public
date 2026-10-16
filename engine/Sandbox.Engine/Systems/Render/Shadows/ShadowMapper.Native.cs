@@ -68,7 +68,8 @@ internal partial class ShadowMapper
 			Radius = light.Radius,
 			Hardness = light.ShadowHardness,
 			Bias = light.ShadowBias,
-			Baked = (native.GetLightFlags() & 32) != 0, // LIGHTTYPE_FLAGS_BAKED
+			Baked = (native.GetLightFlags() & 32) != 0 // LIGHTTYPE_FLAGS_BAKED
+				&& light is not SceneDirectionalLight { IncludeStaticShadowCasters: true },
 			Static = light.GameObject.IsValid() && light.GameObject.IsStatic,
 			ShadowsEnabled = light.ShadowsEnabled,
 		};

@@ -775,8 +775,18 @@ public static class ResourceLibrary
 
 		// Check if the type is a GameResource, and handle it accordingly
 		var type = typeof( T );
-		if ( type.IsSubclassOf( typeof( GameResource ) ) )
+		if ( type.IsAssignableTo( typeof( GameResource ) ) )
 		{
+			if ( Mounting.MountUtility.IsMountPath( path ) )
+			{
+				var mounted = await Mounting.Directory.TryLoadAsync( path );
+				if ( mounted is null || mounted is T )
+					return mounted as T;
+
+				Log.Warning( $"Mounted resource '{path}' is not a '{type.FullName}'." );
+				return null;
+			}
+
 			if ( type == typeof( PrefabFile ) )
 			{
 				return (T)(object)PrefabFile.Load( path );

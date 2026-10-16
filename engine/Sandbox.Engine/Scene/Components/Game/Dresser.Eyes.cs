@@ -38,7 +38,7 @@ public sealed partial class Dresser
 	} = AvatarDefaults.EyeColor;
 
 	/// <summary>
-	/// Horizontal iris alignment from zero to one. The midpoint preserves Iris Center.
+	/// Citizen-only horizontal iris alignment from zero to one. The midpoint preserves Iris Center.
 	/// This rotates the iris projection around the eyeball without changing the eye bones.
 	/// </summary>
 	[Property, Sync, Range( 0, 1 ), Group( "Eyes" )]
@@ -64,7 +64,10 @@ public sealed partial class Dresser
 			return;
 
 		var tint = EyeColorGradient.Evaluate( EyeColor );
-		var offset = EyeAlign.Remap( 0, 1, -0.2f, 0.2f );
+
+		// Human eyes share the colour shader, but must keep their authored alignment.
+		// Write a neutral offset to clear any Citizen alignment left after a model change.
+		var offset = IsCitizen( BodyTarget.Model ) ? EyeAlign.Remap( 0, 1, -0.2f, 0.2f ) : 0;
 
 		SetEyeAttributes( BodyTarget.Attributes, tint, offset );
 		foreach ( var renderer in BodyTarget.GetComponentsInChildren<SkinnedModelRenderer>( true ) )

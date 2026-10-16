@@ -12,7 +12,7 @@ public class PainterCurveStorageTest
 	/// <summary>
 	/// Quadratic, cubic and multi-segment smooth curves reuse storage after their capacities are warm.
 	/// </summary>
-	[TestMethod]
+	[TestMethod, TestCategory( Allocations.Category )]
 	[DoNotParallelize] // Other tests can trigger GC and trim the shared pool during this measurement.
 	[DataRow( 0, 4 )]
 	[DataRow( 0, 96 )]
@@ -26,12 +26,11 @@ public class PainterCurveStorageTest
 		var points = MakePoints( count );
 		try
 		{
-			for ( int i = 0; i < 32; i++ ) Draw( context, points, kind );
-			long start = GC.GetAllocatedBytesForCurrentThread();
-			for ( int i = 0; i < 32; i++ ) Draw( context, points, kind );
-			long allocated = GC.GetAllocatedBytesForCurrentThread() - start;
+			Allocations.AssertSettles( "32 draws", () =>
+			{
+				for ( int i = 0; i < 32; i++ ) Draw( context, points, kind );
+			} );
 
-			Assert.AreEqual( 0L, allocated );
 			Assert.AreEqual( 1, context.Batcher.Instances.Count );
 			Assert.IsTrue( context.Batcher.Paths.Count > 16, "The workload must exercise growth beyond the initial point rental." );
 		}

@@ -1,0 +1,273 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+
+// A form in a window of the menu's own look - the review and the report modals. The rail's paper and
+// outline, a header saying what it's for with a close button, the form scrolling under it, and the
+// buttons along the bottom. Markup: .window (.head (.text (.eyebrow, .title), .grow, .close), .body,
+// .footer (.note, .grow, .button.cancel, .button.post)). In the body, .section-label headings,
+// .tags (and .tags.positive or .tags.negative to colour what's picked) round a TagSelector, and
+// .words round a TextEntry
+@mixin front-form-modal
+{
+	font-family: $front-font;
+
+	// The window - the rail's paper and outline, in the middle over whatever opened it
+	.window
+	{
+		@include front-grain;
+
+		position: relative;
+		flex-direction: column;
+		width: 720px;
+		max-width: 92%;
+		max-height: 90%;
+		border-radius: $front-radius;
+		border: $front-border-width solid $front-border;
+		background-image: linear-gradient( to bottom, rgba( 20, 24, 33, 0.97 ), rgba( 13, 16, 22, 0.97 ) );
+		box-shadow: 0 16px 48px rgba( 0, 0, 0, 0.5 );
+		overflow: hidden;
+		pointer-events: all;
+		transition: all 0.2s ease-out;
+
+		// Comes into focus as it fades in, like a tooltip
+		&:intro
+		{
+			opacity: 0;
+			filter: blur( 10px );
+		}
+	}
+
+	.grow
+	{
+		flex-grow: 1;
+	}
+
+	.section-label
+	{
+		@include front-section-label;
+	}
+
+	//
+	// What it's for, a way out on the end
+	//
+
+	.head
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		padding: 18px 16px 16px 24px;
+		border-bottom: $front-border-width solid $front-hairline;
+
+		.text
+		{
+			flex-direction: column;
+			gap: 2px;
+		}
+
+		.eyebrow
+		{
+			@include front-section-label;
+		}
+
+		.title
+		{
+			font-size: 18px;
+			font-weight: 700;
+			color: $front-heading;
+		}
+	}
+
+	.close
+	{
+		width: 34px;
+		height: 34px;
+		align-items: center;
+		justify-content: center;
+		border-radius: 999px;
+		cursor: pointer;
+		transition: all 0.1s ease;
+
+		i
+		{
+			font-size: 20px;
+			color: $front-secondary;
+		}
+
+		&:hover
+		{
+			sound-in: "ui.button.over";
+			background-color: rgba( 255, 255, 255, 0.08 );
+
+			i
+			{
+				color: #ffffff;
+			}
+		}
+	}
+
+	//
+	// The form
+	//
+
+	.body
+	{
+		flex-direction: column;
+		flex-shrink: 1;
+		min-height: 0;
+		gap: 22px;
+		padding: 22px 24px;
+		overflow-y: scroll;
+	}
+
+	// A group of tags under its heading, small pills left to right
+	.tags
+	{
+		flex-direction: column;
+		gap: 10px;
+
+		.tag-selector
+		{
+			justify-content: flex-start;
+			gap: 6px;
+		}
+
+		.tag
+		{
+			padding: 5px 11px;
+			border-radius: 999px;
+			border: 1px solid rgba( 255, 255, 255, 0.12 );
+			background-color: rgba( 255, 255, 255, 0.04 );
+			font-size: 12px;
+			font-weight: 600;
+			color: $front-body;
+			opacity: 1;
+			cursor: pointer;
+			transition: all 0.1s ease;
+
+			&:hover
+			{
+				sound-in: "ui.button.over";
+				background-color: rgba( 255, 255, 255, 0.09 );
+				border-color: rgba( 255, 255, 255, 0.24 );
+				color: #ffffff;
+			}
+		}
+	}
+
+	.tags.positive .tag.active
+	{
+		background-color: rgba( $front-reward, 0.18 );
+		border-color: rgba( $front-reward, 0.6 );
+		color: $front-reward * 1.4;
+	}
+
+	.tags.negative .tag.active
+	{
+		background-color: rgba( $front-danger, 0.16 );
+		border-color: rgba( $front-danger, 0.55 );
+		color: $front-danger * 1.2;
+	}
+
+	// The words - a proper field to write in
+	.words
+	{
+		flex-direction: column;
+		gap: 10px;
+
+		TextEntry
+		{
+			min-height: 120px;
+			max-height: 220px;
+			padding: 12px 14px;
+			border-radius: $front-radius;
+			border: 1px solid rgba( 255, 255, 255, 0.12 );
+			background-color: rgba( 0, 0, 0, 0.25 );
+			font-size: 13.5px;
+			color: $front-heading;
+			white-space: normal;
+			pointer-events: all;
+
+			&:focus
+			{
+				border-color: rgba( $front-primary, 0.7 );
+			}
+		}
+	}
+
+	//
+	// Cancel, and post it
+	//
+
+	.footer
+	{
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 8px;
+		padding: 14px 16px 16px 24px;
+		border-top: $front-border-width solid $front-hairline;
+
+		.note
+		{
+			font-size: 12px;
+			color: $front-secondary;
+		}
+
+		.button
+		{
+			flex-direction: row;
+			align-items: center;
+			gap: 6px;
+			height: 38px;
+			padding: 0 18px;
+			border-radius: 999px;
+			border: 1px solid rgba( 255, 255, 255, 0.16 );
+			background-color: rgba( 255, 255, 255, 0.07 );
+			font-size: 13px;
+			font-weight: 700;
+			color: #d6e2f7;
+			cursor: pointer;
+			pointer-events: all;
+			transition: all 0.1s ease;
+
+			iconpanel
+			{
+				font-size: 16px;
+				color: #d6e2f7;
+			}
+
+			&:hover
+			{
+				sound-in: "ui.button.over";
+				background-color: rgba( 255, 255, 255, 0.11 );
+				color: #ffffff;
+			}
+		}
+
+		.button.post
+		{
+			background-color: $front-primary;
+			border-color: $front-primary * 1.4;
+			color: #ffffff;
+
+			iconpanel
+			{
+				color: #ffffff;
+			}
+
+			&:hover
+			{
+				background-color: $front-primary * 1.2;
+			}
+
+			// Not until there's a rating and some words
+			&.disabled
+			{
+				opacity: 0.35;
+				cursor: default;
+				pointer-events: none;
+			}
+		}
+	}
+}

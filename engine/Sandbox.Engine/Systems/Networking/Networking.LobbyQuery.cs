@@ -202,7 +202,8 @@ public static partial class Networking
 			var item = new LobbyInformation();
 			item.LobbyId = l.Id;
 			item.OwnerId = l.Owner.Id;
-			item.Ping = -1;
+			item.Ping = LobbyPing.Estimate( item.OwnerId, l.GetData( LobbyPing.MetadataKey ) );
+			item.IsPingEstimated = item.Ping >= 0;
 
 			item.MaxMembers = l.MaxMembers;
 			item.Members = l.MemberCount;

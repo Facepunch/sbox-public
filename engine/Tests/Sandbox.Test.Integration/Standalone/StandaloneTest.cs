@@ -24,7 +24,9 @@ public class StandaloneTest
 		Project.Clear();
 	}
 
+	// Slow: full export plus booting a second engine. PR runs skip it, master runs it.
 	[TestMethod]
+	[TestCategory( "Slow" )]
 	public async Task ExportAndRun()
 	{
 		var config = new ExportConfig();

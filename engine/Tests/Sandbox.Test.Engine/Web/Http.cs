@@ -27,6 +27,8 @@ public class HttpTest
 		Assert.AreEqual( expected, await Http.IsAllowedAsync( u ) );
 	}
 
+	// Literal addresses skip DNS. The two localhost rows are the only PR coverage of a real name
+	// lookup (each costs ~1s); the other localhost ports are fed addresses in IsResolvedAllowed.
 	[TestMethod]
 	[DataRow( "http://127.0.0.1", true )]
 	[DataRow( "http://127.0.0.1:80", true )]
@@ -34,10 +36,6 @@ public class HttpTest
 	[DataRow( "http://127.0.0.1:8080", true )]
 	[DataRow( "http://127.0.0.1:8443", true )]
 	[DataRow( "http://127.0.0.1:1337", false )]
-	[DataRow( "https://localhost/", true )]
-	[DataRow( "https://localhost:80/", true )]
-	[DataRow( "https://localhost:443/", true )]
-	[DataRow( "https://localhost:8080/", true )]
 	[DataRow( "https://localhost:8443/", true )]
 	[DataRow( "https://localhost:1337/", false )]
 	[DataRow( "https://[::1]:8443/", true )]
@@ -81,6 +79,13 @@ public class HttpTest
 	[DataRow( "http://localhost:8443/", "127.0.0.1", true )]
 	[DataRow( "http://localhost/", "::1,127.0.0.1", true )]
 	[DataRow( "http://localhost:1337/", "127.0.0.1", false )]
+	// What localhost really resolves to, on each allowed port and one that isn't.
+	[DataRow( "https://localhost/", "::1,127.0.0.1", true )]
+	[DataRow( "https://localhost:80/", "::1,127.0.0.1", true )]
+	[DataRow( "https://localhost:443/", "::1,127.0.0.1", true )]
+	[DataRow( "https://localhost:8080/", "::1,127.0.0.1", true )]
+	[DataRow( "https://localhost:8443/", "::1,127.0.0.1", true )]
+	[DataRow( "https://localhost:1337/", "::1,127.0.0.1", false )]
 	[DataRow( "http://elsewhere.example/", "8.8.8.8", true )]
 	public void IsResolvedAllowed( string uri, string addresses, bool expected )
 	{

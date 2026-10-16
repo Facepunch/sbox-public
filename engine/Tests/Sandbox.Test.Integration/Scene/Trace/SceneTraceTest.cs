@@ -846,10 +846,7 @@ public class SceneTraceTest
 		// test assembly by default - swap in one that does so TestTraceProviderSystem
 		// gets instantiated for this scene.
 		var oldTypeLibrary = Game.TypeLibrary;
-		var typeLibrary = new Sandbox.Internal.TypeLibrary();
-		typeLibrary.AddAssembly( typeof( ModelRenderer ).Assembly, false );
-		typeLibrary.AddAssembly( typeof( SceneTraceTest ).Assembly, false );
-		Game.TypeLibrary = typeLibrary;
+		Game.TypeLibrary = SharedTypeLibrary.EngineAndTests;
 
 		try
 		{

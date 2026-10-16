@@ -31,6 +31,11 @@ internal partial class NetworkSystem
 	internal bool IsDisconnecting { get; set; }
 
 	public LobbyConfig Config { get; internal init; }
+
+	/// <summary>
+	/// Who the host lets in. Only means anything while we're the host.
+	/// </summary>
+	internal JoinAccess Access { get; } = new();
 	public ConnectionInfoManager ConnectionInfo { get; }
 	public HostStats HostStats { get; private set; }
 	public string DebugName { get; }
@@ -49,6 +54,7 @@ internal partial class NetworkSystem
 
 		InstallHandshakeMessages();
 		InstallHostMigrationMessages();
+		InstallJoinAccessMessages();
 
 		AddHandler( InternalMessageType.TableSnapshot, TableMessage );
 		AddHandler( InternalMessageType.TableUpdated, TableMessage );
@@ -325,6 +331,8 @@ internal partial class NetworkSystem
 			}
 
 			Connection?.Tick( this );
+
+			ResendPendingInvites();
 		}
 	}
 

@@ -20,13 +20,8 @@ public abstract class SceneTestBase
 		_sceneScope = new Scene().Push();
 		_oldTypeLibrary = Game.TypeLibrary;
 
-		Game.TypeLibrary = new TypeLibrary();
-		Game.TypeLibrary.AddAssembly( typeof( Vector3 ).Assembly, false );
-		Game.TypeLibrary.AddAssembly( typeof( ModelRenderer ).Assembly, false );
-		Game.TypeLibrary.AddAssembly( typeof( SceneTestBase ).Assembly, false );
+		Game.TypeLibrary = SharedTypeLibrary.SystemEngineAndTests;
 		JsonUpgrader.UpdateUpgraders( Game.TypeLibrary );
-
-		Game.TypeLibrary = Game.TypeLibrary;
 	}
 
 	[TestCleanup]

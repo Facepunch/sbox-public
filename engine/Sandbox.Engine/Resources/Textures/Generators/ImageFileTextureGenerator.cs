@@ -139,12 +139,18 @@ public class ImageFileGenerator : TextureGenerator
 	[JsonIgnore, Hide]
 	int loadCount = 0;
 
-	async Task<Bitmap> LoadCached()
-	{
-		if ( string.IsNullOrWhiteSpace( FilePath ) ) return default;
-		var path = FilePath.NormalizeFilename();
+	[JsonIgnore, Hide]
+	readonly Lock _cacheLock = new();
 
-		if ( string.IsNullOrEmpty( FilePath ) ) return default;
+	/// <summary>
+	/// Read through the caller's filesystem context, then decode and clone cached pixels on workers.
+	/// </summary>
+	async Task<Bitmap> LoadCached( string filePath, Margin cropping, CancellationToken ct )
+	{
+		if ( string.IsNullOrWhiteSpace( filePath ) ) return default;
+		var path = filePath.NormalizeFilename();
+
+		if ( string.IsNullOrEmpty( filePath ) ) return default;
 		if ( !EngineFileSystem.Mounted.FileExists( path ) )
 		{
 			Log.Warning( $"ImageFileGenerator could not find file: {path}" );
@@ -153,131 +159,157 @@ public class ImageFileGenerator : TextureGenerator
 
 		var size = EngineFileSystem.Mounted.FileSize( path );
 
-		var hash = HashCode.Combine( size, FilePath, Cropping );
-		if ( hash == _loadedCacheHash )
-			return _cacheLoaded?.Clone();
+		var hash = HashCode.Combine( size, filePath, cropping );
+		var cached = await Task.Run( () =>
+		{
+			lock ( _cacheLock )
+			{
+				return hash == _loadedCacheHash ? _cacheLoaded?.Clone() : null;
+			}
+		}, ct );
+
+		if ( cached is not null )
+			return cached;
 
 		var bytes = await EngineFileSystem.Mounted.ReadAllBytesAsync( path );
 
-		// Create the bitmap and crop it if needed
-		var bitmap = Bitmap.CreateFromBytes( bytes );
-		var newRect = new Rect( Cropping.Left, Cropping.Top, bitmap.Width - Cropping.Right - Cropping.Left, bitmap.Height - Cropping.Bottom - Cropping.Top );
-		if ( newRect.Width > 0 && newRect.Height > 0 )
+		return await Task.Run( () =>
 		{
-			bitmap = bitmap.Crop( newRect.SnapToGrid() );
-		}
+			// Create the bitmap and crop it if needed
+			var bitmap = Bitmap.CreateFromBytes( bytes );
+			var newRect = new Rect( cropping.Left, cropping.Top, bitmap.Width - cropping.Right - cropping.Left, bitmap.Height - cropping.Bottom - cropping.Top );
+			if ( newRect.Width > 0 && newRect.Height > 0 )
+			{
+				bitmap = bitmap.Crop( newRect.SnapToGrid() );
+			}
 
-		if ( loadCount > 3 )
-		{
-			_loadedCacheHash = hash;
-			_cacheLoaded = bitmap?.Clone();
-		}
+			// Cache operations only hold this lock on workers, never across an await.
+			lock ( _cacheLock )
+			{
+				if ( loadCount > 3 )
+				{
+					_loadedCacheHash = hash;
+					_cacheLoaded = bitmap?.Clone();
+				}
 
-		loadCount++;
+				loadCount++;
+			}
 
-		return bitmap;
+			return bitmap;
+		}, ct );
 	}
 
 	protected override async ValueTask<Texture> CreateTexture( Options options, CancellationToken ct )
 	{
-		if ( string.IsNullOrWhiteSpace( FilePath ) )
+		var filePath = FilePath;
+		if ( string.IsNullOrWhiteSpace( filePath ) )
 			return null;
 
-		//
-		// A regular texture!
-		//
+		// Keep an in-flight generation independent of edits to the generator.
+		var settings = (Cropping, Padding, Rotate, MaxSize, Tint, Sharpen, Blur,
+			Brightness, Contrast, Saturation, Hue, InvertColor, Colorize, TargetColor,
+			FlipHorizontal, FlipVertical, ConvertHeightToNormals, NormalScale);
 
 		// Trim compiled names!
-		if ( FilePath.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) )
-			FilePath = FilePath[..^2];
+		if ( filePath.EndsWith( "_c", StringComparison.OrdinalIgnoreCase ) )
+			FilePath = filePath = filePath[..^2];
 
-		if ( FilePath.EndsWith( ".vtex", StringComparison.OrdinalIgnoreCase ) )
+		if ( filePath.EndsWith( ".vtex", StringComparison.OrdinalIgnoreCase ) )
 		{
 			await MainThread.Wait();
-			return Texture.Load( FilePath );
+			return Texture.Load( filePath );
 		}
 
-		var bitmap = await LoadCached();
+		var bitmap = await LoadCached( filePath, settings.Cropping, ct );
 		if ( bitmap is null ) return Texture.Invalid;
 
-		//
-		// Tell the compiler we're using this file, so to add it as a compile reference
-		//
-		if ( options.Compiler is not null )
+		try
 		{
-			options.Compiler.Context.AddCompileReference( FilePath );
-		}
+			ct.ThrowIfCancellationRequested();
 
-		if ( !Padding.IsNearlyZero() )
-		{
-			bitmap.InsertPadding( Padding );
-		}
+			// Native compiler and texture operations belong to the caller's context.
+			if ( options.Compiler is not null )
+			{
+				options.Compiler.Context.AddCompileReference( filePath );
+			}
 
+			await Task.Run( () =>
+			{
+				ct.ThrowIfCancellationRequested();
 
+				if ( !settings.Padding.IsNearlyZero() )
+				{
+					bitmap.InsertPadding( settings.Padding );
+				}
 #pragma warning disable CA2000 // Dispose objects before losing scope
-		// Disposal is handled after creating the new bitmap to keep the source alive during processing
-		if ( Rotate != 0 )
-		{
-			var rotated = bitmap.Rotate( Rotate );
-			bitmap.Dispose();
-			bitmap = rotated;
-		}
+				// Disposal is handled after creating the new bitmap to keep the source alive during processing
+				if ( settings.Rotate != 0 )
+				{
+					var rotated = bitmap.Rotate( settings.Rotate );
+					bitmap.Dispose();
+					bitmap = rotated;
+				}
 
-		if ( bitmap.Width > MaxSize || bitmap.Height > MaxSize )
-		{
-			float scale = Math.Min( (float)MaxSize / bitmap.Width, (float)MaxSize / bitmap.Height );
-			int newWidth = (int)(bitmap.Width * scale);
-			int newHeight = (int)(bitmap.Height * scale);
+				if ( bitmap.Width > settings.MaxSize || bitmap.Height > settings.MaxSize )
+				{
+					float scale = Math.Min( (float)settings.MaxSize / bitmap.Width, (float)settings.MaxSize / bitmap.Height );
+					int newWidth = (int)(bitmap.Width * scale);
+					int newHeight = (int)(bitmap.Height * scale);
 
-			newWidth = newWidth.Clamp( 1, 1024 * 8 );
-			newHeight = newHeight.Clamp( 1, 1024 * 8 );
+					newWidth = newWidth.Clamp( 1, 1024 * 8 );
+					newHeight = newHeight.Clamp( 1, 1024 * 8 );
 
-			var resized = bitmap.Resize( newWidth, newHeight );
-			bitmap.Dispose();
-			bitmap = resized;
-		}
+					var resized = bitmap.Resize( newWidth, newHeight );
+					bitmap.Dispose();
+					bitmap = resized;
+				}
 
-		if ( Tint != Color.White || Tint.a != 1 )
-		{
-			bitmap.Tint( Tint );
-		}
-		if ( Sharpen > 0.0f ) bitmap.Sharpen( Sharpen, true );
-		if ( Blur > 0.0f ) bitmap.Blur( Blur, true );
-		if ( Brightness != 1 || Contrast != 1 || Saturation != 1 || Hue != 0 ) bitmap.Adjust( Brightness, Contrast, Saturation, Hue );
-		if ( InvertColor ) bitmap.InvertColor();
+				if ( settings.Tint != Color.White || settings.Tint.a != 1 )
+				{
+					bitmap.Tint( settings.Tint );
+				}
+				if ( settings.Sharpen > 0.0f ) bitmap.Sharpen( settings.Sharpen, true );
+				if ( settings.Blur > 0.0f ) bitmap.Blur( settings.Blur, true );
+				if ( settings.Brightness != 1 || settings.Contrast != 1 || settings.Saturation != 1 || settings.Hue != 0 ) bitmap.Adjust( settings.Brightness, settings.Contrast, settings.Saturation, settings.Hue );
+				if ( settings.InvertColor ) bitmap.InvertColor();
 
-		if ( Colorize )
-		{
-			bitmap.Colorize( TargetColor );
-		}
+				if ( settings.Colorize )
+				{
+					bitmap.Colorize( settings.TargetColor );
+				}
 
-		//	if ( Posterize != 0 ) bitmap.Posterize( Posterize );
+				//	if ( Posterize != 0 ) bitmap.Posterize( Posterize );
 
-		if ( FlipHorizontal )
-		{
-			var flipped = bitmap.FlipHorizontal();
-			bitmap.Dispose();
-			bitmap = flipped;
-		}
-		if ( FlipVertical )
-		{
-			var flipped = bitmap.FlipVertical();
-			bitmap.Dispose();
-			bitmap = flipped;
-		}
+				if ( settings.FlipHorizontal )
+				{
+					var flipped = bitmap.FlipHorizontal();
+					bitmap.Dispose();
+					bitmap = flipped;
+				}
+				if ( settings.FlipVertical )
+				{
+					var flipped = bitmap.FlipVertical();
+					bitmap.Dispose();
+					bitmap = flipped;
+				}
 
-		if ( ConvertHeightToNormals )
-		{
-			var normalMap = bitmap.HeightmapToNormalMap( NormalScale );
-			bitmap.Dispose();
-			bitmap = normalMap;
-		}
+				if ( settings.ConvertHeightToNormals )
+				{
+					var normalMap = bitmap.HeightmapToNormalMap( settings.NormalScale );
+					bitmap.Dispose();
+					bitmap = normalMap;
+				}
 #pragma warning restore CA2000 // Dispose objects before losing scope
 
-		var tex = bitmap.ToTexture();
-		bitmap?.Dispose();
+			}, ct );
 
-		return tex;
+			ct.ThrowIfCancellationRequested();
+			return bitmap.ToTexture();
+		}
+		finally
+		{
+			bitmap.Dispose();
+		}
 	}
 
 	public override EmbeddedResource? CreateEmbeddedResource()

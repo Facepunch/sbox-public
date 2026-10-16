@@ -4,115 +4,32 @@
 
 <root>
 
-    <FormRow Label="Model">
-        <Content>
-
-            <ButtonGroup Value:bind="@Manager.CitizenActive" class="bg-round">
-                <ChildContent>
-                    <Button Text="Human" Value="@false"></Button>
-                    <Button Text="Citizen" Value="@true"></Button>
-                </ChildContent>
-            </ButtonGroup>
-
-        </Content>
-    </FormRow>    
-
-
-
-    <FormRow Label="Height">
+    <FormRow Label="#menu.avatar.height">
         <Content>
             <SliderControl class="simple" Value:bind=@Manager.Height Min="@(0.0f)" Max="@(1.0f)" Step="@(0.01f)"></SliderControl>
         </Content>
     </FormRow>    
 
+    <FormRow Label="#menu.avatar.skin">
+        <Content>
+            <div class="skin-items">
+                @foreach( var item in Manager.GetAllClothing().Where( x => x.HasHumanSkin ) )
+                {
+                    var w = Manager.IsSelected(item);
+                    var c = w ? "active" : "";
 
-    @if (Manager.CitizenActive )
-    {
-        <FormRow Label="Age">
-            <Content>
-                <SliderControl class="simple" Value:bind=@Manager.Age Min="@(0.0f)" Max="@(1.0f)" Step="@(0.01f)"></SliderControl>
-            </Content>
-        </FormRow>
+                    <ClothingIcon class="@c" onclick=@( () => Clicked( item ) ) Icon=@item.Icon.Path></ClothingIcon>
+                }
+            </div>
 
-        <FormRow Label="Skin">
-            <Content>
+        </Content>
+    </FormRow>
 
-                <ColorSwatchPicker Value:bind="@Manager.Tint" Gradient="@GetSkinGradient()"></ColorSwatchPicker>
-
-            </Content>
-        </FormRow>
-    }
-    else
-    {
-        <FormRow Label="Skin">
-            <Content>
-                <div class="skin-items">
-                    @foreach( var item in Manager.GetAllClothing().Where( x => x.HasHumanSkin ) )
-                    {
-                        var w = Manager.IsSelected(item);
-                        var c = w ? "active" : "";
-
-                        <ClothingIcon class="@c" onclick=@( () => Clicked( item ) ) Icon=@item.Icon.Path></ClothingIcon>
-                    }
-                </div>
-
-            </Content>
-        </FormRow>
-    }
-
-    @if ( Manager.CitizenActive )
-    {
-        <FormRow Label="Eye Color">
-            <Content>
-                <ColorSwatchPicker Value:bind="@Manager.EyeColor" Gradient="@Dresser.EyeColorGradient" />
-            </Content>
-        </FormRow>
-
-        <FormRow Label="Eye Alignment">
-            <Content>
-                <SliderControl class="simple" Value:bind="@Manager.EyeAlign" Min="@(0f)" Max="@(1f)" Step="@(0.01f)" />
-            </Content>
-        </FormRow>
-    }
-
-    @if ( Manager.CitizenActive )
-    {
-        <FormRow Label="Neck Size">
-            <Content>
-                <SliderControl class="simple" Value:bind="@Manager.NeckSize" Min="@(0f)" Max="@(1f)" Step="@(0.01f)" />
-            </Content>
-        </FormRow>
-
-        <FormRow Label="Waist Size">
-            <Content>
-                <SliderControl class="simple" Value:bind="@Manager.WaistSize" Min="@(0f)" Max="@(1f)" Step="@(0.01f)" />
-            </Content>
-        </FormRow>
-
-        <FormRow Label="Chest Size">
-            <Content>
-                <SliderControl class="simple" Value:bind="@Manager.ChestSize" Min="@(0f)" Max="@(1f)" Step="@(0.01f)" />
-            </Content>
-        </FormRow>
-
-        <FormRow Label="Head Shape">
-            <Content>
-                <SliderControl class="simple" Value:bind="@Manager.HeadShape" Min="@(0f)" Max="@(1f)" Step="@(0.01f)" />
-            </Content>
-        </FormRow>
-
-        <FormRow Label="Nose Size">
-            <Content>
-                <SliderControl class="simple" Value:bind="@Manager.NoseSize" Min="@(0f)" Max="@(1f)" Step="@(0.01f)" />
-            </Content>
-        </FormRow>
-
-        <FormRow Label="Chin Size">
-            <Content>
-                <SliderControl class="simple" Value:bind="@Manager.ChinSize" Min="@(0f)" Max="@(1f)" Step="@(0.01f)" />
-            </Content>
-        </FormRow>
-    }
+	<FormRow Label="#menu.avatar.eye_color">
+		<Content>
+			<ColorSwatchPicker Gradient="@Dresser.EyeColorGradient" Value:bind="@Manager.EyeColor" />
+		</Content>
+	</FormRow>
 
     @if (Manager.Container.Clothing.Any(x => x.Clothing?.AllowTintSelect ?? false ))
     {
@@ -129,65 +46,29 @@
                 </Content>
             </FormRow>
 
-
         }
     }
-
-
-
 
 </root>
 
 @code
 {
+    /// <summary>
+    /// The avatar editor whose Human appearance is being edited.
+    /// </summary>
     [Parameter]
     public AvatarEditManager Manager { get; set; }
 
     protected override int BuildHash()
     {
         var hash = new HashCode();
-        hash.Add( Manager.CitizenActive );
-        hash.Add( Manager.EyeColor );
-        hash.Add( Manager.EyeAlign );
+        hash.Add( Manager.Height );
+		hash.Add( Manager.EyeColor );
 
         foreach ( var entry in Manager.Container.Clothing )
             hash.Add( entry );
 
-        hash.Add( Manager.NeckSize );
-        hash.Add( Manager.WaistSize );
-        hash.Add( Manager.ChestSize );
-        hash.Add( Manager.HeadShape );
-        hash.Add( Manager.NoseSize );
-        hash.Add( Manager.ChinSize );
-
         return hash.ToHashCode();
-    }
-
-    static Gradient? skinGradient;
-
-    Gradient GetSkinGradient()
-    {
-        if ( skinGradient.HasValue )
-            return skinGradient.Value;
-
-        var skinMaterial = Material.Load( "models/citizen/skin/citizen_skin01.vmat" );
-        var texture = skinMaterial.GetTexture( "g_tTintLookup" );
-        if ( texture is null )
-            return new Gradient();
-
-        using var bitmap = texture.GetBitmap( 0 );
-        var gradient = new Gradient();
-
-        // CSS gradients support eight stops. Include both ends of the skin lookup.
-        for ( int i = 0; i < 8; i++ )
-        {
-            var position = i / 7f;
-            var x = ((int)(position * bitmap.Width)).Clamp( 0, bitmap.Width - 1 );
-            gradient.AddColor( position, bitmap.GetPixel( x, 8 ) );
-        }
-
-        skinGradient = gradient;
-        return gradient;
     }
 
     void Clicked( Clothing x )

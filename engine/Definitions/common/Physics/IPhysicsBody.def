@@ -110,6 +110,7 @@ native class IPhysicsBody as NativeEngine.IPhysicsBody
 
 	bool CheckOverlap( IPhysicsBody body, Transform transform );
 	bool ComputePenetration( IPhysicsBody body, Transform transform, cref out Vector3 direction, cref out float distance );
+	int GetScrapeContacts( CastTo[PhysicsScrapeContact_t*] void* buffer, int maxCount );
 
 	Vector3 GetLocalInertiaVector();
 	Rotation GetLocalInertiaOrientation();
@@ -133,4 +134,6 @@ native class IPhysicsBody as NativeEngine.IPhysicsBody
 	void SetBullet( bool bEnabled );
 
 	void ApplyBuoyancyImpulse( Vector3 planeOrigin, Vector3 planeNormal, float fluidDensity, float linearDrag, float angularDrag, Vector3 fluidVelocity, Vector3 gravity, float dt );
+
+	void ScaleInertia( float scale );
 }

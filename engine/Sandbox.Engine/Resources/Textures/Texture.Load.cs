@@ -61,7 +61,7 @@ public partial class Texture
 
 		filepath = filepath.Replace( ".vtex_c", ".vtex" );
 
-		if ( Sandbox.Mounting.Directory.TryLoad( filepath, ResourceType.Texture, out object model ) && model is Texture m )
+		if ( Sandbox.Mounting.Directory.TryLoad( filepath, out object model ) && model is Texture m )
 			return m;
 
 		if ( !TextureLoader.ImageUrl.IsAppropriate( filepath ) && !TextureLoader.ImageDataUri.IsAppropriate( filepath ) )
@@ -76,6 +76,9 @@ public partial class Texture
 		var tex = TryToLoad( filesystem, filepath, warnOnMissing );
 		if ( tex == null )
 			return null;
+
+		if ( !TextureLoader.ImageDataUri.IsAppropriate( filepath ) )
+			tex.RegisterWeakResourceId( filepath, tex.native.GetGuid() );
 
 		return tex;
 	}
@@ -132,26 +135,21 @@ public partial class Texture
 
 	internal static void Hotload( BaseFileSystem filesystem, string filepath )
 	{
-		var existing = Game.Resources.Get<Texture>( filepath );
-		if ( existing is not null )
-		{
-			existing.TryReload( filesystem, existing.ResourcePath );
-		}
-		else if ( filepath.StartsWith( "/" ) && TextureLoader.Image.IsAppropriate( filepath ) )
-		{
-			// Image might have been loaded without '/' so try again without it
-			Hotload( filesystem, filepath[1..] );
-		}
-		else if ( TextureLoader.SvgLoader.IsAppropriate( filepath ) )
+		if ( TextureLoader.SvgLoader.IsAppropriate( filepath ) )
 		{
 			// SVGs can have query parameters appended to them, find the ones
 			// that match and reload with the same parameters
 			var svgPath = filepath.TrimStart( '/' );
-			foreach ( var svgTarget in Game.Resources.FindWeakByPathPrefix<Texture>( svgPath ) )
+			foreach ( var svgTarget in Game.Resources.FindWeakByPathPrefix<Texture>( svgPath ).ToArray() )
 			{
 				svgTarget.TryReload( filesystem, svgTarget.ResourcePath );
 			}
+
+			return;
 		}
+
+		if ( Game.Resources.Get<Texture>( filepath ) is { } existing )
+			existing.TryReload( filesystem, existing.ResourcePath );
 	}
 
 	internal static Texture TryToLoad( BaseFileSystem filesystem, string filepath, bool warnOnMissing = true )
@@ -225,9 +223,7 @@ public partial class Texture
 		//
 		ThreadSafe.AssertIsMainThread();
 		var textureHandle = NativeGlue.Resources.GetTexture( filepath, Guid.Empty );
-		var t = FromNative( textureHandle );
-		t?.RegisterWeakResourceId( filepath, t.native.GetGuid() );
-		return t;
+		return FromNative( textureHandle );
 	}
 
 	/// <summary>

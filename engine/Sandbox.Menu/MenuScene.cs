@@ -24,7 +24,7 @@ public static class MenuScene
 	{
 		if ( Scene is null ) return;
 
-		using ( Scene.Push() )
+		using ( Scene.PushScope() )
 		{
 			Scene.GameTick( RealTime.Delta );
 		}

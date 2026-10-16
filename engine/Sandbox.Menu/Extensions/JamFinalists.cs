@@ -225,17 +225,12 @@ public static partial class SandboxMenuExtensions
 	}
 
 	/// <summary>
-	/// Changes one category's vote and returns its authoritative response. A stale round is rejected
-	/// before submission; the backend still makes the final eligibility and open-round decision.
+	/// Changes one category's vote and returns its authoritative response.
+	/// The backend decides eligibility and whether the round is open.
 	/// </summary>
 	public static async Task<JamFinalistCategory> VoteForFinalistAsync( this Jam jam, JamFinalistCategory category, string packageIdent, bool remove )
 	{
 		if ( Jam.PreviewDays != 0 ) throw new InvalidOperationException( "Preview votes stay local." );
-
-		var current = (await jam.GetFinalistsAsync()).FirstOrDefault( x => x.Id == category.Id );
-		if ( current is null || !current.VotingOpen || current.Round != category.Round
-			|| !current.Nominees.Any( x => x.PackageIdent == packageIdent && !x.EliminatedRound.HasValue ) )
-			throw new InvalidOperationException( "The round has changed. Review the refreshed slate before voting." );
 
 		try
 		{

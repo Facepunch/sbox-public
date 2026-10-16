@@ -362,6 +362,8 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 			// Native bounds include deformation padding.
 			var volumes = model.DeformationVolumes;
 			if ( !volumes.SequenceEqual( mesh.DeformationVolumes ) ) mesh.DeformationVolumes = volumes.ToArray();
+			var anchors = model.DeformationAnchors;
+			if ( !anchors.SequenceEqual( mesh.DeformationAnchors ) ) mesh.DeformationAnchors = anchors.ToArray();
 
 			mesh.LocalBounds = ToLocal( model.Bounds, mesh.Transform );
 		}
@@ -578,6 +580,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 			decal.EmissionEnergy = source.EmissionEnergy;
 			decal.SequenceIndex = source.SequenceIndex;
 			decal.ColorMix = source.ColorMix;
+			decal.BlendMode = source.BlendMode;
 			decal.ParallaxStrength = source.ParallaxStrength;
 			decal.SamplerIndex = source.SamplerIndex;
 			decal.CoverageAmount = source.CoverageAmount;
@@ -651,8 +654,9 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 				lighting.SunBakeIndex = packs ? bakeIndex : -1;
 				lighting.SunBaked = packs && bakeIndex >= 0 ? packed : null;
 
-				// Baked suns exclude static casters (ShadowMapper.FromNative).
-				lighting.SunShadowsBaked = packs && (flags & LightTypeFlagsBaked) != 0;
+				var baked = packs && (flags & LightTypeFlagsBaked) != 0;
+				lighting.SunShadowsBaked = baked && !sun.IncludeStaticShadowCasters;
+				lighting.SunShadows &= !baked || (flags & LightTypeFlagsMixedShadows) != 0;
 				lighting.SunContactShadows = sun.ContactShadows;
 				lighting.SunFogStrength = sun.FogStrength;
 			}

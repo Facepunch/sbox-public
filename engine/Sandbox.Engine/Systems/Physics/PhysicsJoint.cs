@@ -199,8 +199,7 @@ public partial class PhysicsJoint : IValid
 		ValidateCreate( a.Body, b.Body );
 
 		var joint = a.Body.World.CreatePrismaticJoint( a.Body, b.Body, a.LocalTransform, b.LocalTransform );
-		joint.MaxLength = maxLength;
-		joint.MinLength = minLength;
+		joint.ConfigureLimits( new Vector2( minLength, maxLength ), null );
 
 		return joint;
 	}

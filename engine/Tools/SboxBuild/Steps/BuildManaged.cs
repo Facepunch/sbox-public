@@ -28,17 +28,8 @@ internal class BuildManaged( bool clean = false )
 			if ( !Utility.RunDotnetCommand( engineDir, "restore" ) )
 				return ExitCode.Failure;
 
-			Log.Info( "Step 3: Build CodeGen.exe" );
-			BuildDisplay.Status( "Build CodeGen" );
-			RecreateDirectory( Path.Combine( engineDir, "Tools", "CodeGen", "bin" ) );
-			if ( !Utility.RunDotnetCommand( engineDir, "build Tools/CodeGen/ -o Tools/CodeGen/bin" ) )
-				return ExitCode.Failure;
-
-			Log.Info( "Step 3a: Build CreateGameCache.exe" );
-			BuildDisplay.Status( "Build CreateGameCache" );
-			RecreateDirectory( Path.Combine( engineDir, "Tools", "CreateGameCache", "bin" ) );
-			if ( !Utility.RunDotnetCommand( engineDir, "build Tools/CreateGameCache/ -o Tools/CreateGameCache/bin" ) )
-				return ExitCode.Failure;
+			// CodeGen and CreateGameCache are built by the solution build below (Sandbox.Engine references
+			// CodeGen). Building them on their own first was a second, Debug build of the whole engine.
 
 			Log.Info( "Step 4: Clear managed folder" );
 			BuildDisplay.Status( "Clear managed output" );

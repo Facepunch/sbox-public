@@ -20,6 +20,7 @@ FEATURES
 COMMON
 {
 	#include "system.fxc" // This should always be the first include in COMMON
+	#include "math_general.fxc"
 	
 	enum DownsampleMethod
 	{
@@ -28,7 +29,8 @@ COMMON
 		GaussianBorder = 2,
 		Max = 3,
 		Min = 4,
-		MinMax = 5
+		MinMax = 5,
+		GGX = 6
 	};
 }
 
@@ -38,7 +40,7 @@ CS
 	// Includes -----------------------------------------------------------------------------------------------------------------------------------------------
 
 	// Combos -------------------------------------------------------------------------------------------------------------------------------------------------
-	DynamicCombo( D_DOWNSAMPLE_METHOD, 0..5, Sys( ALL ) );
+	DynamicCombo( D_DOWNSAMPLE_METHOD, 0..6, Sys( ALL ) );
 	
 	// System Textures ----------------------------------------------------------------------------------------------------------------------------------------
 	Texture2D 			MipLevel0 < Attribute( "MipLevel0" ); >;
@@ -54,32 +56,31 @@ CS
 	//---------------------------------------------------------------------------------------------------------------------------------------------------------
 	bool WantsSRGB()
 	{
-		return D_DOWNSAMPLE_METHOD == DownsampleMethod::GaussianBlur || D_DOWNSAMPLE_METHOD == DownsampleMethod::GaussianBorder;
+		return D_DOWNSAMPLE_METHOD == DownsampleMethod::GaussianBlur || D_DOWNSAMPLE_METHOD == DownsampleMethod::GaussianBorder || D_DOWNSAMPLE_METHOD == DownsampleMethod::GGX;
 	}
 
 	//---------------------------------------------------------------------------------------------------------------------------------------------------------
-	float3 LoadColorSRGB( int2 pixelCoord )
+	// One bilinear tap on the shared corner averages the 2x2 source texels of an output texel
+	float4 LoadColorSRGB( int2 pixelCoord )
 	{
 		SamplerState sampler = D_DOWNSAMPLE_METHOD == DownsampleMethod::GaussianBorder ? BilinearBorder : BilinearClamp;
 
-		float3 color = MipLevel0.SampleLevel( sampler, pixelCoord * InvTextureSize * 0.5f, 0 ).rgb;
-		color = pow( color, 1.0f / 2.2f );
-		return max( color, 0.0f );
+		float4 color = max( MipLevel0.SampleLevel( sampler, ( pixelCoord + 0.5f ) * InvTextureSize, 0 ), 0.0f );
+		// Average linear colour in sRGB gamma
+		color.rgb = SrgbLinearToGamma( color.rgb );
+		return color;
 	}
 
-	float3 LoadColor( int2 pixelCoord )
+	float4 LoadColor( int2 pixelCoord )
 	{
-		if( WantsSRGB() )
-			return LoadColorSRGB( pixelCoord );
-
-		return max( MipLevel0[ pixelCoord ].rgb, 0.0f );
+		return max( MipLevel0[ pixelCoord ], 0.0f );
 	}
 
 	void StoreColor( int2 pixelCoord, float4 color )
 	{
 		if( WantsSRGB() )
 		{
-			color.rgb = pow( color.rgb, 2.2f );
+			color.rgb = SrgbGammaToLinear( color.rgb );
 			color.rgb = clamp( color.rgb, 0.0f, 65504.0f ); // Clamp to Float16 avoid NaN
 		}
 
@@ -88,24 +89,23 @@ CS
 	
 	//---------------------------------------------------------------------------------------------------------------------------------------------------------
 
-	float3 FilterBilinear( int2 pixelCoord )
+	float4 FilterBilinear( int2 pixelCoord )
 	{
 		uint2 vCoord = pixelCoord * 2.0f;
-		float3 vColor = ( LoadColor( vCoord ) + LoadColor( vCoord + uint2( 1, 0 ) ) + LoadColor( vCoord + uint2( 0, 1 ) ) + LoadColor( vCoord + uint2( 1, 1 ) ) ) * 0.25f;
-		return vColor.rgb;
+		return ( LoadColor( vCoord ) + LoadColor( vCoord + uint2( 1, 0 ) ) + LoadColor( vCoord + uint2( 0, 1 ) ) + LoadColor( vCoord + uint2( 1, 1 ) ) ) * 0.25f;
 	}
 
 	float3 FilterMax( int2 pixelCoord )
 	{
 		uint2 vCoord = pixelCoord * 2.0f;
-		float3 vColor = max( LoadColor( vCoord ), max( LoadColor( vCoord + uint2( 1, 0 ) ), max( LoadColor( vCoord + uint2( 0, 1 ) ), LoadColor( vCoord + uint2( 1, 1 ) ) ) ) );
+		float3 vColor = max( LoadColor( vCoord ).rgb, max( LoadColor( vCoord + uint2( 1, 0 ) ).rgb, max( LoadColor( vCoord + uint2( 0, 1 ) ).rgb, LoadColor( vCoord + uint2( 1, 1 ) ).rgb ) ) );
 		return vColor.rgb;
 	}
 
 	float3 FilterMin( int2 pixelCoord )
 	{
 		uint2 vCoord = pixelCoord * 2.0f;
-		float3 vColor = min( LoadColor( vCoord ), min( LoadColor( vCoord + uint2( 1, 0 ) ), min( LoadColor( vCoord + uint2( 0, 1 ) ), LoadColor( vCoord + uint2( 1, 1 ) ) ) ) );
+		float3 vColor = min( LoadColor( vCoord ).rgb, min( LoadColor( vCoord + uint2( 1, 0 ) ).rgb, min( LoadColor( vCoord + uint2( 0, 1 ) ).rgb, LoadColor( vCoord + uint2( 1, 1 ) ).rgb ) ) );
 		return vColor.rgb;
 	}
 
@@ -126,49 +126,56 @@ CS
 	//-------------------------------------------------------------------------------------------------------------------------------------------------------------
 	// The guassian blur weights (derived from Pascal's triangle)
 	static const float Weights[5] = { 70.0f / 256.0f, 56.0f / 256.0f, 28.0f / 256.0f, 8.0f / 256.0f, 1.0f / 256.0f };
+	// GGX-like long-tailed kernel, 1 / ( 1 + ( x / 1.5 )^2 )^2 normalised
+	static const float GgxWeights[5] = { 0.430f, 0.206f, 0.0555f, 0.0172f, 0.0065f };
+	float W( int i ) { return D_DOWNSAMPLE_METHOD == DownsampleMethod::GGX ? GgxWeights[i] : Weights[i]; }
 
-	float3 BlurPixels( float3 a, float3 b, float3 c, float3 d, float3 e, float3 f, float3 g, float3 h, float3 i )
+	float4 BlurPixels( float4 a, float4 b, float4 c, float4 d, float4 e, float4 f, float4 g, float4 h, float4 i )
 	{
-		return Weights[0]*e + Weights[1]*(d+f) + Weights[2]*(c+g) + Weights[3]*(b+h) + Weights[4]*(a+i);
+		return W(0)*e + W(1)*(d+f) + W(2)*(c+g) + W(3)*(b+h) + W(4)*(a+i);
 	}
 
 	// 16x16 pixels with an 8x8 center that we will be blurring writing out.  Each uint is two color channels packed together
 	groupshared uint CacheR[128];
 	groupshared uint CacheG[128];
 	groupshared uint CacheB[128];
+	groupshared uint CacheA[128];
 
-	void Store2Pixels( uint index, float3 pixel1, float3 pixel2 )
+	void Store2Pixels( uint index, float4 pixel1, float4 pixel2 )
 	{
 		CacheR[index] = f32tof16(pixel1.r) | f32tof16(pixel2.r) << 16;
 		CacheG[index] = f32tof16(pixel1.g) | f32tof16(pixel2.g) << 16;
 		CacheB[index] = f32tof16(pixel1.b) | f32tof16(pixel2.b) << 16;
+		CacheA[index] = f32tof16(pixel1.a) | f32tof16(pixel2.a) << 16;
 	}
 
-	void Load2Pixels( uint index, out float3 pixel1, out float3 pixel2 )
+	void Load2Pixels( uint index, out float4 pixel1, out float4 pixel2 )
 	{
 		uint rr = CacheR[index];
 		uint gg = CacheG[index];
 		uint bb = CacheB[index];
-		pixel1 = float3( f16tof32(rr      ), f16tof32(gg      ), f16tof32(bb      ) );
-		pixel2 = float3( f16tof32(rr >> 16), f16tof32(gg >> 16), f16tof32(bb >> 16) );
+		uint aa = CacheA[index];
+		pixel1 = float4( f16tof32(rr      ), f16tof32(gg      ), f16tof32(bb      ), f16tof32(aa      ) );
+		pixel2 = float4( f16tof32(rr >> 16), f16tof32(gg >> 16), f16tof32(bb >> 16), f16tof32(aa >> 16) );
 	}
 
-	void Store1Pixel( uint index, float3 pixel )
+	void Store1Pixel( uint index, float4 pixel )
 	{
 		CacheR[index] = asuint(pixel.r);
 		CacheG[index] = asuint(pixel.g);
 		CacheB[index] = asuint(pixel.b);
+		CacheA[index] = asuint(pixel.a);
 	}
 
-	void Load1Pixel( uint index, out float3 pixel )
+	void Load1Pixel( uint index, out float4 pixel )
 	{
-		pixel = asfloat( uint3(CacheR[index], CacheG[index], CacheB[index]) );
+		pixel = asfloat( uint4(CacheR[index], CacheG[index], CacheB[index], CacheA[index]) );
 	}
 
 	// Blur two pixels horizontally.  This reduces LDS reads and pixel unpacking.
 	void BlurHorizontally( uint outIndex, uint leftMostIndex )
 	{
-		float3 s0, s1, s2, s3, s4, s5, s6, s7, s8, s9;
+		float4 s0, s1, s2, s3, s4, s5, s6, s7, s8, s9;
 		Load2Pixels( leftMostIndex + 0, s0, s1 );
 		Load2Pixels( leftMostIndex + 1, s2, s3 );
 		Load2Pixels( leftMostIndex + 2, s4, s5 );
@@ -179,9 +186,9 @@ CS
 		Store1Pixel(outIndex+1, BlurPixels(s1, s2, s3, s4, s5, s6, s7, s8, s9));
 	}
 
-	float3 BlurVertically( uint2 pixelCoord, uint topMostIndex )
+	float4 BlurVertically( uint2 pixelCoord, uint topMostIndex )
 	{
-		float3 s0, s1, s2, s3, s4, s5, s6, s7, s8;
+		float4 s0, s1, s2, s3, s4, s5, s6, s7, s8;
 		Load1Pixel( topMostIndex   , s0 );
 		Load1Pixel( topMostIndex+ 8, s1 );
 		Load1Pixel( topMostIndex+16, s2 );
@@ -207,8 +214,8 @@ CS
 		// Store 4 unblurred pixels in LDS
 		//
 		int destIdx = vGroupThreadID.x + (vGroupThreadID.y << 4);
-		Store2Pixels(destIdx+0, FilterBilinear( ThreadUL + uint2(0, 0)) , FilterBilinear( ThreadUL + uint2(1, 0)) );
-		Store2Pixels(destIdx+8, FilterBilinear( ThreadUL + uint2(0, 1)) , FilterBilinear( ThreadUL + uint2(1, 1)) );
+		Store2Pixels(destIdx+0, LoadColorSRGB( ThreadUL + uint2(0, 0)) , LoadColorSRGB( ThreadUL + uint2(1, 0)) );
+		Store2Pixels(destIdx+8, LoadColorSRGB( ThreadUL + uint2(0, 1)) , LoadColorSRGB( ThreadUL + uint2(1, 1)) );
 
 		GroupMemoryBarrierWithGroupSync();
 
@@ -223,14 +230,69 @@ CS
 		//
 		// Vertically blur the pixels and write the result to memory
 		//
-		return float4( BlurVertically(vDispatchId.xy, (vGroupThreadID.y << 3) + vGroupThreadID.x), 1.0f );
+		return BlurVertically(vDispatchId.xy, (vGroupThreadID.y << 3) + vGroupThreadID.x);
+	}
+
+	// GGX: each 8x8 group blurs a 16x16 output tile, so the apron costs 2.25 fetches per texel instead of 4
+	groupshared uint2 GgxTile[24 * 24];
+	groupshared uint2 GgxRows[24 * 16];
+
+	uint2 PackHalf4( float4 v ) { return uint2( f32tof16( v.r ) | f32tof16( v.g ) << 16, f32tof16( v.b ) | f32tof16( v.a ) << 16 ); }
+	float4 UnpackHalf4( uint2 p ) { return float4( f16tof32( p.x ), f16tof32( p.x >> 16 ), f16tof32( p.y ), f16tof32( p.y >> 16 ) ); }
+
+	void FilterGGX( uint2 vGroupID, uint2 vThread )
+	{
+		int2 vTileOrigin = int2( vGroupID * 16 ) - 4;
+
+		[unroll]
+		for ( uint y = 0; y < 3; y++ )
+		{
+			[unroll]
+			for ( uint x = 0; x < 3; x++ )
+			{
+				uint2 t = vThread * 3 + uint2( x, y );
+				GgxTile[t.y * 24 + t.x] = PackHalf4( LoadColorSRGB( vTileOrigin + int2( t ) ) );
+			}
+		}
+
+		GroupMemoryBarrierWithGroupSync();
+
+		[unroll]
+		for ( uint r = 0; r < 3; r++ )
+		{
+			uint row = vThread.y * 3 + r;
+			uint col = vThread.x * 2;
+			float4 s[10];
+			[unroll]
+			for ( uint i = 0; i < 10; i++ )
+				s[i] = UnpackHalf4( GgxTile[row * 24 + col + i] );
+
+			GgxRows[row * 16 + col] = PackHalf4( BlurPixels( s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8] ) );
+			GgxRows[row * 16 + col + 1] = PackHalf4( BlurPixels( s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9] ) );
+		}
+
+		GroupMemoryBarrierWithGroupSync();
+
+		[unroll]
+		for ( uint c = 0; c < 2; c++ )
+		{
+			uint col = vThread.x * 2 + c;
+			float4 s[10];
+			[unroll]
+			for ( uint i = 0; i < 10; i++ )
+				s[i] = UnpackHalf4( GgxRows[( vThread.y * 2 + i ) * 16 + col] );
+
+			uint2 vOut = vGroupID * 16 + uint2( col, vThread.y * 2 );
+			StoreColor( vOut, BlurPixels( s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8] ) );
+			StoreColor( vOut + uint2( 0, 1 ), BlurPixels( s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9] ) );
+		}
 	}
 
 	[numthreads( 8, 8, 1 )]
 	void MainCs( uint2 vGroupID : SV_GroupID, uint2 vGroupThreadID : SV_GroupThreadID, uint2 vDispatchId : SV_DispatchThreadID )
 	{
 		if ( D_DOWNSAMPLE_METHOD == DownsampleMethod::Box )
-			StoreColor( vDispatchId.xy, float4( FilterBilinear( vDispatchId.xy ), 1.0f ) );
+			StoreColor( vDispatchId.xy, FilterBilinear( vDispatchId.xy ) );
 		else if( D_DOWNSAMPLE_METHOD == DownsampleMethod::GaussianBlur )
 			StoreColor( vDispatchId.xy, FilterGaussianBlur( vGroupID, vGroupThreadID, vDispatchId ) );
 		else if( D_DOWNSAMPLE_METHOD == DownsampleMethod::GaussianBorder )
@@ -239,6 +301,8 @@ CS
 			StoreColor( vDispatchId.xy, float4( FilterMax( vDispatchId.xy ), 1.0f ) );
 		else if( D_DOWNSAMPLE_METHOD == DownsampleMethod::Min )
 			StoreColor( vDispatchId.xy, float4( FilterMin( vDispatchId.xy ), 1.0f ) );
+		else if( D_DOWNSAMPLE_METHOD == DownsampleMethod::GGX )
+			FilterGGX( vGroupID, vGroupThreadID );
 		else if( D_DOWNSAMPLE_METHOD == DownsampleMethod::MinMax )
 			StoreColor( vDispatchId.xy, float4( FilterMinMax( vDispatchId.xy ), 0.0f, 1.0f ) );
 	}

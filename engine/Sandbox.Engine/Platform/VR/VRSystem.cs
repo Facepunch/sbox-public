@@ -16,6 +16,7 @@ internal static unsafe partial class VRSystem
 	}
 
 	public static States State { get; private set; }
+	private static bool headsetChecked;
 	public static bool IsActive => State == States.Active;
 	internal static bool InternalIsActive() => IsActive; // For native side
 
@@ -34,6 +35,11 @@ internal static unsafe partial class VRSystem
 
 	public static void Init()
 	{
+		if ( headsetChecked )
+			return;
+
+		headsetChecked = true;
+
 		//
 		// If we've already inited, don't do it again
 		//
@@ -43,7 +49,7 @@ internal static unsafe partial class VRSystem
 		//
 		// Check if we actually want to init VR
 		//
-		if ( CommandLine.HasSwitch( "-novr" ) )
+		if ( !CommandLine.HasSwitch( "-vr" ) || CommandLine.HasSwitch( "-novr" ) )
 			return;
 
 		if ( Application.IsHeadless )
@@ -267,7 +273,8 @@ internal static unsafe partial class VRSystem
 		if ( !HasHeadset )
 			return;
 
-		if ( CommandLine.HasSwitch( "-vrdebug" ) )
+		var vrDebug = CommandLine.HasSwitch( "-vrdebug" );
+		if ( vrDebug )
 		{
 			var pDebugCallback = Marshal.GetFunctionPointerForDelegate<DebugUtilsMessengerCallback>( XrDebugCallback );
 			ApplicationConfig.SetDebugCallback( pDebugCallback );
@@ -279,7 +286,7 @@ internal static unsafe partial class VRSystem
 		var instanceInfo = new InstanceInfo()
 		{
 			graphicsApi = GraphicsAPI.Vulkan,
-			useDebugMessenger = true
+			useDebugMessenger = vrDebug
 		};
 
 		CopyStringToBuffer( "s&box", instanceInfo.appName, Constants.MaxAppNameSize );

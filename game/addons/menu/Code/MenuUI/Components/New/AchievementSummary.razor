@@ -38,6 +38,7 @@
 
     protected override void OnMouseDown(MousePanelEvent e)
     {
+        Discovery.Clicked( new DiscoveryContext { Surface = "achievements" }, Entry.Package );
         Entry.Package.OpenModal();
     }
 

@@ -33,11 +33,8 @@ public partial class Scene : GameObject
 	/// </summary>
 	public bool Load( SceneLoadOptions options )
 	{
-		using var runtimePreparation = options.RuntimePreparationScope();
-		if ( !IsEditor && !options.PrepareRuntime() )
-			return false;
-
 		var sceneFile = options.GetSceneFile();
+
 		if ( !sceneFile.IsValid() )
 		{
 			Log.Error( "No valid Scene was found in SceneLoadOptions." );
@@ -113,7 +110,7 @@ public partial class Scene : GameObject
 			using var sceneScope = Push();
 
 			// Depending on if we load a scene from file or from memory, we need to account for that here
-			using var blobs = sceneFile.LoadBlobData();
+			using var blobs = BlobDataSerializer.Load( sceneFile.BinaryData, sceneFile.ResourcePath );
 			using var batchGroup = CallbackBatch.Batch();
 
 			if ( sceneFile.GameObjects is not null )

@@ -35,7 +35,8 @@ internal static partial class Logging
 
 		var appName = Process.GetCurrentProcess().ProcessName.Split( '.' )[0];
 
-		var gamePath = System.Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE", EnvironmentVariableTarget.User );
+		var gamePath = System.Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE" );
+		gamePath ??= System.Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE", EnvironmentVariableTarget.User );
 		gamePath ??= AppContext.BaseDirectory;
 
 #pragma warning disable CA2000 // Dispose objects before losing scope

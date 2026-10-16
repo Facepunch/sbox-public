@@ -1,0 +1,139 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc29:version{3cec427c-1b0e-4d48-a90a-0436f33a6041} -->
+{
+	rootNode =
+	{
+		_class = "RootNode"
+		children =
+		[
+			{
+				_class = "WeightListList"
+				children =
+				[
+					{
+						_class = "WeightList"
+						name = "Human_Lipsync"
+						note = "Clear Human mouth channels before voice lipsync; preserve brows, eyes, blinking, and all body bones."
+						default_weight = 0.0
+						weights = [  ]
+						master_morph_weight = 0.0
+						morph_weights =
+						[
+							{
+								morph = "cheekPuff"
+								weight = 1.0
+							},
+							{
+								morph = "jawOpen"
+								weight = 1.0
+							},
+							{
+								morph = "jawForward"
+								weight = 1.0
+							},
+							{
+								morph = "jawLeft"
+								weight = 1.0
+							},
+							{
+								morph = "jawRight"
+								weight = 1.0
+							},
+							{
+								morph = "mouthFunnel"
+								weight = 1.0
+							},
+							{
+								morph = "mouthPucker"
+								weight = 1.0
+							},
+							{
+								morph = "mouthLeft"
+								weight = 1.0
+							},
+							{
+								morph = "mouthRight"
+								weight = 1.0
+							},
+							{
+								morph = "mouthRollUpper"
+								weight = 1.0
+							},
+							{
+								morph = "mouthRollLower"
+								weight = 1.0
+							},
+							{
+								morph = "mouthShrugUpper"
+								weight = 1.0
+							},
+							{
+								morph = "mouthShrugLower"
+								weight = 1.0
+							},
+							{
+								morph = "mouthClose"
+								weight = 1.0
+							},
+							{
+								morph = "mouthSmile_L"
+								weight = 1.0
+							},
+							{
+								morph = "mouthSmile_R"
+								weight = 1.0
+							},
+							{
+								morph = "mouthFrown_L"
+								weight = 1.0
+							},
+							{
+								morph = "mouthFrown_R"
+								weight = 1.0
+							},
+							{
+								morph = "mouthDimple_L"
+								weight = 1.0
+							},
+							{
+								morph = "mouthDimple_R"
+								weight = 1.0
+							},
+							{
+								morph = "mouthUpperUp_L"
+								weight = 1.0
+							},
+							{
+								morph = "mouthUpperUp_R"
+								weight = 1.0
+							},
+							{
+								morph = "mouthLowerDown_L"
+								weight = 1.0
+							},
+							{
+								morph = "mouthLowerDown_R"
+								weight = 1.0
+							},
+							{
+								morph = "mouthPress_L"
+								weight = 1.0
+							},
+							{
+								morph = "mouthPress_R"
+								weight = 1.0
+							},
+							{
+								morph = "mouthStretch_L"
+								weight = 1.0
+							},
+							{
+								morph = "mouthStretch_R"
+								weight = 1.0
+							},
+						]
+					},
+				]
+			},
+		]
+	}
+}

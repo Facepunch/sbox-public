@@ -202,7 +202,7 @@ internal sealed record SceneLabScene
 			Checker = [(null, 0.5f)] },
 
 		// Skinned: citizens posed from a few sequences, frozen, under the sun's cascades and a spot's shadow
-		new() { Name = "Citizens", Group = "Skinning", Models = ["models/citizen/citizen.vmdl"], Grid = 3, Floor = true, Spot = true, LightShadows = true, Sun = 0.6f, SunDirection = SideSun,
+		new() { Name = "Citizens", Group = "Skinning", Models = ["models/citizen_human/human.vmdl"], Grid = 3, Floor = true, Spot = true, LightShadows = true, Sun = 0.6f, SunDirection = SideSun,
 			Sequences = CitizenSequences },
 
 		// A model whose LODs are different shapes, so LOD choices can be seen and compared with native
@@ -215,7 +215,7 @@ internal sealed record SceneLabScene
 		new() { Name = "10k Boxes, 64 Shadowed Lights", Group = "Stress", Grid = 100, Lights = 64, LightRadius = 0.05f, LightShadows = true },
 		new() { Name = "10k Boxes, 64 Still Shadowed Lights", Group = "Stress", Grid = 100, Lights = 64, LightRadius = 0.05f, LightShadows = true, Orbit = false },
 		new() { Name = "50k LOD Test", Group = "Stress", Models = [LodTestModel.Path], Grid = 224 },
-		new() { Name = "100 Citizens", Group = "Stress", Models = ["models/citizen/citizen.vmdl"], Grid = 10, Floor = true, Sun = 0.6f, SunDirection = SideSun,
+		new() { Name = "100 Citizens", Group = "Stress", Models = ["models/citizen_human/human.vmdl"], Grid = 10, Floor = true, Sun = 0.6f, SunDirection = SideSun,
 			Sequences = CitizenSequences },
 
 		// GameObject scenes, through the managed renderer's GameObject bridge (r_managed_scene) - see GameScenes
@@ -223,6 +223,9 @@ internal sealed record SceneLabScene
 		new() { Name = "Post Processing", Group = "Post Processing", Game = GameScenes.PostProcessing, ChangeGame = GameScenes.ChangePostProcessing },
 		new() { Name = "Depth of Field", Group = "Post Processing", Game = GameScenes.DepthOfField },
 		new() { Name = "Auto Exposure", Group = "Post Processing", Game = GameScenes.AutoExposure },
+		new() { Name = "Blur 0.25", Group = "Post Processing", Game = GameScenes.Blur( 0.25f ) },
+		new() { Name = "Blur 0.5", Group = "Post Processing", Game = GameScenes.Blur( 0.5f ) },
+		new() { Name = "Blur 0.75", Group = "Post Processing", Game = GameScenes.Blur( 0.75f ) },
 		new() { Name = "Highlight Outlines", Group = "Post Processing", Game = GameScenes.HighlightOutlines, ChangeGame = GameScenes.ChangeHighlightOutlines },
 		new() { Name = "Screen UI", Group = "UI", Game = GameScenes.ScreenUI, ChangeGame = GameScenes.ChangeScreenUI, Frame = GameScenes.DrawHud },
 		new() { Name = "Early UI", Group = "UI", Game = GameScenes.EarlyUI },
@@ -242,7 +245,15 @@ internal sealed record SceneLabScene
 		new() { Name = "Model Deformers", Group = "GameObject", Game = GameScenes.ModelDeformers, ChangeGame = GameScenes.ChangeModelDeformers },
 		new() { Name = "Ambient Occlusion", Group = "Post Processing", Game = GameScenes.AmbientOcclusion, ChangeGame = GameScenes.ChangeOcclusionStage, Isolated = true },
 		new() { Name = "Screen Space Reflections", Group = "Post Processing", Game = GameScenes.ScreenSpaceReflections, ChangeGame = GameScenes.ChangeOcclusionStage, Isolated = true },
+		new() { Name = "AO and Reflections", Group = "Post Processing", Game = GameScenes.OcclusionAndReflections, ChangeGame = GameScenes.ChangeOcclusionStage, Isolated = true },
 		new() { Name = "Bone Merged Deformers", Group = "GameObject", Game = GameScenes.BoneMergedDeformers, ChangeGame = GameScenes.ChangeBoneMergedDeformers, Frame = GameScenes.AnimateBoneMergedDeformers },
+		new() { Name = "All Outfits", Group = "Avatar", Game = OutfitScenes.AllOutfits, Frame = OutfitScenes.DressAll, Ready = OutfitScenes.AllDressed },
+		new() { Name = "Hotdog Costume", Group = "Avatar", Game = OutfitScenes.HotdogCostume.Build, Frame = OutfitScenes.HotdogCostume.DressWhenLoaded, Ready = OutfitScenes.HotdogCostume.Dressed },
+		new() { Name = "Banana Suit", Group = "Avatar", Game = OutfitScenes.BananaSuit.Build, Frame = OutfitScenes.BananaSuit.DressWhenLoaded, Ready = OutfitScenes.BananaSuit.Dressed },
+		new() { Name = "Katana", Group = "Avatar", Game = OutfitScenes.Katana.Build, Frame = OutfitScenes.Katana.DressWhenLoaded, Ready = OutfitScenes.Katana.Dressed },
+		new() { Name = "Golf Backpack", Group = "Avatar", Game = OutfitScenes.GolfBackpack.Build, Frame = OutfitScenes.GolfBackpack.DressWhenLoaded, Ready = OutfitScenes.GolfBackpack.Dressed },
+		new() { Name = "Pearl Necklace", Group = "Avatar", Game = OutfitScenes.PearlNecklace.Build, Frame = OutfitScenes.PearlNecklace.DressWhenLoaded, Ready = OutfitScenes.PearlNecklace.Dressed },
+		new() { Name = "Fried Onion Earrings", Group = "Avatar", Game = OutfitScenes.FriedOnionEarrings.Build, Frame = OutfitScenes.FriedOnionEarrings.DressWhenLoaded, Ready = OutfitScenes.FriedOnionEarrings.Dressed },
 		new() { Name = "Light Cookie", Group = "GameObject", Game = GameScenes.LightCookie, ChangeGame = GameScenes.ChangeLightCookie },
 		new() { Name = "Debug Overlay", Group = "GameObject", Game = GameScenes.DebugOverlay, ChangeGame = GameScenes.ChangeDebugOverlay, Frame = GameScenes.DrawDebugOverlay },
 		new() { Name = "Terrain and Clutter", Group = "GameObject", Game = TerrainScenes.TerrainAndClutter, ChangeGame = TerrainScenes.ChangeTerrainAndClutter, Ready = TerrainScenes.ClutterReady },
@@ -254,6 +265,7 @@ internal sealed record SceneLabScene
 		new() { Name = "Dynamic", Group = "Stress", Game = DynamicScene.Build, Frame = DynamicScene.Animate },
 		new() { Name = "Heavy Scene", Group = "Stress", Game = HeavyScene.Build, Frame = HeavyScene.Animate },
 		new() { Name = "Heavy Scene AO", Group = "Stress", Game = HeavyScene.BuildWithOcclusion, Frame = HeavyScene.Animate, Isolated = true },
+		new() { Name = "Heavy Scene AO SSR", Group = "Stress", Game = HeavyScene.BuildWithReflectionsAndOcclusion, Frame = HeavyScene.Animate, Isolated = true },
 		new() { Name = "Flatgrass", Group = "Maps", Game = MapScenes.Flatgrass, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },
 		new() { Name = "Flatgrass Skyline", Group = "Maps", Game = MapScenes.FlatgrassSkyline, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },
 		new() { Name = "Flatgrass Interior", Group = "Maps", Game = MapScenes.FlatgrassInterior, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },

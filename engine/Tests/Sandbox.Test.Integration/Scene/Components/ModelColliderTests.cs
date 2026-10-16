@@ -10,7 +10,7 @@ namespace SceneTests.Components;
 [TestClass]
 public class ModelColliderTest
 {
-	private static Model CitizenModel => Model.Load( "models/citizen/citizen.vmdl" );
+	private static Model HumanModel => Model.Load( "models/citizen_human/human.vmdl" );
 
 	/// <summary>
 	/// A model collider builds shapes from the model's physics parts and traces
@@ -24,12 +24,12 @@ public class ModelColliderTest
 
 		var go = scene.CreateObject();
 		var collider = go.Components.Create<ModelCollider>();
-		collider.Model = CitizenModel;
+		collider.Model = HumanModel;
 
 		Assert.IsTrue( collider.Shapes.Count > 0, "the model should produce physics shapes" );
 
 		var hit = scene.Trace.Ray( new Vector3( -100, 0, 40 ), new Vector3( 100, 0, 40 ) ).Run();
-		Assert.IsTrue( hit.Hit, "the citizen physics should be solid" );
+		Assert.IsTrue( hit.Hit, "the human physics should be solid" );
 		Assert.AreEqual( go, hit.GameObject );
 
 		Assert.IsTrue( collider.LocalBounds.Size.z > 40f, $"{collider.LocalBounds}" );
@@ -46,10 +46,10 @@ public class ModelColliderTest
 		using var sceneScope = scene.Push();
 
 		var go = scene.CreateObject();
-		go.Components.Create<ModelRenderer>().Model = CitizenModel;
+		go.Components.Create<ModelRenderer>().Model = HumanModel;
 		var collider = go.Components.Create<ModelCollider>();
 
-		Assert.AreEqual( CitizenModel, collider.Model );
+		Assert.AreEqual( HumanModel, collider.Model );
 		Assert.IsTrue( collider.Shapes.Count > 0 );
 	}
 
@@ -86,7 +86,7 @@ public class ModelColliderTest
 		var rb = go.Components.Create<Rigidbody>();
 		rb.Gravity = false;
 		var collider = go.Components.Create<ModelCollider>();
-		collider.Model = CitizenModel;
+		collider.Model = HumanModel;
 
 		var shapeCount = collider.Shapes.Count;
 		Assert.IsTrue( shapeCount > 0 );
@@ -96,7 +96,7 @@ public class ModelColliderTest
 		Assert.AreEqual( 0, collider.Shapes.Count );
 
 		// ...and assigning one builds them again
-		collider.Model = CitizenModel;
+		collider.Model = HumanModel;
 		Assert.AreEqual( shapeCount, collider.Shapes.Count );
 	}
 
@@ -111,7 +111,7 @@ public class ModelColliderTest
 
 		var go = scene.CreateObject();
 		var collider = go.Components.Create<ModelCollider>();
-		collider.Model = CitizenModel;
+		collider.Model = HumanModel;
 
 		var shapeCount = collider.Shapes.Count;
 		Assert.IsTrue( shapeCount > 0 );

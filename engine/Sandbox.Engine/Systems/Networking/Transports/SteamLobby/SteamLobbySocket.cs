@@ -63,6 +63,26 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 
 	internal override bool SupportsHostMigration => true;
 
+	/// <summary>
+	/// Who the host lets in. Lobbies without it predate privacy being enforced, so assume the worst.
+	/// </summary>
+	internal LobbyPrivacy Privacy => Enum.TryParse<LobbyPrivacy>( SteamLobby.GetData( "access_level" ), out var privacy ) ? privacy : LobbyPrivacy.Private;
+
+	/// <summary>
+	/// Should we tell our Steam friends how to join? Anyone with the lobby id can, so only when the host would let them in.
+	/// </summary>
+	internal bool AdvertiseJoin => Privacy switch
+	{
+		LobbyPrivacy.Public => true,
+		LobbyPrivacy.FriendsOnly => Owner.IsMe,
+		_ => false
+	};
+
+	/// <summary>
+	/// Groups everyone in this game together in the Steam friends list, without giving away the lobby id.
+	/// </summary>
+	internal string PresenceGroup => Privacy == LobbyPrivacy.Public ? $"{LobbySteamId}" : SteamLobby.GetData( "presence_group" );
+
 	public SteamLobbySocket( Lobby lobby )
 	{
 		SteamLobby = lobby;
@@ -145,6 +165,7 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 		steamlobby.Value.SetData( "protocol", Protocol.Network.ToString() );
 		steamlobby.Value.SetData( "buildid", $"{Application.Version}" );
 		steamlobby.Value.SetData( "access_level", $"{config.Privacy}" );
+		steamlobby.Value.SetData( "presence_group", $"{Guid.NewGuid():N}" );
 
 		return lobby;
 	}
@@ -251,6 +272,8 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 
 	private void SetOwner( ulong steamId )
 	{
+		// The new host publishes its own location once it owns the lobby.
+		SteamLobby.DeleteData( LobbyPing.MetadataKey );
 		SteamLobby.SetData( "_ownerid", $"{steamId}" );
 		SteamLobby.SetOwner( steamId );
 		Owner = new( steamId );
@@ -444,13 +467,44 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 		OnClientConnect?.Invoke( c );
 	}
 
+	RealTimeUntil timeUntilPingLocationUpdate;
+	ulong pingLocationOwner;
+
+	/// <summary>
+	/// Refreshes the host's relay marker periodically, retrying sooner while Steam is still measuring.
+	/// </summary>
+	void UpdatePingLocation()
+	{
+		if ( pingLocationOwner == Owner.Id && timeUntilPingLocationUpdate > 0 )
+			return;
+
+		pingLocationOwner = Owner.Id;
+		var utils = Steam.SteamNetworkingUtils();
+		var location = utils.IsValid ? utils.GetLocalPingLocationString() : null;
+		var metadata = LobbyPing.CreateMetadata( Owner.Id, location );
+
+		if ( metadata is null )
+		{
+			SteamLobby.DeleteData( LobbyPing.MetadataKey );
+			timeUntilPingLocationUpdate = 5;
+		}
+		else
+		{
+			SteamLobby.SetData( LobbyPing.MetadataKey, metadata );
+			timeUntilPingLocationUpdate = 60;
+		}
+	}
+
 	internal override void Tick( NetworkSystem networkSystem )
 	{
 		if ( _disposed ) return;
 		FollowHost();
 
 		if ( !Owner.IsMe )
+		{
+			pingLocationOwner = 0;
 			return;
+		}
 
 		// Should we automatically update the name of this lobby? Should be the case
 		// if a lobby name was not provided during creation.
@@ -462,6 +516,7 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 
 		SteamLobby.SetData( "_ownerid", $"{Utility.Steam.SteamId}" );
 		SteamLobby.SetData( "map", Networking.MapName );
+		UpdatePingLocation();
 	}
 
 	/// <summary>

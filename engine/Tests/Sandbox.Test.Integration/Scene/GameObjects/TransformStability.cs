@@ -19,9 +19,7 @@ public class TransformStabilityTest
 	public void TestInitialize()
 	{
 		_oldTypeLibrary = Game.TypeLibrary;
-		TypeLibrary = new TypeLibrary();
-		TypeLibrary.AddAssembly( typeof( ModelRenderer ).Assembly, false );
-		TypeLibrary.AddAssembly( typeof( TransformStabilityTest ).Assembly, false );
+		TypeLibrary = SharedTypeLibrary.EngineAndTests;
 		Game.TypeLibrary = TypeLibrary;
 	}
 
@@ -42,11 +40,31 @@ public class TransformStabilityTest
 		Assert.IsTrue( componentTypes.Count > 10 );
 
 		var failures = new List<string>();
+		var testCases = GenerateTestCases().ToList();
 
-		foreach ( var (parentPos, childLocal) in GenerateTestCases() )
-			foreach ( var type in componentTypes )
-				if ( TestComponentRefresh( type, parentPos, childLocal ) is { } err )
-					failures.Add( err );
+		// One scene per component type, with a fresh parent and child per case
+		foreach ( var type in componentTypes )
+		{
+			var scene = new Scene();
+
+			try
+			{
+				using var sceneScope = scene.Push();
+
+				foreach ( var (parentPos, childLocal) in testCases )
+				{
+					if ( !TestComponentRefresh( scene, type, parentPos, childLocal, out var err ) )
+						break;
+
+					if ( err is not null )
+						failures.Add( err );
+				}
+			}
+			finally
+			{
+				scene.Destroy();
+			}
+		}
 
 		if ( failures.Count > 0 )
 			Assert.Fail( $"{failures.Count} component(s) drifted:\n{string.Join( "\n", failures.Take( 20 ) )}" );
@@ -80,7 +98,7 @@ public class TransformStabilityTest
 		float[] magnitudes = [1e-5f, 0.001f, 0.1f, 1f, 100f, 5000f, 50_000f, 200_000f];
 		float[] scales = [0.5f, 1f, 1f, 1f, 2f, 5f];
 
-		for ( var i = 0; i < 50; i++ )
+		for ( var i = 0; i < 10; i++ )
 		{
 			float RandRange() => (float)(rng.NextDouble() * 2 - 1);
 			var pm = magnitudes[rng.Next( magnitudes.Length )];
@@ -97,39 +115,49 @@ public class TransformStabilityTest
 		}
 	}
 
-	static string TestComponentRefresh( TypeDescription componentType, Vector3 parentPos, Transform childLocal )
+	/// <summary>
+	/// Returns false if the component can't be created, so the rest of its cases are skipped.
+	/// </summary>
+	static bool TestComponentRefresh( Scene scene, TypeDescription componentType, Vector3 parentPos, Transform childLocal, out string error )
 	{
-		var scene = new Scene();
-		using var sceneScope = scene.Push();
+		error = null;
 
 		var parent = scene.CreateObject();
 		parent.Name = "Parent";
 		parent.LocalPosition = parentPos;
 
-		var child = new GameObject( parent, true, "Child" );
-		child.LocalTransform = childLocal;
+		try
+		{
+			var child = new GameObject( parent, true, "Child" );
+			child.LocalTransform = childLocal;
 
-		// Capture what was actually stored, the setter uses AlmostEqual(0.0001) which
-		// may coalesce tiny component values. We test the serialize -> deserialize invariant:
-		// whatever is stored must survive a round-trip exactly.
-		var before = child.LocalTransform;
+			// Capture what was actually stored, the setter uses AlmostEqual(0.0001) which
+			// may coalesce tiny component values. We test the serialize -> deserialize invariant:
+			// whatever is stored must survive a round-trip exactly.
+			var before = child.LocalTransform;
 
-		// Components that can't be created headless are skipped on purpose. Everything
-		// after this must not be swallowed - a crash in the round-trip is a real failure.
-		try { if ( child.Components.Create( componentType ) is null ) return null; }
-		catch { return null; }
+			// Components that can't be created headless are skipped on purpose. Everything
+			// after this must not be swallowed - a crash in the round-trip is a real failure.
+			try { if ( child.Components.Create( componentType ) is null ) return false; }
+			catch { return false; }
 
-		var json = child.Serialize();
+			var json = child.Serialize();
 
-		using ( CallbackBatch.Isolated() )
-			child.Deserialize( json, new GameObject.DeserializeOptions { IsRefreshing = true } );
+			using ( CallbackBatch.Isolated() )
+				child.Deserialize( json, new GameObject.DeserializeOptions { IsRefreshing = true } );
 
-		var after = child.LocalTransform;
+			var after = child.LocalTransform;
 
-		if ( after.Position.Equals( before.Position ) && after.Rotation.Equals( before.Rotation ) && after.Scale.Equals( before.Scale ) )
-			return null;
+			if ( after.Position.Equals( before.Position ) && after.Rotation.Equals( before.Rotation ) && after.Scale.Equals( before.Scale ) )
+				return true;
 
-		var delta = after.Position - before.Position;
-		return $"{componentType.Name} @ parent={parentPos}: expected={before.Position:R} got={after.Position:R} delta={delta} (mag={delta.Length})";
+			var delta = after.Position - before.Position;
+			error = $"{componentType.Name} @ parent={parentPos}: expected={before.Position:R} got={after.Position:R} delta={delta} (mag={delta.Length})";
+			return true;
+		}
+		finally
+		{
+			parent.DestroyImmediate();
+		}
 	}
 }

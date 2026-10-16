@@ -80,11 +80,12 @@ Sidebar .nav RailButton.glow .button label
 	100% { text-shadow: 0 0 8px rgba( $front-trophy, 0.4 ); }
 }
 
-// Under Sidebar .nav so it beats the rail's own padding.
+// Under Sidebar .nav so it beats the rail's own padding. Reaching into the gaps either side like
+// every entry (see Sidebar) - taller by them, and padded by them, so what's inside stays put.
 Sidebar .nav RailButton.has-sub .button
 {
-	height: 80px;
-	padding: 8px 1px 26px 4px;
+	height: 90px; // 74, and the 8 into each gap
+	padding: 13px 1px 31px 4px;
 }
 
 RailButton .sub

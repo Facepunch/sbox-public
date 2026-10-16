@@ -372,6 +372,7 @@
 				"wav",
 				"ogg",
 				"flac",
+				"opus",
 			]
 			m_CompilerIdentifier = "CompileSound"
 			m_bPrefersIconForThumbnail = false

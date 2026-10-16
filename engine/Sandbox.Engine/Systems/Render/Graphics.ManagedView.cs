@@ -67,7 +67,7 @@ public static partial class Graphics
 
 		/// <summary>
 		/// The shader mode materials draw with, as a native layer's is: <c>Forward</c> for native's hook layers
-		/// (<c>CManagedRenderPipeline::OnHook</c>) and its forward layers. A shader without it draws with its default mode.
+		/// (the native pipeline's hook layers, <c>Sandbox.SceneRenderer.Native.HookLayers</c>) and its forward layers. A shader without it draws with its default mode.
 		/// </summary>
 		public StringToken ShaderMode = new( "Forward" );
 

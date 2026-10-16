@@ -47,10 +47,18 @@ public sealed partial class GameJamSystem : GameObjectSystem<GameJamSystem>, IBa
 	bool loading;
 	bool refreshRequested = true;
 	int previewDays = Jam.PreviewDays;
-	RealTimeUntil nextRefresh;
+	const double RefreshRetrySeconds = 60;
+	double nextRefreshRetry;
+	DateTimeOffset? nextRefresh;
 
 	bool NominationsOpen => ActiveJam is { CommunityVoting: true, HasStarted: true }
 		&& ActiveJam.Now < ActiveJam.NominationsEnd;
+
+	/// <summary>
+	/// The jam state for a panel to show - its own scene's, or with none (the pause menu's pages, up in
+	/// the menu overlay, aren't on one) the menu's.
+	/// </summary>
+	public static GameJamSystem For( Sandbox.UI.Panel panel ) => Get( panel?.Scene ) ?? Current;
 
 	/// <summary>
 	/// The nomination count for a package in the active jam. Null means nominations
@@ -70,7 +78,52 @@ public sealed partial class GameJamSystem : GameObjectSystem<GameJamSystem>, IBa
 	public void Refresh()
 	{
 		refreshRequested = true;
+		nextRefresh = null;
+		nextRefreshRetry = 0;
 		RefreshFinalists();
+	}
+
+	/// <summary>
+	/// Rebuilds preview snapshots when seeking in either direction, including before the finals.
+	/// </summary>
+	public void SeekEditorPreview( DateTimeOffset target )
+	{
+		if ( !Jam.IsEditorPreview ) return;
+		Jam.SeekEditorPreview( target );
+		previewDays = Jam.PreviewDays;
+		Nominations = null;
+		nextRefresh = ActiveJam?.NextStep?.At;
+		ResetFinalists();
+		Refresh();
+		Version++;
+	}
+
+	/// <summary>
+	/// Rehearses a confirmed result, casting a local deciding vote if the preview final is tied.
+	/// </summary>
+	public async Task SeekEditorPreviewResultsAsync( DateTimeOffset target )
+	{
+		if ( !Jam.IsEditorPreview || ActiveJam is null ) return;
+
+		var jam = ActiveJam;
+		var source = finalistSource as JamFinalistPreview ?? (JamFinalistPreview)JamFinalistSource.Create( jam );
+		Jam.SeekEditorPreview( jam.Results.AddSeconds( -30 ) );
+		try
+		{
+			foreach ( var category in await source.ReadAsync() )
+			{
+				if ( !category.VotingOpen || category.Contenders.Count < 2 ) continue;
+				var leaders = category.Contenders.OrderByDescending( x => category.Counts.GetValueOrDefault( x.PackageIdent ) ).ToArray();
+				if ( category.Counts.GetValueOrDefault( leaders[0].PackageIdent ) == category.Counts.GetValueOrDefault( leaders[1].PackageIdent ) )
+					await source.VoteAsync( category, leaders[0].PackageIdent );
+			}
+		}
+		finally
+		{
+			SeekEditorPreview( target );
+			// Retain the rehearsal's accepted vote across the seek's normal snapshot reset.
+			finalistSource = source;
+		}
 	}
 
 	void Tick()
@@ -81,6 +134,8 @@ public sealed partial class GameJamSystem : GameObjectSystem<GameJamSystem>, IBa
 		{
 			previewDays = Jam.PreviewDays;
 			ActiveJam = null;
+			nextRefresh = null;
+			nextRefreshRetry = 0;
 			Nominations = null;
 			ResetFinalists();
 			Error = null;
@@ -94,7 +149,18 @@ public sealed partial class GameJamSystem : GameObjectSystem<GameJamSystem>, IBa
 			Version++;
 		}
 
-		if ( !loading && (refreshRequested || nextRefresh <= 0) )
+		if ( ActiveJam is not null && nextRefresh.HasValue && nextRefresh <= ActiveJam.Now )
+		{
+			nextRefresh = null;
+			Refresh();
+		}
+		else if ( nextRefreshRetry > 0 && RealTime.Now >= nextRefreshRetry )
+		{
+			nextRefreshRetry = 0;
+			Refresh();
+		}
+
+		if ( !loading && refreshRequested )
 		{
 			_ = RefreshAsync();
 		}
@@ -110,7 +176,7 @@ public sealed partial class GameJamSystem : GameObjectSystem<GameJamSystem>, IBa
 
 		try
 		{
-			var jam = await Jam.GetActive();
+			var jam = Jam.IsEditorPreview && ActiveJam is not null ? ActiveJam : await Jam.GetActive();
 			if ( !Scene.IsValid() || days != Jam.PreviewDays ) return;
 
 			if ( ActiveJam?.Ident != jam?.Ident )
@@ -119,24 +185,28 @@ public sealed partial class GameJamSystem : GameObjectSystem<GameJamSystem>, IBa
 				ResetFinalists();
 			}
 			ActiveJam = jam;
-
 			var nominations = NominationsOpen ? await jam.GetNominationSummaryAsync() : null;
 			if ( !Scene.IsValid() || days != Jam.PreviewDays ) return;
+			var nextStep = jam?.NextStep;
+			nextRefresh = nextStep is not null && nextStep.At > jam.Now ? nextStep.At : null;
+			// GetActive caches null results, so retry periodically until a published jam is visible.
+			nextRefreshRetry = nextRefresh is null ? RealTime.Now + RefreshRetrySeconds : 0;
 
-			Error = NominationsOpen && nominations is null ? "Couldn't refresh nominations. Try again in a moment." : null;
+			Error = NominationsOpen && nominations is null ? "#menu.jam.couldn_t_refresh_nominations_try_again_in_a_moment" : null;
 			if ( nominations is not null || !NominationsOpen ) Nominations = nominations;
 			Version++;
 		}
 		catch ( Exception e )
 		{
 			Log.Warning( e, "Couldn't refresh the active jam" );
-			Error = "Couldn't refresh the jam. Try again in a moment.";
+			Error = "#menu.jam.couldn_t_refresh_the_jam_try_again_in_a";
+			nextRefresh = null;
+			nextRefreshRetry = RealTime.Now + RefreshRetrySeconds;
 			Version++;
 		}
 		finally
 		{
 			loading = false;
-			nextRefresh = 60;
 		}
 	}
 

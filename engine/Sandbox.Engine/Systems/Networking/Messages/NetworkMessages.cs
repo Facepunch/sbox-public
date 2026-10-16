@@ -98,6 +98,36 @@ struct HostHandoffMsg
 	public SnapshotMsg Snapshot { get; set; }
 }
 
+/// <summary>
+/// Who the game lets in, sent to the successor just before <see cref="HostHandoffMsg"/> so it keeps
+/// the game private. Separate because the handoff is encoded by a serializer that only knows snapshot types.
+/// </summary>
+[Expose]
+struct HostAccessMsg
+{
+	public LobbyPrivacy Privacy { get; set; }
+	public ulong[] InvitedJoiners { get; set; }
+	public ulong[] AdmittedJoiners { get; set; }
+}
+
+/// <summary>
+/// A player in the game invited someone - the host should let them in.
+/// </summary>
+[Expose]
+struct AllowJoinMsg
+{
+	public ulong SteamId { get; set; }
+}
+
+/// <summary>
+/// The host has the invite from <see cref="AllowJoinMsg"/>.
+/// </summary>
+[Expose]
+struct AllowJoinAckMsg
+{
+	public ulong SteamId { get; set; }
+}
+
 [Expose]
 struct HostHandoffAckMsg
 {

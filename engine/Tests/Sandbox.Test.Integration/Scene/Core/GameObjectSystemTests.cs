@@ -21,10 +21,7 @@ public class GameObjectSystemCoverageTest
 	static void WithTestSystems( System.Action<Scene> body )
 	{
 		var oldTypeLibrary = Game.TypeLibrary;
-		var typeLibrary = new Sandbox.Internal.TypeLibrary();
-		typeLibrary.AddAssembly( typeof( ModelRenderer ).Assembly, false );
-		typeLibrary.AddAssembly( typeof( GameObjectSystemCoverageTest ).Assembly, false );
-		Game.TypeLibrary = typeLibrary;
+		Game.TypeLibrary = SharedTypeLibrary.EngineAndTests;
 
 		Scene scene = null;
 
@@ -182,10 +179,7 @@ public class GameObjectSystemCoverageTest
 	public void SystemsDisposeWhenSceneDestroyed()
 	{
 		var oldTypeLibrary = Game.TypeLibrary;
-		var typeLibrary = new Sandbox.Internal.TypeLibrary();
-		typeLibrary.AddAssembly( typeof( ModelRenderer ).Assembly, false );
-		typeLibrary.AddAssembly( typeof( GameObjectSystemCoverageTest ).Assembly, false );
-		Game.TypeLibrary = typeLibrary;
+		Game.TypeLibrary = SharedTypeLibrary.EngineAndTests;
 
 		try
 		{
@@ -249,9 +243,7 @@ public class GameObjectSystemCoverageTest
 
 		// a scene built from a TypeLibrary without the test assembly doesn't have the system
 		var oldTypeLibrary = Game.TypeLibrary;
-		var engineOnly = new Sandbox.Internal.TypeLibrary();
-		engineOnly.AddAssembly( typeof( ModelRenderer ).Assembly, false );
-		Game.TypeLibrary = engineOnly;
+		Game.TypeLibrary = SharedTypeLibrary.Engine;
 
 		Scene bare = null;
 

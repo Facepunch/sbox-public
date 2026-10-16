@@ -12,7 +12,7 @@
                 <Actions>
 					<Button class="play-button" Disabled=@(!MenuHelpers.HasAuthority) Icon="play_arrow" @onclick=@((Action<PanelEvent>)PlayNow)>
                         <ChildContent>
-                            <Label class="eyebrow" Text="Play Now"></Label>
+                            <Label class="eyebrow" Text="#menu.home.play_now"></Label>
                         </ChildContent>
                     </Button>
                 </Actions>
@@ -42,7 +42,6 @@
     void PlayNow(PanelEvent e)
     {
         e.StopPropagation();
-        Discovery.Launching( Package, "hero", this );
-        MenuHelpers.PlayGame(Package);
+        MenuHelpers.PlayGame( Package, via: "hero", source: this );
     }
 }

@@ -4,9 +4,6 @@ namespace Sandbox;
 
 internal static partial class DebugOverlay
 {
-	[ConVar( "overlay_video", ConVarFlags.Protected | ConVarFlags.Cheat, Help = "Draws a video player debug overlay with decode load and queue depths." )]
-	internal static int overlay_video { get; set; } = 0;
-
 	public partial class Video
 	{
 		static readonly TextRendering.Outline _outline = new() { Color = Color.Black, Size = 2, Enabled = true };

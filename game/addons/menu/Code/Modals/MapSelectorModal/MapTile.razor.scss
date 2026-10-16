@@ -1,14 +1,48 @@
 @import "/styles/_theme.scss";
+@import "/styles/_front.scss";
 
+// Like the menu's package tiles - no outline, the picture's the tile, the name over its foot on a
+// scrim, and it lifts off the page under the pointer
 MapTile
 {
 	width: 100%;
 	height: 100%;
-	padding: 1px;
+	flex-direction: column;
+	cursor: pointer;
+	font-family: $front-font;
+
+	.image
+	{
+		position: relative;
+		flex-shrink: 0;
+		width: 100%;
+		aspect-ratio: 16 / 9;
+		align-items: center;
+		justify-content: center;
+		border-radius: $front-radius;
+		background-position: center;
+		background-size: cover;
+		background-color: #0b0d14;
+		overflow: hidden;
+		transition: all 0.15s ease;
+
+		> .none
+		{
+			font-family: "Material Icons";
+			font-size: 32px;
+			color: $front-tertiary;
+		}
+	}
 
 	&:hover
 	{
 		sound-in: "ui.button.over";
+
+		.image
+		{
+			transform: translateY( -4px );
+			box-shadow: 0 14px 30px rgba( 0, 0, 0, 0.65 );
+		}
 	}
 
 	&:active
@@ -16,67 +50,25 @@ MapTile
 		sound-in: "ui.button.press";
 	}
 
-	flex-direction: column;
-	cursor: pointer;
-	gap: 8px;
-
-	.image
+	.foot
 	{
-		flex-shrink: 0;
-		transition: all 150ms ease;
-		width: 100%;
-		aspect-ratio: 16 / 9;
-		background-position: center;
-		background-size: cover;
-		border-radius: $rounding-small;
-		position: relative;
-		justify-content: center;
-		background-color: $default-950;
-		position: relative;
-
-		i
-		{
-			font-size: 32px;
-			opacity: 0.02;
-			align-items: center;
-		}
-
-		outline: 1px solid $default-border;
-
-		&:hover
-		{
-			outline: 1px solid $default-50;
-		}
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		padding: 28px 12px 9px 12px;
+		background-image: linear-gradient( 0deg, rgba( 0, 0, 0, 0.6 ) 30%, rgba( 0, 0, 0, 0 ) );
 	}
 
 	.title
 	{
+		flex-grow: 1;
+		min-width: 0;
+		font-size: 13.5px;
+		font-weight: 600;
+		color: #ffffff;
+		white-space: nowrap;
 		text-overflow: ellipsis;
-		text-align: center;
-		font-size: 14px;
-		width: 100%;
-	}
-
-	.overlay
-	{
-		position: absolute;
-		padding: 2px;
-		top: 0;
-		left: 0;
-
-		row
-		{
-			background-color: rgba( $default-950, 0.95 );
-			color: white;
-			padding: 4px 8px;
-			border-radius: 4px;
-			gap: 8px;
-
-			.label, iconpanel
-			{
-				color: white;
-				font-size: $text-eyebrow;
-			}
-		}
+		text-shadow: 0 1px 2px rgba( 0, 0, 0, 0.7 );
 	}
 }

@@ -11,6 +11,40 @@ JamPage JamEliminationGallery
 	color: $front-secondary;
 	font-size: 12px;
 
+	.waiting-banner
+	{
+		flex-shrink: 0;
+		align-items: center;
+		gap: 14px;
+		padding: 18px 22px;
+		border: 1px solid rgba( $front-trophy, 0.25 );
+		border-radius: 8px;
+		background-color: rgba( $front-trophy, 0.05 );
+		> icon { font-size: 30px; color: $front-trophy; }
+		> div { flex-direction: column; gap: 4px; }
+		.waiting-title { font-size: 18px; font-weight: 700; color: $front-heading; }
+	}
+
+	&.waiting
+	{
+		.gallery-grid { align-items: center; overflow-y: scroll; }
+		.gallery-card
+		{
+			flex-shrink: 0;
+			padding: 24px 16px;
+			border-radius: 8px;
+			background-color: rgba( 255, 255, 255, 0.025 );
+		}
+		.card-actions { gap: 8px; flex-wrap: wrap; }
+		.play-action
+		{
+			height: 40px;
+			padding: 5px 22px;
+			background-color: $front-primary;
+			label { color: white; font-size: 13px; font-weight: 700; }
+		}
+	}
+
 	.round-heading
 	{
 		align-items: center;

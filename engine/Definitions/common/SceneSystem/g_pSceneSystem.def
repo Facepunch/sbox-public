@@ -5,6 +5,7 @@ native enum SceneSystemWellKnownMaterialObjectID_t as NativeEngine.SceneSystemWe
 native enum SceneSystemWellKnownTextureObjectID_t as NativeEngine.SceneSystemWellKnownTextureObjectID;
 
 native struct SceneVolumetricFogVolume_t is NativeEngine.SceneVolumetricFogVolume;
+native struct SceneSystemTimestampEventData_t is NativeEngine.GpuTimestampEventData;
 
 native enum SceneSystemGPUProfilerMode_t as NativeEngine.SceneSystemGPUProfilerMode;
 
@@ -219,6 +220,16 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 		return g_pSceneSystem->GetTimestampSnapshotCount();
 	}
 
+	inline int GetGpuTimestampRenderer()
+	{
+		return g_pSceneSystem->GetTimestampSnapshotRenderer();
+	}
+
+	inline ulong GetGpuTimestampFrameId()
+	{
+		return g_pSceneSystem->GetTimestampSnapshotFrameId();
+	}
+
 	inline float GetGpuTimestampDuration( int index )
 	{
 		return g_pSceneSystem->GetTimestampSnapshotDurationMs( index );
@@ -249,10 +260,28 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 		return g_pSceneSystem->GetTimestampSnapshotUnparented( index );
 	}
 
-	// begin returns a scope handle to pass to end
-	inline void* BeginManagedPerfMarker( IRenderContext ctx, void* markerName )
+	inline int GetGpuTimestampEventCount()
 	{
-		return g_pSceneSystem->BeginManagedPerfMarker( (IRenderContext*)ctx, (const char*)markerName );
+		return g_pSceneSystem->GetTimestampEventCount();
+	}
+
+	inline string GetGpuTimestampEvent( int index, out GpuTimestampEventData data )
+	{
+		const auto *pEvent = g_pSceneSystem->GetTimestampEvent( index );
+		if ( !pEvent )
+		{
+			*data = {};
+			return nullptr;
+		}
+
+		*data = *pEvent;
+		return pEvent->m_sName.Get();
+	}
+
+	// begin returns a scope handle to pass to end
+	inline void* BeginManagedPerfMarker( IRenderContext ctx, void* markerName, bool pass, bool managedRenderer )
+	{
+		return g_pSceneSystem->BeginManagedPerfMarker( (IRenderContext*)ctx, (const char*)markerName, pass, managedRenderer );
 	}
 	void EndManagedPerfMarker( IRenderContext ctx, void* scope );
 

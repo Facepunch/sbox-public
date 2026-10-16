@@ -20,10 +20,14 @@ RWTexture2DArray<float4> g_bindless_RWTexture2DArray[] EXTERNAL_DESC_SET( u, g_g
 // Stable, pipeline-level texture slots. These are full-screen resources produced once per frame
 // by procedural layers (AO, SSR). Rather than route a dynamic bindless index through the racy
 // per-view render attributes, the scene system publishes the indices in a single small structured
-// buffer at a fixed binding. The buffer persists frame-to-frame, so consumers automatically read
-// last frame's result if a producer is skipped. Binding MUST match RENDER_GLOBAL_BINDING_PIPELINE_TEX_INDICES
+// buffer at a fixed binding. Slots reset at frame start, but are shared by views within that frame.
+// Binding MUST match RENDER_GLOBAL_BINDING_PIPELINE_TEX_INDICES
 // in renderdevicetypes.h
 StructuredBuffer<int> g_PipelineTextureIndices EXTERNAL_DESC_SET(t, g_globalLateBoundBindlessSet, 14);
+
+// Child views must not sample screen-space results generated for the parent camera.
+// This is view-local: clearing the shared slots would also disable the parent's effects.
+bool g_bDisableScreenSpaceEffects < Attribute( "DisableScreenSpaceEffects" ); Default( 0 ); >;
 
 enum PipelineTextureSlot
 {
@@ -80,6 +84,9 @@ struct Bindless
 
     static inline int GetPipelineTextureIndex( dynamic_uniform PipelineTextureSlot slot )
     {
+        if ( g_bDisableScreenSpaceEffects && (slot == PipelineTextureSlotAO || slot == PipelineTextureSlotSSR) )
+            return 0;
+
         // Each fixed slot is published once before rendering; every invocation reads the same index.
         return asDynamicUniform( g_PipelineTextureIndices[slot] );
     }

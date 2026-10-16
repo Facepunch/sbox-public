@@ -28,7 +28,7 @@ public partial class BallSocketJoint : PhysicsJoint
 		{
 			if ( _swingLimit == value ) return;
 			_swingLimit = value;
-			_joint?.SetLimit( "swing", _swingLimit );
+			_joint?.SetSwingLimit( _swingLimit.y );
 		}
 	}
 
@@ -39,7 +39,7 @@ public partial class BallSocketJoint : PhysicsJoint
 		{
 			if ( field == value ) return;
 			field = value;
-			_joint?.SetLimitEnabled( "swing", field );
+			_joint?.SetSwingLimitEnabled( field );
 		}
 	}
 
@@ -50,7 +50,7 @@ public partial class BallSocketJoint : PhysicsJoint
 		{
 			if ( _twistLimit == value ) return;
 			_twistLimit = value;
-			_joint?.SetLimit( "twist", _twistLimit );
+			_joint?.SetTwistLimits( _twistLimit.x, _twistLimit.y );
 		}
 	}
 
@@ -61,7 +61,7 @@ public partial class BallSocketJoint : PhysicsJoint
 		{
 			if ( field == value ) return;
 			field = value;
-			_joint?.SetLimitEnabled( "twist", field );
+			_joint?.SetTwistLimitEnabled( field );
 		}
 	}
 

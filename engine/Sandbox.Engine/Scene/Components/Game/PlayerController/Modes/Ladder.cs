@@ -6,9 +6,15 @@
 [Icon( "hiking" ), Group( "Movement" ), Title( "MoveMode - Ladder" )]
 public partial class MoveModeLadder : MoveMode
 {
+	/// <summary>
+	/// Movement selection priority. Defaults above swimming so ladders can be climbed out of water.
+	/// </summary>
 	[Property]
-	public int Priority { get; set; } = 5;
+	public int Priority { get; set; } = 15;
 
+	/// <summary>
+	/// Multiplier for the ladder movement speed.
+	/// </summary>
 	[Property, Range( 0, 2 )]
 	public float Speed { get; set; } = 1;
 
@@ -28,6 +34,8 @@ public partial class MoveModeLadder : MoveMode
 	/// Forward is the direction to look at the ladder, and Up is the direction to climb.
 	/// </summary>
 	public Rotation ClimbingRotation { get; set; }
+
+	Collider climbingCollider;
 
 
 	public MoveModeLadder()
@@ -74,8 +82,10 @@ public partial class MoveModeLadder : MoveMode
 		var pos = Controller.WorldPosition;
 
 		// work out ideal position
-		var ladderPos = ClimbingObject.WorldPosition;
-		var ladderUp = ClimbingObject.WorldRotation.Up;
+		var ladderPos = climbingCollider.IsValid()
+			? climbingCollider.WorldTransform.PointToWorld( climbingCollider.LocalBounds.Center )
+			: ClimbingObject.WorldPosition;
+		var ladderUp = ClimbingRotation.Up;
 
 		Line ladderLine = new Line( ladderPos - ladderUp * 1000, ladderPos + ladderUp * 1000 );
 
@@ -83,7 +93,7 @@ public partial class MoveModeLadder : MoveMode
 
 		// Get just the left/right
 		var delta = (idealPos - pos);
-		delta = delta.SubtractDirection( ClimbingObject.WorldRotation.Forward );
+		delta = delta.SubtractDirection( ClimbingRotation.Forward );
 
 		if ( delta.Length > 0.01f )
 		{
@@ -106,6 +116,7 @@ public partial class MoveModeLadder : MoveMode
 		Vector3 foot = wt.Position;
 
 		GameObject ladderObject = default;
+		Collider ladderCollider = default;
 
 		foreach ( var touch in Controller.Body.Touching )
 		{
@@ -116,6 +127,7 @@ public partial class MoveModeLadder : MoveMode
 			if ( ClimbingObject == touch.GameObject )
 			{
 				ladderObject = touch.GameObject;
+				ladderCollider = touch;
 				continue;
 			}
 
@@ -129,6 +141,7 @@ public partial class MoveModeLadder : MoveMode
 				continue;
 
 			ladderObject = touch.GameObject;
+			ladderCollider = touch;
 			break;
 
 		}
@@ -137,31 +150,39 @@ public partial class MoveModeLadder : MoveMode
 			return;
 
 		ClimbingObject = ladderObject;
+		climbingCollider = ladderCollider;
 
 		if ( ClimbingObject.IsValid() )
 		{
-			// work out rotation to the ladder. We could be climbing up the front or back of this thing.
+			// The thin horizontal axis of the trigger is its face normal. Its GameObject's
+			// forward axis can run across the rungs, and the collider center may be offset.
+			var bounds = climbingCollider.LocalBounds;
+			var size = bounds.Size * climbingCollider.WorldScale;
+			var rotation = climbingCollider.WorldRotation;
+			var forward = MathF.Abs( size.x ) <= MathF.Abs( size.y ) ? rotation.Forward : rotation.Left;
+			var center = climbingCollider.WorldTransform.PointToWorld( bounds.Center );
 
-			var directionToLadder = ClimbingObject.WorldPosition - WorldPosition;
-
-			ClimbingRotation = ClimbingObject.WorldRotation;
-
-			if ( directionToLadder.Dot( ClimbingRotation.Forward ) < 0 )
+			if ( (center - WorldPosition).Dot( forward ) < 0 )
 			{
-				ClimbingRotation *= new Angles( 0, 180, 0 );
+				forward = -forward;
 			}
+
+			ClimbingRotation = Rotation.LookAt( forward, rotation.Up );
 		}
 	}
 
+	/// <summary>
+	/// Climb vertically from the supplied movement input, reversing when looking down.
+	/// </summary>
 	public override Vector3 UpdateMove( Rotation eyes, Vector3 input )
 	{
-		var wishVelocity = new Vector3( 0, 0, Input.AnalogMove.x );
+		var wishVelocity = new Vector3( 0, 0, input.x );
 		if ( eyes.Pitch() > 50f )
 		{
 			wishVelocity *= -1f;
 		}
 
-		wishVelocity *= 1500.0f * Speed * (Controller.IsDucking ? 0.5f : 1f);
+		wishVelocity *= 700.0f * Speed * (Controller.IsDucking ? 0.5f : 1f);
 
 		if ( Input.Down( "jump" ) )
 		{
@@ -170,6 +191,30 @@ public partial class MoveModeLadder : MoveMode
 		}
 
 		return wishVelocity;
+	}
+
+	/// <summary>
+	/// Drive the existing movement blend from actual ladder-space velocity, so blocked
+	/// movement holds the idle pose even while the rendered body is still turning.
+	/// </summary>
+	protected override void OnUpdateAnimatorVelocity( SkinnedModelRenderer renderer )
+	{
+		base.OnUpdateAnimatorVelocity( renderer );
+
+		var velocity = Controller.Velocity;
+		if ( velocity.IsNearlyZero( 1f ) )
+		{
+			velocity = Vector3.Zero;
+		}
+
+		var forward = ClimbingRotation.Forward.Dot( velocity );
+		var right = ClimbingRotation.Right.Dot( velocity );
+		var up = ClimbingRotation.Up.Dot( velocity );
+
+		renderer.Set( "move_x", forward );
+		renderer.Set( "move_y", right );
+		renderer.Set( "move_z", up );
+		renderer.Set( "move_groundspeed", new Vector2( forward, right ).Length );
 	}
 
 	protected override void OnRotateRenderBody( SkinnedModelRenderer renderer )

@@ -4,7 +4,7 @@ using Sandbox.Rendering;
 namespace Sandbox.SceneRenderer;
 
 /// <summary>
-/// Camera commands, effects and UI at native hook points (<c>CManagedRenderPipeline::OnHook</c>).
+/// Camera commands, effects and UI at native hook points (<see cref="Native.HookLayers"/>).
 /// Stages through tonemapping use HDR; later stages use the final output. Targets are bound on entry.
 /// </summary>
 internal interface IRenderStages
@@ -12,14 +12,14 @@ internal interface IRenderStages
 	void Render( Stage stage, in StageTarget target );
 
 	/// <summary>
-	/// Whether something at <paramref name="stage"/> can run on the async compute queue, ahead of it.
+	/// Whether an independent effect can run ahead of <paramref name="stage"/> on <paramref name="queue"/>.
 	/// </summary>
-	bool HasAsyncCompute( Stage stage ) => false;
+	bool HasEarlyPostProcess( Stage stage, PostProcessQueue queue ) => false;
 
 	/// <summary>
-	/// Run it, into <paramref name="target"/>'s context on the compute queue, with no targets bound. The stage then skips it.
+	/// Run it in <paramref name="target"/>'s context, with no frame targets bound. The normal stage then skips it.
 	/// </summary>
-	void RenderAsyncCompute( Stage stage, in StageTarget target ) { }
+	void RenderEarlyPostProcess( Stage stage, PostProcessQueue queue, in StageTarget target ) { }
 }
 
 /// <summary>

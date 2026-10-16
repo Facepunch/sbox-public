@@ -1,7 +1,10 @@
 using Sandbox.Diagnostics;
 using Sandbox.Engine;
 using System;
+using System.Diagnostics;
 using System.IO;
+using System.Text.Json.Nodes;
+using Sandbox.ModelEditor.Nodes;
 
 namespace ResourceTests;
 
@@ -10,6 +13,14 @@ public class GuidTests
 {
 	string _assetsPath;
 	string _testPath;
+
+	static bool _databaseBuilt;
+
+	[ClassInitialize]
+	public static void ClassInitialize( TestContext context )
+	{
+		_databaseBuilt = false;
+	}
 
 	[TestInitialize]
 	public void TestInitialize()
@@ -27,8 +38,14 @@ public class GuidTests
 
 		NativeEngine.FullFileSystem.AddProjectPath( "unittest", _assetsPath.ToLowerInvariant() );
 
-		// make sure the guid mappings are rebuilt
-		NativeEngine.g_pResourceSystem.InvalidateDatabase();
+		// Rebuild the guid mappings once so they include the fixtures. A rebuild rescans
+		// everything mounted (~0.5s), and later tests only add files in their own new folder
+		// with new guids, which they register themselves.
+		if ( !_databaseBuilt )
+		{
+			NativeEngine.g_pResourceSystem.InvalidateDatabase();
+			_databaseBuilt = true;
+		}
 
 		GlobalContext.Current.FileMount = new AggregateFileSystem();
 		FileSystem.Mounted.Mount( new LocalFileSystem( _assetsPath ) );
@@ -164,6 +181,257 @@ public class GuidTests
 		Assert.AreEqual( resource.Guid, Guid.Parse( "8288cd80-e793-44ba-a9d6-10503d715b7f" ) );
 	}
 
+	[DataTestMethod]
+	[DataRow( false )]
+	[DataRow( true )]
+	public void BakedModelReferencesRoundTrip( bool unknownGuids )
+	{
+		var folder = Path.GetFileName( _testPath );
+		var paths = new[] { $"{folder}/aggregate_0.vmdl", $"{folder}/aggregate_1.vmdl" };
+		var guids = new[] { Guid.NewGuid(), Guid.NewGuid() };
+		var json = new string[2];
+		var bytes = new byte[2][];
+		var models = new Model[2];
+
+		for ( int i = 0; i < models.Length; i++ )
+		{
+			WriteMeta( paths[i], guids[i] );
+			File.WriteAllBytes( Path.Combine( _assetsPath, paths[i] + "_c" ), CreateAggregateModel( i + 2 ).SaveToVmdl() );
+			MetaChanged( paths[i] );
+		}
+
+		for ( int i = 0; i < models.Length; i++ )
+		{
+			var model = Model.Load( new ResourceId { Guid = guids[i], Path = $"{folder}/stale_{i}.vmdl" } );
+			models[i] = model;
+
+			Assert.IsNotNull( model );
+			Assert.IsFalse( model.IsError );
+			Assert.IsFalse( model.IsProcedural );
+			Assert.AreEqual( "sbox_procedural_model.vmdl", model.native.GetModelName() );
+			Assert.AreEqual( paths[i], model.ResourcePath );
+			Assert.AreEqual( paths[i].FastHash64(), model.ResourceIdLong );
+			Assert.AreEqual( guids[i], model.Guid );
+			Assert.AreEqual( i + 2, model.MeshInfo.TotalDrawCalls );
+			Assert.AreSame( model, Model.Load( paths[i] ) );
+
+			var reference = JsonNode.Parse( Json.Serialize( model ) ).AsObject();
+			Assert.AreEqual( paths[i], reference["Path"].GetValue<string>() );
+			Assert.AreEqual( guids[i], reference["Id"].GetValue<Guid>() );
+			if ( unknownGuids )
+				reference["Id"] = Guid.NewGuid();
+			json[i] = reference.ToJsonString();
+			bytes[i] = Game.TypeLibrary.ToBytes( model );
+			Game.Resources.RegisterPath( paths[i] );
+		}
+
+		Assert.AreNotEqual( models[0].ResourceIdLong, models[1].ResourceIdLong );
+		Assert.IsFalse( bytes[0].SequenceEqual( bytes[1] ) );
+
+		for ( int i = 0; i < models.Length; i++ )
+			UnloadModel( models[i] );
+
+		for ( int i = 0; i < models.Length; i++ )
+		{
+			Assert.IsFalse( Game.Resources.TryGet<Model>( paths[i], out _ ) );
+			var restored = Json.Deserialize<Model>( json[i] );
+			Assert.AreNotSame( models[i], restored );
+			Assert.AreEqual( paths[i], restored.ResourcePath );
+			AssertAggregateModel( restored, i + 2 );
+			UnloadModel( restored );
+		}
+
+		for ( int i = 0; i < models.Length; i++ )
+		{
+			Assert.IsFalse( Game.Resources.TryGet<Model>( paths[i], out _ ) );
+			var restored = Game.TypeLibrary.FromBytes<Model>( bytes[i] );
+			Assert.IsNotNull( restored );
+			Assert.AreEqual( paths[i], restored.ResourcePath );
+			AssertAggregateModel( restored, i + 2 );
+			Assert.AreSame( restored, Game.TypeLibrary.FromBytes<Model>( bytes[i] ) );
+		}
+	}
+
+	[TestMethod]
+	public void MaterialAttributesFollowResourceReload()
+	{
+		var engine = Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE" );
+		var path = $"{Path.GetFileName( _testPath )}/world_mapping.vmat";
+		var source = Path.Combine( _assetsPath, path );
+		void Compile( int width, int height )
+		{
+			File.WriteAllText( source, $$"""
+				"Layer0"
+				{
+					"shader" "shaders/unlit.shader"
+					"TextureColor" "[1 1 1 1]"
+					"SystemAttributes"
+					{
+						"WorldMappingWidth" "{{width}}"
+						"WorldMappingHeight" "{{height}}"
+					}
+				}
+				""" );
+			var start = new ProcessStartInfo( Path.Combine( engine, "bin", "win64", "resourcecompiler.exe" ) )
+			{
+				UseShellExecute = false,
+				CreateNoWindow = true,
+				RedirectStandardOutput = true,
+				RedirectStandardError = true
+			};
+			foreach ( var arg in new[] { "-f", "-noassert", "-skiprendersystem", "-searchpaths", $"core|{_assetsPath}", source } )
+				start.ArgumentList.Add( arg );
+			using var process = Process.Start( start );
+			var output = process.StandardOutput.ReadToEndAsync();
+			var error = process.StandardError.ReadToEndAsync();
+			if ( !process.WaitForExit( 60000 ) )
+			{
+				process.Kill( entireProcessTree: true );
+				Assert.Fail( "Material compiler timed out" );
+			}
+			Assert.AreEqual( 0, process.ExitCode, output.Result + error.Result );
+		}
+
+		Compile( 128, 64 );
+		var material = Material.Load( path );
+		Assert.IsNotNull( material );
+		var attributes = material.Attributes;
+		Assert.AreEqual( 128, attributes.GetInt( "WorldMappingWidth" ) );
+		Assert.AreEqual( 64, attributes.GetInt( "WorldMappingHeight" ) );
+		var mesh = new PolygonMesh();
+		var face = mesh.AddFace(
+			mesh.AddVertex( Vector3.Zero ),
+			mesh.AddVertex( new Vector3( 96, 0, 0 ) ),
+			mesh.AddVertex( new Vector3( 96, 96, 0 ) ),
+			mesh.AddVertex( new Vector3( 0, 96, 0 ) ) );
+		mesh.AssignMaterialToFaces( [face], material );
+		Vector2 AlignToGrid()
+		{
+			mesh.TextureAlignToGrid( Transform.Zero, face );
+			var uvs = mesh.GetFaceTextureCoords( face );
+			return new Vector2( uvs.Max( uv => uv.x ) - uvs.Min( uv => uv.x ), uvs.Max( uv => uv.y ) - uvs.Min( uv => uv.y ) );
+		}
+		Assert.IsTrue( AlignToGrid().AlmostEqual( new Vector2( 0.75f, 1.5f ) ) );
+
+		Compile( 96, 96 );
+		NativeEngine.g_pResourceSystem.ReloadResource( path );
+		Assert.AreSame( material, Material.Load( path ) );
+		Assert.AreSame( attributes, material.Attributes );
+		Assert.AreEqual( 96, attributes.GetInt( "WorldMappingWidth" ) );
+		Assert.AreEqual( 96, attributes.GetInt( "WorldMappingHeight" ) );
+		Assert.IsTrue( AlignToGrid().AlmostEqual( Vector2.One ) );
+
+		Compile( 0, 0 );
+		NativeEngine.g_pResourceSystem.ReloadResource( path );
+		Assert.AreEqual( 0, attributes.GetInt( "WorldMappingWidth" ) );
+		Assert.AreEqual( 0, attributes.GetInt( "WorldMappingHeight" ) );
+	}
+
+	[TestMethod]
+	public void NamedModelReloadsFromDisk()
+	{
+		var folder = Path.GetFileName( _testPath );
+		var path = $"{folder}/named_aggregate.vmdl";
+		var temporary = CreateAggregateModel( 3, path );
+		Assert.AreSame( temporary, Model.Load( path ) );
+
+		File.WriteAllBytes( Path.Combine( _assetsPath, path + "_c" ), temporary.SaveToVmdl() );
+		NativeEngine.g_pResourceSystem.ReloadResource( path );
+		var saved = Model.FromNative( NativeGlue.Resources.GetModel( path, Guid.Empty ) );
+
+		Assert.IsNotNull( saved );
+		Assert.AreNotSame( temporary, saved );
+		Assert.IsFalse( saved.IsProcedural );
+		Assert.AreEqual( path, saved.ResourcePath );
+		Assert.AreEqual( path, saved.native.GetModelName() );
+		UnloadModel( temporary );
+		Assert.AreSame( saved, Model.Load( path ) );
+		AssertAggregateModel( saved, 3 );
+	}
+
+	[TestMethod]
+	public void BuilderGameDataSurvivesSavingAndReloading()
+	{
+		var folder = Path.GetFileName( _testPath );
+		var path = $"{folder}/model_game_data.vmdl";
+		var temporary = Model.Builder.WithName( path )
+			.AddCollisionBox( new Vector3( 8 ) )
+			.WithData( new ModelPropData { Health = 75, Explosive = true, ExplosionDamage = 80, ExplosionRadius = 256 } )
+			.WithData<ModelBreakPiece[]>( [
+				new() { PieceName = "piece", Model = "models/dev/box.vmdl", Offset = new Vector3( 1, 2, 3 ), FadeTime = 20, CollisionTags = "debris" }
+			] )
+			.Create();
+
+		File.WriteAllBytes( Path.Combine( _assetsPath, path + "_c" ), temporary.SaveToVmdl() );
+		NativeEngine.g_pResourceSystem.ReloadResource( path );
+		var saved = Model.FromNative( NativeGlue.Resources.GetModel( path, Guid.Empty ) );
+
+		Assert.IsNotNull( saved );
+		Assert.AreNotSame( temporary, saved );
+		Assert.IsFalse( saved.IsProcedural );
+		Assert.AreEqual( 75f, saved.Data.Health );
+		Assert.IsTrue( saved.Data.Explosive );
+		Assert.AreEqual( 80f, saved.Data.ExplosionDamage );
+		Assert.AreEqual( 256f, saved.Data.ExplosionRadius );
+		var piece = saved.GetData<ModelBreakPiece[]>().Single();
+		Assert.AreEqual( "piece", piece.PieceName );
+		Assert.AreEqual( "models/dev/box.vmdl", piece.Model );
+		Assert.AreEqual( new Vector3( 1, 2, 3 ), piece.Offset );
+		Assert.AreEqual( 20f, piece.FadeTime );
+		Assert.AreEqual( "debris", piece.CollisionTags );
+	}
+
+	static Model CreateAggregateModel( int drawCalls, string name = null )
+	{
+		var material = Material.Load( "materials/default/white.vmat" );
+		var mesh = new Mesh( material );
+		mesh.CreateVertexBuffer( 3, new Vertex[]
+		{
+			new() { Position = new Vector3( 0, 0, 0 ), Normal = Vector3.Up },
+			new() { Position = new Vector3( 32, 0, 0 ), Normal = Vector3.Up },
+			new() { Position = new Vector3( 0, 32, 0 ), Normal = Vector3.Up }
+		} );
+		mesh.CreateIndexBuffer( 3, new[] { 0, 1, 2 } );
+		mesh.Bounds = new BBox( Vector3.Zero, new Vector3( 32, 32, 0 ) );
+		for ( int i = 1; i < drawCalls; i++ )
+			mesh.AddSubMesh( material, 0, 3, 0, 3 );
+
+		return Model.Builder.WithName( name ).AddMesh( mesh ).Create();
+	}
+
+	static void AssertAggregateModel( Model model, int drawCalls )
+	{
+		Assert.IsNotNull( model );
+		Assert.IsFalse( model.IsError );
+		Assert.AreEqual( drawCalls, model.MeshInfo.TotalDrawCalls );
+
+		var world = new SceneWorld();
+		try
+		{
+			var fragments = Enumerable.Range( 0, drawCalls ).Select( i => new AggregateFragment
+			{
+				Transform = Transform.Zero,
+				BoundsMin = Vector3.Zero,
+				BoundsMax = new Vector3( 32, 32, 0 ),
+				Tint = Color.White,
+				DrawDescriptorIndex = i
+			} ).ToArray();
+			var aggregate = new SceneAggregateObject( world, model, fragments, true );
+			Assert.IsTrue( aggregate.IsValid() );
+			aggregate.Delete();
+		}
+		finally
+		{
+			world.Delete();
+		}
+	}
+
+	static void UnloadModel( Model model )
+	{
+		Game.Resources.Unregister( model );
+		NativeResourceCache.Remove( model.native.GetBindingPtr().ToInt64() );
+		model.Destroy();
+	}
 
 	void WriteVmdl( string relativePath, Guid guid )
 	{
@@ -181,6 +449,16 @@ public class GuidTests
 	void DeleteMeta( string relativePath )
 	{
 		File.Delete( Path.Combine( _assetsPath, relativePath + ".meta" ) );
+	}
+
+	/// <summary>
+	/// Register a written .meta the way the editor's file watcher does. InvalidateDatabase would
+	/// work too but rescans everything mounted; PathReuseAfterRename keeps using it so the full
+	/// rebuild stays covered.
+	/// </summary>
+	static void MetaChanged( string relativePath )
+	{
+		NativeEngine.g_pResourceSystem.NotifyMetaFileChanged( relativePath, true );
 	}
 
 	/// <summary>
@@ -253,7 +531,7 @@ public class GuidTests
 		var guid = Guid.NewGuid();
 		WriteScene( relativePath, guid );
 
-		NativeEngine.g_pResourceSystem.InvalidateDatabase();
+		MetaChanged( relativePath );
 		ResourceLoader.LoadAllGameResource( FileSystem.Mounted, reloadExisting: true );
 
 		Assert.AreEqual( guid, promise.Guid, "Promise should have adopted the guid once the resource was loaded" );
@@ -283,7 +561,7 @@ public class GuidTests
 
 		// now the real resource for guidA gets loaded
 		WriteScene( currentPath, guidA );
-		NativeEngine.g_pResourceSystem.InvalidateDatabase();
+		MetaChanged( currentPath );
 		ResourceLoader.LoadAllGameResource( FileSystem.Mounted, reloadExisting: true );
 
 		Assert.AreSame( promiseA, ResourceLibrary.Get<SceneFile>( currentPath ), "GUID-only promise should adopt the real path once loaded" );
@@ -307,7 +585,7 @@ public class GuidTests
 		var guid = Guid.NewGuid();
 		WriteScene( currentPath, guid );
 
-		NativeEngine.g_pResourceSystem.InvalidateDatabase();
+		MetaChanged( currentPath );
 
 		// reference by guid, but with a stale path that was never actually where this
 		// resource lived (eg a saved reference from before a rename)

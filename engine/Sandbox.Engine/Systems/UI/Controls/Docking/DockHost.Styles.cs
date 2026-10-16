@@ -28,7 +28,7 @@ public partial class DockHost
 			.dock-group { flex-direction: column; background-color: #20242c; }
 			.dock-body { position: relative; }
 			.dock-content { width: 100%; height: 100%; }
-			.dock-content > * { flex-grow: 1; min-width: 0; min-height: 0; }
+			.dock-content > * { flex-grow: 1; }
 			.dock-branch { flex-basis: 0px; }
 			.dock-splitter
 			{

@@ -9,11 +9,17 @@ public partial class DockHost
 		// Reparenting and selection are committed together by the docking layout.
 		protected override void OnChildRemoved( Panel child ) { }
 
+		/// <summary>
+		/// Activate the tab through the dock layout.
+		/// </summary>
 		public override void SelectTab( Tab tab )
 		{
 			if ( tab is DockTab dock ) host.Activate( dock.Item.Id );
 		}
 
+		/// <summary>
+		/// Close the tab through the dock layout.
+		/// </summary>
 		public override bool CloseTab( Tab tab ) => tab is DockTab dock && host.Close( dock.Item.Id );
 	}
 
@@ -38,6 +44,9 @@ public partial class DockHost
 		internal DockItem Item { get; }
 		bool _leftPressed;
 
+		/// <summary>
+		/// Use panel dragging unless the host delegates dragging to a window.
+		/// </summary>
 		public override bool WantsDrag => !_host.UsesWindowDragging;
 
 		internal DockTab( DockHost host, DockItem item )
@@ -81,32 +90,86 @@ public partial class DockHost
 			e.StopPropagation();
 			if ( _leftPressed ) _host.BeginDrag( Item.Id );
 		}
-		protected override void OnDrag( DragEvent e ) { e.StopPropagation(); _host.UpdateDrag( e.ScreenPosition ); }
-		protected override void OnDragEnd( DragEvent e ) { e.StopPropagation(); _host.EndDrag( e.ScreenPosition ); }
-		protected override void OnEscape( PanelEvent e ) { e.StopPropagation(); _host.CancelDrag(); }
 
-		public override void OnButtonTyped( ButtonEvent e )
+		protected override void OnDrag( DragEvent e )
 		{
-			if ( e.Button == "escape" )
-			{
-				e.StopPropagation = true;
-				_host.CancelDrag();
-				return;
-			}
-			base.OnButtonTyped( e );
+			e.StopPropagation();
+			_host.UpdateDrag( e.ScreenPosition );
 		}
 
-		protected override void OnBlur( PanelEvent e ) { _host.CancelDrag(); base.OnBlur( e ); }
+		protected override void OnDragEnd( DragEvent e )
+		{
+			e.StopPropagation();
+			_host.EndDrag( e.ScreenPosition );
+		}
+
+		protected override void OnDragCancel( DragEvent e )
+		{
+			e.StopPropagation();
+			_host.CancelDrag();
+		}
 	}
 
-	static Vector2 MinimumSize( DockNode node )
+	// Tab groups accommodate every tab, so switching tabs does not move the splitters.
+	// Absolute content constraints can guide the allocation without depending on its result.
+	(float Min, float Max) SizeLimits( DockNode node, bool vertical )
 	{
-		if ( node is not DockSplit split ) return new Vector2( 120, 80 );
-		var first = MinimumSize( split.First );
-		var second = MinimumSize( split.Second );
-		return split.Vertical
-			? new Vector2( MathF.Max( first.x, second.x ), first.y + second.y + 5 )
-			: new Vector2( first.x + second.x + 5, MathF.Max( first.y, second.y ) );
+		if ( node is DockGroup group ) return GroupSizeLimits( group, vertical );
+
+		var split = (DockSplit)node;
+		var first = SizeLimits( split.First, vertical );
+		var second = SizeLimits( split.Second, vertical );
+		if ( split.Vertical != vertical )
+		{
+			var minimum = MathF.Max( first.Min, second.Min );
+			var maximum = MathF.Min( first.Max, second.Max );
+			return (minimum, MathF.Max( minimum, maximum ));
+		}
+
+		var divider = _views.TryGetValue( split, out var splitView ) && splitView is SplitView sizing ? sizing.DividerSize : 5;
+		return (first.Min + second.Min + divider, first.Max + second.Max + divider);
+	}
+
+	(float Min, float Max) GroupSizeLimits( DockGroup group, bool vertical )
+	{
+		float minimum = vertical ? 80 : 120;
+		float maximum = 0;
+		var chrome = GroupChromeSize( group, vertical );
+
+		foreach ( var id in group.Items )
+		{
+			var style = Find( id )?.Content?.ComputedStyle;
+			var min = vertical ? style?.MinHeight : style?.MinWidth;
+			var max = vertical ? style?.MaxHeight : style?.MaxWidth;
+
+			// Computed lengths are screen pixels; split sizes use logical pixels.
+			if ( min is { Unit: LengthUnit.Pixels } minPixels )
+			{
+				minimum = MathF.Max( minimum, minPixels.Value * ScaleFromScreen + chrome );
+			}
+
+			var contentMaximum = float.PositiveInfinity;
+			if ( max is { Unit: LengthUnit.Pixels } maxPixels )
+			{
+				contentMaximum = maxPixels.Value * ScaleFromScreen + chrome;
+			}
+
+			maximum = MathF.Max( maximum, contentMaximum );
+		}
+
+		return (minimum, MathF.Max( minimum, maximum ));
+	}
+
+	float GroupChromeSize( DockGroup group, bool vertical )
+	{
+		if ( !_views.TryGetValue( group, out var view ) || view is not GroupView pane ) return 0;
+
+		var box = pane.Body.Box;
+		var size = vertical
+			? pane.Tabs.Box.RectOuter.Height + box.Border.Top + box.Border.Bottom + box.Padding.Top + box.Padding.Bottom
+			: box.Border.Left + box.Border.Right + box.Padding.Left + box.Padding.Right;
+
+		return MathF.Max( 0, size ) * ScaleFromScreen;
 	}
 
 	sealed class SplitView : Panel
@@ -116,7 +179,12 @@ public partial class DockHost
 		readonly Panel _handle;
 		bool _dragging;
 		float _grabOffset;
-		float _startFraction;
+		float _startPosition;
+		SplitView _resizeRoot;
+		readonly List<(float StartSize, float Minimum, float Maximum)> _resizePanes = new();
+		readonly Dictionary<DockSplit, float> _startFractions = new();
+		float[] _resizeSizes;
+		int _resizeBoundary;
 
 		internal Panel First { get; }
 		internal Panel Second { get; }
@@ -137,8 +205,8 @@ public partial class DockHost
 				if ( e is not MousePanelEvent { Button: "mouseleft" } ) return;
 				_host.CancelDrag();
 				_dragging = true;
-				_startFraction = split.Fraction;
 				_grabOffset = Axis( _handle.MousePosition ) * ScaleFromScreen;
+				BeginResize();
 				SetClass( "resizing", true );
 			} );
 			_handle.AddEventListener( "onmouseup", e =>
@@ -148,16 +216,20 @@ public partial class DockHost
 		}
 
 		float Axis( Vector2 value ) => _split.Vertical ? value.y : value.x;
-		float Available => MathF.Max( 0, Axis( Box.Rect.Size ) * ScaleFromScreen - 5 );
+		internal float DividerSize => Axis( _handle.Box.Rect.Size ) * ScaleFromScreen;
+		float Available => MathF.Max( 0, Axis( Box.RectInner.Size ) * ScaleFromScreen - DividerSize );
 
 		float ClampFraction( float fraction )
 		{
-			var first = Axis( MinimumSize( _split.First ) );
-			var second = Axis( MinimumSize( _split.Second ) );
+			var first = _host.SizeLimits( _split.First, _split.Vertical );
+			var second = _host.SizeLimits( _split.Second, _split.Vertical );
 			var available = Available;
-			// When the host is too small, share the space rather than overflow or invert the split.
-			if ( available < first + second ) return first / (first + second);
-			return Math.Clamp( fraction, first / available, 1 - second / available );
+			// Minimums win over maximums. When neither fits, keep both panes usable.
+			if ( available < first.Min + second.Min ) return first.Min / (first.Min + second.Min);
+			if ( available > first.Max + second.Max ) return first.Max / (first.Max + second.Max);
+			var lower = MathF.Max( first.Min, available - second.Max );
+			var upper = MathF.Min( first.Max, available - second.Min );
+			return Math.Clamp( fraction, lower / available, upper / available );
 		}
 
 		internal void UpdateFraction()
@@ -173,7 +245,112 @@ public partial class DockHost
 			SetClass( "resizing", false );
 		}
 
-		/// <inheritdoc/>
+		void BeginResize()
+		{
+			_startPosition = Axis( _handle.Box.Rect.Position ) * ScaleFromScreen;
+			_resizeRoot = this;
+
+			// A divider can borrow space through neighbouring panes on the same axis.
+			while ( _resizeRoot.Parent?.Parent is SplitView parent && parent._split.Vertical == _split.Vertical )
+			{
+				_resizeRoot = parent;
+			}
+
+			_resizePanes.Clear();
+			_startFractions.Clear();
+			CollectResizePanes( _resizeRoot._split );
+			_resizeSizes = new float[_resizePanes.Count];
+		}
+
+		void CollectResizePanes( DockNode node )
+		{
+			if ( node is DockSplit split && split.Vertical == _split.Vertical )
+			{
+				_startFractions.Add( split, split.Fraction );
+				CollectResizePanes( split.First );
+
+				if ( split == _split ) _resizeBoundary = _resizePanes.Count;
+
+				CollectResizePanes( split.Second );
+				return;
+			}
+
+			var size = Axis( _host._views[node].Box.Rect.Size ) * ScaleFromScreen;
+			var limits = _host.SizeLimits( node, _split.Vertical );
+
+			// Don't jump to the minimum or maximum if the pane already falls outside it.
+			var minimum = MathF.Min( size, limits.Min );
+			var maximum = MathF.Max( size, limits.Max );
+			_resizePanes.Add( (size, minimum, maximum) );
+		}
+
+		void Resize( float delta )
+		{
+			for ( int i = 0; i < _resizePanes.Count; i++ )
+			{
+				_resizeSizes[i] = _resizePanes[i].StartSize;
+			}
+
+			var direction = MathF.Sign( delta );
+			var firstCapacity = ResizeCapacity( 0, _resizeBoundary, grow: delta > 0 );
+			var secondCapacity = ResizeCapacity( _resizeBoundary, _resizePanes.Count, grow: delta < 0 );
+			var distance = MathF.Min( MathF.Abs( delta ), MathF.Min( firstCapacity, secondCapacity ) );
+			var movement = distance * direction;
+
+			DistributeResize( _resizeBoundary - 1, -1, -1, movement );
+			DistributeResize( _resizeBoundary, _resizePanes.Count, 1, -movement );
+
+			var paneIndex = 0;
+			ApplyResize( _resizeRoot._split, ref paneIndex );
+		}
+
+		float ResizeCapacity( int start, int end, bool grow )
+		{
+			float capacity = 0;
+
+			for ( int i = start; i < end; i++ )
+			{
+				var pane = _resizePanes[i];
+				capacity += grow ? pane.Maximum - pane.StartSize : pane.StartSize - pane.Minimum;
+			}
+
+			return capacity;
+		}
+
+		void DistributeResize( int start, int end, int step, float remaining )
+		{
+			// Start next to the divider and pass leftover movement to the next pane.
+			for ( int i = start; i != end; i += step )
+			{
+				var pane = _resizePanes[i];
+				var change = Math.Clamp( remaining, pane.Minimum - pane.StartSize, pane.Maximum - pane.StartSize );
+				_resizeSizes[i] += change;
+				remaining -= change;
+			}
+		}
+
+		float ApplyResize( DockNode node, ref int paneIndex )
+		{
+			if ( node is not DockSplit split || split.Vertical != _split.Vertical ) return _resizeSizes[paneIndex++];
+
+			var firstSize = ApplyResize( split.First, ref paneIndex );
+			var secondSize = ApplyResize( split.Second, ref paneIndex );
+			var fraction = Math.Clamp( firstSize / (firstSize + secondSize), 0.05f, 0.95f );
+			_host._layout.SetFraction( split, fraction );
+
+			var view = (SplitView)_host._views[split];
+			return firstSize + secondSize + view.DividerSize;
+		}
+
+		void CancelResize()
+		{
+			StopDragging();
+			foreach ( var (split, fraction) in _startFractions ) _host._layout.SetFraction( split, fraction );
+		}
+
+		/// <summary>
+		/// Keep the split within its size limits and stop resizing when the pointer leaves.
+		/// </summary>
 		public override void Tick()
 		{
 			base.Tick();
@@ -185,26 +362,25 @@ public partial class DockHost
 		{
 			if ( !_dragging || Available <= 0 ) return;
 			e.StopPropagation();
-			var fraction = (Axis( MousePosition ) * ScaleFromScreen - _grabOffset) / Available;
-			_host._layout.SetFraction( _split, Math.Clamp( ClampFraction( fraction ), 0.05f, 0.95f ) );
+			Resize( Axis( ScreenMousePosition ) * ScaleFromScreen - _grabOffset - _startPosition );
 		}
 
 		protected override void OnEscape( PanelEvent e )
 		{
 			if ( !_dragging ) return;
 			e.StopPropagation();
-			StopDragging();
-			_host._layout.SetFraction( _split, _startFraction );
+			CancelResize();
 		}
 
-		/// <inheritdoc/>
+		/// <summary>
+		/// Restore the starting layout when Escape is pressed during a resize.
+		/// </summary>
 		public override void OnButtonTyped( ButtonEvent e )
 		{
 			if ( e.Button == "escape" && _dragging )
 			{
 				e.StopPropagation = true;
-				StopDragging();
-				_host._layout.SetFraction( _split, _startFraction );
+				CancelResize();
 				return;
 			}
 			base.OnButtonTyped( e );

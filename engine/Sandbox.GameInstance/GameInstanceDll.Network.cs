@@ -259,6 +259,14 @@ internal partial class GameInstanceDll
 
 		await ServerPackages.InstallAll();
 
+		// Like Garry's Mod's map check - if the server's files are different, we can't play with what it has
+		var mismatched = ServerPackages.GetMismatchedWorkshopItems();
+		if ( mismatched.Count > 0 )
+		{
+			Disconnect( ServerPackages.MismatchMessage( mismatched ) );
+			return false;
+		}
+
 		// Prevent a blank title between the last package install and the download queue start.
 		if ( string.IsNullOrWhiteSpace( LoadingScreen.Title ) )
 			LoadingScreen.Title = "Loading..";
@@ -269,7 +277,7 @@ internal partial class GameInstanceDll
 	}
 
 	static string[] _interestingExtensions = new[] { "_c", ".scss", ".ttf" };
-	static string[] _engineAssets = new[] { "vtex_c", "vmat_c", "vsnd_c", "vmdl_c", "vpk", "vanmgrph_c", "shader_c" }; // anything the native engine loads from disk has to be a LARGE download
+	static string[] _engineAssets = new[] { "vtex_c", "vmat_c", "vsnd_c", "vmdl_c", "vphys_c", "vpk", "vanmgrph_c", "shader_c" }; // anything the native engine loads from disk has to be a LARGE download
 	List<string> _netIncludePaths = new(); // wildcard-supported paths we also want to include content of
 
 	// Small files only live in an in-memory filesystem, which native loaders can't read - engine assets must be a real file on disk.

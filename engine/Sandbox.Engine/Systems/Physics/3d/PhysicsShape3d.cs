@@ -309,7 +309,7 @@ internal sealed partial class PhysicsShape3d : PhysicsShapeInternal, IHandle
 
 	internal override void UpdateSurface()
 	{
-		native.SetMaterialIndex( _surface?.ResourceName );
+		native.SetMaterialIndex( _surface?.PhysicsName );
 	}
 
 	/// <summary>

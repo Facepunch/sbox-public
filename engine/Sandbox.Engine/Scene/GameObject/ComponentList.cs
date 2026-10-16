@@ -225,6 +225,15 @@ public class ComponentList
 		return results;
 	}
 
+	/// <summary>
+	/// Append matching components to reusable engine-owned storage.
+	/// </summary>
+	internal void GetAll<T>( List<T> results, FindMode find )
+	{
+		if ( go.IsDestroyed ) return;
+		CollectAll( results, find );
+	}
+
 	// This is an incredibly hot code path, even the slightest change should be verified with benchmarks.
 	private void CollectAll<T>( List<T> results, FindMode find )
 	{

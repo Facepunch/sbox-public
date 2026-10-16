@@ -46,13 +46,27 @@ partial class PublishWizard : BaseWizard
 			AddStep( new CompileWizardPage() { Project = Project, PublishConfig = Config } );  // compile everything
 		}
 
-		AddStep( new UploadWizardPage() { Project = Project, PublishConfig = Config } );       // upload files
-		AddStep( new UploadMediaPage() { Project = Project, PublishConfig = Config } );           // upload files
-		AddStep( new FinalizeWizardPage() { Project = Project, PublishConfig = Config } );        // make live
+		// Maps go to the workshop - no files for the backend, no video, and the revision gets a default changelist
+		if ( ProjectPublisher.PublishesToWorkshop( Project ) )
+		{
+			AddStep( new WorkshopUploadPage() { Project = Project, PublishConfig = Config } );    // item and thumbnail, then files to the workshop, then make live
+		}
+		else
+		{
+			AddStep( new UploadWizardPage() { Project = Project, PublishConfig = Config } );       // upload files
+			AddStep( new UploadMediaPage() { Project = Project, PublishConfig = Config } );        // upload files
+			AddStep( new FinalizeWizardPage() { Project = Project, PublishConfig = Config } );     // make live
+		}
+
 		AddStep( new SuccessWizardPage() { Project = Project, PublishConfig = Config } );     // make live
 
 		Current = Steps.First();
 	}
+
+	/// <summary>
+	/// What a revision's called if nobody says otherwise
+	/// </summary>
+	static string DefaultChangeTitle() => $"Changes on {DateTime.UtcNow:yyyy-MM-dd}";
 
 	public override void OnSave()
 	{

@@ -32,6 +32,5 @@
 		"4096" : "4096"
 		"8192" : "8192"
 	]
-	lightmap_queries(boolean) { group="Lighting" } : "Lightmap Queries" : "1" : "Generates data which can be used to lookup lightmap UVs at a given position, useful for high-fidelity illumination of bullet decals on lightmapped geometry."
 	irradiance_color_scale(float) { group="Lighting" } : "Irradiance Color Scale" : "1" : "Amount of saturation that indirect light bounces recieves, keeps energy preservation on light."
 ]

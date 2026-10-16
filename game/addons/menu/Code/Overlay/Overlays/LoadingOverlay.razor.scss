@@ -1,4 +1,5 @@
 @import "/styles/_front.scss";
+@import "/styles/_theme.scss";
 
 LoadingOverlay
 {
@@ -22,6 +23,14 @@ LoadingOverlay
 	transition: opacity 0.35s ease-in, transform 0.35s ease-out, border-radius 0.35s ease-out;
 	transform: scale( 1.1 );
 	border-radius: 32px;
+
+	.content
+	{
+		position: relative;
+		width: 100%;
+		max-width: $screen-w-xl;
+		margin: 0 auto;
+	}
 
 	&.visible
 	{
@@ -197,87 +206,13 @@ LoadingOverlay
 		}
 	}
 
-	// No card - straight on the art, bottom left
+	// No card - straight on the art, bottom left. Its look's shared with the pause menu's latest update
 	.news
 	{
-		flex-direction: column;
+		@include front-headline;
+
 		flex-shrink: 1;
 		max-width: 480px;
-		gap: 6px;
-	}
-
-	.news-eyebrow
-	{
-		flex-direction: row;
-		align-items: center;
-		gap: 6px;
-
-		// Snug on the title under it - the column's gap is for the title and summary
-		margin-bottom: -9px;
-
-		// A megaphone and the label, in the blue the rail lights its active page with - picked out
-		// from the white title under it rather than just more white
-		.eyebrow
-		{
-			flex-direction: row;
-			align-items: center;
-			gap: 5px;
-
-			icon
-			{
-				font-size: 14px;
-				color: linear-gradient( 180deg, #7fb4ff, $front-primary );
-			}
-
-			label
-			{
-				@include front-section-label;
-				color: linear-gradient( 180deg, #9cc6ff, $front-primary );
-				text-shadow: 0 1px 6px rgba( 0, 0, 0, 0.7 );
-			}
-		}
-
-		// "3 months ago" in a little pill, with a clock
-		.ago
-		{
-			flex-direction: row;
-			flex-shrink: 0;
-			align-items: center;
-			gap: 4px;
-			height: 20px;
-			padding: 0 8px 0 6px;
-			border-radius: 999px;
-			background-color: rgba( 255, 255, 255, 0.07 );
-
-			icon
-			{
-				font-size: 12px;
-				color: $front-secondary;
-			}
-
-			label
-			{
-				font-size: 11px;
-				font-weight: 600;
-				color: $front-secondary;
-			}
-		}
-	}
-
-	.news-title
-	{
-		font-size: 26px;
-		font-weight: 700;
-		color: $front-heading;
-		text-shadow: 0 2px 10px rgba( 0, 0, 0, 0.75 );
-	}
-
-	.news-summary
-	{
-		font-size: 14px;
-		font-weight: 500;
-		color: $front-body;
-		text-shadow: 0 1px 6px rgba( 0, 0, 0, 0.75 );
 	}
 
 	.progress
@@ -296,15 +231,13 @@ LoadingOverlay
 		gap: 12px;
 	}
 
-	// Tall enough for the title and the small print under it, so the card's the same size with or
-	// without it
+	// Tall enough for the title and the small print under it - both always there
 	.progress-head
 	{
 		height: 36px;
-		transition: padding-right 0.3s ease-out;
 	}
 
-	// The title, centred in the head on its own - the small print growing in under it pushes it up
+	// The title, and the small print's line under it whether there's any or not
 	.head-text
 	{
 		flex-direction: column;
@@ -315,28 +248,31 @@ LoadingOverlay
 		justify-content: center;
 	}
 
-	// Opening back out (for the bar coming in) at the bar's pace - closing up is quicker, below
 	.progress-foot
 	{
 		gap: 8px;
-		transition: margin-top 0.3s ease-out;
 	}
 
-	// Not downloading - the bottom row slides up level with the head (its height plus the card's
-	// gap, less the half of the difference that centres the 28 tall cancel in the 36 tall head) and
-	// the title makes room on its right for the cancel button
-	.progress.compact
+	// How long it's got left - quiet, like the speed and total under the bar
+	.eta
 	{
-		.progress-head
+		flex-direction: row;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 4px;
+
+		icon
 		{
-			padding-right: 120px;
-			transition: padding-right 0.25s ease-out;
+			font-size: 14px;
+			color: $front-tertiary;
 		}
 
-		.progress-foot
+		label
 		{
-			margin-top: -46px;
-			transition: margin-top 0.25s ease-out;
+			font-size: 12px;
+			font-weight: 600;
+			color: $front-secondary;
+			white-space: nowrap;
 		}
 	}
 
@@ -350,33 +286,8 @@ LoadingOverlay
 		height: 16px;
 		margin-top: -9px;
 
-		// Comes in with the bar - room made first, then faded in
-		transition: height 0.3s ease-out, margin-top 0.3s ease-out, opacity 0.2s 0.25s ease-out;
-
-		&:intro
-		{
-			opacity: 0;
-			height: 0px;
-			margin-top: -14px;
-		}
-
-		// Its numbers sit in it absolutely - clipped to it, so when it folds to nothing they go too
-		// rather than hanging on below it
+		// Its numbers sit in it absolutely - clipped to it
 		overflow: hidden;
-
-		// Folds away with the bar, in place
-		&.collapsed
-		{
-			opacity: 0;
-			height: 0px;
-			margin-top: -14px;
-			transition: opacity 0s linear, height 0.15s ease-in, margin-top 0.15s ease-in;
-
-			.stat
-			{
-				opacity: 0;
-			}
-		}
 
 		// All just text under the bar - no pill round them, and the icon snug against its number
 		.stat.done, .stat.total, .stat.speed
@@ -533,40 +444,69 @@ LoadingOverlay
 		color: $front-heading;
 	}
 
-	// The party deck's download bar - comes in once there's a download with progress to report
+	// The download bar - always there: an empty track with nothing coming down, and while a batch is,
+	// a segment for each download, side by side with a hairline between them
 	.track
 	{
 		@include front-track;
 
+		flex-direction: row;
+		gap: 2px;
 		height: 5px;
 
-		// Coming in, the card opens up for it first, then it fades in once there's room - the fade
-		// waits out the height
-		transition: height 0.3s ease-out, margin-top 0.3s ease-out, opacity 0.2s 0.25s ease-out;
-
-		&:intro
+		// The segments are the track now, each its own - the gaps between them show through
+		&.busy
 		{
-			opacity: 0;
-			height: 0px;
-			margin-top: -14px;
+			background-color: transparent;
+			border-radius: 0;
 		}
 
-		// Folds away in place once the finished download's had its moment - the negative margin takes
-		// back the card's gap above it, so what's left closes up rather than leaving a hole
-		&.collapsed
+		// One download's share of the bar - as wide as its share of the bytes (flex-grow, set inline).
+		// Square-ish, not pills: a small one's only a few pixels wide, and rounded right off it's a dot.
+		// The bar's own ends are still round - the first segment's left, the last's right
+		.segment
 		{
-			opacity: 0;
-			height: 0px;
-			margin-top: -14px;
-			transition: opacity 0s linear, height 0.15s ease-in, margin-top 0.15s ease-in;
+			flex-basis: 0;
+			flex-shrink: 1;
+			min-width: 0;
+			height: 100%;
+			border-radius: 1px;
+			background-color: $front-track;
+			overflow: hidden;
 
-			// Gone at once, whatever the fade's doing - the track's grey and the fill's green both snap
-			// out (neither's in a transition list here), so there's nothing left to see while it folds
-			background-color: transparent;
+			&:first-child
+			{
+				border-top-left-radius: 999px;
+				border-bottom-left-radius: 999px;
+			}
 
+			&:last-child
+			{
+				border-top-right-radius: 999px;
+				border-bottom-right-radius: 999px;
+			}
+
+			// The segment's shape does the clipping - the fill's own rounding would round it again
+			// inside it
 			.fill
 			{
-				opacity: 0;
+				border-radius: 0;
+			}
+
+			// Down - just full, nothing sweeping or pulsing along it any more (till the batch's finish
+			// flashes them all, below)
+			&.done .fill
+			{
+				.pulse
+				{
+					opacity: 0;
+					animation-name: none;
+				}
+
+				.shine
+				{
+					display: none;
+				}
 			}
 		}
 
@@ -656,13 +596,14 @@ LoadingOverlay
 		border-color: rgba( $front-reward, 0.7 );
 		box-shadow: 0 0 28px rgba( $front-reward, 0.35 ), 0 8px 32px rgba( 0, 0, 0, 0.35 );
 
-		// The bar glows, flashes bright once, and stops sweeping - it's done working
-		.track
+		// The bar's segments glow, flash bright once, and stop sweeping - it's done working. As specific as
+		// a finished segment's own rule, which stops its pulse, so this flash wins over it
+		.track .segment
 		{
 			box-shadow: 0 0 14px rgba( $front-reward, 0.55 );
 		}
 
-		.fill
+		.track .segment.done .fill
 		{
 			.pulse
 			{

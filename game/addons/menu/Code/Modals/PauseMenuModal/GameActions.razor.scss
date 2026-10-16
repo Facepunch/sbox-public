@@ -1,0 +1,117 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+@import "/Modals/PauseMenuModal/_pause.scss";
+
+// The game's own buttons, on its Game info - the middle of the screen, under the cards, a heading
+// over them, the buttons big and stacked. What you're most likely here to press
+GameActions
+{
+	// Across the page, its height down it set from code - so its middle is the screen's
+	position: absolute;
+	left: 0;
+	right: 0;
+	flex-direction: column;
+	align-items: center;
+	gap: 16px;
+	font-family: $front-font;
+
+	// Not seen until it's been put in the middle of the screen - otherwise its first frame's at the top
+	opacity: 0;
+
+	&.placed
+	{
+		opacity: 1;
+	}
+
+	// A game without any - not there at all
+	&.empty
+	{
+		display: none;
+	}
+
+	.eyebrow
+	{
+		@include front-eyebrow;
+	}
+
+	.buttons
+	{
+		flex-direction: column;
+		align-items: stretch;
+		gap: 10px;
+		width: 440px;
+	}
+
+	// Its name, and what it does under it - as tall as they need
+	.text
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 1;
+		min-width: 0;
+		gap: 2px;
+	}
+
+	.description
+	{
+		font-size: 12.5px;
+		font-weight: 500;
+		color: $front-secondary;
+		white-space: normal;
+	}
+
+	.action
+	{
+		@include pause-button;
+
+		height: auto;
+		min-height: 68px;
+		padding: 12px 24px;
+		gap: 14px;
+		border-radius: 10px;
+		// The cards' slab and outline, so they sit with the ones over them
+		border-color: $front-border;
+		background-color: $front-card;
+		background-image: linear-gradient( 180deg, $front-card-top, $front-card-bottom );
+		backdrop-filter: blur( 8px );
+		box-shadow: 0 16px 40px rgba( 0, 0, 0, 0.55 );
+
+		// The list's glyph gradient - light at the top, easing down into grey
+		i
+		{
+			font-size: 28px;
+			color: linear-gradient( 180deg, #e6eaf2, #7d8698 );
+		}
+
+		// White at the top, easing down a touch - the Resume button's gradient, without its blue
+		.title
+		{
+			font-size: 19px;
+			font-weight: 700;
+			color: linear-gradient( 180deg, #ffffff 30%, #b4bccb 100% );
+		}
+
+		// Lifting a touch under the pointer, like the cards: the outline brighter, the slab lighter
+		&:hover
+		{
+			border-color: rgba( 255, 255, 255, 0.2 );
+			background-image: linear-gradient( 180deg, rgba( 40, 44, 56, 0.97 ), rgba( 30, 34, 43, 0.98 ) );
+			box-shadow: 0 18px 44px rgba( 0, 0, 0, 0.65 );
+
+			i
+			{
+				color: linear-gradient( 180deg, #ffffff, #9aa3b5 );
+			}
+
+			.title
+			{
+				color: linear-gradient( 180deg, #ffffff 40%, #d2d8e3 100% );
+			}
+
+			.description
+			{
+				color: $front-body;
+			}
+		}
+	}
+}

@@ -2,7 +2,7 @@
 @inherits JamPhasePanel
 
 <root class="jam-phase">
-	<JamPhaseLayout Jam=@Jam Blurb=@Blurb CountdownTarget=@Jam.Starts CountdownLabel="Starts in">
+	<JamPhaseLayout Jam=@Jam Blurb=@Blurb CountdownTarget=@Jam.Starts CountdownLabel="#menu.jam.starts_in">
 		<Content>
 			<JamEntries Jam=@Jam Locked=@true />
 		</Content>
@@ -12,6 +12,6 @@
 @code
 {
 	string Blurb => Jam.CommunityVoting
-		? "The theme is a secret until the jam starts. Once it does, play the entries and nominate the ones you rate."
-		: "The theme is a secret until the jam starts.";
+		? "#menu.jam.the_theme_is_a_secret_until_the_jam_starts"
+		: "#menu.jam.the_theme_is_a_secret_until_the_jam_starts_text";
 }

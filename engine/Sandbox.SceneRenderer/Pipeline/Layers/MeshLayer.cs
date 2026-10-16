@@ -125,8 +125,8 @@ internal abstract class MeshLayer : RenderLayer
 	/// <see cref="RenderFrame.DrawLayer"/> copies (<see cref="MeshRenderFeature.FrameBufferCopyingLists"/>).
 	/// </summary>
 	public override FrameResources Reads( RenderFrame frame ) => LayerType == SceneLayerType.Translucent && !Depth && frame.ReadsFrameBuffer( Runs & MeshRenderFeature.FrameBufferCopyingLists )
-		? FrameResources.DepthChain | FrameResources.RefractionStencil
-		: FrameResources.None;
+		? FrameResources.DepthChain | FrameResources.RefractionStencil | FrameResources.Untracked
+		: FrameResources.Untracked;
 
 	/// <summary>
 	/// Native layer type used by custom objects.

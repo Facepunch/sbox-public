@@ -11,16 +11,17 @@
   "Category": "Costume",
   "ConditionalModels": {},
   "Tags": null,
-  "Parent": null,
   "Model": "models/citizen_clothes/full_outfit/medieval_armour/models/medieval_armour.vmdl",
-  "HumanAltModel": null,
-  "HumanAltFemaleModel": null,
+  "HumanAltModel": "models/citizen_clothes/full_outfit/medieval_armour/models/medieval_armour_human_male.vmdl",
+  "HumanAltFemaleModel": "models/citizen_clothes/full_outfit/medieval_armour/models/medieval_armour_human_female.vmdl",
   "SkinMaterial": null,
   "EyesMaterial": null,
   "MaterialGroup": "",
+  "HeelHeight": 0,
   "SlotsUnder": "Chest, LeftArm, RightArm, LeftWrist, RightWrist, LeftHand, RightHand, Groin, LeftThigh, RightThigh, LeftKnee, RightKnee, LeftShin, RightShin, LeftFoot, RightFoot, Waist",
   "SlotsOver": "Chest, LeftArm, RightArm, LeftWrist, RightWrist, LeftHand, RightHand, Groin, LeftThigh, RightThigh, LeftKnee, RightKnee, LeftShin, RightShin, LeftFoot, RightFoot, Waist",
-  "HideBody": "Chest, Legs, Hands, Feet",
+  "HideBody": "Legs, Hands, Feet",
+  "DeformationMode": "Normal",
   "AllowTintSelect": false,
   "TintSelection": {
     "blend": "Linear",
@@ -37,7 +38,8 @@
   "Icon": {
     "Path": "models/citizen_clothes/full_outfit/medieval_armour/medieval_armour.clothing.png",
     "Mode": "CitizenSkin",
-    "PositionOffset": "-77.19998,0,-33.90001"
+    "UsePositionOffset": false,
+    "PositionOffset": "-77.1999817,0,-33.9000092"
   },
   "__references": [],
   "__version": 0

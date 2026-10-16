@@ -11,16 +11,17 @@
   "Category": "Trousers",
   "ConditionalModels": {},
   "Tags": null,
-  "Parent": null,
   "Model": "models/citizen_clothes/seasonal/2025/valentines_bear/bear_trousers/models/bear_trousers.vmdl",
   "HumanAltModel": "models/citizen_clothes/seasonal/2025/valentines_bear/bear_trousers/models/bear_trousers_m_human.vmdl",
   "HumanAltFemaleModel": null,
   "SkinMaterial": null,
   "EyesMaterial": null,
   "MaterialGroup": null,
+  "HeelHeight": 0,
   "SlotsUnder": "Groin, LeftThigh, RightThigh, LeftKnee, RightKnee, LeftShin, RightShin, LeftFoot, RightFoot",
   "SlotsOver": "Groin, LeftThigh, RightThigh, LeftKnee, RightKnee, LeftShin, RightShin, LeftFoot, RightFoot",
   "HideBody": "Legs, Feet",
+  "DeformationMode": "Normal",
   "AllowTintSelect": false,
   "TintSelection": {
     "blend": "Linear",
@@ -37,7 +38,8 @@
   "Icon": {
     "Path": "models/citizen_clothes/seasonal/2025/valentines_bear/bear_trousers.clothing.png",
     "Mode": "Chest",
-    "PositionOffset": "-118.1999,0,-28.59999"
+    "UsePositionOffset": false,
+    "PositionOffset": "-118.199898,0,-28.5999908"
   },
   "__references": [],
   "__version": 0

@@ -11,6 +11,7 @@ public class ManifestSchema
 		public string Crc { get; set; }
 		public string Path { get; set; }
 		public long Size { get; set; }
+		public Services.TextureWebStreamingInfo Texture { get; set; }
 	}
 
 	/// <summary>

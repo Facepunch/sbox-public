@@ -24,7 +24,7 @@ partial class PartyRoom
 	}
 
 	/// <summary>
-	/// Kick a member from the lobby. Only the owner can kick members.
+	/// Kick a member from the party. Only the owner can kick members.
 	/// </summary>
 	public void Kick( SteamId friend )
 	{
@@ -54,6 +54,8 @@ partial class PartyRoom
 		if ( ident == MessageIdentity.ChatMessage )
 		{
 			var contents = stream.Read<string>();
+			contents = Utility.Steam.FilterChat( contents, friend.Id );
+
 			Log.Info( $"[Party] {friend}: {contents}" );
 
 			OnChatMessage?.Invoke( friend, contents );
@@ -74,7 +76,7 @@ partial class PartyRoom
 			if ( friend.Id != Owner.Id )
 				return;
 
-			// kicked, leave the lobby
+			// kicked, leave the party
 			Leave();
 			return;
 		}

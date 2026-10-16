@@ -21,6 +21,7 @@
   "SlotsUnder": 0,
   "SlotsOver": 0,
   "HideBody": 0,
+  "DeformationMode": "Normal",
   "AllowTintSelect": false,
   "TintSelection": {
     "blend": "Linear",
@@ -37,6 +38,7 @@
   "Icon": {
     "Path": "models/citizen_clothes/body/human07.clothing.png",
     "Mode": "Foot",
+    "UsePositionOffset": false,
     "PositionOffset": "0,0,0"
   },
   "__references": [],

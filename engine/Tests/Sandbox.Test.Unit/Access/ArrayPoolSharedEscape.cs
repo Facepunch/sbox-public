@@ -10,7 +10,6 @@ namespace AccessTests;
 // ArrayPool<T>.Shared is process wide - renting from it across packages is a use after free. The
 // PublicArrayPool redirect only sees source, so access control has to hold whatever IL comes out.
 [TestClass]
-[DoNotParallelize]
 public class ArrayPoolSharedEscapeTest
 {
 	static AccessControlResult Verify( string source )

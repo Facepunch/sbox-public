@@ -86,6 +86,11 @@ internal static class WindowInput
 	internal static void SetRelativeMouseMode( bool value )
 	{
 		if ( !initialized || Application.IsUnitTest ) return;
+
+		// Focus can change while loading or running editor callbacks, after the last event poll.
+		// Releasing capture must remain unconditional, including when SetFocus calls back here.
+		if ( value ) UpdateApplicationState();
+
 		var window = InputWindow;
 		value &= active && focused;
 		var actual = SdlWindow.SetRelativeMouseMode( window, value );
@@ -138,6 +143,10 @@ internal static class WindowInput
 	internal static void SetCursorPosition( int x, int y, IntPtr window )
 	{
 		if ( !initialized ) return;
+
+		UpdateApplicationState();
+		if ( !active || !focused ) return;
+
 		if ( window == IntPtr.Zero ) window = focusWindow;
 		if ( window != IntPtr.Zero ) Sdl.WarpMouseInWindow( window, x, y );
 	}

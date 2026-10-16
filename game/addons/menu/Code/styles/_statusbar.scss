@@ -1,0 +1,50 @@
+@import "/styles/_front.scss";
+
+// Dress the engine StatusBar here; pages only supply their status widgets.
+MenuShell .statusbar
+{
+	font-family: $front-font;
+	font-size: 11px;
+	color: $front-secondary;
+	padding-top: 10px;
+	border-top: 1px solid $front-border;
+	gap: 7px;
+
+	> .status-left, > .status-right
+	{
+		gap: 7px;
+
+		> label
+		{
+			min-width: 0;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+			overflow: hidden;
+		}
+	}
+
+	> .status-right
+	{
+		color: $front-tertiary;
+	}
+
+	.status-dot
+	{
+		width: 5px;
+		height: 5px;
+		border-radius: 50%;
+		background-color: $front-accent;
+
+		&.refreshing
+		{
+			background-color: $front-link;
+		}
+	}
+
+	.status-separator
+	{
+		width: 1px;
+		height: 12px;
+		background-color: $front-border;
+	}
+}

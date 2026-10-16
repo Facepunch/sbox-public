@@ -65,7 +65,7 @@ public partial class Scene : GameObject
 		TimeNow = timeNow;
 		TimeDelta = timeDelta;
 
-		using var timeScope = Time.Scope( TimeNow, TimeDelta );
+		using var timeScope = Time.PushScope( TimeNow, TimeDelta );
 		using var gizmoScope = gizmoInstance.Push();
 
 		SharedTick();
@@ -106,6 +106,7 @@ public partial class Scene : GameObject
 	}
 
 	List<CameraComponent> _cameraViewScratch = new();
+	List<ICameraModifier> _cameraModifierScratch = new();
 
 	/// <summary>
 	/// Composes every enabled camera's view - the one point in the frame where the camera moves.
@@ -118,7 +119,7 @@ public partial class Scene : GameObject
 		_cameraViewScratch.AddRange( Cameras );
 
 		// One sorted modifier set serves every camera this tick.
-		var modifiers = IsEditor ? null : CameraComponent.GatherModifiers( this );
+		var modifiers = IsEditor ? null : CameraComponent.GatherModifiers( this, _cameraModifierScratch );
 
 		foreach ( var camera in _cameraViewScratch )
 		{
@@ -127,6 +128,8 @@ public partial class Scene : GameObject
 
 			camera.ComposeView( modifiers );
 		}
+
+		_cameraModifierScratch.Clear();
 	}
 
 	List<IRenderThread> renderThreadEventTargets = new();
@@ -179,6 +182,8 @@ public partial class Scene : GameObject
 	static Superluminal _signalStarthUpdate = new Superluminal( "Signal.StartUpdate", Color.Cyan );
 	static Superluminal _signalFinishUpdate = new Superluminal( "Signal.FinishUpdate", Color.Cyan );
 
+	Action _internalFixedUpdate;
+
 	private void FixedUpdate()
 	{
 		if ( !ProjectSettings.Physics.UseFixedUpdate )
@@ -190,7 +195,7 @@ public partial class Scene : GameObject
 			fixedUpdate.Frequency = ProjectSettings.Physics.FixedUpdateFrequency;
 
 			IsFixedUpdate = true;
-			fixedUpdate.Run( InternalFixedUpdate, Time.NowDouble, ProjectSettings.Physics.MaxFixedUpdates );
+			fixedUpdate.Run( _internalFixedUpdate ??= InternalFixedUpdate, Time.NowDouble, ProjectSettings.Physics.MaxFixedUpdates );
 			IsFixedUpdate = false;
 		}
 	}
@@ -311,7 +316,7 @@ public partial class Scene : GameObject
 			UpdateDefaultListener();
 		}
 
-		using var timeScope = Time.Scope( TimeNow, TimeDelta );
+		using var timeScope = Time.PushScope( TimeNow, TimeDelta );
 		using var gizmoScope = gizmoInstance?.Push();
 
 		using ( PerformanceStats.Timings.Async.Scope() )

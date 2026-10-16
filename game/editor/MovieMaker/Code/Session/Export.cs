@@ -312,7 +312,8 @@ public sealed class SessionRenderer
 
 			// Render a (sub)frame!
 
-			RenderToTextureMethod.Invoke( captureCamera, [subFrameTex, (Vector2?)null, default( ViewSetup )] );
+			var viewSetup = new ViewSetup { Time = (float)nextTime.TotalSeconds };
+			RenderToTextureMethod.Invoke( captureCamera, [subFrameTex, (Vector2?)null, viewSetup] );
 
 			if ( !isWarmup && subFrameCount > 1 )
 			{

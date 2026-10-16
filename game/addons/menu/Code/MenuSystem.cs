@@ -33,16 +33,20 @@ public partial class MenuSystem : IMenuSystem
 		MenuUtility.SetModalSystem( new ModalSystem() );
 		MenuOverlay.Init();
 
+		// What's hidden, so a hidden game's page can offer to show it again
+		_ = MenuUtility.Hidden.Refresh();
+
 		var startupGameIdent = MenuUtility.StartupGameIdent;
 		if ( !string.IsNullOrEmpty( startupGameIdent ) )
 		{
-			Discovery.Clicked( new DiscoveryContext { Surface = "web" }, startupGameIdent );
+			Discovery.Clicked( new DiscoveryContext { Surface = "web", Referrer = MenuUtility.StartupWebReferrer }, startupGameIdent );
 			Game.Overlay.ShowGameModal( startupGameIdent );
 		}
 	}
 
 	public void Shutdown()
 	{
+		MenuProject.Multiplayer.GlobalChatService.Close();
 		gameClosingPanel?.Delete();
 		gameClosingPanel = null;
 
@@ -62,6 +66,7 @@ public partial class MenuSystem : IMenuSystem
 
 	public void Tick()
 	{
+		MenuProject.Multiplayer.GlobalChatService.Tick();
 		if ( Application.IsEditor ) return;
 
 		if ( oldGamePackage != MenuUtility.GamePackage )
@@ -202,8 +207,17 @@ public partial class MenuSystem : IMenuSystem
 		}
 	}
 
-	void IMenuSystem.OnPackageClosed( Package package )
+	async void IMenuSystem.OnPackageClosed( Package package )
 	{
+		gameClosedToast?.Delete( true );
+		gameClosedToast = null;
+
+		// A moment after, once you're back in the menu - not on top of the way out
+		await GameTask.DelayRealtime( 2000 );
+
+		// Off into another game in the meantime - it's not the time
+		if ( MenuUtility.GamePackage is not null ) return;
+
 		gameClosedToast?.Delete( true );
 		gameClosedToast = new GameClosedToast() { Package = package };
 		MenuOverlay.Instance.BottomCenter.Queue( gameClosedToast, duration: 0, clickToDismiss: false );
@@ -216,7 +230,9 @@ public partial class MenuSystem : IMenuSystem
 		MainMenu.Instance?.Navigator?.Navigate( url );
 	}
 
-	/// <summary>Start a party with just you in it, without having to invite someone first.</summary>
+	/// <summary>
+	/// Open party setup without having to invite someone first.
+	/// </summary>
 	[MenuConCmd( "party_create" )]
 	public static async Task CreateParty()
 	{
@@ -226,7 +242,7 @@ public partial class MenuSystem : IMenuSystem
 			return;
 		}
 
-		await PartyDeck.EnsureLobbyExists();
+		await PartyDeck.EnsurePartyExists();
 	}
 
 	[MenuConCmd( "menu_packageclosed" )]

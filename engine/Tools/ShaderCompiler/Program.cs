@@ -19,6 +19,20 @@ public static partial class Program
 		options.SingleThreaded = args.Any( x => x == "-s" );
 		options.ConsoleOutput = !args.Any( x => x == "-q" );
 
+		// Most combos to compile at once, default picks from cores and free memory
+		var threadsIndex = Array.IndexOf( args, "-j" );
+		if ( threadsIndex >= 0 && threadsIndex + 1 < args.Length && int.TryParse( args[threadsIndex + 1], out var threads ) )
+		{
+			options.MaxThreads = threads;
+		}
+
+		// Analysis mode: write every combo's SPIR-V under this folder and leave the .shader_c files alone
+		var dumpIndex = Array.IndexOf( args, "--dump-spirv" );
+		if ( dumpIndex >= 0 && dumpIndex + 1 < args.Length )
+		{
+			options.SpirvDumpPath = System.IO.Path.GetFullPath( args[dumpIndex + 1] );
+		}
+
 		// Recompile mode: bring already-compiled .shader_c files up to the current VCS version using the HLSL
 		// source embedded in them - no .shader source file needed. This is what the backend shader-recompile
 		// worker calls; published packages ship only .shader_c, so the normal "*.shader" build path can't help.
@@ -35,6 +49,7 @@ public static partial class Program
 		for ( int i = 0; i < args.Length; i++ )
 		{
 			var arg = args[i];
+			if ( arg == "--dump-spirv" || arg == "-j" ) { i++; continue; }
 			if ( arg.StartsWith( "-" ) ) continue;
 
 			files.Add( arg );
@@ -56,12 +71,13 @@ public static partial class Program
 			{
 				if ( !files.Contains( s, StringComparer.OrdinalIgnoreCase ) && !files.Contains( "*" ) ) continue;
 
-				// skip all the BS in junk folders
-				if ( s.Contains( "\\download\\" ) ) continue;
-				if ( s.Contains( "\\templates\\" ) ) continue;
-				if ( s.Contains( "\\." ) ) continue;
-
+				// skip all the BS in junk folders - under wd only, the checkout itself can be in one (.claude\worktrees)
 				var relative = System.IO.Path.GetRelativePath( wd, s );
+				var underWd = "\\" + relative;
+				if ( underWd.Contains( "\\download\\" ) ) continue;
+				if ( underWd.Contains( "\\templates\\" ) ) continue;
+				if ( underWd.Contains( "\\." ) ) continue;
+
 				var p = new ProcessList( relative, s );
 				compileList.Add( p );
 			}
@@ -81,11 +97,19 @@ public static partial class Program
 				}
 
 				FastTimer fastTimer = FastTimer.StartNew();
-				var result = SyncContext.RunBlocking( ShaderCompile.Compile( c.AbsolutePath, c.RelativePath, options, default ) );
+				var result = AsyncPump.RunSynchronously( () => ShaderCompile.Compile( c.AbsolutePath, c.RelativePath, options, default ) );
 
 				if ( !result.Success )
 				{
 					failedList.Add( c );
+				}
+
+				// Compiled combos hold native memory the GC can't see, freed by their finalizers. Left alone
+				// it piles up across shaders (20+ GB by the end of a full build), so let it go now.
+				if ( !result.Skipped )
+				{
+					GC.Collect();
+					GC.WaitForPendingFinalizers();
 				}
 
 				if ( options.ConsoleOutput )
@@ -175,7 +199,7 @@ public static partial class Program
 
 				try
 				{
-					var result = SyncContext.RunBlocking( ShaderCompile.RecompileFromCompiled( absolute, options, default ) );
+					var result = AsyncPump.RunSynchronously( () => ShaderCompile.RecompileFromCompiled( absolute, options, default ) );
 
 					if ( !result.Success || result.CompiledShader is null )
 					{

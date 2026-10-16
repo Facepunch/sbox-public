@@ -11,16 +11,17 @@
   "Category": "Dress",
   "ConditionalModels": {},
   "Tags": null,
-  "Parent": "models/citizen_clothes/dress/simple_dress/simple_dress.clothing",
   "Model": "models/citizen_clothes/dress/simple_dress/models/simple_dress_black.vmdl",
   "HumanAltModel": "models/citizen_clothes/dress/simple_dress/models/simple_dress_black_m_human.vmdl",
   "HumanAltFemaleModel": "models/citizen_clothes/dress/simple_dress/models/simple_dress_black_f_human.vmdl",
   "SkinMaterial": null,
   "EyesMaterial": null,
   "MaterialGroup": "",
+  "HeelHeight": 0,
   "SlotsUnder": "Chest, Groin, LeftThigh, RightThigh, LeftKnee, RightKnee, LeftShin, RightShin",
   "SlotsOver": 0,
   "HideBody": "Chest",
+  "DeformationMode": "Normal",
   "AllowTintSelect": false,
   "TintSelection": {
     "blend": "Linear",
@@ -37,7 +38,8 @@
   "Icon": {
     "Path": "models/citizen_clothes/dress/simple_dress/simple_dress_black.clothing.png",
     "Mode": "Chest",
-    "PositionOffset": "-56.70007,0,-8.499997"
+    "UsePositionOffset": false,
+    "PositionOffset": "-56.7000694,0,-8.49999714"
   },
   "__references": [],
   "__version": 0

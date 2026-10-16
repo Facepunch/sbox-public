@@ -34,6 +34,11 @@ public partial class Popup : BasePopup
 	public Panel PopupSource { get; set; }
 
 	/// <summary>
+	/// A popup belongs to the panel that opened it, the same way its keys go there.
+	/// </summary>
+	internal override Panel FocusOwner => PopupSource.IsValid() ? PopupSource : Parent;
+
+	/// <summary>
 	/// Currently selected option in the popup. Used internally for keyboard navigation.
 	/// </summary>
 	public Panel SelectedChild { get; set; }

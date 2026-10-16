@@ -1,8 +1,7 @@
 namespace Sandbox;
 
 /// <summary>
-/// Defines a collider from a compiled physics (vphys) resource. Made by the scene compiler - there's
-/// no way to author a physics resource by hand, so it's not something to add yourself.
+/// Defines a collider from a compiled or procedural physics resource.
 /// </summary>
 [Hide]
 [Expose]

@@ -1,0 +1,107 @@
+@import "/styles/_theme.scss";
+@import "/styles/_front.scss";
+@import "/styles/_settingsrows.scss";
+
+// A new game's setup, in the game page's place - the settings page's sections and rows
+GameSetupView
+{
+	flex-direction: column;
+	flex-grow: 1;
+	flex-shrink: 0;
+	max-width: 100%;
+	padding: 24px 24px 64px 24px;
+	gap: 22px;
+	font-family: $front-font;
+
+	i, icon
+	{
+		font-family: "Material Icons";
+	}
+
+	@include settings-rows;
+
+	.setup-notice
+	{
+		align-items: center;
+		gap: 10px;
+		padding: 12px 14px;
+		border-radius: $front-radius;
+		background-color: rgba( $front-primary, 0.1 );
+		color: $front-body;
+		font-size: 13px;
+		flex-shrink: 0;
+
+		icon { color: $front-secondary; flex-shrink: 0; font-size: 20px; }
+		label { flex-shrink: 1; }
+		&.error { color: $front-danger; }
+	}
+
+	.readonly-value { color: $front-body; }
+
+	// A narrower control column than the settings page's - it's a narrower page, and the game's own
+	// settings have long names ("Max Constraints Per Player") that want the room more than a slider does
+	.row .control
+	{
+		width: 300px;
+	}
+
+	// And one that's longer still wraps snug, as one name rather than two loose lines
+	.row .name
+	{
+		line-height: 19px;
+	}
+
+	// Where it starts - a picture of it, which picks another
+	.map-row .line
+	{
+		padding: 6px 0;
+	}
+
+	// Dressed like a package tile - the art is the card, no outline round it, the name over its foot on
+	// a scrim, and it lifts off the page under the pointer
+	MapSelector
+	{
+		height: 124px;
+		border-radius: $front-radius;
+		outline: 0px solid transparent;
+		overflow: hidden;
+		transition: all 0.15s ease;
+
+		&:hover
+		{
+			outline: 0px solid transparent;
+			transform: translateY( -3px );
+			box-shadow: 0 12px 26px rgba( 0, 0, 0, 0.6 );
+		}
+
+		&::after
+		{
+			display: none;
+		}
+
+		> .bottom
+		{
+			position: absolute;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			padding: 28px 12px 9px 12px;
+			gap: 6px;
+			background-image: linear-gradient( 0deg, rgba( 0, 0, 0, 0.6 ) 30%, rgba( 0, 0, 0, 0 ) );
+
+			icon
+			{
+				font-size: 14px;
+				text-shadow: 0 1px 2px rgba( 0, 0, 0, 0.7 );
+			}
+
+			h3
+			{
+				font-size: 13.5px;
+				font-weight: 600;
+				color: #ffffff;
+				text-shadow: 0 1px 2px rgba( 0, 0, 0, 0.7 );
+			}
+		}
+	}
+}

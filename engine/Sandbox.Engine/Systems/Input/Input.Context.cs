@@ -1,5 +1,4 @@
 ﻿using NativeEngine;
-using Sandbox.Utility;
 
 namespace Sandbox;
 
@@ -106,7 +105,9 @@ public static partial class Input
 			MouseWheel = AccumMouseWheel;
 			AccumMouseWheel = default;
 
-			// previous actions are current
+			// previous actions are current. The set leaving KeysPrevious isn't referenced anywhere
+			// after this, so it becomes the next accumulation set instead of allocating one every flip.
+			var recycledKeys = KeysPrevious;
 			ActionsPrevious = SavedActions;
 			KeysPrevious = SavedKeys;
 
@@ -123,21 +124,46 @@ public static partial class Input
 			AccumActionsReleased = default;
 
 			// Remove released keys
-			AccumKeysPressed = AccumKeysPressed.Except( AccumKeysReleased ).ToHashSet();
+			if ( ReferenceEquals( recycledKeys, KeysPrevious ) || ReferenceEquals( recycledKeys, KeysCurrent ) )
+				recycledKeys = new();
+
+			recycledKeys.Clear();
+			recycledKeys.UnionWith( AccumKeysPressed );
+			recycledKeys.ExceptWith( AccumKeysReleased );
+			AccumKeysPressed = recycledKeys;
 			AccumKeysReleased.Clear();
 		}
 
 		/// <summary>
-		/// Make this the current active context. You can optionally use the returned
-		/// IDisposable to restore back to the previous context when you're done.
+		/// Make this the current active context. You can optionally dispose the returned
+		/// scope to restore back to the previous context when you're done.
 		/// </summary>
-		public IDisposable Push()
+		public ContextScope Push()
 		{
 			var oc = CurrentContext;
 
 			CurrentContext = this;
 
-			return DisposeAction.Create( () => oc?.Push() );
+			return new ContextScope( oc );
+		}
+	}
+
+	/// <summary>
+	/// Returned by <see cref="Context.Push"/>. A struct so pushing a context every frame and tick doesn't allocate.
+	/// </summary>
+	internal readonly struct ContextScope : IDisposable
+	{
+		readonly Context _previous;
+
+		public ContextScope( Context previous )
+		{
+			_previous = previous;
+		}
+
+		public void Dispose()
+		{
+			if ( _previous is not null )
+				CurrentContext = _previous;
 		}
 	}
 }

@@ -11,16 +11,17 @@
   "Category": "FacialHairSideburns",
   "ConditionalModels": {},
   "Tags": null,
-  "Parent": null,
   "Model": "models/citizen_clothes/hair/mutton_chops/models/mutton_chops.vmdl",
   "HumanAltModel": "models/citizen_clothes/hair/mutton_chops/models/mutton_chops_m_human.vmdl",
   "HumanAltFemaleModel": null,
   "SkinMaterial": null,
   "EyesMaterial": null,
   "MaterialGroup": "",
+  "HeelHeight": 0,
   "SlotsUnder": "Face",
   "SlotsOver": 0,
   "HideBody": 0,
+  "DeformationMode": "Normal",
   "AllowTintSelect": true,
   "TintSelection": {
     "blend": "Linear",
@@ -57,6 +58,7 @@
   "Icon": {
     "Path": "models/citizen_clothes/hair/mutton_chops/mutton_chops.clothing.png",
     "Mode": "Eyes",
+    "UsePositionOffset": false,
     "PositionOffset": "0,0,0"
   },
   "__references": [],

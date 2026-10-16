@@ -28,7 +28,7 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 
 			field = value;
 
-			RebuildMesh( true );
+			RebuildMesh();
 		}
 	}
 
@@ -42,7 +42,7 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 
 			field = value;
 
-			RebuildImmediately();
+			UpdateMesh();
 		}
 	} = CollisionType.Mesh;
 
@@ -125,6 +125,8 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 	bool Hidden => !Scene.IsEditor && HideInGame;
 
 	SceneObject _sceneObject;
+	PolygonMesh _builtMesh;
+	CollisionType _builtCollision;
 
 	public void SetMaterial( Material material, int triangle )
 	{
@@ -174,27 +176,29 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 	{
 		base.OnUpdate();
 
-		RebuildMesh();
+		UpdateMesh();
 	}
 
 	public void RebuildMesh()
 	{
-		RebuildMesh( false );
+		if ( Scene?.IsEditor != true ) return;
+
+		UpdateMesh();
 	}
 
-	void RebuildMesh( bool forceRebuild )
+	void UpdateMesh()
 	{
-		// Only rebuild dirty meshes in editor.
-		if ( !Active ) return;
-		if ( !Scene.IsEditor ) return;
-		if ( Mesh is null ) return;
+		if ( !Active || !PhysicsBody.IsValid() ) return;
 
-		if ( forceRebuild || Mesh.IsDirty )
+		if ( Scene.IsEditor && (_builtMesh != Mesh || Mesh?.IsDirty == true) )
 		{
 			RebuildRenderMesh();
-			RebuildImmediately();
 		}
-		else if ( Mesh.IsVertexDataDirty )
+		else if ( _builtMesh is not null && _builtCollision != Collision )
+		{
+			SetModel( _builtMesh.CreateModel( Collision ) );
+		}
+		else if ( Scene.IsEditor && Mesh?.IsVertexDataDirty == true )
 		{
 			Mesh.UpdateVertexData();
 		}
@@ -271,21 +275,41 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 	void RebuildRenderMesh()
 	{
 		if ( !Active ) return;
-		if ( Mesh is null ) return;
 
-		Mesh.Transform = WorldTransform;
-		Mesh.SetSmoothingAngle( SmoothingAngle );
-		Model = Mesh.Rebuild();
+		if ( Mesh is not null )
+		{
+			Mesh.Transform = WorldTransform;
+			Mesh.SetSmoothingAngle( SmoothingAngle );
+		}
+
+		var model = Model;
+		if ( _builtMesh != Mesh || Mesh?.IsDirty == true || model is null )
+			model = Mesh?.Rebuild( Collision );
+		else
+		{
+			if ( Mesh?.IsVertexDataDirty == true )
+				Mesh.UpdateVertexData();
+			if ( _builtCollision != Collision )
+				model = Mesh?.CreateModel( Collision );
+		}
+
+		_builtMesh = Mesh;
+		SetModel( model );
+	}
+
+	void SetModel( Model model )
+	{
+		_builtCollision = Collision;
+
+		if ( Model != model )
+		{
+			Model = model;
+			RebuildImmediately();
+		}
 
 		if ( Model is null || Model.MeshCount == 0 )
 		{
-			if ( _sceneObject.IsValid() )
-			{
-				_sceneObject.RenderingEnabled = false;
-				_sceneObject.Delete();
-				_sceneObject = null;
-			}
-
+			DeleteSceneObject();
 			return;
 		}
 

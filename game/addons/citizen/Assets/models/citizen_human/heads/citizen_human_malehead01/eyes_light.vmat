@@ -2,51 +2,19 @@
 
 Layer0
 {
-	shader "shaders/eyeball.shader"
-
-	//---- Specular ----
-	F_SPECULAR_CUBE_MAP 1 // In-game Cube Map
-
-	//---- Color ----
-	g_flModelTintAmount "1.000"
-	g_vColorTint "[1.000000 1.000000 1.000000 0.000000]"
-	TextureColor "models/citizen_human/heads/citizen_human_malehead01/eyes_light_color.png"
-
-	//---- Fade ----
-	g_flFadeExponent "1.000"
+	shader "shaders/citizen_eye.shader"
 
 	//---- Fog ----
 	g_bFogEnabled "1"
 
 	//---- Iris ----
-	g_flIrisBumpStrength "1.191"
-	g_flParallaxStrength "0.070"
-	g_vIrisAutoexposureRange "[0.071 0.215]"
-	IrisNormal "[0.501961 0.501961 1.000000 0.000000]"
-	IrisRoughness "[0.071000 0.071000 0.071000 0.000000]"
-	TextureIrisMask "models/citizen_human/heads/citizen_human_malehead01/eyes_iris_mask.png"
+	g_flDetailSeed "23.752"
+	g_flPupilSize "0.300"
+	g_vIrisColor "[0.423529 0.596078 0.439216 0.000000]"
 
-	//---- Lighting ----
-	g_vReflectanceRange "[0.000 0.060]"
-	TextureReflectance "models/citizen_human/heads/citizen_human_malehead01/eyes_refl.png"
-
-	//---- Normal ----
-	g_flCorneaScleraBumpStrength "0.893"
-	g_flScleraDiffuseExponent "1.396"
-	g_flScleraDiffuseWrap "0.342"
-	TextureNormal "models/citizen_human/heads/citizen_human_malehead01/eyes_normal.png"
-
-	//---- Occlusion ----
-	g_flOcclusionStrength "0.200"
-	g_flOcclusionWidth "0.187"
-	TextureOcclusion "models/citizen_human/heads/citizen_human_malehead01/eyes_ao.png"
-
-	//---- Texture Coordinates ----
-	g_nScaleTexCoordUByModelScaleAxis "0"
-	g_nScaleTexCoordVByModelScaleAxis "0"
-	g_vTexCoordOffset "[0.000 0.000]"
-	g_vTexCoordScale "[1.000 1.000]"
-	g_vTexCoordScrollSpeed "[0.000 0.000]"
+	//---- Mesh Fit ----
+	g_flIrisRadius "0.179"
+	g_vIrisCenter "[0.515 0.500]"
 
 	Attributes
 	{

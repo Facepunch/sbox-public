@@ -17,8 +17,23 @@ public class EditorMainWindow : DockWindow, IUndoSystemProvider
 
 	internal ConsoleWidget Console => ConsoleWidget.Instance;
 
+	bool _isExiting;
+
+	/// <summary>
+	/// Native window teardown happens after the resource libraries have been released.
+	/// The application's exit decision has already been made at this point.
+	/// </summary>
+	[Event( "app.exit" )]
+	void OnApplicationExit()
+	{
+		_isExiting = true;
+	}
+
 	protected override bool OnClose()
 	{
+		if ( _isExiting )
+			return true;
+
 		// Check the editor scenes for one with unsaved changes
 		if ( GetUnsavedScenes().Any() || GetUnsavedResources().Any() )
 		{

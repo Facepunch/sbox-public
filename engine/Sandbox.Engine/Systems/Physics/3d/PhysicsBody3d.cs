@@ -387,6 +387,8 @@ internal sealed partial class PhysicsBody3d : PhysicsBodyInternal, IHandle
 	/// </summary>
 	public override Rotation InertiaRotation => native.GetLocalInertiaOrientation();
 
+	internal override void ScaleInertia( float scale ) => native.ScaleInertia( scale );
+
 	/// <summary>
 	/// Sets the inertia tensor using the given moments and rotation.
 	/// </summary>
@@ -421,7 +423,7 @@ internal sealed partial class PhysicsBody3d : PhysicsBodyInternal, IHandle
 			if ( _surface == value ) return;
 
 			_surface = value;
-			native.SetMaterialIndex( _surface?.ResourceName );
+			native.SetMaterialIndex( _surface?.PhysicsName );
 		}
 	}
 

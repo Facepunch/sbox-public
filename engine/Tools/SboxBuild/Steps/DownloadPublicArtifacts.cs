@@ -13,7 +13,10 @@ namespace Facepunch.Steps;
 /// <summary>
 /// Downloads public artifacts that match the current repository commit.
 /// </summary>
-internal class DownloadPublicArtifacts( bool nativeBinariesOnly = false )
+/// <param name="nativeBinariesOnly">Restore only native binaries under game/bin.</param>
+/// <param name="shadersOnly">Restore only compiled shaders. Seeds BuildShaders, which recompiles any that don't
+/// match their source, so a manifest from an older commit is fine.</param>
+internal class DownloadPublicArtifacts( bool nativeBinariesOnly = false, bool shadersOnly = false )
 {
 	private const string BaseUrl = "https://artifacts.sbox.game";
 	private const int MaxParallelDownloads = 32;
@@ -35,10 +38,12 @@ internal class DownloadPublicArtifacts( bool nativeBinariesOnly = false )
 		try
 		{
 			BuildDisplay.Status( "Finding a compatible artifact manifest" );
-			// Deepen the shallow PR checkout so rev-list has enough commits to find a
-			// matching manifest. Fetch only the current PR branch to avoid pulling down
-			// every branch and tag from the remote.
+			// Deepen the shallow CI checkout so rev-list has enough commits to find a
+			// matching manifest. Fetch only the current PR branch (or the pushed branch)
+			// to avoid pulling down every branch and tag from the remote.
 			var headRef = Environment.GetEnvironmentVariable( "GITHUB_HEAD_REF" );
+			if ( string.IsNullOrEmpty( headRef ) && Environment.GetEnvironmentVariable( "GITHUB_REF_TYPE" ) == "branch" )
+				headRef = Environment.GetEnvironmentVariable( "GITHUB_REF_NAME" );
 			if ( !string.IsNullOrEmpty( headRef ) )
 			{
 				Utility.RunProcess( "git", $"fetch --deepen={MaxManifestLookbackCommits} --no-tags origin {headRef}" );
@@ -103,7 +108,7 @@ internal class DownloadPublicArtifacts( bool nativeBinariesOnly = false )
 			}
 
 			var repoRoot = Path.TrimEndingDirectorySeparator( Path.GetFullPath( Directory.GetCurrentDirectory() ) );
-			return DownloadArtifacts( httpClient, manifest, repoRoot, nativeBinariesOnly );
+			return DownloadArtifacts( httpClient, manifest, repoRoot, IsWanted );
 		}
 		catch ( AggregateException ex )
 		{
@@ -121,7 +126,19 @@ internal class DownloadPublicArtifacts( bool nativeBinariesOnly = false )
 		}
 	}
 
-	private static ExitCode DownloadArtifacts( HttpClient httpClient, ArtifactManifest manifest, string repoRoot, bool nativeBinariesOnly )
+	/// <summary>
+	/// Whether this run restores the artifact at <paramref name="artifactPath"/> (forward slashes).
+	/// </summary>
+	private bool IsWanted( string artifactPath )
+	{
+		if ( !nativeBinariesOnly && !shadersOnly )
+			return true;
+
+		return (nativeBinariesOnly && artifactPath.StartsWith( "game/bin/", StringComparison.OrdinalIgnoreCase ))
+			|| (shadersOnly && artifactPath.EndsWith( ".shader_c", StringComparison.OrdinalIgnoreCase ));
+	}
+
+	private static ExitCode DownloadArtifacts( HttpClient httpClient, ArtifactManifest manifest, string repoRoot, Func<string, bool> isWanted )
 	{
 		if ( manifest.Files.Any( entry => entry is null || string.IsNullOrWhiteSpace( entry.Path ) || string.IsNullOrWhiteSpace( entry.Sha256 ) ) )
 		{
@@ -152,7 +169,7 @@ internal class DownloadPublicArtifacts( bool nativeBinariesOnly = false )
 			{
 				var artifactPath = entry.Path.Replace( '\\', '/' );
 				if ( otherPlatformPrefixes.Any( prefix => artifactPath.StartsWith( prefix, StringComparison.OrdinalIgnoreCase ) )
-					|| (nativeBinariesOnly && !artifactPath.StartsWith( "game/bin/", StringComparison.OrdinalIgnoreCase )) )
+					|| !isWanted( artifactPath ) )
 				{
 					// Not this run's concern; keep whatever an earlier full run verified.
 					if ( knownState.TryGetValue( entry.Path, out var kept ) )

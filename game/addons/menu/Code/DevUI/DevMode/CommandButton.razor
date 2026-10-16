@@ -1,0 +1,24 @@
+@namespace Sandbox.UI.Dev
+@inherits Panel
+
+<root>
+    @Title
+</root>
+
+
+@code
+{
+    [Parameter] public string Title { get; set; }
+
+    /// <summary>
+    /// The console command a click runs.
+    /// </summary>
+    [Parameter] public string Command { get; set; }
+
+    protected override void OnClick( MousePanelEvent e )
+    {
+        if ( string.IsNullOrWhiteSpace( Command ) ) return;
+
+        ConsoleSystem.Run( Command );
+    }
+}
