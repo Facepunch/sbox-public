@@ -23,7 +23,7 @@ internal class EtwLogger
 	{
 		_isRunning = true;
 
-		var profilerExe = "sbox-profiler.exe";
+		var profilerExe = $"sbox-profiler{(OperatingSystem.IsWindows() ? ".exe" : "")}";
 		string pipeName = "sbox_profiler_pipe_" + Random.Shared.NextInt64();
 
 		Log.Info( $"Starting profiler with pipe: {pipeName}" );

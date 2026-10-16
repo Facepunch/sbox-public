@@ -15,7 +15,7 @@ internal class BuildAddons
 
 			Log.Info( "Step 1: Generate solution" );
 
-			string sboxDevPath = Path.Combine( gameDir, "sbox-dev.exe" );
+			string sboxDevPath = Path.Combine( gameDir, $"sbox-dev{(OperatingSystem.IsWindows() ? ".exe" : "")}" );
 			if ( !File.Exists( sboxDevPath ) )
 			{
 				Log.Error( $"Error: sbox-dev.exe not found at {sboxDevPath}" );
@@ -49,7 +49,7 @@ internal class BuildAddons
 
 			Log.Info( "Step 3: Building Menu" );
 
-			string menuBuildPath = Path.Combine( gameDir, "bin", "managed", "MenuBuild.exe" );
+			string menuBuildPath = Path.Combine( gameDir, "bin", "managed", $"MenuBuild{(OperatingSystem.IsWindows() ? ".exe" : "")}" );
 			if ( !File.Exists( menuBuildPath ) )
 			{
 				Log.Error( $"Error: MenuBuild.exe not found at {menuBuildPath}" );

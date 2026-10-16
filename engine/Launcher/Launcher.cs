@@ -84,7 +84,7 @@ public static class Program
 		// load the c++ dlls and fill the interop functions
 		NetCore.InitializeInterop( GamePath );
 
-		NativeEngine.EngineGlobal.Plat_SetModuleFilename( $"{GamePath}\\sbox.exe" );
+		NativeEngine.EngineGlobal.Plat_SetModuleFilename( $"{GamePath}\\sbox{(OperatingSystem.IsWindows() ? ".exe" : "")}")
 
 		var app = new SourceEngineApp( GamePath );
 

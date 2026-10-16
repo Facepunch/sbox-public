@@ -267,7 +267,7 @@ class Program
 		var dir = Path.GetDirectoryName( startPath );
 		while ( !string.IsNullOrEmpty( dir ) )
 		{
-			var isRoot = File.Exists( Path.Combine( dir, "sbox.exe" ) ) || File.Exists( Path.Combine( dir, "sbox-dev.exe" ) );
+			var isRoot = File.Exists( Path.Combine( dir, $"sbox{(OperatingSystem.IsWindows() ? ".exe" : "")}" ) ) || File.Exists( Path.Combine( dir, $"sbox-dev{(OperatingSystem.IsWindows() ? ".exe" : "")}" ) );
 			var hasSubdir = requiredSubdirectory is null || Directory.Exists( Path.Combine( dir, requiredSubdirectory ) );
 
 			if ( isRoot && hasSubdir )

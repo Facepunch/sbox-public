@@ -154,8 +154,8 @@ internal static class BenchmarkOrchestrator
 		else
 		{
 			var exeDir = Path.GetDirectoryName( Environment.ProcessPath ) ?? ".";
-			var localExe = Path.Combine( exeDir, "tracy-capture.exe" );
-			exePath = File.Exists( localExe ) ? localExe : "tracy-capture.exe";
+			var localExe = Path.Combine( exeDir, $"tracy-capture{(OperatingSystem.IsWindows() ? ".exe" : "")}" );
+			exePath = File.Exists( localExe ) ? localExe : $"tracy-capture{(OperatingSystem.IsWindows() ? ".exe" : "")}";
 		}
 
 		var startInfo = new ProcessStartInfo

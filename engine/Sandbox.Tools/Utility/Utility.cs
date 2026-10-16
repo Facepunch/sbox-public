@@ -129,7 +129,19 @@ public static partial class EditorUtility
 	public static void OpenFileFolder( string filepath )
 	{
 		filepath = System.IO.Path.GetFullPath( filepath );
-		System.Diagnostics.Process.Start( "explorer.exe", string.Format( "/select,\"{0}\"", filepath ) );
+
+		if ( OperatingSystem.IsWindows() )
+		{
+			Process.Start( "explorer.exe", $"/select,\"{filepath}\"" );
+		}
+		else if ( OperatingSystem.IsMacOS() )
+		{
+			Process.Start( "open", $"-R \"{filepath}\"" );
+		}
+		else if ( OperatingSystem.IsLinux() )
+		{
+			Process.Start( "xdg-open", Path.GetDirectoryName( filepath )! );
+		}
 	}
 
 	private static string GetDestinationPath( string source, string directory )

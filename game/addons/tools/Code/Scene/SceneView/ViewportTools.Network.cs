@@ -101,7 +101,7 @@ partial class ViewportTools
 	void SpawnDedicatedServer()
 	{
 		using var p = new Process();
-		p.StartInfo.FileName = "sbox-server.exe";
+		p.StartInfo.FileName = $"sbox-server{(OperatingSystem.IsWindows() ? ".exe" : "")}";
 		p.StartInfo.WorkingDirectory = Environment.CurrentDirectory;
 
 		p.StartInfo.ArgumentList.Add( "+game" );
