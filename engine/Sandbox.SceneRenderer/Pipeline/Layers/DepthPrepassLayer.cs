@@ -64,6 +64,8 @@ internal class DepthPrepassLayer : MeshLayer
 	}
 
 	public override bool IsNeeded( RenderFrame frame ) => frame.System.DepthPrepass;
+	public override FrameResources Writes => FrameResources.Depth | FrameResources.Normals;
+	public override bool HasSideEffects => true;
 
 	/// <summary>
 	/// Whether this is the first active prepass and must clear depth.

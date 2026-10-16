@@ -11,6 +11,9 @@ namespace Sandbox.SceneRenderer.Native;
 /// </summary>
 internal sealed class StandardPipeline
 {
+	readonly EarlyPostProcessLayer earlyCompute = new( PostProcessQueue.AsyncCompute );
+	readonly EarlyPostProcessLayer earlyGraphics = new( PostProcessQueue.Graphics );
+
 	/// <summary>
 	/// The slice of the depth range game overlays draw in, at the near end (reverse-Z): <c>DEPTH_RANGE_GAME_OVERLAYS</c>.
 	/// </summary>
@@ -85,9 +88,32 @@ internal sealed class StandardPipeline
 
 		AddDepthNormalPrepasses( setup, viewport, depth, multisampled );
 
-		// Compute: the depth chain
+		var camera = IManagedCamera.FindById( view.m_ManagedCameraId ) as SceneCamera;
+		var overlap = RenderPipeline.OverlapReflections && hooks && view.GetPostProcessEnabled()
+			&& camera?.HasEarlyPostProcess( Stage.AfterDepthPrepass, PostProcessQueue.AsyncCompute ) == true
+			&& camera.HasEarlyPostProcess( Stage.AfterDepthPrepass, PostProcessQueue.Graphics )
+			&& RenderDeviceManager.SupportsAsyncCompute();
+		camera?.ScheduleEarlyPostProcess( Stage.AfterDepthPrepass, overlap );
+
+		// Hi-Z stays on graphics so both effects can read it without waiting for each other.
 		depthDownsample.Setup( view, viewport, depth, multisampled );
-		depthDownsample.AddToView( view, viewport );
+		depthDownsample.SignalPostProcess = overlap;
+		var depthLayer = depthDownsample.AddToView( view, viewport );
+
+		if ( overlap )
+		{
+			earlyCompute.Msaa = msaa;
+			var computeLayer = earlyCompute.AddToView( view, viewport );
+			computeLayer.AddSemaphoreDependency( depthLayer );
+
+			earlyGraphics.Msaa = msaa;
+			earlyGraphics.AddToView( view, viewport );
+
+			// Each binary semaphore has one consumer. Ordinary hooks and forward draws see both results.
+			var ready = view.AddLabelLayer( "Post processing ready" );
+			ready.m_nLayerFlags |= LayerFlags.NeverRemove;
+			ready.AddSemaphoreDependency( computeLayer );
+		}
 
 		// Motion vectors, for the temporal upscalers (FSR3, DLSS)
 		if ( Upscaler.IsTemporal( setup.m_nUpscalerMode ) )

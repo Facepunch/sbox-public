@@ -11,7 +11,7 @@ internal sealed class VolumetricFogLayer : RenderLayer
 	public override bool IsNeeded( RenderFrame frame ) => frame.System.Fog.Active;
 
 	// The froxels are culled and lit against scene depth
-	public override FrameResources Reads( RenderFrame frame ) => FrameResources.DepthChain;
+	public override FrameResources Reads( RenderFrame frame ) => FrameResources.DepthChain | FrameResources.Untracked;
 
 	public override void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats )
 	{

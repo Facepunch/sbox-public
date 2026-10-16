@@ -8,7 +8,7 @@ public class PainterPathStorageTest
 	/// <summary>
 	/// Repeated strokes reuse temporary storage, including individual dash runs and dot enumeration.
 	/// </summary>
-	[TestMethod]
+	[TestMethod, TestCategory( Allocations.Category )]
 	[DoNotParallelize] // Other tests can trigger GC and trim the shared pool during this measurement.
 	[DataRow( 2, false, BorderStyle.Solid )]
 	[DataRow( 2, false, BorderStyle.Dashed )]
@@ -27,11 +27,10 @@ public class PainterPathStorageTest
 		var points = MakePoints( count );
 		try
 		{
-			for ( int i = 0; i < 32; i++ ) Draw( context, points, arc, style );
-			long start = GC.GetAllocatedBytesForCurrentThread();
-			for ( int i = 0; i < 32; i++ ) Draw( context, points, arc, style );
-			long allocated = GC.GetAllocatedBytesForCurrentThread() - start;
-			Assert.AreEqual( 0L, allocated );
+			Allocations.AssertSettles( "32 draws", () =>
+			{
+				for ( int i = 0; i < 32; i++ ) Draw( context, points, arc, style );
+			} );
 			Assert.AreEqual( 1, context.Batcher.Instances.Count );
 			Assert.AreEqual( arc || count > 2, context.Batcher.Paths.Count > 0 );
 		}

@@ -41,7 +41,7 @@ internal sealed class BloomLayer : MeshLayer
 	public override FrameResources Writes => FrameResources.BloomObjects;
 
 	// Its objects test against the quarter-resolution depth
-	public override FrameResources Reads( RenderFrame frame ) => FrameResources.QuarterDepth;
+	public override FrameResources Reads( RenderFrame frame ) => FrameResources.QuarterDepth | FrameResources.Untracked;
 
 	/// <summary>
 	/// Acquire and bind the bloom target before recording.

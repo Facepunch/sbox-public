@@ -24,7 +24,7 @@ public sealed class SoundBoxComponent : BaseSoundComponent
 	}
 	Vector3 _scale = 50;
 
-	public BBox Inner { get; private set; }
+	public BBox Inner => new BBox( WorldPosition + Scale * -0.5f, WorldPosition + Scale * 0.5f );
 
 	public Vector3 SndPos { get; private set; }
 
@@ -43,8 +43,6 @@ public sealed class SoundBoxComponent : BaseSoundComponent
 
 	protected override void OnEnabled()
 	{
-		Inner = new BBox( WorldPosition + Scale * -0.5f, WorldPosition + Scale * 0.5f );
-
 		if ( PlayOnStart )
 		{
 			StartSound();

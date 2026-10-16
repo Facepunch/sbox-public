@@ -228,8 +228,9 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 
 		sceneCamera.OnRenderStageHook = ExecuteCommandLists;
 		sceneCamera.WantsDepthNormalsHook = WantsDepthNormals;
-		sceneCamera.HasAsyncComputeHook = HasAsyncCompute;
-		sceneCamera.RenderAsyncComputeHook = RenderAsyncCompute;
+		sceneCamera.HasEarlyPostProcessHook = HasEarlyPostProcess;
+		sceneCamera.ScheduleEarlyPostProcessHook = ScheduleEarlyPostProcess;
+		sceneCamera.RenderEarlyPostProcessHook = RenderEarlyPostProcess;
 	}
 
 	protected override void OnAwake()
@@ -402,8 +403,9 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	/// </summary>
 	Action<Stage, SceneCamera> executeCommandListsHook;
 	Func<bool> wantsDepthNormalsHook;
-	Func<Stage, bool> hasAsyncComputeHook;
-	Action<Stage> renderAsyncComputeHook;
+	Func<Stage, PostProcessQueue, bool> hasEarlyPostProcessHook;
+	Action<Stage, bool> scheduleEarlyPostProcessHook;
+	Action<Stage, PostProcessQueue> renderEarlyPostProcessHook;
 
 	public void UpdateSceneCamera( SceneCamera camera, bool includeTags = true )
 	{
@@ -477,8 +479,9 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		//
 		camera.OnRenderStageHook = executeCommandListsHook ??= ExecuteCommandLists;
 		camera.WantsDepthNormalsHook = wantsDepthNormalsHook ??= WantsDepthNormals;
-		camera.HasAsyncComputeHook = hasAsyncComputeHook ??= HasAsyncCompute;
-		camera.RenderAsyncComputeHook = renderAsyncComputeHook ??= RenderAsyncCompute;
+		camera.HasEarlyPostProcessHook = hasEarlyPostProcessHook ??= HasEarlyPostProcess;
+		camera.ScheduleEarlyPostProcessHook = scheduleEarlyPostProcessHook ??= ScheduleEarlyPostProcess;
+		camera.RenderEarlyPostProcessHook = renderEarlyPostProcessHook ??= RenderEarlyPostProcess;
 
 		//
 		// Hack because I don't want this to have to be on a camera. This

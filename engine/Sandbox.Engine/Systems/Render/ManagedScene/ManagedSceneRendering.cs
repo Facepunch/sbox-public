@@ -63,7 +63,7 @@ internal static partial class ManagedSceneRendering
 	/// beside the shadow maps, where the device has one. It saved 0.22 ms of a 6.3 ms frame at 4K, and 0.45 ms with AO
 	/// (SceneLab's Heavy Scene, 2026-09-27).
 	/// </summary>
-	[ConVar( "r_managed_async_compute", Help = "Run the managed scene renderer's depth chain, contact shadows and AO on the async compute queue, beside shadow rendering" )]
+	[ConVar( "r_managed_async_compute", Help = "Run the managed scene renderer's depth chain, contact shadows and AO on the async compute queue, beside SSR and shadow rendering" )]
 	public static bool AsyncCompute { get; set; } = true;
 
 	/// <summary>

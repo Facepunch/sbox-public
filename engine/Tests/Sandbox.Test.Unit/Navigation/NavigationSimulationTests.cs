@@ -329,7 +329,7 @@ public class NavigationSimulationTests
 		using var copy = compact.Copy();
 		Assert.AreEqual( compact.BMax, copy.BMax, "Copying a cached field must not expand its bounds" );
 	}
-	[TestMethod]
+	[TestMethod, TestCategory( Allocations.Category )]
 	[DataRow( 1 )]
 	[DataRow( 32 )]
 	public void WarmSerialSimulationDoesNotAllocate( int count )
@@ -342,11 +342,10 @@ public class NavigationSimulationTests
 			agent = simulation.Add( new Vector3( 100 + i % 8 * 24, 1, 100 + i / 8 * 24 ), Settings( mesh ) );
 			agent.MoveTo( new Vector3( 500, 1, 100 + i / 8 * 24 ) );
 		}
-		for ( int i = 0; i < 32; i++ ) simulation.Update( 0.001f );
-		long before = GC.GetAllocatedBytesForCurrentThread();
-		for ( int i = 0; i < 128; i++ ) simulation.Update( 0.001f );
-		long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-		Assert.IsTrue( allocated <= 256, $"Warmed serial updates allocated {allocated} bytes" );
+		Allocations.AssertSettles( "128 serial updates", () =>
+		{
+			for ( int i = 0; i < 128; i++ ) simulation.Update( 0.001f );
+		}, allowedPerPass: 256 );
 		Assert.IsTrue( agent.State.Position.x > 100 );
 	}
 

@@ -378,9 +378,15 @@ public partial class Panel : IPanel, IValid, IComponent
 			//
 			if ( IsVisible && _children is not null && _children.Count > 0 )
 			{
-				for ( int i = _children.Count - 1; _children != null && i >= 0; i-- )
+				using var pooledChildren = new PooledSpan<Panel>( _children.Count, true );
+				_children.CopyTo( pooledChildren.Array );
+
+				var children = pooledChildren.Span;
+				for ( int i = children.Length - 1; i >= 0; i-- )
 				{
-					_children[i]?.TickInternal();
+					var child = children[i];
+					if ( !child.IsValid() ) continue;
+					child.TickInternal();
 				}
 			}
 

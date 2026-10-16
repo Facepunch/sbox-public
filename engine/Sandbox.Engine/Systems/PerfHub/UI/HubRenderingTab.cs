@@ -316,8 +316,9 @@ internal sealed class HubRenderingTab : HubTab
 
 	static IEnumerable<string> Flags( PostProcessLayer layer )
 	{
-		if ( layer.RanAsync ) yield return "async";
-		else if ( layer.AsyncCompute ) yield return "async capable";
+		if ( layer.RanEarly ) yield return "ran early";
+		if ( layer.EarlyQueue is { } queue )
+			yield return queue == PostProcessQueue.AsyncCompute ? "early compute capable" : "early graphics capable";
 		if ( layer.NeedsDepthNormals ) yield return "depth normals";
 	}
 

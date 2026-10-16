@@ -103,7 +103,7 @@ internal sealed partial class SourceModelBuilder
 				Log.Trace( $"{loader.FullPath}: material '{name}' was not found in its MDL search paths or the materials root of mount '{loader.Host.Ident}'; using the error material." );
 				path = "materials/error.vmat";
 			}
-			material = path == "materials/error.vmat" ? Material.Load( path ) : loader.Host.LoadContentMaterial( path );
+			material = path == "materials/error.vmat" ? Material.Load( path ) : loader.Host.LoadContentMaterial( path, loader.ContentRoot );
 			if ( material == null || !material.IsValid || material.IsError )
 				throw new InvalidDataException( $"{loader.FullPath}: material '{path}' could not be loaded." );
 			resources.Add( name, material );
@@ -124,7 +124,7 @@ internal sealed partial class SourceModelBuilder
 			string Find( string path )
 			{
 				path = VmtFile.NormalizePath( path, ".vmt" );
-				var resource = loader.Host.GetContentPath( path );
+				var resource = loader.Host.GetContentPath( path, loader.ContentRoot );
 				return resource is null ? null : path;
 			}
 		}

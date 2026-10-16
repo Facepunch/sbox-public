@@ -10,8 +10,8 @@ native class ISceneView as NativeEngine.ISceneView
 	void AddDependentView( ISceneView pView );
 	CRenderAttributes GetRenderAttributesPtr();
 	ISceneLayer AddRenderLayer( string pszDebugName, RenderViewport viewport, StringToken eShaderMode, ISceneLayer pAddBefore );
-	ISceneLayer AddManagedProceduralLayer( string pszDebugName, RenderViewport viewport, SboxProceduralLayerCallback renderCallback, ISceneLayer pAddBefore, bool bDeleteWhenDone );
 	ISceneLayer AddLabelLayer( string pLabelName );
+	ISceneLayer AddManagedProceduralLayer( string pszDebugName, RenderViewport viewport, SboxProceduralLayerCallback renderCallback, ISceneLayer pAddBefore, bool bDeleteWhenDone );
 
 	inline ISceneLayer AddBlitTextureToTargetLayer( string pDebugName, HSceneViewRenderTarget hSource, RenderViewport sourceViewport, RenderViewport destViewport, HSceneViewRenderTarget hDest, RenderColorSpace_t colorSpace )
 	{

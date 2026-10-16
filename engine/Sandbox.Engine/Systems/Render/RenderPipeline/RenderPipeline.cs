@@ -54,6 +54,9 @@ internal static class RenderPipeline
 	[ConVar( "ui_gamma_blend", Help = "Blend screen-space UI in gamma space like a browser" )]
 	public static bool UIGammaBlend { get; set; } = true;
 
+	[ConVar( "r_native_ssr_overlap", Help = "Overlap GTAO on async compute with SSR on graphics in the native renderer." )]
+	internal static bool OverlapReflections { get; set; }
+
 	/// <summary>
 	/// The pipeline that adds the layers.
 	/// </summary>

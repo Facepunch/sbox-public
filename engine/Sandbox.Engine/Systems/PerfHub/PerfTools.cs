@@ -280,8 +280,8 @@ internal static class PerfTools
 					l.Name,
 					Stage = x.Key,
 					l.Order,
-					Async = l.RanAsync,
-					l.AsyncCompute,
+					l.RanEarly,
+					l.EarlyQueue,
 					l.NeedsDepthNormals,
 				} ) ).ToList(),
 		};

@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 
 namespace Sandbox.Mounting.Source1;
 
@@ -19,7 +20,11 @@ internal sealed class SourceMaterial : IDisposable
 
 	internal static SourceMaterial Read( BaseMount mount, string path, object scope )
 	{
-		var source = VmtFile.Load( path, mount.OpenContentFile,
+		var contentRoot = BaseMount.GetContentRoot( path, "materials" );
+		var entry = VmtFile.NormalizePath( path[contentRoot.Length..], ".vmt" );
+		Stream Open( string file ) => file.Equals( entry, StringComparison.OrdinalIgnoreCase )
+			? mount.OpenContentFile( path ) : mount.OpenContentFile( file, contentRoot );
+		var source = VmtFile.Load( entry, Open,
 			symbol => symbol.ToLowerInvariant() switch
 			{
 				"srgb" => true,

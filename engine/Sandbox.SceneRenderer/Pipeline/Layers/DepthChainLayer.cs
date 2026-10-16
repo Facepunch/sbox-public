@@ -20,9 +20,8 @@ internal sealed class DepthChainLayer : RenderLayer
 	public override bool IsNeeded( RenderFrame frame ) => frame.System.DepthPrepass;
 
 	public override FrameResources Writes => FrameResources.DepthChain;
-
-	// The resolve and min/max downsample are compute dispatches
-	public override bool AsyncCompute => true;
+	public override FrameResources Reads( RenderFrame frame ) => FrameResources.Depth;
+	public override bool SupportsAsyncCompute => true;
 
 	/// <summary>
 	/// The prepass's depth made readable by compute, on the graphics queue: an attachment's transition on the compute queue

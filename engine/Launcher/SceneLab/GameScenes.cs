@@ -281,6 +281,9 @@ internal static class GameScenes
 	/// </summary>
 	public static Scene ScreenSpaceReflections() => OcclusionStage( ao: false, ssr: true );
 
+	/// <summary>Both independent prepass effects in a small scene, without enough draws to enable worker recording.</summary>
+	public static Scene OcclusionAndReflections() => OcclusionStage( ao: true, ssr: true );
+
 	static Scene OcclusionStage( bool ao, bool ssr )
 	{
 		var scene = Stage( out var camera, new Vector3( -200, -150, 110 ), new Vector3( 20, 20, 20 ) );

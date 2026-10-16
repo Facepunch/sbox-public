@@ -43,6 +43,13 @@ public class ScreenSpaceReflections : BasePostProcess<ScreenSpaceReflections>
 	private static ComputeShader ShaderCs = new ComputeShader( "screen_space_reflections_cs" );
 	private static ComputeShader ClassifyShaderCs = new ComputeShader( "screen_space_reflections_classify_cs" );
 
+	static readonly ProfilingSampler[] PassProfiles =
+	[
+		new( "SSR classify tiles" ),
+		new( "SSR intersect" ),
+		new( "SSR bilateral upscale" )
+	];
+
 	private GpuBuffer<uint> ClassifiedTilesBuffer;
 	private GpuBuffer<GpuBuffer.IndirectDispatchArguments> DispatchArgsBuffer;
 
@@ -89,6 +96,9 @@ public class ScreenSpaceReflections : BasePostProcess<ScreenSpaceReflections>
 	/// </summary>
 	internal override bool NeedsDepthNormals => true;
 
+	// Reads prepass depth/normals and its own history, never AO or contact shadows. Clears require the graphics queue.
+	internal override PostProcessQueue? EarlyQueue => PostProcessQueue.Graphics;
+
 	public override void Render()
 	{
 		cmd.Reset();
@@ -118,25 +128,33 @@ public class ScreenSpaceReflections : BasePostProcess<ScreenSpaceReflections>
 		cmd.Clear( guide, Color.Transparent );
 
 		// Classify tiles
-		cmd.ResourceBarrierTransition( ClassifiedTilesBuffer, ResourceState.UnorderedAccess );
-		cmd.ResourceBarrierTransition( DispatchArgsBuffer, ResourceState.UnorderedAccess );
-		cmd.Attributes.Set( "ClassifiedTilesRW", ClassifiedTilesBuffer );
-		cmd.Attributes.Set( "IntersectDispatchArgsRW", DispatchArgsBuffer );
-		cmd.Attributes.Set( "OutRadiance", reflection.ColorTexture, traceMip );
-		cmd.DispatchCompute( ClassifyShaderCs, guide.Size );
-		cmd.UavBarrier( reflection );
-		cmd.ResourceBarrierTransition( ClassifiedTilesBuffer, ResourceState.UnorderedAccess, ResourceState.NonPixelShaderResource );
-		cmd.ResourceBarrierTransition( DispatchArgsBuffer, ResourceState.UnorderedAccess, ResourceState.IndirectArgument );
+		using ( cmd.ProfileScope( PassProfiles[0] ) )
+		{
+			cmd.ResourceBarrierTransition( ClassifiedTilesBuffer, ResourceState.UnorderedAccess );
+			cmd.ResourceBarrierTransition( DispatchArgsBuffer, ResourceState.UnorderedAccess );
+			cmd.Attributes.Set( "ClassifiedTilesRW", ClassifiedTilesBuffer );
+			cmd.Attributes.Set( "IntersectDispatchArgsRW", DispatchArgsBuffer );
+			cmd.Attributes.Set( "OutRadiance", reflection.ColorTexture, traceMip );
+			cmd.DispatchCompute( ClassifyShaderCs, guide.Size );
+			cmd.UavBarrier( reflection );
+			cmd.ResourceBarrierTransition( ClassifiedTilesBuffer, ResourceState.UnorderedAccess, ResourceState.NonPixelShaderResource );
+			cmd.ResourceBarrierTransition( DispatchArgsBuffer, ResourceState.UnorderedAccess, ResourceState.IndirectArgument );
+		}
 
 		// Intersect
-		cmd.Attributes.Set( "ClassifiedTiles", ClassifiedTilesBuffer );
-		cmd.Attributes.Set( "OutGuide", guide.ColorTexture );
-		cmd.Attributes.SetCombo( "D_PASS", (int)Passes.Intersect );
-		cmd.DispatchComputeIndirect( ShaderCs, DispatchArgsBuffer, (int)DispatchArgsEntry.Intersect );
-		cmd.ResourceBarrierTransition( reflection, ResourceState.NonPixelShaderResource, traceMip );
+		using ( cmd.ProfileScope( PassProfiles[(int)Passes.Intersect] ) )
+		{
+			cmd.Attributes.Set( "ClassifiedTiles", ClassifiedTilesBuffer );
+			cmd.Attributes.Set( "OutGuide", guide.ColorTexture );
+			cmd.Attributes.SetCombo( "D_PASS", (int)Passes.Intersect );
+			cmd.DispatchComputeIndirect( ShaderCs, DispatchArgsBuffer, (int)DispatchArgsEntry.Intersect );
+			cmd.ResourceBarrierTransition( reflection, ResourceState.NonPixelShaderResource, traceMip );
+		}
 
 		if ( needsUpscale )
 		{
+			using var passScope = cmd.ProfileScope( PassProfiles[(int)Passes.BilateralUpscale] );
+
 			cmd.ResourceBarrierTransition( guide, ResourceState.NonPixelShaderResource );
 			cmd.Attributes.Set( "Radiance", reflection.ColorTexture, traceMip );
 			cmd.Attributes.Set( "Guide", guide.ColorTexture );

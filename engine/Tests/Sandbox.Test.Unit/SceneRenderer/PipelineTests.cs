@@ -22,7 +22,7 @@ public class PipelineTests
 	/// frame, per object, would come back as GC pauses. The meshes have no model behind them (no GPU), but
 	/// they're sorted into every layer: opaque, faded, translucent and partially blended.
 	/// </summary>
-	[TestMethod]
+	[TestMethod, TestCategory( Allocations.Category )]
 	public void CollectAndPrepareDoNotAllocate()
 	{
 		RenderMesh[] meshes = [TestMesh( false ), TestMesh( true ), TestMesh( false, true ), TestSkinnedMesh( 4 )];
@@ -70,33 +70,23 @@ public class PipelineTests
 		// evicted mid-measurement
 		Sandbox.Rendering.ShadowMapper.ResetCache();
 
-		// Warm up - the first frames grow the lists and arrays to fit
-		for ( int i = 0; i < 3; i++ )
-		{
-			var warm = new RenderStats();
-			Application.FrameCount++;
-			system.Collect( world, view, ref warm );
-			system.Prepare( world, view );
-		}
-
-		Application.FrameCount++;
-		// Every thread's: shadow views are culled on the thread pool too
-		var before = GC.GetAllocatedBytesForCurrentThread();
-		var totalBefore = GC.GetTotalAllocatedBytes( true );
-
+		// The first frames grow the lists and arrays to fit. Every thread's allocations count: shadow views
+		// are culled on the thread pool too.
 		var stats = new RenderStats();
-		system.Collect( world, view, ref stats );
-		system.Prepare( world, view );
-
-		var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-		var allocatedAnywhere = GC.GetTotalAllocatedBytes( true ) - totalBefore;
+		Allocations.AssertSettles( "A frame's Collect and Prepare", () =>
+		{
+			system.Collect( world, view, ref stats );
+			system.Prepare( world, view );
+		}, beforePass: () =>
+		{
+			Application.FrameCount++;
+			stats = new RenderStats();
+		}, everyThread: true );
 
 		Assert.AreEqual( 5096, stats.ObjectsVisible );
 		Assert.AreEqual( 64, system.GetFeature<LightBinnerFeature>().Count );
 		Assert.AreEqual( 16, system.GetFeature<LightBinnerFeature>().DecalCount );
 		Assert.IsTrue( system.SkyboxStats?.ObjectsVisible > 0, "the skybox was prepared" );
-		Assert.AreEqual( 0, allocated, "Collect and Prepare allocated" );
-		Assert.AreEqual( 0, allocatedAnywhere, "Culling on the thread pool allocated" );
 	}
 
 	/// <summary>

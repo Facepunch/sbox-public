@@ -80,22 +80,25 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	internal bool WantsDepthNormals => WantsDepthNormalsHook?.Invoke() ?? false;
 
 	/// <summary>
-	/// Whether the camera component has effects at a stage that can run on the async compute queue, and running them.
+	/// Queries and runs the camera component's independent effects ahead of their normal stage.
 	/// </summary>
-	internal Func<Rendering.Stage, bool> HasAsyncComputeHook;
-	internal Action<Rendering.Stage> RenderAsyncComputeHook;
+	internal Func<Rendering.Stage, PostProcessQueue, bool> HasEarlyPostProcessHook;
+	internal Action<Rendering.Stage, bool> ScheduleEarlyPostProcessHook;
+	internal Action<Rendering.Stage, PostProcessQueue> RenderEarlyPostProcessHook;
 
 	/// <summary>
-	/// Whether something at <paramref name="stage"/> can run on the async compute queue ahead of the stage
-	/// (<see cref="BasePostProcess.AsyncCompute"/>: AO at <c>AfterDepthPrepass</c>), for the managed scene renderer.
+	/// Whether something at <paramref name="stage"/> can run early on <paramref name="queue"/>
+	/// (<see cref="BasePostProcess.EarlyQueue"/>).
 	/// </summary>
-	internal bool HasAsyncCompute( Rendering.Stage stage ) => HasAsyncComputeHook?.Invoke( stage ) ?? false;
+	internal bool HasEarlyPostProcess( Rendering.Stage stage, PostProcessQueue queue ) => HasEarlyPostProcessHook?.Invoke( stage, queue ) ?? false;
+
+	internal void ScheduleEarlyPostProcess( Rendering.Stage stage, bool enabled ) => ScheduleEarlyPostProcessHook?.Invoke( stage, enabled );
 
 	/// <summary>
-	/// Run what <see cref="HasAsyncCompute"/> found, inside a <see cref="Graphics"/> block on the compute queue. The stage then
+	/// Run what <see cref="HasEarlyPostProcess"/> found, inside a <see cref="Graphics"/> block on the selected queue. The stage then
 	/// skips it.
 	/// </summary>
-	internal void RenderAsyncCompute( Rendering.Stage stage ) => RenderAsyncComputeHook?.Invoke( stage );
+	internal void RenderEarlyPostProcess( Rendering.Stage stage, PostProcessQueue queue ) => RenderEarlyPostProcessHook?.Invoke( stage, queue );
 
 	/// <summary>
 	/// Called when rendering the transparent pass

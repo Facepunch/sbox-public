@@ -15,6 +15,34 @@ public class PointLight : Light
 {
 	ScenePointLight _so;
 
+	/// <summary>
+	/// Constant term in the light's distance attenuation denominator.
+	/// </summary>
+	[Property, Advanced]
+	public float ConstantAttenuation
+	{
+		get;
+		set
+		{
+			field = value;
+			if ( _so.IsValid() ) _so.ConstantAttenuation = value;
+		}
+	}
+
+	/// <summary>
+	/// Linear term in the light's distance attenuation denominator.
+	/// </summary>
+	[Property, Advanced]
+	public float LinearAttenuation
+	{
+		get;
+		set
+		{
+			field = value;
+			if ( _so.IsValid() ) _so.LinearAttenuation = value;
+		}
+	}
+
 	[Property]
 	public float Radius
 	{
@@ -48,6 +76,8 @@ public class PointLight : Light
 		return _so = new ScenePointLight( Scene.SceneWorld, WorldPosition, Radius, LightColor )
 		{
 			Radius = Radius,
+			ConstantAttenuation = ConstantAttenuation,
+			LinearAttenuation = LinearAttenuation,
 			QuadraticAttenuation = Attenuation
 		};
 	}

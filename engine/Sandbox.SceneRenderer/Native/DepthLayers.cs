@@ -12,6 +12,7 @@ internal sealed class DepthDownsampleLayer : NativeProceduralLayer
 	RenderViewport viewport;
 	RenderTarget destDepth;
 	bool msaaInput;
+	internal bool SignalPostProcess { get; set; }
 
 	public DepthDownsampleLayer() : base( "Hi-Z Depth Downsample" )
 	{
@@ -33,6 +34,20 @@ internal sealed class DepthDownsampleLayer : NativeProceduralLayer
 	{
 		// Our SourceDepth comes from the scene render target system
 		SharedPasses.BuildDepthChain( Graphics.Context, null, destDepth.DepthTarget, msaaInput, (int)viewport.Rect.Width, (int)viewport.Rect.Height );
+
+		if ( SignalPostProcess )
+		{
+			// Finish shared-input transitions on graphics before releasing compute.
+			Graphics.Context.TextureBarrierTransition( destDepth.DepthTarget.native, -1,
+				RenderBarrierPipelineStageFlags_t.ComputeShaderBit, RenderBarrierPipelineStageFlags_t.ComputeShaderBit,
+				RenderImageLayout_t.RENDER_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+				RenderBarrierAccessFlags_t.ShaderWriteBit, RenderBarrierAccessFlags_t.ShaderReadBit );
+			Graphics.Context.TextureBarrierTransition( Graphics.SceneLayer.GetTextureValue( "NormalsGBuffer" ), -1,
+				RenderBarrierPipelineStageFlags_t.ColorAttachmentOutputBit, RenderBarrierPipelineStageFlags_t.ComputeShaderBit,
+				RenderImageLayout_t.RENDER_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+				RenderBarrierAccessFlags_t.ColorAttachmentWriteBit, RenderBarrierAccessFlags_t.ShaderReadBit );
+			Graphics.SceneLayer.SetSemaphore( Graphics.Context.SemaphoreSignalAtEnd() );
+		}
 	}
 }
 

@@ -20,6 +20,9 @@ native class ISceneLayer as NativeEngine.ISceneLayer
 
     string GetDebugName();
 
+    void AddSemaphoreDependency( ISceneLayer pLayer );
+    void SetSemaphore( RenderSemaphoreHandle_t hSemaphore );
+
     ELayerFlags m_nLayerFlags;
     SceneLayerType LayerEnum;
     RenderViewport m_viewport;

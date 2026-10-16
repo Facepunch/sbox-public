@@ -6,9 +6,9 @@ namespace Sandbox.SceneRenderer;
 /// <summary>
 /// Plans, records and submits frame segments, following native's <c>CRenderBatchList</c>.
 /// Mesh work can record in parallel; custom objects and engine stages stay on the main thread.
-/// Segments own their writable state and submit in order. Small frames share one context.
+/// Segments own their writable state and submit in order. Small frames without async work share one context.
 /// </summary>
-internal sealed class FrameRecorder : IDisposable
+internal sealed partial class FrameRecorder : IDisposable
 {
 	/// <summary>
 	/// The most pool threads a frame records on at once.
@@ -48,11 +48,16 @@ internal sealed class FrameRecorder : IDisposable
 
 		public bool OnMainThread;
 
-		/// <summary>Layers recorded on the async compute queue (<see cref="RenderLayer.AsyncCompute"/>), after their hand-off.</summary>
+		/// <summary>Layers recorded on the async compute queue, after their graphics handoff.</summary>
 		public bool Async;
 
-		/// <summary>The first segment after the async one that isn't beside it: it waits for it, and takes its layers' results back.</summary>
-		public bool Join;
+		/// <summary>Compute segments whose results this graphics segment acquires, or -1 when it doesn't wait.</summary>
+		public int TakeBackFrom, WaitFor;
+
+		/// <summary>Graphics preparation for the first compute segment in a batch, or -1.</summary>
+		public int HandOff;
+		public bool Signal;
+		public RenderSemaphoreHandle_t Completion;
 
 		public RenderContext Context;
 		public RenderStats Stats;
@@ -67,6 +72,9 @@ internal sealed class FrameRecorder : IDisposable
 		public RenderFrame Frame;
 		public RenderLayer Layer;
 		public int WorkFrom, WorkTo;
+		public FrameResources Reads, Writes;
+		public int WaitForLayer, Segment;
+		public bool SplitAfter;
 	}
 
 	/// <summary>
@@ -140,20 +148,12 @@ internal sealed class FrameRecorder : IDisposable
 	int[] workerSegments = new int[16];
 
 	/// <summary>
-	/// Whether workers record segments. Otherwise all work shares the first frame's context.
+	/// Whether workers record segments. Async GPU work may still use separate contexts without CPU workers.
 	/// </summary>
 	public bool Parallel { get; private set; }
 
-	/// <summary>
-	/// The segment recorded on the async compute queue this frame, or -1. There's one at most: the main frame's compute layers
-	/// after its prepass.
-	/// </summary>
-	int asyncSegment = -1;
-
-	/// <summary>
-	/// The async segment's graphics work before it (<see cref="RenderLayer.HandOff"/>), which signals it to start.
-	/// </summary>
-	RenderContext handOff;
+	/// <summary>Async GPU work needs separate contexts even when CPU recording stays on the main thread.</summary>
+	public bool SeparateContexts => Parallel || _computeBatchCount > 0;
 
 	/// <summary>
 	/// Plan active layers, child frames and segments before setup. Enable workers when enough work exists.
@@ -169,70 +169,13 @@ internal sealed class FrameRecorder : IDisposable
 
 		AddFrame( frame );
 
-		// Small frames cannot amortize per-segment context creation and submission.
-		var runs = 0;
-		for ( int w = 0; w < workCount; w++ )
-			runs += work[w].Runs;
-
-		Parallel = parallel && runs >= ParallelRunThreshold;
-		var maxSegments = Parallel ? MaxRecordThreads : 1;
-
-		// Async compute needs contexts of its own, so only a frame recorded in parallel
-		asyncSegment = -1;
-		var useAsync = Parallel && asyncCompute && RenderContext.SupportsAsyncCompute;
-		var awaiting = false;
-
-		// Preserve layer order; merge adjacent main-thread layers from the same frame.
-		for ( int l = 0; l < layerCount; l++ )
-		{
-			ref var planned = ref layers[l];
-			var layer = planned.Layer;
-
-			// The main frame's compute layers, after something to signal them, together in one segment
-			if ( useAsync && layer.AsyncCompute && planned.Frame == frames[0] && segmentCount > 0 && (asyncSegment < 0 || (awaiting && asyncSegment == segmentCount - 1)) )
-			{
-				if ( asyncSegment >= 0 )
-				{
-					segments[asyncSegment].Count++;
-					continue;
-				}
-
-				AddSegment( SegmentKind.Layers, planned.Frame, l, true );
-				asyncSegment = segmentCount - 1;
-				segments[asyncSegment].Async = true;
-				segments[asyncSegment].Context.AsyncCompute = true;
-				awaiting = true;
-				continue;
-			}
-
-			// The first layer that isn't beside the async work waits for it, in a segment of its own
-			var join = awaiting && !layer.BesideAsyncCompute;
-			var first = segmentCount;
-
-			if ( layer.IsShared ) AddDrawSegments( planned.Frame, planned.WorkFrom, planned.WorkTo, maxSegments );
-			else if ( !join && segmentCount > 0 && segments[segmentCount - 1] is { Kind: SegmentKind.Layers, Async: false } last && last.Frame == planned.Frame ) segments[segmentCount - 1].Count++;
-			else AddSegment( SegmentKind.Layers, planned.Frame, l, true );
-
-			if ( join && segmentCount > first )
-			{
-				segments[first].Join = true;
-				awaiting = false;
-			}
-		}
-
-		// Nothing after it to wait for it: record it on the graphics queue after all
-		if ( awaiting )
-		{
-			segments[asyncSegment].Async = false;
-			segments[asyncSegment].Context.AsyncCompute = false;
-			asyncSegment = -1;
-		}
+		PlanSegments( parallel, asyncCompute );
 	}
 
 	/// <summary>
 	/// Short names of <see cref="FrameResources"/>, by bit, for the plan overlay.
 	/// </summary>
-	static readonly string[] ResourceNames = ["chain", "qdepth", "bloom", "bloom in", "refract"];
+	static readonly string[] ResourceNames = ["chain", "qdepth", "bloom", "bloom in", "refract", "depth", "normals", "ao", "contact", "reflections", "shadows", "", "", "", "", "untracked"];
 
 	/// <summary>
 	/// The last plan, for the performance hub's frame plan: each frame's layers, whether each ran and why not, what it made and read
@@ -251,7 +194,9 @@ internal sealed class FrameRecorder : IDisposable
 		for ( int i = 0; i < segmentCount; i++ )
 		{
 			ref var segment = ref segments[i];
-			var first = segment.Kind == SegmentKind.Layers ? layers[segment.Index].Layer.Name : work[segment.Index].Layer.Name;
+			var first = segment.Kind == SegmentKind.Layers
+				? segment.Count > 0 ? layers[segment.Index].Layer.Name : "Async compute results"
+				: work[segment.Index].Layer.Name;
 			plan.Segments.Add( new Sandbox.Rendering.ManagedFramePlan.Segment { Worker = Parallel && !segment.OnMainThread, Async = segment.Async, Draws = segment.Weight, First = first } );
 
 			var owners = segment.Kind == SegmentKind.Layers ? layerSegment : workSegment;
@@ -347,6 +292,7 @@ internal sealed class FrameRecorder : IDisposable
 	public void AddFrame( RenderFrame frame )
 	{
 		frames.Add( frame );
+		frame.AsyncCompute = false;
 
 		var first = recordCount;
 		foreach ( var layer in frame.System.Layers )
@@ -365,7 +311,7 @@ internal sealed class FrameRecorder : IDisposable
 			if ( record.Decision != LayerDecision.Kept ) continue;
 
 			var writes = record.Layer.Writes;
-			if ( writes != FrameResources.None && (writes & read) == 0 )
+			if ( !record.Layer.HasSideEffects && (writes & read) == 0 )
 			{
 				record.Decision = LayerDecision.Unread;
 				continue;
@@ -382,7 +328,7 @@ internal sealed class FrameRecorder : IDisposable
 			ref var record = ref records[i];
 			if ( record.Decision != LayerDecision.Kept ) continue;
 
-			record.Missing = record.Reads & ~made;
+			record.Missing = record.Reads & ~made & ~FrameResources.Untracked;
 			made |= record.Layer.Writes;
 		}
 
@@ -405,7 +351,15 @@ internal sealed class FrameRecorder : IDisposable
 
 		var from = workCount;
 		layer.AddWork( this, frame );
-		layers[layerCount++] = new PlannedLayer { Frame = frame, Layer = layer, WorkFrom = from, WorkTo = workCount };
+		layers[layerCount++] = new PlannedLayer
+		{
+			Frame = frame,
+			Layer = layer,
+			WorkFrom = from,
+			WorkTo = workCount,
+			Reads = layer.Reads( frame ),
+			Writes = layer.Writes
+		};
 	}
 
 	/// <summary>
@@ -437,7 +391,18 @@ internal sealed class FrameRecorder : IDisposable
 		if ( segmentCount == segments.Length ) Array.Resize( ref segments, segments.Length * 2 );
 		if ( segmentCount == contexts.Count ) contexts.Add( new RenderContext( frame.System.FrameContext ) );
 		contexts[segmentCount].AsyncCompute = false;
-		segments[segmentCount] = new Segment { Kind = kind, Frame = frame, Index = index, Count = count, OnMainThread = onMainThread, Context = contexts[segmentCount] };
+		segments[segmentCount] = new Segment
+		{
+			Kind = kind,
+			Frame = frame,
+			Index = index,
+			Count = count,
+			OnMainThread = onMainThread,
+			WaitFor = -1,
+			TakeBackFrom = -1,
+			HandOff = -1,
+			Context = contexts[segmentCount]
+		};
 		segmentCount++;
 	}
 
@@ -594,16 +559,17 @@ internal sealed class FrameRecorder : IDisposable
 		try
 		{
 			// The async segment's graphics work first, into a context submitted just before it
-			if ( segment.Async )
+			if ( segment.HandOff >= 0 )
 			{
-				handOff ??= new RenderContext( frame.System.FrameContext );
+				var batch = _computeBatches[segment.HandOff];
+				var handOff = batch.Context;
 				handOff.BeginSegment( frame.System.FrameContext, null );
 				handOff.InheritViewConstants( frame.ConstantsKey );
 				RenderContext.Recording = handOff;
 
 				// The graphics-side handoff lives outside the compute layers' own timing scopes.
 				var handOffScope = handOff.BeginGpuScope( "Async compute handoff" );
-				for ( int l = segment.Index; l < segment.Index + segment.Count; l++ )
+				for ( int l = batch.From; l < batch.From + batch.Count; l++ )
 				{
 					frame.UseFrameConstants( handOff );
 					layers[l].Layer.HandOff( frame, handOff );
@@ -612,18 +578,21 @@ internal sealed class FrameRecorder : IDisposable
 				handOff.EndGpuScope( handOffScope );
 			}
 
-			// Context command memory is thread-owned (CRenderBatchList::Start). Serial recording shares the first context.
-			rc.BeginSegment( frame.System.FrameContext, Parallel ? null : frames[0].System.FrameContext );
+			// Context command memory is thread-owned (CRenderBatchList::Start). Only fully serial frames share the first context.
+			rc.BeginSegment( frame.System.FrameContext, SeparateContexts ? null : frames[0].System.FrameContext );
 			rc.InheritViewConstants( frame.ConstantsKey );
 			RenderContext.Recording = rc;
 
 			// What the async layers left for graphics, now they're done
-			if ( segment.Join )
+			if ( segment.WaitFor >= 0 )
 			{
 				var takeBackScope = rc.BeginGpuScope( "Async compute results" );
-				ref var compute = ref segments[asyncSegment];
-				for ( int l = compute.Index; l < compute.Index + compute.Count; l++ )
-					layers[l].Layer.TakeBack( compute.Frame, rc );
+				for ( int i = segment.TakeBackFrom; i <= segment.WaitFor; i++ )
+				{
+					ref var compute = ref segments[i];
+					for ( int l = compute.Index; l < compute.Index + compute.Count; l++ )
+						layers[l].Layer.TakeBack( compute.Frame, rc );
+				}
 				rc.EndGpuScope( takeBackScope );
 			}
 
@@ -678,9 +647,8 @@ internal sealed class FrameRecorder : IDisposable
 	}
 
 	/// <summary>
-	/// Submit setup contexts, then segments in order. The first submission sets GPU timing. The async segment goes to the
-	/// compute queue after its hand-off, as native's dependent layers do (<c>CSceneSystem::SubmitViews</c>): the hand-off signals
-	/// it, and it signals the segment that joins it, which waits. Between them, the graphics queue draws the shadow maps.
+	/// Submit setup and segments in order. Each compute batch waits for its graphics preparation. Graphics acquires
+	/// declared dependencies before their consumers or untracked work. Each signal has exactly one consumer.
 	/// </summary>
 	public void Submit( SwapChainHandle_t swapChain )
 	{
@@ -688,21 +656,23 @@ internal sealed class FrameRecorder : IDisposable
 		for ( int f = 1; f < frames.Count; f++ )
 			frames[f].System.FrameContext.SubmitNext();
 
-		RenderSemaphoreHandle_t computeDone = default;
 		for ( int i = 0; i < segmentCount; i++ )
 		{
 			ref var segment = ref segments[i];
-			if ( segment.Async )
+			if ( segment.HandOff >= 0 )
 			{
+				var handOff = _computeBatches[segment.HandOff].Context;
 				var handedOff = handOff.SignalAtEnd();
 				handOff.SubmitNext();
 				segment.Context.WaitAtBegin( handedOff );
-				computeDone = segment.Context.SignalAtEnd();
 			}
-			else if ( segment.Join )
+			else if ( segment.WaitFor >= 0 )
 			{
-				segment.Context.WaitAtBegin( computeDone );
+				segment.Context.WaitAtBegin( segments[segment.WaitFor].Completion );
 			}
+
+			// Binary semaphores have one consumer. A later compute submission is already ordered on its own queue.
+			if ( segment.Signal ) segment.Completion = segment.Context.SignalAtEnd();
 
 			segment.Context.SubmitNext();
 		}
@@ -713,7 +683,9 @@ internal sealed class FrameRecorder : IDisposable
 	/// </summary>
 	public void End()
 	{
-		handOff?.End();
+		for ( int i = 0; i < _computeBatchCount; i++ )
+			_computeBatches[i].Context.End();
+
 		for ( int i = 0; i < segmentCount; i++ )
 			segments[i].Context.End();
 
@@ -741,7 +713,9 @@ internal sealed class FrameRecorder : IDisposable
 		foreach ( var context in contexts )
 			context.Dispose();
 		contexts.Clear();
-		handOff?.Dispose();
-		handOff = null;
+		foreach ( var batch in _computeBatches )
+			batch.Dispose();
+
+		_computeBatches.Clear();
 	}
 }

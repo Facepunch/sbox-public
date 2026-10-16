@@ -44,7 +44,7 @@ internal static class Constants
 			case Solutions.Menu:
 				return "game/addons/menu/";
 			case Solutions.BuildTools:
-				return "engine/tools/";
+				return "engine/Tools/";
 			default:
 				throw new ArgumentOutOfRangeException( nameof( solution ), solution, null );
 		}

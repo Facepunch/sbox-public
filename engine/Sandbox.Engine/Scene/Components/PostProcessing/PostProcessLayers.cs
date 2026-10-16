@@ -1,4 +1,5 @@
 using Sandbox.Rendering;
+
 namespace Sandbox;
 
 /// <summary>
@@ -7,10 +8,12 @@ namespace Sandbox;
 internal class PostProcessLayers
 {
 	public Dictionary<Stage, List<PostProcessLayer>> Layers = new();
+	readonly HashSet<Stage> _earlyScheduled = [];
 
 	public void Clear()
 	{
 		Layers.Clear();
+		_earlyScheduled.Clear();
 	}
 
 	/// <summary>
@@ -39,14 +42,20 @@ internal class PostProcessLayers
 		if ( !Layers.TryGetValue( stage, out var list ) )
 			return;
 
-		list.Sort();
+		var scheduled = _earlyScheduled.Contains( stage );
+		if ( !scheduled )
+			list.Sort();
 
 		foreach ( var entry in list )
 		{
-			// Already run on the async compute queue this frame
-			if ( entry.RanAsync )
+			// Native records procedural layers concurrently. Assign effects before jobs start so this
+			// hook can be recorded before the early effects without executing them twice.
+			if ( scheduled && entry.EarlyQueue.HasValue ) continue;
+
+			// Already run ahead of this stage on its selected queue
+			if ( entry.RanEarly )
 			{
-				entry.RanAsync = false;
+				entry.RanEarly = false;
 				continue;
 			}
 
@@ -54,37 +63,56 @@ internal class PostProcessLayers
 		}
 	}
 
+	/// <summary>Assign early effects before native starts recording procedural layers on worker threads.</summary>
+	internal void ScheduleEarlyPostProcess( Stage stage, bool enabled )
+	{
+		if ( !enabled )
+		{
+			_earlyScheduled.Remove( stage );
+			return;
+		}
+
+		if ( !Layers.TryGetValue( stage, out var list ) )
+			return;
+
+		list.Sort();
+		_earlyScheduled.Add( stage );
+	}
+
 	/// <summary>
-	/// Whether a layer at <paramref name="stage"/> can run on the async compute queue (<see cref="BasePostProcess.AsyncCompute"/>).
+	/// Whether a layer can run ahead of <paramref name="stage"/> on <paramref name="queue"/>.
 	/// </summary>
-	public bool HasAsyncCompute( Stage stage )
+	public bool HasEarlyPostProcess( Stage stage, PostProcessQueue queue )
 	{
 		if ( !Layers.TryGetValue( stage, out var list ) ) return false;
 
 		foreach ( var entry in list )
 		{
-			if ( entry.AsyncCompute ) return true;
+			if ( entry.EarlyQueue == queue ) return true;
 		}
 
 		return false;
 	}
 
 	/// <summary>
-	/// Run the layers at <paramref name="stage"/> that can run on the async compute queue, in order, ahead of the stage, which
-	/// then skips them. Called on the render thread, inside a <see cref="Graphics"/> block on the compute queue.
+	/// Run independent layers on their selected queue, in order, ahead of the stage, which then skips them.
+	/// Called on the render thread, inside a <see cref="Graphics"/> block for that queue.
 	/// </summary>
-	public void RenderAsyncCompute( Stage stage )
+	public void RenderEarlyPostProcess( Stage stage, PostProcessQueue queue )
 	{
 		if ( !Layers.TryGetValue( stage, out var list ) ) return;
 
-		list.Sort();
+		var scheduled = _earlyScheduled.Contains( stage );
+		if ( !scheduled )
+			list.Sort();
 
 		foreach ( var entry in list )
 		{
-			if ( !entry.AsyncCompute ) continue;
+			if ( entry.EarlyQueue != queue || (!scheduled && entry.RanEarly) ) continue;
 
 			entry.Render();
-			entry.RanAsync = true;
+			if ( !scheduled )
+				entry.RanEarly = true;
 		}
 	}
 
@@ -129,9 +157,10 @@ internal class PostProcessLayer : IComparable<PostProcessLayer>
 	public bool NeedsDepthNormals;
 
 	/// <summary>
-	/// Whether it can run on the async compute queue (<see cref="BasePostProcess.AsyncCompute"/>), and whether it has this frame.
+	/// Where it may run ahead of its stage (<see cref="BasePostProcess.EarlyQueue"/>), and whether it has this frame.
 	/// </summary>
-	public bool AsyncCompute, RanAsync;
+	public PostProcessQueue? EarlyQueue;
+	public bool RanEarly;
 
 	public int CompareTo( PostProcessLayer other ) => Order.CompareTo( other.Order );
 
@@ -142,4 +171,11 @@ internal class PostProcessLayer : IComparable<PostProcessLayer>
 	{
 		CommandList.ExecuteOnRenderThread();
 	}
+}
+
+/// <summary>Queue for an independent effect that may run before its normal camera stage.</summary>
+internal enum PostProcessQueue
+{
+	Graphics,
+	AsyncCompute
 }

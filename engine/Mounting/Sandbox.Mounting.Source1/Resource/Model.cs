@@ -12,6 +12,7 @@ internal sealed partial class SourceModelBuilder( BaseMount mount, string fullPa
 {
 	private BaseMount Host { get; } = mount;
 	private string FullPath { get; } = fullPath;
+	private string ContentRoot { get; } = BaseMount.GetContentRoot( fullPath, "models" );
 	internal Model BuildModel( MdlFile mdl, VtxFile vtx, PhyFile physics, string name = null, Transform[] referencePose = null )
 	{
 		var builder = Model.Builder.WithName( name );

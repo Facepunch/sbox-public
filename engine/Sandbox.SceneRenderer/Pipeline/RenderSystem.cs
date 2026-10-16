@@ -254,7 +254,7 @@ public sealed partial class RenderSystem : IDisposable
 			// Submit skybox setup after main setup, before draws.
 			if ( skyFrame is not null )
 			{
-				skybox.context.Begin( recorder.Parallel ? null : context );
+				skybox.context.Begin( recorder.SeparateContexts ? null : context );
 				skybox.Setup( skyFrame );
 			}
 			stats.SetupMs = Lap();

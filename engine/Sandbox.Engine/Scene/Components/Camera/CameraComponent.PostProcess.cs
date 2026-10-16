@@ -13,17 +13,19 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	bool WantsDepthNormals() => PostProcess.NeedsDepthNormals;
 
 	/// <summary>
-	/// Whether post processing at <paramref name="stage"/> can run on the async compute queue (<see cref="BasePostProcess.AsyncCompute"/>).
+	/// Whether independent post processing can run ahead of <paramref name="stage"/> on <paramref name="queue"/>.
 	/// </summary>
-	bool HasAsyncCompute( Stage stage ) => PostProcessSystem.EnablePostProcess && PostProcess.HasAsyncCompute( stage );
+	bool HasEarlyPostProcess( Stage stage, PostProcessQueue queue ) => PostProcessSystem.EnablePostProcess && PostProcess.HasEarlyPostProcess( stage, queue );
+
+	void ScheduleEarlyPostProcess( Stage stage, bool enabled ) => PostProcess.ScheduleEarlyPostProcess( stage, enabled );
 
 	/// <summary>
 	/// Run it, under the conditions the stage would (<c>PostProcessSystem.OnRenderStage</c>). On the render thread.
 	/// </summary>
-	void RenderAsyncCompute( Stage stage )
+	void RenderEarlyPostProcess( Stage stage, PostProcessQueue queue )
 	{
 		if ( !PostProcessSystem.EnablePostProcess || !Graphics.PostProcessEnabled ) return;
-		PostProcess.RenderAsyncCompute( stage );
+		PostProcess.RenderEarlyPostProcess( stage, queue );
 	}
 
 	/// <summary>

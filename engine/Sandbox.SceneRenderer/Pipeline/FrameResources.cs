@@ -3,9 +3,9 @@ namespace Sandbox.SceneRenderer;
 /// <summary>
 /// What a layer makes for later layers in the same frame (<see cref="RenderLayer.Writes"/>) or reads of what earlier ones
 /// made (<see cref="RenderLayer.Reads"/>). A layer that makes something is only kept while a later layer that's kept reads
-/// it (<see cref="FrameRecorder"/>), as Unity's render graph culls passes nothing reads; one that makes nothing draws into
-/// the frame, and is kept whenever it's needed. Internal to the renderer: camera stages read what native's hook layers
-/// could, since what their command lists read can't be known.
+/// it (<see cref="FrameRecorder"/>), unless it has side effects. Cross-queue conflicts determine semaphore waits.
+/// Internal to the renderer: camera stages declare known inputs and untracked access, since their command lists cannot
+/// be inspected for complete resource dependencies.
 /// </summary>
 [Flags]
 internal enum FrameResources : ushort
@@ -32,4 +32,25 @@ internal enum FrameResources : ushort
 	/// Glass's depth for the frame copy's mask (<see cref="RefractionStencilLayer"/>).
 	/// </summary>
 	RefractionStencil = 1 << 4,
+
+	/// <summary>The main view's depth attachment.</summary>
+	Depth = 1 << 5,
+
+	/// <summary>The depth prepass's normals and roughness.</summary>
+	Normals = 1 << 6,
+
+	/// <summary>The ambient occlusion effect's output and history.</summary>
+	AmbientOcclusion = 1 << 7,
+
+	/// <summary>The screen-space contact shadow mask.</summary>
+	ContactShadows = 1 << 8,
+
+	/// <summary>The reflection effect's output and history.</summary>
+	Reflections = 1 << 9,
+
+	/// <summary>Shadow maps, including their cached contents.</summary>
+	ShadowMaps = 1 << 10,
+
+	/// <summary>Arbitrary shader, camera-hook or custom-object accesses. Outstanding compute must finish first.</summary>
+	Untracked = 1 << 15,
 }

@@ -11,6 +11,39 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 	internal SceneLight SceneObject => _sceneObject;
 
 	/// <summary>
+	/// Index used by baked probe/lightmap direct-light textures, or -1 for a dynamic light.
+	/// </summary>
+	[Property, Hide]
+	public int BakeLightIndex
+	{
+		get;
+		set
+		{
+			if ( value is < -1 or > 254 ) throw new ArgumentOutOfRangeException( nameof( value ) );
+			if ( field == value ) return;
+			field = value;
+			if ( _sceneObject.IsValid() ) _sceneObject.SetBakedLightIndex( value, MixedShadows );
+		}
+	} = -1;
+
+	/// <summary>
+	/// Baked lighting with realtime shadows from dynamic objects, like Hammer's stationary lights.
+	/// Requires a baked light index and enabled shadows.
+	/// </summary>
+	[Property, Advanced]
+	public bool MixedShadows
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+			if ( _sceneObject.IsValid() && BakeLightIndex >= 0 )
+				_sceneObject.SetBakedLightIndex( BakeLightIndex, value );
+		}
+	}
+
+	/// <summary>
 	/// Advanced settings imported from legacy map data that don't have public properties yet
 	/// (baking, bounce, shadow texture size, raw attenuation). Applied to the native light when it's
 	/// created. Internal for now - we may expose some of these as proper properties later.
@@ -253,6 +286,9 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 			// Advanced map settings not covered by properties - overrides native state set above.
 			if ( LegacyData is { } legacy )
 				legacy.ApplyTo( _sceneObject.lightNative );
+
+			if ( BakeLightIndex >= 0 )
+				_sceneObject.SetBakedLightIndex( BakeLightIndex, MixedShadows );
 
 			OnTransformChanged();
 			OnTagsChanged();

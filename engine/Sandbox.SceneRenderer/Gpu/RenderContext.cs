@@ -984,6 +984,13 @@ internal sealed class RenderContext : IDisposable
 	{
 		Invalidate();
 		SharedPasses.BuildDepthChain( context, depth, chain, multisampled, width, height );
+		// Finish the producer's layout transition before graphics and compute sample the chain concurrently.
+		if ( AsyncCompute )
+		{
+			context.TextureBarrierTransition( chain.native, -1, RenderBarrierPipelineStageFlags_t.ComputeShaderBit,
+				RenderBarrierPipelineStageFlags_t.ComputeShaderBit, RenderImageLayout_t.RENDER_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+				RenderBarrierAccessFlags_t.ShaderWriteBit, RenderBarrierAccessFlags_t.ShaderReadBit );
+		}
 	}
 
 	static readonly StringToken SourceDepth = new( "SourceDepth" );

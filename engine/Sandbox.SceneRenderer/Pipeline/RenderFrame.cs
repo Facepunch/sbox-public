@@ -41,6 +41,9 @@ internal sealed class RenderFrame
 	/// </summary>
 	public IRenderStages Stages { get; internal set; }
 
+	/// <summary>Whether this frame's current plan schedules any work on the compute queue.</summary>
+	internal bool AsyncCompute;
+
 	/// <summary>
 	/// Linear clear colour converted from the view's gamma colour (<c>CRenderingPipelineStandard::AddLayersToView</c>).
 	/// </summary>
@@ -231,18 +234,14 @@ internal sealed class RenderFrame
 	internal double StagesMs;
 
 	/// <summary>
-	/// Bind targets and run a camera stage. Invalidate cached bindings afterward because stages may change them.
+	/// Run independent effects ahead of their normal stage, without binding frame targets.
 	/// </summary>
-	/// <summary>
-	/// Run a stage's async compute effects (<see cref="IRenderStages.RenderAsyncCompute"/>) into <paramref name="rc"/>, on the
-	/// compute queue: nothing bound.
-	/// </summary>
-	internal void RunAsyncCompute( RenderContext rc, Stage stage )
+	internal void RunEarlyPostProcess( RenderContext rc, Stage stage, PostProcessQueue queue )
 	{
 		if ( Stages is null ) return;
 
 		var start = Stopwatch.GetTimestamp();
-		Stages.RenderAsyncCompute( stage, Target( rc, color: false, final: false ) );
+		Stages.RenderEarlyPostProcess( stage, queue, Target( rc, color: false, final: false ) );
 		rc.Invalidate();
 		StagesMs += Stopwatch.GetElapsedTime( start ).TotalMilliseconds;
 	}
