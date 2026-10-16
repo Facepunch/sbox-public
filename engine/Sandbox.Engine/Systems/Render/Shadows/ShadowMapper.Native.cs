@@ -45,9 +45,17 @@ internal partial class ShadowMapper
 		nativeViewInfoValid = true;
 
 		var mainViewport = view.GetMainViewport();
+		var frustum = view.GetFrustum();
+
+		// Native matrices are column-vector, so the projection is transposed for row-vector use. The view matrix's
+		// rotation is orthonormal: read row-vector, its world to view rotation turns view space back into world.
+		var viewToWorldRotation = frustum.GetView()._numerics;
+		viewToWorldRotation.M14 = viewToWorldRotation.M24 = viewToWorldRotation.M34 = 0.0f;
+
 		View = new ShadowViewInfo
 		{
-			InverseViewProjection = view.GetFrustum().GetInvReverseZViewProjTranspose()._numerics,
+			ProjectionToView = System.Numerics.Matrix4x4.Transpose( frustum.GetInvReverseZProj()._numerics ),
+			ViewToWorldRotation = viewToWorldRotation,
 			CameraPosition = view.GetCameraPosition(),
 			ViewportSize = new Vector2( mainViewport.Rect.Width, mainViewport.Rect.Height ),
 			IsSkybox = view.GetRenderAttributesPtr().GetBoolValue( "IsSkybox", false ),
