@@ -58,7 +58,7 @@ public unsafe class GameWindowModeTests
 			typeof( GameWindow ).GetField( "window", BindingFlags.NonPublic | BindingFlags.Instance ).SetValue( window, sdlWindow );
 			var apply = typeof( GameWindow ).GetMethod( "ApplyWindowMode", BindingFlags.NonPublic | BindingFlags.Instance )
 				.CreateDelegate<Func<GameWindow.WindowMode, bool>>( window );
-			var mode = new GameWindow.WindowMode( false, false, 3840, 2160 );
+			var mode = new GameWindow.WindowMode( false, false, 3840, 2160, 0 );
 
 			Assert.IsFalse( apply( mode ) );
 			Assert.AreEqual( 1, exitRequests );
@@ -83,9 +83,9 @@ public unsafe class GameWindowModeTests
 			{
 				foreach ( var requested in new[]
 				{
-					new GameWindow.WindowMode( false, true, 1280, 720 ),
-					new GameWindow.WindowMode( true, false, 1280, 720 ),
-					new GameWindow.WindowMode( true, true, 1280, 720 )
+					new GameWindow.WindowMode( false, true, 1280, 720, 0 ),
+					new GameWindow.WindowMode( true, false, 1280, 720, 0 ),
+					new GameWindow.WindowMode( true, true, 1280, 720, 0 )
 				} )
 				{
 					var previousBoundsQueries = boundsQueries;

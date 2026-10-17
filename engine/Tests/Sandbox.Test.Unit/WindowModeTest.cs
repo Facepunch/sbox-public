@@ -16,7 +16,7 @@ public class WindowModeTest
 	[DataRow( false, false, -1, 720, 1920, 1080 )]
 	public void WindowSizeHonorsFullscreenResolutionAndWindowedBounds( bool fullscreen, bool borderless, int width, int height, int expectedWidth, int expectedHeight )
 	{
-		var mode = new GameWindow.WindowMode( fullscreen, borderless, width, height );
+		var mode = new GameWindow.WindowMode( fullscreen, borderless, width, height, 0 );
 		Assert.AreEqual( new Vector2( expectedWidth, expectedHeight ), mode.GetSize( new Vector2( 1920, 1080 ) ) );
 	}
 

@@ -4,6 +4,13 @@ namespace Sandbox.Engine.Settings;
 
 public partial class RenderSettings
 {
+
+	public int DisplayId
+	{
+		get => VideoSettings.Get<int>( "displayid", 0 );
+		set => VideoSettings.Set<int>( "displayid", value );
+	}
+
 	public int ResolutionWidth
 	{
 		get => VideoSettings.Get<int>( "defaultreswidth", 1920 );
@@ -56,7 +63,7 @@ public partial class RenderSettings
 
 	internal struct VideoModeSnapshot
 	{
-		public int Width, Height;
+		public int Width, Height, DisplayId;
 		public bool Fullscreen, Borderless, VSync;
 		public MultisampleAmount AntiAlias;
 		public int MaxFps, MaxFpsInactive;
@@ -67,6 +74,7 @@ public partial class RenderSettings
 	{
 		Width = ResolutionWidth,
 		Height = ResolutionHeight,
+		DisplayId = DisplayId,
 		Fullscreen = Fullscreen,
 		Borderless = Borderless,
 		VSync = VSync,
@@ -80,6 +88,7 @@ public partial class RenderSettings
 	{
 		ResolutionWidth = snap.Width;
 		ResolutionHeight = snap.Height;
+		DisplayId = snap.DisplayId;
 		Fullscreen = snap.Fullscreen;
 		Borderless = snap.Borderless;
 		VSync = snap.VSync;
@@ -98,27 +107,52 @@ public partial class RenderSettings
 
 		if ( Borderless && !Fullscreen )
 		{
-			var size = SdlDisplay.GetDesktopSize( SdlDisplay.Current );
+			var display = DisplayId > 0 ? (uint)DisplayId : SdlDisplay.Current;
+			var size = SdlDisplay.GetDesktopSize( display );
 			ResolutionWidth = (int)size.x;
 			ResolutionHeight = (int)size.y;
+			DisplayId = (int)display;
 		}
 
 		window.QueueVideoMode( GameWindow.VideoMode.FromSettings( this ) );
 	}
 
 	/// <summary>
-	/// Lists SDL fullscreen modes for the current display. Both windowed and fullscreen settings use
+	/// Lists SDL fullscreen modes for a display. Both windowed and fullscreen settings use
 	/// this list; <paramref name="windowed"/> is retained for compatibility and does not filter it.
 	/// All returned formats are RGBA8888, matching the game swapchain.
 	/// </summary>
-	public VideoDisplayMode[] DisplayModes( bool windowed ) => SdlDisplay.GetModes( SdlDisplay.Current );
+	/// <param name="windowed">Unused; kept for compatibility.</param>
+	/// <param name="displayId">SDL display id, or 0 for the preferred/current display.</param>
+	public VideoDisplayMode[] DisplayModes( bool windowed, int displayId = 0 )
+	{
+		var display = displayId > 0 ? (uint)displayId
+			: DisplayId > 0 ? (uint)DisplayId
+			: SdlDisplay.Current;
+		return SdlDisplay.GetModes( display );
+	}
 
 	public struct VideoDisplayMode
 	{
+		public int DisplayId { get; set; }
+		public string Name { get; set; }
 		public int Width { get; set; }
 		public int Height { get; set; }
 		public float RefreshRate { get; set; }
 		/// <summary>The game swapchain format (RGBA8888), rather than the display's native pixel format.</summary>
 		public ImageFormat Format { get; set; }
+	}
+
+	public List<VideoDisplayMode> GetDisplays()
+	{
+		return SdlDisplay.GetDisplays().Select( x => new VideoDisplayMode
+		{
+			DisplayId = (int)x.Id,
+			Name = x.Name,
+			Width = (int)x.Width,
+			Height = (int)x.Height,
+			RefreshRate = (float)x.RefreshRate,
+			Format = ImageFormat.RGBA8888,
+		} ).ToList();
 	}
 }

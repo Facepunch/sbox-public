@@ -109,4 +109,28 @@ internal static class SdlDisplay
 			Sdl.Free( (IntPtr)modes );
 		}
 	}
+
+	internal static unsafe (uint Id, string Name, int Width, int Height, float RefreshRate, uint Format)[] GetDisplays()
+	{
+		if ( Application.IsHeadless ) return [];
+		var ptr = Sdl.GetDisplays( out var count );
+		if ( ptr == IntPtr.Zero ) return [];
+		try
+		{
+			var ids = (uint*)ptr;
+			var result = new (uint Id, string Name, int Width, int Height, float RefreshRate, uint Format)[count];
+			for ( var i = 0; i < count; i++ )
+			{
+				var id = ids[i];
+				var mode = GetDesktopMode( id );
+				var name = $"Display {i + 1} : {mode.Width}x{mode.Height} @ {mode.RefreshRate}Hz";
+				result[i] = (id, name, mode.Width, mode.Height, mode.RefreshRate, mode.Format);
+			}
+			return result;
+		}
+		finally
+		{
+			Sdl.Free( ptr );
+		}
+	}
 }
