@@ -20,11 +20,24 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	[Property, Header( "Limits" )]
 	public int MaxParticles { get; set; } = 1000;
 
+	ParticleFloat _lifetime = 1.0f;
+
+	// Set when Lifetime is assigned (code, inspector, undo, deserialization); makes the next step re-evaluate DeathTime on live particles.
+	bool _lifetimeChanged;
+
 	/// <summary>
 	/// The lifetime of each particle, in seconds.
 	/// </summary>
 	[Property]
-	public ParticleFloat Lifetime { get; set; } = 1.0f;
+	public ParticleFloat Lifetime
+	{
+		get => _lifetime;
+		set
+		{
+			_lifetime = value;
+			_lifetimeChanged = true;
+		}
+	}
 
 	/// <summary>
 	/// Scales the simulation time for this effect.
@@ -539,7 +552,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	Vector3 _worldForce;
 
 	// Per-step flags set in PreStep so UpdateParticle can skip work for zero/constant inputs.
-	bool _liveLifetime;
+	bool _reevaluateLifetime;
 	bool _hasDamping;
 	bool _hasLocalSpace;
 	bool _hasForce;
@@ -550,8 +563,8 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	{
 		var p = Particles[index];
 
-		// Lifetime is fixed at emit; in the editor keep re-evaluating it so property edits show on live particles.
-		if ( _liveLifetime )
+		// Lifetime is drawn at emit; only re-evaluate on live particles on the step after Lifetime changes.
+		if ( _reevaluateLifetime )
 			p.DeathTime = p.BornTime + Lifetime.Evaluate( p.Rand( 155, 100 ), p.Rand( 145, 100 ) );
 
 		float delta = MathX.Remap( p.BornTime + p.Age, p.BornTime, p.DeathTime );
@@ -806,13 +819,6 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 		_timeDelta = Paused ? 0.0f : timeDelta * TimeScale;
 		_worldTx = WorldTransform;
 
-		_liveLifetime = Scene.IsEditor;
-		_hasDamping = !Damping.IsNearlyZero();
-		_hasLocalSpace = !LocalSpace.IsNearlyZero();
-		_hasForce = Force && !ForceScale.IsNearlyZero();
-		_hasConstantMovement = !ConstantMovement.IsNearlyZero();
-		_constantPerParticleTimeScale = PerParticleTimeScale.IsConstant ? PerParticleTimeScale.ConstantValue : float.NaN;
-
 		if ( ForceSpace == SimulationSpace.Local )
 			_worldForce = _worldTx.Rotation * ForceDirection;
 
@@ -824,6 +830,15 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 		PrimeBoneTargets();
 
 		OnPreStep?.Invoke( _timeDelta );
+
+		// After OnPreStep, so controllers and emitters changing properties there apply this step.
+		_reevaluateLifetime = _lifetimeChanged;
+		_lifetimeChanged = false;
+		_hasDamping = !Damping.IsNearlyZero();
+		_hasLocalSpace = !LocalSpace.IsNearlyZero();
+		_hasForce = Force && !ForceScale.IsNearlyZero();
+		_hasConstantMovement = !ConstantMovement.IsNearlyZero();
+		_constantPerParticleTimeScale = PerParticleTimeScale.IsConstant ? PerParticleTimeScale.ConstantValue : float.NaN;
 
 		if ( Collision )
 			_trace = Scene.Trace.WithoutTags( CollisionIgnore );
@@ -1058,7 +1073,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 		}
 
 		p.BornTime += delay;
-		// Same draw UpdateParticle uses when the editor re-evaluates it
+		// Same draw UpdateParticle uses when Lifetime changes
 		p.DeathTime = p.BornTime + Lifetime.Evaluate( p.Rand( 155, 100 ), p.Rand( 145, 100 ) );
 
 		if ( UsePrefabFeature && FollowerPrefabChance.Evaluate( delta, Random.Shared.Float( 0, 1 ) ) > Random.Shared.Float() )

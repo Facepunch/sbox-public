@@ -704,6 +704,50 @@ public class ParticleEffectTest
 	}
 
 	/// <summary>
+	/// Lifetime is drawn at emit. Changing Lifetime (here from OnPreStep) still applies to live
+	/// particles on that same step, and only then, so a DeathTime set by user code sticks.
+	/// </summary>
+	[TestMethod]
+	public void LifetimeChange_AppliesToLiveParticles()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var go = scene.CreateObject();
+		var effect = go.Components.Create<ParticleEffect>();
+		effect.Lifetime = 10.0f;
+
+		var emitter = go.Components.Create<ParticleBoxEmitter>();
+		emitter.Burst = 10.0f;
+		emitter.Rate = 0.0f;
+		emitter.Loop = false;
+		emitter.ResetEmitter();
+
+		scene.GameTick();
+		Assert.AreEqual( 10, effect.Particles.Count );
+
+		var changed = false;
+		effect.OnPreStep += _ =>
+		{
+			if ( changed ) return;
+			effect.Lifetime = 2.0f;
+			changed = true;
+		};
+
+		scene.GameTick();
+
+		foreach ( var p in effect.Particles )
+			Assert.AreEqual( p.BornTime + 2.0f, p.DeathTime, 0.0001f, "Live particles should pick up the new lifetime on the step it changed" );
+
+		var custom = effect.Particles[0];
+		custom.DeathTime = custom.BornTime + 5.0f;
+
+		scene.GameTick();
+
+		Assert.AreEqual( custom.BornTime + 5.0f, custom.DeathTime, 0.0001f, "Lifetime should not be re-evaluated once the change is applied" );
+	}
+
+	/// <summary>
 	/// A warm effect that emits and expires particles every step reuses pooled particles and its own
 	/// buffers, so the step allocates nothing. The step is driven serially on this thread (as
 	/// ParticleGameSystem does, minus the Parallel.ForEach) because a whole scene tick measured across
