@@ -456,14 +456,14 @@ internal abstract class SerializedNodeParameter<T> : SerializedProperty, ISerial
 		{
 			if ( !PropertyType.IsValueType )
 			{
-				var curVal = GetValue<object>();
+				var curVal = GetValue<object>( Target.Definition.IsRequired ? description.Create<object>() : null );
 
 				if ( curVal == null )
 				{
 					return false;
 				}
 
-				obj = EditorTypeLibrary.GetSerializedObject( curVal );
+				obj = EditorTypeLibrary.GetSerializedObject( () => curVal, description, this );
 				return true;
 			}
 
