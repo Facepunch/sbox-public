@@ -132,6 +132,32 @@ public sealed partial class SpriteRenderer : Renderer, Component.ExecuteInEditor
 	public float FogStrength { get; set; } = 1.0f;
 
 	/// <summary>
+	/// Draw the sprite artwork over a refracted background in one pass. Alpha controls the artwork only.
+	/// Requires a normal texture and translucent, non-additive rendering. The captured scene is already lit and fogged.
+	/// </summary>
+	[Property, ToggleGroup( "Refraction" ), Order( -150 )]
+	public bool Refraction { get; set; }
+
+	/// <summary>
+	/// Tangent-space normal map sampled in linear space, using the same UV layout as the sprite texture.
+	/// Sprite flips and rotation also transform the normal. The map is shared by all animation frames.
+	/// </summary>
+	[Property, ToggleGroup( "Refraction" ), Order( -150 )]
+	public Texture NormalTexture { get; set; }
+
+	/// <summary>
+	/// Maximum refraction offset in render pixels before the normal is applied. Alpha, depth feathering
+	/// and camera fading affect artwork opacity only, never the refraction. Zero leaves the background undistorted.
+	/// </summary>
+	[Property, ToggleGroup( "Refraction" ), Order( -150 ), Range( 0, 64 )]
+	public float RefractionStrength { get; set; } = 8.0f;
+
+	/// <summary>
+	/// Whether this renderer can use scene-color refraction with its current blend settings and normal map.
+	/// </summary>
+	internal bool IsRefractive => Refraction && NormalTexture is not null && !Opaque && !Additive;
+
+	/// <summary>
 	/// Whether or not the sprite should be flipped horizontally.
 	/// </summary>
 	[Property, Category( "Visuals" ), Order( -200 )]

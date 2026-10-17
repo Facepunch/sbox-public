@@ -237,29 +237,6 @@ public partial class MoveModeSwim
 	/// </summary>
 	SceneTraceResult Trace( Vector3 from, Vector3 to )
 	{
-		const float skin = 0.05f;
-		var feet = Controller.FeetCollider;
-		var center = feet.WorldTransform.PointToWorld( feet.Center ) - WorldPosition;
-		var extents = feet.Scale * MathF.Abs( feet.WorldTransform.UniformScale ) * 0.5f;
-		var hull = new BBox( center - extents + new Vector3( skin ), center + extents - new Vector3( skin ) );
-		var result = Scene.Trace.Box( hull, from, to )
-			.IgnoreGameObjectHierarchy( GameObject )
-			.WithCollisionRules( Controller.Tags )
-			.Run();
-
-		var body = Controller.BodyCollider;
-		if ( !body.IsValid() || !body.Enabled || result.StartedSolid )
-			return result;
-
-		var capsule = new Capsule(
-			body.WorldTransform.PointToWorld( body.Start ) - WorldPosition,
-			body.WorldTransform.PointToWorld( body.End ) - WorldPosition,
-			MathF.Max( skin, body.Radius * MathF.Abs( body.WorldTransform.UniformScale ) - skin ) );
-		var upper = Scene.Trace.Capsule( capsule, from, to )
-			.IgnoreGameObjectHierarchy( GameObject )
-			.WithCollisionRules( Controller.Tags )
-			.Run();
-
-		return upper.StartedSolid || upper.Fraction < result.Fraction ? upper : result;
+		return Controller.TraceMovement( from, to );
 	}
 }

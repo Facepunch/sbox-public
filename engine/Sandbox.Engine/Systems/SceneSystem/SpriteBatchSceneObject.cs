@@ -73,6 +73,16 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		public Vector4 BlendSheetUV;
 		public Vector2 Offset;
 		public uint CameraFade;     // Two halves: lower 16 bits near distance, upper 16 bits far distance
+
+		/// <summary>
+		/// Bindless linear normal texture, or zero for ordinary sprites in the same batch.
+		/// </summary>
+		public int NormalTextureHandle;
+
+		/// <summary>
+		/// Maximum distortion in render pixels before normal-map scaling, independent of opacity.
+		/// </summary>
+		public float RefractionStrength;
 		public SpriteData()
 		{
 
@@ -198,6 +208,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 	bool _renderFiltered;
 	bool _renderAdditive;
 	bool _renderOpaque;
+	bool _renderRefraction;
 
 	public SpriteBatchSceneObject( Scene scene ) : base( scene.SceneWorld )
 	{
@@ -347,6 +358,8 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		int splotCount = SplotCount;
 		int componentCount = Components.Count;
 
+		bool hasRefraction = false;
+
 		// Resize GPU buffers here on the main thread, not in OnChanged,
 		// because RenderSceneObject may be using them concurrently on a render thread.
 		int requiredSize = splotCount + spriteCount;
@@ -384,6 +397,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 			foreach ( var component in Components.Values )
 			{
 				_componentBuffer[index++] = component;
+				hasRefraction |= component.IsRefractive;
 			}
 
 			object boundsLock = _boundsLock;
@@ -454,6 +468,8 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 						Lighting = packedExponent,
 						DepthFeather = c.DepthFeather,
 						CameraFade = SpriteData.PackCameraFade( c.CameraFadeNear, c.CameraFadeFar ),
+						NormalTextureHandle = c.IsRefractive ? c.NormalTexture.Index : 0,
+						RefractionStrength = MathF.Max( c.RefractionStrength, 0.0f ),
 						SamplerIndex = SamplerState.GetBindlessIndex( sampler with { Filter = c.TextureFilter } ),
 						Offset = c.Pivot
 					};
@@ -498,9 +514,13 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 			boundsMin = Vector3.Min( boundsMin, spriteGroup.Bounds.Mins );
 			boundsMax = Vector3.Max( boundsMax, spriteGroup.Bounds.Maxs );
 
-			// A group is one particle renderer, so its first sprite says whether it's text
+			// A group is one particle renderer, so its first sprite describes text and refraction for the whole group.
 			_pendingHasText |= spriteGroup.Count > 0 && (spriteGroup.SharedSprites[spriteGroup.Offset].RenderFlags & (int)SpriteFlags.Text) != 0;
+			hasRefraction |= spriteGroup.Count > 0 && spriteGroup.SharedSprites[spriteGroup.Offset].NormalTextureHandle != 0;
 		}
+
+		// Mixed batches keep a single sort order. Only request the shared copy and stencil while a sprite needs them.
+		Flags.WantsFrameBufferCopy = hasRefraction;
 
 		// Use a degenerate zero-size bounds for empty batches so they can be frustum-culled.
 		Bounds = spriteCount > 0 ? new BBox( boundsMin, boundsMax ) : default;
@@ -604,6 +624,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		_renderFiltered = filtered;
 		_renderAdditive = additive;
 		_renderOpaque = opaque;
+		_renderRefraction = Flags.WantsFrameBufferCopy;
 		_renderHasText = _pendingHasText;
 		_renderFrame = Application.FrameCount;
 	}
@@ -624,6 +645,9 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 			attributes.SetCombo( "D_BLEND", _renderAdditive ? 1 : 0 );
 			attributes.SetCombo( "D_OPAQUE", _renderOpaque ? 1 : 0 );
 			attributes.SetCombo( "D_TEXT", _renderHasText ? 1 : 0 );
+			// The scene binds FrameBufferCopyTexture for readers in translucent layers.
+			bool refractive = _renderRefraction && Graphics.LayerType == SceneLayerType.Translucent;
+			attributes.SetCombo( "D_REFRACTION", refractive ? 1 : 0 );
 			attributes.Set( "IsSorted", _renderIsSorted ? 1 : 0 );
 			attributes.Set( "SpriteCount", _renderInstanceCount );
 			attributes.Set( "Filtered", _renderFiltered );

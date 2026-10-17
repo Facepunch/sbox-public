@@ -206,21 +206,24 @@ public sealed partial class PlayerController : Component, IScenePhysicsEvents, C
 		UpdateBody();
 
 		if ( IsProxy )
+		{
+			_stepGrounded = false;
 			return;
+		}
 
 		Mode.AddVelocity();
+		BeginStep();
 		Mode.PrePhysicsStep();
 	}
 
 	void IScenePhysicsEvents.PostPhysicsStep()
 	{
-		Velocity = Body.Velocity - GroundVelocity;
 		UpdateGroundVelocity();
-
-		RestoreStep();
 
 		Mode?.PostPhysicsStep();
 		CategorizeGround();
+		UpdateGroundVelocity();
+		Velocity = Body.Velocity - GroundVelocity;
 
 		ChooseBestMoveMode();
 	}
@@ -229,7 +232,7 @@ public sealed partial class PlayerController : Component, IScenePhysicsEvents, C
 
 	void UpdateGroundVelocity()
 	{
-		if ( GroundObject is null )
+		if ( GroundObject is null || Body.PhysicsBody is not { IsValid: true } body )
 		{
 			GroundVelocity = 0;
 			return;
@@ -237,15 +240,12 @@ public sealed partial class PlayerController : Component, IScenePhysicsEvents, C
 
 		if ( GroundComponent is Collider collider )
 		{
-			GroundVelocity = collider.GetVelocityAtPoint( WorldPosition );
+			GroundVelocity = collider.GetVelocityAtPoint( body.Position );
 		}
 
 		if ( GroundComponent is Rigidbody rigidbody )
 		{
-			var mass1 = BodyMass;
-			var mass2 = rigidbody.Mass;
-			var massFactor = mass2 / (mass1 + mass2);
-			GroundVelocity = rigidbody.GetVelocityAtPoint( WorldPosition ) * massFactor;
+			GroundVelocity = rigidbody.GetVelocityAtPoint( body.Position );
 		}
 	}
 
@@ -256,6 +256,7 @@ public sealed partial class PlayerController : Component, IScenePhysicsEvents, C
 	/// </summary>
 	public void Jump( Vector3 velocity )
 	{
+		Mode?.OnJump();
 		PreventGrounding( 0.2f );
 
 		var currentVel = Body.Velocity;

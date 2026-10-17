@@ -428,7 +428,7 @@ public class SettingsCatalog
 			Section = "#menu.settings.quality",
 			Title = "#menu.settings.volumetric_fog",
 			Description = "#menu.settings.gfx.fog.description",
-			Options = Levels( VolumetricFogQuality.Off, VolumetricFogQuality.Low, VolumetricFogQuality.Medium, VolumetricFogQuality.High, VolumetricFogQuality.Ultra ),
+			Options = Levels( VolumetricFogQuality.Off, VolumetricFogQuality.Low, VolumetricFogQuality.Medium, VolumetricFogQuality.High ),
 			AppliesRenderSettings = true,
 			Read = () => Render.VolumetricFogQuality.ToString(),
 			Write = value => Render.VolumetricFogQuality = ToEnum<VolumetricFogQuality>( value )
@@ -489,7 +489,7 @@ public class SettingsCatalog
 			Section = "#menu.settings.post_processing",
 			Title = "#menu.settings.screen_space_reflections",
 			Description = "#menu.settings.gfx.ssr.description",
-			Options = EffectLevels,
+			Options = Levels( EffectQuality.Off, EffectQuality.Low, EffectQuality.High ),
 			AppliesRenderSettings = true,
 			Read = () => Render.ScreenSpaceReflectionQuality.ToString(),
 			Write = value => Render.ScreenSpaceReflectionQuality = ToEnum<EffectQuality>( value )

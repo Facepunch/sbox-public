@@ -292,8 +292,13 @@ internal static class Utility
 	/// file referenced by GITHUB_ENV. No-op when not running under Actions (GITHUB_ENV unset), so locally the
 	/// value is simply never seen by subsequent steps.
 	/// </summary>
+	/// <summary>
+	/// Sets a variable for later steps of the job, and for the rest of this process.
+	/// </summary>
 	public static void SetGitHubEnv( string name, string value )
 	{
+		Environment.SetEnvironmentVariable( name, value );
+
 		var githubEnv = Environment.GetEnvironmentVariable( "GITHUB_ENV" );
 		if ( string.IsNullOrEmpty( githubEnv ) )
 			return;

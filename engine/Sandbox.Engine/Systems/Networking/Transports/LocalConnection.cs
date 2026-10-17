@@ -10,7 +10,7 @@ internal class LocalConnection : Connection
 
 	internal override void InternalClose( int closeCode, string closeReason ) { }
 	internal override void InternalRecv( NetworkSystem.MessageHandler handler ) { }
-	internal override void InternalSend( byte[] data, NetFlags flags ) { }
+	internal override void InternalSend( NetPacket packet, NetFlags flags ) { }
 
 	public LocalConnection( Guid id )
 	{
@@ -30,61 +30,18 @@ internal class MockConnection : Connection
 
 	internal override void InternalClose( int closeCode, string closeReason ) { }
 	internal override void InternalRecv( NetworkSystem.MessageHandler handler ) { }
-	internal override void InternalSend( byte[] data, NetFlags flags ) { }
+	internal override void InternalSend( NetPacket packet, NetFlags flags ) { }
+
+	// No transport of our own, everything goes through the host
 
 	internal override void SendStream( ByteStream stream, NetFlags flags = NetFlags.Reliable )
 	{
-		// Route unencoded messages through the host — we don't have a direct transport.
-		if ( !TryGetRoutableHost( out var host ) )
-			return;
-
-		var wrapper = new TargetedMessage
-		{
-			SenderId = Local.Id,
-			TargetId = Id,
-			Message = stream.ToArray(),
-			Flags = (byte)flags
-		};
-
-		host.SendMessage( wrapper, flags );
+		System?.SendMulticast( [Id], stream.ToSpan(), flags );
 	}
 
-	/// <summary>
-	/// Override for pre-encoded payloads (e.g. from Broadcast's single-encode path).
-	/// Decodes the wire bytes and routes through the host via <see cref="TargetedInternalMessage"/>.
-	/// </summary>
-	internal override void Send( byte[] encoded, NetFlags flags )
+	internal override void Send( NetPacket encoded, NetFlags flags, ref byte[][] packets )
 	{
-		if ( !TryGetRoutableHost( out var host ) )
-			return;
-
-		var decoded = Decode( encoded );
-
-		var wrapper = new TargetedInternalMessage
-		{
-			SenderId = Local.Id,
-			TargetId = Id,
-			Data = decoded.ToArray(),
-			Flags = (byte)flags
-		};
-
-		host.SendMessage( wrapper, flags );
-	}
-
-	private bool TryGetRoutableHost( out Connection host )
-	{
-		host = Host;
-
-		if ( host is null or MockConnection )
-		{
-			if ( Networking.Debug )
-				Log.Warning( $"MockConnection: no available host to route through for {this}" );
-
-			host = null;
-			return false;
-		}
-
-		return true;
+		System?.SendMulticast( [Id], Decode( encoded.Span ), flags );
 	}
 
 	public MockConnection( Guid id )

@@ -64,9 +64,10 @@ public partial class RenderSettings
 
 	public VolumetricFogQuality VolumetricFogQuality
 	{
-		get => VideoSettings.Get<VolumetricFogQuality>( "volumetricfog.quality", VolumetricFogQuality.High );
+		get => (VolumetricFogQuality)Math.Min( (int)VideoSettings.Get<VolumetricFogQuality>( "volumetricfog.quality", VolumetricFogQuality.High ), (int)VolumetricFogQuality.High );
 		set
 		{
+			value = (VolumetricFogQuality)Math.Min( (int)value, (int)VolumetricFogQuality.High );
 			VideoSettings.Set<VolumetricFogQuality>( "volumetricfog.quality", value );
 			Config.SetGroupConVars( "VolumetricFogQuality", value.ToString() );
 		}

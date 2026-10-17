@@ -605,6 +605,9 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 			UpdateSceneCameraUI( sceneCamera );
 			sceneCamera.RenderUI = renderUI;
 			sceneCamera.Attributes.Set( "enableEarlyUI", HasEarlyUI() );
+			// Unknown post effects and custom command lists may sample normals, so only omit them for an empty stack.
+			// Scene attributes can force the G-buffer for custom material consumers outside those stages.
+			sceneCamera.Attributes.Set( "NeedsDepthNormals", Scene.RenderAttributes.GetBool( "NeedsDepthNormals" ) || PostProcess.Layers.Count != 0 || HasCustomCommandLists() );
 			UpdateSceneCameraStereo( sceneCamera );
 		}
 	}

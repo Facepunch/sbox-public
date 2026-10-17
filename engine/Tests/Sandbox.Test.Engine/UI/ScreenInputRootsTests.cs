@@ -14,7 +14,7 @@ public class ScreenInputRootsTests
 	/// Highest z-index first, equal z-indices in root order, world panels left out - what
 	/// OrderByDescending gave - and building the list again doesn't allocate.
 	/// </summary>
-	[TestMethod]
+	[TestMethod, TestCategory( Allocations.Category )]
 	public void HighestZIndexFirstInRootOrderWithoutAllocating()
 	{
 		ThreadSafe.MarkMainThread();
@@ -42,9 +42,7 @@ public class ScreenInputRootsTests
 			CollectionAssert.AreEqual( new[] { highA, highB, low, none, negative }, expected );
 			CollectionAssert.AreEqual( expected, ui.GetScreenInputRoots().ToArray() );
 
-			long before = GC.GetAllocatedBytesForCurrentThread();
-			ui.GetScreenInputRoots();
-			Assert.AreEqual( 0L, GC.GetAllocatedBytesForCurrentThread() - before );
+			Allocations.AssertSettles( "Building the screen input roots", () => ui.GetScreenInputRoots() );
 		}
 		finally
 		{

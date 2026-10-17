@@ -263,6 +263,14 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		SceneNetworkSystem.Instance.NetworkDestroyBroadcast( this );
 	}
 
+	// Snapshots sent after a refresh can get there before it. A new version has the receiver turn them away, so their
+	// values are sent again once it has the refresh.
+	LocalSnapshotState WriteRefreshSnapshot()
+	{
+		LocalSnapshotState.Version++;
+		return ((IDeltaSnapshot)this).WriteSnapshotState();
+	}
+
 	private static readonly GameObject.SerializeOptions _refreshSerializeOptions = new() { SingleNetworkObject = true, SkipNulls = true };
 
 	internal ObjectRefreshMsg GetRefreshMessage()
@@ -271,7 +279,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		if ( system is null )
 			throw new Exception( "SceneNetworkSystem is null" );
 
-		var snapshot = ((IDeltaSnapshot)this).WriteSnapshotState();
+		var snapshot = WriteRefreshSnapshot();
 
 		using var blobs = BlobDataSerializer.Capture();
 		var msg = new ObjectRefreshMsg
@@ -321,7 +329,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 			return;
 
 		{
-			var snapshot = ((IDeltaSnapshot)this).WriteSnapshotState();
+			var snapshot = WriteRefreshSnapshot();
 
 			using var blobs = BlobDataSerializer.Capture();
 			var msg = new ObjectRefreshDescendantMsg
@@ -358,7 +366,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		}
 
 		{
-			var snapshot = ((IDeltaSnapshot)this).WriteSnapshotState();
+			var snapshot = WriteRefreshSnapshot();
 
 			using var blobs = BlobDataSerializer.Capture();
 			var msg = new ObjectRefreshComponentMsg
@@ -409,7 +417,6 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	/// <param name="id"></param>
 	internal void RemoveConnection( Guid id )
 	{
-		LocalSnapshotState.RemoveConnection( id );
 		_culledConnections.Remove( id );
 		_createMessageConnections.Remove( id );
 		_cullStates.Remove( id );
@@ -502,7 +509,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 				if ( !_culledConnections.Remove( target.Id ) )
 					continue;
 
-				LocalSnapshotState.RemoveConnection( target.Id );
+				SceneNetworkSystem.Instance?.DeltaSnapshots.ForgetObject( LocalSnapshotState, target );
 				GameObject.Network.SetCullState( target, false );
 
 				shouldTransmitToAny = true;
@@ -583,34 +590,6 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 
 		// Global culling
 		return GameObject.Scene.IsBBoxVisibleToConnection( target, worldBounds );
-	}
-
-	void IDeltaSnapshot.OnSnapshotAck( Connection source, DeltaSnapshot snapshot, RemoteSnapshotState state )
-	{
-		IDeltaSnapshot snapshotter = this;
-
-		if ( !snapshotter.ShouldTransmit( source ) )
-			return;
-
-		var hasFullSnapshotState = true;
-
-		foreach ( var entry in LocalSnapshotState.Entries )
-		{
-			if ( state.IsValueHashEqual( entry.Slot, entry.Hash, snapshot.SnapshotId ) )
-			{
-				entry.Connections.Add( source.Id );
-			}
-			else
-			{
-				entry.Connections.Remove( source.Id );
-				hasFullSnapshotState = false;
-			}
-		}
-
-		if ( hasFullSnapshotState )
-			LocalSnapshotState.UpdatedConnections.Add( source.Id );
-		else
-			LocalSnapshotState.UpdatedConnections.Remove( source.Id );
 	}
 
 	private const int SnapshotPositionSlot = 1;
@@ -828,6 +807,10 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		if ( system is null ) return;
 
 		ReadDataTable( tableData );
+		// Owner and host can refresh at once, an older refresh must not roll the version back
+		var version = DeltaSnapshotSystem.ReadVersion( snapshotData );
+		if ( (short)(version - LocalSnapshotState.Version) > 0 )
+			LocalSnapshotState.Version = version;
 
 		var bs = ByteStream.CreateReader( snapshotData );
 		system.DeltaSnapshots.OnDeltaSnapshot( source, bs );

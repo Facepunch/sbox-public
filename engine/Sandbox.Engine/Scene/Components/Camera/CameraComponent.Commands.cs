@@ -106,6 +106,27 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	static Superluminal _executeCommandList = new Superluminal( "ExecuteCommandList", Color.Cyan );
 
 	/// <summary>
+	/// Custom command lists may read the normals G-buffer without declaring it. Keep it for those cameras.
+	/// The built-in HUD, overlay and render-texture mip commands don't read it.
+	/// </summary>
+	bool HasCustomCommandLists()
+	{
+		lock ( _commandListLock )
+		{
+			foreach ( var list in commandlists.Values )
+			{
+				foreach ( var entry in list )
+				{
+					if ( entry.List != _hudCommandList && entry.List != _overlayCommandList && entry.List != _renderTextureMipGenCommandList )
+						return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	/// <summary>
 	/// Called during the render pipeline on a worker thread.
 	/// </summary>
 	private void ExecuteCommandLists( Stage stage, SceneCamera currentCamera )

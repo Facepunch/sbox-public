@@ -39,6 +39,16 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 	// Implemented by derived classes
 	Texture RenderTexture { get; }
 
+	/// <summary>
+	/// Normal map used for scene-color refraction, or null for ordinary sprites and text.
+	/// </summary>
+	Texture RefractionNormalTexture => null;
+
+	/// <summary>
+	/// Refraction offset in render pixels. Renderers opt in by supplying their own strength.
+	/// </summary>
+	ParticleFloat RefractionStrength => 0.0f;
+
 	/// <summary>A text block in this frame's glyph buffers, for text renderers. Default when there's nothing to draw.</summary>
 	GpuFontText.Placement TextSprite => default;
 
@@ -88,6 +98,8 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 		var sequenceData = texture.SequenceData;
 		var lightingValue = Lighting ? 1 : 0;
 		var textureHandle = texture?.Index ?? Texture.Invalid.Index;
+		var normalTextureHandle = RefractionNormalTexture?.Index ?? 0;
+		var refractionStrength = RefractionStrength;
 
 		var motionBlurEnabled = MotionBlur;
 		const float blurReciprocal = 0.02f;
@@ -201,6 +213,8 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 				spritePtr->Lighting = packedExponent;
 				spritePtr->DepthFeather = depthFeather;
 				spritePtr->CameraFade = packedCameraFade;
+				spritePtr->NormalTextureHandle = normalTextureHandle;
+				spritePtr->RefractionStrength = MathF.Max( refractionStrength.Evaluate( p, 6271 ), 0.0f );
 				spritePtr->SamplerIndex = samplerIndex;
 				spritePtr->Splots = splots;
 				spritePtr->RotationOffset = rotationOffsetValue;

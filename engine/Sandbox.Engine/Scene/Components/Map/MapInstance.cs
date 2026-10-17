@@ -876,10 +876,15 @@ file class MapComponentMapLoader : SceneMapLoader
 					break;
 				}
 
+			case "env_light_probe_volume":
+				{
+					LightProbeVolume.InitializeFromLegacy( go, kv );
+					break;
+				}
 			case "env_combined_light_probe_volume":
 				{
 					EnvmapProbe.InitializeFromLegacy( go, kv ); // create an envmap component
-					AddMapObjectComponent( go, kv ); // create the probe sceneobject (we don't have a component for it)
+					LightProbeVolume.InitializeFromLegacy( go, kv );
 					break;
 				}
 			case "snd_soundscape_box":

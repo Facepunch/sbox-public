@@ -1,139 +1,153 @@
-//=========================================================================================================================
-// Optional
-//=========================================================================================================================
 HEADER
 {
-	Description = "LPV Debugging";
+    Description = "Light Probe Volume Debugging";
     DevShader = true;
 }
 
-//=========================================================================================================================
-// Optional
-//=========================================================================================================================
 FEATURES
 {
     #include "common/features.hlsl"
 }
 
-//=========================================================================================================================
-// Optional
-//=========================================================================================================================
 MODES
 {
-    Forward();													// Indicates this shader will be used for main rendering
-	ToolsShadingComplexity( "tools_shading_complexity.shader" ); 	// Shows how expensive drawing is in debug view
+    Forward();
+    ToolsShadingComplexity( "tools_shading_complexity.shader" );
 }
 
-//=========================================================================================================================
 COMMON
 {
-	#include "common/shared.hlsl"
+    // Probe markers are absent from the scene depth used to calculate SSAO.
+    #define AMBIENTOCCLUSION_HLSL
+    struct ScreenSpaceAmbientOcclusion
+    {
+        static float Sample( float4 ScreenPosition )
+        {
+            return 1.0f;
+        }
+    };
 
-    float flSampleSize < Attribute( "SampleSize" ); Default( 10 ); >;
+    #include "common/shared.hlsl"
+
+    float flSampleSize < Attribute( "SampleSize" ); Default( 4 ); >;
+    bool bProbeSpheres < Attribute( "ProbeSpheres" ); Default( 1 ); >;
 }
-
-//=========================================================================================================================
 
 struct VertexInput
 {
-	#include "common/vertexinput.hlsl"
+    #include "common/vertexinput.hlsl"
+    float3 vProbePositionWs : TEXCOORD12 < Semantic( Uvwx ); >;
 };
-
-//=========================================================================================================================
 
 struct PixelInput
 {
-	#include "common/pixelinput.hlsl"
-    float3 vSpherePositionWs : TEXCOORD13;
+    #include "common/pixelinput.hlsl"
+    nointerpolation float3 vProbePositionWs : TEXCOORD13;
 };
-
-//=========================================================================================================================
 
 VS
 {
-	#include "common/vertex.hlsl"
+    #include "common/vertex.hlsl"
 
-	//
-	// Main
-	//
-	PixelInput MainVs( VS_INPUT i )
-	{
-		PixelInput o = ProcessVertex( i );           
-
-        float3x4 matObjectToWorld = GetTransformMatrix( i.nInstanceTransformID );
-        
-        //float3 vPositionOs = i.vPositionOs.xyz;
-        float3 vPositionOffset = i.vPositionOs;
-        float3 vPositionOs = float3( i.vTexCoord.x, -i.vTexCoord.y,  0  ) * flSampleSize * 1.666f;
-
-        float3 vPositionWs = vPositionOffset + Vector3VsToWs( vPositionOs );
-
-        o.vPositionWs = vPositionWs;
-        o.vPositionPs.xyzw = Position3WsToPs( o.vPositionWs.xyz );
-        
-        // Center of spheroid
-        o.vSpherePositionWs = vPositionOffset;
-
-		return FinalizeVertex( o );
-	}
+    PixelInput MainVs( VertexInput i )
+    {
+        PixelInput o = ProcessVertex( i );
+        o.vProbePositionWs = i.vProbePositionWs;
+        if ( bProbeSpheres )
+        {
+            // A camera-facing tangent plane encloses the sphere's projected silhouette.
+            float3 vCameraToProbe = i.vProbePositionWs - g_vCameraPositionWs;
+            float flDistance = length( vCameraToProbe );
+            float flExtent = flSampleSize * flDistance / sqrt( max( flDistance * flDistance - flSampleSize * flSampleSize, 0.0001 ) );
+            float3 vForward = vCameraToProbe / max( flDistance, 0.0001 );
+            float3 vUp = abs( vForward.z ) < 0.99 ? float3( 0, 0, 1 ) : float3( 0, 1, 0 );
+            float3 vRight = normalize( cross( vForward, vUp ) );
+            vUp = cross( vRight, vForward );
+            o.vPositionWs = i.vProbePositionWs + ( i.vTexCoord.x * vRight - i.vTexCoord.y * vUp ) * flExtent;
+            o.vPositionPs = Position3WsToPs( o.vPositionWs );
+        }
+        return FinalizeVertex( o );
+    }
 }
-
-//=========================================================================================================================
 
 PS
 {
     #include "common/pixel.hlsl"
-	
-    RenderState( CullMode, NONE );
-    //RenderState( AlphaToCoverageEnable, true );
 
+    RenderState( CullMode, NONE );
+    RenderState( BlendEnable, true );
+    RenderState( SrcBlend, SRC_ALPHA );
+    RenderState( DstBlend, INV_SRC_ALPHA );
+    RenderState( AlphaToCoverageEnable, false );
+    RenderState( DepthWriteEnable, false );
+
+    int nDDGIVolume < Attribute( "DDGIVolume" ); Default( -1 ); >;
     float flRoughness < Attribute( "Roughness" ); Default( 1 ); >;
     float flMetalness < Attribute( "Metalness" ); Default( 0 ); >;
     float3 vAlbedo < Attribute( "Albedo" ); Default3( 1, 1, 1 ); >;
-    
-    // https://www.iquilezles.org/www/articles/spherefunctions/spherefunctions.htm
-    float sphIntersect( float3 ro, float3 rd, float4 sph )
+    bool bLightingPreview < Attribute( "LightingPreview" ); Default( 0 ); >;
+
+    struct ProbeOutput
     {
-        float3 oc = ro - sph.xyz;
-        float b = dot( oc, rd );
-        float c = dot( oc, oc ) - sph.w*sph.w;
-        float h = b*b - c;
-        if( h<0.0 ) return -1.0;
-        h = sqrt( h );
-        return -b - h;
-    }
-    
-    //
-	// Main
-	//
-	float4 MainPs( PixelInput i ) : SV_Target0
-	{
-        const float fSphereRadius = flSampleSize;
-        const float3 vSpherePosition = i.vSpherePositionWs;
+        float4 vColor : SV_Target0;
+        float flDepth : SV_Depth;
+    };
 
-        const float4 vSphere = float4( vSpherePosition, fSphereRadius );
+    ProbeOutput MainPs( PixelInput i )
+    {
+        ProbeOutput o;
+        o.flDepth = i.vPositionSs.z;
+        float flCoverage = 1.0;
+        if ( bProbeSpheres )
+        {
+            float3 vRayDirection = normalize( i.vPositionWithOffsetWs + g_vHighPrecisionLightingOffsetWs.xyz - g_vCameraPositionWs );
+            float3 vCameraToProbe = i.vProbePositionWs - g_vCameraPositionWs;
+            float flProjection = dot( vCameraToProbe, vRayDirection );
+            // Avoid subtracting large squared distances for small, distant probes.
+            float3 vClosestApproach = vRayDirection * flProjection - vCameraToProbe;
+            float flDiscriminant = flSampleSize * flSampleSize - dot( vClosestApproach, vClosestApproach );
+            flCoverage = smoothstep( 0.0, max( fwidth( flDiscriminant ), 0.000001 ), flDiscriminant );
+            clip( flDiscriminant );
+            float flHalfChord = sqrt( max( flDiscriminant, 0 ) );
+            float flDistance = flProjection - flHalfChord;
+            clip( flDistance );
 
-        const float3 vRayOrigin = g_vCameraPositionWs;
-        const float3 vRayDirection = CalculatePositionToCameraDirWs( g_vCameraPositionWs - i.vPositionWithOffsetWs );
+            float3 vSurfaceOffset = vClosestApproach - vRayDirection * flHalfChord;
+            float3 vHitPosition = i.vProbePositionWs + vSurfaceOffset;
+            i.vPositionWithOffsetWs = vHitPosition - g_vHighPrecisionLightingOffsetWs.xyz;
+            i.vNormalWs = normalize( vSurfaceOffset );
+            float4 vHitPositionPs = Position3WsToPs( vHitPosition );
+            o.flDepth = vHitPositionPs.z / vHitPositionPs.w;
+            clip( o.flDepth );
+            clip( 1 - o.flDepth );
+            o.flDepth = lerp( g_flViewportMinZ, g_flViewportMaxZ, o.flDepth );
+        }
 
-        float fIntersect = sphIntersect( vRayOrigin, vRayDirection, vSphere );
-        
-        float3 vHitPosition = vRayOrigin + vRayDirection * fIntersect;
-        float3 vNormal = normalize( vHitPosition - i.vSpherePositionWs );
-        
-        i.vPositionWithOffsetWs = vHitPosition - g_vCameraPositionWs;
-        i.vNormalWs = vNormal;
+        if ( !bLightingPreview )
+        {
+            float3 vNormalWs = normalize( i.vNormalWs );
+            float3 vIrradiance = 0;
+            if ( UsesBakedLightingFromProbe )
+                vIrradiance = SampleLightProbeVolume( i.vProbePositionWs, vNormalWs );
+            else if ( nDDGIVolume >= 0 && nDDGIVolume < (int)DDGIVolumeCount )
+            {
+                // Relocation stays under half a cell, so rounding recovers the probe's grid index.
+                DDGIVolume volume = DDGIVolumes[nDDGIVolume];
+                int3 vProbeIndex = round( ( volume.ToProbeSpace( i.vProbePositionWs ) - volume.BBoxMin ) * volume.ReciprocalSpacing );
+                vIrradiance = DDGI::SampleProbeIrradiance( volume, Bindless::GetTexture3D( volume.IrradianceTextureIndex ), vProbeIndex, -vNormalWs );
+                vIrradiance *= volume.RuntimeIntensity * max( volume.RuntimeTint, 0.0f );
+            }
+            o.vColor = float4( vIrradiance, flCoverage );
+            return o;
+        }
 
-		Material m = Material::Init( i );
-
+        i.vPositionWithOffsetWs = i.vProbePositionWs - g_vHighPrecisionLightingOffsetWs.xyz;
+        Material m = Material::Init( i );
         m.Roughness = flRoughness;
         m.Metalness = flMetalness;
         m.Albedo = vAlbedo;
-
-        float flOpacity = saturate( smoothstep( g_flNearPlane, g_flNearPlane + 10, fIntersect ) );
-        flOpacity = OpaqueFade( flOpacity, i.vPositionSs.xyzw );
-		clip( flOpacity - 0.001 );
-
-		return ShadingModelStandard::Shade( i, m );
-	}
+        o.vColor = ShadingModelStandard::Shade( m );
+        o.vColor.a = flCoverage;
+        return o;
+    }
 }

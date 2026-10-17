@@ -72,6 +72,7 @@
   <Folder Name="/Tests/">
     <Project Path="Benchmark/Benchmark.csproj" />
     <Project Path="Tests/Sandbox.Test.Engine/Sandbox.Test.Engine.csproj" />
+    <Project Path="Tests/Sandbox.Test.NetSim/Sandbox.Test.NetSim.csproj" />
     <Project Path="Tests/Sandbox.Test.Integration/Sandbox.Test.Integration.csproj" />
     <Project Path="Tests/Sandbox.Test.Text/Sandbox.Test.Text.csproj" />
     <Project Path="Tests/Sandbox.Test.Unit/Sandbox.Test.Unit.csproj" />

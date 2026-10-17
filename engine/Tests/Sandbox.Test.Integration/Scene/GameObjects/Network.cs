@@ -64,8 +64,7 @@ public class NetworkTest
 		// Create a snapshot
 		IDeltaSnapshot networkObject = go._net;
 		var state = networkObject.WriteSnapshotState();
-		var snapshot = new DeltaSnapshot();
-		snapshot.CopyFrom( networkObject, state, 2 );
+		var snapshot = SceneNetworkSystem.Instance.DeltaSnapshots.GetFullSnapshotData( state );
 
 		// Become the host
 		clientAndHost.BecomeHost();
@@ -79,7 +78,7 @@ public class NetworkTest
 		go.Transform.Local = transform;
 
 		// Now we'll process the snapshot from the client
-		using ( var reader = ByteStream.CreateReader( SerializeSnapshot( snapshot ) ) )
+		using ( var reader = ByteStream.CreateReader( snapshot ) )
 		{
 			SceneNetworkSystem.Instance.DeltaSnapshots.OnDeltaSnapshot( clientAndHost.Client, reader );
 		}
@@ -530,8 +529,7 @@ public class NetworkTest
 
 		// client2 now owns it, let's have it record a snapshot in this state
 		var state = networkObject.WriteSnapshotState();
-		var snapshot = new DeltaSnapshot();
-		snapshot.CopyFrom( networkObject, state, 2 );
+		var snapshot = SceneNetworkSystem.Instance.DeltaSnapshots.GetFullSnapshotData( state );
 
 		// Become client1 again
 		Connection.Local = client1;
@@ -547,32 +545,13 @@ public class NetworkTest
 		go.Network.AssignOwnership( client2 );
 
 		// Now we'll process that old snapshot from client2
-		using ( var reader = ByteStream.CreateReader( SerializeSnapshot( snapshot ) ) )
+		using ( var reader = ByteStream.CreateReader( snapshot ) )
 		{
 			sceneSystem.DeltaSnapshots.OnDeltaSnapshot( client2, reader );
 		}
 
 		// These should be equal, because the old snapshot did NOT apply
 		Assert.AreEqual( new Vector3( 0f, 0f, 100f ), go.WorldPosition );
-	}
-
-	byte[] SerializeSnapshot( DeltaSnapshot snapshot )
-	{
-		using var writer = new ByteStream( DeltaSnapshotCluster.MaxSize * 4 );
-
-		writer.Write( snapshot.ObjectId );
-		writer.Write( snapshot.Version );
-		writer.Write( snapshot.SnapshotId );
-		writer.Write( Time.NowDouble );
-		writer.Write( (ushort)snapshot.Entries.Count );
-
-		foreach ( var entry in snapshot.Entries )
-		{
-			writer.Write( entry.Slot );
-			writer.WriteArray( entry.Value );
-		}
-
-		return writer.ToArray();
 	}
 
 	[TestMethod]

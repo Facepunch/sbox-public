@@ -60,6 +60,7 @@ internal partial class ShadowMapper
 		public Vector3 CameraPosition;
 		public float RadiusSquared;
 		public float ViewportArea;
+		public SceneObjectFlags ExcludedFlags;
 		public GPUDirectionalLight Data;
 	}
 
@@ -334,6 +335,7 @@ internal partial class ShadowMapper
 		var cameraPosition = View.CameraPosition;
 
 		if ( LastCascades.Frame == Application.FrameCount && LastCascades.Light == light.Key && viewportArea <= LastCascades.ViewportArea
+			&& LastCascades.ExcludedFlags == excludeFlags
 			&& cameraPosition.DistanceSquared( LastCascades.CameraPosition ) <= LastCascades.RadiusSquared )
 		{
 			gpuShadowData = LastCascades.Data;
@@ -441,6 +443,7 @@ internal partial class ShadowMapper
 			CameraPosition = cameraPosition,
 			RadiusSquared = outerRadius * outerRadius,
 			ViewportArea = viewportArea,
+			ExcludedFlags = excludeFlags,
 			Data = gpuShadowData,
 		};
 

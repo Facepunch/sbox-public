@@ -60,7 +60,7 @@ internal class NetworkTable<T> : INetworkDeltaSnapshot, INetworkProperty, INetwo
 		if ( !CanWriteChanges() )
 			return;
 
-		Serialized[slot] = Game.TypeLibrary.ToBytes( value );
+		Serialized.Remove( slot );
 		Table[slot] = value;
 
 		OnValueChanged( slot, value );
@@ -78,6 +78,19 @@ internal class NetworkTable<T> : INetworkDeltaSnapshot, INetworkProperty, INetwo
 	public T Get( int slot )
 	{
 		return Table.GetValueOrDefault( slot );
+	}
+
+	/// <summary>
+	/// Get the serialized value of an entry, serializing it only when it changed since last time.
+	/// </summary>
+	private byte[] GetSerialized( int key )
+	{
+		if ( Serialized.TryGetValue( key, out var bytes ) )
+			return bytes;
+
+		bytes = Game.TypeLibrary.ToBytes( Table[key] );
+		Serialized[key] = bytes;
+		return bytes;
 	}
 
 	void WriteSerializedKeys()
@@ -142,17 +155,17 @@ internal class NetworkTable<T> : INetworkDeltaSnapshot, INetworkProperty, INetwo
 
 	protected virtual void WriteSnapshot( int slot, LocalSnapshotState snapshot )
 	{
-		foreach ( var entry in Serialized )
+		foreach ( var key in Table.Keys )
 		{
-			var subSlot = _subSlotHashes.GetValueOrDefault( entry.Key );
+			var subSlot = _subSlotHashes.GetValueOrDefault( key );
 
 			if ( subSlot == 0 )
 			{
-				subSlot = $"{_parentSlot}.{entry.Key}".FastHash();
-				_subSlotHashes[entry.Key] = subSlot;
+				subSlot = $"{_parentSlot}.{key}".FastHash();
+				_subSlotHashes[key] = subSlot;
 			}
 
-			snapshot.AddSerialized( subSlot, entry.Value );
+			snapshot.AddSerialized( subSlot, GetSerialized( key ) );
 		}
 	}
 
@@ -161,6 +174,7 @@ internal class NetworkTable<T> : INetworkDeltaSnapshot, INetworkProperty, INetwo
 		if ( SerializedKeys is not null )
 		{
 			snapshot.AddSerialized( _keysHash, SerializedKeys );
+			snapshot.Lookup[_keysHash].SendWithChanges = true;
 		}
 
 		WriteSnapshot( slot, snapshot );
@@ -181,7 +195,8 @@ internal class NetworkTable<T> : INetworkDeltaSnapshot, INetworkProperty, INetwo
 			if ( !snapshot.TryGetValue<T>( subSlot, out var value ) )
 				continue;
 
-			Serialized[key] = snapshot.Lookup[subSlot].Value;
+			// Received values only live as long as their message
+			Serialized[key] = snapshot.Lookup[subSlot].Value.ToArray();
 			Table[key] = value;
 		}
 	}
@@ -190,7 +205,7 @@ internal class NetworkTable<T> : INetworkDeltaSnapshot, INetworkProperty, INetwo
 	{
 		if ( snapshot.Lookup.TryGetValue( _keysHash, out var keys ) )
 		{
-			ReadSerializedKeys( keys.Value );
+			ReadSerializedKeys( keys.Value.ToArray() );
 		}
 
 		ReadSnapshot( slot, snapshot );
@@ -226,13 +241,14 @@ internal class NetworkTable<T> : INetworkDeltaSnapshot, INetworkProperty, INetwo
 
 	void INetworkSerializer.WriteAll( ref ByteStream data )
 	{
-		data.Write( Serialized.Count );
+		data.Write( Table.Count );
 
-		foreach ( var entry in Serialized )
+		foreach ( var key in Table.Keys )
 		{
-			data.Write( entry.Key );
-			data.Write( entry.Value.Length );
-			data.Write( entry.Value );
+			var bytes = GetSerialized( key );
+			data.Write( key );
+			data.Write( bytes.Length );
+			data.Write( bytes );
 		}
 	}
 

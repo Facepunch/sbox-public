@@ -54,6 +54,8 @@ internal sealed partial class NetworkObject
 		}
 	}
 
+	private Func<Connection, bool> _hasControlCondition;
+
 	internal void RegisterProperties( object instance, Guid guid )
 	{
 		var type = instance.GetType();
@@ -66,17 +68,17 @@ internal sealed partial class NetworkObject
 
 			try
 			{
-				var originType = propertyAndAttribute.Property.DeclaringType ?? type;
-				var identity = GetPropertySlot( $"{originType.FullName}.{propertyAndAttribute.Property.Name}".FastHash(), guid );
+				var identity = GetPropertySlot( propertyAndAttribute.NameHash, guid );
 
 				var entry = new NetworkTable.Entry
 				{
 					TargetType = propertyAndAttribute.Property.PropertyType,
-					ControlCondition = c => isHostSync ? c.IsHost : HasControl( c ),
+					ControlCondition = isHostSync ? static c => c.IsHost : _hasControlCondition ??= HasControl,
 					GetValue = () => propertyAndAttribute.Property.GetValue( instance ),
 					SetValue = ( v ) => propertyAndAttribute.Property?.SetValue( instance, v ),
+					Typed = NetworkTable.TypedAccess.Create( instance, propertyAndAttribute.Property ),
 					NeedsQuery = isQuery,
-					DebugName = $"{originType.Name}.{propertyAndAttribute.Property.Name}"
+					DebugName = propertyAndAttribute.DebugName
 				};
 
 				dataTable.Register( identity, entry );

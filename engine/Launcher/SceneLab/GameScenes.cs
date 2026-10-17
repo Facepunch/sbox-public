@@ -696,6 +696,88 @@ internal static class GameScenes
 	}
 
 	/// <summary>
+	/// Stationary splash particles over contrasting bars: scene-color capture, alpha masking,
+	/// rotated normal maps and soft intersections, without external art or random emission.
+	/// </summary>
+	public static Scene ParticleRefraction()
+	{
+		var scene = Stage( out var camera, new Vector3( -280, 0, 100 ), new Vector3( 0, 0, 75 ) );
+		using var _ = scene.Push();
+
+		const int size = 64;
+		var mask = new byte[size * size * 4];
+		var normals = new byte[mask.Length];
+		for ( int y = 0; y < size; y++ )
+		{
+			for ( int x = 0; x < size; x++ )
+			{
+				var u = (x + 0.5f) / size * 2 - 1;
+				var v = (y + 0.5f) / size * 2 - 1;
+				var radius = MathF.Sqrt( u * u + v * v );
+				var edge = 0.72f + 0.12f * MathF.Sin( MathF.Atan2( v, u ) * 7 );
+				var alpha = ((edge - radius) * 16).Clamp( 0, 1 );
+				var index = (y * size + x) * 4;
+				mask[index] = mask[index + 1] = mask[index + 2] = 255;
+				mask[index + 3] = (byte)(alpha * 32);
+
+				// Unequal axes make rotation errors visible. The normal uses a linear texture view.
+				// Shape the distortion with the normal map, independently of artwork opacity.
+				var normal = new Vector3( u * 0.8f * alpha, -v * 0.35f * alpha, 1 ).Normal;
+				normals[index] = (byte)((normal.x * 0.5f + 0.5f) * 255);
+				normals[index + 1] = (byte)((normal.y * 0.5f + 0.5f) * 255);
+				normals[index + 2] = (byte)((normal.z * 0.5f + 0.5f) * 255);
+				normals[index + 3] = 255;
+			}
+		}
+
+		var sprite = Sprite.FromTexture( Texture.Create( size, size ).WithData( mask ).WithName( "scenelab_splash_mask" ).Finish() );
+		var normalTexture = Texture.Create( size, size ).WithData( normals ).WithName( "scenelab_splash_normal" ).Finish();
+
+		for ( int i = 0; i < 13; i++ )
+		{
+			var bar = Prop( $"Background bar {i}", "models/dev/box.vmdl", new Vector3( 70, (i - 6) * 24, 75 ),
+				i % 2 == 0 ? Color.White : new Color( 0.05f, 0.15f, 0.3f ) );
+			bar.WorldScale = new Vector3( 0.2f, 0.3f, 2.5f );
+		}
+
+		for ( int i = 0; i < 3; i++ )
+		{
+			var fx = new GameObject( true, $"Refractive splash {i}" );
+			var effect = fx.Components.Create<ParticleEffect>();
+			effect.Lifetime = 3600;
+			effect.StartVelocity = 0;
+			var renderer = fx.Components.Create<ParticleSpriteRenderer>();
+			renderer.Sprite = sprite;
+			renderer.Refraction = true;
+			renderer.NormalTexture = normalTexture;
+			renderer.RefractionStrength = 24;
+			renderer.DepthFeather = 12;
+			renderer.SortMode = ParticleSpriteRenderer.ParticleSortMode.ByDistance;
+
+			var particle = effect.Emit( new Vector3( 0, (i - 1) * 90, 75 ), 0 );
+			particle.Size = 100;
+			particle.Angles = new Angles( 0, 0, i * 45 );
+			particle.Alpha = i == 1 ? 0.5f : 1.0f;
+		}
+
+		Prop( "Splash intersection", "models/dev/box.vmdl", new Vector3( 6, 90, 40 ), new Color( 0.8f, 0.3f, 0.1f ), scale: 0.6f );
+		return scene;
+	}
+
+	/// <summary>
+	/// Exercise batch migration back to ordinary rendering and a normal-map change between captures.
+	/// </summary>
+	public static void ChangeParticleRefraction( Scene scene )
+	{
+		var first = scene.Directory.FindByName( "Refractive splash 0" ).First().Components.Get<ParticleSpriteRenderer>();
+		first.Refraction = false;
+		var second = scene.Directory.FindByName( "Refractive splash 1" ).First().Components.Get<ParticleSpriteRenderer>();
+		second.RefractionStrength = 0;
+		var third = scene.Directory.FindByName( "Refractive splash 2" ).First().Components.Get<ParticleSpriteRenderer>();
+		third.NormalTexture = Texture.Create( 1, 1 ).WithData( new byte[] { 255, 128, 128, 255 } ).WithName( "scenelab_splash_changed_normal" ).Finish();
+	}
+
+	/// <summary>
 	/// The game overlay layers, as a viewmodel uses them (<c>RenderOptions.Overlay</c>): a sphere partly behind a wall near
 	/// the camera, drawn over it anyway, and a translucent box over everything too. A sphere out of the game layers
 	/// (<c>RenderOptions.Game</c> off) isn't drawn, but its shadow is.

@@ -61,18 +61,20 @@ public abstract partial class Connection
 				Close( 0, "Snapshot encoding failed" );
 				return;
 			}
-			foreach ( var packet in pending.Packets.Result )
+			foreach ( var data in pending.Packets.Result )
 			{
+				var packet = NetPacket.Wrap( data );
 				InternalSend( packet, pending.Flags );
+				packet.Release();
 			}
 		}
 	}
 
-	internal static byte[][] CreatePackets( byte[] encoded, NetFlags flags )
+	internal static byte[][] CreatePackets( ReadOnlySpan<byte> encoded, NetFlags flags )
 	{
 		if ( (flags & NetFlags.Reliable) == 0 || encoded.Length <= MaxChunkSize )
 		{
-			return [encoded];
+			return [encoded.ToArray()];
 		}
 
 		var count = (encoded.Length + MaxChunkSize - 1) / MaxChunkSize;
@@ -80,7 +82,7 @@ public abstract partial class Connection
 		for ( int i = 0; i < count; i++ )
 		{
 			var offset = i * MaxChunkSize;
-			packets[i] = BuildChunkPacket( encoded, offset, Math.Min( MaxChunkSize, encoded.Length - offset ), i, count );
+			packets[i] = BuildChunkPacket( encoded.Slice( offset, Math.Min( MaxChunkSize, encoded.Length - offset ) ), i, count );
 		}
 		return packets;
 	}

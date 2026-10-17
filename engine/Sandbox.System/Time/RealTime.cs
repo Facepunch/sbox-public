@@ -29,12 +29,17 @@ public static class RealTime
 	/// <summary>
 	/// The time since the game startup as a double, in seconds.
 	/// </summary>
-	public static double NowDouble => timeMeasure.ElapsedSeconds;
+	public static double NowDouble => SimulatedNow ?? timeMeasure.ElapsedSeconds;
+
+	/// <summary>
+	/// Network simulations step time themselves, so timers and rate limits run on their clock.
+	/// </summary>
+	internal static double? SimulatedNow { get; set; }
 
 	/// <summary>
 	/// The number of a seconds since a set point in time. This value should match between servers and clients. If they have their timezone set correctly.
 	/// </summary>
-	public static double GlobalNow => (nowOffset + timeMeasure.ElapsedSeconds);
+	public static double GlobalNow => (nowOffset + NowDouble);
 
 	/// <summary>
 	/// The time delta (in seconds) between the last frame and the current (for all intents and purposes)

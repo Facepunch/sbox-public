@@ -394,6 +394,17 @@ internal sealed class StandardPipeline
 	{
 		var view = setup.m_pView;
 		var screen = setup.m_screenViewport.Rect;
+		var noCulling = view.GetRenderAttributesPtr().GetBoolValue( "NoPrepassCulling", false );
+
+		// Cameras without post effects or custom command lists don't consume the G-buffer. Other views retain it.
+		if ( !view.GetRenderAttributesPtr().GetBoolValue( "NeedsDepthNormals", true ) && !setup.m_bToolsView )
+		{
+			AddDepthNormalPrepass( view, viewport, "Depth Prepass (Overlay)", NativeRenderPipeline.NoTarget, depth, overlay: true, cullPercent: 0, noCulling );
+			AddDepthNormalPrepass( view, viewport, "Depth Prepass (Large)", NativeRenderPipeline.NoTarget, depth, overlay: false, LargePrepassCullPercent, noCulling );
+			AddDepthNormalPrepass( view, viewport, "Depth Prepass (Small)", NativeRenderPipeline.NoTarget, depth, overlay: false, -LargePrepassCullPercent, noCulling );
+			view.GetRenderAttributesPtr().SetIntValue( "NormalsTextureIndex", -1 );
+			return;
+		}
 
 		var normals = RenderTarget.GetTemporary(
 			(int)screen.Width,
@@ -402,8 +413,6 @@ internal sealed class StandardPipeline
 			depthFormat: ImageFormat.None,
 			msaa: setup.m_nMSAA.FromEngine() );
 		var normalsHandle = normals.ToColorHandle( view );
-
-		var noCulling = view.GetRenderAttributesPtr().GetBoolValue( "NoPrepassCulling", false );
 
 		AddDepthNormalPrepass( view, viewport, "Depth Normal Prepass (Overlay)", normalsHandle, depth, overlay: true, cullPercent: 0, noCulling );
 		AddDepthNormalPrepass( view, viewport, "Depth Normal Prepass (Large)", normalsHandle, depth, overlay: false, LargePrepassCullPercent, noCulling );
@@ -418,7 +427,9 @@ internal sealed class StandardPipeline
 		bool overlay, float cullPercent, bool noCulling )
 	{
 		var flags = LayerFlags.NeverRemove;
-		if ( overlay ) flags |= LayerFlags.DiscardColorBuffers;
+		var depthOnly = normals == NativeRenderPipeline.NoTarget;
+		if ( depthOnly ) flags |= LayerFlags.IsDepthRenderingPass;
+		else if ( overlay ) flags |= LayerFlags.DiscardColorBuffers;
 
 		// With fewer, larger objects we favor GPU perf over CPU perf by using fullsort
 		if ( cullPercent > 0 ) flags |= LayerFlags.NeedsFullSort;
@@ -430,8 +441,11 @@ internal sealed class StandardPipeline
 
 		if ( overlay )
 		{
-			layer.m_nClearFlags = (int)ClearFlags.Color;
-			layer.SetClearColor( default, 0 );
+			if ( !depthOnly )
+			{
+				layer.m_nClearFlags = (int)ClearFlags.Color;
+				layer.SetClearColor( default, 0 );
+			}
 			layer.AddObjectFlagsRequiredMask( SceneObjectFlags.GameOverlayLayer );
 		}
 		else

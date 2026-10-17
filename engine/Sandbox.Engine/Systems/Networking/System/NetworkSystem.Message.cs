@@ -30,7 +30,7 @@ internal partial class NetworkSystem
 	const int MaxNestedDispatch = 128;
 
 	// Always nest through here - taking the parent depth is what keeps the recursion bounded.
-	internal void DispatchNested( byte[] data, Connection source, int parentDepth )
+	internal void DispatchNested( ReadOnlySpan<byte> data, Connection source, int parentDepth )
 	{
 		var msg = new NetworkMessage
 		{
@@ -124,22 +124,70 @@ internal partial class NetworkSystem
 		// This network system only exists in the game.
 		using var gameScope = GameSystem?.Push();
 
-		if ( _connections.Any( c => c.HasPendingSends ) )
+		// A failed encoder can close a connection while we drain the queue, so they're flushed from a copy
+		_flushing.Clear();
+
+		foreach ( var connection in _connections )
 		{
-			// A failed encoder can close a connection while we drain the queue.
-			foreach ( var connection in _connections.ToArray() )
-			{
-				connection.FlushPendingSends();
-			}
+			if ( connection.HasPendingSends )
+				_flushing.Add( connection );
 		}
+
+		foreach ( var connection in _flushing )
+			connection.FlushPendingSends();
+
+		_flushing.Clear();
 		Connection?.FlushPendingSends();
 
-		foreach ( var socket in sockets )
+		// A handler can pump messages again (leaving as host does), the outer loop owns the held scope
+		_incomingDepth++;
+
+		try
 		{
-			socket?.GetIncomingMessages( HandleIncomingMessage );
+			foreach ( var socket in sockets )
+			{
+				socket?.GetIncomingMessages( _handleIncomingMessage ??= HandleIncomingMessage );
+			}
+
+			Connection?.GetIncomingMessages( _handleIncomingMessage ??= HandleIncomingMessage );
+		}
+		finally
+		{
+			if ( --_incomingDepth == 0 )
+			{
+				_untrustedScope.Dispose();
+				_untrustedScope = default;
+			}
+		}
+	}
+
+	MessageHandler _handleIncomingMessage;
+	readonly List<Connection> _flushing = new();
+	int _incomingDepth;
+	Json.ScriptDeserializationScope _untrustedScope;
+
+	/// <summary>
+	/// Don't deserialize scripts from senders we don't trust. Pushing that allocates, so while handling the incoming
+	/// messages it stays up across untrusted ones in a row, until a trusted sender's message (not one nested in
+	/// another or handled in a nested loop, those stay restricted) or the end.
+	/// </summary>
+	Json.ScriptDeserializationScope DisableUntrustedScripts( Connection source, int depth )
+	{
+		if ( _incomingDepth == 0 )
+			return source.CanSendScripts ? default : Json.DisableScriptDeserialization();
+
+		if ( !source.CanSendScripts )
+		{
+			if ( !_untrustedScope.IsActive )
+				_untrustedScope = Json.DisableScriptDeserialization();
+		}
+		else if ( depth == 0 && _incomingDepth == 1 )
+		{
+			_untrustedScope.Dispose();
+			_untrustedScope = default;
 		}
 
-		Connection?.GetIncomingMessages( HandleIncomingMessage );
+		return default;
 	}
 
 	// Outer catch so one bad message can't tear down the dispatch path.
@@ -167,15 +215,25 @@ internal partial class NetworkSystem
 
 		// Don't try to deserialize any scripts if we don't trust the sender!
 
-		using var scriptDisabledScope = !msg.Source.CanSendScripts
-			? Json.DisableScriptDeserialization()
-			: null;
+		using var scriptDisabledScope = DisableUntrustedScripts( msg.Source, msg.Depth );
 
 		var type = msg.Data.Read<InternalMessageType>();
 
-		// Leaving host: only acknowledgements matter now
-		if ( _isHandingOff && type != InternalMessageType.Packed )
+		// Leaving host: only acknowledgements matter now, relayed ones included
+		if ( _isHandingOff && type is not (InternalMessageType.Packed or InternalMessageType.Multicast) )
 			return;
+
+		if ( type == InternalMessageType.Rpc )
+		{
+			GameSystem?.OnRpcMessage( msg.Data, msg.Source );
+			return;
+		}
+
+		if ( type == InternalMessageType.Multicast )
+		{
+			OnMulticastMessage( msg.Data, msg.Source, msg.Depth );
+			return;
+		}
 
 		if ( type == InternalMessageType.HeartbeatPing )
 		{

@@ -479,6 +479,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		{
 			custom.Tint = sceneObject.ColorTint;
 			custom.IsOpaque = sceneObject.Flags.IsOpaque && !sceneObject.Flags.IsTranslucent;
+			custom.WantsFrameBufferCopy = sceneObject.Flags.WantsFrameBufferCopy;
 			custom.DepthPrepass = !sceneObject.Flags.HasFlag( SceneObjectFlags.NoZPrepass );
 			custom.CastShadows = sceneObject.Flags.CastShadows;
 			custom.Visible = sceneObject.RenderingEnabled;
@@ -654,8 +655,9 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 				lighting.SunBakeIndex = packs ? bakeIndex : -1;
 				lighting.SunBaked = packs && bakeIndex >= 0 ? packed : null;
 
-				// Baked suns exclude static casters (ShadowMapper.FromNative).
-				lighting.SunShadowsBaked = packs && (flags & LightTypeFlagsBaked) != 0;
+				var baked = packs && (flags & LightTypeFlagsBaked) != 0;
+				lighting.SunShadowsBaked = baked && !sun.IncludeStaticShadowCasters;
+				lighting.SunShadows &= !baked || (flags & LightTypeFlagsMixedShadows) != 0;
 				lighting.SunContactShadows = sun.ContactShadows;
 				lighting.SunFogStrength = sun.FogStrength;
 			}

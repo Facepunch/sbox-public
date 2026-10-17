@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.CommandLine;
 using Facepunch.Steps;
 using static Facepunch.Constants;
@@ -40,7 +41,9 @@ internal class Program
 		AddInstallGitHooksCommand( rootCommand );
 		AddDownloadThirdPartyCommand( rootCommand );
 		AddUploadBuildArtifactsCommand( rootCommand );
-		AddCheckNativeTouchedCommand( rootCommand );
+		AddPullRequestNativeCommand( rootCommand );
+		AddPublishBuildCommand( rootCommand );
+		AddSummaryCommand( rootCommand );
 		AddShaderSpecializationExperimentCommand( rootCommand );
 		var complexSpecialization = new Command( "test-complex-specialization", "Compare full complex.shader macro/specialized compiles and rendered bent-normal output (requires built engine/tests)" );
 		complexSpecialization.SetHandler( () => Environment.ExitCode = (int)new TestComplexSpecialization().Run() );
@@ -48,8 +51,13 @@ internal class Program
 		AddNotifySlackCommand( rootCommand );
 		AddReportBuildCommand( rootCommand );
 
+		var timer = Stopwatch.StartNew();
 		var result = rootCommand.Invoke( args );
-		return result != 0 ? result : Environment.ExitCode;
+		var exitCode = result != 0 ? result : Environment.ExitCode;
+
+		GitHubActions.EndGroup();
+		GitHubActions.RecordStep( args.FirstOrDefault(), timer.Elapsed, exitCode == 0 );
+		return exitCode;
 	}
 
 	// ── Compound commands ─────────────────────────────────────────────────────
@@ -63,16 +71,32 @@ internal class Program
 		var cleanOption = new Option<bool>( "--clean", getDefaultValue: () => false );
 		var skipNativeOption = new Option<bool>( "--skip-native", getDefaultValue: () => false );
 		var skipManagedOption = new Option<bool>( "--skip-managed", getDefaultValue: () => false );
+		var nvpatchOption = new Option<bool>( "--nvpatch",
+			description: "Apply NvPatch to the game executables once they're built",
+			getDefaultValue: () => false );
+		var writeVersionOption = new Option<bool>( "--write-version",
+			description: "Stamp game/.version with this build's version first, as write-version does",
+			getDefaultValue: () => false );
 
 		cmd.AddOption( configOption );
 		cmd.AddOption( cleanOption );
 		cmd.AddOption( skipNativeOption );
 		cmd.AddOption( skipManagedOption );
+		cmd.AddOption( nvpatchOption );
+		cmd.AddOption( writeVersionOption );
 
-		cmd.SetHandler( ( BuildConfiguration config, bool clean, bool skipNative, bool skipManaged ) =>
+		cmd.SetHandler( ( BuildConfiguration config, bool clean, bool skipNative, bool skipManaged, bool nvpatch, bool writeVersion ) =>
 		{
-			Environment.ExitCode = (int)Build.Run( config, clean, skipNative, skipManaged );
-		}, configOption, cleanOption, skipNativeOption, skipManagedOption );
+			GitHubActions.Title = skipNative == skipManaged ? "Build" : skipNative ? "Managed" : "Native";
+
+			var result = writeVersion ? new WriteVersion().Run() : ExitCode.Success;
+			if ( result == ExitCode.Success )
+				result = Build.Run( config, clean, skipNative, skipManaged );
+			if ( result == ExitCode.Success && nvpatch )
+				result = new NvPatch().Run();
+
+			Environment.ExitCode = (int)result;
+		}, configOption, cleanOption, skipNativeOption, skipManagedOption, nvpatchOption, writeVersionOption );
 
 		rootCommand.Add( cmd );
 	}
@@ -143,11 +167,15 @@ internal class Program
 		var forcedOption = new Option<bool>( "--forced",
 			description: "Force rebuild all shaders",
 			getDefaultValue: () => false );
+		var seedOption = new Option<bool>( "--seed",
+			description: "Start from the newest published compiled shaders, so only changed shaders compile",
+			getDefaultValue: () => false );
 		cmd.AddOption( forcedOption );
-		cmd.SetHandler( ( bool forced ) =>
+		cmd.AddOption( seedOption );
+		cmd.SetHandler( ( bool forced, bool seed ) =>
 		{
-			Environment.ExitCode = (int)new BuildShaders( forced ).Run();
-		}, forcedOption );
+			Environment.ExitCode = (int)new BuildShaders( forced, seed ).Run();
+		}, forcedOption, seedOption );
 		rootCommand.Add( cmd );
 	}
 
@@ -341,13 +369,60 @@ internal class Program
 		rootCommand.Add( cmd );
 	}
 
-	private static void AddCheckNativeTouchedCommand( RootCommand rootCommand )
+	private static void AddPullRequestNativeCommand( RootCommand rootCommand )
 	{
-		var cmd = new Command( "check-native-touched", "Check if the PR touches native code; writes native_touched output" );
+		var cmd = new Command( "pr-native", "Native binaries for a pull request: reuse the public ones when the PR doesn't touch native code, otherwise build them" );
+		var configOption = new Option<BuildConfiguration>( "--config",
+			getDefaultValue: () => BuildConfiguration.Developer );
+		var cleanOption = new Option<bool>( "--clean", getDefaultValue: () => false );
+		cmd.AddOption( configOption );
+		cmd.AddOption( cleanOption );
+		cmd.SetHandler( ( BuildConfiguration config, bool clean ) =>
+		{
+			Environment.ExitCode = (int)PullRequestNative.Run( config, clean );
+		}, configOption, cleanOption );
+		rootCommand.Add( cmd );
+	}
+
+	private static void AddPublishBuildCommand( RootCommand rootCommand )
+	{
+		var cmd = new Command( "publish-build", "Upload the runnable build zip to R2, then report the build to the backend" );
 		cmd.SetHandler( () =>
 		{
-			Environment.ExitCode = (int)CheckNativeTouched.Run();
+			if ( new UploadBuildArtifacts().Run() != ExitCode.Success )
+			{
+				Environment.ExitCode = (int)ExitCode.Failure;
+				return;
+			}
+
+			// The build is already published; a backend hiccup shouldn't fail the job.
+			if ( new ReportBuild().Run() != ExitCode.Success )
+			{
+				Log.Warning( "Couldn't report the build to the backend." );
+				GitHubActions.Note( "not reported to the backend" );
+			}
 		} );
+		rootCommand.Add( cmd );
+	}
+
+	private static void AddSummaryCommand( RootCommand rootCommand )
+	{
+		var cmd = new Command( "summary", "Write the GitHub Actions job summary from the steps run so far" );
+		var jobStatusOption = new Option<string>( "--job-status",
+			description: "The job's status so far (job.status), to notify Slack about failures",
+			getDefaultValue: () => null );
+		var slackOption = new Option<bool>( "--notify-slack",
+			description: "Send a Slack notification when the job status is failure",
+			getDefaultValue: () => false );
+		cmd.AddOption( jobStatusOption );
+		cmd.AddOption( slackOption );
+		cmd.SetHandler( ( string jobStatus, bool notifySlack ) =>
+		{
+			GitHubActions.WriteSummary();
+
+			if ( notifySlack && jobStatus == "failure" )
+				Environment.ExitCode = (int)NotifySlack.Run();
+		}, jobStatusOption, slackOption );
 		rootCommand.Add( cmd );
 	}
 

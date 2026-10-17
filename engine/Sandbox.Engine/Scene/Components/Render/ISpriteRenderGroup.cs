@@ -2,7 +2,7 @@ namespace Sandbox;
 
 /// <summary>
 /// Base interface for components that can be grouped for sprite rendering.
-/// Contains the 4 fields needed for render group classification.
+/// Contains the properties needed for render group classification.
 /// </summary>
 public interface ISpriteRenderGroup
 {

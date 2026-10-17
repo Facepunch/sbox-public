@@ -1,5 +1,6 @@
 using Sandbox.SceneRenderer;
 using Sandbox.SceneRenderer.Features;
+using LightProbeVolume = Sandbox.SceneRenderer.LightProbeVolume;
 using static SceneRendererTests.TestScenes;
 
 namespace SceneRendererTests;

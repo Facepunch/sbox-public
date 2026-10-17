@@ -268,23 +268,22 @@ public class LayoutRegressionTests
 		Assert.AreEqual( 150f, container.Layout.MeasuredDimension( Dimension.Height ), "The previous 200px result still fits, but the percentage basis changed." );
 	}
 
-	[TestMethod]
+	[TestMethod, TestCategory( Allocations.Category )]
 	[DataRow( "auto" )]
 	[DataRow( " \tAUTO\r\n" )]
 	public void AutoPlacementDoesNotAllocate( string text )
 	{
-		GridParser.TryParsePlacement( text, out _ );
-		var before = GC.GetAllocatedBytesForCurrentThread();
-		for ( int i = 0; i < 100; i++ )
-			GridParser.TryParsePlacement( text, out _ );
-		var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-		Assert.AreEqual( 0L, allocated );
+		Allocations.AssertSettles( "100 placement parses", () =>
+		{
+			for ( int i = 0; i < 100; i++ )
+				GridParser.TryParsePlacement( text, out _ );
+		} );
 		Assert.IsTrue( GridParser.TryParsePlacement( text, out var result ) );
 		Assert.AreEqual( GridPlacement.Auto, result );
 		Assert.IsFalse( GridParser.TryParsePlacement( "auto extra", out _ ) );
 	}
 
-	[TestMethod]
+	[TestMethod, TestCategory( Allocations.Category )]
 	[DataRow( Display.Flex, 40, 1 )]
 	[DataRow( Display.Flex, 1, 600 )]
 	[DataRow( Display.Block, 40, 1 )]
@@ -315,15 +314,8 @@ public class LayoutRegressionTests
 			current = current.GetChild( 0 );
 		}
 
-		long allocated = 0;
-		for ( int pass = 0; pass < 12; pass++ )
-		{
-			foreach ( var node in nodes ) node.MarkDirty();
-			var before = GC.GetAllocatedBytesForCurrentThread();
-			root.CalculateLayout();
-			if ( pass >= 8 ) allocated += GC.GetAllocatedBytesForCurrentThread() - before;
-		}
-		Assert.AreEqual( 0L, allocated, $"{display}, depth {depth}, breadth {breadth}: bytes across four warm dirty layouts" );
+		Allocations.AssertSettles( $"{display}, depth {depth}, breadth {breadth}: a dirty layout", () => root.CalculateLayout(),
+			beforePass: () => { foreach ( var node in nodes ) node.MarkDirty(); } );
 	}
 
 	[TestMethod]

@@ -19,10 +19,19 @@ internal partial class Test( bool noBuild = true, string filter = null )
 	/// <param name="NeedsEngine">Whether FACEPUNCH_ENGINE is set for it.</param>
 	/// <param name="Shard">Label for one part of a project split across processes, or null.</param>
 	/// <param name="ShardFilter">Which of the project's tests this part runs.</param>
-	private record TestProject( string Name, bool NeedsEngine, string Shard = null, string ShardFilter = null )
+	/// <param name="Isolated">Runs one test at a time, with tiered compilation off.</param>
+	private record TestProject( string Name, bool NeedsEngine, string Shard = null, string ShardFilter = null, bool Isolated = false )
 	{
 		public string DisplayName => Shard is null ? Name : $"{Name} ({Shard})";
 	}
+
+	/// <summary>
+	/// Allocation tests (see engine/Tests/Shared/Allocations.cs) run in a process of their own, one at a
+	/// time, so other tests' threads aren't allocating and collecting around them. Tiered compilation is
+	/// off there, so everything is compiled once, fully optimised, rather than recompiled mid-measurement.
+	/// </summary>
+	private const string AllocationTests = "TestCategory=Allocations";
+	private const string NotAllocationTests = "TestCategory!=Allocations";
 
 	/// <summary>
 	/// The Integration tests that compile whole addons (~20s together) or export a standalone game
@@ -34,18 +43,22 @@ internal partial class Test( bool noBuild = true, string filter = null )
 
 	/// <summary>
 	/// The test projects. They run at the same time, so the whole run takes as long as the slowest one
-	/// (Sandbox.Test.Integration, which is split in two). Sandbox.Test.Unit and Sandbox.Test.Text run with FACEPUNCH_ENGINE
+	/// (Sandbox.Test.Integration, which is split in two, plus its allocation tests). Sandbox.Test.Unit and Sandbox.Test.Text run with FACEPUNCH_ENGINE
 	/// removed from their environment: those tiers must work without a built native engine, so a test
 	/// that sneaks in a native dependency fails here rather than on someone's bare checkout.
 	/// New test projects under engine/Tests/ need to be added to this list.
 	/// </summary>
 	private static readonly TestProject[] Projects =
 	[
-		new( "Sandbox.Test.Integration", NeedsEngine: true, Shard: "most", ShardFilter: IntegrationOtherTests ),
+		new( "Sandbox.Test.Integration", NeedsEngine: true, Shard: "most", ShardFilter: $"{IntegrationOtherTests}&{NotAllocationTests}" ),
 		new( "Sandbox.Test.Integration", NeedsEngine: true, Shard: "compiles and exports", ShardFilter: IntegrationCompileTests ),
-		new( "Sandbox.Test.Unit", NeedsEngine: false ),
-		new( "Sandbox.Test.Engine", NeedsEngine: true ),
+		new( "Sandbox.Test.Integration", NeedsEngine: true, Shard: "allocations", ShardFilter: AllocationTests, Isolated: true ),
+		new( "Sandbox.Test.Unit", NeedsEngine: false, ShardFilter: NotAllocationTests ),
+		new( "Sandbox.Test.Unit", NeedsEngine: false, Shard: "allocations", ShardFilter: AllocationTests, Isolated: true ),
+		new( "Sandbox.Test.Engine", NeedsEngine: true, ShardFilter: NotAllocationTests ),
+		new( "Sandbox.Test.Engine", NeedsEngine: true, Shard: "allocations", ShardFilter: AllocationTests, Isolated: true ),
 		new( "Sandbox.Test.Text", NeedsEngine: false ),
+		new( "Sandbox.Test.NetSim", NeedsEngine: true ),
 	];
 
 	/// <summary>
@@ -119,7 +132,9 @@ internal partial class Test( bool noBuild = true, string filter = null )
 		var noBuildFlag = noBuild ? " --no-build" : string.Empty;
 		var filters = new[] { filter, project.ShardFilter }.Where( x => !string.IsNullOrEmpty( x ) ).Select( x => $"({x})" ).ToArray();
 		var filterFlag = filters.Length == 0 ? string.Empty : $" --filter \"{string.Join( "&", filters )}\"";
-		var testArgs = $"test {csproj} --logger \"console;verbosity=normal;consoleLoggerParameters=ErrorsOnly\" -c Release{noBuildFlag}{filterFlag}";
+		// Run settings after the --, overriding the assembly's [Parallelize]
+		var isolatedFlag = project.Isolated ? " -- MSTest.Parallelize.Workers=1" : string.Empty;
+		var testArgs = $"test {csproj} --logger \"console;verbosity=normal;consoleLoggerParameters=ErrorsOnly\" -c Release{noBuildFlag}{filterFlag}{isolatedFlag}";
 
 		var output = new List<string>();
 		var failedTests = new List<string>();
@@ -132,7 +147,11 @@ internal partial class Test( bool noBuild = true, string filter = null )
 			"dotnet",
 			testArgs,
 			engineDir,
-			new Dictionary<string, string> { { "FACEPUNCH_ENGINE", project.NeedsEngine ? gameDir : null } },
+			new Dictionary<string, string>
+			{
+				{ "FACEPUNCH_ENGINE", project.NeedsEngine ? gameDir : null },
+				{ "DOTNET_TieredCompilation", project.Isolated ? "0" : null },
+			},
 			onDataReceived: ( sender, e ) =>
 			{
 				if ( e.Data == null )
@@ -181,7 +200,9 @@ internal partial class Test( bool noBuild = true, string filter = null )
 	private static void PrintResult( TestResult result )
 	{
 		var project = result.Project;
+		RecordForSummary( result );
 
+		GitHubActions.Group( $"{project.DisplayName} ({(result.Success ? "passed" : "failed")}, {result.Duration.TotalSeconds:F0}s)" );
 		Log.Info( "" );
 		Log.Info( project.NeedsEngine
 			? $"===== {project.DisplayName} ({result.Duration.TotalSeconds:F0}s) ====="
@@ -202,6 +223,9 @@ internal partial class Test( bool noBuild = true, string filter = null )
 			}
 		}
 
+		// Failures stay outside the collapsed output so they're readable straight away.
+		GitHubActions.EndGroup();
+
 		if ( !result.Success )
 		{
 			Log.Info( "" );
@@ -213,6 +237,51 @@ internal partial class Test( bool noBuild = true, string filter = null )
 				Log.Info( failedTest );
 				Log.Info( "" );
 			}
+		}
+	}
+
+	/// <summary>
+	/// Hands the counts from dotnet test's closing totals, and each failure's message and location,
+	/// to the job summary.
+	/// </summary>
+	private static void RecordForSummary( TestResult result )
+	{
+		int Count( Regex pattern ) => result.Output
+			.Select( line => pattern.Match( line ) )
+			.Where( match => match.Success )
+			.Sum( match => int.Parse( match.Groups["count"].Value, CultureInfo.InvariantCulture ) );
+
+		var name = result.Project.Name.Replace( "Sandbox.Test.", "" );
+		GitHubActions.AddTests( new( name, Count( PassedCount() ), Count( FailedCount() ), Count( SkippedCount() ) ) );
+
+		// A collected block runs until the next passing test, so back-to-back failures share one.
+		var blocks = new List<string>();
+		foreach ( var line in result.FailedTests.SelectMany( x => x.Split( '\n' ) ) )
+		{
+			if ( FailedName().IsMatch( line ) || blocks.Count == 0 ) blocks.Add( "" );
+			blocks[^1] += line + "\n";
+		}
+
+		foreach ( var failure in blocks )
+		{
+			var lines = failure.Split( '\n' ).Select( x => x.Trim() ).ToList();
+			var method = StackMethod().Match( failure );
+			var location = StackLocation().Match( failure );
+			var test = method.Success
+				? string.Join( '.', method.Groups["method"].Value.Split( '.' ).TakeLast( 2 ) )
+				: FailedName().Match( failure ) is { Success: true } header ? header.Groups["name"].Value : lines.FirstOrDefault() ?? "";
+
+			var message = lines
+				.SkipWhile( x => x != "Error Message:" ).Skip( 1 )
+				.TakeWhile( x => x != "Stack Trace:" && x.Length > 0 );
+
+			var text = string.Join( ' ', message );
+			var file = location.Success ? location.Groups["file"].Value : null;
+			var line = location.Success ? location.Groups["line"].Value : null;
+
+			GitHubActions.AddFailure( new( test, text, file is null ? null : $"{Path.GetFileName( file )}:{line}" ) );
+			GitHubActions.Error( $"Test failed: {test}", text.Length > 0 ? text : "See the Tests log.",
+				file is null ? null : Path.GetRelativePath( Directory.GetCurrentDirectory(), file ), line );
 		}
 	}
 
@@ -245,4 +314,22 @@ internal partial class Test( bool noBuild = true, string filter = null )
 
 	[GeneratedRegex( @"(?<value>[\d.]+)\s*(?<unit>ms|s|m|h)\b" )]
 	private static partial Regex DurationPart();
+
+	[GeneratedRegex( @"^\s*Passed:\s*(?<count>\d+)\s*$" )]
+	private static partial Regex PassedCount();
+
+	[GeneratedRegex( @"^\s*Failed:\s*(?<count>\d+)\s*$" )]
+	private static partial Regex FailedCount();
+
+	[GeneratedRegex( @"^\s*Skipped:\s*(?<count>\d+)\s*$" )]
+	private static partial Regex SkippedCount();
+
+	[GeneratedRegex( @"^\s*Failed (?<name>.+?) \[" )]
+	private static partial Regex FailedName();
+
+	[GeneratedRegex( @"\bat (?<method>[\w.`<>]+)\(" )]
+	private static partial Regex StackMethod();
+
+	[GeneratedRegex( @" in (?<file>.+?):line (?<line>\d+)" )]
+	private static partial Regex StackLocation();
 }

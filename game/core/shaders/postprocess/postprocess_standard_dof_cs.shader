@@ -123,10 +123,12 @@ CS
     float3 GetColor( uint2 screenPos, int sampleIndex )
     {
         #if D_MSAA
-        return Color.Load( screenPos, sampleIndex ).rgb;
+        float3 color = Color.Load( screenPos, sampleIndex ).rgb;
         #else
-        return Color.Load( int3( screenPos, 0 ) ).rgb;
+        float3 color = Color.Load( int3( screenPos, 0 ) ).rgb;
         #endif
+
+        return select( isnan( color ), 0.0f, min( color, HALF_MAX ) );
     }
 
     //

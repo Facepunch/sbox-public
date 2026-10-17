@@ -20,7 +20,7 @@ public partial class RenderSettings
 		GraphicsPreset.Low => new( TextureQuality.Low, ShadowQuality.Low, PostProcessQuality.Off, VolumetricFogQuality.Off, MultisampleAmount.Multisample2x ),
 		GraphicsPreset.Medium => new( TextureQuality.Medium, ShadowQuality.Medium, PostProcessQuality.Low, VolumetricFogQuality.Medium, MultisampleAmount.Multisample2x ),
 		GraphicsPreset.High => new( TextureQuality.High, ShadowQuality.High, PostProcessQuality.Medium, VolumetricFogQuality.High, MultisampleAmount.Multisample4x ),
-		GraphicsPreset.Ultra => new( TextureQuality.Ultra, ShadowQuality.Ultra, PostProcessQuality.High, VolumetricFogQuality.Ultra, MultisampleAmount.Multisample8x ),
+		GraphicsPreset.Ultra => new( TextureQuality.Ultra, ShadowQuality.Ultra, PostProcessQuality.High, VolumetricFogQuality.High, MultisampleAmount.Multisample8x ),
 		_ => default
 	};
 

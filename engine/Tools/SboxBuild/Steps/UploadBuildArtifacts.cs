@@ -220,6 +220,8 @@ internal class UploadBuildArtifacts
 				Utility.SetGitHubEnv( "BUILD_ARTIFACT_BYTES", zipSize.ToString() );
 
 				Log.Info( $"Build artifact available at {R2.PublicBaseUrl}/builds/{commit}.zip" );
+				GitHubActions.AddLink( "Build", $"{R2.PublicBaseUrl}/builds/{commit}.zip" );
+				GitHubActions.Note( Utility.FormatSize( zipSize ) );
 
 				return ExitCode.Success;
 			}

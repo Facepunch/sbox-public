@@ -85,6 +85,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		foreach ( var particleSystem in spriteRenderers )
 		{
 			particleSystem.RenderTexture?.MarkUsed( ushort.MaxValue );
+			particleSystem.RefractionNormalTexture?.MarkUsed( ushort.MaxValue );
 			if ( particleSystem is ParticleTextRenderer text ) text.PrepareText();
 
 			var particleRenderer = (ParticleRenderer)particleSystem;
@@ -214,6 +215,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 			if ( sprite.Enabled && sprite.GameObject.Active )
 			{
 				sprite.Texture?.MarkUsed( ushort.MaxValue );
+				if ( sprite.IsRefractive ) sprite.NormalTexture.MarkUsed( ushort.MaxValue );
 
 				// This is used to clean up inactive sprites
 				_currentEnabledSprites.Add( sprite.Id );
@@ -285,7 +287,10 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		return XxHash3.HashToUInt64( buf );
 	}
 
-	private static InstanceGroupFlags GetRenderGroupFlags( ISpriteRenderGroup component )
+	/// <summary>
+	/// Classify a renderer's effective settings for sprite batching.
+	/// </summary>
+	internal static InstanceGroupFlags GetRenderGroupFlags( ISpriteRenderGroup component )
 	{
 		var flags = InstanceGroupFlags.None;
 		if ( !component.Opaque ) flags |= InstanceGroupFlags.Transparent;

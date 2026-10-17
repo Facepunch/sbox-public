@@ -159,14 +159,14 @@ public class ScriptAnalysisTests
 			Assert.AreEqual( 0, Game.Scripting.Analyze( source ).GetCompletions( source.Length ).Items.Count );
 	}
 
-	[TestMethod]
+	[TestMethod, TestCategory( Allocations.Category )]
 	public void SymbolAndTokenQueriesAllocateNothing()
 	{
 		var analysis = Game.Scripting.Analyze( "return Math.Sin(0);" );
-		for ( int i = 0; i < 1000; i++ ) { analysis.GetSymbol( 7 ); analysis.GetToken( 7 ); }
-		long before = GC.GetAllocatedBytesForCurrentThread();
-		for ( int i = 0; i < 1000; i++ ) { analysis.GetSymbol( 7 ); analysis.GetToken( 7 ); }
-		Assert.AreEqual( 0L, GC.GetAllocatedBytesForCurrentThread() - before );
+		Allocations.AssertSettles( "1,000 symbol and token queries", () =>
+		{
+			for ( int i = 0; i < 1000; i++ ) { analysis.GetSymbol( 7 ); analysis.GetToken( 7 ); }
+		} );
 	}
 
 	[TestMethod]
