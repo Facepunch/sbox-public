@@ -38,7 +38,7 @@ class GameObjectHeader : Widget
 					var top = right.AddRow();
 					top.Spacing = 4;
 					top.Add( new GameObjectEnabledWidget( targetObject.GetProperty( nameof( GameObject.Enabled ) ) ) );
-					var s = top.Add( ControlWidget.Create( targetObject.GetProperty( nameof( GameObject.Name ) ) ), 1 );
+					var s = top.Add( new GameObjectNameWidget( targetObject.GetProperty( nameof( GameObject.Name ) ) ), 1 );
 					s.HorizontalSizeMode = SizeMode.Flexible;
 					top.Add( new GameObjectStaticWidget( targetObject.GetProperty( nameof( GameObject.IsStatic ) ) ) );
 					top.Add( new GameObjectFlagsWidget( targetObject ) );
@@ -68,6 +68,21 @@ class GameObjectHeader : Widget
 		Paint.DrawRect( LocalRect );
 	}
 
+}
+
+/// <summary>
+/// The name field. With several objects selected it reads "Selected (N)" rather than the first
+/// object's name; typing a name still renames all of them.
+/// </summary>
+file sealed class GameObjectNameWidget : StringControlWidget
+{
+	public GameObjectNameWidget( SerializedProperty property ) : base( property )
+	{
+		if ( property.IsMultipleValues )
+			LineEdit.PlaceholderText = $"Selected ({property.MultipleProperties.Count()})";
+	}
+
+	protected override string ValueToString() => SerializedProperty.IsMultipleValues ? string.Empty : base.ValueToString();
 }
 
 /// <summary>

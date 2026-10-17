@@ -1001,10 +1001,37 @@ partial class GameObjectNode : TreeNode<GameObject>
 	}
 }
 
+/// <summary>
+/// A search result in the hierarchy, shown under its parents. Only the children on the way to a
+/// match are listed; parents that are only there for context are drawn dimmed.
+/// </summary>
 class GameObjectSearchNode : GameObjectNode
 {
-	public override bool HasChildren => false;
-	public GameObjectSearchNode( GameObject o ) : base( o )
+	/// <param name="Matches">Objects that passed the search.</param>
+	/// <param name="Shown">The matches plus every parent on the way down to them.</param>
+	public sealed record Results( HashSet<GameObject> Matches, HashSet<GameObject> Shown );
+
+	readonly Results _results;
+
+	public GameObjectSearchNode( GameObject o, Results results ) : base( o )
 	{
+		_results = results;
+	}
+
+	public override bool HasChildren => Value.Children.Any( _results.Shown.Contains );
+
+	protected override void BuildChildren() => SetChildren( Value.Children.Where( _results.Shown.Contains ), x => new GameObjectSearchNode( x, _results ) );
+
+	public override void OnPaint( VirtualWidget item )
+	{
+		base.OnPaint( item );
+
+		if ( _results.Matches.Contains( Value ) || item.Selected )
+			return;
+
+		// Fade context-only parents so the matches stand out.
+		Paint.ClearPen();
+		Paint.SetBrush( Theme.ControlBackground.WithAlpha( 0.55f ) );
+		Paint.DrawRect( item.Rect );
 	}
 }
