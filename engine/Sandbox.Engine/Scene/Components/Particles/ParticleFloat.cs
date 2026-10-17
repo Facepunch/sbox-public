@@ -19,42 +19,10 @@ public interface IDynamicFloatContext
 }
 
 /// <summary>
-/// A scalar that can vary per particle and over its life.
-/// </summary>
-public interface IParticleFloat
-{
-	/// <summary>
-	/// Evaluate with a 0-1 life delta and a fixed 0-1 random for the context (e.g. the particle).
-	/// </summary>
-	float Evaluate( in float delta, in float randomFixed );
-
-	/// <summary>
-	/// True when <see cref="Evaluate"/> ignores both inputs, so callers can hoist it out of per-particle loops.
-	/// </summary>
-	bool IsConstant { get; }
-}
-
-/// <summary>
-/// A 3D vector that can vary per particle and over its life.
-/// </summary>
-public interface IParticleFloat3
-{
-	/// <summary>
-	/// Evaluate with a 0-1 life delta and a fixed 0-1 random per component.
-	/// </summary>
-	Vector3 Evaluate( float delta, float a, float b, float c );
-
-	/// <summary>
-	/// True when <see cref="Evaluate"/> ignores all inputs.
-	/// </summary>
-	bool IsConstant { get; }
-}
-
-/// <summary>
 /// Represents a floating-point value that can change over time with support for various evaluation modes.
 /// </summary>
 [Expose]
-public struct ParticleFloat : IJsonConvert, IParticleFloat
+public struct ParticleFloat : IJsonConvert
 {
 	public ValueType Type { readonly get; set; }
 	public EvaluationType Evaluation { readonly get; set; }
@@ -346,7 +314,7 @@ public struct ParticleFloat : IJsonConvert, IParticleFloat
 }
 
 [Expose]
-public struct ParticleVector3 : IParticleFloat3
+public struct ParticleVector3
 {
 	[JsonInclude]
 	public ParticleFloat X;
