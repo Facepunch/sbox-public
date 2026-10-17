@@ -463,8 +463,8 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		// Also don't hook into render overlays, nor volumetric fog stuff.
 		if ( ClearFlags.Contains( ClearFlags.Color ) )
 		{
-			camera.VolumetricFog.Enabled = Scene.Get<VolumetricFogVolume>() is not null;
-			camera.VolumetricFog.DrawDistance = 4096;
+			camera.VolumetricFog.Enabled = FogVolumeInRange( camera );
+			camera.VolumetricFog.DrawDistance = FogDrawDistance;
 			camera.VolumetricFog.FadeInStart = 64;
 			camera.VolumetricFog.FadeInEnd = 256;
 			camera.VolumetricFog.IndirectStrength = 1.0f;
@@ -494,6 +494,31 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 
 			cubemapFog.SetupCamera( this, camera );
 		}
+	}
+
+	const float FogDrawDistance = 4096;
+
+	// Fog that's on stays on this much further out, so it doesn't flip at the edge.
+	const float FogRangeMargin = 512;
+
+	/// <summary>
+	/// Whether a visible fog volume is within the fog's draw distance. Fog costs a full froxel pass, even when every volume is far away.
+	/// </summary>
+	bool FogVolumeInRange( SceneCamera camera )
+	{
+		var position = camera.Position;
+		var range = FogDrawDistance + (camera.VolumetricFog.Enabled ? FogRangeMargin : 0);
+
+		foreach ( var volume in Scene.Query<VolumetricFogVolume>() )
+		{
+			if ( volume.Strength <= 0 ) continue;
+
+			var bounds = volume.Bounds.Transform( volume.WorldTransform );
+			if ( bounds.ClosestPoint( position ).DistanceSquared( position ) <= range * range )
+				return true;
+		}
+
+		return false;
 	}
 
 	/// <summary>
