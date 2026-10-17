@@ -1,5 +1,6 @@
 ﻿using System;
-using System.Text.Json;
+using System.Collections.Concurrent;
+using System.IO;
 using System.Text.Json.Nodes;
 using System.Threading;
 
@@ -294,39 +295,27 @@ public class CloudAsset
 			}
 		}
 
+		// Most resources don't change between sessions, so this only has to stat them, see GetCachedReferences
+		var cacheStore = FileSystem.ProjectTemporary;
+		LoadReferenceCache( cacheStore );
+		var scannedFiles = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+
 		var gr = AssetSystem.All.Where( x => x.AssetType.IsGameResource && (!currentProjectOnly || validAssetPaths.Any( path => x.AbsolutePath.StartsWith( path, StringComparison.OrdinalIgnoreCase ) )) );
 		foreach ( var r in gr )
 		{
-			string json = null;
-			try
+			foreach ( var packageIdent in GetGameResourceReferences( r, scannedFiles ) )
 			{
-				json = r.ReadJson();
-				if ( string.IsNullOrWhiteSpace( json ) ) continue;
-
-				if ( JsonNode.Parse( json ) is not JsonObject jso ) continue;
-				if ( jso["__references"] is not JsonArray refs ) continue;
-				if ( refs.Count == 0 ) continue;
-
-				foreach ( var jsonNode in refs )
-				{
-					AddReference( jsonNode.ToString(), r );
-				}
-			}
-			catch ( JsonException e )
-			{
-				Log.Info( $"{r.AbsolutePath} - {e.Message}" );
-				Log.Info( json );
-			}
-			catch ( Exception e )
-			{
-				Log.Info( $"{r.AbsolutePath} - {e.Message}" );
+				AddReference( packageIdent, r );
 			}
 		}
+
+		SaveReferenceCache( cacheStore, scannedFiles );
 
 		var nativeResources = AssetSystem.All.Where( x => !x.AssetType.IsGameResource && (!currentProjectOnly || validAssetPaths.Any( path => x.AbsolutePath.StartsWith( path, StringComparison.OrdinalIgnoreCase ) )) ).ToArray();
 		foreach ( var r in nativeResources )
 		{
-			var config = r?.Publishing?.ProjectConfig;
+			// Not Publishing: that creates and keeps default settings for every asset without any, which never have references
+			var config = r?.GetPublishSettings( false )?.ProjectConfig;
 			if ( config is null ) continue;
 
 			if ( config.EditorReferences is not null )
@@ -347,5 +336,118 @@ public class CloudAsset
 		}
 
 		return references;
+	}
+
+	internal readonly record struct CachedReferences( DateTime WriteTime, long Length, string[] Packages );
+
+	/// <summary>
+	/// Parsed <c>__references</c> per resource file, so repeated scans only re-read files that changed.
+	/// Saved to the project's .sbox folder so the scan on startup doesn't open every resource again.
+	/// </summary>
+	static readonly ConcurrentDictionary<string, CachedReferences> _referenceCache = new( StringComparer.OrdinalIgnoreCase );
+
+	const string ReferenceCacheFile = "cloud_references.json";
+
+	/// <summary>
+	/// The store <see cref="_referenceCache"/> was loaded from. A different one means another project was opened.
+	/// </summary>
+	static BaseFileSystem _referenceCacheStore;
+
+	/// <summary>
+	/// <see cref="_referenceCache"/> differs from what's saved in <see cref="_referenceCacheStore"/>.
+	/// </summary>
+	static bool _referenceCacheDirty;
+
+	internal static void LoadReferenceCache( BaseFileSystem store )
+	{
+		if ( store == _referenceCacheStore )
+			return;
+
+		_referenceCacheStore = store;
+		_referenceCache.Clear();
+		_referenceCacheDirty = false;
+
+		var saved = store?.ReadJsonOrDefault<Dictionary<string, CachedReferences>>( ReferenceCacheFile );
+		if ( saved is null )
+			return;
+
+		foreach ( var (file, entry) in saved )
+		{
+			if ( entry.Packages is not null )
+				_referenceCache[file] = entry;
+		}
+	}
+
+	/// <summary>
+	/// Forget files the scan no longer saw (deleted, moved, or not in the project anymore) and save if anything changed.
+	/// </summary>
+	internal static void SaveReferenceCache( BaseFileSystem store, HashSet<string> scannedFiles )
+	{
+		foreach ( var file in _referenceCache.Keys )
+		{
+			if ( !scannedFiles.Contains( file ) && _referenceCache.TryRemove( file, out _ ) )
+				_referenceCacheDirty = true;
+		}
+
+		if ( !_referenceCacheDirty || store is null )
+			return;
+
+		try
+		{
+			store.WriteJson( ReferenceCacheFile, _referenceCache );
+			_referenceCacheDirty = false;
+		}
+		catch ( Exception e )
+		{
+			// Not fatal, the next scan reads the resources again
+			Log.Warning( e, $"Couldn't save cloud reference cache: {e.Message}" );
+		}
+	}
+
+	static string[] GetGameResourceReferences( Asset asset, HashSet<string> scannedFiles )
+	{
+		// Same file ReadJson reads: source if present, compiled otherwise
+		var file = asset.GetSourceFile( true );
+		if ( string.IsNullOrWhiteSpace( file ) )
+			file = asset.GetCompiledFile( true );
+
+		if ( string.IsNullOrWhiteSpace( file ) )
+			return [];
+
+		scannedFiles.Add( file );
+		return GetCachedReferences( file, asset.ReadJson );
+	}
+
+	/// <summary>
+	/// The top level <c>__references</c> of a resource's json, re-read only when the file's write time or
+	/// length changes. Length catches two saves landing on the same write time.
+	/// </summary>
+	internal static string[] GetCachedReferences( string file, Func<string> readJson )
+	{
+		var info = new FileInfo( file );
+		var writeTime = info.Exists ? info.LastWriteTimeUtc : default;
+		var length = info.Exists ? info.Length : 0;
+
+		if ( _referenceCache.TryGetValue( file, out var cached ) && cached.WriteTime == writeTime && cached.Length == length )
+			return cached.Packages;
+
+		string[] packages = [];
+		try
+		{
+			var json = readJson();
+			if ( !string.IsNullOrWhiteSpace( json ) && JsonNode.Parse( json ) is JsonObject jso && jso["__references"] is JsonArray refs )
+			{
+				packages = refs.Select( x => x?.ToString() ).ToArray();
+			}
+		}
+		catch ( Exception e )
+		{
+			// Cached below, so this only fires again once the file changes
+			Log.Warning( e, $"Couldn't read cloud references from {file}: {e.Message}" );
+		}
+
+		_referenceCache[file] = new CachedReferences( writeTime, length, packages );
+		_referenceCacheDirty = true;
+		return packages;
 	}
 }
