@@ -662,6 +662,135 @@ public class ParticleEffectTest
 	}
 
 	/// <summary>
+	/// Particles that expire mid-step are swept out in PostStep. Survivors keep their emission
+	/// order and every expired particle is destroyed exactly once.
+	/// </summary>
+	[TestMethod]
+	public void DeadParticles_SweptInOrder_DestroyedOnce()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var go = scene.CreateObject();
+		var effect = go.Components.Create<ParticleEffect>();
+		effect.Lifetime = 10.0f;
+
+		var emitter = go.Components.Create<ParticleBoxEmitter>();
+		emitter.Burst = 10.0f;
+		emitter.Rate = 0.0f;
+		emitter.Loop = false;
+		emitter.ResetEmitter();
+
+		scene.GameTick();
+		Assert.AreEqual( 10, effect.Particles.Count );
+
+		var destroyed = new int[10];
+		effect.OnParticleDestroyed += p => destroyed[p.Get<int>( "i" )]++;
+
+		for ( int i = 0; i < effect.Particles.Count; i++ )
+		{
+			var p = effect.Particles[i];
+			p.Set( "i", i );
+
+			// Past the end of a 10s life, so the next update marks it dead
+			if ( i % 2 == 0 )
+				p.Age = 100.0f;
+		}
+
+		for ( int i = 0; i < 20; i++ ) scene.GameTick();
+
+		CollectionAssert.AreEqual( new[] { 1, 3, 5, 7, 9 }, effect.Particles.Select( p => p.Get<int>( "i" ) ).ToArray(), "Survivors should keep their order" );
+		CollectionAssert.AreEqual( new[] { 1, 0, 1, 0, 1, 0, 1, 0, 1, 0 }, destroyed, "Each expired particle should be destroyed exactly once" );
+	}
+
+	/// <summary>
+	/// Lifetime is drawn at emit. Changing Lifetime (here from OnPreStep) still applies to live
+	/// particles on that same step, and only then, so a DeathTime set by user code sticks.
+	/// </summary>
+	[TestMethod]
+	public void LifetimeChange_AppliesToLiveParticles()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var go = scene.CreateObject();
+		var effect = go.Components.Create<ParticleEffect>();
+		effect.Lifetime = 10.0f;
+
+		var emitter = go.Components.Create<ParticleBoxEmitter>();
+		emitter.Burst = 10.0f;
+		emitter.Rate = 0.0f;
+		emitter.Loop = false;
+		emitter.ResetEmitter();
+
+		scene.GameTick();
+		Assert.AreEqual( 10, effect.Particles.Count );
+
+		var changed = false;
+		effect.OnPreStep += _ =>
+		{
+			if ( changed ) return;
+			effect.Lifetime = 2.0f;
+			changed = true;
+		};
+
+		scene.GameTick();
+
+		foreach ( var p in effect.Particles )
+			Assert.AreEqual( p.BornTime + 2.0f, p.DeathTime, 0.0001f, "Live particles should pick up the new lifetime on the step it changed" );
+
+		var custom = effect.Particles[0];
+		custom.DeathTime = custom.BornTime + 5.0f;
+
+		scene.GameTick();
+
+		Assert.AreEqual( custom.BornTime + 5.0f, custom.DeathTime, 0.0001f, "Lifetime should not be re-evaluated once the change is applied" );
+	}
+
+	/// <summary>
+	/// A warm effect that emits and expires particles every step reuses pooled particles and its own
+	/// buffers, so the step allocates nothing. The step is driven serially on this thread (as
+	/// ParticleGameSystem does, minus the Parallel.ForEach) because a whole scene tick measured across
+	/// every thread picks up unrelated engine allocations and never settles under a loaded test run.
+	/// </summary>
+	[TestMethod]
+	[TestCategory( Allocations.Category )]
+	public void Step_DoesNotAllocateWhenWarm()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var go = scene.CreateObject();
+		var effect = go.Components.Create<ParticleEffect>();
+		effect.Lifetime = 0.5f;
+		effect.ApplyColor = true;
+		effect.ApplyShape = true;
+		effect.Scale = new ParticleFloat
+		{
+			Type = ParticleFloat.ValueType.Curve,
+			CurveA = Curve.Linear,
+			Evaluation = ParticleFloat.EvaluationType.Life
+		};
+
+		// 13 new particles per 1/30s step living 0.5s: ~200 live, ~13 expiring every step
+		void Step()
+		{
+			for ( int i = 0; i < 13; i++ ) effect.Emit( Vector3.Zero, i / 13.0f );
+
+			effect.PreStep( 1.0f / 30.0f );
+			for ( int i = 0; i < effect.Particles.Count; i++ ) effect.UpdateParticle( i );
+			effect.SpawnDeferredParticleCollisionPrefabs();
+			effect.ApplyDeferredParticleForces();
+			effect.PostStep();
+		}
+
+		for ( int i = 0; i < 30; i++ ) Step();
+		Assert.IsTrue( effect.Particles.Count is > 150 and < 250, $"Effect should be emitting and expiring, has {effect.Particles.Count}" );
+
+		Allocations.AssertSettles( "particle step", Step );
+	}
+
+	/// <summary>
 	/// Disabling the ParticleEffect component clears all of its particles, because
 	/// OnDisabled calls Clear.
 	/// </summary>
