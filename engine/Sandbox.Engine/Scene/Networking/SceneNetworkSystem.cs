@@ -279,11 +279,6 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		var loadedMsg = new SceneLoadedMsg { SceneId = msg.SceneId, Id = msg.Id };
 		connection.SendMessage( loadedMsg, NetFlags.Reliable );
 
-		if ( Application.IsEditor )
-		{
-			IToolsDll.Current?.SetPlaying();
-		}
-
 		LoadingScreen.IsVisible = false;
 	}
 
@@ -674,6 +669,9 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		}
 
 		Game.IsPlaying = true;
+
+		// used when connecting from the editor to display the game.
+		IToolsDll.Current?.PlayAsClient();
 	}
 
 	private static void ReadGameObjectSystems( Scene scene, SnapshotMsg msg )
