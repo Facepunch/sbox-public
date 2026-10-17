@@ -61,6 +61,12 @@ public class ControlSheetGroup : Widget
 					var enabler = ControlWidget.Create( toggleGroup );
 
 					headerWidget.Title = toggleAttr.Label ?? groupName;
+
+					if ( toggleGroup.TryGetAttribute<TitleAttribute>( out var titleAttr ) && !string.IsNullOrWhiteSpace( titleAttr.Value ) )
+					{
+						headerWidget.Title = titleAttr.Value;
+					}
+
 					headerWidget.ToolTip = toggleGroup.Description;
 					headerWidget.AddToggle( toggleGroup, enabler );
 
