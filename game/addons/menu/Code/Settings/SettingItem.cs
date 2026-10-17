@@ -73,11 +73,18 @@ public class SettingItem
 	object staged;
 	object loaded;
 
+	/// <summary>Fired when the staged value changes (dropdowns, etc.), before save.</summary>
+	public Action<object> ValueChanged { get; init; }
+
 	/// <summary>The edited value, not in use until saved.</summary>
 	public object Value
 	{
 		get => staged;
-		set => staged = value;
+		set
+		{
+			staged = value;
+			ValueChanged?.Invoke( value );
+		}
 	}
 
 	public float FloatValue

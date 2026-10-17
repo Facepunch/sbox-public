@@ -118,11 +118,19 @@ public partial class RenderSettings
 	}
 
 	/// <summary>
-	/// Lists SDL fullscreen modes for the current display. Both windowed and fullscreen settings use
+	/// Lists SDL fullscreen modes for a display. Both windowed and fullscreen settings use
 	/// this list; <paramref name="windowed"/> is retained for compatibility and does not filter it.
 	/// All returned formats are RGBA8888, matching the game swapchain.
 	/// </summary>
-	public VideoDisplayMode[] DisplayModes( bool windowed ) => SdlDisplay.GetModes( SdlDisplay.Current );
+	/// <param name="windowed">Unused; kept for compatibility.</param>
+	/// <param name="displayId">SDL display id, or 0 for the preferred/current display.</param>
+	public VideoDisplayMode[] DisplayModes( bool windowed, int displayId = 0 )
+	{
+		var display = displayId > 0 ? (uint)displayId
+			: DisplayId > 0 ? (uint)DisplayId
+			: SdlDisplay.Current;
+		return SdlDisplay.GetModes( display );
+	}
 
 	public struct VideoDisplayMode
 	{

@@ -34,6 +34,9 @@ public class SettingsCatalog
 	public List<SettingsCategory> Categories { get; } = new();
 	public List<SettingItem> Items { get; } = new();
 
+	/// <summary>Ask the settings view to rebuild after staged values change behind a control's back.</summary>
+	public Action Changed { get; set; }
+
 	static RenderSettings Render => MenuUtility.RenderSettings;
 
 	public SettingsCatalog()
@@ -89,6 +92,8 @@ public class SettingsCatalog
 	{
 		foreach ( var item in Items )
 			item.Revert();
+
+		FetchResolutions( Find( "display.displayid" )?.Value?.ToString().ToInt() ?? Render.DisplayId );
 	}
 
 	/// <summary>Write every edited row through, then take the new video mode once.</summary>
@@ -291,10 +296,11 @@ public class SettingsCatalog
 			Kind = SettingKind.Dropdown,
 			OptionsBuilder = () => Render.GetDisplays()
 				.Select( x => new Option( x.Name, x.DisplayId.ToString() ) )
-				.ToList(),	
+				.ToList(),
 			AppliesRenderSettings = true,
 			Read = () => Render.DisplayId.ToString(),
 			Write = value => Render.DisplayId = value?.ToString().ToInt() ?? 0,
+			ValueChanged = OnDisplayStaged,
 		} );
 
 		Items.Add( new SettingItem
@@ -1054,15 +1060,41 @@ public class SettingsCatalog
 	}
 
 	/// <summary>Asks DXGI what the display can do. Can stutter, so it's done once on startup.</summary>
-	public static void FetchResolutions()
+	public static void FetchResolutions( int displayId = 0 )
 	{
 		const float smallestAspect = 1.5f;
 
-		resolutionOptions = Render.DisplayModes( false )
+		if ( displayId <= 0 ) displayId = Render.DisplayId;
+
+		resolutionOptions = Render.DisplayModes( false, displayId )
 			.Where( x => x.Width >= 1280 )
 			.Where( x => (float)x.Width / x.Height >= smallestAspect )
 			.GroupBy( x => $"{x.Width}x{x.Height}" )
 			.Select( x => new Option( x.Key, x.Key ) )
 			.ToList();
+	}
+
+	void OnDisplayStaged( object value )
+	{
+		FetchResolutions( value?.ToString().ToInt() ?? 0 );
+		SelectMaxResolution();
+		Changed?.Invoke();
+	}
+
+	/// <summary>Stage the largest resolution available for the current display list.</summary>
+	void SelectMaxResolution()
+	{
+		var resolution = Find( "display.resolution" );
+		if ( resolution is null || resolutionOptions.Count == 0 ) return;
+
+		resolution.Value = resolutionOptions
+			.Select( o => o.Value?.ToString() )
+			.Where( s => s is not null )
+			.OrderByDescending( s =>
+			{
+				var parts = s.Split( 'x', 2 );
+				return parts.Length == 2 ? parts[0].ToInt() * parts[1].ToInt() : 0;
+			} )
+			.First();
 	}
 }
