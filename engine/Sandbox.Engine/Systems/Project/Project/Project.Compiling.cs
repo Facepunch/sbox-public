@@ -32,9 +32,13 @@ public partial class Project
 	int CompilerHash => HashCode.Combine( Active, Current == this, Json.SerializeAsObject( Config.GetCompileSettings() ).ToJsonString(), Config.IsStandaloneOnly, Config.Org, Config.Ident, Config.Type, string.Join( ";", PackageReferences() ) );
 
 	/// <summary>
-	/// Whether to save/load compiled assemblies to disk.
+	/// Whether to save/load compiled assemblies to disk. Built-in projects (the menu, the
+	/// tools) are compiled from the same sources on every launch, and the game had no
+	/// precompiled .bin to fall back on outside of a shipped build - so a source checkout
+	/// paid a full Roslyn build of the menu (several seconds) before every main menu.
+	/// The cache is fingerprinted against the sources and the engine assemblies.
 	/// </summary>
-	bool CacheAssemblies => IsBuiltIn && Application.IsRetail && Application.IsEditor;
+	bool CacheAssemblies => IsBuiltIn && Application.IsRetail && !Application.IsUnitTest && !Application.IsHeadless;
 
 	private void UpdateCompiler()
 	{
@@ -226,6 +230,24 @@ public partial class Project
 				return false;
 
 			//
+			// The cached assembly was compiled against the engine assemblies of that time. A
+			// rebuilt engine can change the API it was bound to, which the source checks below
+			// can't see - so any newer assembly next to ours forces a recompile.
+			//
+			var managedDir = Path.GetDirectoryName( typeof( Project ).Assembly.Location );
+			if ( !string.IsNullOrEmpty( managedDir ) && Directory.Exists( managedDir ) )
+			{
+				foreach ( var dll in Directory.EnumerateFiles( managedDir, "*.dll" ) )
+				{
+					if ( File.GetLastWriteTimeUtc( dll ) > compileTime )
+					{
+						Log.Info( $"{compiler.Name}: Engine assembly {Path.GetFileName( dll )} is newer than the cached assembly. Forcing recompile." );
+						return false;
+					}
+				}
+			}
+
+			//
 			// Finally, check if it's out of date.
 			// If any source files have been modified since the assembly was compiled, we can't use it.
 			//
@@ -258,6 +280,7 @@ public partial class Project
 			// All good, swap in the assembly
 			compiler.UpdateFromAssembly( bytes );
 			AssemblyFileSystem.WriteAllBytes( $"/.bin/{compiler.AssemblyName}.dll", bytes );
+			Log.Info( $"{compiler.Name}: Using cached assembly compiled at {compileTime:u}" );
 
 			return true;
 		}
