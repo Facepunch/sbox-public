@@ -662,6 +662,49 @@ public class ParticleEffectTest
 	}
 
 	/// <summary>
+	/// A warm effect that emits and expires particles every step reuses pooled particles and its own
+	/// buffers, so the step allocates nothing. The step is driven serially on this thread (as
+	/// ParticleGameSystem does, minus the Parallel.ForEach) because a whole scene tick measured across
+	/// every thread picks up unrelated engine allocations and never settles under a loaded test run.
+	/// </summary>
+	[TestMethod]
+	[TestCategory( Allocations.Category )]
+	public void Step_DoesNotAllocateWhenWarm()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var go = scene.CreateObject();
+		var effect = go.Components.Create<ParticleEffect>();
+		effect.Lifetime = 0.5f;
+		effect.ApplyColor = true;
+		effect.ApplyShape = true;
+		effect.Scale = new ParticleFloat
+		{
+			Type = ParticleFloat.ValueType.Curve,
+			CurveA = Curve.Linear,
+			Evaluation = ParticleFloat.EvaluationType.Life
+		};
+
+		// 13 new particles per 1/30s step living 0.5s: ~200 live, ~13 expiring every step
+		void Step()
+		{
+			for ( int i = 0; i < 13; i++ ) effect.Emit( Vector3.Zero, i / 13.0f );
+
+			effect.PreStep( 1.0f / 30.0f );
+			for ( int i = 0; i < effect.Particles.Count; i++ ) effect.UpdateParticle( i );
+			effect.SpawnDeferredParticleCollisionPrefabs();
+			effect.ApplyDeferredParticleForces();
+			effect.PostStep();
+		}
+
+		for ( int i = 0; i < 30; i++ ) Step();
+		Assert.IsTrue( effect.Particles.Count is > 150 and < 250, $"Effect should be emitting and expiring, has {effect.Particles.Count}" );
+
+		Allocations.AssertSettles( "particle step", Step );
+	}
+
+	/// <summary>
 	/// Disabling the ParticleEffect component clears all of its particles, because
 	/// OnDisabled calls Clear.
 	/// </summary>
