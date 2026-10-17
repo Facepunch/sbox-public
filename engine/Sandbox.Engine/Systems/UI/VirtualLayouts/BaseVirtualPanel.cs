@@ -295,12 +295,14 @@ public abstract class BaseVirtualPanel : Panel
 
 		var data = _items[i];
 		var needsRebuild = !_cellData.TryGetValue( i, out var last ) || !EqualityComparer<object>.Default.Equals( last, data );
+		var created = false;
 
 		if ( !_created.TryGetValue( i, out var panel ) || needsRebuild )
 		{
 			panel?.Delete( true );
 
 			panel = Add.Panel( "cell" );
+			created = true;
 			panel.Style.Position = PositionMode.Absolute;
 			panel.ChildContent = Item?.Invoke( data );
 
@@ -316,6 +318,8 @@ public abstract class BaseVirtualPanel : Panel
 		}
 
 		PositionPanel( i, panel );
+
+		if ( created ) panel.TickInternal();
 	}
 
 	private void OnCreatedLastCell()
