@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 
 namespace FilesystemTests;
@@ -164,6 +165,54 @@ public class FileSystemTest
 
 		fs.WriteAllText( "crc.txt", "version two" );
 		Assert.AreNotEqual( first, fs.GetCrc( "crc.txt" ) );
+	}
+
+	/// <summary>
+	/// A FileIndex reads each file from the mount the aggregate would read it from - the highest priority
+	/// one, in any casing - and reports files it doesn't have as missing, so bulk loading through it sees
+	/// exactly what ReadAllText and FileExists on the aggregate see.
+	/// </summary>
+	[TestMethod]
+	public void FileIndexReadsLikeTheAggregate()
+	{
+		var root = Path.Combine( Path.GetTempPath(), $"fs-index-{Guid.NewGuid()}" );
+		var low = Path.Combine( root, "low" );
+		var high = Path.Combine( root, "high" );
+		var nested = Path.Combine( root, "nested" );
+		foreach ( var dir in new[] { low, high, nested } )
+			Directory.CreateDirectory( Path.Combine( dir, "sub" ) );
+
+		File.WriteAllText( Path.Combine( low, "shared.txt" ), "low" );
+		File.WriteAllText( Path.Combine( high, "shared.txt" ), "high" );
+		File.WriteAllText( Path.Combine( nested, "sub", "nested.json" ), "nested" );
+
+		try
+		{
+			var inner = new AggregateFileSystem();
+			inner.Mount( new LocalFileSystem( nested ) );
+
+			var fs = new AggregateFileSystem();
+			fs.Mount( new LocalFileSystem( low ) );
+			fs.Mount( inner );
+			fs.Mount( new LocalFileSystem( high ) );
+
+			var index = fs.IndexFiles( "/" );
+			CollectionAssert.AreEqual( fs.FindFile( "/", "*", true ).ToList(), index.Files.ToList() );
+
+			foreach ( var file in new[] { "shared.txt", "SHARED.TXT", "sub/nested.json" } )
+			{
+				Assert.IsTrue( index.TryReadAllBytes( file, out var bytes ), file );
+				Assert.AreEqual( fs.ReadAllText( file ), System.Text.Encoding.UTF8.GetString( bytes ), file );
+			}
+
+			Assert.IsFalse( fs.FileExists( "sub/missing.json" ) );
+			Assert.IsFalse( index.Contains( "sub/missing.json" ) );
+			Assert.IsFalse( index.TryReadAllBytes( "sub/missing.json", out _ ) );
+		}
+		finally
+		{
+			Directory.Delete( root, true );
+		}
 	}
 
 	class TestPayload
