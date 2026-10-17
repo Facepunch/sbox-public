@@ -10,7 +10,8 @@ internal static partial class Utility
 		if ( ptr == IntPtr.Zero )
 			return default;
 
-		return (T)Marshal.PtrToStructure( ptr, typeof( T ) );
+		// (Steam's struct layout on this platform, not necessarily ours: NativeLayout)
+		return (T)NativeLayout.Read( ptr, typeof( T ) );
 	}
 
 	static internal object ToType( this IntPtr ptr, System.Type t )
@@ -18,7 +19,7 @@ internal static partial class Utility
 		if ( ptr == IntPtr.Zero )
 			return default;
 
-		return Marshal.PtrToStructure( ptr, t );
+		return NativeLayout.Read( ptr, t );
 	}
 
 	static internal uint Swap( uint x )

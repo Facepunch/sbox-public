@@ -51,7 +51,8 @@ namespace Steamworks
 				return null;
 
 			var t = default( T );
-			var size = t.DataSize;
+			// (the size of Steam's struct on this platform: on Linux and macOS it is packed tighter than ours)
+			var size = NativeLayout.NativeSize( typeof( T ) );
 			var ptr = Marshal.AllocHGlobal( size );
 
 			try
@@ -64,7 +65,7 @@ namespace Steamworks
 
 				//Dispatch.OnDebugCallback?.Invoke( t.CallbackType, Dispatch.CallbackToString( t.CallbackType, ptr, size ), server );
 
-				return ((T)Marshal.PtrToStructure( ptr, typeof( T ) ));
+				return (T)NativeLayout.Read( ptr, typeof( T ) );
 			}
 			finally
 			{
