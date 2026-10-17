@@ -538,17 +538,27 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	Transform _worldTx;
 	Vector3 _worldForce;
 
+	// Per-step flags set in PreStep so UpdateParticle can skip work for zero/constant inputs.
+	bool _liveLifetime;
+	bool _hasDamping;
+	bool _hasLocalSpace;
+	bool _hasForce;
+	bool _hasConstantMovement;
+	float _constantPerParticleTimeScale;
+
 	internal void UpdateParticle( int index )
 	{
 		var p = Particles[index];
 
-		// keep updating deathtime, incase we're in the editor and they're changing shit
-		p.DeathTime = p.BornTime + Lifetime.Evaluate( p.Rand( 155, 100 ), p.Rand( 145, 100 ) );
+		// Lifetime is fixed at emit; in the editor keep re-evaluating it so property edits show on live particles.
+		if ( _liveLifetime )
+			p.DeathTime = p.BornTime + Lifetime.Evaluate( p.Rand( 155, 100 ), p.Rand( 145, 100 ) );
 
 		float delta = MathX.Remap( p.BornTime + p.Age, p.BornTime, p.DeathTime );
 		p.LifeDelta = delta;
 
-		var timeScale = PerParticleTimeScale.Evaluate( p, 3355 ) * _timeDelta * p.TimeScale;
+		var perParticleTimeScale = float.IsNaN( _constantPerParticleTimeScale ) ? PerParticleTimeScale.Evaluate( p, 3355 ) : _constantPerParticleTimeScale;
+		var timeScale = perParticleTimeScale * _timeDelta * p.TimeScale;
 		var frame = p.Frame;
 
 		p.Age += timeScale;
@@ -558,9 +568,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 		if ( p.LifeDelta < 0 )
 			return;
 
-		var damping = Damping.Evaluate( p, 8234 );
-		var forceScale = ForceScale.Evaluate( p, 7723 );
-		var localSpace = LocalSpace.Evaluate( p, 254 ).Clamp( 0, 1 );
+		var localSpace = _hasLocalSpace ? LocalSpace.Evaluate( p, 254 ).Clamp( 0, 1 ) : 0.0f;
 
 		var appliedBoneSpace = false;
 
@@ -582,36 +590,41 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 			ApplyLocalSpaceMovement( ref p, localSpace, lastTransform, _worldTx );
 		}
 
-		p.ApplyDamping( damping * timeScale );
+		if ( _hasDamping )
+			p.ApplyDamping( Damping.Evaluate( p, 8234 ) * timeScale );
 
 		OnStep?.Invoke( p, p.LifeDelta );
 
-		if ( Force && forceScale != 0.0f )
+		if ( _hasForce )
 		{
-			if ( !ForceDirection.IsNearlyZero() )
+			var forceScale = ForceScale.Evaluate( p, 7723 );
+			if ( forceScale != 0.0f )
 			{
-				p.Velocity += forceScale * (ForceSpace == SimulationSpace.Local ? _worldForce : ForceDirection) * timeScale;
-			}
+				if ( !ForceDirection.IsNearlyZero() )
+				{
+					p.Velocity += forceScale * (ForceSpace == SimulationSpace.Local ? _worldForce : ForceDirection) * timeScale;
+				}
 
-			if ( !OrbitalForce.IsNearlyZero() )
-			{
-				var force = OrbitalForce.Evaluate( delta, p.Rand( 8363 ), p.Rand( 5216 ), p.Rand( 2323 ) );
-				var localOffset = (_worldTx.Position - p.Position).Normal;
-				var rotatedOffset = localOffset.RotateAround( 0, new Angles( force ) );
-				var rotDelta = localOffset - rotatedOffset;
+				if ( !OrbitalForce.IsNearlyZero() )
+				{
+					var force = OrbitalForce.Evaluate( delta, p.Rand( 8363 ), p.Rand( 5216 ), p.Rand( 2323 ) );
+					var localOffset = (_worldTx.Position - p.Position).Normal;
+					var rotatedOffset = localOffset.RotateAround( 0, new Angles( force ) );
+					var rotDelta = localOffset - rotatedOffset;
 
-				p.Velocity += forceScale * rotDelta * timeScale;
-			}
+					p.Velocity += forceScale * rotDelta * timeScale;
+				}
 
-			if ( !OrbitalPull.IsNearlyZero() )
-			{
-				var localOffset = (_worldTx.Position - p.Position) / 100.0f;
-				p.Velocity += forceScale * localOffset * timeScale * OrbitalPull.Evaluate( delta, p.Rand( 4333 ) );
+				if ( !OrbitalPull.IsNearlyZero() )
+				{
+					var localOffset = (_worldTx.Position - p.Position) / 100.0f;
+					p.Velocity += forceScale * localOffset * timeScale * OrbitalPull.Evaluate( delta, p.Rand( 4333 ) );
+				}
 			}
 		}
 
 		// Apply constant movement
-		if ( !ConstantMovement.IsNearlyZero() )
+		if ( _hasConstantMovement )
 		{
 			var constantMovement = ConstantMovement.Evaluate( p, 4395 ) * _timeDelta;
 			p.Position += constantMovement.LerpTo( _worldTx.NormalToWorld( constantMovement ) * constantMovement.Length, localSpace );
@@ -792,6 +805,13 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 		_maxSize = 1;
 		_timeDelta = Paused ? 0.0f : timeDelta * TimeScale;
 		_worldTx = WorldTransform;
+
+		_liveLifetime = Scene.IsEditor;
+		_hasDamping = !Damping.IsNearlyZero();
+		_hasLocalSpace = !LocalSpace.IsNearlyZero();
+		_hasForce = Force && !ForceScale.IsNearlyZero();
+		_hasConstantMovement = !ConstantMovement.IsNearlyZero();
+		_constantPerParticleTimeScale = PerParticleTimeScale.IsConstant ? PerParticleTimeScale.ConstantValue : float.NaN;
 
 		if ( ForceSpace == SimulationSpace.Local )
 			_worldForce = _worldTx.Rotation * ForceDirection;
@@ -1038,7 +1058,8 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 		}
 
 		p.BornTime += delay;
-		p.DeathTime = p.BornTime + Lifetime.Evaluate( delta, p.Rand( 145, 100 ) );
+		// Same draw UpdateParticle uses when the editor re-evaluates it
+		p.DeathTime = p.BornTime + Lifetime.Evaluate( p.Rand( 155, 100 ), p.Rand( 145, 100 ) );
 
 		if ( UsePrefabFeature && FollowerPrefabChance.Evaluate( delta, Random.Shared.Float( 0, 1 ) ) > Random.Shared.Float() )
 		{
