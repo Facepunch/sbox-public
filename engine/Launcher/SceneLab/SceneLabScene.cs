@@ -239,6 +239,7 @@ internal sealed record SceneLabScene
 		new() { Name = "Contact Shadows", Group = "Shadows", Game = GameScenes.ContactShadows, ChangeGame = GameScenes.ChangeContactShadows },
 		new() { Name = "Decal Geometry", Group = "Effects", Game = GameScenes.DecalGeometry, ChangeGame = GameScenes.ChangeDecalGeometry },
 		new() { Name = "Soft Particles", Group = "Effects", Game = GameScenes.SoftParticles },
+		new() { Name = "Particle Refraction", Group = "Effects", Game = GameScenes.ParticleRefraction, ChangeGame = GameScenes.ChangeParticleRefraction },
 		new() { Name = "Scene Attributes", Group = "GameObject", Game = GameScenes.SceneAttributes, ChangeGame = GameScenes.ChangeSceneAttributes },
 		new() { Name = "Scene Object Children", Group = "GameObject", Game = GameScenes.SceneObjectChildren, ChangeGame = GameScenes.ChangeSceneObjectChildren },
 		new() { Name = "Morphs", Group = "GameObject", Game = GameScenes.Morphs, ChangeGame = GameScenes.ChangeMorphs },

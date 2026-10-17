@@ -479,6 +479,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		{
 			custom.Tint = sceneObject.ColorTint;
 			custom.IsOpaque = sceneObject.Flags.IsOpaque && !sceneObject.Flags.IsTranslucent;
+			custom.WantsFrameBufferCopy = sceneObject.Flags.WantsFrameBufferCopy;
 			custom.DepthPrepass = !sceneObject.Flags.HasFlag( SceneObjectFlags.NoZPrepass );
 			custom.CastShadows = sceneObject.Flags.CastShadows;
 			custom.Visible = sceneObject.RenderingEnabled;

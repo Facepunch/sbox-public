@@ -787,6 +787,9 @@ public class ParticleEffectTest
 		Assert.AreEqual( renderer.ParticleEffect, go.GetComponent<ParticleEffect>() );
 
 		Assert.IsNull( renderer.Sprite );
+		Assert.IsFalse( renderer.Refraction );
+		Assert.IsNull( renderer.NormalTexture );
+		Assert.IsFalse( renderer.IsRefractive );
 		Assert.AreEqual( 1.0f, renderer.Scale );
 		Assert.AreEqual( 0.0f, renderer.DepthFeather );
 		Assert.AreEqual( 1.0f, renderer.FogStrength );
@@ -797,6 +800,142 @@ public class ParticleEffectTest
 		Assert.AreEqual( new Vector2( 0.5f, 0.5f ), renderer.Pivot );
 		Assert.AreEqual( Texture.Transparent, renderer.RenderTexture );
 		Assert.IsTrue( go.Tags.Has( "particles" ), "Sprite renderer should tag its GameObject with 'particles'" );
+	}
+
+	/// <summary>
+	/// Refraction requires an explicit opt-in, a normal map and alpha blending. Reusing the upload buffer
+	/// after disabling it must clear the normal handle while preserving particle opacity and soft fades.
+	/// </summary>
+	[TestMethod]
+	[DataRow( false, false, false, true, false )]
+	[DataRow( true, false, false, false, false )]
+	[DataRow( true, true, false, true, false )]
+	[DataRow( true, false, true, true, false )]
+	[DataRow( true, false, false, true, true )]
+	public void SpriteRenderer_RefractionUpload( bool enabled, bool opaque, bool additive, bool hasNormal, bool expected )
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var go = scene.CreateObject();
+		var renderer = go.Components.Create<ParticleSpriteRenderer>();
+		renderer.Sprite = Sprite.FromTexture( Texture.White );
+		renderer.Refraction = enabled;
+		renderer.NormalTexture = hasNormal ? Texture.White : null;
+		renderer.Opaque = opaque;
+		renderer.Additive = additive;
+		renderer.RefractionStrength = 13;
+		renderer.DepthFeather = 7;
+		renderer.CameraFadeNear = 10;
+		renderer.CameraFadeFar = 20;
+
+		var particle = renderer.ParticleEffect.Emit( Vector3.Zero, 0 );
+		particle.Color = Color.White.WithAlpha( 0.5f );
+		particle.Alpha = 0.5f;
+		var upload = new SpriteBatchSceneObject.SpriteData[1];
+		IBatchedParticleSpriteRenderer batched = renderer;
+		Assert.AreEqual( 1, batched.ProcessParticlesDirectly( upload ).SpriteCount );
+		Assert.AreEqual( expected, renderer.IsRefractive );
+		Assert.AreEqual( expected ? Texture.White.Index : 0, upload[0].NormalTextureHandle );
+		Assert.AreEqual( 13, upload[0].RefractionStrength );
+		Assert.AreEqual( 63u, upload[0].TintColor >> 24 );
+		Assert.AreEqual( 7, upload[0].DepthFeather );
+		Assert.AreEqual( SpriteBatchSceneObject.SpriteData.PackCameraFade( 10, 20 ), upload[0].CameraFade );
+
+		renderer.Refraction = false;
+		batched.ProcessParticlesDirectly( upload );
+		Assert.AreEqual( 0, upload[0].NormalTextureHandle );
+	}
+
+	/// <summary>
+	/// Strength curves evaluate each particle's own age without changing opacity, and negative
+	/// curve values cannot reverse the distortion. Reusing the buffer must update every value.
+	/// </summary>
+	[TestMethod]
+	public void SpriteRenderer_RefractionLifetimeCurve()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var renderer = scene.CreateObject().Components.Create<ParticleSpriteRenderer>();
+		renderer.Sprite = Sprite.FromTexture( Texture.White );
+		renderer.Refraction = true;
+		renderer.NormalTexture = Texture.White;
+
+		var curve = new Curve();
+		curve.AddPoint( 0, 24 );
+		curve.AddPoint( 1, -8 );
+		renderer.RefractionStrength = new ParticleFloat
+		{
+			Type = ParticleFloat.ValueType.Curve,
+			Evaluation = ParticleFloat.EvaluationType.Life,
+			CurveA = curve
+		};
+
+		var young = renderer.ParticleEffect.Emit( Vector3.Zero, 0 );
+		var old = renderer.ParticleEffect.Emit( Vector3.Zero, 0 );
+		young.LifeDelta = 0;
+		old.LifeDelta = 0.5f;
+		var upload = new SpriteBatchSceneObject.SpriteData[2];
+		IBatchedParticleSpriteRenderer batched = renderer;
+		Assert.AreEqual( 2, batched.ProcessParticlesDirectly( upload ).SpriteCount );
+		Assert.AreEqual( 24.0f, upload[0].RefractionStrength );
+		Assert.AreEqual( 8.0f, upload[1].RefractionStrength );
+		Assert.AreEqual( 255u, upload[1].TintColor >> 24 );
+
+		old.LifeDelta = 1;
+		batched.ProcessParticlesDirectly( upload );
+		Assert.AreEqual( 0.0f, upload[1].RefractionStrength );
+
+		renderer.RefractionStrength = new ParticleFloat( 4, 20 );
+		batched.ProcessParticlesDirectly( upload );
+		var randomStrength = upload[0].RefractionStrength;
+		Assert.IsTrue( randomStrength >= 4 && randomStrength <= 20 );
+		young.LifeDelta = 0.75f;
+		batched.ProcessParticlesDirectly( upload );
+		Assert.AreEqual( randomStrength, upload[0].RefractionStrength, "Seeded ranges stay stable as particles age" );
+	}
+
+	/// <summary>
+	/// Saved strength curves survive a component round trip; numeric values from older scenes
+	/// still load as constants without requiring a scene upgrader.
+	/// </summary>
+	[TestMethod]
+	public void SpriteRenderer_RefractionStrengthSerialization()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var renderer = scene.CreateObject().Components.Create<ParticleSpriteRenderer>();
+		var curve = new Curve();
+		curve.AddPoint( 0, 16 );
+		curve.AddPoint( 1, 0 );
+		renderer.RefractionStrength = new ParticleFloat
+		{
+			Type = ParticleFloat.ValueType.Curve,
+			Evaluation = ParticleFloat.EvaluationType.Life,
+			CurveA = curve
+		};
+
+		var json = renderer.GameObject.Serialize();
+		SceneUtility.MakeIdGuidsUnique( json );
+		var copy = new GameObject( false );
+		copy.Deserialize( json );
+		var strength = copy.GetComponent<ParticleSpriteRenderer>().RefractionStrength;
+		Assert.AreEqual( ParticleFloat.ValueType.Curve, strength.Type );
+		Assert.AreEqual( ParticleFloat.EvaluationType.Life, strength.Evaluation );
+		Assert.AreEqual( curve.Evaluate( 0.25f ), strength.Evaluate( 0.25f, 0 ) );
+
+		foreach ( var component in json["Components"].AsArray() )
+		{
+			if ( component["__type"].GetValue<string>() == "Sandbox.ParticleSpriteRenderer" )
+			{
+				component["RefractionStrength"] = 13.0f;
+			}
+		}
+		SceneUtility.MakeIdGuidsUnique( json );
+		var legacy = new GameObject( false );
+		legacy.Deserialize( json );
+		strength = legacy.GetComponent<ParticleSpriteRenderer>().RefractionStrength;
+		Assert.AreEqual( ParticleFloat.ValueType.Constant, strength.Type );
+		Assert.AreEqual( 13.0f, strength.ConstantValue );
 	}
 
 	/// <summary>
@@ -897,5 +1036,9 @@ public class ParticleEffectTest
 		Assert.AreEqual( FilterMode.Bilinear, renderer.TextureFilter );
 		Assert.IsFalse( renderer.Additive );
 		Assert.IsFalse( renderer.FaceVelocity );
+
+		IBatchedParticleSpriteRenderer batched = renderer;
+		Assert.IsNull( batched.RefractionNormalTexture );
+		Assert.AreEqual( 0.0f, batched.RefractionStrength.Evaluate( 0.5f, 0 ) );
 	}
 }

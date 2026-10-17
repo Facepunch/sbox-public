@@ -172,6 +172,9 @@ internal sealed partial class MeshRenderFeature
 		if ( obj.Overlay ) runs |= opaque ? MeshRuns.OverlayOpaque : MeshRuns.OverlayTranslucent;
 		if ( obj.Bloom ) runs |= MeshRuns.Bloom;
 		if ( obj.AfterUI ) runs |= MeshRuns.AfterUI;
+
+		// Native's refraction stencil takes translucent frame-copy readers, including custom objects.
+		if ( obj.WantsFrameBufferCopy && !opaque ) runs |= MeshRuns.Refraction;
 		return runs;
 	}
 

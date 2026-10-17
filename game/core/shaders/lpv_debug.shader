@@ -81,6 +81,7 @@ PS
     RenderState( AlphaToCoverageEnable, false );
     RenderState( DepthWriteEnable, false );
 
+    int nDDGIVolume < Attribute( "DDGIVolume" ); Default( -1 ); >;
     float flRoughness < Attribute( "Roughness" ); Default( 1 ); >;
     float flMetalness < Attribute( "Metalness" ); Default( 0 ); >;
     float3 vAlbedo < Attribute( "Albedo" ); Default3( 1, 1, 1 ); >;
@@ -124,7 +125,19 @@ PS
 
         if ( !bLightingPreview )
         {
-            o.vColor = float4( SampleLightProbeVolume( i.vProbePositionWs, normalize( i.vNormalWs ) ), flCoverage );
+            float3 vNormalWs = normalize( i.vNormalWs );
+            float3 vIrradiance = 0;
+            if ( UsesBakedLightingFromProbe )
+                vIrradiance = SampleLightProbeVolume( i.vProbePositionWs, vNormalWs );
+            else if ( nDDGIVolume >= 0 && nDDGIVolume < (int)DDGIVolumeCount )
+            {
+                // Relocation stays under half a cell, so rounding recovers the probe's grid index.
+                DDGIVolume volume = DDGIVolumes[nDDGIVolume];
+                int3 vProbeIndex = round( ( volume.ToProbeSpace( i.vProbePositionWs ) - volume.BBoxMin ) * volume.ReciprocalSpacing );
+                vIrradiance = DDGI::SampleProbeIrradiance( volume, Bindless::GetTexture3D( volume.IrradianceTextureIndex ), vProbeIndex, -vNormalWs );
+                vIrradiance *= volume.RuntimeIntensity * max( volume.RuntimeTint, 0.0f );
+            }
+            o.vColor = float4( vIrradiance, flCoverage );
             return o;
         }
 

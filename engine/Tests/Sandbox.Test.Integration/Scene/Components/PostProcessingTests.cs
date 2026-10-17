@@ -618,7 +618,7 @@ public class PostProcessingComponentTest
 			camGo.Components.Create<AmbientOcclusion>();
 			camGo.Components.Create<DepthOfField>();
 			camGo.Components.Create<Bloom>();
-			camGo.Components.Create<ColorGrading>();
+			camGo.Components.Create<ColorGrading>().GradingMethod = ColorGrading.GradingType.TemperatureControl;
 
 			var tonemap = camGo.Components.Create<Tonemapping>();
 			tonemap.AutoExposureEnabled = true;

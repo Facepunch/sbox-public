@@ -235,6 +235,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 				var customDistance = (customRuns & DistanceSortedLists) != 0 ? TranslucentSortDistance( centers[index], extents[index], sortCamera ) : 0;
 				AddToLists( customRuns, index, (ulong)(uint)RuntimeHelpers.GetHashCode( custom ) << 8, customDistance, !custom.IsOpaque, 0 );
 				layers.Custom |= customRuns;
+				if ( custom.WantsFrameBufferCopy && !pass.IsShadow ) layers.FrameBufferReads |= customRuns & FrameBufferCopyingLists;
 				continue;
 			}
 
@@ -409,7 +410,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			{
 				Flush();
 				var instance = transforms.AddInstance( transforms.SlotFor( custom, matrices[index], custom.Tint ) );
-				runs.Add( new Run( null, 0, null, false, DrawFilter.All, instance, 1, Custom: custom ) );
+				runs.Add( new Run( null, 0, null, false, DrawFilter.All, instance, 1, Custom: custom, ReadsFrameBuffer: custom.WantsFrameBufferCopy ) );
 				continue;
 			}
 
@@ -623,6 +624,9 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			{
 				if ( !layer.DrawsCustomObjectsIn( view ) ) continue;
 				if ( layer.WritesNormals && !custom.DepthPrepass ) continue;
+
+				// Same first-reader copy as mesh batches (CRenderBatchList::DrawCurrentPrimitives).
+				if ( run.ReadsFrameBuffer && !depth ) context.CopyFrameBuffer();
 
 				context.BindInstances( 1, run.FirstInstance );
 				custom.Render( context, view, layer );

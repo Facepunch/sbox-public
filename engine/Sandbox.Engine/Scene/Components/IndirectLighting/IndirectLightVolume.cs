@@ -245,6 +245,11 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 	internal float ProbeCellDiagonal => (ComputeSpacing( ProbeCounts ) * WorldScale.Abs()).Length;
 
 	/// <summary>
+	/// Index of this volume in the scene's DDGI_Volumes buffer, or -1 when it isn't uploaded.
+	/// </summary>
+	internal int GpuIndex { get; set; } = -1;
+
+	/// <summary>
 	/// Volume texture storing probe irradiance data (color).
 	/// </summary>
 	[Property, Hide]
@@ -468,7 +473,7 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 		// Use gizmo pooling so it follows gizmo visibility rules (hidden when gizmos disabled, not in cubemaps)
 		var debugGrid = Gizmo.Active.FindOrCreate<LPVDebugGridObject>( "lpv-grid", () => new( Gizmo.World ) );
 
-		debugGrid.UpdateGrid( WorldTransform, Bounds, ProbeCounts, 5, Probes );
+		debugGrid.UpdateGrid( WorldTransform, Bounds, ProbeCounts, 5, GpuIndex, Probes );
 	}
 
 
