@@ -294,7 +294,7 @@ public class SettingsCatalog
 				.ToList(),	
 			AppliesRenderSettings = true,
 			Read = () => Render.DisplayId.ToString(),
-			Write = value => Render.DisplayId = (int)value,
+			Write = value => Render.DisplayId = value?.ToString().ToInt() ?? 0,
 		} );
 
 		Items.Add( new SettingItem

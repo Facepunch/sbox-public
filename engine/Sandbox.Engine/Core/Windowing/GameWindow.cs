@@ -164,12 +164,13 @@ internal sealed partial class GameWindow : IDisposable
 
 		if ( windowMode == requested ) return window.Sync();
 		windowMode = null;
+		var display = requested.DisplayId != 0 ? requested.DisplayId : SdlDisplay.ForWindow( window.Handle );
 
 		if ( !window.SetFullscreen( requested.Fullscreen, requested.Width, requested.Height ) ) return false;
 		if ( !requested.Fullscreen )
 		{
 			// Bounds must reflect the restored desktop, not the previous exclusive resolution.
-			var bounds = SdlDisplay.GetBounds( SdlDisplay.ForWindow( window.Handle ), usable: !requested.Borderless );
+			var bounds = SdlDisplay.GetBounds( display, usable: !requested.Borderless );
 			Check( bounds.Width > 0 && bounds.Height > 0 );
 			var size = requested.GetSize( bounds.Size );
 			var (width, height) = ((int)size.x, (int)size.y);
