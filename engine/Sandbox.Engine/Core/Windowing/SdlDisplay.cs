@@ -123,7 +123,7 @@ internal static class SdlDisplay
 			{
 				var id = ids[i];
 				var mode = GetDesktopMode( id );
-				var name = $"Display {i + 1} :: {mode.Width}x{mode.Height} @ {mode.RefreshRate}Hz";
+				var name = $"Display {i + 1} : {mode.Width}x{mode.Height} @ {mode.RefreshRate}Hz";
 				result[i] = (id, name, mode.Width, mode.Height, mode.RefreshRate, mode.Format);
 			}
 			return result;

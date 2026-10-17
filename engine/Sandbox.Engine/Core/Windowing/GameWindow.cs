@@ -158,7 +158,8 @@ internal sealed partial class GameWindow : IDisposable
 			{
 				Fullscreen = true,
 				Width = 0,
-				Height = 0
+				Height = 0,
+				DisplayId = 0,
 			};
 		}
 
@@ -166,7 +167,7 @@ internal sealed partial class GameWindow : IDisposable
 		windowMode = null;
 		var display = requested.DisplayId != 0 ? requested.DisplayId : SdlDisplay.ForWindow( window.Handle );
 
-		if ( !window.SetFullscreen( requested.Fullscreen, requested.Width, requested.Height ) ) return false;
+		if ( !window.SetFullscreen( requested.Fullscreen, requested.Width, requested.Height, 0, display ) ) return false;
 		if ( !requested.Fullscreen )
 		{
 			// Bounds must reflect the restored desktop, not the previous exclusive resolution.
