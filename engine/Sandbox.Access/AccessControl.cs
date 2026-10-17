@@ -38,8 +38,40 @@ public partial class AccessControl : IAssemblyResolver
 	/// </summary>
 	public TrustedBinaryStream TrustUnsafe( byte[] dll )
 	{
-		var instance = new AssemblyAccess( this, dll );
+		// Reading the whole assembly with Cecil here only served the resolver, which needs the
+		// definition when some other assembly references this one - and for package.* names
+		// it already builds that on demand from the package's bytes. So just make sure a
+		// definition of an older build isn't left in the cache to answer for this one. Reading
+		// the name alone is cheap; the full read was over a second of editor startup.
+		var name = ReadAssemblyName( dll );
+
+		if ( name is not null && name.StartsWith( "package.", StringComparison.OrdinalIgnoreCase ) && PackageAssemblyResolver != null )
+		{
+			ForgetAssembly( name );
+		}
+		else
+		{
+			var instance = new AssemblyAccess( this, dll );
+		}
+
 		return TrustedBinaryStream.CreateInternal( dll );
+	}
+
+	/// <summary>
+	/// The simple name of the assembly in these bytes, without building a Cecil definition of it.
+	/// </summary>
+	static string ReadAssemblyName( byte[] dll )
+	{
+		try
+		{
+			using var pe = new System.Reflection.PortableExecutable.PEReader( new MemoryStream( dll ) );
+			var metadata = System.Reflection.Metadata.PEReaderExtensions.GetMetadataReader( pe );
+			return metadata.GetString( metadata.GetAssemblyDefinition().Name );
+		}
+		catch ( Exception )
+		{
+			return null;
+		}
 	}
 
 	/// <summary>
