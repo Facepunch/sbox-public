@@ -134,15 +134,28 @@ internal sealed class SdlWindow : IDisposable
 	/// Apply fullscreen at a frame boundary. Zero dimensions select desktop fullscreen. A timeout
 	/// leaves the request pending; callers must retry before sizing against the restored desktop.
 	/// </summary>
-	internal unsafe bool SetFullscreen( bool fullscreen, int width = 0, int height = 0, float refreshRate = 0 )
+	internal unsafe bool SetFullscreen( bool fullscreen, int width = 0, int height = 0, float refreshRate = 0, uint display = 0 )
 	{
 		ThreadSafe.AssertIsMainThread();
 		if ( !Sync() ) return false;
 
+		if ( display == 0 ) display = SdlDisplay.ForWindow( Handle );
+
 		if ( fullscreen )
 		{
+			if ( SdlDisplay.ForWindow( Handle ) != display )
+			{
+				if ( (Flags & Sdl.WindowFlags.Fullscreen) != 0 )
+				{
+					Check( Sdl.SetWindowFullscreen( Handle, false ) );
+					if ( !Sync() ) return false;
+				}
+				Check( Sdl.SetWindowPosition( Handle, (int)display, (int)display ) );
+				if ( !Sync() ) return false;
+			}
+
 			Sdl.DisplayMode mode = default;
-			var exclusive = width > 0 && height > 0 && Sdl.GetClosestFullscreenDisplayMode( SdlDisplay.ForWindow( Handle ), width, height, refreshRate, false, out mode );
+			var exclusive = width > 0 && height > 0 && Sdl.GetClosestFullscreenDisplayMode( display, width, height, refreshRate, false, out mode );
 			// A saved resolution can become unavailable after changing displays. Null selects desktop fullscreen.
 			Check( Sdl.SetWindowFullscreenMode( Handle, exclusive ? (IntPtr)(&mode) : IntPtr.Zero ) );
 			// Exclusive modes can change in place, without restoring the desktop first.
