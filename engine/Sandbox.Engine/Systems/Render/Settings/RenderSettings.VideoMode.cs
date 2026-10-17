@@ -106,12 +106,31 @@ public partial class RenderSettings
 		window.QueueVideoMode( GameWindow.VideoMode.FromSettings( this ) );
 	}
 
+	static VideoDisplayMode[] cachedModes;
+	static uint cachedModesDisplay;
+
 	/// <summary>
 	/// Lists SDL fullscreen modes for the current display. Both windowed and fullscreen settings use
 	/// this list; <paramref name="windowed"/> is retained for compatibility and does not filter it.
 	/// All returned formats are RGBA8888, matching the game swapchain.
+	/// <para>
+	/// Asking SDL is not free - on macOS the first enumeration is close to a second on the main
+	/// thread - so the answer is kept for the life of the display, the same way the menu keeps
+	/// its resolution list.
+	/// </para>
 	/// </summary>
-	public VideoDisplayMode[] DisplayModes( bool windowed ) => SdlDisplay.GetModes( SdlDisplay.Current );
+	public VideoDisplayMode[] DisplayModes( bool windowed )
+	{
+		var display = SdlDisplay.Current;
+
+		if ( cachedModes is null || cachedModesDisplay != display )
+		{
+			cachedModes = SdlDisplay.GetModes( display );
+			cachedModesDisplay = display;
+		}
+
+		return (VideoDisplayMode[])cachedModes.Clone();
+	}
 
 	public struct VideoDisplayMode
 	{
