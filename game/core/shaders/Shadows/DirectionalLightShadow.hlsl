@@ -12,6 +12,10 @@
 // don't have more than this for fucks sake
 #define MAX_CASCADE_COUNT 4
 
+// Outer fraction of a cascade's selection radius that cross-fades into the next cascade (MJP's BlendThreshold).
+// The next cascade must still draw casters for this band: its exclusion box sits well inside it.
+#define CASCADE_BLEND_FRACTION 0.1f
+
 cbuffer DirectionalLightCB
 {
     float4 g_DirectionalLightColor; // w fogstrength
@@ -56,6 +60,33 @@ int FindCascade( float3 worldPosition, out float3 posLs )
 		}
 	}
 	return -1;
+}
+
+// How much of the next cascade a pixel selected into cascadeIndex uses: 0 inside, 1 at the rim.
+// Cross-cascade blend after MJP's Shadows sample (FilterAcrossCascades_ in ShadowVisibility, MIT):
+// https://github.com/TheRealMJP/Shadows/blob/master/Shadows/Mesh.hlsl
+// Our cascades are spheres, so the rim distance is his select-from-projection distToEdge, measured radially.
+float CascadeBlendWeight( int cascadeIndex, float3 worldPosition )
+{
+	int next = cascadeIndex + 1;
+	if ( next >= (int)g_DirectionalLightCascadeCount )
+		return 0.0f;
+
+	float4 sphere = g_DirectionalLightCascadeSpheres[cascadeIndex];
+	float3 toCenter = worldPosition - sphere.xyz;
+	float distToEdge = 1.0f - sqrt( dot( toCenter, toCenter ) / sphere.w );
+	if ( distToEdge >= CASCADE_BLEND_FRACTION )
+		return 0.0f;
+
+	// Near the camera the rim can poke out of the next cascade. Fade against its rim too so there's no seam.
+	float4 nextSphere = g_DirectionalLightCascadeSpheres[next];
+	float3 toNext = worldPosition - nextSphere.xyz;
+	float nextDistSq = dot( toNext, toNext );
+	if ( nextDistSq >= nextSphere.w )
+		return 0.0f;
+
+	float nextDistToEdge = 1.0f - sqrt( nextDistSq / nextSphere.w );
+	return ( 1.0f - smoothstep( 0.0f, CASCADE_BLEND_FRACTION, distToEdge ) ) * smoothstep( 0.0f, CASCADE_BLEND_FRACTION, nextDistToEdge );
 }
 
 struct DirectionalLightShadow
@@ -146,7 +177,14 @@ struct DirectionalLightShadow
 		if ( cascade < 0 )
 			return ssShadow;
 
-		return SampleCascade( cascade, worldPosition, normalWs, vPositionSs.xy ) * ssShadow;
+		float visibility = SampleCascade( cascade, worldPosition, normalWs, vPositionSs.xy );
+
+		float blend = CascadeBlendWeight( cascade, worldPosition );
+		[branch]
+		if ( blend > 0.0f )
+			visibility = lerp( visibility, SampleCascade( cascade + 1, worldPosition, normalWs, vPositionSs.xy ), blend );
+
+		return visibility * ssShadow;
     }
 
     // For callers that have no receiver normal at hand. The normal comes from screen-space derivatives,
@@ -160,14 +198,13 @@ struct DirectionalLightShadow
 
     static float3 GetDebugColor( float3 worldPosition )
     {
-		for ( int i = 0; i < (int)g_DirectionalLightCascadeCount; i++ )
-		{
-			float3 toCenter = worldPosition - g_DirectionalLightCascadeSpheres[i].xyz;
-			if ( dot( toCenter, toCenter ) < g_DirectionalLightCascadeSpheres[i].w )
-				return DebugColors[i];
-		}
+		float3 posLs;
+		int cascade = FindCascade( worldPosition, posLs );
+		if ( cascade < 0 )
+			return float3( 0.0f, 0.0f, 0.0f );
 
-        return float3( 0.0f, 0.0f, 0.0f );
+		float blend = CascadeBlendWeight( cascade, worldPosition );
+		return lerp( DebugColors[cascade], DebugColors[min( cascade + 1, MAX_CASCADE_COUNT - 1 )], blend );
     }
 };
 
