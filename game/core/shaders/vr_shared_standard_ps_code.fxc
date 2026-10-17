@@ -308,16 +308,13 @@ FinalCombinerInput_t PS_SharedStandardProcessing( const PS_INPUT i )
 	//
 	#if ( S_ALPHA_TEST )
 	{
-		float eps = 1/255.0f;
-        
         o.flOpacity = vColorTexel.a * o.flOpacity;
-		
-        // Clip first to try to kill the wave if we're in an area of all zero
-        clip(o.flOpacity - eps);
 
+        // Clip only after the derivatives, see AdjustAlphaToCoverage in common/shadingmodel.hlsl
+        float flRawOpacity = o.flOpacity;
 		o.flOpacity = AdjustOpacityForAlphaToCoverage( o.flOpacity, g_flAlphaTestReference, g_flAntiAliasedEdgeStrength, i.vTextureCoords.xy, float2( TextureDimensions2DS( g_tColor, 0 ) ) );
 
-        clip(o.flOpacity - 0.000001);
+        clip( min( flRawOpacity - 1.0f / 255.0f, o.flOpacity - 0.000001 ) );
 	}
 	#endif
 
