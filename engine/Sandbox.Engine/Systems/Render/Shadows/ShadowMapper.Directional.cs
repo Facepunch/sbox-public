@@ -178,15 +178,27 @@ internal partial class ShadowMapper
 			viewFrustumCorners[i] = new Vector3( corner.X, corner.Y, corner.Z ) / corner.W;
 		}
 
-
-		// Compute camera forward from frustum geometry (near plane center → far plane center)
+		// Camera forward from the near plane's normal. Near center to far center gives NaN when the far corners
+		// are the ones at infinity, and tilts off the axis when the projection is asymmetric.
 		Vector3 nearCenter = (viewFrustumCorners[0] + viewFrustumCorners[1] + viewFrustumCorners[2] + viewFrustumCorners[3]) * 0.25f;
-		Vector3 farCenter = (viewFrustumCorners[4] + viewFrustumCorners[5] + viewFrustumCorners[6] + viewFrustumCorners[7]) * 0.25f;
-		var fwd = farCenter - nearCenter;
-		Vector3 camForward = fwd / fwd.Length;
+		Vector3 camForward = Vector3.Cross( viewFrustumCorners[3] - viewFrustumCorners[0], viewFrustumCorners[1] - viewFrustumCorners[0] ).Normal;
+		if ( Vector3.Dot( camForward, nearCenter ) < 0 )
+			camForward = -camForward;
+
+		float cameraNearDepth = Vector3.Dot( camForward, nearCenter );
+
+		// Not every projection has a far plane to unproject: a stereo eye's is built from FOV tangents with
+		// nothing finite at clip depth 0, so its corners there come back with w = 0 and land at infinity. Only
+		// a perspective projection can do that, and its corners run on lines from the camera at the origin, so
+		// the near corners point the way out to the shadow range - which is as far as cascades go anyway.
+		if ( !float.IsFinite( viewFrustumCorners[4].LengthSquared ) )
+		{
+			for ( int i = 0; i < 4; i++ )
+				viewFrustumCorners[i + 4] = viewFrustumCorners[i] * (FarClip / cameraNearDepth);
+		}
 
 		// View-space depth of the camera's actual near/far clip planes
-		float cameraNearDepth = Vector3.Dot( camForward, nearCenter );
+		Vector3 farCenter = (viewFrustumCorners[4] + viewFrustumCorners[5] + viewFrustumCorners[6] + viewFrustumCorners[7]) * 0.25f;
 		float cameraFarDepth = Vector3.Dot( camForward, farCenter );
 		float cameraDepthRange = cameraFarDepth - cameraNearDepth;
 
