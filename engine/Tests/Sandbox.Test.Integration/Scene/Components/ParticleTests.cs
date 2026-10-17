@@ -662,6 +662,48 @@ public class ParticleEffectTest
 	}
 
 	/// <summary>
+	/// Particles that expire mid-step are swept out in PostStep. Survivors keep their emission
+	/// order and every expired particle is destroyed exactly once.
+	/// </summary>
+	[TestMethod]
+	public void DeadParticles_SweptInOrder_DestroyedOnce()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var go = scene.CreateObject();
+		var effect = go.Components.Create<ParticleEffect>();
+		effect.Lifetime = 10.0f;
+
+		var emitter = go.Components.Create<ParticleBoxEmitter>();
+		emitter.Burst = 10.0f;
+		emitter.Rate = 0.0f;
+		emitter.Loop = false;
+		emitter.ResetEmitter();
+
+		scene.GameTick();
+		Assert.AreEqual( 10, effect.Particles.Count );
+
+		var destroyed = new int[10];
+		effect.OnParticleDestroyed += p => destroyed[p.Get<int>( "i" )]++;
+
+		for ( int i = 0; i < effect.Particles.Count; i++ )
+		{
+			var p = effect.Particles[i];
+			p.Set( "i", i );
+
+			// Past the end of a 10s life, so the next update marks it dead
+			if ( i % 2 == 0 )
+				p.Age = 100.0f;
+		}
+
+		for ( int i = 0; i < 20; i++ ) scene.GameTick();
+
+		CollectionAssert.AreEqual( new[] { 1, 3, 5, 7, 9 }, effect.Particles.Select( p => p.Get<int>( "i" ) ).ToArray(), "Survivors should keep their order" );
+		CollectionAssert.AreEqual( new[] { 1, 0, 1, 0, 1, 0, 1, 0, 1, 0 }, destroyed, "Each expired particle should be destroyed exactly once" );
+	}
+
+	/// <summary>
 	/// A warm effect that emits and expires particles every step reuses pooled particles and its own
 	/// buffers, so the step allocates nothing. The step is driven serially on this thread (as
 	/// ParticleGameSystem does, minus the Parallel.ForEach) because a whole scene tick measured across
