@@ -108,12 +108,13 @@ public partial class RenderSettings
 	/// <summary>
 	/// What a post-processing preset writes, by setting name. The settings menu compares this
 	/// against edits that haven't been saved yet, so it doesn't need its own copy of the table.
+	/// Effects from the loaded game are in it under their ConVar names.
 	/// </summary>
 	internal static Dictionary<string, string> SettingsFor( PostProcessQuality preset )
 	{
 		var effects = ValuesFor( preset );
 
-		return new Dictionary<string, string>
+		var settings = new Dictionary<string, string>
 		{
 			[nameof( AmbientOcclusionQuality )] = effects.AmbientOcclusion.ToString(),
 			[nameof( DepthOfFieldQuality )] = effects.DepthOfField.ToString(),
@@ -121,6 +122,12 @@ public partial class RenderSettings
 			[nameof( MotionBlurQuality )] = effects.MotionBlur.ToString(),
 			[nameof( BloomEnabled )] = effects.Bloom.ToString()
 		};
+
+		var level = EffectLevelFor( preset ).ToString();
+		foreach ( var effect in CustomPostProcessEffect.All )
+			settings[effect.Name] = level;
+
+		return settings;
 	}
 
 	static readonly PostProcessQuality[] PostProcessPresets =
@@ -129,11 +136,8 @@ public partial class RenderSettings
 	PostProcessValues CurrentPostProcessValues => new(
 		AmbientOcclusionQuality, DepthOfFieldQuality, ScreenSpaceReflectionQuality, MotionBlurQuality, BloomEnabled );
 
-	/// <summary>
-	/// What the individual effects add up to, or <see cref="PostProcessQuality.Custom"/>. Derived
-	/// rather than stored, so it can't drift from the effects it describes. Setting it writes them all.
-	/// </summary>
-	public PostProcessQuality PostProcessQuality
+	/// <summary>What the built-in effects add up to, leaving out the ones games add.</summary>
+	PostProcessQuality BuiltInPostProcessQuality
 	{
 		get
 		{
@@ -146,6 +150,31 @@ public partial class RenderSettings
 			}
 
 			return PostProcessQuality.Custom;
+		}
+	}
+
+	/// <summary>
+	/// What the individual effects add up to, or <see cref="PostProcessQuality.Custom"/>. Derived
+	/// rather than stored, so it can't drift from the effects it describes. Setting it writes them all.
+	/// </summary>
+	public PostProcessQuality PostProcessQuality
+	{
+		get
+		{
+			var preset = BuiltInPostProcessQuality;
+			if ( preset == PostProcessQuality.Custom || CustomPostProcessEffect.All.Count == 0 )
+				return preset;
+
+			var level = EffectLevelFor( preset );
+			var levels = CustomEffectLevels;
+
+			foreach ( var effect in CustomPostProcessEffect.All )
+			{
+				if ( CustomEffectLevel( levels, effect.Name ) != level )
+					return PostProcessQuality.Custom;
+			}
+
+			return preset;
 		}
 
 		set
@@ -160,6 +189,7 @@ public partial class RenderSettings
 			ScreenSpaceReflectionQuality = values.ScreenSpaceReflections;
 			MotionBlurQuality = values.MotionBlur;
 			BloomEnabled = values.Bloom;
+			SetCustomEffectsBase( EffectLevelFor( value ) );
 		}
 	}
 

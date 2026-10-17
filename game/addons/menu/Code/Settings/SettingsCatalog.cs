@@ -143,9 +143,10 @@ public class SettingsCatalog
 
 	/// <summary>
 	/// Row for each setting the presets cover. The engine keys its preset values by its own
-	/// property names, and these are the rows they land on. Checked on startup.
+	/// property names, and these are the rows they land on. Checked on startup. Effects the
+	/// running game adds go in under their ConVar names as their rows are built.
 	/// </summary>
-	static readonly Dictionary<string, string> PresetRows = new()
+	readonly Dictionary<string, string> PresetRows = new()
 	{
 		["TextureQuality"] = "gfx.texture",
 		["ShadowQuality"] = "gfx.shadows",
@@ -538,6 +539,29 @@ public class SettingsCatalog
 			Read = () => Render.MotionBlurScale,
 			Write = value => Render.MotionBlurScale = ToFloat( value )
 		} );
+
+		// Effects the running game put on the ladder with [PostProcessSetting]. The presets
+		// drive them like the built-in ones, so they get preset rows too.
+		foreach ( var effect in Render.CustomPostProcessEffects )
+		{
+			var name = effect.Name;
+			var id = $"gfx.postprocess.{name}";
+
+			PresetRows[name] = id;
+
+			Items.Add( new SettingItem
+			{
+				Id = id,
+				Category = "graphics",
+				Section = "#menu.settings.post_processing",
+				Title = effect.Title,
+				Description = effect.Description,
+				Options = EffectLevels,
+				AppliesRenderSettings = true,
+				Read = () => Render.GetEffectQuality( name ).ToString(),
+				Write = value => Render.SetEffectQuality( name, ToEnum<EffectQuality>( value ) )
+			} );
+		}
 
 		Items.Add( new SettingItem
 		{

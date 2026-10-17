@@ -232,6 +232,8 @@ public partial class RenderSettings
 
 	public void Apply()
 	{
+		SettleCustomEffects();
+
 		ApplyVideoMode();
 
 		OnVideoSettingsChanged?.Invoke();
