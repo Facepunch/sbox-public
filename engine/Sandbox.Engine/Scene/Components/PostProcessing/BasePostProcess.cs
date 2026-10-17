@@ -101,7 +101,12 @@ public abstract class BasePostProcess : Component, Component.ExecuteInEditor, Co
 	{
 		if ( !blit.Material.IsValid() ) return;
 
-		CommandList cl = new CommandList( debugName );
+		var layer = CreateLayer( blit.RenderStage, blit.Order, debugName );
+
+		// Layers are pooled per camera, so reusing the layer's list costs no allocation after the first frame.
+		var cl = layer.BlitCommandList ??= new CommandList( debugName );
+		cl.Reset();
+		cl.DebugName = debugName;
 
 		if ( blit.WantsBackbuffer )
 		{
@@ -110,7 +115,7 @@ public abstract class BasePostProcess : Component, Component.ExecuteInEditor, Co
 
 		cl.Blit( blit.Material, blit.Attributes ?? Attributes );
 
-		InsertCommandList( cl, blit.RenderStage, blit.Order, debugName );
+		layer.CommandList = cl;
 	}
 
 
@@ -127,12 +132,17 @@ public abstract class BasePostProcess : Component, Component.ExecuteInEditor, Co
 	/// </summary>
 	protected void InsertCommandList( CommandList cl, Sandbox.Rendering.Stage stage, int order, string debugName )
 	{
+		CreateLayer( stage, order, debugName ).CommandList = cl;
+	}
+
+	PostProcessLayer CreateLayer( Sandbox.Rendering.Stage stage, int order, string debugName )
+	{
 		var layer = context.Camera.PostProcess.CreateLayer( stage );
 		layer.Order = order;
-		layer.CommandList = cl;
 		layer.Name = debugName;
 		layer.NeedsDepthNormals = NeedsDepthNormals;
 		layer.EarlyQueue = stage == Sandbox.Rendering.Stage.AfterDepthPrepass ? EarlyQueue : null;
+		return layer;
 	}
 
 	/// <summary>

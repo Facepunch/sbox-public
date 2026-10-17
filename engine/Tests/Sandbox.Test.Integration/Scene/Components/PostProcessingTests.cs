@@ -587,6 +587,66 @@ public class PostProcessingComponentTest
 	}
 
 	/// <summary>
+	/// Layers, and the command lists Blit records into, are reused from tick to tick. Whatever pool slot a layer lands in
+	/// as effects come and go, every layer must keep a command list of its own, and an effect that inserts its own list
+	/// must still be the one played back - not a blit list left behind in a reused slot.
+	/// </summary>
+	[TestMethod]
+	public void ReusedLayersKeepTheirOwnCommandLists()
+	{
+		var oldEnable = PostProcessSystem.EnablePostProcess;
+		var oldAoQuality = AmbientOcclusion.UserQuality;
+		var oldBloom = Bloom.UserEnabled;
+
+		PostProcessSystem.EnablePostProcess = true;
+		AmbientOcclusion.UserQuality = 3;
+		Bloom.UserEnabled = true;
+
+		try
+		{
+			var scene = new Scene();
+			using var sceneScope = scene.Push();
+
+			var camGo = scene.CreateObject();
+			var cam = camGo.Components.Create<CameraComponent>();
+
+			camGo.Components.Create<AmbientOcclusion>();
+			camGo.Components.Create<Bloom>();
+			camGo.Components.Create<Vignette>();
+			camGo.Components.Create<Blur>();
+
+			scene.GameTick();
+			AssertOwnCommandLists( cam, 4 );
+			var bloomList = FindLayer( cam, Stage.BeforePostProcess, "Bloom" ).CommandList;
+
+			// AO drops out, so every later layer moves down one pool slot
+			AmbientOcclusion.UserQuality = 0;
+			scene.GameTick();
+			AssertOwnCommandLists( cam, 3 );
+			Assert.AreSame( bloomList, FindLayer( cam, Stage.BeforePostProcess, "Bloom" ).CommandList, "Bloom must play back its own list from a reused slot" );
+
+			AmbientOcclusion.UserQuality = 3;
+			scene.GameTick();
+			AssertOwnCommandLists( cam, 4 );
+			Assert.AreSame( bloomList, FindLayer( cam, Stage.BeforePostProcess, "Bloom" ).CommandList );
+		}
+		finally
+		{
+			PostProcessSystem.EnablePostProcess = oldEnable;
+			AmbientOcclusion.UserQuality = oldAoQuality;
+			Bloom.UserEnabled = oldBloom;
+		}
+	}
+
+	static void AssertOwnCommandLists( CameraComponent cam, int expectedLayers )
+	{
+		var lists = cam.PostProcess.Layers.SelectMany( x => x.Value ).Select( x => x.CommandList ).ToList();
+		Assert.AreEqual( expectedLayers, lists.Count );
+		Assert.IsTrue( lists.All( x => x is not null ), "Every layer needs a command list" );
+		Assert.AreEqual( lists.Count, lists.Distinct().Count(), "Two layers share a command list, so one effect's commands overwrite another's" );
+	}
+
+	/// <summary>
 	/// The compute-based effects also register through the same pipeline at their pinned
 	/// stages: AmbientOcclusion right after the depth prepass, DepthOfField after
 	/// transparents, Bloom before post process and ColorGrading after. Tonemapping both
