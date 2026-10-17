@@ -9,7 +9,7 @@ internal sealed partial class GameWindow
 	/// <summary>
 	/// Requested window geometry. Nonpositive dimensions select the desktop size; fullscreen dimensions request a display mode.
 	/// </summary>
-	internal readonly record struct WindowMode( bool Fullscreen, bool Borderless, int Width, int Height )
+	internal readonly record struct WindowMode( bool Fullscreen, bool Borderless, int Width, int Height, uint DisplayId )
 	{
 		internal Vector2 GetSize( Vector2 displaySize )
 		{
@@ -24,13 +24,13 @@ internal sealed partial class GameWindow
 	internal readonly record struct VideoMode( WindowMode Window, bool VSync, RenderMultisampleType Multisample )
 	{
 		internal static VideoMode FromSettings( RenderSettings settings ) => new(
-			new( settings.Fullscreen, settings.Borderless, settings.ResolutionWidth, settings.ResolutionHeight ),
+			new( settings.Fullscreen, settings.Borderless, settings.ResolutionWidth, settings.ResolutionHeight, settings.DisplayId > 0 ? (uint)settings.DisplayId : SdlDisplay.Current ),
 			settings.VSync, settings.AntiAliasQuality.ToEngine() );
 
 		internal static VideoMode FromCommandLine( RenderSettings settings )
 		{
 			if ( CommandLine.HasSwitch( "-nowindow" ) )
-				return new( new( false, false, 4, 4 ), false, RenderMultisampleType.RENDER_MULTISAMPLE_NONE );
+				return new( new( false, false, 4, 4, 0 ), false, RenderMultisampleType.RENDER_MULTISAMPLE_NONE );
 
 			var mode = FromSettings( settings );
 			var window = mode.Window with
@@ -38,7 +38,8 @@ internal sealed partial class GameWindow
 				Width = CommandLine.GetSwitchInt( "-width", CommandLine.GetSwitchInt( "-w", mode.Window.Width ) ),
 				Height = CommandLine.GetSwitchInt( "-height", CommandLine.GetSwitchInt( "-h", mode.Window.Height ) ),
 				Fullscreen = mode.Window.Fullscreen || CommandLine.HasSwitch( "-fullscreen" ) || CommandLine.HasSwitch( "-fs" ),
-				Borderless = mode.Window.Borderless || CommandLine.HasSwitch( "-noborder" )
+				Borderless = mode.Window.Borderless || CommandLine.HasSwitch( "-noborder" ),
+				DisplayId = mode.Window.DisplayId
 			};
 			// Explicit dimensions must not be replaced by the default borderless desktop size.
 			if ( CommandLine.HasSwitch( "-w" ) || CommandLine.HasSwitch( "-width" ) ||
