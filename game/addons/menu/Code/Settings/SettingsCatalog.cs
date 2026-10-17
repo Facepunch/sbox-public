@@ -297,6 +297,22 @@ public class SettingsCatalog
 
 		Items.Add( new SettingItem
 		{
+			Id = "display.displayid",
+			Category = "display",
+			Section = "#menu.settings.window",
+			Title = "#menu.settings.display",
+			Description = "#menu.settings.display.description",
+			Kind = SettingKind.Dropdown,
+			OptionsBuilder = () => Render.GetDisplays()
+				.Select( x => new Option( x.Name, x.DisplayId.ToString() ) )
+				.ToList(),	
+			AppliesRenderSettings = true,
+			Read = () => Render.DisplayId.ToString(),
+			Write = value => Render.DisplayId = (int)value,
+		} );
+
+		Items.Add( new SettingItem
+		{
 			Id = "display.mode",
 			Category = "display",
 			Section = "#menu.settings.window",

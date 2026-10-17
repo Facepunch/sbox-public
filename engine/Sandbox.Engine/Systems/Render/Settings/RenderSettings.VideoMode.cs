@@ -5,6 +5,13 @@ namespace Sandbox.Engine.Settings;
 
 public partial class RenderSettings
 {
+
+	public int DisplayId
+	{
+		get => VideoSettings.Get<int>( "displayid", 0 );
+		set => VideoSettings.Set<int>( "displayid", value );
+	}
+
 	public int ResolutionWidth
 	{
 		get => VideoSettings.Get<int>( "defaultreswidth", 1920 );
@@ -85,7 +92,7 @@ public partial class RenderSettings
 
 	internal struct VideoModeSnapshot
 	{
-		public int Width, Height;
+		public int Width, Height, DisplayId;
 		public bool Fullscreen, Borderless, VSync;
 		public MultisampleAmount AntiAlias;
 		public AntiAliasMode AntiAliasMode;
@@ -97,6 +104,7 @@ public partial class RenderSettings
 	{
 		Width = ResolutionWidth,
 		Height = ResolutionHeight,
+		DisplayId = DisplayId,
 		Fullscreen = Fullscreen,
 		Borderless = Borderless,
 		VSync = VSync,
@@ -111,6 +119,7 @@ public partial class RenderSettings
 	{
 		ResolutionWidth = snap.Width;
 		ResolutionHeight = snap.Height;
+		DisplayId = snap.DisplayId;
 		Fullscreen = snap.Fullscreen;
 		Borderless = snap.Borderless;
 		VSync = snap.VSync;
@@ -131,9 +140,11 @@ public partial class RenderSettings
 
 		if ( Borderless && !Fullscreen )
 		{
-			var size = SdlDisplay.GetDesktopSize( SdlDisplay.Current );
+			var display = DisplayId > 0 ? (uint)DisplayId : SdlDisplay.Current;
+			var size = SdlDisplay.GetDesktopSize( display );
 			ResolutionWidth = (int)size.x;
 			ResolutionHeight = (int)size.y;
+			DisplayId = (int)display;
 		}
 
 		window.QueueVideoMode( GameWindow.VideoMode.FromSettings( this ) );
@@ -148,10 +159,25 @@ public partial class RenderSettings
 
 	public struct VideoDisplayMode
 	{
+		public int DisplayId { get; set; }
+		public string Name { get; set; }
 		public int Width { get; set; }
 		public int Height { get; set; }
 		public float RefreshRate { get; set; }
 		/// <summary>The game swapchain format (RGBA8888), rather than the display's native pixel format.</summary>
 		public ImageFormat Format { get; set; }
+	}
+
+	public List<VideoDisplayMode> GetDisplays()
+	{
+		return SdlDisplay.GetDisplays().Select( x => new VideoDisplayMode
+		{
+			DisplayId = (int)x.Id,
+			Name = x.Name,
+			Width = (int)x.Width,
+			Height = (int)x.Height,
+			RefreshRate = (float)x.RefreshRate,
+			Format = ImageFormat.RGBA8888,
+		} ).ToList();
 	}
 }
