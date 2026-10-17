@@ -37,6 +37,11 @@ public sealed class SceneLighting
 	public float SunShadowSplitRatio { get; set; } = 0.91f;
 
 	/// <summary>
+	/// Caps the sun's cascade distance below <c>r.shadows.csm.distance</c>; 0 for no cap - <c>DirectionalLight.ShadowCascadeMaxDistance</c>.
+	/// </summary>
+	public float SunShadowMaxDistance { get; set; }
+
+	/// <summary>
 	/// Zero is the softest the shadow filter goes, one the sharpest - <c>Light.ShadowHardness</c>.
 	/// </summary>
 	public float SunShadowHardness { get; set; }

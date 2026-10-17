@@ -88,6 +88,7 @@ internal partial class ShadowMapper
 			shadowLight.FogStrength = light.FogStrength;
 			shadowLight.Cascades = native.GetShadowCascades();
 			shadowLight.CascadeSplitRatio = native.GetShadowCascadeSplitRatio();
+			shadowLight.CascadeMaxDistance = light is SceneDirectionalLight sun ? sun.ShadowCascadeMaxDistance : 0;
 		}
 
 		return shadowLight;

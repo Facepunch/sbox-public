@@ -47,7 +47,9 @@ public class ShadowCascadeVisualizerControlWidget : ControlWidget
 	{
 		var cascadeCount = SerializedProperty.Parent.GetProperty( "ShadowCascadeCount" ).GetValue<int>();
 		var splitRatio = SerializedProperty.Parent.GetProperty( "ShadowCascadeSplitRatio" ).GetValue<float>();
-		var far = 15000.0f;
+		var far = ConsoleSystem.GetValueFloat( "r.shadows.csm.distance", 15000.0f );
+		var maxDistance = SerializedProperty.Parent.GetProperty( "ShadowCascadeMaxDistance" ).GetValue<float>();
+		if ( maxDistance > 1.0f ) far = MathF.Min( far, maxDistance );
 
 		var splits = CalculateSplitDistances( cascadeCount, 1.0f, far, splitRatio );
 
