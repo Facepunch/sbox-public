@@ -232,6 +232,25 @@ public partial class NodePanel : CanvasPanel.Handle
 	/// </summary>
 	public bool IsThumbnailCard => !Node.HasTitleBar && Node.Thumbnail is not null;
 
+	const float HeaderPadLeft = 9f;
+	const float HeaderPadRight = 14f;
+	const float HeaderIconWidth = 20f;
+
+	/// <summary>
+	/// Width the header needs for its icon, title and subtitle, in the fonts they're drawn with.
+	/// </summary>
+	float HeaderWidth()
+	{
+		var text = NodePaint.Measure( DisplayInfo.Name, 8f, 600 ).x;
+
+		if ( Node.HasSubtitle )
+		{
+			text = MathF.Max( text, NodePaint.Measure( Node.Subtitle, 7f ).x );
+		}
+
+		return HeaderPadLeft + (DisplayInfo.Icon is null ? 0f : HeaderIconWidth) + text + HeaderPadRight;
+	}
+
 	protected virtual void Layout()
 	{
 		var hasThumb = !Node.HasTitleBar && Node.DisplayInfo.Icon is not null || Node.Thumbnail is not null;
@@ -246,7 +265,7 @@ public partial class NodePanel : CanvasPanel.Handle
 
 		if ( Node.AutoSize )
 		{
-			var titleWidth = Node.HasTitleBar ? NodePaint.Measure( DisplayInfo.Name, 7, 500 ).x + 44f : 0f;
+			var titleWidth = Node.HasTitleBar ? HeaderWidth() : 0f;
 
 			if ( Inputs.Any( x => x.Inner.InTitleBar ) )
 			{
@@ -297,7 +316,8 @@ public partial class NodePanel : CanvasPanel.Handle
 			(totalWidth, totalHeight) = (Math.Max( 36f, size ), size);
 		}
 
-		totalWidth = totalWidth.SnapToGrid( Graph.GridSize );
+		// Up, not to nearest, so the header keeps its right padding
+		totalWidth = MathF.Ceiling( totalWidth / Graph.GridSize ) * Graph.GridSize;
 		totalHeight = totalHeight.SnapToGrid( Graph.GridSize );
 
 		var top = TitleHeight + (verticalCenter ? totalHeight - inputHeight : 0f) * 0.5f;
@@ -540,13 +560,13 @@ public partial class NodePanel : CanvasPanel.Handle
 			paint.DrawRect( new Rect( 0f, TitleHeight - 1.5f, rect.Width, 1.5f ), 0f );
 		}
 
-		var row = new Rect( 0f, 0f, rect.Width, 24f ).Shrink( 9f, 0f, 8f, 0f );
+		var row = new Rect( 0f, 0f, rect.Width, 24f ).Shrink( HeaderPadLeft, 0f, HeaderPadRight, 0f );
 
 		if ( display.Icon is { } icon )
 		{
 			paint.SetPen( PrimaryTitleColor.Lighten( 0.35f ) );
 			paint.DrawIcon( row, icon, 15f, TextFlag.LeftCenter );
-			row.Left += 20f;
+			row.Left += HeaderIconWidth;
 		}
 
 		paint.SetDefaultFont( 8f, 600 );
