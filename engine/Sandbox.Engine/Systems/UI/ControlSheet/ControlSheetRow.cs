@@ -35,6 +35,11 @@ public class ControlSheetRow : Panel
 			flex-shrink: 0;
 			flex-grow: 0;
 			padding: 6px;
+
+			&.hidden
+			{
+				display: none;
+			}
 		}
 
 		ControlSheetRow > .right
@@ -43,6 +48,21 @@ public class ControlSheetRow : Panel
 			flex-shrink: 1;
 			flex-basis: 0px;
 			min-width: 0px;
+		}
+
+		ControlSheetRow.wide
+		{
+			flex-direction: column;
+		}
+
+		ControlSheetRow.wide > .left
+		{
+			width: auto;
+		}
+
+		ControlSheetRow.wide > .right
+		{
+			flex-basis: auto;
 		}
 
 		ControlSheetRow > .left > .title
@@ -98,6 +118,18 @@ public class ControlSheetRow : Panel
 		var c = BaseControl.CreateFor( Property );
 		if ( c is null ) return;
 		_right.AddChild( c );
+
+		// Same rules as the editor's row
+		var wide = c.IsWideMode;
+		var hasLabel = c.IncludeLabel;
+		if ( Property.TryGetAttribute<WideModeAttribute>( out var wideMode ) )
+		{
+			wide = true;
+			hasLabel = c.IncludeLabel && wideMode.HasLabel;
+		}
+
+		SetClass( "wide", wide );
+		_left.SetClass( "hidden", !hasLabel );
 	}
 
 	public override void Tick()

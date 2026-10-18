@@ -31,6 +31,11 @@ public class ControlSheetGroupHeader : Panel
 				font-weight: 600;
 			}
 
+			> .icon.hidden
+			{
+				display: none;
+			}
+
 			&.has-toggle
 			{
 				cursor: pointer;
@@ -124,6 +129,9 @@ public class ControlSheetGroupHeader : Panel
 
 		SetClass( "checked", ToggleProperty?.As.Bool == true );
 		SetClass( "hidden", string.IsNullOrWhiteSpace( Title ) && ToggleProperty == null );
+
+		// An empty icon would still indent the title
+		iconLabel.SetClass( "hidden", string.IsNullOrWhiteSpace( Icon ) );
 	}
 
 	protected override void OnMouseDown( MousePanelEvent e )

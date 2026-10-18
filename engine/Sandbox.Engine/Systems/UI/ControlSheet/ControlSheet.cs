@@ -106,6 +106,7 @@ public class ControlSheet : Panel, IControlSheet
 	{
 		var g = _body.AddChild<ControlSheetGroup>();
 		g.Header.Title = group.Name;
+		g.SetClass( "titled", !string.IsNullOrWhiteSpace( group.Name ) );
 
 		//
 		// This is part of a toggle group - so add a checkbox to the header
@@ -130,6 +131,9 @@ public class ControlSheet : Panel, IControlSheet
 
 		foreach ( var prop in group.Properties )
 		{
+			if ( prop.HasAttribute<HideAttribute>() )
+				continue;
+
 			var row = g.Body.AddChild<ControlSheetRow>();
 			row.Initialize( prop );
 		}

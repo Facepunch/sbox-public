@@ -53,6 +53,16 @@ public class BaseControl : Panel
 	public virtual bool SupportsMultiEdit => false;
 
 	/// <summary>
+	/// Take the whole row instead of the value column.
+	/// </summary>
+	public virtual bool IsWideMode => false;
+
+	/// <summary>
+	/// Show the property's name with this control.
+	/// </summary>
+	public virtual bool IncludeLabel => true;
+
+	/// <summary>
 	/// Create a BaseControl for a given SerializedProperty.
 	/// We'll look at BaseControls with [CustomEditor] attributes and see if any of them can handle this property.
 	/// </summary>
@@ -92,6 +102,10 @@ public class BaseControl : Panel
 		// Nope - sorry, nothing for you
 		if ( property.IsMethod )
 			return null;
+
+		// No control for this class or struct - edit its properties
+		if ( GenericControl.CanEdit( property ) && !property.IsMultipleValues )
+			return new GenericControl { Property = property };
 
 		return new MissingEditor( property );
 	}
