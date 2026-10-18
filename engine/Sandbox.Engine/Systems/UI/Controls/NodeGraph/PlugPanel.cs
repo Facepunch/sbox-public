@@ -124,7 +124,10 @@ public abstract partial class PlugPanel : Panel
 
 	protected abstract void Paint( ref NodePaint paint );
 
-	protected void DrawHandle( ref NodePaint paint, Color color, Rect handleRect, HandleShape shape )
+	/// <summary>
+	/// A ring that fills in when <paramref name="filled"/>, on a halo of the node body so it reads over the edge.
+	/// </summary>
+	protected void DrawHandle( ref NodePaint paint, Color color, Rect handleRect, HandleShape shape, bool filled )
 	{
 		if ( !Visible )
 			return;
@@ -132,23 +135,35 @@ public abstract partial class PlugPanel : Panel
 		if ( !string.IsNullOrEmpty( Inner.ErrorMessage ) )
 		{
 			color = NodeTheme.Red;
+			filled = true;
 		}
 
-		paint.ClearPen();
-		paint.SetBrush( color.WithAlpha( 1.0f ) );
+		color = color.WithAlpha( 1.0f );
+		var body = Node.BodyColor;
 
+		paint.ClearPen();
+		paint.SetBrush( body );
+		DrawShape( ref paint, handleRect.Grow( 2f ), shape );
+
+		paint.SetPen( color, 1.5f );
+		paint.SetBrush( filled ? color : body );
+		DrawShape( ref paint, handleRect.Shrink( 0.75f ), shape );
+	}
+
+	static void DrawShape( ref NodePaint paint, Rect rect, HandleShape shape )
+	{
 		switch ( shape )
 		{
 			case HandleShape.Square:
-				paint.DrawRect( handleRect, 2.0f );
+				paint.DrawRect( rect, 3.0f );
 				break;
 
 			case HandleShape.Circle:
-				paint.DrawCircle( handleRect );
+				paint.DrawCircle( rect );
 				break;
 
 			case HandleShape.Arrow:
-				paint.DrawPolygon( handleRect.TopLeft, handleRect.Center with { x = handleRect.Right }, handleRect.BottomLeft );
+				paint.DrawPolygon( rect.TopLeft, rect.Center with { x = rect.Right }, rect.BottomLeft );
 				break;
 		}
 	}
@@ -160,11 +175,11 @@ public abstract partial class PlugPanel : Panel
 			return;
 		}
 
-		var color = Node.PrimaryColor.Lighten( 0.8f );
+		var color = Color.Lerp( NodeTheme.Text, Node.PrimaryColor, 0.15f );
 
 		if ( unreachable )
 		{
-			color = color.WithAlpha( 0.5f );
+			color = color.WithAlpha( 0.45f );
 		}
 
 		paint.SetPen( color );
@@ -181,14 +196,14 @@ public abstract partial class PlugPanel : Panel
 		var titleWidth = paint.MeasureText( Title ).x;
 		var group = $"{groupName} > ";
 
-		paint.SetDefaultFont( size: 7, italic: true );
+		paint.SetDefaultFont( size: 7 );
 		var groupWidth = paint.MeasureText( group ).x;
 
 		// The prefix sits before the title on either side
 		var leftAligned = (flags & TextFlag.Left) != 0;
 		var groupRect = leftAligned ? rect : rect.Shrink( 0f, 0f, titleWidth, 0f );
 
-		paint.SetPen( color.Darken( 0.2f ) );
+		paint.SetPen( NodeTheme.TextMuted.WithAlpha( color.a ) );
 		paint.DrawText( groupRect, group, flags );
 
 		paint.SetPen( color );

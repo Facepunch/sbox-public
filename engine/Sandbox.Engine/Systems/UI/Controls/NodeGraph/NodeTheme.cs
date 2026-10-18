@@ -1,15 +1,33 @@
 namespace Sandbox.UI.NodeGraph;
 
 /// <summary>
-/// The editor theme colours the node graph draws with.
+/// The node graph's colours and shapes, for drawing custom nodes and editors that match.
 /// </summary>
-internal static class NodeTheme
+public static class NodeTheme
 {
-	public static readonly Color WindowBackground = Color.Parse( "#181818" ).Value;
-	public static readonly Color ControlBackground = Color.Parse( "#181818" ).Value;
-	public static readonly Color TextControl = Color.Parse( "#FFFFFF" ).Value;
 	public static readonly Color Red = Color.Parse( "#FB5A5A" ).Value;
-	public static readonly Color Blue = Color.Parse( "#2E70EA" ).Value;
+	public static readonly Color Canvas = Color.Parse( "#141414" ).Value;
+	public static readonly Color Accent = Color.Parse( "#4C8DFF" ).Value;
+	public static readonly Color Text = Color.Parse( "#ECECEC" ).Value;
+	public static readonly Color TextMuted = Color.Parse( "#8E8E8E" ).Value;
+	public static readonly Color FieldBackground = Color.Parse( "#1A1A1A" ).Value;
+	public static readonly Color Hairline = Color.White.WithAlpha( 0.07f );
+	public static readonly Color HairlineHover = Color.White.WithAlpha( 0.22f );
+
+	/// <summary>
+	/// Node corner radius, in node units.
+	/// </summary>
+	public const float Radius = 8f;
+
+	/// <summary>
+	/// A node's body from its tint: dark, keeping a hint of the tint.
+	/// </summary>
+	public static Color Body( Color tint ) => tint.Darken( 0.72f ).WithAlpha( 1f );
+
+	/// <summary>
+	/// The rounded field an inline editor draws in its local <paramref name="rect"/>.
+	/// </summary>
+	public static Rect FieldRect( Rect rect ) => rect.Shrink( 2f, 3f );
 
 	/// <summary>
 	/// Rich text tooltip for a node or plug.

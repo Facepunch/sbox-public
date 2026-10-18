@@ -47,7 +47,7 @@ public class PlugOutPanel : PlugPanel
 		}
 
 		var handleRect = new Rect( rect.Width - handleSize, (rect.Height - handleSize) * 0.5f, handleSize, handleSize ).Shrink( 2 );
-		DrawHandle( ref paint, color, handleRect, config.Shape );
+		DrawHandle( ref paint, color, handleRect, config.Shape, IsConnected || highlight );
 		DrawLabel( ref paint, new Rect( spacex, 0, rect.Width - handleSize - spacex * 2, rect.Size.y ), unreachable, TextFlag.RightCenter );
 	}
 }

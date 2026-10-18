@@ -4,7 +4,7 @@ namespace Sandbox.UI.NodeGraph;
 /// Shows an <see cref="IGraph"/> as nodes and wires, like the editor's node graph. Middle-drag
 /// pans, the wheel zooms, left-drag on empty space box-selects, Delete removes the selection.
 /// </summary>
-[StyleSheet.Inline( "nodegraphpanel", ".nodegraphpanel { min-width: 0; min-height: 0; }" )]
+[StyleSheet.Inline( "nodegraphpanel", ".nodegraphpanel { min-width: 0; min-height: 0; } .nodegraphpanel .canvas-selection-box { border: 1px solid #4C8DFF; background-color: rgba( 76, 141, 255, 0.1 ); border-radius: 4px; }" )]
 public partial class NodeGraphPanel : CanvasPanel
 {
 	/// <summary>
@@ -13,7 +13,7 @@ public partial class NodeGraphPanel : CanvasPanel
 	public float GridSize { get; set; } = 12f;
 
 	/// <summary>
-	/// Hide the grid when zoomed out below half size.
+	/// Fade the grid out as the view zooms out.
 	/// </summary>
 	public virtual bool FadeOutBackground => true;
 
@@ -314,35 +314,58 @@ public partial class NodeGraphPanel : CanvasPanel
 		using var scope = painter.Scope();
 		painter.Clip( viewport );
 
-		painter.Fill = NodeTheme.WindowBackground;
+		painter.Fill = NodeTheme.Canvas;
 		painter.Stroke = Stroke.None;
 		painter.Rect( viewport );
 
-		if ( !FadeOutBackground || Zoom >= 0.5f )
-		{
-			DrawGrid( painter, viewport );
-		}
-
+		DrawGrid( painter, viewport );
 		DrawConnections( painter );
 	}
 
 	partial void DrawConnections( Painter painter );
 
+	static Texture _dot;
+
+	/// <summary>
+	/// One soft white dot in the middle of a tile.
+	/// </summary>
+	static Texture DotTexture()
+	{
+		if ( _dot is not null ) return _dot;
+
+		const int size = 32;
+		var data = new byte[size * size * 4];
+
+		for ( var y = 0; y < size; y++ )
+		{
+			for ( var x = 0; x < size; x++ )
+			{
+				var distance = new Vector2( x + 0.5f - size * 0.5f, y + 0.5f - size * 0.5f ).Length;
+				var i = (y * size + x) * 4;
+
+				data[i] = data[i + 1] = data[i + 2] = 255;
+				data[i + 3] = (byte)(Math.Clamp( 2f - distance, 0f, 1f ) * 255);
+			}
+		}
+
+		return _dot = Texture.Create( size, size ).WithData( data ).Finish();
+	}
+
+	/// <summary>
+	/// A dot every two grid steps, fading out as the view zooms out.
+	/// </summary>
 	void DrawGrid( Painter painter, Rect viewport )
 	{
-		var min = ScreenToCanvas( viewport.Position );
-		var max = ScreenToCanvas( viewport.Position + viewport.Size );
+		var alpha = FadeOutBackground ? Math.Clamp( (Zoom - 0.3f) / 0.3f, 0f, 1f ) : 1f;
+		if ( alpha <= 0f ) return;
 
-		painter.Stroke = Stroke.Solid( NodeTheme.WindowBackground.Lighten( 0.3f ), ScaleToScreen );
+		var step = GridSize * 2f;
+		var tile = step * (CanvasToScreen( Vector2.One ) - CanvasToScreen( Vector2.Zero )).x;
+		var origin = CanvasToScreen( Vector2.Zero ) - viewport.Position - new Vector2( tile * 0.5f );
+		var offset = new Vector2( (origin.x % tile + tile) % tile, (origin.y % tile + tile) % tile );
 
-		for ( var x = MathF.Floor( min.x / GridSize ) * GridSize; x <= max.x; x += GridSize )
-		{
-			painter.Line( CanvasToScreen( new Vector2( x, min.y ) ), CanvasToScreen( new Vector2( x, max.y ) ) );
-		}
-
-		for ( var y = MathF.Floor( min.y / GridSize ) * GridSize; y <= max.y; y += GridSize )
-		{
-			painter.Line( CanvasToScreen( new Vector2( min.x, y ) ), CanvasToScreen( new Vector2( max.x, y ) ) );
-		}
+		painter.Fill = Fill.Image( DotTexture(), Color.White.WithAlpha( 0.1f * alpha ), Length.Pixels( tile ), Length.Pixels( tile ),
+			Length.Pixels( offset.x ), Length.Pixels( offset.y ), BackgroundRepeat.Repeat );
+		painter.Rect( viewport );
 	}
 }

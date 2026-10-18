@@ -95,6 +95,27 @@ public ref struct NodePaint : INodePaint
 		_painter.Circle( Scale( rect ) );
 	}
 
+	/// <summary>
+	/// A soft shadow around a rounded rect, like CSS box-shadow. Not affected by the pen or brush.
+	/// </summary>
+	public void DrawShadow( Rect rect, float radius, Color color, float blur, Vector2 offset = default, float spread = 0 )
+	{
+		_painter.RectShadow( Scale( rect ), radius * _scale, color, blur * _scale, spread * _scale, offset * _scale );
+	}
+
+	/// <summary>
+	/// <paramref name="texture"/> stretched over a rounded rect, outlined with the current pen.
+	/// </summary>
+	public void DrawImage( Rect rect, Texture texture, float radius )
+	{
+		if ( texture is null ) return;
+
+		using var scope = _painter.Scope();
+		_painter.Fill = Fill.Image( texture );
+		_painter.Stroke = CurrentStroke;
+		_painter.Rect( Scale( rect ), radius * _scale );
+	}
+
 	public void DrawLine( Vector2 from, Vector2 to )
 	{
 		if ( _pen is null ) return;

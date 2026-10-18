@@ -71,6 +71,11 @@ public partial class NodeGraphPage
 		public Color PrimaryColor { get; init; } = Color.Parse( "#303030" ).Value.Lighten( 2.0f );
 		public Color TitleColor { get; init; }
 
+		/// <summary>
+		/// Operators leave their plugs unlabelled, which keeps them compact.
+		/// </summary>
+		public bool ShowLabels { get; init; } = true;
+
 		public IEnumerable<IPlugIn> Inputs => _inputs;
 		public IEnumerable<IPlugOut> Outputs => _outputs;
 
@@ -173,7 +178,7 @@ public partial class NodeGraphPage
 		public string Identifier { get; }
 		public Type Type { get; }
 		public DisplayInfo DisplayInfo { get; }
-		public bool ShowLabel => true;
+		public bool ShowLabel => ((DemoNode)Node).ShowLabels;
 		public bool AllowStretch => false;
 		public bool ShowConnection => true;
 		public bool InTitleBar => false;

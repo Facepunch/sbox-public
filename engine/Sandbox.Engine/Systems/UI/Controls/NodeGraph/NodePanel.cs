@@ -14,12 +14,15 @@ public partial class NodePanel : CanvasPanel.Handle
 
 	public DisplayInfo DisplayInfo => Node.DisplayInfo;
 
-	public Color SelectionOutline = Color.White;
 	public Color PrimaryColor = Color.Parse( "#ff99c8" ) ?? default;
 	public Color PrimaryTitleColor = Color.Gray;
 
-	public Color ErrorOutline => Color.Red;
-	public Color WarningOutline => Color.Yellow.Lighten( .5f );
+	public Color ErrorOutline => NodeTheme.Red;
+
+	/// <summary>
+	/// Fill of the node body, from <see cref="PrimaryColor"/>.
+	/// </summary>
+	public Color BodyColor => NodeTheme.Body( PrimaryColor );
 
 	/// <summary>
 	/// Fill the title bar with one colour instead of a gradient.
@@ -382,85 +385,59 @@ public partial class NodePanel : CanvasPanel.Handle
 		var paint = new NodePaint( this, painter ) { HasMouseOver = HasHovered };
 
 		var rect = new Rect( 0f, Size );
-		var titleRect = new Rect( rect.Position, new Vector2( rect.Width, TitleHeight ) );
-		var radius = 4;
+		var radius = NodeTheme.Radius;
 
 		PrimaryColor = Node.PrimaryColor;
 		PrimaryTitleColor = Node.TitleColor;
 
+		var hasError = !string.IsNullOrWhiteSpace( Node.ErrorMessage );
+		var body = BodyColor;
+
+		// Depth, then the selection glow
+		paint.DrawShadow( rect, radius, Color.Black.WithAlpha( 0.5f ), 18f, new Vector2( 0f, 6f ) );
+
+		if ( Selected )
+		{
+			paint.DrawShadow( rect, radius, NodeTheme.Accent.WithAlpha( 0.45f ), 10f, default, 1f );
+		}
+		else if ( hasError )
+		{
+			paint.DrawShadow( rect, radius, ErrorOutline.WithAlpha( 0.3f ), 10f );
+		}
+
 		paint.ClearPen();
-
-		if ( Node.HasTitleBar )
-		{
-			if ( SimpleNodeHeader )
-			{
-				paint.SetBrush( PrimaryTitleColor );
-			}
-			else
-			{
-				paint.SetBrushLinear( PrimaryTitleColor, PrimaryTitleColor.Darken( 0.6f ) );
-			}
-		}
-		else
-		{
-			paint.SetBrush( PrimaryColor.Darken( 0.6f ) );
-		}
-
+		paint.SetBrush( body );
 		paint.DrawRect( rect, radius );
 
 		var display = DisplayInfo;
 
 		if ( Node.HasTitleBar )
 		{
-			var titleRect2 = titleRect.Shrink( 4f, 0f, 4f, 0f );
-
-			if ( display.Icon != null )
-			{
-				paint.SetPen( PrimaryColor.Lighten( 0.7f ).WithAlpha( 0.7f ) );
-				paint.DrawIcon( titleRect2.Shrink( 4 ), display.Icon, 17, TextFlag.LeftCenter );
-				titleRect2.Left += 18;
-			}
-
-			paint.SetDefaultFont( 7, 500 );
-			paint.SetPen( PrimaryColor.Lighten( 0.8f ) );
-			paint.DrawText( titleRect2.Shrink( 5, 0 ), display.Name, TextFlag.LeftCenter );
-
-			if ( Node.HasSubtitle )
-			{
-				paint.DrawText( titleRect, $"( {Node.Subtitle} )", TextFlag.CenterBottom );
-			}
-
-			if ( Node.Thumbnail is not null || Inputs.Any( x => !x.Inner.InTitleBar ) || Outputs.Any( x => !x.Inner.InTitleBar ) )
-			{
-				// Square off the bottom of the title, then the body below it
-				paint.ClearPen();
-				paint.SetBrush( PrimaryColor.Darken( 0.6f ) );
-				paint.DrawRect( new Rect( rect.Shrink( 0, TitleHeight, 0, 0 ).Position, new Vector2( rect.Width, TitleHeight - 12 ) ), 0 );
-				paint.DrawRect( rect.Shrink( 0, TitleHeight, 0, 0 ), radius );
-			}
+			DrawHeader( ref paint, rect, display );
 
 			if ( Node.Thumbnail is { } thumb )
 			{
-				paint.Draw( _thumbRect.Align( new Vector2( 72f, 72f ), TextFlag.Center ), thumb );
+				paint.ClearPen();
+				paint.DrawImage( _thumbRect.Align( new Vector2( 72f, 72f ), TextFlag.Center ), thumb, 4f );
 			}
 		}
 		else if ( Node.Thumbnail is { } thumb )
 		{
-			// A big square thumbnail with a corner icon and the title at the bottom, e.g. for resource references
+			// A big square thumbnail with a corner icon and the name over the bottom, e.g. for resource references
 			var thumbRect = _thumbRect.Align( new Vector2( 88f, 88f ), TextFlag.Center );
 
-			paint.Draw( thumbRect, thumb );
+			paint.SetPen( NodeTheme.Hairline );
+			paint.DrawImage( thumbRect, thumb, 6f );
 
 			if ( display.Icon is { } icon )
 			{
-				var iconRect = thumbRect.Shrink( 2f ).Align( new Vector2( 12f, 12f ), TextFlag.LeftTop );
+				var iconRect = thumbRect.Shrink( 4f ).Align( new Vector2( 12f, 12f ), TextFlag.LeftTop );
 
 				paint.ClearPen();
-				paint.SetBrush( PrimaryColor.Darken( 0.6f ) );
-				paint.DrawRect( iconRect.Grow( 4f ), 2f );
+				paint.SetBrush( body.WithAlpha( 0.85f ) );
+				paint.DrawRect( iconRect.Grow( 3f ), 4f );
 
-				paint.ClearBrush();
-				paint.SetPen( NodeTheme.TextControl );
+				paint.SetPen( PrimaryTitleColor.Lighten( 0.3f ) );
 				paint.DrawIcon( iconRect, icon, 12f );
 			}
 
@@ -468,16 +445,16 @@ public partial class NodePanel : CanvasPanel.Handle
 			{
 				name = FixWordWrapping( name );
 
-				paint.SetDefaultFont( 7f );
+				paint.SetDefaultFont( 7f, 600 );
 
-				var backgroundRect = thumbRect.Align( NodePaint.Measure( name, 7f ), TextFlag.CenterBottom ).Grow( 4f, 2f, 4f, 2f );
+				var backgroundRect = thumbRect.Shrink( 4f ).Align( NodePaint.Measure( name, 7f, 600 ), TextFlag.CenterBottom ).Grow( 6f, 2f, 6f, 2f );
 
-				paint.SetBrush( PrimaryColor.Darken( 0.6f ) );
 				paint.ClearPen();
-				paint.DrawRect( backgroundRect, 2f );
+				paint.SetBrush( body.WithAlpha( 0.85f ) );
+				paint.DrawRect( backgroundRect, 4f );
 
-				paint.SetPen( NodeTheme.TextControl );
-				paint.DrawText( thumbRect, name, TextFlag.CenterBottom | TextFlag.WordWrap );
+				paint.SetPen( NodeTheme.Text );
+				paint.DrawText( thumbRect.Shrink( 4f ), name, TextFlag.CenterBottom | TextFlag.WordWrap );
 			}
 		}
 		else if ( display.Icon is { } icon )
@@ -485,58 +462,104 @@ public partial class NodePanel : CanvasPanel.Handle
 			// An icon without text, e.g. for operators
 			var scale = icon.Length == 2 && !char.IsLetterOrDigit( icon[0] ) ? 0.5f : icon == "|" ? 0.75f : 1f;
 
-			paint.SetPen( NodeTheme.TextControl );
+			paint.SetPen( NodeTheme.Text.WithAlpha( 0.85f ) );
 			paint.DrawIcon( _thumbRect, icon, (Math.Min( _thumbRect.Width, _thumbRect.Height ) - 8f) * scale );
 		}
 
 		Node.OnPaint( paint, rect );
 
-		var hasError = !string.IsNullOrWhiteSpace( Node.ErrorMessage );
-		var selectionOutline = SelectionOutline;
-
-		if ( hasError )
-		{
-			selectionOutline = ErrorOutline;
-
-			if ( !paint.HasMouseOver )
-			{
-				selectionOutline = selectionOutline.Darken( 0.25f );
-			}
-		}
-
 		paint.ClearBrush();
 
 		if ( Selected )
 		{
-			paint.SetPen( selectionOutline, 2.0f );
-		}
-		else if ( paint.HasMouseOver && !hasError )
-		{
-			paint.SetPen( selectionOutline.Darken( 0.25f ), 1.0f );
+			paint.SetPen( NodeTheme.Accent, 1.5f );
 		}
 		else if ( hasError )
 		{
-			paint.SetPen( selectionOutline, 2.0f );
+			paint.SetPen( paint.HasMouseOver ? ErrorOutline : ErrorOutline.Darken( 0.2f ), 1.5f );
 		}
 		else
 		{
-			paint.SetPen( Color.Gray.Darken( 0.4f ), 1.0f );
+			paint.SetPen( paint.HasMouseOver ? NodeTheme.HairlineHover : NodeTheme.Hairline, 1f );
 		}
 
 		paint.DrawRect( rect, radius );
 
 		if ( hasError )
 		{
-			var errorText = "ERROR!!!";
-			paint.SetDefaultFont();
-			var errorRect = rect.Align( paint.MeasureText( errorText ), TextFlag.CenterBottom ).Grow( 4f, 0f, 4f, 0f );
-
-			paint.SetBrush( paint.HasMouseOver ? ErrorOutline : ErrorOutline.Darken( 0.25f ) );
-			paint.ClearPen();
-			paint.DrawRect( errorRect, 1f );
-
-			paint.SetPen( NodeTheme.TextControl );
-			paint.DrawText( errorRect, errorText, TextFlag.CenterBottom );
+			DrawErrorBadge( ref paint, rect );
 		}
+	}
+
+	/// <summary>
+	/// A header in a darkened title colour, with an accent line, icon, title and subtitle.
+	/// </summary>
+	void DrawHeader( ref NodePaint paint, Rect rect, DisplayInfo display )
+	{
+		var radius = NodeTheme.Radius;
+		var titleRect = new Rect( rect.Position, new Vector2( rect.Width, TitleHeight ) );
+		var hasBody = Node.Thumbnail is not null || Inputs.Any( x => !x.Inner.InTitleBar ) || Outputs.Any( x => !x.Inner.InTitleBar );
+
+		paint.ClearPen();
+
+		if ( SimpleNodeHeader )
+		{
+			paint.SetBrush( PrimaryTitleColor.Darken( 0.55f ) );
+		}
+		else
+		{
+			paint.SetBrushLinear( PrimaryTitleColor.Darken( 0.42f ), PrimaryTitleColor.Darken( 0.74f ) );
+		}
+
+		paint.DrawRect( hasBody ? titleRect : rect, radius );
+
+		if ( hasBody )
+		{
+			// Square off the bottom of the header, then the accent line under it
+			paint.DrawRect( titleRect.Shrink( 0f, radius, 0f, 0f ), 0f );
+
+			paint.SetBrush( PrimaryTitleColor.WithAlpha( 0.9f ) );
+			paint.DrawRect( new Rect( 0f, TitleHeight - 1.5f, rect.Width, 1.5f ), 0f );
+		}
+
+		var row = new Rect( 0f, 0f, rect.Width, 24f ).Shrink( 9f, 0f, 8f, 0f );
+
+		if ( display.Icon is { } icon )
+		{
+			paint.SetPen( PrimaryTitleColor.Lighten( 0.35f ) );
+			paint.DrawIcon( row, icon, 15f, TextFlag.LeftCenter );
+			row.Left += 20f;
+		}
+
+		paint.SetDefaultFont( 8f, 600 );
+		paint.SetPen( NodeTheme.Text );
+		paint.DrawText( row, display.Name, TextFlag.LeftCenter );
+
+		if ( Node.HasSubtitle )
+		{
+			paint.SetDefaultFont( 7f );
+			paint.SetPen( NodeTheme.Text.WithAlpha( 0.55f ) );
+			paint.DrawText( new Rect( row.Left, 18f, row.Width, 24f ), Node.Subtitle, TextFlag.LeftCenter );
+		}
+	}
+
+	/// <summary>
+	/// A red pill over the bottom edge. The message itself is in the tooltip.
+	/// </summary>
+	void DrawErrorBadge( ref NodePaint paint, Rect rect )
+	{
+		const string text = "Error";
+
+		paint.SetDefaultFont( 7f, 600 );
+		var size = paint.MeasureText( text ) + new Vector2( 22f, 4f );
+		var badge = new Rect( rect.Center.x - size.x * 0.5f, rect.Bottom - size.y * 0.5f, size.x, size.y );
+
+		paint.ClearPen();
+		paint.SetBrush( ErrorOutline );
+		paint.DrawRect( badge, size.y * 0.5f );
+
+		paint.SetPen( Color.White );
+		paint.DrawIcon( badge.Shrink( 5f, 0f, 0f, 0f ), "error", 9f, TextFlag.LeftCenter );
+		paint.DrawText( badge.Shrink( 15f, 0f, 5f, 0f ), text, TextFlag.LeftCenter );
 	}
 }

@@ -152,7 +152,7 @@ public partial class NodeGraphPage : GalleryPage
 		albedo.AddOutput( "color", "Color", typeof( Color ) );
 
 		// An operator: no title bar, the icon fills the body.
-		var add = new DemoNode( "add", "Add", "+", "Adds A and B.", (Color)"#8fd6a8", new( -216, -264 ) ) { HasTitleBar = false };
+		var add = new DemoNode( "add", "Add", "+", "Adds A and B.", (Color)"#8fd6a8", new( -216, -240 ) ) { HasTitleBar = false, ShowLabels = false };
 		var addA = add.AddInput( "a", "A", typeof( float ) );
 		add.AddInput( "b", "B", typeof( float ) );
 		var addResult = add.AddOutput( "result", "Result", typeof( float ) );

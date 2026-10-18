@@ -58,26 +58,18 @@ public class ColorValueEditor : NodeValueEditor
 
 	protected override void Paint( ref NodePaint paint, Rect rect )
 	{
-		var bg = NodeTheme.ControlBackground.WithAlpha( 0.4f );
-		var fg = NodeTheme.TextControl;
+		var field = NodeTheme.FieldRect( rect );
+		var hover = paint.HasMouseOver;
 
-		if ( !paint.HasMouseOver )
-		{
-			bg = bg.Darken( 0.1f );
-			fg = fg.Darken( 0.1f );
-		}
-
-		rect = rect.Shrink( 1 );
-
-		paint.ClearPen();
-		paint.SetBrush( bg );
-		paint.DrawRect( rect, 2 );
+		paint.SetPen( hover ? NodeTheme.HairlineHover : NodeTheme.Hairline );
+		paint.SetBrush( NodeTheme.FieldBackground );
+		paint.DrawRect( field, 4f );
 
 		var swatchColor = Value;
-		var max = MathF.Max( swatchColor.r, swatchColor.g );
-		max = MathF.Max( max, swatchColor.b );
-		float intensity = 0;
+		var max = MathF.Max( MathF.Max( swatchColor.r, swatchColor.g ), swatchColor.b );
+		var intensity = 0f;
 
+		// HDR: show the hue, brightening to the right with intensity
 		if ( max > 1 )
 		{
 			intensity = max / 1000.0f;
@@ -88,33 +80,27 @@ public class ColorValueEditor : NodeValueEditor
 			swatchColor.b *= div;
 		}
 
-		var colorRect = rect;
-		bool hasTitle = !string.IsNullOrWhiteSpace( Title );
+		var hasTitle = !string.IsNullOrWhiteSpace( Title );
+		var swatchRect = field.Shrink( 3f );
 
 		if ( hasTitle )
 		{
-			colorRect = colorRect.Shrink( colorRect.Width / 2, 0, 0, 0 );
+			swatchRect = swatchRect.Shrink( swatchRect.Width * 0.5f, 0f, 0f, 0f );
 		}
 
+		paint.ClearPen();
 		paint.SetBrush( ColorPickerTextures.Checkerboard );
-		paint.DrawRect( colorRect.Shrink( 2 ), 2 );
+		paint.DrawRect( swatchRect, 3f );
 
-		// Qt runs the gradient across the whole rect, the brush runs it across the shape drawn
-		var swatchRect = colorRect.Shrink( 1 );
-		var left = swatchColor.WithAlpha( 1 );
-		var right = Color.Lerp( swatchColor, Color.White.WithAlpha( swatchColor.a ), intensity );
-		var from = (swatchRect.Left - rect.Left) / rect.Width;
-		var to = (swatchRect.Right - rect.Left) / rect.Width;
-
-		paint.SetBrushLinear( Color.Lerp( left, right, from ), Color.Lerp( left, right, to ) );
-		paint.DrawRect( swatchRect, 2 );
-
-		paint.SetDefaultFont();
-		paint.SetPen( fg );
+		paint.SetPen( Color.White.WithAlpha( hover ? 0.25f : 0.12f ) );
+		paint.SetBrushLinear( swatchColor, Color.Lerp( swatchColor, Color.White.WithAlpha( swatchColor.a ), intensity ) );
+		paint.DrawRect( swatchRect, 3f );
 
 		if ( hasTitle )
 		{
-			paint.DrawText( rect.Shrink( 4, 0, 4, 0 ), Title, TextFlag.LeftCenter );
+			paint.SetDefaultFont();
+			paint.SetPen( NodeTheme.TextMuted.Lighten( hover ? 0.3f : 0f ) );
+			paint.DrawText( field.Shrink( 7f, 0f ), Title, TextFlag.LeftCenter );
 		}
 	}
 
