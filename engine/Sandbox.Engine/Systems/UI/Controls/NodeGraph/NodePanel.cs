@@ -234,7 +234,11 @@ public partial class NodePanel : CanvasPanel.Handle
 
 	const float HeaderPadLeft = 9f;
 	const float HeaderPadRight = 14f;
-	const float HeaderIconWidth = 20f;
+
+	/// <summary>
+	/// The icon column: wider when a subtitle makes the header two lines tall and the icon bigger.
+	/// </summary>
+	static float HeaderIconWidth( bool twoLines ) => twoLines ? 27f : 20f;
 
 	/// <summary>
 	/// Width the header needs for its icon, title and subtitle, in the fonts they're drawn with.
@@ -248,7 +252,7 @@ public partial class NodePanel : CanvasPanel.Handle
 			text = MathF.Max( text, NodePaint.Measure( Node.Subtitle, 7f ).x );
 		}
 
-		return HeaderPadLeft + (DisplayInfo.Icon is null ? 0f : HeaderIconWidth) + text + HeaderPadRight;
+		return HeaderPadLeft + (DisplayInfo.Icon is null ? 0f : HeaderIconWidth( Node.HasSubtitle )) + text + HeaderPadRight;
 	}
 
 	protected virtual void Layout()
@@ -560,24 +564,28 @@ public partial class NodePanel : CanvasPanel.Handle
 			paint.DrawRect( new Rect( 0f, TitleHeight - 1.5f, rect.Width, 1.5f ), 0f );
 		}
 
-		var row = new Rect( 0f, 0f, rect.Width, 24f ).Shrink( HeaderPadLeft, 0f, HeaderPadRight, 0f );
+		// With a subtitle the two lines are one block, centred with the icon in the header
+		var center = (TitleHeight - 1.5f) * 0.5f;
+		var twoLines = Node.HasSubtitle;
+		var titleCenter = twoLines ? center - 7f : center;
+		var row = new Rect( HeaderPadLeft, 0f, rect.Width - HeaderPadLeft - HeaderPadRight, TitleHeight );
 
 		if ( display.Icon is { } icon )
 		{
 			paint.SetPen( PrimaryTitleColor.Lighten( 0.35f ) );
-			paint.DrawIcon( row, icon, 15f, TextFlag.LeftCenter );
-			row.Left += HeaderIconWidth;
+			paint.DrawIcon( row with { Top = center - 12f, Height = 24f }, icon, twoLines ? 20f : 15f, TextFlag.LeftCenter );
+			row.Left += HeaderIconWidth( twoLines );
 		}
 
 		paint.SetDefaultFont( 8f, 600 );
 		paint.SetPen( NodeTheme.Text );
-		paint.DrawText( row, display.Name, TextFlag.LeftCenter );
+		paint.DrawText( row with { Top = titleCenter - 12f, Height = 24f }, display.Name, TextFlag.LeftCenter );
 
-		if ( Node.HasSubtitle )
+		if ( twoLines )
 		{
 			paint.SetDefaultFont( 7f );
 			paint.SetPen( NodeTheme.Text.WithAlpha( 0.55f ) );
-			paint.DrawText( new Rect( row.Left, 18f, row.Width, 24f ), Node.Subtitle, TextFlag.LeftCenter );
+			paint.DrawText( row with { Top = center + 7.5f - 12f, Height = 24f }, Node.Subtitle, TextFlag.LeftCenter );
 		}
 	}
 
