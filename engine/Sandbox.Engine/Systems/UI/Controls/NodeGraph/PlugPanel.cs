@@ -125,7 +125,8 @@ public abstract partial class PlugPanel : Panel
 	protected abstract void Paint( ref NodePaint paint );
 
 	/// <summary>
-	/// A ring that fills in when <paramref name="filled"/>, on a halo of the node body so it reads over the edge.
+	/// A ring that fills in when <paramref name="filled"/>. A thin dark rim of the same shape cuts the
+	/// node's edge around it.
 	/// </summary>
 	protected void DrawHandle( ref NodePaint paint, Color color, Rect handleRect, HandleShape shape, bool filled )
 	{
@@ -139,23 +140,25 @@ public abstract partial class PlugPanel : Panel
 		}
 
 		color = color.WithAlpha( 1.0f );
-		var body = Node.BodyColor;
 
-		paint.ClearPen();
-		paint.SetBrush( body );
-		DrawShape( ref paint, handleRect.Grow( 2f ), shape );
+		paint.ClearBrush();
+		paint.SetPen( NodeTheme.Canvas, 2f );
+		DrawShape( ref paint, handleRect.Grow( 1f ), shape );
 
 		paint.SetPen( color, 1.5f );
-		paint.SetBrush( filled ? color : body );
+		paint.SetBrush( filled ? color : NodeTheme.Canvas );
 		DrawShape( ref paint, handleRect.Shrink( 0.75f ), shape );
 	}
 
+	/// <summary>
+	/// Corners scale with the size, so a grown rim stays concentric with the shape.
+	/// </summary>
 	static void DrawShape( ref NodePaint paint, Rect rect, HandleShape shape )
 	{
 		switch ( shape )
 		{
 			case HandleShape.Square:
-				paint.DrawRect( rect, 3.0f );
+				paint.DrawRect( rect, MathF.Min( rect.Width, rect.Height ) * 0.3f );
 				break;
 
 			case HandleShape.Circle:
@@ -170,7 +173,7 @@ public abstract partial class PlugPanel : Panel
 
 	protected void DrawLabel( ref NodePaint paint, Rect rect, bool unreachable, TextFlag flags )
 	{
-		if ( !Inner.ShowLabel || Inner.InTitleBar || Editor is { Enabled: true, HideLabel: true } )
+		if ( !Inner.ShowLabel || Inner.InTitleBar || Node.IsThumbnailCard || Editor is { Enabled: true, HideLabel: true } )
 		{
 			return;
 		}

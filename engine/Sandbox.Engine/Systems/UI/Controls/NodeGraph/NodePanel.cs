@@ -227,12 +227,17 @@ public partial class NodePanel : CanvasPanel.Handle
 		Layout();
 	}
 
+	/// <summary>
+	/// A node without a title bar but with a thumbnail is drawn as the image itself, plugs on its edges.
+	/// </summary>
+	public bool IsThumbnailCard => !Node.HasTitleBar && Node.Thumbnail is not null;
+
 	protected virtual void Layout()
 	{
 		var hasThumb = !Node.HasTitleBar && Node.DisplayInfo.Icon is not null || Node.Thumbnail is not null;
 		var inputHeight = Inputs.Sum( x => x.Inner.InTitleBar ? 0f : 24f );
 		var outputHeight = Outputs.Sum( x => x.Inner.InTitleBar ? 0f : 24f );
-		var thumbnailSize = hasThumb ? Node.Thumbnail is not null ? 88f : 24f : 0f;
+		var thumbnailSize = IsThumbnailCard ? 96f : hasThumb ? Node.Thumbnail is not null ? 88f : 24f : 0f;
 		var bodyHeight = MathF.Max( MathF.Max( inputHeight, outputHeight ), thumbnailSize );
 
 		var totalWidth = 160f;
@@ -263,6 +268,14 @@ public partial class NodePanel : CanvasPanel.Handle
 				.Max();
 
 			totalWidth = Math.Max( 24f, Math.Max( titleWidth, inputWidth + outputWidth + thumbnailSize + (Node.HasTitleBar ? 8f : 0f) ) );
+		}
+
+		// The card's plugs are unlabelled, so the image takes the whole width
+		if ( IsThumbnailCard )
+		{
+			inputWidth = 0f;
+			outputWidth = 0f;
+			totalWidth = thumbnailSize;
 		}
 
 		var verticalCenter = !Node.HasTitleBar;
@@ -357,7 +370,9 @@ public partial class NodePanel : CanvasPanel.Handle
 		Style.Width = totalWidth;
 		Style.Height = totalHeight;
 
-		_thumbRect = new Rect( inputWidth, TitleHeight > 0f ? TitleHeight - 2f : 0f, Size.x - inputWidth - outputWidth, Size.y - TitleHeight );
+		_thumbRect = IsThumbnailCard
+			? new Rect( 0f, Size ).Shrink( 4f )
+			: new Rect( inputWidth, TitleHeight > 0f ? TitleHeight - 2f : 0f, Size.x - inputWidth - outputWidth, Size.y - TitleHeight );
 
 		if ( hasThumb && Node.HasTitleBar )
 		{
@@ -423,11 +438,11 @@ public partial class NodePanel : CanvasPanel.Handle
 		}
 		else if ( Node.Thumbnail is { } thumb )
 		{
-			// A big square thumbnail with a corner icon and the name over the bottom, e.g. for resource references
-			var thumbRect = _thumbRect.Align( new Vector2( 88f, 88f ), TextFlag.Center );
+			// The image is the card, with the icon in a corner and the name over the bottom, e.g. for resource references
+			var thumbRect = _thumbRect;
 
 			paint.SetPen( NodeTheme.Hairline );
-			paint.DrawImage( thumbRect, thumb, 6f );
+			paint.DrawImage( thumbRect, thumb, NodeTheme.Radius - 4f );
 
 			if ( display.Icon is { } icon )
 			{
@@ -461,6 +476,9 @@ public partial class NodePanel : CanvasPanel.Handle
 		{
 			// An icon without text, e.g. for operators
 			var scale = icon.Length == 2 && !char.IsLetterOrDigit( icon[0] ) ? 0.5f : icon == "|" ? 0.75f : 1f;
+
+			// Plain + and - sit on the text's math axis, below centre; the icon glyphs are centred
+			icon = icon switch { "+" => "add", "-" => "remove", _ => icon };
 
 			paint.SetPen( NodeTheme.Text.WithAlpha( 0.85f ) );
 			paint.DrawIcon( _thumbRect, icon, (Math.Min( _thumbRect.Width, _thumbRect.Height ) - 8f) * scale );
