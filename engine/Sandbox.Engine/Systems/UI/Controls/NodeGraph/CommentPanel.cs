@@ -43,7 +43,14 @@ public class CommentPanel : NodePanel
 		base.OnParentChanged();
 
 		if ( Parent is { } parent ) parent.SetChildIndex( this, 0 );
+		_ordered = false;
 	}
+
+	/// <summary>
+	/// Whether nested comments have been put in order since this one was added - not possible
+	/// until the graph knows every comment, so it happens on the first tick.
+	/// </summary>
+	bool _ordered;
 
 	/// <summary>
 	/// The panels of this comment's members.
@@ -61,6 +68,12 @@ public class CommentPanel : NodePanel
 		base.Tick();
 
 		if ( IsPreview ) return;
+
+		if ( !_ordered )
+		{
+			_ordered = true;
+			Graph.OrderComments();
+		}
 
 		ForgetRemovedMembers();
 
