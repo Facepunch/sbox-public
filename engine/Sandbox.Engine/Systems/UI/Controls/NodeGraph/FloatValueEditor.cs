@@ -35,7 +35,7 @@ public class FloatValueEditor : NodeValueEditor
 			var title = string.IsNullOrWhiteSpace( Title ) ? 0f : NodePaint.Measure( Title ).x + 8f;
 			var value = NodePaint.Measure( $"{Value:0.000}" ).x;
 
-			return IsRange ? 2f + 4f + title + MathF.Max( value + 4f, 40f ) : 2f + 20f + title + value;
+			return 4f + (IsRange ? 14f : 24f) + title + value;
 		}
 	}
 
@@ -89,60 +89,51 @@ public class FloatValueEditor : NodeValueEditor
 
 	protected override void Paint( ref NodePaint paint, Rect rect )
 	{
-		var isRange = IsRange;
-		var sliderBg = NodeTheme.Blue.WithAlpha( 0.6f );
-		var bg = NodeTheme.ControlBackground.WithAlpha( 0.4f );
-		var fg = NodeTheme.TextControl;
+		var field = NodeTheme.FieldRect( rect );
+		var hover = paint.HasMouseOver || HasActive;
 
-		if ( !paint.HasMouseOver )
+		paint.SetPen( hover ? NodeTheme.HairlineHover : NodeTheme.Hairline );
+		paint.SetBrush( NodeTheme.FieldBackground );
+		paint.DrawRect( field, 4f );
+
+		var shrink = 7f;
+
+		if ( IsRange )
 		{
-			bg = bg.Darken( 0.2f );
-			fg = fg.Darken( 0.1f );
-			sliderBg = sliderBg.WithAlpha( 0.5f );
-		}
+			var t = Math.Clamp( (Value - Min) / (Max - Min), 0f, 1f );
 
-		rect = rect.Shrink( 1 );
-
-		paint.ClearPen();
-		paint.SetBrush( bg );
-		paint.DrawRect( rect, 2 );
-
-		if ( isRange && Value >= Min )
-		{
-			paint.SetBrush( sliderBg.WithAlpha( 0.2f ) );
-			paint.DrawRect( rect.Shrink( 1, 1, (Value <= Max) ? 40 : 1, 1 ), 2 );
-
-			var sliderRect = rect.Shrink( 1, 1, (Value <= Max) ? 40 : 1, 1 );
-			sliderRect.Right = sliderRect.Left.LerpTo( sliderRect.Right, (Value - Min) / (Max - Min) );
-
-			paint.SetBrush( sliderBg );
-			paint.DrawRect( sliderRect, 2 );
-		}
-
-		if ( !isRange )
-		{
-			paint.SetBrush( HasActive ? sliderBg : sliderBg.WithAlpha( 0.2f ) );
-			paint.DrawRect( rect.Shrink( 1 ), 2 );
-
-			if ( paint.HasMouseOver )
+			if ( t > 0f )
 			{
-				paint.SetPen( fg );
-				paint.DrawIcon( rect.Shrink( 1 ), "navigate_before", 10, TextFlag.LeftCenter );
-				paint.DrawIcon( rect.Shrink( 1 ), "navigate_next", 10, TextFlag.RightCenter );
+				var fill = field.Shrink( 1f );
+				fill.Width *= t;
+
+				paint.ClearPen();
+				paint.SetBrush( NodeTheme.Accent.WithAlpha( hover ? 0.5f : 0.38f ) );
+				paint.DrawRect( fill, 3f );
+			}
+		}
+		else
+		{
+			shrink = 12f;
+
+			if ( hover )
+			{
+				paint.SetPen( NodeTheme.TextMuted );
+				paint.DrawIcon( field.Shrink( 1f, 0f ), "chevron_left", 10f, TextFlag.LeftCenter );
+				paint.DrawIcon( field.Shrink( 1f, 0f ), "chevron_right", 10f, TextFlag.RightCenter );
 			}
 		}
 
 		paint.SetDefaultFont();
-		paint.SetPen( fg );
-
-		var shrink = isRange ? 4 : 10;
 
 		if ( !string.IsNullOrWhiteSpace( Title ) )
 		{
-			paint.DrawText( rect.Shrink( shrink, 0, shrink, 0 ), Title, TextFlag.LeftCenter );
+			paint.SetPen( NodeTheme.TextMuted.Lighten( hover ? 0.3f : 0f ) );
+			paint.DrawText( field.Shrink( shrink, 0f ), Title, TextFlag.LeftCenter );
 		}
 
-		paint.DrawText( rect.Shrink( shrink, 0, shrink, 0 ), $"{Value:0.000}", TextFlag.RightCenter );
+		paint.SetPen( NodeTheme.Text );
+		paint.DrawText( field.Shrink( shrink, 0f ), $"{Value:0.000}", TextFlag.RightCenter );
 	}
 
 	protected override void OnMouseDown( MousePanelEvent e )
@@ -186,9 +177,9 @@ public class FloatValueEditor : NodeValueEditor
 
 	void UpdateValue( float position )
 	{
-		var width = Box.Rect.Width * ScaleFromScreen;
+		var field = NodeTheme.FieldRect( new Rect( 0f, Box.Rect.Size * ScaleFromScreen ) ).Shrink( 1f );
 
-		var value = (position - 1) / (width - 43);
+		var value = (position - field.Left) / field.Width;
 		value = Min.LerpTo( Max, value ).Clamp( Min, Max );
 
 		if ( Step > 0 )

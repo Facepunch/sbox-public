@@ -6,7 +6,7 @@ namespace Sandbox.UI.NodeGraph;
 /// </summary>
 public class Connection
 {
-	public static Color SelectedColor { get; } = Color.Parse( "#ff99c8" ).Value;
+	public static Color SelectedColor { get; } = NodeTheme.Accent;
 
 	public NodeGraphPanel Graph { get; }
 	public PlugOutPanel Output { get; private set; }
@@ -216,27 +216,27 @@ public class Connection
 		var inNode = Input.IsValid() ? Input.Node : null;
 		var color = Color.Lerp( config.Color, ColorTint.WithAlpha( 1f ), ColorTint.a );
 
-		width = 4.0f;
+		width = 2.5f;
 
 		if ( !Input.IsValid() )
 		{
-			color = color.WithAlpha( 0.4f );
+			color = color.WithAlpha( 0.6f );
 		}
 		else if ( outNode?.Node.IsReachable is false || inNode?.Node.IsReachable is false )
 		{
-			color = color.Desaturate( 0.5f ).Darken( 0.25f );
+			color = color.Desaturate( 0.5f ).Darken( 0.25f ).WithAlpha( 0.6f );
 		}
 
 		if ( Selected )
 		{
-			color = SelectedColor.Darken( 0.2f );
-			width = 4.0f;
+			color = SelectedColor;
+			width = 3.5f;
 		}
 
 		if ( Hovered )
 		{
-			color = SelectedColor;
-			width = 6.0f;
+			color = Selected ? SelectedColor.Lighten( 0.2f ) : color.Lighten( 0.25f ).WithAlpha( 1f );
+			width = 3.5f;
 		}
 
 		return color;

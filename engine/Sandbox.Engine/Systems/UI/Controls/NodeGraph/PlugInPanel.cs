@@ -54,7 +54,7 @@ public class PlugInPanel : PlugPanel
 		}
 
 		var handleRect = new Rect( 0, (Size.y - handleSize) * 0.5f, handleSize, handleSize ).Shrink( 2 );
-		DrawHandle( ref paint, color, handleRect, config.Shape );
+		DrawHandle( ref paint, color, handleRect, config.Shape, IsConnected || highlight );
 		DrawLabel( ref paint, new Rect( handleSize + spacex, 0, rect.Width - 4 - 10, rect.Size.y ), unreachable, TextFlag.LeftCenter );
 	}
 }
