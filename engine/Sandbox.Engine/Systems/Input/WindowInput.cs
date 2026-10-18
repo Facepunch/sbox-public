@@ -1,5 +1,6 @@
 using NativeEngine;
 using Sandbox.Utility;
+using System.Runtime.InteropServices;
 
 namespace Sandbox.Engine;
 
@@ -9,16 +10,16 @@ namespace Sandbox.Engine;
 [SkipHotload]
 internal static class WindowInput
 {
-	static bool initialized, active, focused, relative, imeAllowed, noIme;
-	static IntPtr editorWindow, focusWindow;
+	static bool initialized, active, focused, relative, imeAllowed, noIme, reclaimAttempted;
+	static IntPtr editorWindow, editorHwnd, focusWindow;
 	static IntPtr InputWindow => editorWindow != IntPtr.Zero ? editorWindow : GameWindow.Current?.Handle ?? IntPtr.Zero;
 
 	internal static void Initialize()
 	{
 		if ( Application.IsHeadless ) return;
 		initialized = true;
-		active = focused = relative = false;
-		editorWindow = focusWindow = IntPtr.Zero;
+		active = focused = relative = reclaimAttempted = false;
+		editorWindow = editorHwnd = focusWindow = IntPtr.Zero;
 		noIme = CommandLine.HasSwitch( "-noime" );
 		imeAllowed = !noIme;
 		Sdl.SetHint( "SDL_TOUCH_MOUSE_EVENTS", "0" );
@@ -42,6 +43,7 @@ internal static class WindowInput
 	{
 		InputSystem.SetEditorMainWindow( hwnd );
 		editorWindow = GameWindowNative.FromNativeHandle( hwnd );
+		editorHwnd = hwnd;
 	}
 
 	internal static void OnEditorGameFocusChange( IntPtr hwnd, bool value )
@@ -60,6 +62,8 @@ internal static class WindowInput
 		var tools = IToolsDll.Current;
 		var window = Sdl.GetKeyboardFocus();
 		var panelFocused = window != IntPtr.Zero && Sandbox.UI.PanelWindows.Find( window ) is not null;
+		if ( tools is not null && window != editorWindow && !panelFocused ) ReclaimEditorKeyboardFocus();
+		else reclaimAttempted = false;
 		var hostActive = tools?.IsApplicationActive ?? (window != IntPtr.Zero);
 		var isActive = hostActive || panelFocused;
 		var gameWindow = GameWindow.Current?.Handle ?? IntPtr.Zero;
@@ -155,7 +159,7 @@ internal static class WindowInput
 	{
 		if ( !initialized || (window != editorWindow && window != focusWindow) ) return;
 		SetFocus( false );
-		if ( editorWindow == window ) editorWindow = IntPtr.Zero;
+		if ( editorWindow == window ) editorWindow = editorHwnd = IntPtr.Zero;
 		if ( focusWindow == window ) focusWindow = IntPtr.Zero;
 	}
 
@@ -163,10 +167,67 @@ internal static class WindowInput
 	{
 		if ( !initialized ) return;
 		SetRelativeMouseMode( false );
-		initialized = active = focused = relative = false;
+		initialized = active = focused = relative = reclaimAttempted = false;
 		InputSystem.SetGameFocus( focused );
-		editorWindow = focusWindow = IntPtr.Zero;
+		editorWindow = editorHwnd = focusWindow = IntPtr.Zero;
 		SdlCursors.Shutdown();
 		if ( !Application.IsHeadless ) SdlWindow.WarnIfFailed( Sdl.EnableScreenSaver() );
 	}
+
+	/// <summary>
+	/// Give SDL's keyboard focus back to the editor window once it's the foreground window again. Tried once
+	/// per loss, since the message goes on to Qt as well.
+	/// <para>
+	/// The editor's window procedure (engine2's InputSystem) hands SDL the window's keyboard messages and
+	/// nothing else - never its activation. So SDL only has the editor focused because it was focused when
+	/// it was registered, and anything of ours SDL can see being activated - a panel window like the
+	/// performance hub - takes that focus for good. Without a focused window SDL still sends key presses
+	/// but drops typed text, and relative mouse mode never engages. Feeding SDL's own window procedure the
+	/// focus message it missed is what puts it back.
+	/// </para>
+	/// </summary>
+	static void ReclaimEditorKeyboardFocus()
+	{
+		if ( reclaimAttempted || !OperatingSystem.IsWindows() || editorHwnd == IntPtr.Zero ) return;
+		if ( GetForegroundWindow() != editorHwnd ) return;
+
+		reclaimAttempted = true;
+
+		// SDL registers every window it creates under this class, with its window procedure
+		var windowClass = new WndClassEx { Size = (uint)Marshal.SizeOf<WndClassEx>() };
+		if ( !GetClassInfoExW( GetModuleHandleW( null ), "SDL_app", ref windowClass ) ) return;
+
+		const uint WM_SETFOCUS = 0x0007;
+		CallWindowProcW( windowClass.WndProc, editorHwnd, WM_SETFOCUS, IntPtr.Zero, IntPtr.Zero );
+	}
+
+	[StructLayout( LayoutKind.Sequential, CharSet = CharSet.Unicode )]
+	struct WndClassEx
+	{
+		public uint Size;
+		public uint Style;
+		public IntPtr WndProc;
+		public int ClassExtra;
+		public int WindowExtra;
+		public IntPtr Instance;
+		public IntPtr Icon;
+		public IntPtr Cursor;
+		public IntPtr Background;
+		public IntPtr MenuName;
+		public IntPtr ClassName;
+		public IntPtr IconSmall;
+	}
+
+	[DllImport( "user32.dll" )]
+	static extern IntPtr GetForegroundWindow();
+
+	[DllImport( "user32.dll", CharSet = CharSet.Unicode )]
+	[return: MarshalAs( UnmanagedType.Bool )]
+	static extern bool GetClassInfoExW( IntPtr instance, string className, ref WndClassEx windowClass );
+
+	[DllImport( "user32.dll" )]
+	static extern IntPtr CallWindowProcW( IntPtr windowProc, IntPtr window, uint message, IntPtr wParam, IntPtr lParam );
+
+	[DllImport( "kernel32.dll", CharSet = CharSet.Unicode )]
+	static extern IntPtr GetModuleHandleW( string moduleName );
 }
