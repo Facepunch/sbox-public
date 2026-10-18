@@ -84,6 +84,41 @@ internal partial class BytePack
 
 	public object Deserialize( ref ByteStream data ) => Deserialize( ref data, 0 );
 
+	/// <summary>
+	/// Deserialize a value of a known type. Plain value types are read without boxing them.
+	/// </summary>
+	public T Deserialize<T>( ref ByteStream data )
+	{
+		if ( typeof( T ).IsValueType )
+		{
+			var start = data.Position;
+			var h = data.Read<Identifier>();
+
+			var packer = h == Identifier.Runtime ? GetOrCreatePacker( data.Read<int>() ) : handlers.GetValueOrDefault( h );
+			if ( packer is IValuePacker<T> reader )
+				return reader.Read( ref data );
+
+			data.Position = start;
+		}
+
+		return (T)Deserialize( ref data, 0 );
+	}
+
+	/// <inheritdoc cref="Deserialize{T}(ref ByteStream)"/>
+	public T Deserialize<T>( ReadOnlySpan<byte> data )
+	{
+		var bs = ByteStream.CreateReader( data );
+
+		try
+		{
+			return Deserialize<T>( ref bs );
+		}
+		finally
+		{
+			bs.Dispose();
+		}
+	}
+
 	internal object Deserialize( ref ByteStream data, int depth )
 	{
 		if ( depth > MaxDepth )
@@ -116,6 +151,14 @@ internal partial class BytePack
 
 	void Serialize<T>( ref ByteStream bs, T obj )
 	{
+		// Ahead of the null check, which boxes value types in unoptimized code
+		if ( typeof( T ).IsValueType && types.TryGetValue( typeof( T ), out var typed ) && typed is IValuePacker<T> writer )
+		{
+			typed.WriteTypeIdentifier( ref bs, typeof( T ) );
+			writer.Write( ref bs, obj );
+			return;
+		}
+
 		if ( obj is null )
 		{
 			bs.Write( Identifier.Null );

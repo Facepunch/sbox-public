@@ -300,7 +300,10 @@ internal sealed partial class PackageLoader : IDisposable
 		//
 		if ( !needsAccessControl )
 		{
-			trustedDll = PackageManager.AccessControl.TrustUnsafe( bytes );
+			// Nothing is verified against a loader's first assemblies when access control is disabled, but a reload
+			// needs its cached metadata refreshed or later hotloads resolve the old version.
+			var isReload = Loaded.Any( x => string.Equals( x.Name, assmName, StringComparison.OrdinalIgnoreCase ) );
+			trustedDll = PackageManager.AccessControl.TrustUnsafe( bytes, resolvable: !DisableAccessControl || isReload );
 		}
 
 		//

@@ -21,6 +21,27 @@ internal static class Bootstrap
 
 	internal static Api.Events.EventRecord StartupTiming;
 
+	static readonly Stopwatch StartupClock = new();
+	static int? timeToWindow;
+
+	internal static void StartStartupClock()
+	{
+		timeToWindow = null;
+		StartupClock.Restart();
+	}
+
+	internal static void MarkStartupWindowVisible()
+	{
+		if ( StartupClock.IsRunning )
+			timeToWindow = (int)StartupClock.ElapsedMilliseconds;
+	}
+
+	internal static void MarkMenuReady()
+	{
+		if ( StartupClock.IsRunning )
+			StartupTiming?.SetValue( "TimeToMenu", (int)StartupClock.ElapsedMilliseconds );
+	}
+
 	/// <summary>
 	/// Set up application flags, the main thread and filesystems so the startup window can read its settings.
 	/// </summary>
@@ -29,6 +50,95 @@ internal static class Bootstrap
 		Application.Initialize( appDict.IsDedicatedServer(), appDict.IsConsoleApp(), appDict.IsInToolsMode(), appDict.IsInTestMode(), EngineGlobal.IsRetail() );
 		InitFileSystem( rootFolder ?? EngineGlobal.GetGameRootFolder() );
 		DLLImportResolver.SetupResolvers();
+	}
+
+	static Task preparedTypeLibraries;
+	static readonly HashSet<GlobalContext> preparedContexts = new();
+
+	/// <summary>
+	/// Builds the menu and game type libraries on a worker, so the slow reflection work overlaps native startup.
+	/// <see cref="Game.InitHost"/> picks the results up when the contexts bootstrap.
+	/// </summary>
+	internal static void PrepareTypeLibraries()
+	{
+		if ( !Application.IsInitialized || Application.IsEditor || Application.IsStandalone || Application.IsHeadless ) return;
+		if ( IMenuDll.Current?.GetType().Assembly is not { } menu || IGameInstanceDll.Current?.GetType().Assembly is not { } game ) return;
+
+		preparedTypeLibraries = Task.Run( () =>
+		{
+			var culture = Thread.CurrentThread.CurrentCulture;
+			Thread.CurrentThread.CurrentCulture = System.Globalization.CultureInfo.CreateSpecificCulture( "en-US" );
+
+			try
+			{
+				BuildTypeLibrary( GlobalContext.Menu, menu );
+				BuildTypeLibrary( GlobalContext.Game, game );
+			}
+			finally
+			{
+				GlobalContext.Current = null;
+				Thread.CurrentThread.CurrentCulture = culture;
+			}
+		} );
+	}
+
+	static void BuildTypeLibrary( GlobalContext context, System.Reflection.Assembly assembly )
+	{
+		GlobalContext.Current = context;
+		context.LocalAssembly = assembly;
+		Game.InitTypeLibrary();
+
+		lock ( preparedContexts ) preparedContexts.Add( context );
+	}
+
+	/// <summary>
+	/// True if the current context's type library was already built by <see cref="PrepareTypeLibraries"/>.
+	/// Falls back to building it normally if preparation failed.
+	/// </summary>
+	internal static bool ConsumePreparedTypeLibrary()
+	{
+		if ( preparedTypeLibraries is null ) return false;
+
+		try
+		{
+			preparedTypeLibraries.GetAwaiter().GetResult();
+		}
+		catch ( Exception e )
+		{
+			log.Warning( e, "Couldn't prepare type libraries early" );
+		}
+
+		lock ( preparedContexts ) return preparedContexts.Remove( GlobalContext.Current );
+	}
+
+	[Conditional( "DEBUG" )]
+	internal static void AssertTypeLibraryReady()
+	{
+		global::System.Diagnostics.Debug.Assert( !ThreadSafe.IsMainThread || preparedTypeLibraries is null || preparedTypeLibraries.IsCompleted,
+			"The main thread accessed shared startup state before the prepared type libraries finished building." );
+	}
+
+	static Task earlyResourceScan;
+
+	/// <summary>
+	/// Scanning the resource database walks every mounted file. Start it as soon as the native file system is
+	/// ready, so it overlaps the rest of startup instead of blocking the menu from loading its resources.
+	/// </summary>
+	internal static void BeginResourceScan()
+	{
+		if ( preparedTypeLibraries is null ) return;
+
+		earlyResourceScan = Task.Run( () => g_pResourceSystem.InvalidateDatabase() );
+	}
+
+	/// <summary>
+	/// The scan started by <see cref="BeginResourceScan"/>, once, or null if the caller needs to scan itself.
+	/// </summary>
+	internal static Task TakeResourceScan()
+	{
+		var scan = earlyResourceScan;
+		earlyResourceScan = null;
+		return scan;
 	}
 
 
@@ -46,6 +156,9 @@ internal static class Bootstrap
 
 
 			StartupTiming = new Api.Events.EventRecord( $"StartupTiming.{(Application.IsEditor ? "Editor" : (Application.IsHeadless ? "Server" : "Game"))}" );
+			if ( timeToWindow is { } windowTime )
+				StartupTiming.SetValue( "TimeToWindow", windowTime );
+
 			StartupTiming.StartTimer( "Time" );
 
 			// This also calls SetSynchronizationContext
@@ -253,6 +366,7 @@ internal static class Bootstrap
 			{
 				using var x = StartupTiming?.ScopeTimer( $"MenuBootstrap" );
 				SyncContext.RunBlocking( IMenuDll.Current.Initialize() );
+				MarkMenuReady();
 			}
 
 			GameWindow.Current?.UpdateStartupProgress( 0.9f, "Loading game" );

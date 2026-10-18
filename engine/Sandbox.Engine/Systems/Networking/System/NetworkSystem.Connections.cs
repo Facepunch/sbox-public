@@ -14,6 +14,12 @@ internal partial class NetworkSystem
 	public IEnumerable<Connection> Connections => _connections;
 
 	/// <summary>
+	/// Stand-ins for peers we have no direct connection to, see <see cref="Connection.Find"/>.
+	/// </summary>
+	[SkipHotload]
+	internal readonly Dictionary<Guid, Connection> MockConnections = new();
+
+	/// <summary>
 	/// If true then this host is sending assemblies and other files via network tables
 	/// and as such, does not need to load assemblies from the package (if it even exists).
 	/// </summary>

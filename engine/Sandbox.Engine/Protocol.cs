@@ -8,15 +8,16 @@ public static class Protocol
 	/// <summary>
 	/// We cannot play packages with an Api version higher than this.
 	/// </summary>
-	public static int Api => 30;
+	public static int Api => 31;
 
 	/// <summary>
 	/// We cannot talk to servers or clients with a network protocol different to this.
 	/// </summary>
-	public static int Network => 1108;
+	public static int Network => 1109;
 }
 
 // Api Versions
+// 31. 17 October 2026 - Network stuff
 // 30. 05 October 2026 - Compiled sounds support Opus and Vorbis compression
 // 29. 29 August 2026 - Shipped packages run the engine's base, not their embedded copy
 // 28. 08 July 2026 - Map lights become Light components, stops old servers from loading garbage data
@@ -31,6 +32,7 @@ public static class Protocol
 
 
 // Network Versions
+// 1109. 14th October 2026 - Network rebuild: delta snapshot clusters, 32 bit snapshot ids, multicast relays, raw typed RPCs, targeted messages removed
 // 1108. 12th October 2026 - Delta snapshots carry the sender's time
 // 1107. 11th October 2026 - Server packages say which version of their workshop item the server has
 // 1106. 08th October 2026 - Hosts enforce private lobbies: AllowJoinMsg, privacy in the host handoff

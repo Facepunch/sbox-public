@@ -52,6 +52,36 @@ public abstract partial class GameObjectSystem : IDeltaSnapshot
 		Rpc.OnCallInstanceRpc( this, m, argumentList );
 	}
 
+	// Generated RPC wrappers bind to these before the object array overload, so arguments aren't boxed
+
+	[EditorBrowsable( EditorBrowsableState.Never )]
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	protected void __rpc_Wrapper( in WrappedMethod m ) => Rpc.OnCallInstanceRpc( this, m, new RpcArgs() );
+
+	[EditorBrowsable( EditorBrowsableState.Never )]
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	protected void __rpc_Wrapper<T1>( in WrappedMethod m, T1 a1 ) => Rpc.OnCallInstanceRpc( this, m, new RpcArgs<T1>( a1 ) );
+
+	[EditorBrowsable( EditorBrowsableState.Never )]
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	protected void __rpc_Wrapper<T1, T2>( in WrappedMethod m, T1 a1, T2 a2 ) => Rpc.OnCallInstanceRpc( this, m, new RpcArgs<T1, T2>( a1, a2 ) );
+
+	[EditorBrowsable( EditorBrowsableState.Never )]
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	protected void __rpc_Wrapper<T1, T2, T3>( in WrappedMethod m, T1 a1, T2 a2, T3 a3 ) => Rpc.OnCallInstanceRpc( this, m, new RpcArgs<T1, T2, T3>( a1, a2, a3 ) );
+
+	[EditorBrowsable( EditorBrowsableState.Never )]
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	protected void __rpc_Wrapper<T1, T2, T3, T4>( in WrappedMethod m, T1 a1, T2 a2, T3 a3, T4 a4 ) => Rpc.OnCallInstanceRpc( this, m, new RpcArgs<T1, T2, T3, T4>( a1, a2, a3, a4 ) );
+
+	[EditorBrowsable( EditorBrowsableState.Never )]
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	protected void __rpc_Wrapper<T1, T2, T3, T4, T5>( in WrappedMethod m, T1 a1, T2 a2, T3 a3, T4 a4, T5 a5 ) => Rpc.OnCallInstanceRpc( this, m, new RpcArgs<T1, T2, T3, T4, T5>( a1, a2, a3, a4, a5 ) );
+
+	[EditorBrowsable( EditorBrowsableState.Never )]
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	protected void __rpc_Wrapper<T1, T2, T3, T4, T5, T6>( in WrappedMethod m, T1 a1, T2 a2, T3 a3, T4 a4, T5 a5, T6 a6 ) => Rpc.OnCallInstanceRpc( this, m, new RpcArgs<T1, T2, T3, T4, T5, T6>( a1, a2, a3, a4, a5, a6 ) );
+
 	[EditorBrowsable( EditorBrowsableState.Never )]
 	protected void __sync_SetValue<T>( in WrappedPropertySet<T> p )
 	{
@@ -148,8 +178,7 @@ public abstract partial class GameObjectSystem : IDeltaSnapshot
 
 			try
 			{
-				var originType = propertyAndAttribute.Property.DeclaringType ?? type;
-				var identity = NetworkObject.GetPropertySlot( $"{originType.FullName}.{propertyAndAttribute.Property.Name}".FastHash(), Id );
+				var identity = NetworkObject.GetPropertySlot( propertyAndAttribute.NameHash, Id );
 
 				var entry = new NetworkTable.Entry
 				{
@@ -157,8 +186,9 @@ public abstract partial class GameObjectSystem : IDeltaSnapshot
 					ControlCondition = c => c.IsHost,
 					GetValue = () => propertyAndAttribute.Property.GetValue( this ),
 					SetValue = v => propertyAndAttribute.Property?.SetValue( this, v ),
+					Typed = NetworkTable.TypedAccess.Create( this, propertyAndAttribute.Property ),
 					NeedsQuery = isQuery,
-					DebugName = $"{originType.Name}.{propertyAndAttribute.Property.Name}"
+					DebugName = propertyAndAttribute.DebugName
 				};
 
 				dataTable.Register( identity, entry );
@@ -179,29 +209,6 @@ public abstract partial class GameObjectSystem : IDeltaSnapshot
 	}
 
 	internal readonly LocalSnapshotState LocalSnapshotState = new();
-
-	void IDeltaSnapshot.OnSnapshotAck( Connection source, DeltaSnapshot snapshot, RemoteSnapshotState state )
-	{
-		var hasFullSnapshotState = true;
-
-		foreach ( var entry in LocalSnapshotState.Entries )
-		{
-			if ( state.IsValueHashEqual( entry.Slot, entry.Hash, snapshot.SnapshotId ) )
-			{
-				entry.Connections.Add( source.Id );
-			}
-			else
-			{
-				entry.Connections.Remove( source.Id );
-				hasFullSnapshotState = false;
-			}
-		}
-
-		if ( hasFullSnapshotState )
-			LocalSnapshotState.UpdatedConnections.Add( source.Id );
-		else
-			LocalSnapshotState.UpdatedConnections.Remove( source.Id );
-	}
 
 	LocalSnapshotState IDeltaSnapshot.WriteSnapshotState()
 	{

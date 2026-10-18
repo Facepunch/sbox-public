@@ -57,11 +57,11 @@ internal unsafe class SteamLobbyConnection : Connection, IValid
 		}
 	}
 
-	internal override void InternalSend( byte[] data, NetFlags flags )
+	internal override void InternalSend( NetPacket packet, NetFlags flags )
 	{
 		var steamFlags = flags.ToSteamFlags();
 		steamFlags |= 32; // k_nSteamNetworkingSend_AutoRestartBrokenSession
-		Lobby.SendMessage( this, data, steamFlags );
+		Lobby.SendMessage( this, packet, steamFlags );
 	}
 
 	internal override void InternalRecv( NetworkSystem.MessageHandler handler )

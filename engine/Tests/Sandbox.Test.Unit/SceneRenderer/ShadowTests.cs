@@ -103,6 +103,61 @@ public class ShadowTests
 	}
 
 	/// <summary>
+	/// A cascade's size only depends on the camera's projection. Far from the origin, fitting it in world space let float error
+	/// in the inverse view projection resize it every frame the camera moved, which slid the texel grid and made every shadow
+	/// edge crawl, however well the origin was snapped.
+	/// </summary>
+	[TestMethod]
+	public void SunCascadesKeepTheirSizeFarFromTheOrigin()
+	{
+		var maxCascades = Sandbox.Rendering.ShadowMapper.MaxCascades;
+		Sandbox.Rendering.ShadowMapper.MaxCascades = 4;
+
+		try
+		{
+			var world = new RenderWorld();
+			using var system = new RenderSystem();
+
+			var view = new RenderView
+			{
+				FieldOfView = 90,
+				ZNear = 5,
+				ZFar = 30000,
+				Viewport = new Rect( 0, 0, 1920, 1080 ),
+			};
+
+			float[] CascadeSizes( Vector3 position, Rotation rotation )
+			{
+				view.Position = position;
+				view.Rotation = rotation;
+				view.Update();
+				CollectAndPrepare( system, world, view );
+
+				var passes = system.ShadowMaps.Passes;
+				var sizes = new float[passes.Length];
+				for ( int i = 0; i < passes.Length; i++ )
+					sizes[i] = passes[i].View.OrthoSize.x;
+				return sizes;
+			}
+
+			var expected = CascadeSizes( Vector3.Zero, Rotation.Identity );
+			Assert.AreEqual( 4, expected.Length );
+
+			// Walking and turning the camera across a big map
+			for ( int frame = 0; frame < 120; frame++ )
+			{
+				var position = new Vector3( 20000 + frame * 1.7f, -15000 + frame * 0.9f, 300 );
+				var rotation = Rotation.From( 10 + frame * 0.05f, frame * 0.2f, 0 );
+				CollectionAssert.AreEqual( expected, CascadeSizes( position, rotation ), $"frame {frame}" );
+			}
+		}
+		finally
+		{
+			Sandbox.Rendering.ShadowMapper.MaxCascades = maxCascades;
+		}
+	}
+
+	/// <summary>
 	/// A point light casts into six cube faces and a spot into one view, each pointing its binned
 	/// light at its shadow. Lights and casters that opt out are left out, and a spot too small on
 	/// screen gets none, as native's <c>r.shadows.size_cull_threshold</c> has it.

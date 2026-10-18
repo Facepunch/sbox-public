@@ -85,6 +85,15 @@ class Program
 		refs.Add( MetadataReference.CreateFromFile( Path.Combine( path, "System.Runtime.dll" ) ) );
 		refs.Add( MetadataReference.CreateFromFile( typeof( Sandbox.CodeGeneratorAttribute ).Assembly.Location ) );
 
+		// Projects outside the engine pass their references, so the [Sync] and [Rpc] attributes they use resolve
+		var references = args.SelectMany( a => a.StartsWith( '@' ) ? File.ReadAllLines( a[1..] ) : [a] ).Select( a => a.Trim( '"' ) );
+		var added = new HashSet<string>( refs.Select( r => Path.GetFileName( r.Display ) ), StringComparer.OrdinalIgnoreCase );
+		foreach ( var reference in references.Where( File.Exists ) )
+		{
+			if ( added.Add( Path.GetFileName( reference ) ) )
+				refs.Add( MetadataReference.CreateFromFile( reference ) );
+		}
+
 		CSharpCompilation compiler = CSharpCompilation.Create( $"CodeGen", SyntaxTree, refs, optn );
 
 		//

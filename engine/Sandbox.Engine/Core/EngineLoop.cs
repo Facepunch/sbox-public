@@ -38,6 +38,9 @@ internal static class EngineLoop
 
 		LoopFrames++;
 
+		// Enumerating gamepads is slow, so it waits until the first frames have been shown.
+		if ( LoopFrames == 30 ) SdlGamepads.Initialize();
+
 		double time = RealTime.NowDouble;
 		FastTimer frameTimer = FastTimer.StartNew();
 

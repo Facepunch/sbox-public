@@ -44,13 +44,16 @@ internal static class WorkerThread
 	{
 		var ct = _sCts.Token;
 
+		// Unlike Task.Delay, waiting on a PeriodicTimer doesn't allocate every tick
+		using var timer = new PeriodicTimer( TimeSpan.FromMilliseconds( 1 ) );
+
 		while ( !ct.IsCancellationRequested )
 		{
 			SyncContext.WorkerThread.ProcessQueue();
 
 			try
 			{
-				await Task.Delay( 1, ct );
+				await timer.WaitForNextTickAsync( ct );
 			}
 			catch ( OperationCanceledException )
 			{

@@ -617,8 +617,9 @@ public class ResourceSystem
 
 	/// <summary>
 	/// Loads a Gameresource from disk. Doesn't look at cache. Registers the resource if successful.
+	/// Pass <c>knownToExist</c> for files that came from a directory listing, to skip checking they exist.
 	/// </summary>
-	internal GameResource LoadGameResource( AssetTypeAttribute type, string file, BaseFileSystem fs, bool deferPostload = false, Package sourcePackage = null )
+	internal GameResource LoadGameResource( AssetTypeAttribute type, string file, BaseFileSystem fs, bool deferPostload = false, Package sourcePackage = null, bool knownToExist = false )
 	{
 		Assert.NotNull( type );
 		Assert.NotNull( file );
@@ -629,7 +630,7 @@ public class ResourceSystem
 
 		try
 		{
-			if ( fs.FileExists( file ) )
+			if ( knownToExist || fs.FileExists( file ) )
 			{
 				data = fs.ReadAllBytes( file );
 			}

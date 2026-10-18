@@ -163,12 +163,12 @@ internal static partial class SteamNetwork
 			return await base.OnReceiveUserInfo( info );
 		}
 
-		internal override void InternalSend( byte[] data, NetFlags flags )
+		internal override void InternalSend( NetPacket packet, NetFlags flags )
 		{
 			if ( !Socket.IsValid() )
 				return;
 
-			Socket.SendMessage( Handle, data, flags.ToSteamFlags() );
+			Socket.SendMessage( Handle, packet, flags.ToSteamFlags() );
 		}
 
 		internal override void InternalClose( int closeCode, string closeReason )
@@ -275,12 +275,18 @@ internal static partial class SteamNetwork
 			while ( OutgoingMessages.Reader.TryRead( out var msg ) )
 			{
 				// Let Steam allocate the native buffer so there's no need to pin managed arrays.
-				var steamMsgPtr = Glue.Networking.AllocateMessage( msg.Connection, msg.Data.Length, msg.Flags );
+				var steamMsgPtr = Glue.Networking.AllocateMessage( msg.Connection, msg.Packet.Length, msg.Flags );
 				if ( steamMsgPtr == IntPtr.Zero )
+				{
+					msg.Packet.Release();
 					continue;
+				}
 
 				var nativeBuffer = Glue.Networking.GetMessageDataBuffer( steamMsgPtr );
-				Marshal.Copy( msg.Data, 0, nativeBuffer, msg.Data.Length );
+				Marshal.Copy( msg.Packet.Buffer, 0, nativeBuffer, msg.Packet.Length );
+
+				// Copied into Steam's buffer, we're done with it
+				msg.Packet.Release();
 
 				_messageBatch[batchCount++] = steamMsgPtr;
 
@@ -350,16 +356,20 @@ internal static partial class SteamNetwork
 			count = 0;
 		}
 
-		internal override void InternalSend( byte[] data, NetFlags flags )
+		internal override void InternalSend( NetPacket packet, NetFlags flags )
 		{
+			// Ours until the networking thread has copied it to Steam
+			packet.AddReference();
+
 			var message = new OutgoingSteamMessage
 			{
 				Connection = handle,
-				Data = data,
+				Packet = packet,
 				Flags = flags.ToSteamFlags()
 			};
 
-			OutgoingMessages.Writer.TryWrite( message );
+			if ( !OutgoingMessages.Writer.TryWrite( message ) )
+				packet.Release();
 		}
 
 		internal override void InternalRecv( NetworkSystem.MessageHandler handler )

@@ -28,7 +28,10 @@ internal sealed class SnapshotCapture
 		{
 			stream.Write( InternalMessageType.Packed );
 			serializer.SerializeTo( ref stream, envelope( Materialize() ) );
-			return Connection.CreatePackets( Connection.Encode( stream ), flags );
+			var packet = Connection.EncodePacket( stream );
+			var packets = Connection.CreatePackets( packet.Span, flags );
+			packet.Release();
+			return packets;
 		}
 		finally
 		{

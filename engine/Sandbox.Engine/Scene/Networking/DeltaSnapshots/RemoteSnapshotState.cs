@@ -1,192 +1,65 @@
-using Sandbox.Hashing;
-
 namespace Sandbox.Network;
 
 /// <summary>
-/// Represents the current snapshot state for an object based on delta snapshots received
-/// from another client.
+/// For an object another connection sends us snapshots of: the newest snapshot each slot's value came from,
+/// so values from older snapshots that arrive late are ignored.
 /// </summary>
 internal class RemoteSnapshotState
 {
-	private record struct PredictedEntry( ushort SnapshotId, byte[] Value, float ExpireTime, ulong Hash );
-	public record struct Entry( ushort SnapshotId, byte[] Data, ulong Hash );
+	// One of these exists per (connection, object) and objects have few slots, so a flat array searched by key
+	// beats a dictionary.
+	private int[] _keys = [];
+	private uint[] _snapshotIds = [];
+	private int _count;
 
-	// One of these exists per (connection, object) and holds one entry per synced slot -> don't pre-size them
-	private readonly Dictionary<int, PredictedEntry> _predictedData = new();
-	public ushort SnapshotId { get; set; }
 	public Guid ObjectId { get; init; }
 
-	public readonly Dictionary<int, Entry> Data = new();
+	/// <summary>
+	/// Whether the incoming snapshot id is newer than our last processed one. Ids are 32 bits so a slot can go unchanged
+	/// for years of snapshots, and wrapping is handled by the signed difference.
+	/// </summary>
+	internal static bool IsNewer( uint newId, uint lastId ) => (int)(newId - lastId) > 0;
 
 	/// <summary>
-	/// Whether the incoming snapshot id is newer than our last processed one. This
-	/// automatically handles wrapping of the ushort.
+	/// A value for <paramref name="slot"/> arrived in <paramref name="snapshotId"/>. Returns whether it's newer than
+	/// what we have, and if so remembers it.
 	/// </summary>
-	internal static bool IsNewer( ushort newId, ushort lastId )
+	public bool Accept( int slot, uint snapshotId )
 	{
-		var difference = (short)(newId - lastId);
+		var index = _keys.AsSpan( 0, _count ).IndexOf( slot );
 
-		switch ( difference )
+		if ( index < 0 )
 		{
-			case 0: // The snapshot is older if there's no difference.
-				return false;
-			case > 0: // The snapshot is newer if the id is larger.
-				return true;
-			case > -100: // The snapshot is older if it's less than 100 behind.
-				return false;
-			default: // Otherwise the snapshot is newer.
-				return true;
-		}
-	}
-
-	/// <summary>
-	/// Add a predicted entry to the snapshot from a <see cref="DeltaSnapshot.SnapshotDataEntry"/>.
-	/// </summary>
-	/// <param name="input"></param>
-	/// <param name="snapshotId"></param>
-	/// <param name="timeNow"></param>
-	/// <param name="resendTime">How long until it's sent again without an acknowledgement.</param>
-	public void AddPredicted( in DeltaSnapshot.SnapshotDataEntry input, ushort snapshotId, float timeNow, float resendTime = DeltaSnapshotSystem.DefaultResendTime )
-	{
-		_predictedData[input.Slot] = new PredictedEntry( snapshotId, input.Value, timeNow + resendTime, input.Hash );
-	}
-
-	/// <summary>
-	/// Update the value in the stored snapshot from a <see cref="DeltaSnapshot.SnapshotDataEntry"/>.
-	/// </summary>
-	public void Update( in DeltaSnapshot.SnapshotDataEntry input, ushort snapshotId )
-	{
-		if ( Data.TryGetValue( input.Slot, out var entry ) && !IsNewer( snapshotId, entry.SnapshotId ) )
-			return;
-
-		if ( _predictedData.TryGetValue( input.Slot, out var predicted ) && !IsNewer( predicted.SnapshotId, snapshotId ) )
-		{
-			_predictedData.Remove( input.Slot );
-		}
-
-		Data[input.Slot] = new Entry( snapshotId, input.Value, input.Hash );
-	}
-
-	/// <summary>
-	/// Try to get the hash of the value from the specified slot without reading from
-	/// the predicted data. It will only return true if the entry is from the same or
-	/// older snapshot.
-	/// </summary>
-	public bool IsValueHashEqual( int slot, ulong hash, ushort snapshotId )
-	{
-		if ( Data.TryGetValue( slot, out var e )
-			 && ((snapshotId == e.SnapshotId) || IsNewer( snapshotId, e.SnapshotId )) )
-		{
-			return e.Hash == hash;
-		}
-
-		return false;
-	}
-
-	/// <summary>
-	/// Try to get the hash of the value from the specified slot.
-	/// </summary>
-	public bool TryGetHash( int slot, out ulong hash, float timeNow )
-	{
-		if ( _predictedData.TryGetValue( slot, out var predicted ) )
-		{
-			if ( timeNow <= predicted.ExpireTime )
+			if ( _count == _keys.Length )
 			{
-				hash = predicted.Hash;
-				return true;
+				var size = Math.Max( 4, _count * 2 );
+				Array.Resize( ref _keys, size );
+				Array.Resize( ref _snapshotIds, size );
 			}
 
-			hash = 0;
+			index = _count++;
+			_keys[index] = slot;
+		}
+		else if ( !IsNewer( snapshotId, _snapshotIds[index] ) )
+		{
 			return false;
 		}
 
-		if ( Data.TryGetValue( slot, out var e ) )
-		{
-			hash = e.Hash;
-			return true;
-		}
-
-		hash = 0;
-		return false;
+		_snapshotIds[index] = snapshotId;
+		return true;
 	}
 
 	/// <summary>
-	/// Remove an entry from the specified slot.
+	/// Forget a slot, its next value is accepted whatever snapshot it comes from.
 	/// </summary>
 	public void Remove( int slot )
 	{
-		_predictedData.Remove( slot );
-		Data.Remove( slot );
-	}
+		var index = _keys.AsSpan( 0, _count ).IndexOf( slot );
+		if ( index < 0 )
+			return;
 
-	/// <summary>
-	/// Try to get the serialized byte array value from the specified slot.
-	/// </summary>
-	public bool TryGetValue( int slot, out byte[] value, float timeNow )
-	{
-		if ( _predictedData.TryGetValue( slot, out var predicted ) )
-		{
-			if ( timeNow <= predicted.ExpireTime )
-			{
-				value = predicted.Value;
-				return true;
-			}
-
-			value = null;
-			return false;
-		}
-
-		if ( Data.TryGetValue( slot, out var e ) )
-		{
-			value = e.Data;
-			return true;
-		}
-
-		value = null;
-		return false;
-	}
-
-	/// <summary>
-	/// Create a new delta snapshot using the values of this snapshot state but only with the slots
-	/// from the provided <see cref="DeltaSnapshot"/>. This will return a pooled <see cref="DeltaSnapshot"/>
-	/// so you'll want to call <see cref="DeltaSnapshot.Release"/> when you're done with it.
-	/// </summary>
-	public DeltaSnapshot ToDeltaSnapshot( ushort snapshotId, ushort version, IEnumerable<int> slots, float timeNow )
-	{
-		var result = DeltaSnapshot.Pool.Rent();
-		result.SnapshotId = snapshotId;
-		result.ObjectId = ObjectId;
-		result.Version = version;
-
-		foreach ( var slot in slots )
-		{
-			if ( TryGetValue( slot, out var value, timeNow ) )
-			{
-				result.AddSerialized( slot, value );
-			}
-		}
-
-		return result;
-	}
-
-	/// <summary>
-	/// Build a new <see cref="RemoteSnapshotState"/> from the specified <see cref="DeltaSnapshot"/>.
-	/// </summary>
-	public static RemoteSnapshotState From( Guid sourceId, DeltaSnapshot delta )
-	{
-		var snapshot = new RemoteSnapshotState
-		{
-			ObjectId = delta.ObjectId
-		};
-
-		foreach ( var entry in delta.Entries )
-		{
-			if ( (!entry.Connections?.Contains( sourceId ) ?? false) )
-				continue;
-
-			snapshot.Update( entry, delta.SnapshotId );
-		}
-
-		return snapshot;
+		_count--;
+		_keys[index] = _keys[_count];
+		_snapshotIds[index] = _snapshotIds[_count];
 	}
 }

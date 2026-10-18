@@ -283,9 +283,8 @@ internal static class BlobDataSerializer
 	/// </summary>
 	public static BlobContext LoadFrom( string filePath )
 	{
-		var binaryData = ResolveBlobData( filePath );
-
-		var context = new BlobContext( _current, binaryData );
+		// Most resources have no blobs, so only go looking for the blob data once something asks for it.
+		var context = new BlobContext( _current, () => ResolveBlobData( filePath ) );
 		_current = context;
 		return context;
 	}
@@ -343,13 +342,23 @@ internal static class BlobDataSerializer
 	public sealed class BlobContext : IDisposable
 	{
 		internal readonly Dictionary<Guid, RegisteredBlob> Blobs;
-		internal readonly Dictionary<Guid, byte[]> BinaryData;
+		private Dictionary<Guid, byte[]> _binaryData;
+		private Func<Dictionary<Guid, byte[]>> _resolveBinaryData;
 		private readonly BlobContext _previous;
+
+		internal Dictionary<Guid, byte[]> BinaryData => _binaryData ??= _resolveBinaryData?.Invoke() ?? new();
 
 		internal BlobContext( BlobContext previous, Dictionary<Guid, byte[]> binaryData = null )
 		{
 			Blobs = new();
-			BinaryData = binaryData ?? new();
+			_binaryData = binaryData ?? new();
+			_previous = previous;
+		}
+
+		internal BlobContext( BlobContext previous, Func<Dictionary<Guid, byte[]>> resolveBinaryData )
+		{
+			Blobs = new();
+			_resolveBinaryData = resolveBinaryData;
 			_previous = previous;
 		}
 

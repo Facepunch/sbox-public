@@ -113,10 +113,10 @@ internal class TcpChannel : Connection
 	}
 
 	[SkipHotload]
-	Channel<byte[]> sendChannel = Channel.CreateUnbounded<byte[]>();
+	Channel<NetPacket> sendChannel = Channel.CreateUnbounded<NetPacket>();
 
 	private Queue<(byte[], RealTimeUntil)> fakeLagIncoming = new();
-	private ConcurrentQueue<(byte[], RealTimeUntil)> fakeLagOutgoing = new();
+	private ConcurrentQueue<(NetPacket, RealTimeUntil)> fakeLagOutgoing = new();
 
 	private async Task ConnectAndRunAsync( string host, int port, CancellationToken token )
 	{
@@ -149,7 +149,6 @@ internal class TcpChannel : Connection
 						if ( fakeLagOutgoing.TryDequeue( out _ ) )
 						{
 							processedPacket = true;
-							await sendChannel.Writer.WriteAsync( BitConverter.GetBytes( o.Item1.Length ), token );
 							await sendChannel.Writer.WriteAsync( o.Item1, token );
 						}
 					}
@@ -169,7 +168,7 @@ internal class TcpChannel : Connection
 		}
 	}
 
-	internal override void InternalSend( byte[] output, NetFlags flags )
+	internal override void InternalSend( NetPacket packet, NetFlags flags )
 	{
 		if ( client?.Connected != true )
 			return;
@@ -181,21 +180,17 @@ internal class TcpChannel : Connection
 				return;
 		}
 
+		// Ours until the send thread has written it
+		packet.AddReference();
+
 		if ( Networking.FakeLag > 0 )
 		{
-			fakeLagOutgoing.Enqueue( (output, Networking.FakeLag / 1000f) );
+			fakeLagOutgoing.Enqueue( (packet, Networking.FakeLag / 1000f) );
 			return;
 		}
 
-		try
-		{
-			sendChannel.Writer.TryWrite( BitConverter.GetBytes( output.Length ) );
-			sendChannel.Writer.TryWrite( output );
-		}
-		catch ( Exception )
-		{
-			// Probably disconnected, who cares
-		}
+		if ( !sendChannel.Writer.TryWrite( packet ) )
+			packet.Release();
 	}
 
 	/// <summary>
@@ -205,24 +200,35 @@ internal class TcpChannel : Connection
 	/// </summary>
 	private async Task SendThread( CancellationToken token )
 	{
+		var header = new byte[sizeof( int )];
+
 		try
 		{
 			while ( !token.IsCancellationRequested )
 			{
 				await sendChannel.Reader.WaitToReadAsync( token );
 
-				if ( client?.Connected != true || !sendChannel.Reader.TryRead( out byte[] data ) )
+				if ( !sendChannel.Reader.TryRead( out var packet ) )
 					continue;
 
-				var writeStream = client.GetStream();
 				try
 				{
-					await writeStream.WriteAsync( data, token );
+					if ( client?.Connected != true )
+						continue;
+
+					var writeStream = client.GetStream();
+					BitConverter.TryWriteBytes( header, packet.Length );
+					await writeStream.WriteAsync( header, token );
+					await writeStream.WriteAsync( packet.Memory, token );
 					MessagesSent++;
 				}
 				catch ( System.IO.IOException )
 				{
 					continue;
+				}
+				finally
+				{
+					packet.Release();
 				}
 			}
 		}

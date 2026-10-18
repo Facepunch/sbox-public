@@ -14,7 +14,14 @@ namespace Sandbox;
 /// </summary>
 public static partial class Json
 {
-	internal static JsonSerializerOptions options => GlobalContext.Current.JsonSerializerOptions;
+	internal static JsonSerializerOptions options
+	{
+		get
+		{
+			Bootstrap.AssertTypeLibraryReady();
+			return GlobalContext.Current.JsonSerializerOptions;
+		}
+	}
 
 	static Json()
 	{
@@ -378,18 +385,34 @@ public static partial class Json
 	/// Disables deserializing scripts until the returned <see cref="IDisposable"/> is disposed.
 	/// This should wrap any deserialization of payloads from untrusted sources.
 	/// </summary>
-	internal static IDisposable DisableScriptDeserialization()
+	internal static ScriptDeserializationScope DisableScriptDeserialization()
 	{
-		var agScope = ActionGraph.PushSerializationOptions( new SerializationOptions( DeserializeMode: DeserializeMode.DisabledThrow ) );
+		var agScope = ActionGraph.PushSerializationOptions( _scriptsDisabled );
 		var prev = scriptDeserializationDisabled;
 
 		scriptDeserializationDisabled = true;
 
-		return new DisposeAction( () =>
+		return new ScriptDeserializationScope( agScope, prev );
+	}
+
+	static readonly SerializationOptions _scriptsDisabled = new( DeserializeMode: DeserializeMode.DisabledThrow );
+
+	/// <summary>
+	/// Returned by <see cref="DisableScriptDeserialization"/>. A struct, it wraps every message from an untrusted sender.
+	/// A default instance does nothing.
+	/// </summary>
+	internal readonly struct ScriptDeserializationScope( IDisposable actionGraphScope, bool previous ) : IDisposable
+	{
+		public bool IsActive => actionGraphScope is not null;
+
+		public void Dispose()
 		{
-			agScope.Dispose();
-			scriptDeserializationDisabled = prev;
-		} );
+			if ( actionGraphScope is null )
+				return;
+
+			actionGraphScope.Dispose();
+			scriptDeserializationDisabled = previous;
+		}
 	}
 }
 
