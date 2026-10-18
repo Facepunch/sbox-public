@@ -42,12 +42,32 @@ public class ControlSheetGroup : Panel
 			flex-direction: column;
 			flex-shrink: 0;
 			gap: 2px;
-			padding-left: 16px;
 
 			&.hidden
 			{
 				display: none;
 			}
+		}
+
+		// The bracket down the side of an open group, like the editor's
+		.controlgroup.titled > .body
+		{
+			position: relative;
+			margin: 4px 0px 4px 8px;
+			padding-left: 12px;
+			border-left: 3px solid #0006;
+		}
+
+		.controlgroup.titled > .body:after
+		{
+			content: ' ';
+			position: absolute;
+			left: -3px;
+			bottom: -3px;
+			width: 8px;
+			height: 3px;
+			border-radius: 2px;
+			background-color: #0006;
 		}
 		""";
 
@@ -55,6 +75,10 @@ public class ControlSheetGroup : Panel
 	public Panel ToggleContainer { get; set; }
 	public Panel Body { get; set; }
 	public bool Closed { get; internal set; }
+
+	// Fold state per group title for the session, so a rebuilt sheet keeps it
+	static readonly Dictionary<string, bool> _folded = new();
+	string _foldKey;
 
 
 	InspectorVisibilityAttribute[] _visibility;
@@ -75,6 +99,27 @@ public class ControlSheetGroup : Panel
 		Header.ToggleProperty = toggleGroup;
 	}
 
+	/// <summary>
+	/// Let the header fold this group. Starts folded if <paramref name="startFolded"/>,
+	/// unless it was folded or opened before.
+	/// </summary>
+	internal void SetFoldable( string name, bool startFolded )
+	{
+		_foldKey = name;
+		Closed = _folded.GetValueOrDefault( name, startFolded );
+		Header.Foldable = true;
+		Header.OnFold = Toggle;
+	}
+
+	/// <summary>
+	/// Fold or unfold the group.
+	/// </summary>
+	public void Toggle()
+	{
+		Closed = !Closed;
+		if ( _foldKey is not null ) _folded[_foldKey] = Closed;
+	}
+
 	public override void Tick()
 	{
 		base.Tick();
@@ -82,6 +127,11 @@ public class ControlSheetGroup : Panel
 		if ( Header.ToggleProperty != null )
 		{
 			Body.SetClass( "hidden", Header.ToggleProperty.As.Bool == false );
+		}
+		else if ( Header.Foldable )
+		{
+			Body.SetClass( "hidden", Closed );
+			Header.Folded = Closed;
 		}
 
 		if ( _visibility?.Length > 0 )

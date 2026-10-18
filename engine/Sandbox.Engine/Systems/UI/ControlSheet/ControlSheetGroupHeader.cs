@@ -18,7 +18,7 @@ public class ControlSheetGroupHeader : Panel
 		{
 			font-size: 1.33rem;
 			color: red;
-			gap: 2px;
+			gap: 6px;
 			align-items: center;
 
 			&.hidden
@@ -31,9 +31,27 @@ public class ControlSheetGroupHeader : Panel
 				font-weight: 600;
 			}
 
-			> .icon.hidden
+			> .icon.hidden, > .fold.hidden
 			{
 				display: none;
+			}
+
+			> .fold
+			{
+				flex-shrink: 0;
+				width: 19px;
+				height: 19px;
+				border-radius: 10px;
+				background-color: #0006;
+				font-size: 14px;
+				align-items: center;
+				justify-content: center;
+				text-align: center;
+			}
+
+			&.foldable
+			{
+				cursor: pointer;
 			}
 
 			&.has-toggle
@@ -114,11 +132,20 @@ public class ControlSheetGroupHeader : Panel
 		}
 	}
 
+	/// <summary>
+	/// Shows the fold button; clicking the header calls <see cref="OnFold"/>.
+	/// </summary>
+	internal bool Foldable { get; set; }
+	internal bool Folded { get; set; }
+	internal Action OnFold { get; set; }
+
+	Label foldIcon;
 	Label iconLabel;
 	Label textLabel;
 
 	public ControlSheetGroupHeader()
 	{
+		foldIcon = AddChild( new IconPanel( "remove", "fold" ) );
 		iconLabel = AddChild<Label>( "icon" );
 		textLabel = AddChild<Label>( "title" );
 	}
@@ -132,12 +159,20 @@ public class ControlSheetGroupHeader : Panel
 
 		// An empty icon would still indent the title
 		iconLabel.SetClass( "hidden", string.IsNullOrWhiteSpace( Icon ) );
+
+		var foldable = Foldable && ToggleProperty == null;
+		SetClass( "foldable", foldable );
+		foldIcon.SetClass( "hidden", !foldable );
+		if ( foldable ) foldIcon.Text = Folded ? "add" : "remove";
 	}
 
 	protected override void OnMouseDown( MousePanelEvent e )
 	{
 		base.OnMouseDown( e );
 
-		ToggleProperty?.As.Bool = !(ToggleProperty?.As.Bool ?? false);
+		if ( ToggleProperty is not null )
+			ToggleProperty.As.Bool = !ToggleProperty.As.Bool;
+		else if ( Foldable )
+			OnFold?.Invoke();
 	}
 }
