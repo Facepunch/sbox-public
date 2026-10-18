@@ -124,15 +124,37 @@ file class MultiEditNotSupported : BaseControl
 	}
 }
 
+/// <summary>
+/// No control for this type - show the value as read-only text, like the editor does.
+/// </summary>
 file class MissingEditor : BaseControl
 {
 	Label label;
+	object shown;
 
 	public MissingEditor( SerializedProperty property )
 	{
-		label = AddChild<Label>();
-		label.Text = $"No Editor Found For {property.PropertyType.Name}";
+		AddClass( "missing-editor" );
+		Style.Opacity = 0.5f;
+		Style.Padding = 6;
 
+		label = AddChild<Label>();
 		Property = property;
+		Refresh();
+	}
+
+	public override void Tick()
+	{
+		base.Tick();
+		Refresh();
+	}
+
+	void Refresh()
+	{
+		var value = Property?.GetValue<object>( null );
+		if ( Equals( value, shown ) && label.Text is not null ) return;
+
+		shown = value;
+		label.Text = value?.ToString() ?? "None";
 	}
 }
