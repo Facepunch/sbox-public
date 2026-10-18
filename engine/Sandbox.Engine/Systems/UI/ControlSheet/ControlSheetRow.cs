@@ -95,9 +95,65 @@ public class ControlSheetRow : Panel
 	{
 		_left = AddChild<Panel>( "left" );
 		_title = _left.AddChild<Label>( "title" );
+		_left.OnTooltip = BuildTooltip;
 
 		_right = AddChild<Panel>( "right" );
 	}
+
+	/// <summary>
+	/// Name, type, code name, description and default value - the editor's row tooltip.
+	/// </summary>
+	void BuildTooltip( Panel tooltip )
+	{
+		if ( Property is null ) return;
+
+		var text = $"<strong>{Color( Encode( Property.DisplayName ), "#9CDCFE" )} - {RichType( Property.PropertyType )}</strong>";
+
+		if ( Property.Name != Property.DisplayName )
+			text += $"<br/>Property Name: {Color( Encode( Property.Name ), "#cce8ba" )}";
+
+		if ( !string.IsNullOrWhiteSpace( Property.Description ) )
+			text += $"<br/><br/>{Property.Description}";
+
+		// Only worth showing when the type says something useful about itself
+		var defaultValue = Property.GetDefault();
+		if ( defaultValue is not null && defaultValue.GetType().GetMethod( "ToString", Type.EmptyTypes )?.DeclaringType == defaultValue.GetType() )
+			text += $"<br/><br/>Default Value: {Encode( defaultValue.ToString() )}";
+
+		var label = tooltip.AddChild<Label>();
+		label.IsRich = true;
+		label.Text = text;
+	}
+
+	static readonly Dictionary<Type, string> TypeAliases = new()
+	{
+		{ typeof( bool ), "bool" }, { typeof( byte ), "byte" }, { typeof( char ), "char" },
+		{ typeof( decimal ), "decimal" }, { typeof( double ), "double" }, { typeof( float ), "float" },
+		{ typeof( int ), "int" }, { typeof( long ), "long" }, { typeof( object ), "object" },
+		{ typeof( sbyte ), "sbyte" }, { typeof( short ), "short" }, { typeof( string ), "string" },
+		{ typeof( uint ), "uint" }, { typeof( ulong ), "ulong" }, { typeof( ushort ), "ushort" },
+	};
+
+	// Same colours as the editor's ControlSheetFormatter
+	static string RichType( Type type )
+	{
+		if ( Nullable.GetUnderlyingType( type ) is { } underlying ) return $"{RichType( underlying )}?";
+		if ( type.IsArray && type.GetElementType() is { } element ) return $"{RichType( element )}[]";
+		if ( TypeAliases.TryGetValue( type, out var alias ) ) return Color( alias, "#569CD6" );
+
+		var name = type.Name;
+		var suffix = "";
+		if ( type.IsGenericType && name.IndexOf( '`' ) is var index and > 0 )
+		{
+			name = name[..index];
+			suffix = $"&lt;{string.Join( ",", type.GetGenericArguments().Select( RichType ) )}&gt;";
+		}
+
+		return $"{Color( name, type.IsValueType ? "#86C691" : "#4EC9B0" )}{suffix}";
+	}
+
+	static string Color( string text, string color ) => $"<span style=\"color: {color};\">{text}</span>";
+	static string Encode( string text ) => System.Net.WebUtility.HtmlEncode( text );
 
 	internal void Initialize( SerializedProperty prop )
 	{
