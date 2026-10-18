@@ -529,28 +529,40 @@ public partial class NodeGraphPanel
 	}
 
 	/// <summary>
-	/// End any gesture whose mouse capture disappeared.
+	/// A window drops :active a frame before it sends mouseup, so a gesture that lost it has been
+	/// released: finish it where the cursor is. A deleted plug cancels instead.
 	/// </summary>
 	void CheckConnectionGestures()
 	{
-		if ( _pressPlug is not null && (!_pressPlug.IsValid() || !_pressPlug.HasActive) )
+		if ( _pressPlug is not null && !_pressPlug.IsValid() )
 		{
 			CancelPlugDrag();
+		}
+		else if ( _pressPlug is { HasActive: false } plug )
+		{
+			PlugReleased( plug );
 		}
 
 		if ( !HasActive )
 		{
-			if ( _wireDragging && _pressWire is not null )
-			{
-				_pressWire.Dragging = false;
-				DropTarget = null;
-				Preview = null;
-			}
-
-			_pressWire = null;
-			_wireDragging = false;
+			ReleaseWire();
 			EndHandleDrag();
 		}
+	}
+
+	/// <summary>
+	/// Drop a wire dragged off its input where the cursor is; a press without a drag only selected it.
+	/// </summary>
+	void ReleaseWire()
+	{
+		if ( _pressWire is not { } wire ) return;
+
+		var dragging = _wireDragging;
+
+		_pressWire = null;
+		_wireDragging = false;
+
+		if ( dragging ) DroppedPlug( wire.Output, MouseCanvas, wire );
 	}
 
 	void EndHandleDrag()
@@ -628,15 +640,9 @@ public partial class NodeGraphPanel
 				return;
 			}
 
-			if ( _pressWire is { } wire )
+			if ( _pressWire is not null )
 			{
-				var dragging = _wireDragging;
-
-				_pressWire = null;
-				_wireDragging = false;
-
-				if ( dragging ) DroppedPlug( wire.Output, MouseCanvas, wire );
-
+				ReleaseWire();
 				e.StopPropagation();
 				return;
 			}
