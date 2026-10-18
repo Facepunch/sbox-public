@@ -47,11 +47,18 @@ public partial class Label
 	private Vector2 _scrolledSize;
 
 	/// <summary>
-	/// Replace the currently selected text with given text. The caret ends up after the
-	/// replacement.
+	/// Replace the currently selected text with given text, or insert it at the caret when
+	/// nothing is selected. The caret ends up after the replacement.
 	/// </summary>
 	public void ReplaceSelection( string str )
 	{
+		// An empty selection is stored as (0, 0), not at the caret
+		if ( SelectionStart == SelectionEnd )
+		{
+			InsertTextAndMoveCaret( str, CaretPosition );
+			return;
+		}
+
 		var s = Math.Min( SelectionStart, SelectionEnd );
 		var e = Math.Max( SelectionStart, SelectionEnd );
 
