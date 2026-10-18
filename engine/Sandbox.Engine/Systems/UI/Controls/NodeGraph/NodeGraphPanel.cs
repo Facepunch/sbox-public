@@ -110,9 +110,11 @@ public partial class NodeGraphPanel : CanvasPanel
 	}
 
 	/// <summary>
-	/// The panel for <paramref name="node"/>.
+	/// The panel for <paramref name="node"/>: a <see cref="CommentPanel"/> for comments.
 	/// </summary>
-	protected virtual NodePanel CreateNodePanel( INode node, bool isPreview = false ) => new( this, node, isPreview );
+	protected virtual NodePanel CreateNodePanel( INode node, bool isPreview = false ) => node is ICommentNode
+		? new CommentPanel( this, node, isPreview )
+		: new NodePanel( this, node, isPreview );
 
 	/// <summary>
 	/// A see-through panel for <paramref name="node"/> that isn't in the graph, such as a drop preview.
@@ -272,20 +274,21 @@ public partial class NodeGraphPanel : CanvasPanel
 
 	partial void OnDeleteSelection();
 
+	/// <summary>
+	/// Any overlap selects a node. A comment needs the whole of it inside the box, so selecting
+	/// nodes in a comment doesn't drag the comment and everything in it along.
+	/// </summary>
 	void SelectInBox( Rect box )
 	{
 		foreach ( var node in _nodes )
 		{
-			node.Selected = _boxBase.Contains( node ) || BoxSelects( node, box );
+			var rect = new Rect( node.Position, node.Size );
+			var inBox = node is CommentPanel ? box.IsInside( rect, true ) : rect.Overlaps( box );
+			node.Selected = _boxBase.Contains( node ) || inBox;
 		}
 
 		SelectionChanged?.Invoke();
 	}
-
-	/// <summary>
-	/// Whether a box selection over <paramref name="box"/> takes <paramref name="node"/>. Any overlap does by default.
-	/// </summary>
-	protected virtual bool BoxSelects( NodePanel node, Rect box ) => new Rect( node.Position, node.Size ).Overlaps( box );
 
 	public override void OnButtonTyped( ButtonEvent e )
 	{

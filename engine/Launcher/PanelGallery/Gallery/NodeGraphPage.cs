@@ -8,7 +8,7 @@ namespace Sandbox.PanelGallery;
 /// </summary>
 public partial class NodeGraphPage : GalleryPage
 {
-	public NodeGraphPage() : base( "Node Graph", "Drag nodes by their body; Ctrl or Shift adds to the selection and empty space box-selects. Middle-drag pans and the wheel zooms. Drag from a handle to edit wires, Delete removes the selection. Hover a node or a handle for its tooltip." )
+	public NodeGraphPage() : base( "Node Graph", "Drag nodes by their body; Ctrl or Shift adds to the selection and empty space box-selects. Middle-drag pans and the wheel zooms. Drag from a handle to edit wires, Delete removes the selection. Right-click to add a comment; drop nodes inside one to put them in it, and right-click one to take it out. Hover a node or a handle for its tooltip." )
 	{
 		var row = Case( "Material graph", column: true );
 
@@ -42,6 +42,8 @@ public partial class NodeGraphPage : GalleryPage
 		{
 			Style.Width = Length.Percent( 100 );
 			Style.Height = 560;
+
+			CommentFactory = () => new DemoComment( Guid.NewGuid().ToString(), "Comment", null, (Color)"#33b679", default );
 		}
 
 		protected override NodeHandleConfig OnGetHandleConfig( Type type )
@@ -196,7 +198,10 @@ public partial class NodeGraphPage : GalleryPage
 		resultOpacity.ConnectedOutput = addResult;
 		resultNormal.ConnectedOutput = combined;
 
-		DemoNode[] nodes = [time, position, texture, albedo, add, remap, normalize, unused, blend, combine, result];
+		// A comment: moving it moves the inputs, and it grows around them as they move.
+		var inputs = new DemoComment( "inputs", "Inputs", "Everything the material reads.", (Color)"#7aa7e8", new( -480, -300 ), "time", "position", "texture", "albedo" );
+
+		DemoNode[] nodes = [inputs, time, position, texture, albedo, add, remap, normalize, unused, blend, combine, result];
 
 		foreach ( var node in nodes )
 		{
