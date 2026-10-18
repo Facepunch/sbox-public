@@ -40,15 +40,6 @@ public partial class VectorControl : BaseControl
 			overflow: hidden;
 		}
 
-		VectorControl .prefix-label
-		{
-			font-weight: 600;
-			margin-right: 10px;
-			padding-right: 6px;
-			border-right: 1px solid #ffffff1a;
-			opacity: 0.9;
-		}
-
 		VectorControl .x .prefix-label { color: #FB5A5A; }
 		VectorControl .y .prefix-label { color: #B0E24D; }
 		VectorControl .z .prefix-label { color: #3273EB; }
