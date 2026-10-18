@@ -244,6 +244,7 @@ internal static class PerfTools
 			Renderer = isManaged ? "managed" : "native",
 			Resolution = $"{Screen.Width:0}x{Screen.Height:0}",
 			AntiAliasing = rs.AntiAliasQuality,
+			AntiAliasMode = rs.AntiAliasMode,
 			Upscaling = rs.UpscalerMode,
 			Issues = Issues( issues ),
 			Counters = f,

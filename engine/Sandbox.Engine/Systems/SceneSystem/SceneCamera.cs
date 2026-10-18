@@ -1,4 +1,6 @@
-﻿using Sandbox.Rendering;
+﻿using Sandbox.Engine;
+using Sandbox.Engine.Settings;
+using Sandbox.Rendering;
 using Sandbox.VR;
 
 namespace Sandbox;
@@ -15,6 +17,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	// the volumes. Tonemapping should hold the render state for this camera only.
 	internal ToneMapping ToneMapping = Graphics.IsAvailable ? new ToneMapping() : null;
 	internal VolumetricFog VolumetricFogImpl = null;
+	private readonly Lazy<Cmaa2Renderer> _cmaa2Renderer = new( () => new Cmaa2Renderer(), isThreadSafe: true );
 
 	/// <summary>
 	/// This is a c++ object with a ton of useful shit.
@@ -67,6 +70,11 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	/// Keep hidden! CommandBuffers only!!
 	/// </summary>
 	internal Action<Rendering.Stage, SceneCamera> OnRenderStageHook;
+
+	/// <summary>
+	/// Called after post-processing has completed, but before normal UI overlays.
+	/// </summary>
+	internal Action OnAfterPostProcess;
 
 	/// <summary>
 	/// Whether the camera component's post processing reads the depth-normals G-buffer.
@@ -187,6 +195,9 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 				EngineLoop.DisposeAtFrameEnd( VolumetricFogImpl );
 				VolumetricFogImpl = null;
 			}
+
+			if ( _cmaa2Renderer.IsValueCreated )
+				EngineLoop.DisposeAtFrameEnd( _cmaa2Renderer.Value );
 
 			// Release native CStrongHandle copies held by texture tracking
 			// in our RenderAttributes. Without this, the handles survive until
@@ -583,6 +594,9 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 
 	void IManagedCamera.OnRenderStage( Rendering.Stage renderStage )
 	{
+		if ( renderStage == Rendering.Stage.BeforePostProcess )
+			ApplyAntiAliasing();
+
 		switch ( renderStage )
 		{
 			case Rendering.Stage.AfterDepthPrepass:
@@ -599,6 +613,11 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 						OnRenderUIBeforePostProcess?.Invoke();
 					break;
 				}
+			case Rendering.Stage.UI:
+				{
+					OnRenderUI?.Invoke();
+					break;
+				}
 
 			case Rendering.Stage.AfterPostProcess:
 				{
@@ -606,22 +625,32 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 					break;
 				}
 
-			case Rendering.Stage.UI:
-				{
-					OnRenderUI?.Invoke();
-					break;
-				}
 		}
 
 		// new stuff is commandlist based, so is total thread safe
 		OnRenderStageHook?.InvokeWithWarning( renderStage, this );
 
-		// Editor viewports don't use the game UI render hook, so capture the selected camera after its UI stage.
+		if ( renderStage == Rendering.Stage.AfterPostProcess )
+			OnAfterPostProcess?.Invoke();
+
 		if ( renderStage == Rendering.Stage.AfterUI && IsRecordingCamera && Application.IsEditor && !Game.IsPlaying )
 		{
 			ScreenCaptureUtility.CaptureFrame();
 			ScreenCaptureUtility.DrawRecordingBorder();
 		}
+	}
+
+	void ApplyAntiAliasing()
+	{
+		if ( RenderSettings.Instance.AntiAliasMode == AntiAliasMode.Cmaa2
+			&& Graphics.ToolsVisMode == (int)SceneCameraDebugMode.Normal )
+		{
+			_cmaa2Renderer.Value.Render();
+			return;
+		}
+
+		if ( _cmaa2Renderer.IsValueCreated )
+			_cmaa2Renderer.Value.ReleaseResources();
 	}
 
 	/// <summary>

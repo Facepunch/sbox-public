@@ -46,7 +46,17 @@ internal static class SharedPasses
 	public static void DownsampleQuarterDepth( RenderAttributes attributes, bool msaaInput )
 	{
 		attributes.SetCombo( "D_MSAA", msaaInput );
+		attributes.SetCombo( "D_UPSCALE", false );
 		attributes.Set( "DownsampleFactor", 4 );
+		Graphics.Blit( DepthResolve, attributes );
+	}
+
+	/// <summary>Write low-resolution scene depth into a full-resolution depth target.</summary>
+	public static void UpscaleDepth( RenderAttributes attributes, bool msaaInput, Vector2 outputToSourceScale )
+	{
+		attributes.SetCombo( "D_MSAA", msaaInput );
+		attributes.SetCombo( "D_UPSCALE", true );
+		attributes.Set( "OutputToSourceScale", outputToSourceScale );
 		Graphics.Blit( DepthResolve, attributes );
 	}
 

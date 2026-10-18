@@ -107,7 +107,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 
 	/// <summary>
 	/// Custom command lists may read the normals G-buffer without declaring it. Keep it for those cameras.
-	/// The built-in HUD, overlay and render-texture mip commands don't read it.
+	/// The built-in HUD and overlay commands don't read it.
 	/// </summary>
 	bool HasCustomCommandLists()
 	{
@@ -117,7 +117,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 			{
 				foreach ( var entry in list )
 				{
-					if ( entry.List != _hudCommandList && entry.List != _overlayCommandList && entry.List != _renderTextureMipGenCommandList )
+					if ( entry.List != _hudCommandList && entry.List != _overlayCommandList )
 						return true;
 				}
 			}

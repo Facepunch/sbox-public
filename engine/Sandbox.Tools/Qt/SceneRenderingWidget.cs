@@ -274,15 +274,15 @@ public class SceneRenderingWidget : Frame
 	internal void HandleVideoChanged()
 	{
 		if ( renderingStopped ) return;
-		var msaaAmount = RenderSettings.Instance.AntiAliasQuality.ToEngine();
+		var aa = RenderSettings.Instance.AntiAliasQuality.ToEngine();
 
 		if ( SwapChain == default )
 		{
-			SwapChain = WidgetUtil.CreateSwapChain( _widget, msaaAmount );
+			SwapChain = WidgetUtil.CreateSwapChain( _widget, aa );
 			return;
 		}
 
-		WidgetUtil.UpdateSwapChainMSAA( SwapChain, msaaAmount );
+		WidgetUtil.UpdateSwapChainMSAA( SwapChain, aa );
 	}
 
 	internal static void RenderAll()

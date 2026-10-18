@@ -1,4 +1,5 @@
-﻿using NativeEngine;
+﻿using System;
+using NativeEngine;
 
 namespace Sandbox.Engine.Settings;
 
@@ -34,11 +35,14 @@ public partial class RenderSettings
 		set => VideoSettings.Set<bool>( "vsync", value );
 	}
 
+	/// <summary>
+	/// Hardware MSAA sample count. Applies on its own and underneath <see cref="AntiAliasMode.Cmaa2"/>.
+	/// </summary>
 	public MultisampleAmount AntiAliasQuality
 	{
 		get
 		{
-			var defaultValue = RenderMultisampleType.RENDER_MULTISAMPLE_4X;
+			var defaultValue = RenderMultisampleType.RENDER_MULTISAMPLE_NONE;
 			var value = VideoSettings.Get( "aaquality", defaultValue );
 
 			if ( !Enum.IsDefined( typeof( RenderMultisampleType ), value ) )
@@ -47,7 +51,32 @@ public partial class RenderSettings
 			return value.FromEngine();
 		}
 
-		set => VideoSettings.Set( "aaquality", GetSupportedAntiAliasQuality( value ).ToEngine() );
+		set
+		{
+			var supported = GetSupportedAntiAliasQuality( value );
+			VideoSettings.Set( "aaquality", supported.ToEngine() );
+		}
+	}
+
+	/// <summary>
+	/// Anti-aliasing method. CMAA2 filters the finished image and combines with <see cref="AntiAliasQuality"/>.
+	/// </summary>
+	public AntiAliasMode AntiAliasMode
+	{
+		get
+		{
+			var defaultMode = UpscalerMode == UpscalerMode.Off ? AntiAliasMode.Cmaa2 : AntiAliasMode.None;
+			var value = VideoSettings.Get<int>( "aa.mode", (int)defaultMode );
+			return Enum.IsDefined( typeof( AntiAliasMode ), value ) ? (AntiAliasMode)value : defaultMode;
+		}
+
+		set
+		{
+			if ( !Enum.IsDefined( typeof( AntiAliasMode ), value ) )
+				throw new ArgumentOutOfRangeException( nameof( value ), value, "Undefined anti-aliasing mode." );
+
+			VideoSettings.Set( "aa.mode", (int)value );
+		}
 	}
 
 	/// <summary>Returns the requested MSAA amount when supported, or the best available amount.</summary>
@@ -59,6 +88,7 @@ public partial class RenderSettings
 		public int Width, Height;
 		public bool Fullscreen, Borderless, VSync;
 		public MultisampleAmount AntiAlias;
+		public AntiAliasMode AntiAliasMode;
 		public int MaxFps, MaxFpsInactive;
 		public float Fov;
 	}
@@ -71,6 +101,7 @@ public partial class RenderSettings
 		Borderless = Borderless,
 		VSync = VSync,
 		AntiAlias = AntiAliasQuality,
+		AntiAliasMode = AntiAliasMode,
 		MaxFps = MaxFrameRate,
 		MaxFpsInactive = MaxFrameRateInactive,
 		Fov = DefaultFOV,
@@ -83,7 +114,9 @@ public partial class RenderSettings
 		Fullscreen = snap.Fullscreen;
 		Borderless = snap.Borderless;
 		VSync = snap.VSync;
+
 		AntiAliasQuality = snap.AntiAlias;
+		AntiAliasMode = snap.AntiAliasMode;
 		MaxFrameRate = snap.MaxFps;
 		MaxFrameRateInactive = snap.MaxFpsInactive;
 		DefaultFOV = snap.Fov;

@@ -4,23 +4,22 @@ namespace Sandbox.Engine.Settings;
 
 public partial class RenderSettings
 {
-	/// <summary>
-	/// What a preset writes. No upscaler, because ghosting is a taste call. No rung turns
-	/// anti-aliasing off either, since without it foliage and hair go to a hard cutout.
-	/// </summary>
+	/// <summary>Quality levels a preset writes. Upscaling is a taste call; every tier uses CMAA2.</summary>
 	readonly record struct PresetValues(
 		TextureQuality Texture,
 		ShadowQuality Shadow,
 		PostProcessQuality PostProcess,
 		VolumetricFogQuality Fog,
-		MultisampleAmount AntiAlias );
+		MultisampleAmount AntiAliasQuality,
+		AntiAliasMode AntiAliasMode
+	);
 
 	static PresetValues ValuesFor( GraphicsPreset preset ) => preset switch
 	{
-		GraphicsPreset.Low => new( TextureQuality.Low, ShadowQuality.Low, PostProcessQuality.Off, VolumetricFogQuality.Off, MultisampleAmount.Multisample2x ),
-		GraphicsPreset.Medium => new( TextureQuality.Medium, ShadowQuality.Medium, PostProcessQuality.Low, VolumetricFogQuality.Medium, MultisampleAmount.Multisample2x ),
-		GraphicsPreset.High => new( TextureQuality.High, ShadowQuality.High, PostProcessQuality.Medium, VolumetricFogQuality.High, MultisampleAmount.Multisample4x ),
-		GraphicsPreset.Ultra => new( TextureQuality.Ultra, ShadowQuality.Ultra, PostProcessQuality.High, VolumetricFogQuality.High, MultisampleAmount.Multisample8x ),
+		GraphicsPreset.Low => new( TextureQuality.Low, ShadowQuality.Low, PostProcessQuality.Off, VolumetricFogQuality.Off, MultisampleAmount.MultisampleNone, AntiAliasMode.Cmaa2 ),
+		GraphicsPreset.Medium => new( TextureQuality.Medium, ShadowQuality.Medium, PostProcessQuality.Low, VolumetricFogQuality.Medium, MultisampleAmount.Multisample2x, AntiAliasMode.Cmaa2 ),
+		GraphicsPreset.High => new( TextureQuality.High, ShadowQuality.High, PostProcessQuality.Medium, VolumetricFogQuality.High, MultisampleAmount.Multisample4x, AntiAliasMode.None ),
+		GraphicsPreset.Ultra => new( TextureQuality.Ultra, ShadowQuality.Ultra, PostProcessQuality.High, VolumetricFogQuality.High, MultisampleAmount.Multisample4x, AntiAliasMode.None ),
 		_ => default
 	};
 
@@ -31,7 +30,7 @@ public partial class RenderSettings
 	/// </summary>
 	internal GraphicsPreset MatchPreset()
 	{
-		var current = new PresetValues( TextureQuality, ShadowQuality, PostProcessQuality, VolumetricFogQuality, AntiAliasQuality );
+		var current = new PresetValues( TextureQuality, ShadowQuality, PostProcessQuality, VolumetricFogQuality, AntiAliasQuality, AntiAliasMode );
 
 		foreach ( var preset in Presets )
 		{
@@ -51,7 +50,8 @@ public partial class RenderSettings
 		settings[nameof( TextureQuality )] = values.Texture.ToString();
 		settings[nameof( ShadowQuality )] = values.Shadow.ToString();
 		settings[nameof( VolumetricFogQuality )] = values.Fog.ToString();
-		settings[nameof( AntiAliasQuality )] = GetSupportedAntiAliasQuality( values.AntiAlias ).ToString();
+		settings[nameof( AntiAliasQuality )] = GetSupportedAntiAliasQuality( values.AntiAliasQuality ).ToString();
+		settings[nameof( AntiAliasMode )] = values.AntiAliasMode.ToString();
 
 		return settings;
 	}
@@ -71,7 +71,8 @@ public partial class RenderSettings
 		ShadowQuality = values.Shadow;
 		PostProcessQuality = values.PostProcess;
 		VolumetricFogQuality = values.Fog;
-		AntiAliasQuality = values.AntiAlias;
+		AntiAliasQuality = values.AntiAliasQuality;
+		AntiAliasMode = values.AntiAliasMode;
 	}
 
 	/// <summary>Pick the rung this machine should start on. A starting point, not a benchmark.</summary>
@@ -132,8 +133,6 @@ public partial class RenderSettings
 		var preset = DetectPreset();
 		ApplyPreset( preset );
 
-		// Anti-aliasing is baked into the window in Source2PreInit, from a config that doesn't
-		// exist yet on a first run, so without this it wouldn't apply until the next launch.
 		Apply();
 
 		log.Info( $"Detected graphics preset: {preset} (gpu: {SystemInfo.Gpu}, vram: {SystemInfo.GpuMemory / (1024 * 1024)}MB, cores: {SystemInfo.ProcessorCount}, ram: {SystemInfo.TotalMemory / (1024 * 1024)}MB)" );

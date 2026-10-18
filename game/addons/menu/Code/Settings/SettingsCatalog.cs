@@ -150,7 +150,8 @@ public class SettingsCatalog
 		["TextureQuality"] = "gfx.texture",
 		["ShadowQuality"] = "gfx.shadows",
 		["VolumetricFogQuality"] = "gfx.fog",
-		["AntiAliasQuality"] = "gfx.aa",
+		["AntiAliasMode"] = "gfx.aa",
+		["AntiAliasQuality"] = "gfx.msaa_samples",
 		["AmbientOcclusionQuality"] = "gfx.ao",
 		["DepthOfFieldQuality"] = "gfx.dof",
 		["ScreenSpaceReflectionQuality"] = "gfx.ssr",
@@ -219,7 +220,7 @@ public class SettingsCatalog
 			if ( Row( name ) is not { } item )
 				continue;
 
-			if ( !string.Equals( item.Value?.ToString(), value, StringComparison.OrdinalIgnoreCase ) )
+			if ( !string.Equals( item.Value?.ToString(), RowValue( name, value, values ), StringComparison.OrdinalIgnoreCase ) )
 				return false;
 		}
 
@@ -231,8 +232,21 @@ public class SettingsCatalog
 		foreach ( var (name, value) in values )
 		{
 			if ( Row( name ) is { } item )
-				item.Value = value;
+				item.Value = RowValue( name, value, values );
 		}
+
+		ResetOverriddenAntiAliasing();
+	}
+
+	/// <summary>The anti-aliasing row folds the preset's mode and sample count into one choice.</summary>
+	static string RowValue( string name, string value, IReadOnlyDictionary<string, string> values )
+	{
+		if ( name != "AntiAliasMode" )
+			return value;
+
+		var mode = Enum.Parse<AntiAliasMode>( value );
+		var samples = Enum.Parse<MultisampleAmount>( values["AntiAliasQuality"] );
+		return ChoiceFor( mode, samples ).ToString();
 	}
 
 	SettingItem Row( string settingName ) => PresetRows.TryGetValue( settingName, out var id ) ? Find( id ) : null;
@@ -279,7 +293,7 @@ public class SettingsCatalog
 
 	void AddDisplay()
 	{
-		string EditorLocked() => Sandbox.Game.IsEditor ? "#menu.settings.the_editor_owns_the_window_run_the_game_to_change_this" : null;
+		static string EditorLocked() => Game.IsEditor ? "#menu.settings.the_editor_owns_the_window_run_the_game_to_change_this" : null;
 
 		Items.Add( new SettingItem
 		{
@@ -440,20 +454,151 @@ public class SettingsCatalog
 			Category = "graphics",
 			Section = "#menu.settings.quality",
 			Title = "#menu.settings.anti_aliasing",
-			Description = "#menu.settings.gfx.aa.description",
-			Options = new List<Option>
-			{
-				new( "#menu.settings.off", MultisampleAmount.MultisampleNone ),
-				new( "#menu.settings.2x", MultisampleAmount.Multisample2x ),
-				new( "#menu.settings.4x", MultisampleAmount.Multisample4x ),
-				new( "#menu.settings.8x", MultisampleAmount.Multisample8x )
-			}.Where( x => RenderSettings.GetSupportedAntiAliasQuality( (MultisampleAmount)x.Value ) == (MultisampleAmount)x.Value ).ToList(),
+			Description = "#menu.settings.gfx.aa_modes.description",
+			Kind = SettingKind.Dropdown,
+			OptionsBuilder = BuildAntiAliasingOptions,
+			DisabledReason = () => StagedTemporalUpscaler ? "#menu.settings.temporal_upscalers_smooth_edges_themselves" : null,
 			AppliesRenderSettings = true,
-			Read = () => Render.AntiAliasQuality,
-			Write = value => Render.AntiAliasQuality = ToEnum<MultisampleAmount>( value ),
-			Warning = () => StagedUpscaler != UpscalerMode.Off
-				? "#menu.settings.every_upscaler_renders_to_a_target_that_can_t"
-				: null
+			OnStaged = StageSamples,
+			Read = ReadAntiAliasing,
+			Write = SetAntiAliasing
+		} );
+
+		Items.Add( new SettingItem
+		{
+			Id = "gfx.msaa_samples",
+			Category = "graphics",
+			Section = "#menu.settings.quality",
+			Title = "#menu.settings.samples",
+			Description = "#menu.settings.gfx.aa.description",
+			Kind = SettingKind.Dropdown,
+			OptionsBuilder = () => StagedAntiAliasing == AntiAliasChoice.Cmaa2
+				? msaaSampleOptionsWithOff ??= BuildMsaaSampleOptions( true )
+				: msaaSampleOptions ??= BuildMsaaSampleOptions( false ),
+			IsVisible = () => StagedAntiAliasing != AntiAliasChoice.Off,
+			DisabledReason = () => StagedUpscaler != UpscalerMode.Off ? "#menu.settings.every_upscaler_renders_to_a_target_that_can_t" : null,
+			AppliesRenderSettings = true,
+			Read = () => RenderSettings.GetSupportedAntiAliasQuality( Render.AntiAliasQuality ).ToString(),
+			Write = value =>
+			{
+				if ( StagedAntiAliasing != AntiAliasChoice.Off && StagedUpscaler == UpscalerMode.Off )
+					Render.AntiAliasQuality = ToEnum<MultisampleAmount>( value );
+			}
+		} );
+
+		Items.Add( new SettingItem
+		{
+			Id = "gfx.upscaler",
+			Category = "graphics",
+			Section = "#menu.settings.quality",
+			Title = "#menu.settings.upscaler",
+			Description = "#menu.settings.gfx.upscaler.description",
+			Kind = SettingKind.Dropdown,
+			OptionsBuilder = () => BuildUpscalerOptions( StagedUpscaler == UpscalerMode.DLSS ),
+			AppliesRenderSettings = true,
+			OnStaged = ResetOverriddenAntiAliasing,
+			Read = () => Render.UpscalerMode.ToString(),
+			Write = SetUpscaler,
+			Warning = () => StagedUpscaler switch
+			{
+				UpscalerMode.FSR3 => "#menu.settings.temporal_upscaler_can_ghost_on_moving_objects_and_in",
+				UpscalerMode.DLSS when !RenderSettings.IsUpscalerModeSupported( UpscalerMode.DLSS ) => "#menu.settings.dlss_unavailable",
+				UpscalerMode.DLSS => "#menu.settings.temporal_ai_upscaler_can_ghost_on_moving_objects_and",
+				_ => null
+			}
+		} );
+
+		Items.Add( new SettingItem
+		{
+			Id = "gfx.upscaler_scale",
+			Category = "graphics",
+			Section = "#menu.settings.quality",
+			Title = "#menu.settings.render_quality",
+			Description = "#menu.settings.gfx.upscaler_scale.description",
+			Kind = SettingKind.Slider,
+			Min = 40,
+			Max = 100,
+			NumberFormat = "0'%'",
+			IsVisible = () => StagedUpscaler is UpscalerMode.Off or UpscalerMode.FSR1,
+			AppliesRenderSettings = true,
+			Read = () => (int)MathF.Round( Render.UpscalerRenderScale * 100f ),
+			Write = value => Render.UpscalerRenderScale = ToFloat( value ) / 100f
+		} );
+
+		Items.Add( new SettingItem
+		{
+			Id = "gfx.fsr1_sharpness",
+			Category = "graphics",
+			Section = "#menu.settings.quality",
+			Title = "#menu.settings.sharpness",
+			Description = "#menu.settings.gfx.fsr1_sharpness.description",
+			Kind = SettingKind.Slider,
+			Max = 100,
+			NumberFormat = "0'%'",
+			IsVisible = () => StagedUpscaler == UpscalerMode.FSR1,
+			AppliesRenderSettings = true,
+			Read = () => (int)MathF.Round( Render.Fsr1Sharpness * 100f ),
+			Write = value => Render.Fsr1Sharpness = ToFloat( value ) / 100f
+		} );
+
+		Items.Add( new SettingItem
+		{
+			Id = "gfx.fsr3_quality",
+			Category = "graphics",
+			Section = "#menu.settings.quality",
+			Title = "#menu.settings.fsr3_quality",
+			Description = "#menu.settings.gfx.fsr3_quality.description",
+			Kind = SettingKind.Dropdown,
+			Options =
+			[
+				new( "#menu.settings.native", Fsr3UpscalerQuality.Native ),
+				new( "#menu.settings.quality", Fsr3UpscalerQuality.Quality ),
+				new( "#menu.settings.balanced", Fsr3UpscalerQuality.Balanced ),
+				new( "#menu.settings.performance", Fsr3UpscalerQuality.Performance ),
+				new( "#menu.settings.ultra_performance", Fsr3UpscalerQuality.UltraPerformance )
+			],
+			IsVisible = () => StagedUpscaler == UpscalerMode.FSR3,
+			AppliesRenderSettings = true,
+			Read = () => Render.Fsr3UpscalerQuality,
+			Write = value => Render.Fsr3UpscalerQuality = ToEnum<Fsr3UpscalerQuality>( value )
+		} );
+
+		Items.Add( new SettingItem
+		{
+			Id = "gfx.fsr3_sharpness",
+			Category = "graphics",
+			Section = "#menu.settings.quality",
+			Title = "#menu.settings.sharpness",
+			Description = "#menu.settings.gfx.fsr3_sharpness.description",
+			Kind = SettingKind.Slider,
+			Max = 100,
+			NumberFormat = "0'%'",
+			IsVisible = () => StagedUpscaler == UpscalerMode.FSR3,
+			AppliesRenderSettings = true,
+			Read = () => (int)MathF.Round( Render.Fsr3Sharpness * 100f ),
+			Write = value => Render.Fsr3Sharpness = ToFloat( value ) / 100f
+		} );
+
+		Items.Add( new SettingItem
+		{
+			Id = "gfx.dlss_quality",
+			Category = "graphics",
+			Section = "#menu.settings.quality",
+			Title = "#menu.settings.dlss_quality",
+			Description = "#menu.settings.gfx.dlss_quality.description",
+			Kind = SettingKind.Dropdown,
+			Options =
+			[
+				new( "#menu.settings.dlaa", DlssQuality.DLAA ),
+				new( "#menu.settings.quality", DlssQuality.Quality ),
+				new( "#menu.settings.balanced", DlssQuality.Balanced ),
+				new( "#menu.settings.performance", DlssQuality.Performance ),
+				new( "#menu.settings.ultra_performance", DlssQuality.UltraPerformance )
+			],
+			IsVisible = () => StagedUpscaler == UpscalerMode.DLSS && RenderSettings.IsUpscalerModeSupported( UpscalerMode.DLSS ),
+			AppliesRenderSettings = true,
+			Read = () => Render.DlssQuality,
+			Write = value => Render.DlssQuality = ToEnum<DlssQuality>( value )
 		} );
 
 		Items.Add( new SettingItem
@@ -539,140 +684,135 @@ public class SettingsCatalog
 			Write = value => Render.MotionBlurScale = ToFloat( value )
 		} );
 
-		Items.Add( new SettingItem
-		{
-			Id = "gfx.upscaler",
-			Category = "graphics",
-			Section = "#menu.settings.upscaling",
-			Title = "#menu.settings.upscaler",
-			Description = "#menu.settings.gfx.upscaler.description",
-			Options = BuildUpscalerOptions(),
-			AppliesRenderSettings = true,
-			Read = () => Render.UpscalerMode,
-			Write = value => Render.UpscalerMode = ToEnum<UpscalerMode>( value ),
-			Warning = () => StagedUpscaler switch
-			{
-				UpscalerMode.FSR3 => "#menu.settings.temporal_upscaler_can_ghost_on_moving_objects_and_in",
-				UpscalerMode.DLSS => "#menu.settings.temporal_ai_upscaler_can_ghost_on_moving_objects_and",
-				_ => null
-			}
-		} );
-
-		Items.Add( new SettingItem
-		{
-			Id = "gfx.upscaler_scale",
-			Category = "graphics",
-			Section = "#menu.settings.upscaling",
-			Title = "#menu.settings.render_quality",
-			Description = "#menu.settings.gfx.upscaler_scale.description",
-			Kind = SettingKind.Slider,
-			Min = 40,
-			Max = 100,
-			NumberFormat = "0'%'",
-			IsVisible = () => StagedUpscaler is UpscalerMode.Stretch or UpscalerMode.FSR1,
-			AppliesRenderSettings = true,
-			Read = () => (int)MathF.Round( Render.UpscalerRenderScale * 100f ),
-			Write = value => Render.UpscalerRenderScale = ToFloat( value ) / 100f
-		} );
-
-		Items.Add( new SettingItem
-		{
-			Id = "gfx.fsr1_sharpness",
-			Category = "graphics",
-			Section = "#menu.settings.upscaling",
-			Title = "#menu.settings.sharpness",
-			Description = "#menu.settings.gfx.fsr1_sharpness.description",
-			Kind = SettingKind.Slider,
-			Max = 100,
-			NumberFormat = "0'%'",
-			IsVisible = () => StagedUpscaler == UpscalerMode.FSR1,
-			AppliesRenderSettings = true,
-			Read = () => (int)MathF.Round( Render.Fsr1Sharpness * 100f ),
-			Write = value => Render.Fsr1Sharpness = ToFloat( value ) / 100f
-		} );
-
-		Items.Add( new SettingItem
-		{
-			Id = "gfx.fsr3_quality",
-			Category = "graphics",
-			Section = "#menu.settings.upscaling",
-			Title = "#menu.settings.fsr3_quality",
-			Description = "#menu.settings.gfx.fsr3_quality.description",
-			Kind = SettingKind.Dropdown,
-			Options =
-			[
-				new( "#menu.settings.native", Fsr3UpscalerQuality.Native ),
-				new( "#menu.settings.quality", Fsr3UpscalerQuality.Quality ),
-				new( "#menu.settings.balanced", Fsr3UpscalerQuality.Balanced ),
-				new( "#menu.settings.performance", Fsr3UpscalerQuality.Performance ),
-				new( "#menu.settings.ultra_performance", Fsr3UpscalerQuality.UltraPerformance )
-			],
-			IsVisible = () => StagedUpscaler == UpscalerMode.FSR3,
-			AppliesRenderSettings = true,
-			Read = () => Render.Fsr3UpscalerQuality,
-			Write = value => Render.Fsr3UpscalerQuality = ToEnum<Fsr3UpscalerQuality>( value )
-		} );
-
-		Items.Add( new SettingItem
-		{
-			Id = "gfx.fsr3_sharpness",
-			Category = "graphics",
-			Section = "#menu.settings.upscaling",
-			Title = "#menu.settings.sharpness",
-			Description = "#menu.settings.gfx.fsr3_sharpness.description",
-			Kind = SettingKind.Slider,
-			Max = 100,
-			NumberFormat = "0'%'",
-			IsVisible = () => StagedUpscaler == UpscalerMode.FSR3,
-			AppliesRenderSettings = true,
-			Read = () => (int)MathF.Round( Render.Fsr3Sharpness * 100f ),
-			Write = value => Render.Fsr3Sharpness = ToFloat( value ) / 100f
-		} );
-
-		Items.Add( new SettingItem
-		{
-			Id = "gfx.dlss_quality",
-			Category = "graphics",
-			Section = "#menu.settings.upscaling",
-			Title = "#menu.settings.dlss_quality",
-			Description = "#menu.settings.gfx.dlss_quality.description",
-			Kind = SettingKind.Dropdown,
-			Options =
-			[
-				new( "#menu.settings.dlaa", DlssQuality.DLAA ),
-				new( "#menu.settings.quality", DlssQuality.Quality ),
-				new( "#menu.settings.balanced", DlssQuality.Balanced ),
-				new( "#menu.settings.performance", DlssQuality.Performance ),
-				new( "#menu.settings.ultra_performance", DlssQuality.UltraPerformance )
-			],
-			IsVisible = () => StagedUpscaler == UpscalerMode.DLSS,
-			AppliesRenderSettings = true,
-			Read = () => Render.DlssQuality,
-			Write = value => Render.DlssQuality = ToEnum<DlssQuality>( value )
-		} );
-
 	}
+
+	// Built once each, and shown in a dropdown: ButtonGroup corrupts its selection when its options change.
+	List<Option> msaaSampleOptions;
+	List<Option> msaaSampleOptionsWithOff;
 
 	/// <summary>The staged motion blur level, which the strength row follows.</summary>
 	EffectQuality StagedMotionBlur => Find( "gfx.motionblur_quality" )?.As<EffectQuality>() ?? EffectQuality.High;
 
-	/// <summary>The staged upscaler, which the rows below it follow.</summary>
-	UpscalerMode StagedUpscaler => Find( "gfx.upscaler" )?.As<UpscalerMode>() ?? UpscalerMode.Off;
+	/// <summary>The selected upscaler, which the rows below it follow.</summary>
+	UpscalerMode StagedUpscaler => Enum.TryParse<UpscalerMode>( Find( "gfx.upscaler" )?.Value?.ToString(), out var mode ) ? mode : UpscalerMode.Off;
+
+	/// <summary>FSR3 and DLSS do their own anti-aliasing.</summary>
+	bool StagedTemporalUpscaler => StagedUpscaler is UpscalerMode.FSR3 or UpscalerMode.DLSS;
+
+	enum AntiAliasChoice { Off, Cmaa2, Msaa }
+
+	AntiAliasChoice StagedAntiAliasing => Find( "gfx.aa" )?.As<AntiAliasChoice>() ?? AntiAliasChoice.Off;
+
+	static AntiAliasChoice ChoiceFor( AntiAliasMode mode, MultisampleAmount samples ) => mode == AntiAliasMode.Cmaa2
+		? AntiAliasChoice.Cmaa2
+		: samples == MultisampleAmount.MultisampleNone ? AntiAliasChoice.Off : AntiAliasChoice.Msaa;
 
 	/// <summary>The staged window mode, which the resolution row follows.</summary>
 	string StagedWindowMode => Find( "display.mode" )?.Value?.ToString() ?? "borderless";
 
-	static List<Option> BuildUpscalerOptions()
+	static AntiAliasChoice ReadAntiAliasingChoice() =>
+		ChoiceFor( Render.AntiAliasMode, RenderSettings.GetSupportedAntiAliasQuality( Render.AntiAliasQuality ) );
+
+	static string ReadAntiAliasing() => ReadAntiAliasingChoice().ToString();
+
+	void SetAntiAliasing( object value )
+	{
+		if ( StagedTemporalUpscaler )
+			return;
+
+		var choice = Enum.Parse<AntiAliasChoice>( value.ToString() );
+		var samples = choice == AntiAliasChoice.Off || StagedUpscaler != UpscalerMode.Off
+			? MultisampleAmount.MultisampleNone
+			: Find( "gfx.msaa_samples" ).As<MultisampleAmount>();
+
+		Render.AntiAliasQuality = samples;
+		Render.AntiAliasMode = choice == AntiAliasChoice.Cmaa2 ? AntiAliasMode.Cmaa2 : AntiAliasMode.None;
+	}
+
+	/// <summary>Keep the samples row sensible for the staged method.</summary>
+	void StageSamples()
+	{
+		var samples = Find( "gfx.msaa_samples" );
+		if ( samples is null )
+			return;
+
+		var choice = StagedAntiAliasing;
+
+		if ( choice == AntiAliasChoice.Off )
+			samples.Value = nameof( MultisampleAmount.MultisampleNone );
+		else if ( choice == AntiAliasChoice.Msaa && samples.As<MultisampleAmount>() == MultisampleAmount.MultisampleNone )
+			samples.Value = RenderSettings.GetSupportedAntiAliasQuality( MultisampleAmount.Multisample4x ).ToString();
+	}
+
+	/// <summary>Stage what the selected upscaler overrides, so the disabled rows show what will be used.</summary>
+	void ResetOverriddenAntiAliasing()
+	{
+		if ( StagedUpscaler == UpscalerMode.Off )
+			return;
+
+		Find( "gfx.msaa_samples" ).Value = nameof( MultisampleAmount.MultisampleNone );
+
+		if ( StagedTemporalUpscaler || StagedAntiAliasing == AntiAliasChoice.Msaa )
+			Find( "gfx.aa" ).Value = nameof( AntiAliasChoice.Off );
+	}
+
+	void SetUpscaler( object value )
+	{
+		var upscaler = Enum.Parse<UpscalerMode>( value.ToString() );
+
+		if ( upscaler != UpscalerMode.Off )
+			Render.AntiAliasQuality = MultisampleAmount.MultisampleNone;
+
+		if ( upscaler is UpscalerMode.FSR3 or UpscalerMode.DLSS )
+			Render.AntiAliasMode = AntiAliasMode.None;
+
+		Render.UpscalerMode = upscaler;
+	}
+
+	static List<Option> BuildMsaaSampleOptions( bool includeOff )
+	{
+		var samples = new (string Label, MultisampleAmount Amount)[]
+		{
+			( "#menu.settings.off", MultisampleAmount.MultisampleNone ),
+			( "#menu.settings.2x", MultisampleAmount.Multisample2x ),
+			( "#menu.settings.4x", MultisampleAmount.Multisample4x ),
+			( "#menu.settings.8x", MultisampleAmount.Multisample8x )
+		};
+
+		return samples
+			.Where( x => RenderSettings.GetSupportedAntiAliasQuality( x.Amount ) == x.Amount )
+			.Where( x => includeOff || x.Amount != MultisampleAmount.MultisampleNone )
+			.Select( x => new Option( x.Label, x.Amount.ToString() ) )
+			.ToList();
+	}
+
+	List<Option> BuildAntiAliasingOptions()
+	{
+		var options = new List<Option>
+		{
+			new( "#menu.settings.off", AntiAliasChoice.Off ),
+			new( "CMAA2", AntiAliasChoice.Cmaa2 )
+		};
+
+		var msaaAvailable = StagedUpscaler == UpscalerMode.Off
+			&& RenderSettings.GetSupportedAntiAliasQuality( MultisampleAmount.Multisample2x ) == MultisampleAmount.Multisample2x;
+
+		if ( msaaAvailable )
+			options.Add( new Option( "MSAA", AntiAliasChoice.Msaa ) );
+
+		return options;
+	}
+
+	static List<Option> BuildUpscalerOptions( bool includeSelectedDlss )
 	{
 		var options = new List<Option>
 		{
 			new( "#menu.settings.off", UpscalerMode.Off ),
-			new( "#menu.settings.stretch", UpscalerMode.Stretch ),
 			new( "#menu.settings.fsr", UpscalerMode.FSR1 ),
 			new( "#menu.settings.fsr3", UpscalerMode.FSR3 )
 		};
 
-		if ( RenderSettings.IsUpscalerModeSupported( UpscalerMode.DLSS ) )
+		if ( includeSelectedDlss || RenderSettings.IsUpscalerModeSupported( UpscalerMode.DLSS ) )
 			options.Add( new Option( "#menu.settings.dlss", UpscalerMode.DLSS ) );
 
 		return options;
