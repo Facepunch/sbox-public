@@ -86,23 +86,33 @@ public abstract partial class PlugPanel : Panel
 			Editor.Enabled = !IsConnected;
 	}
 
+	/// <summary>
+	/// Width the label, and the inline editor if any, need.
+	/// </summary>
 	public float PreferredWidth
 	{
 		get
 		{
-			if ( !Visible || !Inner.ShowLabel )
+			if ( !Visible )
 			{
 				return 0f;
 			}
 
-			var titleWidth = NodePaint.Measure( Title ).x;
+			var editorWidth = Editor is null ? 0f : 15f + Editor.PreferredWidth;
 
-			if ( Inner.DisplayInfo.Group is not { } groupName )
+			if ( !Inner.ShowLabel )
 			{
-				return titleWidth + 24f;
+				return editorWidth;
 			}
 
-			return NodePaint.Measure( $"{groupName} > ", 7, italic: true ).x + titleWidth + 24f;
+			var labelWidth = NodePaint.Measure( Title ).x + 24f;
+
+			if ( Inner.DisplayInfo.Group is { } groupName )
+			{
+				labelWidth += NodePaint.Measure( $"{groupName} > ", 7, italic: true ).x;
+			}
+
+			return MathF.Max( labelWidth, editorWidth );
 		}
 	}
 
@@ -160,18 +170,30 @@ public abstract partial class PlugPanel : Panel
 		paint.SetPen( color );
 		paint.SetDefaultFont();
 
-		var titleWidth = paint.MeasureText( Title ).x;
-		paint.DrawText( rect.Shrink( 0f, 0f, 0f, 2f ), Title, flags );
+		var titleRect = rect.Shrink( 0f, 0f, 0f, 2f );
 
 		if ( Inner.DisplayInfo.Group is not { } groupName )
 		{
+			paint.DrawText( titleRect, Title, flags );
 			return;
 		}
 
-		paint.SetPen( color.Darken( 0.2f ) );
-		paint.SetDefaultFont( size: 7, italic: true );
+		var titleWidth = paint.MeasureText( Title ).x;
+		var group = $"{groupName} > ";
 
-		paint.DrawText( rect.Shrink( 0f, 0f, titleWidth, 0f ), $"{groupName} > ", flags );
+		paint.SetDefaultFont( size: 7, italic: true );
+		var groupWidth = paint.MeasureText( group ).x;
+
+		// The prefix sits before the title on either side
+		var leftAligned = (flags & TextFlag.Left) != 0;
+		var groupRect = leftAligned ? rect : rect.Shrink( 0f, 0f, titleWidth, 0f );
+
+		paint.SetPen( color.Darken( 0.2f ) );
+		paint.DrawText( groupRect, group, flags );
+
+		paint.SetPen( color );
+		paint.SetDefaultFont();
+		paint.DrawText( leftAligned ? titleRect.Shrink( groupWidth, 0f, 0f, 0f ) : titleRect, Title, flags );
 	}
 
 	public override string ToString() => Inner.ToString();

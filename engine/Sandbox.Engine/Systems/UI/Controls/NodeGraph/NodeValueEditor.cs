@@ -27,6 +27,11 @@ public abstract class NodeValueEditor : Panel
 	/// </summary>
 	public virtual bool HideLabel => true;
 
+	/// <summary>
+	/// Width the editor needs, in node units. The node grows its plug to fit.
+	/// </summary>
+	public virtual float PreferredWidth => 48f;
+
 	protected NodeValueEditor( PlugPanel plug )
 	{
 		Plug = plug;

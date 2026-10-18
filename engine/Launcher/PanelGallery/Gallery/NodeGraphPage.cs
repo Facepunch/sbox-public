@@ -152,25 +152,25 @@ public partial class NodeGraphPage : GalleryPage
 		albedo.AddOutput( "color", "Color", typeof( Color ) );
 
 		// An operator: no title bar, the icon fills the body.
-		var add = new DemoNode( "add", "Add", "+", "Adds A and B.", (Color)"#8fd6a8", new( -216, -228 ) ) { HasTitleBar = false };
+		var add = new DemoNode( "add", "Add", "+", "Adds A and B.", (Color)"#8fd6a8", new( -216, -264 ) ) { HasTitleBar = false };
 		var addA = add.AddInput( "a", "A", typeof( float ) );
-		add.AddInput( "b", "B", typeof( float ), editor: FloatEditor( "B", 0.5f ) );
+		add.AddInput( "b", "B", typeof( float ) );
 		var addResult = add.AddOutput( "result", "Result", typeof( float ) );
 		addA.ConnectedOutput = seconds;
 
 		// Draws its own plot through INode.OnPaint.
-		var remap = new CurveNode( "remap", "Remap Curve", "show_chart", "Shapes a value with a curve.", (Color)"#8fd6a8", new( -216, -120 ) ) { ExpandSize = new( 72, 72 ) };
+		var remap = new CurveNode( "remap", "Remap Curve", "show_chart", "Shapes a value with a curve.", (Color)"#8fd6a8", new( -216, -60 ) ) { ExpandSize = new( 72, 72 ) };
 		var remapValue = remap.AddInput( "value", "Value", typeof( float ) );
 		remap.AddOutput( "result", "Result", typeof( float ) );
 		remapValue.ConnectedOutput = sine;
 
-		var normalize = new DemoNode( "normalize", "Normalize", "straighten", "Scales a vector to length one.", (Color)"#d9b55a", new( -216, 72 ) );
+		var normalize = new DemoNode( "normalize", "Normalize", "straighten", "Scales a vector to length one.", (Color)"#d9b55a", new( -216, 108 ) );
 		var normalizeVector = normalize.AddInput( "vector", "Vector", typeof( Vector3 ) );
 		var normalized = normalize.AddOutput( "result", "Result", typeof( Vector3 ) );
 		normalizeVector.ConnectedOutput = xyz;
 
 		// Nothing reaches the output through this node, so it is drawn dimmed.
-		var unused = new DemoNode( "unused", "Unused Mix", "layers_clear", "Not connected to the output.", (Color)"#9a9a9a", new( -216, 168 ) ) { IsReachable = false };
+		var unused = new DemoNode( "unused", "Unused Mix", "layers_clear", "Not connected to the output.", (Color)"#9a9a9a", new( -216, 204 ) ) { IsReachable = false };
 		unused.AddInput( "a", "A", typeof( float ) );
 		unused.AddOutput( "result", "Result", typeof( float ) );
 
