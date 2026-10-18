@@ -117,7 +117,9 @@ public partial class Panel
 		bool old = IsVisible;
 
 		IsVisibleSelf = ComputedStyle?.CalcVisible() ?? false;
-		IsVisibleSelf = IsVisibleSelf || HasActiveTransitions;
+
+		// Transitions keep a fading panel drawn, but display:none has no layout to draw into
+		IsVisibleSelf = IsVisibleSelf || (HasActiveTransitions && ComputedStyle?.Display != DisplayMode.None);
 		IsVisible = IsVisibleSelf && (Parent?.IsVisible ?? true);
 
 		if ( old == IsVisible )

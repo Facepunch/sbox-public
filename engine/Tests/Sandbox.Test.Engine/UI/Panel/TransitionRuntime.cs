@@ -139,4 +139,20 @@ public partial class PanelTransitionTest
 		Assert.IsFalse( target.HasActiveTransitions );
 		Assert.AreEqual( 0, target.ComputedStyle.Opacity.Value, 0.001f );
 	}
+
+	/// <summary>
+	/// A transition keeps a fading panel visible, but not one switched to display:none - it has
+	/// no layout, so drawing it would squash its content into a zero-sized box.
+	/// </summary>
+	[TestMethod]
+	public void DisplayNoneHidesPanelWithRunningTransition()
+	{
+		var (root, target) = Create( ".box { transition: color 1s linear; color: white; width: 50px; height: 50px; } .box.gone { display: none; color: red; }" );
+
+		target.AddClass( "gone" );
+		root.Layout();
+
+		Assert.IsTrue( target.HasActiveTransitions );
+		Assert.IsFalse( target.IsVisible );
+	}
 }
