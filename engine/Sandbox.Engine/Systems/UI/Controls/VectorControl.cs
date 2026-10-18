@@ -43,7 +43,9 @@ public partial class VectorControl : BaseControl
 		VectorControl .prefix-label
 		{
 			font-weight: 600;
-			margin-right: 6px;
+			margin-right: 10px;
+			padding-right: 6px;
+			border-right: 1px solid #ffffff1a;
 			opacity: 0.9;
 		}
 
