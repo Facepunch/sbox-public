@@ -172,6 +172,27 @@ public partial class NodeGraphPage
 		}
 	}
 
+	/// <summary>
+	/// A comment around other nodes, which it holds by identifier.
+	/// </summary>
+	sealed class DemoComment : DemoNode, ICommentNode
+	{
+		public string Title { get; set; }
+		public string Description { get; set; }
+		public Color Color { get; set; }
+		public Vector2 Size { get; set; }
+		public List<string> Members { get; } = new();
+
+		public DemoComment( string identifier, string title, string description, Color color, Vector2 position, params string[] members )
+			: base( identifier, title, "notes", description, color, position )
+		{
+			Title = title;
+			Description = description;
+			Color = color;
+			Members.AddRange( members );
+		}
+	}
+
 	abstract class DemoPlug : IPlug
 	{
 		public INode Node { get; }

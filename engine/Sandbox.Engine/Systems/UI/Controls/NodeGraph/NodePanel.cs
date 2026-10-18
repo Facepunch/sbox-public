@@ -152,6 +152,8 @@ public partial class NodePanel : CanvasPanel.Handle
 		{
 			if ( node.IsValid() ) node.MoveTo( (start + delta).SnapToGrid( Graph.GridSize ) );
 		}
+
+		Graph.UpdateCommentDrop();
 	}
 
 	protected override void OnDragFinish( bool cancelled )
@@ -164,6 +166,15 @@ public partial class NodePanel : CanvasPanel.Handle
 		}
 
 		_dragStart = null;
+		Graph.FinishCommentDrop( cancelled );
+	}
+
+	protected override void OnRightClick( MousePanelEvent e )
+	{
+		if ( IsPreview ) return;
+
+		Graph.OpenContextMenu( this );
+		e.StopPropagation();
 	}
 
 	void UpdatePlugs()
