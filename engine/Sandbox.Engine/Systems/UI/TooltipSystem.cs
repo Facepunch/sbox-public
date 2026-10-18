@@ -204,6 +204,17 @@ internal sealed class TooltipSystem
 	}
 
 	/// <summary>
+	/// A mouse button went down. The tooltip comes down - or a pending one is called off - and stays
+	/// down until the cursor leaves the panel and comes back, the way the OS's do. Without this a
+	/// press before the delay runs out lets the tooltip appear over whatever the press opened.
+	/// </summary>
+	internal void Dismiss()
+	{
+		Hide( false );
+		suppressed = hovered;
+	}
+
+	/// <summary>
 	/// The UI is being torn down. Drop the tooltip and everything we remember.
 	/// </summary>
 	internal void Clear()
