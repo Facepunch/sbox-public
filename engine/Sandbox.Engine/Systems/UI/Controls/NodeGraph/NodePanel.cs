@@ -53,7 +53,7 @@ public partial class NodePanel : CanvasPanel.Handle
 	/// <summary>
 	/// Node size in node units, from <see cref="Layout"/>.
 	/// </summary>
-	public Vector2 Size { get; private set; }
+	public Vector2 Size { get; protected set; }
 
 	protected virtual float TitleHeight => Node.HasTitleBar ? 24f + (Node.HasSubtitle ? 24f : 0f) : 0f;
 
