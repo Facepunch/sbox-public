@@ -118,16 +118,15 @@ public ref struct NodePaint : INodePaint
 	}
 
 	/// <summary>
-	/// Draw text aligned in <paramref name="rect"/>, returning the rect it covers.
+	/// Draw text aligned in <paramref name="rect"/>, returning the rect it covers. Like Qt, text
+	/// bigger than the rect overflows it instead of being dropped.
 	/// </summary>
 	public Rect DrawText( Rect rect, string text, TextFlag flags = TextFlag.Center )
 	{
 		if ( string.IsNullOrEmpty( text ) ) return new Rect( rect.Position, 0 );
 
 		using var scope = _painter.Scope();
-		_painter.TextStyle = _text with { Alignment = flags };
-		var drawn = _painter.MeasureText( text, Scale( rect ) );
-		_painter.Text( text, Scale( rect ) );
+		var drawn = DrawAligned( _text with { Alignment = flags }, Scale( rect ), text, flags );
 		return new Rect( drawn.Position / _scale, drawn.Size / _scale );
 	}
 
@@ -139,8 +138,22 @@ public ref struct NodePaint : INodePaint
 		if ( string.IsNullOrEmpty( icon ) ) return;
 
 		using var scope = _painter.Scope();
-		_painter.TextStyle = _text with { FontName = IconFont, FontSize = size, FontWeight = 400, Italic = false, Alignment = flags };
-		_painter.Text( icon, Scale( rect ) );
+		DrawAligned( _text with { FontName = IconFont, FontSize = size, FontWeight = 400, Italic = false, Alignment = flags }, Scale( rect ), icon, flags );
+	}
+
+	/// <summary>
+	/// Lay <paramref name="text"/> out at its own size, wrapping only to the rect's width, and align it in <paramref name="bounds"/>.
+	/// </summary>
+	Rect DrawAligned( TextStyle style, Rect bounds, string text, TextFlag flags )
+	{
+		_painter.TextStyle = style;
+
+		var wrap = (flags & TextFlag.WordWrap) != 0 && bounds.Width > 0;
+		var size = _painter.MeasureText( text, wrap ? new Vector2( bounds.Width, 100000 ) : default );
+		var drawn = bounds.Align( new Vector2( MathF.Ceiling( size.x ) + 1, MathF.Ceiling( size.y ) + 1 ), flags );
+
+		_painter.Text( text, drawn );
+		return drawn;
 	}
 
 	/// <summary>

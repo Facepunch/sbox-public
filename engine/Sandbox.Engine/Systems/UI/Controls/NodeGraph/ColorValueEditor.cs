@@ -21,6 +21,11 @@ public class ColorValueEditor : NodeValueEditor
 
 	Popup _popup;
 
+	/// <summary>
+	/// With a title, the swatch takes the right half.
+	/// </summary>
+	public override float PreferredWidth => string.IsNullOrWhiteSpace( Title ) ? 32f : (NodePaint.Measure( Title ).x + 10f) * 2f;
+
 	public ColorValueEditor( PlugPanel plug, SerializedProperty property = null ) : base( plug )
 	{
 		Property = property;

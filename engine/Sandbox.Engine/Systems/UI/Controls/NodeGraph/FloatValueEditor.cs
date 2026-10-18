@@ -28,6 +28,17 @@ public class FloatValueEditor : NodeValueEditor
 	Vector2 _scrubLast;
 	bool? _rangeCursor;
 
+	public override float PreferredWidth
+	{
+		get
+		{
+			var title = string.IsNullOrWhiteSpace( Title ) ? 0f : NodePaint.Measure( Title ).x + 8f;
+			var value = NodePaint.Measure( $"{Value:0.000}" ).x;
+
+			return IsRange ? 2f + 4f + title + MathF.Max( value + 4f, 40f ) : 2f + 20f + title + value;
+		}
+	}
+
 	public FloatValueEditor( PlugPanel plug, SerializedProperty property = null ) : base( plug )
 	{
 		Property = property;

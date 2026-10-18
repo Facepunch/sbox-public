@@ -65,7 +65,11 @@ public partial class NodeGraphPage
 		public Texture Thumbnail { get; init; }
 		public bool HasTitleBar { get; init; } = true;
 		public bool HasSubtitle => Subtitle is not null;
-		public Color PrimaryColor { get; init; }
+		/// <summary>
+		/// Neutral body like the shader graph's; the colour goes on the header.
+		/// </summary>
+		public Color PrimaryColor { get; init; } = Color.Parse( "#303030" ).Value.Lighten( 2.0f );
+		public Color TitleColor { get; init; }
 
 		public IEnumerable<IPlugIn> Inputs => _inputs;
 		public IEnumerable<IPlugOut> Outputs => _outputs;
@@ -74,7 +78,7 @@ public partial class NodeGraphPage
 		{
 			Identifier = identifier;
 			DisplayInfo = new DisplayInfo { Name = name, Icon = icon, Description = description };
-			PrimaryColor = color;
+			TitleColor = color;
 			Position = position;
 		}
 
