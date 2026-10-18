@@ -72,7 +72,11 @@ public class BaseControl : Panel
 
 		var type = property.PropertyType;
 
-		var allAttributes = Game.TypeLibrary.GetTypesWithAttribute<CustomEditorAttribute>( false )
+		// Can't be written - show the value. A get-only class reference still has editable fields.
+		if ( !property.IsEditable && !property.IsMethod && (type is null || type.IsValueType || type == typeof( string )) )
+			return new ValueText( property );
+
+		var allAttributes = EditorTypes()
 					.Where( x => x.Type.TargetType.IsAssignableTo( typeof( BaseControl ) ) )
 					.ToArray();
 
@@ -107,7 +111,23 @@ public class BaseControl : Panel
 		if ( GenericControl.CanEdit( property ) && !property.IsMultipleValues )
 			return new GenericControl { Property = property };
 
-		return new MissingEditor( property );
+		return new ValueText( property );
+	}
+
+	/// <summary>
+	/// Types with [CustomEditor] - the game's, and in the editor the tools' too, so editor-only
+	/// controls like asset pickers can live with the editor code.
+	/// </summary>
+	static IEnumerable<(TypeDescription Type, CustomEditorAttribute Attribute)> EditorTypes()
+	{
+		var game = Game.TypeLibrary.GetTypesWithAttribute<CustomEditorAttribute>( false );
+		var editor = Sandbox.Internal.TypeLibrary.Editor;
+
+		if ( editor is null || editor == Game.TypeLibrary )
+			return game;
+
+		return game.Concat( editor.GetTypesWithAttribute<CustomEditorAttribute>( false ) )
+			.DistinctBy( x => (x.Type.TargetType, x.Attribute) );
 	}
 }
 
@@ -125,16 +145,17 @@ file class MultiEditNotSupported : BaseControl
 }
 
 /// <summary>
-/// No control for this type - show the value as read-only text, like the editor does.
+/// The value as dimmed read-only text - for types with no control, and properties that can't be
+/// written. Like the editor's MissingSerializedPropertyWidget.
 /// </summary>
-file class MissingEditor : BaseControl
+file class ValueText : BaseControl
 {
 	Label label;
 	object shown;
 
-	public MissingEditor( SerializedProperty property )
+	public ValueText( SerializedProperty property )
 	{
-		AddClass( "missing-editor" );
+		AddClass( "value-text" );
 		Style.Opacity = 0.5f;
 		Style.Padding = 6;
 
