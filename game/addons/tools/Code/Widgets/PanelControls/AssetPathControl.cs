@@ -19,7 +19,8 @@ public class AssetPathControl : BaseControl
 			flex-grow: 1;
 			min-width: 0px;
 			gap: 8px;
-			min-height: 32px;
+			height: 32px;
+			flex-shrink: 0;
 			padding: 0px 8px;
 			border-radius: 8px;
 			background-color: #000a;
@@ -31,9 +32,10 @@ public class AssetPathControl : BaseControl
 		}
 
 		AssetPathControl > .icon { flex-shrink: 0; font-size: 16px; color: #8a8f98; }
+		AssetPathControl > .thumb { flex-shrink: 0; width: 24px; height: 24px; border-radius: 3px; background-size: cover; background-position: center; background-color: #ffffff0d; }
 		AssetPathControl > .name { flex-shrink: 0; font-weight: 600; white-space: nowrap; }
 		AssetPathControl > .path { flex-shrink: 1; min-width: 0px; opacity: 0.5; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-		AssetPathControl > .empty { opacity: 0.3; font-style: italic; }
+		AssetPathControl > .placeholder { flex-shrink: 1; min-width: 0px; opacity: 0.3; font-style: italic; white-space: nowrap; }
 		AssetPathControl.missing > .icon { color: #ff7b7b; }
 		""";
 
@@ -77,22 +79,26 @@ public class AssetPathControl : BaseControl
 		var asset = CurrentAsset;
 		var typeName = _assetType?.FriendlyName ?? "Asset";
 
-		SetClass( "missing", asset is null && !string.IsNullOrWhiteSpace( resource ) );
-		Add.Icon( asset is null && !string.IsNullOrWhiteSpace( resource ) ? "error" : IconFor( _assetType ), "icon" );
+		var missing = asset is null && !string.IsNullOrWhiteSpace( resource );
+		SetClass( "missing", missing );
 
 		if ( asset is not null && !asset.IsDeleted )
 		{
+			// The asset browser's thumbnail, through the engine's thumb: loader
+			Add.Panel( "thumb" ).Style.BackgroundImage = Texture.Load( $"thumb:{asset.RelativePath}" );
 			Add.Label( asset.Name, "name" );
 			Add.Label( asset.RelativePath, "path" );
 		}
-		else if ( !string.IsNullOrWhiteSpace( resource ) )
+		else if ( missing )
 		{
+			Add.Icon( "error", "icon" );
 			Add.Label( $"Missing {typeName}", "name" );
 			Add.Label( resource, "path" );
 		}
 		else
 		{
-			Add.Label( typeName, "empty" );
+			Add.Icon( IconFor( _assetType ), "icon" );
+			Add.Label( typeName, "placeholder" );
 		}
 	}
 
