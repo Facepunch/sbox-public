@@ -2,10 +2,10 @@ namespace Sandbox.UI.NodeGraph;
 
 /// <summary>
 /// A comment in a <see cref="NodeGraphPanel"/>: a titled box drawn behind the nodes it holds.
-/// Moving it moves its members. It covers its own box plus any member past its edge, following a
-/// dragged member out and back in, so circling one never leaves it bigger. Drag an edge or corner to
-/// resize it - never smaller than its members need. <see cref="FitToContent"/> shrinks it back
-/// around them.
+/// Moving it moves its members. It hugs them, growing and shrinking as they move, until it's sized
+/// by hand: then it keeps that box plus any member past its edge, so circling one never leaves it
+/// bigger. Drag an edge or corner to resize it - never smaller than its members need.
+/// <see cref="FitToContent"/> goes back to hugging them.
 /// </summary>
 public class CommentPanel : NodePanel
 {
@@ -16,7 +16,27 @@ public class CommentPanel : NodePanel
 
 	const float HeaderHeight = 36f;
 
-	static readonly Vector2 MinimumSize = new( 120f, 96f );
+	/// <summary>
+	/// As small as the comment can get: wide enough for its title, tall enough for the header and a
+	/// strip of body. Anything a fixed size would cover still has room to shrink into.
+	/// </summary>
+	Vector2 MinimumSize
+	{
+		get
+		{
+			var title = Comment.Title ?? "";
+			if ( title != _measuredTitle )
+			{
+				_measuredTitle = title;
+				_titleWidth = NodePaint.Measure( title, 10f, 600 ).x;
+			}
+
+			return new Vector2( MathF.Max( _titleWidth + 24f, 48f ), HeaderHeight + Padding );
+		}
+	}
+
+	string _measuredTitle;
+	float _titleWidth;
 
 	/// <summary>
 	/// How far in from an edge a press resizes rather than moves, in canvas units.
@@ -56,8 +76,9 @@ public class CommentPanel : NodePanel
 	Vector2? _lastPosition;
 
 	/// <summary>
-	/// The box the comment has of its own - as loaded, created, resized or fitted. It always shows
-	/// this plus whatever members are past it, never more.
+	/// The box the comment was sized to by hand, or null when it hasn't been (or was fitted since):
+	/// then it hugs its members, shrinking as they do. A hand-sized comment shows this box plus
+	/// whatever members are past it, never more.
 	/// </summary>
 	(Vector2 Min, Vector2 Max)? _ownBounds;
 
@@ -137,8 +158,6 @@ public class CommentPanel : NodePanel
 		ForgetRemovedMembers();
 		RefreshMemberIds();
 
-		_ownBounds ??= CurrentBounds;
-
 		var dragging = false;
 		foreach ( var node in Graph.Nodes )
 		{
@@ -152,7 +171,7 @@ public class CommentPanel : NodePanel
 			// Something moved the comment: bring the members along. Selected ones are already
 			// moving with the drag.
 			var delta = Position - last;
-			_ownBounds = (_ownBounds.Value.Min + delta, _ownBounds.Value.Max + delta);
+			if ( _ownBounds is { } own ) _ownBounds = (own.Min + delta, own.Max + delta);
 
 			foreach ( var member in Graph.Nodes )
 			{
@@ -215,13 +234,15 @@ public class CommentPanel : NodePanel
 	}
 
 	/// <summary>
-	/// Cover the comment's own box and whatever members are past it. Mid-drag that's on screen only,
-	/// so the node isn't rewritten every frame; once the drag ends it's written back.
+	/// Cover the members: around them alone, or the hand-sized box plus whatever members are past it.
+	/// Mid-drag that's on screen only, so the node isn't rewritten every frame; once the drag ends
+	/// it's written back.
 	/// </summary>
 	void Grow( bool dragging )
 	{
-		if ( ContentBounds() is not { } content || _ownBounds is not { } own ) return;
+		if ( ContentBounds() is not { } content ) return;
 
+		var own = _ownBounds ?? content;
 		SetBounds( Vector2.Min( own.Min, content.Min ), Vector2.Max( own.Max, content.Max ), commit: !dragging );
 	}
 
@@ -233,7 +254,7 @@ public class CommentPanel : NodePanel
 		RefreshMemberIds();
 		if ( ContentBounds() is not { } content ) return;
 
-		_ownBounds = content;
+		_ownBounds = null;
 		SetBounds( content.Min, content.Max );
 	}
 
@@ -353,8 +374,13 @@ public class CommentPanel : NodePanel
 
 		_resizing = Edge.None;
 
-		(Vector2 Min, Vector2 Max) bounds = cancelled ? (_resizeStartPosition, _resizeStartPosition + _resizeStartSize) : CurrentBounds;
-		if ( !cancelled ) _ownBounds = bounds;
+		(Vector2 Min, Vector2 Max) start = (_resizeStartPosition, _resizeStartPosition + _resizeStartSize);
+		var bounds = cancelled ? start : CurrentBounds;
+
+		// A press on the edge that didn't move it (a click to select) mustn't freeze the comment at
+		// whatever size its members had pushed it to
+		if ( !cancelled && bounds != start ) _ownBounds = bounds;
+
 		SetBounds( bounds.Min, bounds.Max );
 	}
 
