@@ -349,11 +349,18 @@ internal class NetworkTable : IDisposable
 	}
 
 	// A value type that's hashed and compared as itself, not a network property, serializer or collection
-	static bool IsPlain( Type type ) => type.IsValueType
-		&& !type.IsAssignableTo( typeof( INetworkProperty ) )
-		&& !type.IsAssignableTo( typeof( INetworkSerializer ) )
-		&& !type.IsAssignableTo( typeof( IList ) )
-		&& !type.IsAssignableTo( typeof( IDictionary ) );
+	static bool IsPlain( Type type )
+	{
+		if ( !type.IsValueType )
+			return false;
+
+		var underlying = Nullable.GetUnderlyingType( type ) ?? type;
+
+		return !underlying.IsAssignableTo( typeof( INetworkProperty ) )
+			&& !underlying.IsAssignableTo( typeof( INetworkSerializer ) )
+			&& !underlying.IsAssignableTo( typeof( IList ) )
+			&& !underlying.IsAssignableTo( typeof( IDictionary ) );
+	}
 
 	private static class PlainValue<T>
 	{
