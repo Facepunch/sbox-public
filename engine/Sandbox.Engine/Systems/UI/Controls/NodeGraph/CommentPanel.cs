@@ -168,7 +168,7 @@ public class CommentPanel : NodePanel
 
 		// Body, a faint tint of the comment colour
 		paint.SetBrush( color.WithAlpha( 0.08f ) );
-		paint.SetPen( Selected ? NodeTheme.Accent : color.WithAlpha( IsDropTarget ? 0.9f : HasHovered ? 0.6f : 0.35f ), Selected || IsDropTarget ? 2f : 1f );
+		paint.SetPen( Selected ? Graph.SelectionColor : color.WithAlpha( IsDropTarget ? 0.9f : HasHovered ? 0.6f : 0.35f ), Selected || IsDropTarget ? 2f : 1f );
 		paint.DrawRect( rect, radius );
 
 		// Header, rounded on top only. Opaque, so the square patch over its bottom corners doesn't

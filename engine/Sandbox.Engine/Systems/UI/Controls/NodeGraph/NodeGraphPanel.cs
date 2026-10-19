@@ -80,6 +80,21 @@ public partial class NodeGraphPanel : CanvasPanel
 	public float MaxZoom { get; set; } = 5f;
 
 	/// <summary>
+	/// Outline and glow of selected nodes and comments, and the colour of selected wires.
+	/// </summary>
+	public Color SelectionColor { get; set; } = NodeTheme.Accent;
+
+	/// <summary>
+	/// Outline of a node under the cursor.
+	/// </summary>
+	public Color HoverBorderColor { get; set; } = NodeTheme.HairlineHover;
+
+	/// <summary>
+	/// Outline of a node that isn't selected, hovered or in error.
+	/// </summary>
+	public Color BorderColor { get; set; } = NodeTheme.Hairline;
+
+	/// <summary>
 	/// Centre the view on <paramref name="center"/> at <paramref name="zoom"/>.
 	/// </summary>
 	public void SetView( Vector2 center, float zoom )

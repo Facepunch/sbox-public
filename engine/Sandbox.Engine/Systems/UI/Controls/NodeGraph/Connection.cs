@@ -6,7 +6,7 @@ namespace Sandbox.UI.NodeGraph;
 /// </summary>
 public class Connection
 {
-	public static Color SelectedColor { get; } = NodeTheme.Accent;
+	public Color SelectedColor => Graph.SelectionColor;
 
 	public NodeGraphPanel Graph { get; }
 	public PlugOutPanel Output { get; private set; }
