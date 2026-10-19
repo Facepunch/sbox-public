@@ -188,14 +188,15 @@ public partial class NodeGraphPanel
 	}
 
 	/// <summary>
-	/// The plug whose row contains <paramref name="position"/>, in canvas units.
+	/// The plug whose row contains <paramref name="position"/>, in canvas units. Comments are skipped:
+	/// they have no plugs and sit behind what they hold, so they mustn't hide their members' plugs.
 	/// </summary>
 	PlugPanel GetPlugAt( Vector2 position )
 	{
 		for ( var i = _nodes.Count - 1; i >= 0; i-- )
 		{
 			var node = _nodes[i];
-			if ( !new Rect( node.Position, node.Size ).IsInside( position ) ) continue;
+			if ( node is CommentPanel || !new Rect( node.Position, node.Size ).IsInside( position ) ) continue;
 
 			foreach ( var plug in node.Inputs )
 			{
