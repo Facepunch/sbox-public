@@ -107,6 +107,12 @@ public partial class NodeGraphPanel : CanvasPanel
 	public Color BorderColor { get; set; } = NodeTheme.Hairline;
 
 	/// <summary>
+	/// Outline and glow of a <see cref="NodePanel.Highlighted"/> node. Apart from the selection's, so
+	/// both read at once.
+	/// </summary>
+	public Color HighlightColor { get; set; } = Color.Parse( "#F5B942" ).Value;
+
+	/// <summary>
 	/// Centre the view on <paramref name="center"/> at <paramref name="zoom"/>.
 	/// </summary>
 	public void SetView( Vector2 center, float zoom )
