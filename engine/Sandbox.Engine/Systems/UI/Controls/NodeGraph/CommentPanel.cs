@@ -31,7 +31,8 @@ public class CommentPanel : NodePanel
 				_titleWidth = NodePaint.Measure( title, 10f, 600 ).x;
 			}
 
-			return new Vector2( MathF.Max( _titleWidth + 24f, 48f ), HeaderHeight + Padding );
+			var icon = string.IsNullOrEmpty( Comment.DisplayInfo.Icon ) ? 0f : 24f;
+			return new Vector2( MathF.Max( _titleWidth + icon + 24f, 48f ), HeaderHeight + Padding );
 		}
 	}
 
@@ -379,7 +380,14 @@ public class CommentPanel : NodePanel
 
 		// A press on the edge that didn't move it (a click to select) mustn't freeze the comment at
 		// whatever size its members had pushed it to
-		if ( !cancelled && bounds != start ) _ownBounds = bounds;
+		if ( !cancelled && bounds != start )
+		{
+			_ownBounds = bounds;
+
+			using var undoScope = Graph.UndoScope( "Resize Comment" );
+			SetBounds( bounds.Min, bounds.Max );
+			return;
+		}
 
 		SetBounds( bounds.Min, bounds.Max );
 	}
@@ -395,6 +403,12 @@ public class CommentPanel : NodePanel
 		Size = Vector2.Max( Comment.Size, MinimumSize );
 		Style.Width = Size.x;
 		Style.Height = Size.y;
+	}
+
+	protected override void OnRebuild()
+	{
+		base.OnRebuild();
+		Layout();
 	}
 
 	public override void OnDraw( Painter painter )
@@ -425,15 +439,25 @@ public class CommentPanel : NodePanel
 
 		paint.SetDefaultFont( 10f, 600 );
 		paint.SetPen( Color.White );
-		paint.DrawText( header.Shrink( 12f, 0f ), comment.Title, TextFlag.LeftCenter );
+
+		var titleRect = header.Shrink( 12f, 0f );
+
+		if ( !string.IsNullOrEmpty( comment.DisplayInfo.Icon ) )
+		{
+			paint.DrawIcon( titleRect, comment.DisplayInfo.Icon, 19f, TextFlag.LeftCenter );
+			titleRect = titleRect.Shrink( 24f, 0f, 0f, 0f );
+		}
+
+		paint.DrawText( titleRect, comment.Title, TextFlag.LeftCenter );
 
 		if ( !string.IsNullOrEmpty( comment.Description ) )
 		{
 			var body = new Rect( 0f, HeaderHeight, rect.Width, rect.Height - HeaderHeight ).Shrink( 12f, 8f );
+			var description = comment.Description.Length > 300 ? comment.Description[..300] : comment.Description;
 
 			paint.SetDefaultFont( comment.DescriptionFontSize.Clamp( 8, 64 ) * 0.75f );
 			paint.SetPen( Color.White.WithAlpha( 0.7f ) );
-			paint.DrawText( body, comment.Description, TextFlag.LeftTop | TextFlag.WordWrap );
+			paint.DrawText( body, description, TextFlag.LeftTop | TextFlag.WordWrap );
 		}
 	}
 }

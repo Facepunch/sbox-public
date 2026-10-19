@@ -11,6 +11,11 @@ public class PlugInPanel : PlugPanel
 
 	public override bool IsConnected => Inner.ConnectedOutput is not null;
 
+	/// <summary>
+	/// The wire into this input, or null.
+	/// </summary>
+	public Connection Connection => Node.Graph.Connections.FirstOrDefault( x => x.Input == this );
+
 	public PlugInPanel( NodePanel node, IPlugIn plug ) : base( node, plug )
 	{
 	}

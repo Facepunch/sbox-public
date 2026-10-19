@@ -35,6 +35,11 @@ public abstract partial class PlugPanel : Panel
 	public abstract bool IsConnected { get; }
 
 	/// <summary>
+	/// A wire is being dragged out of this plug.
+	/// </summary>
+	public bool Dragging { get; internal set; }
+
+	/// <summary>
 	/// Top left in the node, in node units.
 	/// </summary>
 	public Vector2 Position { get; set; }
@@ -184,7 +189,7 @@ public abstract partial class PlugPanel : Panel
 
 	protected void DrawLabel( ref NodePaint paint, Rect rect, bool unreachable, TextFlag flags )
 	{
-		if ( !Inner.ShowLabel || Inner.InTitleBar || Node.IsThumbnailCard || Editor is { Enabled: true, HideLabel: true } )
+		if ( !Visible || !Inner.ShowLabel || Inner.InTitleBar || Node.IsThumbnailCard || Editor is { Enabled: true, HideLabel: true } )
 		{
 			return;
 		}

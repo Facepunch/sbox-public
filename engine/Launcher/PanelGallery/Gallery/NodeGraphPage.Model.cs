@@ -1,3 +1,5 @@
+using static Sandbox.Internal.GlobalGameNamespace;
+using Sandbox.UI;
 using Sandbox.UI.NodeGraph;
 
 namespace Sandbox.PanelGallery;
@@ -117,8 +119,141 @@ public partial class NodeGraphPage
 			if ( changed ) Changed?.Invoke();
 		}
 
+		/// <summary>
+		/// Shown as "Go to Definition" in the node's menu when set.
+		/// </summary>
+		public Action GoToDefinition { get; init; }
+
+		/// <summary>
+		/// A submenu of the node's own in its right-click menu. Comments and reroutes have none.
+		/// </summary>
+		public Sandbox.UI.Menu CreateContextMenu( NodePanel panel )
+		{
+			if ( this is ICommentNode or IRerouteNode ) return null;
+
+			var menu = new Sandbox.UI.Menu( "Demo node", "science" );
+			menu.AddOption( "Say hello", "waving_hand", () => Log.Info( $"Hello from {DisplayInfo.Name}" ) );
+			return menu;
+		}
+
+		public virtual void OnDoubleClick( NodePanel panel, MousePanelEvent e ) { }
+
 		public virtual void OnPaint<T>( T paint, Rect rect ) where T : INodePaint, allows ref struct { }
 	}
+
+	/// <summary>
+	/// A dot that bends a wire; takes and gives anything.
+	/// </summary>
+	sealed class DemoReroute : DemoNode, IRerouteNode
+	{
+		public string Comment { get; set; }
+
+		public DemoReroute( string identifier, Vector2 position )
+			: base( identifier, "Reroute", null, null, Color.White, position )
+		{
+			HasTitleBar = false;
+			ShowLabels = false;
+			AddInput( "in", "In", typeof( object ) );
+			AddOutput( "out", "Out", typeof( object ) );
+		}
+	}
+
+	/// <summary>
+	/// A node the menu offers, made by a function. Plugs are matched on a node it makes to look at.
+	/// </summary>
+	sealed class DemoNodeType : INodeType
+	{
+		readonly Func<DemoNode> _create;
+		DemoNode _sample;
+
+		public NodePathElement[] Path { get; }
+		public bool IsCommon { get; init; } = true;
+
+		/// <summary>
+		/// <paramref name="path"/> is <c>/</c>-separated; a level starting with <c>#</c> is a heading.
+		/// </summary>
+		public DemoNodeType( string path, Func<DemoNode> create )
+		{
+			_create = create;
+
+			var sample = Sample;
+			Path = path.Split( '/' )
+				.Select( x => x.StartsWith( '#' ) ? new NodePathElement( x[1..], IsHeading: true ) : new NodePathElement( x ) )
+				.ToArray();
+			Path[^1] = Path[^1] with { Icon = sample.DisplayInfo.Icon, Description = sample.DisplayInfo.Description };
+		}
+
+		DemoNode Sample => _sample ??= _create();
+
+		static bool Accepts( Type plug, Type value ) => plug == value || plug == typeof( object ) || value == typeof( object );
+
+		public bool TryGetInput( Type valueType, out string name )
+		{
+			name = Sample.Inputs.FirstOrDefault( x => Accepts( x.Type, valueType ) )?.Identifier;
+			return name is not null;
+		}
+
+		public bool TryGetOutput( Type valueType, out string name )
+		{
+			name = Sample.Outputs.FirstOrDefault( x => Accepts( x.Type, valueType ) )?.Identifier;
+			return name is not null;
+		}
+
+		public INode CreateNode( IGraph graph ) => _create();
+	}
+
+	static string NewId() => Guid.NewGuid().ToString();
+
+	static readonly DemoNodeType[] DemoNodeTypes =
+	[
+		new( "Math/Add", () =>
+		{
+			var node = new DemoNode( NewId(), "Add", "+", "Adds A and B.", (Color)"#8fd6a8", default ) { HasTitleBar = false, ShowLabels = false };
+			node.AddInput( "a", "A", typeof( float ) );
+			node.AddInput( "b", "B", typeof( float ) );
+			node.AddOutput( "result", "Result", typeof( float ) );
+			return node;
+		} ),
+		new( "Math/Multiply", () =>
+		{
+			var node = new DemoNode( NewId(), "Multiply", "close", "Multiplies A by B.", (Color)"#8fd6a8", default ) { HasTitleBar = false, ShowLabels = false };
+			node.AddInput( "a", "A", typeof( float ) );
+			node.AddInput( "b", "B", typeof( float ) );
+			node.AddOutput( "result", "Result", typeof( float ) );
+			return node;
+		} ),
+		new( "Input/Time", () =>
+		{
+			var node = new DemoNode( NewId(), "Time", "schedule", "Seconds since the graph started.", (Color)"#7aa7e8", default );
+			node.AddOutput( "seconds", "Seconds", typeof( float ), "Time" );
+			return node;
+		} ),
+		new( "Texture/Sample", () =>
+		{
+			var node = new DemoNode( NewId(), "Sample Normal", "image", "Reads a normal from a texture.", (Color)"#d9b55a", default );
+			node.AddOutput( "normal", "Normal", typeof( Vector3 ) );
+			return node;
+		} ),
+		new( "#Common/Color", () =>
+		{
+			var node = new DemoNode( NewId(), "Color", "palette", "A constant colour.", (Color)"#e07fa6", default );
+			node.AddOutput( "color", "Color", typeof( Color ) );
+			return node;
+		} ),
+		new( "Math/Lerp", () =>
+		{
+			var node = new DemoNode( NewId(), "Lerp", "linear_scale", "Blends A to B by T.", (Color)"#8fd6a8", default );
+			node.AddInput( "a", "A", typeof( float ) );
+			node.AddInput( "b", "B", typeof( float ) );
+			node.AddInput( "t", "T", typeof( float ) );
+			node.AddOutput( "result", "Result", typeof( float ) );
+			return node;
+		} ) { IsCommon = false },
+	];
+
+	static readonly DemoNodeType DemoCommentType = new( "Comment", () => new DemoComment( NewId(), "Comment", null, NodeGraphPanel.DefaultCommentColor, default ) );
+
+	static readonly DemoNodeType DemoRerouteType = new( "Reroute", () => new DemoReroute( NewId(), default ) );
 
 	/// <summary>
 	/// Draws a curve plot under its plugs, as nodes can draw anything over themselves.
@@ -132,6 +267,15 @@ public partial class NodeGraphPage
 		public CurveNode( string identifier, string name, string icon, string description, Color color, Vector2 position )
 			: base( identifier, name, icon, description, color, position )
 		{
+		}
+
+		/// <summary>
+		/// Takes the double-click, so the graph does nothing with it.
+		/// </summary>
+		public override void OnDoubleClick( NodePanel panel, MousePanelEvent e )
+		{
+			Log.Info( $"Double-clicked {DisplayInfo.Name}" );
+			e.StopPropagation();
 		}
 
 		public override void OnPaint<T>( T paint, Rect rect )
