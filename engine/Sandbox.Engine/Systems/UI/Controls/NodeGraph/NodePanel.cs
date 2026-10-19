@@ -104,7 +104,10 @@ public partial class NodePanel : CanvasPanel.Handle
 		MoveTo( Node.Position );
 	}
 
-	void BuildTooltip( Panel tip )
+	/// <summary>
+	/// Fill the node's tooltip.
+	/// </summary>
+	protected virtual void BuildTooltip( Panel tip )
 	{
 		var label = tip.AddChild<Label>();
 		label.IsRich = true;
