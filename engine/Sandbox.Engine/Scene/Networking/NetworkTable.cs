@@ -287,6 +287,11 @@ internal class NetworkTable : IDisposable
 		public abstract void Write( ref ByteStream bs );
 
 		/// <summary>
+		/// Hash the current value as <see cref="ToHashCode"/> would the boxed value, and update the entry's hash.
+		/// </summary>
+		public abstract void UpdateHash( Entry entry );
+
+		/// <summary>
 		/// For an instance property of a plain value type with a getter and a setter, otherwise null.
 		/// </summary>
 		public static TypedAccess Create( object instance, PropertyInfo property )
@@ -340,6 +345,7 @@ internal class NetworkTable : IDisposable
 		}
 
 		public override void Write( ref ByteStream bs ) => Game.TypeLibrary.ToBytes( _get(), ref bs );
+		public override void UpdateHash( Entry entry ) => SetHash( entry, HashCode.Combine( _get() ) );
 	}
 
 	// A value type that's hashed and compared as itself, not a network property, serializer or collection
@@ -866,7 +872,10 @@ internal class NetworkTable : IDisposable
 
 			try
 			{
-				UpdateSlotHash( entry, entry.GetValue() );
+				if ( entry.Typed is { } typed )
+					typed.UpdateHash( entry );
+				else
+					UpdateSlotHash( entry, entry.GetValue() );
 			}
 			catch ( Exception e )
 			{
