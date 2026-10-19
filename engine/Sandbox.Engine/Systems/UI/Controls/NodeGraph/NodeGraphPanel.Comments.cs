@@ -146,29 +146,46 @@ public partial class NodeGraphPanel
 	Menu _menu;
 
 	/// <summary>
-	/// Fill the right-click menu. <paramref name="node"/> is the node clicked, already selected,
-	/// or null for empty space; <paramref name="position"/> is where, in canvas units.
-	/// Empty space offers a new comment; a node offers to copy, cut or duplicate the selection,
-	/// comment it, and take it out of its comment when it's in one.
+	/// Fill the right-click menu, laid out like the editor's node graph. <paramref name="node"/> is
+	/// the node clicked, already selected, or null for empty space; <paramref name="position"/> is
+	/// where, in canvas units. Empty space offers to paste and add a comment; a node offers to cut,
+	/// copy, duplicate or delete the selection, then to comment it or take it out of its comment.
 	/// </summary>
 	protected virtual void BuildContextMenu( Menu menu, NodePanel node, Vector2 position )
 	{
 		if ( node is null )
 		{
+			if ( ReadClipboard() is { } text && text.StartsWith( $"{ClipboardIdent}:", StringComparison.Ordinal ) )
+			{
+				menu.AddOption( "Paste Node(s)", "content_paste", () => Paste( text, position ) );
+			}
+
 			if ( CommentFactory is not null ) menu.AddOption( "Add Comment", "notes", () => CreateComment( position, [] ) );
 			return;
 		}
 
-		if ( SerializeSelection() is not null )
-		{
-			menu.AddOption( "Copy", "content_copy", CopySelection );
-			menu.AddOption( "Cut", "content_cut", CutSelection );
-			menu.AddOption( "Duplicate", "file_copy", DuplicateSelection );
+		var copyable = CopyableSelection().Length;
 
-			if ( CommentFactory is not null || FindComment( node ) is not null ) menu.AddSeparator();
+		if ( copyable > 0 && SerializeSelection() is not null )
+		{
+			menu.AddOption( $"Cut {NodeCount( copyable )}", "content_cut", CutSelection );
+			menu.AddOption( $"Copy {NodeCount( copyable )}", "content_copy", CopySelection );
+			menu.AddOption( $"Duplicate {NodeCount( copyable )}", "file_copy", DuplicateSelection );
 		}
 
-		if ( FindComment( node ) is not null )
+		var removable = SelectedNodes.Count( x => x.Node.CanRemove );
+
+		if ( removable > 0 )
+		{
+			menu.AddOption( $"Delete {NodeCount( removable )}", "delete", DeleteSelection );
+		}
+
+		var inComment = FindComment( node ) is not null;
+		if ( !inComment && CommentFactory is null ) return;
+
+		if ( menu.HasOptions ) menu.AddSeparator();
+
+		if ( inComment )
 		{
 			var members = SelectedNodes.Where( x => FindComment( x ) is not null ).ToArray();
 			menu.AddOption( "Remove from comment", "playlist_remove", () => RemoveFromComment( members ) );
@@ -179,8 +196,10 @@ public partial class NodeGraphPanel
 		// Things inside a selected comment stay in it; the new comment takes the comment
 		var selectedComments = SelectedNodes.OfType<CommentPanel>().ToArray();
 		var selected = SelectedNodes.Where( x => !selectedComments.Any( c => c != x && IsWithin( x, c ) ) ).ToArray();
-		menu.AddOption( $"Add Comment for {selected.Length} {(selected.Length == 1 ? "node" : "nodes")}", "notes", () => CreateComment( position, selected ) );
+		menu.AddOption( $"Add Comment for {NodeCount( selected.Length )}", "notes", () => CreateComment( position, selected ) );
 	}
+
+	static string NodeCount( int count ) => $"{count} {(count == 1 ? "node" : "nodes")}";
 
 	/// <summary>
 	/// Right-clicking a node selects it, then opens the menu for it.
@@ -189,10 +208,20 @@ public partial class NodeGraphPanel
 	{
 		if ( node is not null && !node.Selected ) SelectNode( node );
 
+		var position = ScreenToCanvas( MousePosition );
+		OpenMenu( menu => BuildContextMenu( menu, node, position ) );
+	}
+
+	/// <summary>
+	/// Open a menu under the mouse, filled by <paramref name="build"/>, closing any this graph has
+	/// open. Nothing opens when it adds no options.
+	/// </summary>
+	protected void OpenMenu( Action<Menu> build )
+	{
 		_menu?.Delete( true );
 
 		var menu = _menu = new Menu();
-		BuildContextMenu( menu, node, ScreenToCanvas( MousePosition ) );
+		build( menu );
 
 		if ( !menu.HasOptions )
 		{
