@@ -84,7 +84,7 @@ internal static class AgentSkill
 	[Event( "editor.created" )]
 	static async void OnEditorCreated( EditorMainWindow window )
 	{
-		// Let the editor finish restoring its layout, and stay out of the way of the welcome tutorial.
+		// Let the editor finish restoring its layout.
 		await Task.Delay( 3000 );
 
 		var targets = await Task.Run( Status );

@@ -11,7 +11,7 @@
     }
   ],
   "InputColorSpace": "Linear",
-  "OutputFormat": "DXT5",
+  "OutputFormat": "BC6H",
   "OutputColorSpace": "Linear",
   "OutputMipAlgorithm": "None",
   "OutputTypeString": "2D"

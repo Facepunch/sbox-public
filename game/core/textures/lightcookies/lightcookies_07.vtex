@@ -10,8 +10,8 @@
       "Frames": 64
     }
   ],
-  "InputColorSpace": "Linear",
-  "OutputFormat": "DXT5",
+  "InputColorSpace": "SRGB",
+  "OutputFormat": "RGBA16161616F",
   "OutputColorSpace": "Linear",
   "OutputMipAlgorithm": "None",
   "OutputTypeString": "2D"

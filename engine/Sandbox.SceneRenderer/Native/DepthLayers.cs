@@ -79,3 +79,29 @@ internal sealed class BloomDepthLayer : NativeProceduralLayer
 		SharedPasses.DownsampleQuarterDepth( Graphics.Attributes, msaaInput );
 	}
 }
+
+/// <summary>Reconstruct the scene depth at output resolution for post-processing and overlays.</summary>
+internal sealed class UpscaleDepthLayer : NativeProceduralLayer
+{
+	bool msaaInput;
+	Vector2 outputToSourceScale;
+
+	public UpscaleDepthLayer() : base( "Upscale Depth" )
+	{
+		Flags |= LayerFlags.DoesntModifyColorBuffers;
+		LayerType = SceneLayerType.Opaque;
+	}
+
+	public void Setup( SceneViewRenderTargetHandle sourceDepth, SceneViewRenderTargetHandle outputDepth, bool msaaInput, Vector2 outputToSourceScale )
+	{
+		SetInput( "SourceDepth", sourceDepth );
+		DepthAttachment = outputDepth;
+		this.msaaInput = msaaInput;
+		this.outputToSourceScale = outputToSourceScale;
+	}
+
+	protected override void OnRender()
+	{
+		SharedPasses.UpscaleDepth( Graphics.Attributes, msaaInput, outputToSourceScale );
+	}
+}

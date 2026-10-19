@@ -1,4 +1,5 @@
 ﻿
+using NativeEngine;
 using Sandbox.Engine;
 using Sandbox.Rendering;
 using Sandbox.UI;
@@ -141,21 +142,6 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	[Property]
 	public RenderTextureAsset RenderTexture;
 
-	/// <summary>
-	/// Since we are rendering to a texture, better to generate mipmaps for it.
-	/// </summary>
-	private CommandList _renderTextureMipGenCommandList;
-
-	private CommandList CreateRenderTextureMipGenCommandList()
-	{
-		var cmd = new CommandList( "Generate MipMaps For RenderTexture" );
-
-		if ( RenderTexture != null && RenderTexture.Texture != null && RenderTexture.Texture.Mips > 1 )
-			cmd.GenerateMipMaps( RenderTexture.Texture );
-
-		return cmd;
-	}
-
 	private Texture _renderTarget;
 
 	/// <summary>
@@ -227,6 +213,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		sceneCamera = new( GameObject.Name );
 
 		sceneCamera.OnRenderStageHook = ExecuteCommandLists;
+		sceneCamera.OnAfterPostProcess = finalizePostProcessHook ??= FinalizePostProcessing;
 		sceneCamera.WantsDepthNormalsHook = WantsDepthNormals;
 		sceneCamera.HasEarlyPostProcessHook = HasEarlyPostProcess;
 		sceneCamera.ScheduleEarlyPostProcessHook = ScheduleEarlyPostProcess;
@@ -402,6 +389,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	/// Update a SceneCamera with the settings from this component
 	/// </summary>
 	Action<Stage, SceneCamera> executeCommandListsHook;
+	Action finalizePostProcessHook;
 	Func<bool> wantsDepthNormalsHook;
 	Func<Stage, PostProcessQueue, bool> hasEarlyPostProcessHook;
 	Action<Stage, bool> scheduleEarlyPostProcessHook;
@@ -760,6 +748,31 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		return sceneCamera.ToWorld( screen );
 	}
 
+	private void FinalizePostProcessing()
+	{
+		var texture = RenderTexture?.Texture;
+		if ( texture is null || !texture.IsValid || texture.Mips <= 1 )
+			return;
+
+		var currentColor = Graphics.GetColorTarget( out var owned );
+		try
+		{
+			if ( currentColor.IsNull )
+				return;
+
+			var currentColorIndex = g_pRenderDevice.GetTextureViewIndex( currentColor, 0, RenderTextureDimension.RENDER_TEXTURE_DIMENSION_2D );
+			if ( currentColorIndex != texture.Index )
+				return;
+			Graphics.ResourceBarrierTransition( texture, ResourceState.NonPixelShaderResource, 0 );
+			Graphics.GenerateMipMaps( texture );
+		}
+		finally
+		{
+			if ( owned && !currentColor.IsNull )
+				currentColor.DestroyStrongHandle();
+		}
+	}
+
 	protected override void OnEnabled()
 	{
 		Scene?.UpdateMainCamera();
@@ -767,11 +780,6 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		AddCommandList( _hudCommandList, Rendering.Stage.AfterPostProcess, 5000 );
 		AddCommandList( _overlayCommandList, Rendering.Stage.AfterUI, 5000 );
 
-		if ( RenderTexture is not null )
-		{
-			_renderTextureMipGenCommandList = CreateRenderTextureMipGenCommandList();
-			AddCommandList( _renderTextureMipGenCommandList, Rendering.Stage.AfterPostProcess, 10000 );
-		}
 	}
 
 	protected override void OnDisabled()
@@ -781,11 +789,6 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		RemoveCommandList( _hudCommandList );
 		RemoveCommandList( _overlayCommandList );
 
-		if ( _renderTextureMipGenCommandList is not null )
-		{
-			RemoveCommandList( _renderTextureMipGenCommandList );
-			_renderTextureMipGenCommandList = null;
-		}
 	}
 
 	/// <summary>
