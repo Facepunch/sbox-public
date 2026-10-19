@@ -126,7 +126,7 @@ public abstract partial class PlugPanel : Panel
 
 	/// <summary>
 	/// A ring that fills in when <paramref name="filled"/>. A thin dark rim of the same shape cuts the
-	/// node's edge around it.
+	/// node's edge around it, and hides wires passing underneath.
 	/// </summary>
 	protected void DrawHandle( ref NodePaint paint, Color color, Rect handleRect, HandleShape shape, bool filled )
 	{
@@ -141,24 +141,29 @@ public abstract partial class PlugPanel : Panel
 
 		color = color.WithAlpha( 1.0f );
 
-		paint.ClearBrush();
-		paint.SetPen( NodeTheme.Canvas, 2f );
-		DrawShape( ref paint, handleRect.Grow( 1f ), shape );
+		// Filled, not stroked, so nothing underneath bleeds through between the rim and the handle
+		paint.ClearPen();
+		paint.SetBrush( NodeTheme.Canvas );
+		DrawShape( ref paint, handleRect, 2f, shape );
 
 		paint.SetPen( color, 1.5f );
 		paint.SetBrush( filled ? color : NodeTheme.Canvas );
-		DrawShape( ref paint, handleRect.Shrink( 0.75f ), shape );
+		DrawShape( ref paint, handleRect, -0.75f, shape );
 	}
 
 	/// <summary>
-	/// Corners scale with the size, so a grown rim stays concentric with the shape.
+	/// <paramref name="handleRect"/> grown by <paramref name="grow"/>. Square corners grow with it, so
+	/// every offset of the shape stays concentric.
 	/// </summary>
-	static void DrawShape( ref NodePaint paint, Rect rect, HandleShape shape )
+	static void DrawShape( ref NodePaint paint, Rect handleRect, float grow, HandleShape shape )
 	{
+		var rect = handleRect.Grow( grow );
+
 		switch ( shape )
 		{
 			case HandleShape.Square:
-				paint.DrawRect( rect, MathF.Min( rect.Width, rect.Height ) * 0.3f );
+				var radius = MathF.Min( handleRect.Width, handleRect.Height ) * 0.3f + grow;
+				paint.DrawRect( rect, MathF.Max( radius, 0f ) );
 				break;
 
 			case HandleShape.Circle:

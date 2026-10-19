@@ -446,7 +446,7 @@ public partial class NodePanel : CanvasPanel.Handle
 		// Selection or error glow; no depth shadow
 		if ( Selected )
 		{
-			paint.DrawShadow( rect, radius, NodeTheme.Accent.WithAlpha( 0.45f ), 10f, default, 1f );
+			paint.DrawShadow( rect, radius, Graph.SelectionColor.WithAlpha( 0.45f ), 10f, default, 1f );
 		}
 		else if ( hasError )
 		{
@@ -523,7 +523,7 @@ public partial class NodePanel : CanvasPanel.Handle
 
 		if ( Selected )
 		{
-			paint.SetPen( NodeTheme.Accent, 1.5f );
+			paint.SetPen( Graph.SelectionColor, 1.5f );
 		}
 		else if ( hasError )
 		{
@@ -531,7 +531,7 @@ public partial class NodePanel : CanvasPanel.Handle
 		}
 		else
 		{
-			paint.SetPen( paint.HasMouseOver ? NodeTheme.HairlineHover : NodeTheme.Hairline, 1f );
+			paint.SetPen( paint.HasMouseOver ? Graph.HoverBorderColor : Graph.BorderColor, 1f );
 		}
 
 		paint.DrawRect( rect, radius );
