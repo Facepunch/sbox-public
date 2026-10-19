@@ -326,6 +326,14 @@ public partial class NodeGraphPanel : CanvasPanel
 			return;
 		}
 
+		// Ctrl+C, X and V come as copy, cut and paste events; D is ours, unless a text field wants it
+		if ( e.HasCtrl && e.Button == "d" && !IsBoxSelecting && !Descendants.OfType<TextEntry>().Any( x => x.HasFocus ) )
+		{
+			DuplicateSelection();
+			e.StopPropagation = true;
+			return;
+		}
+
 		base.OnButtonTyped( e );
 	}
 
