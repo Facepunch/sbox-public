@@ -684,7 +684,11 @@ public partial class NodeGraphPanel
 	// Drawing
 	//
 
-	partial void DrawConnections( Painter painter )
+	/// <summary>
+	/// Lay the wires out and hand each visible one to the node that paints it, see
+	/// <see cref="Connection.PaintOwner"/>. Lower ranks first, so hovered and selected wires end on top.
+	/// </summary>
+	void UpdateConnections()
 	{
 		SyncConnections();
 		CheckConnectionGestures();
@@ -696,9 +700,13 @@ public partial class NodeGraphPanel
 
 		UpdateHover();
 
+		foreach ( var node in _nodes )
+		{
+			node.PaintedWires.Clear();
+		}
+
 		var viewport = Viewport;
 		var view = Rect.FromPoints( ScreenToCanvas( viewport.Position ), ScreenToCanvas( viewport.Position + viewport.Size ) );
-		var scale = (CanvasToScreen( Vector2.One ) - CanvasToScreen( Vector2.Zero )).x;
 
 		for ( var rank = 0; rank <= 2; rank++ )
 		{
@@ -706,11 +714,10 @@ public partial class NodeGraphPanel
 			{
 				if ( connection.Rank != rank || !connection.Bounds.Overlaps( view ) ) continue;
 
-				connection.Paint( painter, scale );
-				connection.PaintHandles( painter, scale );
+				connection.PaintOwner?.PaintedWires.Add( connection );
 			}
 		}
 
-		Preview?.Paint( painter, scale );
+		Preview?.PaintOwner?.PaintedWires.Add( Preview );
 	}
 }

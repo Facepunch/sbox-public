@@ -51,6 +51,11 @@ public partial class NodePanel : CanvasPanel.Handle
 	public List<PlugOutPanel> Outputs = new();
 
 	/// <summary>
+	/// Wires this node paints this frame, under its body: see <see cref="Connection.PaintOwner"/>.
+	/// </summary>
+	internal readonly List<Connection> PaintedWires = new();
+
+	/// <summary>
 	/// Node size in node units, from <see cref="Layout"/>.
 	/// </summary>
 	public Vector2 Size { get; protected set; }
@@ -469,6 +474,14 @@ public partial class NodePanel : CanvasPanel.Handle
 
 	public override void OnDraw( Painter painter )
 	{
+		// Wires out of this node first, so they share its depth: over the nodes behind it, under its body
+		foreach ( var wire in PaintedWires )
+		{
+			using var scope = painter.Scope();
+			wire.Paint( painter, Position, ScaleToScreen );
+			wire.PaintHandles( painter, Position, ScaleToScreen );
+		}
+
 		var paint = new NodePaint( this, painter ) { HasMouseOver = HasHovered };
 
 		var rect = new Rect( 0f, Size );

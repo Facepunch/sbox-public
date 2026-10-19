@@ -369,10 +369,10 @@ public partial class NodeGraphPanel : CanvasPanel
 		painter.Rect( viewport );
 
 		DrawGrid( painter, viewport );
-		DrawConnections( painter );
-	}
 
-	partial void DrawConnections( Painter painter );
+		// Before the nodes draw: they paint the wires laid out here
+		UpdateConnections();
+	}
 
 	static Texture _dot;
 
