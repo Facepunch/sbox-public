@@ -9,9 +9,9 @@ public partial class NodeGraphPanel
 	static readonly Vector2 DefaultCommentSize = new( 300f, 192f );
 
 	/// <summary>
-	/// Makes a new comment for the right-click menu to add. Null means this graph has no comments.
+	/// Colour of comments added from the menu: the editor's green.
 	/// </summary>
-	public Func<ICommentNode> CommentFactory { get; set; }
+	public static readonly Color DefaultCommentColor = Color.Parse( "#33b679" ).Value;
 
 	public IEnumerable<CommentPanel> Comments => _nodes.OfType<CommentPanel>();
 
@@ -39,25 +39,47 @@ public partial class NodeGraphPanel
 	}
 
 	/// <summary>
+	/// Add a comment from <see cref="CommentNodeType"/>, as one undo step. Null when the graph has
+	/// no comments.
+	/// </summary>
+	public virtual CommentPanel CreateNewComment( string text, Color color, Vector2 position, Vector2 size )
+	{
+		if ( CommentNodeType is null ) return null;
+
+		using var undoScope = UndoScope( "Add Comment" );
+
+		return CreateNewNode( CommentNodeType, node =>
+		{
+			node.Position = position.SnapToGrid( GridSize );
+
+			var comment = (ICommentNode)node;
+
+			comment.Size = size;
+			comment.Color = color;
+			comment.Title = text;
+		} ) as CommentPanel;
+	}
+
+	/// <summary>
 	/// Add a comment at <paramref name="position"/> holding <paramref name="members"/>, taking
-	/// them out of any comment they were in. Null when the graph has no comments.
+	/// them out of any comment they were in, and select it. Null when the graph has no comments.
 	/// </summary>
 	public CommentPanel CreateComment( Vector2 position, IReadOnlyList<NodePanel> members )
 	{
-		if ( Graph is null || CommentFactory?.Invoke() is not { } comment ) return null;
+		if ( Graph is null || CommentNodeType is null ) return null;
 
-		comment.Position = position;
-		if ( comment.Size == default ) comment.Size = DefaultCommentSize;
+		using var undoScope = UndoScope( "Add Comment" );
+
+		if ( CreateNewComment( "Untitled", DefaultCommentColor, position, DefaultCommentSize ) is not { } panel ) return null;
 
 		RemoveFromComment( members );
-		comment.Members.AddRange( members.Select( x => x.Node.Identifier ) );
+		panel.Comment.Members.AddRange( members.Select( x => x.Node.Identifier ) );
 
-		var panel = AddNode( comment ) as CommentPanel;
 		SelectNode( panel );
 		OrderComments();
 
 		// Around what it holds, rather than the default box at the mouse
-		if ( members.Count > 0 ) panel?.FitToContent();
+		if ( members.Count > 0 ) panel.FitToContent();
 
 		return panel;
 	}
@@ -149,23 +171,14 @@ public partial class NodeGraphPanel
 	Menu _menu;
 
 	/// <summary>
-	/// Fill the right-click menu, laid out like the editor's node graph. <paramref name="node"/> is
-	/// the node clicked, already selected, or null for empty space; <paramref name="position"/> is
-	/// where, in canvas units. Empty space offers to paste and add a comment; a node offers to cut,
-	/// copy, duplicate or delete the selection, then to comment it or take it out of its comment.
+	/// Fill the right-click menu for <paramref name="node"/>, the node clicked and already selected,
+	/// laid out like the editor's node graph: cut, copy, duplicate or delete the selection, the
+	/// node's own entries, then comment it or take it out of its comment. <paramref name="position"/>
+	/// is where, in canvas units. Left empty, the menu is the node menu instead.
 	/// </summary>
 	protected virtual void BuildContextMenu( Menu menu, NodePanel node, Vector2 position )
 	{
-		if ( node is null )
-		{
-			if ( ReadClipboard() is { } text && text.StartsWith( $"{ClipboardIdent}:", StringComparison.Ordinal ) )
-			{
-				menu.AddOption( "Paste Node(s)", "content_paste", () => Paste( text, position ) );
-			}
-
-			if ( CommentFactory is not null ) menu.AddOption( "Add Comment", "notes", () => CreateComment( position, [] ) );
-			return;
-		}
+		if ( node is null ) return;
 
 		var copyable = CopyableSelection().Length;
 
@@ -183,9 +196,20 @@ public partial class NodeGraphPanel
 			menu.AddOption( $"Delete {NodeCount( removable )}", "delete", DeleteSelection );
 		}
 
+		if ( node.Node.GoToDefinition is { } goToDefinition )
+		{
+			menu.AddOption( "Go to Definition", "read_more", goToDefinition );
+		}
+
+		// A menu with options of its own is a submenu row
+		if ( node.Node.CreateContextMenu( node ) is { } nodeMenu )
+		{
+			menu.AddOption( nodeMenu );
+		}
+
 		var inComment = FindComment( node ) is not null;
 		var fittable = node is CommentPanel { Comment.Members.Count: > 0 };
-		if ( !inComment && !fittable && CommentFactory is null ) return;
+		if ( !inComment && !fittable && CommentNodeType is null ) return;
 
 		if ( menu.HasOptions ) menu.AddSeparator();
 
@@ -201,7 +225,7 @@ public partial class NodeGraphPanel
 			menu.AddOption( "Remove from comment", "playlist_remove", () => RemoveFromComment( members ) );
 		}
 
-		if ( CommentFactory is null ) return;
+		if ( CommentNodeType is null ) return;
 
 		// Things inside a selected comment stay in it; the new comment takes the comment
 		var selectedComments = SelectedNodes.OfType<CommentPanel>().ToArray();
@@ -218,9 +242,52 @@ public partial class NodeGraphPanel
 	{
 		if ( node is not null && !node.Selected ) SelectNode( node );
 
-		var position = ScreenToCanvas( MousePosition );
-		OpenMenu( menu => BuildContextMenu( menu, node, position ) );
+		OpenContextMenu( ScreenToCanvas( MousePosition ), node );
 	}
+
+	/// <summary>
+	/// Open the right-click menu at the mouse for <paramref name="node"/>, or for empty space when
+	/// null, at <paramref name="position"/> in canvas units. When nothing's on offer for a node -
+	/// always on empty space, or for a wire dropped from <paramref name="targetPlug"/> - it's the
+	/// node menu; otherwise the node menu is its "Create Node" submenu. <paramref name="onClose"/>
+	/// runs once it's gone, or straight away when there was nothing to open.
+	/// </summary>
+	protected virtual void OpenContextMenu( Vector2 position, NodePanel node, PlugPanel targetPlug = null, Action onClose = null )
+	{
+		var menu = new Menu();
+
+		if ( targetPlug is null ) BuildContextMenu( menu, node, position );
+
+		var anySelected = menu.HasOptions;
+
+		OnOpenContextMenu( menu, targetPlug );
+
+		if ( !anySelected )
+		{
+			if ( !menu.HasOptions )
+			{
+				CreateNodeMenu( menu, position, targetPlug );
+			}
+			else
+			{
+				var nodeMenu = new Menu( "Create Node", "add" );
+				CreateNodeMenu( nodeMenu, position, targetPlug );
+
+				if ( nodeMenu.Options.Count > 0 ) menu.AddOption( nodeMenu );
+				else nodeMenu.Delete( true );
+			}
+		}
+
+		if ( onClose is not null ) menu.Closed += _ => onClose();
+
+		if ( !OpenMenu( menu ) ) onClose?.Invoke();
+	}
+
+	/// <summary>
+	/// Add to the right-click menu before it opens. <paramref name="targetPlug"/> is the plug a
+	/// wire was dropped from, if that's what opened it.
+	/// </summary>
+	protected virtual void OnOpenContextMenu( Menu menu, PlugPanel targetPlug ) { }
 
 	/// <summary>
 	/// Open a menu under the mouse, filled by <paramref name="build"/>, closing any this graph has
@@ -228,25 +295,143 @@ public partial class NodeGraphPanel
 	/// </summary>
 	protected void OpenMenu( Action<Menu> build )
 	{
-		_menu?.Delete( true );
-
-		var menu = _menu = new Menu();
+		var menu = new Menu();
 		build( menu );
+		OpenMenu( menu );
+	}
 
-		if ( !menu.HasOptions )
+	/// <summary>
+	/// Open <paramref name="menu"/> under the mouse, closing any this graph has open, and put the
+	/// keyboard in its first text field. It's deleted once closed. False, and deleted, when it has
+	/// no options to pick.
+	/// </summary>
+	protected internal bool OpenMenu( Menu menu )
+	{
+		_menu?.Delete( true );
+		_menu = null;
+
+		if ( menu.Options.Count == 0 )
 		{
-			_menu = null;
 			menu.Delete( true );
-			return;
+			return false;
 		}
 
-		menu.Closed += _ =>
-		{
-			if ( _menu == menu ) _menu = null;
-			menu.Delete( true );
-		};
-
 		menu.Open( this, Popup.PositionMode.UnderMouse );
+
+		if ( !menu.IsOpen )
+		{
+			menu.Delete( true );
+			return false;
+		}
+
+		_menu = menu;
+		menu.Closed += OnMenuClosed;
+
+		menu.Rows.OfType<TextEntry>().FirstOrDefault()?.Focus();
+		return true;
+	}
+
+	void OnMenuClosed( Menu menu )
+	{
+		if ( _menu == menu ) _menu = null;
+		menu.Delete( true );
+	}
+
+	//
+	// The node menu: a filter box over the types GetRelevantNodes offers
+	//
+
+	/// <summary>
+	/// The node types the node menu offers for <paramref name="query"/>, such as
+	/// <c>AllTypes.Filter( query )</c>. None by default.
+	/// </summary>
+	protected virtual IEnumerable<INodeType> GetRelevantNodes( NodeQuery query ) => [];
+
+	/// <summary>
+	/// Entries above the node types while the filter is empty: paste, and add a comment - or a
+	/// reroute, for a wire dropped from <paramref name="targetPlug"/>.
+	/// </summary>
+	protected virtual void OnPopulateNodeMenuSpecialOptions( Menu menu, Vector2 position, PlugPanel targetPlug, string filter )
+	{
+		if ( ReadClipboard() is { } text && text.StartsWith( $"{ClipboardIdent}:", StringComparison.Ordinal ) )
+		{
+			menu.AddOption( "Paste Node(s)", "content_paste", () => Paste( text, position ) );
+		}
+
+		if ( !targetPlug.IsValid() )
+		{
+			if ( CommentNodeType is not null )
+			{
+				menu.AddOption( "Add Comment", "notes", () => CreateNewComment( "Untitled", DefaultCommentColor, position, DefaultCommentSize ) );
+			}
+		}
+		else if ( RerouteNodeType is not null )
+		{
+			menu.AddOption( "Add Reroute", "route", () => CreateNewNode( RerouteNodeType, position - new Vector2( ReroutePanel.Diameter * 0.5f ), targetPlug ) );
+		}
+	}
+
+	/// <summary>
+	/// The node types matching <paramref name="filter"/> and <paramref name="targetPlug"/>: as
+	/// submenus by path, or a flat list of the best 20 while filtering. Picking one adds it at
+	/// <paramref name="position"/>, wired to the plug.
+	/// </summary>
+	protected virtual void OnPopulateNodeMenu( Menu menu, Vector2 position, PlugPanel targetPlug, string filter )
+	{
+		if ( Graph is null ) return;
+
+		var query = new NodeQuery( Graph, targetPlug.IsValid() ? targetPlug.Inner : null, filter );
+		var nodes = GetRelevantNodes( query ).ToArray();
+
+		var useFilter = query.Filter.Count > 0;
+		var truncated = 0;
+
+		const int maxFilteredResults = 20;
+
+		if ( useFilter && nodes.Length > maxFilteredResults )
+		{
+			truncated = nodes.Length - maxFilteredResults;
+			nodes = nodes.OrderByDescending( x => query.GetScore( x.Path ) ?? int.MinValue ).Take( maxFilteredResults ).ToArray();
+		}
+
+		NodeMenu.AddOptions( menu, nodes, useFilter ? query : null, type => CreateNewNode( type, position, targetPlug ) );
+
+		if ( truncated > 0 )
+		{
+			menu.AddOption( $"... and {truncated} more" ).Enabled = false;
+		}
+	}
+
+	/// <summary>
+	/// Refill the node menu for <paramref name="filter"/>, keeping its filter box.
+	/// </summary>
+	protected virtual void PopulateNodeMenu( Menu menu, Vector2 position, PlugPanel targetPlug = null, string filter = null )
+	{
+		foreach ( var row in menu.Rows.Where( x => x is not TextEntry ).ToArray() )
+		{
+			menu.Remove( row );
+			row.Delete( true );
+		}
+
+		if ( string.IsNullOrWhiteSpace( filter ) )
+		{
+			OnPopulateNodeMenuSpecialOptions( menu, position, targetPlug, filter );
+		}
+
+		OnPopulateNodeMenu( menu, position, targetPlug, filter );
+	}
+
+	/// <summary>
+	/// Make <paramref name="menu"/> the node menu: a filter box over what
+	/// <see cref="PopulateNodeMenu"/> fills in.
+	/// </summary>
+	protected virtual void CreateNodeMenu( Menu menu, Vector2 position, PlugPanel targetPlug = null )
+	{
+		var filter = menu.AddWidget( new TextEntry { Placeholder = "Filter Nodes.." } );
+		filter.AddClass( "node-filter" );
+		filter.OnTextEdited = text => PopulateNodeMenu( menu, position, targetPlug, text );
+
+		PopulateNodeMenu( menu, position, targetPlug );
 	}
 
 	protected override void OnRightClick( MousePanelEvent e )

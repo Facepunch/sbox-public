@@ -13,6 +13,11 @@ public class PlugOutPanel : PlugPanel
 		.SelectMany( x => x.Inputs )
 		.Any( x => Equals( x.ConnectedOutput, Inner ) ) ?? false;
 
+	/// <summary>
+	/// The wires out of this output.
+	/// </summary>
+	public IEnumerable<Connection> Connections => Node.Graph.Connections.Where( x => x.Output == this );
+
 	public PlugOutPanel( NodePanel node, IPlugOut plug ) : base( node, plug )
 	{
 	}

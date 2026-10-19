@@ -1,3 +1,4 @@
+using static Sandbox.Internal.GlobalGameNamespace;
 using Sandbox.UI;
 using Sandbox.UI.NodeGraph;
 
@@ -8,7 +9,7 @@ namespace Sandbox.PanelGallery;
 /// </summary>
 public partial class NodeGraphPage : GalleryPage
 {
-	public NodeGraphPage() : base( "Node Graph", "Drag nodes by their body; Ctrl or Shift adds to the selection and empty space box-selects. Middle-drag pans and the wheel zooms. Drag from a handle to edit wires, Delete removes the selection. Right-click to add a comment; drop nodes inside one to put them in it, and right-click one to take it out. Hover a node or a handle for its tooltip." )
+	public NodeGraphPage() : base( "Node Graph", "Drag nodes by their body; Ctrl or Shift adds to the selection and empty space box-selects. Middle-drag pans and the wheel zooms. Drag from a handle to edit wires, Delete removes the selection. Right-click empty space or press Space for the node menu - type to filter it. Drop a wire on empty space for the nodes that fit it, or hold R to end it in a reroute; Shift-click a wire to reroute it. Right-click a node for its own entries and to comment it; drop nodes inside a comment to put them in it. Hover a node or a handle for its tooltip." )
 	{
 		var row = Case( "Material graph", column: true );
 
@@ -16,34 +17,60 @@ public partial class NodeGraphPage : GalleryPage
 		var tools = row.AddChild<Toolbar>();
 		tools.AddButton( "Delete selection", "delete", graph.DeleteSelection );
 		tools.AddButton( "Select all", "select_all", graph.SelectAll );
+		tools.AddButton( "Center on selection", "center_focus_strong", graph.CenterOnSelection );
 		tools.AddButton( "Reset view", "fit_screen", graph.FitView );
 		tools.AddButton( "Reset graph", "restart_alt", () => graph.Graph = BuildGraph() );
 		row.AddChild( graph );
 
 		var output = Output();
 		graph.SelectionChanged += () => output.Text = Describe( graph );
+		graph.UndoChanged += () => output.Text = Describe( graph );
 		output.Text = Describe( graph );
 	}
 
 	static string Describe( DemoNodeGraph graph )
 	{
 		var selected = graph.SelectedNodes.Select( x => x.DisplayInfo.Name ).ToArray();
-		return $"{graph.Nodes.Count} nodes · {(selected.Length == 0 ? "nothing selected" : $"selected: {string.Join( ", ", selected )}")}";
+		var undo = graph.UndoLog.Count == 0 ? "nothing to undo" : $"undo: {string.Join( ", ", graph.UndoLog.TakeLast( 5 ) )}";
+		return $"{graph.Nodes.Count} nodes · {(selected.Length == 0 ? "nothing selected" : $"selected: {string.Join( ", ", selected )}")} · {undo}";
 	}
 
 	/// <summary>
-	/// A graph panel with a handle look per value type.
+	/// A graph panel with a handle look per value type, a node menu, comments, reroutes and an
+	/// undo log in place of real undo.
 	/// </summary>
 	sealed class DemoNodeGraph : NodeGraphPanel
 	{
 		bool _fitted;
+		string _pending;
+
+		/// <summary>
+		/// The edits made, by name, oldest first.
+		/// </summary>
+		public List<string> UndoLog { get; } = new();
+
+		public event Action UndoChanged;
 
 		public DemoNodeGraph()
 		{
 			Style.Width = Length.Percent( 100 );
 			Style.Height = 560;
+		}
 
-			CommentFactory = () => new DemoComment( Guid.NewGuid().ToString(), "Comment", null, (Color)"#33b679", default );
+		protected override INodeType CommentNodeType => DemoCommentType;
+		protected override INodeType RerouteNodeType => DemoRerouteType;
+
+		protected override IEnumerable<INodeType> GetRelevantNodes( NodeQuery query ) => DemoNodeTypes.Filter( query );
+
+		public override void PushUndo( string name ) => _pending = name;
+
+		public override void PushRedo()
+		{
+			if ( _pending is null ) return;
+
+			UndoLog.Add( _pending );
+			_pending = null;
+			UndoChanged?.Invoke();
 		}
 
 		protected override NodeHandleConfig OnGetHandleConfig( Type type )
@@ -160,11 +187,19 @@ public partial class NodeGraphPage : GalleryPage
 		var addResult = add.AddOutput( "result", "Result", typeof( float ) );
 		addA.ConnectedOutput = seconds;
 
-		// Draws its own plot through INode.OnPaint.
-		var remap = new CurveNode( "remap", "Remap Curve", "show_chart", "Shapes a value with a curve.", (Color)"#8fd6a8", new( -216, -60 ) ) { ExpandSize = new( 72, 72 ) };
+		// Draws its own plot through INode.OnPaint, takes double-clicks and has a definition to go to.
+		var remap = new CurveNode( "remap", "Remap Curve", "show_chart", "Shapes a value with a curve.", (Color)"#8fd6a8", new( -216, -60 ) )
+		{
+			ExpandSize = new( 72, 72 ),
+			GoToDefinition = () => Log.Info( "Go to the definition of Remap Curve" ),
+		};
 		var remapValue = remap.AddInput( "value", "Value", typeof( float ) );
 		remap.AddOutput( "result", "Result", typeof( float ) );
-		remapValue.ConnectedOutput = sine;
+
+		// A reroute bends the sine wire, with a note above it.
+		var bend = new DemoReroute( "bend", new( -204, -120 ) ) { Comment = "Sine wave" };
+		bend.Inputs.First().ConnectedOutput = sine;
+		remapValue.ConnectedOutput = bend.Outputs.First();
 
 		var normalize = new DemoNode( "normalize", "Normalize", "straighten", "Scales a vector to length one.", (Color)"#d9b55a", new( -216, 108 ) );
 		var normalizeVector = normalize.AddInput( "vector", "Vector", typeof( Vector3 ) );
@@ -201,7 +236,7 @@ public partial class NodeGraphPage : GalleryPage
 		// A comment: moving it moves the inputs, and it grows around them as they move.
 		var inputs = new DemoComment( "inputs", "Inputs", "Everything the material reads.", (Color)"#7aa7e8", new( -480, -300 ), "time", "position", "texture", "albedo" );
 
-		DemoNode[] nodes = [inputs, time, position, texture, albedo, add, remap, normalize, unused, blend, combine, result];
+		DemoNode[] nodes = [inputs, time, position, texture, albedo, add, bend, remap, normalize, unused, blend, combine, result];
 
 		foreach ( var node in nodes )
 		{

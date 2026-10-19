@@ -116,6 +116,22 @@ public partial class NodePanel : CanvasPanel.Handle
 	}
 
 	/// <summary>
+	/// Re-read everything from the node, such as after the graph changed under the view.
+	/// </summary>
+	public void Rebuild()
+	{
+		if ( !IsValid ) return;
+
+		OnRebuild();
+		MarkNodeChanged();
+	}
+
+	/// <summary>
+	/// Re-read what <see cref="MarkNodeChanged"/> doesn't. Overrides should call the base.
+	/// </summary>
+	protected virtual void OnRebuild() => MoveTo( Node.Position );
+
+	/// <summary>
 	/// Fill the node's tooltip.
 	/// </summary>
 	protected virtual void BuildTooltip( Panel tip )
@@ -185,12 +201,14 @@ public partial class NodePanel : CanvasPanel.Handle
 	}
 
 	Dictionary<NodePanel, Vector2> _dragStart;
+	bool _pushedMove;
 
 	protected override bool OnDragStart( MousePanelEvent e )
 	{
 		Graph.PressNode( this, e.HasCtrl, e.HasShift );
 
 		_dragStart = Graph.SelectedNodes.ToDictionary( x => x, x => x.Position );
+		_pushedMove = false;
 		return Selected;
 	}
 
@@ -198,7 +216,18 @@ public partial class NodePanel : CanvasPanel.Handle
 	{
 		foreach ( var (node, start) in _dragStart )
 		{
-			if ( node.IsValid() ) node.MoveTo( (start + delta).SnapToGrid( Graph.GridSize ) );
+			if ( !node.IsValid() ) continue;
+
+			var position = (start + delta).SnapToGrid( Graph.GridSize );
+
+			// Once per drag, before the first change: comments write their members as they move
+			if ( !_pushedMove && position != node.Position )
+			{
+				_pushedMove = true;
+				Graph.PushUndo( "Move Item" );
+			}
+
+			node.MoveTo( position );
 		}
 
 		Graph.UpdateCommentDrop();
@@ -215,6 +244,13 @@ public partial class NodePanel : CanvasPanel.Handle
 
 		_dragStart = null;
 		Graph.FinishCommentDrop( cancelled );
+
+		// Even when cancelled: the undo step is open, and every PushUndo gets its PushRedo
+		if ( _pushedMove )
+		{
+			_pushedMove = false;
+			Graph.PushRedo();
+		}
 	}
 
 	protected override void OnRightClick( MousePanelEvent e )
@@ -225,7 +261,54 @@ public partial class NodePanel : CanvasPanel.Handle
 		e.StopPropagation();
 	}
 
+	/// <summary>
+	/// Hands the double-click to the node; a plug's double-click gets here only if the plug left it.
+	/// </summary>
+	protected override void OnDoubleClick( MousePanelEvent e )
+	{
+		if ( IsPreview ) return;
+
+		Node.OnDoubleClick( this, e );
+	}
+
+	/// <summary>
+	/// The plug whose row contains <paramref name="canvasPosition"/>, in canvas units: inputs
+	/// first, then outputs.
+	/// </summary>
+	protected internal virtual PlugPanel GetPlugAt( Vector2 canvasPosition )
+	{
+		foreach ( var plug in Inputs )
+		{
+			if ( new Rect( Position + plug.Position, plug.Size ).IsInside( canvasPosition ) ) return plug;
+		}
+
+		foreach ( var plug in Outputs )
+		{
+			if ( new Rect( Position + plug.Position, plug.Size ).IsInside( canvasPosition ) ) return plug;
+		}
+
+		return null;
+	}
+
+	bool _updatingPlugs;
+
 	void UpdatePlugs()
+	{
+		// Cutting a removed plug's wires marks this node changed again; this pass covers it
+		if ( _updatingPlugs ) return;
+		_updatingPlugs = true;
+
+		try
+		{
+			SyncPlugs();
+		}
+		finally
+		{
+			_updatingPlugs = false;
+		}
+	}
+
+	void SyncPlugs()
 	{
 		for ( var i = Inputs.Count - 1; i >= 0; --i )
 		{
@@ -233,6 +316,7 @@ public partial class NodePanel : CanvasPanel.Handle
 			if ( !Node.Inputs.Contains( plugIn.Inner ) )
 			{
 				Inputs.RemoveAt( i );
+				if ( !IsPreview ) Graph.RemoveConnections( plugIn );
 				plugIn.Delete( true );
 			}
 		}
@@ -243,6 +327,7 @@ public partial class NodePanel : CanvasPanel.Handle
 			if ( !Node.Outputs.Contains( plugOut.Inner ) )
 			{
 				Outputs.RemoveAt( i );
+				if ( !IsPreview ) Graph.RemoveConnections( plugOut );
 				plugOut.Delete( true );
 			}
 		}
@@ -478,15 +563,23 @@ public partial class NodePanel : CanvasPanel.Handle
 		return WordWrapPointRegex.Replace( value, x => $"{x.Value[0]}\x200B{x.Value[1]}" );
 	}
 
-	public override void OnDraw( Painter painter )
+	/// <summary>
+	/// Paint the wires this node owns, see <see cref="Connection.PaintOwner"/>. First, so they
+	/// share its depth: over the nodes behind it, under its body.
+	/// </summary>
+	protected void DrawWires( Painter painter )
 	{
-		// Wires out of this node first, so they share its depth: over the nodes behind it, under its body
 		foreach ( var wire in PaintedWires )
 		{
 			using var scope = painter.Scope();
 			wire.Paint( painter, Position, ScaleToScreen );
 			wire.PaintHandles( painter, Position, ScaleToScreen );
 		}
+	}
+
+	public override void OnDraw( Painter painter )
+	{
+		DrawWires( painter );
 
 		var paint = new NodePaint( this, painter ) { HasMouseOver = HasHovered };
 
@@ -495,6 +588,13 @@ public partial class NodePanel : CanvasPanel.Handle
 
 		PrimaryColor = Node.PrimaryColor;
 		PrimaryTitleColor = Node.TitleColor;
+
+		// Nothing reaches the graph's output through it: dimmed, like its plugs
+		if ( !Node.IsReachable && !Selected )
+		{
+			PrimaryColor = PrimaryColor.Desaturate( 0.5f ).Darken( 0.25f );
+			PrimaryTitleColor = PrimaryTitleColor.Desaturate( 0.5f ).Darken( 0.25f );
+		}
 
 		var hasError = !string.IsNullOrWhiteSpace( Node.ErrorMessage );
 		var body = BodyColor;

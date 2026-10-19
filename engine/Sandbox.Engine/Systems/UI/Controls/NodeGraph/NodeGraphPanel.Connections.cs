@@ -26,18 +26,15 @@ public partial class NodeGraphPanel
 	public PlugPanel DropTarget { get; private set; }
 
 	/// <summary>
-	/// The wire shown while dragging from a plug.
+	/// The wire shown while dragging from a plug, and after a drop on empty space until the node
+	/// menu it opened closes.
 	/// </summary>
 	public Connection Preview { get; private set; }
-
-	/// <summary>
-	/// A wire dragged from a plug was released on nothing. The editor opens its node menu here.
-	/// </summary>
-	public event Action<PlugPanel, Vector2> PlugDroppedOnEmpty;
 
 	PlugPanel _pressPlug;
 	Connection _pressSource;
 	bool _plugDragging;
+	PlugPanel _draggingPlug;
 
 	Connection _pressWire;
 	Vector2 _pressWireStart;
@@ -48,16 +45,16 @@ public partial class NodeGraphPanel
 	Connection _handleConnection;
 	int _handleIndex = -1;
 	Vector2 _handleGrab;
+	bool _handleUndo;
 
 	string _cursor;
 
-	partial void OnRebuilt()
+	partial void OnCleared()
 	{
 		_connections.Clear();
 		_wiredInputs.Clear();
 
-		DropTarget = null;
-		Preview = null;
+		EndPreview();
 		_pressPlug = null;
 		_pressSource = null;
 		_plugDragging = false;
@@ -66,8 +63,6 @@ public partial class NodeGraphPanel
 		_hover = null;
 		_hoverHandle = -1;
 		_handleConnection = null;
-
-		SyncConnections();
 	}
 
 	partial void OnNodeRemoving( NodePanel node )
@@ -93,16 +88,26 @@ public partial class NodeGraphPanel
 
 	/// <summary>
 	/// Connect <paramref name="output"/> to <paramref name="input"/>, replacing whatever the input had.
-	/// Returns null when either plug hides its connection.
+	/// <paramref name="uiOnly"/> adds the wire for a connection the model already has. Returns null
+	/// when either plug hides its connection.
 	/// </summary>
-	public Connection Connect( PlugOutPanel output, PlugInPanel input )
+	protected virtual Connection CreateConnection( PlugOutPanel output, PlugInPanel input, bool uiOnly = false )
 	{
 		ArgumentNullException.ThrowIfNull( output );
 		ArgumentNullException.ThrowIfNull( input );
 
-		input.Inner.ConnectedOutput = output.Inner;
-		input.Node.MarkNodeChanged();
-		output.Node.MarkNodeChanged();
+		if ( !uiOnly )
+		{
+			input.Inner.ConnectedOutput = output.Inner;
+			input.Node.MarkNodeChanged();
+			output.Node.MarkNodeChanged();
+		}
+
+		// An input has one wire: whatever it had no longer matches the model
+		foreach ( var old in _connections.Where( x => x.Input == input ).ToArray() )
+		{
+			Forget( old );
+		}
 
 		if ( !output.Inner.ShowConnection || !input.Inner.ShowConnection )
 		{
@@ -120,7 +125,7 @@ public partial class NodeGraphPanel
 	/// <summary>
 	/// Remove <paramref name="connection"/> and clear its input's connected output.
 	/// </summary>
-	internal void RemoveConnection( Connection connection )
+	public virtual void RemoveConnection( Connection connection )
 	{
 		var input = connection.Input;
 		var output = connection.Output;
@@ -130,12 +135,7 @@ public partial class NodeGraphPanel
 			input.Inner.ConnectedOutput = null;
 		}
 
-		_connections.Remove( connection );
-		if ( input.IsValid() ) _wiredInputs.Remove( input.Inner );
-
-		if ( _hover == connection ) _hover = null;
-		if ( _pressWire == connection ) _pressWire = null;
-		if ( _handleConnection == connection ) _handleConnection = null;
+		Forget( connection );
 
 		if ( input.IsValid() ) input.Node.MarkNodeChanged();
 		if ( output.IsValid() ) output.Node.MarkNodeChanged();
@@ -145,6 +145,41 @@ public partial class NodeGraphPanel
 			connection.Selected = false;
 			SelectionChanged?.Invoke();
 		}
+	}
+
+	/// <summary>
+	/// Remove every wire into <paramref name="plugIn"/>.
+	/// </summary>
+	internal void RemoveConnections( PlugInPanel plugIn )
+	{
+		foreach ( var connection in _connections.Where( x => x.Input == plugIn ).ToArray() )
+		{
+			RemoveConnection( connection );
+		}
+	}
+
+	/// <summary>
+	/// Remove every wire out of <paramref name="plugOut"/>.
+	/// </summary>
+	internal void RemoveConnections( PlugOutPanel plugOut )
+	{
+		foreach ( var connection in _connections.Where( x => x.Output == plugOut ).ToArray() )
+		{
+			RemoveConnection( connection );
+		}
+	}
+
+	/// <summary>
+	/// Drop a wire from the view, leaving the model alone.
+	/// </summary>
+	void Forget( Connection connection )
+	{
+		if ( !_connections.Remove( connection ) ) return;
+
+		if ( connection.Input.IsValid() ) _wiredInputs.Remove( connection.Input.Inner );
+		if ( _hover == connection ) _hover = null;
+		if ( _pressWire == connection ) _pressWire = null;
+		if ( _handleConnection == connection ) _handleConnection = null;
 	}
 
 	/// <summary>
@@ -165,11 +200,7 @@ public partial class NodeGraphPanel
 				continue;
 			}
 
-			_connections.RemoveAt( i );
-			if ( connection.Input.IsValid() ) _wiredInputs.Remove( connection.Input.Inner );
-			if ( _hover == connection ) _hover = null;
-			if ( _pressWire == connection ) _pressWire = null;
-			if ( _handleConnection == connection ) _handleConnection = null;
+			Forget( connection );
 		}
 
 		foreach ( var node in _nodes )
@@ -181,8 +212,7 @@ public partial class NodeGraphPanel
 				if ( _wiredInputs.Contains( input.Inner ) ) continue;
 				if ( FindPlug( output ) is not PlugOutPanel outputPanel ) continue;
 
-				_connections.Add( new Connection( this, outputPanel, input ) );
-				_wiredInputs.Add( input.Inner );
+				CreateConnection( outputPanel, input, uiOnly: true );
 			}
 		}
 	}
@@ -191,27 +221,39 @@ public partial class NodeGraphPanel
 	/// The plug whose row contains <paramref name="position"/>, in canvas units. Comments are skipped:
 	/// they have no plugs and sit behind what they hold, so they mustn't hide their members' plugs.
 	/// </summary>
-	PlugPanel GetPlugAt( Vector2 position )
+	protected PlugPanel GetPlugAt( Vector2 position )
 	{
 		for ( var i = _nodes.Count - 1; i >= 0; i-- )
 		{
 			var node = _nodes[i];
 			if ( node is CommentPanel || !new Rect( node.Position, node.Size ).IsInside( position ) ) continue;
 
-			foreach ( var plug in node.Inputs )
-			{
-				if ( new Rect( node.Position + plug.Position, plug.Size ).IsInside( position ) ) return plug;
-			}
-
-			foreach ( var plug in node.Outputs )
-			{
-				if ( new Rect( node.Position + plug.Position, plug.Size ).IsInside( position ) ) return plug;
-			}
-
-			return null;
+			return node.GetPlugAt( position );
 		}
 
 		return null;
+	}
+
+	/// <summary>
+	/// The node at <paramref name="position"/>, in canvas units: the one owning the plug there,
+	/// else the topmost node, else the innermost comment.
+	/// </summary>
+	protected NodePanel GetNodeAt( Vector2 position )
+	{
+		if ( GetPlugAt( position ) is { } plug ) return plug.Node;
+
+		NodePanel comment = null;
+
+		for ( var i = _nodes.Count - 1; i >= 0; i-- )
+		{
+			var node = _nodes[i];
+			if ( !new Rect( node.Position, node.Size ).IsInside( position ) ) continue;
+
+			if ( node is not CommentPanel ) return node;
+			comment ??= node;
+		}
+
+		return comment;
 	}
 
 	Vector2 MouseCanvas => ScreenToCanvas( MousePosition );
@@ -225,6 +267,9 @@ public partial class NodeGraphPanel
 	/// </summary>
 	internal void PlugPressed( PlugPanel plug )
 	{
+		// The graph takes keys from here on, so holding R while dropping the wire is heard
+		Focus();
+
 		_pressPlug = plug;
 		_pressSource = null;
 		_plugDragging = false;
@@ -293,10 +338,21 @@ public partial class NodeGraphPanel
 		var source = _pressSource;
 
 		ClearPlugPress();
+		EndPreview();
+
+		if ( source is not null ) Restore( source );
+	}
+
+	/// <summary>
+	/// Drop the preview wire and the drop target.
+	/// </summary>
+	void EndPreview()
+	{
 		DropTarget = null;
 		Preview = null;
 
-		if ( source is not null ) Restore( source );
+		if ( _draggingPlug.IsValid() ) _draggingPlug.Dragging = false;
+		_draggingPlug = null;
 	}
 
 	void Restore( Connection connection )
@@ -328,11 +384,24 @@ public partial class NodeGraphPanel
 		Preview ??= new Connection( this, plug );
 		Preview.LayoutForPreview( plug, position, DropTarget );
 
+		if ( _draggingPlug != plug )
+		{
+			if ( _draggingPlug.IsValid() ) _draggingPlug.Dragging = false;
+			_draggingPlug = plug;
+			plug.Dragging = true;
+		}
+
 		if ( source is not null ) source.Dragging = true;
 		plug.SetDragCursor( true );
 	}
 
-	void DroppedPlug( PlugPanel plug, Vector2 position, Connection source )
+	/// <summary>
+	/// A wire from <paramref name="plug"/> was let go at <paramref name="position"/>, in canvas
+	/// units. <paramref name="source"/> is the wire it was pulled off, if any. On a plug it
+	/// connects; on nothing it drops the wire it came from, or opens the node menu to make
+	/// something to connect to - or, with R held, a reroute.
+	/// </summary>
+	internal void DroppedPlug( PlugPanel plug, Vector2 position, Connection source )
 	{
 		var disconnected = false;
 		var connected = false;
@@ -344,10 +413,14 @@ public partial class NodeGraphPanel
 			if ( source.Input == DropTarget )
 			{
 				Restore( source );
-				DropTarget = null;
-				Preview = null;
+				EndPreview();
 				return;
 			}
+
+			// A pressed input let go of its wire already: put it back, so the undo step starts
+			// from the graph as it was
+			Restore( source );
+			PushUndo( DropTarget.IsValid() ? "Change Connection" : "Drop Connection" );
 
 			disconnected = true;
 			source.Disconnect();
@@ -357,24 +430,34 @@ public partial class NodeGraphPanel
 		{
 			connected = true;
 
-			foreach ( var connection in _connections.Where( x => x.Input == DropTarget ).ToArray() )
-			{
-				RemoveConnection( connection );
-			}
+			if ( !disconnected ) PushUndo( "Create Connection" );
 
 			var output = plug as PlugOutPanel ?? DropTarget as PlugOutPanel;
 			var input = plug as PlugInPanel ?? DropTarget as PlugInPanel;
 
-			Connect( output, input );
+			RemoveConnections( input );
+			CreateConnection( output, input );
 		}
+
+		if ( disconnected || connected ) PushRedo();
 
 		DropTarget = null;
-		Preview = null;
 
-		if ( !disconnected && !connected )
+		if ( !disconnected && !connected && Graph is not null )
 		{
-			PlugDroppedOnEmpty?.Invoke( plug, position );
+			if ( _createReroute && RerouteNodeType is not null )
+			{
+				CreateNewNode( RerouteNodeType, position - new Vector2( ReroutePanel.Diameter * 0.5f ), plug, selected: false );
+			}
+			else
+			{
+				// The preview keeps showing the dangling wire until the menu closes
+				OpenContextMenu( position, null, plug, onClose: EndPreview );
+				return;
+			}
 		}
+
+		EndPreview();
 	}
 
 	//
@@ -572,6 +655,33 @@ public partial class NodeGraphPanel
 
 		_handleConnection = null;
 		_handleIndex = -1;
+
+		if ( _handleUndo )
+		{
+			_handleUndo = false;
+			PushRedo();
+		}
+	}
+
+	/// <summary>
+	/// Split <paramref name="connection"/> with a reroute centred on <paramref name="position"/>,
+	/// in canvas units, as one undo step. Does nothing without <see cref="RerouteNodeType"/>.
+	/// </summary>
+	internal void RerouteConnection( Connection connection, Vector2 position )
+	{
+		if ( RerouteNodeType is null || Graph is null || !connection.IsValid ) return;
+
+		using var undoScope = UndoScope( "Reroute Connection" );
+
+		var panel = CreateNewNode( RerouteNodeType, position - new Vector2( ReroutePanel.Diameter * 0.5f ) );
+		if ( panel is null || panel.Inputs.Count == 0 || panel.Outputs.Count == 0 ) return;
+
+		var from = connection.Output;
+		var to = connection.Input;
+
+		RemoveConnection( connection );
+		CreateConnection( from, panel.Inputs[0] );
+		CreateConnection( panel.Outputs[0], to );
 	}
 
 	protected override void OnMouseDown( MousePanelEvent e )
@@ -588,6 +698,14 @@ public partial class NodeGraphPanel
 				if ( _hoverHandle >= 0 )
 				{
 					BeginHandleDrag( connection, _hoverHandle );
+					return;
+				}
+
+				// Shift-click splits the wire with a reroute, like the editor; without reroutes
+				// Shift adds to the selection
+				if ( e.HasShift && RerouteNodeType is not null && Graph is not null )
+				{
+					RerouteConnection( connection, MouseCanvas );
 					return;
 				}
 
@@ -656,6 +774,7 @@ public partial class NodeGraphPanel
 	{
 		_handleConnection = connection;
 		_handleIndex = index;
+		_handleUndo = false;
 		connection.DraggedHandle = index;
 		_handleGrab = MouseCanvas - connection.Handles[index].GetPosition( connection );
 	}
@@ -676,6 +795,12 @@ public partial class NodeGraphPanel
 		if ( offset.AlmostEqual( 0f ) ) return;
 
 		var value = config.GetValue( connection ) + offset;
+
+		if ( !_handleUndo )
+		{
+			_handleUndo = true;
+			PushUndo( "Move Item" );
+		}
 
 		connection.Input.Inner.SetHandleOffset( config.Name, value.AlmostEqual( config.Default ) ? null : value );
 		connection.Layout();

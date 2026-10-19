@@ -70,6 +70,8 @@ public partial class NodeGraphPanel
 	{
 		if ( !TryCopy() ) return false;
 
+		using var undoScope = UndoScope( "Cut Selection" );
+
 		RemoveCopyable();
 		return true;
 	}
@@ -85,6 +87,9 @@ public partial class NodeGraphPanel
 
 		try
 		{
+			// Before deserializing: that adds the nodes to the graph
+			using var undoScope = UndoScope( "Paste Selection" );
+
 			ShowPasted( Graph.DeserializeNodes( json ).ToArray(), position ?? MouseTarget );
 		}
 		catch ( Exception e )
@@ -102,6 +107,8 @@ public partial class NodeGraphPanel
 	{
 		var nodes = CopyableSelection();
 		if ( nodes.Length == 0 || Graph?.SerializeNodes( nodes.Select( x => x.Node ) ) is not { } json ) return;
+
+		using var undoScope = UndoScope( "Duplicate Selection" );
 
 		ShowPasted( Graph.DeserializeNodes( json ).ToArray(), MouseTarget );
 	}

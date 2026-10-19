@@ -47,6 +47,27 @@ public abstract partial class PlugPanel
 	}
 
 	/// <summary>
+	/// Hands the double-click to the plug; unless it stops it, the node gets it next.
+	/// </summary>
+	protected override void OnDoubleClick( MousePanelEvent e )
+	{
+		if ( Node.IsPreview ) return;
+
+		Inner.OnDoubleClick( this, e );
+	}
+
+	/// <summary>
+	/// The plug's own menu, if it has one; otherwise the node's.
+	/// </summary>
+	protected override void OnRightClick( MousePanelEvent e )
+	{
+		if ( Node.IsPreview || Inner.CreateContextMenu( this ) is not { } menu ) return;
+
+		Node.Graph.OpenMenu( menu );
+		e.StopPropagation();
+	}
+
+	/// <summary>
 	/// The pointer while a wire is being dragged from this plug.
 	/// </summary>
 	internal void SetDragCursor( bool dragging )
