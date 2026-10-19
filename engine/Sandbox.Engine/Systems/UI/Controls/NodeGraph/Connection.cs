@@ -70,10 +70,28 @@ public class Connection
 	internal int Rank => Hovered ? 2 : Selected ? 1 : 0;
 
 	/// <summary>
-	/// The node that paints this wire, so the wire sits at its depth: the output's, or the input's
-	/// while a wire dragged from an input has no output yet.
+	/// The node that paints this wire, so the wire sits at its depth: whichever end draws lower.
+	/// Under both ends, each node's plug handle covers the wire's cap - painting from a raised node
+	/// (selected and focused, or dragged) would put the cap over the other node's handle. A wire
+	/// dragged out of one plug has only that end.
 	/// </summary>
-	internal NodePanel PaintOwner => Output.IsValid() ? Output.Node : Input.IsValid() ? Input.Node : null;
+	internal NodePanel PaintOwner
+	{
+		get
+		{
+			var output = Output.IsValid() ? Output.Node : null;
+			var input = Input.IsValid() ? Input.Node : null;
+			if ( output is null || input is null ) return output ?? input;
+
+			return DrawOrder( input ).CompareTo( DrawOrder( output ) ) < 0 ? input : output;
+		}
+	}
+
+	/// <summary>
+	/// Where a node falls in its parent's draw order, the way panels sort for rendering: sibling index
+	/// plus z-index, then sibling index.
+	/// </summary>
+	static (int Order, int Sibling) DrawOrder( NodePanel node ) => (node.SiblingIndex + (node.ComputedStyle?.ZIndex ?? 0), node.SiblingIndex);
 
 	readonly List<Vector2> _points = new();
 	readonly List<ConnectionHandleConfig> _handles = new();
