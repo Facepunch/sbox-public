@@ -1,0 +1,47 @@
+{
+  "RootObject": {
+    "__guid": "89af9f8b-d439-4bca-b824-45615b8a4111",
+    "Flags": 0,
+    "Name": "Fog",
+    "Enabled": true,
+    "Components": [
+      {
+        "__type": "Sandbox.Fog",
+        "__guid": "3a542359-079d-49c8-bd93-9597a802e289",
+        "__enabled": true
+      }
+    ],
+    "Children": [],
+    "__variables": [],
+    "__properties": {
+      "FixedUpdateFrequency": 50,
+      "MaxFixedUpdates": 5,
+      "NetworkFrequency": 30,
+      "NetworkInterpolation": true,
+      "PhysicsSubSteps": 1,
+      "ThreadedAnimation": true,
+      "TimeScale": 1,
+      "UseFixedUpdate": true,
+      "Metadata": {},
+      "NavMesh": {
+        "Enabled": false,
+        "IncludeStaticBodies": true,
+        "IncludeKeyframedBodies": true,
+        "EditorAutoUpdate": true,
+        "AgentHeight": 64,
+        "AgentRadius": 16,
+        "AgentStepSize": 18,
+        "AgentMaxSlope": 40,
+        "ExcludedBodies": "",
+        "IncludedBodies": ""
+      }
+    }
+  },
+  "ShowInMenu": true,
+  "MenuPath": "Misc/Fog",
+  "MenuIcon": "foggy",
+  "DontBreakAsTemplate": false,
+  "ResourceVersion": 1,
+  "__references": [],
+  "__version": 1
+}

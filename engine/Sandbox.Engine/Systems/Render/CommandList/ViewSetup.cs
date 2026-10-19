@@ -63,6 +63,13 @@ public struct ViewSetup
 	public GradientFogSetup? GradientFog;
 
 	/// <summary>
+	/// Overrides camera-local fog for this view, even when post processing is disabled.
+	/// Null inherits the camera when its post processing is enabled and GradientFog has no explicit override.
+	/// A full-weight setup replaces both legacy gradient and cubemap fog; volumetric fog is separate.
+	/// </summary>
+	public FogSetup? Fog;
+
+	/// <summary>
 	/// If set then the regular scene's ambient light will be multiplied by this
 	/// </summary>
 	public Color? AmbientLightTint;

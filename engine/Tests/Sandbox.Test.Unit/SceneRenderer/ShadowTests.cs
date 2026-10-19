@@ -15,6 +15,42 @@ namespace SceneRendererTests;
 public class ShadowTests
 {
 	/// <summary>
+	/// The dominant sun's current color and direction are available with global or per-light shadows disabled.
+	/// </summary>
+	[TestMethod]
+	public void UnshadowedSunDataStaysCurrent()
+	{
+		var csmEnabled = Sandbox.Rendering.ShadowMapper.CSMEnabled;
+		try
+		{
+			var mapper = new Sandbox.Rendering.ShadowMapper();
+			var light = new Sandbox.Rendering.ShadowLight
+			{
+				Color = new Vector3( 1, 0.5f, 0.25f ),
+				Direction = Vector3.Down,
+				ShadowsEnabled = false
+			};
+			Sandbox.Rendering.ShadowMapper.CSMEnabled = true;
+			mapper.DoDirectionalLight( light );
+			Assert.AreEqual( new Vector4( light.Color, 0 ), mapper.DirectionalLightData.Color );
+			Assert.AreEqual( new Vector4( light.Direction, 0 ), mapper.DirectionalLightData.Direction );
+
+			Sandbox.Rendering.ShadowMapper.CSMEnabled = false;
+			light.Color = Vector3.One;
+			light.Direction = Vector3.Forward;
+			mapper.DoDirectionalLight( light );
+			Assert.IsTrue( mapper.DirectionalLightData.Enabled );
+			Assert.AreEqual( 0u, mapper.DirectionalLightData.CascadeCount );
+			Assert.AreEqual( new Vector4( light.Color, 0 ), mapper.DirectionalLightData.Color );
+			Assert.AreEqual( new Vector4( light.Direction, 0 ), mapper.DirectionalLightData.Direction );
+		}
+		finally
+		{
+			Sandbox.Rendering.ShadowMapper.CSMEnabled = csmEnabled;
+		}
+	}
+
+	/// <summary>
 	/// The sun gets four orthographic cascades, each bigger than the last, and a cascade leaves out
 	/// casters the one before it already covers - native's exclusion frustum.
 	/// </summary>

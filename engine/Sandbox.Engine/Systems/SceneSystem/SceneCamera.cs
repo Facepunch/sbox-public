@@ -153,6 +153,31 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	public CubemapFogController CubemapFog { get; init; } = new();
 
 	/// <summary>
+	/// Camera-local fog resolved from Fog components. Null preserves the legacy gradient and
+	/// cubemap fog. A disabled setup with full weight explicitly clears those fog layers.
+	/// CameraComponent refreshes this value during rendering setup; use its Fog components
+	/// for persistent settings or ViewSetup.Fog for an individual capture override.
+	/// </summary>
+	public FogSetup? Fog { get; set; }
+
+	/// <summary>
+	/// Choose this view's fog without changing the camera or world. Explicit capture settings
+	/// take precedence, including legacy gradient overrides authored before camera-local fog.
+	/// </summary>
+	internal FogSetup? ResolveFog( in ViewSetup setup )
+	{
+		if ( setup.Fog.HasValue )
+			return setup.Fog;
+
+		// ViewSetup.EnablePostprocessing controls fullscreen effects only. The camera's switch
+		// disables inherited camera fog, and explicit legacy captures keep their own fog settings.
+		if ( setup.GradientFog.HasValue || !EnablePostProcessing )
+			return null;
+
+		return Fog;
+	}
+
+	/// <summary>
 	/// Define the rotations for each of the 6 cube faces (right, left, up, down, front, back)
 	/// </summary>
 	internal static readonly Rotation[] CubeRotations =

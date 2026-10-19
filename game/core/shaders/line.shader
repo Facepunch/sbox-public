@@ -71,7 +71,7 @@ PS
 	DynamicCombo( D_ENABLE_LIGHTING, 0..1, Sys( ALL ) );
 	
 	float g_DepthFeather < Attribute( "g_DepthFeather" ); >;
-	float g_FogStrength < Attribute( "g_FogStrength" ); >;
+	float g_FogStrength < Attribute( "g_FogStrength" ); Default( 1 ); >;
 
 	int SamplerIndex < Attribute("SamplerIndex"); >;
 
@@ -132,7 +132,7 @@ PS
 		#endif
 
 		#if D_ENABLE_LIGHTING
-			// Can't call ShadingModelStandard::Shade directly because we need to pass in D_BLEND to DoAtmospherics
+			// Lighting produces straight color; both lit and unlit lines apply fog below.
 			LightingTerms_t lightingTerms = InitLightingTerms();
 			CombinerInput combinerInput = ShadingModelStandard::MaterialToCombinerInput( m );
 
@@ -162,16 +162,20 @@ PS
 			if( ToolsVis::WantsToolsVis() )
 				return ShadingModelStandard::DoToolsVis( color, m, lightingTerms );
 
-			// Pass in blend to support addtive blending
-			color = DoAtmospherics( m.WorldPosition, m.ScreenPosition.xy, color, D_BLEND );
-
-			return color;
-
 		#else
-
-			return float4( m.Albedo.rgb + m.Emission.rgb, m.Opacity );
-
+			float4 color = float4( m.Albedo.rgb + m.Emission.rgb, m.Opacity );
 		#endif
+
+		if ( g_bFogEnabled )
+		{
+			#if D_BLEND && !D_OPAQUE
+				color.a *= Fog::Transmittance( m.WorldPosition, m.ScreenPosition.xy, g_FogStrength );
+			#else
+				color.rgb = Fog::Apply( m.WorldPosition, m.ScreenPosition.xy, color.rgb, g_FogStrength );
+			#endif
+		}
+
+		return color;
 	}
 
 

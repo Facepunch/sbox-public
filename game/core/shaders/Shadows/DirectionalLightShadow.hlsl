@@ -198,7 +198,7 @@ struct DirectionalLightShadow
 		{
 			float3 toCenter = worldPosition - g_DirectionalLightCascadeSpheres[i].xyz;
 			if ( dot( toCenter, toCenter ) < g_DirectionalLightCascadeSpheres[i].w )
-				return DebugColors[i];
+				return i == 0 ? DebugColors[0] : i == 1 ? DebugColors[1] : i == 2 ? DebugColors[2] : DebugColors[3]; // a runtime index would put the table in local memory
 		}
 
         return float3( 0.0f, 0.0f, 0.0f );

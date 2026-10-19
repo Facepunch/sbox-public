@@ -2,8 +2,9 @@
 
 // TODO - requires camera component
 /// <summary>
-/// Applies a cubemap fog effect to the camera
+/// Legacy cubemap fog retained for existing scenes. Use <see cref="Fog"/> for new fog effects.
 /// </summary>
+[Obsolete( "Use Fog instead." ), Hide]
 [Expose]
 [Title( "Cubemap Fog" )]
 [Category( "Post Processing" )]

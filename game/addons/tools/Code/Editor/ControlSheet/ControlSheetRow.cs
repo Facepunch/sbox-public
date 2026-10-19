@@ -8,6 +8,11 @@ namespace Editor;
 /// </summary>
 class ControlSheetRow : Widget
 {
+	/// <summary>
+	/// Minimum label width shared with the aligned group header divider.
+	/// </summary>
+	internal const int LabelColumnWidth = 140;
+
 	public ControlWidget ControlWidget { get; private set; }
 
 	SerializedProperty property;
@@ -170,7 +175,7 @@ class ControlSheetRow : Widget
 		gridLayout.SetColumnStretch( 0, 0, 0, 1 );
 		gridLayout.SetMinimumColumnWidth( 0, 0 );
 		gridLayout.SetMinimumColumnWidth( 1, 0 );
-		gridLayout.SetMinimumColumnWidth( 2, 140 );
+		gridLayout.SetMinimumColumnWidth( 2, LabelColumnWidth );
 
 		UpdateValidation();
 	}

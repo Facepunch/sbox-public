@@ -25,12 +25,26 @@ public abstract class BasePostProcess : Component, Component.ExecuteInEditor, Co
 	protected CameraComponent Camera => context.Camera;
 
 	/// <summary>
+	/// Build this effect when preparing a render camera, instead of building command lists at the end of the update.
+	/// Camera effects can supply settings through TargetCamera and use scene-wide defaults outside cameras and volumes.
+	/// This declaration must be the same for every instance of an effect type.
+	/// </summary>
+	public virtual bool IsCameraEffect => false;
+
+	/// <summary>
+	/// The render camera receiving this effect's settings. Only available during Render for camera effects.
+	/// This may be an editor viewport or capture rather than Camera.SceneCamera.
+	/// </summary>
+	protected SceneCamera TargetCamera => context.TargetCamera;
+
+	/// <summary>
 	/// The default attributes for this post process. This will be used by helper functions like Blit.
 	/// </summary>
 	protected readonly RenderAttributes Attributes = new();
 
 	internal void Build( PostProcessContext ctx )
 	{
+		var previousContext = _currentContext;
 		_currentContext = ctx;
 
 		try
@@ -41,12 +55,13 @@ public abstract class BasePostProcess : Component, Component.ExecuteInEditor, Co
 		}
 		finally
 		{
-			_currentContext = default;
+			_currentContext = previousContext;
 		}
 	}
 
 	/// <summary>
-	/// Override in your implementation to do your rendering
+	/// Build command lists, or apply settings to TargetCamera when IsCameraEffect is true.
+	/// Called on the main thread with the camera's weighted effect instances available through GetWeighted.
 	/// </summary>
 	public abstract void Render();
 

@@ -1,4 +1,3 @@
-using Sandbox.Volumes;
 namespace Sandbox;
 
 /// <summary>
@@ -101,25 +100,14 @@ public sealed partial class PostProcessSystem : GameObjectSystem<PostProcessSyst
 		if ( !cc.EnablePostProcessing )
 			return;
 
-		var pos = cc.PostProcessAnchor.IsValid() ? cc.PostProcessAnchor.WorldPosition : cc.WorldPosition;
+		var pos = cc.PostProcessPosition;
 
 		var scratch = RentBuildScratch();
 		try
 		{
 			scratch.AddEffects( cc.GameObject, 1 );
 
-			foreach ( var volume in Scene.Query<PostProcessVolume>() )
-			{
-				if ( ((VolumeSystem.IVolume)volume).Test( pos ) )
-					scratch.Volumes.Add( (volume, volume.Priority, scratch.Volumes.Count) );
-			}
-
-			// Match OrderBy's stable ordering when volumes have equal priority.
-			scratch.Volumes.Sort( static ( a, b ) =>
-			{
-				var order = a.Priority.CompareTo( b.Priority );
-				return order != 0 ? order : a.Index.CompareTo( b.Index );
-			} );
+			scratch.CollectVolumes( Scene, pos );
 			foreach ( var entry in scratch.Volumes )
 				scratch.AddEffects( entry.Volume.GameObject, entry.Volume.GetWeight( pos ) );
 
@@ -146,6 +134,86 @@ public sealed partial class PostProcessSystem : GameObjectSystem<PostProcessSyst
 		{
 			ReturnBuildScratch( scratch );
 		}
+	}
+
+	/// <summary>
+	/// Build camera effects directly into the destination view, including inactive captures and editor viewports.
+	/// Uses the same effect grouping, volume ordering and volume weights as command-list effects.
+	/// </summary>
+	internal void ApplyCameraEffects( CameraComponent camera, SceneCamera target, bool preview = false )
+	{
+		ThreadSafe.AssertIsMainThread();
+		if ( !EnablePostProcess || !camera.EnablePostProcessing || Application.IsDedicatedServer )
+			return;
+
+		PostProcessVolume previewVolume = null;
+		if ( preview && Scene.IsEditor && Scene.Editor is { IsActive: true, SelectedGameObject: { } selected } )
+		{
+			var owner = GetOwner( selected );
+			if ( owner is CameraComponent selectedCamera )
+			{
+				camera = selectedCamera;
+			}
+			else if ( owner is PostProcessVolume { EditorPreview: true } volume )
+			{
+				previewVolume = volume;
+			}
+		}
+
+		if ( !camera.EnablePostProcessing )
+			return;
+
+		var scratch = RentBuildScratch();
+		try
+		{
+			if ( !scratch.CollectCameraEffects( Scene ) )
+				return;
+
+			scratch.AddCameraEffects( null, 1 );
+			if ( previewVolume is not null )
+			{
+				if ( previewVolume.Active )
+					scratch.AddCameraEffects( previewVolume, 1 );
+			}
+			else
+			{
+				scratch.AddCameraEffects( camera, 1 );
+				var position = camera.PostProcessPosition;
+				scratch.CollectVolumes( Scene, position );
+				foreach ( var entry in scratch.Volumes )
+				{
+					var volume = entry.Volume;
+					if ( Scene.IsEditor && !volume.EditorPreview )
+						continue;
+
+					var weight = volume.GetWeight( position );
+					scratch.AddCameraEffects( volume, weight.Clamp( 0, 1 ) );
+				}
+			}
+
+			scratch.Build( camera, target );
+		}
+		finally
+		{
+			ReturnBuildScratch( scratch );
+		}
+	}
+
+	/// <summary>
+	/// Nearest structural owner, including disabled components. A colocated volume takes precedence over a camera.
+	/// </summary>
+	static Component GetOwner( GameObject gameObject )
+	{
+		for ( var go = gameObject; go.IsValid(); go = go.Parent )
+		{
+			if ( go.GetComponent<PostProcessVolume>( true ) is { } volume )
+				return volume;
+
+			if ( go.GetComponent<CameraComponent>( true ) is { } camera )
+				return camera;
+		}
+
+		return null;
 	}
 
 	/// <summary>

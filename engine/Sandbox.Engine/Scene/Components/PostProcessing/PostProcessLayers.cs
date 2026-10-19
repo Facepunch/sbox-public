@@ -140,6 +140,10 @@ internal record struct WeightedEffect
 {
 	public BasePostProcess Effect;
 	public float Weight;
+	/// <summary>
+	/// Structural camera or volume owner for camera effects; null for scene defaults or ordinary effects.
+	/// </summary>
+	public Component Owner;
 }
 
 /// <summary>

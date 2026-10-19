@@ -414,8 +414,6 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		if ( Gizmo.Active is not null )
 			camera.Worlds.Add( Gizmo.Active.World );
 
-		CopyPostProcessing( camera );
-
 		// A camera (such as the editor viewport) might not want to take render tags into account
 		// from an existing camera source
 		if ( includeTags )
@@ -431,9 +429,22 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		camera.WireframeMode = WireframeMode;
 		camera.EnablePostProcessing = EnablePostProcessing;
 		camera.BackgroundColor = ClearFlags.Contains( ClearFlags.Color ) ? BackgroundColor : Color.Transparent;
+
+		CopyPostProcessing( camera, applyCameraEffects: false );
+		if ( IsSceneEditorCamera )
+			Scene.Camera?.CopyPostProcessing( camera, applyCameraEffects: false );
+
+		ApplyCameraEffects( camera );
 	}
 
-	internal void CopyPostProcessing( SceneCamera camera )
+	/// <summary>
+	/// Volume position after camera modifiers, before transient shake. An explicit anchor takes precedence;
+	/// raw transform edits after composition use the same fallback as rendering without recomposing the camera.
+	/// </summary>
+	internal Vector3 PostProcessPosition => PostProcessAnchor.IsValid() ? PostProcessAnchor.WorldPosition
+		: _composed && RawView == _composedBase ? View.Position : WorldPosition;
+
+	internal void CopyPostProcessing( SceneCamera camera, bool applyCameraEffects = true )
 	{
 		if ( Scene is null )
 		{
@@ -475,13 +486,27 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		// Hack because I don't want this to have to be on a camera. This
 		// is hidden from users, so we'll figure out how to square it later
 		//
+#pragma warning disable CS0618 // Retain legacy fog support for existing content.
 		foreach ( var cubemapFog in Scene.Query<CubemapFog>() )
+#pragma warning restore CS0618
 		{
 			if ( cubemapFog.Tags.HasAny( RenderExcludeTags ) )
 				continue;
 
 			cubemapFog.SetupCamera( this, camera );
 		}
+
+		if ( applyCameraEffects )
+			ApplyCameraEffects( camera );
+	}
+
+	/// <summary>
+	/// Reset component-driven fog to legacy inheritance before applying camera effects to the completed view defaults.
+	/// </summary>
+	void ApplyCameraEffects( SceneCamera camera )
+	{
+		camera.Fog = null;
+		Scene.GetSystem<PostProcessSystem>().ApplyCameraEffects( this, camera, IsSceneEditorCamera );
 	}
 
 	/// <summary>
@@ -580,15 +605,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		{
 			EnsureSceneCameraCreated();
 
-			if ( IsSceneEditorCamera )
-			{
-				UpdateSceneCamera( sceneCamera );
-				Scene.Camera?.CopyPostProcessing( sceneCamera );
-			}
-			else
-			{
-				UpdateSceneCamera( sceneCamera );
-			}
+			UpdateSceneCamera( sceneCamera );
 
 			UpdateSceneCameraUI( sceneCamera );
 			sceneCamera.RenderUI = renderUI;

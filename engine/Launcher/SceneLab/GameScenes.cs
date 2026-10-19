@@ -8,7 +8,7 @@ namespace Sandbox.SceneLab;
 ///
 /// They share a stage (<see cref="Stage"/>): a camera, the sun with sky light, the default sky and a floor.
 /// </summary>
-internal static class GameScenes
+internal static partial class GameScenes
 {
 	/// <summary>
 	/// A camera looking at the middle of the floor from above and to the side, the sun, the default sky and a floor -
@@ -1410,6 +1410,50 @@ internal static class GameScenes
 
 		// Across the box's top edge and down its side
 		AddDecal( "Wrap", "textures/shapes/circle1.vtex", new Vector3( 40, 27.5f, 37.5f ), Rotation.LookAt( new Vector3( 0, 1, -1 ) ), 1.5f, new Color( 0.9f, 0.2f, 0.1f ), depth: 40 );
+
+		return scene;
+	}
+
+	/// <summary>
+	/// Envmaps and decals for benchmarking their loops in the forward shaders: glossy props under a 4x4 grid of
+	/// overlapping, feathered envmap probes, so neighbouring pixels blend different sets of envmaps, and an 8x8 grid of
+	/// overlapping decals over the floor and props.
+	/// </summary>
+	public static Scene EnvMapsAndDecals()
+	{
+		var scene = Stage( out var _camera );
+		using var _ = scene.Push();
+
+		for ( int x = 0; x < 6; x++ )
+			for ( int y = 0; y < 6; y++ )
+			{
+				var position = new Vector3( x * 50 - 125, y * 50 - 125, 15 );
+				Prop( $"Prop {x} {y}", (x + y) % 2 == 0 ? "models/dev/sphere.vmdl" : "models/dev/box.vmdl", position, new ColorHsv( (x * 6 + y) * 10, 0.5f, 1 ).ToColor(), "materials/dev/dev_metal_rough10.vmat", 0.3f );
+			}
+
+		var cubemap = Texture.Load( "textures/cubemaps/default.vtex" );
+		for ( int x = 0; x < 4; x++ )
+			for ( int y = 0; y < 4; y++ )
+			{
+				var go = new GameObject( true, $"EnvMap {x} {y}" );
+				go.WorldPosition = new Vector3( x * 80 - 120, y * 80 - 120, 60 );
+
+				var probe = go.Components.Create<EnvmapProbe>();
+				probe.Mode = EnvmapProbe.EnvmapProbeMode.CustomTexture;
+				probe.Texture = cubemap;
+				probe.Bounds = BBox.FromPositionAndSize( Vector3.Zero, new Vector3( 140, 140, 160 ) );
+				probe.Feathering = 0.3f;
+				probe.TintColor = new ColorHsv( (x * 4 + y) * 22, 0.4f, 1 ).ToColor();
+			}
+
+		string[] textures = ["textures/shapes/heart1.vtex", "textures/shapes/circle1.vtex", "textures/shapes/arrow1.vtex", "textures/dev/checkerboard.vtex"];
+		var down = Rotation.LookAt( Vector3.Down );
+		for ( int x = 0; x < 8; x++ )
+			for ( int y = 0; y < 8; y++ )
+			{
+				var decal = AddDecal( $"Decal {x} {y}", textures[(x + y) % textures.Length], new Vector3( x * 40 - 140, y * 40 - 140, 20 ), down, 3, new ColorHsv( (x * 8 + y) * 5, 0.6f, 1 ).ToColor(), depth: 60 );
+				decal.ColorMix = 0.7f;
+			}
 
 		return scene;
 	}

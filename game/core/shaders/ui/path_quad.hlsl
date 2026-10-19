@@ -42,7 +42,7 @@ PixelInput PathQuad( uint index, float2 corner, BoxInstanceData inst, float4x4 t
 	bool inFront = false, behind = false;
 	[unroll] for ( int i = 0; i < 4; i++ )
 	{
-		float2 local = inst.Rect.xy + QuadPositions[i] * inst.Rect.zw;
+		float2 local = inst.Rect.xy + QuadPosition( i ) * inst.Rect.zw;
 		float4 projected = origin + x * local.x + y * local.y;
 		if ( projected.w > 0.0 )
 		{

@@ -48,30 +48,28 @@ PS
 	// No depth
 	RenderState( DepthWriteEnable, false );
 
+	#if ( D_BLENDMODE == 1 )
+		// Multiplication changes the surface color without replacing its coverage.
+		RenderState( SrcBlendAlpha, ZERO );
+		RenderState( DstBlendAlpha, ONE );
+	#endif
+
 
 
 	// Main ---------------------------------------------------------------------------------------------------------------------------------------------------
 
-	void ApplyFog( float3 worldPos, float2 screenPos, inout float4 color )
+	/// <summary>
+	/// Apply world-panel fog to straight color according to the panel's blend mode.
+	/// Premultiplication must follow this step so fog radiance retains glyph coverage.
+	/// </summary>
+	void ApplyTextFog( float3 worldPos, float2 screenPos, inout float4 color )
 	{
-		if ( g_FogStrength <= 0 ) return;
-
-		#if ( D_BLENDMODE == 2 )
-		{
-			float alpha = color.a;
-			float3 toCamera = worldPos - g_vCameraPositionWs;
-
-			if ( g_bGradientFogEnabled ) alpha *= 1.0 - CalculateGradientFog( worldPos, toCamera ).a;
-			if ( g_bCubemapFogEnabled ) alpha *= 1.0 - CalculateCubemapFog( worldPos, toCamera ).a;
-			if ( g_bVolumetricFogEnabled ) alpha *= CalculateVolumetricFog( worldPos, screenPos ).a;
-
-			color.a = lerp( color.a, alpha, g_FogStrength );
-		}
+		#if ( D_BLENDMODE == 1 )
+			color.rgb = lerp( float3( 1, 1, 1 ), color.rgb, saturate( Fog::ModulationTransmittance( worldPos, screenPos, g_FogStrength ) ) );
+		#elif ( D_BLENDMODE == 2 )
+			color.a *= Fog::Transmittance( worldPos, screenPos, g_FogStrength );
 		#else
-		{
-			float3 fogged = Fog::Apply( worldPos, screenPos, color.rgb );
-			color.rgb = lerp( color.rgb, fogged, g_FogStrength );
-		}
+			color.rgb = Fog::Apply( worldPos, screenPos, color.rgb, g_FogStrength );
 		#endif
 	}
 
@@ -91,14 +89,17 @@ PS
 		o.vColor.a *= i.vColor.a;
 		o = UI_CommonProcessing_Post( i, o, vColor.a );
 
-		#if ( D_BLENDMODE == 3 )
-			// Caller asked for a premultiplied blend state, so hand it premultiplied output
-			o.vColor.rgb *= o.vColor.a;
-		#endif
-
 		// Apply fog only on world panels
 		#if D_WORLDPANEL
-			ApplyFog( i.vPositionWs.xyz, i.vPositionPs.xy, o.vColor );
+			ApplyTextFog( i.vPositionWs.xyz, i.vPositionPs.xy, o.vColor );
+		#endif
+
+		#if ( D_BLENDMODE == 1 )
+			// Multiply blending ignores source alpha, so encode glyph coverage in its multiplier.
+			o.vColor.rgb = lerp( float3( 1, 1, 1 ), o.vColor.rgb, o.vColor.a );
+		#elif ( D_BLENDMODE == 3 )
+			// Caller asked for a premultiplied blend state, so hand it premultiplied output.
+			o.vColor.rgb *= o.vColor.a;
 		#endif
 
 		return o;

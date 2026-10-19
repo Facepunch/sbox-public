@@ -32,6 +32,13 @@ internal partial class ShadowMapper
 		nativeViewInfoValid = false;
 
 		InitForView();
+
+		// Main-world fog lighting is inherited by the 3D skybox view.
+		if ( !sceneView.GetRenderAttributesPtr().GetBoolValue( "IsSkybox", false ) )
+		{
+			sceneView.GetRenderAttributesPtr().SetVectorValue( "FogSunColor", Vector3.Zero );
+			sceneView.GetRenderAttributesPtr().SetVectorValue( "FogSunDirection", Vector3.Zero );
+		}
 	}
 
 	/// <summary>
@@ -118,6 +125,13 @@ internal partial class ShadowMapper
 	{
 		DirectionalLight = sceneObject;
 		UseNativeView( view );
+
+		if ( !View.IsSkybox )
+		{
+			view.GetRenderAttributesPtr().SetVectorValue( "FogSunColor", sceneObject.LightColor );
+			view.GetRenderAttributesPtr().SetVectorValue( "FogSunDirection", sceneObject.WorldDirection );
+		}
+
 		return DoDirectionalLight( FromNative( sceneObject ) );
 	}
 

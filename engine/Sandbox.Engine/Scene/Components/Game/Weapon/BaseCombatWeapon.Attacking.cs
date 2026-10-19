@@ -203,6 +203,7 @@ public partial class BaseCombatWeapon
 		if ( DryFireSound is not null )
 			GameObject.PlaySound( DryFireSound );
 
+		WeaponModel?.OnDryFire();
 		SetNextFire( 0.15f );
 
 		if ( AutoReload && CanReload() )
