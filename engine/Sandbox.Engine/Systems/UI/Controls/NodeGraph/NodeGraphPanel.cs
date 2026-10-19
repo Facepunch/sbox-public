@@ -262,6 +262,15 @@ public partial class NodeGraphPanel : CanvasPanel
 		SelectionChanged?.Invoke();
 	}
 
+	/// <summary>
+	/// Make the panel showing <paramref name="node"/> the only selection. Does nothing if it isn't shown.
+	/// </summary>
+	public void SelectNode( INode node )
+	{
+		if ( node is not null && FindNode( node ) is { } panel )
+			SelectNode( panel );
+	}
+
 	public void SelectAll()
 	{
 		foreach ( var node in _nodes ) node.Selected = true;
