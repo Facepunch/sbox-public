@@ -2,7 +2,7 @@ namespace Sandbox.UI.NodeGraph;
 
 //
 // Comments: nodes join one by being dropped inside it and leave through the right-click menu.
-// CommentPanel moves its members and fits itself around them.
+// CommentPanel moves its members, grows to keep them inside and resizes from its edges.
 //
 public partial class NodeGraphPanel
 {
@@ -52,11 +52,14 @@ public partial class NodeGraphPanel
 		RemoveFromComment( members );
 		comment.Members.AddRange( members.Select( x => x.Node.Identifier ) );
 
-		var panel = AddNode( comment );
+		var panel = AddNode( comment ) as CommentPanel;
 		SelectNode( panel );
 		OrderComments();
 
-		return panel as CommentPanel;
+		// Around what it holds, rather than the default box at the mouse
+		if ( members.Count > 0 ) panel?.FitToContent();
+
+		return panel;
 	}
 
 	/// <summary>
@@ -181,9 +184,16 @@ public partial class NodeGraphPanel
 		}
 
 		var inComment = FindComment( node ) is not null;
-		if ( !inComment && CommentFactory is null ) return;
+		var fittable = node is CommentPanel { Comment.Members.Count: > 0 };
+		if ( !inComment && !fittable && CommentFactory is null ) return;
 
 		if ( menu.HasOptions ) menu.AddSeparator();
+
+		if ( fittable )
+		{
+			var comment = (CommentPanel)node;
+			menu.AddOption( "Fit to Content", "fit_screen", comment.FitToContent );
+		}
 
 		if ( inComment )
 		{
