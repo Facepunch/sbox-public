@@ -35,6 +35,7 @@ public class ControlSheetRow : Panel
 			flex-shrink: 0;
 			flex-grow: 0;
 			padding: 6px;
+			align-items: center;
 
 			&.hidden
 			{
@@ -65,14 +66,21 @@ public class ControlSheetRow : Panel
 			flex-basis: auto;
 		}
 
+		// A long name wraps onto more lines and the row grows, rather than being cut down to its
+		// first word - the tooltip still has it whole
 		ControlSheetRow > .left > .title
 		{
-			width: 150px;
-			flex-shrink: 0;
-			flex-grow: 0;
+			flex-shrink: 1;
+			min-width: 0px;
 			font-size: 13px;
-			white-space: nowrap;
+			line-height: 1.2;
+			white-space: normal;
 			overflow: hidden;
+		}
+
+		ControlSheetRow.wide > .left > .title
+		{
+			white-space: nowrap;
 		}
 
 		ControlSheetRow > .right > textentry,

@@ -9,31 +9,85 @@ using static Sandbox.Internal.GlobalGameNamespace;
 
 namespace Sandbox.UI;
 
+/// <summary>
+/// A group's heading, laid out like the editor's: the title in the label column, a divider
+/// across the control column, and a fold button at the end. Quieter while folded.
+/// </summary>
 [StyleSheet.Inline( "controlsheetgroupheader", Styles )]
-
 public class ControlSheetGroupHeader : Panel
 {
 	const string Styles = """
 		ControlSheetGroupHeader
 		{
-			font-size: 1.33rem;
-			color: red;
-			gap: 6px;
+			min-height: 32px;
+			padding: 0px 4px 0px 6px;
 			align-items: center;
+			color: #fff;
+			font-size: 14px;
+			font-weight: 600;
+			text-shadow: 1px 1px 1px #0004;
 
 			&.hidden
 			{
 				display: none;
 			}
 
-			> .title
+			&.folded
 			{
-				font-weight: 600;
+				color: #fff9;
 			}
 
-			> .icon.hidden, > .fold.hidden
+			&.foldable, &.has-toggle
 			{
-				display: none;
+				cursor: pointer;
+			}
+
+			&.foldable:hover, &.has-toggle:hover
+			{
+				color: #fff;
+			}
+
+			// Title and icon fill the label column, so every divider starts where the controls do
+			> .lead
+			{
+				flex-shrink: 0;
+				width: 144px;
+				padding-right: 12px;
+				gap: 6px;
+				align-items: center;
+				overflow: hidden;
+			}
+
+			> .lead > .title
+			{
+				flex-shrink: 1;
+				min-width: 0px;
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+
+			> .lead > .icon
+			{
+				flex-shrink: 0;
+
+				&.hidden
+				{
+					display: none;
+				}
+			}
+
+			> .divider
+			{
+				flex-grow: 1;
+				height: 1px;
+				margin-right: 8px;
+				background-color: #ffffff1a;
+			}
+
+			&.folded > .divider
+			{
+				background-color: #ffffff0d;
 			}
 
 			> .fold
@@ -47,23 +101,28 @@ public class ControlSheetGroupHeader : Panel
 				align-items: center;
 				justify-content: center;
 				text-align: center;
-			}
 
-			&.foldable
-			{
-				cursor: pointer;
+				&.hidden
+				{
+					display: none;
+				}
 			}
 
 			&.has-toggle
 			{
-				cursor: pointer;
-				opacity: 0.8;
+				> .lead
+				{
+					// The checkbox sits in front, inside the same column
+					width: 116px;
+				}
 
 				&:before
 				{
 					content: ' ';
+					flex-shrink: 0;
 					width: 22px;
 					height: 22px;
+					margin-right: 6px;
 					background-color: #000a;
 					align-items: center;
 					justify-content: center;
@@ -72,30 +131,17 @@ public class ControlSheetGroupHeader : Panel
 					border: 1px solid #555;
 				}
 
-				&:hover
+				&:hover:before
 				{
-					opacity: 1;
-
-					&:before
-					{
-						border-color: #888;
-					}
+					border-color: #888;
 				}
 
-				&.checked
+				&.checked:before
 				{
-					> .title
-					{
-						color: white;
-					}
-
-					&:before
-					{
-						content: '✓';
-						font-weight: bold;
-						color: #08f;
-						border-color: #08f;
-					}
+					content: '✓';
+					font-weight: bold;
+					color: #08f;
+					border-color: #08f;
 				}
 			}
 		}
@@ -145,9 +191,11 @@ public class ControlSheetGroupHeader : Panel
 
 	public ControlSheetGroupHeader()
 	{
-		foldIcon = AddChild( new IconPanel( "remove", "fold" ) );
-		iconLabel = AddChild<Label>( "icon" );
-		textLabel = AddChild<Label>( "title" );
+		var lead = AddChild<Panel>( "lead" );
+		iconLabel = lead.AddChild<Label>( "icon" );
+		textLabel = lead.AddChild<Label>( "title" );
+		AddChild<Panel>( "divider" );
+		foldIcon = AddChild( new IconPanel( "expand_more", "fold" ) );
 	}
 
 	public override void Tick()
@@ -163,7 +211,10 @@ public class ControlSheetGroupHeader : Panel
 		var foldable = Foldable && ToggleProperty == null;
 		SetClass( "foldable", foldable );
 		foldIcon.SetClass( "hidden", !foldable );
-		if ( foldable ) foldIcon.Text = Folded ? "add" : "remove";
+		if ( foldable ) foldIcon.Text = Folded ? "chevron_right" : "expand_more";
+
+		// A switched-off group reads as folded too - its body is hidden the same way
+		SetClass( "folded", ToggleProperty is not null ? ToggleProperty.As.Bool == false : foldable && Folded );
 	}
 
 	protected override void OnMouseDown( MousePanelEvent e )

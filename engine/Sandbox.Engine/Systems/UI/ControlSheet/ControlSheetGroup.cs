@@ -30,11 +30,7 @@ public class ControlSheetGroup : Panel
 
 		.controlgroup > .header
 		{
-			font-weight: 550;
-			color: #fff;
 			flex-shrink: 0;
-			padding: 8px 0;
-			text-shadow: 1px 1px 1px #0004;
 		}
 
 		.controlgroup > .body
@@ -49,25 +45,30 @@ public class ControlSheetGroup : Panel
 			}
 		}
 
-		// The bracket down the side of an open group, like the editor's
+		// Like the editor's: an open group is set apart by space under it, not an indented bracket
 		.controlgroup.titled > .body
 		{
-			position: relative;
-			margin: 4px 0px 4px 8px;
-			padding-left: 12px;
-			border-left: 3px solid #0006;
+			margin: 4px 0px 12px 0px;
 		}
 
-		.controlgroup.titled > .body:after
+		// A group inside another - a class or struct's own groups - steps in with a line down its
+		// side, and a smaller title, so it reads as part of the group above
+		.controlgroup .controlgroup.titled
 		{
-			content: ' ';
-			position: absolute;
-			left: -3px;
-			bottom: -3px;
-			width: 8px;
-			height: 3px;
-			border-radius: 2px;
-			background-color: #0006;
+			margin-left: 6px;
+			padding: 0px 0px 0px 10px;
+			border-left: 1px solid #ffffff1a;
+		}
+
+		.controlgroup .controlgroup.titled > .header
+		{
+			font-size: 12px;
+			min-height: 26px;
+		}
+
+		.controlgroup .controlgroup.titled > .body
+		{
+			margin-bottom: 6px;
 		}
 		""";
 
