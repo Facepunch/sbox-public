@@ -148,8 +148,8 @@ public partial class NodeGraphPanel
 	/// <summary>
 	/// Fill the right-click menu. <paramref name="node"/> is the node clicked, already selected,
 	/// or null for empty space; <paramref name="position"/> is where, in canvas units.
-	/// Empty space offers a new comment; a node offers to comment the selection, and to take it out
-	/// of its comment when it's in one.
+	/// Empty space offers a new comment; a node offers to copy, cut or duplicate the selection,
+	/// comment it, and take it out of its comment when it's in one.
 	/// </summary>
 	protected virtual void BuildContextMenu( Menu menu, NodePanel node, Vector2 position )
 	{
@@ -157,6 +157,15 @@ public partial class NodeGraphPanel
 		{
 			if ( CommentFactory is not null ) menu.AddOption( "Add Comment", "notes", () => CreateComment( position, [] ) );
 			return;
+		}
+
+		if ( SerializeSelection() is not null )
+		{
+			menu.AddOption( "Copy", "content_copy", CopySelection );
+			menu.AddOption( "Cut", "content_cut", CutSelection );
+			menu.AddOption( "Duplicate", "file_copy", DuplicateSelection );
+
+			if ( CommentFactory is not null || FindComment( node ) is not null ) menu.AddSeparator();
 		}
 
 		if ( FindComment( node ) is not null )

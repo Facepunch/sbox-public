@@ -9,6 +9,18 @@ public interface IGraph
 
 	void AddNode( INode node );
 	void RemoveNode( INode node );
+
+	/// <summary>
+	/// <paramref name="nodes"/> as text, for copy and paste. Null when this graph can't copy nodes.
+	/// </summary>
+	string SerializeNodes( IEnumerable<INode> nodes ) => null;
+
+	/// <summary>
+	/// Create the nodes in <paramref name="serialized"/>, from <see cref="SerializeNodes"/>, add them
+	/// to the graph and return them. Give them new identifiers where they clash with nodes already
+	/// here, and keep the connections between them.
+	/// </summary>
+	IEnumerable<INode> DeserializeNodes( string serialized ) => [];
 }
 
 /// <summary>
