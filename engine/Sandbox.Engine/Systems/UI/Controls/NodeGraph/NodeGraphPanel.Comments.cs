@@ -148,13 +148,20 @@ public partial class NodeGraphPanel
 	/// <summary>
 	/// Fill the right-click menu. <paramref name="node"/> is the node clicked, already selected,
 	/// or null for empty space; <paramref name="position"/> is where, in canvas units.
+	/// Empty space offers a new comment; a node offers to comment the selection, and to take it out
+	/// of its comment when it's in one.
 	/// </summary>
 	protected virtual void BuildContextMenu( Menu menu, NodePanel node, Vector2 position )
 	{
-		var members = SelectedNodes.Where( x => FindComment( x ) is not null ).ToArray();
-
-		if ( members.Length > 0 )
+		if ( node is null )
 		{
+			if ( CommentFactory is not null ) menu.AddOption( "Add Comment", "notes", () => CreateComment( position, [] ) );
+			return;
+		}
+
+		if ( FindComment( node ) is not null )
+		{
+			var members = SelectedNodes.Where( x => FindComment( x ) is not null ).ToArray();
 			menu.AddOption( "Remove from comment", "playlist_remove", () => RemoveFromComment( members ) );
 		}
 
@@ -163,12 +170,7 @@ public partial class NodeGraphPanel
 		// Things inside a selected comment stay in it; the new comment takes the comment
 		var selectedComments = SelectedNodes.OfType<CommentPanel>().ToArray();
 		var selected = SelectedNodes.Where( x => !selectedComments.Any( c => c != x && IsWithin( x, c ) ) ).ToArray();
-		menu.AddOption( "Add Comment", "notes", () => CreateComment( position, [] ) );
-
-		if ( selected.Length > 0 )
-		{
-			menu.AddOption( $"Add Comment for {selected.Length} {(selected.Length == 1 ? "node" : "nodes")}", "notes", () => CreateComment( position, selected ) );
-		}
+		menu.AddOption( $"Add Comment for {selected.Length} {(selected.Length == 1 ? "node" : "nodes")}", "notes", () => CreateComment( position, selected ) );
 	}
 
 	/// <summary>
