@@ -76,8 +76,9 @@ public interface INode
 }
 
 /// <summary>
-/// A comment: a titled box drawn behind the nodes it holds. Its members move with it and it fits
-/// itself around them. Nodes join by being dropped inside it and leave through its right-click menu.
+/// A comment: a titled box drawn behind the nodes it holds. Its members move with it and it grows
+/// to keep them inside; its edges resize it. Nodes join by being dropped inside it and leave through
+/// its right-click menu.
 /// </summary>
 public interface ICommentNode : INode
 {
@@ -91,7 +92,7 @@ public interface ICommentNode : INode
 	int DescriptionFontSize => 11;
 
 	/// <summary>
-	/// In canvas units. Kept while the comment holds nothing; written back as it fits its members.
+	/// In canvas units. Set by resizing; written back when the comment grows or fits to its members.
 	/// </summary>
 	Vector2 Size { get; set; }
 

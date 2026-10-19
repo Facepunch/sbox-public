@@ -2,7 +2,8 @@ namespace Sandbox.UI.NodeGraph;
 
 /// <summary>
 /// A comment in a <see cref="NodeGraphPanel"/>: a titled box drawn behind the nodes it holds.
-/// Moving it moves its members, and it fits itself around them. An empty comment keeps its own size.
+/// Moving it moves its members, and it grows to keep them inside. Drag an edge or corner to resize
+/// it - never smaller than its members need. <see cref="FitToContent"/> shrinks it back around them.
 /// </summary>
 public class CommentPanel : NodePanel
 {
@@ -14,6 +15,29 @@ public class CommentPanel : NodePanel
 	const float HeaderHeight = 36f;
 
 	static readonly Vector2 MinimumSize = new( 120f, 96f );
+
+	/// <summary>
+	/// How far in from an edge a press resizes rather than moves, in canvas units.
+	/// </summary>
+	const float EdgeGrab = 8f;
+
+	[Flags]
+	enum Edge
+	{
+		None = 0,
+		Left = 1,
+		Top = 2,
+		Right = 4,
+		Bottom = 8,
+	}
+
+	/// <summary>
+	/// The edges being dragged, or None while the drag moves the comment.
+	/// </summary>
+	Edge _resizing;
+	Vector2 _resizeStartPosition;
+	Vector2 _resizeStartSize;
+	string _cursor;
 
 	public ICommentNode Comment => (ICommentNode)Node;
 
@@ -98,10 +122,12 @@ public class CommentPanel : NodePanel
 		}
 		else if ( !(Selected && Graph.Nodes.Any( x => x.IsDragging )) )
 		{
-			Fit();
+			Grow();
 		}
 
 		_lastPosition = Position;
+
+		UpdateCursor();
 	}
 
 	void ForgetRemovedMembers()
@@ -113,9 +139,9 @@ public class CommentPanel : NodePanel
 	}
 
 	/// <summary>
-	/// Put the comment around its members.
+	/// The box the members need, padded and on the grid. Null when the comment holds nothing.
 	/// </summary>
-	void Fit()
+	(Vector2 Min, Vector2 Max)? ContentBounds()
 	{
 		var min = new Vector2( float.MaxValue );
 		var max = new Vector2( float.MinValue );
@@ -128,16 +154,48 @@ public class CommentPanel : NodePanel
 			any = true;
 		}
 
-		if ( !any ) return;
+		if ( !any ) return null;
 
 		var grid = Graph.GridSize;
-		var position = Floor( min - new Vector2( Padding, Padding + HeaderHeight ), grid );
-		var size = Vector2.Max( Ceiling( max + Padding - position, grid ), MinimumSize );
+		return (Floor( min - new Vector2( Padding, Padding + HeaderHeight ), grid ), Ceiling( max + Padding, grid ));
+	}
 
-		if ( position != Position )
+	/// <summary>
+	/// Take in any member that's gone past an edge. A box bigger than the members, sized by hand,
+	/// stays as it is.
+	/// </summary>
+	void Grow()
+	{
+		if ( ContentBounds() is not { } content ) return;
+
+		var position = Vector2.Min( Position, content.Min );
+		var end = Vector2.Max( Position + Vector2.Max( Comment.Size, MinimumSize ), content.Max );
+		SetBounds( position, end );
+	}
+
+	/// <summary>
+	/// Shrink or grow the comment to sit snugly around its members. Does nothing when it holds none.
+	/// </summary>
+	public void FitToContent()
+	{
+		if ( ContentBounds() is not { } content ) return;
+
+		SetBounds( content.Min, content.Max );
+	}
+
+	/// <summary>
+	/// Put the comment's corners at <paramref name="min"/> and <paramref name="max"/>, writing back
+	/// whatever changed.
+	/// </summary>
+	void SetBounds( Vector2 min, Vector2 max )
+	{
+		var size = Vector2.Max( max - min, MinimumSize );
+
+		if ( min != Position )
 		{
-			MoveTo( position );
+			MoveTo( min );
 			CommitPosition();
+			_lastPosition = Position;
 		}
 
 		if ( size != Comment.Size )
@@ -146,6 +204,93 @@ public class CommentPanel : NodePanel
 			Layout();
 		}
 	}
+
+	/// <summary>
+	/// The edges under the mouse, if it's close enough to any to resize.
+	/// </summary>
+	Edge EdgeUnderMouse()
+	{
+		var local = Graph.ScreenToCanvas( Graph.MousePosition ) - Position;
+		var edge = Edge.None;
+
+		if ( local.x < EdgeGrab ) edge |= Edge.Left;
+		else if ( local.x > Size.x - EdgeGrab ) edge |= Edge.Right;
+
+		if ( local.y < EdgeGrab ) edge |= Edge.Top;
+		else if ( local.y > Size.y - EdgeGrab ) edge |= Edge.Bottom;
+
+		return edge;
+	}
+
+	void UpdateCursor()
+	{
+		var edge = _resizing != Edge.None ? _resizing : HasHovered && !IsDragging ? EdgeUnderMouse() : Edge.None;
+
+		var cursor = edge switch
+		{
+			Edge.Left | Edge.Top or Edge.Right | Edge.Bottom => "nwse-resize",
+			Edge.Right | Edge.Top or Edge.Left | Edge.Bottom => "nesw-resize",
+			Edge.Left or Edge.Right => "ew-resize",
+			Edge.Top or Edge.Bottom => "ns-resize",
+			_ => null,
+		};
+
+		if ( cursor == _cursor ) return;
+		_cursor = cursor;
+		Style.Cursor = cursor;
+	}
+
+	protected override bool OnDragStart( MousePanelEvent e )
+	{
+		_resizing = EdgeUnderMouse();
+		if ( _resizing == Edge.None ) return base.OnDragStart( e );
+
+		Graph.PressNode( this, e.HasCtrl, e.HasShift );
+		_resizeStartPosition = Position;
+		_resizeStartSize = Vector2.Max( Comment.Size, MinimumSize );
+		return true;
+	}
+
+	protected override void OnDragMove( Vector2 delta )
+	{
+		if ( _resizing == Edge.None )
+		{
+			base.OnDragMove( delta );
+			return;
+		}
+
+		var grid = Graph.GridSize;
+		var min = _resizeStartPosition;
+		var max = _resizeStartPosition + _resizeStartSize;
+
+		if ( _resizing.HasFlag( Edge.Left ) ) min.x = Snap( min.x + delta.x, grid );
+		if ( _resizing.HasFlag( Edge.Right ) ) max.x = Snap( max.x + delta.x, grid );
+		if ( _resizing.HasFlag( Edge.Top ) ) min.y = Snap( min.y + delta.y, grid );
+		if ( _resizing.HasFlag( Edge.Bottom ) ) max.y = Snap( max.y + delta.y, grid );
+
+		// Never below the minimum, and never cutting a member off
+		var content = ContentBounds();
+		if ( _resizing.HasFlag( Edge.Left ) ) min.x = MathF.Min( min.x, MathF.Min( max.x - MinimumSize.x, content?.Min.x ?? float.MaxValue ) );
+		if ( _resizing.HasFlag( Edge.Right ) ) max.x = MathF.Max( max.x, MathF.Max( min.x + MinimumSize.x, content?.Max.x ?? float.MinValue ) );
+		if ( _resizing.HasFlag( Edge.Top ) ) min.y = MathF.Min( min.y, MathF.Min( max.y - MinimumSize.y, content?.Min.y ?? float.MaxValue ) );
+		if ( _resizing.HasFlag( Edge.Bottom ) ) max.y = MathF.Max( max.y, MathF.Max( min.y + MinimumSize.y, content?.Max.y ?? float.MinValue ) );
+
+		SetBounds( min, max );
+	}
+
+	protected override void OnDragFinish( bool cancelled )
+	{
+		if ( _resizing == Edge.None )
+		{
+			base.OnDragFinish( cancelled );
+			return;
+		}
+
+		_resizing = Edge.None;
+		if ( cancelled ) SetBounds( _resizeStartPosition, _resizeStartPosition + _resizeStartSize );
+	}
+
+	static float Snap( float value, float grid ) => MathF.Round( value / grid ) * grid;
 
 	static Vector2 Floor( Vector2 value, float grid ) => new( MathF.Floor( value.x / grid ) * grid, MathF.Floor( value.y / grid ) * grid );
 
