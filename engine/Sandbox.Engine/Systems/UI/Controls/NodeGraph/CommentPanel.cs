@@ -2,8 +2,10 @@ namespace Sandbox.UI.NodeGraph;
 
 /// <summary>
 /// A comment in a <see cref="NodeGraphPanel"/>: a titled box drawn behind the nodes it holds.
-/// Moving it moves its members, and it grows to keep them inside. Drag an edge or corner to resize
-/// it - never smaller than its members need. <see cref="FitToContent"/> shrinks it back around them.
+/// Moving it moves its members. It covers its own box plus any member past its edge, following a
+/// dragged member out and back in, so circling one never leaves it bigger. Drag an edge or corner to
+/// resize it - never smaller than its members need. <see cref="FitToContent"/> shrinks it back
+/// around them.
 /// </summary>
 public class CommentPanel : NodePanel
 {
@@ -53,6 +55,17 @@ public class CommentPanel : NodePanel
 	/// </summary>
 	Vector2? _lastPosition;
 
+	/// <summary>
+	/// The box the comment has of its own - as loaded, created, resized or fitted. It always shows
+	/// this plus whatever members are past it, never more.
+	/// </summary>
+	(Vector2 Min, Vector2 Max)? _ownBounds;
+
+	/// <summary>
+	/// The box as shown, which mid-drag can be ahead of what's written to the node.
+	/// </summary>
+	(Vector2 Min, Vector2 Max) CurrentBounds => (Position, Position + Size);
+
 	public CommentPanel( NodeGraphPanel graph, INode node, bool isPreview = false ) : base( graph, node, isPreview )
 	{
 		AddClass( "comment" );
@@ -86,11 +99,28 @@ public class CommentPanel : NodePanel
 	/// </summary>
 	public IEnumerable<NodePanel> MemberPanels()
 	{
-		var members = Comment.Members;
-		if ( members is null || members.Count == 0 ) return [];
-
-		return Graph.Nodes.Where( x => x != this && members.Contains( x.Node.Identifier ) );
+		RefreshMemberIds();
+		return _memberIds.Count == 0 ? [] : Graph.Nodes.Where( IsMember );
 	}
+
+	/// <summary>
+	/// <see cref="ICommentNode.Members"/> as a set, refilled each tick so membership checks don't
+	/// scan the list for every node.
+	/// </summary>
+	readonly HashSet<string> _memberIds = new();
+
+	void RefreshMemberIds()
+	{
+		_memberIds.Clear();
+		if ( Comment.Members is { } members ) _memberIds.UnionWith( members );
+	}
+
+	bool IsMember( NodePanel node ) => node != this && _memberIds.Contains( node.Node.Identifier );
+
+	/// <summary>
+	/// How many nodes the graph showed when removed members were last forgotten.
+	/// </summary>
+	int _knownNodeCount = -1;
 
 	public override void Tick()
 	{
@@ -105,24 +135,36 @@ public class CommentPanel : NodePanel
 		}
 
 		ForgetRemovedMembers();
+		RefreshMemberIds();
+
+		_ownBounds ??= CurrentBounds;
+
+		var dragging = false;
+		foreach ( var node in Graph.Nodes )
+		{
+			if ( !node.IsDragging ) continue;
+			dragging = true;
+			break;
+		}
 
 		if ( _lastPosition is { } last && Position != last )
 		{
 			// Something moved the comment: bring the members along. Selected ones are already
 			// moving with the drag.
 			var delta = Position - last;
+			_ownBounds = (_ownBounds.Value.Min + delta, _ownBounds.Value.Max + delta);
 
-			foreach ( var member in MemberPanels() )
+			foreach ( var member in Graph.Nodes )
 			{
-				if ( member.Selected ) continue;
+				if ( member.Selected || !IsMember( member ) ) continue;
 
 				member.MoveTo( member.Position + delta );
 				member.CommitPosition();
 			}
 		}
-		else if ( !(Selected && Graph.Nodes.Any( x => x.IsDragging )) )
+		else if ( !(Selected && dragging) )
 		{
-			Grow();
+			Grow( dragging );
 		}
 
 		_lastPosition = Position;
@@ -130,12 +172,20 @@ public class CommentPanel : NodePanel
 		UpdateCursor();
 	}
 
+	/// <summary>
+	/// Drop members whose nodes are gone. Only when the graph's node count changes - a removal is
+	/// the only way one goes.
+	/// </summary>
 	void ForgetRemovedMembers()
 	{
+		if ( Graph.Nodes.Count == _knownNodeCount ) return;
+		_knownNodeCount = Graph.Nodes.Count;
+
 		var members = Comment.Members;
 		if ( members is null || members.Count == 0 || Graph.Graph is not { } graph ) return;
 
-		members.RemoveAll( id => !graph.Nodes.Any( x => x.Identifier == id ) );
+		var ids = new HashSet<string>( graph.Nodes.Select( x => x.Identifier ) );
+		members.RemoveAll( id => !ids.Contains( id ) );
 	}
 
 	/// <summary>
@@ -143,12 +193,16 @@ public class CommentPanel : NodePanel
 	/// </summary>
 	(Vector2 Min, Vector2 Max)? ContentBounds()
 	{
+		if ( _memberIds.Count == 0 ) return null;
+
 		var min = new Vector2( float.MaxValue );
 		var max = new Vector2( float.MinValue );
 		var any = false;
 
-		foreach ( var member in MemberPanels() )
+		foreach ( var member in Graph.Nodes )
 		{
+			if ( !IsMember( member ) ) continue;
+
 			min = Vector2.Min( min, member.Position );
 			max = Vector2.Max( max, member.Position + member.Size );
 			any = true;
@@ -161,16 +215,14 @@ public class CommentPanel : NodePanel
 	}
 
 	/// <summary>
-	/// Take in any member that's gone past an edge. A box bigger than the members, sized by hand,
-	/// stays as it is.
+	/// Cover the comment's own box and whatever members are past it. Mid-drag that's on screen only,
+	/// so the node isn't rewritten every frame; once the drag ends it's written back.
 	/// </summary>
-	void Grow()
+	void Grow( bool dragging )
 	{
-		if ( ContentBounds() is not { } content ) return;
+		if ( ContentBounds() is not { } content || _ownBounds is not { } own ) return;
 
-		var position = Vector2.Min( Position, content.Min );
-		var end = Vector2.Max( Position + Vector2.Max( Comment.Size, MinimumSize ), content.Max );
-		SetBounds( position, end );
+		SetBounds( Vector2.Min( own.Min, content.Min ), Vector2.Max( own.Max, content.Max ), commit: !dragging );
 	}
 
 	/// <summary>
@@ -178,31 +230,44 @@ public class CommentPanel : NodePanel
 	/// </summary>
 	public void FitToContent()
 	{
+		RefreshMemberIds();
 		if ( ContentBounds() is not { } content ) return;
 
+		_ownBounds = content;
 		SetBounds( content.Min, content.Max );
 	}
 
 	/// <summary>
-	/// Put the comment's corners at <paramref name="min"/> and <paramref name="max"/>, writing back
-	/// whatever changed.
+	/// Put the comment's corners at <paramref name="min"/> and <paramref name="max"/>. With
+	/// <paramref name="commit"/> off it only changes on screen, so a drag doesn't write the node
+	/// every frame; committing writes back whatever differs from the node.
 	/// </summary>
-	void SetBounds( Vector2 min, Vector2 max )
+	void SetBounds( Vector2 min, Vector2 max, bool commit = true )
 	{
 		var size = Vector2.Max( max - min, MinimumSize );
 
 		if ( min != Position )
 		{
 			MoveTo( min );
+			_lastPosition = Position;
+		}
+
+		if ( size != Size )
+		{
+			Size = size;
+			Style.Width = size.x;
+			Style.Height = size.y;
+		}
+
+		if ( !commit ) return;
+
+		if ( !Equals( Node.Position, Position ) )
+		{
 			CommitPosition();
 			_lastPosition = Position;
 		}
 
-		if ( size != Comment.Size )
-		{
-			Comment.Size = size;
-			Layout();
-		}
+		if ( Comment.Size != size ) Comment.Size = size;
 	}
 
 	/// <summary>
@@ -247,7 +312,7 @@ public class CommentPanel : NodePanel
 
 		Graph.PressNode( this, e.HasCtrl, e.HasShift );
 		_resizeStartPosition = Position;
-		_resizeStartSize = Vector2.Max( Comment.Size, MinimumSize );
+		_resizeStartSize = Size;
 		return true;
 	}
 
@@ -275,7 +340,7 @@ public class CommentPanel : NodePanel
 		if ( _resizing.HasFlag( Edge.Top ) ) min.y = MathF.Min( min.y, MathF.Min( max.y - MinimumSize.y, content?.Min.y ?? float.MaxValue ) );
 		if ( _resizing.HasFlag( Edge.Bottom ) ) max.y = MathF.Max( max.y, MathF.Max( min.y + MinimumSize.y, content?.Max.y ?? float.MinValue ) );
 
-		SetBounds( min, max );
+		SetBounds( min, max, commit: false );
 	}
 
 	protected override void OnDragFinish( bool cancelled )
@@ -287,7 +352,10 @@ public class CommentPanel : NodePanel
 		}
 
 		_resizing = Edge.None;
-		if ( cancelled ) SetBounds( _resizeStartPosition, _resizeStartPosition + _resizeStartSize );
+
+		(Vector2 Min, Vector2 Max) bounds = cancelled ? (_resizeStartPosition, _resizeStartPosition + _resizeStartSize) : CurrentBounds;
+		if ( !cancelled ) _ownBounds = bounds;
+		SetBounds( bounds.Min, bounds.Max );
 	}
 
 	static float Snap( float value, float grid ) => MathF.Round( value / grid ) * grid;
