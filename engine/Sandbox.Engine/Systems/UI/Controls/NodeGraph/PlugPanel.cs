@@ -58,13 +58,19 @@ public abstract partial class PlugPanel : Panel
 		Editor = plug.CreateEditor( this );
 		if ( Editor is not null ) AddChild( Editor );
 
-		OnTooltip = tip =>
-		{
-			var display = Inner.DisplayInfo;
-			var label = tip.AddChild<Label>();
-			label.IsRich = true;
-			label.Text = NodeTheme.FormatToolTip( display.Name, display.Description, PropertyType );
-		};
+		// A named method, not a lambda: hotload can't remap lambdas held by a live panel
+		OnTooltip = BuildTooltip;
+	}
+
+	/// <summary>
+	/// Fill the plug's tooltip.
+	/// </summary>
+	protected virtual void BuildTooltip( Panel tip )
+	{
+		var display = Inner.DisplayInfo;
+		var label = tip.AddChild<Label>();
+		label.IsRich = true;
+		label.Text = NodeTheme.FormatToolTip( display.Name, display.Description, PropertyType );
 	}
 
 	/// <summary>
