@@ -47,6 +47,11 @@ public class CommentPanel : NodePanel
 	}
 
 	/// <summary>
+	/// Comments stay behind the nodes even while dragged or focused.
+	/// </summary>
+	protected override bool RaisesOnInteraction => false;
+
+	/// <summary>
 	/// Whether nested comments have been put in order since this one was added - not possible
 	/// until the graph knows every comment, so it happens on the first tick.
 	/// </summary>

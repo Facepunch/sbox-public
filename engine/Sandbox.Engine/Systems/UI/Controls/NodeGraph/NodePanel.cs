@@ -114,6 +114,40 @@ public partial class NodePanel : CanvasPanel.Handle
 	public override bool HasTooltip => !IsDragging && base.HasTooltip;
 
 	/// <summary>
+	/// Whether dragging or focusing the node lifts it over the others. Comments stay behind.
+	/// </summary>
+	protected virtual bool RaisesOnInteraction => true;
+
+	/// <summary>
+	/// Z-index while the node is dragged or holds focus (itself or an editor in it).
+	/// </summary>
+	protected virtual int InteractionZIndex => 100;
+
+	/// <summary>
+	/// Z-index once that ends: 99 lower, so the node stays above the ones it was moved onto.
+	/// </summary>
+	protected virtual int ReleasedZIndex => InteractionZIndex - 99;
+
+	bool _interacting;
+
+	public override void Tick()
+	{
+		base.Tick();
+
+		if ( !RaisesOnInteraction ) return;
+
+		var interacting = IsDragging || HasFocus;
+		if ( interacting == _interacting ) return;
+		_interacting = interacting;
+
+		// Render order is sibling index plus z-index, so the z-index alone loses to later nodes:
+		// go last among them too. The parent ticks a copy of its children, so reordering here is safe.
+		if ( interacting && Parent is { } parent ) parent.SetChildIndex( this, parent.ChildrenCount - 1 );
+
+		Style.ZIndex = interacting ? InteractionZIndex : ReleasedZIndex;
+	}
+
+	/// <summary>
 	/// Put the node's top left at <paramref name="position"/>, in canvas units.
 	/// </summary>
 	public void MoveTo( Vector2 position )
