@@ -97,7 +97,7 @@ public partial class NodePanel
 	/// <summary>
 	/// The icon column: wider when a subtitle makes the header two lines tall and the icon bigger.
 	/// </summary>
-	static float HeaderIconWidth( bool twoLines ) => twoLines ? 27f : 20f;
+	static float HeaderIconWidth( bool twoLines ) => twoLines ? 25f : 20f;
 
 	/// <summary>
 	/// Width the header needs for its icon, title and subtitle, in the fonts they're drawn with.

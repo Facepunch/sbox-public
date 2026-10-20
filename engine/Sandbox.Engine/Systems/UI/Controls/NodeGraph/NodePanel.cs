@@ -64,7 +64,7 @@ public partial class NodePanel : CanvasPanel.Handle
 	/// </summary>
 	public Vector2 Size { get; protected set; }
 
-	protected virtual float TitleHeight => Node.HasTitleBar ? 24f + (Node.HasSubtitle ? 24f : 0f) : 0f;
+	protected virtual float TitleHeight => Node.HasTitleBar ? 24f + (Node.HasSubtitle ? 12f : 0f) : 0f;
 
 	Rect _thumbRect;
 

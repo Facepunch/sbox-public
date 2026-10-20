@@ -194,13 +194,13 @@ public partial class NodePanel
 		// With a subtitle the two lines are one block, centred with the icon in the header
 		var center = (TitleHeight - 1.5f) * 0.5f;
 		var twoLines = Node.HasSubtitle;
-		var titleCenter = twoLines ? center - 7f : center;
+		var titleCenter = twoLines ? center - 6f : center;
 		var row = new Rect( HeaderPadLeft, 0f, rect.Width - HeaderPadLeft - HeaderPadRight, TitleHeight );
 
 		if ( display.Icon is { } icon )
 		{
 			paint.SetPen( PrimaryTitleColor.Lighten( 0.35f ) );
-			paint.DrawIcon( row with { Top = center - 12f, Height = 24f }, icon, twoLines ? 20f : 15f, TextFlag.LeftCenter );
+			paint.DrawIcon( row with { Top = center - 12f, Height = 24f }, icon, twoLines ? 18f : 15f, TextFlag.LeftCenter );
 			row.Left += HeaderIconWidth( twoLines );
 		}
 
@@ -212,7 +212,7 @@ public partial class NodePanel
 		{
 			paint.SetDefaultFont( 7f );
 			paint.SetPen( NodeTheme.Text.WithAlpha( 0.55f ) );
-			paint.DrawText( row with { Top = center + 7.5f - 12f, Height = 24f }, Node.Subtitle, TextFlag.LeftCenter );
+			paint.DrawText( row with { Top = center + 6.5f - 12f, Height = 24f }, Node.Subtitle, TextFlag.LeftCenter );
 		}
 	}
 
