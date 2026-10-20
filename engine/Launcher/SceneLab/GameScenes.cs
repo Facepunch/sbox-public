@@ -165,6 +165,36 @@ internal static partial class GameScenes
 	}
 
 	/// <summary>
+	/// A physical rectangle between a spotlight and a floor, exercising both renderer paths.
+	/// </summary>
+	public static Scene LightModulation()
+	{
+		var scene = LightCookie();
+		using var scope = scene.Push();
+		var lamp = scene.Directory.FindByName( "Cookie Light" ).First().Components.Get<SpotLight>();
+		var pattern = lamp.Cookie;
+		lamp.Cookie = null;
+		var pane = new GameObject( true, "Light modulator" );
+		pane.WorldPosition = new Vector3( 0, 0, 120 );
+		pane.WorldRotation = Rotation.LookAt( Vector3.Down, Vector3.Forward );
+		var modulator = pane.Components.Create<LightModulator>();
+		modulator.Size = new Vector2( 100, 100 );
+		modulator.Texture = pattern;
+		modulator.Tint = new Color( 0.12f, 0.8f, 0.3f );
+		return scene;
+	}
+
+	/// <summary>
+	/// Move and tint the rectangle to invalidate its cached light interactions.
+	/// </summary>
+	public static void ChangeLightModulation( Scene scene )
+	{
+		var pane = scene.Directory.FindByName( "Light modulator" ).First();
+		pane.WorldPosition += new Vector3( 55, 0, -25 );
+		pane.Components.Get<LightModulator>().Tint = new Color( 0.85f, 0.12f, 0.4f );
+	}
+
+	/// <summary>
 	/// The Highlight post process outlining a box, a sphere half behind a wall (its obscured colour) and a citizen - drawn again
 	/// by <c>Graphics.Render( SceneObject )</c> with the outline shader, which native draws through its layer's view and a managed
 	/// frame from its mirror, the citizen with this frame's skinning.

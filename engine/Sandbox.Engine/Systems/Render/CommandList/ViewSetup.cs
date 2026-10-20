@@ -8,6 +8,11 @@
 public struct ViewSetup
 {
 	/// <summary>
+	/// Enables world-space light modulators for this view. Null uses the scene's normal lighting.
+	/// </summary>
+	public bool? EnableLightModulators;
+
+	/// <summary>
 	/// Overrides shader time (g_flTime), in seconds, for this view and its child views.
 	/// Null inherits the parent view's time, or the normal frame time for a top-level view.
 	/// </summary>

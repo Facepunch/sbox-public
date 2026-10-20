@@ -312,7 +312,7 @@ float3 GetTransmissiveThickness( const FinalCombinerInput_t f, const BinnedLight
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
-void ComputeDirectLightingForLight( const FinalCombinerInput_t f, float3 vReceiverNormalWs, const BinnedLight lightData, inout float3 vDiffuse, inout float3 vSpecular, inout float3 vTransmissive, bool bBaked = false )
+void ComputeDirectLightingForLight( const FinalCombinerInput_t f, float3 vReceiverNormalWs, const BinnedLight lightData, inout float3 vDiffuse, inout float3 vSpecular, inout float3 vTransmissive, bool bBaked = false, bool bModulators = false )
 {
 	const float2 vDiffuseExponent = ( ( 1.0 - f.vRoughness.xy ) * 0.8 ) + 0.6; // 0.8 and 0.6 are magic numbers;
 
@@ -397,6 +397,22 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, float3 vReceiv
 			return;
 	#endif
 	
+	// Apply transmission after range, cone and shadow rejection, to this light alone.
+	// bModulators is constant in each copy of the caller's light loop, so the copy without it is the plain loop.
+	if ( bModulators )
+	{
+		if ( lightData.Type == LightType::LightTypeDirectional )
+		{
+			// Indexed baked sun matrices already point from the receiver toward the source.
+			vLightColor *= LightModulators::EvaluateSun( f.vPositionWs.xyz, lightData.GetDirection() );
+		}
+		else
+		{
+			vLightColor *= LightModulators::Evaluate( f.vPositionWs.xyz, vPositionToLightDirWs,
+				sqrt( flDistToLightSq ), lightData.LightModulatorOffset, lightData.LightModulatorCount );
+		}
+	}
+
 	float3 vDiffuseTerm, vSpecularTerm, vTransmissiveTerm;
 	ComputeDiffuseAndSpecularTerms(
 		vDiffuseTerm,
@@ -425,6 +441,9 @@ void ComputeDirectionalLight( const FinalCombinerInput_t f, float3 vReceiverNorm
 	const float2 vDiffuseExponent = ( ( 1.0 - f.vRoughness.xy ) * 0.8 ) + 0.6;
 
 	float3 vLightColor = g_DirectionalLightColor.rgb;
+	[branch]
+	if ( LightModulators::Active() )
+		vLightColor *= LightModulators::EvaluateSun( f.vPositionWs.xyz, -g_DirectionalLightDirection.xyz );
 
 	float3 vPositionToLightDirWs = -g_DirectionalLightDirection.xyz;
 	float3 vPositionToCameraDirWs = CalculatePositionToCameraDirWs( f.vPositionWs.xyz );
@@ -502,8 +521,22 @@ void ComputeDirectLighting( inout LightingTerms_t o, const FinalCombinerInput_t 
 	if ( !WaveActiveAnyTrue( lightRange.Count > 0 ) )
 		return;
 
-	ClusterForEach( lightRange )
-		ComputeDirectLightingForLight( f, vReceiverNormalWs, DynamicLightConstantByIndex( lightRange.Item ), o.vDiffuse.rgb, o.vSpecular.rgb, o.vTransmissive.rgb );
+	// Two copies of the loop, picked once per wave: waves whose clusters have no modulated light run the plain one.
+	// Combined without short-circuiting, so the plain loop is reached from one branch: a second path into it made the
+	// compiler wrap both loops in a flow loop whose state spilled scalar registers inside the plain loop.
+	uint features = Cluster::WaveFeatures( lightRange ) & ( LightModulators::Active() ? ClusterFeature_LightModulators : 0 );
+
+	[branch]
+	if ( features != 0 )
+	{
+		ClusterForEach( lightRange )
+			ComputeDirectLightingForLight( f, vReceiverNormalWs, DynamicLightConstantByIndex( lightRange.Item ), o.vDiffuse.rgb, o.vSpecular.rgb, o.vTransmissive.rgb, false, true );
+	}
+	else
+	{
+		ClusterForEach( lightRange )
+			ComputeDirectLightingForLight( f, vReceiverNormalWs, DynamicLightConstantByIndex( lightRange.Item ), o.vDiffuse.rgb, o.vSpecular.rgb, o.vTransmissive.rgb, false, false );
+	}
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -519,7 +552,7 @@ void CalcBakedLightingForLight( const FinalCombinerInput_t finalCombinerInput, f
 		float3 vSpecular = 0;
 		float3 vTransmissive = 0;
 
-		ComputeDirectLightingForLight( finalCombinerInput, vReceiverNormalWs, lightData, vDiffuse, vSpecular, vTransmissive, true );
+		ComputeDirectLightingForLight( finalCombinerInput, vReceiverNormalWs, lightData, vDiffuse, vSpecular, vTransmissive, true, LightModulators::Active() );
 
 		io_vDiffuse += vDiffuse.xyz * flStrength;
 		io_vSpecular += vSpecular.xyz * flStrength;

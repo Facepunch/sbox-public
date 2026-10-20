@@ -38,6 +38,7 @@ CS
     groupshared float4 SharedSphere[GROUP_SIZE]; // bounding sphere in cluster space, w = radius
     groupshared float4 SharedApex[GROUP_SIZE];   // spot apex in cluster space, w = range
     groupshared float4 SharedAxis[GROUP_SIZE];   // spot axis in cluster space, w = outer cone cosine, below -1 for no cone
+    groupshared uint SharedFeatures[GROUP_SIZE]; // ClusterFeature bits the light adds to every cluster it reaches
     groupshared uint SharedMask[2][2];           // survivors, double-buffered by batch parity
 
     //
@@ -191,6 +192,12 @@ CS
         }
     }
 
+    // ClusterFeature bits a light adds to every cluster it reaches
+    uint LightFeatures( uint index )
+    {
+        return BinnedLightBufferV2[index].LightModulatorCount > 0 ? ClusterFeature_LightModulators : 0;
+    }
+
     float4 DecalBounds( ClusterSpace space, uint index )
     {
         Decal decal = DecalBuffer[index];
@@ -265,6 +272,7 @@ CS
             const uint capacity = Cluster::Capacity( ClusterItemType_Light );
             const uint baseOffset = flatIndex * capacity;
             uint count = 0;
+            uint features = 0;
 
             for ( uint first = 0; first < itemCount; first += GROUP_SIZE, batch++ )
             {
@@ -278,6 +286,7 @@ CS
                     SharedSphere[nGroupIndex] = sphere;
                     SharedApex[nGroupIndex] = apex;
                     SharedAxis[nGroupIndex] = axis;
+                    SharedFeatures[nGroupIndex] = LightFeatures( item );
                     candidate = groupBox.TouchesLight( sphere, apex, axis );
                 }
 
@@ -290,6 +299,7 @@ CS
                     if ( active && count < capacity && clusterBox.TouchesLight( SharedSphere[slot], SharedApex[slot], SharedAxis[slot] ) )
                     {
                         ClusterLightIndices[baseOffset + count] = first + slot;
+                        features |= SharedFeatures[slot];
                         count++;
                     }
                 }
@@ -298,7 +308,7 @@ CS
             }
 
             if ( active )
-                ClusterLightCounts[flatIndex] = count;
+                ClusterLightCounts[flatIndex] = count | ( features << ClusterFeatureShift );
         }
 
         //

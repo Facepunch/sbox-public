@@ -254,6 +254,12 @@ internal sealed partial class SceneLabWindow
 		}
 
 		lastParity = gameBridge.LastParity;
+		if ( Scene.ValidateGame?.Invoke( game ) is { } error )
+		{
+			lastParity = null;
+			Environment.ExitCode = 2;
+			return $"FAILED: {error}";
+		}
 		if ( gameBridge.LastParity is { Matches: false } ) Environment.ExitCode = 2;
 		return result;
 	}

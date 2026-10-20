@@ -285,20 +285,49 @@ public sealed partial class ModelPhysics : Component, IScenePhysicsEvents, IHasM
 	/// </summary>
 	private void UpdateJointScale()
 	{
-		foreach ( var joint in Joints )
+		// Runs every fixed update for every ragdoll - only touch the native joints when a scale actually changed
+		if ( _appliedJointScales is null || _appliedJointScales.Length != Joints.Count * 2 )
 		{
+			_appliedJointScales = new float[Joints.Count * 2];
+			_appliedJoints = new PhysicsJoint[Joints.Count];
+		}
+
+		for ( int i = 0; i < Joints.Count; i++ )
+		{
+			var joint = Joints[i];
 			if ( !joint.Component.IsValid() )
 				continue;
 
-			var point1 = joint.Component.Point1;
-			point1.LocalPosition = joint.LocalFrame1.Position * joint.Component.WorldTransform.UniformScale;
-			joint.Component.Point1 = point1;
+			// A re-created native joint starts from unscaled anchors again
+			if ( joint.Component.NativeJoint != _appliedJoints[i] )
+			{
+				_appliedJoints[i] = joint.Component.NativeJoint;
+				_appliedJointScales[i * 2] = float.NaN;
+				_appliedJointScales[i * 2 + 1] = float.NaN;
+			}
 
-			var point2 = joint.Component.Point2;
-			point2.LocalPosition = joint.LocalFrame2.Position * joint.Component.Body.WorldTransform.UniformScale;
-			joint.Component.Point2 = point2;
+			var scale1 = joint.Component.WorldTransform.UniformScale;
+			if ( scale1 != _appliedJointScales[i * 2] )
+			{
+				var point1 = joint.Component.Point1;
+				point1.LocalPosition = joint.LocalFrame1.Position * scale1;
+				joint.Component.Point1 = point1;
+				_appliedJointScales[i * 2] = scale1;
+			}
+
+			var scale2 = joint.Component.Body.WorldTransform.UniformScale;
+			if ( scale2 != _appliedJointScales[i * 2 + 1] )
+			{
+				var point2 = joint.Component.Point2;
+				point2.LocalPosition = joint.LocalFrame2.Position * scale2;
+				joint.Component.Point2 = point2;
+				_appliedJointScales[i * 2 + 1] = scale2;
+			}
 		}
 	}
+
+	float[] _appliedJointScales;
+	PhysicsJoint[] _appliedJoints;
 
 	/// <summary>
 	/// Put all bodies to sleep.

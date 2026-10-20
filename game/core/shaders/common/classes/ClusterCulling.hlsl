@@ -32,11 +32,19 @@ enum ClusterItemType
     ClusterItemType_Decal
 };
 
+// Features some light in a cluster needs, so shaders can pick a light loop once instead of testing per light.
+// They share the cluster's light count word: the count in the low 16 bits, these above it.
+static const uint ClusterFeature_LightModulators = 1;
+
+static const uint ClusterFeatureShift = 16;
+static const uint ClusterCountMask = 0xFFFF;
+
 struct ClusterRange
 {
     ClusterItemType Type;
     uint Count;
     uint BaseOffset;
+    uint Features; // ClusterFeature bits, lights only
 
     // ClusterForEach state
     uint Taken;     // Items this lane has taken
@@ -87,9 +95,16 @@ struct Cluster
         // Build range
         uint capacity = Capacity( type );
         uint count = 0;
+        uint features = 0;
         switch ( type )
         {
-            case ClusterItemType_Light:  count = ClusterLightCounts[flatIndex];  break;
+            case ClusterItemType_Light:
+            {
+                uint packed = ClusterLightCounts[flatIndex];
+                count = packed & ClusterCountMask;
+                features = packed >> ClusterFeatureShift;
+                break;
+            }
             case ClusterItemType_EnvMap: count = ClusterEnvMapCounts[flatIndex]; break;
             case ClusterItemType_Decal:  count = ClusterDecalCounts[flatIndex];  break;
             default: break;
@@ -99,11 +114,19 @@ struct Cluster
         range.Type = type;
         range.Count = min( count, capacity );
         range.BaseOffset = flatIndex * capacity;
+        range.Features = features;
         range.Taken = 0;
         range.Pending = LoadPending( range );
         range.Item = 0xFFFFFFFF;
 
         return range;
+    }
+
+    // The features any lane in the wave needs. Uniform, so branching on it picks one light loop for the whole wave
+    // where per-lane features would run both loops in a wave that straddles clusters.
+    static uint WaveFeatures( ClusterRange range )
+    {
+        return WaveActiveBitOr( range.Features );
     }
 
     static uint LoadItem( ClusterRange range, uint index )

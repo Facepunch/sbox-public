@@ -53,6 +53,7 @@ internal ref struct CameraRenderer
 		var Attributes = new RenderAttributes();
 
 		camera.Attributes.MergeTo( Attributes );
+		Attributes.Set( "LightModulatorsDisabled", config.EnableLightModulators == false );
 
 		if ( _world.IsValid() && !Graphics.IsActive )
 		{

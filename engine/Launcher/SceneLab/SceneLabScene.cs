@@ -24,6 +24,11 @@ internal sealed record SceneLabScene
 	public Action<Scene> ChangeGame { get; init; }
 
 	/// <summary>
+	/// Check rendered behavior after a compare. Return an error to fail the capture even when both renderers agree.
+	/// </summary>
+	public Func<Scene, string> ValidateGame { get; init; }
+
+	/// <summary>
 	/// Runs every frame on a <see cref="Game"/> scene, after it ticks and before it renders - for drawing that's redone
 	/// each frame, like a HUD.
 	/// </summary>
@@ -277,6 +282,10 @@ internal sealed record SceneLabScene
 		new() { Name = "Pearl Necklace", Group = "Avatar", Game = OutfitScenes.PearlNecklace.Build, Frame = OutfitScenes.PearlNecklace.DressWhenLoaded, Ready = OutfitScenes.PearlNecklace.Dressed },
 		new() { Name = "Fried Onion Earrings", Group = "Avatar", Game = OutfitScenes.FriedOnionEarrings.Build, Frame = OutfitScenes.FriedOnionEarrings.DressWhenLoaded, Ready = OutfitScenes.FriedOnionEarrings.Dressed },
 		new() { Name = "Light Cookie", Group = "GameObject", Game = GameScenes.LightCookie, ChangeGame = GameScenes.ChangeLightCookie },
+		new() { Name = "Light Modulation", Group = "GameObject", Game = GameScenes.LightModulation, ChangeGame = GameScenes.ChangeLightModulation },
+		new() { Name = "Light Modulation Baked Sun", Group = "Effects", Game = () => LightModulatorScenes.Sun( 0 ), ValidateGame = LightModulatorScenes.ValidateSun },
+		new() { Name = "Light Modulation Dynamic Sun", Group = "Effects", Game = () => LightModulatorScenes.Sun( -1 ), ValidateGame = LightModulatorScenes.ValidateSun },
+		new() { Name = "Light Modulation Gallery", Group = "Effects", Game = LightModulatorScenes.Gallery, ChangeGame = LightModulatorScenes.ChangeGallery, Isolated = true },
 		new() { Name = "Debug Overlay", Group = "GameObject", Game = GameScenes.DebugOverlay, ChangeGame = GameScenes.ChangeDebugOverlay, Frame = GameScenes.DrawDebugOverlay },
 		new() { Name = "Terrain and Clutter", Group = "GameObject", Game = TerrainScenes.TerrainAndClutter, ChangeGame = TerrainScenes.ChangeTerrainAndClutter, Ready = TerrainScenes.ClutterReady },
 		new() { Name = "Terrain Ambient Occlusion", Group = "GameObject", Game = TerrainScenes.TerrainAmbientOcclusion, ChangeGame = TerrainScenes.ChangeTerrainAndClutter, Ready = TerrainScenes.ClutterReady, Isolated = true },

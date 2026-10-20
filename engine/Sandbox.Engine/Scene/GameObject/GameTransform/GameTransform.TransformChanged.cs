@@ -23,16 +23,20 @@ public partial class GameTransform
 		_worldCached = default;
 		_worldInterpCached = default;
 
-		InsideChangeCallback = useTargetLocal;
+		// Most child bones have no listeners, skip the callback setup for them
+		if ( OnTransformChanged is not null || OnTransformChangedInternal is not null )
+		{
+			InsideChangeCallback = useTargetLocal;
 
-		try
-		{
-			OnTransformChanged?.Invoke();
-			OnTransformChangedInternal?.Invoke( root );
-		}
-		finally
-		{
-			InsideChangeCallback = false;
+			try
+			{
+				OnTransformChanged?.Invoke();
+				OnTransformChangedInternal?.Invoke( root );
+			}
+			finally
+			{
+				InsideChangeCallback = false;
+			}
 		}
 
 		var data = new TransformChangedData { Root = root };

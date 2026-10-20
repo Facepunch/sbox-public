@@ -165,18 +165,15 @@ public abstract partial class Asset
 	/// <summary>
 	/// Returns the .meta file path, if enabled for this asset.
 	/// </summary>
-	internal string GetMetadataFile( bool absolute = false )
+	internal string GetMetadataFile()
 	{
-		var f = GetSourceFile( absolute );
+		var f = AbsoluteSourcePath;
 		if ( string.IsNullOrEmpty( f ) ) return null;
 
 		// tony: Don't make metadata for cloud assets.. not my favourite addition ever
 		// we're mounting all the downloaded cloud assets first, and checking their tags, which is making fake metadata
 		// using the wrong paths
 		if ( IsCloud || IsTransient ) return null;
-
-		// no metadata for .meta files for fuck sake
-		if ( f.EndsWith( ".meta" ) ) return null;
 
 		// modelname.vmdl_c -> modelname.vmdl
 		if ( f.EndsWith( "_c" ) )
@@ -317,7 +314,7 @@ public abstract partial class Asset
 		{
 			if ( _metadata != null ) return _metadata;
 
-			var f = GetMetadataFile( true );
+			var f = GetMetadataFile();
 			if ( string.IsNullOrEmpty( f ) ) return null;
 
 			_metadata = new MetaData( f );

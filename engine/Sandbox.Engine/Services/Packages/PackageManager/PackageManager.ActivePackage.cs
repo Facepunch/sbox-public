@@ -139,11 +139,115 @@ internal static partial class PackageManager
 				AssemblyFileSystem.Mount( FileSystem.CreateSubSystem( ".bin" ) );
 			}
 
-			var dllFs = await DownloadBinDllsAsync( Package.Revision, token );
+			MemoryFileSystem dllFs;
+
+			if ( CompilesOnBackend() )
+			{
+				// The dll built for exactly our engine version. If it failed, is still compiling or can't be fetched,
+				// leave it unmounted so the install compiles the code archives here. Without any archives, take the
+				// compile the manifest lists, which can be for an older engine version.
+				dllFs = await DownloadCompiledDllAsync( token );
+				if ( dllFs is null && !HasCodeArchives() )
+					dllFs = await DownloadBinDllsAsync( Package.Revision, token );
+			}
+			else
+			{
+				dllFs = await DownloadBinDllsAsync( Package.Revision, token );
+			}
+
 			if ( dllFs != null )
 			{
 				AssemblyFileSystem.Mount( dllFs );
 			}
+		}
+
+		/// <summary>
+		/// The backend compiles every package's code apart from libraries and tools, which their consumers compile.
+		/// </summary>
+		private bool CompilesOnBackend()
+		{
+			if ( Backend.Package is null || Package.Revision is not { VersionId: > 0 } )
+				return false;
+
+			if ( Package.TypeName is "library" or "tool" )
+				return false;
+
+			return HasManifestDlls() || HasCodeArchives();
+		}
+
+		/// <summary>
+		/// How long to wait on the backend for a compile. It answers Pending itself after ~20s.
+		/// </summary>
+		static readonly TimeSpan CompiledDllTimeout = TimeSpan.FromSeconds( 60 );
+
+		/// <summary>
+		/// The package's dll compiled by the backend against our engine version, queueing the compile if nobody has
+		/// asked for it yet. Null when the compile failed or is still going, or the backend can't be reached and we
+		/// haven't fetched it before.
+		/// </summary>
+		private async Task<MemoryFileSystem> DownloadCompiledDllAsync( CancellationToken token )
+		{
+			var ident = Package.FullIdent;
+			var revision = Package.Revision.VersionId;
+			var engineVersion = Sandbox.Engine.Protocol.Api;
+
+			// A revision's dll for a version never changes, so the last answer is good for installing offline
+			var cacheKey = $"dll.{ident}.{revision}.{engineVersion}";
+
+			ManifestSchema.File file;
+
+			try
+			{
+				using var timeout = CancellationTokenSource.CreateLinkedTokenSource( token );
+				timeout.CancelAfter( CompiledDllTimeout );
+
+				LoadingScreen.Subtitle = "Fetching compiled code";
+				var response = await Backend.Package.GetDll( ident, revision, engineVersion, timeout.Token );
+
+				if ( response.Content is not { Status: "Compiled" } dll )
+				{
+					var reason = response.Content?.Status == "Pending" ? "still compiling" : $"{(int)response.StatusCode} {response.Error?.Content}";
+					Log.Info( $"No compiled dll for {ident} on engine version {engineVersion} ({reason})" );
+					return null;
+				}
+
+				file = new ManifestSchema.File { Url = dll.Url, Crc = dll.Crc, Size = dll.Size, Path = $".bin/package.{ident}.dll" };
+				Services.ServiceCache.WriteDisk( cacheKey, file );
+			}
+			catch ( Exception e ) when ( !token.IsCancellationRequested )
+			{
+				if ( !Services.ServiceCache.TryReadDisk( cacheKey, out file ) )
+				{
+					Log.Warning( e, $"Couldn't fetch the compiled dll for {ident} ({e.Message})" );
+					return null;
+				}
+			}
+			finally
+			{
+				LoadingScreen.Subtitle = null;
+			}
+
+			byte[] bytes;
+
+			try
+			{
+				bytes = await GetCachedDllAsync( file, token );
+			}
+			catch ( Exception e ) when ( !token.IsCancellationRequested )
+			{
+				Log.Warning( e, $"Couldn't download the compiled dll for {ident} ({e.Message})" );
+				return null;
+			}
+
+			if ( bytes is null || Crc64.FromBytes( bytes ) != Convert.ToUInt64( file.Crc, 16 ) )
+			{
+				Log.Warning( $"Compiled dll for {ident} didn't download intact" );
+				return null;
+			}
+
+			var memFs = new MemoryFileSystem();
+			memFs.WriteAllBytes( System.IO.Path.GetFileName( file.Path ), bytes );
+			return memFs;
 		}
 
 		private static async Task<MemoryFileSystem> DownloadBinDllsAsync( Package.IRevision revision, CancellationToken token )
