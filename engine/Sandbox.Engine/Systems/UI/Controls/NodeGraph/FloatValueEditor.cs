@@ -197,6 +197,7 @@ public class FloatValueEditor : NodeValueEditor
 	void Commit()
 	{
 		Property?.SetValue( Value );
+		Plug.Node.Graph.NodeValueChanged();
 		Plug.Node.MarkNodeChanged();
 	}
 }
