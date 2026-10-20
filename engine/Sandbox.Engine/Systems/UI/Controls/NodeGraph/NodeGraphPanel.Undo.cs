@@ -20,9 +20,9 @@ public partial class NodeGraphPanel
 
 	/// <summary>
 	/// <see cref="PushUndo"/> now and <see cref="PushRedo"/> on dispose. Inside another scope it
-	/// does neither, so one user edit is one undo step.
+	/// does neither, so one user edit is one undo step - hosts wrap their own multi-step edits in it too.
 	/// </summary>
-	internal IDisposable UndoScope( string name )
+	public IDisposable UndoScope( string name )
 	{
 		if ( _undoDepth++ == 0 ) PushUndo( name );
 		return new Sandbox.Utility.DisposeAction( EndUndoScope );
