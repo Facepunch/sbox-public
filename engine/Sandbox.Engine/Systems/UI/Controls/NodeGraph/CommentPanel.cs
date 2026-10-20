@@ -159,7 +159,7 @@ public partial class CommentPanel : NodePanel
 				member.CommitPosition();
 			}
 		}
-		else if ( !(Selected && dragging) )
+		else if ( !_following && !(Selected && dragging) )
 		{
 			Grow( dragging );
 		}
@@ -213,6 +213,8 @@ public partial class CommentPanel : NodePanel
 
 	/// <summary>
 	/// Cover the members: around them alone, or the hand-sized box plus whatever members are past it.
+	/// A comment holding nothing but comments always fits around them - its empty space would only
+	/// be padding around padding - so nested comments sit one padding inside each other.
 	/// Mid-drag that's on screen only, so the node isn't rewritten every frame; once the drag ends
 	/// it's written back.
 	/// </summary>
@@ -220,8 +222,34 @@ public partial class CommentPanel : NodePanel
 	{
 		if ( ContentBounds() is not { } content ) return;
 
-		var own = _ownBounds ?? content;
+		var before = CurrentBounds;
+		var own = HoldsOnlyComments() ? content : _ownBounds ?? content;
 		SetBounds( Vector2.Min( own.Min, content.Min ), Vector2.Max( own.Max, content.Max ), commit: !dragging );
+
+		// Outer comments tick first, so without this each level would trail the one inside it by a
+		// frame and nested comments would wobble apart instead of moving as one
+		if ( CurrentBounds != before && Graph.FindComment( this ) is { _following: false } outer && !(outer.Selected && dragging) )
+		{
+			outer.RefreshMemberIds();
+			outer.Grow( dragging );
+		}
+	}
+
+	/// <summary>
+	/// Whether every member is a comment. False when it holds none.
+	/// </summary>
+	bool HoldsOnlyComments()
+	{
+		var any = false;
+
+		foreach ( var node in Graph.Nodes )
+		{
+			if ( !IsMember( node ) ) continue;
+			if ( node is not CommentPanel ) return false;
+			any = true;
+		}
+
+		return any;
 	}
 
 	/// <summary>

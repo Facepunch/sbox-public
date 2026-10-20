@@ -59,6 +59,11 @@ public class ReroutePanel : NodePanel
 		plug.Layout();
 	}
 
+	/// <summary>
+	/// The output's type was taken from the wire feeding the reroute, so it goes back when that's cut.
+	/// </summary>
+	bool _inheritsType;
+
 	public override void Tick()
 	{
 		base.Tick();
@@ -66,6 +71,29 @@ public class ReroutePanel : NodePanel
 		// Which plug a press should take changes as wires come and go
 		var preferOutput = PreferOutput;
 		if ( Outputs.FirstOrDefault() is { } output && (output.Style.ZIndex == 2) != preferOutput ) Layout();
+
+		InheritType();
+	}
+
+	/// <summary>
+	/// A reroute passes on anything, so its own plugs have no type to colour the dot and the wire
+	/// leaving it. Take the type of whatever feeds it - another reroute's passes along the chain.
+	/// </summary>
+	void InheritType()
+	{
+		if ( Outputs.FirstOrDefault() is not { } output ) return;
+
+		var source = Inputs.FirstOrDefault()?.Connection?.Output;
+		if ( source.IsValid() )
+		{
+			output.PropertyType = source.PropertyType;
+			_inheritsType = true;
+		}
+		else if ( _inheritsType )
+		{
+			output.PropertyType = null;
+			_inheritsType = false;
+		}
 	}
 
 	protected internal override PlugPanel GetPlugAt( Vector2 canvasPosition )
