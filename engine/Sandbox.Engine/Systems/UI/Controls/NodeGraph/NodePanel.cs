@@ -75,6 +75,8 @@ public partial class NodePanel : CanvasPanel.Handle
 		IsPreview = isPreview;
 
 		AddClass( "node" );
+		DragStarted += () => _dragDelta = default;
+		DragMoved += delta => _dragDelta = delta;
 		Positioned = false;
 		Style.Position = PositionMode.Absolute;
 		Style.Overflow = OverflowMode.Visible;

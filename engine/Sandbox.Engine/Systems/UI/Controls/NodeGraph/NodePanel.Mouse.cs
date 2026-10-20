@@ -8,6 +8,24 @@ public partial class NodePanel
 	Dictionary<NodePanel, Vector2> _dragStart;
 	bool _pushedMove;
 
+	/// <summary>
+	/// How far the drag has gone, in canvas units, as last applied.
+	/// </summary>
+	Vector2 _dragDelta;
+
+	/// <summary>
+	/// The view scrolled by <paramref name="shift"/> canvas units under a mouse that didn't move.
+	/// The drag only updates when the mouse moves, so carry on with it from here - otherwise the
+	/// node would stay behind while the view scrolls, then leap the whole way on the next move.
+	/// </summary>
+	internal void FollowPan( Vector2 shift )
+	{
+		if ( !IsDragging ) return;
+
+		_dragDelta += shift;
+		OnDragMove( _dragDelta );
+	}
+
 	protected override bool OnDragStart( MousePanelEvent e )
 	{
 		Graph.PressNode( this, e.HasCtrl, e.HasShift );

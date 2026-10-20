@@ -58,7 +58,20 @@ public partial class NodeGraphPanel
 	}
 
 	/// <summary>
-	/// While something is dragged past the edge of the view, scroll towards it.
+	/// How fast the view scrolls while something is dragged past its edge, in layout pixels per
+	/// second, once the mouse is <see cref="AutoPanRamp"/> past it.
+	/// </summary>
+	const float AutoPanSpeed = 900f;
+
+	/// <summary>
+	/// How far past the edge, in layout pixels, the mouse goes for the full <see cref="AutoPanSpeed"/>.
+	/// Closer scrolls slower, so nudging the edge moves the view a little.
+	/// </summary>
+	const float AutoPanRamp = 120f;
+
+	/// <summary>
+	/// While something is dragged past the edge of the view, scroll towards it - at a capped speed
+	/// that doesn't depend on the frame rate, with whatever is dragged staying under the mouse.
 	/// </summary>
 	void AutoPan()
 	{
@@ -69,8 +82,20 @@ public partial class NodeGraphPanel
 		var mouse = MousePosition;
 		if ( viewport.IsInside( mouse ) ) return;
 
-		var overshoot = mouse - mouse.Clamp( viewport.Position, viewport.Position + viewport.Size );
-		Pan( -overshoot / 8f );
+		var overshoot = (mouse - mouse.Clamp( viewport.Position, viewport.Position + viewport.Size )) / ScaleToScreen;
+		var speed = MathF.Min( overshoot.Length, AutoPanRamp ) / AutoPanRamp * AutoPanSpeed;
+		var step = overshoot.Normal * speed * RealTime.Delta * ScaleToScreen;
+
+		var before = ScreenToCanvas( mouse );
+		Pan( -step );
+		var shift = ScreenToCanvas( mouse ) - before;
+
+		foreach ( var node in _nodes )
+		{
+			node.FollowPan( shift );
+		}
+
+		if ( _plugDragging && _pressPlug.IsValid() ) PlugMoved( _pressPlug );
 	}
 
 	//
