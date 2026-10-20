@@ -24,7 +24,8 @@ public class NodeGraphValue
 public partial class NodeGraphPage
 {
 	/// <summary>
-	/// A list of nodes. Removing a node cuts the wires that came from it.
+	/// A list of nodes. Removing a node cuts the wires that came from it. Copies nodes for the
+	/// clipboard and whole-graph snapshots for undo.
 	/// </summary>
 	sealed class DemoGraph : IGraph
 	{
@@ -42,6 +43,68 @@ public partial class NodeGraphPage
 			{
 				other.Disconnect( node );
 			}
+		}
+
+		/// <summary>
+		/// A copy of every node, wired the same, for undo to go back to.
+		/// </summary>
+		public List<DemoNode> Snapshot() => CloneAll( _nodes, x => x.Identifier );
+
+		/// <summary>
+		/// Make <paramref name="nodes"/>, from <see cref="Snapshot"/>, the graph's nodes.
+		/// </summary>
+		public void Restore( List<DemoNode> nodes )
+		{
+			_nodes.Clear();
+			_nodes.AddRange( nodes );
+		}
+
+		// shortcut: the clipboard holds a key to nodes kept in memory, so they only paste into this process; serialize them for real if that matters
+		static (string Key, List<DemoNode> Nodes) _copied;
+
+		public string SerializeNodes( IEnumerable<INode> nodes )
+		{
+			_copied = (NewId(), CloneAll( nodes.OfType<DemoNode>().ToList(), x => x.Identifier ));
+			return _copied.Key;
+		}
+
+		public IEnumerable<INode> DeserializeNodes( string serialized )
+		{
+			if ( serialized != _copied.Key ) return [];
+
+			var pasted = CloneAll( _copied.Nodes, _ => NewId() );
+			_nodes.AddRange( pasted );
+			return pasted;
+		}
+
+		/// <summary>
+		/// Copies of <paramref name="nodes"/> under the identifiers <paramref name="identifier"/> gives,
+		/// keeping the wires and comment members among them and dropping the rest.
+		/// </summary>
+		static List<DemoNode> CloneAll( IReadOnlyList<DemoNode> nodes, Func<DemoNode, string> identifier )
+		{
+			var copies = nodes.ToDictionary( x => x, x => x.Clone( identifier( x ) ) );
+			var ids = copies.ToDictionary( x => x.Key.Identifier, x => x.Value.Identifier );
+
+			foreach ( var (source, copy) in copies )
+			{
+				foreach ( var input in source.Inputs )
+				{
+					if ( input.ConnectedOutput is not { Node: DemoNode from } output || !copies.TryGetValue( from, out var fromCopy ) ) continue;
+
+					var copyInput = (DemoPlugIn)copy.Inputs.First( x => x.Identifier == input.Identifier );
+					copyInput.ConnectedOutput = fromCopy.Outputs.First( x => x.Identifier == output.Identifier );
+				}
+
+				if ( copy is DemoComment comment )
+				{
+					var members = comment.Members.Where( ids.ContainsKey ).Select( x => ids[x] ).ToList();
+					comment.Members.Clear();
+					comment.Members.AddRange( members );
+				}
+			}
+
+			return copies.Values.ToList();
 		}
 	}
 
@@ -88,6 +151,44 @@ public partial class NodeGraphPage
 			TitleColor = color;
 			Position = position;
 		}
+
+		/// <summary>
+		/// A copy of <paramref name="source"/> under <paramref name="identifier"/>: same look and plugs,
+		/// nothing wired. Inline editors share their values with the source's.
+		/// </summary>
+		protected DemoNode( DemoNode source, string identifier )
+		{
+			Identifier = identifier;
+			DisplayInfo = source.DisplayInfo;
+			Subtitle = source.Subtitle;
+			CanRemove = source.CanRemove;
+			Position = source.Position;
+			ExpandSize = source.ExpandSize;
+			ErrorMessage = source.ErrorMessage;
+			IsReachable = source.IsReachable;
+			Thumbnail = source.Thumbnail;
+			HasTitleBar = source.HasTitleBar;
+			PrimaryColor = source.PrimaryColor;
+			TitleColor = source.TitleColor;
+			ShowLabels = source.ShowLabels;
+			GoToDefinition = source.GoToDefinition;
+
+			foreach ( var input in source._inputs )
+			{
+				var copy = AddInput( input.Identifier, input.DisplayInfo.Name, input.Type, input.DisplayInfo.Group, input.Editor, input.ErrorMessage );
+				copy.CopyHandleOffsets( input );
+			}
+
+			foreach ( var output in source._outputs )
+			{
+				AddOutput( output.Identifier, output.DisplayInfo.Name, output.Type, output.DisplayInfo.Group );
+			}
+		}
+
+		/// <summary>
+		/// A copy of this node under <paramref name="identifier"/>, with its plugs but no wires.
+		/// </summary>
+		public virtual DemoNode Clone( string identifier ) => new( this, identifier );
 
 		public DemoPlugIn AddInput( string identifier, string name, Type type, string group = null, Func<PlugPanel, NodeValueEditor> editor = null, string error = null )
 		{
@@ -156,6 +257,13 @@ public partial class NodeGraphPage
 			AddInput( "in", "In", typeof( object ) );
 			AddOutput( "out", "Out", typeof( object ) );
 		}
+
+		DemoReroute( DemoReroute source, string identifier ) : base( source, identifier )
+		{
+			Comment = source.Comment;
+		}
+
+		public override DemoNode Clone( string identifier ) => new DemoReroute( this, identifier );
 	}
 
 	/// <summary>
@@ -269,6 +377,12 @@ public partial class NodeGraphPage
 		{
 		}
 
+		CurveNode( CurveNode source, string identifier ) : base( source, identifier )
+		{
+		}
+
+		public override DemoNode Clone( string identifier ) => new CurveNode( this, identifier );
+
 		/// <summary>
 		/// Takes the double-click, so the graph does nothing with it.
 		/// </summary>
@@ -335,6 +449,17 @@ public partial class NodeGraphPage
 			Color = color;
 			Members.AddRange( members );
 		}
+
+		DemoComment( DemoComment source, string identifier ) : base( source, identifier )
+		{
+			Title = source.Title;
+			Description = source.Description;
+			Color = source.Color;
+			Size = source.Size;
+			Members.AddRange( source.Members );
+		}
+
+		public override DemoNode Clone( string identifier ) => new DemoComment( this, identifier );
 	}
 
 	abstract class DemoPlug : IPlug
@@ -350,7 +475,10 @@ public partial class NodeGraphPage
 		public bool IsReachable => Node.IsReachable;
 		public string ErrorMessage { get; }
 
-		readonly Func<PlugPanel, NodeValueEditor> _editor;
+		/// <summary>
+		/// Makes the plug's inline editor, kept so a copy of the node gets the same one.
+		/// </summary>
+		public Func<PlugPanel, NodeValueEditor> Editor { get; }
 
 		protected DemoPlug( DemoNode node, string identifier, string name, Type type, string group, Func<PlugPanel, NodeValueEditor> editor, string error )
 		{
@@ -359,10 +487,10 @@ public partial class NodeGraphPage
 			Type = type;
 			DisplayInfo = new DisplayInfo { Name = name, Group = group };
 			ErrorMessage = error;
-			_editor = editor;
+			Editor = editor;
 		}
 
-		public NodeValueEditor CreateEditor( PlugPanel plug ) => _editor?.Invoke( plug );
+		public NodeValueEditor CreateEditor( PlugPanel plug ) => Editor?.Invoke( plug );
 	}
 
 	sealed class DemoPlugIn : DemoPlug, IPlugIn
@@ -382,6 +510,14 @@ public partial class NodeGraphPage
 		{
 			if ( value is { } offset ) _handleOffsets[name] = offset;
 			else _handleOffsets.Remove( name );
+		}
+
+		/// <summary>
+		/// Take <paramref name="source"/>'s wire handle positions.
+		/// </summary>
+		public void CopyHandleOffsets( DemoPlugIn source )
+		{
+			foreach ( var (name, offset) in source._handleOffsets ) _handleOffsets[name] = offset;
 		}
 	}
 
