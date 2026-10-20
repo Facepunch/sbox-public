@@ -43,7 +43,10 @@ public class ColorValueEditor : NodeValueEditor
 
 		// The picker writes the property directly, so tell the node when it changed
 		if ( current != Value && _popup is { IsValid: true } )
+		{
+			Plug.Node.Graph.NodeValueChanged();
 			Plug.Node.MarkNodeChanged();
+		}
 
 		Value = current;
 	}
