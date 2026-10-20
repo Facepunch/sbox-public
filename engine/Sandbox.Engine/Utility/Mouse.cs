@@ -3,7 +3,7 @@
 namespace Sandbox;
 
 /// <summary>
-/// Gives access to mouse position etc
+/// Access to mouse position, movement, input mode and cursor appearance.
 /// </summary>
 public static class Mouse
 {
@@ -25,7 +25,8 @@ public static class Mouse
 
 
 	/// <summary>
-	/// Access to local clients' cursor position, relative to game windows' top left corner.
+	/// The local client's cursor position, in pixels relative to the game window's top-left corner.
+	/// In captured mode, accumulates relative movement instead of tracking the OS cursor.
 	/// </summary>
 	[ActionGraphNode( "input.mouse.pos" ), Title( "Mouse Position" ), Category( "Input" ), Icon( "mouse" )]
 	public static Vector2 Position
@@ -45,15 +46,16 @@ public static class Mouse
 	}
 
 	/// <summary>
-	/// Change in local clients' cursor position since last frame.
+	/// Mouse movement since the last frame. Captured input normally bypasses OS pointer speed and acceleration.
+	/// Unaffected by <see cref="Preferences.Sensitivity"/>, which scales <see cref="Input.AnalogLook"/>.
 	/// </summary>
 	[ActionGraphNode( "input.mouse.delta" ), Title( "Mouse Delta" ), Category( "Input" ), Icon( "mouse" )]
 	public static Vector2 Delta => UI.PanelWindows.CaptureWindow is not null ? UI.PanelWindows.CaptureDelta : InputRouter.MouseCursorDelta;
 
 
 	/// <summary>
-	/// Sets the cursor type used when the UI hasn't claimed the cursor (e.g. when the mouse
-	/// falls through the UI onto the world). UI panel hover cursors take precedence over this.
+	/// Sets the cursor image. UI hover cursors can overwrite or reset this value.
+	/// Use <c>"none"</c> to hide the image without changing input mode or pointer speed.
 	/// </summary>
 	public static string CursorType
 	{
@@ -62,7 +64,7 @@ public static class Mouse
 	}
 
 	/// <summary>
-	/// Whether the local clients' cursor is active or not, meaning it can interact with UI elements, etc.
+	/// Whether the cursor can interact with UI. Can be true even when <see cref="CursorType"/> is <c>"none"</c>.
 	/// </summary>
 	public static bool Active => Visibility == MouseVisibility.Visible || (Visibility == MouseVisibility.Auto && Game.InputContext.MouseState == Engine.InputContext.InputState.UI);
 
@@ -77,28 +79,32 @@ public static class Mouse
 	}
 
 	/// <summary>
-	/// The visibility state of the mouse cursor. Auto will only show the mouse when clickable UI elements are visible.
+	/// Controls cursor interaction and capture. <see cref="MouseVisibility.Hidden"/> uses relative input,
+	/// which normally bypasses OS pointer speed and acceleration.
+	/// For a game-drawn cursor with OS pointer speed, use <see cref="MouseVisibility.Visible"/>
+	/// with <c>Mouse.CursorType = "none"</c> and draw at <see cref="Position"/>.
 	/// </summary>
 	public static MouseVisibility Visibility { get; set; } = MouseVisibility.Auto;
 }
 
 /// <summary>
-/// The visibility state of the mouse cursor.
+/// Mouse input mode. To hide only the cursor image, use <see cref="Mouse.CursorType"/> with <c>"none"</c>.
 /// </summary>
 public enum MouseVisibility
 {
 	/// <summary>
-	/// The mouse is visible and can interact with UI elements.
+	/// Uses normal OS cursor movement and allows UI interaction, even with <c>Mouse.CursorType = "none"</c>.
 	/// </summary>
 	Visible,
 
 	/// <summary>
-	/// The mouse is only visible when UI elements with `pointer-events: auto` are on-screen.
+	/// Uses cursor mode when visible screen UI wants pointer input; otherwise uses captured relative input.
 	/// </summary>
 	Auto,
 
 	/// <summary>
-	/// The mouse is locked to the game and cannot interact with UI elements.
+	/// Captures relative movement for camera look, hides the cursor and disables normal screen UI pointer interaction.
+	/// For a game-drawn cursor, use <see cref="Visible"/> with <c>Mouse.CursorType = "none"</c> to preserve OS pointer speed.
 	/// </summary>
 	Hidden
 }

@@ -55,7 +55,8 @@ public class Skybox3D : Component, Component.ExecuteInEditor
 			skyboxScene.Source = SkyboxScene;
 			using ( skyboxScene.Push() )
 			using ( SceneNetworkSystem.SuppressSpawnMessages() )
-			// Keep skybox callbacks out of the parent scene's load batch.
+			// Keep skybox callbacks isolated and their blob data alive until the batch flushes.
+			using ( var blobs = BlobDataSerializer.Load( SkyboxScene.BinaryData, SkyboxScene.ResourcePath ) )
 			using ( CallbackBatch.Isolated() )
 			{
 				var options = new SceneLoadOptions { IsAdditive = true, ShowLoadingScreen = false };

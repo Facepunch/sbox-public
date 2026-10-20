@@ -42,7 +42,7 @@
       }
     }
   },
-  "ShowInMenu": true,
+  "ShowInMenu": false,
   "MenuPath": "Misc/Gradient Fog",
   "MenuIcon": "foggy",
   "DontBreakAsTemplate": false,

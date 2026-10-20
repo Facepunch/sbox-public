@@ -166,6 +166,7 @@ PS
 {
 	#include "vr_lighting.fxc"
 	#include "volumetric_fog.fxc"
+	#include "common/classes/Fog.hlsl"
 	#include "common/Shadow.hlsl"
 	
 	// Combos -------------------------------------------------------------------------------------------------------------------------------------------------
@@ -269,7 +270,7 @@ PS
 		}
 
 		o.vColor0 = float4( vColor, 1.0 );
-		o.vColor0.rgb = ApplyVolumetricFog( o.vColor0.rgb, i.vPositionWs, i.vPositionSs.xy );
+		o.vColor0.rgb = Fog::ApplySky( i.vPositionWs, i.vPositionSs.xy, vColor );
 		return o;
 	}
 }

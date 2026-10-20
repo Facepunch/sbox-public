@@ -23,8 +23,7 @@
 
 #include "math_general.fxc"
 #include "encoded_normals.fxc"
-#include "vr_gradient_fog.fxc"
-#include "vr_cubemap_fog.fxc"
+#include "common/classes/Fog.hlsl"
 #include "vr_lighting.fxc"
 #include "volumetric_fog.fxc"
 
@@ -377,30 +376,9 @@ PS_OUTPUT PS_FinalCombinerDoPostProcessing( FinalCombinerInput_t f, LightingTerm
 
 	if ( g_bFogEnabled )
 	{
-		// S_ADDITIVE_BLEND This is only used in one mode of static_overlay!!! Can ffuck off soon
 		#if ( S_ADDITIVE_BLEND )
 		{
-			//
-			// When blending additively, dest pixel contains the fog term.
-			// Therefore, we want to scale alpha with fog amount in front of us,
-			// rather than double-adding the fog
-			//
-			const float3 vPositionToCameraWs = vPositionWs.xyz - g_vCameraPositionWs;
-
-			if ( g_bGradientFogEnabled )
-			{
-				o.vColor.a *= 1.0 - CalculateGradientFog( vPositionWs, vPositionToCameraWs ).a;
-			}
-
-			if ( g_bCubemapFogEnabled )
-			{
-				o.vColor.a *= 1.0 - CalculateCubemapFog( vPositionWs, vPositionToCameraWs ).a;
-			}
-
-			if ( g_bVolumetricFogEnabled )
-			{
-				o.vColor.a *= CalculateVolumetricFog( vPositionWs.xyz, vPositionSs.xy ).a;
-			}
+			o.vColor.a *= Fog::Transmittance( vPositionWs, vPositionSs.xy );
 		}
 		#else
 		{

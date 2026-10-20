@@ -27,7 +27,7 @@ public sealed class RadiusDamage : Component
 	public bool DamageOnEnabled { get; set; } = true;
 
 	/// <summary>
-	/// Should the world shield victims from damage?
+	/// Should objects shield victims from damage?
 	/// </summary>
 	[Property]
 	public bool Occlusion { get; set; } = true;
@@ -43,6 +43,12 @@ public sealed class RadiusDamage : Component
 	/// </summary>
 	[Property]
 	public TagSet DamageTags { get; set; } = new TagSet();
+
+	/// <summary>
+	/// The weapon that caused this damage, if any.
+	/// </summary>
+	[Property]
+	public GameObject Weapon { get; set; }
 
 	/// <summary>
 	/// Who should we credit with this attack?
@@ -76,7 +82,7 @@ public sealed class RadiusDamage : Component
 		var sphere = new Sphere( WorldPosition, Radius );
 
 		var dmg = new DamageInfo();
-		dmg.Weapon = GameObject;
+		dmg.Weapon = Weapon.IsValid() ? Weapon : GameObject;
 		dmg.Damage = DamageAmount;
 		dmg.Tags.Add( DamageTags );
 		dmg.Attacker = Attacker;
@@ -135,7 +141,9 @@ public sealed class RadiusDamage : Component
 
 		if ( occlusion && traceCount > 0 )
 		{
-			var losTrace = scene.PhysicsWorld.Trace.WithTag( "map" ).WithoutTags( "trigger", "gib", "debris", "player" );
+			var losTrace = scene.Trace.WithoutTags( "trigger", "gib", "debris", "player", "npc" );
+
+			if ( damage.Weapon.IsValid() ) losTrace = losTrace.IgnoreGameObjectHierarchy( damage.Weapon );
 
 			System.Threading.Tasks.Parallel.For( 0, traceCount, idx =>
 			{

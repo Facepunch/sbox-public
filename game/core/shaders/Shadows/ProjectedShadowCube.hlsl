@@ -195,7 +195,7 @@ struct ProjectedShadowCube
 		}
 		else if ( UserShadowFilterQuality == 1 )
 		{
-			[unroll]
+			[ForceUnroll]
 			for ( int i = 0; i < 5; ++i )
 			{
 				float2 offset = PCFDiscSamples5[i];
@@ -209,7 +209,7 @@ struct ProjectedShadowCube
 		}
 		else if ( UserShadowFilterQuality == 2 )
 		{
-			[unroll]
+			[ForceUnroll]
 			for ( int i = 0; i < 12; ++i )
 			{
 				float2 offset = PCFDiscSamples12[i];
@@ -223,7 +223,7 @@ struct ProjectedShadowCube
 		}
 		else
 		{
-			[unroll]
+			[ForceUnroll]
 			for ( int i = 0; i < 29; ++i )
 			{
 				float2 offset = PCFDiscSamples29[i];

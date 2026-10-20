@@ -28,8 +28,8 @@ internal class NativeAsset : Asset
 		// These name a file on disk, so they keep the case the disk uses - lower-casing them
 		// only works where the filesystem doesn't care.
 		AbsolutePath = Sandbox.CaseInsensitivePhysicalFileSystem.ResolveNativeCasing( native.GetAbsolutePath_Transient( AssetLocation_t.Invalid ).NormalizeFilename( false, false ) ); // invalid means get any
-		AbsoluteSourcePath = Sandbox.CaseInsensitivePhysicalFileSystem.ResolveNativeCasing( native.GetAbsolutePath_Transient( AssetLocation_t.Content ).NormalizeFilename( false, false ) ); // invalid means get any
-		AbsoluteCompiledPath = Sandbox.CaseInsensitivePhysicalFileSystem.ResolveNativeCasing( native.GetAbsolutePath_Transient( AssetLocation_t.Game ).NormalizeFilename( false, false ) ); // invalid means get any
+		AbsoluteSourcePath = Sandbox.CaseInsensitivePhysicalFileSystem.ResolveNativeCasing( native.GetAbsolutePath_Transient( AssetLocation_t.Content ).NormalizeFilename( false, false ) );
+		AbsoluteCompiledPath = Sandbox.CaseInsensitivePhysicalFileSystem.ResolveNativeCasing( native.GetAbsolutePath_Transient( AssetLocation_t.Game ).NormalizeFilename( false, false ) );
 		IsDeleted = string.IsNullOrEmpty( AbsolutePath );
 
 		if ( MetaData is { } meta && (!meta.TryGet<Guid>( "guid", out var existingGuid ) || existingGuid != Guid) )
@@ -84,7 +84,7 @@ internal class NativeAsset : Asset
 	public override string GetCompiledFile( bool absolute = false )
 	{
 		if ( absolute )
-			return native.GetAbsolutePath_Transient( AssetLocation_t.Game ).NormalizeFilename( false );
+			return Sandbox.CaseInsensitivePhysicalFileSystem.ResolveNativeCasing( native.GetAbsolutePath_Transient( AssetLocation_t.Game ).NormalizeFilename( false, false ) );
 
 		return native.GetRelativePath_Transient( AssetLocation_t.Game ).NormalizeFilename( false );
 	}
@@ -97,7 +97,7 @@ internal class NativeAsset : Asset
 	public override string GetSourceFile( bool absolute = false )
 	{
 		if ( absolute )
-			return native.GetAbsolutePath_Transient( AssetLocation_t.Content ).NormalizeFilename( false );
+			return Sandbox.CaseInsensitivePhysicalFileSystem.ResolveNativeCasing( native.GetAbsolutePath_Transient( AssetLocation_t.Content ).NormalizeFilename( false, false ) );
 
 		return native.GetRelativePath_Transient( AssetLocation_t.Content ).NormalizeFilename( false );
 	}

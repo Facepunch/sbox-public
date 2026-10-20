@@ -14,7 +14,14 @@ namespace Sandbox;
 /// </summary>
 public static partial class Json
 {
-	internal static JsonSerializerOptions options => GlobalContext.Current.JsonSerializerOptions;
+	internal static JsonSerializerOptions options
+	{
+		get
+		{
+			Bootstrap.AssertTypeLibraryReady();
+			return GlobalContext.Current.JsonSerializerOptions;
+		}
+	}
 
 	static Json()
 	{

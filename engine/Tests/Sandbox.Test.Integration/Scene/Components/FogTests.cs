@@ -1,3 +1,5 @@
+#pragma warning disable CS0618 // Tests intentionally exercise legacy fog compatibility.
+
 using System.Reflection;
 
 namespace SceneTests.Components;

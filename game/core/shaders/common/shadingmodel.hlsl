@@ -4,40 +4,7 @@
 #include "common/material.hlsl"
 #include "common/GBuffer.hlsl"
 #include "common/classes/Decals.hlsl"
-
-float4 DoAtmospherics( float3 vPositionWs, float2 vPositionSs, float4 vColor, bool bAdditiveBlending = false )
-{
-    vPositionWs = vPositionWs.xyz;
-    float3 vPositionToCameraWs = vPositionWs.xyz - g_vCameraPositionWs.xyz;
-
-    if ( g_bFogEnabled )
-	{
-		if( bAdditiveBlending )
-		{
-			//
-			// When blending additively, dest pixel contains the fog term.
-			// Therefore, we want to scale alpha with fog amount in front of us,
-			// rather than double-adding the fog
-			//
-			if ( g_bGradientFogEnabled )
-				vColor.a *= 1.0 - CalculateGradientFog( vPositionWs, vPositionToCameraWs ).a;
-
-			if ( g_bCubemapFogEnabled )
-				vColor.a *= 1.0 - CalculateCubemapFog( vPositionWs, vPositionToCameraWs ).a;
-
-			if ( g_bVolumetricFogEnabled )
-				vColor.a *= CalculateVolumetricFog( vPositionWs.xyz, vPositionSs.xy ).a;
-		}
-        else
-		{
-			vColor.rgb = ApplyGradientFog( vColor.rgb, vPositionWs.xyz, vPositionToCameraWs.xyz );
-			vColor.rgb = ApplyCubemapFog( vColor.rgb, vPositionWs.xyz, vPositionToCameraWs.xyz );
-			vColor.rgb = ApplyVolumetricFog( vColor.rgb, vPositionWs.xyz, vPositionSs.xy );
-		}
-	}
-
-    return vColor;
-}
+#include "common/classes/Fog.hlsl"
 
 float4 DoPostProcessing( const Material material, float4 color )
 {
@@ -176,8 +143,10 @@ struct ShadingModelStandard
         if( ToolsVis::WantsToolsVis() )
             return DoToolsVis( color, m, lightingTerms );
 
-        // Composite atmospherics after lighting
-        color = DoAtmospherics( m.WorldPosition, m.ScreenPosition.xy, color );
+        if ( g_bFogEnabled )
+        {
+            color.rgb = Fog::Apply( m.WorldPosition, m.ScreenPosition.xy, color.rgb );
+        }
         
         return color;
     }

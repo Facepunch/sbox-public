@@ -1,4 +1,5 @@
 ﻿
+using NativeEngine;
 using Sandbox.Engine;
 using Sandbox.Rendering;
 using Sandbox.UI;
@@ -141,21 +142,6 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	[Property]
 	public RenderTextureAsset RenderTexture;
 
-	/// <summary>
-	/// Since we are rendering to a texture, better to generate mipmaps for it.
-	/// </summary>
-	private CommandList _renderTextureMipGenCommandList;
-
-	private CommandList CreateRenderTextureMipGenCommandList()
-	{
-		var cmd = new CommandList( "Generate MipMaps For RenderTexture" );
-
-		if ( RenderTexture != null && RenderTexture.Texture != null && RenderTexture.Texture.Mips > 1 )
-			cmd.GenerateMipMaps( RenderTexture.Texture );
-
-		return cmd;
-	}
-
 	private Texture _renderTarget;
 
 	/// <summary>
@@ -227,6 +213,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		sceneCamera = new( GameObject.Name );
 
 		sceneCamera.OnRenderStageHook = ExecuteCommandLists;
+		sceneCamera.OnAfterPostProcess = finalizePostProcessHook ??= FinalizePostProcessing;
 		sceneCamera.WantsDepthNormalsHook = WantsDepthNormals;
 		sceneCamera.HasEarlyPostProcessHook = HasEarlyPostProcess;
 		sceneCamera.ScheduleEarlyPostProcessHook = ScheduleEarlyPostProcess;
@@ -402,6 +389,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	/// Update a SceneCamera with the settings from this component
 	/// </summary>
 	Action<Stage, SceneCamera> executeCommandListsHook;
+	Action finalizePostProcessHook;
 	Func<bool> wantsDepthNormalsHook;
 	Func<Stage, PostProcessQueue, bool> hasEarlyPostProcessHook;
 	Action<Stage, bool> scheduleEarlyPostProcessHook;
@@ -426,8 +414,6 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		if ( Gizmo.Active is not null )
 			camera.Worlds.Add( Gizmo.Active.World );
 
-		CopyPostProcessing( camera );
-
 		// A camera (such as the editor viewport) might not want to take render tags into account
 		// from an existing camera source
 		if ( includeTags )
@@ -443,9 +429,22 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		camera.WireframeMode = WireframeMode;
 		camera.EnablePostProcessing = EnablePostProcessing;
 		camera.BackgroundColor = ClearFlags.Contains( ClearFlags.Color ) ? BackgroundColor : Color.Transparent;
+
+		CopyPostProcessing( camera, applyCameraEffects: false );
+		if ( IsSceneEditorCamera )
+			Scene.Camera?.CopyPostProcessing( camera, applyCameraEffects: false );
+
+		ApplyCameraEffects( camera );
 	}
 
-	internal void CopyPostProcessing( SceneCamera camera )
+	/// <summary>
+	/// Volume position after camera modifiers, before transient shake. An explicit anchor takes precedence;
+	/// raw transform edits after composition use the same fallback as rendering without recomposing the camera.
+	/// </summary>
+	internal Vector3 PostProcessPosition => PostProcessAnchor.IsValid() ? PostProcessAnchor.WorldPosition
+		: _composed && RawView == _composedBase ? View.Position : WorldPosition;
+
+	internal void CopyPostProcessing( SceneCamera camera, bool applyCameraEffects = true )
 	{
 		if ( Scene is null )
 		{
@@ -487,13 +486,27 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		// Hack because I don't want this to have to be on a camera. This
 		// is hidden from users, so we'll figure out how to square it later
 		//
+#pragma warning disable CS0618 // Retain legacy fog support for existing content.
 		foreach ( var cubemapFog in Scene.Query<CubemapFog>() )
+#pragma warning restore CS0618
 		{
 			if ( cubemapFog.Tags.HasAny( RenderExcludeTags ) )
 				continue;
 
 			cubemapFog.SetupCamera( this, camera );
 		}
+
+		if ( applyCameraEffects )
+			ApplyCameraEffects( camera );
+	}
+
+	/// <summary>
+	/// Reset component-driven fog to legacy inheritance before applying camera effects to the completed view defaults.
+	/// </summary>
+	void ApplyCameraEffects( SceneCamera camera )
+	{
+		camera.Fog = null;
+		Scene.GetSystem<PostProcessSystem>().ApplyCameraEffects( this, camera, IsSceneEditorCamera );
 	}
 
 	/// <summary>
@@ -592,15 +605,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		{
 			EnsureSceneCameraCreated();
 
-			if ( IsSceneEditorCamera )
-			{
-				UpdateSceneCamera( sceneCamera );
-				Scene.Camera?.CopyPostProcessing( sceneCamera );
-			}
-			else
-			{
-				UpdateSceneCamera( sceneCamera );
-			}
+			UpdateSceneCamera( sceneCamera );
 
 			UpdateSceneCameraUI( sceneCamera );
 			sceneCamera.RenderUI = renderUI;
@@ -760,6 +765,31 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		return sceneCamera.ToWorld( screen );
 	}
 
+	private void FinalizePostProcessing()
+	{
+		var texture = RenderTexture?.Texture;
+		if ( texture is null || !texture.IsValid || texture.Mips <= 1 )
+			return;
+
+		var currentColor = Graphics.GetColorTarget( out var owned );
+		try
+		{
+			if ( currentColor.IsNull )
+				return;
+
+			var currentColorIndex = g_pRenderDevice.GetTextureViewIndex( currentColor, 0, RenderTextureDimension.RENDER_TEXTURE_DIMENSION_2D );
+			if ( currentColorIndex != texture.Index )
+				return;
+			Graphics.ResourceBarrierTransition( texture, ResourceState.NonPixelShaderResource, 0 );
+			Graphics.GenerateMipMaps( texture );
+		}
+		finally
+		{
+			if ( owned && !currentColor.IsNull )
+				currentColor.DestroyStrongHandle();
+		}
+	}
+
 	protected override void OnEnabled()
 	{
 		Scene?.UpdateMainCamera();
@@ -767,11 +797,6 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		AddCommandList( _hudCommandList, Rendering.Stage.AfterPostProcess, 5000 );
 		AddCommandList( _overlayCommandList, Rendering.Stage.AfterUI, 5000 );
 
-		if ( RenderTexture is not null )
-		{
-			_renderTextureMipGenCommandList = CreateRenderTextureMipGenCommandList();
-			AddCommandList( _renderTextureMipGenCommandList, Rendering.Stage.AfterPostProcess, 10000 );
-		}
 	}
 
 	protected override void OnDisabled()
@@ -781,11 +806,6 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		RemoveCommandList( _hudCommandList );
 		RemoveCommandList( _overlayCommandList );
 
-		if ( _renderTextureMipGenCommandList is not null )
-		{
-			RemoveCommandList( _renderTextureMipGenCommandList );
-			_renderTextureMipGenCommandList = null;
-		}
 	}
 
 	/// <summary>

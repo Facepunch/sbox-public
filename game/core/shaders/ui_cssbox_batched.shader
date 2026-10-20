@@ -208,13 +208,11 @@ VS
 	BoolAttribute( ui, true );
 	BoolAttribute( ScreenSpaceVertices, true );
 
-	static const float2 QuadPositions[4] =
+	// Corners 0..3 as (0,0) (1,0) (1,1) (0,1). Computed, a constant table indexed at runtime would live in local memory.
+	float2 QuadPosition( uint i )
 	{
-		float2( 0, 0 ),
-		float2( 1, 0 ),
-		float2( 1, 1 ),
-		float2( 0, 1 ),
-	};
+		return float2( ( i == 1 || i == 2 ) ? 1 : 0, i >= 2 ? 1 : 0 );
+	}
 
 	#include "ui/path_quad.hlsl"
 
@@ -226,7 +224,7 @@ VS
 		PixelInput o;
 
 		uint instanceIndex = nInstanceID + InstanceOffset;
-		float2 corner = QuadPositions[nVertexID];
+		float2 corner = QuadPosition( nVertexID );
 		BoxInstanceData inst = BoxInstances[instanceIndex];
 		float4x4 instTransform = TransformBuffer[inst.TransformIndex].Mat;
 		if ( inst.ShapeIndex >= 0 )
@@ -673,7 +671,7 @@ PS
 		float gradLength;
 		float t = GradientPosition( g, texCoord, boxSize, gradLength );
 
-		int last = g.Count - 1;
+		int last = clamp( g.Count, 1, 8 ) - 1;
 
 		if ( t <= GradientStop( g, 0, gradLength ) )
 			return g.StopColors[0];

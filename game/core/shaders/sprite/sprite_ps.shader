@@ -295,7 +295,6 @@ PS
 
 	Texture2D g_tFrameBufferCopyTexture < Attribute( "FrameBufferCopyTexture" ); SrgbRead( false ); >;
 
-	float g_FogStrength < Attribute( "g_FogStrength" ); >;
 
 	// Performs UV Flipping
 	float2 GetUV(SpriteData sprite, float2 inUV)
@@ -524,10 +523,15 @@ PS
 			col *= lighting;
 		}
 
-		if ( fogStrength > 0 ) 
+		if ( g_bFogEnabled )
 		{
-			float4 fogged = DoAtmospherics( i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz, i.vPositionSs.xy, col, D_BLEND == 1 );
-			col.rgb = lerp( col.rgb, fogged.rgb, fogStrength );
+			float3 worldPosition = i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz;
+
+			#if D_BLEND == 1
+				col.a *= Fog::Transmittance( worldPosition, i.vPositionSs.xy, fogStrength );
+			#else
+				col.rgb = Fog::Apply( worldPosition, i.vPositionSs.xy, col.rgb, fogStrength );
+			#endif
 		}
 
 		#if ( D_REFRACTION && S_MODE_DEPTH == 0 )

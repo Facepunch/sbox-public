@@ -33,10 +33,15 @@
 
         Instance = this;
 
-        // Fetch resolutions now so opening the settings doesn't stutter later.
-        MenuProject.Settings.SettingsCatalog.FetchResolutions();
-
         _ = ShowStartupModalsIfNeeded();
+        _ = FetchResolutionsWhenIdle();
+    }
+
+    async Task FetchResolutionsWhenIdle()
+    {
+        // Fetch resolutions early so opening the settings doesn't stutter later, but not while the menu is first appearing.
+        await Task.DelayRealtime( 3000 );
+        MenuProject.Settings.SettingsCatalog.FetchResolutions();
     }
 
     async Task ShowStartupModalsIfNeeded()

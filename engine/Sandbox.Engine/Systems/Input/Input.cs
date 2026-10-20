@@ -32,7 +32,7 @@ public static partial class Input
 	}
 
 	/// <summary>
-	/// True if the mouse cursor is visible (using UI etc)
+	/// Whether input is in cursor mode. Can be true even when <see cref="Mouse.CursorType"/> is <c>"none"</c>.
 	/// </summary>
 	public static bool MouseCursorVisible
 	{

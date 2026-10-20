@@ -11,6 +11,8 @@ public static partial class Game
 
 	internal static void InitHost()
 	{
+		if ( Bootstrap.ConsumePreparedTypeLibrary() ) return;
+
 		InitTypeLibrary();
 	}
 
@@ -27,7 +29,8 @@ public static partial class Game
 		TypeLibrary.AddAssembly( typeof( EngineLoop ).Assembly, false );
 		TypeLibrary.AddAssembly( typeof( Facepunch.ActionGraphs.ActionGraph ).Assembly, false );
 
-		if ( NodeLibrary is null )
+		var context = GlobalContext.Current;
+		if ( !context.HasNodeLibrary )
 		{
 			NodeLibrary = new Facepunch.ActionGraphs.NodeLibrary( new TypeLoader( () => TypeLibrary ), new GraphLoader() );
 
@@ -37,7 +40,7 @@ public static partial class Game
 			NodeLibrary.VoidTaskFaulted += ( _, e ) => Log.Error( e );
 		}
 
-		NodeLibrary.Reset();
+		context.ResetNodeLibrary();
 
 		AddNodesFromAssembly( typeof( Vector3 ).Assembly );
 		AddNodesFromAssembly( typeof( LogNodes ).Assembly );

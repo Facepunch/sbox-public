@@ -8,7 +8,7 @@ namespace Sandbox.SceneRenderer.Features;
 internal sealed partial class LightBinnerFeature
 {
 	/// <summary>
-	/// 148-byte scalar-layout mirror of <c>GPULight</c>/<c>BinnedLight</c> (lightbinner_standard.h, common/lightbinner.hlsl).
+	/// 156-byte scalar-layout mirror of <c>GPULight</c>/<c>BinnedLight</c> (lightbinner_standard.h, common/lightbinner.hlsl).
 	/// </summary>
 	[StructLayout( LayoutKind.Sequential, Pack = 4 )]
 	internal struct GpuLight
@@ -35,7 +35,20 @@ internal sealed partial class LightBinnerFeature
 		public uint LightCookieTextureIndex;
 		public uint ShadowMaskTextureIndex;
 
-		public const int NativeSize = 148;
+		/// <summary>
+		/// First rectangle index in this light's scene-owned candidate list.
+		/// </summary>
+		public uint LightModulatorOffset;
+
+		/// <summary>
+		/// Number of candidate rectangles to intersect along the lighting ray.
+		/// </summary>
+		public uint LightModulatorCount;
+
+		/// <summary>
+		/// Byte stride shared with the native and shader light buffers.
+		/// </summary>
+		public const int NativeSize = 156;
 
 		internal static void ValidateLayout()
 		{

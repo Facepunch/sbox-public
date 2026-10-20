@@ -31,8 +31,6 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	internal RenderObject Find( SceneObject sceneObject ) => sceneObject is not null && objects.TryGetValue( sceneObject, out var obj ) ? obj : null;
 	readonly HashSet<SceneDirectionalLight> suns = new();
 
-	// Newest sky wins (CSceneSystem::CreateSkyBox).
-	readonly List<SceneSkyBox> skies = new();
 	readonly Dictionary<Model, RenderMesh> meshes = new();
 	// Shared draw-state variants; hash collisions are checked by value.
 	readonly Dictionary<(RenderMesh Mesh, int Hash), List<(RenderMesh.DrawState[] States, RenderMesh Mesh)>> variants = new();
@@ -48,7 +46,6 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 
 	Transform[] bones = new Transform[256];
 	bool sunDirty = true;
-	bool skyDirty = true;
 
 	const SceneObjectChange Everything = (SceneObjectChange)~0 & ~SceneObjectChange.Removed;
 
@@ -89,7 +86,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	/// <summary>
 	/// Apply what changed since the last sync, for a camera about to render the world.
 	/// </summary>
-	public void Sync( SceneCamera camera )
+	public void Sync( SceneCamera camera, bool skyboxView = false )
 	{
 		lock ( gate )
 		{
@@ -102,7 +99,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		applying.Clear();
 
 		SyncAttributes();
-		SyncLighting( camera );
+		SyncLighting( camera, skyboxView );
 	}
 
 	void Apply( SceneObject sceneObject, SceneObjectChange change )
@@ -149,10 +146,6 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 
 			case null when sceneObject is SceneDirectionalLight:
 				sunDirty = true;
-				break;
-
-			case null when sceneObject is SceneSkyBox:
-				skyDirty = true;
 				break;
 
 			case null when sceneObject is SceneLightProbe probe && lightProbes.TryGetValue( probe, out var volume ):
@@ -259,8 +252,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 
 		if ( obj is not null ) World.Add( obj );
 		else if ( sceneObject is SceneDirectionalLight sun ) suns.Add( sun );
-		else if ( sceneObject is SceneSkyBox sky ) skies.Add( sky );
-		else Count( sceneObject, 1 );
+		else if ( sceneObject is not SceneSkyBox ) Count( sceneObject, 1 );
 
 		return obj;
 	}
@@ -278,8 +270,7 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 		if ( sceneObject is SceneLightProbe probe && lightProbes.Remove( probe, out var volume ) ) World.LightProbeVolumes.Remove( volume );
 		else if ( obj is not null ) World.Remove( obj );
 		else if ( sceneObject is SceneDirectionalLight sun ) sunDirty |= suns.Remove( sun );
-		else if ( sceneObject is SceneSkyBox sky ) skyDirty |= skies.Remove( sky );
-		else Count( sceneObject, -1 );
+		else if ( sceneObject is not SceneSkyBox ) Count( sceneObject, -1 );
 	}
 
 	void Count( SceneObject sceneObject, int by )
@@ -618,10 +609,10 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 	}
 
 	/// <summary>
-	/// Refresh dirty sun/sky state and camera lighting (<c>CameraRenderer.Configure</c>).
+	/// Refresh dirty sun state, per-view sky selection and camera lighting (<c>CameraRenderer.Configure</c>).
 	/// Uses the first enabled sun; native uses the last encountered by its binner.
 	/// </summary>
-	void SyncLighting( SceneCamera camera )
+	void SyncLighting( SceneCamera camera, bool skyboxView )
 	{
 		var lighting = World.Lighting;
 
@@ -671,23 +662,15 @@ internal sealed class SceneMirror : ISceneObjectListener, IDisposable
 			}
 		}
 
-		if ( skyDirty )
+		// Sky selection is per view: cameras can exclude different skies without changing the world.
+		// Native's child skybox view does not inherit the parent camera's object-tag filters.
+		var sky = skyboxView ? source.GetSky() : source.GetSky( camera.RenderTags, camera.ExcludeTags );
+		lighting.SkyMaterial = sky?.Material;
+		if ( sky is not null )
 		{
-			skyDirty = false;
-
-			SceneSkyBox sky = null;
-			for ( int i = skies.Count - 1; i >= 0 && sky is null; i-- )
-			{
-				if ( skies[i].IsValid() && skies[i].RenderingEnabled ) sky = skies[i];
-			}
-
-			lighting.SkyMaterial = sky?.Material;
-			if ( sky is not null )
-			{
-				lighting.SkyTint = sky.SkyTint;
-				lighting.SkyRotation = sky.Transform.Rotation;
-				lighting.SkyFog = sky.FogParams;
-			}
+			lighting.SkyTint = sky.SkyTint;
+			lighting.SkyRotation = sky.Transform.Rotation;
+			lighting.SkyFog = sky.FogParams;
 		}
 
 		lighting.AmbientColor = source.AmbientLightColor + camera.AmbientLightColor;

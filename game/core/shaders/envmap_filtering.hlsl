@@ -26,14 +26,17 @@ uint BaseResolution < Attribute("BaseResolution"); > ;
 
 #define NUM_MIPS 7
 
-// Evaluated at compile time
+// Evaluated at compile time. The loops here and the iSuperTap loop calling this must be [ForceUnroll]:
+// [unroll] is only a hint for the driver, so the coeffs indices stayed dynamic in the SPIR-V and every
+// call copied the whole coeffs table into function-local memory (5 copies, ~69 KB per thread with
+// 32 taps), which faulted the GPU when baking with the Quality filter.
 float4 GetCoeff( int mip_level, int axis, int iSuperTap, int j )
 {
 	float4 v = 0;
-	[unroll]
+	[ForceUnroll]
 	for ( int m = 1; m < NUM_MIPS; m++ )
 	{
-		[unroll]
+		[ForceUnroll]
 		for ( int a = 0; a < 3; a++ )
 		{
 			if ( m == mip_level && a == axis ) v = coeffs[m][j][(NUM_TAPS / 4) * a + iSuperTap];
@@ -259,7 +262,7 @@ void FilterCubemapFast( uint3 DispatchThreadID )
 			float phi2 = phi*phi;
 
 			// sample
-			[unroll]
+			[ForceUnroll]
 			for ( int iSuperTap = 0; iSuperTap < NUM_TAPS / 4; iSuperTap++ )
 			{
 				float4 coeffsDir0 = GetCoeff( mip_level, axis, iSuperTap, 0 );

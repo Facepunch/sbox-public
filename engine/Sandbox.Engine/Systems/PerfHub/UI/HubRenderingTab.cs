@@ -100,8 +100,12 @@ internal sealed class HubRenderingTab : HubTab
 	void RefreshContext( FrameStats f, ManagedFrameCounters m, bool isManaged )
 	{
 		var rs = RenderSettings.Instance;
-		var aa = rs.AntiAliasQuality.ToString();
-		aa = aa.StartsWith( "Multisample" ) ? $"{aa["Multisample".Length..]} MSAA" : aa == "None" ? "off" : aa;
+		var samples = rs.AntiAliasQuality.ToString();
+		var msaa = rs.AntiAliasQuality == MultisampleAmount.MultisampleNone ? null : $"{samples["Multisample".Length..]} MSAA";
+
+		var aa = rs.AntiAliasMode == AntiAliasMode.Cmaa2
+			? msaa is null ? "CMAA2" : $"CMAA2 + {msaa}"
+			: msaa ?? "off";
 
 		_context.Set( "Renderer", isManaged ? "managed" : "native", tooltip: isManaged
 			? $"{m.Renders} camera {(m.Renders == 1 ? "frame" : "frames")} through Sandbox.SceneRenderer last frame"

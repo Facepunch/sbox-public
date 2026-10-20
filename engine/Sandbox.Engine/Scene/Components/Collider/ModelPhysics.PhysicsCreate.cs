@@ -52,14 +52,29 @@ public sealed partial class ModelPhysics
 		PhysicsWereCreated = true;
 	}
 
+	int[] _partBodyIndex;
+
+	bool TryGetPartBody( int partIndex, out Body body )
+	{
+		body = default;
+		if ( _partBodyIndex is null || partIndex < 0 || partIndex >= _partBodyIndex.Length ) return false;
+
+		var index = _partBodyIndex[partIndex];
+		if ( index < 0 || index >= Bodies.Count ) return false;
+
+		body = Bodies[index];
+		return true;
+	}
+
 	private void CreateJoints( PhysicsGroupDescription physics, ComponentFlags componentFlags )
 	{
 		var jointFlags = componentFlags;
 
 		foreach ( var jointDesc in physics.Joints )
 		{
-			var body1 = Bodies[jointDesc.Body1];
-			var body2 = Bodies[jointDesc.Body2];
+			// Skip joints to parts that weren't created (e.g. their bone is missing)
+			if ( !TryGetPartBody( jointDesc.Body1, out var body1 ) || !TryGetPartBody( jointDesc.Body2, out var body2 ) )
+				continue;
 
 			var localFrame1 = jointDesc.Frame1;
 			var localFrame2 = jointDesc.Frame2;
@@ -220,8 +235,14 @@ public sealed partial class ModelPhysics
 		var bodyFlags = componentFlags;
 		var colliderFlags = componentFlags;
 
+		// Joints reference parts by index, but parts can be skipped below
+		_partBodyIndex = new int[physics.Parts.Count];
+		Array.Fill( _partBodyIndex, -1 );
+		var partIndex = -1;
+
 		foreach ( var part in physics.Parts )
 		{
+			partIndex++;
 			var bone = bones.GetBone( part.BoneName );
 
 			if ( bone is null )
@@ -265,6 +286,7 @@ public sealed partial class ModelPhysics
 			body.GameObjectSource = GameObject;
 
 			BodyTransforms.Set( Bodies.Count, boneWorld );
+			_partBodyIndex[partIndex] = Bodies.Count;
 			Bodies.Add( new Body( body, bone.Index, world.ToLocal( boneWorld ) ) );
 
 			foreach ( var sphere in part.Spheres )
@@ -348,6 +370,7 @@ public sealed partial class ModelPhysics
 
 		Bodies.Clear();
 		Joints.Clear();
+		_appliedJointScales = null;
 
 		PhysicsWereCreated = false;
 	}

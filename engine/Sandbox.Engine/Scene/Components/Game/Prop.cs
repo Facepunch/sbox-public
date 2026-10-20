@@ -519,6 +519,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 			x.PhysicsForceScale = force;
 			x.DamageAmount = damage;
 			x.Attacker = LastAttacker;
+			x.Weapon = GameObject;
 			x.DamageTags?.Add( "explosion" );
 
 		}, FindMode.EverythingInSelfAndDescendants );

@@ -60,8 +60,9 @@ internal static class ViewTargets
 			// The scene at the render resolution
 			var renderWidth = setup.m_nUpscaleRenderWidth;
 			var renderHeight = setup.m_nUpscaleRenderHeight;
-			color = RenderPipelineTools.FindOrCreateScratchTarget( view, "fsr3_render_color", renderWidth, renderHeight, hdrFormat, none, false );
-			depth = RenderPipelineTools.FindOrCreateScratchTarget( view, "fsr3_render_depth", renderWidth, renderHeight, ImageFormat.D32, none, false );
+			color = RenderPipelineTools.FindOrCreateScratchTarget( view, "fsr3_render_color", renderWidth, renderHeight, hdrFormat, msaa, false );
+			depth = RenderPipelineTools.FindOrCreateScratchTarget( view, "fsr3_render_depth", renderWidth, renderHeight,
+				msaa == none ? ImageFormat.D32 : setup.m_nDepthFormat, msaa, false );
 			resolveToFinal = true;
 		}
 

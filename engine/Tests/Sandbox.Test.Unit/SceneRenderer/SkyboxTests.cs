@@ -20,7 +20,7 @@ public class SkyboxTests
 
 	/// <summary>
 	/// Native's <c>CCameraRenderer::CreateView</c>: the skybox's origin plus the camera's position over the scale, with the
-	/// camera's own angles, field of view and planes. The template view has no size culling.
+	/// camera's own angles, field of view, planes and camera-local fog snapshot. The template view has no size culling.
 	/// </summary>
 	[TestMethod]
 	public void ViewIsTheCameraInSkyboxSpace()
@@ -34,6 +34,7 @@ public class SkyboxTests
 			ZFar = 30000,
 			Viewport = new Rect( 0, 0, 1280, 720 ),
 			SizeCullThreshold = 0.0025f,
+			Fog = new FogSetup { Enabled = true, Weight = 0.5f, BaseHeight = 320, AttenuationDistance = 800 },
 		};
 
 		var view = new RenderView();
@@ -46,6 +47,11 @@ public class SkyboxTests
 		Assert.AreEqual( 30000, view.ZFar );
 		Assert.AreEqual( main.Viewport, view.Viewport );
 		Assert.AreEqual( 0, view.SizeCullThreshold );
+		Assert.AreEqual( main.Fog, view.Fog, "Skybox views inherit the fog snapshot; coordinate conversion happens when binding attributes" );
+
+		main.Fog = null;
+		RenderSystem.FillSkyboxView( view, main, new Skybox3D( new RenderWorld() ) { Scale = 16 } );
+		Assert.IsNull( view.Fog, "Reused child views clear the previous camera's fog" );
 	}
 
 	/// <summary>

@@ -15,6 +15,42 @@ namespace SceneRendererTests;
 public class ShadowTests
 {
 	/// <summary>
+	/// The dominant sun's current color and direction are available with global or per-light shadows disabled.
+	/// </summary>
+	[TestMethod]
+	public void UnshadowedSunDataStaysCurrent()
+	{
+		var csmEnabled = Sandbox.Rendering.ShadowMapper.CSMEnabled;
+		try
+		{
+			var mapper = new Sandbox.Rendering.ShadowMapper();
+			var light = new Sandbox.Rendering.ShadowLight
+			{
+				Color = new Vector3( 1, 0.5f, 0.25f ),
+				Direction = Vector3.Down,
+				ShadowsEnabled = false
+			};
+			Sandbox.Rendering.ShadowMapper.CSMEnabled = true;
+			mapper.DoDirectionalLight( light );
+			Assert.AreEqual( new Vector4( light.Color, 0 ), mapper.DirectionalLightData.Color );
+			Assert.AreEqual( new Vector4( light.Direction, 0 ), mapper.DirectionalLightData.Direction );
+
+			Sandbox.Rendering.ShadowMapper.CSMEnabled = false;
+			light.Color = Vector3.One;
+			light.Direction = Vector3.Forward;
+			mapper.DoDirectionalLight( light );
+			Assert.IsTrue( mapper.DirectionalLightData.Enabled );
+			Assert.AreEqual( 0u, mapper.DirectionalLightData.CascadeCount );
+			Assert.AreEqual( new Vector4( light.Color, 0 ), mapper.DirectionalLightData.Color );
+			Assert.AreEqual( new Vector4( light.Direction, 0 ), mapper.DirectionalLightData.Direction );
+		}
+		finally
+		{
+			Sandbox.Rendering.ShadowMapper.CSMEnabled = csmEnabled;
+		}
+	}
+
+	/// <summary>
 	/// The sun gets four orthographic cascades, each bigger than the last, and a cascade leaves out
 	/// casters the one before it already covers - native's exclusion frustum.
 	/// </summary>
@@ -100,6 +136,61 @@ public class ShadowTests
 		visible = system.ShadowMaps.Passes[0].Visible( mesh );
 		CollectionAssert.Contains( visible, movingBox.Index );
 		CollectionAssert.Contains( visible, fixedBox.Index );
+	}
+
+	/// <summary>
+	/// A cascade's size only depends on the camera's projection. Far from the origin, fitting it in world space let float error
+	/// in the inverse view projection resize it every frame the camera moved, which slid the texel grid and made every shadow
+	/// edge crawl, however well the origin was snapped.
+	/// </summary>
+	[TestMethod]
+	public void SunCascadesKeepTheirSizeFarFromTheOrigin()
+	{
+		var maxCascades = Sandbox.Rendering.ShadowMapper.MaxCascades;
+		Sandbox.Rendering.ShadowMapper.MaxCascades = 4;
+
+		try
+		{
+			var world = new RenderWorld();
+			using var system = new RenderSystem();
+
+			var view = new RenderView
+			{
+				FieldOfView = 90,
+				ZNear = 5,
+				ZFar = 30000,
+				Viewport = new Rect( 0, 0, 1920, 1080 ),
+			};
+
+			float[] CascadeSizes( Vector3 position, Rotation rotation )
+			{
+				view.Position = position;
+				view.Rotation = rotation;
+				view.Update();
+				CollectAndPrepare( system, world, view );
+
+				var passes = system.ShadowMaps.Passes;
+				var sizes = new float[passes.Length];
+				for ( int i = 0; i < passes.Length; i++ )
+					sizes[i] = passes[i].View.OrthoSize.x;
+				return sizes;
+			}
+
+			var expected = CascadeSizes( Vector3.Zero, Rotation.Identity );
+			Assert.AreEqual( 4, expected.Length );
+
+			// Walking and turning the camera across a big map
+			for ( int frame = 0; frame < 120; frame++ )
+			{
+				var position = new Vector3( 20000 + frame * 1.7f, -15000 + frame * 0.9f, 300 );
+				var rotation = Rotation.From( 10 + frame * 0.05f, frame * 0.2f, 0 );
+				CollectionAssert.AreEqual( expected, CascadeSizes( position, rotation ), $"frame {frame}" );
+			}
+		}
+		finally
+		{
+			Sandbox.Rendering.ShadowMapper.MaxCascades = maxCascades;
+		}
 	}
 
 	/// <summary>

@@ -512,12 +512,13 @@ internal partial class ShadowMapper
 
 	internal int DoDirectionalLight( in ShadowLight light )
 	{
+		if ( CSMEnabled )
+			FindOrCreateDirectionalShadowMaps( light );
+
+		// Lighting must stay current even without shadows or when cached cascades are reused.
 		GPUDirectionalLightData.Enabled = true;
-
-		if ( !CSMEnabled )
-			return 0;
-
-		FindOrCreateDirectionalShadowMaps( light );
+		GPUDirectionalLightData.Color = new Vector4( light.Color, light.FogStrength );
+		GPUDirectionalLightData.Direction = new Vector4( light.Direction, 0 );
 		return 0;
 	}
 

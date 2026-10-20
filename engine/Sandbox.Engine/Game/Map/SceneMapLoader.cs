@@ -51,6 +51,11 @@ public class SceneMapLoader : MapLoader
 	protected virtual void CreateLightProbeVolume( ObjectEntry kv )
 	{
 		var texture = kv.GetResource<Texture>( "lightprobetexture" );
+
+		// Unbaked volumes must not suppress realtime lighting with an empty probe.
+		if ( texture is null || texture.IsError )
+			return;
+
 		var indicesTexture = kv.GetResource<Texture>( "lightprobetexture_dli" );
 		var scalarsTexture = kv.GetResource<Texture>( "lightprobetexture_dls" );
 		var boundsMin = kv.GetValue( "box_mins", new Vector3( -72.0f, -72.0f, -72.0f ) );

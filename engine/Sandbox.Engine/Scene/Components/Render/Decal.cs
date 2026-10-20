@@ -115,6 +115,15 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 	[Property, Range( 0.0f, 0.5f )]
 	public float CoverageRange { get; set; } = 0.07f;
 
+	/// <summary>
+	/// Duration of fade-in transition for this decal when it is spawned, based on height coverage and heightmap texture.
+	/// 0 will make the fade-in instant. You'll need a valid height map texture on the decal for this effect.
+	/// </summary>
+	[Property, Range( 0, 2 )]
+	public float CoverageFadeIn { get; set; } = 0.0f;
+
+	float CoverageFadeInDelta => CoverageFadeIn > 0 ? Math.Clamp( (float)(Time.NowDouble - _startTime) / CoverageFadeIn, 0, 1 ) : 1;
+
 	private uint _sortLayer;
 
 	/// <summary>
@@ -298,7 +307,7 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 		_sceneObject.ColorMix = _def.ColorMix * ColorMix.Evaluate( delta, Rand( 324 ) );
 		_sceneObject.BlendMode = _def.BlendMode;
 		_sceneObject.AttenuationAngle = AttenuationAngle;
-		_sceneObject.CoverageAmount = _def.CoverageAmount * CoverageAmount.Evaluate( delta, Rand( 493 ) );
+		_sceneObject.CoverageAmount = _def.CoverageAmount * CoverageAmount.Evaluate( delta, Rand( 493 ) ) * CoverageFadeInDelta;
 		_sceneObject.CoverageRange = CoverageRange;
 		_sceneObject.ParallaxStrength = Parallax.Evaluate( delta, Rand( 245 ) ) * _def.ParallaxStrength * 0.25f;
 		_sceneObject.SamplerIndex = SamplerState.GetBindlessIndex( new SamplerState { AddressModeU = TextureAddressMode.Clamp, AddressModeV = TextureAddressMode.Clamp, Filter = _def.FilterMode } );

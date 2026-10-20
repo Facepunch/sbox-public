@@ -207,9 +207,11 @@ public struct TaskSource
 	/// <summary>
 	/// Measured actual granularity of <see cref="Task.Delay( int )"/> on this platform/OS configuration.
 	/// Anything with more time remaining than this gets a single bulk <see cref="Task.Delay( int )"/>;
-	/// the sub-granularity tail is polled per frame.
+	/// the sub-granularity tail is polled per frame. Measuring takes a while, so a typical value is used until it finishes.
 	/// </summary>
-	internal static readonly int DelayPollingThresholdMs = MeasureTimerGranularityMs();
+	internal static int DelayPollingThresholdMs { get; private set; } = 16;
+
+	static readonly Task TimerGranularityProbe = Task.Run( () => DelayPollingThresholdMs = MeasureTimerGranularityMs() );
 
 	private static int MeasureTimerGranularityMs()
 	{

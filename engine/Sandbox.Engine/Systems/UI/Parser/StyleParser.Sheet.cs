@@ -7,9 +7,28 @@ internal static partial class StyleParser
 	[ThreadStatic]
 	static int IncludeLoops = 0;
 
+	// Every style block in a file has the same path, and working it out hits the filesystem.
+	[ThreadStatic]
+	static Dictionary<string, string> AbsolutePaths;
+
+	static string GetAbsolutePath( string filename )
+	{
+		var fileMount = GlobalContext.Current.FileMount;
+		if ( fileMount is null ) return null;
+
+		AbsolutePaths ??= new();
+		if ( !AbsolutePaths.TryGetValue( filename, out var path ) )
+		{
+			AbsolutePaths[filename] = path = fileMount.GetFullPath( filename );
+		}
+
+		return path;
+	}
+
 	public static StyleSheet ParseSheet( string content, string filename = "none", IEnumerable<(string, string)> variables = null, bool recover = false )
 	{
 		IncludeLoops = 0;
+		AbsolutePaths?.Clear();
 
 		StyleSheet sheet = new();
 		sheet.AddVariables( variables );
@@ -306,7 +325,7 @@ internal static partial class StyleParser
 
 		var node = new StyleBlock();
 		node.FileName = p.FileName;
-		node.AbsolutePath = GlobalContext.Current.FileMount?.GetFullPath( p.FileName );
+		node.AbsolutePath = GetAbsolutePath( p.FileName );
 		node.FileLine = p.CurrentLine;
 		node.SetSelector( selectors, parentNode );
 

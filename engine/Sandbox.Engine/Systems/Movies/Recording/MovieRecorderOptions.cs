@@ -140,8 +140,11 @@ public sealed record MovieRecorderOptions(
 			.WithCaptureAll<Renderer>()
 			.WithCaptureAll<Light>()
 			.WithCaptureAll<AmbientLight>()
+			.WithCaptureAll<Fog>()
+#pragma warning disable CS0618 // Retain legacy fog support for existing content.
 			.WithCaptureAll<GradientFog>()
 			.WithCaptureAll<CubemapFog>()
+#pragma warning restore CS0618
 			.WithCaptureAll<VolumetricFogVolume>()
 			.WithCaptureAll<SkyBox2D>()
 			.WithCaptureAll<ParticleEffect>()

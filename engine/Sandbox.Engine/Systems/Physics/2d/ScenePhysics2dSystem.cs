@@ -55,7 +55,7 @@ sealed partial class ScenePhysics2dSystem : GameObjectSystem<ScenePhysics2dSyste
 		ProcessContactEvents();
 		ProcessSensorEvents();
 
-		foreach ( var rb in Scene.GetAll<Rigidbody>() )
+		foreach ( var rb in Scene.Query<Rigidbody>() )
 		{
 			rb.UpdateTransformFromBody();
 		}

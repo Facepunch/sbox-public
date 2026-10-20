@@ -37,6 +37,7 @@ internal sealed class StandardPipeline
 	readonly MotionVectorLayer motionVectors = new();
 	readonly ReactiveMaskLayer reactiveMask = new();
 	readonly BloomDepthLayer bloomDepth = new();
+	readonly UpscaleDepthLayer upscaleDepth = new();
 	readonly MotionVectorDebugLayer motionVectorDebug = new();
 	readonly ReactiveMaskDebugLayer reactiveMaskDebug = new();
 
@@ -301,7 +302,7 @@ internal sealed class StandardPipeline
 		var upscaling = setup.m_nUpscalerMode != 0;
 		if ( upscaling )
 		{
-			Upscaler.Add( setup, color, setup.m_skyViewport );
+			Upscaler.Add( setup, color, setup.m_skyViewport, upscaleDepth );
 			color = setup.m_hUpscaleColor;
 			depth = setup.m_hUpscaleDepth;
 			viewport = setup.m_upscaleViewport;

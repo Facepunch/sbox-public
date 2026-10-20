@@ -116,6 +116,9 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 		// System.Threading.Tasks.Parallel.ForEach( Scene.GetAll<Rigidbody>(), c => c.UpdateTransformFromBody() );
 		foreach ( var obj in Scene.Query<Rigidbody>() )
 		{
+			// Asleep with nothing pending
+			if ( !obj.NeedsTransformSync ) continue;
+
 			obj.UpdateTransformFromBody();
 		}
 

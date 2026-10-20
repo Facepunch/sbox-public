@@ -36,9 +36,16 @@ public partial class AccessControl : IAssemblyResolver
 	/// Dangerous! Create a <see cref="TrustedBinaryStream"/> of the given stream
 	/// without actually passing it through access control.
 	/// </summary>
-	public TrustedBinaryStream TrustUnsafe( byte[] dll )
+	/// <param name="dll">The assembly bytes.</param>
+	/// <param name="resolvable">Parse the assembly now so verified assemblies can reference it. This is slow, so
+	/// skip it when nothing is verified against this assembly.</param>
+	public TrustedBinaryStream TrustUnsafe( byte[] dll, bool resolvable = true )
 	{
-		var instance = new AssemblyAccess( this, dll );
+		if ( resolvable )
+		{
+			_ = new AssemblyAccess( this, dll );
+		}
+
 		return TrustedBinaryStream.CreateInternal( dll );
 	}
 

@@ -262,6 +262,11 @@ PS
 			mask = sphereAlpha;
 		}
 		#endif
-		return DoAtmospherics( positionWs, i.vPositionSs.xy, float4( result, mask * saturate( i.flSourceAlpha ) ), false );
+		if ( g_bFogEnabled )
+		{
+			result = Fog::Apply( positionWs, i.vPositionSs.xy, result );
+		}
+
+		return float4( result, mask * saturate( i.flSourceAlpha ) );
 	}
 }

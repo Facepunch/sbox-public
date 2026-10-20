@@ -6,6 +6,8 @@ namespace Sandbox;
 public abstract class Joint : Component, Component.ExecuteInEditor
 {
 	private PhysicsJoint _joint;
+
+	internal PhysicsJoint NativeJoint => _joint;
 	private PhysicsBody _worldBody;
 
 	private bool started;
@@ -289,6 +291,10 @@ public abstract class Joint : Component, Component.ExecuteInEditor
 			_worldBody = body1.World.CreateBody();
 			body2 = _worldBody;
 		}
+
+		// Both ends on the same body (e.g. two children of one prop) - nothing to constrain
+		if ( body1 == body2 )
+			return;
 
 		var world = body1Go.WorldTransform;
 
