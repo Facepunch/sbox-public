@@ -126,20 +126,23 @@ public partial class NodePanel
 		var inputWidth = 80f;
 		var outputWidth = 80f;
 
+		var titleWidth = Node.HasTitleBar ? HeaderWidth() : 0f;
+
+		if ( Inputs.Any( x => x.Inner.InTitleBar ) )
+		{
+			titleWidth += 24f;
+		}
+
+		if ( Outputs.Any( x => x.Inner.InTitleBar ) )
+		{
+			titleWidth += 24f;
+		}
+
+		// A fixed-size node still grows to fit its title, rather than drawing it past its edge
+		totalWidth = MathF.Max( totalWidth, titleWidth );
+
 		if ( Node.AutoSize )
 		{
-			var titleWidth = Node.HasTitleBar ? HeaderWidth() : 0f;
-
-			if ( Inputs.Any( x => x.Inner.InTitleBar ) )
-			{
-				titleWidth += 24f;
-			}
-
-			if ( Outputs.Any( x => x.Inner.InTitleBar ) )
-			{
-				titleWidth += 24f;
-			}
-
 			inputWidth = Inputs
 				.Select( x => x.PreferredWidth )
 				.DefaultIfEmpty( 0f )
