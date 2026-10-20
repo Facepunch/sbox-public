@@ -9,7 +9,7 @@ namespace Sandbox.PanelGallery;
 /// </summary>
 public partial class NodeGraphPage : GalleryPage
 {
-	public NodeGraphPage() : base( "Node Graph", "Drag nodes by their body; Ctrl or Shift adds to the selection and empty space box-selects. Middle-drag pans and the wheel zooms. Drag from a handle to edit wires, Delete removes the selection. Right-click empty space or press Space for the node menu - type to filter it. Drop a wire on empty space for the nodes that fit it, or hold R to end it in a reroute; Shift-click a wire to reroute it. Right-click a node for its own entries and to comment it; drop nodes inside a comment to put them in it. Hover a node or a handle for its tooltip." )
+	public NodeGraphPage() : base( "Node Graph", "Drag nodes by their body; Ctrl or Shift adds to the selection and empty space box-selects. Middle-drag pans and the wheel zooms. Drag from a handle to edit wires, Delete removes the selection. Right-click empty space or press Space for the node menu - type to filter it. Drop a wire on empty space for the nodes that fit it, or hold R to end it in a reroute; Shift-click a wire to reroute it. Right-click a node for its own entries and to comment it; drop nodes inside a comment to put them in it. Ctrl+C, X, V and D copy, cut, paste and duplicate; Ctrl+Z undoes and Ctrl+Y or Ctrl+Shift+Z redoes. Hover a node or a handle for its tooltip." )
 	{
 		var row = Case( "Material graph", column: true );
 
@@ -19,7 +19,7 @@ public partial class NodeGraphPage : GalleryPage
 		tools.AddButton( "Select all", "select_all", graph.SelectAll );
 		tools.AddButton( "Center on selection", "center_focus_strong", graph.CenterOnSelection );
 		tools.AddButton( "Reset view", "fit_screen", graph.FitView );
-		tools.AddButton( "Reset graph", "restart_alt", () => graph.Graph = BuildGraph() );
+		tools.AddButton( "Reset graph", "restart_alt", graph.Reset );
 		row.AddChild( graph );
 
 		var output = Output();
@@ -31,25 +31,32 @@ public partial class NodeGraphPage : GalleryPage
 	static string Describe( DemoNodeGraph graph )
 	{
 		var selected = graph.SelectedNodes.Select( x => x.DisplayInfo.Name ).ToArray();
-		var undo = graph.UndoLog.Count == 0 ? "nothing to undo" : $"undo: {string.Join( ", ", graph.UndoLog.TakeLast( 5 ) )}";
+		var log = graph.UndoLog.ToArray();
+		var undo = log.Length == 0 ? "nothing to undo" : $"undo: {string.Join( ", ", log.TakeLast( 5 ) )}";
 		return $"{graph.Nodes.Count} nodes · {(selected.Length == 0 ? "nothing selected" : $"selected: {string.Join( ", ", selected )}")} · {undo}";
 	}
 
 	/// <summary>
-	/// A graph panel with a handle look per value type, a node menu, comments, reroutes and an
-	/// undo log in place of real undo.
+	/// A graph panel with a handle look per value type, a node menu, comments, reroutes and undo
+	/// through whole-graph snapshots.
 	/// </summary>
 	sealed class DemoNodeGraph : NodeGraphPanel
 	{
 		bool _fitted;
 		string _pending;
+		List<DemoNode> _before;
+
+		readonly List<(string Name, List<DemoNode> State)> _undo = new();
+		readonly List<(string Name, List<DemoNode> State)> _redo = new();
 
 		/// <summary>
-		/// The edits made, by name, oldest first.
+		/// The edits that can be undone, by name, oldest first.
 		/// </summary>
-		public List<string> UndoLog { get; } = new();
+		public IEnumerable<string> UndoLog => _undo.Select( x => x.Name );
 
 		public event Action UndoChanged;
+
+		DemoGraph Demo => (DemoGraph)Graph;
 
 		public DemoNodeGraph()
 		{
@@ -62,15 +69,73 @@ public partial class NodeGraphPage : GalleryPage
 
 		protected override IEnumerable<INodeType> GetRelevantNodes( NodeQuery query ) => DemoNodeTypes.Filter( query );
 
-		public override void PushUndo( string name ) => _pending = name;
+		/// <summary>
+		/// Back to the graph the page starts with, forgetting the undo history.
+		/// </summary>
+		public void Reset()
+		{
+			Graph = BuildGraph();
+			_undo.Clear();
+			_redo.Clear();
+			UndoChanged?.Invoke();
+		}
+
+		public override void PushUndo( string name )
+		{
+			_pending = name;
+			_before = Demo.Snapshot();
+		}
 
 		public override void PushRedo()
 		{
 			if ( _pending is null ) return;
 
-			UndoLog.Add( _pending );
+			_undo.Add( (_pending, _before) );
+			_redo.Clear();
 			_pending = null;
+			_before = null;
 			UndoChanged?.Invoke();
+		}
+
+		/// <summary>
+		/// Put the graph back as it was before the last edit.
+		/// </summary>
+		public void Undo() => Step( _undo, _redo );
+
+		/// <summary>
+		/// Make the last undone edit again.
+		/// </summary>
+		public void Redo() => Step( _redo, _undo );
+
+		void Step( List<(string Name, List<DemoNode> State)> from, List<(string Name, List<DemoNode> State)> to )
+		{
+			if ( from.Count == 0 ) return;
+
+			var (name, state) = from[^1];
+			from.RemoveAt( from.Count - 1 );
+			to.Add( (name, Demo.Snapshot()) );
+
+			Demo.Restore( state );
+			RebuildFromGraph();
+			UndoChanged?.Invoke();
+		}
+
+		public override void OnButtonTyped( ButtonEvent e )
+		{
+			var redo = e.HasCtrl && (e.Button == "y" || (e.Button == "z" && e.HasShift));
+			var undo = e.HasCtrl && e.Button == "z" && !e.HasShift;
+
+			// A text field keeps its own undo
+			if ( (undo || redo) && !Descendants.OfType<TextEntry>().Any( x => x.HasFocus ) )
+			{
+				if ( undo ) Undo();
+				else Redo();
+
+				e.StopPropagation = true;
+				return;
+			}
+
+			base.OnButtonTyped( e );
 		}
 
 		protected override NodeHandleConfig OnGetHandleConfig( Type type )
