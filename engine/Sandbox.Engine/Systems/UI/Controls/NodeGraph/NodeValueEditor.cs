@@ -41,9 +41,10 @@ public abstract class NodeValueEditor : Panel
 	}
 
 	/// <summary>
-	/// Place the editor at <paramref name="rect"/>, in the plug's node units.
+	/// Place the editor at <paramref name="rect"/>, in the plug's node units. Override to keep an
+	/// editor that positions itself, such as one drawn outside the plug.
 	/// </summary>
-	public void Place( Rect rect )
+	public virtual void Place( Rect rect )
 	{
 		Style.Left = rect.Left;
 		Style.Top = rect.Top;

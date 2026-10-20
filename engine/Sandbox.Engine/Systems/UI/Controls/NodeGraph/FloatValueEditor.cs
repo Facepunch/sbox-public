@@ -33,7 +33,8 @@ public class FloatValueEditor : NodeValueEditor
 		get
 		{
 			var title = string.IsNullOrWhiteSpace( Title ) ? 0f : NodePaint.Measure( Title ).x + 8f;
-			var value = NodePaint.Measure( $"{Value:0.000}" ).x;
+			// Every digit measured as '0': proportional digits would resize the node as the value changes
+			var value = NodePaint.Measure( string.Concat( $"{Value:0.000}".Select( c => char.IsDigit( c ) ? '0' : c ) ) ).x;
 
 			return 4f + (IsRange ? 14f : 24f) + title + value;
 		}
