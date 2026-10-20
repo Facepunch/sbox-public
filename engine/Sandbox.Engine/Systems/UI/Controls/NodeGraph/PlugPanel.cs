@@ -93,8 +93,9 @@ public abstract partial class PlugPanel : Panel
 	{
 		base.Tick();
 
+		// Only a wired input loses its editor; an output's value still feeds the wire
 		if ( Editor is not null )
-			Editor.Enabled = !IsConnected;
+			Editor.Enabled = this is PlugOutPanel || !IsConnected;
 	}
 
 	/// <summary>
