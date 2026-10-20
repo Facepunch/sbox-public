@@ -9,7 +9,7 @@ namespace Sandbox.PanelGallery;
 /// </summary>
 public partial class NodeGraphPage : GalleryPage
 {
-	public NodeGraphPage() : base( "Node Graph", "Drag nodes by their body; Ctrl or Shift adds to the selection and empty space box-selects. Middle-drag pans and the wheel zooms. Drag from a handle to edit wires, Delete removes the selection. Right-click empty space or press Space for the node menu - type to filter it. Drop a wire on empty space for the nodes that fit it, or hold R to end it in a reroute; Shift-click a wire to reroute it. Right-click a node for its own entries and to comment it; drop nodes inside a comment to put them in it. Ctrl+C, X, V and D copy, cut, paste and duplicate; Ctrl+Z undoes and Ctrl+Y or Ctrl+Shift+Z redoes. Hover a node or a handle for its tooltip." )
+	public NodeGraphPage() : base( "Node Graph", "Drag nodes by their body; Ctrl or Shift adds to the selection and empty space box-selects. Middle-drag pans and the wheel zooms. Drag from a handle to edit wires, Delete removes the selection. Right-click empty space or press Space for the node menu - type to filter it. Drop a wire on empty space for the nodes that fit it, or hold R to end it in a reroute; Shift-click a wire to reroute it. Right-click a node for its own entries and to comment it; drop nodes inside a comment to put them in it. Ctrl+C, X, V and D copy, cut, paste and duplicate; Ctrl+Z undoes and Ctrl+Y or Ctrl+Shift+Z redoes. Ctrl+F finds a placed node and jumps to it. Hover a node or a handle for its tooltip." )
 	{
 		var row = Case( "Material graph", column: true );
 
