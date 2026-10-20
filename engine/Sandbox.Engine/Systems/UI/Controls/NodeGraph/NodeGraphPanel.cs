@@ -197,6 +197,7 @@ public partial class NodeGraphPanel : CanvasPanel
 
 		if ( _viewInitialized )
 		{
+			KeepZoomOnResize();
 			AutoPan();
 			SaveViewCookie();
 		}
@@ -207,6 +208,27 @@ public partial class NodeGraphPanel : CanvasPanel
 		}
 
 		base.Tick();
+	}
+
+	Vector2 _viewportSize;
+	float _viewZoom;
+
+	/// <summary>
+	/// The view is kept in canvas units, so a resized viewport would rescale the graph - such as when
+	/// a new panel's dock settles a few frames after the cookie view was restored. Keep the zoom instead.
+	/// </summary>
+	void KeepZoomOnResize()
+	{
+		var size = Viewport.Size;
+		if ( size.x <= 0 || size.y <= 0 ) return;
+
+		if ( size != _viewportSize && _viewZoom > 0 )
+		{
+			SetView( (ViewMin + ViewMax) * 0.5f, _viewZoom );
+		}
+
+		_viewportSize = size;
+		_viewZoom = Zoom;
 	}
 
 	public override void OnDraw( Painter painter )
