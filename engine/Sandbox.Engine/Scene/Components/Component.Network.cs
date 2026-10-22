@@ -79,7 +79,9 @@ public abstract partial class Component
 				return;
 			}
 
-			net.dataTable.UpdateSlotHash( slot, p.Value );
+			if ( net.dataTable.UpdateSlotHash( slot, p.Value ) )
+				net.MarkDirty();
+
 			p.Setter?.Invoke( p.Value );
 		}
 		catch ( Exception e )

@@ -5,12 +5,13 @@ using System.Text.Json.Nodes;
 
 namespace Sandbox;
 
-internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
+internal sealed partial class NetworkObject : IValid, IDeltaSnapshot, INetworkWakeable
 {
 	internal NetworkObject RootNetworkObject => GameObject.RootNetwork.RootGameObject._net;
 	internal GameObject GameObject { get; set; }
 
 	Guid IDeltaSnapshot.Id => Id;
+	uint IDeltaSnapshot.DirtyRevision => DirtyRevision;
 
 	/// <summary>
 	/// The unique <see cref="Guid"/> of the underlying <see cref="GameObject"/>.
@@ -72,15 +73,21 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	/// </summary>
 	public bool IsProxy { get; private set; }
 
+	/// <summary>
+	/// Whether this object has been culled for every connection long enough to leave the pending update set.
+	/// Its visibility is still checked every tick, which wakes it.
+	/// </summary>
+	public bool IsDeltaDormant { get; private set; }
+
+	/// <summary>
+	/// Whether all current recipients have acknowledged this object's snapshot.
+	/// </summary>
+	public bool IsFullyUpdated { get; set; }
+
 	private void UpdateIsProxy()
 	{
-		if ( _isNetworkSpawning || IsOwner || (IsUnowned && Networking.IsHost) )
-		{
-			IsProxy = false;
-			return;
-		}
-
-		IsProxy = true;
+		IsProxy = !(_isNetworkSpawning || IsOwner || (IsUnowned && Networking.IsHost));
+		RefreshKeepsAwake();
 	}
 
 	private void UpdateIsOwner()
@@ -102,6 +109,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	{
 		// Build the network table again as properties may have changed.
 		CreateDataTable();
+		MarkDirty();
 	}
 
 	internal NetworkObject( GameObject source )
@@ -214,6 +222,83 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	{
 		if ( IsProxy ) return;
 		_clearInterpolationFlag = true;
+		MarkDirty();
+	}
+
+	/// <summary>
+	/// Only changes to locally authored, synchronized transform channels need a new snapshot.
+	/// Interpolated poses and inherited world transforms are not replicated state.
+	/// </summary>
+	internal void MarkTransformDirty( in Transform previous, in Transform value )
+	{
+		if ( IsProxy ) return;
+		if ( HasSyncedTransformChange( previous, value ) )
+			MarkDirty();
+	}
+
+	private bool HasSyncedTransformChange( in Transform previous, in Transform value )
+	{
+		var flags = GameObject.Network.Flags;
+		return ((flags & NetworkFlags.NoPositionSync) == 0 && !previous.Position.Equals( value.Position ))
+			|| ((flags & NetworkFlags.NoRotationSync) == 0 && !previous.Rotation.Equals( value.Rotation ))
+			|| ((flags & NetworkFlags.NoScaleSync) == 0 && !previous.Scale.Equals( value.Scale ));
+	}
+
+	/// <summary>
+	/// Whether this object is in the scene's pending network update set.
+	/// </summary>
+	internal bool IsDirty { get; set; }
+
+	internal uint DirtyRevision { get; private set; }
+
+	// Use game time so paused or slowed simulations keep recently changed objects awake.
+	private double _dormantAfter;
+
+	private void ExtendDormancyGrace() => _dormantAfter = Time.NowDouble + 1.0;
+
+	/// <summary>
+	/// Whether this peer controls entries that must be polled (<see cref="SyncFlags.Query"/>, plain collections).
+	/// Cached on property and control changes to avoid scanning the table every send.
+	/// </summary>
+	internal bool KeepsAwake { get; private set; }
+
+	internal void RefreshKeepsAwake()
+	{
+		var keepsAwake = dataTable?.HasControlledPollEntries() == true;
+		if ( keepsAwake == KeepsAwake ) return;
+
+		KeepsAwake = keepsAwake;
+
+		if ( IsDirty )
+			GameObject?.Scene?.MoveNetworkObjectPendingList( this );
+	}
+
+	/// <summary>
+	/// Whether this object may leave the pending update set at <paramref name="now"/>, read once per send by the caller.
+	/// </summary>
+	internal bool CanSleepAt( double now ) => !KeepsAwake && now >= _dormantAfter;
+
+	/// <summary>
+	/// Wake this object and keep it pending until its current state is acknowledged.
+	/// </summary>
+	public void MarkDirty()
+	{
+		// Network containers can outlive the object that owns them.
+		if ( !IsValid ) return;
+		if ( IsProxy && !Networking.IsHost ) return;
+
+		// Animation sets bone and attachment transforms from worker threads.
+		if ( !ThreadSafe.IsMainThread )
+		{
+			GameObject.Scene.QueueWorkerThreadNetworkWake( this );
+			return;
+		}
+
+		DirtyRevision = unchecked(DirtyRevision + 1);
+		IsFullyUpdated = false;
+		ExtendDormancyGrace();
+		IsDeltaDormant = false;
+		GameObject.Scene.MarkNetworkObjectDirty( this );
 	}
 
 	internal bool CanDropOwnership( Connection source )
@@ -268,7 +353,8 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	LocalSnapshotState WriteRefreshSnapshot()
 	{
 		LocalSnapshotState.Version++;
-		return ((IDeltaSnapshot)this).WriteSnapshotState();
+		MarkDirty();
+		return WriteSnapshotState();
 	}
 
 	private static readonly GameObject.SerializeOptions _refreshSerializeOptions = new() { SingleNetworkObject = true, SkipNulls = true };
@@ -412,6 +498,24 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	private const float CullDelay = 2f;
 
 	/// <summary>
+	/// How long an object must have been culled for every connection before it leaves the pending update set.
+	/// </summary>
+	private const float DormancyThreshold = 3f;
+
+	private bool IsCulledForAll( Connection[] targets, float timeNow )
+	{
+		for ( var i = 0; i < targets.Length; i++ )
+		{
+			if ( !_cullStates.TryGetValue( targets[i].Id, out var state )
+				|| !state.Culled
+				|| timeNow - state.LastVisibleAt < DormancyThreshold )
+				return false;
+		}
+
+		return true;
+	}
+
+	/// <summary>
 	/// Remove a connection id from any internal data structures.
 	/// </summary>
 	/// <param name="id"></param>
@@ -430,6 +534,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		ClearConnections();
 		UpdateIsOwner();
 		UpdateIsProxy();
+		MarkDirty();
 	}
 
 	/// <summary>
@@ -446,10 +551,14 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		return GameObject.Network.AlwaysTransmit || !_culledConnections.Contains( target.Id );
 	}
 
-	bool IDeltaSnapshot.UpdateTransmitState( Connection[] targets )
+	bool IDeltaSnapshot.UpdateTransmitState( Connection[] targets ) => UpdateTransmitState( targets );
+
+	private bool UpdateTransmitState( Connection[] targets )
 	{
 		if ( GameObject.Network.AlwaysTransmit )
 		{
+			IsDeltaDormant = false;
+
 			for ( var i = 0; i < targets.Length; i++ )
 			{
 				var target = targets[i];
@@ -462,6 +571,12 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 			}
 
 			return true;
+		}
+
+		if ( targets.Length == 0 )
+		{
+			IsDeltaDormant = false;
+			return false;
 		}
 
 		if ( _nextUpdateCachedBounds )
@@ -511,6 +626,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 
 				SceneNetworkSystem.Instance?.DeltaSnapshots.ForgetObject( LocalSnapshotState, target );
 				GameObject.Network.SetCullState( target, false );
+				MarkDirty();
 
 				shouldTransmitToAny = true;
 				state.Culled = false;
@@ -530,7 +646,18 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 			}
 		}
 
+		IsDeltaDormant = !shouldTransmitToAny && IsCulledForAll( targets, timeNow ) && CanSleepAt( Time.NowDouble );
+
 		return shouldTransmitToAny;
+	}
+
+	internal bool CanProbeVisibility => (!IsProxy || Networking.IsHost) && !GameObject.Network.AlwaysTransmit;
+
+	internal bool ProbeVisibility( Connection[] targets )
+	{
+		var revision = DirtyRevision;
+		UpdateTransmitState( targets );
+		return DirtyRevision != revision;
 	}
 
 	/// <summary>
@@ -549,6 +676,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 			return;
 
 		target.SendMessage( GetCreateMessage() );
+		MarkDirty();
 	}
 
 	/// <summary>
@@ -583,13 +711,13 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	{
 		// Do we have a INetworkVisible? We're going to let that take priority.
 		var go = GameObject;
-		if ( go.IsValid() && go.Enabled && go.NetworkVisibility is not null )
+		if ( go.Enabled && go.NetworkVisibility is not null )
 		{
 			return go.NetworkVisibility.IsVisibleToConnection( target, worldBounds );
 		}
 
 		// Global culling
-		return GameObject.Scene.IsBBoxVisibleToConnection( target, worldBounds );
+		return go.Scene.IsBBoxVisibleToConnection( target, worldBounds );
 	}
 
 	private const int SnapshotPositionSlot = 1;
@@ -598,7 +726,9 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	private const int SnapshotInterpolationSlot = 4;
 	private const int SnapshotEnabledSlot = 5;
 
-	LocalSnapshotState IDeltaSnapshot.WriteSnapshotState()
+	LocalSnapshotState IDeltaSnapshot.WriteSnapshotState() => WriteSnapshotState();
+
+	private LocalSnapshotState WriteSnapshotState()
 	{
 		var system = SceneNetworkSystem.Instance;
 		if ( system is null ) return null;
@@ -634,7 +764,8 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 			LocalSnapshotState.AddCached( _snapshotCache, SnapshotEnabledSlot, GameObject.Enabled );
 		}
 
-		dataTable.QueryValues();
+		if ( dataTable.QueryValues() )
+			ExtendDormancyGrace();
 		dataTable.WriteSnapshotState( LocalSnapshotState );
 
 		_clearInterpolationFlag = false;
@@ -644,8 +775,8 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 
 	void IDeltaSnapshot.SendNetworkUpdate( bool queryValues )
 	{
-		if ( queryValues )
-			dataTable.QueryValues( true );
+		if ( queryValues && dataTable.QueryValues( true ) )
+			ExtendDormancyGrace();
 
 		if ( !dataTable.HasReliableChanges() )
 			return;
@@ -664,6 +795,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	internal void TransmitStateChanged()
 	{
 		LocalSnapshotState.ClearConnections();
+		MarkDirty();
 	}
 
 	private static readonly GameObject.SerializeOptions _createSerializeOptions = new() { SingleNetworkObject = true, SkipNulls = true };
@@ -923,6 +1055,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		system?.DeltaSnapshots.ClearNetworkObject( this );
 
 		LocalSnapshotState.ClearConnections();
+		MarkDirty();
 
 		if ( !isOwner )
 			return;

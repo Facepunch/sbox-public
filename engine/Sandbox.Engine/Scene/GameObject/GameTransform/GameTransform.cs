@@ -118,6 +118,8 @@ public partial class GameTransform
 		if ( _targetLocal == value )
 			return;
 
+		GameObject._net?.MarkTransformDirty( _targetLocal, value );
+
 		if ( interpolate && _hasPositionSet )
 		{
 			UpdateInterpolatedLocal( value );
@@ -139,6 +141,8 @@ public partial class GameTransform
 		if ( _targetLocal == value )
 			return false;
 
+		GameObject._net?.MarkTransformDirty( _targetLocal, value );
+
 		_interpolatedLocal = value;
 		_targetLocal = value;
 
@@ -157,6 +161,8 @@ public partial class GameTransform
 			&& _targetLocal.Rotation.Equals( value.Rotation )
 			&& _targetLocal.Scale.Equals( value.Scale ) )
 			return;
+
+		GameObject._net?.MarkTransformDirty( _targetLocal, value );
 
 		_hasPositionSet = true;
 		_interpolatedLocal = value;

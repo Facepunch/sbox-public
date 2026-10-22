@@ -430,6 +430,9 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 		if ( !CanWriteChanges() )
 			return;
 
+		if ( Parent is INetworkWakeable networkWakeable )
+			networkWakeable.MarkDirty();
+
 		if ( e.Action == NotifyCollectionChangedAction.Add )
 		{
 			var change = new Change { Index = e.NewStartingIndex, Value = (T)e.NewItems[0], Type = e.Action };

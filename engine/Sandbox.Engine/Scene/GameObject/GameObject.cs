@@ -89,6 +89,8 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 			_enabled = value;
 
 			UpdateEnabledStatus();
+
+			_net?.MarkDirty();
 		}
 	}
 
@@ -324,6 +326,7 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 		// Network owner could have changed
 		//
 		UpdateNetworkRoot();
+		_net?.MarkDirty();
 
 		//
 		// We might become (in)active now. oldParent is null during the constructor, we don't want

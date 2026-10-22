@@ -246,6 +246,8 @@ sealed partial class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 			DrawPvs();
 		}
 
+		DrawDormancy();
+
 		if ( !_nextSampleTime )
 			return;
 
