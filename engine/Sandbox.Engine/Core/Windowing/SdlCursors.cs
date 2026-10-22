@@ -11,6 +11,7 @@ internal static class SdlCursors
 {
 	static readonly Dictionary<Sdl.SystemCursor, IntPtr> system = new();
 	static readonly Dictionary<string, IntPtr> custom = new( StringComparer.OrdinalIgnoreCase );
+	static readonly Dictionary<IntPtr, (byte[] Pixels, int Width, int Height, int HotX, int HotY)> editorCursors = new();
 	static IntPtr selected;
 	static bool initialized, temporaryCursor;
 
@@ -88,15 +89,22 @@ internal static class SdlCursors
 	{
 		if ( !initialized ) return;
 		temporaryCursor = false;
+		if ( editorCursors.TryGetValue( selected, out var image ) )
+			IToolsDll.Current?.SetGameCursor( selected, image.Pixels, image.Width, image.Height, image.HotX, image.HotY );
+		else
+			IToolsDll.Current?.SetGameCursor( IntPtr.Zero, default, 0, 0, 0, 0 );
 		Sdl.SetCursor( selected );
 		if ( selected == IntPtr.Zero ) Sdl.HideCursor();
 		else Sdl.ShowCursor();
+		// SDL skips unchanged cursors; null forces a redraw after Qt replaces the native cursor.
+		Sdl.SetCursor( IntPtr.Zero );
 	}
 
 	internal static void ShowArrow()
 	{
 		if ( !initialized ) return;
 		temporaryCursor = true;
+		IToolsDll.Current?.SetGameCursor( IntPtr.Zero, default, 0, 0, 0, 0 );
 		Sdl.SetCursor( GetSystemCursor( Sdl.SystemCursor.Default ) );
 		Sdl.ShowCursor();
 	}
@@ -125,9 +133,12 @@ internal static class SdlCursors
 			if ( surface == IntPtr.Zero ) return false;
 			try
 			{
-				var cursor = Sdl.CreateColorCursor( surface, Math.Clamp( hotX, 0, width - 1 ), Math.Clamp( hotY, 0, height - 1 ) );
+				hotX = Math.Clamp( hotX, 0, width - 1 );
+				hotY = Math.Clamp( hotY, 0, height - 1 );
+				var cursor = Sdl.CreateColorCursor( surface, hotX, hotY );
 				if ( cursor == IntPtr.Zero ) return false;
 				custom.Add( name, cursor );
+				if ( IToolsDll.Current is not null ) editorCursors.Add( cursor, (pixels.ToArray(), width, height, hotX, hotY) );
 				return true;
 			}
 			finally { Sdl.DestroySurface( surface ); }
@@ -139,11 +150,13 @@ internal static class SdlCursors
 		if ( custom.Values.Contains( selected ) ) SetCursor( "arrow", allowCustom: false );
 		foreach ( var cursor in custom.Values ) Sdl.DestroyCursor( cursor );
 		custom.Clear();
+		editorCursors.Clear();
 	}
 
 	internal static void Shutdown()
 	{
 		if ( !initialized ) return;
+		IToolsDll.Current?.SetGameCursor( IntPtr.Zero, default, 0, 0, 0, 0 );
 		Sdl.SetCursor( IntPtr.Zero );
 		selected = IntPtr.Zero;
 		ShutdownUserCursors();

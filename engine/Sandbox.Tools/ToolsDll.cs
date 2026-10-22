@@ -23,6 +23,10 @@ internal class ToolsDll : IToolsDll
 	public void SetRelativeMouseOverride( bool relative ) => g_pToolFramework2.SetOverrideCursor( relative );
 
 	/// <inheritdoc />
+	public void SetGameCursor( IntPtr cursor, ReadOnlySpan<byte> pixels, int width, int height, int hotX, int hotY )
+		=> Editor.PlayWidgetCursor.Set( cursor, pixels, width, height, hotX, hotY );
+
+	/// <inheritdoc />
 	public bool IsApplicationActive => Native.QApp.IsApplicationActive();
 
 	public void Bootstrap()
