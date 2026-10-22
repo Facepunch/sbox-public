@@ -1,3 +1,4 @@
+using Sandbox.Rendering;
 using System.Text;
 
 namespace Sandbox.SceneLab;
@@ -23,13 +24,15 @@ internal sealed class Benchmark
 	double warmupSeconds;
 	readonly int measureFrames = Math.Max( 60, Args.Int( "-benchmark-frames", 600 ) );
 
-	readonly record struct Run( SceneLabScene Scene, SceneLabWindow.RendererKind Renderer, bool Prepass = true, bool Target = false )
+	readonly record struct Run( SceneLabScene Scene, SceneLabWindow.RendererKind Renderer, bool Prepass = true, bool Target = false, bool Occlusion = false )
 	{
-		public string Name => Renderer != SceneLabWindow.RendererKind.Managed ? Renderer.ToString()
+		public string Name => Occlusion ? $"{Kind}, occlusion culled" : Kind;
+
+		string Kind => Renderer != SceneLabWindow.RendererKind.Managed ? Renderer.ToString()
 			: Target ? $"Managed, texture{(Args.Int( "-msaa", 1 ) > 1 ? $" {Args.Int( "-msaa", 1 )}x MSAA" : "")}"
 			: Prepass ? "Managed" : "Managed, no prepass";
 	}
-	readonly record struct Result( Run Run, int Objects, FrameTimer.Summary Summary, int Gen0, int Gen1, int Gen2, Breakdown Managed, NativeCounts Native, List<(string Path, double Ms)> Gpu );
+	readonly record struct Result( Run Run, int Objects, double Occluded, FrameTimer.Summary Summary, int Gen0, int Gen1, int Gen2, Breakdown Managed, NativeCounts Native, List<(string Path, double Ms)> Gpu );
 
 	// -gpuprofile: GPU time by layer, from the engine's GPU profiler - native's layers, and the managed renderer's layers
 	// through its perf markers. Collecting it allocates, so the other columns of a profiled run aren't comparable.
@@ -102,6 +105,11 @@ internal sealed class Benchmark
 
 	Breakdown Average( int n ) => new( sums[0] / n, sums[1] / n, sums[2] / n, sums[3] / n, sums[4] / n, sums[5] / n, sums[6] / n, sums[7] / n, sums[8] / n, sums[9] / n, sums[10] / n );
 
+	/// <summary>
+	/// Objects occlusion culled per frame, from delayed GPU readbacks: native counts once per material, managed once per object.
+	/// </summary>
+	double occludedSum;
+
 	readonly List<Run> runs = new();
 	readonly List<Result> results = new();
 	int index = -1;
@@ -127,14 +135,30 @@ internal sealed class Benchmark
 				continue;
 			}
 
-			runs.Add( new Run( scene, SceneLabWindow.RendererKind.Managed ) );
+			Add( scene, new Run( scene, SceneLabWindow.RendererKind.Managed ) );
 			// Without a prepass: the lab's own renderer only, since a GameObject scene renders through the bridge's
-			if ( !scene.IsGame ) runs.Add( new Run( scene, SceneLabWindow.RendererKind.Managed, Prepass: false ) );
+			if ( !scene.IsGame ) Add( scene, new Run( scene, SceneLabWindow.RendererKind.Managed, Prepass: false ) );
 
 			// Into a ViewTarget, the way a camera with a render target draws, when -target asks for it
-			if ( Args.Has( "-target" ) ) runs.Add( new Run( scene, SceneLabWindow.RendererKind.Managed, Target: true ) );
-			runs.Add( new Run( scene, SceneLabWindow.RendererKind.Native ) );
+			if ( Args.Has( "-target" ) ) Add( scene, new Run( scene, SceneLabWindow.RendererKind.Managed, Target: true ) );
+			Add( scene, new Run( scene, SceneLabWindow.RendererKind.Native ) );
 		}
+	}
+
+	/// <summary>
+	/// A run with occlusion culling as the command line set it, or off and then on when the scene compares them.
+	/// </summary>
+	void Add( SceneLabScene scene, Run run )
+	{
+		if ( !scene.CompareOcclusion )
+		{
+			var culling = run.Renderer == SceneLabWindow.RendererKind.Managed ? ManagedSceneRendering.Occlusion && run.Prepass : RenderPipeline.OcclusionCulling;
+			runs.Add( run with { Occlusion = culling } );
+			return;
+		}
+
+		runs.Add( run );
+		runs.Add( run with { Occlusion = true } );
 	}
 
 	/// <summary>
@@ -159,15 +183,26 @@ internal sealed class Benchmark
 			Array.Clear( sums );
 			Array.Clear( nativeSums );
 			gpuSums.Clear();
+			occludedSum = 0;
 			return false;
 		}
 
-		if ( runs[index].Renderer == SceneLabWindow.RendererKind.Managed ) Accumulate( window.ManagedStats );
-		else AccumulateNative();
+		var run = runs[index];
+		if ( run.Renderer == SceneLabWindow.RendererKind.Managed )
+		{
+			Accumulate( window.ManagedStats );
+			occludedSum += window.ManagedStats.ObjectsOcclusionCulled;
+		}
+		else
+		{
+			AccumulateNative();
+			occludedSum += RenderPipeline.GetOcclusionCulled();
+		}
+
 		AccumulateGpu();
 		if ( ++measured < measureFrames ) return false;
 
-		var result = new Result( runs[index], window.ObjectCount, timer.Summarise(),
+		var result = new Result( run, window.ObjectCount, occludedSum / measured, timer.Summarise(),
 			GC.CollectionCount( 0 ) - gen0, GC.CollectionCount( 1 ) - gen1, GC.CollectionCount( 2 ) - gen2, Average( measured ), AverageNative( measured ), AverageGpu( measured ) );
 		results.Add( result );
 		Log.Info( $"Benchmark: {result.Run.Scene.Name} / {result.Run.Name}: {result.Summary}, GCs {result.Gen0}/{result.Gen1}/{result.Gen2}" );
@@ -196,6 +231,9 @@ internal sealed class Benchmark
 		window.DepthPrepass = run.Prepass;
 		window.RenderToTexture = run.Target;
 
+		if ( run.Renderer == SceneLabWindow.RendererKind.Managed ) ManagedSceneRendering.Occlusion = run.Occlusion;
+		else RenderPipeline.OcclusionCulling = run.Occlusion;
+
 		frames = 0;
 		measured = -1;
 		runTime.Restart();
@@ -211,17 +249,17 @@ internal sealed class Benchmark
 		var md = new StringBuilder();
 		md.AppendLine( $"Scene Lab benchmark, {DateTime.Now:yyyy-MM-dd HH:mm}, {measureFrames} measured frames per run, vsync off" );
 		md.AppendLine();
-		md.AppendLine( "| Scene | Objects | Renderer | FPS | Frame ms | p95 ms | p99 ms | Render ms (main thread) | GPU ms | Alloc B/frame | GCs (0/1/2) |" );
-		md.AppendLine( "|---|---|---|---|---|---|---|---|---|---|---|" );
+		md.AppendLine( "| Scene | Objects | Occluded | Renderer | FPS | Frame ms | p95 ms | p99 ms | Render ms (main thread) | GPU ms | Alloc B/frame | GCs (0/1/2) |" );
+		md.AppendLine( "|---|---|---|---|---|---|---|---|---|---|---|---|" );
 
 		var csv = new StringBuilder();
-		csv.AppendLine( "scene,objects,renderer,fps,frame_ms,p95_ms,p99_ms,render_ms,gpu_ms,alloc_bytes,gen0,gen1,gen2" );
+		csv.AppendLine( "scene,objects,occluded,renderer,fps,frame_ms,p95_ms,p99_ms,render_ms,gpu_ms,alloc_bytes,gen0,gen1,gen2" );
 
 		foreach ( var r in results )
 		{
 			var s = r.Summary;
-			md.AppendLine( $"| {r.Run.Scene.Name} | {r.Objects} | {r.Run.Name} | {s.Fps:0} | {s.FrameMs:0.000} | {s.FrameP95Ms:0.000} | {s.FrameP99Ms:0.000} | {s.RenderMs:0.000} | {s.GpuMs:0.000} | {s.AllocBytes:0} | {r.Gen0}/{r.Gen1}/{r.Gen2} |" );
-			csv.AppendLine( FormattableString.Invariant( $"\"{r.Run.Scene.Name}\",{r.Objects},{r.Run.Name},{s.Fps:0.0},{s.FrameMs:0.000},{s.FrameP95Ms:0.000},{s.FrameP99Ms:0.000},{s.RenderMs:0.000},{s.GpuMs:0.000},{s.AllocBytes:0},{r.Gen0},{r.Gen1},{r.Gen2}" ) );
+			md.AppendLine( $"| {r.Run.Scene.Name} | {r.Objects} | {r.Occluded:0} | {r.Run.Name} | {s.Fps:0} | {s.FrameMs:0.000} | {s.FrameP95Ms:0.000} | {s.FrameP99Ms:0.000} | {s.RenderMs:0.000} | {s.GpuMs:0.000} | {s.AllocBytes:0} | {r.Gen0}/{r.Gen1}/{r.Gen2} |" );
+			csv.AppendLine( FormattableString.Invariant( $"\"{r.Run.Scene.Name}\",{r.Objects},{r.Occluded:0},\"{r.Run.Name}\",{s.Fps:0.0},{s.FrameMs:0.000},{s.FrameP95Ms:0.000},{s.FrameP99Ms:0.000},{s.RenderMs:0.000},{s.GpuMs:0.000},{s.AllocBytes:0},{r.Gen0},{r.Gen1},{r.Gen2}" ) );
 		}
 
 		md.AppendLine();

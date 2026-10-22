@@ -64,7 +64,9 @@ internal sealed partial class NetworkObject
 		foreach ( var propertyAndAttribute in ReflectionQueryCache.SyncProperties( type ) )
 		{
 			var isHostSync = propertyAndAttribute.Attribute.Flags.HasFlag( SyncFlags.FromHost );
+#pragma warning disable CS0618 // Existing games still rely on Query polling.
 			var isQuery = propertyAndAttribute.Attribute.Flags.HasFlag( SyncFlags.Query );
+#pragma warning restore CS0618
 
 			try
 			{

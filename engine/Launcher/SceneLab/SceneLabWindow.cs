@@ -293,6 +293,8 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		viewMenu.AboutToShow += m => debug.Checked = !mesh.UseMeshMaterials;
 		var prepass = viewMenu.AddOption( "Depth Prepass", on => { renderer.DepthPrepass = on; timer.Clear(); } );
 		viewMenu.AboutToShow += m => prepass.Checked = renderer.DepthPrepass;
+		var occlusion = viewMenu.AddOption( "Occlusion Culling", on => { Sandbox.Rendering.ManagedSceneRendering.Occlusion = on; Sandbox.Rendering.RenderPipeline.OcclusionCulling = on; timer.Clear(); } );
+		viewMenu.AboutToShow += m => occlusion.Checked = Renderer == RendererKind.Managed ? Sandbox.Rendering.ManagedSceneRendering.Occlusion : Sandbox.Rendering.RenderPipeline.OcclusionCulling;
 		var sizeCull = viewMenu.AddOption( "Size Culling", on => view.SizeCullThreshold = on ? SizeCullThreshold : 0 );
 		viewMenu.AboutToShow += m => sizeCull.Checked = view.SizeCullThreshold > 0;
 		var shadows = viewMenu.AddOption( "Shadows", on => Shadows = on );
@@ -824,11 +826,15 @@ internal sealed partial class SceneLabWindow : PanelWindow
 		text.AppendLine( $"render  {summary.RenderMs,8:0.000} ms   alloc {summary.AllocBytes,6:0} B" );
 		text.Append( $"gpu     {(summary.GpuMs > 0 ? $"{summary.GpuMs,8:0.00} ms" : "     n/a")}" );
 
+		// Native counts each material's draw of an object
+		if ( !managed && Sandbox.Rendering.RenderPipeline.OcclusionCulling )
+			text.AppendLine().AppendLine().Append( $"occluded{Sandbox.Rendering.RenderPipeline.GetOcclusionCulled(),8}   draws" );
+
 		if ( managed )
 		{
 			var r = GameStats() ?? renderer.Stats;
 			text.AppendLine().AppendLine();
-			text.AppendLine( $"visible {r.ObjectsVisible,8}   of {r.Objects}, {r.ObjectsSizeCulled} too small" );
+			text.AppendLine( $"visible {r.ObjectsVisible,8}   of {r.Objects}, {r.ObjectsSizeCulled} too small, {r.ObjectsOcclusionCulled} occluded" );
 			text.AppendLine( $"draws   {r.Draws,8}   {r.Instances} instances, {r.Triangles / 1000000.0:0.0}M tris" );
 			text.AppendLine( $"blend   {r.TranslucentDraws,8}   draws" );
 			text.AppendLine( $"depth   {r.DepthDraws,8}   draws" );

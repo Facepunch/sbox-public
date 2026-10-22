@@ -15,7 +15,7 @@ internal static class HeavyScene
 	const int LightCount = 24;
 	const float Extent = 700;
 
-	static readonly string[] Models =
+	internal static readonly string[] Models =
 	[
 		"balloonears01", "balloonheart01", "balloonregular01", "balloontall01", "bathroomsink01", "beachball", "beertankard01",
 		"broom01", "cardboardbox01", "chair01", "chair02", "chair03", "chair04blackleather", "chair05bluefabric", "chippacket01",
@@ -26,7 +26,7 @@ internal static class HeavyScene
 		"hotdog01/hotdog01_lod02", "hotdog01/hotdogbun01_lod02",
 	];
 
-	static readonly string[] Materials =
+	internal static readonly string[] Materials =
 	[
 		"materials/dev/dev_metal_rough10.vmat", "materials/dev/primary_white_emissive.vmat", "materials/dev/black_grid_8.vmat",
 		"materials/dev/dev_grating.vmat",

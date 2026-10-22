@@ -26,11 +26,6 @@ public static class Backend
 	public static IForumApi Forum { get; private set; }
 	public static IPlatformApi Platform { get; private set; }
 
-	/// <summary>
-	/// AI queries and cached conversations using the current game session.
-	/// </summary>
-	public static IAiApi Ai { get; private set; }
-
 	private static HttpClient httpClient = null;
 
 	//public static void Initialize( DelegatingHandler httpHandler, string url = "http://localhost:7071" )
@@ -60,7 +55,6 @@ public static class Backend
 		Code = RestService.For<ICodeApi>( httpClient, refitSettings );
 		Forum = RestService.For<IForumApi>( httpClient, refitSettings );
 		Platform = RestService.For<IPlatformApi>( httpClient, refitSettings );
-		Ai = RestService.For<IAiApi>( httpClient, refitSettings );
 	}
 
 	static RefitSettings BuildSettings( string url )

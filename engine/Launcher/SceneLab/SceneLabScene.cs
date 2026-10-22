@@ -54,6 +54,11 @@ internal sealed record SceneLabScene
 	/// </summary>
 	public bool Isolated { get; init; }
 
+	/// <summary>
+	/// The benchmark measures it with occlusion culling off and then on, through each renderer.
+	/// </summary>
+	public bool CompareOcclusion { get; init; }
+
 	public bool IsGame => Game is not null;
 
 	/// <summary>
@@ -297,6 +302,7 @@ internal sealed record SceneLabScene
 		new() { Name = "Heavy Scene", Group = "Stress", Game = HeavyScene.Build, Frame = HeavyScene.Animate },
 		new() { Name = "Heavy Scene AO", Group = "Stress", Game = HeavyScene.BuildWithOcclusion, Frame = HeavyScene.Animate, Isolated = true },
 		new() { Name = "Heavy Scene AO SSR", Group = "Stress", Game = HeavyScene.BuildWithReflectionsAndOcclusion, Frame = HeavyScene.Animate, Isolated = true },
+		new() { Name = "Occlusion City", Group = "Stress", Game = OcclusionScene.BuildCity, Frame = OcclusionScene.Drive, CompareOcclusion = true },
 		new() { Name = "Flatgrass", Group = "Maps", Game = MapScenes.Flatgrass, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },
 		new() { Name = "Flatgrass Skyline", Group = "Maps", Game = MapScenes.FlatgrassSkyline, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },
 		new() { Name = "Flatgrass Interior", Group = "Maps", Game = MapScenes.FlatgrassInterior, Frame = MapScenes.StartWhenOnline, Ready = MapScenes.Loaded },

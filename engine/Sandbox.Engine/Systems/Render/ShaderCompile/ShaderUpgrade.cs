@@ -197,64 +197,171 @@ internal static class ShaderUpgrade
 
 		try
 		{
-			Log.Info( $"{packageTitle}: {outdated.Length} outdated {(outdated.Length == 1 ? "shader" : "shaders")} to update" );
-
 			PruneCache( current );
-			LoadingScreen.Title = "Updating Shaders";
 
-			for ( var i = 0; i < outdated.Length; i++ )
+			// Ones already recompiled, or that failed on this build, are settled without compiling anything
+			var jobs = await Task.Run( () => outdated.Select( x => GetJob( x, current ) ).ToArray(), token );
+			var compiling = new List<Job>();
+			var failed = 0;
+
+			foreach ( var job in jobs )
+			{
+				if ( job.Cached )
+				{
+					fileSystem.Repoint( job.Shader.Path, job.CachePath );
+				}
+				else if ( job.FailedBefore is { } reason )
+				{
+					Log.Warning( $"{job.Shader.Path} is outdated and didn't recompile last time, it won't load{(reason is "" ? "" : $": {reason}")}" );
+					failed++;
+				}
+				else
+				{
+					compiling.Add( job );
+				}
+			}
+
+			if ( compiling.Count == 0 )
+				return;
+
+			Log.Info( $"{packageTitle}: {compiling.Count} outdated {(compiling.Count == 1 ? "shader" : "shaders")} to update" );
+
+			LoadingScreen.Subtitle = null;
+			LoadingScreen.StepFraction = 0;
+
+			// The bar goes by combos, a compute shader is one and a world shader thousands
+			var combos = compiling.Select( x => ShaderCompile.CountRecompileCombos( x.Shader.AbsolutePath ) ).ToArray();
+			var progress = new Progress( combos.Sum() );
+			var timer = FastTimer.StartNew();
+			var updated = 0;
+
+			for ( var i = 0; i < compiling.Count; i++ )
 			{
 				token.ThrowIfCancellationRequested();
 
-				var shader = outdated[i];
-				LoadingScreen.Subtitle = $"{Path.GetFileName( shader.Path )} ({i + 1}/{outdated.Length})";
+				var job = compiling[i];
+				var left = compiling.Count - i;
+				LoadingScreen.Title = $"Updating Outdated Shaders · {left} left";
 
-				var upgraded = await GetUpgradedAsync( shader, current, token );
-				if ( upgraded is not null )
-					fileSystem.Repoint( shader.Path, upgraded );
+				// Named for its source, the .shader they wrote
+				LoadingScreen.Subtitle = Path.ChangeExtension( Path.GetFileName( job.Shader.Path ), ".shader" );
+
+				var start = progress.Done;
+				var upgraded = await CompileAsync( job, progress, token );
+
+				// Whatever it didn't get to, failing part way
+				progress.SkipTo( start + combos[i] );
+
+				if ( upgraded is null )
+				{
+					failed++;
+					continue;
+				}
+
+				fileSystem.Repoint( job.Shader.Path, upgraded );
+				updated++;
 			}
+
+			Log.Info( $"{packageTitle}: updated {updated} of {compiling.Count} outdated {(compiling.Count == 1 ? "shader" : "shaders")} in {timer.Elapsed.Humanize( 2 )}{(failed > 0 ? $", {failed} won't load" : "")}" );
 		}
 		finally
 		{
 			LoadingScreen.Title = title;
 			LoadingScreen.Subtitle = null;
+			LoadingScreen.StepFraction = null;
 			gate.Release();
 		}
 	}
 
 	/// <summary>
-	/// The recompiled copy of a shader, compiling it if it isn't cached. Null if it can't be recompiled.
+	/// Combos compiled out of all of them, onto the loading screen's bar
 	/// </summary>
-	static async Task<string> GetUpgradedAsync( Candidate shader, Versions current, CancellationToken token )
+	sealed class Progress( long total )
 	{
-		var crc = await Task.Run( () =>
+		long done;
+
+		public long Done
 		{
-			using var stream = File.OpenRead( shader.AbsolutePath );
-			return Sandbox.Utility.Crc64.FromStream( stream );
-		}, token );
+			get { lock ( this ) return done; }
+		}
+
+		public void Add()
+		{
+			lock ( this )
+			{
+				done++;
+				Update();
+			}
+		}
+
+		public void SkipTo( long combos )
+		{
+			lock ( this )
+			{
+				done = Math.Max( done, combos );
+				Update();
+			}
+		}
+
+		void Update() => LoadingScreen.StepFraction = total > 0 ? Math.Clamp( (double)done / total, 0, 1 ) : 0;
+	}
+
+	/// <summary>
+	/// An outdated shader, where its recompiled copy goes, and whether that's already settled
+	/// </summary>
+	/// <param name="Shader">The package's outdated shader</param>
+	/// <param name="CachePath">Where its recompiled copy goes</param>
+	/// <param name="Cached">It's been recompiled already</param>
+	/// <param name="FailedBefore">Why it failed on this build before, empty if that isn't known; null if it didn't</param>
+	record struct Job( Candidate Shader, string CachePath, bool Cached, string FailedBefore );
+
+	static Job GetJob( Candidate shader, Versions current )
+	{
+		ulong crc;
+		using ( var stream = File.OpenRead( shader.AbsolutePath ) )
+			crc = Sandbox.Utility.Crc64.FromStream( stream );
 
 		var cachePath = Path.Combine( CacheFolder, CacheName( shader.Path, crc, current ) );
-		var failedPath = cachePath + ".failed";
 
 		if ( File.Exists( cachePath ) )
 		{
 			if ( GetState( cachePath, current ) == State.Current )
-				return cachePath;
+				return new Job( shader, cachePath, true, null );
 
 			File.Delete( cachePath );
 		}
 
-		// It failed on this build before, don't spend the time again until the engine changes
-		if ( File.Exists( failedPath ) && File.ReadAllText( failedPath ).Trim() == Application.Version )
+		// It failed on this build before, don't spend the time again until the engine changes. The version's on
+		// the first line, the compile's output after it.
+		var failedPath = cachePath + ".failed";
+		if ( File.Exists( failedPath ) )
 		{
-			Log.Warning( $"{shader.Path} is outdated and didn't recompile last time, it won't load" );
-			return null;
+			var lines = File.ReadAllLines( failedPath );
+			if ( lines.Length > 0 && lines[0].Trim() == Application.Version )
+				return new Job( shader, cachePath, false, FirstError( lines.Skip( 1 ) ) ?? "" );
 		}
+
+		return new Job( shader, cachePath, false, null );
+	}
+
+	/// <summary>
+	/// Recompile a shader into its cache path. Null if it can't be recompiled.
+	/// </summary>
+	static async Task<string> CompileAsync( Job job, Progress progress, CancellationToken token )
+	{
+		var shader = job.Shader;
+		var cachePath = job.CachePath;
+		var failedPath = cachePath + ".failed";
 
 		var timer = FastTimer.StartNew();
 
 		// Nothing else runs while the game loads, leave a core for the loading screen
-		var options = new ShaderCompileOptions { MaxThreads = Math.Max( 1, ShaderCompile.ComboThreads( default ) - 1 ) };
+		var options = new ShaderCompileOptions
+		{
+			MaxThreads = Math.Max( 1, ShaderCompile.ComboThreads( default ) - 1 ),
+			ComboCompiled = progress.Add,
+		};
+
 		ShaderCompile.Results result;
 
 		try
@@ -269,11 +376,13 @@ internal static class ShaderUpgrade
 
 		if ( result is not { Success: true, CompiledShader: not null } )
 		{
-			var errors = result?.Programs.Where( x => !x.Success ).SelectMany( x => x.Output ?? [] ).FirstOrDefault();
-			Log.Warning( $"Couldn't recompile outdated shader {shader.Path}, it won't load{(errors is null ? "" : $": {errors}")}" );
+			var output = result?.Programs.Where( x => !x.Success ).SelectMany( x => x.Output ?? [] ).ToList() ?? [];
+			var error = FirstError( output );
+			Log.Warning( $"Couldn't recompile outdated shader {shader.Path}, it won't load{(error is null ? "" : $": {error}")}" );
 
+			// All of it, for whoever wants to know why
 			Directory.CreateDirectory( Path.GetDirectoryName( failedPath ) );
-			await File.WriteAllTextAsync( failedPath, Application.Version, CancellationToken.None );
+			await File.WriteAllLinesAsync( failedPath, output.Prepend( Application.Version ), CancellationToken.None );
 			return null;
 		}
 
@@ -285,6 +394,24 @@ internal static class ShaderUpgrade
 
 		Log.Info( $"Recompiled outdated shader {shader.Path} in {timer.Elapsed.Humanize( 3 )}" );
 		return cachePath;
+	}
+
+	static readonly Regex ErrorLine = new( @"\berr(or)?:", RegexOptions.IgnoreCase | RegexOptions.Compiled );
+
+	/// <summary>
+	/// The line of a compile's output that says what went wrong - the first error, not the warnings ahead of it -
+	/// with the HLSL parser's pointer at the line it choked on. Null if there's no output.
+	/// </summary>
+	internal static string FirstError( IEnumerable<string> output )
+	{
+		var lines = output.Select( x => x.Trim() ).Where( x => x.Length > 0 ).ToList();
+
+		var error = lines.FirstOrDefault( ErrorLine.IsMatch ) ?? lines.FirstOrDefault();
+		if ( error is null )
+			return null;
+
+		var pointer = lines.FirstOrDefault( x => x.StartsWith( "====>" ) );
+		return pointer is null ? error : $"{error} at {pointer[5..].Trim()}";
 	}
 
 	/// <summary>

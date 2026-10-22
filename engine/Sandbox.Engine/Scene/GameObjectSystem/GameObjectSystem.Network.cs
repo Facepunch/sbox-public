@@ -174,7 +174,9 @@ public abstract partial class GameObjectSystem : IDeltaSnapshot
 		// Register all our Sync properties with the data table.
 		foreach ( var propertyAndAttribute in ReflectionQueryCache.SyncProperties( type ) )
 		{
+#pragma warning disable CS0618 // Existing systems still rely on Query polling.
 			var isQuery = propertyAndAttribute.Attribute.Flags.HasFlag( SyncFlags.Query );
+#pragma warning restore CS0618
 
 			try
 			{

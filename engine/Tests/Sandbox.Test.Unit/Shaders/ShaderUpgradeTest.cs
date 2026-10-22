@@ -92,4 +92,40 @@ public class ShaderUpgradeTest
 	{
 		Assert.AreEqual( "materials/my_shader.1a2b.r4v68a2.shader_c", ShaderUpgrade.CacheName( "/materials/my-shader.shader_c", 0x1a2b, Current ) );
 	}
+
+	[TestMethod]
+	public void FirstErrorSkipsThePreprocessorsWarnings()
+	{
+		string[] output =
+		[
+			"Error while running preprocessor over shader code",
+			"shaders/class/system.slang:13:9: warning: 'StaticCombo' macro redefined [-Wmacro-redefined]",
+			"#define StaticCombo(comboName, range, sys) ;",
+			"        ^",
+			"shaders/class/system.slang:40:2: fatal error: 'missing.hlsl' file not found",
+		];
+
+		Assert.AreEqual( "shaders/class/system.slang:40:2: fatal error: 'missing.hlsl' file not found", ShaderUpgrade.FirstError( output ) );
+	}
+
+	[TestMethod]
+	public void FirstErrorPointsAtWhereTheParserStopped()
+	{
+		string[] output =
+		[
+			"hlslParser.Parse err: ANTLR - Mismatched Token Exception: 58:1",
+			"#line 11 \"shaders/decal_generic.shader\"",
+			"====>  Translucent();",
+			"HLSL parser encountered 1 error",
+		];
+
+		Assert.AreEqual( "hlslParser.Parse err: ANTLR - Mismatched Token Exception: 58:1 at Translucent();", ShaderUpgrade.FirstError( output ) );
+	}
+
+	[TestMethod]
+	public void FirstErrorWithoutAnErrorIsTheFirstLine()
+	{
+		Assert.AreEqual( "something went wrong", ShaderUpgrade.FirstError( ["", "something went wrong", "and more"] ) );
+		Assert.IsNull( ShaderUpgrade.FirstError( [] ) );
+	}
 }

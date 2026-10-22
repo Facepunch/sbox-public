@@ -32,6 +32,7 @@ internal sealed class HubRenderingTab : HubTab
 	readonly HubFindings _findings;
 	readonly HubTable _submission;
 	readonly HubTable _visibility;
+	readonly HubTable _occlusion;
 	readonly HubTable _lights;
 	readonly HubTable _textures;
 	readonly HubTable _postProcess;
@@ -50,7 +51,9 @@ internal sealed class HubRenderingTab : HubTab
 		var split = AddChild( new Panel( null, "split" ) );
 
 		_submission = Pane( split, "render-submission" ).AddChild( new HubTable( Columns, "Submission", "#count", "" ).Banded() );
-		_visibility = Pane( split ).AddChild( new HubTable( "minmax(0, 1fr) 64px 40px 64px", "Visibility", "#objects", "#%", "" ).Banded() );
+		var visibility = Pane( split );
+		_visibility = visibility.AddChild( new HubTable( "minmax(0, 1fr) 64px 40px 64px", "Visibility", "#objects", "#%", "" ).Banded() );
+		_occlusion = visibility.AddChild( new HubTable( "minmax(0, 1fr) 64px", "GPU occlusion", "#count" ).Banded() );
 		_lights = Pane( split ).AddChild( new HubTable( "minmax(0, 1fr) 64px", "Lights and shadows", "#count" ).Banded() );
 		_textures = Pane( split ).AddChild( new HubTable( "minmax(0, 1fr) minmax(0, 130px) 64px", "Texture pool", "#", "" ).Banded() );
 
@@ -90,6 +93,7 @@ internal sealed class HubRenderingTab : HubTab
 		RefreshFindings( f );
 		RefreshSubmission( f, m, isManaged, drawCalls, triangles, trisPerDraw, batchingMatters );
 		RefreshVisibility( f, m, isManaged );
+		RefreshOcclusion( f, m, isManaged );
 		RefreshLights( f, m, isManaged );
 		RefreshTextures( f );
 		RefreshPostProcess();
@@ -212,7 +216,7 @@ internal sealed class HubRenderingTab : HubTab
 		if ( isManaged )
 		{
 			var other = Math.Max( 0, m.Objects - m.ObjectsVisible - m.ObjectsSizeCulled );
-			Part( t, "Drawn", m.ObjectsVisible, m.Objects, always: true );
+			Part( t, "Submitted", m.ObjectsVisible, m.Objects, always: true );
 			Part( t, "Too small", m.ObjectsSizeCulled, m.Objects );
 			Part( t, "Unaccounted", other, m.Objects );
 			t.End();
@@ -220,20 +224,35 @@ internal sealed class HubRenderingTab : HubTab
 		}
 
 		// The scene system counts what visibility, screen size and fading removed. The rest of what it tested and
-		// didn't draw isn't attributed to anything, so it's shown as such rather than guessed at.
+		// didn't submit isn't attributed to anything, so it's shown as such rather than guessed at.
 		var tested = f.ObjectsTested;
-		var drawn = Math.Min( f.ObjectsRendered, tested );
+		var submitted = Math.Min( f.ObjectsRendered, tested );
 		var counted = f.ObjectsCulledByVis + f.ObjectsCulledByScreenSize + f.ObjectsCulledByFade;
-		var unaccounted = Math.Max( 0, tested - drawn - counted );
+		var unaccounted = Math.Max( 0, tested - submitted - counted );
 
-		Part( t, "Drawn", drawn, tested, always: true );
+		Part( t, "Submitted", submitted, tested, always: true );
 		Part( t, "Vis culled", f.ObjectsCulledByVis, tested );
 		Part( t, "Too small", f.ObjectsCulledByScreenSize, tested );
 		Part( t, "Faded out", f.ObjectsCulledByFade, tested );
-		Part( t, "Unaccounted", unaccounted, tested, tooltip: "Tested and not drawn, without a reason the scene system counts" );
+		Part( t, "Unaccounted", unaccounted, tested, tooltip: "Tested and not submitted, without a reason the scene system counts" );
 		t.Row( "tested", [new( "Tested", "dim" ), N( $"{tested:N0}" ), "", ""], rowClass: "total" );
 		t.Row( "precull", [new( "Before culling", "dim" ), new( $"{f.ObjectsPreCull:N0}", "number dim" ), "", ""],
 			tooltip: "Counted at an earlier stage - doesn't have to add up with the rest" );
+		t.End();
+	}
+
+	void RefreshOcclusion( FrameStats f, ManagedFrameCounters m, bool isManaged )
+	{
+		var enabled = isManaged ? ManagedSceneRendering.Occlusion : RenderPipeline.OcclusionCulling;
+		_occlusion.SetClass( "hidden", !enabled );
+		if ( !enabled ) return;
+
+		var count = isManaged ? m.ObjectsOcclusionCulled : f.ObjectsCulledByOcclusion;
+		var t = _occlusion;
+		t.Begin();
+		t.Row( "hidden", [isManaged ? "Hidden objects" : "Hidden instances", N( $"{count:N0}" )],
+			tooltip: isManaged ? "Read back from the GPU a few frames later."
+				: "An object counts once per material. Read back from the GPU a few frames later." );
 		t.End();
 	}
 
