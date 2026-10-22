@@ -55,6 +55,19 @@ class RedirectFileSystem : Zio.FileSystems.PhysicalFileSystem
 		NativeEngine.FullFileSystem.AddSymLink( localPath[1..], "GAME", absoluteTargetFile );
 	}
 
+	/// <summary>
+	/// Point a file we already have at another target, like an outdated shader at its recompiled copy. Native keeps a
+	/// link's first target while anything else references it, so do it before anything loads the file.
+	/// </summary>
+	public void Repoint( string localPath, string absoluteTargetFile )
+	{
+		localPath = localPath.NormalizeFilename( true );
+		if ( !Files.ContainsKey( localPath ) ) return;
+
+		NativeEngine.FullFileSystem.RemoveSymLink( localPath[1..], "GAME" );
+		AddAbsFile( localPath, absoluteTargetFile );
+	}
+
 	protected override string ConvertPathToInternalImpl( UPath path )
 	{
 		if ( Files.TryGetValue( path, out var target ) )

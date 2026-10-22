@@ -71,13 +71,6 @@ public static class ShaderCompile
 
 	static ShaderCompile()
 	{
-		if ( NativeEngine.EngineGlobal.AppIsDedicatedServer() )
-			return;
-
-		// Not outside of editor, we dont even resourcecompiler there
-		if ( !Application.IsEditor )
-			return;
-
 		string dllName = "vfx_vulkan.dll";
 
 		if ( !native.IsNull )
@@ -242,6 +235,10 @@ public static class ShaderCompile
 	/// </summary>
 	static unsafe byte[] CompileResourceFile( string filename, byte[] data )
 	{
+		// resourcecompiler only loads in tools mode
+		if ( !Application.IsEditor )
+			return ShaderSource.WriteResourceFile( filename, data, ShaderTools.GetResourceVersion() );
+
 		fixed ( byte* dataPtr = data )
 		{
 			using CUtlBuffer buffer = IResourceCompilerSystem.GenerateResourceBytes( filename, (IntPtr)dataPtr, data.Length );

@@ -20,6 +20,11 @@ public partial class ServiceApi : IDisposable
 	public IForumApi Forum { get; }
 	public IPlatformApi Platform { get; }
 
+	/// <summary>
+	/// AI queries and cached conversations using the caller's game session.
+	/// </summary>
+	public IAiApi Ai { get; }
+
 	HttpClient client;
 
 	public ServiceApi( string url = "https://public.facepunch.com/sbox" )
@@ -51,6 +56,7 @@ public partial class ServiceApi : IDisposable
 		Code = RestService.For<ICodeApi>( client, refitSettings );
 		Forum = RestService.For<IForumApi>( client, refitSettings );
 		Platform = RestService.For<IPlatformApi>( client, refitSettings );
+		Ai = RestService.For<IAiApi>( client, refitSettings );
 	}
 
 	public void SetApiKey( string apiKey )

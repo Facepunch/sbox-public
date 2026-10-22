@@ -69,6 +69,11 @@ struct ServerInfo
 	/// If true the host hands the game to another peer when it leaves.
 	/// </summary>
 	public bool HostMigration { get; set; }
+
+	/// <summary>
+	/// The client has to send the server's password (sv_password) to get in.
+	/// </summary>
+	public bool PasswordRequired { get; set; }
 }
 
 /// <summary>
@@ -106,6 +111,7 @@ struct HostHandoffMsg
 struct HostAccessMsg
 {
 	public LobbyPrivacy Privacy { get; set; }
+	public string Password { get; set; }
 	public ulong[] InvitedJoiners { get; set; }
 	public ulong[] AdmittedJoiners { get; set; }
 }

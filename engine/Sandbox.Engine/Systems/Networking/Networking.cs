@@ -145,6 +145,33 @@ public static partial class Networking
 	[ConVar( "net_game_server_token", ConVarFlags.Protected )]
 	internal static string GameServerToken { get; set; } = string.Empty;
 
+	static string _serverPassword = "";
+
+	/// <summary>
+	/// The password players need to join the server or lobby we host, unless <see cref="LobbyConfig.Password"/>
+	/// gives it one. Setting it while hosting changes the game's password.
+	/// </summary>
+	[ConVar( "sv_password", ConVarFlags.Protected, Help = "Server password for entry into multiplayer games" )]
+	internal static string ServerPassword
+	{
+		get => _serverPassword;
+		set
+		{
+			_serverPassword = value ?? "";
+
+			if ( System is { IsHost: true } system )
+			{
+				system.SetPassword( _serverPassword );
+			}
+		}
+	}
+
+	/// <summary>
+	/// The password we send to servers that ask for one.
+	/// </summary>
+	[ConVar( "password", ConVarFlags.Protected, Help = "Current server access password" )]
+	internal static string Password { get; set; } = "";
+
 	[ConVar( "net_interp_time", ConVarFlags.Protected, Help = "Interpolation time in seconds, 0 to adapt to each connection" )]
 	internal static float InterpolationTimeOverride { get; set; }
 
@@ -484,6 +511,14 @@ public static partial class Networking
 		if ( !string.IsNullOrEmpty( LaunchArguments.ServerName ) )
 		{
 			config.Name = LaunchArguments.ServerName;
+		}
+
+		//
+		// Did the menu give it a password?
+		//
+		if ( !string.IsNullOrEmpty( LaunchArguments.Password ) )
+		{
+			config.Password = LaunchArguments.Password;
 		}
 
 		//

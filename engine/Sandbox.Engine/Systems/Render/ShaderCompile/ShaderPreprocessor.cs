@@ -18,21 +18,28 @@ class ShaderPreprocessor
 	{
 		includeContents = string.Empty;
 
+		// Leave these for the native include handler, which refuses them
+		if ( Path.IsPathRooted( includeFile ) || includeFile.Split( '/', '\\' ).Contains( ".." ) )
+		{
+			return false;
+		}
+
+		var fileSystem = Options.FileSystem ?? ShaderCompile.FileSystem;
 		var path = $"{Path.GetDirectoryName( parentFile ).Replace( '\\', '/' )}/{includeFile}";
 
 		// Try searching relative
-		if ( !ShaderCompile.FileSystem.FileExists( path ) )
+		if ( !fileSystem.FileExists( path ) )
 		{
 			path = $"shaders/{includeFile}";
 		}
 
 		// Maybe it's in base, otherwise give up
-		if ( !ShaderCompile.FileSystem.FileExists( path ) )
+		if ( !fileSystem.FileExists( path ) )
 		{
 			return false;
 		}
 
-		bool coreContent = EngineFileSystem.CoreContent.FileExists( path );
+		bool coreContent = EngineFileSystem.CoreContent?.FileExists( path ) ?? false;
 		if ( coreContent && Options.IgnoreCoreIncludes )
 		{
 			return false;
@@ -45,8 +52,8 @@ class ShaderPreprocessor
 		}
 
 		// Open the file somehow
-		string source = ShaderCompile.FileSystem.ReadAllText( path );
-		includeContents = Preprocess( source, ShaderCompile.FileSystem.GetFullPath( path ), path );
+		string source = fileSystem.ReadAllText( path );
+		includeContents = Preprocess( source, fileSystem.GetFullPath( path ), path );
 
 		IncludedFiles.Add( path );
 
@@ -55,14 +62,18 @@ class ShaderPreprocessor
 
 	Regex IncludePattern = new Regex( "#include \"([^>]+)\"", RegexOptions.Compiled );
 
-	public string Preprocess( string source, string absolutePath, string relativePath )
+	// addHeader is false for a whole .shader file, where anything outside its blocks doesn't parse
+	public string Preprocess( string source, string absolutePath, string relativePath, bool addHeader = true )
 	{
 		var reader = new StringReader( source );
 		var builder = new StringBuilder();
 
 		// Add a header to the source
-		builder.AppendLine( $"#line 1 \"{relativePath.Replace( "\\", "/" )}\"" );
-		builder.AppendLine( "#include \"system.fxc\"" );
+		if ( addHeader )
+		{
+			builder.AppendLine( $"#line 1 \"{relativePath.Replace( "\\", "/" )}\"" );
+			builder.AppendLine( "#include \"system.fxc\"" );
+		}
 
 		string line;
 		while ( (line = reader.ReadLine()) != null )

@@ -37,6 +37,12 @@ public struct LobbyConfig
 	/// </summary>
 	public string Name { get; set; }
 
+	/// <summary>
+	/// Players need this password to join, unless someone in the game invited them. If this isn't
+	/// set, the host's <c>sv_password</c> is used.
+	/// </summary>
+	public string Password { get; set; }
+
 	public LobbyConfig()
 	{
 		DestroyWhenHostLeaves = ProjectSettings.Networking.DestroyLobbyWhenHostLeaves;

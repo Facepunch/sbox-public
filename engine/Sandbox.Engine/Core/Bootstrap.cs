@@ -348,6 +348,12 @@ internal static class Bootstrap
 				Settings.RenderSettings.Instance.EnsureFirstRunPreset();
 			}
 
+			// The editor's asset system compiles shaders, nobody edits core shaders on a retail build
+			if ( Graphics.IsAvailable && !Application.IsEditor && !Application.IsRetail )
+			{
+				Sandbox.Engine.Shaders.ShaderHotload.Watch( EngineFileSystem.CoreContent );
+			}
+
 			if ( !Application.IsHeadless && !Application.IsStandalone )
 			{
 				using var timeout = new CancellationTokenSource( 5000 );

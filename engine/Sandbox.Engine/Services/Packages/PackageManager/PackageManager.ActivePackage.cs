@@ -103,6 +103,9 @@ internal static partial class PackageManager
 				throw new WebException( $"Unable to download package '{Package.FullIdent}'" );
 			}
 
+			// Before anything can load them: recompile shaders an older engine compiled
+			await Sandbox.Engine.Shaders.ShaderUpgrade.UpgradeAsync( PackageFileSystem.Redirect, Package.Title, token );
+
 			//
 			// Mount downloaded filesystem as our main filesystem
 			//
