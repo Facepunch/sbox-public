@@ -79,7 +79,10 @@ public class ScaleEditorTool : EditorTool
 						1.0f + snap.z / newSize
 					);
 
-					go.WorldScale = startScale * scaleFactor;
+					// In global space the gizmo scales along world axes, but an object's scale is along its own axes
+					var localFactor = Gizmo.Settings.GlobalSpace ? WorldToLocalScale( scaleFactor, go.WorldRotation ) : scaleFactor;
+
+					go.WorldScale = startScale * localFactor;
 
 					if ( scaleAsGroup )
 					{
@@ -91,6 +94,19 @@ public class ScaleEditorTool : EditorTool
 				}
 			}
 		}
+	}
+
+	/// <summary>
+	/// How much each of the object's own axes gets stretched by a scale along world axes.
+	/// Exact when the object is axis aligned, otherwise the shear it would need is dropped.
+	/// </summary>
+	static Vector3 WorldToLocalScale( Vector3 worldScale, Rotation rotation )
+	{
+		return new Vector3(
+			worldScale.Dot( rotation.Forward * rotation.Forward ),
+			worldScale.Dot( rotation.Left * rotation.Left ),
+			worldScale.Dot( rotation.Up * rotation.Up )
+		);
 	}
 
 	[Shortcut( "tools.scale-tool", "r", typeof( SceneViewWidget ) )]
