@@ -108,6 +108,71 @@ public class BaseFileSystem
 	}
 
 	/// <summary>
+	/// Every file under <paramref name="folder"/>, recursively and sorted by path, that passes
+	/// <paramref name="include"/>, with the physical path <see cref="GetFullPath"/> would give it. On an aggregate
+	/// filesystem GetFullPath searches every mounted filesystem again for each file; this takes the path from the
+	/// filesystem the file was found in while enumerating.
+	/// </summary>
+	internal List<(string Path, string FullPath)> FindFileWithFullPath( string folder, Predicate<string> include = null )
+	{
+		folder = FixPath( folder );
+
+		// Path -> the filesystem it resolves to, null where GetFullPath has no physical path
+		var found = new SortedDictionary<Zio.UPath, Zio.IFileSystem>();
+
+		try
+		{
+			if ( system is Zio.FileSystems.AggregateFileSystem or Zio.FileSystems.SubFileSystem )
+			{
+				CollectFiles( system, folder, found );
+			}
+			else
+			{
+				foreach ( var path in system.EnumeratePaths( folder, "*", SearchOption.AllDirectories, Zio.SearchTarget.File ) )
+					found.TryAdd( path, null );
+			}
+		}
+		catch ( System.IO.DirectoryNotFoundException ) { } // If directory not found, doesn't matter
+
+		var files = new List<(string Path, string FullPath)>();
+		foreach ( var (path, owner) in found )
+		{
+			var relative = path.FullName.Substring( folder.Length ).Trim( '/' );
+			if ( include is not null && !include( relative ) )
+				continue;
+
+			files.Add( (relative, owner?.ConvertPathToInternal( path )) );
+		}
+
+		return files;
+	}
+
+	/// <summary>
+	/// Walks aggregates highest priority first, like AggregateFileSystem's own lookups, so the first
+	/// filesystem to have a path is the one GetFullPath would resolve it to.
+	/// </summary>
+	static void CollectFiles( Zio.IFileSystem fs, Zio.UPath folder, SortedDictionary<Zio.UPath, Zio.IFileSystem> found )
+	{
+		if ( fs is Zio.FileSystems.AggregateFileSystem aggregate )
+		{
+			var children = aggregate.GetFileSystems();
+			for ( var i = children.Count - 1; i >= 0; i-- )
+				CollectFiles( children[i], folder, found );
+
+			if ( aggregate.Fallback is { } fallback )
+				CollectFiles( fallback, folder, found );
+
+			return;
+		}
+
+		if ( !fs.DirectoryExists( folder ) )
+			return;
+
+		foreach ( var path in fs.EnumeratePaths( folder, "*", SearchOption.AllDirectories, Zio.SearchTarget.File ) )
+			found.TryAdd( path, fs );
+	}
+
+	/// <summary>
 	/// Delete a folder and optionally all of its contents
 	/// </summary>
 	public void DeleteDirectory( string folder, bool recursive = false )

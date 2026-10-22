@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Reflection;
 
@@ -372,14 +372,31 @@ public class AssetType
 	{
 		var sw = Stopwatch.StartNew();
 
-		foreach ( var file in FileSystem.Content.FindFile( "/", "*", true ) )
+		// Game resource extensions (no dot, no _c), built once instead of a scan per file
+		var gameResourceExtensions = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+		foreach ( var type in AssetTypeCache.Values )
 		{
-			var ext = System.IO.Path.GetExtension( file );
-			var t = FromExtension( ext );
-			if ( t is null ) continue;
-			if ( !t.IsGameResource ) continue;
+			if ( type.IsGameResource && type.FileExtension is not null )
+				gameResourceExtensions.Add( type.FileExtension );
+		}
 
-			AssetSystem.RegisterFile( FileSystem.Content.GetFullPath( file ) );
+		var lookup = gameResourceExtensions.GetAlternateLookup<ReadOnlySpan<char>>();
+
+		// Same matching as HasExtension: strip the dot and a trailing _c, case-insensitive
+		bool IsGameResourceFile( string file )
+		{
+			var ext = System.IO.Path.GetExtension( file.AsSpan() );
+			if ( ext.Length < 2 ) return false;
+
+			ext = ext[1..];
+			if ( ext.EndsWith( "_c", StringComparison.Ordinal ) ) ext = ext[..^2];
+			return lookup.Contains( ext );
+		}
+
+		// Full paths come from the enumeration, GetFullPath would search every content filesystem again per file
+		foreach ( var (_, fullPath) in FileSystem.Content.FindFileWithFullPath( "/", IsGameResourceFile ) )
+		{
+			AssetSystem.RegisterFile( fullPath );
 		}
 
 		if ( sw.Elapsed.TotalSeconds > 1 )
