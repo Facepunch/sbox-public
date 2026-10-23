@@ -625,4 +625,79 @@ public class TerrainComponentTest
 		go.Destroy();
 		scene.ProcessDeletes();
 	}
+
+	static readonly Transform[] CullTransforms =
+	[
+		Transform.Zero,
+		new( new Vector3( 100, -200, 300 ), Rotation.Identity, new Vector3( 2, 2, 4 ) ),
+		new( new Vector3( 100, -200, 300 ), Rotation.From( 45, 30, 60 ), new Vector3( 2, 3, 4 ) ),
+		new( new Vector3( -500, 250, 10 ), Rotation.From( -70, 140, 15 ), new Vector3( -2, 0.5f, -4 ) ),
+		new( new Vector3( 300, 100, -50 ), Rotation.From( 20, -110, 35 ), new Vector3( -1.5f, 2, 3 ) ),
+		new( new Vector3( 4, 8, 16 ), Rotation.From( 0, 90, 0 ), new Vector3( 0.25f, 3, 0 ) ),
+	];
+
+	static Frustum CreateCullFrustum( string view )
+	{
+		var camera = new Vector3( 0, 0, 100 );
+		var perspective = Frustum.FromCorners( new Ray( camera, new Vector3( 1, 0.6f, 0.4f ) ), new Ray( camera, new Vector3( 1, -0.6f, 0.4f ) ),
+			new Ray( camera, new Vector3( 1, -0.6f, -0.4f ) ), new Ray( camera, new Vector3( 1, 0.6f, -0.4f ) ), 1, 2000 );
+		var ortho = Frustum.FromOrtho( Vector2.Zero, Vector2.One, Vector3.One, camera, Rotation.From( 10, 20, 0 ), 1500, 1, 2000 );
+
+		// The terrain culls against a frustum scaled by r_terrain_meshlet_frustum_scale
+		return view switch
+		{
+			"perspective" => perspective,
+			"perspective scaled" => perspective.Scaled( 0.5f, camera, true ),
+			"ortho" => ortho,
+			"ortho scaled" => ortho.Scaled( 0.5f, camera, false ),
+			_ => throw new ArgumentException( view ),
+		};
+	}
+
+	/// <summary>
+	/// The local frustum test should match testing the box's eight world-space corners against the world planes.
+	/// </summary>
+	[TestMethod]
+	[DataRow( "perspective" )]
+	[DataRow( "perspective scaled" )]
+	[DataRow( "ortho" )]
+	[DataRow( "ortho scaled" )]
+	public void LocalCullFrustumTestsTheTransformedBox( string view )
+	{
+		var random = new Random( 1234 );
+		var frustum = CreateCullFrustum( view );
+		Plane[] planes = [frustum.RightPlane, frustum.LeftPlane, frustum.TopPlane, frustum.BottomPlane, frustum.NearPlane, frustum.FarPlane];
+
+		int visible = 0, hidden = 0;
+		foreach ( var transform in CullTransforms )
+		{
+			var local = TerrainClipmapSceneObject.ToLocal( frustum, transform );
+
+			for ( int i = 0; i < 4000; i++ )
+			{
+				var mins = new Vector3( random.Float( -1500, 1500 ), random.Float( -1500, 1500 ), random.Float( -300, 300 ) );
+				var box = new BBox( mins, mins + new Vector3( random.Float( 1, 200 ), random.Float( 1, 200 ), random.Float( 1, 200 ) ) );
+
+				bool expected = true;
+				float closest = float.MaxValue;
+				foreach ( var plane in planes )
+				{
+					float furthest = float.MinValue;
+					foreach ( var corner in box.Corners )
+						furthest = MathF.Max( furthest, plane.GetDistance( transform.PointToWorld( corner ) ) );
+
+					expected &= furthest > 0;
+					closest = MathF.Min( closest, MathF.Abs( furthest ) );
+				}
+
+				// Skip boxes right on a plane, float rounding differs there
+				if ( closest < 0.01f ) continue;
+
+				Assert.AreEqual( expected, local.IsInside( box, partially: true ), $"{transform} {box}" );
+				if ( expected ) visible++; else hidden++;
+			}
+		}
+
+		Assert.IsTrue( visible > 1000 && hidden > 1000, $"visible {visible}, hidden {hidden}" );
+	}
 }
