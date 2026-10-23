@@ -25,9 +25,14 @@ public sealed partial class RenderSystem
 		var overlayPrepass = new OverlayDepthPrepassLayer();
 		return
 		[
+			new OcclusionCullLayer( early: true ),
+
 			// Viewmodels claim depth and stencil before the world.
 			overlayPrepass,
 			new DepthPrepassLayer( overlayPrepass ),
+
+			new OcclusionCullLayer( early: false ),
+			new LateDepthPrepassLayer( overlayPrepass ),
 
 			// Pass inputs and outputs determine queue waits; this list is also the serial execution order.
 			new DepthChainLayer(),
@@ -89,6 +94,8 @@ public sealed partial class RenderSystem
 
 			// Prepare fog for the next frame.
 			new VolumetricFogLayer(),
+
+			new OcclusionHistoryLayer(),
 		];
 	}
 

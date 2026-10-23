@@ -110,9 +110,30 @@ public partial class PlayerControllerTest
 		}
 		var local = body.PhysicsBody.Transform.PointToLocal( pc.Body.PhysicsBody.Position );
 		Assert.IsTrue( local.x >= 160, $"blocked by a real compound step at {local}, velocity {pc.Body.Velocity}, lift {decisions.MaxLift}" );
-		var normal = body.PhysicsBody.Rotation.Up;
-		var feetSupport = 8 * (MathF.Abs( normal.x ) + MathF.Abs( normal.y ));
-		Assert.AreEqual( 8 + rise + feetSupport, local.z, 0.5f );
+
+		float HeightError()
+		{
+			var position = body.PhysicsBody.Transform.PointToLocal( pc.Body.PhysicsBody.Position );
+			var normal = body.PhysicsBody.Rotation.Up;
+			var feetSupport = 8 * (MathF.Abs( normal.x ) + MathF.Abs( normal.y ));
+			return position.z - (8 + rise + feetSupport);
+		}
+
+		if ( seesaw )
+		{
+			pc.WishVelocity = Vector3.Zero;
+			var stableTicks = 0;
+			for ( int i = 0; i < 50 && stableTicks < 5; ++i )
+			{
+				scene.GameTick( 1.0 / 50 );
+				Assert.IsTrue( pc.IsOnGround, $"lost support while settling on a dynamic step: {DescribeGround( pc )}" );
+				Assert.AreEqual( body.GameObject, pc.GroundObject );
+				stableTicks = MathF.Abs( HeightError() ) <= 0.5f ? stableTicks + 1 : 0;
+			}
+			Assert.AreEqual( 5, stableTicks, $"feet did not settle on a dynamic step: height error {HeightError()}" );
+		}
+
+		Assert.AreEqual( 0, HeightError(), 0.5f );
 		Assert.IsTrue( pc.IsOnGround );
 	}
 

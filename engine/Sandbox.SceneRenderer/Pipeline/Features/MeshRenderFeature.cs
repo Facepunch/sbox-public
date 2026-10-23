@@ -44,7 +44,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// Compatible instances sharing mesh, LOD and draw state. Skinned IDs are grouped per model mesh;
 	/// custom objects occupy individual runs. Lighting and frame-copy inputs apply in forward passes.
 	/// </summary>
-	internal readonly record struct Run( RenderMesh Mesh, int Lod, Material Override, bool OverrideBlends, DrawFilter Filter, int FirstInstance, int Count, bool Skinned = false, RenderAttributes Attributes = null, CustomObject Custom = null, RenderAttributes Lightmap = null, bool ReadsFrameBuffer = false, RenderAttributes Probe = null, bool Tinted = false, bool Deformed = false, bool Morphable = false );
+	internal readonly record struct Run( RenderMesh Mesh, int Lod, Material Override, bool OverrideBlends, DrawFilter Filter, int FirstInstance, int Count, bool Skinned = false, RenderAttributes Attributes = null, CustomObject Custom = null, RenderAttributes Lightmap = null, bool ReadsFrameBuffer = false, RenderAttributes Probe = null, bool Tinted = false, bool Deformed = false, bool Morphable = false, int CullDraw = -1 );
 
 	/// <summary>
 	/// A view's runs, each list in draw order: what native's opaque, fade and translucent layers would hold.
@@ -172,6 +172,11 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	Material depthOnlyMaterial;
 
 	/// <summary>
+	/// Collects the main view's rigid opaque instances for occlusion culling. Null when not culling, and never set for shadow views.
+	/// </summary>
+	internal OcclusionCuller Occlusion { get; set; }
+
+	/// <summary>
 	/// <see cref="MeshObject"/>s.
 	/// </summary>
 	public override Type ObjectType => typeof( MeshObject );
@@ -265,7 +270,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		}
 
 		for ( int bit = 0; bit < buckets.Length; bit++ )
-			Emit( buckets[bit], Lists[bit].Draws, layers.ByBit[bit], world, transforms, lods );
+			Emit( buckets[bit], Lists[bit].Draws, layers.ByBit[bit], world, transforms, lods, bit == 0 && !pass.IsShadow ? Occlusion : null );
 	}
 
 	/// <summary>
@@ -373,7 +378,7 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 	/// <summary>
 	/// Sort, write instance IDs and merge compatible neighbours into runs.
 	/// </summary>
-	void Emit( Bucket bucket, DrawFilter draws, List<Run> runs, RenderWorld world, TransformBuffer transforms, byte[] lods )
+	void Emit( Bucket bucket, DrawFilter draws, List<Run> runs, RenderWorld world, TransformBuffer transforms, byte[] lods, OcclusionCuller occlusion )
 	{
 		var count = bucket.Count;
 		if ( count == 0 ) return;
@@ -385,6 +390,8 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 
 		var objects = world.Objects;
 		var matrices = world.LocalToWorld;
+		var centers = world.BoundsCenter;
+		var extents = world.BoundsExtents;
 
 		// Rigid IDs append directly; skinned IDs are grouped per mesh when the run ends.
 		RenderMesh mesh = null;
@@ -453,7 +460,9 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			}
 			else
 			{
-				var instance = transforms.AddInstance( transforms.SlotFor( obj, matrices[index], obj.Tint ) );
+				var slot = transforms.SlotFor( obj, matrices[index], obj.Tint );
+				var instance = transforms.AddInstance( slot );
+				occlusion?.AddInstance( slot, centers[index], obj.OcclusionCulling ? extents[index] : new Vector3( -1 ) );
 				if ( length == 0 ) start = instance;
 			}
 
@@ -489,7 +498,8 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 			}
 			else
 			{
-				runs.Add( new Run( mesh, lod, material, overrideBlends, filter, start, length, Attributes: attributes, Lightmap: lightmap, ReadsFrameBuffer: reads, Probe: probe ) );
+				var cull = occlusion?.CommitRun( start, length, mesh.DrawsForLod( lod ) ) ?? -1;
+				runs.Add( new Run( mesh, lod, material, overrideBlends, filter, start, length, Attributes: attributes, Lightmap: lightmap, ReadsFrameBuffer: reads, Probe: probe, CullDraw: cull ) );
 			}
 
 			length = 0;
@@ -617,8 +627,15 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 		var depthBias = shadow ? view.DepthBias : 0;
 		var slopeBias = shadow ? view.SlopeScaledDepthBias : 0;
 
+		// The early prepass can only cull with last frame's chain. The late prepass only draws culled runs, the early one
+		// already drew everything else
+		var phase = context.Occlusion is { } occlusion && (layer.OcclusionPhase != OcclusionPhase.Early || occlusion.CullsEarly) ? layer.OcclusionPhase : OcclusionPhase.None;
+		var culledOnly = layer.OcclusionPhase == OcclusionPhase.Late;
+
 		foreach ( var run in runs )
 		{
+			if ( culledOnly && run.CullDraw < 0 ) continue;
+
 			// Bind the custom transform, draw, then restore frame targets.
 			if ( run.Custom is { } custom )
 			{
@@ -680,9 +697,12 @@ internal sealed partial class MeshRenderFeature : RenderFeature
 					context.BindVertexCacheIds( mesh, draw );
 					context.DrawIndexedInstanced( draw, run.Count );
 				}
-				else if ( !context.DrawModel( material, mode, mesh, draw, first, run.Count, depthBias, slopeBias, stripPixelShader ) )
+				else
 				{
-					continue;
+					var drawn = run.CullDraw >= 0 && phase != OcclusionPhase.None
+						? context.DrawModelCulled( material, mode, mesh, draw, phase, first, run.CullDraw + drawIndex, depthBias, slopeBias, stripPixelShader )
+						: context.DrawModel( material, mode, mesh, draw, first, run.Count, depthBias, slopeBias, stripPixelShader );
+					if ( !drawn ) continue;
 				}
 
 				if ( shadow )

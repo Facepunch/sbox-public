@@ -51,6 +51,9 @@ internal enum FrameResources : ushort
 	/// <summary>Shadow maps, including their cached contents.</summary>
 	ShadowMaps = 1 << 10,
 
+	/// <summary>Instance ids and indirect draw arguments written by <see cref="OcclusionCullLayer"/>.</summary>
+	CulledInstances = 1 << 11,
+
 	/// <summary>Arbitrary shader, camera-hook or custom-object accesses. Outstanding compute must finish first.</summary>
 	Untracked = 1 << 15,
 }

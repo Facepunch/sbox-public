@@ -1,4 +1,6 @@
 using NativeEngine;
+using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace Sandbox.Rendering;
 
@@ -56,6 +58,107 @@ internal static class RenderPipeline
 
 	[ConVar( "r_native_ssr_overlap", Help = "Overlap GTAO on async compute with SSR on graphics in the native renderer." )]
 	internal static bool OverlapReflections { get; set; }
+
+	[ConVar( "r_occlusion_culling", Help = "Skip opaque objects hidden by the depth prepass in the native renderer" )]
+	internal static bool OcclusionCulling { get; set; } = true;
+
+	static readonly Lock occlusionLock = new();
+	static readonly Stack<OcclusionFrame> freeOcclusionFrames = new();
+	static OcclusionFrame occlusionFrame;
+	static ulong completedOcclusionFrame;
+	static int occlusionCulled;
+
+	internal static void ReadOcclusionCulled( IRenderContext context, GpuBuffer stats )
+	{
+		AsyncGPUReadback.BufferReadDelegate callback;
+		lock ( occlusionLock )
+		{
+			var frame = Application.FrameCount;
+			if ( occlusionFrame is null || occlusionFrame.Frame + 1 < frame )
+			{
+				completedOcclusionFrame = frame;
+				occlusionCulled = 0;
+			}
+
+			if ( occlusionFrame is null || occlusionFrame.Frame != frame )
+			{
+				occlusionFrame?.Close();
+				if ( occlusionFrame is { Pending: 0 } ) freeOcclusionFrames.Push( occlusionFrame );
+				occlusionFrame = freeOcclusionFrames.TryPop( out var available ) ? available : new OcclusionFrame();
+				occlusionFrame.Begin( frame );
+			}
+
+			occlusionFrame.Pending++;
+			callback = occlusionFrame.OnRead;
+		}
+
+		context.ReadBufferAsync( stats, callback, 0, 3 * sizeof( uint ) );
+	}
+
+	internal static int GetOcclusionCulled()
+	{
+		lock ( occlusionLock )
+		{
+			if ( occlusionFrame is { } frame && frame.Frame < Application.FrameCount ) frame.Close();
+
+			if ( !OcclusionCulling || occlusionFrame is null || occlusionFrame.Frame + 1 < Application.FrameCount )
+				return 0;
+
+			return occlusionCulled;
+		}
+	}
+
+	// Close registration at the next frame, then publish once every view's readback completes.
+	sealed class OcclusionFrame
+	{
+		public ulong Frame { get; private set; }
+		public int Pending;
+		public AsyncGPUReadback.BufferReadDelegate OnRead { get; }
+		int culled;
+		bool closed;
+
+		public OcclusionFrame() => OnRead = Read;
+
+		public void Begin( ulong frame )
+		{
+			Frame = frame;
+			Pending = 0;
+			culled = 0;
+			closed = false;
+		}
+
+		public void Close()
+		{
+			closed = true;
+			Publish();
+		}
+
+		void Read( Span<byte> bytes )
+		{
+			// Visible instances, recorded instances, instances recorded for the final phase.
+			var counts = MemoryMarshal.Cast<byte, uint>( bytes );
+			lock ( occlusionLock )
+			{
+				culled += (int)(counts[2] - counts[0]);
+				Pending--;
+				Publish();
+			}
+		}
+
+		void Publish()
+		{
+			if ( !closed || Pending != 0 )
+				return;
+
+			if ( Frame >= completedOcclusionFrame )
+			{
+				completedOcclusionFrame = Frame;
+				occlusionCulled = culled;
+			}
+
+			if ( this != occlusionFrame ) freeOcclusionFrames.Push( this );
+		}
+	}
 
 	/// <summary>
 	/// The pipeline that adds the layers.

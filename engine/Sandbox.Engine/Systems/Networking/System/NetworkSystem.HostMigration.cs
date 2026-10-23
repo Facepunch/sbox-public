@@ -136,7 +136,7 @@ internal partial class NetworkSystem
 		_migrationPhase = MigrationPhase.HandingOff;
 
 		// Same reliable channel, so it arrives before the snapshot
-		successor.SendMessage( new HostAccessMsg { Privacy = Access.Privacy, InvitedJoiners = Access.Invited.ToArray(), AdmittedJoiners = Access.Admitted.ToArray() }, NetFlags.Reliable | NetFlags.SendImmediate );
+		successor.SendMessage( new HostAccessMsg { Privacy = Access.Privacy, Password = Access.Password, InvitedJoiners = Access.Invited.ToArray(), AdmittedJoiners = Access.Admitted.ToArray() }, NetFlags.Reliable | NetFlags.SendImmediate );
 		GameSystem.SendSnapshot( successor, snapshot => new HostHandoffMsg { Snapshot = snapshot }, handoff: true, flags: NetFlags.Reliable | NetFlags.SendImmediate );
 
 		foreach ( var socket in sockets )
@@ -239,6 +239,7 @@ internal partial class NetworkSystem
 		if ( _handoffAccess is { } access )
 		{
 			Access.Load( access.Privacy, access.InvitedJoiners, access.AdmittedJoiners );
+			Access.Password = access.Password ?? "";
 		}
 		else
 		{

@@ -27,6 +27,7 @@
 	<PackageReference Include="Spectre.Console" Version="0.49.1" />
 	<PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
 	<PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" Version="10.0.0" />
+	<PackageReference Include="System.IO.Hashing" Version="10.0.0" />
 	<!-- Keep in sync with System.Globalization.AppLocalIcu in Launcher/Directory.Build.targets. -->
 	<PackageReference Include="Microsoft.ICU.ICU4C.Runtime.linux-x64" Version="72.1.0.3" GeneratePathProperty="true" ExcludeAssets="all" PrivateAssets="all" />
   </ItemGroup>

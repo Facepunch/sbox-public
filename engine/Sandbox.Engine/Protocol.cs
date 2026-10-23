@@ -8,15 +8,16 @@ public static class Protocol
 	/// <summary>
 	/// We cannot play packages with an Api version higher than this.
 	/// </summary>
-	public static int Api => 31;
+	public static int Api => 32;
 
 	/// <summary>
 	/// We cannot talk to servers or clients with a network protocol different to this.
 	/// </summary>
-	public static int Network => 1109;
+	public static int Network => 1111;
 }
 
 // Api Versions
+// 32. 22 October 2026 - ModelPhysics bodies and joints use NetList
 // 31. 17 October 2026 - Network stuff
 // 30. 05 October 2026 - Compiled sounds support Opus and Vorbis compression
 // 29. 29 August 2026 - Shipped packages run the engine's base, not their embedded copy

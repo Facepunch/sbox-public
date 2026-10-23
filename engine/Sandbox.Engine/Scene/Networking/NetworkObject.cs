@@ -212,8 +212,55 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 
 	internal void ClearInterpolation()
 	{
+		ClearStep();
+
 		if ( IsProxy ) return;
 		_clearInterpolationFlag = true;
+	}
+
+	// Fixed update moves us a step at a time, we send where the owner shows us in between like local interpolation does
+	Transform _stepFrom;
+	double _stepStart;
+	double _stepEnd;
+
+	internal void ClearStep() => _stepEnd = 0;
+
+	/// <summary>
+	/// <paramref name="stepped"/> is whether the owner interpolates to it, otherwise it snaps there.
+	/// </summary>
+	internal void OnLocalTransformSet( in Transform from, in Transform to, bool stepped )
+	{
+		if ( stepped )
+		{
+			if ( _stepStart != Time.NowDouble )
+			{
+				_stepFrom = from;
+				_stepStart = Time.NowDouble;
+				_stepEnd = Time.NowDouble + Time.Delta;
+			}
+
+			return;
+		}
+
+		if ( from.Position != to.Position ) _stepFrom.Position = to.Position;
+		if ( from.Rotation != to.Rotation ) _stepFrom.Rotation = to.Rotation;
+		if ( from.Scale != to.Scale ) _stepFrom.Scale = to.Scale;
+	}
+
+	/// <summary>
+	/// Our local transform at <paramref name="time"/>, between the last fixed update step's start and its target.
+	/// </summary>
+	internal Transform SampleLocal( double time )
+	{
+		var target = GameObject.Transform.TargetLocal;
+		if ( IsProxy || time >= _stepEnd || GameObject.Flags.Contains( GameObjectFlags.NoInterpolation ) )
+			return target;
+
+		var t = (float)Math.Clamp( (time - _stepStart) / (_stepEnd - _stepStart), 0, 1 );
+		return new Transform(
+			Vector3.Lerp( _stepFrom.Position, target.Position, t ),
+			Rotation.Slerp( _stepFrom.Rotation, target.Rotation, t ),
+			Vector3.Lerp( _stepFrom.Scale, target.Scale, t ) );
 	}
 
 	internal bool CanDropOwnership( Connection source )
@@ -267,6 +314,9 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	// values are sent again once it has the refresh.
 	LocalSnapshotState WriteRefreshSnapshot()
 	{
+		// Transforms are sampled at the send time, which is from the last send otherwise
+		SceneNetworkSystem.Instance?.DeltaSnapshots.UpdateTime();
+
 		LocalSnapshotState.Version++;
 		return ((IDeltaSnapshot)this).WriteSnapshotState();
 	}
@@ -613,7 +663,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 
 		if ( !IsProxy )
 		{
-			var tx = GameObject.Transform.TargetLocal;
+			var tx = SampleLocal( system.DeltaSnapshots.SendTime );
 
 			if ( (flags & NetworkFlags.NoPositionSync) == 0 )
 				LocalSnapshotState.AddCached( _snapshotCache, SnapshotPositionSlot, tx.Position, LocalSnapshotState.HashFlags.All );
@@ -688,7 +738,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		{
 			Guid = GameObject.Id,
 			SnapshotVersion = GameObject._net.LocalSnapshotState.Version,
-			Transform = GameObject.Transform.TargetLocal,
+			Transform = includeLocalObjects ? GameObject.Transform.TargetLocal : SampleLocal( Time.NowDouble ),
 			JsonData = capture is null ? jsonData.ToJsonString() : null,
 			BlobData = capture is null ? blobs.ToByteArray() : null,
 			Creator = Creator,

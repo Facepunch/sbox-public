@@ -62,18 +62,15 @@ internal static class CubemapRendering
 		// We need to filter with GGX after rendering is done so that roughness levels sample correctly.
 		// SceneCameras don't abstract Command Lists directly, so we hook into the render stage for same behavior.
 		//
-		// We render 6 faces, so we wait until the last face is done before filtering. Once we move to multiview we don't need to count faces.
-		const int numFaces = 6;
-		int i = 0;
+		// Faces record in parallel, but submit in array order. Attach filtering to the last
+		// submitted face, regardless of which recording callback happens to finish last.
 
 		camera.OnRenderStageHook += ( stage, camera ) =>
 		{
 			if ( stage != Stage.AfterPostProcess )
 				return;
 
-			i++;
-			// Only filter when the last face is rendered
-			if ( i < numFaces )
+			if ( Graphics.SceneView.GetRenderTargetArrayIndex() != 5 )
 				return;
 
 			// Apply filtering after rendering is done

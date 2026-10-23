@@ -33,6 +33,7 @@ internal sealed class StandardPipeline
 	static readonly StringToken OverlayWithoutDepthMatch = "OverlayWithoutDepth";
 
 	readonly ClusteredCullingLayer clusteredCulling = new();
+	readonly NativeOcclusionCull occlusionCull = new();
 	readonly DepthDownsampleLayer depthDownsample = new();
 	readonly MotionVectorLayer motionVectors = new();
 	readonly ReactiveMaskLayer reactiveMask = new();
@@ -40,6 +41,10 @@ internal sealed class StandardPipeline
 	readonly UpscaleDepthLayer upscaleDepth = new();
 	readonly MotionVectorDebugLayer motionVectorDebug = new();
 	readonly ReactiveMaskDebugLayer reactiveMaskDebug = new();
+
+	public void Dispose() => occlusionCull.Dispose();
+
+	public void OnSubmitted( ISceneView view ) => occlusionCull.OnSubmitted( view );
 
 	public void AddLayersToView( CRenderPipelineSetup setup )
 	{
@@ -87,9 +92,25 @@ internal sealed class StandardPipeline
 
 		viewAttributes.SetIntValue( "ShadowFilterQuality", ShadowMapper.ShadowFilter );
 
-		AddDepthNormalPrepasses( setup, viewport, depth, multisampled );
-
 		var camera = IManagedCamera.FindById( view.m_ManagedCameraId ) as SceneCamera;
+
+		var occlusionCulled = RenderPipeline.OcclusionCulling && setup.m_bRenderOpaque && !setup.m_bWireframe && !quadOverdraw;
+		var occlusionHistory = occlusionCulled ? NativeOcclusionCull.HistoryFor( camera ) : null;
+		if ( occlusionCulled )
+		{
+			occlusionCull.Setup( view, viewport, depth, multisampled, occlusionHistory );
+			if ( occlusionCull.CullsEarly ) occlusionCull.AddEarlyToView( view, viewport );
+		}
+
+		var prepassCulled = occlusionCulled && occlusionCull.CullsEarly;
+		var normals = AddDepthNormalPrepasses( setup, viewport, depth, prepassCulled ? LayerFlags.OcclusionCulledEarly : default );
+
+		if ( occlusionCulled )
+		{
+			occlusionCull.AddLateToView( view, viewport );
+			if ( prepassCulled ) AddLateDepthNormalPrepass( setup, viewport, normals, depth );
+		}
+
 		var overlap = RenderPipeline.OverlapReflections && hooks && view.GetPostProcessEnabled()
 			&& camera?.HasEarlyPostProcess( Stage.AfterDepthPrepass, PostProcessQueue.AsyncCompute ) == true
 			&& camera.HasEarlyPostProcess( Stage.AfterDepthPrepass, PostProcessQueue.Graphics )
@@ -97,7 +118,8 @@ internal sealed class StandardPipeline
 		camera?.ScheduleEarlyPostProcess( Stage.AfterDepthPrepass, overlap );
 
 		// Hi-Z stays on graphics so both effects can read it without waiting for each other.
-		depthDownsample.Setup( view, viewport, depth, multisampled );
+		depthDownsample.Setup( view, viewport, depth, multisampled, occlusionHistory?.Target( (int)viewport.Rect.Width, (int)viewport.Rect.Height ) );
+		occlusionHistory?.Keep( occlusionCull.WorldToProjection, viewport.MinZ, viewport.MaxZ );
 		depthDownsample.SignalPostProcess = overlap;
 		var depthLayer = depthDownsample.AddToView( view, viewport );
 
@@ -174,7 +196,7 @@ internal sealed class StandardPipeline
 		//
 		// Opaque: the world, its overlays, then everything else
 		//
-		NativeLayers.AddOpaque( setup, "Static Opaque Forward", "Static Opaque Forward Fade", dynamicObjects: false );
+		NativeLayers.AddOpaque( setup, "Static Opaque Forward", "Static Opaque Forward Fade", dynamicObjects: false, occlusionCulled );
 
 		if ( setup.m_bToolsView )
 		{
@@ -194,7 +216,7 @@ internal sealed class StandardPipeline
 
 		if ( dynamicObjects )
 		{
-			NativeLayers.AddOpaque( setup, "Dynamic Opaque Forward", "Dynamic Opaque Forward Fade", dynamicObjects: true );
+			NativeLayers.AddOpaque( setup, "Dynamic Opaque Forward", "Dynamic Opaque Forward Fade", dynamicObjects: true, occlusionCulled );
 		}
 
 		if ( hooks ) HookLayers.Add( view, "Managed: AfterOpaque", Stage.AfterOpaque, viewport, color, depth );
@@ -384,6 +406,9 @@ internal sealed class StandardPipeline
 			reactiveMaskDebug.ColorAttachment = finalColor;
 			reactiveMaskDebug.AddToView( view, viewport );
 		}
+
+		// Last, since reading it back submits everything recorded so far
+		if ( occlusionCulled ) occlusionCull.AddStatsToView( view, viewport );
 	}
 
 	/// <summary>
@@ -391,7 +416,7 @@ internal sealed class StandardPipeline
 	/// they stomp world depth and claim their pixels with a stencil bit, so depth-sampling effects see real overlay depth even
 	/// inside walls. The other two test that bit, so their (potentially nearer) depth can't overwrite those pixels.
 	/// </summary>
-	static void AddDepthNormalPrepasses( CRenderPipelineSetup setup, RenderViewport viewport, SceneViewRenderTargetHandle depth, bool multisampled )
+	static SceneViewRenderTargetHandle AddDepthNormalPrepasses( CRenderPipelineSetup setup, RenderViewport viewport, SceneViewRenderTargetHandle depth, LayerFlags occlusion )
 	{
 		var view = setup.m_pView;
 		var screen = setup.m_screenViewport.Rect;
@@ -401,10 +426,10 @@ internal sealed class StandardPipeline
 		if ( !view.GetRenderAttributesPtr().GetBoolValue( "NeedsDepthNormals", true ) && !setup.m_bToolsView )
 		{
 			AddDepthNormalPrepass( view, viewport, "Depth Prepass (Overlay)", NativeRenderPipeline.NoTarget, depth, overlay: true, cullPercent: 0, noCulling );
-			AddDepthNormalPrepass( view, viewport, "Depth Prepass (Large)", NativeRenderPipeline.NoTarget, depth, overlay: false, LargePrepassCullPercent, noCulling );
-			AddDepthNormalPrepass( view, viewport, "Depth Prepass (Small)", NativeRenderPipeline.NoTarget, depth, overlay: false, -LargePrepassCullPercent, noCulling );
+			AddDepthNormalPrepass( view, viewport, "Depth Prepass (Large)", NativeRenderPipeline.NoTarget, depth, overlay: false, LargePrepassCullPercent, noCulling, occlusion );
+			AddDepthNormalPrepass( view, viewport, "Depth Prepass (Small)", NativeRenderPipeline.NoTarget, depth, overlay: false, -LargePrepassCullPercent, noCulling, occlusion );
 			view.GetRenderAttributesPtr().SetIntValue( "NormalsTextureIndex", -1 );
-			return;
+			return NativeRenderPipeline.NoTarget;
 		}
 
 		var normals = RenderTarget.GetTemporary(
@@ -416,18 +441,30 @@ internal sealed class StandardPipeline
 		var normalsHandle = normals.ToColorHandle( view );
 
 		AddDepthNormalPrepass( view, viewport, "Depth Normal Prepass (Overlay)", normalsHandle, depth, overlay: true, cullPercent: 0, noCulling );
-		AddDepthNormalPrepass( view, viewport, "Depth Normal Prepass (Large)", normalsHandle, depth, overlay: false, LargePrepassCullPercent, noCulling );
-		AddDepthNormalPrepass( view, viewport, "Depth Normal Prepass (Small)", normalsHandle, depth, overlay: false, -LargePrepassCullPercent, noCulling );
+		AddDepthNormalPrepass( view, viewport, "Depth Normal Prepass (Large)", normalsHandle, depth, overlay: false, LargePrepassCullPercent, noCulling, occlusion );
+		AddDepthNormalPrepass( view, viewport, "Depth Normal Prepass (Small)", normalsHandle, depth, overlay: false, -LargePrepassCullPercent, noCulling, occlusion );
 
 		// Pass that DepthNormals are enabled to the rest of the pipeline
 		view.GetRenderAttributesPtr().SetIntValue( "NormalsTextureIndex", normals.ColorTarget.Index );
 		view.GetRenderAttributesPtr().SetTextureValue( "NormalsGBuffer", normals.ColorTarget.native, -1 );
+		return normalsHandle;
+	}
+
+	/// <summary>
+	/// Recover early-cull misses in a single unsorted prepass.
+	/// </summary>
+	static void AddLateDepthNormalPrepass( CRenderPipelineSetup setup, RenderViewport viewport, SceneViewRenderTargetHandle normals, SceneViewRenderTargetHandle depth )
+	{
+		var view = setup.m_pView;
+		var noCulling = view.GetRenderAttributesPtr().GetBoolValue( "NoPrepassCulling", false );
+		var name = normals == NativeRenderPipeline.NoTarget ? "Depth Prepass (Late)" : "Depth Normal Prepass (Late)";
+		AddDepthNormalPrepass( view, viewport, name, normals, depth, overlay: false, cullPercent: 0, noCulling, LayerFlags.OcclusionCulledLate );
 	}
 
 	static void AddDepthNormalPrepass( ISceneView view, RenderViewport viewport, string name, SceneViewRenderTargetHandle normals, SceneViewRenderTargetHandle depth,
-		bool overlay, float cullPercent, bool noCulling )
+		bool overlay, float cullPercent, bool noCulling, LayerFlags occlusion = default )
 	{
-		var flags = LayerFlags.NeverRemove;
+		var flags = LayerFlags.NeverRemove | occlusion;
 		var depthOnly = normals == NativeRenderPipeline.NoTarget;
 		if ( depthOnly ) flags |= LayerFlags.IsDepthRenderingPass;
 		else if ( overlay ) flags |= LayerFlags.DiscardColorBuffers;
@@ -439,6 +476,9 @@ internal sealed class StandardPipeline
 		layer.LayerEnum = SceneLayerType.DepthPrepass;
 		layer.AddObjectFlagsRequiredMask( SceneObjectFlags.IsOpaque );
 		layer.AddObjectFlagsExcludedMask( SceneObjectFlags.IsLight | SceneObjectFlags.ExcludeGameLayer | SceneObjectFlags.NoZPrepass );
+
+		// Objects that never cull were already drawn by the early prepass
+		if ( occlusion == LayerFlags.OcclusionCulledLate ) layer.AddObjectFlagsExcludedMask( SceneObjectFlags.NoOcclusionCulling );
 
 		if ( overlay )
 		{

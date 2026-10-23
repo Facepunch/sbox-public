@@ -8,6 +8,7 @@ native class ISteamGameServer
 	void SetDedicatedServer( bool isDedicatedServer );
 	void SetAdvertiseServerActive( bool heartbeats );
 	void SetMaxPlayerCount( int maxPlayers );
+	void SetPasswordProtected( bool passwordProtected );
 	void LogOnAnonymous();
 	void LogOn( string token );
 	void LogOff();

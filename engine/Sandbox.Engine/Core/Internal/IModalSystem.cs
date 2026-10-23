@@ -26,6 +26,11 @@ public interface IModalSystem
 	public void PlayerList();
 	public void WorkshopPublish( in WorkshopPublishOptions options );
 	public void Notice( string title, string message, string icon );
+
+	/// <summary>
+	/// Ask for the password of a server we're joining. Null or empty if they'd rather not join.
+	/// </summary>
+	public Task<string> ServerPassword( string serverName ) => Task.FromResult<string>( null );
 	public void ServiceConnector();
 
 	/// <summary>
@@ -180,6 +185,11 @@ public struct CreateGameResults
 	public string ServerName { get; set; }
 
 	public Sandbox.Network.LobbyPrivacy Privacy { get; set; }
+
+	/// <summary>
+	/// Players need this to join. Empty for none.
+	/// </summary>
+	public string Password { get; set; }
 }
 
 /// <summary>

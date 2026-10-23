@@ -30,9 +30,10 @@ public partial class Scene : GameObject
 	}
 
 	double _nextNetworkUpdate;
+	bool _sendSnapshots;
 
 	/// <summary>
-	/// Send any pending network updates at our desired <see cref="NetworkRate"/>.
+	/// Send our user command at our desired <see cref="NetworkRate"/>, and snapshots at the end of the frame.
 	/// </summary>
 	internal void SceneNetworkUpdate()
 	{
@@ -52,6 +53,22 @@ public partial class Scene : GameObject
 			_nextNetworkUpdate = now + NetworkRate;
 
 		SendClientTick( system );
+
+		_sendSnapshots = true;
+	}
+
+	/// <summary>
+	/// Send snapshots once this frame's fixed update and update have run, so they carry this frame's state.
+	/// </summary>
+	internal void SceneNetworkSnapshots()
+	{
+		if ( !_sendSnapshots )
+			return;
+
+		_sendSnapshots = false;
+
+		if ( SceneNetworkSystem.Instance is not { } system )
+			return;
 
 		system.DeltaSnapshots.UpdateTime();
 

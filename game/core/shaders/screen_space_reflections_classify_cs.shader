@@ -35,11 +35,7 @@ CS
     float RoughnessCutoff < Attribute( "RoughnessCutoff" ); Default( 0.5 ); >;
 
 	// Scale factor between full-res screen and SSR buffers: 1 = full, 2 = half, 4 = quarter
-	float Scale 	< Attribute("Scale"); Default(1); >;
 	float ScaleInv 	< Attribute("ScaleInv"); Default(1); >;
-
-    // SSR (scaled) dimensions helpers
-    #define SSRSize ( g_vViewportSize.xy * Scale )
 
     struct IndirectDispatchArguments
     {
@@ -48,7 +44,7 @@ CS
         uint z;
     };
 
-    RWStructuredBuffer<uint> 					ClassifiedTilesRW 		< Attribute("ClassifiedTilesRW"); >;
+    RWTexture2D<uint> 							ClassifiedTilesRW 		< Attribute("ClassifiedTilesRW"); >;
     RWStructuredBuffer<IndirectDispatchArguments> DispatchArgsRW 	< Attribute("IntersectDispatchArgsRW"); >;
     RWTexture2D<float4>                         OutRadiance 		< Attribute("OutRadiance"); >;
 
@@ -68,7 +64,9 @@ CS
 
         GroupMemoryBarrierWithGroupSync();
 
-        if ( vDispatch.x < SSRSize.x && vDispatch.y < SSRSize.y )
+        uint radianceWidth, radianceHeight;
+        OutRadiance.GetDimensions( radianceWidth, radianceHeight );
+        if ( all( uint2( vDispatch ) < uint2( radianceWidth, radianceHeight ) ) )
         {
             // Clear the trace mip, the intersect only writes classified tiles
             OutRadiance[vDispatch] = 0;
@@ -96,7 +94,11 @@ CS
         uint groupsPerTile = groupsPerAxis * groupsPerAxis;
         InterlockedAdd( DispatchArgsRW[1].x, groupsPerTile );
 
-        ClassifiedTilesRW[writeIndex] = PackTileCoord( vGroupCoord );
+        uint width, height;
+        ClassifiedTilesRW.GetDimensions( width, height );
+        if ( writeIndex >= width * height )
+            return;
+        ClassifiedTilesRW[uint2( writeIndex % width, writeIndex / width )] = PackTileCoord( vGroupCoord );
     }
 
     [numthreads(8, 8, 1)]

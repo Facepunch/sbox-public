@@ -1,8 +1,11 @@
+using System.Security.Cryptography;
+using System.Text;
+
 namespace Sandbox.Network;
 
 /// <summary>
-/// Who the host lets into a private or friends-only game. A Steam lobby's type only hides it -
-/// anyone with the lobby id can still join - so the host checks every joiner against this.
+/// Who the host lets into a private, friends-only or password protected game. A Steam lobby's type only
+/// hides it - anyone with the lobby id can still join - so the host checks every joiner against this.
 /// </summary>
 internal sealed class JoinAccess
 {
@@ -13,6 +16,18 @@ internal sealed class JoinAccess
 	internal const int MaxInvited = 512;
 
 	public LobbyPrivacy Privacy { get; set; }
+
+	/// <summary>
+	/// What a joiner has to give to get in, like Source's sv_password. Empty for none.
+	/// </summary>
+	public string Password { get; set; } = "";
+
+	public bool HasPassword => !string.IsNullOrEmpty( Password );
+
+	/// <summary>
+	/// What a joiner with the wrong password is told. Their client knows it, so it can forget the password it sent.
+	/// </summary>
+	internal const string BadPasswordReason = "Bad password";
 
 	// Oldest first, so a full list forgets the stalest invite
 	readonly List<ulong> invited = new();
@@ -73,6 +88,20 @@ internal sealed class JoinAccess
 			if ( !admitted.Contains( id ) )
 				Invite( id );
 		}
+	}
+
+	/// <summary>
+	/// Does this joiner have to give the password? Not if someone in the game invited them, or they've been
+	/// in before. Pass 0 for a joiner whose Steam Id can't be trusted.
+	/// </summary>
+	public bool NeedsPassword( ulong steamId ) => HasPassword && !IsAllowed( steamId );
+
+	public bool CheckPassword( string password )
+	{
+		if ( !HasPassword )
+			return true;
+
+		return CryptographicOperations.FixedTimeEquals( Encoding.UTF8.GetBytes( Password ), Encoding.UTF8.GetBytes( password ?? "" ) );
 	}
 
 	/// <summary>

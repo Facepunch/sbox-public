@@ -159,8 +159,8 @@ public abstract class BasePostProcess : Component, Component.ExecuteInEditor, Co
 	internal virtual PostProcessQueue? EarlyQueue => null;
 
 	/// <summary>
-	/// Whether the effect reads the normals and roughness G-buffer the depth-normals prepass writes. Native always draws
-	/// that prepass; the managed scene renderer (<c>r_managed_scene</c>) draws depth only unless a camera's effect needs it.
+	/// Whether the effect reads the normals and roughness G-buffer the depth-normals prepass writes. Informational (perf hub):
+	/// both renderers draw it for any camera with post-process layers.
 	/// </summary>
 	internal virtual bool NeedsDepthNormals => false;
 }

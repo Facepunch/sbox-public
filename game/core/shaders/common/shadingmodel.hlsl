@@ -6,6 +6,25 @@
 #include "common/classes/Decals.hlsl"
 #include "common/classes/Fog.hlsl"
 
+/// <summary>
+/// Obsolete, kept so shaders written before the fog rework still compile.
+/// Use Fog::Apply, or Fog::Transmittance for additive blending.
+/// </summary>
+[deprecated( "DoAtmospherics is obsolete, use Fog::Apply, or Fog::Transmittance for additive blending" )]
+float4 DoAtmospherics( float3 vPositionWs, float2 vPositionSs, float4 vColor, bool bAdditiveBlending = false )
+{
+    if ( !g_bFogEnabled )
+        return vColor;
+
+    // When blending additively the destination already contains fog, so fade the source instead of adding fog twice
+    if ( bAdditiveBlending )
+        vColor.a *= Fog::Transmittance( vPositionWs, vPositionSs );
+    else
+        vColor.rgb = Fog::Apply( vPositionWs, vPositionSs, vColor.rgb );
+
+    return vColor;
+}
+
 float4 DoPostProcessing( const Material material, float4 color )
 {
     // Remove alpha if we are not transparent, might be shit but screenshots are being written

@@ -54,6 +54,11 @@ public static class SystemInfo
 	/// </summary>
 	public static ulong GpuMemory { get; private set; } = 0;
 
+	/// <summary>
+	/// The driver reports the GPU as integrated, so <see cref="GpuMemory"/> is carved out of system memory.
+	/// </summary>
+	internal static bool GpuIntegrated { get; private set; }
+
 	internal static void Set( string cpu, ushort processorCount, ulong frequency, ulong memory )
 	{
 		ProcessorName = cpu;
@@ -62,11 +67,12 @@ public static class SystemInfo
 		TotalMemory = memory;
 	}
 
-	internal static void SetGpu( string driver, string version, ulong memory )
+	internal static void SetGpu( string driver, string version, ulong memory, bool integrated )
 	{
 		Gpu = driver;
 		GpuVersion = version;
 		GpuMemory = memory;
+		GpuIntegrated = integrated;
 
 		// Main thread with the window up, so the SDL display queries run here rather than on whichever thread first reports
 		_ = GraphicsEnv.Value;

@@ -482,6 +482,11 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		camera.ScheduleEarlyPostProcessHook = scheduleEarlyPostProcessHook ??= ScheduleEarlyPostProcess;
 		camera.RenderEarlyPostProcessHook = renderEarlyPostProcessHook ??= RenderEarlyPostProcess;
 
+		// Set with the hooks: a view decides its G-buffer from the camera whose lists it runs (the editor viewport runs the
+		// main camera's). Unknown post effects and custom command lists may sample normals, so only omit them for an empty
+		// stack. Scene attributes can force the G-buffer for custom material consumers outside those stages.
+		camera.Attributes.Set( "NeedsDepthNormals", WantsDepthNormals() );
+
 		//
 		// Hack because I don't want this to have to be on a camera. This
 		// is hidden from users, so we'll figure out how to square it later
@@ -610,9 +615,6 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 			UpdateSceneCameraUI( sceneCamera );
 			sceneCamera.RenderUI = renderUI;
 			sceneCamera.Attributes.Set( "enableEarlyUI", HasEarlyUI() );
-			// Unknown post effects and custom command lists may sample normals, so only omit them for an empty stack.
-			// Scene attributes can force the G-buffer for custom material consumers outside those stages.
-			sceneCamera.Attributes.Set( "NeedsDepthNormals", Scene.RenderAttributes.GetBool( "NeedsDepthNormals" ) || PostProcess.Layers.Count != 0 || HasCustomCommandLists() );
 			UpdateSceneCameraStereo( sceneCamera );
 		}
 	}

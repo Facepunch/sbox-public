@@ -31,7 +31,6 @@ internal class Program
 		AddNvPatchCommand( rootCommand );
 		AddSignBinariesCommand( rootCommand );
 		AddBuildAddonsCommand( rootCommand );
-		AddGameCacheCommand( rootCommand );
 		AddUploadSymbolsCommand( rootCommand );
 		AddUploadDocsCommand( rootCommand );
 		AddSentryReleaseCommand( rootCommand );
@@ -254,13 +253,6 @@ internal class Program
 	{
 		var cmd = new Command( "build-addons", "Build addons and menu" );
 		cmd.SetHandler( () => { Environment.ExitCode = (int)new BuildAddons().Run(); } );
-		rootCommand.Add( cmd );
-	}
-
-	private static void AddGameCacheCommand( RootCommand rootCommand )
-	{
-		var cmd = new Command( "game-cache", "Create game cache" );
-		cmd.SetHandler( () => { Environment.ExitCode = (int)new GameCache().Run(); } );
 		rootCommand.Add( cmd );
 	}
 

@@ -54,8 +54,16 @@ internal sealed class NativeRenderPipeline : INativeRenderPipeline
 		// Not every view is a pipeline's (shadow and other dependent views aren't)
 		if ( !active.TryRemove( view.self, out var pipeline ) ) return;
 
-		if ( pipeline is StandardPipeline standard ) standardPool.Enqueue( standard );
-		else if ( pipeline is Skybox3DPipeline skybox ) skyboxPool.Enqueue( skybox );
+		switch ( pipeline )
+		{
+			case StandardPipeline standard:
+				standard.OnSubmitted( view );
+				standardPool.Enqueue( standard );
+				break;
+			case Skybox3DPipeline skybox:
+				skyboxPool.Enqueue( skybox );
+				break;
+		}
 	}
 
 	public ISceneLayer AddUIHook( string name, Stage stage, ISceneView view, RenderViewport viewport, SceneViewRenderTargetHandle color )
@@ -63,6 +71,8 @@ internal sealed class NativeRenderPipeline : INativeRenderPipeline
 
 	public void Shutdown()
 	{
+		foreach ( var pipeline in standardPool ) pipeline.Dispose();
+
 		standardPool.Clear();
 		skyboxPool.Clear();
 		active.Clear();

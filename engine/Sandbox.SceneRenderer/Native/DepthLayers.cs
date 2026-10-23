@@ -10,7 +10,7 @@ namespace Sandbox.SceneRenderer.Native;
 internal sealed class DepthDownsampleLayer : NativeProceduralLayer
 {
 	RenderViewport viewport;
-	RenderTarget destDepth;
+	Texture destDepth;
 	bool msaaInput;
 	internal bool SignalPostProcess { get; set; }
 
@@ -18,27 +18,27 @@ internal sealed class DepthDownsampleLayer : NativeProceduralLayer
 	{
 	}
 
-	public void Setup( ISceneView view, RenderViewport viewport, SceneViewRenderTargetHandle sourceDepth, bool msaaInput )
+	public void Setup( ISceneView view, RenderViewport viewport, SceneViewRenderTargetHandle sourceDepth, bool msaaInput, Texture target = null )
 	{
 		this.viewport = viewport;
 		this.msaaInput = msaaInput;
 		SetInput( "SourceDepth", sourceDepth );
 
-		destDepth = SharedPasses.DepthChainTarget( (int)viewport.Rect.Width, (int)viewport.Rect.Height );
+		destDepth = target ?? SharedPasses.DepthChainTarget( (int)viewport.Rect.Width, (int)viewport.Rect.Height ).DepthTarget;
 
-		view.GetRenderAttributesPtr().SetTextureValue( "DepthChainDownsample", destDepth.DepthTarget.native, -1 );
-		view.GetRenderAttributesPtr().SetTextureValue( "DepthChainDownsamplePrevFrame", destDepth.DepthTarget.native, -1 );
+		view.GetRenderAttributesPtr().SetTextureValue( "DepthChainDownsample", destDepth.native, -1 );
+		view.GetRenderAttributesPtr().SetTextureValue( "DepthChainDownsamplePrevFrame", destDepth.native, -1 );
 	}
 
 	protected override void OnRender()
 	{
 		// Our SourceDepth comes from the scene render target system
-		SharedPasses.BuildDepthChain( Graphics.Context, null, destDepth.DepthTarget, msaaInput, (int)viewport.Rect.Width, (int)viewport.Rect.Height );
+		SharedPasses.BuildDepthChain( Graphics.Context, null, destDepth, msaaInput, (int)viewport.Rect.Width, (int)viewport.Rect.Height );
 
 		if ( SignalPostProcess )
 		{
 			// Finish shared-input transitions on graphics before releasing compute.
-			Graphics.Context.TextureBarrierTransition( destDepth.DepthTarget.native, -1,
+			Graphics.Context.TextureBarrierTransition( destDepth.native, -1,
 				RenderBarrierPipelineStageFlags_t.ComputeShaderBit, RenderBarrierPipelineStageFlags_t.ComputeShaderBit,
 				RenderImageLayout_t.RENDER_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 				RenderBarrierAccessFlags_t.ShaderWriteBit, RenderBarrierAccessFlags_t.ShaderReadBit );

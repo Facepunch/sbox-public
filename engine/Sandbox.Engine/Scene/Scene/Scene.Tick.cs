@@ -261,6 +261,14 @@ public partial class Scene : GameObject
 			}
 		}
 
+		if ( !IsEditor )
+		{
+			using ( PerformanceStats.Timings.Network.Scope() )
+			{
+				SceneNetworkSnapshots();
+			}
+		}
+
 		Scene.RunEvent<ISceneStage>( x => x.End() );
 
 		if ( !IsEditor )

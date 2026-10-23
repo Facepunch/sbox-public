@@ -10,7 +10,6 @@
     <Project Path="Sandbox.CodeUpgrader/Sandbox.CodeUpgrader.csproj" />
     <Project Path="Sandbox.Generator/Sandbox.Generator.csproj" />
     <Project Path="Tools/CodeGen/CodeGen.csproj" />
-    <Project Path="Tools/CreateGameCache/CreateGameCache.csproj" />
     <Project Path="Tools/MenuBuild/MenuBuild.csproj" />
     <Project Path="Tools/PackageBuild/PackageBuild.csproj" />
     <Project Path="Tools/ShaderCompiler/ShaderCompiler.csproj" />

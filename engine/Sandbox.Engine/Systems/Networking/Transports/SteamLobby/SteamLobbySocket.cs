@@ -166,6 +166,7 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 		steamlobby.Value.SetData( "buildid", $"{Application.Version}" );
 		steamlobby.Value.SetData( "access_level", $"{config.Privacy}" );
 		steamlobby.Value.SetData( "presence_group", $"{Guid.NewGuid():N}" );
+		steamlobby.Value.SetData( "pw", Networking.System?.Access.HasPassword == true ? "1" : "0" );
 
 		return lobby;
 	}
@@ -529,6 +530,13 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 
 		SteamLobby.SetData( "_ownerid", $"{Utility.Steam.SteamId}" );
 		SteamLobby.SetData( "map", Networking.MapName );
+
+		// Follows sv_password, and the password a new host took over
+		if ( networkSystem.IsHost )
+		{
+			SteamLobby.SetData( "pw", networkSystem.Access.HasPassword ? "1" : "0" );
+		}
+
 		UpdatePingLocation();
 	}
 

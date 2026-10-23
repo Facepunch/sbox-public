@@ -62,7 +62,7 @@ public class LayerTests
 		var opaque = system.Layers.OfType<OpaqueLayer>().Single();
 		Assert.IsTrue( overlayPrepass.IsNeeded( system.Frame ) );
 		Assert.AreEqual( 2, system.RunCount( view, opaque ), "both in forward" );
-		var worldPrepass = system.Layers.OfType<DepthPrepassLayer>().Single( l => l is not OverlayDepthPrepassLayer );
+		var worldPrepass = system.Layers.OfType<DepthPrepassLayer>().Single( l => l.GetType() == typeof( DepthPrepassLayer ) );
 		Assert.IsTrue( System.Array.IndexOf( system.Layers, overlayPrepass ) < System.Array.IndexOf<RenderLayer>( system.Layers, worldPrepass ), "overlays first" );
 	}
 
@@ -120,7 +120,7 @@ public class LayerTests
 		Assert.AreEqual( 1, runs.OpaqueNoPrepass.Count );
 
 		var view = system.MainPass;
-		var prepass = system.Layers.OfType<DepthPrepassLayer>().Single( l => l is not OverlayDepthPrepassLayer );
+		var prepass = system.Layers.OfType<DepthPrepassLayer>().Single( l => l.GetType() == typeof( DepthPrepassLayer ) );
 		var opaque = system.Layers.OfType<OpaqueLayer>().Single();
 		Assert.AreEqual( 0, system.RunCount( view, prepass ) );
 		Assert.AreEqual( 1, system.RunCount( view, opaque ) );

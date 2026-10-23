@@ -148,9 +148,9 @@ internal sealed class GameStartupWindow : IDisposable
 	{
 		if ( string.IsNullOrWhiteSpace( text ) || maxWidth <= 0 ) return null;
 
-		var paddingX = Math.Clamp( (int)(10 * scale), 5, 12 );
-		var paddingY = Math.Clamp( (int)(4 * scale), 2, 6 );
-		using var font = new SKFont( SKTypeface.Default, Math.Clamp( 14 * scale, 10, 18 ) );
+		var paddingX = (int)(10 * scale);
+		var paddingY = (int)(4 * scale);
+		using var font = new SKFont( SKTypeface.Default, 14 * scale );
 		using var paint = new SKPaint
 		{
 			Color = new SKColor( 244, 247, 252 ),
@@ -312,11 +312,12 @@ internal sealed class GameStartupWindow : IDisposable
 
 		if ( logo is null ) return;
 
-		var scale = standalone ? height / 1080.0f : 1.0f;
+		var scale = Math.Min( width / 1920.0f, height / 1080.0f );
 		scale = Math.Min( scale, Math.Min( width / (float)logo.Width, height / (float)logo.Height ) );
 		var logoWidth = Math.Max( 1, (int)(logo.Width * scale + 0.5f) );
 		var logoHeight = Math.Max( 1, (int)(logo.Height * scale + 0.5f) );
-		background.DrawBitmap( logo, new Rect( (width - logoWidth) / 2, (height - logoHeight) / 2, logoWidth, logoHeight ) );
+		using var scaledLogo = logo.Resize( logoWidth, logoHeight );
+		background.DrawBitmap( scaledLogo, new Rect( (width - logoWidth) / 2, (height - logoHeight) / 2, logoWidth, logoHeight ) );
 	}
 
 	void PrepareBackdrop( int width, int height )
@@ -344,9 +345,12 @@ internal sealed class GameStartupWindow : IDisposable
 		backdropHeight = height;
 	}
 
+	/// <summary>Scales the progress UI with resolution. Below 1080p it stays at a fixed size that's legible on small high-density screens like the Steam Deck.</summary>
+	static float UiScale( int height ) => height < 1080 ? 1.25f : height / 1080.0f;
+
 	void DrawProgress( int width, int height )
 	{
-		var scale = height / 1080.0f;
+		var scale = UiScale( height );
 		var barWidth = Math.Clamp( (int)(320 * scale), 1, width );
 		var barHeight = Math.Clamp( (int)(4 * scale), 1, height );
 		var barX = (width - barWidth) / 2;

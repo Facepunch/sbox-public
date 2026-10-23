@@ -254,6 +254,7 @@ internal static class PerfTools
 				m.Objects,
 				m.ObjectsVisible,
 				m.ObjectsSizeCulled,
+				m.ObjectsOcclusionCulled,
 				m.Draws,
 				m.DepthDraws,
 				m.TranslucentDraws,

@@ -101,6 +101,7 @@ internal partial class NetworkSystem
 			Assigned = new ChannelInfo { Id = channel.Id },
 			IsDeveloperHost = IsDeveloperHost,
 			HostMigration = IsHostMigrationEnabled,
+			PasswordRequired = NeedsPassword( channel ),
 			HandshakeId = channel.HandshakeId
 		};
 
@@ -195,7 +196,7 @@ internal partial class NetworkSystem
 	/// </summary>
 	internal void OnServerDisconnection( int reasonCode, string reasonString )
 	{
-		var message = $"The server connection closed.\nReason: {reasonString} (code {reasonCode}).";
+		var message = IsBadPassword( reasonString ) ? "Wrong password." : $"The server connection closed.\nReason: {reasonString} (code {reasonCode}).";
 		if ( Connection.Local.State == Connection.ChannelState.Unconnected )
 		{
 			// Keep diagnostics for a failed join without showing another dialog after teardown.

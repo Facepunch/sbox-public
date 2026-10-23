@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace Sandbox.CodeUpgrader;
 
@@ -7,6 +8,14 @@ namespace Sandbox.CodeUpgrader;
 /// </summary>
 public abstract partial class Fixer : CodeFixProvider
 {
+	/// <summary>
+	/// Opt in to applying this code fix in memory when compiling downloaded code archives. Such fixes must
+	/// expose one unambiguous action, edit source documents only, and be safe to repeat.
+	/// Return false for unrelated source to skip creating a workspace and running analysis.
+	/// IDE fixes remain manual by default.
+	/// </summary>
+	public virtual bool CanApplyDuringCompilation( IEnumerable<SyntaxTree> trees ) => false;
+
 	public virtual Task RunTests( IFixerTest tester ) => Task.CompletedTask;
 
 	public sealed override ImmutableArray<string> FixableDiagnosticIds => ImmutableArray.Create( Target.Rule.Id );

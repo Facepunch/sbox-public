@@ -83,15 +83,25 @@
 					}
 					else
 					{
-						<label class="percent">@(ShowBar ? $"{BatchFraction * 100:0}%" : "")</label>
+						<label class="percent">@(ShowBar ? $"{BatchFraction * 100:0}%" : Stepping ? $"{Step * 100:0}%" : "")</label>
 					}
 				</div>
 
 				@* One bar for everything coming down - a segment each, sized by what it's fetching, each
 				   filling as its own download goes. Always there: empty with nothing coming down. A shine
 				   sweeping along and a pulse through what's filling, so it always looks hard at work *@
-				<div class="track @(ShowBar ? "busy" : "idle")">
-					@if ( ShowBar )
+				<div class="track @(ShowBar || Stepping ? "busy" : "idle")">
+					@if ( Stepping )
+					{
+						@* A step that isn't a download, like updating shaders - one segment, the whole bar *@
+						<div class="segment" style="flex-grow: 100;">
+							<div class="fill" style="width: @Num( Step.Value * 100 )%;">
+								<div class="pulse"></div>
+								<div class="shine"></div>
+							</div>
+						</div>
+					}
+					else if ( ShowBar )
 					{
 						@foreach ( var segment in Segments() )
 						{
@@ -127,7 +137,7 @@
 				</div>
 
 				@* How long it's got left, on the left of the way out - when there's a download with a speed
-				   to work it out from *@
+				   to work it out from, or a step that's far enough in to say *@
 				<div class="progress-foot">
 					@if ( Eta is { } eta )
 					{
@@ -188,6 +198,50 @@
     /// </summary>
     static double BatchMbps => Batch.Where( x => !x.Complete ).Sum( x => x.Mbps );
 
+    //
+    // A step that isn't a download but knows how far through it is - updating a package's shaders
+    //
+
+    static double? Step => LoadingView.StepFraction;
+
+    /// <summary>
+    /// The bar's showing the step - when there isn't a download to show.
+    /// </summary>
+    bool Stepping => !ShowBar && Step is not null;
+
+    /// <summary>
+    /// When the step got going - timed afresh when one starts, or when the fraction goes back down
+    /// for another. Not by the title, which can count down as the step goes ("3 left").
+    /// </summary>
+    RealTimeSince _stepSince;
+    double? _stepLast;
+
+    void TickStep()
+    {
+        var step = Stepping ? Step : null;
+
+        if ( step is { } now && (_stepLast is not { } last || now < last) )
+            _stepSince = 0;
+
+        _stepLast = step;
+    }
+
+    /// <summary>
+    /// How long the rest of the step will take at the rate it's going. Null until it's a few seconds and
+    /// a few percent in, before then it's a guess.
+    /// </summary>
+    string StepEta
+    {
+        get
+        {
+            if ( !Stepping || _stepLast is null || Step is not { } fraction ) return null;
+            if ( _stepSince < 3 || fraction < 0.05 || fraction >= 1 ) return null;
+
+            var seconds = _stepSince * (1 - fraction) / fraction;
+            return TimeSpan.FromSeconds( Math.Max( 1, Math.Round( seconds ) ) ).ToRemainingTimeString();
+        }
+    }
+
     /// <summary>
     /// The speed, eased - what the time left's worked out from, so it doesn't jump about with every wobble.
     /// </summary>
@@ -201,7 +255,8 @@
     {
         get
         {
-            if ( !Downloading || BatchSize <= 0 || _easedMbps <= 0 ) return null;
+            if ( !Downloading ) return StepEta;
+            if ( BatchSize <= 0 || _easedMbps <= 0 ) return null;
 
             // Mbps as the engine counts it - megabytes of 1024 x 1024, times eight
             var left = BatchSize * (1 - BatchFraction);
@@ -508,7 +563,10 @@
         foreach ( var download in Batch )
             batch = HashCode.Combine( batch, download.Fraction, download.Complete, download.Mbps );
 
-        return _hash = HashCode.Combine( StatusText, HeadDetail, Background, Package?.FullIdent, batch, Batch.Count, HashCode.Combine( LoadingView.TaskCount, Completing, Eta ) );
+        // The step by tenths of a percent - enough to move the bar, not a rebuild every combo
+        var step = Step is { } fraction ? (int)(fraction * 1000) : -1;
+
+        return _hash = HashCode.Combine( StatusText, HeadDetail, Background, Package?.FullIdent, batch, Batch.Count, HashCode.Combine( LoadingView.TaskCount, Completing, Eta, step ) );
     }
 
     public override void Tick()
@@ -516,5 +574,6 @@
         SetClass( "visible", LoadingView.IsVisible );
         TickCompletion();
         TickSpeed();
+        TickStep();
     }
 }

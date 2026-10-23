@@ -12,8 +12,7 @@ internal sealed class DepthChainLayer : RenderLayer
 	static readonly StringToken DepthChainName = new( "DepthChainDownsample" );
 	static readonly StringToken DepthChainPrevFrameName = new( "DepthChainDownsamplePrevFrame" );
 
-	// Pooled depth chain for this frame.
-	RenderTarget chain;
+	Texture chain;
 
 	public DepthChainLayer() : base( "Hi-Z Depth Downsample" ) { }
 
@@ -30,22 +29,23 @@ internal sealed class DepthChainLayer : RenderLayer
 	public override void HandOff( RenderFrame frame, RenderContext rc ) => rc.BarrierToComputeRead( frame.Output.Target.Depth );
 
 	/// <summary>
-	/// Bind the pooled chain before recording (<see cref="Native.DepthDownsampleLayer.Setup"/>).
-	/// Previous-frame depth aliases the current chain, matching native.
+	/// Bind the chain before recording. Previous-frame depth aliases the current chain, matching native.
 	/// </summary>
 	public override void BeforeSegments( RenderFrame frame, RenderContext frameContext )
 	{
 		var viewport = frame.View.Viewport;
-		chain = SharedPasses.DepthChainTarget( (int)viewport.Width, (int)viewport.Height );
-		frameContext.Attributes.Set( DepthChainName, chain.DepthTarget );
-		frameContext.Attributes.Set( DepthChainPrevFrameName, chain.DepthTarget );
+		var width = (int)viewport.Width;
+		var height = (int)viewport.Height;
+		chain = frame.System.OcclusionActive ? frame.System.OcclusionHistory.Target( width, height ) : SharedPasses.DepthChainTarget( width, height ).DepthTarget;
+		frameContext.Attributes.Set( DepthChainName, chain );
+		frameContext.Attributes.Set( DepthChainPrevFrameName, chain );
 	}
 
 	public override void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats )
 	{
 		var viewport = frame.View.Viewport;
 		var target = frame.Output.Target;
-		rc.BuildDepthChain( target.Depth, target.Samples > 1, chain.DepthTarget, (int)viewport.Width, (int)viewport.Height );
+		rc.BuildDepthChain( target.Depth, target.Samples > 1, chain, (int)viewport.Width, (int)viewport.Height );
 		chain = null;
 	}
 }

@@ -50,7 +50,6 @@ public class ScreenSpaceReflections : BasePostProcess<ScreenSpaceReflections>
 		new( "SSR bilateral upscale" )
 	];
 
-	private GpuBuffer<uint> ClassifiedTilesBuffer;
 	private GpuBuffer<GpuBuffer.IndirectDispatchArguments> DispatchArgsBuffer;
 
 	private static readonly GpuBuffer.IndirectDispatchArguments[] InitialDispatchArgs =
@@ -58,28 +57,6 @@ public class ScreenSpaceReflections : BasePostProcess<ScreenSpaceReflections>
 		new() { ThreadGroupCountX = 0, ThreadGroupCountY = 1, ThreadGroupCountZ = 1 },
 		new() { ThreadGroupCountX = 0, ThreadGroupCountY = 1, ThreadGroupCountZ = 1 }
 	];
-
-	private void EnsureClassifiedTileBuffers( Texture referenceTexture )
-	{
-		var width = Math.Max( 1, referenceTexture.Width );
-		var height = Math.Max( 1, referenceTexture.Height );
-
-		var ssrWidth = Math.Max( 1, (int)MathF.Ceiling( width / (float)Ratio ) );
-		var ssrHeight = Math.Max( 1, (int)MathF.Ceiling( height / (float)Ratio ) );
-
-		var groupsX = (ssrWidth + 7) / 8;
-		var groupsY = (ssrHeight + 7) / 8;
-		var capacity = Math.Max( 1, groupsX * groupsY );
-
-		if ( ClassifiedTilesBuffer is not null && ClassifiedTilesBuffer.ElementCount >= capacity )
-			return;
-
-		ClassifiedTilesBuffer?.Dispose();
-		DispatchArgsBuffer?.Dispose();
-
-		ClassifiedTilesBuffer = new GpuBuffer<uint>( capacity, GpuBuffer.UsageFlags.Structured, "SSR_ClassifiedTiles" );
-		DispatchArgsBuffer = new GpuBuffer<GpuBuffer.IndirectDispatchArguments>( 2, GpuBuffer.UsageFlags.Structured | GpuBuffer.UsageFlags.IndirectDrawArguments, "SSR_IntersectDispatchArgs" );
-	}
 
 	protected override void OnEnabled()
 	{
@@ -90,9 +67,16 @@ public class ScreenSpaceReflections : BasePostProcess<ScreenSpaceReflections>
 		cmdLastframe.Attributes.GrabFrameTexture( "LastFrameColor", Graphics.DownsampleMethod.GGX, maxMips: 6 );
 	}
 
+	protected override void OnDisabled()
+	{
+		base.OnDisabled();
+
+		DispatchArgsBuffer?.Dispose();
+		DispatchArgsBuffer = null;
+	}
+
 	/// <summary>
-	/// Reads the normals and roughness G-buffer the depth-normals prepass writes (<c>NormalsGBuffer</c>), which the managed
-	/// scene renderer draws only for cameras with an effect that needs it.
+	/// Reads the normals and roughness G-buffer the depth-normals prepass writes (<c>NormalsGBuffer</c>).
 	/// </summary>
 	internal override bool NeedsDepthNormals => true;
 
@@ -108,13 +92,16 @@ public class ScreenSpaceReflections : BasePostProcess<ScreenSpaceReflections>
 
 		bool needsUpscale = Ratio != 1;
 		var lastFrame = cmdLastframe.Attributes.GetRenderTarget( "LastFrameColor" )?.ColorTarget ?? Texture.Transparent;
-		EnsureClassifiedTileBuffers( lastFrame );
-		DispatchArgsBuffer.SetData( InitialDispatchArgs );
+		DispatchArgsBuffer ??= new GpuBuffer<GpuBuffer.IndirectDispatchArguments>( 2, GpuBuffer.UsageFlags.Structured | GpuBuffer.UsageFlags.IndirectDrawArguments, "SSR_IntersectDispatchArgs" );
+		// Recorded, so every execution of this list starts the tile counts from zero
+		cmd.SetBufferData( DispatchArgsBuffer, InitialDispatchArgs );
 
 		// The trace writes straight into the mip matching its resolution (half res = mip 1), the upscale fills mip 0 from it
 		int traceMip = System.Numerics.BitOperations.Log2( (uint)Ratio );
 		var reflection = cmd.GetRenderTarget( "SSR_Reflection", 1, ImageFormat.RGBA16161616F, ImageFormat.None, numMips: ReflectionMips );
 		var guide = cmd.GetRenderTarget( "SSR_Guide", Ratio, ImageFormat.RGBA16161616F, ImageFormat.None );
+		// Classified tile list, sized from this view like guide: floor(V/4R) slots per axis cover its ceil(V/8R) tiles
+		var tiles = cmd.GetRenderTarget( "SSR_Tiles", Ratio * 4, ImageFormat.R32_UINT, ImageFormat.None );
 
 		cmd.Attributes.Set( "PreviousFrameColorIndex", lastFrame.Index );
 		cmd.Attributes.Set( "RoughnessCutoff", RoughnessCutoff );
@@ -130,21 +117,21 @@ public class ScreenSpaceReflections : BasePostProcess<ScreenSpaceReflections>
 		// Classify tiles
 		using ( cmd.ProfileScope( PassProfiles[0] ) )
 		{
-			cmd.ResourceBarrierTransition( ClassifiedTilesBuffer, ResourceState.UnorderedAccess );
-			cmd.ResourceBarrierTransition( DispatchArgsBuffer, ResourceState.UnorderedAccess );
-			cmd.Attributes.Set( "ClassifiedTilesRW", ClassifiedTilesBuffer );
+			cmd.ResourceBarrierTransition( tiles, ResourceState.UnorderedAccess );
+			cmd.ResourceBarrierTransition( DispatchArgsBuffer, ResourceState.CopyDestination, ResourceState.UnorderedAccess );
+			cmd.Attributes.Set( "ClassifiedTilesRW", tiles.ColorTexture );
 			cmd.Attributes.Set( "IntersectDispatchArgsRW", DispatchArgsBuffer );
 			cmd.Attributes.Set( "OutRadiance", reflection.ColorTexture, traceMip );
 			cmd.DispatchCompute( ClassifyShaderCs, guide.Size );
 			cmd.UavBarrier( reflection );
-			cmd.ResourceBarrierTransition( ClassifiedTilesBuffer, ResourceState.UnorderedAccess, ResourceState.NonPixelShaderResource );
+			cmd.ResourceBarrierTransition( tiles, ResourceState.NonPixelShaderResource );
 			cmd.ResourceBarrierTransition( DispatchArgsBuffer, ResourceState.UnorderedAccess, ResourceState.IndirectArgument );
 		}
 
 		// Intersect
 		using ( cmd.ProfileScope( PassProfiles[(int)Passes.Intersect] ) )
 		{
-			cmd.Attributes.Set( "ClassifiedTiles", ClassifiedTilesBuffer );
+			cmd.Attributes.Set( "ClassifiedTiles", tiles.ColorTexture );
 			cmd.Attributes.Set( "OutGuide", guide.ColorTexture );
 			cmd.Attributes.SetCombo( "D_PASS", (int)Passes.Intersect );
 			cmd.DispatchComputeIndirect( ShaderCs, DispatchArgsBuffer, (int)DispatchArgsEntry.Intersect );

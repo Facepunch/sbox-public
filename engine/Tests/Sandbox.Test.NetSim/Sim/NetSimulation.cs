@@ -1,4 +1,4 @@
-using Sandbox.Engine;
+﻿using Sandbox.Engine;
 using Sandbox.Internal;
 using Sandbox.Network;
 
@@ -12,6 +12,11 @@ internal record NetSimSettings
 	/// Frames per second every peer runs at.
 	/// </summary>
 	public float FrameRate { get; init; } = 60;
+
+	/// <summary>
+	/// How much each frame's length varies around the average, as a fraction of it, like a real frame rate.
+	/// </summary>
+	public float FrameTimeJitter { get; init; }
 
 	public SimLinkSettings Link { get; init; } = new();
 
@@ -34,7 +39,7 @@ internal sealed class NetSimulation : IDisposable
 	public List<SimPeer> Clients { get; } = new();
 	public SimGameInstance GameInstance { get; }
 	public double Now { get; private set; } = 1000;
-	public float FrameTime => 1f / Settings.FrameRate;
+	public float FrameTime { get; private set; }
 	public int Frame { get; private set; }
 
 	internal static NetSimulation Current { get; private set; }
@@ -43,6 +48,7 @@ internal sealed class NetSimulation : IDisposable
 
 	// Ids end up in the traffic and change how it compresses, so they come from the seed like everything else
 	readonly Random _ids;
+	readonly Random _frames;
 
 	public Guid NewId()
 	{
@@ -59,6 +65,8 @@ internal sealed class NetSimulation : IDisposable
 		Settings = settings ?? new NetSimSettings();
 		Transport = new SimTransport( this, Settings.Seed ) { Settings = Settings.Link };
 		_ids = new Random( Settings.Seed );
+		_frames = new Random( Settings.Seed );
+		FrameTime = 1f / Settings.FrameRate;
 
 		RealTime.SimulatedNow = Now;
 		Current = this;
@@ -171,6 +179,7 @@ internal sealed class NetSimulation : IDisposable
 	public void Step()
 	{
 		Frame++;
+		FrameTime = 1f / Settings.FrameRate * (1 + Settings.FrameTimeJitter * (float)(_frames.NextDouble() * 2 - 1));
 		Now += FrameTime;
 		RealTime.SimulatedNow = Now;
 

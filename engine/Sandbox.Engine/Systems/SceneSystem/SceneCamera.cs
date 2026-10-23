@@ -1,4 +1,5 @@
-﻿using Sandbox.Engine;
+﻿using NativeEngine;
+using Sandbox.Engine;
 using Sandbox.Engine.Settings;
 using Sandbox.Rendering;
 using Sandbox.VR;
@@ -18,6 +19,11 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	internal ToneMapping ToneMapping = Graphics.IsAvailable ? new ToneMapping() : null;
 	internal VolumetricFog VolumetricFogImpl = null;
 	private readonly Lazy<Cmaa2Renderer> _cmaa2Renderer = new( () => new Cmaa2Renderer(), isThreadSafe: true );
+
+	/// <summary>
+	/// Last frame's depth chain, for the native renderer's occlusion culling.
+	/// </summary>
+	internal IDisposable OcclusionHistory;
 
 	/// <summary>
 	/// This is a c++ object with a ton of useful shit.
@@ -223,6 +229,13 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 
 			if ( _cmaa2Renderer.IsValueCreated )
 				EngineLoop.DisposeAtFrameEnd( _cmaa2Renderer.Value );
+
+			if ( OcclusionHistory != null )
+			{
+				// A view queued to render may still read it
+				EngineLoop.DisposeAtFrameEnd( OcclusionHistory );
+				OcclusionHistory = null;
+			}
 
 			// Release native CStrongHandle copies held by texture tracking
 			// in our RenderAttributes. Without this, the handles survive until
@@ -954,18 +967,31 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 		//
 		// Adds the views to the scene system
 		//
-		var setup = new CameraRenderer( "RenderToCubeTexture", _cameraId );
+		using var setup = new CameraRenderer( "RenderToCubeTexture", _cameraId );
 		setup.Configure( this, config );
 		setup.Native.EnableUI = false;
 
-		for ( int i = 0; i < CubeRotations.Length; i++ )
+		// All six faces share one scene submission and one bindless descriptor set.
+		// Join an existing frame bracket when the caller already has one open.
+		bool ownsBatch = !CSceneSystem.IsRenderingViews();
+		// Standalone captures preserve the main frame's performance stats.
+		if ( ownsBatch ) CSceneSystem.BeginRenderingViews( false );
+		try
 		{
-			// Override rotation for each face
-			setup.Native.CameraRotation = (Rotation * CubeRotations[i]).Angles();
-			setup.Native.RenderToCubeTexture( texture.native, i );
+			for ( int i = 0; i < CubeRotations.Length; i++ )
+			{
+				setup.Native.CameraRotation = (Rotation * CubeRotations[i]).Angles();
+				setup.Native.RenderToCubeTexture( texture.native, i );
+			}
 		}
-
-		setup.Dispose();
+		finally
+		{
+			if ( ownsBatch )
+			{
+				CSceneSystem.FinishRenderingViews();
+				CSceneSystem.WaitForRenderingToComplete();
+			}
+		}
 	}
 
 	private void RenderStereo( in ViewSetup config = default )

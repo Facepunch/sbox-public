@@ -237,6 +237,8 @@
     "menu.games.overwhelmingly_positive": "Overwhelmingly Positive",
     "menu.games.parkour": "Parkour",
     "menu.games.party_game": "Party game",
+    "menu.games.password": "Password",
+    "menu.games.password_needed": "You need a password to join this game.",
     "menu.games.physics": "Physics",
     "menu.games.platformer": "Platformer",
     "menu.games.play_anyway": "Play anyway",

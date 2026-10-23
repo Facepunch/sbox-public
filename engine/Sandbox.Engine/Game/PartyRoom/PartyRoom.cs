@@ -575,7 +575,8 @@ public partial class PartyRoom : ILobby
 			throw new InvalidOperationException( "The party's game has changed. Open its settings again." );
 		}
 
-		var json = JsonSerializer.Serialize( settings );
+		// Lobby data anyone can read. The party gets in on an invite, so they don't need the password.
+		var json = JsonSerializer.Serialize( settings with { Password = null } );
 		if ( System.Text.Encoding.UTF8.GetByteCount( json ) > 8191 )
 		{
 			throw new ArgumentException( "These game settings are too large to share with the party." );

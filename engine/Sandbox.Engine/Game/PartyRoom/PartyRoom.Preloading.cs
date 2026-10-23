@@ -105,9 +105,12 @@ public partial class PartyRoom
 	{
 		token.ThrowIfCancellationRequested();
 		Api.Activity.GameRequested( new( "party" ) );
-		string failure = null;
-		if ( !await Networking.TryConnect( address, token: token, onFailure: message => failure = message ) )
-			throw new InvalidOperationException( failure ?? "Unable to connect to the party leader's game." );
+		var result = await Networking.TryConnectInternal( address, token: token );
+		if ( !result.Success )
+		{
+			if ( result.Status == Networking.ConnectStatus.Failed ) IGameInstanceDll.Current.Disconnect();
+			throw new InvalidOperationException( result.Error ?? "Unable to connect to the party leader's game." );
+		}
 
 		var system = Networking.System;
 		while ( system is not null && ReferenceEquals( system, Networking.System ) )

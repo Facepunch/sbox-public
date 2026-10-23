@@ -118,6 +118,11 @@ public partial class GameTransform
 		if ( _targetLocal == value )
 			return;
 
+		var before = _targetLocal;
+
+		// Headless never interpolates, but sends what it would show
+		var stepped = _hasPositionSet && (interpolate || (Application.IsHeadless && WouldInterpolate()));
+
 		if ( interpolate && _hasPositionSet )
 		{
 			UpdateInterpolatedLocal( value );
@@ -126,6 +131,8 @@ public partial class GameTransform
 		{
 			UpdateLocal( value );
 		}
+
+		GameObject?._net?.OnLocalTransformSet( before, _targetLocal, stepped );
 	}
 
 	/// <summary>
@@ -139,6 +146,7 @@ public partial class GameTransform
 		if ( _targetLocal == value )
 			return false;
 
+		GameObject?._net?.OnLocalTransformSet( _targetLocal, value, false );
 		_interpolatedLocal = value;
 		_targetLocal = value;
 
@@ -159,6 +167,7 @@ public partial class GameTransform
 			return;
 
 		_hasPositionSet = true;
+		GameObject?._net?.OnLocalTransformSet( _targetLocal, value, false );
 		_interpolatedLocal = value;
 		_targetLocal = value;
 		_positionBuffer?.Clear();

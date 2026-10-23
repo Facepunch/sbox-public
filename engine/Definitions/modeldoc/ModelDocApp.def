@@ -186,7 +186,14 @@ native class CModelDocDefaultMaterialGroup
 native class CModelDoc
 {
 	void DeleteThis(); [delete]
-	static CModelDoc Create(); [new]
+
+	inline static CModelDoc Create()
+	{
+		if ( !IsModelDocLibInitialized() )
+			return nullptr;
+
+		return new CModelDoc();
+	}
 
 	inline bool SaveToFile( string pFullPath )
 	{
