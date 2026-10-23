@@ -79,6 +79,10 @@ internal struct LayoutResults
 	public bool HasSingleStickyFlexChild;
 	public uint StickyFlexGeneration;
 
+	// Set once a display: none node's subtree has been zeroed (LayoutAlgorithm.LayoutHiddenChild), so later passes
+	// can skip it until the node is dirtied. Cleared by Reset, which removing the node from its owner does.
+	public bool IsZeroedWhileHidden;
+
 	// Block layout: margins that escape this box to collapse with siblings / ancestors, and whether the
 	// box is empty enough for its top and bottom margins to collapse through it.
 	public CollapsibleMargin MarginTopSet;

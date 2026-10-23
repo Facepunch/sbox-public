@@ -131,9 +131,7 @@ internal static class BlockLayout
 
 			if ( child.Style.Display == Display.None )
 			{
-				LayoutAlgorithm.ZeroOutLayoutRecursively( child );
-				child.HasNewLayout = true;
-				child.SetDirty( false );
+				LayoutAlgorithm.LayoutHiddenChild( child );
 				continue;
 			}
 
