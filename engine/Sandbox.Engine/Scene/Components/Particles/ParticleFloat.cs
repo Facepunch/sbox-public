@@ -27,43 +27,79 @@ public struct ParticleFloat : IJsonConvert
 	public ValueType Type { readonly get; set; }
 	public EvaluationType Evaluation { readonly get; set; }
 
-	public Curve CurveA { readonly get; set; }
-	public Curve CurveB { readonly get; set; }
+	float _a;
+	float _b;
 
-	[JsonInclude]
-	public Vector4 Constants;
+	/// <summary>
+	/// Null until a curve is assigned. Immutable, so struct copies may share it.
+	/// </summary>
+	CurvePair _curves;
 
-	[JsonIgnore]
+	sealed class CurvePair
+	{
+		public readonly Curve A;
+		public readonly Curve B;
+
+		public CurvePair( in Curve a, in Curve b )
+		{
+			A = a;
+			B = b;
+		}
+	}
+
+	public Curve CurveA
+	{
+		readonly get => _curves?.A ?? default;
+		set => _curves = new CurvePair( value, CurveB );
+	}
+
+	public Curve CurveB
+	{
+		readonly get => _curves?.B ?? default;
+		set => _curves = new CurvePair( CurveA, value );
+	}
+
+	/// <summary>
+	/// x = ConstantA, y = ConstantB. z/w are unused and always 0.
+	/// </summary>
+	public Vector4 Constants
+	{
+		readonly get => new Vector4( _a, _b, 0, 0 );
+		set
+		{
+			_a = value.x;
+			_b = value.y;
+		}
+	}
+
 	public float ConstantValue
 	{
-		readonly get => Constants.x;
-		set => Constants.x = value;
+		readonly get => _a;
+		set => _a = value;
 	}
 
-	[JsonIgnore]
 	public float ConstantA
 	{
-		readonly get => Constants.x;
-		set => Constants.x = value;
+		readonly get => _a;
+		set => _a = value;
 	}
 
-	[JsonIgnore]
 	public float ConstantB
 	{
-		readonly get => Constants.y;
-		set => Constants.y = value;
+		readonly get => _b;
+		set => _b = value;
 	}
 
-	[JsonIgnore]
 	public CurveRange CurveRange
 	{
 		readonly get => new CurveRange( CurveA, CurveB );
-		set
-		{
-			CurveA = value.A;
-			CurveB = value.B;
-		}
+		set => _curves = new CurvePair( value.A, value.B );
 	}
+
+	/// <summary>
+	/// True when the value is a single constant, ignoring life delta and randomness.
+	/// </summary>
+	public readonly bool IsConstant => Type == ValueType.Constant;
 
 	public static implicit operator ParticleFloat( float v )
 	{
@@ -313,4 +349,10 @@ public struct ParticleVector3
 	{
 		return X.IsNearlyZero() && Y.IsNearlyZero() && Z.IsNearlyZero();
 	}
+
+	/// <summary>
+	/// True when every component is a constant.
+	/// </summary>
+	[JsonIgnore]
+	public readonly bool IsConstant => X.IsConstant && Y.IsConstant && Z.IsConstant;
 }
