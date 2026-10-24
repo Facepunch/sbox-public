@@ -1221,27 +1221,18 @@ internal static class DevToolsStyles
 		}
 
 		//
-		// Network analyzer: a toolbar, filters, then the traffic as rows of one grid, newest first
+		// Network analyzer
 		//
 
-		.devtools .net-toolbar, .devtools .net-filters
+		.devtools .net-toolbar
 		{
 			flex-shrink: 0;
 			align-items: center;
 			gap: 6px;
 			padding: 0px 6px;
 			border-bottom: 1px solid $line-soft;
-		}
-
-		.devtools .net-toolbar
-		{
 			height: 34px;
 			background-color: $band;
-		}
-
-		.devtools .net-filters
-		{
-			height: 34px;
 		}
 
 		.devtools .net-toolbar .grow
@@ -1356,147 +1347,192 @@ internal static class DevToolsStyles
 			flex-shrink: 0;
 		}
 
-		.devtools .net-search, .devtools .net-select
+		//
+		// Network timeline
+		//
+
+		.devtools .nettl-bar
 		{
-			height: 24px;
+			flex-shrink: 0;
 			align-items: center;
-			background-color: $plot;
-			border: 1px solid $line;
-			color: $text;
+			gap: 6px;
+			padding: 4px 10px;
 		}
 
-		.devtools .net-search
+		.devtools .nettl-filter
 		{
 			flex-grow: 1;
-			padding: 0px 8px;
+			flex-shrink: 1;
+			min-width: 0px;
+			height: 24px;
+			background-color: $bg;
+			border: 1px solid $line;
+			font-family: Roboto Mono;
+			font-size: 12px;
+			color: $text;
+			align-items: center;
+			padding: 0px 6px;
 		}
 
-		.devtools .net-search:focus
+		.devtools .nettl-filter:focus
 		{
 			border: 1px solid $faint;
 		}
 
-		.devtools .net-select
+		.devtools .nettl-select
 		{
 			flex-shrink: 0;
-			width: 140px;
+			align-items: center;
+			gap: 4px;
+			max-width: 280px;
+			height: 24px;
 			padding: 0px 4px 0px 8px;
+			background-color: $bg;
+			border: 1px solid $line;
+			color: $text;
 			cursor: pointer;
+			overflow: hidden;
 		}
 
-		.devtools .net-select:hover
+		.devtools .nettl-select:hover
 		{
 			background-color: $hover;
 		}
 
-		.devtools .net-select-text
+		.devtools .nettl-select-text
 		{
-			flex-grow: 1;
+			flex-shrink: 1;
+			min-width: 0px;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
 		}
 
-		.devtools .net-select-icon, .devtools .net-icon
-		{
-			font-family: Material Icons;
-			color: $dim;
-		}
-
-		.devtools .net-select-icon
-		{
-			font-size: 16px;
-		}
-
-		.devtools .net-row
-		{
-			display: grid;
-			grid-template-columns: 96px 110px minmax(0, 1fr) minmax(0, 0.8fr) 64px;
-			gap: 10px;
-			align-items: center;
-			height: 22px;
-			padding: 0px 10px;
-			border-bottom: 1px solid $line-soft;
-		}
-
-		.devtools .net-row.net-head
+		.devtools .nettl-select-icon
 		{
 			flex-shrink: 0;
-			height: 24px;
-			background-color: $band;
+			font-family: Material Icons;
+			font-size: 16px;
 			color: $dim;
-			font-size: 11px;
 		}
 
-		.devtools .net-list
+		.devtools .nettl-page
+		{
+			flex-direction: column;
+			flex-grow: 1;
+			flex-shrink: 1;
+			min-height: 0px;
+		}
+
+		.devtools .nettl-page > .facts
+		{
+			flex-shrink: 0;
+		}
+
+		.devtools .section.nettl-fill
 		{
 			flex-grow: 1;
 			flex-shrink: 1;
 			min-height: 0px;
-			overflow-y: scroll;
 		}
 
-		.devtools .net-list .net-row:hover
-		{
-			background-color: $hover;
-		}
-
-		.devtools .net-cell
-		{
-			min-width: 0px;
-			white-space: nowrap;
-			overflow: hidden;
-		}
-
-		.devtools .net-cell.number
-		{
-			justify-content: flex-end;
-		}
-
-		.devtools .net-cell.mono
-		{
-			font-family: Roboto Mono;
-			font-size: 11px;
-		}
-
-		.devtools .net-cell.dim
-		{
-			color: $dim;
-		}
-
-		.devtools .net-event
-		{
-			align-items: center;
-			gap: 6px;
-		}
-
-		.devtools .net-icon
-		{
-			font-size: 14px;
-		}
-
-		.devtools .net-icon.sent { color: #c2a46e; }
-		.devtools .net-icon.received { color: #78aa9a; }
-		.devtools .net-icon.session { color: $faint; }
-
-		.devtools .net-footer
-		{
-			flex-shrink: 0;
-			height: 24px;
-			align-items: center;
-			padding: 0px 10px;
-			background-color: $chrome;
-			border-top: 1px solid $line;
-			color: $dim;
-			font-size: 11px;
-		}
-
-		.devtools .net-footer .grow
+		.devtools .nettl-fill > .section-body
 		{
 			flex-grow: 1;
+			min-height: 0px;
 		}
 
-		.devtools .net-footer-rate
+		.devtools .nettl-split
 		{
-			font-family: Roboto Mono;
+			flex-grow: 1;
+			min-height: 0px;
 		}
+
+		.devtools .nettl-split > .split-left, .devtools .nettl-split > .split-right
+		{
+			flex-direction: column;
+			flex-shrink: 1;
+			min-height: 0px;
+		}
+
+		.devtools .section.nettl-dock
+		{
+			flex-grow: 1;
+			min-height: 0px;
+		}
+
+		.devtools .nettl-dock > .section-body
+		{
+			flex-grow: 1;
+			min-height: 0px;
+			overflow: scroll;
+		}
+
+		.devtools .nettl-unpin
+		{
+			flex-shrink: 0;
+			font-size: 13px;
+			color: $faint;
+		}
+
+		.devtools .nettl-unpin:hover
+		{
+			color: $text;
+		}
+
+		.devtools .nettl-split.vertical > .splitter.nettl-grip
+		{
+			flex-shrink: 0;
+			height: 12px;
+			justify-content: center;
+			align-items: center;
+			cursor: row-resize;
+			background-color: $plot;
+			border-top: 1px solid $line;
+		}
+
+		.devtools .nettl-grip-bar
+		{
+			width: 48px;
+			height: 3px;
+			background-color: $faint;
+		}
+
+		.devtools .nettl-grip:hover .nettl-grip-bar, .devtools .nettl-split.dragging > .nettl-grip .nettl-grip-bar
+		{
+			background-color: $text;
+		}
+
+		.devtools .nettl-view
+		{
+			position: relative;
+			flex-grow: 1;
+			min-height: 0px;
+			overflow-x: hidden;
+			overflow-y: scroll;
+			scrollbar-width: 10px;
+			background-color: $plot;
+			cursor: pointer;
+		}
+
+		.devtools .nettl-tooltip
+		{
+			position: absolute;
+			flex-direction: column;
+			gap: 2px;
+			padding: 8px;
+			background-color: #1c1c1c;
+			border: 1px solid $line;
+			font-family: Roboto Mono;
+			font-size: 11px;
+			font-weight: 500;
+			color: $text;
+			pointer-events: none;
+			z-index: 10;
+		}
+
+		.devtools .nettl-tooltip > label.dim { color: $dim; }
+		.devtools .nettl-tooltip > label.faint { color: $faint; }
 
 		//
 		// UI inspector: the panel tree beside what's picked - its box, the rules that matched, what it computed to

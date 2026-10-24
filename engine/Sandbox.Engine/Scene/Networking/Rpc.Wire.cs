@@ -3,6 +3,7 @@ using Sandbox.Internal;
 using Sandbox.Network;
 using Sandbox.Utility;
 using System.Reflection;
+using NetworkLog = Sandbox.Diagnostics.DevTools.NetworkLog;
 
 namespace Sandbox;
 
@@ -55,7 +56,7 @@ public static partial class Rpc
 	/// <summary>
 	/// Send an RPC message by its mode: to everyone, or to the one connection that should run it.
 	/// </summary>
-	static void SendMessage( ref ByteStream bs, in WrappedMethod m, RpcAttribute attribute, Guid targetId )
+	static void SendMessage<TArgs>( ref ByteStream bs, in WrappedMethod m, RpcAttribute attribute, Guid targetId, object owner, in TArgs args ) where TArgs : struct, IRpcArguments
 	{
 		var networkSystem = SceneNetworkSystem.Instance;
 		if ( networkSystem is null )
@@ -64,19 +65,78 @@ public static partial class Rpc
 			return;
 		}
 
-		if ( NetworkDebugSystem.Current is { TracksCalls: true } debug )
-			debug.Track( $"{m.TypeName}.{m.MethodName}", bs.Length, outbound: true );
+		var broadcast = attribute.Mode == RpcMode.Broadcast;
+		if ( !broadcast && (targetId == Connection.Local.Id || targetId == Guid.Empty) )
+		{
+			return;
+		}
 
-		if ( attribute.Mode == RpcMode.Broadcast )
+		List<Connection> filtered = null;
+
+		if ( NetworkDebugSystem.Current is { TracksCalls: true } debug )
+		{
+			var name = $"{m.TypeName}.{m.MethodName}";
+			if ( broadcast && Filter is { } filter && NetworkLog.LogsMessages )
+			{
+				filtered = new List<Connection>();
+				networkSystem.CollectConnections( filtered, Connection.ChannelState.Snapshot, filter );
+				debug.TrackFilteredRpc( name, bs.Length, filtered, owner, DescribeArguments( m, args ) );
+			}
+			else
+			{
+				var peer = NetworkLog.LogsMessages && !broadcast ? Connection.Find( targetId ) : null;
+				debug.TrackRpc( name, bs.Length, outbound: true, peer, owner, DescribeArguments( m, args ) );
+			}
+		}
+
+		if ( filtered is not null )
+		{
+			networkSystem.SendToRecipients( filtered, bs, attribute.Flags );
+			return;
+		}
+
+		if ( broadcast )
 		{
 			networkSystem.BroadcastRaw( bs, Filter, attribute.Flags );
 			return;
 		}
 
-		if ( targetId == Connection.Local.Id ) return; // don't send to ourselves
-		if ( targetId == Guid.Empty ) return; // don't send to no-one
-
 		networkSystem.SendRaw( targetId, bs, attribute.Flags );
+	}
+
+	static string DescribeArguments<TArgs>( in WrappedMethod m, in TArgs args ) where TArgs : struct, IRpcArguments
+	{
+		if ( !NetworkLog.LogsMessages )
+		{
+			return null;
+		}
+
+		var parameters = (GlobalContext.Current.TypeLibrary.GetMemberByIdent( m.MethodIdentity ) as MethodDescription)?.Parameters;
+		return NetworkLog.FormatRpcArgs( args.Values(), parameters );
+	}
+
+	/// <summary>
+	/// Logs an incoming RPC with the arguments the call reads, so they aren't read twice.
+	/// </summary>
+	sealed class IncomingArgumentLog( NetworkDebugSystem debug, string name, int size, Connection source, object owner, MethodDescription member )
+	{
+		bool _logged;
+
+		public void Arguments( object[] args )
+		{
+			_logged = true;
+			debug.TrackRpc( name, size, outbound: false, source, owner, NetworkLog.FormatRpcArgs( args, member.Parameters ) );
+		}
+
+		/// <summary>
+		/// Logs the call without its values if reading them failed.
+		/// </summary>
+		public void Unread( int count )
+		{
+			if ( _logged ) return;
+			_logged = true;
+			debug.TrackRpc( name, size, outbound: false, source, owner, count == 1 ? "1 arg" : $"{count} args" );
+		}
 	}
 
 	/// <summary>
@@ -194,8 +254,21 @@ public static partial class Rpc
 
 		using var profiler = _ph.Start( method.Name );
 
+		IncomingArgumentLog argumentLog = null;
 		if ( NetworkDebugSystem.Current is { TracksCalls: true } debug )
-			debug.Track( $"{(typeDesc ?? member.TypeDescription).FullName}.{method.Name}", bs.Length, outbound: false, source );
+		{
+			var name = $"{(typeDesc ?? member.TypeDescription).FullName}.{method.Name}";
+			if ( NetworkLog.LogsMessages )
+			{
+				argumentLog = new IncomingArgumentLog( debug, name, bs.Length, source, instance, member );
+			}
+			else
+			{
+				debug.TrackRpc( name, bs.Length, outbound: false, source, instance, null );
+			}
+		}
+
+		var observe = argumentLog is null ? null : (Action<object[]>)argumentLog.Arguments;
 
 		using ( WithCaller( source ) )
 		{
@@ -204,15 +277,19 @@ public static partial class Rpc
 				if ( generics is not null )
 				{
 					var genericMethod = method.MakeGenericMethod( GlobalContext.Current.TypeLibrary.FromIdentities( generics ) );
-					genericMethod.Invoke( instance, ReadArguments( ref bs, argCount ) );
+					var args = ReadArguments( ref bs, argCount );
+					observe?.Invoke( args );
+					genericMethod.Invoke( instance, args );
 				}
 				else if ( RpcInvoker.Get( method ) is { } invoker && invoker.ParameterCount == argCount )
 				{
-					invoker.Invoke( instance, GlobalContext.Current.TypeLibrary, ref bs );
+					invoker.Invoke( instance, GlobalContext.Current.TypeLibrary, ref bs, observe );
 				}
 				else
 				{
-					method.Invoke( instance, ReadArguments( ref bs, argCount ) );
+					var args = ReadArguments( ref bs, argCount );
+					observe?.Invoke( args );
+					method.Invoke( instance, args );
 				}
 			}
 			catch ( Exception e )
@@ -222,6 +299,8 @@ public static partial class Rpc
 
 				Log.Error( e, $"Error calling RPC '{(typeDesc ?? member.TypeDescription).Name}.{method.Name}' - {e.Message}" );
 			}
+
+			argumentLog?.Unread( argCount );
 		}
 	}
 

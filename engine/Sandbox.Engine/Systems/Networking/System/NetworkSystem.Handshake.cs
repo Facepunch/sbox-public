@@ -475,8 +475,7 @@ internal partial class NetworkSystem
 
 	async Task On_Handshake_Snapshot( InitialSnapshotResponse msg, Connection source, Guid msgId )
 	{
-		NetworkDebugSystem.Current?.Record( NetworkDebugSystem.MessageType.Snapshot, msg );
-		Sandbox.Diagnostics.DevTools.NetworkLog.Message( Sandbox.Diagnostics.DevTools.NetworkLog.Kind.Snapshot, "SceneSnapshot", msg, false, source );
+		NetworkDebugSystem.TrackSnapshot( msg, source );
 
 		if ( !source.IsHost )
 			return;

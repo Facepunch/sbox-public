@@ -194,6 +194,8 @@ public partial class Scene : GameObject
 
 		RetireSettledNetworkObjects( Time.NowDouble );
 
+		Diagnostics.DevTools.NetworkLog.SampleDormancy( networkedObjects );
+
 		system.DeltaSnapshots.Tick();
 	}
 

@@ -33,7 +33,9 @@ Don't open the dev tools and screenshot it. Times are ms, memory MiB.
 top CPU and GPU costs), `perf_frames`, `perf_cpu`, `perf_gpu`, `perf_memory` (`allocationSeconds`
 tracks allocations by type), `perf_vram` (the GPU allocator's blocks, emptiest first, and what
 holds the nearly empty ones), `perf_rendering`, `perf_network` (`seconds` records messages),
-`perf_ui`. The first GPU read takes about a second while timings warm up.
+`perf_ui`. `perf_net_timeline` returns per-object sync values, RPC arguments and dormancy,
+plus session traffic; pass `seconds` to collect, `transforms: true` to include transforms, and `filter` for Network Timeline filters.
+The first GPU read takes about a second while timings warm up.
 
 ## Editor toolsets
 

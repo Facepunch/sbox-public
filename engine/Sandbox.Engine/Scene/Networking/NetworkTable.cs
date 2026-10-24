@@ -32,6 +32,7 @@ internal class NetworkTable : IDisposable
 		// thousands of entries. It doesn't really matter though, this API is not public.
 		public Type TargetType;
 		public string DebugName;
+		public object Owner;
 		public bool NeedsQuery;
 
 		/// <summary>
@@ -494,7 +495,7 @@ internal class NetworkTable : IDisposable
 
 			snapshot.AddSerialized( entry.Slot, entry.Serialized );
 
-			NetworkDebugSystem.Current?.TrackSync( entry.DebugName, entry.Serialized.Length, outbound: true );
+			NetworkDebugSystem.Current?.TrackSync( entry, entry.Serialized, outbound: true );
 		}
 	}
 
@@ -555,7 +556,7 @@ internal class NetworkTable : IDisposable
 				bs.Dispose();
 			}
 
-			NetworkDebugSystem.Current?.TrackSync( entry.DebugName, serialized.Length, outbound: false, source );
+			NetworkDebugSystem.Current?.TrackSync( entry, serialized.Span, outbound: false, source );
 		}
 	}
 
@@ -584,7 +585,7 @@ internal class NetworkTable : IDisposable
 
 				count++;
 
-				NetworkDebugSystem.Current?.TrackSync( entry.DebugName, bs.Length, outbound: true );
+				NetworkDebugSystem.Current?.TrackSync( entry, bs.ToSpan(), outbound: true );
 			}
 			catch ( Exception e )
 			{
@@ -718,7 +719,7 @@ internal class NetworkTable : IDisposable
 
 				count++;
 
-				NetworkDebugSystem.Current?.TrackSync( entry.DebugName, bs.Length, outbound: true );
+				NetworkDebugSystem.Current?.TrackSync( entry, bs.ToSpan(), outbound: true );
 			}
 			catch ( Exception e )
 			{
@@ -770,7 +771,7 @@ internal class NetworkTable : IDisposable
 
 				count++;
 
-				NetworkDebugSystem.Current?.TrackSync( entry.DebugName, bs.Length, outbound: true );
+				NetworkDebugSystem.Current?.TrackSync( entry, bs.ToSpan(), outbound: true );
 			}
 			catch ( Exception e )
 			{
@@ -833,6 +834,8 @@ internal class NetworkTable : IDisposable
 				continue;
 			}
 
+			var wire = bs.ToSpan();
+
 			try
 			{
 				IsReadingChanges = true;
@@ -848,10 +851,10 @@ internal class NetworkTable : IDisposable
 
 				// We're never dirty if we just had our value read.
 				entry.IsDirty = false;
+
+				NetworkDebugSystem.Current?.TrackSync( entry, wire, outbound: false, source );
 				bs.Dispose();
 			}
-
-			NetworkDebugSystem.Current?.TrackSync( entry.DebugName, length, outbound: false, source );
 		}
 
 		container.Dispose();
