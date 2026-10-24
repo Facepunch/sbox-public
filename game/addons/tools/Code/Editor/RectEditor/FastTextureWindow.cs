@@ -586,6 +586,9 @@ public class RectViewToolbar : Widget
 			{
 				CreateModeButton( layout, "grid_4x4", "Toggle Tile View", () => Settings.IsTileView, () => Settings.IsTileView = !Settings.IsTileView );
 				CreateModeButton( layout, "rectangle", "Show Atlas Rects", () => Settings.ShowRects, () => Settings.ShowRects = !Settings.ShowRects );
+				CreateModeButton( layout, "grid_on", "Toggle Grid (Ctrl+G)", () => Window.GridEnabled, () => Window.SetGridEnabled( !Window.GridEnabled ) );
+				CreateModeButton( layout, "keyboard_arrow_down", "Decrease Grid Size ([)", () => false, () => Window.SmallerGrid() );
+				CreateModeButton( layout, "keyboard_arrow_up", "Increase Grid Size (])", () => false, () => Window.BiggerGrid() );
 			} );
 
 			AddGroup( viewCol, "Actions", layout =>
