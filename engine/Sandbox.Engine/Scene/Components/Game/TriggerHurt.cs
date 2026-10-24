@@ -40,7 +40,7 @@ public sealed class TriggerHurt : Component
 		if ( timeSinceDamage < Rate ) return;
 		if ( !Collider.IsValid() ) return;
 
-		timeSinceDamage = 0;
+		bool hasHurt = false;
 
 		foreach ( var touching in Collider.Touching.SelectMany( x => x.GetComponentsInParent<IDamageable>() ).Distinct() )
 		{
@@ -48,6 +48,8 @@ public sealed class TriggerHurt : Component
 
 			if ( !Exclude.IsEmpty && target.GameObject.Tags.HasAny( Exclude ) ) continue;
 			if ( !Include.IsEmpty && !target.GameObject.Tags.HasAny( Include ) ) continue;
+
+			hasHurt = true;
 
 			var damage = new DamageInfo();
 			damage.Tags.Add( DamageTags );
@@ -58,5 +60,7 @@ public sealed class TriggerHurt : Component
 
 			touching.OnDamage( damage );
 		}
+
+		if ( hasHurt ) timeSinceDamage = 0;
 	}
 }
