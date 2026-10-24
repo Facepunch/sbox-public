@@ -712,7 +712,7 @@ public partial class GameObject
 
 	private bool IsPrefabLoaded( PrefabFile prefabFile )
 	{
-		if ( prefabFile?.RootObject is null )
+		if ( prefabFile is null || !prefabFile.HasRootObject )
 		{
 			// Sol: the prefab is missing, register a promise like the REAL resource
 			// json converter does, so we know it's wanted.
