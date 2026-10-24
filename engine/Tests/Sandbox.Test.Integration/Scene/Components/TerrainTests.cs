@@ -201,6 +201,95 @@ public class TerrainComponentTest
 	}
 
 	/// <summary>
+	/// Loaded maps stay compressed until first read, and an untouched storage saves the bytes it was
+	/// loaded from. Reading and editing a map after load must still be what gets saved.
+	/// </summary>
+	[TestMethod]
+	public void LoadedStorageSavesUntouchedMapsAsIsAndEditedMapsAsEdited()
+	{
+		var storage = new TerrainStorage();
+		storage.SetResolution( 32 );
+		for ( int i = 0; i < storage.HeightMap.Length; i++ )
+		{
+			storage.HeightMap[i] = (ushort)((i * 7) % 65536);
+			storage.ControlMap[i] = (uint)(i * 13);
+		}
+
+		var json = storage.Serialize().ToJsonString();
+		var blob = storage.BinaryData;
+
+		static TerrainStorage Load( string j, byte[] b )
+		{
+			var loaded = new TerrainStorage();
+			loaded.BinaryData = b;
+			loaded.LoadFromJson( j );
+			return loaded;
+		}
+
+		var untouched = Load( json, blob );
+		Assert.AreEqual( 32, untouched.Resolution, "Loading keeps the stored resolution" );
+		var untouchedJson = untouched.Serialize().ToJsonString();
+		CollectionAssert.AreEqual( blob, untouched.BinaryData, "An untouched storage saves the same blob" );
+
+		var edited = Load( json, blob );
+		edited.HeightMap[5] = 12345;
+		edited.ControlMap[6] = 54321;
+		var editedJson = edited.Serialize().ToJsonString();
+		var reloaded = Load( editedJson, edited.BinaryData );
+
+		Assert.AreEqual( 12345, reloaded.HeightMap[5], "A height edit after load is saved" );
+		Assert.AreEqual( 54321u, reloaded.ControlMap[6], "A control edit after load is saved" );
+		Assert.AreEqual( storage.HeightMap[4], reloaded.HeightMap[4] );
+		Assert.AreEqual( untouchedJson, json, "Untouched settings serialize the same" );
+	}
+
+	/// <summary>
+	/// Version 2 terrains stored their maps as base64 deflate data in the json. Upgrading keeps that
+	/// data compressed instead of inflating it on every load; the maps must still read and save exactly.
+	/// </summary>
+	[TestMethod]
+	public void LegacyBase64TerrainLoadsAndResavesExactly()
+	{
+		const int resolution = 16;
+		var heights = Enumerable.Range( 0, resolution * resolution ).Select( i => (ushort)(i * 31) ).ToArray();
+		var controls = Enumerable.Range( 0, resolution * resolution ).Select( i => (uint)(i * 977) ).ToArray();
+
+		static string Deflate<T>( T[] data ) where T : unmanaged
+		{
+			using var output = new System.IO.MemoryStream();
+			using ( var deflate = new System.IO.Compression.DeflateStream( output, System.IO.Compression.CompressionMode.Compress ) )
+				deflate.Write( System.Runtime.InteropServices.MemoryMarshal.AsBytes( data.AsSpan() ) );
+			return System.Convert.ToBase64String( output.ToArray() );
+		}
+
+		var legacyJson = new System.Text.Json.Nodes.JsonObject
+		{
+			["__version"] = 2,
+			["Maps"] = new System.Text.Json.Nodes.JsonObject { ["heightmap"] = Deflate( heights ), ["splatmap"] = Deflate( controls ) },
+			["Resolution"] = resolution,
+			["TerrainSize"] = 1000.0f,
+			["TerrainHeight"] = 100.0f,
+		}.ToJsonString();
+
+		var legacy = new TerrainStorage();
+		legacy.LoadFromJson( legacyJson );
+
+		Assert.AreEqual( resolution, legacy.Resolution );
+
+		// Save before anything reads the maps, so the still-compressed legacy data is what gets written
+		var json = legacy.Serialize().ToJsonString();
+		var reloaded = new TerrainStorage();
+		reloaded.BinaryData = legacy.BinaryData;
+		reloaded.LoadFromJson( json );
+
+		CollectionAssert.AreEqual( heights, legacy.HeightMap );
+		CollectionAssert.AreEqual( controls, legacy.ControlMap );
+
+		CollectionAssert.AreEqual( heights, reloaded.HeightMap, "Saving an upgraded terrain keeps its heights" );
+		CollectionAssert.AreEqual( controls, reloaded.ControlMap, "Saving an upgraded terrain keeps its control map" );
+	}
+
+	/// <summary>
 	/// Terrain component defaults and property clamps, exercised on a disabled component so
 	/// no scene object or GPU resources are touched: it is always a concave static collider,
 	/// shadows default to Off (unlike ModelRenderer), the clipmap properties clamp to their
