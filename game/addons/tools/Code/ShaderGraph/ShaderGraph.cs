@@ -94,8 +94,10 @@ public sealed partial class ShaderGraph : IGraph
 	[Hide]
 	public PreviewSettings PreviewSettings { get; set; } = new();
 
-	[Hide]
-	public int Version { get; set; } = 1;
+	/// <summary>
+	/// The current version of the <see cref="ShaderGraph"/> class.
+	/// </summary>
+	[JsonIgnore, Hide] public int Version => 1;
 
 	public ShaderGraph()
 	{
