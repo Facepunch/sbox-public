@@ -819,8 +819,8 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 		}
 		else
 		{
-			result.x = (result.x + 2f) / 2f;
-			result.y = ((result.y - 2f) / 2f) * -1f;
+			result.x = (result.x + 1f) / 2f;
+			result.y = (1f - result.y) / 2f;
 
 			if ( result.x <= 0f || result.x >= 1f || result.y <= 0f || result.y >= 1f )
 				result.z = -1f;
