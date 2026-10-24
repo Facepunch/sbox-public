@@ -10,7 +10,7 @@ public sealed class Float : ParameterNode<float>
 	[Hide] public float Step => UI.Step;
 
 	[Output( typeof( float ) ), Title( "Value" )]
-	[Hide, Editor( nameof( Value ) ), Range( nameof( Min ), nameof( Max ), nameof( Step ) )]
+	[Hide, NodeValueEditor( nameof( Value ) ), Range( nameof( Min ), nameof( Max ), nameof( Step ) )]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
 		return compiler.ResultParameter( Name, Value, Min, Max, Min != Max, IsAttribute, UI );
@@ -81,14 +81,14 @@ public sealed class Float2 : ParameterNode<Vector2>
 	/// <summary>
 	/// X component of result
 	/// </summary>
-	[Output( typeof( float ) ), Hide, Editor( nameof( ValueX ) ), Title( "X" )]
+	[Output( typeof( float ) ), Hide, NodeValueEditor( nameof( ValueX ) ), Title( "X" )]
 	[Range( nameof( MinX ), nameof( MaxX ), nameof( Step ) )]
 	public NodeResult.Func X => ( GraphCompiler compiler ) => Component( "x", ValueX, compiler );
 
 	/// <summary>
 	/// Y component of result
 	/// </summary>
-	[Output( typeof( float ) ), Hide, Editor( nameof( ValueY ) ), Title( "Y" )]
+	[Output( typeof( float ) ), Hide, NodeValueEditor( nameof( ValueY ) ), Title( "Y" )]
 	[Range( nameof( MinY ), nameof( MaxY ), nameof( Step ) )]
 	public NodeResult.Func Y => ( GraphCompiler compiler ) => Component( "y", ValueY, compiler );
 
@@ -157,21 +157,21 @@ public sealed class Float3 : ParameterNode<Vector3>
 	/// <summary>
 	/// X component of result
 	/// </summary>
-	[Output( typeof( float ) ), Hide, Editor( nameof( ValueX ) ), Title( "X" )]
+	[Output( typeof( float ) ), Hide, NodeValueEditor( nameof( ValueX ) ), Title( "X" )]
 	[Range( nameof( MinX ), nameof( MaxX ), nameof( Step ) )]
 	public NodeResult.Func X => ( GraphCompiler compiler ) => Component( "x", ValueX, compiler );
 
 	/// <summary>
 	/// Y component of result
 	/// </summary>
-	[Output( typeof( float ) ), Hide, Editor( nameof( ValueY ) ), Title( "Y" )]
+	[Output( typeof( float ) ), Hide, NodeValueEditor( nameof( ValueY ) ), Title( "Y" )]
 	[Range( nameof( MinY ), nameof( MaxY ), nameof( Step ) )]
 	public NodeResult.Func Y => ( GraphCompiler compiler ) => Component( "y", ValueY, compiler );
 
 	/// <summary>
 	/// Z component of result
 	/// </summary>
-	[Output( typeof( float ) ), Hide, Editor( nameof( ValueZ ) ), Title( "Z" )]
+	[Output( typeof( float ) ), Hide, NodeValueEditor( nameof( ValueZ ) ), Title( "Z" )]
 	[Range( nameof( MinZ ), nameof( MaxZ ), nameof( Step ) )]
 	public NodeResult.Func Z => ( GraphCompiler compiler ) => Component( "z", ValueZ, compiler );
 
@@ -193,7 +193,7 @@ public sealed class Float3 : ParameterNode<Vector3>
 public sealed class Float4 : ParameterNode<Color>
 {
 	[Output( typeof( Color ) ), Title( "RGBA" )]
-	[Hide, Editor( nameof( Value ) )]
+	[Hide, NodeValueEditor( nameof( Value ) )]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
 		return compiler.ResultParameter( Name, Value, default, default, false, IsAttribute, UI );
@@ -230,25 +230,25 @@ public sealed class Float4 : ParameterNode<Color>
 	/// <summary>
 	/// Red component of result
 	/// </summary>
-	[Output( typeof( float ) ), Hide, Editor( nameof( ValueR ) ), Title( "Red" )]
+	[Output( typeof( float ) ), Hide, NodeValueEditor( nameof( ValueR ) ), Title( "Red" )]
 	public NodeResult.Func R => ( GraphCompiler compiler ) => Component( "r", ValueR, compiler );
 
 	/// <summary>
 	/// Green component of result
 	/// </summary>
-	[Output( typeof( float ) ), Hide, Editor( nameof( ValueG ) ), Title( "Green" )]
+	[Output( typeof( float ) ), Hide, NodeValueEditor( nameof( ValueG ) ), Title( "Green" )]
 	public NodeResult.Func G => ( GraphCompiler compiler ) => Component( "g", ValueG, compiler );
 
 	/// <summary>
 	/// Green component of result
 	/// </summary>
-	[Output( typeof( float ) ), Hide, Editor( nameof( ValueB ) ), Title( "Blue" )]
+	[Output( typeof( float ) ), Hide, NodeValueEditor( nameof( ValueB ) ), Title( "Blue" )]
 	public NodeResult.Func B => ( GraphCompiler compiler ) => Component( "b", ValueB, compiler );
 
 	/// <summary>
 	/// Alpha component of result
 	/// </summary>
-	[Output( typeof( float ) ), Hide, Editor( nameof( ValueA ) ), Title( "Alpha" )]
+	[Output( typeof( float ) ), Hide, NodeValueEditor( nameof( ValueA ) ), Title( "Alpha" )]
 	public NodeResult.Func A => ( GraphCompiler compiler ) => Component( "a", ValueA, compiler );
 
 	public Float4()
