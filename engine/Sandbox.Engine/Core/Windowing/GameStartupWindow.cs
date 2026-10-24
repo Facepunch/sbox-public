@@ -48,9 +48,10 @@ internal sealed class GameStartupWindow : IDisposable
 
 		standalone = Application.IsStandalone;
 		var mode = GameWindow.VideoMode.FromCommandLine( RenderSettings.Instance );
+		var display = mode.Window.DisplayId != 0 ? mode.Window.DisplayId : SdlDisplay.Primary;
 		var requested = mode.Window;
 		var borderless = requested.Fullscreen || requested.Borderless;
-		var bounds = SdlDisplay.GetBounds( SdlDisplay.Primary, usable: !borderless );
+		var bounds = SdlDisplay.GetBounds( display, usable: !borderless );
 		if ( bounds.Width <= 0 || bounds.Height <= 0 )
 			throw new InvalidOperationException( "Couldn't determine primary display bounds for the startup window" );
 
