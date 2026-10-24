@@ -46,12 +46,12 @@ internal static class InteropPipeline
 
 	private static void Sort( Definition d )
 	{
-		d.Structs = d.Structs.OrderBy( x => x.NativeName ).ToList();
-		d.Classes = d.Classes.OrderBy( x => x.NativeNameWithNamespace ).ToList();
+		d.Structs = d.Structs.OrderBy( x => x.NativeName, StringComparer.InvariantCulture ).ToList();
+		d.Classes = d.Classes.OrderBy( x => x.NativeNameWithNamespace, StringComparer.InvariantCulture ).ToList();
 
 		foreach ( Class c in d.Classes )
 		{
-			c.Functions = c.Functions.OrderBy( x => x.MangledName ).ToList();
+			c.Functions = c.Functions.OrderBy( x => x.MangledName, StringComparer.InvariantCulture ).ToList();
 		}
 	}
 
