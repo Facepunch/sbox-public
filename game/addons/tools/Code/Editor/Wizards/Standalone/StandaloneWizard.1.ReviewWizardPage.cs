@@ -48,6 +48,20 @@ partial class StandaloneWizard
 			ProjectCookie.Set<List<Preset>>( PresetsCookie, presets );
 		}
 
+		private void RemovePreset( Preset preset )
+		{
+			if ( string.IsNullOrEmpty( PresetsCookie ) )
+				return;
+
+			// The stored presets are fresh copies, so find this one by name
+			var presets = GetPresets();
+			var index = presets.FindIndex( x => x.Name == preset.Name );
+			if ( index < 0 ) return;
+
+			presets.RemoveAt( index );
+			ProjectCookie.Set<List<Preset>>( PresetsCookie, presets );
+		}
+
 		private void CreateLayout()
 		{
 			BodyLayout?.Clear( true );
@@ -70,11 +84,27 @@ partial class StandaloneWizard
 
 						foreach ( var preset in GetPresets() )
 						{
-							menu.AddOption( preset.Name, action: () =>
+							var option = menu.AddWidget( new PresetMenuOption( preset.Name ) );
+
+							option.OnLoad = () =>
 							{
-								PublishConfig = preset.Config;
+								// Every wizard page shares the one config, so copy the preset into it
+								// rather than replacing this page's reference - otherwise the export never sees it
+								PublishConfig.ExecutableName = preset.Config.ExecutableName;
+								PublishConfig.TargetDir = preset.Config.TargetDir;
+								PublishConfig.TargetIcon = preset.Config.TargetIcon;
+								PublishConfig.StartupImage = preset.Config.StartupImage;
+								PublishConfig.AppId = preset.Config.AppId;
+								menu.Close();
 								CreateLayout();
-							} );
+							};
+
+							option.OnRemove = () =>
+							{
+								RemovePreset( preset );
+								option.Destroy();
+								menu.AdjustSize();
+							};
 						}
 
 						menu.AddSeparator();
@@ -295,6 +325,72 @@ file class ControlSheet : Editor.ControlSheet
 	{
 		HorizontalSpacing = 8;
 		Margin = new Margin( 8 );
+	}
+}
+
+/// <summary>
+/// A preset in the Export Presets menu: click it to load it, or the cross on the right to delete it.
+/// </summary>
+file class PresetMenuOption : Widget
+{
+	public string Text { get; set; }
+	public Action OnLoad { get; set; }
+	public Action OnRemove { get; set; }
+
+	bool hoveringRemove;
+
+	public PresetMenuOption( string text ) : base( null )
+	{
+		Text = text;
+		MinimumWidth = 196;
+		FixedHeight = 26;
+		MouseTracking = true;
+		Cursor = CursorShape.Finger;
+	}
+
+	Rect RemoveRect => LocalRect.Shrink( 0, 0, 6, 0 ).Align( 20, TextFlag.RightCenter );
+
+	protected override void OnMouseMove( MouseEvent e )
+	{
+		base.OnMouseMove( e );
+
+		var over = RemoveRect.IsInside( e.LocalPosition );
+		if ( over == hoveringRemove ) return;
+
+		hoveringRemove = over;
+		Update();
+	}
+
+	protected override void OnMouseLeave()
+	{
+		base.OnMouseLeave();
+		hoveringRemove = false;
+		Update();
+	}
+
+	protected override void OnMouseReleased( MouseEvent e )
+	{
+		e.Accepted = true; // Handle it here, so removing a preset doesn't close the menu
+
+		if ( RemoveRect.IsInside( e.LocalPosition ) ) OnRemove?.Invoke();
+		else OnLoad?.Invoke();
+	}
+
+	// Mimic Option styling, like MenuCheckableOption
+	protected override void OnPaint()
+	{
+		var hovered = Paint.HasMouseOver;
+
+		Paint.ClearPen();
+		Paint.SetBrush( hovered && !hoveringRemove ? Theme.Primary : Color.Parse( "#444748" ) ?? default );
+		Paint.DrawRect( LocalRect );
+
+		Paint.SetPen( hovered ? Color.White : Color.White.WithAlphaMultiplied( 0.7f ) );
+		Paint.SetDefaultFont( 8 );
+		Paint.DrawText( LocalRect.Shrink( 12, 0, 32, 0 ), Text, TextFlag.LeftCenter | TextFlag.SingleLine );
+
+		Paint.SetPen( hoveringRemove ? Theme.Red : Color.White.WithAlphaMultiplied( hovered ? 0.7f : 0.3f ) );
+		Paint.DrawIcon( RemoveRect, "close", 14 );
 	}
 }
 
