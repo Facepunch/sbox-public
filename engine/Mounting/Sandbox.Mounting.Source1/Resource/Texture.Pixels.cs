@@ -1,19 +1,30 @@
-using System;
+﻿using System;
+using Sandbox.Mounting;
 
 namespace Sandbox.Mounting.Source1;
 
 internal sealed partial class TextureLoader
 {
-	private static (ImageFormat Format, byte[] Pixels, int MipCount) ReadTextureData( VtfFile vtf, int? frame )
+	private static (ImageFormat Format, byte[] Pixels, int MipCount, int SkippedTopMips) ReadTextureData( VtfFile vtf, int? frame )
 	{
 		var width = vtf.Header.Width;
 		var height = vtf.Header.Height;
 		var sourceFormat = vtf.Header.HiResFormat;
 		var (format, needsConversion) = GetImageFormat( sourceFormat );
 		if ( format == ImageFormat.None )
-			return (format, null, 0);
+			return (format, null, 0, 0);
 
 		var mipCount = vtf.GetTextureMipmapCount();
+
+		// Shim: the native renderer downsamples large textures (observed: a 2048-wide
+		// image allocated at 1024 on male07 in group3 dir for hl2 content) 
+		// but still uploads every source mip at full size,
+		// overflowing the GPU image and losing the device. Pre-drop the top
+		// mips so the declared size matches the native allocation.
+		var skippedTopMips = TopMipsToSkip( width, height, mipCount );
+		if ( skippedTopMips > 0 )
+			Log.Trace( $"Texture exceeds the native size budget, dropping {skippedTopMips} top mip(s) ({width}x{height})." );
+
 		var isCube = vtf.FaceCount > 1;
 		var compressed = sourceFormat is VtfFormat.DXT1 or VtfFormat.DXT1_ONEBITALPHA
 			or VtfFormat.DXT3 or VtfFormat.DXT5;
@@ -28,12 +39,12 @@ internal sealed partial class TextureLoader
 
 		var faceCount = isCube ? 6 : 1;
 		var imageCount = faceCount * (frame.HasValue ? 1 : vtf.FrameCount);
-		if ( !needsConversion && vtf.GetTexturePixelData( mipCount, faceCount ) is { } pixels )
-			return (format, pixels, mipCount);
+		if ( skippedTopMips == 0 && !needsConversion && vtf.GetTexturePixelData( mipCount, faceCount ) is { } pixels )
+			return (format, pixels, mipCount, 0);
 
 		var convertedPixelSize = format == ImageFormat.RGBA32323232F ? 16 : 4;
 		var totalSize = 0;
-		for ( var mip = 0; mip < mipCount; mip++ )
+		for ( var mip = skippedTopMips; mip < mipCount; mip++ )
 		{
 			var length = needsConversion
 				? checked(Math.Max( 1, width >> mip ) * Math.Max( 1, height >> mip ) * convertedPixelSize)
@@ -43,7 +54,7 @@ internal sealed partial class TextureLoader
 
 		var data = new byte[totalSize];
 		var offset = 0;
-		for ( var mip = mipCount - 1; mip >= 0; mip-- )
+		for ( var mip = mipCount - 1; mip >= skippedTopMips; mip-- )
 		{
 			var mipWidth = Math.Max( 1, width >> mip );
 			var mipHeight = Math.Max( 1, height >> mip );
@@ -62,7 +73,22 @@ internal sealed partial class TextureLoader
 				offset += length;
 			}
 		}
-		return (format, data, mipCount);
+		return (format, data, mipCount - skippedTopMips, skippedTopMips);
+	}
+
+	/// <summary>
+	/// How many top mip levels to drop so the largest dimension fits the native
+	/// texture budget. Override the budget with SBOX_SOURCE1_TEXTURE_MAXSIZE.
+	/// </summary>
+	private static int TopMipsToSkip( int width, int height, int mipCount )
+	{
+		var maxSize = 1024;
+		if ( int.TryParse( Environment.GetEnvironmentVariable( "SBOX_SOURCE1_TEXTURE_MAXSIZE" ), out var configured ) && configured > 0 )
+			maxSize = configured;
+		var skip = 0;
+		while ( Math.Max( width >> skip, height >> skip ) > maxSize && skip < mipCount - 1 )
+			skip++;
+		return skip;
 	}
 
 	internal static (ImageFormat Format, bool NeedsConversion) GetImageFormat( VtfFormat format ) => format switch
