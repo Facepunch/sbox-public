@@ -32,18 +32,29 @@ public class GameObjectInspector : InspectorWidget
 
 	IDisposable undoScope;
 
+	/// <summary>
+	/// Starts without their finish yet. With several objects selected, a multi-object property
+	/// reports its start and finish once per object.
+	/// </summary>
+	int editDepth;
+
 	void PropertyStartEdit( SerializedProperty property )
 	{
-		var propertyDisplayName = property.Parent.ParentProperty is null
-			? property.Name
-			: $"{property.Parent.ParentProperty.Name}.{property.Name}";
-		var undoName = $"Edit {propertyDisplayName} on {SerializedObject.GetProperty( nameof( GameObject.Name ) ).GetValue<string>()}";
+		// One undo scope covers the whole selection. Opening one per object would snapshot every
+		// selected object again each time (N² serializations) and leave all but the last open.
+		if ( editDepth++ == 0 )
+		{
+			var propertyDisplayName = property.Parent.ParentProperty is null
+				? property.Name
+				: $"{property.Parent.ParentProperty.Name}.{property.Name}";
+			var undoName = $"Edit {propertyDisplayName} on {SerializedObject.GetProperty( nameof( GameObject.Name ) ).GetValue<string>()}";
 
-		var gameObjects = SerializedObject.Targets.OfType<GameObject>();
+			var gameObjects = SerializedObject.Targets.OfType<GameObject>();
 
-		var session = SceneEditorSession.Resolve( gameObjects.FirstOrDefault() );
-		using var scene = session.Scene.Push();
-		undoScope = session.UndoScope( undoName ).WithGameObjectChanges( gameObjects, GameObjectUndoFlags.Properties ).Push();
+			var session = SceneEditorSession.Resolve( gameObjects.FirstOrDefault() );
+			using var scene = session.Scene.Push();
+			undoScope = session.UndoScope( undoName ).WithGameObjectChanges( gameObjects, GameObjectUndoFlags.Properties ).Push();
+		}
 
 		property.DispatchPreEdited();
 	}
@@ -57,6 +68,11 @@ public class GameObjectInspector : InspectorWidget
 	{
 		property.DispatchEdited();
 
+		// Close the scope with the last object's finish, once every change is in.
+		if ( editDepth > 0 && --editDepth > 0 )
+			return;
+
+		editDepth = 0;
 		undoScope?.Dispose();
 		undoScope = null;
 	}

@@ -124,16 +124,27 @@ public class ComponentListWidget : Widget
 	// Storing individual properties would fail if their owning component is deleted post creating the undo
 	private IDisposable undoScope;
 
+	/// <summary>
+	/// Starts without their finish yet. With several objects selected, a multi-object property
+	/// reports its start and finish once per object.
+	/// </summary>
+	int editDepth;
+
 	void PropertyStartEdit( SerializedProperty property, IEnumerable<Component> components )
 	{
-		var propertyDisplayName = property.Parent.ParentProperty is null
-			? property.Name
-			: $"{property.Parent.ParentProperty.Name}.{property.Name}";
-		var undoName = $"Edit {propertyDisplayName} on {components.First().GetType().Name}";
+		// One undo scope covers every selected component. Opening one per object would snapshot all
+		// of them again each time (N² serializations) and leave all but the last open.
+		if ( editDepth++ == 0 )
+		{
+			var propertyDisplayName = property.Parent.ParentProperty is null
+				? property.Name
+				: $"{property.Parent.ParentProperty.Name}.{property.Name}";
+			var undoName = $"Edit {propertyDisplayName} on {components.First().GetType().Name}";
 
-		var session = SceneEditorSession.Resolve( components.FirstOrDefault() );
-		using var scene = session.Scene.Push();
-		undoScope = session.UndoScope( undoName ).WithComponentChanges( components ).Push();
+			var session = SceneEditorSession.Resolve( components.FirstOrDefault() );
+			using var scene = session.Scene.Push();
+			undoScope = session.UndoScope( undoName ).WithComponentChanges( components ).Push();
+		}
 
 		property.DispatchPreEdited();
 	}
@@ -151,6 +162,11 @@ public class ComponentListWidget : Widget
 
 		property.DispatchEdited();
 
+		// Close the scope with the last object's finish, once every change is in.
+		if ( editDepth > 0 && --editDepth > 0 )
+			return;
+
+		editDepth = 0;
 		undoScope?.Dispose();
 		undoScope = null;
 	}
