@@ -359,8 +359,23 @@ NumberEntry > .content-label
 {
 	flex-grow: 1;
 	min-width: 0;
-	text-align: right;
 }
+
+// A property slider is one box like an entry, with its chip, track and value inside
+ControlSheetRow > .right .slidercontrol.property { height: 34px; background-color: $raised; border: 1px solid $raised; }
+.style-light ControlSheetRow > .right .slidercontrol.property { background-color: $l-raised; border-color: $l-raised; }
+
+// Property sheet group headers: small uppercase titles with room above them, a nested group's
+// in quieter mixed case
+.controlgroup > .header { margin-top: 10px; color: #c4c8cf; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-shadow: none; }
+.controlgroup > .header > .lead > .title { text-transform: uppercase; }
+.controlgroup > .header.folded { color: rgba( #c4c8cf, 0.6 ); }
+.controlgroup > .header.foldable:hover, .controlgroup > .header.has-toggle:hover { color: $text; }
+.controlgroup .controlgroup.titled > .header { margin-top: 6px; color: $text-muted; font-weight: 600; letter-spacing: 0; }
+.controlgroup .controlgroup.titled > .header > .lead > .title { text-transform: none; }
+.style-light .controlgroup > .header { color: $l-text-muted; }
+.style-light .controlgroup > .header.foldable:hover, .style-light .controlgroup > .header.has-toggle:hover { color: $l-text; }
+.style-light .controlgroup > .header.folded { color: rgba( $l-text-muted, 0.6 ); }
 
 // A multiline entry is a box of text - it wraps, it starts at the top, and it's as tall as
 // whoever placed it says
@@ -531,6 +546,12 @@ NumberEntry > .content-label
 // The icon belongs beside the text, not above it
 .dropdown > iconpanel { font-size: 15px; margin-right: 8px; color: $text-muted; }
 .dropdown .dropdown_indicator { color: $text-muted; font-size: 16px; margin: 0; }
+
+// The DropDown control shares the class with menus, but reads like a text box: icon, then the
+// text from the left, chevron on the right
+.button.popupbutton.dropdown { flex-direction: row; align-items: center; justify-content: flex-start; min-width: 0; padding: 0 32px 0 12px; }
+.button.popupbutton.dropdown > .button-right-column { flex-grow: 1; min-width: 0; align-items: flex-start; }
+.button.popupbutton.dropdown .button-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .dropdown .row
 {

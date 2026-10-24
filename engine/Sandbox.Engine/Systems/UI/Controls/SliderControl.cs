@@ -145,6 +145,56 @@ public class SliderControl : BaseControl
 		        position: absolute;
 		    }
 		}
+
+		// Bound to a property it's laid out like the editor's float control: one box with an f chip
+		// to scrub from, the track, and the value on the right
+		.slidercontrol.property
+		{
+		    gap: 0px;
+		    min-height: 32px;
+		    padding: 0px 4px;
+		    border-radius: 8px;
+		    background-color: #000a;
+
+		    > .prefix-chip
+		    {
+		        order: -1;
+		        flex-shrink: 0;
+		        width: 24px;
+		        height: 24px;
+		        border-radius: 5px;
+		        font-weight: 600;
+		        text-align: center;
+		        justify-content: center;
+		        align-items: center;
+		        color: #B0E24D;
+		        background-color: #B0E24D1a;
+		        cursor: ew-resize;
+		    }
+
+		    &:hover > .prefix-chip
+		    {
+		        background-color: #B0E24D33;
+		    }
+
+		    > .inner
+		    {
+		        min-height: 0px;
+		    }
+
+		    > .entry
+		    {
+		        order: 1;
+		        width: 60px;
+
+		        > numberentry
+		        {
+		            height: 28px;
+		            padding: 0px 6px;
+		            border: 0px solid transparent;
+		        }
+		    }
+		}
 		""";
 
 	public override bool SupportsMultiEdit => true;
@@ -283,6 +333,11 @@ public class SliderControl : BaseControl
 	Panel ThumbPanel { get; set; }
 	TextEntry TextEntryPanel { get; set; }
 
+	Label _prefixChip;
+	bool _scrubbing;
+	float _scrubValue;
+	float _scrubLastX;
+
 	public SliderControl()
 	{
 		AddClass( "slidercontrol" );
@@ -321,6 +376,10 @@ public class SliderControl : BaseControl
 		if ( Property is null ) return;
 
 		ShowTextEntry = true;
+
+		// Read like the editor's float control, with an f chip to scrub from
+		AddClass( "property" );
+		_prefixChip ??= Add.Label( "f", "prefix-chip" );
 
 		if ( Property.TryGetAttribute<RangeAttribute>( out var rangeAttribute ) )
 		{
@@ -454,6 +513,12 @@ public class SliderControl : BaseControl
 	{
 		base.OnMouseMove( e );
 
+		if ( _scrubbing )
+		{
+			Scrub( e );
+			return;
+		}
+
 		if ( !HasActive || e.MouseButton == MouseButtons.Middle ) return;
 
 		Value = ScreenPosToValue( ScreenMousePosition );
@@ -462,17 +527,49 @@ public class SliderControl : BaseControl
 	}
 
 	/// <summary>
-	/// On mouse press jump to that position
+	/// On mouse press jump to that position, or start scrubbing if it's on the prefix chip
 	/// </summary>
 	protected override void OnMouseDown( MousePanelEvent e )
 	{
 		base.OnMouseDown( e );
 
-		Value = ScreenPosToValue( ScreenMousePosition );
-		OnValueChanged?.Invoke( Value );
+		TextEntryPanel?.Blur();
 		e.StopPropagation();
 
-		TextEntryPanel?.Blur();
+		if ( e.Button == "mouseleft" && _prefixChip.IsValid() && _prefixChip.Box.Rect.IsInside( ScreenMousePosition ) )
+		{
+			_scrubbing = true;
+			_scrubValue = Value;
+			_scrubLastX = ScreenMousePosition.x;
+			return;
+		}
+
+		Value = ScreenPosToValue( ScreenMousePosition );
+		OnValueChanged?.Invoke( Value );
+	}
+
+	protected override void OnMouseUp( MousePanelEvent e )
+	{
+		base.OnMouseUp( e );
+		_scrubbing = false;
+	}
+
+	/// <summary>
+	/// Dragging the chip moves the value relative to where it was - the whole range over a
+	/// thousand pixels, ten times finer with the right button held too, like NumberEntry.
+	/// </summary>
+	void Scrub( MousePanelEvent e )
+	{
+		var x = ScreenMousePosition.x;
+		var step = (Max - Min) / 1000.0f;
+		if ( e.MouseButton == MouseButtons.Right ) step *= 0.1f;
+
+		_scrubValue = (_scrubValue + (x - _scrubLastX) / ScaleToScreen * step).Clamp( Min, Max );
+		_scrubLastX = x;
+
+		Value = Step > 0 ? _scrubValue.SnapToGrid( Step ) : _scrubValue;
+		OnValueChanged?.Invoke( Value );
+		e.StopPropagation();
 	}
 
 	protected override void OnMiddleClick( MousePanelEvent e )

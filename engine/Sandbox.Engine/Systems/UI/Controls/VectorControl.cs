@@ -17,7 +17,7 @@ namespace Sandbox.UI;
 [StyleSheet.Inline( "vectorcontrol", Styles )]
 public partial class VectorControl : BaseControl
 {
-	// Each component is its own entry with a coloured letter in front of it, the way the
+	// Each component is its own entry with a coloured chip in front of it, the way the
 	// editor's vector widget does it - x red, y green, z blue, w yellow
 	const string Styles = """
 		VectorControl
@@ -40,17 +40,14 @@ public partial class VectorControl : BaseControl
 			overflow: hidden;
 		}
 
-		VectorControl .prefix-label
-		{
-			font-weight: 600;
-			margin-right: 6px;
-			opacity: 0.9;
-		}
-
-		VectorControl .x .prefix-label { color: #FB5A5A; }
-		VectorControl .y .prefix-label { color: #B0E24D; }
-		VectorControl .z .prefix-label { color: #3273EB; }
-		VectorControl .w .prefix-label { color: #E6DB74; }
+		VectorControl NumberEntry.x > .prefix-label { color: #FB5A5A; background-color: #FB5A5A1a; }
+		VectorControl NumberEntry.x:hover > .prefix-label { background-color: #FB5A5A33; }
+		VectorControl NumberEntry.y > .prefix-label { color: #B0E24D; background-color: #B0E24D1a; }
+		VectorControl NumberEntry.y:hover > .prefix-label { background-color: #B0E24D33; }
+		VectorControl NumberEntry.z > .prefix-label { color: #3273EB; background-color: #3273EB1a; }
+		VectorControl NumberEntry.z:hover > .prefix-label { background-color: #3273EB33; }
+		VectorControl NumberEntry.w > .prefix-label { color: #E6DB74; background-color: #E6DB741a; }
+		VectorControl NumberEntry.w:hover > .prefix-label { background-color: #E6DB7433; }
 		""";
 
 	public override bool SupportsMultiEdit => true;

@@ -30,11 +30,7 @@ public class ControlSheetGroup : Panel
 
 		.controlgroup > .header
 		{
-			font-weight: 550;
-			color: #fff;
 			flex-shrink: 0;
-			padding: 8px 0;
-			text-shadow: 1px 1px 1px #0004;
 		}
 
 		.controlgroup > .body
@@ -42,12 +38,37 @@ public class ControlSheetGroup : Panel
 			flex-direction: column;
 			flex-shrink: 0;
 			gap: 2px;
-			padding-left: 16px;
 
 			&.hidden
 			{
 				display: none;
 			}
+		}
+
+		// Like the editor's: an open group is set apart by space under it, not an indented bracket
+		.controlgroup.titled > .body
+		{
+			margin: 4px 0px 12px 0px;
+		}
+
+		// A group inside another - a class or struct's own groups - steps in with a line down its
+		// side, and a smaller title, so it reads as part of the group above
+		.controlgroup .controlgroup.titled
+		{
+			margin-left: 6px;
+			padding: 0px 0px 0px 10px;
+			border-left: 1px solid #ffffff1a;
+		}
+
+		.controlgroup .controlgroup.titled > .header
+		{
+			font-size: 12px;
+			min-height: 26px;
+		}
+
+		.controlgroup .controlgroup.titled > .body
+		{
+			margin-bottom: 6px;
 		}
 		""";
 
@@ -55,6 +76,10 @@ public class ControlSheetGroup : Panel
 	public Panel ToggleContainer { get; set; }
 	public Panel Body { get; set; }
 	public bool Closed { get; internal set; }
+
+	// Fold state per group title for the session, so a rebuilt sheet keeps it
+	static readonly Dictionary<string, bool> _folded = new();
+	string _foldKey;
 
 
 	InspectorVisibilityAttribute[] _visibility;
@@ -75,6 +100,27 @@ public class ControlSheetGroup : Panel
 		Header.ToggleProperty = toggleGroup;
 	}
 
+	/// <summary>
+	/// Let the header fold this group. Starts folded if <paramref name="startFolded"/>,
+	/// unless it was folded or opened before.
+	/// </summary>
+	internal void SetFoldable( string name, bool startFolded )
+	{
+		_foldKey = name;
+		Closed = _folded.GetValueOrDefault( name, startFolded );
+		Header.Foldable = true;
+		Header.OnFold = Toggle;
+	}
+
+	/// <summary>
+	/// Fold or unfold the group.
+	/// </summary>
+	public void Toggle()
+	{
+		Closed = !Closed;
+		if ( _foldKey is not null ) _folded[_foldKey] = Closed;
+	}
+
 	public override void Tick()
 	{
 		base.Tick();
@@ -82,6 +128,11 @@ public class ControlSheetGroup : Panel
 		if ( Header.ToggleProperty != null )
 		{
 			Body.SetClass( "hidden", Header.ToggleProperty.As.Bool == false );
+		}
+		else if ( Header.Foldable )
+		{
+			Body.SetClass( "hidden", Closed );
+			Header.Folded = Closed;
 		}
 
 		if ( _visibility?.Length > 0 )
