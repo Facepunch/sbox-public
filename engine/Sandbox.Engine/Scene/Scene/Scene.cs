@@ -331,10 +331,15 @@ public partial class Scene : GameObject
 		var cameras = RentSortedCameras();
 		try
 		{
-			foreach ( var cc in cameras )
+			// r_skip_hidden_cameras: screen cameras before the last one that hides the whole screen aren't rendered
+			var cover = SceneCameraCover.ScreenCover( cameras );
+
+			for ( int i = 0; i < cameras.Count; i++ )
 			{
+				var cc = cameras[i];
 				if ( cc.Active == false ) continue;
 				if ( cc.IsSceneEditorCamera ) continue;
+				if ( i < cover && SceneCameraCover.DrawsToScreen( cc ) ) continue;
 
 				using var _cam = _cameraRenderTimer.Start( cc.GameObject?.Name );
 				cc.AddToRenderList( swapChain, size );
