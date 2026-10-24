@@ -63,6 +63,7 @@ partial class ViewportTools
 
 			cs.AddRow( so.GetProperty( nameof( SceneViewportWidget.ViewportState.ShowGrid ) ) );
 			cs.AddRow( so.GetProperty( nameof( SceneViewportWidget.ViewportState.GridOpacity ) ) );
+			cs.AddRow( so.GetProperty( nameof( SceneViewportWidget.ViewportState.GridMaxWidth ) ) );
 			if ( viewport.State.View == SceneViewportWidget.ViewMode.Perspective )
 			{
 				cs.AddRow( so.GetProperty( nameof( SceneViewportWidget.ViewportState.GridAxis ) ) );

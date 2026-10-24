@@ -325,25 +325,27 @@ public static partial class Gizmo
 		}
 
 		/// <summary>
-		/// Draws a grid
+		/// Draws a grid. <paramref name="size"/> limits it to a square of that width centered on the origin; 0 is unlimited.
 		/// </summary>
-		public void Grid( GridAxis axis, float spacing = 32, float opacity = 1.0f, float minorLineWidth = 0.01f, float majorLineWidth = 0.02f )
+		public void Grid( GridAxis axis, float spacing = 32, float opacity = 1.0f, float minorLineWidth = 0.01f, float majorLineWidth = 0.02f, float size = 0 )
 		{
-			Grid( axis, new Vector2( spacing, spacing ), opacity, minorLineWidth, majorLineWidth );
+			Grid( axis, new Vector2( spacing, spacing ), opacity, minorLineWidth, majorLineWidth, size );
 		}
 
 		/// <summary>
-		/// Draws a grid
+		/// Draws a grid. <paramref name="size"/> limits it to a square of that width centered on the origin; 0 is unlimited.
 		/// </summary>
-		public void Grid( GridAxis axis, Vector2 spacing = default, float opacity = 1.0f, float minorLineWidth = 0.01f, float majorLineWidth = 0.02f )
+		public void Grid( GridAxis axis, Vector2 spacing = default, float opacity = 1.0f, float minorLineWidth = 0.01f, float majorLineWidth = 0.02f, float size = 0 )
 		{
-			Grid( 0, axis, spacing, opacity, minorLineWidth, majorLineWidth );
+			Grid( 0, axis, spacing, opacity, minorLineWidth, majorLineWidth, size );
 		}
 
 		/// <summary>
-		/// Draws a grid centered at a position
+		/// Draws a grid on the plane through <paramref name="center"/>. The grid covers the whole area where the
+		/// plane is visible to the camera, fitted per view on the GPU. <paramref name="size"/> limits it to a square
+		/// of that width centered on <paramref name="center"/>; 0 is unlimited.
 		/// </summary>
-		public void Grid( Vector3 center, GridAxis axis, Vector2 spacing = default, float opacity = 1.0f, float minorLineWidth = 0.01f, float majorLineWidth = 0.02f )
+		public void Grid( Vector3 center, GridAxis axis, Vector2 spacing = default, float opacity = 1.0f, float minorLineWidth = 0.01f, float majorLineWidth = 0.02f, float size = 0 )
 		{
 			if ( spacing == default ) spacing = new Vector2( 32, 32 );
 			var so = VertexObject( Graphics.PrimitiveType.Triangles, GridMaterial );
@@ -351,6 +353,7 @@ public static partial class Gizmo
 			so.Attributes.Set( "GridOrigin", center );
 			so.Attributes.Set( "GridAxis", (int)axis );
 			so.Attributes.Set( "GridScale", spacing );
+			so.Attributes.Set( "GridSize", MathF.Max( size, 0 ) );
 			so.Attributes.Set( "MinorLineWidth", minorLineWidth );
 			so.Attributes.Set( "MajorLineWidth", majorLineWidth );
 			so.Attributes.Set( "AxisLineWidth", majorLineWidth + 0.01f );
@@ -363,62 +366,40 @@ public static partial class Gizmo
 			so.Attributes.Set( "CenterColor", Color.White );
 			so.Attributes.Set( "MajorGridDivisions", 16.0f );
 
-			// Tessellating helps with depth bias precision
-			// Generally 1x1 is enough for 8k x 8k, 2x2 for 16k x 16k and so on.
-			// Obvious optimization here is to generate this mesh only once and to use a simpler Vertex format
-			// But it barely matters
-			int tessellationLevel = 4;
-			float x = center.x;
-			float y = center.y;
-			float z = center.z;
-			for ( int i = 0; i < tessellationLevel; i++ )
+			so.Vertices.AddRange( GridQuad );
+		}
+
+		/// <summary>
+		/// A tessellated [0,1] quad. The grid shader stretches it over the visible part of the plane, which can
+		/// reach the camera's far plane - tessellating keeps each triangle small enough for depth bias precision.
+		/// </summary>
+		static readonly Vertex[] GridQuad = BuildGridQuad( 16 );
+
+		static Vertex[] BuildGridQuad( int tessellation )
+		{
+			var vertices = new Vertex[tessellation * tessellation * 6];
+			int v = 0;
+
+			for ( int i = 0; i < tessellation; i++ )
 			{
-				for ( int j = 0; j < tessellationLevel; j++ )
+				for ( int j = 0; j < tessellation; j++ )
 				{
-					float x0 = i / (float)tessellationLevel;
-					float x1 = (i + 1) / (float)tessellationLevel;
-					float y0 = j / (float)tessellationLevel;
-					float y1 = (j + 1) / (float)tessellationLevel;
+					float x0 = i / (float)tessellation;
+					float x1 = (i + 1) / (float)tessellation;
+					float y0 = j / (float)tessellation;
+					float y1 = (j + 1) / (float)tessellation;
 
-					switch ( axis )
-					{
-						case GridAxis.XY:
-							{
-								so.Vertices.Add( new Vertex( new Vector3( x0, y0, z ) ) );
-								so.Vertices.Add( new Vertex( new Vector3( x1, y0, z ) ) );
-								so.Vertices.Add( new Vertex( new Vector3( x0, y1, z ) ) );
+					vertices[v++] = new Vertex( new Vector3( x0, y0, 0 ) );
+					vertices[v++] = new Vertex( new Vector3( x1, y0, 0 ) );
+					vertices[v++] = new Vertex( new Vector3( x0, y1, 0 ) );
 
-								so.Vertices.Add( new Vertex( new Vector3( x0, y1, z ) ) );
-								so.Vertices.Add( new Vertex( new Vector3( x1, y0, z ) ) );
-								so.Vertices.Add( new Vertex( new Vector3( x1, y1, z ) ) );
-								break;
-							}
-						case GridAxis.YZ:
-							{
-								so.Vertices.Add( new Vertex( new Vector3( x, x0, y0 ) ) );
-								so.Vertices.Add( new Vertex( new Vector3( x, x1, y0 ) ) );
-								so.Vertices.Add( new Vertex( new Vector3( x, x0, y1 ) ) );
-
-								so.Vertices.Add( new Vertex( new Vector3( x, x0, y1 ) ) );
-								so.Vertices.Add( new Vertex( new Vector3( x, x1, y0 ) ) );
-								so.Vertices.Add( new Vertex( new Vector3( x, x1, y1 ) ) );
-								break;
-							}
-						case GridAxis.ZX:
-							{
-								so.Vertices.Add( new Vertex( new Vector3( x0, y, y0 ) ) );
-								so.Vertices.Add( new Vertex( new Vector3( x1, y, y0 ) ) );
-								so.Vertices.Add( new Vertex( new Vector3( x0, y, y1 ) ) );
-
-								so.Vertices.Add( new Vertex( new Vector3( x0, y, y1 ) ) );
-								so.Vertices.Add( new Vertex( new Vector3( x1, y, y0 ) ) );
-								so.Vertices.Add( new Vertex( new Vector3( x1, y, y1 ) ) );
-								break;
-							}
-						default: break;
-					}
+					vertices[v++] = new Vertex( new Vector3( x0, y1, 0 ) );
+					vertices[v++] = new Vertex( new Vector3( x1, y0, 0 ) );
+					vertices[v++] = new Vertex( new Vector3( x1, y1, 0 ) );
 				}
 			}
+
+			return vertices;
 		}
 	}
 }
