@@ -20,6 +20,10 @@ public static class GpuProfilerStats
 	private static readonly Dictionary<uint, Sample> _samples = new();
 	private static readonly List<uint> _prune = new();
 
+	// Scope names by StableId, decoded from native once instead of allocated per row every frame. The id already
+	// identifies the scope - the smoothed timings and the overlay's rows are keyed by it - so its name doesn't change.
+	private static readonly Dictionary<uint, (string Name, int LastSeenFrame)> _names = new();
+
 	private struct Sample
 	{
 		public float Smoothed;
@@ -49,6 +53,7 @@ public static class GpuProfilerStats
 			if ( !value )
 			{
 				_samples.Clear();
+				_names.Clear();
 				_paths = null;
 			}
 		}
@@ -124,11 +129,15 @@ public static class GpuProfilerStats
 		int count = NativeEngine.CSceneSystem.GetGpuTimestampCount();
 		for ( int i = 0; i < count; i++ )
 		{
+			var stableId = NativeEngine.CSceneSystem.GetGpuTimestampStableId( i );
+			var name = _names.TryGetValue( stableId, out var known ) ? known.Name : NativeEngine.CSceneSystem.GetGpuTimestampName( i );
+			_names[stableId] = (name, _frame);
+
 			var row = new Row
 			{
-				Name = NativeEngine.CSceneSystem.GetGpuTimestampName( i ),
+				Name = name,
 				Parent = NativeEngine.CSceneSystem.GetGpuTimestampParent( i ),
-				StableId = NativeEngine.CSceneSystem.GetGpuTimestampStableId( i ),
+				StableId = stableId,
 				Measured = NativeEngine.CSceneSystem.GetGpuTimestampMeasured( i ),
 				Unparented = NativeEngine.CSceneSystem.GetGpuTimestampUnparented( i ),
 				Duration = NativeEngine.CSceneSystem.GetGpuTimestampDuration( i ),
@@ -208,6 +217,17 @@ public static class GpuProfilerStats
 
 		foreach ( var key in _prune )
 			_samples.Remove( key );
+
+		_prune.Clear();
+
+		foreach ( var kv in _names )
+		{
+			if ( _frame - kv.Value.LastSeenFrame > window )
+				_prune.Add( kv.Key );
+		}
+
+		foreach ( var key in _prune )
+			_names.Remove( key );
 	}
 
 	private static void UpdateMemoryStats()
