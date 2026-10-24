@@ -17,6 +17,11 @@ public partial class Model
 		public bool Flammable { get; }
 
 		/// <summary>
+		/// If true, any damage ignites this prop, not just fire and explosions.
+		/// </summary>
+		public bool IgniteOnAnyDamage { get; }
+
+		/// <summary>
 		/// Should this prop explode when destroyed? If so, this is the radius of the damage from it.
 		/// </summary>
 		public bool Explosive { get; }
@@ -58,6 +63,7 @@ public partial class Model
 			{
 				Health = propData.Health;
 				Flammable = propData.Flammable;
+				IgniteOnAnyDamage = propData.IgniteOnAnyDamage;
 
 				if ( propData.Explosive )
 				{
