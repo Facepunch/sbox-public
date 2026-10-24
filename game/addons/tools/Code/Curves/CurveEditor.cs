@@ -9,12 +9,21 @@ namespace Editor;
 public class CurveEditor : GraphicsView
 {
 	GraphicsItems.ChartBackground Background;
+	GraphicsItems.RangePolygon rangePolygon;
+
+	readonly List<GraphicsItems.EditableCurve> curves = new();
+
+	/// <summary>Editable curves in this editor, in the order they were added.</summary>
+	internal IReadOnlyList<GraphicsItems.EditableCurve> Curves => curves;
+
+	/// <summary>Undo/redo history for this editor. Starts empty.</summary>
+	public CurveEditorHistory History { get; }
 
 	public Vector2 AxisX
 	{
 		get
 		{
-			foreach ( var editableCurve in Items.OfType<GraphicsItems.EditableCurve>() )
+			foreach ( var editableCurve in curves )
 			{
 				if ( editableCurve.TimeRange != Vector2.Zero )
 					return editableCurve.TimeRange;
@@ -26,7 +35,7 @@ public class CurveEditor : GraphicsView
 	{
 		get
 		{
-			foreach ( var editableCurve in Items.OfType<GraphicsItems.EditableCurve>() )
+			foreach ( var editableCurve in curves )
 			{
 				if ( editableCurve.ValueRange != Vector2.Zero )
 					return editableCurve.ValueRange;
@@ -41,8 +50,8 @@ public class CurveEditor : GraphicsView
 	readonly Widget ValueMinWidget;
 	readonly Widget ButtonsWidget;
 
-	bool MoveRangeWhenPanning = false;
-	bool MoveRangeWhenSettingMinMax = false;
+	internal bool MoveRangeWhenPanning = false;
+	internal bool MoveRangeWhenSettingMinMax = false;
 
 	public bool CanEditTimeRange => TimeMinWidget.Enabled && TimeMaxWidget.Enabled;
 	public bool CanEditValueRange => ValueMinWidget.Enabled && ValueMaxWidget.Enabled;
@@ -56,7 +65,7 @@ public class CurveEditor : GraphicsView
 			if ( value >= axis.y )
 				return;
 			var diff = axis.x - value;
-			foreach ( var editableCurve in Items.OfType<GraphicsItems.EditableCurve>() )
+			foreach ( var editableCurve in curves )
 			{
 				var timeRange = editableCurve.TimeRange;
 				editableCurve.UpdateTimeRange( new Vector2( timeRange.x - diff, timeRange.y ), MoveRangeWhenSettingMinMax, false );
@@ -76,7 +85,7 @@ public class CurveEditor : GraphicsView
 			if ( value <= axis.x )
 				return;
 			var diff = value - axis.y;
-			foreach ( var editableCurve in Items.OfType<GraphicsItems.EditableCurve>() )
+			foreach ( var editableCurve in curves )
 			{
 				var timeRange = editableCurve.TimeRange;
 				editableCurve.UpdateTimeRange( new Vector2( timeRange.x, timeRange.y + diff ), MoveRangeWhenSettingMinMax, false );
@@ -96,7 +105,7 @@ public class CurveEditor : GraphicsView
 			if ( value >= axis.y )
 				return;
 			var diff = axis.x - value;
-			foreach ( var editableCurve in Items.OfType<GraphicsItems.EditableCurve>() )
+			foreach ( var editableCurve in curves )
 			{
 				var valueRange = editableCurve.ValueRange;
 				editableCurve.UpdateValueRange( new Vector2( valueRange.x - diff, valueRange.y ), MoveRangeWhenSettingMinMax, false );
@@ -116,7 +125,7 @@ public class CurveEditor : GraphicsView
 			if ( value <= axis.x )
 				return;
 			var diff = value - axis.y;
-			foreach ( var editableCurve in Items.OfType<GraphicsItems.EditableCurve>() )
+			foreach ( var editableCurve in curves )
 			{
 				var valueRange = editableCurve.ValueRange;
 				editableCurve.UpdateValueRange( new Vector2( valueRange.x, valueRange.y + diff ), MoveRangeWhenSettingMinMax, false );
@@ -129,6 +138,8 @@ public class CurveEditor : GraphicsView
 
 	public CurveEditor( Widget parent ) : base( parent )
 	{
+		History = new CurveEditorHistory( this );
+
 		SceneRect = new( 0, Size );
 		HorizontalScrollbar = ScrollbarMode.Off;
 		VerticalScrollbar = ScrollbarMode.Off;
@@ -145,6 +156,13 @@ public class CurveEditor : GraphicsView
 		Add( Background );
 
 		var so = this.GetSerialized();
+
+		so.OnPropertyStartEdit += p => rangeEditScope ??= History.Push( RangeEditTitle( p ) );
+		so.OnPropertyFinishEdit += _ =>
+		{
+			rangeEditScope?.Dispose();
+			rangeEditScope = null;
+		};
 
 		TimeMinWidget = new Widget( this );
 		TimeMinWidget.Layout = Layout.Row();
@@ -175,32 +193,91 @@ public class CurveEditor : GraphicsView
 		ButtonsWidget = new Widget( this );
 		ButtonsWidget.Layout = Layout.Row();
 		ButtonsWidget.Layout.Spacing = 4;
-		var btnPanTool = ButtonsWidget.Layout.Add( new IconButton( "pan_tool" ) );
+		btnPanTool = ButtonsWidget.Layout.Add( new IconButton( "pan_tool" ) );
 		btnPanTool.ToolTip = "Change Range when Panning/Zooming";
 		btnPanTool.OnClick = () =>
 		{
-			MoveRangeWhenPanning = !MoveRangeWhenPanning;
-			btnPanTool.Background = MoveRangeWhenPanning ? Theme.Highlight : Theme.ButtonBackground;
+			using ( History.Push( "Change Range when Panning" ) )
+			{
+				MoveRangeWhenPanning = !MoveRangeWhenPanning;
+				UpdateOptionButtons();
+			}
 		};
-		var btnChangeRange = ButtonsWidget.Layout.Add( new IconButton( "height" ) );
+		btnChangeRange = ButtonsWidget.Layout.Add( new IconButton( "height" ) );
 		btnChangeRange.ToolTip = "Retain Values when changing Min/Max";
 		btnChangeRange.OnClick = () =>
 		{
-			MoveRangeWhenSettingMinMax = !MoveRangeWhenSettingMinMax;
-			btnChangeRange.Background = MoveRangeWhenSettingMinMax ? Theme.Highlight : Theme.ButtonBackground;
+			using ( History.Push( "Retain Values when changing Min/Max" ) )
+			{
+				MoveRangeWhenSettingMinMax = !MoveRangeWhenSettingMinMax;
+				UpdateOptionButtons();
+			}
 		};
 		var btnFitToScreen = ButtonsWidget.Layout.Add( new IconButton( "settings_overscan" ) );
 		btnFitToScreen.ToolTip = "Fit to Screen";
 		btnFitToScreen.OnClick = () =>
 		{
-			foreach ( var editableCurve in Items.OfType<GraphicsItems.EditableCurve>() )
+			using ( History.Push( "Fit to Screen" ) )
 			{
-				editableCurve.FitViewportToCurve();
-				editableCurve.UpdateHandlePositions();
-				UpdateBackgroundFromCurve( editableCurve );
+				foreach ( var editableCurve in curves )
+				{
+					editableCurve.FitViewportToCurve();
+					editableCurve.UpdateHandlePositions();
+					UpdateBackgroundFromCurve( editableCurve );
+				}
 			}
 		};
 	}
+
+	IconButton btnPanTool;
+	IconButton btnChangeRange;
+	IDisposable rangeEditScope;
+
+	// IconButton.Background is a plain property with no invalidation, so repaint after setting it
+	internal void UpdateOptionButtons()
+	{
+		if ( btnPanTool.IsValid() )
+		{
+			btnPanTool.Background = MoveRangeWhenPanning ? Theme.Highlight : Theme.ButtonBackground;
+			btnPanTool.Update();
+		}
+
+		if ( btnChangeRange.IsValid() )
+		{
+			btnChangeRange.Background = MoveRangeWhenSettingMinMax ? Theme.Highlight : Theme.ButtonBackground;
+			btnChangeRange.Update();
+		}
+	}
+
+	/// <summary>
+	/// Re-read the min/max spinners from the curves. A <see cref="ControlWidget"/> refuses to
+	/// overwrite a focused text box - so you don't lose what you're typing - which would otherwise
+	/// leave an undone value on screen until the box loses focus.
+	/// </summary>
+	internal void RefreshRangeWidgets()
+	{
+		foreach ( var widget in new[] { TimeMinWidget, TimeMaxWidget, ValueMinWidget, ValueMaxWidget } )
+		{
+			foreach ( var control in widget.Children.OfType<ControlWidget>() )
+			{
+				if ( control.IsControlActive )
+					Focus();
+
+				control.Prime();
+			}
+		}
+	}
+
+	internal void UpdateRangePolygon() => rangePolygon?.Update();
+
+	static string RangeEditTitle( SerializedProperty property ) => property?.Name switch
+	{
+		nameof( TimeMin ) => "Change Time Min",
+		nameof( TimeMax ) => "Change Time Max",
+		nameof( ValueMin ) => "Change Value Min",
+		nameof( ValueMax ) => "Change Value Max",
+		_ => "Change Range"
+	};
 
 	protected override void OnMouseWheel( WheelEvent e )
 	{
@@ -208,8 +285,11 @@ public class CurveEditor : GraphicsView
 
 		if ( e.Delta != 0 )
 		{
+			// Wheel zoom only edits the curve's real range when the pan/zoom range option is on
+			using var scope = MoveRangeWhenPanning ? History.Push( "Zoom Range", true ) : null;
+
 			var mult = MathF.Sign( e.Delta ) * 0.1f;
-			foreach ( var editableCurve in Items.OfType<GraphicsItems.EditableCurve>() )
+			foreach ( var editableCurve in curves )
 			{
 				if ( e.HasCtrl || (!e.HasCtrl && !e.HasAlt && !e.HasShift) )
 				{
@@ -265,6 +345,7 @@ public class CurveEditor : GraphicsView
 
 	bool isDraggingBackground = false;
 	Vector2 dragStartPosition;
+	IDisposable panScope;
 	protected override void OnMousePress( MouseEvent e )
 	{
 		base.OnMousePress( e );
@@ -273,6 +354,9 @@ public class CurveEditor : GraphicsView
 		{
 			isDraggingBackground = true;
 			dragStartPosition = e.LocalPosition;
+
+			if ( MoveRangeWhenPanning )
+				panScope = History.Push( "Pan Range" );
 		}
 	}
 
@@ -285,6 +369,8 @@ public class CurveEditor : GraphicsView
 		if ( isDraggingBackground )
 		{
 			isDraggingBackground = false;
+			panScope?.Dispose();
+			panScope = null;
 			return;
 		}
 	}
@@ -302,7 +388,7 @@ public class CurveEditor : GraphicsView
 			//delta *= new Vector2( Background.RangeX.Length, Background.RangeY.Length ) * 1.33f;
 			dragStartPosition = e.LocalPosition;
 
-			foreach ( var editableCurve in Items.OfType<GraphicsItems.EditableCurve>() )
+			foreach ( var editableCurve in curves )
 			{
 				var rangeX = editableCurve.ViewportRangeX;
 				var rangeY = editableCurve.ViewportRangeY;
@@ -338,7 +424,7 @@ public class CurveEditor : GraphicsView
 	{
 		base.OnResize();
 
-		foreach ( var editableCurve in Items.OfType<GraphicsItems.EditableCurve>() )
+		foreach ( var editableCurve in curves )
 		{
 			editableCurve.UpdateHandlePositions();
 			UpdateBackgroundFromCurve( editableCurve );
@@ -415,6 +501,7 @@ public class CurveEditor : GraphicsView
 	{
 		var curve = new GraphicsItems.EditableCurve( this );
 		Add( curve );
+		curves.Add( curve );
 
 		curve.SceneRect = Background.ChartRect;
 		curve.Size = Background.ChartRect.Size;
@@ -428,7 +515,7 @@ public class CurveEditor : GraphicsView
 
 	public void UpdateTimeRange( Vector2 r, bool retainValues = false )
 	{
-		foreach ( var i in Items.OfType<GraphicsItems.EditableCurve>() )
+		foreach ( var i in curves )
 		{
 			i.UpdateTimeRange( r, retainValues, false );
 			i.UpdateHandlePositions();
@@ -438,7 +525,7 @@ public class CurveEditor : GraphicsView
 
 	public void UpdateValueRange( Vector2 r, bool retainValues = false )
 	{
-		foreach ( var i in Items.OfType<GraphicsItems.EditableCurve>() )
+		foreach ( var i in curves )
 		{
 			i.UpdateValueRange( r, retainValues, false );
 			i.UpdateHandlePositions();
@@ -450,7 +537,7 @@ public class CurveEditor : GraphicsView
 	{
 		Curve c = 0.5f;
 
-		foreach ( var i in Items.OfType<GraphicsItems.EditableCurve>() )
+		foreach ( var i in curves )
 		{
 			i.Value = i.Value.WithFrames( c.Frames );
 
@@ -463,7 +550,7 @@ public class CurveEditor : GraphicsView
 	/// </summary>
 	public void SetIsRange()
 	{
-		var items = Items.OfType<GraphicsItems.EditableCurve>().ToList();
+		var items = curves.ToList();
 		Assert.True( items.Count() == 2 );
 
 		foreach ( var item in items )
@@ -473,6 +560,7 @@ public class CurveEditor : GraphicsView
 
 		var e = new GraphicsItems.RangePolygon( items[0], items[1] );
 		e.SceneRect = Background.ChartRect;
+		rangePolygon = e;
 		Add( e );
 	}
 
@@ -483,7 +571,7 @@ public class CurveEditor : GraphicsView
 	{
 		TimeMinWidget.Enabled = canEdit;
 		TimeMaxWidget.Enabled = canEdit;
-		foreach ( var i in Items.OfType<GraphicsItems.EditableCurve>() )
+		foreach ( var i in curves )
 		{
 			i.CanEditTimeRange = canEdit;
 		}
@@ -496,7 +584,7 @@ public class CurveEditor : GraphicsView
 	{
 		ValueMinWidget.Enabled = canEdit;
 		ValueMaxWidget.Enabled = canEdit;
-		foreach ( var i in Items.OfType<GraphicsItems.EditableCurve>() )
+		foreach ( var i in curves )
 		{
 			i.CanEditValueRange = canEdit;
 		}
