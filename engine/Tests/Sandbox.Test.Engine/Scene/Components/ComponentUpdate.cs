@@ -81,6 +81,34 @@ public class ComponentUpdateTest : SceneTest
 	}
 
 	/// <summary>
+	/// Re-enabling a started component, or reactivating its GameObject, doesn't start it
+	/// again or leave it queued for a start that never happens.
+	/// </summary>
+	[TestMethod]
+	public void ReenabledComponentIsNotQueuedToStartAgain()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var go = scene.CreateObject();
+		var comp = go.Components.Create<UpdateProbeComponent>();
+
+		scene.GameTick();
+		Assert.AreEqual( 0, scene.pendingStartComponents.Count );
+
+		comp.Enabled = false;
+		comp.Enabled = true;
+		Assert.AreEqual( 0, scene.pendingStartComponents.Count );
+
+		go.Enabled = false;
+		go.Enabled = true;
+		Assert.AreEqual( 0, scene.pendingStartComponents.Count );
+
+		scene.GameTick();
+		Assert.AreEqual( 1, comp.StartCalls );
+	}
+
+	/// <summary>
 	/// A component implementing IFixedUpdateSubscriber gets OnFixedUpdate calls
 	/// during the game tick, and stops getting them while disabled.
 	/// </summary>
