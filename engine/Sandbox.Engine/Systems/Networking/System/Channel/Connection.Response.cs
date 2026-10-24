@@ -1,5 +1,6 @@
 ﻿
 using Sandbox.Network;
+using System.Threading;
 
 namespace Sandbox;
 
@@ -10,25 +11,36 @@ public abstract partial class Connection
 	/// <summary>
 	/// Send a message to this connection, wait for a response
 	/// </summary>
-	public Task<object> SendRequest<T>( T t )
+	public Task<object> SendRequest<T>( T t ) => SendRequest( t, CancellationToken.None );
+
+	internal async Task<object> SendRequest<T>( T t, CancellationToken cancellation )
 	{
+		cancellation.ThrowIfCancellationRequested();
 		var requestGuid = Guid.NewGuid();
-
 		Assert.NotNull( System );
-
-		var msg = ByteStream.Create( 256 );
-		msg.Write( InternalMessageType.Request );
-		msg.Write( requestGuid );
-		msg.Write( InternalMessageType.Packed );
-
-		System.Serialize( t, ref msg );
-		SendStream( msg );
-
-		msg.Dispose();
-
 		var tcs = new TaskCompletionSource<object>();
-		_responseWaiters[requestGuid] = ( o ) => tcs.SetResult( o );
-		return tcs.Task;
+		_responseWaiters[requestGuid] = o => tcs.TrySetResult( o );
+		try
+		{
+			var msg = ByteStream.Create( 256 );
+			try
+			{
+				msg.Write( InternalMessageType.Request );
+				msg.Write( requestGuid );
+				msg.Write( InternalMessageType.Packed );
+				System.Serialize( t, ref msg );
+				SendStream( msg );
+			}
+			finally
+			{
+				msg.Dispose();
+			}
+			return await tcs.Task.WaitAsync( cancellation );
+		}
+		finally
+		{
+			_responseWaiters.Remove( requestGuid );
+		}
 	}
 
 	/// <summary>
