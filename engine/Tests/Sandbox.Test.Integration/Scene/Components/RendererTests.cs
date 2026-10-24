@@ -831,6 +831,105 @@ public class RenderComponentTest
 	}
 
 	/// <summary>
+	/// A trail written as a batched strip comes out newest point first, with coincident points
+	/// dropped and its first and last points flagged so the line shader doesn't join it to its
+	/// neighbours. Trails with fewer than two distinct points write nothing.
+	/// </summary>
+	[TestMethod]
+	public void TrailDataWritesFlaggedStrip()
+	{
+		var trail = new TrailData { PointDistance = 0, MaxPoints = 16 };
+		var points = new SceneLineObject.LinePoint[16];
+		var bounds = default( BBox );
+
+		trail.TryAddPosition( new Vector3( 0, 0, 0 ) );
+		Assert.AreEqual( 0, trail.WriteStrip( points, ref bounds ), "A single point isn't a strip" );
+
+		trail.TryAddPosition( new Vector3( 0, 0, 0 ) );
+		Assert.AreEqual( 0, trail.WriteStrip( points, ref bounds ), "Coincident points aren't a strip" );
+
+		trail.TryAddPosition( new Vector3( 10, 0, 0 ) );
+		trail.TryAddPosition( new Vector3( 20, 0, 0 ) );
+
+		var written = trail.WriteStrip( points, ref bounds );
+
+		Assert.AreEqual( 3, written );
+		Assert.AreEqual( new Vector3( 20, 0, 0 ), points[0].Position, "Newest point comes first" );
+		Assert.AreEqual( new Vector3( 0, 0, 0 ), points[2].Position );
+		Assert.AreEqual( SceneLineObject.StripStart, points[0].Offset );
+		Assert.AreEqual( 0u, points[1].Offset );
+		Assert.AreEqual( SceneLineObject.StripEnd, points[2].Offset );
+		Assert.AreEqual( new Vector3( 0, 0, 0 ), bounds.Mins );
+		Assert.AreEqual( new Vector3( 20, 0, 0 ), bounds.Maxs );
+	}
+
+	/// <summary>
+	/// Trail points all age at the same rate, so AdvanceTime expires them oldest first.
+	/// </summary>
+	[TestMethod]
+	public void TrailDataExpiresOldestPoints()
+	{
+		var trail = new TrailData { PointDistance = 0, MaxPoints = 16, LifeTime = 1 };
+
+		trail.TryAddPosition( new Vector3( 0, 0, 0 ) );
+		trail.AdvanceTime( 0.5f );
+		trail.TryAddPosition( new Vector3( 10, 0, 0 ) );
+		trail.TryAddPosition( new Vector3( 20, 0, 0 ) );
+
+		trail.AdvanceTime( 0.6f );
+		Assert.AreEqual( 2, trail.PointCount, "Only the first point should have expired" );
+
+		trail.AdvanceTime( 0.5f );
+		Assert.AreEqual( 0, trail.PointCount );
+	}
+
+	/// <summary>
+	/// A ParticleTrailRenderer draws every particle's trail through one scene object, rather
+	/// than one scene object per particle, and keeps drawing trails after their particle dies
+	/// until they fade out.
+	/// </summary>
+	[TestMethod]
+	public void ParticleTrailRendererBatchesTrails()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var go = scene.CreateObject();
+		var effect = go.Components.Create<ParticleEffect>();
+		effect.Lifetime = 0.2f;
+		effect.StartVelocity = 500.0f;
+
+		var emitter = go.Components.Create<ParticleBoxEmitter>();
+		emitter.Burst = 20.0f;
+		emitter.Rate = 0.0f;
+		emitter.ResetEmitter();
+
+		var trails = go.Components.Create<ParticleTrailRenderer>();
+		trails.PointDistance = 1;
+		trails.LifeTime = 10;
+
+		for ( int i = 0; i < 4; i++ ) scene.GameTick();
+
+		Assert.AreEqual( 20, effect.Particles.Count );
+		Assert.AreEqual( 0, scene.SceneWorld.SceneObjects.OfType<SceneTrailObject>().Count(), "Particle trails shouldn't create a scene object each" );
+
+		if ( !Graphics.IsAvailable )
+			return;
+
+		var so = scene.SceneWorld.SceneObjects.OfType<SceneLineObject>().Single();
+		var bounds = so.Bounds;
+
+		for ( int i = 0; i < 10; i++ ) scene.GameTick();
+
+		Assert.AreEqual( 0, effect.Particles.Count, "Particles should have died" );
+		Assert.AreSame( so, scene.SceneWorld.SceneObjects.OfType<SceneLineObject>().Single() );
+		Assert.IsTrue( so.Bounds.Size.Length > bounds.Size.Length, "Trails should still be drawn after their particles die" );
+
+		trails.Enabled = false;
+		Assert.IsFalse( so.IsValid() );
+	}
+
+	/// <summary>
 	/// TrailRenderer emission and appearance settings - point budget, distances, lifetime,
 	/// emission switch, render switches, blend mode and face mode - survive a serialize/
 	/// deserialize round trip.

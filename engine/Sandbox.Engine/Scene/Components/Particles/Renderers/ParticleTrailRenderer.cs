@@ -49,7 +49,19 @@ public sealed class ParticleTrailRenderer : ParticleController, Component.Execut
 	[Group( "Rendering" )]
 	[Property] public BlendMode BlendMode { get; set; } = BlendMode.Normal;
 
-	List<SceneTrailObject> adopted = new();
+	/// <summary>
+	/// Every trail we draw. Trails on live particles, plus the ones whose particle died that are still fading out.
+	/// </summary>
+	readonly List<TrailData> _trails = new();
+
+	/// <summary>
+	/// All of our trails are drawn by this one object, as a single dispatch and draw.
+	/// </summary>
+	SceneLineObject _so;
+
+	int[] _offsets = [];
+	int[] _counts = [];
+	BBox[] _bounds = [];
 
 	internal Material _defaultMaterial;
 
@@ -61,17 +73,27 @@ public sealed class ParticleTrailRenderer : ParticleController, Component.Execut
 		p.AddListener( new ParticleTrail( this ), this );
 	}
 
-	// If we have to do this where we want to wait for a SceneSystem effect to finish before 
-	// destroying it more than once, we should really think about the ability to add them
-	// to a system that runs through them and does it for us.
-
-
-	internal void Adopt( SceneTrailObject obj )
+	/// <summary>
+	/// Create a trail for a particle. Called from the particle threads.
+	/// </summary>
+	internal TrailData CreateTrail()
 	{
-		lock ( adopted )
+		var trail = new TrailData
 		{
-			adopted.Add( obj );
+			MaxPoints = MaxPoints,
+			PointDistance = PointDistance,
+			LifeTime = LifeTime,
+			Texturing = Texturing,
+			TrailColor = Color,
+			Width = Width,
+		};
+
+		lock ( _trails )
+		{
+			_trails.Add( trail );
 		}
+
+		return trail;
 	}
 
 	protected override void OnUpdate()
@@ -91,43 +113,125 @@ public sealed class ParticleTrailRenderer : ParticleController, Component.Execut
 				_defaultMaterial.Set( "g_tColor", Texture.White );
 			}
 		}
-
-		Sandbox.Utility.Parallel.ForEach( adopted, p =>
-		{
-			p.AdvanceTime( Time.Delta );
-			p.Build();
-
-		} );
-
-		adopted.RemoveAll( TryDelete );
 	}
 
-	static bool TryDelete( SceneTrailObject obj )
+	/// <summary>
+	/// The particle step is done, so the live trails have their new points. Fade the orphaned
+	/// trails and rebuild the batch.
+	/// </summary>
+	protected override void OnAfterStep( float delta )
 	{
-		if ( !obj.IsEmpty ) return false;
+		base.OnAfterStep( delta );
 
-		obj.Delete();
-		return true;
+		if ( !_so.IsValid() )
+			return;
+
+		lock ( _trails )
+		{
+			var dt = Time.Delta;
+
+			System.Threading.Tasks.Parallel.For( 0, _trails.Count, i =>
+			{
+				var trail = _trails[i];
+				if ( trail.Orphaned ) trail.AdvanceTime( dt );
+			} );
+
+			_trails.RemoveAll( static t => t.Orphaned && t.IsEmpty );
+
+			Build();
+		}
+	}
+
+	void Build()
+	{
+		var trailCount = _trails.Count;
+
+		if ( _offsets.Length < trailCount )
+		{
+			var size = Math.Max( trailCount, _offsets.Length * 2 );
+			Array.Resize( ref _offsets, size );
+			Array.Resize( ref _counts, size );
+			Array.Resize( ref _bounds, size );
+		}
+
+		int total = 0;
+		for ( int i = 0; i < trailCount; i++ )
+		{
+			_offsets[i] = total;
+			total += _trails[i].PointCount;
+		}
+
+		var points = _so.ReservePoints( total );
+
+		System.Threading.Tasks.Parallel.For( 0, trailCount, i =>
+		{
+			var trail = _trails[i];
+			_counts[i] = trail.WriteStrip( points.AsSpan( _offsets[i], trail.PointCount ), ref _bounds[i] );
+		} );
+
+		int pointCount = 0;
+		BBox bounds = default;
+
+		for ( int i = 0; i < trailCount; i++ )
+		{
+			var count = _counts[i];
+			if ( count == 0 ) continue;
+
+			if ( _offsets[i] != pointCount )
+			{
+				Array.Copy( points, _offsets[i], points, pointCount, count );
+			}
+
+			bounds = pointCount == 0 ? _bounds[i] : bounds.AddBBox( _bounds[i] );
+			pointCount += count;
+		}
+
+		if ( pointCount > 0 )
+		{
+			_so.Transform = new Transform( bounds.Center );
+		}
+
+		_so.Tags.SetFrom( GameObject.Tags );
+		_so.Material = Texturing.Material.IsValid() ? Texturing.Material : _defaultMaterial;
+		_so.Flags.CastShadows = Opaque && CastShadows;
+		_so.Opaque = Opaque;
+		_so.Attributes.SetComboEnum( "D_BLENDMODE", BlendMode );
+		_so.Wireframe = Wireframe;
+
+		var samplerState = new Rendering.SamplerState { Filter = Texturing.FilterMode, AddressModeU = Texturing.TextureAddressMode, AddressModeV = Texturing.TextureAddressMode };
+		if ( _so.SamplerState != samplerState )
+		{
+			_so.SamplerState = samplerState;
+		}
+
+		RenderOptions.Apply( _so );
+
+		_so.SetStrips( pointCount, bounds );
 	}
 
 	protected override void OnEnabled()
 	{
 		base.OnEnabled();
 
-		adopted = new();
 		_defaultMaterial = Material.Load( "materials/default/default_line.vmat" ).CreateCopy();
+
+		if ( Graphics.IsAvailable )
+		{
+			_so = new SceneLineObject( Scene.SceneWorld );
+		}
 	}
 
 	protected override void OnDisabled()
 	{
 		base.OnDisabled();
 
-		foreach ( var obj in adopted )
+		lock ( _trails )
 		{
-			obj.Delete();
+			_trails.Clear();
 		}
 
-		adopted.Clear();
+		_so?.Delete();
+		_so = null;
 	}
 }
 
@@ -136,7 +240,7 @@ class ParticleTrail : Particle.BaseListener
 {
 	public ParticleTrailRenderer Renderer;
 
-	SceneTrailObject so;
+	TrailData trail;
 
 	public ParticleTrail( ParticleTrailRenderer renderer )
 	{
@@ -145,54 +249,32 @@ class ParticleTrail : Particle.BaseListener
 
 	public override void OnEnabled( Particle p )
 	{
-		so = new SceneTrailObject( Renderer.Scene.SceneWorld );
-		so.Tags.SetFrom( Renderer.GameObject.Tags );
-		so.MaxPoints = Renderer.MaxPoints;
-		so.PointDistance = Renderer.PointDistance;
-		so.LifeTime = Renderer.LifeTime;
-		so.Texturing = Renderer.Texturing;
-		if ( !Renderer.Texturing.Material.IsValid() )
-		{
-			so.Texturing = so.Texturing with { Material = Renderer._defaultMaterial };
-		}
-		so.TrailColor = Renderer.Color;
-		so.Width = Renderer.Width;
-		so.Flags.CastShadows = Renderer.Opaque && Renderer.CastShadows;
-		so.Opaque = Renderer.Opaque;
-		so.BlendMode = Renderer.BlendMode;
-		so.Wireframe = Renderer.Wireframe;
-		so.SamplerState = new() { Filter = Renderer.Texturing.FilterMode, AddressModeU = Renderer.Texturing.TextureAddressMode, AddressModeV = Renderer.Texturing.TextureAddressMode };
+		trail = Renderer.CreateTrail();
 	}
 
 	public override void OnDisabled( Particle p )
 	{
-		if ( so is null ) return;
+		if ( trail is null ) return;
 
-		if ( so.IsEmpty || !Renderer.Active )
+		if ( !Renderer.Active )
 		{
-			so.Delete();
+			trail.Clear();
 		}
-		else
-		{
-			Renderer.Adopt( so );
-		}
+
+		trail.Orphaned = true;
 	}
 
 	public override void OnUpdate( Particle p, float dt )
 	{
-		if ( so is null ) return;
+		if ( trail is null ) return;
 
 		if ( Renderer.TintFromParticle )
-			so.LineTint = p.Color;
+			trail.LineTint = p.Color;
 
 		if ( Renderer.ScaleFromParticle )
-			so.LineScale = p.Size.x;
+			trail.LineScale = p.Size.x;
 
-		so.Transform = new Transform( p.Position );
-		so.TryAddPosition( p.Position );
-		so.AdvanceTime( Time.Delta );
-		so.Build();
-
-		Renderer.RenderOptions.Apply( so );
+		trail.TryAddPosition( p.Position );
+		trail.AdvanceTime( Time.Delta );
 	}
 }
