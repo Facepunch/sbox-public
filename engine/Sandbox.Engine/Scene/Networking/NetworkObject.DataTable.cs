@@ -21,7 +21,7 @@ internal sealed partial class NetworkObject
 	void CreateDataTable()
 	{
 		dataTable?.Dispose();
-		dataTable = new();
+		dataTable = new( this );
 
 		RegisterPropertiesRecursive( GameObject );
 	}
@@ -52,6 +52,15 @@ internal sealed partial class NetworkObject
 			// want to add potentially hundreds of entries for OwnerTransfer, etc.
 			RegisterPropertiesRecursive( child, false );
 		}
+
+		if ( go != GameObject )
+			return;
+
+		RefreshKeepsAwake();
+
+		// Polled entries need a pending object even if they haven't reported a change.
+		if ( dataTable.HasPollEntries )
+			MarkDirty();
 	}
 
 	private Func<Connection, bool> _hasControlCondition;

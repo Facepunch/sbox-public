@@ -103,6 +103,12 @@ public static partial class PerformanceStats
 			}
 		}
 
+		/// <summary>
+		/// Time recorded since the last flip - the frame that's in progress. Read at the end of a frame, it's that frame's
+		/// whole time, where <see cref="History"/> only has it once the next frame starts.
+		/// </summary>
+		internal float CurrentMs => (float)(Interlocked.Read( ref ticks ) * (1_000.0 / Stopwatch.Frequency) + milliseconds);
+
 		public bool IsManualFlip { get; set; }
 
 		int calls;

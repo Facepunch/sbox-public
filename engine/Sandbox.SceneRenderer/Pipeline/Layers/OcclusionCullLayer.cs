@@ -19,7 +19,10 @@ internal sealed class OcclusionCullLayer : RenderLayer
 	readonly bool early;
 
 	Material shader;
-	Texture chain;
+
+	// What the late cull tests against. Frozen, that's the frozen depth rather than a chain it builds
+	OcclusionDepth current;
+	bool frozen;
 
 	public OcclusionCullLayer( bool early ) : base( early ? "Occlusion Cull (Early)" : "Occlusion Cull (Late)" )
 	{
@@ -39,39 +42,32 @@ internal sealed class OcclusionCullLayer : RenderLayer
 		shader ??= Material.FromShader( "shaders/occlusion_cull_cs.shader" );
 		if ( early ) return;
 
-		// The shared chain only keeps sample 0 of a multisampled depth, which isn't conservative
-		var viewport = frame.View.Viewport;
-		chain = SharedPasses.DepthChainTarget( ((int)viewport.Width + 3) / 4, ((int)viewport.Height + 3) / 4 ).DepthTarget;
+		var history = frame.System.OcclusionHistory;
+		frozen = history.IsFrozen;
+		current = history.LateDepth( frame.View.Viewport, new Vector2( frame.DepthMin, frame.DepthMax ), frame.View.WorldToProjection );
 	}
 
 	public override void Record( RenderFrame frame, RenderContext rc, ref RenderStats stats )
 	{
 		var culler = frame.System.Occlusion;
 		var history = frame.System.OcclusionHistory;
-		var viewport = frame.View.Viewport;
-		var width = (int)viewport.Width;
-		var height = (int)viewport.Height;
+		var debug = history.Debug;
 		var attributes = rc.Attributes;
 
-		if ( !early )
+		// The first cull in the frame clears the debug grid
+		if ( debug is not null && (early || !culler.CullsEarly) ) rc.ClearOcclusionDebug( debug );
+
+		if ( !early && !frozen )
 		{
+			var viewport = frame.View.Viewport;
 			var target = frame.Output.Target;
-			rc.BuildDepthChain( target.Depth, target.Samples > 1, chain, width, height, DepthResolveMode.ConservativeQuarter );
+			rc.BuildDepthChain( target.Depth, target.Samples > 1, current.Chain, (int)viewport.Width, (int)viewport.Height, DepthResolveMode.ConservativeQuarter );
+			history.KeepFrozen( current );
 		}
 
-		// The early cull never reads this, but something has to be bound. A mip 0 texel is 4 pixels wide, so w is 2
-		var current = early ? history.Chain : chain;
-		attributes.Set( "OcclusionDepthChain", current );
-		attributes.Set( "OcclusionViewport", new Vector4( width, height, current.Mips, 2 ) );
-		attributes.Set( "OcclusionDepthRange", new Vector2( frame.DepthMin, frame.DepthMax ) );
-		attributes.Set( "OcclusionWorldToProjection", frame.View.WorldToProjection );
-
-		// Last frame's chain is full resolution. Without one, everything counts as drawn early
-		var previous = history.Valid ? history.Chain : current;
-		attributes.Set( "OcclusionPreviousChain", previous );
-		attributes.Set( "OcclusionPreviousViewport", history.Valid ? new Vector4( previous.Width, previous.Height, previous.Mips, 0 ) : Vector4.Zero );
-		attributes.Set( "OcclusionPreviousDepthRange", history.DepthRange );
-		attributes.Set( "OcclusionPreviousWorldToProjection", history.WorldToProjection );
+		// The early cull never reads the current depth, but something has to be bound
+		OcclusionDepth.Bind( attributes, early ? culler.Previous : current, culler.Previous );
+		OcclusionDebugTarget.Bind( attributes, debug, frame.View.WorldToProjection );
 
 		attributes.Set( "OcclusionInstances", culler.Instances );
 		attributes.Set( "OcclusionRuns", culler.Runs );
@@ -81,6 +77,7 @@ internal sealed class OcclusionCullLayer : RenderLayer
 		attributes.Set( "OcclusionInstanceCount", culler.InstanceCount );
 		attributes.Set( "OcclusionPhaseStride", culler.PhaseStride );
 		attributes.Set( "OcclusionPass", early ? 0 : 1 );
+		attributes.Set( "OcclusionRejectEarly", culler.RejectEarly ? 1 : 0 );
 
 		// Wait for the uploads, and in the late cull for the early cull and the prepass drawing from it
 		rc.BufferBarrier( culler.Instances, Transfer, Uploaded, Compute, Read );
@@ -95,9 +92,15 @@ internal sealed class OcclusionCullLayer : RenderLayer
 		rc.BufferBarrier( culler.CulledIds, Compute, Write, VertexInput, RenderBarrierAccessFlags_t.VertexAttributeReadBit );
 		if ( early ) return;
 
+		if ( debug is not null )
+		{
+			rc.ResolveOcclusionDebug( debug, current.Chain, frozen );
+			debug.ReadCounts( rc.Native );
+		}
+
 		rc.BufferBarrier( culler.Stats, Compute, Write, Transfer, RenderBarrierAccessFlags_t.TransferReadBit );
 		culler.ReadStats( rc );
-		chain = null;
+		current = default;
 	}
 
 	public override void Dispose()

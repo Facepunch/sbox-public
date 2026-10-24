@@ -21,6 +21,7 @@ internal partial class NetworkSystem
 		}
 
 		InitializeGameSystem();
+		Sandbox.Diagnostics.DevTools.NetworkLog.Session( "Hosting", Connection.Local, starts: true );
 
 		InviteParty();
 	}

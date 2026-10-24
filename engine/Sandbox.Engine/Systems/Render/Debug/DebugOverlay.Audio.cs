@@ -342,8 +342,8 @@ internal sealed class AudioDebugWorldSystem : GameObjectSystem<AudioDebugWorldSy
 
 	void DrawWorldMarkers()
 	{
-		// Sound positions through walls - only for the hub's audio tab, which needs cheats
-		if ( !Diagnostics.PerfHub.IsShowing( "audio" ) ) return;
+		// Sound positions through walls - only for the dev tools' audio tab, which needs cheats
+		if ( !Diagnostics.DevTools.IsShowing( "audio" ) ) return;
 
 		var dbg = Scene.GetSystem<DebugOverlaySystem>();
 		if ( dbg is null ) return;

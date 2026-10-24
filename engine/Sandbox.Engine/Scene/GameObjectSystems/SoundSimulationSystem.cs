@@ -84,7 +84,7 @@ internal sealed partial class SoundSimulationSystem : GameObjectSystem<SoundSimu
 	void Update()
 	{
 		using var _ = PerformanceStats.Timings.Audio.Scope();
-		var sw = Diagnostics.PerfHub.IsShowing( "audio" ) ? System.Diagnostics.Stopwatch.StartNew() : null;
+		var sw = Diagnostics.DevTools.IsShowing( "audio" ) ? System.Diagnostics.Stopwatch.StartNew() : null;
 
 		// only trace against a physics world that already exists - don't create one
 		if ( !Scene.HasPhysicsWorld ) return;

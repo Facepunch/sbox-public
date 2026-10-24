@@ -26,12 +26,15 @@ public abstract partial class Connection
 		var serializer = System.TypeLibrary.CreateDetachedSerializer( typeof( T ), typeof( SnapshotMsg ),
 			typeof( SnapshotMsg.GameObjectSystemData ), typeof( ObjectCreateMsg ) );
 		var cancellation = (snapshotCancellation ??= new()).Token;
+		var logAs = Diagnostics.DevTools.NetworkLog.LogsMessages ? Diagnostics.DevTools.NetworkLog.PeerName( this ) : null;
 		QueueSend( Task.Run( () =>
 		{
 			try
 			{
 				cancellation.ThrowIfCancellationRequested();
-				return capture.Encode( serializer, envelope, flags );
+				var packets = capture.Encode( serializer, envelope, flags );
+				if ( logAs is not null ) Diagnostics.DevTools.NetworkLog.Message( Diagnostics.DevTools.NetworkLog.Kind.Snapshot, "SceneSnapshot", packets.Sum( x => x.Length ), true, logAs );
+				return packets;
 			}
 			finally
 			{

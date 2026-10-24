@@ -30,17 +30,9 @@ internal static class R2
 			return null;
 		}
 
-		// R2's S3 API endpoint must be the bare account host
-		// (https://<account>.r2.cloudflarestorage.com) with NO path or bucket. If the
-		// configured endpoint carries a path component, the SDK bakes the bucket into the
-		// object key (objects land at <bucket>/builds/... instead of builds/...). Strip
-		// everything but scheme + host.
-		if ( Uri.TryCreate( endpoint, UriKind.Absolute, out var endpointUri ) )
-			endpoint = $"{endpointUri.Scheme}://{endpointUri.Authority}";
-
 		var config = new AmazonS3Config
 		{
-			ServiceURL = endpoint,
+			ServiceURL = GetAccountEndpoint( endpoint ),
 			// R2 ignores the region but the SigV4 signer needs one.
 			AuthenticationRegion = "auto",
 			// AWS SDK v4 adds a default CRC checksum on uploads; for multipart it sends
@@ -67,8 +59,24 @@ internal static class R2
 	internal const string PublicBaseUrl = "https://artifacts.sbox.game";
 
 	/// <summary>
-	/// Builds the rclone remote string for the R2 bucket from the SYNC_R2_*
-	/// environment variables. Returns null (and logs) if any are missing.
+	/// R2's S3 API endpoint must be the bare account host
+	/// (https://&lt;account&gt;.r2.cloudflarestorage.com) with NO path or bucket. If the
+	/// configured endpoint carries a path component, the SDK bakes the bucket into the
+	/// object key (objects land at &lt;bucket&gt;/builds/... instead of builds/...), and rclone
+	/// lists the wrong place. Strip everything but scheme + host.
+	/// </summary>
+	private static string GetAccountEndpoint( string endpoint )
+	{
+		if ( Uri.TryCreate( endpoint, UriKind.Absolute, out var endpointUri ) )
+			return $"{endpointUri.Scheme}://{endpointUri.Authority}";
+
+		return endpoint;
+	}
+
+	/// <summary>
+	/// Builds the rclone remote string for the root of the R2 bucket from the SYNC_R2_*
+	/// environment variables, e.g. <c>:s3,...:bucket</c>. Append <c>/path</c> to address keys
+	/// inside it. Returns null (and logs) if any are missing.
 	/// </summary>
 	internal static string GetRcloneRemote()
 	{
@@ -84,6 +92,9 @@ internal static class R2
 			return null;
 		}
 
-		return $":s3,bucket={bucket},provider=Cloudflare,access_key_id={accessKeyId},secret_access_key={secretAccessKey},endpoint='{endpoint}':";
+		// rclone has no bucket option, the first path segment is the bucket. A bucket in the
+		// endpoint path still lands uploads in the right place but sends listings elsewhere.
+		// no_check_bucket: the bucket exists, and object-scoped R2 tokens can't create buckets.
+		return $":s3,provider=Cloudflare,no_check_bucket=true,access_key_id={accessKeyId},secret_access_key={secretAccessKey},endpoint='{GetAccountEndpoint( endpoint )}':{bucket}";
 	}
 }

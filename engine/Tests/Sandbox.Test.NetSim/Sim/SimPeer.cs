@@ -71,6 +71,11 @@ internal sealed class SimPeer
 	/// </summary>
 	public bool Paused;
 
+	/// <summary>
+	/// Runs its frames like a dedicated server, without the visual-only transform interpolation.
+	/// </summary>
+	public bool Headless;
+
 	public long FrameTicks;
 	public long FrameAllocatedBytes;
 
@@ -98,6 +103,7 @@ internal sealed class SimPeer
 		readonly Connection _previousLocal;
 		readonly SynchronizationContext _previousSync;
 		readonly Scene _previousScene;
+		readonly bool _previousHeadless;
 		ScenePushScope _scene;
 
 		public PeerScope( SimPeer peer )
@@ -109,12 +115,14 @@ internal sealed class SimPeer
 			_previousLocal = Connection.Local;
 			_previousSync = SynchronizationContext.Current;
 			_previousScene = Game.ActiveScene;
+			_previousHeadless = Application.IsHeadless;
 
 			Current = peer;
 			Networking.System = peer.System;
 			SceneNetworkSystem.Instance = peer.SceneSystem;
 			Connection.Local = peer.Local;
 			SynchronizationContext.SetSynchronizationContext( peer.Sync );
+			IsHeadless.SetValue( null, peer.Headless );
 			_scene = peer.Scene is null ? default : peer.Scene.PushScope();
 		}
 
@@ -138,6 +146,9 @@ internal sealed class SimPeer
 			SceneNetworkSystem.Instance = _previousSceneSystem;
 			Connection.Local = _previousLocal;
 			SynchronizationContext.SetSynchronizationContext( _previousSync );
+			IsHeadless.SetValue( null, _previousHeadless );
 		}
+
+		static readonly System.Reflection.PropertyInfo IsHeadless = typeof( Application ).GetProperty( nameof( Application.IsHeadless ) );
 	}
 }

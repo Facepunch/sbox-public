@@ -46,6 +46,11 @@ partial class PublishWizard : BaseWizard
 			AddStep( new CompileWizardPage() { Project = Project, PublishConfig = Config } );  // compile everything
 		}
 
+		if ( projectType == "game" )
+		{
+			AddStep( new AssetReviewWizardPage() { Project = Project, PublishConfig = Config } );
+		}
+
 		// Maps go to the workshop - no files for the backend, no video, and the revision gets a default changelist
 		if ( ProjectPublisher.PublishesToWorkshop( Project ) )
 		{
@@ -106,7 +111,7 @@ partial class PublishWizard : BaseWizard
 	public static PublishWizard Open( Project project, ResourcePublishContext publishContext = default )
 	{
 		var w = new PublishWizard( project, publishContext );
-		w.CreateWindow( 800, 600 );
+		w.CreateWindow( 1200, 940 );
 		return w;
 	}
 }

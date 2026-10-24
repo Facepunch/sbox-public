@@ -170,6 +170,8 @@ internal partial class NetworkSystem
 		if ( !known )
 			return;
 
+		Sandbox.Diagnostics.DevTools.NetworkLog.Session( "Peer left", source );
+
 		if ( source.State >= Connection.ChannelState.Welcome )
 		{
 			// We only need to call this if we called OnConnected, which would only
@@ -205,6 +207,7 @@ internal partial class NetworkSystem
 		}
 
 		FailureReason = message;
+		Sandbox.Diagnostics.DevTools.NetworkLog.Session( $"Ended: {reasonString}", HostConnection, ends: true );
 		IGameInstanceDll.Current.Disconnect( FailureReason );
 	}
 

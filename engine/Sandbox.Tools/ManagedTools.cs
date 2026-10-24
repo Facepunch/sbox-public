@@ -131,6 +131,7 @@ internal static class ManagedTools
 		// Panel UI windows and their swap chains, before the render device goes away
 		PanelWindow.DisposeAll();
 		SceneRenderingWidget.ShutdownRendering();
+		PanelSurfaceWidget.ShutdownRendering();
 		EngineLoop.DrainFrameEndDisposables();
 
 		AssetSystem.Shutdown();

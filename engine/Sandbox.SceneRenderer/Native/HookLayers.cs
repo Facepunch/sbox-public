@@ -29,15 +29,27 @@ internal static class HookLayers
 	{
 		var stages = Enum.GetValues<Stage>();
 		var callbacks = new (Stage, DelegateFunctionPointer)[stages.Length + 1];
-		callbacks[0] = (GameUI, DelegateFunctionPointer.Get<OnRenderCallback>( setup => Graphics.OnLayer( (int)GameUI, setup ) ));
+		callbacks[0] = (GameUI, DelegateFunctionPointer.Get<OnRenderCallback>( setup => OnLayer( (int)GameUI, setup ) ));
 
 		for ( int i = 0; i < stages.Length; i++ )
 		{
 			var stage = stages[i];
-			callbacks[i + 1] = (stage, DelegateFunctionPointer.Get<OnRenderCallback>( setup => Graphics.OnLayer( (int)stage, setup ) ));
+			callbacks[i + 1] = (stage, DelegateFunctionPointer.Get<OnRenderCallback>( setup => OnLayer( (int)stage, setup ) ));
 		}
 
 		return callbacks;
+	}
+
+	static void OnLayer( int stage, ManagedRenderSetup_t setup )
+	{
+		try
+		{
+			Graphics.OnLayer( stage, setup );
+		}
+		catch ( Exception e )
+		{
+			Interop.BindingException( "Graphics", "OnLayer", e );
+		}
 	}
 
 	static DelegateFunctionPointer CallbackFor( Stage stage )

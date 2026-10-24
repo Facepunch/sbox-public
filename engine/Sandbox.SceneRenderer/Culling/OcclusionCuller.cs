@@ -78,7 +78,17 @@ internal sealed class OcclusionCuller : IDisposable
 	/// <summary>Instances skipped by the forward pass, read back a few frames later.</summary>
 	public int Culled => Volatile.Read( ref culled );
 
-	public bool CullsEarly { get; set; }
+	/// <summary>
+	/// What the early cull tests against this frame. Without a chain, the prepass draws everything.
+	/// </summary>
+	public OcclusionDepth Previous { get; set; }
+
+	public bool CullsEarly => Previous.Chain is not null;
+
+	/// <summary>
+	/// <c>r_occlusion_early 2</c>, held for the frame so both culls agree.
+	/// </summary>
+	public bool RejectEarly { get; set; }
 
 	public GpuBuffer<uint> CulledIds => culledRing.Current;
 	public GpuBuffer<GpuBuffer.IndirectDrawIndexedArguments> Args => argsRing.Current;

@@ -21,14 +21,23 @@ internal sealed class PhysicsShape2d : PhysicsShapeInternal
 	}
 	GCHandle _handle;
 
-	internal PhysicsShape2d( b2ShapeId shapeId, PhysicsBody body )
+	internal PhysicsShape2d( b2ShapeId shapeId, PhysicsBody2d body, in PhysicsShapeSettings settings )
 	{
 		ShapeId = shapeId;
-		_body = body;
+		_body = body.Owner;
 		Tags = new ManagedTagAccessor();
+		_surface = body.ResolvedCreationSurface;
+		_hasNoMass = settings.Flags.HasFlag( PhysicsShapeCreationFlags.NoMass );
+		_friction = settings.Friction;
+		_elasticity = settings.Elasticity;
+		_rollingResistance = settings.RollingResistance;
+		_surfaceTangentSpeed = settings.SurfaceVelocity.x;
+		Collider = body.CreationCollider;
+		if ( Collider is not null )
+			Tags.SetFrom( Collider.GameObject.Tags );
 
 		_handle = GCHandle.Alloc( this );
-		Box2d.b2Shape_SetUserData( ShapeId, GCHandle.ToIntPtr( _handle ) );
+		Box2d.b2Shape_SetUserData( shapeId, GCHandle.ToIntPtr( _handle ) );
 	}
 
 	internal static PhysicsShape2d FromUserData( b2ShapeId shapeId )
@@ -74,6 +83,8 @@ internal sealed class PhysicsShape2d : PhysicsShapeInternal
 	{
 		set
 		{
+			if ( _hasNoMass == value )
+				return;
 			_hasNoMass = value;
 			ApplyDensity();
 		}
@@ -88,6 +99,8 @@ internal sealed class PhysicsShape2d : PhysicsShapeInternal
 		get => _surface;
 		set
 		{
+			if ( ReferenceEquals( _surface, value ) )
+				return;
 			_surface = value;
 			UpdateSurface();
 		}
@@ -106,7 +119,12 @@ internal sealed class PhysicsShape2d : PhysicsShapeInternal
 	public override Vector3 SurfaceVelocity
 	{
 		get => new( _surfaceTangentSpeed, 0, 0 );
-		set { _surfaceTangentSpeed = value.x; ApplyMaterial(); }
+		set
+		{
+			if ( _surfaceTangentSpeed == value.x ) return;
+			_surfaceTangentSpeed = value.x;
+			ApplyMaterial();
+		}
 	}
 
 	float _surfaceTangentSpeed;
@@ -155,17 +173,32 @@ internal sealed class PhysicsShape2d : PhysicsShapeInternal
 	public override float Friction
 	{
 		get => IsValid ? Box2d.b2Shape_GetFriction( ShapeId ) : 0;
-		set { _friction = value; ApplyMaterial(); }
+		set
+		{
+			if ( _friction == value ) return;
+			_friction = value;
+			ApplyMaterial();
+		}
 	}
 
 	internal override float Elasticity
 	{
-		set { _elasticity = value; ApplyMaterial(); }
+		set
+		{
+			if ( _elasticity == value ) return;
+			_elasticity = value;
+			ApplyMaterial();
+		}
 	}
 
 	internal override float RollingResistance
 	{
-		set { _rollingResistance = value; ApplyMaterial(); }
+		set
+		{
+			if ( _rollingResistance == value ) return;
+			_rollingResistance = value;
+			ApplyMaterial();
+		}
 	}
 
 	b2ShapeType ShapeType2d => Box2d.b2Shape_GetType( ShapeId );
@@ -237,12 +270,18 @@ internal sealed class PhysicsShape2d : PhysicsShapeInternal
 
 	public override void Remove()
 	{
+		if ( _body.IsValid() )
+			_body._body.RemoveShape( Owner );
+	}
+
+	internal void Destroy()
+	{
 		if ( _handle.IsAllocated )
 			_handle.Free();
 
 		if ( !Box2d.b2Shape_IsValid( _shapeId ) ) return;
 
-		Box2d.b2DestroyShape( ShapeId, true );
+		Box2d.b2DestroyShape( ShapeId, false );
 		ShapeId = default;
 	}
 

@@ -27,7 +27,7 @@ internal sealed class NativeOcclusionCull : IDisposable
 	GpuBuffer<GpuBuffer.IndirectDrawIndexedArguments> args;
 	GpuBuffer<uint> culledIds;
 
-	// [0] instances the final phase kept, [1] instances recorded, [2] instances recorded for the final phase
+	// CSceneViewOcclusionCull::Stat_t, read back as RenderPipeline.OcclusionStats
 	GpuBuffer<uint> stats;
 	GpuBuffer<GpuBuffer.IndirectDispatchArguments> dispatchArgs;
 
@@ -36,13 +36,17 @@ internal sealed class NativeOcclusionCull : IDisposable
 	readonly Pass statsRead;
 
 	RenderViewport viewport;
-	RenderTarget chain;
 	bool msaaInput;
 	Matrix worldToProjection;
+	OcclusionHistory history;
+	OcclusionDebugTarget debug;
+	bool rejectEarly;
 
-	Texture previousChain;
-	Matrix previousWorldToProjection;
-	Vector2 previousDepthRange;
+	// What the late and early culls test against. Frozen, the late cull tests against the frozen depth rather than building
+	// its own
+	OcclusionDepth current;
+	OcclusionDepth previous;
+	bool frozen;
 
 	public NativeOcclusionCull()
 	{
@@ -51,7 +55,7 @@ internal sealed class NativeOcclusionCull : IDisposable
 		statsRead = new Pass( "Occlusion Stats", ReadStats );
 	}
 
-	public bool CullsEarly => previousChain is not null;
+	public bool CullsEarly => previous.Chain is not null;
 
 	public Matrix WorldToProjection => worldToProjection;
 
@@ -70,6 +74,7 @@ internal sealed class NativeOcclusionCull : IDisposable
 	{
 		this.viewport = viewport;
 		this.msaaInput = msaaInput;
+		this.history = history;
 		late.Read( "SourceDepth", sourceDepth );
 
 		Resize();
@@ -78,22 +83,22 @@ internal sealed class NativeOcclusionCull : IDisposable
 		runs ??= new( capacity, GpuBuffer.UsageFlags.Structured, "NativeOcclusionRuns" );
 		args ??= new( capacity, GpuBuffer.UsageFlags.Structured | GpuBuffer.UsageFlags.IndirectDrawArguments, "NativeOcclusionArgs" );
 		culledIds ??= new( capacity, GpuBuffer.UsageFlags.Structured | GpuBuffer.UsageFlags.Vertex, "NativeOcclusionCulledIds" );
-		stats ??= new( 3, GpuBuffer.UsageFlags.Structured, "NativeOcclusionStats" );
+		stats ??= new( RenderPipeline.OcclusionStatCount, GpuBuffer.UsageFlags.Structured, "NativeOcclusionStats" );
 		dispatchArgs ??= new( 1, GpuBuffer.UsageFlags.Structured | GpuBuffer.UsageFlags.IndirectDrawArguments, "NativeOcclusionDispatchArgs" );
-
-		// The effects chain is built after the late prepass and only keeps MSAA sample 0.
-		// Occlusion needs all samples to preserve visibility through alpha-to-coverage gaps.
-		chain = SharedPasses.DepthChainTarget( ((int)viewport.Rect.Width + 3) / 4, ((int)viewport.Rect.Height + 3) / 4 );
 
 		// Transposed, since the shader does mul( M, pos )
 		worldToProjection = view.GetFrustum().GetReverseZViewProjTranspose();
 
 		history?.BeginFrame( true, viewport.Rect );
-		previousChain = history is { Valid: true } ? history.Chain : null;
-		previousWorldToProjection = history?.WorldToProjection ?? default;
-		previousDepthRange = history?.DepthRange ?? default;
+		previous = history?.EarlyDepth ?? default;
+		rejectEarly = history is { RejectsEarly: true };
+		debug = history?.Debug;
+		frozen = history is { IsFrozen: true };
 
-		view.SetOcclusionCull( instances.native, runs.native, args.native, culledIds.native, stats.native, dispatchArgs.native, capacity );
+		var depthRange = new Vector2( viewport.MinZ, viewport.MaxZ );
+		current = history?.LateDepth( viewport.Rect, depthRange, worldToProjection ) ?? OcclusionDepth.Quarter( null, viewport.Rect, depthRange, worldToProjection );
+
+		view.SetOcclusionCull( instances.native, runs.native, args.native, culledIds.native, stats.native, dispatchArgs.native, capacity, RenderPipeline.AggregateMode );
 	}
 
 	/// <summary>
@@ -133,18 +138,22 @@ internal sealed class NativeOcclusionCull : IDisposable
 	public ISceneLayer AddLateToView( ISceneView view, RenderViewport viewport ) => late.AddToView( view, viewport );
 
 	/// <summary>
-	/// Reads back the culled count. Reading a buffer submits everything recorded before it, so this goes last in the view:
+	/// Reads back the cull stats. Reading a buffer submits everything recorded before it, so this goes last in the view:
 	/// mid-frame, the GPU would sit idle until the render thread submitted the rest.
 	/// </summary>
 	public ISceneLayer AddStatsToView( ISceneView view, RenderViewport viewport ) => statsRead.AddToView( view, viewport );
 
 	void Cull( bool earlyPass )
 	{
-		var width = (int)viewport.Rect.Width;
-		var height = (int)viewport.Rect.Height;
+		// The first cull in the frame clears the debug grid
+		if ( debug is not null && (earlyPass || !CullsEarly) ) debug.Clear( Graphics.Context );
 
-		// Our SourceDepth comes from the scene render target system
-		if ( !earlyPass ) SharedPasses.BuildDepthChain( Graphics.Context, null, chain.DepthTarget, msaaInput, width, height, DepthResolveMode.ConservativeQuarter );
+		if ( !earlyPass && !frozen )
+		{
+			// Our SourceDepth comes from the scene render target system
+			SharedPasses.BuildDepthChain( Graphics.Context, null, current.Chain, msaaInput, (int)viewport.Rect.Width, (int)viewport.Rect.Height, DepthResolveMode.ConservativeQuarter );
+			history?.KeepFrozen( current );
+		}
 
 		var attributes = RenderAttributes.Pool.Get();
 		attributes.Set( "OcclusionInstances", instances );
@@ -153,22 +162,14 @@ internal sealed class NativeOcclusionCull : IDisposable
 		attributes.Set( "OcclusionCulledIds", culledIds );
 		attributes.Set( "OcclusionStats", stats );
 
-		// The early pass never reads this, but something has to be bound. A mip 0 texel is 4 pixels wide, so w is 2
-		var current = earlyPass ? previousChain : chain.DepthTarget;
-		attributes.Set( "OcclusionDepthChain", current );
-		attributes.Set( "OcclusionViewport", new Vector4( width, height, current.Mips, 2 ) );
-		attributes.Set( "OcclusionDepthRange", new Vector2( viewport.MinZ, viewport.MaxZ ) );
-		attributes.Set( "OcclusionWorldToProjection", worldToProjection );
-
-		// A zero mip count disables history; the early prepass then draws everything.
-		attributes.Set( "OcclusionPreviousChain", previousChain ?? current );
-		attributes.Set( "OcclusionPreviousViewport", previousChain is { } previous ? new Vector4( previous.Width, previous.Height, previous.Mips, 0 ) : Vector4.Zero );
-		attributes.Set( "OcclusionPreviousDepthRange", previousDepthRange );
-		attributes.Set( "OcclusionPreviousWorldToProjection", previousWorldToProjection );
+		// The early pass never reads the current depth, but something has to be bound
+		OcclusionDepth.Bind( attributes, earlyPass ? previous : current, previous );
+		OcclusionDebugTarget.Bind( attributes, debug, worldToProjection );
 
 		// Native runs each have a single phase and their own arguments, so there's no stride
 		attributes.Set( "OcclusionPass", earlyPass ? 0 : 1 );
 		attributes.Set( "OcclusionPhaseStride", Vector2Int.Zero );
+		attributes.Set( "OcclusionRejectEarly", rejectEarly ? 1 : 0 );
 		attributes.SetCombo( "D_GPU_COUNT", true );
 
 		Graphics.ResourceBarrierTransition( instances, ResourceState.GenericRead );
@@ -185,12 +186,15 @@ internal sealed class NativeOcclusionCull : IDisposable
 
 		Graphics.ResourceBarrierTransition( args, ResourceState.IndirectArgument );
 		Graphics.ResourceBarrierTransition( culledIds, ResourceState.VertexOrIndexBuffer );
+
+		if ( !earlyPass ) debug?.Resolve( Graphics.Context, current.Chain, native: true, frozen );
 	}
 
 	void ReadStats()
 	{
 		Graphics.ResourceBarrierTransition( stats, ResourceState.CopySource );
-		RenderPipeline.ReadOcclusionCulled( Graphics.Context, stats );
+		RenderPipeline.ReadOcclusionStats( Graphics.Context, stats );
+		debug?.ReadCounts( Graphics.Context );
 	}
 
 	public void Dispose()

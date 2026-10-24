@@ -178,7 +178,7 @@ internal sealed partial class FrameRecorder : IDisposable
 	static readonly string[] ResourceNames = ["chain", "qdepth", "bloom", "bloom in", "refract", "depth", "normals", "ao", "contact", "reflections", "shadows", "", "", "", "", "untracked"];
 
 	/// <summary>
-	/// The last plan, for the performance hub's frame plan: each frame's layers, whether each ran and why not, what it made and read
+	/// The last plan, for the dev tools's frame plan: each frame's layers, whether each ran and why not, what it made and read
 	/// (and of that, what nothing earlier made), its draw work and the segment it recorded in, and the segments.
 	/// </summary>
 	internal Sandbox.Rendering.ManagedFramePlan Snapshot( string camera )

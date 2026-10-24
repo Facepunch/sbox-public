@@ -33,7 +33,7 @@ finds, which is handy for keeping C++ syntax highlighting happy in def files.
 `include` does three different things depending on its argument:
 
 - ends in `.h` → emitted as `#include "..."` in the generated native header. The conventional
-  spelling is `#include "vphysics2/iphysicsbody.h"`, which parses identically.
+  spelling is `#include "physics/iphysicsbody.h"`, which parses identically.
 - ends in `.def` → that file is parsed inline, as if its contents were pasted here. Paths are
   relative to the including file.
 - otherwise → treated as a folder: every `*.def` in it is included in alphabetical order.

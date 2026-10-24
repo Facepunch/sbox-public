@@ -1,4 +1,4 @@
-﻿using Sandbox.DataModel;
+using Sandbox.DataModel;
 using Sandbox.Services;
 using System;
 using System.Text.Json;
@@ -60,7 +60,7 @@ public partial class ProjectPublisher
 		return p;
 	}
 
-	public static async Task<ProjectPublisher> FromProject( Project project )
+	public static async Task<ProjectPublisher> FromProject( Project project, bool previewOnly = false, CancellationToken cancel = default )
 	{
 		// library
 		if ( project.IsSourcePublish() )
@@ -78,7 +78,7 @@ public partial class ProjectPublisher
 		// game
 		{
 			var p = new ProjectPublisher( project );
-			await p.GenerateAssetManifest();
+			await p.GenerateAssetManifest( cancel: cancel, previewOnly: previewOnly );
 			return p;
 		}
 	}
@@ -170,9 +170,9 @@ public partial class ProjectPublisher
 	/// <summary>
 	/// Build a list of files to upload for this version. Return false if errors that would prevent the upload.
 	/// </summary>
-	async Task GenerateAssetManifest( IProgress progress = null, CancellationToken cancel = default )
+	async Task GenerateAssetManifest( IProgress progress = null, CancellationToken cancel = default, bool previewOnly = false )
 	{
-		await Manifest.BuildFromAssets( Project, progress, cancel );
+		await Manifest.BuildFromAssets( Project, progress, cancel, previewOnly: previewOnly );
 	}
 
 	/// <summary>
@@ -193,6 +193,7 @@ public partial class ProjectPublisher
 	/// </summary>
 	public async Task Publish( IProgress progress = null, CancellationToken cancel = default )
 	{
+		Manifest.RequireUploadManifest();
 		if ( Project.Config.IsStandaloneOnly )
 			return;
 
@@ -218,6 +219,7 @@ public partial class ProjectPublisher
 	/// </summary>
 	public async Task PrePublish( CancellationToken cancellationToken = default )
 	{
+		Manifest.RequireUploadManifest();
 		FinishAddingFiles();
 
 		if ( Project.Config.IsStandaloneOnly )
@@ -482,6 +484,7 @@ public partial class ProjectPublisher
 
 	public async Task UploadFiles()
 	{
+		Manifest.RequireUploadManifest();
 		// upload
 		var uploads = Manifest.Assets.Where( x => !x.Skip ).ToArray();
 

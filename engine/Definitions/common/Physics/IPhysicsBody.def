@@ -1,5 +1,5 @@
 
-#include "vphysics2/iphysicsbody.h"
+#include "physics/iphysicsbody.h"
 
 //
 // Native Type
@@ -58,15 +58,15 @@ native class IPhysicsBody as NativeEngine.IPhysicsBody
 	int GetShapeCount();
 	IPhysicsShape GetShape( int nShape );
 
-	IPhysicsShape AddSphereShape( Vector3 vCenter, float flRadius );
-	IPhysicsShape AddCapsuleShape( Vector3 vCenter1, Vector3 vCenter2, float flRadius );
-	IPhysicsShape AddBoxShape( Vector3 position, Rotation rotation, Vector3 extent );
-	IPhysicsShape AddHullShape( Vector3 position, Rotation rotation, int numVertices, CastTo[Vector*] void* vertices );
-	IPhysicsShape AddHullShape( RnHull_t hull, Transform xform );
-	IPhysicsShape AddHullShape( RnMesh_t mesh, Transform xform );
-	IPhysicsShape AddMeshShape( int numVertices, CastTo[Vector*] void* vertices, int numIndices, CastTo[uint32*] void* indices, int nMaterialCount );
-	IPhysicsShape AddMeshShape( RnMesh_t mesh, Transform xform, int nMaterialCount );
-	IPhysicsShape AddHeightFieldShape( CastTo[uint16_t*] void* pHeights, CastTo[uint8_t*] void* pMaterials, int sizeX, int sizeY, float sizeScale, float heightScale, int nMaterialCount );
+	IPhysicsShape AddSphereShape( Vector3 vCenter, float flRadius, PhysicsShapeSettings_t settings );
+	IPhysicsShape AddCapsuleShape( Vector3 vCenter1, Vector3 vCenter2, float flRadius, PhysicsShapeSettings_t settings );
+	IPhysicsShape AddBoxShape( Vector3 position, Rotation rotation, Vector3 extent, PhysicsShapeSettings_t settings );
+	IPhysicsShape AddHullShape( Vector3 position, Rotation rotation, int numVertices, CastTo[Vector*] void* vertices, PhysicsShapeSettings_t settings );
+	IPhysicsShape AddHullShape( RnHull_t hull, Transform xform, PhysicsShapeSettings_t settings );
+	IPhysicsShape AddHullShape( RnMesh_t mesh, Transform xform, PhysicsShapeSettings_t settings );
+	IPhysicsShape AddMeshShape( int numVertices, CastTo[Vector*] void* vertices, int numIndices, CastTo[uint32*] void* indices, int nMaterialCount, PhysicsShapeSettings_t settings );
+	IPhysicsShape AddMeshShape( RnMesh_t mesh, Transform xform, int nMaterialCount, PhysicsShapeSettings_t settings );
+	IPhysicsShape AddHeightFieldShape( CastTo[uint16_t*] void* pHeights, CastTo[uint8_t*] void* pMaterials, int sizeX, int sizeY, float sizeScale, float heightScale, int nMaterialCount, PhysicsShapeSettings_t settings );
 
 	void RemoveShape( IPhysicsShape pShape );
 	void PurgeShapes();
@@ -87,6 +87,7 @@ native class IPhysicsBody as NativeEngine.IPhysicsBody
 	bool IsEnabled();
 
 	void BuildMass();
+	bool SetMassUpdatesDeferred( bool defer );
 
 	void SetLinearDamping( float d );
 	float GetLinearDamping();
@@ -126,8 +127,6 @@ native class IPhysicsBody as NativeEngine.IPhysicsBody
 
 	bool IsTouching( IPhysicsBody pBody, bool bTriggers );
 	bool IsTouching( IPhysicsShape pShape, bool bTriggers );
-
-	void SetTrigger( bool trigger );
 
 	void ResetProxy();
 

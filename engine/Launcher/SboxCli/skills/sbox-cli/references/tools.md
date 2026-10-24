@@ -27,8 +27,8 @@ Found through search, but always present:
 
 ## Performance (editor and game)
 
-**`perf`** — the numbers the performance hub (`perf_hub`) shows, as data, with the hub closed.
-Don't open the hub and screenshot it. Times are ms, memory MiB.
+**`perf`** — the numbers the dev tools (`devtools`) shows, as data, with the dev tools closed.
+Don't open the dev tools and screenshot it. Times are ms, memory MiB.
 `perf_overview` (start here: frame stats, what limits the frame rate, hitches, flagged issues,
 top CPU and GPU costs), `perf_frames`, `perf_cpu`, `perf_gpu`, `perf_memory` (`allocationSeconds`
 tracks allocations by type), `perf_rendering`, `perf_network` (`seconds` records messages),
@@ -84,6 +84,13 @@ Hammer and identify nodes by integer id. `hammer_status`, `hammer_open_map`, `ha
 `hammer_set_camera`, `hammer_views`, `hammer_screenshot`, `hammer_run_command`,
 `hammer_list_commands`, `hammer_build_map`, `hammer_build_status`, `hammer_compiled_map_stats`,
 `hammer_undo`, `hammer_redo`, and optimisation helpers.
+
+## Publishing
+
+`publishing_preview` builds the same asset preview as Project Settings > Publishing, optionally
+with proposed rules. It returns a summary and a local JSON report path instead of thousands of
+rows. No settings are saved or content uploaded; included assets may compile into build caches.
+For the full review workflow read `sbox-cli --skill sbox-publishing`.
 
 ## Patterns
 

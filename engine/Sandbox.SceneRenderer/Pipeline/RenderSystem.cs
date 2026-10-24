@@ -247,7 +247,7 @@ public sealed partial class RenderSystem : IDisposable
 		recorder ??= new FrameRecorder();
 		recorder.Plan( frame, ParallelRecording, Sandbox.Rendering.ManagedSceneRendering.AsyncCompute );
 
-		// The performance hub's frame plan, or SceneLab's plan overlay: frames drawn into a window show their plan, published with its times
+		// The dev tools's frame plan, or SceneLab's plan overlay: frames drawn into a window show their plan, published with its times
 		var plan = Sandbox.Rendering.ManagedFramePlan.Wanted && (IntPtr)output.SwapChain != IntPtr.Zero ? recorder.Snapshot( view.Name ) : null;
 
 		context.Begin();
@@ -523,7 +523,8 @@ public sealed partial class RenderSystem : IDisposable
 		meshes.Occlusion = null;
 		OcclusionActive = wanted && Occlusion.InstanceCount > 0;
 		OcclusionHistory.BeginFrame( OcclusionActive, view.Viewport );
-		Occlusion.CullsEarly = OcclusionHistory.Valid;
+		Occlusion.Previous = OcclusionHistory.EarlyDepth;
+		Occlusion.RejectEarly = OcclusionHistory.RejectsEarly;
 
 		shadows.Prepare( world, mainPass, lightBinner, transforms, features.Count, Shadows, isSkybox );
 

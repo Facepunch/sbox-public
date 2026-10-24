@@ -917,6 +917,7 @@ public class NetworkTest
 		Assert.AreEqual( expectedFaces, clientMesh.Mesh.FaceHandles.Count(), "Mesh geometry did not survive the snapshot" );
 	}
 
+	[TestMethod]
 	[DataRow( false, false, false, DisplayName = "Cullable + hidden -> excluded" )]
 	[DataRow( false, true, true, DisplayName = "Cullable + visible -> included" )]
 	[DataRow( true, false, true, DisplayName = "AlwaysTransmit -> included when hidden" )]

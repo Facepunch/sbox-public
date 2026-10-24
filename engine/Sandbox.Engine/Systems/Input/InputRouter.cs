@@ -1,4 +1,5 @@
 ﻿using NativeEngine;
+using Sandbox.Diagnostics;
 using Sandbox.Internal;
 using Sandbox.UI;
 
@@ -131,6 +132,15 @@ internal static partial class InputRouter
 		mouseCaptureMode = mouseCaptureMode || (activeMouse?.MouseCapture ?? false);
 
 		MouseCursorVisible = !mouseCaptureMode && (activeMouse is not null && activeMouse.MouseState == InputContext.InputState.UI);
+
+		// Dev tools docked in the window keep the cursor out, so they can be reached in a game that captures the mouse
+		var devToolsDock = DevTools.GameDockOpen;
+		if ( devToolsDock )
+		{
+			mouseCaptureMode = false;
+			MouseCursorVisible = true;
+		}
+
 		if ( !WindowInput.HasMouseFocus() ) MouseCursorVisible = true;
 
 		if ( mouseCaptureMode )
@@ -155,12 +165,16 @@ internal static partial class InputRouter
 			}
 		}
 
-		if ( activeMouse is not null && WindowInput.HasMouseFocus() && PanelWindows.Hovering is null && PanelWindows.CaptureWindow is null )
+		var dockHasMouse = devToolsDock && DevTools.GameDockHasMouse( MouseCursorPosition );
+
+		if ( WindowInput.HasMouseFocus() && PanelWindows.Hovering is null && PanelWindows.CaptureWindow is null )
 		{
-			SdlCursors.SetCursor( MouseCursorVisible ? activeMouse.MouseCursor : "none" );
+			if ( dockHasMouse ) SdlCursors.SetCursor( DevTools.GameDockCursor( MouseCursorPosition ) );
+			else if ( devToolsDock && activeMouse?.MouseState != InputContext.InputState.UI ) SdlCursors.SetCursor( "arrow" );
+			else if ( activeMouse is not null ) SdlCursors.SetCursor( MouseCursorVisible ? activeMouse.MouseCursor : "none" );
 		}
 
-		KeyboardFocusPanel = activeKeyboard?.KeyboardFocusPanel;
+		KeyboardFocusPanel = (IPanel)DevTools.GameDockFocus ?? activeKeyboard?.KeyboardFocusPanel;
 		WindowInput.SetIMEAllowed( KeyboardFocusPanel is not null );
 		if ( KeyboardFocusPanel is not null )
 		{
@@ -175,8 +189,21 @@ internal static partial class InputRouter
 		// Only the UI that has the mouse gets to show a tooltip - the one underneath it loses its hover
 		foreach ( var context in Contexts )
 		{
-			context.TargetUISystem?.Tooltips.SetHovered( context == activeMouse ? activeMouse.MouseFocusPanel as Panel : null, MouseCursorPosition );
+			context.TargetUISystem?.Tooltips.SetHovered( context == activeMouse && !dockHasMouse ? activeMouse.MouseFocusPanel as Panel : null, MouseCursorPosition );
 		}
+	}
+
+	/// <summary>
+	/// The input context that gets the mouse. Null while it's over the dev tools docked in the window, and while they're
+	/// open over a game that wants the mouse captured: the cursor's out for the dev tools, so moving it isn't looking
+	/// around and clicking isn't shooting.
+	/// </summary>
+	static InputContext MouseTarget()
+	{
+		var mouse = Contexts.FirstOrDefault( x => x.MouseState != InputContext.InputState.Ignore );
+		if ( !DevTools.GameDockOpen ) return mouse;
+		if ( DevTools.GameDockHasMouse( MouseCursorPosition ) ) return null;
+		return mouse?.MouseState == InputContext.InputState.UI ? mouse : null;
 	}
 
 	static void SetCursorPosition( Vector2 pos )

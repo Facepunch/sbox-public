@@ -462,6 +462,7 @@ internal partial class NetworkSystem
 	async Task On_Handshake_Snapshot( InitialSnapshotResponse msg, Connection source, Guid msgId )
 	{
 		NetworkDebugSystem.Current?.Record( NetworkDebugSystem.MessageType.Snapshot, msg );
+		Sandbox.Diagnostics.DevTools.NetworkLog.Message( Sandbox.Diagnostics.DevTools.NetworkLog.Kind.Snapshot, "SceneSnapshot", msg, false, source );
 
 		if ( !source.IsHost )
 			return;
@@ -527,6 +528,7 @@ internal partial class NetworkSystem
 		}
 
 		source.State = Connection.ChannelState.Connected;
+		Sandbox.Diagnostics.DevTools.NetworkLog.Session( "Peer joined", source );
 
 		//
 		// Tell game this guy is fully active.
@@ -588,6 +590,7 @@ internal partial class NetworkSystem
 		Api.Activity.LoadFinished();
 
 		Connection.Local.State = Connection.ChannelState.Connected;
+		Sandbox.Diagnostics.DevTools.NetworkLog.Session( "Joined", source, starts: true );
 		source.State = Connection.ChannelState.Connected;
 
 		// Before the party sees we're in and follows

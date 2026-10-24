@@ -311,7 +311,7 @@ public sealed partial class PhysicsBody : IValid
 	/// </summary>
 	public PhysicsShape AddHeightFieldShape( ushort[] heights, byte[] materials, int sizeX, int sizeY, float sizeScale, float heightScale ) => _body.AddHeightFieldShape( heights, materials, sizeX, sizeY, sizeScale, heightScale );
 
-	internal PhysicsShape AddHeightFieldShape( ushort[] heights, byte[] materials, int sizeX, int sizeY, float sizeScale, float heightScale, int materialCount ) => _body.AddHeightFieldShape( heights, materials, sizeX, sizeY, sizeScale, heightScale, materialCount );
+	internal PhysicsShape AddHeightFieldShape( ushort[] heights, byte[] materials, int sizeX, int sizeY, float sizeScale, float heightScale, int materialCount, ReadOnlySpan<int> surfaceIndices = default ) => _body.AddHeightFieldShape( heights, materials, sizeX, sizeY, sizeScale, heightScale, materialCount, surfaceIndices );
 
 	[Obsolete]
 	public PhysicsShape AddCloneShape( PhysicsShape shape ) => null;
@@ -331,7 +331,6 @@ public sealed partial class PhysicsBody : IValid
 	/// </summary>
 	public void ClearShapes() => _body.ClearShapes();
 
-	internal IDisposable TriggerScope() => _body.TriggerScope();
 
 	internal void RemoveShape( PhysicsShape shape ) => _body.RemoveShape( shape );
 

@@ -250,11 +250,12 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 			{
 				foreach ( var mesh in part.Meshes )
 				{
-					var shape = targetBody.AddShape( mesh, bx, false, true );
+					PhysicsShape shape;
+					using ( targetBody._body.UseShapeSurface( mesh.Surface, mesh.Surfaces ) )
+					{
+						shape = targetBody.AddShape( mesh, bx, false, true );
+					}
 					Assert.NotNull( shape, "Mesh shape was null" );
-
-					shape.Surface = mesh.Surface;
-					shape.Surfaces = mesh.Surfaces;
 
 					yield return shape;
 				}
@@ -263,9 +264,12 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 			{
 				foreach ( var hull in part.Hulls )
 				{
-					var shape = targetBody.AddShape( hull, bx );
+					PhysicsShape shape;
+					using ( targetBody._body.UseShapeSurface( hull.Surface ) )
+					{
+						shape = targetBody.AddShape( hull, bx );
+					}
 					Assert.NotNull( shape, "Hull shape was null" );
-					shape.Surface = hull.Surface;
 					yield return shape;
 				}
 			}

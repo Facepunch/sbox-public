@@ -11,6 +11,7 @@ static class Diagnostics
 	public static DiagnosticDescriptor HostSyncAttribute = Warning( "SBOX004", "Replace [HostSync] with [Sync( SyncFlags.FromHost )]", "The [HostSync] attribute has been merged with [Sync] to make functionality expandable with SyncFlags." );
 	public static DiagnosticDescriptor ConCmdAttribute = Warning( "SBOX006", "Make ConCmd Method Static", "[ConCmd] methods need to be static to function." );
 	public static DiagnosticDescriptor ConVarAttribute = Warning( "SBOX007", "Make ConVar Property Static", "[ConVar] properties need to be static to function." );
+	public static DiagnosticDescriptor ModelPhysicsCollection = Warning( "SBOX008", "Update ModelPhysics collection usage", "ModelPhysics.Bodies and Joints now use NetList. Update the dependent collection declarations and assignments." );
 	public static DiagnosticDescriptor GenericStaticMembersUnsupported = Warning( "SB3000", "Add [SkipHotload] to Static Member in Generic Type", "Static members in generic types won't be processed during hotloads, so should be explicitly marked with [SkipHotload]" );
 
 	const string MigrationHelp = "https://sbox.game/dev/doc/networking/host-migration/";

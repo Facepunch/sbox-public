@@ -4,7 +4,7 @@ internal static partial class DebugOverlay
 {
 	/// <summary>
 	/// What the resource indexes and the native resource cache hold, with the most each type has reached, for the
-	/// performance hub's Memory tab.
+	/// dev tools's Memory tab.
 	/// </summary>
 	public partial class Resources
 	{

@@ -92,15 +92,20 @@ namespace Sandbox.UI
 		[Category( "Selection" )]
 		public Color SelectionColor
 		{
-			get => _textBlock?.SelectionColor ?? Color.Cyan.WithAlpha( 0.39f );
+			get => _textBlock?.SelectionColor ?? _selectionColor ?? Color.Cyan.WithAlpha( 0.39f );
 			set
 			{
+				// Kept for when the text block is made, on the first layout
+				_selectionColor = value;
+
 				if ( _textBlock == null ) return;
 				if ( _textBlock.SelectionColor == value ) return;
 
 				_textBlock.SelectionColor = value;
 			}
 		}
+
+		Color? _selectionColor;
 
 		public Label()
 		{
@@ -335,6 +340,7 @@ namespace Sandbox.UI
 			{
 				_textBlock = new TextBlock();
 				_textBlock.LookupStyles = HtmlStyleLookup;
+				if ( _selectionColor is { } selectionColor ) _textBlock.SelectionColor = selectionColor;
 			}
 
 			_textBlock.NoWrap = !Multiline;

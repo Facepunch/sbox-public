@@ -3,6 +3,16 @@ namespace Sandbox.Network;
 internal interface IDeltaSnapshot
 {
 	/// <summary>
+	/// Whether every currently eligible connection has acknowledged this object's state.
+	/// </summary>
+	bool IsFullyUpdated { get; set; }
+
+	/// <summary>
+	/// Changes when a local mutation requires another capture, including mutations during a send.
+	/// </summary>
+	uint DirtyRevision => 0;
+
+	/// <summary>
 	/// Unique identifier for this object.
 	/// </summary>
 	Guid Id { get; }
@@ -44,8 +54,8 @@ internal interface IDeltaSnapshot
 	internal LocalSnapshotState WriteSnapshotState();
 
 	/// <summary>
-	/// Try to send a network update or do nothing if no update is required. This is most
-	/// likely called after WriteSnapshotState.
+	/// Try to send a network update or do nothing if no update is required. Usually called after
+	/// <see cref="WriteSnapshotState"/>. Pending reliable changes are flushed even without recipients.
 	/// </summary>
 	internal void SendNetworkUpdate( bool queryValues = false );
 }

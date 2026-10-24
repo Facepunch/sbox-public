@@ -318,11 +318,11 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 		if ( !Active ) return;
 		if ( _rebuilding ) return;
 
+		var body = PhysicsBody;
+		using var creation = body.IsValid() ? body._body.BeginShapeCreation( this ) : default;
+
 		// destroy any old shapes
 		DestroyShapes();
-
-		// find our target body
-		var body = PhysicsBody;
 
 		// no physics body
 		if ( !body.IsValid() )
@@ -330,89 +330,91 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 
 		_rebuilding = true;
 
-		if ( _keyframeBody.IsValid() )
+		try
 		{
-			var isKeyframed = !Static && !Scene.IsEditor;
-
-			_keyframeBody.BodyType = isKeyframed ? PhysicsBodyType.Keyframed : PhysicsBodyType.Static;
-			_keyframeBody.UseController = isKeyframed;
-
-			if ( Scene.Is2D )
+			if ( _keyframeBody.IsValid() )
 			{
-				var system = Scene.GetSystem<ScenePhysics2dSystem>();
-				if ( Static ) system?.RemoveKeyframe( this );
-				else system?.AddKeyframe( this );
+				var isKeyframed = !Static && !Scene.IsEditor;
+
+				_keyframeBody.BodyType = isKeyframed ? PhysicsBodyType.Keyframed : PhysicsBodyType.Static;
+				_keyframeBody.UseController = isKeyframed;
+
+				if ( Scene.Is2D )
+				{
+					var system = Scene.GetSystem<ScenePhysics2dSystem>();
+					if ( Static ) system?.RemoveKeyframe( this );
+					else system?.AddKeyframe( this );
+				}
+				else
+				{
+					var system = ScenePhysicsSystem.Current;
+					if ( Static ) system?.RemoveKeyframe( this );
+					else system?.AddKeyframe( this );
+				}
 			}
-			else
+			else if ( !Scene.Is2D )
 			{
-				var system = ScenePhysicsSystem.Current;
-				if ( Static ) system?.RemoveKeyframe( this );
-				else system?.AddKeyframe( this );
-			}
-		}
-		else if ( !Scene.Is2D )
-		{
-			// If we're in editor, check if the editor wants to simulate us
-			if ( Scene.IsEditor )
-			{
-				var system = ScenePhysicsSystem.Current;
-				body.BodyType = system is not null && system.HasRigidBody( Rigidbody ) ? PhysicsBodyType.Dynamic : PhysicsBodyType.Static;
+				// If we're in editor, check if the editor wants to simulate us
+				if ( Scene.IsEditor )
+				{
+					var system = ScenePhysicsSystem.Current;
+					body.BodyType = system is not null && system.HasRigidBody( Rigidbody ) ? PhysicsBodyType.Dynamic : PhysicsBodyType.Static;
 
-				// Always considered dynamic for navmesh
-				body.NavmeshBodyTypeOverride = PhysicsBodyType.Dynamic;
-			}
-			else
-			{
-				body.BodyType = Rigidbody.MotionEnabled ? PhysicsBodyType.Dynamic : PhysicsBodyType.Keyframed;
-				body.NavmeshBodyTypeOverride = null;
-			}
-		}
-
-		// update our keyframe immediately
-		TeleportKeyframeBody( GetTargetTransform().WithScale( 1.0f ) );
-
-		var go = body.GameObject;
-
-		if ( !IsProxy && !Scene.IsEditor && !_keyframeBody.IsValid() )
-		{
-			var currentWorldTx = go.WorldTransform;
-
-			// Only snap the GameObject to the physics body if there's a meaningful difference.
-			// A naive world→local round-trip loses precision at large world coordinates, which
-			// would introduce phantom transform overrides in prefab instances.
-			// Position: 1cm tolerance. Rotation: dot-product threshold (1 - 1e-6 ≈ 0.16°).
-			var bodyPosition = body.Position;
-
-			if ( Scene.Is2D )
-				bodyPosition = bodyPosition.WithZ( currentWorldTx.Position.z );
-
-			if ( !currentWorldTx.Position.AlmostEqual( bodyPosition, 0.01f ) ||
-				!currentWorldTx.Rotation.AlmostEqual( body.Rotation, 0.000001f ) )
-			{
-				currentWorldTx.Position = bodyPosition;
-				currentWorldTx.Rotation = body.Rotation;
-				go.WorldTransform = currentWorldTx;
+					// Always considered dynamic for navmesh
+					body.NavmeshBodyTypeOverride = PhysicsBodyType.Dynamic;
+				}
+				else
+				{
+					body.BodyType = Rigidbody.MotionEnabled ? PhysicsBodyType.Dynamic : PhysicsBodyType.Keyframed;
+					body.NavmeshBodyTypeOverride = null;
+				}
 			}
 
-			go.Transform.ClearLocalInterpolation();
-		}
+			// update our keyframe immediately
+			TeleportKeyframeBody( GetTargetTransform().WithScale( 1.0f ) );
 
-		var world = Transform.TargetWorld;
-		var local = go.Transform.TargetWorld.WithScale( 1.0f ).ToLocal( world );
+			var go = body.GameObject;
 
-		// create the new shapes
-		using ( IsTrigger ? body.TriggerScope() : null )
-		{
+			if ( !IsProxy && !Scene.IsEditor && !_keyframeBody.IsValid() )
+			{
+				var currentWorldTx = go.WorldTransform;
+
+				// Only snap the GameObject to the physics body if there's a meaningful difference.
+				// A naive world→local round-trip loses precision at large world coordinates, which
+				// would introduce phantom transform overrides in prefab instances.
+				// Position: 1cm tolerance. Rotation: dot-product threshold (1 - 1e-6 ≈ 0.16°).
+				var bodyPosition = body.Position;
+
+				if ( Scene.Is2D )
+					bodyPosition = bodyPosition.WithZ( currentWorldTx.Position.z );
+
+				if ( !currentWorldTx.Position.AlmostEqual( bodyPosition, 0.01f ) ||
+					!currentWorldTx.Rotation.AlmostEqual( body.Rotation, 0.000001f ) )
+				{
+					currentWorldTx.Position = bodyPosition;
+					currentWorldTx.Rotation = body.Rotation;
+					go.WorldTransform = currentWorldTx;
+				}
+
+				go.Transform.ClearLocalInterpolation();
+			}
+
+			var world = Transform.TargetWorld;
+			var local = go.Transform.TargetWorld.WithScale( 1.0f ).ToLocal( world );
+
+			// create the new shapes
 			Shapes.AddRange( CreatePhysicsShapes( body, local ) );
+
+			// configure shapes
+			ConfigureShapes();
+
+			// store the transform in which we were built
+			_bodyWorld = GetTargetTransform();
 		}
-
-		// configure shapes
-		ConfigureShapes();
-
-		// store the transform in which we were built
-		_bodyWorld = GetTargetTransform();
-
-		_rebuilding = false;
+		finally
+		{
+			_rebuilding = false;
+		}
 	}
 
 	/// <summary>

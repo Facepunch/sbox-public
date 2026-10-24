@@ -80,7 +80,7 @@ internal static class McpProtocol
 		- Game objects and components are identified by guid. Assets are identified by the relative path asset_search returns.
 		- Editor scene tools document their undo behavior. Runtime tools and scripts may change live state without undo.
 		- Hammer maps (.vmap) aren't scenes - the scene tools don't see them. Work on the map open in Hammer with the hammer_ tools, which identify map nodes by integer node id.
-		- Performance numbers (frame times, CPU scopes, GPU passes, memory, rendering counters) come from the perf_ tools, starting with perf_overview. They're what the performance hub (perf_hub) shows, as data - don't open the hub and screenshot it.
+		- Performance numbers (frame times, CPU scopes, GPU passes, memory, rendering counters) come from the perf_ tools, starting with perf_overview. They're what the dev tools window (devtools, F11) shows, as data - don't open it and screenshot it.
 		""";
 
 	/// <summary>

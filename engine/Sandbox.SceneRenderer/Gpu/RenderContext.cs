@@ -1015,6 +1015,24 @@ internal sealed class RenderContext : IDisposable
 		}
 	}
 
+	/// <summary>
+	/// Zero an occlusion debug grid before the frame's first cull.
+	/// </summary>
+	public void ClearOcclusionDebug( Sandbox.Rendering.OcclusionDebugTarget debug )
+	{
+		Invalidate();
+		debug.Clear( context );
+	}
+
+	/// <summary>
+	/// Resolve an occlusion debug grid for the overlay after the late cull.
+	/// </summary>
+	public void ResolveOcclusionDebug( Sandbox.Rendering.OcclusionDebugTarget debug, Texture chain, bool frozen )
+	{
+		Invalidate();
+		debug.Resolve( context, chain, native: false, frozen );
+	}
+
 	static readonly StringToken SourceDepth = new( "SourceDepth" );
 	static readonly StringToken FrameBufferCopyTexture = new( "FrameBufferCopyTexture" );
 	static readonly StringToken FrameBufferCopyRectangle = new( "FrameBufferCopyRectangle" );

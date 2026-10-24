@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 
 namespace NetworkTests;
@@ -6,6 +7,39 @@ namespace NetworkTests;
 [TestClass]
 public class NetListTest
 {
+	[TestMethod]
+	public void ConstructFromEnumerableAndForEach()
+	{
+		var source = new List<int> { 3, 1, 2 };
+		using var list = new NetList<int>( source );
+		source.Clear();
+		var visited = new List<int>();
+		list.ForEach( visited.Add );
+		CollectionAssert.AreEqual( new[] { 3, 1, 2 }, visited );
+		Assert.ThrowsException<ArgumentNullException>( () => new NetList<int>( null ) );
+		Assert.ThrowsException<ArgumentNullException>( () => list.ForEach( null ) );
+		Assert.ThrowsException<InvalidOperationException>( () => list.ForEach( _ => list.Add( 4 ) ) );
+	}
+
+	[TestMethod]
+	public void RemoveAllPreservesPredicateOrderAndRecordsRemovals()
+	{
+		using var list = new NetList<int>( new[] { 1, 2, 3, 4, 5 } );
+		var visited = new List<int>();
+		var removedIndices = new List<int>();
+		list.OnChanged = change =>
+		{
+			Assert.AreEqual( NotifyCollectionChangedAction.Remove, change.Type );
+			removedIndices.Add( change.Index );
+		};
+		Assert.AreEqual( 2, list.RemoveAll( x => { visited.Add( x ); return x % 2 == 0; } ) );
+		CollectionAssert.AreEqual( new[] { 1, 2, 3, 4, 5 }, visited );
+		CollectionAssert.AreEqual( new[] { 1, 3, 5 }, list.ToArray() );
+		CollectionAssert.AreEqual( new[] { 3, 1 }, removedIndices );
+		Assert.AreEqual( 0, list.RemoveAll( _ => false ) );
+		Assert.ThrowsException<ArgumentNullException>( () => list.RemoveAll( null ) );
+	}
+
 	[TestMethod]
 	public void AddRemoveAndCount()
 	{

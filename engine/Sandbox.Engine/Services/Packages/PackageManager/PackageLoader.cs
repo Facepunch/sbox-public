@@ -42,7 +42,6 @@ internal sealed partial class PackageLoader : IDisposable
 	{
 		log = new Logger( $"PackageLoader/{name}" );
 		LoadContext = new LoadContext( parentAssembly );
-		LoadContext.OnDemandResolver = ResolveAssemblyOnDemand;
 		// ILHotload only makes sense for the editor
 		if ( Application.IsEditor || Application.IsUnitTest )
 		{
@@ -451,37 +450,25 @@ internal sealed partial class PackageLoader : IDisposable
 	{
 		ArgumentNullException.ThrowIfNull( package );
 
-		var assemblyList = package.AssemblyFileSystem.FindFile( "", "*.dll", true ).ToArray();
+		// An assembly runs its static constructors as soon as it's added, so everything it references has to be
+		// loaded first. The filesystem lists them alphabetically, which can put a game ahead of its libraries.
+		var ordered = new AssemblyOrderer();
 
-		foreach ( var assemblyName in assemblyList )
+		foreach ( var assemblyName in package.AssemblyFileSystem.FindFile( "", "*.dll", true ) )
 		{
 			if ( assemblyName.EndsWith( ".editor.dll", StringComparison.OrdinalIgnoreCase ) && !ToolsMode )
 				continue;
 
-			var result = LoadAssemblyFromPackage( package, assemblyName );
+			ordered.Add( assemblyName, package.AssemblyFileSystem.ReadAllBytes( assemblyName ).ToArray() );
+		}
+
+		foreach ( var (assemblyName, bytes) in ordered.GetDependencyOrdered() )
+		{
+			var result = LoadAssemblyFromPackage( package, assemblyName, bytes );
 
 			if ( result?.Assembly == null )
 				throw new System.Exception( $"Error loading {assemblyName}" );
 		}
-	}
-
-	/// <summary>
-	/// Called by <see cref="LoadContext"/> when a dependency assembly can't be resolved through
-	/// normal means. Searches all active packages' assembly filesystems so imports are satisfied
-	/// on demand rather than requiring every dep to be pre-loaded upfront.
-	/// </summary>
-	private Assembly ResolveAssemblyOnDemand( string assemblyName )
-	{
-		foreach ( var ap in PackageManager.ActivePackages )
-		{
-			var filename = $"{assemblyName}.dll";
-			if ( ap.AssemblyFileSystem?.FileExists( filename ) != true ) continue;
-
-			var result = LoadAssemblyFromPackage( ap, filename );
-			return result?.Assembly;
-		}
-
-		return null;
 	}
 
 	LoadedAssembly AddAssembly( Package package, string assemblyName, TrustedBinaryStream dllStream, byte[] codeArchive )

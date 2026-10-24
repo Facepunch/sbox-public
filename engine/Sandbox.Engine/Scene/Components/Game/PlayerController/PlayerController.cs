@@ -257,6 +257,7 @@ public sealed partial class PlayerController : Component, IScenePhysicsEvents, C
 	public void Jump( Vector3 velocity )
 	{
 		Mode?.OnJump();
+		var jumpBoost = CalculateJumpBoost( velocity );
 		PreventGrounding( 0.2f );
 
 		var currentVel = Body.Velocity;
@@ -271,7 +272,27 @@ public sealed partial class PlayerController : Component, IScenePhysicsEvents, C
 
 		currentVel = currentVel.AddClamped( velocity, velocity.Length );
 
-		Body.Velocity = currentVel;
+		Body.Velocity = currentVel + jumpBoost;
+	}
+
+	Vector3 CalculateJumpBoost( Vector3 jumpVelocity )
+	{
+		if ( !EnableJumpBoost || JumpBoost <= 0 || RunSpeed <= 0 ) return Vector3.Zero;
+		if ( !IsOnGround || IsDucking || Mode is not MoveModeWalk ) return Vector3.Zero;
+		if ( jumpVelocity.Dot( UpDirection ) <= 0 ) return Vector3.Zero;
+
+		var wish = WithoutVertical( WishVelocity );
+		if ( wish.Length < RunSpeed * 0.95f ) return Vector3.Zero;
+
+		// Measure sprint speed along the slope, relative to the ground, so running uphill and riding a moving platform don't change eligibility.
+		var direction = wish.Normal;
+		var groundDirection = (direction - GroundNormal * direction.Dot( GroundNormal )).Normal;
+		var relativeVelocity = Body.Velocity - GroundVelocity;
+		if ( relativeVelocity.Dot( groundDirection ) < RunSpeed * 0.95f ) return Vector3.Zero;
+
+		var boostSpeed = RunSpeed * JumpBoost;
+		var remainingSpeed = RunSpeed + boostSpeed - WithoutVertical( relativeVelocity ).Length;
+		return direction * MathF.Max( 0, MathF.Min( boostSpeed, remainingSpeed ) );
 	}
 
 	void UpdateEyeTransform()

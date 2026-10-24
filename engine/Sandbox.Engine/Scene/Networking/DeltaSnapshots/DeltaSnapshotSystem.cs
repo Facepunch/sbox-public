@@ -1031,7 +1031,7 @@ internal class DeltaSnapshotSystem
 		_connectionSet++;
 	}
 
-	private readonly List<(IDeltaSnapshot Source, LocalSnapshotState Local)> _pending = new();
+	private readonly List<(IDeltaSnapshot Source, LocalSnapshotState Local, uint Revision)> _pending = new();
 	private readonly List<int> _cleanCounts = new();
 	private readonly List<LocalSnapshotState.Entry> _needed = new();
 	private ushort _nextClusterId;
@@ -1047,10 +1047,24 @@ internal class DeltaSnapshotSystem
 
 		foreach ( var nwo in objects )
 		{
+			var revision = nwo.DirtyRevision;
+			nwo.IsFullyUpdated = false;
+
 			// Don't send updates about objects we don't own. The host can always send updates though
 			// because there may be FromHost sync vars.
 			if ( nwo.IsProxy && !Networking.IsHost )
+			{
+				nwo.IsFullyUpdated = true;
 				continue;
+			}
+
+			if ( connections.Length == 0 )
+			{
+				// Discard reliable collection deltas even without recipients: future peers get a full baseline.
+				nwo.SendNetworkUpdate( true );
+				nwo.IsFullyUpdated = revision == nwo.DirtyRevision;
+				continue;
+			}
 
 			var isAnyVisible = nwo.UpdateTransmitState( connections );
 
@@ -1068,10 +1082,13 @@ internal class DeltaSnapshotSystem
 
 			// Do we even need to send this to anybody?
 			if ( local.AckedByConnections == _connectionSet || local.Size == 0 )
+			{
+				nwo.IsFullyUpdated = revision == nwo.DirtyRevision;
 				continue;
+			}
 
 			AssignNetIndex( local );
-			_pending.Add( (nwo, local) );
+			_pending.Add( (nwo, local, revision) );
 			_cleanCounts.Add( 0 );
 		}
 
@@ -1098,7 +1115,10 @@ internal class DeltaSnapshotSystem
 
 		for ( var i = 0; i < _pending.Count; i++ )
 		{
-			_pending[i].Local.AckedByConnections = _cleanCounts[i] == connections.Length ? _connectionSet : -1;
+			var (source, local, revision) = _pending[i];
+			var isFullyUpdated = _cleanCounts[i] == connections.Length;
+			local.AckedByConnections = isFullyUpdated ? _connectionSet : -1;
+			source.IsFullyUpdated = isFullyUpdated && revision == source.DirtyRevision;
 		}
 	}
 
@@ -1119,7 +1139,7 @@ internal class DeltaSnapshotSystem
 		{
 			for ( var i = 0; i < _pending.Count; i++ )
 			{
-				var (source, local) = _pending[i];
+				var (source, local, _) = _pending[i];
 
 				// Culled for this connection: nothing to send and nothing to wait for
 				if ( !source.ShouldTransmit( connection ) )

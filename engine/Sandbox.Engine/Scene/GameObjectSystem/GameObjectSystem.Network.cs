@@ -26,6 +26,7 @@ public abstract partial class GameObjectSystem : IDeltaSnapshot
 	}
 
 	bool IDeltaSnapshot.IsProxy => !Networking.IsHost;
+	bool IDeltaSnapshot.IsFullyUpdated { get; set; }
 	bool IDeltaSnapshot.ShouldTransmit( Connection target ) => true;
 	bool IDeltaSnapshot.UpdateTransmitState( Connection[] targets ) => true;
 	ushort IDeltaSnapshot.SnapshotVersion => 0;
@@ -209,6 +210,11 @@ public abstract partial class GameObjectSystem : IDeltaSnapshot
 
 		RegisterSyncVarProperties();
 	}
+
+	/// <summary>
+	/// Whether this system has sync properties, and so anything to snapshot.
+	/// </summary>
+	internal bool HasSyncProperties => !dataTable.IsEmpty;
 
 	internal readonly LocalSnapshotState LocalSnapshotState = new();
 

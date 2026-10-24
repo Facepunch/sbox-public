@@ -71,6 +71,7 @@ internal class ToolsDll : IToolsDll
 	public void OnRender()
 	{
 		SceneRenderingWidget.RenderAll();
+		PanelSurfaceWidget.RenderAll();
 	}
 
 	public bool ConsoleFocus()

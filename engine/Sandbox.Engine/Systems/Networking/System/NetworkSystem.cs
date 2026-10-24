@@ -372,6 +372,7 @@ internal partial class NetworkSystem
 		}
 
 		Connection.Local.State = Connection.ChannelState.Unconnected;
+		Sandbox.Diagnostics.DevTools.NetworkLog.Session( "Ended: left", Connection.Local, ends: true );
 
 		log.Trace( "Disconnect" );
 		IsDisconnected = true;
