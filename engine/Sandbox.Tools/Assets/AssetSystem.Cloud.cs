@@ -135,16 +135,22 @@ public static partial class AssetSystem
 				if ( config is null || config.EditorReferences is null )
 					continue;
 
-				int count = config.EditorReferences.RemoveAll( fromPackage.IsNamed );
+				var references = config.EditorReferences.Where( x => !fromPackage.IsNamed( x ) ).ToList();
+				if ( references.Count == config.EditorReferences.Count )
+					continue;
 
-				if ( count > 0 )
-				{
-					if ( newIdent != null && !config.EditorReferences.Contains( newIdent ) )
-						config.EditorReferences.Add( newIdent );
+				if ( newIdent != null && !references.Contains( newIdent ) )
+					references.Add( newIdent );
 
-					config.EditorReferences = config.EditorReferences.OrderBy( x => x ).ToList();
-					asset.MetaData.Set( "publish", asset.Publishing );
-				}
+				references = references.OrderBy( x => x ).ToList();
+
+				// Reinstalling the same revision swaps a reference for itself. Rewriting the meta then changes nothing
+				// but its write time, which everything watching or caching meta files has to treat as a change.
+				if ( references.SequenceEqual( config.EditorReferences ) )
+					continue;
+
+				config.EditorReferences = references;
+				asset.MetaData.Set( "publish", asset.Publishing );
 			}
 			else if ( typeof( GameResource ).IsAssignableFrom( asset.AssetType.ResourceType ) && asset.LoadResource() is GameResource gameResource )
 			{
@@ -160,18 +166,21 @@ public static partial class AssetSystem
 				if ( jso["__references"] is not JsonArray references )
 					continue;
 
-				var newReferences = references.Select( x => x.ToString() ).ToList();
-				int count = newReferences.RemoveAll( fromPackage.IsNamed );
+				var oldReferences = references.Select( x => x.ToString() ).ToList();
+				var newReferences = oldReferences.Where( x => !fromPackage.IsNamed( x ) ).ToList();
+				if ( newReferences.Count == oldReferences.Count )
+					continue;
 
-				if ( count > 0 )
-				{
-					if ( newIdent != null && !newReferences.Contains( newIdent ) )
-						newReferences.Add( newIdent );
+				if ( newIdent != null && !newReferences.Contains( newIdent ) )
+					newReferences.Add( newIdent );
 
-					jso["__references"] = JsonValue.Create( newReferences.OrderBy( x => x ) );
+				newReferences = newReferences.OrderBy( x => x ).ToList();
+				if ( newReferences.SequenceEqual( oldReferences ) )
+					continue;
 
-					gameResource.SaveToDisk( filename, jso.ToJsonString( Json.options ) );
-				}
+				jso["__references"] = JsonValue.Create( newReferences );
+
+				gameResource.SaveToDisk( filename, jso.ToJsonString( Json.options ) );
 			}
 		}
 	}
