@@ -15,6 +15,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 	public bool Filtered { get; set; } = false;
 	public bool Additive { get; set; } = false;
 	public bool Opaque { get; set; } = false;
+	public Material Material { get; set; }
 
 	internal Dictionary<Guid, SpriteRenderer> Components = new();
 
@@ -657,7 +658,9 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 			attributes.Set( "g_bNonDirectionalDiffuseLighting", true );
 			if ( _renderHasText ) GpuFontText.Bind( attributes, _renderFrame );
 
-			Graphics.DrawIndexedInstanced( (GpuBuffer)IndexBuffer, SpriteMaterial, _renderInstanceCount, attributes );
+			var material = Material.IsValid() ? Material : SpriteMaterial;
+
+			Graphics.DrawIndexedInstanced( (GpuBuffer)IndexBuffer, material, _renderInstanceCount, attributes );
 		}
 		finally
 		{
