@@ -98,26 +98,23 @@ namespace Editor
 
 		}
 
-		internal unsafe Native.QObject[] GetChildren()
+		internal int GetChildrenCount()
 		{
 			if ( !_object.IsValid )
+				return 0;
+
+			return WidgetUtil.GetChildrenCount( _object );
+		}
+
+		/// <summary>
+		/// Copies the native child pointers into <paramref name="buffer"/>, sized from <see cref="GetChildrenCount"/>.
+		/// </summary>
+		internal unsafe void GetChildren( Span<Native.QObject> buffer )
+		{
+			fixed ( Native.QObject* ptr = buffer )
 			{
-				return Array.Empty<Native.QObject>();
+				WidgetUtil.GetChildren( _object, ptr, buffer.Length );
 			}
-
-			var c = WidgetUtil.GetChildrenCount( _object );
-
-			if ( c <= 0 )
-				return Array.Empty<Native.QObject>();
-
-			var list = new Native.QObject[c];
-
-			fixed ( Native.QObject* ptr = list )
-			{
-				WidgetUtil.GetChildren( _object, ptr, list.Length );
-			}
-
-			return list;
 		}
 
 		static internal QObject FindOrCreate( Native.QObject obj )
